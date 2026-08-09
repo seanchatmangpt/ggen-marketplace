@@ -1,0 +1,32 @@
+# MESSAGE: every execution declares one admitted reversibility class; snapshot/compensation semantics must carry their required recovery object; any row is a refusal.
+PREFIX cci: <https://ggen.dev/consequence-ir#>
+SELECT ?execution ?violation WHERE {
+  ?execution a cci:Execution .
+  {
+    FILTER NOT EXISTS {
+      ?execution cci:hasReversibility ?mode .
+      VALUES ?mode {
+        cci:REVERSIBLE
+        cci:REVERSIBLE_WITH_SNAPSHOT
+        cci:COMPENSATABLE
+        cci:IRREVERSIBLE
+        cci:REVERSIBILITY_UNSUPPORTED
+        cci:REVERSIBILITY_UNKNOWN
+      }
+    }
+    BIND("REVERSIBILITY_REQUIRED" AS ?violation)
+  }
+  UNION
+  {
+    ?execution cci:hasReversibility cci:REVERSIBLE_WITH_SNAPSHOT .
+    FILTER NOT EXISTS { ?execution cci:snapshotReceipt ?snapshot . ?snapshot a cci:Receipt . }
+    BIND("SNAPSHOT_RECEIPT_REQUIRED" AS ?violation)
+  }
+  UNION
+  {
+    ?execution cci:hasReversibility cci:COMPENSATABLE .
+    FILTER NOT EXISTS { ?execution cci:compensationPlan ?plan . ?plan a cci:Plan . }
+    BIND("COMPENSATION_PLAN_REQUIRED" AS ?violation)
+  }
+}
+ORDER BY ?execution ?violation
