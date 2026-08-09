@@ -1,0 +1,23 @@
+# MESSAGE: replay must re-enter through an authorized DO execution and preserve the receipt-bound intent; any row is a refusal.
+PREFIX cci: <https://ggen.dev/consequence-ir#>
+SELECT ?execution ?violation WHERE {
+  ?execution a cci:Execution ; cci:replayOf ?receipt .
+  {
+    FILTER NOT EXISTS { ?receipt a cci:Receipt . }
+    BIND("REPLAY_RECEIPT_REQUIRED" AS ?violation)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS {
+      ?receipt cci:bindsIntent ?intent .
+      ?execution cci:executesIntent ?intent .
+    }
+    BIND("REPLAY_INTENT_MISMATCH" AS ?violation)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?execution cci:hasPhase cci:DO ; cci:requiresAuthority ?grant . ?grant a cci:AuthorityGrant . }
+    BIND("REPLAY_AUTHORIZED_DO_REQUIRED" AS ?violation)
+  }
+}
+ORDER BY ?execution ?violation
