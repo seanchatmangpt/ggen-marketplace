@@ -180,58 +180,61 @@ def inspect_marketplace() -> tuple[list[Pack], list[str]]:
                 raw_version = table.get("version")
                 raw_description = table.get("description")
                 if not isinstance(raw_name, str) or not raw_name.strip():
-                    issues.append(refusal("PACK_NAME_MISSING", directory.name))
+                    issues.append(refusal("PACK_NAME", directory.name))
                 else:
-                    name = raw_name.strip()
+                    name = raw_name
                     if name != directory.name:
-                        issues.append(refusal("PACK_NAME_PATH_MISMATCH", f"{directory.name}:{name}"))
+                        issues.append(refusal("PACK_DIRECTORY_IDENTITY", f"directory={directory.name},name={name}"))
                     if name in seen:
-                        issues.append(refusal("PACK_NAME_DUPLICATE", name))
+                        issues.append(refusal("DUPLICATE_PACK_NAME", name))
                     seen.add(name)
-
-                if not isinstance(raw_version, str) or not SEMVER.fullmatch(raw_version.strip()):
-                    issues.append(refusal("PACK_VERSION_INVALID", f"{directory.name}:{raw_version!r}"))
+                if not isinstance(raw_version, str) or not SEMVER.fullmatch(raw_version):
+                    issues.append(refusal("PACK_VERSION_SEMVER", f"{directory.name}:{raw_version!r}"))
                 else:
-                    version = raw_version.strip()
-
+                    version = raw_version
                 if not isinstance(raw_description, str) or not raw_description.strip():
-                    issues.append(refusal("PACK_DESCRIPTION_MISSING", directory.name))
+                    issues.append(refusal("PACK_DESCRIPTION", directory.name))
                 else:
                     description = raw_description.strip()
 
-        files = visible_files(directory)
         ontologies = ontology_files(directory)
-        templates = tuple(path for path in files if path.suffix in TEMPLATE_SUFFIXES)
-        native_gates = tuple(
-            path
-            for path in files
-            if path.suffix in GATE_SOURCE_SUFFIXES and "gate" in path.as_posix().lower()
-        )
-        verifier_gates = tuple(
-            path
-            for path in native_gates
-            if path.suffix == ".py"
-        )
+        if not ontologies:
+            issues.append(refusal("ONTOLOGY_SOURCE_MISSING", directory.name))
 
-        if name is not None and version is not None and description is not None:
-            packs.append(
-                Pack(
-                    name=name,
-                    version=version,
-                    description=description,
-                    path=directory,
-                    ontologies=ontologies,
-                    templates=templates,
-                    native_gates=native_gates,
-                    verifier_gates=verifier_gates,
-                )
-            )
+        templates = visible_files(directory / "templates")
+        for path in templates:
+            if not path.name.endswith(TEMPLATE_SUFFIXES):
+                issues.append(refusal("TEMPLATE_EXTENSION", path.relative_to(ROOT).as_posix()))
+
+        native_gates: tuple[Path, ...] = ()
+        verifier_gates: tuple[Path, ...] = ()
+        gates_dir = directory / "gates"
+        if gates_dir.exists():
+            if not gates_dir.is_dir():
+                issues.append(refusal("GATES_NOT_DIRECTORY", directory.name))
+            else:
+                gate_sources = visible_files(gates_dir)
+                for path in gate_sources:
+                    if path.suffix not in GATE_SOURCE_SUFFIXES:
+                        issues.append(refusal("GATE_SOURCE_EXTENSION", path.relative_to(ROOT).as_posix()))
+                native_gates = tuple(path for path in gate_sources if path.suffix == ".rq")
+                verifier_gates = tuple(path for path in gate_sources if path.suffix == ".py")
+
+        if name is not None and version is not None and description is not None and ontologies:
+            packs.append(Pack(name, version, description, directory, ontologies, templates, native_gates, verifier_gates))
 
     for relative in REQUIRED_DOCS:
-        if not (ROOT / relative).is_file():
-            issues.append(refusal("DIATAXIS_PAGE_MISSING", relative))
+        path = ROOT / relative
+        if not path.is_file():
+            issues.append(refusal("DIATAXIS_DOCUMENT_MISSING", relative))
+            continue
+        try:
+            if not path.read_text(encoding="utf-8").strip():
+                issues.append(refusal("DIATAXIS_DOCUMENT_EMPTY", relative))
+        except (OSError, UnicodeError) as exc:
+            issues.append(refusal("DIATAXIS_DOCUMENT_INVALID", f"{relative}:{exc}"))
 
-    return packs, issues
+    return packs, sorted(set(issues))
 
 
 def require_admitted() -> list[Pack]:
@@ -243,75 +246,41 @@ def require_admitted() -> list[Pack]:
     return packs
 
 
-def catalog(packs: list[Pack]) -> dict[str, Any]:
-    return {
-        "pack_count": len(packs),
-        "packs": [pack.catalog_record() for pack in packs],
-        "schema": "https://ggen.dev/marketplace/catalog/v1",
-    }
-
-
-def marketplace_files() -> tuple[Path, ...]:
-    return tuple(
-        sorted(
-            (
-                path
-                for path in ROOT.rglob("*")
-                if path.is_file()
-                and ".git" not in path.relative_to(ROOT).parts
-                and not any(part == "__pycache__" for part in path.relative_to(ROOT).parts)
-            ),
-            key=lambda path: path.relative_to(ROOT).as_posix(),
-        )
-    )
-
-
-def command_validate() -> int:
+def validate() -> int:
     packs = require_admitted()
-    profiles = {
-        profile: sum(pack.profile == profile for pack in packs)
-        for profile in ("project", "projection", "semantic")
-    }
+    profile_counts = {profile: sum(pack.profile == profile for pack in packs) for profile in ("projection", "semantic", "project")}
     print(
-        "validated "
-        f"packs={len(packs)} "
-        f"manifests={len(packs)} "
+        f"validated packs={len(packs)} manifests={len(packs)} "
         f"ontologies={sum(len(pack.ontologies) for pack in packs)} "
         f"templates={sum(len(pack.templates) for pack in packs)} "
         f"native_gates={sum(len(pack.native_gates) for pack in packs)} "
         f"verifier_gates={sum(len(pack.verifier_gates) for pack in packs)} "
-        f"profiles={json.dumps(profiles, sort_keys=True, separators=(',', ':'))} "
+        f"profiles={json.dumps(profile_counts, sort_keys=True, separators=(',', ':'))} "
         f"diataxis={len(REQUIRED_DOCS)}"
     )
     return 0
 
 
-def command_catalog() -> int:
-    print(json.dumps(catalog(require_admitted()), indent=2, sort_keys=True))
+def catalog() -> int:
+    packs = require_admitted()
+    payload = {"schema": "https://ggen.dev/marketplace/catalog/v1", "packs": [pack.catalog_record() for pack in packs]}
+    json.dump(payload, sys.stdout, indent=2, sort_keys=True, ensure_ascii=False)
+    sys.stdout.write("\n")
     return 0
 
 
-def command_fingerprint() -> int:
-    files = marketplace_files()
+def fingerprint() -> int:
+    require_admitted()
+    files = tuple(path for path in PACKS.rglob("*") if path.is_file())
     print(f"sha256:{fingerprint_paths(files, ROOT)} files={len(files)}")
     return 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    subparsers = parser.add_subparsers(dest="command", required=True)
-    subparsers.add_parser("validate")
-    subparsers.add_parser("catalog")
-    subparsers.add_parser("fingerprint")
+    parser.add_argument("command", choices=("validate", "catalog", "fingerprint"))
     args = parser.parse_args()
-
-    if args.command == "validate":
-        return command_validate()
-    if args.command == "catalog":
-        return command_catalog()
-    if args.command == "fingerprint":
-        return command_fingerprint()
-    raise AssertionError(args.command)
+    return {"validate": validate, "catalog": catalog, "fingerprint": fingerprint}[args.command]()
 
 
 if __name__ == "__main__":
