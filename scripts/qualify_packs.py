@@ -165,12 +165,21 @@ def generic_ggen_toml(pack: Pack, include_pack: bool) -> str:
     lines = [
         "[project]",
         f'name = "marketplace-qualification-{pack.name}"',
-        'version = "0.0.0"',
-        "",
-        "[ontology]",
-        'source = "ontology.ttl"',
-        "",
     ]
+    # ggen v26.8.8 uses a frontmatter-style consumer schema for local pack
+    # imports. Adding project.version alongside [packs] makes that subject
+    # structurally ambiguous. Semantic/no-pack capsules use the declarative
+    # schema and therefore carry the required explicit project version.
+    if not include_pack:
+        lines.append('version = "0.0.0"')
+    lines.extend(
+        (
+            "",
+            "[ontology]",
+            'source = "ontology.ttl"',
+            "",
+        )
+    )
     if include_pack:
         pack_path = pack.path.resolve().as_posix().replace('"', '\\"')
         lines.extend(("[packs]", f'"{pack.name}" = {{ path = "{pack_path}" }}', ""))
