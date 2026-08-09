@@ -1,0 +1,89 @@
+# MESSAGE: Cyberpunk TV SHACL scalar constraint failed.
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX tv: <https://ggen.dev/ontology/cyberpunk-tv#>
+
+SELECT ?focus ?predicate ?value ?constraint WHERE {
+  {
+    VALUES (?class ?predicate) {
+      (tv:Platform tv:title)
+      (tv:Platform tv:subtitle)
+      (tv:Capability tv:capabilityId)
+      (tv:Mode tv:modeId)
+      (tv:Projection tv:projectionId)
+      (tv:DeviceProfile tv:deviceId)
+      (tv:DeviceProfile tv:runtimeKind)
+      (tv:WatchSession tv:sessionId)
+      (tv:EscrowProposal tv:constructText)
+      (tv:EscrowProposal tv:proposalDigest)
+      (tv:ReceiptPolicy tv:standing)
+    }
+    ?focus a ?class ; ?predicate ?value .
+    FILTER(datatype(?value) != xsd:string)
+    BIND("datatype=xsd:string" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:Capability ; tv:capabilityId ?value .
+    BIND(tv:capabilityId AS ?predicate)
+    FILTER(STRLEN(STR(?value)) < 2)
+    BIND("minLength=2" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:Projection ; tv:projectionKind ?value .
+    BIND(tv:projectionKind AS ?predicate)
+    FILTER(STR(?value) != "deck.gl" && STR(?value) != "mermaid" && STR(?value) != "unrdf")
+    BIND("in=deck.gl|mermaid|unrdf" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:WorldNode ; tv:longitude ?value .
+    BIND(tv:longitude AS ?predicate)
+    FILTER(?value < -180 || ?value > 180)
+    BIND("range=[-180,180]" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:WorldNode ; tv:latitude ?value .
+    BIND(tv:latitude AS ?predicate)
+    FILTER(?value < -90 || ?value > 90)
+    BIND("range=[-90,90]" AS ?constraint)
+  }
+  UNION {
+    VALUES (?class ?predicate) {
+      (tv:WorldNode tv:weight)
+      (tv:WorldEdge tv:weight)
+      (tv:Motion tv:quorumRequired)
+    }
+    ?focus a ?class ; ?predicate ?value .
+    FILTER(?value < 1)
+    BIND("minInclusive=1" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:WatchSession ; tv:sessionState ?value .
+    BIND(tv:sessionState AS ?predicate)
+    FILTER(STR(?value) != "scheduled" && STR(?value) != "ready" && STR(?value) != "playing" && STR(?value) != "paused" && STR(?value) != "completed" && STR(?value) != "refused")
+    BIND("in=scheduled|ready|playing|paused|completed|refused" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:WatchSession ; tv:driftToleranceMillis ?value .
+    BIND(tv:driftToleranceMillis AS ?predicate)
+    FILTER(?value < 0 || ?value > 5000)
+    BIND("range=[0,5000]" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:Motion ; tv:motionState ?value .
+    BIND(tv:motionState AS ?predicate)
+    FILTER(STR(?value) != "introduced" && STR(?value) != "seconded" && STR(?value) != "debating" && STR(?value) != "amended" && STR(?value) != "voting" && STR(?value) != "adopted" && STR(?value) != "defeated" && STR(?value) != "adjourned")
+    BIND("motionState admitted enumeration" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:EscrowProposal ; tv:constructText ?value .
+    BIND(tv:constructText AS ?predicate)
+    FILTER(!REGEX(STR(?value), "^CONSTRUCT", "i"))
+    BIND("pattern=^CONSTRUCT/i" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:ReceiptPolicy ; tv:receiptAlgorithm ?value .
+    BIND(tv:receiptAlgorithm AS ?predicate)
+    FILTER(STR(?value) != "blake3-256")
+    BIND("hasValue=blake3-256" AS ?constraint)
+  }
+}
+ORDER BY ?focus ?predicate ?constraint
