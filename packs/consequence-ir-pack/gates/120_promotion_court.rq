@@ -1,0 +1,25 @@
+# MESSAGE: cognition-to-determinism promotion requires repeated ALIVE evidence, a falsifier, and an explicit promoted artifact; any row is a refusal.
+PREFIX cci: <https://ggen.dev/consequence-ir#>
+SELECT ?promotion ?violation WHERE {
+  ?promotion a cci:Promotion .
+  {
+    FILTER NOT EXISTS {
+      ?promotion cci:promotionEvidence ?r1, ?r2 .
+      FILTER (?r1 != ?r2)
+      ?r1 a cci:Receipt ; cci:standing cci:ALIVE .
+      ?r2 a cci:Receipt ; cci:standing cci:ALIVE .
+    }
+    BIND("REPEATED_ALIVE_EVIDENCE_REQUIRED" AS ?violation)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?promotion cci:promotionFalsifier ?f . ?f a cci:Falsifier . }
+    BIND("PROMOTION_FALSIFIER_REQUIRED" AS ?violation)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?promotion cci:promotedArtifact ?artifact . ?artifact a cci:Artifact . }
+    BIND("PROMOTED_ARTIFACT_REQUIRED" AS ?violation)
+  }
+}
+ORDER BY ?promotion ?violation
