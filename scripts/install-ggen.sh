@@ -1,34 +1,57 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly GGEN_VERSION="v26.8.8"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+config_json="${1:-${GGEN_MARKETPLACE_ADMITTED_CONFIG:-}}"
+if [[ -z "${config_json}" ]]; then
+  config_json="$(bash "${root}/scripts/admit-config.sh")"
+fi
 
-case "$(uname -s)/$(uname -m)" in
-  Linux/x86_64)
-    asset="ggen-x86_64-unknown-linux-gnu.tar.gz"
-    expected_sha256="c651d873c2aeb6bd71c3d5356634f0b3f4adafd2454ee354c817a7079c2ea802"
-    ;;
-  Linux/aarch64|Linux/arm64)
-    asset="ggen-aarch64-unknown-linux-gnu.tar.gz"
-    expected_sha256="c39d883b43aa6c635f5a490b7c203a1aaa6499e0df14b5d82d9dc4a26b8d22f6"
-    ;;
-  Darwin/arm64|Darwin/aarch64)
-    asset="ggen-aarch64-apple-darwin.tar.gz"
-    expected_sha256="673c1b5e1aecc13fd848141e62ef6b2bb5b54f0eb653866826caa01e80aea3df"
-    ;;
-  Darwin/x86_64)
-    asset="ggen-x86_64-apple-darwin.tar.gz"
-    expected_sha256="a4304371ce787e7bfe479fdba050960cdb8761fc9ca3d272da6bd7e64af08570"
-    ;;
-  *)
-    printf 'REFUSED:UNSUPPORTED_GGEN_PLATFORM:%s/%s\n' "$(uname -s)" "$(uname -m)" >&2
-    exit 2
-    ;;
-esac
+platform="$(uname -s)/$(uname -m)"
+mapfile -t values < <(python3 - "${config_json}" "${platform}" <<'PY'
+import json
+import sys
+from pathlib import Path
 
-readonly asset expected_sha256
-readonly url="https://github.com/seanchatmangpt/ggen/releases/download/${GGEN_VERSION}/${asset}"
-readonly cache_root="${GGEN_MARKETPLACE_CACHE_DIR:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ggen-marketplace-${GGEN_VERSION}}"
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+if payload.get("q_config") != 1 or payload.get("standing") != "ADMITTED":
+    raise SystemExit("REFUSED:MARKETPLACE_CONFIG_NOT_ADMITTED")
+platforms = {
+    "Linux/x86_64": "linux_x86_64",
+    "Linux/aarch64": "linux_aarch64",
+    "Linux/arm64": "linux_aarch64",
+    "Darwin/arm64": "darwin_aarch64",
+    "Darwin/aarch64": "darwin_aarch64",
+    "Darwin/x86_64": "darwin_x86_64",
+}
+key = platforms.get(sys.argv[2])
+if key is None:
+    raise SystemExit(f"REFUSED:UNSUPPORTED_GGEN_PLATFORM:{sys.argv[2]}")
+ggen = payload["config"]["ggen"]
+asset = ggen["assets"][key]
+print(ggen["repository"])
+print(ggen["version"])
+print(asset["archive"])
+print(asset["sha256"])
+PY
+)
+
+if [[ "${#values[@]}" -ne 4 ]]; then
+  echo "REFUSED:MARKETPLACE_CONFIG_INSTALLER_PROJECTION" >&2
+  exit 2
+fi
+
+readonly repository="${values[0]}"
+readonly version="${values[1]}"
+readonly asset="${values[2]}"
+readonly expected_sha256="${values[3]}"
+if [[ ! "${expected_sha256}" =~ ^[0-9a-f]{64}$ ]]; then
+  echo "REFUSED:GGEN_ASSET_DIGEST_INVALID:${expected_sha256}" >&2
+  exit 2
+fi
+
+readonly url="https://github.com/${repository}/releases/download/${version}/${asset}"
+readonly cache_root="${GGEN_MARKETPLACE_CACHE_DIR:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ggen-marketplace-${version}}"
 readonly archive="${cache_root}/${asset}"
 readonly marker="${cache_root}/asset.sha256"
 readonly bin="${cache_root}/ggen"
