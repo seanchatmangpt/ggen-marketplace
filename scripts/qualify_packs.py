@@ -15,8 +15,9 @@ A pack that needs positive consumer facts owns them under ``qualification/``:
 
 Semantic-only packs are qualified as RDF+gate capabilities rather than being
 misrepresented as template packs: their ontology files are loaded directly
-into a throwaway ggen project and their native SPARQL gates are attached to
-that project.
+into a throwaway declarative ggen project, their native SPARQL gates are
+attached to that project, and a tiny ggen rule materializes the graph-load
+probe.
 """
 
 from __future__ import annotations
@@ -40,13 +41,16 @@ from marketplace import Pack, fingerprint_paths, require_admitted
 DEFAULT_TIMEOUT_SECONDS = 5.0
 DEFAULT_WORKERS = 8
 IGNORED_RUNTIME_ROOTS = frozenset({".git", ".ggen", ".ggen-v2", ".cache", "target"})
-PROBE_TEMPLATE = """---
+FRONTMATTER_PROBE_TEMPLATE = """---
 to: "qualification/marketplace-probe.txt"
 sparql:
   row: |
     SELECT (COUNT(*) AS ?triple_count) WHERE { ?s ?p ?o }
 ---
 {{ row[0].triple_count }}
+"""
+DECLARATIVE_PROBE_QUERY = "SELECT ?s WHERE { ?s ?p ?o } ORDER BY ?s LIMIT 1\n"
+DECLARATIVE_PROBE_TEMPLATE = """{% for row in sparql_results %}loaded{% endfor %}
 """
 
 
@@ -168,25 +172,37 @@ def generic_ggen_toml(pack: Pack, include_pack: bool) -> str:
     ]
     # ggen v26.8.8 uses a frontmatter-style consumer schema for local pack
     # imports. Adding project.version alongside [packs] makes that subject
-    # structurally ambiguous. Semantic/no-pack capsules use the declarative
-    # schema and therefore carry the required explicit project version.
+    # structurally ambiguous. Semantic/no-pack capsules use an explicit
+    # declarative generation rule and therefore carry project.version.
     if not include_pack:
         lines.append('version = "0.0.0"')
-    lines.extend(
-        (
-            "",
-            "[ontology]",
-            'source = "ontology.ttl"',
-            "",
-        )
-    )
+    lines.extend(("", "[ontology]", 'source = "ontology.ttl"', ""))
     if include_pack:
         pack_path = pack.path.resolve().as_posix().replace('"', '\\"')
         lines.extend(("[packs]", f'"{pack.name}" = {{ path = "{pack_path}" }}', ""))
-    elif pack.native_gates:
+        lines.extend(("[templates]", 'dir = "templates"', ""))
+        return "\n".join(lines)
+
+    if pack.native_gates:
         gate_values = ", ".join(json.dumps(path.resolve().as_posix()) for path in pack.native_gates)
         lines.extend(("[validation]", f"gates = [{gate_values}]", ""))
-    lines.extend(("[templates]", 'dir = "templates"', ""))
+    lines.extend(
+        (
+            "[generation]",
+            'output_dir = "generated/"',
+            "",
+            "[[generation.rules]]",
+            'name = "marketplace-qualification-probe"',
+            'query = { file = "queries/qualification.rq" }',
+            'template = { file = "templates/marketplace-probe.txt.tera" }',
+            'output_file = "qualification/marketplace-probe.txt"',
+            'mode = "Overwrite"',
+            "",
+            "[templates]",
+            'dir = "templates"',
+            "",
+        )
+    )
     return "\n".join(lines)
 
 
@@ -206,7 +222,17 @@ def write_generic_consumer(pack: Pack, consumer: Path) -> None:
     else:
         sources = qualification_consumer_rdf(pack)
     (consumer / "ontology.ttl").write_text(combine_rdf(sources, probe_fact), encoding="utf-8")
-    (consumer / "templates" / "marketplace-probe.txt.tmpl").write_text(PROBE_TEMPLATE, encoding="utf-8")
+
+    if is_semantic:
+        (consumer / "queries").mkdir()
+        (consumer / "queries" / "qualification.rq").write_text(DECLARATIVE_PROBE_QUERY, encoding="utf-8")
+        (consumer / "templates" / "marketplace-probe.txt.tera").write_text(
+            DECLARATIVE_PROBE_TEMPLATE, encoding="utf-8"
+        )
+    else:
+        (consumer / "templates" / "marketplace-probe.txt.tmpl").write_text(
+            FRONTMATTER_PROBE_TEMPLATE, encoding="utf-8"
+        )
 
 
 def overlay_project_qualification(pack: Pack, consumer: Path) -> None:
