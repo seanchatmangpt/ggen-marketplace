@@ -27,7 +27,7 @@ from marketplace import Pack, fingerprint_paths, require_admitted
 
 DEFAULT_TIMEOUT_SECONDS = 5.0
 DEFAULT_WORKERS = 8
-IGNORED_RUNTIME_ROOTS = frozenset({".git", ".ggen", ".cache", "target"})
+IGNORED_RUNTIME_ROOTS = frozenset({".git", ".ggen", ".ggen-v2", ".cache", "target"})
 PROBE_TEMPLATE = """---
 to: "qualification/marketplace-probe.txt"
 sparql:
@@ -94,6 +94,7 @@ def terminate_process_group(process: subprocess.Popen[str]) -> None:
 
 def run_bounded(command: list[str], cwd: Path, timeout_seconds: float) -> CommandResult:
     env = os.environ.copy()
+    original_home = env.get("HOME", str(Path.home()))
     home = cwd / ".qualification-home"
     home.mkdir(exist_ok=True)
     env.update(
@@ -102,6 +103,10 @@ def run_bounded(command: list[str], cwd: Path, timeout_seconds: float) -> Comman
             "XDG_CACHE_HOME": str(home / ".cache"),
             "XDG_CONFIG_HOME": str(home / ".config"),
             "XDG_DATA_HOME": str(home / ".local" / "share"),
+            # Keep the admitted runner toolchain visible even though general
+            # HOME/cache state is isolated per pack.
+            "RUSTUP_HOME": env.get("RUSTUP_HOME", str(Path(original_home) / ".rustup")),
+            "CARGO_HOME": env.get("CARGO_HOME", str(Path(original_home) / ".cargo")),
         }
     )
     process = subprocess.Popen(
