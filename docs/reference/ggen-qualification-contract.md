@@ -2,7 +2,7 @@
 
 The marketplace has two distinct acceptance layers.
 
-`python3 scripts/marketplace.py validate` establishes structural/catalog admission. `python3 scripts/qualify_packs.py` establishes bounded runtime qualification through the real ggen manufacturer.
+`python3 scripts/marketplace.py validate` establishes structural/catalog admission. `python3 scripts/qualify_packs.py` establishes bounded manufacture/replay qualification through the real ggen runtime.
 
 ## Runtime identity
 
@@ -12,33 +12,85 @@ Supported installer targets are Linux x86_64, Linux aarch64, macOS arm64, and ma
 
 ## Subject selection
 
-The qualification subject is exactly the list returned by `require_admitted()` from `scripts/marketplace.py`. There is no second pack inventory.
+The qualification subject is exactly the list returned by `require_admitted()` from `scripts/marketplace.py`. There is no second pack inventory and no pack-name exception table.
 
-Derived pack profiles determine the capsule shape:
+The derived pack profile determines the capsule shape:
 
-- `projection` — isolated consumer with the pack path plus a graph-load probe;
-- `semantic` — the same isolated consumer/probe, proving RDF can be loaded even without pack templates;
-- `project` — byte-for-byte temporary copy of the pack executed through its own `ggen.toml`.
+- `projection` — create an isolated consumer, reference the marketplace pack through ggen's local `[packs]` contract, add a graph-load probe, and union only pack-owned positive consumer facts/extra ontologies;
+- `semantic` — create an isolated **declarative** ggen project, load the pack's native ontology files directly, attach its native SPARQL gates, and manufacture a tiny probe through an explicit generation rule;
+- `project` — copy the complete pack byte-for-byte into an isolated project capsule, then overlay only pack-owned `qualification/project/**` positive inputs before running that pack's own `ggen.toml`.
+
+## Pack-owned qualification inputs
+
+A capability that requires consumer facts owns the positive qualification specimen. The generic court does not learn its pack name.
+
+Recognized surfaces are:
+
+- `qualification/consumer.ttl` — one positive RDF consumer fixture;
+- `qualification/consumer/*.ttl` — multiple positive RDF fixtures, loaded in lexical order;
+- `qualification/project/**` — files overlaid into the temporary copy of a project-profile pack;
+- `qualification.toml` — optional consumer contract.
+
+The current `qualification.toml` contract is:
+
+```toml
+[consumer]
+extra_ontologies = ["bodies.ttl"]
+```
+
+Every `extra_ontologies` path must be relative, remain inside its pack, and identify an existing file. Absolute paths, `..` traversal, missing files, malformed TOML, or malformed tables refuse as `REFUSED:QUALIFICATION_CONTRACT_INVALID`.
+
+Qualification fixtures are **synthetic admitted inputs**, not observations that an external event occurred. A fixture can prove that a pack's compiler/gate surface accepts a bounded positive subject; it cannot become an execution receipt, customer consequence, benchmark result, cloud observation, or authority grant.
 
 ## Per-pack law
 
-For each admitted pack `p`, qualification requires:
+For every admitted pack `p`, qualification requires:
 
 ```text
 source_digest_before(p)
-→ ggen sync run
+→ isolated consumer capsule(p)
+→ bounded ggen sync run
 → consequence_1
-→ ggen sync run
+→ bounded ggen sync run
 → consequence_2
 → consequence_1 == consequence_2
 → source_digest_after(p) == source_digest_before(p)
 ```
 
-Each ggen pass has a hard ceiling of five seconds. The CLI refuses a requested timeout above five seconds. Pack runs are isolated and may execute concurrently; concurrency does not relax any individual bound.
+Each ggen pass has a hard ceiling of five seconds. The CLI refuses a requested timeout above five seconds. Pack runs are isolated and may execute concurrently; concurrency never relaxes the individual five-second bound.
 
-Runtime metadata roots `.git`, `.ggen`, `.cache`, and `target` are excluded from consequence comparison. Canonical input and manufactured non-runtime files remain in the snapshot, so a second sync that rewrites a source or consequence is visible.
+The runner uses a fresh HOME/XDG state per pack while preserving only the admitted Rust toolchain locations through `RUSTUP_HOME` and `CARGO_HOME` when ggen-owned formatting requires them.
 
-Projection and semantic packs must additionally produce `qualification/marketplace-probe.txt`. The probe contains only a SPARQL graph-count projection; it exists to demonstrate that ggen loaded an RDF graph containing the selected pack.
+Runtime-only roots excluded from consequence comparison are:
+
+- `.git`
+- `.ggen`
+- `.ggen-v2`
+- `.cache`
+- `.qualification-home`
+- `target`
+
+Canonical source and all manufactured non-runtime files remain in the snapshot. A second sync that rewrites a source or consequence is therefore visible.
+
+Projection and semantic packs must additionally materialize `qualification/marketplace-probe.txt`. The probe is deliberately trivial; its purpose is to demonstrate that the real ggen runtime loaded the selected graph and completed manufacture, not to promote the graph's claims to external truth.
+
+## Repository-level law
+
+The permanent GitHub qualification rail additionally requires:
+
+1. checkout of `pull_request.head.sha` rather than GitHub's synthetic merge commit;
+2. mechanical `git rev-parse HEAD == admitted SHA` assertion;
+3. complete structural + Diátaxis validation;
+4. two deterministic catalog projections with byte comparison;
+5. admitted-corpus fingerprinting;
+6. digest-pinned ggen installation;
+7. complete all-pack qualification;
+8. a clean `git status --porcelain --untracked-files=all` after qualification;
+9. absence of the one-shot migration actuator.
+
+The job sets `PYTHONDONTWRITEBYTECODE=1`. This prevents the verifier itself from leaving Python bytecode in the admitted source tree; the source-mutation guard remains strict rather than learning to ignore arbitrary untracked files.
+
+Permanent CI has `contents: read`. Temporary diagnostic or projection-synchronization workflows are not part of the final marketplace architecture and must be removed after their bounded purpose is complete.
 
 ## Report
 
@@ -48,18 +100,18 @@ With `--report PATH`, the court emits deterministic-shape JSON using schema:
 https://ggen.dev/marketplace/qualification/v1
 ```
 
-Each pack record binds name, version, profile, status, source digest, and, on success, consequence file count plus consequence digest. Failed records carry a typed refusal code and diagnostic detail.
+Each pack record binds name, version, profile, status, source digest and, on success, consequence file count plus consequence digest. Failed records carry a typed refusal code and diagnostic detail.
 
 Timing measurements are intentionally absent from the report so scheduler noise does not become marketplace state.
 
 ## Refusals
 
-The court fails closed on missing ggen, invalid timeout/worker bounds, ggen version invocation failure, pack timeout, ggen sync failure, missing probe, nondeterministic replay, or canonical-source mutation.
+The court fails closed on missing ggen, invalid timeout/worker bounds, ggen version invocation failure, malformed qualification contract, pack timeout, ggen sync failure, missing probe, nondeterministic replay, or canonical-source mutation.
 
-The complete run exits nonzero when any admitted pack refuses.
+The complete run exits nonzero when **any** admitted pack refuses. There is no partial-success exit that can masquerade as complete marketplace standing.
 
 ## Authority boundary
 
-The court exercises ggen's filesystem manufacturer only. It does **not** execute manufactured artifacts or external actuators. Pack-owned Python verifier gates are source admitted by the marketplace but are not automatically executed by this generic court because arbitrary verifier execution is a different authority/sandbox boundary.
+The court exercises ggen's bounded filesystem manufacturer only. It does **not** execute manufactured applications, Terraform, GitHub Actions emitted by packs, MCP calls, cloud APIs, pack-owned arbitrary Python verifier gates, or other external actuators.
 
-Therefore all-pack ggen qualification can establish pack manufacture/replay standing at an exact head, but cannot establish external-system consequence, customer acceptance, benchmark SOTA, cloud authority, or BRCE DO standing.
+Therefore exact-head all-pack qualification may establish deterministic pack load/manufacture/replay standing for the admitted marketplace subject. It cannot establish generated-program runtime correctness, external-system consequence, customer acceptance, benchmark SOTA, cloud authority, physical-world consequence, organizational acceptance, or BRCE DO standing.
