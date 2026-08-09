@@ -1,0 +1,56 @@
+name: Registry projection witness
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  witness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Assert exact subject identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$expected" || {
+            echo "::error title=REFUSED:EXACT_HEAD_MISMATCH::actual=$actual expected=$expected"
+            exit 2
+          }
+
+      - name: Manufacture registry aggregate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd packs/autofde-semantic-registry-pack
+          python3 gates/build_aggregate.py
+          changed="$(git status --short -- ontology.ttl)"
+          test -n "$changed" || {
+            echo "::error title=REFUSED:REGISTRY_PROJECTION_WITNESS_EMPTY::generator produced no drift to synchronize"
+            exit 2
+          }
+          unexpected="$(git status --short -- . ':!ontology.ttl')"
+          test -z "$unexpected" || {
+            echo "::error title=REFUSED:REGISTRY_PROJECTION_SIDE_EFFECT::$unexpected"
+            exit 2
+          }
+          sha256sum ontology.ttl
+
+      - name: Upload exact manufactured projection
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: autofde-semantic-registry-ontology
+          path: packs/autofde-semantic-registry-pack/ontology.ttl
+          if-no-files-found: error
+          retention-days: 1
