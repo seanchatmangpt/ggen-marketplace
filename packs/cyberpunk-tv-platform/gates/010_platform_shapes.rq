@@ -1,5 +1,4 @@
 # MESSAGE: Cyberpunk TV semantic authority violates the platform admission shapes compiled from ontology/platform-shapes.ttl.
-PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 PREFIX dct: <http://purl.org/dc/terms/>
 PREFIX schema: <https://schema.org/>
@@ -25,8 +24,11 @@ SELECT ?focus ?constraint WHERE {
     BIND("Platform.subtitle exact string" AS ?constraint)
   }
   UNION {
-    { SELECT ?focus WHERE { ?focus a tv:Platform . OPTIONAL { ?focus tv:hasMode ?v } }
-      GROUP BY ?focus HAVING(COUNT(DISTINCT ?v) < 6) }
+    ?focus a tv:Platform .
+    FILTER NOT EXISTS {
+      ?focus tv:hasMode ?m1, ?m2, ?m3, ?m4, ?m5, ?m6 .
+      FILTER(STR(?m1) < STR(?m2) && STR(?m2) < STR(?m3) && STR(?m3) < STR(?m4) && STR(?m4) < STR(?m5) && STR(?m5) < STR(?m6))
+    }
     BIND("Platform.hasMode minCount 6" AS ?constraint)
   }
   UNION {
@@ -35,8 +37,11 @@ SELECT ?focus ?constraint WHERE {
     BIND("Platform.hasMode class Mode" AS ?constraint)
   }
   UNION {
-    { SELECT ?focus WHERE { ?focus a tv:Platform . OPTIONAL { ?focus tv:hasProjection ?v } }
-      GROUP BY ?focus HAVING(COUNT(DISTINCT ?v) < 3) }
+    ?focus a tv:Platform .
+    FILTER NOT EXISTS {
+      ?focus tv:hasProjection ?p1, ?p2, ?p3 .
+      FILTER(STR(?p1) < STR(?p2) && STR(?p2) < STR(?p3))
+    }
     BIND("Platform.hasProjection minCount 3" AS ?constraint)
   }
   UNION {
@@ -99,7 +104,10 @@ SELECT ?focus ?constraint WHERE {
     FILTER (
       NOT EXISTS { ?focus tv:projectionKind ?kind } ||
       EXISTS { ?focus tv:projectionKind ?a, ?b . FILTER(?a != ?b) } ||
-      EXISTS { ?focus tv:projectionKind ?kind . FILTER(STR(?kind) NOT IN ("deck.gl", "mermaid", "unrdf")) }
+      EXISTS {
+        ?focus tv:projectionKind ?kind .
+        FILTER(STR(?kind) != "deck.gl" && STR(?kind) != "mermaid" && STR(?kind) != "unrdf")
+      }
     )
     BIND("Projection.projectionKind admitted value" AS ?constraint)
   }
@@ -127,8 +135,11 @@ SELECT ?focus ?constraint WHERE {
     BIND("DeviceProfile.runtimeKind exact string" AS ?constraint)
   }
   UNION {
-    { SELECT ?focus WHERE { ?focus a tv:DeviceProfile . OPTIONAL { ?focus tv:hasCapability ?v } }
-      GROUP BY ?focus HAVING(COUNT(DISTINCT ?v) < 3) }
+    ?focus a tv:DeviceProfile .
+    FILTER NOT EXISTS {
+      ?focus tv:hasCapability ?c1, ?c2, ?c3 .
+      FILTER(STR(?c1) < STR(?c2) && STR(?c2) < STR(?c3))
+    }
     BIND("DeviceProfile.hasCapability minCount 3" AS ?constraint)
   }
   UNION {
@@ -207,7 +218,10 @@ SELECT ?focus ?constraint WHERE {
     FILTER (
       NOT EXISTS { ?focus tv:sessionState ?state } ||
       EXISTS { ?focus tv:sessionState ?a, ?b . FILTER(?a != ?b) } ||
-      EXISTS { ?focus tv:sessionState ?state . FILTER(STR(?state) NOT IN ("scheduled", "ready", "playing", "paused", "completed", "refused")) }
+      EXISTS {
+        ?focus tv:sessionState ?state .
+        FILTER(STR(?state) != "scheduled" && STR(?state) != "ready" && STR(?state) != "playing" && STR(?state) != "paused" && STR(?state) != "completed" && STR(?state) != "refused")
+      }
     )
     BIND("WatchSession.sessionState admitted value" AS ?constraint)
   }
@@ -240,7 +254,10 @@ SELECT ?focus ?constraint WHERE {
     FILTER (
       NOT EXISTS { ?focus tv:motionState ?state } ||
       EXISTS { ?focus tv:motionState ?a, ?b . FILTER(?a != ?b) } ||
-      EXISTS { ?focus tv:motionState ?state . FILTER(STR(?state) NOT IN ("introduced", "seconded", "debating", "amended", "voting", "adopted", "defeated", "adjourned")) }
+      EXISTS {
+        ?focus tv:motionState ?state .
+        FILTER(STR(?state) != "introduced" && STR(?state) != "seconded" && STR(?state) != "debating" && STR(?state) != "amended" && STR(?state) != "voting" && STR(?state) != "adopted" && STR(?state) != "defeated" && STR(?state) != "adjourned")
+      }
     )
     BIND("Motion.motionState admitted value" AS ?constraint)
   }
@@ -254,8 +271,11 @@ SELECT ?focus ?constraint WHERE {
     BIND("Motion.quorumRequired >=1 exact one" AS ?constraint)
   }
   UNION {
-    { SELECT ?focus WHERE { ?focus a tv:Motion . OPTIONAL { ?focus tv:hasProposal ?v } }
-      GROUP BY ?focus HAVING(COUNT(DISTINCT ?v) < 2) }
+    ?focus a tv:Motion .
+    FILTER NOT EXISTS {
+      ?focus tv:hasProposal ?p1, ?p2 .
+      FILTER(STR(?p1) < STR(?p2))
+    }
     BIND("Motion.hasProposal minCount 2" AS ?constraint)
   }
   UNION {
