@@ -47,10 +47,6 @@ REQUIRED_DOCS = (
 )
 
 
-class Refusal(RuntimeError):
-    pass
-
-
 @dataclass(frozen=True)
 class Pack:
     name: str
@@ -77,8 +73,8 @@ class Pack:
         }
 
 
-def refuse(code: str, detail: str) -> None:
-    raise Refusal(f"REFUSED:{code}:{detail}")
+def refusal(code: str, detail: str) -> str:
+    return f"REFUSED:{code}:{detail}"
 
 
 def sha256_file(path: Path) -> str:
@@ -89,109 +85,151 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def reject_symlinks() -> None:
-    if not PACKS.is_dir():
-        refuse("PACKS_DIRECTORY_MISSING", "packs")
-    for path in sorted(PACKS.rglob("*"), key=lambda item: item.as_posix()):
-        if path.is_symlink():
-            refuse("PACK_SYMLINK", path.relative_to(ROOT).as_posix())
-
-
-def load_packs() -> list[Pack]:
-    reject_symlinks()
-    directories = sorted((p for p in PACKS.iterdir() if p.is_dir()), key=lambda p: p.name)
-    if not directories:
-        refuse("EMPTY_MARKETPLACE", "packs")
-
+def inspect_marketplace() -> tuple[list[Pack], list[str]]:
+    issues: list[str] = []
     packs: list[Pack] = []
     seen: set[str] = set()
+
+    if not PACKS.is_dir():
+        return [], [refusal("PACKS_DIRECTORY_MISSING", "packs")]
+
+    for path in sorted(PACKS.rglob("*"), key=lambda item: item.as_posix()):
+        if path.is_symlink():
+            issues.append(refusal("PACK_SYMLINK", path.relative_to(ROOT).as_posix()))
+
+    directories = sorted((p for p in PACKS.iterdir() if p.is_dir()), key=lambda p: p.name)
+    if not directories:
+        issues.append(refusal("EMPTY_MARKETPLACE", "packs"))
+
     for directory in directories:
         manifest = directory / "pack.toml"
         ontology = directory / "ontology.ttl"
         templates_dir = directory / "templates"
         gates_dir = directory / "gates"
 
+        document: dict[str, Any] | None = None
         if not manifest.is_file():
-            refuse("MANIFEST_MISSING", directory.name)
-        try:
-            document = tomllib.loads(manifest.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, tomllib.TOMLDecodeError) as exc:
-            refuse("MANIFEST_INVALID", f"{directory.name}:{exc}")
+            issues.append(refusal("MANIFEST_MISSING", directory.name))
+        else:
+            try:
+                parsed = tomllib.loads(manifest.read_text(encoding="utf-8"))
+                if isinstance(parsed, dict):
+                    document = parsed
+            except (OSError, UnicodeError, tomllib.TOMLDecodeError) as exc:
+                issues.append(refusal("MANIFEST_INVALID", f"{directory.name}:{exc}"))
 
-        if set(document) != {"pack"} or not isinstance(document.get("pack"), dict):
-            refuse("MANIFEST_SHAPE", directory.name)
-        table = document["pack"]
-        name = table.get("name")
-        version = table.get("version")
-        description = table.get("description")
-        if not isinstance(name, str) or not name.strip():
-            refuse("PACK_NAME", directory.name)
-        if name != directory.name:
-            refuse("PACK_DIRECTORY_IDENTITY", f"directory={directory.name},name={name}")
-        if name in seen:
-            refuse("DUPLICATE_PACK_NAME", name)
-        seen.add(name)
-        if not isinstance(version, str) or not SEMVER.fullmatch(version):
-            refuse("PACK_VERSION_SEMVER", f"{name}:{version!r}")
-        if not isinstance(description, str) or not description.strip():
-            refuse("PACK_DESCRIPTION", name)
+        name: str | None = None
+        version: str | None = None
+        description: str | None = None
+        if document is not None:
+            if set(document) != {"pack"} or not isinstance(document.get("pack"), dict):
+                issues.append(refusal("MANIFEST_SHAPE", directory.name))
+            else:
+                table = document["pack"]
+                raw_name = table.get("name")
+                raw_version = table.get("version")
+                raw_description = table.get("description")
+
+                if not isinstance(raw_name, str) or not raw_name.strip():
+                    issues.append(refusal("PACK_NAME", directory.name))
+                else:
+                    name = raw_name
+                    if name != directory.name:
+                        issues.append(
+                            refusal(
+                                "PACK_DIRECTORY_IDENTITY",
+                                f"directory={directory.name},name={name}",
+                            )
+                        )
+                    if name in seen:
+                        issues.append(refusal("DUPLICATE_PACK_NAME", name))
+                    seen.add(name)
+
+                if not isinstance(raw_version, str) or not SEMVER.fullmatch(raw_version):
+                    issues.append(refusal("PACK_VERSION_SEMVER", f"{directory.name}:{raw_version!r}"))
+                else:
+                    version = raw_version
+
+                if not isinstance(raw_description, str) or not raw_description.strip():
+                    issues.append(refusal("PACK_DESCRIPTION", directory.name))
+                else:
+                    description = raw_description.strip()
+
         if not ontology.is_file():
-            refuse("ONTOLOGY_MISSING", name)
+            issues.append(refusal("ONTOLOGY_MISSING", directory.name))
+
+        templates: tuple[Path, ...] = ()
         if not templates_dir.is_dir():
-            refuse("TEMPLATES_DIRECTORY_MISSING", name)
-        templates = tuple(
-            sorted(
-                (p for p in templates_dir.rglob("*") if p.is_file()),
-                key=lambda p: p.relative_to(directory).as_posix(),
+            issues.append(refusal("TEMPLATES_DIRECTORY_MISSING", directory.name))
+        else:
+            templates = tuple(
+                sorted(
+                    (p for p in templates_dir.rglob("*") if p.is_file()),
+                    key=lambda p: p.relative_to(directory).as_posix(),
+                )
             )
-        )
-        if not templates:
-            refuse("TEMPLATE_MISSING", name)
-        invalid_templates = [p for p in templates if not p.name.endswith(".tmpl")]
-        if invalid_templates:
-            refuse("TEMPLATE_EXTENSION", invalid_templates[0].relative_to(ROOT).as_posix())
+            if not templates:
+                issues.append(refusal("TEMPLATE_MISSING", directory.name))
+            for path in templates:
+                if not path.name.endswith(".tmpl"):
+                    issues.append(refusal("TEMPLATE_EXTENSION", path.relative_to(ROOT).as_posix()))
 
         native_gates: tuple[Path, ...] = ()
         verifier_gates: tuple[Path, ...] = ()
         if gates_dir.exists():
             if not gates_dir.is_dir():
-                refuse("GATES_NOT_DIRECTORY", name)
-            gate_sources = tuple(
-                sorted(
-                    (p for p in gates_dir.rglob("*") if p.is_file()),
-                    key=lambda p: p.relative_to(directory).as_posix(),
+                issues.append(refusal("GATES_NOT_DIRECTORY", directory.name))
+            else:
+                gate_sources = tuple(
+                    sorted(
+                        (p for p in gates_dir.rglob("*") if p.is_file()),
+                        key=lambda p: p.relative_to(directory).as_posix(),
+                    )
+                )
+                for path in gate_sources:
+                    if path.suffix not in GATE_SOURCE_SUFFIXES:
+                        issues.append(refusal("GATE_SOURCE_EXTENSION", path.relative_to(ROOT).as_posix()))
+                native_gates = tuple(p for p in gate_sources if p.suffix == ".rq")
+                verifier_gates = tuple(p for p in gate_sources if p.suffix == ".py")
+
+        if name is not None and version is not None and description is not None and ontology.is_file() and templates:
+            packs.append(
+                Pack(
+                    name,
+                    version,
+                    description,
+                    directory,
+                    templates,
+                    native_gates,
+                    verifier_gates,
                 )
             )
-            invalid_gates = [p for p in gate_sources if p.suffix not in GATE_SOURCE_SUFFIXES]
-            if invalid_gates:
-                refuse("GATE_SOURCE_EXTENSION", invalid_gates[0].relative_to(ROOT).as_posix())
-            native_gates = tuple(p for p in gate_sources if p.suffix == ".rq")
-            verifier_gates = tuple(p for p in gate_sources if p.suffix == ".py")
 
-        packs.append(
-            Pack(
-                name,
-                version,
-                description.strip(),
-                directory,
-                templates,
-                native_gates,
-                verifier_gates,
-            )
-        )
+    for relative in REQUIRED_DOCS:
+        path = ROOT / relative
+        if not path.is_file():
+            issues.append(refusal("DIATAXIS_DOCUMENT_MISSING", relative))
+            continue
+        try:
+            if not path.read_text(encoding="utf-8").strip():
+                issues.append(refusal("DIATAXIS_DOCUMENT_EMPTY", relative))
+        except (OSError, UnicodeError) as exc:
+            issues.append(refusal("DIATAXIS_DOCUMENT_INVALID", f"{relative}:{exc}"))
+
+    return packs, sorted(set(issues))
+
+
+def require_admitted() -> list[Pack]:
+    packs, issues = inspect_marketplace()
+    if issues:
+        for issue in issues:
+            print(issue, file=sys.stderr)
+        raise SystemExit(2)
     return packs
 
 
-def validate_docs() -> None:
-    for relative in REQUIRED_DOCS:
-        path = ROOT / relative
-        if not path.is_file() or not path.read_text(encoding="utf-8").strip():
-            refuse("DIATAXIS_DOCUMENT_MISSING", relative)
-
-
 def validate() -> int:
-    packs = load_packs()
-    validate_docs()
+    packs = require_admitted()
     template_count = sum(len(pack.templates) for pack in packs)
     native_gate_count = sum(len(pack.native_gates) for pack in packs)
     verifier_gate_count = sum(len(pack.verifier_gates) for pack in packs)
@@ -204,7 +242,7 @@ def validate() -> int:
 
 
 def catalog() -> int:
-    packs = load_packs()
+    packs = require_admitted()
     payload = {
         "schema": "https://ggen.dev/marketplace/catalog/v1",
         "packs": [pack.catalog_record() for pack in packs],
@@ -215,9 +253,12 @@ def catalog() -> int:
 
 
 def fingerprint() -> int:
-    load_packs()  # fingerprint only admitted structure
+    require_admitted()
     digest = hashlib.sha256()
-    files = sorted((p for p in PACKS.rglob("*") if p.is_file()), key=lambda p: p.relative_to(ROOT).as_posix())
+    files = sorted(
+        (p for p in PACKS.rglob("*") if p.is_file()),
+        key=lambda p: p.relative_to(ROOT).as_posix(),
+    )
     for path in files:
         relative = path.relative_to(ROOT).as_posix().encode("utf-8")
         data = path.read_bytes()
@@ -233,11 +274,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("validate", "catalog", "fingerprint"))
     args = parser.parse_args()
-    try:
-        return {"validate": validate, "catalog": catalog, "fingerprint": fingerprint}[args.command]()
-    except Refusal as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
+    return {"validate": validate, "catalog": catalog, "fingerprint": fingerprint}[args.command]()
 
 
 if __name__ == "__main__":
