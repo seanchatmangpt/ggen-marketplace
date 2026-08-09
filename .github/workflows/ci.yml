@@ -53,5 +53,28 @@ jobs:
       - name: Fingerprint admitted corpus
         run: python scripts/marketplace.py fingerprint
 
+      - name: Install digest-pinned ggen
+        shell: bash
+        run: |
+          set -euo pipefail
+          ggen_bin="$(bash scripts/install-ggen.sh)"
+          echo "GGEN_BIN=$ggen_bin" >> "$GITHUB_ENV"
+          "$ggen_bin" --version
+
+      - name: Qualify every admitted pack through ggen
+        run: |
+          python scripts/qualify_packs.py --report /tmp/ggen-marketplace-qualification.json
+          python -m json.tool /tmp/ggen-marketplace-qualification.json >/dev/null
+
+      - name: Refuse qualification source mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git status --porcelain --untracked-files=all)"
+          if [[ -n "$changed" ]]; then
+            echo "::error title=REFUSED:QUALIFICATION_MUTATED_SUBJECT::$changed"
+            exit 2
+          fi
+
       - name: Refuse migration actuator
         run: test ! -e .github/workflows/one-shot-import.yml
