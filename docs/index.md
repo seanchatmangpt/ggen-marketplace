@@ -16,6 +16,7 @@ Use these when you already know what you want to accomplish.
 - [Publish a pack](how-to/publish-a-pack.md)
 - [Update a pack](how-to/update-a-pack.md)
 - [Validate locally](how-to/validate-locally.md)
+- [Qualify every pack with ggen](how-to/qualify-all-packs.md)
 - [Consume a pack](how-to/consume-a-pack.md)
 - [Migrate a pack](how-to/migrate-a-pack.md)
 
@@ -27,6 +28,7 @@ Use these for exact contracts, commands, and evidence boundaries.
 - [Pack contract](reference/pack-contract.md)
 - [Catalog command](reference/catalog-command.md)
 - [Validation contract](reference/validation-contract.md)
+- [ggen qualification contract](reference/ggen-qualification-contract.md)
 - [Provenance](reference/provenance.md)
 - [Standing](reference/standing.md)
 
