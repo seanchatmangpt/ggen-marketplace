@@ -1,0 +1,302 @@
+# MESSAGE: Cyberpunk TV semantic authority violates the platform admission shapes compiled from ontology/platform-shapes.ttl.
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX dct: <http://purl.org/dc/terms/>
+PREFIX schema: <https://schema.org/>
+PREFIX tv: <https://ggen.dev/ontology/cyberpunk-tv#>
+
+SELECT ?focus ?constraint WHERE {
+  {
+    ?focus a tv:Platform .
+    FILTER (
+      NOT EXISTS { ?focus tv:title ?title } ||
+      EXISTS { ?focus tv:title ?a, ?b . FILTER(?a != ?b) } ||
+      EXISTS { ?focus tv:title ?title . FILTER(datatype(?title) != xsd:string) }
+    )
+    BIND("Platform.title exact string" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:Platform .
+    FILTER (
+      NOT EXISTS { ?focus tv:subtitle ?subtitle } ||
+      EXISTS { ?focus tv:subtitle ?a, ?b . FILTER(?a != ?b) } ||
+      EXISTS { ?focus tv:subtitle ?subtitle . FILTER(datatype(?subtitle) != xsd:string) }
+    )
+    BIND("Platform.subtitle exact string" AS ?constraint)
+  }
+  UNION {
+    { SELECT ?focus WHERE { ?focus a tv:Platform . OPTIONAL { ?focus tv:hasMode ?v } }
+      GROUP BY ?focus HAVING(COUNT(DISTINCT ?v) < 6) }
+    BIND("Platform.hasMode minCount 6" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:Platform ; tv:hasMode ?value .
+    FILTER NOT EXISTS { ?value a tv:Mode }
+    BIND("Platform.hasMode class Mode" AS ?constraint)
+  }
+  UNION {
+    { SELECT ?focus WHERE { ?focus a tv:Platform . OPTIONAL { ?focus tv:hasProjection ?v } }
+      GROUP BY ?focus HAVING(COUNT(DISTINCT ?v) < 3) }
+    BIND("Platform.hasProjection minCount 3" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:Platform ; tv:hasProjection ?value .
+    FILTER NOT EXISTS { ?value a tv:Projection }
+    BIND("Platform.hasProjection class Projection" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:Platform .
+    FILTER NOT EXISTS { ?focus tv:hasRuntimeBody ?value . ?value a tv:RuntimeBody }
+    BIND("Platform.hasRuntimeBody RuntimeBody" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:Platform .
+    FILTER NOT EXISTS { ?focus tv:receiptedBy ?value . ?value a tv:ReceiptPolicy }
+    BIND("Platform.receiptedBy ReceiptPolicy" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:Capability .
+    FILTER (
+      NOT EXISTS { ?focus tv:capabilityId ?id } ||
+      EXISTS { ?focus tv:capabilityId ?a, ?b . FILTER(?a != ?b) } ||
+      EXISTS { ?focus tv:capabilityId ?id . FILTER(datatype(?id) != xsd:string || STRLEN(STR(?id)) < 2) }
+    )
+    BIND("Capability.capabilityId exact string minLength 2" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:Mode .
+    FILTER (
+      NOT EXISTS { ?focus tv:modeId ?id } ||
+      EXISTS { ?focus tv:modeId ?a, ?b . FILTER(?a != ?b) } ||
+      EXISTS { ?focus tv:modeId ?id . FILTER(datatype(?id) != xsd:string) }
+    )
+    BIND("Mode.modeId exact string" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:Mode .
+    FILTER (
+      NOT EXISTS { ?focus tv:nextMode ?value . ?value a tv:Mode } ||
+      EXISTS { ?focus tv:nextMode ?a, ?b . FILTER(?a != ?b) }
+    )
+    BIND("Mode.nextMode exact Mode" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:Mode .
+    FILTER NOT EXISTS { ?focus tv:requiresCapability ?value . ?value a tv:Capability }
+    BIND("Mode.requiresCapability Capability" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:Projection .
+    FILTER (
+      NOT EXISTS { ?focus tv:projectionId ?id } ||
+      EXISTS { ?focus tv:projectionId ?a, ?b . FILTER(?a != ?b) } ||
+      EXISTS { ?focus tv:projectionId ?id . FILTER(datatype(?id) != xsd:string) }
+    )
+    BIND("Projection.projectionId exact string" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:Projection .
+    FILTER (
+      NOT EXISTS { ?focus tv:projectionKind ?kind } ||
+      EXISTS { ?focus tv:projectionKind ?a, ?b . FILTER(?a != ?b) } ||
+      EXISTS { ?focus tv:projectionKind ?kind . FILTER(STR(?kind) NOT IN ("deck.gl", "mermaid", "unrdf")) }
+    )
+    BIND("Projection.projectionKind admitted value" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:Projection .
+    FILTER NOT EXISTS { ?focus tv:requiresCapability ?value . ?value a tv:Capability }
+    BIND("Projection.requiresCapability Capability" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:DeviceProfile .
+    FILTER (
+      NOT EXISTS { ?focus tv:deviceId ?id } ||
+      EXISTS { ?focus tv:deviceId ?a, ?b . FILTER(?a != ?b) } ||
+      EXISTS { ?focus tv:deviceId ?id . FILTER(datatype(?id) != xsd:string) }
+    )
+    BIND("DeviceProfile.deviceId exact string" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:DeviceProfile .
+    FILTER (
+      NOT EXISTS { ?focus tv:runtimeKind ?kind } ||
+      EXISTS { ?focus tv:runtimeKind ?a, ?b . FILTER(?a != ?b) } ||
+      EXISTS { ?focus tv:runtimeKind ?kind . FILTER(datatype(?kind) != xsd:string) }
+    )
+    BIND("DeviceProfile.runtimeKind exact string" AS ?constraint)
+  }
+  UNION {
+    { SELECT ?focus WHERE { ?focus a tv:DeviceProfile . OPTIONAL { ?focus tv:hasCapability ?v } }
+      GROUP BY ?focus HAVING(COUNT(DISTINCT ?v) < 3) }
+    BIND("DeviceProfile.hasCapability minCount 3" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:DeviceProfile ; tv:hasCapability ?value .
+    FILTER NOT EXISTS { ?value a tv:Capability }
+    BIND("DeviceProfile.hasCapability class Capability" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:WorldNode .
+    FILTER (NOT EXISTS { ?focus schema:name ?name } || EXISTS { ?focus schema:name ?a, ?b . FILTER(?a != ?b) })
+    BIND("WorldNode schema:name exact one" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:WorldNode .
+    FILTER (
+      NOT EXISTS { ?focus tv:longitude ?v } ||
+      EXISTS { ?focus tv:longitude ?a, ?b . FILTER(?a != ?b) } ||
+      EXISTS { ?focus tv:longitude ?v . FILTER(?v < -180 || ?v > 180) }
+    )
+    BIND("WorldNode.longitude [-180,180] exact one" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:WorldNode .
+    FILTER (
+      NOT EXISTS { ?focus tv:latitude ?v } ||
+      EXISTS { ?focus tv:latitude ?a, ?b . FILTER(?a != ?b) } ||
+      EXISTS { ?focus tv:latitude ?v . FILTER(?v < -90 || ?v > 90) }
+    )
+    BIND("WorldNode.latitude [-90,90] exact one" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:WorldNode .
+    FILTER (
+      NOT EXISTS { ?focus tv:weight ?v } ||
+      EXISTS { ?focus tv:weight ?a, ?b . FILTER(?a != ?b) } ||
+      EXISTS { ?focus tv:weight ?v . FILTER(?v < 1) }
+    )
+    BIND("WorldNode.weight >=1 exact one" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:WorldEdge .
+    FILTER (
+      NOT EXISTS { ?focus tv:sourceNode ?value . ?value a tv:WorldNode } ||
+      EXISTS { ?focus tv:sourceNode ?a, ?b . FILTER(?a != ?b) }
+    )
+    BIND("WorldEdge.sourceNode exact WorldNode" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:WorldEdge .
+    FILTER (
+      NOT EXISTS { ?focus tv:targetNode ?value . ?value a tv:WorldNode } ||
+      EXISTS { ?focus tv:targetNode ?a, ?b . FILTER(?a != ?b) }
+    )
+    BIND("WorldEdge.targetNode exact WorldNode" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:WorldEdge .
+    FILTER (
+      NOT EXISTS { ?focus tv:weight ?v } ||
+      EXISTS { ?focus tv:weight ?a, ?b . FILTER(?a != ?b) } ||
+      EXISTS { ?focus tv:weight ?v . FILTER(?v < 1) }
+    )
+    BIND("WorldEdge.weight >=1 exact one" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:WatchSession .
+    FILTER (
+      NOT EXISTS { ?focus tv:sessionId ?id } ||
+      EXISTS { ?focus tv:sessionId ?a, ?b . FILTER(?a != ?b) } ||
+      EXISTS { ?focus tv:sessionId ?id . FILTER(datatype(?id) != xsd:string) }
+    )
+    BIND("WatchSession.sessionId exact string" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:WatchSession .
+    FILTER (
+      NOT EXISTS { ?focus tv:sessionState ?state } ||
+      EXISTS { ?focus tv:sessionState ?a, ?b . FILTER(?a != ?b) } ||
+      EXISTS { ?focus tv:sessionState ?state . FILTER(STR(?state) NOT IN ("scheduled", "ready", "playing", "paused", "completed", "refused")) }
+    )
+    BIND("WatchSession.sessionState admitted value" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:WatchSession .
+    FILTER (
+      NOT EXISTS { ?focus tv:driftToleranceMillis ?v } ||
+      EXISTS { ?focus tv:driftToleranceMillis ?a, ?b . FILTER(?a != ?b) } ||
+      EXISTS { ?focus tv:driftToleranceMillis ?v . FILTER(?v < 0 || ?v > 5000) }
+    )
+    BIND("WatchSession.driftToleranceMillis [0,5000] exact one" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:WatchSession .
+    FILTER NOT EXISTS { ?focus tv:hasMediaBinding ?value . ?value a tv:MediaBinding }
+    BIND("WatchSession.hasMediaBinding MediaBinding" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:WatchSession .
+    FILTER NOT EXISTS { ?focus tv:receiptedBy ?value . ?value a tv:ReceiptPolicy }
+    BIND("WatchSession.receiptedBy ReceiptPolicy" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:Motion .
+    FILTER (NOT EXISTS { ?focus dct:title ?title } || EXISTS { ?focus dct:title ?a, ?b . FILTER(?a != ?b) })
+    BIND("Motion dct:title exact one" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:Motion .
+    FILTER (
+      NOT EXISTS { ?focus tv:motionState ?state } ||
+      EXISTS { ?focus tv:motionState ?a, ?b . FILTER(?a != ?b) } ||
+      EXISTS { ?focus tv:motionState ?state . FILTER(STR(?state) NOT IN ("introduced", "seconded", "debating", "amended", "voting", "adopted", "defeated", "adjourned")) }
+    )
+    BIND("Motion.motionState admitted value" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:Motion .
+    FILTER (
+      NOT EXISTS { ?focus tv:quorumRequired ?v } ||
+      EXISTS { ?focus tv:quorumRequired ?a, ?b . FILTER(?a != ?b) } ||
+      EXISTS { ?focus tv:quorumRequired ?v . FILTER(?v < 1) }
+    )
+    BIND("Motion.quorumRequired >=1 exact one" AS ?constraint)
+  }
+  UNION {
+    { SELECT ?focus WHERE { ?focus a tv:Motion . OPTIONAL { ?focus tv:hasProposal ?v } }
+      GROUP BY ?focus HAVING(COUNT(DISTINCT ?v) < 2) }
+    BIND("Motion.hasProposal minCount 2" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:Motion ; tv:hasProposal ?value .
+    FILTER NOT EXISTS { ?value a tv:EscrowProposal }
+    BIND("Motion.hasProposal class EscrowProposal" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:EscrowProposal .
+    FILTER (
+      NOT EXISTS { ?focus tv:constructText ?text } ||
+      EXISTS { ?focus tv:constructText ?a, ?b . FILTER(?a != ?b) } ||
+      EXISTS { ?focus tv:constructText ?text . FILTER(datatype(?text) != xsd:string || !REGEX(STR(?text), "^CONSTRUCT", "i")) }
+    )
+    BIND("EscrowProposal.constructText exact CONSTRUCT string" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:EscrowProposal .
+    FILTER (
+      NOT EXISTS { ?focus tv:proposalDigest ?digest } ||
+      EXISTS { ?focus tv:proposalDigest ?a, ?b . FILTER(?a != ?b) } ||
+      EXISTS { ?focus tv:proposalDigest ?digest . FILTER(datatype(?digest) != xsd:string) }
+    )
+    BIND("EscrowProposal.proposalDigest exact string" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:ReceiptPolicy .
+    FILTER (
+      NOT EXISTS { ?focus tv:receiptAlgorithm "blake3-256" } ||
+      EXISTS { ?focus tv:receiptAlgorithm ?a, ?b . FILTER(?a != ?b) }
+    )
+    BIND("ReceiptPolicy.receiptAlgorithm exact blake3-256" AS ?constraint)
+  }
+  UNION {
+    ?focus a tv:ReceiptPolicy .
+    FILTER (
+      NOT EXISTS { ?focus tv:standing ?standing } ||
+      EXISTS { ?focus tv:standing ?a, ?b . FILTER(?a != ?b) } ||
+      EXISTS { ?focus tv:standing ?standing . FILTER(datatype(?standing) != xsd:string) }
+    )
+    BIND("ReceiptPolicy.standing exact string" AS ?constraint)
+  }
+}
+ORDER BY ?focus ?constraint
