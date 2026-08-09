@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  marketplace:
+    name: Exact-head marketplace qualification
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Assert exact subject identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          actual="$(git rev-parse HEAD)"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "::error title=REFUSED:EXACT_HEAD_MISMATCH::actual=$actual expected=$expected"
+            exit 2
+          fi
+          echo "exact_head=$actual"
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Validate marketplace and Diátaxis
+        run: python scripts/marketplace.py validate
+
+      - name: Prove deterministic catalog projection
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/marketplace.py catalog > /tmp/catalog-a.json
+          python scripts/marketplace.py catalog > /tmp/catalog-b.json
+          cmp /tmp/catalog-a.json /tmp/catalog-b.json
+          python -m json.tool /tmp/catalog-a.json >/dev/null
+
+      - name: Fingerprint admitted corpus
+        run: python scripts/marketplace.py fingerprint
+
+      - name: Refuse migration actuator
+        run: test ! -e .github/workflows/one-shot-import.yml
