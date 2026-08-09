@@ -115,8 +115,6 @@ def run_bounded(command: list[str], cwd: Path, timeout_seconds: float) -> Comman
             "XDG_CACHE_HOME": str(home / ".cache"),
             "XDG_CONFIG_HOME": str(home / ".config"),
             "XDG_DATA_HOME": str(home / ".local" / "share"),
-            # Keep the admitted runner toolchain visible even though general
-            # HOME/cache state is isolated per pack.
             "RUSTUP_HOME": env.get("RUSTUP_HOME", str(Path(original_home) / ".rustup")),
             "CARGO_HOME": env.get("CARGO_HOME", str(Path(original_home) / ".cargo")),
         }
@@ -167,6 +165,7 @@ def generic_ggen_toml(pack: Pack, include_pack: bool) -> str:
     lines = [
         "[project]",
         f'name = "marketplace-qualification-{pack.name}"',
+        'version = "0.0.0"',
         "",
         "[ontology]",
         'source = "ontology.ttl"',
