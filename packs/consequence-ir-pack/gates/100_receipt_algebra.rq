@@ -1,0 +1,28 @@
+# MESSAGE: receipt dependency edges are typed and cannot increase standing beyond an explicit parent/ceiling boundary; any row is a refusal.
+PREFIX cci: <https://ggen.dev/consequence-ir#>
+SELECT ?receipt ?violation WHERE {
+  ?receipt a cci:Receipt .
+  {
+    ?receipt cci:parentReceipt ?parent .
+    FILTER NOT EXISTS { ?parent a cci:Receipt . }
+    BIND("PARENT_RECEIPT_NOT_TYPED" AS ?violation)
+  }
+  UNION
+  {
+    ?receipt cci:standing cci:ALIVE ; cci:parentReceipt ?parent .
+    FILTER NOT EXISTS { ?parent cci:standing cci:ALIVE . }
+    BIND("ALIVE_EXCEEDS_PARENT_STANDING" AS ?violation)
+  }
+  UNION
+  {
+    ?receipt cci:standing cci:ALIVE ; cci:standingCeiling ?ceiling .
+    FILTER (?ceiling != cci:ALIVE)
+    BIND("ALIVE_EXCEEDS_STANDING_CEILING" AS ?violation)
+  }
+  UNION
+  {
+    ?receipt cci:invalidatesReceipt ?receipt .
+    BIND("SELF_INVALIDATION_FORBIDDEN" AS ?violation)
+  }
+}
+ORDER BY ?receipt ?violation
