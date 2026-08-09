@@ -1,0 +1,25 @@
+# MESSAGE: a receipt carries exactly one primary standing from the closed standing vocabulary; any row is a refusal.
+PREFIX cci: <https://ggen.dev/consequence-ir#>
+SELECT ?receipt ?violation WHERE {
+  ?receipt a cci:Receipt .
+  {
+    ?receipt cci:standing ?standing .
+    FILTER (?standing NOT IN (
+      cci:UNKNOWN,
+      cci:PARTIAL_ALIVE,
+      cci:ALIVE,
+      cci:BUILD_BROKEN,
+      cci:BLOCKED,
+      cci:UNSUPPORTED,
+      cci:REFUSED
+    ))
+    BIND("UNKNOWN_STANDING_VALUE" AS ?violation)
+  }
+  UNION
+  {
+    ?receipt cci:standing ?a, ?b .
+    FILTER (?a != ?b)
+    BIND("MULTIPLE_PRIMARY_STANDING_VALUES" AS ?violation)
+  }
+}
+ORDER BY ?receipt ?violation
