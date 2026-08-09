@@ -1,32 +1,44 @@
 # Reference: pack contract
 
-A marketplace pack directory is named exactly for its pack identity.
+Every admitted marketplace pack is a directory under `packs/` whose name equals `[pack].name`.
 
-## `pack.toml`
+## Manifest
 
-Required. It contains exactly one top-level table, `[pack]`, with:
+`pack.toml` is required. `[pack]` contains:
 
-- `name`: non-empty string equal to the directory name.
-- `version`: SemVer string.
+- `name`: non-empty string equal to the directory name;
+- `version`: SemVer string;
 - `description`: non-empty string.
 
-## `ontology.ttl`
+Pack-specific extension tables are allowed. The marketplace catalog reads identity only from `[pack]`; extension metadata cannot override that identity.
 
-Required Turtle/RDF source. It carries facts used by templates and gates and is unioned with the relevant consumer graph by ggen.
+## RDF source
 
-## `templates/`
+At least one Turtle source is required. The validator admits `*.ttl` at the pack root and recursively under `ontology/`. A conventional pack normally uses `ontology.ttl`; larger project packs may split semantic authority into multiple files under `ontology/`.
 
-Required and non-empty. Marketplace validation admits files ending in `.tmpl`. ggen templates use frontmatter plus Tera content. A template may project one row or fan out rows to output paths according to the runtime's template contract.
+## Templates
 
-## `gates/`
+Templates are optional at the marketplace level because semantic/catalog/gate packs can be useful without projecting files. When present under `templates/`, non-scaffolding files must end in `.tmpl` or `.tera`.
 
-Optional admission/verification source. Two gate roles are currently admitted and deliberately distinguished:
+## Gates
 
-- `*.rq` — native ggen SPARQL refusal gates evaluated by the pack/runtime contract.
-- `*.py` — pack-owned verifier gates used by packs whose validation requires computation beyond a native SPARQL gate. These are not mislabeled as SPARQL and are only executed when the pack's own verification procedure invokes them.
+`gates/` is optional. Current admitted source roles are:
 
-The allowlist is fail closed; additional executable gate forms require an explicit marketplace contract change.
+- `*.rq` — native SPARQL refusal gates;
+- `*.py` — pack-owned verifier gates for bounded checks outside a native SPARQL gate.
+
+Dotfiles such as `.gitkeep` are scaffolding and are not cataloged as executable sources. Additional executable gate forms require an explicit contract change.
+
+## Profiles
+
+The catalog derives one profile:
+
+- `project` when `ggen.toml` exists;
+- otherwise `projection` when templates exist;
+- otherwise `semantic`.
+
+Profiles describe packaging shape, not execution standing.
 
 ## Path safety
 
-Symlinks anywhere below `packs/` are refused by marketplace validation so a pack cannot depend on path aliasing outside its reviewed tree.
+Symlinks below `packs/` are refused so reviewed pack source cannot escape through path aliasing.

@@ -27,4 +27,18 @@ The permanent repository does not retain the write-enabled migration workflow.
 
 After import, the destination `packs/` Git tree was `4d70ae027004db829a8c334d201ad8e4f5b75ce1`, exactly equal to the source `packs/` tree at the admitted source commit. This proves subtree identity for the migration without relying on a file-count heuristic.
 
-The historical tree identity is a migration receipt, not a permanent freeze. Future pack changes are allowed through normal review and validation; they should not rewrite this historical provenance.
+## Post-import admission repair
+
+The exact import intentionally precedes marketplace cleanup so provenance and modernization are not conflated. The first exhaustive marketplace validator then surfaced historical corpus debt.
+
+Three source directories are excluded from the published marketplace because their own READMEs establish that they are not live reusable packs:
+
+- `sbb-capability-density-pack` — explicitly `ORPHANED / SUPERSEDED`, zero consumers, with its README prescribing deletion;
+- `vision-2030-phase-change-pack` — explicitly `ORPHANED — zero consumers`, not compatible with the live Vision 2030 CLI input shape;
+- `rust-dialect-pack` — explicitly experimental, not wired into `ggen sync`/CI, and contains no `pack.toml`.
+
+Five live packs had valid names/versions but missing descriptions; their descriptions were repaired from each pack's own README rather than invented from outside context.
+
+The validator also learned the actual corpus contract: `.tera` and `.tmpl` are both template sources, project packs may keep RDF under `ontology/`, semantic packs need not contain templates, `.gitkeep` is scaffolding rather than executable content, and manifests may carry pack-specific extension tables in addition to `[pack]`.
+
+The historical source-tree identity remains the extraction receipt; subsequent admission commits establish the curated marketplace state.

@@ -4,16 +4,15 @@
 python3 scripts/marketplace.py catalog
 ```
 
-The command emits UTF-8 JSON to stdout with keys sorted deterministically. Records are sorted by pack directory/name and include:
+The command emits UTF-8 JSON to stdout with keys sorted deterministically. Records are sorted by pack identity and include:
 
-- `name`
-- `version`
-- `description`
-- repository-relative `path`
-- template count
-- gate count
-- SHA-256 of `pack.toml`
-- SHA-256 of `ontology.ttl`
+- `name`, `version`, `description`, and repository-relative `path`;
+- derived `profile` (`projection`, `semantic`, or `project`);
+- ontology-file count and a deterministic SHA-256 fingerprint over ontology paths+bytes;
+- template count;
+- native-SPARQL gate count;
+- verifier-gate count;
+- SHA-256 of `pack.toml`.
 
 The root object identifies schema `https://ggen.dev/marketplace/catalog/v1`.
 
