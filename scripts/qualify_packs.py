@@ -5,6 +5,18 @@ This court is deliberately filesystem-only. It does not execute manufactured
 artifacts, pack-owned Python verifier gates, cloud APIs, or other external DO
 surfaces. Each pack is given an isolated consumer capsule, manufactured twice,
 and required to reach a byte-stable consequence within a bounded time.
+
+A pack that needs positive consumer facts owns them under ``qualification/``:
+
+* ``qualification/consumer.ttl`` or ``qualification/consumer/*.ttl`` augments
+  the isolated consumer graph for projection packs;
+* ``qualification/project/**`` overlays a temporary project-profile copy
+  before ggen executes (for example ``qualification/project/input.ttl``).
+
+Semantic-only packs are qualified as RDF+gate capabilities rather than being
+misrepresented as template packs: their ontology files are loaded directly
+into a throwaway ggen project and their native SPARQL gates are attached to
+that project.
 """
 
 from __future__ import annotations
@@ -127,41 +139,84 @@ def run_bounded(command: list[str], cwd: Path, timeout_seconds: float) -> Comman
     return CommandResult(process.returncode, stdout, stderr)
 
 
+def qualification_consumer_rdf(pack: Pack) -> tuple[Path, ...]:
+    qualification = pack.path / "qualification"
+    files: list[Path] = []
+    single = qualification / "consumer.ttl"
+    if single.is_file():
+        files.append(single)
+    directory = qualification / "consumer"
+    if directory.is_dir():
+        files.extend(sorted(directory.glob("*.ttl"), key=lambda item: item.name))
+    return tuple(files)
+
+
+def combine_rdf(paths: tuple[Path, ...], extra: str = "") -> str:
+    parts: list[str] = []
+    for path in paths:
+        parts.append(f"# ===== QUALIFICATION SOURCE: {path.as_posix()} =====\n")
+        parts.append(path.read_text(encoding="utf-8"))
+        if not parts[-1].endswith("\n"):
+            parts.append("\n")
+        parts.append("\n")
+    parts.append(extra)
+    return "".join(parts)
+
+
+def generic_ggen_toml(pack: Pack, include_pack: bool) -> str:
+    lines = [
+        "[project]",
+        f'name = "marketplace-qualification-{pack.name}"',
+        "",
+        "[ontology]",
+        'source = "ontology.ttl"',
+        "",
+    ]
+    if include_pack:
+        pack_path = pack.path.resolve().as_posix().replace('"', '\\"')
+        lines.extend(("[packs]", f'"{pack.name}" = {{ path = "{pack_path}" }}', ""))
+    elif pack.native_gates:
+        gate_values = ", ".join(json.dumps(path.resolve().as_posix()) for path in pack.native_gates)
+        lines.extend(("[validation]", f"gates = [{gate_values}]", ""))
+    lines.extend(("[templates]", 'dir = "templates"', ""))
+    return "\n".join(lines)
+
+
 def write_generic_consumer(pack: Pack, consumer: Path) -> None:
     consumer.mkdir(parents=True)
     (consumer / "templates").mkdir()
-    pack_path = pack.path.resolve().as_posix().replace('"', '\\"')
-    (consumer / "ggen.toml").write_text(
-        "\n".join(
-            (
-                "[project]",
-                f'name = "marketplace-qualification-{pack.name}"',
-                "",
-                "[ontology]",
-                'source = "ontology.ttl"',
-                "",
-                "[packs]",
-                f'"{pack.name}" = {{ path = "{pack_path}" }}',
-                "",
-                "[templates]",
-                'dir = "templates"',
-                "",
-            )
-        ),
-        encoding="utf-8",
-    )
-    (consumer / "ontology.ttl").write_text(
+    is_semantic = pack.profile == "semantic"
+    (consumer / "ggen.toml").write_text(generic_ggen_toml(pack, include_pack=not is_semantic), encoding="utf-8")
+
+    probe_fact = (
         "@prefix mq: <https://ggen.dev/marketplace/qualification#> .\n"
-        f'mq:subject mq:packName "{pack.name}" .\n',
-        encoding="utf-8",
+        f'mq:subject mq:packName "{pack.name}" .\n'
     )
+    sources: tuple[Path, ...]
+    if is_semantic:
+        sources = pack.ontologies + qualification_consumer_rdf(pack)
+    else:
+        sources = qualification_consumer_rdf(pack)
+    (consumer / "ontology.ttl").write_text(combine_rdf(sources, probe_fact), encoding="utf-8")
     (consumer / "templates" / "marketplace-probe.txt.tmpl").write_text(PROBE_TEMPLATE, encoding="utf-8")
+
+
+def overlay_project_qualification(pack: Pack, consumer: Path) -> None:
+    overlay = pack.path / "qualification" / "project"
+    if not overlay.is_dir():
+        return
+    for source in sorted((path for path in overlay.rglob("*") if path.is_file()), key=lambda item: item.as_posix()):
+        relative = source.relative_to(overlay)
+        destination = consumer / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
 
 
 def prepare_consumer(pack: Pack, capsule: Path) -> Path:
     consumer = capsule / "consumer"
     if pack.profile == "project":
         shutil.copytree(pack.path, consumer)
+        overlay_project_qualification(pack, consumer)
     else:
         write_generic_consumer(pack, consumer)
     return consumer
