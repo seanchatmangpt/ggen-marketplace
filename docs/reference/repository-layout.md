@@ -6,7 +6,7 @@
 | `packs/<name>/pack.toml` | Pack identity and description. |
 | `packs/<name>/ontology.ttl` | Pack RDF source. |
 | `packs/<name>/templates/` | One or more `.tmpl` projection templates. |
-| `packs/<name>/gates/` | Optional `.rq` SPARQL refusal gates. |
+| `packs/<name>/gates/` | Optional `.rq` native SPARQL gates and `.py` pack-owned verifier gates. |
 | `scripts/marketplace.py` | Local-first structural validator, derived catalog, and fingerprint. |
 | `docs/tutorials/` | Learning-oriented Diátaxis quadrant. |
 | `docs/how-to/` | Task-oriented Diátaxis quadrant. |

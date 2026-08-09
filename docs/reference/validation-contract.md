@@ -12,9 +12,9 @@ It refuses when:
 - a description is empty;
 - `ontology.ttl` is missing;
 - `templates/` is missing, empty, or contains a non-`.tmpl` file;
-- `gates/`, when present, is not a directory or contains a non-`.rq` file;
+- `gates/`, when present, is not a directory or contains a gate source outside the admitted `.rq` native-SPARQL / `.py` verifier-gate allowlist;
 - a required Diátaxis document is absent or empty.
 
-Refusals use the prefix `REFUSED:` and exit code `2`. Success prints aggregate pack, manifest, template, gate, and documentation counts and exits `0`.
+Refusals use the prefix `REFUSED:` and exit code `2`. Success prints aggregate pack, manifest, template, native-gate, verifier-gate, and documentation counts and exits `0`.
 
 CI calls this same local command; CI is a wrapper, not a separate acceptance implementation.

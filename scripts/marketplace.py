@@ -24,6 +24,7 @@ SEMVER = re.compile(
     r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
     r"(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
 )
+GATE_SOURCE_SUFFIXES = frozenset({".rq", ".py"})
 REQUIRED_DOCS = (
     "docs/index.md",
     "docs/tutorials/first-pack.md",
@@ -57,19 +58,21 @@ class Pack:
     description: str
     path: Path
     templates: tuple[Path, ...]
-    gates: tuple[Path, ...]
+    native_gates: tuple[Path, ...]
+    verifier_gates: tuple[Path, ...]
 
     def catalog_record(self) -> dict[str, Any]:
         manifest = self.path / "pack.toml"
         ontology = self.path / "ontology.ttl"
         return {
             "description": self.description,
-            "gates": len(self.gates),
             "manifest_sha256": sha256_file(manifest),
             "name": self.name,
+            "native_gates": len(self.native_gates),
             "ontology_sha256": sha256_file(ontology),
             "path": self.path.relative_to(ROOT).as_posix(),
             "templates": len(self.templates),
+            "verifier_gates": len(self.verifier_gates),
             "version": self.version,
         }
 
@@ -148,21 +151,34 @@ def load_packs() -> list[Pack]:
         if invalid_templates:
             refuse("TEMPLATE_EXTENSION", invalid_templates[0].relative_to(ROOT).as_posix())
 
-        gates: tuple[Path, ...] = ()
+        native_gates: tuple[Path, ...] = ()
+        verifier_gates: tuple[Path, ...] = ()
         if gates_dir.exists():
             if not gates_dir.is_dir():
                 refuse("GATES_NOT_DIRECTORY", name)
-            gates = tuple(
+            gate_sources = tuple(
                 sorted(
                     (p for p in gates_dir.rglob("*") if p.is_file()),
                     key=lambda p: p.relative_to(directory).as_posix(),
                 )
             )
-            invalid_gates = [p for p in gates if p.suffix != ".rq"]
+            invalid_gates = [p for p in gate_sources if p.suffix not in GATE_SOURCE_SUFFIXES]
             if invalid_gates:
-                refuse("GATE_EXTENSION", invalid_gates[0].relative_to(ROOT).as_posix())
+                refuse("GATE_SOURCE_EXTENSION", invalid_gates[0].relative_to(ROOT).as_posix())
+            native_gates = tuple(p for p in gate_sources if p.suffix == ".rq")
+            verifier_gates = tuple(p for p in gate_sources if p.suffix == ".py")
 
-        packs.append(Pack(name, version, description.strip(), directory, templates, gates))
+        packs.append(
+            Pack(
+                name,
+                version,
+                description.strip(),
+                directory,
+                templates,
+                native_gates,
+                verifier_gates,
+            )
+        )
     return packs
 
 
@@ -177,10 +193,12 @@ def validate() -> int:
     packs = load_packs()
     validate_docs()
     template_count = sum(len(pack.templates) for pack in packs)
-    gate_count = sum(len(pack.gates) for pack in packs)
+    native_gate_count = sum(len(pack.native_gates) for pack in packs)
+    verifier_gate_count = sum(len(pack.verifier_gates) for pack in packs)
     print(
-        f"validated packs={len(packs)} manifests={len(packs)} "
-        f"templates={template_count} gates={gate_count} diataxis={len(REQUIRED_DOCS)}"
+        f"validated packs={len(packs)} manifests={len(packs)} templates={template_count} "
+        f"native_gates={native_gate_count} verifier_gates={verifier_gate_count} "
+        f"diataxis={len(REQUIRED_DOCS)}"
     )
     return 0
 

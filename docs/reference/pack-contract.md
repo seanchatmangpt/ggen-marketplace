@@ -20,7 +20,12 @@ Required and non-empty. Marketplace validation admits files ending in `.tmpl`. g
 
 ## `gates/`
 
-Optional. Files are `.rq` SPARQL queries. A matching gate is intended to refuse generation before consumer writes.
+Optional admission/verification source. Two gate roles are currently admitted and deliberately distinguished:
+
+- `*.rq` — native ggen SPARQL refusal gates evaluated by the pack/runtime contract.
+- `*.py` — pack-owned verifier gates used by packs whose validation requires computation beyond a native SPARQL gate. These are not mislabeled as SPARQL and are only executed when the pack's own verification procedure invokes them.
+
+The allowlist is fail closed; additional executable gate forms require an explicit marketplace contract change.
 
 ## Path safety
 
