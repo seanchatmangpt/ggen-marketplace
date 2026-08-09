@@ -1,0 +1,70 @@
+name: Cyberpunk ggen query diagnostic
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Assert exact subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$expected" || {
+            echo "::error title=REFUSED:EXACT_HEAD_MISMATCH::actual=$actual expected=$expected"
+            exit 2
+          }
+
+      - name: Install digest-pinned ggen
+        shell: bash
+        run: |
+          set -euo pipefail
+          ggen_bin="$(bash scripts/install-ggen.sh)"
+          echo "GGEN_BIN=$ggen_bin" >> "$GITHUB_ENV"
+          "$ggen_bin" --version
+
+      - name: Separate validation from generation
+        shell: bash
+        run: |
+          set -u
+          cd packs/cyberpunk-tv-platform
+          echo '=== validate-only ==='
+          timeout 5s "$GGEN_BIN" sync run --validate-only
+          echo "validate_exit=$?"
+
+          echo '=== per-rule generation ==='
+          python3 - <<'PY' >/tmp/cyberpunk-rules
+          import tomllib
+          from pathlib import Path
+          data = tomllib.loads(Path('ggen.toml').read_text())
+          for rule in data.get('generation', {}).get('rules', []):
+              print(rule['name'])
+          PY
+
+          failure=0
+          while IFS= read -r rule; do
+            rm -rf generated .ggen .ggen-v2
+            echo "=== rule:$rule ==="
+            timeout 5s "$GGEN_BIN" sync run --rule "$rule"
+            code=$?
+            echo "rule=$rule exit=$code"
+            if [[ $code -ne 0 ]]; then
+              failure=1
+              break
+            fi
+          done </tmp/cyberpunk-rules
+          exit "$failure"
