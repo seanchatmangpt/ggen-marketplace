@@ -1,0 +1,101 @@
+---
+to: scripts/verify_github_cloud_operating_doctrine.py
+freeze_policy: checksum
+freeze_slots_dir: .ggen/freeze/github-cloud-operating-doctrine-pack
+sparql:
+  transports: |
+    PREFIX gcd: <https://ggen.dev/ontology/github-cloud-operating-doctrine#>
+    SELECT ?order ?slug WHERE { ?x a gcd:TransportPlane ; gcd:order ?order ; gcd:slug ?slug . } ORDER BY ?order
+  dependencies: |
+    PREFIX gcd: <https://ggen.dev/ontology/github-cloud-operating-doctrine#>
+    SELECT ?order ?slug WHERE { ?x a gcd:DependencyRoute ; gcd:order ?order ; gcd:slug ?slug . } ORDER BY ?order
+---
+#!/usr/bin/env python3
+"""Generated executable receipt for the GitHub Cloud Operating Doctrine."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+TRANSPORT_PRECEDENCE = (
+{% for row in transports %}    ({{ row.order }}, "{{ row.slug }}"),
+{% endfor %})
+
+PRIVATE_DEPENDENCY_LADDER = (
+{% for row in dependencies %}    ({{ row.order }}, "{{ row.slug }}"),
+{% endfor %})
+
+EXPECTED_TRANSPORT_PRECEDENCE = (
+    (1, "github-connector"),
+    (2, "github-actions"),
+    (3, "artifacts"),
+    (4, "local-verification-capsule"),
+    (5, "cli-fallback"),
+)
+
+EXPECTED_DEPENDENCY_LADDER = (
+    (1, "existing-immutable-package"),
+    (2, "existing-build-artifact"),
+    (3, "dependency-side-immutable-artifact"),
+    (4, "existing-app-token-strategy"),
+    (5, "same-repository-materialization"),
+    (6, "reusable-build-product"),
+    (7, "lawful-vendoring"),
+)
+
+ROUTE_FAILED = "ROUTE_FAILED"
+NEXT_ROUTE_IDENTIFIED = "NEXT_ROUTE_IDENTIFIED"
+BLOCKED = "BLOCKED"
+
+
+@dataclass(frozen=True)
+class Route:
+    name: str
+    lawful: bool
+    authorized: bool
+    exhausted: bool
+
+    @property
+    def remains(self) -> bool:
+        return self.lawful and self.authorized and not self.exhausted
+
+
+def crown_standing(routes: tuple[Route, ...]) -> str:
+    """BLOCKED is reachable only after every lawful authorized edge is exhausted."""
+    if any(route.remains for route in routes):
+        return NEXT_ROUTE_IDENTIFIED
+    return BLOCKED
+
+
+def verify() -> None:
+    assert TRANSPORT_PRECEDENCE == EXPECTED_TRANSPORT_PRECEDENCE
+    assert PRIVATE_DEPENDENCY_LADDER == EXPECTED_DEPENDENCY_LADDER
+
+    # False blocker regression: missing local gh is only a failed transport while
+    # connector publication remains lawful and authorized.
+    cli_failure = (
+        Route("local-gh", lawful=True, authorized=False, exhausted=True),
+        Route("github-connector", lawful=True, authorized=True, exhausted=False),
+    )
+    assert crown_standing(cli_failure) == NEXT_ROUTE_IDENTIFIED
+
+    # Private dependency regression: default Actions token failure does not crown
+    # BLOCKED while an exact retained artifact or dependency-side manufacture remains.
+    private_dependency = (
+        Route("actions-github-token", lawful=True, authorized=False, exhausted=True),
+        Route("existing-build-artifact", lawful=True, authorized=True, exhausted=False),
+        Route("dependency-side-immutable-artifact", lawful=True, authorized=True, exhausted=False),
+    )
+    assert crown_standing(private_dependency) == NEXT_ROUTE_IDENTIFIED
+
+    genuinely_exhausted = (
+        Route("github-connector", lawful=True, authorized=True, exhausted=True),
+        Route("artifacts", lawful=True, authorized=True, exhausted=True),
+        Route("dependency-manufacture", lawful=True, authorized=True, exhausted=True),
+    )
+    assert crown_standing(genuinely_exhausted) == BLOCKED
+
+
+if __name__ == "__main__":
+    verify()
+    print("ALIVE:github-cloud-operating-doctrine")

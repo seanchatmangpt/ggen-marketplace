@@ -1,0 +1,45 @@
+---
+to: policy/github-cloud-operating-doctrine.json
+freeze_policy: checksum
+freeze_slots_dir: .ggen/freeze/github-cloud-operating-doctrine-pack
+sparql:
+  transports: |
+    PREFIX gcd: <https://ggen.dev/ontology/github-cloud-operating-doctrine#>
+    SELECT ?order ?slug ?role WHERE { ?x a gcd:TransportPlane ; gcd:order ?order ; gcd:slug ?slug ; gcd:role ?role . } ORDER BY ?order
+  dependencies: |
+    PREFIX gcd: <https://ggen.dev/ontology/github-cloud-operating-doctrine#>
+    SELECT ?order ?slug WHERE { ?x a gcd:DependencyRoute ; gcd:order ?order ; gcd:slug ?slug . } ORDER BY ?order
+  principals: |
+    PREFIX gcd: <https://ggen.dev/ontology/github-cloud-operating-doctrine#>
+    SELECT ?slug WHERE { ?x a gcd:AuthorityPrincipal ; gcd:slug ?slug . } ORDER BY ?slug
+  skills: |
+    PREFIX gcd: <https://ggen.dev/ontology/github-cloud-operating-doctrine#>
+    SELECT ?slug WHERE { ?x a gcd:SkillSemantic ; gcd:slug ?slug . } ORDER BY ?slug
+  standings: |
+    PREFIX gcd: <https://ggen.dev/ontology/github-cloud-operating-doctrine#>
+    SELECT ?slug ?condition WHERE { ?x a gcd:Standing ; gcd:slug ?slug ; gcd:condition ?condition . } ORDER BY ?slug
+---
+{
+  "schema": "ggen.github-cloud-operating-doctrine/v1",
+  "transport_precedence": [
+{% for row in transports %}    {"order": {{ row.order }}, "slug": "{{ row.slug }}", "role": "{{ row.role }}"}{% if not loop.last %},{% endif %}
+{% endfor %}  ],
+  "authority_principals": [
+{% for row in principals %}    "{{ row.slug }}"{% if not loop.last %},{% endif %}
+{% endfor %}  ],
+  "semantic_skills": [
+{% for row in skills %}    "{{ row.slug }}"{% if not loop.last %},{% endif %}
+{% endfor %}  ],
+  "private_dependency_ladder": [
+{% for row in dependencies %}    {"order": {{ row.order }}, "slug": "{{ row.slug }}"}{% if not loop.last %},{% endif %}
+{% endfor %}  ],
+  "standing": {
+{% for row in standings %}    "{{ row.slug }}": "{{ row.condition }}"{% if not loop.last %},{% endif %}
+{% endfor %}  },
+  "exact_head_required": true,
+  "connector_native_publication": true,
+  "force_ref_update_default": false,
+  "draft_pr_default": true,
+  "merge_requires_explicit_authority": true,
+  "blocked_iff_no_lawful_authorized_route_remains": true
+}
