@@ -471,13 +471,45 @@ def qualify_pack(pack: Pack, ggen_bin: str, timeout_seconds: float) -> dict[str,
     return record
 
 
+def shard(packs: list[Pack], index: int, count: int) -> list[Pack]:
+    """Deterministically partition `packs` (already sorted by name — see
+    `require_admitted`'s caller) into `count` near-equal, non-overlapping
+    shards and return shard `index`'s slice (0-based). Used to spread
+    qualification of a growing pack corpus across parallel CI matrix jobs
+    instead of one long serial job — see .github/workflows/ci.yml's
+    `qualify` matrix. Slicing by position (not hashing) on an
+    already-name-sorted list keeps shard membership stable and human-
+    predictable as packs are added, and every pack lands in exactly one
+    shard for any fixed `count` (verified by the CI aggregate step, which
+    sums each shard's own `pack_count` against a fresh, un-sharded
+    `require_admitted()` count).
+    """
+    if count <= 0:
+        raise QualificationContractError(f"shard count must be positive, got {count}")
+    if not (0 <= index < count):
+        raise QualificationContractError(f"shard index {index} out of range for count {count}")
+    return [pack for position, pack in enumerate(packs) if position % count == index]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ggen", default=os.environ.get("GGEN_BIN") or shutil.which("ggen"))
     parser.add_argument("--timeout-seconds", type=float, default=DEFAULT_TIMEOUT_SECONDS)
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS)
     parser.add_argument("--report", type=Path)
+    parser.add_argument(
+        "--shard-index", type=int, default=None,
+        help="0-based shard to qualify (requires --shard-count); omit both for the full corpus",
+    )
+    parser.add_argument(
+        "--shard-count", type=int, default=None,
+        help="total number of shards (requires --shard-index); omit both for the full corpus",
+    )
     args = parser.parse_args()
+
+    if (args.shard_index is None) != (args.shard_count is None):
+        print("REFUSED:GGEN_PACK_SHARD_ARGS:shard_index_and_shard_count_must_both_be_set_or_both_omitted", file=sys.stderr)
+        return 2
 
     if not args.ggen:
         print("REFUSED:GGEN_BINARY_REQUIRED", file=sys.stderr)
@@ -495,7 +527,14 @@ def main() -> int:
         return 2
     version_text = (version.stdout or version.stderr).strip()
 
-    packs = require_admitted()
+    packs = sorted(require_admitted(), key=lambda pack: pack.name)
+    if args.shard_index is not None:
+        try:
+            packs = shard(packs, args.shard_index, args.shard_count)
+        except QualificationContractError as error:
+            print(f"REFUSED:GGEN_PACK_SHARD_INVALID:{error}", file=sys.stderr)
+            return 2
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as executor:
         records = list(
             executor.map(
@@ -510,6 +549,8 @@ def main() -> int:
         "pack_count": len(records),
         "packs": records,
         "schema": "https://ggen.dev/marketplace/qualification/v1",
+        "shard_count": args.shard_count,
+        "shard_index": args.shard_index,
         "timeout_seconds": args.timeout_seconds,
     }
     if args.report:

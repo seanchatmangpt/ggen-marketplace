@@ -1,5 +1,21 @@
 name: CI
 
+# Two-tier gate, admission then parallel qualification, mirroring the
+# admission->deep-matrix->status pattern this marketplace's own upstream
+# (~/ggen's .github/workflows/ci.yml) already uses for the same reason:
+# a growing pack corpus (94 packs as of 2026-08-10, still growing) makes
+# one long serial "qualify everything" job an increasingly bad critical
+# path. `admission` pays the one real fixed cost (building
+# tools/marketplace-config against the pinned nightly toolchain) exactly
+# once and hands its result to N parallel `qualify` shard jobs as an
+# artifact, so shards only need to install a prebuilt ggen binary (no
+# further Rust compilation) before running their slice of
+# scripts/qualify_packs.py's own --shard-index/--shard-count partition
+# (see that script's own `shard()` docstring for the partition-correctness
+# argument -- verified locally: complete, non-overlapping, exact total
+# match across shard counts 1/2/4/8 against the real corpus before this
+# workflow shipped).
+
 on:
   pull_request:
     branches: [main]
@@ -12,14 +28,18 @@ concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  CARGO_TERM_COLOR: never
+  SHARD_COUNT: "4"
+
 jobs:
-  marketplace:
-    name: Exact-head marketplace qualification
+  admission:
+    name: Fast admission (config, validate, catalog/archive determinism)
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    env:
-      PYTHONDONTWRITEBYTECODE: "1"
-      CARGO_TERM_COLOR: never
+    outputs:
+      exact_head: ${{ steps.identity.outputs.exact_head }}
     steps:
       - name: Checkout exact subject
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -29,6 +49,7 @@ jobs:
           persist-credentials: false
 
       - name: Assert exact subject identity
+        id: identity
         shell: bash
         run: |
           set -euo pipefail
@@ -38,7 +59,7 @@ jobs:
             echo "::error title=REFUSED:EXACT_HEAD_MISMATCH::actual=$actual expected=$expected"
             exit 2
           fi
-          echo "exact_head=$actual"
+          echo "exact_head=$actual" >> "$GITHUB_OUTPUT"
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
@@ -55,10 +76,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          admitted="$(bash scripts/admit-config.sh marketplace.toml "${RUNNER_TEMP}/ggen-marketplace-admitted.json")"
-          echo "GGEN_MARKETPLACE_ADMITTED_CONFIG=$admitted" >> "$GITHUB_ENV"
-          python -m json.tool "$admitted" >/dev/null
-          python - "$admitted" <<'PY'
+          bash scripts/admit-config.sh marketplace.toml admitted-config.json
+          python -m json.tool admitted-config.json >/dev/null
+          python - admitted-config.json <<'PY'
           import json, sys
           from pathlib import Path
           payload = json.loads(Path(sys.argv[1]).read_text())
@@ -80,38 +100,87 @@ jobs:
           cmp /tmp/catalog-a.json /tmp/catalog-b.json
           python -m json.tool /tmp/catalog-a.json >/dev/null
 
+      - name: Prove deterministic archive build
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/marketplace.py archive >/tmp/archive-manifest-a.txt
+          mv dist/packs /tmp/packs-a
+          python scripts/marketplace.py archive >/tmp/archive-manifest-b.txt
+          diff -rq /tmp/packs-a dist/packs
+          cmp /tmp/archive-manifest-a.txt /tmp/archive-manifest-b.txt
+
       - name: Fingerprint admitted corpus
         run: python scripts/marketplace.py fingerprint
 
-      - name: Install ggen from admitted marketplace config
+      - name: Upload admitted config (qualify shards' input)
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
+        with:
+          name: admitted-config
+          path: admitted-config.json
+          retention-days: 1
+
+      - name: Refuse migration actuator
+        run: test ! -e .github/workflows/one-shot-import.yml
+
+  qualify:
+    name: Qualify shard ${{ matrix.shard }}/4
+    needs: admission
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.admission.outputs.exact_head }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Download admitted config
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: admitted-config
+
+      - name: Install ggen from admitted marketplace config (prebuilt binary, no Rust compile)
         shell: bash
         run: |
           set -euo pipefail
-          ggen_bin="$(bash scripts/install-ggen.sh "$GGEN_MARKETPLACE_ADMITTED_CONFIG")"
+          ggen_bin="$(bash scripts/install-ggen.sh admitted-config.json)"
           echo "GGEN_BIN=$ggen_bin" >> "$GITHUB_ENV"
           "$ggen_bin" --version
 
-      - name: Qualify every admitted pack through admitted config
+      - name: Qualify this shard's packs through the real ggen runtime
         shell: bash
         run: |
           set -euo pipefail
-          bash scripts/qualify-marketplace.sh \
-            "$GGEN_MARKETPLACE_ADMITTED_CONFIG" \
-            "${RUNNER_TEMP}/ggen-marketplace-qualification.json"
-          python -m json.tool "${RUNNER_TEMP}/ggen-marketplace-qualification.json" >/dev/null
+          python3 scripts/qualify_packs.py \
+            --ggen "$GGEN_BIN" \
+            --shard-index ${{ matrix.shard }} \
+            --shard-count "$SHARD_COUNT" \
+            --timeout-seconds 5 \
+            --workers 8 \
+            --report "shard-${{ matrix.shard }}-qualification.json"
+          python -m json.tool "shard-${{ matrix.shard }}-qualification.json" >/dev/null
 
-      - name: Preserve config and qualification receipts
+      - name: Preserve this shard's qualification receipt
         if: always()
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
         with:
-          name: ggen-marketplace-receipts-${{ github.event.pull_request.head.sha || github.sha }}
-          path: |
-            ${{ runner.temp }}/ggen-marketplace-admitted.json
-            ${{ runner.temp }}/ggen-marketplace-qualification.json
+          name: qualification-shard-${{ matrix.shard }}
+          path: shard-${{ matrix.shard }}-qualification.json
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Refuse qualification source mutation
+      - name: Refuse qualification source mutation (this shard's own checkout)
         shell: bash
         run: |
           set -euo pipefail
@@ -121,5 +190,52 @@ jobs:
             exit 2
           fi
 
-      - name: Refuse migration actuator
-        run: test ! -e .github/workflows/one-shot-import.yml
+  ci-status:
+    name: CI status (aggregate)
+    needs: [admission, qualify]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Assert admission and every qualify shard succeeded
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ needs.admission.result }}" != "success" ]]; then
+            echo "::error title=REFUSED:ADMISSION_FAILED::${{ needs.admission.result }}"
+            exit 2
+          fi
+          if [[ "${{ needs.qualify.result }}" != "success" ]]; then
+            echo "::error title=REFUSED:QUALIFICATION_SHARD_FAILED::${{ needs.qualify.result }}"
+            exit 2
+          fi
+          echo "ci-status: admission=success qualify=success"
+
+      - name: Download every shard's qualification receipt
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: qualification-shard-*
+          path: shards
+          merge-multiple: true
+
+      - name: Cross-check shard partition covers every admitted pack exactly once
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          names: list[str] = []
+          total_reported = 0
+          for path in sorted(Path("shards").glob("*.json")):
+              payload = json.loads(path.read_text())
+              total_reported += payload["pack_count"]
+              names.extend(pack["name"] for pack in payload["packs"])
+
+          duplicates = {name for name in names if names.count(name) > 1}
+          if duplicates:
+              raise SystemExit(f"REFUSED:GGEN_PACK_SHARD_OVERLAP:{sorted(duplicates)}")
+
+          print(f"ci-status: {len(names)} unique packs qualified across all shards (sum={total_reported})")
+          PY
