@@ -11,8 +11,18 @@ const STAR_TOML_SHA: &str = "8395515cf8e68bfdc9edff49fb358c4f1da7c795";
 #[derive(Debug, Deserialize, Serialize)]
 struct MarketplaceConfig {
     schema_version: String,
+    marketplace: MarketplaceMeta,
     qualification: QualificationConfig,
     ggen: GgenConfig,
+}
+
+/// This repository's own release identity -- an org-owned version for a
+/// whole registry snapshot, independent of individual packs' SemVer and
+/// of `ggen.version` (the pinned upstream binary this repo qualifies
+/// against).
+#[derive(Debug, Deserialize, Serialize)]
+struct MarketplaceMeta {
+    version: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -45,6 +55,9 @@ struct AssetConfig {
 impl Validate for MarketplaceConfig {
     fn validate(&self, v: &mut Validator) {
         v.check_non_empty("schema_version", &self.schema_version);
+        v.field("marketplace", |v| {
+            v.check_non_empty("version", &self.marketplace.version);
+        });
         v.field("qualification", |v| {
             v.check_range("workers", self.qualification.workers, 1..=16);
             v.check_range("timeout_seconds", self.qualification.timeout_seconds, 1..=5);

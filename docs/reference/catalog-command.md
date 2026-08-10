@@ -4,7 +4,12 @@
 python3 scripts/marketplace.py catalog
 ```
 
-The command emits UTF-8 JSON to stdout with keys sorted deterministically. Records are sorted by pack identity and include:
+The command emits UTF-8 JSON to stdout with keys sorted deterministically. The root object also
+carries `marketplace_version` — this repository's own `[marketplace].version` from
+`marketplace.toml` (see `version`, below): a whole-registry-snapshot identifier, independent of
+individual packs' own SemVer and of `[ggen].version` (the pinned upstream `ggen` binary).
+
+Records are sorted by pack identity and include:
 
 - `name`, `version`, `description`, and repository-relative `path`;
 - derived `profile` (`projection`, `semantic`, or `project`);
@@ -40,3 +45,27 @@ and prints one `<name> <version> sha256:<hex>` line per pack. This is what CI's 
 (`.github/workflows/publish.yml`) uploads as GitHub Release assets on every push to `main`; the
 same command run locally reproduces byte-identical archives, so a consumer can independently
 verify a published asset against a from-source rebuild rather than trusting the download alone.
+
+## `version` — this repository's own release identity
+
+```bash
+python3 scripts/marketplace.py version
+```
+
+Prints `marketplace.toml`'s `[marketplace].version` bare (e.g. `v26.8.9`). This is the
+marketplace's own org-owned version for a whole registry snapshot — bump it and publish (push to
+`main`) to cut a **second, immutable** GitHub Release tagged with that version, in addition to
+the always-mutating rolling `packs` release:
+
+- the rolling `packs` release always reflects the latest `main` — its assets are overwritten
+  (`--clobber`) on every publish;
+- a versioned release (e.g. `v26.8.9`) is cut once, the first time that version is seen, and
+  never overwritten afterward — CI refuses to touch an existing versioned release, so `git tag
+  v26.8.9` really does mean "the marketplace as it was," permanently. It carries the same pack
+  archives as the rolling release at that moment, plus `catalog.json` — the exact catalog
+  snapshot for that version, so a consumer can fetch one release and get both the index and the
+  content it describes without depending on the (mutable) Pages deployment matching it later.
+
+`[marketplace].version` is independent of individual packs' SemVer and of `[ggen].version` (the
+pinned upstream `ggen` binary this repo qualifies against) — three separate version axes, on
+purpose, not aliases of each other.

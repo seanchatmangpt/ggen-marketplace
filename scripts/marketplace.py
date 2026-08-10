@@ -22,14 +22,12 @@ except ModuleNotFoundError as exc:  # pragma: no cover
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKS = ROOT / "packs"
+MARKETPLACE_TOML = ROOT / "marketplace.toml"
 # The GitHub Release a pack's `.tar.gz` archive is published under (one
 # rolling release, re-published on every push to `main` that changes
-# `packs/` — see docs/how-to/qualify-all-packs.md and the CI publish job).
-# Not yet live: `catalog_record()` computes the URL a consumer WILL be able
-# to fetch once the CI publish step (marketplace.py's own future work) has
-# run at least once; the digest/size fields are real today because they are
-# computed from a real, deterministic in-process archive build, not from the
-# published asset.
+# `packs/` — see docs/how-to/qualify-all-packs.md and .github/workflows/
+# publish.yml, which also cuts a second, immutable, versioned release
+# per `[marketplace].version` bump — see `marketplace_version()` below).
 GITHUB_ORG = "seanchatmangpt"
 GITHUB_REPO = "ggen-marketplace"
 RELEASE_TAG = "packs"
@@ -105,6 +103,30 @@ class Pack:
             "verifier_gates": len(self.verifier_gates),
             "version": self.version,
         }
+
+
+def marketplace_version() -> str:
+    """This repository's own `[marketplace].version` from `marketplace.toml`
+    — a whole-registry-snapshot identifier, independent of individual
+    packs' SemVer and of `[ggen].version` (the pinned upstream binary).
+    Read directly via `tomllib` rather than through the Rust admitter
+    (`tools/marketplace-config`) — that binary's admission receipt is for
+    trusting `marketplace.toml` before installer/qualification execution,
+    a heavier guarantee this purely-informational catalog field doesn't
+    need; `tools/marketplace-config`'s own `Validate` impl still enforces
+    `[marketplace].version` is non-empty as real repository law.
+    """
+    if not MARKETPLACE_TOML.is_file():
+        raise SystemExit(refusal("MARKETPLACE_TOML_MISSING", "marketplace.toml"))
+    try:
+        document = tomllib.loads(MARKETPLACE_TOML.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, tomllib.TOMLDecodeError) as exc:
+        raise SystemExit(refusal("MARKETPLACE_TOML_INVALID", str(exc))) from exc
+    table = document.get("marketplace")
+    version = table.get("version") if isinstance(table, dict) else None
+    if not isinstance(version, str) or not version.strip():
+        raise SystemExit(refusal("MARKETPLACE_VERSION_MISSING", "marketplace.toml:[marketplace].version"))
+    return version
 
 
 def refusal(code: str, detail: str) -> str:
@@ -314,7 +336,11 @@ def validate() -> int:
 
 def catalog() -> int:
     packs = require_admitted()
-    payload = {"schema": "https://ggen.dev/marketplace/catalog/v2", "packs": [pack.catalog_record() for pack in packs]}
+    payload = {
+        "schema": "https://ggen.dev/marketplace/catalog/v2",
+        "marketplace_version": marketplace_version(),
+        "packs": [pack.catalog_record() for pack in packs],
+    }
     json.dump(payload, sys.stdout, indent=2, sort_keys=True, ensure_ascii=False)
     sys.stdout.write("\n")
     return 0
@@ -343,11 +369,26 @@ def fingerprint() -> int:
     return 0
 
 
+def version() -> int:
+    """Print this repository's own `[marketplace].version` bare (no
+    trailing metadata) — the CI publish job's own input for deciding
+    whether to cut a new immutable versioned release.
+    """
+    print(marketplace_version())
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("validate", "catalog", "fingerprint", "archive"))
+    parser.add_argument("command", choices=("validate", "catalog", "fingerprint", "archive", "version"))
     args = parser.parse_args()
-    return {"validate": validate, "catalog": catalog, "fingerprint": fingerprint, "archive": archive}[args.command]()
+    return {
+        "validate": validate,
+        "catalog": catalog,
+        "fingerprint": fingerprint,
+        "archive": archive,
+        "version": version,
+    }[args.command]()
 
 
 if __name__ == "__main__":

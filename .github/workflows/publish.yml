@@ -35,6 +35,7 @@ jobs:
       PYTHONDONTWRITEBYTECODE: "1"
     outputs:
       pack_count: ${{ steps.build.outputs.pack_count }}
+      marketplace_version: ${{ steps.marketplace-version.outputs.marketplace_version }}
     steps:
       - name: Checkout main
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -49,6 +50,11 @@ jobs:
 
       - name: Validate marketplace (never publish an inadmissible corpus)
         run: python scripts/marketplace.py validate
+
+      - name: Read this repo's own [marketplace].version
+        id: marketplace-version
+        shell: bash
+        run: echo "marketplace_version=$(python scripts/marketplace.py version)" >> "$GITHUB_OUTPUT"
 
       - name: Prove deterministic catalog projection (same gate as PR CI)
         shell: bash
@@ -129,6 +135,27 @@ jobs:
               --title "ggen packs" \
               --notes "Deterministic per-pack archives, rebuilt on every push to main. Each pack's digest/download_url is in the published catalog index (see the Pages deployment)."
           fi
+
+      - name: Set up Python (for the versioned release's own catalog snapshot)
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Cut an immutable versioned release for [marketplace].version, if it doesn't already exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MARKETPLACE_VERSION: ${{ needs.build.outputs.marketplace_version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$MARKETPLACE_VERSION" >/dev/null 2>&1; then
+            echo "release $MARKETPLACE_VERSION already exists -- versioned releases are immutable, nothing to do"
+            exit 0
+          fi
+          python scripts/marketplace.py catalog > dist/packs/catalog.json
+          gh release create "$MARKETPLACE_VERSION" dist/packs/*.tar.gz dist/packs/catalog.json \
+            --title "ggen-marketplace $MARKETPLACE_VERSION" \
+            --notes "Immutable registry snapshot: this exact packs/ tree, its catalog (catalog.json, schema v2, marketplace_version=$MARKETPLACE_VERSION), and every admitted pack's deterministic archive, all as of this release. Unlike the rolling 'packs' release (always the latest), this tag never changes once published -- bump [marketplace].version in marketplace.toml to cut the next one."
 
   pages:
     name: Deploy catalog index to GitHub Pages
