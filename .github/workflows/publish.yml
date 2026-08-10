@@ -1,0 +1,149 @@
+name: Publish
+
+# Publishes the marketplace's registry surface: every admitted pack's
+# deterministic `.tar.gz` (scripts/marketplace.py archive) as an asset on
+# the rolling `packs` GitHub Release, and the extended catalog
+# (scripts/marketplace.py catalog — schema v2, carries download_url/digest/
+# size_bytes per pack) as a GitHub Pages index. Runs only on push to `main`
+# (i.e. only after PR CI — .github/workflows/ci.yml — has already validated
+# the exact same content), and re-runs `validate` + the catalog determinism
+# proof itself so this job never publishes from a state PR CI did not gate.
+#
+# See docs/how-to/qualify-all-packs.md and the plan this implements:
+# ~/.claude/plans/launch-a-5-lumen-enumerated-hanrahan.md.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write # create/update the `packs` release and upload its assets
+  pages: write # deploy the catalog index to GitHub Pages
+  id-token: write # required by actions/deploy-pages
+
+concurrency:
+  group: marketplace-publish
+  cancel-in-progress: false # never cancel a publish mid-flight
+
+jobs:
+  build:
+    name: Build archives and catalog
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    outputs:
+      pack_count: ${{ steps.build.outputs.pack_count }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Validate marketplace (never publish an inadmissible corpus)
+        run: python scripts/marketplace.py validate
+
+      - name: Prove deterministic catalog projection (same gate as PR CI)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/marketplace.py catalog > /tmp/catalog-a.json
+          python scripts/marketplace.py catalog > /tmp/catalog-b.json
+          cmp /tmp/catalog-a.json /tmp/catalog-b.json
+
+      - name: Build every admitted pack's deterministic archive
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/marketplace.py archive | tee /tmp/archive-manifest.txt
+          count="$(wc -l < /tmp/archive-manifest.txt | tr -d ' ')"
+          echo "pack_count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Prove archive determinism (rebuild, diff byte-for-byte)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv dist/packs /tmp/packs-run-a
+          python scripts/marketplace.py archive >/tmp/archive-manifest-b.txt
+          diff -rq /tmp/packs-run-a dist/packs
+          cmp /tmp/archive-manifest.txt /tmp/archive-manifest-b.txt
+          rm -rf /tmp/packs-run-a
+
+      - name: Materialize the published catalog index
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/site
+          python scripts/marketplace.py catalog > dist/site/index.json
+          python -m json.tool dist/site/index.json >/dev/null
+
+      - name: Upload pack archives (publish job input)
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
+        with:
+          name: pack-archives
+          path: dist/packs/*.tar.gz
+          retention-days: 1
+
+      - name: Upload Pages site (publish job input)
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
+        with:
+          path: dist/site
+
+  release:
+    name: Publish packs release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: true
+
+      - name: Download pack archives
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: pack-archives
+          path: dist/packs
+
+      - name: Create or update the rolling `packs` release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view packs >/dev/null 2>&1; then
+            gh release upload packs dist/packs/*.tar.gz --clobber
+          else
+            gh release create packs dist/packs/*.tar.gz \
+              --title "ggen packs" \
+              --notes "Deterministic per-pack archives, rebuilt on every push to main. Each pack's digest/download_url is in the published catalog index (see the Pages deployment)."
+          fi
+
+  pages:
+    name: Deploy catalog index to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5

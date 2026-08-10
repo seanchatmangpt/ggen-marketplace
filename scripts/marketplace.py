@@ -4,10 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import hashlib
+import io
 import json
 import re
 import sys
+import tarfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -19,6 +22,17 @@ except ModuleNotFoundError as exc:  # pragma: no cover
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKS = ROOT / "packs"
+# The GitHub Release a pack's `.tar.gz` archive is published under (one
+# rolling release, re-published on every push to `main` that changes
+# `packs/` — see docs/how-to/qualify-all-packs.md and the CI publish job).
+# Not yet live: `catalog_record()` computes the URL a consumer WILL be able
+# to fetch once the CI publish step (marketplace.py's own future work) has
+# run at least once; the digest/size fields are real today because they are
+# computed from a real, deterministic in-process archive build, not from the
+# published asset.
+GITHUB_ORG = "seanchatmangpt"
+GITHUB_REPO = "ggen-marketplace"
+RELEASE_TAG = "packs"
 SEMVER = re.compile(
     r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
     r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
@@ -71,8 +85,14 @@ class Pack:
 
     def catalog_record(self) -> dict[str, Any]:
         manifest = self.path / "pack.toml"
+        archive = build_pack_archive(self)
         return {
             "description": self.description,
+            "digest": f"sha256:{hashlib.sha256(archive).hexdigest()}",
+            "download_url": (
+                f"https://github.com/{GITHUB_ORG}/{GITHUB_REPO}/releases/"
+                f"download/{RELEASE_TAG}/{self.name}-{self.version}.tar.gz"
+            ),
             "manifest_sha256": sha256_file(manifest),
             "name": self.name,
             "native_gates": len(self.native_gates),
@@ -80,6 +100,7 @@ class Pack:
             "ontology_fingerprint_sha256": fingerprint_paths(self.ontologies, self.path),
             "path": self.path.relative_to(ROOT).as_posix(),
             "profile": self.profile,
+            "size_bytes": len(archive),
             "templates": len(self.templates),
             "verifier_gates": len(self.verifier_gates),
             "version": self.version,
@@ -109,6 +130,36 @@ def fingerprint_paths(paths: Iterable[Path], base: Path) -> str:
         digest.update(len(data).to_bytes(8, "big"))
         digest.update(data)
     return digest.hexdigest()
+
+
+def build_pack_archive(pack: Pack) -> bytes:
+    """Deterministic `.tar.gz` of a pack's entire directory (`pack.toml`,
+    ontology, templates, gates, docs — everything `visible_files` admits,
+    same dotfile-exclusion rule as every other pack-source walk in this
+    module). Byte-identical across repeated calls on unchanged input: fixed
+    file order (`visible_files`' existing sort), zeroed mtime/uid/gid/owner
+    on every tar entry, and a zeroed gzip mtime — the same determinism
+    discipline `fingerprint_paths` already enforces for hashing, extended
+    here to a real, independently re-buildable and re-verifiable artifact
+    rather than just a hash.
+    """
+    tar_buf = io.BytesIO()
+    with tarfile.open(fileobj=tar_buf, mode="w", format=tarfile.PAX_FORMAT) as tar:
+        for path in visible_files(pack.path):
+            data = path.read_bytes()
+            info = tarfile.TarInfo(name=f"{pack.name}/{path.relative_to(pack.path).as_posix()}")
+            info.size = len(data)
+            info.mtime = 0
+            info.mode = 0o644
+            info.uid = 0
+            info.gid = 0
+            info.uname = ""
+            info.gname = ""
+            tar.addfile(info, io.BytesIO(data))
+    gz_buf = io.BytesIO()
+    with gzip.GzipFile(fileobj=gz_buf, mode="wb", mtime=0, compresslevel=9) as gz:
+        gz.write(tar_buf.getvalue())
+    return gz_buf.getvalue()
 
 
 def visible_files(directory: Path) -> tuple[Path, ...]:
@@ -263,9 +314,25 @@ def validate() -> int:
 
 def catalog() -> int:
     packs = require_admitted()
-    payload = {"schema": "https://ggen.dev/marketplace/catalog/v1", "packs": [pack.catalog_record() for pack in packs]}
+    payload = {"schema": "https://ggen.dev/marketplace/catalog/v2", "packs": [pack.catalog_record() for pack in packs]}
     json.dump(payload, sys.stdout, indent=2, sort_keys=True, ensure_ascii=False)
     sys.stdout.write("\n")
+    return 0
+
+
+def archive() -> int:
+    """Build every admitted pack's deterministic `.tar.gz` into
+    `dist/packs/` (created if absent) and print one `name version sha256`
+    line per pack, sorted by name — the CI publish job's build step, and
+    the thing `catalog()`'s `digest`/`size_bytes` fields are computed from.
+    """
+    packs = require_admitted()
+    out_dir = ROOT / "dist" / "packs"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for pack in packs:
+        data = build_pack_archive(pack)
+        (out_dir / f"{pack.name}-{pack.version}.tar.gz").write_bytes(data)
+        print(f"{pack.name} {pack.version} sha256:{hashlib.sha256(data).hexdigest()}")
     return 0
 
 
@@ -278,9 +345,9 @@ def fingerprint() -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("validate", "catalog", "fingerprint"))
+    parser.add_argument("command", choices=("validate", "catalog", "fingerprint", "archive"))
     args = parser.parse_args()
-    return {"validate": validate, "catalog": catalog, "fingerprint": fingerprint}[args.command]()
+    return {"validate": validate, "catalog": catalog, "fingerprint": fingerprint, "archive": archive}[args.command]()
 
 
 if __name__ == "__main__":
