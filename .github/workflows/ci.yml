@@ -76,9 +76,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash scripts/admit-config.sh marketplace.toml admitted-config.json
-          python -m json.tool admitted-config.json >/dev/null
-          python - admitted-config.json <<'PY'
+          bash scripts/admit-config.sh marketplace.toml "${RUNNER_TEMP}/admitted-config.json"
+          python -m json.tool "${RUNNER_TEMP}/admitted-config.json" >/dev/null
+          python - "${RUNNER_TEMP}/admitted-config.json" <<'PY'
           import json, sys
           from pathlib import Path
           payload = json.loads(Path(sys.argv[1]).read_text())
@@ -109,6 +109,7 @@ jobs:
           python scripts/marketplace.py archive >/tmp/archive-manifest-b.txt
           diff -rq /tmp/packs-a dist/packs
           cmp /tmp/archive-manifest-a.txt /tmp/archive-manifest-b.txt
+          rm -rf dist /tmp/packs-a
 
       - name: Fingerprint admitted corpus
         run: python scripts/marketplace.py fingerprint
@@ -117,7 +118,7 @@ jobs:
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
         with:
           name: admitted-config
-          path: admitted-config.json
+          path: ${{ runner.temp }}/admitted-config.json
           retention-days: 1
 
       - name: Refuse migration actuator
@@ -149,12 +150,13 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: admitted-config
+          path: ${{ runner.temp }}
 
       - name: Install ggen from admitted marketplace config (prebuilt binary, no Rust compile)
         shell: bash
         run: |
           set -euo pipefail
-          ggen_bin="$(bash scripts/install-ggen.sh admitted-config.json)"
+          ggen_bin="$(bash scripts/install-ggen.sh "${RUNNER_TEMP}/admitted-config.json")"
           echo "GGEN_BIN=$ggen_bin" >> "$GITHUB_ENV"
           "$ggen_bin" --version
 
@@ -162,21 +164,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          report="${RUNNER_TEMP}/shard-${{ matrix.shard }}-qualification.json"
           python3 scripts/qualify_packs.py \
             --ggen "$GGEN_BIN" \
             --shard-index ${{ matrix.shard }} \
             --shard-count "$SHARD_COUNT" \
             --timeout-seconds 5 \
             --workers 8 \
-            --report "shard-${{ matrix.shard }}-qualification.json"
-          python -m json.tool "shard-${{ matrix.shard }}-qualification.json" >/dev/null
+            --report "$report"
+          python -m json.tool "$report" >/dev/null
 
       - name: Preserve this shard's qualification receipt
         if: always()
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
         with:
           name: qualification-shard-${{ matrix.shard }}
-          path: shard-${{ matrix.shard }}-qualification.json
+          path: ${{ runner.temp }}/shard-${{ matrix.shard }}-qualification.json
           if-no-files-found: warn
           retention-days: 14
 
