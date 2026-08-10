@@ -1,6 +1,7 @@
 # MESSAGE: DSPy signatures, fields, and modules must be dependency-closed, typed, and renderable as valid Python identifiers. Any row is a refusal.
 PREFIX dspy: <http://seanchatmangpt.github.io/packs/dspy#>
 PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 SELECT ?subject ?violation WHERE {
   {
     ?subject a dspy:Signature .
@@ -44,12 +45,44 @@ SELECT ?subject ?violation WHERE {
     BIND("className is not a Python identifier" AS ?violation)
   } UNION {
     ?subject a dspy:Module ; dspy:kind ?value .
-    FILTER(STR(?value) NOT IN ("Predict", "ChainOfThought"))
+    FILTER(STR(?value) NOT IN ("Predict", "ChainOfThought", "ReAct"))
     BIND("kind is outside the admitted module set" AS ?violation)
   } UNION {
     ?subject dspy:pythonType ?value .
     FILTER(STR(?value) NOT IN ("str", "int", "float", "bool"))
     BIND("pythonType is outside the admitted primitive set" AS ?violation)
+  } UNION {
+    ?subject a dspy:Module ; dspy:kind "ReAct" .
+    FILTER NOT EXISTS { ?subject dspy:usesMCPServer ?server }
+    BIND("ReAct module missing dspy:usesMCPServer" AS ?violation)
+  } UNION {
+    ?subject a dspy:Module ; dspy:kind ?kind ; dspy:usesMCPServer ?server .
+    FILTER(?kind != "ReAct")
+    BIND("only a ReAct module may declare dspy:usesMCPServer" AS ?violation)
+  } UNION {
+    ?subject a dspy:Module ; dspy:usesMCPServer ?server .
+    FILTER NOT EXISTS { ?server a dspy:MCPServerConnection }
+    BIND("usesMCPServer target is not a dspy:MCPServerConnection" AS ?violation)
+  } UNION {
+    ?subject a dspy:MCPServerConnection .
+    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
+    VALUES ?property { dspy:name dspy:command dcterms:description }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(CONCAT("missing ", STR(?property)) AS ?violation)
+  } UNION {
+    ?subject a dspy:MCPServerConnection ; dspy:hasArg ?arg .
+    FILTER NOT EXISTS { ?arg a dspy:ServerArg }
+    BIND("hasArg target is not a dspy:ServerArg" AS ?violation)
+  } UNION {
+    ?subject a dspy:ServerArg .
+    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
+    VALUES ?property { dspy:argIndex dspy:argValue }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(CONCAT("missing ", STR(?property)) AS ?violation)
+  } UNION {
+    ?subject a dspy:ServerArg ; dspy:argIndex ?value .
+    FILTER(!(DATATYPE(?value) = xsd:integer) || ?value < 0)
+    BIND("argIndex is not a non-negative integer" AS ?violation)
   }
 }
 ORDER BY ?subject ?violation

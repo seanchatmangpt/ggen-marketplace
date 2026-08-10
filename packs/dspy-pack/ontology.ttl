@@ -26,3 +26,55 @@ dspy:answer-program a dspy:Module ;
     dspy:name "program" ;
     dspy:kind "Predict" ;
     dspy:signature dspy:answer-question-signature .
+
+# MCP-tool-backed ReAct agent, modeled verbatim on dspy.ai's own "DSPy + MCP"
+# tutorial (https://dspy.ai/tutorials/mcp/, fetched 2026-08-10): an airline
+# customer-service agent that connects to a stdio MCP server, converts its
+# tools via dspy.Tool.from_mcp_tool, and drives them through dspy.ReAct. The
+# MCP SERVER side (the tutorial's own mcp_server.py, a FastMCP app) is
+# deliberately out of this pack's scope -- fastmcp-pack already owns
+# generating FastMCP servers; composing the two packs covers the tutorial
+# end-to-end without duplicating server-generation logic (coding-agent-
+# mistakes.md: deepen authority, don't duplicate).
+#
+# What's admitted here (fixed at generation time): the signature, the ReAct
+# module's wiring to a named MCP server, and that server's stdio launch
+# command/args. What's deliberately NOT admitted (genuinely dynamic, only
+# knowable at runtime): the MCP server's actual tool list -- session.
+# list_tools() runs against a live server process, so the generated code
+# discovers tools at call time via the real MCP protocol, not from a
+# hardcoded ontology enumeration of tool names.
+dspy:airline-customer-service-signature a dspy:Signature ;
+    dcterms:title "DSPyAirlineCustomerService" ;
+    dcterms:description "Serve an airline customer's request using MCP-backed booking tools." ;
+    dspy:className "DSPyAirlineCustomerService" ;
+    dspy:hasInput dspy:user-request-input ;
+    dspy:hasOutput dspy:process-result-output .
+
+dspy:user-request-input a dspy:InputField ;
+    dcterms:description "The customer's natural-language request." ;
+    dspy:name "user_request" ;
+    dspy:pythonType "str" .
+
+dspy:process-result-output a dspy:OutputField ;
+    dcterms:description "The agent's response after any needed tool calls." ;
+    dspy:name "process_result" ;
+    dspy:pythonType "str" .
+
+dspy:airline-mcp-server a dspy:MCPServerConnection ;
+    dcterms:description "Airline booking MCP server, launched over stdio, per the tutorial's own mcp_server.py." ;
+    dspy:name "airline_mcp_server" ;
+    dspy:command "python" ;
+    dspy:hasArg dspy:airline-mcp-server-arg-0 .
+
+dspy:airline-mcp-server-arg-0 a dspy:ServerArg ;
+    dspy:argIndex 0 ;
+    dspy:argValue "mcp_server.py" .
+
+dspy:airline-agent a dspy:Module ;
+    dcterms:description "ReAct agent over the admitted DSPyAirlineCustomerService signature, backed by the airline MCP server's tools." ;
+    prov:wasDerivedFrom dspy:airline-customer-service-signature ;
+    dspy:name "airline_agent" ;
+    dspy:kind "ReAct" ;
+    dspy:signature dspy:airline-customer-service-signature ;
+    dspy:usesMCPServer dspy:airline-mcp-server .
