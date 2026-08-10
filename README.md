@@ -51,3 +51,25 @@ The initial corpus was imported byte-for-byte from `seanchatmangpt/ggen` at comm
 This repository owns reusable pack source and marketplace documentation. The ggen runtime remains responsible for interpreting and executing packs. Repository validation proves marketplace admission, deterministic catalog projection, and documentation presence. It does **not** by itself prove generated consumer consequences, external-system behavior, live-cloud authority, benchmark standing, or BRCE DO authority.
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md), [`AGENTS.md`](AGENTS.md), and [`SECURITY.md`](SECURITY.md).
+
+## Vision 2030 Capability Generator
+
+`packages/vision-2030-capability-generator` compiles an admitted RDF capability graph into a Vision 2030 architecture, a machine-readable capability index, and a Mermaid capability graph.
+
+```text
+ontology.ttl -> SPARQL -> ggen -> generated/VISION_2030.md
+                               -> generated/capability-index.json
+                               -> generated/capability-graph.mmd
+```
+
+The initial ontology contains 50 non-trivial capabilities across 10 families. The pack is CONSTRUCT-only: it manufactures architecture artifacts and never grants runtime DO authority. Generated output does not receive standing merely by existing.
+
+Validation:
+
+```bash
+python packages/vision-2030-capability-generator/scripts/verify.py
+cd packages/vision-2030-capability-generator
+ggen sync run
+```
+
+The Python verifier is an independent structural admission court. `ggen sync run` remains the production manufacture boundary.
