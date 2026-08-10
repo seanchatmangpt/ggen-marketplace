@@ -312,11 +312,75 @@ def overlay_project_qualification(pack: Pack, consumer: Path) -> None:
         shutil.copy2(source, destination)
 
 
+def copy_composed_packs(pack: Pack, capsule: Path) -> None:
+    """For a project-profile pack whose own `ggen.toml` composes sibling
+    marketplace packs via `[packs] name = { path = "../other-pack" }`
+    (e.g. clap-noun-verb-zeroconfig-pack composing the six clap-noun-verb
+    compiler packs), copy each referenced sibling into `capsule` alongside
+    `consumer/` so those relative references still resolve inside the
+    isolated qualification capsule.
+
+    `prepare_consumer`'s `shutil.copytree(pack.path, consumer)` relocates
+    only the pack itself, one level below where it naturally lives (its
+    real siblings are `pack.path.parent`'s other entries; `consumer`'s
+    capsule-relative sibling position is `capsule`, matching that same
+    shape) -- without this, `consumer/../other-pack` resolves to a path
+    that was never copied, and ggen refuses with a real
+    `[FM-PACK-001] directory ... does not exist` error, not a synthetic
+    qualification-only failure.
+
+    Non-recursive by design: a composed sibling that itself composes
+    further siblings via its own `[packs]` would need this run again on
+    that sibling. None of this marketplace's current project-composable
+    packs (the clap-noun-verb-* family, chicago-tdd-tools-pack) have their
+    own `[packs]` table, so this is a real, disclosed scope limit, not
+    (yet) an exercised gap.
+
+    # Raises
+    `QualificationContractError` if a composed path escapes the pack's own
+    `packs/` directory (path traversal outside the marketplace's pack
+    root) or resolves
+    to something that does not exist -- fails closed, mirroring
+    `qualification_extra_ontologies`'s existing escape-check discipline.
+    """
+    ggen_toml = pack.path / "ggen.toml"
+    if not ggen_toml.is_file():
+        return
+    try:
+        config = tomllib.loads(ggen_toml.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as error:
+        raise QualificationContractError(f"pack `{pack.name}`: invalid ggen.toml: {error}") from error
+    packs_table = config.get("packs")
+    if not isinstance(packs_table, dict):
+        return
+    packs_root = pack.path.resolve().parent
+    for name, entry in packs_table.items():
+        if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
+            continue
+        source = (pack.path / entry["path"]).resolve()
+        try:
+            source.relative_to(packs_root)
+        except ValueError as error:
+            raise QualificationContractError(
+                f"pack `{pack.name}`: composed pack `{name}` path `{entry['path']}` "
+                f"resolves to `{source}`, outside {packs_root} -- refused for qualification-capsule safety"
+            ) from error
+        if not source.is_dir():
+            raise QualificationContractError(
+                f"pack `{pack.name}`: composed pack `{name}` path `{entry['path']}` "
+                f"resolves to `{source}`, which does not exist"
+            )
+        destination = capsule / source.name
+        if not destination.exists():
+            shutil.copytree(source, destination)
+
+
 def prepare_consumer(pack: Pack, capsule: Path) -> Path:
     consumer = capsule / "consumer"
     if pack.profile == "project":
         shutil.copytree(pack.path, consumer)
         overlay_project_qualification(pack, consumer)
+        copy_composed_packs(pack, capsule)
     elif pack.profile == "semantic":
         write_semantic_consumer(pack, consumer)
     else:
