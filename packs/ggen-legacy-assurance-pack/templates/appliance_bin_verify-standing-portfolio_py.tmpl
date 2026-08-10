@@ -1,0 +1,78 @@
+---
+to: appliance/bin/verify-standing-portfolio.py
+force: true
+---
+{% raw %}#!/usr/bin/env python3
+from __future__ import annotations
+import argparse, hashlib, json, os, shutil, subprocess, sys, tempfile
+from pathlib import Path
+
+def canonical(obj):
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+
+def sha256_bytes(data): return hashlib.sha256(data).hexdigest()
+def sha256_file(path):
+    h=hashlib.sha256()
+    with open(path,"rb") as f:
+        for chunk in iter(lambda:f.read(1024*1024),b""): h.update(chunk)
+    return h.hexdigest()
+def read_json(path): return json.loads(Path(path).read_text())
+def write_json(path,obj):
+    p=Path(path); p.parent.mkdir(parents=True,exist_ok=True)
+    p.write_text(json.dumps(obj,indent=2,sort_keys=True)+"\n")
+def tree_inventory(root):
+    root=Path(root); out=[]
+    for p in sorted(x for x in root.rglob("*") if x.is_file()):
+        out.append({"path":p.relative_to(root).as_posix(),"sha256":sha256_file(p),"bytes":p.stat().st_size})
+    return out
+def tree_digest(root):
+    inv=tree_inventory(root)
+    return sha256_bytes("\n".join(f"{x['path']}:{x['sha256']}" for x in inv).encode())
+
+
+def check_signature(pub,artifact,sig):
+    p=subprocess.run(["openssl","dgst","-sha256","-verify",pub,"-signature",sig,"-sigopt","rsa_padding_mode:pss","-sigopt","rsa_pss_saltlen:-1",artifact],capture_output=True,text=True)
+    return p.returncode==0,(p.stdout+p.stderr).strip()
+
+def verify_log(log):
+    p=subprocess.run([sys.executable,str(Path(__file__).with_name("transparency-log.py")),"verify","--log",log],capture_output=True,text=True)
+    return p.returncode==0,(p.stdout+p.stderr).strip()
+
+def main():
+    ap=argparse.ArgumentParser(); ap.add_argument("--portfolio",required=True); ap.add_argument("--public-key",required=True); ap.add_argument("--signature",required=True); ap.add_argument("--transparency-log",required=True); ap.add_argument("--report",required=True)
+    a=ap.parse_args(); root=Path(a.portfolio); m=read_json(root/"claim-manifest.json"); checks=[]
+    def c(i,ok,detail): checks.append({"id":i,"passed":bool(ok),"detail":detail})
+    c("bounded-claim",bool(m.get("claim") and m.get("observation_boundary") and m.get("exclusions")),"claim, boundary, and exclusions required")
+    ec=m.get("execution_control",{}); c("customer-control",ec.get("owner")=="customer" and ec.get("network_egress_allowed") is False and ec.get("vendor_source_access") is False,ec)
+    c("independent-verifier",m.get("implementer_identity")!=m.get("verifier_identity") and m.get("implementer_identity")!=m.get("decision_authority"),"identities must be distinct")
+    challenge_files=[]
+    for path in sorted((root/"evidence/raw/challenges").glob("*.json")) if (root/"evidence/raw/challenges").exists() else []:
+        try:
+            item=read_json(path)
+            if item.get("visibility")=="customer-hidden": challenge_files.append(path.name)
+        except Exception:
+            pass
+    c("hidden-challenges",m.get("hidden_challenge_count",0)>0 and bool(challenge_files),{"declared":m.get("hidden_challenge_count",0),"observed":challenge_files})
+    mismatches=[]
+    raw=root/"evidence"/"raw"
+    for item in m.get("evidence_inventory",[]):
+        p=raw/item["path"]
+        if not p.is_file() or sha256_file(p)!=item["sha256"]: mismatches.append(item["path"])
+    c("evidence-digests",not mismatches,mismatches)
+    coords=m.get("coordinates",{}); required=["legacy_revision","replacement_revision","authority_digest","verifier_digest","fixture_set_digest","environment_digest","toolchain_digest","evidence_digest"]
+    c("coordinate-bindings",all(coords.get(k) for k in required),[k for k in required if not coords.get(k)])
+    sig_ok,sig_detail=check_signature(a.public_key,str(root/"claim-manifest.json"),a.signature); c("signature",sig_ok,sig_detail)
+    log_ok,log_detail=verify_log(a.transparency_log)
+    inclusion=False
+    if log_ok:
+        entries=[json.loads(x) for x in Path(a.transparency_log).read_text().splitlines() if x.strip()]
+        inclusion=any(e.get("entry_type","attestation")=="attestation" and e.get("artifact_sha256")==sha256_file(root/"claim-manifest.json") and e.get("signature_sha256")==sha256_file(a.signature) for e in entries)
+    c("transparency-log",log_ok and inclusion,{"chain":log_detail,"inclusion":inclusion})
+    ta=m.get("testing_authority",{}); c("testing-authority",all(ta.get(k) for k in ["method_id","competence_policy","conflict_policy","appeals_process","revocation_process"]),ta)
+    lr=m.get("legal_recourse",{}); c("legal-recourse",all(lr.get(k) for k in ["audit_rights","warranty_boundary","insurance_reference","remediation_obligation","termination_export"]),lr)
+    c("receipt-chain",(root/"receipt-chain/0001-build.json").is_file(),"build receipt required")
+    standing="ALIVE" if all(x["passed"] for x in checks) else "PARTIAL_ALIVE"
+    report={"schema":"ggen.verifier.report.v1","scope":"reference-assurance-fixture","subject":{"manifest_sha256":sha256_file(root/"claim-manifest.json"),"portfolio_tree_sha256":tree_digest(root)},"suites":["crypto","customer-control","hidden-challenge","provenance","transparency","governance","legal-recourse"],"checks":checks,"replay":{"status":"PENDING"},"standing":standing,"verifier":{"identity":m.get("verifier_identity"),"independent":m.get("verifier_identity")!=m.get("implementer_identity")}}
+    write_json(a.report,report); print(json.dumps(report,sort_keys=True)); raise SystemExit(0 if standing=="ALIVE" else 2)
+if __name__=="__main__": main()
+{% endraw %}

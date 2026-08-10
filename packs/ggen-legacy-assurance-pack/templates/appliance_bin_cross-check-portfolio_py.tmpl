@@ -1,0 +1,34 @@
+---
+to: appliance/bin/cross-check-portfolio.py
+force: true
+---
+{% raw %}#!/usr/bin/env python3
+from __future__ import annotations
+import argparse, hashlib, json, subprocess
+from pathlib import Path
+
+def digest(path):
+    h=hashlib.sha256()
+    with open(path,"rb") as f:
+        while True:
+            b=f.read(65536)
+            if not b: break
+            h.update(b)
+    return h.hexdigest()
+
+def main():
+    ap=argparse.ArgumentParser(); ap.add_argument("--portfolio",required=True); ap.add_argument("--public-key",required=True); ap.add_argument("--signature",required=True); ap.add_argument("--report",required=True)
+    a=ap.parse_args(); root=Path(a.portfolio); m=json.loads((root/"claim-manifest.json").read_text()); failures=[]
+    if m.get("implementer_identity")==m.get("verifier_identity"): failures.append("VERIFIER_NOT_INDEPENDENT")
+    hidden=list((root/"evidence/raw/challenges").glob("*.json")) if (root/"evidence/raw/challenges").exists() else []
+    if not any(json.loads(p.read_text()).get("visibility")=="customer-hidden" for p in hidden): failures.append("HIDDEN_CHALLENGE_MISSING")
+    for item in m.get("evidence_inventory",[]):
+        p=root/"evidence/raw"/item["path"]
+        if not p.is_file() or digest(p)!=item["sha256"]: failures.append("EVIDENCE_DIGEST_MISMATCH:"+item["path"])
+    sig=subprocess.run(["openssl","dgst","-sha256","-verify",a.public_key,"-signature",a.signature,"-sigopt","rsa_padding_mode:pss","-sigopt","rsa_pss_saltlen:-1",str(root/"claim-manifest.json")],capture_output=True,text=True)
+    if sig.returncode!=0: failures.append("SIGNATURE_INVALID")
+    report={"schema":"ggen.legacy.cross.check.v1","scope":"reference-assurance-fixture","implementation":"independent-cross-check","failures":failures,"standing":"ALIVE" if not failures else "PARTIAL_ALIVE"}
+    Path(a.report).write_text(json.dumps(report,indent=2,sort_keys=True)+"\n")
+    print(json.dumps(report,sort_keys=True)); raise SystemExit(0 if not failures else 2)
+if __name__=="__main__": main()
+{% endraw %}

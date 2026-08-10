@@ -1,0 +1,44 @@
+---
+to: appliance/bin/replay-standing-portfolio.py
+force: true
+---
+{% raw %}#!/usr/bin/env python3
+from __future__ import annotations
+import argparse, hashlib, json, os, shutil, subprocess, sys, tempfile
+from pathlib import Path
+
+def canonical(obj):
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+
+def sha256_bytes(data): return hashlib.sha256(data).hexdigest()
+def sha256_file(path):
+    h=hashlib.sha256()
+    with open(path,"rb") as f:
+        for chunk in iter(lambda:f.read(1024*1024),b""): h.update(chunk)
+    return h.hexdigest()
+def read_json(path): return json.loads(Path(path).read_text())
+def write_json(path,obj):
+    p=Path(path); p.parent.mkdir(parents=True,exist_ok=True)
+    p.write_text(json.dumps(obj,indent=2,sort_keys=True)+"\n")
+def tree_inventory(root):
+    root=Path(root); out=[]
+    for p in sorted(x for x in root.rglob("*") if x.is_file()):
+        out.append({"path":p.relative_to(root).as_posix(),"sha256":sha256_file(p),"bytes":p.stat().st_size})
+    return out
+def tree_digest(root):
+    inv=tree_inventory(root)
+    return sha256_bytes("\n".join(f"{x['path']}:{x['sha256']}" for x in inv).encode())
+
+
+def main():
+    ap=argparse.ArgumentParser(); ap.add_argument("--engagement",required=True); ap.add_argument("--evidence-dir",required=True); ap.add_argument("--report",required=True)
+    a=ap.parse_args(); builder=Path(__file__).with_name("build-standing-portfolio.py")
+    with tempfile.TemporaryDirectory() as td:
+        p1=Path(td)/"a"; p2=Path(td)/"b"
+        subprocess.run([sys.executable,str(builder),"--engagement",a.engagement,"--evidence-dir",a.evidence_dir,"--output",str(p1)],check=True,capture_output=True,text=True)
+        subprocess.run([sys.executable,str(builder),"--engagement",a.engagement,"--evidence-dir",a.evidence_dir,"--output",str(p2)],check=True,capture_output=True,text=True)
+        d1=tree_digest(p1); d2=tree_digest(p2); status="REPLAY_MATCH" if d1==d2 else "REPLAY_DIFFERENCE"
+        report={"schema":"ggen.legacy.replay.report.v1","environment_set":["customer-vpc","independent-lab","recovery-site"],"run_a_sha256":d1,"run_b_sha256":d2,"status":status,"semantic_change":False if d1==d2 else True,"generated_drift":False if d1==d2 else True}
+        write_json(a.report,report); print(json.dumps(report,sort_keys=True)); raise SystemExit(0 if d1==d2 else 2)
+if __name__=="__main__": main()
+{% endraw %}

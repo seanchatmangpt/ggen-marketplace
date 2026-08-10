@@ -42,3 +42,40 @@ Five live packs had valid names/versions but missing descriptions; their descrip
 The validator also learned the actual corpus contract: `.tera` and `.tmpl` are both template sources, project packs may keep RDF under `ontology/`, semantic packs need not contain templates, `.gitkeep` is scaffolding rather than executable content, and manifests may carry pack-specific extension tables in addition to `[pack]`.
 
 The historical source-tree identity remains the extraction receipt; subsequent admission commits establish the curated marketplace state.
+
+## 2026-08-10 second-wave extraction (10 packs, three source repositories)
+
+A local filesystem search across the maintainer's machine found 34 real, non-duplicate ggen
+pack candidates outside this marketplace. Ten were selected by richness (ontology depth,
+`sparql:`-driven template coverage, real domain grounding) and copied byte-for-byte, excluding
+any candidate whose design depends on a symlink to its source repository's own files (this
+marketplace's pack contract refuses symlinks under `packs/` — see
+[`docs/reference/pack-contract.md`](docs/reference/pack-contract.md) — so `gymact-bridge-pack`,
+`multicloud-gym-pack`, and `otel-weaver-pack` were excluded rather than imported as stale
+snapshots that silently lose their "always the same file as the source" guarantee).
+
+Bound identities at copy time (each source repository's own `HEAD`, working tree clean at the
+copied paths — verified via `git status --porcelain` before copying):
+
+| Pack | Source repository | Source commit |
+|---|---|---|
+| `nextjs-ai-sdk-pack` | `seanchatmangpt/ggen` (`examples/nextjs-ai-sdk/pack`) | `657a0befbd331be7c6c7da3dbe23b153342c1c8e` |
+| `lean-math-pack` | `~/praxis` (`packs/lean-math-pack`) | `bc1272b2605a66d3efaa7a5ab11a5f49e96d67c3` |
+| `chatman-engine-pack` | `~/praxis` (`packs/chatman-engine-pack`) | `bc1272b2605a66d3efaa7a5ab11a5f49e96d67c3` |
+| `post-release-pack` | `~/praxis` (`packs/post-release-pack`) | `bc1272b2605a66d3efaa7a5ab11a5f49e96d67c3` |
+| `quadrature-pack` | `~/praxis` (`packs/quadrature-pack`) | `bc1272b2605a66d3efaa7a5ab11a5f49e96d67c3` |
+| `soc2-audit-pack` | `~/praxis` (`packs/soc2-audit-pack`) | `bc1272b2605a66d3efaa7a5ab11a5f49e96d67c3` |
+| `togaf-adm-pack` | `~/praxis` (`packs/togaf-adm-pack`) | `bc1272b2605a66d3efaa7a5ab11a5f49e96d67c3` |
+| `dry-run-publish-pack` | `~/praxis` (`packs/dry-run-publish-pack`) | `bc1272b2605a66d3efaa7a5ab11a5f49e96d67c3` |
+| `azure-terraform-pack` | `~/praxis` (`packs/azure-terraform-pack`) | `bc1272b2605a66d3efaa7a5ab11a5f49e96d67c3` |
+| `ggen-legacy-assurance-pack` | `~/ggen-legacy` (`packs/ggen-legacy-assurance-pack`) | `982fea0a476ae7c74d2c31ab876650bdae1bd6d4` |
+
+`~/praxis` and `~/ggen-legacy` are local-only working repositories (not GitHub remotes this
+document can point a reader at); the commit SHAs above are the exact, reproducible bound
+identity at copy time within those local repos, in the same spirit as this file's own initial
+extraction receipt above, not a claim that they're publicly fetchable.
+
+No content was edited during the copy. Each pack was then admitted by
+`python3 scripts/marketplace.py validate` unchanged (94 packs total post-import) and composed
+with `pack-maturity-pack` in a real consumer to verify `l5p:cap03`/`cap04`/`cap09` — see each
+pack's own `pack.toml` for its specific maturity disclosure.

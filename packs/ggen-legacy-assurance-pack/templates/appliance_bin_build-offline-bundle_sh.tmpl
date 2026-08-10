@@ -1,0 +1,132 @@
+---
+to: appliance/bin/build-offline-bundle.sh
+force: true
+---
+{% raw %}#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+OUT="${1:-$ROOT/evidence/offline-bundle}"
+NAME="ggen-legacy-verifier-v26.8.1"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+BUNDLE="$TMP/$NAME"
+
+rm -rf "$OUT"
+mkdir -p "$OUT" "$BUNDLE"
+
+for path in \
+  AGENTS.md \
+  RELEASE_CONTROL.md \
+  LICENSE \
+  ggen.toml \
+  appliance \
+  authority \
+  ontology \
+  schemas \
+  packs/ggen-legacy-assurance-pack \
+  tests/fixtures; do
+  test -e "$ROOT/$path"
+  mkdir -p "$BUNDLE/$(dirname "$path")"
+  cp -a "$ROOT/$path" "$BUNDLE/$path"
+done
+
+SOURCE_HEAD="$(git -C "$ROOT" rev-parse HEAD)"
+GGEN_HEAD="$(python3 - "$ROOT/authority/product-profile.json" <<'PY'
+import json,sys
+print(json.load(open(sys.argv[1]))["ggen_source_revision"])
+PY
+)"
+
+python3 - "$BUNDLE/bundle-coordinate.json" "$SOURCE_HEAD" "$GGEN_HEAD" <<'PY'
+import json,sys
+path,source_head,ggen_head=sys.argv[1:]
+record={
+  "schema":"ggen.legacy.offline.bundle.coordinate.v1",
+  "release":"v26.8.1",
+  "source_head":source_head,
+  "ggen_source_revision":ggen_head,
+  "transport_class":"PORTABLE_APPLICATION_BUNDLE",
+  "customer_source_included":False,
+  "network_required":False,
+  "runtime_prerequisites":["python3","openssl","sha256sum","tar","gzip"],
+  "nonclaims":["hermetic Python runtime","hermetic OpenSSL runtime","production standing"]
+}
+open(path,"w").write(json.dumps(record,indent=2,sort_keys=True)+"\n")
+PY
+
+cat > "$BUNDLE/activate.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export GGEN_LEGACY_OFFLINE=1
+export PYTHONDONTWRITEBYTECODE=1
+export NO_PROXY='*'
+export no_proxy='*'
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy || true
+export PATH="$root/appliance/bin:$PATH"
+echo "ggen-legacy verifier appliance activated at $root"
+SH
+
+cat > "$BUNDLE/verify-manifest.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(cd "$(dirname "$0")" && pwd)"
+cd "$root"
+sha256sum -c MANIFEST.sha256
+python3 --version
+openssl version
+python3 appliance/bin/verify-standing-portfolio.py --help >/dev/null
+python3 appliance/bin/cross-check-portfolio.py --help >/dev/null
+python3 appliance/bin/replay-standing-portfolio.py --help >/dev/null
+SH
+
+chmod 0755 "$BUNDLE/activate.sh" "$BUNDLE/verify-manifest.sh"
+find "$BUNDLE/appliance/bin" -type f \( -name '*.py' -o -name '*.sh' \) -exec chmod 0755 {} +
+
+(
+  cd "$BUNDLE"
+  find . -type f ! -name MANIFEST.sha256 -print0 \
+    | sort -z \
+    | xargs -0 sha256sum > MANIFEST.sha256
+)
+
+find "$BUNDLE" -exec touch -h -d '2026-07-31 00:00:00 UTC' {} +
+ARCHIVE="$OUT/$NAME.tar.gz"
+tar --sort=name \
+  --mtime='UTC 2026-07-31' \
+  --owner=0 --group=0 --numeric-owner \
+  --pax-option=delete=atime,delete=ctime \
+  -C "$TMP" -cf - "$NAME" \
+  | gzip -n -9 > "$ARCHIVE"
+(
+  cd "$OUT"
+  sha256sum "$NAME.tar.gz" > "$NAME.tar.gz.sha256"
+)
+
+python3 - "$BUNDLE" "$ARCHIVE" "$OUT/$NAME.receipt.json" <<'PY'
+import hashlib,json,pathlib,sys
+bundle=pathlib.Path(sys.argv[1]); archive=pathlib.Path(sys.argv[2]); output=pathlib.Path(sys.argv[3])
+def digest(path):
+    h=hashlib.sha256()
+    with open(path,"rb") as f:
+        for chunk in iter(lambda:f.read(1024*1024),b""): h.update(chunk)
+    return h.hexdigest()
+coordinate=json.loads((bundle/"bundle-coordinate.json").read_text())
+receipt={
+  "schema":"ggen.legacy.offline.bundle.receipt.v1",
+  "release":"v26.8.1",
+  "source_head":coordinate["source_head"],
+  "ggen_source_revision":coordinate["ggen_source_revision"],
+  "archive":archive.name,
+  "archive_sha256":digest(archive),
+  "manifest_sha256":digest(bundle/"MANIFEST.sha256"),
+  "file_count":sum(1 for p in bundle.rglob("*") if p.is_file()),
+  "customer_source_included":False,
+  "network_required":False
+}
+output.write_text(json.dumps(receipt,indent=2,sort_keys=True)+"\n")
+PY
+
+printf '%s\n' "$ARCHIVE"
+{% endraw %}

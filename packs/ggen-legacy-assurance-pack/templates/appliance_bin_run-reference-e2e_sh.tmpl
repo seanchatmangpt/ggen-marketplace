@@ -1,0 +1,85 @@
+---
+to: appliance/bin/run-reference-e2e.sh
+force: true
+---
+{% raw %}#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+mkdir -p "$TMP/keys" "$TMP/evidence"
+cp -R "$ROOT/tests/fixtures/customer-evidence/." "$TMP/evidence/"
+cp "$ROOT/tests/fixtures/engagement.reference.json" "$TMP/engagement.json"
+printf '{"id":"runtime-hidden","visibility":"customer-hidden","nonce":"%s"}\n' "$(openssl rand -hex 32)" > "$TMP/evidence/challenges/runtime-hidden.json"
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out "$TMP/keys/private.pem" >/dev/null 2>&1
+openssl pkey -in "$TMP/keys/private.pem" -pubout -out "$TMP/keys/public.pem" >/dev/null 2>&1
+python3 "$ROOT/appliance/bin/build-standing-portfolio.py" --engagement "$TMP/engagement.json" --evidence-dir "$TMP/evidence" --output "$TMP/portfolio"
+openssl dgst -sha256 -sign "$TMP/keys/private.pem" -sigopt rsa_padding_mode:pss -sigopt rsa_pss_saltlen:-1 -out "$TMP/manifest.sig" "$TMP/portfolio/claim-manifest.json"
+ENTRY_HASH="$(python3 "$ROOT/appliance/bin/transparency-log.py" append --log "$TMP/transparency.jsonl" --artifact "$TMP/portfolio/claim-manifest.json" --signature "$TMP/manifest.sig" --identity customer-independent-verifier --logical-time 2026-07-31T17:08:00-07:00)"
+python3 "$ROOT/appliance/bin/verify-standing-portfolio.py" --portfolio "$TMP/portfolio" --public-key "$TMP/keys/public.pem" --signature "$TMP/manifest.sig" --transparency-log "$TMP/transparency.jsonl" --report "$TMP/verifier-report.json"
+python3 "$ROOT/appliance/bin/cross-check-portfolio.py" --portfolio "$TMP/portfolio" --public-key "$TMP/keys/public.pem" --signature "$TMP/manifest.sig" --report "$TMP/cross-check-report.json"
+python3 "$ROOT/appliance/bin/replay-standing-portfolio.py" --engagement "$TMP/engagement.json" --evidence-dir "$TMP/evidence" --report "$TMP/replay-report.json"
+python3 "$ROOT/appliance/bin/decision-engine.py" --portfolio "$TMP/portfolio" --verifier-report "$TMP/verifier-report.json" --replay-report "$TMP/replay-report.json" --cross-check-report "$TMP/cross-check-report.json"
+python3 - "$TMP" <<'PYCHK'
+import json, pathlib, sys
+p=pathlib.Path(sys.argv[1])
+v=json.loads((p/'verifier-report.json').read_text())
+r=json.loads((p/'replay-report.json').read_text())
+c=json.loads((p/'cross-check-report.json').read_text())
+rel=json.loads((p/'portfolio/release-admission.json').read_text())
+sun=json.loads((p/'portfolio/sunset-admission.json').read_text())
+assert v['standing']=='ALIVE', v
+assert r['status']=='REPLAY_MATCH', r
+assert c['standing']=='ALIVE', c
+assert rel['admitted'] is True, rel
+assert sun['admitted'] is False, sun
+PYCHK
+cp "$TMP/portfolio/release-admission.json" "$TMP/reference-release-admission.json"
+cp "$TMP/portfolio/sunset-admission.json" "$TMP/reference-sunset-admission.json"
+cp "$TMP/transparency.jsonl" "$TMP/revoked.jsonl"
+python3 "$ROOT/appliance/bin/transparency-log.py" revoke --log "$TMP/revoked.jsonl" --target-entry-hash "$ENTRY_HASH" --reason superseded --identity customer-release-authority --logical-time 2026-07-31T17:09:00-07:00 >/dev/null
+python3 "$ROOT/appliance/bin/transparency-log.py" verify --log "$TMP/revoked.jsonl" >/dev/null
+# Tamper evidence after manifest generation: verifier must refuse.
+printf 'tamper\n' >> "$TMP/portfolio/evidence/raw/observations/legacy-cli.txt"
+if python3 "$ROOT/appliance/bin/verify-standing-portfolio.py" --portfolio "$TMP/portfolio" --public-key "$TMP/keys/public.pem" --signature "$TMP/manifest.sig" --transparency-log "$TMP/transparency.jsonl" --report "$TMP/tamper-report.json"; then
+  echo 'TAMPER_ACCEPTED_REFUSED' >&2; exit 1
+fi
+# Restore and sabotage independence in a second engagement.
+rm -rf "$TMP/portfolio"
+python3 - "$TMP/engagement.json" <<'PYIDENT'
+import json,sys
+p=sys.argv[1]
+x=json.load(open(p))
+x['verifier_identity']=x['implementer_identity']
+json.dump(x,open(p,'w'),indent=2)
+PYIDENT
+python3 "$ROOT/appliance/bin/build-standing-portfolio.py" --engagement "$TMP/engagement.json" --evidence-dir "$TMP/evidence" --output "$TMP/portfolio"
+openssl dgst -sha256 -sign "$TMP/keys/private.pem" -sigopt rsa_padding_mode:pss -sigopt rsa_pss_saltlen:-1 -out "$TMP/manifest2.sig" "$TMP/portfolio/claim-manifest.json"
+python3 "$ROOT/appliance/bin/transparency-log.py" append --log "$TMP/transparency2.jsonl" --artifact "$TMP/portfolio/claim-manifest.json" --signature "$TMP/manifest2.sig" --identity customer-independent-verifier --logical-time 2026-07-31T17:08:00-07:00
+if python3 "$ROOT/appliance/bin/verify-standing-portfolio.py" --portfolio "$TMP/portfolio" --public-key "$TMP/keys/public.pem" --signature "$TMP/manifest2.sig" --transparency-log "$TMP/transparency2.jsonl" --report "$TMP/independence-report.json"; then
+  echo 'SELF_CERTIFICATION_ACCEPTED_REFUSED' >&2; exit 1
+fi
+mkdir -p "$ROOT/evidence/appliance"
+cp "$TMP/verifier-report.json" "$ROOT/evidence/appliance/reference-verifier-report.json"
+cp "$TMP/cross-check-report.json" "$ROOT/evidence/appliance/reference-cross-check-report.json"
+cp "$TMP/replay-report.json" "$ROOT/evidence/appliance/reference-replay-report.json"
+cp "$TMP/reference-release-admission.json" "$ROOT/evidence/appliance/reference-release-admission.json"
+cp "$TMP/reference-sunset-admission.json" "$ROOT/evidence/appliance/reference-sunset-admission.json"
+cp "$TMP/tamper-report.json" "$ROOT/evidence/appliance/reference-tamper-report.json"
+cp "$TMP/independence-report.json" "$ROOT/evidence/appliance/reference-independence-report.json"
+
+python3 "$ROOT/appliance/bin/observe-project.py" --root "$ROOT"
+python3 "$ROOT/appliance/bin/build-document-evidence-index.py" --root "$ROOT"
+python3 "$ROOT/appliance/bin/build-subsystem-evidence.py" --root "$ROOT"
+python3 "$ROOT/appliance/bin/verify-subsystem-evidence.py" --root "$ROOT"
+python3 "$ROOT/appliance/bin/project-subsystem-coverage.py" --root "$ROOT"
+python3 "$ROOT/appliance/bin/verify-crown.py" --root "$ROOT"
+python3 - "$ROOT/evidence/appliance/crown-report.json" <<'PYCROWN'
+import json,sys
+report=json.load(open(sys.argv[1]))
+assert report["standing"]=="ALIVE", report
+assert report["release_admitted"] is True, report
+assert report["sunset_admitted"] is False, report
+PYCROWN
+echo 'GGEN_LEGACY_ASSURANCE_REFERENCE_ALIVE'
+{% endraw %}

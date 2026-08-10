@@ -1,0 +1,70 @@
+---
+to: appliance/bin/transparency-log.py
+force: true
+---
+{% raw %}#!/usr/bin/env python3
+from __future__ import annotations
+import argparse, hashlib, json, os, shutil, subprocess, sys, tempfile
+from pathlib import Path
+
+def canonical(obj):
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+
+def sha256_bytes(data): return hashlib.sha256(data).hexdigest()
+def sha256_file(path):
+    h=hashlib.sha256()
+    with open(path,"rb") as f:
+        for chunk in iter(lambda:f.read(1024*1024),b""): h.update(chunk)
+    return h.hexdigest()
+def read_json(path): return json.loads(Path(path).read_text())
+def write_json(path,obj):
+    p=Path(path); p.parent.mkdir(parents=True,exist_ok=True)
+    p.write_text(json.dumps(obj,indent=2,sort_keys=True)+"\n")
+def tree_inventory(root):
+    root=Path(root); out=[]
+    for p in sorted(x for x in root.rglob("*") if x.is_file()):
+        out.append({"path":p.relative_to(root).as_posix(),"sha256":sha256_file(p),"bytes":p.stat().st_size})
+    return out
+def tree_digest(root):
+    inv=tree_inventory(root)
+    return sha256_bytes("\n".join(f"{x['path']}:{x['sha256']}" for x in inv).encode())
+
+
+def verify(log):
+    previous=None; entries=[]
+    p=Path(log)
+    if not p.exists(): return False,[],"TRANSPARENCY_LOG_MISSING"
+    for index,line in enumerate(p.read_text().splitlines()):
+        if not line.strip(): continue
+        e=json.loads(line); claimed=e.pop("entry_hash",None)
+        if e.get("index")!=index or e.get("previous_hash")!=previous: return False,entries,"TRANSPARENCY_CHAIN_BROKEN"
+        actual=sha256_bytes(canonical(e))
+        if claimed!=actual: return False,entries,"TRANSPARENCY_ENTRY_HASH_MISMATCH"
+        e["entry_hash"]=claimed; entries.append(e); previous=claimed
+    return bool(entries),entries,None if entries else "TRANSPARENCY_LOG_EMPTY"
+
+def append_entry(log, entry):
+    ok,entries,err=verify(log) if Path(log).exists() else (True,[],None)
+    if not ok: raise SystemExit(err)
+    entry={"index":len(entries),"previous_hash":entries[-1]["entry_hash"] if entries else None,**entry}
+    entry["entry_hash"]=sha256_bytes(canonical(entry))
+    Path(log).parent.mkdir(parents=True,exist_ok=True)
+    with open(log,"a") as f: f.write(json.dumps(entry,sort_keys=True)+"\n")
+    print(entry["entry_hash"])
+
+def main():
+    ap=argparse.ArgumentParser(); sub=ap.add_subparsers(dest="cmd",required=True)
+    a=sub.add_parser("append"); a.add_argument("--log",required=True); a.add_argument("--artifact",required=True); a.add_argument("--signature",required=True); a.add_argument("--identity",required=True); a.add_argument("--logical-time",required=True)
+    r=sub.add_parser("revoke"); r.add_argument("--log",required=True); r.add_argument("--target-entry-hash",required=True); r.add_argument("--reason",required=True); r.add_argument("--identity",required=True); r.add_argument("--logical-time",required=True)
+    v=sub.add_parser("verify"); v.add_argument("--log",required=True)
+    x=ap.parse_args()
+    if x.cmd=="append":
+        append_entry(x.log,{"entry_type":"attestation","artifact_sha256":sha256_file(x.artifact),"signature_sha256":sha256_file(x.signature),"identity":x.identity,"logical_time":x.logical_time})
+    elif x.cmd=="revoke":
+        ok,entries,err=verify(x.log)
+        if not ok or not any(e["entry_hash"]==x.target_entry_hash for e in entries): raise SystemExit("REVOCATION_TARGET_UNKNOWN")
+        append_entry(x.log,{"entry_type":"revocation","target_entry_hash":x.target_entry_hash,"reason":x.reason,"identity":x.identity,"logical_time":x.logical_time})
+    else:
+        ok,entries,err=verify(x.log); print(json.dumps({"valid":ok,"entries":len(entries),"error":err},sort_keys=True)); raise SystemExit(0 if ok else 2)
+if __name__=="__main__": main()
+{% endraw %}

@@ -1,0 +1,76 @@
+---
+to: appliance/bin/build-standing-portfolio.py
+force: true
+---
+{% raw %}#!/usr/bin/env python3
+from __future__ import annotations
+import argparse, hashlib, json, os, shutil, subprocess, sys, tempfile
+from pathlib import Path
+
+def canonical(obj):
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+
+def sha256_bytes(data): return hashlib.sha256(data).hexdigest()
+def sha256_file(path):
+    h=hashlib.sha256()
+    with open(path,"rb") as f:
+        for chunk in iter(lambda:f.read(1024*1024),b""): h.update(chunk)
+    return h.hexdigest()
+def read_json(path): return json.loads(Path(path).read_text())
+def write_json(path,obj):
+    p=Path(path); p.parent.mkdir(parents=True,exist_ok=True)
+    p.write_text(json.dumps(obj,indent=2,sort_keys=True)+"\n")
+def tree_inventory(root):
+    root=Path(root); out=[]
+    for p in sorted(x for x in root.rglob("*") if x.is_file()):
+        out.append({"path":p.relative_to(root).as_posix(),"sha256":sha256_file(p),"bytes":p.stat().st_size})
+    return out
+def tree_digest(root):
+    inv=tree_inventory(root)
+    return sha256_bytes("\n".join(f"{x['path']}:{x['sha256']}" for x in inv).encode())
+
+
+def main():
+    ap=argparse.ArgumentParser(); ap.add_argument("--engagement",required=True); ap.add_argument("--evidence-dir",required=True); ap.add_argument("--output",required=True)
+    a=ap.parse_args(); cfg=read_json(a.engagement); evidence=Path(a.evidence_dir); out=Path(a.output)
+    if out.exists(): shutil.rmtree(out)
+    out.mkdir(parents=True)
+    raw=out/"evidence"/"raw"; shutil.copytree(evidence,raw)
+    inventory=tree_inventory(raw)
+    hidden=[x for x in cfg.get("challenges",[]) if x.get("visibility")=="customer-hidden"]
+    coordinates=dict(cfg["coordinates"])
+    repo_root=Path(__file__).resolve().parents[2]
+    authority_files=[repo_root/"ontology/assurance-program.ttl", repo_root/"packs/ggen-legacy-assurance-pack/ontology.ttl"]
+    authority_material="\n".join(f"{x.relative_to(repo_root)}:{sha256_file(x)}" for x in authority_files)
+    coordinates["authority_digest"]="sha256:"+sha256_bytes(authority_material.encode())
+    verifier_files=[Path(__file__).with_name("verify-standing-portfolio.py"), Path(__file__).with_name("cross-check-portfolio.py")]
+    verifier_material="\n".join(f"{x.name}:{sha256_file(x)}" for x in verifier_files)
+    coordinates["verifier_digest"]="sha256:"+sha256_bytes(verifier_material.encode())
+    evidence_set_digest=sha256_bytes(canonical(inventory))
+    coordinates["fixture_set_digest"]="sha256:"+evidence_set_digest
+    coordinates["evidence_digest"]="sha256:"+evidence_set_digest
+    manifest={
+      "schema":"ggen.legacy.claim.manifest.v1","engagement_id":cfg["engagement_id"],"logical_time":cfg["logical_time"],
+      "claim":cfg["claim"],"observation_boundary":cfg["observation_boundary"],"exclusions":cfg["exclusions"],
+      "coordinates":coordinates,"execution_control":cfg["execution_control"],"implementer_identity":cfg["implementer_identity"],
+      "verifier_identity":cfg["verifier_identity"],"decision_authority":cfg["decision_authority"],
+      "hidden_challenge_count":len(hidden),"challenges":cfg.get("challenges",[]),"evidence_inventory":inventory,
+      "testing_authority":cfg["testing_authority"],"legal_recourse":cfg["legal_recourse"],
+      "capability_closure":cfg["capability_closure"],"customer_authorized_retirement":cfg.get("customer_authorized_retirement",False)
+    }
+    write_json(out/"claim-manifest.json",manifest)
+    write_json(out/"source-coordinates.json",coordinates)
+    write_json(out/"capability-ledger.json",cfg.get("capabilities",[]))
+    write_json(out/"disposition-ledger.json",cfg.get("dispositions",[]))
+    m_digest=sha256_file(out/"claim-manifest.json")
+    provenance={"_type":"https://in-toto.io/Statement/v1","subject":[{"name":"claim-manifest.json","digest":{"sha256":m_digest}}],
+      "predicateType":"https://slsa.dev/provenance/v1","predicate":{"buildDefinition":{"buildType":"https://chatmangpt.com/ggen-legacy/standing-portfolio/v1","externalParameters":{"engagement_id":cfg["engagement_id"]},"resolvedDependencies":[{"uri":"git+https://github.com/seanchatmangpt/ggen@0f39227c102e0ac7519f0f27561356227a518653","digest":{"sha1":"0f39227c102e0ac7519f0f27561356227a518653"}}]},"runDetails":{"builder":{"id":"https://chatmangpt.com/ggen-legacy/verifier-appliance/v26.8.1"},"metadata":{"invocationId":cfg["engagement_id"],"startedOn":cfg["logical_time"],"finishedOn":cfg["logical_time"]}}}}
+    (out/"provenance.intoto.jsonl").write_text(json.dumps(provenance,sort_keys=True)+"\n")
+    receipt={"schema":"ggen.legacy.receipt.v1","sequence":1,"previous_hash":None,"event":"portfolio-built","logical_time":cfg["logical_time"],"manifest_sha256":m_digest,"evidence_sha256":evidence_set_digest}
+    receipt["receipt_hash"]=sha256_bytes(canonical(receipt))
+    write_json(out/"receipt-chain"/"0001-build.json",receipt)
+    write_json(out/"release-admission.json",{"schema":"ggen.legacy.release.admission.v1","admitted":False,"state":"PENDING_VERIFICATION"})
+    write_json(out/"sunset-admission.json",{"schema":"ggen.legacy.sunset.admission.v1","admitted":False,"state":"PENDING_RELEASE_AND_CUSTOMER_AUTHORIZATION"})
+    print(json.dumps({"portfolio":str(out),"tree_digest":tree_digest(out),"evidence_files":len(inventory),"hidden_challenges":len(hidden)},sort_keys=True))
+if __name__=="__main__": main()
+{% endraw %}

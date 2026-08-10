@@ -1,0 +1,210 @@
+---
+to: appliance/bin/verify-crown.py
+force: true
+---
+{% raw %}#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import subprocess
+from pathlib import Path
+from typing import Any
+
+
+CROWN_PATH = "appliance/bin/verify-crown.py"
+PROJECTOR_PATH = "appliance/bin/project-subsystem-coverage.py"
+
+
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def exact_head(root: Path) -> str:
+    completed = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True
+    )
+    return completed.stdout.strip() if completed.returncode == 0 else "UNKNOWN"
+
+
+def expected_coverage(report: dict[str, Any], root: Path) -> dict[str, Any]:
+    return {
+        "schema": "ggen.legacy.subsystem.coverage.v1",
+        "release": "v26.8.1",
+        "scope": report.get("scope"),
+        "exact_source_head": report.get("exact_source_head"),
+        "verifier_report_sha256": sha256_file(
+            root / "evidence/appliance/subsystem-verifier-report.json"
+        ),
+        "projector": {
+            "path": PROJECTOR_PATH,
+            "sha256": sha256_file(root / PROJECTOR_PATH),
+        },
+        "subsystems": [
+            {
+                "id": item.get("id"),
+                "standing": item.get("standing"),
+            }
+            for item in sorted(report.get("subsystems", []), key=lambda value: value.get("id", ""))
+        ],
+        "standing": report.get("standing"),
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--root", default=".")
+    parser.add_argument(
+        "--report", default="evidence/appliance/subsystem-verifier-report.json"
+    )
+    parser.add_argument(
+        "--coverage", default="evidence/appliance/subsystem-coverage.json"
+    )
+    parser.add_argument(
+        "--output", default="evidence/appliance/crown-report.json"
+    )
+    args = parser.parse_args()
+    root = Path(args.root).resolve()
+
+    report_path = root / args.report
+    coverage_path = root / args.coverage
+    coverage_before = sha256_file(coverage_path)
+    verifier_report = json.loads(report_path.read_text())
+    observed_coverage = json.loads(coverage_path.read_text())
+    expected = expected_coverage(verifier_report, root)
+    expected_bytes = (json.dumps(expected, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    observed_bytes = coverage_path.read_bytes()
+
+    observation = json.loads(
+        (root / "evidence/appliance/observation-report.json").read_text()
+    )
+    document_index = json.loads(
+        (root / "evidence/appliance/document-evidence-index.json").read_text()
+    )
+    replay = json.loads(
+        (root / "evidence/appliance/reference-replay-report.json").read_text()
+    )
+    release = json.loads(
+        (root / "evidence/appliance/reference-release-admission.json").read_text()
+    )
+    sunset = json.loads(
+        (root / "evidence/appliance/reference-sunset-admission.json").read_text()
+    )
+    head = exact_head(root)
+
+    checks = [
+        {
+            "id": "exact-source-head",
+            "passed": (
+                verifier_report.get("exact_source_head") == head
+                and observed_coverage.get("exact_source_head") == head
+            ),
+            "detail": head,
+        },
+        {
+            "id": "external-subsystem-verifier",
+            "passed": verifier_report.get("standing") == "ALIVE",
+            "detail": verifier_report.get("standing"),
+        },
+        {
+            "id": "ten-subsystems-closed",
+            "passed": (
+                len(verifier_report.get("subsystems", [])) == 10
+                and all(
+                    item.get("standing") == "ALIVE"
+                    for item in verifier_report.get("subsystems", [])
+                )
+            ),
+            "detail": [
+                {"id": item.get("id"), "standing": item.get("standing")}
+                for item in verifier_report.get("subsystems", [])
+            ],
+        },
+        {
+            "id": "generated-coverage-drift",
+            "passed": observed_bytes == expected_bytes,
+            "detail": "byte-identical" if observed_bytes == expected_bytes else "GENERATED_COVERAGE_DRIFT",
+        },
+        {
+            "id": "observer-closure",
+            "passed": (
+                observation.get("standing") == "ALIVE"
+                and len(observation.get("observers", [])) == 5
+                and all(
+                    item.get("attempted") is True and not item.get("errors")
+                    for item in observation.get("observers", [])
+                )
+            ),
+            "detail": observation.get("standing"),
+        },
+        {
+            "id": "document-evidence-index",
+            "passed": (
+                document_index.get("standing") == "ALIVE"
+                and len(document_index.get("records", [])) >= 14
+                and all(item.get("complete") is True for item in document_index.get("records", []))
+            ),
+            "detail": {
+                "standing": document_index.get("standing"),
+                "records": len(document_index.get("records", [])),
+            },
+        },
+        {
+            "id": "clean-room-replay",
+            "passed": replay.get("status") == "REPLAY_MATCH",
+            "detail": replay.get("status"),
+        },
+        {
+            "id": "reference-release-admission",
+            "passed": release.get("admitted") is True,
+            "detail": release.get("admitted"),
+        },
+        {
+            "id": "project-001-sunset-fence",
+            "passed": sunset.get("admitted") is False,
+            "detail": "real predecessor retirement not fabricated",
+        },
+    ]
+    coverage_after = sha256_file(coverage_path)
+    checks.append({
+        "id": "read-only-coverage",
+        "passed": coverage_before == coverage_after,
+        "detail": {"before": coverage_before, "after": coverage_after},
+    })
+
+    standing = "ALIVE" if all(item["passed"] for item in checks) else "PARTIAL_ALIVE"
+    crown_report = {
+        "schema": "ggen.legacy.crown.report.v1",
+        "release": "v26.8.1",
+        "scope": "verifier-appliance-reference",
+        "exact_source_head": head,
+        "crown_verifier": {
+            "path": CROWN_PATH,
+            "sha256": sha256_file(root / CROWN_PATH),
+            "writes_coverage": False,
+        },
+        "checks": checks,
+        "standing": standing,
+        "release_admitted": release.get("admitted") is True,
+        "sunset_admitted": False,
+        "nonclaims": [
+            "complete ggen-legacy product ALIVE",
+            "external Fortune 5 production standing",
+            "real predecessor Sunset Admission",
+        ],
+    }
+    output = root / args.output
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(crown_report, indent=2, sort_keys=True) + "\n")
+    print(json.dumps({
+        "checks": len(checks),
+        "standing": standing,
+        "coverage_unchanged": coverage_before == coverage_after,
+    }, sort_keys=True))
+    return 0 if standing == "ALIVE" else 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+{% endraw %}

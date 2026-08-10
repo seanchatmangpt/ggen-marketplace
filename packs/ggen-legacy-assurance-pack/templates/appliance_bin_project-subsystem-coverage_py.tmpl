@@ -1,0 +1,71 @@
+---
+to: appliance/bin/project-subsystem-coverage.py
+force: true
+---
+{% raw %}#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+from pathlib import Path
+from typing import Any
+
+
+PROJECTOR_PATH = "appliance/bin/project-subsystem-coverage.py"
+
+
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def coverage_from_report(report: dict[str, Any], root: Path) -> dict[str, Any]:
+    return {
+        "schema": "ggen.legacy.subsystem.coverage.v1",
+        "release": "v26.8.1",
+        "scope": report.get("scope"),
+        "exact_source_head": report.get("exact_source_head"),
+        "verifier_report_sha256": sha256_file(
+            root / "evidence/appliance/subsystem-verifier-report.json"
+        ),
+        "projector": {
+            "path": PROJECTOR_PATH,
+            "sha256": sha256_file(root / PROJECTOR_PATH),
+        },
+        "subsystems": [
+            {
+                "id": item.get("id"),
+                "standing": item.get("standing"),
+            }
+            for item in sorted(report.get("subsystems", []), key=lambda value: value.get("id", ""))
+        ],
+        "standing": report.get("standing"),
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--root", default=".")
+    parser.add_argument(
+        "--report", default="evidence/appliance/subsystem-verifier-report.json"
+    )
+    parser.add_argument(
+        "--output", default="evidence/appliance/subsystem-coverage.json"
+    )
+    args = parser.parse_args()
+    root = Path(args.root).resolve()
+    report = json.loads((root / args.report).read_text())
+    coverage = coverage_from_report(report, root)
+    output = root / args.output
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(coverage, indent=2, sort_keys=True) + "\n")
+    print(json.dumps({
+        "subsystems": len(coverage["subsystems"]),
+        "standing": coverage["standing"],
+    }, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+{% endraw %}

@@ -1,0 +1,118 @@
+---
+to: appliance/bin/observe-project.py
+force: true
+---
+{% raw %}#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+from pathlib import Path
+
+
+SCHEMA = "ggen.legacy.observation.report.v1"
+OBSERVER_IDS = (
+    "git-history",
+    "current-tree",
+    "authority-surfaces",
+    "workflow-surfaces",
+    "generated-surfaces",
+)
+
+
+def run(root: Path, argv: list[str]) -> tuple[int, str, str]:
+    completed = subprocess.run(argv, cwd=root, capture_output=True, text=True)
+    return completed.returncode, completed.stdout, completed.stderr
+
+
+def exact_head(root: Path) -> str:
+    code, out, _ = run(root, ["git", "rev-parse", "HEAD"])
+    return out.strip() if code == 0 else "UNKNOWN"
+
+
+def count_files(paths: list[Path]) -> int:
+    return len({p.resolve() for p in paths if p.is_file()})
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--root", default=".")
+    parser.add_argument("--output", default="evidence/appliance/observation-report.json")
+    args = parser.parse_args()
+
+    root = Path(args.root).resolve()
+    observers: list[dict[str, object]] = []
+
+    code, out, err = run(root, ["git", "rev-list", "--count", "HEAD"])
+    observers.append({
+        "id": "git-history",
+        "attempted": True,
+        "result_count": int(out.strip()) if code == 0 and out.strip().isdigit() else 0,
+        "errors": [] if code == 0 else [err.strip() or "git rev-list failed"],
+    })
+
+    code, out, err = run(root, ["git", "ls-files"])
+    tracked = [line for line in out.splitlines() if line.strip()] if code == 0 else []
+    observers.append({
+        "id": "current-tree",
+        "attempted": True,
+        "result_count": len(tracked),
+        "errors": [] if code == 0 else [err.strip() or "git ls-files failed"],
+    })
+
+    authority_files: list[Path] = []
+    for rel in ("authority", "ontology", "schemas"):
+        directory = root / rel
+        if directory.exists():
+            authority_files.extend(directory.rglob("*"))
+    observers.append({
+        "id": "authority-surfaces",
+        "attempted": True,
+        "result_count": count_files(authority_files),
+        "errors": [],
+    })
+
+    workflow_dir = root / ".github" / "workflows"
+    workflow_files = list(workflow_dir.glob("*.yml")) + list(workflow_dir.glob("*.yaml")) if workflow_dir.exists() else []
+    observers.append({
+        "id": "workflow-surfaces",
+        "attempted": True,
+        "result_count": count_files(workflow_files),
+        "errors": [],
+    })
+
+    generated_files: list[Path] = []
+    for rel in ("appliance", "packs/ggen-legacy-assurance-pack/templates"):
+        directory = root / rel
+        if directory.exists():
+            generated_files.extend(directory.rglob("*"))
+    observers.append({
+        "id": "generated-surfaces",
+        "attempted": True,
+        "result_count": count_files(generated_files),
+        "errors": [],
+    })
+
+    standing = "ALIVE" if (
+        [item["id"] for item in observers] == list(OBSERVER_IDS)
+        and all(item["attempted"] and not item["errors"] for item in observers)
+    ) else "PARTIAL_ALIVE"
+
+    report = {
+        "schema": SCHEMA,
+        "release": "v26.8.1",
+        "exact_source_head": exact_head(root),
+        "observers": observers,
+        "standing": standing,
+    }
+    output = root / args.output
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    print(json.dumps(report, sort_keys=True))
+    return 0 if standing == "ALIVE" else 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+{% endraw %}
