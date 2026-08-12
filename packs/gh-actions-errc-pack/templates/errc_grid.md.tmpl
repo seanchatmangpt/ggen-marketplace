@@ -1,11 +1,143 @@
 ---
 to: "docs/ci/GH_ACTIONS_ERRC_GRID.md"
 sparql:
-  row: |
+  subject: |
     PREFIX errc: <http://seanchatmangpt.github.io/packs/gh-actions-errc#>
-    SELECT ?body WHERE {
-      errc:ErrcGridDocument errc:body ?body .
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+    SELECT ?title ?date ?ref ?standing ?gap WHERE {
+      errc:GitHubActionsSurface20260805
+        dcterms:title ?title ;
+        dcterms:date ?date ;
+        errc:sourceRef ?ref ;
+        errc:identityStanding ?status ;
+        errc:identityGap ?gap .
+      ?status skos:prefLabel ?standing .
     }
-    ORDER BY ?body
+  rule: |
+    PREFIX errc: <http://seanchatmangpt.github.io/packs/gh-actions-errc#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    SELECT ?id ?title ?aggregation ?admission ?standingLaw ?replayLaw WHERE {
+      errc:ERRCDecisionRuleV2
+        dcterms:identifier ?id ;
+        dcterms:title ?title ;
+        errc:aggregationPolicy ?aggregation ;
+        errc:admissionLaw ?admission ;
+        errc:standingLaw ?standingLaw ;
+        errc:replayLaw ?replayLaw .
+    }
+  invariants: |
+    PREFIX errc: <http://seanchatmangpt.github.io/packs/gh-actions-errc#>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT ?label ?predicate WHERE {
+      ?invariant a errc:Invariant ;
+                 rdfs:label ?label ;
+                 errc:predicate ?predicate .
+    }
+    ORDER BY ?label
+  findings: |
+    PREFIX errc: <http://seanchatmangpt.github.io/packs/gh-actions-errc#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+    SELECT ?operatorOrder ?operator ?priority ?label ?standing ?statement ?impact
+           ?dimension ?relation ?before ?after ?falsifier
+           (GROUP_CONCAT(DISTINCT ?evidenceId; separator=", ") AS ?evidenceIds)
+    WHERE {
+      ?recommendation a errc:Recommendation ;
+          rdfs:label ?label ;
+          errc:operator ?operatorNode ;
+          errc:priority ?priority ;
+          errc:supportedBy ?evidence ;
+          errc:delta ?delta ;
+          errc:falsifier ?falsifierNode ;
+          errc:standing ?standingNode ;
+          errc:statement ?statement ;
+          errc:impact ?impact .
+      ?operatorNode skos:prefLabel ?operator ; errc:operatorOrder ?operatorOrder .
+      ?standingNode skos:prefLabel ?standing .
+      ?evidence dcterms:identifier ?evidenceId .
+      ?delta errc:dimension ?dimensionNode ;
+             errc:relation ?relationNode ;
+             errc:beforeValue ?before ;
+             errc:afterValue ?after .
+      ?dimensionNode rdfs:label ?dimension .
+      ?relationNode skos:prefLabel ?relation .
+      ?falsifierNode rdfs:label ?falsifier .
+    }
+    GROUP BY ?operatorOrder ?operator ?priority ?label ?standing ?statement ?impact
+             ?dimension ?relation ?before ?after ?falsifier
+    ORDER BY ?operatorOrder ?priority ?label
+  receipt: |
+    PREFIX errc: <http://seanchatmangpt.github.io/packs/gh-actions-errc#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+    SELECT ?id ?algorithm ?digest ?replay ?standing WHERE {
+      errc:DecisionReceipt20260805
+        dcterms:identifier ?id ;
+        errc:digestAlgorithm ?algorithm ;
+        errc:digest ?digest ;
+        errc:replayCommand ?replay ;
+        errc:standing ?standingNode .
+      ?standingNode skos:prefLabel ?standing .
+    }
 ---
-{{ row[0].body }}
+# GitHub Actions ERRC Decision Calculus
+
+This file is a deterministic projection of the admitted RDF graph in
+`packs/gh-actions-errc-pack/ontology.ttl` plus its formal overlay under `ontology/`.
+Edit those RDF sources and native gates, not this projection.
+
+{% for s in subject %}## Subject boundary
+
+- **Subject:** {{ s.title }}
+- **Observed:** {{ s.date }}
+- **Captured ref:** `{{ s.ref }}`
+- **Identity standing:** `{{ s.standing }}`
+- **Identity gap:** {{ s.gap }}
+
+The historical observations are useful evidence, but they cannot be promoted to
+exact-head `ALIVE` without a new immutable subject identity and replay.
+{% endfor %}
+{% for r in rule %}## Decision law
+
+- **Rule:** `{{ r.id }}` — {{ r.title }}
+- **Order:** {{ r.aggregation }}
+- **Admission:** {{ r.admission }}
+- **Standing:** {{ r.standingLaw }}
+- **Replay:** {{ r.replayLaw }}
+
+ERRC is a SELECT/CONSTRUCT calculus. It does not own a DO transition. In particular,
+`Create` can manufacture a reversible proposal but cannot acquire ambient execution
+authority.
+{% endfor %}
+## Protected invariants
+
+{% for invariant in invariants %}- **{{ invariant.label }}:** {{ invariant.predicate }}
+{% endfor %}
+## ERRC recommendations
+
+{% for finding in findings %}### {{ finding.operator }} · {{ finding.label }}
+
+- **Standing:** `{{ finding.standing }}`
+- **Priority within operator:** {{ finding.priority }}
+- **Evidence:** `{{ finding.evidenceIds }}`
+- **Typed delta:** {{ finding.dimension }} — `{{ finding.relation }}`
+- **Before:** {{ finding.before }}
+- **After:** {{ finding.after }}
+- **Claim:** {{ finding.statement }}
+- **Impact:** {{ finding.impact }}
+- **Falsifier:** {{ finding.falsifier }}
+
+{% endfor %}
+{% for receipt in receipt %}## Decision receipt
+
+- **Receipt:** `{{ receipt.id }}`
+- **Standing:** `{{ receipt.standing }}`
+- **Digest:** `{{ receipt.algorithm }}:{{ receipt.digest }}`
+- **Replay:** `{{ receipt.replay }}`
+
+The native SPARQL gates independently refuse missing proof fields, dangling graph
+edges, operator-law violations, Pareto regression/scalar collapse, unauthorized
+actuation, false `ALIVE` promotion, and receipt/replay mismatch.
+{% endfor %}
