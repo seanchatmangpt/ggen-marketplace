@@ -1,0 +1,36 @@
+# MESSAGE: every recommendation/evidence edge must be receipted and replay material must hash to the declared digest.
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX errc: <http://seanchatmangpt.github.io/packs/gh-actions-errc#>
+SELECT ?subject ?violation WHERE {
+  {
+    ?subject a errc:Recommendation .
+    FILTER NOT EXISTS {
+      ?receipt a errc:DecisionReceipt ;
+               errc:bindsRecommendation ?subject ;
+               errc:subject ?target ;
+               errc:decisionRule ?rule .
+      ?subject errc:subject ?target ; errc:decisionRule ?rule .
+    }
+    BIND("recommendation-not-bound-by-compatible-receipt" AS ?violation)
+  } UNION {
+    ?recommendation a errc:Recommendation ; errc:supportedBy ?subject .
+    FILTER NOT EXISTS {
+      ?receipt a errc:DecisionReceipt ;
+               errc:bindsRecommendation ?recommendation ;
+               errc:bindsEvidence ?subject .
+    }
+    BIND("supporting-evidence-not-bound-with-recommendation" AS ?violation)
+  } UNION {
+    ?subject a errc:DecisionReceipt ;
+             errc:replayMaterial ?material ;
+             errc:digestAlgorithm ?algorithm ;
+             errc:digest ?digest .
+    FILTER (LCASE(STR(?algorithm)) != "sha256" || LCASE(STR(?digest)) != LCASE(SHA256(STR(?material))))
+    BIND("receipt-digest-mismatch" AS ?violation)
+  } UNION {
+    ?subject a errc:DecisionReceipt ; errc:decisionRule ?rule .
+    FILTER NOT EXISTS { ?rule dcterms:identifier ?ruleId }
+    BIND("receipt-rule-version-missing" AS ?violation)
+  }
+}
+ORDER BY ?subject ?violation
