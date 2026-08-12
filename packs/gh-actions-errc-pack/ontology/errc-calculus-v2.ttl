@@ -1,0 +1,278 @@
+@prefix errc: <http://seanchatmangpt.github.io/packs/gh-actions-errc#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ERRC v0.2.0 is an additive admission overlay. ontology.ttl remains immutable
+# historical observation/projection source; this graph adds proof-relevant types,
+# boundaries, witnesses and receipts without rewriting that provenance.
+
+errc:Subject a rdfs:Class .
+errc:Evidence a rdfs:Class ; rdfs:subClassOf prov:Entity .
+errc:Recommendation a rdfs:Class ; rdfs:subClassOf prov:Entity .
+errc:Dimension a rdfs:Class .
+errc:Delta a rdfs:Class .
+errc:Invariant a rdfs:Class .
+errc:Falsifier a rdfs:Class .
+errc:DecisionRule a rdfs:Class .
+errc:DecisionReceipt a rdfs:Class ; rdfs:subClassOf prov:Entity .
+errc:Witness a rdfs:Class .
+errc:Operator a rdfs:Class ; rdfs:subClassOf skos:Concept .
+errc:Standing a rdfs:Class ; rdfs:subClassOf skos:Concept .
+errc:OrderDirection a rdfs:Class ; rdfs:subClassOf skos:Concept .
+errc:DeltaRelation a rdfs:Class ; rdfs:subClassOf skos:Concept .
+errc:AuthorityClass a rdfs:Class ; rdfs:subClassOf skos:Concept .
+errc:ActuationMode a rdfs:Class ; rdfs:subClassOf skos:Concept .
+
+errc:Eliminate a errc:Operator ; skos:prefLabel "Eliminate" ; errc:operatorOrder 1 .
+errc:Reduce a errc:Operator ; skos:prefLabel "Reduce" ; errc:operatorOrder 2 .
+errc:Raise a errc:Operator ; skos:prefLabel "Raise" ; errc:operatorOrder 3 .
+errc:Create a errc:Operator ; skos:prefLabel "Create" ; errc:operatorOrder 4 .
+
+errc:UNKNOWN a errc:Standing ; skos:prefLabel "UNKNOWN" .
+errc:PARTIAL_ALIVE a errc:Standing ; skos:prefLabel "PARTIAL_ALIVE" .
+errc:ALIVE a errc:Standing ; skos:prefLabel "ALIVE" .
+errc:BLOCKED a errc:Standing ; skos:prefLabel "BLOCKED" .
+errc:BUILD_BROKEN a errc:Standing ; skos:prefLabel "BUILD_BROKEN" .
+errc:UNSUPPORTED a errc:Standing ; skos:prefLabel "UNSUPPORTED" .
+
+errc:Minimize a errc:OrderDirection ; skos:prefLabel "minimize" .
+errc:Maximize a errc:OrderDirection ; skos:prefLabel "maximize" .
+errc:Preserve a errc:OrderDirection ; skos:prefLabel "preserve" .
+errc:Improves a errc:DeltaRelation ; skos:prefLabel "improves" .
+errc:Preserves a errc:DeltaRelation ; skos:prefLabel "preserves" .
+errc:Regresses a errc:DeltaRelation ; skos:prefLabel "regresses" .
+errc:Incomparable a errc:DeltaRelation ; skos:prefLabel "incomparable" .
+errc:ReviewRequired a errc:AuthorityClass ; skos:prefLabel "review required before DO" .
+errc:ProposalOnly a errc:ActuationMode ; skos:prefLabel "proposal-only; no ambient execution authority" .
+
+errc:ERRCDecisionRuleV2 a errc:DecisionRule ;
+    dcterms:identifier "errc-calculus/v0.2.0" ;
+    dcterms:title "Evidence-bounded Pareto ERRC calculus" ;
+    errc:aggregationPolicy "Product partial order only. Aggregate scalar scoring is forbidden; incomparable dimensions remain incomparable." ;
+    errc:admissionLaw "Each recommendation binds a subject, versioned rule, typed evidence, at least one improving delta, zero regressing deltas, protected invariants, authority, reversibility, proposal-only actuation, falsifier, and standing." ;
+    errc:eliminateLaw "Eliminate requires dominance and closure witnesses; deletion is inadmissible until every protected consumer path survives." ;
+    errc:reduceLaw "Reduce improves a minimize dimension without protected regression; dependencies and sequencing remain explicit." ;
+    errc:raiseLaw "Raise improves a maximize dimension under an explicit finite budget bound." ;
+    errc:createLaw "Create requires a missing-capability witness, is reversible and proposal-only, and cannot acquire DO authority." ;
+    errc:standingLaw "ALIVE requires immutable subject identity plus ALIVE supporting evidence. Historical or stale evidence may remain PARTIAL_ALIVE but cannot be promoted by inference." ;
+    errc:replayLaw "A receipt binds subject, rule, evidence, recommendations and canonical replay material; SHA-256 mismatch is a refusal." .
+
+errc:GitHubActionsSurface20260805 a errc:Subject ;
+    dcterms:title "ggen GitHub Actions surface observed 2026-08-05" ;
+    dcterms:date "2026-08-05"^^xsd:date ;
+    errc:sourceRef "feat/hygen-parity-e2e" ;
+    errc:identityStanding errc:PARTIAL_ALIVE ;
+    errc:identityGap "Historical source names a branch/ref but does not record the observed ggen checkout's immutable commit SHA." .
+
+errc:CacheMechanismCount a errc:Dimension ; rdfs:label "redundant cache mechanism count" ; errc:direction errc:Minimize .
+errc:UnpinnedReferenceCount a errc:Dimension ; rdfs:label "floating GitHub Action reference count" ; errc:direction errc:Minimize .
+errc:CacheKeyCardinality a errc:Dimension ; rdfs:label "cache-key cardinality pressure" ; errc:direction errc:Minimize .
+errc:CacheObservabilityCoverage a errc:Dimension ; rdfs:label "cache observability coverage" ; errc:direction errc:Maximize .
+errc:ProvisioningTriageCoverage a errc:Dimension ; rdfs:label "cargo-workflow provisioning triage coverage" ; errc:direction errc:Maximize .
+errc:TimeoutCoverage a errc:Dimension ; rdfs:label "explicit workflow timeout coverage" ; errc:direction errc:Maximize .
+errc:ReviewableProposalCoverage a errc:Dimension ; rdfs:label "reviewable generated proposal coverage" ; errc:direction errc:Maximize .
+errc:StandingSemanticResolution a errc:Dimension ; rdfs:label "typed CI standing resolution" ; errc:direction errc:Maximize .
+
+errc:NoAmbientActuation a errc:Invariant ;
+    rdfs:label "ERRC has no ambient actuation authority" ;
+    errc:predicate "Every recommendation remains SELECT/CONSTRUCT and proposal-only; production mutation requires a separate authorized DO path." .
+errc:NoProtectedRegression a errc:Invariant ;
+    rdfs:label "Pareto non-regression" ;
+    errc:predicate "Every recommendation has at least one improves delta and no regresses delta." .
+errc:ProductionActionPreserved a errc:Invariant ;
+    rdfs:label "production setup action remains hand-owned until explicit promotion" ;
+    errc:predicate "Generated ERRC output never overwrites .github/actions/setup-ggen-build/action.yml." .
+errc:NoBlindDirectoryCaching a errc:Invariant ;
+    rdfs:label "no blind target/build/obj caching" ;
+    errc:predicate "Cache design remains dependency/toolchain-aware instead of blindly preserving transient build directories." ;
+    errc:supportedBy errc:EvidenceBlindDirectoryCaching ;
+    errc:standing errc:PARTIAL_ALIVE .
+
+# The old ontology called this an Eliminate finding even though the observed
+# repository already avoided the behavior. Preserve the fact, but classify its
+# mathematical role correctly: it is a protected invariant, not an operation.
+errc:EliminateBlindDirectoryCaching errc:legacyDisposition errc:InvariantOnly .
+errc:ActValidationRun errc:legacyDisposition errc:EvidenceOnly .
+errc:ErrcGridDocument errc:legacyDisposition errc:SupersededProjection .
+
+errc:EvidenceDuplicateCaching a errc:Evidence ;
+    dcterms:identifier "E-DUP-CACHE" ; errc:subject errc:GitHubActionsSurface20260805 ;
+    dcterms:date "2026-08-05"^^xsd:date ;
+    errc:sourceRef "historical setup-ggen-build/setup-rust-cached caller and cache-action grep inventory" ;
+    errc:observation "Historical capture reported overlapping Cargo caching mechanisms and setup-ggen-build use by 35 workflows." ;
+    errc:standing errc:PARTIAL_ALIVE .
+errc:EvidenceBlindDirectoryCaching a errc:Evidence ;
+    dcterms:identifier "E-BLIND-CACHE" ; errc:subject errc:GitHubActionsSurface20260805 ;
+    dcterms:date "2026-08-05"^^xsd:date ;
+    errc:sourceRef "companion caching-best-practices research document, not vendored in this pack" ;
+    errc:observation "Blind build-directory caching can retain transient/path-sensitive state whose true inputs are absent from a key." ;
+    errc:standing errc:PARTIAL_ALIVE .
+errc:EvidenceUnpinnedActions a errc:Evidence ;
+    dcterms:identifier "E-UNPINNED" ; errc:subject errc:GitHubActionsSurface20260805 ;
+    dcterms:date "2026-08-05"^^xsd:date ;
+    errc:sourceRef "historical uses: inventory across workflows/actions" ;
+    errc:observation "Historical capture reported 259 action references: 227 full-SHA pinned and 32 floating." ;
+    errc:standing errc:PARTIAL_ALIVE .
+errc:EvidenceCacheCardinality a errc:Evidence ;
+    dcterms:identifier "E-CARDINALITY" ; errc:subject errc:GitHubActionsSurface20260805 ;
+    dcterms:date "2026-08-05"^^xsd:date ;
+    errc:sourceRef "companion caching-best-practices cardinality model" ;
+    errc:observation "Cache key space compounds across platform/toolchain/profile/component/lock-state dimensions and explicit segmentation." ;
+    errc:standing errc:PARTIAL_ALIVE .
+errc:EvidenceCacheObservability a errc:Evidence ;
+    dcterms:identifier "E-CACHE-OBS" ; errc:subject errc:GitHubActionsSurface20260805 ;
+    dcterms:date "2026-08-05"^^xsd:date ;
+    errc:sourceRef "historical grep for sccache statistics and cache-hit" ;
+    errc:observation "Historical capture found no sccache-statistics logging and only release.yml reading cache-hit." ;
+    errc:standing errc:PARTIAL_ALIVE .
+errc:EvidenceSiblingProvisioning a errc:Evidence ;
+    dcterms:identifier "E-SIBLING" ; errc:subject errc:GitHubActionsSurface20260805 ;
+    dcterms:date "2026-08-05"^^xsd:date ;
+    errc:sourceRef "historical cargo-without-setup-ggen-build inventory" ;
+    errc:observation "Twenty workflows invoked cargo without setup-ggen-build; the capture did not prove all twenty require sibling provisioning." ;
+    errc:standing errc:PARTIAL_ALIVE .
+errc:EvidenceTimeoutCoverage a errc:Evidence ;
+    dcterms:identifier "E-TIMEOUT" ; errc:subject errc:GitHubActionsSurface20260805 ;
+    dcterms:date "2026-08-05"^^xsd:date ;
+    errc:sourceRef "historical grep -L timeout-minutes .github/workflows/*.yml" ;
+    errc:observation "Historical capture found eight of 75 workflow files without timeout-minutes." ;
+    errc:standing errc:PARTIAL_ALIVE .
+errc:EvidenceProposedAction a errc:Evidence ;
+    dcterms:identifier "E-PROPOSED-ACTION" ; errc:subject errc:GitHubActionsSurface20260805 ;
+    dcterms:date "2026-08-05"^^xsd:date ;
+    errc:sourceRef "historical production setup action plus CI caching refactor report section 4.2" ;
+    errc:observation "The pack manufactured a separate proposal exposing cache-hit without wiring it into production." ;
+    errc:standing errc:PARTIAL_ALIVE .
+errc:EvidenceStandingVocabulary a errc:Evidence ;
+    dcterms:identifier "E-STANDING-VOCAB" ; errc:subject errc:GitHubActionsSurface20260805 ;
+    dcterms:date "2026-08-05"^^xsd:date ;
+    errc:sourceRef "historical CI report section 6 plus companion cache-metrics example" ;
+    errc:observation "Historical CI presentation lacked a typed evidence-standing projection separating epistemic outcome classes." ;
+    errc:standing errc:PARTIAL_ALIVE .
+errc:EvidenceActRun a errc:Evidence ;
+    dcterms:identifier "E-ACT-RUN" ; errc:subject errc:GitHubActionsSurface20260805 ;
+    dcterms:date "2026-08-05"^^xsd:date ;
+    errc:sourceRef "nektos/act v0.2.87 container runs recorded in the original ontology" ;
+    errc:observation "Original prose records an initial minimal-image Node.js failure and a later full-image successful job; the runner image is named by mutable tag, not immutable digest." ;
+    errc:legacyStandingLabel "ALIVE" ;
+    errc:identityGap "Historical execution subject lacks immutable runner-image identity, so formal standing is bounded to PARTIAL_ALIVE." ;
+    errc:standing errc:PARTIAL_ALIVE .
+
+errc:FalsifyDuplicateCaching a errc:Falsifier ; rdfs:label "Falsified if exact-head mechanisms do not overlap or retiring one breaks a protected consumer path." .
+errc:FalsifyUnpinnedActions a errc:Falsifier ; rdfs:label "Falsified when exact-head inventory has zero floating third-party action references." .
+errc:FalsifyCacheCardinality a errc:Falsifier ; rdfs:label "Falsified when measured occupancy/eviction shows segmentation does not contribute meaningful pressure after duplicate removal." .
+errc:FalsifyCacheObservability a errc:Falsifier ; rdfs:label "Falsified when exact-head consumers already expose cache-hit and post-build sccache evidence." .
+errc:FalsifySiblingProvisioning a errc:Falsifier ; rdfs:label "Falsified when every cargo workflow is dependency-triaged and no unresolved provisioning obligation remains." .
+errc:FalsifyTimeoutCoverage a errc:Falsifier ; rdfs:label "Falsified when every relevant exact-head workflow/job has an explicit finite timeout." .
+errc:FalsifyProposedAction a errc:Falsifier ; rdfs:label "Falsified if production already exposes equivalent observability or the proposal fails a real consumer boundary." .
+errc:FalsifyStandingVocabulary a errc:Falsifier ; rdfs:label "Falsified when CI already emits typed evidence standings that separate execution and evidence classes." .
+errc:FalsifyReceiptIdentity a errc:Falsifier ; rdfs:label "Falsified by digest mismatch, changed replay material, or missing bound evidence/recommendation." .
+
+errc:DeltaDuplicateCaching a errc:Delta ; errc:dimension errc:CacheMechanismCount ; errc:relation errc:Improves ; errc:beforeValue "two overlapping historical mechanisms" ; errc:afterValue "one canonical mechanism after caller migration" .
+errc:DeltaUnpinnedActions a errc:Delta ; errc:dimension errc:UnpinnedReferenceCount ; errc:relation errc:Improves ; errc:beforeValue "32 floating historical references" ; errc:afterValue "strictly fewer; target zero" .
+errc:DeltaCacheCardinality a errc:Delta ; errc:dimension errc:CacheKeyCardinality ; errc:relation errc:Improves ; errc:beforeValue "duplicate mechanism plus segmented key space" ; errc:afterValue "bounded segmentation after duplicate retirement" .
+errc:DeltaCacheObservability a errc:Delta ; errc:dimension errc:CacheObservabilityCoverage ; errc:relation errc:Improves ; errc:beforeValue "configured but weakly observed" ; errc:afterValue "cache-hit plus post-build sccache evidence" .
+errc:DeltaSiblingTriage a errc:Delta ; errc:dimension errc:ProvisioningTriageCoverage ; errc:relation errc:Improves ; errc:beforeValue "20 workflows not individually triaged" ; errc:afterValue "every cargo workflow classified by actual requirement" .
+errc:DeltaTimeoutCoverage a errc:Delta ; errc:dimension errc:TimeoutCoverage ; errc:relation errc:Improves ; errc:beforeValue "67/75 historical workflow files explicit" ; errc:afterValue "full historical scope explicit, subject to exact-head remeasurement" .
+errc:DeltaProposalCoverage a errc:Delta ; errc:dimension errc:ReviewableProposalCoverage ; errc:relation errc:Improves ; errc:beforeValue "recommendation only" ; errc:afterValue "separate reviewable generated proposal" .
+errc:DeltaStandingResolution a errc:Delta ; errc:dimension errc:StandingSemanticResolution ; errc:relation errc:Improves ; errc:beforeValue "generic CI status" ; errc:afterValue "typed evidence standing projection" .
+
+errc:EliminateDuplicateCachingAction
+    a errc:Recommendation ;
+    errc:operator errc:Eliminate ; errc:priority 1 ; errc:subject errc:GitHubActionsSurface20260805 ;
+    errc:decisionRule errc:ERRCDecisionRuleV2 ; errc:supportedBy errc:EvidenceDuplicateCaching ;
+    errc:delta errc:DeltaDuplicateCaching ; errc:protectsInvariant errc:NoAmbientActuation, errc:NoProtectedRegression ;
+    errc:dominanceWitness "setup-ggen-build historically subsumed the shared caching role; exact-head dominance must be re-established before removal." ;
+    errc:closureWitness "All callers migrate and qualify before deletion; no protected provisioning/cache path may disappear." ;
+    errc:authorityRequirement errc:ReviewRequired ; errc:reversible true ; errc:actuationMode errc:ProposalOnly ;
+    errc:falsifier errc:FalsifyDuplicateCaching ; errc:standing errc:PARTIAL_ALIVE .
+
+errc:ReduceUnpinnedActionSurface
+    a errc:Recommendation ;
+    errc:operator errc:Reduce ; errc:priority 1 ; errc:subject errc:GitHubActionsSurface20260805 ;
+    errc:decisionRule errc:ERRCDecisionRuleV2 ; errc:supportedBy errc:EvidenceUnpinnedActions ;
+    errc:delta errc:DeltaUnpinnedActions ; errc:protectsInvariant errc:NoAmbientActuation, errc:NoProtectedRegression ;
+    errc:authorityRequirement errc:ReviewRequired ; errc:reversible true ; errc:actuationMode errc:ProposalOnly ;
+    errc:falsifier errc:FalsifyUnpinnedActions ; errc:standing errc:PARTIAL_ALIVE .
+
+errc:ReduceCacheKeyCardinality
+    a errc:Recommendation ;
+    errc:operator errc:Reduce ; errc:priority 2 ; errc:subject errc:GitHubActionsSurface20260805 ;
+    errc:decisionRule errc:ERRCDecisionRuleV2 ; errc:supportedBy errc:EvidenceCacheCardinality ;
+    errc:dependsOn errc:EliminateDuplicateCachingAction ;
+    errc:delta errc:DeltaCacheCardinality ; errc:protectsInvariant errc:NoAmbientActuation, errc:NoProtectedRegression ;
+    errc:authorityRequirement errc:ReviewRequired ; errc:reversible true ; errc:actuationMode errc:ProposalOnly ;
+    errc:falsifier errc:FalsifyCacheCardinality ; errc:standing errc:PARTIAL_ALIVE .
+
+errc:RaiseCacheObservability
+    a errc:Recommendation ;
+    errc:operator errc:Raise ; errc:priority 1 ; errc:subject errc:GitHubActionsSurface20260805 ;
+    errc:decisionRule errc:ERRCDecisionRuleV2 ; errc:supportedBy errc:EvidenceCacheObservability, errc:EvidenceActRun ;
+    errc:delta errc:DeltaCacheObservability ; errc:protectsInvariant errc:NoAmbientActuation, errc:NoProtectedRegression, errc:ProductionActionPreserved ;
+    errc:budgetBound "No unbounded runner loop; sccache statistics are collected only after a real build." ;
+    errc:authorityRequirement errc:ReviewRequired ; errc:reversible true ; errc:actuationMode errc:ProposalOnly ;
+    errc:falsifier errc:FalsifyCacheObservability ; errc:standing errc:PARTIAL_ALIVE .
+
+errc:RaiseSiblingProvisioningCoverage
+    a errc:Recommendation ;
+    errc:operator errc:Raise ; errc:priority 2 ; errc:subject errc:GitHubActionsSurface20260805 ;
+    errc:decisionRule errc:ERRCDecisionRuleV2 ; errc:supportedBy errc:EvidenceSiblingProvisioning ;
+    errc:delta errc:DeltaSiblingTriage ; errc:protectsInvariant errc:NoAmbientActuation, errc:NoProtectedRegression ;
+    errc:budgetBound "Finite exact-head set of workflows that invoke cargo." ;
+    errc:authorityRequirement errc:ReviewRequired ; errc:reversible true ; errc:actuationMode errc:ProposalOnly ;
+    errc:falsifier errc:FalsifySiblingProvisioning ; errc:standing errc:PARTIAL_ALIVE .
+
+errc:RaiseTimeoutCoverage
+    a errc:Recommendation ;
+    errc:operator errc:Raise ; errc:priority 3 ; errc:subject errc:GitHubActionsSurface20260805 ;
+    errc:decisionRule errc:ERRCDecisionRuleV2 ; errc:supportedBy errc:EvidenceTimeoutCoverage ;
+    errc:delta errc:DeltaTimeoutCoverage ; errc:protectsInvariant errc:NoAmbientActuation, errc:NoProtectedRegression ;
+    errc:budgetBound "Explicit finite per-workflow timeout appropriate to legitimate worst-case execution." ;
+    errc:authorityRequirement errc:ReviewRequired ; errc:reversible true ; errc:actuationMode errc:ProposalOnly ;
+    errc:falsifier errc:FalsifyTimeoutCoverage ; errc:standing errc:PARTIAL_ALIVE .
+
+errc:MissingCacheOutcomeProposal a errc:Witness ; rdfs:label "Missing separate reviewable cache-observability proposal." .
+errc:CreateProposedSetupAction
+    a errc:Recommendation ;
+    errc:operator errc:Create ; errc:priority 1 ; errc:subject errc:GitHubActionsSurface20260805 ;
+    errc:decisionRule errc:ERRCDecisionRuleV2 ; errc:supportedBy errc:EvidenceProposedAction, errc:EvidenceActRun ;
+    errc:delta errc:DeltaProposalCoverage ; errc:protectsInvariant errc:NoAmbientActuation, errc:NoProtectedRegression, errc:ProductionActionPreserved ;
+    errc:missingCapabilityWitness errc:MissingCacheOutcomeProposal ;
+    errc:authorityRequirement errc:ReviewRequired ; errc:reversible true ; errc:proposalOnly true ; errc:actuationMode errc:ProposalOnly ;
+    errc:falsifier errc:FalsifyProposedAction ; errc:standing errc:PARTIAL_ALIVE .
+
+errc:MissingTypedStandingProjection a errc:Witness ; rdfs:label "Missing typed CI evidence-standing projection." .
+errc:CreateCiReceiptVocabulary
+    a errc:Recommendation ;
+    errc:operator errc:Create ; errc:priority 2 ; errc:subject errc:GitHubActionsSurface20260805 ;
+    errc:decisionRule errc:ERRCDecisionRuleV2 ; errc:supportedBy errc:EvidenceStandingVocabulary ;
+    errc:delta errc:DeltaStandingResolution ; errc:protectsInvariant errc:NoAmbientActuation, errc:NoProtectedRegression ;
+    errc:missingCapabilityWitness errc:MissingTypedStandingProjection ;
+    errc:authorityRequirement errc:ReviewRequired ; errc:reversible true ; errc:proposalOnly true ; errc:actuationMode errc:ProposalOnly ;
+    errc:falsifier errc:FalsifyStandingVocabulary ; errc:standing errc:PARTIAL_ALIVE .
+
+errc:DecisionReceipt20260805 a errc:DecisionReceipt ;
+    dcterms:identifier "ERRC-2026-08-05-v2" ;
+    errc:subject errc:GitHubActionsSurface20260805 ;
+    errc:decisionRule errc:ERRCDecisionRuleV2 ;
+    errc:bindsEvidence errc:EvidenceDuplicateCaching, errc:EvidenceBlindDirectoryCaching, errc:EvidenceUnpinnedActions,
+        errc:EvidenceCacheCardinality, errc:EvidenceCacheObservability, errc:EvidenceSiblingProvisioning,
+        errc:EvidenceTimeoutCoverage, errc:EvidenceProposedAction, errc:EvidenceStandingVocabulary, errc:EvidenceActRun ;
+    errc:bindsRecommendation errc:EliminateDuplicateCachingAction, errc:ReduceUnpinnedActionSurface,
+        errc:ReduceCacheKeyCardinality, errc:RaiseCacheObservability, errc:RaiseSiblingProvisioningCoverage,
+        errc:RaiseTimeoutCoverage, errc:CreateProposedSetupAction, errc:CreateCiReceiptVocabulary ;
+    errc:replayMaterial """errc-calculus/v0.2.0
+subject=GitHubActionsSurface20260805;sourceRef=feat/hygen-parity-e2e;identity=PARTIAL_ALIVE
+evidence=E-DUP-CACHE,E-BLIND-CACHE,E-UNPINNED,E-CARDINALITY,E-CACHE-OBS,E-SIBLING,E-TIMEOUT,E-PROPOSED-ACTION,E-STANDING-VOCAB,E-ACT-RUN
+recommendations=EliminateDuplicateCachingAction,ReduceUnpinnedActionSurface,ReduceCacheKeyCardinality,RaiseCacheObservability,RaiseSiblingProvisioningCoverage,RaiseTimeoutCoverage,CreateProposedSetupAction,CreateCiReceiptVocabulary
+rule=ERRCDecisionRuleV2;aggregation=forbidden;actuation=proposal-only
+""" ;
+    errc:digestAlgorithm "sha256" ;
+    errc:digest "c0e2f7c484391492a993ec7979ce2d24c8696fd78bbf48bd041c94cb82426930" ;
+    errc:replayCommand "ggen sync run; execute every native SPARQL gate; compare pass-two filesystem snapshot to pass one" ;
+    errc:falsifier errc:FalsifyReceiptIdentity ;
+    errc:standing errc:PARTIAL_ALIVE .
