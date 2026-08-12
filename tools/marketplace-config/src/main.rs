@@ -12,6 +12,7 @@ const STAR_TOML_SHA: &str = "8395515cf8e68bfdc9edff49fb358c4f1da7c795";
 struct MarketplaceConfig {
     schema_version: String,
     marketplace: MarketplaceMeta,
+    source_authority: SourceAuthorityConfig,
     qualification: QualificationConfig,
     ggen: GgenConfig,
 }
@@ -25,6 +26,15 @@ struct MarketplaceMeta {
     version: String,
 }
 
+/// Canonical-source law for marketplace pack bytes. Historical import
+/// repositories and mirrors are provenance only after pack admission here.
+#[derive(Debug, Deserialize, Serialize)]
+struct SourceAuthorityConfig {
+    repository: String,
+    canonical_branch: String,
+    mirrors_are_provenance_only: bool,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 struct QualificationConfig {
     workers: u64,
@@ -35,6 +45,7 @@ struct QualificationConfig {
 struct GgenConfig {
     repository: String,
     version: String,
+    release_commit: String,
     assets: AssetMatrix,
 }
 
@@ -58,6 +69,10 @@ impl Validate for MarketplaceConfig {
         v.field("marketplace", |v| {
             v.check_non_empty("version", &self.marketplace.version);
         });
+        v.field("source_authority", |v| {
+            v.check_non_empty("repository", &self.source_authority.repository);
+            v.check_non_empty("canonical_branch", &self.source_authority.canonical_branch);
+        });
         v.field("qualification", |v| {
             v.check_range("workers", self.qualification.workers, 1..=16);
             v.check_range("timeout_seconds", self.qualification.timeout_seconds, 1..=5);
@@ -65,6 +80,7 @@ impl Validate for MarketplaceConfig {
         v.field("ggen", |v| {
             v.check_non_empty("repository", &self.ggen.repository);
             v.check_non_empty("version", &self.ggen.version);
+            v.check_non_empty("release_commit", &self.ggen.release_commit);
             v.field("assets", |v| {
                 validate_asset(v, "linux_x86_64", &self.ggen.assets.linux_x86_64);
                 validate_asset(v, "linux_aarch64", &self.ggen.assets.linux_aarch64);
