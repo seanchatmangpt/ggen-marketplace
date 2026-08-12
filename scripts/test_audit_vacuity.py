@@ -13,9 +13,13 @@ audit = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = audit
 SPEC.loader.exec_module(audit)
 
+
 class VacuityAuditTests(unittest.TestCase):
+    def findings(self, path: str, text: str):
+        return audit.scan_content("test", path, text.encode())
+
     def rules(self, path: str, text: str) -> set[str]:
-        return {f.rule for f in audit.scan_content("test", path, text.encode())}
+        return {f.rule for f in self.findings(path, text)}
 
     def test_python_pass_function_refused(self):
         self.assertIn("PYTHON_EMPTY_FUNCTION", self.rules("gates/check.py", "def verify(x):\n    pass\n"))
@@ -23,8 +27,14 @@ class VacuityAuditTests(unittest.TestCase):
     def test_python_constant_verifier_refused(self):
         self.assertIn("PYTHON_CONSTANT_SUCCESS", self.rules("gates/check.py", "def verify(x):\n    return True\n"))
 
-    def test_python_swallowed_exception_refused(self):
+    def test_python_swallowed_broad_exception_refused(self):
         self.assertIn("PYTHON_SWALLOWED_EXCEPTION", self.rules("x.py", "try:\n    work()\nexcept Exception:\n    pass\n"))
+
+    def test_python_typed_cleanup_exception_is_not_swallowing(self):
+        self.assertNotIn(
+            "PYTHON_SWALLOWED_EXCEPTION",
+            self.rules("x.py", "try:\n    work()\nexcept ProcessLookupError:\n    pass\n"),
+        )
 
     def test_real_python_verifier_admitted(self):
         self.assertFalse(self.rules("gates/check.py", "def verify(x):\n    if not x:\n        raise ValueError('x')\n    return x.digest()\n"))
@@ -33,7 +43,12 @@ class VacuityAuditTests(unittest.TestCase):
         self.assertIn("RUST_TODO_MACRO", self.rules("templates/lib.rs.tmpl", "fn run() { todo!() }\n"))
 
     def test_reference_todo_is_warning_not_error(self):
-        findings = audit.scan_content("test", "reference/old.rs", b"fn old() { todo!() }\n")
+        findings = self.findings("reference/old.rs", "fn old() { todo!() }\n")
+        self.assertTrue(findings)
+        self.assertTrue(all(f.severity == "warning" for f in findings))
+
+    def test_marker_in_test_fixture_is_warning(self):
+        findings = self.findings("tests/test_fixture.py", "PAYLOAD = 'TODO: fixture'\n")
         self.assertTrue(findings)
         self.assertTrue(all(f.severity == "warning" for f in findings))
 
@@ -44,6 +59,7 @@ class VacuityAuditTests(unittest.TestCase):
         report = audit.audit_subject("test", [("data.bin", b"\x00\x01"), ("README.md", b"ok")])
         self.assertEqual(report.total_files, 2)
         self.assertEqual(report.source_files, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
