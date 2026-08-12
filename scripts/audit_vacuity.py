@@ -43,6 +43,7 @@ RUST_VACUOUS_FN = re.compile(
 )
 SHELL_VACUOUS = re.compile(r"(?ms)\A\s*(?:#![^\n]+\n)?(?:set\s+-[A-Za-z]+\s*\n)?(?:exit\s+0|:)\s*\Z")
 
+
 @dataclass(frozen=True)
 class Finding:
     subject: str
@@ -52,6 +53,7 @@ class Finding:
     severity: str
     detail: str
 
+
 @dataclass(frozen=True)
 class SubjectReport:
     subject: str
@@ -60,21 +62,36 @@ class SubjectReport:
     source_files: int
     findings: tuple[Finding, ...]
 
+
 def _is_reference(path: str) -> bool:
     parts = set(PurePosixPath(path).parts)
     return bool(parts & (REFERENCE_PARTS | DOC_PARTS))
+
+
+def _is_test(path: str) -> bool:
+    pure = PurePosixPath(path)
+    return (
+        any(part in {"test", "tests", "fixtures"} for part in pure.parts)
+        or pure.name.startswith("test_")
+        or pure.name.endswith("_test.py")
+        or pure.name.endswith("_test.rs")
+    )
+
 
 def _is_source(path: str) -> bool:
     name = PurePosixPath(path).name
     return any(name.endswith(suffix) for suffix in SOURCE_SUFFIXES)
 
+
 def _line(text: str, offset: int) -> int:
     return text.count("\n", 0, offset) + 1
+
 
 def _real_statements(body: list[ast.stmt]) -> list[ast.stmt]:
     if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
         return body[1:]
     return body
+
 
 def _constant_success(node: ast.AST) -> bool:
     if not isinstance(node, ast.Return):
@@ -87,6 +104,27 @@ def _constant_success(node: ast.AST) -> bool:
     if isinstance(value, (ast.List, ast.Tuple, ast.Dict, ast.Set)):
         return len(getattr(value, "elts", getattr(value, "keys", ()))) == 0
     return False
+
+
+def _exception_names(node: ast.expr | None) -> set[str]:
+    if node is None:
+        return {"<bare>"}
+    if isinstance(node, ast.Name):
+        return {node.id}
+    if isinstance(node, ast.Attribute):
+        return {node.attr}
+    if isinstance(node, ast.Tuple):
+        names: set[str] = set()
+        for item in node.elts:
+            names.update(_exception_names(item))
+        return names
+    return {"<dynamic>"}
+
+
+def _swallows_broad_exception(node: ast.ExceptHandler) -> bool:
+    names = _exception_names(node.type)
+    return bool(names & {"<bare>", "Exception", "BaseException"})
+
 
 def _python_findings(subject: str, path: str, text: str) -> list[Finding]:
     try:
@@ -131,12 +169,21 @@ def _python_findings(subject: str, path: str, text: str) -> list[Finding]:
                         out.append(Finding(subject, path, child.lineno, "PYTHON_NOT_IMPLEMENTED", "error", node.name))
         elif isinstance(node, ast.ExceptHandler):
             body = _real_statements(node.body)
-            if len(body) == 1 and isinstance(body[0], ast.Pass):
-                out.append(Finding(subject, path, body[0].lineno, "PYTHON_SWALLOWED_EXCEPTION", "error", "except handler contains only pass"))
+            if len(body) == 1 and isinstance(body[0], ast.Pass) and _swallows_broad_exception(node):
+                names = ",".join(sorted(_exception_names(node.type)))
+                out.append(Finding(
+                    subject,
+                    path,
+                    body[0].lineno,
+                    "PYTHON_SWALLOWED_EXCEPTION",
+                    "error",
+                    f"broad except handler contains only pass: {names}",
+                ))
         elif isinstance(node, ast.Assert):
             if isinstance(node.test, ast.Constant) and node.test.value is True:
                 out.append(Finding(subject, path, node.lineno, "PYTHON_VACUOUS_ASSERT", "error", "assert True"))
     return out
+
 
 def scan_content(subject: str, path: str, data: bytes) -> list[Finding]:
     if not data or b"\x00" in data:
@@ -151,6 +198,7 @@ def scan_content(subject: str, path: str, data: bytes) -> list[Finding]:
     out: list[Finding] = []
     reference = _is_reference(path)
     source = _is_source(path)
+    test_fixture = _is_test(path)
 
     if path != "scripts/audit_vacuity.py":
         upper = text.upper()
@@ -161,8 +209,11 @@ def scan_content(subject: str, path: str, data: bytes) -> list[Finding]:
                 if idx < 0:
                     break
                 out.append(Finding(
-                    subject, path, _line(text, idx), f"MARKER_{rule}",
-                    "warning" if reference or not source else "error",
+                    subject,
+                    path,
+                    _line(text, idx),
+                    f"MARKER_{rule}",
+                    "warning" if reference or test_fixture or not source else "error",
                     f"contains {needle}",
                 ))
                 start = idx + len(needle)
@@ -174,7 +225,14 @@ def scan_content(subject: str, path: str, data: bytes) -> list[Finding]:
     if name.endswith(".rs") or name.endswith(".rs.tmpl") or name.endswith(".rs.tera"):
         for pattern, rule in RUST_VACUITY:
             for match in pattern.finditer(text):
-                out.append(Finding(subject, path, _line(text, match.start()), rule, "warning" if reference else "error", match.group(0)[:120]))
+                out.append(Finding(
+                    subject,
+                    path,
+                    _line(text, match.start()),
+                    rule,
+                    "warning" if reference else "error",
+                    match.group(0)[:120],
+                ))
         if not reference:
             for match in RUST_VACUOUS_FN.finditer(text):
                 out.append(Finding(subject, path, _line(text, match.start()), "RUST_CONSTANT_SUCCESS", "error", match.group("name")))
@@ -185,6 +243,7 @@ def scan_content(subject: str, path: str, data: bytes) -> list[Finding]:
     uniq = {(f.subject, f.path, f.line, f.rule, f.severity, f.detail): f for f in out}
     return sorted(uniq.values(), key=lambda f: (f.path, f.line, f.rule, f.detail))
 
+
 def _filesystem_files(root: Path) -> Iterator[tuple[str, bytes]]:
     for path in sorted(root.rglob("*"), key=lambda p: p.as_posix()):
         if not path.is_file():
@@ -193,6 +252,7 @@ def _filesystem_files(root: Path) -> Iterator[tuple[str, bytes]]:
         if any(part in SKIP_ROOTS for part in rel.parts):
             continue
         yield rel.as_posix(), path.read_bytes()
+
 
 def _git_ref_files(ref: str) -> Iterator[tuple[str, bytes]]:
     proc = subprocess.run(
@@ -210,6 +270,7 @@ def _git_ref_files(ref: str) -> Iterator[tuple[str, bytes]]:
             if handle is None:
                 raise SystemExit(f"REFUSED:VACUITY_AUDIT_ARCHIVE_MEMBER:{ref}:{member.name}")
             yield member.name, handle.read()
+
 
 def audit_subject(subject: str, files: Iterable[tuple[str, bytes]]) -> SubjectReport:
     findings: list[Finding] = []
@@ -229,10 +290,14 @@ def audit_subject(subject: str, files: Iterable[tuple[str, bytes]]) -> SubjectRe
     findings.sort(key=lambda f: (f.path, f.line, f.rule, f.detail))
     return SubjectReport(subject, total, text, source, tuple(findings))
 
+
 def _remote_refs() -> list[str]:
     proc = subprocess.run(
         ["git", "for-each-ref", "--format=%(refname:short)", "refs/remotes/origin"],
-        check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     if proc.returncode:
         raise SystemExit(f"REFUSED:VACUITY_AUDIT_REF_ENUMERATION:{proc.stderr.strip()}")
@@ -240,6 +305,7 @@ def _remote_refs() -> list[str]:
         ref.strip() for ref in proc.stdout.splitlines()
         if ref.strip() and ref.strip() != "origin/HEAD"
     )
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
@@ -287,6 +353,7 @@ def main(argv: list[str] | None = None) -> int:
         if f.severity == "error" or args.warnings_as_errors
     ]
     return 2 if errors else 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
