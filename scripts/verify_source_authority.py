@@ -15,7 +15,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKS = ROOT / "packs"
@@ -27,7 +27,7 @@ HEX64 = re.compile(r"^[0-9a-f]{64}$")
 VERSION = re.compile(r"^v[0-9]+\.[0-9]+\.[0-9]+$")
 
 
-def refuse(code: str, detail: str) -> "NoReturn":  # type: ignore[name-defined]
+def refuse(code: str, detail: str) -> NoReturn:
     raise SystemExit(f"REFUSED:{code}:{detail}")
 
 
