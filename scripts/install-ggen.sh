@@ -82,11 +82,11 @@ tag_json="$(curl --fail --location --retry 1 --silent --show-error \
   --connect-timeout 10 --max-time 20 \
   -H 'Accept: application/vnd.github+json' \
   "${tag_api}")"
-mapfile -t tag_values < <(python3 - "${release_commit}" <<'PY' <<<"${tag_json}"
+mapfile -t tag_values < <(python3 - "${tag_json}" <<'PY'
 import json
 import sys
 
-payload = json.load(sys.stdin)
+payload = json.loads(sys.argv[1])
 obj = payload.get("object") or {}
 print(obj.get("type", ""))
 print(obj.get("sha", ""))
