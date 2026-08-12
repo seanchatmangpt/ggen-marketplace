@@ -1,0 +1,95 @@
+# MESSAGE: declared DsRust enterprise bindings must preserve exact source identity, consumer-owned
+# runtime authority, deterministic receipt-gated promotion, and explicit unresolved runtime/compiler
+# standing. The enterprise binding is optional; once declared it is fail-closed.
+PREFIX dsrust: <http://seanchatmangpt.github.io/packs/dsrust#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?binding ?violation WHERE {
+  {
+    ?binding a dsrust:EnterpriseBinding .
+    VALUES ?property {
+      dsrust:architectureAssetRef
+      dsrust:sourceRepository
+      dsrust:sourceCommit
+      dsrust:crateVersion
+      dsrust:compatibilityPolicy
+      dsrust:authorityBoundary
+      dsrust:runtimeControlOwner
+      dsrust:dataBoundary
+      dsrust:promotionPolicy
+      dsrust:rollbackPolicy
+      dsrust:receiptRequired
+      dsrust:directActuation
+      dsrust:compilerQualificationStanding
+      dsrust:runtimeQualificationStanding
+      dsrust:requiredArchitectureVocabulary
+      dsrust:changeClass
+    }
+    FILTER NOT EXISTS { ?binding ?property ?value }
+    BIND(CONCAT("EnterpriseBinding missing ", STR(?property)) AS ?violation)
+  } UNION {
+    ?binding a dsrust:EnterpriseBinding ; dsrust:sourceRepository ?value .
+    FILTER(STR(?value) != "https://github.com/seanchatmangpt/dsrust")
+    BIND("sourceRepository must remain the admitted DsRust repository" AS ?violation)
+  } UNION {
+    ?binding a dsrust:EnterpriseBinding ; dsrust:sourceCommit ?value .
+    FILTER(STR(?value) != "f24adde08c1d8850e4d7079d019643bb40f905cb")
+    BIND("sourceCommit drifted from the exact admitted DsRust source" AS ?violation)
+  } UNION {
+    ?binding a dsrust:EnterpriseBinding ; dsrust:crateVersion ?value .
+    FILTER(STR(?value) != "0.1.0-alpha.2")
+    BIND("crateVersion drifted from the exact admitted DsRust crate" AS ?violation)
+  } UNION {
+    ?binding a dsrust:EnterpriseBinding ; dsrust:compatibilityPolicy ?value .
+    FILTER(?value != dsrust:ExactSourceCompatibility)
+    BIND("compatibilityPolicy must be ExactSourceCompatibility" AS ?violation)
+  } UNION {
+    ?binding a dsrust:EnterpriseBinding ; dsrust:authorityBoundary ?value .
+    FILTER(?value != dsrust:ConstructOnlyAuthority)
+    BIND("authorityBoundary must be ConstructOnlyAuthority" AS ?violation)
+  } UNION {
+    ?binding a dsrust:EnterpriseBinding ; dsrust:runtimeControlOwner ?value .
+    FILTER(?value != dsrust:ConsumerRuntimeControls)
+    BIND("runtime controls must remain consumer-owned" AS ?violation)
+  } UNION {
+    ?binding a dsrust:EnterpriseBinding ; dsrust:dataBoundary ?value .
+    FILTER(?value != dsrust:ConsumerDataBoundary)
+    BIND("datasets, prompts, responses, and credentials must remain in the consumer data boundary" AS ?violation)
+  } UNION {
+    ?binding a dsrust:EnterpriseBinding ; dsrust:promotionPolicy ?value .
+    FILTER(?value != dsrust:ReceiptGatedPromotion)
+    BIND("promotionPolicy must require deterministic receipt evidence" AS ?violation)
+  } UNION {
+    ?binding a dsrust:EnterpriseBinding ; dsrust:rollbackPolicy ?value .
+    FILTER(?value != dsrust:RegenerateFromPinnedSource)
+    BIND("rollbackPolicy must regenerate from a pinned admitted source" AS ?violation)
+  } UNION {
+    ?binding a dsrust:EnterpriseBinding ; dsrust:receiptRequired ?value .
+    FILTER(?value != true)
+    BIND("enterprise promotion requires a qualification receipt" AS ?violation)
+  } UNION {
+    ?binding a dsrust:EnterpriseBinding ; dsrust:directActuation ?value .
+    FILTER(?value != false)
+    BIND("dsrust-pack must not expose direct runtime actuation authority" AS ?violation)
+  } UNION {
+    ?binding a dsrust:EnterpriseBinding ; dsrust:compilerQualificationStanding ?value .
+    FILTER(STR(?value) NOT IN ("UNKNOWN", "ALIVE", "REFUSED", "BLOCKED"))
+    BIND("compilerQualificationStanding must use the bounded standing vocabulary" AS ?violation)
+  } UNION {
+    ?binding a dsrust:EnterpriseBinding ; dsrust:runtimeQualificationStanding ?value .
+    FILTER(STR(?value) NOT IN ("UNKNOWN", "ALIVE", "REFUSED", "BLOCKED"))
+    BIND("runtimeQualificationStanding must use the bounded standing vocabulary" AS ?violation)
+  } UNION {
+    ?binding a dsrust:EnterpriseBinding ; dsrust:requiredArchitectureVocabulary ?value .
+    FILTER(STR(?value) != "http://seanchatmangpt.github.io/packs/fortune5-architecture#")
+    BIND("enterprise binding must point at the canonical Fortune-5 architecture vocabulary" AS ?violation)
+  } UNION {
+    ?binding a dsrust:EnterpriseBinding ; dsrust:changeClass ?value .
+    FILTER(STR(?value) NOT IN ("patch", "minor", "major", "source-repin"))
+    BIND("changeClass must be one of patch/minor/major/source-repin" AS ?violation)
+  } UNION {
+    ?binding a dsrust:EnterpriseBinding ; dsrust:architectureAssetRef ?asset .
+    FILTER(!isIRI(?asset))
+    BIND("architectureAssetRef must be an enterprise-owned IRI, not an embedded literal" AS ?violation)
+  }
+}
+ORDER BY ?binding ?violation
