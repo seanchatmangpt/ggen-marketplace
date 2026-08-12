@@ -1,0 +1,101 @@
+[project]
+name = "github-actions-pack"
+version = "0.2.0"
+
+[ontology]
+source = "ontology.ttl"
+imports = ["qualification.ttl"]
+
+[validation]
+gates = [
+  "gates/010_required.rq",
+  "gates/020_security.rq",
+]
+
+[generation]
+output_dir = "."
+
+[[generation.rules]]
+name = "github-actions-workflows"
+query = { inline = """
+PREFIX gha:  <http://seanchatmangpt.github.io/packs/github-actions#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?wf ?fileName ?purpose ?permissionCeiling ?onBlock ?workflowEnv ?concurrencyPolicy ?triggers
+WHERE {
+  ?wf a gha:Workflow ;
+      gha:fileName ?fileName ;
+      gha:purpose ?purpose ;
+      gha:permissionCeiling ?permissionCeiling .
+  FILTER NOT EXISTS { ?wf gha:ownedBy ?owner }
+  {
+    SELECT ?wf (GROUP_CONCAT(DISTINCT ?triggerLabel; separator=",") AS ?triggers)
+    WHERE {
+      ?wf gha:trigger ?trigger .
+      ?trigger rdfs:label ?triggerLabel .
+    }
+    GROUP BY ?wf
+  }
+  OPTIONAL {
+    SELECT ?wf (GROUP_CONCAT(DISTINCT ?v; separator="") AS ?onRaw)
+    WHERE { ?wf gha:onBlock ?v . }
+    GROUP BY ?wf
+  }
+  OPTIONAL {
+    SELECT ?wf (GROUP_CONCAT(DISTINCT ?v; separator=",") AS ?envRaw)
+    WHERE { ?wf gha:workflowEnv ?v . }
+    GROUP BY ?wf
+  }
+  OPTIONAL {
+    SELECT ?wf (GROUP_CONCAT(DISTINCT ?v; separator="") AS ?concurrencyRaw)
+    WHERE { ?wf gha:concurrencyPolicy ?v . }
+    GROUP BY ?wf
+  }
+  BIND(COALESCE(?onRaw, "") AS ?onBlock)
+  BIND(COALESCE(?envRaw, "") AS ?workflowEnv)
+  BIND(COALESCE(?concurrencyRaw, "") AS ?concurrencyPolicy)
+}
+ORDER BY ?fileName
+""" }
+template = { file = "templates/workflow.yml.tmpl" }
+output_file = ".github/workflows/{{ fileName }}"
+skip_empty = true
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "github-composite-actions"
+query = { inline = """
+PREFIX gha: <http://seanchatmangpt.github.io/packs/github-actions#>
+SELECT ?action ?actionDirName ?actionPurpose ?inputs ?inputDefaults ?outputs
+WHERE {
+  ?action a gha:CompositeAction ;
+          gha:actionDirName ?actionDirName ;
+          gha:actionPurpose ?actionPurpose .
+  OPTIONAL {
+    SELECT ?action (GROUP_CONCAT(DISTINCT ?v; separator="%%GHA_SEP%%") AS ?inputsRaw)
+    WHERE { ?action gha:actionInput ?v . }
+    GROUP BY ?action
+  }
+  OPTIONAL {
+    SELECT ?action (GROUP_CONCAT(DISTINCT ?v; separator="%%GHA_SEP%%") AS ?defaultsRaw)
+    WHERE { ?action gha:actionInputDefault ?v . }
+    GROUP BY ?action
+  }
+  OPTIONAL {
+    SELECT ?action (GROUP_CONCAT(DISTINCT ?v; separator="%%GHA_SEP%%") AS ?outputsRaw)
+    WHERE { ?action gha:actionOutput ?v . }
+    GROUP BY ?action
+  }
+  BIND(COALESCE(?inputsRaw, "") AS ?inputs)
+  BIND(COALESCE(?defaultsRaw, "") AS ?inputDefaults)
+  BIND(COALESCE(?outputsRaw, "") AS ?outputs)
+}
+ORDER BY ?actionDirName
+""" }
+template = { file = "templates/composite_action.yml.tmpl" }
+output_file = ".github/actions/{{ actionDirName }}/action.yml"
+skip_empty = true
+mode = "Overwrite"
+
+[templates]
+dir = "templates"
+aggregate_modules = false
