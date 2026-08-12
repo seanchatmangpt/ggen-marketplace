@@ -10,7 +10,18 @@
     (repeatable "name: description", %%GHA_SEP%%-joined), inputDefaults
     (repeatable "name:default", %%GHA_SEP%%-joined), outputs (repeatable
     "name: description", %%GHA_SEP%%-joined). output_file containing
-    actionDirName triggers per-row rendering. -#}
+    actionDirName triggers per-row rendering.
+
+    Each gha:actionInput/gha:actionOutput fact is "name: description" --
+    a full name/description pair, not a pre-formed YAML mapping -- so it
+    must be split on the first ":" into a nested `name:\n  description:
+    ...` block (composite action.yml's real input/output shape), never
+    emitted as a bare `{{ kv }}` line. The step list below indents
+    continuation lines by 6 spaces to match "    - " (4-space steps:
+    indent + 2-char "- " marker = 6-column content start) -- verified
+    against a real ggen sync + yaml.safe_load round-trip, not assumed;
+    the prior draft used 8-space continuation against a 6-column dash
+    and shipped invalid YAML (mapping values are not allowed here). -#}
 {%- macro reindent(text, spaces) -%}
 {%- for line in text | split(pat="\n") -%}
 {{ spaces }}{{ line }}
@@ -22,12 +33,15 @@ description: {{ actionPurpose | default(value=actionDirName) }}
 {%- if inputs %}
 inputs:
 {%- for kv in inputs | split(pat="%%GHA_SEP%%") %}
-  {{ kv }}
+{%- set input_name = kv | split(pat=":") | first | trim %}
+  {{ input_name }}:
+    description: {{ kv | split(pat=":", n=2) | last | trim }}
     required: false
 {%- if inputDefaults %}
+{%- set input_prefix = input_name ~ ":" %}
 {%- for dv in inputDefaults | split(pat="%%GHA_SEP%%") %}
-{%- if dv is starting_with(kv | split(pat=":") | first) %}
-    default: {{ dv | split(pat=":") | last | trim }}
+{%- if dv is starting_with(input_prefix) %}
+    default: {{ dv | split(pat=":", n=2) | last | trim }}
 {%- endif %}
 {%- endfor %}
 {%- endif %}
@@ -37,7 +51,8 @@ inputs:
 {%- if outputs %}
 outputs:
 {%- for kv in outputs | split(pat="%%GHA_SEP%%") %}
-  {{ kv }}
+  {{ kv | split(pat=":") | first | trim }}:
+    description: {{ kv | split(pat=":", n=2) | last | trim }}
 {%- endfor %}
 {%- endif %}
 
@@ -48,25 +63,25 @@ runs:
 {%- set my_steps = sparql(query=steps_q) -%}
 {%- for step in my_steps %}
     - {% if step.stepName %}name: {{ step.stepName }}
-        {% endif -%}
+      {% endif -%}
 {%- if step.stepId %}id: {{ step.stepId }}
-        {% endif -%}
+      {% endif -%}
 {%- if step.condition %}if: {{ step.condition }}
-        {% endif -%}
+      {% endif -%}
 {%- if step.usesAction %}uses: {{ step.usesAction }}
-        {% endif -%}
+      {% endif -%}
 {%- if step.withParams %}with:
 {%- for kv in step.withParams | split(pat="%%GHA_SEP%%") %}
-          {{ kv }}
+        {{ kv }}
 {%- endfor %}
-        {% endif -%}
+      {% endif -%}
 {%- if step.envVars %}env:
 {%- for kv in step.envVars | split(pat="%%GHA_SEP%%") %}
-          {{ kv }}
+        {{ kv }}
 {%- endfor %}
-        {% endif -%}
+      {% endif -%}
 {%- if step.runCommand %}shell: bash
       run: |
-{{ self::reindent(text=step.runCommand, spaces="          ") }}
+{{ self::reindent(text=step.runCommand, spaces="        ") }}
 {%- endif %}
 {%- endfor %}
