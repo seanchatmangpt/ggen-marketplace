@@ -1,4 +1,4 @@
-name: Enterprise Connection Crown
+name: Enterprise Connection Public Preflight
 
 on:
   pull_request:
@@ -11,19 +11,18 @@ permissions:
   contents: read
 
 concurrency:
-  group: enterprise-connection-${{ github.event.pull_request.number || github.ref }}
+  group: enterprise-connection-public-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  crown:
-    name: exact five-station connection
+  preflight:
+    name: exact public four-station preflight
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
-      LEGACY_SHA: 07561afb25741ba35efcece7e4318f09127e75e8
+      LEGACY_SHA: 31fda88f1f63ac905c65c5868e3987592d1f5d2f
       CREATE_SHA: 866f04848b2e6517a73ba814667c8d910b31a6da
       GGEN_SHA: 5c6548e1dc58deecfae4fdbb81c019ca1f5cc67a
-      GYMACT_SHA: 1607beb01066714b7fd83a07efa41ba5a9e3412f
     steps:
       - name: Checkout exact marketplace subject
         uses: actions/checkout@v4
@@ -55,14 +54,6 @@ jobs:
           path: subjects/ggen
           persist-credentials: false
 
-      - name: Checkout exact GymAct station
-        uses: actions/checkout@v4
-        with:
-          repository: seanchatmangpt/gymact
-          ref: ${{ env.GYMACT_SHA }}
-          path: subjects/gymact
-          persist-credentials: false
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -86,7 +77,7 @@ jobs:
             exit 1
           fi
 
-      - name: Export real admitted Legacy foundry state
+      - name: Export current admitted Legacy foundry state
         run: |
           set -euo pipefail
           mkdir -p work
@@ -122,7 +113,6 @@ jobs:
           second = build_package(session, packages)
           assert first.package_dir == second.package_dir
           assert require_valid_package(first.package_dir)["valid"]
-          print(first.package_dir)
           PY
           python subjects/ggen-create/scripts/export_connection.py \
             --parent work/01-reconstitute.json \
@@ -156,21 +146,7 @@ jobs:
             --revision "$GGEN_SHA" \
             --out work/04-manufacture.json
 
-      - name: Install GymAct semantic runtime
-        run: python -m pip install -e subjects/gymact
-
-      - name: Bind real GymAct manufacturing bundle
-        env:
-          PYTHONPATH: ${{ github.workspace }}/subjects/gymact/src
-        run: |
-          set -euo pipefail
-          python -m gymact.connection \
-            --parent work/04-manufacture.json \
-            --bundle-dir work/gymact-bundle \
-            --revision "$GYMACT_SHA" \
-            --out work/05-exercise.json
-
-      - name: Verify exact parent chain and zero ambient actuation
+      - name: Verify public transport prefix and zero ambient actuation
         run: |
           set -euo pipefail
           GATE=packs/enterprise-architecture-connection-pack/gates/010_connection_shape.py
@@ -178,29 +154,28 @@ jobs:
             work/01-reconstitute.json \
             work/02-generalize.json \
             work/03-catalog.json \
-            work/04-manufacture.json \
-            work/05-exercise.json | tee work/connection-crown-receipt.json
+            work/04-manufacture.json | tee work/public-preflight-receipt.json
           python - <<'PY'
           import json
           from pathlib import Path
-          receipt = json.loads(Path("work/connection-crown-receipt.json").read_text())
+          receipt = json.loads(Path("work/public-preflight-receipt.json").read_text())
           assert receipt["valid"] is True
-          assert receipt["stages"] == ["RECONSTITUTE", "GENERALIZE", "CATALOG", "MANUFACTURE", "EXERCISE"]
+          assert receipt["stages"] == ["RECONSTITUTE", "GENERALIZE", "CATALOG", "MANUFACTURE"]
           assert receipt["do_authority"] is False
-          assert receipt["standing"] == "ALIVE"
-          assert receipt["claim"] == "ENTERPRISE_CONNECTION_TRANSPORT_COMPOSITION_ONLY"
+          # This court proves only the exact four-station public prefix. The
+          # five-station crown executes separately in GymAct so a repo-scoped
+          # marketplace token is never promoted into private-repo authority.
           PY
 
-      - name: Publish bounded crown evidence
+      - name: Publish bounded public-prefix evidence
         uses: actions/upload-artifact@v4
         with:
-          name: enterprise-connection-crown-${{ github.run_id }}
+          name: enterprise-connection-public-preflight-${{ github.run_id }}
           path: |
             work/01-reconstitute.json
             work/02-generalize.json
             work/03-catalog.json
             work/04-manufacture.json
-            work/05-exercise.json
-            work/connection-crown-receipt.json
+            work/public-preflight-receipt.json
           if-no-files-found: error
           retention-days: 14
