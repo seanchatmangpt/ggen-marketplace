@@ -1,0 +1,253 @@
+# MESSAGE: DsRust consumer facts must be dependency-closed and map only to APIs exported at
+# seanchatmangpt/dsrust@f24adde08c1d8850e4d7079d019643bb40f905cb. Any row is a refusal.
+PREFIX dsrust: <http://seanchatmangpt.github.io/packs/dsrust#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?subject ?violation WHERE {
+  {
+    ?subject a dsrust:Signature .
+    VALUES ?property { dsrust:rustName dsrust:instructions dsrust:hasInput dsrust:hasOutput }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(CONCAT("Signature missing required ", STR(?property)) AS ?violation)
+  } UNION {
+    ?subject a dsrust:Signature ; dsrust:rustName ?value .
+    FILTER(!REGEX(STR(?value), "^[A-Za-z_][A-Za-z0-9_]*$"))
+    BIND("Signature rustName is not a generated-helper-safe Rust identifier" AS ?violation)
+  } UNION {
+    ?subject a ?fieldType .
+    VALUES ?fieldType { dsrust:InputField dsrust:OutputField }
+    VALUES ?property { dsrust:name dsrust:fieldType dsrust:fieldIndex dcterms:description }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(CONCAT("field missing required ", STR(?property)) AS ?violation)
+  } UNION {
+    ?subject a ?fieldType ; dsrust:fieldIndex ?value .
+    VALUES ?fieldType { dsrust:InputField dsrust:OutputField }
+    FILTER(?value < 0)
+    BIND("fieldIndex must be non-negative" AS ?violation)
+  } UNION {
+    ?subject a ?fieldType ; dsrust:fieldType ?value .
+    VALUES ?fieldType { dsrust:InputField dsrust:OutputField }
+    FILTER(?value NOT IN ("str", "bool", "int", "float", "json", "reasoning"))
+    BIND(CONCAT("unsupported DsRust fieldType: ", STR(?value)) AS ?violation)
+  } UNION {
+    ?subject a ?fieldType ; dsrust:fieldType "json" .
+    VALUES ?fieldType { dsrust:InputField dsrust:OutputField }
+    FILTER NOT EXISTS { ?subject dsrust:jsonAnnotation ?annotation }
+    BIND("json field missing dsrust:jsonAnnotation" AS ?violation)
+  } UNION {
+    ?subject dsrust:hasLiteralOption ?option .
+    FILTER NOT EXISTS { ?option a dsrust:LiteralOption }
+    BIND("hasLiteralOption target is not a dsrust:LiteralOption" AS ?violation)
+  } UNION {
+    ?subject a dsrust:LiteralOption .
+    VALUES ?property { dsrust:optionIndex dsrust:optionType dsrust:optionValue }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(CONCAT("LiteralOption missing required ", STR(?property)) AS ?violation)
+  } UNION {
+    ?subject a dsrust:LiteralOption ; dsrust:optionIndex ?value .
+    FILTER(?value < 0)
+    BIND("LiteralOption optionIndex must be non-negative" AS ?violation)
+  } UNION {
+    ?subject a dsrust:LiteralOption ; dsrust:optionType ?value .
+    FILTER(?value NOT IN ("str", "int", "bool"))
+    BIND(CONCAT("unsupported LiteralOption optionType: ", STR(?value)) AS ?violation)
+  } UNION {
+    ?subject a dsrust:LiteralOption ; dsrust:optionType "int" ; dsrust:optionValue ?value .
+    FILTER(!REGEX(STR(?value), "^-?[0-9]+$"))
+    BIND("int LiteralOption optionValue is not an integer spelling" AS ?violation)
+  } UNION {
+    ?subject a dsrust:LiteralOption ; dsrust:optionType "bool" ; dsrust:optionValue ?value .
+    FILTER(LCASE(STR(?value)) NOT IN ("true", "false"))
+    BIND("bool LiteralOption optionValue must be true or false" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Tool .
+    VALUES ?property { dsrust:toolName dcterms:description dsrust:argsJson }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(CONCAT("Tool missing required ", STR(?property)) AS ?violation)
+  } UNION {
+    ?subject a dsrust:Tool ; dsrust:toolName ?value .
+    FILTER(!REGEX(STR(?value), "^[A-Za-z_][A-Za-z0-9_]*$"))
+    BIND("Tool toolName is not a generated-helper-safe Rust identifier" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Tool ; dsrust:argsJson ?value .
+    FILTER(!REGEX(STR(?value), "^\\s*\\{"))
+    BIND("Tool argsJson must serialize a JSON object" AS ?violation)
+  } UNION {
+    ?subject a dsrust:ToolUse .
+    VALUES ?property { dsrust:tool dsrust:toolIndex }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(CONCAT("ToolUse missing required ", STR(?property)) AS ?violation)
+  } UNION {
+    ?subject a dsrust:ToolUse ; dsrust:tool ?tool .
+    FILTER NOT EXISTS { ?tool a dsrust:Tool }
+    BIND("ToolUse tool target is not a dsrust:Tool" AS ?violation)
+  } UNION {
+    ?subject a dsrust:ToolUse ; dsrust:toolIndex ?value .
+    FILTER(?value < 0)
+    BIND("toolIndex must be non-negative" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Module .
+    VALUES ?property { dsrust:name dsrust:kind dcterms:description }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(CONCAT("Module missing required ", STR(?property)) AS ?violation)
+  } UNION {
+    ?subject a dsrust:Module ; dsrust:name ?value .
+    FILTER(!REGEX(STR(?value), "^[A-Za-z_][A-Za-z0-9_]*$"))
+    BIND("Module name is not a generated-helper-safe Rust identifier" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Module ; dsrust:kind ?value .
+    FILTER(?value NOT IN ("Predict", "ChainOfThought", "ReAct", "ReActV2", "MultiChainComparison", "BestOfN", "Refine", "Parallel"))
+    BIND(CONCAT("module kind is not exported by admitted DsRust source: ", STR(?value)) AS ?violation)
+  } UNION {
+    ?subject a dsrust:Module ; dsrust:kind ?kind .
+    VALUES ?kind { "Predict" "ChainOfThought" "ReAct" "ReActV2" "MultiChainComparison" }
+    FILTER NOT EXISTS { ?subject dsrust:signature ?signature }
+    BIND(CONCAT(STR(?kind), " module missing required dsrust:signature") AS ?violation)
+  } UNION {
+    ?subject a dsrust:Module ; dsrust:signature ?signature .
+    FILTER NOT EXISTS { ?signature a dsrust:Signature }
+    BIND("module signature target is not a dsrust:Signature" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Module ; dsrust:kind ?kind .
+    VALUES ?kind { "ReAct" "ReActV2" }
+    FILTER NOT EXISTS { ?subject dsrust:hasToolUse ?use }
+    BIND(CONCAT(STR(?kind), " module requires at least one ordered dsrust:hasToolUse") AS ?violation)
+  } UNION {
+    ?subject a dsrust:Module ; dsrust:hasToolUse ?use .
+    FILTER NOT EXISTS { ?use a dsrust:ToolUse }
+    BIND("module hasToolUse target is not a dsrust:ToolUse" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Module ; dsrust:kind ?kind .
+    VALUES ?kind { "BestOfN" "Refine" }
+    VALUES ?property { dsrust:wrapsModule dsrust:rewardFunction dsrust:n }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(CONCAT(STR(?kind), " wrapper missing required ", STR(?property)) AS ?violation)
+  } UNION {
+    ?subject a dsrust:Module ; dsrust:kind "BestOfN" .
+    FILTER NOT EXISTS { ?subject dsrust:threshold ?threshold }
+    BIND("BestOfN requires dsrust:threshold; DsRust has no threshold-less BestOfN state" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Module ; dsrust:wrapsModule ?wrapped .
+    FILTER NOT EXISTS { ?wrapped a dsrust:Module }
+    BIND("wrapsModule target is not a dsrust:Module" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Module ; dsrust:rewardFunction ?value .
+    FILTER(!REGEX(STR(?value), "^[A-Za-z_][A-Za-z0-9_]*$"))
+    BIND("rewardFunction is not a generated-helper-safe Rust identifier" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Module ; dsrust:n ?value .
+    FILTER(?value <= 0)
+    BIND("wrapper n must be greater than zero" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Module ; dsrust:maxIters ?value .
+    FILTER(?value <= 0)
+    BIND("maxIters must be greater than zero" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Module ; dsrust:attempts ?value .
+    FILTER(?value <= 0)
+    BIND("MultiChainComparison attempts must be greater than zero" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Module ; dsrust:maxInFlight ?value .
+    FILTER(?value <= 0)
+    BIND("Parallel maxInFlight must be greater than zero" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Signature ; dsrust:rustName ?value .
+    ?other a dsrust:Signature ; dsrust:rustName ?value .
+    FILTER(STR(?subject) < STR(?other))
+    BIND(CONCAT("duplicate Signature rustName: ", STR(?value)) AS ?violation)
+  } UNION {
+    ?subject a dsrust:Module ; dsrust:name ?value .
+    ?other a dsrust:Module ; dsrust:name ?value .
+    FILTER(STR(?subject) < STR(?other))
+    BIND(CONCAT("duplicate Module name: ", STR(?value)) AS ?violation)
+  } UNION {
+    ?subject a dsrust:Tool ; dsrust:toolName ?value .
+    ?other a dsrust:Tool ; dsrust:toolName ?value .
+    FILTER(STR(?subject) < STR(?other))
+    BIND(CONCAT("duplicate Tool toolName: ", STR(?value)) AS ?violation)
+  } UNION {
+    ?signature a dsrust:Signature ; dsrust:hasInput ?subject, ?other .
+    ?subject dsrust:name ?value . ?other dsrust:name ?value .
+    FILTER(STR(?subject) < STR(?other))
+    BIND(CONCAT("duplicate input field name: ", STR(?value)) AS ?violation)
+  } UNION {
+    ?signature a dsrust:Signature ; dsrust:hasOutput ?subject, ?other .
+    ?subject dsrust:name ?value . ?other dsrust:name ?value .
+    FILTER(STR(?subject) < STR(?other))
+    BIND(CONCAT("duplicate output field name: ", STR(?value)) AS ?violation)
+  } UNION {
+    ?signature a dsrust:Signature ; dsrust:hasInput ?subject ; dsrust:hasOutput ?other .
+    ?subject dsrust:name ?value . ?other dsrust:name ?value .
+    BIND(CONCAT("field name appears on both input and output sides: ", STR(?value)) AS ?violation)
+  } UNION {
+    ?signature a dsrust:Signature ; dsrust:hasInput ?subject, ?other .
+    ?subject dsrust:fieldIndex ?value . ?other dsrust:fieldIndex ?value .
+    FILTER(STR(?subject) < STR(?other))
+    BIND(CONCAT("duplicate input fieldIndex: ", STR(?value)) AS ?violation)
+  } UNION {
+    ?signature a dsrust:Signature ; dsrust:hasOutput ?subject, ?other .
+    ?subject dsrust:fieldIndex ?value . ?other dsrust:fieldIndex ?value .
+    FILTER(STR(?subject) < STR(?other))
+    BIND(CONCAT("duplicate output fieldIndex: ", STR(?value)) AS ?violation)
+  } UNION {
+    ?module a dsrust:Module ; dsrust:hasToolUse ?subject, ?other .
+    ?subject dsrust:toolIndex ?value . ?other dsrust:toolIndex ?value .
+    FILTER(STR(?subject) < STR(?other))
+    BIND(CONCAT("duplicate toolIndex in module: ", STR(?value)) AS ?violation)
+  } UNION {
+    ?subject a dsrust:Module ; dsrust:wrapsModule ?subject .
+    BIND("module cannot wrap itself" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Optimizer .
+    VALUES ?property { dsrust:name dsrust:kind dsrust:optimizes dsrust:trainsetName }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(CONCAT("Optimizer missing required ", STR(?property)) AS ?violation)
+  } UNION {
+    ?subject a dsrust:Optimizer ; dsrust:name ?value .
+    ?other a dsrust:Optimizer ; dsrust:name ?value .
+    FILTER(STR(?subject) < STR(?other))
+    BIND(CONCAT("duplicate Optimizer name: ", STR(?value)) AS ?violation)
+  } UNION {
+    ?subject a dsrust:Optimizer ; dsrust:kind ?value .
+    FILTER(?value NOT IN ("LabeledFewShot", "BootstrapFewShot", "COPRO", "MIPROv2", "GEPA"))
+    BIND(CONCAT("optimizer kind is not exported by admitted DsRust source: ", STR(?value)) AS ?violation)
+  } UNION {
+    ?subject a dsrust:Optimizer ; dsrust:optimizes ?module .
+    FILTER NOT EXISTS { ?module a dsrust:Module }
+    BIND("Optimizer optimizes target is not a dsrust:Module" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Optimizer ; dsrust:kind ?kind .
+    VALUES ?kind { "COPRO" "MIPROv2" "GEPA" }
+    FILTER NOT EXISTS { ?subject dsrust:metricFunction ?metric }
+    BIND(CONCAT(STR(?kind), " optimizer missing required dsrust:metricFunction") AS ?violation)
+  } UNION {
+    ?subject a dsrust:Optimizer ; dsrust:metricFunction ?value .
+    FILTER(!REGEX(STR(?value), "^[A-Za-z_][A-Za-z0-9_]*$"))
+    BIND("metricFunction is not a generated-helper-safe Rust identifier" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Optimizer ; dsrust:kind ?kind .
+    VALUES ?kind { "MIPROv2" "GEPA" }
+    FILTER NOT EXISTS { ?subject dsrust:model ?model }
+    BIND(CONCAT(STR(?kind), " optimizer missing required dsrust:model") AS ?violation)
+  } UNION {
+    ?subject a dsrust:Optimizer ; dsrust:kind "GEPA" .
+    FILTER NOT EXISTS { ?subject dsrust:maxMetricCalls ?calls }
+    BIND("GEPA requires dsrust:maxMetricCalls because DsRust has no other stopping condition" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Optimizer ; dsrust:maxMetricCalls ?value .
+    FILTER(?value <= 0)
+    BIND("maxMetricCalls must be greater than zero" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Optimizer ; dsrust:kind "COPRO" ; dsrust:breadth ?value .
+    FILTER(?value <= 1)
+    BIND("COPRO breadth must be greater than one" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Optimizer ; dsrust:numCandidates ?value .
+    FILTER(?value <= 0)
+    BIND("numCandidates must be greater than zero" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Optimizer ; dsrust:numTrials ?value .
+    FILTER(?value <= 0)
+    BIND("numTrials must be greater than zero" AS ?violation)
+  }
+}

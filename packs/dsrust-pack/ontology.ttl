@@ -1,0 +1,121 @@
+# DsRust marketplace vocabulary.
+# Source identity: seanchatmangpt/dsrust@f24adde08c1d8850e4d7079d019643bb40f905cb
+# Crate identity: dsrust 0.1.0-alpha.2, MIT OR Apache-2.0.
+#
+# Law only: this ontology intentionally contains zero consumer Signature/Module/Optimizer
+# individuals. Consumers own those facts. The pack projects admitted facts to Rust; it does not
+# actuate model calls, tools, optimizers, providers, or external systems.
+
+@prefix dsrust:  <http://seanchatmangpt.github.io/packs/dsrust#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+
+# ---- Core objects -----------------------------------------------------------
+
+dsrust:Signature a rdfs:Class ;
+    rdfs:label "DsRust signature" ;
+    rdfs:comment "A dynamic dsrust::Signature construction with ordered input and output fields." .
+
+dsrust:InputField a rdfs:Class ; rdfs:label "DsRust input field" .
+dsrust:OutputField a rdfs:Class ; rdfs:label "DsRust output field" .
+dsrust:LiteralOption a rdfs:Class ; rdfs:label "Closed-set literal member" .
+dsrust:ToolUse a rdfs:Class ; rdfs:label "Ordered module tool binding" .
+
+dsrust:Module a rdfs:Class ;
+    rdfs:label "DsRust module" ;
+    rdfs:comment "One admitted public module kind exported from dsrust::lib at the pinned source commit." .
+
+dsrust:Tool a rdfs:Class ;
+    rdfs:label "DsRust agent tool" ;
+    rdfs:comment "A FnTool contract. The JSON argument schema is admitted; the arbitrary executable body is consumer-owned and generated as a fail-closed seam." .
+
+dsrust:Optimizer a rdfs:Class ;
+    rdfs:label "DsRust optimizer" ;
+    rdfs:comment "One admitted public optimizer kind exported from dsrust::lib at the pinned source commit." .
+
+# ---- Signature / field properties -----------------------------------------
+
+dsrust:rustName a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "Stable identifier used inside generated Rust helper names. Must match [A-Za-z_][A-Za-z0-9_]*." .
+
+dsrust:instructions a rdf:Property ; rdfs:domain dsrust:Signature ; rdfs:range xsd:string .
+dsrust:hasInput a rdf:Property ; rdfs:domain dsrust:Signature ; rdfs:range dsrust:InputField .
+dsrust:hasOutput a rdf:Property ; rdfs:domain dsrust:Signature ; rdfs:range dsrust:OutputField .
+dsrust:name a rdf:Property ; rdfs:range xsd:string .
+dsrust:fieldIndex a rdf:Property ; rdfs:range xsd:integer ;
+    rdfs:comment "Zero-based field order within the input or output side of one Signature; DsRust prompt bytes are order-sensitive." .
+dsrust:fieldType a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "One of str, bool, int, float, json, reasoning, corresponding to dsrust::FieldKind." .
+dsrust:jsonAnnotation a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "Python/DSPy-side annotation string carried by FieldKind::Json(JsonType::plain(...)), e.g. list[str]." .
+dsrust:schemaJson a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "Optional JSON Schema serialized as JSON for an output Json field." .
+dsrust:hasLiteralOption a rdf:Property ; rdfs:range dsrust:LiteralOption .
+dsrust:optionIndex a rdf:Property ; rdfs:domain dsrust:LiteralOption ; rdfs:range xsd:integer .
+dsrust:optionType a rdf:Property ; rdfs:domain dsrust:LiteralOption ; rdfs:range xsd:string ;
+    rdfs:comment "One of str, int, bool." .
+dsrust:optionValue a rdf:Property ; rdfs:domain dsrust:LiteralOption ; rdfs:range xsd:string .
+
+# ---- Module / tool properties ---------------------------------------------
+
+dsrust:kind a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "Closed kind discriminator. Module and Optimizer allowed sets are enforced by gates/010_admission.rq." .
+dsrust:signature a rdf:Property ; rdfs:domain dsrust:Module ; rdfs:range dsrust:Signature .
+dsrust:hasToolUse a rdf:Property ; rdfs:domain dsrust:Module ; rdfs:range dsrust:ToolUse .
+dsrust:tool a rdf:Property ; rdfs:domain dsrust:ToolUse ; rdfs:range dsrust:Tool .
+dsrust:toolIndex a rdf:Property ; rdfs:domain dsrust:ToolUse ; rdfs:range xsd:integer ;
+    rdfs:comment "Zero-based tool order for one ReAct/ReActV2 module. DsRust preserves caller order in the model-visible tool catalog." .
+dsrust:toolName a rdf:Property ; rdfs:domain dsrust:Tool ; rdfs:range xsd:string .
+dsrust:argsJson a rdf:Property ; rdfs:domain dsrust:Tool ; rdfs:range xsd:string ;
+    rdfs:comment "A JSON object matching DsRust Tool.args: argument name to JSON Schema." .
+dsrust:maxIters a rdf:Property ; rdfs:range xsd:integer .
+dsrust:attempts a rdf:Property ; rdfs:range xsd:integer ;
+    rdfs:comment "MultiChainComparison attempt count; defaults to DsRust's real default when absent." .
+dsrust:maxInFlight a rdf:Property ; rdfs:range xsd:integer ;
+    rdfs:comment "Parallel max_in_flight / constructor num_threads; defaults to 8 when absent." .
+dsrust:wrapsModule a rdf:Property ; rdfs:domain dsrust:Module ; rdfs:range dsrust:Module .
+dsrust:rewardFunction a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "Consumer-owned reward function identity. ggen emits a panic seam until the consumer supplies the body." .
+dsrust:n a rdf:Property ; rdfs:range xsd:integer .
+dsrust:threshold a rdf:Property ; rdfs:range xsd:double .
+dsrust:failCount a rdf:Property ; rdfs:range xsd:integer .
+
+# ---- Optimizer properties --------------------------------------------------
+
+dsrust:optimizes a rdf:Property ; rdfs:domain dsrust:Optimizer ; rdfs:range dsrust:Module .
+dsrust:metricFunction a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "Consumer-owned metric identity. Generated body is an explicit panic seam." .
+dsrust:trainsetName a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "Consumer-owned dataset binding name; dataset content is outside ontology authority." .
+dsrust:valsetName a rdf:Property ; rdfs:range xsd:string .
+dsrust:model a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "DsRust LM model spelling used for a prompt/reflection model, e.g. openai/gpt-4o-mini." .
+dsrust:k a rdf:Property ; rdfs:range xsd:integer .
+dsrust:sample a rdf:Property ; rdfs:range xsd:boolean .
+dsrust:seed a rdf:Property ; rdfs:range xsd:integer .
+dsrust:maxBootstrappedDemos a rdf:Property ; rdfs:range xsd:integer .
+dsrust:maxLabeledDemos a rdf:Property ; rdfs:range xsd:integer .
+dsrust:maxRounds a rdf:Property ; rdfs:range xsd:integer .
+dsrust:maxErrors a rdf:Property ; rdfs:range xsd:integer .
+dsrust:metricThreshold a rdf:Property ; rdfs:range xsd:double .
+dsrust:breadth a rdf:Property ; rdfs:range xsd:integer .
+dsrust:depth a rdf:Property ; rdfs:range xsd:integer .
+dsrust:initTemperature a rdf:Property ; rdfs:range xsd:double .
+dsrust:numCandidates a rdf:Property ; rdfs:range xsd:integer .
+dsrust:numTrials a rdf:Property ; rdfs:range xsd:integer .
+dsrust:programCode a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "Optional pseudo-code supplied to MIPROv2 because Rust has no Python inspect.getsource equivalent." .
+dsrust:maxMetricCalls a rdf:Property ; rdfs:range xsd:integer .
+dsrust:reflectionMinibatchSize a rdf:Property ; rdfs:range xsd:integer .
+dsrust:useMerge a rdf:Property ; rdfs:range xsd:boolean .
+
+# ---- Provenance ------------------------------------------------------------
+
+dsrust:AdmittedSource a prov:Entity ;
+    dcterms:title "seanchatmangpt/dsrust exact admitted source" ;
+    dcterms:identifier "f24adde08c1d8850e4d7079d019643bb40f905cb" ;
+    dcterms:source "https://github.com/seanchatmangpt/dsrust" ;
+    dcterms:hasVersion "0.1.0-alpha.2" .
