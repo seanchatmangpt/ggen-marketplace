@@ -40,4 +40,12 @@ if not isinstance(witness, str) or len(witness) != 64:
     raise SystemExit("REFUSED:MARKETPLACE_CONFIG_WITNESS_INVALID")
 PY
 
+# The star-toml receipt admits operational configuration. This second court
+# admits pack-source authority and binds the current pack corpus without
+# allowing an import origin or mirror repository to become semantic authority.
+authority_receipt="${output%.json}.source-authority.json"
+python3 "${root}/scripts/verify_source_authority.py" \
+  "${output}" \
+  --receipt "${authority_receipt}"
+
 printf '%s\n' "${output}"
