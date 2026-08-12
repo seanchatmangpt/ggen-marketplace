@@ -16,13 +16,13 @@ concurrency:
 
 jobs:
   preflight:
-    name: exact public four-station preflight
+    name: exact public four-station manufacture crown
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 35
     env:
       LEGACY_SHA: b5e6b82e51fbc9e82313d29d5446d220c72309ac
       CREATE_SHA: 866f04848b2e6517a73ba814667c8d910b31a6da
-      GGEN_SHA: 5c6548e1dc58deecfae4fdbb81c019ca1f5cc67a
+      GGEN_SHA: 82121274a1df5540127a80c92254813c0e957675
     steps:
       - name: Checkout exact marketplace subject
         uses: actions/checkout@v4
@@ -80,7 +80,7 @@ jobs:
             exit 1
           fi
 
-      - name: Export current admitted Legacy foundry state
+      - name: RECONSTITUTE current admitted Legacy foundry state
         run: |
           set -euo pipefail
           mkdir -p work
@@ -90,7 +90,7 @@ jobs:
             --revision "$LEGACY_SHA" \
             --out work/01-reconstitute.json
 
-      - name: Manufacture a real multi-seed ggen-create factory
+      - name: GENERALIZE a real multi-seed ggen-create factory
         env:
           PYTHONPATH: ${{ github.workspace }}/subjects/ggen-create/src
         run: |
@@ -123,7 +123,7 @@ jobs:
             --revision "$CREATE_SHA" \
             --out work/02-generalize.json
 
-      - name: Admit connection at marketplace boundary
+      - name: CATALOG through marketplace admission
         run: |
           set -euo pipefail
           MARKETPLACE_SHA="$(git rev-parse HEAD)"
@@ -133,23 +133,42 @@ jobs:
             --artifact-root work/packages \
             --out work/03-catalog.json
 
-      - name: Install ggen foundry toolchain
+      - name: Install exact ggen toolchain
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-2026-06-22
 
-      - name: Execute ggen manufacture connection boundary
+      - name: Verify ggen connection adapter
         run: |
           set -euo pipefail
           cargo test --manifest-path subjects/ggen/tools/architecture-foundry/Cargo.toml --test connection
+
+      - name: Build exact ggen CLI manufacturer
+        run: |
+          set -euo pipefail
+          cd subjects/ggen
+          RUSTC_WRAPPER= cargo build --locked -p ggen-cli-lib --bin ggen
+          ./target/debug/ggen --version
+          ./target/debug/ggen sync run --help >/dev/null
+
+      - name: MANUFACTURE with real ggen sync and native receipt verification
+        run: |
+          set -euo pipefail
+          GGEN_BIN="$GITHUB_WORKSPACE/subjects/ggen/target/debug/ggen"
+          PROJECT="$GITHUB_WORKSPACE/work/packages/fortune5-global-cloud-factory"
           cargo run --quiet --manifest-path subjects/ggen/tools/architecture-foundry/Cargo.toml \
             --bin ggen-foundry-connection -- \
             --input work/03-catalog.json \
             --program subjects/ggen-legacy/authority/foundry-work-program.json \
             --revision "$GGEN_SHA" \
-            --out work/04-manufacture.json
+            --out work/04-manufacture.json \
+            --ggen-bin "$GGEN_BIN" \
+            --project-root "$PROJECT" \
+            --required-output architecture.txt
+          printf 'tenant=Global\nregion=West\n' | cmp - "$PROJECT/architecture.txt"
+          test -s "$PROJECT/.ggen-v2/receipt.json"
 
-      - name: Verify public transport prefix and zero ambient actuation
+      - name: Verify public manufacture chain and zero ambient actuation
         run: |
           set -euo pipefail
           GATE=packs/enterprise-architecture-connection-pack/gates/010_connection_shape.py
@@ -157,25 +176,33 @@ jobs:
             work/01-reconstitute.json \
             work/02-generalize.json \
             work/03-catalog.json \
-            work/04-manufacture.json | tee work/public-preflight-receipt.json
+            work/04-manufacture.json | tee work/public-manufacture-crown-receipt.json
           python - <<'PY'
           import json
           from pathlib import Path
-          receipt = json.loads(Path("work/public-preflight-receipt.json").read_text())
+          receipt = json.loads(Path("work/public-manufacture-crown-receipt.json").read_text())
+          manufacture = json.loads(Path("work/04-manufacture.json").read_text())
           assert receipt["valid"] is True
           assert receipt["stages"] == ["RECONSTITUTE", "GENERALIZE", "CATALOG", "MANUFACTURE"]
           assert receipt["do_authority"] is False
+          assert manufacture["standing"]["state"] == "ALIVE"
+          assert manufacture["labels"]["native_ggen_sync"] == "EXECUTED"
+          assert any(item["role"] == "ggen:native-sync-receipt" for item in manufacture["artifacts"])
+          assert any(item["role"] == "ggen:manufactured-output" and item["path"].endswith("/architecture.txt") for item in manufacture["artifacts"])
           PY
 
-      - name: Publish bounded public-prefix evidence
+      - name: Publish bounded manufacture evidence
         uses: actions/upload-artifact@v4
         with:
-          name: enterprise-connection-public-preflight-${{ github.run_id }}
+          name: enterprise-connection-public-manufacture-${{ github.run_id }}
           path: |
             work/01-reconstitute.json
             work/02-generalize.json
             work/03-catalog.json
             work/04-manufacture.json
-            work/public-preflight-receipt.json
+            work/public-manufacture-crown-receipt.json
+            work/packages/fortune5-global-cloud-factory/architecture.txt
+            work/packages/fortune5-global-cloud-factory/.ggen-v2/receipt.json
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 14
