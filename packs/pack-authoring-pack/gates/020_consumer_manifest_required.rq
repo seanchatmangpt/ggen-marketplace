@@ -1,0 +1,34 @@
+# MESSAGE: every pat:ConsumerManifestSpec must have a non-empty
+# pat:consumerProjectName, pat:referencedPackName, pat:referencedPackPath,
+# and pat:consumerTemplatesDir — a spec missing any of these can't drive
+# scaffold_consumer_ggen_toml.tmpl, which interpolates all four. Separately,
+# pat:consumerTemplatesDir must NOT be the literal string "templates" — that
+# is the exact value every real pack's own template directory is named
+# (packs/<name>/templates/), so a consumer manifest using it for its OWN
+# [templates].dir collides with a referenced pack's auto-discovered
+# templates and double-renders every one of that pack's templates in one
+# sync (FM-WRITE-008). Any row = a subject failing one of these checks.
+PREFIX pat: <http://seanchatmangpt.github.io/packs/pack-authoring#>
+SELECT ?s ?missing WHERE {
+  {
+    ?s a pat:ConsumerManifestSpec . BIND(pat:consumerProjectName AS ?missing)
+    FILTER NOT EXISTS { ?s pat:consumerProjectName ?any }
+  } UNION {
+    ?s a pat:ConsumerManifestSpec . BIND(pat:referencedPackName AS ?missing)
+    FILTER NOT EXISTS { ?s pat:referencedPackName ?any }
+  } UNION {
+    ?s a pat:ConsumerManifestSpec . BIND(pat:referencedPackPath AS ?missing)
+    FILTER NOT EXISTS { ?s pat:referencedPackPath ?any }
+  } UNION {
+    ?s a pat:ConsumerManifestSpec . BIND(pat:consumerTemplatesDir AS ?missing)
+    FILTER NOT EXISTS { ?s pat:consumerTemplatesDir ?any }
+  } UNION {
+    # Structural kill of FM-WRITE-008: consumerTemplatesDir colliding with
+    # the literal directory name every real pack's own templates live
+    # under.
+    ?s a pat:ConsumerManifestSpec ; pat:consumerTemplatesDir ?dir .
+    FILTER (?dir = "templates")
+    BIND(pat:consumerTemplatesDir AS ?missing)
+  }
+}
+ORDER BY ?s ?missing

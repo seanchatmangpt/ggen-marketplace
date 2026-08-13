@@ -597,6 +597,93 @@ forbidden) — surfacing that `dspy-pack` had already solved several other
 problems (drift, engine limits, verification rigor) worth generalizing
 even though that one specific limitation should not be.""" .
 
+pat:HowToWireConsumerDoc a pat:DiataxisDoc ;
+    pat:docPath "docs/pack-authoring/how-to-wire-a-consumer-project.md" ;
+    pat:content """# How to: wire a consumer project's root ggen.toml
+
+`pat:ConsumerManifestSpec` (declared by you, the consumer) drives
+`scaffold_consumer_ggen_toml.tmpl`, which renders a correct root
+`ggen.toml` for a project that syncs against one or more packs. Declare one
+individual per consumer project:
+
+```turtle
+@prefix pat: <http://seanchatmangpt.github.io/packs/pack-authoring#> .
+
+pat:MyConsumerSpec a pat:ConsumerManifestSpec ;
+    pat:consumerProjectName "my-consumer" ;
+    pat:referencedPackName "my-pack" ;
+    pat:referencedPackPath "../packs/my-pack" ;
+    pat:consumerTemplatesDir "consumer-templates" .
+```
+
+`ggen sync run` then writes `my-consumer/ggen.toml`, and
+`gates/020_consumer_manifest_required.rq` refuses the sync BEFORE that file
+is written if any required property is missing, or if
+`pat:consumerTemplatesDir` is the literal string `"templates"` (see the
+footgun list below — this is FM-WRITE-008, structurally killed).
+
+## Known footguns (6 real, repo-observed failures this scaffold fixes)
+
+These were found by reading real, currently-broken consumer `ggen.toml`
+files across this workspace (ww3gym, biblegym, claudecodegym, and others),
+each independently confirmed against the real, installed `ggen` binary
+during this scaffold's own verification. Read this section even if you
+never use the scaffold — it's the fastest way to debug a sync refusal by
+hand.
+
+1. **`[templates].dir` colliding with a referenced pack's own templates
+   dir (FM-WRITE-008).** Every real pack's own templates live at
+   `packs/<name>/templates/` — the directory is always literally named
+   `templates`. If your consumer's `[templates].dir` is also `"templates"`
+   (or nests inside a pack's own `packs/<name>/templates/`), the engine
+   finds and renders that pack's templates twice in one sync: once via
+   normal auto-discovery, once via your now-colliding `[templates].dir` —
+   writing the same `to:` path twice. Fix: use a distinct name, e.g.
+   `"consumer-templates"` — the scaffold's own default.
+
+2. **Invalid or missing top-level table (FM-CONFIG-002).** The real,
+   current schema has exactly five valid top-level tables:
+   `[project]`, `[ontology]`, `[packs]`, `[templates]`, `[law]`. A
+   hand-typed manifest with a stray key, or missing `[templates]` entirely
+   while `[packs]` is present, either fails to parse or silently drops
+   templates at sync time. Fix: copy the scaffold's shape exactly; don't
+   free-type table names.
+
+3. **No `ggen.toml` at all (FM-CONFIG-001).** Adopting a pack never, by
+   itself, creates a consumer manifest — nothing prompts for one. Fix:
+   declare a `pat:ConsumerManifestSpec` and sync this pack before writing
+   any consumer-side facts by hand.
+
+4. **`[[gates]]` as a top-level array-table (FM-CONFIG-101, part 1).**
+   `[[gates]]` is not a valid top-level key under any schema — gate files
+   belong inside a PACK's own `gates/*.rq` directory, never in a consumer
+   manifest. This is the same invalid-key class as #2, just a different
+   invalid key.
+
+5. **`[project].version` combined with a `[packs]` table (FM-CONFIG-101,
+   part 2 — found LIVE during this scaffold's own verification against
+   real `ggen 26.8.8`).** `[project].version` is a marker of the
+   declarative-rules (`[[generation.rules]]`) schema; `[packs]` is a marker
+   of the frontmatter (pack-composition) schema. The two together in one
+   file trip the binary's own ambiguity check
+   (`ggen.toml is ambiguous between the declarative-rules and frontmatter
+   schemas`) and refuse the sync outright — this is not theoretical, it
+   was reproduced by this scaffold's first draft before being fixed. Fix:
+   a `[packs]`-based consumer manifest's `[project]` table carries `name`
+   only, never `version`.
+
+6. **Template path resolution against the wrong CWD (FM-TPL-014).**
+   Template-relative paths in `[templates]`/`[packs]` resolve against the
+   invoking process's current working directory, not the pack's own
+   directory — a path that's correct when `ggen sync run` is invoked from
+   one directory can break when invoked from another. The scaffold reduces
+   the likelihood of authoring a wrong path by hand, but this specific
+   resolution *rule* is a property of the `ggen` binary's own render step,
+   not something a marketplace template or gate can validate or override —
+   run `ggen sync run` from the consumer project's own root, and verify
+   with `--dry-run` before trusting a relative `path = "..."` value that
+   was copied from a different directory's manifest.""" .
+
 # --- New-pack scaffold spec (consumer-declared) -------------------------
 
 pat:NewPackSpec a rdfs:Class ;
@@ -615,3 +702,38 @@ pat:NewPackSpec a rdfs:Class ;
 
 pat:ExistingPackStub a rdfs:Class ;
     rdfs:label "Declared by a CONSUMER (not by this pack) — one individual per EXISTING pack to retrofit a generic e2e stub onto. Required: pat:packName only." .
+
+# --- Consumer-manifest scaffold spec (consumer-declared) -----------------
+# 2026-08-13 root-cause fix: an FMEA of six real, distinct upstream consumer
+# `ggen.toml` failures (FM-WRITE-008 double-render collision, FM-CONFIG-002
+# invalid/missing top-level table, FM-CONFIG-001 no manifest at all,
+# FM-CONFIG-101 invalid `[[gates]]` array-table, FM-TPL-014 CWD-relative
+# path breakage) converged on ONE root cause covering 412/454 of the total
+# RPN: no consumer-side scaffold or gate exists anywhere in this repo —
+# `pat:NewPackSpec`/`pat:ExistingPackStub` above only ever scaffold the PACK
+# side. `pat:ConsumerManifestSpec` is the missing consumer-side counterpart:
+# one individual per consumer project a human wants a correct root
+# `ggen.toml` scaffolded for, driving `scaffold_consumer_ggen_toml.tmpl`
+# below and admitted by `gates/020_consumer_manifest_required.rq`.
+#
+# The single most load-bearing property is pat:consumerTemplatesDir: this
+# pack's own `reference.md` already documents (and every real pack in this
+# marketplace follows) the convention that a PACK's own template directory
+# is literally named `templates/` (`packs/<name>/templates/*.tmpl` — see
+# every `to:` path in this very file's templates, and `reference.md`'s file
+# layout table). A consumer's `[templates].dir` is a SEPARATE directory:
+# it's where the CONSUMER's own render targets are looked up relative to,
+# not where a referenced pack's templates live. FM-WRITE-008 happened
+# because a hand-authored consumer manifest set `[templates].dir` to the
+# SAME path a referenced pack already auto-discovers its own templates
+# from — so the engine finds and renders the pack's templates twice: once
+# via normal pack auto-discovery, once again via the consumer's now-
+# colliding `[templates].dir`, writing the same `to:` path twice in one
+# sync. Requiring `pat:consumerTemplatesDir` to differ from the literal
+# string `"templates"` (the value every real pack's own dir is named,
+# confirmed by reading `packs/*/templates/` across this repo) makes that
+# specific collision structurally unreachable via this scaffold, without
+# requiring any change to the ggen binary itself.
+
+pat:ConsumerManifestSpec a rdfs:Class ;
+    rdfs:label "Declared by a CONSUMER (not by this pack) — one individual per consumer project that wants a correct root ggen.toml scaffolded. Required: pat:consumerProjectName, pat:referencedPackName, pat:referencedPackPath, pat:consumerTemplatesDir. pat:consumerTemplatesDir MUST NOT equal the literal string \"templates\" (every real pack's own template dir name) — gates/020_consumer_manifest_required.rq refuses that value structurally, since it is the exact shape of the FM-WRITE-008 double-render collision found in production consumer manifests (ww3gym, biblegym, claudecodegym, and others)." .
