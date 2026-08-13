@@ -91,6 +91,28 @@ jobs:
       - name: Validate marketplace and Diátaxis
         run: python scripts/marketplace.py validate
 
+      - name: Lint cross-pack instance references (informational)
+        # RC2 from the standing-ladder-pack RCA (PR #21/#22): a pack can
+        # reference another pack's own-namespace individual without a
+        # matching qualification/consumer.ttl fixture, invisible to
+        # qualify_packs.py's isolated per-pack qualification until CI
+        # happens to exercise a gate that depends on it. Warn-only for now
+        # -- 3 real, pre-existing instances are already on main; flip to
+        # `--mode gate` once those are fixed (see scripts/check_cross_pack_
+        # references.py's own docstring and the follow-on PR fixing them).
+        continue-on-error: true
+        run: |
+          python scripts/check_cross_pack_references.py --mode warn \
+            --report "${RUNNER_TEMP}/cross-pack-references.json"
+
+      - name: Preserve cross-pack reference report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: cross-pack-reference-report
+          path: ${{ runner.temp }}/cross-pack-references.json
+          retention-days: 14
+
       - name: Prove deterministic catalog projection
         shell: bash
         run: |
