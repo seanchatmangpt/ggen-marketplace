@@ -1,0 +1,54 @@
+# MESSAGE: dsrust signatures, fields, and modules must be dependency-closed and typed. Any row is a refusal.
+PREFIX dsrust: <http://seanchatmangpt.github.io/packs/dsrust#>
+SELECT ?subject ?violation WHERE {
+  {
+    ?subject a dsrust:Signature .
+    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dsrust#") = false)
+    VALUES ?property { dsrust:className }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(CONCAT("missing ", STR(?property)) AS ?violation)
+  } UNION {
+    ?subject a dsrust:Signature .
+    FILTER NOT EXISTS { ?subject dsrust:hasInput ?anyInput }
+    BIND("signature has no dsrust:hasInput" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Signature .
+    FILTER NOT EXISTS { ?subject dsrust:hasOutput ?anyOutput }
+    BIND("signature has no dsrust:hasOutput" AS ?violation)
+  } UNION {
+    # Every field needs a name.
+    { ?subject a dsrust:InputField } UNION { ?subject a dsrust:OutputField }
+    FILTER NOT EXISTS { ?subject dsrust:name ?n }
+    BIND("field missing dsrust:name" AS ?violation)
+  } UNION {
+    # Exactly one of rustType / hasLiteralOption per field -- real, typed, mutually exclusive.
+    { ?subject a dsrust:InputField } UNION { ?subject a dsrust:OutputField }
+    ?subject dsrust:rustType ?t .
+    ?subject dsrust:hasLiteralOption ?o .
+    BIND("field has both dsrust:rustType and dsrust:hasLiteralOption -- must be exactly one" AS ?violation)
+  } UNION {
+    { ?subject a dsrust:InputField } UNION { ?subject a dsrust:OutputField }
+    FILTER NOT EXISTS { ?subject dsrust:rustType ?t }
+    FILTER NOT EXISTS { ?subject dsrust:hasLiteralOption ?o }
+    BIND("field has neither dsrust:rustType nor dsrust:hasLiteralOption" AS ?violation)
+  } UNION {
+    ?subject a dsrust:Module .
+    FILTER NOT EXISTS { ?subject dsrust:kind ?k }
+    BIND("module missing dsrust:kind" AS ?violation)
+  } UNION {
+    # v0.1.0 admits exactly one real dsrust module kind -- see pack.toml's real non-goals list.
+    ?subject a dsrust:Module ; dsrust:kind ?kind .
+    FILTER(?kind != "Predict")
+    BIND(CONCAT("module kind '", ?kind, "' is not admitted in dsrust-pack v0.1.0 (only \"Predict\" -- see pack.toml non-goals)") AS ?violation)
+  } UNION {
+    ?subject a dsrust:Module .
+    FILTER NOT EXISTS { ?subject dsrust:signature ?sig }
+    BIND("module missing dsrust:signature" AS ?violation)
+  } UNION {
+    # An LMConfig, if present, must be complete -- a partially-specified provider is a real refusal.
+    ?subject a dsrust:LMConfig .
+    VALUES ?property { dsrust:model dsrust:baseUrl dsrust:apiKeyEnv }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(CONCAT("LMConfig missing ", STR(?property)) AS ?violation)
+  }
+}
