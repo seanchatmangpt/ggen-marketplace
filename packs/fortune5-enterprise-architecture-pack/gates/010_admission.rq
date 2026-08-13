@@ -1,0 +1,32 @@
+# MESSAGE: Fortune-5 enterprise architecture profile members must be dependency-closed. Any row is a refusal.
+# COMPOSITION LAW: local obligations are profile/namespace-scoped. Do not validate unrelated public-vocabulary subjects.
+PREFIX ea: <urn:autofde:fortune5:ea:>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+SELECT ?subject ?violation WHERE {
+  {
+    ?subject a ?kind .
+    VALUES ?kind { ea:ArchitecturePrinciple ea:ArchitectureViewpoint ea:GovernanceGate ea:PlannerRole }
+    FILTER(STRSTARTS(STR(?subject), "urn:autofde:fortune5:ea:"))
+    FILTER NOT EXISTS { ?subject ea:conformsToProfile ea:Fortune5EnterpriseProfile }
+    BIND("pack-owned typed individual missing Fortune5EnterpriseProfile membership" AS ?violation)
+  } UNION {
+    ?subject ea:conformsToProfile ea:Fortune5EnterpriseProfile ; a ?kind .
+    VALUES ?kind { ea:ArchitecturePrinciple ea:ArchitectureViewpoint ea:GovernanceGate ea:PlannerRole }
+    FILTER NOT EXISTS { ?subject skos:prefLabel ?label }
+    BIND("profile member missing skos:prefLabel" AS ?violation)
+  } UNION {
+    BIND(ea:EnterpriseArchitectureCrown AS ?subject)
+    VALUES ?viewpoint { ea:V01 ea:V02 ea:V03 ea:V04 ea:V05 ea:V06 ea:V07 ea:V08 ea:V09 ea:V10 ea:V11 ea:V12 }
+    FILTER NOT EXISTS { ea:EnterpriseArchitectureCrown ea:requiresViewpoint ?viewpoint }
+    BIND(CONCAT("enterprise crown missing viewpoint ", STR(?viewpoint)) AS ?violation)
+  } UNION {
+    BIND(ea:EnterpriseArchitectureCrown AS ?subject)
+    VALUES ?gate { ea:G0 ea:G1 ea:G2 ea:G3 ea:G4 ea:G5 ea:G6 ea:G7 ea:G8 }
+    FILTER NOT EXISTS { ea:EnterpriseArchitectureCrown ea:requiresGate ?gate }
+    BIND(CONCAT("enterprise crown missing gate ", STR(?gate)) AS ?violation)
+  } UNION {
+    ?subject a ea:ArchitectureDecision ; ea:conformsToProfile ea:Fortune5EnterpriseProfile .
+    FILTER NOT EXISTS { ?subject ea:decisionAccountableTo ?owner }
+    BIND("architecture decision missing accountable decision right" AS ?violation)
+  }
+}
