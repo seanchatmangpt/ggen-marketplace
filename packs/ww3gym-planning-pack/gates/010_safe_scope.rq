@@ -1,0 +1,26 @@
+# MESSAGE: every projected capability must be complete and bound to the synthetic safe-scope policy.
+# Any returned row refuses generation.
+PREFIX dct: <http://purl.org/dc/terms/>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+PREFIX sosa: <http://www.w3.org/ns/sosa/>
+SELECT ?capability ?problem WHERE {
+  {
+    ?capability a sosa:Procedure .
+    VALUES ?required { skos:notation skos:prefLabel dct:identifier dct:type dct:conformsTo dct:relation }
+    FILTER NOT EXISTS { ?capability ?required ?value }
+    BIND(CONCAT("missing:", STR(?required)) AS ?problem)
+  }
+  UNION
+  {
+    ?capability a sosa:Procedure ; dct:conformsTo ?policy .
+    FILTER (?policy != <urn:ww3gym:policy-safe-scope>)
+    BIND("unsafe-policy-binding" AS ?problem)
+  }
+  UNION
+  {
+    ?capability a sosa:Procedure ; skos:notation ?notation .
+    FILTER regex(lcase(str(?notation)), "(weapon|munition|strike|targeting|fire.?mission|kill.?chain|weaponeer|battle.?damage|attack.?route|coordinates)")
+    BIND("operational-planning-capability-refused" AS ?problem)
+  }
+}
+ORDER BY ?capability ?problem
