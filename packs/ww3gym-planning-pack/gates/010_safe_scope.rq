@@ -1,0 +1,34 @@
+# MESSAGE: any returned row refuses manufacture. Projection facts must be complete,
+# source-grounded, safe-scope-bound, and free of operational attack-planning semantics.
+PREFIX dct: <http://purl.org/dc/terms/>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+PREFIX sosa: <http://www.w3.org/ns/sosa/>
+SELECT ?subject ?problem WHERE {
+  {
+    ?subject a sosa:Procedure .
+    VALUES ?required { skos:notation skos:prefLabel dct:identifier dct:type dct:conformsTo dct:relation prov:hadPrimarySource }
+    FILTER NOT EXISTS { ?subject ?required ?value }
+    BIND(CONCAT("missing:", STR(?required)) AS ?problem)
+  }
+  UNION
+  {
+    ?subject a sosa:Procedure ; dct:conformsTo ?policy .
+    FILTER (?policy != <urn:ww3gym:policy-safe-scope>)
+    BIND("unsafe-policy-binding" AS ?problem)
+  }
+  UNION
+  {
+    ?subject skos:inScheme ?scheme ; skos:notation ?notation ; skos:prefLabel ?label .
+    VALUES ?scheme { <urn:ww3gym:scheme-action> <urn:ww3gym:scheme-domain> <urn:ww3gym:scheme-profile-2030> <urn:ww3gym:scheme-resilience-baseline> }
+    FILTER regex(lcase(CONCAT(STR(?notation), " ", STR(?label))), "(target.?coordinates|targeting.?package|weapon.?employment|munition.?selection|strike.?sequenc|fire.?mission|kill.?chain|weaponeer|battle.?damage|attack.?route|unit.?position|force.?movement)")
+    BIND("operational-planning-semantics-refused" AS ?problem)
+  }
+  UNION
+  {
+    ?subject skos:inScheme <urn:ww3gym:scheme-profile-2030> .
+    FILTER NOT EXISTS { ?subject prov:hadPrimarySource ?source }
+    BIND("profile-missing-public-source" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem
