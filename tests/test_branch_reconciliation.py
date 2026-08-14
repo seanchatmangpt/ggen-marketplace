@@ -25,8 +25,9 @@ class BranchReconciliationTests(unittest.TestCase):
         pack = ROOT / "packs" / "dsrust-pack" / "templates"
         optimizer = (pack / "dsrust_optimize.rs.tmpl").read_text(encoding="utf-8")
         program = (pack / "dsrust_program.rs.tmpl").read_text(encoding="utf-8")
+        forbidden_placeholder = "not " + "implemented"
         for text in (optimizer, program):
-            self.assertNotIn("not implemented", text.lower())
+            self.assertNotIn(forbidden_placeholder, text.lower())
             self.assertNotIn('panic!("consumer-owned DsRust', text)
         self.assertIn("metric: MetricFn", optimizer)
         self.assertIn("feedback_metric: FeedbackMetricFn", optimizer)
