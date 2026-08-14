@@ -1,0 +1,44 @@
+@prefix dsrust: <http://seanchatmangpt.github.io/packs/dsrust#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Qualification subject exercises every admitted Module, ExecutionPolicy, and Optimizer family.
+# No generated consumer-owned body is executed by marketplace qualification.
+
+dsrust:qa a dsrust:Signature ;
+  dsrust:rustName "qa" ; dsrust:instructions "Answer the question." ;
+  dsrust:hasInput dsrust:qa_question ; dsrust:hasOutput dsrust:qa_answer .
+dsrust:qa_question a dsrust:InputField ; dsrust:name "question" ; dsrust:fieldIndex 0 ; dsrust:fieldType "str" ; dcterms:description "question to answer" .
+dsrust:qa_answer a dsrust:OutputField ; dsrust:name "answer" ; dsrust:fieldIndex 0 ; dsrust:fieldType "str" ; dcterms:description "short answer" .
+
+dsrust:typed a dsrust:Signature ;
+  dsrust:rustName "typed" ; dsrust:instructions "Classify the structured context." ;
+  dsrust:hasInput dsrust:typed_context ; dsrust:hasOutput dsrust:typed_count, dsrust:typed_ok, dsrust:typed_label .
+dsrust:typed_context a dsrust:InputField ; dsrust:name "context" ; dsrust:fieldIndex 0 ; dsrust:fieldType "json" ; dsrust:jsonAnnotation "dict[str, Any]" ; dcterms:description "structured context" .
+dsrust:typed_count a dsrust:OutputField ; dsrust:name "count" ; dsrust:fieldIndex 0 ; dsrust:fieldType "int" ; dcterms:description "count" .
+dsrust:typed_ok a dsrust:OutputField ; dsrust:name "ok" ; dsrust:fieldIndex 1 ; dsrust:fieldType "bool" ; dcterms:description "whether the context is accepted" .
+dsrust:typed_label a dsrust:OutputField ; dsrust:name "label" ; dsrust:fieldIndex 2 ; dsrust:fieldType "str" ; dcterms:description "closed label" ; dsrust:hasLiteralOption dsrust:label_yes, dsrust:label_no .
+dsrust:label_yes a dsrust:LiteralOption ; dsrust:optionIndex 0 ; dsrust:optionType "str" ; dsrust:optionValue "yes" .
+dsrust:label_no a dsrust:LiteralOption ; dsrust:optionIndex 1 ; dsrust:optionType "str" ; dsrust:optionValue "no" .
+
+dsrust:lookup_tool a dsrust:Tool ; dsrust:toolName "lookup" ; dcterms:description "look up a fact" ; dsrust:argsJson "{\"query\":{\"type\":\"string\"}}" .
+dsrust:lookup_use_1 a dsrust:ToolUse ; dsrust:tool dsrust:lookup_tool ; dsrust:toolIndex 0 .
+dsrust:lookup_use_2 a dsrust:ToolUse ; dsrust:tool dsrust:lookup_tool ; dsrust:toolIndex 0 .
+
+dsrust:predict a dsrust:Module ; dsrust:name "predict" ; dsrust:kind "Predict" ; dsrust:signature dsrust:qa ; dcterms:description "basic prediction" .
+dsrust:typed_predict a dsrust:Module ; dsrust:name "typed_predict" ; dsrust:kind "Predict" ; dsrust:signature dsrust:typed ; dcterms:description "typed prediction" .
+dsrust:cot a dsrust:Module ; dsrust:name "cot" ; dsrust:kind "ChainOfThought" ; dsrust:signature dsrust:qa ; dcterms:description "reasoning prediction" .
+dsrust:mcc a dsrust:Module ; dsrust:name "mcc" ; dsrust:kind "MultiChainComparison" ; dsrust:signature dsrust:qa ; dsrust:attempts 3 ; dcterms:description "compare attempts" .
+dsrust:react a dsrust:Module ; dsrust:name "react" ; dsrust:kind "ReAct" ; dsrust:signature dsrust:qa ; dsrust:hasToolUse dsrust:lookup_use_1 ; dsrust:maxIters 4 ; dcterms:description "rendered-tool agent" .
+dsrust:react_v2 a dsrust:Module ; dsrust:name "react_v2" ; dsrust:kind "ReActV2" ; dsrust:signature dsrust:qa ; dsrust:hasToolUse dsrust:lookup_use_2 ; dsrust:maxIters 4 ; dcterms:description "native-tool agent" .
+dsrust:best a dsrust:Module ; dsrust:name "best" ; dsrust:kind "BestOfN" ; dsrust:wrapsModule dsrust:predict ; dsrust:rewardFunction "exact" ; dsrust:n 3 ; dsrust:threshold 1.0 ; dcterms:description "best-of-n wrapper" .
+dsrust:refine a dsrust:Module ; dsrust:name "refine" ; dsrust:kind "Refine" ; dsrust:wrapsModule dsrust:cot ; dsrust:rewardFunction "quality" ; dsrust:n 3 ; dcterms:description "feedback refinement wrapper" .
+
+# Parallel is exported but intentionally not a Module at the pinned source.
+dsrust:parallel a dsrust:ExecutionPolicy ; dsrust:name "parallel" ; dsrust:kind "Parallel" ; dsrust:maxInFlight 4 ; dcterms:description "bounded concurrent execution policy" .
+
+dsrust:labeled a dsrust:Optimizer ; dsrust:name "labeled" ; dsrust:kind "LabeledFewShot" ; dsrust:optimizes dsrust:predict ; dsrust:trainsetName "trainset" ; dsrust:k 4 ; dsrust:sample true ; dsrust:seed 0 .
+dsrust:bootstrap a dsrust:Optimizer ; dsrust:name "bootstrap" ; dsrust:kind "BootstrapFewShot" ; dsrust:optimizes dsrust:cot ; dsrust:trainsetName "trainset" ; dsrust:metricFunction "accuracy" ; dsrust:maxBootstrappedDemos 4 ; dsrust:maxLabeledDemos 8 ; dsrust:maxRounds 2 .
+dsrust:copro a dsrust:Optimizer ; dsrust:name "copro" ; dsrust:kind "COPRO" ; dsrust:optimizes dsrust:predict ; dsrust:trainsetName "trainset" ; dsrust:metricFunction "accuracy" ; dsrust:breadth 4 ; dsrust:depth 2 ; dsrust:initTemperature 1.4 .
+dsrust:mipro a dsrust:Optimizer ; dsrust:name "mipro" ; dsrust:kind "MIPROv2" ; dsrust:optimizes dsrust:predict ; dsrust:trainsetName "trainset" ; dsrust:metricFunction "accuracy" ; dsrust:model "openai/gpt-4o-mini" ; dsrust:numCandidates 4 ; dsrust:numTrials 8 ; dsrust:seed 9 .
+dsrust:gepa a dsrust:Optimizer ; dsrust:name "gepa" ; dsrust:kind "GEPA" ; dsrust:optimizes dsrust:predict ; dsrust:trainsetName "trainset" ; dsrust:valsetName "valset" ; dsrust:metricFunction "feedback" ; dsrust:model "openai/gpt-4o-mini" ; dsrust:maxMetricCalls 20 ; dsrust:reflectionMinibatchSize 3 ; dsrust:seed 0 ; dsrust:useMerge true .
