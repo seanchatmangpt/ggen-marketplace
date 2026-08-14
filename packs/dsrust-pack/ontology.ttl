@@ -1,0 +1,95 @@
+# Real dsrust (github.com/seanchatmangpt/dsrust) generation vocabulary, v0.1.0.
+#
+# This graph defines law only. It intentionally contains no dsrust:Signature,
+# dsrust:InputField, dsrust:OutputField, dsrust:Module, or dsrust:LMConfig
+# individuals, so composing this schema pack cannot inject any signature,
+# module, or provider config into a consumer's generated src/dsrust_program.rs.
+# A consumer project supplies its own individuals against this vocabulary in
+# its own .ttl -- the same convention this marketplace's dspy-pack (Python
+# DSPy) already establishes for its own generation target.
+#
+# Scope for v0.1.0 (see pack.toml for the full real account): one real dsrust
+# module kind (Predict, via dsrust's real Predict::from_signature -- confirmed
+# in dsrust's own src/predict.rs), fields typed either by a primitive
+# dsrust:rustType or by an ordered dsrust:hasLiteralOption enum constraint
+# (written into the generated Signature's real instructions text via dsrust's
+# real Signature::with_instructions), and one real OpenAI-compatible LM
+# configuration path (dsrust's real LM::new/with_openai_base_url/
+# with_openai_key builder) -- the exact real shape needed to run a real Groq
+# call with a closed-vocabulary output, verified end-to-end before this
+# ontology was written.
+
+@prefix dsrust:  <http://seanchatmangpt.github.io/packs/dsrust#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+
+# ── Core model ───────────────────────────────────────────────────────────────
+
+dsrust:Signature a rdfs:Class ;
+    rdfs:label "Signature" ;
+    rdfs:comment "A dsrust task contract: a typed input/output field list plus instructions, built via dsrust's real Signature::from_str(\"a, b -> c, d\") and rendered as one real Rust binding in src/dsrust_program.rs." .
+
+dsrust:InputField a rdfs:Class ;
+    rdfs:label "Input field" ;
+    rdfs:comment "One named input on a Signature." .
+
+dsrust:OutputField a rdfs:Class ;
+    rdfs:label "Output field" ;
+    rdfs:comment "One named output on a Signature." .
+
+dsrust:Module a rdfs:Class ;
+    rdfs:label "Module" ;
+    rdfs:comment "A dsrust program instance bound to one Signature. v0.1.0 admits exactly one real kind -- see dsrust:kind." .
+
+dsrust:LiteralOption a rdfs:Class ;
+    rdfs:label "Literal option" ;
+    rdfs:comment "One ordered, allowed value of a closed-vocabulary field. Unlike dspy-pack's Python Literal[...] type annotation (compiler/pydantic-enforced), dsrust's string-signature path has no typed enum hook, so this pack's real, verified fix is to write every field's literal options directly into the generated Signature's real instructions text via dsrust::Signature::with_instructions() -- a real, working constraint, not a silent no-op." .
+
+dsrust:LMConfig a rdfs:Class ;
+    rdfs:label "LM configuration" ;
+    rdfs:comment "A real dsrust::LM construction via LM::new(\"openai/<model>\") plus an OpenAI-compatible base URL and an environment-variable-named credential -- covers Groq, OpenRouter, Together, vLLM, or any other OpenAI-wire-compatible host by the same real builder dsrust itself uses for all of them." .
+
+# ── Properties: Signature ─────────────────────────────────────────────────────
+
+dsrust:className a rdf:Property ; rdfs:domain dsrust:Signature ; rdfs:range xsd:string ;
+    rdfs:comment "The Rust identifier used for this signature's generated variable/function names." .
+
+dsrust:hasInput a rdf:Property ; rdfs:domain dsrust:Signature ; rdfs:range dsrust:InputField .
+dsrust:hasOutput a rdf:Property ; rdfs:domain dsrust:Signature ; rdfs:range dsrust:OutputField .
+
+# ── Properties: fields ────────────────────────────────────────────────────────
+
+dsrust:name a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "The field's real dsrust signature-string name (must be a valid Rust identifier fragment; used verbatim in \"name: type\" position)." .
+
+dsrust:rustType a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "A primitive dsrust field type: String, bool, i64, or f64. Mutually exclusive with dsrust:hasLiteralOption -- exactly one of the two per field." .
+
+dsrust:hasLiteralOption a rdf:Property ; rdfs:range dsrust:LiteralOption ;
+    rdfs:comment "One allowed value of this field's closed vocabulary. Mutually exclusive with dsrust:rustType -- exactly one of the two per field. See dsrust:LiteralOption for how this pack's template turns a list of these into a real instructions-text constraint." .
+
+dsrust:optionIndex a rdf:Property ; rdfs:domain dsrust:LiteralOption ; rdfs:range xsd:integer ;
+    rdfs:comment "This option's real, deterministic render order -- the generated instructions text lists literal options in this order, not RDF-graph iteration order." .
+
+dsrust:optionValue a rdf:Property ; rdfs:domain dsrust:LiteralOption ; rdfs:range xsd:string .
+
+# ── Properties: Module ────────────────────────────────────────────────────────
+
+dsrust:kind a rdf:Property ; rdfs:domain dsrust:Module ; rdfs:range xsd:string ;
+    rdfs:comment "Real dsrust module kind. v0.1.0 admits exactly \"Predict\" (via dsrust's real Predict::from_signature) -- any other value is a real, typed refusal per gates/010_admission.rq, not a silently-ignored fact." .
+
+dsrust:signature a rdf:Property ; rdfs:domain dsrust:Module ; rdfs:range dsrust:Signature .
+dsrust:usesLM a rdf:Property ; rdfs:domain dsrust:Module ; rdfs:range dsrust:LMConfig .
+
+# ── Properties: LMConfig ──────────────────────────────────────────────────────
+
+dsrust:model a rdf:Property ; rdfs:domain dsrust:LMConfig ; rdfs:range xsd:string ;
+    rdfs:comment "The real model id passed to dsrust's LM::new(\"openai/<model>\") -- do not include the \"openai/\" provider prefix here, the template adds it (dsrust always addresses an OpenAI-wire-compatible host this way, per dsrust's own real LM::new)." .
+
+dsrust:baseUrl a rdf:Property ; rdfs:domain dsrust:LMConfig ; rdfs:range xsd:string ;
+    rdfs:comment "The real OpenAI-compatible base URL, e.g. https://api.groq.com/openai/v1 for Groq (confirmed real in dsrust's own README)." .
+
+dsrust:apiKeyEnv a rdf:Property ; rdfs:domain dsrust:LMConfig ; rdfs:range xsd:string ;
+    rdfs:comment "The environment variable name the generated binary reads its credential from at runtime, via dsrust's real LM::with_openai_key(std::env::var(...)?). This ontology has no property for a literal key value at all -- a credential is not a fact this graph can carry, per this repo's own prohibited-actions law." .
