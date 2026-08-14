@@ -1,0 +1,143 @@
+@prefix gcs:  <http://seanchatmangpt.github.io/packs/gymact-capability-schema#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix sosa: <http://www.w3.org/ns/sosa/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix qudt: <http://qudt.org/schema/qudt/> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+#################################################################
+# gymact-capability-schema-pack ontology — closes the payload-schema gap
+# named in ~/.claude/plans/how-do-we-use-jolly-tarjan.md #2.
+#
+# The gap, precisely: gymact's admitted public profile
+# (~/gymact/src/gymact/ontology/profile.shacl.ttl, <urn:gymact:shape:capability>)
+# already represents a capability as a real sosa:Procedure with a
+# dct:title/dct:type SHACL shape -- but that shape describes the
+# capability's IDENTITY, not its PAYLOAD. Nothing in gymact's admitted
+# graph today says what keys `Capability.binding`'s runtime
+# `actuate(capability, payload: dict[str, Any])` call actually accepts;
+# that information exists ONLY as free text folded into `Capability.title`
+# (~/gymact/src/gymact/providers.py's MEMORY_CAPABILITIES, e.g.
+# `title='...Payload: {"key": <str>, "value": <any>}.'`) -- readable by a
+# human, not machine-checkable, and not renderable into a typed model.
+#
+# SCHEMA-ONLY PACK (same contract as packs/github-actions-pack v0.2.0 and
+# packs/dspy-pack): this file ships ZERO gcs:CapabilityPayloadShape
+# individuals. A consumer (gymact) authors its own instance-data .ttl
+# declaring one gcs:CapabilityPayloadShape per Consequence.DO capability
+# that wants a typed payload, using real SHACL sh:NodeShape/sh:PropertyShape
+# facts against THIS vocabulary, unioned with its own profile.ttl/
+# profile.shacl.ttl in its own ggen.toml [ontology] composition.
+#
+# Semantic-authority rule this pack follows (gymact's own, stated at
+# ProfileAuthority._custom_tbox_terms / SemanticValidation.custom_tbox_terms
+# in ~/gymact/src/gymact/semantic.py -- gymact refuses any urn:gymact:-
+# prefixed OWL/RDFS class or property term found in a validated graph,
+# i.e. it refuses a competing custom TBox in its OWN namespace): a payload
+# shape IS, structurally, exactly what SHACL's sh:NodeShape/sh:PropertyShape
+# already are (a set of typed, cardinality-constrained property
+# constraints) -- so this ontology reuses sh:NodeShape/sh:PropertyShape/
+# sh:property/sh:path/sh:datatype/sh:minCount/sh:maxCount/sh:name/
+# sh:description/sh:defaultValue/sh:closed verbatim rather than inventing
+# parallel gcs:hasField/gcs:fieldType/gcs:required terms that would just
+# restate SHACL under a new name. The only two new terms this pack mints
+# are gcs:CapabilityPayloadShape (the ROLE a NodeShape plays: "this is a
+# capability's payload schema", not a generic shape) and
+# gcs:payloadShapeOf (the LINK from that shape to the sosa:Procedure whose
+# runtime payload it describes) -- neither has a standard-vocabulary
+# equivalent: SHACL's four target-declaration predicates (sh:targetClass/
+# sh:targetNode/sh:targetSubjectsOf/sh:targetObjectsOf) all say "this
+# shape validates properties reached FROM this node/class", which is the
+# wrong relation here -- a payload shape validates a runtime dict passed
+# ALONGSIDE an actuate() call, not the sosa:Procedure resource's own RDF
+# properties, so reusing sh:targetNode would misstate what is actually
+# being constrained.
+#################################################################
+
+#################################################################
+# The two new terms
+#################################################################
+
+gcs:CapabilityPayloadShape
+    a               rdfs:Class ;
+    rdfs:subClassOf sh:NodeShape , prov:Entity ;
+    rdfs:label      "CapabilityPayloadShape" ;
+    rdfs:comment    """A sh:NodeShape whose sh:property PropertyShapes describe the
+        runtime payload dict shape of exactly one gymact capability (a
+        sosa:Procedure, per gymact's own <urn:gymact:shape:capability>
+        SHACL shape). Declared prov:Entity (matching gymact's own
+        <urn:gymact:profile:v26.8.7> a prof:Profile, prov:Entity pattern
+        in profile.ttl) because a payload shape is itself a versionable
+        schema artifact whose provenance (which pack/commit minted it,
+        what it supersedes) is worth tracking the same way the profile
+        itself is -- reusing prov:Entity rather than inventing a
+        gcs:hasVersion-style term for that.""" .
+
+gcs:payloadShapeOf
+    a            rdf:Property ;
+    rdfs:domain  gcs:CapabilityPayloadShape ;
+    rdfs:range   sosa:Procedure ;
+    rdfs:label   "payloadShapeOf" ;
+    rdfs:comment """Links a gcs:CapabilityPayloadShape to the sosa:Procedure (gymact
+        capability) whose actuate() payload dict it constrains. Exactly one
+        gcs:CapabilityPayloadShape should declare this per capability that
+        wants a typed payload; gate 010 refuses a Consequence.DO capability
+        with none, and refuses a gcs:CapabilityPayloadShape with none.""" .
+
+#################################################################
+# Reused vocabulary this ontology projects payload fields onto -- listed
+# here (not redeclared; these terms are already RDF/RDFS/SHACL/SOSA/QUDT/
+# XSD standard IRIs from gymact's own admitted profile stack) so a reader
+# of this file sees the complete real property surface a
+# gcs:CapabilityPayloadShape individual is expected to use, in one place:
+#
+#   sh:property        (gcs:CapabilityPayloadShape -> sh:PropertyShape)*
+#   sh:path            required on every sh:PropertyShape -- an IRI the
+#                       consumer mints in its own namespace, e.g.
+#                       <urn:gymact:memory:payload:key>. Not resolved
+#                       against any real RDF graph; SHACL requires an IRI
+#                       here structurally, but this pack's template reads
+#                       the human-facing field identity from sh:name, not
+#                       from this path's local name.
+#   sh:name            the literal Python/JSON field name (e.g. "key"),
+#                       reused from SHACL's own human-readable-label term
+#                       -- also used at the CapabilityPayloadShape level
+#                       for the generated Pydantic class name.
+#   sh:datatype        an xsd: datatype IRI (xsd:string/xsd:integer/
+#                       xsd:double/xsd:decimal/xsd:float/xsd:boolean/
+#                       xsd:dateTime/xsd:anyURI); the template maps this to
+#                       a Python type, never a template-hardcoded field type.
+#   sh:minCount        >=1 => required field (no default); 0 or absent =>
+#                       optional (`T | None`, default None unless
+#                       sh:defaultValue is also declared).
+#   sh:maxCount        v0.1.0 SCOPE LIMIT, disclosed not hidden: every
+#                       generated field is single-valued regardless of
+#                       sh:maxCount > 1; list-valued payload fields are not
+#                       yet projected. See README "Not yet built".
+#   sh:description      -> rendered as the field's Python docstring line.
+#   sh:defaultValue      -> rendered as the field's Python default literal
+#                       when the field is optional. v0.1.0 quotes only
+#                       xsd:string/xsd:anyURI defaults; other datatypes are
+#                       emitted as a bare literal (correct for numeric
+#                       defaults, e.g. `amount: float | None = 1`; NOT
+#                       specially cased for xsd:boolean -- see README).
+#   sh:closed           optional; a consumer may set sh:closed true plus
+#                       sh:ignoredProperties (rdf:type) on its own
+#                       gcs:CapabilityPayloadShape individuals to also get
+#                       real SHACL-engine (pyshacl) closed-world payload
+#                       validation, independent of and in addition to the
+#                       generated Pydantic model's own `extra="forbid"`.
+#   qudt:hasUnit        optional annotation on a numeric sh:PropertyShape
+#                       whose value is a physical quantity (e.g. a
+#                       duration-in-seconds payload field) -- reused
+#                       verbatim from QUDT rather than inventing a
+#                       gcs:unit term. Not exercised by this pack's own
+#                       worked example (gymact's real MemoryProvider
+#                       payloads are unitless counts/keys/values, so
+#                       fabricating a unit-bearing field for the example
+#                       would not be a real fact) -- documented here as an
+#                       available, real extension point instead.
+#################################################################
