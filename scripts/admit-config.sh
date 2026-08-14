@@ -46,6 +46,6 @@ PY
 authority_receipt="${output%.json}.source-authority.json"
 python3 "${root}/scripts/verify_source_authority.py" \
   "${output}" \
-  --receipt "${authority_receipt}"
+  --receipt "${authority_receipt}" >&2
 
 printf '%s\n' "${output}"
