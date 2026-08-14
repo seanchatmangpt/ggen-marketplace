@@ -1,0 +1,36 @@
+# MESSAGE: github-actions-pack CI-standing-reachability gate. Refuses any gha:Workflow that
+# MESSAGE: an ecosystem health audit would need to observe reaching ALIVE standing on the
+# MESSAGE: repository's own default branch, but which never even declares gha:EventPush as a
+# MESSAGE: trigger -- a workflow with no push trigger at all can only ever run on a PR/manual
+# MESSAGE: dispatch/schedule, and per gha:EventPush's own obligationSemantics ("the obligation
+# MESSAGE: to re-establish the standing of that ref... comes into existence at the moment of
+# MESSAGE: the push"), a workflow that structurally cannot fire on push can never discharge
+# MESSAGE: that obligation for its own repository's default branch. Real motivating case,
+# MESSAGE: not hypothetical: a same-day, real 34-repo ecosystem audit found 4 repos
+# MESSAGE: (rrgym, lifegym, biblegym, claudecodegym) each carrying a real, currently-green CI
+# MESSAGE: workflow whose only observed runs sat on a working branch
+# MESSAGE: (agent/ggen-ci-boost-v1) -- `branch=main` returned zero runs for all four, meaning
+# MESSAGE: the CI had genuinely never been exercised against the repository's own default
+# MESSAGE: branch. This gate cannot detect the "green run on the wrong branch" case (that
+# MESSAGE: requires live GitHub Actions run history, out of scope for a static ontology gate --
+# MESSAGE: see authority/ecosystem-reconstitution/check_head_drift.py in autofde-lab for the
+# MESSAGE: live-history half of this check), but it DOES catch the more basic authoring defect
+# MESSAGE: of a CI workflow declared with no push trigger at all, at pack-admission time,
+# MESSAGE: before any real run ever needs to happen.
+# MESSAGE: Exemption: a gha:Workflow may declare gha:noPushTriggerReason (free text, e.g.
+# MESSAGE: "manual-dispatch-only release gate", "reusable workflow_call target") to state
+# MESSAGE: explicitly why it is intentionally push-trigger-exempt -- this gate refuses an
+# MESSAGE: undeclared absence, not the absence itself; a stated reason is a real, inspectable
+# MESSAGE: admission, not a bypass.
+# MESSAGE: Any row = a gha:Workflow subject with neither a push trigger nor a stated reason.
+PREFIX gha:  <http://seanchatmangpt.github.io/packs/github-actions#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?s WHERE {
+  ?s a gha:Workflow .
+  FILTER NOT EXISTS { ?s gha:ownedBy ?owner }
+  FILTER NOT EXISTS { ?s gha:noPushTriggerReason ?reason }
+  FILTER NOT EXISTS {
+    ?s gha:trigger ?t . ?t rdfs:label "push" .
+  }
+}
+ORDER BY ?s
