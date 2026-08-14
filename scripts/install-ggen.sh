@@ -64,7 +64,11 @@ if [[ -x "${bin}" && -f "${marker}" ]] && [[ "$(cat "${marker}")" == "${expected
 fi
 
 rm -f "${archive}" "${bin}" "${marker}"
-curl --fail --location --retry 1 --silent --show-error \
+# GitHub release/CDN fetches are transport, not evidence. Retry a bounded set of
+# transient HTTP/network failures, then still fail closed unless the downloaded
+# bytes match the admitted SHA-256 below.
+curl --fail --location --silent --show-error \
+  --retry 5 --retry-all-errors --retry-delay 1 --retry-max-time 20 \
   --connect-timeout 10 --max-time 30 \
   "${url}" --output "${archive}"
 

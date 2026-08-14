@@ -1,0 +1,35 @@
+# MESSAGE: ERRC may select and construct proposals but never acquires ambient DO authority.
+PREFIX errc: <http://seanchatmangpt.github.io/packs/gh-actions-errc#>
+SELECT ?subject ?violation WHERE {
+  {
+    ?subject a errc:Recommendation .
+    FILTER NOT EXISTS { ?subject errc:actuationMode errc:ProposalOnly }
+    BIND("recommendation-crosses-do-boundary" AS ?violation)
+  } UNION {
+    ?subject a errc:Recommendation .
+    FILTER NOT EXISTS { ?subject errc:authorityRequirement errc:ReviewRequired }
+    BIND("review-authority-boundary-missing" AS ?violation)
+  } UNION {
+    ?subject a errc:Recommendation .
+    FILTER NOT EXISTS { ?subject errc:reversible true }
+    BIND("recommendation-not-reversible" AS ?violation)
+  } UNION {
+    ?subject a errc:Recommendation .
+    FILTER NOT EXISTS { ?subject errc:protectsInvariant errc:NoAmbientActuation }
+    BIND("nonactuation-invariant-not-protected" AS ?violation)
+  } UNION {
+    ?subject a errc:Recommendation .
+    FILTER NOT EXISTS { ?subject errc:protectsInvariant errc:NoProtectedRegression }
+    BIND("pareto-invariant-not-protected" AS ?violation)
+  } UNION {
+    ?subject errc:aggregateScore ?score .
+    BIND("scalar-aggregation-forbidden" AS ?violation)
+  } UNION {
+    ?subject errc:actuates ?target .
+    BIND("direct-actuation-edge-forbidden" AS ?violation)
+  } UNION {
+    ?subject errc:executes ?target .
+    BIND("direct-execution-edge-forbidden" AS ?violation)
+  }
+}
+ORDER BY ?subject ?violation

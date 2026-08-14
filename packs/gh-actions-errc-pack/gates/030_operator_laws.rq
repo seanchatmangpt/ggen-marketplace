@@ -1,0 +1,50 @@
+# MESSAGE: operator-specific proof obligations and Pareto non-regression are mandatory; any row is a refusal.
+PREFIX errc: <http://seanchatmangpt.github.io/packs/gh-actions-errc#>
+SELECT ?subject ?violation WHERE {
+  {
+    ?subject a errc:Recommendation .
+    FILTER NOT EXISTS { ?subject errc:delta ?d . ?d errc:relation errc:Improves }
+    BIND("no-improving-delta" AS ?violation)
+  } UNION {
+    ?subject a errc:Recommendation ; errc:delta ?d .
+    ?d errc:relation errc:Regresses .
+    BIND("pareto-regression-declared" AS ?violation)
+  } UNION {
+    ?subject a errc:Recommendation ; errc:operator ?operator ; errc:delta ?d .
+    ?d errc:dimension ?dimension .
+    ?dimension errc:direction ?direction .
+    VALUES (?operator ?requiredDirection) {
+      (errc:Eliminate errc:Minimize)
+      (errc:Reduce errc:Minimize)
+      (errc:Raise errc:Maximize)
+      (errc:Create errc:Maximize)
+    }
+    FILTER (?direction != ?requiredDirection)
+    BIND("operator-dimension-direction-mismatch" AS ?violation)
+  } UNION {
+    ?subject a errc:Recommendation ; errc:operator errc:Eliminate .
+    FILTER NOT EXISTS { ?subject errc:dominanceWitness ?witness }
+    BIND("eliminate-dominance-witness-missing" AS ?violation)
+  } UNION {
+    ?subject a errc:Recommendation ; errc:operator errc:Eliminate .
+    FILTER NOT EXISTS { ?subject errc:closureWitness ?witness }
+    BIND("eliminate-closure-witness-missing" AS ?violation)
+  } UNION {
+    ?subject a errc:Recommendation ; errc:operator errc:Raise .
+    FILTER NOT EXISTS { ?subject errc:budgetBound ?bound }
+    BIND("raise-budget-bound-missing" AS ?violation)
+  } UNION {
+    ?subject a errc:Recommendation ; errc:operator errc:Create .
+    FILTER NOT EXISTS { ?subject errc:missingCapabilityWitness ?witness . ?witness a errc:Witness }
+    BIND("create-missing-capability-witness-absent" AS ?violation)
+  } UNION {
+    ?subject a errc:Recommendation ; errc:operator errc:Create .
+    FILTER NOT EXISTS { ?subject errc:proposalOnly true }
+    BIND("create-not-explicitly-proposal-only" AS ?violation)
+  } UNION {
+    ?subject a errc:Recommendation ; errc:operator ?operator .
+    FILTER (?operator NOT IN (errc:Eliminate, errc:Reduce, errc:Raise, errc:Create))
+    BIND("operator-outside-errc-closure" AS ?violation)
+  }
+}
+ORDER BY ?subject ?violation

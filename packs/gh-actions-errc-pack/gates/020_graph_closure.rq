@@ -1,0 +1,26 @@
+# MESSAGE: every ERRC edge must terminate in the declared typed graph; dangling semantics are refused.
+PREFIX errc: <http://seanchatmangpt.github.io/packs/gh-actions-errc#>
+SELECT ?subject ?object ?violation WHERE {
+  { ?subject a errc:Recommendation ; errc:operator ?object . FILTER NOT EXISTS { ?object a errc:Operator } BIND("operator-not-typed" AS ?violation) }
+  UNION { ?subject a errc:Recommendation ; errc:subject ?object . FILTER NOT EXISTS { ?object a errc:Subject } BIND("recommendation-subject-not-typed" AS ?violation) }
+  UNION { ?subject a errc:Recommendation ; errc:decisionRule ?object . FILTER NOT EXISTS { ?object a errc:DecisionRule } BIND("decision-rule-not-typed" AS ?violation) }
+  UNION { ?subject a errc:Recommendation ; errc:supportedBy ?object . FILTER NOT EXISTS { ?object a errc:Evidence } BIND("supporting-evidence-not-typed" AS ?violation) }
+  UNION { ?subject a errc:Recommendation ; errc:delta ?object . FILTER NOT EXISTS { ?object a errc:Delta } BIND("delta-not-typed" AS ?violation) }
+  UNION { ?subject a errc:Recommendation ; errc:protectsInvariant ?object . FILTER NOT EXISTS { ?object a errc:Invariant } BIND("protected-invariant-not-typed" AS ?violation) }
+  UNION { ?subject a errc:Recommendation ; errc:falsifier ?object . FILTER NOT EXISTS { ?object a errc:Falsifier } BIND("falsifier-not-typed" AS ?violation) }
+  UNION { ?subject a errc:Recommendation ; errc:authorityRequirement ?object . FILTER NOT EXISTS { ?object a errc:AuthorityClass } BIND("authority-not-typed" AS ?violation) }
+  UNION { ?subject a errc:Recommendation ; errc:actuationMode ?object . FILTER NOT EXISTS { ?object a errc:ActuationMode } BIND("actuation-mode-not-typed" AS ?violation) }
+  UNION { ?subject a errc:Recommendation ; errc:standing ?object . FILTER NOT EXISTS { ?object a errc:Standing } BIND("recommendation-standing-not-typed" AS ?violation) }
+  UNION { ?subject a errc:Recommendation ; errc:dependsOn ?object . FILTER NOT EXISTS { ?object a errc:Recommendation } BIND("dependency-not-recommendation" AS ?violation) }
+  UNION { ?subject a errc:Evidence ; errc:subject ?object . FILTER NOT EXISTS { ?object a errc:Subject } BIND("evidence-subject-not-typed" AS ?violation) }
+  UNION { ?subject a errc:Evidence ; errc:standing ?object . FILTER NOT EXISTS { ?object a errc:Standing } BIND("evidence-standing-not-typed" AS ?violation) }
+  UNION { ?subject a errc:Delta ; errc:dimension ?object . FILTER NOT EXISTS { ?object a errc:Dimension } BIND("dimension-not-typed" AS ?violation) }
+  UNION { ?subject a errc:Delta ; errc:relation ?object . FILTER NOT EXISTS { ?object a errc:DeltaRelation } BIND("delta-relation-not-typed" AS ?violation) }
+  UNION {
+    ?subject a errc:Recommendation ; errc:supportedBy ?object ; errc:subject ?target .
+    ?object errc:subject ?evidenceSubject .
+    FILTER (?target != ?evidenceSubject)
+    BIND("evidence-subject-mismatch" AS ?violation)
+  }
+}
+ORDER BY ?subject ?violation ?object

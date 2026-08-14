@@ -1,0 +1,34 @@
+# MESSAGE: ALIVE cannot be inferred from partial identity or partial evidence.
+PREFIX errc: <http://seanchatmangpt.github.io/packs/gh-actions-errc#>
+SELECT ?subject ?violation WHERE {
+  {
+    ?subject a errc:Recommendation ; errc:standing errc:ALIVE ; errc:subject ?target .
+    FILTER NOT EXISTS { ?target errc:identityStanding errc:ALIVE }
+    BIND("alive-recommendation-without-alive-subject-identity" AS ?violation)
+  } UNION {
+    ?subject a errc:Recommendation ; errc:standing errc:ALIVE ; errc:supportedBy ?evidence .
+    FILTER NOT EXISTS { ?evidence errc:standing errc:ALIVE }
+    BIND("alive-recommendation-with-nonalive-evidence" AS ?violation)
+  } UNION {
+    ?subject a errc:Evidence ; errc:standing errc:ALIVE ; errc:subject ?target .
+    FILTER NOT EXISTS { ?target errc:identityStanding errc:ALIVE }
+    BIND("alive-evidence-without-alive-subject-identity" AS ?violation)
+  } UNION {
+    ?subject a errc:Subject ; errc:identityStanding errc:ALIVE .
+    FILTER NOT EXISTS { ?subject errc:immutableId ?id }
+    BIND("alive-subject-without-immutable-identity" AS ?violation)
+  } UNION {
+    ?subject a errc:DecisionReceipt ; errc:standing errc:ALIVE ; errc:subject ?target .
+    FILTER NOT EXISTS { ?target errc:identityStanding errc:ALIVE }
+    BIND("alive-receipt-without-alive-subject-identity" AS ?violation)
+  } UNION {
+    ?subject a errc:DecisionReceipt ; errc:standing errc:ALIVE ; errc:bindsEvidence ?evidence .
+    FILTER NOT EXISTS { ?evidence errc:standing errc:ALIVE }
+    BIND("alive-receipt-with-nonalive-evidence" AS ?violation)
+  } UNION {
+    ?subject a errc:DecisionReceipt ; errc:standing errc:ALIVE ; errc:bindsRecommendation ?recommendation .
+    FILTER NOT EXISTS { ?recommendation errc:standing errc:ALIVE }
+    BIND("alive-receipt-with-nonalive-recommendation" AS ?violation)
+  }
+}
+ORDER BY ?subject ?violation
