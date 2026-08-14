@@ -1,0 +1,34 @@
+# MESSAGE: dsrust::Parallel is an admitted non-Module execution helper at the pinned source.
+# Any attempt to model it as dsrust:Module is refused; ExecutionPolicy construction remains
+# non-actuating and runtime work submission stays consumer-owned.
+PREFIX dsrust: <http://seanchatmangpt.github.io/packs/dsrust#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?subject ?violation WHERE {
+  {
+    ?subject a dsrust:Module ; dsrust:kind "Parallel" .
+    BIND("Parallel is exported by DsRust but does not implement Module; model it as dsrust:ExecutionPolicy" AS ?violation)
+  } UNION {
+    ?subject a dsrust:ExecutionPolicy .
+    VALUES ?property { dsrust:name dsrust:kind dcterms:description }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(CONCAT("ExecutionPolicy missing required ", STR(?property)) AS ?violation)
+  } UNION {
+    ?subject a dsrust:ExecutionPolicy ; dsrust:name ?value .
+    FILTER(!REGEX(STR(?value), "^[A-Za-z_][A-Za-z0-9_]*$"))
+    BIND("ExecutionPolicy name is not a generated-helper-safe Rust identifier" AS ?violation)
+  } UNION {
+    ?subject a dsrust:ExecutionPolicy ; dsrust:kind ?value .
+    FILTER(?value != "Parallel")
+    BIND(CONCAT("execution policy kind is not exported by admitted DsRust source: ", STR(?value)) AS ?violation)
+  } UNION {
+    ?subject a dsrust:ExecutionPolicy ; dsrust:maxInFlight ?value .
+    FILTER(?value <= 0)
+    BIND("Parallel maxInFlight must be greater than zero" AS ?violation)
+  } UNION {
+    ?subject a dsrust:ExecutionPolicy ; dsrust:name ?value .
+    ?other a dsrust:ExecutionPolicy ; dsrust:name ?value .
+    FILTER(STR(?subject) < STR(?other))
+    BIND(CONCAT("duplicate ExecutionPolicy name: ", STR(?value)) AS ?violation)
+  }
+}
+ORDER BY ?subject ?violation
