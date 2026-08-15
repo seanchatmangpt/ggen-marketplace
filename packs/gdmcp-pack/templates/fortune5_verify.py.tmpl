@@ -1,0 +1,68 @@
+---
+to: gdmcp/fortune5/verify_readiness.py
+freeze_policy: checksum
+freeze_slots_dir: .ggen/freeze/gdmcp-pack
+---
+"""Generated structural verifier for the gdmcp Fortune-5 readiness profile.
+
+This verifier can prove profile closure. It cannot certify a production deployment.
+"""
+from __future__ import annotations
+import hashlib
+import json
+from pathlib import Path
+
+EXPECTED_CAPABILITIES = {
+    "install-truth","compiler-truth","conflict-truth","rendering-truth","trust-truth","proof-truth",
+    "atomic-pack-taxonomy","bundle-profile-system","cli-startup-slo","template-rendering-slo",
+    "rdf-query-slo","memory-slo","concurrency-slo","andon-signals","poka-yoke",
+    "distributed-tracing","chaos-resilience","golden-signals","error-budgets",
+}
+EXPECTED_SURFACES = {"positive-execution","negative-refusal","receipt-replay"}
+EXPECTED_CONTROLS = {
+    "global-network","workload-identity","encryption-kms","observability","container-runtime",
+    "serverless-compute","transaction-data","object-storage","event-fabric","artifact-registry",
+    "policy-governance","resilience-dr","edge-delivery","evidence-ledger","testing",
+}
+
+def verify(path: Path) -> dict:
+    raw = path.read_bytes()
+    p = json.loads(raw)
+    errors = []
+    caps = {x["id"] for x in p.get("capabilities", [])}
+    controls = {x["id"] for x in p.get("platform_controls", [])}
+    surfaces = set(p.get("proof_surfaces", []))
+    if p.get("schema") != "gdmcp-fortune5-readiness/v1": errors.append("schema")
+    if p.get("protocol_version") != "2026-07-28": errors.append("protocol_version")
+    if p.get("language_projection_count") != 10: errors.append("language_projection_count")
+    if p.get("protocol_feature_count") != 64: errors.append("protocol_feature_count")
+    if caps != EXPECTED_CAPABILITIES: errors.append("capability_closure")
+    if surfaces != EXPECTED_SURFACES: errors.append("proof_surface_closure")
+    if p.get("obligation_count") != 57: errors.append("obligation_count")
+    for cap in p.get("capabilities", []):
+        if set(cap.get("required_surfaces", [])) != EXPECTED_SURFACES:
+            errors.append(f"surface_closure:{cap.get('id')}")
+    if controls != EXPECTED_CONTROLS: errors.append("platform_control_closure")
+    if p.get("direct_actuation") is not False: errors.append("ambient_actuation")
+    if any(x.get("direct_actuation") is not False for x in p.get("platform_controls", [])):
+        errors.append("platform_ambient_actuation")
+    for block in ("identity_policy","observability_policy","resilience_policy","supply_chain_policy","qualification_policy"):
+        if not p.get(block): errors.append(f"missing:{block}")
+    standing = "ALIVE" if not errors else "BUILD_BROKEN"
+    return {
+        "standing": standing,
+        "scope": "STRUCTURAL_PROFILE_ONLY",
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "errors": errors,
+        "capabilities": len(caps),
+        "proof_surfaces": len(surfaces),
+        "obligations": len(caps) * len(surfaces),
+        "platform_controls": len(controls),
+        "production_deployment_certified": False,
+    }
+
+if __name__ == "__main__":
+    target = Path(__file__).with_name("readiness.json")
+    report = verify(target)
+    print(json.dumps(report, indent=2, sort_keys=True))
+    raise SystemExit(0 if report["standing"] == "ALIVE" else 1)
