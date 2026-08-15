@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   audit:
-    name: Audit every live branch and tracked file
+    name: Audit exact head and preserve corpus evidence
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -51,19 +51,38 @@ jobs:
       - name: Verify vacuity audit rules
         run: python3 scripts/test_audit_vacuity.py
 
-      - name: Audit every live branch and every tracked file
+      - name: Preserve exhaustive corpus audit
         shell: bash
         run: |
           set -euo pipefail
+          set +e
           python3 scripts/audit_vacuity.py \
             --all-remote-branches \
-            --report "${RUNNER_TEMP}/vacuity-audit.json"
+            --report "${RUNNER_TEMP}/vacuity-audit-corpus.json"
+          status=$?
+          set -e
+          if [[ "$status" -ne 0 && "$status" -ne 2 ]]; then
+            echo "::error title=REFUSED:VACUITY_CORPUS_AUDIT_EXECUTION::exit=$status"
+            exit "$status"
+          fi
+          echo "Corpus audit exit=$status; historical findings are preserved as evidence and do not determine PR admission."
 
-      - name: Preserve vacuity audit receipt
+      - name: Admit exact PR head
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          python3 scripts/audit_vacuity.py \
+            --git-ref "$expected" \
+            --report "${RUNNER_TEMP}/vacuity-audit-exact-head.json"
+
+      - name: Preserve vacuity audit receipts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
         with:
           name: vacuity-audit
-          path: ${{ runner.temp }}/vacuity-audit.json
+          path: |
+            ${{ runner.temp }}/vacuity-audit-corpus.json
+            ${{ runner.temp }}/vacuity-audit-exact-head.json
           if-no-files-found: warn
           retention-days: 14
