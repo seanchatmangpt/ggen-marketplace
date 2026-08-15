@@ -1,0 +1,151 @@
+@prefix dfcm: <https://ggen.dev/ontology/dfcm#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix odrl: <http://www.w3.org/ns/odrl/2/> .
+
+# Vocabulary aligned to public ontologies.
+dfcm:DeploymentProfile a rdfs:Class ; rdfs:subClassOf prov:Entity .
+dfcm:Component a rdfs:Class ; rdfs:subClassOf prov:Entity .
+dfcm:Phase a rdfs:Class ; rdfs:subClassOf skos:Concept .
+dfcm:Stage a rdfs:Class ; rdfs:subClassOf skos:Concept .
+dfcm:Status a rdfs:Class ; rdfs:subClassOf skos:Concept .
+dfcm:Operation a rdfs:Class ; rdfs:subClassOf skos:Concept .
+dfcm:Morphism a rdfs:Class ; rdfs:subClassOf prov:Activity .
+dfcm:Invariant a rdfs:Class ; rdfs:subClassOf odrl:Constraint .
+dfcm:Falsifier a rdfs:Class ; rdfs:subClassOf prov:Entity .
+dfcm:RefusalKind a rdfs:Class ; rdfs:subClassOf skos:Concept .
+dfcm:ReceiptContract a rdfs:Class ; rdfs:subClassOf prov:Plan .
+dfcm:AuthorityRoute a rdfs:Class ; rdfs:subClassOf odrl:Policy .
+
+dfcm:order a rdf:Property .
+dfcm:slug a rdf:Property .
+dfcm:next a rdf:Property .
+dfcm:reversibility a rdf:Property .
+dfcm:fromObject a rdf:Property .
+dfcm:toObject a rdf:Property .
+dfcm:requires a rdf:Property .
+dfcm:includesComponent a rdf:Property .
+dfcm:required a rdf:Property .
+dfcm:layer a rdf:Property .
+dfcm:dependsOn a rdf:Property .
+dfcm:operation a rdf:Property .
+dfcm:authorityRoute a rdf:Property .
+dfcm:receiptRoute a rdf:Property .
+dfcm:mayActuate a rdf:Property .
+dfcm:ruleCode a rdf:Property .
+dfcm:ruleText a rdf:Property .
+dfcm:falsifiedBy a rdf:Property .
+dfcm:terminal a rdf:Property .
+dfcm:externalClaim a rdf:Property .
+
+# Foundational order.
+dfcm:Preserve a dfcm:Phase ; dfcm:order 10 ; dfcm:slug "preserve" ; skos:prefLabel "Preserve maximal reversible lawful possibilities" ; dfcm:next dfcm:Fence .
+dfcm:Fence a dfcm:Phase ; dfcm:order 20 ; dfcm:slug "fence" ; skos:prefLabel "Fence existing purpose and irreversible boundaries" ; dfcm:next dfcm:Calculus .
+dfcm:Calculus a dfcm:Phase ; dfcm:order 30 ; dfcm:slug "calculus" ; skos:prefLabel "Define objects, morphisms, admission, closure, authority, actuation, receipt, replay" ; dfcm:next dfcm:Exclusions .
+dfcm:Exclusions a dfcm:Phase ; dfcm:order 40 ; dfcm:slug "exclusions" ; skos:prefLabel "Exclude ambient execution authority and category collapse" ; dfcm:next dfcm:FalsifierPhase .
+dfcm:FalsifierPhase a dfcm:Phase ; dfcm:order 50 ; dfcm:slug "falsifier" ; skos:prefLabel "Name what would falsify standing" ; dfcm:next dfcm:Extension .
+dfcm:Extension a dfcm:Phase ; dfcm:order 60 ; dfcm:slug "extension" ; skos:prefLabel "Extend only by lawful graph-preserving morphisms" ; dfcm:next dfcm:Operationalization .
+dfcm:Operationalization a dfcm:Phase ; dfcm:order 70 ; dfcm:slug "operationalization" ; skos:prefLabel "Manufacture, actuate through BRCE, receipt, replay, and assign bounded standing" .
+
+# Runtime stages.
+dfcm:Parse a dfcm:Stage ; dfcm:order 10 ; dfcm:slug "parse" ; dfcm:next dfcm:Route .
+dfcm:Route a dfcm:Stage ; dfcm:order 20 ; dfcm:slug "route" ; dfcm:next dfcm:AdmitOrRefuse .
+dfcm:AdmitOrRefuse a dfcm:Stage ; dfcm:order 30 ; dfcm:slug "admit-refuse" ; dfcm:next dfcm:DiagnoseRepair .
+dfcm:DiagnoseRepair a dfcm:Stage ; dfcm:order 40 ; dfcm:slug "diagnose-repair" ; dfcm:next dfcm:Construct .
+dfcm:Construct a dfcm:Stage ; dfcm:order 50 ; dfcm:slug "construct" ; dfcm:next dfcm:Actuate .
+dfcm:Actuate a dfcm:Stage ; dfcm:order 60 ; dfcm:slug "actuate" ; dfcm:next dfcm:Receipt .
+dfcm:Receipt a dfcm:Stage ; dfcm:order 70 ; dfcm:slug "receipt" ; dfcm:next dfcm:ReplayHook .
+dfcm:ReplayHook a dfcm:Stage ; dfcm:order 80 ; dfcm:slug "replay-hook" ; dfcm:next dfcm:Standing .
+dfcm:Standing a dfcm:Stage ; dfcm:order 90 ; dfcm:slug "standing" .
+
+# Explicit operation authority split.
+dfcm:SELECT a dfcm:Operation ; dfcm:order 10 ; dfcm:slug "SELECT" ; dfcm:reversibility "decision" ; dfcm:mayActuate false .
+dfcm:CONSTRUCT a dfcm:Operation ; dfcm:order 20 ; dfcm:slug "CONSTRUCT" ; dfcm:reversibility "reversible" ; dfcm:mayActuate false .
+dfcm:DO a dfcm:Operation ; dfcm:order 30 ; dfcm:slug "DO" ; dfcm:reversibility "irreversible" ; dfcm:mayActuate true ; dfcm:authorityRoute dfcm:BRCE ; dfcm:receiptRoute dfcm:ReceiptDAG .
+
+# Standing lattice: REFUSED is classified separately through typed refusal kinds.
+dfcm:UNKNOWN a dfcm:Status ; dfcm:order 10 ; dfcm:slug "UNKNOWN" ; skos:prefLabel "Observed or generated, not admitted/executed" ; dfcm:externalClaim false .
+dfcm:PARTIAL_ALIVE a dfcm:Status ; dfcm:order 20 ; dfcm:slug "PARTIAL_ALIVE" ; skos:prefLabel "Some required proof surfaces are alive" ; dfcm:externalClaim true .
+dfcm:ALIVE a dfcm:Status ; dfcm:order 30 ; dfcm:slug "ALIVE" ; skos:prefLabel "Exact admitted subject observed executing with receipt" ; dfcm:externalClaim true .
+dfcm:BLOCKED a dfcm:Status ; dfcm:order 40 ; dfcm:slug "BLOCKED" ; skos:prefLabel "A required transition cannot proceed because an external or authority dependency is unavailable" ; dfcm:externalClaim true .
+dfcm:BUILD_BROKEN a dfcm:Status ; dfcm:order 50 ; dfcm:slug "BUILD_BROKEN" ; skos:prefLabel "Construction or validation failed" ; dfcm:externalClaim true .
+dfcm:UNSUPPORTED a dfcm:Status ; dfcm:order 60 ; dfcm:slug "UNSUPPORTED" ; skos:prefLabel "No lawful capability edge exists in the admitted environment" ; dfcm:externalClaim true .
+dfcm:REFUSED a dfcm:Status ; dfcm:order 70 ; dfcm:slug "REFUSED" ; skos:prefLabel "A typed policy refusal rejected the requested transition" ; dfcm:externalClaim true .
+
+# Typed refusal taxonomy.
+dfcm:DirectDo a dfcm:RefusalKind ; dfcm:slug "REFUSED:DIRECT_DO" .
+dfcm:MissingAdmission a dfcm:RefusalKind ; dfcm:slug "REFUSED:MISSING_ADMISSION" .
+dfcm:MissingAuthority a dfcm:RefusalKind ; dfcm:slug "REFUSED:MISSING_AUTHORITY" .
+dfcm:MissingReceiptRoute a dfcm:RefusalKind ; dfcm:slug "REFUSED:MISSING_RECEIPT_ROUTE" .
+dfcm:HookActuation a dfcm:RefusalKind ; dfcm:slug "REFUSED:HOOK_ACTUATION" .
+dfcm:AliveWithoutExecution a dfcm:RefusalKind ; dfcm:slug "REFUSED:ALIVE_WITHOUT_EXACT_EXECUTION" .
+dfcm:BaseDrift a dfcm:RefusalKind ; dfcm:slug "REFUSED:BASE_DRIFT" .
+dfcm:UnreceiptedActuation a dfcm:RefusalKind ; dfcm:slug "REFUSED:UNRECEIPTED_ACTUATION" .
+dfcm:NondeterministicReplay a dfcm:RefusalKind ; dfcm:slug "REFUSED:NONDETERMINISTIC_REPLAY" .
+
+# Authority and receipt contracts.
+dfcm:BRCE a dfcm:AuthorityRoute, odrl:Policy ; dcterms:title "Bounded Receipted Chatman Equation" ; dfcm:slug "BRCE" ; dfcm:mayActuate true .
+dfcm:DirectExecution a dfcm:AuthorityRoute ; dfcm:slug "DIRECT" ; dfcm:mayActuate false .
+dfcm:IntentHook a prov:Activity ; dfcm:slug "HOOK" ; dfcm:mayActuate false ; skos:note "Hooks manufacture intents only." .
+dfcm:ReceiptDAG a dfcm:ReceiptContract ; dfcm:slug "receipt-dag" ; skos:note "Binds subject identity, admitted authority, consequence, verifier evidence, replay identity, and standing." .
+
+# Core morphisms.
+dfcm:ObserveToAdmit a dfcm:Morphism ; dfcm:order 10 ; dfcm:slug "observe-admit" ; dfcm:fromObject "O" ; dfcm:toObject "O*" ; dfcm:reversibility "reversible" .
+dfcm:AdmitToConstruct a dfcm:Morphism ; dfcm:order 20 ; dfcm:slug "admit-construct" ; dfcm:fromObject "O*" ; dfcm:toObject "constructed-option" ; dfcm:reversibility "reversible" .
+dfcm:ConstructToSelect a dfcm:Morphism ; dfcm:order 30 ; dfcm:slug "construct-select" ; dfcm:fromObject "option-graph" ; dfcm:toObject "selected-intent" ; dfcm:reversibility "decision" .
+dfcm:SelectToBRCE a dfcm:Morphism ; dfcm:order 40 ; dfcm:slug "select-brce" ; dfcm:fromObject "selected-intent" ; dfcm:toObject "authorized-actuation" ; dfcm:reversibility "irreversible" ; dfcm:requires dfcm:BRCE .
+dfcm:ActuationToReceipt a dfcm:Morphism ; dfcm:order 50 ; dfcm:slug "actuate-receipt" ; dfcm:fromObject "authorized-actuation" ; dfcm:toObject "receipt" ; dfcm:reversibility "irreversible" ; dfcm:requires dfcm:ReceiptDAG .
+dfcm:ReceiptToReplay a dfcm:Morphism ; dfcm:order 60 ; dfcm:slug "receipt-replay" ; dfcm:fromObject "receipt" ; dfcm:toObject "replay" ; dfcm:reversibility "reversible" .
+dfcm:ReplayToStanding a dfcm:Morphism ; dfcm:order 70 ; dfcm:slug "replay-standing" ; dfcm:fromObject "replay" ; dfcm:toObject "bounded-standing" ; dfcm:reversibility "decision" .
+
+# Invariants and falsifiers.
+dfcm:I001 a dfcm:Invariant ; dfcm:order 10 ; dfcm:ruleCode "DFCM-I001" ; dfcm:ruleText "Preserve all admitted reversible options until an irreversible selection has its own admission evidence." ; dfcm:falsifiedBy dfcm:FSelectionBeforeAdmission .
+dfcm:I002 a dfcm:Invariant ; dfcm:order 20 ; dfcm:ruleCode "DFCM-I002" ; dfcm:ruleText "SELECT, CONSTRUCT, and DO are distinct authority domains." ; dfcm:falsifiedBy dfcm:FDirectDo .
+dfcm:I003 a dfcm:Invariant ; dfcm:order 30 ; dfcm:ruleCode "DFCM-I003" ; dfcm:ruleText "BRCE is the exclusive DO path; zero unreceipted actuation." ; dfcm:falsifiedBy dfcm:FUnreceiptedDo .
+dfcm:I004 a dfcm:Invariant ; dfcm:order 40 ; dfcm:ruleCode "DFCM-I004" ; dfcm:ruleText "Hooks manufacture intents and never actuate." ; dfcm:falsifiedBy dfcm:FHookActuates .
+dfcm:I005 a dfcm:Invariant ; dfcm:order 50 ; dfcm:ruleCode "DFCM-I005" ; dfcm:ruleText "ALIVE requires observed execution against the exact admitted subject and a receipt." ; dfcm:falsifiedBy dfcm:FAliveWithoutExecution .
+dfcm:I006 a dfcm:Invariant ; dfcm:order 60 ; dfcm:ruleCode "DFCM-I006" ; dfcm:ruleText "UNKNOWN is not admission; UNSUPPORTED is not REFUSED." ; dfcm:falsifiedBy dfcm:FCategoryCollapse .
+dfcm:I007 a dfcm:Invariant ; dfcm:order 70 ; dfcm:ruleCode "DFCM-I007" ; dfcm:ruleText "One failed edge prunes topology; it does not collapse the remaining lawful option graph." ; dfcm:falsifiedBy dfcm:FGraphCollapse .
+dfcm:I008 a dfcm:Invariant ; dfcm:order 80 ; dfcm:ruleCode "DFCM-I008" ; dfcm:ruleText "Source, validator, toolchain, configuration, environment, and exact base identities are receipt inputs." ; dfcm:falsifiedBy dfcm:FBaseDrift .
+dfcm:I009 a dfcm:Invariant ; dfcm:order 90 ; dfcm:ruleCode "DFCM-I009" ; dfcm:ruleText "Replay standing requires deterministic consequences for the same admitted capsule." ; dfcm:falsifiedBy dfcm:FNondeterministicReplay .
+dfcm:I010 a dfcm:Invariant ; dfcm:order 100 ; dfcm:ruleCode "DFCM-I010" ; dfcm:ruleText "Generated declarations, proofs, model output, and planner output have no ambient execution authority." ; dfcm:falsifiedBy dfcm:FAmbientAuthority .
+
+dfcm:FSelectionBeforeAdmission a dfcm:Falsifier ; dfcm:slug "selection-before-admission" ; skos:prefLabel "An irreversible option is selected without admitted evidence." .
+dfcm:FDirectDo a dfcm:Falsifier ; dfcm:slug "direct-do" ; skos:prefLabel "A DO action bypasses BRCE." .
+dfcm:FUnreceiptedDo a dfcm:Falsifier ; dfcm:slug "unreceipted-do" ; skos:prefLabel "A consequential action completes without a receipt route and receipt." .
+dfcm:FHookActuates a dfcm:Falsifier ; dfcm:slug "hook-actuates" ; skos:prefLabel "A hook invokes an actuator instead of emitting intent." .
+dfcm:FAliveWithoutExecution a dfcm:Falsifier ; dfcm:slug "alive-without-execution" ; skos:prefLabel "ALIVE is assigned without execution against the exact admitted subject." .
+dfcm:FCategoryCollapse a dfcm:Falsifier ; dfcm:slug "category-collapse" ; skos:prefLabel "UNKNOWN, UNSUPPORTED, and REFUSED are treated as interchangeable." .
+dfcm:FGraphCollapse a dfcm:Falsifier ; dfcm:slug "graph-collapse" ; skos:prefLabel "A failed edge deletes otherwise lawful reversible alternatives." .
+dfcm:FBaseDrift a dfcm:Falsifier ; dfcm:slug "base-drift" ; skos:prefLabel "Execution or publication silently moves from the admitted base identity." .
+dfcm:FNondeterministicReplay a dfcm:Falsifier ; dfcm:slug "nondeterministic-replay" ; skos:prefLabel "Same admitted capsule manufactures different consequences without admitted nondeterminism." .
+dfcm:FAmbientAuthority a dfcm:Falsifier ; dfcm:slug "ambient-authority" ; skos:prefLabel "A raw/model/planner/proof/generated artifact directly acquires execution authority." .
+
+# Full Chatman ecosystem deployment profile. Names are deployment subjects, not claims of runtime standing.
+dfcm:FullChatmanEcosystem a dfcm:DeploymentProfile ; dcterms:title "Full Chatman Ecosystem" ; dfcm:slug "chatman-ecosystem-full" ;
+  dfcm:includesComponent dfcm:ggen, dfcm:ggenLegacy, dfcm:starToml, dfcm:mfact, dfcm:MU, dfcm:gymact, dfcm:autofdeLab, dfcm:wasm4pm, dfcm:POWL, dfcm:gdmcp, dfcm:processIntelligence, dfcm:ggenMarketplace, dfcm:chatmanEngine, dfcm:chatmanEcosystemRelease, dfcm:sregym, dfcm:fdegym, dfcm:rrgym, dfcm:awesomeAiGym, dfcm:praxis, dfcm:lspMax .
+
+dfcm:ggen a dfcm:Component ; dfcm:order 10 ; dfcm:slug "ggen" ; rdfs:label "ggen" ; dfcm:layer "manufacture" ; dfcm:required true .
+dfcm:ggenLegacy a dfcm:Component ; dfcm:order 20 ; dfcm:slug "ggen-legacy" ; rdfs:label "ggen-legacy" ; dfcm:layer "reconstitution" ; dfcm:required true ; dfcm:dependsOn dfcm:ggen .
+dfcm:starToml a dfcm:Component ; dfcm:order 30 ; dfcm:slug "star-toml" ; rdfs:label "star-toml" ; dfcm:layer "admission" ; dfcm:required true .
+dfcm:mfact a dfcm:Component ; dfcm:order 40 ; dfcm:slug "mfact" ; rdfs:label "mfact" ; dfcm:layer "formal-proof" ; dfcm:required true ; dfcm:dependsOn dfcm:ggen .
+dfcm:MU a dfcm:Component ; dfcm:order 50 ; dfcm:slug "MU" ; rdfs:label "MU (μ)" ; dfcm:layer "lawful-manufacture" ; dfcm:required true ; dfcm:dependsOn dfcm:ggen .
+dfcm:gymact a dfcm:Component ; dfcm:order 60 ; dfcm:slug "gymact" ; rdfs:label "gymact" ; dfcm:layer "actuation" ; dfcm:required true ; dfcm:dependsOn dfcm:starToml .
+dfcm:autofdeLab a dfcm:Component ; dfcm:order 70 ; dfcm:slug "autofde-lab" ; rdfs:label "autofde-lab" ; dfcm:layer "forward-deployment" ; dfcm:required true ; dfcm:dependsOn dfcm:gymact .
+dfcm:wasm4pm a dfcm:Component ; dfcm:order 80 ; dfcm:slug "wasm4pm" ; rdfs:label "wasm4pm" ; dfcm:layer "process-intelligence" ; dfcm:required true .
+dfcm:POWL a dfcm:Component ; dfcm:order 90 ; dfcm:slug "POWL" ; rdfs:label "POWL" ; dfcm:layer "workflow" ; dfcm:required true ; dfcm:dependsOn dfcm:wasm4pm .
+dfcm:gdmcp a dfcm:Component ; dfcm:order 100 ; dfcm:slug "gdmcp" ; rdfs:label "gdmcp" ; dfcm:layer "deterministic-mcp" ; dfcm:required true ; dfcm:dependsOn dfcm:ggen, dfcm:gymact .
+dfcm:processIntelligence a dfcm:Component ; dfcm:order 110 ; dfcm:slug "process-intelligence" ; rdfs:label "process-intelligence" ; dfcm:layer "process-intelligence" ; dfcm:required true ; dfcm:dependsOn dfcm:wasm4pm .
+dfcm:ggenMarketplace a dfcm:Component ; dfcm:order 120 ; dfcm:slug "ggen-marketplace" ; rdfs:label "ggen-marketplace" ; dfcm:layer "pack-publication" ; dfcm:required true ; dfcm:dependsOn dfcm:ggen .
+dfcm:chatmanEngine a dfcm:Component ; dfcm:order 130 ; dfcm:slug "chatman-engine" ; rdfs:label "chatman-engine" ; dfcm:layer "engine" ; dfcm:required true ; dfcm:dependsOn dfcm:MU .
+dfcm:chatmanEcosystemRelease a dfcm:Component ; dfcm:order 140 ; dfcm:slug "chatman-ecosystem-release-pack" ; rdfs:label "chatman-ecosystem-release-pack" ; dfcm:layer "release" ; dfcm:required true ; dfcm:dependsOn dfcm:ggenMarketplace ; skos:note "Release control plane; not deployment actuator." .
+dfcm:sregym a dfcm:Component ; dfcm:order 150 ; dfcm:slug "sregym" ; rdfs:label "sregym" ; dfcm:layer "gym" ; dfcm:required true ; dfcm:dependsOn dfcm:gymact .
+dfcm:fdegym a dfcm:Component ; dfcm:order 160 ; dfcm:slug "fdegym" ; rdfs:label "fdegym" ; dfcm:layer "gym" ; dfcm:required true ; dfcm:dependsOn dfcm:gymact .
+dfcm:rrgym a dfcm:Component ; dfcm:order 170 ; dfcm:slug "rrgym" ; rdfs:label "rrgym" ; dfcm:layer "gym" ; dfcm:required false ; dfcm:dependsOn dfcm:gymact .
+dfcm:awesomeAiGym a dfcm:Component ; dfcm:order 180 ; dfcm:slug "awesome-ai-gym" ; rdfs:label "awesome-ai-gym" ; dfcm:layer "gym-corpus" ; dfcm:required true ; dfcm:dependsOn dfcm:gymact .
+dfcm:praxis a dfcm:Component ; dfcm:order 190 ; dfcm:slug "praxis" ; rdfs:label "praxis" ; dfcm:layer "practice" ; dfcm:required false ; dfcm:dependsOn dfcm:ggen .
+dfcm:lspMax a dfcm:Component ; dfcm:order 200 ; dfcm:slug "LSP-MAX" ; rdfs:label "LSP-MAX" ; dfcm:layer "code-intelligence" ; dfcm:required false ; dfcm:dependsOn dfcm:ggen .

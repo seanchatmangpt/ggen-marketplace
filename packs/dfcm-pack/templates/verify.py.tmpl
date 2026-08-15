@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+"""Bounded DfCM state verifier. It validates evidence shape; it never actuates."""
+import json
+import sys
+from pathlib import Path
+
+ALLOWED = { {% for row in results %}"{{ row["slug"] }}", {% endfor %} }
+
+def refuse(code, detail):
+    print(f"REFUSED:{code}:{detail}", file=sys.stderr)
+    return 2
+
+def main():
+    path = Path(sys.argv[1] if len(sys.argv) > 1 else "deployment-state.json")
+    try:
+        state = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return refuse("STATE_INVALID", str(exc))
+    status = state.get("status")
+    if status not in ALLOWED:
+        return refuse("STATUS_UNKNOWN", repr(status))
+    if status == "UNKNOWN" and state.get("admitted_subject") is not None:
+        return refuse("UNKNOWN_CANNOT_BE_ADMITTED", str(state.get("admitted_subject")))
+    if status == "REFUSED" and not str(state.get("refusal") or "").startswith("REFUSED:"):
+        return refuse("TYPED_REFUSAL_REQUIRED", repr(state.get("refusal")))
+    if status == "UNSUPPORTED" and state.get("refusal"):
+        return refuse("UNSUPPORTED_IS_NOT_REFUSED", str(state.get("refusal")))
+    if status == "ALIVE":
+        if not state.get("executed"):
+            return refuse("ALIVE_WITHOUT_EXACT_EXECUTION", "executed=false")
+        if not state.get("admitted_subject") or state.get("exact_subject") != state.get("admitted_subject"):
+            return refuse("ALIVE_WITHOUT_EXACT_EXECUTION", "subject identity mismatch")
+        if not state.get("receipt"):
+            return refuse("UNRECEIPTED_ACTUATION", "ALIVE requires receipt")
+    for index, action in enumerate(state.get("actions") or []):
+        if action.get("operation") == "DO":
+            if action.get("route") != "BRCE":
+                return refuse("DIRECT_DO", f"actions[{index}]")
+            if not action.get("admitted"):
+                return refuse("MISSING_ADMISSION", f"actions[{index}]")
+            if not action.get("authority"):
+                return refuse("MISSING_AUTHORITY", f"actions[{index}]")
+            if not action.get("receipt_route"):
+                return refuse("MISSING_RECEIPT_ROUTE", f"actions[{index}]")
+    for index, hook in enumerate(state.get("hooks") or []):
+        if hook.get("actuated"):
+            return refuse("HOOK_ACTUATION", f"hooks[{index}]")
+    print(json.dumps({"schema":"https://ggen.dev/dfcm/verifier-receipt/v1","status":"VERIFIED","subject":state.get("subject"),"input_status":status}, sort_keys=True, separators=(",",":")))
+    return 0
+
+if __name__ == "__main__":
+    raise SystemExit(main())
