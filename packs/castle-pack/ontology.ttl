@@ -13,6 +13,9 @@ castle:Component a rdfs:Class ;
   rdfs:subClassOf prov:Entity .
 castle:AdversarialGoal a rdfs:Class ;
   rdfs:subClassOf skos:Concept .
+castle:Fortune5Requirement a rdfs:Class ;
+  rdfs:subClassOf odrl:Constraint, prov:Entity ;
+  rdfs:label "CASTLE Fortune-5 readiness requirement" .
 castle:kind a rdf:Property .
 castle:order a rdf:Property .
 castle:identifier a rdf:Property .
@@ -20,6 +23,15 @@ castle:slug a rdf:Property .
 castle:authority a rdf:Property .
 castle:predicate a rdf:Property .
 castle:consequence a rdf:Property .
+castle:category a rdf:Property .
+castle:metric a rdf:Property .
+castle:comparator a rdf:Property .
+castle:target a rdf:Property .
+
+castle:fortune5-readiness-profile a odrl:Policy, prov:Entity ;
+  dcterms:title "CASTLE Fortune-5 Readiness Profile" ;
+  dcterms:description "Executable enterprise readiness profile. It is an internal admission gate and does not assert external certification." ;
+  castle:authority "READINESS_GATE" .
 
 castle:dfcm-goal-inversion a castle:Binding, castle:Component ;
   castle:kind "component" ; castle:order 10 ; castle:identifier "DfCMGoalInversion" ;
@@ -110,3 +122,206 @@ castle:unauthorized-persistence a castle:Binding, castle:AdversarialGoal ;
   castle:slug "unauthorized-persistence" ;
   dcterms:description "Adversary preserves unauthorized standing across state transitions." ;
   castle:authority "PROHIBITED" ; castle:predicate "goal:unauthorized-persistence" ; castle:consequence 90 .
+
+# Fortune-5 readiness controls. Targets are executable defaults and may be specialized
+# by a stricter admitted profile; weakening requires a new versioned ontology and receipt.
+
+castle:f5-auth-001 a castle:Fortune5Requirement ;
+  castle:order 200 ; dcterms:identifier "F5-AUTH-001" ; castle:category "authority" ;
+  dcterms:description "Consequential actuation has zero unreceipted transitions." ;
+  castle:metric "zero_unreceipted_actuations" ; castle:comparator "EQ" ; castle:target "0" ; castle:authority "REQUIRED" .
+
+castle:f5-auth-002 a castle:Fortune5Requirement ;
+  castle:order 210 ; dcterms:identifier "F5-AUTH-002" ; castle:category "authority" ;
+  dcterms:description "CONSTRUCT has no consequential actuation authority." ;
+  castle:metric "construct_actuation_authority" ; castle:comparator "EQ" ; castle:target "false" ; castle:authority "REQUIRED" .
+
+castle:f5-iam-001 a castle:Fortune5Requirement ;
+  castle:order 220 ; dcterms:identifier "F5-IAM-001" ; castle:category "isolation" ;
+  dcterms:description "No unauthorized cross-tenant authority edges are admitted." ;
+  castle:metric "cross_tenant_authority_edges" ; castle:comparator "EQ" ; castle:target "0" ; castle:authority "REQUIRED" .
+
+castle:f5-iam-002 a castle:Fortune5Requirement ;
+  castle:order 230 ; dcterms:identifier "F5-IAM-002" ; castle:category "isolation" ;
+  dcterms:description "Emergency authority transitions remain fully receipted." ;
+  castle:metric "unreceipted_breakglass_events" ; castle:comparator "EQ" ; castle:target "0" ; castle:authority "REQUIRED" .
+
+castle:f5-sc-001 a castle:Fortune5Requirement ;
+  castle:order 240 ; dcterms:identifier "F5-SC-001" ; castle:category "supply-chain" ;
+  dcterms:description "Deployable artifacts have complete software-bill-of-material coverage." ;
+  castle:metric "sbom_coverage_bps" ; castle:comparator "GTE" ; castle:target "10000" ; castle:authority "REQUIRED" .
+
+castle:f5-sc-002 a castle:Fortune5Requirement ;
+  castle:order 250 ; dcterms:identifier "F5-SC-002" ; castle:category "supply-chain" ;
+  dcterms:description "Deployable artifacts have signed provenance coverage." ;
+  castle:metric "signed_provenance_coverage_bps" ; castle:comparator "GTE" ; castle:target "10000" ; castle:authority "REQUIRED" .
+
+castle:f5-sc-003 a castle:Fortune5Requirement ;
+  castle:order 260 ; dcterms:identifier "F5-SC-003" ; castle:category "supply-chain" ;
+  dcterms:description "Admitted dependencies are content addressed." ;
+  castle:metric "content_addressed_dependency_coverage_bps" ; castle:comparator "GTE" ; castle:target "10000" ; castle:authority "REQUIRED" .
+
+castle:f5-replay-001 a castle:Fortune5Requirement ;
+  castle:order 270 ; dcterms:identifier "F5-REPLAY-001" ; castle:category "replay" ;
+  dcterms:description "Replay classes match the current ontology and provider-semantics versions." ;
+  castle:metric "replay_version_compatible" ; castle:comparator "EQ" ; castle:target "true" ; castle:authority "REQUIRED" .
+
+castle:f5-replay-002 a castle:Fortune5Requirement ;
+  castle:order 280 ; dcterms:identifier "F5-REPLAY-002" ; castle:category "replay" ;
+  dcterms:description "Replay preconditions and invariants pass for every admitted reuse." ;
+  castle:metric "replay_invariant_pass_bps" ; castle:comparator "GTE" ; castle:target "10000" ; castle:authority "REQUIRED" .
+
+castle:f5-obs-001 a castle:Fortune5Requirement ;
+  castle:order 290 ; dcterms:identifier "F5-OBS-001" ; castle:category "observability" ;
+  dcterms:description "Consequential transitions are represented in OCEL evidence." ;
+  castle:metric "ocel_actuation_coverage_bps" ; castle:comparator "GTE" ; castle:target "10000" ; castle:authority "REQUIRED" .
+
+castle:f5-obs-002 a castle:Fortune5Requirement ;
+  castle:order 300 ; dcterms:identifier "F5-OBS-002" ; castle:category "observability" ;
+  dcterms:description "Consequential transitions are covered by cryptographic receipts." ;
+  castle:metric "receipt_actuation_coverage_bps" ; castle:comparator "GTE" ; castle:target "10000" ; castle:authority "REQUIRED" .
+
+castle:f5-dr-001 a castle:Fortune5Requirement ;
+  castle:order 310 ; dcterms:identifier "F5-DR-001" ; castle:category "resilience" ;
+  dcterms:description "A restore drill has produced passing observed evidence." ;
+  castle:metric "restore_drill_passed" ; castle:comparator "EQ" ; castle:target "true" ; castle:authority "REQUIRED" .
+
+castle:f5-dr-002 a castle:Fortune5Requirement ;
+  castle:order 320 ; dcterms:identifier "F5-DR-002" ; castle:category "resilience" ;
+  dcterms:description "Observed recovery point objective is at most five minutes." ;
+  castle:metric "observed_rpo_seconds" ; castle:comparator "LTE" ; castle:target "300" ; castle:authority "REQUIRED" .
+
+castle:f5-dr-003 a castle:Fortune5Requirement ;
+  castle:order 330 ; dcterms:identifier "F5-DR-003" ; castle:category "resilience" ;
+  dcterms:description "Observed recovery time objective is at most fifteen minutes." ;
+  castle:metric "observed_rto_seconds" ; castle:comparator "LTE" ; castle:target "900" ; castle:authority "REQUIRED" .
+
+castle:f5-ha-001 a castle:Fortune5Requirement ;
+  castle:order 340 ; dcterms:identifier "F5-HA-001" ; castle:category "availability" ;
+  dcterms:description "The admitted deployment spans at least three independent failure domains." ;
+  castle:metric "independent_failure_domains" ; castle:comparator "GTE" ; castle:target "3" ; castle:authority "REQUIRED" .
+
+castle:f5-slo-001 a castle:Fortune5Requirement ;
+  castle:order 350 ; dcterms:identifier "F5-SLO-001" ; castle:category "slo" ;
+  dcterms:description "Observed service availability meets the default 99.90 percent readiness gate." ;
+  castle:metric "availability_bps" ; castle:comparator "GTE" ; castle:target "9990" ; castle:authority "REQUIRED" .
+
+castle:f5-slo-002 a castle:Fortune5Requirement ;
+  castle:order 360 ; dcterms:identifier "F5-SLO-002" ; castle:category "slo" ;
+  dcterms:description "Observed p99 control-plane latency is at most 500 milliseconds." ;
+  castle:metric "p99_control_plane_latency_ms" ; castle:comparator "LTE" ; castle:target "500" ; castle:authority "REQUIRED" .
+
+castle:f5-data-001 a castle:Fortune5Requirement ;
+  castle:order 370 ; dcterms:identifier "F5-DATA-001" ; castle:category "data" ;
+  dcterms:description "Protected data has complete encryption coverage across admitted storage and transport." ;
+  castle:metric "encryption_coverage_bps" ; castle:comparator "GTE" ; castle:target "10000" ; castle:authority "REQUIRED" .
+
+castle:f5-data-002 a castle:Fortune5Requirement ;
+  castle:order 380 ; dcterms:identifier "F5-DATA-002" ; castle:category "data" ;
+  dcterms:description "Observed placement conforms to the admitted data residency policy." ;
+  castle:metric "residency_policy_conformant" ; castle:comparator "EQ" ; castle:target "true" ; castle:authority "REQUIRED" .
+
+castle:f5-pol-001 a castle:Fortune5Requirement ;
+  castle:order 390 ; dcterms:identifier "F5-POL-001" ; castle:category "policy" ;
+  dcterms:description "Unspecified authority is denied by default." ;
+  castle:metric "deny_by_default" ; castle:comparator "EQ" ; castle:target "true" ; castle:authority "REQUIRED" .
+
+castle:f5-pol-002 a castle:Fortune5Requirement ;
+  castle:order 400 ; dcterms:identifier "F5-POL-002" ; castle:category "policy" ;
+  dcterms:description "Every admitted policy exception is receipt bound." ;
+  castle:metric "policy_exception_receipt_coverage_bps" ; castle:comparator "GTE" ; castle:target "10000" ; castle:authority "REQUIRED" .
+
+castle:f5-scale-001 a castle:Fortune5Requirement ;
+  castle:order 410 ; dcterms:identifier "F5-SCALE-001" ; castle:category "scale" ;
+  dcterms:description "The bounded runtime has observed qualification at ten thousand concurrent subjects." ;
+  castle:metric "tested_concurrent_subjects" ; castle:comparator "GTE" ; castle:target "10000" ; castle:authority "REQUIRED" .
+
+castle:f5-det-001 a castle:Fortune5Requirement ;
+  castle:order 420 ; dcterms:identifier "F5-DET-001" ; castle:category "determinism" ;
+  dcterms:description "Deterministic replay succeeds for at least 99.99 percent of admitted replay attempts." ;
+  castle:metric "deterministic_replay_success_bps" ; castle:comparator "GTE" ; castle:target "9999" ; castle:authority "REQUIRED" .
+
+castle:f5-evid-001 a castle:Fortune5Requirement ;
+  castle:order 430 ; dcterms:identifier "F5-EVID-001" ; castle:category "evidence" ;
+  dcterms:description "Evidence retention is at least 365 days unless a stricter admitted profile applies." ;
+  castle:metric "evidence_retention_days" ; castle:comparator "GTE" ; castle:target "365" ; castle:authority "REQUIRED" .
+
+castle:f5-evid-002 a castle:Fortune5Requirement ;
+  castle:order 440 ; dcterms:identifier "F5-EVID-002" ; castle:category "evidence" ;
+  dcterms:description "Persisted evidence is tamper evident." ;
+  castle:metric "tamper_evident_evidence" ; castle:comparator "EQ" ; castle:target "true" ; castle:authority "REQUIRED" .
+
+castle:f5-refuse-001 a castle:Fortune5Requirement ;
+  castle:order 450 ; dcterms:identifier "F5-REFUSE-001" ; castle:category "refusal" ;
+  dcterms:description "All denied consequential actions return typed refusal standing." ;
+  castle:metric "typed_refusal_coverage_bps" ; castle:comparator "GTE" ; castle:target "10000" ; castle:authority "REQUIRED" .
+
+castle:f5-chaos-001 a castle:Fortune5Requirement ;
+  castle:order 460 ; dcterms:identifier "F5-CHAOS-001" ; castle:category "resilience" ;
+  dcterms:description "The admitted failure-injection suite passes with observed evidence." ;
+  castle:metric "failure_injection_suite_passed" ; castle:comparator "EQ" ; castle:target "true" ; castle:authority "REQUIRED" .
+
+castle:f5-rollback-001 a castle:Fortune5Requirement ;
+  castle:order 470 ; dcterms:identifier "F5-ROLLBACK-001" ; castle:category "change" ;
+  dcterms:description "Every consequential change class has an admitted rollback path or proven irreversible exception." ;
+  castle:metric "rollback_path_coverage_bps" ; castle:comparator "GTE" ; castle:target "10000" ; castle:authority "REQUIRED" .
+
+castle:f5-airgap-001 a castle:Fortune5Requirement ;
+  castle:order 480 ; dcterms:identifier "F5-AIRGAP-001" ; castle:category "air-gap" ;
+  dcterms:description "The CONSTRUCT capsule has zero network dependencies." ;
+  castle:metric "construct_network_dependency_count" ; castle:comparator "EQ" ; castle:target "0" ; castle:authority "REQUIRED" .
+
+castle:f5-airgap-002 a castle:Fortune5Requirement ;
+  castle:order 490 ; dcterms:identifier "F5-AIRGAP-002" ; castle:category "air-gap" ;
+  dcterms:description "The CONSTRUCT capsule has zero secret dependencies." ;
+  castle:metric "construct_secret_dependency_count" ; castle:comparator "EQ" ; castle:target "0" ; castle:authority "REQUIRED" .
+
+castle:f5-adv-001 a castle:Fortune5Requirement ;
+  castle:order 500 ; dcterms:identifier "F5-ADV-001" ; castle:category "adversarial-coverage" ;
+  dcterms:description "Every admitted prohibited-goal class is covered by a winning-region proof, replay class, or preventive invariant." ;
+  castle:metric "prohibited_goal_coverage_bps" ; castle:comparator "GTE" ; castle:target "10000" ; castle:authority "REQUIRED" .
+
+castle:f5-adv-002 a castle:Fortune5Requirement ;
+  castle:order 510 ; dcterms:identifier "F5-ADV-002" ; castle:category "adversarial-coverage" ;
+  dcterms:description "Losing-region regression checks pass against the admitted transition relation." ;
+  castle:metric "losing_region_regression_passed" ; castle:comparator "EQ" ; castle:target "true" ; castle:authority "REQUIRED" .
+
+castle:f5-data-003 a castle:Fortune5Requirement ;
+  castle:order 520 ; dcterms:identifier "F5-DATA-003" ; castle:category "data" ;
+  dcterms:description "Backup artifacts have complete encryption coverage." ;
+  castle:metric "backup_encryption_coverage_bps" ; castle:comparator "GTE" ; castle:target "10000" ; castle:authority "REQUIRED" .
+
+castle:f5-iam-003 a castle:Fortune5Requirement ;
+  castle:order 530 ; dcterms:identifier "F5-IAM-003" ; castle:category "isolation" ;
+  dcterms:description "Privileged identities satisfy the admitted strong-authentication policy." ;
+  castle:metric "privileged_identity_mfa_coverage_bps" ; castle:comparator "GTE" ; castle:target "10000" ; castle:authority "REQUIRED" .
+
+castle:f5-clock-001 a castle:Fortune5Requirement ;
+  castle:order 540 ; dcterms:identifier "F5-CLOCK-001" ; castle:category "evidence" ;
+  dcterms:description "Observed evidence clock skew is at most one second." ;
+  castle:metric "evidence_clock_skew_ms" ; castle:comparator "LTE" ; castle:target "1000" ; castle:authority "REQUIRED" .
+
+castle:f5-change-001 a castle:Fortune5Requirement ;
+  castle:order 550 ; dcterms:identifier "F5-CHANGE-001" ; castle:category "change" ;
+  dcterms:description "Consequential change records are immutable and receipt bound." ;
+  castle:metric "immutable_change_receipt_coverage_bps" ; castle:comparator "GTE" ; castle:target "10000" ; castle:authority "REQUIRED" .
+
+castle:f5-change-002 a castle:Fortune5Requirement ;
+  castle:order 560 ; dcterms:identifier "F5-CHANGE-002" ; castle:category "change" ;
+  dcterms:description "Consequential changes pass an admitted bounded validation stage before full rollout." ;
+  castle:metric "canary_or_equivalent_validation_coverage_bps" ; castle:comparator "GTE" ; castle:target "10000" ; castle:authority "REQUIRED" .
+
+castle:f5-region-001 a castle:Fortune5Requirement ;
+  castle:order 570 ; dcterms:identifier "F5-REGION-001" ; castle:category "resilience" ;
+  dcterms:description "A region-failover drill has produced passing observed evidence when the deployment is multi-region." ;
+  castle:metric "region_failover_drill_passed" ; castle:comparator "EQ" ; castle:target "true" ; castle:authority "REQUIRED" .
+
+castle:f5-quota-001 a castle:Fortune5Requirement ;
+  castle:order 580 ; dcterms:identifier "F5-QUOTA-001" ; castle:category "scale" ;
+  dcterms:description "Critical quota headroom is at least twenty percent at the qualified load." ;
+  castle:metric "quota_headroom_bps" ; castle:comparator "GTE" ; castle:target "2000" ; castle:authority "REQUIRED" .
+
+castle:f5-own-001 a castle:Fortune5Requirement ;
+  castle:order 590 ; dcterms:identifier "F5-OWN-001" ; castle:category "authority" ;
+  dcterms:description "Every GymAct execution subject is owned or explicitly authorized." ;
+  castle:metric "owned_or_authorized_subject_coverage_bps" ; castle:comparator "GTE" ; castle:target "10000" ; castle:authority "REQUIRED" .
