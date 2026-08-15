@@ -77,10 +77,19 @@ rm -f "${archive}" "${bin}" "${marker}" "${release_marker}"
 
 # Bind the human-readable release tag to the exact admitted source commit
 # before accepting any release asset. A moved/repointed tag is a provenance
-# refusal even if an asset happens to retain the same filename.
-tag_json="$(curl --fail --location --retry 1 --silent --show-error \
+# refusal even if an asset happens to retain the same filename. CI supplies
+# its contents:read token so parallel shards do not compete for anonymous API
+# quota; local/public use remains supported without ambient credentials.
+tag_headers=(-H 'Accept: application/vnd.github+json')
+if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+  tag_headers+=(
+    -H "Authorization: Bearer ${GITHUB_TOKEN}"
+    -H 'X-GitHub-Api-Version: 2022-11-28'
+  )
+fi
+tag_json="$(curl --fail --location --retry 2 --retry-all-errors --retry-delay 1 --silent --show-error \
   --connect-timeout 10 --max-time 20 \
-  -H 'Accept: application/vnd.github+json' \
+  "${tag_headers[@]}" \
   "${tag_api}")"
 mapfile -t tag_values < <(python3 - "${tag_json}" <<'PY'
 import json
