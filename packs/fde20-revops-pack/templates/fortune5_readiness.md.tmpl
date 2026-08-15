@@ -1,0 +1,52 @@
+---
+to: "revops/fde20/FORTUNE5_READINESS.md"
+sparql:
+  roles: |
+    PREFIX fde20: <http://seanchatmangpt.github.io/packs/fde20-revops#>
+    PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+    SELECT ?order ?label ?responsibility WHERE { ?r a fde20:EnterpriseRole ; fde20:roleOrder ?order ; skos:prefLabel ?label ; fde20:responsibility ?responsibility . } ORDER BY ?order
+  controls: |
+    PREFIX fde20: <http://seanchatmangpt.github.io/packs/fde20-revops#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+    SELECT ?dimensionOrder ?dimension ?code ?title ?authority ?criterion ?evidence ?receipt ?ceiling WHERE { ?d a fde20:ReadinessDimension ; fde20:dimensionOrder ?dimensionOrder ; skos:prefLabel ?dimension ; fde20:hasControl ?c . ?c a fde20:EnterpriseControl ; fde20:controlCode ?code ; dcterms:title ?title ; fde20:authorityRole ?role ; fde20:acceptanceCriterion ?criterion ; fde20:evidenceType ?evidence ; fde20:requiresReceipt ?receipt ; fde20:standingCeiling ?ceiling . ?role skos:prefLabel ?authority . } ORDER BY ?dimensionOrder ?code
+  service: |
+    PREFIX fde20: <http://seanchatmangpt.github.io/packs/fde20-revops#>
+    SELECT ?availability ?rto ?rpo ?audit ?receipts WHERE { ?s a fde20:ServiceLevelProfile ; fde20:availabilityTarget ?availability ; fde20:rtoMinutes ?rto ; fde20:rpoMinutes ?rpo ; fde20:auditRetentionDays ?audit ; fde20:receiptRetentionDays ?receipts . }
+  deploy: |
+    PREFIX fde20: <http://seanchatmangpt.github.io/packs/fde20-revops#>
+    SELECT ?regions ?multiCloud ?isolation ?iac ?rollback ?sbom ?provenance ?observability ?ocel WHERE { ?d a fde20:DeploymentEnvelope ; fde20:regionsMinimum ?regions ; fde20:multiCloudCapable ?multiCloud ; fde20:tenantIsolationRequired ?isolation ; fde20:infrastructureAsCodeRequired ?iac ; fde20:rollbackRequired ?rollback ; fde20:sbomRequired ?sbom ; fde20:signedProvenanceRequired ?provenance ; fde20:observabilityRequired ?observability ; fde20:ocelV2Required ?ocel . }
+---
+# Fortune 5 Readiness — $20/hr FDE RevOps
+
+## Authority closure
+
+| # | Role | Responsibility |
+|---:|---|---|
+{% for r in roles %}| {{ r.order }} | **{{ r.label }}** | {{ r.responsibility }} |
+{% endfor %}
+
+## Service-level floor
+
+{% for s in service %}| Availability | RTO | RPO | Audit retention | Receipt retention |
+|---:|---:|---:|---:|---:|
+| {{ s.availability }}% | {{ s.rto }} min | {{ s.rpo }} min | {{ s.audit }} days | {{ s.receipts }} days |
+{% endfor %}
+
+## Deployment invariants
+
+{% for d in deploy %}| Min regions | Multi-cloud | Isolation | IaC | Rollback | SBOM | Signed provenance | Observability | OCEL v2 |
+|---:|---|---|---|---|---|---|---|---|
+| {{ d.regions }} | {{ d.multiCloud }} | {{ d.isolation }} | {{ d.iac }} | {{ d.rollback }} | {{ d.sbom }} | {{ d.provenance }} | {{ d.observability }} | {{ d.ocel }} |
+{% endfor %}
+
+## Control matrix
+
+| Dimension | Control | Title | Authority | Acceptance criterion | Evidence | Receipt | Ceiling |
+|---|---|---|---|---|---|---|---|
+{% for c in controls %}| {{ c.dimension }} | `{{ c.code }}` | {{ c.title }} | {{ c.authority }} | {{ c.criterion }} | `{{ c.evidence }}` | {{ c.receipt }} | `{{ c.ceiling }}` |
+{% endfor %}
+
+## Admission law
+
+A Fortune 5 label has no standing by itself. Missing authority, readiness dimensions, control fields, service-level floors, or deployment invariants refuse the graph. `ALIVE` controls require observed execution and consequence evidence; document presence cannot crown them.
