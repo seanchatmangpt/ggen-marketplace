@@ -1,0 +1,24 @@
+# MESSAGE: A CLOSED project must promote the realized target into the governed
+# architecture repository as the new baseline. Every target asset must appear
+# in an evidence-backed registered baseline.
+PREFIX tc: <http://seanchatmangpt.github.io/packs/chatman-togaf-closure#>
+SELECT ?project ?target ?reason WHERE {
+  ?project a tc:EnterpriseProject ;
+           tc:projectState tc:CLOSED ;
+           tc:hasTargetAsset ?target .
+  {
+    FILTER NOT EXISTS {
+      ?project tc:hasBaselineRegistration ?baseline .
+      ?baseline a tc:BaselineRegistration ;
+                tc:baselineState tc:BASELINE_REGISTERED ;
+                tc:includesAsset ?target ;
+                tc:accountableOwner ?owner ;
+                tc:baselineRegisteredAt ?registered ;
+                tc:baselineEvidence ?e .
+      FILTER(STRLEN(STR(?owner)) > 0)
+      ?e a tc:ClosureEvidence .
+    }
+    BIND("target-not-registered-as-new-baseline" AS ?reason)
+  }
+}
+ORDER BY ?project ?target ?reason

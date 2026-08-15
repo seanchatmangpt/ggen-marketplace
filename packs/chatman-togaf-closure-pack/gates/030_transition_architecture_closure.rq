@@ -1,0 +1,24 @@
+# MESSAGE: A project cannot be CLOSED while any admitted transition
+# architecture remains open or lacks a satisfied closure obligation.
+PREFIX tc: <http://seanchatmangpt.github.io/packs/chatman-togaf-closure#>
+SELECT ?project ?transition ?reason WHERE {
+  ?project a tc:EnterpriseProject ;
+           tc:projectState tc:CLOSED ;
+           tc:hasTransitionArchitecture ?transition .
+  ?transition a tc:TransitionArchitecture .
+  {
+    FILTER NOT EXISTS { ?transition tc:transitionState tc:TRANSITION_CLOSED }
+    BIND("transition-architecture-not-closed" AS ?reason)
+  } UNION {
+    FILTER NOT EXISTS {
+      ?project tc:hasObligation ?o .
+      ?o a tc:LifecycleObligation ;
+         tc:obligationKind tc:CLOSE_TRANSITION ;
+         tc:obligationState tc:OBLIGATION_SATISFIED ;
+         tc:hasEvidence ?e .
+      ?e a tc:ClosureEvidence .
+    }
+    BIND("transition-closure-evidence-missing" AS ?reason)
+  }
+}
+ORDER BY ?project ?transition ?reason

@@ -1,0 +1,43 @@
+# MESSAGE: A CLOSED project requires every target asset to be ACTIVE, ALIVE by
+# evidence standing, owned, realized, and architecture-conformant.
+PREFIX tc: <http://seanchatmangpt.github.io/packs/chatman-togaf-closure#>
+PREFIX er: <http://seanchatmangpt.github.io/packs/chatman-ecosystem-release#>
+SELECT ?project ?target ?reason WHERE {
+  ?project a tc:EnterpriseProject ;
+           tc:projectState tc:CLOSED ;
+           tc:hasTargetAsset ?target .
+  ?target a tc:ArchitectureAsset .
+  {
+    FILTER NOT EXISTS { ?target tc:assetState tc:ACTIVE }
+    BIND("target-not-active" AS ?reason)
+  } UNION {
+    FILTER NOT EXISTS { ?target tc:evidenceStanding er:ALIVE }
+    BIND("target-not-evidence-alive" AS ?reason)
+  } UNION {
+    FILTER NOT EXISTS { ?target tc:accountableOwner ?owner . FILTER(STRLEN(STR(?owner)) > 0) }
+    BIND("target-without-accountable-owner" AS ?reason)
+  } UNION {
+    FILTER NOT EXISTS {
+      ?project tc:hasObligation ?o .
+      ?o a tc:LifecycleObligation ;
+         tc:subjectAsset ?target ;
+         tc:obligationKind tc:TARGET_REALIZATION ;
+         tc:obligationState tc:OBLIGATION_SATISFIED ;
+         tc:hasEvidence ?e .
+      ?e a tc:ClosureEvidence .
+    }
+    BIND("target-realization-not-proven" AS ?reason)
+  } UNION {
+    FILTER NOT EXISTS {
+      ?project tc:hasObligation ?o .
+      ?o a tc:LifecycleObligation ;
+         tc:subjectAsset ?target ;
+         tc:obligationKind tc:ARCHITECTURE_CONFORMANCE ;
+         tc:obligationState tc:OBLIGATION_SATISFIED ;
+         tc:hasEvidence ?e .
+      ?e a tc:ClosureEvidence .
+    }
+    BIND("architecture-conformance-not-proven" AS ?reason)
+  }
+}
+ORDER BY ?project ?target ?reason
