@@ -121,6 +121,55 @@ which blocked a full `ggen sync run` there independent of anything in this
 pack. Not fixed here — editing another pack's files is out of scope for this
 round; the scratch-consumer verification above is the substitute evidence.
 
+## 2026-08-16 — re-drifted a FOURTH time (round 5), re-fixed, re-verified live
+
+Re-ran `scripts/check_upstream_drift.sh ~/wasm4pm` (upstream still pinned at
+`b6fedcbef8d5fbdab4dbb9827226e802fe961a71`) before any edits this round.
+Result: the *same* 2 individuals from all three prior entries above
+(`pi:Algo_optimized_dfg`, `pi:Algo_streaming_log`) had drifted back —
+`ontology.ttl` line 530 carried `pi:wasmExport "discover_optimized_dfg"` and
+line 613 carried `pi:wasmExport "streaming_dfg_begin"` (a new/different
+wrong value than the previous rounds' `"discover_streaming_log"`, but still
+wrong), despite the 2026-07-19 (later) entry above claiming both were fixed
+and re-verified via a scratch consumer that round. Fourth recurrence of the
+exact same two-subject drift; root cause of the recurrence (why a landed fix
+keeps reappearing stale on later branches/rounds) is still not determined —
+only the observable fact, reconfirmed a fourth time.
+
+Re-fixed both lines in `ontology.ttl` to `pi:wasmExport "discover_dfg"`,
+confirmed byte-for-byte against `~/wasm4pm/ggen/ontology/algorithms.ttl`
+lines 190 and 273 (both individuals' full predicate sets — algorithmId,
+algorithmLabel, algorithmDoc, citation, outputType, category, speedTier,
+qualityTier, inputFormat, standing, cliAlias where present — also
+independently checked verbatim against upstream this round, no other drift
+found). Re-ran the script after the fix:
+
+```
+OK: breed individuals match upstream exactly (55 rows)
+OK: algorithm individuals match upstream exactly (60 rows)
+```
+
+Exit code 0.
+
+**Generated-artifact re-check not applicable this round:** no
+`src/wasm4pm_facts_registry.rs` or
+`tests/wasm4pm_facts_pack_{registry,full_coverage}_proof.rs` files exist
+anywhere in this repository (`packs/` contains only pack source — `ontology`,
+`templates`, `gates`, `scripts`, `pack.toml`, `DRIFT_LOG.md`, `WIRING.md`;
+per this repo's own `CLAUDE.md`, generated consumer files are consequences of
+a pack and are never a second source of truth checked into this repo). The
+prior round's scratch-consumer `cargo test` verification against a live
+`ggen sync run` is not reproducible from this repo alone; the live
+`check_upstream_drift.sh` 0/0 result above is the evidence available here.
+A consumer wiring this pack should re-sync to pick up the corrected
+`ontology.ttl` and re-run its own generated proof tests.
+
+**Still true, unchanged from prior entries:** `packs/wasm4pm-algorithms-pack/ontology.ttl`
+was not re-checked this round; if it still asserts the same two subject IRIs
+with stale `pi:wasmExport` values, the cross-pack union-graph inconsistency
+noted in the 2026-07-19 entries remains open. Out of scope for this pack's
+own directory.
+
 ## Known limitation
 
 This script requires a local `~/wasm4pm` checkout and is not wired into CI —
