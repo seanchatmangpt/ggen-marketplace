@@ -1,0 +1,152 @@
+name: Vision 2030 Qualification
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "packages/vision-2030-capability-generator/**"
+      - "tests/test_vision_2030_qualification.py"
+      - ".github/workflows/vision-2030-qualification.yml"
+  push:
+    branches: [main]
+    paths:
+      - "packages/vision-2030-capability-generator/**"
+      - "tests/test_vision_2030_qualification.py"
+      - ".github/workflows/vision-2030-qualification.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vision-2030-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  qualify:
+    name: Exact-subject deterministic qualification
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Assert exact subject identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          actual="$(git rev-parse HEAD)"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "::error title=REFUSED:EXACT_HEAD_MISMATCH::actual=$actual expected=$expected"
+            exit 2
+          fi
+          echo "EXPECTED_SHA=$actual" >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Install qualification dependency
+        run: python -m pip install --disable-pip-version-check "rdflib==7.1.4"
+
+      - name: Run Vision 2030 falsifiers
+        run: python -m unittest discover -s tests -p 'test_vision_2030_qualification.py' -v
+
+      - name: Emit bounded qualification receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          receipt="${RUNNER_TEMP}/vision-2030-qualification.json"
+          python packages/vision-2030-capability-generator/scripts/verify.py \
+            --subject-sha "$EXPECTED_SHA" \
+            --output "$receipt"
+          python - "$receipt" "$EXPECTED_SHA" <<'PY'
+          import json, sys
+          from pathlib import Path
+          payload = json.loads(Path(sys.argv[1]).read_text())
+          assert payload["subject_sha"] == sys.argv[2]
+          assert payload["qualification"] == "PASS"
+          assert payload["standing"] == "CANDIDATE"
+          assert payload["authority_ceiling"] == "CONSTRUCT_ONLY"
+          assert payload["do_authority"] is False
+          assert payload["self_certifying"] is False
+          assert payload["external_execution_required"] is True
+          PY
+
+      - name: Set up pinned star-toml toolchain
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
+        with:
+          toolchain: "nightly-2026-04-15"
+          components: rustfmt
+
+      - name: Admit marketplace operational law
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/admit-config.sh marketplace.toml "${RUNNER_TEMP}/admitted-config.json" >/dev/null
+          python -m json.tool "${RUNNER_TEMP}/admitted-config.json" >/dev/null
+
+      - name: Install admitted ggen runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          ggen_bin="$(bash scripts/install-ggen.sh "${RUNNER_TEMP}/admitted-config.json")"
+          echo "GGEN_BIN=$ggen_bin" >> "$GITHUB_ENV"
+          "$ggen_bin" --version
+
+      - name: Prove deterministic Vision 2030 manufacture
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_dir="packages/vision-2030-capability-generator"
+          a="${RUNNER_TEMP}/vision-a"
+          b="${RUNNER_TEMP}/vision-b"
+          cp -a "$source_dir" "$a"
+          cp -a "$source_dir" "$b"
+          (cd "$a" && "$GGEN_BIN" sync run)
+          (cd "$b" && "$GGEN_BIN" sync run)
+          diff -rq "$a/generated" "$b/generated"
+          test -s "$a/generated/VISION_2030.md"
+          test -s "$a/generated/capability-index.json"
+          test -s "$a/generated/capability-graph.mmd"
+          python -m json.tool "$a/generated/capability-index.json" >/dev/null
+          (
+            cd "$a/generated"
+            find . -type f -print0 | sort -z | xargs -0 sha256sum
+          ) > "${RUNNER_TEMP}/vision-2030-manufacture.sha256"
+          (
+            cd "$b/generated"
+            find . -type f -print0 | sort -z | xargs -0 sha256sum
+          ) > "${RUNNER_TEMP}/vision-2030-manufacture-second.sha256"
+          cmp "${RUNNER_TEMP}/vision-2030-manufacture.sha256" \
+              "${RUNNER_TEMP}/vision-2030-manufacture-second.sha256"
+
+      - name: Refuse source mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git status --porcelain --untracked-files=all)"
+          if [[ -n "$changed" ]]; then
+            echo "::error title=REFUSED:QUALIFICATION_MUTATED_SUBJECT::$changed"
+            exit 2
+          fi
+
+      - name: Preserve qualification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: vision-2030-qualification-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/vision-2030-qualification.json
+            ${{ runner.temp }}/vision-2030-manufacture.sha256
+          if-no-files-found: warn
+          retention-days: 14
