@@ -36,6 +36,20 @@ const VERDICT_SCHEMA = {
   required: ['refuted', 'reason'],
 }
 
+const SYNTHESIS_SCHEMA = {
+  type: 'object',
+  properties: {
+    keepIndices: {
+      type: 'array',
+      items: { type: 'number' },
+      description: 'Indices (into the provided findings list, 0-based) to KEEP -- one per ' +
+        'distinct underlying defect, preferring the sharper framing when multiple findings ' +
+        'describe the same defect.',
+    },
+  },
+  required: ['keepIndices'],
+}
+
 const LENSES = [
   {
     key: 'rdf-correctness',
@@ -83,12 +97,15 @@ const LENSES = [
       `repo's tooling is reachable, run \`python3 <repo-root>/scripts/qualify_packs.py --ggen ` +
       `<ggen-binary-path> --shard-index 0 --shard-count 1 --timeout-seconds 5 --report ` +
       `/tmp/adversarial-review-lens-formal-correctness.json\` from the repo root (if ${target} ` +
-      `is OUTSIDE that repo root -- e.g. a scratch worktree at a different path -- symlink or ` +
-      `copy the target pack directory into that repo's packs/ under a temp name first, or run ` +
+      `is OUTSIDE that repo root -- e.g. a scratch worktree at a different path -- run ` +
       `\`<ggen-binary> sync run\` directly against a minimal scratch ggen.toml wiring \`[packs] ` +
       `"<name>" = { path = "<absolute path to target>" }\` in a temp directory, per this repo's ` +
       `own scripts/qualify_packs.py:projection_ggen_toml/semantic_ggen_toml functions for the ` +
-      `exact wiring shape). Read the report/output for REFUSED status and cite the exact error ` +
+      `exact wiring shape. NEVER symlink or copy the target pack directory into that repo's own ` +
+      `packs/ directory -- this repo's scripts/marketplace.py refuses any symlink under packs/, ` +
+      `and a stray copied directory becomes an unadmitted pack that corrupts the marketplace ` +
+      `fingerprint on the user's next validate run; review of that repo must stay read-only. ` +
+      `Read the report/output for REFUSED status and cite the exact error ` +
       `message. Only after you have a real command's output may you report a finding about ` +
       `schema validity -- cite the command you ran and its output as your failure scenario, not ` +
       `a description of what you'd expect to happen. Report ONLY findings with a real file:line ` +
@@ -127,8 +144,20 @@ function refutePrompt(finding, target) {
     `Failure scenario: ${finding.failureScenario}`
 }
 
+let parsedArgs = args
+if (typeof parsedArgs === 'string') {
+  try {
+    parsedArgs = JSON.parse(parsedArgs)
+  } catch (err) {
+    throw new Error(`adversarial-review: args arrived as a string and failed to JSON.parse: ${err.message}`)
+  }
+}
+if (typeof parsedArgs?.targetDescription !== 'string' || parsedArgs.targetDescription.length === 0) {
+  throw new Error('adversarial-review: args.targetDescription is required and must be a non-empty string')
+}
+
 phase('Review')
-const target = args.targetDescription
+const target = parsedArgs.targetDescription
 const CITATION_INSTRUCTION = `\n\nIMPORTANT on citations: report every finding's "file" as the ` +
   `full path you actually read it from, unambiguous regardless of anyone else's working ` +
   `directory (if the review target above is a path, prefix relative paths with it; do not report ` +
@@ -172,15 +201,37 @@ if (dropped > 0) {
   log(`${dropped} findings dropped for missing file/line/failureScenario`)
 }
 
-// Dedupe: same file + overlapping summary text across lenses -> keep the first (sharper
-// framing tends to come from the more specific lens, which runs earlier in LENSES order).
-const seen = new Set()
-const deduped = []
+// Cross-lens dedupe: the same underlying defect can surface from two lenses with entirely
+// different phrasing, so a string-prefix match on the summary essentially never catches a
+// real duplicate. Group by file (same file = candidate duplicates regardless of lens), and
+// for any file with more than one surviving finding, dispatch one synthesis agent call to
+// judge which findings describe the SAME underlying defect and which to keep.
+const byFile = new Map()
 for (const f of filtered) {
-  const key = `${f.file}:${f.line ?? ''}:${f.summary.slice(0, 60)}`
-  if (seen.has(key)) continue
-  seen.add(key)
-  deduped.push(f)
+  const list = byFile.get(f.file) ?? []
+  list.push(f)
+  byFile.set(f.file, list)
 }
+
+const dedupeGroups = await parallel(
+  Array.from(byFile.entries()).map(([file, findings]) => async () => {
+    if (findings.length === 1) return findings
+    const listing = findings
+      .map((f, i) => `[${i}] lens=${f.lens} line=${f.line} summary=${f.summary}\n    failureScenario=${f.failureScenario}`)
+      .join('\n')
+    const prompt = `These findings were all reported against the same file (${file}) by ` +
+      `different review lenses. Some may describe the SAME underlying defect from different ` +
+      `angles (not merely the same file) -- identify those duplicates and keep only one per ` +
+      `distinct underlying defect, preferring the sharper/more concrete framing (the one with ` +
+      `the more specific failure scenario or command output). Findings that describe genuinely ` +
+      `different defects in the same file must ALL be kept.\n\n${listing}`
+    const result = await agent(prompt, { phase: 'Review', schema: SYNTHESIS_SCHEMA })
+    const keep = new Set(Array.isArray(result?.keepIndices) ? result.keepIndices : findings.map((_, i) => i))
+    const kept = findings.filter((_, i) => keep.has(i))
+    return kept.length > 0 ? kept : findings
+  })
+)
+
+const deduped = dedupeGroups.flat()
 
 return deduped

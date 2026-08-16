@@ -57,6 +57,8 @@ row per finding. If the array is empty, say so plainly -- do not pad with unearn
 praise or a summary paragraph restating that nothing was found.
 
 If invoked with `--fix`, apply each CONFIRMED finding's fix directly after reporting,
-following this repo's existing branch-per-fix + PR + CI-verify convention (see this
-session's `fix/resync-stale-migrated-packs` and `chore/gitignore-pycache` branches for
-the pattern: branch off `origin/main`, commit, push, open a PR, wait for CI, merge).
+following this repo's existing branch-per-fix + PR + CI-verify convention: branch off
+`origin/main`, commit, push, open a PR, wait for CI, merge. Before pushing, verify with
+this repo's own qualification pipeline per its root `CLAUDE.md`: `python3
+scripts/marketplace.py validate`, `python3 scripts/marketplace.py catalog` (run twice,
+must be byte-identical), then `python3 scripts/marketplace.py fingerprint`.
