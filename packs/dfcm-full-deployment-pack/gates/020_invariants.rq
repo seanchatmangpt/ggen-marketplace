@@ -1,0 +1,28 @@
+PREFIX dfcm: <https://ggen.dev/ontology/dfcm#>
+SELECT ?violation ?subject
+WHERE {
+  {
+    ?op a dfcm:Operation ; dfcm:actuationAllowed true .
+    FILTER (?op != dfcm:Do)
+    BIND("non-do-operation-can-actuate" AS ?violation)
+    BIND(?op AS ?subject)
+  } UNION {
+    ?transition a dfcm:Transition ; dfcm:actuationAllowed true ; dfcm:authority ?authority .
+    FILTER (?authority != "BRCE")
+    BIND("actuating-transition-without-brce" AS ?violation)
+    BIND(?transition AS ?subject)
+  } UNION {
+    dfcm:Hook dfcm:actuationAllowed ?hookAllowed .
+    FILTER (?hookAllowed != false)
+    BIND("hook-can-actuate" AS ?violation)
+    BIND(dfcm:Hook AS ?subject)
+  } UNION {
+    {
+      SELECT (COUNT(?component) AS ?count)
+      WHERE { ?component a dfcm:DeploymentComponent ; dfcm:required true . }
+    }
+    FILTER (?count != 12)
+    BIND("deployment-component-count" AS ?violation)
+    BIND(dfcm:DesignForCombinatorialMaximalism AS ?subject)
+  }
+}

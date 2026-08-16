@@ -1,0 +1,52 @@
+PREFIX dfcm: <https://ggen.dev/ontology/dfcm#>
+SELECT ?violation ?subject
+WHERE {
+  {
+    {
+      SELECT (COUNT(?control) AS ?count)
+      WHERE { ?control a dfcm:EnterpriseControl ; dfcm:required true . }
+    }
+    FILTER (?count != 50)
+    BIND("fortune5-control-count" AS ?violation)
+    BIND(dfcm:DesignForCombinatorialMaximalism AS ?subject)
+  } UNION {
+    {
+      SELECT (COUNT(DISTINCT ?domain) AS ?count)
+      WHERE { ?control a dfcm:EnterpriseControl ; dfcm:domain ?domain ; dfcm:required true . }
+    }
+    FILTER (?count != 10)
+    BIND("fortune5-domain-count" AS ?violation)
+    BIND(dfcm:DesignForCombinatorialMaximalism AS ?subject)
+  } UNION {
+    {
+      SELECT ?domain (COUNT(?control) AS ?count)
+      WHERE { ?control a dfcm:EnterpriseControl ; dfcm:domain ?domain ; dfcm:required true . }
+      GROUP BY ?domain
+    }
+    FILTER (?count != 5)
+    BIND("fortune5-domain-not-five-controls" AS ?violation)
+    BIND(?domain AS ?subject)
+  } UNION {
+    ?control a dfcm:EnterpriseControl ; dfcm:criticality ?criticality .
+    FILTER (?criticality NOT IN ("critical", "high"))
+    BIND("invalid-criticality" AS ?violation)
+    BIND(?control AS ?subject)
+  } UNION {
+    ?control a dfcm:EnterpriseControl ; dfcm:maxAgeHours ?age .
+    FILTER (?age < 0)
+    BIND("negative-evidence-max-age" AS ?violation)
+    BIND(?control AS ?subject)
+  } UNION {
+    ?left a dfcm:EnterpriseControl ; dfcm:slug ?slug .
+    ?right a dfcm:EnterpriseControl ; dfcm:slug ?slug .
+    FILTER (?left != ?right)
+    BIND("duplicate-control-slug" AS ?violation)
+    BIND(?left AS ?subject)
+  } UNION {
+    FILTER NOT EXISTS {
+      ?fence a dfcm:EnterpriseControl ; dfcm:slug "certification-claim-fence" ; dfcm:required true .
+    }
+    BIND("missing-certification-claim-fence" AS ?violation)
+    BIND(dfcm:DesignForCombinatorialMaximalism AS ?subject)
+  }
+}
