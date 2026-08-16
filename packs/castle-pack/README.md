@@ -2,7 +2,7 @@
 
 Ontology-first semantic authority for CASTLE.
 
-The pack projects admitted architecture/goal bindings into `src/generated.ts` and `docs/GENERATED_ARCHITECTURE.md`, and projects the executable Fortune-5 readiness profile into `src/fortune5.generated.ts` and `docs/FORTUNE5_REQUIREMENTS.md`. Runtime algorithms remain consumer consequences; this pack owns the component inventory, authority boundaries, prohibited-goal priorities, and readiness control semantics.
+The pack projects admitted architecture/goal bindings into `src/generated.rs` and `docs/GENERATED_ARCHITECTURE.md`, and projects the executable Fortune-5 readiness profile into `src/fortune5_generated.rs` and `docs/FORTUNE5_REQUIREMENTS.md`. Runtime algorithms remain consumer consequences; this pack owns the component inventory, authority boundaries, prohibited-goal priorities, and readiness control semantics.
 
 Canonical flow:
 
