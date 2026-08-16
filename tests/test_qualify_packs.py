@@ -163,7 +163,7 @@ def test_combine_rdf_concatenates_sources_with_headers_and_extra(tmp_path: Path)
     assert combined.endswith("ex:g ex:h ex:i .\n")
 
 
-def test_combine_rdf_empty_paths_returns_only_extra(tmp_path: Path):
+def test_combine_rdf_empty_paths_returns_only_extra():
     assert qp.combine_rdf((), extra="only-extra") == "only-extra"
 
 
