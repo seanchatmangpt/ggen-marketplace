@@ -20,7 +20,7 @@ const FINDINGS_SCHEMA = {
           summary: { type: 'string' },
           failureScenario: { type: 'string' },
         },
-        required: ['file', 'summary', 'failureScenario'],
+        required: ['file', 'line', 'summary', 'failureScenario'],
       },
     },
   },
@@ -133,11 +133,18 @@ const verified = await parallel(
 const confirmed = verified.filter(Boolean)
 log(`${confirmed.length}/${allFindings.length} findings survived adversarial verification`)
 
+// Filter out findings missing file, line, or failureScenario
+const filtered = confirmed.filter((f) => f.file && f.line && f.failureScenario)
+const dropped = confirmed.length - filtered.length
+if (dropped > 0) {
+  log(`${dropped} findings dropped for missing file/line/failureScenario`)
+}
+
 // Dedupe: same file + overlapping summary text across lenses -> keep the first (sharper
 // framing tends to come from the more specific lens, which runs earlier in LENSES order).
 const seen = new Set()
 const deduped = []
-for (const f of confirmed) {
+for (const f of filtered) {
   const key = `${f.file}:${f.line ?? ''}:${f.summary.slice(0, 60)}`
   if (seen.has(key)) continue
   seen.add(key)
