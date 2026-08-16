@@ -37,6 +37,7 @@
 - [Source of truth](explanation/source-of-truth.md)
 - [Pack lifecycle](explanation/pack-lifecycle.md)
 - [Security and authority](explanation/security-and-authority.md)
+- [ggen ecosystem map](explanation/ggen-ecosystem-map.md)
 
 # Research monograph
 
