@@ -104,45 +104,99 @@ class ParseResult:
     skipped: int
 
 
+LONG_QUOTES = ('"""', "'''")
+SHORT_QUOTES = ('"', "'")
+
+
+def scan_literal(text: str, i: int) -> int | None:
+    """Given that `text[i]` opens a Turtle string literal, return the index
+    just past its closing delimiter, or None if it is never terminated.
+
+    Turtle has four literal forms; this corpus really uses three of them:
+    short `"..."`, and the *long* forms `\"\"\"...\"\"\"` / `'''...'''` that may
+    span lines and may contain unescaped `"`, `#`, `[`, `]`, `{`, `}`.
+    Long-literal support is load-bearing, not theoretical: level-five-book-pack
+    stores whole markdown book chapters in `\"\"\"...\"\"\"` literals, and a scanner
+    that toggles state on each single `"` reads `\"\"\"` as open-then-close and so
+    treats the chapter body as ordinary Turtle syntax -- which is exactly how
+    markdown checklists (`- [ ]`) and SPARQL braces inside those chapters used
+    to be misread as blank nodes/collections and discarded.
+
+    Escaping follows Turtle: a delimiter preceded by an odd number of
+    backslashes is escaped and does not close the literal.
+    """
+    for quote in LONG_QUOTES:
+        if text.startswith(quote, i):
+            return _closing(text, i + len(quote), quote)
+    for quote in SHORT_QUOTES:
+        if text.startswith(quote, i):
+            return _closing(text, i + len(quote), quote)
+    return None
+
+
+def _closing(text: str, start: int, quote: str) -> int | None:
+    j = start
+    n = len(text)
+    while j < n:
+        if text.startswith(quote, j) and not _escaped(text, j):
+            return j + len(quote)
+        j += 1
+    return None
+
+
+def _escaped(text: str, i: int) -> bool:
+    backslashes = 0
+    k = i - 1
+    while k >= 0 and text[k] == "\\":
+        backslashes += 1
+        k -= 1
+    return backslashes % 2 == 1
+
+
 def strip_comments(text: str) -> str:
     """Remove `#`-to-end-of-line comments, conservatively: a `#` inside a
-    quoted string literal OR inside an IRI's `<...>` delimiters (e.g.
-    `<http://example.org/ns#>`, which every namespace IRI in this corpus
-    uses) is not a comment start. Angle-bracket state must persist across
-    lines (an unterminated `<` on one line should not resume "outside" on
-    the next), matching this corpus's real `@prefix name: <iri> .` shape."""
-    out_lines = []
-    in_string = False
-    in_angle = False
-    for line in text.splitlines():
-        cut = len(line)
-        i = 0
-        while i < len(line):
-            ch = line[i]
-            if in_string:
-                if ch == '"' and line[i - 1] != "\\":
-                    in_string = False
-                i += 1
-                continue
-            if in_angle:
-                if ch == ">":
-                    in_angle = False
-                i += 1
-                continue
-            if ch == '"':
-                in_string = True
-                i += 1
-                continue
-            if ch == "<":
-                in_angle = True
-                i += 1
-                continue
-            if ch == "#":
-                cut = i
+    string literal (short or long) OR inside an IRI's `<...>` delimiters
+    (e.g. `<http://example.org/ns#>`, which every namespace IRI in this
+    corpus uses) is not a comment start. Literal and angle-bracket state
+    must persist across lines -- a long `\"\"\"...\"\"\"` literal spanning fifty
+    markdown lines is one token, and an unterminated `<` on one line should
+    not resume "outside" on the next.
+
+    Line structure is preserved (newlines inside a literal are kept verbatim)
+    so downstream statement tokenization sees the same text shape.
+    """
+    out: list[str] = []
+    i = 0
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if ch in SHORT_QUOTES:
+            end = scan_literal(text, i)
+            if end is None:
+                # Unterminated literal: copy the remainder verbatim and let
+                # the statement tokenizer account for it as unparseable.
+                out.append(text[i:])
                 break
-            i += 1
-        out_lines.append(line[:cut])
-    return "\n".join(out_lines)
+            out.append(text[i:end])
+            i = end
+            continue
+        if ch == "<":
+            end = text.find(">", i)
+            if end == -1:
+                out.append(text[i:])
+                break
+            out.append(text[i : end + 1])
+            i = end + 1
+            continue
+        if ch == "#":
+            end = text.find("\n", i)
+            if end == -1:
+                break
+            i = end  # keep the newline itself on the next pass
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
 
 
 def parse_prefixes(text: str) -> dict[str, str]:
@@ -161,23 +215,22 @@ def tokenize_statements(text: str) -> tuple[tuple[str, ...], int]:
     """
     stmts: list[list[str]] = [[]]
     depth_angle = 0
-    in_string = False
     buf = []
     skipped = 0
     i = 0
     n = len(text)
     while i < n:
         ch = text[i]
-        if in_string:
-            buf.append(ch)
-            if ch == '"' and text[i - 1] != "\\":
-                in_string = False
-            i += 1
-            continue
-        if ch == '"':
-            in_string = True
-            buf.append(ch)
-            i += 1
+        if ch in SHORT_QUOTES and depth_angle == 0:
+            # Consume the whole literal (short or long) as one opaque token,
+            # so `.`/`;`/`,`/`[`/`{`/`#` inside it are never read as syntax.
+            end = scan_literal(text, i)
+            if end is None:
+                skipped += 1  # unterminated literal -- drop the rest
+                buf = []
+                break
+            buf.append(text[i:end])
+            i = end
             continue
         if ch == "<":
             depth_angle += 1
