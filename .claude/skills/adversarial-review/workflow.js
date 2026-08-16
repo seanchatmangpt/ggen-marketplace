@@ -108,11 +108,20 @@ const LENSES = [
   },
 ]
 
-function refutePrompt(finding) {
-  return `Try to REFUTE this finding. Read the cited file yourself and check it against the ` +
-    `actual content -- do not trust the finding's citation blindly. Default to refuted=true if ` +
-    `you cannot confirm the cited file:line actually shows what the finding claims, or if the ` +
-    `failure scenario does not actually follow from the code as written.\n\n` +
+function refutePrompt(finding, target) {
+  return `Try to REFUTE this finding. It is about this exact review target -- do not check any ` +
+    `other repo, checkout, or commit; if the finding's cited file is a relative path, resolve it ` +
+    `relative to THIS target, not your own working directory, and if your own working directory ` +
+    `contains a same-named file from a different commit/checkout, that is a DIFFERENT file and ` +
+    `is not what this finding is about:\n\n` +
+    `Review target: ${target}\n\n` +
+    `Read the cited file (resolved against the review target above) yourself and check it ` +
+    `against the actual content -- do not trust the finding's citation blindly. Default to ` +
+    `refuted=true if you cannot confirm the cited file:line, resolved against the review target, ` +
+    `actually shows what the finding claims, or if the failure scenario does not actually follow ` +
+    `from the code as written. Do NOT refute a finding merely because a same-named file elsewhere ` +
+    `(e.g. in your own cwd, a different commit, or a different checkout) shows different content ` +
+    `-- only the review target's copy of the file is relevant.\n\n` +
     `File: ${finding.file}${finding.line ? ':' + finding.line : ''}\n` +
     `Summary: ${finding.summary}\n` +
     `Failure scenario: ${finding.failureScenario}`
@@ -120,9 +129,15 @@ function refutePrompt(finding) {
 
 phase('Review')
 const target = args.targetDescription
+const CITATION_INSTRUCTION = `\n\nIMPORTANT on citations: report every finding's "file" as the ` +
+  `full path you actually read it from, unambiguous regardless of anyone else's working ` +
+  `directory (if the review target above is a path, prefix relative paths with it; do not report ` +
+  `a bare repo-relative path like "packs/foo/pack.toml" with no indication of which checkout it's ` +
+  `in). This finding will later be verified by a different agent that may be sitting in a ` +
+  `different checkout/commit of the same repo -- an ambiguous path risks it checking the wrong file.`
 const lensResults = await pipeline(
   LENSES,
-  (lens) => agent(lens.prompt(target), {
+  (lens) => agent(lens.prompt(target) + CITATION_INSTRUCTION, {
     label: `review:${lens.key}`,
     phase: 'Review',
     schema: FINDINGS_SCHEMA,
@@ -138,7 +153,7 @@ const verified = await parallel(
   allFindings.map((finding) => async () => {
     const votes = await parallel(
       Array.from({ length: 2 }, () => () =>
-        agent(refutePrompt(finding), { phase: 'Verify', schema: VERDICT_SCHEMA })
+        agent(refutePrompt(finding, target), { phase: 'Verify', schema: VERDICT_SCHEMA })
       )
     )
     const refutations = votes.filter(Boolean).filter((v) => v.refuted).length
