@@ -4,8 +4,6 @@ import importlib.util
 import sys
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 if str(SCRIPTS) not in sys.path:
@@ -18,7 +16,12 @@ xref = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = xref
 spec.loader.exec_module(xref)
 
-from marketplace import Pack  # noqa: E402
+_marketplace_spec = importlib.util.spec_from_file_location("marketplace", SCRIPTS / "marketplace.py")
+assert _marketplace_spec is not None and _marketplace_spec.loader is not None
+_marketplace = importlib.util.module_from_spec(_marketplace_spec)
+sys.modules[_marketplace_spec.name] = _marketplace
+_marketplace_spec.loader.exec_module(_marketplace)
+Pack = _marketplace.Pack
 
 
 def make_pack(tmp_path: Path, name: str, ontology_text: str, consumer_text: str | None = None) -> Pack:
