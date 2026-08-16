@@ -1,0 +1,40 @@
+---
+to: docs/DFLSS_PROJECT_CHARTER.md
+force: true
+sparql:
+  projects: |
+    PREFIX dflss: <https://ggen.dev/dflss#>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT ?project ?label WHERE {
+      ?project a dflss:DFLSSProject ; rdfs:label ?label .
+    } ORDER BY ?label
+  phases: |
+    PREFIX dflss: <https://ggen.dev/dflss#>
+    PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT ?project ?phaseLabel ?phaseComment WHERE {
+      ?activity a dflss:PhaseActivity ; dflss:partOfProject ?project ; dflss:hasPhase ?phase .
+      ?phase skos:prefLabel ?phaseLabel .
+      OPTIONAL { ?phase rdfs:comment ?phaseComment }
+    } ORDER BY ?project ?phaseLabel
+  ctqs: |
+    PREFIX dflss: <https://ggen.dev/dflss#>
+    SELECT ?project (COUNT(?ctq) AS ?ctqCount) WHERE {
+      ?project a dflss:DFLSSProject .
+      OPTIONAL { ?project dflss:hasCTQ ?ctq }
+    } GROUP BY ?project
+---
+# DFLSS Project Charter
+
+{% for p in projects %}
+## {{ p.label }}
+
+**Admitted CTQs:** {% for c in ctqs %}{% if c.project == p.project %}{{ c.ctqCount }}{% endif %}{% endfor %}
+
+### DMADV phases in scope
+
+| Phase | Purpose |
+|---|---|
+{% for ph in phases %}{% if ph.project == p.project %}| {{ ph.phaseLabel }} | {{ ph.phaseComment | default(value="") }} |
+{% endif %}{% endfor %}
+{% endfor %}
