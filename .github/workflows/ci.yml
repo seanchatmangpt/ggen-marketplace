@@ -34,6 +34,28 @@ env:
   SHARD_COUNT: "4"
 
 jobs:
+  guard-timeout-coverage:
+    name: Guard timeout-minutes coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Fail if any workflow file is missing timeout-minutes
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing="$(grep -L timeout-minutes .github/workflows/*.yml || true)"
+          if [[ -n "$missing" ]]; then
+            echo "::error::Workflow file(s) missing timeout-minutes:"
+            echo "$missing"
+            exit 1
+          fi
+          echo "All workflow files declare timeout-minutes."
+
   admission:
     name: Fast admission (config, validate, catalog/archive determinism)
     runs-on: ubuntu-latest
