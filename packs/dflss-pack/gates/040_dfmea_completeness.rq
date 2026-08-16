@@ -1,0 +1,43 @@
+# MESSAGE: every DFMEARisk must have severity, occurrence, detection each in [1,10], and a bound control plan; any row is a refusal.
+PREFIX dflss: <https://ggen.dev/dflss#>
+SELECT ?risk ?reason WHERE {
+  ?risk a dflss:DFMEARisk .
+  {
+    FILTER NOT EXISTS { ?risk dflss:severity ?s }
+    BIND("MISSING_SEVERITY" AS ?reason)
+  }
+  UNION
+  {
+    ?risk dflss:severity ?s .
+    FILTER (?s < 1 || ?s > 10)
+    BIND("SEVERITY_OUT_OF_RANGE" AS ?reason)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?risk dflss:occurrence ?o }
+    BIND("MISSING_OCCURRENCE" AS ?reason)
+  }
+  UNION
+  {
+    ?risk dflss:occurrence ?o .
+    FILTER (?o < 1 || ?o > 10)
+    BIND("OCCURRENCE_OUT_OF_RANGE" AS ?reason)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?risk dflss:detection ?d }
+    BIND("MISSING_DETECTION" AS ?reason)
+  }
+  UNION
+  {
+    ?risk dflss:detection ?d .
+    FILTER (?d < 1 || ?d > 10)
+    BIND("DETECTION_OUT_OF_RANGE" AS ?reason)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?risk dflss:hasControlPlan ?cp }
+    BIND("MISSING_CONTROL_PLAN" AS ?reason)
+  }
+}
+ORDER BY ?risk ?reason

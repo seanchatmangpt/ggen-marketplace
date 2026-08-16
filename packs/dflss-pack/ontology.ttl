@@ -1,0 +1,146 @@
+@prefix dflss: <https://ggen.dev/dflss#> .
+@prefix req:   <https://ggen.io/onto/requirements/> .
+@prefix prov:  <http://www.w3.org/ns/prov#> .
+@prefix skos:  <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# ============================================================================
+# Design for Lean Six Sigma (DMADV) domain ontology
+# ============================================================================
+#
+# Phase naming is DMADV (Define-Measure-Analyze-Design-Verify), matching
+# every existing DFLSS artifact found in this ecosystem's prior art
+# (cns/dflss_comprehensive_ontology.json, cns/semantic_ontology_framework.py,
+# open-ontologies/portfolio-os.ttl's `port:tickPhase` comment) -- not the
+# DMEDI (Define-Measure-Explore-Develop-Implement) naming used by the
+# original course curriculum, which has no existing source material to
+# ground it.
+#
+# CTQ admission is NOT redefined here. dflss:CTQ aligns to the
+# requirements-andon pack's req:AdmittedCtq (source/measure/verification/
+# negative-case/control-plan gated). A DFLSSProject may only cite a CTQ that
+# is already an req:AdmittedCtq -- see gates/030_ctq_admission.rq.
+#
+# Provenance follows PROV-O: DFLSSProject is a prov:Plan, phase execution
+# and DOE experiments are prov:Activity, concepts/risks/control plans are
+# prov:Entity -- the same alignment convention used across this ecosystem's
+# other packs (consequence-ir-pack, open-ontologies/portfolio-os.ttl).
+# ============================================================================
+
+<https://ggen.dev/dflss> a prov:Entity ;
+  dct:title "DFLSS (DMADV) Ontology" ;
+  dct:description "Design for Lean Six Sigma domain ontology: project, closed DMADV phase scheme, design concept, DFMEA risk, DOE factor/response, control plan." ;
+  dct:hasVersion "0.1.0" .
+
+# ── Core classes ────────────────────────────────────────────────────────────
+
+dflss:DFLSSProject a rdfs:Class ; rdfs:subClassOf prov:Plan ;
+  rdfs:label "DFLSS project" ;
+  rdfs:comment "A Design for Lean Six Sigma project executing the DMADV phase sequence." .
+
+dflss:PhaseActivity a rdfs:Class ; rdfs:subClassOf prov:Activity ;
+  rdfs:label "Phase activity" ;
+  rdfs:comment "One executed DMADV phase within a project. Its dflss:hasPhase must resolve to a concept in dflss:DMADVPhaseScheme." .
+
+dflss:Concept a rdfs:Class ; rdfs:subClassOf prov:Entity ;
+  rdfs:label "Design concept" ;
+  rdfs:comment "A candidate design concept proposed during the Analyze phase, scored by Pugh/AHP." .
+
+dflss:ConceptSelection a rdfs:Class ; rdfs:subClassOf prov:Activity ;
+  rdfs:label "Concept selection" ;
+  rdfs:comment "The Pugh/AHP activity that scores proposed concepts and selects one." .
+
+dflss:CTQ a rdfs:Class ; rdfs:subClassOf req:AdmittedCtq ;
+  rdfs:label "Critical to quality (DFLSS)" ;
+  rdfs:comment "A CTQ cited by a DFLSSProject. Aligned to, not a redefinition of, req:AdmittedCtq -- must already carry the 5 mandatory admission fields (source, measure, verification, negative case, control plan) at the requirements-andon layer." .
+
+dflss:DFMEARisk a rdfs:Class ; rdfs:subClassOf prov:Entity ;
+  rdfs:label "DFMEA risk" ;
+  rdfs:comment "A design-FMEA risk row: severity, occurrence, detection (each 1-10) and a bound control plan." .
+
+dflss:DOEExperiment a rdfs:Class ; rdfs:subClassOf prov:Activity ;
+  rdfs:label "DOE experiment" ;
+  rdfs:comment "A designed experiment (full/fractional factorial, RSM, ...) run during the Design phase." .
+
+dflss:DOEFactor a rdfs:Class ; rdfs:subClassOf prov:Entity ;
+  rdfs:label "DOE factor" ;
+  rdfs:comment "An independent variable manipulated in a DOE experiment, with at least one declared level." .
+
+dflss:DOEResponse a rdfs:Class ; rdfs:subClassOf prov:Entity ;
+  rdfs:label "DOE response" ;
+  rdfs:comment "A measured/observed outcome variable of a DOE experiment." .
+
+dflss:ControlPlan a rdfs:Class ; rdfs:subClassOf prov:Entity ;
+  rdfs:label "Control plan" ;
+  rdfs:comment "The regression-prevention plan bound to a DFMEA risk (Implement phase)." .
+
+# ── Closed DMADV phase scheme ───────────────────────────────────────────────
+
+dflss:DMADVPhaseScheme a skos:ConceptScheme ;
+  rdfs:label "DMADV phase scheme" ;
+  skos:prefLabel "dflss:dmadv_phase_scheme"@en ;
+  rdfs:comment "Closed enumeration of the five DMADV phases. dflss:hasPhase must resolve to a member of this scheme -- see gates/020_phase_domain.rq." .
+
+dflss:Define a skos:Concept ;
+  skos:prefLabel "Define"@en ;
+  rdfs:comment "Charter, MGPP, risk management, communication plan."@en ;
+  skos:inScheme dflss:DMADVPhaseScheme .
+
+dflss:Measure a skos:Concept ;
+  skos:prefLabel "Measure"@en ;
+  rdfs:comment "VOC, QFD, target costing, scorecards, MSA, process capability."@en ;
+  skos:inScheme dflss:DMADVPhaseScheme .
+
+dflss:Analyze a skos:Concept ;
+  skos:prefLabel "Analyze"@en ;
+  rdfs:comment "Concept generation, TRIZ, Pugh/AHP selection, tolerance design, Monte Carlo, DFMEA, regression, Multi-Vari."@en ;
+  skos:inScheme dflss:DMADVPhaseScheme .
+
+dflss:Design a skos:Concept ;
+  skos:prefLabel "Design"@en ;
+  rdfs:comment "DOE (full/fractional factorial, curvature/RSM), Lean design, DFMA, reliability, conjoint analysis, mixture design, robust design."@en ;
+  skos:inScheme dflss:DMADVPhaseScheme .
+
+dflss:Verify a skos:Concept ;
+  skos:prefLabel "Verify"@en ;
+  rdfs:comment "Prototype/pilot, process control (SPC), implementation planning."@en ;
+  skos:inScheme dflss:DMADVPhaseScheme .
+
+# ── Properties ───────────────────────────────────────────────────────────────
+
+dflss:hasPhase a rdf:Property ; rdfs:domain dflss:PhaseActivity ; rdfs:range dflss:DMADVPhaseScheme ;
+  rdfs:comment "Which DMADV phase this activity executes. Range is nominally the scheme; the actual value must be a skos:Concept skos:inScheme dflss:DMADVPhaseScheme (checked by gate, not by RDFS range alone)." .
+
+dflss:partOfProject a rdf:Property ; rdfs:domain dflss:PhaseActivity ; rdfs:range dflss:DFLSSProject .
+
+dflss:hasCTQ a rdf:Property ; rdfs:domain dflss:DFLSSProject ; rdfs:range dflss:CTQ .
+
+dflss:proposesConcept a rdf:Property ; rdfs:domain dflss:ConceptSelection ; rdfs:range dflss:Concept .
+
+dflss:selectsConcept a rdf:Property ; rdfs:domain dflss:ConceptSelection ; rdfs:range dflss:Concept ;
+  rdfs:comment "The single concept chosen by this selection activity; must be among its own proposesConcept set." .
+
+dflss:pughScore a rdf:Property ; rdfs:domain dflss:Concept ; rdfs:range xsd:decimal .
+dflss:ahpScore a rdf:Property ; rdfs:domain dflss:Concept ; rdfs:range xsd:decimal .
+
+dflss:identifiesRisk a rdf:Property ; rdfs:domain dflss:DFLSSProject ; rdfs:range dflss:DFMEARisk .
+
+dflss:severity a rdf:Property ; rdfs:domain dflss:DFMEARisk ; rdfs:range xsd:integer ;
+  rdfs:comment "1-10, DFMEA severity rating." .
+dflss:occurrence a rdf:Property ; rdfs:domain dflss:DFMEARisk ; rdfs:range xsd:integer ;
+  rdfs:comment "1-10, DFMEA occurrence rating." .
+dflss:detection a rdf:Property ; rdfs:domain dflss:DFMEARisk ; rdfs:range xsd:integer ;
+  rdfs:comment "1-10, DFMEA detection rating." .
+dflss:rpn a rdf:Property ; rdfs:domain dflss:DFMEARisk ; rdfs:range xsd:integer ;
+  rdfs:comment "Risk priority number. Declared, not gate-verified as severity*occurrence*detection in v1." .
+
+dflss:hasControlPlan a rdf:Property ; rdfs:domain dflss:DFMEARisk ; rdfs:range dflss:ControlPlan .
+
+dflss:runsExperiment a rdf:Property ; rdfs:domain dflss:DFLSSProject ; rdfs:range dflss:DOEExperiment .
+dflss:hasFactor a rdf:Property ; rdfs:domain dflss:DOEExperiment ; rdfs:range dflss:DOEFactor .
+dflss:hasResponse a rdf:Property ; rdfs:domain dflss:DOEExperiment ; rdfs:range dflss:DOEResponse .
+dflss:factorLevel a rdf:Property ; rdfs:domain dflss:DOEFactor ; rdfs:comment "A declared level for this factor (repeatable)." .
+dflss:responseValue a rdf:Property ; rdfs:domain dflss:DOEResponse ; rdfs:range xsd:decimal .
