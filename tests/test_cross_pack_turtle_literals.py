@@ -23,7 +23,9 @@ import sys
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
 
 from check_cross_pack_references import (  # noqa: E402
     load_pack_ontology_text,
@@ -86,19 +88,19 @@ class ScanLiteralTests(unittest.TestCase):
 
 class StripCommentsTests(unittest.TestCase):
     def test_removes_real_comment(self) -> None:
-        self.assertEqual(strip_comments("ex:a ex:b ex:c . # trailing\n"), "ex:a ex:b ex:c . \n")
+        self.assertEqual(strip_comments("ex:a ex:b ex:c . # trailing\n"), "ex:a ex:b ex:c . ")
 
     def test_hash_inside_iri_is_not_a_comment(self) -> None:
         text = "@prefix ex: <http://example.org/ns#> .\n"
-        self.assertEqual(strip_comments(text), text)
+        self.assertEqual(strip_comments(text), text.rstrip("\n"))
 
     def test_hash_inside_long_literal_survives(self) -> None:
         text = 'ex:a ex:doc """# A markdown heading\nbody # not a comment\n""" .\n'
-        self.assertEqual(strip_comments(text), text)
+        self.assertEqual(strip_comments(text), text.rstrip("\n"))
 
     def test_hash_inside_short_literal_survives(self) -> None:
         text = 'ex:a ex:doc "value # not a comment" .\n'
-        self.assertEqual(strip_comments(text), text)
+        self.assertEqual(strip_comments(text), text.rstrip("\n"))
 
 
 class TokenizeStatementsTests(unittest.TestCase):

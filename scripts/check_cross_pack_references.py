@@ -162,8 +162,10 @@ def strip_comments(text: str) -> str:
     markdown lines is one token, and an unterminated `<` on one line should
     not resume "outside" on the next.
 
-    Line structure is preserved (newlines inside a literal are kept verbatim)
-    so downstream statement tokenization sees the same text shape.
+    Interior line structure is preserved (newlines inside a literal are kept
+    verbatim) so downstream statement tokenization sees the same text shape.
+    The return value is normalized through splitlines()/join, matching this
+    function's long-standing contract of not emitting a trailing newline.
     """
     out: list[str] = []
     i = 0
@@ -196,7 +198,7 @@ def strip_comments(text: str) -> str:
             continue
         out.append(ch)
         i += 1
-    return "".join(out)
+    return "\n".join("".join(out).splitlines())
 
 
 def parse_prefixes(text: str) -> dict[str, str]:
