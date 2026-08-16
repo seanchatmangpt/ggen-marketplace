@@ -15,6 +15,7 @@ struct MarketplaceConfig {
     source_authority: SourceAuthorityConfig,
     qualification: QualificationConfig,
     ggen: GgenConfig,
+    clap_noun_verb: ClapNounVerbConfig,
 }
 
 /// This repository's own release identity -- an org-owned version for a
@@ -63,6 +64,16 @@ struct AssetConfig {
     sha256: String,
 }
 
+/// Source-of-truth version for the `clap-noun-verb`/`clap-noun-verb-macros`
+/// exact pin baked into `clap-noun-verb-crate-pack`'s generated
+/// `Cargo.toml`. The qualifier compares this against the pin actually
+/// present in the pack's template and refuses on drift, the same shape as
+/// the `ggen.version` check against the installed binary.
+#[derive(Debug, Deserialize, Serialize)]
+struct ClapNounVerbConfig {
+    version: String,
+}
+
 impl Validate for MarketplaceConfig {
     fn validate(&self, v: &mut Validator) {
         v.check_non_empty("schema_version", &self.schema_version);
@@ -87,6 +98,9 @@ impl Validate for MarketplaceConfig {
                 validate_asset(v, "darwin_aarch64", &self.ggen.assets.darwin_aarch64);
                 validate_asset(v, "darwin_x86_64", &self.ggen.assets.darwin_x86_64);
             });
+        });
+        v.field("clap_noun_verb", |v| {
+            v.check_non_empty("version", &self.clap_noun_verb.version);
         });
     }
 }
