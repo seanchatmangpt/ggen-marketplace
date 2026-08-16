@@ -2,7 +2,11 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import os
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -59,6 +63,93 @@ class VacuityAuditTests(unittest.TestCase):
         report = audit.audit_subject("test", [("data.bin", b"\x00\x01"), ("README.md", b"ok")])
         self.assertEqual(report.total_files, 2)
         self.assertEqual(report.source_files, 0)
+
+
+class VacuityAuditMainTests(unittest.TestCase):
+    """End-to-end coverage of main() against a real, disposable git repo.
+
+    A real repository is genuinely cheap to construct in-process (a few
+    `git` subprocess calls to a scratch dir), so this exercises the real
+    `git archive` / `git for-each-ref` / filesystem-walk paths that main()
+    actually drives, rather than faking SubjectReport objects, per
+    Chicago-style testing discipline. Nothing in audit_vacuity.py's main()
+    was previously covered by a test.
+    """
+
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmpdir.cleanup)
+        self.repo = Path(self.tmpdir.name)
+        self._git("init", "-q", "-b", "main")
+        self._git("config", "user.email", "test@example.com")
+        self._git("config", "user.name", "Test")
+        # audit_vacuity's git-backed helpers (_git_ref_files, _remote_refs)
+        # shell out with no -C, using the current process cwd, so main()
+        # must run with cwd inside the scratch repo to exercise them.
+        self._orig_cwd = Path.cwd()
+        os.chdir(self.repo)
+        self.addCleanup(os.chdir, self._orig_cwd)
+
+    def _git(self, *args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["git", "-C", str(self.repo), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    def _commit(self, filename: str, content: str, message: str) -> str:
+        path = self.repo / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+        self._git("add", filename)
+        self._git("commit", "-q", "-m", message)
+        return self._git("rev-parse", "HEAD").stdout.strip()
+
+    def test_main_admits_clean_filesystem_tree(self):
+        self._commit("a.py", "print('hi')\n", "initial")
+        exit_code = audit.main(["--root", str(self.repo)])
+        self.assertEqual(exit_code, 0)
+
+    def test_main_refuses_and_writes_report_on_filesystem_error(self):
+        self._commit("a.py", "def f():\n    pass\n", "empty function")
+        report_path = self.repo / "vacuity-report.json"
+        exit_code = audit.main(
+            ["--root", str(self.repo), "--report", str(report_path)]
+        )
+        self.assertEqual(exit_code, 2)
+        self.assertTrue(report_path.is_file())
+        payload = json.loads(report_path.read_text(encoding="utf-8"))
+        self.assertEqual(payload["standing"], "REFUSED")
+        self.assertEqual(len(payload["subjects"]), 1)
+        self.assertEqual(payload["subjects"][0]["subject"], "filesystem")
+        rules = {f["rule"] for f in payload["subjects"][0]["findings"]}
+        self.assertIn("PYTHON_EMPTY_FUNCTION", rules)
+
+    def test_main_audits_explicit_git_ref(self):
+        head = self._commit("a.py", "print('hi')\n", "initial")
+        exit_code = audit.main(["--git-ref", head])
+        self.assertEqual(exit_code, 0)
+
+    def test_main_promotes_warning_with_warnings_as_errors(self):
+        # A TODO in a reference/doc-ish path is a warning, not an error
+        # (test_reference_todo_is_warning_not_error above) -- confirm
+        # --warnings-as-errors actually flips main()'s exit code on it.
+        self._commit("docs/notes.md", "TODO: finish this\n", "todo note")
+        exit_code_default = audit.main(["--root", str(self.repo)])
+        self.assertEqual(exit_code_default, 0)
+        exit_code_strict = audit.main(
+            ["--root", str(self.repo), "--warnings-as-errors"]
+        )
+        self.assertEqual(exit_code_strict, 2)
+
+    def test_main_all_remote_branches_enumerates_and_admits_with_no_remote(self):
+        self._commit("a.py", "print('hi')\n", "initial")
+        # No remote configured, so refs/remotes/origin is empty; main()
+        # should fall through to a single filesystem subject rather than
+        # blow up on an empty --git-ref list.
+        exit_code = audit.main(["--all-remote-branches"])
+        self.assertEqual(exit_code, 0)
 
 
 if __name__ == "__main__":
