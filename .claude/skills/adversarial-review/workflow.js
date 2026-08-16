@@ -69,14 +69,31 @@ const LENSES = [
     label: 'Formal correctness / interface design',
     prompt: (target) => `Review ${target} through the lens of Barbara Liskov's ` +
       `substitutability principle and strict-schema discipline. You are not impersonating her ` +
-      `-- apply her documented methodology as a rigor standard. For every manifest/schema file ` +
-      `(pack.toml, ggen.toml, qualification.toml): does every field actually validate against ` +
-      `the real parser/tool this repo pins (not just look syntactically plausible on a read-` +
-      `through)? Are contracts checked exhaustively, or does the review assume validity from ` +
-      `visual inspection alone? Flag any field, table, or key that isn't demonstrably accepted ` +
-      `by the real tool. Report ONLY findings with a real file:line citation and a concrete ` +
-      `failure scenario (what breaks, and how you'd prove it breaks). Do not report style ` +
-      `preferences.`,
+      `-- apply her documented methodology as a rigor standard. Reading a manifest file and ` +
+      `judging it "looks valid" is NOT this lens's job -- that already failed to catch a real ` +
+      `defect once (a pack.toml shipped a [semantic_crown] TOML table that was syntactically ` +
+      `perfect and still got rejected by the real ggen binary's deny_unknown_fields schema). ` +
+      `You MUST actually invoke the real, pinned ggen binary against every manifest file ` +
+      `(pack.toml, ggen.toml, qualification.toml) in ${target} before reporting anything as ` +
+      `valid or invalid -- a claim not backed by a real command's exit code and output is not a ` +
+      `finding, it's a guess. Concrete recipe: find the repo root containing marketplace.toml ` +
+      `(walk up from ${target} if it is a path outside the current working directory) to get ` +
+      `the pinned ggen version, then locate a local ggen binary (try \`which ggen\`, ` +
+      `\`~/.local/bin/ggen\`, or search common install paths) -- if none of pack.toml's own ` +
+      `repo's tooling is reachable, run \`python3 <repo-root>/scripts/qualify_packs.py --ggen ` +
+      `<ggen-binary-path> --shard-index 0 --shard-count 1 --timeout-seconds 5 --report ` +
+      `/tmp/adversarial-review-lens-formal-correctness.json\` from the repo root (if ${target} ` +
+      `is OUTSIDE that repo root -- e.g. a scratch worktree at a different path -- symlink or ` +
+      `copy the target pack directory into that repo's packs/ under a temp name first, or run ` +
+      `\`<ggen-binary> sync run\` directly against a minimal scratch ggen.toml wiring \`[packs] ` +
+      `"<name>" = { path = "<absolute path to target>" }\` in a temp directory, per this repo's ` +
+      `own scripts/qualify_packs.py:projection_ggen_toml/semantic_ggen_toml functions for the ` +
+      `exact wiring shape). Read the report/output for REFUSED status and cite the exact error ` +
+      `message. Only after you have a real command's output may you report a finding about ` +
+      `schema validity -- cite the command you ran and its output as your failure scenario, not ` +
+      `a description of what you'd expect to happen. Report ONLY findings with a real file:line ` +
+      `citation and a concrete failure scenario backed by an actual command run. Do not report ` +
+      `style preferences.`,
   },
   {
     key: 'pragmatism',
