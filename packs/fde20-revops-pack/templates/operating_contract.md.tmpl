@@ -1,0 +1,59 @@
+---
+to: "revops/fde20/OPERATING_CONTRACT.md"
+sparql:
+  offer: |
+    PREFIX fde20: <http://seanchatmangpt.github.io/packs/fde20-revops#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    SELECT ?title ?description ?rate ?currency ?unit ?llmRole ?deterministic ?brce ?receipt WHERE { ?o a fde20:Offer ; dcterms:title ?title ; dcterms:description ?description ; fde20:hourlyRate ?rate ; fde20:currency ?currency ; fde20:billingUnit ?unit ; fde20:llmRole ?llmRole ; fde20:deterministicFirst ?deterministic ; fde20:brceRequired ?brce ; fde20:receiptRequired ?receipt . }
+  roles: |
+    PREFIX fde20: <http://seanchatmangpt.github.io/packs/fde20-revops#>
+    PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+    SELECT ?order ?label ?responsibility WHERE { ?r a fde20:EnterpriseRole ; fde20:roleOrder ?order ; skos:prefLabel ?label ; fde20:responsibility ?responsibility . } ORDER BY ?order
+  stages: |
+    PREFIX fde20: <http://seanchatmangpt.github.io/packs/fde20-revops#>
+    PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+    SELECT ?order ?label ?slug ?kind ?entry ?exit ?ceiling ?receipt WHERE { ?s a fde20:RevOpsStage ; skos:prefLabel ?label ; fde20:stageOrder ?order ; fde20:stageSlug ?slug ; fde20:operationKind ?kind ; fde20:entryCriterion ?entry ; fde20:exitCriterion ?exit ; fde20:standingCeiling ?ceiling ; fde20:requiresReceipt ?receipt . } ORDER BY ?order
+  service: |
+    PREFIX fde20: <http://seanchatmangpt.github.io/packs/fde20-revops#>
+    SELECT ?availability ?rto ?rpo ?audit ?receipts WHERE { ?s a fde20:ServiceLevelProfile ; fde20:availabilityTarget ?availability ; fde20:rtoMinutes ?rto ; fde20:rpoMinutes ?rpo ; fde20:auditRetentionDays ?audit ; fde20:receiptRetentionDays ?receipts . }
+---
+# {% for o in offer %}{{ o.title }}{% endfor %} — Operating Contract
+
+{% for o in offer %}{{ o.description }}
+
+- Price: **{{ o.currency }} {{ o.rate }}/{{ o.unit }}**
+- Deterministic first: `{{ o.deterministic }}`
+- LLM role: `{{ o.llmRole }}`
+- BRCE required: `{{ o.brce }}`
+- Consequence receipts required: `{{ o.receipt }}`
+{% endfor %}
+
+## Fortune 5 authority map
+
+| # | Authority | Responsibility |
+|---:|---|---|
+{% for r in roles %}| {{ r.order }} | **{{ r.label }}** | {{ r.responsibility }} |
+{% endfor %}
+
+## Service-level floor
+{% for s in service %}- Availability: **{{ s.availability }}%**
+- RTO: **{{ s.rto }} minutes**
+- RPO: **{{ s.rpo }} minutes**
+- Audit retention: **{{ s.audit }} days**
+- Receipt retention: **{{ s.receipts }} days**
+{% endfor %}
+
+## Authority calculus
+
+`SELECT` chooses an admitted route. `CONSTRUCT` manufactures reversible artifacts and intents. `DO` changes external state and has no ambient authority. Every DO transition passes BRCE and emits a receipt binding identity, authority, consequence, replay, and standing.
+
+## Revenue pipeline
+
+| # | Stage | Kind | Entry | Exit | Ceiling | Receipt |
+|---:|---|---|---|---|---|---|
+{% for s in stages %}| {{ s.order }} | `{{ s.slug }}` — {{ s.label }} | **{{ s.kind }}** | {{ s.entry }} | {{ s.exit }} | `{{ s.ceiling }}` | {{ s.receipt }} |
+{% endfor %}
+
+## Definition of success
+
+Fortune 5 readiness requires admitted authority, controls, service levels, deployment boundaries, and evidence paths. A crown claim is `ALIVE` only when the exact admitted subject executes and its consequence is observed with a replayable receipt.

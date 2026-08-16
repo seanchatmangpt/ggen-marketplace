@@ -1,0 +1,28 @@
+# MESSAGE: Fortune 5 readiness requires complete authority, controls, SLO, deployment, and evidence closure. Any row is a refusal.
+PREFIX fde20: <http://seanchatmangpt.github.io/packs/fde20-revops#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?subject ?violation WHERE {
+ { ?subject a fde20:Offer . VALUES ?requiredRole { fde20:ExecutiveSponsor fde20:BusinessOwner fde20:TechnicalAuthority fde20:SecurityAuthority fde20:DataOwner fde20:ProcurementAuthority fde20:FinanceAuthority fde20:ServiceOwner } FILTER NOT EXISTS { ?subject fde20:hasRole ?requiredRole } BIND(CONCAT("missing enterprise role ",STR(?requiredRole)) AS ?violation) }
+ UNION { ?subject a fde20:Offer . VALUES ?requiredDimension { fde20:ExecutiveGovernance fde20:CommercialProcurement fde20:IdentitySecurity fde20:DataPrivacy fde20:PlatformCloud fde20:SoftwareSupplyChain fde20:ReliabilityObservability fde20:ContinuityRecovery fde20:ChangeRelease fde20:FinOpsCapacity fde20:ProcessIntelligence fde20:PortabilityExit } FILTER NOT EXISTS { ?subject fde20:hasReadinessDimension ?requiredDimension } BIND(CONCAT("missing readiness dimension ",STR(?requiredDimension)) AS ?violation) }
+ UNION { ?subject a fde20:Offer . FILTER NOT EXISTS { ?subject fde20:hasServiceLevelProfile ?p . ?p a fde20:ServiceLevelProfile } BIND("missing ServiceLevelProfile" AS ?violation) }
+ UNION { ?subject a fde20:Offer . FILTER NOT EXISTS { ?subject fde20:hasDeploymentEnvelope ?d . ?d a fde20:DeploymentEnvelope } BIND("missing DeploymentEnvelope" AS ?violation) }
+ UNION { ?subject a fde20:EnterpriseRole . VALUES ?property { skos:prefLabel fde20:roleOrder fde20:responsibility } FILTER NOT EXISTS { ?subject ?property ?v } BIND(CONCAT("role missing ",STR(?property)) AS ?violation) }
+ UNION { ?subject a fde20:ReadinessDimension . VALUES ?property { skos:prefLabel fde20:dimensionOrder fde20:dimensionSlug fde20:hasControl } FILTER NOT EXISTS { ?subject ?property ?v } BIND(CONCAT("dimension missing ",STR(?property)) AS ?violation) }
+ UNION { ?subject a fde20:ReadinessDimension . FILTER NOT EXISTS { ?subject fde20:hasControl ?a,?b,?c . FILTER(?a!=?b && ?a!=?c && ?b!=?c) } BIND("dimension requires at least three distinct controls" AS ?violation) }
+ UNION { ?subject a fde20:EnterpriseControl . VALUES ?property { fde20:controlCode dcterms:title fde20:acceptanceCriterion fde20:evidenceType fde20:authorityRole fde20:requiresReceipt fde20:standingCeiling } FILTER NOT EXISTS { ?subject ?property ?v } BIND(CONCAT("control missing ",STR(?property)) AS ?violation) }
+ UNION { ?subject a fde20:EnterpriseControl ; fde20:authorityRole ?r . FILTER NOT EXISTS { ?r a fde20:EnterpriseRole } BIND("control authorityRole is not EnterpriseRole" AS ?violation) }
+ UNION { ?subject a fde20:EnterpriseControl . FILTER NOT EXISTS { ?d a fde20:ReadinessDimension ; fde20:hasControl ?subject } BIND("orphan enterprise control" AS ?violation) }
+ UNION { ?o a fde20:Offer ; fde20:hasReadinessDimension ?d . ?d fde20:hasControl ?subject . ?subject fde20:authorityRole ?r . FILTER NOT EXISTS { ?o fde20:hasRole ?r } BIND("control authority not admitted by offer" AS ?violation) }
+ UNION { ?o a fde20:Offer ; fde20:hasServiceLevelProfile ?subject . ?subject a fde20:ServiceLevelProfile . VALUES ?property { skos:prefLabel fde20:availabilityTarget fde20:rtoMinutes fde20:rpoMinutes fde20:auditRetentionDays fde20:receiptRetentionDays } FILTER NOT EXISTS { ?subject ?property ?v } BIND(CONCAT("SLO missing ",STR(?property)) AS ?violation) }
+ UNION { ?subject a fde20:ServiceLevelProfile ; fde20:availabilityTarget ?v . FILTER(xsd:decimal(?v)<99.9) BIND("availabilityTarget must be >=99.9" AS ?violation) }
+ UNION { ?subject a fde20:ServiceLevelProfile ; fde20:rtoMinutes ?v . FILTER(xsd:integer(?v)<=0 || xsd:integer(?v)>240) BIND("rtoMinutes must be 1..240" AS ?violation) }
+ UNION { ?subject a fde20:ServiceLevelProfile ; fde20:rpoMinutes ?v . FILTER(xsd:integer(?v)<=0 || xsd:integer(?v)>60) BIND("rpoMinutes must be 1..60" AS ?violation) }
+ UNION { ?subject a fde20:ServiceLevelProfile ; fde20:auditRetentionDays ?v . FILTER(xsd:integer(?v)<365) BIND("auditRetentionDays must be >=365" AS ?violation) }
+ UNION { ?subject a fde20:ServiceLevelProfile ; fde20:receiptRetentionDays ?v . FILTER(xsd:integer(?v)<365) BIND("receiptRetentionDays must be >=365" AS ?violation) }
+ UNION { ?o a fde20:Offer ; fde20:hasDeploymentEnvelope ?subject . ?subject a fde20:DeploymentEnvelope . VALUES ?property { skos:prefLabel fde20:regionsMinimum fde20:multiCloudCapable fde20:tenantIsolationRequired fde20:infrastructureAsCodeRequired fde20:rollbackRequired fde20:sbomRequired fde20:signedProvenanceRequired fde20:observabilityRequired fde20:ocelV2Required } FILTER NOT EXISTS { ?subject ?property ?v } BIND(CONCAT("deployment missing ",STR(?property)) AS ?violation) }
+ UNION { ?subject a fde20:DeploymentEnvelope ; fde20:regionsMinimum ?v . FILTER(xsd:integer(?v)<2) BIND("regionsMinimum must be >=2" AS ?violation) }
+ UNION { ?subject a fde20:DeploymentEnvelope . VALUES ?p { fde20:multiCloudCapable fde20:tenantIsolationRequired fde20:infrastructureAsCodeRequired fde20:rollbackRequired fde20:sbomRequired fde20:signedProvenanceRequired fde20:observabilityRequired fde20:ocelV2Required } FILTER NOT EXISTS { ?subject ?p true } BIND(CONCAT("deployment invariant must be true: ",STR(?p)) AS ?violation) }
+}
+ORDER BY ?subject ?violation

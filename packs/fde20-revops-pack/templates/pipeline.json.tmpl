@@ -1,0 +1,32 @@
+---
+to: "revops/fde20/pipeline.json"
+sparql:
+  offer: |
+    PREFIX fde20: <http://seanchatmangpt.github.io/packs/fde20-revops#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    SELECT ?title ?rate ?currency ?unit ?llmRole WHERE { ?o a fde20:Offer ; dcterms:title ?title ; fde20:hourlyRate ?rate ; fde20:currency ?currency ; fde20:billingUnit ?unit ; fde20:llmRole ?llmRole . }
+  roles: |
+    PREFIX fde20: <http://seanchatmangpt.github.io/packs/fde20-revops#>
+    PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+    SELECT ?order ?label WHERE { ?r a fde20:EnterpriseRole ; fde20:roleOrder ?order ; skos:prefLabel ?label . } ORDER BY ?order
+  stages: |
+    PREFIX fde20: <http://seanchatmangpt.github.io/packs/fde20-revops#>
+    SELECT ?order ?slug ?kind ?ceiling ?requiresReceipt ?boundary ?receiptType WHERE { ?s a fde20:RevOpsStage ; fde20:stageOrder ?order ; fde20:stageSlug ?slug ; fde20:operationKind ?kind ; fde20:standingCeiling ?ceiling ; fde20:requiresReceipt ?requiresReceipt . OPTIONAL { ?s fde20:authorityBoundary ?boundary } OPTIONAL { ?s fde20:receiptType ?receiptType } } ORDER BY ?order
+  controls: |
+    PREFIX fde20: <http://seanchatmangpt.github.io/packs/fde20-revops#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    SELECT ?dimensionOrder ?dimensionSlug ?code ?title ?role ?evidence ?receipt ?ceiling WHERE { ?d a fde20:ReadinessDimension ; fde20:dimensionOrder ?dimensionOrder ; fde20:dimensionSlug ?dimensionSlug ; fde20:hasControl ?c . ?c a fde20:EnterpriseControl ; fde20:controlCode ?code ; dcterms:title ?title ; fde20:authorityRole ?role ; fde20:evidenceType ?evidence ; fde20:requiresReceipt ?receipt ; fde20:standingCeiling ?ceiling . } ORDER BY ?dimensionOrder ?code
+  service: |
+    PREFIX fde20: <http://seanchatmangpt.github.io/packs/fde20-revops#>
+    SELECT ?availability ?rto ?rpo ?audit ?receipts WHERE { ?s a fde20:ServiceLevelProfile ; fde20:availabilityTarget ?availability ; fde20:rtoMinutes ?rto ; fde20:rpoMinutes ?rpo ; fde20:auditRetentionDays ?audit ; fde20:receiptRetentionDays ?receipts . }
+  deploy: |
+    PREFIX fde20: <http://seanchatmangpt.github.io/packs/fde20-revops#>
+    SELECT ?regions ?multiCloud ?isolation ?iac ?rollback ?sbom ?provenance ?observability ?ocel WHERE { ?d a fde20:DeploymentEnvelope ; fde20:regionsMinimum ?regions ; fde20:multiCloudCapable ?multiCloud ; fde20:tenantIsolationRequired ?isolation ; fde20:infrastructureAsCodeRequired ?iac ; fde20:rollbackRequired ?rollback ; fde20:sbomRequired ?sbom ; fde20:signedProvenanceRequired ?provenance ; fde20:observabilityRequired ?observability ; fde20:ocelV2Required ?ocel . }
+---
+{"schema":"fde20-revops-pipeline/v2",
+{% for o in offer %}"offer":{"title":{{ o.title | json_encode() }},"rate":{{ o.rate }},"currency":{{ o.currency | json_encode() }},"billing_unit":{{ o.unit | json_encode() }},"llm_role":{{ o.llmRole | json_encode() }}},{% endfor %}
+"authority":{"do_boundary":"BRCE","zero_unreceipted_actuation":true,"roles":[{% for r in roles %}{{ r.label | json_encode() }}{% if not loop.last %},{% endif %}{% endfor %}]},
+{% for s in service %}"service_level":{"availability_target_percent":{{ s.availability }},"rto_minutes":{{ s.rto }},"rpo_minutes":{{ s.rpo }},"audit_retention_days":{{ s.audit }},"receipt_retention_days":{{ s.receipts }}},{% endfor %}
+{% for d in deploy %}"deployment":{"regions_minimum":{{ d.regions }},"multi_cloud_capable":{{ d.multiCloud }},"tenant_isolation_required":{{ d.isolation }},"infrastructure_as_code_required":{{ d.iac }},"rollback_required":{{ d.rollback }},"sbom_required":{{ d.sbom }},"signed_provenance_required":{{ d.provenance }},"observability_required":{{ d.observability }},"ocel_v2_required":{{ d.ocel }}},{% endfor %}
+"stages":[{% for s in stages %}{"order":{{ s.order }},"slug":{{ s.slug | json_encode() }},"operation":{{ s.kind | json_encode() }},"standing_ceiling":{{ s.ceiling | json_encode() }},"requires_receipt":{{ s.requiresReceipt }}{% if s.boundary %},"authority_boundary":{{ s.boundary | json_encode() }}{% endif %}{% if s.receiptType %},"receipt_type":{{ s.receiptType | json_encode() }}{% endif %}}{% if not loop.last %},{% endif %}{% endfor %}],
+"enterprise_controls":[{% for c in controls %}{"dimension_order":{{ c.dimensionOrder }},"dimension":{{ c.dimensionSlug | json_encode() }},"code":{{ c.code | json_encode() }},"title":{{ c.title | json_encode() }},"authority_role":{{ c.role | json_encode() }},"evidence_type":{{ c.evidence | json_encode() }},"requires_receipt":{{ c.receipt }},"standing_ceiling":{{ c.ceiling | json_encode() }}}{% if not loop.last %},{% endif %}{% endfor %}]}
