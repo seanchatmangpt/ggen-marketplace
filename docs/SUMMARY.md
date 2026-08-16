@@ -46,6 +46,19 @@
 - [Authority, receipts, and standing](thesis/03-authority-receipts-and-standing.md)
 - [Verification, security, and evaluation](thesis/04-verification-security-and-evaluation.md)
 - [Self-hosting case study, falsification program, and research agenda](thesis/05-self-hosting-case-study-and-research-agenda.md)
+- [Theorem catalogue and proof obligations](thesis/06-theorem-catalogue.md)
+- [Related work, intellectual lineage, and distinguishing claims](thesis/07-related-work.md)
+- [Experimental methods and benchmark protocol](thesis/08-experimental-methods.md)
+- [Pack algebra and compositional semantics](thesis/09-pack-algebra.md)
+- [Evidence economics, throughput, and coordination collapse](thesis/10-evidence-economics.md)
+- [Defense dossier: claims, evidence, falsifiers, and proof debt](thesis/11-defense-dossier.md)
+
+# Research appendices
+
+- [Notation, glossary, and symbol table](thesis/appendices/A-notation.md)
+- [Normative constitution](thesis/appendices/B-normative-constitution.md)
+- [Evidence and receipt schema](thesis/appendices/C-receipt-schema.md)
+- [Bibliography and primary sources](thesis/appendices/D-bibliography.md)
 
 # Additional
 
