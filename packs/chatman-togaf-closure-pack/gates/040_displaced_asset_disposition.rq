@@ -1,0 +1,44 @@
+# MESSAGE: Every displaced baseline asset in a CLOSED project must have an
+# explicit disposition. Replacement requires a successor and terminal
+# decommission state; retention requires an owner and decision evidence.
+PREFIX tc: <http://seanchatmangpt.github.io/packs/chatman-togaf-closure#>
+SELECT ?project ?asset ?reason WHERE {
+  ?project a tc:EnterpriseProject ;
+           tc:projectState tc:CLOSED ;
+           tc:displacesAsset ?asset .
+  ?asset a tc:ArchitectureAsset .
+  {
+    FILTER NOT EXISTS {
+      ?asset tc:dispositionDecision ?d .
+      VALUES ?d { tc:REPLACED_AND_DECOMMISSIONED tc:RETAINED_WITH_DECISION }
+    }
+    BIND("displaced-asset-without-terminal-disposition" AS ?reason)
+  } UNION {
+    ?asset tc:dispositionDecision tc:REPLACED_AND_DECOMMISSIONED .
+    FILTER NOT EXISTS {
+      ?asset tc:assetState ?state .
+      VALUES ?state { tc:DECOMMISSIONED tc:ARCHIVED }
+    }
+    BIND("replacement-not-decommissioned" AS ?reason)
+  } UNION {
+    ?asset tc:dispositionDecision tc:REPLACED_AND_DECOMMISSIONED .
+    FILTER NOT EXISTS {
+      ?project tc:hasTargetAsset ?successor .
+      ?successor tc:replaces ?asset .
+    }
+    BIND("replacement-successor-missing" AS ?reason)
+  } UNION {
+    ?asset tc:dispositionDecision tc:REPLACED_AND_DECOMMISSIONED .
+    FILTER NOT EXISTS { ?asset tc:sunsetDate ?date }
+    BIND("sunset-date-missing" AS ?reason)
+  } UNION {
+    ?asset tc:dispositionDecision tc:RETAINED_WITH_DECISION .
+    FILTER NOT EXISTS { ?asset tc:accountableOwner ?owner . FILTER(STRLEN(STR(?owner)) > 0) }
+    BIND("retained-asset-without-owner" AS ?reason)
+  } UNION {
+    ?asset tc:dispositionDecision tc:RETAINED_WITH_DECISION .
+    FILTER NOT EXISTS { ?asset tc:decisionEvidence ?e . ?e a tc:ClosureEvidence }
+    BIND("retention-decision-evidence-missing" AS ?reason)
+  }
+}
+ORDER BY ?project ?asset ?reason

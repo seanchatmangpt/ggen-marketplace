@@ -1,0 +1,21 @@
+# MESSAGE: Every enterprise project must declare one valid lifecycle state and
+# SELECT_CONSTRUCT authority. This pack never grants ambient DO authority.
+PREFIX tc: <http://seanchatmangpt.github.io/packs/chatman-togaf-closure#>
+SELECT ?project ?reason WHERE {
+  ?project a tc:EnterpriseProject .
+  {
+    FILTER NOT EXISTS { ?project tc:projectState ?state . ?state a tc:ProjectState }
+    BIND("missing-or-invalid-project-state" AS ?reason)
+  } UNION {
+    FILTER NOT EXISTS { ?project tc:authorityClass ?authority . ?authority a tc:AuthorityClass }
+    BIND("missing-or-invalid-authority-class" AS ?reason)
+  } UNION {
+    ?project tc:authorityClass tc:DO .
+    BIND("ambient-do-authority-forbidden" AS ?reason)
+  } UNION {
+    ?project tc:projectState tc:CLOSED .
+    FILTER NOT EXISTS { ?project tc:hasTargetAsset ?target . ?target a tc:ArchitectureAsset }
+    BIND("closed-project-without-target-asset" AS ?reason)
+  }
+}
+ORDER BY ?project ?reason

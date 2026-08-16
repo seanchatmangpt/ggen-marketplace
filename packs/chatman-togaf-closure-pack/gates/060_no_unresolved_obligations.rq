@@ -1,0 +1,25 @@
+# MESSAGE: CLOSED means the lifecycle obligation graph is terminal. Missing
+# state, REQUIRED state, or terminal state without evidence is refused.
+PREFIX tc: <http://seanchatmangpt.github.io/packs/chatman-togaf-closure#>
+SELECT ?project ?obligation ?reason WHERE {
+  ?project a tc:EnterpriseProject ;
+           tc:projectState tc:CLOSED ;
+           tc:hasObligation ?obligation .
+  ?obligation a tc:LifecycleObligation .
+  {
+    FILTER NOT EXISTS {
+      ?obligation tc:obligationState ?state .
+      VALUES ?state { tc:OBLIGATION_SATISFIED tc:NOT_APPLICABLE_WITH_EVIDENCE }
+    }
+    BIND("non-terminal-obligation" AS ?reason)
+  } UNION {
+    ?obligation tc:obligationState ?state .
+    VALUES ?state { tc:OBLIGATION_SATISFIED tc:NOT_APPLICABLE_WITH_EVIDENCE }
+    FILTER NOT EXISTS { ?obligation tc:hasEvidence ?e . ?e a tc:ClosureEvidence }
+    BIND("terminal-obligation-without-evidence" AS ?reason)
+  } UNION {
+    FILTER NOT EXISTS { ?obligation tc:receiptRequired true }
+    BIND("closure-obligation-without-receipt-requirement" AS ?reason)
+  }
+}
+ORDER BY ?project ?obligation ?reason

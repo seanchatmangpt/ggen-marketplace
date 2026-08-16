@@ -1,0 +1,23 @@
+# MESSAGE: Project closure must install post-project architecture change
+# governance: accountable owner, trigger policy, registration time, evidence.
+PREFIX tc: <http://seanchatmangpt.github.io/packs/chatman-togaf-closure#>
+SELECT ?project ?reason WHERE {
+  ?project a tc:EnterpriseProject ;
+           tc:projectState tc:CLOSED .
+  {
+    FILTER NOT EXISTS {
+      ?project tc:hasChangeWatch ?watch .
+      ?watch a tc:ChangeWatch ;
+             tc:changeWatchState tc:WATCH_REGISTERED ;
+             tc:accountableOwner ?owner ;
+             tc:triggerPolicy ?policy ;
+             tc:registeredAt ?registered ;
+             tc:watchEvidence ?e .
+      FILTER(STRLEN(STR(?owner)) > 0)
+      FILTER(STRLEN(STR(?policy)) > 0)
+      ?e a tc:ClosureEvidence .
+    }
+    BIND("change-watch-not-registered-with-evidence" AS ?reason)
+  }
+}
+ORDER BY ?project ?reason

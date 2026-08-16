@@ -1,0 +1,15 @@
+# MESSAGE: ERRC CREATE is admitted only when it retires existing WIP and is
+# receipt-bound. CREATE cannot be used to manufacture speculative scope.
+PREFIX tc: <http://seanchatmangpt.github.io/packs/chatman-togaf-closure#>
+SELECT ?obligation ?reason WHERE {
+  ?obligation a tc:LifecycleObligation ;
+              tc:errcLane tc:CREATE .
+  {
+    FILTER NOT EXISTS { ?obligation tc:closesWip ?wip . FILTER(STRLEN(STR(?wip)) > 0) }
+    BIND("create-without-existing-wip-retirement" AS ?reason)
+  } UNION {
+    FILTER NOT EXISTS { ?obligation tc:receiptRequired true }
+    BIND("create-without-required-receipt" AS ?reason)
+  }
+}
+ORDER BY ?obligation ?reason

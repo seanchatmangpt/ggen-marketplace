@@ -1,0 +1,34 @@
+# MESSAGE: Replacement/decommission must explicitly disposition consumers,
+# writes, access, data, runtime, cost, and evidence. Each control may be
+# SATISFIED or NOT_APPLICABLE_WITH_EVIDENCE, but omission is not closure.
+PREFIX tc: <http://seanchatmangpt.github.io/packs/chatman-togaf-closure#>
+SELECT ?project ?asset ?kind ?reason WHERE {
+  ?project a tc:EnterpriseProject ;
+           tc:projectState tc:CLOSED ;
+           tc:displacesAsset ?asset .
+  ?asset tc:dispositionDecision tc:REPLACED_AND_DECOMMISSIONED .
+  VALUES ?kind {
+    tc:MIGRATE_CONSUMERS
+    tc:STOP_WRITES
+    tc:REVOKE_ACCESS
+    tc:DISPOSE_DATA
+    tc:DEPROVISION_RUNTIME
+    tc:TERMINATE_COST
+    tc:ARCHIVE_EVIDENCE
+    tc:DECLARE_REPLACEMENT_COMPLETE
+  }
+  {
+    FILTER NOT EXISTS {
+      ?project tc:hasObligation ?o .
+      ?o a tc:LifecycleObligation ;
+         tc:subjectAsset ?asset ;
+         tc:obligationKind ?kind ;
+         tc:obligationState ?state ;
+         tc:hasEvidence ?e .
+      VALUES ?state { tc:OBLIGATION_SATISFIED tc:NOT_APPLICABLE_WITH_EVIDENCE }
+      ?e a tc:ClosureEvidence .
+    }
+    BIND("mandatory-decommission-obligation-not-terminal-with-evidence" AS ?reason)
+  }
+}
+ORDER BY ?project ?asset ?kind

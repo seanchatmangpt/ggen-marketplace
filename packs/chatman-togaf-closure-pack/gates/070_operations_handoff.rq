@@ -1,0 +1,21 @@
+# MESSAGE: A CLOSED project must have an accepted operations handoff with an
+# accountable owner, acceptance timestamp, and retained evidence.
+PREFIX tc: <http://seanchatmangpt.github.io/packs/chatman-togaf-closure#>
+SELECT ?project ?reason WHERE {
+  ?project a tc:EnterpriseProject ;
+           tc:projectState tc:CLOSED .
+  {
+    FILTER NOT EXISTS {
+      ?project tc:hasOperationsHandoff ?handoff .
+      ?handoff a tc:OperationsHandoff ;
+               tc:handoffState tc:OPERATIONS_ACCEPTED ;
+               tc:accountableOwner ?owner ;
+               tc:acceptedAt ?accepted ;
+               tc:handoffEvidence ?e .
+      FILTER(STRLEN(STR(?owner)) > 0)
+      ?e a tc:ClosureEvidence .
+    }
+    BIND("operations-handoff-not-accepted-with-evidence" AS ?reason)
+  }
+}
+ORDER BY ?project ?reason
