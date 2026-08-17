@@ -11,3 +11,87 @@ gc:subject a gc:GenerationSubject ;
     gc:upper_snake "PLATFORM_ENGINEERS_HANDBOOK" ;
     gc:kebab "platform-engineers-handbook" ;
     gc:title "Platform Engineers Handbook" .
+
+# --- Domain modeling (hand-authored, not ggen-create-generated) ---
+# The block above is ggen-create's own auto-scaffold (case-variant strings for the
+# templatization word) and is rewritten verbatim on every `ggen-create generate`. This
+# block models the pack's actual subject matter -- the book's 14 chapters, the platform
+# tools each introduces, and the real defects found verifying Ch09 against a live
+# Crossplane cluster -- and is NOT touched by `ggen-create generate`; re-running that
+# command will not remove it, but will not update it either if chapters/tools/bugs change.
+
+@prefix peh: <https://ggen.io/ontology/platform-engineers-handbook#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+peh:Chapter a rdfs:Class ; rdfs:label "Book chapter" .
+peh:Tool a rdfs:Class ; rdfs:label "Platform tool introduced by a chapter" .
+peh:Defect a rdfs:Class ; rdfs:label "Real, out-of-the-box defect found verifying a chapter" .
+
+peh:introducesTool a rdf:Property ; rdfs:domain peh:Chapter ; rdfs:range peh:Tool .
+peh:hasDefect a rdf:Property ; rdfs:domain peh:Chapter ; rdfs:range peh:Defect .
+peh:fixedIn a rdf:Property ; rdfs:domain peh:Defect ; rdfs:range rdfs:Literal ;
+    rdfs:comment "Path to the file in this pack's templates/ carrying the fix, if fixed." .
+
+peh:ch01 a peh:Chapter ; rdfs:label "Laying the Groundwork" ; peh:number 1 .
+peh:ch02 a peh:Chapter ; rdfs:label "Building the Cluster Foundation" ; peh:number 2 ;
+    peh:introducesTool peh:kind, peh:istio, peh:flux, peh:pulumi .
+peh:ch03 a peh:Chapter ; rdfs:label "Identity, Access, and Policy Guardrails" ; peh:number 3 ;
+    peh:introducesTool peh:keycloak, peh:opa .
+peh:ch04 a peh:Chapter ; rdfs:label "Observability from Day One" ; peh:number 4 ;
+    peh:introducesTool peh:prometheus, peh:loki, peh:tempo, peh:grafana, peh:otel .
+peh:ch05 a peh:Chapter ; rdfs:label "Developer Experience and Golden Paths" ; peh:number 5 .
+peh:ch06 a peh:Chapter ; rdfs:label "The Developer Portal (Backstage)" ; peh:number 6 ;
+    peh:introducesTool peh:backstage .
+peh:ch07 a peh:Chapter ; rdfs:label "Self-Service Onboarding" ; peh:number 7 .
+peh:ch08 a peh:Chapter ; rdfs:label "Progressive Delivery Pipelines" ; peh:number 8 ;
+    peh:introducesTool peh:githubActions .
+peh:ch09 a peh:Chapter ; rdfs:label "Self-Service Infrastructure (Crossplane)" ; peh:number 9 ;
+    peh:introducesTool peh:crossplane ;
+    peh:hasDefect peh:ch09Defect1, peh:ch09Defect2, peh:ch09Defect3, peh:ch09Defect4 .
+peh:ch10 a peh:Chapter ; rdfs:label "Starter Kits and Templates" ; peh:number 10 .
+peh:ch11 a peh:Chapter ; rdfs:label "Policy as Code and Compliance" ; peh:number 11 ;
+    peh:introducesTool peh:gatekeeper, peh:conftest .
+peh:ch12 a peh:Chapter ; rdfs:label "Cost Optimization (FinOps)" ; peh:number 12 ;
+    peh:introducesTool peh:kubecost .
+peh:ch13 a peh:Chapter ; rdfs:label "Resilience, Backup, and Disaster Recovery" ; peh:number 13 ;
+    peh:introducesTool peh:velero, peh:sloth .
+peh:ch14 a peh:Chapter ; rdfs:label "AI-Augmented Platform Engineering" ; peh:number 14 ;
+    peh:hasDefect peh:ch01Defect1 .
+
+peh:kind a peh:Tool ; rdfs:label "Kind" .
+peh:istio a peh:Tool ; rdfs:label "Istio" .
+peh:flux a peh:Tool ; rdfs:label "Flux" .
+peh:pulumi a peh:Tool ; rdfs:label "Pulumi" .
+peh:keycloak a peh:Tool ; rdfs:label "Keycloak" ;
+    rdfs:comment "Book's Preface/Ch3 TOC state Auth0; shipped code uses Keycloak throughout, zero Auth0 references." .
+peh:opa a peh:Tool ; rdfs:label "Open Policy Agent" .
+peh:prometheus a peh:Tool ; rdfs:label "Prometheus" .
+peh:loki a peh:Tool ; rdfs:label "Loki" .
+peh:tempo a peh:Tool ; rdfs:label "Tempo" .
+peh:grafana a peh:Tool ; rdfs:label "Grafana" .
+peh:otel a peh:Tool ; rdfs:label "OpenTelemetry" .
+peh:backstage a peh:Tool ; rdfs:label "Backstage" .
+peh:githubActions a peh:Tool ; rdfs:label "GitHub Actions" .
+peh:crossplane a peh:Tool ; rdfs:label "Crossplane" ; peh:version "2.3.4" .
+peh:gatekeeper a peh:Tool ; rdfs:label "OPA Gatekeeper" .
+peh:conftest a peh:Tool ; rdfs:label "conftest" .
+peh:kubecost a peh:Tool ; rdfs:label "KubeCost" .
+peh:velero a peh:Tool ; rdfs:label "Velero" .
+peh:sloth a peh:Tool ; rdfs:label "Sloth" .
+
+peh:ch01Defect1 a peh:Defect ;
+    rdfs:label "test-platform-config.py asserts 'primary-cloud'; platform-config.yaml defines 'primary-runtime'" ;
+    rdfs:comment "Unforced, unfixed. python3 test-platform-config.py: 1/10 checks fail out of the box." .
+peh:ch09Defect1 a peh:Defect ;
+    rdfs:label "crossplane-providers.yaml applies Provider+ProviderConfig in one shot; ProviderConfig CRD not yet installed" ;
+    rdfs:comment "Not fixed in this pack: requires a documented two-step apply, not a file change." .
+peh:ch09Defect2 a peh:Defect ;
+    rdfs:label "demo-app-database.yaml sets publishConnectionDetailsTo; xrd-postgresql.yaml never declares it" ;
+    peh:fixedIn "templates/0293-xrd_postgresql_yaml-160a53d5dc.tmpl" .
+peh:ch09Defect3 a peh:Defect ;
+    rdfs:label "provider-kubernetes service account has no RBAC to manage composed resource kinds" ;
+    peh:fixedIn "templates/0196-provider_kubernetes_rbac_yaml-b519106e4f.tmpl" .
+peh:ch09Defect4 a peh:Defect ;
+    rdfs:label "Composition declares connectionDetails but function-patch-and-transform:v0.7.0 has no aggregation mechanism for it" ;
+    rdfs:comment "Open. A speculative writeConnectionSecretToRef pipeline-input fix was tried and empirically falsified against this exact pinned function version." .
