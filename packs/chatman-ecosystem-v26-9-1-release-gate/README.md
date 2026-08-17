@@ -26,7 +26,7 @@ The release is not ALIVE because this pack exists. The release crown requires ex
 
 ## Inputs
 
-Copy `release-manifest.example.toml` to `release-manifest.toml` and replace every placeholder SHA with an exact immutable subject. `standing-policy.toml` defines the minimum release-standing and refusal court.
+Copy `release-manifest.example.toml` to `release-manifest.toml` and replace every placeholder SHA with an exact immutable subject observed from the real hub (`~/chatman-ecosystem/ecosystem.lock` for the 9-subject/9-role ecosystem.lock vocabulary this gate targets). The example's repository and role values are drawn from that lock's real vocabulary (`receipt-reference`, `capability-reference`, `process-evidence`, `planner`, `oracle`, `manufacturer`, `certifier`, `semantic-admission`, `actuation-authority`) and its component fields mirror `chatman-ecosystem-release-pack`'s `er:Component` schema so the resulting manifest is checkable by that pack's gates. `standing-policy.toml` defines the minimum release-standing and refusal court.
 
 ## Release rule
 
