@@ -1,5 +1,6 @@
 PREFIX kcf: <http://seanchatmangpt.github.io/packs/knowing-christ-formation#>
 PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
 
 SELECT ?subject ?violation WHERE {
   {
@@ -42,9 +43,21 @@ SELECT ?subject ?violation WHERE {
   {
     ?subject a kcf:FormationProgram ; kcf:hasStep ?step .
     ?step a kcf:FormationStep .
-    VALUES ?property { kcf:order dcterms:title kcf:scriptureRef kcf:practice }
+    VALUES ?property { kcf:order dcterms:title kcf:scriptureRef skos:definition kcf:practice }
     FILTER NOT EXISTS { ?step ?property ?value }
     BIND(CONCAT("formation step missing ", STR(?property)) AS ?violation)
+  }
+  UNION
+  {
+    ?subject a kcf:FormationProgram .
+    VALUES ?code { "solitude" "isolation" "results" }
+    FILTER NOT EXISTS {
+      ?subject kcf:hasPrinciple ?principle .
+      ?principle a kcf:FormationPrinciple ;
+                 kcf:principleCode ?code ;
+                 skos:definition ?definition .
+    }
+    BIND(CONCAT("missing required formation principle ", ?code) AS ?violation)
   }
   UNION
   {
