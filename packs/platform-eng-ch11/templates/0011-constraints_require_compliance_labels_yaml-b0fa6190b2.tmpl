@@ -1,0 +1,45 @@
+---
+to: "constraints/require-compliance-labels.yaml"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:subject a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequireLabels
+metadata:
+  name: require-compliance-labels
+spec:
+  match:
+    kinds:
+      - apiGroups: ["apps"]
+        kinds: ["Deployment"]
+    excludedNamespaces:
+      - gatekeeper-system
+      - kube-system
+      - kube-public
+      - flux-system
+      - opencost
+      - monitoring
+      - crossplane-system
+  enforcementAction: dryrun
+  parameters:
+    requiredLabels:
+      - team
+      - cost-center
+      - compliance-level
+{% endraw %}

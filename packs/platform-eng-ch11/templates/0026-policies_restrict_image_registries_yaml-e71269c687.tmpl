@@ -1,0 +1,133 @@
+---
+to: "policies/restrict-image-registries.yaml"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:subject a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}# OPA Gatekeeper Policy: Restrict Image Registries
+# Only allows container images from approved registries
+# Ensures supply chain security and enables compliance scanning
+
+---
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srestrictimageregistries
+  annotations:
+    description: "Restricts container images to approved registries"
+    examples: |
+      Allowed registries:
+      - gcr.io/my-project
+      - registry.example.com
+      - quay.io/my-org
+
+      Compliant image:
+      image: gcr.io/my-project/myapp:v1.0.0
+
+      Non-compliant image:
+      image: docker.io/library/nginx:latest
+
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRestrictImageRegistries
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            allowedRegistries:
+              type: array
+              items:
+                type: string
+              description: "List of allowed image registries (prefixes)"
+            allowUndeclaredRegistries:
+              type: boolean
+              description: "Allow images without explicit registry (Docker Hub)"
+
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srestrictimageregistries
+
+        # Deny images from unauthorized registries
+        violation[{"msg": msg}] {
+          image := input_images[_]
+          registry := get_registry(image)
+          not is_allowed_registry(registry)
+          msg := sprintf(
+            "Image '%v' is from unauthorized registry. Allowed: %v",
+            [image, input.parameters.allowedRegistries]
+          )
+        }
+
+        # Extract registry from image reference
+        # Image with domain containing a dot (e.g., gcr.io/project/image)
+        get_registry(image) = registry {
+          parts := split(image, "/")
+          count(parts) > 1
+          first := parts[0]
+          contains(first, ".")
+          registry := first
+        }
+
+        # Image with domain containing a port (e.g., registry:5000/image)
+        get_registry(image) = registry {
+          parts := split(image, "/")
+          count(parts) > 1
+          first := parts[0]
+          contains(first, ":")
+          registry := first
+        }
+
+        # No explicit registry (e.g., nginx:latest) -> Docker Hub
+        get_registry(image) = "docker.io" {
+          parts := split(image, "/")
+          count(parts) == 1
+        }
+
+        # Simple name/image (e.g., library/nginx) without domain -> Docker Hub
+        get_registry(image) = "docker.io" {
+          parts := split(image, "/")
+          count(parts) > 1
+          first := parts[0]
+          not contains(first, ".")
+          not contains(first, ":")
+        }
+
+        # Check if registry is in allowed list
+        is_allowed_registry(registry) {
+          allowed := input.parameters.allowedRegistries[_]
+          startswith(registry, allowed)
+        }
+
+        # Get all images from containers
+        input_images[img] {
+          img := input.review.object.spec.containers[_].image
+        }
+
+        # Get images from init containers
+        input_images[img] {
+          img := input.review.object.spec.initContainers[_].image
+        }
+
+        # Get images from ephemeral containers
+        input_images[img] {
+          img := input.review.object.spec.ephemeralContainers[_].image
+        }
+{% endraw %}

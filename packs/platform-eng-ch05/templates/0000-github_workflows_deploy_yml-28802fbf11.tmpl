@@ -1,0 +1,114 @@
+---
+to: ".github/workflows/deploy.yml"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:subject a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}// .github/workflows/deploy.yml
+name: Complete Developer Deployment Experience
+
+# Triggers: push to main/develop runs the full pipeline.
+# Pull requests against main run tests only (no deploy).
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Code checkout
+      # v6 required — v3 is deprecated (uses Node 16, end-of-life).
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          # Fetch full history so the GitOps commit step can push back.
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # 2. Automated testing
+      # npm ci is used instead of npm install: it installs exactly what is
+      # in package-lock.json without modifying it, giving reproducible builds
+      # across all pipeline runs and matching the Dockerfile pattern.
+      - name: Run Tests
+        run: |
+          npm ci
+          npm test
+          npm run lint
+
+      # 2b. SAST — static analysis runs against source before any build or
+      # container step. npm audit checks for known vulnerable dependencies;
+      # CodeQL performs deeper semantic analysis on the application code.
+      # DAST (dynamic analysis against a running instance) runs as a separate
+      # post-deployment job in the staging environment, not here.
+      - name: Dependency vulnerability scan (SAST)
+        run: npm audit --audit-level=high
+
+      - name: CodeQL static analysis (SAST)
+        uses: github/codeql-action/analyze@v3
+        with:
+          languages: javascript
+
+      # 3. Build application
+      - name: Build Application
+        run: |
+          npm run build
+          echo "Build completed at $(date)"
+
+      # 4. Authenticate to container registry
+      # Must happen before docker build/push — unauthenticated pushes to
+      # ghcr.io will fail with 401. GITHUB_TOKEN is automatically scoped
+      # to the current repo and requires no additional secret configuration.
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 5. Container build and push
+      - name: Build and Push Container
+        run: |
+          docker build -t $REGISTRY/$IMAGE_NAME:${{ github.sha }} .
+          docker push $REGISTRY/$IMAGE_NAME:${{ github.sha }}
+
+      # 6. Update Helm values in Git (GitOps pattern)
+      # We never touch the cluster directly. The pipeline updates image.tag
+      # in helm/values.yaml and pushes the change to Git. ArgoCD detects
+      # the diff via its sync policy and reconciles the cluster automatically.
+      # Updating values.yaml (not the raw deployment manifest) keeps the
+      # approach consistent with how ArgoCD is configured in argocd-app.yaml,
+      # which uses Helm valueFiles as its source of truth.
+      # [skip ci] prevents this commit from re-triggering the pipeline.
+      - name: Update Helm values with new image tag
+        run: |
+          NAMESPACE=${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+          yq e -i ".image.tag = \"${{ github.sha }}\"" helm/values.yaml
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add helm/values.yaml
+          git commit -m "chore: update image.tag to ${{ github.sha }} [$NAMESPACE] [skip ci]"
+          git push
+{% endraw %}

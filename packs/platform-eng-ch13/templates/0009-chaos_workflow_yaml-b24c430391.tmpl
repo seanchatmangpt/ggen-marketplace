@@ -1,0 +1,138 @@
+---
+to: "chaos-workflow.yaml"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:subject a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}# Chaos Mesh Workflow - Chained Chaos Experiments
+# Runs pod failure → network delay → recovery verification in sequence
+#
+# Prerequisites:
+#   1. Chaos Mesh installed
+#   2. Target namespace and workloads exist:
+#      kubectl create namespace chaos-testing
+#      kubectl create deployment demo-app --image=nginx:alpine --replicas=3 -n chaos-testing
+
+---
+# Workflow 1: Sequential resilience test (pod kill → network delay)
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Workflow
+metadata:
+  name: resilience-test-workflow
+  namespace: chaos-testing
+spec:
+  entry: resilience-test
+  templates:
+    # Entry: serial execution of steps
+    - name: resilience-test
+      templateType: Serial
+      deadline: "10m"
+      children:
+        - pod-kill-step
+        - network-delay-step
+
+    # Step 1: Kill a pod
+    - name: pod-kill-step
+      templateType: PodChaos
+      deadline: "1m"
+      podChaos:
+        action: pod-kill
+        mode: one
+        selector:
+          namespaces:
+            - chaos-testing
+          labelSelectors:
+            app: demo-app
+
+    # Step 2: Inject network delay
+    - name: network-delay-step
+      templateType: NetworkChaos
+      deadline: "2m"
+      networkChaos:
+        action: delay
+        mode: all
+        selector:
+          namespaces:
+            - chaos-testing
+          labelSelectors:
+            app: demo-app
+        direction: to
+        delay:
+          latency: "100ms"
+          jitter: "10ms"
+
+---
+# Workflow 2: Cascading failure test (parallel pod + network chaos)
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Workflow
+metadata:
+  name: cascading-failure-test
+  namespace: chaos-testing
+spec:
+  entry: cascading-test
+  templates:
+    # Entry: parallel execution then serial verification
+    - name: cascading-test
+      templateType: Serial
+      deadline: "10m"
+      children:
+        - parallel-chaos
+        - verify-recovery
+
+    # Run pod kill and network loss in parallel
+    - name: parallel-chaos
+      templateType: Parallel
+      deadline: "3m"
+      children:
+        - parallel-pod-kill
+        - parallel-network-loss
+
+    - name: parallel-pod-kill
+      templateType: PodChaos
+      deadline: "2m"
+      podChaos:
+        action: pod-kill
+        mode: fixed-percent
+        value: "50"
+        selector:
+          namespaces:
+            - chaos-testing
+          labelSelectors:
+            app: demo-app
+
+    - name: parallel-network-loss
+      templateType: NetworkChaos
+      deadline: "2m"
+      networkChaos:
+        action: loss
+        mode: all
+        selector:
+          namespaces:
+            - chaos-testing
+          labelSelectors:
+            app: demo-app
+        direction: to
+        loss:
+          loss: "10"
+          correlation: "25"
+
+    # After chaos, pause to let pods recover
+    - name: verify-recovery
+      templateType: Suspend
+      deadline: "1m"
+{% endraw %}

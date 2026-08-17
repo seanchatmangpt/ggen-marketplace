@@ -1,0 +1,46 @@
+---
+to: "chaos-network-delay.yaml"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:subject a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}# Chapter 13: NetworkChaos Experiment
+# Listing 13.3 - Chaos Mesh network delay experiment
+# Injects 100ms latency with 10ms jitter to all pods matching the selector
+# in the production namespace. Runs for 5 minutes every Monday at 9 AM.
+
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: api-latency-test
+  namespace: production
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - production
+    labelSelectors:
+      app: api-service
+  delay:
+    latency: "100ms"
+    jitter: "10ms"
+  duration: "5m"
+  scheduler:
+    cron: "0 9 * * 1"  # Every Monday at 9 AM
+{% endraw %}

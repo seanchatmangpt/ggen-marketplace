@@ -1,0 +1,80 @@
+---
+to: "policies/require-labels.yaml"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:subject a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}# OPA Gatekeeper Policy: Require Specific Labels
+# Mandates team, owner, and cost-center labels for cost tracking and ownership
+
+---
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequirelabels
+  annotations:
+    description: "Requires specific labels on all resources"
+    examples: |
+      Required labels:
+      - team
+      - owner
+      - cost-center
+
+      Compliant resource:
+      metadata:
+        labels:
+          team: platform
+          owner: alice@example.com
+          cost-center: "1234"
+
+      Non-compliant resource:
+      metadata:
+        labels:
+          team: platform
+          # Missing owner and cost-center
+
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequireLabels
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            requiredLabels:
+              type: array
+              items:
+                type: string
+              description: "List of required label keys"
+
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequirelabels
+
+        # Deny resources missing required labels
+        violation[{"msg": msg}] {
+          label := input.parameters.requiredLabels[_]
+          not input.review.object.metadata.labels[label]
+          msg := sprintf(
+            "Resource missing required label '%v'. Required labels: %v",
+            [label, input.parameters.requiredLabels]
+          )
+        }
+{% endraw %}

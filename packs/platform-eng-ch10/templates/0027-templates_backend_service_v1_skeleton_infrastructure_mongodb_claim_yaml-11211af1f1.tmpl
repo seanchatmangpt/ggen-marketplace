@@ -1,0 +1,38 @@
+---
+to: "templates/backend-service/v1/skeleton/infrastructure/mongodb-claim.yaml"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:subject a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}apiVersion: database.platform.io/v1alpha1
+kind: MongoDBClaim
+metadata:
+  name: ${{ values.serviceName }}-db
+  namespace: ${{ values.team }}
+spec:
+  parameters:
+    storageGB: 20
+    version: "7.0"
+    tier: development
+    enableBackups: false
+  compositionSelector:
+    matchLabels:
+      provider: kubernetes
+  writeConnectionSecretToRef:
+    name: ${{ values.serviceName }}-db-connection
+{% endraw %}

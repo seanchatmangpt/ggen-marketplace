@@ -1,0 +1,40 @@
+---
+to: ".github/workflows/validate.yml"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:subject a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}# Chapter 11: GitHub Actions Workflow for Policy Validation
+# Listing 11.8 - CI/CD pipeline integration for shift-left policy testing
+# Runs conftest against Kubernetes manifests on every pull request.
+
+name: Policy Validation
+on: [pull_request]
+jobs:
+  conftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install conftest
+        run: |
+          wget -q https://github.com/open-policy-agent/conftest/releases/download/v0.67.0/conftest_0.67.0_Linux_x86_64.tar.gz
+          tar xzf conftest_0.67.0_Linux_x86_64.tar.gz
+          sudo mv conftest /usr/local/bin/
+      - name: Run policy tests
+        run: conftest test manifests/ -p policy/
+{% endraw %}

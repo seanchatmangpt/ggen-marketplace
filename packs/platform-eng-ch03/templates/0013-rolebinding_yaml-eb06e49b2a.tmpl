@@ -1,0 +1,63 @@
+---
+to: "rolebinding.yaml"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:subject a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}# =============================================================================
+# rolebinding.yaml — Bind CI/CD Service Account to Minimal Deployer Role
+# =============================================================================
+# Chapter 3, Step 3: Grants the ci-cd-deployer service account exactly the
+# permissions defined in role-minimal-deployer.yaml, scoped to the staging
+# namespace. No other namespace is affected.
+#
+# Prerequisites:
+#   kubectl apply -f service-account.yaml
+#   kubectl apply -f role-minimal-deployer.yaml
+#
+# Usage:
+#   kubectl apply -f rolebinding.yaml
+#
+# Verify the effective permissions:
+#   kubectl auth can-i --as=system:serviceaccount:staging:ci-cd-deployer \
+#     update deployments -n staging
+#   # Expected: yes
+#
+#   kubectl auth can-i --as=system:serviceaccount:staging:ci-cd-deployer \
+#     create deployments -n staging
+#   # Expected: no
+#
+#   kubectl auth can-i --as=system:serviceaccount:staging:ci-cd-deployer \
+#     get pods -n production
+#   # Expected: no
+# =============================================================================
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-cd-deployer-binding
+  namespace: staging
+subjects:
+  - kind: ServiceAccount
+    name: ci-cd-deployer
+    namespace: staging
+roleRef:
+  kind: Role
+  name: minimal-deployer
+  apiGroup: rbac.authorization.k8s.io
+{% endraw %}

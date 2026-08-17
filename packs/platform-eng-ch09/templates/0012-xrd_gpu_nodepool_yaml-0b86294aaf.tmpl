@@ -1,0 +1,84 @@
+---
+to: "xrd-gpu-nodepool.yaml"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:subject a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}# xrd-gpu-nodepool.yaml
+# Composite Resource Definition for GPU node pools
+# Enables ML teams to request GPU resources with governance controls
+
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: gpunodepools.compute.platform.io
+spec:
+  group: compute.platform.io
+  names:
+    kind: GPUNodePool
+    plural: gpunodepools
+  claimNames:
+    kind: GPUNodePoolClaim
+    plural: gpunodepoolclaims
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                parameters:
+                  type: object
+                  properties:
+                    gpuType:
+                      type: string
+                      description: GPU type
+                      enum: [nvidia-t4, nvidia-a10g, nvidia-a100]
+                      default: nvidia-t4
+                    nodeCount:
+                      type: integer
+                      description: Number of GPU nodes
+                      minimum: 1
+                      maximum: 10
+                      default: 1
+                    spotInstances:
+                      type: boolean
+                      description: Use spot instances for cost savings
+                      default: true
+                    schedulingWindow:
+                      type: object
+                      description: When nodes should be available
+                      properties:
+                        startHour:
+                          type: integer
+                          minimum: 0
+                          maximum: 23
+                        endHour:
+                          type: integer
+                          minimum: 0
+                          maximum: 23
+                        timezone:
+                          type: string
+                          default: UTC
+                  required:
+                    - gpuType
+{% endraw %}

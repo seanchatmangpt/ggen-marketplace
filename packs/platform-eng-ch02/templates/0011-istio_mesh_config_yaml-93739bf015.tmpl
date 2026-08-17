@@ -1,0 +1,289 @@
+---
+to: "istio-mesh-config.yaml"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:subject a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}# Istio Service Mesh Configuration
+# Demonstrates mTLS, traffic policies, and authorization
+#
+# Prerequisites:
+#   - Istio installed via Flux HelmRelease (platform-services.yaml)
+#   - Application namespace exists and labeled: kubectl label namespace application istio-injection=enabled
+
+---
+# PeerAuthentication for strict mTLS enforcement (mesh-wide)
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: istio-system
+spec:
+  mtls:
+    mode: STRICT  # Enforce mTLS for all workloads in the mesh
+
+---
+# PeerAuthentication for application namespace
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: application-mtls
+  namespace: application
+spec:
+  mtls:
+    mode: STRICT
+
+---
+# RequestAuthentication for JWT validation
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+  name: platform-jwt
+  namespace: application
+spec:
+  jwtRules:
+    - issuer: "https://your-auth-provider.com"  # Replace with your issuer
+      jwksUri: "https://your-auth-provider.com/.well-known/jwks.json"
+      audiences:
+        - "platform-api"
+      forwardOriginalToken: true
+
+---
+# AuthorizationPolicy for RBAC - Deny all by default
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-all
+  namespace: application
+spec:
+  rules: []
+
+---
+# AuthorizationPolicy - Allow internal communication
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-internal
+  namespace: application
+spec:
+  rules:
+    # Allow requests from monitoring namespace (Prometheus scraping)
+    - from:
+        - source:
+            namespaces: ["monitoring"]
+      to:
+        - operation:
+            ports: ["8080"]
+    # Allow requests from within the application namespace
+    - from:
+        - source:
+            namespaces: ["application"]
+      to:
+        - operation:
+            methods: ["GET", "POST"]
+            paths: ["/api/*"]
+
+---
+# AuthorizationPolicy for ingress gateway
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-external
+  namespace: istio-system
+spec:
+  rules:
+    # Allow authenticated external traffic
+    - from:
+        - source:
+            principals: ["cluster.local/ns/application/sa/*/"]
+      to:
+        - operation:
+            methods: ["GET", "POST", "PUT", "DELETE"]
+            paths: ["/api/*"]
+    # Allow unauthenticated traffic to health checks
+    - to:
+        - operation:
+            paths: ["/health", "/ready"]
+
+---
+# VirtualService for traffic management
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: platform-api
+  namespace: application
+spec:
+  hosts:
+    - platform-api.application.svc.cluster.local
+  http:
+    # Route 90% to v1, 10% to v2 for canary deployment
+    - match:
+        - uri:
+            prefix: "/api"
+      route:
+        - destination:
+            host: platform-api.application.svc.cluster.local
+            subset: v1
+            port:
+              number: 8080
+          weight: 90
+        - destination:
+            host: platform-api.application.svc.cluster.local
+            subset: v2
+            port:
+              number: 8080
+          weight: 10
+      timeout: 10s
+      retries:
+        attempts: 3
+        perTryTimeout: 2s
+
+---
+# DestinationRule for load balancing and circuit breaking
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: platform-api
+  namespace: application
+spec:
+  host: platform-api.application.svc.cluster.local
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        h2UpgradePolicy: DEFAULT
+        http1MaxPendingRequests: 100
+        maxRequestsPerConnection: 2
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+  subsets:
+    - name: v1
+      labels:
+        version: v1
+      trafficPolicy:
+        loadBalancer:
+          simple: ROUND_ROBIN
+    - name: v2
+      labels:
+        version: v2
+      trafficPolicy:
+        loadBalancer:
+          simple: LEAST_REQUEST
+
+---
+# Gateway for ingress configuration
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: platform-gateway
+  namespace: application
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      tls:
+        mode: SIMPLE
+        credentialName: platform-tls  # Reference secret with cert/key
+      hosts:
+        - "api.platform.example.com"
+        - "*.platform.example.com"
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "*.platform.example.com"
+
+---
+# VirtualService for ingress routing
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: platform-ingress
+  namespace: application
+spec:
+  hosts:
+    - "api.platform.example.com"
+  gateways:
+    - platform-gateway
+  http:
+    - match:
+        - uri:
+            prefix: "/api/v1"
+      route:
+        - destination:
+            host: platform-api.application.svc.cluster.local
+            port:
+              number: 8080
+      corsPolicy:
+        allowOrigins:
+          - exact: "https://app.platform.example.com"
+        allowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+        allowHeaders:
+          - authorization
+          - content-type
+        maxAge: "24h"
+
+---
+# Telemetry for traffic metrics
+apiVersion: telemetry.istio.io/v1
+kind: Telemetry
+metadata:
+  name: platform-telemetry
+  namespace: application
+spec:
+  metrics:
+    - providers:
+        - name: prometheus
+      overrides:
+        - match:
+            metric: ALL_METRICS
+            mode: CLIENT_AND_SERVER
+          tagOverrides:
+            request_path:
+              operation: UPSERT
+              value: "request.url_path"
+  tracing:
+    - providers:
+        - name: jaeger
+      randomSamplingPercentage: 10.0
+
+---
+# ProxyConfig for custom Envoy settings
+apiVersion: networking.istio.io/v1beta1
+kind: ProxyConfig
+metadata:
+  name: proxy-config
+  namespace: application
+spec:
+  concurrency: 2
+  environmentVariables:
+    ISTIO_METRICS_EXPANSION: "true"
+{% endraw %}

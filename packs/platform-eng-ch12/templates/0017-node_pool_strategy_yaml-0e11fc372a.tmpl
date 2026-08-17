@@ -1,0 +1,218 @@
+---
+to: "node-pool-strategy.yaml"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:subject a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}# Chapter 12: Node Pool Strategy Configuration
+# Demonstrates on-demand vs spot node pools using Karpenter v1 NodePool
+# Uses taints/tolerations to isolate workload types
+
+---
+# On-demand pool for critical workloads
+# Uses Karpenter v1 NodePool API
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: on-demand-critical
+  namespace: karpenter
+spec:
+  template:
+    spec:
+      # Taint for critical workloads
+      taints:
+        - key: workload-type
+          value: critical
+          effect: NoSchedule
+
+      # On-demand capacity type for reliability
+      requirements:
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+        - key: karpenter.k8s.aws/instance-family
+          operator: In
+          values: ["m5", "m6i"]
+        - key: karpenter.k8s.aws/instance-size
+          operator: In
+          values: ["xlarge", "2xlarge"]
+
+      labels:
+        pool-type: on-demand
+        workload-type: critical
+        cost-optimization: "false"
+
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: on-demand-critical
+
+  # Node pool scaling limits
+  limits:
+    cpu: 1000
+    memory: 1000Gi
+
+  disruption:
+    expireAfter: 720h
+    consolidateAfter: 30s
+    consolidationPolicy: cost
+
+---
+# Spot instance pool for batch workloads
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: spot-batch
+  namespace: karpenter
+spec:
+  template:
+    spec:
+      # Taint for batch workloads (softer preference)
+      taints:
+        - key: workload-type
+          value: batch
+          effect: PreferNoSchedule
+
+      # Spot instance types for cost optimization
+      requirements:
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["spot"]
+        - key: karpenter.k8s.aws/instance-family
+          operator: In
+          values: ["m5", "m6i", "c5"]
+        - key: karpenter.k8s.aws/instance-size
+          operator: In
+          values: ["large", "xlarge"]
+
+      labels:
+        pool-type: spot
+        workload-type: batch
+        cost-optimization: "true"
+
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: spot-batch
+
+  # Node pool scaling limits
+  limits:
+    cpu: 500
+    memory: 500Gi
+
+  disruption:
+    expireAfter: 720h
+    consolidateAfter: 30s
+    consolidationPolicy: cost
+
+---
+# EC2NodeClass for on-demand critical workloads
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: on-demand-critical
+  namespace: karpenter
+spec:
+  amiFamily: AL2
+  role: KarpenterNodeRole
+  subnetSelector:
+    karpenter.sh/discovery: "true"
+  securityGroupSelector:
+    karpenter.sh/discovery: "true"
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 100Gi
+        volumeType: gp3
+        deleteOnTermination: true
+
+---
+# EC2NodeClass for spot batch workloads
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: spot-batch
+  namespace: karpenter
+spec:
+  amiFamily: AL2
+  role: KarpenterNodeRole
+  subnetSelector:
+    karpenter.sh/discovery: "true"
+  securityGroupSelector:
+    karpenter.sh/discovery: "true"
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 80Gi
+        volumeType: gp3
+        deleteOnTermination: true
+
+---
+# Example pod with toleration for critical on-demand workloads
+apiVersion: v1
+kind: Pod
+metadata:
+  name: critical-app
+  namespace: default
+spec:
+  containers:
+    - name: app
+      image: myapp:latest
+  tolerations:
+    - key: workload-type
+      operator: Equal
+      value: critical
+      effect: NoSchedule
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: pool-type
+                operator: In
+                values:
+                  - on-demand
+
+---
+# Example pod with toleration for batch spot workloads
+apiVersion: v1
+kind: Pod
+metadata:
+  name: batch-job
+  namespace: default
+spec:
+  containers:
+    - name: batch-processor
+      image: batch-processor:latest
+  tolerations:
+    - key: workload-type
+      operator: Equal
+      value: batch
+      effect: PreferNoSchedule
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 50
+          preference:
+            matchExpressions:
+              - key: pool-type
+                operator: In
+                values:
+                  - spot
+{% endraw %}

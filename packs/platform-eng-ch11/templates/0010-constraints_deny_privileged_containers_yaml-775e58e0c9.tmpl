@@ -1,0 +1,48 @@
+---
+to: "constraints/deny-privileged-containers.yaml"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:subject a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sDenyPrivilegedContainers
+metadata:
+  name: deny-privileged-containers
+spec:
+  match:
+    excludedNamespaces:
+      - gatekeeper-system
+      - kube-system
+      - kube-public
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+      - apiGroups: ["apps"]
+        kinds: ["Deployment", "DaemonSet", "StatefulSet"]
+      - apiGroups: ["batch"]
+        kinds: ["Job", "CronJob"]
+
+  parameters:
+    # Exempt system images that legitimately need privilege
+    exemptImages:
+      - gcr.io/gke-release/
+      - docker.io/library/pause
+      - k8s.gcr.io/pause
+
+  enforcementAction: dryrun
+{% endraw %}
