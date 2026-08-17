@@ -1,0 +1,67 @@
+PREFIX kcf: <http://seanchatmangpt.github.io/packs/knowing-christ-formation#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+
+SELECT ?subject ?violation WHERE {
+  {
+    ?subject a kcf:FormationProgram .
+    FILTER NOT EXISTS { ?subject kcf:goal "know_christ" }
+    BIND("formation program goal must be know_christ" AS ?violation)
+  }
+  UNION
+  {
+    ?subject a kcf:FormationProgram .
+    FILTER NOT EXISTS { ?subject kcf:authority "CONSTRUCT_ONLY_NO_DO" }
+    BIND("formation program must remain CONSTRUCT_ONLY_NO_DO" AS ?violation)
+  }
+  UNION
+  {
+    ?subject a kcf:FormationProgram .
+    VALUES ?requiredOrder { 1 2 3 4 5 6 7 8 9 10 11 12 }
+    FILTER NOT EXISTS {
+      ?subject kcf:hasStep ?step .
+      ?step a kcf:FormationStep ; kcf:order ?requiredOrder .
+    }
+    BIND(CONCAT("missing required formation order ", STR(?requiredOrder)) AS ?violation)
+  }
+  UNION
+  {
+    ?subject a kcf:FormationProgram ; kcf:hasStep ?step .
+    ?step a kcf:FormationStep ; kcf:order ?order .
+    FILTER(?order < 1 || ?order > 12)
+    BIND(CONCAT("formation step order outside 1..12: ", STR(?order)) AS ?violation)
+  }
+  UNION
+  {
+    ?subject a kcf:FormationProgram ; kcf:hasStep ?left, ?right .
+    ?left a kcf:FormationStep ; kcf:order ?order .
+    ?right a kcf:FormationStep ; kcf:order ?order .
+    FILTER(STR(?left) < STR(?right))
+    BIND(CONCAT("duplicate formation order ", STR(?order)) AS ?violation)
+  }
+  UNION
+  {
+    ?subject a kcf:FormationProgram ; kcf:hasStep ?step .
+    ?step a kcf:FormationStep .
+    VALUES ?property { kcf:order dcterms:title kcf:scriptureRef kcf:practice }
+    FILTER NOT EXISTS { ?step ?property ?value }
+    BIND(CONCAT("formation step missing ", STR(?property)) AS ?violation)
+  }
+  UNION
+  {
+    ?subject a kcf:FormationProgram .
+    VALUES ?code {
+      "NO_CONVERSION_SCORE"
+      "NO_SPIRITUAL_LEADERBOARD"
+      "NO_RECOGNITION_AS_GOAL"
+      "NO_PROSPERITY_FORMULA"
+      "NO_AI_REVELATION_CLAIMS"
+      "NO_PASTORAL_AUTHORITY"
+      "NO_PRIVATE_CONFESSION_STORAGE"
+    }
+    FILTER NOT EXISTS {
+      ?subject kcf:forbids ?fence .
+      ?fence a kcf:SafetyFence ; kcf:fenceCode ?code .
+    }
+    BIND(CONCAT("missing required formation fence ", ?code) AS ?violation)
+  }
+}
