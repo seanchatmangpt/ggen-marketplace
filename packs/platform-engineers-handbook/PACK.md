@@ -21,10 +21,11 @@ doesn't exist past Ch02). The 13 discarded chapter READMEs are restored under
 `chapter-readmes/INDEX.md`, so the per-chapter "Code-to-Chapter Mapping" context isn't
 silently lost.
 
-294 templated files: 300 source files, minus 21 lost to the collisions above, minus 1
+295 templated files: 300 source files, minus 21 lost to the collisions above, minus 1
 excluded (`templates/backend-service/v1/skeleton/.github/workflows/ci.yml` — contains a
-literal Tera `{% raw %}` sentinel `ggen-create` fails closed on), plus 15 added back
-(13 chapter READMEs, 1 index, 1 RBAC fix — see below).
+literal Tera `{% raw %}` sentinel `ggen-create` fails closed on), plus 17 added back
+(13 chapter READMEs, 1 index, 1 RBAC fix, 1 split-out ProviderConfig file, 1 net-new file
+from splitting `crossplane-providers.yaml` into two — see below).
 
 ## Templatization
 
@@ -38,7 +39,7 @@ qualified reference snapshot, not a scaffold/template-generator pack.
 
 ## Fixes applied (deviations from the published book)
 
-Two real, out-of-the-box bugs in Ch09's manifests were found by standing up real Kind +
+Three real, out-of-the-box bugs in Ch09's manifests were found by standing up real Kind +
 Crossplane clusters, and are fixed **in this pack's shipped content** (not just diagnosed):
 
 1. **`xrd-postgresql.yaml`** now declares `spec.publishConnectionDetailsTo` in the claim's
@@ -52,16 +53,24 @@ Crossplane clusters, and are fixed **in this pack's shipped content** (not just 
    `provider-kubernetes`'s revision-hashed service account name. Without it, every composed
    object (Namespace, PVC, Deployment, Service) fails with a `Forbidden` RBAC error and the
    claim never reaches `Ready`.
+3. **`crossplane-providers.yaml`/`crossplane-provider-configs.yaml`** (split from one file
+   into two, not in the book). The book's original single file applies `Provider` and
+   `ProviderConfig` together; `ProviderConfig`'s CRD doesn't exist until its `Provider`
+   package finishes installing, so applying both in one `kubectl apply` on a fresh cluster
+   fails the `ProviderConfig` half with `no matches for kind "ProviderConfig"`.
+   `crossplane-providers.yaml` now contains only `Provider`/`DeploymentRuntimeConfig`/
+   `Function` (safe to apply immediately); `crossplane-provider-configs.yaml` contains the
+   `ProviderConfig`s, to be applied only after both providers reach `Healthy` — both files'
+   header comments document the required order and the exact `kubectl wait` commands.
 
-Both were reverified end-to-end on a disposable Kind cluster after being ported into this
-pack: `kubectl apply -f demo-app-database.yaml` succeeds, the claim reaches `Ready: True`
-on the first status check, all 5 composed objects `Synced: True / Ready: True`.
+All three were reverified together end-to-end on a disposable Kind cluster after being
+ported into this pack: the documented two-step `crossplane-providers.yaml` →
+`kubectl wait --for=condition=Healthy` → `crossplane-provider-configs.yaml` sequence applies
+with zero errors, then `kubectl apply -f demo-app-database.yaml` succeeds, the claim reaches
+`Ready: True` on the first status check, all 5 composed objects `Synced: True / Ready: True`.
 
-Two known issues remain **unfixed**, on purpose:
+One known issue remains **unfixed**, on purpose:
 
-- `crossplane-providers.yaml` applies `Provider` and `ProviderConfig` in one file; the
-  `ProviderConfig` half fails until its `Provider` package reaches `Healthy`. This needs a
-  documented two-step apply order, not a file change — left as-is, noted here.
 - The Composition declares `connectionDetails` on composed resources, but
   `function-patch-and-transform:v0.7.0` (the exact version pinned in
   `crossplane-providers.yaml`) has no `writeConnectionSecretToRef`-style aggregation
