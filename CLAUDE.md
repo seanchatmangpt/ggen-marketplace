@@ -4,93 +4,113 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repository is
 
-The canonical repository of reusable **ggen packs** — ontology-backed manufacturing/semantic
-bundles consumed by the [ggen](https://github.com/seanchatmangpt/ggen) code-generation runtime.
-A pack's manifest declares identity, RDF (`.ttl`) states admitted facts, templates (`.tmpl`/
-`.tera`) may project those facts into consumer artifacts, and gates (`.rq` SPARQL / `.py`) may
-refuse invalid inputs or verify pack-specific invariants. **Generated consumer files are
-consequences of a pack; they are not a second source of truth and do not belong in this repo.**
+The canonical corpus of reusable **ggen packs**. A pack is an ontology-backed manufacturing bundle:
+`pack.toml` declares identity, RDF (Turtle) states admitted facts, templates may project those facts
+into consumer artifacts, and gates may refuse invalid inputs or verify pack-specific invariants.
+Generated consumer files are consequences of a pack; they are not a second source of truth and are
+not committed here.
 
-`packs/` (82 packs) is the canonical, admitted corpus. There is also a `packages/` directory
-(currently just `vision-2030-capability-generator`) from a separate branch of work — it does
-**not** conform to the `packs/` contract and is not read by `scripts/marketplace.py`; treat it as
-a distinct, not-yet-integrated surface rather than assuming marketplace tooling covers it.
+The ggen runtime itself lives elsewhere; this repo owns pack **source** and marketplace **documentation**
+only. `python3 scripts/marketplace.py validate/catalog/fingerprint` proves marketplace admission and
+deterministic catalog projection — it does **not** prove generated consumer behavior, external-system
+behavior, or live-cloud authority. Read `AGENTS.md` before making structural changes; it is the
+authoritative source hierarchy and discipline list.
 
 ## Commands
 
-Validate/qualify a pack change (run in this order, from repo root, Python 3.11+):
-
 ```bash
-python3 scripts/marketplace.py validate                        # schema + Diátaxis doc presence
-python3 scripts/marketplace.py catalog > /tmp/catalog-a.json    # deterministic catalog projection
-python3 scripts/marketplace.py catalog > /tmp/catalog-b.json    # run twice, must be byte-identical
-cmp /tmp/catalog-a.json /tmp/catalog-b.json
-python3 scripts/marketplace.py fingerprint                      # content fingerprint of admitted corpus
-```
+# Core validation loop (run before any PR)
+python3 scripts/marketplace.py validate
+python3 scripts/marketplace.py catalog > /tmp/catalog-a.json
+python3 scripts/marketplace.py catalog > /tmp/catalog-b.json
+cmp /tmp/catalog-a.json /tmp/catalog-b.json      # catalog projection must be deterministic
+python3 scripts/marketplace.py fingerprint
 
-Full qualification (admits `marketplace.toml` through `star-toml`, installs the pinned ggen
-binary, and runs every pack through it — mirrors CI):
-
-```bash
+# marketplace.toml must be admitted through star-toml before installer/qualification scripts run
 bash scripts/admit-config.sh marketplace.toml /tmp/ggen-marketplace-admitted.json
 GGEN_MARKETPLACE_ADMITTED_CONFIG=/tmp/ggen-marketplace-admitted.json \
   bash scripts/qualify-marketplace.sh /tmp/ggen-marketplace-admitted.json /tmp/ggen-marketplace-qualification.json
+
+# Python test suite (pytest, tests/ + scripts/test_*.py)
+python3 -m pytest tests/ scripts/
+python3 -m pytest tests/test_marketplace.py -k some_test   # single test
+
+# Per-pack qualification against a real ggen runtime
+python3 scripts/qualify_packs.py
+
+# Consume a pack from a local checkout (in a consumer project's ggen.toml):
+#   [packs]
+#   <pack-name> = { path = "../ggen-marketplace/packs/<pack-name>" }
+# then: ggen sync run
 ```
 
-`admit-config.sh` builds `tools/marketplace-config` (a Rust binary depending on a pinned
-`star-toml` git revision) to parse and admit `marketplace.toml` — that crate is the only Rust
-code in the repo and exists solely to gate the marketplace's own config, not to run packs.
-
-There is no single test suite to invoke with a test runner; correctness is proven by the
-validate → catalog(x2) → fingerprint → qualify pipeline above, plus (when generation behavior
-changes) exercising the affected pack with a real ggen runtime against an isolated consumer
-project — CI/marketplace validation alone does not prove that.
+If a pack's generation behavior changes, marketplace CI is not sufficient evidence — also exercise it
+with the matching ggen runtime against an isolated consumer project (replay/idempotency where
+applicable).
 
 ## Architecture
 
-- **`marketplace.toml`** — marketplace operational law (qualification worker/timeout bounds, the
-  pinned ggen release + per-platform archive SHA-256s). Treated as raw/untrusted until
-  `star-toml` admits it (`q_config=1` + witness); values here must never be duplicated by hand in
-  shell/Python.
-- **`packs/<name>/`** — one pack per directory, directory name must equal `[pack].name` in
-  `pack.toml` (SemVer `version`, non-empty `description`). No symlinks are permitted anywhere
-  under `packs/` (path-safety refusal in the validator).
-  - `pack.toml` — identity manifest (required).
-  - `*.ttl` at pack root, or recursively under `ontology/` — admitted RDF facts (at least one
-    required). Simple packs use one `ontology.ttl`; larger project packs split RDF under
-    `ontology/`.
-  - `templates/*.tmpl` / `*.tera` — optional projection templates.
-  - `gates/*.rq` — optional native SPARQL refusal gates; `gates/*.py` — optional pack-owned
-    verifier gates for checks a SPARQL gate can't express.
-  - `ggen.toml` — its presence marks a **project**-profile pack (self-contained ggen project).
-- **Pack profile** is derived, not declared: `project` if `ggen.toml` exists, else `projection`
-  if templates exist, else `semantic`. Profile is packaging shape only, not execution standing.
-- **`scripts/marketplace.py`** — the local-first acceptance calculus: walks `packs/`, validates
-  every manifest/RDF/template/gate against the contract above plus required Diátaxis doc
-  presence, and derives (never hand-maintains) the catalog and a content fingerprint.
-- **`docs/`** — strict [Diátaxis](https://diataxis.fr/) quadrants, each with a required-file list
-  enforced by `marketplace.py validate` (`REQUIRED_DOCS`): `tutorials/` (learning), `how-to/`
-  (task recipes), `reference/` (exact contracts — start with `docs/reference/pack-contract.md`
-  and `docs/reference/repository-layout.md`), `explanation/` (rationale). Never collapse these
-  into the README.
-- **`.github/workflows/ci.yml`** — a read-only wrapper around the exact local commands above; it
-  asserts it's qualifying the exact PR head SHA and refuses if qualification mutates the
-  checkout. It cannot rewrite or push pack corrections.
+### Pack profiles (`packs/<name>/`)
 
-## Working discipline (from AGENTS.md / CONTRIBUTING.md)
+Every admitted pack requires `pack.toml` (SemVer, non-empty description), and at least one RDF Turtle
+source at the pack root or under `ontology/`. `scripts/marketplace.py`'s `Pack.profile` derives the
+profile structurally rather than from a declared field:
 
-- Work on a purpose branch; never commit directly to `main`.
-- One coherent change per contribution: add/update a pack, improve the marketplace contract, or
-  improve one documentation need — not a mix.
-- Never hand-maintain a second pack catalog; it is always `scripts/marketplace.py catalog`
-  output.
-- Never introduce `generated/` as a source namespace for marketplace metadata — generated
-  consumer output is not pack source.
-- When a pack's generation behavior changes, marketplace CI passing is not sufficient evidence;
-  additionally validate with the matching ggen runtime against an isolated consumer project.
-- When the marketplace contract changes, update every affected Diátaxis page and governance
-  surface (`AGENTS.md`, `CONTRIBUTING.md`, `SECURITY.md`, relevant `docs/reference/*.md`) in the
-  same change.
-- Preserve exact provenance when moving pack source between repositories (see `MIGRATION.md`
-  and `docs/reference/provenance.md` — the initial corpus was imported byte-for-byte from
-  `seanchatmangpt/ggen` at a pinned commit).
+- **project** — has `ggen.toml` at its root (a self-contained ggen project: RDF, optional
+  templates/rules/queries, pack-owned verification).
+- **projection** — has `.tmpl`/`.tera` templates (manifest + RDF + templates projecting facts into
+  consumer artifacts).
+- **semantic** — everything else (manifest + RDF, optional gates/catalogs, no template requirement).
+
+The directory name must equal `[pack].name`. `[pack]` itself is deserialized by the real ggen loader
+with deny-unknown-fields — it admits **only** `name`/`version`/`description`; any additional key or
+sub-table (e.g. lifecycle metadata) is refused at pack-load time even though `marketplace.py`'s own
+cataloging is more lenient about extension tables. See `packs/clap-noun-verb-pack/pack.toml` for the
+documented example of this gap.
+
+Gates (`.rq` SPARQL or `.py`) may refuse invalid facts before generation; they live inside the pack
+boundary, not centrally.
+
+### Marketplace control plane vs. generation contracts
+
+`marketplace.toml` declares marketplace-wide operational law (release tag, qualification worker
+counts, timeout bounds, ggen release digests) and is executable only after admission through
+`star-toml`/`admit-config.sh` — never hand-duplicate these values in shell/Python. Pack-level
+`ggen.toml` files are ggen generation contracts; they are not part of the marketplace control plane.
+
+### `scripts/marketplace.py` — local-first acceptance calculus
+
+Single-file CLI (`argparse`, stdlib `tomllib` only — Python 3.11+) with four operations:
+`validate`, `catalog`, `archive`, `fingerprint`. `inspect_marketplace()` walks `packs/`, builds a
+`Pack` dataclass per directory, and is the shared source for all four commands — the catalog is a
+deterministic **projection** over that walk (hence the a/b/cmp determinism check), not a
+hand-maintained file. `catalog_record()` also computes a `sha256` digest over a synthesized pack
+archive and a `download_url` pointing at this repo's rolling `packs` GitHub Release.
+
+`REQUIRED_DOCS` in that file is the authoritative list of Diátaxis pages that must exist for the
+marketplace itself to validate — check it before adding/removing top-level docs.
+
+### Documentation — Diátaxis, strictly separated
+
+- `docs/tutorials/` — learning journeys (start: `docs/tutorials/first-pack.md`)
+- `docs/how-to/` — task recipes (e.g. `docs/how-to/publish-a-pack.md`)
+- `docs/reference/` — exact contracts (e.g. `docs/reference/pack-contract.md`)
+- `docs/explanation/` — architecture/rationale (e.g. `docs/explanation/why-a-separate-marketplace.md`)
+
+Do not collapse these into one README; when the marketplace contract changes, update every affected
+page across all four quadrants in the same change.
+
+### Provenance
+
+The initial corpus was imported byte-for-byte from `seanchatmangpt/ggen`; see `MIGRATION.md`.
+Preserve exact provenance when moving pack source between repositories, and never commit
+consumer-generated corrections as a substitute for fixing a pack's admitted RDF/template/gate/project
+source.
+
+## Working rules specific to this repo
+
+- Branch before editing; never write directly to `main`.
+- Never hand-maintain a second catalog — regenerate via `scripts/marketplace.py catalog`.
+- Never introduce `generated/` as a source namespace for marketplace metadata.
+- No symlinks under `packs/` — packs must be self-contained and path-safe.
+- PR CI is read-only evidence; it must not rewrite or push pack corrections.

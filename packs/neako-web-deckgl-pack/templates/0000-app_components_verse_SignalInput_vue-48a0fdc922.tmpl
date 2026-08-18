@@ -1,0 +1,577 @@
+---
+to: "app/components/{{ row.lower }}/SignalInput.vue"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:gc_subject_neako_web_deckgl_pack a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}<!-- components/{% endraw %}{{ row.lower }}{% raw %}/SignalInput.vue -->
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import type { Signal } from '~/types/{% endraw %}{{ row.lower }}{% raw %}'
+
+// Props
+interface Props {
+  disabled?: boolean
+  compact?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  disabled: false,
+  compact: false
+})
+
+// Emits
+const emit = defineEmits<{
+  signalCreated: [signal: Signal]
+}>()
+
+// State
+const inputText = ref('')
+const selectedType = ref<Signal['type']>('offer')
+const isRecording = ref(false)
+const isProcessing = ref(false)
+const recordingTime = ref(0)
+const recordingInterval = ref<NodeJS.Timeout | null>(null)
+
+// Available signal types
+const signalTypes = [
+  { value: 'offer', label: 'Offer', color: '#4ecdc4' },
+  { value: 'request', label: 'Request', color: '#ff6b6b' },
+  { value: 'update', label: 'Update', color: '#45b7d1' },
+  { value: 'invitation', label: 'Invitation', color: '#96ceb4' },
+  { value: 'opportunity', label: 'Opportunity', color: '#feca57' },
+  { value: 'reflection', label: 'Reflection', color: '#ff9ff3' }
+] as const
+
+// Computed
+const canSubmit = computed(() => {
+  return (
+    !props.disabled && !isProcessing.value && inputText.value.trim().length > 0
+  )
+})
+
+const recordingTimeFormatted = computed(() => {
+  const minutes = Math.floor(recordingTime.value / 60)
+  const seconds = recordingTime.value % 60
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+})
+
+// Methods
+const startRecording = async () => {
+  if (isRecording.value || props.disabled) return
+
+  try {
+    // Check if browser supports speech recognition
+    if (
+      !('webkitSpeechRecognition' in window)
+      && !('SpeechRecognition' in window)
+    ) {
+      alert('Speech recognition not supported in this browser')
+      return
+    }
+
+    isRecording.value = true
+    recordingTime.value = 0
+    isProcessing.value = true
+
+    // Start recording timer
+    recordingInterval.value = setInterval(() => {
+      recordingTime.value++
+    }, 1000)
+
+    // Initialize speech recognition
+    const SpeechRecognition
+      = window.SpeechRecognition || window.webkitSpeechRecognition
+    const recognition = new SpeechRecognition()
+
+    recognition.continuous = false
+    recognition.interimResults = false
+    recognition.lang = 'en-US'
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript
+      inputText.value = transcript
+      stopRecording()
+    }
+
+    recognition.onerror = (event) => {
+      console.error('Speech recognition error:', event.error)
+      stopRecording()
+      alert('Speech recognition failed. Please try again.')
+    }
+
+    recognition.onend = () => {
+      stopRecording()
+    }
+
+    recognition.start()
+  } catch (error) {
+    console.error('Error starting speech recognition:', error)
+    stopRecording()
+    alert('Failed to start speech recognition')
+  }
+}
+
+const stopRecording = () => {
+  if (!isRecording.value) return
+
+  isRecording.value = false
+  isProcessing.value = false
+
+  if (recordingInterval.value) {
+    clearInterval(recordingInterval.value)
+    recordingInterval.value = null
+  }
+}
+
+const submitSignal = async () => {
+  if (!canSubmit.value) return
+
+  isProcessing.value = true
+
+  try {
+    // Create signal object
+    const signal: Signal = {
+      id: `signal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      entityId: 'user-1', // Default user entity
+      type: selectedType.value,
+      content: inputText.value.trim(),
+      tags: extractTags(inputText.value),
+      timestamp: new Date()
+    }
+
+    // Emit signal
+    emit('signalCreated', signal)
+
+    // Reset form
+    inputText.value = ''
+    selectedType.value = 'offer'
+  } catch (error) {
+    console.error('Error creating signal:', error)
+    alert('Failed to create signal. Please try again.')
+  } finally {
+    isProcessing.value = false
+  }
+}
+
+const extractTags = (text: string): string[] => {
+  // Simple tag extraction based on common keywords
+  const commonTags = [
+    'development',
+    'design',
+    'business',
+    'marketing',
+    'finance',
+    'legal',
+    'technology',
+    'innovation',
+    'networking',
+    'collaboration',
+    'startup',
+    'funding',
+    'investment',
+    'strategy',
+    'research',
+    'operations'
+  ]
+
+  const words = text.toLowerCase().split(/\s+/)
+  return commonTags.filter(tag => words.some(word => word.includes(tag)))
+}
+
+const handleKeyPress = (event: KeyboardEvent) => {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault()
+    submitSignal()
+  }
+}
+</script>
+
+<template>
+  <div class="signal-input" :class="{ compact: compact }">
+    <div v-if="!compact" class="input-header">
+      <h3 class="input-title">
+        Create Signal
+      </h3>
+      <p class="input-subtitle">
+        Share an offer, request, or opportunity
+      </p>
+    </div>
+
+    <div class="input-form">
+      <!-- Signal Type Selection -->
+      <div v-if="!compact" class="type-selection">
+        <label class="type-label">Signal Type</label>
+        <div class="type-buttons">
+          <button
+            v-for="type in signalTypes"
+            :key="type.value"
+            :class="['type-button', { active: selectedType === type.value }]"
+            :disabled="disabled || isProcessing"
+            @click="selectedType = type.value"
+          >
+            {{ type.label }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Text Input -->
+      <div class="text-input">
+        <textarea
+          v-model="inputText"
+          :disabled="disabled || isProcessing"
+          :placeholder="
+            compact
+              ? 'What are you manifesting?'
+              : `Describe your ${selectedType}...`
+          "
+          :rows="compact ? 2 : 3"
+          class="text-area"
+          @keypress="handleKeyPress"
+        />
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="action-buttons">
+        <div class="button-group">
+          <!-- Microphone Button -->
+          <button
+            :class="['mic-button', { recording: isRecording }]"
+            :disabled="disabled || isProcessing"
+            @click="isRecording ? stopRecording() : startRecording()"
+          >
+            <svg
+              v-if="!isRecording"
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+              />
+            </svg>
+            <svg
+              v-else
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
+              />
+            </svg>
+            {{ isRecording ? `Stop (${recordingTimeFormatted})` : "Record" }}
+          </button>
+
+          <!-- Submit Button -->
+          <button
+            :class="['submit-button', { disabled: !canSubmit }]"
+            :disabled="!canSubmit"
+            @click="submitSignal"
+          >
+            <span v-if="isProcessing">Creating...</span>
+            <span v-else>{{ compact ? "Send" : "Create Signal" }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Processing Indicator -->
+      <div v-if="isProcessing" class="processing-indicator">
+        <div class="processing-content">
+          <div class="processing-spinner" />
+          <span>Processing...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.signal-input {
+  background-color: #ffffff;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+  padding: 1.5rem;
+}
+
+.signal-input.compact {
+  padding: 1rem;
+  background-color: transparent;
+  border: 1px solid #333;
+}
+
+.input-header {
+  margin-bottom: 1.5rem;
+}
+
+.input-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 0.5rem 0;
+}
+
+.input-subtitle {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+.input-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.type-selection {
+  margin-bottom: 1rem;
+}
+
+.type-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.type-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.type-button {
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease-in-out;
+  background-color: #f3f4f6;
+  color: #374151;
+  border: none;
+  cursor: pointer;
+}
+
+.type-button:hover {
+  background-color: #e5e7eb;
+}
+
+.type-button.active {
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
+.type-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.text-input {
+  margin-bottom: 1rem;
+}
+
+.text-area {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  outline: none;
+  resize: none;
+  font-family: inherit;
+}
+
+.text-area:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.text-area:disabled {
+  background-color: #f9fafb;
+  color: #6b7280;
+}
+
+.action-buttons {
+  margin-bottom: 1rem;
+}
+
+.button-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.mic-button {
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease-in-out;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: #f3f4f6;
+  color: #374151;
+  border: none;
+  cursor: pointer;
+}
+
+.mic-button:hover {
+  background-color: #e5e7eb;
+}
+
+.mic-button.recording {
+  background-color: #ef4444;
+  color: #ffffff;
+}
+
+.mic-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.submit-button {
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease-in-out;
+  background-color: #3b82f6;
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+}
+
+.submit-button:hover {
+  background-color: #2563eb;
+}
+
+.submit-button.disabled {
+  background-color: #d1d5db;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+.processing-indicator {
+  margin-top: 1rem;
+}
+
+.processing-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.processing-spinner {
+  animation: spin 1s linear infinite;
+  border-radius: 50%;
+  height: 1rem;
+  width: 1rem;
+  border: 2px solid #3b82f6;
+  border-top: 2px solid transparent;
+}
+
+/* Compact mode styles */
+.signal-input.compact .input-title {
+  color: #fff;
+}
+
+.signal-input.compact .input-subtitle {
+  color: #ccc;
+}
+
+.signal-input.compact .type-label {
+  color: #ccc;
+}
+
+.signal-input.compact .text-area {
+  background-color: #2a2a2a;
+  border-color: #444;
+  color: #fff;
+}
+
+.signal-input.compact .text-area:focus {
+  border-color: #3b82f6;
+}
+
+.signal-input.compact .text-area::placeholder {
+  color: #999;
+}
+
+.signal-input.compact .mic-button {
+  background-color: #333;
+  color: #ccc;
+}
+
+.signal-input.compact .mic-button:hover {
+  background-color: #444;
+}
+
+.signal-input.compact .submit-button {
+  background-color: #3b82f6;
+  color: #fff;
+}
+
+.signal-input.compact .submit-button:hover {
+  background-color: #2563eb;
+}
+
+.signal-input.compact .processing-content {
+  color: #ccc;
+}
+
+/* Animations */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.recording {
+  animation: pulse 1s ease-in-out infinite;
+}
+</style>
+{% endraw %}

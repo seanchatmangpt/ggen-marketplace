@@ -1,0 +1,747 @@
+---
+to: "phage-backend.js"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:gc_subject_phage_wars_3_react_pack a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}/* phage-backend.js — AUTO-BUNDLED, dependency-ordered, each part scoped.
+   mock (window.SupabaseMock) -> config (window.SupabaseConfig) -> hooks (window.SupabaseReact, gated on React).
+   Swap supabase-mock for @supabase/supabase-js and the hooks are unchanged. */
+
+/* ===== supabase-mock.js ===== */
+;(function(){
+/* =====================================================================
+   supabase-mock.js
+   A faithful, dependency-free MOCK of the supabase-js v2 client.
+
+   Implements the full capability surface so application code can be
+   written exactly as it would against real Supabase, then swapped to
+   the real `@supabase/supabase-js` by changing one import:
+
+     • Auth        signUp / signInWithPassword / signInWithOAuth /
+                   signInWithOtp / signOut / getSession / getUser /
+                   onAuthStateChange / updateUser
+     • Database    .from(t).select/insert/update/upsert/delete + filters
+                   (eq, neq, gt, gte, lt, lte, like, ilike, in, is, contains),
+                   order / limit / range / single / maybeSingle, count
+     • RPC         .rpc(fn, args)  — server-side functions (registry)
+     • Realtime    .channel(name).on('postgres_changes' | 'broadcast' |
+                   'presence', …).subscribe() / .send() / .track()
+     • Storage     .storage.from(bucket).upload/download/list/remove/
+                   getPublicUrl/createSignedUrl
+     • Edge Funcs  .functions.invoke(name, { body })
+
+   Persistence: localStorage (namespaced). Cross-tab realtime: BroadcastChannel
+   with a storage-event fallback. Everything is synchronous under the hood but
+   exposed through the same thenable/Promise API as the real client.
+   ===================================================================== */
+
+const NS = 'pw_sb_v2::';
+const nowISO = () => new Date().toISOString();
+const uid = () => 'id_' + Math.random().toString(36).slice(2, 11) + Date.now().toString(36);
+
+/* ----------------------------- storage io ----------------------------- */
+function lsGet(key, fallback) {
+  try { const v = localStorage.getItem(NS + key); return v == null ? fallback : JSON.parse(v); }
+  catch (_) { return fallback; }
+}
+function lsSet(key, val) {
+  try { localStorage.setItem(NS + key, JSON.stringify(val)); } catch (_) {}
+}
+
+/* ============================ REALTIME BUS ============================
+   Single bus per page; bridges in-tab listeners and cross-tab messages. */
+class RealtimeBus {
+  constructor() {
+    this._local = new Set();
+    try {
+      this._bc = new BroadcastChannel(NS + 'rt');
+      this._bc.onmessage = (e) => this._fanout(e.data, true);
+    } catch (_) {
+      this._bc = null;
+      window.addEventListener('storage', (e) => {
+        if (e.key === NS + '__rt__' && e.newValue) {
+          try { this._fanout(JSON.parse(e.newValue), true); } catch (_) {}
+        }
+      });
+    }
+  }
+  publish(msg) {
+    this._fanout(msg, false);                 // same tab, immediately
+    if (this._bc) this._bc.postMessage(msg);  // other tabs
+    else lsSet('__rt__', { ...msg, _n: Math.random() });
+  }
+  subscribe(fn) { this._local.add(fn); return () => this._local.delete(fn); }
+  _fanout(msg, crossTab) { this._local.forEach((fn) => { try { fn(msg, crossTab); } catch (_) {} }); }
+}
+const BUS = new RealtimeBus();
+
+/* ============================ QUERY BUILDER ============================
+   Thenable PostgREST-style builder. Resolves to { data, error, count }. */
+class QueryBuilder {
+  constructor(db, table) {
+    this.db = db; this.table = table;
+    this._op = 'select'; this._cols = '*'; this._payload = null;
+    this._filters = []; this._order = null; this._limit = null; this._range = null;
+    this._returnMode = 'multiple'; this._countMode = null; this._upsertKey = 'id';
+  }
+  /* --- ops --- */
+  select(cols = '*', opts = {}) { if (this._op === 'select') { this._cols = cols; } this._selectCols = cols; if (opts.count) this._countMode = opts.count; return this; }
+  insert(payload, opts = {}) { this._op = 'insert'; this._payload = payload; this._returnRep = opts.returning !== 'minimal'; return this; }
+  upsert(payload, opts = {}) { this._op = 'upsert'; this._payload = payload; this._upsertKey = opts.onConflict || 'id'; return this; }
+  update(payload) { this._op = 'update'; this._payload = payload; return this; }
+  delete() { this._op = 'delete'; return this; }
+  /* --- filters --- */
+  _f(type, col, val) { this._filters.push({ type, col, val }); return this; }
+  eq(c, v) { return this._f('eq', c, v); }
+  neq(c, v) { return this._f('neq', c, v); }
+  gt(c, v) { return this._f('gt', c, v); }
+  gte(c, v) { return this._f('gte', c, v); }
+  lt(c, v) { return this._f('lt', c, v); }
+  lte(c, v) { return this._f('lte', c, v); }
+  like(c, v) { return this._f('like', c, v); }
+  ilike(c, v) { return this._f('ilike', c, v); }
+  is(c, v) { return this._f('is', c, v); }
+  in(c, v) { return this._f('in', c, v); }
+  contains(c, v) { return this._f('contains', c, v); }
+  /* --- shaping --- */
+  order(col, opts = {}) { this._order = { col, asc: opts.ascending !== false }; return this; }
+  limit(n) { this._limit = n; return this; }
+  range(from, to) { this._range = [from, to]; return this; }
+  single() { this._returnMode = 'single'; return this; }
+  maybeSingle() { this._returnMode = 'maybe'; return this; }
+
+  _match(row) {
+    return this._filters.every(({ type, col, val }) => {
+      const a = row[col];
+      switch (type) {
+        case 'eq': return a === val;
+        case 'neq': return a !== val;
+        case 'gt': return a > val;
+        case 'gte': return a >= val;
+        case 'lt': return a < val;
+        case 'lte': return a <= val;
+        case 'is': return a === val;
+        case 'in': return Array.isArray(val) && val.includes(a);
+        case 'like': return typeof a === 'string' && new RegExp('^' + String(val).replace(/%/g, '.*') + '$').test(a);
+        case 'ilike': return typeof a === 'string' && new RegExp('^' + String(val).replace(/%/g, '.*') + '$', 'i').test(a);
+        case 'contains': return Array.isArray(a) && (Array.isArray(val) ? val.every((v) => a.includes(v)) : a.includes(val));
+        default: return true;
+      }
+    });
+  }
+
+  _run() {
+    const rows = this.db._rows(this.table);
+    let data = null, error = null, count = null;
+    try {
+      if (this._op === 'select') {
+        let out = rows.filter((r) => this._match(r));
+        count = out.length;
+        if (this._order) out = out.slice().sort((a, b) => {
+          const x = a[this._order.col], y = b[this._order.col];
+          return (x < y ? -1 : x > y ? 1 : 0) * (this._order.asc ? 1 : -1);
+        });
+        if (this._range) out = out.slice(this._range[0], this._range[1] + 1);
+        if (this._limit != null) out = out.slice(0, this._limit);
+        data = out;
+      } else if (this._op === 'insert' || this._op === 'upsert') {
+        const items = Array.isArray(this._payload) ? this._payload : [this._payload];
+        const written = [];
+        for (const it of items) {
+          if (this._op === 'upsert') {
+            const k = this._upsertKey;
+            const idx = rows.findIndex((r) => r[k] === it[k]);
+            if (idx >= 0) { rows[idx] = { ...rows[idx], ...it, updated_at: nowISO() }; written.push(rows[idx]); this.db._emit(this.table, 'UPDATE', rows[idx]); continue; }
+          }
+          const rec = { id: it.id || uid(), created_at: nowISO(), ...it };
+          rows.push(rec); written.push(rec); this.db._emit(this.table, 'INSERT', rec);
+        }
+        this.db._save(this.table, rows);
+        data = written;
+      } else if (this._op === 'update') {
+        const written = [];
+        for (const r of rows) if (this._match(r)) { Object.assign(r, this._payload, { updated_at: nowISO() }); written.push(r); this.db._emit(this.table, 'UPDATE', r); }
+        this.db._save(this.table, rows);
+        data = written;
+      } else if (this._op === 'delete') {
+        const kept = [], removed = [];
+        for (const r of rows) (this._match(r) ? removed : kept).push(r);
+        this.db._save(this.table, kept);
+        removed.forEach((r) => this.db._emit(this.table, 'DELETE', r));
+        data = removed;
+      }
+      if (this._returnMode === 'single') {
+        if (!data || data.length !== 1) error = { message: 'JSON object requested, multiple (or no) rows returned', code: 'PGRST116' };
+        data = data && data.length ? data[0] : null;
+      } else if (this._returnMode === 'maybe') {
+        data = data && data.length ? data[0] : null;
+      }
+    } catch (e) { error = { message: e.message }; }
+    return { data, error, count: this._countMode ? count : null, status: error ? 400 : 200, statusText: error ? 'Bad Request' : 'OK' };
+  }
+  then(resolve, reject) { try { resolve(this._run()); } catch (e) { (reject || resolve)({ data: null, error: { message: e.message } }); } }
+}
+
+/* ============================ DATABASE ============================ */
+class MockDB {
+  constructor(seed) {
+    this._tables = lsGet('tables', null);
+    if (!this._tables) { this._tables = seed || {}; lsSet('tables', this._tables); }
+    else if (seed) { for (const k of Object.keys(seed)) if (!this._tables[k]) this._tables[k] = seed[k]; lsSet('tables', this._tables); }
+  }
+  _rows(t) { if (!this._tables[t]) this._tables[t] = []; return this._tables[t]; }
+  _save(t, rows) { this._tables[t] = rows; lsSet('tables', this._tables); }
+  _emit(table, eventType, record) {
+    BUS.publish({ kind: 'postgres_changes', table, eventType, new: eventType === 'DELETE' ? {} : record, old: eventType === 'DELETE' ? record : {} });
+  }
+}
+
+/* ============================ AUTH ============================ */
+class MockAuth {
+  constructor() {
+    this._users = lsGet('users', []);
+    this._session = lsGet('session', null);
+    this._listeners = new Set();
+    BUS.subscribe((m) => { if (m.kind === 'auth') this._refreshFromStorage(); });
+  }
+  _persistUsers() { lsSet('users', this._users); }
+  _setSession(session, event) {
+    this._session = session; lsSet('session', session);
+    BUS.publish({ kind: 'auth' });
+    this._emit(event, session);
+  }
+  _refreshFromStorage() { this._session = lsGet('session', null); this._emit('TOKEN_REFRESHED', this._session); }
+  _emit(event, session) { this._listeners.forEach((fn) => { try { fn(event, session); } catch (_) {} }); }
+  _mkSession(user) { return { access_token: 'mock.' + uid(), token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: uid(), user }; }
+  _mkUser(email, meta) { return { id: uid(), aud: 'authenticated', role: 'authenticated', email, created_at: nowISO(), user_metadata: meta || {}, app_metadata: { provider: 'email' } }; }
+
+  async signUp({ email, password, options }) {
+    if (this._users.find((u) => u.email === email)) return { data: { user: null, session: null }, error: { message: 'User already registered' } };
+    const user = this._mkUser(email, options && options.data);
+    this._users.push({ ...user, _password: password }); this._persistUsers();
+    const session = this._mkSession(user); this._setSession(session, 'SIGNED_IN');
+    return { data: { user, session }, error: null };
+  }
+  async signInWithPassword({ email, password }) {
+    const rec = this._users.find((u) => u.email === email && u._password === password);
+    if (!rec) return { data: { user: null, session: null }, error: { message: 'Invalid login credentials' } };
+    const { _password, ...user } = rec;
+    const session = this._mkSession(user); this._setSession(session, 'SIGNED_IN');
+    return { data: { user, session }, error: null };
+  }
+  async signInWithOAuth({ provider }) {
+    const email = `player_${Math.random().toString(36).slice(2, 7)}@${provider}.oauth`;
+    let rec = this._users.find((u) => u.email === email);
+    if (!rec) { const u = this._mkUser(email, { full_name: provider + ' player', provider }); u.app_metadata.provider = provider; rec = { ...u, _password: null }; this._users.push(rec); this._persistUsers(); }
+    const { _password, ...user } = rec;
+    const session = this._mkSession(user); this._setSession(session, 'SIGNED_IN');
+    return { data: { provider, url: null, user, session }, error: null };
+  }
+  async signInWithOtp({ email }) {
+    let rec = this._users.find((u) => u.email === email);
+    if (!rec) { const u = this._mkUser(email, {}); rec = { ...u, _password: null }; this._users.push(rec); this._persistUsers(); }
+    const { _password, ...user } = rec;
+    const session = this._mkSession(user); this._setSession(session, 'SIGNED_IN');
+    return { data: { user, session }, error: null };  // mock: magic link auto-confirms
+  }
+  async signOut() { this._setSession(null, 'SIGNED_OUT'); return { error: null }; }
+  async getSession() { return { data: { session: this._session }, error: null }; }
+  async getUser() { return { data: { user: this._session ? this._session.user : null }, error: null }; }
+  async updateUser(attrs) {
+    if (!this._session) return { data: { user: null }, error: { message: 'Not authenticated' } };
+    const u = this._session.user;
+    u.user_metadata = { ...u.user_metadata, ...(attrs.data || {}) };
+    if (attrs.email) u.email = attrs.email;
+    const rec = this._users.find((x) => x.id === u.id); if (rec) Object.assign(rec, u); this._persistUsers();
+    this._setSession({ ...this._session, user: u }, 'USER_UPDATED');
+    return { data: { user: u }, error: null };
+  }
+  onAuthStateChange(cb) {
+    this._listeners.add(cb);
+    Promise.resolve().then(() => cb('INITIAL_SESSION', this._session));
+    return { data: { subscription: { id: uid(), unsubscribe: () => this._listeners.delete(cb) } } };
+  }
+}
+
+/* ============================ REALTIME CHANNEL ============================ */
+class RealtimeChannel {
+  constructor(name) { this.topic = name; this._binds = []; this._presence = {}; this._unsub = null; this._myKey = null; this._myState = null; }
+  on(type, a, b) {
+    const filter = typeof a === 'object' ? a : {};
+    const cb = b || a;
+    this._binds.push({ type, filter, cb });
+    return this;
+  }
+  subscribe(cb) {
+    this._unsub = BUS.subscribe((msg) => {
+      if (msg.kind === 'postgres_changes') {
+        for (const bind of this._binds) {
+          if (bind.type !== 'postgres_changes') continue;
+          const f = bind.filter || {};
+          if (f.table && f.table !== msg.table) continue;
+          if (f.event && f.event !== '*' && f.event !== msg.eventType) continue;
+          bind.cb({ eventType: msg.eventType, new: msg.new, old: msg.old, table: msg.table, schema: f.schema || 'public' });
+        }
+      } else if (msg.kind === 'broadcast' && msg.topic === this.topic) {
+        for (const bind of this._binds) if (bind.type === 'broadcast' && (!bind.filter.event || bind.filter.event === msg.event)) bind.cb({ event: msg.event, payload: msg.payload });
+      } else if (msg.kind === 'presence' && msg.topic === this.topic) {
+        if (msg.action === 'join') this._presence[msg.key] = msg.state;
+        else if (msg.action === 'leave') delete this._presence[msg.key];
+        for (const bind of this._binds) {
+          if (bind.type !== 'presence') continue;
+          const ev = bind.filter.event;
+          if (ev === 'sync' || !ev) bind.cb({});
+          else if (ev === 'join' && msg.action === 'join') bind.cb({ key: msg.key, newPresences: [msg.state] });
+          else if (ev === 'leave' && msg.action === 'leave') bind.cb({ key: msg.key, leftPresences: [msg.state] });
+        }
+      }
+    });
+    if (cb) Promise.resolve().then(() => cb('SUBSCRIBED'));
+    return this;
+  }
+  send({ type, event, payload }) { BUS.publish({ kind: type || 'broadcast', topic: this.topic, event, payload }); return Promise.resolve('ok'); }
+  track(state) { this._myKey = state.key || uid(); this._myState = state; BUS.publish({ kind: 'presence', topic: this.topic, action: 'join', key: this._myKey, state }); return Promise.resolve('ok'); }
+  untrack() { if (this._myKey) BUS.publish({ kind: 'presence', topic: this.topic, action: 'leave', key: this._myKey, state: this._myState }); return Promise.resolve('ok'); }
+  presenceState() { return { ...this._presence }; }
+  unsubscribe() { if (this._unsub) this._unsub(); return Promise.resolve('ok'); }
+}
+
+/* ============================ STORAGE ============================ */
+class StorageBucketAPI {
+  constructor(bucket) { this.bucket = bucket; }
+  _key() { return 'storage::' + this.bucket; }
+  _all() { return lsGet(this._key(), {}); }
+  _save(o) { lsSet(this._key(), o); }
+  async upload(path, file, opts = {}) {
+    const files = this._all();
+    let dataUrl = '';
+    try {
+      if (typeof file === 'string') dataUrl = file;
+      else if (file && file.arrayBuffer) dataUrl = await blobToDataURL(file);
+    } catch (_) {}
+    files[path] = { path, dataUrl, size: (file && file.size) || dataUrl.length, mime: (file && file.type) || 'application/octet-stream', updated_at: nowISO() };
+    this._save(files);
+    return { data: { path, id: uid(), fullPath: this.bucket + '/' + path }, error: null };
+  }
+  async download(path) { const f = this._all()[path]; if (!f) return { data: null, error: { message: 'Object not found' } }; return { data: dataURLToBlob(f.dataUrl, f.mime), error: null }; }
+  getPublicUrl(path) { const f = this._all()[path]; return { data: { publicUrl: f ? f.dataUrl : `mock-storage://${this.bucket}/${path}` } }; }
+  async createSignedUrl(path, expiresIn) { const r = this.getPublicUrl(path); return { data: { signedUrl: r.data.publicUrl + '?token=' + uid() + '&exp=' + expiresIn }, error: null }; }
+  async list(prefix = '') { const files = this._all(); return { data: Object.values(files).filter((f) => f.path.startsWith(prefix)).map((f) => ({ name: f.path, id: uid(), updated_at: f.updated_at, metadata: { size: f.size, mimetype: f.mime } })), error: null }; }
+  async remove(paths) { const files = this._all(); (Array.isArray(paths) ? paths : [paths]).forEach((p) => delete files[p]); this._save(files); return { data: {}, error: null }; }
+}
+function blobToDataURL(blob) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); }); }
+function dataURLToBlob(dataUrl, mime) { try { const [meta, b64] = dataUrl.split(','); const bin = atob(b64); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); } catch (_) { return new Blob([], { type: mime }); } }
+
+/* ============================ CLIENT ============================ */
+class MockSupabaseClient {
+  constructor(url, key, options = {}) {
+    this.supabaseUrl = url || 'mock://local';
+    this.supabaseKey = key || 'mock-anon-key';
+    this.db = new MockDB(options.seed);
+    this.auth = new MockAuth();
+    this._rpcRegistry = options.rpc || {};
+    this._fnRegistry = options.functions || {};
+    this.storage = { from: (bucket) => new StorageBucketAPI(bucket) };
+    this.functions = { invoke: (name, opts = {}) => this._invoke(name, opts) };
+  }
+  from(table) { return new QueryBuilder(this.db, table); }
+  channel(name) { return new RealtimeChannel(name); }
+  removeChannel(ch) { return ch.unsubscribe(); }
+  removeAllChannels() { return Promise.resolve('ok'); }
+  async rpc(fn, args = {}) {
+    const impl = this._rpcRegistry[fn];
+    if (!impl) return { data: null, error: { message: `function ${fn} does not exist`, code: '42883' } };
+    try { const data = await impl(args, this); return { data, error: null }; }
+    catch (e) { return { data: null, error: { message: e.message } }; }
+  }
+  async _invoke(name, { body } = {}) {
+    const impl = this._fnRegistry[name];
+    if (!impl) return { data: null, error: { message: `Function ${name} not found`, code: 404 } };
+    try { const data = await impl(body || {}, this); return { data, error: null }; }
+    catch (e) { return { data: null, error: { message: e.message } }; }
+  }
+  /* test/util helpers (not in real client) */
+  _reset() { Object.keys(localStorage).filter((k) => k.startsWith(NS)).forEach((k) => localStorage.removeItem(k)); }
+}
+
+function createClient(url, key, options = {}) { return new MockSupabaseClient(url, key, options); }
+window.SupabaseMock = { createClient, MockSupabaseClient, QueryBuilder, RealtimeChannel, BUS };
+
+})();
+
+/* ===== supabase-config.js ===== */
+;(function(){
+/* =====================================================================
+   supabase-config.js
+   The "backend": seed schema/data, RPC functions, and Edge Functions
+   for {% endraw %}{{ row.title }}{% raw %} III. Passed into createClient() so the mock behaves
+   like a provisioned Supabase project.
+
+   Tables
+     profiles        one row per auth user (handle, avatar, elo, main champ)
+     champions       static reference data (the five strains)
+     matches         one row per game (winner, duration, score)
+     match_events    4D telemetry rows (the kgc-4d facts: subject/pred/obj + x,y,t)
+     lobby_messages  realtime chat in the matchmaking lobby
+
+   RPC               record_match, leaderboard, champion_winrates, claim_handle
+   Edge Functions    matchmake, compute_elo, analyze_match
+   ===================================================================== */
+
+/* Authoritative champion roster — the single source of truth for BOTH the
+   online shell (name/role/hue/blurb) and the game engine (tag/stats/ult/
+   barColor). The engine reads these via window.{% endraw %}{{ row.capitalized }}{% raw %}.setChampions(),
+   converting `hue` (hex) to its internal [r,g,b]. Nothing is hardcoded in
+   the UI or the engine anymore; everything flows from this table. */
+const CHAMPIONS = [
+  { id: 'lyssa', tag: 'L', name: 'LYSSA', role: 'ASSASSIN',   hue: '#ff5aaa', blurb: 'Blink-lyse burst assassin.',
+    barColor: 'linear-gradient(90deg,#ff5db0,#ff9bd0)', stats: { spd: .95, str: .85, rep: .35, def: .25, agi: .95 },
+    ult: { icon: '\u27c1', name: 'BLINK-LYSE', key: 'Q', cd: 9, desc: 'Dash to cursor and burst the nearest enemy colony for 35 units.' } },
+  { id: 'grond', tag: 'G', name: 'GROND', role: 'BULWARK',    hue: '#5cd0ff', blurb: 'Membrane-shielding bulwark.',
+    barColor: 'linear-gradient(90deg,#5cd0ff,#bfefff)', stats: { spd: .3, str: .6, rep: .4, def: .98, agi: .2 },
+    ult: { icon: '\u26e8', name: 'MEMBRANE', key: 'Q', cd: 12, desc: 'Sheathe the nearest colony \u2014 uncapturable & +defense for 7s.' } },
+  { id: 'spore', tag: 'S', name: 'SPORE', role: 'BREEDER',    hue: '#78ffaa', blurb: 'Bloom production engine.',
+    barColor: 'linear-gradient(90deg,#7dffb0,#d6ffe6)', stats: { spd: .5, str: .3, rep: .99, def: .55, agi: .45 },
+    ult: { icon: '\u2736', name: 'BLOOM', key: 'Q', cd: 11, desc: 'Triple production of the nearest friendly colony for 8s.' } },
+  { id: 'toxin', tag: 'T', name: 'TOXIN', role: 'NECRO-MAGE', hue: '#aa7cff', blurb: 'Necrosis field control.',
+    barColor: 'linear-gradient(90deg,#b98cff,#e6d6ff)', stats: { spd: .55, str: .95, rep: .5, def: .4, agi: .6 },
+    ult: { icon: '\u2623', name: 'NECROSIS', key: 'Q', cd: 10, desc: 'Seed a toxin field at cursor that rots enemy colonies for 5s.' } },
+  { id: 'flux',  tag: 'F', name: 'FLUX',  role: 'VECTOR',     hue: '#ffd166', blurb: 'Surge flood vector.',
+    barColor: 'linear-gradient(90deg,#ffd166,#ffe9a8)', stats: { spd: .7, str: .45, rep: .6, def: .6, agi: .8 },
+    ult: { icon: '\u21f2', name: 'SURGE', key: 'Q', cd: 10, desc: 'Flood +22 units into every friendly colony near the cursor.' } },
+];
+
+const SEED_PROFILES = [
+  { id: 'seed_nova',  handle: 'NOVA_STRAIN',  elo: 2480, main: 'lyssa', wins: 312, losses: 140, avatar_url: '' },
+  { id: 'seed_helix', handle: 'HELIX_PRIME',  elo: 2390, main: 'toxin', wins: 288, losses: 161, avatar_url: '' },
+  { id: 'seed_cyto',  handle: 'CYTO_BANE',    elo: 2255, main: 'grond', wins: 240, losses: 150, avatar_url: '' },
+  { id: 'seed_lyse',  handle: 'LYSE_QUEEN',   elo: 2190, main: 'flux',  wins: 221, losses: 158, avatar_url: '' },
+  { id: 'seed_myco',  handle: 'MYCO_DRIFT',   elo: 2040, main: 'spore', wins: 198, losses: 171, avatar_url: '' },
+  { id: 'seed_phag',  handle: 'PHAGE_GHOST',  elo: 1975, main: 'lyssa', wins: 180, losses: 165, avatar_url: '' },
+  { id: 'seed_viri',  handle: 'VIRION_X',     elo: 1860, main: 'toxin', wins: 150, losses: 160, avatar_url: '' },
+];
+
+const SEED_MATCHES = [
+  { id: 'm_seed_1', winner: 'A', player_champ: 'lyssa', duration_s: 412, score_a: 64, score_b: 51, profile_id: 'seed_nova', elo_delta: 18, created_at: '2026-06-13T18:22:00Z' },
+  { id: 'm_seed_2', winner: 'B', player_champ: 'grond', duration_s: 538, score_a: 40, score_b: 72, profile_id: 'seed_cyto', elo_delta: -15, created_at: '2026-06-14T09:10:00Z' },
+];
+
+const SEED = {
+  profiles: SEED_PROFILES,
+  champions: CHAMPIONS.map((c) => ({ ...c })),
+  matches: SEED_MATCHES,
+  match_events: [],
+  lobby_messages: [],
+};
+
+/* -------------------------- helpers -------------------------- */
+function elo(ra, rb, scoreA, k = 32) {
+  const ea = 1 / (1 + Math.pow(10, (rb - ra) / 400));
+  return Math.round(k * (scoreA - ea));
+}
+
+/* -------------------------- RPC functions -------------------------- */
+const RPC = {
+  /* atomic "insert match + bump profile stats" */
+  async record_match(args, client) {
+    const { profile_id, winner, player_champ, duration_s, score_a, score_b } = args;
+    const board = await client.from('profiles').select('*').order('elo', { ascending: false });
+    const me = (board.data || []).find((p) => p.id === profile_id);
+    const oppElo = (board.data && board.data[0] && board.data[0].elo) || 2000;
+    const won = winner === 'A';
+    const delta = elo(me ? me.elo : 1500, oppElo, won ? 1 : 0);
+    const match = { id: 'm_' + Date.now().toString(36), profile_id, winner, player_champ, duration_s, score_a, score_b, elo_delta: delta };
+    await client.from('matches').insert(match);
+    if (me) await client.from('profiles').update({ elo: me.elo + delta, wins: me.wins + (won ? 1 : 0), losses: me.losses + (won ? 0 : 1) }).eq('id', profile_id);
+    return { match, elo_delta: delta };
+  },
+  /* ranked ladder */
+  async leaderboard(args, client) {
+    const limit = (args && args.limit) || 10;
+    const r = await client.from('profiles').select('*').order('elo', { ascending: false }).limit(limit);
+    return (r.data || []).map((p, i) => ({ rank: i + 1, handle: p.handle, elo: p.elo, main: p.main, wins: p.wins, losses: p.losses, winrate: p.wins + p.losses ? Math.round(p.wins / (p.wins + p.losses) * 100) : 0 }));
+  },
+  /* aggregate winrate per champion from match history */
+  async champion_winrates(_args, client) {
+    const r = await client.from('matches').select('*');
+    const tally = {};
+    for (const m of r.data || []) { const c = m.player_champ; tally[c] = tally[c] || { champ: c, games: 0, wins: 0 }; tally[c].games++; if (m.winner === 'A') tally[c].wins++; }
+    return Object.values(tally).map((t) => ({ ...t, winrate: t.games ? Math.round(t.wins / t.games * 100) : 0 }));
+  },
+  async claim_handle(args, client) {
+    const exists = await client.from('profiles').select('id').eq('handle', args.handle);
+    if (exists.data && exists.data.length) throw new Error('handle taken');
+    return { available: true };
+  },
+};
+
+/* -------------------------- Edge Functions -------------------------- */
+const FUNCTIONS = {
+  /* fake matchmaking: assemble 5v5 around a chosen champ from the profile pool */
+  async matchmake({ champ }, client) {
+    const r = await client.from('profiles').select('*').order('elo', { ascending: false }).limit(20);
+    const pool = (r.data || []).slice();
+    const pick = () => pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+    const champIds = CHAMPIONS.map((c) => c.id);
+    const rnd = (a) => a[Math.floor(Math.random() * a.length)];
+    // Synthetic strain handles for when the live `profiles` pool runs dry,
+    // so a full 4v5 lineup is always sourced from the mock (never engine-padded).
+    const STRAINS = ['VIRAX', 'CapSID', 'PROTEO', 'GLYCAN', 'PLASMID', 'RIBO', 'VECTRA', 'ENDO', 'SEROTYPE', 'LYTIC', 'CAPSO', 'MITO'];
+    const usedBot = new Set();
+    const botName = () => { let n; do { n = rnd(STRAINS) + '_' + (100 + Math.floor(Math.random() * 899)); } while (usedBot.has(n)); usedBot.add(n); return n; };
+    const slot = () => { const p = pool.length ? pick() : null; return p ? { handle: p.handle, champ: p.main, elo: p.elo } : { handle: botName(), champ: rnd(champIds), elo: 1400 + Math.floor(Math.random() * 700) }; };
+    const allies = [], enemies = [];
+    for (let i = 0; i < 4; i++) allies.push(slot());
+    for (let i = 0; i < 5; i++) enemies.push(slot());
+    return {
+      lobby_id: 'lobby_' + Math.random().toString(36).slice(2, 8),
+      your_champ: champ,
+      allies, enemies,
+      region: 'petri-dish-west',
+      avg_elo: Math.round([...allies, ...enemies].reduce((s, p) => s + p.elo, 0) / 9),
+    };
+  },
+  async compute_elo({ rating_a, rating_b, score_a }) { return { delta: elo(rating_a, rating_b, score_a) }; },
+  /* Finalize a match server-side in ONE call: ingest the 4D telemetry facts,
+     record the match + ELO, and run analysis. Replaces the multi-step client
+     orchestration that used to live in the game shell. */
+  async finalize_match({ match_id, facts, profile_id, winner, player_champ, duration_s, score_a, score_b }, client) {
+    if (facts && facts.length) await client.from('match_events').insert(facts.map((f) => ({ match_id, subject: f.subject, predicate: f.predicate, object: f.object, x: f.x, y: f.y, t: f.t })));
+    const { data: rec } = await client.rpc('record_match', { profile_id, winner, player_champ, duration_s, score_a, score_b });
+    const { data: analysis } = await client.functions.invoke('analyze_match', { body: { match_id } });
+    return { match: rec && rec.match, elo_delta: rec ? rec.elo_delta : 0, analysis, events: (facts || []).length };
+  },
+  /* Computed player stats (winrate / games / ladder rank) — derived
+     server-side instead of being calculated inline in the client. */
+  async player_stats({ profile_id }, client) {
+    const r = await client.from('profiles').select('*').eq('id', profile_id).maybeSingle();
+    const p = r.data; if (!p) return null;
+    const games = p.wins + p.losses;
+    const board = await client.from('profiles').select('id').order('elo', { ascending: false });
+    const rank = (board.data || []).findIndex((x) => x.id === profile_id) + 1;
+    return { elo: p.elo, wins: p.wins, losses: p.losses, games, winrate: games ? Math.round(p.wins / games * 100) : 0, rank };
+  },
+  /* post-match analysis derived from the 4D telemetry events */
+  async analyze_match({ match_id }, client) {
+    const r = await client.from('match_events').select('*').eq('match_id', match_id);
+    const ev = r.data || [];
+    const captures = ev.filter((e) => e.predicate === 'capturedBy');
+    const kills = ev.filter((e) => e.predicate === 'lysed');
+    const tEnd = ev.reduce((m, e) => Math.max(m, e.t || 0), 0);
+    return {
+      total_events: ev.length,
+      captures: captures.length,
+      kills: kills.length,
+      first_blood: kills.sort((a, b) => (a.t || 0) - (b.t || 0))[0] || null,
+      contested_zones: captures.length ? Math.round(captures.length / Math.max(1, captures.filter((c, i, a) => a.findIndex((x) => x.subject === c.subject) === i).length) * 10) / 10 : 0,
+      match_length_s: Math.round(tEnd),
+    };
+  },
+};
+
+window.SupabaseConfig = { SEED, RPC, FUNCTIONS, CHAMPIONS };
+
+})();
+
+/* ===== supabase-react.jsx (gated on window.React) ===== */
+;(function(){
+  function start(){
+    if(!window.React){ return setTimeout(start, 20); }
+/* =====================================================================
+   supabase-react.jsx
+   React abstraction layer over the (mock) Supabase client.
+
+   Provides a single Provider plus ergonomic hooks so components never
+   touch the raw client. Drop-in shaped like community supabase-react
+   helpers — swap the underlying createClient import for the real SDK
+   and every hook keeps working.
+
+   Exports
+     SupabaseProvider          owns the client + auth session
+     useSupabase()             → the raw client (escape hatch)
+     useAuth()                 → { user, session, loading, signIn, signUp,
+                                    signInWithOAuth, signInWithOtp, signOut, updateUser }
+     useProfile()              → { profile, loading, update } for the signed-in user
+     useQuery(table, build, deps)  → { data, error, loading, refetch }
+     useRealtimeQuery(table, build, deps)  → live-updating useQuery
+     useRpc()                  → callable rpc(fn, args)
+     useEdgeFunction()         → callable invoke(name, body)
+     usePresence(topic, state) → { others, count }
+     useBroadcast(topic, event)→ { messages, send }
+     useStorage(bucket)        → { upload, getPublicUrl, list, remove }
+
+   Requires React (global or import) and a createClient implementation.
+   ===================================================================== */
+const { createClient } = window.SupabaseMock;
+const { SEED, RPC, FUNCTIONS } = window.SupabaseConfig;
+
+const React = window.React;
+const { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } = React;
+
+const Ctx = createContext(null);
+
+/* Singleton client so every Provider/HMR shares one store + realtime bus. */
+let _client = null;
+function getClient() {
+  if (!_client) _client = createClient('mock://{% endraw %}{{ row.kebab }}{% raw %}', 'mock-anon-key', { seed: SEED, rpc: RPC, functions: FUNCTIONS });
+  return _client;
+}
+
+function SupabaseProvider({ children, client }) {
+  const sb = useMemo(() => client || getClient(), [client]);
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    sb.auth.getSession().then(({ data }) => { if (active) { setSession(data.session); setAuthLoading(false); } });
+    const { data: { subscription } } = sb.auth.onAuthStateChange((_event, s) => { if (active) { setSession(s); setAuthLoading(false); } });
+    return () => { active = false; subscription.unsubscribe(); };
+  }, [sb]);
+
+  const value = useMemo(() => ({ sb, session, authLoading }), [sb, session, authLoading]);
+  return React.createElement(Ctx.Provider, { value }, children);
+}
+
+function useCtx() {
+  const c = useContext(Ctx);
+  if (!c) throw new Error('Wrap your tree in <SupabaseProvider>');
+  return c;
+}
+
+function useSupabase() { return useCtx().sb; }
+
+/* ----------------------------- auth ----------------------------- */
+function useAuth() {
+  const { sb, session, authLoading } = useCtx();
+  const user = session ? session.user : null;
+  const signUp = useCallback((email, password, data) => sb.auth.signUp({ email, password, options: { data } }), [sb]);
+  const signIn = useCallback((email, password) => sb.auth.signInWithPassword({ email, password }), [sb]);
+  const signInWithOAuth = useCallback((provider) => sb.auth.signInWithOAuth({ provider }), [sb]);
+  const signInWithOtp = useCallback((email) => sb.auth.signInWithOtp({ email }), [sb]);
+  const signOut = useCallback(() => sb.auth.signOut(), [sb]);
+  const updateUser = useCallback((attrs) => sb.auth.updateUser(attrs), [sb]);
+  return { user, session, loading: authLoading, signUp, signIn, signInWithOAuth, signInWithOtp, signOut, updateUser };
+}
+
+/* ----------------------------- queries ----------------------------- */
+function useQuery(table, build, deps = []) {
+  const sb = useSupabase();
+  const [state, setState] = useState({ data: null, error: null, loading: true });
+  const buildRef = useRef(build); buildRef.current = build;
+  const run = useCallback(async () => {
+    setState((s) => ({ ...s, loading: true }));
+    let q = sb.from(table);
+    q = buildRef.current ? buildRef.current(q) : q.select('*');
+    const { data, error } = await q;
+    setState({ data, error, loading: false });
+  }, [sb, table]);
+  useEffect(() => { run(); /* eslint-disable-next-line */ }, [run, ...deps]);
+  return { ...state, refetch: run };
+}
+
+/* useQuery that also re-runs whenever the table emits a realtime change. */
+function useRealtimeQuery(table, build, deps = []) {
+  const sb = useSupabase();
+  const q = useQuery(table, build, deps);
+  const refetchRef = useRef(q.refetch); refetchRef.current = q.refetch;
+  useEffect(() => {
+    const ch = sb.channel('rtq:' + table + ':' + Math.random().toString(36).slice(2))
+      .on('postgres_changes', { event: '*', schema: 'public', table }, () => refetchRef.current())
+      .subscribe();
+    return () => ch.unsubscribe();
+  }, [sb, table]);
+  return q;
+}
+
+/* ----------------------------- profile ----------------------------- */
+function useProfile() {
+  const { user } = useAuth();
+  const sb = useSupabase();
+  const { data, loading, refetch } = useQuery('profiles', (q) => q.select('*').eq('id', user ? user.id : '__none__').maybeSingle(), [user && user.id]);
+  const update = useCallback(async (patch) => { if (!user) return; await sb.from('profiles').update(patch).eq('id', user.id); refetch(); }, [sb, user, refetch]);
+  return { profile: data, loading, update, refetch };
+}
+
+/* ----------------------------- rpc / functions ----------------------------- */
+function useRpc() {
+  const sb = useSupabase();
+  return useCallback((fn, args) => sb.rpc(fn, args), [sb]);
+}
+function useEdgeFunction() {
+  const sb = useSupabase();
+  return useCallback((name, body) => sb.functions.invoke(name, { body }), [sb]);
+}
+
+/* ----------------------------- realtime presence ----------------------------- */
+function usePresence(topic, myState) {
+  const sb = useSupabase();
+  const [others, setOthers] = useState([]);
+  const stateRef = useRef(myState); stateRef.current = myState;
+  useEffect(() => {
+    if (!topic) return;
+    const ch = sb.channel('presence:' + topic);
+    const sync = () => { const st = ch.presenceState(); setOthers(Object.values(st)); };
+    ch.on('presence', { event: 'sync' }, sync)
+      .on('presence', { event: 'join' }, sync)
+      .on('presence', { event: 'leave' }, sync)
+      .subscribe((status) => { if (status === 'SUBSCRIBED' && stateRef.current) ch.track(stateRef.current); });
+    return () => { ch.untrack(); ch.unsubscribe(); };
+  }, [sb, topic]);
+  return { others, count: others.length };
+}
+
+/* ----------------------------- realtime broadcast ----------------------------- */
+function useBroadcast(topic, event) {
+  const sb = useSupabase();
+  const [messages, setMessages] = useState([]);
+  const chRef = useRef(null);
+  useEffect(() => {
+    if (!topic) return;
+    const ch = sb.channel('bc:' + topic);
+    ch.on('broadcast', { event }, ({ payload }) => setMessages((m) => [...m.slice(-49), payload])).subscribe();
+    chRef.current = ch;
+    return () => ch.unsubscribe();
+  }, [sb, topic, event]);
+  const send = useCallback((payload) => { if (chRef.current) chRef.current.send({ type: 'broadcast', event, payload }); }, [event]);
+  return { messages, send };
+}
+
+/* ----------------------------- storage ----------------------------- */
+function useStorage(bucket) {
+  const sb = useSupabase();
+  return useMemo(() => {
+    const api = sb.storage.from(bucket);
+    return {
+      upload: (path, file, opts) => api.upload(path, file, opts),
+      download: (path) => api.download(path),
+      getPublicUrl: (path) => api.getPublicUrl(path).data.publicUrl,
+      createSignedUrl: (path, exp) => api.createSignedUrl(path, exp),
+      list: (prefix) => api.list(prefix),
+      remove: (paths) => api.remove(paths),
+    };
+  }, [sb, bucket]);
+}
+
+window.SupabaseReact = { SupabaseProvider, useSupabase, useAuth, useProfile, useQuery, useRealtimeQuery, useRpc, useEdgeFunction, usePresence, useBroadcast, useStorage, getClient };
+
+    }
+  start();
+})();
+{% endraw %}

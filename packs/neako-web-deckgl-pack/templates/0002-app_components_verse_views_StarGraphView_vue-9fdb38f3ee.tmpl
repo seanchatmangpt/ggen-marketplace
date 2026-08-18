@@ -1,0 +1,444 @@
+---
+to: "app/components/{{ row.lower }}/views/StarGraphView.vue"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:gc_subject_neako_web_deckgl_pack a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}<!-- components/{% endraw %}{{ row.lower }}{% raw %}/views/StarGraphView.vue -->
+<script setup lang="ts">
+import { ref, computed, watch } from 'vue'
+import type { Selection } from 'd3-selection'
+import type { GraphNode } from '@unovis/ts'
+import { Graph, GraphNodeSelectionHighlightMode } from '@unovis/ts'
+import { VisSingleContainer, VisGraph, VisTooltip } from '@unovis/vue'
+import type { Signal } from '~/types/{% endraw %}{{ row.lower }}{% raw %}'
+
+// Props
+interface Props {
+  signals: Signal[]
+  width?: number
+  height?: number
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  width: 100,
+  height: 100
+})
+
+// Emits
+const emit = defineEmits<{
+  signalSelected: [signal: Signal]
+}>()
+
+// Define types for the graph data
+interface StarGraphNode {
+  id: string
+  label: string
+  subLabel?: string
+  type: string
+  fillColor?: string
+  signal: Signal
+}
+
+interface StarGraphLink {
+  source: string
+  target: string
+  showArrow?: boolean
+  showFlow?: boolean
+  width?: number
+  linkFlowAnimDuration?: number
+  linkFlowParticleSize?: number
+  linkFlowParticleSpeed?: number
+}
+
+// State
+const graphRef = ref<{
+  component?: Graph<StarGraphNode, StarGraphLink>
+} | null>(null)
+const selectedNodeId = ref<string | undefined>(undefined)
+const showLinkFlow = ref(true)
+const tooltipFollowCursor = ref(true)
+const tooltipAllowHover = ref(true)
+
+// Computed
+const data = computed(() => {
+  const nodes: StarGraphNode[] = props.signals.map(signal => ({
+    id: signal.id,
+    label:
+      signal.content.substring(0, 30)
+      + (signal.content.length > 30 ? '...' : ''),
+    subLabel: signal.type,
+    type: signal.type,
+    fillColor: getSignalTypeColor(signal.type),
+    signal
+  }))
+
+  const links: StarGraphLink[] = []
+
+  // Create connections based on signal relationships
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const node1 = nodes[i]
+      const node2 = nodes[j]
+
+      // Calculate connection strength
+      const strength = calculateConnectionStrength(node1.signal, node2.signal)
+
+      if (strength > 0.3) {
+        links.push({
+          source: node1.id,
+          target: node2.id,
+          showFlow: true,
+          linkFlowParticleSize: 1.5,
+          linkFlowParticleSpeed: 15,
+          width: strength * 3
+        })
+      }
+    }
+  }
+
+  return { nodes, links }
+})
+
+const fitViewPadding = computed(() => ({
+  top: 50,
+  right: 50,
+  bottom: 100,
+  left: 50
+}))
+
+const zoomScaleExtent = computed(() => [0.5, 3])
+
+const events = computed(() => ({
+  [Graph.selectors.node]: {
+    click: (n: StarGraphNode) => {
+      selectedNodeId.value = n.id
+      emit('signalSelected', n.signal)
+    }
+  },
+  [Graph.selectors.background]: {
+    click: () => {
+      selectedNodeId.value = undefined
+    }
+  }
+}))
+
+const tooltipContent = computed(() => (datum: StarGraphNode): string => {
+  return `
+    <strong>${datum.signal.content}</strong><br/>
+    Type: ${datum.signal.type}<br/>
+    Entity: ${datum.signal.entityId}<br/>
+    ${datum.signal.tags ? `Tags: ${datum.signal.tags.join(', ')}` : ''}
+  `
+})
+
+const triggers = computed(() => ({
+  [Graph.selectors.node]: (datum: StarGraphNode) => tooltipContent.value(datum)
+}))
+
+// Methods
+const getSignalTypeColor = (type: Signal['type']): string => {
+  const colorMap = new Map([
+    ['offer', '#4ecdc4'],
+    ['request', '#ff6b6b'],
+    ['update', '#45b7d1'],
+    ['invitation', '#96ceb4'],
+    ['opportunity', '#feca57'],
+    ['reflection', '#ff9ff3']
+  ])
+  return colorMap.get(type) ?? '#666'
+}
+
+const calculateConnectionStrength = (
+  signal1: Signal,
+  signal2: Signal
+): number => {
+  let strength = 0.2 // Base connection strength
+
+  // Type compatibility
+  if (
+    (signal1.type === 'offer' && signal2.type === 'request')
+    || (signal1.type === 'request' && signal2.type === 'offer')
+  ) {
+    strength += 0.4
+  }
+
+  // Same type connections
+  if (signal1.type === signal2.type) {
+    strength += 0.2
+  }
+
+  // Tag overlap
+  const tags1 = new Set(signal1.tags || [])
+  const tags2 = new Set(signal2.tags || [])
+  if (tags1.size > 0 && tags2.size > 0) {
+    const commonTags = [...tags1].filter(tag => tags2.has(tag))
+    strength += (commonTags.length / Math.max(tags1.size, tags2.size)) * 0.3
+  }
+
+  // Content similarity
+  const words1 = signal1.content.toLowerCase().split(/\s+/)
+  const words2 = signal2.content.toLowerCase().split(/\s+/)
+  const commonWords = words1.filter(word => words2.includes(word))
+  strength
+    += (commonWords.length / Math.max(words1.length, words2.length)) * 0.3
+
+  return Math.min(strength, 1)
+}
+
+const getNodeFillColor = (n: StarGraphNode): string => {
+  return n.fillColor ?? getSignalTypeColor(n.type)
+}
+
+const getNodeGroup = (n: StarGraphNode) => n.type
+const getLinkArrow = (l: StarGraphLink) => l.showArrow
+const getLinkBandWidth = (l: StarGraphLink) =>
+  2 * (l.linkFlowParticleSize ?? 1)
+const getLinkWidth = (l: StarGraphLink) => l.width
+const getNodeLabel = (n: StarGraphNode) => n.label
+const getNodeSubLabel = (n: StarGraphNode) => n.subLabel
+
+// Custom render function to create star shapes
+const nodeEnterCustomRenderFunction = (
+  d: GraphNode<StarGraphNode, StarGraphLink>,
+  g: Selection<
+    SVGGElement,
+    GraphNode<StarGraphNode, StarGraphLink>,
+    null,
+    unknown
+  >
+): void => {
+  g.append('path').attr('class', 'star-node')
+  g.append('text').attr('class', 'node-label')
+  g.append('text').attr('class', 'node-sub-label')
+}
+
+const nodeUpdateCustomRenderFunction = (
+  d: GraphNode<StarGraphNode, StarGraphLink>,
+  g: Selection<
+    SVGGElement,
+    GraphNode<StarGraphNode, StarGraphLink>,
+    null,
+    unknown
+  >
+): void => {
+  const nodeSize = 20
+  const starSize = nodeSize
+
+  // Create star path
+  const starPath = createStarPath(starSize)
+
+  g.select('.star-node')
+    .attr('d', starPath)
+    .style('fill', getNodeFillColor(d))
+    .style('stroke', '#fff')
+    .style('stroke-width', 2)
+    .attr('transform', `translate(${d.x}, ${d.y})`)
+
+  g.select('.node-label')
+    .attr('x', d.x)
+    .attr('y', d.y + starSize + 15)
+    .attr('text-anchor', 'middle')
+    .attr('font-size', '9px')
+    .attr('fill', '#333')
+    .text(d.label || '')
+
+  g.select('.node-sub-label')
+    .attr('x', d.x)
+    .attr('y', d.y + starSize + 28)
+    .attr('text-anchor', 'middle')
+    .attr('font-size', '8px')
+    .attr('fill', '#666')
+    .text(d.subLabel || '')
+}
+
+// Function to create star path
+const createStarPath = (size: number): string => {
+  const outerRadius = size
+  const innerRadius = size * 0.4
+  const points = 5
+  const angle = Math.PI / points
+
+  let path = ''
+
+  for (let i = 0; i < points * 2; i++) {
+    const radius = i % 2 === 0 ? outerRadius : innerRadius
+    const x = radius * Math.cos(i * angle - Math.PI / 2)
+    const y = radius * Math.sin(i * angle - Math.PI / 2)
+
+    if (i === 0) {
+      path += `M ${x} ${y}`
+    } else {
+      path += ` L ${x} ${y}`
+    }
+  }
+
+  return path + ' Z'
+}
+
+const onRenderComplete = (
+  g: Selection<SVGGElement, unknown, null, undefined>,
+  nodes: GraphNode<StarGraphNode, StarGraphLink>[]
+): void => {
+  // Handle render completion if needed
+}
+
+const onZoom = (): void => {
+  // Handle zoom if needed
+}
+
+const onLayoutCalculated = (
+  nodes: GraphNode<StarGraphNode, StarGraphLink>[]
+): void => {
+  // Handle layout calculation if needed
+}
+
+const handleLinkFlow = (l: StarGraphLink): boolean => {
+  return (showLinkFlow.value && l?.showFlow) || false
+}
+
+const handleLinkFlowAnimDuration = (l: StarGraphLink): number | undefined => {
+  return l.linkFlowAnimDuration
+}
+
+const handleLinkFlowParticleSpeed = (l: StarGraphLink): number | undefined => {
+  return l.linkFlowParticleSpeed
+}
+
+const handleLinkFlowParticleSize = (l: StarGraphLink): number | undefined => {
+  return l.linkFlowParticleSize
+}
+
+const fitView = (nodeIds?: string[]): void => {
+  graphRef.value?.component?.fitView(undefined, nodeIds)
+}
+
+// Watch for signal changes
+watch(
+  () => props.signals,
+  () => {
+    // Data will be recomputed automatically
+  },
+  { deep: true }
+)
+</script>
+
+<template>
+  <div class="star-graph-view">
+    <div class="star-graph-controls">
+      <label class="flex items-center gap-2 text-sm">
+        <input v-model="tooltipFollowCursor" type="checkbox" class="rounded">
+        Tooltip - followCursor
+      </label>
+      <label class="flex items-center gap-2 text-sm">
+        <input v-model="tooltipAllowHover" type="checkbox" class="rounded">
+        Tooltip - allowHover
+      </label>
+      <button
+        class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
+        @click="fitView()"
+      >
+        Fit Graph
+      </button>
+    </div>
+
+    <VisSingleContainer
+      class="star-graph-container"
+      :data="data"
+      height="100%"
+      :duration="1000"
+    >
+      <VisTooltip
+        :triggers="triggers"
+        :follow-cursor="tooltipFollowCursor"
+        :allow-hover="tooltipAllowHover"
+      />
+      <VisGraph
+        ref="graphRef"
+        layout-type="force"
+        :layout-node-group="getNodeGroup"
+        :link-arrow="getLinkArrow"
+        :link-band-width="getLinkBandWidth"
+        :link-curvature="1"
+        :link-width="getLinkWidth"
+        :node-fill="getNodeFillColor"
+        :node-size="20"
+        :node-icon-size="20"
+        :node-label="getNodeLabel"
+        :node-label-trim-length="30"
+        node-stroke="none"
+        :node-sub-label="getNodeSubLabel"
+        :node-sub-label-trim-length="30"
+        :node-enter-custom-render-function="nodeEnterCustomRenderFunction"
+        :node-update-custom-render-function="nodeUpdateCustomRenderFunction"
+        :node-selection-highlight-mode="GraphNodeSelectionHighlightMode.None"
+        :selected-node-id="selectedNodeId"
+        :events="events"
+        :link-flow="handleLinkFlow"
+        :link-flow-anim-duration="handleLinkFlowAnimDuration"
+        :link-flow-particle-speed="handleLinkFlowParticleSpeed"
+        :link-flow-particle-size="handleLinkFlowParticleSize"
+        :fit-view-padding="fitViewPadding"
+        :zoom-scale-extent="zoomScaleExtent"
+        @render-complete="onRenderComplete"
+        @layout-calculated="onLayoutCalculated"
+        @zoom="onZoom"
+      />
+    </VisSingleContainer>
+  </div>
+</template>
+
+<style scoped>
+.star-graph-view {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.star-graph-controls {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  background: #1a1a1a;
+  border-bottom: 1px solid #333;
+}
+
+.star-graph-container {
+  flex: 1;
+  border: none;
+}
+
+/* Ensure proper styling for the star nodes */
+:deep(.star-node) {
+  cursor: pointer;
+}
+
+:deep(.star-node:hover) {
+  filter: brightness(1.1);
+}
+
+:deep(.node-label) {
+  pointer-events: none;
+}
+
+:deep(.node-sub-label) {
+  pointer-events: none;
+}
+</style>
+{% endraw %}

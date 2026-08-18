@@ -1,0 +1,498 @@
+---
+to: "app/components/{{ row.lower }}/views/GlobeView.vue"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:gc_subject_neako_web_deckgl_pack a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}<!-- components/{% endraw %}{{ row.lower }}{% raw %}/views/GlobeView.vue -->
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted, watch, watchEffect, computed } from 'vue'
+import { Deck } from '@deck.gl/core'
+import { ScatterplotLayer, TextLayer, GeoJsonLayer } from '@deck.gl/layers'
+import type { Signal } from '~/types/shared'
+import { useSupabaseClient } from '#imports'
+import type { Signal as DBSignal } from '~/types/database.schemas'
+
+// Props
+interface Props {
+  signals: Signal[]
+  width?: number
+  height?: number
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  width: 100,
+  height: 100
+})
+
+// Emits
+const emit = defineEmits<{
+  signalSelected: [signal: Signal]
+}>()
+
+// State
+const containerRef = ref<HTMLElement>()
+let deckInstance: Deck | null = null
+
+// Supabase real-time integration
+const supabase = useSupabaseClient()
+const realtimeSignals = ref<Signal[]>([])
+const signalsChannel = ref<any>(null)
+const isLoadingSignals = ref(false)
+const signalsError = ref<any>(null)
+
+// Globe configuration
+const INITIAL_VIEW_STATE = {
+  longitude: 0,
+  latitude: 0,
+  zoom: 1,
+  pitch: 0,
+  bearing: 0
+}
+
+// Color mapping for signal types
+const getSignalColor = (
+  type: Signal['type']
+): [number, number, number, number] => {
+  const colorMap: Record<Signal['type'], [number, number, number, number]> = {
+    offer: [76, 205, 196, 255], // #4ecdc4
+    request: [255, 107, 107, 255], // #ff6b6b
+    update: [69, 183, 209, 255], // #45b7d1
+    invitation: [150, 206, 180, 255], // #96ceb4
+    opportunity: [254, 202, 87, 255], // #feca57
+    reflection: [255, 159, 243, 255] // #ff9ff3
+  }
+  return colorMap[type] || [102, 102, 102, 255]
+}
+
+// Convert signals to globe data
+const signalsToGlobeData = (signals: Signal[]) => {
+  return signals.map((signal) => {
+    // Use signal position if available, otherwise generate from content hash
+    let lat = 0
+    let lng = 0
+
+    if (signal.position) {
+      // Convert x,y to lat,lng (simplified mapping)
+      lat = (signal.position.y / 100) * 180 - 90
+      lng = (signal.position.x / 100) * 360 - 180
+    } else {
+      // Generate deterministic position from signal content
+      const hash = signal.content.split('').reduce((a, b) => {
+        a = (a << 5) - a + b.charCodeAt(0)
+        return a & a
+      }, 0)
+
+      lat = (Math.abs(hash) % 180) - 90
+      lng = (Math.abs(hash >> 8) % 360) - 180
+    }
+
+    return {
+      id: signal.id,
+      type: signal.type,
+      content: signal.content,
+      latitude: lat,
+      longitude: lng,
+      timestamp: signal.timestamp.getTime(),
+      entity: signal.entityId,
+      tags: signal.tags,
+      status: 'active'
+    }
+  })
+}
+
+// Real-time Supabase integration
+const initializeSignalSubscription = async () => {
+  try {
+    isLoadingSignals.value = true
+
+    // Subscribe to real-time changes
+    signalsChannel.value = supabase
+      .channel('globe-signals')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'signals' },
+        (payload) => {
+          const newSignal = convertDBSignalToVerseSignal(payload.new)
+          realtimeSignals.value.push(newSignal)
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'signals' },
+        (payload) => {
+          const idx = realtimeSignals.value.findIndex(
+            s => s.id === payload.new.id
+          )
+          if (idx !== -1) {
+            realtimeSignals.value[idx] = convertDBSignalToVerseSignal(
+              payload.new
+            )
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'signals' },
+        (payload) => {
+          realtimeSignals.value = realtimeSignals.value.filter(
+            s => s.id !== payload.old.id
+          )
+        }
+      )
+      .subscribe()
+
+    // Fetch initial signals
+    const { data, error } = await supabase
+      .from('signals')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(100)
+
+    if (error) throw error
+    realtimeSignals.value = (data || []).map(convertDBSignalToVerseSignal)
+
+    console.log(
+      `🌍 Globe: Loaded ${realtimeSignals.value.length} initial signals`
+    )
+  } catch (err) {
+    console.error('Globe: Error initializing signals:', err)
+    signalsError.value = err
+  } finally {
+    isLoadingSignals.value = false
+  }
+}
+
+const convertDBSignalToVerseSignal = (dbSignal: any): Signal => {
+  return {
+    id: dbSignal.id,
+    content: dbSignal.content,
+    type: dbSignal.signal_type || 'need',
+    entityId: dbSignal.emitter_id,
+    timestamp: new Date(dbSignal.created_at),
+    tags: dbSignal.tags || [],
+    status: 'active',
+    position:
+      dbSignal.latitude && dbSignal.longitude
+        ? {
+            x: ((dbSignal.longitude + 180) / 360) * 100,
+            y: ((dbSignal.latitude + 90) / 180) * 100
+          }
+        : undefined
+  }
+}
+
+// Merge props and realtime signals, preferring realtime
+const mergedSignals = computed(() => {
+  const signalMap = new Map<string, Signal>()
+  props.signals.forEach(s => signalMap.set(s.id, s))
+  realtimeSignals.value.forEach(s => signalMap.set(s.id, s))
+  return Array.from(signalMap.values())
+})
+
+// Create layers for the globe visualization
+const createLayers = () => {
+  const globeData = signalsToGlobeData(mergedSignals.value)
+
+  return [
+    // Globe base layer
+    new GeoJsonLayer({
+      id: 'globe-base',
+      data: {
+        type: 'Feature',
+        geometry: {
+          type: 'Sphere',
+          coordinates: [
+            [0, 0],
+            [360, 0],
+            [360, 180],
+            [0, 180],
+            [0, 0]
+          ]
+        }
+      },
+      getFillColor: [20, 20, 40, 100], // Dark blue-gray
+      getLineColor: [60, 60, 80, 150], // Slightly lighter border
+      lineWidthMinPixels: 1,
+      filled: true,
+      stroked: true,
+      extruded: false
+    }),
+
+    // Signal points layer
+    new ScatterplotLayer({
+      id: 'signals',
+      data: globeData,
+      getPosition: (d: any) => [d.longitude, d.latitude, 0],
+      getRadius: 3,
+      getFillColor: (d: any) => getSignalColor(d.type),
+      getLineColor: [255, 255, 255, 200],
+      lineWidthMinPixels: 1,
+      pickable: true,
+      radiusMinPixels: 2,
+      radiusMaxPixels: 8
+    }),
+
+    // Signal labels layer
+    new TextLayer({
+      id: 'signal-labels',
+      data: globeData,
+      getPosition: (d: any) => [d.longitude, d.latitude, 5],
+      getText: (d: any) =>
+        d.content.substring(0, 30) + (d.content.length > 30 ? '...' : ''),
+      getSize: 12,
+      getColor: [255, 255, 255, 200],
+      getAngle: 0,
+      getTextAnchor: 'middle',
+      getAlignmentBaseline: 'center',
+      pickable: true
+    })
+  ]
+}
+
+// Initialize deck.gl
+const initializeDeck = () => {
+  if (!containerRef.value) return
+
+  deckInstance = new Deck({
+    canvas: containerRef.value,
+    initialViewState: INITIAL_VIEW_STATE,
+    controller: true,
+    layers: createLayers(),
+    onHover: (info) => {
+      // Handle hover events for tooltips
+      if (info.object) {
+        console.log('Hovered signal:', info.object)
+      }
+    },
+    onClick: (info) => {
+      // Handle click events
+      if (info.object) {
+        const signal = props.signals.find(s => s.id === info.object.id)
+        if (signal) {
+          emit('signalSelected', signal)
+        }
+      }
+    }
+  })
+}
+
+// Update layers when signals change
+const updateLayers = () => {
+  if (deckInstance) {
+    deckInstance.setProps({
+      layers: createLayers()
+    })
+  }
+}
+
+// Watch for signal changes (both props and realtime)
+watch(() => props.signals, updateLayers, { deep: true })
+watch(mergedSignals, updateLayers, { deep: true })
+
+// Auto-update when merged signals change
+watchEffect(() => {
+  if (deckInstance && mergedSignals.value.length > 0) {
+    deckInstance.setProps({ layers: createLayers() })
+  }
+})
+
+onMounted(async () => {
+  initializeDeck()
+  await initializeSignalSubscription()
+})
+
+onUnmounted(() => {
+  if (signalsChannel.value) {
+    supabase.removeChannel(signalsChannel.value)
+  }
+  if (deckInstance) {
+    deckInstance.finalize()
+  }
+})
+
+// Expose methods for parent component
+defineExpose({
+  addSignal: (signal: Signal) => {
+    // Signal will be added through props
+  },
+  removeSignal: (id: string) => {
+    // Signal will be removed through props
+  },
+  updateSignals: (newSignals: Signal[]) => {
+    // Signals will be updated through props
+  }
+})
+</script>
+
+<template>
+  <div class="globe-view">
+    <div class="globe-header">
+      <div class="globe-title">
+        <div class="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />
+        Globe Visualization
+      </div>
+      <div class="globe-stats">
+        {{ signals.length }} signals active
+      </div>
+    </div>
+
+    <div ref="containerRef" class="globe-container">
+      <!-- Loading indicator -->
+      <div v-if="!deckInstance" class="globe-loading">
+        <div class="loading-content">
+          <div class="loading-spinner">
+            <div class="spinner-outer" />
+            <div class="spinner-inner" />
+          </div>
+          <div class="loading-text">
+            <div class="loading-title">
+              Initializing Cosmic Globe...
+            </div>
+            <div class="loading-subtitle">
+              Connecting to NEAKO-{% endraw %}{{ row.capitalized }}{% raw %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.globe-view {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.globe-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: linear-gradient(to right, #1e293b, #0f172a);
+  border-bottom: 1px solid #334155;
+}
+
+.globe-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.globe-stats {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.globe-container {
+  flex: 1;
+  position: relative;
+  background: linear-gradient(to bottom right, #0f172a, #1e293b, #0f172a);
+}
+
+.globe-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(to bottom right, #0f172a, #1e293b, #0f172a);
+}
+
+.loading-content {
+  text-align: center;
+}
+
+.loading-spinner {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.spinner-outer {
+  width: 3rem;
+  height: 3rem;
+  border: 2px solid #475569;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.spinner-inner {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 3rem;
+  height: 3rem;
+  border: 2px solid #3b82f6;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.loading-text {
+  color: #e2e8f0;
+}
+
+.loading-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
+
+.loading-subtitle {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+/* Ensure the canvas fills the container */
+:deep(canvas) {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Animations */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes cosmicGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(147, 51, 234, 0.5);
+  }
+}
+
+.cosmic-glow {
+  animation: cosmicGlow 3s ease-in-out infinite;
+}
+</style>
+{% endraw %}
