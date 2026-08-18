@@ -1,0 +1,748 @@
+---
+to: "src/components/BitJobMatcher.vue"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:gc_subject_bitjob_chrome_ext_shadcn_pack a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}<template>
+  <div class="{% endraw %}{{ row.lower }}{% raw %}-matcher p-4 min-w-96">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center gap-3">
+        <div
+          class="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center"
+        >
+          <span class="text-white text-sm font-bold">BJ</span>
+        </div>
+        <div>
+          <h2 class="text-lg font-semibold text-gray-900">BitJob Matcher</h2>
+          <p class="text-xs text-gray-500">AI-Powered Job Intelligence</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span
+          v-if="isEngineRunning"
+          class="inline-flex items-center px-2 py-1 text-xs font-medium text-green-800 bg-green-100 rounded-full"
+        >
+          <div
+            class="w-1.5 h-1.5 bg-green-500 rounded-full mr-1 animate-pulse"
+          ></div>
+          Active
+        </span>
+        <button
+          class="p-2 hover:bg-gray-100 rounded-lg"
+          @click="toggleEngine"
+        >
+          <svg
+            class="w-4 h-4"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM21 9V7L15 1H5C3.89 1 3 1.89 3 3V21C3 22.11 3.89 23 5 23H19C20.11 23 21 22.11 21 21V9M19 21H5V3H14V9H19V21Z"
+            />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Profile Summary -->
+    <div class="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg">
+      <div class="flex items-center gap-3">
+        <div
+          class="w-10 h-10 bg-white rounded-full flex items-center justify-center"
+        >
+          <span class="text-blue-600 font-semibold">SC</span>
+        </div>
+        <div>
+          <h3 class="font-medium text-gray-900">{{ profile.name }}</h3>
+          <p class="text-sm text-gray-600">{{ profile.title }}</p>
+          <div class="flex items-center gap-2 mt-1">
+            <span class="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+              {{ profile.experience_years }}+ years
+            </span>
+            <span
+              class="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded"
+            >
+              ${{ (profile.salary_expectation / 1000).toFixed(0) }}K
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Current Page Analysis -->
+    <div class="mb-6">
+      <div class="flex items-center justify-between mb-3">
+        <h4 class="text-sm font-medium text-gray-900">Current Page Analysis</h4>
+        <button
+          :disabled="analyzing"
+          class="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+          @click="analyzePage"
+        >
+          {{ analyzing ? "Analyzing..." : "Analyze" }}
+        </button>
+      </div>
+
+      <div
+        v-if="currentJob"
+        class="p-3 bg-gray-50 rounded-lg"
+      >
+        <div class="flex items-center justify-between mb-2">
+          <h5 class="font-medium text-gray-900">{{ currentJob.title }}</h5>
+          <div class="flex items-center gap-2">
+            <div class="w-12 h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                class="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 rounded-full"
+                :style="{ width: `${currentJob.match_score * 100}%` }"
+              ></div>
+            </div>
+            <span class="text-sm font-medium">
+              {{ (currentJob.match_score * 100).toFixed(0) }}%
+            </span>
+          </div>
+        </div>
+        <p class="text-sm text-gray-600 mb-2">{{ currentJob.company }}</p>
+        <div class="flex flex-wrap gap-1">
+          <span
+            v-for="skill in currentJob.required_skills"
+            :key="skill.name"
+            class="px-2 py-1 text-xs rounded"
+            :class="
+              hasSkill(skill.name)
+                ? 'bg-green-100 text-green-800'
+                : 'bg-gray-100 text-gray-600'
+            "
+          >
+            {{ skill.name }}
+          </span>
+        </div>
+
+        <!-- Auto-Apply Recommendation -->
+        <div
+          v-if="currentJob.auto_apply_recommended"
+          class="mt-3 p-2 bg-green-50 border border-green-200 rounded"
+        >
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-green-800">
+              🎯 Recommended for Auto-Apply
+            </span>
+            <button
+              class="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+              @click="autoApply"
+            >
+              Apply Now
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-else-if="!analyzing"
+        class="p-3 bg-gray-50 rounded-lg text-center"
+      >
+        <p class="text-sm text-gray-500">
+          Navigate to a job page and click Analyze
+        </p>
+      </div>
+    </div>
+
+    <!-- Top Matches -->
+    <div class="mb-6">
+      <div class="flex items-center justify-between mb-3">
+        <h4 class="text-sm font-medium text-gray-900">
+          Top Matches ({{ topMatches.length }})
+        </h4>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-gray-500">
+            8-Space: {{ eightSpaceCompliant ? "✅" : "⚠️" }}
+          </span>
+          <button
+            class="p-1 hover:bg-gray-100 rounded"
+            @click="refreshMatches"
+          >
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="space-y-2 max-h-64 overflow-y-auto">
+        <div
+          v-for="match in topMatches"
+          :key="match.job?.job_id || match.url || match.title"
+          class="p-3 bg-white border border-gray-200 rounded-lg hover:shadow-sm transition-shadow cursor-pointer"
+          @click="openJob(match)"
+        >
+          <div class="flex items-center justify-between mb-1">
+            <h5 class="font-medium text-gray-900 truncate">
+              {{ match.job.title }}
+            </h5>
+            <span
+              class="text-sm font-medium"
+              :class="getScoreColor(match.match_score)"
+            >
+              {{ (match.match_score * 100).toFixed(0) }}%
+            </span>
+          </div>
+          <p class="text-sm text-gray-600 truncate mb-2">
+            {{ match.job?.company || match.company }}
+          </p>
+          <div class="flex items-center justify-between text-xs">
+            <span
+              v-if="match.confidence_level"
+              class="text-gray-500"
+            >
+              {{ match.confidence_level }}/10 confidence
+            </span>
+            <span
+              v-if="match.job?.remote_ok"
+              class="px-2 py-1 bg-blue-100 text-blue-800 rounded"
+            >
+              Remote OK
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div class="p-3 bg-white border border-gray-200 rounded-lg text-center">
+        <div class="text-2xl font-bold text-blue-600">
+          {{ stats.total_matches }}
+        </div>
+        <div class="text-xs text-gray-500">Total Jobs</div>
+      </div>
+      <div class="p-3 bg-white border border-gray-200 rounded-lg text-center">
+        <div class="text-2xl font-bold text-green-600">
+          {{ stats.high_confidence_matches }}
+        </div>
+        <div class="text-xs text-gray-500">High Match</div>
+      </div>
+    </div>
+
+    <!-- Performance Metrics -->
+    <div class="p-3 bg-gray-50 rounded-lg">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs font-medium text-gray-700">Performance</span>
+        <span class="text-xs text-gray-500">
+          {{ (stats.processing_time_ns / 1000000).toFixed(2) }}ms
+        </span>
+      </div>
+      <div class="flex items-center justify-between text-xs text-gray-600">
+        <span>CPU Ticks: {{ cpuTicks }}/8</span>
+        <span>Memory: {{ memoryUsage }}KB</span>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, reactive, onMounted } from "vue"
+import { useLocalStorage, useIntervalFn } from "@vueuse/core"
+import { sendTelemetry, withTiming } from "@/lib/telemetry"
+import {
+  matchingEngine,
+  type UserProfile,
+  type JobPosting,
+  type MatchResult,
+} from "@/lib/matching/advanced-engine"
+import { ollamaGenerate } from "@/lib/ollama"
+
+// Reactive state
+const isEngineRunning = ref(false)
+const analyzing = ref(false)
+const eightSpaceCompliant = ref(true)
+const cpuTicks = ref(0)
+const memoryUsage = ref(0)
+
+// Profile data (from TTL)
+const profile = reactive<UserProfile>({
+  name: "Sean Chatman",
+  title: "Front-End Staff Engineer",
+  experience_years: 25,
+  salary_expectation: 200000,
+  skills: ["React", "TypeScript", "JavaScript", "OpenAI", "Generative AI"],
+  remote_preference: true,
+  location: "San Francisco, CA",
+  culture_preferences: ["innovation", "tech-forward", "remote-friendly"],
+})
+
+// Fortune-5: persistent settings via VueUse
+const autoRefresh = useLocalStorage<boolean>("{% endraw %}{{ row.lower }}{% raw %}.autoRefresh", true)
+const refreshEverySec = useLocalStorage<number>("{% endraw %}{{ row.lower }}{% raw %}.refreshEverySec", 60)
+const ollamaEnabled = useLocalStorage<boolean>("{% endraw %}{{ row.lower }}{% raw %}.ollamaEnabled", false)
+const ollamaModel = useLocalStorage<string>(
+  "{% endraw %}{{ row.lower }}{% raw %}.ollamaModel",
+  "qwen2.5:7b-instruct",
+)
+
+// Current job analysis
+const currentJob = ref<MatchResult | null>(null)
+
+// Top matches
+const topMatches = ref<MatchResult[]>([])
+
+// Stats
+const stats = reactive({
+  total_matches: 0,
+  high_confidence_matches: 0,
+  processing_time_ns: 0,
+  eight_space_compliant: true,
+})
+
+// Advanced job matching engine integration
+let engine = matchingEngine
+let engineInitialized = false
+
+// Methods
+async function toggleEngine() {
+  if (!isEngineRunning.value) {
+    try {
+      const initialized = await engine.initialize()
+      if (!initialized) {
+        console.error("Failed to initialize advanced matching engine")
+        return
+      }
+
+      engineInitialized = true
+      isEngineRunning.value = true
+      await refreshMatches()
+
+      sendTelemetry({
+        name: "{% endraw %}{{ row.lower }}{% raw %}.engine.started",
+        timestamp: Date.now(),
+        attributes: { engine_type: "advanced", qwen3_enabled: true },
+      })
+    } catch (error) {
+      console.error("Error initializing engine:", error)
+      sendTelemetry({
+        name: "{% endraw %}{{ row.lower }}{% raw %}.engine.start_error",
+        timestamp: Date.now(),
+        attributes: { message: (error as Error)?.message },
+      })
+    }
+  } else {
+    isEngineRunning.value = false
+    engineInitialized = false
+  }
+}
+
+async function analyzePage() {
+  if (!isEngineRunning.value || !engineInitialized) return
+
+  analyzing.value = true
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    if (!tab?.id) return
+
+    // Get page content for job analysis
+    const pageContent = await withTiming("{% endraw %}{{ row.lower }}{% raw %}.get_page_content", async () =>
+      chrome.tabs.sendMessage(tab.id!, { type: "GET_PAGE_CONTENT" }),
+    )()
+
+    if (pageContent?.error) {
+      console.warn("Page content error:", pageContent.error)
+      return
+    }
+
+    // Parse job posting from page content
+    const jobPosting = await parseJobFromPageContent(
+      pageContent.content,
+      tab.url || "",
+    )
+
+    if (!jobPosting) {
+      console.warn("Could not parse job posting from page")
+      return
+    }
+
+    // Use advanced matching engine for analysis
+    const matchResult = await withTiming("{% endraw %}{{ row.lower }}{% raw %}.advanced_analysis", async () =>
+      engine.analyzeJobMatch(profile, jobPosting),
+    )()
+
+    // Update current job with match results
+    currentJob.value = {
+      ...matchResult.job,
+      match_score: matchResult.match_score,
+      auto_apply_recommended: matchResult.auto_apply_recommended,
+      confidence_level: matchResult.confidence_level,
+      match_breakdown: matchResult.match_breakdown,
+      reasons: matchResult.reasons,
+      concerns: matchResult.concerns,
+    }
+
+    // Update performance metrics
+    updatePerformanceMetrics(matchResult)
+
+    sendTelemetry({
+      name: "{% endraw %}{{ row.lower }}{% raw %}.analyze_page.success",
+      timestamp: Date.now(),
+      attributes: {
+        match_score: matchResult.match_score,
+        confidence: matchResult.confidence_level,
+        auto_apply: matchResult.auto_apply_recommended,
+        processing_time_ms: matchResult.processing_time_ms,
+      },
+    })
+  } catch (error) {
+    console.error("Error analyzing page:", error)
+    sendTelemetry({
+      name: "{% endraw %}{{ row.lower }}{% raw %}.analyze_page.error",
+      timestamp: Date.now(),
+      attributes: { message: (error as Error)?.message },
+    })
+  } finally {
+    analyzing.value = false
+  }
+}
+
+// Helper function to parse job posting from page content
+async function parseJobFromPageContent(
+  content: string,
+  url: string,
+): Promise<JobPosting | null> {
+  try {
+    // Extract job details using simple heuristics (could be enhanced with ML later)
+    const titleMatch =
+      content.match(/<title>(.*?)<\/title>/i) ||
+      content.match(/<h1[^>]*>(.*?)<\/h1>/i)
+    const title = titleMatch
+      ? titleMatch[1].replace(/\s*-\s*.*$/, "").trim()
+      : "Unknown Position"
+
+    // Extract company name (common patterns)
+    const companyPatterns = [
+      /at\s+([A-Z][a-zA-Z\s&.,-]+?)(?:\s*-|\s*\||\s*$)/,
+      /Company:\s*([^<\n]+)/i,
+      /Employer:\s*([^<\n]+)/i,
+    ]
+    let company = "Unknown Company"
+    for (const pattern of companyPatterns) {
+      const match = content.match(pattern)
+      if (match) {
+        company = match[1].trim()
+        break
+      }
+    }
+
+    // Extract salary information
+    const salaryMatch = content.match(
+      /\$?(\d{2,3})[,k\s]*[-–]\s*\$?(\d{2,3})[k\s]*/i,
+    )
+    let salary_min, salary_max
+    if (salaryMatch) {
+      salary_min = parseInt(salaryMatch[1]) * 1000
+      salary_max = parseInt(salaryMatch[2]) * 1000
+    }
+
+    // Check for remote work
+    const remote_ok = /remote|work from home|wfh|distributed/i.test(content)
+
+    // Extract skills (basic approach)
+    const commonSkills = [
+      "React",
+      "TypeScript",
+      "JavaScript",
+      "Node.js",
+      "Python",
+      "Java",
+      "Docker",
+      "AWS",
+      "Kubernetes",
+      "Git",
+      "SQL",
+      "NoSQL",
+      "GraphQL",
+      "Vue",
+      "Angular",
+      "Next.js",
+      "Express",
+      "MongoDB",
+      "PostgreSQL",
+    ]
+
+    const required_skills = commonSkills
+      .filter((skill) => new RegExp(`\\b${skill}\\b`, "i").test(content))
+      .map((skill) => ({ name: skill, expertise_level: 7, required: true }))
+
+    // Extract location
+    const locationMatch = content.match(
+      /(?:Location:|Based in:)\s*([^<\n,]+(?:,\s*[A-Z]{2})?)/i,
+    )
+    const location = locationMatch ? locationMatch[1].trim() : "Remote"
+
+    const jobPosting: JobPosting = {
+      job_id: Date.now().toString(),
+      title,
+      company,
+      location,
+      salary_min,
+      salary_max,
+      remote_ok,
+      required_skills,
+      description: content.slice(0, 500), // First 500 chars as description
+    }
+
+    return jobPosting
+  } catch (error) {
+    console.error("Error parsing job content:", error)
+    return null
+  }
+}
+
+// Helper function to update performance metrics
+function updatePerformanceMetrics(matchResult: MatchResult) {
+  const engineStats = engine.getStats()
+
+  Object.assign(stats, {
+    total_matches: engineStats.total_matches,
+    high_confidence_matches: engineStats.high_confidence_matches,
+    processing_time_ns: engineStats.processing_time_ns,
+    eight_space_compliant: engineStats.eight_space_compliant,
+  })
+
+  cpuTicks.value = engineStats.cpu_ticks_used
+  memoryUsage.value = Math.round(engineStats.memory_usage_kb)
+  eightSpaceCompliant.value = engineStats.eight_space_compliant
+}
+
+async function refreshMatches() {
+  if (!isEngineRunning.value || !engineInitialized) return
+
+  try {
+    // Request background job search from free APIs
+    chrome.runtime.sendMessage({ type: "SEARCH_JOBS" })
+    const bgResult = await new Promise<any[]>((resolve) => {
+      const handler = (msg: any) => {
+        if (msg?.type === "SEARCH_JOBS_RESULT") {
+          chrome.runtime.onMessage.removeListener(handler)
+          resolve(Array.isArray(msg.payload) ? msg.payload : [])
+        }
+      }
+      chrome.runtime.onMessage.addListener(handler)
+      setTimeout(() => {
+        chrome.runtime.onMessage.removeListener(handler)
+        resolve([])
+      }, 3000)
+    })
+
+    if (bgResult.length) {
+      // Analyze each job with the advanced matching engine
+      const matchPromises = bgResult.slice(0, 10).map(async (job) => {
+        try {
+          // Convert background job to our JobPosting format
+          const jobPosting: JobPosting = {
+            job_id: job.id || job.job_id || Date.now().toString(),
+            title: job.title || "Unknown Position",
+            company: job.company || "Unknown Company",
+            location: job.location || "Remote",
+            salary_min: job.salary_min || job.salaryMin,
+            salary_max: job.salary_max || job.salaryMax,
+            remote_ok: job.remote_ok || job.remote || false,
+            required_skills: job.skills
+              ? job.skills.map((skill: string) => ({
+                  name: skill,
+                  expertise_level: 7,
+                }))
+              : [],
+            description: job.description || "",
+          }
+
+          // Get match analysis from advanced engine
+          const matchResult = await engine.analyzeJobMatch(profile, jobPosting)
+          return matchResult
+        } catch (error) {
+          console.error("Error analyzing job match:", error)
+          // Fallback to simple matching
+          return {
+            job,
+            match_score: 0.5,
+            confidence_level: 5,
+            auto_apply_recommended: false,
+          }
+        }
+      })
+
+      const matches = await Promise.all(matchPromises)
+
+      // Sort by match score and confidence
+      topMatches.value = matches
+        .filter((m) => m.match_score > 0.3) // Only show decent matches
+        .sort((a, b) => {
+          // Primary sort by score, secondary by confidence
+          if (Math.abs(a.match_score - b.match_score) > 0.05) {
+            return b.match_score - a.match_score
+          }
+          return b.confidence_level - a.confidence_level
+        })
+        .slice(0, 10) // Top 10 matches
+
+      // Update performance metrics
+      const engineStats = engine.getStats()
+      Object.assign(stats, engineStats)
+      cpuTicks.value = engineStats.cpu_ticks_used
+      memoryUsage.value = Math.round(engineStats.memory_usage_kb)
+      eightSpaceCompliant.value = engineStats.eight_space_compliant
+
+      sendTelemetry({
+        name: "{% endraw %}{{ row.lower }}{% raw %}.refresh_matches.success",
+        timestamp: Date.now(),
+        attributes: {
+          total_jobs_analyzed: matches.length,
+          high_quality_matches: matches.filter((m) => m.match_score >= 0.8)
+            .length,
+          average_confidence:
+            matches.reduce((sum, m) => sum + m.confidence_level, 0) /
+            matches.length,
+          eight_space_compliant: engineStats.eight_space_compliant,
+          processing_time_ns: engineStats.processing_time_ns,
+        },
+      })
+    } else {
+      // No background results, clear matches
+      topMatches.value = []
+      console.log("No job matches found from background search")
+    }
+  } catch (error) {
+    console.error("Error refreshing matches:", error)
+    sendTelemetry({
+      name: "{% endraw %}{{ row.lower }}{% raw %}.refresh_matches.error",
+      timestamp: Date.now(),
+      attributes: { message: (error as Error)?.message },
+    })
+  }
+}
+
+async function autoApply() {
+  if (!currentJob.value) return
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    if (!tab?.id) return
+
+    const jobId = currentJob.value.job_id || currentJob.value.id || Date.now()
+    const result = await withTiming("{% endraw %}{{ row.lower }}{% raw %}.auto_apply", async () =>
+      chrome.tabs.sendMessage(tab.id!, { type: "AUTO_APPLY", jobId }),
+    )()
+    if (result?.error) {
+      console.warn("Auto-apply error:", result.error)
+    } else {
+      console.log("Auto-apply result:", result)
+    }
+  } catch (error) {
+    console.error("Error during auto-apply:", error)
+    sendTelemetry({
+      name: "{% endraw %}{{ row.lower }}{% raw %}.auto_apply.error",
+      timestamp: Date.now(),
+      attributes: { message: (error as Error)?.message },
+    })
+  }
+}
+
+function hasSkill(skillName: string): boolean {
+  return profile.skills.some((skill: string) =>
+    skill.toLowerCase().includes(skillName.toLowerCase()),
+  )
+}
+
+function getScoreColor(score: number): string {
+  if (score >= 0.8) return "text-green-600"
+  if (score >= 0.6) return "text-yellow-600"
+  return "text-red-600"
+}
+
+function openJob(match: MatchResult): void {
+  // Open job in new tab or navigate to it
+  console.log("Opening job:", match.job.title)
+}
+
+// Fortune-5: AI cover letter on-demand via Ollama
+async function generateCoverLetterWithOllama() {
+  if (!ollamaEnabled.value) return
+  const current = currentJob.value
+  if (!current) return
+  const prompt =
+    `Write a concise, professional cover letter for the role "${current.job.title}" at "${current.job.company}". Focus on results and measurable impact. Candidate: ${profile.name}, ${profile.experience_years} years, key skills: ${profile.skills.join(", ")}.`.slice(
+      0,
+      1024,
+    )
+  const text = await withTiming("{% endraw %}{{ row.lower }}{% raw %}.ollama.cover_letter", () =>
+    ollamaGenerate(prompt, { model: ollamaModel.value }),
+  )()
+  if (text) {
+    console.log("Ollama cover letter:", text)
+  }
+}
+
+// Fortune-5: background auto-refresh
+useIntervalFn(
+  () => {
+    if (autoRefresh.value && isEngineRunning.value && engineInitialized) {
+      refreshMatches()
+    }
+  },
+  () => Math.max(10, refreshEverySec.value) * 1000,
+)
+
+// Initialize on mount
+onMounted(() => {
+  console.log("BitJob Matcher initialized")
+  sendTelemetry({
+    name: "{% endraw %}{{ row.lower }}{% raw %}.ui.mounted",
+    timestamp: Date.now(),
+    attributes: { component: "BitJobMatcher" },
+  })
+  chrome.runtime.sendMessage({ type: "SEARCH_JOBS" })
+})
+</script>
+
+<style scoped>
+.{% endraw %}{{ row.lower }}{% raw %}-matcher {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+</style>
+{% endraw %}

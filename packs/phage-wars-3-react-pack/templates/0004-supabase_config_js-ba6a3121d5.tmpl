@@ -1,0 +1,191 @@
+---
+to: "supabase-config.js"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:gc_subject_phage_wars_3_react_pack a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}/* =====================================================================
+   supabase-config.js
+   The "backend": seed schema/data, RPC functions, and Edge Functions
+   for {% endraw %}{{ row.title }}{% raw %} III. Passed into createClient() so the mock behaves
+   like a provisioned Supabase project.
+
+   Tables
+     profiles        one row per auth user (handle, avatar, elo, main champ)
+     champions       static reference data (the five strains)
+     matches         one row per game (winner, duration, score)
+     match_events    4D telemetry rows (the kgc-4d facts: subject/pred/obj + x,y,t)
+     lobby_messages  realtime chat in the matchmaking lobby
+
+   RPC               record_match, leaderboard, champion_winrates, claim_handle
+   Edge Functions    matchmake, compute_elo, analyze_match
+   ===================================================================== */
+
+/* Authoritative champion roster — the single source of truth for BOTH the
+   online shell (name/role/hue/blurb) and the game engine (tag/stats/ult/
+   barColor). The engine reads these via window.{% endraw %}{{ row.capitalized }}{% raw %}.setChampions(),
+   converting `hue` (hex) to its internal [r,g,b]. Nothing is hardcoded in
+   the UI or the engine anymore; everything flows from this table. */
+const CHAMPIONS = [
+  { id: 'lyssa', tag: 'L', name: 'LYSSA', role: 'ASSASSIN',   hue: '#ff5aaa', blurb: 'Blink-lyse burst assassin.',
+    barColor: 'linear-gradient(90deg,#ff5db0,#ff9bd0)', stats: { spd: .95, str: .85, rep: .35, def: .25, agi: .95 },
+    ult: { icon: '\u27c1', name: 'BLINK-LYSE', key: 'Q', cd: 9, desc: 'Dash to cursor and burst the nearest enemy colony for 35 units.' } },
+  { id: 'grond', tag: 'G', name: 'GROND', role: 'BULWARK',    hue: '#5cd0ff', blurb: 'Membrane-shielding bulwark.',
+    barColor: 'linear-gradient(90deg,#5cd0ff,#bfefff)', stats: { spd: .3, str: .6, rep: .4, def: .98, agi: .2 },
+    ult: { icon: '\u26e8', name: 'MEMBRANE', key: 'Q', cd: 12, desc: 'Sheathe the nearest colony \u2014 uncapturable & +defense for 7s.' } },
+  { id: 'spore', tag: 'S', name: 'SPORE', role: 'BREEDER',    hue: '#78ffaa', blurb: 'Bloom production engine.',
+    barColor: 'linear-gradient(90deg,#7dffb0,#d6ffe6)', stats: { spd: .5, str: .3, rep: .99, def: .55, agi: .45 },
+    ult: { icon: '\u2736', name: 'BLOOM', key: 'Q', cd: 11, desc: 'Triple production of the nearest friendly colony for 8s.' } },
+  { id: 'toxin', tag: 'T', name: 'TOXIN', role: 'NECRO-MAGE', hue: '#aa7cff', blurb: 'Necrosis field control.',
+    barColor: 'linear-gradient(90deg,#b98cff,#e6d6ff)', stats: { spd: .55, str: .95, rep: .5, def: .4, agi: .6 },
+    ult: { icon: '\u2623', name: 'NECROSIS', key: 'Q', cd: 10, desc: 'Seed a toxin field at cursor that rots enemy colonies for 5s.' } },
+  { id: 'flux',  tag: 'F', name: 'FLUX',  role: 'VECTOR',     hue: '#ffd166', blurb: 'Surge flood vector.',
+    barColor: 'linear-gradient(90deg,#ffd166,#ffe9a8)', stats: { spd: .7, str: .45, rep: .6, def: .6, agi: .8 },
+    ult: { icon: '\u21f2', name: 'SURGE', key: 'Q', cd: 10, desc: 'Flood +22 units into every friendly colony near the cursor.' } },
+];
+
+const SEED_PROFILES = [
+  { id: 'seed_nova',  handle: 'NOVA_STRAIN',  elo: 2480, main: 'lyssa', wins: 312, losses: 140, avatar_url: '' },
+  { id: 'seed_helix', handle: 'HELIX_PRIME',  elo: 2390, main: 'toxin', wins: 288, losses: 161, avatar_url: '' },
+  { id: 'seed_cyto',  handle: 'CYTO_BANE',    elo: 2255, main: 'grond', wins: 240, losses: 150, avatar_url: '' },
+  { id: 'seed_lyse',  handle: 'LYSE_QUEEN',   elo: 2190, main: 'flux',  wins: 221, losses: 158, avatar_url: '' },
+  { id: 'seed_myco',  handle: 'MYCO_DRIFT',   elo: 2040, main: 'spore', wins: 198, losses: 171, avatar_url: '' },
+  { id: 'seed_phag',  handle: 'PHAGE_GHOST',  elo: 1975, main: 'lyssa', wins: 180, losses: 165, avatar_url: '' },
+  { id: 'seed_viri',  handle: 'VIRION_X',     elo: 1860, main: 'toxin', wins: 150, losses: 160, avatar_url: '' },
+];
+
+const SEED_MATCHES = [
+  { id: 'm_seed_1', winner: 'A', player_champ: 'lyssa', duration_s: 412, score_a: 64, score_b: 51, profile_id: 'seed_nova', elo_delta: 18, created_at: '2026-06-13T18:22:00Z' },
+  { id: 'm_seed_2', winner: 'B', player_champ: 'grond', duration_s: 538, score_a: 40, score_b: 72, profile_id: 'seed_cyto', elo_delta: -15, created_at: '2026-06-14T09:10:00Z' },
+];
+
+const SEED = {
+  profiles: SEED_PROFILES,
+  champions: CHAMPIONS.map((c) => ({ ...c })),
+  matches: SEED_MATCHES,
+  match_events: [],
+  lobby_messages: [],
+};
+
+/* -------------------------- helpers -------------------------- */
+function elo(ra, rb, scoreA, k = 32) {
+  const ea = 1 / (1 + Math.pow(10, (rb - ra) / 400));
+  return Math.round(k * (scoreA - ea));
+}
+
+/* -------------------------- RPC functions -------------------------- */
+const RPC = {
+  /* atomic "insert match + bump profile stats" */
+  async record_match(args, client) {
+    const { profile_id, winner, player_champ, duration_s, score_a, score_b } = args;
+    const board = await client.from('profiles').select('*').order('elo', { ascending: false });
+    const me = (board.data || []).find((p) => p.id === profile_id);
+    const oppElo = (board.data && board.data[0] && board.data[0].elo) || 2000;
+    const won = winner === 'A';
+    const delta = elo(me ? me.elo : 1500, oppElo, won ? 1 : 0);
+    const match = { id: 'm_' + Date.now().toString(36), profile_id, winner, player_champ, duration_s, score_a, score_b, elo_delta: delta };
+    await client.from('matches').insert(match);
+    if (me) await client.from('profiles').update({ elo: me.elo + delta, wins: me.wins + (won ? 1 : 0), losses: me.losses + (won ? 0 : 1) }).eq('id', profile_id);
+    return { match, elo_delta: delta };
+  },
+  /* ranked ladder */
+  async leaderboard(args, client) {
+    const limit = (args && args.limit) || 10;
+    const r = await client.from('profiles').select('*').order('elo', { ascending: false }).limit(limit);
+    return (r.data || []).map((p, i) => ({ rank: i + 1, handle: p.handle, elo: p.elo, main: p.main, wins: p.wins, losses: p.losses, winrate: p.wins + p.losses ? Math.round(p.wins / (p.wins + p.losses) * 100) : 0 }));
+  },
+  /* aggregate winrate per champion from match history */
+  async champion_winrates(_args, client) {
+    const r = await client.from('matches').select('*');
+    const tally = {};
+    for (const m of r.data || []) { const c = m.player_champ; tally[c] = tally[c] || { champ: c, games: 0, wins: 0 }; tally[c].games++; if (m.winner === 'A') tally[c].wins++; }
+    return Object.values(tally).map((t) => ({ ...t, winrate: t.games ? Math.round(t.wins / t.games * 100) : 0 }));
+  },
+  async claim_handle(args, client) {
+    const exists = await client.from('profiles').select('id').eq('handle', args.handle);
+    if (exists.data && exists.data.length) throw new Error('handle taken');
+    return { available: true };
+  },
+};
+
+/* -------------------------- Edge Functions -------------------------- */
+const FUNCTIONS = {
+  /* fake matchmaking: assemble 5v5 around a chosen champ from the profile pool */
+  async matchmake({ champ }, client) {
+    const r = await client.from('profiles').select('*').order('elo', { ascending: false }).limit(20);
+    const pool = (r.data || []).slice();
+    const pick = () => pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+    const champIds = CHAMPIONS.map((c) => c.id);
+    const rnd = (a) => a[Math.floor(Math.random() * a.length)];
+    // Synthetic strain handles for when the live `profiles` pool runs dry,
+    // so a full 4v5 lineup is always sourced from the mock (never engine-padded).
+    const STRAINS = ['VIRAX', 'CapSID', 'PROTEO', 'GLYCAN', 'PLASMID', 'RIBO', 'VECTRA', 'ENDO', 'SEROTYPE', 'LYTIC', 'CAPSO', 'MITO'];
+    const usedBot = new Set();
+    const botName = () => { let n; do { n = rnd(STRAINS) + '_' + (100 + Math.floor(Math.random() * 899)); } while (usedBot.has(n)); usedBot.add(n); return n; };
+    const slot = () => { const p = pool.length ? pick() : null; return p ? { handle: p.handle, champ: p.main, elo: p.elo } : { handle: botName(), champ: rnd(champIds), elo: 1400 + Math.floor(Math.random() * 700) }; };
+    const allies = [], enemies = [];
+    for (let i = 0; i < 4; i++) allies.push(slot());
+    for (let i = 0; i < 5; i++) enemies.push(slot());
+    return {
+      lobby_id: 'lobby_' + Math.random().toString(36).slice(2, 8),
+      your_champ: champ,
+      allies, enemies,
+      region: 'petri-dish-west',
+      avg_elo: Math.round([...allies, ...enemies].reduce((s, p) => s + p.elo, 0) / 9),
+    };
+  },
+  async compute_elo({ rating_a, rating_b, score_a }) { return { delta: elo(rating_a, rating_b, score_a) }; },
+  /* Finalize a match server-side in ONE call: ingest the 4D telemetry facts,
+     record the match + ELO, and run analysis. Replaces the multi-step client
+     orchestration that used to live in the game shell. */
+  async finalize_match({ match_id, facts, profile_id, winner, player_champ, duration_s, score_a, score_b }, client) {
+    if (facts && facts.length) await client.from('match_events').insert(facts.map((f) => ({ match_id, subject: f.subject, predicate: f.predicate, object: f.object, x: f.x, y: f.y, t: f.t })));
+    const { data: rec } = await client.rpc('record_match', { profile_id, winner, player_champ, duration_s, score_a, score_b });
+    const { data: analysis } = await client.functions.invoke('analyze_match', { body: { match_id } });
+    return { match: rec && rec.match, elo_delta: rec ? rec.elo_delta : 0, analysis, events: (facts || []).length };
+  },
+  /* Computed player stats (winrate / games / ladder rank) — derived
+     server-side instead of being calculated inline in the client. */
+  async player_stats({ profile_id }, client) {
+    const r = await client.from('profiles').select('*').eq('id', profile_id).maybeSingle();
+    const p = r.data; if (!p) return null;
+    const games = p.wins + p.losses;
+    const board = await client.from('profiles').select('id').order('elo', { ascending: false });
+    const rank = (board.data || []).findIndex((x) => x.id === profile_id) + 1;
+    return { elo: p.elo, wins: p.wins, losses: p.losses, games, winrate: games ? Math.round(p.wins / games * 100) : 0, rank };
+  },
+  /* post-match analysis derived from the 4D telemetry events */
+  async analyze_match({ match_id }, client) {
+    const r = await client.from('match_events').select('*').eq('match_id', match_id);
+    const ev = r.data || [];
+    const captures = ev.filter((e) => e.predicate === 'capturedBy');
+    const kills = ev.filter((e) => e.predicate === 'lysed');
+    const tEnd = ev.reduce((m, e) => Math.max(m, e.t || 0), 0);
+    return {
+      total_events: ev.length,
+      captures: captures.length,
+      kills: kills.length,
+      first_blood: kills.sort((a, b) => (a.t || 0) - (b.t || 0))[0] || null,
+      contested_zones: captures.length ? Math.round(captures.length / Math.max(1, captures.filter((c, i, a) => a.findIndex((x) => x.subject === c.subject) === i).length) * 10) / 10 : 0,
+      match_length_s: Math.round(tEnd),
+    };
+  },
+};
+
+window.SupabaseConfig = { SEED, RPC, FUNCTIONS, CHAMPIONS };
+{% endraw %}

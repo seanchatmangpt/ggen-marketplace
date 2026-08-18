@@ -1,0 +1,75 @@
+---
+to: "components/dashboard-view.tsx"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:gc_subject_trialbase_dashboard_shadcn_pack a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}"use client"
+
+import { useState } from "react"
+import { Header } from "@/components/header"
+import { DashboardTiles } from "@/components/dashboard-tiles"
+import { PersistentChat } from "@/components/persistent-chat"
+import { mockCases } from "@/lib/mock-data"
+import { AppSidebar } from "@/components/sidebar"
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
+
+export function DashboardView() {
+  const [selectedCase, setSelectedCase] = useState(null)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [filterCategory, setFilterCategory] = useState("all")
+  const [isChatExpanded, setIsChatExpanded] = useState(false)
+
+  const filteredCases = mockCases.filter((caseItem) => {
+    const matchesSearch =
+      caseItem.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      caseItem.caseNumber.toLowerCase().includes(searchQuery.toLowerCase())
+
+    if (filterCategory === "all") return matchesSearch
+    return matchesSearch && caseItem.status === filterCategory
+  })
+
+  return (
+    <div className="flex flex-col h-screen">
+      <Header minimal={false} />
+
+      <div className="flex-1 flex overflow-hidden">
+        <SidebarProvider>
+          <AppSidebar
+            cases={filteredCases}
+            onSelectCase={setSelectedCase}
+            selectedCaseId={selectedCase?.id}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+          />
+          <SidebarInset className="flex-1 overflow-y-auto pb-16">
+            <DashboardTiles cases={filteredCases} selectedCase={selectedCase} onSelectCase={setSelectedCase} />
+          </SidebarInset>
+        </SidebarProvider>
+      </div>
+
+      <PersistentChat
+        currentCase={selectedCase}
+        isExpanded={isChatExpanded}
+        onToggleExpand={() => setIsChatExpanded(!isChatExpanded)}
+      />
+    </div>
+  )
+}
+
+{% endraw %}

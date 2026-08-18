@@ -1,0 +1,77 @@
+@prefix sb: <https://ggen.dev/packs/supabase#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Classes ---------------------------------------------------------------
+
+sb:Project a rdfs:Class ;
+    rdfs:comment "One Supabase project (hosted or self-hosted). Owns the project ref, region, and the env var prefix convention this consumer's runtime actually uses." .
+
+sb:Client a rdfs:Class ;
+    rdfs:comment "One generated client module. runtime distinguishes where it executes; package distinguishes which SDK generates it." .
+
+sb:Table a rdfs:Class ;
+    rdfs:comment "One Postgres table exposed through the Supabase API. hasRLS mirrors the real ALTER TABLE ... ENABLE ROW LEVEL SECURITY convention found in every migration sampled." .
+
+sb:Policy a rdfs:Class ;
+    rdfs:comment "One RLS policy on a table, e.g. USING (auth.uid() = user_id) or WITH CHECK (auth.role() = 'service_role')." .
+
+sb:AuthProvider a rdfs:Class ;
+    rdfs:comment "One auth provider entry for supabase/config.toml's [auth.email] / [auth.external.*] sections." .
+
+# Project properties ------------------------------------------------------
+
+sb:projectRef a rdf:Property ;
+    rdfs:domain sb:Project ;
+    rdfs:comment "20-char lowercase alphanumeric Supabase project ref, e.g. abcdefghijklmnopqrst." .
+sb:projectId a rdf:Property ;
+    rdfs:domain sb:Project ;
+    rdfs:comment "CLI project_id used in supabase/config.toml (defaults to the working directory name in real projects sampled)." .
+sb:region a rdf:Property ;
+    rdfs:domain sb:Project .
+sb:envPrefix a rdf:Property ;
+    rdfs:domain sb:Project ;
+    rdfs:comment "Real env var prefix observed in this project's runtime: \"\" (bare SUPABASE_*, dominant for Node/backend), \"EXPO_PUBLIC_\" (Expo/React Native), or \"NEXT_PUBLIC_\" (Next.js client components)." .
+sb:apiPort a rdf:Property ;
+    rdfs:domain sb:Project ;
+    rdfs:comment "Local CLI API port (54321 in every config.toml sampled)." .
+sb:dbPort a rdf:Property ;
+    rdfs:domain sb:Project ;
+    rdfs:comment "Local CLI DB port (54322 in every config.toml sampled)." .
+sb:hasClient a rdf:Property ; rdfs:domain sb:Project ; rdfs:range sb:Client .
+sb:hasTable a rdf:Property ; rdfs:domain sb:Project ; rdfs:range sb:Table .
+sb:hasAuthProvider a rdf:Property ; rdfs:domain sb:Project ; rdfs:range sb:AuthProvider .
+
+# Client properties ---------------------------------------------------------
+
+sb:runtime a rdf:Property ;
+    rdfs:domain sb:Client ;
+    rdfs:comment "\"browser\" | \"server\" | \"edge\". \"browser\" generates a plain singleton client (the dominant real pattern). \"server\"/\"edge\" opt into the @supabase/ssr cookie-based pattern when package is \"@supabase/ssr\"." .
+sb:package a rdf:Property ;
+    rdfs:domain sb:Client ;
+    rdfs:comment "\"@supabase/supabase-js\" (dominant real pattern -- plain singleton client) or \"@supabase/ssr\" (opt-in, Next.js App Router SSR cookie-based client/server split)." .
+sb:usesServiceRole a rdf:Property ;
+    rdfs:domain sb:Client ;
+    rdfs:comment "true for server-side write clients keyed off SUPABASE_SERVICE_ROLE_KEY, matching the real anon-vs-service-role client split found in the sampled projects." .
+sb:outputPath a rdf:Property ;
+    rdfs:domain sb:Client ;
+    rdfs:comment "Optional override for the generated client file path; defaults per runtime/package combination." .
+
+# Table / policy properties --------------------------------------------------
+
+sb:tableName a rdf:Property ; rdfs:domain sb:Table .
+sb:hasRLS a rdf:Property ; rdfs:domain sb:Table ; rdfs:range xsd:boolean .
+sb:schema a rdf:Property ; rdfs:domain sb:Table ; rdfs:comment "Postgres schema, defaults to public." .
+sb:hasPolicy a rdf:Property ; rdfs:domain sb:Table ; rdfs:range sb:Policy .
+sb:policyName a rdf:Property ; rdfs:domain sb:Policy .
+sb:policyCommand a rdf:Property ; rdfs:domain sb:Policy ; rdfs:comment "SELECT | INSERT | UPDATE | DELETE | ALL." .
+sb:policyUsing a rdf:Property ; rdfs:domain sb:Policy ; rdfs:comment "USING expression, e.g. auth.uid() = user_id." .
+sb:policyWithCheck a rdf:Property ; rdfs:domain sb:Policy ; rdfs:comment "WITH CHECK expression, e.g. auth.role() = 'service_role'." .
+
+# Auth provider properties --------------------------------------------------
+
+sb:providerKind a rdf:Property ;
+    rdfs:domain sb:AuthProvider ;
+    rdfs:comment "\"email\" | \"oauth-google\" | \"oauth-github\" | \"oauth-apple\" | ... . Every real config.toml sampled enables [auth.email] and leaves [auth.external.*] disabled by default." .
+sb:providerEnabled a rdf:Property ; rdfs:domain sb:AuthProvider ; rdfs:range xsd:boolean .

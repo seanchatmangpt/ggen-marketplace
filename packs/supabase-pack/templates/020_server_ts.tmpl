@@ -1,0 +1,64 @@
+---
+to: "lib/supabase/server.ts"
+sparql:
+  clients: >
+      PREFIX sb: <https://ggen.dev/packs/supabase#>
+      SELECT ?runtime ?package ?usesServiceRole ?envPrefix WHERE {
+        ?project a sb:Project ; sb:envPrefix ?envPrefix ; sb:hasClient ?client .
+        ?client a sb:Client ; sb:runtime "server" ; sb:package ?package .
+        OPTIONAL { ?client sb:usesServiceRole ?usesServiceRole }
+      }
+---
+{% for c in clients %}{% if c.package == "@supabase/ssr" -%}
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+
+/** Server-side Supabase client (cookie-aware, @supabase/ssr, Next.js App Router). */
+export async function createClient() {
+  const cookieStore = await cookies();
+  return createServerClient(
+    process.env.{{ c.envPrefix }}SUPABASE_URL!,
+    process.env.{{ c.envPrefix }}SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll: () => cookieStore.getAll(),
+        setAll: (cookiesToSet) => {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // setAll called from a Server Component -- middleware refreshes the session instead.
+          }
+        },
+      },
+    }
+  );
+}
+{% else -%}
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.{{ c.envPrefix }}SUPABASE_URL!;
+const serviceRoleKey = process.env.{{ c.envPrefix }}SUPABASE_SERVICE_ROLE_KEY;
+const anonKey = process.env.{{ c.envPrefix }}SUPABASE_ANON_KEY!;
+
+/**
+ * Server-side Supabase client. Uses the service role key when present (bypasses RLS
+ * for trusted server-side writes -- matches the real anon-vs-service-role client split
+ * found in sampled projects); falls back to the anon key otherwise.
+ */
+export function createServerSupabaseClient() {
+  if (!supabaseUrl) {
+    throw new Error("{{ c.envPrefix }}SUPABASE_URL is required");
+  }
+  const key = serviceRoleKey ?? anonKey;
+  if (!key) {
+    throw new Error(
+      "{{ c.envPrefix }}SUPABASE_SERVICE_ROLE_KEY or {{ c.envPrefix }}SUPABASE_ANON_KEY is required"
+    );
+  }
+  return createSupabaseClient(supabaseUrl, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+{% endif %}{% endfor -%}

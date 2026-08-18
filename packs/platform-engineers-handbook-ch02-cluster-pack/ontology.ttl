@@ -1,0 +1,187 @@
+# platform-engineers-handbook-ch02-cluster-pack ontology — a real, parameterized
+# fact model of "The Platform Engineer's Handbook" Chapter 2's cluster-foundation
+# topology: a Kind cluster + Istio service mesh + optional Flux GitOps bootstrap.
+#
+# WHAT THIS MODELS: the subset of Ch02's real, previously-validated files
+# (/tmp/platform-engineers-handbook-src/Ch02/kind-config.yaml and
+# istio-mesh-config.yaml) that varies per environment — cluster name, node
+# image, Istio install profile, host/container ingress port mappings, and
+# whether Flux is bootstrapped for that environment — modeled as real RDF
+# classes/properties/instances, not a captured string blob.
+#
+# RELATIONSHIP TO packs/platform-engineers-handbook: that pack is a raw
+# ggen-create CAPTURE of the whole book (verified this session: its
+# ontology.ttl is the generic ggen-create case-variant scaffold plus a
+# handful of hand-added domain triples, and its ggen-create-package.json has
+# almost no templates with real content_replacements). This pack is a
+# separate, complementary, real generator scoped to Ch02's cluster-foundation
+# piece only. It does not modify or replace that pack.
+#
+# PUBLIC-ONTOLOGY-FIRST CHECK: no public RDF vocabulary exists for
+# Kind-cluster / Istio-profile / Flux-bootstrap configuration shapes (these
+# are tool-specific config schemas — kind.x-k8s.io, istio.io, fluxcd.io — not
+# general-purpose real-world concepts covered by a W3C/schema.org/OMG
+# vocabulary). Consistent with azure-terraform-pack's aztf: precedent, this
+# pack mints a bridge vocabulary (`pech2:`) whose property local names track
+# the real config keys (containerPort/hostPort/protocol from Kind's
+# extraPortMappings schema, mTLS `mode` from Istio's PeerAuthentication) so
+# the RDF is traceable term-for-term back to the real schemas it renders.
+#
+# SCOPE FENCE — what this pack deliberately does NOT model, and why:
+#   - Pulumi network/namespace provisioning (modules/network.py,
+#     modules/cluster.py's namespace/quota logic), OPA/Gatekeeper policy
+#     (platform-services.yaml's ConstraintTemplates), and the full Istio
+#     traffic-management resource set (VirtualService/DestinationRule/
+#     Gateway/Telemetry/ProxyConfig in istio-mesh-config.yaml) are NOT
+#     modeled here. The task scope is Ch02's "cluster-foundation piece":
+#     Kind cluster bootstrap, Istio mesh security profile install, and
+#     whether Flux is bootstrapped — the three facts named explicitly in
+#     the task. Extending to the rest of Ch02 is real, disclosed follow-on
+#     work, not silently dropped.
+#   - Multi-node (worker) topology: Ch02's real kind-config.yaml (verified
+#     this session) has exactly one `control-plane` node with no worker
+#     nodes and no `role: worker` entries — modeling worker count would be
+#     inventing topology the reference file does not have. (The chapter's
+#     modules/cluster.py *does* support worker counts via
+#     create_prod_cluster(), but the actual checked-in kind-config.yaml this
+#     task must reproduce is single-node.)
+
+@prefix pech2: <https://ggen.io/ontology/platform-eng-handbook-ch02#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+pech2: a owl:Ontology ;
+  rdfs:label "platform-engineers-handbook-ch02-cluster-pack vocabulary" ;
+  rdfs:comment "Bridge vocabulary over the real kind.x-k8s.io Cluster config schema, istio.io PeerAuthentication mTLS mode, and a Flux-bootstrap toggle -- scoped to Ch02's cluster-foundation fact set. Each pech2:PlatformCluster individual renders one complete, self-consistent set of kind-config.yaml + istio install script + flux bootstrap invocation." .
+
+# ── Classes ──────────────────────────────────────────────────────────────
+
+pech2:PlatformCluster
+    a            rdfs:Class ;
+    rdfs:label   "Platform Cluster" ;
+    rdfs:comment "One environment's cluster-foundation fact set: a Kind cluster identity/image, an Istio profile, a Flux-bootstrap decision, and its ordered ingress port mappings. Multiple individuals may coexist in one graph (e.g. platform-dev vs platform-eng-colima), each rendering to its own output directory keyed by pech2:clusterName." .
+
+pech2:PortMapping
+    a            rdfs:Class ;
+    rdfs:label   "Ingress Port Mapping" ;
+    rdfs:comment "One entry of Kind's `nodes[].extraPortMappings[]` list: containerPort/hostPort/protocol, matching Ch02's real kind-config.yaml (containerPort 80 -> hostPort 8080, containerPort 443 -> hostPort 8443, both TCP)." .
+
+# ── PlatformCluster properties ──────────────────────────────────────────
+
+pech2:clusterName
+    a rdf:Property ; rdfs:domain pech2:PlatformCluster ; rdfs:range xsd:string ;
+    rdfs:comment "Kind cluster name (kind's own --name flag / KIND_CLUSTER_NAME env var). Ch02's reference kind-config.yaml does not itself set a `name:` key (Kind defaults an unnamed config to cluster name 'kind'), so this property is a pack-owned parameterization -- the whole point of this generator being that two environments (e.g. 'platform-dev', 'platform-eng-colima') get distinctly-named, non-colliding clusters and Flux bootstrap invocations instead of both silently defaulting to the same name, which is exactly the naming-drift bug class this task asks the pack to prevent." .
+
+pech2:nodeImage
+    a rdf:Property ; rdfs:domain pech2:PlatformCluster ; rdfs:range xsd:string ;
+    rdfs:comment "Kind node container image reference (kindest/node:<k8s-version>), used as the control-plane node's `image:` key. Ch02's reference kind-config.yaml does not pin an image (relies on the installed kind binary's built-in default node image for whatever Kubernetes version that kind release ships) -- this property lets an environment pin a specific Kubernetes minor version explicitly, a common real hardening step the chapter's own modules/cluster.py KindClusterConfig dataclass exposes as a `kubernetes_version` field." .
+
+pech2:istioProfile
+    a rdf:Property ; rdfs:domain pech2:PlatformCluster ; rdfs:range xsd:string ;
+    rdfs:comment "Istio install profile passed to `istioctl install --set profile=<value>`. Allowed values per the real istioctl profile list: 'default', 'demo', 'minimal', 'empty', 'preview', 'remote'. Ch02's istio-mesh-config.yaml assumes Istio is 'installed via Flux HelmRelease (platform-services.yaml)' -- not istioctl -- but requires a full mesh with ingress gateway, mTLS PeerAuthentication, and sidecar injection enabled, which the 'demo' or 'default' profile (not 'minimal', which omits the ingress gateway component) satisfies. This property lets dev environments choose 'demo' (all components, permissive for local iteration) and stricter environments choose 'default'." .
+
+pech2:mtlsMode
+    a rdf:Property ; rdfs:domain pech2:PlatformCluster ; rdfs:range xsd:string ;
+    rdfs:comment "security.istio.io/v1beta1 PeerAuthentication spec.mtls.mode, mesh-wide (istio-system namespace, `name: default`). Allowed values per the real Istio API: 'DISABLE', 'PERMISSIVE', 'STRICT'. Ch02's real istio-mesh-config.yaml hardcodes 'STRICT' for both the mesh-wide and per-namespace PeerAuthentication -- 'STRICT' is this pack's default value on both reference individuals below to stay faithful to the chapter, but is a real templated property (not baked into the template text) so a future dev-profile individual could render 'PERMISSIVE' without a template edit." .
+
+pech2:fluxBootstrapped
+    a rdf:Property ; rdfs:domain pech2:PlatformCluster ; rdfs:range xsd:boolean ;
+    rdfs:comment "Whether this environment's cluster-foundation render includes a `flux bootstrap` invocation. Ch02's modules/flux.py FluxAppOfAppsManager.deploy_flux() always installs Flux via Helm for the chapter's reference environment, but a lightweight local iteration loop (e.g. a scratch Kind cluster used only to test kind-config.yaml + Istio changes before wiring GitOps) legitimately wants Flux skipped -- this property lets the same template set render either a full bootstrap script or a plain comment explaining it was skipped, instead of forcing every consumer to hand-delete the Flux section." .
+
+pech2:fluxGitRepoUrl
+    a rdf:Property ; rdfs:domain pech2:PlatformCluster ; rdfs:range xsd:string ;
+    rdfs:comment "Git repository URL passed to `flux bootstrap git --url=<value>`, used only when pech2:fluxBootstrapped is true. Mirrors modules/flux.py's FluxSourceConfig.url field (Ch02's own Flux GitRepository source configuration class)." .
+
+pech2:fluxGitBranch
+    a rdf:Property ; rdfs:domain pech2:PlatformCluster ; rdfs:range xsd:string ;
+    rdfs:comment "Git branch passed to `flux bootstrap git --branch=<value>`, used only when pech2:fluxBootstrapped is true. Mirrors modules/flux.py's FluxSourceConfig.branch field." .
+
+pech2:fluxPath
+    a rdf:Property ; rdfs:domain pech2:PlatformCluster ; rdfs:range xsd:string ;
+    rdfs:comment "Repository path passed to `flux bootstrap git --path=<value>`, used only when pech2:fluxBootstrapped is true -- the App-of-Apps root Kustomization path, matching modules/flux.py's create_root_application()'s own path convention." .
+
+pech2:hasPortMapping
+    a rdf:Property ; rdfs:domain pech2:PlatformCluster ; rdfs:range pech2:PortMapping ;
+    rdfs:comment "One member of this cluster's Kind `extraPortMappings` list." .
+
+# ── PortMapping properties ──────────────────────────────────────────────
+
+pech2:mappingOrder
+    a rdf:Property ; rdfs:domain pech2:PortMapping ; rdfs:range xsd:integer ;
+    rdfs:comment "Pack-owned deterministic ORDER BY key (no Kind schema counterpart -- extraPortMappings is a YAML sequence with meaningful order, and this project's determinism invariant requires an explicit stable sort column for the SPARQL SELECT that reconstructs it)." .
+
+pech2:containerPort
+    a rdf:Property ; rdfs:domain pech2:PortMapping ; rdfs:range xsd:integer ;
+    rdfs:comment "Kind extraPortMappings[].containerPort -- the port inside the Kind node container that traffic is forwarded to." .
+
+pech2:hostPort
+    a rdf:Property ; rdfs:domain pech2:PortMapping ; rdfs:range xsd:integer ;
+    rdfs:comment "Kind extraPortMappings[].hostPort -- the port on the Docker/Colima host that is bound and forwarded in." .
+
+pech2:portProtocol
+    a rdf:Property ; rdfs:domain pech2:PortMapping ; rdfs:range xsd:string ;
+    rdfs:comment "Kind extraPortMappings[].protocol. Allowed values: 'TCP', 'UDP', 'SCTP'. Both of Ch02's real port mappings use 'TCP'." .
+
+# ── Instance data: two environments proving the same templates render
+#    correctly-different output from different facts (the concrete proof
+#    this task requires that composition prevents Ch05-class naming drift).
+
+pech2:platformDevCluster
+    a pech2:PlatformCluster ;
+    pech2:clusterName      "platform-dev" ;
+    pech2:nodeImage        "kindest/node:v1.29.2" ;
+    pech2:istioProfile     "demo" ;
+    pech2:mtlsMode         "STRICT" ;
+    pech2:fluxBootstrapped true ;
+    pech2:fluxGitRepoUrl   "https://github.com/example-org/platform-dev-gitops" ;
+    pech2:fluxGitBranch    "main" ;
+    pech2:fluxPath         "clusters/platform-dev" ;
+    pech2:hasPortMapping   pech2:platformDevHttpMapping, pech2:platformDevHttpsMapping ;
+    rdfs:comment "Reference environment: faithfully reproduces Ch02's real kind-config.yaml/istio-mesh-config.yaml facts (single control-plane node, ingress-ready label, 8080->80 and 8443->443 TCP, STRICT mTLS), plus a real Flux bootstrap against an example GitOps repo, matching modules/flux.py's App-of-Apps pattern." .
+
+pech2:platformDevHttpMapping
+    a pech2:PortMapping ;
+    pech2:mappingOrder    0 ;
+    pech2:containerPort   80 ;
+    pech2:hostPort        8080 ;
+    pech2:portProtocol    "TCP" .
+
+pech2:platformDevHttpsMapping
+    a pech2:PortMapping ;
+    pech2:mappingOrder    1 ;
+    pech2:containerPort   443 ;
+    pech2:hostPort        8443 ;
+    pech2:portProtocol    "TCP" .
+
+pech2:platformEngColimaCluster
+    a pech2:PlatformCluster ;
+    pech2:clusterName      "platform-eng-colima" ;
+    pech2:nodeImage        "kindest/node:v1.30.0" ;
+    pech2:istioProfile     "minimal" ;
+    pech2:mtlsMode         "PERMISSIVE" ;
+    pech2:fluxBootstrapped false ;
+    pech2:hasPortMapping   pech2:platformEngColimaHttpMapping, pech2:platformEngColimaHttpsMapping, pech2:platformEngColimaDebugMapping ;
+    rdfs:comment "Second, deliberately-divergent environment: a Colima-hosted local iteration cluster on a newer Kubernetes node image, 'minimal' Istio profile with 'PERMISSIVE' mTLS for faster local iteration, Flux skipped entirely (no GitOps wiring needed for a scratch template-testing cluster), and a third, non-Ch02 debug port mapping added to prove the port-mapping list is a real ordered collection, not a fixed-arity pair. Same templates as pech2:platformDevCluster; only the ontology facts differ." .
+
+pech2:platformEngColimaHttpMapping
+    a pech2:PortMapping ;
+    pech2:mappingOrder    0 ;
+    pech2:containerPort   80 ;
+    pech2:hostPort        18080 ;
+    pech2:portProtocol    "TCP" .
+
+pech2:platformEngColimaHttpsMapping
+    a pech2:PortMapping ;
+    pech2:mappingOrder    1 ;
+    pech2:containerPort   443 ;
+    pech2:hostPort        18443 ;
+    pech2:portProtocol    "TCP" .
+
+pech2:platformEngColimaDebugMapping
+    a pech2:PortMapping ;
+    pech2:mappingOrder    2 ;
+    pech2:containerPort   9901 ;
+    pech2:hostPort        19901 ;
+    pech2:portProtocol    "TCP" .

@@ -1,0 +1,132 @@
+---
+to: "components/case-list.tsx"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:gc_subject_trialbase_dashboard_shadcn_pack a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}"use client"
+
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
+import { getCategoryIcon, getStatusColor } from "@/lib/utils"
+import type { Case } from "@/lib/types"
+
+interface CaseListProps {
+  cases: Case[]
+  onSelectCase: (caseData: Case) => void
+  selectedCaseId: string | null
+  compact?: boolean
+}
+
+export function CaseList({ cases, onSelectCase, selectedCaseId, compact = false }: CaseListProps) {
+  if (compact) {
+    return (
+      <div className="divide-y">
+        {cases.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">No cases match your search criteria</div>
+        ) : (
+          cases.map((caseItem) => (
+            <div
+              key={caseItem.id}
+              className={`cursor-pointer hover:bg-muted/50 p-4 transition-colors ${
+                selectedCaseId === caseItem.id ? "bg-muted" : ""
+              }`}
+              onClick={() => onSelectCase(caseItem)}
+            >
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <h3 className="font-medium line-clamp-1">{caseItem.title}</h3>
+                  <p className="text-sm text-muted-foreground">{caseItem.caseNumber}</p>
+                </div>
+                <Badge className={getStatusColor(caseItem.status)}>{caseItem.status}</Badge>
+              </div>
+
+              <div className="mt-2 flex justify-between items-center">
+                <div className="flex space-x-2">
+                  {caseItem.categories.slice(0, 3).map((category) => (
+                    <div key={category} className="text-muted-foreground">
+                      {getCategoryIcon(category)}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="text-sm text-muted-foreground">
+                  {caseItem.upcomingActions > 0 && (
+                    <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-xs">
+                      {caseItem.upcomingActions} action{caseItem.upcomingActions > 1 ? "s" : ""}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-4 space-y-3">
+      <h2 className="text-lg font-semibold mb-4">Cases ({cases.length})</h2>
+
+      {cases.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">No cases match your search criteria</div>
+      ) : (
+        cases.map((caseItem) => (
+          <Card
+            key={caseItem.id}
+            className={`cursor-pointer hover:shadow-md transition-shadow ${
+              selectedCaseId === caseItem.id ? "ring-2 ring-primary" : ""
+            }`}
+            onClick={() => onSelectCase(caseItem)}
+          >
+            <CardContent className="p-4">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <h3 className="font-medium line-clamp-1">{caseItem.title}</h3>
+                  <p className="text-sm text-muted-foreground">{caseItem.caseNumber}</p>
+                </div>
+                <Badge className={getStatusColor(caseItem.status)}>{caseItem.status}</Badge>
+              </div>
+
+              <div className="mt-3 flex justify-between items-center">
+                <div className="flex space-x-2">
+                  {caseItem.categories.map((category) => (
+                    <div key={category} className="text-muted-foreground">
+                      {getCategoryIcon(category)}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="text-sm text-muted-foreground">
+                  {caseItem.upcomingActions > 0 && (
+                    <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-xs">
+                      {caseItem.upcomingActions} action{caseItem.upcomingActions > 1 ? "s" : ""}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))
+      )}
+    </div>
+  )
+}
+
+{% endraw %}

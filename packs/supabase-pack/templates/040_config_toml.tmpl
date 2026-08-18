@@ -1,0 +1,54 @@
+---
+to: "supabase/config.toml"
+sparql:
+  projects: >
+      PREFIX sb: <https://ggen.dev/packs/supabase#>
+      SELECT ?projectId ?apiPort ?dbPort WHERE {
+        ?project a sb:Project ; sb:projectId ?projectId .
+        OPTIONAL { ?project sb:apiPort ?apiPort }
+        OPTIONAL { ?project sb:dbPort ?dbPort }
+      }
+  authProviders: >
+      PREFIX sb: <https://ggen.dev/packs/supabase#>
+      SELECT ?providerKind ?providerEnabled WHERE {
+        ?provider a sb:AuthProvider ; sb:providerKind ?providerKind ; sb:providerEnabled ?providerEnabled .
+      }
+---
+{% for p in projects -%}
+# For detailed configuration reference documentation, visit:
+# https://supabase.com/docs/guides/local-development/cli/config
+project_id = "{{ p.projectId }}"
+
+[api]
+enabled = true
+port = {{ p.apiPort | default(value=54321) }}
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = {{ p.dbPort | default(value=54322) }}
+shadow_port = 54320
+major_version = 15
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["https://localhost:3000"]
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+{% for a in authProviders -%}
+{% if a.providerKind != "email" -%}
+[auth.external.{{ a.providerKind | replace(from="oauth-", to="") }}]
+enabled = {{ a.providerEnabled }}
+client_id = ""
+# DO NOT commit your OAuth provider secret to git. Use environment variable substitution instead:
+secret = "env(SUPABASE_AUTH_EXTERNAL_{{ a.providerKind | replace(from="oauth-", to="") | upper }}_SECRET)"
+
+{% endif -%}
+{% endfor -%}
+{% endfor -%}
