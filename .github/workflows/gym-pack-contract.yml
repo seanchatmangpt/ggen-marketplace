@@ -1,0 +1,31 @@
+name: Gym pack contract
+
+on:
+  pull_request:
+    paths:
+      - "packs/*gym*/**"
+      - "scripts/verify-gym-packs.py"
+      - ".github/workflows/gym-pack-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gym-pack-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile deterministic court
+        run: python3 -m py_compile scripts/verify-gym-packs.py
+      - name: Manufacture receipt twice
+        run: |
+          python3 scripts/verify-gym-packs.py --receipt /tmp/gym-receipt-a.json
+          python3 scripts/verify-gym-packs.py --receipt /tmp/gym-receipt-b.json
+          cmp /tmp/gym-receipt-a.json /tmp/gym-receipt-b.json
+      - name: Replay exact receipt
+        run: python3 scripts/verify-gym-packs.py --replay /tmp/gym-receipt-a.json
+      - name: Execute mutation falsifiers
+        run: python3 scripts/verify-gym-packs.py --self-test
+      - name: Preserve marketplace closure
+        run: python3 scripts/marketplace.py validate

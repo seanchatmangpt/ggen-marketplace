@@ -1,0 +1,35 @@
+# MESSAGE: any returned row refuses manufacture. ChatGPTGym catalog facts are observational
+# or bounded simulation/reset intents; this pack never grants ambient consequential DO authority.
+PREFIX dct: <http://purl.org/dc/terms/>
+PREFIX sosa: <http://www.w3.org/ns/sosa/>
+SELECT ?subject ?problem WHERE {
+  {
+    ?subject a sosa:Procedure .
+    VALUES ?required { dct:title dct:type }
+    FILTER NOT EXISTS { ?subject ?required ?value }
+    BIND(CONCAT("missing:", STR(?required)) AS ?problem)
+  }
+  UNION
+  {
+    ?subject a sosa:Procedure ; dct:type ?consequence .
+    FILTER (?consequence NOT IN (<urn:gymact:consequence:read>, <urn:gymact:consequence:do>))
+    BIND("unknown-consequence-class-refused" AS ?problem)
+  }
+  UNION
+  {
+    ?subject a sosa:Procedure ;
+      dct:type <urn:gymact:consequence:do> ;
+      dct:title ?title .
+    FILTER (!regex(STR(?title), "^(simulate-capability|reset-simulation)$"))
+    BIND("ambient-do-authority-refused" AS ?problem)
+  }
+  UNION
+  {
+    ?subject a sosa:Procedure ;
+      dct:type <urn:gymact:consequence:read> ;
+      dct:title ?title .
+    FILTER (!STRSTARTS(STR(?title), "inspect-"))
+    BIND("non-observational-read-refused" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem
