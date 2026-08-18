@@ -1,0 +1,70 @@
+---
+to: "composables/useLiveData.ts"
+---
+{% raw %}
+import { ref, onMounted, onUnmounted, type Ref } from "vue";
+
+export interface LiveDataResult<TEntity, TEdge> {
+  entities: Ref<TEntity[]>;
+  edges: Ref<TEdge[]>;
+  isLoading: Ref<boolean>;
+  error: Ref<Error | undefined>;
+  refresh: () => Promise<void>;
+}
+
+interface LiveDataResponse<TEntity, TEdge> {
+  entities: TEntity[];
+  edges: TEdge[];
+}
+
+/**
+ * Vue composable mirroring live-data-polling-pack's React useLiveData hook:
+ * same { entities, edges, isLoading, error, refresh } contract, same rule
+ * that a poll only ever updates entity/edge *data* -- never layout. Any
+ * layout computed from entities should be memoized separately by the
+ * caller, keyed on the entity-id list, exactly as in the React version.
+ *
+ * Polling here, upgradeable to WebSocket later by swapping fetchOnce()'s
+ * body for a subscription that calls the same set() calls -- the contract
+ * stays identical either way.
+ */
+export function useLiveData<TEntity, TEdge>(
+  endpoint: string,
+  intervalMs = 5000,
+): LiveDataResult<TEntity, TEdge> {
+  const entities = ref<TEntity[]>([]) as Ref<TEntity[]>;
+  const edges = ref<TEdge[]>([]) as Ref<TEdge[]>;
+  const isLoading = ref(true);
+  const error = ref<Error | undefined>(undefined);
+
+  async function fetchOnce(): Promise<void> {
+    try {
+      const res = await fetch(endpoint);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch ${endpoint}: ${res.status} ${res.statusText}`);
+      }
+      const data: LiveDataResponse<TEntity, TEdge> = await res.json();
+      entities.value = data.entities ?? [];
+      edges.value = data.edges ?? [];
+      error.value = undefined;
+    } catch (e) {
+      error.value = e instanceof Error ? e : new Error(String(e));
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  let timer: ReturnType<typeof setInterval> | undefined;
+
+  onMounted(() => {
+    void fetchOnce();
+    timer = setInterval(() => void fetchOnce(), intervalMs);
+  });
+
+  onUnmounted(() => {
+    if (timer) clearInterval(timer);
+  });
+
+  return { entities, edges, isLoading, error, refresh: fetchOnce };
+}
+{% endraw %}
