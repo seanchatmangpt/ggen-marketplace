@@ -1,0 +1,146 @@
+---
+to: "bitjob-chrome-ext-shadcn-pack/src/lib/utils.ts"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:gc_subject_bitjob_chrome_ext_shadcn_pack a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}import { type ClassValue, clsx } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
+
+// 80/20 Resilient fetch with simple retries and circuit breaker (trialbase-inspired)
+type ResilientOptions = RequestInit & {
+  retry?: number
+  retryDelayMs?: number
+  circuitKey?: string
+  circuitFailThreshold?: number
+  circuitCooldownMs?: number
+}
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms))
+}
+
+export async function resilientFetchLegacy(
+  input: RequestInfo | URL,
+  init: ResilientOptions = {},
+) {
+  const retry = init.retry ?? 0
+  const retryDelayMs = init.retryDelayMs ?? 250
+  const circuitKey = init.circuitKey || "global"
+  const failThreshold = init.circuitFailThreshold ?? 3
+  const cooldownMs = init.circuitCooldownMs ?? 15000
+
+  const stateKey = `rf.${circuitKey}.state`
+  const failsKey = `rf.${circuitKey}.fails`
+  const untilKey = `rf.${circuitKey}.until`
+
+  const now = Date.now()
+  const state = localStorage.getItem(stateKey) || "closed"
+  const until = Number(localStorage.getItem(untilKey) || "0")
+
+  if (state === "open" && now < until) {
+    throw new Error("circuit_open")
+  }
+
+  let lastError: any
+  for (let attempt = 0; attempt <= retry; attempt++) {
+    try {
+      const res = await fetch(input, init)
+      // success → reset circuit on success
+      localStorage.setItem(stateKey, "closed")
+      localStorage.setItem(failsKey, "0")
+      localStorage.removeItem(untilKey)
+      return res
+    } catch (e) {
+      lastError = e
+      // failure → increment failures and possibly open circuit
+      const fails = Number(localStorage.getItem(failsKey) || "0") + 1
+      localStorage.setItem(failsKey, String(fails))
+      if (fails >= failThreshold) {
+        localStorage.setItem(stateKey, "open")
+        localStorage.setItem(untilKey, String(now + cooldownMs))
+      } else {
+        localStorage.setItem(stateKey, "half-open")
+      }
+      if (attempt < retry) await sleep(retryDelayMs)
+    }
+  }
+  throw lastError
+}
+
+// Resilient fetch with retry + circuit breaker (trialbase-inspired 80/20)
+type ResilientFetchOptions = RequestInit & {
+  retry?: number
+  retryDelayMs?: number
+  circuitKey?: string
+  circuitFailThreshold?: number
+  circuitCooldownMs?: number
+}
+
+const failureCounters: Record<string, { fails: number; openedAt: number }> = {}
+
+export async function resilientFetch(
+  input: RequestInfo | URL,
+  init: ResilientFetchOptions = {},
+): Promise<Response> {
+  const {
+    retry = 2,
+    retryDelayMs = 250,
+    circuitKey = typeof input === "string" ? input : (input as URL).toString(),
+    circuitFailThreshold = 3,
+    circuitCooldownMs = 10_000,
+    ...rest
+  } = init
+
+  const now = Date.now()
+  const state = failureCounters[circuitKey]
+  if (state && state.fails >= circuitFailThreshold) {
+    const sinceOpen = now - state.openedAt
+    if (sinceOpen < circuitCooldownMs) {
+      throw new Error("circuit_open")
+    } else {
+      failureCounters[circuitKey] = { fails: 0, openedAt: 0 }
+    }
+  }
+
+  let lastError: unknown
+  for (let attempt = 0; attempt <= retry; attempt++) {
+    try {
+      const res = await fetch(input, rest)
+      if (!res.ok && res.status >= 500)
+        throw new Error(`bad_gateway_${res.status}`)
+      // success: reset counter
+      failureCounters[circuitKey] = { fails: 0, openedAt: 0 }
+      return res
+    } catch (err) {
+      lastError = err
+      const entry = failureCounters[circuitKey] || { fails: 0, openedAt: 0 }
+      entry.fails += 1
+      if (entry.fails >= circuitFailThreshold) entry.openedAt = Date.now()
+      failureCounters[circuitKey] = entry
+      if (attempt < retry)
+        await new Promise((r) => setTimeout(r, retryDelayMs * (attempt + 1)))
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("fetch_failed")
+}
+{% endraw %}

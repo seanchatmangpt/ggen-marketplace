@@ -1,0 +1,41 @@
+---
+to: "lib/supabase/client.ts"
+sparql:
+  clients: >
+      PREFIX sb: <https://ggen.dev/packs/supabase#>
+      SELECT ?runtime ?package ?usesServiceRole ?envPrefix WHERE {
+        ?project a sb:Project ; sb:envPrefix ?envPrefix ; sb:hasClient ?client .
+        ?client a sb:Client ; sb:runtime "browser" ; sb:package ?package .
+        OPTIONAL { ?client sb:usesServiceRole ?usesServiceRole }
+      }
+---
+{% for c in clients %}{% if c.package == "@supabase/ssr" -%}
+import { createBrowserClient } from "@supabase/ssr";
+
+/** Browser Supabase client (cookie-aware, @supabase/ssr). */
+export function createClient() {
+  return createBrowserClient(
+    process.env.{{ c.envPrefix }}SUPABASE_URL!,
+    process.env.{{ c.envPrefix }}SUPABASE_ANON_KEY!
+  );
+}
+{% else -%}
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.{{ c.envPrefix }}SUPABASE_URL!;
+const supabaseAnonKey = process.env.{{ c.envPrefix }}SUPABASE_ANON_KEY!;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    "{{ c.envPrefix }}SUPABASE_URL and {{ c.envPrefix }}SUPABASE_ANON_KEY are required"
+  );
+}
+
+/** Singleton Supabase client, anon key -- safe for browser/client use. */
+export const supabase = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+  },
+});
+{% endif %}{% endfor -%}

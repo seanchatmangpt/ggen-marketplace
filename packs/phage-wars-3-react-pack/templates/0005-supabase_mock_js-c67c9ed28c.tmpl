@@ -1,0 +1,379 @@
+---
+to: "supabase-mock.js"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:gc_subject_phage_wars_3_react_pack a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}/* =====================================================================
+   supabase-mock.js
+   A faithful, dependency-free MOCK of the supabase-js v2 client.
+
+   Implements the full capability surface so application code can be
+   written exactly as it would against real Supabase, then swapped to
+   the real `@supabase/supabase-js` by changing one import:
+
+     • Auth        signUp / signInWithPassword / signInWithOAuth /
+                   signInWithOtp / signOut / getSession / getUser /
+                   onAuthStateChange / updateUser
+     • Database    .from(t).select/insert/update/upsert/delete + filters
+                   (eq, neq, gt, gte, lt, lte, like, ilike, in, is, contains),
+                   order / limit / range / single / maybeSingle, count
+     • RPC         .rpc(fn, args)  — server-side functions (registry)
+     • Realtime    .channel(name).on('postgres_changes' | 'broadcast' |
+                   'presence', …).subscribe() / .send() / .track()
+     • Storage     .storage.from(bucket).upload/download/list/remove/
+                   getPublicUrl/createSignedUrl
+     • Edge Funcs  .functions.invoke(name, { body })
+
+   Persistence: localStorage (namespaced). Cross-tab realtime: BroadcastChannel
+   with a storage-event fallback. Everything is synchronous under the hood but
+   exposed through the same thenable/Promise API as the real client.
+   ===================================================================== */
+
+const NS = 'pw_sb_v2::';
+const nowISO = () => new Date().toISOString();
+const uid = () => 'id_' + Math.random().toString(36).slice(2, 11) + Date.now().toString(36);
+
+/* ----------------------------- storage io ----------------------------- */
+function lsGet(key, fallback) {
+  try { const v = localStorage.getItem(NS + key); return v == null ? fallback : JSON.parse(v); }
+  catch (_) { return fallback; }
+}
+function lsSet(key, val) {
+  try { localStorage.setItem(NS + key, JSON.stringify(val)); } catch (_) {}
+}
+
+/* ============================ REALTIME BUS ============================
+   Single bus per page; bridges in-tab listeners and cross-tab messages. */
+class RealtimeBus {
+  constructor() {
+    this._local = new Set();
+    try {
+      this._bc = new BroadcastChannel(NS + 'rt');
+      this._bc.onmessage = (e) => this._fanout(e.data, true);
+    } catch (_) {
+      this._bc = null;
+      window.addEventListener('storage', (e) => {
+        if (e.key === NS + '__rt__' && e.newValue) {
+          try { this._fanout(JSON.parse(e.newValue), true); } catch (_) {}
+        }
+      });
+    }
+  }
+  publish(msg) {
+    this._fanout(msg, false);                 // same tab, immediately
+    if (this._bc) this._bc.postMessage(msg);  // other tabs
+    else lsSet('__rt__', { ...msg, _n: Math.random() });
+  }
+  subscribe(fn) { this._local.add(fn); return () => this._local.delete(fn); }
+  _fanout(msg, crossTab) { this._local.forEach((fn) => { try { fn(msg, crossTab); } catch (_) {} }); }
+}
+const BUS = new RealtimeBus();
+
+/* ============================ QUERY BUILDER ============================
+   Thenable PostgREST-style builder. Resolves to { data, error, count }. */
+class QueryBuilder {
+  constructor(db, table) {
+    this.db = db; this.table = table;
+    this._op = 'select'; this._cols = '*'; this._payload = null;
+    this._filters = []; this._order = null; this._limit = null; this._range = null;
+    this._returnMode = 'multiple'; this._countMode = null; this._upsertKey = 'id';
+  }
+  /* --- ops --- */
+  select(cols = '*', opts = {}) { if (this._op === 'select') { this._cols = cols; } this._selectCols = cols; if (opts.count) this._countMode = opts.count; return this; }
+  insert(payload, opts = {}) { this._op = 'insert'; this._payload = payload; this._returnRep = opts.returning !== 'minimal'; return this; }
+  upsert(payload, opts = {}) { this._op = 'upsert'; this._payload = payload; this._upsertKey = opts.onConflict || 'id'; return this; }
+  update(payload) { this._op = 'update'; this._payload = payload; return this; }
+  delete() { this._op = 'delete'; return this; }
+  /* --- filters --- */
+  _f(type, col, val) { this._filters.push({ type, col, val }); return this; }
+  eq(c, v) { return this._f('eq', c, v); }
+  neq(c, v) { return this._f('neq', c, v); }
+  gt(c, v) { return this._f('gt', c, v); }
+  gte(c, v) { return this._f('gte', c, v); }
+  lt(c, v) { return this._f('lt', c, v); }
+  lte(c, v) { return this._f('lte', c, v); }
+  like(c, v) { return this._f('like', c, v); }
+  ilike(c, v) { return this._f('ilike', c, v); }
+  is(c, v) { return this._f('is', c, v); }
+  in(c, v) { return this._f('in', c, v); }
+  contains(c, v) { return this._f('contains', c, v); }
+  /* --- shaping --- */
+  order(col, opts = {}) { this._order = { col, asc: opts.ascending !== false }; return this; }
+  limit(n) { this._limit = n; return this; }
+  range(from, to) { this._range = [from, to]; return this; }
+  single() { this._returnMode = 'single'; return this; }
+  maybeSingle() { this._returnMode = 'maybe'; return this; }
+
+  _match(row) {
+    return this._filters.every(({ type, col, val }) => {
+      const a = row[col];
+      switch (type) {
+        case 'eq': return a === val;
+        case 'neq': return a !== val;
+        case 'gt': return a > val;
+        case 'gte': return a >= val;
+        case 'lt': return a < val;
+        case 'lte': return a <= val;
+        case 'is': return a === val;
+        case 'in': return Array.isArray(val) && val.includes(a);
+        case 'like': return typeof a === 'string' && new RegExp('^' + String(val).replace(/%/g, '.*') + '$').test(a);
+        case 'ilike': return typeof a === 'string' && new RegExp('^' + String(val).replace(/%/g, '.*') + '$', 'i').test(a);
+        case 'contains': return Array.isArray(a) && (Array.isArray(val) ? val.every((v) => a.includes(v)) : a.includes(val));
+        default: return true;
+      }
+    });
+  }
+
+  _run() {
+    const rows = this.db._rows(this.table);
+    let data = null, error = null, count = null;
+    try {
+      if (this._op === 'select') {
+        let out = rows.filter((r) => this._match(r));
+        count = out.length;
+        if (this._order) out = out.slice().sort((a, b) => {
+          const x = a[this._order.col], y = b[this._order.col];
+          return (x < y ? -1 : x > y ? 1 : 0) * (this._order.asc ? 1 : -1);
+        });
+        if (this._range) out = out.slice(this._range[0], this._range[1] + 1);
+        if (this._limit != null) out = out.slice(0, this._limit);
+        data = out;
+      } else if (this._op === 'insert' || this._op === 'upsert') {
+        const items = Array.isArray(this._payload) ? this._payload : [this._payload];
+        const written = [];
+        for (const it of items) {
+          if (this._op === 'upsert') {
+            const k = this._upsertKey;
+            const idx = rows.findIndex((r) => r[k] === it[k]);
+            if (idx >= 0) { rows[idx] = { ...rows[idx], ...it, updated_at: nowISO() }; written.push(rows[idx]); this.db._emit(this.table, 'UPDATE', rows[idx]); continue; }
+          }
+          const rec = { id: it.id || uid(), created_at: nowISO(), ...it };
+          rows.push(rec); written.push(rec); this.db._emit(this.table, 'INSERT', rec);
+        }
+        this.db._save(this.table, rows);
+        data = written;
+      } else if (this._op === 'update') {
+        const written = [];
+        for (const r of rows) if (this._match(r)) { Object.assign(r, this._payload, { updated_at: nowISO() }); written.push(r); this.db._emit(this.table, 'UPDATE', r); }
+        this.db._save(this.table, rows);
+        data = written;
+      } else if (this._op === 'delete') {
+        const kept = [], removed = [];
+        for (const r of rows) (this._match(r) ? removed : kept).push(r);
+        this.db._save(this.table, kept);
+        removed.forEach((r) => this.db._emit(this.table, 'DELETE', r));
+        data = removed;
+      }
+      if (this._returnMode === 'single') {
+        if (!data || data.length !== 1) error = { message: 'JSON object requested, multiple (or no) rows returned', code: 'PGRST116' };
+        data = data && data.length ? data[0] : null;
+      } else if (this._returnMode === 'maybe') {
+        data = data && data.length ? data[0] : null;
+      }
+    } catch (e) { error = { message: e.message }; }
+    return { data, error, count: this._countMode ? count : null, status: error ? 400 : 200, statusText: error ? 'Bad Request' : 'OK' };
+  }
+  then(resolve, reject) { try { resolve(this._run()); } catch (e) { (reject || resolve)({ data: null, error: { message: e.message } }); } }
+}
+
+/* ============================ DATABASE ============================ */
+class MockDB {
+  constructor(seed) {
+    this._tables = lsGet('tables', null);
+    if (!this._tables) { this._tables = seed || {}; lsSet('tables', this._tables); }
+    else if (seed) { for (const k of Object.keys(seed)) if (!this._tables[k]) this._tables[k] = seed[k]; lsSet('tables', this._tables); }
+  }
+  _rows(t) { if (!this._tables[t]) this._tables[t] = []; return this._tables[t]; }
+  _save(t, rows) { this._tables[t] = rows; lsSet('tables', this._tables); }
+  _emit(table, eventType, record) {
+    BUS.publish({ kind: 'postgres_changes', table, eventType, new: eventType === 'DELETE' ? {} : record, old: eventType === 'DELETE' ? record : {} });
+  }
+}
+
+/* ============================ AUTH ============================ */
+class MockAuth {
+  constructor() {
+    this._users = lsGet('users', []);
+    this._session = lsGet('session', null);
+    this._listeners = new Set();
+    BUS.subscribe((m) => { if (m.kind === 'auth') this._refreshFromStorage(); });
+  }
+  _persistUsers() { lsSet('users', this._users); }
+  _setSession(session, event) {
+    this._session = session; lsSet('session', session);
+    BUS.publish({ kind: 'auth' });
+    this._emit(event, session);
+  }
+  _refreshFromStorage() { this._session = lsGet('session', null); this._emit('TOKEN_REFRESHED', this._session); }
+  _emit(event, session) { this._listeners.forEach((fn) => { try { fn(event, session); } catch (_) {} }); }
+  _mkSession(user) { return { access_token: 'mock.' + uid(), token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: uid(), user }; }
+  _mkUser(email, meta) { return { id: uid(), aud: 'authenticated', role: 'authenticated', email, created_at: nowISO(), user_metadata: meta || {}, app_metadata: { provider: 'email' } }; }
+
+  async signUp({ email, password, options }) {
+    if (this._users.find((u) => u.email === email)) return { data: { user: null, session: null }, error: { message: 'User already registered' } };
+    const user = this._mkUser(email, options && options.data);
+    this._users.push({ ...user, _password: password }); this._persistUsers();
+    const session = this._mkSession(user); this._setSession(session, 'SIGNED_IN');
+    return { data: { user, session }, error: null };
+  }
+  async signInWithPassword({ email, password }) {
+    const rec = this._users.find((u) => u.email === email && u._password === password);
+    if (!rec) return { data: { user: null, session: null }, error: { message: 'Invalid login credentials' } };
+    const { _password, ...user } = rec;
+    const session = this._mkSession(user); this._setSession(session, 'SIGNED_IN');
+    return { data: { user, session }, error: null };
+  }
+  async signInWithOAuth({ provider }) {
+    const email = `player_${Math.random().toString(36).slice(2, 7)}@${provider}.oauth`;
+    let rec = this._users.find((u) => u.email === email);
+    if (!rec) { const u = this._mkUser(email, { full_name: provider + ' player', provider }); u.app_metadata.provider = provider; rec = { ...u, _password: null }; this._users.push(rec); this._persistUsers(); }
+    const { _password, ...user } = rec;
+    const session = this._mkSession(user); this._setSession(session, 'SIGNED_IN');
+    return { data: { provider, url: null, user, session }, error: null };
+  }
+  async signInWithOtp({ email }) {
+    let rec = this._users.find((u) => u.email === email);
+    if (!rec) { const u = this._mkUser(email, {}); rec = { ...u, _password: null }; this._users.push(rec); this._persistUsers(); }
+    const { _password, ...user } = rec;
+    const session = this._mkSession(user); this._setSession(session, 'SIGNED_IN');
+    return { data: { user, session }, error: null };  // mock: magic link auto-confirms
+  }
+  async signOut() { this._setSession(null, 'SIGNED_OUT'); return { error: null }; }
+  async getSession() { return { data: { session: this._session }, error: null }; }
+  async getUser() { return { data: { user: this._session ? this._session.user : null }, error: null }; }
+  async updateUser(attrs) {
+    if (!this._session) return { data: { user: null }, error: { message: 'Not authenticated' } };
+    const u = this._session.user;
+    u.user_metadata = { ...u.user_metadata, ...(attrs.data || {}) };
+    if (attrs.email) u.email = attrs.email;
+    const rec = this._users.find((x) => x.id === u.id); if (rec) Object.assign(rec, u); this._persistUsers();
+    this._setSession({ ...this._session, user: u }, 'USER_UPDATED');
+    return { data: { user: u }, error: null };
+  }
+  onAuthStateChange(cb) {
+    this._listeners.add(cb);
+    Promise.resolve().then(() => cb('INITIAL_SESSION', this._session));
+    return { data: { subscription: { id: uid(), unsubscribe: () => this._listeners.delete(cb) } } };
+  }
+}
+
+/* ============================ REALTIME CHANNEL ============================ */
+class RealtimeChannel {
+  constructor(name) { this.topic = name; this._binds = []; this._presence = {}; this._unsub = null; this._myKey = null; this._myState = null; }
+  on(type, a, b) {
+    const filter = typeof a === 'object' ? a : {};
+    const cb = b || a;
+    this._binds.push({ type, filter, cb });
+    return this;
+  }
+  subscribe(cb) {
+    this._unsub = BUS.subscribe((msg) => {
+      if (msg.kind === 'postgres_changes') {
+        for (const bind of this._binds) {
+          if (bind.type !== 'postgres_changes') continue;
+          const f = bind.filter || {};
+          if (f.table && f.table !== msg.table) continue;
+          if (f.event && f.event !== '*' && f.event !== msg.eventType) continue;
+          bind.cb({ eventType: msg.eventType, new: msg.new, old: msg.old, table: msg.table, schema: f.schema || 'public' });
+        }
+      } else if (msg.kind === 'broadcast' && msg.topic === this.topic) {
+        for (const bind of this._binds) if (bind.type === 'broadcast' && (!bind.filter.event || bind.filter.event === msg.event)) bind.cb({ event: msg.event, payload: msg.payload });
+      } else if (msg.kind === 'presence' && msg.topic === this.topic) {
+        if (msg.action === 'join') this._presence[msg.key] = msg.state;
+        else if (msg.action === 'leave') delete this._presence[msg.key];
+        for (const bind of this._binds) {
+          if (bind.type !== 'presence') continue;
+          const ev = bind.filter.event;
+          if (ev === 'sync' || !ev) bind.cb({});
+          else if (ev === 'join' && msg.action === 'join') bind.cb({ key: msg.key, newPresences: [msg.state] });
+          else if (ev === 'leave' && msg.action === 'leave') bind.cb({ key: msg.key, leftPresences: [msg.state] });
+        }
+      }
+    });
+    if (cb) Promise.resolve().then(() => cb('SUBSCRIBED'));
+    return this;
+  }
+  send({ type, event, payload }) { BUS.publish({ kind: type || 'broadcast', topic: this.topic, event, payload }); return Promise.resolve('ok'); }
+  track(state) { this._myKey = state.key || uid(); this._myState = state; BUS.publish({ kind: 'presence', topic: this.topic, action: 'join', key: this._myKey, state }); return Promise.resolve('ok'); }
+  untrack() { if (this._myKey) BUS.publish({ kind: 'presence', topic: this.topic, action: 'leave', key: this._myKey, state: this._myState }); return Promise.resolve('ok'); }
+  presenceState() { return { ...this._presence }; }
+  unsubscribe() { if (this._unsub) this._unsub(); return Promise.resolve('ok'); }
+}
+
+/* ============================ STORAGE ============================ */
+class StorageBucketAPI {
+  constructor(bucket) { this.bucket = bucket; }
+  _key() { return 'storage::' + this.bucket; }
+  _all() { return lsGet(this._key(), {}); }
+  _save(o) { lsSet(this._key(), o); }
+  async upload(path, file, opts = {}) {
+    const files = this._all();
+    let dataUrl = '';
+    try {
+      if (typeof file === 'string') dataUrl = file;
+      else if (file && file.arrayBuffer) dataUrl = await blobToDataURL(file);
+    } catch (_) {}
+    files[path] = { path, dataUrl, size: (file && file.size) || dataUrl.length, mime: (file && file.type) || 'application/octet-stream', updated_at: nowISO() };
+    this._save(files);
+    return { data: { path, id: uid(), fullPath: this.bucket + '/' + path }, error: null };
+  }
+  async download(path) { const f = this._all()[path]; if (!f) return { data: null, error: { message: 'Object not found' } }; return { data: dataURLToBlob(f.dataUrl, f.mime), error: null }; }
+  getPublicUrl(path) { const f = this._all()[path]; return { data: { publicUrl: f ? f.dataUrl : `mock-storage://${this.bucket}/${path}` } }; }
+  async createSignedUrl(path, expiresIn) { const r = this.getPublicUrl(path); return { data: { signedUrl: r.data.publicUrl + '?token=' + uid() + '&exp=' + expiresIn }, error: null }; }
+  async list(prefix = '') { const files = this._all(); return { data: Object.values(files).filter((f) => f.path.startsWith(prefix)).map((f) => ({ name: f.path, id: uid(), updated_at: f.updated_at, metadata: { size: f.size, mimetype: f.mime } })), error: null }; }
+  async remove(paths) { const files = this._all(); (Array.isArray(paths) ? paths : [paths]).forEach((p) => delete files[p]); this._save(files); return { data: {}, error: null }; }
+}
+function blobToDataURL(blob) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); }); }
+function dataURLToBlob(dataUrl, mime) { try { const [meta, b64] = dataUrl.split(','); const bin = atob(b64); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); } catch (_) { return new Blob([], { type: mime }); } }
+
+/* ============================ CLIENT ============================ */
+class MockSupabaseClient {
+  constructor(url, key, options = {}) {
+    this.supabaseUrl = url || 'mock://local';
+    this.supabaseKey = key || 'mock-anon-key';
+    this.db = new MockDB(options.seed);
+    this.auth = new MockAuth();
+    this._rpcRegistry = options.rpc || {};
+    this._fnRegistry = options.functions || {};
+    this.storage = { from: (bucket) => new StorageBucketAPI(bucket) };
+    this.functions = { invoke: (name, opts = {}) => this._invoke(name, opts) };
+  }
+  from(table) { return new QueryBuilder(this.db, table); }
+  channel(name) { return new RealtimeChannel(name); }
+  removeChannel(ch) { return ch.unsubscribe(); }
+  removeAllChannels() { return Promise.resolve('ok'); }
+  async rpc(fn, args = {}) {
+    const impl = this._rpcRegistry[fn];
+    if (!impl) return { data: null, error: { message: `function ${fn} does not exist`, code: '42883' } };
+    try { const data = await impl(args, this); return { data, error: null }; }
+    catch (e) { return { data: null, error: { message: e.message } }; }
+  }
+  async _invoke(name, { body } = {}) {
+    const impl = this._fnRegistry[name];
+    if (!impl) return { data: null, error: { message: `Function ${name} not found`, code: 404 } };
+    try { const data = await impl(body || {}, this); return { data, error: null }; }
+    catch (e) { return { data: null, error: { message: e.message } }; }
+  }
+  /* test/util helpers (not in real client) */
+  _reset() { Object.keys(localStorage).filter((k) => k.startsWith(NS)).forEach((k) => localStorage.removeItem(k)); }
+}
+
+function createClient(url, key, options = {}) { return new MockSupabaseClient(url, key, options); }
+window.SupabaseMock = { createClient, MockSupabaseClient, QueryBuilder, RealtimeChannel, BUS };
+{% endraw %}

@@ -1,0 +1,69 @@
+---
+to: "src/composables/useTheme.ts"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:gc_subject_bitjob_chrome_ext_shadcn_pack a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}import type { BasicColorSchema } from "@vueuse/core"
+import { useBrowserLocalStorage } from "./useBrowserStorage"
+import { name } from "~/package.json"
+
+export function applyTheme(mode: BasicColorSchema) {
+  const container = document.getElementById(name)
+
+  if (container?.shadowRoot) {
+    // If running in content script, apply theme to shadow DOM
+    container.shadowRoot.querySelector("html")?.setAttribute("class", mode)
+    container.shadowRoot.querySelector("#app")?.setAttribute("data-theme", mode)
+  } else {
+    // If not in content script, apply theme to the main document
+    document.documentElement.setAttribute("class", mode)
+    document.querySelector("#app")?.setAttribute("data-theme", mode)
+  }
+}
+
+export function useTheme() {
+  const { data: mode } = useBrowserLocalStorage<BasicColorSchema>(
+    "mode",
+    "dark",
+  )
+
+  const isDark = computed({
+    get: () => mode.value === "dark",
+    set: (value) => {
+      mode.value = value ? "dark" : "light"
+      applyTheme(mode.value)
+    },
+  })
+
+  const toggleDark = () => {
+    isDark.value = !isDark.value
+  }
+
+  watch(isDark, (newValue) => {
+    applyTheme(newValue ? "dark" : "light")
+  })
+
+  return {
+    mode,
+    isDark,
+    toggleDark,
+    applyTheme,
+  }
+}
+{% endraw %}

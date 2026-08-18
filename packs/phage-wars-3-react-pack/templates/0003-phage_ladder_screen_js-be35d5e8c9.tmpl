@@ -1,0 +1,236 @@
+---
+to: "phage-ladder-screen.js"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:gc_subject_phage_wars_3_react_pack a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}/* =====================================================================
+   phage-ladder-screen.js
+   PROOF SCREEN — the {% endraw %}{{ row.title }}{% raw %} ranked Ladder, written ONLY with the
+   mosaic-native primitives and fed by the SAME Supabase hooks you would
+   use in Expo. Nothing here touches the DOM directly.
+
+   Migrating to Expo is two import swaps — the JSX below is identical:
+     - const { View, Text, ... } = window.MosaicNative
+         ->  import { View, Text, ... } from 'react-native'
+     - const { useRpc, usePresence } = window.SupabaseReact   (unchanged)
+
+   Self-gating: waits for React + MosaicNative + SupabaseReact to load
+   (they arrive via separate <script>s) before defining window.PhageLadder,
+   so the <x-import> mount only resolves once everything is ready.
+   ===================================================================== */
+(function () {
+  function ready() {
+    return window.React && window.MosaicNative && window.SupabaseReact && window.SupabaseConfig;
+  }
+  function boot() {
+    if (!ready()) { return setTimeout(boot, 25); }
+
+    var React = window.React;
+    var h = React.createElement;
+    var useState = React.useState, useEffect = React.useEffect;
+
+    var M = window.MosaicNative;
+    var View = M.View, Text = M.Text, Pressable = M.Pressable, ScrollView = M.ScrollView,
+        FlatList = M.FlatList, ActivityIndicator = M.ActivityIndicator, StyleSheet = M.StyleSheet;
+
+    var SR = window.SupabaseReact;
+    var SupabaseProvider = SR.SupabaseProvider, useRpc = SR.useRpc, usePresence = SR.usePresence;
+    var CHAMPIONS = window.SupabaseConfig.CHAMPIONS;
+
+    /* ---- palette (plain color strings — fully RN-compatible) ---- */
+    var C = {
+      bg: '#02060c', panel: '#08141f', panel2: '#0a1a26', edge: 'rgba(64,240,214,0.16)',
+      edgeHot: 'rgba(64,240,214,0.45)', cyan: '#5cffe6', mag: '#ff6fa6', gold: '#ffd166',
+      bright: '#eafcff', dim: '#7fa0b5', dimmer: '#4f6a7e', track: 'rgba(255,255,255,0.08)'
+    };
+    var champById = {};
+    CHAMPIONS.forEach(function (c) { champById[c.id] = c; });
+    function hueOf(id) { return (champById[id] && champById[id].hue) || C.cyan; }
+    function nameOf(id) { return (champById[id] && champById[id].name) || '?'; }
+    function roleOf(id) { return (champById[id] && champById[id].role) || ''; }
+
+    var S = StyleSheet.create({
+      root: { flex: 1, backgroundColor: C.bg },
+      header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: C.edge, backgroundColor: '#040b14' },
+      brandRow: { flexDirection: 'row', alignItems: 'center' },
+      brand: { fontFamily: 'Orbitron', fontWeight: '900', fontSize: 19, color: C.bright, letterSpacing: 0.5 },
+      brandIII: { fontFamily: 'Orbitron', fontWeight: '900', fontSize: 14, color: C.mag, marginLeft: 6 },
+      onlinePill: { marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 20, backgroundColor: 'rgba(64,240,214,0.08)', borderWidth: 1, borderColor: C.edge },
+      onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.cyan, marginRight: 7, shadowColor: C.cyan, shadowRadius: 6, shadowOpacity: 0.9, shadowOffset: { width: 0, height: 0 } },
+      onlineTxt: { fontFamily: 'Rajdhani', fontWeight: '700', fontSize: 11, color: '#bfeef0', letterSpacing: 1 },
+      kicker: { fontFamily: 'Rajdhani', fontWeight: '700', fontSize: 11, color: C.cyan, letterSpacing: 3.4, marginTop: 10 },
+
+      seg: { flexDirection: 'row', margin: 16, padding: 4, borderRadius: 12, backgroundColor: 'rgba(2,8,14,0.7)', borderWidth: 1, borderColor: C.edge },
+      segBtn: { flex: 1, paddingVertical: 9, borderRadius: 8, alignItems: 'center' },
+      segTxt: { fontFamily: 'Rajdhani', fontWeight: '700', fontSize: 12.5, letterSpacing: 1.6 },
+
+      listPad: { paddingHorizontal: 12, paddingBottom: 26 },
+      row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 10, borderRadius: 12, marginBottom: 6 },
+      rank: { width: 30, fontFamily: 'Rajdhani', fontWeight: '700', fontSize: 18, textAlign: 'center' },
+      orb: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginHorizontal: 11 },
+      orbTxt: { fontFamily: 'Orbitron', fontWeight: '900', fontSize: 17, color: '#02110e' },
+      handle: { fontFamily: 'Rajdhani', fontWeight: '700', fontSize: 16, color: C.bright, letterSpacing: 0.4 },
+      sub: { fontFamily: 'Chakra Petch', fontSize: 11, color: C.dim, marginTop: 2 },
+      elo: { fontFamily: 'Rajdhani', fontWeight: '700', fontSize: 19, color: C.cyan, textAlign: 'right' },
+      eloLbl: { fontFamily: 'Rajdhani', fontWeight: '700', fontSize: 8, color: C.dimmer, letterSpacing: 2, textAlign: 'right', marginTop: 1 },
+
+      rateRow: { paddingVertical: 13, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(120,200,255,0.07)' },
+      rateTop: { flexDirection: 'row', alignItems: 'center' },
+      rateName: { fontFamily: 'Rajdhani', fontWeight: '700', fontSize: 15, color: C.bright },
+      rateRole: { fontFamily: 'Rajdhani', fontWeight: '700', fontSize: 9, color: C.dimmer, letterSpacing: 1.6, marginTop: 2 },
+      ratePct: { marginLeft: 'auto', fontFamily: 'Rajdhani', fontWeight: '700', fontSize: 18 },
+      rateGames: { fontFamily: 'Chakra Petch', fontSize: 9.5, color: C.dimmer, letterSpacing: 1, textAlign: 'right', marginTop: 1 },
+      track: { height: 6, borderRadius: 3, backgroundColor: C.track, marginTop: 11, overflow: 'hidden' },
+
+      footer: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 18, borderTopWidth: 1, borderTopColor: C.edge, backgroundColor: '#040b14' },
+      footTxt: { fontFamily: 'Chakra Petch', fontSize: 10, color: C.dim, letterSpacing: 0.5 },
+      loadWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 70 }
+    });
+
+    function Orb(props) {
+      var hue = props.hue;
+      return h(View, { style: [S.orb, { backgroundColor: hue, borderWidth: 2, borderColor: 'rgba(255,255,255,0.35)', shadowColor: hue, shadowRadius: 12, shadowOpacity: 0.5, shadowOffset: { width: 0, height: 0 } }] },
+        h(Text, { style: S.orbTxt }, props.letter));
+    }
+
+    function rankColor(rank) {
+      return rank === 1 ? C.gold : rank === 2 ? '#cfe3ee' : rank === 3 ? '#d9a066' : C.dimmer;
+    }
+
+    function LadderRow(info) {
+      var p = info.item;
+      var hue = hueOf(p.main);
+      var podium = p.rank <= 3;
+      return h(View, {
+        style: [S.row, {
+          backgroundColor: podium ? 'rgba(64,240,214,0.05)' : 'transparent',
+          borderWidth: 1, borderColor: podium ? 'rgba(64,240,214,0.18)' : 'rgba(120,200,255,0.06)'
+        }]
+      },
+        h(Text, { style: [S.rank, { color: rankColor(p.rank) }] }, String(p.rank)),
+        h(Orb, { hue: hue, letter: nameOf(p.main).charAt(0) }),
+        h(View, { style: { flex: 1, minWidth: 0 } },
+          h(Text, { style: S.handle, numberOfLines: 1 }, p.handle),
+          h(Text, { style: S.sub }, p.wins + 'W \u00b7 ' + p.losses + 'L \u00b7 ' + p.winrate + '%')
+        ),
+        h(View, null,
+          h(Text, { style: S.elo }, String(p.elo)),
+          h(Text, { style: S.eloLbl }, 'ELO')
+        )
+      );
+    }
+
+    function RateRow(info) {
+      var c = info.item;
+      var r = info.rate; // {games, winrate} or null
+      var hue = c.hue;
+      var hasData = r && r.games > 0;
+      var pct = hasData ? r.winrate : 0;
+      return h(View, { style: S.rateRow },
+        h(View, { style: S.rateTop },
+          h(Orb, { hue: hue, letter: c.name.charAt(0) }),
+          h(View, { style: { marginLeft: 0, flex: 1, minWidth: 0 } },
+            h(Text, { style: S.rateName }, c.name),
+            h(Text, { style: S.rateRole }, c.role)
+          ),
+          h(View, null,
+            h(Text, { style: [S.ratePct, { color: hasData ? hue : C.dimmer }] }, hasData ? pct + '%' : '\u2014'),
+            h(Text, { style: S.rateGames }, hasData ? r.games + ' GAMES' : 'NO DATA')
+          )
+        ),
+        h(View, { style: S.track },
+          h(View, { style: { height: 6, borderRadius: 3, width: pct + '%', backgroundColor: hue } })
+        )
+      );
+    }
+
+    function Screen() {
+      var t = useState('ladder'); var tab = t[0], setTab = t[1];
+      var b = useState(null); var board = b[0], setBoard = b[1];
+      var rs = useState(null); var rates = rs[0], setRates = rs[1];
+      var rpc = useRpc();
+      var pres = usePresence('phage-lobby', { handle: 'YOU', at: Date.now() });
+
+      useEffect(function () {
+        var on = true;
+        rpc('leaderboard', { limit: 12 }).then(function (res) { if (on) setBoard(res.data || []); });
+        rpc('champion_winrates').then(function (res) { if (on) setRates(res.data || []); });
+        return function () { on = false; };
+      }, []);
+
+      var rateById = {};
+      (rates || []).forEach(function (r) { rateById[r.champ] = r; });
+
+      var online = Math.max(1, pres.count || 1);
+
+      function segBtn(id, label) {
+        var active = tab === id;
+        return h(Pressable, { style: [S.segBtn, active ? { backgroundColor: C.cyan } : null], onPress: function () { setTab(id); } },
+          h(Text, { style: [S.segTxt, { color: active ? '#02110e' : C.dim }] }, label));
+      }
+
+      var body;
+      if (tab === 'ladder') {
+        body = board == null
+          ? h(View, { style: S.loadWrap }, h(ActivityIndicator, { size: 'large', color: C.cyan }))
+          : h(FlatList, {
+              data: board, style: { flex: 1 }, contentContainerStyle: S.listPad,
+              showsVerticalScrollIndicator: false,
+              keyExtractor: function (it) { return it.handle; },
+              renderItem: LadderRow
+            });
+      } else {
+        body = h(FlatList, {
+          data: CHAMPIONS, style: { flex: 1 }, contentContainerStyle: { paddingBottom: 26 },
+          showsVerticalScrollIndicator: false,
+          keyExtractor: function (it) { return it.id; },
+          renderItem: function (info) { return RateRow({ item: info.item, rate: rateById[info.item.id] }); }
+        });
+      }
+
+      return h(View, { style: S.root },
+        h(View, { style: S.header },
+          h(View, { style: S.brandRow },
+            h(Text, { style: S.brand }, 'PHAGE WARS'),
+            h(Text, { style: S.brandIII }, 'III'),
+            h(View, { style: S.onlinePill },
+              h(View, { style: S.onlineDot }),
+              h(Text, { style: S.onlineTxt }, online + ' ONLINE')
+            )
+          ),
+          h(Text, { style: S.kicker }, 'RANKED LADDER \u00b7 PETRI DISH WEST')
+        ),
+        h(View, { style: S.seg }, segBtn('ladder', 'LADDER'), segBtn('rates', 'WIN RATES')),
+        body,
+        h(View, { style: S.footer },
+          h(View, { style: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.cyan, marginRight: 9 } }),
+          h(Text, { style: S.footTxt }, "LIVE \u00b7 useRpc('leaderboard') \u2192 mock Supabase")
+        )
+      );
+    }
+
+    function PhageLadder() {
+      return h(SupabaseProvider, null, h(Screen));
+    }
+
+    window.PhageLadder = PhageLadder;
+  }
+  boot();
+})();
+{% endraw %}

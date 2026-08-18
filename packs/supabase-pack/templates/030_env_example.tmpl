@@ -1,0 +1,23 @@
+---
+to: ".env.example"
+sparql:
+  projects: >
+      PREFIX sb: <https://ggen.dev/packs/supabase#>
+      SELECT ?envPrefix ?projectRef WHERE {
+        ?project a sb:Project ; sb:envPrefix ?envPrefix ; sb:projectRef ?projectRef .
+      }
+  serviceRoleClients: >
+      PREFIX sb: <https://ggen.dev/packs/supabase#>
+      SELECT ?client WHERE {
+        ?client a sb:Client ; sb:usesServiceRole true .
+      }
+---
+{% for p in projects -%}
+# Real env var names mined from local usage: bare SUPABASE_* dominates Node/backend
+# projects, EXPO_PUBLIC_ for Expo/React Native, NEXT_PUBLIC_ for Next.js client code.
+{{ p.envPrefix }}SUPABASE_URL=https://{{ p.projectRef }}.supabase.co
+{{ p.envPrefix }}SUPABASE_ANON_KEY=replace-with-anon-key
+{% if serviceRoleClients | length > 0 -%}
+{{ p.envPrefix }}SUPABASE_SERVICE_ROLE_KEY=replace-with-service-role-key
+{% endif -%}
+{% endfor -%}

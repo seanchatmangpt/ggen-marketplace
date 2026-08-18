@@ -1,0 +1,310 @@
+---
+to: "app/components/{{ row.lower }}/views/{{ row.capitalized }}View.vue"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:gc_subject_neako_web_deckgl_pack a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}<!-- components/{% endraw %}{{ row.lower }}{% raw %}/views/{% endraw %}{{ row.capitalized }}{% raw %}View.vue -->
+<script setup lang="ts">
+import { ref, computed, watch } from 'vue'
+import StarGraphView from './StarGraphView.vue'
+import GlobeView from './GlobeView.vue'
+import LiveFeed from '../panels/LiveFeed.vue'
+import MetricsPanel from '../panels/MetricsPanel.vue'
+import ControlsPanel from '../panels/ControlsPanel.vue'
+import SignalInput from '../SignalInput.vue'
+import ConstellationViewSimple from '~/components/ConstellationViewSimple.vue'
+import type { Signal } from '~/types/{% endraw %}{{ row.lower }}{% raw %}'
+
+// Props
+interface Props {
+  initialSignals?: Signal[]
+  width?: number
+  height?: number
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  initialSignals: () => [],
+  width: 100,
+  height: 100
+})
+
+// Emits
+const emit = defineEmits<{
+  signalCreated: [signal: Signal]
+  signalSelected: [signal: Signal]
+  constellationFormed: [constellation: any]
+}>()
+
+// State
+const signals = ref<Signal[]>([...props.initialSignals])
+const selectedSignal = ref<Signal | null>(null)
+const selectedView = ref<'constellation' | 'star-graph' | 'globe'>(
+  'constellation'
+)
+const showLiveFeed = ref(true)
+const showMetrics = ref(true)
+const showControls = ref(true)
+
+// Computed
+const signalStats = computed(() => ({
+  total: signals.value.length,
+  byType: signals.value.reduce(
+    (acc, signal) => {
+      acc[signal.type] = (acc[signal.type] || 0) + 1
+      return acc
+    },
+    {} as Record<string, number>
+  )
+}))
+
+// Methods
+const addSignal = (signal: Signal) => {
+  signals.value.push(signal)
+  emit('signalCreated', signal)
+}
+
+const selectSignal = (signal: Signal) => {
+  selectedSignal.value = signal
+  emit('signalSelected', signal)
+}
+
+const removeSignal = (signalId: string) => {
+  signals.value = signals.value.filter(s => s.id !== signalId)
+  if (selectedSignal.value?.id === signalId) {
+    selectedSignal.value = null
+  }
+}
+
+const updateSignal = (signalId: string, updates: Partial<Signal>) => {
+  const index = signals.value.findIndex(s => s.id === signalId)
+  if (index !== -1) {
+    signals.value[index] = { ...signals.value[index], ...updates }
+  }
+}
+
+// Watch for prop changes
+watch(
+  () => props.initialSignals,
+  (newSignals) => {
+    signals.value = [...newSignals]
+  },
+  { deep: true }
+)
+
+// Expose methods
+defineExpose({
+  addSignal,
+  removeSignal,
+  updateSignal,
+  selectSignal,
+  signals: readonly(signals),
+  selectedSignal: readonly(selectedSignal)
+})
+</script>
+
+<template>
+  <div class="{% endraw %}{{ row.lower }}{% raw %}-view">
+    <!-- Header -->
+    <div class="{% endraw %}{{ row.lower }}{% raw %}-header">
+      <h1 class="{% endraw %}{{ row.lower }}{% raw %}-title">
+        NEAKO-{% endraw %}{{ row.capitalized }}{% raw %}
+      </h1>
+      <div class="{% endraw %}{{ row.lower }}{% raw %}-controls">
+        <button
+          v-for="view in ['constellation', 'star-graph', 'globe']"
+          :key="view"
+          :class="['view-toggle', { active: selectedView === view }]"
+          @click="selectedView = view as any"
+        >
+          {{ view.replace("-", " ").replace(/\b\w/g, (l) => l.toUpperCase()) }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Layout -->
+    <div class="{% endraw %}{{ row.lower }}{% raw %}-layout">
+      <!-- Left Panel -->
+      <div class="{% endraw %}{{ row.lower }}{% raw %}-panel {% endraw %}{{ row.lower }}{% raw %}-panel-left">
+        <ControlsPanel
+          v-if="showControls"
+          :signals="signals"
+          :selected-signal="selectedSignal"
+          @signal-created="addSignal"
+          @signal-selected="selectSignal"
+          @signal-removed="removeSignal"
+        />
+      </div>
+
+      <!-- Center View -->
+      <div class="{% endraw %}{{ row.lower }}{% raw %}-center">
+        <!-- Signal Input -->
+        <div class="{% endraw %}{{ row.lower }}{% raw %}-input-container">
+          <SignalInput @signal-created="addSignal" />
+        </div>
+
+        <!-- View Container -->
+        <div class="{% endraw %}{{ row.lower }}{% raw %}-view-container">
+          <StarGraphView
+            v-if="selectedView === 'star-graph'"
+            :signals="signals"
+            :width="width"
+            :height="height"
+            @signal-selected="selectSignal"
+          />
+          <GlobeView
+            v-else-if="selectedView === 'globe'"
+            :signals="signals"
+            :width="width"
+            :height="height"
+            @signal-selected="selectSignal"
+          />
+          <div v-else class="constellation-placeholder">
+            <ConstellationViewSimple
+              :signals="signals"
+              :width="width"
+              :height="height"
+              @orb-click="selectSignal"
+              @constellation-formed="emit('constellationFormed', $event)"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Panel -->
+      <div class="{% endraw %}{{ row.lower }}{% raw %}-panel {% endraw %}{{ row.lower }}{% raw %}-panel-right">
+        <LiveFeed
+          v-if="showLiveFeed"
+          :signals="signals"
+          :selected-signal="selectedSignal"
+          @signal-selected="selectSignal"
+        />
+        <MetricsPanel
+          v-if="showMetrics"
+          :stats="signalStats"
+          :signals="signals"
+        />
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.{% endraw %}{{ row.lower }}{% raw %}-view {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #0a0a0a;
+  color: white;
+}
+
+.{% endraw %}{{ row.lower }}{% raw %}-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background: #1a1a1a;
+  border-bottom: 1px solid #333;
+}
+
+.{% endraw %}{{ row.lower }}{% raw %}-title {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin: 0;
+}
+
+.{% endraw %}{{ row.lower }}{% raw %}-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.view-toggle {
+  padding: 0.5rem 1rem;
+  background: #333;
+  border: none;
+  border-radius: 0.25rem;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.view-toggle:hover {
+  background: #444;
+}
+
+.view-toggle.active {
+  background: #3b82f6;
+}
+
+.{% endraw %}{{ row.lower }}{% raw %}-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.{% endraw %}{{ row.lower }}{% raw %}-panel {
+  width: 300px;
+  background: #1a1a1a;
+  border-right: 1px solid #333;
+  overflow-y: auto;
+}
+
+.{% endraw %}{{ row.lower }}{% raw %}-panel-right {
+  border-right: none;
+  border-left: 1px solid #333;
+}
+
+.{% endraw %}{{ row.lower }}{% raw %}-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.{% endraw %}{{ row.lower }}{% raw %}-input-container {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  width: 100%;
+  max-width: 500px;
+  padding: 0 1rem;
+}
+
+.{% endraw %}{{ row.lower }}{% raw %}-view-container {
+  flex: 1;
+  position: relative;
+}
+
+.constellation-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at center, #1a1a2e 0%, #0a0a0a 100%);
+}
+
+.constellation-placeholder::before {
+  content: "Constellation View";
+  color: #666;
+  font-size: 1.2rem;
+}
+</style>
+{% endraw %}
