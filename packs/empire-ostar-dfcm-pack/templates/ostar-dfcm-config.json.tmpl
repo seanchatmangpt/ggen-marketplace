@@ -1,0 +1,47 @@
+---
+to: empire/reconstitution/ostar/dfcm-config.json
+force: true
+determinism: true
+sparql:
+  spaces: |
+    PREFIX dfcmostar: <https://chatmangpt.com/ontology/empire-ostar-dfcm#>
+    SELECT ?studyId ?sourcePack ?capabilityCount ?dispositionCount ?expectedClosureCount ?selectionState ?claimCeiling ?selectionAuthority ?actuationAuthority ?constraintAuthority WHERE {
+      ?space a dfcmostar:OptionSpace ;
+        dfcmostar:studyId ?studyId ; dfcmostar:sourcePack ?sourcePack ;
+        dfcmostar:capabilityCount ?capabilityCount ; dfcmostar:dispositionCount ?dispositionCount ;
+        dfcmostar:expectedClosureCount ?expectedClosureCount ;
+        dfcmostar:selectionState ?selectionState ; dfcmostar:claimCeiling ?claimCeiling ;
+        dfcmostar:selectionAuthority ?selectionAuthority ; dfcmostar:actuationAuthority ?actuationAuthority ;
+        dfcmostar:constraintAuthority ?constraintAuthority .
+    } ORDER BY ?studyId
+  capabilities: |
+    PREFIX dfcmostar: <https://chatmangpt.com/ontology/empire-ostar-dfcm#>
+    SELECT ?order ?id WHERE {
+      ?capability a dfcmostar:CapabilitySlot ; dfcmostar:order ?order ; dfcmostar:identifier ?id .
+    } ORDER BY ?order
+  dispositions: |
+    PREFIX dfcmostar: <https://chatmangpt.com/ontology/empire-ostar-dfcm#>
+    SELECT ?order ?id WHERE {
+      ?disposition a dfcmostar:Disposition ; dfcmostar:order ?order ; dfcmostar:identifier ?id .
+    } ORDER BY ?order
+---
+{
+  "schema": "ggen.legacy.dfcm-option-space-config.v1",
+  "study_id": {{ spaces[0].studyId | json_encode }},
+  "source_pack": {{ spaces[0].sourcePack | json_encode }},
+  "dfcm_phase": "PRESERVE",
+  "claim_ceiling": {{ spaces[0].claimCeiling | json_encode }},
+  "capability_count": {{ spaces[0].capabilityCount }},
+  "disposition_count": {{ spaces[0].dispositionCount }},
+  "expected_closure_count": {{ spaces[0].expectedClosureCount }},
+  "selection_state": {{ spaces[0].selectionState | json_encode }},
+  "selection_authority": {{ spaces[0].selectionAuthority }},
+  "actuation_authority": {{ spaces[0].actuationAuthority }},
+  "constraint_authority": {{ spaces[0].constraintAuthority | json_encode }},
+  "capabilities": [
+{% for row in capabilities %}    {{ row.id | json_encode }}{% if not loop.last %},{% endif %}
+{% endfor %}  ],
+  "required_dispositions": [
+{% for row in dispositions %}    {{ row.id | json_encode }}{% if not loop.last %},{% endif %}
+{% endfor %}  ]
+}
