@@ -1,0 +1,16 @@
+PREFIX empire: <https://chatmangpt.com/ontology/empire-reconstitution#>
+SELECT ?violation ?subject WHERE {
+  {
+    BIND("CONTROLLED_CONTRADICTION_COUNT" AS ?violation)
+    BIND(empire:ObservedClaim AS ?subject)
+    {
+      SELECT (COUNT(DISTINCT ?predicate) AS ?count) WHERE {
+        ?control a empire:ControlledPredicate ; empire:predicateName ?predicate ; empire:cardinality "one" .
+        ?left a empire:ObservedClaim ; empire:subject ?legacy ; empire:predicateName ?predicate ; empire:valueJson ?leftValue .
+        ?right a empire:ObservedClaim ; empire:subject ?legacy ; empire:predicateName ?predicate ; empire:valueJson ?rightValue .
+        FILTER(?leftValue != ?rightValue)
+      }
+    }
+    FILTER(?count < 2)
+  }
+}

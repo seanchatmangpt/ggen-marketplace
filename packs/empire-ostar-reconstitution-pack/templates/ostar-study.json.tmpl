@@ -1,0 +1,88 @@
+---
+to: empire/reconstitution/ostar/study.json
+force: true
+determinism: true
+sparql:
+  studies: |
+    PREFIX empire: <https://chatmangpt.com/ontology/empire-reconstitution#>
+    SELECT ?studyId ?authorityState ?scopeMode ?universal ?riceBoundary ?directActuation WHERE {
+      ?study a empire:CaseStudy ; empire:studyId ?studyId ;
+        empire:initialAuthorityState ?authorityState ; empire:semanticScopeMode ?scopeMode ;
+        empire:universalEquivalenceClaimed ?universal ; empire:riceBoundary ?riceBoundary ;
+        empire:directActuation ?directActuation .
+    }
+  controlled_predicates: |
+    PREFIX empire: <https://chatmangpt.com/ontology/empire-reconstitution#>
+    SELECT ?order ?predicate ?cardinality WHERE {
+      ?item a empire:ControlledPredicate ; empire:order ?order ;
+        empire:predicateName ?predicate ; empire:cardinality ?cardinality .
+    } ORDER BY ?order
+  subjects: |
+    PREFIX empire: <https://chatmangpt.com/ontology/empire-reconstitution#>
+    SELECT ?order ?subject ?id ?repo ?transport ?authority ?exactSha WHERE {
+      ?subject a empire:LegacySubject ; empire:order ?order ; empire:identifier ?id ;
+        empire:repository ?repo ; empire:transport ?transport ; empire:sourceAuthority ?authority .
+      OPTIONAL { ?subject empire:exactRevision ?exactSha }
+    } ORDER BY ?order
+  artifacts: |
+    PREFIX empire: <https://chatmangpt.com/ontology/empire-reconstitution#>
+    SELECT ?order ?subject ?id ?path ?blob WHERE {
+      ?artifact a empire:ArtifactCoordinate ; empire:order ?order ; empire:subject ?subject ;
+        empire:identifier ?id ; empire:path ?path ; empire:gitBlobSha1 ?blob .
+    } ORDER BY ?order
+  observations: |
+    PREFIX empire: <https://chatmangpt.com/ontology/empire-reconstitution#>
+    SELECT ?order ?id ?subjectId ?predicate ?valueJson ?evidenceId ?claimCeiling WHERE {
+      ?observation a empire:ObservedClaim ; empire:order ?order ; empire:identifier ?id ;
+        empire:subject ?subject ; empire:predicateName ?predicate ; empire:valueJson ?valueJson ;
+        empire:evidence ?evidence ; empire:claimCeiling ?claimCeiling .
+      ?subject empire:identifier ?subjectId .
+      ?evidence empire:identifier ?evidenceId .
+    } ORDER BY ?order
+  capabilities: |
+    PREFIX empire: <https://chatmangpt.com/ontology/empire-reconstitution#>
+    SELECT ?order ?id ?disposition WHERE {
+      ?capability a empire:CandidateCapability ; empire:order ?order ; empire:identifier ?id ;
+        empire:disposition ?state .
+      ?state empire:identifier ?disposition .
+    } ORDER BY ?order
+---
+{
+  "schema": "ggen.legacy.authority-vacuum.study.v1",
+  "study_id": {{ studies[0].studyId | json_encode }},
+  "initial_authority_state": {{ studies[0].authorityState | json_encode }},
+  "direct_actuation": {{ studies[0].directActuation }},
+  "semantic_scope": {
+    "mode": {{ studies[0].scopeMode | json_encode }},
+    "universal_equivalence_claimed": {{ studies[0].universal }},
+    "rice_boundary": {{ studies[0].riceBoundary | json_encode }}
+  },
+  "controlled_predicates": [
+{% for row in controlled_predicates %}    {"predicate": {{ row.predicate | json_encode }}, "cardinality": {{ row.cardinality | json_encode }}}{% if not loop.last %},{% endif %}
+{% endfor %}  ],
+  "subjects": [
+{% for row in subjects %}{% set subject_artifacts = artifacts | filter(attribute="subject", value=row.subject) %}    {
+      "id": {{ row.id | json_encode }},
+      "repo": {{ row.repo | json_encode }},
+      "exact_sha": {% if row.exactSha is defined %}{{ row.exactSha | json_encode }}{% else %}null{% endif %},
+      "transport": {{ row.transport | json_encode }},
+      "authority": {{ row.authority }},
+      "artifacts": [
+{% for artifact in subject_artifacts %}        {"id": {{ artifact.id | json_encode }}, "path": {{ artifact.path | json_encode }}, "git_blob_sha1": {{ artifact.blob | json_encode }}}{% if not loop.last %},{% endif %}
+{% endfor %}      ]
+    }{% if not loop.last %},{% endif %}
+{% endfor %}  ],
+  "observations": [
+{% for row in observations %}    {
+      "id": {{ row.id | json_encode }},
+      "subject": {{ row.subjectId | json_encode }},
+      "predicate": {{ row.predicate | json_encode }},
+      "value": {{ row.valueJson | safe }},
+      "evidence": {{ row.evidenceId | json_encode }},
+      "claim_ceiling": {{ row.claimCeiling | json_encode }}
+    }{% if not loop.last %},{% endif %}
+{% endfor %}  ],
+  "candidate_capabilities": [
+{% for row in capabilities %}    {"id": {{ row.id | json_encode }}, "disposition": {{ row.disposition | json_encode }}}{% if not loop.last %},{% endif %}
+{% endfor %}  ]
+}

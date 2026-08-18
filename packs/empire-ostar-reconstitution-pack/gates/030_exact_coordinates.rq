@@ -1,0 +1,24 @@
+PREFIX empire: <https://chatmangpt.com/ontology/empire-reconstitution#>
+SELECT ?violation ?subject WHERE {
+  {
+    ?subject a empire:ArtifactCoordinate .
+    FILTER NOT EXISTS {
+      ?subject empire:identifier ?id ; empire:path ?path ; empire:gitBlobSha1 ?blob ;
+        empire:subject ?legacy .
+      ?legacy a empire:LegacySubject .
+    }
+    BIND("ARTIFACT_COORDINATE_INCOMPLETE" AS ?violation)
+  }
+  UNION
+  {
+    ?subject a empire:ArtifactCoordinate ; empire:gitBlobSha1 ?blob .
+    FILTER(!REGEX(STR(?blob), "^[0-9a-f]{40}$"))
+    BIND("ARTIFACT_BLOB_ID_INVALID" AS ?violation)
+  }
+  UNION
+  {
+    ?subject a empire:LegacySubject ; empire:exactRevision ?revision .
+    FILTER(!REGEX(STR(?revision), "^[0-9a-f]{40}$"))
+    BIND("SUBJECT_REVISION_INVALID" AS ?violation)
+  }
+}
