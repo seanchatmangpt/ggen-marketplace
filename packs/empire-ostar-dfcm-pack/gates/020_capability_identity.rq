@@ -1,0 +1,27 @@
+PREFIX dfcmostar: <https://chatmangpt.com/ontology/empire-ostar-dfcm#>
+SELECT ?violation ?subject WHERE {
+  {
+    ?subject a dfcmostar:CapabilitySlot .
+    FILTER NOT EXISTS { ?subject dfcmostar:order ?order ; dfcmostar:identifier ?id . }
+    BIND("CAPABILITY_IDENTITY_INCOMPLETE" AS ?violation)
+  }
+  UNION
+  {
+    ?subject a dfcmostar:CapabilitySlot ; dfcmostar:order ?order .
+    FILTER(?order < 1 || ?order > 6)
+    BIND("CAPABILITY_ORDER_OUT_OF_RANGE" AS ?violation)
+  }
+  UNION
+  {
+    BIND("CAPABILITY_IDENTITY_DUPLICATE" AS ?violation)
+    BIND(dfcmostar:CapabilitySlot AS ?subject)
+    {
+      SELECT ?id (COUNT(?capability) AS ?count) WHERE {
+        ?capability a dfcmostar:CapabilitySlot ; dfcmostar:identifier ?id .
+      }
+      GROUP BY ?id
+      HAVING(?count != 1)
+    }
+  }
+}
+ORDER BY ?violation ?subject
