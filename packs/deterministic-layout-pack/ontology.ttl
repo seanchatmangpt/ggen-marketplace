@@ -1,0 +1,26 @@
+@prefix pack: <urn:ggen-marketplace:deterministic-layout-pack:> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+pack:ComputeLayout a pack:PureFunction ;
+    rdfs:label "computeLayout" ;
+    pack:signature "computeLayout(entities: Entity[]): Record<string, [number, number]>" ;
+    pack:sideEffectFree true ;
+    pack:usesMathRandom false ;
+    pack:usesDateNow false ;
+    pack:memoKey "entity-ID list (sorted, joined)" ;
+    pack:strategy "deterministic grid: columns = ceil(sqrt(n)), entities sorted by id before placement; hashStringToFloat(id) available for seeded non-grid placement" ;
+    rdfs:comment "Layout is a pure function of entity IDs only. Same entity-ID set always yields the same coordinate map, on every machine, every render." .
+
+pack:HashStringToFloat a pack:PureFunction ;
+    rdfs:label "hashStringToFloat" ;
+    pack:signature "hashStringToFloat(id: string): number" ;
+    pack:algorithm "FNV-1a 32-bit, normalized to [0, 1)" ;
+    rdfs:comment "Deterministic string->float seed, used only for the optional non-grid placement strategy. Never wraps Math.random()." .
+
+pack:LayoutTest a pack:VerificationArtifact ;
+    rdfs:label "layout.test.ts" ;
+    pack:testStyle "chicago" ;
+    pack:assertsRealFunction true ;
+    pack:usesMocking false ;
+    rdfs:comment "Calls the real computeLayout twice with the same fixed entity-ID array and asserts deep-equal output; also asserts output is stable regardless of input array order (sorted internally)." .

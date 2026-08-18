@@ -1,0 +1,52 @@
+---
+to: "lib/data/useLiveData.ts"
+---
+{% raw %}
+"use client";
+
+import useSWR from "swr";
+
+export interface LiveDataResponse<TEntity, TEdge> {
+  entities: TEntity[];
+  edges: TEdge[];
+}
+
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch ${url}: ${res.status} ${res.statusText}`);
+  }
+  return res.json();
+};
+
+/**
+ * Polls `endpoint` on `intervalMs` and returns the latest entity/edge state.
+ *
+ * IMPORTANT: this hook only ever changes entity/edge *data* (metric, status,
+ * edge weight). It never computes layout itself — callers memoize
+ * computeLayout(entities) separately, keyed on the entity-ID list, so
+ * positions stay stable across polls even though the data updates.
+ *
+ * Upgrade path: swap the SWR polling for a WebSocket subscription that calls
+ * `mutate()` with pushed data — the contract (entities/edges in, no layout
+ * side effects) stays identical.
+ */
+export function useLiveData<TEntity, TEdge>(
+  endpoint: string,
+  intervalMs = 5000,
+) {
+  const { data, error, isLoading, mutate } = useSWR<LiveDataResponse<TEntity, TEdge>>(
+    endpoint,
+    fetcher,
+    { refreshInterval: intervalMs, revalidateOnFocus: false },
+  );
+
+  return {
+    entities: data?.entities ?? [],
+    edges: data?.edges ?? [],
+    isLoading,
+    error: error as Error | undefined,
+    refresh: () => mutate(),
+  };
+}
+{% endraw %}
