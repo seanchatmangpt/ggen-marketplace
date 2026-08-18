@@ -1,0 +1,199 @@
+---
+to: "supabase-react.jsx"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:gc_subject_phage_wars_3_react_pack a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}/* =====================================================================
+   supabase-react.jsx
+   React abstraction layer over the (mock) Supabase client.
+
+   Provides a single Provider plus ergonomic hooks so components never
+   touch the raw client. Drop-in shaped like community supabase-react
+   helpers — swap the underlying createClient import for the real SDK
+   and every hook keeps working.
+
+   Exports
+     SupabaseProvider          owns the client + auth session
+     useSupabase()             → the raw client (escape hatch)
+     useAuth()                 → { user, session, loading, signIn, signUp,
+                                    signInWithOAuth, signInWithOtp, signOut, updateUser }
+     useProfile()              → { profile, loading, update } for the signed-in user
+     useQuery(table, build, deps)  → { data, error, loading, refetch }
+     useRealtimeQuery(table, build, deps)  → live-updating useQuery
+     useRpc()                  → callable rpc(fn, args)
+     useEdgeFunction()         → callable invoke(name, body)
+     usePresence(topic, state) → { others, count }
+     useBroadcast(topic, event)→ { messages, send }
+     useStorage(bucket)        → { upload, getPublicUrl, list, remove }
+
+   Requires React (global or import) and a createClient implementation.
+   ===================================================================== */
+const { createClient } = window.SupabaseMock;
+const { SEED, RPC, FUNCTIONS } = window.SupabaseConfig;
+
+const React = window.React;
+const { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } = React;
+
+const Ctx = createContext(null);
+
+/* Singleton client so every Provider/HMR shares one store + realtime bus. */
+let _client = null;
+function getClient() {
+  if (!_client) _client = createClient('mock://{% endraw %}{{ row.kebab }}{% raw %}', 'mock-anon-key', { seed: SEED, rpc: RPC, functions: FUNCTIONS });
+  return _client;
+}
+
+function SupabaseProvider({ children, client }) {
+  const sb = useMemo(() => client || getClient(), [client]);
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    sb.auth.getSession().then(({ data }) => { if (active) { setSession(data.session); setAuthLoading(false); } });
+    const { data: { subscription } } = sb.auth.onAuthStateChange((_event, s) => { if (active) { setSession(s); setAuthLoading(false); } });
+    return () => { active = false; subscription.unsubscribe(); };
+  }, [sb]);
+
+  const value = useMemo(() => ({ sb, session, authLoading }), [sb, session, authLoading]);
+  return React.createElement(Ctx.Provider, { value }, children);
+}
+
+function useCtx() {
+  const c = useContext(Ctx);
+  if (!c) throw new Error('Wrap your tree in <SupabaseProvider>');
+  return c;
+}
+
+function useSupabase() { return useCtx().sb; }
+
+/* ----------------------------- auth ----------------------------- */
+function useAuth() {
+  const { sb, session, authLoading } = useCtx();
+  const user = session ? session.user : null;
+  const signUp = useCallback((email, password, data) => sb.auth.signUp({ email, password, options: { data } }), [sb]);
+  const signIn = useCallback((email, password) => sb.auth.signInWithPassword({ email, password }), [sb]);
+  const signInWithOAuth = useCallback((provider) => sb.auth.signInWithOAuth({ provider }), [sb]);
+  const signInWithOtp = useCallback((email) => sb.auth.signInWithOtp({ email }), [sb]);
+  const signOut = useCallback(() => sb.auth.signOut(), [sb]);
+  const updateUser = useCallback((attrs) => sb.auth.updateUser(attrs), [sb]);
+  return { user, session, loading: authLoading, signUp, signIn, signInWithOAuth, signInWithOtp, signOut, updateUser };
+}
+
+/* ----------------------------- queries ----------------------------- */
+function useQuery(table, build, deps = []) {
+  const sb = useSupabase();
+  const [state, setState] = useState({ data: null, error: null, loading: true });
+  const buildRef = useRef(build); buildRef.current = build;
+  const run = useCallback(async () => {
+    setState((s) => ({ ...s, loading: true }));
+    let q = sb.from(table);
+    q = buildRef.current ? buildRef.current(q) : q.select('*');
+    const { data, error } = await q;
+    setState({ data, error, loading: false });
+  }, [sb, table]);
+  useEffect(() => { run(); /* eslint-disable-next-line */ }, [run, ...deps]);
+  return { ...state, refetch: run };
+}
+
+/* useQuery that also re-runs whenever the table emits a realtime change. */
+function useRealtimeQuery(table, build, deps = []) {
+  const sb = useSupabase();
+  const q = useQuery(table, build, deps);
+  const refetchRef = useRef(q.refetch); refetchRef.current = q.refetch;
+  useEffect(() => {
+    const ch = sb.channel('rtq:' + table + ':' + Math.random().toString(36).slice(2))
+      .on('postgres_changes', { event: '*', schema: 'public', table }, () => refetchRef.current())
+      .subscribe();
+    return () => ch.unsubscribe();
+  }, [sb, table]);
+  return q;
+}
+
+/* ----------------------------- profile ----------------------------- */
+function useProfile() {
+  const { user } = useAuth();
+  const sb = useSupabase();
+  const { data, loading, refetch } = useQuery('profiles', (q) => q.select('*').eq('id', user ? user.id : '__none__').maybeSingle(), [user && user.id]);
+  const update = useCallback(async (patch) => { if (!user) return; await sb.from('profiles').update(patch).eq('id', user.id); refetch(); }, [sb, user, refetch]);
+  return { profile: data, loading, update, refetch };
+}
+
+/* ----------------------------- rpc / functions ----------------------------- */
+function useRpc() {
+  const sb = useSupabase();
+  return useCallback((fn, args) => sb.rpc(fn, args), [sb]);
+}
+function useEdgeFunction() {
+  const sb = useSupabase();
+  return useCallback((name, body) => sb.functions.invoke(name, { body }), [sb]);
+}
+
+/* ----------------------------- realtime presence ----------------------------- */
+function usePresence(topic, myState) {
+  const sb = useSupabase();
+  const [others, setOthers] = useState([]);
+  const stateRef = useRef(myState); stateRef.current = myState;
+  useEffect(() => {
+    if (!topic) return;
+    const ch = sb.channel('presence:' + topic);
+    const sync = () => { const st = ch.presenceState(); setOthers(Object.values(st)); };
+    ch.on('presence', { event: 'sync' }, sync)
+      .on('presence', { event: 'join' }, sync)
+      .on('presence', { event: 'leave' }, sync)
+      .subscribe((status) => { if (status === 'SUBSCRIBED' && stateRef.current) ch.track(stateRef.current); });
+    return () => { ch.untrack(); ch.unsubscribe(); };
+  }, [sb, topic]);
+  return { others, count: others.length };
+}
+
+/* ----------------------------- realtime broadcast ----------------------------- */
+function useBroadcast(topic, event) {
+  const sb = useSupabase();
+  const [messages, setMessages] = useState([]);
+  const chRef = useRef(null);
+  useEffect(() => {
+    if (!topic) return;
+    const ch = sb.channel('bc:' + topic);
+    ch.on('broadcast', { event }, ({ payload }) => setMessages((m) => [...m.slice(-49), payload])).subscribe();
+    chRef.current = ch;
+    return () => ch.unsubscribe();
+  }, [sb, topic, event]);
+  const send = useCallback((payload) => { if (chRef.current) chRef.current.send({ type: 'broadcast', event, payload }); }, [event]);
+  return { messages, send };
+}
+
+/* ----------------------------- storage ----------------------------- */
+function useStorage(bucket) {
+  const sb = useSupabase();
+  return useMemo(() => {
+    const api = sb.storage.from(bucket);
+    return {
+      upload: (path, file, opts) => api.upload(path, file, opts),
+      download: (path) => api.download(path),
+      getPublicUrl: (path) => api.getPublicUrl(path).data.publicUrl,
+      createSignedUrl: (path, exp) => api.createSignedUrl(path, exp),
+      list: (prefix) => api.list(prefix),
+      remove: (paths) => api.remove(paths),
+    };
+  }, [sb, bucket]);
+}
+
+window.SupabaseReact = { SupabaseProvider, useSupabase, useAuth, useProfile, useQuery, useRealtimeQuery, useRpc, useEdgeFunction, usePresence, useBroadcast, useStorage, getClient };
+{% endraw %}

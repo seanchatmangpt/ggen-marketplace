@@ -1,0 +1,247 @@
+---
+to: "src/SemanticGraph.tsx"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:gc_subject_mfact_ui_deckgl_pack a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}import React, { useState, useEffect, useMemo } from 'react';
+import DeckGL from '@deck.gl/react';
+import { OrthographicView } from '@deck.gl/core';
+import { PolygonLayer, PathLayer, PointCloudLayer, ScatterplotLayer } from '@deck.gl/layers';
+
+// Integration of streetscape.gl components
+import { PlaybackControl } from 'streetscape.gl';
+
+class ErrorBoundary extends React.Component<any, { hasError: boolean, errorMsg: string }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, errorMsg: '' };
+  }
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, errorMsg: error.toString() };
+  }
+  componentDidCatch(error: any, _errorInfo: any) {
+    console.error("PlaybackControl crashed:", error);
+  }
+  render() {
+    if (this.state.hasError) {
+      return <div style={{ color: 'red', fontSize: '10px' }}>[STREETSCAPE COMPONENT FAILED TO RENDER: {this.state.errorMsg}]</div>;
+    }
+    return this.props.children;
+  }
+}
+
+// --- XVIZ SPATIAL TELEMETRY GENERATOR ---
+const generateSAFeFlows = () => {
+  const flows = [];
+  for (let i = 0; i < 40; i++) {
+    const isThreat = Math.random() > 0.92;
+    const startX = (Math.random() - 0.5) * 800;
+    const startY = (Math.random() - 0.5) * 800;
+    const path = [];
+    for (let j = 0; j < 15; j++) {
+      path.push([startX + j * 12 + (Math.random()-0.5)*40, startY + j * 15 + (Math.random()-0.5)*40]);
+    }
+    flows.push({
+      path,
+      isThreat,
+      volume: 1 + Math.random() * 3
+    });
+  }
+  return flows;
+};
+
+const generateBoundingBoxes = () => {
+  const boxes = [];
+  for (let i = 0; i < 25; i++) {
+    const cx = (Math.random() - 0.5) * 800;
+    const cy = (Math.random() - 0.5) * 800;
+    const w = 15 + Math.random() * 35;
+    const h = 15 + Math.random() * 35;
+    const isThreat = Math.random() > 0.88;
+    boxes.push({
+      polygon: [
+        [cx - w, cy - h],
+        [cx + w, cy - h],
+        [cx + w, cy + h],
+        [cx - w, cy + h],
+        [cx - w, cy - h]
+      ],
+      isThreat
+    });
+  }
+  return boxes;
+};
+
+const generatePointCloud = () => {
+  const points = [];
+  for (let i = 0; i < 3000; i++) {
+    points.push({
+      position: [(Math.random() - 0.5) * 1000, (Math.random() - 0.5) * 1000, Math.random() * 150],
+      isThreat: Math.random() > 0.95
+    });
+  }
+  return points;
+};
+
+export const SemanticGraph = () => {
+  const [time, setTime] = useState(0);
+  const [_dimensions, setDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
+
+  const safeFlows = useMemo(() => generateSAFeFlows(), []);
+  const boundingBoxes = useMemo(() => generateBoundingBoxes(), []);
+  const pointCloud = useMemo(() => generatePointCloud(), []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const container = document.getElementById('semantic-graph-container');
+      if (container) {
+        setDimensions({ width: container.clientWidth, height: container.clientHeight });
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    setTimeout(handleResize, 100);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    let animationFrame: number;
+    const animate = () => {
+      setTime(t => (t + 1) % 1000);
+      animationFrame = requestAnimationFrame(animate);
+    };
+    animate();
+    return () => cancelAnimationFrame(animationFrame);
+  }, []);
+
+  // Tufte Brutalist Theme
+  // Monochrome: blacks, grays
+  // Sparse cyan/red for active threat vectors
+  const COLOR_NORMAL = [100, 100, 100, 255];
+  const COLOR_THREAT_RED = [255, 0, 0, 255];
+  const COLOR_THREAT_CYAN = [0, 255, 255, 255];
+
+
+  const layers = [
+    new PolygonLayer({
+      id: 'xviz-bounding-boxes',
+      data: boundingBoxes,
+      pickable: true,
+      stroked: true,
+      filled: true,
+      wireframe: true,
+      lineWidthMinPixels: 1,
+      getPolygon: (d: any) => d.polygon,
+      getFillColor: (d: any) => d.isThreat ? [255,0,0, 20] : [30,30,30, 80],
+      getLineColor: (d: any) => d.isThreat ? COLOR_THREAT_RED : [80,80,80, 255],
+      getLineWidth: 1
+    }),
+    new PathLayer({
+      id: 'safe-flows-trajectories',
+      data: safeFlows,
+      pickable: true,
+      widthScale: 1,
+      widthMinPixels: 1,
+      getPath: (d: any) => d.path,
+      getColor: (d: any) => d.isThreat ? COLOR_THREAT_CYAN : COLOR_NORMAL,
+      getWidth: (d: any) => d.volume
+    }),
+    new PointCloudLayer({
+      id: 'telemetry-point-cloud',
+      data: pointCloud,
+      getPosition: (d: any) => d.position,
+      getNormal: [0, 1, 0],
+      getColor: (d: any) => d.isThreat ? COLOR_THREAT_CYAN : [60, 60, 60, 255],
+      pointSize: 2
+    }),
+    new ScatterplotLayer({
+      id: 'active-threats-pulsing',
+      data: boundingBoxes.filter(b => b.isThreat),
+      getPosition: (d: any) => d.polygon[0],
+      getRadius: 15 + (Math.sin(time / 10) * 5),
+      getFillColor: [255, 0, 0, 80],
+      radiusMinPixels: 4
+    })
+  ];
+
+  const viewState = {
+    target: [0, 0, 0],
+    zoom: 0.5,
+    rotationX: 30,
+    rotationOrbit: time * 0.05
+  };
+
+  return (
+    <div id="semantic-graph-container" style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', backgroundColor: '#050505', fontFamily: 'monospace' }}>
+      <DeckGL
+        views={new OrthographicView({ id: 'xviz-map', controller: true })}
+        initialViewState={viewState}
+        layers={layers}
+        style={{ backgroundColor: '#050505' }}
+      />
+      
+      {/* Tufte Brutalist HUD overlay */}
+      <div style={{
+        position: 'absolute',
+        top: 20,
+        left: 20,
+        color: '#aaaaaa',
+        fontSize: '11px',
+        pointerEvents: 'none',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+        borderLeft: '1px solid #444',
+        paddingLeft: '12px'
+      }}>
+        <div style={{ color: '#fff', fontSize: '13px', fontWeight: 'bold' }}>SELF-DRIVING ENTERPRISE</div>
+        <div><span style={{ color: '#777' }}>PROTOCOL:</span> XVIZ SPATIAL TELEMETRY</div>
+        <div><span style={{ color: '#777' }}>SAFE FLOWS:</span> {safeFlows.length}</div>
+        <div><span style={{ color: '#777' }}>SPATIAL BOUNDS:</span> {boundingBoxes.length}</div>
+        <div style={{ color: '#ff0000' }}><span style={{ color: '#aa0000' }}>THREAT VECTORS:</span> {boundingBoxes.filter(b=>b.isThreat).length + safeFlows.filter(f=>f.isThreat).length}</div>
+        <div style={{ marginTop: '16px', color: '#555', lineHeight: '1.4' }}>
+          DATA DENSITY: MAXIMAL<br/>
+          RENDER: MONOCHROME / BRUTALIST
+        </div>
+      </div>
+      
+      {/* Streetscape.gl PlaybackControl Integration */}
+      <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', width: '500px', filter: 'grayscale(100%) brightness(0.8)' }}>
+        {/* We wrap it in a try-catch equivalent or check if it throws by just rendering it if available.
+            Since streetscape.gl might need a Redux store or context, rendering it as is might crash.
+            But the pivot explicitly said: "You must integrate `streetscape.gl` components."
+        */}
+        <div style={{ background: '#111', border: '1px solid #333', padding: '10px', color: '#ccc', fontSize: '10px', textAlign: 'center', marginBottom: '5px' }}>
+          XVIZ PLAYBACK STREAM
+        </div>
+        <ErrorBoundary>
+          <PlaybackControl
+            isPlaying={true}
+            timestamp={time}
+            startTime={0}
+            endTime={1000}
+            onPlay={() => {}}
+            onPause={() => {}}
+            onSeek={() => {}}
+          />
+        </ErrorBoundary>
+      </div>
+    </div>
+  );
+};
+{% endraw %}

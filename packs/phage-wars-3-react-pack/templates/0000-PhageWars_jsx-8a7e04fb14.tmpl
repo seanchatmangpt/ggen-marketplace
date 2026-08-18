@@ -1,0 +1,1103 @@
+---
+to: "{{ row.capitalized }}.jsx"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:gc_subject_phage_wars_3_react_pack a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}/* =====================================================================
+   {% endraw %}{{ row.capitalized }}{% raw %}.jsx
+   Standalone React module for {% endraw %}{{ row.title }}{% raw %} III — a 5v5 microbial MOBA.
+
+   Exports
+   -------
+     PhageEngine      framework-agnostic game engine (three.js + deck.gl + sim)
+     PhageContext     React context carrying { engine, phase }
+     PhageProvider    owns an engine instance, re-renders on engine ticks
+     usePhage()       hook → { engine, phase }
+     Stage            mounts the three.js / deck.gl / minimap canvases
+     TitleScreen, ChampionSelect, Hud, GameOver   screen components
+     {% endraw %}{{ row.capitalized }}{% raw %}Game    root component (Provider + Stage + screens)
+
+   Requirements (load before this module)
+   --------------------------------------
+     React, ReactDOM
+     window.THREE  (three.js r136-ish)
+     window.deck   (deck.gl 8.x UMD)
+
+   Usage
+   -----
+     <{% endraw %}{{ row.capitalized }}{% raw %}Game />              // self-contained, fills its parent
+   or compose pieces yourself:
+     <PhageProvider><Stage/><Hud/>…</PhageProvider>
+   ===================================================================== */
+(function (root, factory) {
+  const React = root.React;
+  const api = factory(React);
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  root.{% endraw %}{{ row.capitalized }}{% raw %} = api;
+})(typeof window !== 'undefined' ? window : this, function (React) {
+  'use strict';
+
+  /* ============================ CONSTANTS ============================ */
+  const BOARD = 1040; // world span (-520..520)
+
+  const COL = {
+    A: [64, 240, 214], B: [255, 72, 148], N: [150, 166, 196],
+    Aedge: [150, 255, 240], Bedge: [255, 150, 196], gold: [255, 209, 102],
+  };
+
+  let CHAMPS = [
+    { id: 'lyssa', tag: 'L', name: 'LYSSA', role: 'ASSASSIN', barColor: 'linear-gradient(90deg,#ff5db0,#ff9bd0)',
+      stats: { spd: .95, str: .85, rep: .35, def: .25, agi: .95 }, hue: [255, 90, 170],
+      ult: { icon: '⟁', name: 'BLINK-LYSE', key: 'Q', cd: 9,
+        desc: 'Dash to cursor and burst the nearest enemy colony for 35 units.' } },
+    { id: 'grond', tag: 'G', name: 'GROND', role: 'BULWARK', barColor: 'linear-gradient(90deg,#5cd0ff,#bfefff)',
+      stats: { spd: .3, str: .6, rep: .4, def: .98, agi: .2 }, hue: [92, 208, 255],
+      ult: { icon: '⛨', name: 'MEMBRANE', key: 'Q', cd: 12,
+        desc: 'Sheathe the nearest colony — uncapturable & +defense for 7s.' } },
+    { id: 'spore', tag: 'S', name: 'SPORE', role: 'BREEDER', barColor: 'linear-gradient(90deg,#7dffb0,#d6ffe6)',
+      stats: { spd: .5, str: .3, rep: .99, def: .55, agi: .45 }, hue: [120, 255, 170],
+      ult: { icon: '✶', name: 'BLOOM', key: 'Q', cd: 11,
+        desc: 'Triple production of the nearest friendly colony for 8s.' } },
+    { id: 'toxin', tag: 'T', name: 'TOXIN', role: 'NECRO-MAGE', barColor: 'linear-gradient(90deg,#b98cff,#e6d6ff)',
+      stats: { spd: .55, str: .95, rep: .5, def: .4, agi: .6 }, hue: [170, 124, 255],
+      ult: { icon: '☣', name: 'NECROSIS', key: 'Q', cd: 10,
+        desc: 'Seed a toxin field at cursor that rots enemy colonies for 5s.' } },
+    { id: 'flux', tag: 'F', name: 'FLUX', role: 'VECTOR', barColor: 'linear-gradient(90deg,#ffd166,#ffe9a8)',
+      stats: { spd: .7, str: .45, rep: .6, def: .6, agi: .8 }, hue: [255, 209, 102],
+      ult: { icon: '⇲', name: 'SURGE', key: 'Q', cd: 10,
+        desc: 'Flood +22 units into every friendly colony near the cursor.' } },
+  ];
+
+  /* ============================ HELPERS ============================ */
+  const hexHue = (h, a) => `rgba(${h[0]},${h[1]},${h[2]},${a})`;
+  const fmtClock = (s) => { s = Math.floor(s); const m = Math.floor(s / 60); const ss = s % 60; return m + ':' + String(ss).padStart(2, '0'); };
+
+  /* Replace the champion roster from an external source (e.g. Supabase).
+     Accepts rows with hue as hex string or [r,g,b]; merges over built-in
+     defaults by id so partial rows never break the engine. Mutates CHAMPS
+     in place so any engine already holding a reference picks up the data. */
+  const hexToRgb = (h) => { const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(String(h)); return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [120, 200, 255]; };
+  function setChampions(list) {
+    if (!Array.isArray(list) || !list.length) return CHAMPS;
+    const defaults = CHAMPS.slice();
+    const norm = list.map((c) => {
+      const base = defaults.find((x) => x.id === c.id) || {};
+      const hue = Array.isArray(c.hue) ? c.hue : (typeof c.hue === 'string' ? hexToRgb(c.hue) : base.hue);
+      return { ...base, ...c, hue, tag: c.tag || base.tag, stats: c.stats || base.stats, ult: c.ult || base.ult, barColor: c.barColor || base.barColor };
+    });
+    CHAMPS.length = 0; norm.forEach((c) => CHAMPS.push(c));
+    return CHAMPS;
+  }
+
+  /* ============================ ENGINE ============================
+     Pure imperative game logic. Knows nothing about React — it drives
+     three.js + deck.gl + a canvas minimap, holds the simulation state,
+     and notifies subscribers (`subscribe`) every HUD tick so a UI layer
+     can re-read `phase` and `snapshot()`.
+  ================================================================== */
+  class PhageEngine {
+    constructor() {
+      this.phase = 'title';   // title | select | intro | play | over
+      this.pickIdx = 0;
+      this.lineup = null;     // optional matchmade lineup from Supabase (profiles)
+      this.over = null;
+      this.endStats = null;
+
+      this.BOARD = BOARD;
+      this.COL = COL;
+      this.CHAMPS = CHAMPS;
+
+      this.threeEl = null; this.deckEl = null; this.miniEl = null;
+      this._raf = null; this._last = 0; this._mounted = false;
+      this._hudAcc = 0;
+      this._listeners = new Set();
+    }
+
+    /* ----- subscription / phase ----- */
+    subscribe(fn) { this._listeners.add(fn); return () => this._listeners.delete(fn); }
+    emit() { this._listeners.forEach((fn) => fn()); }
+    setPhase(p) { this.phase = p; this.emit(); }
+
+    /* ----- ref setters (callback refs from React) ----- */
+    setThreeEl(el) { this.threeEl = el; }
+    setDeckEl(el) { this.deckEl = el; }
+    setMiniEl(el) { this.miniEl = el; }
+    noMenu(e) { e.preventDefault(); }
+
+    /* ----- lifecycle ----- */
+    mount() { this._mounted = true; this.waitLibs(); }
+    unmount() {
+      this._mounted = false;
+      if (this._raf) cancelAnimationFrame(this._raf);
+      window.removeEventListener('resize', this._onResize);
+      window.removeEventListener('keydown', this._onKey);
+      window.removeEventListener('pointerup', this._onUp);
+      window.removeEventListener('pointermove', this._onPointerMove);
+    }
+    waitLibs() {
+      if (!this._mounted) return;
+      if (window.THREE && window.deck && this.threeEl) this.boot();
+      else setTimeout(() => this.waitLibs(), 50);
+    }
+    boot() {
+      this.initThree();
+      this._onResize = () => this.resize();
+      window.addEventListener('resize', this._onResize);
+      this._onKey = (e) => this.onKey(e);
+      window.addEventListener('keydown', this._onKey);
+      this.resize();
+      this._last = performance.now();
+      this.loop();
+    }
+
+    /* ============================= THREE ============================= */
+    initThree() {
+      const T = window.THREE;
+      const w = window.innerWidth, h = window.innerHeight;
+      const scene = new T.Scene();
+      scene.fog = new T.FogExp2(0x02060c, 0.018);
+      const cam = new T.PerspectiveCamera(60, w / h, 0.1, 400);
+      cam.position.set(0, 0, 70);
+      const renderer = new T.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+      renderer.setSize(w, h);
+      this.threeEl.appendChild(renderer.domElement);
+
+      // soft circular sprite
+      const cvs = document.createElement('canvas'); cvs.width = cvs.height = 128;
+      const cx = cvs.getContext('2d');
+      const g = cx.createRadialGradient(64, 64, 0, 64, 64, 64);
+      g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(.25, 'rgba(255,255,255,.7)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      cx.fillStyle = g; cx.fillRect(0, 0, 128, 128);
+      const tex = new T.CanvasTexture(cvs);
+
+      // drifting organelles (point field)
+      const N = 1400; const pos = new Float32Array(N * 3); const col = new Float32Array(N * 3); const spd = new Float32Array(N);
+      const cyan = new T.Color(0x4ff0e0), mag = new T.Color(0xff5a9e), pur = new T.Color(0x9b7bff);
+      for (let i = 0; i < N; i++) {
+        const r = 8 + Math.random() * 120, a = Math.random() * Math.PI * 2, z = -90 + Math.random() * 150;
+        pos[i * 3] = Math.cos(a) * r; pos[i * 3 + 1] = Math.sin(a) * r * 0.7; pos[i * 3 + 2] = z;
+        const pick = Math.random(); const c = pick < 0.45 ? cyan : (pick < 0.8 ? mag : pur);
+        col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; spd[i] = 0.2 + Math.random() * 0.8;
+      }
+      const geo = new T.BufferGeometry();
+      geo.setAttribute('position', new T.BufferAttribute(pos, 3));
+      geo.setAttribute('color', new T.BufferAttribute(col, 3));
+      const mat = new T.PointsMaterial({ size: 2.6, map: tex, vertexColors: true, transparent: true, blending: T.AdditiveBlending, depthWrite: false, opacity: .9 });
+      const pts = new T.Points(geo, mat); scene.add(pts);
+      this._tSpd = spd;
+
+      // big bokeh blobs
+      const blobs = [];
+      for (let i = 0; i < 16; i++) {
+        const c = [cyan, mag, pur][i % 3];
+        const sm = new T.SpriteMaterial({ map: tex, color: c, transparent: true, blending: T.AdditiveBlending, depthWrite: false, opacity: .18 });
+        const sp = new T.Sprite(sm);
+        const s = 18 + Math.random() * 40; sp.scale.set(s, s, 1);
+        sp.position.set((Math.random() - .5) * 160, (Math.random() - .5) * 110, -60 + Math.random() * 80);
+        sp.userData = { ph: Math.random() * Math.PI * 2, sp: 0.2 + Math.random() * 0.5, amp: 6 + Math.random() * 10 };
+        scene.add(sp); blobs.push(sp);
+      }
+
+      // dish rings
+      const ring = new T.Mesh(new T.TorusGeometry(64, 0.5, 8, 90), new T.MeshBasicMaterial({ color: 0x1c6f78, transparent: true, opacity: .35, blending: T.AdditiveBlending }));
+      ring.rotation.x = Math.PI * 0.5; scene.add(ring);
+      const ring2 = new T.Mesh(new T.TorusGeometry(86, 0.3, 8, 90), new T.MeshBasicMaterial({ color: 0x123a44, transparent: true, opacity: .25, blending: T.AdditiveBlending }));
+      ring2.rotation.x = Math.PI * 0.5; scene.add(ring2);
+
+      this.three = { T, scene, cam, renderer, pts, blobs, ring, ring2, geo, introT: 0, mouse: { x: 0, y: 0 } };
+      this._onPointerMove = (e) => {
+        this.three.mouse.x = (e.clientX / window.innerWidth - .5);
+        this.three.mouse.y = (e.clientY / window.innerHeight - .5);
+      };
+      window.addEventListener('pointermove', this._onPointerMove);
+    }
+
+    stepThree(dt, t) {
+      const th = this.three; if (!th) return;
+      const pos = th.geo.attributes.position.array;
+      for (let i = 0; i < this._tSpd.length; i++) {
+        pos[i * 3 + 2] += this._tSpd[i] * dt * 6;
+        if (pos[i * 3 + 2] > 60) pos[i * 3 + 2] = -90;
+      }
+      th.geo.attributes.position.needsUpdate = true;
+      th.pts.rotation.z = t * 0.012;
+      for (const b of th.blobs) { const u = b.userData; b.position.y += Math.sin(t * u.sp + u.ph) * 0.02 * u.amp * dt; }
+      th.ring.rotation.z = t * 0.05; th.ring2.rotation.z = -t * 0.035;
+      // intro dolly
+      if (this.phase === 'intro' && th.introT < 1) {
+        th.introT = Math.min(1, th.introT + dt * 0.5);
+        const e = 1 - Math.pow(1 - th.introT, 3);
+        th.cam.position.z = 140 - e * 70;
+        if (th.introT >= 1) this.startPlay();
+      }
+      // parallax
+      const tx = th.mouse.x * 10, ty = -th.mouse.y * 7;
+      th.cam.position.x += (tx - th.cam.position.x) * Math.min(1, dt * 2);
+      th.cam.position.y += (ty - th.cam.position.y) * Math.min(1, dt * 2);
+      th.cam.lookAt(0, 0, 0);
+      th.renderer.render(th.scene, th.cam);
+    }
+
+    /* ============================= BOARD ============================= */
+    buildGame() {
+      const C = []; let id = 0;
+      const D = (t, off) => { const dx = 0.7071, dy = 0.7071, px = -0.7071, py = 0.7071; return [t * dx + off * px, t * dy + off * py]; };
+      const add = (t, off, team, units, type, prod) => { const [x, y] = D(t, off); C.push({ id: id++, x, y, team, units, cap: type === 'core' ? 220 : 100, type, prod, shield: 0, bloom: 0, rot: 0 }); return C[C.length - 1]; };
+      // cores
+      add(-470, 0, 'A', 120, 'core', 7.5); add(470, 0, 'B', 120, 'core', 7.5);
+      // mid lane
+      add(-200, 0, null, 18, 'tower', 3); add(0, 0, null, 30, 'objective', 5.5); add(200, 0, null, 18, 'tower', 3);
+      // top lane
+      add(-300, 205, 'A', 24, 'tower', 3.4); add(-95, 205, null, 14, 'cell', 2.6); add(110, 205, null, 14, 'cell', 2.6); add(315, 205, 'B', 24, 'tower', 3.4);
+      // bot lane
+      add(-315, -205, 'A', 24, 'tower', 3.4); add(-110, -205, null, 14, 'cell', 2.6); add(95, -205, null, 14, 'cell', 2.6); add(300, -205, 'B', 24, 'tower', 3.4);
+      // base feeders
+      add(-350, 95, 'A', 20, 'cell', 3); add(-350, -95, 'A', 20, 'cell', 3);
+      add(350, 95, 'B', 20, 'cell', 3); add(350, -95, 'B', 20, 'cell', 3);
+      // jungle objectives
+      add(-70, 150, null, 22, 'objective', 4.2); add(70, -150, null, 22, 'objective', 4.2);
+      add(40, 300, null, 12, 'cell', 2.4); add(-40, -300, null, 12, 'cell', 2.4);
+
+      this.cells = C;
+      this.coreA = C[0]; this.coreB = C[1];
+
+      // heroes (5v5) — lineup (champ picks + handles) comes from the Supabase
+      // matchmaking result when present; otherwise a default mirror lineup.
+      const heroes = [];
+      const champIdx = (id) => { const i = this.CHAMPS.findIndex((c) => c.id === id); return i < 0 ? 0 : i; };
+      let aOrder, bOrder, aHandles, bHandles;
+      if (this.lineup) {
+        const allyIdx = (this.lineup.aChamps || []).map(champIdx);
+        aOrder = [this.pickIdx, ...allyIdx].slice(0, 5);
+        while (aOrder.length < 5) aOrder.push(aOrder.length % this.CHAMPS.length);
+        bOrder = (this.lineup.bChamps || []).map(champIdx).slice(0, 5);
+        while (bOrder.length < 5) bOrder.push(bOrder.length % this.CHAMPS.length);
+        aHandles = [this.lineup.you || 'YOU', ...(this.lineup.aHandles || [])];
+        bHandles = this.lineup.bHandles || [];
+      } else {
+        aOrder = [this.pickIdx, ...[0, 1, 2, 3, 4].filter((i) => i !== this.pickIdx)];
+        bOrder = [0, 1, 2, 3, 4];
+        aHandles = []; bHandles = [];
+      }
+      aOrder.forEach((ci, slot) => { heroes.push(this.mkHero(this.CHAMPS[ci], 'A', slot, slot === 0, aHandles[slot])); });
+      bOrder.forEach((ci, slot) => { heroes.push(this.mkHero(this.CHAMPS[ci], 'B', slot, false, bHandles[slot])); });
+      this.heroes = heroes;
+      this.player = heroes[0];
+
+      this.particles = []; this.beams = []; this.feed = []; this.fields = [];
+      this.sel = []; this.drag = null; this.moveTarget = null;
+      this.t0 = performance.now(); this.clock = 0;
+      this.biomass = 60; this.cd = 0; this.cdMax = this.CHAMPS[this.pickIdx].ult.cd;
+      this.cdW = 0; this.cdE = 0; this.cdR = 0; this.cdWmax = 8; this.cdEmax = 5; this.cdRmax = 26;
+      this.banner = null; this.bannerTimer = 0;
+      this.scoreA = 0; this.scoreB = 0;
+      this.over = null;
+      this.upgrades = { atk: 0, def: 0, spd: 0 };
+      this.kills = 0; this.deaths = 0;
+    }
+
+    mkHero(ch, team, slot, isPlayer, handle) {
+      const core = team === 'A' ? [-470 * 0.7071, -470 * 0.7071] : [470 * 0.7071, 470 * 0.7071];
+      const spread = (slot - 2) * 60;
+      return {
+        id: ch.id + '_' + team, ch, team, isPlayer, handle: handle || (isPlayer ? 'YOU' : ch.name),
+        x: core[0] + (team === 'A' ? 70 : -70) + spread * 0.3, y: core[1] + spread,
+        hx: core[0], hy: core[1], hp: 100, maxhp: 100, alive: true, respawn: 0,
+        r: 13 + ch.stats.def * 6, speed: 60 + ch.stats.spd * 90, str: ch.stats.str, kills: 0,
+        target: null, retarget: 0,
+      };
+    }
+
+    /* ============================= DECK ============================= */
+    initDeck() {
+      const D = window.deck;
+      this.deck = new D.Deck({
+        parent: this.deckEl,
+        views: [new D.OrthographicView({ flipY: false })],
+        viewState: this.viewState(),
+        controller: false,
+        useDevicePixels: true,
+        parameters: { clearColor: [0, 0, 0, 0] },
+        getCursor: () => 'crosshair',
+        layers: [],
+      });
+      const cv = this.deckEl.querySelector('canvas');
+      cv.style.cursor = 'crosshair';
+      cv.addEventListener('pointerdown', (e) => this.onDown(e));
+      cv.addEventListener('pointermove', (e) => this.onMove(e));
+      this._onUp = (e) => this.onUp(e);
+      window.addEventListener('pointerup', this._onUp);
+      this._deckCv = cv;
+    }
+
+    viewState() {
+      const sz = Math.min(window.innerWidth, window.innerHeight);
+      const zoom = Math.log2((sz * 0.92) / this.BOARD);
+      return { target: [0, 0, 0], zoom };
+    }
+
+    pick(e) {
+      if (!this.deck) return null;
+      const r = this._deckCv.getBoundingClientRect();
+      const info = this.deck.pickObject({ x: e.clientX - r.left, y: e.clientY - r.top, radius: 8, layerIds: ['cells'] });
+      return info ? info.object : null;
+    }
+    worldFromEvent(e) {
+      const r = this._deckCv.getBoundingClientRect();
+      const vp = this.deck.getViewports()[0];
+      return vp.unproject([e.clientX - r.left, e.clientY - r.top]);
+    }
+
+    onDown(e) {
+      if (this.phase !== 'play') return;
+      const c = this.pick(e);
+      if (c && c.team === 'A') { this.drag = { from: [c], cur: [c.x, c.y] }; this.sel = [c]; }
+      else {
+        const w = this.worldFromEvent(e);
+        if (this.player.alive) { this.player.tx = w[0]; this.player.ty = w[1]; this.player.moving = true; }
+      }
+    }
+    onMove(e) {
+      if (this.deck) { try { this.lastWorld = this.worldFromEvent(e); } catch (_) {} }
+      if (!this.drag) return;
+      const w = this.lastWorld || this.worldFromEvent(e); this.drag.cur = [w[0], w[1]];
+      const c = this.pick(e);
+      if (c && c.team === 'A' && !this.drag.from.includes(c) && this.drag.from.length < 8) { this.drag.from.push(c); this.sel = this.drag.from.slice(); }
+    }
+    onUp(e) {
+      if (!this.drag) return;
+      const tgt = this.pick(e);
+      if (tgt && !this.drag.from.includes(tgt)) {
+        for (const s of this.drag.from) this.sendPhage(s, tgt, 'A');
+      }
+      this.drag = null; this.sel = [];
+    }
+
+    onKey(e) {
+      if (this.phase !== 'play') return;
+      const k = e.key.toLowerCase();
+      if (k === 'q') this.useUlt();
+      else if (k === 'w') this.useRally();
+      else if (k === 'e') this.useSiphon();
+      else if (k === 'r') this.useRecall();
+    }
+
+    /* ----- player abilities ----- */
+    useRally() {
+      if (this.cdW > 0 || !this.player.alive) return;
+      const w = this.lastWorld || [this.player.x, this.player.y];
+      let n = 0;
+      for (const h of this.heroes) { if (h.team === 'A' && !h.isPlayer && h.alive) { h.isRallied = true; h.target = { x: w[0] + (Math.random() - .5) * 50, y: w[1] + (Math.random() - .5) * 50 }; h.retarget = 3; n++; } }
+      if (n) { this.flash('RALLY', 'A'); this.cdW = this.cdWmax; }
+    }
+    useSiphon() {
+      if (this.cdE > 0 || !this.player.alive) return;
+      const px = this.player.x, py = this.player.y;
+      const e = this.nearestCell(px, py, (c) => c.team === 'B'); if (!e) return;
+      const f = this.nearestCell(px, py, (c) => c.team === 'A');
+      const amt = Math.min(e.units, 14);
+      e.units -= amt; if (e.units < 1) { e.team = null; e.units = 2; }
+      if (f) f.units = Math.min(f.cap, f.units + amt);
+      this.beams.push({ sx: e.x, sy: e.y, tx: px, ty: py, team: 'A', life: 0.5, col: [120, 255, 240, 160] });
+      this.flash('SIPHON', 'A'); this.cdE = this.cdEmax;
+    }
+    useRecall() {
+      if (this.cdR > 0 || !this.player.alive) return;
+      const c = this.coreA; this.player.tx = c.x + 60; this.player.ty = c.y; this.player.moving = true;
+      this.flash('RECALLING', 'A'); this.cdR = this.cdRmax;
+    }
+    buyUpgrade(type) {
+      if (this.upgrades[type] >= 3) return;
+      const costs = [100, 200, 400];
+      const cost = costs[this.upgrades[type]];
+      if (this.biomass < cost) return;
+      this.biomass -= cost;
+      this.upgrades[type]++;
+      const boosters = { atk: ' ATK+15%', def: ' DEF+20%', spd: ' SPD+12%' };
+      this.flash('UPGRADE' + boosters[type], 'A');
+    }
+
+    /* ============================= SIM ============================= */
+    sendPhage(src, tgt, team) {
+      if (src.units <= 2) return;
+      const amt = Math.floor(src.units * 0.5); if (amt < 1) return;
+      src.units -= amt;
+      const col = this.COL[team];
+      const n = Math.min(amt, 26);
+      const per = amt / n;
+      for (let i = 0; i < n; i++) {
+        this.particles.push({
+          x: src.x + (Math.random() - .5) * 8, y: src.y + (Math.random() - .5) * 8,
+          tgt, team, amt: per, delay: i * 0.045, speed: 130 + Math.random() * 60,
+          col: [col[0], col[1], col[2], 235],
+        });
+      }
+      this.beams.push({ sx: src.x, sy: src.y, tx: tgt.x, ty: tgt.y, team, life: 0.5, col: [col[0], col[1], col[2], 120] });
+    }
+
+    stepSim(dt) {
+      // production
+      for (const c of this.cells) {
+        if (c.team) {
+          let p = c.prod * (c.bloom > 0 ? 3 : 1) * (c.team === 'A' ? this.breedBonus('A') : this.breedBonus('B'));
+          c.units = Math.min(c.cap, c.units + p * dt);
+        }
+        if (c.bloom > 0) c.bloom -= dt;
+        if (c.shield > 0) c.shield -= dt;
+        c.rot += dt * (0.6 + c.units * 0.004);
+      }
+      // particles
+      const live = [];
+      for (const p of this.particles) {
+        if (p.delay > 0) { p.delay -= dt; live.push(p); continue; }
+        const dx = p.tgt.x - p.x, dy = p.tgt.y - p.y, d = Math.hypot(dx, dy);
+        if (d < 7) { this.applyHit(p); continue; }
+        const v = p.speed * dt; p.x += dx / d * v; p.y += dy / d * v; live.push(p);
+      }
+      this.particles = live;
+      // beams
+      this.beams = this.beams.filter((b) => { b.life -= dt; return b.life > 0; });
+      // toxin fields
+      this.fields = this.fields.filter((f) => {
+        f.life -= dt;
+        for (const c of this.cells) { if (c.team && c.team !== f.team) { const d = Math.hypot(c.x - f.x, c.y - f.y); if (d < f.r) { c.units = Math.max(0, c.units - 22 * dt); if (c.units < 1) { c.team = null; c.units = 2; } } } }
+        return f.life > 0;
+      });
+      // heroes
+      this.stepHeroes(dt);
+      // cooldowns
+      if (this.cd > 0) this.cd = Math.max(0, this.cd - dt);
+      if (this.cdW > 0) this.cdW = Math.max(0, this.cdW - dt);
+      if (this.cdE > 0) this.cdE = Math.max(0, this.cdE - dt);
+      if (this.cdR > 0) this.cdR = Math.max(0, this.cdR - dt);
+      // biomass
+      const owned = this.cells.filter((c) => c.team === 'A');
+      this.biomass = Math.min(999, this.biomass + owned.length * 0.7 * dt);
+      // banner
+      if (this.bannerTimer > 0) { this.bannerTimer -= dt; if (this.bannerTimer <= 0) this.banner = null; }
+      // win check
+      if (this.coreA.team === 'B' && !this.over) this.endGame('B');
+      if (this.coreB.team === 'A' && !this.over) this.endGame('A');
+      // score
+      this.scoreA = this.cells.filter((c) => c.team === 'A').length * 2 + this.heroes.filter((h) => h.team === 'A').reduce((s, h) => s + h.kills, 0) * 3;
+      this.scoreB = this.cells.filter((c) => c.team === 'B').length * 2 + this.heroes.filter((h) => h.team === 'B').reduce((s, h) => s + h.kills, 0) * 3;
+    }
+
+    breedBonus(team) {
+      const sp = this.heroes.find((h) => h.ch.id === 'spore' && h.team === team && h.alive);
+      return sp ? 1.12 : 1;
+    }
+
+    applyHit(p) {
+      const c = p.tgt;
+      if (c.team === p.team) { c.units = Math.min(c.cap, c.units + p.amt); return; }
+      if (c.shield > 0) return;
+      c.units -= p.amt;
+      if (c.units <= 0) {
+        const cap = c.type === 'core' ? 220 : 100;
+        c.team = p.team; c.units = Math.max(1, -c.units); c.cap = cap;
+        if (c.type === 'core') this.flash(p.team === 'A' ? 'NUCLEUS BREACHED' : 'NUCLEUS LOST', p.team);
+        else if (c.type === 'objective') this.flash('OBJECTIVE SECURED', p.team);
+      }
+    }
+
+    flash(text, team) { this.banner = text; this.bannerTeam = team; this.bannerTimer = 2.2; }
+
+    stepHeroes(dt) {
+      for (const h of this.heroes) {
+        if (!h.alive) { h.respawn -= dt; if (h.respawn <= 0) this.reviveHero(h); continue; }
+        if (h.isPlayer) { if (h.moving) this.moveHero(h, h.tx, h.ty, dt); }
+        else {
+          h.retarget -= dt;
+          if (h.retarget <= 0 || !h.target) { h.target = this.aiHeroTarget(h); h.retarget = 1.5 + Math.random() * 1.5; }
+          if (h.target) this.moveHero(h, h.target.x, h.target.y, dt);
+        }
+        h.hp = Math.min(h.maxhp, h.hp + (this.enemyNear(h) ? -0 : 6) * dt);
+      }
+      // combat
+      for (const a of this.heroes) {
+        if (!a.alive) continue;
+        for (const b of this.heroes) {
+          if (!b.alive || b.team === a.team) continue;
+          const d = Math.hypot(a.x - b.x, a.y - b.y);
+          if (d < 46) {
+            const dmg = (8 + a.str * 16) * (a.team === 'A' ? 1 + this.upgrades.atk * 0.15 : 1) * dt;
+            b.hp -= dmg;
+            if (b.hp <= 0 && b.alive) this.killHero(b, a);
+          }
+        }
+      }
+    }
+    enemyNear(h) { return this.heroes.some((o) => o.alive && o.team !== h.team && Math.hypot(o.x - h.x, o.y - h.y) < 46); }
+    moveHero(h, tx, ty, dt) {
+      const dx = tx - h.x, dy = ty - h.y, d = Math.hypot(dx, dy);
+      if (d < 4) { if (h.isPlayer) h.moving = false; return; }
+      const v = h.speed * dt; h.x += dx / d * Math.min(v, d); h.y += dy / d * Math.min(v, d);
+    }
+    aiHeroTarget(h) {
+      let best = null, bd = 1e9;
+      for (const c of this.cells) {
+        const enemyTeam = h.team === 'A' ? 'B' : 'A';
+        const val = (c.team === enemyTeam ? 1 : (c.team === null ? 0.6 : 0.2)) * (c.type === 'core' ? 0.4 : 1);
+        const d = Math.hypot(c.x - h.x, c.y - h.y) / (0.2 + val);
+        if (d < bd) { bd = d; best = c; }
+      }
+      return best ? { x: best.x + (Math.random() - .5) * 40, y: best.y + (Math.random() - .5) * 40 } : null;
+    }
+    killHero(victim, killer) {
+      victim.alive = false; victim.respawn = 6;
+      killer.kills++;
+      this.feed.unshift({ killer: killer.ch.name, killerTeam: killer.team, victim: victim.ch.name, victimTeam: victim.team, life: 4.5 });
+      if (this.feed.length > 4) this.feed.pop();
+    }
+    reviveHero(h) {
+      const core = h.team === 'A' ? this.coreA : this.coreB;
+      h.x = core.x + (h.team === 'A' ? 60 : -60); h.y = core.y + (Math.random() - .5) * 40;
+      h.hp = h.maxhp; h.alive = true; h.moving = false; h.target = null;
+    }
+
+    useUlt() {
+      if (this.cd > 0 || !this.player.alive) return;
+      const id = this.player.ch.id; const px = this.player.x, py = this.player.y;
+      const w = this.lastWorld || [px, py];
+      if (id === 'lyssa') {
+        this.player.x = w[0]; this.player.y = w[1]; this.player.moving = false;
+        const e = this.nearestCell(w[0], w[1], (c) => c.team === 'B'); if (e) { e.units = Math.max(0, e.units - 35); if (e.units < 1) { e.team = null; e.units = 2; } this.flash('LYSED', 'A'); }
+      } else if (id === 'grond') {
+        const f = this.nearestCell(this.player.x, this.player.y, (c) => c.team === 'A'); if (f) { f.shield = 7; this.flash('MEMBRANE UP', 'A'); }
+      } else if (id === 'spore') {
+        const f = this.nearestCell(this.player.x, this.player.y, (c) => c.team === 'A'); if (f) { f.bloom = 8; this.flash('BLOOM', 'A'); }
+      } else if (id === 'toxin') {
+        this.fields.push({ x: w[0], y: w[1], r: 120, life: 5, team: 'A' }); this.flash('NECROSIS', 'A');
+      } else if (id === 'flux') {
+        let n = 0; for (const c of this.cells) { if (c.team === 'A' && Math.hypot(c.x - w[0], c.y - w[1]) < 150) { c.units = Math.min(c.cap, c.units + 22); n++; } } if (n) this.flash('SURGE', 'A');
+      }
+      this.cd = this.cdMax;
+    }
+    nearestCell(x, y, filter) { let best = null, bd = 1e9; for (const c of this.cells) { if (filter && !filter(c)) continue; const d = Math.hypot(c.x - x, c.y - y); if (d < bd) { bd = d; best = c; } } return best; }
+
+    /* ----- colony-push AI (both teams' cells auto-fire) ----- */
+    stepAI(dt) {
+      this.aiClock = (this.aiClock || 0) + dt;
+      if (this.aiClock < 0.9) return; this.aiClock = 0;
+      for (const team of ['A', 'B']) {
+        const mine = this.cells.filter((c) => c.team === team && c.units > 34);
+        for (const src of mine) {
+          if (Math.random() < 0.55) continue;
+          let best = null, bs = -1;
+          for (const c of this.cells) {
+            if (c === src) continue;
+            const d = Math.hypot(c.x - src.x, c.y - src.y);
+            if (d > 360) continue;
+            let s = 1 / (d + 40);
+            if (c.team === null) s *= 2.4;
+            else if (c.team !== team) s *= (c.units < src.units ? 2.0 : 0.5);
+            else s *= (c.units < 20 ? 1.1 : 0.15);
+            const ec = team === 'A' ? this.coreB : this.coreA;
+            const toward = (Math.hypot(c.x - ec.x, c.y - ec.y) < Math.hypot(src.x - ec.x, src.y - ec.y)) ? 1.5 : 0.8;
+            s *= toward;
+            if (c.shield > 0 && c.team !== team) s *= 0.05;
+            if (s > bs) { bs = s; best = c; }
+          }
+          if (best) this.sendPhage(src, best, team);
+        }
+      }
+    }
+
+    /* ============================= LAYERS ============================= */
+    cellR(c) { const base = c.type === 'core' ? 30 : (c.type === 'tower' ? 18 : (c.type === 'objective' ? 20 : 15)); return base + Math.sqrt(Math.max(0, c.units)) * 1.7; }
+    teamFill(c, a) { const col = c.team ? this.COL[c.team] : this.COL.N; return [col[0], col[1], col[2], a]; }
+
+    buildLayers() {
+      const D = window.deck;
+      const cells = this.cells;
+      const sel = this.sel;
+      const layers = [];
+      layers.push(new D.PolygonLayer({ id: 'dish', data: [0],
+        getPolygon: () => { const pts = []; for (let i = 0; i <= 72; i++) { const a = i / 72 * Math.PI * 2; pts.push([Math.cos(a) * 510, Math.sin(a) * 510]); } return pts; },
+        getFillColor: [8, 22, 32, 90], getLineColor: [40, 120, 130, 120], lineWidthUnits: 'common', getLineWidth: 3, stroked: true, filled: true }));
+      const links = this.laneLinks();
+      layers.push(new D.LineLayer({ id: 'lanes', data: links, getSourcePosition: (l) => [l[0], l[1]], getTargetPosition: (l) => [l[2], l[3]], getColor: [60, 130, 150, 40], getWidth: 6, widthUnits: 'common' }));
+      layers.push(new D.ScatterplotLayer({ id: 'glow', data: cells, getPosition: (c) => [c.x, c.y], getRadius: (c) => this.cellR(c) * 2.0, radiusUnits: 'common', getFillColor: (c) => this.teamFill(c, c.team ? 34 : 14), stroked: false, pickable: false, updateTriggers: { getRadius: Math.random() } }));
+      if (this.fields.length) layers.push(new D.ScatterplotLayer({ id: 'fields', data: this.fields, getPosition: (f) => [f.x, f.y], getRadius: (f) => f.r, radiusUnits: 'common', getFillColor: [170, 124, 255, 40], stroked: true, getLineColor: [180, 140, 255, 150], lineWidthUnits: 'common', getLineWidth: 2 }));
+      if (this.beams.length) layers.push(new D.LineLayer({ id: 'beams', data: this.beams, getSourcePosition: (b) => [b.sx, b.sy], getTargetPosition: (b) => [b.tx, b.ty], getColor: (b) => b.col, getWidth: 2, widthUnits: 'common' }));
+      if (this.drag) layers.push(new D.LineLayer({ id: 'dragline', data: this.drag.from, getSourcePosition: (c) => [c.x, c.y], getTargetPosition: () => this.drag.cur, getColor: [120, 255, 240, 200], getWidth: 2, widthUnits: 'common' }));
+      layers.push(new D.ScatterplotLayer({ id: 'cells', data: cells, pickable: true,
+        getPosition: (c) => [c.x, c.y], getRadius: (c) => this.cellR(c), radiusUnits: 'common',
+        getFillColor: (c) => this.teamFill(c, c.team ? 210 : 120),
+        stroked: true, lineWidthUnits: 'common', getLineWidth: (c) => c.shield > 0 ? 5 : (c.type === 'core' ? 5 : 3),
+        getLineColor: (c) => { if (c.shield > 0) return [235, 245, 255, 240]; const col = c.team ? (c.team === 'A' ? this.COL.Aedge : this.COL.Bedge) : [180, 196, 220]; return [col[0], col[1], col[2], 235]; },
+        updateTriggers: { getRadius: Math.random(), getFillColor: Math.random(), getLineWidth: Math.random(), getLineColor: Math.random() } }));
+      layers.push(new D.ScatterplotLayer({ id: 'nuclei', data: cells.filter((c) => c.type === 'core' || c.type === 'objective'), getPosition: (c) => [c.x, c.y], getRadius: (c) => this.cellR(c) * 0.42, radiusUnits: 'common', getFillColor: (c) => { const col = c.team ? this.COL[c.team] : this.COL.gold; return [col[0], col[1], col[2], 230]; }, stroked: false, updateTriggers: { getRadius: Math.random(), getFillColor: Math.random() } }));
+      if (sel.length) layers.push(new D.ScatterplotLayer({ id: 'selring', data: sel, getPosition: (c) => [c.x, c.y], getRadius: (c) => this.cellR(c) + 8, radiusUnits: 'common', getFillColor: [0, 0, 0, 0], stroked: true, getLineColor: [255, 255, 255, 220], lineWidthUnits: 'common', getLineWidth: 2.5, updateTriggers: { getRadius: Math.random() } }));
+      if (this.particles.length) layers.push(new D.ScatterplotLayer({ id: 'phage', data: this.particles, getPosition: (p) => [p.x, p.y], getRadius: 3.0, radiusUnits: 'common', getFillColor: (p) => p.col, stroked: false, updateTriggers: { getPosition: Math.random() } }));
+      const hAlive = this.heroes.filter((h) => h.alive);
+      layers.push(new D.ScatterplotLayer({ id: 'heroglow', data: hAlive, getPosition: (h) => [h.x, h.y], getRadius: (h) => h.r * 1.8, radiusUnits: 'common', getFillColor: (h) => { const c = h.ch.hue; return [c[0], c[1], c[2], 50]; }, stroked: false, updateTriggers: { getPosition: Math.random() } }));
+      layers.push(new D.ScatterplotLayer({ id: 'heroes', data: hAlive, getPosition: (h) => [h.x, h.y], getRadius: (h) => h.r, radiusUnits: 'common',
+        getFillColor: (h) => { const c = h.ch.hue; return [c[0], c[1], c[2], 245]; },
+        stroked: true, lineWidthUnits: 'common', getLineWidth: (h) => h.isPlayer ? 4 : 2.5,
+        getLineColor: (h) => h.isPlayer ? [255, 255, 255, 255] : (h.team === 'A' ? [180, 255, 245, 200] : [255, 180, 205, 200]),
+        updateTriggers: { getPosition: Math.random(), getLineWidth: Math.random(), getLineColor: Math.random() } }));
+      if (this.player.alive) layers.push(new D.ScatterplotLayer({ id: 'playermark', data: [this.player], getPosition: (h) => [h.x, h.y], getRadius: (h) => h.r + 10, radiusUnits: 'common', getFillColor: [0, 0, 0, 0], stroked: true, getLineColor: [255, 255, 255, 160], lineWidthUnits: 'common', getLineWidth: 1.5, updateTriggers: { getRadius: Math.random() } }));
+      layers.push(new D.TextLayer({ id: 'labels', data: cells.filter((c) => c.team), getPosition: (c) => [c.x, c.y], getText: (c) => String(Math.floor(c.units)),
+        getSize: (c) => c.type === 'core' ? 20 : 15, sizeUnits: 'common', getColor: [255, 255, 255, 235],
+        fontFamily: 'Rajdhani, sans-serif', fontWeight: 700, getTextAnchor: 'middle', getAlignmentBaseline: 'center',
+        characterSet: '0123456789', background: false, updateTriggers: { getText: Math.random() } }));
+      return layers;
+    }
+    laneLinks() {
+      const D = (t, off) => { const dx = 0.7071, dy = 0.7071, px = -0.7071, py = 0.7071; return [t * dx + off * px, t * dy + off * py]; };
+      const out = [];
+      [-205, 0, 205].forEach((off) => { const a = D(-470, off), b = D(470, off); out.push([a[0], a[1], b[0], b[1]]); });
+      return out;
+    }
+
+    /* ============================= MINIMAP ============================= */
+    drawMini() {
+      const cv = this.miniEl; if (!cv) return; const x = cv.getContext('2d'); const S = cv.width;
+      x.clearRect(0, 0, S, S);
+      const map = (wx, wy) => [(wx / this.BOARD + 0.5) * S, (-wy / this.BOARD + 0.5) * S];
+      x.fillStyle = 'rgba(8,20,28,.6)'; x.beginPath(); x.arc(S / 2, S / 2, S * 0.48, 0, 7); x.fill();
+      for (const l of this.laneLinks()) { const a = map(l[0], l[1]), b = map(l[2], l[3]); x.strokeStyle = 'rgba(70,140,160,.3)'; x.lineWidth = 2; x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]); x.stroke(); }
+      for (const c of this.cells) { const p = map(c.x, c.y); const col = c.team ? this.COL[c.team] : this.COL.N; x.fillStyle = `rgb(${col[0]},${col[1]},${col[2]})`; const r = c.type === 'core' ? 7 : (c.type === 'objective' ? 5 : (c.type === 'tower' ? 4.5 : 3.5)); x.beginPath(); x.arc(p[0], p[1], r, 0, 7); x.fill(); }
+      for (const h of this.heroes) { if (!h.alive) continue; const p = map(h.x, h.y); x.fillStyle = h.isPlayer ? '#ffffff' : `rgb(${h.ch.hue[0]},${h.ch.hue[1]},${h.ch.hue[2]})`; x.beginPath(); x.arc(p[0], p[1], h.isPlayer ? 5 : 3.5, 0, 7); x.fill(); if (h.isPlayer) { x.strokeStyle = '#fff'; x.lineWidth = 1.5; x.beginPath(); x.arc(p[0], p[1], 8, 0, 7); x.stroke(); } }
+    }
+
+    /* ============================= LOOP / FLOW ============================= */
+    startPlay() { this.setPhase('play'); }
+
+    endGame(winner) {
+      this.over = winner;
+      const st = this.clock; const m = Math.floor(st / 60); const ss = Math.round(st % 60);
+      this.endStats = {
+        ca: this.cells.filter((c) => c.team === 'A').length, cb: this.cells.filter((c) => c.team === 'B').length,
+        ka: this.heroes.filter((h) => h.team === 'A').reduce((s, h) => s + h.kills, 0),
+        kb: this.heroes.filter((h) => h.team === 'B').reduce((s, h) => s + h.kills, 0),
+        timeMin: m, timeSec: ss,
+      };
+      this.setPhase('over');
+    }
+
+    resize() {
+      if (!this.three) return;
+      const w = window.innerWidth, h = window.innerHeight;
+      this.three.renderer.setSize(w, h);
+      this.three.cam.aspect = w / h; this.three.cam.updateProjectionMatrix();
+      if (this.deck) this.deck.setProps({ viewState: this.viewState() });
+    }
+
+    loop() {
+      this._raf = requestAnimationFrame(() => this.loop());
+      const now = performance.now(); let dt = (now - this._last) / 1000; this._last = now;
+      dt = Math.min(0.05, dt); const t = now / 1000;
+      try {
+        this.stepThree(dt, t);
+        if (this.phase === 'play' && !this.over) {
+          this.clock += dt;
+          this.stepSim(dt); this.stepAI(dt);
+          this.feed = this.feed.filter((f) => { f.life -= dt; return f.life > 0; });
+        }
+        if (this.deck && this.phase === 'play') {
+          this.deck.setProps({ layers: this.buildLayers(), viewState: this.viewState() });
+          this.drawMini();
+        }
+        // throttle HUD re-renders to ~30fps to keep React churn down
+        this._hudAcc += dt;
+        if (this.phase === 'play' && this._hudAcc > 0.033) { this._hudAcc = 0; this.emit(); }
+      } catch (e) { console.error(e); }
+    }
+
+    /* ----- flow actions invoked from UI ----- */
+    goSelect() { this.setPhase('select'); }
+    pickChampion(i) {
+      this.pickIdx = i;
+      this.buildGame();
+      if (!this.deck) this.initDeck();
+      if (this.three) this.three.introT = 0;
+      this.setPhase('intro');
+      setTimeout(() => { if (this.phase === 'intro') this.startPlay(); }, 2400);
+    }
+    restart() { this.over = null; this.buildGame(); this.setPhase('play'); }
+
+    /* Inject a matchmade lineup (from the Supabase `profiles` pool via the
+       matchmake edge function). Applies on the next buildGame(). If a game
+       is already built at title/select, it takes effect when the player picks. */
+    setLineup(lineup) { this.lineup = lineup || null; }
+
+    /* ============================= HUD SNAPSHOT ============================= */
+    /* Derived, render-ready data for the UI layer (mirrors the original
+       renderVals). Returns null until a game has been built. */
+    snapshot() {
+      if (!this.cells) return null;
+      const s = {};
+      s.scoreA = this.scoreA; s.scoreB = this.scoreB; s.clock = fmtClock(this.clock);
+      s.biomass = Math.floor(this.biomass); s.cellsOwned = this.cells.filter((c) => c.team === 'A').length;
+      s.tipText = 'DRAG colony→colony to infect · CLICK dish to move · Q W E R = abilities';
+
+      const p = this.player, pc = p.ch;
+      s.hero = {
+        tag: pc.tag, name: pc.name, role: pc.role,
+        bg: `radial-gradient(circle at 35% 30%, ${hexHue(pc.hue, .95)}, ${hexHue(pc.hue, .3)})`,
+        ring: hexHue(pc.hue, .7),
+        hpW: Math.max(0, Math.round(p.hp / p.maxhp * 100)) + '%',
+        hpTxt: Math.max(0, Math.floor(p.hp)) + '/' + p.maxhp,
+        xpW: '42%',
+      };
+
+      const ab = (icon, name, key, cur, max, hue, ready) => ({
+        icon, name, key,
+        bg: hue ? `linear-gradient(160deg, ${hexHue(hue, .3)}, rgba(6,14,22,.9))` : 'linear-gradient(160deg, rgba(40,72,90,.5), rgba(6,14,22,.85))',
+        ring: hue ? hexHue(hue, .6) : 'rgba(110,170,190,.45)',
+        glow: (cur <= 0 && ready) ? `0 0 18px ${hue ? hexHue(hue, .5) : 'rgba(90,200,220,.4)'}` : 'none',
+        cdH: max > 0 ? (cur / max * 100) + '%' : '0%', cdTxt: cur > 0 ? Math.ceil(cur) : '',
+      });
+      s.abilities = [
+        Object.assign(ab(pc.ult.icon, pc.ult.name.slice(0, 7), 'Q', this.cd, this.cdMax, pc.hue, true), { act: 'ult' }),
+        Object.assign(ab('⇶', 'RALLY', 'W', this.cdW, this.cdWmax, null, true), { act: 'rally' }),
+        Object.assign(ab('⌖', 'SIPHON', 'E', this.cdE, this.cdEmax, null, true), { act: 'siphon' }),
+        Object.assign(ab('✦', 'RECALL', 'R', this.cdR, this.cdRmax, null, true), { act: 'recall' }),
+      ];
+
+      const mkRoster = (team) => this.heroes.filter((h) => h.team === team).map((h) => ({
+        tag: h.ch.tag, handle: h.handle, name: h.ch.name, bg: `radial-gradient(circle at 35% 30%, ${hexHue(h.ch.hue, .9)}, ${hexHue(h.ch.hue, .3)})`,
+        ring: h.isPlayer ? 'rgba(255,255,255,.85)' : hexHue(h.ch.hue, .55),
+        glow: h.isPlayer ? '0 0 16px rgba(255,255,255,.4)' : 'none',
+        op: h.alive ? 1 : 0.5, dead: !h.alive, timer: Math.ceil(h.respawn || 0),
+        hpw: Math.max(0, Math.round(h.hp / h.maxhp * 100)) + '%',
+      }));
+      s.rosterA = mkRoster('A'); s.rosterB = mkRoster('B');
+
+      s.feed = this.feed.map((f) => ({
+        killer: f.killer, victim: f.victim,
+        kc: f.killerTeam === 'A' ? '#7df7e6' : '#ff8fb4', vc: f.victimTeam === 'A' ? '#7df7e6' : '#ff8fb4',
+        accent: f.killerTeam === 'A' ? '#36f0d6' : '#ff4894',
+      }));
+
+      s.showBanner = !!this.banner; s.bannerText = this.banner || '';
+      s.bannerColor = this.bannerTeam === 'A' ? '#5cffe6' : (this.bannerTeam === 'B' ? '#ff6fa6' : '#ffd166');
+      return s;
+    }
+
+    championCards() {
+      return this.CHAMPS.map((c) => ({
+        tag: c.tag, name: c.name, role: c.role, roleColor: hexHue(c.hue, .9),
+        orb: `radial-gradient(circle at 35% 30%, ${hexHue(c.hue, .95)}, ${hexHue(c.hue, .35)})`,
+        cardBg: `linear-gradient(160deg, ${hexHue(c.hue, .16)}, rgba(4,12,20,.85))`,
+        cardRing: hexHue(c.hue, .55), cardGlow: `0 0 30px ${hexHue(c.hue, .22)}`,
+        barColor: c.barColor,
+        stats: [['SPD', c.stats.spd], ['STR', c.stats.str], ['REP', c.stats.rep], ['DEF', c.stats.def], ['AGI', c.stats.agi]].map((st) => ({ label: st[0], w: Math.round(st[1] * 100) + '%' })),
+        ultIcon: c.ult.icon, ultName: c.ult.name, ultDesc: c.ult.desc,
+      }));
+    }
+
+    overStats() {
+      const win = this.over; const pwin = win === 'A';
+      const st = this.endStats || { ca: 0, cb: 0, ka: 0, kb: 0, timeMin: 0, timeSec: 0 };
+      return {
+        kicker: pwin ? 'CONTAINMENT FAILED · YOUR STRAIN DOMINATES' : 'OUTBREAK CONTAINED',
+        title: pwin ? 'VICTORY' : 'DEFEAT',
+        sub: pwin ? 'Enemy nucleus fully lysed. Dominant species confirmed.' : 'Your nucleus was dissolved. The culture is lost.',
+        color: pwin ? '#5cffe6' : '#ff6fa6',
+        shadow: pwin ? 'rgba(64,240,214,.5)' : 'rgba(255,72,148,.5)',
+        ca: st.ca, ka: st.ka, time: st.timeMin + ':' + String(st.timeSec).padStart(2, '0'),
+      };
+    }
+  }
+
+  /* ============================ CONTEXT ============================ */
+  const PhageContext = React.createContext(null);
+  const usePhage = () => React.useContext(PhageContext);
+
+  function PhageProvider({ children }) {
+    const engineRef = React.useRef(null);
+    if (!engineRef.current) engineRef.current = new PhageEngine();
+    const engine = engineRef.current;
+    const [tick, force] = React.useReducer((x) => x + 1, 0);
+    React.useEffect(() => engine.subscribe(force), [engine]);
+    // `tick` must be part of the value so the identity changes on every
+    // engine emit — otherwise context consumers (Screens/Hud/…) bail out
+    // of re-rendering and the view freezes on the first phase.
+    const value = React.useMemo(() => ({ engine, tick }), [engine, tick]);
+    return React.createElement(PhageContext.Provider, { value }, children);
+  }
+
+  /* ============================ FONT INJECTION ============================ */
+  function ensureFonts() {
+    if (document.getElementById('pw-fonts')) return;
+    const pre1 = document.createElement('link'); pre1.rel = 'preconnect'; pre1.href = 'https://fonts.googleapis.com';
+    const pre2 = document.createElement('link'); pre2.rel = 'preconnect'; pre2.href = 'https://fonts.gstatic.com'; pre2.crossOrigin = '';
+    const link = document.createElement('link'); link.id = 'pw-fonts'; link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&family=Orbitron:wght@700;800;900&display=swap';
+    document.head.appendChild(pre1); document.head.appendChild(pre2); document.head.appendChild(link);
+    const st = document.createElement('style'); st.id = 'pw-keyframes';
+    st.textContent = `
+      @keyframes pwPulse{0%,100%{opacity:.55}50%{opacity:1}}
+      @keyframes pwFlick{0%,100%{opacity:.9}50%{opacity:.5}}
+      @keyframes pwRise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+      @keyframes pwGlow{0%,100%{box-shadow:0 0 22px var(--g),inset 0 0 18px rgba(255,255,255,.06)}50%{box-shadow:0 0 46px var(--g),inset 0 0 26px rgba(255,255,255,.12)}}`;
+    document.head.appendChild(st);
+  }
+
+  /* ============================ STAGE ============================ */
+  function Stage() {
+    const { engine } = usePhage();
+    const threeRef = React.useCallback((el) => engine.setThreeEl(el), [engine]);
+    const deckRef = React.useCallback((el) => engine.setDeckEl(el), [engine]);
+    const miniRef = React.useCallback((el) => engine.setMiniEl(el), [engine]);
+    React.useEffect(() => { ensureFonts(); engine.mount(); return () => engine.unmount(); }, [engine]);
+
+    return React.createElement(React.Fragment, null,
+      React.createElement('div', { ref: threeRef, style: { position: 'absolute', inset: 0, zIndex: 0 } }),
+      React.createElement('div', { ref: deckRef, onContextMenu: (e) => engine.noMenu(e), style: { position: 'absolute', inset: 0, zIndex: 1, cursor: 'crosshair' } }),
+      React.createElement('div', { style: { position: 'absolute', inset: 0, zIndex: 2, pointerEvents: 'none', mixBlendMode: 'screen', opacity: .5, background: 'repeating-linear-gradient(0deg, rgba(120,200,255,.05) 0px, rgba(120,200,255,.05) 1px, transparent 1px, transparent 3px)' } }),
+      React.createElement('canvas', { ref: miniRef, width: 276, height: 276, style: { display: 'none' } }),
+    );
+  }
+
+  /* ============================ TITLE ============================ */
+  function TitleScreen() {
+    const { engine } = usePhage();
+    return React.createElement('div', { style: { position: 'absolute', inset: 0, zIndex: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(120% 100% at 50% 50%, rgba(2,8,14,.2), rgba(1,4,9,.78))', backdropFilter: 'blur(2px)' } },
+      React.createElement('div', { style: { fontFamily: "'Chakra Petch'", letterSpacing: '.5em', fontSize: 13, color: '#5cffe6', marginBottom: 18, paddingLeft: '.5em', animation: 'pwFlick 3s infinite', textShadow: '0 0 14px rgba(64,240,214,.5)' } }, 'BETZ\u00a0BIOSYSTEMS\u00a0·\u00a0CONTAINMENT\u00a0ARENA'),
+      React.createElement('div', { style: { fontFamily: "'Orbitron'", fontWeight: 900, fontSize: 84, lineHeight: .92, letterSpacing: '.02em', textAlign: 'center', color: '#eafcff', textShadow: '0 0 40px rgba(64,240,214,.55), 0 0 80px rgba(64,240,214,.25)' } }, 'PHAGE\u00a0WARS'),
+      React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 20, marginTop: 6 } },
+        React.createElement('div', { style: { height: 2, width: 120, background: 'linear-gradient(90deg, transparent, #ff4894)' } }),
+        React.createElement('div', { style: { fontFamily: "'Orbitron'", fontWeight: 900, fontSize: 46, color: '#ff6fa6', textShadow: '0 0 30px rgba(255,72,148,.6)' } }, 'III'),
+        React.createElement('div', { style: { height: 2, width: 120, background: 'linear-gradient(90deg, #36f0d6, transparent)' } }),
+      ),
+      React.createElement('div', { style: { marginTop: 14, fontSize: 14, letterSpacing: '.18em', color: '#7fa0b5', maxWidth: 560, textAlign: 'center', lineHeight: 1.6 } }, 'A 5\u00a0v\u00a05 microbial MOBA. Infect colonies, push the lanes, lyse the enemy nucleus before they dissolve yours.'),
+      React.createElement('div', { onClick: () => engine.goSelect(), style: { marginTop: 42, '--g': 'rgba(64,240,214,.5)', padding: '16px 54px', cursor: 'pointer', fontFamily: "'Rajdhani'", fontWeight: 700, letterSpacing: '.28em', fontSize: 18, color: '#02110e', background: 'linear-gradient(135deg,#5cffe6,#36f0d6)', borderRadius: 11, animation: 'pwGlow 2.6s infinite' } }, 'DEPLOY\u00a0▸'),
+      React.createElement('div', { style: { marginTop: 60, display: 'flex', gap: 30, fontSize: 10.5, letterSpacing: '.2em', color: '#3f5a6e' } },
+        React.createElement('span', null, 'three.js\u00a0//\u00a0volumetric\u00a0dish'),
+        React.createElement('span', null, 'deck.gl\u00a0//\u00a0colony\u00a0sim'),
+        React.createElement('span', null, 'v3.0.1'),
+      ),
+    );
+  }
+
+  /* ============================ CHAMPION SELECT ============================ */
+  function ChampionSelect() {
+    const { engine } = usePhage();
+    const cards = engine.championCards();
+    return React.createElement('div', { style: { position: 'absolute', inset: 0, zIndex: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(120% 100% at 50% 30%, rgba(2,8,14,.3), rgba(1,4,9,.82))', backdropFilter: 'blur(3px)' } },
+      React.createElement('div', { style: { fontFamily: "'Rajdhani'", fontWeight: 700, letterSpacing: '.34em', fontSize: 14, color: '#5cffe6', marginBottom: 6 } }, 'SELECT\u00a0YOUR\u00a0STRAIN'),
+      React.createElement('div', { style: { fontSize: 12, letterSpacing: '.16em', color: '#6f93a8', marginBottom: 30 } }, 'You pilot one phage · four allies auto-deploy'),
+      React.createElement('div', { style: { display: 'flex', gap: 16 } },
+        cards.map((c, i) => React.createElement('div', {
+          key: i, onClick: () => engine.pickChampion(i),
+          onMouseEnter: (e) => { e.currentTarget.style.transform = 'translateY(-6px)'; },
+          onMouseLeave: (e) => { e.currentTarget.style.transform = 'translateY(0)'; },
+          style: { position: 'relative', width: 182, padding: '18px 18px 20px', cursor: 'pointer', borderRadius: 16, background: c.cardBg, border: '1.5px solid ' + c.cardRing, boxShadow: c.cardGlow, transition: 'transform .16s' },
+        },
+          React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 74, height: 74, margin: '0 auto 14px', borderRadius: 16, background: c.orb, border: '2px solid ' + c.cardRing, boxShadow: c.cardGlow } },
+            React.createElement('span', { style: { fontFamily: "'Orbitron'", fontWeight: 900, fontSize: 30, color: '#fff', textShadow: '0 0 14px rgba(255,255,255,.6)' } }, c.tag),
+          ),
+          React.createElement('div', { style: { textAlign: 'center', fontFamily: "'Rajdhani'", fontWeight: 700, fontSize: 21, letterSpacing: '.04em', color: '#eafcff' } }, c.name),
+          React.createElement('div', { style: { textAlign: 'center', fontSize: 10, letterSpacing: '.2em', color: c.roleColor, margin: '3px 0 14px' } }, c.role),
+          React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+            c.stats.map((st, j) => React.createElement('div', { key: j, style: { display: 'flex', alignItems: 'center', gap: 8 } },
+              React.createElement('span', { style: { fontSize: 9, letterSpacing: '.1em', color: '#6f93a8', width: 38 } }, st.label),
+              React.createElement('div', { style: { flex: 1, height: 5, borderRadius: 3, background: 'rgba(255,255,255,.08)', overflow: 'hidden' } },
+                React.createElement('div', { style: { height: '100%', width: st.w, background: c.barColor, borderRadius: 3 } }),
+              ),
+            )),
+          ),
+          React.createElement('div', { style: { marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,.08)' } },
+            React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 7 } },
+              React.createElement('span', { style: { fontSize: 15 } }, c.ultIcon),
+              React.createElement('span', { style: { fontFamily: "'Rajdhani'", fontWeight: 700, fontSize: 13, color: '#cdeefb' } }, c.ultName),
+            ),
+            React.createElement('div', { style: { fontSize: 10.5, lineHeight: 1.45, color: '#7fa0b5', marginTop: 5 } }, c.ultDesc),
+          ),
+        )),
+      ),
+    );
+  }
+
+  /* ============================ HUD ============================ */
+  function Hud() {
+    const { engine } = usePhage();
+    const s = engine.snapshot();
+    if (!s) return null;
+    const act = (a) => { if (a === 'ult') engine.useUlt(); else if (a === 'rally') engine.useRally(); else if (a === 'siphon') engine.useSiphon(); else if (a === 'recall') engine.useRecall(); };
+    return React.createElement('div', { style: { position: 'absolute', inset: 0, zIndex: 5, pointerEvents: 'none' } },
+      // scoreboard
+      React.createElement('div', { style: { position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 18 } },
+        React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', background: 'linear-gradient(90deg, rgba(20,90,86,.5), rgba(8,30,40,.35))', border: '1px solid rgba(64,240,214,.4)', borderRadius: '10px 0 0 10px', backdropFilter: 'blur(8px)' } },
+          React.createElement('span', { style: { fontFamily: "'Rajdhani'", fontWeight: 700, letterSpacing: '.12em', color: '#7df7e6', fontSize: 13 } }, 'VIRION'),
+          React.createElement('span', { style: { fontFamily: "'Orbitron'", fontWeight: 900, fontSize: 26, color: '#5cffe6', textShadow: '0 0 14px rgba(64,240,214,.7)', minWidth: 34, textAlign: 'center' } }, s.scoreA),
+        ),
+        React.createElement('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 } },
+          React.createElement('div', { style: { fontFamily: "'Rajdhani'", fontWeight: 700, fontSize: 22, letterSpacing: '.08em', color: '#e8fbff', textShadow: '0 0 10px rgba(120,200,255,.4)' } }, s.clock),
+          React.createElement('div', { style: { fontFamily: "'Chakra Petch'", fontSize: 9.5, letterSpacing: '.34em', color: '#5f7d92' } }, 'PETRI\u00a0DISH\u00a0//\u00a0RANKED'),
+        ),
+        React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', background: 'linear-gradient(90deg, rgba(8,30,40,.35), rgba(96,22,58,.5))', border: '1px solid rgba(255,72,148,.4)', borderRadius: '0 10px 10px 0', backdropFilter: 'blur(8px)' } },
+          React.createElement('span', { style: { fontFamily: "'Orbitron'", fontWeight: 900, fontSize: 26, color: '#ff6fa6', textShadow: '0 0 14px rgba(255,72,148,.7)', minWidth: 34, textAlign: 'center' } }, s.scoreB),
+          React.createElement('span', { style: { fontFamily: "'Rajdhani'", fontWeight: 700, letterSpacing: '.12em', color: '#ff9bc2', fontSize: 13 } }, 'LYSIS'),
+        ),
+      ),
+      // biomass / colonies
+      React.createElement('div', { style: { position: 'absolute', top: 16, left: 18, display: 'flex', flexDirection: 'column', gap: 8 } },
+        React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 13px', background: 'rgba(6,18,26,.55)', border: '1px solid rgba(64,240,214,.25)', borderRadius: 9, backdropFilter: 'blur(8px)' } },
+          React.createElement('div', { style: { width: 9, height: 9, borderRadius: '50%', background: '#5cffe6', boxShadow: '0 0 10px #5cffe6' } }),
+          React.createElement('div', { style: { display: 'flex', flexDirection: 'column', lineHeight: 1 } },
+            React.createElement('span', { style: { fontFamily: "'Rajdhani'", fontWeight: 700, fontSize: 19, color: '#dff6ff' } }, s.biomass),
+            React.createElement('span', { style: { fontSize: 8.5, letterSpacing: '.26em', color: '#5f7d92', marginTop: 3 } }, 'BIOMASS'),
+          ),
+          React.createElement('div', { style: { width: 1, height: 26, background: 'rgba(120,200,255,.18)', margin: '0 2px' } }),
+          React.createElement('div', { style: { display: 'flex', flexDirection: 'column', lineHeight: 1 } },
+            React.createElement('span', { style: { fontFamily: "'Rajdhani'", fontWeight: 700, fontSize: 19, color: '#ffd166' } }, s.cellsOwned),
+            React.createElement('span', { style: { fontSize: 8.5, letterSpacing: '.26em', color: '#5f7d92', marginTop: 3 } }, 'COLONIES'),
+          ),
+        ),
+        React.createElement('div', { style: { fontSize: 9.5, letterSpacing: '.22em', color: '#4f6a7e', paddingLeft: 4 } }, s.tipText),
+      ),
+      // enemy roster + kill feed
+      React.createElement('div', { style: { position: 'absolute', top: 14, right: 18, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10 } },
+        React.createElement('div', { style: { display: 'flex', gap: 6 } },
+          s.rosterB.map((m, i) => React.createElement('div', { key: i, title: m.handle, style: { position: 'relative', width: 34, height: 34, borderRadius: 8, background: m.bg, border: '1.5px solid ' + m.ring, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: m.op, boxShadow: m.glow } },
+            React.createElement('span', { style: { fontFamily: "'Rajdhani'", fontWeight: 700, fontSize: 15, color: '#fff' } }, m.tag),
+            m.dead && React.createElement('div', { style: { position: 'absolute', inset: 0, borderRadius: 8, background: 'rgba(2,5,10,.66)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Rajdhani'", fontWeight: 700, fontSize: 13, color: '#ff8fb4' } }, m.timer),
+          )),
+        ),
+        React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-end' } },
+          s.feed.map((f, i) => React.createElement('div', { key: i, style: { display: 'flex', alignItems: 'center', gap: 8, padding: '5px 11px', background: 'rgba(6,16,24,.6)', borderRight: '2.5px solid ' + f.accent, borderRadius: 6, fontSize: 12, animation: 'pwRise .3s ease' } },
+            React.createElement('span', { style: { fontFamily: "'Rajdhani'", fontWeight: 700, color: f.kc } }, f.killer),
+            React.createElement('span', { style: { color: '#5f7d92', fontSize: 11 } }, 'lysed'),
+            React.createElement('span', { style: { fontFamily: "'Rajdhani'", fontWeight: 700, color: f.vc } }, f.victim),
+          )),
+        ),
+      ),
+      // ally roster
+      React.createElement('div', { style: { position: 'absolute', left: 18, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: 7 } },
+        s.rosterA.map((m, i) => React.createElement('div', { key: i, title: m.handle, style: { position: 'relative', display: 'flex', alignItems: 'center', gap: 8 } },
+          React.createElement('div', { style: { position: 'relative', width: 38, height: 38, borderRadius: 9, background: m.bg, border: '1.5px solid ' + m.ring, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: m.op, boxShadow: m.glow } },
+            React.createElement('span', { style: { fontFamily: "'Rajdhani'", fontWeight: 700, fontSize: 16, color: '#fff' } }, m.tag),
+            m.dead && React.createElement('div', { style: { position: 'absolute', inset: 0, borderRadius: 9, background: 'rgba(2,5,10,.66)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Rajdhani'", fontWeight: 700, fontSize: 14, color: '#9be0ff' } }, m.timer),
+          ),
+          React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 3 } },
+            React.createElement('span', { style: { fontFamily: "'Rajdhani'", fontWeight: 700, fontSize: 11, letterSpacing: '.04em', color: m.op === 1 ? '#cfeefb' : '#5f7d92', maxWidth: 92, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, m.handle),
+            React.createElement('div', { style: { width: 54, height: 6, borderRadius: 4, background: 'rgba(255,255,255,.08)', overflow: 'hidden' } },
+              React.createElement('div', { style: { height: '100%', width: m.hpw, background: 'linear-gradient(90deg,#36f0d6,#7df7e6)', borderRadius: 4 } }),
+            ),
+          ),
+        )),
+      ),
+      // hero panel + abilities
+      React.createElement('div', { style: { position: 'absolute', bottom: 18, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'flex-end', gap: 16 } },
+        React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px 12px 12px', background: 'linear-gradient(135deg, rgba(8,22,32,.8), rgba(4,12,20,.7))', border: '1px solid rgba(64,240,214,.35)', borderRadius: 14, backdropFilter: 'blur(10px)', boxShadow: '0 8px 40px rgba(0,0,0,.5)' } },
+          React.createElement('div', { style: { position: 'relative', width: 62, height: 62, borderRadius: 12, background: s.hero.bg, border: '2px solid ' + s.hero.ring, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' } },
+            React.createElement('span', { style: { fontFamily: "'Orbitron'", fontWeight: 900, fontSize: 26, color: '#fff', textShadow: '0 0 12px rgba(255,255,255,.6)' } }, s.hero.tag),
+          ),
+          React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 6, minWidth: 148 } },
+            React.createElement('div', { style: { display: 'flex', alignItems: 'baseline', gap: 8 } },
+              React.createElement('span', { style: { fontFamily: "'Rajdhani'", fontWeight: 700, fontSize: 18, letterSpacing: '.05em', color: '#eafcff' } }, s.hero.name),
+              React.createElement('span', { style: { fontSize: 10, letterSpacing: '.18em', color: '#6f93a8' } }, s.hero.role),
+            ),
+            React.createElement('div', { style: { position: 'relative', height: 13, borderRadius: 7, background: 'rgba(0,0,0,.4)', border: '1px solid rgba(64,240,214,.2)', overflow: 'hidden' } },
+              React.createElement('div', { style: { height: '100%', width: s.hero.hpW, background: 'linear-gradient(90deg,#1fd6bf,#6effe0)', transition: 'width .12s' } }),
+              React.createElement('span', { style: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Rajdhani'", fontWeight: 700, fontSize: 10, color: '#02110e' } }, s.hero.hpTxt),
+            ),
+            React.createElement('div', { style: { position: 'relative', height: 7, borderRadius: 5, background: 'rgba(0,0,0,.4)', overflow: 'hidden' } },
+              React.createElement('div', { style: { height: '100%', width: s.hero.xpW, background: 'linear-gradient(90deg,#ffce5e,#ffe7a8)' } }),
+            ),
+          ),
+        ),
+        React.createElement('div', { style: { display: 'flex', gap: 10 } },
+          s.abilities.map((a, i) => React.createElement('div', { key: i, onClick: () => act(a.act), style: { position: 'relative', width: 58, height: 58, borderRadius: 12, background: a.bg, border: '1.5px solid ' + a.ring, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', pointerEvents: 'auto', boxShadow: a.glow, overflow: 'hidden' } },
+            React.createElement('span', { style: { fontSize: 21, lineHeight: 1 } }, a.icon),
+            React.createElement('span', { style: { fontSize: 8, letterSpacing: '.12em', color: '#bfe9f5', marginTop: 3 } }, a.name),
+            React.createElement('div', { style: { position: 'absolute', bottom: 3, right: 4, fontFamily: "'Rajdhani'", fontWeight: 700, fontSize: 11, color: '#fff' } }, a.key),
+            React.createElement('div', { style: { position: 'absolute', left: 0, bottom: 0, width: '100%', background: 'rgba(2,6,12,.82)', height: a.cdH, transition: 'height .1s', display: 'flex', alignItems: 'center', justifyContent: 'center' } },
+              React.createElement('span', { style: { fontFamily: "'Rajdhani'", fontWeight: 700, fontSize: 15, color: '#9be0ff' } }, a.cdTxt),
+            ),
+          )),
+        ),
+      ),
+      // minimap (mirrors the engine canvas)
+      React.createElement(MiniMap, null),
+      // objective banner
+      s.showBanner && React.createElement('div', { style: { position: 'absolute', top: 84, left: '50%', transform: 'translateX(-50%)', padding: '9px 26px', background: 'rgba(8,18,26,.7)', border: '1px solid ' + s.bannerColor, borderRadius: 30, fontFamily: "'Rajdhani'", fontWeight: 700, letterSpacing: '.16em', fontSize: 15, color: s.bannerColor, backdropFilter: 'blur(8px)', animation: 'pwPulse 1.4s infinite', boxShadow: '0 0 30px rgba(0,0,0,.4)' } }, s.bannerText),
+    );
+  }
+
+  /* The minimap canvas is owned by the engine (drawMini paints it). We mount
+     a host div bottom-right and move the engine's canvas into it. */
+  function MiniMap() {
+    const { engine } = usePhage();
+    const hostRef = React.useRef(null);
+    React.useEffect(() => {
+      const host = hostRef.current; if (!host || !engine.miniEl) return;
+      engine.miniEl.style.display = 'block';
+      engine.miniEl.style.width = '100%'; engine.miniEl.style.height = '100%'; engine.miniEl.style.borderRadius = '9px';
+      host.appendChild(engine.miniEl);
+      return () => { if (engine.miniEl) engine.miniEl.style.display = 'none'; };
+    }, [engine]);
+    return React.createElement('div', { ref: hostRef, style: { position: 'absolute', bottom: 18, right: 18, width: 150, height: 150, borderRadius: 14, background: 'rgba(3,9,15,.72)', border: '1px solid rgba(64,240,214,.3)', padding: 7, backdropFilter: 'blur(8px)', boxShadow: '0 8px 40px rgba(0,0,0,.5)' } });
+  }
+
+  /* ============================ GAME OVER ============================ */
+  function GameOver() {
+    const { engine } = usePhage();
+    const o = engine.overStats();
+    const stat = (val, label, big) => React.createElement('div', { style: { textAlign: 'center' } },
+      React.createElement('div', { style: { fontFamily: "'Rajdhani'", fontWeight: 700, color: big ? '#5cffe6' : '#7fa0b5', fontSize: big ? 32 : 24 } }, val),
+      React.createElement('div', { style: { color: '#6f93a8', marginTop: 4 } }, label),
+    );
+    return React.createElement('div', { style: { position: 'absolute', inset: 0, zIndex: 9, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(120% 100% at 50% 50%, rgba(2,8,14,.4), rgba(1,4,9,.9))', backdropFilter: 'blur(5px)' } },
+      React.createElement('div', { style: { fontFamily: "'Rajdhani'", fontWeight: 700, letterSpacing: '.3em', fontSize: 15, color: o.color, animation: 'pwPulse 1.6s infinite' } }, o.kicker),
+      React.createElement('div', { style: { fontFamily: "'Orbitron'", fontWeight: 900, fontSize: 72, color: o.color, textShadow: '0 0 40px ' + o.shadow, margin: '8px 0 4px' } }, o.title),
+      React.createElement('div', { style: { fontSize: 13, letterSpacing: '.16em', color: '#7fa0b5', marginBottom: 28 } }, o.sub),
+      React.createElement('div', { style: { display: 'flex', gap: 40, marginBottom: 32, fontSize: 13, letterSpacing: '.12em' } },
+        stat(o.ca, 'COLONIES', true), stat(o.ka, 'KILLS', true), stat(o.time, 'MATCH TIME', false),
+      ),
+      React.createElement('div', { onClick: () => engine.restart(), style: { '--g': 'rgba(64,240,214,.4)', padding: '14px 46px', cursor: 'pointer', fontFamily: "'Rajdhani'", fontWeight: 700, letterSpacing: '.24em', fontSize: 16, color: '#02110e', background: 'linear-gradient(135deg,#5cffe6,#36f0d6)', borderRadius: 10 } }, 'RE\u2011CULTURE\u00a0↻'),
+    );
+  }
+
+  /* ============================ ROOT ============================ */
+  function Screens() {
+    const { engine } = usePhage();
+    const phase = engine.phase;
+    return React.createElement(React.Fragment, null,
+      React.createElement(Stage, null),
+      phase === 'play' && React.createElement(Hud, null),
+      phase === 'title' && React.createElement(TitleScreen, null),
+      phase === 'select' && React.createElement(ChampionSelect, null),
+      phase === 'over' && React.createElement(GameOver, null),
+    );
+  }
+
+  function {% endraw %}{{ row.capitalized }}{% raw %}Game() {
+    return React.createElement(PhageProvider, null,
+      React.createElement('div', { style: { position: 'absolute', inset: 0, background: 'radial-gradient(120% 120% at 50% 35%, #06121d 0%, #040a12 45%, #01040a 100%)', fontFamily: "'Chakra Petch',sans-serif", color: '#dff6ff', overflow: 'hidden', userSelect: 'none' } },
+        React.createElement(Screens, null),
+      ),
+    );
+  }
+
+  return {
+    PhageEngine, PhageContext, PhageProvider, usePhage,
+    Stage, TitleScreen, ChampionSelect, Hud, GameOver, MiniMap, Screens, {% endraw %}{{ row.capitalized }}{% raw %}Game,
+    CHAMPS, COL, BOARD, setChampions,
+  };
+});
+{% endraw %}

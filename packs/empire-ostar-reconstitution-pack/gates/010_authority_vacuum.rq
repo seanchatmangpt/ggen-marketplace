@@ -1,0 +1,27 @@
+PREFIX empire: <https://chatmangpt.com/ontology/empire-reconstitution#>
+SELECT ?violation ?subject WHERE {
+  {
+    BIND("CASE_STUDY_COUNT" AS ?violation)
+    BIND(empire:CaseStudy AS ?subject)
+    { SELECT (COUNT(?study) AS ?count) WHERE { ?study a empire:CaseStudy . } }
+    FILTER(?count != 1)
+  }
+  UNION
+  {
+    ?study a empire:CaseStudy .
+    FILTER NOT EXISTS {
+      ?study empire:initialAuthorityState "NO_AUTHORITY" ;
+        empire:semanticScopeMode "bounded-observable-surfaces" ;
+        empire:universalEquivalenceClaimed false ;
+        empire:directActuation false .
+    }
+    BIND("AUTHORITY_OR_RICE_BOUNDARY" AS ?violation)
+    BIND(?study AS ?subject)
+  }
+  UNION
+  {
+    ?subject a empire:LegacySubject .
+    FILTER NOT EXISTS { ?subject empire:sourceAuthority false . }
+    BIND("SOURCE_SELF_AUTHORITY" AS ?violation)
+  }
+}
