@@ -1,34 +1,53 @@
 @prefix cer: <http://seanchatmangpt.github.io/packs/chatman-ecosystem-v26-9-1-release-gate#> .
+@prefix er: <http://seanchatmangpt.github.io/packs/chatman-ecosystem-release#> .
 @prefix dcterms: <http://purl.org/dc/terms/> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
+# This pack instantiates chatman-ecosystem-release-pack's composition law
+# (er: vocabulary) for the v26.9.1 gate specifically. It reuses er:Release,
+# er:Component, er:StandingState, er:AuthorityClass, and er:role rather than
+# declaring a disjoint standing/authority vocabulary — the v26.9.1 release
+# graph a consumer builds from release-manifest.toml is an er:Release whose
+# er:Component individuals carry er:role values drawn from the real
+# ecosystem's admitted role vocabulary (see release-manifest.example.toml).
+# Per chatman-ecosystem-release-pack's own law, exact release-instance SHAs
+# remain consumer-owned and are never duplicated into this pack's source.
+
 cer:ReleaseGate a rdfs:Class ;
+    rdfs:subClassOf er:Release ;
     rdfs:label "Chatman Ecosystem release gate" ;
-    dcterms:description "A bounded release gate that binds exact component identities, evidence, authority separation, receipts, replay, and standing without granting ambient DO authority." .
+    dcterms:description "A bounded release gate that binds exact component identities, evidence, authority separation, receipts, replay, and standing without granting ambient DO authority. Its component graph is an er:Release/er:Component graph checked by chatman-ecosystem-release-pack's gates." .
 
 cer:Gate a rdfs:Class .
-cer:StandingState a rdfs:Class .
-cer:AuthorityClass a rdfs:Class .
 
-cer:UNKNOWN a cer:StandingState .
-cer:PARTIAL_ALIVE a cer:StandingState .
-cer:ALIVE a cer:StandingState .
-cer:BLOCKED a cer:StandingState .
-cer:BUILD_BROKEN a cer:StandingState .
-cer:UNSUPPORTED a cer:StandingState .
-
-cer:SELECT_CONSTRUCT a cer:AuthorityClass .
-cer:DO a cer:AuthorityClass .
+# Standing and authority vocabulary is not re-declared here: this pack uses
+# er:StandingState (er:UNKNOWN, er:PARTIAL_ALIVE, er:ALIVE, er:BLOCKED,
+# er:BUILD_BROKEN, er:UNSUPPORTED) and er:AuthorityClass
+# (er:SELECT_CONSTRUCT, er:DO) directly.
 
 cer:releaseV26_9_1 a cer:ReleaseGate ;
     dcterms:identifier "v26.9.1" ;
     dcterms:title "Chatman Ecosystem v26.9.1 release gate" ;
-    cer:authorityClass cer:SELECT_CONSTRUCT ;
+    er:authorityClass er:SELECT_CONSTRUCT ;
     cer:doAuthority false ;
-    cer:hasGate cer:G01, cer:G02, cer:G03, cer:G04, cer:G05, cer:G06, cer:G07, cer:G08, cer:G09 .
+    cer:hasGate cer:G01, cer:G02, cer:G03, cer:G04, cer:G05, cer:G06, cer:G07, cer:G08, cer:G09 ;
+    # Real admitted role vocabulary observed in ~/chatman-ecosystem/ecosystem.lock
+    # at the time this gate pack was aligned (see pack.toml [pack].description
+    # for the exact commit citation). A consumer's release-manifest.toml is
+    # expected to supply er:Component individuals whose er:role falls in this
+    # set for the release-verifier gate (G07) to admit them.
+    er:requiredRole "receipt-reference",
+        "capability-reference",
+        "process-evidence",
+        "planner",
+        "oracle",
+        "manufacturer",
+        "certifier",
+        "semantic-admission",
+        "actuation-authority" .
 
 cer:G01 a cer:Gate ; dcterms:title "architecture-freeze" ; cer:ordinal 1 .
 cer:G02 a cer:Gate ; dcterms:title "gymact-consolidation" ; cer:ordinal 2 .
@@ -42,8 +61,6 @@ cer:G09 a cer:Gate ; dcterms:title "immutable-release" ; cer:ordinal 9 .
 
 cer:hasGate a rdf:Property ; rdfs:domain cer:ReleaseGate ; rdfs:range cer:Gate .
 cer:ordinal a rdf:Property ; rdfs:domain cer:Gate ; rdfs:range xsd:integer .
-cer:standing a rdf:Property ; rdfs:range cer:StandingState .
-cer:authorityClass a rdf:Property ; rdfs:range cer:AuthorityClass .
 cer:doAuthority a rdf:Property ; rdfs:domain cer:ReleaseGate ; rdfs:range xsd:boolean .
 cer:requiresIndependentObservation a rdf:Property ; rdfs:range xsd:boolean .
 cer:requiresReceipt a rdf:Property ; rdfs:range xsd:boolean .

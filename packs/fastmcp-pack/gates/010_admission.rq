@@ -1,16 +1,21 @@
 # MESSAGE: FastMCP servers and tools must be dependency-closed, documented, and renderable as valid Python identifiers. Any row is a refusal.
+#
+# COMPOSABILITY (2026-08-16): branches 1-2 formerly required the SUBJECT's own IRI to start
+# with this pack's namespace. templates/fastmcp_server.py.tmpl projects `?server a fmcp:Server`
+# and `?tool a fmcp:Tool` with no such filter, so a consumer-minted server/tool under the
+# consumer's own namespace was rendered into generated Python while being structurally
+# unreachable by these two checks. Union-graph safety is already total without it: the class
+# IRIs fmcp:Server / fmcp:Tool and every VALUES ?property are namespace-exact on their own.
 PREFIX fmcp: <http://seanchatmangpt.github.io/packs/fastmcp#>
 PREFIX dcterms: <http://purl.org/dc/terms/>
 SELECT ?subject ?violation WHERE {
   {
     ?subject a fmcp:Server .
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/fastmcp#"))
     VALUES ?property { fmcp:name fmcp:hasTool dcterms:title dcterms:description }
     FILTER NOT EXISTS { ?subject ?property ?value }
     BIND(CONCAT("missing ", STR(?property)) AS ?violation)
   } UNION {
     ?subject a fmcp:Tool .
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/fastmcp#"))
     VALUES ?property { fmcp:name fmcp:function fmcp:argument fmcp:argumentDescription fmcp:returnTemplate dcterms:description }
     FILTER NOT EXISTS { ?subject ?property ?value }
     BIND(CONCAT("missing ", STR(?property)) AS ?violation)

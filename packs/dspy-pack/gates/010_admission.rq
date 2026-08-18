@@ -8,13 +8,21 @@
 # branch covering N properties/classes via a `VALUES (?a ?b) { ... }` table, see the
 # "Consolidated ..." blocks below) over one UNION branch per property/kind when adding new
 # checks -- do not let this file's branch count creep back toward ~150 unmeasured.
+#
+# COMPOSABILITY (2026-08-16): 20 branches formerly required the SUBJECT's own IRI to start with
+# "http://seanchatmangpt.github.io/packs/dspy#". ontology.ttl intentionally ships ZERO individuals
+# of any gated class, so every real subject is CONSUMER-minted under the consumer's namespace --
+# those branches could structurally never fire against real data. Confirmed against the in-repo
+# consumer process-intelligence-rag-pack: deleting dspy:className from all 4 real dspy:Signature
+# individuals returned 3 rows (the pirag:-namespaced one silently missed) before removal, 4 after.
+# Union-graph safety is already total without the subject filter: the class IRIs (dspy:Signature,
+# dspy:Module, ...) and every VALUES ?property are namespace-exact on their own.
 PREFIX dspy: <http://seanchatmangpt.github.io/packs/dspy#>
 PREFIX dcterms: <http://purl.org/dc/terms/>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 SELECT ?subject ?violation WHERE {
   {
     ?subject a dspy:Signature .
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
     VALUES ?property { dspy:className dcterms:title dcterms:description }
     FILTER NOT EXISTS { ?subject ?property ?value }
     BIND(CONCAT("missing ", STR(?property)) AS ?violation)
@@ -24,7 +32,6 @@ SELECT ?subject ?violation WHERE {
     # sh:property facts instead, validated separately by
     # gates/020_shacl_signature_admission.rq, not by this hand-declared-individual path.
     ?subject a dspy:Signature .
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
     FILTER NOT EXISTS { ?subject dspy:derivedFromShaclShape ?anyShape }
     VALUES ?property { dspy:hasInput dspy:hasOutput }
     FILTER NOT EXISTS { ?subject ?property ?value }
@@ -32,34 +39,28 @@ SELECT ?subject ?violation WHERE {
   } UNION {
     ?subject a ?fieldType .
     VALUES ?fieldType { dspy:InputField dspy:OutputField dspy:PydanticModelField }
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
     VALUES ?property { dspy:name dcterms:description }
     FILTER NOT EXISTS { ?subject ?property ?value }
     BIND(CONCAT("missing ", STR(?property)) AS ?violation)
   } UNION {
     ?subject a ?fieldType .
     VALUES ?fieldType { dspy:InputField dspy:OutputField }
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
     FILTER NOT EXISTS { ?subject dspy:pythonType ?t }
     FILTER NOT EXISTS { ?subject dspy:hasLiteralOption ?o }
     FILTER NOT EXISTS { ?subject dspy:hasPydanticModelType ?m }
     BIND("field must have exactly one of dspy:pythonType, dspy:hasLiteralOption, or dspy:hasPydanticModelType" AS ?violation)
   } UNION {
     ?subject a dspy:PydanticModelField .
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
     FILTER NOT EXISTS { ?subject dspy:pythonType ?t }
     BIND("PydanticModelField missing required dspy:pythonType (nested model fields are out of scope)" AS ?violation)
   } UNION {
     ?subject dspy:pythonType ?t ; dspy:hasLiteralOption ?o .
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
     BIND("field must have exactly one of dspy:pythonType, dspy:hasLiteralOption, or dspy:hasPydanticModelType, not more than one" AS ?violation)
   } UNION {
     ?subject dspy:pythonType ?t ; dspy:hasPydanticModelType ?m .
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
     BIND("field must have exactly one of dspy:pythonType, dspy:hasLiteralOption, or dspy:hasPydanticModelType, not more than one" AS ?violation)
   } UNION {
     ?subject dspy:hasLiteralOption ?o ; dspy:hasPydanticModelType ?m .
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
     BIND("field must have exactly one of dspy:pythonType, dspy:hasLiteralOption, or dspy:hasPydanticModelType, not more than one" AS ?violation)
   } UNION {
     ?subject dspy:hasPydanticModelType ?model .
@@ -67,7 +68,6 @@ SELECT ?subject ?violation WHERE {
     BIND("hasPydanticModelType target is not a dspy:PydanticModel" AS ?violation)
   } UNION {
     ?subject a dspy:PydanticModel .
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
     VALUES ?property { dspy:pydanticClassName dspy:hasModelField dcterms:description }
     FILTER NOT EXISTS { ?subject ?property ?value }
     BIND(CONCAT("missing ", STR(?property)) AS ?violation)
@@ -81,7 +81,6 @@ SELECT ?subject ?violation WHERE {
     BIND("hasModelField target is not a dspy:PydanticModelField" AS ?violation)
   } UNION {
     ?subject a dspy:Module .
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
     VALUES ?property { dspy:name dspy:kind dcterms:description }
     FILTER NOT EXISTS { ?subject ?property ?value }
     BIND(CONCAT("missing ", STR(?property)) AS ?violation)
@@ -183,7 +182,6 @@ SELECT ?subject ?violation WHERE {
     BIND("hasLocalTool target is not a dspy:LocalTool" AS ?violation)
   } UNION {
     ?subject a dspy:LocalTool .
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
     VALUES ?property { dspy:name dcterms:description }
     FILTER NOT EXISTS { ?subject ?property ?value }
     BIND(CONCAT("missing ", STR(?property)) AS ?violation)
@@ -211,7 +209,6 @@ SELECT ?subject ?violation WHERE {
     # evaluator hits real recursion-depth limits well before 160 UNION branches, confirmed by
     # a real stack overflow during this session's own development; see git history).
     ?subject a ?type .
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
     VALUES (?type ?property) {
       (dspy:PipelineStep dspy:stepIndex) (dspy:PipelineStep dspy:stepVarName) (dspy:PipelineStep dspy:stepKind)
       (dspy:ArgBinding dspy:argName) (dspy:ArgBinding dspy:argSourceKind) (dspy:ArgBinding dspy:argSourceField)
@@ -309,7 +306,6 @@ SELECT ?subject ?violation WHERE {
     BIND("parallelMaxErrors is not a non-negative integer" AS ?violation)
   } UNION {
     ?subject dspy:name ?value .
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
     FILTER(!REGEX(STR(?value), "^[A-Za-z_][A-Za-z0-9_]*$"))
     BIND("name is not a Python identifier" AS ?violation)
   } UNION {
@@ -350,7 +346,6 @@ SELECT ?subject ?violation WHERE {
     BIND("usesMCPServer target is not a dspy:MCPServerConnection" AS ?violation)
   } UNION {
     ?subject a dspy:MCPServerConnection .
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
     VALUES ?property { dspy:name dspy:command dcterms:description }
     FILTER NOT EXISTS { ?subject ?property ?value }
     BIND(CONCAT("missing ", STR(?property)) AS ?violation)
@@ -360,7 +355,6 @@ SELECT ?subject ?violation WHERE {
     BIND("hasArg target is not a dspy:ServerArg" AS ?violation)
   } UNION {
     ?subject a dspy:ServerArg .
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
     VALUES ?property { dspy:argIndex dspy:argValue }
     FILTER NOT EXISTS { ?subject ?property ?value }
     BIND(CONCAT("missing ", STR(?property)) AS ?violation)
@@ -374,7 +368,6 @@ SELECT ?subject ?violation WHERE {
     BIND("hasLiteralOption target is not a dspy:LiteralOption" AS ?violation)
   } UNION {
     ?subject a dspy:LiteralOption .
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
     VALUES ?property { dspy:optionIndex dspy:optionValue }
     FILTER NOT EXISTS { ?subject ?property ?value }
     BIND(CONCAT("missing ", STR(?property)) AS ?violation)
@@ -400,14 +393,12 @@ SELECT ?subject ?violation WHERE {
     BIND("dspy:geInt must be <= dspy:leInt" AS ?violation)
   } UNION {
     ?subject a dspy:Optimizer ; dspy:kind ?k .
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
     FILTER(?k != "Ensemble")
     VALUES ?property { dspy:name dspy:kind dspy:optimizes dspy:metricFunction dcterms:description }
     FILTER NOT EXISTS { ?subject ?property ?value }
     BIND(CONCAT("missing ", STR(?property)) AS ?violation)
   } UNION {
     ?subject a dspy:Optimizer ; dspy:kind "Ensemble" .
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
     VALUES ?property { dspy:name dspy:kind dspy:hasEnsembleMember dcterms:description }
     FILTER NOT EXISTS { ?subject ?property ?value }
     BIND(CONCAT("Ensemble optimizer missing ", STR(?property)) AS ?violation)
@@ -632,7 +623,6 @@ SELECT ?subject ?violation WHERE {
     # Consolidated required-property + target-type checks for dspy:EnsembleMember (same
     # recursion-depth reason as the Module-side consolidated blocks above).
     ?subject a dspy:EnsembleMember .
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
     VALUES ?property { dspy:stepIndex dspy:memberModule }
     FILTER NOT EXISTS { ?subject ?property ?value }
     BIND(CONCAT("EnsembleMember missing required ", STR(?property)) AS ?violation)
@@ -676,7 +666,6 @@ SELECT ?subject ?violation WHERE {
     BIND(CONCAT(STR(?property), " target is not a dspy:LMConfig") AS ?violation)
   } UNION {
     ?subject a dspy:LMConfig .
-    FILTER(STRSTARTS(STR(?subject), "http://seanchatmangpt.github.io/packs/dspy#"))
     FILTER NOT EXISTS { ?subject dspy:modelName ?m }
     BIND("LMConfig missing required dspy:modelName" AS ?violation)
   } UNION {
