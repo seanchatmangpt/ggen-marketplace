@@ -1,0 +1,52 @@
+PREFIX dfcmostar: <https://chatmangpt.com/ontology/empire-ostar-dfcm#>
+SELECT ?violation ?subject WHERE {
+  {
+    BIND("OPTION_SPACE_COUNT" AS ?violation)
+    BIND(dfcmostar:OptionSpace AS ?subject)
+    { SELECT (COUNT(?space) AS ?count) WHERE { ?space a dfcmostar:OptionSpace . } }
+    FILTER(?count != 1)
+  }
+  UNION
+  {
+    ?subject a dfcmostar:OptionSpace .
+    FILTER NOT EXISTS {
+      ?subject dfcmostar:sourcePack "empire-ostar-reconstitution-pack" ;
+        dfcmostar:studyId "OSTAR-EMPIRE-001" ;
+        dfcmostar:capabilityCount 6 ;
+        dfcmostar:dispositionCount 5 ;
+        dfcmostar:expectedClosureCount 1800 ;
+        dfcmostar:selectionState "UNSELECTED" ;
+        dfcmostar:claimCeiling "SYNTACTIC_CLOSURE_ONLY" ;
+        dfcmostar:selectionAuthority false ;
+        dfcmostar:actuationAuthority false ;
+        dfcmostar:constraintAuthority "PRUNE_ONLY" .
+    }
+    BIND("DFCM_BOUNDARY_INVALID" AS ?violation)
+  }
+  UNION
+  {
+    BIND("CAPABILITY_COUNT" AS ?violation)
+    BIND(dfcmostar:CapabilitySlot AS ?subject)
+    { SELECT (COUNT(?capability) AS ?count) WHERE { ?capability a dfcmostar:CapabilitySlot . } }
+    FILTER(?count != 6)
+  }
+  UNION
+  {
+    BIND("DISPOSITION_COUNT" AS ?violation)
+    BIND(dfcmostar:Disposition AS ?subject)
+    { SELECT (COUNT(?disposition) AS ?count) WHERE { ?disposition a dfcmostar:Disposition . } }
+    FILTER(?count != 5)
+  }
+  UNION
+  {
+    BIND("REQUIRED_DISPOSITION_CLOSURE" AS ?violation)
+    BIND(dfcmostar:requiredDisposition AS ?subject)
+    {
+      SELECT (COUNT(DISTINCT ?disposition) AS ?count) WHERE {
+        ?space a dfcmostar:OptionSpace ; dfcmostar:requiredDisposition ?disposition .
+      }
+    }
+    FILTER(?count != 5)
+  }
+}
+ORDER BY ?violation ?subject
