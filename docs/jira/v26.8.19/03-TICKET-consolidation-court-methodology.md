@@ -10,7 +10,7 @@ Standing: PARTIAL_ALIVE. This ticket **gates every family consolidation ticket i
 
 ## Why this ticket exists
 
-The source audit's own closing requirement, verified against its standing statement in `00-PACK-PORTFOLIO-MATURITY-AUDIT.md`: "run pairwise graph/query/template correspondence on each proposed family and turn this matrix into a machine-generated pack-consolidation court" before any pack is physically merged or deleted. Every family grouping in the audit is self-labeled `INFERRED`/`PARTIAL_ALIVE` — this ticket is what promotes a grouping to `ADMITTED`.
+The source audit's own closing requirement, quoted verbatim from `00-PACK-PORTFOLIO-MATURITY-AUDIT.md`'s standing statement (confirmed present word-for-word in that file): "run pairwise graph/query/template correspondence on each proposed family and turn this matrix into a machine-generated pack-consolidation court" before any pack is physically merged or deleted. Every family grouping in the audit is self-labeled `INFERRED`/`PARTIAL_ALIVE` — this ticket is what promotes a grouping to `ADMITTED`.
 
 ## What evidence a family-consolidation proof requires
 

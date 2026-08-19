@@ -15,7 +15,7 @@ Standing: PARTIAL_ALIVE. **BLOCKED on ticket 03** — no physical merge until a 
 
 This is explicitly the second-biggest consolidation opportunity in the source audit and the riskiest to get wrong: 15 packs each currently own their own UI manufacturing surface. The audit's own framing — do not create independent UI authority per pack; domain state is RDF/world truth, UI is a reversible projection — is the hypothesis the court must test per pack, not assume.
 
-Note `packs/cyberpunk-tv-platform` does not follow the `-pack` naming suffix used by every other pack in this family (and in the marketplace generally); the court run should first confirm this is in fact a `packs/`-rooted pack directory with the expected `pack.toml`/ontology shape before including it in any ontology diff, since a naming irregularity this severe is itself worth flagging in the report.
+Note `packs/cyberpunk-tv-platform` does not follow the `-pack` naming suffix used by every other pack in this family (and in the marketplace generally). Confirmed on disk: it does contain a `pack.toml`, so it is a conformant pack directory — the naming irregularity alone is worth flagging in the court report, but is not grounds to exclude it.
 
 ## Acceptance criteria
 
@@ -30,7 +30,7 @@ Note `packs/cyberpunk-tv-platform` does not follow the `-pack` naming suffix use
 
 - A single PR attempting to fold all 15 packs into one kernel at once, skipping the render-target grouping and per-group verification, violates criterion 4 and should be rejected regardless of court verdict.
 - If the court finds a given pack's UI templates encode domain-specific business logic inseparable from render mechanics (e.g. `bitjob-chrome-ext-shadcn-pack` embeds bitjob-specific rules no other shadcn pack shares), that pack is excluded from the shadcn profile group and stays a standalone `CapabilityPack`, not forced into the kernel.
-- If `packs/cyberpunk-tv-platform` turns out not to be a conformant pack directory (missing `pack.toml`), it is dropped from this family entirely and noted as a marketplace inventory issue, out of scope for this ticket to fix.
+- (Removed: `packs/cyberpunk-tv-platform` was checked and does contain `pack.toml` — it stays in scope for this family, subject only to the naming-irregularity note above.)
 
 ## See Also
 
