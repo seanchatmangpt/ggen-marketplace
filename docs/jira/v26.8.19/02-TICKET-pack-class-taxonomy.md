@@ -43,6 +43,7 @@ These definitions are drafts for the admission process to accept, amend, or reje
 
 ## See Also
 
+- `../../reference/pack-classes.md` — the landed taxonomy doc satisfying this ticket
 - `00-PACK-PORTFOLIO-MATURITY-AUDIT.md` — origin of the seven-class proposal
 - `03-TICKET-consolidation-court-methodology.md` — the gate any *physical* consolidation must pass, independent of this taxonomy
 - `CLAUDE.md` — `Pack.profile` derivation this taxonomy sits alongside, and the marketplace control-plane admission doctrine (`star-toml`/`admit-config.sh`)
