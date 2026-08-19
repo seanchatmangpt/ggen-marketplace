@@ -1,6 +1,6 @@
 # 05 Ticket TCPS Family Consolidation
 
-Standing: PARTIAL_ALIVE. **BLOCKED on ticket 03** (`03-TICKET-consolidation-court-methodology.md`) — no physical merge may proceed until a family-consolidation proof for this family has been run and returns `ADMITTED` or `PARTIAL`.
+Standing: PARTIAL_ALIVE — court run complete, CLOSED (no merge, per REFUTED falsifier).
 
 ## Quick reference
 
@@ -26,6 +26,12 @@ This ticket is the *plan*, not the merge. It records the proposed shape and acce
 
 - Any physical merge/delete landed under this ticket without a cited court report at the path from criterion 1 is a process violation — revert and redo through the court.
 - If the court returns `REFUTED` (e.g. the five profile packs' ontologies conflict rather than converge), this ticket is done as "family claim not upheld" — do not re-attempt consolidation without new evidence.
+
+## Outcome (court run complete)
+
+`scripts/consolidation_court.py` was run for real against this family (`docs/jira/v26.8.19/families/tcps.toml`, kernel candidate `tcps-core-pack` + 5 members). Verdict: **`REFUTED`** — `ontology_conflicting_pairs: 15`, `total_pairs: 15` (all C(6,2)=15 pairwise combinations have ontology triples present in only one side). Report committed at `docs/jira/v26.8.19/families/tcps-court-report.json`, reproduced byte-for-byte on an independent re-run.
+
+Per acceptance criterion 2 and the Falsifiers section above, this is an acceptable, complete outcome: "a `REFUTED` verdict closes this ticket without a merge." No pack was moved, merged, or deleted. `tcps-core-pack` and the five profile-candidate packs remain independent, unmerged packs.
 
 ## See Also
 

@@ -1,6 +1,6 @@
 # 09 Ticket Repo Lifecycle Family Consolidation
 
-Standing: PARTIAL_ALIVE. **BLOCKED on ticket 03** — no physical merge until a family-consolidation proof exists for this family.
+Standing: PARTIAL_ALIVE — court run complete, CLOSED (no merge, per REFUTED falsifier).
 
 ## Quick reference
 
@@ -24,6 +24,44 @@ No member pack's file contents were independently checked in the verification pa
 
 - Any physical change made under this ticket without a cited court report is a process violation.
 - If the court finds `dogfood-lifecycle-pack` encodes a genuinely different concern (e.g. cross-repo dogfooding policy rather than a stage of a single repo's reconstitution) rather than the fifth stage of the same calculus as the other four, it is excluded from the kernel and this ticket's scope narrows to the remaining four.
+
+## Outcome (court run complete)
+
+The consolidation court was run for real against this family (5 members: `dogfood-lifecycle-pack`,
+`repo-as-found-pack`, `repo-intervention-pack`, `repo-load-path-pack`, `repo-reconciliation-pack`).
+
+- **Verdict: `REFUTED`**
+- **Report path:** `docs/jira/v26.8.19/families/repo-lifecycle-court-report.json`
+- **Command run:**
+  ```
+  $ python3 scripts/consolidation_court.py docs/jira/v26.8.19/families/repo-lifecycle.toml > /tmp/court-repo-lifecycle.toml.json; echo EXIT:$?
+  EXIT:0
+
+  $ python3 -m json.tool < /tmp/court-repo-lifecycle.toml.json > /dev/null && echo VALID_JSON
+  VALID_JSON
+  ```
+- **Ontology diff result:** all 10 of 10 pairwise comparisons among the 5 members have
+  `"ontology_conflict": true` (`ontology_conflicting_pairs` = 10, `total_pairs` = 10 in the report's
+  `pairs` object). None of the five members share compatible predicates/subject vocabulary with any
+  other — this is the opposite of the sequential-stages-of-one-calculus hypothesis in the Scope
+  section above.
+
+### What this means per this ticket's acceptance criteria and falsifiers
+
+- Acceptance criterion 2 (does the ontology diff show one calculus or five independently-scoped
+  packs) is answered: five independently-scoped packs. The proposed object mapping in criterion 1
+  is not confirmed by the court.
+- Acceptance criterion 3's `ADMITTED` branch (create `repo-lifecycle-pack` as kernel) does not
+  apply — the verdict is `REFUTED`, not `ADMITTED` or `PARTIAL`.
+- Per ticket 03's own verdict definition (`03-TICKET-consolidation-court-methodology.md`), `REFUTED`
+  means: "family claim does not hold — record why, so it isn't re-proposed without new evidence."
+  That is the acceptable complete outcome for a `REFUTED` court result — no merge ticket follows.
+- The blocking condition stated at the top of this ticket ("**BLOCKED on ticket 03** — no physical
+  merge until a family-consolidation proof exists for this family") is now resolved by this REFUTED
+  proof: the proof exists, and it says do not merge. No kernel pack is created, no existing packs are
+  changed, and no physical-merge phase is entered under this ticket.
+- This ticket is closed on that basis. If new evidence later contradicts the ontology-conflict
+  finding, the family claim may be re-proposed, per the same ticket-03 language.
 
 ## See Also
 

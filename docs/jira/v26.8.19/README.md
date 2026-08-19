@@ -1,6 +1,6 @@
 # v26.8.19 Pack Portfolio Consolidation Milestone
 
-Standing ceiling: **PARTIAL_ALIVE**. Inference across this entire milestone is not yet ADMITTED. **No pack should be deleted or merged off the back of this milestone directory alone** — every family ticket (05-11) is explicitly `BLOCKED on ticket 03` until a real family-consolidation proof exists for that specific family.
+Standing ceiling: **PARTIAL_ALIVE**. Tickets 01-03 are implemented and independently re-verified (real code, real commands, real output — see their Outcome/commit history). Tickets 05-11's court runs are complete: **every one of the 8 proposed families (TCPS, wasm4pm, Fortune5/EA, release-lifecycle, repo-lifecycle, MCP-protocol, and the UI-projection-kernel family's 3 render-target groups) returned a real `REFUTED` verdict** from `scripts/consolidation_court.py` (every pairwise ontology diff conflicted — `ontology_conflicting_pairs == total_pairs` in all 8 reports). **No pack has been merged or deleted anywhere in this milestone** — REFUTED is each ticket's own defined acceptable-complete-outcome (see each ticket's Falsifiers section), not a shortcut around ticket 03's gate. All 8 real court reports are committed under `families/*-court-report.json`.
 
 ## Quick reference
 
@@ -17,16 +17,16 @@ One concrete, individually-verified finding anchors the milestone: `clap-noun-ve
 | File | What it is | Depends on |
 |---|---|---|
 | `00-PACK-PORTFOLIO-MATURITY-AUDIT.md` | Source-of-truth analysis: 7-axis maturity matrix, methodology, corrections to the raw audit's count/omissions | — |
-| `01-TICKET-retire-clap-noun-verb-legacy.md` | Retire one verified-deprecated pack from discovery (not delete) | — (independently actionable) |
-| `02-TICKET-pack-class-taxonomy.md` | Introduce 7 portfolio-role pack classes; ADMISSION-REQUIRED, no physical pack moves | — (independently actionable) |
-| `03-TICKET-consolidation-court-methodology.md` | The proof machinery every physical merge must pass through | — (independently actionable; gates 05-11) |
-| `05-TICKET-tcps-family-consolidation.md` | TCPS family plan | BLOCKED on 03 |
-| `06-TICKET-wasm4pm-family-consolidation.md` | wasm4pm family plan | BLOCKED on 03 |
-| `07-TICKET-fortune5-ea-family-consolidation.md` | Fortune5/Enterprise Architecture family plan | BLOCKED on 03 |
-| `08-TICKET-release-lifecycle-family-consolidation.md` | Release/CI/publication control family plan | BLOCKED on 03 |
-| `09-TICKET-repo-lifecycle-family-consolidation.md` | Repository lifecycle family plan | BLOCKED on 03 |
-| `10-TICKET-mcp-protocol-family-consolidation.md` | MCP protocol family plan (runtimes stay separate) | BLOCKED on 03 |
-| `11-TICKET-ui-projection-kernel-family-consolidation.md` | UI projection kernel family plan (largest family, 14-15 members) | BLOCKED on 03 |
+| `01-TICKET-retire-clap-noun-verb-legacy.md` | **DONE.** `scripts/marketplace.py` catalog marks `clap-noun-verb-pack` deprecated with 6 real successors | — |
+| `02-TICKET-pack-class-taxonomy.md` | **DONE.** 7-class taxonomy in `docs/reference/pack-classes.md` + `pack_class` catalog field (worked examples only) | — |
+| `03-TICKET-consolidation-court-methodology.md` | **DONE.** `scripts/consolidation_court.py` real, deterministic, run 8 times against 8 real families | — |
+| `05-TICKET-tcps-family-consolidation.md` | **CLOSED.** Court run: `REFUTED` (15/15 pairs conflict). No merge. | Court run against 03 |
+| `06-TICKET-wasm4pm-family-consolidation.md` | **CLOSED.** Court run: `REFUTED` (28/28 pairs conflict). No merge. | Court run against 03 |
+| `07-TICKET-fortune5-ea-family-consolidation.md` | **CLOSED.** Court run: `REFUTED` (36/36 pairs conflict). No merge. | Court run against 03 |
+| `08-TICKET-release-lifecycle-family-consolidation.md` | **CLOSED.** Court run: `REFUTED` (28/28 pairs conflict). No merge. | Court run against 03 |
+| `09-TICKET-repo-lifecycle-family-consolidation.md` | **CLOSED.** Court run: `REFUTED` (10/10 pairs conflict). No merge. | Court run against 03 |
+| `10-TICKET-mcp-protocol-family-consolidation.md` | **CLOSED.** Court run: `REFUTED` (10/10 pairs conflict). No merge. | Court run against 03 |
+| `11-TICKET-ui-projection-kernel-family-consolidation.md` | **CLOSED.** All 3 render-target groups (shadcn 36/36, deckgl 3/3, react/remotion 3/3) `REFUTED`. No merge, no new kernel pack created. | Court run against 03 |
 
 ## What was corrected from the raw audit before drafting these tickets
 
@@ -38,7 +38,9 @@ One concrete, individually-verified finding anchors the milestone: `clap-noun-ve
 
 ## Explicit standing ceiling
 
-Read every ticket in this directory as `PARTIAL_ALIVE`. The self-declared-deprecated finding for `clap-noun-verb-pack` (ticket 01) and the file-content findings cited in `00-PACK-PORTFOLIO-MATURITY-AUDIT.md` are directly verified and safe to act on for *discovery-level* changes. Every family consolidation ticket (05-11) requires ticket 03's court to return a real, cited, machine-generated report before a single pack is physically merged or deleted. Treat any PR that skips that gate as a process violation, not as a shortcut this milestone endorses.
+Read every ticket in this directory as `PARTIAL_ALIVE`. All 3 gating tickets (01/02/03) are implemented and independently re-verified. All 7 family tickets (05-11, 9 court runs across 8 family definitions) have real, committed, reproducible court reports and are closed with `REFUTED` — consistent with each ticket's own stated acceptable-complete-outcome for that verdict. **No pack anywhere in the marketplace was merged, moved, or deleted by this milestone.** The court's own `verdict_rule` (`ADMITTED` only when `ontology_conflicting_pairs == 0`) is strict by design — every proposed family in this audit turned out to have genuine pack-specific ontology content that a naming-convention-only "family" grouping missed. That is a real, useful finding in itself: it falsifies the audit's INFERRED groupings rather than rubber-stamping them, and it means the marketplace's 143 packs remain, for now, exactly what they were before this milestone — no physical consolidation has occurred, and none is currently supported by evidence.
+
+If a future family is proposed for consolidation, re-run `scripts/consolidation_court.py` against a new `families/<name>.toml` — the machinery is real and reusable, it is only this milestone's specific 8 candidate groupings that failed.
 
 ## See Also
 

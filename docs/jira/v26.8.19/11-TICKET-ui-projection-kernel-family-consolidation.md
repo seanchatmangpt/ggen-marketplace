@@ -1,6 +1,6 @@
 # 11 Ticket UI Projection Kernel Family Consolidation
 
-Standing: PARTIAL_ALIVE. **BLOCKED on ticket 03** — no physical merge until a family-consolidation proof exists for this family. This is the largest family in the milestone by member count; treat the court run here as the highest-effort item among the family tickets.
+Standing: PARTIAL_ALIVE — court run complete, CLOSED (no merge, per REFUTED falsifier). **BLOCKED on ticket 03** — no physical merge until a family-consolidation proof exists for this family. This is the largest family in the milestone by member count; treat the court run here as the highest-effort item among the family tickets.
 
 ## Quick reference
 
@@ -31,6 +31,27 @@ Note `packs/cyberpunk-tv-platform` does not follow the `-pack` naming suffix use
 - A single PR attempting to fold all 15 packs into one kernel at once, skipping the render-target grouping and per-group verification, violates criterion 4 and should be rejected regardless of court verdict.
 - If the court finds a given pack's UI templates encode domain-specific business logic inseparable from render mechanics (e.g. `bitjob-chrome-ext-shadcn-pack` embeds bitjob-specific rules no other shadcn pack shares), that pack is excluded from the shadcn profile group and stays a standalone `CapabilityPack`, not forced into the kernel.
 - (Removed: `packs/cyberpunk-tv-platform` was checked and does contain `pack.toml` — it stays in scope for this family, subject only to the naming-irregularity note above.)
+
+## Outcome (court run complete)
+
+`scripts/consolidation_court.py` was run for real against all three render-target groups this
+ticket names (shadcn, deckgl, react/remotion). All three came back `REFUTED`:
+
+| Family (render-target group) | Verdict | Conflicting pairs | Report |
+|---|---|---|---|
+| shadcn (9 members) | REFUTED | 36/36 pairs ontology-conflicting | `docs/jira/v26.8.19/families/ui-shadcn-court-report.json` |
+| deckgl (3 members) | REFUTED | 3/3 pairs ontology-conflicting | `docs/jira/v26.8.19/families/ui-deckgl-court-report.json` |
+| react/remotion (3 members: `cyberpunk-tv-platform`, `phage-wars-3-react-pack`, `remotion-y6f9kf-react-pack`) | REFUTED | 3/3 pairs ontology-conflicting (0 common triples in every pairwise diff) | `docs/jira/v26.8.19/families/ui-react-remotion-court-report.json` |
+
+Every pairwise comparison in every group shows `ontology_conflict: true`, i.e. `ontology_conflicting_pairs == total_pairs` in all three reports — the maximal-conflict case under the court's own rule:
+
+> `verdict_rule`: "ADMITTED if ontology_conflicting_pairs == 0; REFUTED if ontology_conflicting_pairs == total_pairs; PARTIAL otherwise."
+
+Per `03-TICKET-consolidation-court-methodology.md`'s own definition of the verdict states, `REFUTED` means:
+
+> `REFUTED` (family claim does not hold — record why, so it isn't re-proposed without new evidence)
+
+This satisfies acceptance criteria 1–3 for all three groups (grouping confirmed as given in Quick Reference; each group's members hand-roll incompatible, ontology-conflicting UI/domain logic rather than sharing a genuine reversible-projection template grammar). Per the ticket's own framing (Scope: "the hypothesis the court must test per pack, not assume") and the court methodology's verdict semantics, a `REFUTED` verdict is itself an acceptable complete outcome — it closes the family-consolidation question without requiring criteria 4–6 (no `ui-projection-kernel` pack is created, no member packs are repointed, no physical merge is performed for any of the three groups). No new `ui-projection-kernel` pack was created and no member pack in shadcn, deckgl, or react/remotion was touched. The ticket's `BLOCKED on ticket 03` gate is now resolved by this run: the family-consolidation proof required before any physical merge exists, and it says do not merge.
 
 ## See Also
 
