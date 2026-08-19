@@ -12,14 +12,26 @@ The migration established destination `packs/` tree equality with the source tre
 
 That identity is **historical import provenance, not current source authority**. After admission into this repository, the canonical marketplace pack bytes are the exact `packs/` tree of the marketplace subject being qualified. Later changes in `ggen`, a local checkout, or any other mirror do not silently rewrite or supersede those bytes.
 
-Current operational law is carried by `marketplace.toml`:
+## Current authority law
 
-- `source_authority.repository = "seanchatmangpt/ggen-marketplace"`;
-- `source_authority.canonical_branch = "main"`;
-- `source_authority.mirrors_are_provenance_only = true`;
-- `ggen.version` plus `ggen.release_commit` identify the qualifier/manufacturer;
-- each platform release asset is independently SHA-256 pinned.
+Current operational source/manufacturer identity is carried by `marketplace.toml` and must be read/admitted from that file rather than duplicated in documentation. It identifies the canonical marketplace repository/branch and the exact qualifier/manufacturer release identity plus platform asset digests.
 
-`scripts/verify_source_authority.py` binds those roles to a deterministic pack-corpus fingerprint. `scripts/install-ggen.sh` additionally refuses a release tag whose Git ref no longer resolves to the admitted `ggen.release_commit` before it accepts the digest-pinned binary.
+`scripts/verify_source_authority.py` binds those roles to a deterministic pack-corpus fingerprint. `scripts/install-ggen.sh` additionally verifies the admitted ggen release identity before accepting the digest-pinned binary.
 
 Future pack commits establish new destination identities; they do not alter historical import identities and cannot transfer pack authority back to an origin or mirror repository.
+
+## Provenance during consolidation
+
+Pack-family consolidation creates a second kind of provenance obligation. When duplicated semantics are factored into a kernel/capability/umbrella, preserve:
+
+- exact predecessor pack SHAs/versions;
+- semantic facts moved, mapped, or intentionally left separate;
+- generated target ownership before/after;
+- consumer/compatibility relationships;
+- negative witnesses before/after;
+- supersession/deprecation edges;
+- rollback path.
+
+A physical merge does not erase the histories of the predecessor packs. A CompatibilityPack remains provenance-relevant until its consumers have an evidenced migration path.
+
+See [Pack classes](pack-classes.md), [Class closure and consolidation](../explanation/class-closure-and-consolidation.md), and [How to consolidate a pack family](../how-to/consolidate-a-pack-family.md).
