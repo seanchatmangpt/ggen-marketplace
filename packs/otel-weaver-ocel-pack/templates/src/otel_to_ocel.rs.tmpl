@@ -37,6 +37,15 @@ pub const MAPPING_RULES: &[MappingRule] = &[
 pub struct OtelSpan {
     pub trace_id: String,
     pub span_id: String,
+    /// OTLP parent_span_id, when this span is not a trace root. `None` (or an
+    /// empty string, per OTLP's all-zero-bytes root convention) means this
+    /// span has no parent within the trace. Threaded into a real
+    /// `child_of`/`parent_span_of` O2O relationship pair (rule
+    /// RelationshipChildOfParentSpan) so downstream DFG/Petri-net discovery
+    /// gets genuine causal parent/child ordering instead of inferring
+    /// sequence purely from start_time, which fabricates sibling-to-sibling
+    /// precedence edges among spans that share a parent.
+    pub parent_span_id: Option<String>,
     pub name: String,
     pub start_time: DateTime<FixedOffset>,
     pub attributes: Vec<(String, OtelAttributeValue)>,
@@ -58,6 +67,106 @@ impl From<OtelAttributeValue> for OCELAttributeValue {
             OtelAttributeValue::Int(i) => OCELAttributeValue::Integer(i),
             OtelAttributeValue::Float(f) => OCELAttributeValue::Float(f),
             OtelAttributeValue::Bool(b) => OCELAttributeValue::Boolean(b),
+        }
+    }
+}
+
+/// Secret-shaped key fragments this scrub denies on the attribute *name*
+/// (case-insensitive substring match). Mirrors this repo's prior secret-leak
+/// incident (span attributes copied verbatim into OCEL with no redaction --
+/// CISO finding, 2026-08).
+const DENYLISTED_KEY_FRAGMENTS: &[&str] = &[
+    "api_key",
+    "apikey",
+    "api-key",
+    "secret",
+    "password",
+    "passwd",
+    "token",
+    "bearer",
+    "authorization",
+    "auth_",
+    "private_key",
+    "access_key",
+    "session_id",
+    "sessionid",
+    "credential",
+    "client_secret",
+    "ssh_key",
+    "cookie",
+];
+
+/// Max chars kept for any single attribute value copied into OCEL. Anything
+/// longer is truncated -- caps both accidental blob leakage and payload
+/// bloat from oversized span attributes.
+const MAX_ATTRIBUTE_VALUE_LEN: usize = 256;
+
+/// Minimum length a token must reach before it is even considered for the
+/// high-entropy secret check (short strings can't carry enough entropy to
+/// matter and would false-positive constantly).
+const HIGH_ENTROPY_MIN_LEN: usize = 20;
+
+fn key_is_denylisted(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    DENYLISTED_KEY_FRAGMENTS
+        .iter()
+        .any(|frag| lower.contains(frag))
+}
+
+/// Detects a base64/hex-shaped run of characters at least
+/// `HIGH_ENTROPY_MIN_LEN` long with a character-class mix consistent with a
+/// generated secret (as opposed to prose or a URL): mixed case + digits, or
+/// pure hex/base64 alphabet at length. Heuristic, not a proof -- paired with
+/// the key-name denylist and length cap as defense in depth, not a
+/// substitute for either.
+fn looks_high_entropy(value: &str) -> bool {
+    let candidate = value.trim();
+    if candidate.len() < HIGH_ENTROPY_MIN_LEN {
+        return false;
+    }
+    let is_token_charset = candidate
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/' || c == '=' || c == '-' || c == '_');
+    if !is_token_charset {
+        return false;
+    }
+    let has_upper = candidate.chars().any(|c| c.is_ascii_uppercase());
+    let has_lower = candidate.chars().any(|c| c.is_ascii_lowercase());
+    let has_digit = candidate.chars().any(|c| c.is_ascii_digit());
+    let has_no_whitespace = !candidate.chars().any(|c| c.is_ascii_whitespace());
+    has_no_whitespace && ((has_upper && has_lower) || (has_upper && has_digit) || (has_lower && has_digit))
+        && (has_upper as u8 + has_lower as u8 + has_digit as u8) >= 2
+}
+
+/// Applies the CISO-flagged secret-redaction scrub to a single OTEL span
+/// attribute before it is admitted into OCEL. Runs on both the key
+/// (denylist) and the value (denylist-by-key, high-entropy detection, and a
+/// hard length cap), so a secret is blocked whether it leaked via a
+/// suspicious key name, a suspicious value shape, or an oversized blob.
+fn redact_attribute_value(name: &str, value: OtelAttributeValue) -> OtelAttributeValue {
+    match value {
+        OtelAttributeValue::Str(s) => {
+            if key_is_denylisted(name) {
+                return OtelAttributeValue::Str("[REDACTED]".to_string());
+            }
+            if looks_high_entropy(&s) {
+                return OtelAttributeValue::Str("[REDACTED:high-entropy]".to_string());
+            }
+            if s.len() > MAX_ATTRIBUTE_VALUE_LEN {
+                let mut truncated: String = s.chars().take(MAX_ATTRIBUTE_VALUE_LEN).collect();
+                truncated.push_str("...[TRUNCATED]");
+                return OtelAttributeValue::Str(truncated);
+            }
+            OtelAttributeValue::Str(s)
+        }
+        // Non-string values (Int/Float/Bool) carry no free-text secret
+        // surface -- key-name denylist still applies via the caller if the
+        // key itself is suspicious, but the value has no scrubbable shape.
+        other => {
+            if key_is_denylisted(name) {
+                return OtelAttributeValue::Str("[REDACTED]".to_string());
+            }
+            other
         }
     }
 }
@@ -125,18 +234,23 @@ impl Admit for OtelToOcel {
         let service_object_id = format!("service:{}", service_name);
         let trace_object_id = format!("trace:{}", span.trace_id);
 
-        // Rule EventAttributes (order 40): span attributes -> OCELEventAttribute.
+        // Rule EventAttributes (order 40): span attributes -> OCELEventAttribute,
+        // scrubbed through redact_attribute_value first (CISO finding: no
+        // secret redaction was applied before this fix).
         let attributes: Vec<OCELEventAttribute> = span
             .attributes
             .into_iter()
-            .map(|(name, value)| OCELEventAttribute {
-                name,
-                value: value.into(),
+            .map(|(name, value)| {
+                let scrubbed = redact_attribute_value(&name, value);
+                OCELEventAttribute {
+                    name,
+                    value: scrubbed.into(),
+                }
             })
             .collect();
 
         // Rules RelationshipPerformedBy (order 70) / RelationshipPartOfTrace (order 80).
-        let relationships = vec![
+        let mut relationships = vec![
             OCELRelationship {
                 object_id: service_object_id.clone(),
                 qualifier: "performed_by".to_string(),
@@ -146,6 +260,26 @@ impl Admit for OtelToOcel {
                 qualifier: "part_of_trace".to_string(),
             },
         ];
+
+        // Rule RelationshipChildOfParentSpan (order 90): when this span carries
+        // a non-empty parent_span_id, record a real causal edge to the parent
+        // span's event id ("{trace_id}:{parent_span_id}"). This is the fix for
+        // the CISO/process-mining finding that OtelSpan discarded
+        // parent_span_id entirely, leaving downstream DFG/Petri-net discovery
+        // to infer sequence purely from start_time -- which fabricates
+        // sibling-to-sibling precedence edges among spans that share one
+        // parent. object_id here references another EVENT's id, not an
+        // object -- a deliberate, minimal extension of the O2O relationship
+        // shape rather than a new event-to-event schema field.
+        if let Some(parent_span_id) = span.parent_span_id.as_deref() {
+            if !parent_span_id.trim().is_empty() {
+                let parent_event_id = format!("{}:{}", span.trace_id, parent_span_id);
+                relationships.push(OCELRelationship {
+                    object_id: parent_event_id,
+                    qualifier: "child_of_span".to_string(),
+                });
+            }
+        }
 
         // Rule EventTime (order 30): time = span start time.
         let event = OCELEvent {

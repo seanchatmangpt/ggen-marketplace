@@ -93,7 +93,7 @@ otelocel:rule-event-time a otelocel:MappingRule ;
 otelocel:rule-event-attributes a otelocel:MappingRule ;
   otelocel:order 40 ; otelocel:identifier "EventAttributes" ; otelocel:slug "event-attributes" ;
   otelocel:sourceField "span.attributes" ; otelocel:targetField "OCELEvent.attributes" ;
-  otelocel:derivation "each span attribute becomes one OCELEventAttribute { name, value: OCELAttributeValue::* }" ;
+  otelocel:derivation "each span attribute becomes one OCELEventAttribute { name, value: OCELAttributeValue::* }, after redact_attribute_value scrubs denylisted key names (api_key/token/secret/password/bearer/...), high-entropy base64/hex-shaped string values, and caps value length -- CISO finding: span attributes must never be copied verbatim into OCEL" ;
   otelocel:witness "Ocel20" .
 
 otelocel:rule-object-service a otelocel:MappingRule ;
@@ -118,4 +118,10 @@ otelocel:rule-relationship-trace a otelocel:MappingRule ;
   otelocel:order 80 ; otelocel:identifier "RelationshipPartOfTrace" ; otelocel:slug "relationship-part-of-trace" ;
   otelocel:sourceField "span.trace_id" ; otelocel:targetField "OCELEvent.relationships" ;
   otelocel:derivation "relationships gains an OCELRelationship whose object_id is the trace object id and qualifier is part_of_trace" ;
+  otelocel:witness "Ocel20" .
+
+otelocel:rule-relationship-child-of-parent-span a otelocel:MappingRule ;
+  otelocel:order 90 ; otelocel:identifier "RelationshipChildOfParentSpan" ; otelocel:slug "relationship-child-of-parent-span" ;
+  otelocel:sourceField "span.parent_span_id" ; otelocel:targetField "OCELEvent.relationships" ;
+  otelocel:derivation "when parent_span_id is present (non-root span), relationships gains an OCELRelationship whose object_id is the PARENT EVENT's id (\\\"{trace_id}:{parent_span_id}\\\", an event-id reference, not an object reference) and qualifier is child_of_span -- gives DFG/Petri-net discovery a real causal edge instead of inferring sequence purely from start_time, which fabricates sibling-to-sibling precedence edges between spans sharing one parent" ;
   otelocel:witness "Ocel20" .
