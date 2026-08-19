@@ -1,0 +1,45 @@
+name: OpenTelemetry Weaver
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  registry-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: open-telemetry/weaver/.github/actions/setup-weaver@v0.25.1
+      - name: Validate semantic convention registry
+        run: weaver registry check -r . --v2 -p policies --future
+      - name: Package registry
+        run: weaver registry package -r . --v2 -p policies -o ./dist
+      - name: Registry statistics
+        run: weaver registry stats -r . --v2
+
+  live-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: open-telemetry/weaver/.github/actions/setup-weaver@v0.25.1
+      - uses: open-telemetry/weaver/.github/actions/weaver-live-check-start@v0.25.1
+        id: live-check
+        with:
+          registry: '.'
+          config: '.weaver.toml'
+      - name: Exercise instrumented application
+        env:
+          OTEL_EXPORTER_OTLP_ENDPOINT: {% raw %}${{ steps.live-check.outputs.otlp-grpc-endpoint }}{% endraw %}
+        run: |
+          test -n "${OTEL_EXPORTER_OTLP_ENDPOINT}"
+          echo "Replace this bounded hook with the repository's real integration/e2e command."
+      - uses: open-telemetry/weaver/.github/actions/weaver-live-check-stop@v0.25.1
+        if: always()
+        with:
+          fail-on: violation
