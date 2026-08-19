@@ -48,9 +48,20 @@ Read every ticket in this directory as `PARTIAL_ALIVE`. All 3 gating tickets (01
 | `PARTIAL` | 5 | `tcps`, `wasm4pm`, `fortune5-ea`, `release-lifecycle`, `mcp-protocol` |
 | `REFUTED` | 0 | — |
 
-**No pack anywhere in the marketplace was merged, moved, or deleted by this milestone**, despite 4 real ADMITTED verdicts. That is deliberate, not incomplete: every family ticket's own acceptance criteria require a real consumer-boundary check (generate from the current pack vs. the proposed kernel+profile split via a live `ggen` runtime against an isolated consumer project, diff the output) *before* any physical change, and `scripts/consolidation_court.py` explicitly does not perform that check (`consumer_boundary_check: null`, with a note, in every report). Physically merging on the strength of a vocabulary-correspondence signal alone — without that consumer-boundary proof — would itself be the process violation each ticket's Falsifiers section warns against.
+**Consumer-boundary BEFORE baseline (ticket 03 item 4, partial):** a real, installed `ggen` 26.8.18 binary was used to run `ggen sync run` against all 4 ADMITTED families' kernel-candidate packs from real, isolated `/tmp/court-consumer-<family>` projects (`[packs]` path reference, per `docs/how-to/consume-a-pack.md`). All 4 generated successfully and deterministically (replayed twice, identical `graph_hash_hex` both times):
 
-**What is and isn't finished:** the court methodology now exists, is correct (caught and fixed its own v1 defect via direct evidence inspection, not assumption), is deterministic, and has been run against every family this milestone proposed — that work is genuinely done. The physical-merge phase for the 4 ADMITTED and (partially) 5 PARTIAL families is real, unstarted follow-up work requiring a live `ggen` binary and isolated consumer projects — out of scope for this marketplace-only milestone, and not claimed as done here.
+| Family | Kernel candidate | Files generated | Deterministic on replay |
+|---|---|---|---|
+| `repo-lifecycle` | `repo-as-found-pack` | 4 | yes |
+| `ui-shadcn` | `ai-chatbot-shadcn-pack` | 6 | yes |
+| `ui-deckgl` | `mfact-ui-deckgl-pack` | 5 | yes |
+| `ui-react-remotion` | `phage-wars-3-react-pack` | 7 | yes |
+
+Raw evidence: `docs/jira/v26.8.19/families/consumer-boundary/<family>-before.json`. This is the **BEFORE** half of item 4 only — real proof each ADMITTED family's kernel candidate actually generates today. There is no **AFTER** state, because no kernel-split pack has been physically created for any family yet.
+
+**No pack anywhere in the marketplace was merged, moved, or deleted by this milestone**, despite 4 real ADMITTED verdicts and 4 real BEFORE baselines. That is deliberate, not incomplete: physically creating a new kernel pack and repointing members without the AFTER half of item 4 (generating from the *proposed* split and diffing against BEFORE) would itself be the process violation each ticket's Falsifiers section warns against — a BEFORE baseline alone does not prove a split preserves output.
+
+**What is and isn't finished:** the court methodology now exists, is correct (caught and fixed its own v1 defect via direct evidence inspection, not assumption), is deterministic, and has been run against every family this milestone proposed. A real BEFORE consumer-generation baseline now exists for all 4 ADMITTED families, captured with the real `ggen` binary, not simulated. That work is genuinely done. What remains real, unstarted follow-up work: physically authoring each kernel pack's ontology/template split, generating the AFTER state, and diffing it against the BEFORE baselines captured here — a design and implementation task in its own right, not a court-run or evidence-capture task, and is not claimed as done here.
 
 If a future family is proposed for consolidation, or the ADMITTED families above are picked up for their physical-merge phase, re-run `scripts/consolidation_court.py` (v2) against `families/<name>.toml` — the machinery is real, reusable, and its verdict rule is documented in the script's own module docstring.
 

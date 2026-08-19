@@ -40,3 +40,13 @@ This is a genuine, differentiated finding — real shared vocabulary exists acro
 - `00-PACK-PORTFOLIO-MATURITY-AUDIT.md` — repository lifecycle family entry
 - `03-TICKET-consolidation-court-methodology.md`
 - `02-TICKET-pack-class-taxonomy.md`
+
+## Consumer-boundary check (ticket 03 item 4) — BEFORE baseline captured
+
+Ran the real `ggen` 26.8.18 binary against this family's ADMITTED kernel candidate(s) from a real, isolated `/tmp/court-consumer-<family>` consumer project (`[packs]` path reference, per `docs/how-to/consume-a-pack.md`). This is the **BEFORE** half of item 4's required check — proof the current, unmerged pack actually generates, successfully and deterministically:
+
+| Family | Kernel candidate | Files generated | Graph hash | Deterministic on replay |
+|---|---|---|---|---|
+| `repo-lifecycle` | `repo-as-found-pack` | 4 files | `6ce3b01d2bea7e31...` | True |
+
+Raw evidence committed at `docs/jira/v26.8.19/families/consumer-boundary/<family>-before.json` (full file lists, full hashes). **This is not yet the full item-4 check**: there is no **AFTER** state, because no kernel-split pack has been created for this family — physically creating one is real, unstarted follow-up work, out of scope for this court-run/baseline-capture pass. Do not read this section as authorizing a physical merge.
