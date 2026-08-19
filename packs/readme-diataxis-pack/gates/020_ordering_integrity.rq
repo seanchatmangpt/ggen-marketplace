@@ -1,0 +1,61 @@
+# MESSAGE: refuses two structural defects raw property-presence checks
+# miss. (1) Duplicate rdx:position within the same class+kind scope makes
+# ORDER BY a tie, so replay order becomes SPARQL-engine-dependent rather
+# than deterministic. (2) rdx:kind / rdx:layer values outside the set each
+# template's {% if %} branch actually understands silently fall into the
+# wrong branch instead of refusing -- a silent-wrong-output risk, not a
+# crash. Any row below is a real violation.
+PREFIX rdx: <https://seanchatmangpt.github.io/ggen-marketplace/readme-diataxis#>
+SELECT ?s ?reason WHERE {
+  {
+    # Duplicate rdx:position within RunStep, scoped by rdx:kind (the
+    # tutorial and each how-to page each sort within one kind).
+    ?s a rdx:RunStep ; rdx:kind ?kind ; rdx:position ?pos .
+    ?other a rdx:RunStep ; rdx:kind ?kind ; rdx:position ?pos .
+    FILTER(?s != ?other)
+    BIND("duplicate rdx:position within same RunStep kind" AS ?reason)
+  } UNION {
+    ?s a rdx:ApiEndpoint ; rdx:position ?pos .
+    ?other a rdx:ApiEndpoint ; rdx:position ?pos .
+    FILTER(?s != ?other)
+    BIND("duplicate rdx:position within ApiEndpoint" AS ?reason)
+  } UNION {
+    ?s a rdx:FunctionRef ; rdx:position ?pos .
+    ?other a rdx:FunctionRef ; rdx:position ?pos .
+    FILTER(?s != ?other)
+    BIND("duplicate rdx:position within FunctionRef" AS ?reason)
+  } UNION {
+    ?s a rdx:UsageExample ; rdx:position ?pos .
+    ?other a rdx:UsageExample ; rdx:position ?pos .
+    FILTER(?s != ?other)
+    BIND("duplicate rdx:position within UsageExample" AS ?reason)
+  } UNION {
+    ?s a rdx:FaqEntry ; rdx:position ?pos .
+    ?other a rdx:FaqEntry ; rdx:position ?pos .
+    FILTER(?s != ?other)
+    BIND("duplicate rdx:position within FaqEntry" AS ?reason)
+  } UNION {
+    ?s a rdx:RoadmapItem ; rdx:position ?pos .
+    ?other a rdx:RoadmapItem ; rdx:position ?pos .
+    FILTER(?s != ?other)
+    BIND("duplicate rdx:position within RoadmapItem" AS ?reason)
+  } UNION {
+    ?s a rdx:Feature ; rdx:position ?pos .
+    ?other a rdx:Feature ; rdx:position ?pos .
+    FILTER(?s != ?other)
+    BIND("duplicate rdx:position within Feature" AS ?reason)
+  } UNION {
+    ?s a rdx:RunStep ; rdx:kind ?kind .
+    FILTER(?kind NOT IN ("clone", "install", "start", "deploy", "test"))
+    BIND("rdx:kind outside {clone,install,start,deploy,test}" AS ?reason)
+  } UNION {
+    ?s a rdx:TechStackItem ; rdx:layer ?layer .
+    FILTER(?layer NOT IN ("client", "server"))
+    BIND("rdx:layer outside {client,server}" AS ?reason)
+  } UNION {
+    ?s a rdx:ContactChannel ; rdx:kind ?kind .
+    FILTER(?kind NOT IN ("email", "slack"))
+    BIND("rdx:kind outside {email,slack}" AS ?reason)
+  }
+}
+ORDER BY ?s ?reason
