@@ -1,0 +1,48 @@
+---
+to: "demo-app-database.yaml"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:subject a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}# demo-app/infrastructure/database.yaml
+# PostgreSQL claim for the demo application
+# This demonstrates how teams request databases through simple configuration
+
+apiVersion: database.platform.io/v1alpha1
+kind: PostgreSQLClaim
+metadata:
+  name: demo-app-db
+  namespace: team-alpha
+  labels:
+    platform.io/team: team-alpha
+    platform.io/owner: demo-app
+    platform.io/cost-center: engineering
+spec:
+  parameters:
+    storageGB: 20
+    version: "15"
+    tier: development
+    enableBackups: true
+  # Crossplane v2: writeConnectionSecretToRef was removed from Claims.
+  # Use publishConnectionDetailsTo to write connection details to a Secret.
+  publishConnectionDetailsTo:
+    name: demo-app-db-connection
+    metadata:
+      labels:
+        platform.io/team: team-alpha
+{% endraw %}

@@ -1,0 +1,120 @@
+---
+to: "sloth-slo-spec.yaml"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:subject a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}apiVersion: sloth.slok.dev/v1
+kind: PrometheusServiceLevel
+metadata:
+  name: demo-app-slos
+  namespace: monitoring
+spec:
+  service: demo-app
+  description: "Service Level Objectives for demo-app"
+
+  # Labels applied to all generated Prometheus rules
+  labels:
+    product: demo-app
+    team: platform
+
+  slos:
+    # Availability SLO - 99.9% of requests succeed
+    - name: "availability"
+      objective: 99.9
+      description: "Service availability measured by successful HTTP requests"
+
+      sli:
+        events:
+          # Count of bad (failed) requests
+          errorQuery: sum(rate(http_requests_total{job="demo-app",code=~"(5..)"}[{{.window}}]))
+          # Count of all requests
+          totalQuery: sum(rate(http_requests_total{job="demo-app"}[{{.window}}]))
+
+      alerting:
+        name: DemoAppAvailabilityAlert
+        labels:
+          category: availability
+        annotations:
+          summary: "High error rate on demo-app"
+        pageAlert:
+          labels:
+            severity: critical
+        ticketAlert:
+          labels:
+            severity: warning
+
+    # Latency SLO - 99% of requests respond within 500ms
+    - name: "latency"
+      objective: 99
+      description: "99% of requests respond within 500ms"
+
+      sli:
+        events:
+          # Requests slower than 500ms are "errors" for this SLO
+          errorQuery: |
+            (
+              sum(rate(http_requests_total{job="demo-app"}[{{.window}}]))
+              -
+              sum(rate(http_request_duration_seconds_bucket{job="demo-app",le="0.5"}[{{.window}}]))
+            )
+          # All requests
+          totalQuery: sum(rate(http_requests_total{job="demo-app"}[{{.window}}]))
+
+      alerting:
+        name: DemoAppLatencyAlert
+        labels:
+          category: latency
+        annotations:
+          summary: "High latency on demo-app"
+        pageAlert:
+          labels:
+            severity: critical
+        ticketAlert:
+          labels:
+            severity: warning
+
+    # Throughput SLO - 99% uptime on minimum throughput
+    - name: "throughput"
+      objective: 99
+      description: "Service maintains minimum request throughput"
+
+      sli:
+        events:
+          # "Error" = periods where throughput drops below threshold
+          errorQuery: |
+            (
+              sum(rate(http_requests_total{job="demo-app"}[{{.window}}])) < bool 10
+            ) * sum(rate(http_requests_total{job="demo-app"}[{{.window}}]))
+          # Total requests
+          totalQuery: sum(rate(http_requests_total{job="demo-app"}[{{.window}}]))
+
+      alerting:
+        name: DemoAppThroughputAlert
+        labels:
+          category: throughput
+        annotations:
+          summary: "Low throughput on demo-app"
+        pageAlert:
+          disable: true
+          labels:
+            severity: critical
+        ticketAlert:
+          labels:
+            severity: warning
+{% endraw %}

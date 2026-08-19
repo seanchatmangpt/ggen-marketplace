@@ -1,0 +1,48 @@
+---
+to: "kyverno-require-resources.yaml"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:subject a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}# Chapter 12: Kyverno ClusterPolicy for Cost Governance
+# Listing 12.11 - Policy to require resource requests on all pods
+# Kyverno enforces that every container specifies CPU and memory requests,
+# preventing "unlimited" resource consumption that drives cost overruns.
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-resource-requests
+spec:
+  validationFailureAction: audit
+  rules:
+    - name: validate-requests
+      match:
+        resources:
+          kinds:
+            - Pod
+      validate:
+        message: "CPU and memory requests are required"
+        pattern:
+          spec:
+            containers:
+              - resources:
+                  requests:
+                    memory: "?*"
+                    cpu: "?*"
+{% endraw %}

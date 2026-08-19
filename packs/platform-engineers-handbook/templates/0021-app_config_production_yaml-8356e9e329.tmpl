@@ -1,0 +1,58 @@
+---
+to: "app-config.production.yaml"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:subject a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}# app-config.production.yaml — Enterprise/Production Overrides
+# =============================================================
+# This file LAYERS ON TOP of app-config.yaml using Backstage's
+# config merging. Only include keys that differ from app-config.yaml.
+#
+# Usage:
+#   yarn start --config app-config.yaml --config app-config.production.yaml
+#
+# This example shows production TechDocs (S3 + external builder) and
+# Elasticsearch search backend — appropriate once you outgrow local config.
+# For local/Kind deployments, use backstage-helm-values.yaml instead.
+
+# --- TechDocs: S3-backed external builder (production only) ---
+# Switch from 'local' to 'external' once you have more than ~20 services.
+# Benefits: faster builds, better scalability, no storage limits.
+#
+# S3-stored TechDocs can also serve as a retrieval corpus for AI-augmented
+# workflows — agents and MCP-compatible tools can query the documentation
+# directly via NLP interfaces. This is covered in a later chapter.
+techdocs:
+  builder: external
+  publisher:
+    type: awsS3
+    awsS3:
+      bucketName: ${TECHDOCS_S3_BUCKET}
+      region: ${AWS_REGION}
+      # Credentials are inferred from the pod's IAM role (recommended)
+      # or set AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY in env.
+
+# --- Search: Elasticsearch backend (production only) ---
+search:
+  elasticsearch:
+    node: ${ELASTICSEARCH_URL}
+    auth:
+      username: ${ELASTICSEARCH_USER}
+      password: ${ELASTICSEARCH_PASSWORD}
+{% endraw %}

@@ -1,0 +1,68 @@
+---
+to: "constraint-namespace-labels.yaml"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:subject a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}# =============================================================================
+# constraint-namespace-labels.yaml — Require Labels on Namespaces
+# =============================================================================
+# Constraint referencing the K8sRequiredLabels ConstraintTemplate defined in
+# template-required-labels.yaml. Rejects namespaces missing the required
+# labels for team ownership, cost tracking, and environment classification.
+#
+# Apply the template first, then this constraint:
+#   kubectl apply -f template-required-labels.yaml
+#   # Wait ~10s for Gatekeeper to generate the K8sRequiredLabels CRD
+#   kubectl apply -f constraint-namespace-labels.yaml
+#
+# Excludes Kubernetes system namespaces and platform-owned namespaces.
+# =============================================================================
+
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequiredLabels
+metadata:
+  name: namespace-must-have-team
+  annotations:
+    description: "All team-owned namespaces must declare team, environment, and cost-center labels"
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Namespace"]
+    excludedNamespaces:
+      - kube-system
+      - kube-public
+      - kube-node-lease
+      - gatekeeper-system
+      - flux-system
+      - istio-system
+      - platform-services
+      - cert-manager
+      - monitoring
+      - default
+  parameters:
+    labels:
+      - key: "team"
+        allowedRegex: "^[a-z]{2,20}$"
+      - key: "environment"
+        allowedRegex: "^(dev|staging|prod)$"
+      - key: "cost-center"
+        allowedRegex: "^[0-9]{4,6}$"
+{% endraw %}

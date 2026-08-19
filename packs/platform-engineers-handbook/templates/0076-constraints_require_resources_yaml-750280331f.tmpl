@@ -1,0 +1,44 @@
+---
+to: "constraints/require-resources.yaml"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:subject a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}# Chapter 11: Constraint for Required Resources
+# Listing 11.2 - Applying the K8sRequiredResources policy
+# This constraint enforces resource requests and limits on all containers
+# except those in system namespaces.
+
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequiredResources
+metadata:
+  name: require-resources
+spec:
+  match:
+    excludedNamespaces:
+      - kube-system
+      - kube-public
+      - gatekeeper-system
+      - flux-system
+      - opencost
+      - monitoring
+      - crossplane-system
+  enforcementAction: dryrun
+  parameters:
+    message: "All containers must have resource requests and limits"
+{% endraw %}

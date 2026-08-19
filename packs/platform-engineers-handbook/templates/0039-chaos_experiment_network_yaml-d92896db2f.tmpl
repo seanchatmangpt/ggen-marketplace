@@ -1,0 +1,139 @@
+---
+to: "chaos-experiment-network.yaml"
+sparql:
+  entities: |
+    PREFIX gc: <https://ggen.io/ontology/ggen-create#>
+    SELECT ?name ?upper ?lower ?capitalized ?pascal ?camel ?snake ?upper_snake ?kebab ?title
+    WHERE {
+      gc:subject a gc:GenerationSubject ;
+          gc:name ?name ;
+          gc:upper ?upper ;
+          gc:lower ?lower ;
+          gc:capitalized ?capitalized ;
+          gc:pascal ?pascal ;
+          gc:camel ?camel ;
+          gc:snake ?snake ;
+          gc:upper_snake ?upper_snake ;
+          gc:kebab ?kebab ;
+          gc:title ?title .
+    }
+for_each: entities
+---
+{% raw %}# Network Chaos Experiments for Chaos Mesh
+# Tests system resilience to network degradation: latency, packet loss, corruption
+#
+# Prerequisites:
+#   1. Chaos Mesh installed
+#   2. Target namespace and workloads exist:
+#      kubectl create namespace chaos-testing
+#      kubectl create deployment demo-app --image=nginx:alpine --replicas=3 -n chaos-testing
+
+---
+# Experiment 1: Network latency injection (100ms delay with jitter)
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: network-latency-experiment
+  namespace: chaos-testing
+spec:
+  action: delay
+  mode: all
+  duration: "2m"
+  selector:
+    namespaces:
+      - chaos-testing
+    labelSelectors:
+      app: demo-app
+  direction: to
+  delay:
+    latency: "100ms"
+    jitter: "10ms"
+
+---
+# Experiment 2: Packet loss (10% of packets dropped)
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: network-loss-experiment
+  namespace: chaos-testing
+spec:
+  action: loss
+  mode: all
+  duration: "2m"
+  selector:
+    namespaces:
+      - chaos-testing
+    labelSelectors:
+      app: demo-app
+  direction: to
+  loss:
+    loss: "10"
+    correlation: "25"
+
+---
+# Experiment 3: Packet corruption (5% of packets corrupted)
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: network-corrupt-experiment
+  namespace: chaos-testing
+spec:
+  action: corrupt
+  mode: all
+  duration: "2m"
+  selector:
+    namespaces:
+      - chaos-testing
+    labelSelectors:
+      app: demo-app
+  direction: to
+  corrupt:
+    corrupt: "5"
+    correlation: "10"
+
+---
+# Experiment 4: Packet duplication (10% of packets duplicated)
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: network-duplicate-experiment
+  namespace: chaos-testing
+spec:
+  action: duplicate
+  mode: all
+  duration: "2m"
+  selector:
+    namespaces:
+      - chaos-testing
+    labelSelectors:
+      app: demo-app
+  direction: to
+  duplicate:
+    duplicate: "10"
+    correlation: "50"
+
+---
+# Schedule: Network latency daily at 3 AM
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: network-chaos-schedule
+  namespace: chaos-testing
+spec:
+  schedule: "0 3 * * *"
+  type: NetworkChaos
+  concurrencyPolicy: Forbid
+  networkChaos:
+    action: delay
+    mode: all
+    duration: "5m"
+    selector:
+      namespaces:
+        - chaos-testing
+      labelSelectors:
+        app: demo-app
+    direction: to
+    delay:
+      latency: "100ms"
+      jitter: "10ms"
+{% endraw %}
