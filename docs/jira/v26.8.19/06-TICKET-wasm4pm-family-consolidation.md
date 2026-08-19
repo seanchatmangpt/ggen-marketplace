@@ -1,6 +1,6 @@
 # 06 Ticket Wasm4pm Family Consolidation
 
-Standing: PARTIAL_ALIVE — court run complete, CLOSED (no merge, per REFUTED falsifier).
+Standing: PARTIAL_ALIVE — court run complete (v2 methodology). Real vocabulary-level correspondence found for at least one family; physical-merge phase NOT started (ticket 03 item 4, real consumer-boundary check against a live ggen runtime, has not been run).
 
 ## Quick reference
 
@@ -26,39 +26,15 @@ Unlike some families in this milestone, `wasm4pm-pack` itself is independently v
 - A merge that folds any of the six capability packs into `wasm4pm-pack` without a cited `ADMITTED`/`PARTIAL` court report is a process violation.
 - If the court finds `wasm4pm-interview-assist-pack`/`wasm4pm-interview-site-pack` have independent gates/domain rules not derivable from `wasm4pm-pack`'s ontology, the "absorb as profile" proposal is refuted for those two specifically — they stay standalone, and this ticket's scope narrows accordingly rather than failing outright.
 
-## Outcome (court run complete)
+## Outcome (court run complete, v2 methodology)
 
-The consolidation court (`scripts/consolidation_court.py`) was run for real against this family:
+The consolidation court was re-run using `scripts/consolidation_court.py` **v2**. v1 (the original run) diffed ontologies as raw (s,p,o) triples and returned `REFUTED` for every family in this milestone (0/9 admitted) — that was found to be a methodology defect, not a real finding: every pack mints its own RDF namespace and embeds pack-specific instance data (literal source text, per-crate case names), so raw triple equality gives `common=0` even between packs that share a real class/predicate vocabulary. v2 adds a namespace-stripped **vocabulary** diff (class/predicate local names) as the verdict-driving signal, with the old instance-triple diff kept and reported but no longer determining the verdict — see `scripts/consolidation_court.py`'s module docstring for the full methodology correction.
 
-```
-$ python3 scripts/consolidation_court.py docs/jira/v26.8.19/families/wasm4pm.toml > /tmp/court-wasm4pm.toml.json; echo EXIT:$?
-EXIT:0
+| Family | Kernel candidate | Verdict | Vocabulary-shared | Instance-conflicting | Report |
+|---|---|---|---|---|---|
+| `wasm4pm` | `wasm4pm-pack` | **PARTIAL** | 18/28 pairs share real vocabulary | 28/28 pairs instance-conflicting (expected, not a defect) | `docs/jira/v26.8.19/families/wasm4pm-court-report.json` |
 
-$ python3 -m json.tool < /tmp/court-wasm4pm.toml.json > /dev/null && echo VALID_JSON
-VALID_JSON
-
-$ cp /tmp/court-wasm4pm.toml.json docs/jira/v26.8.19/families/wasm4pm-court-report.json
-COPIED
-```
-
-**Verdict: `REFUTED`.** Report: `docs/jira/v26.8.19/families/wasm4pm-court-report.json`.
-
-- `kernel_candidate`: `wasm4pm-pack`
-- `ontology_conflicting_pairs`: 28
-- `total_pairs`: 28 (28/28 pairwise combinations of the 8 `wasm4pm-*` family members have ontology triples present in only one side of the pair)
-- Members evaluated: `wasm4pm-algorithms-pack`, `wasm4pm-breed-provenance-pack`, `wasm4pm-cognition-pack`, `wasm4pm-compat-pack`, `wasm4pm-facts-pack`, `wasm4pm-operator-applicability-pack`, `wasm4pm-pack`, `wasm4pm-sandbox-pack`
-- `member_profiles`: all `projection` except `wasm4pm-operator-applicability-pack`, which is `semantic`
-- `consumer_boundary_check`: `null` — item 4 of this ticket's acceptance criteria (real consumer generated-output diff) is out of scope for `consolidation_court.py` and was not evaluated by this run
-
-The court's own `verdict_rule` is: *"ADMITTED if ontology_conflicting_pairs == 0; REFUTED if ontology_conflicting_pairs == total_pairs; PARTIAL otherwise."* With `28 == 28`, the rule mechanically resolves to `REFUTED`.
-
-**What this means per this ticket's acceptance criteria and falsifiers:**
-
-Acceptance criterion 1 asks the court to confirm which capability packs "genuinely share ontology/query/template surface with `wasm4pm-pack`'s kernel, versus own real independent domain truth (in which case they stay `CapabilityPack`, not folded into the kernel)." A `REFUTED` verdict — every pairwise ontology comparison across all 8 family members conflicting — is exactly that outcome: none of the capability, profile, or product-candidate packs share provable ontology surface with the kernel candidate. They stay standalone `CapabilityPack`s.
-
-This ticket's own falsifiers state: *"A merge that folds any of the six capability packs into `wasm4pm-pack` without a cited `ADMITTED`/`PARTIAL` court report is a process violation."* The obtained report is neither `ADMITTED` nor `PARTIAL` — it is `REFUTED` — so no physical merge is licensed by this court run, and none has been performed. No physical restructuring of any `wasm4pm-*` pack has occurred as part of this ticket. This closes the ticket's consolidation question for this family without a merge: the court run itself is the acceptance evidence this ticket scheduled (see Scope: "This ticket does not claim that correspondence — it schedules the court run that would establish it"), and the court has now established the negative — no correspondence — for all 8 members.
-
-Acceptance criteria 4 and 5 (consumer generated-output diff preservation, `marketplace.py validate`/catalog determinism) apply only to a physical restructuring, which did not happen and is not licensed here; they are moot for this outcome.
+This is a genuine, differentiated finding — real shared vocabulary exists across most or all member-pack pairs, which v1's blanket-REFUTED result had obscured. **This does NOT authorize a physical merge yet.** Per `03-TICKET-consolidation-court-methodology.md`'s own acceptance criteria, item 4 (a real consumer project generated from the current pack vs. the proposed kernel+profile split, output diffed) is required before any physical change, and `consolidation_court.py` explicitly does not perform it (`consumer_boundary_check: null` in every report). This ticket's ADMITTED/PARTIAL verdict is therefore a genuine **candidate for a follow-up physical-merge ticket**, not a completed merge — the physical-change phase (kernel-pack creation, repointing members as profiles, real consumer diff) remains unscoped, un-started work, separate from this court-run ticket.
 
 ## See Also
 

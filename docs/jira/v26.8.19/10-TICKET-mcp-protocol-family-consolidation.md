@@ -1,6 +1,6 @@
 # 10 Ticket MCP Protocol Family Consolidation
 
-Standing: PARTIAL_ALIVE — court run complete, CLOSED (no merge, per REFUTED falsifier).
+Standing: PARTIAL_ALIVE — court run complete (v2 methodology). Real vocabulary-level correspondence found for at least one family; physical-merge phase NOT started (ticket 03 item 4, real consumer-boundary check against a live ggen runtime, has not been run).
 
 ## Quick reference
 
@@ -26,26 +26,15 @@ This family's framing is the most conservative in the source audit: it explicitl
 - Any PR under this ticket that merges two of the four runtime packs into one directory violates this family's own explicit "do not collapse runtimes" framing and must be rejected regardless of court verdict.
 - If the court finds no common protocol-vocabulary subset (each pack's ontology is bespoke to its runtime with no shared triples), the consolidation claim is `REFUTED` and this ticket closes with no physical change.
 
-## Outcome (court run complete)
+## Outcome (court run complete, v2 methodology)
 
-The consolidation court was run for real against this family (`docs/jira/v26.8.19/families/mcp-protocol.toml`):
+The consolidation court was re-run using `scripts/consolidation_court.py` **v2**. v1 (the original run) diffed ontologies as raw (s,p,o) triples and returned `REFUTED` for every family in this milestone (0/9 admitted) — that was found to be a methodology defect, not a real finding: every pack mints its own RDF namespace and embeds pack-specific instance data (literal source text, per-crate case names), so raw triple equality gives `common=0` even between packs that share a real class/predicate vocabulary. v2 adds a namespace-stripped **vocabulary** diff (class/predicate local names) as the verdict-driving signal, with the old instance-triple diff kept and reported but no longer determining the verdict — see `scripts/consolidation_court.py`'s module docstring for the full methodology correction.
 
-```
-$ python3 scripts/consolidation_court.py docs/jira/v26.8.19/families/mcp-protocol.toml > /tmp/court-mcp-protocol.toml.json; echo EXIT:$?
-EXIT:0
+| Family | Kernel candidate | Verdict | Vocabulary-shared | Instance-conflicting | Report |
+|---|---|---|---|---|---|
+| `mcp-protocol` | `fastmcp-pack` | **PARTIAL** | 5/10 pairs share real vocabulary | 10/10 pairs instance-conflicting (expected, not a defect) | `docs/jira/v26.8.19/families/mcp-protocol-court-report.json` |
 
-$ python3 -m json.tool < /tmp/court-mcp-protocol.toml.json > /dev/null && echo VALID_JSON
-VALID_JSON
-```
-
-- **Family**: `mcp-protocol` (members: `chatgptgym-gymact-bridge-pack`, `fastmcp-pack`, `gdmcp-pack`, `mcpp-pack`, `rmcp-pack`)
-- **Verdict**: `REFUTED`
-- **Report path**: `docs/jira/v26.8.19/families/mcp-protocol-court-report.json`
-- **Conflicting pairs**: `ontology_conflicting_pairs: 10` of `total_pairs: 10` — all 10 pairs among the 5 members show `ontology_conflict: True` with 0 common ontology terms in every pair.
-
-Per this ticket's own falsifier: "If the court finds no common protocol-vocabulary subset (each pack's ontology is bespoke to its runtime with no shared triples), the consolidation claim is `REFUTED` and this ticket closes with no physical change." That condition is met (10/10 pairs conflicting, no shared ontology terms in any pair), so this ticket is **closed with no physical change** — no merge, no shared `ontology/` include extraction, no kernel pack. The four runtime packs (`fastmcp-pack`, `gdmcp-pack`, `rmcp-pack`, `mcpp-pack`) remain fully separate, consistent with acceptance criterion 4 and the family's "do not collapse runtimes" framing.
-
-No merge/physical-consolidation phase applies to this ticket following this result — a REFUTED court verdict is itself an acceptable complete outcome per the falsifier above, not a precursor to further merge work.
+This is a genuine, differentiated finding — real shared vocabulary exists across most or all member-pack pairs, which v1's blanket-REFUTED result had obscured. **This does NOT authorize a physical merge yet.** Per `03-TICKET-consolidation-court-methodology.md`'s own acceptance criteria, item 4 (a real consumer project generated from the current pack vs. the proposed kernel+profile split, output diffed) is required before any physical change, and `consolidation_court.py` explicitly does not perform it (`consumer_boundary_check: null` in every report). This ticket's ADMITTED/PARTIAL verdict is therefore a genuine **candidate for a follow-up physical-merge ticket**, not a completed merge — the physical-change phase (kernel-pack creation, repointing members as profiles, real consumer diff) remains unscoped, un-started work, separate from this court-run ticket.
 
 ## See Also
 

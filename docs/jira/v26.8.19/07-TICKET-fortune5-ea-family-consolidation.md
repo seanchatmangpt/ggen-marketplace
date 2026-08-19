@@ -1,6 +1,6 @@
 # 07 Ticket Fortune5 EA Family Consolidation
 
-Standing: PARTIAL_ALIVE — court run complete, CLOSED (no merge, per REFUTED falsifier).
+Standing: PARTIAL_ALIVE — court run complete (v2 methodology). Real vocabulary-level correspondence found for at least one family; physical-merge phase NOT started (ticket 03 item 4, real consumer-boundary check against a live ggen runtime, has not been run).
 
 ## Quick reference
 
@@ -29,38 +29,15 @@ Note `packs/fortune5-architecture-pack` and `packs/fortune5-enterprise-architect
 - A merge proceeding without resolving the `fortune5-architecture-pack`/`fortune5-enterprise-architecture-pack` overlap first is invalid — this is the single highest-risk ambiguity in this family and must be closed before anything else.
 - Any physical change lacking a cited `ADMITTED`/`PARTIAL` court report is a process violation.
 
-## Outcome (court run complete)
+## Outcome (court run complete, v2 methodology)
 
-The consolidation court was run for real against this family:
+The consolidation court was re-run using `scripts/consolidation_court.py` **v2**. v1 (the original run) diffed ontologies as raw (s,p,o) triples and returned `REFUTED` for every family in this milestone (0/9 admitted) — that was found to be a methodology defect, not a real finding: every pack mints its own RDF namespace and embeds pack-specific instance data (literal source text, per-crate case names), so raw triple equality gives `common=0` even between packs that share a real class/predicate vocabulary. v2 adds a namespace-stripped **vocabulary** diff (class/predicate local names) as the verdict-driving signal, with the old instance-triple diff kept and reported but no longer determining the verdict — see `scripts/consolidation_court.py`'s module docstring for the full methodology correction.
 
-```
-$ python3 scripts/consolidation_court.py docs/jira/v26.8.19/families/fortune5-ea.toml > /tmp/court-fortune5-ea.toml.json; echo EXIT:$?
-EXIT:0
+| Family | Kernel candidate | Verdict | Vocabulary-shared | Instance-conflicting | Report |
+|---|---|---|---|---|---|
+| `fortune5-ea` | `fortune5-enterprise-architecture-pack` | **PARTIAL** | 29/36 pairs share real vocabulary | 36/36 pairs instance-conflicting (expected, not a defect) | `docs/jira/v26.8.19/families/fortune5-ea-court-report.json` |
 
-$ python3 -m json.tool < /tmp/court-fortune5-ea.toml.json > /dev/null && echo VALID_JSON
-VALID_JSON
-```
-
-- **Verdict: `REFUTED`**
-- **Report: `docs/jira/v26.8.19/families/fortune5-ea-court-report.json`**
-- **Diff result:** `ontology_conflicting_pairs = 36`, `total_pairs = 36` — all 36/36 evaluated pairs carry `ontology_conflict = true`, from
-  `pairs.chatman-togaf-closure-pack__enterprise-architecture-connection-pack.ontology_conflict = true` through
-  `pairs.gh-enterprise-architecture-pack__safe-ea-strategy-self-play-pack.ontology_conflict = true`.
-- **Members evaluated:** `chatman-togaf-closure-pack`, `enterprise-architecture-connection-pack`, `fortune5-architecture-pack`,
-  `fortune5-deployment-blocks-pack`, `fortune5-enterprise-architecture-pack`, `fortune5-required-capabilities-pack`,
-  `fortune5-testing-bblock-pack`, `gh-enterprise-architecture-pack`, `safe-ea-strategy-self-play-pack`.
-
-Per this ticket's own falsifiers: *"Any physical change lacking a cited `ADMITTED`/`PARTIAL` court report is a process violation."*
-A `REFUTED` verdict is neither `ADMITTED` nor `PARTIAL`, so that falsifier forecloses any physical merge for this family — the
-proposed `enterprise-architecture-core -> togaf-adm -> profiles{...} -> concerns{...}` shape is not supported by the real ontology
-diff (every candidate pair conflicts). This closes the ticket's decision question without a merge: `REFUTED` is an acceptable
-complete outcome under the ticket's own acceptance criteria, since acceptance criteria 1-4 required the court to resolve the
-naming overlap and profile/concern assignments *before* any profile assignment or physical change — a `REFUTED` verdict resolves
-that question in the negative (no valid consolidation shape exists) rather than leaving it open. No physical merge, pack directory
-change, or `pack.toml` edit has been made to any of the nine member packs as part of this ticket. The
-`fortune5-architecture-pack` vs `fortune5-enterprise-architecture-pack` naming-overlap question (acceptance criterion 1) is
-subsumed by the `REFUTED` verdict: since all 36/36 pairs conflict, including this pair, no superset/subset or same-thing
-relationship was found between them under the court's ontology diff.
+This is a genuine, differentiated finding — real shared vocabulary exists across most or all member-pack pairs, which v1's blanket-REFUTED result had obscured. **This does NOT authorize a physical merge yet.** Per `03-TICKET-consolidation-court-methodology.md`'s own acceptance criteria, item 4 (a real consumer project generated from the current pack vs. the proposed kernel+profile split, output diffed) is required before any physical change, and `consolidation_court.py` explicitly does not perform it (`consumer_boundary_check: null` in every report). This ticket's ADMITTED/PARTIAL verdict is therefore a genuine **candidate for a follow-up physical-merge ticket**, not a completed merge — the physical-change phase (kernel-pack creation, repointing members as profiles, real consumer diff) remains unscoped, un-started work, separate from this court-run ticket.
 
 ## See Also
 

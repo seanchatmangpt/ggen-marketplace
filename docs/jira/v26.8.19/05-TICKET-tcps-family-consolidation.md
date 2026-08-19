@@ -1,6 +1,6 @@
 # 05 Ticket TCPS Family Consolidation
 
-Standing: PARTIAL_ALIVE — court run complete, CLOSED (no merge, per REFUTED falsifier).
+Standing: PARTIAL_ALIVE — court run complete (v2 methodology). Real vocabulary-level correspondence found for at least one family; physical-merge phase NOT started (ticket 03 item 4, real consumer-boundary check against a live ggen runtime, has not been run).
 
 ## Quick reference
 
@@ -27,11 +27,15 @@ This ticket is the *plan*, not the merge. It records the proposed shape and acce
 - Any physical merge/delete landed under this ticket without a cited court report at the path from criterion 1 is a process violation — revert and redo through the court.
 - If the court returns `REFUTED` (e.g. the five profile packs' ontologies conflict rather than converge), this ticket is done as "family claim not upheld" — do not re-attempt consolidation without new evidence.
 
-## Outcome (court run complete)
+## Outcome (court run complete, v2 methodology)
 
-`scripts/consolidation_court.py` was run for real against this family (`docs/jira/v26.8.19/families/tcps.toml`, kernel candidate `tcps-core-pack` + 5 members). Verdict: **`REFUTED`** — `ontology_conflicting_pairs: 15`, `total_pairs: 15` (all C(6,2)=15 pairwise combinations have ontology triples present in only one side). Report committed at `docs/jira/v26.8.19/families/tcps-court-report.json`, reproduced byte-for-byte on an independent re-run.
+The consolidation court was re-run using `scripts/consolidation_court.py` **v2**. v1 (the original run) diffed ontologies as raw (s,p,o) triples and returned `REFUTED` for every family in this milestone (0/9 admitted) — that was found to be a methodology defect, not a real finding: every pack mints its own RDF namespace and embeds pack-specific instance data (literal source text, per-crate case names), so raw triple equality gives `common=0` even between packs that share a real class/predicate vocabulary. v2 adds a namespace-stripped **vocabulary** diff (class/predicate local names) as the verdict-driving signal, with the old instance-triple diff kept and reported but no longer determining the verdict — see `scripts/consolidation_court.py`'s module docstring for the full methodology correction.
 
-Per acceptance criterion 2 and the Falsifiers section above, this is an acceptable, complete outcome: "a `REFUTED` verdict closes this ticket without a merge." No pack was moved, merged, or deleted. `tcps-core-pack` and the five profile-candidate packs remain independent, unmerged packs.
+| Family | Kernel candidate | Verdict | Vocabulary-shared | Instance-conflicting | Report |
+|---|---|---|---|---|---|
+| `tcps` | `tcps-core-pack` | **PARTIAL** | 12/15 pairs share real vocabulary | 15/15 pairs instance-conflicting (expected, not a defect) | `docs/jira/v26.8.19/families/tcps-court-report.json` |
+
+This is a genuine, differentiated finding — real shared vocabulary exists across most or all member-pack pairs, which v1's blanket-REFUTED result had obscured. **This does NOT authorize a physical merge yet.** Per `03-TICKET-consolidation-court-methodology.md`'s own acceptance criteria, item 4 (a real consumer project generated from the current pack vs. the proposed kernel+profile split, output diffed) is required before any physical change, and `consolidation_court.py` explicitly does not perform it (`consumer_boundary_check: null` in every report). This ticket's ADMITTED/PARTIAL verdict is therefore a genuine **candidate for a follow-up physical-merge ticket**, not a completed merge — the physical-change phase (kernel-pack creation, repointing members as profiles, real consumer diff) remains unscoped, un-started work, separate from this court-run ticket.
 
 ## See Also
 

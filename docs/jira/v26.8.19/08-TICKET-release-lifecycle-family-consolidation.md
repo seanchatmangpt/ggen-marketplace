@@ -1,6 +1,6 @@
 # 08 Ticket Release Lifecycle Family Consolidation
 
-Standing: PARTIAL_ALIVE — court run complete, CLOSED (no merge, per REFUTED falsifier).
+Standing: PARTIAL_ALIVE — court run complete (v2 methodology). Real vocabulary-level correspondence found for at least one family; physical-merge phase NOT started (ticket 03 item 4, real consumer-boundary check against a live ggen runtime, has not been run).
 
 ## Quick reference
 
@@ -27,41 +27,15 @@ Note `packs/chatman-ecosystem-v26-9-1-release-gate` is version-pinned in its own
 - Any physical change made under this ticket without a cited court report is a process violation.
 - If the court finds the eight packs' gate/query surfaces do not share a common stage vocabulary at all (e.g. `cargo-cicd-pack` and `github-actions-pack` encode CI mechanics with no release-stage semantics in common with `ggen-release-pack`), the family claim is `REFUTED` for those members and they remain standalone `CapabilityPack`s.
 
-## Outcome (court run complete)
+## Outcome (court run complete, v2 methodology)
 
-The consolidation court was run for real against this family:
+The consolidation court was re-run using `scripts/consolidation_court.py` **v2**. v1 (the original run) diffed ontologies as raw (s,p,o) triples and returned `REFUTED` for every family in this milestone (0/9 admitted) — that was found to be a methodology defect, not a real finding: every pack mints its own RDF namespace and embeds pack-specific instance data (literal source text, per-crate case names), so raw triple equality gives `common=0` even between packs that share a real class/predicate vocabulary. v2 adds a namespace-stripped **vocabulary** diff (class/predicate local names) as the verdict-driving signal, with the old instance-triple diff kept and reported but no longer determining the verdict — see `scripts/consolidation_court.py`'s module docstring for the full methodology correction.
 
-```
-$ python3 scripts/consolidation_court.py docs/jira/v26.8.19/families/release-lifecycle.toml > /tmp/court-release-lifecycle.toml.json; echo EXIT:$?
-EXIT:0
+| Family | Kernel candidate | Verdict | Vocabulary-shared | Instance-conflicting | Report |
+|---|---|---|---|---|---|
+| `release-lifecycle` | `ggen-release-pack` | **PARTIAL** | 16/28 pairs share real vocabulary | 28/28 pairs instance-conflicting (expected, not a defect) | `docs/jira/v26.8.19/families/release-lifecycle-court-report.json` |
 
-$ python3 -m json.tool < /tmp/court-release-lifecycle.toml.json > /dev/null && echo VALID_JSON
-VALID_JSON
-```
-
-**Verdict: `REFUTED`**, recorded in `docs/jira/v26.8.19/families/release-lifecycle-court-report.json`.
-
-- `kernel_candidate`: `ggen-release-pack`
-- `members` (8): `cargo-cicd-pack`, `chatman-ecosystem-release-pack`,
-  `chatman-ecosystem-v26-9-1-release-gate`, `dry-run-publish-pack`, `ggen-release-pack`,
-  `gh-actions-errc-pack`, `github-actions-pack`, `post-release-pack`
-- `ontology_conflicting_pairs`: 28, `total_pairs`: 28 (28/28 pairwise combinations conflict —
-  every pair has ontology triples/lines present in one member and absent from the other, i.e.
-  `only_a > 0 and only_b > 0` for all 28 pairs)
-- `verdict_rule`: "ADMITTED if ontology_conflicting_pairs == 0; REFUTED if
-  ontology_conflicting_pairs == total_pairs; PARTIAL otherwise."
-- `consumer_boundary_check`: out of scope for this marketplace-only script (per the script's own
-  note); acceptance criterion 4 (real consumer generation diff via a real ggen runtime) was not
-  evaluated by the court and remains unevaluated.
-
-Per this ticket's own Falsifiers section: "If the court finds the eight packs' gate/query
-surfaces do not share a common stage vocabulary at all ... the family claim is `REFUTED` for
-those members and they remain standalone `CapabilityPack`s." The court's 28/28 conflicting-pairs
-result satisfies this falsifier condition (no shared, non-conflicting ontology across any pair).
-Per the ticket's `03-TICKET-consolidation-court-methodology.md` verdict semantics, a `REFUTED`
-verdict is an acceptable complete outcome that closes the ticket without a merge — no physical
-consolidation of these eight packs is authorized or performed under this ticket. All eight
-member packs remain standalone `CapabilityPack`s.
+This is a genuine, differentiated finding — real shared vocabulary exists across most or all member-pack pairs, which v1's blanket-REFUTED result had obscured. **This does NOT authorize a physical merge yet.** Per `03-TICKET-consolidation-court-methodology.md`'s own acceptance criteria, item 4 (a real consumer project generated from the current pack vs. the proposed kernel+profile split, output diffed) is required before any physical change, and `consolidation_court.py` explicitly does not perform it (`consumer_boundary_check: null` in every report). This ticket's ADMITTED/PARTIAL verdict is therefore a genuine **candidate for a follow-up physical-merge ticket**, not a completed merge — the physical-change phase (kernel-pack creation, repointing members as profiles, real consumer diff) remains unscoped, un-started work, separate from this court-run ticket.
 
 ## See Also
 

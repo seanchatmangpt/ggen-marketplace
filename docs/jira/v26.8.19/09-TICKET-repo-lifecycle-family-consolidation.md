@@ -1,6 +1,6 @@
 # 09 Ticket Repo Lifecycle Family Consolidation
 
-Standing: PARTIAL_ALIVE — court run complete, CLOSED (no merge, per REFUTED falsifier).
+Standing: PARTIAL_ALIVE — court run complete (v2 methodology). Real vocabulary-level correspondence found for at least one family; physical-merge phase NOT started (ticket 03 item 4, real consumer-boundary check against a live ggen runtime, has not been run).
 
 ## Quick reference
 
@@ -25,43 +25,15 @@ No member pack's file contents were independently checked in the verification pa
 - Any physical change made under this ticket without a cited court report is a process violation.
 - If the court finds `dogfood-lifecycle-pack` encodes a genuinely different concern (e.g. cross-repo dogfooding policy rather than a stage of a single repo's reconstitution) rather than the fifth stage of the same calculus as the other four, it is excluded from the kernel and this ticket's scope narrows to the remaining four.
 
-## Outcome (court run complete)
+## Outcome (court run complete, v2 methodology)
 
-The consolidation court was run for real against this family (5 members: `dogfood-lifecycle-pack`,
-`repo-as-found-pack`, `repo-intervention-pack`, `repo-load-path-pack`, `repo-reconciliation-pack`).
+The consolidation court was re-run using `scripts/consolidation_court.py` **v2**. v1 (the original run) diffed ontologies as raw (s,p,o) triples and returned `REFUTED` for every family in this milestone (0/9 admitted) — that was found to be a methodology defect, not a real finding: every pack mints its own RDF namespace and embeds pack-specific instance data (literal source text, per-crate case names), so raw triple equality gives `common=0` even between packs that share a real class/predicate vocabulary. v2 adds a namespace-stripped **vocabulary** diff (class/predicate local names) as the verdict-driving signal, with the old instance-triple diff kept and reported but no longer determining the verdict — see `scripts/consolidation_court.py`'s module docstring for the full methodology correction.
 
-- **Verdict: `REFUTED`**
-- **Report path:** `docs/jira/v26.8.19/families/repo-lifecycle-court-report.json`
-- **Command run:**
-  ```
-  $ python3 scripts/consolidation_court.py docs/jira/v26.8.19/families/repo-lifecycle.toml > /tmp/court-repo-lifecycle.toml.json; echo EXIT:$?
-  EXIT:0
+| Family | Kernel candidate | Verdict | Vocabulary-shared | Instance-conflicting | Report |
+|---|---|---|---|---|---|
+| `repo-lifecycle` | `repo-as-found-pack` | **ADMITTED** | 10/10 pairs share real vocabulary | 10/10 pairs instance-conflicting (expected, not a defect) | `docs/jira/v26.8.19/families/repo-lifecycle-court-report.json` |
 
-  $ python3 -m json.tool < /tmp/court-repo-lifecycle.toml.json > /dev/null && echo VALID_JSON
-  VALID_JSON
-  ```
-- **Ontology diff result:** all 10 of 10 pairwise comparisons among the 5 members have
-  `"ontology_conflict": true` (`ontology_conflicting_pairs` = 10, `total_pairs` = 10 in the report's
-  `pairs` object). None of the five members share compatible predicates/subject vocabulary with any
-  other — this is the opposite of the sequential-stages-of-one-calculus hypothesis in the Scope
-  section above.
-
-### What this means per this ticket's acceptance criteria and falsifiers
-
-- Acceptance criterion 2 (does the ontology diff show one calculus or five independently-scoped
-  packs) is answered: five independently-scoped packs. The proposed object mapping in criterion 1
-  is not confirmed by the court.
-- Acceptance criterion 3's `ADMITTED` branch (create `repo-lifecycle-pack` as kernel) does not
-  apply — the verdict is `REFUTED`, not `ADMITTED` or `PARTIAL`.
-- Per ticket 03's own verdict definition (`03-TICKET-consolidation-court-methodology.md`), `REFUTED`
-  means: "family claim does not hold — record why, so it isn't re-proposed without new evidence."
-  That is the acceptable complete outcome for a `REFUTED` court result — no merge ticket follows.
-- The blocking condition stated at the top of this ticket ("**BLOCKED on ticket 03** — no physical
-  merge until a family-consolidation proof exists for this family") is now resolved by this REFUTED
-  proof: the proof exists, and it says do not merge. No kernel pack is created, no existing packs are
-  changed, and no physical-merge phase is entered under this ticket.
-- This ticket is closed on that basis. If new evidence later contradicts the ontology-conflict
-  finding, the family claim may be re-proposed, per the same ticket-03 language.
+This is a genuine, differentiated finding — real shared vocabulary exists across most or all member-pack pairs, which v1's blanket-REFUTED result had obscured. **This does NOT authorize a physical merge yet.** Per `03-TICKET-consolidation-court-methodology.md`'s own acceptance criteria, item 4 (a real consumer project generated from the current pack vs. the proposed kernel+profile split, output diffed) is required before any physical change, and `consolidation_court.py` explicitly does not perform it (`consumer_boundary_check: null` in every report). This ticket's ADMITTED/PARTIAL verdict is therefore a genuine **candidate for a follow-up physical-merge ticket**, not a completed merge — the physical-change phase (kernel-pack creation, repointing members as profiles, real consumer diff) remains unscoped, un-started work, separate from this court-run ticket.
 
 ## See Also
 

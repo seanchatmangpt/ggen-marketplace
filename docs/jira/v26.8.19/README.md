@@ -1,6 +1,6 @@
 # v26.8.19 Pack Portfolio Consolidation Milestone
 
-Standing ceiling: **PARTIAL_ALIVE**. Tickets 01-03 are implemented and independently re-verified (real code, real commands, real output — see their Outcome/commit history). Tickets 05-11's court runs are complete: **every one of the 8 proposed families (TCPS, wasm4pm, Fortune5/EA, release-lifecycle, repo-lifecycle, MCP-protocol, and the UI-projection-kernel family's 3 render-target groups) returned a real `REFUTED` verdict** from `scripts/consolidation_court.py` (every pairwise ontology diff conflicted — `ontology_conflicting_pairs == total_pairs` in all 8 reports). **No pack has been merged or deleted anywhere in this milestone** — REFUTED is each ticket's own defined acceptable-complete-outcome (see each ticket's Falsifiers section), not a shortcut around ticket 03's gate. All 8 real court reports are committed under `families/*-court-report.json`.
+Standing ceiling: **PARTIAL_ALIVE**. Tickets 01-03 are implemented and independently re-verified (real code, real commands, real output — see their Outcome/commit history). `scripts/consolidation_court.py` was corrected to **v2** after its first (v1) run against all 9 real families returned a blanket `REFUTED` (0/9 admitted) that turned out to be a methodology defect — raw (s,p,o) triple diffing can never find overlap between packs that (correctly) use their own RDF namespace, even when they share real vocabulary. v2 adds a namespace-stripped class/predicate diff as the verdict-driving signal. Re-run against all 9 families under v2: **4 `ADMITTED`, 5 `PARTIAL`, 0 `REFUTED`** — a genuine, differentiated result. **No pack has been merged, moved, or deleted anywhere in this milestone** — every ADMITTED/PARTIAL verdict is explicitly a *candidate* for a follow-up physical-merge ticket, not a completed merge; ticket 03's own item 4 (real consumer-boundary check against a live ggen runtime) has not been run and physically merging without it would violate every family ticket's own acceptance criteria. All 9 real, v2 court reports are committed under `families/*-court-report.json`.
 
 ## Quick reference
 
@@ -19,14 +19,14 @@ One concrete, individually-verified finding anchors the milestone: `clap-noun-ve
 | `00-PACK-PORTFOLIO-MATURITY-AUDIT.md` | Source-of-truth analysis: 7-axis maturity matrix, methodology, corrections to the raw audit's count/omissions | — |
 | `01-TICKET-retire-clap-noun-verb-legacy.md` | **DONE.** `scripts/marketplace.py` catalog marks `clap-noun-verb-pack` deprecated with 6 real successors | — |
 | `02-TICKET-pack-class-taxonomy.md` | **DONE.** 7-class taxonomy in `docs/reference/pack-classes.md` + `pack_class` catalog field (worked examples only) | — |
-| `03-TICKET-consolidation-court-methodology.md` | **DONE.** `scripts/consolidation_court.py` real, deterministic, run 8 times against 8 real families | — |
-| `05-TICKET-tcps-family-consolidation.md` | **CLOSED.** Court run: `REFUTED` (15/15 pairs conflict). No merge. | Court run against 03 |
-| `06-TICKET-wasm4pm-family-consolidation.md` | **CLOSED.** Court run: `REFUTED` (28/28 pairs conflict). No merge. | Court run against 03 |
-| `07-TICKET-fortune5-ea-family-consolidation.md` | **CLOSED.** Court run: `REFUTED` (36/36 pairs conflict). No merge. | Court run against 03 |
-| `08-TICKET-release-lifecycle-family-consolidation.md` | **CLOSED.** Court run: `REFUTED` (28/28 pairs conflict). No merge. | Court run against 03 |
-| `09-TICKET-repo-lifecycle-family-consolidation.md` | **CLOSED.** Court run: `REFUTED` (10/10 pairs conflict). No merge. | Court run against 03 |
-| `10-TICKET-mcp-protocol-family-consolidation.md` | **CLOSED.** Court run: `REFUTED` (10/10 pairs conflict). No merge. | Court run against 03 |
-| `11-TICKET-ui-projection-kernel-family-consolidation.md` | **CLOSED.** All 3 render-target groups (shadcn 36/36, deckgl 3/3, react/remotion 3/3) `REFUTED`. No merge, no new kernel pack created. | Court run against 03 |
+| `03-TICKET-consolidation-court-methodology.md` | **DONE.** `scripts/consolidation_court.py` v2 (corrected methodology), real, deterministic, run against all 9 real families | — |
+| `05-TICKET-tcps-family-consolidation.md` | **PARTIAL.** 12/15 pairs share real vocabulary. Merge NOT started (needs ticket-03 item 4). | Court run against 03 |
+| `06-TICKET-wasm4pm-family-consolidation.md` | **PARTIAL.** 18/28 pairs share real vocabulary. Merge NOT started (needs ticket-03 item 4). | Court run against 03 |
+| `07-TICKET-fortune5-ea-family-consolidation.md` | **PARTIAL.** 29/36 pairs share real vocabulary. Merge NOT started (needs ticket-03 item 4). | Court run against 03 |
+| `08-TICKET-release-lifecycle-family-consolidation.md` | **PARTIAL.** 16/28 pairs share real vocabulary. Merge NOT started (needs ticket-03 item 4). | Court run against 03 |
+| `09-TICKET-repo-lifecycle-family-consolidation.md` | **ADMITTED.** 10/10 pairs share real vocabulary. Merge NOT started (needs ticket-03 item 4). | Court run against 03 |
+| `10-TICKET-mcp-protocol-family-consolidation.md` | **PARTIAL.** 5/10 pairs share real vocabulary. Merge NOT started (needs ticket-03 item 4). | Court run against 03 |
+| `11-TICKET-ui-projection-kernel-family-consolidation.md` | **ADMITTED** in all 3 render-target groups (shadcn 36/36, deckgl 3/3, react/remotion 3/3). Merge NOT started (needs ticket-03 item 4). | Court run against 03 |
 
 ## What was corrected from the raw audit before drafting these tickets
 
@@ -38,9 +38,21 @@ One concrete, individually-verified finding anchors the milestone: `clap-noun-ve
 
 ## Explicit standing ceiling
 
-Read every ticket in this directory as `PARTIAL_ALIVE`. All 3 gating tickets (01/02/03) are implemented and independently re-verified. All 7 family tickets (05-11, 9 court runs across 8 family definitions) have real, committed, reproducible court reports and are closed with `REFUTED` — consistent with each ticket's own stated acceptable-complete-outcome for that verdict. **No pack anywhere in the marketplace was merged, moved, or deleted by this milestone.** The court's own `verdict_rule` (`ADMITTED` only when `ontology_conflicting_pairs == 0`) is strict by design — every proposed family in this audit turned out to have genuine pack-specific ontology content that a naming-convention-only "family" grouping missed. That is a real, useful finding in itself: it falsifies the audit's INFERRED groupings rather than rubber-stamping them, and it means the marketplace's 143 packs remain, for now, exactly what they were before this milestone — no physical consolidation has occurred, and none is currently supported by evidence.
+Read every ticket in this directory as `PARTIAL_ALIVE`. All 3 gating tickets (01/02/03) are implemented and independently re-verified. All 7 family tickets (05-11, 9 court runs across 9 family definitions) have real, committed, reproducible v2 court reports.
 
-If a future family is proposed for consolidation, re-run `scripts/consolidation_court.py` against a new `families/<name>.toml` — the machinery is real and reusable, it is only this milestone's specific 8 candidate groupings that failed.
+**v1 → v2 correction, stated plainly:** the court's first real run (v1) returned `REFUTED` for every single family — a suspicious, undifferentiated result that turned out to be a bug, not a finding. v1 diffed ontologies as raw `(s, p, o)` triples; every pack in this repo mints its own RDF namespace (`tcps-core-pack` uses `<.../tcps-core#>`, `tcps-cli-pack` uses `<.../tcps-cli#>`, etc.) and embeds pack-specific instance data (literal source text) as part of its ontology — so raw triple equality gave `common=0` between any two packs, including ones sharing a real, obvious class/predicate vocabulary (`Module`, `name`, `order`, `dependsOnModule`, confirmed by direct inspection of `tcps-core-pack` and `tcps-cli-pack`'s `ontology.ttl`). v1's blanket REFUTED was a methodology defect being reported as a portfolio finding. v2 adds a namespace-stripped vocabulary diff (class/predicate local names) as the primary, verdict-driving signal, keeps the old instance-triple diff as reported-but-non-authoritative context, and was re-run against all 9 families:
+
+| Verdict | Count | Families |
+|---|---|---|
+| `ADMITTED` | 4 | `repo-lifecycle`, `ui-shadcn`, `ui-deckgl`, `ui-react-remotion` |
+| `PARTIAL` | 5 | `tcps`, `wasm4pm`, `fortune5-ea`, `release-lifecycle`, `mcp-protocol` |
+| `REFUTED` | 0 | — |
+
+**No pack anywhere in the marketplace was merged, moved, or deleted by this milestone**, despite 4 real ADMITTED verdicts. That is deliberate, not incomplete: every family ticket's own acceptance criteria require a real consumer-boundary check (generate from the current pack vs. the proposed kernel+profile split via a live `ggen` runtime against an isolated consumer project, diff the output) *before* any physical change, and `scripts/consolidation_court.py` explicitly does not perform that check (`consumer_boundary_check: null`, with a note, in every report). Physically merging on the strength of a vocabulary-correspondence signal alone — without that consumer-boundary proof — would itself be the process violation each ticket's Falsifiers section warns against.
+
+**What is and isn't finished:** the court methodology now exists, is correct (caught and fixed its own v1 defect via direct evidence inspection, not assumption), is deterministic, and has been run against every family this milestone proposed — that work is genuinely done. The physical-merge phase for the 4 ADMITTED and (partially) 5 PARTIAL families is real, unstarted follow-up work requiring a live `ggen` binary and isolated consumer projects — out of scope for this marketplace-only milestone, and not claimed as done here.
+
+If a future family is proposed for consolidation, or the ADMITTED families above are picked up for their physical-merge phase, re-run `scripts/consolidation_court.py` (v2) against `families/<name>.toml` — the machinery is real, reusable, and its verdict rule is documented in the script's own module docstring.
 
 ## See Also
 

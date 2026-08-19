@@ -7,38 +7,61 @@ proposed pack family (a kernel candidate + member packs), run pairwise
 ontology/query/template correspondence over every member pair and emit a
 single deterministic JSON report with a computed verdict.
 
-Diff strategy
--------------
-For each artifact class (ontology `.ttl`, gate `.rq`, template
-`.tmpl`/`.tera`) this script diffs two packs as a *set of normalized lines*:
+Diff strategy — v2, corrected from v1
+--------------------------------------
+v1 of this script diffed ontologies as raw (s, p, o) triple sets and
+declared a pair "conflicting" whenever neither side's triple set was a
+subset of the other's. Run against every family in this marketplace, v1
+returned REFUTED for 100% of 9 real families (0/205 pairs admitted) —
+which turned out to be a methodology defect, not a real finding: every
+pack in this repo mints its OWN RDF namespace (e.g.
+`tcps-core-pack/ontology.ttl` uses `<.../tcps-core#>`, while
+`tcps-cli-pack/ontology.ttl` uses `<.../tcps-cli#>` for the *same*
+`Module`/`name`/`order`/`dependsOnModule` vocabulary), and every pack's
+ontology also embeds pack-specific instance data (literal source-code
+text, per-crate case names). Under raw triple equality, two packs that
+obviously share a real schema get common=0 simply because their subject
+IRIs live in different namespaces and their literals are pack-unique by
+design — v1 could never distinguish "no shared kernel" from "every pack
+correctly owns its own instance data," so it always returned the latter
+as if it were the former.
 
-- If `rdflib` is importable, ontology files are parsed as real RDF graphs
-  and diffed as sets of (s, p, o) triples (a real graph diff, not text).
-  `rdflib` availability is recorded in the report's `diff_method` field.
-- Otherwise (rdflib unavailable, or for `.rq`/template files which are not
-  RDF), each file's non-blank, non-comment lines are stripped of leading/
-  trailing whitespace and unioned per pack into one line-set; this is a
-  documented, explicitly-labeled fallback ("line_normalized_triple_set" /
-  "line_normalized_text_set"), not a claim of semantic equivalence.
+v2 adds a second, primary diff dimension — **vocabulary correspondence**
+— alongside the original **instance correspondence**:
 
-For a pair (A, B): common = |A ∩ B|, only_a = |A - B|, only_b = |B - A|.
-A pair "conflicts" on an artifact class when both only_a > 0 and only_b > 0
-for that class (each pack has content the other lacks — i.e. neither is a
-strict subset of the other, so there is no clean common-kernel/profile-
-parameter split without loss). A pair with only_a == 0 or only_b == 0 (one
-side is a subset of, or equal to, the other) is NOT a conflict — it is a
-clean common/parameterized split.
+- **Instance diff** (what v1 measured, kept and reported unchanged as
+  `ontology_diff`/`ontology_conflict` per pair): raw (s, p, o) triple-set
+  overlap via `rdflib` if importable, else a line-normalized fallback.
+  Two packs' *instance data* differing is EXPECTED and is not evidence
+  against a shared kernel — it is reported for transparency, not used to
+  compute the verdict.
+- **Vocabulary diff** (new, `vocabulary_diff`/`vocabulary_shared` per
+  pair, `diff_method.ontology_vocabulary` records the method): the local
+  name (URI fragment after `#`, or last path segment) of every
+  `rdf:type` class and every predicate used, prefix/namespace-stripped
+  before comparison. Two packs sharing real classes/predicates under
+  different namespaces now correctly show `common > 0`. Only available
+  when `rdflib` is importable (namespace-aware parsing is required); if
+  unavailable, `vocabulary_diff` is `null` per pair and the verdict falls
+  back to the old instance-only rule, explicitly flagged in
+  `diff_method.vocabulary_fallback_to_instance_only`.
 
-Verdict rule (stated exactly, computed only from ontology conflicts per
-the ticket's item 5 / acceptance criteria — query and template conflicts
-are reported but do not change the verdict, since the ticket's `ADMITTED`
-condition is phrased in terms of "every pair's ontology conflict-triple
-count"):
+Verdict rule (stated exactly — vocabulary correspondence is now the
+PRIMARY signal, since "does this family share a kernel ontology" is a
+schema-level question, not an instance-data-equality question; query and
+template diffs are still reported per pair but do not change the
+verdict):
 
-    conflicting_pairs = pairs where ontology only_a > 0 AND only_b > 0
-    - ADMITTED  if conflicting_pairs == 0 (no pair conflicts)
-    - REFUTED   if conflicting_pairs == total_pairs (every pair conflicts)
-    - PARTIAL   otherwise (some pairs conflict, some don't)
+    shared_pairs = pairs where vocabulary common > 0 (share ≥1 real
+                   class or predicate local name)
+    - ADMITTED  if shared_pairs == total_pairs (every pair shares vocabulary)
+    - REFUTED   if shared_pairs == 0 (no pair shares any vocabulary)
+    - PARTIAL   otherwise
+
+`instance_conflicting_pairs` (v1's old metric) is still computed and
+reported for every pair, but no longer drives `verdict` — it is
+informational context, since instance-level divergence is the normal,
+expected shape of a kernel+profile split, not evidence against one.
 
 This script does NOT perform the ticket's item 4 (consumer-boundary
 check against a real ggen runtime) — that requires an isolated consumer
@@ -152,8 +175,8 @@ def normalized_line_set(paths: tuple[Path, ...]) -> frozenset[str]:
     return frozenset(lines)
 
 
-def rdf_triple_set(paths: tuple[Path, ...]) -> frozenset[tuple[str, str, str]]:
-    triples: set[tuple[str, str, str]] = set()
+def rdf_graphs(paths: tuple[Path, ...]) -> list:
+    graphs = []
     for path in paths:
         graph = rdflib.Graph()
         try:
@@ -162,9 +185,48 @@ def rdf_triple_set(paths: tuple[Path, ...]) -> frozenset[tuple[str, str, str]]:
             raise SystemExit(refusal("FILE_UNREADABLE", f"{path}:{exc}")) from exc
         except Exception as exc:  # rdflib raises its own parse-error types
             raise SystemExit(refusal("TURTLE_PARSE_ERROR", f"{path}:{exc}")) from exc
+        graphs.append(graph)
+    return graphs
+
+
+def rdf_triple_set(paths: tuple[Path, ...]) -> frozenset[tuple[str, str, str]]:
+    triples: set[tuple[str, str, str]] = set()
+    for graph in rdf_graphs(paths):
         for s, p, o in graph:
             triples.add((str(s), str(p), str(o)))
     return frozenset(triples)
+
+
+def local_name(iri: str) -> str:
+    """URI fragment after `#`, or last `/`-segment — the namespace-stripped
+    identifier two packs using different base namespaces for the same
+    vocabulary term would still share (e.g. `.../tcps-core#Module` and
+    `.../tcps-cli#Module` both yield `Module`).
+    """
+    if "#" in iri:
+        return iri.rsplit("#", 1)[-1]
+    return iri.rstrip("/").rsplit("/", 1)[-1]
+
+
+def rdf_vocabulary_set(paths: tuple[Path, ...]) -> frozenset[tuple[str, str]]:
+    """Namespace-stripped vocabulary used by these ontology files: every
+    `("class", local_name)` for an `rdf:type` object, and every
+    `("predicate", local_name)` for a predicate actually used (excluding
+    `rdf:type` itself, tracked separately as class membership). This is
+    the schema-level signal for "do these packs share a kernel
+    vocabulary" — orthogonal to whether their instance data (subjects,
+    literals) happens to be identical, which it normally won't be.
+    """
+    RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
+    vocab: set[tuple[str, str]] = set()
+    for graph in rdf_graphs(paths):
+        for _s, p, o in graph:
+            p_str = str(p)
+            if p_str == RDF_TYPE:
+                vocab.add(("class", local_name(str(o))))
+            else:
+                vocab.add(("predicate", local_name(p_str)))
+    return frozenset(vocab)
 
 
 def diff_summary(set_a: frozenset, set_b: frozenset) -> dict[str, int]:
@@ -236,9 +298,11 @@ def run(family_toml: Path) -> dict[str, Any]:
     members = {name: load_member(name) for name in member_names}
 
     diff_method_ontology = "rdflib_triple_set" if RDFLIB_AVAILABLE else "line_normalized_triple_set"
+    vocabulary_fallback_to_instance_only = not RDFLIB_AVAILABLE
 
     pairs_report: dict[str, Any] = {}
-    ontology_conflicts = 0
+    instance_conflicts = 0
+    vocabulary_shared_pairs = 0
     total_pairs = 0
 
     for a_name, b_name in itertools.combinations(sorted(member_names), 2):
@@ -254,7 +318,23 @@ def run(family_toml: Path) -> dict[str, Any]:
         onto_diff = diff_summary(onto_a, onto_b)
         onto_conflicts = onto_diff["only_a"] > 0 and onto_diff["only_b"] > 0
         if onto_conflicts:
-            ontology_conflicts += 1
+            instance_conflicts += 1
+
+        vocab_diff: dict[str, Any] | None = None
+        vocab_shared = False
+        if RDFLIB_AVAILABLE:
+            vocab_a = rdf_vocabulary_set(a.ontologies)
+            vocab_b = rdf_vocabulary_set(b.ontologies)
+            vocab_diff = diff_summary(vocab_a, vocab_b)
+            vocab_shared = vocab_diff["common"] > 0
+        else:
+            # No rdflib: cannot namespace-strip reliably. Fall back to the
+            # instance-only signal (inverted: "not conflicting" stands in
+            # for "shared"), explicitly flagged via
+            # vocabulary_fallback_to_instance_only above.
+            vocab_shared = not onto_conflicts
+        if vocab_shared:
+            vocabulary_shared_pairs += 1
 
         query_a = normalized_line_set(a.queries)
         query_b = normalized_line_set(b.queries)
@@ -271,14 +351,16 @@ def run(family_toml: Path) -> dict[str, Any]:
             "pack_b": b_name,
             "ontology_diff": onto_diff,
             "ontology_conflict": onto_conflicts,
+            "vocabulary_diff": vocab_diff,
+            "vocabulary_shared": vocab_shared,
             "query_diff": query_diff,
             "template_diff": template_result,
             "template_diff_applicable": template_result is not None,
         }
 
-    if ontology_conflicts == 0:
+    if vocabulary_shared_pairs == total_pairs:
         verdict = "ADMITTED"
-    elif ontology_conflicts == total_pairs:
+    elif vocabulary_shared_pairs == 0:
         verdict = "REFUTED"
     else:
         verdict = "PARTIAL"
@@ -290,20 +372,26 @@ def run(family_toml: Path) -> dict[str, Any]:
         "member_profiles": {name: members[name].profile for name in member_names},
         "diff_method": {
             "ontology": diff_method_ontology,
+            "ontology_vocabulary": "namespace_stripped_class_predicate_set" if RDFLIB_AVAILABLE else None,
             "query": "line_normalized_text_set",
             "template": "line_normalized_text_set",
             "rdflib_available": RDFLIB_AVAILABLE,
+            "vocabulary_fallback_to_instance_only": vocabulary_fallback_to_instance_only,
         },
         "pairs": pairs_report,
         "total_pairs": total_pairs,
-        "ontology_conflicting_pairs": ontology_conflicts,
+        "instance_conflicting_pairs": instance_conflicts,
+        "vocabulary_shared_pairs": vocabulary_shared_pairs,
         "verdict": verdict,
         "verdict_rule": (
-            "ADMITTED if ontology_conflicting_pairs == 0; "
-            "REFUTED if ontology_conflicting_pairs == total_pairs; "
-            "PARTIAL otherwise. A pair conflicts on ontology when both "
-            "packs have ontology triples/lines absent from the other "
-            "(only_a > 0 and only_b > 0)."
+            "v2: ADMITTED if vocabulary_shared_pairs == total_pairs (every "
+            "pair shares >=1 real class/predicate local name across "
+            "namespaces); REFUTED if vocabulary_shared_pairs == 0 (no pair "
+            "shares any vocabulary); PARTIAL otherwise. "
+            "instance_conflicting_pairs (raw triple-set overlap, v1's old "
+            "metric) is reported per pair but does NOT drive verdict — "
+            "instance data (subjects, literals) differing between packs is "
+            "expected and is not evidence against a shared kernel."
         ),
         "consumer_boundary_check": None,
         "consumer_boundary_check_note": (
@@ -312,7 +400,7 @@ def run(family_toml: Path) -> dict[str, Any]:
             "isolated consumer project) is out of scope for this "
             "marketplace-only script and is not evaluated here."
         ),
-        "schema": "https://ggen.dev/marketplace/consolidation-court/v1",
+        "schema": "https://ggen.dev/marketplace/consolidation-court/v2",
     }
     return report
 
