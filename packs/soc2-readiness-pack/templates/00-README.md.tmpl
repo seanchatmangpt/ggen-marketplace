@@ -6,16 +6,26 @@ sparql:
     PREFIX skos:    <http://www.w3.org/2004/02/skos/core#>
     PREFIX prov:    <http://www.w3.org/ns/prov#>
     PREFIX dcterms: <http://purl.org/dc/terms/>
-    SELECT (COUNT(DISTINCT ?notation) AS ?totalCriteria) (COUNT(DISTINCT ?addressedNotation) AS ?addressedCount) (COUNT(DISTINCT ?testedNotation) AS ?testedCount) (COUNT(DISTINCT ?exceptionNotation) AS ?exceptionCount) WHERE {
-      ?concept skos:notation ?notation ; skos:broader ?tscCat .
-      ?tscCat skos:inScheme ?tscScheme .
-      ?tscScheme skos:notation "TSC-CATEGORIES" .
-      OPTIONAL {
-        ?record rdf:type prov:Entity ; dcterms:subject ?notation .
-        BIND(?notation AS ?addressedNotation)
-        OPTIONAL { ?record dcterms:type "TESTED" . BIND(?notation AS ?testedNotation) }
-        OPTIONAL { ?record dcterms:type "EXCEPTION" . BIND(?notation AS ?exceptionNotation) }
-      }
+    SELECT ?totalCriteria ?addressedCount ?testedCount ?exceptionCount WHERE {
+      { SELECT (COUNT(DISTINCT ?notation) AS ?totalCriteria) WHERE {
+          ?concept skos:notation ?notation ; skos:broader ?tscCat .
+          ?tscCat skos:inScheme ?tscScheme . ?tscScheme skos:notation "TSC-CATEGORIES" .
+      } }
+      { SELECT (COUNT(DISTINCT ?notation) AS ?addressedCount) WHERE {
+          ?concept skos:notation ?notation ; skos:broader ?tscCat .
+          ?tscCat skos:inScheme ?tscScheme . ?tscScheme skos:notation "TSC-CATEGORIES" .
+          ?record rdf:type prov:Entity ; dcterms:subject ?notation .
+      } }
+      { SELECT (COUNT(DISTINCT ?notation) AS ?testedCount) WHERE {
+          ?concept skos:notation ?notation ; skos:broader ?tscCat .
+          ?tscCat skos:inScheme ?tscScheme . ?tscScheme skos:notation "TSC-CATEGORIES" .
+          ?record rdf:type prov:Entity ; dcterms:subject ?notation ; dcterms:type "TESTED" .
+      } }
+      { SELECT (COUNT(DISTINCT ?notation) AS ?exceptionCount) WHERE {
+          ?concept skos:notation ?notation ; skos:broader ?tscCat .
+          ?tscCat skos:inScheme ?tscScheme . ?tscScheme skos:notation "TSC-CATEGORIES" .
+          ?record rdf:type prov:Entity ; dcterms:subject ?notation ; dcterms:type "EXCEPTION" .
+      } }
     }
   phaseTotals: |
     PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
