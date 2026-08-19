@@ -50,8 +50,20 @@ def compare_refs(
     *,
     warnings_as_errors: bool = False,
 ) -> tuple[audit.SubjectReport, audit.SubjectReport, tuple[audit.Finding, ...]]:
-    baseline = audit.audit_subject(baseline_ref, audit._git_ref_files(baseline_ref))
-    subject = audit.audit_subject(subject_ref, audit._git_ref_files(subject_ref))
+    """Compare two exact Git refs using the shared blob-deduplicated audit path.
+
+    The former implementation independently archived and rescanned the entire
+    repository for each ref. ``audit_git_refs`` preserves one exact SubjectReport
+    per ref while sharing immutable Git blobs and ``(path, blob)`` scans between
+    the baseline and subject, so the admission predicate is unchanged but the
+    cost is bounded by unique content rather than two full corpus passes.
+    """
+    reports = {
+        report.subject: report
+        for report in audit.audit_git_refs([baseline_ref, subject_ref])
+    }
+    baseline = reports[baseline_ref]
+    subject = reports[subject_ref]
     regressions = blocking_findings(
         baseline,
         subject,
