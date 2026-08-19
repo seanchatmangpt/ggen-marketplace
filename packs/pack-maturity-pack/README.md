@@ -1,53 +1,102 @@
 # pack-maturity-pack
 
-Generates the cross-cutting proof artifacts that any ggen pack's consumer can compose in to help
-close two real, machine-checkable dimensions of the L5 promotion program's 12-capability bar
-(`http://ggen.org/l5-promotion#`, defined in the `ggen` repository's own
-`.specify/pack-l5-promotion.ttl`):
+`pack-maturity-pack` supplies reusable mechanical evidence for Level-5 promotion while refusing to invent domain semantics.
 
-- **`l5p:cap03` (Deterministic regeneration) + `l5p:cap04` (Fixed-point convergence)** — a
-  generated test (`tests/pack_maturity_regeneration.rs`) that runs `ggen sync run` twice against
-  the real consumer and snapshots every output file's raw bytes before and after the second run,
-  asserting they're identical. This observes real filesystem state rather than trusting `ggen
-  sync run`'s own "written"/"skipped" self-report — some frontmatter write modes report
-  `"written"` on every run even when content didn't change, confirmed empirically, so the only
-  trustworthy signal is the actual bytes on disk.
-- **`l5p:cap09` (Generated receipts)** — a generated test (`tests/pack_maturity_receipt.rs`) that
-  runs a real sync, then `ggen receipt verify`, and asserts the chain is `valid`, `signed`, and
-  `signature_valid`.
+It currently generates three kinds of proof infrastructure:
 
-## What this does *not* do
+1. deterministic regeneration and fixed-point convergence (`l5p:cap03`, `l5p:cap04`);
+2. generated receipt verification (`l5p:cap09`);
+3. a Level-5 Diátaxis documentation contract covering Tutorials, How-to guides, Reference, and Explanation.
 
-Composing this pack does not, by itself, get a consumer to L5 or even L4 across the board — it
-closes 2 of 12 named capabilities, and only the mechanical ones. `l5p:cap01` (authoritative
-semantic source), `cap02` (complete generation surface), `cap05` (generated verification of
-domain behavior), `cap06` (generated negative witnesses), `cap07`/`cap08` (generated
-documentation/provenance), and `cap10`–`cap12` all require domain-specific ontology facts —
-what the subsystem actually *does* — that only the composing pack's own author can supply. A
-generic pack cannot manufacture domain semantics it doesn't have. Composing this pack is a
-floor, not a ceiling.
+The Diátaxis layer is not a claim that documentation alone makes a pack Level 5. It is a correspondence surface: the consuming pack must still supply and execute its own semantic source, domain behavior, positive and negative witnesses, consequential boundary, and runtime evidence.
+
+## Level-5 Diátaxis contract
+
+The generated documentation tree is:
+
+```text
+docs/level5/
+  tutorials/getting-started.md
+  how-to/operate-safely.md
+  reference/contract.md
+  explanation/architecture.md
+```
+
+Each quadrant has a distinct proof obligation.
+
+### Tutorials
+
+Tutorials are learning journeys. At Level 5 they must expose the real path from admitted source to generated consequence and verification. The generated tutorial therefore requires explicit sections for prerequisites, admitted inputs, executable path, verification, receipt/replay, falsifiers, and rollback.
+
+A tutorial is not ALIVE because commands are printed in Markdown. The composing consumer must bind the documented path to a real exact-subject execution court.
+
+### How-to guides
+
+How-to guides solve bounded operational goals. At Level 5 they must make consequence and authority explicit. The generated how-to requires goal, prerequisites, admitted inputs, procedure, expected consequence, verification, receipt/replay, falsifiers, rollback, and authority boundary.
+
+Any step that could reach consequential `DO` must identify the admitted authority path. Presentation, generated text, planner output, semantic derivation, or hooks have no ambient execution authority.
+
+### Reference
+
+Reference is normative and should be projected from canonical semantic sources wherever possible. The generated reference requires authoritative semantic source, ontology/classes/properties, generated surfaces, gates/refusals, configuration, commands, receipts/replay, authority, dependencies, compatibility, and maturity standing.
+
+Hand-maintaining a second copy of canonical facts is a drift risk. Prefer graph/query/ggen projection.
+
+### Explanation
+
+Explanation preserves the `why`: architecture, semantic authority, calculus, exclusions, Chesterton fences, falsifiers, extension points, authority model, receipt/replay model, and operationalization.
+
+The expected explanatory order is:
+
+```text
+Preserve -> Fence -> Calculus -> Exclusions -> Falsifiers -> Extensions -> Operationalization
+```
+
+## Typed documentation refusals
+
+The generated structural court uses typed refusal identifiers:
+
+- `L5-DOC-001`: missing Diátaxis quadrant;
+- `L5-DOC-002`: reference lacks semantic-authority declaration;
+- `L5-DOC-003`: tutorial lacks executable-path obligation;
+- `L5-DOC-004`: reference lacks generated-surface documentation;
+- `L5-DOC-005`: refusal/falsifier surface undocumented;
+- `L5-DOC-006`: consequential how-to lacks authority boundary;
+- `L5-DOC-007`: tutorial lacks receipt/replay obligation;
+- `L5-DOC-008`: reference lacks anti-duplication/canonical-source rule;
+- `L5-DOC-009`: composition/dependency behavior undocumented;
+- `L5-DOC-010`: explanation lacks exclusions/falsifiers/extensions.
+
+These are structural refusals. They do not replace domain execution.
+
+## What this closes
+
+The pack's observed mechanical coverage remains deliberately narrow:
+
+- `l5p:cap03` deterministic regeneration;
+- `l5p:cap04` fixed-point convergence;
+- `l5p:cap09` generated receipt verification.
+
+The Level-5 Diátaxis layer adds a machine-checkable documentation shape and explicit correspondence obligations, but it does not silently claim additional upstream `l5p:` capabilities unless those capabilities are defined and executed by the consumer.
 
 ## Usage
 
-Add to a consumer's `ggen.toml`:
+Compose the pack in the consumer's `ggen.toml`:
 
 ```toml
 [packs]
 pack-maturity-pack = { path = "../../packs/pack-maturity-pack" }
 ```
 
-No ontology facts of your own are required — both generated tests are static-content templates
-(no `sparql:` extraction), so they compose unchanged into any consumer regardless of domain.
-Requires `ggen` on `PATH` at test time (same requirement `chicago-tdd-tools-pack`'s `CliHarness`
-already has for the binary under test).
+Run normal generation and then execute the consumer's generated tests. A Level-5 promotion court should combine these mechanical checks with the consumer's domain-specific source correspondence, positive and negative witnesses, runtime behavior, authority boundary, receipt verification, and replay.
 
-Verified 2026-08-10 against a real composed consumer (real `ggen 26.8.6`, no mocks): both
-generated tests pass on a clean sync.
+## Standing rule
 
-A real negative-control experiment was also run: hand-editing a generated `force: true` file
-between two real syncs. The mutation was **silently overwritten** by the second sync — correct,
-intended `force: true` behavior, not a bug — so the regeneration test does *not* flag external
-hand-edits to `force: true` output, and shouldn't. Its actual, verified purpose is catching
-non-determinism in the generation pipeline itself (a stray timestamp, random ID, or unstable
-iteration order leaking into rendered output across two runs with unchanged inputs) — that's
-what "fixed-point convergence" (`l5p:cap04`) means, and it's what this test actually checks.
+A complete Level-5 documentation claim requires all four quadrants plus correspondence and execution evidence:
+
+```text
+DiataxisClosure = Tutorial ∧ HowTo ∧ Reference ∧ Explanation
+L5DocALIVE = DiataxisClosure ∧ Correspondence ∧ Execution ∧ Replay
+```
+
+If ontology, generated behavior, documentation, receipts, or replay diverge, promotion must fail closed rather than rounding documentation up to standing.
