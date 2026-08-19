@@ -1,0 +1,30 @@
+# Real ocel_accumulator image, built from this crate's own source (unlike
+# weaver-livecheck's Dockerfile.weaver, which fetches an upstream binary --
+# this binary is code this repo owns). nightly toolchain matches this
+# crate's stated build requirement (wasm4pm-compat's generic_const_exprs).
+FROM rustlang/rust:nightly-bookworm-slim AS build
+WORKDIR /w
+# Bring in the sibling path dependency (wasm4pm-compat) at the same
+# relative layout the crate's Cargo.toml expects
+# (../../../../wasm4pm-compat from generated/), and this pack's own
+# generated crate.
+COPY wasm4pm-compat /wasm4pm-compat
+COPY ggen-marketplace/packs/otel-weaver-ocel-pack/generated /w
+RUN cargo build --release --bin ocel_accumulator
+
+# wasm4pm-cli's `wpm` binary -- real subprocess target for GET /discovery
+# (`wpm mining discover --algo ocdfg`). Separate stage: its own workspace,
+# its own (stable-toolchain) Cargo.lock, no relation to wasm4pm-compat's
+# nightly-only generic_const_exprs requirement above.
+FROM rustlang/rust:nightly-bookworm-slim AS wpmbuild
+WORKDIR /wasm4pm
+COPY wasm4pm /wasm4pm
+RUN cargo build --release --bin wpm -p wasm4pm-cli
+
+FROM debian:bookworm-slim
+RUN groupadd -g 65532 nonroot && useradd -u 65532 -g 65532 -M nonroot
+COPY --from=build /w/target/release/ocel_accumulator /usr/local/bin/ocel_accumulator
+COPY --from=wpmbuild /wasm4pm/target/release/wpm /usr/local/bin/wpm
+ENV WPM_BIN=/usr/local/bin/wpm
+USER 65532:65532
+ENTRYPOINT ["/usr/local/bin/ocel_accumulator"]
