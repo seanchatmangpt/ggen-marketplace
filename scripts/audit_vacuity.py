@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """Deterministic, read-only audit for stub and vacuous repository implementations.
 
-The scanner can inspect either the current filesystem or an immutable Git ref.
-For Git refs it uses ``git archive`` so every tracked file is inspected without
-checking out or executing the subject.
+The scanner can inspect either the current filesystem or immutable Git refs.
+Single-ref scans use ``git archive``. Exhaustive remote-branch scans preserve
+branch-by-branch semantics while exploiting Git content identity: branch trees
+are inventoried independently, but each unique blob is read once and each
+``(path, blob)`` pair is scanned once before findings are re-bound to every
+branch that contains it. This turns corpus cost from roughly
+``branches × repository`` into ``branch tree indexes + unique content`` without
+weakening the audited subject set.
 """
 from __future__ import annotations
 
@@ -14,7 +19,7 @@ import json
 import re
 import subprocess
 import tarfile
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path, PurePosixPath
 from typing import Iterable, Iterator
 
@@ -60,6 +65,13 @@ class SubjectReport:
     total_files: int
     text_files: int
     source_files: int
+    findings: tuple[Finding, ...]
+
+
+@dataclass(frozen=True)
+class CachedScan:
+    text_file: bool
+    source_file: bool
     findings: tuple[Finding, ...]
 
 
@@ -307,6 +319,115 @@ def _remote_refs() -> list[str]:
     )
 
 
+def _git_tree_entries(ref: str) -> tuple[tuple[str, str], ...]:
+    """Return regular archived-file equivalents as ``(path, blob_sha)``."""
+    proc = subprocess.run(
+        ["git", "ls-tree", "-r", "-z", "--full-tree", ref],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if proc.returncode:
+        detail = proc.stderr.decode("utf-8", "replace").strip()
+        raise SystemExit(f"REFUSED:VACUITY_AUDIT_GIT_TREE:{ref}:{detail}")
+    entries: list[tuple[str, str]] = []
+    for raw in proc.stdout.split(b"\0"):
+        if not raw:
+            continue
+        try:
+            meta, path_bytes = raw.split(b"\t", 1)
+            mode, object_type, sha = meta.decode("ascii").split(" ", 2)
+            path = path_bytes.decode("utf-8")
+        except (ValueError, UnicodeDecodeError) as exc:
+            raise SystemExit(f"REFUSED:VACUITY_AUDIT_GIT_TREE_ENTRY:{ref}:{exc}") from exc
+        # git archive's tar member loop historically inspected only regular
+        # files; preserve that exact subject surface (exclude symlinks/submodules).
+        if object_type == "blob" and mode in {"100644", "100755"}:
+            entries.append((path, sha))
+    entries.sort(key=lambda item: item[0])
+    return tuple(entries)
+
+
+def _git_blobs(shas: Iterable[str]) -> dict[str, bytes]:
+    """Read every requested Git blob in one deterministic ``cat-file`` batch."""
+    ordered = sorted(set(shas))
+    if not ordered:
+        return {}
+    proc = subprocess.Popen(
+        ["git", "cat-file", "--batch"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert proc.stdin is not None and proc.stdout is not None
+    proc.stdin.write(("\n".join(ordered) + "\n").encode("ascii"))
+    proc.stdin.close()
+    blobs: dict[str, bytes] = {}
+    for expected in ordered:
+        header = proc.stdout.readline()
+        if not header:
+            raise SystemExit(f"REFUSED:VACUITY_AUDIT_CAT_FILE_EOF:{expected}")
+        parts = header.decode("ascii", "replace").strip().split()
+        if len(parts) != 3 or parts[0] != expected or parts[1] != "blob":
+            raise SystemExit(
+                f"REFUSED:VACUITY_AUDIT_CAT_FILE_HEADER:{expected}:{header.decode('ascii', 'replace').strip()}"
+            )
+        size = int(parts[2])
+        data = proc.stdout.read(size)
+        separator = proc.stdout.read(1)
+        if len(data) != size or separator != b"\n":
+            raise SystemExit(f"REFUSED:VACUITY_AUDIT_CAT_FILE_TRUNCATED:{expected}")
+        blobs[expected] = data
+    stderr = proc.stderr.read() if proc.stderr is not None else b""
+    returncode = proc.wait()
+    if returncode:
+        raise SystemExit(
+            f"REFUSED:VACUITY_AUDIT_CAT_FILE:{returncode}:{stderr.decode('utf-8', 'replace').strip()}"
+        )
+    return blobs
+
+
+def _cached_scan(path: str, data: bytes) -> CachedScan:
+    text_file = False
+    if b"\x00" not in data:
+        try:
+            data.decode("utf-8")
+        except UnicodeDecodeError:
+            pass
+        else:
+            text_file = True
+    findings = tuple(scan_content("__cached__", path, data))
+    return CachedScan(text_file, _is_source(path), findings)
+
+
+def audit_git_refs(refs: Iterable[str]) -> list[SubjectReport]:
+    """Audit all refs exactly while deduplicating immutable Git content work."""
+    ordered_refs = sorted(set(refs))
+    trees = {ref: _git_tree_entries(ref) for ref in ordered_refs}
+    blobs = _git_blobs(sha for entries in trees.values() for _, sha in entries)
+
+    scan_cache: dict[tuple[str, str], CachedScan] = {}
+    reports: list[SubjectReport] = []
+    for ref in ordered_refs:
+        findings: list[Finding] = []
+        text_files = source_files = 0
+        entries = trees[ref]
+        for path, sha in entries:
+            key = (path, sha)
+            scan = scan_cache.get(key)
+            if scan is None:
+                scan = _cached_scan(path, blobs[sha])
+                scan_cache[key] = scan
+            text_files += int(scan.text_file)
+            source_files += int(scan.source_file)
+            findings.extend(replace(finding, subject=ref) for finding in scan.findings)
+        findings.sort(key=lambda f: (f.path, f.line, f.rule, f.detail))
+        reports.append(
+            SubjectReport(ref, len(entries), text_files, source_files, tuple(findings))
+        )
+    return reports
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=Path("."))
@@ -317,10 +438,16 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     refs = list(args.git_ref)
+    remote_refs: list[str] = []
     if args.all_remote_branches:
-        refs.extend(ref for ref in _remote_refs() if ref not in refs)
+        remote_refs = _remote_refs()
+        refs.extend(ref for ref in remote_refs if ref not in refs)
 
-    if refs:
+    if refs and args.all_remote_branches:
+        # The optimized multi-ref path is semantically equivalent to auditing
+        # every immutable ref independently; it only deduplicates content work.
+        reports = audit_git_refs(refs)
+    elif refs:
         reports = [audit_subject(ref, _git_ref_files(ref)) for ref in sorted(set(refs))]
     else:
         reports = [audit_subject("filesystem", _filesystem_files(args.root.resolve()))]
