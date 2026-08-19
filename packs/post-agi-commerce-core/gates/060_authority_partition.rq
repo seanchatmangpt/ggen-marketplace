@@ -1,0 +1,38 @@
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+PREFIX c: <urn:ggen:pack:post-agi-commerce:>
+SELECT ?violation WHERE {
+  {
+    {
+      SELECT (COUNT(DISTINCT ?cap) AS ?externalDoCount) WHERE {
+        ?cap skos:inScheme c:capabilities ;
+          dcterms:type "DO" ;
+          skos:note "external-authority-required:true" .
+      }
+    }
+    FILTER(?externalDoCount != 7)
+    BIND(CONCAT("external DO frontier count != 7: ", STR(?externalDoCount)) AS ?violation)
+  }
+  UNION
+  {
+    {
+      SELECT (COUNT(DISTINCT ?cap) AS ?executableCount) WHERE {
+        ?cap skos:inScheme c:capabilities .
+        FILTER NOT EXISTS {
+          ?cap dcterms:type "DO" ;
+            skos:note "external-authority-required:true" .
+        }
+      }
+    }
+    FILTER(?executableCount != 25)
+    BIND(CONCAT("bounded executable capability count != 25: ", STR(?executableCount)) AS ?violation)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS {
+      c:provider-acceptance-admit dcterms:type "CONSTRUCT" ;
+        skos:note "external-authority-required:true" .
+    }
+    BIND("provider acceptance must remain an internal admission over external evidence" AS ?violation)
+  }
+}
