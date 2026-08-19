@@ -6,7 +6,7 @@ The documentation has four cooperating structures:
 
 1. **Diátaxis operational documentation** — tutorials, how-to guides, reference, and explanation for using and evolving the marketplace.
 2. **Level-5 promotion program** — the 5 × 7 maturity matrix, Diátaxis closure, pack classes, consolidation/class closure, and promotion evidence.
-3. **Research monograph** — formal model, architecture, authority, evidence, verification, self-hosting, theorem catalogue, prior-art positioning, benchmark method, pack algebra, economics, and defense dossier.
+3. **Research monograph** — formal model, architecture, authority, evidence, verification, self-hosting, theorem catalogue, prior-art positioning, benchmark method, pack algebra, economics, defense dossier, and Level-5/class-closure formalization.
 4. **Research appendices** — notation, normative constitution, receipt schema, and primary-source bibliography.
 
 The result is intentionally operational and falsifiable: semantic source drives manufacturing/documentation control planes, exact-subject courts exercise implementation boundaries, and unresolved claims remain proof or experiment debt rather than silently becoming guarantees.
@@ -62,6 +62,7 @@ Use these documents as the Level-5 spine:
 - [Pack classes](reference/pack-classes.md)
 - [How to consolidate a pack family](how-to/consolidate-a-pack-family.md)
 - [Class closure and consolidation](explanation/class-closure-and-consolidation.md)
+- [Research formalization: Level-5 maturity, Diátaxis correspondence, and class closure](thesis/12-level5-maturity-and-class-closure.md)
 
 `pack-maturity-pack` supplies reusable mechanical regeneration/receipt/documentation infrastructure, but it deliberately cannot invent domain semantics, negative witnesses, consumer runtime success, external observations, or authority that the composing pack does not possess.
 
@@ -115,7 +116,7 @@ Read these for architecture, rationale, fences, exclusions, and extension law.
 
 ## Research monograph
 
-The research sequence moves from thesis to formal system to empirical falsification.
+The research sequence moves from thesis to formal system to empirical falsification and portfolio closure.
 
 1. [Research program: deterministic semantic software manufacture](thesis/00-research-program.md)
 2. [Formal calculus of admitted manufacture](thesis/01-formal-calculus.md)
@@ -129,6 +130,7 @@ The research sequence moves from thesis to formal system to empirical falsificat
 10. [Pack algebra and compositional semantics](thesis/09-pack-algebra.md)
 11. [Evidence economics, throughput, and coordination collapse](thesis/10-evidence-economics.md)
 12. [Defense dossier: claims, evidence, falsifiers, and proof debt](thesis/11-defense-dossier.md)
+13. [Level-5 maturity, Diátaxis correspondence, and class closure](thesis/12-level5-maturity-and-class-closure.md)
 
 The monograph is not a parallel source tree. Its navigation is represented in `docs/book.ttl` and projected through `mdbook-pattern-language-pack` during the Pages build.
 
