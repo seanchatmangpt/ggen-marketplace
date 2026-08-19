@@ -1,32 +1,63 @@
 # How to consume a pack
 
-Reference the selected pack from the consumer project's `ggen.toml` using a local path or another transport supported by the ggen version you have admitted. For a local checkout:
+Reference the selected pack from the consumer project's `ggen.toml` using a local path or another transport supported by the admitted ggen version. For a local checkout:
 
 ```toml
 [packs]
 my-pack = { path = "../ggen-marketplace/packs/my-pack" }
 ```
 
-## Fetching a pack without a local checkout
+## Resolve source identity first
 
-Every admitted pack is also published as a deterministic `.tar.gz` archive, with its
-download URL and SHA-256 digest listed in the marketplace catalog
-(`python3 scripts/marketplace.py catalog` — see
-[`docs/reference/catalog-command.md`](../reference/catalog-command.md)) under each pack's
-`download_url`/`digest` fields. Fetch and verify one directly:
+Before execution, record the marketplace revision and inspect the pack's manifest, RDF source, gates, templates/project rules, qualification fixtures, documentation, and dependencies. The pack name is not enough to identify an exact subject.
+
+## Fetching without a local checkout
+
+Every admitted published pack may be represented by a deterministic archive with URL/digest information projected by the marketplace catalog. Obtain the current values from:
 
 ```bash
-url=$(python3 scripts/marketplace.py catalog | python3 -c \
-  'import json,sys; print(next(p["download_url"] for p in json.load(sys.stdin)["packs"] if p["name"]=="my-pack"))')
-curl --fail --location "$url" --output my-pack.tar.gz
-sha256sum my-pack.tar.gz   # compare against the catalog's `digest` field before extracting
-tar -xzf my-pack.tar.gz
+python3 scripts/marketplace.py catalog
 ```
 
-This is the same download-then-verify discipline `scripts/install-ggen.sh` already uses to fetch
-the pinned `ggen` binary — never extract before the digest matches. Whether a given
-`download_url` currently resolves depends on `.github/workflows/publish.yml` having run for that
-commit (it runs on every push to `main`); it is unavailable for uncommitted or unmerged pack
-changes, which must still be consumed via the local-path form above.
+Verify the archive digest **before** extraction. Do not copy a digest/version from prose when executable catalog/configuration source is available.
 
-Before running ggen, inspect the pack source and any gates. After `ggen sync run`, validate the generated artifacts with the consumer's native compiler/tests and rerun sync to check stability. Do not treat marketplace CI as proof of the consumer consequence.
+A published archive proves distribution identity; it does not prove consumer behavior.
+
+## Manufacture
+
+Add only the consumer facts/inputs required by the pack contract, then run:
+
+```bash
+ggen sync run
+```
+
+Generated files are consequences. Inspect them, but verify the behavior with the consumer's native compiler/tests/protocol/simulation court rather than treating existence as correctness.
+
+## Replay and receipts
+
+Run manufacture again without changing admitted inputs and prove the consequence converges. When the consumer uses ggen receipts:
+
+```bash
+ggen receipt verify
+```
+
+For Level-5 work, prefer composing `pack-maturity-pack` so fixed-point and receipt checks are generated consistently.
+
+## Authority boundary
+
+A consumed pack may manufacture Terraform, GitHub Actions, MCP/API intents, deployment specifications, or other artifacts. Manufacture remains CONSTRUCT unless the consumer has a separately admitted consequential DO path.
+
+Never infer execution authority from pack publication, catalog membership, a generated artifact, or a successful marketplace qualification run.
+
+## Standing
+
+State separately:
+
+- marketplace pack/source standing;
+- ggen manufacture/replay standing;
+- consumer runtime standing;
+- external actuation standing.
+
+A green marketplace rail cannot substitute for the consumer boundary, and a green consumer simulation cannot silently become production authority.
+
+See [Tutorial: consume a pack](../tutorials/consume-a-pack.md) and [Level-5 maturity contract](../reference/level5-maturity-contract.md).

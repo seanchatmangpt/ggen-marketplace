@@ -2,9 +2,9 @@
 
 ## 1. Purpose
 
-The monograph uses the same ideas across compiler theory, provenance, process intelligence, security, queueing, and marketplace operations. This appendix fixes notation so symbols do not drift between chapters.
+The monograph uses the same ideas across compiler theory, provenance, process intelligence, security, queueing, marketplace operations, Level-5 maturity, and class closure. This appendix fixes notation so symbols do not drift between chapters.
 
-When implementation names and mathematical names differ, this appendix records the intended correspondence. Mathematics is explanatory unless a repository validator or theorem artifact explicitly implements it.
+When implementation names and mathematical names differ, this appendix records the intended correspondence. Mathematics is explanatory unless a repository validator, generated court, or theorem artifact explicitly implements it.
 
 ## 2. Core manufacturing symbols
 
@@ -16,6 +16,7 @@ When implementation names and mathematical names differ, this appendix records t
 | `μ` | manufacturing function | bounded transformation from admitted subject to artifact consequence |
 | `A` | artifact set | materialized consequence of manufacture |
 | `S` | exact subject | identity-complete input to a claimed execution |
+| `I` | identity/provenance tuple | immutable identities relevant to a claim |
 | `G` | semantic graph | admitted RDF graph or graph-equivalent semantic source |
 | `Q` | selection program | query/selection logic, commonly SPARQL |
 | `T` | template/projection set | bounded artifact-rendering programs |
@@ -36,7 +37,7 @@ Expanded subject form:
 
 ## 3. Transition symbols
 
-The constitutional phase ordering is written:
+The constitutional phase ordering is:
 
 `SELECT → CONSTRUCT → DO`.
 
@@ -56,7 +57,7 @@ Materializes bounded reversible consequences in the admitted construction domain
 
 ### `VERIFY`
 
-Executes a predicate over the subject or consequence: parser, validator, replay comparator, target compiler, integration test, formal checker, etc.
+Executes a predicate over the subject or consequence: parser, validator, replay comparator, target compiler, integration test, formal checker, or another bounded court.
 
 ### `DO`
 
@@ -69,22 +70,22 @@ Crosses a consequential boundary such as publish, merge, send, deploy, remote mu
 | `R` | a receipt/evidence object |
 | `R*` | an admissible receipt set for a claim |
 | `C` | claim whose standing is being evaluated |
-| `σ(C,R*,t)` | standing function at time/evidence epoch `t` |
+| `σ(C,R*,t)` | standing function at evidence epoch `t` |
 | `≡_C` | claim-relative evidence equivalence |
 | `≈` | artifact equivalence relation for replay |
 | `r1 → r2` | receipt dependency/derivation edge |
 
 Standing vocabulary:
 
-- `UNKNOWN` — evidence does not establish execution or a more precise non-execution state.
-- `PARTIAL_ALIVE` — lower/prerequisite boundaries succeeded but the full claim remains incomplete.
-- `ALIVE` — exact admitted subject executed successfully across the full claimed boundary.
-- `BLOCKED` — a prerequisite/external condition prevented execution.
-- `BUILD_BROKEN` — execution reached the relevant manufacture/build boundary and failed.
-- `UNSUPPORTED` — requested capability lies outside the current supported contract.
-- `REFUSED:<code>` — a named policy/admission predicate intentionally rejected the transition.
+- `UNKNOWN` — evidence does not establish execution or a more precise non-execution state;
+- `PARTIAL_ALIVE` — prerequisite/lower boundaries succeeded but the full claim is incomplete or requalifying;
+- `ALIVE` — exact admitted subject executed successfully across the full claimed boundary;
+- `BLOCKED:<reason>` — a prerequisite/external/authority condition prevented execution;
+- `BUILD_BROKEN` — execution reached the relevant build/manufacture boundary and failed;
+- `UNSUPPORTED` — requested capability lies outside the supported contract;
+- `REFUSED:<code>` — a named admission/policy predicate rejected the transition.
 
-Standing is **not** a confidence score. It is an evidence-derived classification.
+Standing is not a confidence score. It is an evidence-derived classification.
 
 ## 5. Pack algebra symbols
 
@@ -105,6 +106,8 @@ A pack is:
 | `P' ▷ P` | P' supersedes P with migration obligation |
 | `Compat(P,Q)` | conjunction of predicates required before composition is defined |
 | `Independent(P,Q)` | packs proven independent for a named operation/claim |
+| `Class(P)` | semantic responsibility class of P |
+| `P(θ)` | parameterized pack family/profile |
 
 Conditional associativity:
 
@@ -112,7 +115,62 @@ Conditional associativity:
 
 only under the compatibility conditions defined in the pack-algebra chapter.
 
-## 6. Graph and ontology terms
+### Semantic pack classes
+
+- `KernelPack` — canonical reusable calculus/semantic foundation;
+- `CapabilityPack` — orthogonal reusable capability;
+- `ProfilePack` — product/platform/organization/deployment binding;
+- `WorldPack` — executable/simulatable environment and falsifier space;
+- `CompatibilityPack` — historical seam retained for consumers;
+- `EvidencePack` — receipt/provenance/audit/standing semantics;
+- `ReleaseControlPack` — release/publish transition semantics;
+- `UmbrellaPack` — stable consumer composition/default entry point.
+
+These are semantic responsibility classes. They are independent of marketplace packaging profiles `projection`, `semantic`, and `project`.
+
+## 6. Level-5 maturity symbols
+
+For pack `P` and exact subject `S`:
+
+`M(P,S) = (m_s, m_a, m_m, m_e, m_r, m_ω, m_c)`
+
+where:
+
+| Coordinate | Meaning |
+|---|---|
+| `m_s` | semantic-source maturity |
+| `m_a` | admission/refusal maturity |
+| `m_m` | manufacture maturity |
+| `m_e` | real execution-boundary maturity |
+| `m_r` | receipt/replay maturity |
+| `m_ω` | authority-fence maturity |
+| `m_c` | composition/class-closure maturity |
+
+Each coordinate ranges over `L1 < L2 < L3 < L4 < L5`.
+
+The vector is non-compensatory: a high coordinate does not erase a missing required coordinate for a claim.
+
+Documentation object:
+
+`D(P,S) = (T_u, H, R_f, E_x)`
+
+where `T_u` = Tutorial, `H` = How-to, `R_f` = Reference, and `E_x` = Explanation.
+
+Structural Diátaxis closure:
+
+`D_4(P,S) = T_u ∧ H ∧ R_f ∧ E_x`.
+
+Documentation correspondence:
+
+`Corr_D(P,S) = Corr_source ∧ Corr_commands ∧ Corr_generated ∧ Corr_refusals ∧ Corr_authority ∧ Corr_replay`.
+
+Strong Level-5 documentation standing:
+
+`L5Doc(P,S) = D_4(P,S) ∧ Corr_D(P,S) ∧ Exec_D(P,S)`.
+
+These symbols are defined formally in `12-level5-maturity-and-class-closure.md` and operationally in `docs/reference/level5-maturity-contract.md`.
+
+## 7. Graph and ontology terms
 
 ### RDF graph
 
@@ -138,7 +196,11 @@ A constraint required for manufacture even though absence of a statement in base
 
 Property that a fact intended to govern multiple consequences has one canonical authority and deterministic projections rather than multiple independently editable authorities.
 
-## 7. Compiler terms
+### Class closure
+
+Portfolio property in which repeated semantic/protocol/lifecycle/projection law is canonicalized into stable classes/kernels while non-equivalent domain/world/runtime facts remain explicit profiles or independent classes.
+
+## 8. Compiler terms
 
 ### Intermediate representation (IR)
 
@@ -164,7 +226,7 @@ Property that repeated manufacture of an exact subject produces equivalent speci
 
 Stronger notion in which another execution environment/party can recreate specified equivalent artifacts from declared source, instructions, and relevant environment. The experimental chapter reports R0–R5 classes rather than using the word without qualification.
 
-## 8. Provenance and security terms
+## 9. Provenance and security terms
 
 ### Subject identity
 
@@ -202,7 +264,7 @@ The complete set of admissible receipts required to establish a claim.
 
 Directed evidence graph in which receipts refer to required predecessor evidence or derivation lineage.
 
-## 9. Process-intelligence terms
+## 10. Process-intelligence terms
 
 ### Event
 
@@ -220,7 +282,7 @@ Object-Centric Event Log: a format/model in which one event can relate to multip
 
 Research hypothesis that enough current operational state can be reconstructed from event/object history and semantic relations without a separate independently authoritative workflow-state store.
 
-## 10. Queueing symbols
+## 11. Queueing symbols
 
 | Symbol | Meaning |
 |---|---|
@@ -242,7 +304,7 @@ Little's Law:
 
 The law applies under its steady-state assumptions; it is not a universal instantaneous identity for arbitrary transient repositories.
 
-## 11. Economic metrics
+## 12. Economic metrics
 
 | Symbol | Meaning |
 |---|---|
@@ -256,7 +318,7 @@ The law applies under its steady-state assumptions; it is not a universal instan
 
 These metrics are research instruments, not yet normative marketplace release metrics.
 
-## 12. Experimental metrics
+## 13. Experimental metrics
 
 | Abbreviation | Meaning |
 |---|---|
@@ -271,28 +333,28 @@ These metrics are research instruments, not yet normative marketplace release me
 
 Every benchmark MUST define denominators and exclusions before interpreting these metrics.
 
-## 13. Reproducibility classes
+## 14. Reproducibility classes
 
-- `R0` — in-process repeat.
-- `R1` — fresh process, same workspace/machine.
-- `R2` — fresh workspace, same machine class.
-- `R3` — fresh ephemeral runner under same declared environment class.
-- `R4` — materially independent provider/infrastructure.
+- `R0` — in-process repeat;
+- `R1` — fresh process, same workspace/machine;
+- `R2` — fresh workspace, same machine class;
+- `R3` — fresh ephemeral runner under same declared environment class;
+- `R4` — materially independent provider/infrastructure;
 - `R5` — third-party reconstruction from published release capsule.
 
 A result at `R2` MUST NOT be described as though it passed `R5`.
 
-## 14. Proof-status vocabulary
+## 15. Proof-status vocabulary
 
-- `DERIVED` — follows under stated definitions/assumptions.
-- `EXECUTABLE` — implementation has a validator/court capable of observing the property for exercised subjects.
-- `EMPIRICAL` — supported by finite observations.
-- `MECHANIZATION CANDIDATE` — precise enough for formal encoding but not mechanically proved.
+- `DERIVED` — follows under stated definitions/assumptions;
+- `EXECUTABLE` — implementation has a validator/court capable of observing the property for exercised subjects;
+- `EMPIRICAL` — supported by finite observations;
+- `MECHANIZATION CANDIDATE` — precise enough for formal encoding but not mechanically proved;
 - `OPEN` — research question or unresolved proposition.
 
-The proof status belongs to the **claim**, not to the prose chapter as a whole.
+The proof status belongs to the claim, not to the prose chapter as a whole.
 
-## 15. Normative requirement identifiers
+## 16. Normative requirement identifiers
 
 Constitution identifiers use:
 
@@ -312,11 +374,12 @@ Current domains include:
 - `RCPT` — receipts;
 - `STAND` — standing;
 - `COMP` — composition;
+- `L5` — Level-5 maturity/class closure;
 - `DOC` — documentation/publication;
 - `CI` — workflow law;
 - `REL` — release law.
 
-## 16. Common distinctions
+## 17. Common distinctions
 
 ### Source vs consequence
 
@@ -342,6 +405,14 @@ Replay is one execution relationship; reproducibility includes independent recon
 
 An authorized action may still be wrong; a correct artifact may still be unauthorized to deploy.
 
+### Packaging profile vs semantic class
+
+`projection|semantic|project` describes bundle shape. Kernel/capability/profile/world/compatibility/evidence/release-control/umbrella describes semantic responsibility.
+
+### Structural Diátaxis vs Level-5 documentation standing
+
+Four documents can exist while contradicting canonical source or lacking executable correspondence. Structural closure is necessary but not sufficient.
+
 ### Green workflow vs standing
 
 Workflow success is one receipt. Standing depends on the claim's required evidence closure.
@@ -350,7 +421,7 @@ Workflow success is one receipt. Standing depends on the claim's required eviden
 
 Blocked means the transition could not execute because a prerequisite/capability was unavailable. Broken means execution reached the relevant boundary and failed.
 
-## 17. Canonical one-page model
+## 18. Canonical one-page model
 
 ```text
 RAW WORLD
@@ -388,4 +459,14 @@ Admitted subject S = (identity, G, Q, T, V, E)
                                       standing
 ```
 
-This diagram is the semantic center of the book. Every specialized chapter elaborates one portion without changing the fundamental distinction between **what is known, what may be constructed, what may be done, and what has actually been proved by observed execution**.
+At portfolio scale, add the class-closure projection:
+
+```text
+canonical kernels/classes
+      + orthogonal capabilities
+      + umbrellas/defaults
+      + parameterized profiles/worlds
+      → many pack instances with fewer independent semantic authorities
+```
+
+This is the semantic center of the book. Every specialized chapter elaborates one portion without changing the fundamental distinction between **what is known, what may be constructed, what may be done, what class owns the truth, and what has actually been proved by observed execution**.
