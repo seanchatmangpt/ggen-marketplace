@@ -1,21 +1,46 @@
 ---
 to: "lib/auth.ts"
+sparql:
+  apps: >
+      PREFIX nai: <https://ggen.dev/packs/nextjs-ai#>
+      SELECT ?authStrategy ?keycloakIssuer WHERE {
+        ?app a nai:Application ; nai:authStrategy ?authStrategy .
+        OPTIONAL { ?app nai:keycloakIssuer ?keycloakIssuer }
+      }
 ---
 import "server-only";
 import { betterAuth } from "better-auth";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
+{% for app in apps %}{% if app.authStrategy == "keycloak" %}import { genericOAuth, keycloak } from "better-auth/plugins";
+{% endif %}import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { getDatabase } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 
 function createAuth(secret: string) {
   return betterAuth({
     database: drizzleAdapter(getDatabase(), { provider: "pg", schema }),
+    {% if app.authStrategy == "keycloak" -%}
+    // Issuer is a consumer-supplied fact (nai:keycloakIssuer), never hardcoded in this
+    // pack -- the same realm your platform's Keycloak instance already provisions.
+    // Client credentials stay in env vars per Better Auth's own convention.
+    plugins: [
+      genericOAuth({
+        config: [
+          keycloak({
+            clientId: process.env.KEYCLOAK_CLIENT_ID!,
+            clientSecret: process.env.KEYCLOAK_CLIENT_SECRET!,
+            issuer: process.env.KEYCLOAK_ISSUER ?? "{{ app.keycloakIssuer }}",
+          }),
+        ],
+      }),
+    ],
+    {% else -%}
     emailAndPassword: { enabled: true },
+    {% endif -%}
     secret,
     baseURL: process.env.BETTER_AUTH_URL,
   });
 }
-
+{% endfor %}
 let instance: ReturnType<typeof createAuth> | undefined;
 export function getAuth(): ReturnType<typeof createAuth> {
   const secret = process.env.BETTER_AUTH_SECRET;
