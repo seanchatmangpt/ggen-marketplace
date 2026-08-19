@@ -1,21 +1,7 @@
 name: CI
 
 # Two-tier gate, admission then parallel qualification, mirroring the
-# admission->deep-matrix->status pattern this marketplace's own upstream
-# (~/ggen's .github/workflows/ci.yml) already uses for the same reason:
-# a growing pack corpus (94 packs as of 2026-08-10, still growing) makes
-# one long serial "qualify everything" job an increasingly bad critical
-# path. `admission` pays the one real fixed cost (building
-# tools/marketplace-config against the pinned nightly toolchain) exactly
-# once and hands its result to N parallel `qualify` shard jobs as an
-# artifact, so shards only need to install a prebuilt ggen binary (no
-# further Rust compilation) before running their slice of
-# scripts/qualify_packs.py's own --shard-index/--shard-count partition
-# (see that script's own `shard()` docstring for the partition-correctness
-# argument -- verified locally: complete, non-overlapping, exact total
-# match across shard counts 1/2/4/8 against the real corpus before this
-# workflow shipped).
-
+# admission->deep-matrix->status pattern this marketplace's own upstream.
 on:
   pull_request:
     branches: [main]
@@ -44,17 +30,31 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Fail if any workflow file is missing timeout-minutes
+      - name: Fail if any runner-backed workflow file is missing timeout-minutes
         shell: bash
         run: |
           set -euo pipefail
-          missing="$(grep -L timeout-minutes .github/workflows/*.yml || true)"
-          if [[ -n "$missing" ]]; then
-            echo "::error::Workflow file(s) missing timeout-minutes:"
-            echo "$missing"
+          missing=()
+          for workflow in .github/workflows/*.yml; do
+            if grep -q 'timeout-minutes:' "$workflow"; then
+              continue
+            fi
+            # A workflow containing only reusable-workflow call jobs has no
+            # runner of its own; GitHub does not admit timeout-minutes on a
+            # `jobs.<id>.uses` call. Timeout ownership belongs to the pinned
+            # callee, so do not manufacture an invalid caller key merely to
+            # satisfy a textual guard.
+            if grep -Eq '^    uses:' "$workflow" && ! grep -Eq '^    runs-on:' "$workflow"; then
+              echo "timeout delegated to reusable workflow: $workflow"
+              continue
+            fi
+            missing+=("$workflow")
+          done
+          if (( ${#missing[@]} )); then
+            printf '::error::Runner-backed workflow file(s) missing timeout-minutes:\n%s\n' "${missing[@]}"
             exit 1
           fi
-          echo "All workflow files declare timeout-minutes."
+          echo "All runner-backed workflows declare timeout-minutes; reusable callers delegate to their pinned callee."
 
   admission:
     name: Fast admission (config, validate, catalog/archive determinism)
@@ -117,14 +117,6 @@ jobs:
         run: python scripts/marketplace.py validate
 
       - name: Lint cross-pack instance references
-        # RC2 from the standing-ladder-pack RCA (PR #21/#22): a pack can
-        # reference another pack's own-namespace individual without a
-        # matching qualification/consumer.ttl fixture, invisible to
-        # qualify_packs.py's isolated per-pack qualification until CI
-        # happens to exercise a gate that depends on it. Landed warn-only
-        # in #23 (3 pre-existing violations were on main at the time),
-        # fixed in #24, now hard-gated -- see scripts/check_cross_pack_
-        # references.py's own docstring.
         run: |
           python scripts/check_cross_pack_references.py --mode gate \
             --report "${RUNNER_TEMP}/cross-pack-references.json"
