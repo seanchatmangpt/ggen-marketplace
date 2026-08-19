@@ -108,6 +108,9 @@ jobs:
           assert payload["standing"] == "ADMITTED"
           assert payload["star_toml_sha"] == "8395515cf8e68bfdc9edff49fb358c4f1da7c795"
           assert len(payload["witness_blake3"]) == 64
+          qualification = payload["config"]["qualification"]
+          assert isinstance(qualification["workers"], int) and qualification["workers"] > 0
+          assert isinstance(qualification["timeout_seconds"], int) and qualification["timeout_seconds"] > 0
           PY
 
       - name: Validate marketplace and Diátaxis
@@ -210,12 +213,22 @@ jobs:
         run: |
           set -euo pipefail
           report="${RUNNER_TEMP}/shard-${{ matrix.shard }}-qualification.json"
+          read -r qualification_timeout qualification_workers < <(
+            python3 - "${RUNNER_TEMP}/admitted-config.json" <<'PY'
+          import json, sys
+          from pathlib import Path
+          payload = json.loads(Path(sys.argv[1]).read_text())
+          qualification = payload["config"]["qualification"]
+          print(qualification["timeout_seconds"], qualification["workers"])
+          PY
+          )
+          echo "qualification-config: timeout_seconds=${qualification_timeout} workers=${qualification_workers}"
           python3 scripts/qualify_packs.py \
             --ggen "$GGEN_BIN" \
             --shard-index ${{ matrix.shard }} \
             --shard-count "$SHARD_COUNT" \
-            --timeout-seconds 5 \
-            --workers 8 \
+            --timeout-seconds "$qualification_timeout" \
+            --workers "$qualification_workers" \
             --report "$report"
           python -m json.tool "$report" >/dev/null
 
