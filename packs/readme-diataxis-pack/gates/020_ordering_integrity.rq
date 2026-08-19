@@ -56,6 +56,40 @@ SELECT ?s ?reason WHERE {
     ?s a rdx:ContactChannel ; rdx:kind ?kind .
     FILTER(?kind NOT IN ("email", "slack"))
     BIND("rdx:kind outside {email,slack}" AS ?reason)
+  } UNION {
+    ?s a rdx:CodeExample ; rdx:position ?pos .
+    ?other a rdx:CodeExample ; rdx:position ?pos .
+    FILTER(?s != ?other)
+    BIND("duplicate rdx:position within CodeExample" AS ?reason)
+  } UNION {
+    ?s a rdx:CodeExample ; rdx:exampleName ?name .
+    ?other a rdx:CodeExample ; rdx:exampleName ?name .
+    FILTER(?s != ?other)
+    BIND("duplicate rdx:exampleName within CodeExample" AS ?reason)
+  } UNION {
+    # Duplicate rdx:position within ExampleFile, scoped by rdx:forExample
+    # (each example directory sorts its own files independently).
+    ?s a rdx:ExampleFile ; rdx:forExample ?ex ; rdx:position ?pos .
+    ?other a rdx:ExampleFile ; rdx:forExample ?ex ; rdx:position ?pos .
+    FILTER(?s != ?other)
+    BIND("duplicate rdx:position within same ExampleFile's rdx:forExample" AS ?reason)
+  } UNION {
+    # Duplicate rdx:relPath within the same rdx:forExample would collide on
+    # the same to: output path -- a real write collision, not just a tie.
+    ?s a rdx:ExampleFile ; rdx:forExample ?ex ; rdx:relPath ?path .
+    ?other a rdx:ExampleFile ; rdx:forExample ?ex ; rdx:relPath ?path .
+    FILTER(?s != ?other)
+    BIND("duplicate rdx:relPath within same ExampleFile's rdx:forExample" AS ?reason)
+  } UNION {
+    ?s a rdx:PlaygroundFile ; rdx:position ?pos .
+    ?other a rdx:PlaygroundFile ; rdx:position ?pos .
+    FILTER(?s != ?other)
+    BIND("duplicate rdx:position within PlaygroundFile" AS ?reason)
+  } UNION {
+    ?s a rdx:PlaygroundFile ; rdx:relPath ?path .
+    ?other a rdx:PlaygroundFile ; rdx:relPath ?path .
+    FILTER(?s != ?other)
+    BIND("duplicate rdx:relPath within PlaygroundFile" AS ?reason)
   }
 }
 ORDER BY ?s ?reason
