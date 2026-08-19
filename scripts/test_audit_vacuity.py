@@ -70,10 +70,8 @@ class VacuityAuditMainTests(unittest.TestCase):
 
     A real repository is genuinely cheap to construct in-process (a few
     `git` subprocess calls to a scratch dir), so this exercises the real
-    `git archive` / `git for-each-ref` / filesystem-walk paths that main()
-    actually drives, rather than faking SubjectReport objects, per
-    Chicago-style testing discipline. Nothing in audit_vacuity.py's main()
-    was previously covered by a test.
+    git object / archive / filesystem-walk paths that main() drives rather
+    than faking SubjectReport objects, per Chicago-style testing discipline.
     """
 
     def setUp(self):
@@ -83,9 +81,8 @@ class VacuityAuditMainTests(unittest.TestCase):
         self._git("init", "-q", "-b", "main")
         self._git("config", "user.email", "test@example.com")
         self._git("config", "user.name", "Test")
-        # audit_vacuity's git-backed helpers (_git_ref_files, _remote_refs)
-        # shell out with no -C, using the current process cwd, so main()
-        # must run with cwd inside the scratch repo to exercise them.
+        # audit_vacuity's git-backed helpers shell out with no -C, using the
+        # current process cwd, so main() must run inside the scratch repo.
         self._orig_cwd = Path.cwd()
         os.chdir(self.repo)
         self.addCleanup(os.chdir, self._orig_cwd)
@@ -145,11 +142,29 @@ class VacuityAuditMainTests(unittest.TestCase):
 
     def test_main_all_remote_branches_enumerates_and_admits_with_no_remote(self):
         self._commit("a.py", "print('hi')\n", "initial")
-        # No remote configured, so refs/remotes/origin is empty; main()
-        # should fall through to a single filesystem subject rather than
-        # blow up on an empty --git-ref list.
+        # No remote refs exist, so --all-remote-branches falls through to the
+        # filesystem subject rather than inventing an empty audit.
         exit_code = audit.main(["--all-remote-branches"])
         self.assertEqual(exit_code, 0)
+
+    def test_all_remote_branches_preserves_each_ref_when_content_is_shared(self):
+        head = self._commit("a.py", "print('shared')\n", "initial")
+        self._git("update-ref", "refs/remotes/origin/alpha", head)
+        self._git("update-ref", "refs/remotes/origin/beta", head)
+        report_path = self.repo / "vacuity-branches.json"
+
+        exit_code = audit.main(
+            ["--all-remote-branches", "--report", str(report_path)]
+        )
+
+        self.assertEqual(exit_code, 0)
+        payload = json.loads(report_path.read_text(encoding="utf-8"))
+        subjects = [subject["subject"] for subject in payload["subjects"]]
+        self.assertEqual(subjects, ["origin/alpha", "origin/beta"])
+        self.assertEqual(
+            [subject["total_files"] for subject in payload["subjects"]],
+            [1, 1],
+        )
 
 
 if __name__ == "__main__":
