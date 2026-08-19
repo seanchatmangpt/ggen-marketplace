@@ -1,0 +1,33 @@
+# MESSAGE: A CertificationCheckResult must never claim an EVIDENCE-severity pass without
+# an independently verifiable receipt, and must never reference a check that was never
+# admitted. resultEvidenceRef exists precisely to distinguish a real, verifiable operation
+# from a fabricated one (see afl:CertificationCheckResult's rdfs:comment in ontology.ttl);
+# a passed EVIDENCE-level result with no evidence reference is exactly the fabrication the
+# ontology forbids. A result whose resultCheckRef does not resolve to any admitted
+# afl:CertificationCheck's afl:checkName is a result for a check that does not exist in
+# this manifest's own universe -- also refused. Any row is a violation.
+PREFIX afl: <urn:autofde-lab:>
+
+SELECT ?subject ?violation WHERE {
+  {
+    # Claimed EVIDENCE-severity pass with no evidence reference.
+    ?subject a afl:CertificationCheckResult ;
+             afl:resultCheckRef ?checkName ;
+             afl:resultPassed ?passed .
+    FILTER(?passed = true)
+    ?check a afl:CertificationCheck ;
+           afl:checkName ?checkName ;
+           afl:checkSeverityRef afl:EVIDENCE .
+    FILTER NOT EXISTS { ?subject afl:resultEvidenceRef ?evidence }
+    BIND("EVIDENCE-severity resultPassed=true with no resultEvidenceRef (fabricated pass)" AS ?violation)
+  } UNION {
+    # resultCheckRef does not match any admitted CertificationCheck's checkName.
+    ?subject a afl:CertificationCheckResult ;
+             afl:resultCheckRef ?checkName .
+    FILTER NOT EXISTS {
+      ?check a afl:CertificationCheck ; afl:checkName ?checkName .
+    }
+    BIND(CONCAT("resultCheckRef does not match any admitted CertificationCheck: ", STR(?checkName)) AS ?violation)
+  }
+}
+ORDER BY ?subject ?violation
