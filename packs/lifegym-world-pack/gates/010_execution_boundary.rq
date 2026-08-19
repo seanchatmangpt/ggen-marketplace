@@ -1,0 +1,33 @@
+# MESSAGE: any returned row refuses manufacture. LifeGym marketplace facts are an observation
+# profile only; consequential provider execution requires authority outside this pack.
+PREFIX dcat: <http://www.w3.org/ns/dcat#>
+PREFIX dct: <http://purl.org/dc/terms/>
+PREFIX dqv: <http://www.w3.org/ns/dqv#>
+PREFIX odrl: <http://www.w3.org/ns/odrl/2/>
+SELECT ?subject ?problem WHERE {
+  {
+    FILTER NOT EXISTS {
+      <urn:lifegym:authority-policy> a odrl:Policy ;
+        dct:title "Consequential DO requires external GymAct authority" .
+    }
+    BIND(<urn:lifegym:authority-policy> AS ?subject)
+    BIND("missing-external-gymact-authority-policy" AS ?problem)
+  }
+  UNION
+  {
+    VALUES ?id { "tasks" "procedures" "events" "checks" }
+    FILTER NOT EXISTS {
+      ?measurement a dqv:QualityMeasurement ;
+        dct:identifier ?id ;
+        dct:extent ?extent .
+    }
+    BIND(IRI(CONCAT("urn:lifegym:quality:", ?id)) AS ?subject)
+    BIND(CONCAT("missing-benchmark-evidence:", ?id) AS ?problem)
+  }
+  UNION
+  {
+    ?subject a dcat:DataService, odrl:Policy .
+    BIND("service-must-not-carry-authority-policy" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem
