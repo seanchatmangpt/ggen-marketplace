@@ -1,0 +1,53 @@
+@prefix otelw: <https://chatmangpt.com/ontology/otel-weaver#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+otelw:Registry a rdfs:Class, prov:Entity .
+otelw:Artifact a rdfs:Class, prov:Entity .
+otelw:Capability a rdfs:Class, prov:Entity .
+otelw:Signal a rdfs:Class .
+
+otelw:order a rdf:Property ; rdfs:range xsd:integer .
+otelw:path a rdf:Property ; rdfs:range xsd:string .
+otelw:kind a rdf:Property ; rdfs:range xsd:string .
+otelw:command a rdf:Property ; rdfs:range xsd:string .
+otelw:standing a rdf:Property ; rdfs:range xsd:string .
+otelw:authority a rdf:Property ; rdfs:range xsd:string .
+otelw:weaverVersion a rdf:Property ; rdfs:range xsd:string .
+otelw:schemaUrl a rdf:Property ; rdfs:range xsd:anyURI .
+otelw:namespace a rdf:Property ; rdfs:range xsd:string .
+otelw:requirementLevel a rdf:Property ; rdfs:range xsd:string .
+
+otelw:defaultRegistry a otelw:Registry ;
+  dcterms:title "Chatman OpenTelemetry Weaver Registry" ;
+  dcterms:description "A governed application telemetry schema manufactured from admitted ontology facts." ;
+  otelw:weaverVersion "0.25.1" ;
+  otelw:schemaUrl <https://schemas.chatmangpt.com/otel/1.0.0> ;
+  otelw:namespace "chatman.service" ;
+  otelw:standing "CONSTRUCT" ;
+  otelw:authority "no-ambient-DO" .
+
+otelw:manifest a otelw:Artifact ; otelw:order 10 ; otelw:path "manifest.yaml" ; otelw:kind "weaver-v2-manifest" ; dcterms:description "Registry identity, schema URL, and dependency provenance." .
+otelw:config a otelw:Artifact ; otelw:order 20 ; otelw:path ".weaver.toml" ; otelw:kind "weaver-project-config" ; dcterms:description "Project-local live-check and policy defaults." .
+otelw:model a otelw:Artifact ; otelw:order 30 ; otelw:path "model/service.yaml" ; otelw:kind "semconv-v2-model" ; dcterms:description "Application spans, metrics, logs, resources, and attributes." .
+otelw:policy a otelw:Artifact ; otelw:order 40 ; otelw:path "policies/registry.rego" ; otelw:kind "rego-policy" ; dcterms:description "Fail-closed semantic convention policy." .
+otelw:ci a otelw:Artifact ; otelw:order 50 ; otelw:path ".github/workflows/otel-weaver.yml" ; otelw:kind "github-actions" ; dcterms:description "Static registry check plus runtime OTLP live-check gate." .
+otelw:reference a otelw:Artifact ; otelw:order 60 ; otelw:path "docs/OTEL_WEAVER.md" ; otelw:kind "reference" ; dcterms:description "Generated Weaver capability and replay reference." .
+
+otelw:check a otelw:Capability ; otelw:order 10 ; dcterms:title "check" ; otelw:command "weaver registry check -r . --v2 -p policies --future" ; otelw:standing "ALIVE-after-exit-0" ; dcterms:description "Parse, resolve, and validate the registry and Rego policies." .
+otelw:package a otelw:Capability ; otelw:order 20 ; dcterms:title "package" ; otelw:command "weaver registry package -r . --v2 -p policies -o ./dist" ; otelw:standing "CONSTRUCT" ; dcterms:description "Produce a self-contained publication artifact and manifest." .
+otelw:generate a otelw:Capability ; otelw:order 30 ; dcterms:title "generate" ; otelw:command "weaver registry generate -r . --v2 -p policies" ; otelw:standing "CONSTRUCT" ; dcterms:description "Project resolved schema data through Jinja templates." .
+otelw:diff a otelw:Capability ; otelw:order 40 ; dcterms:title "diff" ; otelw:command "weaver registry diff --baseline-registry <baseline> -r . --v2" ; otelw:standing "SELECT" ; dcterms:description "Compute semantic registry change evidence before release." .
+otelw:emit a otelw:Capability ; otelw:order 50 ; dcterms:title "emit" ; otelw:command "weaver registry emit -r . --v2" ; otelw:standing "bounded-test-DO" ; dcterms:description "Emit example telemetry to an explicitly configured OTLP test receiver." .
+otelw:liveCheck a otelw:Capability ; otelw:order 60 ; dcterms:title "live-check" ; otelw:command "weaver registry live-check --registry . --v2 --fail-on violation" ; otelw:standing "ALIVE-after-observed-OTLP" ; dcterms:description "Compare observed OTLP telemetry with the admitted schema." .
+otelw:mcp a otelw:Capability ; otelw:order 70 ; dcterms:title "mcp" ; otelw:command "weaver registry mcp -r . --v2" ; otelw:standing "read-only-tool-surface" ; dcterms:description "Expose registry semantics over MCP without conferring actuation authority." .
+otelw:infer a otelw:Capability ; otelw:order 80 ; dcterms:title "infer" ; otelw:command "weaver registry infer" ; otelw:standing "raw-observation" ; dcterms:description "Infer candidate schema from OTLP; inferred output is not admitted automatically." .
+otelw:jsonSchema a otelw:Capability ; otelw:order 90 ; dcterms:title "json-schema" ; otelw:command "weaver registry json-schema --json-schema resolved-registry-v2" ; otelw:standing "reference" ; dcterms:description "Expose machine-readable Weaver registry contracts." .
+
+otelw:SpanSignal a otelw:Signal ; dcterms:title "span" ; otelw:requirementLevel "recommended" .
+otelw:MetricSignal a otelw:Signal ; dcterms:title "metric" ; otelw:requirementLevel "recommended" .
+otelw:LogSignal a otelw:Signal ; dcterms:title "log" ; otelw:requirementLevel "recommended" .
+otelw:ResourceSignal a otelw:Signal ; dcterms:title "resource" ; otelw:requirementLevel "required" .
