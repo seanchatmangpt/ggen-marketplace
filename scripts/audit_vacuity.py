@@ -349,7 +349,7 @@ def _git_tree_entries(ref: str) -> tuple[tuple[str, str], ...]:
 
 
 def _git_blobs(shas: Iterable[str]) -> dict[str, bytes]:
-    """Read every requested Git blob in one deterministic ``cat-file`` batch."""
+    """Read requested Git blobs through one deadlock-safe ``cat-file`` process."""
     ordered = sorted(set(shas))
     if not ordered:
         return {}
@@ -360,10 +360,13 @@ def _git_blobs(shas: Iterable[str]) -> dict[str, bytes]:
         stderr=subprocess.PIPE,
     )
     assert proc.stdin is not None and proc.stdout is not None
-    proc.stdin.write(("\n".join(ordered) + "\n").encode("ascii"))
-    proc.stdin.close()
     blobs: dict[str, bytes] = {}
     for expected in ordered:
+        # Send one request and consume its complete response before sending the
+        # next. Writing the entire request corpus up front can deadlock when
+        # cat-file's stdout pipe fills while the parent is still filling stdin.
+        proc.stdin.write(f"{expected}\n".encode("ascii"))
+        proc.stdin.flush()
         header = proc.stdout.readline()
         if not header:
             raise SystemExit(f"REFUSED:VACUITY_AUDIT_CAT_FILE_EOF:{expected}")
@@ -378,6 +381,7 @@ def _git_blobs(shas: Iterable[str]) -> dict[str, bytes]:
         if len(data) != size or separator != b"\n":
             raise SystemExit(f"REFUSED:VACUITY_AUDIT_CAT_FILE_TRUNCATED:{expected}")
         blobs[expected] = data
+    proc.stdin.close()
     stderr = proc.stderr.read() if proc.stderr is not None else b""
     returncode = proc.wait()
     if returncode:
@@ -438,10 +442,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     refs = list(args.git_ref)
-    remote_refs: list[str] = []
     if args.all_remote_branches:
-        remote_refs = _remote_refs()
-        refs.extend(ref for ref in remote_refs if ref not in refs)
+        refs.extend(ref for ref in _remote_refs() if ref not in refs)
 
     if refs and args.all_remote_branches:
         # The optimized multi-ref path is semantically equivalent to auditing
