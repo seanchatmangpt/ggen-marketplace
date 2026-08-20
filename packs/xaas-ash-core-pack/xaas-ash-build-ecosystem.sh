@@ -109,7 +109,16 @@ mix igniter.install ash_iam --yes
 
 # ----- Receipt idempotency (confirmed real, v1.0.0, published 2026-08-09 --
 # corrects this script's earlier "does not exist" error, same as ash_iam
-# above). Real README saved at vendor-readmes/ash_onetime.md. -----
+# above). Real README saved at vendor-readmes/ash_onetime.md.
+#
+# RE-VERIFIED again during the ggen.gen.* rewrite pass: hex.pm API
+# (GET /api/packages/ash_onetime, checked live) confirms it real right now,
+# releases including 1.0.0. The speedrun's "installers did not exist"
+# failure for this line was therefore NOT a bad package name -- most likely
+# a stale local Hex registry index in that sandbox (needs `mix local.hex
+# --force` / `mix hex.info` refresh before this install). Kept, not dropped
+# -- do not repeat the earlier mistake of trusting one failed run over a
+# directly re-checked primary source. -----
 mix igniter.install ash_onetime --yes
 
 # ----- AI/agent tool exposure (version-pinned per the real research finding --
