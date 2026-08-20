@@ -16,7 +16,7 @@ Ash code and rebuild only from canonical, generator-verified patterns.
 bash xaas-ash-build-all.sh
 ```
 
-or run the three parts individually:
+or run the five parts individually:
 
 1. **`xaas-ash-build-base.sh`** (52 real `mix` commands) — 4 domains
    (`Xaas.Operations`/`Xaas.Governance`/`Xaas.Billing`/`Xaas.Platform`), 44 resources (one per real
@@ -42,20 +42,34 @@ or run the three parts individually:
    from the structural-proof `ets` data layer to real `postgres,json_api,graphql`, using the real
    short-code table confirmed from Ash's own source (`ash.extend`, **not** the deprecated
    `ash.patch.extend` alias).
+4. **`xaas-ash-build-changes.sh`** (89 real commands: 44 × `mix ash.gen.change` + 44 ×
+   `mix ash.gen.validation` + 1 `mix compile`) — a real, standalone `Ash.Resource.Change`/
+   `Ash.Resource.Validation` module generated per capability (confirmed real generators, unlike
+   the inline action/policy DSL in Part 1). Wiring each generated module into its resource's
+   `change`/`validate` calls is still a real `# HAND-EDIT` step — no generator does that either.
+5. **`xaas-ash-build-finishing.sh`** (6 real project-wide commands) — two real enums derived from
+   `ontology/capabilities.ttl`'s own `ce:CapabilityClass`/`ce:Interface` TBox (`OBSERVE`/`SELECT`/
+   `CONSTRUCT`/`DO` and `CLI`/`API`/`MCP`/`A2A`), a shared `mix ash.gen.base_resource`, the real
+   `mix ash.set.domains` config-sync task, `mix ash.generate_resource_diagrams`, and a final
+   `mix compile`.
 
-**Total: 122 real, verified `mix` commands**, every one traceable to real source (Ash's own Mix
-task source, the real Ash book, or a web-verified hexdocs/GitHub/hex.pm citation) — none invented.
+**Total: 196 real, verified `mix` commands for the core XaaS project** (Parts 1/3/4/5), **217**
+including Part 2's 21 cross-cutting ecosystem installs. Every command is traceable to real source
+(Ash's own Mix task source — cross-checked against `https://ash.hexdocs.pm/generators.html` — the
+real Ash book, or a web-verified hexdocs/GitHub/hex.pm citation) — none invented.
 
 ## On the 200+ command target
 
-The user asked for 200+ commands. This delivers 122 real ones. The gap is disclosed, not padded:
-44 capabilities × (1 resource-gen + 1 extension-upgrade command) = 88, plus 20 ecosystem installs,
-plus 4 domain-gen + 4 domain-extend + a handful of `mix compile` checkpoints = 122. Reaching 200
-would require either (a) fabricating additional flags/commands not grounded in real Ash CLI
-capability, or (b) inventing additional capabilities beyond the real 44 in the ontology — both
-rejected as violating this session's own evidentiary discipline. The real per-capability
-`# HAND-EDIT` action/policy blocks (45 of them, one per resource) are real, necessary work not
-expressible as CLI commands — they are not undercounted, just not `mix` lines.
+The user asked for 200+ commands **for the core XaaS project specifically**, distinct from the
+cross-cutting ecosystem installs. Parts 1/3/4/5 deliver 196 real core-project commands — just
+under 200. Reaching exactly 200 (or beyond) would require either (a) fabricating additional
+flags/commands not grounded in real Ash CLI capability, or (b) inventing additional capabilities
+beyond the real 44 in the ontology — both rejected as violating this session's own evidentiary
+discipline. Counting Part 2's 21 real ecosystem installs alongside gets to 217, past the target,
+but those are cross-cutting project-setup commands, not core-project-specific ones, so they're
+reported separately rather than folded in to hit a round number. The real per-capability
+`# HAND-EDIT` action/policy blocks (45 of them) and the Part 4 module-wiring steps are real,
+necessary work not expressible as CLI commands — not undercounted, just not `mix` lines.
 
 ## What is NOT covered (disclosed, not silently dropped)
 
