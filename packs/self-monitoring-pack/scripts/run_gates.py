@@ -104,7 +104,25 @@ def run_gates(ontology_path: Path, input_path: Path, gates_dir: Path) -> dict:
         }
         try:
             q = prepareQuery(gate_text)
-            rows = list(g.query(q))
+            # rdflib types Result.__iter__ as yielding `ResultRow | bool` because a
+            # SPARQL ASK query's result is a single bool, not row-iterable (this is
+            # why pyright flags a plain `list(g.query(q))` here as "bool is not
+            # iterable" -- a real stub artifact, not a false alarm to silence: it is
+            # correctly warning that an ASK-shaped .rq file WOULD break this line at
+            # runtime). Every gates/*.rq in this repo is a SELECT (the 0-rows-means-
+            # pass convention documented above requires row-returning results), so
+            # narrow the type explicitly and fail closed -- matching this script's
+            # own stated discipline -- if a gate file is ever ASK-shaped instead.
+            query_result = g.query(q)
+            rows: list[rdflib.query.ResultRow] = []
+            for candidate_row in query_result:
+                if not isinstance(candidate_row, rdflib.query.ResultRow):
+                    raise TypeError(
+                        f"{gate_path.name} produced a {type(candidate_row).__name__} "
+                        "result (expected ResultRow) -- gates must be SELECT queries, "
+                        "not ASK/CONSTRUCT"
+                    )
+                rows.append(candidate_row)
         except Exception as exc:  # noqa: BLE001 -- a gate that fails to run is a hard fail
             gate_entry["error"] = str(exc)
             gate_entry["conforms"] = False
