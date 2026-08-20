@@ -1,108 +1,150 @@
-# xaas-ash-core-pack — canonical Ash CLI build script for the entire XaaS platform
+# xaas-ash-core-pack — Ash construction research + executable generator proof
 
-Generated this session via an `ultracode` Workflow (4 parallel Draft agents, one per domain) plus
-two research passes (a real-source Explore-agent survey of `~/dev-fresh/xaas/deps/{ash,igniter,
-spark}` and a web-verified survey of the wider Ash ecosystem's `igniter.install` commands),
-grounded in the real Ash Framework book (`ash-framework_P1.0.pdf`, Pragmatic, Aug 2025) and all 44
-real `ce:Capability` individuals in `chatman-ecosystem/ontology/platform-console-capabilities.ttl`.
+This pack is the Ash-side construction proof for XaaS. It captures the canonical Ash/Igniter
+techniques researched from Ash 3.32.0, the wider Ash ecosystem archive, and a real 210-command
+speedrun against `/Users/sac/dev-fresh/xaas`.
 
-**Supersedes and replaces** this pack's earlier `templates/`/`proof/` content (a hand-substituted,
-non-canonical single-resource proof) — removed per explicit user instruction to undo hand-authored
-Ash code and rebuild only from canonical, generator-verified patterns.
+The architectural boundary is:
 
-## Run order
-
-```sh
-bash xaas-ash-build-all.sh
+```text
+public semantic authorities -> admitted/profiled O* -> ggen -> Ash construction program
+                           -> Ash/Igniter -> Ash source/runtime
 ```
 
-or run the five parts individually:
+Ash/Igniter owns Ash source mutation. ggen renders constructor intent; it does not hand-render
+`.ex` files when an Ash/Igniter constructor exists.
 
-1. **`xaas-ash-build-base.sh`** (52 real `mix` commands) — 4 domains
-   (`Xaas.Operations`/`Xaas.Governance`/`Xaas.Billing`/`Xaas.Platform`), 44 resources (one per real
-   `ce:Capability` individual), each via a real `mix ash.gen.resource ... --extend ets --yes`
-   line, plus a `# HAND-EDIT` comment block per resource showing the canonical `update`
-   action + `policies do` block to paste in by hand (confirmed: **no generator exists** for
-   custom action bodies or policy blocks — `ash.gen.change`/`.validation`/`.preparation` only
-   scaffold standalone modules).
-2. **`xaas-ash-build-ecosystem.sh`** (21 real `mix igniter.install` commands) — the wider Ash
-   package ecosystem (Postgres, auth, JSON:API/GraphQL, admin UI, Oban, state machine, paper
-   trail/events, archival, double-entry/money, Cloak encryption, rate limiter, AI, IAM-style
-   policy, receipt idempotency). **Two research-agent claims were caught wrong by the user this
-   session and corrected from primary sources**: `ash_iam` (v2.1.0, "AWS IAM-style policy
-   evaluation for Ash Framework," first published 2025-08-27) and `ash_onetime` (v1.0.0, "explicit
-   idempotency and one-time nonce semantics," first published 2026-08-09 — 11 days before this
-   session) were both claimed not to exist; both are real and now installed. Per the user's
-   explicit instruction after catching this, every package this script installs has its real
-   hex.pm page and/or GitHub README saved locally under `vendor-readmes/` (see below) — no more
-   agent-paraphrased existence claims trusted un-rechecked. The one surviving claim,
-   **`ash_policy_authorizer` deprecated since 2022**, was independently re-verified this pass
-   (last hex.pm release `0.16.5`, `2022-03-23`, none since) — it holds up.
-3. **`xaas-ash-build-extend.sh`** (49 real `mix ash.extend` commands) — upgrades every resource
-   from the structural-proof `ets` data layer to real `postgres,json_api,graphql`, using the real
-   short-code table confirmed from Ash's own source (`ash.extend`, **not** the deprecated
-   `ash.patch.extend` alias).
-4. **`xaas-ash-build-changes.sh`** (89 real commands: 44 × `mix ash.gen.change` + 44 ×
-   `mix ash.gen.validation` + 1 `mix compile`) — a real, standalone `Ash.Resource.Change`/
-   `Ash.Resource.Validation` module generated per capability (confirmed real generators, unlike
-   the inline action/policy DSL in Part 1). Wiring each generated module into its resource's
-   `change`/`validate` calls is still a real `# HAND-EDIT` step — no generator does that either.
-5. **`xaas-ash-build-finishing.sh`** (6 real project-wide commands) — two real enums derived from
-   `ontology/capabilities.ttl`'s own `ce:CapabilityClass`/`ce:Interface` TBox (`OBSERVE`/`SELECT`/
-   `CONSTRUCT`/`DO` and `CLI`/`API`/`MCP`/`A2A`), a shared `mix ash.gen.base_resource`, the real
-   `mix ash.set.domains` config-sync task, `mix ash.generate_resource_diagrams`, and a final
-   `mix compile`.
+> **Important semantic boundary:** this pack's current `xar:` render-hint graph is a transitional
+> construction proof derived from 44 platform-console capability instances. It is **not** the
+> canonical XaaS domain ontology. `packs/xaas-public-ontology-profile/` is the public-ontology-first
+> semantic profile; native/private render hints must not be promoted into public domain semantics.
 
-**Total: 196 real, verified `mix` commands for the core XaaS project** (Parts 1/3/4/5), **217**
-including Part 2's 21 cross-cutting ecosystem installs. Every command is traceable to real source
-(Ash's own Mix task source — cross-checked against `https://ash.hexdocs.pm/generators.html` — the
-real Ash book, or a web-verified hexdocs/GitHub/hex.pm citation) — none invented.
+## Canonical runner
 
-## On the 200+ command target
+Run the master program against an existing Ash project:
 
-The user asked for 200+ commands **for the core XaaS project specifically**, distinct from the
-cross-cutting ecosystem installs. Parts 1/3/4/5 deliver 196 real core-project commands — just
-under 200. Reaching exactly 200 (or beyond) would require either (a) fabricating additional
-flags/commands not grounded in real Ash CLI capability, or (b) inventing additional capabilities
-beyond the real 44 in the ontology — both rejected as violating this session's own evidentiary
-discipline. Counting Part 2's 21 real ecosystem installs alongside gets to 217, past the target,
-but those are cross-cutting project-setup commands, not core-project-specific ones, so they're
-reported separately rather than folded in to hit a round number. The real per-capability
-`# HAND-EDIT` action/policy blocks (45 of them) and the Part 4 module-wiring steps are real,
-necessary work not expressible as CLI commands — not undercounted, just not `mix` lines.
+```sh
+bash xaas-ash-build-all.sh /path/to/ash-project
+```
 
-## What is NOT covered (disclosed, not silently dropped)
+The runner refuses when the target does not contain `mix.exs` and preserves the target project as
+its working directory. It invokes the ggen-rendered variants for every row-driven stage.
 
-- The `# HAND-EDIT` blocks must actually be pasted into each generated resource file — this
-  script does not do that part automatically (no generator exists for it, confirmed).
-- Chapter 7 (testing) and Chapter 10 (PubSub) DSL shapes from the Ash book did not render as text
-  during this session's PDF research pass — re-verify against the book directly before adding
-  `ExUnit` test scaffolding or `notifiers: [Ash.Notifier.PubSub]` blocks.
-- `Ash.Policy.Authorizer` requires a real SAT solver dependency (`{:picosat_elixir, "~> 0.2"}`)
-  before any resource with `authorizers: [Ash.Policy.Authorizer]` will compile-verify cleanly —
-  add this to `mix.exs` before running Part 1's hand-edited policy blocks, confirmed from Ash's
-  own source this session.
-- `opentelemetry_ash` is installed in Part 2 with an explicit runtime warning (stale package, last
-  release 2025-07-11) rather than silently treated as current.
-- The ggen/SPARQL-to-template wiring this pack's `ontology.ttl` originally sketched is not part of
-  this deliverable — per the user's explicit sequencing, canonical Ash technique first, ggen
-  wiring later.
+| Part | Canonical program | Mix commands | Status from original speedrun |
+|---|---|---:|---|
+| 1 | `xaas-ash-build-base-GENERATED.sh` | 45 | 45/45 passed |
+| 2 | `xaas-ash-build-ecosystem.sh` | 22 | original 20/21 passed; failing `ash_onetime` invocation corrected |
+| 3 | `xaas-ash-build-extend-GENERATED.sh` | 49 | 49/49 passed |
+| 4 | `xaas-ash-build-changes-GENERATED.sh` | 89 | 89/89 passed |
+| 5 | `xaas-ash-build-finishing.sh` | 6 | original 5/6 passed; diagram flag corrected |
+| **Total** | | **211** | original run: 208/210; two observed defects repaired in source |
 
-## `vendor-readmes/` — primary-source archive (the actual fix for the correction above)
+The total changed from 210 to 211 because `ash_onetime` is now installed in two explicit canonical
+steps: add/fetch the dependency, then invoke the package's own installer task.
 
-- `PACKAGE-LIST.txt` — all **137** real packages that directly depend on `ash` on hex.pm, fetched
-  from hex.pm's real JSON API (`hex.pm/api/packages?search=depends:hexpm:ash&sort=total_downloads`,
-  paginated), not the scraped HTML search UI used earlier this session.
-- `hexpm-pages/*.html` — the real hex.pm package page for **all 137**, fetched directly
-  (`curl https://hex.pm/packages/<pkg>`), zero failures.
-- Top-level `*.md` — real GitHub `README.md` for the 18 packages this script actually installs.
-- `MANIFEST.md` — full account of the correction and what's archived.
+## What ggen currently renders
 
-## Provenance
+`ggen.toml` has three real `ggen sync` rules:
 
-- `~/.claude/plans/sharded-marinating-turing.md` — the full research transcript (3 converged
-  threads: real vendored source, adversarially-verified `/deep-research` workflow, real book
-  extraction) that grounds every CLI pattern used here.
-- `chatman-ecosystem/ontology/platform-console-capabilities.ttl` — the 44 real `ce:Capability`
-  individuals this script's resources are derived from (real title/authority/broker/receipt/
-  reversible facts, cited per-resource in each `# HAND-EDIT` block).
+1. `ontology.ttl` + `queries/render-targets.rq` -> `xaas-ash-build-base-GENERATED.sh`
+2. the same admitted row set -> `xaas-ash-build-extend-GENERATED.sh`
+3. the same admitted row set -> `xaas-ash-build-changes-GENERATED.sh`
+
+The generated scripts were previously proven set-equivalent to their hand-assembled predecessors.
+The master runner now executes the generated forms, not the hand-assembled copies.
+
+The ecosystem installation and finishing stages remain fixed cross-cutting command programs because
+they are project-wide operations, not one operation per capability row.
+
+## Corrected speedrun findings
+
+The real speedrun is recorded in `DIFFICULTIES.md`. Two commands failed:
+
+### 1. `ash_onetime`
+
+The original diagnosis in `DIFFICULTIES.md` incorrectly called `ash_onetime` nonexistent. The
+primary-source archive in this same pack disproves that: `vendor-readmes/ash_onetime.md` documents
+published `ash_onetime` v1.0.0 and its canonical installer:
+
+```sh
+mix ash_onetime.install
+```
+
+The observed failure was therefore an **installer-discovery/invocation failure**, not package
+nonexistence. The corrected program is:
+
+```sh
+mix igniter.add ash_onetime
+mix ash_onetime.install
+```
+
+This first makes the dependency/task available and then invokes the package's own documented
+Igniter-powered installer.
+
+### 2. Resource diagrams
+
+The installed `ash.generate_resource_diagrams` task rejected `--yes`; its observed supported options
+were `--format`, `--only`, and `--type`. The finishing program now invokes:
+
+```sh
+mix ash.generate_resource_diagrams
+```
+
+with no fabricated global flag.
+
+## Ash ecosystem surfaces admitted by the build research
+
+The build includes or evaluates the following capability families using real packages rather than
+inventing XaaS-specific replacements where an Ash implementation already exists:
+
+- persistence: AshPostgres;
+- identity: AshAuthentication + AshAuthenticationPhoenix;
+- API projection: AshJsonApi + AshGraphql;
+- operator UI: AshAdmin;
+- durable jobs: AshOban;
+- lifecycle: AshStateMachine;
+- audit/replay: AshPaperTrail + AshEvents;
+- archival: AshArchival;
+- economics: AshMoney + AshDoubleEntry;
+- encryption: AshCloak + Cloak;
+- throttling: AshRateLimiter;
+- policy evaluation: AshIAM plus core `Ash.Policy.Authorizer`;
+- keyed-effect admission: AshOnetime;
+- agent/tool projection: AshAI;
+- observability: OpenTelemetryAsh, retained with an explicit compatibility warning.
+
+`vendor-readmes/` preserves the primary-source package corpus used for this research, including the
+full Hex dependency census captured during the session.
+
+## Known boundary still to close
+
+The old 44-capability `xar:` rendering graph is a **construction experiment**, not the final semantic
+source. The next semantic closure is intentionally upstream of Ash:
+
+```text
+packs/xaas-public-ontology-profile/
+  -> exact public ontology locks
+  -> competency-question coverage
+  -> SHACL application profile over public classes/properties
+  -> generic SPARQL construction view
+  -> ggen-rendered Ash commands
+```
+
+No `xar:` class/property is allowed to become a business/domain concept merely because it is
+convenient for generation. Public terms are preferred; an XaaS-native term must be earned by a
+competency question that remains unsatisfied after public ontology composition is exhausted.
+
+## Acceptance
+
+Current source-level acceptance for this pack is:
+
+1. master runner executes the ggen-rendered base/extend/change programs;
+2. the target project is explicit and must contain `mix.exs`;
+3. the two exact failures from the real speedrun are repaired without weakening checks;
+4. `scripts/verify-gym-packs.py` admits the new AutoFDE GymAct certification pack while preserving
+   deterministic receipt, replay, and mutation-falsifier semantics;
+5. repository exact-head CI/Vacuity/Gym checks remain the publication gates.
+
+A fresh 211-command execution against the exact repaired scripts is still required before claiming
+`ALIVE` for the full Ash construction program. The previous observed run is evidence for 208/210
+commands on the pre-repair subject, not a substitute for a post-repair rerun.

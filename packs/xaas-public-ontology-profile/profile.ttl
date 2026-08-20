@@ -4,24 +4,17 @@
 # https://www.w3.org/TR/dx-prof/) composing real, retrieved, hash-pinned
 # public ontologies -- not a standalone invented vocabulary. Every
 # prof:isProfileOf target below is a real ontology present on disk in
-# ~/ggen-marketplace/ontologies/public/ (see locks/*.lock.toml for
-# per-ontology provenance) or ~/ggen-marketplace/ontologies/public/
-# xaas-profile-batch-1/ (this session's fetch).
+# ontologies/public/ (see locks/*.lock.toml for per-ontology provenance).
 #
 # prof:isProfileOf, not owl:imports: XaaS constrains/combines/extends
 # these specifications' terms via composition and SHACL, not by pulling
 # their full axiom sets into one reasoning closure. No
 # owl:equivalentClass/equivalentProperty assertion appears anywhere in
-# this file -- see gates/020_no_unproven_equivalence.rq, which refuses
-# any such assertion pack-wide until a competency-question check proves
-# it.
+# this file -- see gates/020_no_unproven_equivalence.rq.
 #
 # This file intentionally declares ZERO xaas:-prefixed classes or
-# properties. Native XaaS terms are earned only via
-# queries/competency/*.md -- a competency question with zero satisfying
-# public term. That check has not been run yet (STANDING: UNKNOWN, see
-# pack.toml). This file is the composition declaration the check will be
-# run against, not a finished ontology.
+# properties. Native XaaS terms are earned only after competency coverage
+# against the admitted public corpus demonstrates a real gap.
 
 @prefix xaas:  <https://ggen.io/ontology/xaas#> .
 @prefix prof:  <http://www.w3.org/ns/dx/prof/> .
@@ -31,9 +24,11 @@
 @prefix owl:   <http://www.w3.org/2002/07/owl#> .
 @prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
 
-# ── Real public ontology namespaces this profile composes ─────────────
-# (IRIs confirmed by reading each file's own @prefix/@base/owl:Ontology
-# declaration this session, not assumed from filename.)
+# Public ontology namespaces this profile composes. Prefixes here are term
+# namespaces read from the admitted ontology artifacts, not guessed from
+# ontology document IRIs. QUDT is the important distinction: the admitted
+# ontology document IRI is http://qudt.org/2.1/schema/qudt while its terms use
+# http://qudt.org/schema/qudt/.
 @prefix prov:  <http://www.w3.org/ns/prov#> .
 @prefix dcat:  <http://www.w3.org/ns/dcat#> .
 @prefix org:   <http://www.w3.org/ns/org#> .
@@ -41,7 +36,7 @@
 @prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
 @prefix sosa:  <http://www.w3.org/ns/sosa/> .
 @prefix time:  <http://www.w3.org/2006/time#> .
-@prefix qudt:  <http://qudt.org/2.1/schema/qudt#> .
+@prefix qudt:  <http://qudt.org/schema/qudt/> .
 @prefix spdx:  <http://spdx.org/rdf/terms#> .
 @prefix pplan: <http://purl.org/net/p-plan#> .
 @prefix fno:   <https://w3id.org/function/ontology#> .
@@ -52,7 +47,7 @@
 
 xaas:Profile a prof:Profile ;
   dcterms:title "XaaS Semantic Profile" ;
-  dcterms:description "A constrained composition of public ontologies (PROV-O, PROF, DCAT, ORG, SKOS, ODRL, SOSA, OWL-Time, QUDT, SPDX, P-PLAN, FnO) sufficient to answer XaaS's competency questions (queries/competency/) before any xaas:-native term is admitted." ;
+  dcterms:description "A constrained composition of public ontologies (PROV-O, PROF, DCAT, ORG, SKOS, ODRL, SOSA, OWL-Time, QUDT, SPDX, P-PLAN, FnO) used to answer XaaS competency questions before any xaas:-native term is admitted." ;
   prof:isProfileOf prov: ;
   prof:isProfileOf dcat: ;
   prof:isProfileOf org: ;
@@ -60,32 +55,24 @@ xaas:Profile a prof:Profile ;
   prof:isProfileOf odrl: ;
   prof:isProfileOf sosa: ;
   prof:isProfileOf time: ;
-  prof:isProfileOf qudt: ;
+  prof:isProfileOf <http://qudt.org/2.1/schema/qudt> ;
   prof:isProfileOf spdx: ;
   prof:isProfileOf pplan: ;
   prof:isProfileOf fno: .
 
-# ── Candidate role notes (not assertions -- these are the hypotheses
-# queries/competency/ must test, stated here so the profile's intent is
-# traceable, not because they are proven) ─────────────────────────────
+# Candidate role notes (hypotheses, not equivalence assertions):
 #
-# prov:Entity / prov:Activity / prov:Agent   -> candidate base for
-#   receipt/actuation lineage (CQ17, CQ19, CQ20)
-# pplan:Plan / pplan:Step (extends prov:)    -> candidate base for the
-#   plan != execution distinction gymact/autofde-lab already enforce in
-#   code (CQ12)
-# fno:Function / fno:implements               -> candidate base for
-#   ce:Capability's "one capability, many implementations (Terraform/
-#   Erlang/K8s)" shape (CQ03, CQ04) -- NOT yet asserted equivalent to
-#   ce:Capability; see gates/020_no_unproven_equivalence.rq
-# odrl:Permission / odrl:Prohibition / odrl:Duty -> candidate base for
-#   policy/authority constraints (CQ08) -- explicitly NOT assumed
-#   equivalent to ce:brokerRequired/receiptRequired execution authority
-#   (CQ09) until proven; that is a real, open, distinct question
-# dcat:Catalog / dcat:Resource                -> candidate base for a
-#   capability/service catalog (CQ01, CQ02) instead of inventing catalog
-#   semantics
-# sosa:Observation / sosa:Actuation            -> candidate base for
-#   CQ10 (state observation) and the DO/actuation half of ce:Capability
-# qudt:Quantity / qudt:Unit                    -> candidate base for
-#   CQ11 (measurements, SLI/SLO units) instead of custom XaaS datatypes
+# prov:Entity / prov:Activity / prov:Agent
+#   receipt/actuation lineage candidates (CQ17, CQ19, CQ20)
+# pplan:Plan / pplan:Step
+#   plan != execution candidates (CQ12)
+# fno:Function / fno:Mapping / fno:Implementation / fno:Execution
+#   capability/realization/execution candidates (CQ01-CQ04)
+# odrl:Permission / odrl:Prohibition / odrl:Duty
+#   policy constraints (CQ08), explicitly NOT equivalent to BRCE execution authority
+# dcat:Catalog / dcat:Resource
+#   catalog/service candidates (CQ01)
+# sosa:Observation / sosa:Actuation
+#   observation and actuation candidates (CQ10)
+# qudt:QuantityValue / qudt:Unit
+#   measurement/unit candidates (CQ11)

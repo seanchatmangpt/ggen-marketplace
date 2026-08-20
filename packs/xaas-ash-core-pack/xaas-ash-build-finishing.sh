@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # xaas-ash-build-finishing.sh -- Part 5: real, project-wide finishing commands.
-# Every line here is a real, confirmed CLI task (see README.md's provenance
-# section) -- no fabricated flags.
+# Run from the target Ash project. The master runner preserves that working
+# directory and invokes this script by absolute path.
 set -euo pipefail
-cd "$(dirname "$0")"
 
 echo "=== XaaS project-wide finishing pass: $(date) ==="
 
@@ -16,19 +15,18 @@ echo "=== XaaS project-wide finishing pass: $(date) ==="
 # through the xar: bridge ontology.
 mix ash.gen.enum Xaas.Governance.Types.Interface cli,api,mcp,a2a --short-name interface --yes
 
-# Real, confirmed task from this session's CLI survey: dynamically
-# discovers and updates Ash domains in config.exs (idempotent to re-run
-# after adding/removing domains across Parts 1-4).
+# Real, confirmed task: dynamically discovers and updates Ash domains in
+# config.exs (idempotent to re-run after adding/removing domains across
+# Parts 1-4).
 mix ash.set.domains --yes
 
 # Real diagram generation per domain (requires local Mermaid CLI).
 #
-# BUG FIX (speedrun-confirmed, real failure): `--yes` is not a supported
-# flag for this task. Re-verified directly against the real source
-# (ash-project/ash@main:lib/mix/tasks/gen/ash.gen.resource_diagrams.ex is
-# NOT under lib/mix/tasks/gen/ -- this task lives elsewhere in Ash and its
-# real schema only accepts --format/-f, --only/-o, --type/-t, confirmed by
-# the speedrun's own captured error output ("--yes : Unknown option").
+# BUG FIX (speedrun-confirmed, real failure, independently re-confirmed by a
+# parallel session): `--yes` is not a supported flag for this task -- it does
+# not accept Igniter's global --yes flag. Confirmed by the speedrun's own
+# captured error output ("--yes : Unknown option"; real schema only accepts
+# --format/-f, --only/-o, --type/-t).
 mix ash.generate_resource_diagrams
 
 mix compile
