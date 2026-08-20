@@ -7,12 +7,10 @@ hand-written prose.
 
 ## Scope, stated plainly
 
-This delivery covers the tutorial, reference, and explanation quadrants plus a project
-index page. It does not cover the how-to quadrant (Deployment/Running Tests/Usage
-Examples) or the project-meta page (License/Contributing/Roadmap/Features) from the full
-Diataxis mapping this pack's design was scoped against — those sections follow the exact
-same pattern (a new RDF class + a new gated template) and were left out of this delivery
-to keep the shipped surface small and fully verified rather than partially built.
+All four Diataxis quadrants plus the meta page are now covered: tutorial, reference,
+how-to, explanation, and the index/meta pages this pack's design was originally scoped
+against. Verified end-to-end through the real `ggen` binary against an isolated consumer
+project (see "End-to-end verification" below), not just through SPARQL re-derivation.
 
 ## Section -> Diataxis mapping
 
@@ -20,8 +18,10 @@ to keep the shipped surface small and fully verified rather than partially built
 |---|---|---|
 | `rdx:RunStep` (kind in clone/install/start) | Tutorial | one guided learning path, in order |
 | `rdx:ApiEndpoint`, `rdx:ApiParameter`, `rdx:EnvVar` | Reference | exact contract, table-shaped |
+| `rdx:RunStep` (kind in deploy/test), `rdx:UsageExample` | How-to | task recipes, not a single learning path |
 | `rdx:FaqEntry` | Explanation | rationale, not instruction |
-| `rdx:Project`, `rdx:TechStackItem` | Index/meta | project identity, linked from `docs/index.md` |
+| `rdx:Project`, `rdx:TechStackItem` | Index | project identity, linked from `docs/index.md` |
+| `rdx:RoadmapItem`, `rdx:ContactChannel`, `rdx:license` | Meta | outside the four Diataxis quadrants |
 
 ## Gates
 
