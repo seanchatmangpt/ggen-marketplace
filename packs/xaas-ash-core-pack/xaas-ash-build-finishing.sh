@@ -24,8 +24,10 @@ mix ash.gen.base_resource Xaas.Resource --yes
 # after adding/removing domains across Parts 1-4).
 mix ash.set.domains --yes
 
-# Real diagram generation per domain (requires local Mermaid CLI).
-mix ash.generate_resource_diagrams --yes
+# Real diagram generation per domain. The task does not accept Igniter's
+# global --yes flag; the speedrun observed the task's accepted options as
+# --format/--only/--type, so invoke the default form directly.
+mix ash.generate_resource_diagrams
 
 mix compile
 
