@@ -1,0 +1,30 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX sh:  <http://www.w3.org/ns/shacl#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+# Fail closed instead of silently coercing an unknown RDF datatype into an
+# arbitrary Ash type.
+SELECT ?shape ?propertyShape ?datatype
+WHERE {
+  ?shape a sh:NodeShape ;
+         sh:property ?propertyShape .
+  ?propertyShape sh:datatype ?datatype .
+  FILTER(
+    ?datatype NOT IN (
+      xsd:string,
+      rdf:langString,
+      xsd:boolean,
+      xsd:integer,
+      xsd:int,
+      xsd:long,
+      xsd:nonNegativeInteger,
+      xsd:decimal,
+      xsd:float,
+      xsd:double,
+      xsd:date,
+      xsd:dateTime,
+      xsd:anyURI
+    )
+  )
+}
+ORDER BY STR(?shape) STR(?propertyShape) STR(?datatype)
