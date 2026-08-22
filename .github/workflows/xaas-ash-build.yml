@@ -35,6 +35,26 @@ jobs:
       - name: Checkout exact subject
         uses: actions/checkout@v4
 
+      - name: Verify reversible public-projection alternative
+        run: |
+          python3 -m py_compile \
+            packs/xaas-ash-core-pack/scripts/public_projection_adapter.py \
+            packs/xaas-ash-core-pack/tests/test_public_projection_adapter.py
+          python3 -m unittest -v \
+            packs/xaas-ash-core-pack/tests/test_public_projection_adapter.py
+          python3 packs/xaas-ash-core-pack/scripts/public_projection_adapter.py \
+            packs/xaas-ash-core-pack/ontology.ttl \
+            > /tmp/xaas-render-manifest.json
+          python3 - <<'PY'
+          import json
+          manifest = json.load(open('/tmp/xaas-render-manifest.json'))
+          assert manifest['schema'] == 'ggen.xaas.render-manifest.v1'
+          assert manifest['authority'] == 'CONSTRUCT_ONLY'
+          assert len(manifest['targets']) == 44
+          assert len({row['capability'] for row in manifest['targets']}) == 44
+          print('XAAS_PUBLIC_PROJECTION_ADAPTER=ALIVE targets=44 receipt=' + manifest['receipt_sha256'])
+          PY
+
       - name: Set up BEAM toolchain
         uses: erlef/setup-beam@v1
         with:
@@ -78,5 +98,6 @@ jobs:
           printf 'subject_sha=%s\n' "$GITHUB_SHA" > /tmp/xaas-build-receipt.txt
           printf 'ash_expected=3.32.0\n' >> /tmp/xaas-build-receipt.txt
           printf 'runner=packs/xaas-ash-core-pack/xaas-ash-build-all.sh\n' >> /tmp/xaas-build-receipt.txt
+          printf 'projection_adapter_receipt=/tmp/xaas-render-manifest.json\n' >> /tmp/xaas-build-receipt.txt
           printf 'target=/tmp/xaas_build_smoke\n' >> /tmp/xaas-build-receipt.txt
           cat /tmp/xaas-build-receipt.txt
