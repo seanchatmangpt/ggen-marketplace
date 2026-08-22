@@ -3,7 +3,8 @@ import sys
 import unittest
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts"
+PACK_DIR = Path(__file__).resolve().parents[1]
+SCRIPT_DIR = PACK_DIR / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from public_projection_adapter import (  # noqa: E402
@@ -31,6 +32,12 @@ class AdapterTest(unittest.TestCase):
         )
         self.assertEqual(len(first["receipt_sha256"]), 64)
         self.assertEqual(first["authority"], "CONSTRUCT_ONLY")
+
+    def test_exact_pack_ontology_projects_all_44_targets(self):
+        manifest = build_manifest((PACK_DIR / "ontology.ttl").read_text())
+        self.assertEqual(len(manifest["targets"]), 44)
+        self.assertEqual(len({target["capability"] for target in manifest["targets"]}), 44)
+        self.assertTrue(all(target["capability"].startswith("https://seanchatmangpt.github.io/chatman-ecosystem/ontology/platform-console-capabilities#") for target in manifest["targets"]))
 
     def test_missing_fact_refused(self):
         broken = GOOD.replace(' ; xar:actionName "bill"', '')
