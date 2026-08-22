@@ -1,0 +1,22 @@
+# MESSAGE: two RunStep individuals of the same kind sharing the same
+# rdx:position, or two FaqEntry individuals sharing the same rdx:position,
+# produce non-deterministic ordering in the projected page -- refuse the
+# duplicate before it becomes a silent, environment-dependent output.
+PREFIX rdx: <https://seanchatmangpt.github.io/ggen-marketplace/readme-diataxis#>
+SELECT ?kind ?position (COUNT(?s) AS ?count) WHERE {
+  {
+    ?s a rdx:RunStep ; rdx:kind ?kind ; rdx:position ?position .
+  } UNION {
+    ?s a rdx:FaqEntry ; rdx:position ?position .
+    BIND("faq" AS ?kind)
+  } UNION {
+    ?s a rdx:UsageExample ; rdx:position ?position .
+    BIND("usage-example" AS ?kind)
+  } UNION {
+    ?s a rdx:RoadmapItem ; rdx:position ?position .
+    BIND("roadmap" AS ?kind)
+  }
+}
+GROUP BY ?kind ?position
+HAVING (COUNT(?s) > 1)
+ORDER BY ?kind ?position

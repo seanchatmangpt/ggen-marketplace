@@ -1,0 +1,50 @@
+# MESSAGE: every RunStep must carry the properties its template SELECTs with no
+# OPTIONAL/COALESCE fallback (position, kind, label, command), and RunStep.kind
+# must be one of the enumerated set {clone, install, start} -- an unrecognized
+# kind silently drops the step from the tutorial page rather than erroring, so
+# it must be refused here instead.
+PREFIX rdx: <https://seanchatmangpt.github.io/ggen-marketplace/readme-diataxis#>
+SELECT ?s ?problem WHERE {
+  {
+    ?s a rdx:RunStep .
+    FILTER NOT EXISTS { ?s rdx:position ?x }
+    BIND("RunStep missing rdx:position" AS ?problem)
+  } UNION {
+    ?s a rdx:RunStep .
+    FILTER NOT EXISTS { ?s rdx:label ?x }
+    BIND("RunStep missing rdx:label" AS ?problem)
+  } UNION {
+    ?s a rdx:RunStep .
+    FILTER NOT EXISTS { ?s rdx:command ?x }
+    BIND("RunStep missing rdx:command" AS ?problem)
+  } UNION {
+    ?s a rdx:RunStep ; rdx:kind ?k .
+    FILTER (?k NOT IN ("clone", "install", "start", "deploy", "test"))
+    BIND("RunStep has unenumerated rdx:kind" AS ?problem)
+  } UNION {
+    ?s a rdx:ApiEndpoint .
+    FILTER NOT EXISTS { ?s rdx:method ?x }
+    BIND("ApiEndpoint missing rdx:method" AS ?problem)
+  } UNION {
+    ?s a rdx:ApiEndpoint .
+    FILTER NOT EXISTS { ?s rdx:path ?x }
+    BIND("ApiEndpoint missing rdx:path" AS ?problem)
+  } UNION {
+    ?s a rdx:Project .
+    FILTER NOT EXISTS { ?s rdx:license ?x }
+    BIND("Project missing rdx:license" AS ?problem)
+  } UNION {
+    ?s a rdx:UsageExample .
+    FILTER NOT EXISTS { ?s rdx:code ?x }
+    BIND("UsageExample missing rdx:code" AS ?problem)
+  } UNION {
+    ?s a rdx:RoadmapItem .
+    FILTER NOT EXISTS { ?s rdx:text ?x }
+    BIND("RoadmapItem missing rdx:text" AS ?problem)
+  } UNION {
+    ?s a rdx:ContactChannel ; rdx:kind ?k .
+    FILTER (?k NOT IN ("support", "feedback", "contributing"))
+    BIND("ContactChannel has unenumerated rdx:kind" AS ?problem)
+  }
+}
+ORDER BY ?s

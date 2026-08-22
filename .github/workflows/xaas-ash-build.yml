@@ -1,0 +1,103 @@
+name: XaaS Ash construction
+
+on:
+  pull_request:
+    paths:
+      - "packs/xaas-ash-core-pack/**"
+      - ".github/workflows/xaas-ash-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-xaas-ash:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: xaas_build_smoke
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: ecto://postgres:postgres@127.0.0.1:5432/xaas_build_smoke
+      MIX_ENV: test
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@v4
+
+      - name: Verify reversible public-projection alternative
+        run: |
+          python3 -m py_compile \
+            packs/xaas-ash-core-pack/scripts/public_projection_adapter.py \
+            packs/xaas-ash-core-pack/tests/test_public_projection_adapter.py
+          python3 -m unittest -v \
+            packs/xaas-ash-core-pack/tests/test_public_projection_adapter.py
+          python3 packs/xaas-ash-core-pack/scripts/public_projection_adapter.py \
+            packs/xaas-ash-core-pack/ontology.ttl \
+            > /tmp/xaas-render-manifest.json
+          python3 - <<'PY'
+          import json
+          manifest = json.load(open('/tmp/xaas-render-manifest.json'))
+          assert manifest['schema'] == 'ggen.xaas.render-manifest.v1'
+          assert manifest['authority'] == 'CONSTRUCT_ONLY'
+          assert len(manifest['targets']) == 44
+          assert len({row['capability'] for row in manifest['targets']}) == 44
+          print('XAAS_PUBLIC_PROJECTION_ADAPTER=ALIVE targets=44 receipt=' + manifest['receipt_sha256'])
+          PY
+
+      - name: Set up BEAM toolchain
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29.0"
+          elixir-version: "1.20.2"
+
+      - name: Install project generators
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix archive.install hex igniter_new --force
+          mix archive.install hex phx_new --force
+
+      - name: Install Mermaid CLI
+        run: npm install --global @mermaid-js/mermaid-cli
+
+      - name: Manufacture clean Ash target
+        working-directory: /tmp
+        run: |
+          mix igniter.new xaas_build_smoke \
+            --with phx.new \
+            --install ash@3.32.0 \
+            --yes
+          test -f /tmp/xaas_build_smoke/mix.exs
+
+      - name: Execute canonical 211-command XaaS program
+        run: |
+          bash packs/xaas-ash-core-pack/xaas-ash-build-all.sh /tmp/xaas_build_smoke
+
+      - name: Verify exact manufactured subject
+        working-directory: /tmp/xaas_build_smoke
+        run: |
+          mix format --check-formatted
+          mix compile --warnings-as-errors
+          mix test
+          mix ash.manifest.dump
+
+      - name: Preserve construction evidence
+        if: always()
+        run: |
+          printf 'subject_sha=%s\n' "$GITHUB_SHA" > /tmp/xaas-build-receipt.txt
+          printf 'ash_expected=3.32.0\n' >> /tmp/xaas-build-receipt.txt
+          printf 'runner=packs/xaas-ash-core-pack/xaas-ash-build-all.sh\n' >> /tmp/xaas-build-receipt.txt
+          printf 'projection_adapter_receipt=/tmp/xaas-render-manifest.json\n' >> /tmp/xaas-build-receipt.txt
+          printf 'target=/tmp/xaas_build_smoke\n' >> /tmp/xaas-build-receipt.txt
+          cat /tmp/xaas-build-receipt.txt

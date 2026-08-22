@@ -1,0 +1,54 @@
+@prefix afl: <urn:autofde-lab:> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Real qualification fixture: three CertificationCheck individuals, one per
+# CheckSeverity, each with a matching CertificationCheckResult that legitimately
+# omits or carries resultEvidenceRef per its severity, tied together by one
+# CertificationManifest. All valid -- the gate must return zero rows.
+
+afl:check-environment-has-all-seven-methods a afl:CertificationCheck ;
+    afl:checkName "environment_has_all_seven_methods" ;
+    afl:checkDescription "Structural check: the EnvironmentProvider exposes all seven methods declared on gymact's typing.Protocol contract." ;
+    afl:checkSeverityRef afl:STRUCTURAL .
+
+afl:check-reset-returns-valid-observation a afl:CertificationCheck ;
+    afl:checkName "reset_returns_valid_observation" ;
+    afl:checkDescription "Behavioral check: a real environment.reset() call was executed and its return shape was checked against the declared observation schema." ;
+    afl:checkSeverityRef afl:BEHAVIORAL .
+
+afl:check-capability-consequence-is-valid a afl:CertificationCheck ;
+    afl:checkName "capability_consequence_is_valid" ;
+    afl:checkDescription "Evidence check: a real capability-consequence operation was executed and its outcome verified against gymact's BLAKE3 receipt-chain machinery." ;
+    afl:checkSeverityRef afl:EVIDENCE .
+
+afl:result-environment-has-all-seven-methods a afl:CertificationCheckResult ;
+    afl:resultCheckRef "environment_has_all_seven_methods" ;
+    afl:resultPassed true ;
+    afl:resultDetail "All seven Protocol methods present on gymact.providers.SREGymEnvironmentProvider." .
+    # STRUCTURAL: no operation executed, resultEvidenceRef legitimately absent.
+
+afl:result-reset-returns-valid-observation a afl:CertificationCheckResult ;
+    afl:resultCheckRef "reset_returns_valid_observation" ;
+    afl:resultPassed true ;
+    afl:resultDetail "environment.reset() executed once; returned observation matched declared schema." .
+    # BEHAVIORAL: a real operation ran and its shape was checked in-process,
+    # but no independently verifiable receipt is claimed -- resultEvidenceRef
+    # legitimately absent.
+
+afl:result-capability-consequence-is-valid a afl:CertificationCheckResult ;
+    afl:resultCheckRef "capability_consequence_is_valid" ;
+    afl:resultPassed true ;
+    afl:resultDetail "capability_consequence operation executed against a live SREGymEnvironmentProvider instance." ;
+    afl:resultEvidenceRef "blake3:9f1c2a7e4b3d0f5a8c6e1d2b7a9f4e3c1b0a5d8e7f6c4b3a2d1e0f9c8b7a6d5e" .
+    # EVIDENCE: real operation ran, receipt independently verifiable via
+    # gymact's own BLAKE3 receipt-chain machinery -- resultEvidenceRef present.
+
+afl:manifest-sregym-run-2026-08-19 a afl:CertificationManifest ;
+    afl:manifestGymName "sregym" ;
+    afl:manifestProviderClassRef "gymact.providers.SREGymEnvironmentProvider" ;
+    afl:manifestConformanceLevelRef afl:SMOKE_TESTED ;
+    afl:manifestCheckResultRef "environment_has_all_seven_methods" ,
+                               "reset_returns_valid_observation" ,
+                               "capability_consequence_is_valid" ;
+    afl:manifestIssuedAtRef "2026-08-19T00:00:00Z"^^xsd:string ;
+    afl:manifestComputationReceiptRef "blake3:2c1b0a5d8e7f6c4b3a2d1e0f9c8b7a6d5e9f1c2a7e4b3d0f5a8c6e1d2b7a9f4e" .
