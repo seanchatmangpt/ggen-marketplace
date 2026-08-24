@@ -1,0 +1,21 @@
+name: DEVELOP Composition Expander R18 Exact Head
+on:
+  pull_request:
+jobs:
+  qualify:
+    if: github.event.pull_request.head.ref == 'develop/composition-expander-r18-20260824'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Verify R18 reusable surface
+        run: |
+          test "$(find packs/ggen-project-boundary-pack/queries -name 'r18-*.rq' | wc -l)" -eq 4
+          test -f packs/ggen-project-boundary-pack/composition-expansion.ttl
+          test -f packs/ggen-project-boundary-pack/fixtures/r18-composition-expansion.ttl
+          python3 -c "import json; p=json.load(open('receipts/select/2026-08-24-composition-expander-r18.json')); assert p['authority']=='SELECT' and p['actuation_performed'] is False and p['marketplace_first'] is True and len(p['candidate_families']) == 4"
