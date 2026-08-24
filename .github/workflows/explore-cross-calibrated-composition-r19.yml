@@ -1,0 +1,23 @@
+name: EXPLORE Cross Calibrated Composition R19 Exact Head
+on:
+  pull_request:
+jobs:
+  qualify:
+    if: github.event.pull_request.head.ref == 'explore/cross-calibrated-composition-r19-20260824'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Verify R19 cross-calibration surface
+        run: |
+          test "$(find packs/ggen-project-boundary-pack/queries -name 'r19-xcal-*.rq' | wc -l)" -eq 13
+          test -f packs/ggen-project-boundary-pack/cross-calibrated-composition-r19.ttl
+          test "$(find packs/ggen-project-boundary-pack/fixtures -name 'r19-xcal-*.ttl' | wc -l)" -eq 4
+          python3 -c "import json; p=json.load(open('receipts/select/2026-08-24-cross-calibrated-composition-r19.json')); assert p['authority']=='SELECT' and p['actuation_performed'] is False and p['marketplace_first'] is True"
+          python3 -c "import json; rows=[json.loads(x) for x in open('packs/ggen-project-boundary-pack/cross-calibrated-composition-r19-ledger.jsonl')]; assert {r['qualification'] for r in rows} == {'ALIVE','PARTIAL_ALIVE','BLOCKED','UNSUPPORTED'}"
