@@ -1,18 +1,22 @@
-name: DEVELOP Manufacturing Capital Accounting R19 Exact Head
+name: Manufacturing Capital Accounting R19 Exact Subject
 on:
   pull_request:
+  push:
+    branches: [main]
 
 timeout-minutes: 15
 jobs:
   qualify:
-    if: github.head_ref == 'develop/manufacturing-capital-accounting-r19-20260824'
+    if: (github.event_name == 'pull_request' && github.head_ref == 'develop/manufacturing-capital-accounting-r19-20260824') || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
-      - name: Assert exact PR head
-        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert exact subject
+        run: |
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$expected"
       - name: Admit marketplace configuration
         run: bash scripts/admit-config.sh marketplace.toml "$RUNNER_TEMP/ggen-marketplace-admitted.json"
       - name: Validate marketplace source
