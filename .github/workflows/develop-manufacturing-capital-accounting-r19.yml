@@ -1,0 +1,63 @@
+name: DEVELOP Manufacturing Capital Accounting R19 Exact Head
+on:
+  pull_request:
+
+timeout-minutes: 15
+jobs:
+  qualify:
+    if: github.head_ref == 'develop/manufacturing-capital-accounting-r19-20260824'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact PR head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Admit marketplace configuration
+        run: bash scripts/admit-config.sh marketplace.toml "$RUNNER_TEMP/ggen-marketplace-admitted.json"
+      - name: Validate marketplace source
+        run: python3 scripts/marketplace.py validate
+      - name: Qualify all packs with real ggen double manufacture
+        env:
+          GGEN_MARKETPLACE_ADMITTED_CONFIG: ${{ runner.temp }}/ggen-marketplace-admitted.json
+        run: bash scripts/qualify-marketplace.sh "$RUNNER_TEMP/ggen-marketplace-admitted.json" "$RUNNER_TEMP/ggen-marketplace-qualification.json"
+      - name: Assert project-boundary pack standing
+        run: |
+          python3 - "$RUNNER_TEMP/ggen-marketplace-qualification.json" <<'PY'
+          import json, sys
+          payload = json.load(open(sys.argv[1]))
+          records = payload if isinstance(payload, list) else payload.get("packs", payload.get("results", []))
+          record = next(item for item in records if item.get("name") == "ggen-project-boundary-pack")
+          assert record["status"] == "ALIVE", record
+          print(json.dumps(record, sort_keys=True))
+          PY
+      - name: Manufacture R19 capital consequences with exact ggen
+        run: |
+          ggen="$(bash scripts/install-ggen.sh "$RUNNER_TEMP/ggen-marketplace-admitted.json")"
+          (cd packs/ggen-project-boundary-pack && "$ggen" sync run)
+          test -f packs/ggen-project-boundary-pack/generated/project-boundary/manufacturing-capital-statement.json
+          test -f packs/ggen-project-boundary-pack/generated/project-boundary/manufacturing_capital_court.py
+      - name: Execute generated manufacturing-capital court
+        run: |
+          python3 packs/ggen-project-boundary-pack/generated/project-boundary/manufacturing_capital_court.py > "$RUNNER_TEMP/manufacturing-capital-court.json"
+          python3 - "$RUNNER_TEMP/manufacturing-capital-court.json" <<'PY'
+          import json, sys
+          payload = json.load(open(sys.argv[1]))
+          assert payload["standing"] == "ALIVE", payload
+          assert payload["net_manufacturing_capital_growth"] == "400.0", payload
+          assert payload["closing_capital_stock"] == "1400.0", payload
+          assert payload["capital_forming_commit_share"] == "0.7", payload
+          assert payload["authority"] == "QUALIFY", payload
+          assert payload["actuation_performed"] is False, payload
+          print(json.dumps(payload, sort_keys=True))
+          PY
+      - name: Refuse accounting inconsistencies
+        run: |
+          grep -q 'COMMIT_CLASSIFICATION_MISMATCH' packs/ggen-project-boundary-pack/queries/r19-capital-accounting-falsifiers.rq
+          grep -q 'DEEPENING_WITHOUT_INSTALLED_CAPITAL' packs/ggen-project-boundary-pack/queries/r19-capital-accounting-falsifiers.rq
+          grep -q 'COMPOSITION_WITHOUT_DISTINCT_FAMILIES' packs/ggen-project-boundary-pack/queries/r19-capital-accounting-falsifiers.rq
+          grep -q 'INVALID_RECEIPT_DIGEST' packs/ggen-project-boundary-pack/queries/r19-capital-accounting-falsifiers.rq
+      - name: Generated consequences are not source
+        run: |
+          rm -rf packs/ggen-project-boundary-pack/generated
+          git diff --exit-code
