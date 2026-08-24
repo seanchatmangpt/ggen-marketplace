@@ -1,0 +1,50 @@
+name: EXPLORE Option Capital R12 Exact Head
+on:
+  pull_request:
+    paths:
+      - 'packs/dfcm-maximalist-court-pack/opportunity-capital.ttl'
+      - 'packs/dfcm-maximalist-court-pack/queries/r12-option-*.rq'
+      - 'packs/dfcm-maximalist-court-pack/fixtures/r12-option-capital.ttl'
+      - 'packs/dfcm-maximalist-court-pack/docs/**/option-capital*.md'
+      - 'receipts/explore/2026-08-24-option-capital-r12.json'
+      - '.github/workflows/explore-option-capital-r12.yml'
+permissions:
+  contents: read
+jobs:
+  qualify:
+    if: github.head_ref == 'explore/option-capital-r12-20260824'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Admit exact PR head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Install bounded semantic verifier
+        run: python3 -m pip install --disable-pip-version-check 'rdflib==7.5.0'
+      - name: Execute option-capital courts against behavioral fixture
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from rdflib import Graph
+          root=Path('packs/dfcm-maximalist-court-pack')
+          g=Graph()
+          g.parse(root/'opportunity-capital.ttl', format='turtle')
+          g.parse(root/'fixtures/r12-option-capital.ttl', format='turtle')
+          queries=sorted((root/'queries').glob('r12-option-*.rq'))
+          assert len(queries) == 32, len(queries)
+          for query in queries:
+              list(g.query(query.read_text()))
+          assert len(g) == 125, len(g)
+          PY
+      - name: Verify receipt boundary
+        run: python3 -c "import json; d=json.load(open('receipts/explore/2026-08-24-option-capital-r12.json')); assert d['authority']=='CONSTRUCT|VERIFY' and d['actuation_performed'] is False and d['meaningful_commits']==40 and d['executable_courts']==32"
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -REn 'requests\.(post|put|patch|delete)|subprocess\.|os\.system|boto3|azure\.|google\.cloud|curl .*-(X|d)' packs/dfcm-maximalist-court-pack/opportunity-capital.ttl packs/dfcm-maximalist-court-pack/queries/r12-option-*.rq packs/dfcm-maximalist-court-pack/fixtures/r12-option-capital.ttl receipts/explore/2026-08-24-option-capital-r12.json
