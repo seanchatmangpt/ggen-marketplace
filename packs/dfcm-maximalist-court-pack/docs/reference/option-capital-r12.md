@@ -1,0 +1,5 @@
+# Option-capital R12 reference
+
+`Opportunity`, `Composition`, and `ExecutableCandidate` are the primary classes. Core edge predicates are `changedCapability`, `existingCapability`, `publicOntology`, `marketplacePack`, `repository`, `runtimeSurface`, `verificationSurface`, `composes`, and `producesCandidate`. Qualification predicates are `marketplaceSupport`, `missingPrimitive`, `qualification`, `reversibility`, `expectedReuse`, `expectedCapabilitySpaceDelta`, `executable`, `nonDominated`, `frontierGeneration`, `unlockedBy`, `falsifier`, `receiptDigest`, `authority`, `actuationPerformed`, and `standing`.
+
+R12 contains 32 SPARQL courts. Courts 01-04 census opportunity/composition yield; 05-08 expose the Pareto/reversibility/reuse/delta frontier; 09-18 expose missing support, qualification, receipt, authority, and actuation failures; 19-23 measure standing and ecosystem dispersion; 24-31 expose domination, value, pack leverage, composition yield, frontier generations, and unreceipted value; 32 returns only the clean executable frontier.
