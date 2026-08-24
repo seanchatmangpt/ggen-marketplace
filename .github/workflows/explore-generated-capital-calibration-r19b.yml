@@ -1,0 +1,47 @@
+name: EXPLORE Generated Capital Calibration R19B Exact Head
+on:
+  pull_request:
+jobs:
+  qualify:
+    if: github.head_ref == 'explore/generated-cross-calibration-r19b-20260824'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Assert exact subject
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Admit marketplace configuration
+        run: bash scripts/admit-config.sh marketplace.toml "$RUNNER_TEMP/admitted.json"
+      - name: Validate marketplace source
+        run: python3 scripts/marketplace.py validate
+      - name: Install admitted ggen
+        run: |
+          ggen="$(bash scripts/install-ggen.sh "$RUNNER_TEMP/admitted.json")"
+          echo "GGEN_BIN=$ggen" >> "$GITHUB_ENV"
+      - name: Double manufacture calibrated frontier
+        run: |
+          set -euo pipefail
+          (cd packs/ggen-project-boundary-pack && "$GGEN_BIN" sync run)
+          test -f packs/ggen-project-boundary-pack/generated/project-boundary/capital-calibrated-frontier.json
+          test -f packs/ggen-project-boundary-pack/generated/project-boundary/capital_calibrated_frontier_court.py
+          sha256sum packs/ggen-project-boundary-pack/generated/project-boundary/capital-calibrated-frontier.json packs/ggen-project-boundary-pack/generated/project-boundary/capital_calibrated_frontier_court.py > "$RUNNER_TEMP/a"
+          (cd packs/ggen-project-boundary-pack && "$GGEN_BIN" sync run)
+          sha256sum packs/ggen-project-boundary-pack/generated/project-boundary/capital-calibrated-frontier.json packs/ggen-project-boundary-pack/generated/project-boundary/capital_calibrated_frontier_court.py > "$RUNNER_TEMP/b"
+          cmp "$RUNNER_TEMP/a" "$RUNNER_TEMP/b"
+      - name: Execute generated calibration court
+        run: python3 packs/ggen-project-boundary-pack/generated/project-boundary/capital_calibrated_frontier_court.py | tee "$RUNNER_TEMP/court.json"
+      - name: Assert court standing and authority
+        run: python3 -c "import json; p=json.load(open('$RUNNER_TEMP/court.json')); assert p['standing']=='ALIVE' and p['authority']=='QUALIFY' and p['actuation_performed'] is False"
+      - name: Refuse invalid calibration topology
+        run: |
+          grep -q ZERO_COMMIT_DENOMINATOR packs/ggen-project-boundary-pack/queries/r19b-capital-calibration-falsifiers.rq
+          grep -q NONPOSITIVE_CLOSING_STOCK packs/ggen-project-boundary-pack/queries/r19b-capital-calibration-falsifiers.rq
+          grep -q CAPEX_SHARE_GT_ONE packs/ggen-project-boundary-pack/queries/r19b-capital-calibration-falsifiers.rq
+          grep -q COMPOSITION_SHARE_GT_ONE packs/ggen-project-boundary-pack/queries/r19b-capital-calibration-falsifiers.rq
+      - name: Generated consequences are not source
+        run: |
+          rm -rf packs/ggen-project-boundary-pack/generated
+          git diff --exit-code
