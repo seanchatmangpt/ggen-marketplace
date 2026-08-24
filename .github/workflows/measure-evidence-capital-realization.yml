@@ -1,0 +1,35 @@
+name: MEASURE Evidence Capital Realization
+
+on:
+  pull_request:
+    paths:
+      - packs/evidence-capital-realization-pack/**
+      - .github/workflows/measure-evidence-capital-realization.yml
+
+permissions:
+  contents: read
+
+jobs:
+  qualification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Admit exact PR head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Admit marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Compile realization pack
+        run: python3 -m py_compile packs/evidence-capital-realization-pack/scripts/*.py packs/evidence-capital-realization-pack/tests/*.py
+      - name: Run permanent realization courts
+        env:
+          PYTHONPATH: packs/evidence-capital-realization-pack
+        run: python3 -m unittest discover -s packs/evidence-capital-realization-pack/tests -p 'test_*.py' -v
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -REn 'requests\.(post|put|patch|delete)|urllib\.request\.(Request|urlopen)|subprocess\.|os\.system|boto3|azure\.|google\.cloud' packs/evidence-capital-realization-pack/scripts packs/evidence-capital-realization-pack/tests
