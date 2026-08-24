@@ -1,0 +1,53 @@
+name: MEASURE Portfolio Observability Realization R16
+
+on:
+  pull_request:
+    paths:
+      - packs/ggen-project-boundary-pack/observability-realization.ttl
+      - packs/ggen-project-boundary-pack/queries/r16-realize-*.rq
+      - packs/ggen-project-boundary-pack/fixtures/r16-*.ttl
+      - receipts/measure/2026-08-24-observability-realization-r16.json
+      - .github/workflows/measure-observability-realization-r16.yml
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Admit exact PR subject
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Verify realization measurement surface
+        run: |
+          test "$(find packs/ggen-project-boundary-pack/queries -name 'r16-realize-*.rq' | wc -l)" -eq 12
+          test "$(find packs/ggen-project-boundary-pack/fixtures -name 'r16-*.ttl' | wc -l)" -eq 1
+          grep -q 'MeasurementRun' packs/ggen-project-boundary-pack/observability-realization.ttl
+          grep -q 'NoveltyMetric' packs/ggen-project-boundary-pack/observability-realization.ttl
+      - name: Verify realization receipt
+        run: |
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          p=Path('receipts/measure/2026-08-24-observability-realization-r16.json')
+          r=json.loads(p.read_text()); digest=r.pop('sha256')
+          assert hashlib.sha256(json.dumps(r,sort_keys=True,separators=(',',':')).encode()).hexdigest()==digest
+          assert r['contained'] is True
+          assert r['run_seed_count']==4 and r['run_opportunity_count']==12
+          assert r['run_novel_count']==12 and r['run_actionable_count']==12
+          assert r['run_relief_count']==0
+          assert r['authority']=='OBSERVE|VERIFY|CONSTRUCT'
+          assert r['consequential_do']=='BRCE_ONLY' and r['actuation_performed'] is False
+          PY
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -REn 'requests\.(post|put|patch|delete)|urllib\.request\.(Request|urlopen)|subprocess\.|os\.system|boto3|azure\.|google\.cloud' packs/ggen-project-boundary-pack/observability-realization.ttl packs/ggen-project-boundary-pack/queries/r16-realize-*.rq packs/ggen-project-boundary-pack/fixtures/r16-*.ttl receipts/measure/2026-08-24-observability-realization-r16.json
