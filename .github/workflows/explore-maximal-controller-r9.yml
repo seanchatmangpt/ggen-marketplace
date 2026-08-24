@@ -1,0 +1,35 @@
+name: EXPLORE Maximal Controller R9 Exact Head
+on:
+  pull_request:
+    paths:
+      - 'packs/dfcm-maximalist-court-pack/queries/explore-r9-*.rq'
+      - 'receipts/select/2026-08-24-explore-maximal-controller-r9.json'
+      - '.github/workflows/explore-maximal-controller-r9.yml'
+permissions:
+  contents: read
+jobs:
+  qualify:
+    if: github.head_ref == 'explore/maximal-controller-r9-20260824'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Admit exact PR head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Verify R9 court corpus
+        run: |
+          count=$(find packs/dfcm-maximalist-court-pack/queries -maxdepth 1 -name 'explore-r9-*.rq' | wc -l)
+          test "$count" -eq 25
+          grep -Rqs 'PolicyCalibrationObservation' packs/dfcm-maximalist-court-pack/queries/explore-r9-*.rq
+      - name: Verify selection boundary
+        run: python3 -c "import json; d=json.load(open('receipts/select/2026-08-24-explore-maximal-controller-r9.json')); assert d['marketplace_first'] is True and d['actuation_performed'] is False and d['courts']==25 and d['authority']=='SELECT|CONSTRUCT|VERIFY'"
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -REn 'requests\.(post|put|patch|delete)|subprocess\.|os\.system|boto3|azure\.|google\.cloud|curl .*-(X|d)' packs/dfcm-maximalist-court-pack/queries/explore-r9-*.rq receipts/select/2026-08-24-explore-maximal-controller-r9.json
