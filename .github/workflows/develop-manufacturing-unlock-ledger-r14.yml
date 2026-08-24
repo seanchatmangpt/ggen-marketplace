@@ -1,0 +1,23 @@
+name: DEVELOP Manufacturing Unlock Ledger R14 Exact Head
+on:
+  pull_request:
+
+timeout-minutes: 10
+jobs:
+  qualify:
+    if: github.head_ref == 'develop/manufacturing-unlock-ledger-r14-20260824'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact PR head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Verify unlock ledger surface
+        run: |
+          test "$(find packs/ggen-project-boundary-pack/queries -maxdepth 1 -name 'r14-unlock-*.rq' | wc -l)" -eq 12
+          test -f packs/ggen-project-boundary-pack/manufacturing-unlock.ttl
+      - name: Verify SELECT authority receipt
+        run: python3 -c "import json; p=json.load(open('receipts/select/2026-08-24-manufacturing-unlock-ledger-r14.json')); assert p['authority']=='SELECT'; assert p['actuation_performed'] is False; assert p['marketplace_first'] is True"
