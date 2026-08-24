@@ -1,0 +1,26 @@
+name: DEVELOP Ggen Context Diagnostics R8 Exact Head
+on:
+  pull_request:
+    paths:
+      - 'packs/dfcm-maximalist-court-pack/queries/diagnostic-r8-*'
+      - 'receipts/select/2026-08-24-ggen-context-diagnostics-r8.json'
+      - '.github/workflows/develop-ggen-context-diagnostics-r8.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    if: github.head_ref == 'develop/ggen-context-diagnostics-r8-20260824'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Verify R8 diagnostic corpus
+        run: test "$(find packs/dfcm-maximalist-court-pack/queries -name 'diagnostic-r8-*.rq' | wc -l)" -ge 12
+      - name: Verify SELECT authority
+        run: python3 -c "import json; p=json.load(open('receipts/select/2026-08-24-ggen-context-diagnostics-r8.json')); assert p['authority']=='SELECT' and p['actuation_performed'] is False and p['marketplace_first'] is True"
