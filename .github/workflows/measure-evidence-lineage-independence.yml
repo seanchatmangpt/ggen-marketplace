@@ -1,0 +1,31 @@
+name: MEASURE Evidence Lineage Independence
+on:
+  pull_request:
+    paths:
+      - 'packs/evidence-lineage-independence-pack/**'
+      - '.github/workflows/measure-evidence-lineage-independence.yml'
+permissions:
+  contents: read
+jobs:
+  qualification:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Admit exact PR head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Validate marketplace pack
+        run: python3 scripts/marketplace.py validate
+      - name: Compile measurement court
+        run: python3 -m py_compile packs/evidence-lineage-independence-pack/scripts/*.py packs/evidence-lineage-independence-pack/tests/*.py
+      - name: Run permanent falsifiers
+        env:
+          PYTHONPATH: packs/evidence-lineage-independence-pack
+        run: python3 -m unittest discover -s packs/evidence-lineage-independence-pack/tests -p 'test_*.py' -v
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -REn 'requests\.(post|put|patch|delete)|urllib\.request\.(Request|urlopen)|subprocess\.|os\.system|boto3|azure\.|google\.cloud' packs/evidence-lineage-independence-pack/scripts packs/evidence-lineage-independence-pack/tests
