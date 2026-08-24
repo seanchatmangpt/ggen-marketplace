@@ -1,0 +1,25 @@
+name: DEVELOP Selection Capital Exact Head
+on:
+  pull_request:
+    paths:
+      - 'packs/dfcm-selection-capital-pack/**'
+      - 'receipts/select/2026-08-23-dfcm-selection-capital.json'
+      - '.github/workflows/develop-selection-capital.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Deterministic catalog
+        run: |
+          python3 scripts/marketplace.py catalog > /tmp/a.json
+          python3 scripts/marketplace.py catalog > /tmp/b.json
+          cmp /tmp/a.json /tmp/b.json
+      - name: Refuse ambient DO in pack source
+        run: '! grep -R -E "(requests\.(post|put|patch|delete)|subprocess\.|os\.system)" packs/dfcm-selection-capital-pack'
