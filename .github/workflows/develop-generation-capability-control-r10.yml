@@ -1,0 +1,35 @@
+name: DEVELOP Generation Capability Control R10 Exact Head
+on:
+  pull_request:
+    paths:
+      - 'packs/dfcm-maximalist-court-pack/queries/develop-r10-generation-*.rq'
+      - 'receipts/select/2026-08-24-generation-capability-control-r10.json'
+      - '.github/workflows/develop-generation-capability-control-r10.yml'
+permissions:
+  contents: read
+jobs:
+  qualify:
+    if: github.head_ref == 'develop/generation-capability-control-r10-20260824'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Admit exact PR head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Verify generation control courts
+        run: |
+          count=$(find packs/dfcm-maximalist-court-pack/queries -maxdepth 1 -name 'develop-r10-generation-*.rq' | wc -l)
+          test "$count" -eq 12
+          grep -Rqs 'GenerationCapabilityObservation' packs/dfcm-maximalist-court-pack/queries/develop-r10-generation-*.rq
+      - name: Verify SELECT boundary
+        run: python3 -c "import json; d=json.load(open('receipts/select/2026-08-24-generation-capability-control-r10.json')); assert d['marketplace_first'] is True and d['actuation_performed'] is False and d['authority']=='SELECT'"
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -REn 'requests\.(post|put|patch|delete)|subprocess\.|os\.system|boto3|azure\.|google\.cloud|curl .*-(X|d)' packs/dfcm-maximalist-court-pack/queries/develop-r10-generation-*.rq receipts/select/2026-08-24-generation-capability-control-r10.json
