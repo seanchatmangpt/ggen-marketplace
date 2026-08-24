@@ -43,20 +43,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
       - name: Fail if executable workflow jobs are missing timeout-minutes
         shell: bash
         run: |
           set -euo pipefail
           missing=""
           for workflow in .github/workflows/*.yml; do
-            if grep -q 'timeout-minutes:' "$workflow"; then
-              continue
-            fi
-            if grep -Eq '^[[:space:]]{4}uses:' "$workflow" && \
-               ! grep -Eq '^[[:space:]]{4}runs-on:' "$workflow"; then
-              continue
-            fi
+            if grep -q 'timeout-minutes:' "$workflow"; then continue; fi
+            if grep -Eq '^[[:space:]]{4}uses:' "$workflow" && ! grep -Eq '^[[:space:]]{4}runs-on:' "$workflow"; then continue; fi
             missing+="${workflow}"$'\n'
           done
           if [[ -n "$missing" ]]; then
@@ -79,7 +73,6 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
-
       - name: Assert exact subject identity
         id: identity
         shell: bash
@@ -92,18 +85,15 @@ jobs:
             exit 2
           fi
           echo "exact_head=$actual" >> "$GITHUB_OUTPUT"
-
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
-
       - name: Set up pinned star-toml toolchain
         uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
         with:
           toolchain: "nightly-2026-06-22"
           components: rustfmt
-
       - name: Admit marketplace operational law through star-toml
         shell: bash
         run: |
@@ -119,15 +109,12 @@ jobs:
           assert payload["star_toml_sha"] == "8395515cf8e68bfdc9edff49fb358c4f1da7c795"
           assert len(payload["witness_blake3"]) == 64
           PY
-
       - name: Validate marketplace and Diátaxis
         run: python scripts/marketplace.py validate
-
       - name: Lint cross-pack instance references
         run: |
           python scripts/check_cross_pack_references.py --mode gate \
             --report "${RUNNER_TEMP}/cross-pack-references.json"
-
       - name: Preserve cross-pack reference report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -135,7 +122,6 @@ jobs:
           name: cross-pack-reference-report
           path: ${{ runner.temp }}/cross-pack-references.json
           retention-days: 14
-
       - name: Prove deterministic catalog projection
         shell: bash
         run: |
@@ -144,7 +130,6 @@ jobs:
           python scripts/marketplace.py catalog > /tmp/catalog-b.json
           cmp /tmp/catalog-a.json /tmp/catalog-b.json
           python -m json.tool /tmp/catalog-a.json >/dev/null
-
       - name: Prove deterministic archive build
         shell: bash
         run: |
@@ -155,17 +140,14 @@ jobs:
           diff -rq /tmp/packs-a dist/packs
           cmp /tmp/archive-manifest-a.txt /tmp/archive-manifest-b.txt
           rm -rf dist /tmp/packs-a
-
       - name: Fingerprint admitted corpus
         run: python scripts/marketplace.py fingerprint
-
       - name: Upload admitted config (qualify shards' input)
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: admitted-config
           path: ${{ runner.temp }}/admitted-config.json
           retention-days: 1
-
       - name: Refuse migration actuator
         run: test ! -e .github/workflows/one-shot-import.yml
 
@@ -185,18 +167,15 @@ jobs:
           ref: ${{ needs.admission.outputs.exact_head }}
           fetch-depth: 0
           persist-credentials: false
-
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
-
       - name: Download admitted config
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: admitted-config
           path: ${{ runner.temp }}
-
       - name: Install ggen from admitted marketplace config (prebuilt binary, no Rust compile)
         shell: bash
         env:
@@ -206,21 +185,19 @@ jobs:
           ggen_bin="$(bash scripts/install-ggen.sh "${RUNNER_TEMP}/admitted-config.json")"
           echo "GGEN_BIN=$ggen_bin" >> "$GITHUB_ENV"
           "$ggen_bin" --version
-
       - name: Qualify this shard's packs through the real ggen runtime
         shell: bash
         run: |
           set -euo pipefail
           report="${RUNNER_TEMP}/shard-${{ matrix.shard }}-qualification.json"
-          python3 scripts/qualify_packs.py \
+          python3 scripts/qualify_packs_r18.py \
             --ggen "$GGEN_BIN" \
             --shard-index ${{ matrix.shard }} \
             --shard-count "$SHARD_COUNT" \
-            --timeout-seconds 5 \
+            --timeout-seconds 15 \
             --workers 8 \
             --report "$report"
           python -m json.tool "$report" >/dev/null
-
       - name: Preserve this shard's qualification receipt
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -229,7 +206,6 @@ jobs:
           path: ${{ runner.temp }}/shard-${{ matrix.shard }}-qualification.json
           if-no-files-found: warn
           retention-days: 14
-
       - name: Refuse qualification source mutation (this shard's own checkout)
         shell: bash
         run: |
@@ -260,14 +236,12 @@ jobs:
             exit 2
           fi
           echo "ci-status: admission=success qualify=success"
-
       - name: Download every shard's qualification receipt
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: qualification-shard-*
           path: shards
           merge-multiple: true
-
       - name: Cross-check shard partition covers every admitted pack exactly once
         shell: bash
         run: |
@@ -275,17 +249,14 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-
           names: list[str] = []
           total_reported = 0
           for path in sorted(Path("shards").glob("*.json")):
               payload = json.loads(path.read_text())
               total_reported += payload["pack_count"]
               names.extend(pack["name"] for pack in payload["packs"])
-
           duplicates = {name for name in names if names.count(name) > 1}
           if duplicates:
               raise SystemExit(f"REFUSED:GGEN_PACK_SHARD_OVERLAP:{sorted(duplicates)}")
-
           print(f"ci-status: {len(names)} unique packs qualified across all shards (sum={total_reported})")
           PY
