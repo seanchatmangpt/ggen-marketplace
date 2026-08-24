@@ -1,0 +1,30 @@
+name: owning-rail-observability-pack
+
+on:
+  pull_request:
+    paths:
+      - 'packs/owning-rail-observability-pack/**'
+      - '.github/workflows/owning-rail-observability.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Admit exact PR subject
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Compile reusable runtime substrate
+        run: python3 -m py_compile packs/owning-rail-observability-pack/scripts/*.py packs/owning-rail-observability-pack/qualification/test_pack.py
+      - name: Execute owning-rail qualification court
+        run: python3 -m unittest discover -s packs/owning-rail-observability-pack/qualification -p 'test_*.py' -v
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -REn 'requests\.(post|put|patch|delete)|urllib\.request\.(Request|urlopen)|subprocess\.|os\.system|boto3|azure\.|google\.cloud' packs/owning-rail-observability-pack/scripts packs/owning-rail-observability-pack/qualification
