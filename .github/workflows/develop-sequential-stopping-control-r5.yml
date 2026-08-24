@@ -1,0 +1,20 @@
+name: DEVELOP Sequential Stopping Control R5 Exact Head
+on:
+  pull_request:
+jobs:
+  verify:
+    if: github.event.pull_request.head.ref == 'develop/sequential-stopping-control-r5-20260824'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Verify selection receipt and courts
+        run: |
+          python3 -c "import json,pathlib; p=pathlib.Path('receipts/select/2026-08-24-sequential-stopping-control-r5.json'); d=json.loads(p.read_text()); assert d['authority']=='SELECT' and d['actuation_performed'] is False and d['marketplace_first'] is True"
+          test "$(find packs/dfcm-maximalist-court-pack/queries/develop/r5 -maxdepth 1 -name 'seq-*.rq' | wc -l)" -ge 12
