@@ -1,0 +1,20 @@
+name: DEVELOP Selection Robustness R3 Exact Head
+on:
+  pull_request:
+    paths:
+      - 'packs/dfcm-maximalist-court-pack/**'
+      - 'receipts/select/2026-08-24-selection-robustness-r3.json'
+      - '.github/workflows/develop-selection-robustness-r3.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Verify selection authority receipt
+        run: python3 -c "import json; d=json.load(open('receipts/select/2026-08-24-selection-robustness-r3.json')); assert d['authority']=='SELECT' and d['actuation_performed'] is False and d['marketplace_first'] is True"
