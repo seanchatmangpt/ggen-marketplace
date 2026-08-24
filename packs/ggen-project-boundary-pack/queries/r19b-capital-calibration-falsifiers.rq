@@ -1,0 +1,9 @@
+PREFIX gpb: <https://ggen.dev/ontology/project-boundary#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?period ?failure WHERE {
+  ?period a gpb:ManufacturingCapitalPeriod ; gpb:openingCapitalStock ?opening ; gpb:grossCapitalFormation ?gross ; gpb:capitalDepreciation ?depreciation ; gpb:capitalDeepening ?deepening ; gpb:compositionUplift ?composition ; gpb:totalMeaningfulCommits ?commits ; gpb:capexCommitCount ?capex ; gpb:compositionalCapexCommitCount ?composed .
+  BIND(xsd:decimal(?opening)+xsd:decimal(?gross)+xsd:decimal(?deepening)+xsd:decimal(?composition)-xsd:decimal(?depreciation) AS ?closing)
+  BIND(IF(xsd:decimal(?commits)<=0,"ZERO_COMMIT_DENOMINATOR",IF(xsd:decimal(?closing)<=0,"NONPOSITIVE_CLOSING_STOCK",IF(xsd:decimal(?capex)>xsd:decimal(?commits),"CAPEX_SHARE_GT_ONE",IF(xsd:decimal(?composed)>xsd:decimal(?commits),"COMPOSITION_SHARE_GT_ONE","OK")))) AS ?failure)
+  FILTER(?failure != "OK")
+}
+ORDER BY ?failure ?period
