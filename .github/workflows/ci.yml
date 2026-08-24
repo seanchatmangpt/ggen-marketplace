@@ -44,17 +44,30 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Fail if any workflow file is missing timeout-minutes
+      - name: Fail if executable workflow jobs are missing timeout-minutes
         shell: bash
         run: |
           set -euo pipefail
-          missing="$(grep -L timeout-minutes .github/workflows/*.yml || true)"
+          missing=""
+          for workflow in .github/workflows/*.yml; do
+            if grep -q 'timeout-minutes:' "$workflow"; then
+              continue
+            fi
+            # Reusable-workflow caller jobs cannot declare timeout-minutes at
+            # the call site. Their execution bound belongs to the called
+            # workflow, so do not manufacture an invalid local timeout field.
+            if grep -Eq '^[[:space:]]{4}uses:' "$workflow" && \
+               ! grep -Eq '^[[:space:]]{4}runs-on:' "$workflow"; then
+              continue
+            fi
+            missing+="${workflow}"$'\n'
+          done
           if [[ -n "$missing" ]]; then
-            echo "::error::Workflow file(s) missing timeout-minutes:"
-            echo "$missing"
+            echo "::error::Workflow file(s) with executable local jobs missing timeout-minutes:"
+            printf '%s' "$missing"
             exit 1
           fi
-          echo "All workflow files declare timeout-minutes."
+          echo "All executable local workflow jobs are bounded; reusable callers delegate their bound."
 
   admission:
     name: Fast admission (config, validate, catalog/archive determinism)
@@ -114,14 +127,6 @@ jobs:
         run: python scripts/marketplace.py validate
 
       - name: Lint cross-pack instance references
-        # RC2 from the standing-ladder-pack RCA (PR #21/#22): a pack can
-        # reference another pack's own-namespace individual without a
-        # matching qualification/consumer.ttl fixture, invisible to
-        # qualify_packs.py's isolated per-pack qualification until CI
-        # happens to exercise a gate that depends on it. Landed warn-only
-        # in #23 (3 pre-existing violations were on main at the time),
-        # fixed in #24, now hard-gated -- see scripts/check_cross_pack_
-        # references.py's own docstring.
         run: |
           python scripts/check_cross_pack_references.py --mode gate \
             --report "${RUNNER_TEMP}/cross-pack-references.json"
