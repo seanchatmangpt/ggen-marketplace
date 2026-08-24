@@ -1,0 +1,27 @@
+name: DEVELOP Maximalist Selection Control Exact Head
+on:
+  pull_request:
+    branches: ["explore/dfcm-maximalist-2026-08-24-r1"]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Marketplace admission
+        run: python3 scripts/marketplace.py validate
+      - name: Compile algorithms and courts
+        run: python3 -m py_compile packs/dfcm-maximalist-selection-control-pack/scripts/*.py packs/dfcm-maximalist-selection-control-pack/tests/*.py
+      - name: Permanent courts
+        env:
+          PYTHONPATH: packs/dfcm-maximalist-selection-control-pack
+        run: python3 -m unittest discover -s packs/dfcm-maximalist-selection-control-pack/tests -p 'test_*.py' -v
+      - name: Refuse ambient consequential actuation
+        run: |
+          if grep -R -nE 'requests\.(post|put|patch|delete)|subprocess\.|os\.system|\bDO\b.*true' packs/dfcm-maximalist-selection-control-pack/scripts packs/dfcm-maximalist-selection-control-pack/templates; then exit 1; fi
