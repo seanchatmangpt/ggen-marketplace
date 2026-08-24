@@ -1,0 +1,30 @@
+name: DEVELOP DfCM Maximalist Exact Head
+on:
+  pull_request:
+    paths:
+      - 'packs/dfcm-develop-maximalist-pack/**'
+      - 'receipts/select/2026-08-24-dfcm-develop-maximalist.json'
+      - '.github/workflows/develop-dfcm-maximalist.yml'
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact PR head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace source
+        run: python3 scripts/marketplace.py validate
+      - name: Deterministic catalog
+        run: |
+          python3 scripts/marketplace.py catalog > /tmp/a.json
+          python3 scripts/marketplace.py catalog > /tmp/b.json
+          cmp /tmp/a.json /tmp/b.json
+      - name: Compile reusable gates
+        run: python3 -m compileall -q packs/dfcm-develop-maximalist-pack/gates
+      - name: Refuse ambient DO
+        run: |
+          ! grep -REn 'requests\.(post|put|patch|delete)|subprocess\.|os\.system|boto3|azure\.|google\.cloud' packs/dfcm-develop-maximalist-pack/gates
