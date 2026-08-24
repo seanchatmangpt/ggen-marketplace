@@ -1,0 +1,22 @@
+PREFIX gpb: <https://ggen.dev/ontology/project-boundary#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?period ?netGrowth ?closingStock ?productivity ?compositionShare ?capexShare ?optionYield WHERE {
+  ?period a gpb:ManufacturingCapitalPeriod ;
+    gpb:openingCapitalStock ?opening ;
+    gpb:grossCapitalFormation ?gross ;
+    gpb:capitalDepreciation ?depreciation ;
+    gpb:capitalDeepening ?deepening ;
+    gpb:compositionUplift ?composition ;
+    gpb:qualifiedManufacturingOutput ?output ;
+    gpb:totalMeaningfulCommits ?commits ;
+    gpb:capexCommitCount ?capexCommits ;
+    gpb:compositionalCapexCommitCount ?compositionCommits .
+  BIND(xsd:decimal(?gross) + xsd:decimal(?deepening) + xsd:decimal(?composition) - xsd:decimal(?depreciation) AS ?netGrowth)
+  BIND(xsd:decimal(?opening) + ?netGrowth AS ?closingStock)
+  BIND(xsd:decimal(?output) / ?closingStock AS ?productivity)
+  BIND(xsd:decimal(?compositionCommits) / xsd:decimal(?commits) AS ?compositionShare)
+  BIND(xsd:decimal(?capexCommits) / xsd:decimal(?commits) AS ?capexShare)
+  BIND(?productivity * (1 + ?compositionShare) * (1 + ?capexShare) AS ?optionYield)
+  FILTER(?closingStock > 0 && xsd:decimal(?commits) > 0)
+}
+ORDER BY DESC(?optionYield) ?period
