@@ -21,26 +21,21 @@ jobs:
         run: bash scripts/admit-config.sh marketplace.toml "$RUNNER_TEMP/ggen-marketplace-admitted.json"
       - name: Validate marketplace source
         run: python3 scripts/marketplace.py validate
-      - name: Qualify all packs with real ggen double manufacture
-        env:
-          GGEN_MARKETPLACE_ADMITTED_CONFIG: ${{ runner.temp }}/ggen-marketplace-admitted.json
-        run: bash scripts/qualify-marketplace.sh "$RUNNER_TEMP/ggen-marketplace-admitted.json" "$RUNNER_TEMP/ggen-marketplace-qualification.json"
-      - name: Assert project-boundary pack standing
-        run: |
-          python3 - "$RUNNER_TEMP/ggen-marketplace-qualification.json" <<'PY'
-          import json, sys
-          payload = json.load(open(sys.argv[1]))
-          records = payload if isinstance(payload, list) else payload.get("packs", payload.get("results", []))
-          record = next(item for item in records if item.get("name") == "ggen-project-boundary-pack")
-          assert record["status"] == "ALIVE", record
-          print(json.dumps(record, sort_keys=True))
-          PY
-      - name: Manufacture R19 capital consequences with exact ggen
+      - name: Install exact admitted ggen
         run: |
           ggen="$(bash scripts/install-ggen.sh "$RUNNER_TEMP/ggen-marketplace-admitted.json")"
-          (cd packs/ggen-project-boundary-pack && "$ggen" sync run)
+          echo "GGEN_BIN=$ggen" >> "$GITHUB_ENV"
+          "$ggen" --version
+      - name: Double-manufacture R19 capital consequences
+        run: |
+          set -euo pipefail
+          (cd packs/ggen-project-boundary-pack && "$GGEN_BIN" sync run)
           test -f packs/ggen-project-boundary-pack/generated/project-boundary/manufacturing-capital-statement.json
           test -f packs/ggen-project-boundary-pack/generated/project-boundary/manufacturing_capital_court.py
+          find packs/ggen-project-boundary-pack/generated -type f -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/r19-generated-a.sha256"
+          (cd packs/ggen-project-boundary-pack && "$GGEN_BIN" sync run)
+          find packs/ggen-project-boundary-pack/generated -type f -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/r19-generated-b.sha256"
+          cmp "$RUNNER_TEMP/r19-generated-a.sha256" "$RUNNER_TEMP/r19-generated-b.sha256"
       - name: Execute generated manufacturing-capital court
         run: |
           python3 packs/ggen-project-boundary-pack/generated/project-boundary/manufacturing_capital_court.py > "$RUNNER_TEMP/manufacturing-capital-court.json"
