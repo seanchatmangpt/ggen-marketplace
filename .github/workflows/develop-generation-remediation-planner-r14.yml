@@ -1,0 +1,28 @@
+name: DEVELOP Generation Remediation Planner R14 Exact Head
+on:
+  pull_request:
+
+timeout-minutes: 10
+
+jobs:
+  qualify:
+    if: github.head_ref == 'develop/generation-remediation-planner-r14-20260824'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact PR head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Verify R14 court surface
+        run: |
+          test "$(find packs/dfcm-maximalist-court-pack/queries -maxdepth 1 -name 'remediation-r14-*.rq' | wc -l)" -eq 25
+          test -f packs/dfcm-maximalist-court-pack/generation-remediation.ttl
+      - name: Verify SELECT authority receipt
+        run: |
+          python3 -c "import json; p=json.load(open('receipts/select/2026-08-24-generation-remediation-planner-r14.json')); assert p['authority']=='SELECT'; assert p['actuation_performed'] is False; assert p['marketplace_first'] is True"
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -R -n -E '(aws |az |gcloud |kubectl |terraform apply|curl .*-X (POST|PUT|PATCH|DELETE)|requests\.(post|put|patch|delete))' packs/dfcm-maximalist-court-pack/generation-remediation.ttl packs/dfcm-maximalist-court-pack/queries/remediation-r14-*.rq receipts/select/2026-08-24-generation-remediation-planner-r14.json
