@@ -1,0 +1,34 @@
+PREFIX gpb: <https://ggen.dev/ontology/project-boundary#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?subject ?code
+WHERE {
+  {
+    ?subject a gpb:ManufacturingCapitalPeriod ;
+      gpb:totalMeaningfulCommits ?total ;
+      gpb:opexCommitCount ?opex ;
+      gpb:capexCommitCount ?capex ;
+      gpb:deepeningCommitCount ?deepening ;
+      gpb:compositionalCapexCommitCount ?composition .
+    FILTER(xsd:integer(?total) != (xsd:integer(?opex) + xsd:integer(?capex) + xsd:integer(?deepening) + xsd:integer(?composition)))
+    BIND("COMMIT_CLASSIFICATION_MISMATCH" AS ?code)
+  }
+  UNION
+  {
+    ?subject a gpb:CapitalEntry ; gpb:capitalClass gpb:CapitalDeepening .
+    FILTER NOT EXISTS { ?subject gpb:affectedInstalledAssets ?affected . FILTER(xsd:integer(?affected) > 0) }
+    BIND("DEEPENING_WITHOUT_INSTALLED_CAPITAL" AS ?code)
+  }
+  UNION
+  {
+    ?subject a gpb:CapitalEntry ; gpb:capitalClass gpb:CompositionalCAPEX .
+    FILTER NOT EXISTS { ?subject gpb:composedAssetFamilies ?families . FILTER(xsd:integer(?families) >= 2) }
+    BIND("COMPOSITION_WITHOUT_DISTINCT_FAMILIES" AS ?code)
+  }
+  UNION
+  {
+    ?subject a gpb:ManufacturingCapitalPeriod ; gpb:receiptDigest ?digest .
+    FILTER(STRLEN(STR(?digest)) != 64)
+    BIND("INVALID_RECEIPT_DIGEST" AS ?code)
+  }
+}
+ORDER BY ?code ?subject

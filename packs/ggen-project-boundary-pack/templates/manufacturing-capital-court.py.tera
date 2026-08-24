@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+import json
+from decimal import Decimal
+
+opening = Decimal("{{ opening }}")
+gross = Decimal("{{ gross }}")
+depreciation = Decimal("{{ depreciation }}")
+deepening = Decimal("{{ deepening }}")
+composition = Decimal("{{ composition }}")
+output = Decimal("{{ output }}")
+assets = int("{{ assets }}")
+families = int("{{ families }}")
+total_commits = int("{{ commits }}")
+opex_commits = int("{{ opexCommits }}")
+capex_commits = int("{{ capexCommits }}")
+deepening_commits = int("{{ deepeningCommits }}")
+composition_commits = int("{{ compositionCommits }}")
+receipt = "{{ receipt }}"
+
+assert min(opening, gross, depreciation, deepening, composition, output) >= 0
+assert total_commits == opex_commits + capex_commits + deepening_commits + composition_commits
+assert assets > 0 or deepening == 0
+assert families >= 2 or composition == 0
+assert len(receipt) == 64
+
+net_growth = gross + deepening + composition - depreciation
+closing_stock = opening + net_growth
+assert closing_stock >= 0
+capital_productivity = output / closing_stock if closing_stock else Decimal(0)
+capital_formation_rate = net_growth / opening if opening else Decimal(0)
+capex_share = Decimal(capex_commits + deepening_commits + composition_commits) / Decimal(total_commits) if total_commits else Decimal(0)
+
+print(json.dumps({
+    "schema": "ggen.manufacturing-capital-court/1",
+    "standing": "ALIVE",
+    "period": "{{ period }}",
+    "net_manufacturing_capital_growth": str(net_growth),
+    "closing_capital_stock": str(closing_stock),
+    "capital_productivity": str(capital_productivity),
+    "net_capital_formation_rate": str(capital_formation_rate),
+    "capital_forming_commit_share": str(capex_share),
+    "total_meaningful_commits": total_commits,
+    "receipt_digest": receipt,
+    "authority": "QUALIFY",
+    "actuation_performed": False
+}, sort_keys=True))
