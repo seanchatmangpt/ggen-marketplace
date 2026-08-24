@@ -1,0 +1,25 @@
+name: DEVELOP Selection Evidence Acquisition Exact Head
+on:
+  pull_request:
+    paths:
+      - 'packs/dfcm-selection-evidence-acquisition-pack/**'
+      - 'receipts/select/2026-08-24-selection-evidence-acquisition.json'
+      - '.github/workflows/develop-selection-evidence-acquisition.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact PR head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Marketplace admission
+        run: python3 scripts/marketplace.py validate
+      - name: Compile acquisition substrate
+        run: python3 -m compileall -q packs/dfcm-selection-evidence-acquisition-pack/scripts packs/dfcm-selection-evidence-acquisition-pack/tests
+      - name: Execute acquisition court
+        run: python3 -m unittest discover -s packs/dfcm-selection-evidence-acquisition-pack/tests -p 'test_*.py' -v
