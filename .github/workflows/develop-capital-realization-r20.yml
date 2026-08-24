@@ -1,0 +1,27 @@
+name: DEVELOP Capital Realization R20 Exact Head
+on:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: develop-capital-realization-r20-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  qualify:
+    if: github.event.pull_request.head.ref == 'develop/capital-realization-audit-r20-20260824'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Assert exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Verify R20 realization surface
+        run: |
+          test -f packs/ggen-project-boundary-pack/ontology-r20-capital-realization.ttl
+          test "$(find packs/ggen-project-boundary-pack/queries -maxdepth 1 -name 'r20-real*.rq' | wc -l)" -ge 8
+          python3 -c "import json; p=json.load(open('receipts/select/2026-08-24-capital-realization-audit-r20.json')); assert p['authority']=='SELECT' and p['verification_authority']=='VERIFY' and p['actuation_performed'] is False and p['marketplace_first'] is True"
