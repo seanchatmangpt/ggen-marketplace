@@ -1,0 +1,36 @@
+name: MEASURE Controller Generation Realization R11 Exact Head
+on:
+  pull_request:
+    paths:
+      - 'packs/dfcm-maximalist-court-pack/controller-generation-realization.ttl'
+      - 'packs/dfcm-maximalist-court-pack/queries/r11-realization-*.rq'
+      - 'receipts/measure/2026-08-24-controller-generation-realization-r11.json'
+      - '.github/workflows/measure-controller-generation-realization-r11.yml'
+permissions:
+  contents: read
+jobs:
+  qualify:
+    if: github.head_ref == 'measure/controller-generation-realization-r11-20260824'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Admit exact PR head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Verify realization court
+        run: |
+          count=$(find packs/dfcm-maximalist-court-pack/queries -maxdepth 1 -name 'r11-realization-*.rq' | wc -l)
+          test "$count" -eq 35
+          grep -q 'ControllerGenerationRealization' packs/dfcm-maximalist-court-pack/controller-generation-realization.ttl
+      - name: Verify MEASURE receipt boundary
+        run: python3 -c "import json; d=json.load(open('receipts/measure/2026-08-24-controller-generation-realization-r11.json')); assert d['actuation_performed'] is False and d['authority']=='OBSERVE|VERIFY' and d['meaningful_commits']==37 and d['executable_courts']==35"
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -REn 'requests\.(post|put|patch|delete)|subprocess\.|os\.system|boto3|azure\.|google\.cloud|curl .*-(X|d)' packs/dfcm-maximalist-court-pack/controller-generation-realization.ttl packs/dfcm-maximalist-court-pack/queries/r11-realization-*.rq receipts/measure/2026-08-24-controller-generation-realization-r11.json
