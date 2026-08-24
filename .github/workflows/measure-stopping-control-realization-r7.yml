@@ -1,0 +1,31 @@
+name: MEASURE Stopping Control Realization R7
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    if: github.head_ref == 'measure/stopping-control-realization-r7-20260824'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Admit exact PR subject
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Verify R7 realization court surface
+        run: |
+          test "$(find packs/dfcm-maximalist-court-pack/queries -name 'r7-realization-*.rq' | wc -l)" -ge 34
+          grep -q 'PolicyCalibrationObservation' packs/dfcm-maximalist-court-pack/ontology.ttl
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -REn 'curl .*-(X|d)|requests\.(post|put|patch|delete)|subprocess\.|os\.system|boto3|azure\.|google\.cloud' packs/dfcm-maximalist-court-pack/queries/r7-realization-*.rq
