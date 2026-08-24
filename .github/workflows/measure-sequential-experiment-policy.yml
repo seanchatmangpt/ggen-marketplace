@@ -1,0 +1,44 @@
+name: MEASURE Sequential Experiment Policy
+
+on:
+  pull_request:
+    paths:
+      - packs/dfcm-maximalist-court-pack/**
+      - .github/workflows/measure-sequential-experiment-policy.yml
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Admit exact PR subject
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Verify sequential measurement surface
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          q = sorted(Path('packs/dfcm-maximalist-court-pack/queries').glob('seq-*.rq'))
+          assert len(q) >= 32, len(q)
+          ontology = Path('packs/dfcm-maximalist-court-pack/ontology.ttl').read_text()
+          for term in ('ExperimentStep','sequenceId','stepIndex','predictedGain','realizedGain','policyDecision','actuationPerformed'):
+              assert f'dmc:{term}' in ontology, term
+          for path in q:
+              text = path.read_text()
+              assert 'PREFIX dmc:' in text and ('SELECT' in text or 'ASK' in text), path
+          print(f'sequential_query_count={len(q)}')
+          PY
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -REn 'curl |wget |requests\.(post|put|patch|delete)|subprocess\.|os\.system|boto3|azure\.|google\.cloud' packs/dfcm-maximalist-court-pack/queries/seq-*.rq
