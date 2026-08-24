@@ -1,18 +1,35 @@
 import json
 from decimal import Decimal
 
+opening = Decimal("{{ opening }}")
+gross = Decimal("{{ gross }}")
+depreciation = Decimal("{{ depreciation }}")
+deepening = Decimal("{{ deepening }}")
+composition = Decimal("{{ composition }}")
+output = Decimal("{{ output }}")
+commits = Decimal("{{ commits }}")
+capex_commits = Decimal("{{ capexCommits }}")
+composition_commits = Decimal("{{ compositionCommits }}")
+
+assert commits > 0
+net_growth = gross + deepening + composition - depreciation
+closing_stock = opening + net_growth
+assert closing_stock > 0
+productivity = output / closing_stock
+composition_share = composition_commits / commits
+capex_share = capex_commits / commits
+assert Decimal("0") <= composition_share <= Decimal("1")
+assert Decimal("0") <= capex_share <= Decimal("1")
+option_yield = productivity * (Decimal("1") + composition_share) * (Decimal("1") + capex_share)
+assert option_yield > productivity
+
 payload = {
     "period": "{{ period }}",
-    "net_growth": Decimal("{{ netGrowth }}"),
-    "closing_stock": Decimal("{{ closingStock }}"),
-    "capital_productivity": Decimal("{{ productivity }}"),
-    "composition_commit_share": Decimal("{{ compositionShare }}"),
-    "capex_commit_share": Decimal("{{ capexShare }}"),
-    "option_yield": Decimal("{{ optionYield }}"),
+    "net_growth": net_growth,
+    "closing_stock": closing_stock,
+    "capital_productivity": productivity,
+    "composition_commit_share": composition_share,
+    "capex_commit_share": capex_share,
+    "option_yield": option_yield,
 }
-assert payload["net_growth"] > 0
-assert payload["closing_stock"] > 0
-assert Decimal("0") <= payload["composition_commit_share"] <= Decimal("1")
-assert Decimal("0") <= payload["capex_commit_share"] <= Decimal("1")
-assert payload["option_yield"] > payload["capital_productivity"]
 print(json.dumps({**{k: str(v) for k, v in payload.items()}, "standing": "ALIVE", "authority": "QUALIFY", "actuation_performed": False}, sort_keys=True))
