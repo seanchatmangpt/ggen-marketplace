@@ -1,0 +1,36 @@
+name: MEASURE R45B Replication Yield
+
+on:
+  pull_request:
+    paths:
+      - 'packs/replication-epistemic-observability-pack/**'
+      - '.github/workflows/measure-r45b-replication-yield.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Admit exact subject
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Preserve cumulative sensor contract
+        run: python3 packs/replication-epistemic-observability-pack/tests/test_contract.py
+      - name: Install bounded SPARQL runtime
+        run: python3 -m pip install --disable-pip-version-check 'rdflib==7.1.4'
+      - name: Execute R43 immutable baseline
+        run: python3 packs/replication-epistemic-observability-pack/scripts/execute_reference.py
+      - name: Execute R45B replication-yield tranche
+        run: python3 packs/replication-epistemic-observability-pack/scripts/execute_r45b.py
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -R 'actuation_performed":true\|actuationPerformed true' packs/replication-epistemic-observability-pack/fixtures packs/replication-epistemic-observability-pack/templates
