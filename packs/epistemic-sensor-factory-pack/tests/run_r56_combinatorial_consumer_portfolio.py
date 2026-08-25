@@ -61,15 +61,15 @@ EXPECTED_SCALARS = {
     "748_r56_adapter_free_triples.rq": 0,
     "749_r56_triples_with_partial_member.rq": 3,
 }
+CLEAN_FRONTIER = "750_r56_clean_combinatorial_frontier.rq"
+R56_COMBINATORIAL_QUERY_NAMES = tuple(EXPECTED_SCALARS) + (CLEAN_FRONTIER,)
 
 
 def main():
-    queries = sorted(
-        p for p in QUERY_DIR.glob("*_r56_*.rq")
-        if p.name[:3].isdigit() and 701 <= int(p.name[:3]) <= 750
-    )
-    if len(queries) != 50:
-        print(f"REFUSED[R56_QUERY_CARDINALITY]={len(queries)}")
+    queries = [QUERY_DIR / name for name in R56_COMBINATORIAL_QUERY_NAMES]
+    missing = [path.name for path in queries if not path.is_file()]
+    if len(queries) != 50 or missing:
+        print(f"REFUSED[R56_COMBINATORIAL_QUERY_CONTRACT]=count:{len(queries)} missing:{missing}")
         return 1
 
     graph = Graph()
@@ -86,7 +86,7 @@ def main():
                     failures.append(f"{path.name}:expected scalar row")
                 elif int(rows[0][0]) != EXPECTED_SCALARS[path.name]:
                     failures.append(f"{path.name}:{int(rows[0][0])}!={EXPECTED_SCALARS[path.name]}")
-            elif path.name == "750_r56_clean_combinatorial_frontier.rq" and len(rows) != 1:
+            elif path.name == CLEAN_FRONTIER and len(rows) != 1:
                 failures.append(f"{path.name}:rows={len(rows)}!=1")
         except Exception as exc:
             failures.append(f"{path.name}:{type(exc).__name__}:{exc}")
