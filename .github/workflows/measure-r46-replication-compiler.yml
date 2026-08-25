@@ -1,0 +1,37 @@
+name: MEASURE R46 Replication Compiler
+on:
+  pull_request:
+    paths:
+      - 'packs/epistemic-sensor-factory-pack/**'
+      - '.github/workflows/measure-r46-replication-compiler.yml'
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Admit exact subject
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Run permanent R46 court
+        run: python3 -m pytest -q packs/epistemic-sensor-factory-pack/tests/test_r46_replication_compiler.py
+      - name: Parse and execute R46 SPARQL sensors
+        run: |
+          python3 -m pip install --disable-pip-version-check 'rdflib>=7,<8'
+          python3 - <<'PY'
+          from pathlib import Path
+          from rdflib import Graph
+          root=Path('packs/epistemic-sensor-factory-pack')
+          g=Graph(); g.parse(root/'ontology.ttl'); g.parse(root/'fixtures/r46-live-replication.ttl')
+          qs=[]
+          for p in sorted((root/'queries').glob('*.rq')):
+              if p.name[:3].isdigit() and 186 <= int(p.name[:3]) <= 235:
+                  list(g.query(p.read_text())); qs.append(p.name)
+          assert len(qs)==50, qs
+          print('R46 sensors executed:', len(qs))
+          PY
+      - name: Refuse ambient consequential actuation
+        run: '! grep -R -E "actuationPerformed[[:space:]]+true|consequential_do[\"'\''[:space:]]*:[[:space:]]*true" packs/epistemic-sensor-factory-pack/fixtures packs/epistemic-sensor-factory-pack/templates'
