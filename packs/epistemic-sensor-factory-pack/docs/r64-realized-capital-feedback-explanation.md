@@ -1,0 +1,3 @@
+# Why R64 exists
+
+R63 allocates dependency-relief capital toward observations expected to enlarge the future lawful frontier. R64 closes the feedback loop by asking whether those allocations actually realized frontier growth, reusable capability, downstream manufacturing opportunities, independent evidence, replayable receipts, and an admitted multiplicative production effect. A selected relief observation is therefore not counted as realized capital merely because relief was positive; the realized subject must preserve exact identity and standing while demonstrating measurable post-allocation yield.
