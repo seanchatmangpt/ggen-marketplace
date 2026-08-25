@@ -1,0 +1,3 @@
+# Why orthogonality precedes consumer fanout
+
+A repository count is not an independent-capital multiplier. Two consumers can share runtime, failure domain, authority, receipt protocol or evidence root and therefore fail together. R71 preserves those consumers as options while discounting them from the independent crown. It composes R67-style independence evidence with R70-style causal yield evidence so the next manufacturing choice maximizes marginal evidence-root diversity and downstream qualified-action potential, rather than selecting the cheapest duplicated consumer. This raises future manufacturing capacity without weakening exact-head, replay, falsifier or BRCE boundaries.
