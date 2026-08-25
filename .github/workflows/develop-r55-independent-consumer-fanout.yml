@@ -32,13 +32,33 @@ jobs:
           test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
       - name: Validate marketplace corpus
         run: python3 scripts/marketplace.py validate
+      - name: Classify bootstrap versus R55 subject
+        run: |
+          set -euo pipefail
+          receipt='receipts/develop/2026-08-25-r55-independent-consumer-fanout.json'
+          ordering='packs/consumer-realization-frontier-pack/tests/test_generation_ordering.py'
+          court='packs/epistemic-sensor-factory-pack/tests/run_r55_independent_consumer_fanout.py'
+          if test -f "$receipt"; then
+            test -f "$ordering"
+            test -f "$court"
+            echo 'R55_SUBJECT=1' >> "$GITHUB_ENV"
+            echo 'R55_MODE=SUBJECT'
+          else
+            test ! -e "$ordering" || test -d packs/consumer-realization-frontier-pack
+            echo 'R55_SUBJECT=0' >> "$GITHUB_ENV"
+            echo 'R55_MODE=BOOTSTRAP'
+          fi
       - name: Prove generation-query determinism on repaired consumer frontier
+        if: env.R55_SUBJECT == '1'
         run: python3 packs/consumer-realization-frontier-pack/tests/test_generation_ordering.py
       - name: Install bounded SPARQL engine
+        if: env.R55_SUBJECT == '1'
         run: python3 -m pip install 'rdflib>=7,<8'
       - name: Execute fifty R55 independent-consumer courts
+        if: env.R55_SUBJECT == '1'
         run: python3 packs/epistemic-sensor-factory-pack/tests/run_r55_independent_consumer_fanout.py
       - name: Verify authority and manufacturing receipt
+        if: env.R55_SUBJECT == '1'
         run: |
           python3 - <<'PY'
           import json
@@ -51,3 +71,10 @@ jobs:
           assert 'DO' not in r['authority']
           print('R55_RECEIPT=PASS')
           PY
+      - name: Prove bootstrap does not claim R55 subject standing
+        if: env.R55_SUBJECT == '0'
+        run: |
+          set -euo pipefail
+          test -f .github/workflows/develop-r55-independent-consumer-fanout.yml
+          test ! -f receipts/develop/2026-08-25-r55-independent-consumer-fanout.json
+          echo 'R55_BOOTSTRAP=PASS'
