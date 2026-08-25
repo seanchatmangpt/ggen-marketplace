@@ -1,0 +1,37 @@
+name: MEASURE R29 Postmerge Capital
+
+on:
+  pull_request:
+    paths:
+      - 'packs/ggen-project-boundary-pack/innovation-capital-r29-postmerge-ledger.jsonl'
+      - 'packs/ggen-project-boundary-pack/fixtures/r29-postmerge-capital.ttl'
+      - 'packs/ggen-project-boundary-pack/queries/r29-postmerge/**'
+      - 'packs/ggen-project-boundary-pack/receipts/r29-postmerge-capital-receipt.json'
+      - 'packs/ggen-project-boundary-pack/tests/test_r29_postmerge_capital.py'
+      - '.github/workflows/measure-r29-postmerge-capital.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify-r29-postmerge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Admit exact PR subject
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Compile postmerge court
+        run: python3 -m py_compile packs/ggen-project-boundary-pack/tests/test_r29_postmerge_capital.py
+      - name: Execute postmerge court
+        run: python3 packs/ggen-project-boundary-pack/tests/test_r29_postmerge_capital.py -v
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -REn 'requests\.(post|put|patch|delete)|urllib\.request\.(Request|urlopen)|subprocess\.|os\.system|boto3|azure\.|google\.cloud' packs/ggen-project-boundary-pack/tests/test_r29_postmerge_capital.py
