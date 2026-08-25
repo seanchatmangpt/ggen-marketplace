@@ -1,0 +1,3 @@
+# Tutorial: normalize captured GitHub evidence
+
+Capture GitHub API responses outside this pack, then wrap each response with `repository`, exact `head_sha`, an admitted evidence `kind`, and the raw `payload`. Pipe the envelope to `runtime/normalize.py`. The normalizer performs no network access and no consequential actuation; it emits a canonical JSON observation bound to `repository@SHA`, raw-input digest, and deterministic receipt digest. Feed multiple normalized observations to `runtime/lineage.py` and `runtime/bundle.py` to preserve cross-observation composition without collapsing failed or independent evidence edges.
