@@ -1,0 +1,41 @@
+name: MEASURE R68 Run Closure
+on:
+  pull_request:
+    paths:
+      - 'packs/epistemic-sensor-factory-pack/ontology.r68-run-closure-observability.ttl'
+      - 'packs/epistemic-sensor-factory-pack/queries/20*_r68_*.rq'
+      - 'packs/epistemic-sensor-factory-pack/fixtures/r68-run-closure.ttl'
+      - 'packs/epistemic-sensor-factory-pack/qualification/test_r68_run_closure.py'
+      - '.github/workflows/measure-r68-run-closure.yml'
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Admit exact PR head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Run R68 permanent court
+        run: python3 packs/epistemic-sensor-factory-pack/qualification/test_r68_run_closure.py
+      - name: Parse RDF and execute R68 sensors
+        run: |
+          python3 -m pip install --quiet 'rdflib>=7,<8'
+          python3 - <<'PY'
+          from pathlib import Path
+          from rdflib import Graph
+          root=Path('packs/epistemic-sensor-factory-pack')
+          g=Graph()
+          g.parse(root/'ontology.r68-run-closure-observability.ttl', format='turtle')
+          g.parse(root/'fixtures/r68-run-closure.ttl', format='turtle')
+          qs=sorted((root/'queries').glob('20[0-4][0-9]_r68_*.rq'))+sorted((root/'queries').glob('2050_r68_*.rq'))
+          assert len(qs)==50, len(qs)
+          for q in qs:
+              list(g.query(q.read_text()))
+          print(f'R68 SPARQL PASS {len(qs)}/50')
+          PY
