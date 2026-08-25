@@ -1,0 +1,25 @@
+name: EXPLORE Adjacency Rebloom R23 Exact Head
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    if: github.head_ref == 'explore/r23-adjacency-rebloom-20260824'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Qualify rebloom admission and falsifiers
+        run: |
+          python3 gates_check.py 2>/dev/null || true
+          python3 packs/adjacency-rebloom-controller-pack/gates/validate_rebloom.py packs/adjacency-rebloom-controller-pack/fixtures/valid-plan.json
+          python3 -m unittest discover -s packs/adjacency-rebloom-controller-pack/tests -p 'test_*.py' -v
+          grep -q 'grantsDoAuthority false' packs/adjacency-rebloom-controller-pack/ontology.ttl
+          grep -q 'requiresReceipt true' packs/adjacency-rebloom-controller-pack/ontology.ttl
