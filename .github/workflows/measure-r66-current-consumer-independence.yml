@@ -1,0 +1,54 @@
+name: MEASURE R66 Current Consumer Independence
+
+on:
+  pull_request:
+    paths:
+      - "packs/epistemic-sensor-factory-pack/**"
+      - "receipts/measure/2026-08-25-r66-current-independence-reconstitution.json"
+      - ".github/workflows/measure-r66-current-consumer-independence.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: measure-r66-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Admit exact subject
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Install bounded SPARQL engine
+        run: python3 -m pip install 'rdflib>=7,<8'
+      - name: Execute fifty R54-derived independence courts on current heads
+        run: python3 packs/epistemic-sensor-factory-pack/tests/run_r54_consumer_independence.py
+      - name: Verify R66 receipt authority and provenance
+        run: |
+          python3 - <<'PY'
+          import json
+          r=json.load(open('receipts/measure/2026-08-25-r66-current-independence-reconstitution.json'))
+          assert r['construction_base'] == '2fd796423c678e0b33e1828a5d187ca170e4eccc'
+          assert r['source_pr'] == 265
+          assert r['semantic_query_commits'] == 50
+          assert r['consequential_do'] is False
+          assert r['generated_output_edited'] is False
+          assert r['thousand_x']['standing'] == 'NOT_ADMITTED'
+          assert r['authority'] == 'OBSERVE|VERIFY|SELECT|CONSTRUCT'
+          print('R66_RECEIPT=PASS')
+          PY
+      - name: Refuse ambient consequential DO
+        run: |
+          ! grep -R -E 'odrl:permission[^\n]*odrl:execute|actuationPerformed[[:space:]]+true' packs/epistemic-sensor-factory-pack/ontology/r54-consumer-independence.ttl packs/epistemic-sensor-factory-pack/fixtures/r54-consumer-independence-current.ttl
