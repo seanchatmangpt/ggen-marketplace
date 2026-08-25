@@ -1,0 +1,3 @@
+# How to allocate Better-Eyes capital from realized outcomes
+
+Use R65 when prior sensor investment has exact-subject feedback. Populate `EpistemicInvestmentCandidate` with predicted/realized information gain, realized dependency relief, cost, latency, fanout, independent roots, replay/falsifier/receipt coverage, redundancy, complementarity and standing. Run sensors 1401–1450, then manufacture the plan using the `epistemic-reinvestment-plan` ggen rule. Exclude stale, unbound, single-root and authority-unsafe candidates. Preserve non-dominated alternatives; reinvestment ranking does not authorize consequential execution.
