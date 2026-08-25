@@ -26,6 +26,9 @@ for template in ("standing-report.json.tera", "multiplier-report.json.tera"):
     text = (ROOT / "templates" / template).read_text()
     assert '"actuation_performed":false' in text
 
+multiplier_query = (ROOT / "queries" / "050_1000x_shortfall.rq").read_text()
+assert "ORDER BY ?run" in multiplier_query, "strict ggen generation requires deterministic multiplier ordering"
+
 fixture = (ROOT / "fixtures" / "r43-reference.ttl").read_text()
 assert "4bd157843a983f1e8151dcf589dc7e49dc28e37f" in fixture
 assert "a2e0eca7516df44738a7b41b2c4e7498d00ef919" in fixture
