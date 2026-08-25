@@ -1,0 +1,43 @@
+name: IMPLEMENT R60 Realization Qualification
+
+on:
+  pull_request:
+    paths:
+      - 'packs/epistemic-sensor-factory-pack/**'
+      - '.github/workflows/implement-r60-realization-qualification.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Admit exact subject
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Enforce upstream sparse-generation contract
+        run: python3 packs/epistemic-sensor-factory-pack/tests/test_sparse_generation_contract.py
+      - name: Install bounded SPARQL engine
+        run: python3 -m pip install 'rdflib>=7,<8'
+      - name: Execute R59 producer court
+        run: python3 packs/epistemic-sensor-factory-pack/tests/run_r59_consumer_realization_factory.py
+      - name: Execute all R60 qualification courts
+        run: python3 packs/epistemic-sensor-factory-pack/tests/run_r60_realization_qualification.py
+      - name: Refuse ambient consequential actuation
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R -nE 'kubectl apply|terraform apply|aws .*create|gcloud .*create|az .*create' \
+            packs/epistemic-sensor-factory-pack/queries/10??_r60_*.rq \
+            packs/epistemic-sensor-factory-pack/queries/1100_r60_*.rq \
+            packs/epistemic-sensor-factory-pack/tests/run_r60_realization_qualification.py
