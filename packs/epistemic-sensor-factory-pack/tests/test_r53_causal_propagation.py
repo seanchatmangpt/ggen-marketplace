@@ -29,3 +29,13 @@ def test_fixture_exercises_positive_and_negative_causal_surfaces():
     assert clean_frontier
     assert not standing_violations
     assert not authority_violations
+
+
+def main():
+    test_all_r53_sensors_parse_and_execute()
+    test_fixture_exercises_positive_and_negative_causal_surfaces()
+    print("R53 causal propagation court: PASS (50/50 sensors)")
+
+
+if __name__ == "__main__":
+    main()
