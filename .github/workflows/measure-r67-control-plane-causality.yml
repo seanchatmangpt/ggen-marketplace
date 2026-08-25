@@ -1,0 +1,28 @@
+name: MEASURE R67 Control Plane Causality
+on:
+  pull_request:
+    paths:
+      - 'packs/control-plane-causality-observability-pack/**'
+      - '.github/workflows/measure-r67-control-plane-causality.yml'
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Admit exact subject
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install rdflib
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Run 50-sensor court
+        run: python3 packs/control-plane-causality-observability-pack/tests/test_contract.py
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -R "actuationPerformed true" packs/control-plane-causality-observability-pack/fixtures
