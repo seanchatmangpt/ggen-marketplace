@@ -1,0 +1,17 @@
+PREFIX ogh: <https://ggen.dev/ontology/opportunity-hypergraph#>
+SELECT ?ledger ?authority ?actuation
+       (COUNT(DISTINCT ?candidate) AS ?frontierCount)
+       (SUM(?delta) AS ?frontierCapabilitySpaceDelta)
+       (MAX(?reuse) AS ?maxExpectedReuse)
+       (GROUP_CONCAT(DISTINCT ?id; separator=",") AS ?frontierIds)
+WHERE {
+  ?ledger a ogh:OpportunityLedger ; ogh:authority ?authority ; ogh:actuationPerformed ?actuation .
+  ?candidate a ogh:CompositionCandidate ;
+    ogh:candidateId ?id ;
+    ogh:dominanceClass "pareto" ;
+    ogh:reversible true ;
+    ogh:expectedReuse ?reuse ;
+    ogh:expectedCapabilitySpaceDelta ?delta .
+}
+GROUP BY ?ledger ?authority ?actuation
+HAVING (COUNT(DISTINCT ?candidate) >= 6)
