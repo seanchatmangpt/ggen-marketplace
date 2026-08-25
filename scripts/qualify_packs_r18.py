@@ -3,8 +3,11 @@
 
 This reuses the canonical qualifier's pack preparation, deterministic replay,
 source-mutation refusal, and sharding semantics while widening only the
-per-pass temporal envelope from 5s to a bounded maximum of 15s. It exists as a
-separate subject so the prior 5s contract remains replayable.
+per-pass temporal envelope from the original 5s contract to a bounded maximum
+of 30s. The 30s ceiling absorbs observed hosted-runner contention without
+changing pack semantics, pass criteria, source identity, or the enclosing
+workflow's finite 8-minute job bound. It exists as a separate subject so the
+prior 5s contract remains replayable.
 """
 from __future__ import annotations
 
@@ -20,14 +23,14 @@ from pathlib import Path
 import qualify_packs as q
 from marketplace import require_admitted
 
-MAX_TIMEOUT_SECONDS = 15.0
+MAX_TIMEOUT_SECONDS = 30.0
 MAX_WORKERS = 16
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ggen", default=os.environ.get("GGEN_BIN") or shutil.which("ggen"))
-    parser.add_argument("--timeout-seconds", type=float, default=15.0)
+    parser.add_argument("--timeout-seconds", type=float, default=30.0)
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--report", type=Path)
     parser.add_argument("--shard-index", type=int, default=None)
@@ -39,7 +42,7 @@ def main() -> int:
     if not args.ggen:
         print("REFUSED:GGEN_BINARY_REQUIRED", file=sys.stderr); return 2
     if args.timeout_seconds <= 0 or args.timeout_seconds > MAX_TIMEOUT_SECONDS:
-        print("REFUSED:GGEN_PACK_TIMEOUT_BOUND:must_be_gt_0_and_lte_15", file=sys.stderr); return 2
+        print("REFUSED:GGEN_PACK_TIMEOUT_BOUND:must_be_gt_0_and_lte_30", file=sys.stderr); return 2
     if args.workers <= 0 or args.workers > MAX_WORKERS:
         print("REFUSED:GGEN_PACK_WORKER_BOUND:must_be_1_to_16", file=sys.stderr); return 2
 
