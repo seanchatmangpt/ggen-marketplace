@@ -1,0 +1,35 @@
+name: Generation Contract Preflight
+
+on:
+  pull_request:
+    paths:
+      - "packs/**/ggen.toml"
+      - "packs/**/queries/**"
+      - "packs/**/templates/**"
+      - "scripts/check-generation-contracts.py"
+      - "tests/test_generation_contract_preflight.py"
+      - ".github/workflows/generation-contract-preflight.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact subject
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Execute generation contract falsifiers
+        run: python -m unittest tests.test_generation_contract_preflight
+      - name: Refuse corpus generation contract defects
+        run: python scripts/check-generation-contracts.py
