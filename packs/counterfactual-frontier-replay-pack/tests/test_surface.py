@@ -20,7 +20,15 @@ class CounterfactualFrontierSurfaceTest(unittest.TestCase):
             "91-replayable-frontier.rq",
         }
         self.assertTrue(required_queries <= queries, required_queries - queries)
-        self.assertEqual(len(list((ROOT / "gates").glob("*.rq"))), 3)
+
+        gates = {path.name for path in (ROOT / "gates").glob("*.rq")}
+        required_gates = {
+            "01-current-receipted-evidence.rq",
+            "02-no-ambient-do.rq",
+            "03-fortune5-control-plane.rq",
+        }
+        self.assertTrue(required_gates <= gates, required_gates - gates)
+
         self.assertEqual(len(list((ROOT / "templates").glob("*.tera"))), 2)
         self.assertTrue((ROOT / "qualification" / "fortune5-profile.json").is_file())
         config = (ROOT / "ggen.toml").read_text(encoding="utf-8")
