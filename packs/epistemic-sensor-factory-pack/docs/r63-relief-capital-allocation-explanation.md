@@ -1,0 +1,3 @@
+# Why R63 exists
+
+R62 establishes that dependency relief can be observed and qualified. R63 answers the next manufacturing-capital question: which admitted relief observations actually enlarge the future lawful frontier? Relief by itself is not yield. A positive delta can still be concentrated in one evidence root, stale, unreplayed, unfalsified, temporally incoherent, or unlock zero actionable opportunities. R63 therefore treats allocation quality as a conjunction of relief, evidence independence, qualification strength, temporal causality, memory leverage, and downstream opportunity yield. This preserves DfCM option value while refusing to turn measurements into ambient execution authority.
