@@ -29,3 +29,14 @@ def test_r53_ggen_projection_is_canonical():
     template = (ROOT / "templates" / "causal-propagation-plan.json.tera").read_text()
     assert '"consequential_do": false' in template
     assert 'standing-and-authority-do-not-propagate' in template
+
+
+def main():
+    test_r53_sensor_surface_is_exactly_fifty()
+    test_r53_public_semantic_and_authority_contract()
+    test_r53_ggen_projection_is_canonical()
+    print("R53 static contract: PASS")
+
+
+if __name__ == "__main__":
+    main()
