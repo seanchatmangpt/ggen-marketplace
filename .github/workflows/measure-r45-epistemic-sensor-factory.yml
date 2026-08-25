@@ -21,30 +21,36 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
       - name: Admit exact subject
-        run: |
-          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
       - name: Validate marketplace corpus
         run: python3 scripts/marketplace.py validate
       - name: Qualify sensor factory contract
         run: python3 packs/epistemic-sensor-factory-pack/tests/test_contract.py
       - name: Qualify R45 sensor-family contract
         run: python3 packs/replication-epistemic-observability-pack/scripts/r45_consumer_replication_court.py
-      - name: Parse public ontology and all R45 SPARQL sensors
+      - name: Qualify R46 replication compiler contract
+        run: python3 packs/epistemic-sensor-factory-pack/tests/test_r46_replication_compiler.py
+      - name: Parse and execute bounded R45 and R46 SPARQL tranches
         run: |
-          python3 -m pip install --disable-pip-version-check rdflib
+          python3 -m pip install --disable-pip-version-check 'rdflib>=7,<8'
           python3 - <<'PY'
           from pathlib import Path
           from rdflib import Graph
           from rdflib.plugins.sparql.processor import prepareQuery
           Graph().parse('packs/epistemic-sensor-factory-pack/ontology.ttl', format='turtle')
-          q = Path('packs/replication-epistemic-observability-pack/queries')
-          files = sorted(p for p in q.glob('*.rq') if 86 <= int(p.name.split('_')[0]) <= 135)
-          assert len(files) == 50, len(files)
-          for p in files:
-              prepareQuery(p.read_text())
-          print(f'R45_SPARQL_PARSE_PASS={len(files)}')
+          q45=Path('packs/replication-epistemic-observability-pack/queries')
+          r45=sorted(p for p in q45.glob('*.rq') if p.name.split('_')[0].isdigit() and 86 <= int(p.name.split('_')[0]) <= 135)
+          assert len(r45)==50, len(r45)
+          for p in r45: prepareQuery(p.read_text())
+          root=Path('packs/epistemic-sensor-factory-pack')
+          g=Graph(); g.parse(root/'ontology.ttl'); g.parse(root/'fixtures/r46-live-replication.ttl')
+          r46=sorted(p for p in (root/'queries').glob('*.rq') if p.name[:3].isdigit() and 186 <= int(p.name[:3]) <= 235)
+          assert len(r46)==50, len(r46)
+          for p in r46: list(g.query(p.read_text()))
+          print(f'R45_PARSE_PASS={len(r45)} R46_EXECUTION_PASS={len(r46)}')
           PY
       - name: Refuse ambient consequential actuation
         run: |
           python3 packs/replication-epistemic-observability-pack/scripts/r45_consumer_replication_court.py
           grep -q 'odrl:prohibition \[ odrl:action odrl:execute \]' packs/epistemic-sensor-factory-pack/ontology.ttl
+          ! grep -R -E 'actuationPerformed[[:space:]]+true|consequential_do.*true' packs/epistemic-sensor-factory-pack/fixtures packs/epistemic-sensor-factory-pack/templates
