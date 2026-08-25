@@ -1,0 +1,3 @@
+# Explanation: why run closure is epistemic capital
+
+An autonomic manufacturing cell can create valid repository capital yet still fail institutionally if its execution disappears between RUNNING and durable closure. R68 models that gap as observable process topology. The sensors separate scheduler/runtime failure, GitHub queueing, API failure, moving exact heads, qualification, merge containment, and Project-memory closure. This converts generic task failure into reusable diagnosis and prevents rediscovery. The phase-change claim is bounded: R68 improves observation of run completion; it does not itself prove greater consumer fanout or 1000X capability multiplication.
