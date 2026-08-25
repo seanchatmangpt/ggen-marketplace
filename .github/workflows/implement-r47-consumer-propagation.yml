@@ -1,0 +1,36 @@
+name: IMPLEMENT R47 Consumer Propagation Exact Head
+on:
+  pull_request:
+    paths:
+      - 'packs/epistemic-sensor-factory-pack/**'
+      - '.github/workflows/implement-r47-consumer-propagation.yml'
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Admit exact subject
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Execute R47 consumer propagation courts
+        run: |
+          python3 -m pip install --disable-pip-version-check 'rdflib>=7,<8'
+          python3 - <<'PY'
+          from pathlib import Path
+          from rdflib import Graph
+          root=Path('packs/epistemic-sensor-factory-pack')
+          g=Graph(); g.parse(root/'ontology.ttl'); g.parse(root/'fixtures/r46-live-replication.ttl')
+          qs=sorted(p for p in (root/'queries').glob('*.rq') if p.name[:3].isdigit() and 300 <= int(p.name[:3]) <= 349)
+          assert len(qs)==50, len(qs)
+          for p in qs:
+              list(g.query(p.read_text()))
+          print(f'R47_CONSUMER_PROPAGATION_PASS={len(qs)}')
+          PY
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -R -E 'actuationPerformed[[:space:]]+true|consequential_do.*true' packs/epistemic-sensor-factory-pack/fixtures packs/epistemic-sensor-factory-pack/templates
