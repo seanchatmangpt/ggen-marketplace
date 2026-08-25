@@ -1,0 +1,30 @@
+name: EXPLORE R47 Option Capital Recombination
+
+on:
+  pull_request:
+    paths:
+      - "packs/option-capital-recombination-pack/**"
+      - ".github/workflows/explore-r47-option-capital.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Run recombination courts
+        run: python3 -m unittest discover -s packs/option-capital-recombination-pack/tests -p 'test_*.py' -v
+      - name: Verify option machinery breadth
+        run: |
+          test "$(find packs/option-capital-recombination-pack/queries -name '*.rq' | wc -l)" -ge 25
+          test "$(find packs/option-capital-recombination-pack/gates -name '*.rq' | wc -l)" -ge 10
+          test "$(find packs/option-capital-recombination-pack/templates -name '*.tera' | wc -l)" -ge 4
