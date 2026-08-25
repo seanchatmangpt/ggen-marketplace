@@ -5,15 +5,27 @@ import re
 ROOT = Path(__file__).resolve().parents[1]
 QUERIES = sorted((ROOT / "queries").glob("*.rq"))
 
-assert len(QUERIES) == 50, f"expected 50 semantic sensors, got {len(QUERIES)}"
-expected = [f"{i:03d}_" for i in range(1, 51)]
-for prefix, path in zip(expected, QUERIES, strict=True):
-    assert path.name.startswith(prefix), (prefix, path.name)
+# The pack is cumulative across independently-qualified MEASURE generations.
+# R43 owns 001..050. Later generations may append disjoint, monotone ranges;
+# historical qualification must not require globally contiguous numbering.
+assert len(QUERIES) >= 50, f"expected at least 50 semantic sensors, got {len(QUERIES)}"
+seen = set()
+numbered = []
+for path in QUERIES:
+    match = re.match(r"^(\d{3})_", path.name)
+    assert match, f"sensor lacks numeric identity: {path.name}"
+    number = int(match.group(1))
+    assert number not in seen, f"duplicate sensor identity: {number:03d}"
+    seen.add(number)
+    numbered.append(number)
     text = path.read_text()
     assert "SELECT" in text.upper(), path
     assert "DELETE" not in text.upper(), path
     assert "INSERT" not in text.upper(), path
     assert "LOAD " not in text.upper(), path
+
+assert set(range(1, 51)) <= seen, "R43 baseline sensors 001..050 must remain immutable and complete"
+assert numbered == sorted(numbered), "sensor identities must remain monotone"
 
 ontology = (ROOT / "ontology.ttl").read_text()
 for public in ("www.w3.org/ns/prov#", "www.w3.org/ns/dqv#", "www.w3.org/ns/dcat#", "www.w3.org/ns/odrl/2/", "purl.org/dc/terms/"):
@@ -34,4 +46,4 @@ assert "4bd157843a983f1e8151dcf589dc7e49dc28e37f" in fixture
 assert "a2e0eca7516df44738a7b41b2c4e7498d00ef919" in fixture
 assert re.search(r"reo:seedObservations\s+2", fixture)
 assert re.search(r"reo:actionableOpportunities\s+8", fixture)
-print("R43 replication epistemic observability contract: PASS")
+print(f"replication epistemic observability contract: PASS sensors={len(QUERIES)} r43=50")
