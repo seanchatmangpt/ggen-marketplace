@@ -1,0 +1,31 @@
+name: MEASURE R71 Causal Evidence Assimilation
+on:
+  pull_request:
+    paths:
+      - 'packs/control-plane-causality-observability-pack/r71/**'
+      - '.github/workflows/measure-r71-causal-evidence-assimilation.yml'
+permissions:
+  contents: read
+concurrency:
+  group: measure-r71-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Admit exact subject
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Install bounded verifier
+        run: python3 -m pip install 'rdflib>=7,<8'
+      - name: Execute 50-sensor assimilation court
+        run: python3 packs/control-plane-causality-observability-pack/r71/tests/test_contract.py
+      - name: Refuse ambient consequential DO
+        run: |
+          ! grep -R -E 'cea:actuationPerformed[[:space:]]+true|cea:generatedOutputEdited[[:space:]]+true' packs/control-plane-causality-observability-pack/r71/fixtures
