@@ -14,8 +14,8 @@ class FanoutRealizationContractTest(unittest.TestCase):
 
     def test_complete_control_surface(self):
         queries = sorted((ROOT / "queries").glob("*.rq"))
-        base_queries = [p for p in queries if int(p.name.split("-", 1)[0]) < 100]
-        realization_queries = [p for p in queries if 100 <= int(p.name.split("-", 1)[0]) < 200]
+        base_queries = [p for p in queries if not p.name.startswith("r25-")]
+        realization_queries = [p for p in queries if p.name.startswith("r25-")]
         self.assertEqual(len(base_queries), 8)
         self.assertEqual(len(realization_queries), 40)
         self.assertEqual(len(queries), 48)
