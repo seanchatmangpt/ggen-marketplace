@@ -1,0 +1,24 @@
+import json
+
+PORTFOLIO = {
+    "schema": "ggen.realization-calibration/1",
+    "authority": "SELECT|CONSTRUCT|VERIFY",
+    "actuation_performed": False,
+    "frontier": [
+{% for row in results %}        {"edge": "{{ row.edge }}", "posterior": {{ row.posterior }}, "calibrated_delta": {{ row.calibratedDelta }}, "reuse_adjusted_yield": {{ row.reuseAdjustedYield }}}{% if not loop.last %},{% endif %}
+{% endfor %}    ],
+}
+
+
+def qualify(portfolio=PORTFOLIO):
+    assert portfolio["authority"] == "SELECT|CONSTRUCT|VERIFY"
+    assert portfolio["actuation_performed"] is False
+    for edge in portfolio["frontier"]:
+        assert 0.0 <= edge["posterior"] <= 1.0
+        assert edge["calibrated_delta"] >= 0.0
+        assert edge["reuse_adjusted_yield"] >= edge["calibrated_delta"]
+    return {"standing": "ALIVE", "qualified_edges": len(portfolio["frontier"])}
+
+
+if __name__ == "__main__":
+    print(json.dumps(qualify(), sort_keys=True))

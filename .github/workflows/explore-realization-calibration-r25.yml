@@ -1,0 +1,24 @@
+name: EXPLORE Realization Calibration R25 Exact Head
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  qualify:
+    if: github.head_ref == 'explore/option-capital-hypergraph-r25-20260824'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Run permanent courts
+        run: python3 -m unittest discover -s packs/realization-calibration-hypergraph-pack/tests -p 'test_*.py' -v
+      - name: Verify query surface
+        run: test "$(find packs/realization-calibration-hypergraph-pack/queries -name '*.rq' | wc -l)" -eq 8
+      - name: Verify SELECT receipt
+        run: python3 -c "import json; p=json.load(open('receipts/select/2026-08-24-realization-calibration-hypergraph-r25.json')); assert p['authority']=='SELECT' and p['actuation_performed'] is False and p['marketplace_first'] is True"
