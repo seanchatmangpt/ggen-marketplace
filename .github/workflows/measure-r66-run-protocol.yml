@@ -1,0 +1,39 @@
+name: MEASURE R66 Run Protocol Observability
+on:
+  pull_request:
+    paths:
+      - 'packs/run-protocol-observability-pack/**'
+      - '.github/workflows/measure-r66-run-protocol.yml'
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Admit exact subject
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Run permanent contract court
+        run: python3 packs/run-protocol-observability-pack/tests/test_contract.py
+      - name: Execute all 50 SPARQL sensors
+        run: |
+          python3 -m pip install --disable-pip-version-check rdflib
+          python3 - <<'PY'
+          from pathlib import Path
+          from rdflib import Graph
+          root=Path('packs/run-protocol-observability-pack')
+          g=Graph()
+          g.parse(root/'ontology.ttl', format='turtle')
+          g.parse(root/'fixtures/run-protocol.ttl', format='turtle')
+          qs=sorted((root/'queries').glob('*.rq'))
+          for q in qs:
+              list(g.query(q.read_text()))
+          assert len(qs)==50
+          print('R66 SPARQL execution: PASS', len(qs))
+          PY
+      - name: Refuse ambient consequential actuation
+        run: '! grep -R --exclude="040_unreceipted_actuation.rq" -E "actuationPerformed[[:space:]]+true" packs/run-protocol-observability-pack'
