@@ -1,0 +1,46 @@
+name: MEASURE R57/R58 Production Function
+
+on:
+  pull_request:
+    paths:
+      - "packs/epistemic-sensor-factory-pack/**"
+      - ".github/workflows/measure-r57-production-function.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Admit exact head
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$expected"
+          echo "EXACT_SUBJECT=$expected"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Install bounded SPARQL runtime
+        run: python3 -m pip install 'rdflib>=7,<8'
+      - name: Execute R57 production-function court
+        run: python3 packs/epistemic-sensor-factory-pack/tests/run_r57_production_function.py
+      - name: Execute R58 independent-consumer-factor court
+        run: python3 packs/epistemic-sensor-factory-pack/tests/run_r58_consumer_factor.py
+      - name: Refuse ambient consequential actuation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -R -nE 'actuationPerformed[[:space:]]+true|CONSEQUENTIAL_DO=true' packs/epistemic-sensor-factory-pack/fixtures/r57-production-function.ttl packs/epistemic-sensor-factory-pack/fixtures/r58-consumer-factor.ttl receipts/measure/2026-08-25-r57-production-function.json 2>/dev/null; then
+            echo 'REFUSED[AMBIENT_CONSEQUENTIAL_DO]'
+            exit 1
+          fi
+          echo 'R58_CONSEQUENTIAL_DO=false'
