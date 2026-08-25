@@ -1,0 +1,19 @@
+PREFIX cfr: <https://ggen.dev/ontology/counterfactual-frontier-replay#>
+
+# Returns true when any candidate violates the bounded Fortune-5 trust/proof
+# envelope. A true result is a refusal signal, not an admission verdict.
+ASK WHERE {
+  ?candidate a cfr:Candidate .
+  OPTIONAL { ?candidate cfr:qualified ?qualified . }
+  OPTIONAL { ?candidate cfr:current ?current . }
+  OPTIONAL { ?candidate cfr:receiptDigest ?receipt . }
+  OPTIONAL { ?candidate cfr:authority ?authority . }
+  OPTIONAL { ?candidate cfr:actuationPerformed ?actuated . }
+  FILTER (
+    !BOUND(?qualified) || ?qualified != true ||
+    !BOUND(?current) || ?current != true ||
+    !BOUND(?receipt) || STRLEN(STR(?receipt)) != 64 ||
+    !BOUND(?authority) || CONTAINS(STR(?authority), "DO") ||
+    !BOUND(?actuated) || ?actuated != false
+  )
+}
