@@ -1,0 +1,53 @@
+name: DEVELOP R68 Control Plane Causality
+
+on:
+  pull_request:
+    paths:
+      - "packs/control-plane-causality-observability-pack/**"
+      - "receipts/develop/2026-08-25-r68-control-plane-causality.json"
+      - ".github/workflows/develop-r68-control-plane-causality.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: develop-r68-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Admit exact subject
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Install bounded SPARQL verifier
+        run: python3 -m pip install 'rdflib>=7,<8'
+      - name: Execute fifty control-plane causality courts
+        run: python3 packs/control-plane-causality-observability-pack/tests/test_contract.py
+      - name: Verify construction receipt authority
+        run: |
+          python3 - <<'PY'
+          import json
+          r=json.load(open('receipts/develop/2026-08-25-r68-control-plane-causality.json'))
+          assert r['construction_base'] == '95387a0632f7e460e65cdd89e77ea7f902093af0'
+          assert r['semantic_query_commits'] == 50
+          assert r['consequential_do'] is False
+          assert r['generated_output_edited'] is False
+          assert r['thousand_x']['standing'] == 'NOT_ADMITTED'
+          assert r['authority'] == 'OBSERVE|VERIFY|CONSTRUCT'
+          print('R68_RECEIPT=PASS')
+          PY
+      - name: Refuse ambient consequential DO
+        run: |
+          ! grep -R -E 'actuationPerformed[[:space:]]+true|consequential_do[[:space:]]*=[[:space:]]*"(true|ALLOW)"' packs/control-plane-causality-observability-pack
