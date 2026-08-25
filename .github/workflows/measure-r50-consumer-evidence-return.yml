@@ -1,0 +1,52 @@
+name: MEASURE R50 Consumer Evidence Return
+
+on:
+  pull_request:
+    paths:
+      - "packs/epistemic-sensor-factory-pack/**"
+      - "receipts/measure/2026-08-25-r50-consumer-evidence-return.json"
+      - ".github/workflows/measure-r50-consumer-evidence-return.yml"
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: measure-r50-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Admit exact PR subject
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Run permanent R50 contract court
+        run: python3 packs/epistemic-sensor-factory-pack/tests/test_r50_consumer_evidence_return.py
+      - name: Install bounded SPARQL engine
+        run: python3 -m pip install 'rdflib>=7,<8'
+      - name: Execute all fifty R50 sensors
+        run: python3 packs/epistemic-sensor-factory-pack/tests/run_r50_sparql.py
+      - name: Validate receipt authority
+        run: |
+          python3 - <<'PY'
+          import json
+          p='receipts/measure/2026-08-25-r50-consumer-evidence-return.json'
+          r=json.load(open(p))
+          assert r['consequential_do'] is False
+          assert r['thousand_x']['standing'] == 'NOT_ADMITTED'
+          assert r['semantic_transitions']['sensors'] == 50
+          print('R50_RECEIPT_AUTHORITY=PASS')
+          PY
