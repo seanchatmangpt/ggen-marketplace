@@ -1,0 +1,16 @@
+PREFIX rch: <https://ggen.dev/ontology/realization-calibration#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?edge ?source ?target ?posterior ?calibratedDelta ?reuseAdjustedYield WHERE {
+  ?edge a rch:CompositionEdge ; rch:sourceCapability ?source ; rch:targetCapability ?target ; rch:expectedDelta ?expected ; rch:expectedReuse ?reuse ; rch:successes ?s ; rch:failures ?f ; rch:reversible true .
+  BIND((xsd:decimal(?s) + 1.0) / (xsd:decimal(?s) + xsd:decimal(?f) + 2.0) AS ?posterior)
+  BIND(xsd:decimal(?expected) * ?posterior AS ?calibratedDelta)
+  BIND(?calibratedDelta * (1.0 + xsd:decimal(?reuse)) AS ?reuseAdjustedYield)
+  FILTER NOT EXISTS {
+    ?other a rch:CompositionEdge ; rch:expectedDelta ?oe ; rch:expectedReuse ?or ; rch:successes ?os ; rch:failures ?of ; rch:reversible true .
+    FILTER(?other != ?edge)
+    BIND((xsd:decimal(?os) + 1.0) / (xsd:decimal(?os) + xsd:decimal(?of) + 2.0) AS ?op)
+    BIND(xsd:decimal(?oe) * ?op * (1.0 + xsd:decimal(?or)) AS ?oy)
+    FILTER(?oy > ?reuseAdjustedYield && ?op >= ?posterior)
+  }
+}
+ORDER BY DESC(?reuseAdjustedYield) ?edge
