@@ -1,0 +1,25 @@
+name: DEVELOP Capability Lineage Propagation R21 Exact Head
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    if: github.head_ref == 'develop/capability-propagation-factory-r21-20260824'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Validate propagation contract
+        run: |
+          python3 -m unittest discover -s packs/capability-lineage-propagation-pack/tests -p 'test_*.py' -v
+          test -f packs/capability-lineage-propagation-pack/ggen.toml
+          grep -q 'forcePushAllowed false' packs/capability-lineage-propagation-pack/ontology.ttl
+      - name: Verify SELECT receipt
+        run: python3 -c "import json; d=json.load(open('receipts/select/2026-08-24-capability-lineage-propagation-r21.json')); assert d['authority']=='SELECT' and d['actuation_performed'] is False and d['marketplace_first'] is True"
