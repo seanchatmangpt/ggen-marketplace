@@ -1,0 +1,27 @@
+name: DEVELOP Fortune 5 Counterfactual Replay Exact Head
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  qualify:
+    if: github.head_ref == 'develop/fortune5-counterfactual-replay-20260824'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Run permanent courts
+        run: python3 -m unittest discover -s packs/counterfactual-frontier-replay-pack/tests -p 'test_*.py' -v
+      - name: Verify exploration surface
+        run: |
+          test "$(find packs/counterfactual-frontier-replay-pack/queries -name '*.rq' | wc -l)" -eq 10
+          test "$(find packs/counterfactual-frontier-replay-pack/gates -name '*.rq' | wc -l)" -eq 2
+          test "$(find packs/counterfactual-frontier-replay-pack/templates -name '*.tera' | wc -l)" -eq 2
+      - name: Verify SELECT authority
+        run: python3 -c "import json; p=json.load(open('receipts/select/2026-08-24-counterfactual-frontier-replay-r24.json')); assert p['authority']=='SELECT' and p['actuation_performed'] is False and p['marketplace_first'] is True"
