@@ -1,0 +1,3 @@
+# Tutorial: allocating manufacturing capital from dependency-relief evidence
+
+R63 starts from already-qualified `esf:DependencyReliefEvidence`. Treat each evidence subject as an observation, not authority. Run the R63 courts to identify clean positive relief, opportunity yield, memory leverage, consumer breadth, evidence-root breadth, and temporal coherence. Preserve candidates lacking complete evidence as non-admitted options; do not convert them into DO authority. The crown court summarizes only current, replay-verified, qualified, falsifier-backed, generated-projection subjects with positive relief and non-zero actionable opportunity yield.
