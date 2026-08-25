@@ -1,0 +1,3 @@
+# Explanation: why rebloom compounds option capital
+
+A qualified candidate changes the capability hypergraph: it can create new legal compositions that did not exist before qualification. Stopping after first success therefore discards newly reachable option value. Rebloom treats qualification as a topology-changing event, feeds only receipted capability facts into a new bounded construction wave, and preserves non-dominated alternatives. Recursion is deliberately finite and authority-separated: SELECT determines which reversible edges merit construction, CONSTRUCT manufactures candidates, and DO remains exclusively outside this pack behind BRCE.
