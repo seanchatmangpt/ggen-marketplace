@@ -190,11 +190,15 @@ jobs:
         run: |
           set -euo pipefail
           report="${RUNNER_TEMP}/shard-${{ matrix.shard }}-qualification.json"
+          # 30s is a bounded headroom contract, not a semantic relaxation: the same
+          # 43-pack shard completed in ~3.3s immediately before a load-sensitive
+          # run timed out two packs at the former 15s wall. Pass/fail criteria,
+          # exact-subject admission, and the enclosing 8-minute job bound remain.
           python3 scripts/qualify_packs_r18.py \
             --ggen "$GGEN_BIN" \
             --shard-index ${{ matrix.shard }} \
             --shard-count "$SHARD_COUNT" \
-            --timeout-seconds 15 \
+            --timeout-seconds 30 \
             --workers 8 \
             --report "$report"
           python -m json.tool "$report" >/dev/null
