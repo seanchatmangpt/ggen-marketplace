@@ -1,0 +1,12 @@
+PREFIX cloc: <https://ggen.dev/ontology/closed-loop-option-capital#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?edge ?yield ?reuse ?uncertainty WHERE {
+ ?edge a cloc:CompositionEdge ; cloc:reversible true ; cloc:posterior ?p ; cloc:expectedDelta ?d ; cloc:expectedReuse ?reuse ; cloc:uncertainty ?uncertainty .
+ BIND(xsd:decimal(?p) * xsd:decimal(?d) AS ?yield)
+ FILTER NOT EXISTS {
+   ?other a cloc:CompositionEdge ; cloc:reversible true ; cloc:posterior ?op ; cloc:expectedDelta ?od ; cloc:expectedReuse ?or ; cloc:uncertainty ?ou .
+   BIND(xsd:decimal(?op) * xsd:decimal(?od) AS ?oy)
+   FILTER(?other != ?edge && ?oy > ?yield && xsd:decimal(?or) >= xsd:decimal(?reuse) && xsd:decimal(?ou) >= xsd:decimal(?uncertainty))
+ }
+}
+ORDER BY DESC(?yield) ?edge
