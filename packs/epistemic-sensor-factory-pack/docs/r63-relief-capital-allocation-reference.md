@@ -1,0 +1,3 @@
+# R63 relief-capital allocation reference
+
+R63 is an observational/selection court family over `esf:DependencyReliefEvidence`; it introduces no consequential actuation. Court ordinals are 1301–1350. The family measures positive/negative/zero relief, opportunity yield, relief efficiency, consumer/evidence-root distributions, duplicate evidence risk, temporal-chain completeness/order, observed leverage-factor inputs, memory-caused opportunity ratios, unqualified/unreplayed/unfalsified/projectionless yield exposure, and a clean allocation crown. Required authority ceiling: `OBSERVE|VERIFY|SELECT|CONSTRUCT`; consequential DO remains prohibited.
