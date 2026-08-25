@@ -1,0 +1,54 @@
+name: DEVELOP R51 Consumer Admission Factory
+
+on:
+  pull_request:
+    paths:
+      - "packs/epistemic-sensor-factory-pack/**"
+      - "receipts/develop/2026-08-25-r51-consumer-admission-factory.json"
+      - ".github/workflows/develop-r51-consumer-admission-factory.yml"
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: develop-r51-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Admit exact subject
+        run: |
+          set -euo pipefail
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$expected"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Run permanent R51 contract court
+        run: python3 packs/epistemic-sensor-factory-pack/tests/test_r51_consumer_admission_factory.py
+      - name: Install bounded SPARQL engine
+        run: python3 -m pip install 'rdflib>=7,<8'
+      - name: Execute all fifty R51 admission sensors
+        run: python3 packs/epistemic-sensor-factory-pack/tests/run_r51_sparql.py
+      - name: Validate receipt authority and 1000X refusal
+        run: |
+          python3 - <<'PY'
+          import json
+          p='receipts/develop/2026-08-25-r51-consumer-admission-factory.json'
+          r=json.load(open(p))
+          assert r['consequential_do'] is False
+          assert r['thousand_x']['standing'] == 'NOT_ADMITTED'
+          assert r['semantic_transitions']['sensors'] == 50
+          assert r['consumer_admission_shortfall'] == 8
+          print('R51_RECEIPT_AUTHORITY=PASS')
+          PY
