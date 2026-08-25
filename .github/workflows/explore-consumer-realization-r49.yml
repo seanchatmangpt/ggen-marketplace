@@ -1,0 +1,37 @@
+name: EXPLORE R49 Consumer Realization Frontier
+
+on:
+  pull_request:
+    paths:
+      - "packs/consumer-realization-frontier-pack/**"
+      - ".github/workflows/explore-consumer-realization-r49.yml"
+      - "receipts/select/2026-08-25-consumer-realization-frontier-r49.json"
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    if: github.head_ref == 'explore/r49-consumer-realization-frontier-20260825'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace source
+        run: python3 scripts/marketplace.py validate
+      - name: Run permanent courts
+        run: python3 -m unittest discover -s packs/consumer-realization-frontier-pack/tests -p 'test_*.py' -v
+      - name: Verify option-capital surface
+        run: |
+          test "$(find packs/consumer-realization-frontier-pack/queries -name '*.rq' | wc -l)" -eq 25
+          test "$(find packs/consumer-realization-frontier-pack/gates -name '*.rq' | wc -l)" -eq 10
+          test "$(find packs/consumer-realization-frontier-pack/templates -name '*.tera' | wc -l)" -eq 5
+          test "$(find packs/consumer-realization-frontier-pack/tests -name 'test_*.py' | wc -l)" -eq 5
+      - name: Verify authority and leverage labels
+        run: |
+          grep -q 'zeroUnreceiptedActuation true' packs/consumer-realization-frontier-pack/ontology.ttl
+          grep -q 'INFERRED_STRUCTURAL_NOT_OBSERVED' packs/consumer-realization-frontier-pack/templates/frontier-cardinality.json.tera
