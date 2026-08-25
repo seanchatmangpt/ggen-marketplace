@@ -1,0 +1,40 @@
+name: DEVELOP R59 Consumer Realization Factory
+
+on:
+  pull_request:
+    paths:
+      - 'packs/epistemic-sensor-factory-pack/**'
+      - '.github/workflows/develop-r59-consumer-realization-factory.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Admit exact subject
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Enforce sparse generation contract
+        run: python3 packs/epistemic-sensor-factory-pack/tests/test_sparse_generation_contract.py
+      - name: Install bounded SPARQL engine
+        run: python3 -m pip install 'rdflib>=7,<8'
+      - name: Execute R59 realization factory court
+        run: python3 packs/epistemic-sensor-factory-pack/tests/run_r59_consumer_realization_factory.py
+      - name: Refuse ambient consequential actuation
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R -nE 'kubectl apply|terraform apply|aws .*create|gcloud .*create|az .*create' \
+            packs/epistemic-sensor-factory-pack/queries/9??_r59_*.rq \
+            packs/epistemic-sensor-factory-pack/tests/run_r59_consumer_realization_factory.py
