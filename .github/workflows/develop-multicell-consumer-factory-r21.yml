@@ -1,0 +1,25 @@
+name: DEVELOP MultiCell Consumer Factory R21 Exact Head
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    if: github.head_ref == 'develop/multicell-consumer-factory-r21-20260824'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Validate reusable factory contract
+        run: |
+          python3 -m unittest discover -s packs/multicell-consumer-factory-pack/tests -p 'test_*.py' -v
+          test -f packs/multicell-consumer-factory-pack/ggen.toml
+          grep -q 'actuationPerformed false' packs/multicell-consumer-factory-pack/ontology.ttl
+      - name: Verify SELECT receipt
+        run: python3 -c "import json; d=json.load(open('receipts/select/2026-08-24-multicell-consumer-factory-r21.json')); assert d['authority']=='SELECT' and d['actuation_performed'] is False and d['marketplace_first'] is True"
