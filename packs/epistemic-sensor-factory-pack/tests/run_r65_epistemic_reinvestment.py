@@ -7,8 +7,14 @@ g = Graph()
 g.parse(ROOT / "ontology.ttl", format="turtle")
 g.parse(ROOT / "ontology.r65-epistemic-reinvestment.ttl", format="turtle")
 g.parse(ROOT / "fixtures/r65-epistemic-reinvestment.ttl", format="turtle")
-queries = sorted((ROOT / "queries").glob("14[0-4][1-9]_r65_*.rq")) + sorted((ROOT / "queries").glob("1450_r65_*.rq"))
-queries = [p for p in queries if 1401 <= int(p.name.split('_',1)[0]) <= 1450]
+queries = []
+for p in sorted((ROOT / "queries").glob("*_r65_*.rq")):
+    try:
+        number = int(p.name.split("_", 1)[0])
+    except ValueError:
+        continue
+    if 1401 <= number <= 1450:
+        queries.append(p)
 assert len(queries) == 50, len(queries)
 for q in queries:
     list(g.query(q.read_text()))
