@@ -1,0 +1,54 @@
+name: IMPLEMENT R56 Consumer Replication Qualification
+
+on:
+  pull_request:
+    paths:
+      - "packs/epistemic-sensor-factory-pack/**"
+      - "receipts/implement/2026-08-25-r56-consumer-replication-qualification.json"
+      - ".github/workflows/implement-r56-consumer-replication-qualification.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: implement-r56-${{ github.workflow }}-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Admit exact subject
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Install bounded SPARQL engine
+        run: python3 -m pip install 'rdflib>=7,<8'
+      - name: Execute fifty R56 consumer replication courts
+        run: python3 packs/epistemic-sensor-factory-pack/tests/run_r56_consumer_replication_qualification.py
+      - name: Verify manufacture receipt
+        run: |
+          python3 - <<'PY'
+          import json
+          r=json.load(open('receipts/implement/2026-08-25-r56-consumer-replication-qualification.json'))
+          assert r['semantic_query_commits'] == 50
+          assert r['consequential_do'] is False
+          assert r['generated_output_edited'] is False
+          assert r['replication_multiplier']['R_qualification'] == 50
+          assert r['thousand_x']['standing'] == 'NOT_ADMITTED'
+          assert 'DO' not in r['authority']
+          print('R56_RECEIPT=PASS')
+          PY
+      - name: Refuse ambient consequential actuation
+        run: |
+          set -euo pipefail
+          ! grep -R -nE 'kubectl apply|terraform apply|aws .*create|gcloud .*create|az .*create' packs/epistemic-sensor-factory-pack/queries/ packs/epistemic-sensor-factory-pack/tests/run_r56_consumer_replication_qualification.py
