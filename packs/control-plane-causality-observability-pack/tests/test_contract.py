@@ -4,7 +4,7 @@ from rdflib.plugins.sparql import prepareQuery
 
 ROOT = Path(__file__).resolve().parents[1]
 queries = sorted((ROOT / "queries").glob("*.sparql"))
-assert len(queries) == 49, len(queries)
+assert len(queries) == 50, len(queries)
 
 g = Graph()
 g.parse(ROOT / "ontology.ttl", format="turtle")
@@ -17,8 +17,10 @@ for path in queries:
 
 unrelated = list(g.query((ROOT / "queries/009_unrelated_workflow_fanout.sparql").read_text()))
 stale = list(g.query((ROOT / "queries/005_stale_running_memory.sparql").read_text()))
+clean = list(g.query((ROOT / "queries/050_clean_causal_chain.sparql").read_text()))
 assert unrelated, "fixture must falsify unrelated workflow fanout"
 assert stale, "fixture must expose stale RUNNING memory"
+assert clean, "fixture must preserve a clean causal chain"
 assert 'consequential_do = "BRCE_ONLY"' in (ROOT / "pack.toml").read_text()
 assert "cpc:actuationPerformed false" in (ROOT / "fixtures/reference.ttl").read_text()
-print(f"ALIVE sensors={len(queries)} triples={len(g)} unrelated={len(unrelated)} stale_running={len(stale)}")
+print(f"ALIVE sensors={len(queries)} triples={len(g)} unrelated={len(unrelated)} stale_running={len(stale)} clean={len(clean)}")
