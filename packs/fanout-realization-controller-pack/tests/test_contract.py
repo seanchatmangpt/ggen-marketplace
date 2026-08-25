@@ -14,7 +14,13 @@ class FanoutRealizationContractTest(unittest.TestCase):
 
     def test_complete_control_surface(self):
         queries = sorted((ROOT / "queries").glob("*.rq"))
-        self.assertEqual(len(queries), 8)
+        base_queries = [p for p in queries if not p.name.startswith(("r25-", "r26-"))]
+        realization_queries = [p for p in queries if p.name.startswith("r25-")]
+        calibration_queries = [p for p in queries if p.name.startswith("r26-")]
+        self.assertEqual(len(base_queries), 8)
+        self.assertEqual(len(realization_queries), 40)
+        self.assertEqual(len(calibration_queries), 30)
+        self.assertEqual(len(queries), 78)
         self.assertTrue((ROOT / "gates/01-exact-current-evidence.rq").is_file())
         self.assertTrue((ROOT / "gates/02-no-ambient-do.rq").is_file())
 

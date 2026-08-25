@@ -1,0 +1,38 @@
+name: MEASURE Fanout Control Realization R25 Exact Head
+
+on:
+  pull_request:
+    paths:
+      - 'packs/fanout-realization-controller-pack/**'
+      - '.github/workflows/measure-fanout-control-realization-r25.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Assert exact PR head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Run permanent fanout controller courts
+        run: python3 -m unittest discover -s packs/fanout-realization-controller-pack/tests -p 'test_*.py' -v
+      - name: Verify R25 measurement surface
+        run: |
+          test "$(find packs/fanout-realization-controller-pack/queries -name 'r25-*.rq' | wc -l)" -eq 40
+          test -f packs/fanout-realization-controller-pack/gates/03-control-realization-r25.rq
+          test -f packs/fanout-realization-controller-pack/control-realization-r25.ttl
+          test -f packs/fanout-realization-controller-pack/control-realization-r25-ledger.jsonl
+          grep -q 'fanout-control-realization-report-r25' packs/fanout-realization-controller-pack/ggen.toml
+          grep -q 'fanout-control-realization-court-r25' packs/fanout-realization-controller-pack/ggen.toml
+          grep -q 'http://www.w3.org/ns/dqv#' packs/fanout-realization-controller-pack/ontology.ttl
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -REn 'requests\.(post|put|patch|delete)|httpx\.(post|put|patch|delete)|subprocess\.|os\.system|boto3|azure\.|google\.cloud' packs/fanout-realization-controller-pack/tests packs/fanout-realization-controller-pack/templates
