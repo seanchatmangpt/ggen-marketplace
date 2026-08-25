@@ -18,7 +18,7 @@ jobs:
         run: python3 scripts/marketplace.py validate
       - name: Run permanent R46 court
         run: python3 packs/epistemic-sensor-factory-pack/tests/test_r46_replication_compiler.py
-      - name: Parse and execute R46 SPARQL sensors
+      - name: Parse and execute R46 ordinal-slot SPARQL family
         run: |
           python3 -m pip install --disable-pip-version-check 'rdflib>=7,<8'
           python3 - <<'PY'
@@ -30,8 +30,9 @@ jobs:
           for p in sorted((root/'queries').glob('*.rq')):
               if p.name[:3].isdigit() and 186 <= int(p.name[:3]) <= 235:
                   list(g.query(p.read_text())); qs.append(p.name)
-          assert len(qs)==50, qs
-          print('R46 sensors executed:', len(qs))
+          slots={int(name[:3]) for name in qs}
+          assert slots == set(range(186,236)), sorted(set(range(186,236)) - slots)
+          print('R46 ordinal slots covered:', len(slots), 'slot queries executed:', len(qs))
           PY
       - name: Refuse ambient consequential actuation
         run: '! grep -R -E "actuationPerformed[[:space:]]+true|consequential_do[\"'\''[:space:]]*:[[:space:]]*true" packs/epistemic-sensor-factory-pack/fixtures packs/epistemic-sensor-factory-pack/templates'
