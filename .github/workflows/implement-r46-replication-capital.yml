@@ -1,0 +1,53 @@
+name: IMPLEMENT R46 Replication Capital
+
+on:
+  pull_request:
+    paths:
+      - 'packs/replication-epistemic-observability-pack/**'
+      - '.github/workflows/implement-r46-replication-capital.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Admit exact subject
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Install bounded SPARQL runtime
+        run: python3 -m pip install 'rdflib==7.1.4'
+      - name: Execute exact R46 court tranche
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from rdflib import Graph
+          root = Path('packs/replication-epistemic-observability-pack')
+          graph = Graph()
+          graph.parse(root / 'ontology.ttl', format='turtle')
+          for fixture in sorted((root / 'fixtures').glob('*.ttl')):
+              graph.parse(fixture, format='turtle')
+          queries = sorted((root / 'queries').glob('*.rq'))
+          tranche = [q for q in queries if 186 <= int(q.name.split('_', 1)[0]) <= 235]
+          assert len(tranche) == 50, len(tranche)
+          for query in tranche:
+              graph.query(query.read_text())
+          print(f'R46_EXECUTED={len(tranche)}')
+          PY
+      - name: Refuse ambient consequential actuation
+        shell: bash
+        run: |
+          ! grep -RniE 'actuation_performed[[:space:]]*[=:][[:space:]]*true|consequential_do[[:space:]]*[=:][[:space:]]*true' \
+            packs/replication-epistemic-observability-pack/ontology.ttl \
+            packs/replication-epistemic-observability-pack/fixtures \
+            packs/replication-epistemic-observability-pack/templates
