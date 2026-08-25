@@ -3,7 +3,7 @@ from pathlib import Path
 from rdflib import Graph
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = ROOT / "fixtures" / "r51-consumer-admission-frontier.ttl"
+FIXTURE = ROOT / "fixtures" / "r52-consumer-admission-current.ttl"
 
 
 def main():
