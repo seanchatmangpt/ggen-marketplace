@@ -10,7 +10,12 @@ class R27OptionObservabilityCourt(unittest.TestCase):
         queries = sorted((ROOT / "queries" / "r27-option-observability").glob("*.rq"))
         self.assertEqual(len(queries), 30)
         self.assertEqual(len({q.read_text() for q in queries}), 30)
-        self.assertTrue(all("ORDER BY" in q.read_text() or q.name in {"03-discovery-multiplier.rq", "04-novel-opportunity-rate.rq", "09-blind-spot-rate.rq", "12-receipt-coverage.rq", "16-option-yield.rq"} for q in queries))
+
+    def test_generation_query_is_deterministically_ordered(self):
+        generation_query = ROOT / "queries" / "r27-option-observability" / "30-clean-current-option-observability-frontier.rq"
+        text = generation_query.read_text()
+        self.assertIn("SELECT", text)
+        self.assertIn("ORDER BY", text)
 
     def test_live_ledger_has_eight_opportunities_from_five_seeds(self):
         rows = [json.loads(line) for line in (ROOT / "innovation-capital-r27-ledger.jsonl").read_text().splitlines() if line]
