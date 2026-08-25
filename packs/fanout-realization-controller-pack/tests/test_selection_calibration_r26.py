@@ -19,9 +19,19 @@ class SelectionCalibrationR26Court(unittest.TestCase):
 
     def test_calibration_sensor_surface_is_complete_and_ordered(self):
         sensors = sorted((ROOT / "queries").glob("r26-*.rq"))
-        self.assertEqual(len(sensors), 30)
-        self.assertEqual(sensors[0].name, "r26-01-selected-positive-value-rate.rq")
-        self.assertEqual(sensors[-1].name, "r26-30-clean-calibration-frontier.rq")
+        self.assertEqual(len(sensors), 48)
+        names = {sensor.name for sensor in sensors}
+        for required in {
+            "r26-01-confusion-matrix.rq",
+            "r26-01-selected-positive-value-rate.rq",
+            "r26-30-clean-calibration-frontier.rq",
+            "r26-31-calibration-capital-yield.rq",
+            "r26-32-root-discounted-yield.rq",
+            "r26-33-latency-normalized-relief.rq",
+            "r26-34-negative-value-selection.rq",
+            "r26-35-clean-capital-frontier.rq",
+        }:
+            self.assertIn(required, names)
         for sensor in sensors:
             text = sensor.read_text(encoding="utf-8")
             self.assertIn("PREFIX frc:", text, sensor.name)
