@@ -32,6 +32,20 @@ jobs:
         run: python3 scripts/marketplace.py validate
       - name: Run Fortune 5 integration court
         run: python3 -m unittest tests/test_fortune5_control_capital.py -v
+      - name: Run counterfactual replay proof courts
+        run: python3 -m unittest discover -s packs/counterfactual-frontier-replay-pack/tests -p 'test_*.py' -v
+      - name: Verify replay Fortune 5 control profile
+        run: |
+          test "$(find packs/counterfactual-frontier-replay-pack/gates -name '*.rq' | wc -l)" -eq 3
+          python3 - <<'PY'
+          import json
+          p=json.load(open('packs/counterfactual-frontier-replay-pack/qualification/fortune5-profile.json'))
+          required={'compiler-truth','conflict-truth','trust-truth','proof-truth'}
+          assert {x['id'] for x in p['required_capabilities']} == required
+          assert all(x['positive_execution'] and x['negative_refusal'] and x['receipt_replay'] for x in p['required_capabilities'])
+          assert p['subject']['authority_ceiling'] == 'SELECT|CONSTRUCT|VERIFY'
+          assert p['subject']['consequential_do'] is False
+          PY
       - name: Run runtime authenticity falsifiers
         env:
           PYTHONPATH: packs/runtime-evidence-authenticity-pack
@@ -43,6 +57,7 @@ jobs:
       - name: Refuse ambient consequential actuation
         run: |
           ! grep -REn 'requests\.(post|put|patch|delete)|subprocess\.|os\.system|boto3|azure\.|google\.cloud' \
+            packs/counterfactual-frontier-replay-pack \
             packs/runtime-evidence-authenticity-pack \
             packs/runtime-evidence-authenticity-control-pack \
             tests/test_fortune5_control_capital.py
