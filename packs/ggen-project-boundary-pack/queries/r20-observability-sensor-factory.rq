@@ -1,0 +1,20 @@
+PREFIX gpb: <https://ggen.dev/ontology/project-boundary#>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+SELECT ?factory ?namespace ?path ?declaredCount ?authority ?actuation
+       (COUNT(DISTINCT ?sensor) AS ?observedCount)
+       (GROUP_CONCAT(DISTINCT STR(?notation); separator=",") AS ?sensorNames)
+WHERE {
+  ?factory a gpb:ObservabilitySensorFactory ;
+    gpb:sensorScheme ?scheme ;
+    gpb:sensorNamespace ?namespace ;
+    gpb:consumerPathPrefix ?path ;
+    gpb:sensorCount ?declaredCount ;
+    gpb:authority ?authority ;
+    gpb:actuationPerformed ?actuation .
+  ?sensor a skos:Concept ;
+    skos:inScheme ?scheme ;
+    skos:notation ?notation .
+}
+GROUP BY ?factory ?namespace ?path ?declaredCount ?authority ?actuation
+HAVING (COUNT(DISTINCT ?sensor) = ?declaredCount)
+ORDER BY ?factory
