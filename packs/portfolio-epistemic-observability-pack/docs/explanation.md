@@ -1,0 +1,3 @@
+# Explanation: better eyes at portfolio scale
+
+A repository-local sensor can be excellent while the portfolio remains blind. Portfolio observability therefore measures not only findings but the topology of observation itself: which repositories, subjects, evidence roots, contracts, falsifiers, generated projections, and receipts are represented; how current they are; and how concentrated the evidence is. This converts `we searched` into a falsifiable claim about coverage, method, freshness, provenance, and authority. The resulting graph compounds as executable epistemic capital rather than expiring as prose.
