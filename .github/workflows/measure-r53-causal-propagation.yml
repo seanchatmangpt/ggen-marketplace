@@ -1,0 +1,41 @@
+name: MEASURE R53 Causal Consumer Propagation
+
+on:
+  pull_request:
+    paths:
+      - 'packs/epistemic-sensor-factory-pack/**'
+      - 'receipts/measure/2026-08-25-r53-causal-consumer-propagation.json'
+      - '.github/workflows/measure-r53-causal-propagation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+      - name: Admit exact subject
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Install bounded RDF verifier
+        run: python3 -m pip install --disable-pip-version-check 'rdflib==7.1.4'
+      - name: Execute dependency-free static contract
+        run: python3 packs/epistemic-sensor-factory-pack/tests/test_r53_static_contract.py
+      - name: Execute dependency-free RDF court and all 50 sensors
+        run: python3 packs/epistemic-sensor-factory-pack/tests/test_r53_causal_propagation.py
+      - name: Enforce documentation/runtime correspondence
+        run: python3 packs/epistemic-sensor-factory-pack/tests/test_r53_doc_runtime_correspondence.py
+      - name: Refuse ambient consequential actuation
+        shell: bash
+        run: |
+          ! grep -R --include='*.ttl' --include='*.json' --include='*.tera' -E 'actuationPerformed[[:space:]]+true|"consequential_do"[[:space:]]*:[[:space:]]*true|standingTransferred[[:space:]]+true|authorityTransferred[[:space:]]+true' packs/epistemic-sensor-factory-pack/fixtures packs/epistemic-sensor-factory-pack/templates

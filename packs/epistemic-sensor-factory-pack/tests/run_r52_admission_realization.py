@@ -13,7 +13,7 @@ def main():
     queries = []
     for path in sorted((ROOT / "queries").glob("*.rq")):
         prefix = path.name.split("_", 1)[0]
-        if prefix.isdigit() and (451 <= int(prefix) <= 499 or int(prefix) == 600):
+        if prefix.isdigit() and (451 <= int(prefix) <= 499 or int(prefix) == 650):
             queries.append(path)
     assert len(queries) == 50, len(queries)
     results = {}
