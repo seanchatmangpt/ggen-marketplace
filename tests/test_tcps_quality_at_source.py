@@ -24,6 +24,14 @@ def test_r77_repository_universe_generation_is_deterministic_at_source():
     assert "ORDER BY " in text, "POKAYOKE_NONDETERMINISTIC_SELECT:r77-exact-repository-universe-frontier"
 
 
+def test_r78_ready_set_generation_is_deterministic_at_execution_edge():
+    query = ROOT / "packs/portfolio-epistemic-observability-pack/queries/r78-tcps-ready-set/050_clean_allocation_crown.rq"
+    text = query.read_text()
+    assert "SELECT " in text
+    assert "ORDER BY " in text, "POKAYOKE_NONDETERMINISTIC_SELECT:r78-tcps-ready-set-capital-plan"
+    assert "DESC(?score)" in text, "POKAYOKE_LINEAR_EXTENSION_MUST_USE_SELECTION_SCORE"
+
+
 def test_structural_factory_workflows_are_temporally_bounded():
     workflows = [
         ROOT / ".github/workflows/measure-r75-throughput-learning.yml",
