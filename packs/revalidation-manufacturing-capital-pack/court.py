@@ -14,7 +14,7 @@ graph = Graph()
 graph.parse(ROOT / "ontology.ttl", format="turtle")
 graph.parse(ROOT / "fixture.ttl", format="turtle")
 queries = sorted((ROOT / "queries").glob("*.rq"))
-assert len(queries) == 50, f"expected 50 R73 courts, got {len(queries)}"
+assert len(queries) >= 51, f"expected at least 51 R73 courts, got {len(queries)}"
 
 results = {}
 for query_path in queries:
@@ -27,5 +27,6 @@ assert results["021-zero-ambient-do.rq"] == [], "ambient consequential DO must r
 assert results["048-revalidation-manufacturing-frontier.rq"], "clean manufacturing frontier must be non-empty"
 assert results["049-1000x-admission-falsifier.rq"], "fixture must refuse unsupported 1000X crown"
 assert results["050-capital-allocation-crown.rq"], "capital-allocation crown must select evidence-bounded candidates"
+assert results["051-manufacturing-plan-projection.rq"], "deterministic manufacturing projection must be non-empty"
 
 print(f"R73_ALIVE courts={len(queries)} triples={len(graph)}")
