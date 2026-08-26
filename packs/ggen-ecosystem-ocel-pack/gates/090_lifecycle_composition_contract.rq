@@ -1,0 +1,62 @@
+PREFIX geocel: <https://ggen.dev/ontology/ggen-ecosystem-ocel#>
+
+# Refuse a source graph that cannot manufacture the canonical Project2
+# composition state required by CELL2. Empty result = admitted.
+SELECT ?violation WHERE {
+  {
+    ?run a geocel:ManufacturingRun .
+    FILTER NOT EXISTS { ?run geocel:uCount ?u }
+    BIND("MISSING_U" AS ?violation)
+  } UNION {
+    ?run a geocel:ManufacturingRun .
+    FILTER NOT EXISTS { ?run geocel:gCount ?g }
+    BIND("MISSING_G" AS ?violation)
+  } UNION {
+    ?run a geocel:ManufacturingRun .
+    FILTER NOT EXISTS { ?run geocel:oCount ?o }
+    BIND("MISSING_O" AS ?violation)
+  } UNION {
+    ?run a geocel:ManufacturingRun .
+    FILTER NOT EXISTS { ?run geocel:qCount ?q }
+    BIND("MISSING_Q" AS ?violation)
+  } UNION {
+    ?run a geocel:ManufacturingRun .
+    FILTER NOT EXISTS { ?run geocel:mCount ?m }
+    BIND("MISSING_M" AS ?violation)
+  } UNION {
+    ?run a geocel:ManufacturingRun .
+    FILTER NOT EXISTS { ?run geocel:openFanoutObligations ?x }
+    BIND("MISSING_OPEN_FANOUT" AS ?violation)
+  } UNION {
+    ?run a geocel:ManufacturingRun .
+    FILTER NOT EXISTS { ?run geocel:openObservationObligations ?x }
+    BIND("MISSING_OPEN_OBSERVATION" AS ?violation)
+  } UNION {
+    ?run a geocel:ManufacturingRun .
+    FILTER NOT EXISTS { ?run geocel:expectedFanout ?x }
+    BIND("MISSING_EXPECTED_FANOUT" AS ?violation)
+  } UNION {
+    ?run a geocel:ManufacturingRun .
+    FILTER NOT EXISTS {
+      ?primitive a geocel:GgenPrimitiveObject ;
+        geocel:objectId ?id ; geocel:primitive ?name ; geocel:exactHead ?head .
+    }
+    BIND("MISSING_EXACT_GGEN_PRIMITIVE" AS ?violation)
+  } UNION {
+    ?consumer a geocel:RepositoryObject ; geocel:repository ?repo .
+    FILTER NOT EXISTS { ?consumer geocel:exactHead ?head }
+    BIND("CONSUMER_HEAD_UNBOUND" AS ?violation)
+  } UNION {
+    ?edge a geocel:PartialOrderEdge .
+    FILTER NOT EXISTS { ?edge geocel:sourceObject ?source ; geocel:targetObject ?target }
+    BIND("PARTIAL_ORDER_EDGE_UNBOUND" AS ?violation)
+  } UNION {
+    ?refusal a geocel:RefusalObject .
+    FILTER NOT EXISTS { ?refusal geocel:reason ?reason }
+    BIND("REFUSAL_REASON_UNBOUND" AS ?violation)
+  } UNION {
+    ?falsifier a geocel:FalsifierObject .
+    FILTER NOT EXISTS { ?falsifier geocel:reason ?reason }
+    BIND("FALSIFIER_REASON_UNBOUND" AS ?violation)
+  }
+}

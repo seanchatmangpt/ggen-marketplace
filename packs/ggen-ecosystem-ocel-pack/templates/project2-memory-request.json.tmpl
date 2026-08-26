@@ -3,7 +3,7 @@ to: "generated/project2-ggen-ecosystem-ocel-request.json"
 sparql:
   run: |
     PREFIX geocel: <https://ggen.dev/ontology/ggen-ecosystem-ocel#>
-    SELECT ?runId ?cell ?projectOwner ?projectNumber ?ocelDigest ?standing WHERE {
+    SELECT ?runId ?cell ?projectOwner ?projectNumber ?ocelDigest ?standing ?u ?g ?o ?q ?m ?openFanout ?openObservation ?expectedFanout WHERE {
       ?run a geocel:ManufacturingRun ;
         geocel:runId ?runId ;
         geocel:cell ?cell ;
@@ -11,8 +11,34 @@ sparql:
         geocel:projectNumber ?projectNumber ;
         geocel:projectMemoryKey "ggen/ecosystem/ocel/current" ;
         geocel:ocelDigest ?ocelDigest ;
-        geocel:standing ?standing .
+        geocel:standing ?standing ;
+        geocel:uCount ?u ; geocel:gCount ?g ; geocel:oCount ?o ; geocel:qCount ?q ; geocel:mCount ?m ;
+        geocel:openFanoutObligations ?openFanout ;
+        geocel:openObservationObligations ?openObservation ;
+        geocel:expectedFanout ?expectedFanout .
     }
+  primitives: |
+    PREFIX geocel: <https://ggen.dev/ontology/ggen-ecosystem-ocel#>
+    SELECT ?objectId ?primitive ?exactHead WHERE {
+      ?object a geocel:GgenPrimitiveObject ; geocel:objectId ?objectId ; geocel:primitive ?primitive ; geocel:exactHead ?exactHead .
+    } ORDER BY ?objectId
+  consumers: |
+    PREFIX geocel: <https://ggen.dev/ontology/ggen-ecosystem-ocel#>
+    SELECT ?objectId ?repository ?exactHead WHERE {
+      ?object a geocel:RepositoryObject ; geocel:objectId ?objectId ; geocel:repository ?repository ; geocel:exactHead ?exactHead .
+    } ORDER BY ?repository ?objectId
+  edges: |
+    PREFIX geocel: <https://ggen.dev/ontology/ggen-ecosystem-ocel#>
+    SELECT ?edgeId ?sourceId ?targetId WHERE {
+      ?edge a geocel:PartialOrderEdge ; geocel:objectId ?edgeId ; geocel:sourceObject ?source ; geocel:targetObject ?target .
+      ?source geocel:objectId ?sourceId . ?target geocel:objectId ?targetId .
+    } ORDER BY ?edgeId
+  refusals: |
+    PREFIX geocel: <https://ggen.dev/ontology/ggen-ecosystem-ocel#>
+    SELECT ?objectId ?reason WHERE { ?object a geocel:RefusalObject ; geocel:objectId ?objectId ; geocel:reason ?reason . } ORDER BY ?objectId
+  falsifiers: |
+    PREFIX geocel: <https://ggen.dev/ontology/ggen-ecosystem-ocel#>
+    SELECT ?objectId ?reason WHERE { ?object a geocel:FalsifierObject ; geocel:objectId ?objectId ; geocel:reason ?reason . } ORDER BY ?objectId
 ---
 {% for row in run %}{
   "request_id": "{{ row.runId }}-ggen-ecosystem-ocel",
@@ -31,6 +57,15 @@ sparql:
         "run_id": "{{ row.runId }}",
         "ocel_digest": "{{ row.ocelDigest }}",
         "manufacturing_ladder": "U->G->O->Q->M",
+        "U": "{{ row.u }}", "G": "{{ row.g }}", "O": "{{ row.o }}", "Q": "{{ row.q }}", "M": "{{ row.m }}",
+        "open_fanout_obligations": "{{ row.openFanout }}",
+        "open_observation_obligations": "{{ row.openObservation }}",
+        "expected_fanout": "{{ row.expectedFanout }}",
+        "upstream_primitives": [{% for item in primitives %}{"object_id":"{{ item.objectId }}","primitive":"{{ item.primitive }}","exact_head":"{{ item.exactHead }}"}{% if not loop.last %},{% endif %}{% endfor %}],
+        "consumer_heads": [{% for item in consumers %}{"object_id":"{{ item.objectId }}","repository":"{{ item.repository }}","exact_head":"{{ item.exactHead }}"}{% if not loop.last %},{% endif %}{% endfor %}],
+        "partial_order_edges": [{% for item in edges %}{"edge_id":"{{ item.edgeId }}","source":"{{ item.sourceId }}","target":"{{ item.targetId }}"}{% if not loop.last %},{% endif %}{% endfor %}],
+        "refusals": [{% for item in refusals %}{"object_id":"{{ item.objectId }}","reason":"{{ item.reason }}"}{% if not loop.last %},{% endif %}{% endfor %}],
+        "falsifiers": [{% for item in falsifiers %}{"object_id":"{{ item.objectId }}","reason":"{{ item.reason }}"}{% if not loop.last %},{% endif %}{% endfor %}],
         "ggen_first": true,
         "process_analysis_owner": "wasm4pm"
       }
