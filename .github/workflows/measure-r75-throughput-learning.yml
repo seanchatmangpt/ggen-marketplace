@@ -1,0 +1,27 @@
+name: MEASURE R75 Throughput Learning
+on:
+  pull_request:
+    paths:
+      - 'packs/epistemic-sensor-factory-pack/**'
+      - '.github/workflows/measure-r75-throughput-learning.yml'
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Admit exact PR head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install bounded RDF verifier
+        run: python -m pip install 'rdflib>=7,<8' pytest
+      - name: Validate marketplace corpus
+        run: python scripts/marketplace.py validate
+      - name: Execute R75 court
+        run: pytest -q packs/epistemic-sensor-factory-pack/tests/test_r75_throughput_learning.py
+      - name: Refuse ambient consequential actuation
+        run: |
+          if grep -R -nE 'actuationPerformed[[:space:]]+true|consequential_do[[:space:]]*[:=][[:space:]]*true' packs/epistemic-sensor-factory-pack/ontology.r75-throughput-learning.ttl packs/epistemic-sensor-factory-pack/fixtures/r75-throughput-learning.ttl; then exit 1; fi
