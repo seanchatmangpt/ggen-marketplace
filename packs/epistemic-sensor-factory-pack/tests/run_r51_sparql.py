@@ -4,17 +4,18 @@ from rdflib import Graph
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "fixtures" / "r51-consumer-admission-frontier.ttl"
+MANIFEST = ROOT / "queries" / "r51-consumer-admission.manifest"
 
 
 def main():
     graph = Graph()
     graph.parse(ROOT / "ontology.ttl", format="turtle")
     graph.parse(FIXTURE, format="turtle")
-    queries = sorted(
-        p for p in (ROOT / "queries").glob("*.rq")
-        if p.name[:3].isdigit() and 401 <= int(p.name[:3]) <= 450
-    )
-    assert len(queries) == 50, len(queries)
+    names = [line.strip() for line in MANIFEST.read_text().splitlines() if line.strip()]
+    assert len(names) == 50, len(names)
+    assert len(set(names)) == 50, "duplicate semantic query identity"
+    queries = [ROOT / "queries" / name for name in names]
+    assert all(path.is_file() for path in queries)
     results = {}
     for path in queries:
         rows = list(graph.query(path.read_text()))
