@@ -1,0 +1,3 @@
+# Explanation — why portfolio structure is epistemic capital
+
+R75 made attributable manufacturing throughput observable. R76 composes that event-level truth with portfolio topology so a rate change can be traced to missing structure, missing pack/generator ownership, low reuse, low consumer fanout, stranded generalizable learning, or weak economic/evidence graph density. The objective is not repository preservation: existing structure is an observation. A lawful displacement candidate remains open until desired semantics, public ontology, pack/composition, deterministic generator, generated consequence, consumer qualification, receipt, and standing are all explicit.
