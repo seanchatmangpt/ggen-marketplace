@@ -33,6 +33,7 @@ def request_payload(digest=module.SENTINEL):
 
 
 def write_fixture(tmp_path, request):
+    tmp_path.mkdir(parents=True, exist_ok=True)
     ocel = tmp_path / "run.ocel.json"
     request_path = tmp_path / "request.json"
     ocel.write_bytes(b'{"ocel:events":{},"ocel:objects":{}}\n')
