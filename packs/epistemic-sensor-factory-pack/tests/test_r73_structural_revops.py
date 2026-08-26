@@ -5,8 +5,8 @@ from rdflib.plugins.sparql.parser import parseQuery
 ROOT = Path(__file__).resolve().parents[1]
 ONTOLOGY = ROOT / "ontology.r73-structural-revops.ttl"
 FIXTURE = ROOT / "fixtures" / "r73-structural-revops.ttl"
-QUERIES = sorted((ROOT / "queries").glob("30*_r73_*.rq"))
-EXPECTED_QUERY_COUNT = 82
+QUERIES = sorted((ROOT / "queries").glob("*_r73_*.rq"))
+EXPECTED_QUERY_COUNT = 132
 
 
 def main():
@@ -14,6 +14,7 @@ def main():
     graph.parse(ONTOLOGY, format="turtle")
     graph.parse(FIXTURE, format="turtle")
     assert len(QUERIES) == EXPECTED_QUERY_COUNT, len(QUERIES)
+    assert all("_r73_" in query.name for query in QUERIES)
     for query in QUERIES:
         text = query.read_text()
         assert "https://ggen.dev/measure/r73#" in text
