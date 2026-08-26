@@ -3,13 +3,16 @@ from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
+MANIFEST = ROOT / "queries" / "r51-consumer-admission.manifest"
 
 
 def r51_queries():
-    return sorted(
-        p for p in (ROOT / "queries").glob("*.rq")
-        if p.name[:3].isdigit() and 401 <= int(p.name[:3]) <= 450
-    )
+    names = [line.strip() for line in MANIFEST.read_text().splitlines() if line.strip()]
+    assert len(names) == 50, len(names)
+    assert len(set(names)) == 50, "duplicate semantic query identity"
+    queries = [ROOT / "queries" / name for name in names]
+    assert all(path.is_file() for path in queries)
+    return queries
 
 
 def check_exactly_fifty_admission_sensors():
