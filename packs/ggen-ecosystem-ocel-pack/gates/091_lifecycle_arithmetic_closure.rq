@@ -1,0 +1,27 @@
+PREFIX geocel: <https://ggen.dev/ontology/ggen-ecosystem-ocel#>
+
+# Refuse impossible manufacturing-ladder arithmetic. Empty result = admitted.
+SELECT ?run ?violation WHERE {
+  ?run a geocel:ManufacturingRun ;
+       geocel:uCount ?u ;
+       geocel:gCount ?g ;
+       geocel:oCount ?o ;
+       geocel:qCount ?q ;
+       geocel:mCount ?m ;
+       geocel:openFanoutObligations ?openFanout ;
+       geocel:openObservationObligations ?openObservation .
+  {
+    FILTER(?u < ?g || ?g < ?o || ?o < ?q || ?q < ?m)
+    BIND("NON_MONOTONE_U_G_O_Q_M" AS ?violation)
+  }
+  UNION
+  {
+    FILTER(?openFanout != (?u - ?m))
+    BIND("OPEN_FANOUT_ARITHMETIC_MISMATCH" AS ?violation)
+  }
+  UNION
+  {
+    FILTER(?openObservation != (?g - ?o))
+    BIND("OPEN_OBSERVATION_ARITHMETIC_MISMATCH" AS ?violation)
+  }
+}
