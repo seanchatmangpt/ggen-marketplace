@@ -21,6 +21,7 @@ def test_structural_factory_workflows_are_temporally_bounded():
     workflows = [
         ROOT / ".github/workflows/measure-r75-throughput-learning.yml",
         ROOT / ".github/workflows/measure-r76-portfolio-structural-census.yml",
+        ROOT / ".github/workflows/measure-r77-repository-universe.yml",
     ]
     for workflow in workflows:
         text = workflow.read_text()
