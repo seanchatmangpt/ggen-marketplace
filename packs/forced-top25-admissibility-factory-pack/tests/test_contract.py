@@ -1,6 +1,10 @@
-import pathlib, unittest
+import pathlib, tomllib, unittest
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 class ForcedTop25FactoryCourt(unittest.TestCase):
+ def test_pack_manifest_is_ggen_schema_minimal(self):
+  manifest=tomllib.loads((ROOT/'pack.toml').read_text())
+  self.assertEqual(set(manifest), {'pack'})
+  self.assertEqual(manifest['pack']['name'], 'forced-top25-admissibility-factory-pack')
  def test_projection_is_non_actuating(self):
   text=(ROOT/'templates'/'consumer-subject.json.tera').read_text()
   self.assertIn('"consequential_do":false', text)
