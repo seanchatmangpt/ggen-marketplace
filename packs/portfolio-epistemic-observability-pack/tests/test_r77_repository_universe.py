@@ -21,13 +21,15 @@ def test_r77_graph_and_all_sensors_parse_and_execute():
         list(graph.query(text))
 
 
-def test_r77_is_ggen_owned_and_read_only():
+def test_r77_is_ggen_owned_read_only_and_exact_head_capable():
     ggen = (ROOT / "ggen.toml").read_text()
     collector = (ROOT / "scripts/r77_repository_universe.py").read_text()
     assert "r77-exact-repository-universe-frontier" in ggen
     assert "50-clean-repository-universe-frontier.rq" in ggen
     assert "/user/repos" in collector and "/users/" in collector
-    assert "urllib.request.Request" in collector
+    assert "/branches/" in collector
+    assert "exact_head" in collector and "head_resolved" in collector
+    assert 'method="GET"' in collector
     assert "POST" not in collector and "PATCH" not in collector and "DELETE" not in collector
 
 
