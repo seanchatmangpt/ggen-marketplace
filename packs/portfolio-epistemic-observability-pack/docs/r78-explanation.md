@@ -1,0 +1,3 @@
+# Explanation — why ready-set capital changes the factory
+
+R77 makes the repository universe observable; observation alone does not decide what may lawfully manufacture next. R78 turns those observations into a partial-order-preserving capital surface. Legality, authority, currentness and dependency readiness are gates, while priority is a later measure over the admitted ready set. This preserves parallel production capacity and option value, prevents high-scoring illegal work from entering execution, and makes downstream pull, upstream learning and standard-work promotion reusable manufacturing capital.
