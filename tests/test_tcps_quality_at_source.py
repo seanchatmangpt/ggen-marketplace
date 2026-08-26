@@ -17,6 +17,13 @@ def test_r76_structural_census_generation_is_deterministic_at_source():
     assert "ORDER BY " in text, "POKAYOKE_NONDETERMINISTIC_SELECT:r76-portfolio-structural-census"
 
 
+def test_r77_repository_universe_generation_is_deterministic_at_source():
+    query = ROOT / "packs/portfolio-epistemic-observability-pack/queries/r77/50-clean-repository-universe-frontier.rq"
+    text = query.read_text()
+    assert "SELECT " in text
+    assert "ORDER BY " in text, "POKAYOKE_NONDETERMINISTIC_SELECT:r77-exact-repository-universe-frontier"
+
+
 def test_structural_factory_workflows_are_temporally_bounded():
     workflows = [
         ROOT / ".github/workflows/measure-r75-throughput-learning.yml",
