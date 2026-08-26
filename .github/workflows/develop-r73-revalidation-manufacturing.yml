@@ -1,0 +1,28 @@
+name: DEVELOP R73 Revalidation Manufacturing Capital
+on:
+  pull_request:
+    paths:
+      - 'packs/revalidation-manufacturing-capital-pack/**'
+      - '.github/workflows/develop-r73-revalidation-manufacturing.yml'
+permissions:
+  contents: read
+jobs:
+  exact-head-court:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact subject
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Execute all R73 semantic courts
+        run: |
+          python -m pip install --disable-pip-version-check 'rdflib==7.1.4'
+          python packs/revalidation-manufacturing-capital-pack/court.py
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -R -E 'kubectl apply|terraform apply|aws .*create|gcloud .*create|az .*create' packs/revalidation-manufacturing-capital-pack
