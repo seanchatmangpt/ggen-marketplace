@@ -1,0 +1,27 @@
+name: EXPLORE R75 Ash RevOps Structural Factory
+on:
+  pull_request:
+    paths:
+      - 'packs/ash-revops-structural-factory-pack/**'
+      - '.github/workflows/explore-r75-ash-revops-structural-factory.yml'
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Execute structural courts
+        run: python3 -m unittest discover -s packs/ash-revops-structural-factory-pack/tests -p 'test_*.py' -v
+      - name: Verify deterministic surface
+        run: |
+          test "$(find packs/ash-revops-structural-factory-pack/queries -name '*.rq' | wc -l)" -eq 8
+          test "$(find packs/ash-revops-structural-factory-pack/gates -name '*.rq' | wc -l)" -eq 4
+          test "$(find packs/ash-revops-structural-factory-pack/templates -name '*.tera' | wc -l)" -eq 3
