@@ -9,7 +9,11 @@ class ReactorDomainErrorCourt(unittest.TestCase):
         self.assertIn("Reactor.Error.Invalid.RunStepError", text)
         self.assertIn("error: error", text)
         self.assertIn("error -> error", text)
-        self.assertIn("for_each: normalizer", text)
+        self.assertIn("Generated.ReactorDomainErrorNormalizer", text)
+
+    def test_template_refuses_unavailable_row_context(self):
+        text = (ROOT / "templates" / "domain_error_normalizer.ex.tmpl").read_text()
+        self.assertNotIn("row.", text)
 
     def test_pack_has_no_do_authority(self):
         text = (ROOT / "pack.toml").read_text()
