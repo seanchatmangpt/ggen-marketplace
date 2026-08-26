@@ -1,0 +1,29 @@
+name: MEASURE R73 Structural RevOps
+on:
+  pull_request:
+    paths:
+      - 'packs/epistemic-sensor-factory-pack/**'
+      - '.github/workflows/measure-r73-structural-revops.yml'
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Admit exact subject
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install bounded verifier dependency
+        run: python -m pip install 'rdflib==7.1.4'
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Execute R73 structural RevOps court
+        run: python3 packs/epistemic-sensor-factory-pack/tests/test_r73_structural_revops.py
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -R -E 'actuationPerformed[[:space:]]+true|consequential_do[[:space:]]*=[[:space:]]*true' packs/epistemic-sensor-factory-pack/ontology.r73-structural-revops.ttl packs/epistemic-sensor-factory-pack/fixtures/r73-structural-revops.ttl
