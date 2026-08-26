@@ -1,0 +1,20 @@
+name: COMPOSE R81 ForcedTop25 Standard Consumer
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  qualify:
+    if: github.head_ref == 'compose/r81-forced-top25-standard-consumer-factory-20260826'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Run R81 courts
+        run: python3 -m unittest discover -s packs/forced-top25-standard-consumer-factory-pack/tests -p 'test_*.py' -v
