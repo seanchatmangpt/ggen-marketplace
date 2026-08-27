@@ -1,0 +1,68 @@
+---
+to: "docs/strategy/VALUE_INNOVATION_ERRC.md"
+sparql:
+  grids: |
+    PREFIX vi: <http://seanchatmangpt.github.io/packs/value-innovation-errc#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    SELECT ?grid ?title ?domain ?subject ?complete WHERE {
+      ?grid a vi:StrategyGrid ;
+            dcterms:title ?title ;
+            vi:domain ?domain ;
+            vi:subject ?subject ;
+            vi:complete ?complete .
+    }
+    ORDER BY ?title
+  findings: |
+    PREFIX vi: <http://seanchatmangpt.github.io/packs/value-innovation-errc#>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+    SELECT ?grid ?order ?action ?factor ?baseline ?target ?rationale ?owner ?consumer ?metric WHERE {
+      ?finding a vi:Finding ;
+               vi:grid ?grid ;
+               vi:action ?actionNode ;
+               vi:factor ?factorNode ;
+               vi:baseline ?baseline ;
+               vi:target ?target ;
+               vi:rationale ?rationale ;
+               vi:owner ?owner ;
+               vi:consumer ?consumer .
+      ?actionNode skos:prefLabel ?action ; vi:actionOrder ?order .
+      ?factorNode rdfs:label ?factor .
+      OPTIONAL { ?finding vi:metric ?metric }
+    }
+    ORDER BY ?grid ?order ?factor
+  hypotheses: |
+    PREFIX vi: <http://seanchatmangpt.github.io/packs/value-innovation-errc#>
+    SELECT ?grid ?value ?waste ?test WHERE {
+      ?grid vi:hypothesis ?h .
+      ?h vi:valueRaised ?value ; vi:wasteReduced ?waste ; vi:test ?test .
+    }
+---
+# Value Innovation ERRC
+
+This document is generated from the admitted RDF graph. Edit ontology facts, not this projection.
+ERRC is a SELECT/CONSTRUCT discipline: generated Create items are proposals and never acquire ambient DO authority.
+
+{% for g in grids %}## {{ g.title }}
+
+- **Domain:** {{ g.domain }}
+- **Subject:** {{ g.subject }}
+- **Grid declared complete:** {{ g.complete }}
+
+| Action | Factor | Baseline | Target | Owner | Consumer | Metric |
+|---|---|---|---|---|---|---|
+{% for f in findings %}{% if f.grid == g.grid %}| {{ f.action }} | {{ f.factor }} | {{ f.baseline }} | {{ f.target }} | {{ f.owner }} | {{ f.consumer }} | {{ f.metric }} |
+{% endif %}{% endfor %}
+
+### Rationale
+
+{% for f in findings %}{% if f.grid == g.grid %}- **{{ f.action }} — {{ f.factor }}:** {{ f.rationale }}
+{% endif %}{% endfor %}
+
+{% for h in hypotheses %}{% if h.grid == g.grid %}### Value-innovation hypothesis
+
+- **Raise value:** {{ h.value }}
+- **Reduce waste/friction:** {{ h.waste }}
+- **Falsifier/test:** {{ h.test }}
+{% endif %}{% endfor %}
+{% endfor %}
