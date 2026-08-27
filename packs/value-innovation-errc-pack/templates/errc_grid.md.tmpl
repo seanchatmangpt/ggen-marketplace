@@ -37,6 +37,25 @@ sparql:
       ?grid vi:hypothesis ?h .
       ?h vi:valueRaised ?value ; vi:wasteReduced ?waste ; vi:test ?test .
     }
+  canvases: |
+    PREFIX vi: <http://seanchatmangpt.github.io/packs/value-innovation-errc#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    SELECT ?grid ?canvas ?title ?complete WHERE {
+      ?grid vi:strategyCanvas ?canvas .
+      ?canvas a vi:StrategyCanvas ; dcterms:title ?title ; vi:complete ?complete .
+    }
+    ORDER BY ?title
+  curve_points: |
+    PREFIX vi: <http://seanchatmangpt.github.io/packs/value-innovation-errc#>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+    SELECT ?canvas ?role ?factor ?level WHERE {
+      ?curve a vi:ValueCurve ; vi:canvas ?canvas ; vi:curveRole ?roleNode .
+      ?roleNode skos:prefLabel ?role .
+      ?point a vi:CurvePoint ; vi:curve ?curve ; vi:factor ?factorNode ; vi:offeringLevel ?level .
+      ?factorNode rdfs:label ?factor .
+    }
+    ORDER BY ?canvas ?factor ?role
 ---
 # Value Innovation ERRC
 
@@ -64,5 +83,15 @@ ERRC is a SELECT/CONSTRUCT discipline: generated Create items are proposals and 
 - **Raise value:** {{ h.value }}
 - **Reduce waste/friction:** {{ h.waste }}
 - **Falsifier/test:** {{ h.test }}
+{% endif %}{% endfor %}
+
+{% for c in canvases %}{% if c.grid == g.grid %}### Strategy canvas — {{ c.title }}
+
+- **Canvas declared complete:** {{ c.complete }}
+
+| Curve | Factor | Offering level (0–10) |
+|---|---|---:|
+{% for p in curve_points %}{% if p.canvas == c.canvas %}| {{ p.role }} | {{ p.factor }} | {{ p.level }} |
+{% endif %}{% endfor %}
 {% endif %}{% endfor %}
 {% endfor %}
