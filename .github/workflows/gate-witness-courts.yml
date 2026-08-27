@@ -1,0 +1,54 @@
+name: Gate Witness Courts
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-witness-courts-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Assert exact subject identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$expected" || {
+            echo "::error title=REFUSED:EXACT_HEAD_MISMATCH::actual=$actual expected=$expected"
+            exit 2
+          }
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - name: Prove court scanner refusal behavior
+        run: python -m unittest tests.test_gate_witness_courts -v
+      - name: Qualify every configured gate witness court
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/check_gate_witness_courts.py --report "${RUNNER_TEMP}/gate-witness-courts.json"
+          python -m json.tool "${RUNNER_TEMP}/gate-witness-courts.json" >/dev/null
+      - name: Preserve court receipt
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        with:
+          name: gate-witness-court-receipt
+          path: ${{ runner.temp }}/gate-witness-courts.json
+          if-no-files-found: warn
+          retention-days: 14
