@@ -2,15 +2,17 @@
 PREFIX dash: <https://ggen.io/ontology/dashboard#>
 SELECT ?subject ?violation ?detail WHERE {
   {
-    SELECT (MIN(STR(?projection)) AS ?subject) ?id (COUNT(?projection) AS ?count)
-    WHERE { ?projection a dash:Projection ; dash:projectionId ?id . }
-    GROUP BY ?id
-    HAVING(COUNT(?projection) > 1)
+    {
+      SELECT (MIN(STR(?projection)) AS ?subject) ?id (COUNT(?projection) AS ?count)
+      WHERE { ?projection a dash:Projection ; dash:projectionId ?id . }
+      GROUP BY ?id
+      HAVING(COUNT(?projection) > 1)
+    }
+    BIND("duplicate-projection-id" AS ?violation)
+    BIND(CONCAT(STR(?id), ":", STR(?count)) AS ?detail)
   }
-  BIND("duplicate-projection-id" AS ?violation)
-  BIND(CONCAT(STR(?id), ":", STR(?count)) AS ?detail)
-} UNION {
-  SELECT ?subject ?violation ?detail WHERE {
+  UNION
+  {
     {
       SELECT (MIN(STR(?projection)) AS ?subject) ?route (COUNT(?projection) AS ?count)
       WHERE { ?projection a dash:Projection ; dash:route ?route . }
@@ -20,8 +22,8 @@ SELECT ?subject ?violation ?detail WHERE {
     BIND("duplicate-projection-route" AS ?violation)
     BIND(CONCAT(STR(?route), ":", STR(?count)) AS ?detail)
   }
-} UNION {
-  SELECT ?subject ?violation ?detail WHERE {
+  UNION
+  {
     {
       SELECT (MIN(STR(?state)) AS ?subject) ?code (COUNT(?state) AS ?count)
       WHERE { ?state a dash:StandingState ; dash:code ?code . }
