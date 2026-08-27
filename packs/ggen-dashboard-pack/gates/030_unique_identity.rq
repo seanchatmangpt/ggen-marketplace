@@ -1,0 +1,35 @@
+# MESSAGE: semantic dashboard identities must be unique; any row is a refusal.
+PREFIX dash: <https://ggen.io/ontology/dashboard#>
+SELECT ?subject ?violation ?detail WHERE {
+  {
+    SELECT (MIN(STR(?projection)) AS ?subject) ?id (COUNT(?projection) AS ?count)
+    WHERE { ?projection a dash:Projection ; dash:projectionId ?id . }
+    GROUP BY ?id
+    HAVING(COUNT(?projection) > 1)
+  }
+  BIND("duplicate-projection-id" AS ?violation)
+  BIND(CONCAT(STR(?id), ":", STR(?count)) AS ?detail)
+} UNION {
+  SELECT ?subject ?violation ?detail WHERE {
+    {
+      SELECT (MIN(STR(?projection)) AS ?subject) ?route (COUNT(?projection) AS ?count)
+      WHERE { ?projection a dash:Projection ; dash:route ?route . }
+      GROUP BY ?route
+      HAVING(COUNT(?projection) > 1)
+    }
+    BIND("duplicate-projection-route" AS ?violation)
+    BIND(CONCAT(STR(?route), ":", STR(?count)) AS ?detail)
+  }
+} UNION {
+  SELECT ?subject ?violation ?detail WHERE {
+    {
+      SELECT (MIN(STR(?state)) AS ?subject) ?code (COUNT(?state) AS ?count)
+      WHERE { ?state a dash:StandingState ; dash:code ?code . }
+      GROUP BY ?code
+      HAVING(COUNT(?state) > 1)
+    }
+    BIND("duplicate-standing-code" AS ?violation)
+    BIND(CONCAT(STR(?code), ":", STR(?count)) AS ?detail)
+  }
+}
+ORDER BY ?violation ?detail
