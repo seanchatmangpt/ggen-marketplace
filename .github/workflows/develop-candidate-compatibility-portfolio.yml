@@ -1,0 +1,29 @@
+name: DEVELOP Candidate Compatibility Portfolio Exact Head
+on:
+  pull_request:
+    paths:
+      - 'packs/dfcm-candidate-compatibility-portfolio-pack/**'
+      - 'receipts/select/2026-08-24-candidate-compatibility-portfolio.json'
+      - '.github/workflows/develop-candidate-compatibility-portfolio.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact PR head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Marketplace admission
+        run: python3 scripts/marketplace.py validate
+      - name: Compile pack algorithms
+        run: python3 -m py_compile packs/dfcm-candidate-compatibility-portfolio-pack/scripts/*.py packs/dfcm-candidate-compatibility-portfolio-pack/tests/*.py
+      - name: Permanent courts
+        env:
+          PYTHONPATH: packs/dfcm-candidate-compatibility-portfolio-pack
+        run: python3 -m unittest discover -s packs/dfcm-candidate-compatibility-portfolio-pack/tests -p 'test_*.py' -v
+      - name: Refuse ambient consequential DO
+        run: '! grep -R -E "subprocess\.|os\.system|requests\.(post|put|patch|delete)" packs/dfcm-candidate-compatibility-portfolio-pack/scripts packs/dfcm-candidate-compatibility-portfolio-pack/tests'
