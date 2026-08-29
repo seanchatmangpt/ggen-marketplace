@@ -1,0 +1,27 @@
+name: DEVELOP Selection Portfolio Consensus Exact Head
+on:
+  pull_request:
+    paths:
+      - 'packs/dfcm-selection-portfolio-consensus-pack/**'
+      - 'receipts/select/2026-08-24-selection-portfolio-consensus.json'
+      - '.github/workflows/develop-selection-portfolio-consensus.yml'
+permissions:
+  contents: read
+jobs:
+  qualify:
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact PR head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Compile pack
+        run: python3 -m compileall -q packs/dfcm-selection-portfolio-consensus-pack
+      - name: Run permanent court
+        run: python3 -m unittest -v packs/dfcm-selection-portfolio-consensus-pack/tests/test_portfolio_consensus.py
+      - name: Refuse ambient consequential DO
+        run: '! grep -R -nE "requests\.(post|put|patch|delete)|subprocess\.|os\.system" packs/dfcm-selection-portfolio-consensus-pack/scripts'
