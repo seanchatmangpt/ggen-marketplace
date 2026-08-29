@@ -1,0 +1,32 @@
+# MESSAGE: no fact anywhere in the merged graph may assert a SOC2 compliance verdict, opinion, certification, or attestation -- that is a licensed CPA firm's professional judgment after a real third-party audit engagement, never a computed predicate or a self-rehearsed test result. Any returned row is refused.
+PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX prov:    <http://www.w3.org/ns/prov#>
+PREFIX org:     <http://www.w3.org/ns/org#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?subject ?predicate ?object WHERE {
+  ?subject ?predicate ?object .
+  {
+    { ?subject rdf:type prov:Entity . } UNION { ?subject rdf:type prov:Activity . }
+    UNION { ?subject rdf:type org:Organization . } UNION { ?subject rdf:type dcterms:Standard . }
+  }
+  FILTER(
+    REGEX(STR(?predicate), "compliant|opinion|certified|certification|attest", "i")
+    ||
+    (isURI(?object) && REGEX(STR(?object), "compliant|opinion|certified|certification|attest", "i"))
+    ||
+    (
+      isLiteral(?object)
+      &&
+      (
+        REGEX(STR(?object), "\\b(is|are|has been|have|now)\\b[^.]*\\b(compliant|certified|attested)\\b", "i")
+        ||
+        REGEX(STR(?object), "\\bSOC\\s?2\\s?(Type\\s?(I|II|1|2))?\\s?(certified|compliant|attested)\\b", "i")
+        ||
+        REGEX(STR(?object), "\\bauditor'?s?\\s+(opinion|report)\\b[^.]*\\b(issued|rendered|clean|unqualified)\\b", "i")
+      )
+      &&
+      !REGEX(STR(?object), "\\b(not|never|no|n't|pending|not yet|un)\\b[^.]*\\b(compliant|certified|attested|opinion)\\b", "i")
+    )
+  )
+}

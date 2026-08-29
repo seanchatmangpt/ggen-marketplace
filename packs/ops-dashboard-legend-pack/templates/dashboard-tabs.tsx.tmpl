@@ -1,0 +1,77 @@
+---
+to: "components/deck/DashboardTabs.tsx"
+---
+{% raw %}
+"use client";
+
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { OpsDeckCanvas, type DeckEntity, type DeckEdge } from "./OpsDeckCanvas";
+
+export interface DashboardTabsProps {
+  entities: DeckEntity[];
+  edges: DeckEdge[];
+  onPick: (entity: DeckEntity | null) => void;
+}
+
+/** Same entity data, two views: spatial canvas or plain table. */
+export function DashboardTabs({ entities, edges, onPick }: DashboardTabsProps) {
+  return (
+    <Tabs defaultValue="spatial" className="w-full">
+      <TabsList>
+        <TabsTrigger value="spatial">Spatial</TabsTrigger>
+        <TabsTrigger value="table">Table</TabsTrigger>
+      </TabsList>
+      <TabsContent value="spatial">
+        <OpsDeckCanvas entities={entities} edges={edges} onPick={onPick} />
+      </TabsContent>
+      <TabsContent value="table">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>ID</TableHead>
+              <TableHead>Label</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Metric</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {entities.map((entity) => (
+              <TableRow
+                key={entity.id}
+                className="cursor-pointer"
+                onClick={() => onPick(entity)}
+              >
+                <TableCell className="font-mono text-xs">{entity.id}</TableCell>
+                <TableCell>{entity.label}</TableCell>
+                <TableCell>
+                  <Badge
+                    variant={
+                      entity.status === "down"
+                        ? "destructive"
+                        : entity.status === "degraded"
+                          ? "secondary"
+                          : "default"
+                    }
+                  >
+                    {entity.status}
+                  </Badge>
+                </TableCell>
+                <TableCell>{entity.metric}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TabsContent>
+    </Tabs>
+  );
+}
+{% endraw %}

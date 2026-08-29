@@ -1,0 +1,59 @@
+---
+to: "soc2/01-SYSTEM-DESCRIPTION.md"
+force: true
+sparql:
+  org: |
+    PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
+    PREFIX org:     <http://www.w3.org/ns/org#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    SELECT ?name ?description WHERE {
+      ?entity rdf:type org:Organization ; rdfs:label ?name .
+      OPTIONAL { ?entity dcterms:description ?description . }
+    }
+  boundaries: |
+    PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
+    PREFIX prov:    <http://www.w3.org/ns/prov#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    SELECT ?label ?boundaryType ?description WHERE {
+      ?entity rdf:type prov:Entity ; rdfs:label ?label ; dcterms:type ?boundaryType .
+      FILTER(?boundaryType = "SYSTEM-BOUNDARY")
+      OPTIONAL { ?entity dcterms:description ?description . }
+    }
+---
+{% raw %}
+# 01 — System description
+
+The audited system's boundaries, infrastructure, and components — real
+facts the consuming project supplies, never fabricated by this pack.
+
+## Organization
+
+{% endraw %}{% for o in org %}**{{ o.name }}**
+
+{{ o.description | default(value="_(no description supplied)_") }}
+{% endfor %}{% if org | length == 0 %}{% raw %}_(no `org:Organization` fact supplied yet — see this pack's README.)_
+{% endraw %}{% endif %}
+{% raw %}
+## System boundaries
+
+| Component | Notes |
+|---|---|
+{% endraw %}{% for b in boundaries %}| {{ b.label }} | {{ b.description | default(value="") }} |
+{% endfor %}{% if boundaries | length == 0 %}{% raw %}| _(none yet)_ | Add `prov:Entity` facts with `dcterms:type "SYSTEM-BOUNDARY"` — see README. |
+{% endraw %}{% endif %}
+{% raw %}
+## How to supply these facts
+
+```turtle
+[] a org:Organization ;
+    rdfs:label "Acme Platform, Inc." ;
+    dcterms:description "SaaS platform providing tenant-isolated data pipelines." .
+
+[] a prov:Entity ;
+    rdfs:label "Production Kubernetes cluster (us-west-2)" ;
+    dcterms:type "SYSTEM-BOUNDARY" ;
+    dcterms:description "In scope: all workloads under namespace prefix tenant-*." .
+```
+{% endraw %}

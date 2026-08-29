@@ -1,0 +1,38 @@
+---
+to: "soc2/04-EVIDENCE-INVENTORY.md"
+force: true
+sparql:
+  evidence: |
+    PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
+    PREFIX skos:    <http://www.w3.org/2004/02/skos/core#>
+    PREFIX prov:    <http://www.w3.org/ns/prov#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    SELECT ?label ?notation (COALESCE(?broaderLabel, ?ownLabel) AS ?categoryLabel) ?source ?description WHERE {
+      ?entity rdf:type prov:Entity ;
+              rdfs:label ?label ;
+              dcterms:subject ?notation ;
+              dcterms:source ?source .
+      OPTIONAL { ?entity dcterms:description ?description . }
+      ?concept skos:notation ?notation ; rdfs:label ?ownLabel .
+      OPTIONAL {
+        ?concept skos:broader ?broader .
+        ?broader rdfs:label ?broaderLabel .
+      }
+    }
+    ORDER BY ?notation ?label
+---
+{% raw %}
+# 04 — Evidence inventory
+
+Each row is a real `prov:Entity` fact this project supplied in its own
+ontology — a claim that *this artifact, at this path, is evidence toward
+this control category*, nothing stronger. This is the flat evidence list;
+`03-CONTROL-MATRIX.md` is the per-criterion status view over the same
+underlying facts.
+
+| TSC / CC | Category | Evidence | Source | Notes |
+|---|---|---|---|---|
+{% endraw %}{% for row in evidence %}| {{ row.notation }} | {{ row.categoryLabel }} | {{ row.label }} | `{{ row.source }}` | {{ row.description | default(value="") }} |
+{% endfor %}{% if evidence | length == 0 %}{% raw %}| _(none yet)_ | — | — | — | See `03-CONTROL-MATRIX.md`'s "how to add a row" for the triple shape. |
+{% endraw %}{% endif %}
