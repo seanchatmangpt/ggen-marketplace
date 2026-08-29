@@ -1,0 +1,13 @@
+# MESSAGE: Two distinct public class IRIs must never silently collapse onto the same mechanically derived Ash module name.
+PREFIX sh: <http://www.w3.org/ns/shacl#>
+
+SELECT ?subject ?problem WHERE {
+  ?shapeA a sh:NodeShape ; sh:targetClass ?subject .
+  ?shapeB a sh:NodeShape ; sh:targetClass ?other .
+  FILTER(STR(?subject) < STR(?other))
+  BIND(REPLACE(STR(?subject), "^.*[#/]", "") AS ?nameA)
+  BIND(REPLACE(STR(?other), "^.*[#/]", "") AS ?nameB)
+  FILTER(?nameA = ?nameB)
+  BIND(CONCAT("derived-Ash-module-name-collision:", ?nameA, ":", STR(?other)) AS ?problem)
+}
+ORDER BY ?subject ?problem

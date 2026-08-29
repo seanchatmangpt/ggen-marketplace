@@ -1,0 +1,53 @@
+name: XaaS public ontology profile
+
+on:
+  pull_request:
+    paths:
+      - "packs/xaas-public-ontology-profile/**"
+      - "ontologies/public/**"
+      - ".github/workflows/xaas-public-profile.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify-public-profile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install RDF qualifier
+        run: python -m pip install --disable-pip-version-check 'rdflib==7.1.4'
+
+      - name: Qualify locked public ontology corpus
+        run: |
+          python packs/xaas-public-ontology-profile/scripts/qualify_public_profile.py \
+            --output /tmp/xaas-public-profile-coverage.json
+
+      - name: Refuse accidental native XaaS domain vocabulary
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          profile = Path('packs/xaas-public-ontology-profile/profile.ttl').read_text()
+          forbidden = re.findall(r'^\s*xaas:[A-Za-z0-9_-]+\s+(?:a|rdf:type)\s+(?:owl:Class|rdf:Property|owl:ObjectProperty|owl:DatatypeProperty)', profile, re.M)
+          if forbidden:
+              raise SystemExit('REFUSED:NATIVE_XAAS_DOMAIN_VOCABULARY:' + ','.join(forbidden))
+          print('ALIVE:NO_NATIVE_XAAS_DOMAIN_VOCABULARY')
+          PY
+
+      - name: Preserve qualification receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: xaas-public-profile-${{ github.sha }}
+          path: /tmp/xaas-public-profile-coverage.json
+          if-no-files-found: error
+          retention-days: 14
