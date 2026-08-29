@@ -1,0 +1,22 @@
+name: DEVELOP Explore Candidate Selection R7 Exact Head
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  qualify:
+    if: github.head_ref == 'develop/explore-candidate-selection-r7-20260824'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Verify selection surface
+        run: test "$(find packs/dfcm-explore-court-pack/queries -name 'develop-r7-*.rq' | wc -l)" -ge 13
+      - name: Verify SELECT authority
+        run: python3 -c "import json; d=json.load(open('receipts/select/2026-08-24-explore-candidate-selection-r7.json')); assert d['authority']=='SELECT' and d['actuation_performed'] is False and d['marketplace_first'] is True"
