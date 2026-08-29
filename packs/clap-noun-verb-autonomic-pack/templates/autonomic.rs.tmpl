@@ -5,11 +5,15 @@ sh_after: rustfmt src/autonomic.rs
 sparql:
   config: |
     PREFIX cnv-autonomic: <https://clap-noun-verb.dev/ontology/autonomic#>
-    SELECT ?env_path_var ?default_relative_path ?fallback_file_name WHERE {
+    SELECT ?env_path_var ?default_relative_path ?fallback_file_name
+           ?delegation_env_path_var ?delegation_default_relative_path ?delegation_fallback_file_name WHERE {
       ?config a cnv-autonomic:Config ;
               cnv-autonomic:envPathVar ?env_path_var ;
               cnv-autonomic:defaultRelativePath ?default_relative_path ;
-              cnv-autonomic:fallbackFileName ?fallback_file_name .
+              cnv-autonomic:fallbackFileName ?fallback_file_name ;
+              cnv-autonomic:delegationEnvPathVar ?delegation_env_path_var ;
+              cnv-autonomic:delegationDefaultRelativePath ?delegation_default_relative_path ;
+              cnv-autonomic:delegationFallbackFileName ?delegation_fallback_file_name .
     }
 ---
 // Copyright (c) 2024 Sean Chatman
@@ -498,6 +502,482 @@ pub fn read_and_verify_ledger(path: &Path) -> Result<Vec<Receipt>> {
     Ok(receipts)
 }
 
+// =============================================================================
+// Delegation (agent-to-agent authorization chains)
+// =============================================================================
+
+/// One link in an agent-to-agent authorization chain: `delegator` grants
+/// `delegate` the right to invoke `noun`/`verb` on its behalf, optionally
+/// narrowed by a free-form `constraint` the caller defines (e.g. a JSON
+/// predicate or a natural-language limit). Hash-chained exactly like
+/// [`Receipt`], using the same FNV-1a digest scheme and genesis constant.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Delegation {
+    pub sequence: u64,
+    pub delegator: String,
+    pub delegate: String,
+    pub noun: String,
+    pub verb: String,
+    pub constraint: Option<String>,
+    pub time: String,
+    pub prev_digest: String,
+    pub digest: String,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn compute_delegation_digest(
+    sequence: u64,
+    delegator: &str,
+    delegate: &str,
+    noun: &str,
+    verb: &str,
+    constraint: Option<&str>,
+    time: &str,
+    prev_digest: &str,
+) -> String {
+    let canonical = format!(
+        "{sequence}|{delegator}|{delegate}|{noun}|{verb}|{}|{time}|{prev_digest}",
+        constraint.unwrap_or("")
+    );
+    format!("{:016x}", fnv1a_64(canonical.as_bytes()))
+}
+
+impl Delegation {
+    /// Build the next delegation in a chain given the previous delegation
+    /// (or `None` to start a fresh chain at the genesis digest).
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
+    pub fn next(
+        previous: Option<&Self>,
+        delegator: &str,
+        delegate: &str,
+        noun: &str,
+        verb: &str,
+        constraint: Option<String>,
+        time: String,
+    ) -> Self {
+        let sequence = previous.map_or(0, |d| d.sequence + 1);
+        let prev_digest = previous.map_or_else(|| GENESIS_DIGEST.to_string(), |d| d.digest.clone());
+        let digest = compute_delegation_digest(
+            sequence,
+            delegator,
+            delegate,
+            noun,
+            verb,
+            constraint.as_deref(),
+            &time,
+            &prev_digest,
+        );
+        Self {
+            sequence,
+            delegator: delegator.to_string(),
+            delegate: delegate.to_string(),
+            noun: noun.to_string(),
+            verb: verb.to_string(),
+            constraint,
+            time,
+            prev_digest,
+            digest,
+        }
+    }
+
+    /// Recompute this delegation's digest from its own fields and compare
+    /// against the stored `digest` -- `true` iff they match.
+    #[must_use]
+    pub fn digest_is_consistent(&self) -> bool {
+        compute_delegation_digest(
+            self.sequence,
+            &self.delegator,
+            &self.delegate,
+            &self.noun,
+            &self.verb,
+            self.constraint.as_deref(),
+            &self.time,
+            &self.prev_digest,
+        ) == self.digest
+    }
+
+    /// Whether this single delegation link, on its own, grants `agent` the
+    /// right to invoke `noun`/`verb` -- i.e. `agent` is the `delegate` on a
+    /// link naming this exact `noun`/`verb` pair. Does not walk a chain of
+    /// delegations; see [`is_authorized`] for transitive authorization.
+    #[must_use]
+    pub fn grants(&self, agent: &str, noun: &str, verb: &str) -> bool {
+        self.delegate == agent && self.noun == noun && self.verb == verb
+    }
+}
+
+/// Verify a delegation chain forms one unbroken, internally consistent hash
+/// chain from the genesis digest -- the same invariant [`verify_chain`]
+/// checks for receipts.
+pub fn verify_delegation_chain(
+    delegations: &[Delegation],
+) -> std::result::Result<(), ChainVerificationError> {
+    for (index, delegation) in delegations.iter().enumerate() {
+        if !delegation.digest_is_consistent() {
+            return Err(ChainVerificationError::DigestMismatch { index });
+        }
+        let expected_prev =
+            if index == 0 { GENESIS_DIGEST } else { delegations[index - 1].digest.as_str() };
+        if delegation.prev_digest != expected_prev {
+            if index == 0 {
+                return Err(ChainVerificationError::InvalidGenesis);
+            }
+            return Err(ChainVerificationError::ChainBroken { index });
+        }
+    }
+    Ok(())
+}
+
+/// Whether `agent` is authorized to invoke `noun`/`verb`, either directly
+/// (`agent == root`) or transitively through a chain of delegations rooted
+/// at `root` (`root` delegates to some agent A, which delegates to agent
+/// B, ..., ending at `agent`). Walks the chain up to `delegations.len()`
+/// rounds to reach a fixed point, which is always sufficient and avoids
+/// looping forever on a cyclic (malformed) input.
+#[must_use]
+pub fn is_authorized(
+    delegations: &[Delegation],
+    root: &str,
+    agent: &str,
+    noun: &str,
+    verb: &str,
+) -> bool {
+    if root == agent {
+        return true;
+    }
+    let mut authorized: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    authorized.insert(root);
+    for _ in 0..delegations.len() {
+        let mut grew = false;
+        for delegation in delegations {
+            if delegation.noun == noun
+                && delegation.verb == verb
+                && authorized.contains(delegation.delegator.as_str())
+                && !authorized.contains(delegation.delegate.as_str())
+            {
+                authorized.insert(delegation.delegate.as_str());
+                grew = true;
+            }
+        }
+        if !grew {
+            break;
+        }
+    }
+    authorized.contains(agent)
+}
+
+const DELEGATION_ENV_PATH: &str = {{ config[0].delegation_env_path_var | json_encode | safe }};
+const DELEGATION_DEFAULT_RELATIVE_PATH: &str = {{ config[0].delegation_default_relative_path | json_encode | safe }};
+const DELEGATION_FALLBACK_FILE_NAME: &str = {{ config[0].delegation_fallback_file_name | json_encode | safe }};
+
+/// Resolve the primary delegation ledger path: `{{ config[0].delegation_env_path_var }}`
+/// if set, else `{{ config[0].delegation_default_relative_path }}` relative to the
+/// current working directory (mirroring [`primary_path`]'s scheme for receipts).
+#[must_use]
+pub fn delegation_primary_path() -> PathBuf {
+    if let Ok(path) = std::env::var(DELEGATION_ENV_PATH) {
+        return PathBuf::from(path);
+    }
+    PathBuf::from(DELEGATION_DEFAULT_RELATIVE_PATH)
+}
+
+/// A best-effort fallback path (the system temp directory) used when the
+/// primary delegation ledger path can't be written to.
+#[must_use]
+pub fn delegation_fallback_path() -> PathBuf {
+    std::env::temp_dir().join(DELEGATION_FALLBACK_FILE_NAME)
+}
+
+/// Read every delegation from a JSON-Lines ledger file at `path`.
+pub fn read_delegation_ledger(path: &Path) -> io::Result<Vec<Delegation>> {
+    let contents = match fs::read_to_string(path) {
+        Ok(contents) => contents,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(err) => return Err(err),
+    };
+    let mut delegations = Vec::new();
+    for line in contents.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let delegation: Delegation = serde_json::from_str(line)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        delegations.push(delegation);
+    }
+    Ok(delegations)
+}
+
+fn append_delegation(
+    path: &Path,
+    delegator: &str,
+    delegate: &str,
+    noun: &str,
+    verb: &str,
+    constraint: Option<String>,
+) -> io::Result<Delegation> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent)?;
+        }
+    }
+    let existing = read_delegation_ledger(path)?;
+    let previous = existing.last();
+    let time = chrono::Utc::now().to_rfc3339();
+    let delegation = Delegation::next(previous, delegator, delegate, noun, verb, constraint, time);
+
+    let mut line = serde_json::to_string(&delegation)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    line.push('\n');
+    use std::io::Write;
+    let mut file = fs::OpenOptions::new().create(true).append(true).open(path)?;
+    file.write_all(line.as_bytes())?;
+    Ok(delegation)
+}
+
+/// Append one delegation granting `delegate` the right to invoke
+/// `noun`/`verb` on `delegator`'s behalf, optionally narrowed by
+/// `constraint`. Best-effort: never returns an error to the caller and
+/// never panics -- any I/O failure at the primary path falls back to a
+/// temp-dir ledger, and a failure there degrades to a `log::warn!`,
+/// mirroring [`record_receipt`]'s exact fallback discipline.
+pub fn record_delegation(
+    delegator: &str,
+    delegate: &str,
+    noun: &str,
+    verb: &str,
+    constraint: Option<String>,
+) {
+    let primary = delegation_primary_path();
+    match append_delegation(&primary, delegator, delegate, noun, verb, constraint.clone()) {
+        Ok(_) => (),
+        Err(primary_err) => {
+            let fallback = delegation_fallback_path();
+            if let Err(fallback_err) =
+                append_delegation(&fallback, delegator, delegate, noun, verb, constraint)
+            {
+                log::warn!(
+                    "clap-noun-verb: delegation logging failed for both primary path \
+                     {primary:?} ({primary_err}) and fallback path {fallback:?} \
+                     ({fallback_err}); continuing without a delegation record for this grant"
+                );
+            }
+        }
+    }
+}
+
+/// Read and verify the delegation ledger at `path` in one call.
+pub fn read_and_verify_delegation_ledger(path: &Path) -> Result<Vec<Delegation>> {
+    let delegations = read_delegation_ledger(path).map_err(|e| {
+        crate::error::NounVerbError::execution_error(format!(
+            "failed to read delegation ledger: {e}"
+        ))
+    })?;
+    verify_delegation_chain(&delegations).map_err(|e| {
+        crate::error::NounVerbError::execution_error(format!(
+            "delegation chain verification failed: {e}"
+        ))
+    })?;
+    Ok(delegations)
+}
+
+// =============================================================================
+// Governance
+// =============================================================================
+
+/// One named policy that votes on whether an invocation should be
+/// admitted. Composes with the rest of the Autonomic Layer through the
+/// same [`GuardContext`] every [`Guard`] evaluates against -- a
+/// [`GovernancePanel`] itself implements [`Guard`], so it plugs directly
+/// into `CommandRegistry::add_guard` alongside any other guard.
+pub trait GovernanceRule: Send + Sync {
+    /// A short, stable identifier for this rule (appears in the recorded
+    /// verdict and in denial output).
+    fn rule_id(&self) -> &'static str;
+    /// Whether this rule approves `ctx`. Rules never panic; a rule that
+    /// cannot form an opinion should conservatively return `false`
+    /// (fail-closed), matching every gate in this ecosystem's convention.
+    fn approve(&self, ctx: &GuardContext<'_>) -> bool;
+}
+
+/// The outcome of evaluating a [`GovernancePanel`] against one invocation:
+/// which rules approved, which denied, and whether the panel as a whole
+/// admits the invocation (every registered rule must approve -- fail
+/// closed, consistent with every ggen admission gate in this ecosystem).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GovernanceVerdict {
+    pub approved_by: Vec<String>,
+    pub denied_by: Vec<String>,
+    pub approved: bool,
+}
+
+/// An ordered collection of [`GovernanceRule`]s evaluated together as one
+/// [`Guard`]. Every registered rule must approve for the panel to admit an
+/// invocation -- there is no majority/quorum relaxation, matching the
+/// fail-closed discipline the rest of this module (and every ggen
+/// admission gate) already follows.
+#[derive(Default)]
+pub struct GovernancePanel {
+    rules: Vec<Box<dyn GovernanceRule>>,
+}
+
+impl GovernancePanel {
+    #[must_use]
+    pub fn new() -> Self {
+        Self { rules: Vec::new() }
+    }
+
+    /// Register a rule. Rules run in registration order; every rule always
+    /// runs, so a verdict names every rule that denied, not just the
+    /// first one found.
+    pub fn add_rule(&mut self, rule: Box<dyn GovernanceRule>) -> &mut Self {
+        self.rules.push(rule);
+        self
+    }
+
+    /// Evaluate every registered rule against `ctx` and return the full
+    /// verdict. An empty panel (no rules registered) approves by
+    /// definition -- an intentionally absent governance layer is not the
+    /// same as a governance layer that has denied everything.
+    #[must_use]
+    pub fn evaluate(&self, ctx: &GuardContext<'_>) -> GovernanceVerdict {
+        let mut approved_by = Vec::new();
+        let mut denied_by = Vec::new();
+        for rule in &self.rules {
+            if rule.approve(ctx) {
+                approved_by.push(rule.rule_id().to_string());
+            } else {
+                denied_by.push(rule.rule_id().to_string());
+            }
+        }
+        let approved = denied_by.is_empty();
+        GovernanceVerdict { approved_by, denied_by, approved }
+    }
+}
+
+impl Guard for GovernancePanel {
+    fn name(&self) -> &'static str {
+        "governance-panel"
+    }
+
+    fn check(&self, ctx: &GuardContext<'_>) -> std::result::Result<(), GuardDenial> {
+        let verdict = self.evaluate(ctx);
+        if verdict.approved {
+            return Ok(());
+        }
+        Err(GuardDenial::new(
+            "GOVERNANCE_DENIED",
+            format!("denied by governance rule(s): {}", verdict.denied_by.join(", ")),
+        ))
+    }
+}
+
+/// One append-only, hash-chained record of a governance evaluation --
+/// same FNV-1a/[`GENESIS_DIGEST`] scheme as [`Receipt`] and [`Delegation`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GovernanceRecord {
+    pub sequence: u64,
+    pub noun: String,
+    pub verb: String,
+    pub approved_by: Vec<String>,
+    pub denied_by: Vec<String>,
+    pub approved: bool,
+    pub time: String,
+    pub prev_digest: String,
+    pub digest: String,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn compute_governance_digest(
+    sequence: u64,
+    noun: &str,
+    verb: &str,
+    approved_by: &[String],
+    denied_by: &[String],
+    approved: bool,
+    time: &str,
+    prev_digest: &str,
+) -> String {
+    let canonical = format!(
+        "{sequence}|{noun}|{verb}|{}|{}|{approved}|{time}|{prev_digest}",
+        approved_by.join(","),
+        denied_by.join(",")
+    );
+    format!("{:016x}", fnv1a_64(canonical.as_bytes()))
+}
+
+impl GovernanceRecord {
+    /// Build the next governance record in a chain from a real
+    /// [`GovernanceVerdict`].
+    #[must_use]
+    pub fn next(
+        previous: Option<&Self>,
+        noun: &str,
+        verb: &str,
+        verdict: &GovernanceVerdict,
+        time: String,
+    ) -> Self {
+        let sequence = previous.map_or(0, |r| r.sequence + 1);
+        let prev_digest = previous.map_or_else(|| GENESIS_DIGEST.to_string(), |r| r.digest.clone());
+        let digest = compute_governance_digest(
+            sequence,
+            noun,
+            verb,
+            &verdict.approved_by,
+            &verdict.denied_by,
+            verdict.approved,
+            &time,
+            &prev_digest,
+        );
+        Self {
+            sequence,
+            noun: noun.to_string(),
+            verb: verb.to_string(),
+            approved_by: verdict.approved_by.clone(),
+            denied_by: verdict.denied_by.clone(),
+            approved: verdict.approved,
+            time,
+            prev_digest,
+            digest,
+        }
+    }
+
+    #[must_use]
+    pub fn digest_is_consistent(&self) -> bool {
+        compute_governance_digest(
+            self.sequence,
+            &self.noun,
+            &self.verb,
+            &self.approved_by,
+            &self.denied_by,
+            self.approved,
+            &self.time,
+            &self.prev_digest,
+        ) == self.digest
+    }
+}
+
+/// Verify a governance-record chain forms one unbroken, internally
+/// consistent hash chain from the genesis digest.
+pub fn verify_governance_chain(
+    records: &[GovernanceRecord],
+) -> std::result::Result<(), ChainVerificationError> {
+    for (index, record) in records.iter().enumerate() {
+        if !record.digest_is_consistent() {
+            return Err(ChainVerificationError::DigestMismatch { index });
+        }
+        let expected_prev =
+            if index == 0 { GENESIS_DIGEST } else { records[index - 1].digest.as_str() };
+        if record.prev_digest != expected_prev {
+            if index == 0 {
+                return Err(ChainVerificationError::InvalidGenesis);
+            }
+            return Err(ChainVerificationError::ChainBroken { index });
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -837,5 +1317,276 @@ mod tests {
             let contract = ExecutionContract::for_verb("noun", "verb", effect);
             assert_eq!(contract.isolation_level, IsolationLevel::for_effect(effect));
         }
+    }
+
+    #[test]
+    fn test_delegation_chain_starts_at_genesis_and_links_correctly() {
+        let first = Delegation::next(
+            None,
+            "root-agent",
+            "worker-agent",
+            "fleet",
+            "deploy",
+            None,
+            "2026-01-01T00:00:00Z".to_string(),
+        );
+        assert_eq!(first.sequence, 0);
+        assert_eq!(first.prev_digest, GENESIS_DIGEST);
+        assert!(first.digest_is_consistent());
+
+        let second = Delegation::next(
+            Some(&first),
+            "worker-agent",
+            "sub-worker-agent",
+            "fleet",
+            "deploy",
+            Some("only staging environment".to_string()),
+            "2026-01-01T00:01:00Z".to_string(),
+        );
+        assert_eq!(second.sequence, 1);
+        assert_eq!(second.prev_digest, first.digest);
+        assert!(second.digest_is_consistent());
+        assert!(verify_delegation_chain(&[first, second]).is_ok());
+    }
+
+    #[test]
+    fn test_delegation_digest_changes_if_any_field_is_tampered_with() {
+        let genuine = Delegation::next(
+            None,
+            "root-agent",
+            "worker-agent",
+            "fleet",
+            "deploy",
+            None,
+            "2026-01-01T00:00:00Z".to_string(),
+        );
+        let mut tampered = genuine.clone();
+        tampered.noun = "database".to_string();
+        assert!(!tampered.digest_is_consistent());
+    }
+
+    #[test]
+    fn test_verify_delegation_chain_rejects_a_reordered_chain() {
+        let first = Delegation::next(
+            None,
+            "root-agent",
+            "worker-agent",
+            "fleet",
+            "deploy",
+            None,
+            "2026-01-01T00:00:00Z".to_string(),
+        );
+        let second = Delegation::next(
+            Some(&first),
+            "worker-agent",
+            "sub-worker-agent",
+            "fleet",
+            "deploy",
+            None,
+            "2026-01-01T00:01:00Z".to_string(),
+        );
+        let reordered = [second, first];
+        assert!(matches!(
+            verify_delegation_chain(&reordered),
+            Err(ChainVerificationError::InvalidGenesis)
+        ));
+    }
+
+    #[test]
+    fn test_delegation_grants_only_matches_its_own_delegate_noun_and_verb() {
+        let link = Delegation::next(
+            None,
+            "root-agent",
+            "worker-agent",
+            "fleet",
+            "deploy",
+            None,
+            "2026-01-01T00:00:00Z".to_string(),
+        );
+        assert!(link.grants("worker-agent", "fleet", "deploy"));
+        assert!(!link.grants("someone-else", "fleet", "deploy"));
+        assert!(!link.grants("worker-agent", "fleet", "destroy"));
+    }
+
+    #[test]
+    fn test_is_authorized_walks_a_real_transitive_delegation_chain() {
+        let first = Delegation::next(
+            None,
+            "root-agent",
+            "worker-agent",
+            "fleet",
+            "deploy",
+            None,
+            "2026-01-01T00:00:00Z".to_string(),
+        );
+        let second = Delegation::next(
+            Some(&first),
+            "worker-agent",
+            "sub-worker-agent",
+            "fleet",
+            "deploy",
+            None,
+            "2026-01-01T00:01:00Z".to_string(),
+        );
+        let chain = [first, second];
+
+        // The root itself is always authorized.
+        assert!(is_authorized(&chain, "root-agent", "root-agent", "fleet", "deploy"));
+        // Directly delegated.
+        assert!(is_authorized(&chain, "root-agent", "worker-agent", "fleet", "deploy"));
+        // Transitively delegated (root -> worker -> sub-worker).
+        assert!(is_authorized(&chain, "root-agent", "sub-worker-agent", "fleet", "deploy"));
+        // Never delegated at all.
+        assert!(!is_authorized(&chain, "root-agent", "stranger-agent", "fleet", "deploy"));
+        // Delegated for a different noun/verb -- must not authorize.
+        assert!(!is_authorized(&chain, "root-agent", "worker-agent", "fleet", "destroy"));
+    }
+
+    #[test]
+    fn test_record_delegation_persists_to_a_real_ledger_file_and_verifies() {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir()
+            .join(format!("cnv-autonomic-pack-delegation-ledger-test-{nanos}.jsonl"));
+        std::fs::remove_file(&path).ok();
+
+        append_delegation(&path, "root-agent", "worker-agent", "fleet", "deploy", None)
+            .expect("append first real delegation");
+        append_delegation(
+            &path,
+            "worker-agent",
+            "sub-worker-agent",
+            "fleet",
+            "deploy",
+            Some("staging only".to_string()),
+        )
+        .expect("append second real delegation");
+
+        let delegations =
+            read_and_verify_delegation_ledger(&path).expect("read and verify real ledger");
+        assert_eq!(delegations.len(), 2);
+        assert_eq!(delegations[0].delegate, "worker-agent");
+        assert_eq!(delegations[1].delegate, "sub-worker-agent");
+        assert_eq!(delegations[1].constraint.as_deref(), Some("staging only"));
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    struct AlwaysApprove;
+    impl GovernanceRule for AlwaysApprove {
+        fn rule_id(&self) -> &'static str {
+            "always-approve"
+        }
+        fn approve(&self, _ctx: &GuardContext<'_>) -> bool {
+            true
+        }
+    }
+
+    struct AlwaysDeny;
+    impl GovernanceRule for AlwaysDeny {
+        fn rule_id(&self) -> &'static str {
+            "always-deny"
+        }
+        fn approve(&self, _ctx: &GuardContext<'_>) -> bool {
+            false
+        }
+    }
+
+    struct DenyMutatingEffect;
+    impl GovernanceRule for DenyMutatingEffect {
+        fn rule_id(&self) -> &'static str {
+            "deny-mutating"
+        }
+        fn approve(&self, ctx: &GuardContext<'_>) -> bool {
+            ctx.args.get("effect").and_then(|v| v.as_str()) != Some("mutating")
+        }
+    }
+
+    #[test]
+    fn test_empty_governance_panel_approves_by_definition() {
+        let panel = GovernancePanel::new();
+        let args = serde_json::json!({});
+        let ctx = GuardContext { noun: "fleet", verb: "deploy", args: &args };
+        let verdict = panel.evaluate(&ctx);
+        assert!(verdict.approved);
+        assert!(verdict.approved_by.is_empty());
+        assert!(verdict.denied_by.is_empty());
+    }
+
+    #[test]
+    fn test_governance_panel_requires_every_registered_rule_to_approve() {
+        let mut panel = GovernancePanel::new();
+        panel.add_rule(Box::new(AlwaysApprove));
+        panel.add_rule(Box::new(AlwaysDeny));
+        let args = serde_json::json!({});
+        let ctx = GuardContext { noun: "fleet", verb: "deploy", args: &args };
+
+        let verdict = panel.evaluate(&ctx);
+        assert!(!verdict.approved);
+        assert_eq!(verdict.approved_by, vec!["always-approve".to_string()]);
+        assert_eq!(verdict.denied_by, vec!["always-deny".to_string()]);
+    }
+
+    #[test]
+    fn test_governance_panel_as_a_guard_refuses_via_the_real_guard_trait() {
+        let mut panel = GovernancePanel::new();
+        panel.add_rule(Box::new(DenyMutatingEffect));
+
+        let read_only_args = serde_json::json!({"effect": "read_only"});
+        let read_only_ctx = GuardContext { noun: "fleet", verb: "status", args: &read_only_args };
+        assert!(Guard::check(&panel, &read_only_ctx).is_ok());
+
+        let mutating_args = serde_json::json!({"effect": "mutating"});
+        let mutating_ctx = GuardContext { noun: "fleet", verb: "deploy", args: &mutating_args };
+        let denial = Guard::check(&panel, &mutating_ctx).expect_err("mutating effect must be denied");
+        assert_eq!(denial.code, "GOVERNANCE_DENIED");
+        assert!(denial.reason.contains("deny-mutating"));
+    }
+
+    #[test]
+    fn test_governance_record_chain_starts_at_genesis_and_links_correctly() {
+        let mut panel = GovernancePanel::new();
+        panel.add_rule(Box::new(AlwaysApprove));
+        let args = serde_json::json!({});
+        let ctx = GuardContext { noun: "fleet", verb: "deploy", args: &args };
+        let verdict = panel.evaluate(&ctx);
+
+        let first = GovernanceRecord::next(None, "fleet", "deploy", &verdict, "2026-01-01T00:00:00Z".to_string());
+        assert_eq!(first.sequence, 0);
+        assert_eq!(first.prev_digest, GENESIS_DIGEST);
+        assert!(first.digest_is_consistent());
+        assert!(first.approved);
+
+        let second = GovernanceRecord::next(
+            Some(&first),
+            "fleet",
+            "destroy",
+            &verdict,
+            "2026-01-01T00:01:00Z".to_string(),
+        );
+        assert_eq!(second.sequence, 1);
+        assert_eq!(second.prev_digest, first.digest);
+        assert!(verify_governance_chain(&[first, second]).is_ok());
+    }
+
+    #[test]
+    fn test_verify_governance_chain_rejects_a_tampered_record() {
+        let mut panel = GovernancePanel::new();
+        panel.add_rule(Box::new(AlwaysDeny));
+        let args = serde_json::json!({});
+        let ctx = GuardContext { noun: "fleet", verb: "deploy", args: &args };
+        let verdict = panel.evaluate(&ctx);
+
+        let genuine =
+            GovernanceRecord::next(None, "fleet", "deploy", &verdict, "2026-01-01T00:00:00Z".to_string());
+        let mut tampered = genuine.clone();
+        tampered.approved = true;
+        assert!(!tampered.digest_is_consistent());
+        assert!(matches!(
+            verify_governance_chain(&[tampered]),
+            Err(ChainVerificationError::DigestMismatch { index: 0 })
+        ));
     }
 }
