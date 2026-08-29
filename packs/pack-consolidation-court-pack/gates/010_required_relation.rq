@@ -1,0 +1,16 @@
+# MESSAGE: every consolidation relation requires at least two members, exactly one canonical pack, one disposition, one reason, one status, one priority, and an explicit migration flag.
+PREFIX pcc: <https://ggen.dev/ontology/pack-consolidation#>
+SELECT ?relation ?missing WHERE {
+  ?relation a pcc:ConsolidationRelation .
+  {
+    BIND("member_count>=2" AS ?missing)
+    { SELECT ?relation (COUNT(?member) AS ?count) WHERE { ?relation a pcc:ConsolidationRelation ; pcc:member ?member . } GROUP BY ?relation }
+    FILTER(?count < 2)
+  }
+  UNION { BIND("canonical" AS ?missing) FILTER NOT EXISTS { ?relation pcc:canonical ?v } }
+  UNION { BIND("disposition" AS ?missing) FILTER NOT EXISTS { ?relation pcc:disposition ?v } }
+  UNION { BIND("reason" AS ?missing) FILTER NOT EXISTS { ?relation pcc:reason ?v } }
+  UNION { BIND("status" AS ?missing) FILTER NOT EXISTS { ?relation pcc:status ?v } }
+  UNION { BIND("priority" AS ?missing) FILTER NOT EXISTS { ?relation pcc:priority ?v } }
+  UNION { BIND("requiresMigration" AS ?missing) FILTER NOT EXISTS { ?relation pcc:requiresMigration ?v } }
+}

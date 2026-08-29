@@ -1,0 +1,39 @@
+---
+to: "generated/ERRC_CONSOLIDATION_PLAN.md"
+sparql:
+  rows: |
+    PREFIX pcc: <https://ggen.dev/ontology/pack-consolidation#>
+    PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+    SELECT ?relation ?priority ?disposition ?canonical ?status ?requiresMigration ?reason (GROUP_CONCAT(DISTINCT ?member; separator=", ") AS ?members) WHERE {
+      ?relation a pcc:ConsolidationRelation ;
+        pcc:priority ?priority ;
+        pcc:disposition ?d ;
+        pcc:canonical ?canonical ;
+        pcc:status ?status ;
+        pcc:requiresMigration ?requiresMigration ;
+        pcc:reason ?reason ;
+        pcc:member ?member .
+      ?d skos:prefLabel ?disposition .
+    }
+    GROUP BY ?relation ?priority ?disposition ?canonical ?status ?requiresMigration ?reason
+    ORDER BY ?priority ?relation
+---
+# ERRC Pack Consolidation Plan
+
+This file is generated from the consolidation court RDF. It is a projection, not an editing surface.
+
+| Priority | Disposition | Canonical authority | Members | Status | Migration |
+|---:|---|---|---|---|---|
+{% for row in rows %}| {{ row.priority }} | {{ row.disposition }} | `{{ row.canonical }}` | {{ row.members }} | {{ row.status }} | {{ row.requiresMigration }} |
+{% endfor %}
+
+## Reasons
+
+{% for row in rows %}### {{ row.disposition }} — `{{ row.canonical }}`
+
+{{ row.reason }}
+
+{% endfor %}
+## Admission rule for future packs
+
+A proposed new pack SHOULD first prove that no current canonical pack, projection, profile, or lawful composition already owns its semantic authority. Creating a new directory is not evidence of a new capability class.

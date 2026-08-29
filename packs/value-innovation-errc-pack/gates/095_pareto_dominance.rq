@@ -1,0 +1,21 @@
+# MESSAGE: VALUE_INNOVATION_PARETO_REFUSED -- protected dimensions cannot worsen and at least one dimension must improve
+PREFIX vi: <http://seanchatmangpt.github.io/packs/value-innovation-errc#>
+SELECT ?claim ?reason WHERE {
+  ?claim a vi:ParetoClaim .
+  {
+    FILTER NOT EXISTS {
+      ?claim vi:hasDelta ?delta .
+      ?delta vi:direction vi:Better .
+    }
+    BIND("noImprovement" AS ?reason)
+  } UNION {
+    ?claim vi:hasDelta ?delta .
+    ?delta vi:protected true ; vi:direction vi:Worse .
+    BIND("protectedDimensionWorse" AS ?reason)
+  } UNION {
+    ?claim vi:hasDelta ?delta .
+    ?delta vi:direction ?direction .
+    FILTER (?direction NOT IN (vi:Better, vi:Same, vi:Worse))
+    BIND("invalidDirection" AS ?reason)
+  }
+}
