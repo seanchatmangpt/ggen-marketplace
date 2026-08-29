@@ -1,0 +1,18 @@
+name: DEVELOP Maximalist Selection R4 Exact Head
+on:
+  pull_request:
+    branches: [explore/dfcm-maximalist-candidate-court-20260824]
+jobs:
+  verify:
+    if: github.event.pull_request.head.ref == 'develop/maximalist-selection-r4-20260824'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Verify SELECT receipt
+        run: python3 -c "import json; p=json.load(open('receipts/select/2026-08-24-maximalist-selection-r4.json')); assert p['authority']=='SELECT'; assert p['actuation_performed'] is False; assert p['marketplace_first'] is True"
