@@ -1,0 +1,35 @@
+name: DEVELOP ggen Manifest Compatibility R13 Exact Head
+on:
+  pull_request:
+    paths:
+      - 'packs/ggen-project-boundary-pack/**'
+      - 'receipts/select/2026-08-24-ggen-manifest-compatibility-r13.json'
+      - '.github/workflows/develop-ggen-manifest-compatibility-r13.yml'
+permissions:
+  contents: read
+jobs:
+  qualify:
+    if: github.head_ref == 'develop/ggen-manifest-compatibility-r13-20260824'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Admit exact PR head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Verify manifest compatibility surface
+        run: |
+          test "$(find packs/ggen-project-boundary-pack/queries -name 'r13-manifest-*.rq' | wc -l)" -eq 12
+          grep -q 'ManifestSubject' packs/ggen-project-boundary-pack/ggen-manifest-compatibility.ttl
+          grep -q 'querySourceKind' packs/ggen-project-boundary-pack/ggen-manifest-compatibility.ttl
+      - name: Verify SELECT receipt boundary
+        run: python3 -c "import json; d=json.load(open('receipts/select/2026-08-24-ggen-manifest-compatibility-r13.json')); assert d['authority']=='SELECT' and d['actuation_performed'] is False and d['marketplace_first'] is True"
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -REn 'requests\.(post|put|patch|delete)|subprocess\.|os\.system|boto3|azure\.|google\.cloud|curl .*-(X|d)' packs/ggen-project-boundary-pack receipts/select/2026-08-24-ggen-manifest-compatibility-r13.json
