@@ -1,0 +1,48 @@
+---
+to: "generated/innovation/errc-profile.json"
+force: true
+determinism: true
+sparql:
+  profiles: |
+    PREFIX errc: <https://ggen.dev/ontology/innovation/errc#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    SELECT ?profile ?title WHERE {
+      ?profile a errc:InnovationProfile ; dcterms:title ?title .
+    } ORDER BY ?profile
+  decisions: |
+    PREFIX errc: <https://ggen.dev/ontology/innovation/errc#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+    SELECT ?profile ?profileTitle ?factor ?factorLabel ?actionNotation ?actionLabel ?rationale ?order WHERE {
+      ?profile a errc:InnovationProfile ; dcterms:title ?profileTitle ; errc:hasDecision ?decision .
+      ?decision errc:decisionFactor ?factor ; errc:decisionAction ?action ; errc:rationale ?rationale .
+      ?factor skos:prefLabel ?factorLabel .
+      ?action skos:notation ?actionNotation ; skos:prefLabel ?actionLabel .
+      OPTIONAL { ?factor errc:factorOrder ?order }
+    } ORDER BY ?profile ?order ?factorLabel
+  points: |
+    PREFIX errc: <https://ggen.dev/ontology/innovation/errc#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+    SELECT ?profile ?canvas ?factorLabel ?series ?level WHERE {
+      ?profile a errc:InnovationProfile ; errc:hasCanvas ?canvas .
+      ?canvas errc:hasPoint ?point .
+      ?point errc:pointFactor ?factor ; errc:pointSeries ?seriesNode ; errc:normalizedLevel ?level .
+      ?factor skos:prefLabel ?factorLabel .
+      ?seriesNode skos:notation ?series .
+    } ORDER BY ?profile ?canvas ?factorLabel ?series
+---
+{
+  "schema": "ggen.errc-innovation-contract/1",
+  "authority": "CONSTRUCT",
+  "actuation_performed": false,
+  "profiles": [
+{% for row in profiles %}    {"id": {{ row.profile | json_encode | safe }}, "title": {{ row.title | json_encode | safe }}}{% if not loop.last %},{% endif %}
+{% endfor %}  ],
+  "decisions": [
+{% for row in decisions %}    {"profile": {{ row.profile | json_encode | safe }}, "profile_title": {{ row.profileTitle | json_encode | safe }}, "factor": {{ row.factor | json_encode | safe }}, "factor_label": {{ row.factorLabel | json_encode | safe }}, "action": {{ row.actionNotation | json_encode | safe }}, "action_label": {{ row.actionLabel | json_encode | safe }}, "rationale": {{ row.rationale | json_encode | safe }}}{% if not loop.last %},{% endif %}
+{% endfor %}  ],
+  "strategy_canvas_points": [
+{% for row in points %}    {"profile": {{ row.profile | json_encode | safe }}, "canvas": {{ row.canvas | json_encode | safe }}, "factor": {{ row.factorLabel | json_encode | safe }}, "series": {{ row.series | json_encode | safe }}, "level": {{ row.level }}}{% if not loop.last %},{% endif %}
+{% endfor %}  ]
+}

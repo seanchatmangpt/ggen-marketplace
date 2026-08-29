@@ -1,0 +1,24 @@
+# MESSAGE: ERRC innovation profiles must be closed, controlled, and deterministic.
+PREFIX errc: <https://ggen.dev/ontology/innovation/errc#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT DISTINCT ?subject ?violation WHERE {
+  { ?subject a errc:InnovationProfile . FILTER NOT EXISTS { ?subject dcterms:title ?title } BIND("PROFILE_MISSING_TITLE" AS ?violation) }
+  UNION { ?subject a errc:InnovationProfile . FILTER NOT EXISTS { ?subject errc:hasDecision ?decision } BIND("PROFILE_HAS_NO_ERRC_DECISION" AS ?violation) }
+  UNION { ?subject a errc:ERRCDecision . FILTER NOT EXISTS { ?subject errc:decisionFactor ?factor } BIND("DECISION_MISSING_FACTOR" AS ?violation) }
+  UNION { ?subject a errc:ERRCDecision ; errc:decisionFactor ?a, ?b . FILTER(?a != ?b) BIND("DECISION_MULTIPLE_FACTORS" AS ?violation) }
+  UNION { ?subject a errc:ERRCDecision . FILTER NOT EXISTS { ?subject errc:decisionAction ?action } BIND("DECISION_MISSING_ACTION" AS ?violation) }
+  UNION { ?subject a errc:ERRCDecision ; errc:decisionAction ?a, ?b . FILTER(?a != ?b) BIND("DECISION_MULTIPLE_ACTIONS" AS ?violation) }
+  UNION { ?subject a errc:ERRCDecision ; errc:decisionAction ?action . FILTER(?action NOT IN (errc:Eliminate, errc:Reduce, errc:Raise, errc:Create)) BIND("DECISION_ACTION_OUTSIDE_ERRC_VOCABULARY" AS ?violation) }
+  UNION { ?subject a errc:ERRCDecision . FILTER NOT EXISTS { ?subject errc:rationale ?rationale } BIND("DECISION_MISSING_RATIONALE" AS ?violation) }
+  UNION { ?profile a errc:InnovationProfile ; errc:hasDecision ?subject, ?other . FILTER(?subject != ?other) ?subject errc:decisionFactor ?factor . ?other errc:decisionFactor ?factor . BIND("PROFILE_DUPLICATE_FACTOR_DECISION" AS ?violation) }
+  UNION { ?subject a errc:ERRCDecision . FILTER NOT EXISTS { ?profile a errc:InnovationProfile ; errc:hasDecision ?subject } BIND("ORPHAN_ERRC_DECISION" AS ?violation) }
+  UNION { ?subject a errc:ValueCurvePoint . FILTER NOT EXISTS { ?subject errc:pointFactor ?factor } BIND("POINT_MISSING_FACTOR" AS ?violation) }
+  UNION { ?subject a errc:ValueCurvePoint . FILTER NOT EXISTS { ?subject errc:pointSeries ?series } BIND("POINT_MISSING_SERIES" AS ?violation) }
+  UNION { ?subject a errc:ValueCurvePoint ; errc:pointSeries ?series . FILTER(?series NOT IN (errc:Current, errc:Target)) BIND("POINT_SERIES_OUTSIDE_CONTROLLED_VOCABULARY" AS ?violation) }
+  UNION { ?subject a errc:ValueCurvePoint . FILTER NOT EXISTS { ?subject errc:normalizedLevel ?level } BIND("POINT_MISSING_NORMALIZED_LEVEL" AS ?violation) }
+  UNION { ?subject a errc:ValueCurvePoint ; errc:normalizedLevel ?level . FILTER(xsd:decimal(?level) < 0 || xsd:decimal(?level) > 100) BIND("POINT_LEVEL_OUTSIDE_0_100" AS ?violation) }
+  UNION { ?subject a errc:ValueCurvePoint . FILTER NOT EXISTS { ?canvas a errc:StrategyCanvas ; errc:hasPoint ?subject } BIND("ORPHAN_VALUE_CURVE_POINT" AS ?violation) }
+  UNION { ?canvas a errc:StrategyCanvas ; errc:hasPoint ?subject, ?other . FILTER(?subject != ?other) ?subject errc:pointFactor ?factor ; errc:pointSeries ?series . ?other errc:pointFactor ?factor ; errc:pointSeries ?series . BIND("CANVAS_DUPLICATE_FACTOR_SERIES_POINT" AS ?violation) }
+}
