@@ -1,0 +1,38 @@
+name: MEASURE Owning Rail Remediation Realization Exact Head
+
+on:
+  pull_request:
+    paths:
+      - 'packs/owning-rail-remediation-realization-pack/**'
+      - '.github/workflows/measure-owning-rail-remediation-realization.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Admit exact PR head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Validate marketplace source
+        run: python3 scripts/marketplace.py validate
+      - name: Compile runtime measurement substrate
+        run: python3 -m py_compile packs/owning-rail-remediation-realization-pack/scripts/*.py packs/owning-rail-remediation-realization-pack/tests/*.py
+      - name: Run remediation realization courts
+        run: python3 -m unittest discover -s packs/owning-rail-remediation-realization-pack/tests -p 'test_*.py' -v
+      - name: Verify deterministic catalog
+        run: |
+          python3 scripts/marketplace.py catalog > /tmp/catalog-a.json
+          python3 scripts/marketplace.py catalog > /tmp/catalog-b.json
+          cmp /tmp/catalog-a.json /tmp/catalog-b.json
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -REn 'requests\.(post|put|patch|delete)|subprocess\.|os\.system|boto3|azure\.|google\.cloud|socket\.' packs/owning-rail-remediation-realization-pack/scripts packs/owning-rail-remediation-realization-pack/tests

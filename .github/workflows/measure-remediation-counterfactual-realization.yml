@@ -1,0 +1,30 @@
+name: MEASURE Remediation Counterfactual Realization
+on:
+  pull_request:
+    paths:
+      - 'packs/owning-rail-remediation-counterfactual-realization-pack/**'
+      - '.github/workflows/measure-remediation-counterfactual-realization.yml'
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Admit exact PR head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Compile realization runtime and courts
+        run: python3 -m py_compile packs/owning-rail-remediation-counterfactual-realization-pack/scripts/*.py packs/owning-rail-remediation-counterfactual-realization-pack/tests/*.py
+      - name: Run realization falsifier court
+        run: python3 -m unittest discover -s packs/owning-rail-remediation-counterfactual-realization-pack/tests -p 'test_*.py' -v
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -REn 'requests\.(post|put|patch|delete)|subprocess\.|os\.system|boto3|azure\.|google\.cloud' packs/owning-rail-remediation-counterfactual-realization-pack/scripts packs/owning-rail-remediation-counterfactual-realization-pack/tests
