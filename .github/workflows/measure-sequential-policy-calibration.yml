@@ -1,0 +1,35 @@
+name: MEASURE Sequential Policy Calibration
+
+on:
+  pull_request:
+    paths:
+      - 'packs/dfcm-maximalist-court-pack/ontology.ttl'
+      - 'packs/dfcm-maximalist-court-pack/queries/cal-*.rq'
+      - '.github/workflows/measure-sequential-policy-calibration.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  calibration-court:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Admit exact PR subject
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Verify calibration court surface
+        run: |
+          test "$(find packs/dfcm-maximalist-court-pack/queries -maxdepth 1 -name 'cal-*.rq' | wc -l)" -ge 30
+          grep -q 'PolicyCalibrationObservation' packs/dfcm-maximalist-court-pack/ontology.ttl
+          grep -q 'predictedStopProbability' packs/dfcm-maximalist-court-pack/ontology.ttl
+          grep -q 'decisionLoss' packs/dfcm-maximalist-court-pack/ontology.ttl
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -REn 'curl |wget |requests\.(post|put|patch|delete)|subprocess\.|os\.system|boto3|azure\.|google\.cloud' packs/dfcm-maximalist-court-pack/queries/cal-*.rq
