@@ -1,0 +1,23 @@
+name: IMPLEMENT Experiment Value Control R4 Exact Head
+on:
+  pull_request:
+    branches: [develop/experiment-value-control-r4-20260824]
+jobs:
+  verify:
+    if: github.event.pull_request.head.ref == 'implement/qualify-experiment-value-control-r4-20260824'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Verify predecessor SELECT receipt
+        run: python3 -c "import json; p=json.load(open('receipts/select/2026-08-24-experiment-value-control-r4.json')); assert p['authority']=='SELECT'; assert p['actuation_performed'] is False; assert p['marketplace_first'] is True"
+      - name: Verify qualification surface count
+        run: test "$(find packs/dfcm-maximalist-court-pack/queries -maxdepth 1 -type f -name 'control-*.rq' | wc -l)" -ge 37
+      - name: Refuse ambient consequential actuation
+        run: '! grep -RInE "(kubectl apply|terraform apply|aws .*create|gcloud .*create|az .*create|curl .*-(X|d) (POST|PUT|PATCH|DELETE))" packs/dfcm-maximalist-court-pack || false'
