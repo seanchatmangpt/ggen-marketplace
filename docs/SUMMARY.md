@@ -28,6 +28,14 @@
 
 
 
+- [Take a pack through a Level-5 promotion slice](tutorials/level5-promotion.md)
+
+
+
+- [Explore option-capital hypergraphs](tutorials/option-hypergraph-amplifier-r15.md)
+
+
+
 # How-to guides
 
 
@@ -61,6 +69,18 @@
 
 
 - [Qualify R73 revalidation manufacturing capital](how-to/r73-qualify-revalidation-manufacturing.md)
+
+
+
+- [Consolidate a pack family](how-to/consolidate-a-pack-family.md)
+
+
+
+- [Promote a pack to Level 5](how-to/promote-a-pack-to-level5.md)
+
+
+
+- [Query the R15 option hypergraph](how-to/query-option-hypergraph-r15.md)
 
 
 
@@ -116,6 +136,22 @@
 
 
 
+- [Documentation convergence receipt](reference/docs-update-receipt.md)
+
+
+
+- [Level-5 maturity contract](reference/level5-maturity-contract.md)
+
+
+
+- [R15 option-hypergraph reference](reference/option-hypergraph-amplifier-r15.md)
+
+
+
+- [Pack classes reference](reference/pack-classes.md)
+
+
+
 # Explanation
 
 
@@ -145,6 +181,18 @@
 
 
 - [Why revalidation is manufacturing capital (R73)](explanation/r73-why-revalidation-is-manufacturing-capital.md)
+
+
+
+- [Class closure and consolidation](explanation/class-closure-and-consolidation.md)
+
+
+
+- [Why Level 5 requires Diátaxis](explanation/level5-diataxis.md)
+
+
+
+- [Why option hypergraphs increase manufacturing capital](explanation/option-hypergraph-capital-r15.md)
 
 
 
@@ -197,6 +245,10 @@
 
 
 - [Defense dossier: claims, evidence, falsifiers, and proof debt](thesis/11-defense-dossier.md)
+
+
+
+- [Level-5 maturity, Diátaxis correspondence, and class closure](thesis/12-level5-maturity-and-class-closure.md)
 
 
 
