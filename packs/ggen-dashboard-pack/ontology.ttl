@@ -1,0 +1,89 @@
+@prefix dash: <https://ggen.io/ontology/dashboard#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix odrl: <http://www.w3.org/ns/odrl/2/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Canonical reusable semantic contract. Consumer-specific projections are
+# supplied by the consuming ontology and unioned with this graph by ggen.
+
+dash:DashboardContract
+  a prov:Entity, skos:Concept ;
+  dct:title "ggen dashboard semantic contract" ;
+  dct:description "Generated dashboard contracts preserve evidence standing, authority separation, BRCE-only DO, receipts, and replay." ;
+  dash:contractVersion "26.8.27" ;
+  dash:requiresBRCE true .
+
+dash:StandingState a rdfs:Class ; rdfs:label "Standing state" .
+dash:Projection a rdfs:Class ; rdfs:label "Dashboard projection" .
+dash:AuthorityStage a rdfs:Class ; rdfs:label "Authority stage" .
+dash:IntentKind a rdfs:Class ; rdfs:label "Intent kind" .
+dash:SemanticToken a rdfs:Class ; rdfs:label "Semantic design token" .
+
+dash:code a rdf:Property ; rdfs:range xsd:string .
+dash:rank a rdf:Property ; rdfs:range xsd:integer .
+dash:label a rdf:Property ; rdfs:range xsd:string .
+dash:description a rdf:Property ; rdfs:range xsd:string .
+dash:cssToken a rdf:Property ; rdfs:range xsd:string .
+dash:allowsDo a rdf:Property ; rdfs:range xsd:boolean .
+dash:stageOrder a rdf:Property ; rdfs:range xsd:integer .
+dash:projectionId a rdf:Property ; rdfs:range xsd:string .
+dash:route a rdf:Property ; rdfs:range xsd:string .
+dash:plane a rdf:Property ; rdfs:range xsd:string .
+dash:icon a rdf:Property ; rdfs:range xsd:string .
+dash:contractVersion a rdf:Property ; rdfs:range xsd:string .
+dash:requiresBRCE a rdf:Property ; rdfs:range xsd:boolean .
+dash:tokenName a rdf:Property ; rdfs:range xsd:string .
+dash:tokenValue a rdf:Property ; rdfs:range xsd:string .
+
+# Standing is typed and ordered only for deterministic display; rank does not
+# imply promotion authority. ALIVE still requires exact admitted execution.
+dash:standingUnknown a dash:StandingState ; dash:code "UNKNOWN" ; dash:rank 0 ; dash:label "Unknown" ; dash:description "No sufficient admitted evidence." ; dash:cssToken "standing-unknown" ; dash:allowsDo false .
+dash:standingUnsupported a dash:StandingState ; dash:code "UNSUPPORTED" ; dash:rank 1 ; dash:label "Unsupported" ; dash:description "The requested edge is outside the admitted capability topology." ; dash:cssToken "standing-unsupported" ; dash:allowsDo false .
+dash:standingBlocked a dash:StandingState ; dash:code "BLOCKED" ; dash:rank 2 ; dash:label "Blocked" ; dash:description "A required dependency, authority, or transport is unavailable." ; dash:cssToken "standing-blocked" ; dash:allowsDo false .
+dash:standingBuildBroken a dash:StandingState ; dash:code "BUILD_BROKEN" ; dash:rank 3 ; dash:label "Build broken" ; dash:description "The admitted subject failed an executable build or validation boundary." ; dash:cssToken "standing-build-broken" ; dash:allowsDo false .
+dash:standingPartialAlive a dash:StandingState ; dash:code "PARTIAL_ALIVE" ; dash:rank 4 ; dash:label "Partial alive" ; dash:description "A bounded subsystem executed but the requested crown has not been proven." ; dash:cssToken "standing-partial-alive" ; dash:allowsDo false .
+dash:standingAlive a dash:StandingState ; dash:code "ALIVE" ; dash:rank 5 ; dash:label "Alive" ; dash:description "Observed execution against the exact admitted subject satisfied the scoped acceptance boundary." ; dash:cssToken "standing-alive" ; dash:allowsDo false .
+
+# REFUSED is parameterized by a refusal code at runtime, therefore it is a
+# standing family rather than a single terminal code.
+dash:standingRefused a dash:StandingState ; dash:code "REFUSED" ; dash:rank 6 ; dash:label "Refused" ; dash:description "A typed policy, authority, ontology, or safety refusal was returned." ; dash:cssToken "standing-refused" ; dash:allowsDo false .
+
+# Authority calculus. Only BRCE can cross DO; UI output never has ambient DO.
+dash:stageObserve a dash:AuthorityStage ; dash:code "OBSERVE" ; dash:stageOrder 0 ; dash:label "Observe" ; dash:allowsDo false .
+dash:stageSelect a dash:AuthorityStage ; dash:code "SELECT" ; dash:stageOrder 1 ; dash:label "Select" ; dash:allowsDo false .
+dash:stageConstruct a dash:AuthorityStage ; dash:code "CONSTRUCT" ; dash:stageOrder 2 ; dash:label "Construct" ; dash:allowsDo false .
+dash:stagePreflight a dash:AuthorityStage ; dash:code "PREFLIGHT" ; dash:stageOrder 3 ; dash:label "Authority preflight" ; dash:allowsDo false .
+dash:stageBrce a dash:AuthorityStage ; dash:code "BRCE" ; dash:stageOrder 4 ; dash:label "BRCE" ; dash:allowsDo true .
+dash:stageReceipt a dash:AuthorityStage ; dash:code "RECEIPT" ; dash:stageOrder 5 ; dash:label "Receipt" ; dash:allowsDo false .
+dash:stageReplay a dash:AuthorityStage ; dash:code "REPLAY" ; dash:stageOrder 6 ; dash:label "Replay" ; dash:allowsDo false .
+
+dash:intentInspect a dash:IntentKind ; dash:code "INSPECT" ; dash:label "Inspect subject" ; dash:allowsDo false .
+dash:intentQuery a dash:IntentKind ; dash:code "QUERY" ; dash:label "Query admitted graph" ; dash:allowsDo false .
+dash:intentConstruct a dash:IntentKind ; dash:code "CONSTRUCT_INTENT" ; dash:label "Construct bounded intent" ; dash:allowsDo false .
+dash:intentActuate a dash:IntentKind ; dash:code "ACTUATE_VIA_BRCE" ; dash:label "Actuate via BRCE" ; dash:allowsDo true .
+dash:intentReplay a dash:IntentKind ; dash:code "REPLAY_RECEIPT" ; dash:label "Replay receipt" ; dash:allowsDo false .
+
+# ODRL expresses the negative authority explicitly: the dashboard contract may
+# construct an actuation request but direct ambient actuation is prohibited.
+dash:noAmbientActuationPolicy
+  a odrl:Policy ;
+  odrl:prohibition [
+    odrl:action odrl:execute ;
+    odrl:target dash:DashboardContract
+  ] .
+
+# Semantic tokens are generated into CSS custom properties; these are UI
+# semantics, not product-brand ownership by a third-party component system.
+dash:tokenSurface a dash:SemanticToken ; dash:tokenName "surface" ; dash:tokenValue "#0a0d12" .
+dash:tokenSurfaceRaised a dash:SemanticToken ; dash:tokenName "surface-raised" ; dash:tokenValue "#111722" .
+dash:tokenBorder a dash:SemanticToken ; dash:tokenName "border" ; dash:tokenValue "#293244" .
+dash:tokenText a dash:SemanticToken ; dash:tokenName "text" ; dash:tokenValue "#f4f7fb" .
+dash:tokenTextMuted a dash:SemanticToken ; dash:tokenName "text-muted" ; dash:tokenValue "#a9b4c5" .
+dash:tokenAccent a dash:SemanticToken ; dash:tokenName "accent" ; dash:tokenValue "#65d1ff" .
+dash:tokenPositive a dash:SemanticToken ; dash:tokenName "positive" ; dash:tokenValue "#79e2a8" .
+dash:tokenWarning a dash:SemanticToken ; dash:tokenName "warning" ; dash:tokenValue "#f0c36b" .
+dash:tokenNegative a dash:SemanticToken ; dash:tokenName "negative" ; dash:tokenValue "#ff7a90" .
