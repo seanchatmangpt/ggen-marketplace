@@ -228,10 +228,26 @@ defmodule BeamPM.Actuation.Session do
         {:error, {:bridge_open, reason}}
 
       {:ok, bridge} ->
+        # `GymBridge.request/3` is `@spec`'d `{:ok, map()} | {:error, term()}`
+        # (its `decode_reply/1` always returns the full decoded JSON object
+        # on `{"ok": true, ...}`) -- match on any map, never require an
+        # "observation" key specifically, matching the same defensive
+        # `Map.get/2` (not `Map.fetch!/2`) convention the `:execute` step
+        # below already uses for the analogous step-reply field. A reset ack
+        # without a full observation payload is a real, protocol-legal wire
+        # shape, not a hypothetical one -- this must never CaseClauseError
+        # here, since that would raise past this function's own documented
+        # "self-guards against a port leak" promise, leaking the port it
+        # just opened.
         case GymBridge.request(bridge, %{"op" => "reset"}, bridge_timeout) do
-          {:ok, %{"observation" => obs}} ->
+          {:ok, reply} when is_map(reply) ->
             {:ok,
-             %__MODULE__{bridge: bridge, gym: gym, bridge_py: bridge_py, last_observation: obs}}
+             %__MODULE__{
+               bridge: bridge,
+               gym: gym,
+               bridge_py: bridge_py,
+               last_observation: Map.get(reply, "observation")
+             }}
 
           {:error, reason} ->
             _ = GymBridge.close(bridge, bridge_timeout)
@@ -485,6 +501,19 @@ defmodule BeamPM.Actuation do
         event(opts, 3, "execute", %{"outcome" => "failed", "error" => error_text})
       ]
 
+      # In continuous-session mode, a step failure always occurs AFTER the
+      # session's already-completed reset, so the real pre-step observation
+      # is sitting right here in `opts[:session]` -- use it instead of
+      # discarding real, available evidence as `nil`. In the default
+      # (non-session) mode there is no session to consult and `nil` remains
+      # correct, exactly as before: a failure there can occur before any
+      # reset/observation ever existed.
+      observation_before =
+        case Map.get(opts, :session) do
+          %BeamPM.Actuation.Session{last_observation: obs} -> obs
+          _ -> nil
+        end
+
       _path =
         write_receipt!(opts, %{
           action_map: Codec.to_map(validated.action),
@@ -493,7 +522,7 @@ defmodule BeamPM.Actuation do
           reason: admitted.policy_decision.reason,
           execution: %{
             "performed" => false,
-            "observation_before" => nil,
+            "observation_before" => observation_before,
             "observation_after" => nil,
             "reward" => nil,
             "done" => nil,
