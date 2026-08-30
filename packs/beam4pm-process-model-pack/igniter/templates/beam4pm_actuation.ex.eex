@@ -176,6 +176,81 @@ defmodule BeamPM.Actuation.GymBridge do
   end
 end
 
+defmodule BeamPM.Actuation.Session do
+  @moduledoc """
+  Caller-owned lifecycle for a `BeamPM.Actuation.GymBridge` port meant to
+  survive more than one `BeamPM.Actuation.run/2` call: opened + reset
+  EXACTLY ONCE, then threaded across N `Actuation.run/2` calls (each doing
+  exactly one gym "step" against the SAME already-running port), then
+  closed EXACTLY ONCE.
+
+  Exists to close a real defect: `BeamPM.Actuation.run/2`'s own `:execute`
+  step always does open -> reset -> step -> close, in that fixed order, on
+  EVERY call (see the `:execute` step's `nil`-session branch below, which
+  is that exact unmodified behavior). A caller driving several admitted
+  actuations in sequence against ONE continuously-running environment (e.g.
+  `BeamPM.ProcessGovernor.run/2` in `continuous: true` mode) would otherwise
+  reset that environment back to its initial state before every single
+  step - not a continuous multi-step transition on one running target, N
+  independent one-shot resets. Passing `session: %Session{}` in
+  `actuation_opts` (see `normalize_opts!/1` below) makes `:execute` skip
+  open/reset/close entirely and reuse this session's already-open bridge.
+
+  Purely additive and opt-in: no `:session` key in `actuation_opts` (the
+  default, and the ONLY thing every existing caller of `Actuation.run/2`
+  passes) takes the unmodified nil-session `:execute` branch, byte-identical
+  to this module's behavior before `Session` existed.
+  """
+
+  alias BeamPM.Actuation.GymBridge
+
+  defstruct [:bridge, :gym, :bridge_py, :last_observation]
+
+  @type t :: %__MODULE__{
+          bridge: GymBridge.t(),
+          gym: String.t(),
+          bridge_py: String.t(),
+          last_observation: map() | nil
+        }
+
+  @doc """
+  Opens ONE `GymBridge` subprocess for `gym` (via `bridge_py`) and sends
+  ONE `reset` request against it. On any failure - bridge spawn failure, or
+  a failed/timed-out reset - self-guards against a port leak by closing the
+  bridge it just opened before returning the typed error, so this function
+  is safe to call even outside a `try/after`.
+  """
+  @spec open(String.t(), String.t(), non_neg_integer()) :: {:ok, t()} | {:error, term()}
+  def open(bridge_py, gym, bridge_timeout \\ 10_000)
+      when is_binary(bridge_py) and is_binary(gym) do
+    case GymBridge.open(bridge_py, gym) do
+      {:error, reason} ->
+        {:error, {:bridge_open, reason}}
+
+      {:ok, bridge} ->
+        case GymBridge.request(bridge, %{"op" => "reset"}, bridge_timeout) do
+          {:ok, %{"observation" => obs}} ->
+            {:ok,
+             %__MODULE__{bridge: bridge, gym: gym, bridge_py: bridge_py, last_observation: obs}}
+
+          {:error, reason} ->
+            _ = GymBridge.close(bridge, bridge_timeout)
+            {:error, reason}
+        end
+    end
+  end
+
+  @doc "Returns `session` with `last_observation` replaced - used to thread the real observation forward between steps for accurate receipt `observation_before` fields."
+  @spec update_observation(t(), map()) :: t()
+  def update_observation(%__MODULE__{} = session, observation) when is_map(observation),
+    do: %{session | last_observation: observation}
+
+  @doc "Sends ONE `close` request then hard-closes the port. Idempotent with `GymBridge.close/2`'s own dead-port guard."
+  @spec close(t(), non_neg_integer()) :: :ok
+  def close(%__MODULE__{bridge: bridge}, bridge_timeout \\ 2_000),
+    do: GymBridge.close(bridge, bridge_timeout)
+end
+
 defmodule BeamPM.Actuation do
   @moduledoc """
   BRCE actuation pipeline (gates PI7/PI8): a plain `use Reactor` pipeline
@@ -324,26 +399,60 @@ defmodule BeamPM.Actuation do
     argument(:actuation_opts, input(:actuation_opts))
 
     run(fn %{admitted: %{gym_op: gym_op}, actuation_opts: opts}, _context ->
-      gym = Map.fetch!(opts, :gym)
-      bridge_py = Map.fetch!(opts, :bridge)
-      bridge_timeout = Map.fetch!(opts, :bridge_timeout)
       gym_action = %{"op" => gym_op}
       action_json = JSON.encode!(gym_action)
 
-      case GymBridge.open(bridge_py, gym) do
-        {:error, reason} ->
-          {:error, {:execution_failed, {:bridge_open, reason}}}
+      case Map.get(opts, :session) do
+        nil ->
+          gym = Map.fetch!(opts, :gym)
+          bridge_py = Map.fetch!(opts, :bridge)
+          bridge_timeout = Map.fetch!(opts, :bridge_timeout)
 
-        {:ok, bridge} ->
-          result =
-            with {:ok, %{"observation" => obs_before}} <-
-                   GymBridge.request(bridge, %{"op" => "reset"}, bridge_timeout),
-                 {:ok, step_reply} <-
-                   GymBridge.request(
-                     bridge,
-                     %{"op" => "step", "action" => gym_action},
-                     bridge_timeout
-                   ) do
+          case GymBridge.open(bridge_py, gym) do
+            {:error, reason} ->
+              {:error, {:execution_failed, {:bridge_open, reason}}}
+
+            {:ok, bridge} ->
+              result =
+                with {:ok, %{"observation" => obs_before}} <-
+                       GymBridge.request(bridge, %{"op" => "reset"}, bridge_timeout),
+                     {:ok, step_reply} <-
+                       GymBridge.request(
+                         bridge,
+                         %{"op" => "step", "action" => gym_action},
+                         bridge_timeout
+                       ) do
+                  {:ok,
+                   %{
+                     observation_before: obs_before,
+                     observation_after: Map.get(step_reply, "observation"),
+                     reward: Map.get(step_reply, "reward"),
+                     done: Map.get(step_reply, "done"),
+                     info: Map.get(step_reply, "info"),
+                     action_json: action_json,
+                     execute_event:
+                       event(opts, 3, "execute", %{"gym" => gym, "action_json" => action_json})
+                   }}
+                else
+                  {:error, reason} -> {:error, {:execution_failed, reason}}
+                end
+
+              _ = GymBridge.close(bridge, bridge_timeout)
+              result
+          end
+
+        %BeamPM.Actuation.Session{bridge: bridge, gym: gym, last_observation: obs_before} ->
+          # Continuous-session mode (opt-in via actuation_opts[:session]):
+          # the SAME already-open, already-reset bridge is reused for every
+          # transition in the caller's sequence - no open, no reset, no
+          # close here. The caller (BeamPM.ProcessGovernor.run/2's
+          # `continuous: true` path) owns the session's whole lifecycle: one
+          # BeamPM.Actuation.Session.open/3 before the sequence, one
+          # BeamPM.Actuation.Session.close/2 after it, via try/after.
+          bridge_timeout = Map.fetch!(opts, :bridge_timeout)
+
+          case GymBridge.request(bridge, %{"op" => "step", "action" => gym_action}, bridge_timeout) do
+            {:ok, step_reply} ->
               {:ok,
                %{
                  observation_before: obs_before,
@@ -355,12 +464,10 @@ defmodule BeamPM.Actuation do
                  execute_event:
                    event(opts, 3, "execute", %{"gym" => gym, "action_json" => action_json})
                }}
-            else
-              {:error, reason} -> {:error, {:execution_failed, reason}}
-            end
 
-          _ = GymBridge.close(bridge, bridge_timeout)
-          result
+            {:error, reason} ->
+              {:error, {:execution_failed, reason}}
+          end
       end
     end)
 
@@ -542,7 +649,15 @@ defmodule BeamPM.Actuation do
       # the real environment in a partially-actuated state for the next
       # attempt to trip over. Purely additive: omitted, behavior is
       # byte-identical to before this option existed.
-      bridge_timeout: Keyword.get(opts, :bridge_timeout, 10_000)
+      bridge_timeout: Keyword.get(opts, :bridge_timeout, 10_000),
+      # Continuous-session extension (additive, opt-in): a
+      # `%BeamPM.Actuation.Session{}` supplied by a caller (today, only
+      # `BeamPM.ProcessGovernor.run/2`'s `continuous: true` path) that owns
+      # an already-open, already-reset bridge spanning several
+      # `Actuation.run/2` calls. `nil` (the default, and every existing
+      # caller's actual behavior) keeps the unmodified open/reset/step/close
+      # `:execute` branch, byte-identical to before this option existed.
+      session: Keyword.get(opts, :session)
     }
   end
 

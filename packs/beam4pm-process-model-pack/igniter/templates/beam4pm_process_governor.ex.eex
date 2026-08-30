@@ -216,6 +216,7 @@ defmodule BeamPM.ProcessGovernor do
   """
 
   alias BeamPM.Actuation
+  alias BeamPM.Actuation.Session
   alias BeamPM.Codec
   alias BeamPM.Discovery
   alias BeamPM.Types.DfgEdge
@@ -412,12 +413,38 @@ defmodule BeamPM.ProcessGovernor do
   or `{:error, reason, partial_snapshot}` at the first non-applied
   transition - `partial_snapshot.receipts` holds every process receipt
   produced so far, including the one for the failed step.
+
+  ## Continuous-session mode (`continuous: true`, opt-in, additive)
+
+  Default `actuation_opts` (no `:continuous` key, or `continuous: false` -
+  every existing caller's actual behavior): each transition delegates to a
+  FRESH `BeamPM.Actuation.run/2` call, which opens its own bridge, resets
+  it, steps once, then closes it - N independent one-shot environment
+  resets for an N-transition process, never a continuous multi-step
+  transition on one running target.
+
+  `continuous: true`: opens exactly ONE `BeamPM.Actuation.Session` (one
+  bridge open + one reset) BEFORE the first transition, threads that same
+  session through every transition's delegated `Actuation.run/2` call (each
+  doing exactly one gym step against the SAME already-open bridge, via
+  `actuation_opts[:session]` - see `BeamPM.Actuation`'s `:execute` step),
+  and closes the session EXACTLY ONCE after the last transition - on every
+  exit path (success, refusal, or execution failure) via `try/after`, never
+  leaking the bridge subprocess. Requires the same `:gym`/`:bridge` keys as
+  the default mode; `apply_transition/3`, `apply_admitted_transition/4`,
+  `dispatch_actuation/5`, and `actuation_opts_for/3` are entirely unchanged
+  and unaware this mode exists - only which bridge lifecycle
+  `BeamPM.Actuation`'s `:execute` step reuses differs.
   """
   @spec run(String.t(), keyword()) :: {:ok, map()} | {:error, term(), map()}
   def run(process_id, actuation_opts) when is_binary(process_id) and is_list(actuation_opts) do
     case {initial_snapshot(process_id), Map.fetch(@contracts, process_id)} do
       {{:ok, snapshot}, {:ok, %{transitions: transitions}}} ->
-        run_transitions(transitions, snapshot, actuation_opts)
+        if Keyword.get(actuation_opts, :continuous, false) do
+          run_transitions_continuous(transitions, snapshot, actuation_opts)
+        else
+          run_transitions(transitions, snapshot, actuation_opts)
+        end
 
       {{:error, tagged}, _} ->
         {:error, tagged, %{receipts: []}}
@@ -435,6 +462,73 @@ defmodule BeamPM.ProcessGovernor do
       end
     end)
   end
+
+  # Continuous-session variant of run_transitions/3: opens exactly ONE
+  # BeamPM.Actuation.Session before the fold, threads it (read-only from
+  # apply_transition/3's perspective - it flows in via actuation_opts[:session]
+  # and is never mutated by the unmodified delegation chain below it) across
+  # every transition, updates its last_observation after each successfully
+  # applied transition (so the NEXT transition's receipt-level
+  # observation_before reflects the real post-step state, not the initial
+  # reset's state), and closes it exactly once via try/after regardless of
+  # how the fold ends.
+  defp run_transitions_continuous(transitions, snapshot, actuation_opts) do
+    gym = Keyword.fetch!(actuation_opts, :gym)
+    bridge = Keyword.fetch!(actuation_opts, :bridge)
+    bridge_timeout = Keyword.get(actuation_opts, :bridge_timeout, 10_000)
+
+    case Session.open(bridge, gym, bridge_timeout) do
+      {:error, reason} ->
+        {:error, {:execution_failed, {:session_open, reason}}, %{snapshot | receipts: []}}
+
+      {:ok, session} ->
+        try do
+          {result, _final_session} =
+            Enum.reduce_while(transitions, {{:ok, snapshot}, session}, fn t, {{:ok, snap}, sess} ->
+              run_opts = Keyword.put(actuation_opts, :session, sess)
+
+              with {:ok, candidate} <- plan_transition(snap, t.ordinal),
+                   {:ok, new_snap, receipt} <- apply_transition(snap, candidate, run_opts) do
+                new_sess =
+                  case actuation_observation(receipt) do
+                    {:ok, obs} -> Session.update_observation(sess, obs)
+                    :error -> sess
+                  end
+
+                {:cont, {{:ok, new_snap}, new_sess}}
+              else
+                {:error, reason} ->
+                  {:halt, {{:error, reason, snap}, sess}}
+
+                {:error, reason, receipt} ->
+                  {:halt, {{:error, reason, %{snap | receipts: [receipt | snap.receipts]}}, sess}}
+              end
+            end)
+
+          result
+        after
+          _ = Session.close(session, bridge_timeout)
+        end
+    end
+  end
+
+  # Re-reads the just-written beam4pm-brce/v1 actuation receipt (if one was
+  # actually written for this process-level receipt) to pull out its real
+  # observation_after - used only to thread the session's last_observation
+  # forward between continuous-mode transitions, never as a consequence
+  # identity (that stays run_id/receipt_path throughout this module).
+  defp actuation_observation(%{actuation: %{receipt_path: path}}) when is_binary(path) do
+    with true <- File.exists?(path),
+         {:ok, raw} <- File.read(path),
+         {:ok, decoded} <- JSON.decode(raw),
+         obs when is_map(obs) <- decoded["execution"]["observation_after"] do
+      {:ok, obs}
+    else
+      _ -> :error
+    end
+  end
+
+  defp actuation_observation(_), do: :error
 
   @doc "The graph-derived process contracts rendered into this build."
   @spec contracts() :: map()
