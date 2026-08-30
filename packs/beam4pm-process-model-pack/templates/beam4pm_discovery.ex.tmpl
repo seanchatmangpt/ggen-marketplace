@@ -21,7 +21,9 @@ defmodule BeamPM.Discovery do
 
     * `traces_from_events/2` - group OCEL events into case-centric traces
     * `dfg_from_traces/1` - count directly-follows edges across traces
-    * `conformance/2` - fitness of one trace against a directly-follows edge set
+    * `conformance/2` - fitness AND precision of one trace against a
+      directly-follows edge set (precision delegated to `BeamPM.Precision`,
+      never re-derived here - see that module for the formula)
 
   All outputs are constructed through the generated validating `new/1`
   constructors, never as raw structs. Admitted record types this module
@@ -30,6 +32,7 @@ defmodule BeamPM.Discovery do
   {% for r in records %}  * `{{ r.record_name }}` - {{ r.record_doc }}
   {% endfor %}"""
 
+  alias BeamPM.Precision
   alias BeamPM.Types.ConformanceResult
   alias BeamPM.Types.DfgEdge
   alias BeamPM.Types.LogTrace
@@ -91,12 +94,14 @@ defmodule BeamPM.Discovery do
   end
 
   @doc """
-  Fitness of one trace against a directly-follows edge set.
+  Fitness AND precision of one trace against a directly-follows edge set.
 
   `trace_id` is the trace's `case_id`. Fitness is the fraction (a float) of
   the trace's adjacent activity pairs present in the edge set, and `1.0` for
-  traces with fewer than 2 activities. Precision is left `nil` - it is
-  honestly not computed in this slice.
+  traces with fewer than 2 activities. Precision is `BeamPM.Precision`'s ETC
+  (escaping-edge) score for the same trace against the same edge set - see
+  that module's `@moduledoc` for the exact formula and its provenance. This
+  used to leave `precision` unset; it is now always a computed float.
   """
   @spec conformance([DfgEdge.t()], LogTrace.t()) :: ConformanceResult.t()
   def conformance(edges, %LogTrace{} = trace) when is_list(edges) do
@@ -117,7 +122,11 @@ defmodule BeamPM.Discovery do
           present / length(pairs)
       end
 
-    {:ok, result} = ConformanceResult.new(%{trace_id: trace.case_id, fitness: fitness})
+    precision = Precision.etc_precision(edges, trace)
+
+    {:ok, result} =
+      ConformanceResult.new(%{trace_id: trace.case_id, fitness: fitness, precision: precision})
+
     result
   end
 

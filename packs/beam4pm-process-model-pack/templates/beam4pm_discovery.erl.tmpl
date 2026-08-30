@@ -114,7 +114,10 @@ dfg_from_traces(Traces) ->
 %%
 %% fitness is the fraction (always a float) of the trace's adjacent activity
 %% pairs present in the edge set, and 1.0 for traces with fewer than two
-%% activities. precision is honestly left undefined in this slice.
+%% activities. precision is beam4pm_precision's ETC (escaping-edge) score for
+%% the same trace against the same edge set (see that module for the exact
+%% formula and its provenance) -- it used to be left undefined; it is now
+%% always a computed float.
 -spec conformance([beam4pm_types:dfg_edge()], beam4pm_types:log_trace()) ->
           beam4pm_types:conformance_result().
 conformance(Edges, Trace) ->
@@ -130,8 +133,9 @@ conformance(Edges, Trace) ->
                 Present = length([P || P <- Pairs, maps:is_key(P, EdgeSet)]),
                 Present / length(Pairs)
         end,
+    Precision = beam4pm_precision:etc_precision(Edges, Trace),
     {ok, Result} = beam4pm_types:new_conformance_result(
-        #{trace_id => log_trace_case_id(Trace), fitness => Fitness}),
+        #{trace_id => log_trace_case_id(Trace), fitness => Fitness, precision => Precision}),
     Result.
 
 %% Internal: multiset of adjacent pairs folded into a counting map.
