@@ -106,23 +106,29 @@ sparql:
 -type {{ r.record_name }}() :: #{{ r.record_name }}{}.
 
 -spec new_{{ r.record_name }}(map()) -> {ok, {{ r.record_name }}()} | {error, {missing_field, atom()}}.
-{%- set required_fields_str = rfields | filter(attribute="field_required", value="true") %}
-{%- set required_fields_bool = rfields | filter(attribute="field_required", value=true) %}
-{%- set required_fields = required_fields_str | concat(with=required_fields_bool) %}
-new_{{ r.record_name }}(Map) ->
-{%- for f in required_fields %}
+%% Required-field checks iterate rfields in admitted field_order with an
+%% inline required test (string "true" OR boolean true), exactly mirroring
+%% the Elixir projection's cond ordering -- a prior revision concatenated
+%% the string-literal-required fields before the boolean-literal-required
+%% ones, so a consumer graph mixing literal types would report a DIFFERENT
+%% first {missing_field, _} in each language (Q2 cross-language identity
+%% review, 2026-08-30). The is_map/1 guard matches the Elixir projection's
+%% own is_map guard: a non-map argument is a function_clause error in both
+%% languages, never a badarg deep inside maps:is_key/2.
+new_{{ r.record_name }}(Map) when is_map(Map) ->
+{%- for f in rfields %}{% if f.field_required == "true" or f.field_required == true %}
     case maps:is_key({{ f.field_name }}, Map) of
         false -> {error, {missing_field, {{ f.field_name }}}};
         true ->
-{%- endfor %}
+{%- endif %}{%- endfor %}
     {ok, #{{ r.record_name }}{
 {%- for f in rfields %}
         {{ f.field_name }} = maps:get({{ f.field_name }}, Map, undefined){% if not loop.last %},{% endif %}
 {%- endfor %}
     }}
-{%- for f in required_fields %}
+{%- for f in rfields %}{% if f.field_required == "true" or f.field_required == true %}
     end
-{%- endfor %}.
+{%- endif %}{%- endfor %}.
 
 {% endfor -%}
 %% Schema-driven positional accessor BODIES (the -export attributes for
@@ -188,7 +194,8 @@ new_{{ r.record_name }}(Map) ->
 reconcile_billing(_Events, _EntitlementId, _MetricName, {PeriodStart, PeriodEnd})
         when PeriodStart >= PeriodEnd ->
     {error, {invalid_period, PeriodStart, PeriodEnd}};
-reconcile_billing(Events, EntitlementId, MetricName, {PeriodStart, PeriodEnd}) ->
+reconcile_billing(Events, EntitlementId, MetricName, {PeriodStart, PeriodEnd})
+        when is_list(Events) ->
     InScope = lists:filter(
         fun(Ev) ->
             usage_event_entitlement_id(Ev) =:= EntitlementId

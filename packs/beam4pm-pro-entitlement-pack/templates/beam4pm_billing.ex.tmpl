@@ -137,10 +137,17 @@ defmodule BeamPM.Billing do
 
   def reconcile(events, entitlement_id, metric_name, {period_start, period_end})
       when is_list(events) do
+    # Partition equality uses ===/2 (strict), mirroring the Erlang
+    # projection's =:= exactly: under ==/2 an integer partition key matched
+    # a float one (1 == 1.0), so the two language projections produced
+    # DIFFERENT billing totals from identical (contract-violating but
+    # constructable) inputs -- found live by the Q2 cross-language identity
+    # review, 2026-08-30. For the in-contract binary keys ===/2 and ==/2
+    # are indistinguishable.
     in_scope =
       Enum.filter(events, fn %UsageEvent{} = event ->
-        event.entitlement_id == entitlement_id and
-          event.metric_name == metric_name and
+        event.entitlement_id === entitlement_id and
+          event.metric_name === metric_name and
           event.occurred_at >= period_start and
           event.occurred_at < period_end
       end)
