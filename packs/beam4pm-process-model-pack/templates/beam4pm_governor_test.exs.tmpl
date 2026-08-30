@@ -1,0 +1,122 @@
+---
+to: generated/elixir/test/beam4pm_governor_test.exs
+sparql:
+  contract: |
+    PREFIX bpm: <https://ggen.dev/ontology/beam-process-model#>
+    SELECT ?process_id ?initial_state ?runtime_digest WHERE {
+      ?c a bpm:ProcessContract ;
+         bpm:processId ?process_id ;
+         bpm:initialState ?initial_state ;
+         bpm:runtimeDigest ?runtime_digest .
+    } ORDER BY ?process_id LIMIT 1
+---
+# GENERATED Chicago tests for the governed execution boundary. Do not edit.
+defmodule BeamPM.GovernorTest do
+  use ExUnit.Case, async: false
+
+  alias BeamPM.Governor
+  alias BeamPM.Runtime
+  alias BeamPM.RuntimeSupervisor
+
+  @process_id "{{ contract[0].process_id }}"
+
+  defp boundary(transition_id, subject, snapshot, key) do
+    plan = Governor.plan_candidate("planner-a", subject, [transition_id])
+    policy = Governor.policy_decision(plan, [transition_id])
+    spec = Governor.transitions()[transition_id]
+    authority = Governor.authority_grant("grant-" <> transition_id, subject, spec.capability, "nonce-1")
+    intent = Governor.intent(subject, transition_id, snapshot.state_hash, key, plan.plan_digest)
+    {plan, policy, authority, intent}
+  end
+
+  test "planner output has zero ambient execution authority" do
+    {:ok, snapshot} = Governor.initial_snapshot(@process_id, "case-1")
+    [transition_id | _] = Map.keys(Governor.transitions()) |> Enum.sort()
+    plan = Governor.plan_candidate("planner-a", "case-1", [transition_id])
+    policy = Governor.policy_decision(plan, [])
+    spec = Governor.transitions()[transition_id]
+    authority = Governor.authority_grant("grant-x", "case-1", spec.capability, "nonce-x")
+    intent = Governor.intent("case-1", transition_id, snapshot.state_hash, "intent-1", plan.plan_digest)
+
+    assert {:refused, :policy_refused} = Governor.apply_transition(@process_id, snapshot, intent, policy, authority)
+    assert plan.authority == :none
+  end
+
+  test "stale exact-subject state is refused before consequence" do
+    {:ok, snapshot} = Governor.initial_snapshot(@process_id, "case-2")
+    transition_id = Governor.transitions() |> Enum.find(fn {_id, spec} -> spec.from == snapshot.state end) |> elem(0)
+    {_plan, policy, authority, intent0} = boundary(transition_id, "case-2", snapshot, "intent-2")
+    intent = %{intent0 | expected_before_hash: String.duplicate("0", 64)}
+
+    assert {:refused, :stale_expected_state} = Governor.apply_transition(@process_id, snapshot, intent, policy, authority)
+  end
+
+  test "wrong capability and revoked authority are refused" do
+    {:ok, snapshot} = Governor.initial_snapshot(@process_id, "case-3")
+    transition_id = Governor.transitions() |> Enum.find(fn {_id, spec} -> spec.from == snapshot.state end) |> elem(0)
+    {plan, policy, authority0, intent} = boundary(transition_id, "case-3", snapshot, "intent-3")
+    wrong = Governor.authority_grant("wrong", "case-3", "not-" <> authority0.capability, "nonce")
+
+    assert {:refused, :capability_mismatch} = Governor.apply_transition(@process_id, snapshot, intent, policy, wrong)
+    assert {:refused, :inactive_authority} = Governor.apply_transition(@process_id, snapshot, intent, policy, Governor.revoke(authority0))
+    assert plan.authority == :none
+  end
+
+  test "real OTP runtime executes once and idempotently replays duplicate intent" do
+    {:ok, pid} = Runtime.start_link(process_id: @process_id, subject: "case-4")
+    snapshot = Runtime.snapshot(pid)
+    transition_id = Governor.transitions() |> Enum.find(fn {_id, spec} -> spec.from == snapshot.state end) |> elem(0)
+    {_plan, policy, authority, intent} = boundary(transition_id, "case-4", snapshot, "intent-4")
+
+    assert {:ok, after1, receipt1, :executed} = Runtime.execute(pid, intent, policy, authority)
+    assert after1.state != snapshot.state
+    assert :ok = Governor.verify_receipt(receipt1)
+
+    assert {:ok, after2, receipt2, :idempotent_replay} = Runtime.execute(pid, intent, policy, authority)
+    assert after2 == after1
+    assert receipt2 == receipt1
+    assert Runtime.receipts(pid) == [receipt1]
+  end
+
+  test "receipt replay refuses tampering, stale order, and unknown authority" do
+    {:ok, pid} = Runtime.start_link(process_id: @process_id, subject: "case-5")
+    initial = Runtime.snapshot(pid)
+    transition_id = Governor.transitions() |> Enum.find(fn {_id, spec} -> spec.from == initial.state end) |> elem(0)
+    {_plan, policy, authority, intent} = boundary(transition_id, "case-5", initial, "intent-5")
+    {:ok, after_state, receipt, :executed} = Runtime.execute(pid, intent, policy, authority)
+
+    assert {:ok, ^after_state} = Governor.replay(@process_id, initial, [receipt], [authority.authority_digest])
+    assert {:refused, :unknown_authority} = Governor.replay(@process_id, initial, [receipt], [])
+
+    forged = %{receipt | after_state: "forged"}
+    assert {:refused, :forged_or_corrupt_receipt} = Governor.replay(@process_id, initial, [forged], [authority.authority_digest])
+
+    assert {:refused, :stale_receipt} = Governor.replay(@process_id, after_state, [receipt], [authority.authority_digest])
+  end
+
+  test "OTP one-for-one supervision observes crash and restart consequence" do
+    name = :beam4pm_governed_runtime_test
+    {:ok, supervisor} = RuntimeSupervisor.start_link(runtime: [process_id: @process_id, subject: "case-6", name: name])
+    old_pid = Process.whereis(name)
+    assert is_pid(old_pid)
+    ref = Process.monitor(old_pid)
+
+    Runtime.crash(old_pid)
+    assert_receive {:DOWN, ^ref, :process, ^old_pid, _reason}, 1_000
+
+    new_pid = await_new_pid(name, old_pid, 100)
+    assert is_pid(new_pid)
+    assert new_pid != old_pid
+    assert Runtime.snapshot(new_pid).state == Governor.contracts()[@process_id].initial_state
+
+    Supervisor.stop(supervisor)
+  end
+
+  defp await_new_pid(_name, _old, 0), do: nil
+  defp await_new_pid(name, old, attempts) do
+    case Process.whereis(name) do
+      pid when is_pid(pid) and pid != old -> pid
+      _ -> Process.sleep(10); await_new_pid(name, old, attempts - 1)
+    end
+  end
+end
