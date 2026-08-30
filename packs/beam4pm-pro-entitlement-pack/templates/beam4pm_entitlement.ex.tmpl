@@ -150,12 +150,26 @@ defmodule BeamPM.Entitlement do
 
   This validates BOTH classes with a typed refusal before any watermark
   comparison happens, closing both bugs at the same point.
+
+  Q2 cross-language identity fix (2026-08-30): an earlier revision's first
+  clause matched only the literal `""`, so a `nil` event_id (which passes
+  the constructor's presence-only check) fell through to the regex clause
+  and, with a valid `effective_at`, returned `:ok` -- silently admitting a
+  nil audit link into the watermark -- while the Erlang projection crashed
+  with badarg on the same input. Both projections now treat a NON-BINARY
+  value the same as the malformed value of that field: non-binary/empty
+  `event_id` -> `:empty_event_id`; non-binary/non-ISO8601 `effective_at`
+  -> `:invalid_effective_at`. Identical typed refusals in both languages,
+  no crash path, no silent admit; behavior on well-formed binary inputs is
+  unchanged.
   """
   @spec validate_event_shape(EntitlementEvent.t()) :: :ok | {:error, {:malformed_event, atom()}}
-  def validate_event_shape(%EntitlementEvent{event_id: ""}), do: {:error, {:malformed_event, :empty_event_id}}
+  def validate_event_shape(%EntitlementEvent{event_id: event_id})
+      when not is_binary(event_id) or byte_size(event_id) == 0,
+      do: {:error, {:malformed_event, :empty_event_id}}
 
   def validate_event_shape(%EntitlementEvent{effective_at: effective_at}) do
-    if Regex.match?(@iso8601_re, effective_at) do
+    if is_binary(effective_at) and Regex.match?(@iso8601_re, effective_at) do
       :ok
     else
       {:error, {:malformed_event, :invalid_effective_at}}
@@ -191,7 +205,12 @@ defmodule BeamPM.Entitlement do
 
   def reconcile_entitlement(%EntitlementState{} = state, %EntitlementEvent{} = event) do
     with :ok <- validate_event_shape(event) do
-    if state.entitlement_id != event.entitlement_id do
+    # !==/2 (strict), mirroring the Erlang projection's =:= partition check
+    # exactly -- under !=/2 an integer id and a float id (1 vs 1.0) counted
+    # as the SAME partition in this language only (Q2 cross-language
+    # identity review, 2026-08-30). Indistinguishable for in-contract
+    # binary ids.
+    if state.entitlement_id !== event.entitlement_id do
       {:error, {:wrong_partition, state.entitlement_id, event.entitlement_id}}
     else
       pos = {event.effective_at, event.event_id}
