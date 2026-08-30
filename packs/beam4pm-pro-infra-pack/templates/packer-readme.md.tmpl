@@ -42,6 +42,28 @@ Both `.pkr.hcl` files here are generated consequences of the consumer RDF
 graph (`b4pi:PackerImage` facts) via `ggen sync run` -- edit the graph and
 regenerate; never hand-edit these files.
 
+## Files
+
+| File | Source template | Content |
+|---|---|---|
+| `beam4pm-image.pkr.hcl` | `packer-beam4pm-image.pkr.hcl.tmpl` | `packer`/`source`/`build` blocks. Fact-driven provisioning content (the systemd unit body, the `docker pull` line, the provenance-facts write) stays inline here as HCL heredoc content. |
+| `setup.sh` | `packer-setup.sh.tmpl` | Static OS-provisioning script (package install, Docker daemon enablement), uploaded to the build VM by its own `file` provisioner. Carries zero `b4pi:*` fact interpolation, so it renders byte-identically for any consumer's `b4pi:PackerImage` individual. |
+| `variables.pkr.hcl` | `packer-variables.pkr.hcl.tmpl` | Variable defaults projected from the graph. |
+| `README.md` | `packer-readme.md.tmpl` | This document. |
+
+Packer provisioning is split across two files by what each provisioner
+content depends on. The fully static half -- installing Docker and enabling
+its daemon, with no per-consumer fact or build-time variable in it -- lives
+in `setup.sh` and is uploaded verbatim by a `file` provisioner. The
+fact-driven half -- the systemd unit (keyed on `b4pi:containerName` /
+`b4pi:servicePort`), the `docker pull ${var.container_image}` line, and the
+provenance-facts write -- stays inline inside `beam4pm-image.pkr.hcl`'s own
+heredoc content, because Packer's `file` provisioner copies externally
+sourced bytes verbatim and never HCL-interpolates `${var.*}` inside them:
+anything needing a build-time `${var.container_image}` or a per-render
+templated fact value has to stay where Tera and Packer both still evaluate
+it.
+
 ## Build
 
 Requires real GCP credentials (`gcloud auth application-default login`),
