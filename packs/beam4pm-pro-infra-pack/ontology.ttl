@@ -1,0 +1,171 @@
+# beam4pm-pro-infra-pack vocabulary (b4pi:) -- Cloud Run deployment facts.
+#
+# Schema-only: this file declares classes and properties and ships ZERO
+# individuals (the dspy-pack / github-actions-pack v0.2.0 contract). A
+# consumer project mints its own b4pi:Deployment individual, under the
+# consumer's OWN namespace, in the consumer's own ontology fragment, and
+# this pack's templates render a Terraform module from those facts.
+#
+# Datatype conventions (Turtle):
+#   - counts/ports are bare integer literals (0, 3, 8080) -- bare integers
+#     are already xsd:integer by Turtle spec; never write "0"^^xsd:integer.
+#   - b4pi:allowUnauthenticated is a bare boolean literal (true / false).
+#   - cpu/memory limits are STRINGS ("1", "512Mi") because Cloud Run's
+#     resource-limit values are unit-suffixed strings, not numbers.
+
+@prefix b4pi: <http://seanchatmangpt.github.io/packs/beam4pm-pro-infra#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+#################################################################
+# Classes
+#################################################################
+
+b4pi:Deployment a rdfs:Class ;
+    rdfs:label "Cloud Run deployment" ;
+    rdfs:comment "One deployable Cloud Run v2 service for a beam4pm_pro consumer. Templates assume exactly one b4pi:Deployment per consumer graph (the rendered module paths are fixed at infra/gcp/cloudrun/); the deterministic first row after ORDER BY(?serviceName) is rendered. All nine required properties below are enforced by gates/010_required.rq at ggen sync time -- a missing fact is a refusal, not a silently-defaulted render." .
+
+#################################################################
+# Required properties (all enforced by gates/010_required.rq)
+#################################################################
+
+b4pi:serviceName a rdf:Property ;
+    rdfs:domain b4pi:Deployment ;
+    rdfs:range  xsd:string ;
+    rdfs:comment "Cloud Run service name (lowercase RFC-1035 label, e.g. \"beam4pm-pro\"). Becomes the default of Terraform variable service_name." .
+
+b4pi:region a rdf:Property ;
+    rdfs:domain b4pi:Deployment ;
+    rdfs:range  xsd:string ;
+    rdfs:comment "GCP region for the service (e.g. \"us-central1\"). Default of variable region." .
+
+b4pi:containerImage a rdf:Property ;
+    rdfs:domain b4pi:Deployment ;
+    rdfs:range  xsd:string ;
+    rdfs:comment "Fully-qualified container image reference (e.g. \"ghcr.io/seanchatmangpt/beam4pm:latest\"). Default of variable container_image. Note: an actual Cloud Run deploy requires the image to be pullable from Artifact Registry / gcr.io -- a ghcr.io reference names the canonical published artifact and must be mirrored before any real apply (which is out of this pack's scope and authority)." .
+
+b4pi:cpuLimit a rdf:Property ;
+    rdfs:domain b4pi:Deployment ;
+    rdfs:range  xsd:string ;
+    rdfs:comment "Cloud Run CPU limit as the platform's string form (\"1\", \"2\", \"1000m\"). Default of variable cpu_limit." .
+
+b4pi:memoryLimit a rdf:Property ;
+    rdfs:domain b4pi:Deployment ;
+    rdfs:range  xsd:string ;
+    rdfs:comment "Cloud Run memory limit as the platform's unit-suffixed string form (\"512Mi\", \"1Gi\"). Default of variable memory_limit." .
+
+b4pi:minInstances a rdf:Property ;
+    rdfs:domain b4pi:Deployment ;
+    rdfs:range  xsd:integer ;
+    rdfs:comment "Minimum instance count (bare integer literal; 0 = scale to zero). Default of variable min_instances." .
+
+b4pi:maxInstances a rdf:Property ;
+    rdfs:domain b4pi:Deployment ;
+    rdfs:range  xsd:integer ;
+    rdfs:comment "Maximum instance count (bare integer literal). Default of variable max_instances." .
+
+b4pi:port a rdf:Property ;
+    rdfs:domain b4pi:Deployment ;
+    rdfs:range  xsd:integer ;
+    rdfs:comment "Container port the image listens on (bare integer literal, e.g. 8080). Default of variable container_port; also the TCP startup-probe port." .
+
+b4pi:allowUnauthenticated a rdf:Property ;
+    rdfs:domain b4pi:Deployment ;
+    rdfs:range  xsd:boolean ;
+    rdfs:comment "Whether allUsers is granted roles/run.invoker (bare boolean literal). false is the recommended posture (erlmcp reference module's default); the fact must still be stated explicitly -- an unstated exposure decision is a refusal, not an implicit false." .
+
+#################################################################
+# Optional properties
+#################################################################
+
+b4pi:purpose a rdf:Property ;
+    rdfs:domain b4pi:Deployment ;
+    rdfs:range  xsd:string ;
+    rdfs:comment "One-sentence statement of what this service is for; rendered into the generated README.md. Optional." .
+
+# ---------------------------------------------------------------------------
+# Packer/GCE-image vocabulary (stream I2 merge fragment)
+# ---------------------------------------------------------------------------
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+
+b4pi:PackerImage a owl:Class ;
+    rdfs:label "Packer GCE image build" ;
+    rdfs:comment "A Google Compute Engine custom-image build definition: a Debian base image plus Docker plus a pre-pulled beam4pm container wired into a systemd unit. Projected by templates/packer-beam4pm-image.pkr.hcl.tmpl and templates/packer-variables.pkr.hcl.tmpl into a real Packer googlecompute template." .
+
+# --- image identity -------------------------------------------------------
+
+b4pi:imageName a owl:DatatypeProperty ;
+    rdfs:domain b4pi:PackerImage ; rdfs:range xsd:string ;
+    rdfs:label "image base name" ;
+    rdfs:comment "Base name for the produced GCE image; a build timestamp is appended at packer build time. Must satisfy GCE image naming (lowercase, digits, hyphens)." .
+
+b4pi:imageFamily a owl:DatatypeProperty ;
+    rdfs:domain b4pi:PackerImage ; rdfs:range xsd:string ;
+    rdfs:label "image family" ;
+    rdfs:comment "GCE image family the produced image joins (consumers deploy family-latest)." .
+
+b4pi:imageDescription a owl:DatatypeProperty ;
+    rdfs:domain b4pi:PackerImage ; rdfs:range xsd:string ;
+    rdfs:label "image description" .
+
+# --- build-time facts -----------------------------------------------------
+
+b4pi:gcpProjectDefault a owl:DatatypeProperty ;
+    rdfs:domain b4pi:PackerImage ; rdfs:range xsd:string ;
+    rdfs:label "default GCP project id" ;
+    rdfs:comment "Default for the project_id Packer variable. A demo placeholder (e.g. beam4pm-pro-demo), never a real project id -- real builds override with -var project_id=..." .
+
+b4pi:buildZone a owl:DatatypeProperty ;
+    rdfs:domain b4pi:PackerImage ; rdfs:range xsd:string ;
+    rdfs:label "build zone" ;
+    rdfs:comment "GCP zone for the temporary Packer build instance." .
+
+b4pi:buildMachineType a owl:DatatypeProperty ;
+    rdfs:domain b4pi:PackerImage ; rdfs:range xsd:string ;
+    rdfs:label "build machine type" ;
+    rdfs:comment "Machine type for the temporary build instance (not the runtime machine type -- that is terraform-side, stream I1)." .
+
+b4pi:buildDiskGb a owl:DatatypeProperty ;
+    rdfs:domain b4pi:PackerImage ; rdfs:range xsd:integer ;
+    rdfs:label "build disk size (GB)" .
+
+b4pi:sourceImageFamily a owl:DatatypeProperty ;
+    rdfs:domain b4pi:PackerImage ; rdfs:range xsd:string ;
+    rdfs:label "source image family" ;
+    rdfs:comment "Public base image family the build starts from (e.g. debian-12)." .
+
+b4pi:sourceImageProject a owl:DatatypeProperty ;
+    rdfs:domain b4pi:PackerImage ; rdfs:range xsd:string ;
+    rdfs:label "source image project" ;
+    rdfs:comment "Project hosting the source image family (e.g. debian-cloud)." .
+
+b4pi:sshUsername a owl:DatatypeProperty ;
+    rdfs:domain b4pi:PackerImage ; rdfs:range xsd:string ;
+    rdfs:label "provisioning SSH username" .
+
+# --- baked container runtime ---------------------------------------------
+
+b4pi:containerImage a owl:DatatypeProperty ;
+    rdfs:domain b4pi:PackerImage ; rdfs:range xsd:string ;
+    rdfs:label "container image ref" ;
+    rdfs:comment "OCI image reference pre-pulled into the VM image and run by the systemd unit (e.g. ghcr.io/seanchatmangpt/beam4pm:latest). Becomes the default of the container_image Packer variable so a build can pin a digest/tag." .
+
+b4pi:containerName a owl:DatatypeProperty ;
+    rdfs:domain b4pi:PackerImage ; rdfs:range xsd:string ;
+    rdfs:label "container/systemd unit name" ;
+    rdfs:comment "Name used for both the docker container and the systemd unit (<name>.service)." .
+
+b4pi:servicePort a owl:DatatypeProperty ;
+    rdfs:domain b4pi:PackerImage ; rdfs:range xsd:integer ;
+    rdfs:label "service port" ;
+    rdfs:comment "TCP port published host:container by the systemd-managed docker run." .
+
+b4pi:serviceDescription a owl:DatatypeProperty ;
+    rdfs:domain b4pi:PackerImage ; rdfs:range xsd:string ;
+    rdfs:label "systemd unit Description=" .
+
+b4pi:networkTag a owl:DatatypeProperty ;
+    rdfs:domain b4pi:PackerImage ; rdfs:range xsd:string ;
+    rdfs:label "network tag" ;
+    rdfs:comment "GCE network tag applied to the temporary build instance (multi-valued). Firewall rules for the RUNTIME instance are terraform-side (stream I1)." .
