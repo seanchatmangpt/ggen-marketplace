@@ -80,24 +80,37 @@ defmodule BeamPM.DiscoveryTest do
            ] = seeded_edges()
   end
 
+  # Precision (BeamPM.Precision's ETC/escaping-edge score, adapted from
+  # ex4pm's real Ex4pmEngine.ETCPrecision) was wired into conformance/2
+  # alongside fitness; see beam4pm_precision.ex.tmpl's own moduledoc for the
+  # formula. Every expected value below is a real, by-hand computation over
+  # this test's own seeded model (out-degrees: receive=1, validate=1,
+  # approve=0) -- not asserted blind.
   test "conformance/2 fitness is exactly 1.0 (a float) for a fully fitting trace" do
     result = Discovery.conformance(seeded_edges(), trace!("c1", ["receive", "validate", "approve"]))
 
-    assert %ConformanceResult{trace_id: "c1", fitness: fitness, precision: nil} = result
+    # By hand: (receive,validate) known, enabled=1, escaping=max(0,1-1)=0.
+    # (validate,approve) known, enabled=1, escaping=0. total=2/0 -> precision=1.0.
+    assert %ConformanceResult{trace_id: "c1", fitness: fitness, precision: 1.0} = result
     assert fitness === 1.0
   end
 
   test "conformance/2 fitness is exactly 0.5 when one of two adjacent pairs is unknown" do
     result = Discovery.conformance(seeded_edges(), trace!("c9", ["receive", "validate", "reject"]))
 
-    assert %ConformanceResult{trace_id: "c9", fitness: fitness, precision: nil} = result
+    # By hand: (receive,validate) known, enabled=1, escaping=0.
+    # (validate,reject) NOT known, enabled=out_degree(validate)=1, escaping=1.
+    # total_enabled=2, total_escaping=1 -> precision=1.0-1/2=0.5.
+    assert %ConformanceResult{trace_id: "c9", fitness: fitness, precision: 0.5} = result
     assert fitness === 0.5
   end
 
   test "conformance/2 fitness is exactly 1.0 (a float) for a single-activity trace" do
     result = Discovery.conformance(seeded_edges(), trace!("c3", ["receive"]))
 
-    assert %ConformanceResult{trace_id: "c3", fitness: fitness, precision: nil} = result
+    # A single-activity trace has zero adjacent pairs -- honestly 1.0 (same
+    # convention fitness already uses: nothing observed, nothing escaped).
+    assert %ConformanceResult{trace_id: "c3", fitness: fitness, precision: 1.0} = result
     assert fitness === 1.0
     assert is_float(fitness)
   end
@@ -105,7 +118,7 @@ defmodule BeamPM.DiscoveryTest do
   test "conformance/2 fitness is exactly 1.0 (a float) for an empty edge set and a short trace" do
     result = Discovery.conformance([], trace!("c3", ["receive"]))
 
-    assert %ConformanceResult{trace_id: "c3", fitness: fitness, precision: nil} = result
+    assert %ConformanceResult{trace_id: "c3", fitness: fitness, precision: 1.0} = result
     assert fitness === 1.0
   end
 {% for r in records %}{% set mod_name = r.record_name | replace(from="_", to=" ") | title | replace(from=" ", to="") %}
