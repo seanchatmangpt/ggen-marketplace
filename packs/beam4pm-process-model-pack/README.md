@@ -51,6 +51,21 @@ each run a `records` + `fields` SPARQL query pair over the merged graph and rend
   not Tera) -- hash-chained `beam4pm-brce/v1` receipts, adapted from ex4pm's real
   `Ex4pm.Evidence.Replay.Chain`; purely additive (opt-in via `actuation_opts[:chain_id]`,
   automatically scoped per-process by `BeamPM.ProcessGovernor`).
+- `igniter/templates/beam4pm_rf1_dfg.ex.eex` + `_test.exs.eex`, `beam4pm_rf2_conformance.ex.eex`
+  + `_test.exs.eex`, `beam4pm_rf3_ocel.ex.eex` + `_test.exs.eex` (ggen_igniter, not Tera) --
+  Reactor-orchestrated, real-subprocess-oracle-backed validation of rust4pm's
+  (`process_mining` crate) documented function surface against canonical wasm4pm
+  datasets: RF1 = `discover_dfg`, RF2 = Alpha+++ discovery + `align_variants` +
+  `compute_fitness` (real 1434-trace `receipt.xes`), RF3 = OCEL 2.0 slim bindings
+  (`bindings::slim_link_ocel`, `SlimLinkedOCEL`) including three real adversarial
+  fixtures from `wasm4pm/fixtures/negative/` (n05, n13, n14). Every scenario has a
+  named `compensate/2` falsify path writing a typed refusal receipt. RF1/RF3 are
+  fully static templates (oracle-observed constants baked in from real runs, like
+  `beam4pm_receipt_chain.ex.eex`); RF2's template genuinely queries
+  `rf2:ConformanceStream` (`igniter/queries/rf2_spec.rq`) for the oracle/wire-op/
+  dataset/module identity via real oxigraph. Adapted from the
+  rust4pm-Reactor-validation swarm, independently re-verified (clean cargo
+  rebuilds, fresh `mix test`) before integration.
 
 `to:` paths in every template above are relative to the **consuming project's root**
 (e.g. `src/...`, not `../../src/...`) -- ggen resolves
