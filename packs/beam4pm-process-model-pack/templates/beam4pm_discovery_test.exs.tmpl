@@ -19,6 +19,7 @@ defmodule BeamPM.DiscoveryTest do
   alias BeamPM.Types.DfgEdge
   alias BeamPM.Types.LogTrace
   alias BeamPM.Types.OcelEvent
+  alias BeamPM.Types.ProcessVariant
 
   @case_attr_key "case_id"
 
@@ -120,6 +121,42 @@ defmodule BeamPM.DiscoveryTest do
 
     assert %ConformanceResult{trace_id: "c3", fitness: fitness, precision: 1.0} = result
     assert fitness === 1.0
+  end
+
+  test "variants_from_traces/1 groups traces by identical activity_sequence, sorted, with a 1-based rank id" do
+    # Seeded traces: c1=[receive,validate,approve], c2=[receive,validate],
+    # c3=[receive] -- 3 distinct sequences, each frequency 1. Sorted by
+    # activity_sequence: [receive] < [receive,validate] < [receive,validate,approve].
+    traces = Discovery.traces_from_events(seeded_events(), @case_attr_key)
+
+    assert [
+             %ProcessVariant{variant_id: "1", activity_sequence: ["receive"], frequency: 1},
+             %ProcessVariant{
+               variant_id: "2",
+               activity_sequence: ["receive", "validate"],
+               frequency: 1
+             },
+             %ProcessVariant{
+               variant_id: "3",
+               activity_sequence: ["receive", "validate", "approve"],
+               frequency: 1
+             }
+           ] = Discovery.variants_from_traces(traces)
+  end
+
+  test "variants_from_traces/1 collapses traces sharing the exact same activity_sequence into one variant" do
+    t1 = trace!("t1", ["x", "y"])
+    t2 = trace!("t2", ["x", "y"])
+    t3 = trace!("t3", ["z"])
+
+    assert [
+             %ProcessVariant{activity_sequence: ["x", "y"], frequency: 2},
+             %ProcessVariant{activity_sequence: ["z"], frequency: 1}
+           ] = Discovery.variants_from_traces([t1, t2, t3])
+  end
+
+  test "variants_from_traces/1 returns an empty list for no traces" do
+    assert Discovery.variants_from_traces([]) == []
   end
 {% for r in records %}{% set mod_name = r.record_name | replace(from="_", to=" ") | title | replace(from=" ", to="") %}
   test "admitted record type {{ r.record_name }} backs the discovery API with a generated struct module" do
