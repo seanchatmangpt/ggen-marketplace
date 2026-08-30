@@ -49,11 +49,15 @@ defmodule BeamPM.PI3FalsifierTest do
       (namespace contamination between the case-id and activity-name
       spaces), and a 2000-case/4000-event scale run (accidental global-
       adjacency computation that only becomes statistically visible at
-      scale). Closes with a permanent non-vacuousness regression: a
-      deliberately edge-removed expected set is asserted NOT to match real
-      discovery output, so the equality assertions used throughout this
-      suite are proven sensitive to what they compare against, not merely
-      true by construction.
+      scale). Closes with a permanent non-vacuousness regression scoped to
+      the KNOWN SEEDED PROCESS half specifically: a deliberately
+      edge-removed copy of `@true_process_edges` is asserted NOT to match
+      real discovery output, proving that ONE equality assertion is
+      sensitive to what it compares against, not merely true by
+      construction. It does not, by itself, establish the same for the
+      other equality assertions in this file (concurrent/stress/lockstep/
+      large-scale) - each of those already carries its own named-spurious-
+      edge or exact-frequency falsifier instead.
 
   REQUIRED FIELD NAMES (a disclosed, un-enforced constraint on the admitted
   graph - not derived from the `fields` SPARQL binding the Erlang sibling
@@ -66,10 +70,20 @@ defmodule BeamPM.PI3FalsifierTest do
   `conformance_result` (`trace_id`, `fitness`, `precision`). No gate in
   this pack enforces those exact names - a consumer admitting an
   equivalent field under a different name (e.g. `bpm:fieldName
-  "timestamp"` instead of `"event_time"`) will not fail admission, but
-  every fixture-construction call in this suite will raise a real
-  `KeyError` against the `BeamPM.Types.*` structs `ggen sync run`
-  regenerates for that consumer.
+  "timestamp"` instead of `"event_time"`) will not fail admission.
+  Reproduced, not predicted, for that exact mutation: `OcelEvent.new/1`
+  does not raise for a missing field - it returns `{:error,
+  {:missing_field, atom()}}` (see `beam4pm_types.ex.tmpl`) - so this
+  suite's own `event!/4` helper (`{:ok, event} = OcelEvent.new(...)`)
+  fails with a real `MatchError` against that tuple. The Erlang sibling
+  template's identical mutation fails earlier and differently: the whole
+  project fails to COMPILE, because `beam4pm_discovery.erl.tmpl` hardcodes
+  the same field name in its own generated body rather than deriving it
+  from `fields`. Neither failure shape is guaranteed to be the first one a
+  future field rename hits, across every generated module this pack
+  ships - the guarantee this disclosure makes is that SOME real,
+  non-obvious failure follows, not a clean gate-caught refusal, and not
+  the precise shape of every possible one.
   """
 
   use ExUnit.Case, async: true
@@ -757,6 +771,14 @@ defmodule BeamPM.PI3FalsifierTest do
     # name in case "other") runs its own sequence a -> b -> c. Case "other"
     # runs pay -> ship, i.e. activity "pay" really occurs, under a DIFFERENT
     # case_id ("other").
+    #
+    # The expected trace order below, ["other", "pay"], is case_id-
+    # lexicographic, NOT first-occurrence order (case "pay" is the one that
+    # occurs first, at t=0): traces_from_events/2 sorts by case_id, matching
+    # @known_cases' own comment ("listed in case_id order, which is also the
+    # order traces_from_events/2 returns them in") -- this fixture is the
+    # first one in the file where case_id order and first-occurrence order
+    # actually diverge, so it is the real falsifier of that convention.
     events =
       [
         event!("e0", "a", ts(0), %{@case_attr_key => "pay"}),
@@ -826,6 +848,13 @@ defmodule BeamPM.PI3FalsifierTest do
       Enum.sort_by(base, fn e -> {e.event_type, e.event_id} end)
     ]
 
+    # Same distinctness self-check the file's other order-independence tests
+    # use: without it, this test would silently lose coverage of a
+    # permutation that happened to coincide with another, while staying
+    # green.
+    orderings = Enum.map(permutations, fn p -> Enum.map(p, fn e -> e.event_id end) end)
+    assert length(Enum.uniq(orderings)) == 4
+
     results =
       Enum.map(permutations, fn p ->
         p
@@ -837,13 +866,17 @@ defmodule BeamPM.PI3FalsifierTest do
   end
 
   test "non-vacuousness: discovered edges do NOT match a deliberately edge-removed expected set" do
-    # Real, permanent regression proof that the two-sided equality assertion
-    # in the KNOWN SEEDED PROCESS half is not vacuously true: if discovery
-    # ever regressed to drop @true_process_edges' first edge, this comparison
-    # against the (deliberately wrong) edge-removed truth set would then
-    # SUCCEED where it must not -- so THIS test fails the moment that
-    # happens, rather than relying on a one-time manual check that proved it
-    # once and was never re-run.
+    # Real, permanent regression proof that ONE specific two-sided equality
+    # assertion -- the KNOWN SEEDED PROCESS half's @true_process_edges check
+    # -- is not vacuously true: if discovery ever regressed to drop
+    # @true_process_edges' first edge, this comparison against the
+    # (deliberately wrong) edge-removed truth set would then SUCCEED where
+    # it must not -- so THIS test fails the moment that happens, rather than
+    # relying on a one-time manual check that proved it once and was never
+    # re-run. This does NOT, by itself, prove the other equality assertions
+    # in this file (concurrent/stress/lockstep/large-scale) are equally
+    # non-vacuous -- each of those already carries its own named-spurious-
+    # edge or exact-frequency falsifier instead; see the moduledoc.
     [removed_edge | _] = @true_process_edges
     wrong_truth = @true_process_edges |> MapSet.new() |> MapSet.delete(removed_edge)
 

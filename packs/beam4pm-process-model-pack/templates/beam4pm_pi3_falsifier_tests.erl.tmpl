@@ -52,11 +52,15 @@ sparql:
 %%     IDENTICAL activity sequences interleaved in exact lockstep, a case_id
 %%     that is itself a valid activity name elsewhere in the same log
 %%     (namespace contamination), and a 2000-case/4000-event scale run.
-%%     Closes with a permanent non-vacuousness regression: a deliberately
-%%     edge-removed expected set is asserted NOT to match real discovery
-%%     output, so the equality assertions used throughout this suite are
-%%     proven sensitive to what they compare against, not merely true by
-%%     construction.
+%%     Closes with a permanent non-vacuousness regression scoped to the
+%%     KNOWN SEEDED PROCESS half specifically: a deliberately edge-removed
+%%     copy of true_process_edges/0 is asserted NOT to match real discovery
+%%     output, proving that ONE equality assertion is sensitive to what it
+%%     compares against, not merely true by construction. It does not, by
+%%     itself, establish the same for the other equality assertions in this
+%%     file (concurrent/stress/lockstep/large-scale) -- each of those
+%%     already carries its own named-spurious-edge or exact-frequency
+%%     falsifier instead.
 %%
 %% REQUIRED FIELD NAMES (a disclosed, un-enforced constraint on the admitted
 %% graph): every fixture in this suite constructs and pattern-matches on
@@ -70,9 +74,19 @@ sparql:
 %% derivation. No gate in this pack enforces those exact names -- a
 %% consumer admitting an equivalent field under a different name (e.g.
 %% bpm:fieldName "timestamp" instead of "event_time") will not fail
-%% admission, but every fixture-construction call in this suite will crash
-%% with a real {badmatch, {error, {missing_field, _}}} against the records
-%% `ggen sync run` regenerates for that consumer.
+%% admission. Reproduced, not predicted, for that exact mutation: the
+%% WHOLE PROJECT fails to COMPILE, because the sibling
+%% beam4pm_discovery.erl.tmpl module hardcodes the same field name in its
+%% own generated body (traces_from_events/2 calls ocel_event_event_time/1
+%% directly) rather than deriving it from `fields` -- rebar3 reports
+%% "function ocel_event_event_time/1 undefined" in beam4pm_discovery.erl,
+%% well before this suite's own fixture-construction helpers (which, in
+%% isolation, would instead hit {badmatch, {error, {missing_field, _}}})
+%% ever run. The Elixir sibling template's identical mutation fails
+%% differently (a real MatchError from OcelEvent.new/1 -- see that
+%% template's own REQUIRED FIELD NAMES paragraph); the guarantee here is
+%% that SOME real, non-obvious failure follows a name mismatch, not a
+%% clean gate-caught refusal, and not the same shape in every language.
 
 -module(beam4pm_pi3_falsifier_tests).
 
@@ -652,6 +666,13 @@ case_id_activity_name_collision_test() ->
     %% activity name in case <<"other">>) runs its own sequence a -> b -> c.
     %% Case <<"other">> runs pay -> ship, i.e. activity <<"pay">> really
     %% occurs, under a DIFFERENT case_id (<<"other">>).
+    %%
+    %% The expected order below, [<<"other">>, <<"pay">>], is case_id-
+    %% lexicographic, NOT first-occurrence order (case <<"pay">> is the one
+    %% that occurs first, at t=0): traces_from_events/2's own moduledoc
+    %% states "The result is sorted by case_id" -- this fixture is the first
+    %% one in the file where case_id order and first-occurrence order
+    %% actually diverge, so it is the real falsifier of that convention.
     Events = scramble([
         ev(<<"e0">>, <<"a">>, ts(0), #{<<"case_id">> => <<"pay">>}),
         ev(<<"e1">>, <<"pay">>, ts(1), #{<<"case_id">> => <<"other">>}),
@@ -704,17 +725,27 @@ large_scale_order_independent_test() ->
     Base = large_events("lg2"),
     ?assertEqual(large_case_count() * 2, length(Base)),
     Permutations = [Base, lists:reverse(Base), arrival_order(Base), by_type_order(Base)],
+    %% Same distinctness self-check the file's other order-independence
+    %% tests use: without it, this test would silently lose coverage of a
+    %% permutation that happened to coincide with another, while staying
+    %% green.
+    Orderings = [[beam4pm_discovery:ocel_event_event_id(E) || E <- P] || P <- Permutations],
+    ?assertEqual(4, length(lists:usort(Orderings))),
     Results = [edge_tuples(P) || P <- Permutations],
     ?assertEqual([[{<<"start">>, <<"end">>, large_case_count()}]], lists:usort(Results)).
 
 non_vacuousness_edge_removed_truth_test() ->
-    %% Real, permanent regression proof that known_process_edge_set_exact_test/0's
-    %% two-sided equality is not vacuously true: if discovery ever regressed
-    %% to drop true_process_edges/0's first edge, this comparison against the
-    %% (deliberately wrong) edge-removed truth set would then SUCCEED where
-    %% it must not -- so THIS test fails the moment that happens, rather than
-    %% relying on a one-time manual check that proved it once and was never
-    %% re-run.
+    %% Real, permanent regression proof that ONE specific two-sided equality
+    %% -- known_process_edge_set_exact_test/0's -- is not vacuously true: if
+    %% discovery ever regressed to drop true_process_edges/0's first edge,
+    %% this comparison against the (deliberately wrong) edge-removed truth
+    %% set would then SUCCEED where it must not -- so THIS test fails the
+    %% moment that happens, rather than relying on a one-time manual check
+    %% that proved it once and was never re-run. This does NOT, by itself,
+    %% prove the other equality assertions in this file (concurrent/stress/
+    %% lockstep/large-scale) are equally non-vacuous -- each of those
+    %% already carries its own named-spurious-edge or exact-frequency
+    %% falsifier instead; see the moduledoc.
     [RemovedEdge | _] = true_process_edges(),
     WrongTruth = lists:sort(true_process_edges()) -- [RemovedEdge],
     Discovered = edge_pairs(known_events()),
