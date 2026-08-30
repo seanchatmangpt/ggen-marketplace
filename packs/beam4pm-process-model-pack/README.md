@@ -14,13 +14,13 @@ supplied by the consuming project's own `ontology.ttl` (e.g. `beam4pm`), using t
 
 ## What it generates
 
-From every admitted `bpm:RecordType` in the consumer's graph, this pack's four
-templates each run a `records` + `fields` SPARQL query pair over the merged graph and
-render:
+From every admitted `bpm:RecordType` in the consumer's graph, this pack's 11 templates
+each run a `records` + `fields` SPARQL query pair over the merged graph and render:
 
 - `templates/beam4pm_types.erl.tmpl` -> `generated/erlang/src/beam4pm_types.erl` --
-  one `-record/1` + `-type/0` declaration and one `new_<record_name>/1` constructor
-  per record type, returning `{ok, #record{}}` or `{error, {missing_field, atom()}}`.
+  one `-record/1` + `-type/0` declaration (plus a single `-export_type` list) and one
+  `new_<record_name>/1` constructor per record type, returning `{ok, #record{}}` or
+  `{error, {missing_field, atom()}}`.
 - `templates/beam4pm_types_tests.erl.tmpl` -> `generated/erlang/test/beam4pm_types_tests.erl`
   -- real EUnit tests calling those constructors (one ok-path test and one
   missing-required-field test per record type).
@@ -29,10 +29,25 @@ render:
   with a `new/1` constructor returning `{:ok, t()}` or `{:error, {:missing_field, atom()}}`.
 - `templates/beam4pm_types_test.exs.tmpl` -> `generated/elixir/test/beam4pm_types_test.exs`
   -- real ExUnit tests calling those constructors.
+- `templates/beam4pm_types_test_helper.exs.tmpl` -> `generated/elixir/test/test_helper.exs`
+  -- the `ExUnit.start()` bootstrap Mix requires when `test_paths` is set explicitly.
+- `templates/beam4pm_types.schema.json.tmpl` -> `generated/schema/beam4pm_types.schema.json`
+  -- a draft-07 JSON Schema document, one sub-schema per record type, for wire-format
+  documentation independent of either language projection.
+- `templates/beam4pm_types_reference.md.tmpl` -> `generated/docs/beam4pm_types_reference.md`
+  -- a generated Markdown reference table (one section per record, one row per field).
+- `templates/beam4pm_types_manifest.erl.tmpl` / `.ex.tmpl` -> `generated/erlang/src/beam4pm_types_manifest.erl`
+  and `generated/elixir/lib/beam4pm_types_manifest.ex` -- pure reflection modules
+  (`record_names/0`, `fields/1`) with no dependency on the `-record`/`defstruct`
+  definitions above, so they render safely regardless of which records exist.
+- `templates/beam4pm_types_manifest_tests.erl.tmpl` / `_test.exs.tmpl` -- real
+  EUnit/ExUnit tests for those two reflection modules.
 
-The `to:` paths above are relative to this pack's own `templates/` directory
-(`../../generated/...`), which resolves to `<consumer-project-root>/generated/...` when
-this pack is vendored at `<consumer-project-root>/vendor/ggen-marketplace/packs/beam4pm-process-model-pack/`.
+`to:` paths in every template above are relative to the **consuming project's root**
+(e.g. `generated/erlang/src/...`, not `../../generated/erlang/src/...`) -- ggen resolves
+`to:` against the project root regardless of where the template file itself lives inside
+a vendored pack, and refuses (`FM-WRITE-002`) any `to:` value containing a `../`
+traversal component.
 
 Field types map from the closed `bpm:fieldType` enum to Erlang and Elixir types
 identically in both languages' templates:
@@ -56,9 +71,13 @@ typed boolean literal.
 ## Where to look
 
 - `templates/beam4pm_types.erl.tmpl`, `templates/beam4pm_types_tests.erl.tmpl` -- the
-  Erlang side.
-- `templates/beam4pm_types.ex.tmpl`, `templates/beam4pm_types_test.exs.tmpl` -- the
-  Elixir side.
+  Erlang struct/constructor side.
+- `templates/beam4pm_types.ex.tmpl`, `templates/beam4pm_types_test.exs.tmpl`,
+  `templates/beam4pm_types_test_helper.exs.tmpl` -- the Elixir struct/constructor side.
+- `templates/beam4pm_types_manifest.erl.tmpl` / `.ex.tmpl` and their `_tests`/`_test`
+  siblings -- the pure-reflection manifest modules, both languages.
+- `templates/beam4pm_types.schema.json.tmpl` -- the generated JSON Schema document.
+- `templates/beam4pm_types_reference.md.tmpl` -- the generated Markdown reference doc.
 - `gates/010_required.rq` -- refuses any `bpm:RecordType`/`bpm:Field` missing a
   required property.
 - `gates/020_field_type_enum.rq` -- refuses any `bpm:fieldType` outside the closed
