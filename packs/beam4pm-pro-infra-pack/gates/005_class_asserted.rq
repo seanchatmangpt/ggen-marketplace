@@ -1,0 +1,22 @@
+# MESSAGE: beam4pm-pro-infra-pack class-assertion gate. A subject that carries a
+# MESSAGE: Deployment-only fact (b4pi:serviceName) must actually be typed
+# MESSAGE: `a b4pi:Deployment`, and a subject that carries a PackerImage-only fact
+# MESSAGE: (b4pi:imageName) must actually be typed `a b4pi:PackerImage`. Catches the
+# MESSAGE: exact failure mode gates/010_required.rq and gates/020_packerimage_required.rq
+# MESSAGE: cannot see on their own: every one of their UNION branches is itself scoped
+# MESSAGE: to `?s a b4pi:Deployment`/`?s a b4pi:PackerImage`, so a consumer who states
+# MESSAGE: every required fact but typos or omits the class triple gets zero rows from
+# MESSAGE: BOTH required-facts gates -- silently reading as "nothing missing" -- and the
+# MESSAGE: Cloud Run/Packer templates then index an empty `deployments`/`image` array.
+# MESSAGE: This gate fires directly on the untyped-subject case regardless of which
+# MESSAGE: other facts are present.
+PREFIX b4pi: <http://seanchatmangpt.github.io/packs/beam4pm-pro-infra#>
+SELECT ?s ?expectedClass WHERE {
+  {
+    ?s b4pi:serviceName ?any . BIND(b4pi:Deployment AS ?expectedClass)
+  } UNION {
+    ?s b4pi:imageName ?any . BIND(b4pi:PackerImage AS ?expectedClass)
+  }
+  FILTER NOT EXISTS { ?s a ?expectedClass }
+}
+ORDER BY ?s

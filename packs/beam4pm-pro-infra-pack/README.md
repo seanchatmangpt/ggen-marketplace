@@ -34,14 +34,24 @@ anything in this pack. See `docs/jira/v26.8.29/19-marketplace-substrate-gcp.md` 
   Docker installed, the beam4pm container pre-pulled, and a systemd unit running it —
   adapted from `erlmcp/marketplace/gcp/packer/*.pkr.hcl` and `xaas/packer/aws-docker.pkr.hcl`.
   Driven by a `b4pi:PackerImage` individual (imageName/imageFamily/zone/machineType/
-  containerImage, etc.); exactly one per consumer graph is projected.
+  packerContainerImage, etc.); exactly one per consumer graph is projected.
 
 ## Vocabulary
 
-Two classes, deliberately namespace-disjoint so a straight ontology concatenation cannot
-collide: `b4pi:Deployment` (Cloud Run side, `gates/010_required.rq` refuses any instance
-missing one of its nine required properties) and `b4pi:PackerImage` (Packer side). Both are
-schema-only in this pack's own `ontology.ttl`; see `beam4pm`'s own ontology fragment for a
+Two classes, `b4pi:Deployment` (Cloud Run side, `gates/010_required.rq` refuses any instance
+missing one of its nine required properties) and `b4pi:PackerImage` (Packer side,
+`gates/020_packerimage_required.rq` refuses any instance missing one of its twelve required
+properties). All property names are namespace-disjoint between the two classes by
+construction (`b4pi:containerImage` is Deployment-only; the Packer-side equivalent is the
+distinctly-named `b4pi:packerContainerImage` — adversarial review confirmed a shared
+predicate URI with conflicting `rdfs:domain`/`rdf:type` breaks that invariant even when the
+classes themselves are disjoint, so no property name is ever reused across the two).
+`gates/005_class_asserted.rq` additionally refuses a subject that carries a class-specific
+fact (`b4pi:serviceName` or `b4pi:imageName`) without the matching `a b4pi:Deployment` /
+`a b4pi:PackerImage` triple — the typo'd-class-triple failure mode the two required-facts
+gates cannot see on their own, since each of their UNION branches is itself scoped to the
+expected class. Both classes are schema-only in this pack's own `ontology.ttl`; see
+`beam4pm`'s own ontology fragment for a
 real working consumer instance of each.
 
 ## Composing this pack
