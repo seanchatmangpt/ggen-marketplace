@@ -29,70 +29,21 @@ bpm:fieldRequired a rdf:Property ; rdfs:domain bpm:Field ; rdfs:range xsd:string
     rdfs:comment "Plain string literal true or false; templates compare it as a string." .
 bpm:fieldOrder a rdf:Property ; rdfs:domain bpm:Field ; rdfs:range xsd:integer .
 
-# ── Post-LLM governed execution vocabulary ───────────────────────────────────
-# Planner != Policy != Authority. A planner may propose a candidate; only an
-# independently admitted policy decision plus a live authority grant may cross
-# the execution boundary. Every consequence is exact-state-bound and receipted.
-
-bpm:ProcessContract a rdfs:Class ;
-    rdfs:label "Process Contract" ;
-    rdfs:comment "A bounded executable state machine whose transitions are admitted independently of any planner." .
-
-bpm:TransitionSpec a rdfs:Class ;
-    rdfs:label "Transition Spec" ;
-    rdfs:comment "One lawful state transition, including its required authority capability and retry envelope." .
-
-bpm:processId a rdf:Property ; rdfs:domain bpm:ProcessContract ; rdfs:range xsd:string .
-bpm:initialState a rdf:Property ; rdfs:domain bpm:ProcessContract ; rdfs:range xsd:string .
-bpm:runtimeDigest a rdf:Property ; rdfs:domain bpm:ProcessContract ; rdfs:range xsd:string .
-bpm:hasTransition a rdf:Property ; rdfs:domain bpm:ProcessContract ; rdfs:range bpm:TransitionSpec .
-bpm:transitionId a rdf:Property ; rdfs:domain bpm:TransitionSpec ; rdfs:range xsd:string .
-bpm:fromState a rdf:Property ; rdfs:domain bpm:TransitionSpec ; rdfs:range xsd:string .
-bpm:toState a rdf:Property ; rdfs:domain bpm:TransitionSpec ; rdfs:range xsd:string .
-bpm:requiredCapability a rdf:Property ; rdfs:domain bpm:TransitionSpec ; rdfs:range xsd:string .
-bpm:timeoutMs a rdf:Property ; rdfs:domain bpm:TransitionSpec ; rdfs:range xsd:integer .
-bpm:maxRetries a rdf:Property ; rdfs:domain bpm:TransitionSpec ; rdfs:range xsd:integer .
-
-bpm:PlanCandidate a rdfs:Class ; rdfs:comment "Planner output. Proposal only; confers zero actuation authority." .
-bpm:PolicyDecision a rdfs:Class ; rdfs:comment "Independent adjudication of a plan/transition; still not execution authority." .
-bpm:AuthorityGrant a rdfs:Class ; rdfs:comment "Bounded BRCE-style capability grant required for a consequential transition." .
-bpm:ExecutionIntent a rdfs:Class ; rdfs:comment "Exact-subject transition request bound to expected pre-state and idempotency key." .
-bpm:TransitionReceipt a rdfs:Class ; rdfs:comment "Deterministic evidence binding before/after state, transition, authority and runtime identity." .
-bpm:ReplayCapsule a rdfs:Class ; rdfs:comment "Ordered receipt chain and immutable inputs sufficient for independent deterministic replay." .
-bpm:ObservationProjection a rdfs:Class ; rdfs:comment "Explicit information partition exposed to a planner/policy role." .
-bpm:SupervisionEvent a rdfs:Class ; rdfs:comment "OTP crash/restart/retry/cancel/recovery consequence linked to runtime identity." .
-
-# ── Reusable execution-kernel contract ───────────────────────────────────────
-
-bpm:governed_kernel a bpm:ProcessContract ;
-    bpm:processId "governed_execution_kernel" ;
-    bpm:initialState "admitted" ;
-    bpm:runtimeDigest "beam4pm-governor-v1" ;
-    bpm:hasTransition bpm:kernel_admit_plan , bpm:kernel_plan_authorize ,
-                      bpm:kernel_authorize_execute , bpm:kernel_execute_verify ,
-                      bpm:kernel_verified_recover .
-
-bpm:kernel_admit_plan a bpm:TransitionSpec ;
-    bpm:transitionId "admit-plan" ;
-    bpm:fromState "admitted" ; bpm:toState "planned" ;
-    bpm:requiredCapability "plan" ; bpm:timeoutMs 1000 ; bpm:maxRetries 0 .
-
-bpm:kernel_plan_authorize a bpm:TransitionSpec ;
-    bpm:transitionId "plan-authorize" ;
-    bpm:fromState "planned" ; bpm:toState "authorized" ;
-    bpm:requiredCapability "authorize" ; bpm:timeoutMs 1000 ; bpm:maxRetries 0 .
-
-bpm:kernel_authorize_execute a bpm:TransitionSpec ;
-    bpm:transitionId "authorize-execute" ;
-    bpm:fromState "authorized" ; bpm:toState "executed" ;
-    bpm:requiredCapability "execute" ; bpm:timeoutMs 5000 ; bpm:maxRetries 2 .
-
-bpm:kernel_execute_verify a bpm:TransitionSpec ;
-    bpm:transitionId "execute-verify" ;
-    bpm:fromState "executed" ; bpm:toState "verified" ;
-    bpm:requiredCapability "verify" ; bpm:timeoutMs 2000 ; bpm:maxRetries 1 .
-
-bpm:kernel_verified_recover a bpm:TransitionSpec ;
-    bpm:transitionId "verified-recover" ;
-    bpm:fromState "verified" ; bpm:toState "admitted" ;
-    bpm:requiredCapability "recover" ; bpm:timeoutMs 2000 ; bpm:maxRetries 3 .
+# NOTE (2026-08-30): an earlier revision of this file added a
+# "post-LLM governed execution vocabulary" (bpm:ProcessContract,
+# bpm:TransitionSpec, bpm:governed_kernel and 8 sibling classes) plus a
+# hand-rolled BeamPM.Governor template pair. A 4-lens adversarial audit
+# (CONFIRMED_CRITICAL on every lens) found it duplicated the real, tested
+# BeamPM.Actuation Reactor pipeline with zero shared code, performed ZERO
+# real I/O despite claiming to be a BRCE actuation boundary, used a receipt
+# schema un-mineable by BeamPM.Discovery, crashed unhandled on malformed
+# input, and — critically — accepted a forged authority_digest without
+# verifying it was ever computed by the module itself. It was also never
+# actually consumed by beam4pm (the submodule pin predated it). Removed
+# entirely and replaced by BeamPM.ProcessGovernor
+# (igniter/templates/beam4pm_process_governor.ex.eex), which adds the one
+# legitimate capability the original had (named, ordered, exact-state-hash-
+# fenced multi-step process governance) as a thin layer that DELEGATES
+# every admit/execute/receipt decision to the real BeamPM.Actuation --
+# never reimplementing it. See docs/first-principles-rewrite-rationale.md
+# in the consuming project for the full audit-to-rewrite record.
