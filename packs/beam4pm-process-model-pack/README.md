@@ -74,11 +74,19 @@ each run a `records` + `fields` SPARQL query pair over the merged graph and rend
   timestamp-adjacent in the raw, unpartitioned stream but belonging to
   different cases -- is never promoted into a spurious edge, including under
   concurrent-interleaved unrelated processes, shared activity-name vocabulary
-  across those processes, and a 300-single-event-fragment flood stress case.
-  21 hand-designed adversarial tests per language, order-independence checked
-  via multiple permutations at up to 4000-event scale, and a non-vacuousness
-  check (deliberately removing a real edge from the expected set to confirm
-  the suite actually fails when the code would be wrong).
+  across those processes, a 300-single-event-fragment flood stress case, and
+  a dedicated adversarial re-verification half (lockstep identical-activity-
+  sequence interleaving, a case_id that is itself a valid activity name
+  elsewhere in the log, and a 2000-case/4000-event scale run). 25
+  hand-designed adversarial/regression tests per language (17 from the
+  original known-process and false-adjacency halves, 7 from an independent
+  adversarial re-verification pass, and 1 permanent non-vacuousness
+  regression test asserting real discovery output does NOT match a
+  deliberately edge-removed expected set), plus 4 generated per-record-type
+  smoke tests (one per admitted record type, via the same `{% raw %}{% for r in
+  records %}{% endraw %}` pattern every other template in this pack uses) --
+  29 test functions per language in total. Order-independence is checked via
+  multiple permutations at up to 4000-event scale.
 
 `to:` paths in every template above are relative to the **consuming project's root**
 (e.g. `src/...`, not `../../src/...`) -- ggen resolves

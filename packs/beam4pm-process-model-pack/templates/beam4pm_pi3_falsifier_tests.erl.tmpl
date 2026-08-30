@@ -30,7 +30,7 @@ sparql:
 %% admitted fields, dfg_edge carries
 %% {{ fields | filter(attribute="record_name", value="dfg_edge") | length }}).
 %%
-%% Two halves, both Chicago-style over the REAL traces_from_events/2 +
+%% Three halves, all Chicago-style over the REAL traces_from_events/2 +
 %% dfg_from_traces/1 + conformance/2 (no doubles anywhere):
 %%
 %%   * KNOWN SEEDED PROCESS - a hand-designed 5-activity process with a real
@@ -46,6 +46,33 @@ sparql:
 %%     300 single-event case fragments drawn entirely from the long traces'
 %%     own activity vocabulary. Raw temporal adjacency must never become a
 %%     directly-follows (causal) edge.
+%%
+%%   * ADVERSARIAL RE-VERIFICATION - three additional fixtures targeting
+%%     failure modes the two halves above do not exercise: two cases with
+%%     IDENTICAL activity sequences interleaved in exact lockstep, a case_id
+%%     that is itself a valid activity name elsewhere in the same log
+%%     (namespace contamination), and a 2000-case/4000-event scale run.
+%%     Closes with a permanent non-vacuousness regression: a deliberately
+%%     edge-removed expected set is asserted NOT to match real discovery
+%%     output, so the equality assertions used throughout this suite are
+%%     proven sensitive to what they compare against, not merely true by
+%%     construction.
+%%
+%% REQUIRED FIELD NAMES (a disclosed, un-enforced constraint on the admitted
+%% graph): every fixture in this suite constructs and pattern-matches on
+%% exact field names literal to beam4pm_types' ocel_event record
+%% (event_id, event_type, event_time, attributes) and log_trace record
+%% (case_id, activity_sequence), and on exact record field names
+%% beam4pm_types.erl.tmpl itself generates for dfg_edge (source_activity,
+%% target_activity, frequency) and conformance_result (trace_id, fitness,
+%% precision). The `fields` SPARQL query declared above is consumed only
+%% for the moduledoc admitted-field-count comment, never for field-name
+%% derivation. No gate in this pack enforces those exact names -- a
+%% consumer admitting an equivalent field under a different name (e.g.
+%% bpm:fieldName "timestamp" instead of "event_time") will not fail
+%% admission, but every fixture-construction call in this suite will crash
+%% with a real {badmatch, {error, {missing_field, _}}} against the records
+%% `ggen sync run` regenerates for that consumer.
 
 -module(beam4pm_pi3_falsifier_tests).
 
@@ -576,6 +603,123 @@ stress_order_independent_test() ->
     ?assertEqual(4, length(lists:usort(Orderings))),
     Results = [edge_tuples(P) || P <- Permutations],
     ?assertEqual([long_expected_edges()], lists:usort(Results)).
+
+%% ===========================================================================
+%% HALF 3 -- ADVERSARIAL RE-VERIFICATION: fixtures targeting failure modes
+%% the two halves above do not exercise, plus a permanent non-vacuousness
+%% regression for the equality assertions used throughout this suite.
+%% ===========================================================================
+
+lockstep_cases() ->
+    [{<<"L1">>, [<<"x1">>, <<"x2">>, <<"x3">>, <<"x4">>]},
+     {<<"L2">>, [<<"x1">>, <<"x2">>, <<"x3">>, <<"x4">>]}].
+
+lockstep_events() ->
+    scramble(events_from_arrivals(interleave(lockstep_cases()), "ls")).
+
+lockstep_arrival_order_test() ->
+    ByArrival = arrival_order(lockstep_events()),
+    CaseIds = [case_id_of(E) || E <- ByArrival],
+    ?assertEqual([<<"L1">>, <<"L2">>, <<"L1">>, <<"L2">>, <<"L1">>, <<"L2">>, <<"L1">>, <<"L2">>], CaseIds),
+    Types = [beam4pm_discovery:ocel_event_event_type(E) || E <- ByArrival],
+    ?assertEqual([<<"x1">>, <<"x1">>, <<"x2">>, <<"x2">>, <<"x3">>, <<"x3">>, <<"x4">>, <<"x4">>], Types).
+
+lockstep_partitions_correctly_test() ->
+    ?assertEqual(
+        [{<<"L1">>, [<<"x1">>, <<"x2">>, <<"x3">>, <<"x4">>]},
+         {<<"L2">>, [<<"x1">>, <<"x2">>, <<"x3">>, <<"x4">>]}],
+        trace_tuples(lockstep_events())).
+
+lockstep_no_self_loops_test() ->
+    Discovered = edge_pairs(lockstep_events()),
+    SelfLoops = [{<<"x1">>, <<"x1">>}, {<<"x2">>, <<"x2">>}, {<<"x3">>, <<"x3">>}, {<<"x4">>, <<"x4">>}],
+    %% A global-concatenation bug over the raw arrival stream
+    %% x1,x1,x2,x2,x3,x3,x4,x4 would manufacture these as directly-follows
+    %% edges. None are real within-case adjacencies in either L1 or L2's own
+    %% sequence.
+    [?assertNot(lists:member(P, Discovered)) || P <- SelfLoops],
+    ?assertEqual(
+        lists:sort([{<<"x1">>, <<"x2">>}, {<<"x2">>, <<"x3">>}, {<<"x3">>, <<"x4">>}]),
+        Discovered).
+
+lockstep_exact_frequencies_test() ->
+    ?assertEqual(
+        [{<<"x1">>, <<"x2">>, 2}, {<<"x2">>, <<"x3">>, 2}, {<<"x3">>, <<"x4">>, 2}],
+        edge_tuples(lockstep_events())).
+
+case_id_activity_name_collision_test() ->
+    %% Case <<"pay">> (case_id == <<"pay">>, a string that also occurs as an
+    %% activity name in case <<"other">>) runs its own sequence a -> b -> c.
+    %% Case <<"other">> runs pay -> ship, i.e. activity <<"pay">> really
+    %% occurs, under a DIFFERENT case_id (<<"other">>).
+    Events = scramble([
+        ev(<<"e0">>, <<"a">>, ts(0), #{<<"case_id">> => <<"pay">>}),
+        ev(<<"e1">>, <<"pay">>, ts(1), #{<<"case_id">> => <<"other">>}),
+        ev(<<"e2">>, <<"b">>, ts(2), #{<<"case_id">> => <<"pay">>}),
+        ev(<<"e3">>, <<"ship">>, ts(3), #{<<"case_id">> => <<"other">>}),
+        ev(<<"e4">>, <<"c">>, ts(4), #{<<"case_id">> => <<"pay">>})
+    ]),
+    ?assertEqual(
+        [{<<"other">>, [<<"pay">>, <<"ship">>]},
+         {<<"pay">>, [<<"a">>, <<"b">>, <<"c">>]}],
+        trace_tuples(Events)),
+    Discovered = edge_pairs(Events),
+    %% The case_id <<"pay">> must never itself be treated as an activity, and
+    %% the activity <<"pay">> (from case <<"other">>) must not bleed into
+    %% case <<"pay">>'s own sequence (which contains no activity literally
+    %% named <<"pay">> at all).
+    ?assertEqual(
+        lists:sort([{<<"a">>, <<"b">>}, {<<"b">>, <<"c">>}, {<<"pay">>, <<"ship">>}]),
+        Discovered),
+    ?assertNot(lists:member({<<"pay">>, <<"a">>}, Discovered)),
+    ?assertNot(lists:member({<<"c">>, <<"pay">>}, Discovered)).
+
+large_case_count() -> 2000.
+
+large_cases() ->
+    [{list_to_binary(io_lib:format("case_~5..0B", [I])), [<<"start">>, <<"end">>]}
+     || I <- lists:seq(1, large_case_count())].
+
+large_events(Prefix) ->
+    scramble(events_from_arrivals(interleave(large_cases()), Prefix)).
+
+large_scale_exact_edge_test() ->
+    Events = large_events("lg"),
+    ?assertEqual(large_case_count() * 2, length(Events)),
+    Traces = discover_traces(Events),
+    ?assertEqual(large_case_count(), length(Traces)),
+    ?assert(lists:all(
+        fun(T) -> beam4pm_discovery:log_trace_activity_sequence(T) =:= [<<"start">>, <<"end">>] end,
+        Traces)),
+    %% Exactly one edge type, frequency exactly large_case_count/0 -- not
+    %% more (self-loops or interleave crossovers leaked in) and not fewer
+    %% (cases merged or dropped).
+    ?assertEqual([{<<"start">>, <<"end">>, large_case_count()}], edge_tuples(Events)),
+    Pairs = edge_pairs(Events),
+    ?assertNot(lists:member({<<"end">>, <<"start">>}, Pairs)),
+    ?assertNot(lists:member({<<"start">>, <<"start">>}, Pairs)),
+    ?assertNot(lists:member({<<"end">>, <<"end">>}, Pairs)).
+
+large_scale_order_independent_test() ->
+    Base = large_events("lg2"),
+    ?assertEqual(large_case_count() * 2, length(Base)),
+    Permutations = [Base, lists:reverse(Base), arrival_order(Base), by_type_order(Base)],
+    Results = [edge_tuples(P) || P <- Permutations],
+    ?assertEqual([[{<<"start">>, <<"end">>, large_case_count()}]], lists:usort(Results)).
+
+non_vacuousness_edge_removed_truth_test() ->
+    %% Real, permanent regression proof that known_process_edge_set_exact_test/0's
+    %% two-sided equality is not vacuously true: if discovery ever regressed
+    %% to drop true_process_edges/0's first edge, this comparison against the
+    %% (deliberately wrong) edge-removed truth set would then SUCCEED where
+    %% it must not -- so THIS test fails the moment that happens, rather than
+    %% relying on a one-time manual check that proved it once and was never
+    %% re-run.
+    [RemovedEdge | _] = true_process_edges(),
+    WrongTruth = lists:sort(true_process_edges()) -- [RemovedEdge],
+    Discovered = edge_pairs(known_events()),
+    ?assertNotEqual(WrongTruth, Discovered),
+    ?assert(lists:member(RemovedEdge, Discovered)).
 {% for r in records %}
 %% Admitted record type {{ r.record_name }} -- {{ r.record_doc }}
 record_{{ r.record_name }}_backs_pi3_test() ->

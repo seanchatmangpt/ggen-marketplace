@@ -19,7 +19,7 @@ defmodule BeamPM.PI3FalsifierTest do
       "Known seeded process is inferred with bounded confidence; false
        adjacency fixtures are not promoted to causality."
 
-  Two halves, both Chicago-style over the REAL `traces_from_events/2` +
+  Three halves, all Chicago-style over the REAL `traces_from_events/2` +
   `dfg_from_traces/1` + `conformance/2` (no doubles anywhere):
 
     * KNOWN SEEDED PROCESS - a hand-designed 5-activity process with a real
@@ -39,6 +39,37 @@ defmodule BeamPM.PI3FalsifierTest do
       of single-event case fragments drawn entirely from the long traces'
       own activity vocabulary. Raw temporal adjacency must never be promoted
       to a directly-follows (causal) edge.
+
+    * ADVERSARIAL RE-VERIFICATION - three additional fixtures targeting
+      failure modes the two halves above do not exercise: two cases with
+      IDENTICAL activity sequences interleaved in exact lockstep (the
+      sharpest test for any implementation that computes adjacency over a
+      globally time-sorted stream before partitioning by case), a case_id
+      that is itself a valid activity name elsewhere in the same log
+      (namespace contamination between the case-id and activity-name
+      spaces), and a 2000-case/4000-event scale run (accidental global-
+      adjacency computation that only becomes statistically visible at
+      scale). Closes with a permanent non-vacuousness regression: a
+      deliberately edge-removed expected set is asserted NOT to match real
+      discovery output, so the equality assertions used throughout this
+      suite are proven sensitive to what they compare against, not merely
+      true by construction.
+
+  REQUIRED FIELD NAMES (a disclosed, un-enforced constraint on the admitted
+  graph - not derived from the `fields` SPARQL binding the Erlang sibling
+  template declares): every fixture in this suite constructs and pattern-
+  matches on exact field names literal to `BeamPM.Types.OcelEvent`
+  (`event_id`, `event_type`, `event_time`, `attributes`) and
+  `BeamPM.Types.LogTrace` (`case_id`, `activity_sequence`), and on exact
+  struct field names `beam4pm_types.ex.tmpl` itself generates for
+  `dfg_edge` (`source_activity`, `target_activity`, `frequency`) and
+  `conformance_result` (`trace_id`, `fitness`, `precision`). No gate in
+  this pack enforces those exact names - a consumer admitting an
+  equivalent field under a different name (e.g. `bpm:fieldName
+  "timestamp"` instead of `"event_time"`) will not fail admission, but
+  every fixture-construction call in this suite will raise a real
+  `KeyError` against the `BeamPM.Types.*` structs `ggen sync run`
+  regenerates for that consumer.
   """
 
   use ExUnit.Case, async: true
@@ -147,7 +178,7 @@ defmodule BeamPM.PI3FalsifierTest do
   #   close(chk) close(ret) close(sub)
   #
   # That gives 14 raw-adjacent pairs, every one of them crossing a case
-  # boundary. Twelve are listed below (the (close, close) self-loop occurs
+  # boundary. Eleven are listed below (the (close, close) self-loop occurs
   # twice raw, once distinct).
   #
   # NOT listed here, deliberately: (verify_email, pay) - raw positions 8->9,
@@ -663,6 +694,163 @@ defmodule BeamPM.PI3FalsifierTest do
       end)
 
     assert Enum.uniq(results) == [@long_expected_edges]
+  end
+
+  # ==========================================================================
+  # HALF 3 - ADVERSARIAL RE-VERIFICATION: fixtures targeting failure modes
+  # the two halves above do not exercise, plus a permanent non-vacuousness
+  # regression for the equality assertions used throughout this suite.
+  # ==========================================================================
+
+  @lockstep_cases [
+    {"L1", ["x1", "x2", "x3", "x4"]},
+    {"L2", ["x1", "x2", "x3", "x4"]}
+  ]
+
+  defp lockstep_events,
+    do: @lockstep_cases |> interleave() |> events_from_arrivals("ls") |> scramble()
+
+  test "lockstep identical-sequence cases: raw arrival order really does interleave one event apart" do
+    by_arrival = arrival_order(lockstep_events())
+
+    assert Enum.map(by_arrival, fn e -> e.attributes[@case_attr_key] end) ==
+             ["L1", "L2", "L1", "L2", "L1", "L2", "L1", "L2"]
+
+    assert Enum.map(by_arrival, fn e -> e.event_type end) ==
+             ["x1", "x1", "x2", "x2", "x3", "x3", "x4", "x4"]
+  end
+
+  test "lockstep identical-sequence cases: traces_from_events partitions correctly despite identical activities" do
+    traces = discover_traces(lockstep_events())
+
+    assert Enum.map(traces, fn t -> {t.case_id, t.activity_sequence} end) == [
+             {"L1", ["x1", "x2", "x3", "x4"]},
+             {"L2", ["x1", "x2", "x3", "x4"]}
+           ]
+  end
+
+  test "lockstep identical-sequence cases: NO self-loops are manufactured (the global-concatenation signature)" do
+    discovered = edge_pairs(lockstep_events())
+
+    # A global-concatenation bug over the raw arrival stream
+    # x1,x1,x2,x2,x3,x3,x4,x4 would manufacture (x1,x1), (x2,x2), (x3,x3),
+    # (x4,x4) as directly-follows edges. None of these are real within-case
+    # adjacencies in either L1 or L2's own sequence.
+    for self_loop <- [{"x1", "x1"}, {"x2", "x2"}, {"x3", "x3"}, {"x4", "x4"}] do
+      refute MapSet.member?(discovered, self_loop),
+             "false self-loop #{inspect(self_loop)} leaked from unpartitioned adjacency"
+    end
+
+    assert discovered == MapSet.new([{"x1", "x2"}, {"x2", "x3"}, {"x3", "x4"}])
+  end
+
+  test "lockstep identical-sequence cases: exact frequencies are 2 per edge (one per case), not inflated" do
+    assert edge_tuples(lockstep_events()) == [
+             {"x1", "x2", 2},
+             {"x2", "x3", 2},
+             {"x3", "x4", 2}
+           ]
+  end
+
+  test "case_id equal to an activity name elsewhere in the log: no contamination between namespaces" do
+    # Case "pay" (case_id == "pay", a string that also occurs as an activity
+    # name in case "other") runs its own sequence a -> b -> c. Case "other"
+    # runs pay -> ship, i.e. activity "pay" really occurs, under a DIFFERENT
+    # case_id ("other").
+    events =
+      [
+        event!("e0", "a", ts(0), %{@case_attr_key => "pay"}),
+        event!("e1", "pay", ts(1), %{@case_attr_key => "other"}),
+        event!("e2", "b", ts(2), %{@case_attr_key => "pay"}),
+        event!("e3", "ship", ts(3), %{@case_attr_key => "other"}),
+        event!("e4", "c", ts(4), %{@case_attr_key => "pay"})
+      ]
+      |> scramble()
+
+    traces = discover_traces(events)
+
+    assert Enum.map(traces, fn t -> {t.case_id, t.activity_sequence} end) == [
+             {"other", ["pay", "ship"]},
+             {"pay", ["a", "b", "c"]}
+           ]
+
+    discovered = edge_pairs(events)
+
+    # The case_id "pay" must never itself be treated as an activity, and the
+    # activity "pay" (from case "other") must not bleed into case "pay"'s own
+    # sequence (which contains no activity literally named "pay" at all).
+    assert discovered == MapSet.new([{"a", "b"}, {"b", "c"}, {"pay", "ship"}])
+    refute MapSet.member?(discovered, {"pay", "a"})
+    refute MapSet.member?(discovered, {"c", "pay"})
+  end
+
+  @large_case_count 2000
+
+  defp large_cases do
+    Enum.map(1..@large_case_count, fn i ->
+      {"case_#{pad(i, 5)}", ["start", "end"]}
+    end)
+  end
+
+  test "2000 identical two-activity cases interleaved: exact edge set and frequency, zero self-loops" do
+    events = large_cases() |> interleave() |> events_from_arrivals("lg") |> scramble()
+
+    assert length(events) == @large_case_count * 2
+
+    traces = discover_traces(events)
+    assert length(traces) == @large_case_count
+    assert Enum.all?(traces, fn t -> t.activity_sequence == ["start", "end"] end)
+
+    tuples = edge_tuples(events)
+
+    # Exactly one edge type, frequency exactly @large_case_count -- not more
+    # (self-loops or interleave crossovers leaked in) and not fewer (cases
+    # merged or dropped).
+    assert tuples == [{"start", "end", @large_case_count}]
+
+    pairs = edge_pairs(events)
+    refute MapSet.member?(pairs, {"end", "start"})
+    refute MapSet.member?(pairs, {"start", "start"})
+    refute MapSet.member?(pairs, {"end", "end"})
+  end
+
+  test "2000-case discovery is order-independent across reverse/arrival/event-type orderings (4000 events total)" do
+    base = large_cases() |> interleave() |> events_from_arrivals("lg2") |> scramble()
+
+    assert length(base) == @large_case_count * 2
+
+    permutations = [
+      base,
+      Enum.reverse(base),
+      arrival_order(base),
+      Enum.sort_by(base, fn e -> {e.event_type, e.event_id} end)
+    ]
+
+    results =
+      Enum.map(permutations, fn p ->
+        p
+        |> discover_edges()
+        |> Enum.map(fn e -> {e.source_activity, e.target_activity, e.frequency} end)
+      end)
+
+    assert Enum.uniq(results) == [[{"start", "end", @large_case_count}]]
+  end
+
+  test "non-vacuousness: discovered edges do NOT match a deliberately edge-removed expected set" do
+    # Real, permanent regression proof that the two-sided equality assertion
+    # in the KNOWN SEEDED PROCESS half is not vacuously true: if discovery
+    # ever regressed to drop @true_process_edges' first edge, this comparison
+    # against the (deliberately wrong) edge-removed truth set would then
+    # SUCCEED where it must not -- so THIS test fails the moment that
+    # happens, rather than relying on a one-time manual check that proved it
+    # once and was never re-run.
+    [removed_edge | _] = @true_process_edges
+    wrong_truth = @true_process_edges |> MapSet.new() |> MapSet.delete(removed_edge)
+
+    discovered = edge_pairs(known_events())
+
+    refute discovered == wrong_truth
+    assert MapSet.member?(discovered, removed_edge)
   end
 {% for r in records %}{% set mod_name = r.record_name | replace(from="_", to=" ") | title | replace(from=" ", to="") %}
   test "admitted record type {{ r.record_name }} backs the PI3 falsifier surface with a generated struct module" do
