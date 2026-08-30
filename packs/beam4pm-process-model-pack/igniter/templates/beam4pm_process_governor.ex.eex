@@ -141,6 +141,20 @@ defmodule BeamPM.ProcessGovernor do
   module's in-memory-only receipt) only EMBEDS a reference to it
   (`run_id` + `receipt_path`), never a competing hash chain.
 
+  What IS new (stream EX2): `actuation_opts_for/3` below defaults
+  `chain_id: process_id` into every delegated `BeamPM.Actuation.run/2` call
+  (unless the caller already supplied a `:chain_id`), so a governed
+  process's own sequence of per-transition `beam4pm-brce/v1` receipts is
+  automatically hash-chained by `BeamPM.ReceiptChain` -- each transition's
+  actuation receipt embeds the sha256 of the immediately-prior transition's
+  actuation receipt file. This is a SEPARATE, complementary evidence trail
+  to this module's own `"actuation"` embed-by-reference: the embed proves
+  WHICH receipt belongs to which transition; the hash chain proves that
+  receipt's own prior sibling has not been tampered with since. See
+  `BeamPM.ReceiptChain`'s moduledoc for the full design and
+  `BeamPM.ReceiptChain.verify/2` for real, independent chain-replay
+  verification.
+
   ## Authority doctrine (unchanged from BeamPM.Actuation, restated once)
 
   `plan_transition/2` is a Planner-stage function: it returns an INERT
@@ -516,10 +530,15 @@ defmodule BeamPM.ProcessGovernor do
 
   defp actuation_opts_for(process_id, candidate, actuation_opts) do
     run_id = Keyword.get(actuation_opts, :run_id, "#{process_id}-t#{candidate.ordinal}")
+    # EX2: default the hash-chain scope to this governed process, unless the
+    # caller already named one explicitly.
+    chain_id = Keyword.get(actuation_opts, :chain_id, process_id)
 
     actuation_opts
     |> Keyword.delete(:run_id)
+    |> Keyword.delete(:chain_id)
     |> Keyword.put(:run_id, run_id)
+    |> Keyword.put(:chain_id, chain_id)
   end
 
   defp actuation_receipt_path_if_written(run_opts) do

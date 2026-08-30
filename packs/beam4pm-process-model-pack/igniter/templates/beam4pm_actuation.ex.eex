@@ -211,12 +211,29 @@ defmodule BeamPM.Actuation do
   `run/2` is the guaranteed-receipt entry point; calling
   `Reactor.run(__MODULE__, ...)` directly only guarantees receipts on the
   success and execute-failure paths.
+
+  ## Hash-chained receipts (stream EX2 extension, additive and opt-in)
+
+  Every receipt `write_receipt!/2` produces (success, compensation, AND
+  refusal - all three call sites share this one helper) MAY additionally
+  carry `"chain_id"`/`"chain_seq"`/`"prev_receipt_path"`/
+  `"prev_receipt_hash"`, linking it to the immediately-prior receipt in the
+  same named chain by the sha256 of that prior receipt's real on-disk
+  bytes. This is purely additive: passing no `:chain_id` in `actuation_opts`
+  (the default) keeps today's exact `beam4pm-brce/v1` shape, zero new keys.
+  `BeamPM.ProcessGovernor.apply_transition/3` supplies `chain_id:
+  process_id` by default so a governed process's actuation receipts chain
+  automatically; see `BeamPM.ReceiptChain`'s moduledoc for the full design
+  rationale (adapted from ex4pm's real `Ex4pm.Evidence.Replay.Chain`) and
+  `BeamPM.ReceiptChain.verify/2` for real, independent chain-replay
+  verification.
   """
 
   use Reactor
 
   alias BeamPM.Actuation.GymBridge
   alias BeamPM.Codec
+  alias BeamPM.ReceiptChain
   alias BeamPM.Types.OcelEvent
   alias BeamPM.Types.PlanningAction
   alias BeamPM.Types.PolicyDecision
@@ -502,7 +519,8 @@ defmodule BeamPM.Actuation do
           opts,
           :run_id,
           "act-#{System.system_time(:millisecond)}-#{System.unique_integer([:positive])}"
-        )
+        ),
+      chain_id: Keyword.get(opts, :chain_id)
     }
   end
 
@@ -525,28 +543,51 @@ defmodule BeamPM.Actuation do
   end
 
   defp write_receipt!(opts, fields) do
-    receipt = %{
-      "receipt_schema" => @receipt_schema,
-      "action" => Map.fetch!(fields, :action_map),
-      "admission" => %{
-        "admitted" => Map.fetch!(fields, :admitted),
-        "policy_decision" => Codec.to_map(Map.fetch!(fields, :policy_decision)),
-        "reason" => Map.fetch!(fields, :reason)
-      },
-      "execution" => Map.fetch!(fields, :execution),
-      "events" => Enum.map(Map.fetch!(fields, :events), &Codec.to_map/1),
-      "replay" => %{
-        "gym" => Map.fetch!(opts, :gym),
-        "bridge_cmd" =>
-          "python3 #{Map.fetch!(opts, :bridge)} --gym #{Map.fetch!(opts, :gym)}",
-        "action_json" => Map.fetch!(fields, :action_json)
+    receipt =
+      %{
+        "receipt_schema" => @receipt_schema,
+        "action" => Map.fetch!(fields, :action_map),
+        "admission" => %{
+          "admitted" => Map.fetch!(fields, :admitted),
+          "policy_decision" => Codec.to_map(Map.fetch!(fields, :policy_decision)),
+          "reason" => Map.fetch!(fields, :reason)
+        },
+        "execution" => Map.fetch!(fields, :execution),
+        "events" => Enum.map(Map.fetch!(fields, :events), &Codec.to_map/1),
+        "replay" => %{
+          "gym" => Map.fetch!(opts, :gym),
+          "bridge_cmd" =>
+            "python3 #{Map.fetch!(opts, :bridge)} --gym #{Map.fetch!(opts, :gym)}",
+          "action_json" => Map.fetch!(fields, :action_json)
+        }
       }
-    }
+      |> put_chain_fields(opts)
 
     path = receipt_path(opts)
     File.mkdir_p!(Path.dirname(path))
     File.write!(path, JSON.encode!(receipt))
     path
+  end
+
+  # EX2 hash-chained-receipt extension (additive, opt-in via
+  # `actuation_opts[:chain_id]` -- see BeamPM.ReceiptChain's moduledoc for
+  # the full ex4pm-adapted design). No `:chain_id` -> today's exact
+  # beam4pm-brce/v1 shape, zero new keys, zero behavior change.
+  defp put_chain_fields(receipt, opts) do
+    case Map.get(opts, :chain_id) do
+      nil ->
+        receipt
+
+      chain_id when is_binary(chain_id) ->
+        %{chain_seq: seq, prev_receipt_path: prev_path, prev_receipt_hash: prev_hash} =
+          ReceiptChain.link_fields(Map.fetch!(opts, :receipts_dir), chain_id)
+
+        receipt
+        |> Map.put("chain_id", chain_id)
+        |> Map.put("chain_seq", seq)
+        |> Map.put("prev_receipt_path", prev_path)
+        |> Map.put("prev_receipt_hash", prev_hash)
+    end
   end
 
   # Guarantees a refusal receipt exists after a failed run. The execute

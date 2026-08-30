@@ -42,6 +42,15 @@ each run a `records` + `fields` SPARQL query pair over the merged graph and rend
   definitions above, so they render safely regardless of which records exist.
 - `templates/beam4pm_types_manifest_tests.erl.tmpl` / `_test.exs.tmpl` -- real
   EUnit/ExUnit tests for those two reflection modules.
+- `templates/beam4pm_precision.{erl,ex}.tmpl` + `_tests.erl.tmpl`/`_test.exs.tmpl` --
+  ETC (Escaping-edge Trace Conformance) precision over a `dfg_edge` model and a
+  `log_trace`, structurally adapted from ex4pm's real `Ex4pmEngine.ETCPrecision`
+  (see the module's own moduledoc for the full derivation and the rejected
+  alternative mappings considered).
+- `igniter/templates/beam4pm_receipt_chain.ex.eex` + `_test.exs.eex` (ggen_igniter,
+  not Tera) -- hash-chained `beam4pm-brce/v1` receipts, adapted from ex4pm's real
+  `Ex4pm.Evidence.Replay.Chain`; purely additive (opt-in via `actuation_opts[:chain_id]`,
+  automatically scoped per-process by `BeamPM.ProcessGovernor`).
 
 `to:` paths in every template above are relative to the **consuming project's root**
 (e.g. `src/...`, not `../../src/...`) -- ggen resolves
