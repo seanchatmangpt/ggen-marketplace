@@ -1,5 +1,5 @@
 ---
-to: generated/schema/beam4pm_mcp_contracts.schema.json
+to: schema/beam4pm_mcp_contracts.schema.json
 sparql:
   messages: |
     PREFIX mcp: <https://ggen.dev/ontology/beam4pm-mcp#>
@@ -8,10 +8,12 @@ sparql:
     } ORDER BY ?message_name
   fields: |
     PREFIX mcp: <https://ggen.dev/ontology/beam4pm-mcp#>
-    SELECT ?message_name ?field_name ?field_type ?field_doc ?field_required ?field_order WHERE {
+    SELECT ?message_name ?field_name ?field_type ?field_doc ?field_required ?field_order ?wire_name WHERE {
       ?mt a mcp:MessageType ; mcp:messageName ?message_name ; mcp:hasField ?f .
       ?f mcp:fieldName ?field_name ; mcp:fieldType ?field_type ; mcp:fieldDoc ?field_doc ;
          mcp:fieldRequired ?field_required ; mcp:fieldOrder ?field_order .
+      OPTIONAL { ?f mcp:wireName ?wn }
+      BIND(COALESCE(?wn, ?field_name) AS ?wire_name)
     } ORDER BY ?message_name ?field_order
 ---
 {
@@ -20,13 +22,15 @@ sparql:
   "definitions": {
 {%- for r in messages %}
 {%- set rfields = fields | filter(attribute="message_name", value=r.message_name) %}
-{%- set required_fields = rfields | filter(attribute="field_required", value="true") %}
+{%- set required_fields_str = rfields | filter(attribute="field_required", value="true") %}
+{%- set required_fields_bool = rfields | filter(attribute="field_required", value=true) %}
+{%- set required_fields = required_fields_str | concat(with=required_fields_bool) %}
     "{{ r.message_name }}": {
       "type": "object",
       "description": {{ r.message_doc | json_encode | safe }},
       "properties": {
 {%- for f in rfields %}
-        "{{ f.field_name }}": {
+        "{{ f.wire_name }}": {
 {%- if f.field_type == "string" or f.field_type == "datetime" or f.field_type == "atom" %}
           "type": "string",
 {%- elif f.field_type == "integer" %}
@@ -46,7 +50,7 @@ sparql:
 {%- endfor %}
       }{% if required_fields | length > 0 %},
       "required": [
-{%- for f in required_fields %}"{{ f.field_name }}"{% if not loop.last %}, {% endif %}{% endfor %}
+{%- for f in required_fields %}"{{ f.wire_name }}"{% if not loop.last %}, {% endif %}{% endfor %}
       ]
 {%- endif %}
 

@@ -1,5 +1,5 @@
 ---
-to: generated/erlang/src/beam4pm_mcp_contracts.erl
+to: src/beam4pm_mcp_contracts.erl
 sparql:
   records: |
     PREFIX mcp: <https://ggen.dev/ontology/beam4pm-mcp#>
@@ -35,14 +35,18 @@ sparql:
 %% {{ r.record_doc }}
 -record({{ r.record_name }}, {
 {%- for f in rfields %}
-    {{ f.field_name }} :: {% if f.field_type == "string" %}binary(){% elif f.field_type == "integer" %}integer(){% elif f.field_type == "float" %}float(){% elif f.field_type == "boolean" %}boolean(){% elif f.field_type == "datetime" %}binary(){% elif f.field_type == "atom" %}atom(){% elif f.field_type == "list_string" %}[binary()]{% elif f.field_type == "map" %}map(){% endif %}{% if f.field_required == "false" %} | undefined{% endif %}{% if not loop.last %},{% endif %} %% {{ f.field_name }}: {{ f.field_doc }}
+{%- set f_optional_str = f.field_required == "false" %}
+{%- set f_optional_bool = f.field_required == false %}
+    {{ f.field_name }} :: {% if f.field_type == "string" %}binary(){% elif f.field_type == "integer" %}integer(){% elif f.field_type == "float" %}float(){% elif f.field_type == "boolean" %}boolean(){% elif f.field_type == "datetime" %}binary(){% elif f.field_type == "atom" %}atom(){% elif f.field_type == "list_string" %}[binary()]{% elif f.field_type == "map" %}map(){% endif %}{% if f_optional_str or f_optional_bool %} | undefined{% endif %}{% if not loop.last %},{% endif %} %% {{ f.field_name }}: {{ f.field_doc }}
 {%- endfor %}
 }).
 
 -type {{ r.record_name }}() :: #{{ r.record_name }}{}.
 
 -spec new_{{ r.record_name }}(map()) -> {ok, {{ r.record_name }}()} | {error, {missing_field, atom()}}.
-{%- set required_fields = rfields | filter(attribute="field_required", value="true") %}
+{%- set required_fields_str = rfields | filter(attribute="field_required", value="true") %}
+{%- set required_fields_bool = rfields | filter(attribute="field_required", value=true) %}
+{%- set required_fields = required_fields_str | concat(with=required_fields_bool) %}
 new_{{ r.record_name }}(Map) ->
 {%- for f in required_fields %}
     case maps:is_key({{ f.field_name }}, Map) of

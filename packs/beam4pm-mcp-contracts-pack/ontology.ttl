@@ -11,16 +11,21 @@
 # Verified against the real MCP specification, fetched and read directly:
 # https://modelcontextprotocol.io/specification/2025-06-18/
 # All ten message shapes below use the spec's own field names verbatim
-# (jsonrpc, id, method, params, result, error.code, error.message, error.data,
-# name, title, description, inputSchema/outputSchema -> input_schema/
-# output_schema in this snake_case vocabulary, arguments, content, isError,
-# structuredContent, uri, mimeType, size, contents) -- none were invented.
+# (jsonrpc, id, method, params, result, error {code, message, data} as ONE
+# wrapped object -- see the rpc_error_response note below, name, title,
+# description, inputSchema/outputSchema -> input_schema/output_schema in
+# this snake_case vocabulary (see mcp:wireName below), arguments, content,
+# isError -> is_error, structuredContent -> structured_content, uri,
+# mimeType -> mime_type, size, contents) -- none were invented.
 #
 # Consumer message-type individuals (the ten admitted mcp:MessageType
 # instances) are NOT declared here -- per this marketplace's established
-# contract, packs ship vocabulary only. The consuming project's own
-# ontology.ttl (e.g. beam4pm) supplies the instance data built from this
-# vocabulary. This file contains ZERO individuals.
+# contract, packs' *instance data* is supplied by the consuming project's
+# own ontology.ttl (e.g. beam4pm), built from this vocabulary. This file
+# contains ZERO individuals. (This pack DOES ship real templates -- see
+# templates/ and README.md's "What this pack generates" -- only the ten
+# admitted mcp:MessageType/mcp:Field individuals themselves are consumer-
+# supplied, the same division every sibling beam4pm-*-contracts-pack uses.)
 #
 # Scope boundary (deliberate, not an oversight): this vocabulary models wire-
 # message data shapes only. It carries no tool-execution, transport,
@@ -41,6 +46,23 @@
 #     defect. A future revision of this pack could model content-block types
 #     as their own mcp:MessageType if a real consumer needs field-level
 #     validation on them.
+#   - `rpc_error_response`'s real-spec `error` value is ONE nested object
+#     (`{"code": ..., "message": ..., "data": ...}`), per JSON-RPC 2.0 and
+#     the MCP schema's own `JSONRPCError` definition. This vocabulary models
+#     it the same "wrap the whole object as one map field" way as `content`/
+#     `contents` above: a single `error`:`map` field, not three flattened
+#     `error_code`/`error_message`/`error_data` fields. Flattening would be a
+#     real, undisclosed wire-breaking divergence (no real MCP peer sends or
+#     understands top-level `error_code`/`error_message` keys) -- disclosed
+#     in README.md, not silently modeled that way.
+#   - Five fields have a real MCP wire-format JSON key that differs from
+#     this vocabulary's own snake_case `mcp:fieldName` (the Erlang atom /
+#     Elixir struct field identifier): `inputSchema`, `outputSchema`,
+#     `isError`, `structuredContent`, `mimeType`. The OPTIONAL `mcp:wireName`
+#     property below (falls back to `mcp:fieldName` when absent) carries the
+#     real wire spelling for exactly those five fields, so generated codecs
+#     emit/read the real JSON key while the Erlang/Elixir-side identifier
+#     stays snake_case -- disclosed in README.md, not a silent renaming.
 #   - Authority, admission, replay, and refusal semantics of any kind are
 #     entirely out of scope for this vocabulary; they are the exclusive,
 #     separately-owned responsibility of beam4pm-post-llm-runtime-pack's
@@ -70,3 +92,5 @@ mcp:fieldDoc a rdf:Property ; rdfs:domain mcp:Field ; rdfs:range xsd:string .
 mcp:fieldRequired a rdf:Property ; rdfs:domain mcp:Field ; rdfs:range xsd:string ;
     rdfs:comment "Plain string literal true or false; templates compare it as a string." .
 mcp:fieldOrder a rdf:Property ; rdfs:domain mcp:Field ; rdfs:range xsd:integer .
+mcp:wireName a rdf:Property ; rdfs:domain mcp:Field ; rdfs:range xsd:string ;
+    rdfs:comment "OPTIONAL. The field's real MCP wire-format JSON key, when it differs from mcp:fieldName (e.g. camelCase inputSchema vs. this vocabulary's snake_case field_name input_schema). Every template that emits or reads a JSON key selects COALESCE(wireName, fieldName) for that key; mcp:fieldName alone remains the Erlang atom / Elixir struct field identifier and never changes. Set explicitly only on the five fields with a real camelCase wire spelling: inputSchema, outputSchema, isError, structuredContent, mimeType." .
