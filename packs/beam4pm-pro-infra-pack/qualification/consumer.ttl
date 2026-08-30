@@ -1,0 +1,45 @@
+# Synthetic consumer fixture for isolated qualification of
+# beam4pm-pro-infra-pack. Both templates (cloudrun_main_tf.tmpl,
+# packer-beam4pm-image.pkr.hcl.tmpl and siblings) assume exactly one
+# b4pi:Deployment and one b4pi:PackerImage individual per consumer graph
+# (fixed output paths; deployments[0]/images[0] after ORDER BY) -- with no
+# fixture at all, the marketplace's qualification harness renders both
+# templates against an empty consumer graph, and cloudrun_main_tf.tmpl's
+# unconditional `deployments[0].serviceName` reference in its header
+# comment fails hard (`Variable deployments[0].serviceName not found`)
+# rather than degrading gracefully, exactly the failure mode this fixture
+# exists to admit against instead. All nine b4pi:Deployment properties
+# gates/010_required.rq enforces, and every b4pi:PackerImage property
+# gates/020_packerimage_required.rq enforces, are supplied below.
+@prefix b4pi: <http://seanchatmangpt.github.io/packs/beam4pm-pro-infra#> .
+
+b4pi:test-deployment
+    a b4pi:Deployment ;
+    b4pi:serviceName          "acme-svc" ;
+    b4pi:region               "us-central1" ;
+    b4pi:containerImage       "ghcr.io/acme/svc:latest" ;
+    b4pi:cpuLimit             "1" ;
+    b4pi:memoryLimit          "512Mi" ;
+    b4pi:minInstances         0 ;
+    b4pi:maxInstances         3 ;
+    b4pi:port                 8080 ;
+    b4pi:allowUnauthenticated false ;
+    b4pi:purpose              "Test fixture: minimal Cloud Run deployment -- must be admitted and render a complete, valid Terraform module." .
+
+b4pi:test-packer-image
+    a b4pi:PackerImage ;
+    b4pi:imageName             "acme-svc" ;
+    b4pi:imageFamily           "acme-svc" ;
+    b4pi:imageDescription      "Test fixture: minimal Packer GCE image build -- must be admitted and render a valid Packer template." ;
+    b4pi:gcpProjectDefault     "acme-svc-demo" ;
+    b4pi:buildZone             "us-central1-a" ;
+    b4pi:buildMachineType      "e2-medium" ;
+    b4pi:buildDiskGb           20 ;
+    b4pi:sourceImageFamily     "debian-12" ;
+    b4pi:sourceImageProject    "debian-cloud" ;
+    b4pi:sshUsername           "packer" ;
+    b4pi:packerContainerImage  "ghcr.io/acme/svc:latest" ;
+    b4pi:containerName         "acme-svc" ;
+    b4pi:servicePort           8080 ;
+    b4pi:serviceDescription    "acme-svc containerized service" ;
+    b4pi:networkTag            "acme-svc" .
