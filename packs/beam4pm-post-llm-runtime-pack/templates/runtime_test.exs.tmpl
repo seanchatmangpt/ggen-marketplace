@@ -1,0 +1,102 @@
+---
+to: generated/post_llm/runtime_test.exs
+sparql:
+  contracts: |
+    PREFIX rt: <https://ggen.dev/ontology/runtime-integration#>
+    PREFIX dct: <http://purl.org/dc/terms/>
+    SELECT ?repo ?base ?head WHERE {
+      ?integration a rt:RuntimeContract ; rt:hasSubject ?subject .
+      ?subject a rt:ExactSubject ; dct:isPartOf ?repo ; dct:source ?base ; dct:identifier ?head .
+    } ORDER BY ?integration LIMIT 1
+---
+{% for c in contracts %}
+# GENERATED Chicago tests. No network or mocked transport: the DO witness is a real filesystem consequence.
+Code.require_file("runtime.ex", __DIR__)
+ExUnit.start()
+
+defmodule BeamPM.PostLLM.RuntimeChicagoTest do
+  use ExUnit.Case, async: false
+
+  alias BeamPM.PostLLM.{BRCE, Capability, Compensation, DfCM, EventEnvelope, ExactSubject, Idempotency, KnowledgeHook, Receipt, Replay, Select, Standing}
+
+  @recorded_at "2026-08-30T00:00:00Z"
+  @context %{actor: "chicago", tenant: "beam4pm", correlation_id: "post-llm-runtime", policy: :admitted}
+
+  test "exact-subject fence refuses an adjacent head" do
+    assert ExactSubject.subject() == %{repo: "{{ c.repo }}", base: "{{ c.base }}", head: "{{ c.head }}"}
+    refute ExactSubject.exact?(%{repo: "{{ c.repo }}", base: "{{ c.base }}", head: "adjacent"})
+  end
+
+  test "knowledge hook manufactures intent but cannot actuate before SELECT" do
+    candidate = KnowledgeHook.manufacture(:observation, "write_receipted_file", %{value: "alive"})
+    assert candidate.phase == :construct
+    assert candidate.authority == :none
+
+    Process.put(:post_llm_actuated, false)
+    actuator = fn _ -> Process.put(:post_llm_actuated, true); :should_not_run end
+    assert {:refused, _, _, _} = BRCE.execute(candidate, @context, actuator, @recorded_at)
+    refute Process.get(:post_llm_actuated)
+  end
+
+  test "unsupported capability is refused before DO" do
+    candidate = KnowledgeHook.manufacture(:observation, "not_admitted", %{}) |> Select.request_do()
+    Process.put(:post_llm_actuated, false)
+    assert {:refused, "CAPABILITY_REFUSED", _, _} = BRCE.execute(candidate, @context, fn _ -> Process.put(:post_llm_actuated, true) end, @recorded_at)
+    refute Process.get(:post_llm_actuated)
+  end
+
+  test "BRCE performs a real filesystem actuation and binds a verifiable receipt" do
+    assert Capability.admitted?("write_receipted_file")
+    path = Path.join(System.tmp_dir!(), "beam4pm-post-llm-#{System.unique_integer([:positive])}.txt")
+    on_exit(fn -> File.rm(path) end)
+
+    candidate = KnowledgeHook.manufacture({:desired_file, path}, "write_receipted_file", %{path: path, bytes: "alive"}, reversible: true, cost: 1, evidence: 10)
+    selected = Select.request_do(candidate)
+
+    actuator = fn intent ->
+      :ok = File.write(intent.payload.path, intent.payload.bytes)
+      %{path: intent.payload.path, sha256: :crypto.hash(:sha256, File.read!(intent.payload.path)) |> Base.encode16(case: :lower)}
+    end
+
+    assert {:ok, consequence, receipt} = BRCE.execute(selected, @context, actuator, @recorded_at)
+    assert File.read!(path) == "alive"
+    assert consequence.path == path
+    assert Receipt.verify(receipt)
+    assert receipt.subject == ExactSubject.subject()
+    assert EventEnvelope.from_receipt(receipt).receipt_id == receipt.id
+    assert Idempotency.key(selected) == Idempotency.key(selected)
+
+    assert {:ok, replay_candidate} = Replay.manufacture(receipt)
+    assert replay_candidate.phase == :construct
+    assert replay_candidate.authority == :none
+    assert replay_candidate.id == selected.id
+
+    compensation = Compensation.manufacture(receipt, %{path: path})
+    assert compensation.capability == "compensate"
+    assert compensation.phase == :construct
+    assert File.exists?(path)
+  end
+
+  test "actuator failure is still receipted" do
+    selected = KnowledgeHook.manufacture(:failure_case, "write_receipted_file", %{}) |> Select.request_do()
+    assert {:error, {:exception, RuntimeError, "boom"}, receipt} = BRCE.execute(selected, @context, fn _ -> raise "boom" end, @recorded_at)
+    assert Receipt.verify(receipt)
+    assert match?({:error, _}, receipt.result)
+  end
+
+  test "DfCM ranking preserves reversible low-cost high-evidence options first" do
+    a = KnowledgeHook.manufacture(:a, "write_receipted_file", %{}, reversible: false, cost: 0, evidence: 100)
+    b = KnowledgeHook.manufacture(:b, "write_receipted_file", %{}, reversible: true, cost: 2, evidence: 10)
+    c = KnowledgeHook.manufacture(:c, "write_receipted_file", %{}, reversible: true, cost: 1, evidence: 1)
+    assert [^c, ^b, ^a] = DfCM.rank([a, b, c])
+  end
+
+  test "standing remains evidence-dimensional" do
+    assert Standing.classify(%{}) == :unknown
+    assert Standing.classify(%{observed: true}) == :partial_alive
+    assert Standing.classify(%{executed: true, verified: true}) == :alive
+    assert Standing.classify(%{blocked: true}) == :blocked
+    assert Standing.classify(%{unsupported: true}) == :unsupported
+  end
+end
+{% endfor %}
