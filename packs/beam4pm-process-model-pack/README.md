@@ -66,6 +66,19 @@ each run a `records` + `fields` SPARQL query pair over the merged graph and rend
   dataset/module identity via real oxigraph. Adapted from the
   rust4pm-Reactor-validation swarm, independently re-verified (clean cargo
   rebuilds, fresh `mix test`) before integration.
+- `templates/beam4pm_pi3_falsifier_test.exs.tmpl` + `_tests.erl.tmpl` -- PI3
+  (process inference) falsifier court for the real `BeamPM.Discovery` pipeline:
+  proves a known, hand-designed branching process (`receive_order ->
+  validate_order -> [ship_order | reject_order] -> close_order`) is recovered
+  as an exact DFG edge-set match, AND that false adjacency -- event pairs
+  timestamp-adjacent in the raw, unpartitioned stream but belonging to
+  different cases -- is never promoted into a spurious edge, including under
+  concurrent-interleaved unrelated processes, shared activity-name vocabulary
+  across those processes, and a 300-single-event-fragment flood stress case.
+  21 hand-designed adversarial tests per language, order-independence checked
+  via multiple permutations at up to 4000-event scale, and a non-vacuousness
+  check (deliberately removing a real edge from the expected set to confirm
+  the suite actually fails when the code would be wrong).
 
 `to:` paths in every template above are relative to the **consuming project's root**
 (e.g. `src/...`, not `../../src/...`) -- ggen resolves
