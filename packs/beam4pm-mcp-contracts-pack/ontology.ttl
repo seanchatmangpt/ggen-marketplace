@@ -1,0 +1,72 @@
+# beam4pm-mcp-contracts-pack vocabulary.
+#
+# Mirrors beam4pm-ai-contracts-pack's aic:ContractType / aic:Field pattern
+# (itself mirroring beam4pm-process-model-pack's bpm:RecordType / bpm:Field
+# pattern) exactly, under a sibling namespace and prefix, for a sibling
+# domain: the canonical MCP (Model Context Protocol) wire-message data
+# shapes -- the JSON-RPC 2.0 envelope (request, success response, error
+# response, notification) and the tools/resources message payloads (tool,
+# tool-call request/result, resource, resource-read request/result).
+#
+# Verified against the real MCP specification, fetched and read directly:
+# https://modelcontextprotocol.io/specification/2025-06-18/
+# All ten message shapes below use the spec's own field names verbatim
+# (jsonrpc, id, method, params, result, error.code, error.message, error.data,
+# name, title, description, inputSchema/outputSchema -> input_schema/
+# output_schema in this snake_case vocabulary, arguments, content, isError,
+# structuredContent, uri, mimeType, size, contents) -- none were invented.
+#
+# Consumer message-type individuals (the ten admitted mcp:MessageType
+# instances) are NOT declared here -- per this marketplace's established
+# contract, packs ship vocabulary only. The consuming project's own
+# ontology.ttl (e.g. beam4pm) supplies the instance data built from this
+# vocabulary. This file contains ZERO individuals.
+#
+# Scope boundary (deliberate, not an oversight): this vocabulary models wire-
+# message data shapes only. It carries no tool-execution, transport,
+# session, or capability-negotiation semantics of any kind. In particular:
+#   - A JSON-RPC id is real-spec `string | number`; this vocabulary models it
+#     as a single "string" field. Numeric ids are expected to be stringified
+#     by callers before constructing a message -- a real, bounded
+#     compression, not a silent narrowing, and it is disclosed in README.md.
+#   - `tools/call`'s result `content` (an array of typed content blocks, each
+#     discriminated by a `type` tag: text/image/audio/resource_link/
+#     resource/...) and `resources/read`'s result `contents` (an array of
+#     `{uri, mimeType?, text?}` or `{uri, mimeType?, blob?}` items) are each
+#     modeled as ONE "map" field wrapping the real array under a single key
+#     (e.g. `{"blocks": [...]}` / `{"contents": [...]}`). The closed 8-value
+#     fieldType enum below has no "array of typed objects" member, so the
+#     wrapped array's own elements are not independently field-validated by
+#     this pack -- a real, bounded scope limit disclosed in README.md, not a
+#     defect. A future revision of this pack could model content-block types
+#     as their own mcp:MessageType if a real consumer needs field-level
+#     validation on them.
+#   - Authority, admission, replay, and refusal semantics of any kind are
+#     entirely out of scope for this vocabulary; they are the exclusive,
+#     separately-owned responsibility of beam4pm-post-llm-runtime-pack's
+#     rt: vocabulary. This pack neither touches nor extends that vocabulary.
+
+@prefix mcp: <https://ggen.dev/ontology/beam4pm-mcp#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+mcp:MessageType a rdfs:Class ;
+    rdfs:label "Message Type" ;
+    rdfs:comment "One admitted MCP wire-message data shape (JSON-RPC request, success response, error response, notification, tool, tool-call request/result, resource, or resource-read request/result) projected into generated code." .
+
+mcp:Field a rdfs:Class ;
+    rdfs:label "Field" ;
+    rdfs:comment "One typed, ordered field belonging to an mcp:MessageType." .
+
+mcp:messageName a rdf:Property ; rdfs:domain mcp:MessageType ; rdfs:range xsd:string ;
+    rdfs:comment "The message type's canonical snake_case name (e.g. rpc_request)." .
+mcp:messageDoc a rdf:Property ; rdfs:domain mcp:MessageType ; rdfs:range xsd:string .
+mcp:hasField a rdf:Property ; rdfs:domain mcp:MessageType ; rdfs:range mcp:Field .
+mcp:fieldName a rdf:Property ; rdfs:domain mcp:Field ; rdfs:range xsd:string .
+mcp:fieldType a rdf:Property ; rdfs:domain mcp:Field ; rdfs:range xsd:string ;
+    rdfs:comment "Closed set: string, integer, float, boolean, datetime, atom, list_string, map." .
+mcp:fieldDoc a rdf:Property ; rdfs:domain mcp:Field ; rdfs:range xsd:string .
+mcp:fieldRequired a rdf:Property ; rdfs:domain mcp:Field ; rdfs:range xsd:string ;
+    rdfs:comment "Plain string literal true or false; templates compare it as a string." .
+mcp:fieldOrder a rdf:Property ; rdfs:domain mcp:Field ; rdfs:range xsd:integer .
