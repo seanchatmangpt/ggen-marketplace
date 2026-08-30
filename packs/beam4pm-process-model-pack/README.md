@@ -17,34 +17,34 @@ supplied by the consuming project's own `ontology.ttl` (e.g. `beam4pm`), using t
 From every admitted `bpm:RecordType` in the consumer's graph, this pack's 11 templates
 each run a `records` + `fields` SPARQL query pair over the merged graph and render:
 
-- `templates/beam4pm_types.erl.tmpl` -> `generated/erlang/src/beam4pm_types.erl` --
+- `templates/beam4pm_types.erl.tmpl` -> `src/beam4pm_types.erl` --
   one `-record/1` + `-type/0` declaration (plus a single `-export_type` list) and one
   `new_<record_name>/1` constructor per record type, returning `{ok, #record{}}` or
   `{error, {missing_field, atom()}}`.
-- `templates/beam4pm_types_tests.erl.tmpl` -> `generated/erlang/test/beam4pm_types_tests.erl`
+- `templates/beam4pm_types_tests.erl.tmpl` -> `test/beam4pm_types_tests.erl`
   -- real EUnit tests calling those constructors (one ok-path test and one
   missing-required-field test per record type).
-- `templates/beam4pm_types.ex.tmpl` -> `generated/elixir/lib/beam4pm_types.ex` -- one
+- `templates/beam4pm_types.ex.tmpl` -> `lib/beam4pm_types.ex` -- one
   `BeamPM.Types.<RecordName>` struct module per record type (all in one file), each
   with a `new/1` constructor returning `{:ok, t()}` or `{:error, {:missing_field, atom()}}`.
-- `templates/beam4pm_types_test.exs.tmpl` -> `generated/elixir/test/beam4pm_types_test.exs`
+- `templates/beam4pm_types_test.exs.tmpl` -> `test/beam4pm_types_test.exs`
   -- real ExUnit tests calling those constructors.
-- `templates/beam4pm_types_test_helper.exs.tmpl` -> `generated/elixir/test/test_helper.exs`
+- `templates/beam4pm_types_test_helper.exs.tmpl` -> `test/test_helper.exs`
   -- the `ExUnit.start()` bootstrap Mix requires when `test_paths` is set explicitly.
-- `templates/beam4pm_types.schema.json.tmpl` -> `generated/schema/beam4pm_types.schema.json`
+- `templates/beam4pm_types.schema.json.tmpl` -> `schema/beam4pm_types.schema.json`
   -- a draft-07 JSON Schema document, one sub-schema per record type, for wire-format
   documentation independent of either language projection.
-- `templates/beam4pm_types_reference.md.tmpl` -> `generated/docs/beam4pm_types_reference.md`
+- `templates/beam4pm_types_reference.md.tmpl` -> `docs/reference/beam4pm_types_reference.md`
   -- a generated Markdown reference table (one section per record, one row per field).
-- `templates/beam4pm_types_manifest.erl.tmpl` / `.ex.tmpl` -> `generated/erlang/src/beam4pm_types_manifest.erl`
-  and `generated/elixir/lib/beam4pm_types_manifest.ex` -- pure reflection modules
+- `templates/beam4pm_types_manifest.erl.tmpl` / `.ex.tmpl` -> `src/beam4pm_types_manifest.erl`
+  and `lib/beam4pm_types_manifest.ex` -- pure reflection modules
   (`record_names/0`, `fields/1`) with no dependency on the `-record`/`defstruct`
   definitions above, so they render safely regardless of which records exist.
 - `templates/beam4pm_types_manifest_tests.erl.tmpl` / `_test.exs.tmpl` -- real
   EUnit/ExUnit tests for those two reflection modules.
 
 `to:` paths in every template above are relative to the **consuming project's root**
-(e.g. `generated/erlang/src/...`, not `../../generated/erlang/src/...`) -- ggen resolves
+(e.g. `src/...`, not `../../src/...`) -- ggen resolves
 `to:` against the project root regardless of where the template file itself lives inside
 a vendored pack, and refuses (`FM-WRITE-002`) any `to:` value containing a `../`
 traversal component.
