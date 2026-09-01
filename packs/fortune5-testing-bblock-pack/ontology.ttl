@@ -20,6 +20,16 @@ tb:reportSchema a rdf:Property .
 tb:directActuation a rdf:Property .
 tb:hasSuite a rdf:Property .
 
+# Consumer-admitted facts (v26.9.1 GM-03 portability fix). These replace
+# filesystem auto-detection (a Cargo.toml + crates/ggen-cli walk, a
+# target/debug/ggen default) with explicit declarations the consumer's own
+# ontology instance admits before `ggen sync run`. Never inferred.
+tb:consumerRootMarker a rdf:Property .
+tb:consumerBinaryCommand a rdf:Property .
+tb:consumerTestCommand a rdf:Property .
+tb:consumerForbiddenTokenFiles a rdf:Property .
+tb:consumerForbiddenTokens a rdf:Property .
+
 tb:TestingBBlock a tb:TestingBBlockClass ;
     dcterms:title "Executable Testing BBlock" ;
     dcterms:description "Nine distinct real-boundary suites with BLAKE3-chained receipts and machine-readable verifier replay." ;
@@ -27,7 +37,17 @@ tb:TestingBBlock a tb:TestingBBlockClass ;
     tb:directActuation false ;
     tb:reportSchema "ggen.testing.verifier-report.v1" ;
     tb:hasSuite tb:ProtocolUnit, tb:PropertyFuzz, tb:StdioHttpIntegration,
-        tb:CliE2E, tb:Security, tb:Chaos, tb:Stress, tb:Benchmark, tb:Replay .
+        tb:CliE2E, tb:Security, tb:Chaos, tb:Stress, tb:Benchmark, tb:Replay ;
+    # This pack's own repo (ggen) admitted as one legitimate consumer's facts.
+    # A downstream consumer (a scratch project, beam4pm, etc.) overrides these
+    # four values in its own ontology instance before syncing this pack --
+    # they are declared, never auto-detected from a Cargo.toml/crates/ggen-cli
+    # filesystem walk.
+    tb:consumerRootMarker "Cargo.toml" ;
+    tb:consumerBinaryCommand "ggen" ;
+    tb:consumerTestCommand "cargo test -p ggen-cli-lib bblock --lib" ;
+    tb:consumerForbiddenTokenFiles "crates/ggen-cli/src/cmds/bblock.rs" ;
+    tb:consumerForbiddenTokens "reqwest,std::net,Command::new,terraform,pulumi,kubectl,aws_sdk,azure_,google_cloud" .
 
 tb:ProtocolUnit a tb:ExecutableSuite ;
     tb:order 1 ; tb:suiteId "protocol-unit" ;

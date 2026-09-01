@@ -9,6 +9,7 @@ import http.server
 import json
 import os
 import random
+import shlex
 import shutil
 import statistics
 import struct
@@ -25,6 +26,21 @@ from typing import Any, Callable
 
 SCHEMA = "ggen.testing.verifier-report.v1"
 RECEIPT_SCHEMA = "ggen.testing.suite-receipt.v1"
+
+# Consumer-admitted facts, template-bound at `ggen sync run` time (v26.9.1
+# GM-03). These come from the consumer's own ontology instance data
+# (tb:consumerRootMarker / tb:consumerBinaryCommand / tb:consumerTestCommand /
+# tb:consumerForbiddenTokenFiles / tb:consumerForbiddenTokens on
+# tb:TestingBBlock) -- never auto-detected from a Cargo.toml + crates/ggen-cli
+# filesystem walk. A consumer that admits no forbidden-token files gets an
+# empty list here, which the security() suite reports as a named,
+# explicit skip rather than a fabricated pass.
+{% for row in results %}CONSUMER_ROOT_MARKER = "{{ row.consumerRootMarker }}"
+CONSUMER_BINARY_COMMAND = "{{ row.consumerBinaryCommand }}"
+CONSUMER_TEST_COMMAND = "{{ row.consumerTestCommand }}"
+CONSUMER_FORBIDDEN_TOKEN_FILES = [path for path in "{{ row.consumerForbiddenTokenFiles }}".split(",") if path]
+CONSUMER_FORBIDDEN_TOKENS = [token for token in "{{ row.consumerForbiddenTokens }}".split(",") if token]
+{% endfor %}
 SUITES = [
     "protocol-unit",
     "property-fuzz",
@@ -163,24 +179,46 @@ def require_program(name: str) -> str:
 
 
 def discover_repo_root() -> Path:
+    """Locate the consumer project root using the consumer-admitted root
+    marker (tb:consumerRootMarker, baked in as CONSUMER_ROOT_MARKER at
+    template-bind time) instead of a ggen-specific Cargo.toml +
+    crates/ggen-cli filesystem walk. TESTING_BBLOCK_REPO_ROOT still overrides
+    for an operator who wants to point at a specific checkout."""
     configured = os.environ.get("TESTING_BBLOCK_REPO_ROOT")
     if configured:
         root = Path(configured).resolve()
-        if not (root / "Cargo.toml").is_file():
-            raise SuiteBlocked(f"configured repository root has no Cargo.toml: {root}")
+        if CONSUMER_ROOT_MARKER and not (root / CONSUMER_ROOT_MARKER).exists():
+            raise SuiteBlocked(f"configured repository root has no {CONSUMER_ROOT_MARKER}: {root}")
         return root
+    if not CONSUMER_ROOT_MARKER:
+        return Path.cwd().resolve()
     for candidate in [Path.cwd().resolve(), *Path(__file__).resolve().parents]:
-        if (candidate / "Cargo.toml").is_file() and (candidate / "crates/ggen-cli").is_dir():
+        if (candidate / CONSUMER_ROOT_MARKER).exists():
             return candidate
-    raise SuiteBlocked("cannot discover the ggen repository root")
+    raise SuiteBlocked(f"cannot discover the consumer project root (admitted marker: {CONSUMER_ROOT_MARKER})")
 
 
 def resolve_ggen(root: Path) -> Path:
+    """Resolve the real ggen binary from the consumer-admitted binary command
+    (tb:consumerBinaryCommand, baked in as CONSUMER_BINARY_COMMAND) resolved
+    via PATH, an absolute path admitted directly, or the GGEN_BIN override --
+    never a ggen-repo-specific target/debug/ggen default."""
     configured = os.environ.get("GGEN_BIN")
-    binary = Path(configured).resolve() if configured else root / "target/debug/ggen"
-    if not binary.is_file():
-        raise SuiteBlocked(f"real ggen binary is unavailable: {binary}")
-    return binary
+    if configured:
+        binary = Path(configured).resolve()
+        if not binary.is_file():
+            raise SuiteBlocked(f"real ggen binary is unavailable: {binary}")
+        return binary
+    candidate = Path(CONSUMER_BINARY_COMMAND)
+    if candidate.is_absolute() or os.sep in CONSUMER_BINARY_COMMAND:
+        resolved = candidate.resolve()
+        if not resolved.is_file():
+            raise SuiteBlocked(f"real ggen binary is unavailable: {resolved}")
+        return resolved
+    found = shutil.which(CONSUMER_BINARY_COMMAND)
+    if found is None:
+        raise SuiteBlocked(f"real ggen binary is unavailable on PATH: {CONSUMER_BINARY_COMMAND}")
+    return Path(found)
 
 
 def run_process(argv: list[str], cwd: Path, timeout: float = 300.0, expected: set[int] | None = None, stdin: bytes | None = None) -> dict[str, Any]:
@@ -214,9 +252,15 @@ def parse_json_output(result: dict[str, Any]) -> Any:
 
 
 def protocol_unit(root: Path, ggen: Path) -> dict[str, Any]:
-    cargo = require_program("cargo")
-    command = run_process([cargo, "test", "-p", "ggen-cli-lib", "bblock", "--lib"], root, timeout=900)
-    return {"commands": [command], "boundary": ["compiler", "filesystem", "process"]}
+    """Run the consumer-admitted test command (tb:consumerTestCommand, baked
+    in as CONSUMER_TEST_COMMAND) instead of the ggen-repo-specific
+    `cargo test -p ggen-cli-lib bblock --lib` invocation."""
+    if not CONSUMER_TEST_COMMAND:
+        raise SuiteBlocked("no consumer test command admitted (tb:consumerTestCommand)")
+    argv = shlex.split(CONSUMER_TEST_COMMAND)
+    require_program(argv[0])
+    command = run_process(argv, root, timeout=900)
+    return {"commands": [command], "test_command": CONSUMER_TEST_COMMAND, "boundary": ["compiler", "filesystem", "process"]}
 
 
 def property_fuzz(root: Path, ggen: Path) -> dict[str, Any]:
@@ -298,11 +342,30 @@ def cli_e2e(root: Path, ggen: Path) -> dict[str, Any]:
 
 
 def security(root: Path, ggen: Path) -> dict[str, Any]:
-    source = (root / "crates/ggen-cli/src/cmds/bblock.rs").read_text()
-    forbidden = ["reqwest", "std::net", "Command::new", "terraform", "pulumi", "kubectl", "aws_sdk", "azure_", "google_cloud"]
-    found = [token for token in forbidden if token in source]
+    """Scan the consumer-admitted forbidden-token source files
+    (tb:consumerForbiddenTokenFiles / tb:consumerForbiddenTokens, baked in as
+    CONSUMER_FORBIDDEN_TOKEN_FILES / CONSUMER_FORBIDDEN_TOKENS) for direct
+    actuation tokens, instead of the literal ggen-repo-specific
+    crates/ggen-cli/src/cmds/bblock.rs read. An empty admitted file list is a
+    legitimate consumer answer (not every consumer has a bblock-compiler-
+    shaped file to check) and degrades to a named, explicit skip -- it must
+    never fail closed by inventing a check that doesn't apply, and must never
+    silently report a pass for a check that never ran."""
+    if not CONSUMER_FORBIDDEN_TOKEN_FILES:
+        raise SuiteBlocked("no consumer forbidden-token source files admitted (tb:consumerForbiddenTokenFiles)")
+    found: dict[str, list[str]] = {}
+    scanned: list[str] = []
+    for relative in CONSUMER_FORBIDDEN_TOKEN_FILES:
+        path = root / relative
+        if not path.is_file():
+            raise SuiteBlocked(f"admitted forbidden-token source file is missing: {path}")
+        source = path.read_text()
+        scanned.append(str(path))
+        hits = [token for token in CONSUMER_FORBIDDEN_TOKENS if token in source]
+        if hits:
+            found[str(path)] = hits
     if found:
-        raise SuiteFailure(f"direct actuation surface entered bblock compiler: {found}")
+        raise SuiteFailure(f"direct actuation surface entered admitted source: {found}")
     commands: list[dict[str, Any]] = []
     with tempfile.TemporaryDirectory(prefix="ggen-testing-security-") as temporary:
         cwd = Path(temporary)
@@ -314,7 +377,7 @@ def security(root: Path, ggen: Path) -> dict[str, Any]:
             commands.append(run_process(argv, cwd, timeout=30, expected=set(range(1, 256))))
         if any(cwd.iterdir()):
             raise SuiteFailure("refused security probes changed project state")
-    return {"commands": commands, "forbidden_tokens_checked": forbidden, "boundary": ["path-admission", "provider-admission", "no-direct-actuation"]}
+    return {"commands": commands, "files_scanned": scanned, "forbidden_tokens_checked": CONSUMER_FORBIDDEN_TOKENS, "boundary": ["path-admission", "provider-admission", "no-direct-actuation"]}
 
 
 def chaos(root: Path, ggen: Path) -> dict[str, Any]:
