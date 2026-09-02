@@ -267,7 +267,7 @@ def property_fuzz(root: Path, ggen: Path) -> dict[str, Any]:
     rng = random.Random(0xB10C)
     commands: list[dict[str, Any]] = []
     for alias, expected in [("aws", "aws"), ("amazon", "aws"), ("azure", "azure"), ("gpc", "gcp")]:
-        result = run_process([str(ggen), "bblock", "inspect", "testing", alias], root, timeout=30)
+        result = run_process([str(ggen), "bblock", "inspect", "--group-id", "testing", "--provider", alias], root, timeout=30)
         payload = parse_json_output(result)
         if payload.get("provider") != expected or payload.get("requested_group") != "testing":
             raise SuiteFailure(f"provider normalization property failed for {alias}")
@@ -275,7 +275,7 @@ def property_fuzz(root: Path, ggen: Path) -> dict[str, Any]:
     alphabet = "abcdefghijklmnopqrstuvwxyz0123456789_./:-"
     for _ in range(32):
         invalid = "x-" + "".join(rng.choice(alphabet) for _ in range(rng.randint(1, 24)))
-        result = run_process([str(ggen), "bblock", "inspect", "testing", invalid], root, timeout=30, expected=set(range(1, 256)))
+        result = run_process([str(ggen), "bblock", "inspect", "--group-id", "testing", "--provider", invalid], root, timeout=30, expected=set(range(1, 256)))
         lowered = (result["stdout"] + result["stderr"]).lower()
         if "panicked" in lowered or "stack backtrace" in lowered:
             raise SuiteFailure(f"fuzz input caused a panic: {invalid}")
@@ -320,13 +320,13 @@ def cli_e2e(root: Path, ggen: Path) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="ggen-testing-e2e-") as temporary:
         cwd = Path(temporary)
         commands.append(run_process([str(ggen), "bblock", "validate"], cwd, timeout=30))
-        inspect = run_process([str(ggen), "bblock", "inspect", "testing", "gpc"], cwd, timeout=30)
+        inspect = run_process([str(ggen), "bblock", "inspect", "--group-id", "testing", "--provider", "gpc"], cwd, timeout=30)
         payload = parse_json_output(inspect)
         if "fortune5-testing-bblock-pack" not in payload.get("packs", []):
             raise SuiteFailure("testing common pack is absent from inspect output")
         commands.append(inspect)
-        commands.append(run_process([str(ggen), "bblock", "plan", "testing", "aws"], cwd, timeout=30))
-        commands.append(run_process([str(ggen), "bblock", "enable", "testing", "aws"], cwd, timeout=30))
+        commands.append(run_process([str(ggen), "bblock", "plan", "--group-id", "testing", "--provider", "aws"], cwd, timeout=30))
+        commands.append(run_process([str(ggen), "bblock", "enable", "--group-id", "testing", "--provider", "aws"], cwd, timeout=30))
         required = [
             cwd / "infrastructure/testing",
             cwd / ".ggen/packs.lock",
@@ -370,9 +370,9 @@ def security(root: Path, ggen: Path) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="ggen-testing-security-") as temporary:
         cwd = Path(temporary)
         for argv in [
-            [str(ggen), "bblock", "inspect", "testing", "../../aws"],
-            [str(ggen), "bblock", "inspect", "../testing", "aws"],
-            [str(ggen), "bblock", "inspect", "testing", "oracle"],
+            [str(ggen), "bblock", "inspect", "--group-id", "testing", "--provider", "../../aws"],
+            [str(ggen), "bblock", "inspect", "--group-id", "../testing", "--provider", "aws"],
+            [str(ggen), "bblock", "inspect", "--group-id", "testing", "--provider", "oracle"],
         ]:
             commands.append(run_process(argv, cwd, timeout=30, expected=set(range(1, 256))))
         if any(cwd.iterdir()):
@@ -388,13 +388,13 @@ def chaos(root: Path, ggen: Path) -> dict[str, Any]:
         receipt.parent.mkdir(parents=True)
         poison = b'{"schema":"corrupted"'
         receipt.write_bytes(poison)
-        commands.append(run_process([str(ggen), "bblock", "plan", "testing", "aws"], cwd, timeout=30, expected=set(range(1, 256))))
+        commands.append(run_process([str(ggen), "bblock", "plan", "--group-id", "testing", "--provider", "aws"], cwd, timeout=30, expected=set(range(1, 256))))
         if receipt.read_bytes() != poison:
             raise SuiteFailure("corrupted predecessor receipt was overwritten")
         if list(cwd.rglob("*.tmp")):
             raise SuiteFailure("fault injection left temporary files behind")
         receipt.unlink()
-        commands.append(run_process([str(ggen), "bblock", "plan", "testing", "aws"], cwd, timeout=30))
+        commands.append(run_process([str(ggen), "bblock", "plan", "--group-id", "testing", "--provider", "aws"], cwd, timeout=30))
         if not receipt.is_file():
             raise SuiteFailure("system did not recover after the injected receipt fault")
     return {"commands": commands, "fault": "malformed predecessor receipt", "boundary": ["state-fault", "atomic-write", "recovery"]}
@@ -403,7 +403,7 @@ def chaos(root: Path, ggen: Path) -> dict[str, Any]:
 def stress(root: Path, ggen: Path) -> dict[str, Any]:
     providers = ["aws", "azure", "gpc"] * 12
     def invoke(provider: str) -> tuple[str, dict[str, Any], str]:
-        result = run_process([str(ggen), "bblock", "inspect", "testing", provider], root, timeout=30)
+        result = run_process([str(ggen), "bblock", "inspect", "--group-id", "testing", "--provider", provider], root, timeout=30)
         payload = parse_json_output(result)
         return provider, result, payload["plan_digest"]
     records: list[tuple[str, dict[str, Any], str]] = []
@@ -421,11 +421,11 @@ def stress(root: Path, ggen: Path) -> dict[str, Any]:
 
 def benchmark(root: Path, ggen: Path) -> dict[str, Any]:
     for _ in range(3):
-        run_process([str(ggen), "bblock", "inspect", "testing", "aws"], root, timeout=30)
+        run_process([str(ggen), "bblock", "inspect", "--group-id", "testing", "--provider", "aws"], root, timeout=30)
     samples: list[float] = []
     commands: list[dict[str, Any]] = []
     for _ in range(20):
-        result = run_process([str(ggen), "bblock", "inspect", "testing", "aws"], root, timeout=30)
+        result = run_process([str(ggen), "bblock", "inspect", "--group-id", "testing", "--provider", "aws"], root, timeout=30)
         samples.append(float(result["duration_ms"]))
         commands.append(result)
     ordered = sorted(samples)
@@ -460,7 +460,7 @@ def replay(root: Path, ggen: Path) -> dict[str, Any]:
     commands: list[dict[str, Any]] = []
     with tempfile.TemporaryDirectory(prefix="ggen-testing-replay-") as temporary:
         cwd = Path(temporary)
-        commands.append(run_process([str(ggen), "bblock", "plan", "testing", "aws"], cwd, timeout=30))
+        commands.append(run_process([str(ggen), "bblock", "plan", "--group-id", "testing", "--provider", "aws"], cwd, timeout=30))
         plan_path = cwd / ".ggen/bblocks/plans/aws/testing.json"
         intent_path = cwd / ".ggen/bblocks/receipts/aws/testing-plan-intent.json"
         result_path = cwd / ".ggen/bblocks/receipts/aws/testing-plan-result.json"
@@ -471,7 +471,7 @@ def replay(root: Path, ggen: Path) -> dict[str, Any]:
         verify_bblock_receipt(first_result)
         if first_result["previous_digest"] != first_intent["digest"]:
             raise SuiteFailure("first result does not chain to first intent")
-        commands.append(run_process([str(ggen), "bblock", "plan", "testing", "aws"], cwd, timeout=30))
+        commands.append(run_process([str(ggen), "bblock", "plan", "--group-id", "testing", "--provider", "aws"], cwd, timeout=30))
         second_plan = plan_path.read_bytes()
         second_intent = json.loads(intent_path.read_text())
         second_result = json.loads(result_path.read_text())
