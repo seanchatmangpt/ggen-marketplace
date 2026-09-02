@@ -1,11 +1,5 @@
-# Synthetic consumer fixture for isolated qualification of gate 030
-# (push-trigger-required). Proves the two admitted outcomes: a real push
-# trigger, and a stated exemption reason. The third, refused case
-# (a gha:Workflow with neither) was verified for real during development
-# -- `ggen sync run` genuinely refused it with FM-PACK-013, naming the
-# exact subject -- but is not shipped here, since a pack's own
-# qualification fixture should demonstrate what a real consumer is
-# admitted to do, not carry a permanently-failing individual.
+# Synthetic consumer fixture for isolated qualification.
+# Existing push-trigger cases plus the admitted local-runtime DfCM route graph.
 @prefix gha: <http://seanchatmangpt.github.io/packs/github-actions#> .
 
 gha:test-ci-with-push
@@ -22,3 +16,30 @@ gha:test-release-gate
     gha:permissionCeiling "read-all" ;
     gha:trigger gha:EventWorkflowDispatch ;
     gha:noPushTriggerReason "manual-dispatch-only release gate, intentionally not push-triggered" .
+
+gha:test-local-profile
+    a gha:LocalExecutionProfile ;
+    gha:profileName "qualification" ;
+    gha:receiptRoot ".ggen-v2/github-local/receipts" ;
+    gha:exactActSha "4f411281417e88660bea1c1a1749aa71ae0bd60f" ;
+    gha:exactActVersion "0.2.89" ;
+    gha:requiresCapability gha:test-capability .
+
+gha:test-capability
+    a gha:LocalCapability ;
+    gha:capabilityKey "workflow.execution" ;
+    gha:requiresGitHubControlPlane false .
+
+gha:test-act
+    a gha:ExecutionBackend ;
+    gha:capabilityKey "act" .
+
+gha:test-route
+    a gha:CapabilityRoute ;
+    gha:inProfile gha:test-local-profile ;
+    gha:forCapability gha:test-capability ;
+    gha:viaBackend gha:test-act ;
+    gha:routeMode gha:ModeNative ;
+    gha:routePriority 10 ;
+    gha:semanticCeiling "workflow/job/step execution where act semantics match admitted workflow features" ;
+    gha:evidenceClass "local act exit code + receipt" .
