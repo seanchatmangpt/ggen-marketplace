@@ -1,36 +1,4 @@
 ---
-# Renders one real .github/workflows/FILENAME file per gha:Workflow
-# individual, from typed gha:Job/gha:Step facts -- not an echoed literal.
-# Self-contained sync.rs-native format (to:/sparql:/for_each:) -- this is
-# the convention this marketplace's own qualify tooling expects of every
-# pack template (see scripts/qualify_packs.py's FRONTMATTER_PROBE_TEMPLATE)
-# and the convention every other real template in this repo already
-# follows. A consumer wires this via a real `[[packs]]`/`[packs]` entry in
-# their own ggen.toml (matching ggen-marketplace's own qualify consumer
-# wiring), not `[[generation.rules]]`'s File-sourced workaround an earlier
-# revision of this file used (that workaround existed only because
-# [[generation.rules]]'s own `template = { pack = ... }` sourcing is
-# separately broken in ggen 26.8.8, [FM-GEN-007] -- irrelevant to this
-# self-contained path, which never touches TemplateSource::Pack at all).
-#
-# gha:Workflow individuals carrying gha:ownedBy must be excluded by the
-# `workflows` query below (generation belongs elsewhere for those).
-#
-# for_each: workflows drives one output file per gha:Workflow row. The
-# jobs:/steps: queries below return every job/step for every workflow
-# (frontmatter sparql: values are static strings, not per-row templated,
-# so no per-row filtering is possible here) -- the body filters both down
-# to the current row's own wf/jobName using Tera's standard
-# filter(attribute=, value=).
-#
-# GROUP_CONCAT separators use "%%GHA_SEP%%" for with/env, never a bare
-# "|" -- real step values (e.g. `a || b || c` expressions) legitimately
-# contain "|", so joining on that character corrupts them on split-back-
-# apart (confirmed the hard way against a real diff, not assumed).
-# Multi-line values (run: blocks, onBlock, jobExtra) are re-indented by
-# looping split("\n") rather than the `indent` filter -- that filter's
-# actual behavior didn't match assumption either, also confirmed against
-# a real diff.
 to: ".github/workflows/{{ fileName }}"
 for_each: workflows
 sparql:
@@ -69,9 +37,11 @@ sparql:
     ORDER BY ?wf ?jobName
   steps: |
     PREFIX gha: <http://seanchatmangpt.github.io/packs/github-actions#>
-    SELECT ?wf ?jobName ?stepOrder ?stepName ?stepId ?usesAction ?runCommand ?condition ?continueOnError
+    SELECT ?wf ?jobName ?stepOrder ?stepName ?stepId ?usesAction ?runCommand ?condition
+           ?continueOnError ?background ?waitAll ?cancelStep
            (GROUP_CONCAT(DISTINCT ?with; separator="%%GHA_SEP%%") AS ?withParams)
            (GROUP_CONCAT(DISTINCT ?env; separator="%%GHA_SEP%%") AS ?envVars)
+           (GROUP_CONCAT(DISTINCT ?wait; separator=",") AS ?waitForList)
     WHERE {
       ?step a gha:Step ; gha:inJob ?job ; gha:stepOrder ?stepOrder .
       ?job gha:jobName ?jobName ; gha:inWorkflow ?wf .
@@ -81,10 +51,15 @@ sparql:
       OPTIONAL { ?step gha:runCommand ?runCommand . }
       OPTIONAL { ?step gha:condition ?condition . }
       OPTIONAL { ?step gha:continueOnError ?continueOnError . }
+      OPTIONAL { ?step gha:background ?background . }
+      OPTIONAL { ?step gha:waitFor ?wait . }
+      OPTIONAL { ?step gha:waitAll ?waitAll . }
+      OPTIONAL { ?step gha:cancelStep ?cancelStep . }
       OPTIONAL { ?step gha:withParam ?with . }
       OPTIONAL { ?step gha:envVar ?env . }
     }
-    GROUP BY ?wf ?jobName ?stepOrder ?stepName ?stepId ?usesAction ?runCommand ?condition ?continueOnError
+    GROUP BY ?wf ?jobName ?stepOrder ?stepName ?stepId ?usesAction ?runCommand ?condition
+             ?continueOnError ?background ?waitAll ?cancelStep
     ORDER BY ?wf ?jobName ?stepOrder
 ---
 {%- macro reindent(text, spaces) -%}
@@ -145,7 +120,10 @@ jobs:
     steps:
 {%- set my_steps = steps | filter(attribute="jobName", value=job.jobName) | filter(attribute="wf", value=wf) %}
 {%- for step in my_steps %}
-      - {% if step.stepName %}name: {{ step.stepName }}
+      - {% if step.waitForList %}wait: [{{ step.waitForList }}]
+        {% elif step.waitAll %}wait-all:
+        {% elif step.cancelStep %}cancel: {{ step.cancelStep }}
+        {% else %}{% if step.stepName %}name: {{ step.stepName }}
         {% endif -%}
 {%- if step.stepId %}id: {{ step.stepId }}
         {% endif -%}
@@ -165,9 +143,12 @@ jobs:
         {% endif -%}
 {%- if step.continueOnError %}continue-on-error: true
         {% endif -%}
+{%- if step.background %}background: true
+        {% endif -%}
 {%- if step.runCommand %}shell: bash
         run: |
 {{ self::reindent(text=step.runCommand, spaces="          ") }}
+{%- endif %}
 {%- endif %}
 {%- endfor %}
 {%- endfor %}
