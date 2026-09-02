@@ -84,9 +84,11 @@ bootstrap() {
   verify_act_source
   go_version="$(go env GOVERSION)"
   [[ "$go_version" == "$EXPECTED_GO_SERIES"* ]] || die "REFUSED[GO_TOOLCHAIN_DRIFT]:$go_version:$EXPECTED_GO_SERIES.x"
-  mkdir -p "$(dirname "$LOCAL_ACT_BIN")" "$RECEIPT_ROOT"
+  local_act_out="$LOCAL_ACT_BIN"
+  [[ "$local_act_out" = /* ]] || local_act_out="$(pwd)/$local_act_out"
+  mkdir -p "$(dirname "$local_act_out")" "$RECEIPT_ROOT"
   set +e
-  (cd vendor/act && go build -trimpath -ldflags "-X main.version=$EXPECTED_ACT_VERSION" -o "$OLDPWD/$LOCAL_ACT_BIN" .)
+  (cd vendor/act && go build -trimpath -o "$local_act_out" .)
   rc=$?
   set -e
   [[ $rc -eq 0 ]] || {
@@ -94,10 +96,10 @@ bootstrap() {
     printf 'BUILD_BROKEN[ACT_BOOTSTRAP_FAILED] receipt=%s\n' "$r" >&2
     return "$rc"
   }
-  ver="$($LOCAL_ACT_BIN --version 2>&1 | head -n1)"
+  ver="$($local_act_out --version 2>&1 | head -n1)"
   [[ -z "$EXPECTED_ACT_VERSION" || "$ver" == *"$EXPECTED_ACT_VERSION"* ]] || die "REFUSED[ACT_VERSION_DRIFT]:$ver:$EXPECTED_ACT_VERSION"
   r="$(receipt ALIVE act-bootstrap bootstrap vendor/act '' 0)"
-  printf 'ALIVE[ACT_BOOTSTRAPPED] binary=%s source_sha=%s receipt=%s\n' "$LOCAL_ACT_BIN" "$EXPECTED_ACT_SHA" "$r"
+  printf 'ALIVE[ACT_BOOTSTRAPPED] binary=%s source_sha=%s receipt=%s\n' "$local_act_out" "$EXPECTED_ACT_SHA" "$r"
 }
 
 doctor() {
