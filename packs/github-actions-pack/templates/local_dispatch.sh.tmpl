@@ -30,8 +30,10 @@ die() { printf '%s\n' "$*" >&2; exit 2; }
 doctor() {
   command -v git >/dev/null || die 'BLOCKED[GIT_MISSING]'
   command -v act >/dev/null || die 'BLOCKED[ACT_MISSING]'
-  command -v docker >/dev/null || die 'BLOCKED[DOCKER_MISSING]'
   [[ -f "$MANIFEST" ]] || die "BLOCKED[RUNTIME_MANIFEST_MISSING]:$MANIFEST"
+  if [[ -z "${DOCKER_HOST:-}" && ! -S /var/run/docker.sock && ! -S "${HOME:-/tmp}/.docker/run/docker.sock" ]]; then
+    die 'BLOCKED[DOCKER_ENGINE_UNREACHABLE]:set DOCKER_HOST or mount a Docker Engine socket'
+  fi
   if [[ -d vendor/act/.git || -f vendor/act/.git ]]; then
     actual="$(git -C vendor/act rev-parse HEAD)"
     [[ "$actual" == "$EXPECTED_ACT_SHA" ]] || die "REFUSED[ACT_SHA_DRIFT]:$actual:$EXPECTED_ACT_SHA"
