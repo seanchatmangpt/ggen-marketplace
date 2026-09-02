@@ -1,5 +1,6 @@
 # Synthetic consumer fixture for isolated qualification.
-# Existing push-trigger cases plus the admitted local-runtime DfCM route graph.
+# Existing push-trigger cases plus the admitted local-runtime DfCM route graph and
+# GitHub's 2026 background/wait/cancel/parallel step-concurrency grammar.
 @prefix gha: <http://seanchatmangpt.github.io/packs/github-actions#> .
 
 gha:test-ci-with-push
@@ -8,6 +9,51 @@ gha:test-ci-with-push
     gha:purpose "Test fixture: CI with a real push trigger -- must be admitted." ;
     gha:permissionCeiling "read-all" ;
     gha:trigger gha:EventPush .
+
+gha:test-job
+    a gha:Job ;
+    gha:inWorkflow gha:test-ci-with-push ;
+    gha:jobName "test" ;
+    gha:runner "ubuntu-24.04" .
+
+gha:test-background-build
+    a gha:Step ;
+    gha:inJob gha:test-job ;
+    gha:stepOrder 1 ;
+    gha:stepName "background build" ;
+    gha:stepId "build" ;
+    gha:runCommand "echo build" ;
+    gha:background true .
+
+gha:test-wait-build
+    a gha:Step ;
+    gha:inJob gha:test-job ;
+    gha:stepOrder 2 ;
+    gha:waitFor "build" .
+
+gha:test-background-monitor
+    a gha:Step ;
+    gha:inJob gha:test-job ;
+    gha:stepOrder 3 ;
+    gha:stepName "background monitor" ;
+    gha:stepId "monitor" ;
+    gha:runCommand "sleep 30" ;
+    gha:background true .
+
+gha:test-cancel-monitor
+    a gha:Step ;
+    gha:inJob gha:test-job ;
+    gha:stepOrder 4 ;
+    gha:cancelStep "monitor" .
+
+gha:test-parallel
+    a gha:Step ;
+    gha:inJob gha:test-job ;
+    gha:stepOrder 5 ;
+    gha:parallelBody """- name: parallel A
+  run: echo A
+- name: parallel B
+  run: echo B""" .
 
 gha:test-release-gate
     a gha:Workflow ;
