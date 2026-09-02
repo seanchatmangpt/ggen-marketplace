@@ -20,48 +20,47 @@ set -euo pipefail
 PROFILE="{{ profiles.0.profileName }}"
 EXPECTED_ACT_SHA="{{ profiles.0.exactActSha }}"
 EXPECTED_ACT_VERSION="{{ profiles.0.exactActVersion | default(value="") }}"
+EXPECTED_GO_SERIES="go1.25"
 RECEIPT_ROOT="{{ profiles.0.receiptRoot }}"
 ARTIFACT_ROOT="${GGEN_ACTIONS_ARTIFACT_ROOT:-.ggen-v2/github-local/artifacts}"
 CACHE_ROOT="${GGEN_ACTIONS_CACHE_ROOT:-.ggen-v2/github-local/cache}"
+LOCAL_ACT_BIN="${GGEN_LOCAL_ACT_BIN:-.ggen-v2/github-local/bin/act}"
 MANIFEST="${GGEN_ACTIONS_MANIFEST:-.ggen-v2/github-local/runtime-manifest.json}"
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 
-doctor() {
-  command -v git >/dev/null || die 'BLOCKED[GIT_MISSING]'
-  command -v act >/dev/null || die 'BLOCKED[ACT_MISSING]'
-  [[ -f "$MANIFEST" ]] || die "BLOCKED[RUNTIME_MANIFEST_MISSING]:$MANIFEST"
-  if [[ -z "${DOCKER_HOST:-}" && ! -S /var/run/docker.sock && ! -S "${HOME:-/tmp}/.docker/run/docker.sock" ]]; then
-    die 'BLOCKED[DOCKER_ENGINE_UNREACHABLE]:set DOCKER_HOST or mount a Docker Engine socket'
-  fi
+verify_act_source() {
   if [[ -d vendor/act/.git || -f vendor/act/.git ]]; then
     actual="$(git -C vendor/act rev-parse HEAD)"
     [[ "$actual" == "$EXPECTED_ACT_SHA" ]] || die "REFUSED[ACT_SHA_DRIFT]:$actual:$EXPECTED_ACT_SHA"
   else
     die 'BLOCKED[ACT_SUBMODULE_NOT_INITIALIZED]:vendor/act'
   fi
-  if [[ -n "$EXPECTED_ACT_VERSION" ]]; then
-    ver="$(act --version 2>&1 | head -n1)"
-    [[ "$ver" == *"$EXPECTED_ACT_VERSION"* ]] || die "REFUSED[ACT_VERSION_DRIFT]:$ver:$EXPECTED_ACT_VERSION"
-  fi
-  mkdir -p "$ARTIFACT_ROOT" "$CACHE_ROOT" "$RECEIPT_ROOT"
-  printf 'ALIVE profile=%s act_sha=%s artifact_root=%s cache_root=%s\n' "$PROFILE" "$EXPECTED_ACT_SHA" "$ARTIFACT_ROOT" "$CACHE_ROOT"
 }
 
-needs_control_plane() {
-  local wf="$1"
-  grep -Eq '^[[:space:]]*(background:|wait:|wait-all:|cancel:|parallel:)' "$wf" && return 0
-  grep -Eq '^[[:space:]]*id-token:[[:space:]]*write' "$wf" && return 0
-  grep -Eq '^[[:space:]]*environment:' "$wf" && return 0
-  return 1
+resolve_act() {
+  if [[ -n "${GGEN_ACT_BIN:-}" ]]; then
+    printf '%s\n' "$GGEN_ACT_BIN"
+  elif command -v act >/dev/null 2>&1; then
+    command -v act
+  elif [[ -x "$LOCAL_ACT_BIN" ]]; then
+    printf '%s\n' "$LOCAL_ACT_BIN"
+  else
+    return 1
+  fi
 }
 
 receipt() {
   local status="$1" backend="$2" event="$3" workflow="$4" job="$5" exit_code="$6"
   mkdir -p "$RECEIPT_ROOT"
-  local ts sha out
+  local ts sha out act_bin act_digest
   ts="$(date -u +%Y%m%dT%H%M%SZ)"
   sha="$(git rev-parse HEAD 2>/dev/null || printf UNKNOWN)"
+  act_bin="$(resolve_act 2>/dev/null || true)"
+  act_digest="UNKNOWN"
+  if [[ -n "$act_bin" && -f "$act_bin" ]] && command -v sha256sum >/dev/null 2>&1; then
+    act_digest="$(sha256sum "$act_bin" | awk '{print $1}')"
+  fi
   out="$RECEIPT_ROOT/${ts}-${backend}-${event}.receipt"
   {
     printf 'schema=https://ggen.dev/receipts/github-local/v1\n'
@@ -74,18 +73,64 @@ receipt() {
     printf 'status=%s\n' "$status"
     printf 'exit_code=%s\n' "$exit_code"
     printf 'act_sha=%s\n' "$EXPECTED_ACT_SHA"
+    printf 'act_binary_sha256=%s\n' "$act_digest"
   } > "$out"
   printf '%s\n' "$out"
+}
+
+bootstrap() {
+  command -v git >/dev/null || die 'BLOCKED[GIT_MISSING]'
+  command -v go >/dev/null || die 'BLOCKED[GO_MISSING]:install Go 1.25.x or provide GGEN_ACT_BIN'
+  verify_act_source
+  go_version="$(go env GOVERSION)"
+  [[ "$go_version" == "$EXPECTED_GO_SERIES"* ]] || die "REFUSED[GO_TOOLCHAIN_DRIFT]:$go_version:$EXPECTED_GO_SERIES.x"
+  mkdir -p "$(dirname "$LOCAL_ACT_BIN")" "$RECEIPT_ROOT"
+  set +e
+  (cd vendor/act && go build -trimpath -ldflags "-X main.version=$EXPECTED_ACT_VERSION" -o "$OLDPWD/$LOCAL_ACT_BIN" .)
+  rc=$?
+  set -e
+  [[ $rc -eq 0 ]] || {
+    r="$(receipt BUILD_BROKEN act-bootstrap bootstrap vendor/act '' "$rc")"
+    printf 'BUILD_BROKEN[ACT_BOOTSTRAP_FAILED] receipt=%s\n' "$r" >&2
+    return "$rc"
+  }
+  ver="$($LOCAL_ACT_BIN --version 2>&1 | head -n1)"
+  [[ -z "$EXPECTED_ACT_VERSION" || "$ver" == *"$EXPECTED_ACT_VERSION"* ]] || die "REFUSED[ACT_VERSION_DRIFT]:$ver:$EXPECTED_ACT_VERSION"
+  r="$(receipt ALIVE act-bootstrap bootstrap vendor/act '' 0)"
+  printf 'ALIVE[ACT_BOOTSTRAPPED] binary=%s source_sha=%s receipt=%s\n' "$LOCAL_ACT_BIN" "$EXPECTED_ACT_SHA" "$r"
+}
+
+doctor() {
+  command -v git >/dev/null || die 'BLOCKED[GIT_MISSING]'
+  [[ -f "$MANIFEST" ]] || die "BLOCKED[RUNTIME_MANIFEST_MISSING]:$MANIFEST"
+  if [[ -z "${DOCKER_HOST:-}" && ! -S /var/run/docker.sock && ! -S "${HOME:-/tmp}/.docker/run/docker.sock" ]]; then
+    die 'BLOCKED[DOCKER_ENGINE_UNREACHABLE]:set DOCKER_HOST or mount a Docker Engine socket'
+  fi
+  verify_act_source
+  ACT_BIN="$(resolve_act)" || die 'BLOCKED[ACT_MISSING]:run ggen-actions-local bootstrap'
+  ver="$($ACT_BIN --version 2>&1 | head -n1)"
+  [[ -z "$EXPECTED_ACT_VERSION" || "$ver" == *"$EXPECTED_ACT_VERSION"* ]] || die "REFUSED[ACT_VERSION_DRIFT]:$ver:$EXPECTED_ACT_VERSION"
+  mkdir -p "$ARTIFACT_ROOT" "$CACHE_ROOT" "$RECEIPT_ROOT"
+  printf 'ALIVE profile=%s act_sha=%s act_bin=%s artifact_root=%s cache_root=%s\n' "$PROFILE" "$EXPECTED_ACT_SHA" "$ACT_BIN" "$ARTIFACT_ROOT" "$CACHE_ROOT"
+}
+
+needs_control_plane() {
+  local wf="$1"
+  grep -Eq '^[[:space:]]*(background:|wait:|wait-all:|cancel:|parallel:)' "$wf" && return 0
+  grep -Eq '^[[:space:]]*id-token:[[:space:]]*write' "$wf" && return 0
+  grep -Eq '^[[:space:]]*environment:' "$wf" && return 0
+  return 1
 }
 
 run_act() {
   local event="$1" workflow="$2" job="${3:-}" event_file="${4:-}"
   mkdir -p "$ARTIFACT_ROOT" "$CACHE_ROOT" "$RECEIPT_ROOT"
+  ACT_BIN="$(resolve_act)" || die 'BLOCKED[ACT_MISSING]:run ggen-actions-local bootstrap'
   args=("$event" "-W" "$workflow" "--artifact-server-path" "$ARTIFACT_ROOT" "--cache-server-path" "$CACHE_ROOT")
   [[ -n "$job" ]] && args+=("-j" "$job")
   [[ -n "$event_file" ]] && args+=("-e" "$event_file")
   set +e
-  act "${args[@]}"
+  "$ACT_BIN" "${args[@]}"
   rc=$?
   set -e
   if [[ $rc -eq 0 ]]; then status=ALIVE; else status=BUILD_BROKEN; fi
@@ -96,10 +141,12 @@ run_act() {
 
 cmd="${1:-doctor}"
 case "$cmd" in
+  bootstrap) bootstrap ;;
   doctor) doctor ;;
   list)
     doctor
-    act -l "${2:-push}"
+    ACT_BIN="$(resolve_act)"
+    "$ACT_BIN" -l "${2:-push}"
     ;;
   run)
     doctor
