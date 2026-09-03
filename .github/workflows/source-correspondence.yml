@@ -1,0 +1,92 @@
+name: Source correspondence
+
+on:
+  pull_request:
+    paths:
+      - "packs/cargo-cicd-pack/**"
+      - "packs/wasm4pm-pack/**"
+      - "scripts/check_source_correspondence.py"
+      - "scripts/test_source_correspondence.py"
+      - "source-audits/**"
+      - ".github/workflows/source-correspondence.yml"
+  workflow_dispatch:
+  schedule:
+    - cron: "17 11 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  admitted-correspondence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        contract: [cargo-cicd, wasm4pm]
+    steps:
+      - name: Checkout marketplace subject
+        uses: actions/checkout@v4
+      - name: Read admitted source identity
+        id: source
+        env:
+          CONTRACT: source-audits/${{ matrix.contract }}.toml
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import os, tomllib
+          with open(os.environ["CONTRACT"], "rb") as handle:
+              source = tomllib.load(handle)["source"]
+          print(f"repository={source['repository']}")
+          print(f"branch={source['branch']}")
+          print(f"sha={source['sha']}")
+          PY
+      - name: Checkout exact admitted source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.source.outputs.repository }}
+          ref: ${{ steps.source.outputs.sha }}
+          path: .source-audit/${{ matrix.contract }}
+      - name: Verify source correspondence
+        run: >-
+          python3 scripts/check_source_correspondence.py
+          source-audits/${{ matrix.contract }}.toml
+          --marketplace-root .
+          --source-root .source-audit/${{ matrix.contract }}
+      - name: Unit-test correspondence court
+        run: python3 scripts/test_source_correspondence.py
+
+  observe-upstream-head:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        contract: [cargo-cicd, wasm4pm]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Observe mutable upstream head without admitting it
+        env:
+          CONTRACT: source-audits/${{ matrix.contract }}.toml
+        run: |
+          python3 - <<'PY'
+          import os, subprocess, sys, tomllib
+          with open(os.environ["CONTRACT"], "rb") as handle:
+              source = tomllib.load(handle)["source"]
+          remote = f"https://github.com/{source['repository']}.git"
+          ref = f"refs/heads/{source['branch']}"
+          result = subprocess.run(["git", "ls-remote", remote, ref], text=True, capture_output=True)
+          if result.returncode:
+              print(f"BLOCKED_SOURCE_OBSERVATION {result.stderr.strip()}", file=sys.stderr)
+              raise SystemExit(2)
+          observed = result.stdout.split()[0]
+          admitted = source["sha"]
+          print(f"observed={observed} admitted={admitted}")
+          if observed != admitted:
+              print(
+                  f"REFUSED_SOURCE_HEAD_MOVED repository={source['repository']} "
+                  f"branch={source['branch']} admitted={admitted} observed={observed}",
+                  file=sys.stderr,
+              )
+              raise SystemExit(3)
+          PY
