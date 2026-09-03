@@ -1,0 +1,149 @@
+# Synthetic consumer fixture for isolated qualification of
+# beam4pm-process-model-pack. Several templates hard-reference specific
+# record names (VALUES-restricted SPARQL: discovery needs ocel_event /
+# log_trace / dfg_edge / conformance_result / process_variant; precision
+# needs dfg_edge / log_trace), and beam4pm_codec_tests.erl.tmpl takes
+# `req_fields | first` -- so an EMPTY consumer graph fails render outright
+# (real FM-TPL-017 in the qualify harness: "Variable `mf.record_name` not
+# found ... records (array, 0 items)"), which is exactly the failure this
+# fixture exists to admit against. The five individuals below are the real
+# record shapes from the pack's reference consumer (seanchatmangpt/beam4pm),
+# copied verbatim so accessor arities and field orders are realistic, and
+# every gates/010_required.rq-enforced predicate is present.
+@prefix bpm: <https://ggen.dev/ontology/beam-process-model#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+bpm:ocel_event_rt a bpm:RecordType ;
+    bpm:recordName "ocel_event" ;
+    bpm:recordDoc "An OCEL 2.0 event: one recorded occurrence in an object-centric log." ;
+    bpm:hasField bpm:ocel_event_event_id_f ,
+                 bpm:ocel_event_event_type_f ,
+                 bpm:ocel_event_event_time_f ,
+                 bpm:ocel_event_attributes_f .
+
+bpm:ocel_event_event_id_f a bpm:Field ;
+    bpm:fieldName "event_id" ;
+    bpm:fieldType "string" ;
+    bpm:fieldDoc "Unique event identifier." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 1 .
+
+bpm:ocel_event_event_type_f a bpm:Field ;
+    bpm:fieldName "event_type" ;
+    bpm:fieldType "string" ;
+    bpm:fieldDoc "The event's type/activity name." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 2 .
+
+bpm:ocel_event_event_time_f a bpm:Field ;
+    bpm:fieldName "event_time" ;
+    bpm:fieldType "datetime" ;
+    bpm:fieldDoc "ISO8601 timestamp the event occurred." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 3 .
+
+bpm:ocel_event_attributes_f a bpm:Field ;
+    bpm:fieldName "attributes" ;
+    bpm:fieldType "map" ;
+    bpm:fieldDoc "Arbitrary named event attributes." ;
+    bpm:fieldRequired "false" ;
+    bpm:fieldOrder 4 .
+
+bpm:dfg_edge_rt a bpm:RecordType ;
+    bpm:recordName "dfg_edge" ;
+    bpm:recordDoc "One frequency-annotated directly-follows edge between two activities." ;
+    bpm:hasField bpm:dfg_edge_source_activity_f ,
+                 bpm:dfg_edge_target_activity_f ,
+                 bpm:dfg_edge_frequency_f .
+
+bpm:dfg_edge_source_activity_f a bpm:Field ;
+    bpm:fieldName "source_activity" ;
+    bpm:fieldType "string" ;
+    bpm:fieldDoc "The preceding activity name." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 1 .
+
+bpm:dfg_edge_target_activity_f a bpm:Field ;
+    bpm:fieldName "target_activity" ;
+    bpm:fieldType "string" ;
+    bpm:fieldDoc "The following activity name." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 2 .
+
+bpm:dfg_edge_frequency_f a bpm:Field ;
+    bpm:fieldName "frequency" ;
+    bpm:fieldType "integer" ;
+    bpm:fieldDoc "Observed occurrence count of this edge." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 3 .
+
+bpm:process_variant_rt a bpm:RecordType ;
+    bpm:recordName "process_variant" ;
+    bpm:recordDoc "One distinct activity-sequence variant observed in a log, with its frequency." ;
+    bpm:hasField bpm:process_variant_variant_id_f , bpm:process_variant_activity_sequence_f , bpm:process_variant_frequency_f .
+
+bpm:process_variant_variant_id_f a bpm:Field ;
+    bpm:fieldName "variant_id" ;
+    bpm:fieldType "string" ;
+    bpm:fieldDoc "Unique variant identifier." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 1 .
+
+bpm:process_variant_activity_sequence_f a bpm:Field ;
+    bpm:fieldName "activity_sequence" ;
+    bpm:fieldType "list_string" ;
+    bpm:fieldDoc "Ordered list of activity names making up this variant." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 2 .
+
+bpm:process_variant_frequency_f a bpm:Field ;
+    bpm:fieldName "frequency" ;
+    bpm:fieldType "integer" ;
+    bpm:fieldDoc "Number of traces observed with exactly this activity sequence." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 3 .
+
+bpm:conformance_result_rt a bpm:RecordType ;
+    bpm:recordName "conformance_result" ;
+    bpm:recordDoc "Conformance-checking metrics computed for one trace against a model." ;
+    bpm:hasField bpm:conformance_result_trace_id_f , bpm:conformance_result_fitness_f , bpm:conformance_result_precision_f .
+
+bpm:conformance_result_trace_id_f a bpm:Field ;
+    bpm:fieldName "trace_id" ;
+    bpm:fieldType "string" ;
+    bpm:fieldDoc "Identifier of the trace this result was computed for." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 1 .
+
+bpm:conformance_result_fitness_f a bpm:Field ;
+    bpm:fieldName "fitness" ;
+    bpm:fieldType "float" ;
+    bpm:fieldDoc "Fitness score in [0.0, 1.0]." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 2 .
+
+bpm:conformance_result_precision_f a bpm:Field ;
+    bpm:fieldName "precision" ;
+    bpm:fieldType "float" ;
+    bpm:fieldDoc "Optional precision score in [0.0, 1.0]." ;
+    bpm:fieldRequired "false" ;
+    bpm:fieldOrder 3 .
+
+bpm:log_trace_rt a bpm:RecordType ;
+    bpm:recordName "log_trace" ;
+    bpm:recordDoc "One case-centric trace: an ordered activity sequence for a single case." ;
+    bpm:hasField bpm:log_trace_case_id_f , bpm:log_trace_activity_sequence_f .
+
+bpm:log_trace_case_id_f a bpm:Field ;
+    bpm:fieldName "case_id" ;
+    bpm:fieldType "string" ;
+    bpm:fieldDoc "Identifier of the case this trace belongs to." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 1 .
+
+bpm:log_trace_activity_sequence_f a bpm:Field ;
+    bpm:fieldName "activity_sequence" ;
+    bpm:fieldType "list_string" ;
+    bpm:fieldDoc "Ordered list of activity names observed for this case." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 2 .

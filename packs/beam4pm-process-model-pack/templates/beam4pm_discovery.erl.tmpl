@@ -29,10 +29,10 @@ sparql:
 
 -module(beam4pm_discovery).
 
--export([traces_from_events/2, dfg_from_traces/1, conformance/2]).
+-export([traces_from_events/2, dfg_from_traces/1, conformance/2, variants_from_traces/1]).
 
 %% Schema-driven positional accessors (exported as a stable read API).
-{% for rn in ["ocel_event", "log_trace", "dfg_edge", "conformance_result"] -%}
+{% for rn in ["ocel_event", "log_trace", "dfg_edge", "conformance_result", "process_variant"] -%}
 {%- set rf = fields | filter(attribute="record_name", value=rn) %}
 -export([
 {%- for f in rf %}
@@ -40,7 +40,7 @@ sparql:
 {%- endfor %}
 ]).
 {% endfor %}
-{% for rn in ["ocel_event", "log_trace", "dfg_edge", "conformance_result"] -%}
+{% for rn in ["ocel_event", "log_trace", "dfg_edge", "conformance_result", "process_variant"] -%}
 {%- set rf = fields | filter(attribute="record_name", value=rn) %}
 %% Positional accessors for #{{ rn }}: the tuple pattern is generated from the
 %% admitted field_order rows ({{ rf | length }} fields), never hand-numbered.
@@ -109,6 +109,34 @@ dfg_from_traces(Traces) ->
             Edge
         end,
         lists:sort(maps:to_list(Counts))).
+
+%% variants_from_traces(Traces) -> [ProcessVariant].
+%%
+%% Groups Traces by identical activity_sequence, emitting one process_variant
+%% per distinct sequence with frequency = the count of traces observed with
+%% exactly that sequence. Variants are sorted by activity_sequence, and
+%% variant_id is the 1-based rank in that sorted order, stringified.
+-spec variants_from_traces([beam4pm_types:log_trace()]) -> [beam4pm_types:process_variant()].
+variants_from_traces(Traces) ->
+    Counts = lists:foldl(
+        fun(Trace, Acc) ->
+            Seq = log_trace_activity_sequence(Trace),
+            maps:update_with(Seq, fun(N) -> N + 1 end, 1, Acc)
+        end,
+        #{},
+        Traces),
+    Sorted = lists:sort(maps:to_list(Counts)),
+    {Variants, _} = lists:foldl(
+        fun({Seq, Frequency}, {Acc, Rank}) ->
+            {ok, Variant} = beam4pm_types:new_process_variant(
+                #{variant_id => integer_to_binary(Rank),
+                  activity_sequence => Seq,
+                  frequency => Frequency}),
+            {[Variant | Acc], Rank + 1}
+        end,
+        {[], 1},
+        Sorted),
+    lists:reverse(Variants).
 
 %% conformance(Edges, Trace) -> ConformanceResult.
 %%
