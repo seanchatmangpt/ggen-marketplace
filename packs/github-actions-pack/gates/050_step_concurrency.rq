@@ -1,0 +1,52 @@
+# MESSAGE: github-actions-pack 2026 step-concurrency integrity gate.
+# MESSAGE: Any row is a control-flow graph that GitHub would reject or whose local lowering
+# MESSAGE: would be ambiguous: wait/cancel must target a background:true step id in the same
+# MESSAGE: job; wait/wait-all/cancel cannot carry if:; control steps cannot themselves be
+# MESSAGE: background; and a parallel block is exclusive with normal work/control bodies.
+PREFIX gha: <http://seanchatmangpt.github.io/packs/github-actions#>
+SELECT DISTINCT ?s WHERE {
+  {
+    ?s a gha:Step ; gha:inJob ?job ; gha:waitFor ?target .
+    FILTER NOT EXISTS {
+      ?producer a gha:Step ;
+                gha:inJob ?job ;
+                gha:stepId ?target ;
+                gha:background true .
+    }
+  }
+  UNION
+  {
+    ?s a gha:Step ; gha:inJob ?job ; gha:cancelStep ?target .
+    FILTER NOT EXISTS {
+      ?producer a gha:Step ;
+                gha:inJob ?job ;
+                gha:stepId ?target ;
+                gha:background true .
+    }
+  }
+  UNION
+  {
+    ?s a gha:Step ; gha:condition ?condition .
+    { ?s gha:waitFor ?x }
+    UNION { ?s gha:waitAll true }
+    UNION { ?s gha:cancelStep ?x }
+  }
+  UNION
+  {
+    ?s a gha:Step ; gha:background true .
+    { ?s gha:waitFor ?x }
+    UNION { ?s gha:waitAll true }
+    UNION { ?s gha:cancelStep ?x }
+    UNION { ?s gha:parallelBody ?body }
+  }
+  UNION
+  {
+    ?s a gha:Step ; gha:parallelBody ?body .
+    { ?s gha:usesAction ?x }
+    UNION { ?s gha:runCommand ?x }
+    UNION { ?s gha:waitFor ?x }
+    UNION { ?s gha:waitAll true }
+    UNION { ?s gha:cancelStep ?x }
+  }
+}
+ORDER BY ?s
