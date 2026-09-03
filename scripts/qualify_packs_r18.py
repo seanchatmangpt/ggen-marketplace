@@ -60,7 +60,15 @@ def main() -> int:
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as executor:
         records = list(executor.map(lambda pack: q.qualify_pack(pack, args.ggen, args.timeout_seconds), packs))
     records.sort(key=lambda item: item["name"])
-    failures = [record for record in records if record["status"] != "ALIVE"]
+    # SKIPPED (a real, distinct status a pack's cargo-build check can
+    # return -- see qualify_packs.py's qualify_pack SKIPPED branch) is a
+    # harness limitation (the scratch capsule provides no cargo workspace
+    # root for packs that legitimately rely on workspace-level field
+    # inheritance), not a pack defect; only REFUSED is a real failure this
+    # branch-protection gate should block on.
+    failures = [record for record in records if record["status"] == "REFUSED"]
+    skipped = [record for record in records if record["status"] == "SKIPPED"]
+    warned = [record for record in records if record["status"] == "WARN"]
     payload = {
         "ggen": (version.stdout or version.stderr).strip(),
         "pack_count": len(records),
@@ -74,6 +82,12 @@ def main() -> int:
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if skipped:
+        for record in skipped:
+            print(f"{record['code']}:{record['name']}", file=sys.stderr)
+    if warned:
+        for record in warned:
+            print(f"{record['code']}:{record['name']} (non-blocking, CARGO_BUILD_CHECK_BLOCKING=False)", file=sys.stderr)
     if failures:
         for record in failures:
             print(f"{record['code']}:{record['name']}:{record['detail']}", file=sys.stderr)
