@@ -1,0 +1,91 @@
+name: Fortune 5 Testing BBlock Execution
+
+# Dedicated, narrow execution coverage for fortune5-testing-bblock-pack,
+# separate from the shared qualify_packs.py/qualify_packs_r18.py court (which
+# stays filesystem-only and never executes a manufactured program -- see that
+# script's own module docstring). This workflow actually EXECUTES the pack's
+# generated `testing_bblock.py` against a scratch consumer project and
+# asserts, on real evidence, that root discovery used the scratch consumer's
+# own consumer-admitted `tb:consumerRootMarker` fact (v26.9.1 GM-03) rather
+# than any ggen-repo-specific default (`Cargo.toml` + `crates/ggen-cli`).
+
+on:
+  pull_request:
+    paths:
+      - 'packs/fortune5-testing-bblock-pack/**'
+      - 'scripts/fortune5_testing_bblock_scratch_facts.py'
+      - 'scripts/fortune5_testing_bblock_assert_root.py'
+      - '.github/workflows/fortune5-testing-bblock-execution.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  execute:
+    name: Execute generated testing bblock against a scratch consumer
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Admit exact subject
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Admit marketplace config and install a real ggen binary
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/admit-config.sh marketplace.toml "${RUNNER_TEMP}/admitted-config.json"
+          ggen_bin="$(bash scripts/install-ggen.sh "${RUNNER_TEMP}/admitted-config.json")"
+          echo "GGEN_BIN=$ggen_bin" >> "$GITHUB_ENV"
+          "$ggen_bin" --version
+      - name: Build a scratch consumer (copy of the pack, pointed at itself)
+        shell: bash
+        run: |
+          set -euo pipefail
+          scratch="${RUNNER_TEMP}/testing-bblock-scratch"
+          rm -rf "$scratch"
+          cp -r packs/fortune5-testing-bblock-pack "$scratch"
+          : > "$scratch/CONSUMER_PROJECT_ROOT.marker"
+          echo "SCRATCH_CONSUMER=$scratch" >> "$GITHUB_ENV"
+      - name: Admit scratch-consumer-specific facts (never ggen-repo-specific)
+        shell: bash
+        run: python3 scripts/fortune5_testing_bblock_scratch_facts.py "$SCRATCH_CONSUMER"
+      - name: Sync the scratch consumer through the real ggen runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SCRATCH_CONSUMER"
+          "$GGEN_BIN" sync run
+          test -f consumer/testing-bblock/testing_bblock.py
+      - name: Execute the generated testing bblock (protocol-unit suite)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SCRATCH_CONSUMER"
+          python3 consumer/testing-bblock/testing_bblock.py run protocol-unit \
+            --report "$SCRATCH_CONSUMER/protocol-unit-report.json"
+      - name: Assert discovered root is the scratch consumer, not a ggen-repo-specific path (GM-03 regression coverage)
+        shell: bash
+        run: |
+          python3 scripts/fortune5_testing_bblock_assert_root.py \
+            "$SCRATCH_CONSUMER" --report "$SCRATCH_CONSUMER/protocol-unit-report.json"
+      - name: Refuse execution mutation of this job's own checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git status --porcelain --untracked-files=all)"
+          if [[ -n "$changed" ]]; then
+            echo "::error title=REFUSED:EXECUTION_MUTATED_SUBJECT::$changed"
+            exit 2
+          fi
