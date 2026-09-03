@@ -1,116 +1,159 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working in this repository. `AGENTS.md` is the authoritative repository doctrine; when the two differ, follow `AGENTS.md` and repair this file.
 
 ## What this repository is
 
-The canonical corpus of reusable **ggen packs**. A pack is an ontology-backed manufacturing bundle:
-`pack.toml` declares identity, RDF (Turtle) states admitted facts, templates may project those facts
-into consumer artifacts, and gates may refuse invalid inputs or verify pack-specific invariants.
-Generated consumer files are consequences of a pack; they are not a second source of truth and are
-not committed here.
+The canonical corpus of reusable **ggen packs** and their marketplace qualification/documentation plane. A pack is an ontology-backed manufacturing contract:
 
-The ggen runtime itself lives elsewhere; this repo owns pack **source** and marketplace **documentation**
-only. `python3 scripts/marketplace.py validate/catalog/fingerprint` proves marketplace admission and
-deterministic catalog projection — it does **not** prove generated consumer behavior, external-system
-behavior, or live-cloud authority. Read `AGENTS.md` before making structural changes; it is the
-authoritative source hierarchy and discipline list.
+```text
+identity + semantic source + admission + projection/project rules
+    → bounded manufacture
+    → consumer consequence
+    → verification / receipt / replay / standing
+```
 
-## Commands
+`pack.toml` declares identity, RDF/Turtle carries semantic authority, templates/project rules manufacture consequences, and gates may refuse invalid inputs. Generated consumer files are consequences, not a second source of truth.
+
+The ggen runtime lives elsewhere; this repository owns canonical pack source, marketplace operational law, qualification, and documentation. Marketplace validation/qualification does **not** prove every generated consumer, external system, benchmark, or production actuation boundary.
+
+## Canonical command sequence
+
+Admit marketplace operational configuration first:
 
 ```bash
-# Core validation loop (run before any PR)
+bash scripts/admit-config.sh marketplace.toml /tmp/ggen-marketplace-admitted.json
+```
+
+Then run repository acceptance:
+
+```bash
 python3 scripts/marketplace.py validate
 python3 scripts/marketplace.py catalog > /tmp/catalog-a.json
 python3 scripts/marketplace.py catalog > /tmp/catalog-b.json
-cmp /tmp/catalog-a.json /tmp/catalog-b.json      # catalog projection must be deterministic
+cmp /tmp/catalog-a.json /tmp/catalog-b.json
 python3 scripts/marketplace.py fingerprint
-
-# marketplace.toml must be admitted through star-toml before installer/qualification scripts run
-bash scripts/admit-config.sh marketplace.toml /tmp/ggen-marketplace-admitted.json
 GGEN_MARKETPLACE_ADMITTED_CONFIG=/tmp/ggen-marketplace-admitted.json \
-  bash scripts/qualify-marketplace.sh /tmp/ggen-marketplace-admitted.json /tmp/ggen-marketplace-qualification.json
-
-# Python test suite (pytest, tests/ + scripts/test_*.py)
-python3 -m pytest tests/ scripts/
-python3 -m pytest tests/test_marketplace.py -k some_test   # single test
-
-# Per-pack qualification against a real ggen runtime
-python3 scripts/qualify_packs.py
-
-# Consume a pack from a local checkout (in a consumer project's ggen.toml):
-#   [packs]
-#   <pack-name> = { path = "../ggen-marketplace/packs/<pack-name>" }
-# then: ggen sync run
+  bash scripts/qualify-marketplace.sh \
+  /tmp/ggen-marketplace-admitted.json \
+  /tmp/ggen-marketplace-qualification.json
 ```
 
-If a pack's generation behavior changes, marketplace CI is not sufficient evidence — also exercise it
-with the matching ggen runtime against an isolated consumer project (replay/idempotency where
-applicable).
+Additional useful courts:
 
-## Architecture
+```bash
+python3 -m pytest tests/ scripts/
+python3 scripts/qualify_packs.py --report /tmp/pack-qualification.json
+```
 
-### Pack profiles (`packs/<name>/`)
+Do not hardcode current ggen release versions, commits, platform asset names/digests, worker counts, or timeout bounds in scripts/docs. `marketplace.toml` is the canonical operational source and becomes executable only after admission.
 
-Every admitted pack requires `pack.toml` (SemVer, non-empty description), and at least one RDF Turtle
-source at the pack root or under `ontology/`. `scripts/marketplace.py`'s `Pack.profile` derives the
-profile structurally rather than from a declared field:
+If pack behavior changes, marketplace CI is insufficient evidence by itself. Exercise the matching real consumer/runtime boundary and replay/idempotency for the exact subject.
 
-- **project** — has `ggen.toml` at its root (a self-contained ggen project: RDF, optional
-  templates/rules/queries, pack-owned verification).
-- **projection** — has `.tmpl`/`.tera` templates (manifest + RDF + templates projecting facts into
-  consumer artifacts).
-- **semantic** — everything else (manifest + RDF, optional gates/catalogs, no template requirement).
+## Packaging profiles
 
-The directory name must equal `[pack].name`. `[pack]` itself is deserialized by the real ggen loader
-with deny-unknown-fields — it admits **only** `name`/`version`/`description`; any additional key or
-sub-table (e.g. lifecycle metadata) is refused at pack-load time even though `marketplace.py`'s own
-cataloging is more lenient about extension tables. See `packs/clap-noun-verb-pack/pack.toml` for the
-documented example of this gap.
+Every admitted pack requires `pack.toml` (matching name, SemVer, non-empty description) and at least one Turtle source at the pack root or under `ontology/`.
 
-Gates (`.rq` SPARQL or `.py`) may refuse invalid facts before generation; they live inside the pack
-boundary, not centrally.
+The marketplace derives packaging shape:
 
-### Marketplace control plane vs. generation contracts
+- **project** — `ggen.toml` exists at the pack root;
+- **projection** — templates exist;
+- **semantic** — no project file/templates required.
 
-`marketplace.toml` declares marketplace-wide operational law (release tag, qualification worker
-counts, timeout bounds, ggen release digests) and is executable only after admission through
-`star-toml`/`admit-config.sh` — never hand-duplicate these values in shell/Python. Pack-level
-`ggen.toml` files are ggen generation contracts; they are not part of the marketplace control plane.
+A packaging profile is not a maturity level or semantic class.
 
-### `scripts/marketplace.py` — local-first acceptance calculus
+The real ggen loader may enforce a narrower `[pack]` schema than marketplace cataloging. Do not assume arbitrary lifecycle/class metadata can be inserted inside `[pack]`; use only a surface admitted by the relevant loader.
 
-Single-file CLI (`argparse`, stdlib `tomllib` only — Python 3.11+) with four operations:
-`validate`, `catalog`, `archive`, `fingerprint`. `inspect_marketplace()` walks `packs/`, builds a
-`Pack` dataclass per directory, and is the shared source for all four commands — the catalog is a
-deterministic **projection** over that walk (hence the a/b/cmp determinism check), not a
-hand-maintained file. `catalog_record()` also computes a `sha256` digest over a synthesized pack
-archive and a `download_url` pointing at this repo's rolling `packs` GitHub Release.
+## Semantic pack classes
 
-`REQUIRED_DOCS` in that file is the authoritative list of Diátaxis pages that must exist for the
-marketplace itself to validate — check it before adding/removing top-level docs.
+Use [`docs/reference/pack-classes.md`](docs/reference/pack-classes.md) when reasoning about composition:
 
-### Documentation — Diátaxis, strictly separated
+- KernelPack
+- CapabilityPack
+- ProfilePack
+- WorldPack
+- CompatibilityPack
+- EvidencePack
+- ReleaseControlPack
+- UmbrellaPack
 
-- `docs/tutorials/` — learning journeys (start: `docs/tutorials/first-pack.md`)
-- `docs/how-to/` — task recipes (e.g. `docs/how-to/publish-a-pack.md`)
-- `docs/reference/` — exact contracts (e.g. `docs/reference/pack-contract.md`)
-- `docs/explanation/` — architecture/rationale (e.g. `docs/explanation/why-a-separate-marketplace.md`)
+These classes describe semantic responsibility, not directory shape. Similar names/suffixes are not equivalence proof.
 
-Do not collapse these into one README; when the marketplace contract changes, update every affected
-page across all four quadrants in the same change.
+Prefer class closure over copy/paste proliferation: canonicalize shared protocol/lifecycle/maturity/projection truth, keep orthogonal capabilities modular, use umbrellas for common bundles, and preserve non-equivalent runtimes/worlds/compatibility seams.
 
-### Provenance
+Before deleting or physically merging packs, follow [`docs/how-to/consolidate-a-pack-family.md`](docs/how-to/consolidate-a-pack-family.md).
 
-The initial corpus was imported byte-for-byte from `seanchatmangpt/ggen`; see `MIGRATION.md`.
-Preserve exact provenance when moving pack source between repositories, and never commit
-consumer-generated corrections as a substitute for fixing a pack's admitted RDF/template/gate/project
-source.
+## Level 5
 
-## Working rules specific to this repo
+Read [`docs/reference/level5-maturity-contract.md`](docs/reference/level5-maturity-contract.md) before making a Level-5 claim.
 
-- Branch before editing; never write directly to `main`.
-- Never hand-maintain a second catalog — regenerate via `scripts/marketplace.py catalog`.
-- Never introduce `generated/` as a source namespace for marketplace metadata.
-- No symlinks under `packs/` — packs must be self-contained and path-safe.
-- PR CI is read-only evidence; it must not rewrite or push pack corrections.
+Level 5 is closure across seven independently evidenced dimensions:
+
+1. semantic source;
+2. admission;
+3. manufacture;
+4. execution;
+5. receipt/replay;
+6. authority fence;
+7. composition/class closure.
+
+Documentation adds a required correspondence surface:
+
+```text
+Tutorial ∧ How-to ∧ Reference ∧ Explanation
+```
+
+`pack-maturity-pack` supplies reusable mechanical fixed-point, receipt, and Diátaxis infrastructure. It cannot invent domain semantics, domain negative witnesses, native runtime success, external observations, customer outcomes, or DO authority.
+
+## Marketplace control plane vs generation contracts
+
+`marketplace.toml` declares marketplace-wide operational law and is executable only after `star-toml`/`admit-config.sh` admission. Pack-level `ggen.toml` files are generation contracts; they are not the marketplace control plane.
+
+`scripts/marketplace.py` is the local structural/source calculus for validation, deterministic catalog projection, archive manufacture, and corpus fingerprinting. The catalog is derived, not hand-maintained.
+
+`scripts/qualify_packs.py` uses the real admitted ggen runtime to exercise isolated pack manufacture/replay. It proves only that bounded qualification boundary.
+
+## Documentation — Diátaxis and generated navigation
+
+Keep the quadrants distinct:
+
+- `docs/tutorials/` — guided learning journeys;
+- `docs/how-to/` — bounded task procedures;
+- `docs/reference/` — exact contracts;
+- `docs/explanation/` — rationale, fences, exclusions, extension law.
+
+`docs/book.ttl` is the canonical mdBook navigation source. The Pages rail deletes and regenerates `book.toml` and `docs/SUMMARY.md` with ggen before building mdBook. Do not hand-edit generated navigation/control files as source.
+
+When a marketplace contract changes, update all affected quadrants in the same dependency-closed transition. Avoid copying volatile configuration/version values when an executable canonical source exists.
+
+## Authority
+
+Preserve:
+
+```text
+SELECT → CONSTRUCT → DO
+```
+
+Marketplace admission and ggen manufacture may select/construct powerful artifacts without receiving ambient consequential authority. Generated Terraform, workflows, MCP/API intents, deployment specs, proofs, semantic derivations, hooks, and receipts do not gain DO authority from existence.
+
+Where a consumer uses BRCE, it remains the separately admitted consequential DO path. If required external authority is unavailable, use `BLOCKED:<reason>` rather than mocking execution into ALIVE.
+
+## Standing
+
+Use `UNKNOWN`, `PARTIAL_ALIVE`, `ALIVE`, `BLOCKED`, `BUILD_BROKEN`, `UNSUPPORTED`, plus typed `REFUSED:*`.
+
+- inspection is not execution;
+- workflow definition is not a successful run;
+- generated existence is not correctness;
+- historical success at another SHA is not current exact-subject evidence;
+- a checkpoint on one maturity dimension is not a Level-5 crown.
+
+## Working rules
+
+- branch before editing; never write directly to `main`;
+- never hand-maintain a second catalog;
+- no symlinks below `packs/`;
+- PR CI is read-only evidence and must not rewrite source;
+- preserve exact provenance on migration/consolidation;
+- repair canonical RDF/query/template/gate/project source rather than patching generated consequences;
+- use the smallest dependency-closed change that preserves semantic ownership, authority fences, receipts/replay, and compatibility.

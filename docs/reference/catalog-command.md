@@ -4,68 +4,56 @@
 python3 scripts/marketplace.py catalog
 ```
 
-The command emits UTF-8 JSON to stdout with keys sorted deterministically. The root object also
-carries `marketplace_version` — this repository's own `[marketplace].version` from
-`marketplace.toml` (see `version`, below): a whole-registry-snapshot identifier, independent of
-individual packs' own SemVer and of `[ggen].version` (the pinned upstream `ggen` binary).
+The command emits deterministic UTF-8 JSON to stdout with sorted keys. The root object carries `marketplace_version`, sourced from `[marketplace].version` in `marketplace.toml`. That is the whole-registry snapshot identity and is independent of individual pack SemVer and the pinned upstream ggen runtime identity.
 
-Records are sorted by pack identity and include:
-
-- `name`, `version`, `description`, and repository-relative `path`;
-- derived `profile` (`projection`, `semantic`, or `project`);
-- ontology-file count and a deterministic SHA-256 fingerprint over ontology paths+bytes;
-- template count;
-- native-SPARQL gate count;
-- verifier-gate count;
-- SHA-256 of `pack.toml`;
-- `digest` — `sha256:<hex>` of the pack's deterministic `.tar.gz` (see `scripts marketplace.py
-  archive`, below), computed fresh from `packs/` on every invocation — not read from a
-  previously-built artifact;
-- `size_bytes` — that archive's byte length;
-- `download_url` — where the archive is published once `.github/workflows/publish.yml` has run
-  at least once for the commit this catalog was generated from: a GitHub Release asset URL under
-  the repository's rolling `packs` release. The URL is always computed the same way regardless
-  of whether that release exists yet; a consumer fetching it before any publish run will get a
-  404, not a stale or wrong artifact.
-
-The root object identifies schema `https://ggen.dev/marketplace/catalog/v2` (bumped from `v1`
-when `digest`/`download_url`/`size_bytes` were added — an additive change, no prior field
-removed or renamed).
-
-The JSON is a projection and is intentionally not committed as a second editable catalog. Running the command twice at the same filesystem subject must produce byte-identical stdout — this now also requires `python3 scripts/marketplace.py archive`'s own archive-build to be deterministic (fixed file order, zeroed mtime/uid/gid on every tar entry, zeroed gzip mtime), since `digest`/`size_bytes` are computed from a fresh in-process build each call, not cached.
-
-## `archive` — building the published artifacts
-
-```bash
-python3 scripts/marketplace.py archive
-```
-
-Builds every admitted pack's deterministic `.tar.gz` into `dist/packs/<name>-<version>.tar.gz`
-and prints one `<name> <version> sha256:<hex>` line per pack. This is what CI's publish job
-(`.github/workflows/publish.yml`) uploads as GitHub Release assets on every push to `main`; the
-same command run locally reproduces byte-identical archives, so a consumer can independently
-verify a published asset against a from-source rebuild rather than trusting the download alone.
-
-## `version` — this repository's own release identity
+Do not copy a current marketplace/ggen version from documentation. Read executable source:
 
 ```bash
 python3 scripts/marketplace.py version
 ```
 
-Prints `marketplace.toml`'s `[marketplace].version` bare (e.g. `v26.8.9`). This is the
-marketplace's own org-owned version for a whole registry snapshot — bump it and publish (push to
-`main`) to cut a **second, immutable** GitHub Release tagged with that version, in addition to
-the always-mutating rolling `packs` release:
+and inspect/admit `marketplace.toml` for runtime qualification identity.
 
-- the rolling `packs` release always reflects the latest `main` — its assets are overwritten
-  (`--clobber`) on every publish;
-- a versioned release (e.g. `v26.8.9`) is cut once, the first time that version is seen, and
-  never overwritten afterward — CI refuses to touch an existing versioned release, so `git tag
-  v26.8.9` really does mean "the marketplace as it was," permanently. It carries the same pack
-  archives as the rolling release at that moment, plus `catalog.json` — the exact catalog
-  snapshot for that version, so a consumer can fetch one release and get both the index and the
-  content it describes without depending on the (mutable) Pages deployment matching it later.
+## Pack records
 
-`[marketplace].version` is independent of individual packs' SemVer and of `[ggen].version` (the
-pinned upstream `ggen` binary this repo qualifies against) — three separate version axes, on
-purpose, not aliases of each other.
+Records are sorted by pack identity and include the fields defined by the current catalog schema, including pack identity/description/path, derived packaging profile, source/template/gate metadata, deterministic source fingerprints, deterministic archive digest/size, and the projected download URL.
+
+`profile` is one of `projection`, `semantic`, or `project`. It describes packaging shape, not [pack class](pack-classes.md), maturity, or standing.
+
+Archive digest/size are computed from deterministic archive construction rather than a hand-maintained artifact table. The download URL is deterministic metadata; it may still be unavailable until the publication workflow has produced the corresponding release asset.
+
+The root object identifies the catalog schema used by the current implementation. Consumers should branch on the schema value rather than inferring compatibility from marketplace release names.
+
+The catalog is a **projection** and is intentionally not committed as a second editable source of truth. Running the command twice at the same admitted filesystem subject must produce byte-identical stdout.
+
+## `archive`
+
+```bash
+python3 scripts/marketplace.py archive
+```
+
+Builds every admitted pack's deterministic `.tar.gz` under `dist/packs/` and emits each pack's identity plus SHA-256. Archive construction fixes order and metadata so a from-source rebuild can be compared with the published artifact.
+
+The publication workflow uploads those assets after the relevant main-branch publication event. Archive existence and digest validity prove distribution identity, not consumer runtime behavior or Level-5 maturity.
+
+## `version`
+
+```bash
+python3 scripts/marketplace.py version
+```
+
+Prints the marketplace's whole-registry version from `marketplace.toml`. The marketplace version, pack versions, and ggen runtime version are three deliberately separate axes:
+
+```text
+marketplace snapshot identity
+≠ pack semantic/package version
+≠ manufacturer/runtime version
+```
+
+A versioned marketplace release is a distribution/identity event. It does not automatically upgrade the standing of every included pack; exact-subject qualification and each pack's claimed consumer/domain boundaries retain their own evidence.
+
+## Relationship to Level 5
+
+The catalog is useful Level-5 **reference/distribution** infrastructure because it deterministically projects admitted pack identity/source metadata. It does not carry enough information to establish Level 5 by itself.
+
+Level-5 class/composition information should eventually be projected from admitted semantic class/supersession/dependency facts rather than inferred from directory names. See [Pack classes](pack-classes.md) and [Level-5 maturity contract](level5-maturity-contract.md).
