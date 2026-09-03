@@ -1,10 +1,25 @@
 #!/usr/bin/env python3
 """Qualify every admitted marketplace pack through the real ggen runtime.
 
-The court is filesystem-only: it never executes manufactured programs, cloud
-APIs, pack-owned Python verifiers, or any BRCE DO surface. Each pack is loaded
-through ggen twice in an isolated capsule and must converge to the same
-non-runtime filesystem consequence within the five-second per-pass bound.
+The court's core is filesystem-only: it never executes cloud APIs, pack-owned
+Python verifiers, or any BRCE DO surface. Each pack is loaded through ggen
+twice in an isolated capsule and must converge to the same non-runtime
+filesystem consequence within the five-second per-pass bound.
+
+One narrow, opt-in-by-presence exception (CI-05, added after the initial
+filesystem-only design): if the generated-consequence tree contains one or
+more `Cargo.toml` files that ggen's own generation rules actually targeted
+(confirmed via the sync pass's own `decisions` map, never merely a file that
+happens to sit in a project-profile pack's copied tree), each such manifest
+is really `cargo build`'d and `cargo test`'d -- see
+`discover_generated_cargo_manifests` / `verify_generated_cargo_manifest`
+below. This closes a real gap: a pack could previously render a
+syntactically-fine but semantically-broken Cargo.toml (e.g. a `path =`
+dependency that only resolves inside the pack author's own working tree) and
+still qualify ALIVE, because nothing downstream of `ggen sync run` was ever
+actually compiled. Gated purely on artifact presence, never on pack name or
+identity: a pack that generates no Rust crate is completely unaffected, and
+gains no new subprocess, no new timeout exposure, and no new failure mode.
 
 Pack-specific positive qualification data stays with the pack:
 
@@ -36,6 +51,13 @@ from marketplace import Pack, fingerprint_paths, require_admitted
 
 DEFAULT_TIMEOUT_SECONDS = 5.0
 DEFAULT_WORKERS = 8
+# Separate, wider ceiling for the opt-in-by-presence `cargo build`/`cargo
+# test` verification below (CI-05). `cargo` compiling a real dependency tree
+# is routinely far slower than one `ggen sync run` pass -- this must never
+# silently reuse the 5s (or R18's 30s) sync ceiling. Bounded, not unbounded:
+# a generated crate that hangs still fails closed, it just gets real headroom
+# first.
+CARGO_BUILD_TIMEOUT_SECONDS = 120.0
 IGNORED_RUNTIME_ROOTS = frozenset(
     {".git", ".ggen", ".ggen-v2", ".cache", ".qualification-home", "target"}
 )
@@ -395,6 +417,87 @@ def compact_output(result: CommandResult) -> str:
     return combined.replace("\x00", "<NUL>")
 
 
+def discover_generated_cargo_manifests(consumer: Path, decisions: dict[str, str] | None = None) -> tuple[Path, ...]:
+    """Every `Cargo.toml` under `consumer`'s generated-consequence tree that
+    ggen's own generation rules actually targeted this sync pass (excluding
+    `IGNORED_RUNTIME_ROOTS` -- `.git`, `.ggen`, `.ggen-v2`, `.cache`,
+    `.qualification-home`, `target`), sorted for determinism.
+
+    Presence-gated, never pack-name-gated (CI-05): any pack whose generated
+    output happens to include a `Cargo.toml` gets real `cargo build`/`cargo
+    test` verification for that manifest in `qualify_pack` below. A pack
+    that generates no Rust crate is entirely unaffected: this returns an
+    empty tuple and no cargo subprocess is ever spawned for it.
+
+    `decisions` (when given -- the real `ggen sync run` JSON output's own
+    `"decisions"` map, keyed by output path relative to `consumer`) narrows
+    the artifact-presence check from "a Cargo.toml file exists somewhere in
+    this tree" to "ggen itself wrote or considered writing this exact path
+    this sync pass" -- excluding a project-profile pack's own committed,
+    non-generated fixture content (e.g. a checked-in reference/example
+    subtree) that `shutil.copytree` brought along but no `[[generation.rules]]`
+    ever targets. Verified empirically against the real v26.9.1 corpus while
+    building this: every `Cargo.toml` this marketplace currently ships
+    (including every generated-consequence one with a real broken `path =`
+    dependency) IS a `decisions` key, so this narrowing changes nothing
+    about today's qualification outcomes -- it only guards a future pack
+    that ships committed, non-generated Rust fixture content alongside real
+    generation rules from getting swept into cargo verification it never
+    asked for. Omitting `decisions` (`None`) falls back to the unfiltered,
+    presence-only scan.
+    """
+    manifests = [
+        path
+        for path in consumer.rglob("Cargo.toml")
+        if not (path.relative_to(consumer).parts and path.relative_to(consumer).parts[0] in IGNORED_RUNTIME_ROOTS)
+        and (decisions is None or path.relative_to(consumer).as_posix() in decisions)
+    ]
+    return tuple(sorted(manifests, key=lambda item: item.relative_to(consumer).as_posix()))
+
+
+def verify_generated_cargo_manifest(manifest: Path, timeout_seconds: float) -> tuple[str, str] | None:
+    """Run `cargo build` then, on success, `cargo test`, against one real
+    generated `Cargo.toml` -- both bounded by `timeout_seconds`
+    (`CARGO_BUILD_TIMEOUT_SECONDS`, never the sync pass's own ceiling; see
+    that constant's docstring). `cargo test` runs unconditionally after a
+    successful build rather than trying to first detect whether the crate
+    declares an explicit `[[test]]` target: a crate with no `#[test]`
+    functions and no `tests/` directory still has cargo's default (empty)
+    test harness, which `cargo test` reports as `0 passed; 0 failed` and
+    exits 0 -- so this never fabricates a build-only pass as a test pass, and
+    never needs brittle Cargo.toml introspection to decide whether to run it.
+
+    Returns `None` on success, or `(refusal_code, detail)` naming exactly
+    which step failed (build vs. test) on the first failure -- callers stop
+    at the first failing manifest rather than aggregating every manifest's
+    failure, mirroring the existing `qualify_pack` short-circuit shape for
+    the sync passes above.
+    """
+    build = run_bounded(["cargo", "build", "--manifest-path", str(manifest)], manifest.parent, timeout_seconds)
+    if build.timed_out:
+        return (
+            "REFUSED:GGEN_PACK_GENERATED_BUILD_FAILED",
+            f"cargo build timed out after {timeout_seconds:g}s manifest={manifest}",
+        )
+    if build.returncode != 0:
+        return (
+            "REFUSED:GGEN_PACK_GENERATED_BUILD_FAILED",
+            f"cargo build exit={build.returncode} manifest={manifest} output={compact_output(build)}",
+        )
+    test = run_bounded(["cargo", "test", "--manifest-path", str(manifest)], manifest.parent, timeout_seconds)
+    if test.timed_out:
+        return (
+            "REFUSED:GGEN_PACK_GENERATED_TEST_FAILED",
+            f"cargo test timed out after {timeout_seconds:g}s manifest={manifest}",
+        )
+    if test.returncode != 0:
+        return (
+            "REFUSED:GGEN_PACK_GENERATED_TEST_FAILED",
+            f"cargo test exit={test.returncode} manifest={manifest} output={compact_output(test)}",
+        )
+    return None
+
+
 def refusal(pack: Pack, code: str, detail: str) -> dict[str, Any]:
     return {
         "code": code,
@@ -449,15 +552,46 @@ def qualify_pack(pack: Pack, ggen_bin: str, timeout_seconds: float) -> dict[str,
                                 "changed=" + ",".join(changed[:40]),
                             )
                         else:
-                            record = {
-                                "consequence_files": len(snapshot_two),
-                                "consequence_sha256": snapshot_digest(snapshot_two),
-                                "name": pack.name,
-                                "profile": pack.profile,
-                                "source_sha256": source_before,
-                                "status": "ALIVE",
-                                "version": pack.version,
-                            }
+                            # CI-05: opt-in-by-presence build/execute verification.
+                            # `qualify_packs.py` stays filesystem-only for every pack
+                            # that generates no Rust crate (see the module docstring);
+                            # this only fires for the packs whose generated output
+                            # actually contains a `Cargo.toml` ggen itself targeted
+                            # this pass. Gated on artifact presence, never on
+                            # `pack.name`. `second.stdout` is the real `ggen sync
+                            # run` JSON payload (stderr carries tracing, verified
+                            # empirically to never mix); a parse failure here
+                            # degrades to the unfiltered presence-only scan rather
+                            # than introducing an unrelated new failure mode.
+                            try:
+                                second_decisions = json.loads(second.stdout).get("decisions", {})
+                            except (json.JSONDecodeError, AttributeError):
+                                second_decisions = None
+                            manifests = discover_generated_cargo_manifests(consumer, second_decisions)
+                            build_failure: tuple[str, str] | None = None
+                            for manifest in manifests:
+                                build_failure = verify_generated_cargo_manifest(manifest, CARGO_BUILD_TIMEOUT_SECONDS)
+                                if build_failure is not None:
+                                    break
+                            if build_failure is not None:
+                                code, detail = build_failure
+                                record = refusal(pack, code, detail)
+                            else:
+                                record = {
+                                    "consequence_files": len(snapshot_two),
+                                    "consequence_sha256": snapshot_digest(snapshot_two),
+                                    "generated_build": {
+                                        "manifests_verified": [
+                                            manifest.relative_to(consumer).as_posix()
+                                            for manifest in manifests
+                                        ],
+                                    },
+                                    "name": pack.name,
+                                    "profile": pack.profile,
+                                    "source_sha256": source_before,
+                                    "status": "ALIVE",
+                                    "version": pack.version,
+                                }
     except QualificationContractError as error:
         record = refusal(pack, "REFUSED:QUALIFICATION_CONTRACT_INVALID", str(error))
 
