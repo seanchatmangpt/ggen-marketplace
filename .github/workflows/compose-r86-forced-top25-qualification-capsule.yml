@@ -1,0 +1,30 @@
+name: COMPOSE R86 ForcedTop25 Qualification Capsule
+on:
+  pull_request:
+    paths:
+      - 'packs/forced-top25-qualification-capsule-pack/**'
+      - '.github/workflows/compose-r86-forced-top25-qualification-capsule.yml'
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Admit exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Install bounded verifier
+        run: python -m pip install --disable-pip-version-check 'pytest==8.3.5' 'rdflib==7.1.4'
+      - name: Parse public ontology
+        run: python -c "from rdflib import Graph; Graph().parse('packs/forced-top25-qualification-capsule-pack/ontology.ttl', format='turtle')"
+      - name: Execute R86 court
+        run: pytest -q packs/forced-top25-qualification-capsule-pack/tests/test_r86_qualification_capsule.py
