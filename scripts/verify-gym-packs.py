@@ -17,6 +17,12 @@ import tomllib
 SCHEMA = "ggen.marketplace.gym-pack-contract/v1"
 VERSION = "26.9.1"
 EXPECTED = {
+    "autofde-gymact-certification-pack": (
+        "pack.toml",
+        "ontology.ttl",
+        "gates/010_evidence_integrity.rq",
+        "qualification/consumer.ttl",
+    ),
     "chatgptgym-gymact-bridge-pack": (
         "pack.toml",
         "ontology.ttl",
@@ -31,6 +37,12 @@ EXPECTED = {
         "pack.toml",
         "gates/010_safe_scope.rq",
     ),
+}
+PACK_VERSIONS = {
+    "autofde-gymact-certification-pack": "1.0.0",
+    "chatgptgym-gymact-bridge-pack": VERSION,
+    "lifegym-world-pack": VERSION,
+    "ww3gym-planning-pack": VERSION,
 }
 
 
@@ -86,8 +98,9 @@ def validate(root: Path) -> tuple[list[dict], list[str]]:
     for name in expected:
         base = packs_root / name
         meta = pack_meta(base / "pack.toml")
+        expected_version = PACK_VERSIONS[name]
         refuse(meta.get("name") != name, "PACK_IDENTITY_DRIFT", name)
-        refuse(meta.get("version") != VERSION, "PACK_VERSION_DRIFT", f"{name}:{meta.get('version')}")
+        refuse(meta.get("version") != expected_version, "PACK_VERSION_DRIFT", f"{name}:{meta.get('version')} expected={expected_version}")
         refuse((base / "generated").exists(), "GENERATED_SOURCE_REFUSED", name)
         checks.extend([f"{name}:identity", f"{name}:version", f"{name}:no-generated-source"])
 
@@ -96,7 +109,46 @@ def validate(root: Path) -> tuple[list[dict], list[str]]:
             path = base / relative
             read(path)
             files.append({"path": str(path.relative_to(root)), "sha256": digest(path)})
-        pack_receipts.append({"name": name, "version": VERSION, "files": files})
+        pack_receipts.append({"name": name, "version": expected_version, "files": files})
+
+    autofde = packs_root / "autofde-gymact-certification-pack"
+    autofde_ontology = read(autofde / "ontology.ttl")
+    autofde_gate = read(autofde / "gates/010_evidence_integrity.rq")
+    autofde_fixture = read(autofde / "qualification/consumer.ttl")
+    refuse(not autofde_gate.startswith("# MESSAGE:"), "AUTOFDE_CERT_GATE_MESSAGE_MISSING", autofde.name)
+    refuse("SELECT ?subject ?violation WHERE" not in autofde_gate, "AUTOFDE_CERT_GATE_SELECT_MISSING", autofde.name)
+    refuse("ORDER BY ?subject ?violation" not in autofde_gate, "AUTOFDE_CERT_GATE_ORDER_MISSING", autofde.name)
+    for term in (
+        "afl:CheckSeverity",
+        "afl:CertificationCheck",
+        "afl:CertificationCheckResult",
+        "afl:CertificationManifest",
+        "afl:EvaluateArgShape",
+        "afl:OracleContractFinding",
+    ):
+        refuse(term not in autofde_ontology, "AUTOFDE_CERT_ONTOLOGY_TERM_MISSING", term)
+    for concept in ("afl:STRUCTURAL", "afl:BEHAVIORAL", "afl:EVIDENCE", "afl:STRUCTURAL_ONLY", "afl:SMOKE_TESTED"):
+        refuse(concept not in autofde_ontology, "AUTOFDE_CERT_CONCEPT_MISSING", concept)
+    for token in (
+        "EVIDENCE-severity resultPassed=true with no resultEvidenceRef",
+        "resultCheckRef does not match any admitted CertificationCheck",
+    ):
+        refuse(token not in autofde_gate, "AUTOFDE_CERT_REFUSAL_MISSING", token)
+    for fixture_token in (
+        'afl:checkSeverityRef afl:STRUCTURAL',
+        'afl:checkSeverityRef afl:BEHAVIORAL',
+        'afl:checkSeverityRef afl:EVIDENCE',
+        'afl:manifestConformanceLevelRef afl:SMOKE_TESTED',
+        'afl:resultEvidenceRef "blake3:',
+    ):
+        refuse(fixture_token not in autofde_fixture, "AUTOFDE_CERT_FIXTURE_MISSING", fixture_token)
+    checks.extend([
+        "autofde-cert:typed-contract",
+        "autofde-cert:severity-concepts",
+        "autofde-cert:evidence-refusal",
+        "autofde-cert:admitted-check-refusal",
+        "autofde-cert:qualification-fixture",
+    ])
 
     chat = packs_root / "chatgptgym-gymact-bridge-pack"
     chat_ontology = read(chat / "ontology.ttl")
@@ -170,6 +222,11 @@ def verify_receipt_digest(receipt: dict) -> None:
 
 def self_test(root: Path, subject_sha: str) -> None:
     mutations = (
+        (
+            "packs/autofde-gymact-certification-pack/gates/010_evidence_integrity.rq",
+            "EVIDENCE-severity resultPassed=true with no resultEvidenceRef",
+            "evidence-integrity-check-removed",
+        ),
         ("packs/chatgptgym-gymact-bridge-pack/gates/010_execution_boundary.rq", "ambient-do-authority-refused", "ambient-do-authority-removed"),
         ("packs/lifegym-world-pack/ontology.ttl", "lifegym-v26.9.1", "lifegym-v26.8.12"),
         ("packs/ww3gym-planning-pack/gates/010_safe_scope.rq", "production.?deployment", "production-deployment-check-removed"),

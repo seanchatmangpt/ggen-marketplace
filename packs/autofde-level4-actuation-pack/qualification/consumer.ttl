@@ -1,0 +1,82 @@
+# Minimal, conforming OCEL-projected Level-4 actuation fixture.
+#
+# Exercises every shape in shapes/level4-chain.shacl.ttl:
+#   - Level4ActuationShape           (Actuation -> commitment/authority/env/capability)
+#   - Level4PostconditionObservationShape (observation after actuation, same subject)
+#   - Level4ReceiptShape             (Receipt evidenced by the Actuation and the Observation)
+#   - Level4ReplayShape              (Replay references the Receipt, head_digest matches)
+#   - Level4ModelInferredShape       (ProbeExecuted precedes ModelInferred, same Task)
+
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix ocel:    <urn:autofde:ocel:> .
+@prefix otype:   <urn:autofde:ocel:type/> .
+@prefix oact:    <urn:autofde:ocel:activity/> .
+@prefix e2o:     <urn:autofde:ocel:e2o/> .
+@prefix o2o:     <urn:autofde:ocel:o2o/> .
+@prefix attr:    <urn:autofde:ocel:attr/> .
+@prefix ex:      <urn:autofde:ocel:example/> .
+
+# --- Objects referenced by the Actuation -------------------------------
+
+ex:commitment-1 a otype:POWLCommitment .
+ex:authority-1  a otype:AuthorityEnvelope .
+ex:environment-1 a otype:Environment .
+ex:capability-1  a otype:Capability .
+
+# --- Actuation ------------------------------------------------------------
+
+ex:actuation-1
+    a otype:Actuation ;
+    o2o:actuates_commitment ex:commitment-1 ;
+    o2o:authorized_by ex:authority-1 ;
+    o2o:acts_on_environment ex:environment-1 ;
+    o2o:exercises_capability ex:capability-1 .
+
+ex:event-actuation-opened
+    a oact:ActuationOpened ;
+    e2o:actuation ex:actuation-1 ;
+    prov:startedAtTime "2026-08-19T10:00:00Z"^^xsd:dateTime .
+
+# --- PostconditionObservation, after the Actuation, same subject ----------
+
+ex:observation-1
+    a otype:PostconditionObservation ;
+    o2o:observes_actuation ex:actuation-1 ;
+    o2o:observes_subject ex:environment-1 .
+
+ex:event-postcondition-observed
+    a oact:PostconditionObserved ;
+    e2o:observation ex:observation-1 ;
+    prov:startedAtTime "2026-08-19T10:05:00Z"^^xsd:dateTime .
+
+# --- Receipt, evidenced by both the Actuation and the Observation ---------
+
+ex:receipt-1
+    a otype:Receipt ;
+    attr:receipt_digest "sha256:deadbeefcafefeed0000000000000000000000000000000000000000000001" .
+
+ex:actuation-1 o2o:evidenced_by_receipt ex:receipt-1 .
+ex:observation-1 o2o:evidenced_by_receipt ex:receipt-1 .
+
+# --- Replay, references the Receipt, matching head_digest ------------------
+
+ex:replay-1
+    a otype:Replay ;
+    o2o:replays_receipt ex:receipt-1 ;
+    attr:head_digest "sha256:deadbeefcafefeed0000000000000000000000000000000000000000000001" .
+
+# --- ProbeExecuted strictly before ModelInferred, same Task ----------------
+
+ex:task-1 a ocel:Task .
+
+ex:probe-executed-1
+    a oact:ProbeExecuted ;
+    e2o:task ex:task-1 ;
+    prov:startedAtTime "2026-08-19T09:00:00Z"^^xsd:dateTime .
+
+ex:model-inferred-1
+    a oact:ModelInferred ;
+    e2o:task ex:task-1 ;
+    prov:startedAtTime "2026-08-19T09:30:00Z"^^xsd:dateTime .
