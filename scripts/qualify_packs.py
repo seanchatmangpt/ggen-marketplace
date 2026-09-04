@@ -705,6 +705,73 @@ def shard(packs: list[Pack], index: int, count: int) -> list[Pack]:
     return [pack for position, pack in enumerate(packs) if position % count == index]
 
 
+def detect_sandboxed_ggen(ggen_bin: str) -> str | None:
+    """Refuse a `ggen` binary that cannot see paths outside a single mounted directory.
+
+    A container-wrapped `ggen` (e.g. a `docker run -v $PWD:/workspace` shim) only
+    bind-mounts the invocation's cwd, so an absolute host path outside that mount
+    genuinely does not exist from its point of view. qualify_packs.py's own
+    projection/semantic ggen.toml writers embed absolute host pack paths (see
+    projection_ggen_toml/semantic_ggen_toml above), so a sandboxed ggen reports a
+    spurious FM-PACK-001 "directory does not exist" for every one of those packs
+    even though the pack is real on the host. Detect this by pointing a scratch
+    consumer at a scratch target directory that indisputably exists on the host,
+    outside the scratch consumer's own cwd, and checking whether the resolved
+    `ggen` binary agrees it exists.
+
+    Returns None when the binary can see the host filesystem normally, or a typed
+    reason string describing the sandboxing mismatch when it cannot.
+    """
+    with tempfile.TemporaryDirectory(prefix="ggen-sandbox-probe-") as tmp:
+        tmp_path = Path(tmp)
+        target = tmp_path / "probe_target"
+        target.mkdir()
+        (target / "marker.txt").write_text("probe\n")
+
+        consumer = tmp_path / "probe_consumer"
+        (consumer / "templates").mkdir(parents=True)
+        (consumer / "ontology.ttl").write_text("@prefix : <http://example.org/> .\n")
+        target_path = target.resolve().as_posix().replace('"', '\\"')
+        (consumer / "ggen.toml").write_text(
+            "\n".join(
+                (
+                    "[project]",
+                    'name = "ggen-sandbox-probe"',
+                    "",
+                    "[ontology]",
+                    'source = "ontology.ttl"',
+                    "",
+                    "[packs]",
+                    f'"probe" = {{ path = "{target_path}" }}',
+                    "",
+                    "[templates]",
+                    'dir = "templates"',
+                    "",
+                )
+            )
+        )
+
+        result = subprocess.run(
+            [ggen_bin, "sync", "run", "--dry-run"],
+            cwd=consumer,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        output = f"{result.stdout}\n{result.stderr}"
+        if "FM-PACK-001" in output and str(target) in output:
+            return (
+                f"ggen binary {ggen_bin!r} reports FM-PACK-001 (directory does not "
+                f"exist) for a host path that was just created and verified to "
+                f"exist ({target}). This is the signature of a container-wrapped "
+                f"ggen that only bind-mounts its invocation cwd; point --ggen / "
+                f"GGEN_BIN at a native binary instead (e.g. `which -a ggen` and "
+                f"pick the Mach-O/ELF one, not a shell wrapper)."
+            )
+    return None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ggen", default=os.environ.get("GGEN_BIN") or shutil.which("ggen"))
@@ -740,6 +807,11 @@ def main() -> int:
         print(f"REFUSED:GGEN_VERSION_FAILED:exit={version.returncode}", file=sys.stderr)
         return 2
     version_text = (version.stdout or version.stderr).strip()
+
+    sandbox_reason = detect_sandboxed_ggen(args.ggen)
+    if sandbox_reason is not None:
+        print(f"REFUSED:GGEN_BINARY_SANDBOXED:{sandbox_reason}", file=sys.stderr)
+        return 2
 
     packs = sorted(require_admitted(), key=lambda pack: pack.name)
     if args.shard_index is not None:
