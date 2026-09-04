@@ -1,0 +1,80 @@
+@prefix pf: <https://ggen.io/marketplace/planning-federation#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix pplan: <http://purl.org/net/p-plan#> .
+@prefix sosa: <http://www.w3.org/ns/sosa/> .
+@prefix odrl: <http://www.w3.org/ns/odrl/2/> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix qudt: <http://qudt.org/schema/qudt/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+pf:PlanningDomain a skos:Concept ; skos:prefLabel "Planning domain" .
+pf:PlannableAction a skos:Concept ; skos:prefLabel "Plannable action" .
+pf:PlannerProfile a skos:Concept ; skos:prefLabel "Planner profile" .
+pf:Experiment a skos:Concept ; skos:prefLabel "Experiment" .
+pf:Hypothesis a skos:Concept ; skos:prefLabel "Hypothesis" .
+
+pf:AdmittedDemo a pf:PlanningDomain, pplan:Plan ;
+  skos:prefLabel "admitted-demo" ;
+  pf:initialPredicate "observed" ;
+  pf:goalPredicate "verified" ;
+  pf:objective "minimize_wip_then_cost" .
+
+pf:Observed a sosa:Observation ;
+  skos:prefLabel "observed" .
+
+pf:AdmitObservation a pf:PlannableAction, sosa:Procedure, pplan:Step ;
+  skos:prefLabel "admit-observation" ;
+  pf:precondition "observed" ;
+  pf:effect "admitted" ;
+  pf:cost 1 ;
+  pf:duration 1 ;
+  pf:probability "1.0"^^xsd:decimal ;
+  pf:authorityRef "urn:authority:observe" ;
+  pplan:isStepOfPlan pf:AdmittedDemo .
+
+pf:VerifyGoal a pf:PlannableAction, sosa:Procedure, pplan:Step ;
+  skos:prefLabel "verify-goal" ;
+  pf:precondition "admitted" ;
+  pf:effect "verified" ;
+  pf:cost 1 ;
+  pf:duration 1 ;
+  pf:probability "1.0"^^xsd:decimal ;
+  pf:authorityRef "urn:authority:verify" ;
+  pplan:isStepOfPlan pf:AdmittedDemo .
+
+pf:PlannerLeagueProfile a pf:PlannerProfile ;
+  skos:prefLabel "default-planner-league" ;
+  pf:plannerType "federated" ;
+  pf:algorithm "domain-selected" ;
+  pf:heuristic "information-gain-option-preservation" ;
+  pf:timeoutSeconds 60 ;
+  pf:memoryLimitMb 2048 ;
+  pf:observationProjection "planner/observation-projection.rq" ;
+  pf:actionProjection "planner/action-projection.rq" .
+
+pf:AuthorityPolicy a odrl:Policy ;
+  odrl:permission [
+    a odrl:Permission ;
+    odrl:action odrl:use ;
+    odrl:target pf:AdmitObservation
+  ], [
+    a odrl:Permission ;
+    odrl:action odrl:use ;
+    odrl:target pf:VerifyGoal
+  ] .
+
+pf:PrimaryHypothesis a pf:Hypothesis ;
+  skos:prefLabel "admission enables verification" .
+
+pf:AdmissionExperiment a pf:Experiment, prov:Activity ;
+  skos:prefLabel "admit then verify" ;
+  pf:testsHypothesis pf:PrimaryHypothesis ;
+  pf:expectedInformationGain "1.0"^^xsd:decimal ;
+  pf:reversibility "1.0"^^xsd:decimal ;
+  pf:risk "0.0"^^xsd:decimal .
+
+pf:PlannerWorker a prov:Agent ;
+  skos:prefLabel "planner-worker" .
+
+pf:ComputeBudget a qudt:QuantityValue ;
+  qudt:numericValue 60 .
