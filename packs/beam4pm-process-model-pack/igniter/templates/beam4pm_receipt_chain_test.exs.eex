@@ -108,6 +108,18 @@ defmodule BeamPM.ReceiptChainTest do
   their real bytes, and a REAL falsifier: a receipt file is deliberately
   corrupted on disk and `BeamPM.ReceiptChain.verify/2` must detect the
   break, not merely be asserted to.
+
+  The `tip index` group qualifies the O(1) per-chain tip index behind
+  `BeamPM.ReceiptChain.link_fields/3` against the retained Theta(N) scan
+  (`link_fields_by_scan/2`, the read-only reference oracle): answer identity
+  before every one of hundreds of randomly interleaved multi-chain writes,
+  the crash window (index recorded, receipt never written), a tampered or
+  stale index entry, the DISCLOSED divergence under an out-of-band writer
+  (caught by the untouched `verify/2`, never silently accepted), and a
+  wall-clock falsifier that the per-write cost no longer scales with the
+  directory. Receipts in that group are real JSON files written to real
+  paths -- the module's contract is over files on disk, so the filesystem
+  is the collaborator, not a stand-in for one.
   """
 
   use ExUnit.Case, async: false
@@ -335,5 +347,273 @@ defmodule BeamPM.ReceiptChainTest do
               length: 2,
               receipt_paths: [^actuation_path1, ^actuation_path2]
             }} = ReceiptChain.verify(tmp_dir, @governed_process_id)
+  end
+
+  # -- tip index: O(1) link_fields/3 vs the retained scan oracle ---------
+
+  @brce_schema "beam4pm-brce/v1"
+  @tip_index_schema "beam4pm-chain-tip/v1"
+
+  # A minimal, real beam4pm-brce/v1-shaped receipt file carrying exactly the
+  # fields BeamPM.ReceiptChain's own decode_chain_receipt/2 reads, plus a
+  # payload so every file's bytes (and therefore sha256) are distinct.
+  # Written to a REAL path on disk: the module's contract is over files, so
+  # the filesystem is the real collaborator here, not BeamPM.Actuation.
+  defp write_chained_receipt!(path, link, payload) do
+    File.write!(
+      path,
+      JSON.encode!(%{
+        "receipt_schema" => @brce_schema,
+        "chain_id" => link.chain_id,
+        "chain_seq" => link.chain_seq,
+        "prev_receipt_path" => link.prev_receipt_path,
+        "prev_receipt_hash" => link.prev_receipt_hash,
+        "payload" => payload
+      })
+    )
+
+    path
+  end
+
+  defp write_json!(path, body), do: File.write!(path, JSON.encode!(body))
+
+  # Two receipts of `chain_id` through the indexed writer, so the indexed
+  # path (not just the genesis/scan-fallback path) is what later calls hit.
+  defp seed_indexed_chain!(tmp_dir, chain_id, prefix) do
+    p1 = Path.join(tmp_dir, "#{prefix}-1.json")
+    write_chained_receipt!(p1, ReceiptChain.link_fields(tmp_dir, chain_id, p1), "#{prefix}-1")
+    p2 = Path.join(tmp_dir, "#{prefix}-2.json")
+    write_chained_receipt!(p2, ReceiptChain.link_fields(tmp_dir, chain_id, p2), "#{prefix}-2")
+    {p1, p2}
+  end
+
+  test "tip index: link_fields/3 == retained scan oracle before every one of 360 randomly interleaved writes across 7 chains (+40 unchained noise files), and the untouched verify/2 accepts every chain",
+       %{tmp_dir: tmp_dir} do
+    chains = ["alpha", "beta", "gamma", "delta", "epsilon", "tenant/acme process #7", "zeta"]
+    :rand.seed(:exsss, {2026, 9, 5})
+
+    counts =
+      Enum.reduce(1..400, %{}, fn i, counts ->
+        if rem(i, 10) == 0 do
+          # Unchained noise the scan must read-and-discard and the index
+          # never touches: a bare brce receipt (no chain fields) or a
+          # foreign-schema JSON file, alternating.
+          schema = if rem(i, 20) == 0, do: @brce_schema, else: "other/v1"
+          write_json!(Path.join(tmp_dir, "noise-#{i}.json"), %{"receipt_schema" => schema, "i" => i})
+          counts
+        else
+          chain = Enum.random(chains)
+          path = Path.join(tmp_dir, "r-#{i}.json")
+          expected = ReceiptChain.link_fields_by_scan(tmp_dir, chain)
+          actual = ReceiptChain.link_fields(tmp_dir, chain, path)
+
+          assert actual == expected,
+                 "write #{i} chain #{inspect(chain)}: index #{inspect(actual)} != scan #{inspect(expected)}"
+
+          write_chained_receipt!(path, actual, i)
+          Map.update(counts, chain, 1, &(&1 + 1))
+        end
+      end)
+
+    assert counts |> Map.values() |> Enum.sum() == 360
+
+    # The untouched verify/2 -- whole-directory replay from disk, never
+    # consulting the index -- accepts every chain at exactly its write count.
+    for {chain, n} <- counts do
+      assert {:ok, %{chain_id: ^chain, length: ^n}} = ReceiptChain.verify(tmp_dir, chain)
+    end
+
+    # The index is one hidden file per chain in a subdirectory the scan's
+    # top-level *.json filter never sees; a path-unsafe chain_id gets a
+    # filesystem-safe, deterministic filename that still records the plain id.
+    index_dir = Path.join(tmp_dir, ".chain-tips")
+    assert File.dir?(index_dir)
+    assert index_dir |> File.ls!() |> length() == map_size(counts)
+    unsafe_index = ReceiptChain.tip_index_path(tmp_dir, "tenant/acme process #7")
+    assert Path.dirname(unsafe_index) == index_dir
+    assert Path.basename(unsafe_index) =~ ~r/\A[0-9a-f]{64}\.json\z/
+    assert (unsafe_index |> File.read!() |> JSON.decode!())["chain_id"] == "tenant/acme process #7"
+  end
+
+  test "tip index: crash window (tip recorded, receipt never written) is repaired by the validated read + scan fallback, and the REAL Actuation writer continues unbroken",
+       %{tmp_dir: tmp_dir} do
+    chain_id = "crash-window-chain"
+
+    run = fn n ->
+      {:ok, out} =
+        Actuation.run(inc_action(), [
+          gym: "toy-counter",
+          bridge: bridge_path(),
+          receipts_dir: tmp_dir,
+          run_id: "act-crash-#{n}",
+          chain_id: chain_id
+        ])
+
+      out.receipt_path
+    end
+
+    path1 = run.(1)
+    path2 = run.(2)
+
+    # The exact state a process dying between BeamPM.Actuation's
+    # put_chain_fields/2 and its File.write! leaves behind: the index already
+    # names seq 3 at a path that never gets written.
+    ghost = Path.join(tmp_dir, "act-crash-ghost.json")
+    assert %{chain_seq: 3, prev_receipt_path: ^path2} = ReceiptChain.link_fields(tmp_dir, chain_id, ghost)
+    refute File.exists?(ghost)
+    index = ReceiptChain.tip_index_path(tmp_dir, chain_id) |> File.read!() |> JSON.decode!()
+    assert index["chain_seq"] == 3 and index["receipt_path"] == ghost
+
+    # Next call: the index names a file that does not exist -> validated read
+    # misses -> scan -> the same answer the oracle gives, and the index is
+    # rebuilt from it.
+    expected = ReceiptChain.link_fields_by_scan(tmp_dir, chain_id)
+    assert %{chain_seq: 3, prev_receipt_path: ^path2} = expected
+    assert ReceiptChain.link_fields(tmp_dir, chain_id, Path.join(tmp_dir, "act-crash-3.json")) == expected
+
+    # And the REAL writer continues from the repaired state: real receipt 3
+    # chains to real receipt 2 by recomputed sha256, whole chain verifies.
+    path3 = run.(3)
+    receipt3 = path3 |> File.read!() |> JSON.decode!()
+    assert receipt3["chain_seq"] == 3
+    assert receipt3["prev_receipt_path"] == path2
+    assert receipt3["prev_receipt_hash"] == sha256_hex!(path2)
+
+    assert {:ok, %{length: 3, receipt_paths: [^path1, ^path2, ^path3]}} =
+             ReceiptChain.verify(tmp_dir, chain_id)
+  end
+
+  test "tip index: a tampered or stale index entry is a MISS (never trusted, never an error) -- garbage, another chain's real receipt, wrong seq, a copy outside receipts_dir, deleted",
+       %{tmp_dir: tmp_dir} do
+    {_a1, a2} = seed_indexed_chain!(tmp_dir, "chain-a", "a")
+    {_b1, b2} = seed_indexed_chain!(tmp_dir, "chain-b", "b")
+
+    index_path = ReceiptChain.tip_index_path(tmp_dir, "chain-a")
+    next = Path.join(tmp_dir, "a-3.json")
+    expected = ReceiptChain.link_fields_by_scan(tmp_dir, "chain-a")
+    assert %{chain_seq: 3, prev_receipt_path: ^a2} = expected
+
+    entry = fn seq, path ->
+      JSON.encode!(%{
+        "index_schema" => @tip_index_schema,
+        "chain_id" => "chain-a",
+        "chain_seq" => seq,
+        "receipt_path" => path
+      })
+    end
+
+    # (1) garbage bytes -> miss -> scan; the index is rebuilt valid afterwards.
+    File.write!(index_path, "{not json")
+    assert ReceiptChain.link_fields(tmp_dir, "chain-a", next) == expected
+    rebuilt = index_path |> File.read!() |> JSON.decode!()
+    assert rebuilt["chain_id"] == "chain-a" and rebuilt["chain_seq"] == 3 and rebuilt["receipt_path"] == next
+
+    # (2) points at a REAL, valid tip receipt -- of ANOTHER chain.
+    File.write!(index_path, entry.(2, b2))
+    assert ReceiptChain.link_fields(tmp_dir, "chain-a", next) == expected
+
+    # (3) the right file, but the index claims a seq the receipt does not record.
+    File.write!(index_path, entry.(7, a2))
+    assert ReceiptChain.link_fields(tmp_dir, "chain-a", next) == expected
+
+    # (4) a byte-identical copy of the real tip, but OUTSIDE receipts_dir's top
+    # level -- a file the scan could never see must never be admitted by the
+    # index either (prev_receipt_path must stay a2, not the copy).
+    outside = Path.join(tmp_dir, "elsewhere")
+    File.mkdir_p!(outside)
+    copy = Path.join(outside, "a-2-copy.json")
+    File.cp!(a2, copy)
+    File.write!(index_path, entry.(2, copy))
+    assert ReceiptChain.link_fields(tmp_dir, "chain-a", next) == expected
+
+    # (5) deleted entirely.
+    File.rm!(index_path)
+    assert ReceiptChain.link_fields(tmp_dir, "chain-a", next) == expected
+
+    # (6) the legacy 2-arity writer entry point: same answer as the oracle, and
+    # it invalidates the index so a scan-only writer can never leave a
+    # stale-but-valid tip behind.
+    assert ReceiptChain.link_fields(tmp_dir, "chain-a") == expected
+    refute File.exists?(index_path)
+
+    # chain-b was never touched by any of the above.
+    assert {:ok, %{length: 2}} = ReceiptChain.verify(tmp_dir, "chain-b")
+  end
+
+  test "DISCLOSED LIMIT: a well-formed next-link receipt injected WITHOUT the writer makes index and scan diverge -- and the untouched verify/2 turns that into a visible :duplicate_or_missing_seq, never silent acceptance",
+       %{tmp_dir: tmp_dir} do
+    chain_id = "foreign-injection-chain"
+    {_p1, _p2} = seed_indexed_chain!(tmp_dir, chain_id, "f")
+
+    # A foreign process computes a perfectly consistent seq-3 link with the
+    # oracle and drops it into the flat directory, bypassing link_fields/3.
+    foreign_link = ReceiptChain.link_fields_by_scan(tmp_dir, chain_id)
+    assert foreign_link.chain_seq == 3
+    write_chained_receipt!(Path.join(tmp_dir, "f-3-foreign.json"), foreign_link, "foreign")
+
+    # The scan now sees seq 3 -> next is 4. The index still names f-2 (which
+    # is real and valid) -> next is 3. Divergent, and stated so.
+    scan = ReceiptChain.link_fields_by_scan(tmp_dir, chain_id)
+    indexed_path = Path.join(tmp_dir, "f-3-indexed.json")
+    indexed = ReceiptChain.link_fields(tmp_dir, chain_id, indexed_path)
+    assert scan.chain_seq == 4
+    assert indexed.chain_seq == 3
+    refute scan == indexed
+
+    # The indexed writer writes its seq-3 receipt; the independent oracle
+    # catches the duplicate rather than accepting either writer's output.
+    write_chained_receipt!(indexed_path, indexed, "indexed")
+
+    assert {:error, {:chain_broken, _seq, :duplicate_or_missing_seq}} =
+             ReceiptChain.verify(tmp_dir, chain_id)
+  end
+
+  test "tip index: per-write cost no longer scales with the directory -- at 3,000 foreign-chain receipts the indexed link is identical to the scan and at least 20x faster",
+       %{tmp_dir: tmp_dir} do
+    chain_id = "hot-chain"
+    {_h1, h2} = seed_indexed_chain!(tmp_dir, chain_id, "hot")
+
+    # 3,000 foreign receipts (100 other chains x 30), every one a real scan
+    # candidate the scan must read, decode, and discard.
+    for c <- 1..100, s <- 1..30 do
+      write_json!(Path.join(tmp_dir, "foreign-#{c}-#{s}.json"), %{
+        "receipt_schema" => @brce_schema,
+        "chain_id" => "foreign-#{c}",
+        "chain_seq" => s,
+        "prev_receipt_path" => nil,
+        "prev_receipt_hash" => nil
+      })
+    end
+
+    assert %{chain_seq: 3, prev_receipt_path: ^h2} = ReceiptChain.link_fields_by_scan(tmp_dir, chain_id)
+
+    # Steady-state per-write cycle, five real times: take the link for the
+    # receipt about to be written (timed -- this is the cost under test),
+    # then actually write that receipt, so the NEXT cycle's validated read
+    # finds a real tip. A link never followed by its write is the crash
+    # window, which correctly falls back to the scan -- timing that would
+    # measure the scan, not the index. Identity with the oracle is asserted
+    # on every cycle, outside the timer.
+    index_us =
+      Enum.min(
+        for k <- 3..7 do
+          path = Path.join(tmp_dir, "hot-#{k}.json")
+          expected = ReceiptChain.link_fields_by_scan(tmp_dir, chain_id)
+          {us, link} = :timer.tc(fn -> ReceiptChain.link_fields(tmp_dir, chain_id, path) end)
+          assert link == expected
+          assert link.chain_seq == k
+          write_chained_receipt!(path, link, "hot-#{k}")
+          us
+        end
+      )
+
+    scan_us =
+      Enum.min(for _ <- 1..5, do: elem(:timer.tc(fn -> ReceiptChain.link_fields_by_scan(tmp_dir, chain_id) end), 0))
+
+    assert index_us * 20 <= scan_us,
+           "indexed #{index_us}us vs scan #{scan_us}us at N=3,007 -- the index no longer " <>
+             "removes the directory-size dimension from the write path"
+
+    assert {:ok, %{length: 7}} = ReceiptChain.verify(tmp_dir, chain_id)
   end
 end

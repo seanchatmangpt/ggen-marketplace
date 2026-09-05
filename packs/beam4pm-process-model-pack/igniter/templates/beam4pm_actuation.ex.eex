@@ -739,6 +739,15 @@ defmodule BeamPM.Actuation do
   # `actuation_opts[:chain_id]` -- see BeamPM.ReceiptChain's moduledoc for
   # the full ex4pm-adapted design). No `:chain_id` -> today's exact
   # beam4pm-brce/v1 shape, zero new keys, zero behavior change.
+  #
+  # link_fields/3 is handed receipt_path(opts) -- the exact path
+  # write_receipt!/2 is about to File.write! -- and records it as the
+  # chain's new tip in ReceiptChain's per-chain index BEFORE returning
+  # (index-first: a crash between here and the File.write! below leaves an
+  # index naming a file that does not exist, which the next call detects
+  # and repairs by rescanning; the reverse order would silently reuse a
+  # chain_seq). O(1) files read per receipt instead of every receipt ever
+  # written to receipts_dir across all chains.
   defp put_chain_fields(receipt, opts) do
     case Map.get(opts, :chain_id) do
       nil ->
@@ -746,7 +755,7 @@ defmodule BeamPM.Actuation do
 
       chain_id when is_binary(chain_id) ->
         %{chain_seq: seq, prev_receipt_path: prev_path, prev_receipt_hash: prev_hash} =
-          ReceiptChain.link_fields(Map.fetch!(opts, :receipts_dir), chain_id)
+          ReceiptChain.link_fields(Map.fetch!(opts, :receipts_dir), chain_id, receipt_path(opts))
 
         receipt
         |> Map.put("chain_id", chain_id)

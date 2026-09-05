@@ -50,7 +50,12 @@ each run a `records` + `fields` SPARQL query pair over the merged graph and rend
 - `igniter/templates/beam4pm_receipt_chain.ex.eex` + `_test.exs.eex` (ggen_igniter,
   not Tera) -- hash-chained `beam4pm-brce/v1` receipts, adapted from ex4pm's real
   `Ex4pm.Evidence.Replay.Chain`; purely additive (opt-in via `actuation_opts[:chain_id]`,
-  automatically scoped per-process by `BeamPM.ProcessGovernor`).
+  automatically scoped per-process by `BeamPM.ProcessGovernor`). v0.1.9: the write
+  path (`link_fields/3`) finds the chain tip through a per-chain index
+  (`<receipts_dir>/.chain-tips/`, index-first write + validated read + scan fallback)
+  in O(1) files instead of scanning every receipt ever written to the directory; the
+  original scan survives byte-for-byte as the public oracle `link_fields_by_scan/2`,
+  and `verify/2` never consults the index.
 - `igniter/templates/beam4pm_rf1_dfg.ex.eex` + `_test.exs.eex`, `beam4pm_rf2_conformance.ex.eex`
   + `_test.exs.eex`, `beam4pm_rf3_ocel.ex.eex` + `_test.exs.eex` (ggen_igniter, not Tera) --
   Reactor-orchestrated, real-subprocess-oracle-backed validation of rust4pm's
