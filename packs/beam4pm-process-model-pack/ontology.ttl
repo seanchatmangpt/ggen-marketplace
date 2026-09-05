@@ -297,8 +297,8 @@ bpm:debtCeiling a rdf:Property ; rdfs:domain bpm:AuthorshipKind ; rdfs:range xsd
 bpm:AuthorshipKind_native_engine_facade a bpm:AuthorshipKind ;
     bpm:authorshipKindName "native_engine_facade" ;
     bpm:countsAsDebt "true" ;
-    bpm:debtCeiling 12 ;
-    bpm:authorshipKindDoc "A thin, delegation-only BEAM facade (Erlang / Elixir / Gleam) over ONE native engine hosted via wasm (rust4pm, petgraph, ferroplan, tract). Its function surface is the engine's, not a bpm:RecordType projection, so no template currently derives it -- counted as debt until the engine surface is admitted as ontology facts and the facades are rendered from them." .
+    bpm:debtCeiling 6 ;
+    bpm:authorshipKindDoc "A thin, delegation-only BEAM facade (Erlang / Elixir / Gleam) over ONE native engine hosted via wasm whose surface has NOT yet been admitted as bpm:Engine / bpm:EngineOp facts. Since pack 0.1.17 templates/beam4pm_engine.{ex,erl,gleam}.tmpl render every admitted engine's three facades, so this kind is the shrinking remainder (ferroplan, rust4pm in the reference consumer; petgraph and tract are manufactured). Ceiling lowered 12 -> 6 when those two converted: a converted engine cannot quietly return to hand-authoring." .
 
 bpm:AuthorshipKind_hand_authored_qualification a bpm:AuthorshipKind ;
     bpm:authorshipKindName "hand_authored_qualification" ;
@@ -340,3 +340,241 @@ bpm:admissionExpires a rdf:Property ; rdfs:domain bpm:HandAuthoredSource ; rdfs:
     rdfs:comment "ISO-8601 date (plain string literal, YYYY-MM-DD) after which the gate refuses the admission as REFUSED_EXPIRED; the debt must then be eliminated or visibly renewed. Required for debt kinds." .
 bpm:sunsetPlan a rdf:Property ; rdfs:domain bpm:HandAuthoredSource ; rdfs:range xsd:string ;
     rdfs:comment "How this particular debt is meant to be eliminated (which template family / which ontology facts would replace the hand-authored file). Required for debt kinds." .
+
+# ===========================================================================
+# Native engine surfaces (pack 0.1.17) -- bpm:Engine / bpm:EngineOp / bpm:EngineArg
+# ===========================================================================
+#
+# VISION-2030 section 2 ("the exception is visible, bounded, and counted as
+# manufacturing debt") / section 24 falsifier ("ggen-only manufacture requires
+# routine privileged handwritten source commits"). Until this vocabulary
+# existed the largest block of admitted debt in the reference consumer
+# (beam4pm: 12 of 26 counted files) was the four native-engine facade
+# triples -- src/beam4pm_<engine>.erl, lib/beam4pm_<engine>.ex,
+# gleam/src/beam4pm/<engine>.gleam over the rust4pm, ferroplan, petgraph and
+# tract wasm32-wasip1 engines -- each admitted with the sunset plan "admit the
+# engine's function surface as ontology facts and render all three facades
+# from one pack template family". Measured before (beam4pm cycle 7): the
+# tract and petgraph Elixir wrappers differ by a rename only (89 identical
+# core lines after s/tr_/pg_/), ferroplan's core is comment-stripped identical
+# to petgraph's, and rust4pm's differs in exactly one behavioral line (its
+# read_response error collapse); every Erlang facade is a pure 1:1
+# delegation and every Gleam facade is a pure @external declaration. One
+# template family therefore fits, and that family is templates/
+# beam4pm_engine.{ex,erl,gleam}.tmpl (for_each: engines) plus
+# templates/beam4pm_engine_ops.tsv.tmpl (the op manifest the consumer's
+# scripts/gate_engine_dispatch_check.sh diffs against the crate's own
+# string-literal dispatch arms).
+#
+# What is a FACT here and what is TEMPLATE: the engine's identity (module
+# names, wasm export prefix, artifact path, build script, dispatch source,
+# health id, timeout budgets, error-collapse variant) and its op surface
+# (name, wire name, order, doc, timeout class, kind, per-leg exposure,
+# optional predicate naming) and each op's args (name, wire key, closed arg
+# type, closed encoding, closed mode, default) are facts declared by the
+# CONSUMER, one individual each. Everything else -- the wasmex lifecycle,
+# the linear-memory JSON ABI call sequence, restart-on-trap, the .Health
+# probe -- is template, identical across engines by construction. The
+# per-arg type / encoding / mode vocabularies below are CLOSED (gates/090
+# anti-joins against them exactly like gates/020 does for bpm:FieldType):
+# a consumer names a member, never writes Elixir in RDF. Adding a member is
+# a reviewed edit to THIS file.
+#
+# Behavioral-identity notes the closed vocabularies exist to carry (each was
+# a measured difference between the hand-authored facades that a naive
+# "name + arity" fact schema would have erased):
+#   - bpm:opElixirPredicate: Elixir names `is_cyclic?`/`session_valid?`;
+#     the wire op, the Erlang function and the Gleam function drop the `?`.
+#   - bpm:ArgMode_keyword: an option read from the trailing `opts` keyword
+#     list with a default (petgraph add_edge `weight`, 1.0) -- Elixir arity
+#     unchanged, Erlang renders an extra explicit-arity head that builds
+#     `[{weight, W}]`, Gleam binds only the minimal head.
+#   - bpm:ArgMode_optional: an optional positional (`config \\ nil`,
+#     `extra \\ %{}`, `attributes \\ []`) -- Erlang renders both arities,
+#     Gleam binds only the minimal head.
+#   - bpm:ArgEncoding_omit_when_nil (rust4pm put_optional) vs
+#     bpm:ArgEncoding_merge_map (ferroplan Map.merge) vs base64 (tract
+#     model_b64, rust4pm content_b64) vs tensor_list (tract run) vs pair_list
+#     (ferroplan session_observe Tuple.to_list).
+#   - bpm:argWireKey: the JSON key when it differs from the arg name
+#     (rust4pm xes_to_ocel sends `log_handle` as "handle").
+#   - bpm:ErrorCollapse_any_key_raw: rust4pm's `%{"error" => msg} ->
+#     {:error, {:engine, msg}}` (any error key, raw message -- pinned by its
+#     facades test asserting the raw "unknown log handle " prefix) vs the
+#     other three engines' single-key `inspect(err)` collapse, which
+#     deliberately passes a structured refusal envelope through as {:ok, _}.
+#   - bpm:EngineOpKind_host_helper: `*_path` conveniences that File.read!
+#     host-side and delegate to a wire op (no dispatch arm of their own; the
+#     dispatch gate exempts them by kind).
+
+bpm:Engine a rdfs:Class ;
+    rdfs:label "Native Engine" ;
+    rdfs:comment "One native engine compiled to wasm32-wasip1 and hosted inside the BEAM by Elixir/wasmex behind the linear-memory JSON ABI (<prefix>_alloc / <prefix>_call / <prefix>_dealloc). Declared by the consumer, one individual per engine; rendered by templates/beam4pm_engine.{ex,erl,gleam}.tmpl into lib/beam4pm_<engineName>.ex (BeamPM.<engineModule> + .Health), src/beam4pm_<engineName>.erl and gleam/src/beam4pm/<engineName>.gleam, and listed op-by-op in schema/beam4pm_engine_ops.tsv." .
+
+bpm:engineName a rdf:Property ; rdfs:domain bpm:Engine ; rdfs:range xsd:string ;
+    rdfs:comment "snake_case key. File stem of all three facades (src/beam4pm_<name>.erl, lib/beam4pm_<name>.ex, gleam/src/beam4pm/<name>.gleam), the Erlang module name beam4pm_<name>, and the Gleam module beam4pm/<name>." .
+bpm:engineModule a rdf:Property ; rdfs:domain bpm:Engine ; rdfs:range xsd:string ;
+    rdfs:comment "Elixir module suffix under BeamPM.: the wrapper is BeamPM.<module>, its named Wasmex GenServer BeamPM.<module>.Engine, its probe BeamPM.<module>.Health; Erlang and Gleam delegate to 'Elixir.BeamPM.<module>'." .
+bpm:engineDoc a rdf:Property ; rdfs:domain bpm:Engine ; rdfs:range xsd:string ;
+    rdfs:comment "One paragraph (single line) naming what the engine computes and which crate/submodule builds it. Rendered into every facade's module doc." .
+bpm:engineOrdinal a rdf:Property ; rdfs:domain bpm:Engine ; rdfs:range xsd:integer ;
+    rdfs:comment "Stable render order across engines." .
+bpm:wasmExportPrefix a rdf:Property ; rdfs:domain bpm:Engine ; rdfs:range xsd:string ;
+    rdfs:comment "The wasm module's export prefix: <prefix>_alloc(len) -> ptr, <prefix>_call(ptr, len) -> packed_u64, <prefix>_dealloc(ptr, len)." .
+bpm:wasmArtifactPath a rdf:Property ; rdfs:domain bpm:Engine ; rdfs:range xsd:string ;
+    rdfs:comment "Repo-root-relative path of the built wasm32-wasip1 artifact (Path.expand'ed by the wrapper's wasm_path/0)." .
+bpm:wasmBuildScript a rdf:Property ; rdfs:domain bpm:Engine ; rdfs:range xsd:string ;
+    rdfs:comment "Repo-root-relative build script named in the wrapper's wasm_missing_reason/0." .
+bpm:wasmBuildHint a rdf:Property ; rdfs:domain bpm:Engine ; rdfs:range xsd:string ;
+    rdfs:comment "Optional extra clause appended to wasm_missing_reason/0 after the build-script name (e.g. a git submodule init hint)." .
+bpm:dispatchSource a rdf:Property ; rdfs:domain bpm:Engine ; rdfs:range xsd:string ;
+    rdfs:comment "Repo-root-relative path of the crate source file holding the engine's string-literal \"<op>\" => match arms (its dispatch set). Not always lib.rs (ferroplan dispatches in crates/ferroplan-wasm/src/wasi_abi.rs). The consumer's scripts/gate_engine_dispatch_check.sh refuses a wire EngineOp whose wire name is not one of those arms." .
+bpm:healthId a rdf:Property ; rdfs:domain bpm:Engine ; rdfs:range xsd:string ;
+    rdfs:comment "The atom BeamPM.<module>.Health.status/0 reports as :id (e.g. rust4pm_wasm)." .
+bpm:handleNoun a rdf:Property ; rdfs:domain bpm:Engine ; rdfs:range xsd:string ;
+    rdfs:comment "Prose noun for the integer handles the engine mints (graph, model, session, log/net) -- module-doc text only." .
+bpm:cheapTimeoutMs a rdf:Property ; rdfs:domain bpm:Engine ; rdfs:range xsd:integer ;
+    rdfs:comment "Per-op default wasmex call timeout, in ms, for ops of bpm:TimeoutClass_cheap; also the budget for the best-effort request-buffer dealloc." .
+bpm:heavyTimeoutMs a rdf:Property ; rdfs:domain bpm:Engine ; rdfs:range xsd:integer ;
+    rdfs:comment "Per-op default wasmex call timeout, in ms, for ops of bpm:TimeoutClass_heavy. Required iff the engine has at least one heavy op (gates/080); the template emits @heavy_timeout only then, so no engine carries an unused attribute." .
+bpm:errorCollapse a rdf:Property ; rdfs:domain bpm:Engine ; rdfs:range bpm:ErrorCollapse .
+
+bpm:ErrorCollapse a rdfs:Class ;
+    rdfs:comment "Closed vocabulary: how the wrapper's read_response/5 turns a decoded {\"error\": ...} JSON response into {:error, {:engine, _}}." .
+bpm:errorCollapseName a rdf:Property ; rdfs:domain bpm:ErrorCollapse ; rdfs:range xsd:string .
+bpm:ErrorCollapse_single_key_inspect a bpm:ErrorCollapse ;
+    bpm:errorCollapseName "single_key_inspect" ;
+    rdfs:comment "Only a response whose SOLE top-level key is \"error\" is an op failure, collapsed to {:error, {:engine, inspect(err)}}; a response carrying \"error\" alongside other keys (a structured refusal envelope) passes through as {:ok, decoded}. petgraph, tract, ferroplan." .
+bpm:ErrorCollapse_any_key_raw a bpm:ErrorCollapse ;
+    bpm:errorCollapseName "any_key_raw" ;
+    rdfs:comment "Any response carrying an \"error\" key is an op failure, collapsed to {:error, {:engine, msg}} with the raw decoded message. rust4pm -- pinned by its facades test asserting the raw \"unknown log handle \" prefix." .
+
+bpm:TimeoutClass a rdfs:Class ;
+    rdfs:comment "Closed vocabulary: which of the engine's two default timeout budgets an op draws." .
+bpm:timeoutClassName a rdf:Property ; rdfs:domain bpm:TimeoutClass ; rdfs:range xsd:string .
+bpm:TimeoutClass_cheap a bpm:TimeoutClass ; bpm:timeoutClassName "cheap" .
+bpm:TimeoutClass_heavy a bpm:TimeoutClass ; bpm:timeoutClassName "heavy" .
+
+bpm:EngineOpKind a rdfs:Class ;
+    rdfs:comment "Closed vocabulary: wire (one JSON request to the engine, one dispatch arm) or host_helper (File.read! host-side, then delegate to a wire op; no dispatch arm of its own)." .
+bpm:engineOpKindName a rdf:Property ; rdfs:domain bpm:EngineOpKind ; rdfs:range xsd:string .
+bpm:EngineOpKind_wire a bpm:EngineOpKind ; bpm:engineOpKindName "wire" .
+bpm:EngineOpKind_host_helper a bpm:EngineOpKind ; bpm:engineOpKindName "host_helper" .
+
+bpm:EngineOp a rdfs:Class ;
+    rdfs:label "Native Engine Op" ;
+    rdfs:comment "One public function of an engine's surface. Rendered as one Elixir def (trailing opts \\ [] keyword list, :timeout override), one Erlang delegation per exposed arity, and one Gleam @external at the minimal arity." .
+bpm:opEngine a rdf:Property ; rdfs:domain bpm:EngineOp ; rdfs:range bpm:Engine .
+bpm:opName a rdf:Property ; rdfs:domain bpm:EngineOp ; rdfs:range xsd:string ;
+    rdfs:comment "The Erlang and Gleam function name and, unless bpm:opWireName says otherwise, the JSON \"op\" value. The Elixir name is this plus a trailing ? when bpm:opElixirPredicate is \"true\"." .
+bpm:opOrder a rdf:Property ; rdfs:domain bpm:EngineOp ; rdfs:range xsd:integer .
+bpm:opDoc a rdf:Property ; rdfs:domain bpm:EngineOp ; rdfs:range xsd:string ;
+    rdfs:comment "Single-line doc, rendered as the Elixir @doc, the Erlang %% comment and the Gleam /// comment." .
+bpm:opTimeoutClass a rdf:Property ; rdfs:domain bpm:EngineOp ; rdfs:range bpm:TimeoutClass .
+bpm:opKind a rdf:Property ; rdfs:domain bpm:EngineOp ; rdfs:range bpm:EngineOpKind .
+bpm:opWireName a rdf:Property ; rdfs:domain bpm:EngineOp ; rdfs:range xsd:string ;
+    rdfs:comment "Optional JSON \"op\" value when it differs from bpm:opName." .
+bpm:opElixirPredicate a rdf:Property ; rdfs:domain bpm:EngineOp ; rdfs:range xsd:string ;
+    rdfs:comment "Plain string \"true\": the Elixir function is named <opName>? (is_cyclic?, session_valid?); Erlang and Gleam keep the bare name and call the quoted Elixir atom." .
+bpm:opDelegatesTo a rdf:Property ; rdfs:domain bpm:EngineOp ; rdfs:range bpm:EngineOp ;
+    rdfs:comment "host_helper only: the wire op on the same engine that receives File.read!(path) as its first positional argument." .
+bpm:opExposeErlang a rdf:Property ; rdfs:domain bpm:EngineOp ; rdfs:range xsd:string ;
+    rdfs:comment "Plain string \"false\" to omit the op from the Erlang facade (default: exposed)." .
+bpm:opExposeGleam a rdf:Property ; rdfs:domain bpm:EngineOp ; rdfs:range xsd:string ;
+    rdfs:comment "Plain string \"false\" to omit the op from the Gleam facade (default: exposed)." .
+
+bpm:ArgMode a rdfs:Class ;
+    rdfs:comment "Closed vocabulary: how an op argument reaches the Elixir function." .
+bpm:argModeName a rdf:Property ; rdfs:domain bpm:ArgMode ; rdfs:range xsd:string .
+bpm:ArgMode_required a bpm:ArgMode ; bpm:argModeName "required" ;
+    rdfs:comment "Positional, required. Counts toward every leg's arity." .
+bpm:ArgMode_optional a bpm:ArgMode ; bpm:argModeName "optional" ;
+    rdfs:comment "Positional with an Elixir default (bpm:argDefault, e.g. nil / %{} / []) placed before opts. Erlang renders both arities; Gleam binds the minimal head only. At most one per op (gates/090)." .
+bpm:ArgMode_keyword a bpm:ArgMode ; bpm:argModeName "keyword" ;
+    rdfs:comment "Read from the trailing opts keyword list as Keyword.get(opts, :<argName>, <argDefault>). Erlang renders an extra head taking it positionally and building [{<argName>, Value}]; Gleam binds the minimal head only. At most one per op (gates/090)." .
+
+bpm:ArgEncoding a rdfs:Class ;
+    rdfs:comment "Closed vocabulary: the host-side transform between the Elixir argument and the JSON request." .
+bpm:argEncodingName a rdf:Property ; rdfs:domain bpm:ArgEncoding ; rdfs:range xsd:string .
+bpm:ArgEncoding_passthrough a bpm:ArgEncoding ; bpm:argEncodingName "passthrough" ;
+    rdfs:comment "\"<wireKey>\" => <arg>, verbatim." .
+bpm:ArgEncoding_base64 a bpm:ArgEncoding ; bpm:argEncodingName "base64" ;
+    rdfs:comment "\"<wireKey>\" => Base.encode64(<arg>) -- raw bytes a JSON string cannot carry (ONNX protobuf, gzip, XML)." .
+bpm:ArgEncoding_tensor_list a bpm:ArgEncoding ; bpm:argEncodingName "tensor_list" ;
+    rdfs:comment "\"<wireKey>\" => the atom-keyed %{shape:, data:} tensor list re-keyed to the wire's string keys." .
+bpm:ArgEncoding_pair_list a bpm:ArgEncoding ; bpm:argEncodingName "pair_list" ;
+    rdfs:comment "\"<wireKey>\" => Enum.map(<arg>, &Tuple.to_list/1) -- a list of 2-tuples as JSON pairs." .
+bpm:ArgEncoding_omit_when_nil a bpm:ArgEncoding ; bpm:argEncodingName "omit_when_nil" ;
+    rdfs:comment "|> put_optional(\"<wireKey>\", <arg>): the key is omitted entirely when the arg is nil so the engine applies its own default. Requires bpm:ArgMode_optional." .
+bpm:ArgEncoding_merge_map a bpm:ArgEncoding ; bpm:argEncodingName "merge_map" ;
+    rdfs:comment "|> Map.merge(<arg>): the arg is a map of extra top-level request fields. Requires bpm:ArgMode_optional." .
+
+bpm:EngineArgType a rdfs:Class ;
+    rdfs:comment "Closed vocabulary of argument types, each carrying its Elixir typespec, guard, Erlang type and Gleam type -- the engine-surface analogue of bpm:FieldType's per-language type expressions." .
+bpm:argTypeName a rdf:Property ; rdfs:domain bpm:EngineArgType ; rdfs:range xsd:string .
+bpm:argElixirType a rdf:Property ; rdfs:domain bpm:EngineArgType ; rdfs:range xsd:string .
+bpm:argElixirGuard a rdf:Property ; rdfs:domain bpm:EngineArgType ; rdfs:range xsd:string ;
+    rdfs:comment "Optional guard function name (is_integer, is_binary, ...); absent means the positional arg is unguarded (Path.t(), map() | nil, list())." .
+bpm:argErlangType a rdf:Property ; rdfs:domain bpm:EngineArgType ; rdfs:range xsd:string .
+bpm:argErlangTypeDecl a rdf:Property ; rdfs:domain bpm:EngineArgType ; rdfs:range xsd:string ;
+    rdfs:comment "Optional local -type declaration the Erlang facade must emit once when any exposed op uses this type (handle() and result() are always emitted)." .
+bpm:argGleamType a rdf:Property ; rdfs:domain bpm:EngineArgType ; rdfs:range xsd:string .
+
+bpm:EngineArgType_handle a bpm:EngineArgType ; bpm:argTypeName "handle" ;
+    bpm:argElixirType "non_neg_integer()" ; bpm:argElixirGuard "is_integer" ;
+    bpm:argErlangType "handle()" ; bpm:argGleamType "Int" .
+bpm:EngineArgType_string a bpm:EngineArgType ; bpm:argTypeName "string" ;
+    bpm:argElixirType "String.t()" ; bpm:argElixirGuard "is_binary" ;
+    bpm:argErlangType "binary()" ; bpm:argGleamType "String" .
+bpm:EngineArgType_binary a bpm:EngineArgType ; bpm:argTypeName "binary" ;
+    bpm:argElixirType "binary()" ; bpm:argElixirGuard "is_binary" ;
+    bpm:argErlangType "binary()" ; bpm:argGleamType "BitArray" .
+bpm:EngineArgType_path a bpm:EngineArgType ; bpm:argTypeName "path" ;
+    bpm:argElixirType "Path.t()" ;
+    bpm:argErlangType "binary()" ; bpm:argGleamType "String" .
+bpm:EngineArgType_integer a bpm:EngineArgType ; bpm:argTypeName "integer" ;
+    bpm:argElixirType "non_neg_integer()" ; bpm:argElixirGuard "is_integer" ;
+    bpm:argErlangType "non_neg_integer()" ; bpm:argGleamType "Int" .
+bpm:EngineArgType_number a bpm:EngineArgType ; bpm:argTypeName "number" ;
+    bpm:argElixirType "number()" ; bpm:argElixirGuard "is_number" ;
+    bpm:argErlangType "number()" ; bpm:argGleamType "Float" .
+bpm:EngineArgType_boolean a bpm:EngineArgType ; bpm:argTypeName "boolean" ;
+    bpm:argElixirType "boolean()" ; bpm:argElixirGuard "is_boolean" ;
+    bpm:argErlangType "boolean()" ; bpm:argGleamType "Bool" .
+bpm:EngineArgType_map a bpm:EngineArgType ; bpm:argTypeName "map" ;
+    bpm:argElixirType "map()" ; bpm:argElixirGuard "is_map" ;
+    bpm:argErlangType "map()" ; bpm:argGleamType "Dynamic" .
+bpm:EngineArgType_optional_map a bpm:EngineArgType ; bpm:argTypeName "optional_map" ;
+    bpm:argElixirType "map() | nil" ;
+    bpm:argErlangType "map() | nil" ; bpm:argGleamType "Dynamic" .
+bpm:EngineArgType_list a bpm:EngineArgType ; bpm:argTypeName "list" ;
+    bpm:argElixirType "list()" ;
+    bpm:argErlangType "list()" ; bpm:argGleamType "Dynamic" .
+bpm:EngineArgType_list_string a bpm:EngineArgType ; bpm:argTypeName "list_string" ;
+    bpm:argElixirType "[String.t()]" ; bpm:argElixirGuard "is_list" ;
+    bpm:argErlangType "[binary()]" ; bpm:argGleamType "List(String)" .
+bpm:EngineArgType_tensor_list a bpm:EngineArgType ; bpm:argTypeName "tensor_list" ;
+    bpm:argElixirType "[%{shape: [non_neg_integer()], data: [number()]}]" ; bpm:argElixirGuard "is_list" ;
+    bpm:argErlangType "[tensor()]" ;
+    bpm:argErlangTypeDecl "-type tensor() :: #{shape := [non_neg_integer()], data := [number()]}." ;
+    bpm:argGleamType "Dynamic" .
+bpm:EngineArgType_fact_pairs a bpm:EngineArgType ; bpm:argTypeName "fact_pairs" ;
+    bpm:argElixirType "[{String.t(), boolean()}]" ; bpm:argElixirGuard "is_list" ;
+    bpm:argErlangType "[{binary(), boolean()}]" ; bpm:argGleamType "List(#(String, Bool))" .
+
+bpm:EngineArg a rdfs:Class ;
+    rdfs:label "Native Engine Op Argument" ;
+    rdfs:comment "One argument of one bpm:EngineOp, in bpm:argOrder." .
+bpm:argOp a rdf:Property ; rdfs:domain bpm:EngineArg ; rdfs:range bpm:EngineOp .
+bpm:argName a rdf:Property ; rdfs:domain bpm:EngineArg ; rdfs:range xsd:string ;
+    rdfs:comment "snake_case Elixir/Gleam parameter name; the Erlang variable is its CamelCase form." .
+bpm:argOrder a rdf:Property ; rdfs:domain bpm:EngineArg ; rdfs:range xsd:integer .
+bpm:argWireKey a rdf:Property ; rdfs:domain bpm:EngineArg ; rdfs:range xsd:string ;
+    rdfs:comment "Optional JSON key when it differs from bpm:argName." .
+bpm:argType a rdf:Property ; rdfs:domain bpm:EngineArg ; rdfs:range bpm:EngineArgType .
+bpm:argEncoding a rdf:Property ; rdfs:domain bpm:EngineArg ; rdfs:range bpm:ArgEncoding ;
+    rdfs:comment "Default bpm:ArgEncoding_passthrough." .
+bpm:argMode a rdf:Property ; rdfs:domain bpm:EngineArg ; rdfs:range bpm:ArgMode ;
+    rdfs:comment "Default bpm:ArgMode_required." .
+bpm:argDefault a rdf:Property ; rdfs:domain bpm:EngineArg ; rdfs:range xsd:string ;
+    rdfs:comment "The Elixir default literal for optional/keyword modes (nil, %{}, [], 1.0). Required for those modes (gates/080)." .

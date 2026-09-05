@@ -1,0 +1,27 @@
+# MESSAGE: every bpm:Engine must carry engineName, engineModule, engineDoc, engineOrdinal, wasmExportPrefix, wasmArtifactPath, wasmBuildScript, dispatchSource, healthId, handleNoun, cheapTimeoutMs and errorCollapse; every bpm:EngineOp must carry opEngine, opName, opOrder, opDoc, opTimeoutClass and opKind; every bpm:EngineArg must carry argOp, argName, argOrder and argType; an engine with a heavy op must carry heavyTimeoutMs; a host_helper op must carry opDelegatesTo; an optional/keyword arg must carry argDefault (the facade templates would otherwise render a wrapper with a missing attribute, an unbound delegate or a bare `\\` default); any row is a refusal.
+PREFIX bpm: <https://ggen.dev/ontology/beam-process-model#>
+SELECT ?subject ?missing WHERE {
+  {
+    ?subject a bpm:Engine .
+    VALUES ?missing { bpm:engineName bpm:engineModule bpm:engineDoc bpm:engineOrdinal bpm:wasmExportPrefix bpm:wasmArtifactPath bpm:wasmBuildScript bpm:dispatchSource bpm:healthId bpm:handleNoun bpm:cheapTimeoutMs bpm:errorCollapse }
+  } UNION {
+    ?subject a bpm:EngineOp .
+    VALUES ?missing { bpm:opEngine bpm:opName bpm:opOrder bpm:opDoc bpm:opTimeoutClass bpm:opKind }
+  } UNION {
+    ?subject a bpm:EngineArg .
+    VALUES ?missing { bpm:argOp bpm:argName bpm:argOrder bpm:argType }
+  } UNION {
+    ?subject a bpm:Engine .
+    ?op a bpm:EngineOp ; bpm:opEngine ?subject ; bpm:opTimeoutClass bpm:TimeoutClass_heavy .
+    VALUES ?missing { bpm:heavyTimeoutMs }
+  } UNION {
+    ?subject a bpm:EngineOp ; bpm:opKind bpm:EngineOpKind_host_helper .
+    VALUES ?missing { bpm:opDelegatesTo }
+  } UNION {
+    ?subject a bpm:EngineArg ; bpm:argMode ?mode .
+    FILTER (?mode = bpm:ArgMode_optional || ?mode = bpm:ArgMode_keyword)
+    VALUES ?missing { bpm:argDefault }
+  }
+  FILTER NOT EXISTS { ?subject ?missing ?value }
+}
+ORDER BY ?subject ?missing

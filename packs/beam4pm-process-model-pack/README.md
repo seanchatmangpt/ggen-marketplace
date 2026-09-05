@@ -248,11 +248,45 @@ typed boolean literal.
 - `gates/070_hand_authored_source_ceiling.rq` -- refuses a kind whose admitted count
   exceeds its `bpm:debtCeiling`; raising a ceiling is a reviewed edit to this pack's
   `ontology.ttl`, never an ambient grant.
+- `templates/beam4pm_engine.ex.tmpl`, `templates/beam4pm_engine.erl.tmpl`,
+  `templates/beam4pm_engine.gleam.tmpl`, `templates/beam4pm_engine_ops.tsv.tmpl`,
+  `templates/beam4pm_engine_dispatch_gate_test.exs.tmpl` -- the native-engine
+  surface leg (VISION-2030 section 2 / section 24: the sunset of the
+  `native_engine_facade` debt class). Per-engine fan-out (`for_each: engines`) over
+  every consumer-admitted `bpm:Engine` into `lib/beam4pm_<engine>.ex`
+  (`BeamPM.<Module>` wasmex wrapper + `.Health` probe), `src/beam4pm_<engine>.erl`
+  (1:1 Erlang delegation, one extra arity per optional/keyword arg) and
+  `gleam/src/beam4pm/<engine>.gleam` (typed `@external` at the minimal arity). The
+  engine's identity (module, wasm export prefix, artifact, build script, dispatch
+  source, health id, timeout budgets, error-collapse variant) and its ops/args are
+  facts; the wasmex lifecycle, linear-memory JSON ABI call sequence and
+  restart-on-trap are template, identical across engines. Arg types, encodings and
+  modes are CLOSED vocabularies (`bpm:EngineArgType`, `bpm:ArgEncoding`,
+  `bpm:ArgMode`, `bpm:TimeoutClass`, `bpm:EngineOpKind`, `bpm:ErrorCollapse`) --
+  a consumer names a member, never writes Elixir in RDF. The `.tsv` is the
+  manifest the consumer's `scripts/gate_engine_dispatch_check.sh` joins against each
+  crate's string-literal `"<op>" =>` dispatch arms (refusing a manufactured op the
+  crate does not dispatch; reporting, never silently exposing, an arm no fact
+  names); the `.exs` is the Chicago test of that gate. Zero `bpm:Engine`
+  individuals is a lawful zero-row skip. Proven in beam4pm by converting petgraph
+  and tract first: the hand-authored facades deleted, their admissions removed
+  (GATE AUTHORSHIP 33/26 -> 27/20), the unchanged sha-pinned parity suites passing
+  against the real wasm engines.
+- `gates/080_engine_required.rq` -- refuses a `bpm:Engine` / `bpm:EngineOp` /
+  `bpm:EngineArg` missing a required property, a heavy op on an engine without
+  `bpm:heavyTimeoutMs`, a `host_helper` without `bpm:opDelegatesTo`, an optional or
+  keyword arg without `bpm:argDefault`.
+- `gates/090_engine_vocab_admitted.rq` -- anti-joins every closed engine vocabulary
+  (like `020` for `bpm:FieldType`) and refuses duplicate engine/op/wire names, more
+  than one non-required arg per op, a pipe encoding (`omit_when_nil`/`merge_map`)
+  without `bpm:ArgMode_optional`, and a `host_helper` delegating to anything but a
+  wire op of its own engine.
 - `ontology.ttl` -- the `bpm:` vocabulary itself (`bpm:RecordType`, `bpm:Field`, and
   their properties, the closed `bpm:FieldType` vocabulary the table above is
-  generated from, and the closed `bpm:AuthorshipKind` vocabulary +
-  `bpm:HandAuthoredSource` class); no record-type or hand-authored-source
-  individuals.
+  generated from, the closed `bpm:AuthorshipKind` vocabulary +
+  `bpm:HandAuthoredSource` class, and the `bpm:Engine` / `bpm:EngineOp` /
+  `bpm:EngineArg` classes with their closed member vocabularies); no record-type,
+  hand-authored-source or engine individuals.
 
 ## Composing this pack
 

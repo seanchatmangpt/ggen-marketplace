@@ -237,3 +237,122 @@ bpm:span_edge_evidence_f a bpm:Field ;
     bpm:fieldDoc "Evidence class: parent_child_link (observed) or temporal_adjacency (inferred)." ;
     bpm:fieldRequired "true" ;
     bpm:fieldOrder 4 .
+
+# bpm:Engine fixture (pack 0.1.17): templates/beam4pm_engine.{ex,erl,gleam}.tmpl
+# fan out for_each engine, and zero rows is a lawful skip in ggen's sync --
+# but a pack whose engine templates never render in qualification proves
+# nothing about them, so one synthetic engine exercises every closed
+# vocabulary member the reference consumer's four real engines use: a
+# handle-only cheap op, a heavy op taking a base64 binary, a keyword-mode
+# option with a default (the extra Erlang arity), an optional positional
+# with omit_when_nil (put_optional), an optional positional with merge_map,
+# a tensor_list and a pair_list encoding, a predicate-named op, an op hidden
+# from one leg, and a host_helper delegating to a wire op. Rendered into
+# lib/beam4pm_demo_engine.ex, src/beam4pm_demo_engine.erl,
+# gleam/src/beam4pm/demo_engine.gleam and schema/beam4pm_engine_ops.tsv.
+bpm:demo_engine a bpm:Engine ;
+    bpm:engineName "demo_engine" ;
+    bpm:engineModule "DemoEngine" ;
+    bpm:engineDoc "A synthetic qualification engine exercising every closed engine-surface vocabulary member; it has no crate." ;
+    bpm:engineOrdinal 1 ;
+    bpm:wasmExportPrefix "dm" ;
+    bpm:wasmArtifactPath "native/demo-wasm/target/wasm32-wasip1/release/demo_wasm.wasm" ;
+    bpm:wasmBuildScript "scripts/demo_wasm_build.sh" ;
+    bpm:wasmBuildHint "(after `git submodule update --init --recursive` if native/demo is empty)" ;
+    bpm:dispatchSource "native/demo-wasm/src/lib.rs" ;
+    bpm:healthId "demo_wasm" ;
+    bpm:handleNoun "thing" ;
+    bpm:cheapTimeoutMs 30000 ;
+    bpm:heavyTimeoutMs 120000 ;
+    bpm:errorCollapse bpm:ErrorCollapse_single_key_inspect .
+
+bpm:demo_engine_op_thing_new a bpm:EngineOp ;
+    bpm:opEngine bpm:demo_engine ; bpm:opName "thing_new" ; bpm:opOrder 1 ;
+    bpm:opDoc "A new empty thing. `{:ok, %{\"handle\" => n}}`." ;
+    bpm:opTimeoutClass bpm:TimeoutClass_cheap ; bpm:opKind bpm:EngineOpKind_wire .
+
+bpm:demo_engine_op_load a bpm:EngineOp ;
+    bpm:opEngine bpm:demo_engine ; bpm:opName "load" ; bpm:opOrder 2 ;
+    bpm:opDoc "Load raw bytes (base64-encoded host-side) into a thing." ;
+    bpm:opTimeoutClass bpm:TimeoutClass_heavy ; bpm:opKind bpm:EngineOpKind_wire .
+bpm:demo_engine_op_load_bytes a bpm:EngineArg ;
+    bpm:argOp bpm:demo_engine_op_load ; bpm:argName "bytes" ; bpm:argOrder 1 ;
+    bpm:argWireKey "bytes_b64" ; bpm:argType bpm:EngineArgType_binary ; bpm:argEncoding bpm:ArgEncoding_base64 .
+
+bpm:demo_engine_op_load_path a bpm:EngineOp ;
+    bpm:opEngine bpm:demo_engine ; bpm:opName "load_path" ; bpm:opOrder 3 ;
+    bpm:opDoc "`File.read!/1` host-side, then `load/2`." ;
+    bpm:opTimeoutClass bpm:TimeoutClass_heavy ; bpm:opKind bpm:EngineOpKind_host_helper ;
+    bpm:opDelegatesTo bpm:demo_engine_op_load .
+bpm:demo_engine_op_load_path_handle a bpm:EngineArg ;
+    bpm:argOp bpm:demo_engine_op_load_path ; bpm:argName "path" ; bpm:argOrder 1 ; bpm:argType bpm:EngineArgType_path .
+
+bpm:demo_engine_op_link a bpm:EngineOp ;
+    bpm:opEngine bpm:demo_engine ; bpm:opName "link" ; bpm:opOrder 4 ;
+    bpm:opDoc "Link two named nodes; `weight` is a keyword option defaulting to 1.0." ;
+    bpm:opTimeoutClass bpm:TimeoutClass_cheap ; bpm:opKind bpm:EngineOpKind_wire .
+bpm:demo_engine_op_link_handle a bpm:EngineArg ;
+    bpm:argOp bpm:demo_engine_op_link ; bpm:argName "handle" ; bpm:argOrder 1 ; bpm:argType bpm:EngineArgType_handle .
+bpm:demo_engine_op_link_from a bpm:EngineArg ;
+    bpm:argOp bpm:demo_engine_op_link ; bpm:argName "from" ; bpm:argOrder 2 ; bpm:argType bpm:EngineArgType_string .
+bpm:demo_engine_op_link_weight a bpm:EngineArg ;
+    bpm:argOp bpm:demo_engine_op_link ; bpm:argName "weight" ; bpm:argOrder 3 ;
+    bpm:argType bpm:EngineArgType_number ; bpm:argMode bpm:ArgMode_keyword ; bpm:argDefault "1.0" .
+
+bpm:demo_engine_op_solve a bpm:EngineOp ;
+    bpm:opEngine bpm:demo_engine ; bpm:opName "solve" ; bpm:opOrder 5 ;
+    bpm:opDoc "Solve with an optional config map (omitted from the wire when nil)." ;
+    bpm:opTimeoutClass bpm:TimeoutClass_heavy ; bpm:opKind bpm:EngineOpKind_wire .
+bpm:demo_engine_op_solve_handle a bpm:EngineArg ;
+    bpm:argOp bpm:demo_engine_op_solve ; bpm:argName "handle" ; bpm:argOrder 1 ; bpm:argType bpm:EngineArgType_handle .
+bpm:demo_engine_op_solve_config a bpm:EngineArg ;
+    bpm:argOp bpm:demo_engine_op_solve ; bpm:argName "config" ; bpm:argOrder 2 ;
+    bpm:argType bpm:EngineArgType_optional_map ; bpm:argMode bpm:ArgMode_optional ; bpm:argDefault "nil" ;
+    bpm:argEncoding bpm:ArgEncoding_omit_when_nil .
+
+bpm:demo_engine_op_plan a bpm:EngineOp ;
+    bpm:opEngine bpm:demo_engine ; bpm:opName "plan" ; bpm:opOrder 6 ;
+    bpm:opDoc "Plan with extra top-level request fields merged from `extra`." ;
+    bpm:opTimeoutClass bpm:TimeoutClass_heavy ; bpm:opKind bpm:EngineOpKind_wire .
+bpm:demo_engine_op_plan_domain a bpm:EngineArg ;
+    bpm:argOp bpm:demo_engine_op_plan ; bpm:argName "domain" ; bpm:argOrder 1 ; bpm:argType bpm:EngineArgType_string .
+bpm:demo_engine_op_plan_extra a bpm:EngineArg ;
+    bpm:argOp bpm:demo_engine_op_plan ; bpm:argName "extra" ; bpm:argOrder 2 ;
+    bpm:argType bpm:EngineArgType_map ; bpm:argMode bpm:ArgMode_optional ; bpm:argDefault "%{}" ;
+    bpm:argEncoding bpm:ArgEncoding_merge_map .
+
+bpm:demo_engine_op_run a bpm:EngineOp ;
+    bpm:opEngine bpm:demo_engine ; bpm:opName "run" ; bpm:opOrder 7 ;
+    bpm:opDoc "Run one f32 tensor per input." ;
+    bpm:opTimeoutClass bpm:TimeoutClass_heavy ; bpm:opKind bpm:EngineOpKind_wire .
+bpm:demo_engine_op_run_handle a bpm:EngineArg ;
+    bpm:argOp bpm:demo_engine_op_run ; bpm:argName "handle" ; bpm:argOrder 1 ; bpm:argType bpm:EngineArgType_handle .
+bpm:demo_engine_op_run_inputs a bpm:EngineArg ;
+    bpm:argOp bpm:demo_engine_op_run ; bpm:argName "inputs" ; bpm:argOrder 2 ;
+    bpm:argType bpm:EngineArgType_tensor_list ; bpm:argEncoding bpm:ArgEncoding_tensor_list .
+
+bpm:demo_engine_op_observe a bpm:EngineOp ;
+    bpm:opEngine bpm:demo_engine ; bpm:opName "observe" ; bpm:opOrder 8 ;
+    bpm:opDoc "Observe a batch of (fact, value) pairs." ;
+    bpm:opTimeoutClass bpm:TimeoutClass_cheap ; bpm:opKind bpm:EngineOpKind_wire .
+bpm:demo_engine_op_observe_handle a bpm:EngineArg ;
+    bpm:argOp bpm:demo_engine_op_observe ; bpm:argName "handle" ; bpm:argOrder 1 ; bpm:argType bpm:EngineArgType_handle .
+bpm:demo_engine_op_observe_sight a bpm:EngineArg ;
+    bpm:argOp bpm:demo_engine_op_observe ; bpm:argName "sight" ; bpm:argOrder 2 ;
+    bpm:argType bpm:EngineArgType_fact_pairs ; bpm:argEncoding bpm:ArgEncoding_pair_list .
+
+bpm:demo_engine_op_is_done a bpm:EngineOp ;
+    bpm:opEngine bpm:demo_engine ; bpm:opName "is_done" ; bpm:opOrder 9 ;
+    bpm:opDoc "`{:ok, %{\"done\" => bool}}`; Elixir names it `is_done?`." ;
+    bpm:opTimeoutClass bpm:TimeoutClass_cheap ; bpm:opKind bpm:EngineOpKind_wire ;
+    bpm:opElixirPredicate "true" .
+bpm:demo_engine_op_is_done_handle a bpm:EngineArg ;
+    bpm:argOp bpm:demo_engine_op_is_done ; bpm:argName "handle" ; bpm:argOrder 1 ; bpm:argType bpm:EngineArgType_handle .
+
+bpm:demo_engine_op_free_thing a bpm:EngineOp ;
+    bpm:opEngine bpm:demo_engine ; bpm:opName "free_thing" ; bpm:opOrder 10 ;
+    bpm:opDoc "Release a thing handle (Elixir-only: hidden from the Erlang and Gleam legs)." ;
+    bpm:opTimeoutClass bpm:TimeoutClass_cheap ; bpm:opKind bpm:EngineOpKind_wire ;
+    bpm:opExposeErlang "false" ; bpm:opExposeGleam "false" .
+bpm:demo_engine_op_free_thing_handle a bpm:EngineArg ;
+    bpm:argOp bpm:demo_engine_op_free_thing ; bpm:argName "handle" ; bpm:argOrder 1 ; bpm:argType bpm:EngineArgType_handle .

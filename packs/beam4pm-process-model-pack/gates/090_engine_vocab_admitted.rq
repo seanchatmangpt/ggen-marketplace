@@ -1,0 +1,63 @@
+# MESSAGE: every bpm:EngineOp / bpm:EngineArg must name admitted members of the CLOSED engine vocabularies (bpm:TimeoutClass, bpm:EngineOpKind, bpm:EngineArgType, bpm:ArgEncoding, bpm:ArgMode, bpm:ErrorCollapse -- anti-joins exactly like gates/020 for bpm:FieldType), no two engines may share a bpm:engineName, no two ops of one engine may share a bpm:opName, an op may carry at most ONE non-required argument (the Erlang facade renders exactly one extra arity), an omit_when_nil/merge_map encoding requires bpm:ArgMode_optional, a host_helper must delegate to a wire op of the SAME engine, and an engine's wire ops must not duplicate a wire name; any row is a refusal.
+PREFIX bpm: <https://ggen.dev/ontology/beam-process-model#>
+SELECT ?subject ?problem WHERE {
+  {
+    ?subject a bpm:Engine ; bpm:errorCollapse ?ec .
+    FILTER NOT EXISTS { ?ec a bpm:ErrorCollapse ; bpm:errorCollapseName ?n1 }
+    BIND("error_collapse_not_admitted" AS ?problem)
+  } UNION {
+    ?subject a bpm:EngineOp ; bpm:opTimeoutClass ?tc .
+    FILTER NOT EXISTS { ?tc a bpm:TimeoutClass ; bpm:timeoutClassName ?n2 }
+    BIND("timeout_class_not_admitted" AS ?problem)
+  } UNION {
+    ?subject a bpm:EngineOp ; bpm:opKind ?k .
+    FILTER NOT EXISTS { ?k a bpm:EngineOpKind ; bpm:engineOpKindName ?n3 }
+    BIND("op_kind_not_admitted" AS ?problem)
+  } UNION {
+    ?subject a bpm:EngineArg ; bpm:argType ?t .
+    FILTER NOT EXISTS { ?t a bpm:EngineArgType ; bpm:argTypeName ?n4 ; bpm:argElixirType ?x4 ; bpm:argErlangType ?y4 ; bpm:argGleamType ?z4 }
+    BIND("arg_type_not_admitted" AS ?problem)
+  } UNION {
+    ?subject a bpm:EngineArg ; bpm:argEncoding ?enc .
+    FILTER NOT EXISTS { ?enc a bpm:ArgEncoding ; bpm:argEncodingName ?n5 }
+    BIND("arg_encoding_not_admitted" AS ?problem)
+  } UNION {
+    ?subject a bpm:EngineArg ; bpm:argMode ?m .
+    FILTER NOT EXISTS { ?m a bpm:ArgMode ; bpm:argModeName ?n6 }
+    BIND("arg_mode_not_admitted" AS ?problem)
+  } UNION {
+    ?subject a bpm:Engine ; bpm:engineName ?name .
+    ?other a bpm:Engine ; bpm:engineName ?name .
+    FILTER (?other != ?subject)
+    BIND("duplicate_engine_name" AS ?problem)
+  } UNION {
+    ?subject a bpm:EngineOp ; bpm:opEngine ?e ; bpm:opName ?op_name .
+    ?other a bpm:EngineOp ; bpm:opEngine ?e ; bpm:opName ?op_name .
+    FILTER (?other != ?subject)
+    BIND("duplicate_op_name" AS ?problem)
+  } UNION {
+    ?subject a bpm:EngineOp .
+    ?a1 a bpm:EngineArg ; bpm:argOp ?subject ; bpm:argMode ?m1 .
+    ?a2 a bpm:EngineArg ; bpm:argOp ?subject ; bpm:argMode ?m2 .
+    FILTER (?a1 != ?a2 && ?m1 != bpm:ArgMode_required && ?m2 != bpm:ArgMode_required)
+    BIND("more_than_one_non_required_arg" AS ?problem)
+  } UNION {
+    ?subject a bpm:EngineArg ; bpm:argEncoding ?enc .
+    FILTER (?enc = bpm:ArgEncoding_omit_when_nil || ?enc = bpm:ArgEncoding_merge_map)
+    FILTER NOT EXISTS { ?subject bpm:argMode bpm:ArgMode_optional }
+    BIND("pipe_encoding_requires_optional_mode" AS ?problem)
+  } UNION {
+    ?subject a bpm:EngineOp ; bpm:opEngine ?e ; bpm:opDelegatesTo ?target .
+    FILTER NOT EXISTS { ?target a bpm:EngineOp ; bpm:opEngine ?e ; bpm:opKind bpm:EngineOpKind_wire }
+    BIND("host_helper_delegate_not_a_wire_op_of_same_engine" AS ?problem)
+  } UNION {
+    ?subject a bpm:EngineOp ; bpm:opEngine ?e ; bpm:opKind bpm:EngineOpKind_wire .
+    ?other a bpm:EngineOp ; bpm:opEngine ?e ; bpm:opKind bpm:EngineOpKind_wire .
+    OPTIONAL { ?subject bpm:opWireName ?w1o } OPTIONAL { ?other bpm:opWireName ?w2o }
+    ?subject bpm:opName ?on1 . ?other bpm:opName ?on2 .
+    BIND(COALESCE(?w1o, ?on1) AS ?w1) BIND(COALESCE(?w2o, ?on2) AS ?w2)
+    FILTER (?other != ?subject && ?w1 = ?w2)
+    BIND("duplicate_wire_name" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem
