@@ -436,4 +436,132 @@ defmodule BeamPM.Revenue.EconomicsTest do
     assert result.total_amount_at_risk == 0.0
     assert result.unweighted_findings == 1
   end
+
+  # -- Multi-tenant activity vocabulary (runtime argument, not a fixed
+  # -- module attribute) -- see BeamPM.Revenue.Economics's "Activity
+  # -- vocabulary" moduledoc section.
+
+  test "default_vocabulary/0 is exactly the BPI-2020 markers rework_cost/2 and " <>
+         "cycle_to_cash/2 use when no third argument is given" do
+    assert Economics.default_vocabulary() == %{
+             rejected_marker: " REJECTED by ",
+             submitted_marker: "SUBMITTED",
+             payment_activity: "Payment Handled"
+           }
+  end
+
+  test "rework_cost/cycle_to_cash: a second tenant's differently-worded process scores " <>
+         "correctly with its OWN vocabulary on the SAME compiled node, and is silently " <>
+         "misclassified under the BPI-2020 default -- the exact gap the runtime " <>
+         "vocabulary argument closes" do
+    # Tenant #2: a support-ticket process, not BPI-2020's declaration
+    # grammar -- "FILED" (submission), "REOPENED" (rework), "Ticket Closed"
+    # (cash terminus). None of these contain the BPI-2020 markers.
+    tenant2_vocabulary = %{
+      rejected_marker: "REOPENED",
+      submitted_marker: "FILED",
+      payment_activity: "Ticket Closed"
+    }
+
+    {:ok, reworked_trace} =
+      LogTrace.new(%{
+        case_id: "ticket-1",
+        activity_sequence: [
+          "Ticket FILED by CUSTOMER",
+          "Ticket REOPENED by AGENT",
+          "Ticket FILED by CUSTOMER",
+          "Ticket Closed"
+        ]
+      })
+
+    {:ok, clean_trace} =
+      LogTrace.new(%{
+        case_id: "ticket-2",
+        activity_sequence: ["Ticket FILED by CUSTOMER", "Ticket Closed"]
+      })
+
+    traces = [reworked_trace, clean_trace]
+    trace_attrs = %{"ticket-1" => %{"Amount" => 50.0}, "ticket-2" => %{"Amount" => 20.0}}
+
+    # Correct, with tenant #2's own vocabulary: exactly the reworked ticket
+    # is flagged, weighted by its own Amount.
+    assert Economics.rework_cost(traces, trace_attrs, tenant2_vocabulary) == %{
+             per_case: [%{case_id: "ticket-1", loop_count: 1, weighted_cost: 50.0}],
+             loop_case_ids: ["ticket-1"],
+             total_weighted_cost: 50.0
+           }
+
+    # Wrong, under the BPI-2020 default (rework_cost/2): neither activity
+    # contains " REJECTED by " or "SUBMITTED", so the real rework case is
+    # silently invisible -- zero rows, not an error. This is the pre-fix
+    # failure mode for any tenant whose vocabulary differs from BPI-2020's,
+    # reproduced here rather than merely asserted.
+    assert Economics.rework_cost(traces, trace_attrs) == %{
+             per_case: [],
+             loop_case_ids: [],
+             total_weighted_cost: 0.0
+           }
+
+    events = [
+      ticket_event("evt-1a", "ticket-1", "Ticket FILED by CUSTOMER", "2026-01-01T00:00:00.000Z"),
+      ticket_event("evt-1b", "ticket-1", "Ticket REOPENED by AGENT", "2026-01-02T00:00:00.000Z"),
+      ticket_event("evt-1c", "ticket-1", "Ticket FILED by CUSTOMER", "2026-01-03T00:00:00.000Z"),
+      ticket_event("evt-1d", "ticket-1", "Ticket Closed", "2026-01-05T00:00:00.000Z"),
+      ticket_event("evt-2a", "ticket-2", "Ticket FILED by CUSTOMER", "2026-02-01T00:00:00.000Z"),
+      ticket_event("evt-2b", "ticket-2", "Ticket Closed", "2026-02-02T00:00:00.000Z")
+    ]
+
+    # Correct, with tenant #2's own vocabulary: both cases reach their cash
+    # terminus (first FILED -> last Ticket Closed), conservation holds, and
+    # the first real CaseStats/SojournTime producers still fire per case
+    # regardless of which vocabulary scored the cash-cycle endpoints.
+    assert %{
+             case_stats: case_stats,
+             sojourns: sojourns,
+             cycle_to_cash: cycle_to_cash,
+             open_obligations: []
+           } = Economics.cycle_to_cash(traces, events, tenant2_vocabulary)
+
+    assert map_size(cycle_to_cash) == 2
+    assert cycle_to_cash["ticket-1"] == 345_600.0
+    assert cycle_to_cash["ticket-2"] == 86_400.0
+    assert length(case_stats) == 2
+    assert length(sojourns) == 4
+
+    # Wrong, under the BPI-2020 default (cycle_to_cash/2): neither case has
+    # a "SUBMITTED"-bearing event, so BOTH land in open_obligations with no
+    # fabricated duration -- silently wrong for tenant #2, never a crash.
+    assert Economics.cycle_to_cash(traces, events) == %{
+             case_stats: case_stats,
+             sojourns: sojourns,
+             cycle_to_cash: %{},
+             open_obligations: ["ticket-1", "ticket-2"]
+           }
+  end
+
+  test "rework_cost/cycle_to_cash NegativeRefusal: a malformed vocabulary is a typed " <>
+         "refusal, never a crash or a silent zero-match" do
+    assert Economics.rework_cost([], %{}, %{rejected_marker: "x"}) ==
+             {:error, {:invalid_vocabulary, %{rejected_marker: "x"}}}
+
+    bad_vocabulary = %{rejected_marker: "x", submitted_marker: "y", payment_activity: 123}
+
+    assert Economics.rework_cost([], %{}, bad_vocabulary) ==
+             {:error, {:invalid_vocabulary, bad_vocabulary}}
+
+    assert Economics.cycle_to_cash([], [], bad_vocabulary) ==
+             {:error, {:invalid_vocabulary, bad_vocabulary}}
+  end
+
+  defp ticket_event(event_id, case_id, event_type, event_time) do
+    {:ok, event} =
+      OcelEvent.new(%{
+        event_id: event_id,
+        event_type: event_type,
+        event_time: event_time,
+        attributes: %{"case" => case_id}
+      })
+
+    event
+  end
 end
