@@ -114,16 +114,16 @@ on the Tera (Rust ggen) templates or on the igniter (EEx) Ash templates. Admitti
 a 9th field type means adding one `bpm:FieldType_<name>` individual to this file;
 it touches no template and no gate:
 
-| `bpm:fieldType` | Erlang       | Elixir                                    | Ash                  |
-|-----------------|--------------|--------------------------------------------|----------------------|
-| `string`        | `binary()`   | `String.t()`                                | `:string`            |
-| `integer`       | `integer()`  | `integer()`                                 | `:integer`           |
-| `float`         | `float()`    | `float()`                                   | `:float`             |
-| `boolean`       | `boolean()`  | `boolean()`                                 | `:boolean`           |
-| `datetime`      | `binary()`   | `String.t()` (ISO8601 string on the wire)   | `:utc_datetime_usec` |
-| `atom`          | `atom()`     | `atom()`                                    | `:atom`              |
-| `list_string`   | `[binary()]` | `[String.t()]`                              | `{:array, :string}`  |
-| `map`           | `map()`      | `map()`                                     | `:map`               |
+| `bpm:fieldType` | Erlang       | Elixir                              | Ash                  |
+|-----------------|--------------|-------------------------------------|----------------------|
+| `string`        | `binary()`   | `String.t()`                        | `:string`            |
+| `integer`       | `integer()`  | `integer()`                         | `:integer`           |
+| `float`         | `float()`    | `float()`                           | `:float`             |
+| `boolean`       | `boolean()`  | `boolean()`                         | `:boolean`           |
+| `datetime`      | `binary()`   | `String.t()` (ISO 8601 on the wire) | `:utc_datetime_usec` |
+| `atom`          | `atom()`     | `atom()`                            | `:atom`              |
+| `list_string`   | `[binary()]` | `[String.t()]`                      | `{:array, :string}`  |
+| `map`           | `map()`      | `map()`                             | `:map`               |
 
 The Ash column is the fourth sibling projection (VISION-2030 section 4) and is
 held to semantic identity with the other legs. `datetime` is `:utc_datetime_usec`,
