@@ -19,20 +19,37 @@ sparql:
 %% Process discovery and conformance checking over the generated beam4pm types.
 %% Admitted bpm:RecordType graph size: {{ records | length }} record types.
 %%
-%% This module targets four of those admitted records — ocel_event, log_trace,
-%% dfg_edge, conformance_result — and derives every positional tuple access
-%% below from the same ORDER BY field_order rows that shaped beam4pm_types,
-%% so the access stays schema-driven rather than hard-coded.
+%% This module targets seven of those admitted records — ocel_event, log_trace,
+%% dfg_edge, conformance_result, process_variant, service_span, span_edge — and
+%% derives every positional tuple access below from the same ORDER BY
+%% field_order rows that shaped beam4pm_types, so the access stays
+%% schema-driven rather than hard-coded.
+%%
+%% Two evidence classes, kept apart on purpose (VISION-2030 section 7:
+%% "observed" and "inferred" are distinct views of the twin):
+%%   * traces_from_events/2 + dfg_from_traces/1 derive directly-follows edges
+%%     from TEMPORAL ADJACENCY inside a case -- every consecutive pair is
+%%     promoted to an edge. That is inference, and it is all today's event-log
+%%     discovery can do.
+%%   * causal_dfg_from_spans/1 derives service-to-service edges from the
+%%     OpenTelemetry PARENT/CHILD LINK on service_span records (observed
+%%     invocation causality -- the child ran inside the parent's interval) and
+%%     returns them side by side with the temporal-adjacency edges the same
+%%     spans would yield, so a caller can see exactly which adjacency edges no
+%%     link supports and which causal edges adjacency cannot see. The edges are
+%%     span_edge records, tagged with their evidence class, never dfg_edge --
+%%     parent/child is not directly-follows.
 %%
 %% All outputs are constructed through the validating beam4pm_types:new_*/1
 %% constructors, never as raw tuples.
 
 -module(beam4pm_discovery).
 
--export([traces_from_events/2, dfg_from_traces/1, conformance/2, variants_from_traces/1]).
+-export([traces_from_events/2, dfg_from_traces/1, conformance/2, variants_from_traces/1,
+         traces_from_spans/1, causal_dfg_from_spans/1]).
 
 %% Schema-driven positional accessors (exported as a stable read API).
-{% for rn in ["ocel_event", "log_trace", "dfg_edge", "conformance_result", "process_variant"] -%}
+{% for rn in ["ocel_event", "log_trace", "dfg_edge", "conformance_result", "process_variant", "service_span", "span_edge"] -%}
 {%- set rf = fields | filter(attribute="record_name", value=rn) %}
 -export([
 {%- for f in rf %}
@@ -40,7 +57,7 @@ sparql:
 {%- endfor %}
 ]).
 {% endfor %}
-{% for rn in ["ocel_event", "log_trace", "dfg_edge", "conformance_result", "process_variant"] -%}
+{% for rn in ["ocel_event", "log_trace", "dfg_edge", "conformance_result", "process_variant", "service_span", "span_edge"] -%}
 {%- set rf = fields | filter(attribute="record_name", value=rn) %}
 %% Positional accessors for #{{ rn }}: the tuple pattern is generated from the
 %% admitted field_order rows ({{ rf | length }} fields), never hand-numbered.
@@ -165,7 +182,173 @@ conformance(Edges, Trace) ->
     {ok, Result} = beam4pm_types:new_conformance_result(
         #{trace_id => log_trace_case_id(Trace), fitness => Fitness, precision => Precision}),
     Result.
+{% raw %}
+%% traces_from_spans(Spans) -> [LogTrace].
+%%
+%% The temporal-adjacency arm's input, and deliberately nothing more than
+%% today's discovery applied to spans: one log_trace per trace_id (case_id =
+%% trace_id), activity_sequence = the spans' service_name values sorted by
+%% {start_time, span_id} (lexicographic ISO8601, ties broken by span_id).
+%% parent_span_id is NEVER read here -- this arm is what a miner that only
+%% sees timestamps and a correlation id would conclude. Result sorted by
+%% trace_id.
+-spec traces_from_spans([beam4pm_types:service_span()]) -> [beam4pm_types:log_trace()].
+traces_from_spans(Spans) ->
+    ByTrace = lists:foldl(
+        fun(Span, Acc) ->
+            Entry = {service_span_start_time(Span),
+                     service_span_span_id(Span),
+                     service_span_service_name(Span)},
+            maps:update_with(service_span_trace_id(Span),
+                             fun(L) -> [Entry | L] end, [Entry], Acc)
+        end,
+        #{},
+        Spans),
+    lists:map(
+        fun(TraceId) ->
+            Sorted = lists:sort(maps:get(TraceId, ByTrace)),
+            Seq = [Service || {_Start, _Id, Service} <- Sorted],
+            {ok, Trace} = beam4pm_types:new_log_trace(
+                #{case_id => TraceId, activity_sequence => Seq}),
+            Trace
+        end,
+        lists:sort(maps:keys(ByTrace))).
 
+%% causal_dfg_from_spans(Spans) ->
+%%     {ok, #{observed             := [SpanEdge],   %% evidence = parent_child_link
+%%            adjacent             := [SpanEdge],   %% evidence = temporal_adjacency
+%%            inferred_only        := [SpanEdge],   %% adjacent pairs no link supports
+%%            observed_not_adjacent := [SpanEdge],  %% linked pairs adjacency cannot see
+%%            orphans              := [{SpanId, MissingParentId}]}}
+%%   | {error, {duplicate_span_id, SpanId}}
+%%   | {error, {parent_in_other_trace, SpanId}}.
+%%
+%% Observed arm: for every span whose parent_span_id names a span in the
+%% input, one parent/child link parent.service_name -> span.service_name;
+%% frequency = the number of such links with that (source, target). This is
+%% OpenTelemetry parent/child (invocation) causality keyed by service_name --
+%% NOT directly-follows, and NOT the OpenTelemetry `links` field. Root spans
+%% (parent_span_id undefined) contribute no incoming edge. A span whose parent
+%% is absent from the input (sampled out, uninstrumented) is an ORPHAN:
+%% reported as {span_id, parent_span_id}, never turned into an edge and never
+%% silently dropped -- it stays in the adjacency arm, so the caller can see
+%% exactly which inferred_only edges lack causal evidence because evidence is
+%% missing rather than because adjacency invented them.
+%%
+%% Adjacent arm: traces_from_spans/1 -> dfg_from_traces/1, re-tagged
+%% temporal_adjacency. Same span set, so the two frequency scales are
+%% comparable per (source, target).
+%%
+%% The two sets are NOT nested. For a root p with concurrent children s1, s2
+%% (s1 starting first): adjacency yields p->s1, s1->s2; links yield p->s1,
+%% p->s2. s1->s2 is inferred_only (adjacency invented it) and p->s2 is
+%% observed_not_adjacent (adjacency cannot see it). Both differences are
+%% returned; the caller must not compute only one.
+%%
+%% Typed refusals, never silent: a duplicate span_id (the index would
+%% otherwise last-write-win) and a parent found in a DIFFERENT trace_id (a
+%% malformed trace -- links never cross traces) each abort the whole call.
+%% Every list is sorted by {source_service, target_service}; orphans by
+%% {span_id, parent_span_id}.
+-spec causal_dfg_from_spans([beam4pm_types:service_span()]) ->
+          {ok, #{observed := [beam4pm_types:span_edge()],
+                 adjacent := [beam4pm_types:span_edge()],
+                 inferred_only := [beam4pm_types:span_edge()],
+                 observed_not_adjacent := [beam4pm_types:span_edge()],
+                 orphans := [{binary(), binary()}]}}
+        | {error, {duplicate_span_id, binary()}}
+        | {error, {parent_in_other_trace, binary()}}.
+causal_dfg_from_spans(Spans) ->
+    case index_spans(Spans, #{}) of
+        {error, _} = IndexError ->
+            IndexError;
+        {ok, Index} ->
+            case link_spans(Spans, Index, #{}, []) of
+                {error, _} = LinkError ->
+                    LinkError;
+                {ok, LinkCounts, Orphans} ->
+                    Observed = span_edges(LinkCounts, parent_child_link),
+                    Adjacent = [adjacency_edge(E)
+                                || E <- dfg_from_traces(traces_from_spans(Spans))],
+                    ObservedPairs = pair_set(Observed),
+                    AdjacentPairs = pair_set(Adjacent),
+                    {ok, #{observed => Observed,
+                           adjacent => Adjacent,
+                           inferred_only =>
+                               [E || E <- Adjacent,
+                                     not maps:is_key(edge_pair(E), ObservedPairs)],
+                           observed_not_adjacent =>
+                               [E || E <- Observed,
+                                     not maps:is_key(edge_pair(E), AdjacentPairs)],
+                           orphans => lists:sort(Orphans)}}
+            end
+    end.
+
+%% Internal: span_id -> span, refusing a duplicate id instead of overwriting.
+index_spans([], Index) ->
+    {ok, Index};
+index_spans([Span | Rest], Index) ->
+    Id = service_span_span_id(Span),
+    case maps:is_key(Id, Index) of
+        true -> {error, {duplicate_span_id, Id}};
+        false -> index_spans(Rest, Index#{Id => Span})
+    end.
+
+%% Internal: fold parent/child links into a (source, target) -> count map,
+%% collecting orphans and refusing a cross-trace parent.
+link_spans([], _Index, Counts, Orphans) ->
+    {ok, Counts, Orphans};
+link_spans([Span | Rest], Index, Counts, Orphans) ->
+    case service_span_parent_span_id(Span) of
+        undefined ->
+            link_spans(Rest, Index, Counts, Orphans);
+        ParentId ->
+            case maps:find(ParentId, Index) of
+                error ->
+                    link_spans(Rest, Index, Counts,
+                               [{service_span_span_id(Span), ParentId} | Orphans]);
+                {ok, Parent} ->
+                    case service_span_trace_id(Parent) =:= service_span_trace_id(Span) of
+                        false ->
+                            {error, {parent_in_other_trace, service_span_span_id(Span)}};
+                        true ->
+                            Pair = {service_span_service_name(Parent),
+                                    service_span_service_name(Span)},
+                            link_spans(Rest, Index,
+                                       maps:update_with(Pair, fun(N) -> N + 1 end, 1, Counts),
+                                       Orphans)
+                    end
+            end
+    end.
+
+%% Internal: counting map -> sorted span_edge list carrying Evidence.
+span_edges(Counts, Evidence) ->
+    lists:map(
+        fun({ {Source, Target}, Frequency }) ->
+            {ok, Edge} = beam4pm_types:new_span_edge(
+                #{source_service => Source,
+                  target_service => Target,
+                  frequency => Frequency,
+                  evidence => Evidence}),
+            Edge
+        end,
+        lists:sort(maps:to_list(Counts))).
+
+%% Internal: a dfg_edge from the adjacency arm, re-tagged as what it is.
+adjacency_edge(DfgEdge) ->
+    {ok, Edge} = beam4pm_types:new_span_edge(
+        #{source_service => dfg_edge_source_activity(DfgEdge),
+          target_service => dfg_edge_target_activity(DfgEdge),
+          frequency => dfg_edge_frequency(DfgEdge),
+          evidence => temporal_adjacency}),
+    Edge.
+
+edge_pair(Edge) ->
+    {span_edge_source_service(Edge), span_edge_target_service(Edge)}.
+
+pair_set(Edges) ->
+    maps:from_list([{edge_pair(E), true} || E <- Edges]).
+{% endraw %}
 %% Internal: multiset of adjacent pairs folded into a counting map.
 count_adjacent([A, B | Rest], Acc) ->
     count_adjacent([B | Rest], maps:update_with({A, B}, fun(N) -> N + 1 end, 1, Acc));

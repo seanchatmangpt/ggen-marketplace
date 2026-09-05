@@ -4,7 +4,7 @@ sparql:
   records: |
     PREFIX bpm: <https://ggen.dev/ontology/beam-process-model#>
     SELECT ?record_name ?record_doc WHERE {
-      VALUES ?record_name { "ocel_event" "log_trace" "dfg_edge" "conformance_result" }
+      VALUES ?record_name { "ocel_event" "log_trace" "dfg_edge" "conformance_result" "process_variant" "service_span" "span_edge" }
       ?rt a bpm:RecordType ;
           bpm:recordName ?record_name ;
           bpm:recordDoc ?record_doc .
@@ -24,6 +24,22 @@ defmodule BeamPM.Discovery do
     * `conformance/2` - fitness AND precision of one trace against a
       directly-follows edge set (precision delegated to `BeamPM.Precision`,
       never re-derived here - see that module for the formula)
+    * `variants_from_traces/1` - group traces by identical activity sequence
+    * `traces_from_spans/1` - the temporal-adjacency reading of tracing spans
+      (one trace per `trace_id`, ordered by `start_time`; parent links unread)
+    * `causal_dfg_from_spans/1` - OpenTelemetry parent/child (invocation)
+      causality over `service_span` records, returned side by side with the
+      temporal-adjacency edges the same spans yield, as evidence-tagged
+      `span_edge` records (never `dfg_edge`: parent/child is not
+      directly-follows). See that function's doc for why the two edge sets are
+      not nested and why both differences are returned.
+
+  Two evidence classes, kept apart on purpose (VISION-2030 section 7: the twin
+  keeps "observed" and "inferred" as distinct views): the event-log functions
+  promote every consecutive pair inside a case to an edge -- that is inference
+  from temporal adjacency, and it is all an event log can support. The span
+  functions have a second, independent source of evidence (the parent/child
+  link) and expose the disagreement between the two instead of merging them.
 
   All outputs are constructed through the generated validating `new/1`
   constructors, never as raw structs. Admitted record types this module
@@ -38,6 +54,8 @@ defmodule BeamPM.Discovery do
   alias BeamPM.Types.LogTrace
   alias BeamPM.Types.OcelEvent
   alias BeamPM.Types.ProcessVariant
+  alias BeamPM.Types.ServiceSpan
+  alias BeamPM.Types.SpanEdge
 
   @doc """
   Groups OCEL events into case-centric traces.
@@ -156,7 +174,182 @@ defmodule BeamPM.Discovery do
 
     result
   end
+{% raw %}
+  @doc """
+  The temporal-adjacency reading of tracing spans, and deliberately nothing
+  more than today's discovery applied to spans: one `LogTrace` per `trace_id`
+  (`case_id` = `trace_id`) whose `activity_sequence` is the spans'
+  `service_name` values ordered by `{start_time, span_id}` (lexicographic
+  ISO8601, ties broken by `span_id`). `parent_span_id` is NEVER read here --
+  this is what a miner that only sees timestamps and a correlation id would
+  conclude. Traces are sorted by `trace_id`.
+  """
+  @spec traces_from_spans([ServiceSpan.t()]) :: [LogTrace.t()]
+  def traces_from_spans(spans) when is_list(spans) do
+    spans
+    |> Enum.group_by(fn %ServiceSpan{} = span -> span.trace_id end)
+    |> Enum.sort_by(fn {trace_id, _trace_spans} -> trace_id end)
+    |> Enum.map(fn {trace_id, trace_spans} ->
+      activity_sequence =
+        trace_spans
+        |> Enum.sort_by(fn span -> {span.start_time, span.span_id} end)
+        |> Enum.map(fn span -> span.service_name end)
 
+      {:ok, trace} = LogTrace.new(%{case_id: trace_id, activity_sequence: activity_sequence})
+      trace
+    end)
+  end
+
+  @typedoc """
+  The two evidence classes over one span set, plus both of their differences.
+
+    * `observed` - `evidence: :parent_child_link`, one edge per distinct
+      (parent `service_name`, child `service_name`) pair, `frequency` = the
+      number of parent/child links with that pair.
+    * `adjacent` - `evidence: :temporal_adjacency`, `traces_from_spans/1` ->
+      `dfg_from_traces/1` re-tagged; `frequency` = the number of consecutive
+      `start_time` pairs, summed over traces. Same span set, so the two
+      frequency scales are comparable per pair.
+    * `inferred_only` - adjacent edges whose pair no parent/child link
+      supports: what adjacency invented.
+    * `observed_not_adjacent` - observed edges whose pair adjacency never
+      produced: real causality adjacency cannot see.
+    * `orphans` - `{span_id, parent_span_id}` for every span whose parent is
+      absent from the input (sampled out, uninstrumented). Never an edge,
+      never dropped silently; the span itself stays in the adjacency arm so
+      the caller can tell "no evidence" from "adjacency invented it".
+
+  Every list is sorted by `{source_service, target_service}`; orphans by
+  `{span_id, parent_span_id}`.
+  """
+  @type span_evidence :: %{
+          observed: [SpanEdge.t()],
+          adjacent: [SpanEdge.t()],
+          inferred_only: [SpanEdge.t()],
+          observed_not_adjacent: [SpanEdge.t()],
+          orphans: [{String.t(), String.t()}]
+        }
+
+  @doc """
+  OpenTelemetry parent/child (invocation) causality over `service_span`
+  records, side by side with the temporal-adjacency edges the same spans
+  yield -- see `t:span_evidence/0` for the five keys.
+
+  This is NOT directly-follows and NOT the OpenTelemetry `links` field: a
+  parent -> child link means the child ran inside the parent's interval, so
+  the edges are `BeamPM.Types.SpanEdge` records carrying their evidence class,
+  never `BeamPM.Types.DfgEdge`. Root spans (`parent_span_id: nil`) contribute
+  no incoming edge.
+
+  The two edge sets are NOT nested. For a root `p` with concurrent children
+  `s1`, `s2` (`s1` starting first): adjacency yields `p->s1, s1->s2`; links
+  yield `p->s1, p->s2`. `s1->s2` is `inferred_only` and `p->s2` is
+  `observed_not_adjacent`. Both differences are returned; do not compute only
+  one.
+
+  Typed refusals, never silent: a duplicate `span_id` (the index would
+  otherwise last-write-win) is `{:error, {:duplicate_span_id, id}}`; a parent
+  found in a DIFFERENT `trace_id` (a malformed trace -- links never cross
+  traces) is `{:error, {:parent_in_other_trace, child_span_id}}`.
+  """
+  @spec causal_dfg_from_spans([ServiceSpan.t()]) ::
+          {:ok, span_evidence()}
+          | {:error, {:duplicate_span_id, String.t()} | {:parent_in_other_trace, String.t()}}
+  def causal_dfg_from_spans(spans) when is_list(spans) do
+    with {:ok, index} <- index_spans(spans),
+         {:ok, link_counts, orphans} <- link_spans(spans, index) do
+      observed = span_edges(link_counts, :parent_child_link)
+
+      adjacent =
+        spans
+        |> traces_from_spans()
+        |> dfg_from_traces()
+        |> Enum.map(&adjacency_edge/1)
+
+      observed_pairs = MapSet.new(observed, &edge_pair/1)
+      adjacent_pairs = MapSet.new(adjacent, &edge_pair/1)
+
+      {:ok,
+       %{
+         observed: observed,
+         adjacent: adjacent,
+         inferred_only:
+           Enum.reject(adjacent, fn edge -> MapSet.member?(observed_pairs, edge_pair(edge)) end),
+         observed_not_adjacent:
+           Enum.reject(observed, fn edge -> MapSet.member?(adjacent_pairs, edge_pair(edge)) end),
+         orphans: Enum.sort(orphans)
+       }}
+    end
+  end
+
+  # span_id -> span, refusing a duplicate id instead of overwriting it.
+  defp index_spans(spans) do
+    Enum.reduce_while(spans, {:ok, %{}}, fn %ServiceSpan{} = span, {:ok, index} ->
+      if Map.has_key?(index, span.span_id) do
+        {:halt, {:error, {:duplicate_span_id, span.span_id}}}
+      else
+        {:cont, {:ok, Map.put(index, span.span_id, span)}}
+      end
+    end)
+  end
+
+  # Fold parent/child links into a (source, target) -> count map, collecting
+  # orphans and refusing a cross-trace parent.
+  defp link_spans(spans, index) do
+    Enum.reduce_while(spans, {:ok, %{}, []}, fn
+      %ServiceSpan{parent_span_id: nil}, acc ->
+        {:cont, acc}
+
+      %ServiceSpan{parent_span_id: parent_id} = span, {:ok, counts, orphans} ->
+        case Map.fetch(index, parent_id) do
+          :error ->
+            {:cont, {:ok, counts, [{span.span_id, parent_id} | orphans]}}
+
+          {:ok, %ServiceSpan{} = parent} ->
+            if parent.trace_id == span.trace_id do
+              pair = {parent.service_name, span.service_name}
+              {:cont, {:ok, Map.update(counts, pair, 1, &(&1 + 1)), orphans}}
+            else
+              {:halt, {:error, {:parent_in_other_trace, span.span_id}}}
+            end
+        end
+    end)
+  end
+
+  # Counting map -> sorted SpanEdge list carrying `evidence`.
+  defp span_edges(counts, evidence) do
+    counts
+    |> Enum.sort_by(fn {pair, _count} -> pair end)
+    |> Enum.map(fn {pair, count} ->
+      {source, target} = pair
+
+      {:ok, edge} =
+        SpanEdge.new(%{
+          source_service: source,
+          target_service: target,
+          frequency: count,
+          evidence: evidence
+        })
+
+      edge
+    end)
+  end
+
+  # A DfgEdge from the adjacency arm, re-tagged as what it is.
+  defp adjacency_edge(%DfgEdge{} = dfg_edge) do
+    {:ok, edge} =
+      SpanEdge.new(%{
+        source_service: dfg_edge.source_activity,
+        target_service: dfg_edge.target_activity,
+        frequency: dfg_edge.frequency,
+        evidence: :temporal_adjacency
+      })
+
+    edge
+  end
+
+  defp edge_pair(%SpanEdge{} = edge), do: {edge.source_service, edge.target_service}
+{% endraw %}
   @spec adjacent_pairs([String.t()] | nil) :: [{String.t(), String.t()}]
   defp adjacent_pairs(sequence) when is_list(sequence) do
     Enum.zip(sequence, Enum.drop(sequence, 1))

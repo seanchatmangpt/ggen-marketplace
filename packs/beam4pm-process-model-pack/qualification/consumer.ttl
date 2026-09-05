@@ -1,12 +1,13 @@
 # Synthetic consumer fixture for isolated qualification of
 # beam4pm-process-model-pack. Several templates hard-reference specific
 # record names (VALUES-restricted SPARQL: discovery needs ocel_event /
-# log_trace / dfg_edge / conformance_result / process_variant; precision
-# needs dfg_edge / log_trace), and beam4pm_codec_tests.erl.tmpl takes
-# `req_fields | first` -- so an EMPTY consumer graph fails render outright
-# (real FM-TPL-017 in the qualify harness: "Variable `mf.record_name` not
-# found ... records (array, 0 items)"), which is exactly the failure this
-# fixture exists to admit against. The five individuals below are the real
+# log_trace / dfg_edge / conformance_result / process_variant / service_span /
+# span_edge; precision needs dfg_edge / log_trace), and
+# beam4pm_codec_tests.erl.tmpl takes `req_fields | first` -- so an EMPTY
+# consumer graph fails render outright (real FM-TPL-017 in the qualify
+# harness: "Variable `mf.record_name` not found ... records (array, 0
+# items)"), which is exactly the failure this fixture exists to admit
+# against. The seven individuals below are the real
 # record shapes from the pack's reference consumer (seanchatmangpt/beam4pm),
 # copied verbatim so accessor arities and field orders are realistic, and
 # every gates/010_required.rq-enforced predicate is present.
@@ -147,3 +148,92 @@ bpm:log_trace_activity_sequence_f a bpm:Field ;
     bpm:fieldDoc "Ordered list of activity names observed for this case." ;
     bpm:fieldRequired "true" ;
     bpm:fieldOrder 2 .
+
+# service_span + span_edge (pack 0.1.16): the discovery templates' schema-driven
+# accessor loop also names these two, and causal_dfg_from_spans reads exactly
+# the six service_span fields below (span_id, service_name, duration_ms,
+# parent_span_id, trace_id, start_time) and constructs span_edge (source_service,
+# target_service, frequency, evidence). Copied from the reference consumer so a
+# qualification render produces the same accessor arities the real one does.
+bpm:service_span_rt a bpm:RecordType ;
+    bpm:recordName "service_span" ;
+    bpm:recordDoc "One OpenTelemetry-style tracing span observed for a service call." ;
+    bpm:hasField bpm:service_span_span_id_f , bpm:service_span_service_name_f ,
+                 bpm:service_span_duration_ms_f , bpm:service_span_parent_span_id_f ,
+                 bpm:service_span_trace_id_f , bpm:service_span_start_time_f .
+
+bpm:service_span_span_id_f a bpm:Field ;
+    bpm:fieldName "span_id" ;
+    bpm:fieldType "string" ;
+    bpm:fieldDoc "Unique span identifier." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 1 .
+
+bpm:service_span_service_name_f a bpm:Field ;
+    bpm:fieldName "service_name" ;
+    bpm:fieldType "string" ;
+    bpm:fieldDoc "Name of the service that produced this span." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 2 .
+
+bpm:service_span_duration_ms_f a bpm:Field ;
+    bpm:fieldName "duration_ms" ;
+    bpm:fieldType "integer" ;
+    bpm:fieldDoc "Span duration in milliseconds." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 3 .
+
+bpm:service_span_parent_span_id_f a bpm:Field ;
+    bpm:fieldName "parent_span_id" ;
+    bpm:fieldType "string" ;
+    bpm:fieldDoc "Optional identifier of the parent span (the OpenTelemetry parent/child link; absent on a trace's root span)." ;
+    bpm:fieldRequired "false" ;
+    bpm:fieldOrder 4 .
+
+bpm:service_span_trace_id_f a bpm:Field ;
+    bpm:fieldName "trace_id" ;
+    bpm:fieldType "string" ;
+    bpm:fieldDoc "Identifier of the trace this span belongs to." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 5 .
+
+bpm:service_span_start_time_f a bpm:Field ;
+    bpm:fieldName "start_time" ;
+    bpm:fieldType "datetime" ;
+    bpm:fieldDoc "ISO8601 timestamp the span started." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 6 .
+
+bpm:span_edge_rt a bpm:RecordType ;
+    bpm:recordName "span_edge" ;
+    bpm:recordDoc "One frequency-annotated service-to-service edge derived from tracing spans, tagged with the evidence class that supports it." ;
+    bpm:hasField bpm:span_edge_source_service_f , bpm:span_edge_target_service_f ,
+                 bpm:span_edge_frequency_f , bpm:span_edge_evidence_f .
+
+bpm:span_edge_source_service_f a bpm:Field ;
+    bpm:fieldName "source_service" ;
+    bpm:fieldType "string" ;
+    bpm:fieldDoc "service_name of the source span." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 1 .
+
+bpm:span_edge_target_service_f a bpm:Field ;
+    bpm:fieldName "target_service" ;
+    bpm:fieldType "string" ;
+    bpm:fieldDoc "service_name of the target span." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 2 .
+
+bpm:span_edge_frequency_f a bpm:Field ;
+    bpm:fieldName "frequency" ;
+    bpm:fieldType "integer" ;
+    bpm:fieldDoc "Link count (parent_child_link) or consecutive-pair count (temporal_adjacency)." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 3 .
+
+bpm:span_edge_evidence_f a bpm:Field ;
+    bpm:fieldName "evidence" ;
+    bpm:fieldType "atom" ;
+    bpm:fieldDoc "Evidence class: parent_child_link (observed) or temporal_adjacency (inferred)." ;
+    bpm:fieldRequired "true" ;
+    bpm:fieldOrder 4 .
