@@ -29,6 +29,187 @@ bpm:fieldRequired a rdf:Property ; rdfs:domain bpm:Field ; rdfs:range xsd:string
     rdfs:comment "Plain string literal true or false; templates compare it as a string." .
 bpm:fieldOrder a rdf:Property ; rdfs:domain bpm:Field ; rdfs:range xsd:integer .
 
+# --- Shared field-type vocabulary (2026-09-04) ------------------------
+#
+# Externalizes the bpm:fieldType -> per-language-representation mapping as
+# a single, SPARQL-joinable ontology fact instead of the same 8-branch
+# if/elif dispatch ladder repeated in every consuming template (measured
+# before this change: 26 "field_type ==" comparisons across 12 template
+# files in this pack alone). Every affected template's `fields` query now
+# performs one generic JOIN against this vocabulary via the existing
+# ?f bpm:fieldType ?field_type binding and a matching bpm:FieldType
+# individual's bpm:fieldTypeName -- admitting a 9th field type means
+# adding ONE bpm:FieldType individual here; it touches ZERO template
+# files (the prior architecture required editing 12 template files plus
+# this file's own enum comment plus gates/020_field_type_enum.rq -- 14
+# sites -- for the same change).
+#
+# A field_type with no matching bpm:FieldType individual now makes that
+# field DISAPPEAR from every affected template's `fields` result set (a
+# visible, mandatory-JOIN empty-match failure) rather than the prior
+# silent gap this exact duplication produced in
+# templates/beam4pm_types.schema.json.tmpl (an if/elif chain with no
+# else/default branch: a field type falling through every arm emitted a
+# JSON Schema property with no "type" key and no generator error).
+#
+# The literal token __FIELD__ inside a sample*Expr value below is plain
+# string data (not Turtle or Tera syntax), substituted at render time via
+# Tera's `replace` filter with the field's own bpm:fieldName. Only the
+# "string" type's samples use it -- it is the only type whose original
+# hand-written literals were field-name-parameterized (every other type
+# used a fixed literal regardless of field name).
+
+bpm:FieldType a rdfs:Class ;
+    rdfs:label "Field Type" ;
+    rdfs:comment "One admitted value of the closed bpm:fieldType vocabulary (string, integer, float, boolean, datetime, atom, list_string, map), carrying every per-language projection and sample-value fact so templates fetch a resolved expression by SPARQL JOIN instead of hardcoding a duplicated if/elif dispatch ladder." .
+
+bpm:fieldTypeName a rdf:Property ; rdfs:domain bpm:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "Matches a bpm:Field's bpm:fieldType literal value exactly." .
+bpm:erlangTypeExpr a rdf:Property ; rdfs:domain bpm:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "Erlang typespec expression, e.g. binary()." .
+bpm:elixirTypeExpr a rdf:Property ; rdfs:domain bpm:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "Elixir @type expression, e.g. String.t()." .
+bpm:gleamTypeExpr a rdf:Property ; rdfs:domain bpm:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "Gleam type expression, e.g. String. Two disclosed projection divergences from Erlang/Elixir (atom -> String, map -> dict.Dict(String, String)) are real projection facts here, not a template-level special case." .
+bpm:jsonSchemaType a rdf:Property ; rdfs:domain bpm:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "JSON Schema draft-07 \"type\" value." .
+bpm:jsonSchemaItemsType a rdf:Property ; rdfs:domain bpm:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "Empty string unless jsonSchemaType is array, in which case the array's \"items\".\"type\" value." .
+bpm:isAtomCodec a rdf:Property ; rdfs:domain bpm:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "Plain string literal true or false (same convention as bpm:fieldRequired): whether beam4pm_codec/BeamPM.Codec must atom_to_binary/binary_to_atom-convert this type's values." .
+bpm:sampleMinErlang a rdf:Property ; rdfs:domain bpm:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "Minimal fixed Erlang sample literal used by beam4pm_types_tests.erl (constructor-only tests, not codec/roundtrip)." .
+bpm:sampleMinElixir a rdf:Property ; rdfs:domain bpm:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "Minimal fixed Elixir sample literal used by beam4pm_types_test.exs (constructor-only tests, not codec/roundtrip)." .
+bpm:sampleErlang a rdf:Property ; rdfs:domain bpm:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "Codec/roundtrip Erlang sample INPUT literal (beam4pm_codec_tests.erl, beam4pm_roundtrip.erl). May contain __FIELD__." .
+bpm:sampleErlangEncoded a rdf:Property ; rdfs:domain bpm:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "The sampleErlang value after round-tripping through beam4pm_codec:to_map/1 -- differs from sampleErlang only for atom (binary-ified). May contain __FIELD__." .
+bpm:sampleElixir a rdf:Property ; rdfs:domain bpm:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "Codec/roundtrip Elixir sample INPUT literal (beam4pm_codec_test.exs, beam4pm_roundtrip.ex). May contain __FIELD__." .
+bpm:sampleElixirEncoded a rdf:Property ; rdfs:domain bpm:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "The sampleElixir value after round-tripping through BeamPM.Codec.to_map/1 -- differs from sampleElixir only for atom (string-ified). May contain __FIELD__." .
+
+bpm:FieldType_string a bpm:FieldType ;
+    bpm:fieldTypeName "string" ;
+    bpm:erlangTypeExpr "binary()" ;
+    bpm:elixirTypeExpr "String.t()" ;
+    bpm:gleamTypeExpr "String" ;
+    bpm:jsonSchemaType "string" ;
+    bpm:jsonSchemaItemsType "" ;
+    bpm:isAtomCodec "false" ;
+    bpm:sampleMinErlang "<<\"x\">>" ;
+    bpm:sampleMinElixir "\"x\"" ;
+    bpm:sampleErlang "<<\"sample___FIELD__\">>" ;
+    bpm:sampleErlangEncoded "<<\"sample___FIELD__\">>" ;
+    bpm:sampleElixir "\"sample___FIELD__\"" ;
+    bpm:sampleElixirEncoded "\"sample___FIELD__\"" .
+
+bpm:FieldType_integer a bpm:FieldType ;
+    bpm:fieldTypeName "integer" ;
+    bpm:erlangTypeExpr "integer()" ;
+    bpm:elixirTypeExpr "integer()" ;
+    bpm:gleamTypeExpr "Int" ;
+    bpm:jsonSchemaType "integer" ;
+    bpm:jsonSchemaItemsType "" ;
+    bpm:isAtomCodec "false" ;
+    bpm:sampleMinErlang "1" ;
+    bpm:sampleMinElixir "1" ;
+    bpm:sampleErlang "42" ;
+    bpm:sampleErlangEncoded "42" ;
+    bpm:sampleElixir "42" ;
+    bpm:sampleElixirEncoded "42" .
+
+bpm:FieldType_float a bpm:FieldType ;
+    bpm:fieldTypeName "float" ;
+    bpm:erlangTypeExpr "float()" ;
+    bpm:elixirTypeExpr "float()" ;
+    bpm:gleamTypeExpr "Float" ;
+    bpm:jsonSchemaType "number" ;
+    bpm:jsonSchemaItemsType "" ;
+    bpm:isAtomCodec "false" ;
+    bpm:sampleMinErlang "1.0" ;
+    bpm:sampleMinElixir "1.0" ;
+    bpm:sampleErlang "3.5" ;
+    bpm:sampleErlangEncoded "3.5" ;
+    bpm:sampleElixir "3.5" ;
+    bpm:sampleElixirEncoded "3.5" .
+
+bpm:FieldType_boolean a bpm:FieldType ;
+    bpm:fieldTypeName "boolean" ;
+    bpm:erlangTypeExpr "boolean()" ;
+    bpm:elixirTypeExpr "boolean()" ;
+    bpm:gleamTypeExpr "Bool" ;
+    bpm:jsonSchemaType "boolean" ;
+    bpm:jsonSchemaItemsType "" ;
+    bpm:isAtomCodec "false" ;
+    bpm:sampleMinErlang "true" ;
+    bpm:sampleMinElixir "true" ;
+    bpm:sampleErlang "true" ;
+    bpm:sampleErlangEncoded "true" ;
+    bpm:sampleElixir "true" ;
+    bpm:sampleElixirEncoded "true" .
+
+bpm:FieldType_datetime a bpm:FieldType ;
+    bpm:fieldTypeName "datetime" ;
+    bpm:erlangTypeExpr "binary()" ;
+    bpm:elixirTypeExpr "String.t()" ;
+    bpm:gleamTypeExpr "String" ;
+    bpm:jsonSchemaType "string" ;
+    bpm:jsonSchemaItemsType "" ;
+    bpm:isAtomCodec "false" ;
+    bpm:sampleMinErlang "<<\"2026-01-01T00:00:00Z\">>" ;
+    bpm:sampleMinElixir "\"2026-01-01T00:00:00Z\"" ;
+    bpm:sampleErlang "<<\"2026-08-29T12:00:00Z\">>" ;
+    bpm:sampleErlangEncoded "<<\"2026-08-29T12:00:00Z\">>" ;
+    bpm:sampleElixir "\"2026-08-29T12:00:00Z\"" ;
+    bpm:sampleElixirEncoded "\"2026-08-29T12:00:00Z\"" .
+
+bpm:FieldType_atom a bpm:FieldType ;
+    bpm:fieldTypeName "atom" ;
+    bpm:erlangTypeExpr "atom()" ;
+    bpm:elixirTypeExpr "atom()" ;
+    bpm:gleamTypeExpr "String" ;
+    bpm:jsonSchemaType "string" ;
+    bpm:jsonSchemaItemsType "" ;
+    bpm:isAtomCodec "true" ;
+    bpm:sampleMinErlang "some_atom" ;
+    bpm:sampleMinElixir ":some_atom" ;
+    bpm:sampleErlang "sample_atom" ;
+    bpm:sampleErlangEncoded "<<\"sample_atom\">>" ;
+    bpm:sampleElixir ":sample_atom" ;
+    bpm:sampleElixirEncoded "\"sample_atom\"" .
+
+bpm:FieldType_list_string a bpm:FieldType ;
+    bpm:fieldTypeName "list_string" ;
+    bpm:erlangTypeExpr "[binary()]" ;
+    bpm:elixirTypeExpr "[String.t()]" ;
+    bpm:gleamTypeExpr "List(String)" ;
+    bpm:jsonSchemaType "array" ;
+    bpm:jsonSchemaItemsType "string" ;
+    bpm:isAtomCodec "false" ;
+    bpm:sampleMinErlang "[<<\"a\">>]" ;
+    bpm:sampleMinElixir "[\"a\"]" ;
+    bpm:sampleErlang "[<<\"alpha\">>, <<\"beta\">>]" ;
+    bpm:sampleErlangEncoded "[<<\"alpha\">>, <<\"beta\">>]" ;
+    bpm:sampleElixir "[\"alpha\", \"beta\"]" ;
+    bpm:sampleElixirEncoded "[\"alpha\", \"beta\"]" .
+
+bpm:FieldType_map a bpm:FieldType ;
+    bpm:fieldTypeName "map" ;
+    bpm:erlangTypeExpr "map()" ;
+    bpm:elixirTypeExpr "map()" ;
+    bpm:gleamTypeExpr "dict.Dict(String, String)" ;
+    bpm:jsonSchemaType "object" ;
+    bpm:jsonSchemaItemsType "" ;
+    bpm:isAtomCodec "false" ;
+    bpm:sampleMinErlang "#{}" ;
+    bpm:sampleMinElixir "%{}" ;
+    bpm:sampleErlang "#{<<\"k\">> => <<\"v\">>}" ;
+    bpm:sampleErlangEncoded "#{<<\"k\">> => <<\"v\">>}" ;
+    bpm:sampleElixir "%{\"k\" => \"v\"}" ;
+    bpm:sampleElixirEncoded "%{\"k\" => \"v\"}" .
+
 # NOTE (2026-08-30): an earlier revision of this file added a
 # "post-LLM governed execution vocabulary" (bpm:ProcessContract,
 # bpm:TransitionSpec, bpm:governed_kernel and 8 sibling classes) plus a

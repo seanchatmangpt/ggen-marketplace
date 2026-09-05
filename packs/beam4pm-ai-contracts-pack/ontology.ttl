@@ -10,7 +10,11 @@
 # instances) are NOT declared here -- per this marketplace's established
 # contract, packs ship vocabulary only. The consuming project's own
 # ontology.ttl (e.g. beam4pm) supplies the instance data built from this
-# vocabulary. This file contains ZERO individuals.
+# vocabulary. This file contains zero DOMAIN instance data (no
+# aic:ContractType/aic:Field individuals) -- it does contain a small, fixed
+# set of aic:FieldType vocabulary individuals (added 2026-09-04, one per
+# admitted field-type value; see below), which is pack-owned closed
+# reference data, not consumer-supplied instance data.
 #
 # Scope boundary (deliberate, not an oversight): this vocabulary models data
 # shapes only. It carries no execution-authority, admission, or actuation
@@ -47,3 +51,165 @@ aic:fieldDoc a rdf:Property ; rdfs:domain aic:Field ; rdfs:range xsd:string .
 aic:fieldRequired a rdf:Property ; rdfs:domain aic:Field ; rdfs:range xsd:string ;
     rdfs:comment "Plain string literal true or false; templates compare it as a string." .
 aic:fieldOrder a rdf:Property ; rdfs:domain aic:Field ; rdfs:range xsd:integer .
+
+# --- Shared field-type vocabulary (2026-09-04) ------------------------
+#
+# Mirrors beam4pm-process-model-pack's identical fix under this pack's own
+# aic: namespace (self-contained per this marketplace's no-symlinks-under-
+# packs/ rule): externalizes the aic:fieldType -> per-language-
+# representation mapping as a single, SPARQL-joinable ontology fact
+# instead of the same 8-branch if/elif dispatch ladder repeated in every
+# consuming template here (measured before this change: 21 "field_type =="
+# comparisons across 9 template files in this pack, byte-for-byte the same
+# ladder as beam4pm-process-model-pack's, only the bpm:/aic: prefix
+# differing). Admitting a 9th field type now means adding ONE
+# aic:FieldType individual here; it touches ZERO template files and no
+# longer requires hand-duplicating gates/020_field_type_enum.rq's 8-value
+# string enum either (that gate now anti-joins against this vocabulary).
+#
+# The literal token __FIELD__ inside a sample*Expr value below is plain
+# string data (not Turtle or Tera syntax), substituted at render time via
+# Tera's `replace` filter with the field's own aic:fieldName -- only the
+# "string" type's samples use it (the only type whose hand-written
+# literals were field-name-parameterized).
+
+aic:FieldType a rdfs:Class ;
+    rdfs:label "Field Type" ;
+    rdfs:comment "One admitted value of the closed aic:fieldType vocabulary (string, integer, float, boolean, datetime, atom, list_string, map), carrying every per-language projection and sample-value fact so templates fetch a resolved expression by SPARQL JOIN instead of hardcoding a duplicated if/elif dispatch ladder." .
+
+aic:fieldTypeName a rdf:Property ; rdfs:domain aic:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "Matches an aic:Field's aic:fieldType literal value exactly." .
+aic:erlangTypeExpr a rdf:Property ; rdfs:domain aic:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "Erlang typespec expression, e.g. binary()." .
+aic:elixirTypeExpr a rdf:Property ; rdfs:domain aic:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "Elixir @type expression, e.g. String.t()." .
+aic:jsonSchemaType a rdf:Property ; rdfs:domain aic:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "JSON Schema draft-07 \"type\" value." .
+aic:jsonSchemaItemsType a rdf:Property ; rdfs:domain aic:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "Empty string unless jsonSchemaType is array, in which case the array's \"items\".\"type\" value." .
+aic:isAtomCodec a rdf:Property ; rdfs:domain aic:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "Plain string literal true or false (same convention as aic:fieldRequired): whether beam4pm_ai_contracts_codec/BeamPM.AiContracts.Codec must atom_to_binary/binary_to_atom-convert this type's values." .
+aic:sampleMinErlang a rdf:Property ; rdfs:domain aic:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "Minimal fixed Erlang sample literal used by beam4pm_ai_contracts_tests.erl (constructor-only tests, not codec)." .
+aic:sampleMinElixir a rdf:Property ; rdfs:domain aic:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "Minimal fixed Elixir sample literal used by beam4pm_ai_contracts_test.exs (constructor-only tests, not codec)." .
+aic:sampleErlang a rdf:Property ; rdfs:domain aic:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "Codec-roundtrip Erlang sample INPUT literal (beam4pm_ai_contracts_codec_tests.erl). May contain __FIELD__." .
+aic:sampleErlangEncoded a rdf:Property ; rdfs:domain aic:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "The sampleErlang value after round-tripping through beam4pm_ai_contracts_codec:to_map/1 -- differs from sampleErlang only for atom (binary-ified). May contain __FIELD__." .
+aic:sampleElixir a rdf:Property ; rdfs:domain aic:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "Codec-roundtrip Elixir sample INPUT literal (beam4pm_ai_contracts_codec_test.exs). May contain __FIELD__." .
+aic:sampleElixirEncoded a rdf:Property ; rdfs:domain aic:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "The sampleElixir value after round-tripping through BeamPM.AiContracts.Codec.to_map/1 -- differs from sampleElixir only for atom (string-ified). May contain __FIELD__." .
+
+aic:FieldType_string a aic:FieldType ;
+    aic:fieldTypeName "string" ;
+    aic:erlangTypeExpr "binary()" ;
+    aic:elixirTypeExpr "String.t()" ;
+    aic:jsonSchemaType "string" ;
+    aic:jsonSchemaItemsType "" ;
+    aic:isAtomCodec "false" ;
+    aic:sampleMinErlang "<<\"x\">>" ;
+    aic:sampleMinElixir "\"x\"" ;
+    aic:sampleErlang "<<\"sample___FIELD__\">>" ;
+    aic:sampleErlangEncoded "<<\"sample___FIELD__\">>" ;
+    aic:sampleElixir "\"sample___FIELD__\"" ;
+    aic:sampleElixirEncoded "\"sample___FIELD__\"" .
+
+aic:FieldType_integer a aic:FieldType ;
+    aic:fieldTypeName "integer" ;
+    aic:erlangTypeExpr "integer()" ;
+    aic:elixirTypeExpr "integer()" ;
+    aic:jsonSchemaType "integer" ;
+    aic:jsonSchemaItemsType "" ;
+    aic:isAtomCodec "false" ;
+    aic:sampleMinErlang "1" ;
+    aic:sampleMinElixir "1" ;
+    aic:sampleErlang "42" ;
+    aic:sampleErlangEncoded "42" ;
+    aic:sampleElixir "42" ;
+    aic:sampleElixirEncoded "42" .
+
+aic:FieldType_float a aic:FieldType ;
+    aic:fieldTypeName "float" ;
+    aic:erlangTypeExpr "float()" ;
+    aic:elixirTypeExpr "float()" ;
+    aic:jsonSchemaType "number" ;
+    aic:jsonSchemaItemsType "" ;
+    aic:isAtomCodec "false" ;
+    aic:sampleMinErlang "1.0" ;
+    aic:sampleMinElixir "1.0" ;
+    aic:sampleErlang "3.5" ;
+    aic:sampleErlangEncoded "3.5" ;
+    aic:sampleElixir "3.5" ;
+    aic:sampleElixirEncoded "3.5" .
+
+aic:FieldType_boolean a aic:FieldType ;
+    aic:fieldTypeName "boolean" ;
+    aic:erlangTypeExpr "boolean()" ;
+    aic:elixirTypeExpr "boolean()" ;
+    aic:jsonSchemaType "boolean" ;
+    aic:jsonSchemaItemsType "" ;
+    aic:isAtomCodec "false" ;
+    aic:sampleMinErlang "true" ;
+    aic:sampleMinElixir "true" ;
+    aic:sampleErlang "true" ;
+    aic:sampleErlangEncoded "true" ;
+    aic:sampleElixir "true" ;
+    aic:sampleElixirEncoded "true" .
+
+aic:FieldType_datetime a aic:FieldType ;
+    aic:fieldTypeName "datetime" ;
+    aic:erlangTypeExpr "binary()" ;
+    aic:elixirTypeExpr "String.t()" ;
+    aic:jsonSchemaType "string" ;
+    aic:jsonSchemaItemsType "" ;
+    aic:isAtomCodec "false" ;
+    aic:sampleMinErlang "<<\"2026-01-01T00:00:00Z\">>" ;
+    aic:sampleMinElixir "\"2026-01-01T00:00:00Z\"" ;
+    aic:sampleErlang "<<\"2026-08-29T12:00:00Z\">>" ;
+    aic:sampleErlangEncoded "<<\"2026-08-29T12:00:00Z\">>" ;
+    aic:sampleElixir "\"2026-08-29T12:00:00Z\"" ;
+    aic:sampleElixirEncoded "\"2026-08-29T12:00:00Z\"" .
+
+aic:FieldType_atom a aic:FieldType ;
+    aic:fieldTypeName "atom" ;
+    aic:erlangTypeExpr "atom()" ;
+    aic:elixirTypeExpr "atom()" ;
+    aic:jsonSchemaType "string" ;
+    aic:jsonSchemaItemsType "" ;
+    aic:isAtomCodec "true" ;
+    aic:sampleMinErlang "some_atom" ;
+    aic:sampleMinElixir ":some_atom" ;
+    aic:sampleErlang "sample_atom" ;
+    aic:sampleErlangEncoded "<<\"sample_atom\">>" ;
+    aic:sampleElixir ":sample_atom" ;
+    aic:sampleElixirEncoded "\"sample_atom\"" .
+
+aic:FieldType_list_string a aic:FieldType ;
+    aic:fieldTypeName "list_string" ;
+    aic:erlangTypeExpr "[binary()]" ;
+    aic:elixirTypeExpr "[String.t()]" ;
+    aic:jsonSchemaType "array" ;
+    aic:jsonSchemaItemsType "string" ;
+    aic:isAtomCodec "false" ;
+    aic:sampleMinErlang "[<<\"a\">>]" ;
+    aic:sampleMinElixir "[\"a\"]" ;
+    aic:sampleErlang "[<<\"alpha\">>, <<\"beta\">>]" ;
+    aic:sampleErlangEncoded "[<<\"alpha\">>, <<\"beta\">>]" ;
+    aic:sampleElixir "[\"alpha\", \"beta\"]" ;
+    aic:sampleElixirEncoded "[\"alpha\", \"beta\"]" .
+
+aic:FieldType_map a aic:FieldType ;
+    aic:fieldTypeName "map" ;
+    aic:erlangTypeExpr "map()" ;
+    aic:elixirTypeExpr "map()" ;
+    aic:jsonSchemaType "object" ;
+    aic:jsonSchemaItemsType "" ;
+    aic:isAtomCodec "false" ;
+    aic:sampleMinErlang "#{}" ;
+    aic:sampleMinElixir "%{}" ;
+    aic:sampleErlang "#{<<\"k\">> => <<\"v\">>}" ;
+    aic:sampleErlangEncoded "#{<<\"k\">> => <<\"v\">>}" ;
+    aic:sampleElixir "%{\"k\" => \"v\"}" ;
+    aic:sampleElixirEncoded "%{\"k\" => \"v\"}" .
