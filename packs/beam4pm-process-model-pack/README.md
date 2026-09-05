@@ -94,8 +94,19 @@ each run a `records` + `fields` SPARQL query pair over the merged graph and rend
 a vendored pack, and refuses (`FM-WRITE-002`) any `to:` value containing a `../`
 traversal component.
 
-Field types map from the closed `bpm:fieldType` enum to Erlang and Elixir types
-identically in both languages' templates:
+Field types map from the closed `bpm:fieldType` enum to every per-language
+representation via a shared `bpm:FieldType` vocabulary in `ontology.ttl` -- one
+`bpm:FieldType_<name>` individual per admitted value, carrying
+`bpm:erlangTypeExpr`/`bpm:elixirTypeExpr`/`bpm:gleamTypeExpr`/`bpm:jsonSchemaType`/
+`bpm:jsonSchemaItemsType`/`bpm:isAtomCodec` plus fixed and codec/roundtrip sample
+literals (`bpm:sampleMinErlang`/`bpm:sampleMinElixir`/`bpm:sampleErlang`/
+`bpm:sampleErlangEncoded`/`bpm:sampleElixir`/`bpm:sampleElixirEncoded`). Every
+affected template's own `fields` SPARQL query JOINs against this vocabulary (via
+`?f bpm:fieldType ?field_type` matched against a `bpm:FieldType`'s
+`bpm:fieldTypeName`) and prints the resolved column directly -- there is no
+per-template if/elif dispatch on `field_type` left to keep in sync. Admitting a
+9th field type means adding one `bpm:FieldType_<name>` individual to this file;
+it touches no template and no gate:
 
 | `bpm:fieldType` | Erlang       | Elixir                                    |
 |-----------------|--------------|--------------------------------------------|
@@ -125,10 +136,12 @@ typed boolean literal.
 - `templates/beam4pm_types_reference.md.tmpl` -- the generated Markdown reference doc.
 - `gates/010_required.rq` -- refuses any `bpm:RecordType`/`bpm:Field` missing a
   required property.
-- `gates/020_field_type_enum.rq` -- refuses any `bpm:fieldType` outside the closed
-  8-value enum.
+- `gates/020_field_type_enum.rq` -- refuses any `bpm:fieldType` that does not match
+  an admitted `bpm:FieldType` individual's `bpm:fieldTypeName` (anti-join against
+  `ontology.ttl`'s shared vocabulary, not a hardcoded string enum).
 - `ontology.ttl` -- the `bpm:` vocabulary itself (`bpm:RecordType`, `bpm:Field`, and
-  their properties); no record-type individuals.
+  their properties, plus the closed `bpm:FieldType` vocabulary the table above is
+  generated from); no record-type individuals.
 
 ## Composing this pack
 

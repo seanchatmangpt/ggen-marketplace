@@ -1,7 +1,13 @@
-# MESSAGE: every aic:Field's aic:fieldType must be one of the 8 admitted enum values; any row is a refusal.
+# MESSAGE: every aic:Field's aic:fieldType must name an admitted aic:FieldType
+# individual (see ontology.ttl's shared field-type vocabulary); any row is a
+# refusal. Was a hardcoded 8-value string enum duplicated verbatim across
+# every consuming pack's own copy of this gate; now a real anti-join against
+# the same aic:FieldType vocabulary every template's `fields` query already
+# JOINs against, so admitting a 9th field type touches only that one
+# ontology.ttl block -- never this file.
 PREFIX aic: <https://ggen.dev/ontology/beam4pm-ai#>
 SELECT ?subject ?value WHERE {
   ?subject a aic:Field ; aic:fieldType ?value .
-  FILTER(STR(?value) NOT IN ("string", "integer", "float", "boolean", "datetime", "atom", "list_string", "map"))
+  FILTER NOT EXISTS { ?ft a aic:FieldType ; aic:fieldTypeName ?value . }
 }
 ORDER BY ?subject

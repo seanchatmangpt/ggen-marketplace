@@ -64,15 +64,18 @@ under a sibling name for a sibling domain.
 | `aic:contractDoc` | `ContractType` | `xsd:string` | Human-readable description of the contract type. |
 | `aic:hasField` | `ContractType` | `aic:Field` | Links a contract type to one of its fields. |
 | `aic:fieldName` | `Field` | `xsd:string` | The field's snake_case name. |
-| `aic:fieldType` | `Field` | `xsd:string` | Closed 8-value enum: `string`, `integer`, `float`, `boolean`, `datetime`, `atom`, `list_string`, `map`. |
+| `aic:fieldType` | `Field` | `xsd:string` | Closed 8-value enum (`string`, `integer`, `float`, `boolean`, `datetime`, `atom`, `list_string`, `map`), admitted by a matching `aic:FieldType_<name>` individual's `aic:fieldTypeName` -- see the shared field-type vocabulary in this same file. |
 | `aic:fieldDoc` | `Field` | `xsd:string` | Human-readable field description. |
 | `aic:fieldRequired` | `Field` | `xsd:string` | Plain string literal `"true"` or `"false"` (templates compare it as a string, not `xsd:boolean`). |
 | `aic:fieldOrder` | `Field` | `xsd:integer` | Bare-integer field position (never `^^xsd:integer`-suffixed in instance data). |
 
-This file (`ontology.ttl`) contains **zero individuals** — per this
-marketplace's established pack contract, packs ship vocabulary (and
-templates) only. Consumer projects (e.g. beam4pm) supply the admitted
-`aic:ContractType` instance data in their own `ontology.ttl`.
+This file (`ontology.ttl`) contains **zero domain instance data** (no
+`aic:ContractType`/`aic:Field` individuals) — per this marketplace's
+established pack contract, packs ship vocabulary (and templates) only.
+Consumer projects (e.g. beam4pm) supply the admitted `aic:ContractType`
+instance data in their own `ontology.ttl`. It does contain a small, fixed
+set of `aic:FieldType` vocabulary individuals (see below) -- pack-owned
+closed reference data, not consumer-supplied instance data.
 
 ## Gates
 
@@ -86,8 +89,9 @@ pack's `gates/*.rq` files itself (`crates/ggen-engine/src/sync.rs`):
   `contractName`/`contractDoc`/`hasField`; every `aic:Field` must carry
   `fieldName`/`fieldType`/`fieldDoc`/`fieldRequired`/`fieldOrder`. Any missing
   property on any admitted subject is a refusal row.
-- **`gates/020_field_type_enum.rq`** — every `aic:Field`'s `fieldType` must be
-  one of the closed 8-value enum. Any other value is a refusal row.
+- **`gates/020_field_type_enum.rq`** — every `aic:Field`'s `fieldType` must name
+  an admitted `aic:FieldType` individual (anti-join against this file's shared
+  vocabulary, not a hardcoded string enum). Any other value is a refusal row.
 
 A violation of either gate refuses the sync outright with a typed
 `[FM-PACK-013]` error naming the offending gate, subject, and missing/invalid
@@ -147,13 +151,16 @@ was beam4pm's actual, unmodified `ontology.ttl` plus a hand-written 2-field
    Exit code 1.
 
 3. **Falsifier 2 (gate 020) — REFUSED.** Reverted falsifier 1, then set
-   `aic:fieldType "banana"` on the same field. Real command output:
+   `aic:fieldType "banana"` on the same field. Real command output (re-verified
+   2026-09-04 against the post-v0.1.1 vocabulary-anti-join gate -- the message
+   text changed from the pre-v0.1.1 hardcoded 8-value-enum wording since the
+   underlying mechanism changed; the refusal itself did not):
 
    ```
    ERROR: CLI execution failed: Command execution failed: validation error:
    [FM-PACK-013] pack `beam4pm-ai-contracts` gate `020_field_type_enum.rq`
    refused the sync against the union graph: every aic:Field's aic:fieldType
-   must be one of the 8 admitted enum values; any row is a refusal.: SELECT
+   must name an admitted aic:FieldType: SELECT
    returned 1 row(s); first row: { ?subject =
    https://ggen.dev/ontology/beam4pm-ai#smoke_test_count_f, ?value = banana }.
    ```
