@@ -1,0 +1,411 @@
+<%
+# ggen_igniter EEx template -> lib/beam4pm_ash_roundtrip.ex
+#
+# GATE M5, third direction ("ash-verifies-wire"). The consumer's
+# scripts/roundtrip_check.sh already proves wire identity Erlang<->Elixir:
+# Erlang writes <record>.<variant>.erl.json for every admitted bpm:RecordType
+# in a :full and a :minimal variant, Elixir decodes and verifies each against
+# its own independently constructed BeamPM.Roundtrip.sample/2, then Erlang
+# verifies Elixir's. Ash is the fourth sibling projection (VISION-2030 section
+# 23, Polyglot BEAM) and until 2026-09-05 was absent from that proof: its
+# identity with the other legs was asserted only per resource by the generated
+# ExUnit tests (beam4pm_ash_resource_test.exs.eex), which render ONE full
+# params map straight from bpm:sampleElixir and never pass through the codec
+# or the minimal variant. This module closes that: for every record x variant
+# it takes the SAME wire fixture the Erlang/Elixir legs exchange, decodes it
+# through BeamPM.Codec (the cross-engine path), creates the Ash resource on
+# the real Ash.DataLayer.Ets, reads it back BY PRIMARY KEY (never read-all --
+# both variants of a record land in the same table in one VM), and asserts
+# identity field by field against the independent sample.
+#
+# Identity relation, stated precisely because it is NOT the other legs' one:
+# BeamPM.Codec.to_map/1 does not apply to an Ash struct (to_known_map renders
+# atom fields as strings; Ash reads atoms back as atoms), so the Ash leg
+# compares the read-back record's public attributes field by field:
+#   - every field whose bpm:ashTypeExpr is in the :utc_datetime family:
+#     DateTime.compare(ash_read, DateTime.from_iso8601(wire)) == :eq -- the
+#     relation the generated per-resource tests and
+#     docs/jira/v26.8.29/16-gate-closure-m0-m6.md already state (Ash
+#     normalizes the ISO 8601 string the other legs carry verbatim into a UTC
+#     %DateTime{} with microsecond {n, 6}; byte/struct identity would fail on
+#     equal instants). nil == nil is identity for an optional datetime absent
+#     from the :minimal wire (DateTime.from_iso8601(nil) would raise).
+#   - every other field: plain `==` against the sample's value AND against
+#     the codec-decoded struct's value (BeamPM.Codec.decode re-atomizes atom
+#     fields with String.to_atom/1, so atoms, floats, integers, booleans,
+#     string lists and maps compare with `==` directly).
+#   - the synthetic `uuid_primary_key :id` every generated resource carries
+#     has no wire counterpart; it is disclosed as the ONLY Ash-only public
+#     attribute and that disclosure is asserted per record (a second Ash-only
+#     attribute is a named failure, not a silent skip).
+#
+# Scope disclosure (Known limitations, not a claim): Ash's :string type
+# defaults to constraints trim?: true / allow_empty?: false
+# (deps/ash/lib/ash/type/string.ex), so the Ash leg is NOT identity-preserving
+# for whitespace-padded or empty strings. The shared fixtures ("sample_<field>")
+# never exercise that class, so -- exactly like the Erlang/Elixir legs -- this
+# gate proves identity for the fixture class only.
+#
+# Bindings (from `mix ggen_igniter.sync --query records=... --query
+# ash_fields=...`, single output, no --for-each):
+#   records    - list of string-keyed maps: "record_name", "record_doc"
+#   ash_fields - the full ash_fields.rq result (all records' fields) with the
+#     OPTIONAL-joined ?ash_type_expr; run against the MERGED consumer+pack
+#     graph (scripts/igniter_sync.sh step 0b). An unbound ?ash_type_expr is
+#     refused below BY RECORD AND FIELD NAME, same as the sibling Ash
+#     templates -- never a silently mis-typed comparison.
+#
+# Engine-shape note: both engines return PLAIN lexical values; norm/1 is the
+# historical guard for oxigraph's former raw N-Triples-style shape, kept on
+# the legacy columns (a byte-preserving no-op there) and NOT applied to
+# ?ash_type_expr (lex/1). Row order is never trusted; everything is re-sorted.
+lex = fn
+  nil -> nil
+  v -> to_string(v)
+end
+
+norm = fn
+  nil ->
+    nil
+
+  v when is_binary(v) ->
+    cond do
+      String.starts_with?(v, "<") and String.ends_with?(v, ">") ->
+        String.slice(v, 1..-2//1)
+
+      String.starts_with?(v, "\"") ->
+        case Regex.run(~r/\A"(.*)"(?:\^\^<[^>]*>|@[A-Za-z0-9\-]+)?\z/s, v) do
+          [_, lex] -> lex
+          nil -> v
+        end
+
+      true ->
+        v
+    end
+
+  v ->
+    to_string(v)
+end
+
+to_int = fn v -> v |> norm.() |> String.to_integer() end
+
+camel = fn name ->
+  name |> String.split("_") |> Enum.map(&String.capitalize/1) |> Enum.join()
+end
+
+rec_names =
+  records
+  |> Enum.map(fn r -> norm.(r["record_name"]) end)
+  |> Enum.sort()
+
+flds =
+  ash_fields
+  |> Enum.map(fn f ->
+    %{
+      record: norm.(f["record_name"]),
+      name: norm.(f["field_name"]),
+      type: norm.(f["field_type"]),
+      ash_type: lex.(f["ash_type_expr"]),
+      order: to_int.(f["field_order"])
+    }
+  end)
+  |> Enum.sort_by(&{&1.record, &1.order})
+
+case Enum.filter(flds, fn f -> f.ash_type in [nil, ""] end) do
+  [] ->
+    :ok
+
+  missing ->
+    raise ArgumentError,
+          "beam4pm_ash_roundtrip.ex.eex: no bpm:ashTypeExpr for " <>
+            Enum.map_join(missing, ", ", fn f ->
+              "#{f.record}.#{f.name} (bpm:fieldType \"#{f.type}\")"
+            end) <>
+            " -- admit the type in the pack's bpm:FieldType vocabulary (ontology.ttl) and " <>
+            "run ash_fields.rq against the merged consumer+pack graph (scripts/igniter_sync.sh)"
+end
+
+normalizes_datetime? = fn f -> String.starts_with?(f.ash_type, ":utc_datetime") end
+
+datetime_by_record =
+  flds
+  |> Enum.filter(normalizes_datetime?)
+  |> Enum.group_by(& &1.record, & &1.name)
+  |> Enum.sort()
+
+resources_block =
+  Enum.map_join(rec_names, ",\n", fn name ->
+    "    #{name}: BeamPM.Ash.Resources.#{camel.(name)}"
+  end)
+
+datetime_block =
+  Enum.map_join(datetime_by_record, ",\n", fn {rec, names} ->
+    "    #{rec}: [" <> Enum.map_join(names, ", ", &":#{&1}") <> "]"
+  end)
+
+record_names_block = Enum.map_join(rec_names, ",\n", fn name -> "    :#{name}" end)
+
+datetime_records = length(datetime_by_record)
+datetime_fields_total = datetime_by_record |> Enum.map(fn {_, names} -> length(names) end) |> Enum.sum()
+
+rendered =
+  Enum.join(
+    [
+      "# GENERATED by ggen_igniter from the admitted bpm:RecordType graph. Do not edit.",
+      "#",
+      "# GATE M5, third direction: the Ash projection verifies the SAME wire",
+      "# fixtures the Erlang and Elixir legs exchange (scripts/roundtrip_check.sh).",
+      "# Every admitted record type x {:full, :minimal} fixture is decoded through",
+      "# BeamPM.Codec, created on the real Ash.DataLayer.Ets resource, read back",
+      "# by primary key, and compared field by field against BeamPM.Roundtrip's",
+      "# independently constructed sample -- see the identity relation on",
+      "# verify_one/3. #{length(rec_names)} record types; #{datetime_records} carry",
+      "# #{datetime_fields_total} datetime attribute(s) compared with DateTime.compare/2.",
+      "",
+      "defmodule BeamPM.AshRoundtrip do",
+      "  @moduledoc \"\"\"",
+      "  Ash leg of the GATE M5 cross-language roundtrip.",
+      "",
+      "  `verify_samples/2` reads every `<record>.<variant>.<suffix>.json` wire",
+      "  fixture written by the Erlang (`beam4pm_roundtrip:write_samples/1`, suffix",
+      "  `\"erl\"`) or Elixir (`BeamPM.Roundtrip.write_samples/1`, suffix `\"ex\"`) leg,",
+      "  decodes it with `BeamPM.Codec.decode/2`, creates the matching",
+      "  `BeamPM.Ash.Resources.*` record on the ETS data layer, reads it back by",
+      "  primary key and asserts identity with `BeamPM.Roundtrip.sample/2`:",
+      "",
+      "    * datetime attributes (`bpm:ashTypeExpr` in the `:utc_datetime` family):",
+      "      `DateTime.compare(ash_read, DateTime.from_iso8601(wire)) == :eq` --",
+      "      Ash normalizes the ISO 8601 wire string into a UTC `%DateTime{}` with",
+      "      microsecond `{n, 6}`, so byte/struct identity is the wrong relation",
+      "      (a no-fraction value parses `{0, 0}` but reads back `{0, 6}`). `nil`",
+      "      is identity with `nil` for an optional datetime absent from the",
+      "      `:minimal` wire.",
+      "    * every other attribute: `==` against both the sample and the decoded",
+      "      struct (atoms stay atoms through `BeamPM.Codec.decode/2`).",
+      "    * the synthetic `uuid_primary_key :id` is the only Ash-only public",
+      "      attribute; `ash_only_attributes/0` discloses it and `verify_one/3`",
+      "      refuses any resource whose Ash-only set differs from it.",
+      "",
+      "  Scope: identity is proven for the shared fixture class only. Ash's",
+      "  `:string` defaults (`trim?: true`, `allow_empty?: false`) mean",
+      "  whitespace-padded or empty strings would NOT round-trip identically; no",
+      "  fixture exercises that class, on any leg.",
+      "  \"\"\"",
+      "",
+      "  @record_names [",
+      record_names_block,
+      "  ]",
+      "",
+      "  @variants [:full, :minimal]",
+      "",
+      "  # record name => generated Ash resource module",
+      "  @resources %{",
+      resources_block,
+      "  }",
+      "",
+      "  # record name => attributes whose bpm:ashTypeExpr is in the :utc_datetime",
+      "  # family (compared with DateTime.compare/2); a record absent here has none.",
+      "  @datetime_fields %{",
+      datetime_block,
+      "  }",
+      "",
+      "  # Public attributes every generated resource carries that have no wire",
+      "  # counterpart -- disclosed, and asserted to be exactly this set per record.",
+      "  @ash_only_attributes [:id]",
+      "",
+      "  @spec record_names() :: [atom()]",
+      "  def record_names, do: @record_names",
+      "",
+      "  @spec variants() :: [:full | :minimal]",
+      "  def variants, do: @variants",
+      "",
+      "  @spec resource(atom()) :: module()",
+      "  def resource(record_name), do: Map.fetch!(@resources, record_name)",
+      "",
+      "  @spec datetime_fields(atom()) :: [atom()]",
+      "  def datetime_fields(record_name), do: Map.get(@datetime_fields, record_name, [])",
+      "",
+      "  @spec ash_only_attributes() :: [atom()]",
+      "  def ash_only_attributes, do: @ash_only_attributes",
+      "",
+      "  @doc \"\"\"",
+      "  Verify every record x variant fixture `dir/<record>.<variant>.<suffix>.json`",
+      "  through the Ash projection. Returns `{pass_count, failure_messages}`; each",
+      "  failure names the record, the variant and the field or step that diverged.",
+      "  \"\"\"",
+      "  @spec verify_samples(Path.t(), String.t()) :: {non_neg_integer(), [String.t()]}",
+      "  def verify_samples(dir, suffix) do",
+      "    Enum.reduce(pairs(), {0, []}, fn {name, variant}, {pass, failures} ->",
+      "      label = \"\#{name}.\#{variant}\"",
+      "      path = Path.join(dir, \"\#{name}.\#{variant}.\#{suffix}.json\")",
+      "",
+      "      case verify_one(name, variant, path) do",
+      "        :ok -> {pass + 1, failures}",
+      "        {:error, reasons} -> {pass, failures ++ Enum.map(reasons, &\"\#{label}: \#{&1}\")}",
+      "      end",
+      "    end)",
+      "  end",
+      "",
+      "  @doc \"\"\"",
+      "  Verify ONE wire fixture at `path` for `record_name`/`variant`: decode ->",
+      "  `Ash.create` -> `Ash.get` by primary key -> field-by-field identity against",
+      "  `BeamPM.Roundtrip.sample(record_name, variant)`. Returns `:ok` or",
+      "  `{:error, reasons}` where every reason names the diverging field or step.",
+      "  \"\"\"",
+      "  @spec verify_one(atom(), :full | :minimal, Path.t()) :: :ok | {:error, [String.t()]}",
+      "  def verify_one(record_name, variant, path) do",
+      "    resource = resource(record_name)",
+      "    {:ok, expected} = BeamPM.Roundtrip.sample(record_name, variant)",
+      "",
+      "    with {:ok, bin} <- read_fixture(path),",
+      "         {:ok, decoded} <- decode(record_name, bin),",
+      "         {:ok, created} <- create(resource, decoded),",
+      "         {:ok, read_back} <- get_by_primary_key(resource, created.id) do",
+      "      compare(record_name, resource, expected, decoded, read_back)",
+      "    end",
+      "  end",
+      "",
+      "  defp pairs do",
+      "    for name <- @record_names, variant <- @variants, do: {name, variant}",
+      "  end",
+      "",
+      "  defp read_fixture(path) do",
+      "    case File.read(path) do",
+      "      {:ok, bin} -> {:ok, bin}",
+      "      {:error, reason} -> {:error, [\"read error \#{inspect(reason)}\"]}",
+      "    end",
+      "  end",
+      "",
+      "  defp decode(record_name, bin) do",
+      "    case BeamPM.Codec.decode(record_name, bin) do",
+      "      {:ok, decoded} -> {:ok, decoded}",
+      "      {:error, reason} -> {:error, [\"decode error \#{inspect(reason)}\"]}",
+      "    end",
+      "  end",
+      "",
+      "  # The decoded struct's fields (nil for an optional field absent from the",
+      "  # minimal wire) are the create params -- default_accept :* on every",
+      "  # generated resource admits each public attribute by name.",
+      "  defp create(resource, decoded) do",
+      "    params = Map.from_struct(decoded)",
+      "",
+      "    resource",
+      "    |> Ash.Changeset.for_create(:create, params)",
+      "    |> Ash.create()",
+      "    |> case do",
+      "      {:ok, created} -> {:ok, created}",
+      "      {:error, error} -> {:error, [\"Ash.create error \#{Exception.message(error)}\"]}",
+      "    end",
+      "  end",
+      "",
+      "  # Read back BY PRIMARY KEY: both variants of a record live in the same ETS",
+      "  # table for the life of the VM, so a read-all would never match one row.",
+      "  defp get_by_primary_key(resource, id) do",
+      "    case Ash.get(resource, id) do",
+      "      {:ok, nil} -> {:error, [\"Ash.get returned nil for id \#{inspect(id)}\"]}",
+      "      {:ok, read_back} -> {:ok, read_back}",
+      "      {:error, error} -> {:error, [\"Ash.get error \#{Exception.message(error)}\"]}",
+      "    end",
+      "  end",
+      "",
+      "  defp compare(record_name, resource, expected, decoded, read_back) do",
+      "    wire_fields = expected |> Map.from_struct() |> Map.keys() |> Enum.sort()",
+      "",
+      "    public =",
+      "      resource",
+      "      |> Ash.Resource.Info.public_attributes()",
+      "      |> Enum.map(& &1.name)",
+      "      |> Enum.sort()",
+      "",
+      "    datetime = datetime_fields(record_name)",
+      "",
+      "    field_reasons =",
+      "      Enum.flat_map(wire_fields, fn field ->",
+      "        exp = Map.fetch!(expected, field)",
+      "        dec = Map.fetch!(decoded, field)",
+      "        ash = Map.fetch!(read_back, field)",
+      "",
+      "        if field in datetime do",
+      "          compare_datetime(field, exp, dec, ash)",
+      "        else",
+      "          compare_value(field, exp, dec, ash)",
+      "        end",
+      "      end)",
+      "",
+      "    ash_only = public -- wire_fields",
+      "",
+      "    disclosure_reasons =",
+      "      if Enum.sort(ash_only) == Enum.sort(@ash_only_attributes) do",
+      "        []",
+      "      else",
+      "        [",
+      "          \"Ash-only public attributes \#{inspect(ash_only)} differ from the disclosed \" <>",
+      "            inspect(@ash_only_attributes)",
+      "        ]",
+      "      end",
+      "",
+      "    case field_reasons ++ disclosure_reasons do",
+      "      [] -> :ok",
+      "      reasons -> {:error, reasons}",
+      "    end",
+      "  end",
+      "",
+      "  # Optional datetime absent from the minimal wire: nil on every side is identity.",
+      "  defp compare_datetime(_field, nil, nil, nil), do: []",
+      "",
+      "  defp compare_datetime(field, exp, dec, ash) when is_binary(exp) do",
+      "    codec_reasons =",
+      "      if dec == exp do",
+      "        []",
+      "      else",
+      "        [\"field \#{field}: decoded \#{inspect(dec)} != sample \#{inspect(exp)}\"]",
+      "      end",
+      "",
+      "    ash_reasons =",
+      "      case DateTime.from_iso8601(exp) do",
+      "        {:ok, parsed, _offset} ->",
+      "          if is_struct(ash, DateTime) and DateTime.compare(ash, parsed) == :eq do",
+      "            []",
+      "          else",
+      "            [",
+      "              \"field \#{field}: Ash read back \#{inspect(ash)}, wire \#{inspect(exp)} \" <>",
+      "                \"(DateTime.compare/2 != :eq)\"",
+      "            ]",
+      "          end",
+      "",
+      "        {:error, reason} ->",
+      "          [\"field \#{field}: sample datetime \#{inspect(exp)} unparsable: \#{inspect(reason)}\"]",
+      "      end",
+      "",
+      "    codec_reasons ++ ash_reasons",
+      "  end",
+      "",
+      "  defp compare_datetime(field, exp, dec, ash) do",
+      "    [",
+      "      \"field \#{field}: datetime presence differs -- sample \#{inspect(exp)}, decoded \" <>",
+      "        \"\#{inspect(dec)}, Ash \#{inspect(ash)}\"",
+      "    ]",
+      "  end",
+      "",
+      "  defp compare_value(field, exp, dec, ash) do",
+      "    codec_reasons =",
+      "      if dec == exp do",
+      "        []",
+      "      else",
+      "        [\"field \#{field}: decoded \#{inspect(dec)} != sample \#{inspect(exp)}\"]",
+      "      end",
+      "",
+      "    ash_reasons =",
+      "      if ash == exp do",
+      "        []",
+      "      else",
+      "        [\"field \#{field}: Ash read back \#{inspect(ash)} != sample \#{inspect(exp)}\"]",
+      "      end",
+      "",
+      "    codec_reasons ++ ash_reasons",
+      "  end",
+      "end"
+    ],
+    "\n"
+  ) <> "\n"
+%><%= rendered %>

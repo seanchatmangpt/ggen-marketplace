@@ -177,6 +177,22 @@ typed boolean literal.
   `Ash.Resource` + one Chicago ExUnit round-trip test per admitted record type),
   rendered by `mix ggen_igniter.sync --for-each records` against the merged
   consumer+pack graph.
+- `igniter/templates/beam4pm_ash_roundtrip.ex.eex`,
+  `igniter/templates/beam4pm_ash_roundtrip_test.exs.eex` -- the Ash leg of GATE M5
+  (single output each, `records` + `ash_fields.rq` on the merged graph). The module
+  takes the same `<record>.<variant>.<suffix>.json` wire fixtures the Erlang/Elixir
+  roundtrip legs exchange, decodes each through `BeamPM.Codec`, creates the generated
+  `Ash.Resource` on the real ETS data layer, reads it back by primary key and compares
+  field by field against `BeamPM.Roundtrip.sample/2`: `:utc_datetime` attributes via
+  `DateTime.compare(ash_read, DateTime.from_iso8601(wire)) == :eq` (`nil == nil` for an
+  optional datetime absent from the minimal wire), everything else via `==`, and the
+  synthetic `uuid_primary_key :id` asserted to be the only Ash-only attribute. The test
+  is the same-language sweep plus two named falsifiers (a no-fraction datetime and a
+  mutated string on the wire are each refused by record, variant and field); the
+  cross-language direction is the consumer's `scripts/roundtrip_check.sh` third block.
+  Scope: identity for the shared fixture class only -- Ash's `:string` defaults
+  (`trim?: true`, `allow_empty?: false`) would not preserve padded/empty strings, and
+  no leg's fixtures exercise that class.
 - `templates/beam4pm_pddl.domain.pddl.tmpl`, `templates/beam4pm_pddl.problem.pddl.tmpl`
   -- the formal-projection leg (VISION-2030 section 10, `canonical graph -> formal
   projection -> planner result`). Per-row fan-out over every consumer-admitted
