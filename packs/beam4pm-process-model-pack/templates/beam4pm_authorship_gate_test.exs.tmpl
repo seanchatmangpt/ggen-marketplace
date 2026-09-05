@@ -88,6 +88,20 @@ defmodule BeamPM.AuthorshipGateTest do
     |> Enum.any?(&String.contains?(String.downcase(&1), String.downcase(@marker)))
   end
 
+  defp tracked?(path, cd \\ File.cwd!()) do
+    {_out, status} =
+      System.cmd("git", ["ls-files", "--error-unmatch", "--", path], cd: cd, stderr_to_stdout: true)
+
+    status == 0
+  end
+
+  # gate_m2_check.sh stashes its HAND_AUTHORED_DEPENDENT_TESTS out of test/
+  # while the igniter leg runs `mix test` -- i.e. while THIS file runs. An
+  # admitted path that is tracked in the index but absent from disk is that
+  # window (the gate reports it TRANSIENT_ABSENT); the real-tree assertions
+  # below tolerate exactly that case and nothing else.
+  defp transient_absent?(path), do: not File.exists?(path) and tracked?(path)
+
   defp fixture!(ctx_name) do
     dir =
       Path.join(
@@ -129,7 +143,14 @@ defmodule BeamPM.AuthorshipGateTest do
       assert out =~
                "#{@admitted_count} admitted (#{@debt_count} counted as manufacturing debt)"
 
-      assert out =~ "#{@admitted_count} unmarked files under roots, 0 findings"
+      {absent, present} = Enum.split_with(@admitted_paths, &transient_absent?/1)
+      assert out =~ "#{length(present)} unmarked files under roots, 0 findings"
+
+      for path <- absent do
+        assert out =~ "TRANSIENT_ABSENT: #{path}"
+      end
+
+      refute out =~ "REFUSED_"
     end
 
     test "the manufactured manifest carries the marker and lists exactly the admitted paths" do
@@ -154,14 +175,21 @@ defmodule BeamPM.AuthorshipGateTest do
       for [path, _kind, "true", sha, expires | _] <- rows do
         assert sha =~ ~r/^[0-9a-f]{64}$/, "#{path}: debt row without sha256"
         assert expires =~ ~r/^\d{4}-\d{2}-\d{2}$/, "#{path}: debt row without expiry"
-        assert sha == sha256(path), "#{path}: admitted sha256 does not match disk"
+
+        unless transient_absent?(path) do
+          assert sha == sha256(path), "#{path}: admitted sha256 does not match disk"
+        end
       end
     end
 
-    test "every admitted path exists, is unmarked, and is tracked or untracked-but-not-ignored" do
+    test "every admitted path exists (or is tracked and transiently absent), is unmarked, and is not gitignored" do
       for path <- @admitted_paths do
-        assert File.regular?(path), "#{path}: admitted but not on disk"
-        refute marked?(path), "#{path}: admitted as hand-authored but carries the marker"
+        if transient_absent?(path) do
+          assert tracked?(path), "#{path}: admitted, absent from disk AND not in the index -- stale"
+        else
+          assert File.regular?(path), "#{path}: admitted but not on disk"
+          refute marked?(path), "#{path}: admitted as hand-authored but carries the marker"
+        end
 
         {_out, status} =
           System.cmd("git", ["check-ignore", "-q", path], stderr_to_stdout: true)
