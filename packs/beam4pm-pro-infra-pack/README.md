@@ -54,6 +54,14 @@ expected class. Both classes are schema-only in this pack's own `ontology.ttl`; 
 `beam4pm`'s own ontology fragment for a
 real working consumer instance of each.
 
+`gates/030_cardinality.rq` refuses a consumer graph that asserts a SECOND fully-populated
+`b4pi:Deployment` or `b4pi:PackerImage` individual. Both required-facts gates above are
+per-property presence checks with no count constraint, so two fully-populated individuals of
+either class produce zero rows from either gate — read as "nothing missing" — while the
+templates render only `deployments[0]`/`image[0]` (the row after `ORDER BY`) and silently
+drop every fact belonging to the rest. The cardinality gate turns that silent truncation into
+a named refusal instead.
+
 ## Composing this pack
 
 Add `b4pi:Deployment` / `b4pi:PackerImage` instance data to the consuming project's own
