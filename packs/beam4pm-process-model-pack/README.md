@@ -165,9 +165,45 @@ typed boolean literal.
   `bpmg:ProcessTransition` whose `bpmg:actuationName` is not the `bpma:actionName`
   of an admitted `bpma:AdmittedActuation` (the projection above would otherwise
   emit an `allows_<name>` `:init` fact whose predicate no domain declares).
+- `templates/beam4pm_hand_authored_source.tsv.tmpl`,
+  `templates/beam4pm_hand_authored_source.md.tmpl`,
+  `templates/beam4pm_authorship_gate_test.exs.tmpl` -- the hand-authored-source
+  admission leg (VISION-2030 section 2: a direct source intervention is "visible,
+  bounded, and counted as manufacturing debt"; section 24 falsifier: "ggen-only
+  manufacture requires routine privileged handwritten source commits"). The consumer
+  declares one `bpm:HandAuthoredSource` individual per file under a manufactured root
+  that carries no `GENERATED` marker (path, closed `bpm:authorshipKind`, authorizing
+  principal, reason, acceptance command, optional prerequisite artifact, content
+  sha256, admitted-at commit, expiry, sunset plan). The `.tsv` is the marker-carrying,
+  machine-readable manifest the consumer's `scripts/gate_authorship_check.sh` diffs
+  against `git ls-files --exclude-standard` under `src lib gleam/src gleam/test test
+  schema docs/reference infra/gcp/{cloudrun,packer}` -- refusing an unmarked file
+  with no admission (`REFUSED_UNADMITTED`), an admission whose path is gone
+  (`REFUSED_STALE_ADMISSION`) or now carries the marker (`REFUSED_CONTRADICTION`),
+  a debt file whose bytes changed since admission (`REFUSED_SHA_DRIFT`), an expired
+  admission (`REFUSED_EXPIRED`), and with `--exercise` a failing or all-skipped
+  acceptance command (`REFUSED_ACCEPTANCE_FAILED` / `REFUSED_VACUOUS_ACCEPTANCE`,
+  or `ACCEPTANCE_BLOCKED_PREREQUISITE` when the declared artifact is absent). The
+  `.md` is the counted ledger (per kind, admitted vs ceiling); the `.exs` is the
+  Chicago test that runs the real gate as a subprocess against the real tree and
+  against planted `git init` fixtures that must be refused by name. Zero
+  `bpm:HandAuthoredSource` individuals renders an empty manifest and a zero-count
+  ledger, not a refusal.
+- `gates/050_hand_authored_source_required.rq` -- refuses a `bpm:HandAuthoredSource`
+  missing a capability-object field; debt kinds must also carry `bpm:contentSha256`,
+  `bpm:admissionExpires` and `bpm:sunsetPlan` (a path-only admission is a standing
+  grant).
+- `gates/060_hand_authored_source_kind_admitted.rq` -- anti-joins
+  `bpm:authorshipKind` against the closed `bpm:AuthorshipKind` vocabulary (like
+  `020` does for `bpm:FieldType`) and refuses two individuals admitting one path.
+- `gates/070_hand_authored_source_ceiling.rq` -- refuses a kind whose admitted count
+  exceeds its `bpm:debtCeiling`; raising a ceiling is a reviewed edit to this pack's
+  `ontology.ttl`, never an ambient grant.
 - `ontology.ttl` -- the `bpm:` vocabulary itself (`bpm:RecordType`, `bpm:Field`, and
-  their properties, plus the closed `bpm:FieldType` vocabulary the table above is
-  generated from); no record-type individuals.
+  their properties, the closed `bpm:FieldType` vocabulary the table above is
+  generated from, and the closed `bpm:AuthorshipKind` vocabulary +
+  `bpm:HandAuthoredSource` class); no record-type or hand-authored-source
+  individuals.
 
 ## Composing this pack
 

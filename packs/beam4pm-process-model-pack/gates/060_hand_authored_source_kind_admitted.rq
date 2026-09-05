@@ -1,0 +1,23 @@
+# MESSAGE: every bpm:HandAuthoredSource must name an admitted bpm:AuthorshipKind (anti-join against the closed vocabulary in ontology.ttl, exactly like gates/020 for bpm:FieldType) and no two individuals may admit the same bpm:sourcePath (a duplicate would double-count the debt); any row is a refusal.
+PREFIX bpm: <https://ggen.dev/ontology/beam-process-model#>
+SELECT ?subject ?problem WHERE {
+  {
+    ?subject a bpm:HandAuthoredSource ;
+             bpm:authorshipKind ?kind .
+    FILTER NOT EXISTS {
+      ?kind a bpm:AuthorshipKind ;
+            bpm:authorshipKindName ?kind_name ;
+            bpm:countsAsDebt ?counts_as_debt ;
+            bpm:debtCeiling ?ceiling .
+    }
+    BIND("authorship_kind_not_admitted" AS ?problem)
+  } UNION {
+    ?subject a bpm:HandAuthoredSource ;
+             bpm:sourcePath ?path .
+    ?other a bpm:HandAuthoredSource ;
+           bpm:sourcePath ?path .
+    FILTER (?other != ?subject)
+    BIND("duplicate_source_path" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem
