@@ -8,19 +8,25 @@
 # BeamPM.Types validating constructors are consumed unmodified.
 #
 # Bindings: NONE required. Like beam4pm_rf1_dfg.ex.eex, this template is
-# fully static: the algorithms and their string-marker vocabulary are fixed
-# by the BPI-2020 XES grammar of the committed fixtures
-# (qualification/fixtures/bpi2020/*.xes), not queried from RDF. The sync
-# script (scripts/revenue_economics_sync.sh) still passes the
-# admitted_actions.rq dummy query because mix ggen_igniter.sync requires at
-# least one --query flag; its result is never referenced here.
+# fully static: the algorithms themselves are fixed, not queried from RDF.
+# The activity-marker VOCABULARY they classify against, however, is a
+# per-call runtime argument (Economics.vocabulary(), defaulting to the
+# BPI-2020 grammar of the committed fixtures at
+# qualification/fixtures/bpi2020/*.xes) rather than a compile-time
+# constant -- see the generated moduledoc's "Activity vocabulary" section.
+# This is what lets one compiled beam4pm_pro release serve multiple
+# tenants' differently-worded processes correctly. The sync script
+# (scripts/revenue_economics_sync.sh) still passes the admitted_actions.rq
+# dummy query because mix ggen_igniter.sync requires at least one --query
+# flag; its result is never referenced here.
 #
 # Two modules in one generated file, per the rf1 DfgOracleBridge +
 # DfgDiscovery precedent:
 #   * BeamPM.Revenue.Xes       -- :xmerl-based XES reader (OTP built-in,
 #                                 zero new deps; no mix.exs change)
-#   * BeamPM.Revenue.Economics -- rework_cost/2, cycle_to_cash/2,
-#                                 conformance_leakage/3
+#   * BeamPM.Revenue.Economics -- rework_cost/2,3, cycle_to_cash/2,3,
+#                                 conformance_leakage/3,
+#                                 default_vocabulary/0
 #
 # Failure shapes of :xmerl_scan.file/2 wrapped below were probe-verified
 # against the real OTP xmerl (28.x) at template-authoring time: a missing
@@ -319,20 +325,44 @@ defmodule BeamPM.Revenue.Economics do
   `BeamPM.Billing.reconcile/4` uses -- so equal inputs produce bit-identical
   totals regardless of input order.
 
-  ## REQUIRED NAMES (a real constraint, not enforced by any gate)
+  ## Activity vocabulary: a per-call runtime argument, not a fixed grammar
 
-  The algorithms are bound to the BPI-2020 `<Artifact> <STATE> by <ROLE>`
-  activity grammar and the fixture attribute vocabulary:
+  `rework_cost/3` and `cycle_to_cash/3` classify activities using three
+  configurable markers -- rejection, submission, and payment-terminus --
+  passed as the functions' own third argument (a `vocabulary()` map), never
+  fixed as module attributes. This is what lets ONE running beam4pm_pro
+  node serve MULTIPLE tenants correctly in the SAME compiled release, each
+  with its own business-process activity naming: the vocabulary a call
+  scores against is chosen by the caller, per request, not baked into the
+  node at compile time.
 
-    * string attribute keys: `"case"` (event -> owning case),
-      `"Amount"` then `"RequestedAmount"` (trace-level weight, in that
-      fallback order);
-    * activity markers: `" REJECTED by "` (rework signal), `"SUBMITTED"`
-      (submission-bearing activities, Declaration AND Permit),
-      `"Payment Handled"` (exact cash terminus).
+  `default_vocabulary/0` returns the BPI-2020 fixture vocabulary, used
+  automatically when the third argument is omitted -- so `rework_cost/2`
+  and `cycle_to_cash/2` keep behaving exactly as before:
 
-  Renaming any of these in a caller's data changes results silently -- the
-  markers are module attributes precisely so the binding is visible.
+    * `rejected_marker: " REJECTED by "` -- substring marking a rework
+      (rejection) activity;
+    * `submitted_marker: "SUBMITTED"` -- substring marking a
+      submission-bearing activity (Declaration AND Permit, in BPI-2020);
+    * `payment_activity: "Payment Handled"` -- EXACT match for the cash
+      terminus (unlike the other two markers, not a substring match).
+
+  A caller serving a second, differently-worded tenant process supplies its
+  own vocabulary explicitly, e.g.
+
+      Economics.rework_cost(traces, trace_attrs, %{
+        Economics.default_vocabulary()
+        | payment_activity: "Invoice Paid"
+      })
+
+  A malformed vocabulary (missing key, non-string value) is a typed refusal
+  `{:error, {:invalid_vocabulary, vocabulary}}`, never a silent zero match.
+
+  The `"case"` event-attribute key and the `"Amount"`/`"RequestedAmount"`
+  trace-attribute fallback order are NOT part of `vocabulary()` -- they
+  name this module's own wire contract with `BeamPM.Revenue.Xes` and
+  `BeamPM.Discovery.traces_from_events/2`, not a process-specific activity
+  name, and stay fixed across every tenant.
   """
 
   alias BeamPM.Discovery
@@ -343,9 +373,28 @@ defmodule BeamPM.Revenue.Economics do
   alias BeamPM.Types.OcelEvent
   alias BeamPM.Types.SojournTime
 
-  @rejected_marker " REJECTED by "
-  @submitted_marker "SUBMITTED"
-  @payment_activity "Payment Handled"
+  @type vocabulary :: %{
+          rejected_marker: String.t(),
+          submitted_marker: String.t(),
+          payment_activity: String.t()
+        }
+
+  @default_vocabulary %{
+    rejected_marker: " REJECTED by ",
+    submitted_marker: "SUBMITTED",
+    payment_activity: "Payment Handled"
+  }
+
+  @doc """
+  The default (BPI-2020) activity-marker vocabulary -- see the moduledoc's
+  "Activity vocabulary" section. Used automatically by `rework_cost/2` and
+  `cycle_to_cash/2`; a caller building a per-tenant override should start
+  from this map (`%{Economics.default_vocabulary() | ...}`) rather than
+  reconstructing it, so an unrelated key can never be typo'd into the
+  override by accident.
+  """
+  @spec default_vocabulary() :: vocabulary()
+  def default_vocabulary, do: @default_vocabulary
 
   # Same shape discipline as beam4pm_entitlement's effective_at validation
   # (which beam4pm_billing's occurred_at deliberately lacks -- enforced here
@@ -372,6 +421,12 @@ defmodule BeamPM.Revenue.Economics do
   `{:error, {:missing_amount, case_id}}` (first such case in ascending
   `case_id` order), never a silent `0.0`.
 
+  `vocabulary` (default `default_vocabulary/0`, the BPI-2020 markers) is
+  this call's rejection/submission activity vocabulary -- see the
+  moduledoc's "Activity vocabulary" section for the multi-tenant rationale.
+  A malformed vocabulary is a typed refusal
+  `{:error, {:invalid_vocabulary, vocabulary}}`.
+
   Returns a bare map:
 
       %{per_case: [%{case_id: id, loop_count: n, weighted_cost: amount}],
@@ -381,33 +436,39 @@ defmodule BeamPM.Revenue.Economics do
   `per_case` rows are sorted ascending by `case_id`; non-loop-bearing cases
   produce no row.
   """
-  @spec rework_cost([LogTrace.t()], %{optional(String.t()) => map()}) ::
+  @spec rework_cost([LogTrace.t()], %{optional(String.t()) => map()}, vocabulary()) ::
           %{
             per_case: [map()],
             loop_case_ids: [String.t()],
             total_weighted_cost: float()
           }
           | {:error, {:missing_amount, String.t()}}
-  def rework_cost(traces, trace_attrs) when is_list(traces) and is_map(trace_attrs) do
-    traces
-    |> Enum.sort_by(fn %LogTrace{} = trace -> trace.case_id end)
-    |> Enum.reduce_while([], fn %LogTrace{} = trace, rows ->
-      case loop_count(trace.activity_sequence) do
-        0 ->
-          {:cont, rows}
+          | {:error, {:invalid_vocabulary, term()}}
+  def rework_cost(traces, trace_attrs, vocabulary \\ @default_vocabulary)
 
-        count ->
-          case fetch_amount(Map.get(trace_attrs, trace.case_id, %{})) do
-            {:ok, amount} ->
-              row = %{case_id: trace.case_id, loop_count: count, weighted_cost: amount}
-              {:cont, [row | rows]}
+  def rework_cost(traces, trace_attrs, vocabulary)
+      when is_list(traces) and is_map(trace_attrs) do
+    with :ok <- validate_vocabulary(vocabulary) do
+      traces
+      |> Enum.sort_by(fn %LogTrace{} = trace -> trace.case_id end)
+      |> Enum.reduce_while([], fn %LogTrace{} = trace, rows ->
+        case loop_count(trace.activity_sequence, vocabulary) do
+          0 ->
+            {:cont, rows}
 
-            :error ->
-              {:halt, {:error, {:missing_amount, trace.case_id}}}
-          end
-      end
-    end)
-    |> finalize_rework()
+          count ->
+            case fetch_amount(Map.get(trace_attrs, trace.case_id, %{})) do
+              {:ok, amount} ->
+                row = %{case_id: trace.case_id, loop_count: count, weighted_cost: amount}
+                {:cont, [row | rows]}
+
+              :error ->
+                {:halt, {:error, {:missing_amount, trace.case_id}}}
+            end
+        end
+      end)
+      |> finalize_rework()
+    end
   end
 
   @doc """
@@ -440,6 +501,12 @@ defmodule BeamPM.Revenue.Economics do
   refusal `{:error, {:malformed_event_time, event_id}}`, importing the
   entitlement pack's timestamp discipline that raw billing lacks.
 
+  `vocabulary` (default `default_vocabulary/0`, the BPI-2020 markers)
+  supplies this call's submission/payment activity markers -- see the
+  moduledoc's "Activity vocabulary" section for the multi-tenant rationale.
+  A malformed vocabulary is a typed refusal
+  `{:error, {:invalid_vocabulary, vocabulary}}`.
+
   Returns a bare map:
 
       %{case_stats: [CaseStats.t()],       # ascending case_id
@@ -447,7 +514,7 @@ defmodule BeamPM.Revenue.Economics do
         cycle_to_cash: %{case_id => seconds},
         open_obligations: [case_id]}       # ascending
   """
-  @spec cycle_to_cash([LogTrace.t()], [OcelEvent.t()]) ::
+  @spec cycle_to_cash([LogTrace.t()], [OcelEvent.t()], vocabulary()) ::
           %{
             case_stats: [CaseStats.t()],
             sojourns: [SojournTime.t()],
@@ -455,8 +522,13 @@ defmodule BeamPM.Revenue.Economics do
             open_obligations: [String.t()]
           }
           | {:error, {:malformed_event_time, String.t()}}
-  def cycle_to_cash(traces, events) when is_list(traces) and is_list(events) do
-    with :ok <- validate_event_times(events) do
+          | {:error, {:invalid_vocabulary, term()}}
+  def cycle_to_cash(traces, events, vocabulary \\ @default_vocabulary)
+
+  def cycle_to_cash(traces, events, vocabulary)
+      when is_list(traces) and is_list(events) do
+    with :ok <- validate_vocabulary(vocabulary),
+         :ok <- validate_event_times(events) do
       grouped =
         events
         |> Enum.filter(fn %OcelEvent{} = event -> match?(%{"case" => _}, event.attributes) end)
@@ -468,7 +540,7 @@ defmodule BeamPM.Revenue.Economics do
         traces
         |> Enum.sort_by(fn %LogTrace{} = trace -> trace.case_id end)
         |> Enum.reduce(initial, fn %LogTrace{} = trace, acc ->
-          fold_case(trace.case_id, Map.get(grouped, trace.case_id, []), acc)
+          fold_case(trace.case_id, Map.get(grouped, trace.case_id, []), acc, vocabulary)
         end)
 
       %{
@@ -576,18 +648,39 @@ defmodule BeamPM.Revenue.Economics do
     }
   end
 
-  # Single reverse walk: an activity counts iff it contains " REJECTED by "
-  # AND some later activity contains "SUBMITTED".
-  defp loop_count(activity_sequence) when is_list(activity_sequence) do
+  # A well-formed vocabulary is exactly the three string-valued keys this
+  # module classifies activities by -- checked once, at the top of every
+  # public entry point, so a malformed per-tenant override is a typed
+  # refusal rather than a silent zero-match (String.contains?/2 raises on a
+  # non-binary needle, but only deep inside the fold; refusing up front
+  # names the actual problem instead of an opaque FunctionClauseError).
+  defp validate_vocabulary(%{
+         rejected_marker: rejected_marker,
+         submitted_marker: submitted_marker,
+         payment_activity: payment_activity
+       })
+       when is_binary(rejected_marker) and is_binary(submitted_marker) and
+              is_binary(payment_activity) do
+    :ok
+  end
+
+  defp validate_vocabulary(vocabulary), do: {:error, {:invalid_vocabulary, vocabulary}}
+
+  # Single reverse walk: an activity counts iff it contains
+  # vocabulary.rejected_marker AND some later activity contains
+  # vocabulary.submitted_marker.
+  defp loop_count(activity_sequence, vocabulary) when is_list(activity_sequence) do
+    %{rejected_marker: rejected_marker, submitted_marker: submitted_marker} = vocabulary
+
     {count, _submitted_later} =
       activity_sequence
       |> Enum.reverse()
       |> Enum.reduce({0, false}, fn activity, {count, submitted_later} ->
         cond do
-          String.contains?(activity, @submitted_marker) ->
+          String.contains?(activity, submitted_marker) ->
             {count, true}
 
-          String.contains?(activity, @rejected_marker) and submitted_later ->
+          String.contains?(activity, rejected_marker) and submitted_later ->
             {count + 1, submitted_later}
 
           true ->
@@ -598,7 +691,7 @@ defmodule BeamPM.Revenue.Economics do
     count
   end
 
-  defp loop_count(_not_a_list), do: 0
+  defp loop_count(_not_a_list, _vocabulary), do: 0
 
   defp fetch_amount(%{"Amount" => amount}) when is_number(amount), do: {:ok, amount * 1.0}
 
@@ -620,11 +713,13 @@ defmodule BeamPM.Revenue.Economics do
     end)
   end
 
-  defp fold_case(case_id, [], acc) do
+  defp fold_case(case_id, [], acc, _vocabulary) do
     %{acc | open_obligations: [case_id | acc.open_obligations]}
   end
 
-  defp fold_case(case_id, case_events, acc) do
+  defp fold_case(case_id, case_events, acc, vocabulary) do
+    %{submitted_marker: submitted_marker, payment_activity: payment_activity} = vocabulary
+
     sorted =
       Enum.sort_by(case_events, fn %OcelEvent{} = event -> {event.event_time, event.event_id} end)
 
@@ -662,12 +757,12 @@ defmodule BeamPM.Revenue.Economics do
 
     first_submitted =
       Enum.find(timed, fn {%OcelEvent{} = event, _time} ->
-        String.contains?(event.event_type, @submitted_marker)
+        String.contains?(event.event_type, submitted_marker)
       end)
 
     last_payment =
       timed
-      |> Enum.filter(fn {%OcelEvent{} = event, _time} -> event.event_type == @payment_activity end)
+      |> Enum.filter(fn {%OcelEvent{} = event, _time} -> event.event_type == payment_activity end)
       |> List.last()
 
     case {first_submitted, last_payment} do
