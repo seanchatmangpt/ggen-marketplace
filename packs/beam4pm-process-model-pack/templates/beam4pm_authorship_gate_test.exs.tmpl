@@ -399,6 +399,34 @@ defmodule BeamPM.AuthorshipGateTest do
       assert out =~ "GATE AUTHORSHIP: PASS"
     end
 
+    test "an ADMITTED path that is tracked but transiently absent is TRANSIENT_ABSENT, not stale" do
+      # gate_m2_check.sh stashes its hand-authored dependent tests out of
+      # test/ while the igniter leg runs `mix test` (and so this gate). Tracked
+      # in the index + missing on disk is that window; never in the index is a
+      # real stale admission (the "stale" test above).
+      dir = fixture!("transient_absent")
+      abs = plant!(dir, "test/stashed_test.exs", @unmarked_erl)
+      {_, 0} = System.cmd("git", ["add", "test/stashed_test.exs"], cd: dir, stderr_to_stdout: true)
+
+      manifest =
+        write_manifest!(dir, [
+          ["test/stashed_test.exs", "hand_authored_qualification", "true", sha256(abs), "2999-12-31", "true", "-"]
+        ])
+
+      File.rm!(abs)
+      {out, status} = run_gate(["--root", dir, "--manifest", manifest], dir)
+      assert status == 0, out
+      assert out =~ "TRANSIENT_ABSENT: test/stashed_test.exs"
+      refute out =~ "REFUSED_STALE_ADMISSION"
+
+      # Once the deletion is staged (index == disk, as in any clean CI
+      # checkout), the same admission IS stale.
+      {_, 0} = System.cmd("git", ["rm", "-q", "--cached", "test/stashed_test.exs"], cd: dir, stderr_to_stdout: true)
+      {out2, status2} = run_gate(["--root", dir, "--manifest", manifest], dir)
+      assert status2 == 1, out2
+      assert out2 =~ "REFUSED_STALE_ADMISSION: test/stashed_test.exs"
+    end
+
     test "a brand-new untracked unmarked file IS in scope" do
       dir = fixture!("untracked")
       plant!(dir, "docs/reference/new-notes.md", "# notes typed by hand\n")
