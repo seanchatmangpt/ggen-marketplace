@@ -7,14 +7,51 @@
 # Split out of the former single-file beam4pm_ash_test.exs.eex 2026-09-02,
 # mirroring beam4pm_ash_resource.ex.eex's split -- same measured
 # marginal-compile-cost rationale applies to `mix test` compilation of the
-# test suite itself. Semantics preserved verbatim; only the file boundary
-# moved. `test/test_helper.exs` (unchanged, already ExUnit.start()) covers
-# this nested test/beam4pm_ash/resources/ directory automatically -- mix's
-# default test_paths ["test"] recurses, so no new test_helper is needed.
+# test suite itself. `test/test_helper.exs` (unchanged, already
+# ExUnit.start()) covers this nested test/beam4pm_ash/resources/ directory
+# automatically -- mix's default test_paths ["test"] recurses, so no new
+# test_helper is needed.
+#
+# Fixtures are ontology facts, not template code (2026-09-05): the former
+# in-template `sample = fn "string" -> ... "datetime" -> ~s("2026-08-29T12:00:00Z")
+# ... end` ladder is replaced by the bpm:FieldType vocabulary's
+# bpm:sampleElixir -- the SAME codec/roundtrip fixture beam4pm_codec_test.exs
+# and BeamPM.Roundtrip (GATE M5) are generated from -- so the Ash leg is
+# asserted against the fixture the legs it claims identity with actually use,
+# not a private one. `__FIELD__` inside a sample is substituted with the
+# field's own name (same convention as the Tera templates' `replace` filter).
+#
+# Identity relation for datetime attributes (bpm:ashTypeExpr
+# :utc_datetime_usec): Ash normalizes the ISO 8601 wire string that the
+# Erlang/Elixir/JSON legs carry verbatim into a UTC %DateTime{} with
+# microsecond precision {n, 6}. Identity across the Ash boundary is therefore
+# `DateTime.compare(ash_read, wire_parsed) == :eq` -- explicitly NOT byte or
+# struct identity: a no-fraction wire value "…T00:00:00Z" parses to
+# microsecond {0, 0} but reads back from Ash as {0, 6}, and ".5Z" parses to
+# {500000, 1} vs {500000, 6}, so `==` would fail on equal instants (measured
+# 2026-09-05, Ash 3.32.1). The shared fixture carries six microsecond digits
+# so a truncating attribute type (:utc_datetime, precision :second) fails
+# this compare with :lt instead of passing invisibly, as the old no-fraction
+# fixture let it.
 #
 # Bindings: record_name (row-local, already-normalized plain string per
-# --for-each) and the full raw `fields` list (needs norm.()), same shape as
-# beam4pm_ash_resource.ex.eex.
+# --for-each) and the full `ash_fields` list, same shape as
+# beam4pm_ash_resource.ex.eex -- including the OPTIONAL-joined
+# ?ash_type_expr / ?sample_elixir, refused below by name when unbound.
+#
+# Engine-shape note: both engines return PLAIN lexical values
+# (GgenIgniter.Query.Oxigraph moduledoc, "Term normalization"). norm/1 is
+# the historical guard for oxigraph's former raw N-Triples-style shape,
+# kept on the legacy columns (never begin with `<` or `"`, so a no-op). It
+# must NOT touch ?sample_elixir or ?ash_type_expr: a sample literal such as
+# "\"sample___FIELD__\"" LEGITIMATELY begins and ends with a quote character,
+# and norm/1 stripped them (measured 2026-09-05: rendered
+# `event_id: sample_event_id`, invalid Elixir). lex/1 reads them verbatim.
+lex = fn
+  nil -> nil
+  v -> to_string(v)
+end
+
 norm = fn
   nil -> nil
   v when is_binary(v) ->
@@ -36,35 +73,72 @@ camel = fn name -> name |> String.split("_") |> Enum.map(&String.capitalize/1) |
 this_name = record_name
 
 rf =
-  fields
+  ash_fields
   |> Enum.filter(fn f -> norm.(f["record_name"]) == this_name end)
   |> Enum.map(fn f ->
     %{
       name: norm.(f["field_name"]),
       type: norm.(f["field_type"]),
+      ash_type: lex.(f["ash_type_expr"]),
+      sample: lex.(f["sample_elixir"]),
       required: norm.(f["field_required"]) == "true",
       order: to_int.(f["field_order"])
     }
   end)
   |> Enum.sort_by(& &1.order)
 
-sample = fn f ->
-  case f.type do
-    "string" -> ~s("sample_#{f.name}")
-    "datetime" -> ~s("2026-08-29T12:00:00Z")
-    "integer" -> "42"
-    "float" -> "3.5"
-    "boolean" -> "true"
-    "atom" -> ":sample_atom"
-    "list_string" -> ~s(["alpha", "beta"])
-    "map" -> ~s(%{"k" => "v"})
-  end
+case Enum.filter(rf, fn f -> f.ash_type in [nil, ""] or f.sample in [nil, ""] end) do
+  [] ->
+    :ok
+
+  missing ->
+    raise ArgumentError,
+          "beam4pm_ash_resource_test.exs.eex: record #{this_name}: no bpm:ashTypeExpr/bpm:sampleElixir for " <>
+            Enum.map_join(missing, ", ", fn f -> "field #{f.name} (bpm:fieldType \"#{f.type}\")" end) <>
+            " -- admit the type in the pack's bpm:FieldType vocabulary (ontology.ttl) and " <>
+            "run ash_fields.rq against the merged consumer+pack graph (scripts/igniter_sync.sh)"
 end
-expected = fn f -> if f.type == "datetime", do: "~U[2026-08-29 12:00:00Z]", else: sample.(f) end
+
+sample = fn f -> String.replace(f.sample, "__FIELD__", f.name) end
+# Every admitted Ash type except the :utc_datetime family reads back as the
+# literal it was written with; the datetime family is normalized (see header).
+normalizes_datetime? = fn f -> String.starts_with?(f.ash_type, ":utc_datetime") end
 
 mod = "BeamPM.Ash.Resources.#{camel.(this_name)}"
 params = Enum.map_join(rf, ",\n", fn f -> "      #{f.name}: #{sample.(f)}" end)
-asserts = Enum.map_join(rf, "\n", fn f -> "    assert read_back.#{f.name} == #{expected.(f)}" end)
+
+asserts =
+  Enum.map_join(rf, "\n", fn f ->
+    if normalizes_datetime?.(f) do
+      Enum.join(
+        [
+          "    {:ok, #{f.name}_wire, 0} = DateTime.from_iso8601(#{sample.(f)})",
+          "    assert DateTime.compare(read_back.#{f.name}, #{f.name}_wire) == :eq"
+        ],
+        "\n"
+      )
+    else
+      "    assert read_back.#{f.name} == #{sample.(f)}"
+    end
+  end)
+
+datetime_note =
+  if Enum.any?(rf, normalizes_datetime?) do
+    Enum.join(
+      [
+        "",
+        "    # Datetime identity across the Ash boundary is DateTime.compare/2 == :eq",
+        "    # against the parsed wire fixture (Ash normalizes the ISO 8601 string the",
+        "    # Erlang/Elixir/JSON legs carry verbatim into a UTC %DateTime{} with",
+        "    # microsecond {n, 6}) -- explicitly NOT byte/struct identity: a no-fraction",
+        "    # wire value would read back {0, 6} vs a parsed {0, 0}. The six-digit fixture",
+        "    # makes a truncating attribute type (:utc_datetime) fail here with :lt."
+      ],
+      "\n"
+    )
+  else
+    ""
+  end
 
 rendered =
   Enum.join(
@@ -85,7 +159,7 @@ rendered =
       "      |> Ash.create!()",
       "",
       "    [read_back] = Ash.read!(#{mod})",
-      "    assert read_back.id == created.id",
+      "    assert read_back.id == created.id" <> datetime_note,
       asserts,
       "  end",
       "end"

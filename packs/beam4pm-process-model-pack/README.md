@@ -103,26 +103,50 @@ Field types map from the closed `bpm:fieldType` enum to every per-language
 representation via a shared `bpm:FieldType` vocabulary in `ontology.ttl` -- one
 `bpm:FieldType_<name>` individual per admitted value, carrying
 `bpm:erlangTypeExpr`/`bpm:elixirTypeExpr`/`bpm:gleamTypeExpr`/`bpm:jsonSchemaType`/
-`bpm:jsonSchemaItemsType`/`bpm:isAtomCodec` plus fixed and codec/roundtrip sample
-literals (`bpm:sampleMinErlang`/`bpm:sampleMinElixir`/`bpm:sampleErlang`/
-`bpm:sampleErlangEncoded`/`bpm:sampleElixir`/`bpm:sampleElixirEncoded`). Every
-affected template's own `fields` SPARQL query JOINs against this vocabulary (via
-`?f bpm:fieldType ?field_type` matched against a `bpm:FieldType`'s
-`bpm:fieldTypeName`) and prints the resolved column directly -- there is no
-per-template if/elif dispatch on `field_type` left to keep in sync. Admitting a
-9th field type means adding one `bpm:FieldType_<name>` individual to this file;
+`bpm:jsonSchemaItemsType`/`bpm:ashTypeExpr`/`bpm:isAtomCodec` plus fixed and
+codec/roundtrip sample literals (`bpm:sampleMinErlang`/`bpm:sampleMinElixir`/
+`bpm:sampleErlang`/`bpm:sampleErlangEncoded`/`bpm:sampleElixir`/
+`bpm:sampleElixirEncoded`). Every affected template's own `fields` SPARQL query
+JOINs against this vocabulary (via `?f bpm:fieldType ?field_type` matched against
+a `bpm:FieldType`'s `bpm:fieldTypeName`) and prints the resolved column directly
+-- there is no per-template if/elif dispatch on `field_type` left to keep in sync,
+on the Tera (Rust ggen) templates or on the igniter (EEx) Ash templates. Admitting
+a 9th field type means adding one `bpm:FieldType_<name>` individual to this file;
 it touches no template and no gate:
 
-| `bpm:fieldType` | Erlang       | Elixir                                    |
-|-----------------|--------------|--------------------------------------------|
-| `string`        | `binary()`   | `String.t()`                                |
-| `integer`       | `integer()`  | `integer()`                                 |
-| `float`         | `float()`    | `float()`                                   |
-| `boolean`       | `boolean()`  | `boolean()`                                 |
-| `datetime`      | `binary()`   | `String.t()` (ISO8601 string on the wire)   |
-| `atom`          | `atom()`     | `atom()`                                    |
-| `list_string`   | `[binary()]` | `[String.t()]`                              |
-| `map`           | `map()`      | `map()`                                     |
+| `bpm:fieldType` | Erlang       | Elixir                                    | Ash                  |
+|-----------------|--------------|--------------------------------------------|----------------------|
+| `string`        | `binary()`   | `String.t()`                                | `:string`            |
+| `integer`       | `integer()`  | `integer()`                                 | `:integer`           |
+| `float`         | `float()`    | `float()`                                   | `:float`             |
+| `boolean`       | `boolean()`  | `boolean()`                                 | `:boolean`           |
+| `datetime`      | `binary()`   | `String.t()` (ISO8601 string on the wire)   | `:utc_datetime_usec` |
+| `atom`          | `atom()`     | `atom()`                                    | `:atom`              |
+| `list_string`   | `[binary()]` | `[String.t()]`                              | `{:array, :string}`  |
+| `map`           | `map()`      | `map()`                                     | `:map`               |
+
+The Ash column is the fourth sibling projection (VISION-2030 section 4) and is
+held to semantic identity with the other legs. `datetime` is `:utc_datetime_usec`,
+never `:utc_datetime`: Ash's `:utc_datetime` is `constraints: [precision: :second]`
+and truncates the microseconds the Erlang/Elixir/JSON legs carry verbatim
+(measured, Ash 3.32.1: `"2026-08-29T12:00:00.123456Z"` read back as
+`~U[2026-08-29 12:00:00Z]`). Because Ash normalizes the wire string into a UTC
+`%DateTime{}` with microsecond `{n, 6}`, the Ash identity relation for datetime
+fields is `DateTime.compare(ash_read, wire_parsed) == :eq` -- explicitly not byte
+or struct identity (a no-fraction wire value parses to `{0, 0}` but reads back
+`{0, 6}`). The generated per-resource ExUnit test asserts exactly that, against
+the same `bpm:sampleElixir` fixture the codec/roundtrip tests use (six
+microsecond digits, so a truncating attribute type fails with `:lt`).
+
+The igniter Ash templates cannot see this vocabulary from the consumer's
+`ontology.ttl` alone (`mix ggen_igniter.sync` loads exactly one `--ontology`
+file; the Rust leg gets the merge from `ggen.toml [packs]`), so they are driven
+by `igniter/queries/ash_fields.rq` run against a concatenation of the consumer's
+and this pack's `ontology.ttl` -- see beam4pm's `scripts/igniter_sync.sh`. That
+query's vocabulary JOIN is `OPTIONAL` and both templates refuse an unbound
+`?ash_type_expr` by record and field name, so an unadmitted type or a
+consumer-only graph is a named render refusal, never a silently dropped
+attribute.
 
 `bpm:fieldRequired` must be the plain string literal `"true"` or `"false"` (not an
 `^^xsd:boolean`-typed literal) -- the templates compare it as a string, and this keeps
@@ -144,6 +168,15 @@ typed boolean literal.
 - `gates/020_field_type_enum.rq` -- refuses any `bpm:fieldType` that does not match
   an admitted `bpm:FieldType` individual's `bpm:fieldTypeName` (anti-join against
   `ontology.ttl`'s shared vocabulary, not a hardcoded string enum).
+- `gates/035_field_type_ash_expr.rq` -- refuses a `bpm:FieldType` carrying anything
+  but exactly one `bpm:ashTypeExpr` (the Ash attribute type the igniter Ash templates
+  JOIN), on the Rust `ggen sync run` leg; the templates refuse the same condition by
+  name on the igniter leg.
+- `igniter/queries/ash_fields.rq`, `igniter/templates/beam4pm_ash_resource.ex.eex`,
+  `igniter/templates/beam4pm_ash_resource_test.exs.eex` -- the Ash projection (one
+  `Ash.Resource` + one Chicago ExUnit round-trip test per admitted record type),
+  rendered by `mix ggen_igniter.sync --for-each records` against the merged
+  consumer+pack graph.
 - `templates/beam4pm_pddl.domain.pddl.tmpl`, `templates/beam4pm_pddl.problem.pddl.tmpl`
   -- the formal-projection leg (VISION-2030 section 10, `canonical graph -> formal
   projection -> planner result`). Per-row fan-out over every consumer-admitted

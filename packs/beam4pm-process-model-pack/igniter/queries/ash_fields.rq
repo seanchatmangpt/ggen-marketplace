@@ -1,0 +1,31 @@
+# Ash-leg field query: consumed ONLY by igniter/templates/beam4pm_ash_resource.ex.eex
+# and beam4pm_ash_resource_test.exs.eex. Deliberately a separate file from
+# fields.rq, which scripts/pro_type_pages_sync.sh and igniter_sync.sh's
+# cross-engine manifest probe also run against the consumer graph ALONE -- a
+# mandatory vocabulary JOIN there would zero every docs/reference/types/*.md
+# field table.
+#
+# Run this against the MERGED graph (consumer ontology.ttl + the pack's
+# ontology.ttl; ggen_igniter loads exactly one --ontology file, so
+# scripts/igniter_sync.sh concatenates the two). The bpm:FieldType JOIN is
+# OPTIONAL on purpose: every bpm:Field row survives, and both templates refuse
+# by record and field name when ?ash_type_expr is unbound (an unadmitted type, a
+# FieldType lacking bpm:ashTypeExpr, or a consumer-only graph) -- a named render
+# refusal, never a silently dropped attribute. gates/035_field_type_ash_expr.rq
+# refuses the missing-property case on the Rust `ggen sync run` leg as well.
+PREFIX bpm: <https://ggen.dev/ontology/beam-process-model#>
+SELECT ?record_name ?field_name ?field_type ?field_doc ?field_required ?field_order ?ash_type_expr ?sample_elixir WHERE {
+  ?rt a bpm:RecordType ;
+      bpm:recordName ?record_name ;
+      bpm:hasField ?f .
+  ?f bpm:fieldName ?field_name ;
+     bpm:fieldType ?field_type ;
+     bpm:fieldDoc ?field_doc ;
+     bpm:fieldRequired ?field_required ;
+     bpm:fieldOrder ?field_order .
+  OPTIONAL {
+    ?ft a bpm:FieldType ; bpm:fieldTypeName ?field_type .
+    OPTIONAL { ?ft bpm:ashTypeExpr ?ash_type_expr . }
+    OPTIONAL { ?ft bpm:sampleElixir ?sample_elixir . }
+  }
+} ORDER BY ?record_name ?field_order

@@ -61,7 +61,7 @@ bpm:fieldOrder a rdf:Property ; rdfs:domain bpm:Field ; rdfs:range xsd:integer .
 
 bpm:FieldType a rdfs:Class ;
     rdfs:label "Field Type" ;
-    rdfs:comment "One admitted value of the closed bpm:fieldType vocabulary (string, integer, float, boolean, datetime, atom, list_string, map), carrying every per-language projection and sample-value fact so templates fetch a resolved expression by SPARQL JOIN instead of hardcoding a duplicated if/elif dispatch ladder." .
+    rdfs:comment "One admitted value of the closed bpm:fieldType vocabulary (string, integer, float, boolean, datetime, atom, list_string, map), carrying every per-language projection (Erlang, Elixir, Gleam, JSON Schema, Ash) and sample-value fact so templates fetch a resolved expression by SPARQL JOIN instead of hardcoding a duplicated if/elif dispatch ladder." .
 
 bpm:fieldTypeName a rdf:Property ; rdfs:domain bpm:FieldType ; rdfs:range xsd:string ;
     rdfs:comment "Matches a bpm:Field's bpm:fieldType literal value exactly." .
@@ -77,6 +77,8 @@ bpm:jsonSchemaItemsType a rdf:Property ; rdfs:domain bpm:FieldType ; rdfs:range 
     rdfs:comment "Empty string unless jsonSchemaType is array, in which case the array's \"items\".\"type\" value." .
 bpm:isAtomCodec a rdf:Property ; rdfs:domain bpm:FieldType ; rdfs:range xsd:string ;
     rdfs:comment "Plain string literal true or false (same convention as bpm:fieldRequired): whether beam4pm_codec/BeamPM.Codec must atom_to_binary/binary_to_atom-convert this type's values." .
+bpm:ashTypeExpr a rdf:Property ; rdfs:domain bpm:FieldType ; rdfs:range xsd:string ;
+    rdfs:comment "Ash attribute type expression (source text) for the fourth sibling projection (VISION-2030 section 4/23 Polyglot BEAM), e.g. :string or {:array, :string}. JOINed by igniter/queries/ash_fields.rq into both igniter Ash templates in place of the former hardcoded 8-branch dispatch ladder, so an unmapped type is a visible, named render refusal instead of a FunctionClauseError. datetime is :utc_datetime_usec, never :utc_datetime -- Ash's :utc_datetime is constraints: [precision: :second] and truncates the microseconds every other leg carries verbatim on the wire (measured: 12:00:00.123456Z read back as 12:00:00Z, DateTime.compare :lt). gates/035_field_type_ash_expr.rq refuses a bpm:FieldType carrying anything but exactly one value." .
 bpm:sampleMinErlang a rdf:Property ; rdfs:domain bpm:FieldType ; rdfs:range xsd:string ;
     rdfs:comment "Minimal fixed Erlang sample literal used by beam4pm_types_tests.erl (constructor-only tests, not codec/roundtrip)." .
 bpm:sampleMinElixir a rdf:Property ; rdfs:domain bpm:FieldType ; rdfs:range xsd:string ;
@@ -97,6 +99,7 @@ bpm:FieldType_string a bpm:FieldType ;
     bpm:gleamTypeExpr "String" ;
     bpm:jsonSchemaType "string" ;
     bpm:jsonSchemaItemsType "" ;
+    bpm:ashTypeExpr ":string" ;
     bpm:isAtomCodec "false" ;
     bpm:sampleMinErlang "<<\"x\">>" ;
     bpm:sampleMinElixir "\"x\"" ;
@@ -112,6 +115,7 @@ bpm:FieldType_integer a bpm:FieldType ;
     bpm:gleamTypeExpr "Int" ;
     bpm:jsonSchemaType "integer" ;
     bpm:jsonSchemaItemsType "" ;
+    bpm:ashTypeExpr ":integer" ;
     bpm:isAtomCodec "false" ;
     bpm:sampleMinErlang "1" ;
     bpm:sampleMinElixir "1" ;
@@ -127,6 +131,7 @@ bpm:FieldType_float a bpm:FieldType ;
     bpm:gleamTypeExpr "Float" ;
     bpm:jsonSchemaType "number" ;
     bpm:jsonSchemaItemsType "" ;
+    bpm:ashTypeExpr ":float" ;
     bpm:isAtomCodec "false" ;
     bpm:sampleMinErlang "1.0" ;
     bpm:sampleMinElixir "1.0" ;
@@ -142,6 +147,7 @@ bpm:FieldType_boolean a bpm:FieldType ;
     bpm:gleamTypeExpr "Bool" ;
     bpm:jsonSchemaType "boolean" ;
     bpm:jsonSchemaItemsType "" ;
+    bpm:ashTypeExpr ":boolean" ;
     bpm:isAtomCodec "false" ;
     bpm:sampleMinErlang "true" ;
     bpm:sampleMinElixir "true" ;
@@ -157,13 +163,21 @@ bpm:FieldType_datetime a bpm:FieldType ;
     bpm:gleamTypeExpr "String" ;
     bpm:jsonSchemaType "string" ;
     bpm:jsonSchemaItemsType "" ;
+    bpm:ashTypeExpr ":utc_datetime_usec" ;
     bpm:isAtomCodec "false" ;
     bpm:sampleMinErlang "<<\"2026-01-01T00:00:00Z\">>" ;
     bpm:sampleMinElixir "\"2026-01-01T00:00:00Z\"" ;
-    bpm:sampleErlang "<<\"2026-08-29T12:00:00Z\">>" ;
-    bpm:sampleErlangEncoded "<<\"2026-08-29T12:00:00Z\">>" ;
-    bpm:sampleElixir "\"2026-08-29T12:00:00Z\"" ;
-    bpm:sampleElixirEncoded "\"2026-08-29T12:00:00Z\"" .
+    # The codec/roundtrip fixture carries all six microsecond digits on purpose:
+    # datetime is an opaque binary()/String.t()/JSON string on the Erlang,
+    # Elixir and JSON legs (it round-trips unchanged), while the Ash leg parses
+    # it into a %DateTime{} -- so this is the one fixture that can catch an Ash
+    # attribute type that silently truncates sub-second precision. A
+    # no-fraction value here would make that truncation invisible to every
+    # generated test (it was, until 2026-09-05).
+    bpm:sampleErlang "<<\"2026-08-29T12:00:00.123456Z\">>" ;
+    bpm:sampleErlangEncoded "<<\"2026-08-29T12:00:00.123456Z\">>" ;
+    bpm:sampleElixir "\"2026-08-29T12:00:00.123456Z\"" ;
+    bpm:sampleElixirEncoded "\"2026-08-29T12:00:00.123456Z\"" .
 
 bpm:FieldType_atom a bpm:FieldType ;
     bpm:fieldTypeName "atom" ;
@@ -172,6 +186,7 @@ bpm:FieldType_atom a bpm:FieldType ;
     bpm:gleamTypeExpr "String" ;
     bpm:jsonSchemaType "string" ;
     bpm:jsonSchemaItemsType "" ;
+    bpm:ashTypeExpr ":atom" ;
     bpm:isAtomCodec "true" ;
     bpm:sampleMinErlang "some_atom" ;
     bpm:sampleMinElixir ":some_atom" ;
@@ -187,6 +202,7 @@ bpm:FieldType_list_string a bpm:FieldType ;
     bpm:gleamTypeExpr "List(String)" ;
     bpm:jsonSchemaType "array" ;
     bpm:jsonSchemaItemsType "string" ;
+    bpm:ashTypeExpr "{:array, :string}" ;
     bpm:isAtomCodec "false" ;
     bpm:sampleMinErlang "[<<\"a\">>]" ;
     bpm:sampleMinElixir "[\"a\"]" ;
@@ -202,6 +218,7 @@ bpm:FieldType_map a bpm:FieldType ;
     bpm:gleamTypeExpr "dict.Dict(String, String)" ;
     bpm:jsonSchemaType "object" ;
     bpm:jsonSchemaItemsType "" ;
+    bpm:ashTypeExpr ":map" ;
     bpm:isAtomCodec "false" ;
     bpm:sampleMinErlang "#{}" ;
     bpm:sampleMinElixir "%{}" ;
