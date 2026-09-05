@@ -139,6 +139,27 @@ typed boolean literal.
 - `gates/020_field_type_enum.rq` -- refuses any `bpm:fieldType` that does not match
   an admitted `bpm:FieldType` individual's `bpm:fieldTypeName` (anti-join against
   `ontology.ttl`'s shared vocabulary, not a hardcoded string enum).
+- `templates/beam4pm_pddl.domain.pddl.tmpl`, `templates/beam4pm_pddl.problem.pddl.tmpl`
+  -- the formal-projection leg (VISION-2030 section 10, `canonical graph -> formal
+  projection -> planner result`). Per-row fan-out over every consumer-admitted
+  `bpmg:ProcessContract` (`for_each: contracts`) into
+  `schema/pddl/<processId>.domain.pddl` + `.problem.pddl`. The domain projects every
+  `bpma:AdmittedActuation` as one `:action` named by its `bpma:actionName`, each
+  `bpma:requiresFact` as a 0-arity precondition atom, and one static
+  `(allows_<action> ?from ?to)` predicate per action; the problem projects the
+  contract's states as typed objects, `bpmg:initialState` into `:init`, each
+  `bpmg:ProcessTransition` (ordinal order) as one `allows_` fact, every named
+  actuation's `requiresFact` as an `:init` fact assumed satisfied at process start,
+  and the highest-ordinal `bpmg:toState` as the `:goal`. A consumer with zero
+  `bpmg:ProcessContract` individuals gets a lawful zero-row skip, not a refusal.
+  Proven in beam4pm by `test/beam4pm_pddl_projection_test.exs`: the GENERATED files
+  fed to the real ferroplan planner (`BeamPM.Ferroplan.plan_production/4`) solve to
+  exactly the contract's ordinal `actuationName` sequence, and deleting any one
+  transition or required fact yields `no_plan`, never a fabricated plan.
+- `gates/040_transition_actuation_admitted.rq` -- refuses any
+  `bpmg:ProcessTransition` whose `bpmg:actuationName` is not the `bpma:actionName`
+  of an admitted `bpma:AdmittedActuation` (the projection above would otherwise
+  emit an `allows_<name>` `:init` fact whose predicate no domain declares).
 - `ontology.ttl` -- the `bpm:` vocabulary itself (`bpm:RecordType`, `bpm:Field`, and
   their properties, plus the closed `bpm:FieldType` vocabulary the table above is
   generated from); no record-type individuals.
