@@ -1,5 +1,68 @@
 # ash-extension-core-pack ERRC tracker
 
+## Cycle 4 — 2026-09-09 (requirements grounding for ash_a2a / ash_ex4pm, no pack changes)
+
+Triggered by: "look at what is needed for ~/ash_a2a, also ~/ash_ex4pm" plus a mid-turn
+OCEL-emission design note. Neither `~/ash_a2a` nor `~/ash_ex4pm` exists as a directory —
+this cycle grounds their REQUIREMENTS in real adjacent repos (`~/ex4pm`, `~/ex4pm_engine`,
+`~/A2A`, `~/xaas/deps`) rather than building either pack, since there is no real target
+repo yet to extract a golden specimen from. Workflow `wf_51f67459-6e0`, 3 real-source
+agents, 381k tokens.
+
+**ash_ex4pm — corrections to the triggering design note (verified against real code):**
+- `OcelNotifier` (real, confirmed shape) calls `Ex4pm.Stream.Ingest.ingest_batch/1` —
+  that function **does not exist**. The real entrypoint is `ingest_envelope/2`
+  (`lib/ex4pm/stream/ingest.ex:19`). The `function_exported?/3` guard
+  (`ocel_notifier.ex:20`) is always false, so the notifier's apply/3 call is dead code
+  today — it never actually reaches the ingest engine, contrary to what the design note
+  implied.
+- `OCELEventMiddleware` does not fire on "every" Reactor step transition — only
+  `run_start`/`undo_start`-family events produce a message; `run_complete`/`run_error`/
+  `compensate`/`retry` fall through a silent no-op catch-all (`ocel_event_middleware.ex:80`).
+- `~/ex4pm_engine` on disk has no `lib/` — the real `Ex4pmEngine.*` modules physically
+  live under `~/ex4pm/lib/ex4pm_engine/`, not in a separate repo.
+- Confirmed correct: OCEL 2.0 only (no "2.1" anywhere); `Ex4pm.OCEL.normalize/1` is the
+  sole real path to a canonical `%Ex4pm.Event{}`; no `Event.new/1` builder and no
+  `Ex4pm.OCEL.Source` behaviour exist (real, unresolved gaps in ex4pm itself, as the note
+  said). A real, copyable `Spark.Dsl.Extension` skeleton exists:
+  `Ex4pmDomain.Extensions.SoundStateMachine` (`sound_state_machine.ex:1`, verifiers-only,
+  no sections/entities of its own).
+
+**ash_ex4pm — pack-vocabulary gap, named honestly:** v26.9.10's properties
+(`afterTransformer`, `normalizeModule`/`normalizeFunction`, `validateDelegateModule`,
+`legacyAdapterModule`) map cleanly onto wiring `OCEL.normalize/1`/`validate_envelope/1`
+and even onto fixing the dead `ingest_batch` call via a `legacyAdapter`-style correct
+call to `ingest_envelope/2`. But the design's two load-bearing mechanisms are **not**
+covered by anything this pack generates today:
+1. Spark-injecting a module into `Ash.Resource`'s own pre-existing `notifiers:` list
+   (the `AshPaperTrail.Resource.Transformers.VersionOnChange` move) — this pack only
+   generates a NEW extension's own DslSection/DslEntity surface, not a transformer that
+   appends to a list owned by a *different*, already-declared extension. No
+   `aex:globalNotifierInjection`-style property exists. Named as a real CREATE for a
+   future cycle, not built here.
+2. Per-Reactor middleware injection (no global registration point in Reactor) —
+   `aex:workflowReactor` is the closest existing property but it is UNVERIFIED whether
+   it already supports generating a per-Reactor `middlewares do ... end` injection or
+   only a single named reactor reference. Flagged, not assumed either way.
+
+**ash_a2a — correction that overturns the triggering plan's implicit premise:** the
+plan (and the user's earlier composition formula) treated an "a2a protocol runtime" as
+work still to be done. It already exists: a real, published Elixir hex package `:a2a`
+0.2.0 (`github.com/actioncard/a2a-elixir`) is vendored/locked in
+`/Users/sac/xaas/deps/a2a` — JSON-RPC 2.0, Agent Card discovery, Task/TaskStore
+lifecycle, Message/Part/Artifact/Event domain model, Plug/Bandit HTTP server transport,
+Req HTTP client, OTP agent supervision + registry, telemetry, Jason codec. `~/A2A`
+itself (protobuf spec + Erlang SDK + Python docs) has zero Elixir code and would have
+wrongly implied "unstarted" if read alone. Real remaining gaps: not confirmed wired to
+`~/A2A/specification/a2a.proto`'s wire schema; no gRPC transport found (JSON-RPC/HTTP
+only); not yet a dependency of `ex4pm` (`ex4pm/mix.lock` has no `a2a` entry). Net: build
+`ash_a2a`'s `aex:AshExtensionSpec` against the existing `:a2a` package after adding it
+as an ex4pm dependency -- do not build a JSON-RPC/HTTP/OTP runtime from scratch.
+
+**No pack files changed this cycle** — this is a requirements/grounding pass for two
+not-yet-existent consumer packages, recorded here so the corrections aren't lost before
+either package is actually started.
+
 ## Cycle 3 — 2026-09-09 (RAISE + CREATE, to v26.9.9)
 
 Triggered by user direction: "this pack should be what allows existing extensions to
