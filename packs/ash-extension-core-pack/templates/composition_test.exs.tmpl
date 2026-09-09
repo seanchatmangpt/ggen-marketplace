@@ -4,9 +4,10 @@ for_each: "spec"
 sparql:
   spec: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT DISTINCT ?package_name ?module_name WHERE {
+    SELECT DISTINCT ?package_name ?module_name (SAMPLE(?dual_level_fixture) AS ?dual_level_fixture) WHERE {
       ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ; aex:moduleName ?module_name .
-    }
+      OPTIONAL { ?s aex:dualLevelFixture ?dual_level_fixture }
+    } GROUP BY ?package_name ?module_name
   targets: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
     SELECT ?composition_target WHERE { ?c a aex:CompositionTarget ; aex:compositionTarget ?composition_target . }
@@ -16,7 +17,14 @@ sparql:
    fixture resource with the generated extension attached via Code.compile_string/1,
    then introspect it with the REAL Spark.Dsl.Extension Info-module functions (no
    mocking of the extension's own behavior). ash_graphql/ash_json_api are :test-only
-   deps here -- never a runtime dependency of {{ package_name }} itself. #}
+   deps here -- never a runtime dependency of {{ package_name }} itself.
+
+   v26.9.9: when aex:dualLevelFixture is true, also compiles a DOMAIN-level fixture
+   stacked with the same aex:CompositionTarget extensions, mirroring the real,
+   currently-shipped xaas exemplar (lib/xaas/library.ex:8 Xaas.Library domain +
+   lib/xaas/library/book.ex:36 Xaas.Library.Book resource both stacking AshAi
+   alongside 2-3 other extensions) -- proving co-residence with multiple extensions
+   at both levels, not just isolated single-extension compilation. #}
 defmodule {{ module_name }}CompositionTest do
   use ExUnit.Case, async: true
 
@@ -24,7 +32,7 @@ defmodule {{ module_name }}CompositionTest do
   defmodule {{ package_name | capitalize }}CompositionFixture do
     use Ash.Resource,
       domain: nil,
-      extensions: [{{ module_name }}]
+      extensions: [{{ module_name }}{% for t in targets %}, {{ t.composition_target | capitalize }}.Resource{% endfor %}]
 
     attributes do
       uuid_primary_key :id
@@ -32,9 +40,26 @@ defmodule {{ module_name }}CompositionTest do
   end
   """
 
+{% if dual_level_fixture == "true" %}
+  @domain_fixture_source """
+  defmodule {{ package_name | capitalize }}CompositionDomainFixture do
+    use Ash.Domain,
+      extensions: [{{ module_name }}{% for t in targets %}, {{ t.composition_target | capitalize }}.Domain{% endfor %}]
+
+    resources do
+    end
+  end
+  """
+
+{% endif %}
   setup do
     [{fixture_module, _bytecode}] = Code.compile_string(@fixture_source)
+{% if dual_level_fixture == "true" %}
+    [{domain_module, _bytecode}] = Code.compile_string(@domain_fixture_source)
+    %{fixture: fixture_module, domain_fixture: domain_module}
+{% else %}
     %{fixture: fixture_module}
+{% endif %}
   end
 
   test "the compiled fixture actually carries the {{ module_name }} extension", %{fixture: fixture} do
@@ -45,6 +70,15 @@ defmodule {{ module_name }}CompositionTest do
     refute is_nil({{ module_name }}.Info.compiled(fixture))
   end
 
+{% if dual_level_fixture == "true" %}
+  test "the compiled DOMAIN fixture also carries the {{ module_name }} extension, co-resident with {{ targets | length }} other extension(s)", %{domain_fixture: domain_fixture} do
+    assert {{ module_name }} in Spark.extensions(domain_fixture)
+{% for t in targets %}
+    assert {{ t.composition_target | capitalize }}.Domain in Spark.extensions(domain_fixture)
+{% endfor %}
+  end
+
+{% endif %}
 {% for t in targets %}
   @tag :{{ t.composition_target }}
   test "composes with real {{ t.composition_target }} introspection", %{fixture: fixture} do

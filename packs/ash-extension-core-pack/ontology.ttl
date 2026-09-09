@@ -85,6 +85,31 @@ aex:compositionOf     a rdf:Property ; rdfs:domain aex:CompositionTarget ; rdfs:
 aex:compositionTarget a rdf:Property ; rdfs:domain aex:CompositionTarget ; rdfs:comment "closed: \"ash_graphql\" | \"ash_json_api\"" .
 
 #################################################################
+# v26.9.9 additions -- sourced from real, currently-read source, not invented shape.
+# Research citations: /Users/sac/xaas/deps/ash_ai (lib/ash_ai/transformers/resource_tools.ex,
+# lib/ash_ai/dsl.ex), /Users/sac/ash_r2rml (lib/ash_r2rml/resource.ex:188-194 after?/1),
+# /Users/sac/xaas (lib/xaas/library.ex:8, lib/xaas/library/book.ex:36 dual-level stacking).
+# Deliberately NOT added here: a "Spark.Igniter.add_extension + AST-aware idempotent
+# insertion" installer capability -- confirmed by direct read that ash_r2rml's own
+# installer (lib/mix/tasks/ash_r2rml.install.ex) does not use Spark.Igniter at all and
+# has no AST/zipper detection; no real exemplar of that pattern was found in either
+# source repo, so it is not modeled rather than fabricated. See errc-tracker.md Cycle 3.
+#################################################################
+
+aex:contextNormalize a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "boolean, default false -- opt in to a generated resource/domain context-normalization transformer step, the ash_ai AshAi.Transformers.ResourceTools pattern (lib/ash_ai/transformers/resource_tools.ex:13-55,125-127): detect resource-vs-domain via `Module.get_attribute(module, :spark_is) == Ash.Resource`, fill in the target-context field on resource-local (implicit) declarations, raise Spark.Error.DslError if that field is explicitly supplied at the resource level, raise Spark.Error.DslError if it is missing at the domain level. Requires aex:contextTargetEntity and aex:contextTargetField." .
+aex:contextTargetEntity a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "entity name (atom, no leading colon) whose instances carry the context-resolved field -- ash_ai's is \"tool\" (AshAi.Tool). Only meaningful when aex:contextNormalize is true." .
+aex:contextTargetField a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "field name (atom, no leading colon) on aex:contextTargetEntity that is positionally optional (Spark `{:optional, :field}` in that entity's :args) and gets filled in / validated by the normalization transformer -- ash_ai's is \"resource\" (AshAi.Tool.resource, dsl.ex:264 `args: [:name, {:optional, :resource}, :action]`). Only meaningful when aex:contextNormalize is true." .
+
+aex:afterTransformer a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "0+ rows -- a real Ash core transformer module name (e.g. \"Ash.Resource.Transformers.CachePrimaryKey\") this extension's Persist transformer must declare `after?/1 do: true` for, verbatim ash_r2rml/lib/ash_r2rml/resource.ex:188-194's five after?/1 clauses (CachePrimaryKey, DefaultPrimaryKey, SetRelationshipInformation, BelongsToAttribute, BelongsToSourceAttribute). Row order carries no meaning (each becomes its own independent after?/1 clause, `def after?(_), do: false` is the catch-all). Absence means Persist emits no after?/1 override at all (relies on Spark.Dsl.Transformer's own default of false for every module, same as ash_r2rml's implicit lack of a before?/1 override -- that repo has none, so this pack does not model before?/1 either)." .
+
+aex:dualLevelFixture a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "boolean, default false -- generate composition_test fixtures at BOTH a resource-level and a domain-level module, each stacking this extension alongside the spec's aex:CompositionTarget extensions, instead of a single bare-fixture compile check. Real exemplar: xaas's Xaas.Library domain (lib/xaas/library.ex:8: extensions: [AshJsonApi.Domain, AshGraphql.Domain, AshAdmin.Domain, AshAi]) and Xaas.Library.Book resource (lib/xaas/library/book.ex:36: extensions: [AshJsonApi.Resource, AshGraphql.Resource, AshAdmin.Resource, AshAi]) -- same extension family co-resident with 2-3 other extensions at both levels in one real package, proving actual multi-extension compatibility rather than isolated single-extension compilation." .
+
+#################################################################
 # Worked instance: AuditTrail fixture (the acceptance-gate round-trip for this pack)
 #################################################################
 

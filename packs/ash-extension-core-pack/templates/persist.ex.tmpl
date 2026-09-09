@@ -4,18 +4,39 @@ for_each: "spec"
 sparql:
   spec: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT DISTINCT ?package_name ?module_name WHERE {
+    SELECT DISTINCT ?package_name ?module_name
+           (SAMPLE(?context_normalize) AS ?context_normalize)
+           (SAMPLE(?context_target_entity) AS ?context_target_entity)
+           (SAMPLE(?context_target_field) AS ?context_target_field)
+    WHERE {
       ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ; aex:moduleName ?module_name .
-    }
+      OPTIONAL { ?s aex:contextNormalize ?context_normalize }
+      OPTIONAL { ?s aex:contextTargetEntity ?context_target_entity }
+      OPTIONAL { ?s aex:contextTargetField ?context_target_field }
+    } GROUP BY ?package_name ?module_name
   sections: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
     SELECT ?section_name WHERE { ?s a aex:DslSection ; aex:sectionName ?section_name . }
     ORDER BY ?section_name
+  after_transformers: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT DISTINCT ?after_transformer WHERE { ?s a aex:AshExtensionSpec ; aex:afterTransformer ?after_transformer . }
+    ORDER BY ?after_transformer
 ---
 {# Derive/Normalize transformer -- mirrors ash_r2rml/lib/ash_r2rml/resource.ex's
    AshR2RML.Resource.Persist: reads the raw DSL entities for each section, normalizes
    them into a compiled struct, and persists it under a single, documented key so the
-   generated Verify module and Info module read the SAME persisted shape. #}
+   generated Verify module and Info module read the SAME persisted shape.
+
+   v26.9.9: two capabilities added from real source, not invented:
+   - after?/1 explicit ordering against upstream Ash transformers, verbatim
+     ash_r2rml/lib/ash_r2rml/resource.ex:188-194's five-clause pattern (gated on
+     aex:afterTransformer rows).
+   - resource/domain context-normalization, the ash_ai AshAi.Transformers.ResourceTools
+     pattern (lib/ash_ai/transformers/resource_tools.ex:13-55,125-127): detect via the
+     `@spark_is` module attribute, fill in the target-context field on resource-local
+     declarations, reject an explicit value at resource level, require one at domain
+     level (gated on aex:contextNormalize). #}
 defmodule {{ module_name }}.Persist do
   @moduledoc """
   Transformer for `{{ package_name }}`: normalizes the raw `{% for s in sections %}:{{ s.section_name }}{% if not loop.last %}, {% endif %}{% endfor %}`
@@ -23,8 +44,51 @@ defmodule {{ module_name }}.Persist do
   """
   use Spark.Dsl.Transformer
 
+{% if after_transformers | length > 0 %}
+  @impl true
+{% for t in after_transformers %}
+  def after?({{ t.after_transformer }}), do: true
+{% endfor %}
+  def after?(_), do: false
+
+{% endif %}
   @impl true
   def transform(dsl_state) do
+{% if context_normalize == "true" %}
+    module = Spark.Dsl.Transformer.get_persisted(dsl_state, :module)
+    resource_dsl? = resource_dsl?(module)
+
+    dsl_state =
+      dsl_state
+      |> Spark.Dsl.Transformer.get_entities([:{{ context_target_entity }}])
+      |> Enum.reduce(dsl_state, fn entity, dsl ->
+        cond do
+          resource_dsl? and is_nil(entity.{{ context_target_field }}) ->
+            Spark.Dsl.Transformer.replace_entity(
+              dsl,
+              [:{{ context_target_entity }}],
+              %{entity | {{ context_target_field }}: module},
+              &(&1.name == entity.name)
+            )
+
+          resource_dsl? ->
+            raise Spark.Error.DslError,
+              module: module,
+              path: [:{{ context_target_entity }}, entity.name, :{{ context_target_field }}],
+              message: "Resource-level :{{ context_target_entity }} cannot set `{{ context_target_field }}`."
+
+          is_nil(entity.{{ context_target_field }}) ->
+            raise Spark.Error.DslError,
+              module: module,
+              path: [:{{ context_target_entity }}, entity.name, :{{ context_target_field }}],
+              message: "`#{entity.name}` is missing `{{ context_target_field }}` -- required on domain-level :{{ context_target_entity }} declarations."
+
+          true ->
+            dsl
+        end
+      end)
+
+{% endif %}
 {% for s in sections %}
     {{ s.section_name }}_entities = Spark.Dsl.Transformer.get_entities(dsl_state, [:{{ s.section_name }}])
 {% endfor %}
@@ -35,4 +99,12 @@ defmodule {{ module_name }}.Persist do
 
     {:ok, Spark.Dsl.Transformer.persist(dsl_state, :{{ package_name }}_compiled, compiled)}
   end
+{% if context_normalize == "true" %}
+  # ash_ai AshAi.Transformers.ResourceTools pattern (resource_tools.ex:125-127):
+  # `@spark_is` is the module attribute Spark sets to Ash.Resource or Ash.Domain
+  # on any module using a DSL extension declared against that behaviour.
+  defp resource_dsl?(module) do
+    Module.get_attribute(module, :spark_is) == Ash.Resource
+  end
+{% endif %}
 end

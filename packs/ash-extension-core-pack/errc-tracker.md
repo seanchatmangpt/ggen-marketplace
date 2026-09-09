@@ -1,5 +1,72 @@
 # ash-extension-core-pack ERRC tracker
 
+## Cycle 3 — 2026-09-09 (RAISE + CREATE, to v26.9.9)
+
+Triggered by user direction: "this pack should be what allows existing extensions to
+use best practices and ERRC" -- reframes this pack's purpose from "generate new Ash
+extensions" to "the standing best-practices vocabulary an EXISTING hand-written
+extension is graded against and raised to." A background Workflow ran 3 parallel
+research agents against real source (not memory, not the prior session's claims) --
+`/Users/sac/xaas/deps/ash_ai` (ResourceTools transformer + Tool entity + execution
+context threading), `/Users/sac/ash_r2rml` (Persist/Verify/Info/Reactor/install task),
+`/Users/sac/xaas` (idempotency wrapper, real multi-extension stacking, mix.exs deps) --
+plus a synthesis agent ranking 10 candidate capabilities the user's own plan proposed.
+Full per-agent JSON reports and the synthesis memo: workflow run `wf_1740f3f0-7b3`,
+journal at the session's `subagents/workflows/wf_1740f3f0-7b3/journal.jsonl`.
+
+**Correction to the triggering plan (rule: re-derive on correction, don't carry a
+prior conclusion forward):** the plan asserted ash_r2rml's installer uses
+`Spark.Igniter.add_extension` plus "AST-aware idempotent block insertion." Direct read
+of `lib/mix/tasks/ash_r2rml.install.ex` found zero references to `Spark.Igniter`
+anywhere in the file and no `Igniter.Project.Module`/`Sourceror`/zipper-based
+detection of an existing DSL block -- it only wires the formatter plugin
+(`Igniter.Project.Formatter.import_dep`/`add_formatter_plugin`) and unconditionally
+emits a static `Igniter.add_notice` telling the user to hand-edit. This pack's
+existing `--target`-conditional real `Igniter.Project.Module` patch is already ahead
+of the golden specimen on that axis. Not implemented as "modernize past ash_r2rml"
+since the golden specimen does not exhibit the claimed pattern — see pack.toml's
+v26.9.9 note.
+
+**RAISE (implemented, existing extensions can now be regenerated/graded against
+these):**
+- `aex:contextNormalize`/`contextTargetEntity`/`contextTargetField` — resource/domain
+  context-normalization transformer, the real `AshAi.Transformers.ResourceTools`
+  pattern (`resource_tools.ex:13-55,125-127`, `@spark_is` module-attribute detection,
+  implicit fill-in / explicit-reject / explicit-require cond). `templates/persist.ex.tmpl`.
+- `aex:afterTransformer` — explicit `after?/1` clauses against real upstream Ash core
+  transformers, verbatim `ash_r2rml/lib/ash_r2rml/resource.ex:188-194`'s five clauses
+  (CachePrimaryKey/DefaultPrimaryKey/SetRelationshipInformation/BelongsToAttribute/
+  BelongsToSourceAttribute). `templates/persist.ex.tmpl`.
+- `aex:dualLevelFixture` — composition_test compiles a resource AND a domain fixture,
+  each stacked with 2+ co-resident extensions, mirroring the real xaas exemplar
+  (`lib/xaas/library.ex:8` domain + `lib/xaas/library/book.ex:36` resource, both
+  stacking `AshAi` alongside `AshJsonApi`/`AshGraphql`/`AshAdmin`). `templates/composition_test.exs.tmpl`.
+
+**Named, ranked lower by the synthesis agent, not yet built (still real gaps against
+ash_r2rml's exact shape, cited for the next cycle):**
+- Persist's `normalize/1` pre-persist pass + `metadata: {..., source: :ash_first}`
+  provenance sub-map (`ash_r2rml/lib/ash_r2rml/resource.ex:197-249`) — current pack's
+  `:{package}_compiled` persist has no equivalent normalize step or provenance field.
+- Verify's exact 2-branch shape: nil-check stays inline, but business validation
+  delegates to a *separate module's* `validate/1` and joins refusals as
+  `Enum.map_join(refusals, "; ", &"#{&1.code}: #{&1.detail}")`
+  (`resource.ex:486-512`) — current template's verifier stubs are inline, not
+  delegate-and-join.
+- Info's rescue-to-legacy-adapter fallback idiom on the result-tuple getter
+  (`resource.ex:527-534`, `rescue _ -> Module.LegacyAdapter.convert(resource)`).
+- Nested DSL entity support (`ax:NestedEntity`, ash_ai's `@tool` → `arguments: [@tool_argument]`,
+  `dsl.ex:228-268`) — needed for any extension whose entities themselves take
+  entity-typed children, not yet modeled in this pack's `aex:DslEntity` vocabulary.
+- `Code.ensure_loaded?/1`-guarded optional-module generation (ash_r2rml gates its
+  whole `igniter/1` branch on `Code.ensure_loaded?(Igniter)`; xaas gates `ReqLLM` the
+  same way) — no ontology property yet for "this generated code path is optional."
+
+**Verification status:** ontology + template edits are source-cited but UNVERIFIED
+against a real `ggen sync run` with a fixture spec exercising `contextNormalize`/
+`afterTransformer`/`dualLevelFixture` — not yet run this cycle. `python3
+scripts/marketplace.py validate` passes structurally (manifest/RDF admission), which is
+not evidence the generated Elixir compiles.
+
 ## Cycle 2 — 2026-09-09 (CREATE, spun into a sibling pack)
 
 Triggered by user request: "review this project and ash_r2rml to make the [starter]
