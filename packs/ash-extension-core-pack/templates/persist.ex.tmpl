@@ -8,11 +8,17 @@ sparql:
            (SAMPLE(?context_normalize) AS ?context_normalize)
            (SAMPLE(?context_target_entity) AS ?context_target_entity)
            (SAMPLE(?context_target_field) AS ?context_target_field)
+           (SAMPLE(?normalize_module) AS ?normalize_module)
+           (SAMPLE(?normalize_function) AS ?normalize_function)
+           (SAMPLE(?provenance_source) AS ?provenance_source)
     WHERE {
       ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ; aex:moduleName ?module_name .
       OPTIONAL { ?s aex:contextNormalize ?context_normalize }
       OPTIONAL { ?s aex:contextTargetEntity ?context_target_entity }
       OPTIONAL { ?s aex:contextTargetField ?context_target_field }
+      OPTIONAL { ?s aex:normalizeModule ?normalize_module }
+      OPTIONAL { ?s aex:normalizeFunction ?normalize_function }
+      OPTIONAL { ?s aex:provenanceSource ?provenance_source }
     } GROUP BY ?package_name ?module_name
   sections: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
@@ -95,7 +101,11 @@ defmodule {{ module_name }}.Persist do
 
     compiled = %{
 {% for s in sections %}      {{ s.section_name }}: {{ s.section_name }}_entities,
-{% endfor %}    }
+{% endfor %}{% if provenance_source %}      metadata: %{source: :{{ provenance_source }}},
+{% endif %}    }
+{% if normalize_module and normalize_function %}
+    compiled = {{ normalize_module }}.{{ normalize_function }}(compiled)
+{% endif %}
 
     {:ok, Spark.Dsl.Transformer.persist(dsl_state, :{{ package_name }}_compiled, compiled)}
   end

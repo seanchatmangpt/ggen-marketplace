@@ -67,6 +67,31 @@ against a real `ggen sync run` with a fixture spec exercising `contextNormalize`
 scripts/marketplace.py validate` passes structurally (manifest/RDF admission), which is
 not evidence the generated Elixir compiles.
 
+## Cycle 3 addendum — 2026-09-09, v26.9.10: remaining deferred items closed
+
+Completed the 5 items Cycle 3 named as "ranked lower, not yet built": Persist's
+`normalize/1` pipe + `metadata.source` provenance tag (`aex:normalizeModule`/
+`normalizeFunction`/`provenanceSource`), Verify's delegate-and-join shape
+(`aex:validateDelegateModule`/`validateDelegateFunction`), Info's rescue-to-legacy-
+adapter idiom plus the full 4-form surface (`compiled`/`compiled_result`/`compiled!`/
+`compiled?`, `aex:legacyAdapterModule`/`legacyAdapterFunction`), the install template's
+`Code.ensure_loaded?(Igniter)` file-level guard with a plain-Mix.Task fallback, and
+`aex:NestedEntity`/`nestedOf`/`nestedFieldName` for entity-within-entity support
+(ash_ai's `@tool_argument`-under-`@tool` shape). All five gated by SPARQL OPTIONAL +
+template `{% if %}` guards — a spec setting none of them renders byte-identical output
+to v26.9.9. Bumped `26.9.9` → `26.9.10`.
+
+**Attempted real verification, blocked by environment, not by the templates:**
+built a fixture consumer project (`ggen.toml` + `schema/domain.ttl`) exercising every
+new property in one spec (`aex:FixtureSpec`) and ran `ggen sync run` against it.
+Failed with `[FM-PACK-001]`/`[FM-PACK-002]` path-resolution errors — the installed
+`ggen 26.8.28` binary resolves `[packs]` paths against a hardcoded `/workspace` root
+regardless of actual cwd. Confirmed this is a pre-existing environment issue, not
+something these changes caused, by reproducing the identical failure against the
+already-existing, unmodified `packs/github-actions-pack/examples/consume-github-actions-pack`
+fixture. Real `ggen sync run` verification of this pack remains UNVERIFIED, not
+falsely claimed as passed — a real blocker, not silently worked around.
+
 ## Cycle 2 — 2026-09-09 (CREATE, spun into a sibling pack)
 
 Triggered by user request: "review this project and ash_r2rml to make the [starter]

@@ -23,7 +23,13 @@ sparql:
    default invocation) there is no way to know which module to patch, so it falls back
    to the same disclosed manual-notice ash_r2rml always uses -- honestly stated as a
    fallback, not claimed as "one command" for every invocation. See pack.toml's
-   installer-claim note for why this distinction matters. #}
+   installer-claim note for why this distinction matters.
+
+   v26.9.9: whole file now gated by `Code.ensure_loaded?(Igniter)`, mirroring
+   ash_r2rml/lib/mix/tasks/ash_r2rml.install.ex's real dual-branch shape (an
+   Igniter.Mix.Task branch plus a plain Mix.Task fallback that just prints manual
+   instructions via Mix.shell().info/1 when Igniter isn't a project dependency). #}
+if Code.ensure_loaded?(Igniter) do
 defmodule Mix.Tasks.{{ task_module_name }}.Install do
   @moduledoc """
   Installs `{{ package_name }}` into the current project: adds the formatter plugin,
@@ -100,4 +106,25 @@ defmodule Mix.Tasks.{{ task_module_name }}.Install do
     end
     """, placement: :after)
 {% endif %}{% endfor %}  end
+end
+else
+  defmodule Mix.Tasks.{{ task_module_name }}.Install do
+    @moduledoc "Installs `{{ package_name }}` -- Igniter is not a dependency of this project, so this task prints manual instructions instead of patching files."
+    use Mix.Task
+
+    @impl Mix.Task
+    def run(_argv) do
+      Mix.shell().info("""
+      {{ module_name }}: Igniter is not installed, so `{{ package_name }}.install` cannot
+      patch files automatically. Add `extensions: [{{ module_name }}]` to your
+      Ash.{{ extension_target | capitalize }} modules by hand:
+
+          use Ash.{{ extension_target | capitalize }},
+            extensions: [{{ module_name }}]
+
+          {% for s in sections %}{% if loop.first %}{{ s.section_name }} do
+          end{% endif %}{% endfor %}
+      """)
+    end
+  end
 end

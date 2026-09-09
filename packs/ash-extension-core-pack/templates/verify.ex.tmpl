@@ -4,9 +4,14 @@ for_each: "spec"
 sparql:
   spec: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT DISTINCT ?package_name ?module_name WHERE {
+    SELECT DISTINCT ?package_name ?module_name
+           (SAMPLE(?validate_delegate_module) AS ?validate_delegate_module)
+           (SAMPLE(?validate_delegate_function) AS ?validate_delegate_function)
+    WHERE {
       ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ; aex:moduleName ?module_name .
-    }
+      OPTIONAL { ?s aex:validateDelegateModule ?validate_delegate_module }
+      OPTIONAL { ?s aex:validateDelegateFunction ?validate_delegate_function }
+    } GROUP BY ?package_name ?module_name
   verifiers: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
     SELECT ?verifier_name ?verifier_doc WHERE {
@@ -37,7 +42,22 @@ defmodule {{ module_name }}.Verify do
          )}
 
       compiled ->
-{% if verifiers | length > 0 %}
+{% if validate_delegate_module and validate_delegate_function %}
+        # ash_r2rml's exact 2-branch shape (resource.ex:492-511): nil-check stays
+        # inline (above), business validation delegates to a separate module's
+        # validate function instead of an inline per-verifier chain.
+        case {{ validate_delegate_module }}.{{ validate_delegate_function }}(compiled) do
+          :ok ->
+            :ok
+
+          {:error, refusals} ->
+            {:error,
+             Spark.Error.DslError.exception(
+               message: Enum.map_join(refusals, "; ", &"#{&1.code}: #{&1.detail}"),
+               path: []
+             )}
+        end
+{% elif verifiers | length > 0 %}
         with {% for v in verifiers %}:ok <- check_{{ v.verifier_name }}(compiled){% if not loop.last %},
              {% endif %}{% endfor %} do
           :ok
@@ -51,6 +71,7 @@ defmodule {{ module_name }}.Verify do
     end
   end
 
+{% if not (validate_delegate_module and validate_delegate_function) %}
 {% for v in verifiers %}
   # {{ v.verifier_doc }}
   defp check_{{ v.verifier_name }}(_compiled) do
@@ -59,4 +80,5 @@ defmodule {{ module_name }}.Verify do
     :ok
   end
 {% endfor %}
+{% endif %}
 end
