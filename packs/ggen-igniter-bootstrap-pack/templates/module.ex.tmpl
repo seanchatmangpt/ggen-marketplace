@@ -1,0 +1,43 @@
+---
+to: '{{ module_path }}'
+for_each: "module"
+sparql:
+  module: |
+    PREFIX ggi: <http://seanchatmangpt.github.io/packs/ggen-igniter-bootstrap#>
+    SELECT ?module_name ?module_path ?module_doc ?is_mix_task WHERE {
+      ?m a ggi:Module ; ggi:moduleName ?module_name ; ggi:modulePath ?module_path ;
+         ggi:moduleDoc ?module_doc ; ggi:isMixTask ?is_mix_task .
+    } ORDER BY ?module_name
+  functions: |
+    PREFIX ggi: <http://seanchatmangpt.github.io/packs/ggen-igniter-bootstrap#>
+    SELECT ?module_name ?function_order ?function_name ?function_args ?function_spec ?function_doc ?function_todo WHERE {
+      ?f a ggi:Function ; ggi:functionOf ?m ; ggi:functionOrder ?function_order ;
+         ggi:functionName ?function_name ; ggi:functionArgs ?function_args ;
+         ggi:functionSpec ?function_spec ; ggi:functionDoc ?function_doc ;
+         ggi:functionTodo ?function_todo .
+      ?m ggi:moduleName ?module_name .
+    } ORDER BY ?function_order
+---
+{# Manufactured module SCAFFOLD ONLY -- real @moduledoc/@doc/@spec/function heads,
+   TODO-commented bodies. Per ggen-igniter-bootstrap-pack's construct_only boundary, the
+   real glue (RDF.ex/SPARQL.ex/EEx/Igniter calls) is hand-written into these bodies
+   afterward -- never silently faked as done by this template. #}
+defmodule {{ module_name }} do
+  @moduledoc """
+  {{ module_doc }}
+  """
+{% if is_mix_task == "true" %}
+  use Igniter.Mix.Task
+{% endif %}
+{% set fns = functions | filter(attribute="module_name", value=module_name) %}
+{% for f in fns %}
+{% set arg_names = f.function_args | split(pat=", ") %}
+  @doc "{{ f.function_doc }}"
+  @spec {{ f.function_name }}({% for a in arg_names %}term(){% if not loop.last %}, {% endif %}{% endfor %}) :: {{ f.function_spec }}
+{% if is_mix_task == "true" %}  @impl Igniter.Mix.Task
+{% endif %}  def {{ f.function_name }}({{ f.function_args }}) do
+    # TODO(hand-written glue): {{ f.function_todo }}
+    raise "not yet implemented -- see @doc/@spec above and pack.toml's disclosed scope"
+  end
+{% endfor %}
+end

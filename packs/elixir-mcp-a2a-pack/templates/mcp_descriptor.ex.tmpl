@@ -1,0 +1,79 @@
+---
+to: "lib/{{ app_module | lower }}_web/mcp_descriptor.ex"
+for_each: "spec"
+sparql:
+  spec: queries/surface.rq
+  caps: queries/capabilities.rq
+---
+{# Real implementation of v2030:MCPCapabilityDescriptor (docs/ontology/
+   vision-2030.ttl, this session) -- the concrete module the beam4pm
+   requirements pass named as the missing gap for beam4pm_discovery.ex's
+   real pure functions: "add Beam4pm.McpDescriptor with describe/1 or a
+   static registry capabilities/0". Generalized here to any consumer
+   generating from an ema:CapabilitySurface, not beam4pm-specific. #}
+defmodule {{ app_module }}Web.McpDescriptor do
+  @moduledoc """
+  Per-capability metadata for `{{ app_module }}`'s generated MCP/A2A
+  surface: observation scope, mutation scope, authority requirement,
+  reversibility, cost, and receipt semantics -- the real implementation
+  of v2030:MCPCapabilityDescriptor for this surface's capability list.
+
+  A caller (an MCP client, an A2A peer, or this app's own router/plug)
+  can check `requires_authority?/1` or `mutation_scope/1` BEFORE invoking
+  a capability, rather than discovering its authority requirement only
+  from a runtime refusal.
+  """
+
+  {# Atom key quoting: real defect caught by the actual `mix compile
+     --warnings-as-errors` gate ggen_igniter.sync runs on every sync --
+     "hddl-plan" as a bare `hddl-plan:` key is invalid Elixir (hyphen);
+     unconditionally quoting every id then trips Elixir's OWN unnecessary-
+     quote warning under --warnings-as-errors for plain ids like
+     "checkout". This Tera `is containing("-")` check covers the one real
+     hazard class observed (hyphenated ids); the EEx sibling template
+     (priv/ggen_igniter/mcp_a2a/templates/mcp_descriptor.eex in a
+     consuming repo) uses a full identifier regex, a narrower-but-
+     sufficient check here since Tera's built-in test set has no regex. #}
+  @capabilities %{
+{% for c in caps %}    {% if c.capability_id is containing("-") %}:"{{ c.capability_id }}"{% else %}:{{ c.capability_id }}{% endif %} => %{
+      name: "{{ c.capability_name }}",
+      description: "{{ c.capability_description }}",
+      observation_scope: :{{ c.observation_scope }},
+      mutation_scope: :{{ c.mutation_scope }},
+      requires_authority: {{ c.requires_authority }},
+      reversible: {{ c.is_reversible }},
+      cost_estimate: {% if c.cost_estimate %}"{{ c.cost_estimate }}"{% else %}nil{% endif %},
+
+      receipt_semantics: :{{ c.receipt_semantics }},
+      ash_action: {% if c.capability_ash_action %}"{{ c.capability_ash_action }}"{% else %}nil{% endif %}
+
+    }{% if not loop.last %},
+{% endif %}
+{% endfor %}  }
+
+  @doc "Full descriptor list, e.g. for an MCP `tools/list` or A2A agent-card response."
+  @spec capabilities() :: %{atom() => map()}
+  def capabilities, do: @capabilities
+
+  @doc "Descriptor for one capability id, or `:error` if unregistered."
+  @spec describe(atom()) :: {:ok, map()} | :error
+  def describe(capability_id), do: Map.fetch(@capabilities, capability_id)
+
+  @doc """
+  Real authority check per capability, per this ecosystem's own doctrine
+  (xaas CLAUDE.md's "Consequential DO" section, ex4pm's BRCE.execute/5):
+  a `:consequential` mutation_scope with `requires_authority: true` must
+  never be callable without an explicit authority context. This function
+  does not itself GRANT authority -- it only reports whether the
+  capability demands one, so a caller can enforce the fence before
+  dispatch, consistent with the SELECT/CONSTRUCT/DO separation this
+  ecosystem's own vision-2030.ttl models as odrl:Permission/Prohibition.
+  """
+  @spec requires_authority?(atom()) :: boolean()
+  def requires_authority?(capability_id) do
+    case describe(capability_id) do
+      {:ok, %{requires_authority: r}} -> r
+      :error -> true
+    end
+  end
+end

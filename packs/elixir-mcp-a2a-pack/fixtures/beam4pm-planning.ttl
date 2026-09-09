@@ -1,0 +1,182 @@
+@prefix ema: <http://seanchatmangpt.github.io/packs/elixir-mcp-a2a#> .
+
+#################################################################
+# PROPOSED fixture, NOT a transcription. Unlike xaas-next-read.ttl (which
+# transcribes xaas's REAL, already-running /mcp + /a2a surface verbatim
+# from router.ex), beam4pm currently has ZERO A2A references and no
+# /mcp or /a2a router mount anywhere in the repo (confirmed by an earlier
+# session's grep sweep). This fixture proposes a plausible surface --
+# "Beam4pmPlanningAgent" mounted at /mcp + /a2a -- over beam4pm's real,
+# already-existing functions. If this pack is ever used to generate a
+# real router/agent module for beam4pm, that module does not exist yet
+# today; this file is the candidate capability list for it, not proof
+# of a running surface.
+#
+# Real source functions this fixture encodes, cited by file:line from
+# actual repo inspection:
+#   lib/beam4pm_discovery.ex        -- pure OCEL/DFG/conformance functions
+#   lib/beam4pm_ferroplan.ex        -- Wasmex-backed planning engine calls
+#   lib/beam4pm_application.ex      -- OTP Application boot (mix.exs:6 confirms
+#                                       :otp_app is :beam4pm)
+#   native/ferroplan/crates/ferroplan/src/planning_runtime.rs -- native Rust
+#                                       wire structs (Transition/Task/Method),
+#                                       deliberately EXCLUDED below -- see
+#                                       closing comment.
+#################################################################
+
+<urn:ema:beam4pm-planning> a ema:CapabilitySurface ;
+    ema:appModule "Beam4pm" ;
+    ema:otpApp ":beam4pm" ;
+    ema:mcpMountPath "/mcp" ;
+    ema:mcpProtocolVersion "2024-11-05" ;
+    ema:agentModule "Beam4pmPlanningAgent" ;
+    ema:agentName "beam4pm-planning" ;
+    ema:agentDescription "PROPOSED A2A surface over beam4pm's real OCEL-discovery (traces/DFG/variants/conformance) and Ferroplan HTN-planning functions -- no ema:mcpAuditPlugModule given, since no XaasWeb.Plugs.AuditMcpToolCall-equivalent plug exists in beam4pm today (disclosed gap, not a silent omission)." ;
+    ema:agentMountPath "/a2a" .
+
+#################################################################
+# Discovery functions -- lib/beam4pm_discovery.ex.
+# All six are pure: bodies use only Enum/MapSet pipelines plus validating
+# struct constructors (LogTrace.new/1, DfgEdge.new/1, ProcessVariant.new/1,
+# ConformanceResult.new/1, SpanEdge.new/1); no Ash.create/update or Repo
+# calls anywhere in the module. Hence, uniformly across all six:
+# observation_scope=read_only (they only read their argument lists),
+# mutation_scope=none, requires_authority=false, is_reversible=true
+# (pure functions have no effect to reverse -- trivially reversible),
+# receipt_semantics=none (no receipt-producing side effect exists to log).
+#################################################################
+
+<urn:ema:beam4pm-planning/cap/traces_from_events> a ema:Capability ;
+    ema:capabilityOf <urn:ema:beam4pm-planning> ; ema:capabilityOrder 1 ;
+    ema:capabilityId "traces_from_events" ; ema:capabilityName "Traces from events" ;
+    ema:capabilityDescription "Groups OCEL events into case-centric traces (lib/beam4pm_discovery.ex:64, doc 54-62, @spec 63; body 66-85). Case id read from attributes[case_attr_key]; events lacking that key skipped. Events ordered by {event_time, event_id} within a case; traces sorted by case_id." ;
+    ema:observationScope "read_only" ; ema:mutationScope "none" ;
+    ema:requiresAuthority "false" ; ema:isReversible "true" ;
+    ema:receiptSemantics "none" .
+
+<urn:ema:beam4pm-planning/cap/dfg_from_traces> a ema:Capability ;
+    ema:capabilityOf <urn:ema:beam4pm-planning> ; ema:capabilityOrder 2 ;
+    ema:capabilityId "dfg_from_traces" ; ema:capabilityName "DFG from traces" ;
+    ema:capabilityDescription "Counts adjacent (a,b) activity pairs across all traces into frequency-annotated directly-follows edges (lib/beam4pm_discovery.ex:94, doc 88-92, @spec 93; body 96-106), sorted by source then target activity." ;
+    ema:observationScope "read_only" ; ema:mutationScope "none" ;
+    ema:requiresAuthority "false" ; ema:isReversible "true" ;
+    ema:receiptSemantics "none" .
+
+<urn:ema:beam4pm-planning/cap/variants_from_traces> a ema:Capability ;
+    ema:capabilityOf <urn:ema:beam4pm-planning> ; ema:capabilityOrder 3 ;
+    ema:capabilityId "variants_from_traces" ; ema:capabilityName "Variants from traces" ;
+    ema:capabilityDescription "Groups traces by identical activity_sequence into ProcessVariant rows, frequency = matching-trace count, variant_id = 1-based rank in sorted order (lib/beam4pm_discovery.ex:117, doc 109-115, @spec 116; body 119-132)." ;
+    ema:observationScope "read_only" ; ema:mutationScope "none" ;
+    ema:requiresAuthority "false" ; ema:isReversible "true" ;
+    ema:receiptSemantics "none" .
+
+<urn:ema:beam4pm-planning/cap/conformance> a ema:Capability ;
+    ema:capabilityOf <urn:ema:beam4pm-planning> ; ema:capabilityOrder 4 ;
+    ema:capabilityId "conformance" ; ema:capabilityName "Conformance" ;
+    ema:capabilityDescription "Computes fitness AND precision of one trace against a directly-follows edge set (lib/beam4pm_discovery.ex:146, doc 135-144, @spec 145; body 147-169). Fitness = fraction of trace's adjacent pairs present in edge set (1.0 if fewer than 2 activities); precision delegated to the also-pure BeamPM.Precision.etc_precision/2." ;
+    ema:observationScope "read_only" ; ema:mutationScope "none" ;
+    ema:requiresAuthority "false" ; ema:isReversible "true" ;
+    ema:receiptSemantics "none" .
+
+<urn:ema:beam4pm-planning/cap/traces_from_spans> a ema:Capability ;
+    ema:capabilityOf <urn:ema:beam4pm-planning> ; ema:capabilityOrder 5 ;
+    ema:capabilityId "traces_from_spans" ; ema:capabilityName "Traces from spans" ;
+    ema:capabilityDescription "Temporal-adjacency reading of tracing spans into one LogTrace per trace_id, activity_sequence = service_name values ordered by {start_time, span_id} (lib/beam4pm_discovery.ex:182, doc 172-180, @spec 181; body 184-194). parent_span_id is deliberately never read here -- moduledoc's VISION-2030 observed-vs-inferred-evidence distinction." ;
+    ema:observationScope "read_only" ; ema:mutationScope "none" ;
+    ema:requiresAuthority "false" ; ema:isReversible "true" ;
+    ema:receiptSemantics "none" .
+
+<urn:ema:beam4pm-planning/cap/causal_dfg_from_spans> a ema:Capability ;
+    ema:capabilityOf <urn:ema:beam4pm-planning> ; ema:capabilityOrder 6 ;
+    ema:capabilityId "causal_dfg_from_spans" ; ema:capabilityName "Causal DFG from spans" ;
+    ema:capabilityDescription "Returns OTel parent/child (invocation) causality over service_span records side-by-side with temporal-adjacency edges, as a span_evidence() map (keys: observed, adjacent, inferred_only, observed_not_adjacent, orphans) (lib/beam4pm_discovery.ex:252, type t:span_evidence/0 at 197-225, doc 227-247, @spec 249-251; body 253-277 plus private helpers index_spans/1:280, link_spans/2:292, span_edges/2:314, adjacency_edge/1:333, edge_pair/1:345). Typed refusals, not exceptions: {:error,{:duplicate_span_id,id}} and {:error,{:parent_in_other_trace,child_span_id}}." ;
+    ema:observationScope "read_only" ; ema:mutationScope "none" ;
+    ema:requiresAuthority "false" ; ema:isReversible "true" ;
+    ema:receiptSemantics "none" .
+
+#################################################################
+# Ferroplan functions -- lib/beam4pm_ferroplan.ex (Wasmex-backed HTN
+# planning engine). Each of these is a real stateful operation over a
+# named/handle-identified Wasmex engine instance; scopes below are
+# individually grounded, not defaulted.
+#################################################################
+
+<urn:ema:beam4pm-planning/cap/plan> a ema:Capability ;
+    ema:capabilityOf <urn:ema:beam4pm-planning> ; ema:capabilityOrder 7 ;
+    ema:capabilityId "plan" ; ema:capabilityName "Plan" ;
+    ema:capabilityDescription "Compatibility solve surface: {\"op\":\"plan\",\"domain\":d,\"problem\":p[,\"mode\":m,\"flags\":f,\"search\":s]} -- lenient mode/search parsing, single threaded, `extra` map merged into request; returns {:ok, <Solution map>} (lib/beam4pm_ferroplan.ex:176-185, def plan/4, body 179-185)." ;
+    ema:capabilityAshAction "BeamPM.Ferroplan.plan/4" ;
+    ema:observationScope "read_only" ; ema:mutationScope "none" ;
+    ema:requiresAuthority "false" ; ema:isReversible "true" ;
+    ema:receiptSemantics "none" .
+# plan/4 reads domain+problem and computes a solution via the wasm engine
+# with no evidence of writing durable state back (no Ash.create/update or
+# Repo call in the cited body) -- treated as an idempotent, side-effect-free
+# solve, same class as the pure discovery functions above, despite crossing
+# a wasm ABI boundary.
+
+<urn:ema:beam4pm-planning/cap/session_set_goal> a ema:Capability ;
+    ema:capabilityOf <urn:ema:beam4pm-planning> ; ema:capabilityOrder 8 ;
+    ema:capabilityId "session_set_goal" ; ema:capabilityName "Session set goal" ;
+    ema:capabilityDescription "Sets the goal on an existing planning session identified by integer handle: {\"op\":\"session_set_goal\",\"handle\":h,\"goal\":g} (lib/beam4pm_ferroplan.ex:256-264, def session_set_goal/3, body 259-264). Mutates in-process Wasmex engine session state, not durable/Ash-persisted state." ;
+    ema:capabilityAshAction "BeamPM.Ferroplan.session_set_goal/3" ;
+    ema:observationScope "read_write" ; ema:mutationScope "idempotent" ;
+    ema:requiresAuthority "false" ; ema:isReversible "true" ;
+    ema:receiptSemantics "none" .
+# mutation_scope=idempotent (not consequential): re-setting the same goal on
+# the same handle converges to the same session state, no external/durable
+# resource is committed, and no Ash.Actuation/BRCE-style receipt path exists
+# for it -- so requires_authority=false and receipt_semantics=none follow
+# directly, per this pack's own definition that "consequential" is reserved
+# for effects that must route through Actuation.run/4-equivalent authority.
+
+<urn:ema:beam4pm-planning/cap/ferroplan_start> a ema:Capability ;
+    ema:capabilityOf <urn:ema:beam4pm-planning> ; ema:capabilityOrder 9 ;
+    ema:capabilityId "ferroplan_start" ; ema:capabilityName "Start planning engine" ;
+    ema:capabilityDescription "Starts (or reuses) the one named Wasmex engine instance BeamPM.Ferroplan.Engine; idempotent (lib/beam4pm_ferroplan.ex:126-145, def start/0, body 132-145)." ;
+    ema:capabilityAshAction "BeamPM.Ferroplan.start/0" ;
+    ema:observationScope "none" ; ema:mutationScope "idempotent" ;
+    ema:requiresAuthority "false" ; ema:isReversible "false" ;
+    ema:receiptSemantics "none" .
+# is_reversible=false: the cited source shows a start/0 that starts-or-reuses
+# a named engine, but no corresponding stop/0 or terminate function was found
+# in the inspection evidence -- no real compensating action exists to encode
+# as "true" here.
+
+#################################################################
+# NOT encoded as an ema:Capability: BeamPM.Application.start/2
+# (lib/beam4pm_application.ex:1-27, body 18-26; mix.exs:6 confirms real
+# :otp_app is :beam4pm). An earlier draft of this fixture encoded it as
+# a Capability row with mutation_scope="consequential" AND
+# requires_authority="false" together -- exactly the dangerous
+# contradiction gates/010_capability_descriptor_contract.rq exists to
+# catch (a real consequential mutation must always require an explicit
+# authority context, per this ecosystem's own doctrine). The actual fix
+# is not to flip requires_authority to "true" -- it is that an OTP boot
+# callback invoked by the BEAM runtime itself is not "one MCP tool / A2A
+# skill this surface exposes" (ontology.ttl's own definition of
+# ema:Capability) at all; no caller ever invokes it through an
+# authority-gated MCP/A2A request. Removed rather than patched, so this
+# fixture stops asserting a contradiction the gate would otherwise have
+# to catch on every regeneration.
+#################################################################
+# Deliberately EXCLUDED from this fixture, and why:
+#
+# - Transition, Task, Method (native Rust structs,
+#   native/ferroplan/crates/ferroplan/src/planning_runtime.rs:47-64, 75-80,
+#   82-87): these are wire-serialized JSON data-shape definitions exposed
+#   through the wasm ABI (fp_alloc/fp_call/fp_dealloc), not directly
+#   callable BEAM functions or NIFs. They are the *shape* of what plan/4 and
+#   session_set_goal/3 pass across the wasm boundary, not separate
+#   invocable capabilities in their own right -- encoding them as
+#   ema:Capability rows would misrepresent a data type as an operation.
+#
+# - No ema:mcpAuditPlugModule value is given on the CapabilitySurface above:
+#   beam4pm has no XaasWeb.Plugs.AuditMcpToolCall-equivalent plug today.
+#   Per the ontology's own comment (ontology.ttl:39), absence here means "no
+#   audit plug is generated" -- a disclosed gap, not a silent security
+#   claim.
+#
+# - No ema:agentSwarmRole value is given: this proposed agent is not being
+#   modeled as one of the nine named Vision-2030 SwarmRole individuals.
+#################################################################

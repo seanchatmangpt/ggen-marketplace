@@ -1,0 +1,37 @@
+name: Run ggen sync run inside the pinned ggen-ecosystem container (ggen + marketplace packs, no binary download)
+description: Run ggen sync run inside the pinned ggen-ecosystem container (ggen + marketplace packs, no binary download)
+inputs:
+  extra_args:
+    description: Extra flags appended to ggen sync run (e.g. --dry-run)
+    required: false
+    default: 
+  working_directory:
+    description: Repository-relative directory containing the consumer's ggen.toml
+    required: false
+    default: .
+  image_tag:
+    description: Tag of ghcr.io/seanchatmangpt/ggen-ecosystem to run
+    required: false
+    default: v26.8.28
+outputs:
+  exit_code:
+    description: Exit code of ggen sync run inside the container
+
+runs:
+  using: composite
+  steps:
+    - name: ggen sync run inside ghcr.io/seanchatmangpt/ggen-ecosystem
+      id: run
+      shell: bash
+      run: |
+        set +e
+        docker run --rm \
+          -v "${{ github.workspace }}:/workspace" \
+          -w "/workspace/${{ inputs.working_directory }}" \
+          "ghcr.io/seanchatmangpt/ggen-ecosystem:${{ inputs.image_tag }}" \
+          ggen sync run ${{ inputs.extra_args }}
+        code=$?
+        set -e
+        echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+        exit $code
+

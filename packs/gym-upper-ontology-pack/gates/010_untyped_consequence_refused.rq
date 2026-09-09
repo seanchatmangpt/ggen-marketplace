@@ -1,0 +1,44 @@
+# MESSAGE: any returned row refuses manufacture. Every capability in an admitted union
+# graph must resolve to exactly one typed gu:ConsequenceClass through one of the three
+# encodings the real gym packs use, and every consequence IRI referenced must be typed.
+# This gate catches the real, currently-live defect: three marketplace files reference
+# <urn:gymact:consequence:read>/<...:do> and no file in the marketplace types them.
+PREFIX gu: <http://seanchatmangpt.github.io/packs/gym-upper#>
+PREFIX dct: <http://purl.org/dc/terms/>
+PREFIX dcp: <http://seanchatmangpt.github.io/packs/domain-capability#>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+PREFIX sosa: <http://www.w3.org/ns/sosa/>
+SELECT ?subject ?problem WHERE {
+  {
+    # A referenced consequence IRI that is not a typed gu:ConsequenceClass.
+    ?cap dct:type ?subject .
+    FILTER(isIRI(?subject) && CONTAINS(STR(?subject), "consequence"))
+    FILTER NOT EXISTS { ?subject a gu:ConsequenceClass }
+    BIND("untyped-consequence-class-refused" AS ?problem)
+  }
+  UNION
+  {
+    # A capability whose consequence cannot be resolved by ANY admitted encoding.
+    ?subject a sosa:Procedure .
+    FILTER NOT EXISTS {
+      { ?subject dct:type ?c . ?c a gu:ConsequenceClass }
+      UNION { ?subject dct:relation ?l1 . ?c1 a gu:ConsequenceClass ; skos:notation ?l1 }
+      UNION { ?subject dcp:consequence ?l2 . ?c2 a gu:ConsequenceClass ; skos:notation ?l2 }
+    }
+    BIND("unresolvable-consequence-refused" AS ?problem)
+  }
+  UNION
+  {
+    # A consequence class with no notation: literal-encoded packs cannot cross to it.
+    ?subject a gu:ConsequenceClass .
+    FILTER NOT EXISTS { ?subject skos:notation ?n }
+    BIND("consequence-class-without-notation-refused" AS ?problem)
+  }
+  UNION
+  {
+    # Authority boundary: a capability may never itself carry the authority policy.
+    ?subject a sosa:Procedure , gu:AuthorityPolicy .
+    BIND("capability-must-not-carry-authority-policy" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem

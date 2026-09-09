@@ -1,0 +1,33 @@
+PREFIX ema: <http://seanchatmangpt.github.io/packs/elixir-mcp-a2a#>
+
+# Closed-vocabulary + fail-closed-consistency check for ema:Capability rows.
+# CONSTRUCT-shaped: an empty result is the passing case (mirrors this
+# marketplace's other gates/*.rq convention, e.g. ash-extension-core-pack's
+# gates/010_required_extension_contract.rq). Two real defect classes:
+#
+# 1. observation_scope/mutation_scope/receipt_semantics outside their
+#    documented closed vocabularies (ontology.ttl's own rdfs:comment on
+#    each property) -- a typo'd value would silently render as an atom
+#    the generated module's own code never pattern-matches on.
+# 2. mutation_scope = "consequential" with requires_authority = "false" --
+#    a real, dangerous contradiction: this ecosystem's own doctrine
+#    (xaas CLAUDE.md's Consequential DO section, ex4pm's BRCE) says a
+#    consequential mutation ALWAYS requires an explicit authority
+#    context. A spec author declaring the opposite is a defect to catch
+#    at gate time, not silently generate into running code.
+CONSTRUCT { ?c ema:gateViolation "invalid or dangerous capability descriptor" }
+WHERE {
+  ?c a ema:Capability .
+  {
+    ?c ema:observationScope ?os .
+    FILTER (?os NOT IN ("none", "read_only", "read_write"))
+  } UNION {
+    ?c ema:mutationScope ?ms .
+    FILTER (?ms NOT IN ("none", "idempotent", "consequential"))
+  } UNION {
+    ?c ema:receiptSemantics ?rs .
+    FILTER (?rs NOT IN ("none", "logged", "sealed_receipt"))
+  } UNION {
+    ?c ema:mutationScope "consequential" ; ema:requiresAuthority "false" .
+  }
+}

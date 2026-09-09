@@ -1,0 +1,37 @@
+# MESSAGE: any returned row refuses manufacture. Standing facts are observational; no
+# transition may confer actuation authority, and no standing outside the admitted seven
+# may enter the graph. Consequential DO remains external, behind GymAct/BRCE admission.
+PREFIX dct: <http://purl.org/dc/terms/>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+PREFIX eco: <https://ggen.dev/ecosystem#>
+PREFIX st:  <urn:ggen-ecosystem:standing:>
+SELECT ?subject ?problem WHERE {
+  {
+    ?subject a eco:StandingTransition ; eco:authorityEffect ?eff .
+    FILTER (STR(?eff) != "NONE")
+    BIND("authority-escalation-refused" AS ?problem)
+  } UNION {
+    ?subject a eco:StandingFoundationContract ; eco:authorityCeiling ?c .
+    FILTER (STR(?c) != "CONSTRUCT")
+    BIND("authority-ceiling-above-construct-refused" AS ?problem)
+  } UNION {
+    ?subject a eco:StandingTransition .
+    VALUES ?required { eco:fromStanding eco:toStanding eco:promotionRule prov:hadPrimarySource }
+    FILTER NOT EXISTS { ?subject ?required ?v }
+    BIND(CONCAT("missing:", STR(?required)) AS ?problem)
+  } UNION {
+    ?subject a eco:StandingTransition ; eco:fromStanding ?s .
+    FILTER NOT EXISTS { ?s a skos:Concept ; skos:inScheme st:StandingScheme }
+    BIND("unadmitted-standing-refused" AS ?problem)
+  } UNION {
+    ?subject a eco:StandingTransition ; eco:toStanding ?s .
+    FILTER NOT EXISTS { ?s a skos:Concept ; skos:inScheme st:StandingScheme }
+    BIND("unadmitted-standing-refused" AS ?problem)
+  } UNION {
+    ?subject a eco:StandingTransition ; eco:toStanding st:ALIVE ; eco:exactSubjectRequired ?x .
+    FILTER (?x = false)
+    BIND("alive-promotion-without-exact-subject-refused" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem

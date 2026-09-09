@@ -1,0 +1,190 @@
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix dqv:     <http://www.w3.org/ns/dqv#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix gymci:   <http://seanchatmangpt.github.io/packs/gym-ci-toolchain-bblock#> .
+@prefix ex:      <https://ggen.io/gym-ecosystem/ci/> .
+
+#################################################################
+# gym-ci-toolchain-bblock-pack
+#
+# A Fortune-5 deployment building block for ONE thing the gym
+# ecosystem hand-maintains 62 times: the CI toolchain preamble
+# (checkout + language runtime setup) and its action-SHA pins.
+#
+# GROUNDING. Every gymci:PinObservation below is a real count from
+# a real command run against the real trees on 2026-09-06:
+#
+#   $ cd /Users/sac/gym-ecosystem
+#   $ grep -h "uses: actions/checkout" vendor/*/.github/workflows/*.yml \
+#       | sort | uniq -c | sort -rn
+#   $ grep -c "@v[0-9]$" vendor/<repo>/.github/workflows/*.yml
+#
+# 62 workflow files across 3 initialized submodules carry NINE
+# distinct actions/checkout pin strings, of which 14 uses are
+# floating tags (@v4) rather than SHAs. Ten of the thirteen
+# vendor/ submodules are uninitialized on this machine and are
+# recorded here as gymci:UninitializedSubmodule with NO fabricated
+# CI facts -- absence of a checkout is not evidence of absence of
+# CI, and this pack does not pretend otherwise.
+#
+# AUTHORITY BOUNDARY (mirrors fortune5-deployment-blocks-pack's
+# bb:directActuation false and its gates/020 refusal): this pack
+# renders CI *preamble* only. gymci:directActuation is false and
+# gate 020 refuses any step whose command deploys, publishes,
+# pushes, applies, or actuates. Consequential DO stays behind
+# GymAct/BRCE admission; a generated composite action carries no
+# runtime actuation authority.
+#################################################################
+
+gymci:Block                  a rdfs:Class ; rdfs:label "The CI toolchain deployment building block for one ecosystem." .
+gymci:ToolchainPin           a rdfs:Class ; rdfs:label "One canonical, SHA-pinned action reference the block standardizes on." .
+gymci:PinObservation         a rdfs:Class ; rdfs:subClassOf dqv:QualityMeasurement ;
+    rdfs:label "A measured occurrence count of one pin string as actually found in the trees." .
+gymci:ConsumerRepo           a rdfs:Class ; rdfs:label "A gym submodule that consumes (or would consume) the block." .
+gymci:UninitializedSubmodule a rdfs:Class ; rdfs:subClassOf gymci:ConsumerRepo ;
+    rdfs:label "A vendor/ submodule with no checked-out working tree: no CI facts are asserted for it." .
+gymci:PreambleStep           a rdfs:Class ; rdfs:label "One step of the standardized, non-actuating CI preamble." .
+
+gymci:blockId          a rdf:Property ; rdfs:domain gymci:Block .
+gymci:directActuation  a rdf:Property ; rdfs:domain gymci:Block .
+gymci:hasPin           a rdf:Property ; rdfs:domain gymci:Block ; rdfs:range gymci:ToolchainPin .
+gymci:hasConsumer      a rdf:Property ; rdfs:domain gymci:Block ; rdfs:range gymci:ConsumerRepo .
+gymci:hasStep          a rdf:Property ; rdfs:domain gymci:Block ; rdfs:range gymci:PreambleStep .
+gymci:pinId            a rdf:Property ; rdfs:domain gymci:ToolchainPin .
+gymci:actionRef        a rdf:Property ; rdfs:domain gymci:ToolchainPin ; rdfs:label "owner/repo@sha of the canonical pin" .
+gymci:versionComment   a rdf:Property ; rdfs:domain gymci:ToolchainPin .
+gymci:observedVariants a rdf:Property ; rdfs:domain gymci:ToolchainPin ; rdfs:range xsd:integer .
+gymci:floatingUses     a rdf:Property ; rdfs:domain gymci:ToolchainPin ; rdfs:range xsd:integer .
+gymci:pinString        a rdf:Property ; rdfs:domain gymci:PinObservation .
+gymci:occurrences      a rdf:Property ; rdfs:domain gymci:PinObservation ; rdfs:range xsd:integer .
+gymci:isFloatingTag    a rdf:Property ; rdfs:domain gymci:PinObservation ; rdfs:range xsd:boolean .
+gymci:observationOf    a rdf:Property ; rdfs:domain gymci:PinObservation ; rdfs:range gymci:ToolchainPin .
+gymci:repoName         a rdf:Property ; rdfs:domain gymci:ConsumerRepo .
+gymci:workflowCount    a rdf:Property ; rdfs:domain gymci:ConsumerRepo ; rdfs:range xsd:integer .
+gymci:floatingRefCount a rdf:Property ; rdfs:domain gymci:ConsumerRepo ; rdfs:range xsd:integer .
+gymci:languageMarker   a rdf:Property ; rdfs:domain gymci:ConsumerRepo .
+gymci:stepOrder        a rdf:Property ; rdfs:domain gymci:PreambleStep ; rdfs:range xsd:integer .
+gymci:stepName         a rdf:Property ; rdfs:domain gymci:PreambleStep .
+gymci:usesPin          a rdf:Property ; rdfs:domain gymci:PreambleStep ; rdfs:range gymci:ToolchainPin .
+gymci:withParam        a rdf:Property ; rdfs:domain gymci:PreambleStep .
+gymci:runCommand       a rdf:Property ; rdfs:domain gymci:PreambleStep .
+gymci:actuating        a rdf:Property ; rdfs:domain gymci:PreambleStep ; rdfs:range xsd:boolean .
+
+#################################################################
+# The block
+#################################################################
+
+ex:gym-ci-block a gymci:Block ;
+    gymci:blockId "gym-ci-toolchain" ;
+    dcterms:title "Gym ecosystem CI toolchain preamble" ;
+    dcterms:description "The checkout + Python-runtime preamble that 62 hand-maintained workflow files across three gym submodules each restate, with nine divergent action pin strings between them." ;
+    dcterms:created "2026-09-06"^^xsd:date ;
+    prov:wasDerivedFrom "grep -h 'uses: actions/checkout' /Users/sac/gym-ecosystem/vendor/*/.github/workflows/*.yml | sort | uniq -c | sort -rn" ;
+    gymci:directActuation false ;
+    gymci:hasPin ex:pin-checkout, ex:pin-setup-python ;
+    gymci:hasStep ex:step-checkout, ex:step-python, ex:step-provenance ;
+    gymci:hasConsumer ex:autofde-lab, ex:beam4pm, ex:ggen-ecosystem,
+                      ex:awesome-ai-gyms, ex:biblegym, ex:chatgptgym, ex:claudecodegym,
+                      ex:fdegym, ex:gitgym, ex:gymact, ex:lifegym, ex:rrgym,
+                      ex:SREGym, ex:ww3gym .
+
+#################################################################
+# Canonical pins -- the majority SHA actually in use, not a guess
+#################################################################
+
+ex:pin-checkout a gymci:ToolchainPin ;
+    gymci:pinId "checkout" ;
+    gymci:actionRef "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803" ;
+    gymci:versionComment "v6" ;
+    gymci:observedVariants 9 ;
+    gymci:floatingUses 14 ;
+    skos:note "59 of 80 checkout uses already carry this SHA; standardizing costs nothing and removes 8 competing strings." .
+
+ex:pin-setup-python a gymci:ToolchainPin ;
+    gymci:pinId "setup-python" ;
+    gymci:actionRef "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1" ;
+    gymci:versionComment "v6" ;
+    gymci:observedVariants 4 ;
+    gymci:floatingUses 6 ;
+    skos:note "32 of 38 setup-python uses already carry this SHA; 6 float on @v5." .
+
+ex:obs-checkout-v6-a a gymci:PinObservation ; gymci:observationOf ex:pin-checkout ;
+    gymci:pinString "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6" ;
+    gymci:occurrences 51 ; gymci:isFloatingTag false .
+ex:obs-checkout-v6-b a gymci:PinObservation ; gymci:observationOf ex:pin-checkout ;
+    gymci:pinString "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803" ;
+    gymci:occurrences 8 ; gymci:isFloatingTag false .
+ex:obs-checkout-float a gymci:PinObservation ; gymci:observationOf ex:pin-checkout ;
+    gymci:pinString "actions/checkout@v4" ;
+    gymci:occurrences 14 ; gymci:isFloatingTag true .
+ex:obs-checkout-3d3c a gymci:PinObservation ; gymci:observationOf ex:pin-checkout ;
+    gymci:pinString "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" ;
+    gymci:occurrences 4 ; gymci:isFloatingTag false .
+ex:obs-checkout-11bd a gymci:PinObservation ; gymci:observationOf ex:pin-checkout ;
+    gymci:pinString "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2" ;
+    gymci:occurrences 2 ; gymci:isFloatingTag false .
+ex:obs-checkout-11d5 a gymci:PinObservation ; gymci:observationOf ex:pin-checkout ;
+    gymci:pinString "actions/checkout@11d5960a326750d5838078e36cf38b85af677262" ;
+    gymci:occurrences 1 ; gymci:isFloatingTag false .
+ex:obs-python-v6 a gymci:PinObservation ; gymci:observationOf ex:pin-setup-python ;
+    gymci:pinString "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6" ;
+    gymci:occurrences 25 ; gymci:isFloatingTag false .
+ex:obs-python-bare a gymci:PinObservation ; gymci:observationOf ex:pin-setup-python ;
+    gymci:pinString "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1" ;
+    gymci:occurrences 7 ; gymci:isFloatingTag false .
+ex:obs-python-float a gymci:PinObservation ; gymci:observationOf ex:pin-setup-python ;
+    gymci:pinString "actions/setup-python@v5" ;
+    gymci:occurrences 6 ; gymci:isFloatingTag true .
+
+#################################################################
+# The preamble steps -- non-actuating by construction
+#################################################################
+
+ex:step-checkout a gymci:PreambleStep ;
+    gymci:stepOrder 1 ; gymci:stepName "Checkout" ;
+    gymci:usesPin ex:pin-checkout ;
+    gymci:withParam "fetch-depth: ${{ inputs.fetch-depth }}" ;
+    gymci:withParam "submodules: ${{ inputs.submodules }}" ;
+    gymci:actuating false .
+
+ex:step-python a gymci:PreambleStep ;
+    gymci:stepOrder 2 ; gymci:stepName "Set up Python" ;
+    gymci:usesPin ex:pin-setup-python ;
+    gymci:withParam "python-version: ${{ inputs.python-version }}" ;
+    gymci:actuating false .
+
+ex:step-provenance a gymci:PreambleStep ;
+    gymci:stepOrder 3 ; gymci:stepName "Record toolchain provenance" ;
+    gymci:runCommand """echo "gym-ci-toolchain block: checkout=d23441a4 setup-python=ece7cb06" >> "$GITHUB_STEP_SUMMARY"
+python -c 'import sys; print("python", sys.version)'""" ;
+    gymci:actuating false .
+
+#################################################################
+# Consumers -- measured, or explicitly recorded as unmeasurable
+#################################################################
+
+ex:autofde-lab a gymci:ConsumerRepo ; gymci:repoName "autofde-lab" ;
+    gymci:workflowCount 35 ; gymci:floatingRefCount 29 ;
+    gymci:languageMarker "python", "node", "ggen" .
+ex:beam4pm a gymci:ConsumerRepo ; gymci:repoName "beam4pm" ;
+    gymci:workflowCount 9 ; gymci:floatingRefCount 0 ;
+    gymci:languageMarker "elixir", "ggen" .
+ex:ggen-ecosystem a gymci:ConsumerRepo ; gymci:repoName "ggen-ecosystem" ;
+    gymci:workflowCount 18 ; gymci:floatingRefCount 7 ;
+    gymci:languageMarker "ggen" .
+
+ex:awesome-ai-gyms a gymci:UninitializedSubmodule ; gymci:repoName "awesome-ai-gyms" .
+ex:biblegym        a gymci:UninitializedSubmodule ; gymci:repoName "biblegym" .
+ex:chatgptgym      a gymci:UninitializedSubmodule ; gymci:repoName "chatgptgym" .
+ex:claudecodegym   a gymci:UninitializedSubmodule ; gymci:repoName "claudecodegym" .
+ex:fdegym          a gymci:UninitializedSubmodule ; gymci:repoName "fdegym" .
+ex:gitgym          a gymci:UninitializedSubmodule ; gymci:repoName "gitgym" .
+ex:gymact          a gymci:UninitializedSubmodule ; gymci:repoName "gymact" .
+ex:lifegym         a gymci:UninitializedSubmodule ; gymci:repoName "lifegym" .
+ex:rrgym           a gymci:UninitializedSubmodule ; gymci:repoName "rrgym" .
+ex:SREGym          a gymci:UninitializedSubmodule ; gymci:repoName "SREGym" .
+ex:ww3gym          a gymci:UninitializedSubmodule ; gymci:repoName "ww3gym" .

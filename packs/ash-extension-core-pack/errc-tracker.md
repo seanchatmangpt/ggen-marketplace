@@ -1,5 +1,45 @@
 # ash-extension-core-pack ERRC tracker
 
+## Cycle 2 — 2026-09-09 (CREATE, spun into a sibling pack)
+
+Triggered by user request: "review this project and ash_r2rml to make the [starter]
+pack as feature rich as possible." Two parallel real review passes (Explore agents,
+file:line-cited, not workflow-run): one over `/Users/sac/ash_r2rml` (this pack's own
+golden specimen), one over `/Users/sac/xaas` (a real, currently-active consumer
+context). Full findings and rankings live in the two agents' own reports; only the
+CREATE decisions are recorded here.
+
+**CREATE (built as `~/ggen-marketplace/packs/ash-extension-starter-pack/`, not added
+directly to this pack, since both are new capabilities rather than fixes to existing
+templates):**
+- `aex:ReactorStep` (ash_r2rml finding, ranked #1 of 5) — dynamic Reactor step-graph
+  declaration, generalizing this pack's own `reactor_pipeline.ex.tmpl`'s hardcoded
+  five-step body into a spec-declared arbitrary step DAG.
+- `aex:generatesReceiptedAction` (xaas finding #5) — idempotency-key/receipt/replay
+  wrapper generalizing xaas's real `Xaas.Actuation.run/4`, directly relevant to the
+  `ash_ex4pm` extension's planned `brce_gate` capability.
+
+**Confirmed-adequate, no action (from the ash_r2rml pass):** `single_extension_kinds`
+coverage (finding #6); the composition test's `function_exported?/3`-only depth is a
+pre-existing, already-disclosed pack.toml gap, not a new finding (finding #7); the
+installer's manual-notice fallback (finding #8) and the embedded pack's name typo
+(finding #9) were both already known/disclosed — confirmed still true, no new fix
+needed.
+
+**Named, not yet built (see starter-pack's own pack.toml/ontology.ttl follow-up
+lists for full file:line citations):** Reactor middleware declaration; transformer
+`after?`/`before?` ordering; verifier delegate-and-join-refusals idiom; Info module
+getter/getter!/predicate? triple; arbitrary N-length third-party-extension
+composition (xaas stacks 3-4 extensions per resource routinely — finding #1);
+multi-phase orchestrating installer (xaas finding #3); a README-level disclosure that
+this pack targets the Rust `ggen` binary, not the similarly-named Elixir
+`ggen_igniter` hex package (xaas finding #4 — added to starter-pack's pack.toml,
+should be back-ported to this pack's own docs too, not yet done).
+
+**Verification status:** starter-pack's new ontology/templates are hand-reviewed
+against their cited sources but not yet run through a real `ggen sync run` against a
+live spec fixture. UNVERIFIED, not ALIVE, until that run happens.
+
 ## Cycle 1 — 2026-08-26
 
 Ran via the `errc-cycle` skill. Note on process: the skill's generic Verify-phase

@@ -1,0 +1,136 @@
+@prefix ctrl: <http://seanchatmangpt.github.io/packs/control-plane-invariants#> .
+
+# Synthetic green fixture for testing the pack's compile/gate semantics.
+# Clean subject match, all claims verdicted CONFIRMED, no lease collisions,
+# no unchanged retries, every ALIVE item is backed by a confirmed claim, no
+# premature unresolvable verdicts, no dependency-lock check reports PASS
+# with a nonzero stale-entry count, and no production reference points at a
+# dev/test-only-scoped component -- must pass all 9 gates (0 rows each).
+
+# --- subject identity: matches claimed --------------------------------------
+
+ctrl:q-receipt a ctrl:SubjectReceipt ;
+    ctrl:absolutePath "/tmp/repo-a" ;
+    ctrl:pwdObserved true ;
+    ctrl:gitRemote "https://example.invalid/repo-a.git" ;
+    ctrl:gitToplevel "/tmp/repo-a" ;
+    ctrl:headSha "abc1234def5678" ;
+    ctrl:dirtyState "clean" ;
+    ctrl:claimedSubject "/tmp/repo-a" ;
+    ctrl:matchesClaimed true .
+
+# --- work queue item, crowned ALIVE, backed by a confirmed claim -----------
+
+ctrl:q-item-1 a ctrl:WorkQueueItem ;
+    ctrl:itemId "item-1" ;
+    ctrl:project "repo-a" ;
+    ctrl:status "ALIVE" .
+
+ctrl:q-manifest-1 a ctrl:ClaimsManifest ;
+    ctrl:manifestId "manifest-1" ;
+    ctrl:forItem ctrl:q-item-1 .
+
+ctrl:q-claim-1 a ctrl:Claim ;
+    ctrl:claimId "claim-1" ;
+    ctrl:claimText "the build passes" ;
+    ctrl:evidenceCommand "true" ;
+    ctrl:literalEvidence "exit 0" ;
+    ctrl:verdict "CONFIRMED" ;
+    ctrl:partOf ctrl:q-manifest-1 ;
+    ctrl:forItem ctrl:q-item-1 .
+
+# A second, unrelated item, not yet crowned -- no claim required for it.
+
+ctrl:q-item-2 a ctrl:WorkQueueItem ;
+    ctrl:itemId "item-2" ;
+    ctrl:project "repo-a" ;
+    ctrl:status "READY" .
+
+# --- build leases: disjoint resource keys, no collision --------------------
+
+ctrl:q-lease-1 a ctrl:BuildLease ;
+    ctrl:resourceKey "repo-a-target" ;
+    ctrl:holderIdentity "agent-a" ;
+    ctrl:acquiredAt "2026-09-02T10:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> ;
+    ctrl:expiresAt "2026-09-02T11:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> ;
+    ctrl:released false .
+
+ctrl:q-lease-2 a ctrl:BuildLease ;
+    ctrl:resourceKey "repo-b-target" ;
+    ctrl:holderIdentity "agent-b" ;
+    ctrl:acquiredAt "2026-09-02T10:05:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> ;
+    ctrl:expiresAt "2026-09-02T11:05:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> ;
+    ctrl:released false .
+
+# A released lease sharing repo-a-target is fine -- it is no longer held.
+
+ctrl:q-lease-3 a ctrl:BuildLease ;
+    ctrl:resourceKey "repo-a-target" ;
+    ctrl:holderIdentity "agent-c" ;
+    ctrl:acquiredAt "2026-09-01T09:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> ;
+    ctrl:expiresAt "2026-09-01T10:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> ;
+    ctrl:released true .
+
+# --- retry discipline: only one attempt, and a second attempt that DID change
+
+ctrl:q-retry-1 a ctrl:RetryAttempt ;
+    ctrl:attemptNumber 1 ;
+    ctrl:hypothesis "first try" ;
+    ctrl:changedFromPrevious true .
+
+ctrl:q-retry-2 a ctrl:RetryAttempt ;
+    ctrl:attemptNumber 2 ;
+    ctrl:hypothesis "fixed the root cause identified in attempt 1" ;
+    ctrl:changedFromPrevious true .
+
+# --- subject resolution: a local miss that was actually checked against the
+# real remote and genuinely confirmed absent there too -- a real
+# ACTUALLY_UNRESOLVABLE verdict, backed by a real remote check ------------
+
+ctrl:q-resolve-1 a ctrl:SubjectResolutionCheck ;
+    ctrl:refValue "deadbeefcafef00d0000000000000000000000" ;
+    ctrl:localResult "LOCAL_OBJECT_ABSENT" ;
+    ctrl:remoteResult "REMOTE_OBJECT_ABSENT" ;
+    ctrl:finalVerdict "ACTUALLY_UNRESOLVABLE" .
+
+# A local miss that was resolved by fetching -- found on the real remote,
+# so it is RESOLVED, not unresolvable.
+
+ctrl:q-resolve-2 a ctrl:SubjectResolutionCheck ;
+    ctrl:refValue "abc1234def5678" ;
+    ctrl:localResult "SHALLOW_FETCH" ;
+    ctrl:remoteResult "FOUND" ;
+    ctrl:finalVerdict "RESOLVED" .
+
+# --- dependency lock drift: a real stale entry (ranch, per ex4pm commit
+# 08cc60c) that is honestly reported FAIL, plus a fully-materialized check
+# with zero stale entries reported PASS -- neither is the defect pattern.
+
+ctrl:q-lockcheck-1 a ctrl:DependencyLockCheck ;
+    ctrl:lockedPackageCount 76 ;
+    ctrl:materializedPackageCount 75 ;
+    ctrl:staleEntryCount 1 ;
+    ctrl:staleEntryName "ranch" ;
+    ctrl:reportedVerdict "FAIL" .
+
+ctrl:q-lockcheck-2 a ctrl:DependencyLockCheck ;
+    ctrl:lockedPackageCount 76 ;
+    ctrl:materializedPackageCount 76 ;
+    ctrl:staleEntryCount 0 ;
+    ctrl:reportedVerdict "PASS" .
+
+# --- scope leakage: igniter is correctly declared DEV_ONLY and no
+# production projection references it -- the reference to it only exists in
+# a dev-scoped component, not a ctrl:ProductionReference.
+
+ctrl:q-scoped-igniter a ctrl:ScopedComponent ;
+    ctrl:componentName "Igniter.Mix.Task" ;
+    ctrl:declaredScope "DEV_ONLY" .
+
+ctrl:q-scoped-core a ctrl:ScopedComponent ;
+    ctrl:componentName "Ex4pmEngine.Wasm" ;
+    ctrl:declaredScope "PRODUCTION" .
+
+ctrl:q-prodref-1 a ctrl:ProductionReference ;
+    ctrl:referencedComponent ctrl:q-scoped-core ;
+    ctrl:referencingProjection "apps/ex4pm_engine/lib/ex4pm_engine/wasm/mean.ex" .

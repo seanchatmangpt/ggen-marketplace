@@ -1,0 +1,161 @@
+@prefix gu:    <http://seanchatmangpt.github.io/packs/gym-upper#> .
+@prefix dcat:  <http://www.w3.org/ns/dcat#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix prov:  <http://www.w3.org/ns/prov#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos:  <http://www.w3.org/2004/02/skos/core#> .
+@prefix sosa:  <http://www.w3.org/ns/sosa/> .
+
+#################################################################
+# gym-upper: the shared upper ontology the gym packs currently re-mint.
+#
+# Every term below is introduced ONLY because at least two real, existing
+# artifacts encode the same concept incompatibly. Each is cited to the exact
+# file it was found in. Nothing here is invented from a repo name.
+#
+# Reused published vocabularies (NOT re-minted): sosa:Procedure, dcat:DataService,
+# dcterms:, odrl:Policy, prov:Entity/hadPrimarySource, skos:Concept/ConceptScheme,
+# dqv:QualityMeasurement. Only the CROSSWALK between the gyms' divergent
+# encodings is minted here, plus the two consequence individuals that three
+# existing artifacts reference but NO file in the marketplace defines.
+#################################################################
+
+gu:ontology
+    a prov:Entity ;
+    dct:title "gym-upper shared ontology for the gym-ecosystem packs" ;
+    dct:hasVersion "26.9.1" ;
+    dct:description "Crosswalk upper ontology for concepts independently re-minted by chatgptgym-gymact-bridge-pack, lifegym-world-pack, ww3gym-planning-pack and domain-capability-pack." .
+
+# --- Sources: real files read, not summaries ------------------------------
+gu:src-chatgptgym  dct:identifier "ggen-marketplace/packs/chatgptgym-gymact-bridge-pack/ontology.ttl" .
+gu:src-chatgptgym-shape dct:identifier "ggen-marketplace/packs/chatgptgym-gymact-bridge-pack/shapes/profile.shacl.ttl" .
+gu:src-lifegym     dct:identifier "ggen-marketplace/packs/lifegym-world-pack/ontology.ttl" .
+gu:src-lifegym-shape dct:identifier "ggen-marketplace/packs/lifegym-world-pack/shapes/profile.shacl.ttl" .
+gu:src-ww3gym      dct:identifier "ggen-marketplace/packs/ww3gym-planning-pack/ontology.ttl" .
+gu:src-dcp         dct:identifier "ggen-marketplace/packs/domain-capability-pack/ontology.ttl" .
+gu:src-stl         dct:identifier "ggen-marketplace/packs/standing-ladder-pack/ontology.ttl" .
+gu:src-eco         dct:identifier "gym-ecosystem/vendor/ggen-ecosystem/ecosystem.ttl" .
+
+#################################################################
+# 1. CONSEQUENCE CLASS -- re-minted four incompatible ways.
+#
+#   chatgptgym : dct:type <urn:gymact:consequence:do>          (IRI)
+#   lifegym    : same IRIs referenced by a byte-identical copy of chatgptgym's
+#                SHACL sh:in list, over ZERO sosa:Procedure individuals
+#                (sha256 of both shape files: c6b0a7db... -- verified identical)
+#   ww3gym     : d:relation "DO"                               (string literal)
+#   dcp        : dcp:consequence "DO"                          (string literal)
+#
+# <urn:gymact:consequence:read> and <urn:gymact:consequence:do> are referenced
+# by three files and DEFINED BY NONE (grep over the whole marketplace returns no
+# rdf:type statement for either). gu: defines them once, here.
+#################################################################
+
+gu:ConsequenceClassScheme a skos:ConceptScheme ;
+    skos:prefLabel "gym capability consequence class" .
+
+gu:ConsequenceClass a rdfs:Class ;
+    rdfs:subClassOf skos:Concept ;
+    rdfs:label "Closed set: exactly gu:READ and gu:DO." .
+
+gu:READ a gu:ConsequenceClass, skos:Concept ;
+    skos:inScheme gu:ConsequenceClassScheme ;
+    skos:notation "READ" ;
+    skos:prefLabel "read" ;
+    skos:exactMatch <urn:gymact:consequence:read> ;
+    rdfs:comment "Observational. Carries no actuation authority under any pack." .
+
+gu:DO a gu:ConsequenceClass, skos:Concept ;
+    skos:inScheme gu:ConsequenceClassScheme ;
+    skos:notation "DO" ;
+    skos:prefLabel "do" ;
+    skos:exactMatch <urn:gymact:consequence:do> ;
+    rdfs:comment "Consequential intent ONLY. A pack declaring gu:DO grants no runtime authority; admission stays external (GymAct/BRCE)." .
+
+# Define the dangling gymact IRIs the existing packs already point at, so the
+# three referencing files stop resolving to untyped nodes.
+<urn:gymact:consequence:read> a gu:ConsequenceClass, skos:Concept ;
+    skos:inScheme gu:ConsequenceClassScheme ; skos:notation "READ" ;
+    prov:hadPrimarySource gu:src-chatgptgym-shape .
+<urn:gymact:consequence:do> a gu:ConsequenceClass, skos:Concept ;
+    skos:inScheme gu:ConsequenceClassScheme ; skos:notation "DO" ;
+    prov:hadPrimarySource gu:src-chatgptgym-shape .
+
+#################################################################
+# 2. CAPABILITY / OPERATION / PROCEDURE -- three spellings of one class.
+#   chatgptgym + ww3gym : sosa:Procedure
+#   dcp                 : dcp:Capability (its own rdfs:Class)
+#################################################################
+
+gu:Capability a rdfs:Class ;
+    rdfs:subClassOf sosa:Procedure ;
+    rdfs:label "One named capability a gym world exposes. sosa:Procedure is the shared supertype the two gym packs already agree on; dcp:Capability is aligned to it below rather than replaced." .
+
+<http://seanchatmangpt.github.io/packs/domain-capability#Capability>
+    rdfs:subClassOf gu:Capability ;
+    prov:hadPrimarySource gu:src-dcp .
+
+gu:hasConsequence a rdf:Property ;
+    rdfs:subPropertyOf dct:type ;
+    rdfs:domain gu:Capability ;
+    rdfs:range gu:ConsequenceClass ;
+    rdfs:label "Canonical consequence-class edge. dct:type (chatgptgym), dct:relation (ww3gym) and dcp:consequence (dcp) are the three legacy spellings; the crosswalk query resolves all of them." .
+
+<http://seanchatmangpt.github.io/packs/domain-capability#consequence>
+    rdfs:subPropertyOf gu:hasConsequence ; prov:hadPrimarySource gu:src-dcp .
+
+#################################################################
+# 3. AUTHORITY POLICY -- the boundary every gym pack states independently.
+#   lifegym : <urn:lifegym:authority-policy>  a odrl:Policy
+#   ww3gym  : w:policy-safe-scope             a odrl:Policy
+#################################################################
+
+gu:AuthorityPolicy a rdfs:Class ;
+    rdfs:subClassOf odrl:Policy ;
+    rdfs:label "A pack's declared external-authority boundary: consequential DO is admitted OUTSIDE the pack." .
+
+<urn:lifegym:authority-policy> a gu:AuthorityPolicy ; prov:hadPrimarySource gu:src-lifegym .
+<urn:ww3gym:policy-safe-scope> a gu:AuthorityPolicy ; prov:hadPrimarySource gu:src-ww3gym .
+
+#################################################################
+# 4. WORLD PROFILE -- each gym declares a versioned profile entity.
+#   lifegym : <urn:lifegym:world-profile> a prov:Entity, dct:identifier "lifegym-v26.9.1"
+#   ww3gym  : w:ontology d:title "..."
+#   eco     : eco:ggen-ecosystem a dcat:Dataset, prov:Entity
+#################################################################
+
+gu:WorldProfile a rdfs:Class ;
+    rdfs:subClassOf prov:Entity ;
+    rdfs:label "A gym's versioned, admitted world/capability profile entity." .
+
+<urn:lifegym:world-profile> a gu:WorldProfile ; prov:hadPrimarySource gu:src-lifegym .
+<https://ggen.dev/ecosystem#ggen-ecosystem> a gu:WorldProfile ; prov:hadPrimarySource gu:src-eco .
+
+#################################################################
+# 5. STANDING -- eco:Standing (a bare skos:Concept, no states) and
+#    standing-ladder-pack's stl:StandingState (10 real states) are the same
+#    concept at two resolutions. Aligned, not merged.
+#################################################################
+
+gu:Standing a skos:Concept ;
+    skos:prefLabel "standing" ;
+    skos:exactMatch <https://ggen.dev/ecosystem#Standing> ;
+    skos:closeMatch <http://seanchatmangpt.github.io/packs/standing-ladder#StandingState> ;
+    prov:hadPrimarySource gu:src-eco , gu:src-stl .
+
+gu:Admission a skos:Concept ; skos:prefLabel "admission" ;
+    skos:exactMatch <https://ggen.dev/ecosystem#Admission> ; prov:hadPrimarySource gu:src-eco .
+gu:Qualification a skos:Concept ; skos:prefLabel "qualification" ;
+    skos:exactMatch <https://ggen.dev/ecosystem#Qualification> ; prov:hadPrimarySource gu:src-eco .
+
+#################################################################
+# 6. SERVICE -- lifegym uses dcat:DataService for its 22 providers. NOT
+#    re-minted; recorded so a second gym adopting services reuses dcat.
+#################################################################
+
+gu:Service a rdfs:Class ;
+    rdfs:subClassOf dcat:DataService ;
+    rdfs:label "A gym world's external provider surface. dcat:DataService is already the agreed encoding (lifegym, 22 individuals); reuse it directly." ;
+    prov:hadPrimarySource gu:src-lifegym .

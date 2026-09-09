@@ -1,0 +1,62 @@
+---
+to: "lib/{{ package_name }}/receipted_action.ex"
+for_each: "spec"
+sparql:
+  spec: queries/receipted_action.rq
+---
+{# Receipted-action wrapper -- generalizes xaas's real Xaas.Actuation.run/4
+   (lib/xaas/actuation.ex:427-531, confirmed via the xaas review pass 2026-09-09):
+   idempotency-key-gated admission -> pending receipt -> Ash.Reactor DO -> sealed
+   outcome receipt -> deterministic replay when the same idempotency key recurs. This
+   is the shape ash_ex4pm's planned `brce_gate` capability (/tmp/ash_ex4pm_prfaq.md,
+   this session) needs -- BRCE.execute/5's own admit/pending-receipt/run/outcome-
+   receipt sandwich is architecturally the same pattern.
+
+   Disclosed as a FIRST CUT, not a byte-for-byte port of Actuation.run/4: this
+   template does not yet generate the real transaction-wrapper (Ash.DataLayer.
+   transaction) xaas's own module uses to guarantee a committed mutation never
+   outruns its receipt -- it calls the target action inside a `Ash.Changeset.for_*`/
+   `Ash.create|update` pair without an explicit transaction wrapper, relying on the
+   Ash resource's own data layer transaction behavior for the individual call. A
+   real port of the explicit outer transaction wrap is a named follow-up, not
+   silently equivalent to xaas's stronger guarantee. #}
+defmodule {{ module_name }}.ReceiptedAction do
+  @moduledoc """
+  Wraps a `{{ package_name }}`-managed Ash action in an idempotency-key-gated
+  receipt: a repeat call with the same idempotency key replays the sealed receipt
+  instead of re-running the action, generalizing xaas's real
+  `Xaas.Actuation.run/4` contract (lib/xaas/actuation.ex).
+  """
+
+  alias {{ module_name }}.Receipt
+
+  @doc """
+  Runs `resource`/`action` with `params`, sealing a receipt keyed on
+  `idempotency_key`{% if idempotency_key_source %} (source: `{{ idempotency_key_source }}`){% endif %}.
+  Returns `{:ok, result, receipt}` on a fresh run, or `{:ok, result, receipt}` with
+  the receipt's `status: :replayed` when `idempotency_key` was already sealed.
+  """
+  @spec run(module(), atom(), map(), String.t(), keyword()) ::
+          {:ok, struct(), Receipt.t()} | {:error, term()}
+  def run(resource, action, params, idempotency_key, opts \\ []) do
+    case Receipt.find_by_key(idempotency_key) do
+      {:ok, %Receipt{status: :sealed} = existing} ->
+        {:ok, existing.result, %{existing | status: :replayed}}
+
+      {:ok, nil} ->
+        pending = Receipt.admit!(idempotency_key, resource, action)
+
+        resource
+        |> Ash.Changeset.for_create(action, params, opts)
+        |> Ash.create()
+        |> case do
+          {:ok, result} ->
+            {:ok, result, Receipt.seal!(pending, result)}
+
+          {:error, error} ->
+            Receipt.fail!(pending, error)
+            {:error, error}
+        end
+    end
+  end
+end

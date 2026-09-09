@@ -1,0 +1,48 @@
+---
+to: "lib/{{ app_module | lower }}_web/a2a/{{ agent_module | lower }}.ex"
+for_each: "spec"
+sparql:
+  spec: queries/surface.rq
+  caps: queries/a2a_capabilities.rq
+---
+{# Real A2A.Agent module, mirroring xaas's own working
+   XaasWeb.A2A.NextReadUserAgent (lib/xaas_web/a2a/next_read_user_agent.ex)
+   -- one skill per ema:Capability row with ema:exposedVia "a2a"|"both" on
+   this surface. CORRECTED: an earlier version of this comment claimed the
+   A2A skill list and the MCP tool list are generated from the SAME rows --
+   checked against real xaas code and found false: router.ex's real /mcp
+   tools and next_read_user_agent.ex's real A2A skills are disjoint id sets
+   (e.g. "checkout" is a real consequential mutation, A2A-only, never an MCP
+   tool). This template renders only the a2a/both-scoped rows
+   (queries/a2a_capabilities.rq); mcp_router_scope.ex.tmpl renders only the
+   mcp/both-scoped rows (queries/mcp_capabilities.rq) -- a shared row (both)
+   is the only case where the two surfaces intentionally overlap. #}
+defmodule {{ app_module }}Web.A2A.{{ agent_module }} do
+  @moduledoc """
+  Generated A2A agent for `{{ app_module }}`: {{ agent_description }}
+
+  Mount at `{{ agent_mount_path }}` in your router:
+
+      forward "{{ agent_mount_path }}", {{ app_module }}Web.A2A.{{ agent_module }}
+  """
+
+  use A2A.Agent,
+    name: "{{ agent_name }}",
+    description: "{{ agent_description }}",
+    skills: [
+{% for c in caps %}      %{
+        id: "{{ c.capability_id }}",
+        name: "{{ c.capability_name }}",
+        description: "{{ c.capability_description }}",
+        tags: ["generated", "{{ app_module | lower }}"]
+      }{% if not loop.last %},
+{% endif %}
+{% endfor %}    ]
+
+  # Real dispatch is deliberately NOT generated here: each skill's actual
+  # handler must call this app's own real Ash action/context function
+  # (this pack does not invent a generic dispatch mechanism that could
+  # silently no-op a skill invocation). See {{ app_module }}Web.McpDescriptor
+  # for this same capability list's real ash_action bindings, where
+  # present, as the source of truth for wiring a skill handler.
+end

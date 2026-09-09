@@ -1,0 +1,33 @@
+---
+to: "src/autofde_lab/generated/standing_registry.json"
+shape:
+  - shapes/standing.shacl.ttl
+sparql:
+  standings: |
+    PREFIX afl: <urn:autofde-lab:>
+    PREFIX dct: <http://purl.org/dc/terms/>
+    PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+    SELECT ?label ?class_name ?description
+    WHERE {
+      ?s a skos:Concept ; skos:prefLabel ?label ;
+         dct:title ?class_name ; dct:description ?description ;
+         afl:parentClass ?parent .
+    }
+    ORDER BY ?label
+  violations: |
+    PREFIX afl: <urn:autofde-lab:>
+    PREFIX dct: <http://purl.org/dc/terms/>
+    SELECT ?class_name ?lawful ?description
+    WHERE { ?v afl:lawfulStanding ?lawful ; dct:title ?class_name ; dct:description ?description . }
+    ORDER BY ?class_name
+---
+{
+  "generated_by": "ggen / autofde-lab-standing-vocabulary-pack",
+  "authority": "declarative-only; no runtime actuation authority; consequential DO stays behind GymAct/BRCE admission",
+  "standing_values": [
+{% for row in standings %}    {"standing": "{{ row.label }}", "class": "{{ row.class_name }}", "description": "{{ row.description }}"}{% if not loop.last %},{% endif %}
+{% endfor %}  ],
+  "transition_violations": [
+{% for row in violations %}    {"class": "{{ row.class_name }}", "lawful_standing": "{{ row.lawful }}", "description": "{{ row.description }}"}{% if not loop.last %},{% endif %}
+{% endfor %}  ]
+}

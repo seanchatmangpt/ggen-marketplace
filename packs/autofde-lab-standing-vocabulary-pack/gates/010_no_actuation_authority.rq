@@ -1,0 +1,38 @@
+# MESSAGE: any returned row refuses manufacture. This pack manufactures a
+# classification vocabulary only. Standing is a derived conclusion over evidence;
+# no concept here may declare an executable consequence, an actuation binding, or
+# a terminal ALIVE that could be raised as a success flag. Consequential DO stays
+# behind GymAct/BRCE admission, outside this pack.
+PREFIX afl:  <urn:autofde-lab:>
+PREFIX dct:  <http://purl.org/dc/terms/>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+SELECT ?subject ?problem WHERE {
+  {
+    # No concept may carry a GymAct consequence class: this pack grants no DO authority.
+    ?subject dct:type ?consequence .
+    FILTER (STRSTARTS(STR(?consequence), "urn:gymact:consequence:"))
+    BIND("actuation-consequence-refused" AS ?problem)
+  }
+  UNION
+  {
+    # ALIVE is terminal and admitted elsewhere; it must never be generated as a raisable class.
+    ?subject skos:prefLabel "ALIVE" ; afl:parentClass ?parent .
+    FILTER (?parent != "")
+    BIND("alive-as-raisable-standing-refused" AS ?problem)
+  }
+  UNION
+  {
+    # A violation must not claim its lawful standing is a success.
+    ?subject afl:lawfulStanding ?lawful .
+    FILTER (?lawful IN ("ALIVE", "PARTIAL_ALIVE"))
+    BIND("violation-claiming-alive-standing-refused" AS ?problem)
+  }
+  UNION
+  {
+    # Every standing concept must be scoped to this pack's scheme.
+    ?subject skos:prefLabel ?label .
+    FILTER NOT EXISTS { ?subject skos:inScheme <urn:autofde-lab:pack:standing-vocabulary> }
+    BIND("unscoped-standing-concept-refused" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem

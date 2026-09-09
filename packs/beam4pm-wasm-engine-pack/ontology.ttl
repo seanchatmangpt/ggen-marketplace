@@ -1,0 +1,861 @@
+# beam4pm WASM engine ABI graph.
+#
+# GROUNDED IN REAL SOURCE. Every individual below is read out of the
+# hand-written facades in seanchatmangpt/beam4pm:
+#   lib/beam4pm_rust4pm.ex  src/beam4pm_rust4pm.erl  gleam/src/beam4pm/rust4pm.gleam
+#   lib/beam4pm_ferroplan.ex src/beam4pm_ferroplan.erl gleam/src/beam4pm/ferroplan.gleam
+#   lib/beam4pm_petgraph.ex src/beam4pm_petgraph.erl gleam/src/beam4pm/petgraph.gleam
+#   lib/beam4pm_tract.ex    src/beam4pm_tract.erl    gleam/src/beam4pm/tract.gleam
+# Op names and request field names are the literal JSON wire keys those
+# facades send; timeout classes are the literal @heavy_timeout/@cheap_timeout
+# selection at each call site. See PROVENANCE.md.
+#
+# AUTHORITY BOUNDARY. Every op here acts only on the engine's own wasm
+# linear memory behind the alloc/call/dealloc JSON ABI. A dct:type of
+# urn:gymact:consequence:do marks in-engine state mutation (handle mint,
+# handle free, session/graph/OCEL mutation) -- NOT host authority. This
+# pack manufactures catalogs and reflection; consequential host actuation
+# stays external, behind GymAct/BRCE admission.
+
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix sosa: <http://www.w3.org/ns/sosa/> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix bpw:  <urn:beam4pm:wasm:> .
+
+# --- timeout classes (SKOS, so they are enumerable rather than free strings) ---
+
+<urn:beam4pm:wasm:timeout:cheap> a skos:Concept ;
+    skos:prefLabel "cheap" ;
+    dct:description "Handle-local query or mutation; billed against the engine's @cheap_timeout." .
+
+<urn:beam4pm:wasm:timeout:heavy> a skos:Concept ;
+    skos:prefLabel "heavy" ;
+    dct:description "Import, discovery, search or inference; billed against the engine's @heavy_timeout." .
+
+# --- engines (4 real wasm32-wasip1 modules hosted by wasmex) ---
+
+<urn:beam4pm:wasm:engine:rust4pm> a prov:SoftwareAgent ;
+    dct:title "rust4pm" ;
+    dct:description "Process mining: XES/PNML/OCEL import, DFG and Alpha+++ discovery, alignment and fitness conformance." ;
+    bpw:abiPrefix "r4pm_" ;
+    bpw:crateDir "native/rust4pm-wasm" ;
+    bpw:wasmRelPath "native/rust4pm-wasm/target/wasm32-wasip1/release/rust4pm_wasm.wasm" ;
+    bpw:genServerName "BeamPM.Rust4PM.Engine" ;
+    bpw:facadeModule "BeamPM.Rust4PM" ;
+    bpw:erlangModule "beam4pm_rust4pm" ;
+    bpw:gleamModule "beam4pm/rust4pm.gleam" ;
+    bpw:isSubmodule false ;
+    bpw:cheapTimeoutMs "30000"^^xsd:integer ;
+    bpw:heavyTimeoutMs "120000"^^xsd:integer .
+
+<urn:beam4pm:wasm:engine:ferroplan> a prov:SoftwareAgent ;
+    dct:title "ferroplan" ;
+    dct:description "PDDL planning: one-shot plan/explain plus a stateful planning-session handle API." ;
+    bpw:abiPrefix "fp_" ;
+    bpw:crateDir "native/ferroplan" ;
+    bpw:wasmRelPath "native/ferroplan/target/wasm32-wasip1/release/ferroplan_wasm.wasm" ;
+    bpw:genServerName "BeamPM.Ferroplan.Engine" ;
+    bpw:facadeModule "BeamPM.Ferroplan" ;
+    bpw:erlangModule "beam4pm_ferroplan" ;
+    bpw:gleamModule "beam4pm/ferroplan.gleam" ;
+    bpw:isSubmodule true ;
+    bpw:cheapTimeoutMs "30000"^^xsd:integer ;
+    bpw:heavyTimeoutMs "120000"^^xsd:integer .
+
+<urn:beam4pm:wasm:engine:petgraph> a prov:SoftwareAgent ;
+    dct:title "petgraph" ;
+    dct:description "Graph algorithms over an in-engine directed graph: SCC, toposort, cyclicity, shortest path." ;
+    bpw:abiPrefix "pg_" ;
+    bpw:crateDir "native/petgraph-wasm" ;
+    bpw:wasmRelPath "native/petgraph-wasm/target/wasm32-wasip1/release/petgraph_wasm.wasm" ;
+    bpw:genServerName "BeamPM.Petgraph.Engine" ;
+    bpw:facadeModule "BeamPM.Petgraph" ;
+    bpw:erlangModule "beam4pm_petgraph" ;
+    bpw:gleamModule "beam4pm/petgraph.gleam" ;
+    bpw:isSubmodule false ;
+    bpw:cheapTimeoutMs "30000"^^xsd:integer .
+
+<urn:beam4pm:wasm:engine:tract> a prov:SoftwareAgent ;
+    dct:title "tract" ;
+    dct:description "ONNX inference (sonos/tract): load and compile a model to a runnable plan, run f32 tensors." ;
+    bpw:abiPrefix "tr_" ;
+    bpw:crateDir "native/tract-wasm" ;
+    bpw:wasmRelPath "native/tract-wasm/target/wasm32-wasip1/release/tract_wasm.wasm" ;
+    bpw:genServerName "BeamPM.Tract.Engine" ;
+    bpw:facadeModule "BeamPM.Tract" ;
+    bpw:erlangModule "beam4pm_tract" ;
+    bpw:gleamModule "beam4pm/tract.gleam" ;
+    bpw:isSubmodule true ;
+    bpw:cheapTimeoutMs "30000"^^xsd:integer ;
+    bpw:heavyTimeoutMs "60000"^^xsd:integer .
+
+# --- engine ops (72 individuals; one per public wire op) ---
+
+<urn:beam4pm:wasm:op:rust4pm:import_xes> a sosa:Procedure ;
+    dct:title "import_xes" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:heavy> ;
+    bpw:handleReturning true ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "content" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:import_xes_gz> a sosa:Procedure ;
+    dct:title "import_xes_gz" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:heavy> ;
+    bpw:handleReturning true ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 true ;
+    bpw:requestField [ bpw:fieldName "content_b64" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:import_pnml> a sosa:Procedure ;
+    dct:title "import_pnml" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:heavy> ;
+    bpw:handleReturning true ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "content" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:log_stats> a sosa:Procedure ;
+    dct:title "log_stats" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:top_n_variants> a sosa:Procedure ;
+    dct:title "top_n_variants" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "n" ; bpw:fieldOrder "1"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:discover_dfg> a sosa:Procedure ;
+    dct:title "discover_dfg" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:heavy> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:activities_to_alphabet> a sosa:Procedure ;
+    dct:title "activities_to_alphabet" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:activity_position> a sosa:Procedure ;
+    dct:title "activity_position" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "activity" ; bpw:fieldOrder "1"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:discover_alphappp> a sosa:Procedure ;
+    dct:title "discover_alphappp" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:heavy> ;
+    bpw:handleReturning true ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:align_variants> a sosa:Procedure ;
+    dct:title "align_variants" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:heavy> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "log_handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "net_handle" ; bpw:fieldOrder "1"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:align_trace> a sosa:Procedure ;
+    dct:title "align_trace" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:heavy> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "net_handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "trace" ; bpw:fieldOrder "1"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:compute_fitness> a sosa:Procedure ;
+    dct:title "compute_fitness" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:heavy> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "log_handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "net_handle" ; bpw:fieldOrder "1"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:free_log> a sosa:Procedure ;
+    dct:title "free_log" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle true ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:free_net> a sosa:Procedure ;
+    dct:title "free_net" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle true ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:ocel_new> a sosa:Procedure ;
+    dct:title "ocel_new" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning true ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false .
+
+<urn:beam4pm:wasm:op:rust4pm:ocel_add_event_type> a sosa:Procedure ;
+    dct:title "ocel_add_event_type" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "ocel_handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "name" ; bpw:fieldOrder "1"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "attributes" ; bpw:fieldOrder "2"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:ocel_add_object_type> a sosa:Procedure ;
+    dct:title "ocel_add_object_type" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "ocel_handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "name" ; bpw:fieldOrder "1"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "attributes" ; bpw:fieldOrder "2"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:ocel_add_object> a sosa:Procedure ;
+    dct:title "ocel_add_object" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "ocel_handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "id" ; bpw:fieldOrder "1"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "type" ; bpw:fieldOrder "2"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "o2o" ; bpw:fieldOrder "3"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:ocel_add_event> a sosa:Procedure ;
+    dct:title "ocel_add_event" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "ocel_handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "id" ; bpw:fieldOrder "1"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "type" ; bpw:fieldOrder "2"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "time" ; bpw:fieldOrder "3"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:ocel_stats> a sosa:Procedure ;
+    dct:title "ocel_stats" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "ocel_handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:ocel_to_json> a sosa:Procedure ;
+    dct:title "ocel_to_json" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "ocel_handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:ocel_to_xml> a sosa:Procedure ;
+    dct:title "ocel_to_xml" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:heavy> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "ocel_handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:xes_to_ocel> a sosa:Procedure ;
+    dct:title "xes_to_ocel" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:heavy> ;
+    bpw:handleReturning true ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "case_object_type" ; bpw:fieldOrder "1"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "qualifier" ; bpw:fieldOrder "2"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:import_ocel_json> a sosa:Procedure ;
+    dct:title "import_ocel_json" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:heavy> ;
+    bpw:handleReturning true ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "content" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:import_ocel_xml> a sosa:Procedure ;
+    dct:title "import_ocel_xml" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:heavy> ;
+    bpw:handleReturning true ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 true ;
+    bpw:requestField [ bpw:fieldName "content_b64" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:ocel_dfg_of_object_type> a sosa:Procedure ;
+    dct:title "ocel_dfg_of_object_type" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:heavy> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "ocel_handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "object_type" ; bpw:fieldOrder "1"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:ocel_variants_of_object_type> a sosa:Procedure ;
+    dct:title "ocel_variants_of_object_type" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:heavy> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "ocel_handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "object_type" ; bpw:fieldOrder "1"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:rust4pm:free_ocel> a sosa:Procedure ;
+    dct:title "free_ocel" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:rust4pm> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle true ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "ocel_handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:readiness> a sosa:Procedure ;
+    dct:title "readiness" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false .
+
+<urn:beam4pm:wasm:op:ferroplan:version> a sosa:Procedure ;
+    dct:title "version" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false .
+
+<urn:beam4pm:wasm:op:ferroplan:plan> a sosa:Procedure ;
+    dct:title "plan" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:heavy> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "domain" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "problem" ; bpw:fieldOrder "1"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:plan_production> a sosa:Procedure ;
+    dct:title "plan_production" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:heavy> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "domain" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "problem" ; bpw:fieldOrder "1"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:explain> a sosa:Procedure ;
+    dct:title "explain" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:heavy> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "domain" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "problem" ; bpw:fieldOrder "1"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "plan" ; bpw:fieldOrder "2"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_new> a sosa:Procedure ;
+    dct:title "session_new" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:heavy> ;
+    bpw:handleReturning true ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "domain" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "problem" ; bpw:fieldOrder "1"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_fork> a sosa:Procedure ;
+    dct:title "session_fork" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning true ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_free> a sosa:Procedure ;
+    dct:title "session_free" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle true ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_set_goal> a sosa:Procedure ;
+    dct:title "session_set_goal" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "goal" ; bpw:fieldOrder "1"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_restrict_prefix_claims> a sosa:Procedure ;
+    dct:title "session_restrict_prefix_claims" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "prefix" ; bpw:fieldOrder "1"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "claimed" ; bpw:fieldOrder "2"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_restrict_contains> a sosa:Procedure ;
+    dct:title "session_restrict_contains" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "filter" ; bpw:fieldOrder "1"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_think> a sosa:Procedure ;
+    dct:title "session_think" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:heavy> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "evals" ; bpw:fieldOrder "1"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "mem_mb" ; bpw:fieldOrder "2"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_valid> a sosa:Procedure ;
+    dct:title "session_valid" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_step> a sosa:Procedure ;
+    dct:title "session_step" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_suffix> a sosa:Procedure ;
+    dct:title "session_suffix" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_advance> a sosa:Procedure ;
+    dct:title "session_advance" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_drop_plan> a sosa:Procedure ;
+    dct:title "session_drop_plan" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_has_plan> a sosa:Procedure ;
+    dct:title "session_has_plan" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_set_fact> a sosa:Procedure ;
+    dct:title "session_set_fact" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "name" ; bpw:fieldOrder "1"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "value" ; bpw:fieldOrder "2"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_set_timed_fact> a sosa:Procedure ;
+    dct:title "session_set_timed_fact" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "dt" ; bpw:fieldOrder "1"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "name" ; bpw:fieldOrder "2"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "value" ; bpw:fieldOrder "3"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_observe> a sosa:Procedure ;
+    dct:title "session_observe" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "sight" ; bpw:fieldOrder "1"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_goal_met> a sosa:Procedure ;
+    dct:title "session_goal_met" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_fact> a sosa:Procedure ;
+    dct:title "session_fact" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "name" ; bpw:fieldOrder "1"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_apply_start> a sosa:Procedure ;
+    dct:title "session_apply_start" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "name" ; bpw:fieldOrder "1"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_elapse> a sosa:Procedure ;
+    dct:title "session_elapse" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "dt" ; bpw:fieldOrder "1"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_set_fluent> a sosa:Procedure ;
+    dct:title "session_set_fluent" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "name" ; bpw:fieldOrder "1"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "value" ; bpw:fieldOrder "2"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_fluent> a sosa:Procedure ;
+    dct:title "session_fluent" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "name" ; bpw:fieldOrder "1"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_plan_valid> a sosa:Procedure ;
+    dct:title "session_plan_valid" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "plan" ; bpw:fieldOrder "1"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "from" ; bpw:fieldOrder "2"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_world_bytes> a sosa:Procedure ;
+    dct:title "session_world_bytes" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:ferroplan:session_mind_bytes> a sosa:Procedure ;
+    dct:title "session_mind_bytes" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:ferroplan> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:petgraph:graph_new> a sosa:Procedure ;
+    dct:title "graph_new" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:petgraph> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning true ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false .
+
+<urn:beam4pm:wasm:op:petgraph:add_node> a sosa:Procedure ;
+    dct:title "add_node" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:petgraph> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "name" ; bpw:fieldOrder "1"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:petgraph:add_edge> a sosa:Procedure ;
+    dct:title "add_edge" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:petgraph> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "from" ; bpw:fieldOrder "1"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "to" ; bpw:fieldOrder "2"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "weight" ; bpw:fieldOrder "3"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:petgraph:shortest_path> a sosa:Procedure ;
+    dct:title "shortest_path" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:petgraph> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "from" ; bpw:fieldOrder "1"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "to" ; bpw:fieldOrder "2"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:petgraph:scc> a sosa:Procedure ;
+    dct:title "scc" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:petgraph> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:petgraph:toposort> a sosa:Procedure ;
+    dct:title "toposort" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:petgraph> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:petgraph:is_cyclic> a sosa:Procedure ;
+    dct:title "is_cyclic" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:petgraph> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:petgraph:node_count> a sosa:Procedure ;
+    dct:title "node_count" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:petgraph> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:petgraph:edge_count> a sosa:Procedure ;
+    dct:title "edge_count" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:petgraph> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:petgraph:free_graph> a sosa:Procedure ;
+    dct:title "free_graph" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:petgraph> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle true ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:tract:load_model> a sosa:Procedure ;
+    dct:title "load_model" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:tract> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:heavy> ;
+    bpw:handleReturning true ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 true ;
+    bpw:requestField [ bpw:fieldName "model_b64" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:tract:run> a sosa:Procedure ;
+    dct:title "run" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:tract> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:heavy> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] ;
+    bpw:requestField [ bpw:fieldName "inputs" ; bpw:fieldOrder "1"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:tract:model_info> a sosa:Procedure ;
+    dct:title "model_info" ;
+    dct:type <urn:gymact:consequence:read> ;
+    bpw:engine <urn:beam4pm:wasm:engine:tract> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle false ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .
+
+<urn:beam4pm:wasm:op:tract:free_model> a sosa:Procedure ;
+    dct:title "free_model" ;
+    dct:type <urn:gymact:consequence:do> ;
+    bpw:engine <urn:beam4pm:wasm:engine:tract> ;
+    bpw:timeoutClass <urn:beam4pm:wasm:timeout:cheap> ;
+    bpw:handleReturning false ;
+    bpw:freesHandle true ;
+    bpw:needsBase64 false ;
+    bpw:requestField [ bpw:fieldName "handle" ; bpw:fieldOrder "0"^^xsd:integer ] .

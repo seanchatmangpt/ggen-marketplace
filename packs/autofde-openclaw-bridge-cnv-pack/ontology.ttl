@@ -1,0 +1,158 @@
+# Individual graph for the hand-rolled argparse CLI at
+# vendor/autofde-lab/src/autofde_lab/openclaw_bridge.py (main(), line 323).
+#
+# The real hand-rolled surface is:
+#   sub.add_parser("inspect");  inspect.add_argument("--catalog", action="store_true")
+#   sub.add_parser("call");     call.add_argument("tool", choices=sorted(runtime.HANDLERS))
+#                               call.add_argument("--arguments", default="{}")
+#   sub.add_parser("mcp"); sub.add_parser("_worker", help=argparse.SUPPRESS)
+#
+# `call <tool>` is a stringly-typed dispatch: the four real operations live in
+# openclaw_runtime.py:350 `_CANONICAL_HANDLERS = {catalog, describe, match, run}`
+# and reach the CLI only as an enum of strings, so clap's help, per-verb typed
+# arguments, and shell completion cannot see them. This graph lifts each handler
+# to a first-class cnv:Command under the `tool` noun, keeping the legacy
+# `skdecide_` prefix (openclaw_runtime.py:358) as a cnv:alias.
+#
+# AUTHORITY BOUNDARY: every command is cnv:CustomBehavior — the real bridge
+# logic stays hand-written behind the generated dispatch — and no cnv:Boundary
+# individual is declared, so this graph admits no actuation. `tool run` remains
+# gated by the existing GymAct/BRCE admission path in openclaw_runtime.run_bounded.
+# The unknown-tool path is modeled as cnv:RefusalBehavior, mirroring the real
+# BridgeFailure("UNKNOWN_TOOL", status="REFUSED:UNKNOWN_TOOL") at line 377.
+
+@prefix cnv:     <https://clap-noun-verb.dev/ontology#> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix urn:     <urn:autofde:openclaw-bridge:> .
+
+urn:SourceCli
+    a prov:Entity ;
+    dcterms:identifier "vendor/autofde-lab/src/autofde_lab/openclaw_bridge.py" ;
+    dcterms:description "argparse main() at line 323; handler table at openclaw_runtime.py:350." .
+
+urn:Cli
+    a cnv:Cli ;
+    prov:wasDerivedFrom urn:SourceCli ;
+    cnv:binaryName "openclaw-bridge" ;
+    cnv:crateName "openclaw-bridge" ;
+    cnv:version "0.1.0" ;
+    cnv:edition "2024" ;
+    cnv:rustVersion "1.85" ;
+    cnv:about "Lawful catalog/describe/match/run bridge over registered domains and solvers." ;
+    cnv:hasNoun urn:ToolNoun , urn:ServerNoun .
+
+# ── noun `tool`: the four real handlers, lifted out of `call <tool>` ─────────
+
+urn:ToolNoun
+    a cnv:Noun ;
+    cnv:name "tool" ;
+    cnv:about "Invoke one registered bridge operation." ;
+    cnv:hasCommand urn:Catalog , urn:Describe , urn:Match , urn:Run .
+
+urn:Catalog a cnv:Command ;
+    prov:wasDerivedFrom urn:SourceCli ;
+    cnv:name "catalog" ; cnv:about "List registered domains and solvers." ;
+    cnv:belongsToNoun urn:ToolNoun ;
+    cnv:hasArgument urn:CatalogKind ;
+    cnv:hasBehavior urn:CatalogBehavior .
+urn:CatalogBehavior a cnv:CustomBehavior .
+
+urn:Describe a cnv:Command ;
+    prov:wasDerivedFrom urn:SourceCli ;
+    cnv:name "describe" ; cnv:about "Describe one registered entry." ;
+    cnv:belongsToNoun urn:ToolNoun ;
+    cnv:hasArgument urn:DescribeName ;
+    cnv:hasBehavior urn:DescribeBehavior .
+urn:DescribeBehavior a cnv:CustomBehavior .
+
+urn:Match a cnv:Command ;
+    prov:wasDerivedFrom urn:SourceCli ;
+    cnv:name "match" ; cnv:about "Match a domain to compatible solvers." ;
+    cnv:belongsToNoun urn:ToolNoun ;
+    cnv:hasArgument urn:MatchDomain ;
+    cnv:hasBehavior urn:MatchBehavior .
+urn:MatchBehavior a cnv:CustomBehavior .
+
+urn:Run a cnv:Command ;
+    prov:wasDerivedFrom urn:SourceCli ;
+    cnv:name "run" ; cnv:about "Run a bounded, admitted domain/solver episode." ;
+    cnv:belongsToNoun urn:ToolNoun ;
+    cnv:hasArgument urn:RunDomain , urn:RunSolver , urn:RunArguments ;
+    cnv:hasBehavior urn:RunBehavior .
+# CustomBehavior, NOT a filesystem/boundary behavior: the consequential DO stays
+# behind the existing admission path rather than being re-admitted by this pack.
+urn:RunBehavior a cnv:CustomBehavior .
+
+# ── noun `server`: the non-dispatch subcommands ─────────────────────────────
+
+urn:ServerNoun
+    a cnv:Noun ;
+    cnv:name "server" ;
+    cnv:about "Inspect or serve the bridge itself." ;
+    cnv:hasCommand urn:Inspect , urn:Mcp , urn:Worker .
+
+urn:Inspect a cnv:Command ;
+    prov:wasDerivedFrom urn:SourceCli ;
+    cnv:name "inspect" ; cnv:about "Emit server identity and tool definitions." ;
+    cnv:belongsToNoun urn:ServerNoun ;
+    cnv:hasArgument urn:InspectCatalog ;
+    cnv:hasBehavior urn:InspectBehavior .
+urn:InspectBehavior a cnv:CustomBehavior .
+
+urn:Mcp a cnv:Command ;
+    prov:wasDerivedFrom urn:SourceCli ;
+    cnv:name "mcp" ; cnv:about "Serve the MCP stdio protocol loop." ;
+    cnv:belongsToNoun urn:ServerNoun ;
+    cnv:hasBehavior urn:McpBehavior .
+urn:McpBehavior a cnv:CustomBehavior .
+
+# `_worker` carries help=argparse.SUPPRESS in the real CLI: hidden, internal.
+urn:Worker a cnv:Command ;
+    prov:wasDerivedFrom urn:SourceCli ;
+    cnv:name "worker" ; cnv:about "Internal subprocess worker entry point." ;
+    cnv:belongsToNoun urn:ServerNoun ;
+    cnv:hasBehavior urn:WorkerBehavior .
+urn:WorkerBehavior a cnv:RefusalBehavior ;
+    cnv:refusalCode "INTERNAL_ONLY" ;
+    cnv:refusalMessage "worker is an internal subprocess entry point, not a user command" .
+
+# ── Arguments ───────────────────────────────────────────────────────────────
+
+urn:CatalogKind a cnv:Argument ;
+    cnv:fieldName "kind" ; cnv:valueKind "string" ; cnv:required false ;
+    cnv:position 0 ; cnv:longFlag "kind" ; cnv:defaultValue "all" ;
+    cnv:testValue "all" ;
+    cnv:about "execute_tool(prefix + \"catalog\", {\"kind\": \"all\"}) at openclaw_bridge.py:346" .
+
+urn:DescribeName a cnv:Argument ;
+    cnv:fieldName "name" ; cnv:valueKind "string" ; cnv:required true ;
+    cnv:position 1 ; cnv:testValue "Maze" ;
+    cnv:about "describe handler argument, openclaw_runtime.py:352" .
+
+urn:MatchDomain a cnv:Argument ;
+    cnv:fieldName "domain" ; cnv:valueKind "string" ; cnv:required true ;
+    cnv:position 1 ; cnv:testValue "Maze" ;
+    cnv:about "match_direct handler argument, openclaw_runtime.py:353" .
+
+urn:RunDomain a cnv:Argument ;
+    cnv:fieldName "domain" ; cnv:valueKind "string" ; cnv:required true ;
+    cnv:position 1 ; cnv:testValue "Maze" ;
+    cnv:about "run_bounded handler argument, openclaw_runtime.py:354" .
+
+urn:RunSolver a cnv:Argument ;
+    cnv:fieldName "solver" ; cnv:valueKind "string" ; cnv:required true ;
+    cnv:position 2 ; cnv:testValue "Astar" ;
+    cnv:about "run_bounded handler argument, openclaw_runtime.py:354" .
+
+urn:RunArguments a cnv:Argument ;
+    cnv:fieldName "arguments" ; cnv:valueKind "string" ; cnv:required false ;
+    cnv:position 0 ; cnv:longFlag "arguments" ; cnv:defaultValue "{}" ;
+    cnv:testValue "{}" ;
+    cnv:about "call_parser.add_argument(\"--arguments\", default=\"{}\") at openclaw_bridge.py:330" .
+
+urn:InspectCatalog a cnv:Argument ;
+    cnv:fieldName "catalog" ; cnv:valueKind "bool" ; cnv:required false ;
+    cnv:position 0 ; cnv:longFlag "catalog" ; cnv:action "set_true" ;
+    cnv:testValue "true" ;
+    cnv:about "inspect_parser.add_argument(\"--catalog\", action=\"store_true\") at openclaw_bridge.py:327" .

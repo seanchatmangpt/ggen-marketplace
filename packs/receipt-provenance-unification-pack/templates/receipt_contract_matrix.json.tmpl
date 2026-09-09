@@ -1,0 +1,40 @@
+---
+to: generated/receipt_contract_matrix.json
+force: true
+sparql:
+  contracts: |
+    PREFIX rp: <http://seanchatmangpt.github.io/packs/receipt-provenance#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT ?key ?title ?uri ?delim ?validator ?src WHERE {
+      ?c a rp:ReceiptContract ;
+         rp:contractKey ?key ;
+         dcterms:title ?title ;
+         rp:schemaUri ?uri ;
+         rp:reasonDelimiter ?delim ;
+         rp:sourceFile ?src ;
+         rp:validatedBy ?v .
+      ?v rdfs:label ?validator .
+    } ORDER BY ?key
+  fields: |
+    PREFIX rp: <http://seanchatmangpt.github.io/packs/receipt-provenance#>
+    SELECT ?key ?path ?form ?mandatory WHERE {
+      ?f a rp:FieldBinding ;
+         rp:contract ?c ;
+         rp:dottedPath ?path ;
+         rp:mandatory ?mandatory ;
+         rp:valueForm ?vf .
+      ?c rp:contractKey ?key .
+      ?vf <http://www.w3.org/2004/02/skos/core#prefLabel> ?form .
+    } ORDER BY ?key ?path
+---
+{
+  "generated_by": "receipt-provenance-unification-pack (ggen)",
+  "note": "Machine-consumable census of every receipt contract observed on disk. Do not hand-edit; regenerate from ontology.ttl.",
+  "contracts": [
+{% for c in contracts %}    {"key": "{{ c.key }}", "title": "{{ c.title }}", "schema_uri": "{{ c.uri }}", "reason_delimiter": "{{ c.delim }}", "validator": "{{ c.validator }}", "source_file": "{{ c.src }}"}{% if not loop.last %},{% endif %}
+{% endfor %}  ],
+  "fields": [
+{% for f in fields %}    {"contract": "{{ f.key }}", "path": "{{ f.path }}", "value_form": "{{ f.form }}", "mandatory": {{ f.mandatory }}}{% if not loop.last %},{% endif %}
+{% endfor %}  ]
+}

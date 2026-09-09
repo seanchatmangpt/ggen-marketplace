@@ -1,0 +1,23 @@
+# MESSAGE: gym CI toolchain block asserts direct actuation, or renders an actuating step -- packs carry no runtime actuation authority
+PREFIX gymci: <http://seanchatmangpt.github.io/packs/gym-ci-toolchain-bblock#>
+SELECT ?subject ?field ?value WHERE {
+  {
+    ?subject a gymci:Block ; gymci:directActuation ?value .
+    FILTER(?value != false)
+    BIND("gymci:directActuation" AS ?field)
+  }
+  UNION
+  {
+    ?subject a gymci:PreambleStep ; gymci:actuating ?value .
+    FILTER(?value != false)
+    BIND("gymci:actuating" AS ?field)
+  }
+  UNION
+  {
+    ?subject a gymci:PreambleStep ; gymci:runCommand ?raw .
+    FILTER(REGEX(STR(?raw), "(?i)\\b(deploy|terraform apply|kubectl apply|helm upgrade|git push|cargo publish|npm publish|mix hex\\.publish|gh release create)\\b"))
+    BIND("gymci:runCommand" AS ?field)
+    BIND(STR(?raw) AS ?value)
+  }
+}
+ORDER BY ?subject ?field

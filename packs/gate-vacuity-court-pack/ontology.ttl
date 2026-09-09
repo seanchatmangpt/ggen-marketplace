@@ -1,0 +1,121 @@
+@prefix gvc:     <https://ggen.dev/ontology/gate-vacuity-court#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix dqv:     <http://www.w3.org/ns/dqv#> .
+
+# ---------------------------------------------------------------------------
+# gate-vacuity-court-pack
+#
+# Grounded ONLY in facts observed by really executing ggen 26.8.28 against the
+# real /Users/sac/ggen-marketplace/packs tree on 2026-09-06, plus the real
+# refusal-code vocabulary grepped out of /Users/sac/ggen/crates.
+#
+# Central observed fact: ggen loads SPARQL gates ONLY from the ggen.toml key
+# `[validation] gates = [...]`. A `gates/*.rq` file that is not listed there is
+# never read, so it can never refuse. 49 of the 81 marketplace packs that carry
+# a ggen.toml ship such files; exactly 2 wire them.
+#
+# AUTHORITY BOUNDARY: this pack carries NO runtime actuation authority. It only
+# observes manifests and reports. Any consequential DO stays behind
+# GymAct/BRCE admission.
+# ---------------------------------------------------------------------------
+
+gvc:GateVacuityCourt a prov:Entity , dqv:Metric ;
+    rdfs:label "ggen gate-wiring vacuity court" ;
+    dcterms:description "Reports pack manifests whose gates/*.rq files are never loaded by ggen, therefore can never refuse." ;
+    dqv:inDimension gvc:GateEnforceability ;
+    dcterms:conformsTo "ggen 26.8.28" ;
+    prov:wasDerivedFrom gvc:Observation20260906 .
+
+gvc:GateEnforceability a dqv:Dimension ;
+    skos:prefLabel "gate enforceability" ;
+    rdfs:comment "Whether a declared gate is actually loaded by the generator and can return a refusal." .
+
+gvc:Observation20260906 a prov:Entity ;
+    rdfs:label "marketplace gate-wiring census, 2026-09-06" ;
+    gvc:packsTotal 215 ;
+    gvc:packsWithManifest 81 ;
+    gvc:packsWithRqGatesAndManifest 49 ;
+    gvc:packsWiringValidation 2 ;
+    gvc:packsRqGatesNoManifest 95 .
+
+# --- the manifest keys ggen 26.8.28 really honors (verified by execution) ----
+
+gvc:ValidationGatesKey a gvc:ManifestKey ;
+    rdfs:label "[validation] gates" ;
+    gvc:tomlPath "validation.gates" ;
+    gvc:enforcing true ;
+    rdfs:comment "Verified: adding this key to automatic-autonomic-operations-pack turned exit 0 into exit 1 with FM-LAW-018 on an ontology missing aa:falsifier." .
+
+gvc:LawRulesKey a gvc:ManifestKey ;
+    rdfs:label "[law] rules" ;
+    gvc:tomlPath "law.rules" ;
+    gvc:enforcing true ;
+    rdfs:comment "Loads N3/GraphLaw rule files. Refuses with FM-LAW-006 when a listed file is SPARQL rather than N3 (observed in ash-runtime-integration-contract-pack). Three of the four packs using it pass an EMPTY list, which enforces nothing." .
+
+gvc:GatesDirectory a gvc:ManifestKey ;
+    rdfs:label "gates/ directory (unwired)" ;
+    gvc:tomlPath "" ;
+    gvc:enforcing false ;
+    rdfs:comment "A gates/*.rq file present on disk but absent from validation.gates is never read by ggen. Directory presence is not enforcement." .
+
+# --- refusal codes really emitted by ggen 26.8.28 during this session --------
+
+gvc:FM_PACK_001 a gvc:RefusalCode ; skos:notation "FM-PACK-001" ;
+    rdfs:label "pack path does not exist" ;
+    gvc:observedMessage "pack `github-actions`: directory `/workspace/vendor/ggen-marketplace/packs/github-actions-pack` does not exist" ;
+    gvc:observedIn "ggen-ecosystem root, and any local pack using [packs] path=" .
+
+gvc:FM_CONFIG_002 a gvc:RefusalCode ; skos:notation "FM-CONFIG-002" ;
+    rdfs:label "invalid ggen.toml" ;
+    gvc:observedMessage "unknown field `sources`, expected one of `project`, `ontology`, `packs`, `templates`, `law`" ;
+    gvc:observedIn "owning-rail-remediation-realization-pack" .
+
+gvc:FM_CONFIG_003 a gvc:RefusalCode ; skos:notation "FM-CONFIG-003" ;
+    rdfs:label "ontology unreadable" ;
+    gvc:observedMessage "ontology `/workspace/ontology.ttl` unreadable: No such file or directory" ;
+    gvc:observedIn "autofde-sota-factory-cnv-pack" .
+
+gvc:FM_LAW_006 a gvc:RefusalCode ; skos:notation "FM-LAW-006" ;
+    rdfs:label "GraphLaw rule load refused" ;
+    gvc:observedMessage "N3 parse error: SELECT ?integration ?subject ?repo ?base ?head WHERE {" ;
+    gvc:observedIn "ash-runtime-integration-contract-pack" .
+
+gvc:FM_LAW_018 a gvc:RefusalCode ; skos:notation "FM-LAW-018" ;
+    rdfs:label "SPARQL gate refused the sync" ;
+    gvc:observedMessage "SPARQL gate `gates/010_required.rq` refused the sync: SELECT returned 15 row(s)" ;
+    gvc:observedIn "automatic-autonomic-operations-pack, after wiring [validation] gates" .
+
+# --- court checks the generated auditor must implement ----------------------
+
+gvc:CheckGatesPresent a gvc:CourtCheck ;
+    gvc:order 10 ;
+    gvc:slug "gates_present" ;
+    rdfs:label "pack ships at least one gates/*.rq" ;
+    gvc:verdictWhenTrue "GATED" ;
+    gvc:verdictWhenFalse "UNGATED" .
+
+gvc:CheckGatesWired a gvc:CourtCheck ;
+    gvc:order 20 ;
+    gvc:slug "gates_wired" ;
+    rdfs:label "every shipped gates/*.rq appears in [validation] gates" ;
+    gvc:verdictWhenTrue "ENFORCING" ;
+    gvc:verdictWhenFalse "VACUOUS_GATE" .
+
+gvc:CheckLawNonEmpty a gvc:CourtCheck ;
+    gvc:order 30 ;
+    gvc:slug "law_non_empty" ;
+    rdfs:label "[law] rules, if present, is not an empty list" ;
+    gvc:verdictWhenTrue "ENFORCING" ;
+    gvc:verdictWhenFalse "VACUOUS_LAW" .
+
+gvc:CheckManifestPresent a gvc:CourtCheck ;
+    gvc:order 40 ;
+    gvc:slug "manifest_present" ;
+    rdfs:label "pack ships a ggen.toml so ggen can consume it at all" ;
+    gvc:verdictWhenTrue "CONSUMABLE" ;
+    gvc:verdictWhenFalse "NOT_CONSUMABLE" .

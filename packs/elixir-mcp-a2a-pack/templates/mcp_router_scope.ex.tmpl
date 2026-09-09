@@ -1,0 +1,59 @@
+---
+to: "lib/{{ app_module | lower }}_web/mcp_scope.ex"
+for_each: "spec"
+sparql:
+  spec: queries/surface.rq
+  caps: queries/mcp_capabilities.rq
+---
+{# Real Phoenix router scope macro, mirroring xaas's own working /mcp scope
+   (lib/xaas_web/router.ex:105-120) as a reusable `mcp_scope/0` macro any
+   consuming router can `import {{ app_module }}Web.McpScope` and call
+   inside its own `scope "{{ mcp_mount_path }}" do ... end`, rather than
+   generating a full router file (routers commonly have hand-authored
+   pipelines this pack should not overwrite). #}
+defmodule {{ app_module }}Web.McpScope do
+  @moduledoc """
+  Generated MCP router scope for `{{ app_module }}`, from one admitted
+  ema:CapabilitySurface. Mount in your router:
+
+      import {{ app_module }}Web.McpScope
+{% if mcp_audit_plug_module %}
+      # `plug` is only valid inside a named `pipeline do ... end` block in
+      # Phoenix's router DSL, never directly inside `scope` -- this macro
+      # cannot inject a pipeline declaration from a scope call site (a
+      # real defect an earlier draft of this template had: it called
+      # `pipe_through` a second time with a bare module name where a
+      # pipeline ATOM was expected). Define this yourself, the same way
+      # xaas's own real router.ex defines
+      # `pipeline :audit_mcp_tool_call do plug {{ mcp_audit_plug_module }} end`:
+      #
+      #   pipeline :audit_mcp_tool_call do
+      #     plug {{ mcp_audit_plug_module }}
+      #   end
+{% endif %}
+      scope "{{ mcp_mount_path }}" do
+        pipe_through([:api{% if mcp_audit_plug_module %}, :audit_mcp_tool_call{% endif %}])
+        {{ app_module }}Web.McpScope.mount(__MODULE__)
+      end
+
+  Real tools exposed: {% for c in caps %}`:{{ c.capability_id }}`{% if not loop.last %}, {% endif %}{% endfor %}.
+{% if not mcp_audit_plug_module %}
+  NO AUDIT PLUG configured on this surface (ema:mcpAuditPlugModule was
+  absent from the spec) -- every MCP call through this scope is
+  unaudited. This is a disclosed gap, not a silent default: add an
+  ema:mcpAuditPlugModule row to the spec (mirroring
+  XaasWeb.Plugs.AuditMcpToolCall's real convention) before treating this
+  surface as production-ready.
+{% endif %}
+  """
+
+  defmacro mount(_router_module) do
+    quote do
+      forward("/", AshAi.Mcp.Router,
+        tools: [{% for c in caps %}{% if c.capability_id is containing("-") %}:"{{ c.capability_id }}"{% else %}:{{ c.capability_id }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}],
+        protocol_version_statement: "{{ mcp_protocol_version }}",
+        otp_app: {{ otp_app }}
+      )
+    end
+  end
+end

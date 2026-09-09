@@ -1,0 +1,41 @@
+---
+to: generated/gate_report.json
+force: true
+sparql:
+  actuation: |
+    PREFIX rp: <http://seanchatmangpt.github.io/packs/receipt-provenance#>
+    PREFIX prov: <http://www.w3.org/ns/prov#>
+    SELECT ?offender ?why WHERE {
+      { ?offender a prov:Activity . BIND("declares a prov:Activity (actuation), not a predicate" AS ?why) }
+      UNION
+      { ?offender rp:actuates ?target . BIND("declares rp:actuates" AS ?why) }
+    }
+  uncited: |
+    PREFIX rp: <http://seanchatmangpt.github.io/packs/receipt-provenance#>
+    SELECT ?s WHERE {
+      { ?s a rp:ReceiptContract } UNION { ?s a rp:Validator }
+      FILTER NOT EXISTS { ?s rp:sourceFile ?f }
+      FILTER(?s != rp:val_none)
+    }
+  unvalidated: |
+    PREFIX rp: <http://seanchatmangpt.github.io/packs/receipt-provenance#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    SELECT ?title ?src WHERE {
+      ?c a rp:ReceiptContract ; dcterms:title ?title ; rp:sourceFile ?src ;
+         rp:validatedBy rp:val_none .
+    } ORDER BY ?title
+---
+{
+  "note": "Gate report. gate_01/gate_02 PASS iff their offender list is empty. gate_03 is a census, not a gate: contracts with no executable validator on disk today.",
+  "gate_01_no_actuation": {
+    "verdict": "{% if actuation %}REFUSED{% else %}PASS{% endif %}",
+    "offenders": [{% for a in actuation %}{"subject": "{{ a.offender }}", "why": "{{ a.why }}"}{% if not loop.last %},{% endif %}{% endfor %}]
+  },
+  "gate_02_every_fact_cited": {
+    "verdict": "{% if uncited %}REFUSED{% else %}PASS{% endif %}",
+    "offenders": [{% for u in uncited %}"{{ u.s }}"{% if not loop.last %},{% endif %}{% endfor %}]
+  },
+  "gate_03_contracts_without_validator": [
+{% for u in unvalidated %}    {"title": "{{ u.title }}", "source_file": "{{ u.src }}"}{% if not loop.last %},{% endif %}
+{% endfor %}  ]
+}
