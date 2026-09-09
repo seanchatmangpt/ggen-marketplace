@@ -50,7 +50,12 @@ each run a `records` + `fields` SPARQL query pair over the merged graph and rend
 - `igniter/templates/beam4pm_receipt_chain.ex.eex` + `_test.exs.eex` (ggen_igniter,
   not Tera) -- hash-chained `beam4pm-brce/v1` receipts, adapted from ex4pm's real
   `Ex4pm.Evidence.Replay.Chain`; purely additive (opt-in via `actuation_opts[:chain_id]`,
-  automatically scoped per-process by `BeamPM.ProcessGovernor`).
+  automatically scoped per-process by `BeamPM.ProcessGovernor`). v0.1.9: the write
+  path (`link_fields/3`) finds the chain tip through a per-chain index
+  (`<receipts_dir>/.chain-tips/`, index-first write + validated read + scan fallback)
+  in O(1) files instead of scanning every receipt ever written to the directory; the
+  original scan survives byte-for-byte as the public oracle `link_fields_by_scan/2`,
+  and `verify/2` never consults the index.
 - `igniter/templates/beam4pm_rf1_dfg.ex.eex` + `_test.exs.eex`, `beam4pm_rf2_conformance.ex.eex`
   + `_test.exs.eex`, `beam4pm_rf3_ocel.ex.eex` + `_test.exs.eex` (ggen_igniter, not Tera) --
   Reactor-orchestrated, real-subprocess-oracle-backed validation of rust4pm's
@@ -98,26 +103,50 @@ Field types map from the closed `bpm:fieldType` enum to every per-language
 representation via a shared `bpm:FieldType` vocabulary in `ontology.ttl` -- one
 `bpm:FieldType_<name>` individual per admitted value, carrying
 `bpm:erlangTypeExpr`/`bpm:elixirTypeExpr`/`bpm:gleamTypeExpr`/`bpm:jsonSchemaType`/
-`bpm:jsonSchemaItemsType`/`bpm:isAtomCodec` plus fixed and codec/roundtrip sample
-literals (`bpm:sampleMinErlang`/`bpm:sampleMinElixir`/`bpm:sampleErlang`/
-`bpm:sampleErlangEncoded`/`bpm:sampleElixir`/`bpm:sampleElixirEncoded`). Every
-affected template's own `fields` SPARQL query JOINs against this vocabulary (via
-`?f bpm:fieldType ?field_type` matched against a `bpm:FieldType`'s
-`bpm:fieldTypeName`) and prints the resolved column directly -- there is no
-per-template if/elif dispatch on `field_type` left to keep in sync. Admitting a
-9th field type means adding one `bpm:FieldType_<name>` individual to this file;
+`bpm:jsonSchemaItemsType`/`bpm:ashTypeExpr`/`bpm:isAtomCodec` plus fixed and
+codec/roundtrip sample literals (`bpm:sampleMinErlang`/`bpm:sampleMinElixir`/
+`bpm:sampleErlang`/`bpm:sampleErlangEncoded`/`bpm:sampleElixir`/
+`bpm:sampleElixirEncoded`). Every affected template's own `fields` SPARQL query
+JOINs against this vocabulary (via `?f bpm:fieldType ?field_type` matched against
+a `bpm:FieldType`'s `bpm:fieldTypeName`) and prints the resolved column directly
+-- there is no per-template if/elif dispatch on `field_type` left to keep in sync,
+on the Tera (Rust ggen) templates or on the igniter (EEx) Ash templates. Admitting
+a 9th field type means adding one `bpm:FieldType_<name>` individual to this file;
 it touches no template and no gate:
 
-| `bpm:fieldType` | Erlang       | Elixir                                    |
-|-----------------|--------------|--------------------------------------------|
-| `string`        | `binary()`   | `String.t()`                                |
-| `integer`       | `integer()`  | `integer()`                                 |
-| `float`         | `float()`    | `float()`                                   |
-| `boolean`       | `boolean()`  | `boolean()`                                 |
-| `datetime`      | `binary()`   | `String.t()` (ISO8601 string on the wire)   |
-| `atom`          | `atom()`     | `atom()`                                    |
-| `list_string`   | `[binary()]` | `[String.t()]`                              |
-| `map`           | `map()`      | `map()`                                     |
+| `bpm:fieldType` | Erlang       | Elixir                              | Ash                  |
+|-----------------|--------------|-------------------------------------|----------------------|
+| `string`        | `binary()`   | `String.t()`                        | `:string`            |
+| `integer`       | `integer()`  | `integer()`                         | `:integer`           |
+| `float`         | `float()`    | `float()`                           | `:float`             |
+| `boolean`       | `boolean()`  | `boolean()`                         | `:boolean`           |
+| `datetime`      | `binary()`   | `String.t()` (ISO 8601 on the wire) | `:utc_datetime_usec` |
+| `atom`          | `atom()`     | `atom()`                            | `:atom`              |
+| `list_string`   | `[binary()]` | `[String.t()]`                      | `{:array, :string}`  |
+| `map`           | `map()`      | `map()`                             | `:map`               |
+
+The Ash column is the fourth sibling projection (VISION-2030 section 4) and is
+held to semantic identity with the other legs. `datetime` is `:utc_datetime_usec`,
+never `:utc_datetime`: Ash's `:utc_datetime` is `constraints: [precision: :second]`
+and truncates the microseconds the Erlang/Elixir/JSON legs carry verbatim
+(measured, Ash 3.32.1: `"2026-08-29T12:00:00.123456Z"` read back as
+`~U[2026-08-29 12:00:00Z]`). Because Ash normalizes the wire string into a UTC
+`%DateTime{}` with microsecond `{n, 6}`, the Ash identity relation for datetime
+fields is `DateTime.compare(ash_read, wire_parsed) == :eq` -- explicitly not byte
+or struct identity (a no-fraction wire value parses to `{0, 0}` but reads back
+`{0, 6}`). The generated per-resource ExUnit test asserts exactly that, against
+the same `bpm:sampleElixir` fixture the codec/roundtrip tests use (six
+microsecond digits, so a truncating attribute type fails with `:lt`).
+
+The igniter Ash templates cannot see this vocabulary from the consumer's
+`ontology.ttl` alone (`mix ggen_igniter.sync` loads exactly one `--ontology`
+file; the Rust leg gets the merge from `ggen.toml [packs]`), so they are driven
+by `igniter/queries/ash_fields.rq` run against a concatenation of the consumer's
+and this pack's `ontology.ttl` -- see beam4pm's `scripts/igniter_sync.sh`. That
+query's vocabulary JOIN is `OPTIONAL` and both templates refuse an unbound
+`?ash_type_expr` by record and field name, so an unadmitted type or a
+consumer-only graph is a named render refusal, never a silently dropped
+attribute.
 
 `bpm:fieldRequired` must be the plain string literal `"true"` or `"false"` (not an
 `^^xsd:boolean`-typed literal) -- the templates compare it as a string, and this keeps
@@ -139,9 +168,125 @@ typed boolean literal.
 - `gates/020_field_type_enum.rq` -- refuses any `bpm:fieldType` that does not match
   an admitted `bpm:FieldType` individual's `bpm:fieldTypeName` (anti-join against
   `ontology.ttl`'s shared vocabulary, not a hardcoded string enum).
+- `gates/035_field_type_ash_expr.rq` -- refuses a `bpm:FieldType` carrying anything
+  but exactly one `bpm:ashTypeExpr` (the Ash attribute type the igniter Ash templates
+  JOIN), on the Rust `ggen sync run` leg; the templates refuse the same condition by
+  name on the igniter leg.
+- `igniter/queries/ash_fields.rq`, `igniter/templates/beam4pm_ash_resource.ex.eex`,
+  `igniter/templates/beam4pm_ash_resource_test.exs.eex` -- the Ash projection (one
+  `Ash.Resource` + one Chicago ExUnit round-trip test per admitted record type),
+  rendered by `mix ggen_igniter.sync --for-each records` against the merged
+  consumer+pack graph.
+- `igniter/templates/beam4pm_ash_roundtrip.ex.eex`,
+  `igniter/templates/beam4pm_ash_roundtrip_test.exs.eex` -- the Ash leg of GATE M5
+  (single output each, `records` + `ash_fields.rq` on the merged graph). The module
+  takes the same `<record>.<variant>.<suffix>.json` wire fixtures the Erlang/Elixir
+  roundtrip legs exchange, decodes each through `BeamPM.Codec`, creates the generated
+  `Ash.Resource` on the real ETS data layer, reads it back by primary key and compares
+  field by field against `BeamPM.Roundtrip.sample/2`: `:utc_datetime` attributes via
+  `DateTime.compare(ash_read, DateTime.from_iso8601(wire)) == :eq` (`nil == nil` for an
+  optional datetime absent from the minimal wire), everything else via `==`, and the
+  synthetic `uuid_primary_key :id` asserted to be the only Ash-only attribute. The test
+  is the same-language sweep plus two named falsifiers (a no-fraction datetime and a
+  mutated string on the wire are each refused by record, variant and field); the
+  cross-language direction is the consumer's `scripts/roundtrip_check.sh` third block.
+  Scope: identity for the shared fixture class only -- Ash's `:string` defaults
+  (`trim?: true`, `allow_empty?: false`) would not preserve padded/empty strings, and
+  no leg's fixtures exercise that class.
+- `templates/beam4pm_pddl.domain.pddl.tmpl`, `templates/beam4pm_pddl.problem.pddl.tmpl`
+  -- the formal-projection leg (VISION-2030 section 10, `canonical graph -> formal
+  projection -> planner result`). Per-row fan-out over every consumer-admitted
+  `bpmg:ProcessContract` (`for_each: contracts`) into
+  `schema/pddl/<processId>.domain.pddl` + `.problem.pddl`. The domain projects every
+  `bpma:AdmittedActuation` as one `:action` named by its `bpma:actionName`, each
+  `bpma:requiresFact` as a 0-arity precondition atom, and one static
+  `(allows_<action> ?from ?to)` predicate per action; the problem projects the
+  contract's states as typed objects, `bpmg:initialState` into `:init`, each
+  `bpmg:ProcessTransition` (ordinal order) as one `allows_` fact, every named
+  actuation's `requiresFact` as an `:init` fact assumed satisfied at process start,
+  and the highest-ordinal `bpmg:toState` as the `:goal`. A consumer with zero
+  `bpmg:ProcessContract` individuals gets a lawful zero-row skip, not a refusal.
+  Proven in beam4pm by `test/beam4pm_pddl_projection_test.exs`: the GENERATED files
+  fed to the real ferroplan planner (`BeamPM.Ferroplan.plan_production/4`) solve to
+  exactly the contract's ordinal `actuationName` sequence, and deleting any one
+  transition or required fact yields `no_plan`, never a fabricated plan.
+- `gates/040_transition_actuation_admitted.rq` -- refuses any
+  `bpmg:ProcessTransition` whose `bpmg:actuationName` is not the `bpma:actionName`
+  of an admitted `bpma:AdmittedActuation` (the projection above would otherwise
+  emit an `allows_<name>` `:init` fact whose predicate no domain declares).
+- `templates/beam4pm_hand_authored_source.tsv.tmpl`,
+  `templates/beam4pm_hand_authored_source.md.tmpl`,
+  `templates/beam4pm_authorship_gate_test.exs.tmpl` -- the hand-authored-source
+  admission leg (VISION-2030 section 2: a direct source intervention is "visible,
+  bounded, and counted as manufacturing debt"; section 24 falsifier: "ggen-only
+  manufacture requires routine privileged handwritten source commits"). The consumer
+  declares one `bpm:HandAuthoredSource` individual per file under a manufactured root
+  that carries no `GENERATED` marker (path, closed `bpm:authorshipKind`, authorizing
+  principal, reason, acceptance command, optional prerequisite artifact, content
+  sha256, admitted-at commit, expiry, sunset plan). The `.tsv` is the marker-carrying,
+  machine-readable manifest the consumer's `scripts/gate_authorship_check.sh` diffs
+  against `git ls-files --exclude-standard` under `src lib gleam/src gleam/test test
+  schema docs/reference infra/gcp/{cloudrun,packer}` -- refusing an unmarked file
+  with no admission (`REFUSED_UNADMITTED`), an admission whose path is gone
+  (`REFUSED_STALE_ADMISSION`) or now carries the marker (`REFUSED_CONTRADICTION`),
+  a debt file whose bytes changed since admission (`REFUSED_SHA_DRIFT`), an expired
+  admission (`REFUSED_EXPIRED`), and with `--exercise` a failing or all-skipped
+  acceptance command (`REFUSED_ACCEPTANCE_FAILED` / `REFUSED_VACUOUS_ACCEPTANCE`,
+  or `ACCEPTANCE_BLOCKED_PREREQUISITE` when the declared artifact is absent). The
+  `.md` is the counted ledger (per kind, admitted vs ceiling); the `.exs` is the
+  Chicago test that runs the real gate as a subprocess against the real tree and
+  against planted `git init` fixtures that must be refused by name. Zero
+  `bpm:HandAuthoredSource` individuals renders an empty manifest and a zero-count
+  ledger, not a refusal.
+- `gates/050_hand_authored_source_required.rq` -- refuses a `bpm:HandAuthoredSource`
+  missing a capability-object field; debt kinds must also carry `bpm:contentSha256`,
+  `bpm:admissionExpires` and `bpm:sunsetPlan` (a path-only admission is a standing
+  grant).
+- `gates/060_hand_authored_source_kind_admitted.rq` -- anti-joins
+  `bpm:authorshipKind` against the closed `bpm:AuthorshipKind` vocabulary (like
+  `020` does for `bpm:FieldType`) and refuses two individuals admitting one path.
+- `gates/070_hand_authored_source_ceiling.rq` -- refuses a kind whose admitted count
+  exceeds its `bpm:debtCeiling`; raising a ceiling is a reviewed edit to this pack's
+  `ontology.ttl`, never an ambient grant.
+- `templates/beam4pm_engine.ex.tmpl`, `templates/beam4pm_engine.erl.tmpl`,
+  `templates/beam4pm_engine.gleam.tmpl`, `templates/beam4pm_engine_ops.tsv.tmpl`,
+  `templates/beam4pm_engine_dispatch_gate_test.exs.tmpl` -- the native-engine
+  surface leg (VISION-2030 section 2 / section 24: the sunset of the
+  `native_engine_facade` debt class). Per-engine fan-out (`for_each: engines`) over
+  every consumer-admitted `bpm:Engine` into `lib/beam4pm_<engine>.ex`
+  (`BeamPM.<Module>` wasmex wrapper + `.Health` probe), `src/beam4pm_<engine>.erl`
+  (1:1 Erlang delegation, one extra arity per optional/keyword arg) and
+  `gleam/src/beam4pm/<engine>.gleam` (typed `@external` at the minimal arity). The
+  engine's identity (module, wasm export prefix, artifact, build script, dispatch
+  source, health id, timeout budgets, error-collapse variant) and its ops/args are
+  facts; the wasmex lifecycle, linear-memory JSON ABI call sequence and
+  restart-on-trap are template, identical across engines. Arg types, encodings and
+  modes are CLOSED vocabularies (`bpm:EngineArgType`, `bpm:ArgEncoding`,
+  `bpm:ArgMode`, `bpm:TimeoutClass`, `bpm:EngineOpKind`, `bpm:ErrorCollapse`) --
+  a consumer names a member, never writes Elixir in RDF. The `.tsv` is the
+  manifest the consumer's `scripts/gate_engine_dispatch_check.sh` joins against each
+  crate's string-literal `"<op>" =>` dispatch arms (refusing a manufactured op the
+  crate does not dispatch; reporting, never silently exposing, an arm no fact
+  names); the `.exs` is the Chicago test of that gate. Zero `bpm:Engine`
+  individuals is a lawful zero-row skip. Proven in beam4pm by converting petgraph
+  and tract first: the hand-authored facades deleted, their admissions removed
+  (GATE AUTHORSHIP 33/26 -> 27/20), the unchanged sha-pinned parity suites passing
+  against the real wasm engines.
+- `gates/080_engine_required.rq` -- refuses a `bpm:Engine` / `bpm:EngineOp` /
+  `bpm:EngineArg` missing a required property, a heavy op on an engine without
+  `bpm:heavyTimeoutMs`, a `host_helper` without `bpm:opDelegatesTo`, an optional or
+  keyword arg without `bpm:argDefault`.
+- `gates/090_engine_vocab_admitted.rq` -- anti-joins every closed engine vocabulary
+  (like `020` for `bpm:FieldType`) and refuses duplicate engine/op/wire names, more
+  than one non-required arg per op, a pipe encoding (`omit_when_nil`/`merge_map`)
+  without `bpm:ArgMode_optional`, and a `host_helper` delegating to anything but a
+  wire op of its own engine.
 - `ontology.ttl` -- the `bpm:` vocabulary itself (`bpm:RecordType`, `bpm:Field`, and
-  their properties, plus the closed `bpm:FieldType` vocabulary the table above is
-  generated from); no record-type individuals.
+  their properties, the closed `bpm:FieldType` vocabulary the table above is
+  generated from, the closed `bpm:AuthorshipKind` vocabulary +
+  `bpm:HandAuthoredSource` class, and the `bpm:Engine` / `bpm:EngineOp` /
+  `bpm:EngineArg` classes with their closed member vocabularies); no record-type,
+  hand-authored-source or engine individuals.
 
 ## Composing this pack
 

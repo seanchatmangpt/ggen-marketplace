@@ -1,0 +1,149 @@
+---
+to: "lib/{{ package_name }}/resource.ex"
+for_each: "spec"
+sparql:
+  spec: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT DISTINCT ?package_name ?module_name ?extension_target ?single_extension_kind WHERE {
+      ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ;
+         aex:moduleName ?module_name ; aex:extensionTarget ?extension_target .
+      OPTIONAL { ?s aex:singleExtensionKind ?single_extension_kind }
+    }
+  sections: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?section_name ?section_order ?section_describe WHERE {
+      ?s a aex:DslSection ; aex:sectionName ?section_name ; aex:sectionOrder ?section_order .
+      OPTIONAL { ?s aex:sectionDescribe ?section_describe }
+    } ORDER BY ?section_order
+  singleton_keys: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?section_name ?singleton_key WHERE {
+      ?s a aex:DslSection ; aex:sectionName ?section_name ; aex:singletonEntityKey ?singleton_key .
+    }
+  section_fields: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?section_name ?section_field_order ?section_field_name ?section_field_type WHERE {
+      ?f a aex:SectionSchemaField ; aex:sectionFieldOf ?section ; aex:sectionFieldOrder ?section_field_order ;
+         aex:sectionFieldName ?section_field_name ; aex:sectionFieldType ?section_field_type .
+      ?section aex:sectionName ?section_name .
+    } ORDER BY ?section_field_order
+  entities: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?section_name ?entity_name ?entity_struct ?entity_identifier ?entity_order WHERE {
+      ?entity a aex:DslEntity ; aex:entityOf ?section ; aex:entityName ?entity_name ;
+              aex:entityStruct ?entity_struct .
+      OPTIONAL { ?entity aex:entityIdentifier ?entity_identifier }
+      OPTIONAL { ?entity aex:entityOrder ?entity_order }
+      ?section aex:sectionName ?section_name .
+      # COALESCE keeps ordering deterministic even if a future entity omits
+      # aex:entityOrder: ORDER BY over a sometimes-unbound OPTIONAL variable is
+      # implementation-defined SPARQL behavior. Every current DslEntity individual
+      # sets entityOrder explicitly, so this default (sort last) never fires today --
+      # it only guards against the exact "entities rendered reversed" class of bug
+      # the entityOrder property was added to prevent (see ontology.ttl's comment).
+    } ORDER BY COALESCE(?entity_order, 999999)
+  entity_args: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?entity_struct ?arg_order ?arg_name WHERE {
+      ?a a aex:EntityArg ; aex:argOf ?entity ; aex:argOrder ?arg_order ; aex:argName ?arg_name .
+      ?entity aex:entityStruct ?entity_struct .
+    } ORDER BY ?arg_order
+  fields: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?entity_struct ?field_order ?field_name ?field_type ?field_required ?field_doc ?field_default WHERE {
+      ?field a aex:EntitySchemaField ; aex:fieldOf ?entity ; aex:fieldOrder ?field_order ;
+             aex:fieldName ?field_name ; aex:fieldType ?field_type ;
+             aex:fieldRequired ?field_required ; aex:fieldDoc ?field_doc .
+      OPTIONAL { ?field aex:fieldDefault ?field_default }
+      ?entity aex:entityStruct ?entity_struct .
+    } ORDER BY ?field_order
+  one_of_values: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?entity_struct ?field_name ?one_of_order ?one_of_name WHERE {
+      ?v a aex:FieldOneOfValue ; aex:oneOfValueOf ?field ; aex:oneOfValueOrder ?one_of_order ;
+         aex:oneOfValueName ?one_of_name .
+      ?field aex:fieldName ?field_name ; aex:fieldOf ?entity .
+      ?entity aex:entityStruct ?entity_struct .
+    } ORDER BY ?one_of_order
+---
+{# Generated Spark.Dsl.Extension -- mirrors ash_r2rml/lib/ash_r2rml/resource.ex shape:
+   struct modules + sections + entities (with positional args/identifier) + schema, wired to
+   a transformer/verifier/Info module manufactured as sibling files by this same pack. Full
+   coverage past pass-1's 80/20: positional args, entity identifier, section-level schema and
+   singleton_entity_keys, one_of/or/list/any field types with defaults -- all transcribed from
+   real Spark shapes (ash_r2rml's Class/Subject/Property/Reference/Graph/SparqlQuery), not
+   invented. Echoes admitted facts; never synthesizes. #}
+defmodule {{ module_name }} do
+  @moduledoc """
+  Spark.Dsl.Extension for `{{ package_name }}`.
+
+  Manufactured by ash-extension-core-pack from an admitted `aex:AshExtensionSpec` --
+  do not hand-edit; regenerate from the spec instead.
+  """
+
+{% for entity in entities %}
+  defmodule {{ entity.entity_struct }} do
+    @moduledoc false
+{% set entity_args_here = entity_args | filter(attribute="entity_struct", value=entity.entity_struct) %}
+{% if entity_args_here | length > 0 %}
+    @enforce_keys [{% for a in entity_args_here %}:{{ a.arg_name }}{% if not loop.last %}, {% endif %}{% endfor %}]
+{% endif %}
+{% set entity_fields_here = fields | filter(attribute="entity_struct", value=entity.entity_struct) %}
+    defstruct [
+{% for f in entity_fields_here %}{% if not f.field_default %}      :{{ f.field_name }},
+{% endif %}{% endfor %}      :__identifier__,
+      :__spark_metadata__{% set defaulted = entity_fields_here | filter(attribute="field_default") %}{% if defaulted | length > 0 %},
+{% for f in defaulted %}      {{ f.field_name }}: {{ f.field_default }}{% if not loop.last %},
+{% endif %}{% endfor %}
+{% endif %}
+    ]
+  end
+{% endfor %}
+
+{% for entity in entities %}
+{% set entity_fields_here = fields | filter(attribute="entity_struct", value=entity.entity_struct) %}
+{% set entity_args_here = entity_args | filter(attribute="entity_struct", value=entity.entity_struct) %}
+  @{{ entity.entity_name }} %Spark.Dsl.Entity{
+    name: :{{ entity.entity_name }},
+    target: {{ entity.entity_struct }},
+{% if entity_args_here | length > 0 %}
+    args: [{% for a in entity_args_here %}:{{ a.arg_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+{% endif %}
+{% if entity.entity_identifier %}
+    identifier: :{{ entity.entity_identifier }},
+{% endif %}
+    schema: [
+{% for f in entity_fields_here %}      {{ f.field_name }}: [type: {% if f.field_type == "one_of" %}{:one_of, [{% set ov = one_of_values | filter(attribute="entity_struct", value=entity.entity_struct) | filter(attribute="field_name", value=f.field_name) %}{% for v in ov %}:{{ v.one_of_name }}{% if not loop.last %}, {% endif %}{% endfor %}]}{% elif f.field_type == "or_string_list_string" %}{:or, [:string, {:list, :string}]}{% elif f.field_type == "list_atom" %}{:list, :atom}{% elif f.field_type == "list_string" %}{:list, :string}{% else %}:{{ f.field_type }}{% endif %}, required: {{ f.field_required }}{% if f.field_default %}, default: {{ f.field_default }}{% endif %}, doc: "{{ f.field_doc }}"],
+{% endfor %}    ]
+  }
+{% endfor %}
+
+{% for section in sections %}
+{% set section_singletons = singleton_keys | filter(attribute="section_name", value=section.section_name) %}
+{% set section_fields_here = section_fields | filter(attribute="section_name", value=section.section_name) %}
+  @{{ section.section_name }} %Spark.Dsl.Section{
+    name: :{{ section.section_name }},
+{% if section.section_describe %}
+    describe: "{{ section.section_describe }}",
+{% endif %}
+{% if section_fields_here | length > 0 %}
+    schema: [
+{% for sf in section_fields_here %}      {{ sf.section_field_name }}: [type: {% if sf.section_field_type == "or_string_list_string" %}{:or, [:string, {:list, :string}]}{% elif sf.section_field_type == "list_atom" %}{:list, :atom}{% elif sf.section_field_type == "list_string" %}{:list, :string}{% else %}:{{ sf.section_field_type }}{% endif %}],
+{% endfor %}    ],
+{% endif %}
+    entities: [
+{% for entity in entities %}{% if entity.section_name == section.section_name %}      @{{ entity.entity_name }},
+{% endif %}{% endfor %}    ]{% if section_singletons | length > 0 %},
+    singleton_entity_keys: [{% for k in section_singletons %}:{{ k.singleton_key }}{% if not loop.last %}, {% endif %}{% endfor %}]
+{% endif %}
+
+  }
+{% endfor %}
+
+  use Spark.Dsl.Extension,
+    sections: [{% for section in sections %}@{{ section.section_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+    transformers: [{{ module_name }}.Persist],
+    verifiers: [{{ module_name }}.Verify]{% if single_extension_kind %},
+    single_extension_kinds: [:{{ single_extension_kind }}]{% endif %}
+
+end

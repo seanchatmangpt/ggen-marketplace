@@ -7,27 +7,59 @@
 # measured synthetic reproduction at matching scale (N=289) showed a
 # single-resource edit forces a ~60s recompile of one monolithic file vs.
 # ~0.9-1.8s per resource file here -- a real, bounded compile-speed win, not
-# a semantics change. Every line of per-resource Ash DSL below is preserved
-# verbatim from the prior monolith; only the file boundary moved.
+# a semantics change.
+#
+# Ash attribute types are ontology facts, not template code (2026-09-05):
+# the former in-template `ash_type = fn "string" -> ":string" ... end`
+# ladder (8 clauses, no fallthrough, FunctionClauseError on a 9th type) is
+# replaced by the bpm:FieldType vocabulary's bpm:ashTypeExpr, JOINed by
+# igniter/queries/ash_fields.rq. The one semantic difference that ladder
+# hid: it mapped datetime to ":utc_datetime" (Ash: constraints: [precision:
+# :second]), which TRUNCATED the microseconds the Erlang/Elixir/JSON legs
+# carry verbatim on the wire (measured: "2026-08-29T12:00:00.123456Z" read
+# back as ~U[2026-08-29 12:00:00Z], DateTime.compare :lt). The vocabulary
+# says :utc_datetime_usec -- VISION-2030 section 4: "No language is allowed
+# to erase distinctions merely because another language's representation is
+# convenient."
 #
 # Bindings (from `mix ggen_igniter.sync --query records=... --query
-# fields=... --for-each records`):
+# ash_fields=... --for-each records`):
 #   record_name, record_doc - THIS row's own columns, flattened to the
 #     top-level bindings by ggen_igniter's --for-each convention. Verified
 #     live 2026-09-02 (real probe invocation against this pack's own
 #     ontology.ttl/records.rq/fields.rq, oxigraph engine): these arrive as
 #     already-normalized plain strings (no norm.() needed), unlike the raw
-#     `fields` list below.
-#   fields - the FULL fields query result (all records' fields, string-keyed
-#     maps, raw N-Triples-style oxigraph terms) -- filtered here down to
-#     just this record's own fields.
+#     `ash_fields` list below.
+#   ash_fields - the FULL ash_fields.rq result (all records' fields,
+#     string-keyed maps, raw N-Triples-style oxigraph terms), filtered here
+#     down to just this record's own fields. Each row carries
+#     ?ash_type_expr from the bpm:FieldType vocabulary for its ?field_type,
+#     OPTIONAL-joined: it is unbound when the type is not admitted, when
+#     the FieldType lacks bpm:ashTypeExpr, or when the query ran against the
+#     consumer graph alone (the vocabulary lives in the PACK's ontology.ttl;
+#     scripts/igniter_sync.sh concatenates consumer + pack because
+#     ggen_igniter loads exactly one --ontology file). Any unbound value is
+#     refused below BY RECORD AND FIELD NAME -- an unmapped type is a named
+#     render failure, never a silently dropped attribute.
 #
-# Engine-shape note: `--engine oxigraph` (the default) returns RAW
-# N-Triples-style terms for list-bound query results (IRIs
-# angle-bracketed, literals quoted and possibly datatype-tagged); norm/1
-# handles both engines for the `fields` list. Row order is NEVER trusted
-# (the sparql hex engine has a real, documented ORDER BY bug) - fields are
-# re-sorted here with Enum.sort_by.
+# Engine-shape note: both engines now return PLAIN lexical values for
+# list-bound query results (GgenIgniter.Query.Oxigraph moduledoc, "Term
+# normalization": oxrdf `Literal::value()` at the NIF source; the sparql hex
+# engine's `RDF.Literal.value/1`). norm/1 below is the historical guard for
+# oxigraph's former raw N-Triples-style shape (angle-bracketed IRIs, quoted
+# literals) and is kept on the legacy columns, whose lexical values never
+# begin with `<` or `"`, so it is a byte-preserving no-op there. It is NOT
+# applied to ?ash_type_expr: a plain accessor (lex/1) is used, because
+# quote-stripping a lexical value is only correct for a wrapper shape the
+# engine no longer emits (measured 2026-09-05: the sibling test template's
+# ?sample_elixir literal "\"sample___FIELD__\"" lost its quotes under
+# norm/1). Row order is NEVER trusted (the sparql hex engine has a real,
+# documented ORDER BY bug) - fields are re-sorted here with Enum.sort_by.
+lex = fn
+  nil -> nil
+  v -> to_string(v)
+end
+
 norm = fn
   nil ->
     nil
@@ -61,12 +93,13 @@ this_name = record_name
 this_doc = record_doc
 
 flds =
-  fields
+  ash_fields
   |> Enum.filter(fn f -> norm.(f["record_name"]) == this_name end)
   |> Enum.map(fn f ->
     %{
       name: norm.(f["field_name"]),
       type: norm.(f["field_type"]),
+      ash_type: lex.(f["ash_type_expr"]),
       doc: norm.(f["field_doc"]),
       required: norm.(f["field_required"]) == "true",
       order: to_int.(f["field_order"])
@@ -74,21 +107,26 @@ flds =
   end)
   |> Enum.sort_by(& &1.order)
 
-# bpm:fieldType -> Ash attribute type (source text)
-ash_type = fn
-  "string" -> ":string"
-  "integer" -> ":integer"
-  "float" -> ":float"
-  "boolean" -> ":boolean"
-  "datetime" -> ":utc_datetime"
-  "atom" -> ":atom"
-  "list_string" -> "{:array, :string}"
-  "map" -> ":map"
+# Refuse by name (the loud path): an unbound ?ash_type_expr means the
+# bpm:FieldType vocabulary carries no Ash projection for this field's type,
+# or was not in the queried graph at all.
+case Enum.filter(flds, fn f -> f.ash_type in [nil, ""] end) do
+  [] ->
+    :ok
+
+  missing ->
+    raise ArgumentError,
+          "beam4pm_ash_resource.ex.eex: record #{this_name}: no bpm:ashTypeExpr for " <>
+            Enum.map_join(missing, ", ", fn f ->
+              "field #{f.name} (bpm:fieldType \"#{f.type}\")"
+            end) <>
+            " -- admit the type in the pack's bpm:FieldType vocabulary (ontology.ttl) and " <>
+            "run ash_fields.rq against the merged consumer+pack graph (scripts/igniter_sync.sh)"
 end
 
 attrs =
   Enum.map_join(flds, "\n", fn f ->
-    "    attribute :#{f.name}, #{ash_type.(f.type)}, public?: true" <>
+    "    attribute :#{f.name}, #{f.ash_type}, public?: true" <>
       if(f.required, do: ", allow_nil?: false", else: "")
   end)
 

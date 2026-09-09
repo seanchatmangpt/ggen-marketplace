@@ -1,0 +1,28 @@
+# MESSAGE: beam4pm-pro-infra-pack cardinality gate. Both cloudrun_main_tf.tmpl and
+# MESSAGE: cloudrun_variables_tf.tmpl consume `deployments[0]` (the row after
+# MESSAGE: ORDER BY(?serviceName)), and packer-beam4pm-image.pkr.hcl.tmpl /
+# MESSAGE: packer-variables.pkr.hcl.tmpl consume `image[0]` (ORDER BY(?imageName)) --
+# MESSAGE: this pack's documented single-Deployment/single-PackerImage-per-consumer-
+# MESSAGE: graph contract (see ontology.ttl's rdfs:comment on both classes). Neither
+# MESSAGE: gates/010_required.rq nor gates/020_packerimage_required.rq can see a
+# MESSAGE: second individual of either class: every one of their UNION branches is a
+# MESSAGE: per-property presence check scoped to `?s a b4pi:Deployment`/`?s a
+# MESSAGE: b4pi:PackerImage`, so a consumer who fully populates a SECOND individual
+# MESSAGE: gets zero rows from both required-facts gates -- reading as "nothing
+# MESSAGE: missing" -- while the [0]-indexed templates render only the
+# MESSAGE: ORDER-BY-first individual and silently drop every fact belonging to the
+# MESSAGE: rest. This gate turns that silent truncation into a named refusal: any
+# MESSAGE: row here means more than one individual of the given class was asserted,
+# MESSAGE: i.e. exactly the input this pack's single-instance-per-graph contract
+# MESSAGE: does not support without dropping data.
+PREFIX b4pi: <http://seanchatmangpt.github.io/packs/beam4pm-pro-infra#>
+SELECT ?class (COUNT(DISTINCT ?s) AS ?count) WHERE {
+  {
+    ?s a b4pi:Deployment . BIND(b4pi:Deployment AS ?class)
+  } UNION {
+    ?s a b4pi:PackerImage . BIND(b4pi:PackerImage AS ?class)
+  }
+}
+GROUP BY ?class
+HAVING (COUNT(DISTINCT ?s) > 1)
+ORDER BY ?class

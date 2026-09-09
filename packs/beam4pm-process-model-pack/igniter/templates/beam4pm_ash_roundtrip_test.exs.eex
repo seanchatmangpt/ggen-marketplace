@@ -1,0 +1,277 @@
+<%
+# ggen_igniter EEx template -> test/beam4pm_ash_roundtrip_test.exs
+#
+# Chicago-style ExUnit for BeamPM.AshRoundtrip (beam4pm_ash_roundtrip.ex.eex):
+# real BeamPM.Roundtrip.write_samples/1 fixtures on disk, the real
+# BeamPM.Codec, the real Ash.DataLayer.Ets resources -- no mocks. This is the
+# same-language ("ex" suffix) exercise of the module; the cross-language
+# direction (Erlang-written "erl" fixtures) is the consumer's
+# scripts/roundtrip_check.sh third block, which needs erlc/erl and therefore
+# lives in the gate script, not in `mix test`.
+#
+# Falsifiers, run rather than reasoned: a fixture with one datetime field
+# rewritten to the no-fraction form and a fixture with one non-datetime field
+# rewritten must each be REFUSED with a message naming the record, the variant
+# and the field -- proving verify_one/3 compares against the independent
+# sample (the tampered wire is self-consistent through Ash, so a leg that only
+# compared read-back to its own input would pass it).
+#
+# ETS hygiene: every generated resource shares ONE public ETS table per VM
+# (Ash.DataLayer.Ets, private?: false), and the sibling per-resource tests
+# (beam4pm_ash_resource_test.exs.eex) read back with `[read_back] =
+# Ash.read!(resource)` -- a read-all that matches exactly one row. Rows this
+# module creates would break any sibling that runs after it, so on_exit stops
+# every resource's table (Ash.DataLayer.Ets.stop/1 shuts the owning
+# TableManager down, deleting the table) and waits until :ets.whereis/1
+# reports it gone before the next module runs. Ash.DataLayer.Ets logs one
+# debug block per create; @moduletag capture_log keeps 578 of them out of the
+# suite output.
+#
+# Bindings: records + ash_fields (merged consumer+pack graph), same as the
+# module template; ?ash_type_expr is refused by name when unbound.
+lex = fn
+  nil -> nil
+  v -> to_string(v)
+end
+
+norm = fn
+  nil ->
+    nil
+
+  v when is_binary(v) ->
+    cond do
+      String.starts_with?(v, "<") and String.ends_with?(v, ">") ->
+        String.slice(v, 1..-2//1)
+
+      String.starts_with?(v, "\"") ->
+        case Regex.run(~r/\A"(.*)"(?:\^\^<[^>]*>|@[A-Za-z0-9\-]+)?\z/s, v) do
+          [_, lex] -> lex
+          nil -> v
+        end
+
+      true ->
+        v
+    end
+
+  v ->
+    to_string(v)
+end
+
+to_int = fn v -> v |> norm.() |> String.to_integer() end
+
+rec_names =
+  records
+  |> Enum.map(fn r -> norm.(r["record_name"]) end)
+  |> Enum.sort()
+
+flds =
+  ash_fields
+  |> Enum.map(fn f ->
+    %{
+      record: norm.(f["record_name"]),
+      name: norm.(f["field_name"]),
+      type: norm.(f["field_type"]),
+      ash_type: lex.(f["ash_type_expr"]),
+      required: norm.(f["field_required"]) == "true",
+      order: to_int.(f["field_order"])
+    }
+  end)
+  |> Enum.sort_by(&{&1.record, &1.order})
+
+case Enum.filter(flds, fn f -> f.ash_type in [nil, ""] end) do
+  [] ->
+    :ok
+
+  missing ->
+    raise ArgumentError,
+          "beam4pm_ash_roundtrip_test.exs.eex: no bpm:ashTypeExpr for " <>
+            Enum.map_join(missing, ", ", fn f ->
+              "#{f.record}.#{f.name} (bpm:fieldType \"#{f.type}\")"
+            end) <>
+            " -- admit the type in the pack's bpm:FieldType vocabulary (ontology.ttl) and " <>
+            "run ash_fields.rq against the merged consumer+pack graph (scripts/igniter_sync.sh)"
+end
+
+normalizes_datetime? = fn f -> String.starts_with?(f.ash_type, ":utc_datetime") end
+
+record_count = length(rec_names)
+fixture_count = record_count * 2
+
+# Falsifier subjects, picked deterministically from the admitted graph: the
+# first (sorted) record carrying a REQUIRED datetime field (required so the
+# field is present in the :full fixture regardless of variant handling), and
+# the first record carrying a required string field.
+datetime_subject = Enum.find(flds, fn f -> normalizes_datetime?.(f) and f.required end)
+string_subject = Enum.find(flds, fn f -> f.type == "string" and f.required end)
+
+datetime_falsifier =
+  if datetime_subject do
+    Enum.join(
+      [
+        "",
+        "  test \"falsifier: a no-fraction datetime on the wire is refused by record, variant and field\",",
+        "       %{dir: dir} do",
+        "    path = Path.join(dir, \"#{datetime_subject.record}.full.ex.json\")",
+        "",
+        "    tampered =",
+        "      path",
+        "      |> File.read!()",
+        "      |> JSON.decode!()",
+        "      |> Map.put(\"#{datetime_subject.name}\", \"2026-08-29T12:00:00Z\")",
+        "      |> JSON.encode!()",
+        "",
+        "    File.write!(path, tampered)",
+        "",
+        "    assert {:error, reasons} =",
+        "             BeamPM.AshRoundtrip.verify_one(:#{datetime_subject.record}, :full, path)",
+        "",
+        "    assert Enum.any?(reasons, &String.contains?(&1, \"field #{datetime_subject.name}\"))",
+        "    assert Enum.any?(reasons, &String.contains?(&1, \"DateTime.compare/2 != :eq\"))",
+        "",
+        "    # The whole sweep reports it under the record.variant label and nothing else fails.",
+        "    {pass, failures} = BeamPM.AshRoundtrip.verify_samples(dir, \"ex\")",
+        "    assert pass == #{fixture_count - 1}",
+        "    assert Enum.all?(failures, &String.starts_with?(&1, \"#{datetime_subject.record}.full: \"))",
+        "    assert failures != []",
+        "  end"
+      ],
+      "\n"
+    )
+  else
+    ""
+  end
+
+string_falsifier =
+  if string_subject do
+    Enum.join(
+      [
+        "",
+        "  test \"falsifier: a mutated non-datetime field on the wire is refused by name\", %{dir: dir} do",
+        "    path = Path.join(dir, \"#{string_subject.record}.minimal.ex.json\")",
+        "",
+        "    tampered =",
+        "      path",
+        "      |> File.read!()",
+        "      |> JSON.decode!()",
+        "      |> Map.put(\"#{string_subject.name}\", \"tampered_#{string_subject.name}\")",
+        "      |> JSON.encode!()",
+        "",
+        "    File.write!(path, tampered)",
+        "",
+        "    assert {:error, reasons} =",
+        "             BeamPM.AshRoundtrip.verify_one(:#{string_subject.record}, :minimal, path)",
+        "",
+        "    assert Enum.any?(reasons, &String.contains?(&1, \"field #{string_subject.name}\"))",
+        "    assert Enum.any?(reasons, &String.contains?(&1, \"!= sample\"))",
+        "  end"
+      ],
+      "\n"
+    )
+  else
+    ""
+  end
+
+rendered =
+  Enum.join(
+    [
+      "# GENERATED by ggen_igniter. Do not edit.",
+      "defmodule BeamPM.AshRoundtripTest do",
+      "  use ExUnit.Case, async: false",
+      "",
+      "  # Ash.DataLayer.Ets logs one debug block per create (#{fixture_count} per sweep).",
+      "  @moduletag capture_log: true",
+      "",
+      "  @record_count #{record_count}",
+      "  @fixture_count #{fixture_count}",
+      "",
+      "  setup do",
+      "    dir =",
+      "      Path.join(",
+      "        System.tmp_dir!(),",
+      "        \"beam4pm_ash_roundtrip_\#{System.unique_integer([:positive])}\"",
+      "      )",
+      "",
+      "    File.mkdir_p!(dir)",
+      "    :ok = BeamPM.Roundtrip.write_samples(dir)",
+      "",
+      "    on_exit(fn ->",
+      "      File.rm_rf!(dir)",
+      "      Enum.each(BeamPM.AshRoundtrip.record_names(), &reset_ets_table!/1)",
+      "    end)",
+      "",
+      "    {:ok, dir: dir}",
+      "  end",
+      "",
+      "  test \"the Ash leg admits the same record set as the Erlang/Elixir roundtrip legs\" do",
+      "    assert length(BeamPM.AshRoundtrip.record_names()) == @record_count",
+      "    assert BeamPM.AshRoundtrip.record_names() == BeamPM.Roundtrip.record_names()",
+      "    assert BeamPM.AshRoundtrip.variants() == [:full, :minimal]",
+      "  end",
+      "",
+      "  test \"ash-verifies-wire: every record x variant fixture round-trips through Ash\",",
+      "       %{dir: dir} do",
+      "    assert {@fixture_count, []} == BeamPM.AshRoundtrip.verify_samples(dir, \"ex\")",
+      "  end",
+      "",
+      "  test \"the synthetic uuid_primary_key :id is the ONLY Ash-only public attribute\" do",
+      "    assert BeamPM.AshRoundtrip.ash_only_attributes() == [:id]",
+      "",
+      "    for name <- BeamPM.AshRoundtrip.record_names() do",
+      "      resource = BeamPM.AshRoundtrip.resource(name)",
+      "      {:ok, sample} = BeamPM.Roundtrip.sample(name, :full)",
+      "      wire_fields = sample |> Map.from_struct() |> Map.keys()",
+      "",
+      "      public =",
+      "        resource",
+      "        |> Ash.Resource.Info.public_attributes()",
+      "        |> Enum.map(& &1.name)",
+      "",
+      "      assert public -- wire_fields == [:id], \"\#{name}: Ash-only attributes \#{inspect(public -- wire_fields)}\"",
+      "      assert wire_fields -- public == [], \"\#{name}: wire fields missing from Ash \#{inspect(wire_fields -- public)}\"",
+      "    end",
+      "  end",
+      "",
+      "  test \"datetime_fields/1 (an ontology fact) agrees with each resource's Ash attribute types\" do",
+      "    for name <- BeamPM.AshRoundtrip.record_names() do",
+      "      resource = BeamPM.AshRoundtrip.resource(name)",
+      "",
+      "      from_ash =",
+      "        resource",
+      "        |> Ash.Resource.Info.public_attributes()",
+      "        |> Enum.filter(&(&1.type in [Ash.Type.UtcDatetimeUsec, Ash.Type.UtcDatetime]))",
+      "        |> Enum.map(& &1.name)",
+      "        |> Enum.sort()",
+      "",
+      "      assert Enum.sort(BeamPM.AshRoundtrip.datetime_fields(name)) == from_ash, \"\#{name}\"",
+      "    end",
+      "  end",
+      datetime_falsifier,
+      string_falsifier,
+      "",
+      "  # Ash.DataLayer.Ets.stop/1 shuts the resource's TableManager down (the ETS",
+      "  # table dies with its owner); wait for the table to actually be gone so the",
+      "  # sibling per-resource tests' read-all sees a fresh table.",
+      "  defp reset_ets_table!(record_name) do",
+      "    resource = BeamPM.AshRoundtrip.resource(record_name)",
+      "    table = Ash.DataLayer.Ets.Info.table(resource)",
+      "    _ = Ash.DataLayer.Ets.stop(resource)",
+      "    wait_until_gone!(table, 400)",
+      "  end",
+      "",
+      "  defp wait_until_gone!(table, 0) do",
+      "    raise \"ETS table \#{inspect(table)} still present after Ash.DataLayer.Ets.stop/1\"",
+      "  end",
+      "",
+      "  defp wait_until_gone!(table, attempts) do",
+      "    if :ets.whereis(table) == :undefined do",
+      "      :ok",
+      "    else",
+      "      Process.sleep(5)",
+      "      wait_until_gone!(table, attempts - 1)",
+      "    end",
+      "  end",
+      "end"
+    ],
+    "\n"
+  ) <> "\n"
+%><%= rendered %>

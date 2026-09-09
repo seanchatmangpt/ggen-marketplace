@@ -79,12 +79,80 @@ defmodule BeamPM.ReceiptChain do
       receipt file's raw bytes AT THE MOMENT this receipt was written, or
       `nil` for the genesis receipt.
 
+  ## Per-chain tip index: O(1) `link_fields/3`, scan retained as the oracle
+
+  The original link computation (`link_fields/2`, whose body survives
+  byte-for-byte as `link_fields_by_scan/2`) found the chain tip by scanning
+  EVERY top-level `*.json` file in `receipts_dir` -- `File.ls`, then one
+  `File.regular?` + `File.read` + `JSON.decode` per file -- and then
+  discarding every receipt whose `"chain_id"` was not the one requested.
+  That per-write cost is Theta(N) in the LIFETIME count of receipts across
+  ALL chains in the directory (nothing prunes or rotates `receipts_dir`, so
+  N grows without bound under `BeamPM.ProcessGovernor`'s `continuous:
+  true`), while the information a write actually needs -- the single tip
+  receipt of ONE chain -- is O(1). Measured on this exact scan body
+  (2026-09-05, development host, min of 5): 1.8ms at N=33, 56ms at
+  N=1,000, 0.64s at N=10,000, 2.2s at N=30,000 -- per governed receipt
+  write, N-L of which decodes carried zero information.
+
+  `link_fields/3` replaces that with a per-chain TIP INDEX at
+  `<receipts_dir>/.chain-tips/<sha256(chain_id)>.json` (`tip_index_path/2`;
+  the digest keeps any caller-chosen `chain_id` filesystem-safe) holding
+  `{index_schema, chain_id, chain_seq, receipt_path}` -- the seq and path
+  of the newest receipt of that chain. Three rules make it safe, and each
+  is falsified by a real test in `BeamPM.ReceiptChainTest`:
+
+    * INDEX-FIRST WRITE. `link_fields/3` is told the path of the receipt
+      the caller is ABOUT to write and records `{chain_seq, that path}` in
+      the index BEFORE returning, i.e. before the caller's own
+      `File.write!`. A crash between the two leaves an index naming a file
+      that does not exist -- which the next call detects and repairs (next
+      rule). The reverse ordering (receipt first, index second) would
+      leave a stale-but-VALID index after a crash and silently reuse a
+      `chain_seq`; index-first makes the crash window safe by
+      construction.
+    * VALIDATED READ. An index entry is trusted only if the file it names
+      still exists, lives DIRECTLY in `receipts_dir` as a `*.json` file (so
+      the index can never admit a tip the scan could not see -- the
+      indexed domain is a subset of the scan's), decodes as a
+      `beam4pm-brce/v1` receipt, carries the requested `chain_id`, and
+      records exactly the `chain_seq` the index claims. Any failure is a
+      MISS, never an error.
+    * SCAN FALLBACK. On a miss `link_fields/3` computes the answer with
+      the retained scan (`link_fields_by_scan/2`) and rebuilds the index
+      from it. An existing directory therefore pays one scan per chain on
+      first use, then O(1).
+
+  The accelerated path reads exactly two files (index + tip) and writes
+  one, regardless of N -- measured at 0.57ms (N=33), 0.78ms (N=1,000),
+  0.94ms (N=10,000), 0.96ms (N=30,000) per write on the same host, index
+  write included: 3x, 70x, 680x, 2,300x cheaper than the scan it replaces,
+  a ratio that keeps growing with N because the indexed cost does not.
+  `verify/2` is deliberately UNTOUCHED: it
+  still walks the whole directory from disk and never consults the index,
+  so it remains an independent ground truth that turns any index/scan
+  divergence into a visible `:duplicate_or_missing_seq` failure rather
+  than accepting the indexed writer's output.
+
+  Honest limit: the O(1) answer is identical to the scan on the domain
+  this module already restricts itself to (see Concurrency below) --
+  every receipt of a chain written through `link_fields/3` (or the legacy
+  `link_fields/2`, which invalidates the index so it can never go stale
+  behind a scan-only writer) and then written to the path it named. A
+  foreign process dropping a well-formed next-link receipt into
+  `receipts_dir` WITHOUT going through either writer entry point makes the
+  index stale while still valid; the divergence is not silent -- the
+  untouched `verify/2` flags it -- but `link_fields/3` will not detect it
+  on its own. `BeamPM.ReceiptChainTest` pins this exact case as a
+  disclosed falsifier, not a hidden one.
+
   ## Concurrency (disclosed limitation, honestly stated)
 
-  `link_fields/2` determines the next link by scanning `receipts_dir` for
-  the highest existing `"chain_seq"` for `chain_id` -- there is no lock.
-  Two concurrent writers targeting the SAME `chain_id` could race and pick
-  the same `chain_seq`/parent. This module makes the same assumption
+  `link_fields/3` determines the next link from the per-chain tip index
+  (or, on a miss, by scanning `receipts_dir` for the highest existing
+  `"chain_seq"` for `chain_id`) -- there is no lock. Two concurrent
+  writers targeting the SAME `chain_id` could race and pick the same
+  `chain_seq`/parent. This module makes the same assumption
   `BeamPM.ProcessGovernor.apply_transition/3` already makes for its own
   process receipts (one process advanced sequentially by one caller) --
   it does not add cross-process/cross-node locking. A genuinely concurrent
@@ -92,6 +160,8 @@ defmodule BeamPM.ReceiptChain do
   """
 
   @actuation_receipt_schema "beam4pm-brce/v1"
+  @tip_index_dir ".chain-tips"
+  @tip_index_schema "beam4pm-chain-tip/v1"
 
   @typedoc "The four chain fields to merge into a beam4pm-brce/v1 receipt map before writing."
   @type link :: %{
@@ -103,28 +173,83 @@ defmodule BeamPM.ReceiptChain do
 
   @doc """
   Computes the chain-linkage fields for the NEXT `beam4pm-brce/v1` receipt
-  about to be written to `receipts_dir` for `chain_id`. Scans `receipts_dir`
-  (top-level `*.json` files only -- `BeamPM.ProcessGovernor`'s own
-  `process/` subdirectory holds a different `receipt_schema`,
-  `beam4pm-process-governor/v1`, and is never a chain-link candidate) for
-  existing receipts already carrying that exact `"chain_id"`, and links to
-  whichever one carries the highest `"chain_seq"`. No existing receipt for
-  this `chain_id` is genesis: `chain_seq: 1`, both prev-fields `nil`.
+  about to be written to `next_receipt_path` for `chain_id`, in O(1) file
+  reads regardless of how many receipts `receipts_dir` holds, and records
+  `next_receipt_path` as the chain's new tip in the per-chain index BEFORE
+  returning (index-first write -- see the moduledoc). The caller MUST then
+  write the receipt to exactly `next_receipt_path`, a top-level `*.json`
+  file directly in `receipts_dir` (`BeamPM.Actuation.write_receipt!/2`
+  does); a `next_receipt_path` anywhere else is never recorded, because the
+  scan would never see such a receipt either, so recording it would break
+  identity with `link_fields_by_scan/2`. No existing receipt for this
+  `chain_id` is genesis: `chain_seq: 1`, both prev-fields `nil`.
+
+  Identity with `link_fields_by_scan/2` holds for every receipt of the chain
+  written through this function -- proven differentially over random
+  multi-chain interleavings in `BeamPM.ReceiptChainTest`; see the moduledoc
+  for the disclosed divergence under out-of-band writes.
+  """
+  @spec link_fields(String.t(), String.t(), String.t()) :: link()
+  def link_fields(receipts_dir, chain_id, next_receipt_path)
+      when is_binary(receipts_dir) and is_binary(chain_id) and is_binary(next_receipt_path) do
+    link =
+      case indexed_tip(receipts_dir, chain_id) do
+        {:ok, tip} -> link_from_tip(chain_id, tip)
+        :miss -> link_fields_by_scan(receipts_dir, chain_id)
+      end
+
+    write_tip_index!(receipts_dir, chain_id, link.chain_seq, next_receipt_path)
+    link
+  end
+
+  @doc """
+  Legacy writer entry point (the pre-index signature), kept so a writer that
+  does not yet know its receipt's path can still take a link. Computes the
+  link by the retained scan (`link_fields_by_scan/2`) AND deletes the chain's
+  tip index, so a receipt this caller then writes can never leave a
+  stale-but-valid index behind for a later `link_fields/3` to trust -- the
+  next `link_fields/3` call misses, rescans, and rebuilds. Theta(N) per
+  call, like the original; prefer `link_fields/3`.
   """
   @spec link_fields(String.t(), String.t()) :: link()
   def link_fields(receipts_dir, chain_id) when is_binary(receipts_dir) and is_binary(chain_id) do
-    case tip(receipts_dir, chain_id) do
-      nil ->
-        %{chain_id: chain_id, chain_seq: 1, prev_receipt_path: nil, prev_receipt_hash: nil}
+    link = link_fields_by_scan(receipts_dir, chain_id)
+    invalidate_tip_index!(receipts_dir, chain_id)
+    link
+  end
 
-      %{path: path, chain_seq: seq} ->
-        %{
-          chain_id: chain_id,
-          chain_seq: seq + 1,
-          prev_receipt_path: path,
-          prev_receipt_hash: hash_file!(path)
-        }
-    end
+  @doc """
+  Reference oracle -- the ORIGINAL scan-based link computation, retained
+  byte-for-byte and side-effect free (reads only, never touches the index).
+  Scans `receipts_dir` (top-level `*.json` files only --
+  `BeamPM.ProcessGovernor`'s own `process/` subdirectory holds a different
+  `receipt_schema`, `beam4pm-process-governor/v1`, and is never a chain-link
+  candidate) for existing receipts already carrying that exact `"chain_id"`,
+  and links to whichever one carries the highest `"chain_seq"`. No existing
+  receipt for this `chain_id` is genesis: `chain_seq: 1`, both prev-fields
+  `nil`. Theta(N) in the directory's lifetime receipt count -- this is the
+  cost `link_fields/3` removes from the write path, kept public so any
+  indexed answer can be checked against it.
+  """
+  @spec link_fields_by_scan(String.t(), String.t()) :: link()
+  def link_fields_by_scan(receipts_dir, chain_id)
+      when is_binary(receipts_dir) and is_binary(chain_id) do
+    link_from_tip(chain_id, tip(receipts_dir, chain_id))
+  end
+
+  @doc """
+  Path of the per-chain tip index file `link_fields/3` maintains for
+  `chain_id` under `receipts_dir`:
+  `<receipts_dir>/.chain-tips/<sha256(chain_id) hex>.json`. The hidden
+  directory never matches the scan's top-level `*.json` filter, and the
+  digest keeps any caller-chosen `chain_id` (slashes, spaces, length)
+  filesystem-safe and collision-free; the file itself records the plain
+  `chain_id` for human inspection.
+  """
+  @spec tip_index_path(String.t(), String.t()) :: String.t()
+  def tip_index_path(receipts_dir, chain_id) when is_binary(receipts_dir) and is_binary(chain_id) do
+    digest = :sha256 |> :crypto.hash(chain_id) |> Base.encode16(case: :lower)
+    Path.join([receipts_dir, @tip_index_dir, digest <> ".json"])
   end
 
   @doc "sha256 hex digest of the exact bytes currently on disk at `path`."
@@ -194,6 +319,91 @@ defmodule BeamPM.ReceiptChain do
   end
 
   # -- internal ---------------------------------------------------------
+
+  defp link_from_tip(chain_id, nil) do
+    %{chain_id: chain_id, chain_seq: 1, prev_receipt_path: nil, prev_receipt_hash: nil}
+  end
+
+  defp link_from_tip(chain_id, %{path: path, chain_seq: seq}) do
+    %{
+      chain_id: chain_id,
+      chain_seq: seq + 1,
+      prev_receipt_path: path,
+      prev_receipt_hash: hash_file!(path)
+    }
+  end
+
+  # Validated read of the per-chain tip index (moduledoc, rule 2). Every
+  # failure -- no index, unreadable, not our schema, another chain, a path
+  # outside receipts_dir's top level, a tip file that is gone or no longer
+  # decodes as this chain's receipt, or a tip whose own recorded chain_seq
+  # is not what the index claims -- is a MISS handed to the scan, never an
+  # error. The returned tip path is re-joined from `receipts_dir` and the
+  # recorded basename so it is textually identical to what the scan's own
+  # `Path.join(receipts_dir, entry)` would produce for the same file.
+  defp indexed_tip(receipts_dir, chain_id) do
+    with {:ok, raw} <- File.read(tip_index_path(receipts_dir, chain_id)),
+         {:ok,
+          %{
+            "index_schema" => @tip_index_schema,
+            "chain_id" => ^chain_id,
+            "chain_seq" => seq,
+            "receipt_path" => recorded_path
+          }}
+         when is_integer(seq) and is_binary(recorded_path) <- JSON.decode(raw),
+         true <- top_level_receipt_path?(receipts_dir, recorded_path),
+         path = Path.join(receipts_dir, Path.basename(recorded_path)),
+         [%{chain_seq: ^seq} = tip] <- decode_chain_receipt(path, chain_id) do
+      {:ok, tip}
+    else
+      _ -> :miss
+    end
+  end
+
+  # The scan only ever sees `receipts_dir/<entry>.json` (see chain_receipts/2);
+  # the index must never admit anything the scan could not.
+  defp top_level_receipt_path?(receipts_dir, path) do
+    String.ends_with?(path, ".json") and
+      Path.expand(Path.dirname(path)) == Path.expand(receipts_dir)
+  end
+
+  # Index-first write (moduledoc, rule 1): record the receipt ABOUT to be
+  # written as the new tip. Written via a sibling temp file + rename so a
+  # torn write can only ever leave the previous entry or the new one, never
+  # a half-written file the validated read would have to reject (it would
+  # reject it -- a decode miss -> scan -- but there is no reason to pay that
+  # scan). A next_receipt_path outside receipts_dir's top level is not
+  # recorded at all (see link_fields/3's doc).
+  defp write_tip_index!(receipts_dir, chain_id, chain_seq, next_receipt_path) do
+    if top_level_receipt_path?(receipts_dir, next_receipt_path) do
+      index_path = tip_index_path(receipts_dir, chain_id)
+      File.mkdir_p!(Path.dirname(index_path))
+
+      entry =
+        JSON.encode!(%{
+          "index_schema" => @tip_index_schema,
+          "chain_id" => chain_id,
+          "chain_seq" => chain_seq,
+          "receipt_path" => Path.join(receipts_dir, Path.basename(next_receipt_path))
+        })
+
+      tmp_path = index_path <> ".tmp"
+      File.write!(tmp_path, entry)
+      File.rename!(tmp_path, index_path)
+    else
+      :ok
+    end
+  end
+
+  defp invalidate_tip_index!(receipts_dir, chain_id) do
+    index_path = tip_index_path(receipts_dir, chain_id)
+
+    case File.rm(index_path) do
+      :ok -> :ok
+      {:error, :enoent} -> :ok
+      {:error, reason} -> raise File.Error, reason: reason, action: "remove file", path: index_path
+    end
+  end
 
   defp tip(receipts_dir, chain_id) do
     receipts_dir

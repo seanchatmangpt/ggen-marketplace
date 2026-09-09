@@ -4,7 +4,7 @@ sparql:
   records: |
     PREFIX bpm: <https://ggen.dev/ontology/beam-process-model#>
     SELECT ?record_name ?record_doc WHERE {
-      VALUES ?record_name { "ocel_event" "log_trace" "dfg_edge" "conformance_result" }
+      VALUES ?record_name { "ocel_event" "log_trace" "dfg_edge" "conformance_result" "process_variant" "service_span" "span_edge" }
       ?rt a bpm:RecordType ;
           bpm:recordName ?record_name ;
           bpm:recordDoc ?record_doc .
@@ -20,6 +20,8 @@ defmodule BeamPM.DiscoveryTest do
   alias BeamPM.Types.LogTrace
   alias BeamPM.Types.OcelEvent
   alias BeamPM.Types.ProcessVariant
+  alias BeamPM.Types.ServiceSpan
+  alias BeamPM.Types.SpanEdge
 
   @case_attr_key "case_id"
 
@@ -158,6 +160,254 @@ defmodule BeamPM.DiscoveryTest do
   test "variants_from_traces/1 returns an empty list for no traces" do
     assert Discovery.variants_from_traces([]) == []
   end
+{% raw %}
+  # ---------------------------------------------------------------------------
+  # causal_dfg_from_spans/1 -- observed (parent/child link) vs inferred
+  # (start_time adjacency). VISION-2030 section 24 falsifier: "telemetry
+  # adjacency cannot be distinguished from causality well enough for
+  # trustworthy process inference". Every fixture is a real ServiceSpan.new/1
+  # struct; every expected edge set is a by-hand derivation stated in the
+  # comment and asserted two-sided with exact frequencies (same fixtures as
+  # the Erlang and Gleam discovery tests).
+  # ---------------------------------------------------------------------------
+
+  defp span!(span_id, service_name, parent_span_id, trace_id, start_time) do
+    {:ok, span} =
+      ServiceSpan.new(%{
+        span_id: span_id,
+        service_name: service_name,
+        duration_ms: 10,
+        parent_span_id: parent_span_id,
+        trace_id: trace_id,
+        start_time: start_time
+      })
+
+    span
+  end
+
+  defp root_span!(span_id, service_name, trace_id, start_time) do
+    {:ok, span} =
+      ServiceSpan.new(%{
+        span_id: span_id,
+        service_name: service_name,
+        duration_ms: 50,
+        trace_id: trace_id,
+        start_time: start_time
+      })
+
+    span
+  end
+
+  # One root (gateway) fans out to two CONCURRENT children (orders,
+  # inventory). Their start_time order is scheduling noise, not causality.
+  # Variant A, orders first:
+  #   adjacency (time order): gateway -> orders -> inventory
+  #   links (parent/child):   gateway -> orders, gateway -> inventory
+  defp fan_out_orders_first do
+    [
+      root_span!("r1", "gateway", "t1", "2026-09-05T10:00:00.000Z"),
+      span!("s2", "inventory", "r1", "t1", "2026-09-05T10:00:00.020Z"),
+      span!("s1", "orders", "r1", "t1", "2026-09-05T10:00:00.010Z")
+    ]
+  end
+
+  # Variant B: the SAME spans and the SAME links, inventory starts first.
+  defp fan_out_inventory_first do
+    [
+      span!("s1", "orders", "r1", "t1", "2026-09-05T10:00:00.020Z"),
+      root_span!("r1", "gateway", "t1", "2026-09-05T10:00:00.000Z"),
+      span!("s2", "inventory", "r1", "t1", "2026-09-05T10:00:00.010Z")
+    ]
+  end
+
+  defp edge_tuples(edges) do
+    Enum.map(edges, fn %SpanEdge{} = edge ->
+      {edge.source_service, edge.target_service, edge.frequency, edge.evidence}
+    end)
+  end
+
+  test "causal_dfg_from_spans/1 separates the observed parent/child edges from the sibling edge adjacency invents" do
+    assert {:ok, evidence} = Discovery.causal_dfg_from_spans(fan_out_orders_first())
+
+    assert [
+             {"gateway", "inventory", 1, :parent_child_link},
+             {"gateway", "orders", 1, :parent_child_link}
+           ] = edge_tuples(evidence.observed)
+
+    assert [
+             {"gateway", "orders", 1, :temporal_adjacency},
+             {"orders", "inventory", 1, :temporal_adjacency}
+           ] = edge_tuples(evidence.adjacent)
+
+    # The sibling edge adjacency INVENTS -- no link supports it:
+    assert [{"orders", "inventory", 1, :temporal_adjacency}] = edge_tuples(evidence.inferred_only)
+    # The real causal edge adjacency CANNOT SEE (the root's second child):
+    assert [{"gateway", "inventory", 1, :parent_child_link}] =
+             edge_tuples(evidence.observed_not_adjacent)
+
+    assert evidence.orphans == []
+  end
+
+  test "causal_dfg_from_spans/1 observed arm is invariant under sibling reorder while the adjacency arm flips" do
+    assert {:ok, a} = Discovery.causal_dfg_from_spans(fan_out_orders_first())
+    assert {:ok, b} = Discovery.causal_dfg_from_spans(fan_out_inventory_first())
+
+    assert a.observed == b.observed
+    refute a.adjacent == b.adjacent
+
+    assert [
+             {"gateway", "inventory", 1, :temporal_adjacency},
+             {"inventory", "orders", 1, :temporal_adjacency}
+           ] = edge_tuples(b.adjacent)
+
+    # Both differences flip with the clock: the invented sibling edge
+    # reverses, and the causal edge adjacency misses is now the OTHER child.
+    assert [{"inventory", "orders", 1, :temporal_adjacency}] = edge_tuples(b.inferred_only)
+    assert [{"gateway", "orders", 1, :parent_child_link}] = edge_tuples(b.observed_not_adjacent)
+  end
+
+  test "causal_dfg_from_spans/1 adjacency arm is exactly traces_from_spans/1 |> dfg_from_traces/1, re-tagged" do
+    spans = fan_out_orders_first()
+    assert {:ok, evidence} = Discovery.causal_dfg_from_spans(spans)
+
+    dfg =
+      spans
+      |> Discovery.traces_from_spans()
+      |> Discovery.dfg_from_traces()
+      |> Enum.map(fn %DfgEdge{} = e -> {e.source_activity, e.target_activity, e.frequency} end)
+
+    assert dfg == Enum.map(evidence.adjacent, fn e -> {e.source_service, e.target_service, e.frequency} end)
+    assert Enum.all?(evidence.adjacent, &(&1.evidence == :temporal_adjacency))
+    assert Enum.all?(evidence.observed, &(&1.evidence == :parent_child_link))
+  end
+
+  test "traces_from_spans/1 orders by start_time then span_id, one trace per trace_id, never reading parent links" do
+    spans =
+      fan_out_orders_first() ++
+        [span!("o1", "billing", "missing", "t1", "2026-09-05T10:00:00.030Z")]
+
+    assert [%LogTrace{case_id: "t1", activity_sequence: ["gateway", "orders", "inventory", "billing"]}] =
+             Discovery.traces_from_spans(spans)
+
+    at = "2026-09-05T10:00:00.000Z"
+
+    assert [%LogTrace{case_id: "tx", activity_sequence: ["first", "second"]}] =
+             Discovery.traces_from_spans([
+               root_span!("b", "second", "tx", at),
+               root_span!("a", "first", "tx", at)
+             ])
+  end
+
+  test "causal_dfg_from_spans/1 reports an orphan by name and never invents a causal edge for it" do
+    # o1's parent "missing" was sampled out: no causal edge, named in orphans,
+    # still placed by its clock in the adjacency arm -- and that edge is
+    # classified inferred_only, so missing evidence is visible, not faked.
+    spans =
+      fan_out_orders_first() ++
+        [span!("o1", "billing", "missing", "t1", "2026-09-05T10:00:00.030Z")]
+
+    assert {:ok, evidence} = Discovery.causal_dfg_from_spans(spans)
+    assert evidence.orphans == [{"o1", "missing"}]
+
+    assert [
+             {"gateway", "inventory", 1, :parent_child_link},
+             {"gateway", "orders", 1, :parent_child_link}
+           ] = edge_tuples(evidence.observed)
+
+    assert [
+             {"inventory", "billing", 1, :temporal_adjacency},
+             {"orders", "inventory", 1, :temporal_adjacency}
+           ] = edge_tuples(evidence.inferred_only)
+  end
+
+  test "causal_dfg_from_spans/1 refuses a duplicate span_id by name" do
+    spans =
+      fan_out_orders_first() ++
+        [root_span!("r1", "gateway", "t9", "2026-09-05T11:00:00.000Z")]
+
+    assert Discovery.causal_dfg_from_spans(spans) == {:error, {:duplicate_span_id, "r1"}}
+  end
+
+  test "causal_dfg_from_spans/1 refuses a parent/child link that crosses trace_id by child span_id" do
+    spans =
+      fan_out_orders_first() ++
+        [span!("x1", "payments", "r1", "t2", "2026-09-05T10:00:00.040Z")]
+
+    assert Discovery.causal_dfg_from_spans(spans) == {:error, {:parent_in_other_trace, "x1"}}
+  end
+
+  test "causal_dfg_from_spans/1 yields no edges for an empty input or a lone root span" do
+    empty = %{observed: [], adjacent: [], inferred_only: [], observed_not_adjacent: [], orphans: []}
+    assert Discovery.causal_dfg_from_spans([]) == {:ok, empty}
+
+    assert Discovery.causal_dfg_from_spans([
+             root_span!("r1", "gateway", "t1", "2026-09-05T10:00:00.000Z")
+           ]) == {:ok, empty}
+  end
+
+  test "causal_dfg_from_spans/1 keeps a same-service parent/child link as a real self edge both arms agree on" do
+    spans = [
+      root_span!("r1", "gateway", "t1", "2026-09-05T10:00:00.000Z"),
+      span!("c1", "gateway", "r1", "t1", "2026-09-05T10:00:00.005Z")
+    ]
+
+    assert {:ok, evidence} = Discovery.causal_dfg_from_spans(spans)
+    assert [{"gateway", "gateway", 1, :parent_child_link}] = edge_tuples(evidence.observed)
+    assert [{"gateway", "gateway", 1, :temporal_adjacency}] = edge_tuples(evidence.adjacent)
+    assert evidence.inferred_only == []
+    assert evidence.observed_not_adjacent == []
+  end
+
+  test "causal_dfg_from_spans/1 frequency counts parent/child links per service pair across traces" do
+    t2 = [
+      root_span!("r2", "gateway", "t2", "2026-09-05T10:01:00.000Z"),
+      span!("s3", "orders", "r2", "t2", "2026-09-05T10:01:00.010Z"),
+      span!("s4", "inventory", "r2", "t2", "2026-09-05T10:01:00.020Z")
+    ]
+
+    assert {:ok, evidence} = Discovery.causal_dfg_from_spans(fan_out_orders_first() ++ t2)
+
+    assert [
+             {"gateway", "inventory", 2, :parent_child_link},
+             {"gateway", "orders", 2, :parent_child_link}
+           ] = edge_tuples(evidence.observed)
+
+    assert [
+             {"gateway", "orders", 2, :temporal_adjacency},
+             {"orders", "inventory", 2, :temporal_adjacency}
+           ] = edge_tuples(evidence.adjacent)
+
+    assert [{"orders", "inventory", 2, :temporal_adjacency}] = edge_tuples(evidence.inferred_only)
+    assert [{"gateway", "inventory", 2, :parent_child_link}] = edge_tuples(evidence.observed_not_adjacent)
+  end
+
+  test "causal_dfg_from_spans/1 adjacency never crosses trace_id even when traces interleave on the clock" do
+    # The PI3 cross-case shape, intra-span: consecutive RAW arrivals belong to
+    # different traces. Neither arm may emit auth -> orders or orders -> users.
+    spans = [
+      root_span!("r1", "gateway", "t1", "2026-09-05T10:00:00.000Z"),
+      root_span!("r2", "auth", "t2", "2026-09-05T10:00:00.005Z"),
+      span!("s1", "orders", "r1", "t1", "2026-09-05T10:00:00.010Z"),
+      span!("s2", "users", "r2", "t2", "2026-09-05T10:00:00.015Z")
+    ]
+
+    assert {:ok, evidence} = Discovery.causal_dfg_from_spans(spans)
+
+    assert [
+             {"auth", "users", 1, :parent_child_link},
+             {"gateway", "orders", 1, :parent_child_link}
+           ] = edge_tuples(evidence.observed)
+
+    assert [
+             {"auth", "users", 1, :temporal_adjacency},
+             {"gateway", "orders", 1, :temporal_adjacency}
+           ] = edge_tuples(evidence.adjacent)
+
+    assert evidence.inferred_only == []
+    assert evidence.observed_not_adjacent == []
+    assert evidence.orphans == []
+  end
+{% endraw %}
 {% for r in records %}{% set mod_name = r.record_name | replace(from="_", to=" ") | title | replace(from=" ", to="") %}
   test "admitted record type {{ r.record_name }} backs the discovery API with a generated struct module" do
     assert Code.ensure_loaded?(BeamPM.Types.{{ mod_name }})

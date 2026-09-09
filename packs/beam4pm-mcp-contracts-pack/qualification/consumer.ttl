@@ -1,0 +1,150 @@
+# Synthetic consumer fixture for isolated qualification of
+# beam4pm-mcp-contracts-pack. Several templates hard-reference specific
+# record shapes and beam4pm_mcp_contracts_codec_tests.erl.tmpl takes
+# `req_fields | first` for its unconditional unknown_record_test/
+# invalid_json_test pair -- so an EMPTY consumer graph fails render outright
+# (real FM-TPL-017: "Variable `mf.record_name` not found ... records
+# (array, 0 items)"), which is exactly the failure this fixture exists to
+# admit against. Mirrors beam4pm-process-model-pack/qualification/
+# consumer.ttl's role for that sibling pack.
+#
+# The ten individuals below are the pack's own README.md "The ten message
+# shapes and their fields" table, transcribed verbatim (messageName, field
+# names/types/order/required, and the five wireName overrides), not
+# invented -- this is the pack's own reference consumer.
+@prefix mcp: <https://ggen.dev/ontology/beam4pm-mcp#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+mcp:rpc_request_mt a mcp:MessageType ;
+    mcp:messageName "rpc_request" ;
+    mcp:messageDoc "A JSON-RPC 2.0 request message." ;
+    mcp:hasField mcp:rpc_request_jsonrpc_f, mcp:rpc_request_id_f,
+                 mcp:rpc_request_method_f, mcp:rpc_request_params_f .
+
+mcp:rpc_request_jsonrpc_f a mcp:Field ; mcp:fieldName "jsonrpc" ; mcp:fieldType "string" ;
+    mcp:fieldDoc "JSON-RPC protocol version, always \"2.0\"." ; mcp:fieldRequired "true" ; mcp:fieldOrder 1 .
+mcp:rpc_request_id_f a mcp:Field ; mcp:fieldName "id" ; mcp:fieldType "string" ;
+    mcp:fieldDoc "Request correlation id." ; mcp:fieldRequired "true" ; mcp:fieldOrder 2 .
+mcp:rpc_request_method_f a mcp:Field ; mcp:fieldName "method" ; mcp:fieldType "string" ;
+    mcp:fieldDoc "The invoked method name." ; mcp:fieldRequired "true" ; mcp:fieldOrder 3 .
+mcp:rpc_request_params_f a mcp:Field ; mcp:fieldName "params" ; mcp:fieldType "map" ;
+    mcp:fieldDoc "Method parameters." ; mcp:fieldRequired "false" ; mcp:fieldOrder 4 .
+
+mcp:rpc_result_response_mt a mcp:MessageType ;
+    mcp:messageName "rpc_result_response" ;
+    mcp:messageDoc "A JSON-RPC 2.0 success response message." ;
+    mcp:hasField mcp:rpc_result_response_jsonrpc_f, mcp:rpc_result_response_id_f,
+                 mcp:rpc_result_response_result_f .
+
+mcp:rpc_result_response_jsonrpc_f a mcp:Field ; mcp:fieldName "jsonrpc" ; mcp:fieldType "string" ;
+    mcp:fieldDoc "JSON-RPC protocol version, always \"2.0\"." ; mcp:fieldRequired "true" ; mcp:fieldOrder 1 .
+mcp:rpc_result_response_id_f a mcp:Field ; mcp:fieldName "id" ; mcp:fieldType "string" ;
+    mcp:fieldDoc "Correlation id matching the originating request." ; mcp:fieldRequired "true" ; mcp:fieldOrder 2 .
+mcp:rpc_result_response_result_f a mcp:Field ; mcp:fieldName "result" ; mcp:fieldType "map" ;
+    mcp:fieldDoc "The method's result payload." ; mcp:fieldRequired "true" ; mcp:fieldOrder 3 .
+
+mcp:rpc_error_response_mt a mcp:MessageType ;
+    mcp:messageName "rpc_error_response" ;
+    mcp:messageDoc "A JSON-RPC 2.0 error response message." ;
+    mcp:hasField mcp:rpc_error_response_jsonrpc_f, mcp:rpc_error_response_id_f,
+                 mcp:rpc_error_response_error_f .
+
+mcp:rpc_error_response_jsonrpc_f a mcp:Field ; mcp:fieldName "jsonrpc" ; mcp:fieldType "string" ;
+    mcp:fieldDoc "JSON-RPC protocol version, always \"2.0\"." ; mcp:fieldRequired "true" ; mcp:fieldOrder 1 .
+mcp:rpc_error_response_id_f a mcp:Field ; mcp:fieldName "id" ; mcp:fieldType "string" ;
+    mcp:fieldDoc "Correlation id matching the originating request." ; mcp:fieldRequired "true" ; mcp:fieldOrder 2 .
+mcp:rpc_error_response_error_f a mcp:Field ; mcp:fieldName "error" ; mcp:fieldType "map" ;
+    mcp:fieldDoc "The wrapped {code, message, data?} error object." ; mcp:fieldRequired "true" ; mcp:fieldOrder 3 .
+
+mcp:rpc_notification_mt a mcp:MessageType ;
+    mcp:messageName "rpc_notification" ;
+    mcp:messageDoc "A JSON-RPC 2.0 notification message (no id)." ;
+    mcp:hasField mcp:rpc_notification_jsonrpc_f, mcp:rpc_notification_method_f,
+                 mcp:rpc_notification_params_f .
+
+mcp:rpc_notification_jsonrpc_f a mcp:Field ; mcp:fieldName "jsonrpc" ; mcp:fieldType "string" ;
+    mcp:fieldDoc "JSON-RPC protocol version, always \"2.0\"." ; mcp:fieldRequired "true" ; mcp:fieldOrder 1 .
+mcp:rpc_notification_method_f a mcp:Field ; mcp:fieldName "method" ; mcp:fieldType "string" ;
+    mcp:fieldDoc "The notified method name." ; mcp:fieldRequired "true" ; mcp:fieldOrder 2 .
+mcp:rpc_notification_params_f a mcp:Field ; mcp:fieldName "params" ; mcp:fieldType "map" ;
+    mcp:fieldDoc "Notification parameters." ; mcp:fieldRequired "false" ; mcp:fieldOrder 3 .
+
+mcp:mcp_tool_mt a mcp:MessageType ;
+    mcp:messageName "mcp_tool" ;
+    mcp:messageDoc "A tool definition advertised by an MCP server." ;
+    mcp:hasField mcp:mcp_tool_name_f, mcp:mcp_tool_title_f, mcp:mcp_tool_description_f,
+                 mcp:mcp_tool_input_schema_f, mcp:mcp_tool_output_schema_f .
+
+mcp:mcp_tool_name_f a mcp:Field ; mcp:fieldName "name" ; mcp:fieldType "string" ;
+    mcp:fieldDoc "Tool name." ; mcp:fieldRequired "true" ; mcp:fieldOrder 1 .
+mcp:mcp_tool_title_f a mcp:Field ; mcp:fieldName "title" ; mcp:fieldType "string" ;
+    mcp:fieldDoc "Human-readable tool title." ; mcp:fieldRequired "false" ; mcp:fieldOrder 2 .
+mcp:mcp_tool_description_f a mcp:Field ; mcp:fieldName "description" ; mcp:fieldType "string" ;
+    mcp:fieldDoc "Tool description." ; mcp:fieldRequired "false" ; mcp:fieldOrder 3 .
+mcp:mcp_tool_input_schema_f a mcp:Field ; mcp:fieldName "input_schema" ; mcp:fieldType "map" ;
+    mcp:wireName "inputSchema" ;
+    mcp:fieldDoc "JSON Schema for the tool's input." ; mcp:fieldRequired "true" ; mcp:fieldOrder 4 .
+mcp:mcp_tool_output_schema_f a mcp:Field ; mcp:fieldName "output_schema" ; mcp:fieldType "map" ;
+    mcp:wireName "outputSchema" ;
+    mcp:fieldDoc "JSON Schema for the tool's output." ; mcp:fieldRequired "false" ; mcp:fieldOrder 5 .
+
+mcp:mcp_tool_call_request_mt a mcp:MessageType ;
+    mcp:messageName "mcp_tool_call_request" ;
+    mcp:messageDoc "A tools/call request payload." ;
+    mcp:hasField mcp:mcp_tool_call_request_name_f, mcp:mcp_tool_call_request_arguments_f .
+
+mcp:mcp_tool_call_request_name_f a mcp:Field ; mcp:fieldName "name" ; mcp:fieldType "string" ;
+    mcp:fieldDoc "Name of the tool to invoke." ; mcp:fieldRequired "true" ; mcp:fieldOrder 1 .
+mcp:mcp_tool_call_request_arguments_f a mcp:Field ; mcp:fieldName "arguments" ; mcp:fieldType "map" ;
+    mcp:fieldDoc "Arguments passed to the tool." ; mcp:fieldRequired "false" ; mcp:fieldOrder 2 .
+
+mcp:mcp_tool_call_result_mt a mcp:MessageType ;
+    mcp:messageName "mcp_tool_call_result" ;
+    mcp:messageDoc "A tools/call result payload." ;
+    mcp:hasField mcp:mcp_tool_call_result_content_f, mcp:mcp_tool_call_result_is_error_f,
+                 mcp:mcp_tool_call_result_structured_content_f .
+
+mcp:mcp_tool_call_result_content_f a mcp:Field ; mcp:fieldName "content" ; mcp:fieldType "map" ;
+    mcp:fieldDoc "Wrapped array of typed content blocks." ; mcp:fieldRequired "true" ; mcp:fieldOrder 1 .
+mcp:mcp_tool_call_result_is_error_f a mcp:Field ; mcp:fieldName "is_error" ; mcp:fieldType "boolean" ;
+    mcp:wireName "isError" ;
+    mcp:fieldDoc "Whether the tool call resulted in an error." ; mcp:fieldRequired "false" ; mcp:fieldOrder 2 .
+mcp:mcp_tool_call_result_structured_content_f a mcp:Field ; mcp:fieldName "structured_content" ; mcp:fieldType "map" ;
+    mcp:wireName "structuredContent" ;
+    mcp:fieldDoc "Optional structured result content." ; mcp:fieldRequired "false" ; mcp:fieldOrder 3 .
+
+mcp:mcp_resource_mt a mcp:MessageType ;
+    mcp:messageName "mcp_resource" ;
+    mcp:messageDoc "A resource definition advertised by an MCP server." ;
+    mcp:hasField mcp:mcp_resource_uri_f, mcp:mcp_resource_name_f, mcp:mcp_resource_title_f,
+                 mcp:mcp_resource_description_f, mcp:mcp_resource_mime_type_f, mcp:mcp_resource_size_f .
+
+mcp:mcp_resource_uri_f a mcp:Field ; mcp:fieldName "uri" ; mcp:fieldType "string" ;
+    mcp:fieldDoc "Resource URI." ; mcp:fieldRequired "true" ; mcp:fieldOrder 1 .
+mcp:mcp_resource_name_f a mcp:Field ; mcp:fieldName "name" ; mcp:fieldType "string" ;
+    mcp:fieldDoc "Resource name." ; mcp:fieldRequired "true" ; mcp:fieldOrder 2 .
+mcp:mcp_resource_title_f a mcp:Field ; mcp:fieldName "title" ; mcp:fieldType "string" ;
+    mcp:fieldDoc "Human-readable resource title." ; mcp:fieldRequired "false" ; mcp:fieldOrder 3 .
+mcp:mcp_resource_description_f a mcp:Field ; mcp:fieldName "description" ; mcp:fieldType "string" ;
+    mcp:fieldDoc "Resource description." ; mcp:fieldRequired "false" ; mcp:fieldOrder 4 .
+mcp:mcp_resource_mime_type_f a mcp:Field ; mcp:fieldName "mime_type" ; mcp:fieldType "string" ;
+    mcp:wireName "mimeType" ;
+    mcp:fieldDoc "Resource MIME type." ; mcp:fieldRequired "false" ; mcp:fieldOrder 5 .
+mcp:mcp_resource_size_f a mcp:Field ; mcp:fieldName "size" ; mcp:fieldType "integer" ;
+    mcp:fieldDoc "Resource size in bytes." ; mcp:fieldRequired "false" ; mcp:fieldOrder 6 .
+
+mcp:mcp_resource_read_request_mt a mcp:MessageType ;
+    mcp:messageName "mcp_resource_read_request" ;
+    mcp:messageDoc "A resources/read request payload." ;
+    mcp:hasField mcp:mcp_resource_read_request_uri_f .
+
+mcp:mcp_resource_read_request_uri_f a mcp:Field ; mcp:fieldName "uri" ; mcp:fieldType "string" ;
+    mcp:fieldDoc "URI of the resource to read." ; mcp:fieldRequired "true" ; mcp:fieldOrder 1 .
+
+mcp:mcp_resource_read_result_mt a mcp:MessageType ;
+    mcp:messageName "mcp_resource_read_result" ;
+    mcp:messageDoc "A resources/read result payload." ;
+    mcp:hasField mcp:mcp_resource_read_result_contents_f .
+
+mcp:mcp_resource_read_result_contents_f a mcp:Field ; mcp:fieldName "contents" ; mcp:fieldType "map" ;
+    mcp:fieldDoc "Wrapped array of resource content items." ; mcp:fieldRequired "true" ; mcp:fieldOrder 1 .

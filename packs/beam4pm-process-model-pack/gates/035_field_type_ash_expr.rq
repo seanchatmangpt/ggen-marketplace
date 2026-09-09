@@ -1,0 +1,17 @@
+# MESSAGE: every bpm:FieldType must carry exactly one bpm:ashTypeExpr (the Ash
+# attribute type igniter/queries/ash_fields.rq JOINs into the Ash resource and
+# test templates); any row is a refusal. 030 checks a bpm:Field's fieldType
+# cardinality and 020 that the fieldType names an admitted FieldType -- neither
+# says anything about the FieldType's own Ash projection, so a vocabulary entry
+# missing this property would reach the igniter templates as an unbound
+# ?ash_type_expr. Those templates refuse it by name, but only on the igniter leg;
+# this gate refuses it on the Rust `ggen sync run` leg, which runs first and
+# already sees the merged (consumer + pack) graph via ggen.toml [packs].
+PREFIX bpm: <https://ggen.dev/ontology/beam-process-model#>
+SELECT ?subject (COUNT(DISTINCT ?value) AS ?count) WHERE {
+  ?subject a bpm:FieldType .
+  OPTIONAL { ?subject bpm:ashTypeExpr ?value . }
+}
+GROUP BY ?subject
+HAVING (COUNT(DISTINCT ?value) != 1)
+ORDER BY ?subject
