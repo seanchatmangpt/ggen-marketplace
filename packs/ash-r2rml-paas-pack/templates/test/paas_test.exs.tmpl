@@ -1,0 +1,38 @@
+ExUnit.start()
+
+defmodule {{ results[0]["moduleName"] }}.TestBRCE do
+  @behaviour {{ results[0]["moduleName"] }}.BRCE
+  def execute(_intent, %{intent_digest: digest}), do: {:ok, %{receipt_id: "receipt-1", intent_digest: digest, replay_key: "replay-1"}}
+end
+
+defmodule {{ results[0]["moduleName"] }}.BadBRCE do
+  @behaviour {{ results[0]["moduleName"] }}.BRCE
+  def execute(_intent, _context), do: {:ok, %{receipt_id: "receipt-bad", intent_digest: "wrong", replay_key: "replay-bad"}}
+end
+
+defmodule {{ results[0]["moduleName"] }}.PaaSTest do
+  use ExUnit.Case, async: true
+  test "AshR2RML emits deterministic public semantic projection" do
+    assert {:ok, a} = {{ results[0]["moduleName"] }}.SemanticProjection.compile()
+    assert {:ok, b} = {{ results[0]["moduleName"] }}.SemanticProjection.compile()
+    assert a.files == b.files
+    assert a.sha256 == b.sha256
+    assert a.files["ontology.ttl"] =~ "https://schema.org/Service"
+    assert a.files["ontology.ttl"] =~ "http://www.w3.org/ns/prov#Activity"
+  end
+  test "BRCE is the exclusive DO path and binds ALIVE receipt" do
+    input = %{request: %{admitted?: true, service_id: "svc-1", plan: %{tier: "standard"}}, brce: {{ results[0]["moduleName"] }}.TestBRCE, context: %{actor: "court"}}
+    assert {:ok, result} = Reactor.run({{ results[0]["moduleName"] }}.ProvisionReactor, input)
+    assert result.standing == :ALIVE
+    assert result.subject == "svc-1"
+    assert byte_size(result.intent_digest) == 64
+  end
+  test "unbound receipt is refused" do
+    input = %{request: %{admitted?: true, service_id: "svc-1"}, brce: {{ results[0]["moduleName"] }}.BadBRCE, context: %{}}
+    assert {:error, _} = Reactor.run({{ results[0]["moduleName"] }}.ProvisionReactor, input)
+  end
+  test "unadmitted request is refused before DO" do
+    input = %{request: %{admitted?: false, service_id: "svc-1"}, brce: {{ results[0]["moduleName"] }}.TestBRCE, context: %{}}
+    assert {:error, _} = Reactor.run({{ results[0]["moduleName"] }}.ProvisionReactor, input)
+  end
+end

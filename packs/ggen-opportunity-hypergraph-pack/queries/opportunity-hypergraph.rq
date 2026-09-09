@@ -1,0 +1,19 @@
+PREFIX ogh: <https://ggen.dev/ontology/opportunity-hypergraph#>
+SELECT ?ledger ?observations ?authority ?actuation
+       (COUNT(DISTINCT ?candidate) AS ?candidateCount)
+       (SUM(?delta) AS ?totalCapabilitySpaceDelta)
+       (MAX(?arity) AS ?maxArity)
+       (GROUP_CONCAT(DISTINCT ?id; separator=",") AS ?candidateIds)
+WHERE {
+  ?ledger a ogh:OpportunityLedger ;
+    ogh:actionableObservationCount ?observations ;
+    ogh:authority ?authority ;
+    ogh:actuationPerformed ?actuation .
+  ?candidate a ogh:CompositionCandidate ;
+    ogh:candidateId ?id ;
+    ogh:arity ?arity ;
+    ogh:expectedCapabilitySpaceDelta ?delta ;
+    ogh:reversible true .
+}
+GROUP BY ?ledger ?observations ?authority ?actuation
+HAVING (COUNT(DISTINCT ?candidate) >= (3 * ?observations) && MAX(?arity) >= 3)

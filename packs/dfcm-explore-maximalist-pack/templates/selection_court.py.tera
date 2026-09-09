@@ -1,0 +1,22 @@
+from __future__ import annotations
+
+CANDIDATES = [
+{%- for row in rows %}
+    {"id": "{{ row.candidate }}", "family": "{{ row.family }}", "rollback": {{ row.rollback }}, "falsifier": "{{ row.falsifier }}"},
+{%- endfor %}
+]
+
+def retained(max_rollback: int = 3) -> list[dict]:
+    seen = set()
+    out = []
+    for candidate in CANDIDATES:
+        key = candidate["id"]
+        if key in seen or candidate["rollback"] > max_rollback or not candidate["falsifier"]:
+            continue
+        seen.add(key)
+        out.append(candidate)
+    return out
+
+if __name__ == "__main__":
+    assert retained(), "no admitted reversible candidates"
+    print(len(retained()))

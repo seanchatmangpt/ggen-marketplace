@@ -1,0 +1,14 @@
+PREFIX sh: <http://www.w3.org/ns/shacl#>
+
+# The first projection derives an Ash module local name from the target-class
+# IRI. Refuse collisions instead of inventing a private namespace mapping.
+SELECT ?localName (COUNT(DISTINCT ?class) AS ?classCount)
+WHERE {
+  ?shape a sh:NodeShape ;
+         sh:targetClass ?class .
+  FILTER(isIRI(?class))
+  BIND(REPLACE(STR(?class), "^.*[#/]", "") AS ?localName)
+}
+GROUP BY ?localName
+HAVING(COUNT(DISTINCT ?class) > 1)
+ORDER BY ?localName

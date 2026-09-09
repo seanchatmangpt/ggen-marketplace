@@ -192,7 +192,11 @@ def visible_files(directory: Path) -> tuple[Path, ...]:
             (
                 path
                 for path in directory.rglob("*")
-                if path.is_file() and not any(part.startswith(".") for part in path.relative_to(directory).parts)
+                if path.is_file()
+                and not any(
+                    part.startswith(".") or part == "__pycache__"
+                    for part in path.relative_to(directory).parts
+                )
             ),
             key=lambda path: path.relative_to(directory).as_posix(),
         )

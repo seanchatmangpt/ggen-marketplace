@@ -1,0 +1,23 @@
+name: DEVELOP Remediation Capital Correspondence R14 Exact Head
+on:
+  pull_request:
+
+timeout-minutes: 10
+jobs:
+  qualify:
+    if: github.head_ref == 'develop/remediation-capital-correspondence-r14-20260824'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact PR head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Verify correspondence surface
+        run: |
+          test "$(find packs/ggen-project-boundary-pack/queries -maxdepth 1 -name 'r14-remcap-*.rq' | wc -l)" -eq 12
+          test -f packs/ggen-project-boundary-pack/remediation-capital-correspondence.ttl
+      - name: Verify SELECT authority receipt
+        run: python3 -c "import json; p=json.load(open('receipts/select/2026-08-24-remediation-capital-correspondence-r14.json')); assert p['authority']=='SELECT'; assert p['actuation_performed'] is False; assert p['marketplace_first'] is True"

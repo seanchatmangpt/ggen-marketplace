@@ -1,0 +1,30 @@
+name: DEVELOP R76 Structural Capital Compiler
+on:
+  pull_request:
+    paths:
+      - 'packs/epistemic-sensor-factory-pack/**'
+      - '.github/workflows/develop-r76-structural-capital.yml'
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Admit exact PR head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install bounded RDF verifier
+        run: python -m pip install 'rdflib>=7,<8' pytest
+      - name: Validate marketplace corpus
+        run: python scripts/marketplace.py validate
+      - name: Execute R76 structural-capital court
+        run: pytest -q packs/epistemic-sensor-factory-pack/tests/test_r76_structural_capital.py
+      - name: Refuse ambient consequential actuation
+        run: |
+          if grep -R -nE 'actuationPerformed[[:space:]]+true|consequential_do[[:space:]]*[:=][[:space:]]*true' packs/epistemic-sensor-factory-pack/ontology.r76-structural-capital-compiler.ttl packs/epistemic-sensor-factory-pack/fixtures/r76-structural-capital.ttl; then exit 1; fi

@@ -1,0 +1,57 @@
+---
+to: "soc2/07-EXCEPTION-LOG.md"
+force: true
+sparql:
+  exceptions: |
+    PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
+    PREFIX skos:    <http://www.w3.org/2004/02/skos/core#>
+    PREFIX prov:    <http://www.w3.org/ns/prov#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    SELECT ?label ?notation ?riskLabel ?description ?remediation ?remediationStatus WHERE {
+      ?exception rdf:type prov:Entity ;
+                 rdfs:label ?label ;
+                 dcterms:subject ?notation ;
+                 dcterms:type "EXCEPTION" .
+      OPTIONAL { ?exception dcterms:description ?description . }
+      OPTIONAL {
+        ?exception dcterms:relation ?riskNotation .
+        ?riskConcept skos:notation ?riskNotation ; rdfs:label ?riskLabel ; skos:inScheme ?riskScheme .
+        ?riskScheme skos:notation "RISK-LEVELS" .
+      }
+      OPTIONAL { ?exception dcterms:isReplacedBy ?remediation . }
+      OPTIONAL { ?exception dcterms:hasVersion ?remediationStatus . }
+    }
+    ORDER BY DESC(?riskLabel) ?notation
+---
+{% raw %}
+# 07 — Exception log
+
+Every control marked `EXCEPTION` in `03-CONTROL-MATRIX.md` should have a
+matching row here — a real finding, its risk level, and its remediation
+status. An empty log is either genuinely clean or simply not yet
+populated; this file does not distinguish those two cases for you, and
+neither does the control matrix's own `EXCEPTION` count — check both.
+
+| Criterion | Finding | Risk | Description | Remediation | Remediation status |
+|---|---|---|---|---|---|
+{% endraw %}{% for e in exceptions %}| {{ e.notation }} | {{ e.label }} | {{ e.riskLabel | default(value="unrated") }} | {{ e.description | default(value="") }} | {{ e.remediation | default(value="—") }} | {{ e.remediationStatus | default(value="open") }} |
+{% endfor %}{% if exceptions | length == 0 %}{% raw %}| _(none logged)_ | — | — | — | — | — |
+{% endraw %}{% endif %}
+{% raw %}
+## How to log an exception
+
+```turtle
+[] a prov:Entity ;
+    rdfs:label "MFA not enforced for one break-glass admin account" ;
+    dcterms:subject "CC6" ;
+    dcterms:type "EXCEPTION" ;
+    dcterms:relation "MEDIUM" ;
+    dcterms:description "Break-glass account bypasses SSO/MFA by design; access is logged but not MFA-gated." ;
+    dcterms:isReplacedBy "Add hardware-key MFA gate to break-glass path" ;
+    dcterms:hasVersion "in progress" .
+```
+
+`dcterms:relation` must be one of this pack's `RISK-LEVELS` notations:
+`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`.
+{% endraw %}

@@ -16,6 +16,10 @@ pub enum CertificateKind {
     StandingClosure,
 }
 
+/// Ontology-derived inventory cardinality. This is generated from the SPARQL
+/// result set and must evolve whenever a CertificateKind individual is added.
+pub const EXPECTED_COUNT: usize = 10;
+
 pub const ALL: &[CertificateKind] = &[
     CertificateKind::Admission,
     CertificateKind::Plan,

@@ -1,0 +1,328 @@
+name: Publish GitHub Packages
+
+on:
+  workflow_run:
+    workflows: ["Publish"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: marketplace-packages-${{ github.event.workflow_run.head_sha || github.sha }}
+  cancel-in-progress: false
+
+env:
+  SOURCE_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+jobs:
+  prepare:
+    name: Admit and prepare immutable package contexts
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      marketplace_version: ${{ steps.identity.outputs.marketplace_version }}
+      ggen_version: ${{ steps.identity.outputs.ggen_version }}
+      sha12: ${{ steps.identity.outputs.sha12 }}
+      factory_id: ${{ steps.identity.outputs.factory_id }}
+    steps:
+      - name: Checkout exact published Marketplace subject
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Assert exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up pinned star-toml toolchain
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
+        with:
+          toolchain: "nightly-2026-04-15"
+          components: rustfmt
+
+      - name: Validate and admit canonical Marketplace config
+        id: admit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/marketplace.py validate
+          admitted="$(bash scripts/admit-config.sh marketplace.toml "${RUNNER_TEMP}/ggen-marketplace-admitted.json")"
+          echo "admitted=$admitted" >> "$GITHUB_OUTPUT"
+
+      - name: Manufacture deterministic factory manifest twice
+        shell: bash
+        env:
+          ADMITTED: ${{ steps.admit.outputs.admitted }}
+        run: |
+          set -euo pipefail
+          python3 scripts/github/factory_manifest.py --admitted-config "$ADMITTED" --marketplace-sha "$SOURCE_SHA" --output /tmp/factory-a.json
+          python3 scripts/github/factory_manifest.py --admitted-config "$ADMITTED" --marketplace-sha "$SOURCE_SHA" --output /tmp/factory-b.json
+          cmp /tmp/factory-a.json /tmp/factory-b.json
+
+      - name: Materialize snapshot and multi-arch factory contexts
+        shell: bash
+        env:
+          ADMITTED: ${{ steps.admit.outputs.admitted }}
+        run: |
+          set -euo pipefail
+          python3 scripts/marketplace.py catalog > /tmp/catalog.json
+          mkdir -p dist/github/snapshot/marketplace dist/github/factory/factory/marketplace
+          cp -a packs dist/github/snapshot/marketplace/packs
+          cp marketplace.toml /tmp/catalog.json /tmp/factory-a.json dist/github/snapshot/marketplace/
+          mv dist/github/snapshot/marketplace/catalog.json.tmp dist/github/snapshot/marketplace/catalog.json 2>/dev/null || true
+          # cp preserves the source basename; normalize deterministic published names.
+          mv dist/github/snapshot/marketplace/factory-a.json dist/github/snapshot/marketplace/factory-manifest.json
+          cp /tmp/catalog.json dist/github/snapshot/marketplace/catalog.json
+          cp -a packs dist/github/factory/factory/marketplace/packs
+          cp marketplace.toml /tmp/catalog.json dist/github/factory/factory/marketplace/
+          mv dist/github/factory/factory/marketplace/catalog.json.tmp dist/github/factory/factory/marketplace/catalog.json 2>/dev/null || true
+          cp /tmp/catalog.json dist/github/factory/factory/marketplace/catalog.json
+          cp /tmp/factory-a.json dist/github/factory/factory/factory-manifest.json
+          GITHUB_TOKEN="${{ github.token }}" bash scripts/github/materialize_factory_ggen.sh "$ADMITTED" dist/github/factory/factory
+          dist/github/factory/factory/bin/amd64/ggen --version
+
+      - name: Resolve package identity outputs
+        id: identity
+        shell: bash
+        env:
+          ADMITTED: ${{ steps.admit.outputs.admitted }}
+        run: |
+          set -euo pipefail
+          mapfile -t v < <(python3 - "$ADMITTED" /tmp/factory-a.json <<'PY'
+          import json, sys
+          admitted=json.load(open(sys.argv[1], encoding='utf-8'))['config']
+          factory=json.load(open(sys.argv[2], encoding='utf-8'))
+          print(admitted['marketplace']['version'])
+          print(admitted['ggen']['version'])
+          print(factory['factory_id'])
+          PY
+          )
+          echo "marketplace_version=${v[0]}" >> "$GITHUB_OUTPUT"
+          echo "ggen_version=${v[1]}" >> "$GITHUB_OUTPUT"
+          echo "factory_id=${v[2]}" >> "$GITHUB_OUTPUT"
+          echo "sha12=${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload exact package contexts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: github-package-contexts-${{ env.SOURCE_SHA }}
+          path: dist/github
+          retention-days: 1
+          if-no-files-found: error
+
+  snapshot:
+    name: Publish Marketplace snapshot and factory
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      marketplace_digest: ${{ steps.marketplace.outputs.digest }}
+      factory_digest: ${{ steps.factory.outputs.digest }}
+    steps:
+      - name: Checkout package Dockerfiles
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          persist-credentials: false
+
+      - name: Download exact package contexts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: github-package-contexts-${{ env.SOURCE_SHA }}
+          path: dist/github
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Publish exact Marketplace snapshot
+        id: marketplace
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: dist/github/snapshot
+          file: packaging/github/Dockerfile.marketplace
+          platforms: linux/amd64,linux/arm64
+          push: true
+          sbom: true
+          provenance: mode=max
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/ggen-marketplace:${{ needs.prepare.outputs.marketplace_version }}
+            ghcr.io/${{ github.repository_owner }}/ggen-marketplace:sha-${{ env.SOURCE_SHA }}
+            ghcr.io/${{ github.repository_owner }}/ggen-marketplace:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ env.SOURCE_SHA }}
+            org.opencontainers.image.version=${{ needs.prepare.outputs.marketplace_version }}
+            io.ggen.package.kind=marketplace-snapshot
+            io.ggen.factory.id=${{ needs.prepare.outputs.factory_id }}
+
+      - name: Publish exact ggen factory
+        id: factory
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: dist/github/factory
+          file: packaging/github/Dockerfile.factory
+          platforms: linux/amd64,linux/arm64
+          push: true
+          sbom: true
+          provenance: mode=max
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/ggen-factory:ggen-${{ needs.prepare.outputs.ggen_version }}-marketplace-${{ needs.prepare.outputs.sha12 }}
+            ghcr.io/${{ github.repository_owner }}/ggen-factory:sha-${{ env.SOURCE_SHA }}
+            ghcr.io/${{ github.repository_owner }}/ggen-factory:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ env.SOURCE_SHA }}
+            org.opencontainers.image.version=${{ needs.prepare.outputs.marketplace_version }}
+            io.ggen.package.kind=ggen-factory
+            io.ggen.factory.id=${{ needs.prepare.outputs.factory_id }}
+            io.ggen.factory.ggen-version=${{ needs.prepare.outputs.ggen_version }}
+
+      - name: GitHub provenance for Marketplace snapshot
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/ggen-marketplace
+          subject-digest: ${{ steps.marketplace.outputs.digest }}
+          push-to-registry: true
+
+      - name: GitHub provenance for factory
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/ggen-factory
+          subject-digest: ${{ steps.factory.outputs.digest }}
+          push-to-registry: true
+
+  pack-shards:
+    name: Publish pack shard ${{ matrix.shard }}/8
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - name: Checkout exact Marketplace subject
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          persist-credentials: false
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Publish every admitted pack assigned to this shard
+        shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHA12: ${{ needs.prepare.outputs.sha12 }}
+        run: |
+          set -euo pipefail
+          count=0
+          for manifest in packs/*/pack.toml; do
+            pack_dir="$(dirname "$manifest")"
+            name="$(basename "$pack_dir")"
+            assigned="$(python3 - "$name" <<'PY'
+          import hashlib, sys
+          print(int(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:8], 16) % 8)
+          PY
+            )"
+            [[ "$assigned" == "$SHARD" ]] || continue
+            mapfile -t identity < <(python3 - "$manifest" "$name" <<'PY'
+          import sys, tomllib
+          p=tomllib.load(open(sys.argv[1], 'rb'))['pack']
+          if p['name'] != sys.argv[2]: raise SystemExit('REFUSED:PACK_IDENTITY_DRIFT')
+          print(p['name']); print(str(p['version']))
+          PY
+            )
+            version="$(printf '%s' "${identity[1]}" | tr -c 'A-Za-z0-9_.-' '-')"
+            ctx="${RUNNER_TEMP}/ggen-pack-${name}"
+            rm -rf "$ctx"
+            mkdir -p "$ctx/pack"
+            cp -a "$pack_dir/." "$ctx/pack/"
+            image="ghcr.io/${{ github.repository_owner }}/ggen-pack-${name}"
+            docker buildx build \
+              --file packaging/github/Dockerfile.pack \
+              --provenance=mode=max --sbom=true --push \
+              --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+              --label "org.opencontainers.image.revision=$SOURCE_SHA" \
+              --label "org.opencontainers.image.version=${identity[1]}" \
+              --label "io.ggen.package.name=$name" \
+              --tag "${image}:marketplace-${SOURCE_SHA}" \
+              --tag "${image}:${version}-marketplace-${SHA12}" \
+              "$ctx"
+            count=$((count+1))
+          done
+          echo "published pack count for shard ${SHARD}: ${count}"
+
+  verify:
+    name: Verify exact packaged factory
+    needs: [prepare, snapshot, pack-shards]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact Marketplace subject
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          persist-credentials: false
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Pull by exact digest, extract, and execute ggen
+        shell: bash
+        env:
+          FACTORY_DIGEST: ${{ needs.snapshot.outputs.factory_digest }}
+        run: |
+          set -euo pipefail
+          ref="ghcr.io/${{ github.repository_owner }}/ggen-factory@${FACTORY_DIGEST}"
+          docker pull "$ref"
+          cid="$(docker create "$ref" /bin/true)"
+          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+          root="${RUNNER_TEMP}/verified-factory"
+          mkdir -p "$root"
+          docker cp "$cid:/factory/." "$root/"
+          "$root/bin/ggen" --version
+          python3 - "$root/factory-manifest.json" "$SOURCE_SHA" <<'PY'
+          import json, sys
+          p=json.load(open(sys.argv[1], encoding='utf-8'))
+          if p['marketplace']['sha'] != sys.argv[2]:
+              raise SystemExit('REFUSED:FACTORY_MARKETPLACE_SHA_DRIFT')
+          if not p['packs'] or p['marketplace']['pack_count'] != len(p['packs']):
+              raise SystemExit('REFUSED:FACTORY_PACK_CORPUS_INCOMPLETE')
+          print(p['factory_id'])
+          PY

@@ -1,0 +1,127 @@
+@prefix otelocel: <https://chatmangpt.com/ontology/otel-weaver-ocel#> .
+@prefix dcterms:  <http://purl.org/dc/terms/> .
+@prefix prov:     <http://www.w3.org/ns/prov#> .
+@prefix skos:     <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf:      <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:     <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:      <http://www.w3.org/2001/XMLSchema#> .
+
+# ── Classes: the OTEL side ──────────────────────────────────────────────────
+#
+# Grounded in the real OTLP span shape (trace_id, span_id, parent_span_id,
+# name, start_time, attributes, resource attributes) as consumed by
+# chicago-tdd-tools' weaver registry (registry/otel/manifest.yaml,
+# registry/otel/praxis-events.yaml) and as emitted by
+# send_test_span_to_weaver (chicago-tdd-tools/src/observability/weaver/mod.rs).
+
+otelocel:Span a rdfs:Class ;
+  rdfs:subClassOf prov:Activity ;
+  rdfs:label "OTEL span" ;
+  dcterms:description "A single OpenTelemetry span: trace_id, span_id, optional parent_span_id, name, start_time, attributes, and resource attributes." .
+
+otelocel:Trace a rdfs:Class ;
+  rdfs:subClassOf prov:Collection ;
+  rdfs:label "OTEL trace" ;
+  dcterms:description "The set of spans sharing one trace_id." .
+
+# ── Classes: the OCEL v2 side ───────────────────────────────────────────────
+#
+# Grounded in wasm4pm-compat's real OCEL v2 JSON-serde model (src/ocel.rs):
+# OCELEvent { id, event_type ("type"), time, attributes, relationships },
+# OCELObject { id, object_type ("type"), attributes, relationships },
+# OCELRelationship { object_id ("objectId"), qualifier }.
+
+otelocel:Event a rdfs:Class ;
+  rdfs:subClassOf prov:Activity ;
+  rdfs:label "OCEL v2 event" ;
+  dcterms:description "Corresponds 1:1 to wasm4pm_compat::ocel::OCELEvent { id, event_type, time, attributes, relationships }." .
+
+otelocel:Object a rdfs:Class ;
+  rdfs:subClassOf prov:Entity ;
+  rdfs:label "OCEL v2 object" ;
+  dcterms:description "Corresponds 1:1 to wasm4pm_compat::ocel::OCELObject { id, object_type, attributes, relationships }." .
+
+otelocel:ObjectType a rdfs:Class ;
+  rdfs:subClassOf skos:Concept ;
+  rdfs:label "OCEL v2 object type" ;
+  dcterms:description "Names a distinct value of a chosen resource attribute (e.g. service.name) grouped into one OCELObject per unique value, per wasm4pm_compat::ocel::OCELType." .
+
+otelocel:Relationship a rdfs:Class ;
+  rdfs:label "OCEL v2 E2O/O2O relationship" ;
+  dcterms:description "Corresponds to wasm4pm_compat::ocel::OCELRelationship { object_id, qualifier }." .
+
+otelocel:MappingRule a rdfs:Class ;
+  rdfs:subClassOf prov:Entity ;
+  rdfs:label "Span-to-event mapping rule" ;
+  dcterms:description "A single, named, deterministic derivation from an OTEL span field/attribute to an OCEL v2 event/object field. Structure only -- it names the derivation, it does not execute discovery or conformance." .
+
+# ── Properties ───────────────────────────────────────────────────────────────
+
+otelocel:order a rdf:Property ; rdfs:label "generation order" .
+otelocel:identifier a rdf:Property ; rdfs:label "Rust identifier for the generated binding" .
+otelocel:slug a rdf:Property ; rdfs:label "kebab-case slug" .
+otelocel:sourceField a rdf:Property ; rdfs:label "OTEL span field or attribute the rule reads" .
+otelocel:targetField a rdf:Property ; rdfs:label "OCEL v2 event/object field the rule writes" .
+otelocel:derivation a rdf:Property ; rdfs:label "one-line description of the derivation" ;
+  dcterms:description "e.g. 'event_type = span.name (verbatim)'." .
+otelocel:witness a rdf:Property ; rdfs:label "wasm4pm-compat witness this rule answers to (always Ocel20)" .
+
+# ── The mapping rules themselves ────────────────────────────────────────────
+#
+# These are the actual mapping rules the generated Rust transformer implements.
+# Each maps one OTEL span field to one OCEL v2 OCELEvent/OCELObject field.
+# The set below is exactly what templates/src/otel_to_ocel.rs.tmpl renders.
+
+otelocel:rule-event-id a otelocel:MappingRule ;
+  otelocel:order 10 ; otelocel:identifier "EventId" ; otelocel:slug "event-id" ;
+  otelocel:sourceField "trace_id:span_id" ; otelocel:targetField "OCELEvent.id" ;
+  otelocel:derivation "id = format string of trace_id and span_id joined by a colon -- globally unique across traces" ;
+  otelocel:witness "Ocel20" .
+
+otelocel:rule-event-type a otelocel:MappingRule ;
+  otelocel:order 20 ; otelocel:identifier "EventType" ; otelocel:slug "event-type" ;
+  otelocel:sourceField "span.name" ; otelocel:targetField "OCELEvent.event_type" ;
+  otelocel:derivation "event_type = span.name verbatim -- the activity label" ;
+  otelocel:witness "Ocel20" .
+
+otelocel:rule-event-time a otelocel:MappingRule ;
+  otelocel:order 30 ; otelocel:identifier "EventTime" ; otelocel:slug "event-time" ;
+  otelocel:sourceField "span.start_time_unix_nano" ; otelocel:targetField "OCELEvent.time" ;
+  otelocel:derivation "time = span start time, parsed to chrono::DateTime<FixedOffset>" ;
+  otelocel:witness "Ocel20" .
+
+otelocel:rule-event-attributes a otelocel:MappingRule ;
+  otelocel:order 40 ; otelocel:identifier "EventAttributes" ; otelocel:slug "event-attributes" ;
+  otelocel:sourceField "span.attributes" ; otelocel:targetField "OCELEvent.attributes" ;
+  otelocel:derivation "each span attribute becomes one OCELEventAttribute { name, value: OCELAttributeValue::* }, after redact_attribute_value scrubs denylisted key names (api_key/token/secret/password/bearer/...), high-entropy base64/hex-shaped string values, and caps value length -- CISO finding: span attributes must never be copied verbatim into OCEL" ;
+  otelocel:witness "Ocel20" .
+
+otelocel:rule-object-service a otelocel:MappingRule ;
+  otelocel:order 50 ; otelocel:identifier "ObjectFromServiceName" ; otelocel:slug "object-from-service-name" ;
+  otelocel:sourceField "resource.attributes[service.name]" ; otelocel:targetField "OCELObject with object_type service" ;
+  otelocel:derivation "one OCELObject per unique resource service.name value, grouped across events" ;
+  otelocel:witness "Ocel20" .
+
+otelocel:rule-object-trace a otelocel:MappingRule ;
+  otelocel:order 60 ; otelocel:identifier "ObjectFromTraceId" ; otelocel:slug "object-from-trace-id" ;
+  otelocel:sourceField "span.trace_id" ; otelocel:targetField "OCELObject with object_type trace" ;
+  otelocel:derivation "one OCELObject per unique trace_id, giving every span in a trace a shared case object" ;
+  otelocel:witness "Ocel20" .
+
+otelocel:rule-relationship-service a otelocel:MappingRule ;
+  otelocel:order 70 ; otelocel:identifier "RelationshipPerformedBy" ; otelocel:slug "relationship-performed-by" ;
+  otelocel:sourceField "resource.attributes[service.name]" ; otelocel:targetField "OCELEvent.relationships" ;
+  otelocel:derivation "relationships gains an OCELRelationship whose object_id is the service object id and qualifier is performed_by" ;
+  otelocel:witness "Ocel20" .
+
+otelocel:rule-relationship-trace a otelocel:MappingRule ;
+  otelocel:order 80 ; otelocel:identifier "RelationshipPartOfTrace" ; otelocel:slug "relationship-part-of-trace" ;
+  otelocel:sourceField "span.trace_id" ; otelocel:targetField "OCELEvent.relationships" ;
+  otelocel:derivation "relationships gains an OCELRelationship whose object_id is the trace object id and qualifier is part_of_trace" ;
+  otelocel:witness "Ocel20" .
+
+otelocel:rule-relationship-child-of-parent-span a otelocel:MappingRule ;
+  otelocel:order 90 ; otelocel:identifier "RelationshipChildOfParentSpan" ; otelocel:slug "relationship-child-of-parent-span" ;
+  otelocel:sourceField "span.parent_span_id" ; otelocel:targetField "OCELEvent.relationships" ;
+  otelocel:derivation "when parent_span_id is present (non-root span), relationships gains an OCELRelationship whose object_id is the PARENT EVENT's id (\\\"{trace_id}:{parent_span_id}\\\", an event-id reference, not an object reference) and qualifier is child_of_span -- gives DFG/Petri-net discovery a real causal edge instead of inferring sequence purely from start_time, which fabricates sibling-to-sibling precedence edges between spans sharing one parent" ;
+  otelocel:witness "Ocel20" .

@@ -1,0 +1,26 @@
+# MESSAGE: only BRCE may cross the DO boundary; any row is a refusal.
+PREFIX dash: <https://ggen.io/ontology/dashboard#>
+SELECT ?subject ?violation ?detail WHERE {
+  {
+    ?subject a dash:AuthorityStage ; dash:code ?code ; dash:allowsDo true .
+    FILTER(?code != "BRCE")
+    BIND("non-brce-authority-stage-allows-do" AS ?violation)
+    BIND(STR(?code) AS ?detail)
+  } UNION {
+    BIND(dash:stageBrce AS ?subject)
+    FILTER NOT EXISTS { dash:stageBrce a dash:AuthorityStage ; dash:code "BRCE" ; dash:allowsDo true }
+    BIND("brce-stage-must-exist-and-own-do" AS ?violation)
+    BIND("BRCE" AS ?detail)
+  } UNION {
+    ?subject a dash:IntentKind ; dash:code ?code ; dash:allowsDo true .
+    FILTER(?code != "ACTUATE_VIA_BRCE")
+    BIND("ambient-intent-do-forbidden" AS ?violation)
+    BIND(STR(?code) AS ?detail)
+  } UNION {
+    BIND(dash:intentActuate AS ?subject)
+    FILTER NOT EXISTS { dash:intentActuate a dash:IntentKind ; dash:code "ACTUATE_VIA_BRCE" ; dash:allowsDo true }
+    BIND("actuation-intent-must-name-brce" AS ?violation)
+    BIND("ACTUATE_VIA_BRCE" AS ?detail)
+  }
+}
+ORDER BY ?subject ?violation

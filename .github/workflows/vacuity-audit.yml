@@ -94,8 +94,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          baseline="${{ github.event.pull_request.base.sha || 'origin/main' }}"
-          subject="${{ github.event.pull_request.head.sha || github.sha }}"
+          subject="$(git rev-parse HEAD)"
+          base_ref="${{ github.event.pull_request.base.ref || 'main' }}"
+          baseline="$(git merge-base "refs/remotes/origin/${base_ref}" "$subject")"
+          if [[ -z "$baseline" ]]; then
+            echo "::error title=REFUSED:VACUITY_BASE_UNRESOLVED::base_ref=$base_ref subject=$subject"
+            exit 2
+          fi
+          echo "VACUITY_BASELINE_REF=$baseline"
+          echo "VACUITY_SUBJECT_REF=$subject"
           python3 scripts/check_vacuity_delta.py \
             --baseline-ref "$baseline" \
             --subject-ref "$subject" \

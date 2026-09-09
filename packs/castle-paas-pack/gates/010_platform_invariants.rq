@@ -1,0 +1,42 @@
+PREFIX cp: <https://ggen.dev/ontology/castle-paas#>
+SELECT ?violation ?subject WHERE {
+  {
+    ?subject a cp:AshResourceSpec .
+    FILTER NOT EXISTS { ?subject cp:ashModule ?module ; cp:tableName ?table ; cp:publicClass ?class ; cp:authority ?authority . }
+    BIND("INCOMPLETE_ASH_RESOURCE_SPEC" AS ?violation)
+  }
+  UNION
+  {
+    ?subject a cp:ReactorSpec .
+    FILTER NOT EXISTS { ?subject cp:reactorModule ?module ; cp:purpose ?purpose ; cp:authority ?authority ; cp:doBoundary ?do . }
+    BIND("INCOMPLETE_REACTOR_SPEC" AS ?violation)
+  }
+  UNION
+  {
+    ?subject a cp:ReactorSpec ; cp:doBoundary true ; cp:authority ?authority .
+    FILTER(?authority != "BRCE_ONLY")
+    BIND("AMBIENT_DO_AUTHORITY" AS ?violation)
+  }
+  UNION
+  {
+    BIND(cp:ReactorSpec AS ?subject)
+    BIND("DO_BOUNDARY_CARDINALITY" AS ?violation)
+    { SELECT (COUNT(?reactor) AS ?count) WHERE { ?reactor a cp:ReactorSpec ; cp:doBoundary true . } }
+    FILTER(?count != 1)
+  }
+  UNION
+  {
+    BIND(cp:AshResourceSpec AS ?subject)
+    BIND("RESOURCE_COUNT" AS ?violation)
+    { SELECT (COUNT(?resource) AS ?count) WHERE { ?resource a cp:AshResourceSpec . } }
+    FILTER(?count != 11)
+  }
+  UNION
+  {
+    BIND(cp:PublicOntology AS ?subject)
+    BIND("REQUIRED_PUBLIC_ONTOLOGY_MISSING" AS ?violation)
+    VALUES ?requiredPrefix { "prov" "odrl" "dcat" "dcterms" "skos" "sosa" "ssn" "qudt" "sh" "rdf" "rdfs" "owl" "schema" }
+    FILTER NOT EXISTS { ?ontology a cp:PublicOntology ; cp:ontologyPrefix ?requiredPrefix ; cp:required true . }
+  }
+}
+ORDER BY ?violation ?subject

@@ -1,0 +1,50 @@
+---
+to: "CHANGELOG.md"
+sparql:
+  releases: |
+    PREFIX rel: <http://seanchatmangpt.github.io/packs/changelog-release#>
+    PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+    SELECT ?rel ?version ?date ?yanked WHERE {
+      ?rel a rel:Release ; rel:version ?version .
+      OPTIONAL { ?rel rel:date ?date . }
+      OPTIONAL { ?rel rel:yanked ?yanked . }
+    }
+    ORDER BY DESC(?date) DESC(?version)
+  entries: |
+    PREFIX rel: <http://seanchatmangpt.github.io/packs/changelog-release#>
+    PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+    SELECT ?rel ?category ?entryOrder ?description WHERE {
+      ?entry a rel:ChangeEntry ; rel:inRelease ?rel ; rel:category ?catConcept ; rel:description ?description .
+      ?catConcept skos:notation ?category .
+      OPTIONAL { ?entry rel:entryOrder ?entryOrder . }
+      BIND(COALESCE(?entryOrder, 0) AS ?entryOrder)
+    }
+    ORDER BY ?rel ?category ?entryOrder
+---
+{% raw %}# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+{% endraw %}
+{%- set categories = ["Added", "Changed", "Deprecated", "Removed", "Fixed", "Security"] -%}
+{% for release in releases %}
+{%- if release.version == "Unreleased" -%}
+## [Unreleased]
+{%- else -%}
+## [{{ release.version }}]{% if release.date %} - {{ release.date }}{% endif %}{% if release.yanked %} [YANKED]{% endif %}
+{%- endif %}
+{% set release_entries = entries | filter(attribute="rel", value=release.rel) %}
+{%- for cat in categories %}
+{%- set cat_entries = release_entries | filter(attribute="category", value=cat) %}
+{%- if cat_entries | length > 0 %}
+
+### {{ cat }}
+
+{% for entry in cat_entries %}- {{ entry.description }}
+{% endfor -%}
+{%- endif %}
+{%- endfor %}
+{% endfor -%}

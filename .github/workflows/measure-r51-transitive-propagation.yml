@@ -1,0 +1,36 @@
+name: MEASURE R51 Transitive Consumer Propagation
+
+on:
+  pull_request:
+    paths:
+      - 'packs/epistemic-sensor-factory-pack/**'
+      - '.github/workflows/measure-r51-transitive-propagation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    env:
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+      - name: Admit exact subject
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+      - name: Validate marketplace corpus
+        run: python3 scripts/marketplace.py validate
+      - name: Install bounded RDF verifier
+        run: python3 -m pip install --disable-pip-version-check 'rdflib==7.1.4'
+      - name: Execute permanent R51 court and all 50 sensors
+        run: python3 packs/epistemic-sensor-factory-pack/tests/test_r51_transitive_propagation.py
+      - name: Refuse ambient consequential actuation
+        shell: bash
+        run: |
+          ! grep -R --include='*.ttl' --include='*.json' -E 'actuationPerformed[[:space:]]+true|"consequential_do"[[:space:]]*:[[:space:]]*true' packs/epistemic-sensor-factory-pack/fixtures packs/epistemic-sensor-factory-pack/templates

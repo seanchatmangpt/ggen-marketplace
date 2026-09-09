@@ -1,0 +1,36 @@
+name: EXPLORE Option Hypergraph Amplifier R15 Exact Head
+on:
+  pull_request:
+
+timeout-minutes: 10
+jobs:
+  qualify:
+    if: github.head_ref == 'explore/option-hypergraph-amplifier-r15-20260824'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Assert exact PR head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+      - name: Verify R15 executable surface
+        run: |
+          test "$(find packs/ggen-project-boundary-pack/queries -maxdepth 1 -name 'r15-hyper-*.rq' | wc -l)" -eq 24
+          test "$(find packs/ggen-project-boundary-pack/fixtures -maxdepth 1 -name 'explore15-option-hypergraph-*.ttl' | wc -l)" -eq 5
+          test -f packs/ggen-project-boundary-pack/option-hypergraph-amplifier.ttl
+      - name: Verify replay receipt and authority separation
+        run: |
+          python3 - <<'PY'
+          import hashlib, json
+          p=json.load(open('receipts/explore/2026-08-24-option-hypergraph-amplifier-r15.json'))
+          assert p['marketplace_first'] is True
+          assert p['actuation_performed'] is False
+          assert p['consequential_do'] == 'BRCE_ONLY'
+          assert p['meaningful_commits_before_receipt'] == 30
+          assert hashlib.sha256(p['replay_material'].encode()).hexdigest() == p['replay_digest']
+          PY
+      - name: Refuse ambient consequential actuation
+        run: |
+          ! grep -R -E 'aws |gcloud |az |kubectl |terraform apply|git push --force|curl .*POST' packs/ggen-project-boundary-pack/option-hypergraph-amplifier.ttl packs/ggen-project-boundary-pack/queries/r15-hyper-*.rq packs/ggen-project-boundary-pack/fixtures/explore15-option-hypergraph-*.ttl

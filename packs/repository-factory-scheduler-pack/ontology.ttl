@@ -1,0 +1,60 @@
+@prefix rfs: <https://ggen.dev/marketplace/repository-factory-scheduler#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+
+rfs:FactoryRun a rdfs:Class ; rdfs:label "Repository factory run" .
+rfs:RepositorySubject a rdfs:Class ; rdfs:subClassOf prov:Entity ; rdfs:label "Exact repository subject" .
+rfs:CapabilityIncrement a rdfs:Class ; rdfs:subClassOf prov:Entity ; rdfs:label "Admitted capability increment" .
+rfs:Candidate a rdfs:Class ; rdfs:label "Schedulable candidate" .
+rfs:Selection a rdfs:Class ; rdfs:subClassOf prov:Activity ; rdfs:label "Deterministic selection" .
+rfs:PlanningReceipt a rdfs:Class ; rdfs:subClassOf prov:Entity ; rdfs:label "Planning receipt" .
+rfs:CommitPhase a rdfs:Class ; rdfs:label "Three-commit manufacturing phase" .
+rfs:Disposition a rdfs:Class ; rdfs:label "Repository disposition" .
+
+rfs:OBSERVE a rfs:CommitPhase ; skos:prefLabel "OBSERVE / SPECIFY" .
+rfs:CONSTRUCT a rfs:CommitPhase ; skos:prefLabel "CONSTRUCT" .
+rfs:VERIFY a rfs:CommitPhase ; skos:prefLabel "VERIFY / CLOSE" .
+
+rfs:SELECTED a rfs:Disposition .
+rfs:NO_WORK a rfs:Disposition .
+rfs:BLOCKED a rfs:Disposition .
+rfs:REFUSED a rfs:Disposition .
+
+rfs:repository a rdf:Property ; rdfs:domain rfs:RepositorySubject .
+rfs:headSha a rdf:Property ; rdfs:domain rfs:RepositorySubject .
+rfs:workId a rdf:Property ; rdfs:domain rfs:CapabilityIncrement .
+rfs:impact a rdf:Property ; rdfs:domain rfs:Candidate ; rdfs:range xsd:integer .
+rfs:independence a rdf:Property ; rdfs:domain rfs:Candidate ; rdfs:range xsd:integer .
+rfs:reversibility a rdf:Property ; rdfs:domain rfs:Candidate ; rdfs:range xsd:integer .
+rfs:cost a rdf:Property ; rdfs:domain rfs:Candidate ; rdfs:range xsd:integer .
+rfs:verifierCommand a rdf:Property ; rdfs:domain rfs:CapabilityIncrement .
+rfs:acceptanceCriterion a rdf:Property ; rdfs:domain rfs:CapabilityIncrement .
+rfs:disposition a rdf:Property ; rdfs:range rfs:Disposition .
+rfs:plannedPhase a rdf:Property ; rdfs:range rfs:CommitPhase .
+rfs:planningReceipt a rdf:Property ; rdfs:range rfs:PlanningReceipt .
+
+rfs:ExactHeadLaw a skos:Concept ;
+  skos:definition "A repository candidate is schedulable only when its exact 40-hex Git head is present." .
+rfs:AdmittedWorkLaw a skos:Concept ;
+  skos:definition "A repository candidate is schedulable only when its capability increment is explicitly admitted." .
+rfs:VerifierLaw a skos:Concept ;
+  skos:definition "A repository candidate is schedulable only when a concrete verifier command and acceptance criterion are present." .
+rfs:NoWorkLaw a skos:Concept ;
+  skos:definition "A repository with no defensible admitted increment is preserved as NO_WORK and must not receive filler commits." .
+rfs:ThreeCommitLaw a skos:Concept ;
+  skos:definition "Every selected repository receives exactly three planned phases in order: OBSERVE, CONSTRUCT, VERIFY." .
+rfs:NoAmbientDoAuthority a skos:Concept ;
+  skos:definition "The scheduler selects and constructs plans only; it has no ambient GitHub write or merge authority." .
+rfs:CombinatorialSlackLaw a skos:Concept ;
+  skos:definition "Unselected and NO_WORK repositories remain reversible slack; one failed edge does not fail the repository graph." .
+rfs:DeterministicRankingLaw a skos:Concept ;
+  skos:definition "Eligible candidates are ranked by impact descending, independence descending, reversibility descending, cost ascending, then stable repository and work identifiers." .
+
+rfs:defaultFactory a rfs:FactoryRun ;
+  dcterms:identifier "repository-factory-scheduler/v1" ;
+  rfs:plannedPhase rfs:OBSERVE, rfs:CONSTRUCT, rfs:VERIFY ;
+  rdfs:comment "Default policy selects up to 180 repositories from a 200-repository candidate graph, planning three verified commits per selected repository while preserving NO_WORK refusals and 20-repository slack." .

@@ -1,0 +1,176 @@
+name: DsRust compiler qualification
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "packs/dsrust-pack/**"
+      - ".github/workflows/dsrust-compiler.yml"
+      - "scripts/qualify_packs.py"
+      - "scripts/install-ggen.sh"
+      - "scripts/admit-config.sh"
+      - "marketplace.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dsrust-compiler-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  CARGO_TERM_COLOR: never
+  DSRUST_SOURCE_SHA: "f24adde08c1d8850e4d7079d019643bb40f905cb"
+
+jobs:
+  compile:
+    name: Regenerate and compile exact DsRust qualification consumer
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Assert exact subject identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          actual="$(git rev-parse HEAD)"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "::error title=REFUSED:EXACT_HEAD_MISMATCH::actual=$actual expected=$expected"
+            exit 2
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up pinned Rust compiler
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
+        with:
+          toolchain: "nightly-2026-04-15"
+
+      - name: Admit marketplace config and install exact ggen actuator
+        shell: bash
+        run: |
+          set -euo pipefail
+          admitted="${RUNNER_TEMP}/admitted-config.json"
+          bash scripts/admit-config.sh marketplace.toml "$admitted"
+          ggen_bin="$(bash scripts/install-ggen.sh "$admitted")"
+          echo "GGEN_BIN=$ggen_bin" >> "$GITHUB_ENV"
+          "$ggen_bin" --version
+
+      - name: Materialize the DsRust qualification consumer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import shutil
+          import sys
+          from pathlib import Path
+
+          sys.path.insert(0, "scripts")
+          from marketplace import require_admitted
+          from qualify_packs import prepare_consumer
+
+          capsule = Path(os.environ["RUNNER_TEMP"]) / "dsrust-compiler-capsule"
+          if capsule.exists():
+              shutil.rmtree(capsule)
+          pack = next(pack for pack in require_admitted() if pack.name == "dsrust-pack")
+          consumer = prepare_consumer(pack, capsule)
+          print(consumer)
+          PY
+          consumer="${RUNNER_TEMP}/dsrust-compiler-capsule/consumer"
+          (cd "$consumer" && "$GGEN_BIN" sync run)
+          test -s "$consumer/src/dsrust_program.rs"
+          test -s "$consumer/src/dsrust_optimize.rs"
+          test -s "$consumer/src/dsrust_parallel.rs"
+
+      - name: Bind generated source to exact DsRust source and compile
+        shell: bash
+        run: |
+          set -euo pipefail
+          consumer="${RUNNER_TEMP}/dsrust-compiler-capsule/consumer"
+          cat > "$consumer/Cargo.toml" <<EOF
+          [package]
+          name = "dsrust-marketplace-qualification"
+          version = "0.0.0"
+          edition = "2024"
+          publish = false
+
+          [dependencies]
+          anyhow = "1"
+          serde_json = { version = "1", features = ["preserve_order"] }
+          dsrust = { git = "https://github.com/seanchatmangpt/dsrust", rev = "$DSRUST_SOURCE_SHA" }
+          EOF
+          cat > "$consumer/src/lib.rs" <<'EOF'
+          pub mod dsrust_program;
+          pub mod dsrust_optimize;
+          pub mod dsrust_parallel;
+          EOF
+          (cd "$consumer" && cargo check --all-targets)
+          (cd "$consumer" && cargo check --all-targets --locked)
+
+      - name: Emit compiler qualification receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import subprocess
+          import tomllib
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "dsrust-compiler-capsule" / "consumer"
+          repo = Path.cwd()
+          pack = tomllib.loads((repo / "packs/dsrust-pack/pack.toml").read_text())
+          generated = {}
+          for rel in ("src/dsrust_program.rs", "src/dsrust_optimize.rs", "src/dsrust_parallel.rs"):
+              generated[rel] = hashlib.sha256((root / rel).read_bytes()).hexdigest()
+          receipt = {
+              "schema": "https://ggen.dev/marketplace/dsrust-compiler-qualification/v1",
+              "status": "ALIVE",
+              "candidate_sha": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+              "pack": "dsrust-pack",
+              "pack_version": pack["pack"]["version"],
+              "dsrust_source_sha": os.environ["DSRUST_SOURCE_SHA"],
+              "ggen": subprocess.check_output([os.environ["GGEN_BIN"], "--version"], text=True).strip(),
+              "rustc": subprocess.check_output(["rustc", "--version", "--verbose"], text=True).strip(),
+              "cargo": subprocess.check_output(["cargo", "--version"], text=True).strip(),
+              "cargo_lock_sha256": hashlib.sha256((root / "Cargo.lock").read_bytes()).hexdigest(),
+              "generated_sha256": generated,
+              "checks": ["cargo check --all-targets", "cargo check --all-targets --locked"],
+              "runtime_actuation": "NOT_EXECUTED",
+          }
+          out = Path(os.environ["RUNNER_TEMP"]) / "dsrust-compiler-receipt.json"
+          out.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+          print(out.read_text())
+          PY
+
+      - name: Preserve compiler receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: dsrust-compiler-qualification
+          path: ${{ runner.temp }}/dsrust-compiler-receipt.json
+          retention-days: 30
+
+      - name: Refuse source mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git status --porcelain --untracked-files=all)"
+          if [[ -n "$changed" ]]; then
+            echo "::error title=REFUSED:COMPILER_QUALIFICATION_MUTATED_SUBJECT::$changed"
+            exit 2
+          fi

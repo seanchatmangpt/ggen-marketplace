@@ -1,0 +1,72 @@
+---
+to: "lib/layout/computeLayout.test.ts"
+---
+{% raw %}
+import { describe, expect, it } from "vitest";
+import {
+  computeLayout,
+  computeSeededScatterLayout,
+  hashStringToFloat,
+  layoutMemoKey,
+  type LayoutEntity,
+} from "./computeLayout";
+
+const ENTITIES: LayoutEntity[] = [
+  { id: "svc-billing" },
+  { id: "svc-auth" },
+  { id: "svc-search" },
+  { id: "svc-checkout" },
+];
+
+describe("computeLayout (Chicago-style: real function, real state)", () => {
+  it("produces pixel-identical output across repeat calls with the same input", () => {
+    const first = computeLayout(ENTITIES);
+    const second = computeLayout(ENTITIES);
+    expect(second).toEqual(first);
+  });
+
+  it("is independent of input array order", () => {
+    const forward = computeLayout(ENTITIES);
+    const reversed = computeLayout([...ENTITIES].reverse());
+    expect(reversed).toEqual(forward);
+  });
+
+  it("places every entity id as a key with two finite numeric coordinates", () => {
+    const layout = computeLayout(ENTITIES);
+    for (const entity of ENTITIES) {
+      const [x, y] = layout[entity.id];
+      expect(Number.isFinite(x)).toBe(true);
+      expect(Number.isFinite(y)).toBe(true);
+    }
+  });
+});
+
+describe("hashStringToFloat", () => {
+  it("is a pure deterministic function of its input string", () => {
+    expect(hashStringToFloat("svc-auth")).toBe(hashStringToFloat("svc-auth"));
+    expect(hashStringToFloat("svc-auth")).not.toBe(hashStringToFloat("svc-billing"));
+  });
+
+  it("always returns a value in [0, 1)", () => {
+    for (const entity of ENTITIES) {
+      const h = hashStringToFloat(entity.id);
+      expect(h).toBeGreaterThanOrEqual(0);
+      expect(h).toBeLessThan(1);
+    }
+  });
+});
+
+describe("computeSeededScatterLayout", () => {
+  it("is deterministic for a fixed bounding box", () => {
+    const first = computeSeededScatterLayout(ENTITIES, 800, 600);
+    const second = computeSeededScatterLayout(ENTITIES, 800, 600);
+    expect(second).toEqual(first);
+  });
+});
+
+describe("layoutMemoKey", () => {
+  it("is stable regardless of input order", () => {
+    expect(layoutMemoKey(ENTITIES)).toBe(layoutMemoKey([...ENTITIES].reverse()));
+  });
+});
+{% endraw %}

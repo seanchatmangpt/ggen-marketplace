@@ -1,44 +1,30 @@
-# Agent instructions — ggen Marketplace
+# ggen Marketplace Agent Operating Contract
 
-## Mission
+This repository is the canonical, reviewable corpus of reusable ggen pack source. Scope is repository-wide unless a deeper `AGENTS.md` narrows a subtree. Live tree evidence outranks stale prose; deterministic manufacture and fail-closed admission outrank duplicated metadata or generated-output ownership.
 
-Preserve this repository as the canonical, reviewable corpus of reusable ggen pack source. Prefer deterministic manufacture and fail-closed validation over duplicated metadata or generated-output ownership.
+## Preserve → Fence → Calculus
+Resolve repo/ref/base to an exact commit. Read applicable doctrine, `marketplace.toml`, pack manifests/ontologies/templates/gates, scripts, CI, docs, and release policy before editing. Preserve pack identity, provenance, source/generated ownership, path safety, admission, deterministic catalog/fingerprint behavior, and maximal reversible lawful alternatives. Apply Chesterton's fence before removing a rule. One failed pack/qualification edge is topology, not graph failure.
 
 ## Source hierarchy
-
-1. `marketplace.toml` declares marketplace operational law and must be admitted through `star-toml` before installer/qualification execution.
-2. `packs/<name>/pack.toml` declares pack identity.
+1. `marketplace.toml` declares marketplace operational law and is raw observation until admitted through the repository's current formal configuration boundary.
+2. `packs/<name>/pack.toml` declares pack identity; directory and declared identity must agree.
 3. `packs/<name>/ontology.ttl` carries admitted RDF facts.
-4. `templates/` projects those facts.
+4. `templates/` projects facts.
 5. `gates/` may refuse invalid facts before generation.
-6. Pack/project `ggen.toml` files remain ggen generation contracts; they are not the marketplace control plane.
-7. Consumer outputs are generated consequences and do not belong here unless they are themselves explicit pack source fixtures.
+6. Pack/project `ggen.toml` files remain generation contracts, not a second marketplace control plane.
+7. Consumer outputs are generated consequences and do not belong here unless explicitly admitted source fixtures.
 
-## Required discipline
+Do not hand-maintain a duplicate catalog, create a generated metadata namespace as source, use symlinks under packs, or duplicate release/platform/digest/qualification control values outside their authoritative configuration. CI is read-only evidence: it must not rewrite or push corrections. Preserve exact provenance when moving pack source. Keep Diátaxis categories semantically distinct.
 
-- Work on a purpose branch; do not write directly to `main`.
-- Keep pack directory name identical to `[pack].name`.
-- Do not hand-maintain a second catalog. Use `python3 scripts/marketplace.py catalog`.
-- Do not introduce `generated/` as a source namespace for marketplace metadata.
-- Do not use symlinks under `packs/`; marketplace packs must be self-contained and path-safe.
-- Do not let CI rewrite or push pack corrections. PR CI is read-only evidence.
-- Do not duplicate ggen release versions, platform asset names, SHA-256 digests, qualification worker counts, or timeout bounds in shell/Python. They belong in `marketplace.toml` and are executable only after `star-toml` admission.
-- Keep Diátaxis categories distinct: tutorials teach, how-to guides solve tasks, reference specifies, explanation develops understanding.
-- Preserve exact provenance when moving pack source between repositories.
+## Evidence / authority
+Use `UNKNOWN | PARTIAL_ALIVE | ALIVE | BLOCKED | BUILD_BROKEN | UNSUPPORTED` plus typed `REFUSED_*`. `ALIVE` requires exact admitted execution. Track observed/admitted/executed/changed/verified/inferred/refused/blocked/unsupported separately. A green repository validator proves only the contract it executed; consequential pack behavior requires the matching ggen runtime and real consumer boundary when that claim changes.
 
-## Validation
+`A = μ(O*)`; `R = receipt(A)`. Separate `SELECT`, `CONSTRUCT`, `DO`. Raw config, model/planner output, templates, generated source, and hooks have no ambient execution authority. Configuration becomes executable only after the current formal admission boundary returns its required witness. Consequential qualification/consumer execution must be receipted.
 
-Run before publication:
+## Work / verification
+Follow `parse → orient → resolve → materialize → read doctrine → inspect → admit/refuse → diagnose/repair → construct → actuate → receipt → replay → standing`. Prefer the existing lawful path and smallest coherent diff. Edit ontology/config/template/gate sources rather than emitted catalogs/consumer outputs.
 
-```bash
-bash scripts/admit-config.sh marketplace.toml /tmp/ggen-marketplace-admitted.json
-python3 scripts/marketplace.py validate
-python3 scripts/marketplace.py catalog > /tmp/catalog-a.json
-python3 scripts/marketplace.py catalog > /tmp/catalog-b.json
-cmp /tmp/catalog-a.json /tmp/catalog-b.json
-python3 scripts/marketplace.py fingerprint
-GGEN_MARKETPLACE_ADMITTED_CONFIG=/tmp/ggen-marketplace-admitted.json \
-  bash scripts/qualify-marketplace.sh /tmp/ggen-marketplace-admitted.json /tmp/ggen-marketplace-qualification.json
-```
+Acceptance precedence: exact user behavior/command → live documented repository command → narrowest equivalent. Discover the current admission, validation, deterministic-catalog, fingerprint, and qualification commands from `scripts/`, configuration, CI, and docs at the admitted SHA. Run catalog generation twice and compare when determinism is in scope. On failure preserve command/exit/diagnostic, form a new hypothesis, repair narrowly, and rerun the failed boundary. CI supplements local proof; it is not truth.
 
-`marketplace.toml` is raw observation until `star-toml` returns `q_config=1` with a witness. A green marketplace validator proves the repository contract only. Consequential pack behavior should additionally be exercised with the matching ggen runtime and a real consumer boundary when that behavior is changed.
+## GitHub / receipt
+Never silently move the admitted base. Unless explicitly instructed otherwise: purpose branch, intentional commit, non-force push, draft PR, no merge. Final receipt states repo/base/tree, O/O*, config admission witness, source/generated changes, transports/failures, commands/exits, qualification/replay, branch/SHA/PR, scoped standing, and falsifiers.

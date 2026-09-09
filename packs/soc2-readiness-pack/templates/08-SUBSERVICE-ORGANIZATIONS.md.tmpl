@@ -1,0 +1,43 @@
+---
+to: "soc2/08-SUBSERVICE-ORGANIZATIONS.md"
+force: true
+sparql:
+  subservicers: |
+    PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
+    PREFIX org:     <http://www.w3.org/ns/org#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    SELECT ?name ?scope ?method ?cuec WHERE {
+      ?vendor rdf:type org:Organization ; rdfs:label ?name ; dcterms:type "SUBSERVICE-ORG" .
+      OPTIONAL { ?vendor dcterms:coverage ?scope . }
+      OPTIONAL { ?vendor dcterms:accessRights ?method . }
+      OPTIONAL { ?vendor dcterms:requires ?cuec . }
+    }
+---
+{% raw %}
+# 08 — Subservice organizations & complementary user-entity controls
+
+Every vendor or subprocessor whose controls this system's own SOC 2 scope
+depends on — the "carve-out" method (their controls are excluded, only
+their existence is disclosed) vs. "inclusive" method (their controls are
+tested as part of this engagement) — and any control this project relies
+on the *end user* (not the vendor) to operate, a Complementary User-Entity
+Control (CUEC).
+
+| Subservice organization | Scope relied upon | Method | CUEC (if any) |
+|---|---|---|---|
+{% endraw %}{% for s in subservicers %}| {{ s.name }} | {{ s.scope | default(value="—") }} | {{ s.method | default(value="carve-out") }} | {{ s.cuec | default(value="—") }} |
+{% endfor %}{% if subservicers | length == 0 %}{% raw %}| _(none)_ | — | — | — |
+{% endraw %}{% endif %}
+{% raw %}
+## How to declare a subservice organization
+
+```turtle
+[] a org:Organization ;
+    rdfs:label "AWS (us-west-2)" ;
+    dcterms:type "SUBSERVICE-ORG" ;
+    dcterms:coverage "Physical security, hypervisor isolation, network infrastructure" ;
+    dcterms:accessRights "carve-out" ;
+    dcterms:requires "Customer must enable and monitor CloudTrail; AWS provides the logging substrate only." .
+```
+{% endraw %}

@@ -1,0 +1,26 @@
+# MESSAGE: VALUE_INNOVATION_ERRC_DIRECTION_REFUSED -- normalized strategy-canvas levels must preserve ERRC directional meaning
+PREFIX vi: <http://seanchatmangpt.github.io/packs/value-innovation-errc#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?finding ?action ?baseline ?target ?reason WHERE {
+  ?finding a vi:Finding ; vi:action ?action .
+  {
+    ?finding vi:baselineLevel ?baseline .
+    FILTER NOT EXISTS { ?finding vi:targetLevel ?target }
+    BIND("targetLevel missing" AS ?reason)
+  } UNION {
+    ?finding vi:targetLevel ?target .
+    FILTER NOT EXISTS { ?finding vi:baselineLevel ?baseline }
+    BIND("baselineLevel missing" AS ?reason)
+  } UNION {
+    ?finding vi:baselineLevel ?baseline ; vi:targetLevel ?target .
+    FILTER (
+      xsd:decimal(?baseline) < 0 || xsd:decimal(?baseline) > 10 ||
+      xsd:decimal(?target) < 0 || xsd:decimal(?target) > 10 ||
+      (?action = vi:Eliminate && !(xsd:decimal(?baseline) > 0 && xsd:decimal(?target) = 0)) ||
+      (?action = vi:Reduce && !(xsd:decimal(?target) >= 0 && xsd:decimal(?target) < xsd:decimal(?baseline))) ||
+      (?action = vi:Raise && !(xsd:decimal(?target) > xsd:decimal(?baseline))) ||
+      (?action = vi:Create && !(xsd:decimal(?baseline) = 0 && xsd:decimal(?target) > 0))
+    )
+    BIND("directionality" AS ?reason)
+  }
+}

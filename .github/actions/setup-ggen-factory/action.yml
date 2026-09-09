@@ -1,0 +1,102 @@
+name: Setup ggen factory
+description: Pull and verify an exact ggen+Marketplace factory payload from GHCR for scheduled ggen sync run sessions.
+inputs:
+  marketplace-sha:
+    description: Exact 40-hex ggen-marketplace commit SHA
+    required: true
+  token:
+    description: GitHub token with packages:read when the package is not public
+    required: false
+    default: ""
+outputs:
+  ggen-path:
+    description: Exact extracted ggen executable
+    value: ${{ steps.expose.outputs.ggen_path }}
+  marketplace-root:
+    description: Exact extracted Marketplace snapshot root
+    value: ${{ steps.expose.outputs.marketplace_root }}
+  packs-root:
+    description: Canonical pack root; scheduled tasks must select packs only below this path
+    value: ${{ steps.expose.outputs.packs_root }}
+  factory-manifest:
+    description: Factory manifest binding ggen release, Marketplace SHA, and every pack source digest
+    value: ${{ steps.expose.outputs.factory_manifest }}
+  factory-id:
+    description: Content identity from the verified factory manifest
+    value: ${{ steps.expose.outputs.factory_id }}
+runs:
+  using: composite
+  steps:
+    - name: Admit requested exact subject
+      id: subject
+      shell: bash
+      env:
+        MARKETPLACE_SHA: ${{ inputs.marketplace-sha }}
+      run: |
+        set -euo pipefail
+        [[ "$MARKETPLACE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "REFUSED:MARKETPLACE_SHA_INVALID" >&2; exit 2; }
+        root="$HOME/.cache/ggen-factory/$MARKETPLACE_SHA"
+        echo "root=$root" >> "$GITHUB_OUTPUT"
+        echo "ref=ghcr.io/seanchatmangpt/ggen-factory:sha-$MARKETPLACE_SHA" >> "$GITHUB_OUTPUT"
+
+    - name: Restore exact factory cache
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ~/.cache/ggen-factory
+        key: ggen-factory-${{ runner.os }}-${{ runner.arch }}-${{ inputs.marketplace-sha }}
+
+    - name: Pull and extract factory on cache miss
+      shell: bash
+      env:
+        ROOT: ${{ steps.subject.outputs.root }}
+        FACTORY_REF: ${{ steps.subject.outputs.ref }}
+        TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+        if [[ -x "$ROOT/bin/ggen" && -f "$ROOT/factory-manifest.json" ]]; then
+          exit 0
+        fi
+        command -v docker >/dev/null 2>&1 || { echo "BLOCKED:DOCKER_REQUIRED_FOR_GHCR_FACTORY_EXTRACTION" >&2; exit 3; }
+        if [[ -n "$TOKEN" ]]; then
+          printf '%s' "$TOKEN" | docker login ghcr.io -u "${GITHUB_ACTOR:-github-actions}" --password-stdin >/dev/null
+        fi
+        docker pull "$FACTORY_REF"
+        cid="$(docker create "$FACTORY_REF" /bin/true)"
+        trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+        tmp="$(mktemp -d)"
+        docker cp "$cid:/factory/." "$tmp/"
+        rm -rf "$ROOT"
+        mkdir -p "$(dirname "$ROOT")"
+        mv "$tmp" "$ROOT"
+        chmod 0755 "$ROOT/bin/ggen"
+
+    - name: Verify exact factory identity and expose paths
+      id: expose
+      shell: bash
+      env:
+        ROOT: ${{ steps.subject.outputs.root }}
+        MARKETPLACE_SHA: ${{ inputs.marketplace-sha }}
+      run: |
+        set -euo pipefail
+        mapfile -t identity < <(python3 - "$ROOT/factory-manifest.json" "$MARKETPLACE_SHA" <<'PY'
+        import json, sys
+        p=json.load(open(sys.argv[1], encoding='utf-8'))
+        if p.get('schema') != 'ggen.factory/1': raise SystemExit('REFUSED:FACTORY_SCHEMA')
+        if p['marketplace']['sha'] != sys.argv[2]: raise SystemExit('REFUSED:FACTORY_MARKETPLACE_SHA_DRIFT')
+        if p['marketplace']['pack_count'] != len(p.get('packs', [])): raise SystemExit('REFUSED:FACTORY_PACK_COUNT_DRIFT')
+        if not p.get('factory_id','').startswith('sha256:'): raise SystemExit('REFUSED:FACTORY_ID_INVALID')
+        print(p['factory_id'])
+        print(p['ggen']['version'])
+        PY
+        )
+        test -d "$ROOT/marketplace/packs"
+        "$ROOT/bin/ggen" --version
+        echo "$ROOT/bin" >> "$GITHUB_PATH"
+        echo "GGEN_MARKETPLACE_ROOT=$ROOT/marketplace" >> "$GITHUB_ENV"
+        echo "GGEN_MARKETPLACE_PACKS=$ROOT/marketplace/packs" >> "$GITHUB_ENV"
+        echo "ggen_path=$ROOT/bin/ggen" >> "$GITHUB_OUTPUT"
+        echo "marketplace_root=$ROOT/marketplace" >> "$GITHUB_OUTPUT"
+        echo "packs_root=$ROOT/marketplace/packs" >> "$GITHUB_OUTPUT"
+        echo "factory_manifest=$ROOT/factory-manifest.json" >> "$GITHUB_OUTPUT"
+        echo "factory_id=${identity[0]}" >> "$GITHUB_OUTPUT"
+        echo "verified ggen release: ${identity[1]}"
