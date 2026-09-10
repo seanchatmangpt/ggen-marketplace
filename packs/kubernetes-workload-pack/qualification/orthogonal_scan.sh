@@ -58,4 +58,4 @@ kubescape scan framework NSA,cis-v1.10.0 "$SCRATCH" --format json --output "$SCR
   || echo "kubescape exits non-zero on any failing control by design -- inspect $SCRATCH/kubescape-report.json before treating this as a script failure."
 
 echo "== Cosign: intentionally not run =="
-echo "This pack generates Deployment+Service YAML only -- it does not build or push a container image, so there is no real image/digest to sign or verify. Running cosign against a placeholder image would fabricate evidence. See control-mapping/control-map.md's SEC-COSIGN-001 row."
+echo "This pack generates Deployment+Service YAML only -- it does not build or push a container image, so there is no real image/digest to sign or verify. Running cosign against an illustrative, non-pushed image reference would fabricate evidence. See control-mapping/control-map.md's SEC-COSIGN-001 row."
