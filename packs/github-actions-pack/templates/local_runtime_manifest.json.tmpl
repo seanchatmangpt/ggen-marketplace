@@ -1,0 +1,68 @@
+---
+to: ".ggen-v2/github-local/runtime-manifest.json"
+sparql:
+  profiles: |
+    PREFIX gha: <http://seanchatmangpt.github.io/packs/github-actions#>
+    SELECT ?profile ?profileName ?receiptRoot ?exactActSha ?exactActVersion ?exactActionsRunnerVersion
+    WHERE {
+      ?profile a gha:LocalExecutionProfile ;
+               gha:profileName ?profileName ;
+               gha:receiptRoot ?receiptRoot ;
+               gha:exactActSha ?exactActSha .
+      OPTIONAL { ?profile gha:exactActVersion ?exactActVersion . }
+      OPTIONAL { ?profile gha:exactActionsRunnerVersion ?exactActionsRunnerVersion . }
+    }
+    ORDER BY ?profileName
+  routes: |
+    PREFIX gha:  <http://seanchatmangpt.github.io/packs/github-actions#>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT ?profile ?capabilityKey ?backendKey ?mode ?priority ?semanticCeiling ?evidenceClass ?routeCommand ?requiresGitHubControlPlane ?unsupportedReason
+    WHERE {
+      ?route a gha:CapabilityRoute ;
+             gha:inProfile ?profile ;
+             gha:forCapability ?cap ;
+             gha:viaBackend ?backend ;
+             gha:routeMode ?routeMode ;
+             gha:routePriority ?priority ;
+             gha:semanticCeiling ?semanticCeiling ;
+             gha:evidenceClass ?evidenceClass .
+      ?cap gha:capabilityKey ?capabilityKey .
+      ?backend gha:capabilityKey ?backendKey .
+      ?routeMode rdfs:label ?mode .
+      OPTIONAL { ?route gha:routeCommand ?routeCommand . }
+      OPTIONAL { ?cap gha:requiresGitHubControlPlane ?requiresGitHubControlPlane . }
+      OPTIONAL { ?route gha:unsupportedReason ?unsupportedReason . }
+    }
+    ORDER BY ?profile ?capabilityKey ?priority
+---
+{
+  "schema": "https://ggen.dev/github-local-runtime/v1",
+  "profiles": [
+{%- for p in profiles %}
+    {
+      "id": "{{ p.profile }}",
+      "name": "{{ p.profileName }}",
+      "receipt_root": "{{ p.receiptRoot }}",
+      "act_sha": "{{ p.exactActSha }}",
+      "act_version": "{{ p.exactActVersion | default(value="") }}",
+      "actions_runner_version": "{{ p.exactActionsRunnerVersion | default(value="") }}"
+    }{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ],
+  "routes": [
+{%- for r in routes %}
+    {
+      "profile": "{{ r.profile }}",
+      "capability": "{{ r.capabilityKey }}",
+      "backend": "{{ r.backendKey }}",
+      "mode": "{{ r.mode }}",
+      "priority": {{ r.priority }},
+      "semantic_ceiling": "{{ r.semanticCeiling }}",
+      "evidence_class": "{{ r.evidenceClass }}",
+      "requires_github_control_plane": {{ r.requiresGitHubControlPlane | default(value="false") }},
+      "command": "{{ r.routeCommand | default(value="") | replace(from="\\", to="\\\\") | replace(from="\"", to="\\\"") }}",
+      "unsupported_reason": "{{ r.unsupportedReason | default(value="") | replace(from="\\", to="\\\\") | replace(from="\"", to="\\\"") }}"
+    }{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ]
+}
