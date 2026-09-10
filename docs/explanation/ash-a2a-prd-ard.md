@@ -1,9 +1,14 @@
 # ash_a2a — PRD / ARD
 
-Status: DRAFT, UNSTARTED (`~/ash_a2a` does not exist as a repository yet). Every claim
-below about upstream libraries is cited to a real file read during this session, not
-inferred from names. Where a real gap or open question exists, it is named as such
-rather than papered over.
+Status: IMPLEMENTED (see §3.8 item 5 below — `~/ash_a2a` exists at HEAD
+`1580108`, compiles, and passes 72 real tests as of its v26.9.10 finish-all
+pass). This document's
+original framing was pre-repo-creation; treat this header as updated, the body
+prose below (much of which still narrates a not-yet-built design) as historical
+context, and `~/ash_a2a/MANUFACTURING_RECEIPT.md` as the current, authoritative
+status source. Every claim below about upstream libraries is cited to a real
+file read during this session, not inferred from names. Where a real gap or
+open question exists, it is named as such rather than papered over.
 
 ## 0. What ash_a2a is
 
@@ -236,7 +241,15 @@ supports per-Reactor middleware injection is **UNVERIFIED** (flagged in
    blocked by an environment path-resolution issue in the installed `ggen` binary
    (see `errc-tracker.md` Cycle 3 addendum) — must be resolved or worked around before
    ash_a2a's generated code can be confirmed to actually compile, not just look right.
-5. `~/ash_a2a` does not exist — this document is pre-repo-creation requirements, not
-   a review of existing code. No golden-specimen parity check (the kind that caught
-   real bugs in `ash-extension-core-pack`'s own history — entity ordering,
-   taskModuleName derivation) is possible until the repo exists.
+5. `~/ash_a2a` now exists (created after this document, real repo at HEAD
+   `1580108`, v26.9.10 finish-all pass), compiles cleanly
+   (`mix compile --force --warnings-as-errors`, no warnings), and passes 72
+   real tests (21 doctests, 3 properties, 48 unit tests, 0 mocks — see
+   `~/ash_a2a/MANUFACTURING_RECEIPT.md` §3 for the pasted verify-phase
+   output). This document's remaining pre-repo-creation framing is now
+   historical; a golden-specimen parity check against `ash-extension-core-pack`
+   has not yet been run, and the `ggen sync run` pipeline (item 4 above)
+   still has not been executed against this repo's real templates (though
+   the input material's namespace bug was fixed and it now carries an
+   explicit legacy disclosure) — those gaps remain open, tracked in
+   `~/ash_a2a/MANUFACTURING_RECEIPT.md` §4.
