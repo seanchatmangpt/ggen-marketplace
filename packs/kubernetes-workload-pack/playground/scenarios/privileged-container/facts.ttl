@@ -1,0 +1,43 @@
+@prefix k8s: <http://seanchatmangpt.github.io/packs/kubernetes#> .
+@prefix ex:  <https://example.com/negative-controls/privileged-container#> .
+
+# KNOWN GAP, not a verified refusal -- do not run this expecting a
+# rejection. Every k8s:*SecurityContextBlock property is a raw YAML
+# string (deliberate design, ontology.ttl's header comment), opaque to
+# SPARQL gate matching. This fact graph sets `privileged: true` AND
+# still declares k8s:podSecurityContextBlock, so gate 010 (which only
+# checks PRESENCE of the property, never its content) admits it
+# unchanged -- exactly the Kubernetes Restricted Pod Security Standard
+# violation a real cluster's Pod Security Admission would reject at
+# apply-time, but which this pack's current gate cannot catch at
+# generate-time.
+#
+# Candidate fix (v0.2.0+, not yet built): a typed
+# k8s:allowPrivileged/k8s:privileged xsd:boolean property (escaping the
+# raw-block pattern for exactly this one security-critical field) plus a
+# gate refusing k8s:privileged = true outside an explicit, named
+# SecurityException with a compensating control -- see
+# ../control-mapping/control-map.md's SEC-PRIV-001 row and
+# ../../playground/scenarios/privileged-container/ for the live
+# behavioral proof of what a real cluster does with this fact today.
+#
+# Verify (documents the gap, does not disprove it):
+#   ggen sync run --dry-run
+# Expected today: ADMITTED (the gap). Expected after v0.2.0's typed gate:
+# REFUSED.
+
+ex:privilegedWorkload a k8s:Workload ;
+  k8s:workloadName "privileged-demo" ;
+  k8s:fileName "privileged-demo.yaml" ;
+  k8s:podSecurityContextBlock """runAsNonRoot: false""" .
+
+ex:privilegedContainer a k8s:Container ;
+  k8s:inWorkload ex:privilegedWorkload ;
+  k8s:containerName "privileged-demo" ;
+  k8s:image "example/app:1.0.0" ;
+  k8s:resourceRequestsBlock """cpu: 100m
+memory: 128Mi""" ;
+  k8s:resourceLimitsBlock """cpu: 250m
+memory: 256Mi""" ;
+  k8s:containerSecurityContextBlock """privileged: true
+allowPrivilegeEscalation: true""" .

@@ -1,0 +1,22 @@
+@prefix k8s: <http://seanchatmangpt.github.io/packs/kubernetes#> .
+@prefix ex:  <https://example.com/negative-controls/missing-resources#> .
+
+# NEGATIVE CONTROL -- expected to be REFUSED by gate 010.
+# Container declares no resourceRequestsBlock/resourceLimitsBlock: the
+# real OOM-kill/CPU-throttle risk gate 010 exists to catch (see
+# ../../../README.md and gates/010_required.rq's MESSAGE comments).
+#
+# Verify:
+#   ggen sync run --dry-run
+# Expected: refused, citing k8s:resourceRequestsBlock and
+# k8s:resourceLimitsBlock missing on ex:noResourcesContainer.
+
+ex:noResourcesWorkload a k8s:Workload ;
+  k8s:workloadName "no-resources" ;
+  k8s:fileName "no-resources.yaml" ;
+  k8s:podSecurityContextBlock """runAsNonRoot: true""" .
+
+ex:noResourcesContainer a k8s:Container ;
+  k8s:inWorkload ex:noResourcesWorkload ;
+  k8s:containerName "no-resources" ;
+  k8s:image "example/app:1.0.0" .

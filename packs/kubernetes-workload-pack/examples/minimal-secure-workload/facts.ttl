@@ -1,0 +1,35 @@
+@prefix k8s: <http://seanchatmangpt.github.io/packs/kubernetes#> .
+@prefix ex:  <https://example.com/minimal-secure-workload#> .
+
+# The minimum fact graph this pack's gate 010 admits, hardened to the
+# Kubernetes Pod Security Standards "Restricted" profile floor
+# (https://kubernetes.io/docs/concepts/security/pod-security-standards/)
+# rather than merely "passes the gate." Every field below is a
+# WORKLOAD_CONTROL: expressible and enforceable inside a single
+# Deployment+Service manifest, with no dependency on cluster-level
+# admission, RBAC, or NetworkPolicy enforcement. See
+# ../control-mapping/control-map.md for the full control provenance.
+
+ex:minimalWorkload a k8s:Workload ;
+  k8s:workloadName "minimal-secure" ;
+  k8s:namespace "default" ;
+  k8s:fileName "minimal-secure.yaml" ;
+  k8s:replicas 1 ;
+  k8s:serviceAccountName "minimal-secure" ;
+  k8s:automountServiceAccountToken false ;
+  k8s:podSecurityContextBlock """runAsNonRoot: true
+seccompProfile:
+  type: RuntimeDefault""" .
+
+ex:minimalContainer a k8s:Container ;
+  k8s:inWorkload ex:minimalWorkload ;
+  k8s:containerName "minimal-secure" ;
+  k8s:image "gcr.io/distroless/static-debian12:nonroot" ;
+  k8s:imagePullPolicy "IfNotPresent" ;
+  k8s:resourceRequestsBlock """cpu: 50m
+memory: 64Mi""" ;
+  k8s:resourceLimitsBlock """cpu: 200m
+memory: 128Mi""" ;
+  k8s:containerSecurityContextBlock """allowPrivilegeEscalation: false
+capabilities:
+  drop: ["ALL"]""" .

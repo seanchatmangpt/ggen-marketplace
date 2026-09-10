@@ -1,0 +1,71 @@
+@prefix k8s: <http://seanchatmangpt.github.io/packs/kubernetes#> .
+@prefix ex:  <https://example.com/high-assurance-workload#> .
+
+# A realistic regulated-enterprise payload (an internal ledger-reconciliation
+# API), demonstrating the maximum WORKLOAD_CONTROL posture this pack's
+# v0.1.0 Deployment+Service scope can express, mapped in
+# ../control-mapping/control-map.md against NIST SP 800-53 Rev.5, NIST SP
+# 800-190, CIS Kubernetes Benchmark, CISA/NSA Kubernetes Hardening
+# Guidance, and the Kubernetes Restricted Pod Security Standard.
+#
+# What this fact graph deliberately does NOT attempt to claim or encode:
+# NetworkPolicy, RBAC Role/RoleBinding, PodDisruptionBudget, HPA,
+# ResourceQuota/LimitRange, image signature/provenance verification, or
+# any node/control-plane/organizational control -- all out of this pack's
+# v0.1.0 scope per pack.toml's disclosed backlog, and explicitly marked
+# NAMESPACE_CONTROL/CLUSTER_CONTROL/SUPPLY_CHAIN_CONTROL/INHERITED in the
+# control map rather than silently assumed. Calling this "Fortune-5
+# complete" without that companion map would overclaim.
+
+ex:ledgerWorkload a k8s:Workload ;
+  k8s:workloadName "ledger-reconciler" ;
+  k8s:namespace "regulated-workloads" ;
+  k8s:fileName "ledger-reconciler.yaml" ;
+  k8s:replicas 3 ;
+  k8s:serviceAccountName "ledger-reconciler" ;
+  k8s:automountServiceAccountToken false ;
+  k8s:podSecurityContextBlock """runAsNonRoot: true
+runAsUser: 10001
+runAsGroup: 10001
+fsGroup: 10001
+seccompProfile:
+  type: RuntimeDefault""" ;
+  k8s:servicePort 443 ;
+  k8s:serviceTargetPort 8443 ;
+  k8s:serviceType "ClusterIP" .
+
+ex:ledgerContainer a k8s:Container ;
+  k8s:inWorkload ex:ledgerWorkload ;
+  k8s:containerName "ledger-reconciler" ;
+  # Immutable-by-digest image identity (NIST SP 800-190 SS3.4 / SLSA
+  # provenance expectation) -- never a floating tag, never :latest.
+  k8s:image "registry.internal.example.com/ledger-reconciler@sha256:d1a6e2c4f9b3a7e0c8f2b4d6a1e3c5f7091b2d4e6f8a0c2e4b6d8f0a2c4e6f8a0" ;
+  k8s:imagePullPolicy "Always" ;
+  k8s:containerPort 8443 ;
+  k8s:resourceRequestsBlock """cpu: 250m
+memory: 256Mi
+ephemeral-storage: 1Gi""" ;
+  k8s:resourceLimitsBlock """cpu: 1
+memory: 512Mi
+ephemeral-storage: 2Gi""" ;
+  k8s:envFromConfigMap "ledger-reconciler-config" ;
+  k8s:envFromSecret "ledger-reconciler-secrets" ;
+  k8s:readinessProbeBlock """httpGet:
+  path: /healthz/ready
+  port: 8443
+  scheme: HTTPS
+initialDelaySeconds: 5
+periodSeconds: 10
+failureThreshold: 3""" ;
+  k8s:livenessProbeBlock """httpGet:
+  path: /healthz/live
+  port: 8443
+  scheme: HTTPS
+initialDelaySeconds: 15
+periodSeconds: 20
+failureThreshold: 3""" ;
+  k8s:containerSecurityContextBlock """allowPrivilegeEscalation: false
+privileged: false
+readOnlyRootFilesystem: true
+capabilities:
+  drop: ["ALL"]""" .
