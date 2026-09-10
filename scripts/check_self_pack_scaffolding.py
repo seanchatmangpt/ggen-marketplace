@@ -34,6 +34,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import NoReturn
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PACK_DIR = REPO_ROOT / "packs" / "ggen-self-pack"
@@ -54,7 +55,7 @@ NEW_SCAFFOLDING_FILES = [
 ]
 
 
-def fail(msg: str) -> None:
+def fail(msg: str) -> NoReturn:
     print(f"FAIL: {msg}", file=sys.stderr)
     sys.exit(1)
 
