@@ -5,13 +5,10 @@
 # MESSAGE: by permissions: either its own gha:jobPermissions block or a gha:permissionCeiling
 # MESSAGE: on the gha:Workflow it is gha:inWorkflow of. Every gha:Workflow that carries a
 # MESSAGE: generated body (gha:artifactBody) must declare >=1 gha:evidenceObligation or an
-# MESSAGE: explicit gha:noEvidenceReason — a green run whose evidence nobody declared cannot
-# MESSAGE: reach evidenceAdmitted (see gha:executionStates). Every gha:Step must declare
-# MESSAGE: gha:inJob, gha:stepOrder, and at least one of gha:usesAction/gha:runCommand — a step
-# MESSAGE: with neither renders no real YAML line, so a template can only ever echo an empty
-# MESSAGE: entry for it. Any row = a subject missing the bound property. All patterns are typed
-# MESSAGE: with gha: classes, so this gate is namespace-scoped and composes with other packs'
-# MESSAGE: graphs without cross-firing.
+# MESSAGE: explicit gha:noEvidenceReason. Every gha:Step must declare gha:inJob and
+# MESSAGE: gha:stepOrder. A normal work step declares gha:usesAction or gha:runCommand; the
+# MESSAGE: 2026 control-step forms instead declare gha:waitFor, gha:waitAll true,
+# MESSAGE: gha:cancelStep, or gha:parallelBody. Any row = a subject missing the bound property.
 PREFIX gha:  <http://seanchatmangpt.github.io/packs/github-actions#>
 SELECT ?s ?missing WHERE {
   {
@@ -38,6 +35,10 @@ SELECT ?s ?missing WHERE {
   } UNION {
     ?s a gha:Step . BIND(gha:usesAction AS ?missing)
     FILTER NOT EXISTS { ?s gha:runCommand ?cmd }
+    FILTER NOT EXISTS { ?s gha:waitFor ?target }
+    FILTER NOT EXISTS { ?s gha:waitAll true }
+    FILTER NOT EXISTS { ?s gha:cancelStep ?target }
+    FILTER NOT EXISTS { ?s gha:parallelBody ?body }
   }
   FILTER NOT EXISTS { ?s ?missing ?any }
 }
