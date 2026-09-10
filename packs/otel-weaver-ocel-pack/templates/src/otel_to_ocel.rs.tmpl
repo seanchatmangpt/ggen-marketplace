@@ -281,10 +281,25 @@ impl Admit for OtelToOcel {
             }
         }
 
+        // Rule EventActivityCapability (order 45): when the (already redacted)
+        // attributes carry a beam4pm.capability.id value, it is the more
+        // specific OCEL activity label -- prefer it over the bare span.name.
+        // Looked up in the already-built `attributes` vec (rule EventAttributes,
+        // order 40) rather than re-deriving from raw span.attributes a second
+        // time, so this introduces no second event-attribute copy path.
+        let event_type = attributes
+            .iter()
+            .find(|a| a.name == "beam4pm.capability.id")
+            .and_then(|a| match &a.value {
+                OCELAttributeValue::String(s) if !s.trim().is_empty() => Some(s.clone()),
+                _ => None,
+            })
+            .unwrap_or(span.name);
+
         // Rule EventTime (order 30): time = span start time.
         let event = OCELEvent {
             id: event_id,
-            event_type: span.name,
+            event_type,
             time: span.start_time,
             attributes,
             relationships,

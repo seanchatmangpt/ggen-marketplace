@@ -30,6 +30,7 @@ pub const MAPPING_RULES: &[MappingRule] = &[
     MappingRule { order: 20, identifier: "EventType", slug: "event-type", source_field: "span.name", target_field: "OCELEvent.event_type", derivation: "event_type = span.name verbatim -- the activity label" },
     MappingRule { order: 30, identifier: "EventTime", slug: "event-time", source_field: "span.start_time_unix_nano", target_field: "OCELEvent.time", derivation: "time = span start time, parsed to chrono::DateTime<FixedOffset>" },
     MappingRule { order: 40, identifier: "EventAttributes", slug: "event-attributes", source_field: "span.attributes", target_field: "OCELEvent.attributes", derivation: "each span attribute becomes one OCELEventAttribute { name, value: OCELAttributeValue::* }, after redact_attribute_value scrubs denylisted key names (api_key/token/secret/password/bearer/...), high-entropy base64/hex-shaped string values, and caps value length -- CISO finding: span attributes must never be copied verbatim into OCEL" },
+    MappingRule { order: 45, identifier: "EventActivityCapability", slug: "event-activity-capability", source_field: "span.attributes[beam4pm.capability.id]", target_field: "OCELEvent.event_type", derivation: "when the (already-redacted) attributes carry a non-empty beam4pm.capability.id value, it is the more specific OCEL activity label -- prefer it over the bare span.name (rule EventType, order 20); looked up in the already-built attributes vec from rule EventAttributes (order 40) rather than re-deriving from raw span.attributes a second time" },
     MappingRule { order: 50, identifier: "ObjectFromServiceName", slug: "object-from-service-name", source_field: "resource.attributes[service.name]", target_field: "OCELObject with object_type service", derivation: "one OCELObject per unique resource service.name value, grouped across events" },
     MappingRule { order: 60, identifier: "ObjectFromTraceId", slug: "object-from-trace-id", source_field: "span.trace_id", target_field: "OCELObject with object_type trace", derivation: "one OCELObject per unique trace_id, giving every span in a trace a shared case object" },
     MappingRule { order: 70, identifier: "RelationshipPerformedBy", slug: "relationship-performed-by", source_field: "resource.attributes[service.name]", target_field: "OCELEvent.relationships", derivation: "relationships gains an OCELRelationship whose object_id is the service object id and qualifier is performed_by" },
@@ -289,10 +290,25 @@ impl Admit for OtelToOcel {
             }
         }
 
+        // Rule EventActivityCapability (order 45): when the (already redacted)
+        // attributes carry a beam4pm.capability.id value, it is the more
+        // specific OCEL activity label -- prefer it over the bare span.name.
+        // Looked up in the already-built `attributes` vec (rule EventAttributes,
+        // order 40) rather than re-deriving from raw span.attributes a second
+        // time, so this introduces no second event-attribute copy path.
+        let event_type = attributes
+            .iter()
+            .find(|a| a.name == "beam4pm.capability.id")
+            .and_then(|a| match &a.value {
+                OCELAttributeValue::String(s) if !s.trim().is_empty() => Some(s.clone()),
+                _ => None,
+            })
+            .unwrap_or(span.name);
+
         // Rule EventTime (order 30): time = span start time.
         let event = OCELEvent {
             id: event_id,
-            event_type: span.name,
+            event_type,
             time: span.start_time,
             attributes,
             relationships,
