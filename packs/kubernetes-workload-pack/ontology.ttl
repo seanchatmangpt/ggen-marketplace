@@ -1,0 +1,54 @@
+@prefix k8s:  <http://seanchatmangpt.github.io/packs/kubernetes#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# kubernetes-workload-pack v0.1.0 -- schema-only vocabulary (dspy-pack
+# contract, same as github-actions-pack's gha: prefix): this file ships
+# ZERO k8s:Workload/k8s:Container individuals. A consumer admits its own
+# facts against this vocabulary in its own .ttl, matching its own real,
+# already-running workload.
+#
+# Deliberately flat/literal-heavy (mirrors gha:Step's own design, not an
+# accident): a handful of properties are raw YAML-block escape hatches
+# (k8s:podSecurityContextBlock, k8s:containerSecurityContextBlock,
+# k8s:resourceRequestsBlock, k8s:resourceLimitsBlock, k8s:readinessProbeBlock,
+# k8s:livenessProbeBlock) rather than deeply modeled sub-classes -- the same
+# choice gha:onBlock/gha:jobExtra already made for GitHub Actions' own
+# free-form YAML, for the same reason: Kubernetes pod-spec sub-objects
+# (a probe, a securityContext, a resource block) vary enough in real shape
+# that forcing every field into its own RDF predicate buys little and
+# costs a lot of template branching, versus modeling the STRUCTURAL facts
+# (does this container have a securityContext at all? does it have
+# resource limits at all?) as real, gate-checkable typed properties.
+
+k8s:Workload a rdfs:Class ;
+  rdfs:comment "One Kubernetes Deployment + its paired Service, rendered as a single YAML file (mirrors this pack's own first real consumer, xaas/k8s/deployment.yaml, which already co-locates both)." .
+
+k8s:Container a rdfs:Class ;
+  rdfs:comment "One container within a k8s:Workload's pod template. A Workload with zero admitted Containers is a lawful, if useless, admission -- the template renders an empty containers: list rather than refusing; gate 010 is what actually requires at least one." .
+
+k8s:workloadName a rdf:Property ; rdfs:domain k8s:Workload ; rdfs:range xsd:string ; rdfs:comment "Deployment/Service metadata.name and the app: label value." .
+k8s:namespace a rdf:Property ; rdfs:domain k8s:Workload ; rdfs:range xsd:string .
+k8s:fileName a rdf:Property ; rdfs:domain k8s:Workload ; rdfs:range xsd:string ; rdfs:comment "Output path under k8s/, e.g. 'deployment.yaml'." .
+k8s:replicas a rdf:Property ; rdfs:domain k8s:Workload ; rdfs:range xsd:integer .
+k8s:serviceAccountName a rdf:Property ; rdfs:domain k8s:Workload ; rdfs:range xsd:string .
+k8s:automountServiceAccountToken a rdf:Property ; rdfs:domain k8s:Workload ; rdfs:range xsd:boolean .
+k8s:podSecurityContextBlock a rdf:Property ; rdfs:domain k8s:Workload ; rdfs:range xsd:string ; rdfs:comment "Raw YAML, reindented under spec.template.spec.securityContext:. Presence of this fact is exactly what gate 010 requires." .
+
+k8s:servicePort a rdf:Property ; rdfs:domain k8s:Workload ; rdfs:range xsd:integer ; rdfs:comment "If bound, a paired Service is rendered exposing this port." .
+k8s:serviceTargetPort a rdf:Property ; rdfs:domain k8s:Workload ; rdfs:range xsd:integer .
+k8s:serviceType a rdf:Property ; rdfs:domain k8s:Workload ; rdfs:range xsd:string ; rdfs:comment "Defaults to ClusterIP if unbound." .
+
+k8s:inWorkload a rdf:Property ; rdfs:domain k8s:Container ; rdfs:range k8s:Workload .
+k8s:containerName a rdf:Property ; rdfs:domain k8s:Container ; rdfs:range xsd:string .
+k8s:image a rdf:Property ; rdfs:domain k8s:Container ; rdfs:range xsd:string .
+k8s:imagePullPolicy a rdf:Property ; rdfs:domain k8s:Container ; rdfs:range xsd:string .
+k8s:containerPort a rdf:Property ; rdfs:domain k8s:Container ; rdfs:range xsd:integer .
+k8s:resourceRequestsBlock a rdf:Property ; rdfs:domain k8s:Container ; rdfs:range xsd:string ; rdfs:comment "Raw YAML under resources.requests:. Required by gate 010 (the real OOM/CPU-throttle risk documented empirically in xaas's own resource-quotas.yaml)." .
+k8s:resourceLimitsBlock a rdf:Property ; rdfs:domain k8s:Container ; rdfs:range xsd:string ; rdfs:comment "Raw YAML under resources.limits:. Required by gate 010." .
+k8s:envFromConfigMap a rdf:Property ; rdfs:domain k8s:Container ; rdfs:range xsd:string ; rdfs:comment "ConfigMap name; multiple facts allowed, rendered as one envFrom entry each." .
+k8s:envFromSecret a rdf:Property ; rdfs:domain k8s:Container ; rdfs:range xsd:string ; rdfs:comment "Secret name; multiple facts allowed." .
+k8s:readinessProbeBlock a rdf:Property ; rdfs:domain k8s:Container ; rdfs:range xsd:string ; rdfs:comment "Raw YAML under readinessProbe:." .
+k8s:livenessProbeBlock a rdf:Property ; rdfs:domain k8s:Container ; rdfs:range xsd:string ; rdfs:comment "Raw YAML under livenessProbe:." .
+k8s:containerSecurityContextBlock a rdf:Property ; rdfs:domain k8s:Container ; rdfs:range xsd:string ; rdfs:comment "Raw YAML under securityContext: (container-level). Presence checked by gate 010 alongside the pod-level fact." .
