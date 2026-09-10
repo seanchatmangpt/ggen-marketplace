@@ -1,7 +1,32 @@
 [pack]
 name = "ggen-verify-pack"
-version = "26.7.19"
+version = "26.7.20"
 description = """
+v26.7.20: removed four pack-shipped ver:RequiredCheck individuals
+(ver:req-build/req-test/req-clippy-reference/req-byte-identity) that
+hardcoded a Rust/cargo toolchain (`cargo build --workspace`, `cargo test
+--workspace`, `cargo clippy ...`) directly in this "generic" schema-only
+pack -- the same class of defect github-actions-pack v0.2.0 already fixed
+("all project-specific individuals removed, ontology is pure vocabulary
+now"). Found in a real non-Rust consumer: beam4pm (an Erlang/Elixir/Gleam
+BEAM project) wired this pack into its ggen.toml [packs] table and `ggen
+sync run` refused at gate 010_evidence_present.rq, because beam4pm's real
+check commands (rebar3 eunit, mix test) could never satisfy required-check
+names the pack itself had hardcoded to cargo. Gate 010's own SPARQL was
+already generic (`?req a ver:RequiredCheck` with no namespace/IRI
+constraint on the subject) -- a consumer could always admit its own
+required-check facts -- so the pack-shipped cargo individuals were pure
+noise/conflict against any non-Rust consumer, never load-bearing for the
+gate mechanism itself. qualification/consumer.ttl now supplies its own
+synthetic ver:RequiredCheck individuals (ver:q-req-*) so gate 010 stays
+exercised without the pack dictating a toolchain. No template or other
+gate referenced the removed individuals by IRI (verified: zero matches
+grepping req-build/req-test/req-clippy-reference/req-byte-identity outside
+ontology.ttl before this change). Consumers now author their own
+ver:RequiredCheck facts (any name, any ver:checkCommand, own namespace)
+against this pack's vocabulary; nothing else in the pack's contract
+changes.
+
 Self-hosted verification gates: makes `ggen sync run` refuse when external
 check evidence (build/test/clippy/byte-identity results, emitted as ver:
 facts by a consumer's verify script) is missing, red, or stale. Closes the
@@ -16,4 +41,6 @@ sync (e.g. `just verify-tcps` = emitter -> sync -> receipt verify). The
 freshness gate binds evidence to the latest ggenr:Sync receipt, so it
 requires [law] reflexive = true in the consumer; staleness detection lags
 one sync by construction (documented in gates/030_evidence_fresh.rq).
+Consumer authors its own ver:RequiredCheck policy individuals (own
+namespace, own ver:checkCommand) -- this pack ships zero of them (v26.7.20).
 """
