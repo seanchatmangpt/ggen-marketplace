@@ -38,8 +38,9 @@ its own.
 | SEC-CTR-001 | No privilege escalation | K8s Restricted PSS; NIST SP 800-190 SS4.4.1 | `k8s:containerSecurityContextBlock` (`allowPrivilegeEscalation: false`) | `containers[].securityContext.allowPrivilegeEscalation` | Read generated YAML | `privileged-container-KNOWN_GAP.ttl` (NOT enforced -- see gap note) | WORKLOAD_CONTROL | PARTIAL_ALIVE |
 | SEC-CTR-002 | Drop ALL Linux capabilities | K8s Restricted PSS; CIS Kubernetes Benchmark (workload section) | `k8s:containerSecurityContextBlock` (`capabilities.drop: ["ALL"]`) | `containers[].securityContext.capabilities.drop` | Read generated YAML | `privileged-container-KNOWN_GAP.ttl` | WORKLOAD_CONTROL | PARTIAL_ALIVE |
 | SEC-CTR-003 | `readOnlyRootFilesystem: true` where the workload supports it | K8s Restricted PSS; NIST SP 800-190 SS4.4.1 | `k8s:containerSecurityContextBlock` | `containers[].securityContext.readOnlyRootFilesystem` | Read generated YAML | -- | WORKLOAD_CONTROL | ALIVE (high-assurance-workload only) |
-| SEC-PRIV-001 | Refuse `privileged: true` / uncontrolled `allowPrivilegeEscalation` at generate-time | K8s Restricted PSS | none (raw-block escape hatch is opaque to SPARQL) | n/a | none | `privileged-container-KNOWN_GAP.ttl` | WORKLOAD_CONTROL | **BLOCKED** (candidate v0.2.0 typed field + gate) |
-| SEC-RES-001 | CPU/memory requests and limits (DoS/OOM boundary) | NIST SP 800-53 SC-6; K8s application security checklist | `k8s:resourceRequestsBlock`, `k8s:resourceLimitsBlock` | `containers[].resources.{requests,limits}` | gate 010 (presence, real) + read generated YAML (value) | `missing-resources.ttl` (REFUSED) | WORKLOAD_CONTROL | ALIVE |
+| SEC-PRIV-001 | Refuse `privileged: true` / uncontrolled `allowPrivilegeEscalation` at generate-time | K8s Restricted PSS | none (raw-block escape hatch is opaque to SPARQL) | n/a | none | `privileged-container-KNOWN_GAP.ttl` | WORKLOAD_CONTROL | **BLOCKED** (candidate v0.2.0 typed field + gate; live-verified against a real `kind` cluster with `enforce=restricted` -- the Deployment wrapper is admitted with only a warning, not a hard rejection, since PSA rejects at Pod-creation time, not at the Deployment object's own admission -- see "Live cluster verification" below) |
+| SEC-RES-001 | CPU/memory requests and limits (DoS/OOM boundary) | NIST SP 800-53 SC-6; K8s application security checklist | `k8s:resourceRequestsBlock`, `k8s:resourceLimitsBlock` | `containers[].resources.{requests,limits}` | gate 010 (presence, real) + read generated YAML (value) + live `kind` proof (below) | `missing-resources.ttl` (REFUSED) | WORKLOAD_CONTROL | ALIVE |
+| SEC-QUOTA-001 | Namespace `ResourceQuota` enforcing the aggregate DoS/OOM boundary this pack's per-container requests feed into | NIST SP 800-53 SC-6; K8s application security checklist | not modeled (not this pack's scope -- a namespace-level object) | n/a | Live `kind` proof only (below); no gate | n/a | NAMESPACE_CONTROL | INHERITED, but real: a bare Pod requesting `cpu: "2"` against a 1-CPU `ResourceQuota` was genuinely rejected (`Forbidden: exceeded quota`) in this session's live cluster -- confirming the WORKLOAD_CONTROL requests this pack generates are the correct input to a real, working NAMESPACE_CONTROL enforcement mechanism, even though this pack doesn't generate the quota object itself. |
 | SEC-AVAIL-001 | Multiple replicas, HTTPS readiness/liveness probes | NIST SP 800-53 CP/SC families (availability) | `k8s:replicas`, `k8s:readinessProbeBlock`, `k8s:livenessProbeBlock` | `spec.replicas`, `containers[].{readinessProbe,livenessProbe}` | Read generated YAML | -- | WORKLOAD_CONTROL | ALIVE |
 | SEC-SEC-001 | No literal secret material in the fact graph or generated YAML | NIST SP 800-53 SC-28; K8s application security checklist | `k8s:envFromSecret` (name-only reference) | `containers[].envFrom[].secretRef.name` | grep generated YAML for absence of literal secret values (real, cheap check) | -- | WORKLOAD_CONTROL | ALIVE |
 | SEC-IMG-001 | Immutable digest-pinned image, never `:latest` | NIST SP 800-190 SS3.4; SLSA provenance expectation | `k8s:image` | `containers[].image` | none (untyped string, no gate) | `mutable-image-tag-KNOWN_GAP.ttl` | WORKLOAD_CONTROL | **BLOCKED** (candidate v0.2.0 gate) |
@@ -58,3 +59,41 @@ built. `INHERITED` = correctly out of scope for a workload manifest;
 listed so a future engineer never has to rediscover the boundary from
 first principles (the explicit BFCC-E requirement this map exists to
 satisfy).
+
+## Live cluster verification (real `kind`, this session)
+
+A real `kind` cluster (`k8s-pack-live`) was created, a namespace labeled
+`pod-security.kubernetes.io/enforce=restricted`, and a `ResourceQuota`
+(`requests.cpu=1, requests.memory=1Gi`) applied, then every example and
+the `privileged-container-KNOWN_GAP`/`legitimate-exception` fixtures were
+rendered for real and `kubectl apply --dry-run=server`'d against it.
+Cluster deleted afterward; repo left clean (`git status --short` empty).
+
+| Check | Real result |
+|---|---|
+| `minimal-secure-workload`, `high-assurance-workload` | Both **admitted cleanly**, zero PodSecurity warnings, in a namespace with `restricted` enforced. |
+| `high-assurance-workload` at 3 replicas x 250m CPU request (750m total) against a 1-CPU quota | **Admitted** -- correctly within quota. |
+| A bare Pod requesting `cpu: "2"` against the same 1-CPU quota | **Rejected**: `Error from server (Forbidden): ... exceeded quota: demo-quota, requested: requests.cpu=2, used: requests.cpu=0, limited: requests.cpu=1`. ResourceQuota enforcement is real. |
+| `negative-controls/privileged-container-KNOWN_GAP` (`privileged: true`) applied as a **Deployment** in a namespace with PSA `enforce=restricted` | **Not rejected** -- `kubectl` printed the full PodSecurity violation list (`privileged`, `allowPrivilegeEscalation`, unrestricted capabilities, `runAsNonRoot`, missing `seccompProfile`) as a **warning only**, and still reported `deployment.apps/privileged-demo created (server dry run)`. |
+| Same fixture applied as a **bare Pod** instead of via a Deployment wrapper | Would be hard-rejected by PSA at admission (not independently re-run here, but this is Kubernetes' documented behavior and the mechanism the row below names). |
+
+**Important corrected finding, not assumed going in**: Kubernetes' Pod
+Security Admission controller validates pod *templates* inside workload
+resources (Deployment/ReplicaSet/StatefulSet/etc.) but, per upstream
+design, only **warns** at that object's own admission -- it cannot reject
+the Deployment itself, because the Deployment controller (not the
+apiserver request in front of you) is what actually creates the Pod
+object later, and *that* creation is where `enforce=restricted` would
+produce a real rejection. `kubectl apply --dry-run=server -f
+deployment.yaml` therefore is **not sufficient evidence** that a
+Deployment's pod spec would survive a live restricted namespace -- only a
+bare Pod apply, or watching the ReplicaSet's real Pod-creation events, is.
+This pack's generated artifact is always a Deployment (never a bare Pod),
+so `SEC-PRIV-001`'s live consequence is: the object-level `kubectl apply`
+this pack's own docs recommend for schema validation will **not** surface
+a live PSA rejection for a privileged container -- only a full live
+rollout (watching for the ReplicaSet's Pod to actually fail admission)
+would. `SEC-PRIV-001` remains `BLOCKED` (unfixed by this finding) and is
+updated to *additionally* flag this `kubectl apply --dry-run=server`
+limitation so a future engineer doesn't mistake a clean dry-run for a
+verified-safe privileged workload.
