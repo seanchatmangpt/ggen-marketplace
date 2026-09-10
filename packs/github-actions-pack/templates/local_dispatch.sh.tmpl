@@ -1,5 +1,7 @@
 ---
 to: "bin/ggen-actions-local"
+for_each: profiles
+skip_empty: true
 sparql:
   profiles: |
     PREFIX gha: <http://seanchatmangpt.github.io/packs/github-actions#>
@@ -17,11 +19,16 @@ sparql:
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROFILE="{{ profiles.0.profileName }}"
-EXPECTED_ACT_SHA="{{ profiles.0.exactActSha }}"
-EXPECTED_ACT_VERSION="{{ profiles.0.exactActVersion | default(value="") }}"
+# No gha:LocalExecutionProfile individual is admitted on a consumer with zero
+# such rows -- `skip_empty: true` above makes that a lawful zero-row skip
+# (no bin/ggen-actions-local emitted at all), not a template render crash.
+# The at-most-one-file shape is guaranteed by the query's own `LIMIT 1`, so
+# for_each never emits more than the single dispatcher this script assumes.
+PROFILE="{{ profileName }}"
+EXPECTED_ACT_SHA="{{ exactActSha }}"
+EXPECTED_ACT_VERSION="{{ exactActVersion | default(value="") }}"
 EXPECTED_GO_SERIES="go1.25"
-RECEIPT_ROOT="{{ profiles.0.receiptRoot }}"
+RECEIPT_ROOT="{{ receiptRoot }}"
 ARTIFACT_ROOT="${GGEN_ACTIONS_ARTIFACT_ROOT:-.ggen-v2/github-local/artifacts}"
 CACHE_ROOT="${GGEN_ACTIONS_CACHE_ROOT:-.ggen-v2/github-local/cache}"
 LOCAL_ACT_BIN="${GGEN_LOCAL_ACT_BIN:-.ggen-v2/github-local/bin/act}"
