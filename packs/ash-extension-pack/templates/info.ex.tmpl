@@ -1,0 +1,108 @@
+---
+to: "lib/{{ package_name }}/info.ex"
+for_each: "spec"
+sparql:
+  spec: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT DISTINCT ?package_name ?module_name
+           (SAMPLE(?legacy_adapter_module) AS ?legacy_adapter_module)
+           (SAMPLE(?legacy_adapter_function) AS ?legacy_adapter_function)
+    WHERE {
+      ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ; aex:moduleName ?module_name .
+      OPTIONAL { ?s aex:legacyAdapterModule ?legacy_adapter_module }
+      OPTIONAL { ?s aex:legacyAdapterFunction ?legacy_adapter_function }
+    } GROUP BY ?package_name ?module_name
+  sections: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?section_name WHERE { ?s a aex:DslSection ; aex:sectionName ?section_name . }
+    ORDER BY ?section_name
+  info_getters: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?getter_name ?getter_source_section WHERE {
+      ?g a aex:InfoGetter ; aex:getterOf ?s ; aex:getterName ?getter_name ;
+         aex:getterSourceSection ?getter_source_section .
+    } ORDER BY ?getter_name
+---
+{# Generated Info module -- mirrors ash_r2rml/lib/ash_r2rml/resource.ex's
+   AshR2RML.Resource.Info: the public, documented introspection API a consumer (or this
+   pack's own composition test) reads instead of poking Spark.Dsl.Extension internals. #}
+defmodule {{ module_name }}.Info do
+  @moduledoc """
+  Public introspection API for `{{ package_name }}`.
+  """
+{% for s in sections %}
+  @doc "Returns the raw `:{{ s.section_name }}` DSL entities declared on `resource`."
+  def {{ s.section_name }}(resource) do
+    Spark.Dsl.Extension.get_entities(resource, [:{{ s.section_name }}])
+  end
+{% endfor %}
+  @doc "Returns the transformer-normalized compiled state for `resource`, or `nil` if the extension is not present."
+  def compiled(resource) do
+    case compiled_result(resource) do
+      {:ok, compiled} -> compiled
+      {:error, _} -> nil
+    end
+  end
+
+  @doc """
+  Returns `{:ok, compiled}` or `{:error, :not_compiled}` for `resource`.
+{% if legacy_adapter_module and legacy_adapter_function %}
+  Rescues to `{{ legacy_adapter_module }}.{{ legacy_adapter_function }}/1` on any error,
+  mirroring ash_r2rml's Info.mapping_result/1 rescue-to-legacy-adapter idiom.
+{% endif %}
+  """
+  def compiled_result(resource) do
+    case Spark.Dsl.Extension.get_persisted(resource, :{{ package_name }}_compiled, nil) do
+      nil -> {:error, :not_compiled}
+      compiled -> {:ok, compiled}
+    end
+{% if legacy_adapter_module and legacy_adapter_function %}
+  rescue
+    _ -> {{ legacy_adapter_module }}.{{ legacy_adapter_function }}(resource)
+{% endif %}
+  end
+
+  @doc "Bang variant of `compiled_result/1` -- raises `ArgumentError` instead of returning `{:error, _}`."
+  def compiled!(resource) do
+    case compiled_result(resource) do
+      {:ok, compiled} -> compiled
+      {:error, reason} -> raise ArgumentError, "{{ module_name }}.Info.compiled!/1: #{inspect(reason)}"
+    end
+  end
+
+  @doc "Predicate: does `resource` carry compiled `{{ package_name }}` state?"
+  def compiled?(resource) do
+    match?({:ok, _}, compiled_result(resource))
+  end
+{% for g in info_getters %}
+  @doc "Returns the `:{{ g.getter_source_section }}`-derived `{{ g.getter_name }}`, or `nil` if `resource` has no compiled `{{ package_name }}` state."
+  def {{ g.getter_name }}(resource) do
+    case {{ g.getter_name }}_result(resource) do
+      {:ok, value} -> value
+      {:error, :not_found} -> nil
+    end
+  end
+
+  @doc "Returns `{:ok, {{ g.getter_name }}}` or `{:error, :not_found}` for `resource`'s `:{{ g.getter_source_section }}` section."
+  def {{ g.getter_name }}_result(resource) do
+    case compiled_result(resource) do
+      {:ok, %{ {{ g.getter_source_section }}: value} } -> {:ok, value}
+      {:ok, _compiled} -> {:error, :not_found}
+      {:error, _} = error -> error
+    end
+  end
+
+  @doc "Bang variant of `{{ g.getter_name }}_result/1` -- raises `ArgumentError` instead of returning `{:error, _}`."
+  def {{ g.getter_name }}!(resource) do
+    case {{ g.getter_name }}_result(resource) do
+      {:ok, value} -> value
+      {:error, reason} -> raise ArgumentError, "{{ module_name }}.Info.{{ g.getter_name }}!/1: #{inspect(reason)}"
+    end
+  end
+
+  @doc "Predicate: does `resource` carry a `{{ g.getter_name }}`?"
+  def {{ g.getter_name }}?(resource) do
+    match?({:ok, _}, {{ g.getter_name }}_result(resource))
+  end
+{% endfor %}
+end

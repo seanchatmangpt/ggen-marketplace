@@ -1,0 +1,52 @@
+---
+to: "lib/{{ package_name }}/reactor_pipeline.ex"
+for_each: "spec"
+sparql:
+  spec: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT DISTINCT ?package_name ?module_name ?workflow_reversible WHERE {
+      ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ; aex:moduleName ?module_name ;
+         aex:workflowReactor "true" ; aex:workflowReversible ?workflow_reversible .
+    }
+  steps: queries/reactor_steps.rq
+---
+{# Dynamic Reactor step-graph generation -- replaces ash-extension-core-pack's
+   reactor_pipeline.ex.tmpl's HARDCODED five-step body (compile_resources ->
+   verify_alignment/evaluate_differential -> attach_provenance -> apply_policy ->
+   render_r2rml_turtle, ash_r2rml's own fixed shape) with a spec-declared, arbitrary
+   step graph via aex:ReactorStep rows, per the ash_r2rml review finding (2026-09-09)
+   ranked highest manufacturing leverage of 5 confirmed gaps.
+
+   Same disclosed limitation as core-pack's own reactor_pipeline.ex.tmpl: this pack
+   version cannot yet find a confirmed CONSTRUCT/ASK-shaped `when:` file-existence
+   gate for the Rust ggen frontmatter contract, so this template's own sparql:spec
+   query filters aex:workflowReactor = "true" directly (a spec that doesn't opt in
+   simply produces zero spec rows and this file is not rendered for it via for_each,
+   which IS a real, working gate at the query level -- distinct from core-pack's
+   body-level `{% if %}` no-op-placeholder approach for the same underlying problem).
+
+   Middleware declaration (ash_r2rml review finding #2: custom
+   AshR2RML.Reactor.Middleware.TelemetryLogger + library Reactor.Middleware.Telemetry)
+   is NOT yet parameterized here -- this template hardcodes the library middleware
+   only, matching core-pack's own current reactor_pipeline.ex.tmpl. Named follow-up,
+   not silently dropped (see ontology.ttl's own follow-up list). #}
+defmodule {{ module_name }}.Reactor.Pipeline do
+  @moduledoc """
+  Orchestrates `{{ package_name }}`'s declared Reactor step graph, generated from
+  this spec's aex:ReactorStep rows (ordered by aex:stepOrder) rather than a fixed
+  built-in shape.
+  """
+  use Reactor
+
+  middlewares do
+    middleware Reactor.Middleware.Telemetry
+  end
+
+{% for step in steps %}  step :{{ step.step_name }}, {{ module_name }}.Reactor.Steps.{{ step.step_module }} do
+{% if step.wait_for_names %}    wait_for {% for w in step.wait_for_names | split(pat=",") %}:{{ w }}{% if not loop.last %}, {% endif %}{% endfor %}
+
+{% endif %}{% if step.max_retries %}    max_retries {{ step.max_retries }}
+{% endif %}  end
+
+{% endfor %}{% for step in steps %}{% if step.is_return == "true" %}  return :{{ step.step_name }}
+{% endif %}{% endfor %}end
