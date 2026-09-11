@@ -9,11 +9,20 @@
 #
 # This script is written defensively: any referenced ontology/gate/query/
 # template file that does not yet exist on disk prints a "MISSING: <path>"
-# line and is skipped rather than crashing the whole report. It is meant to
-# be runnable mid-construction (while sibling agents are still writing
-# ontology.ttl / templates/*.tmpl in the same shared worktree) and to produce
-# a partial-but-useful report in that case -- a partial run is not a final
-# verdict; that comes later in this workflow's integration phase.
+# line and is skipped rather than crashing the whole report.
+#
+# Context binding: each template's OWN frontmatter `sparql:` block names its
+# real query sources, and `for_each:` (when present) names which one drives
+# multi-row fan-out. This script runs those real queries per-template (via
+# the real GgenIgniter.Query.Oxigraph.run/2 engine) and builds the render
+# context via Mix.Tasks.GgenIgniter.Sync.build_bindings/2 -- the exact same
+# production binding function `mix ggen_igniter.sync` itself uses -- rather
+# than guessing a generic superset context unrelated to each template's own
+# declared query names. This is a real integration fix: an earlier version of
+# this script ran only the pack-level gates/queries and fed every template a
+# context that never matched what its frontmatter actually asked for, so
+# every template failed to render for a binding-mismatch reason unrelated to
+# TeraWasm/tera itself.
 
 pack_root = Path.expand(Path.join(__DIR__, ".."))
 
@@ -51,12 +60,16 @@ defmodule RenderCheck do
         {:missing, path}
 
       {:ok, query_string} ->
-        try do
-          rows = GgenIgniter.Query.Oxigraph.run(graph, query_string)
-          {:ok, rows}
-        rescue
-          e -> {:parse_error, Exception.format(:error, e, __STACKTRACE__)}
-        end
+        run_query_text(graph, query_string)
+    end
+  end
+
+  def run_query_text(graph, query_string) do
+    try do
+      rows = GgenIgniter.Query.Oxigraph.run(graph, query_string)
+      {:ok, rows}
+    rescue
+      e -> {:parse_error, Exception.format(:error, e, __STACKTRACE__)}
     end
   end
 
@@ -78,43 +91,6 @@ defmodule RenderCheck do
           end
 
         IO.puts("  #{label} (#{path}): #{count} row(s); sample: #{sample}")
-    end
-  end
-
-  @doc """
-  Reads a raw template file, splits real frontmatter via
-  GgenIgniter.Frontmatter.split_template/1, and renders the real body via
-  GgenIgniter.Render.TeraWasm.render/2 against `context`. Returns
-  {:missing, path} | {:frontmatter_error, reason} | {:ok, {frontmatter, rendered}}
-  | {:error, reason}.
-  """
-  def render_template_file(path, context, context_label) do
-    case read_file(path) do
-      {:missing, ^path} ->
-        {:missing, path}
-
-      {:ok, raw} ->
-        try do
-          {frontmatter, _mode, body} = GgenIgniter.Frontmatter.split_template(raw)
-
-          case GgenIgniter.Render.TeraWasm.render(body, context) do
-            {:ok, rendered} ->
-              IO.puts(
-                "  context used for #{Path.basename(path)}: #{context_label} (keys: #{inspect(Map.keys(context))})"
-              )
-
-              {:ok, {frontmatter, rendered}}
-
-            {:error, reason} ->
-              IO.puts(
-                "  context used for #{Path.basename(path)}: #{context_label} (keys: #{inspect(Map.keys(context))})"
-              )
-
-              {:error, reason}
-          end
-        rescue
-          e -> {:frontmatter_error, Exception.format(:error, e, __STACKTRACE__)}
-        end
     end
   end
 end
@@ -147,15 +123,16 @@ graph =
 IO.puts("")
 
 # ---------------------------------------------------------------------------
-# 3. Gates 010..060 and the two named queries.
+# 3. Gates 010..060 and the two named queries -- real filenames on disk,
+#    confirmed via `find packs/ash-extension-pack -type f`.
 # ---------------------------------------------------------------------------
 
 gate_files = [
   {"gate 010 (required_extension_contract)", Path.join([pack_root, "gates", "010_required_extension_contract.rq"])},
-  {"gate 020", Path.join([pack_root, "gates", "020_reactor_step_contract.rq"])},
-  {"gate 030", Path.join([pack_root, "gates", "030_receipted_action_contract.rq"])},
-  {"gate 040", Path.join([pack_root, "gates", "040_info_dsl_contract.rq"])},
-  {"gate 050", Path.join([pack_root, "gates", "050_persist_verify_contract.rq"])},
+  {"gate 020 (schema_field_contract)", Path.join([pack_root, "gates", "020_schema_field_contract.rq"])},
+  {"gate 030 (entity_identifier_contract)", Path.join([pack_root, "gates", "030_entity_identifier_contract.rq"])},
+  {"gate 040 (reactor_step_graph_contract)", Path.join([pack_root, "gates", "040_reactor_step_graph_contract.rq"])},
+  {"gate 050 (info_getter_quadruple_contract)", Path.join([pack_root, "gates", "050_info_getter_quadruple_contract.rq"])},
   {"gate 060 (installer_target_mode_contract)", Path.join([pack_root, "gates", "060_installer_target_mode_contract.rq"])}
 ]
 
@@ -189,54 +166,10 @@ gates_run = Enum.count(gate_results, fn {_l, _p, r} -> match?({:ok, _}, r) end)
 queries_run = Enum.count(query_results, fn {_l, _p, r} -> match?({:ok, _}, r) end)
 
 # ---------------------------------------------------------------------------
-# 4. Render each of the 8 templates via GgenIgniter.Render.TeraWasm.render/2.
-#
-# Best-effort context binding: each template's frontmatter names a query it
-# expects rows from (its `sparql:`/`for_each:` keys once frontmatter parses
-# for real), but since we may not yet know the pack's real frontmatter query
-# names with certainty this pass, we build a superset context map containing
-# every gate/query row-list under multiple plausible keys, plus first-row
-# convenience keys, so a template can bind via either `{{ row["key"] }}`-style
-# indexed access over a list or plain top-level variables. This is explicitly
-# a best-effort, disclosed guess -- see the final summary for an honest
-# statement of what this proves and does not prove.
+# 4. Render each of the 8 templates, using EACH TEMPLATE'S OWN frontmatter
+#    `sparql:`/`for_each:` block -- the real production binding path
+#    (Mix.Tasks.GgenIgniter.Sync.build_bindings/2), not a guessed context.
 # ---------------------------------------------------------------------------
-
-all_named_results = gate_results ++ query_results
-
-# rows_by_name: %{"required_extension_contract" => [row, ...], "reactor_steps" => [...], ...}
-rows_by_name =
-  Enum.reduce(all_named_results, %{}, fn {_label, path, result}, acc ->
-    case result do
-      {:ok, rows} ->
-        name = path |> Path.basename() |> String.replace_suffix(".rq", "")
-        # Also strip a leading "NNN_" gate-number prefix so both
-        # "010_required_extension_contract" and "required_extension_contract"
-        # resolve to the same context key.
-        bare_name = Regex.replace(~r/^\d+_/, name, "")
-        acc |> Map.put(name, rows) |> Map.put(bare_name, rows)
-
-      _ ->
-        acc
-    end
-  end)
-
-first_rows =
-  Enum.reduce(rows_by_name, %{}, fn {name, rows}, acc ->
-    case rows do
-      [first | _] -> Map.put(acc, name, first)
-      _ -> acc
-    end
-  end)
-
-base_context =
-  rows_by_name
-  |> Map.merge(first_rows, fn _k, list, _first -> list end)
-  |> Map.new(fn {k, v} -> {k, v} end)
-
-context_label =
-  "superset of all real gate/query rows (keys: #{inspect(Map.keys(rows_by_name))}), " <>
-    "first-row convenience keys merged in"
 
 template_files = [
   {"extension.ex.tmpl", Path.join([pack_root, "templates", "extension.ex.tmpl"])},
@@ -251,20 +184,111 @@ template_files = [
 
 IO.puts("-- templates: render --")
 
+render_template_file = fn path ->
+  case RenderCheck.read_file(path) do
+    {:missing, ^path} ->
+      {:missing, path}
+
+    {:ok, raw} ->
+      try do
+        {frontmatter, _mode, body} = GgenIgniter.Frontmatter.split_template(raw)
+
+        named_queries =
+          case frontmatter do
+            %GgenIgniter.Frontmatter{sparql: map} when is_map(map) and map_size(map) > 0 ->
+              Map.to_list(map)
+
+            _ ->
+              []
+          end
+
+        if named_queries == [] do
+          {:frontmatter_error, "no sparql: block found in frontmatter -- cannot bind real context"}
+        else
+          named_results =
+            Enum.map(named_queries, fn {name, query_text} ->
+              result = if graph, do: RenderCheck.run_query_text(graph, query_text), else: {:missing, "no ontology loaded"}
+
+              rows =
+                case result do
+                  {:ok, rows} -> rows
+                  {:parse_error, reason} -> {:query_error, name, reason}
+                  {:missing, reason} -> {:query_error, name, reason}
+                end
+
+              {name, rows}
+            end)
+
+          query_errors =
+            Enum.filter(named_results, fn {_name, rows} -> match?({:query_error, _, _}, rows) end)
+
+          if query_errors != [] do
+            {name, {:query_error, _n, reason}} = List.first(query_errors)
+            first_line = reason |> to_string() |> String.split("\n") |> List.first()
+            {:frontmatter_error, "named query \"#{name}\" failed: #{first_line}"}
+          else
+            for_each_name = Map.get(frontmatter, :for_each)
+
+            case for_each_name do
+              nil ->
+                bindings = Mix.Tasks.GgenIgniter.Sync.build_bindings(named_results)
+                context = Map.new(bindings)
+
+                case GgenIgniter.Render.TeraWasm.render(body, context) do
+                  {:ok, rendered} -> {:ok, {frontmatter, [rendered]}}
+                  {:error, reason} -> {:error, reason}
+                end
+
+              driver_name ->
+                driver_rows =
+                  case List.keyfind(named_results, driver_name, 0) do
+                    {^driver_name, rows} when is_list(rows) -> rows
+                    _ -> []
+                  end
+
+                if driver_rows == [] do
+                  {:error, "for_each driver query \"#{driver_name}\" produced 0 rows -- nothing to render"}
+                else
+                  results =
+                    Enum.map(driver_rows, fn row ->
+                      bindings = Mix.Tasks.GgenIgniter.Sync.build_bindings(named_results, row)
+                      context = Map.new(bindings)
+                      GgenIgniter.Render.TeraWasm.render(body, context)
+                    end)
+
+                  errors = Enum.filter(results, &match?({:error, _}, &1))
+
+                  if errors != [] do
+                    {:error, "for_each row render failed: #{inspect(List.first(errors))}"}
+                  else
+                    rendered_bodies = Enum.map(results, fn {:ok, r} -> r end)
+                    {:ok, {frontmatter, rendered_bodies}}
+                  end
+                end
+            end
+          end
+        end
+      rescue
+        e -> {:frontmatter_error, Exception.format(:error, e, __STACKTRACE__)}
+      end
+  end
+end
+
 render_results =
   Enum.map(template_files, fn {name, path} ->
-    result = RenderCheck.render_template_file(path, base_context, context_label)
+    result = render_template_file.(path)
 
     case result do
       {:missing, ^path} ->
         IO.puts("  #{name}: MISSING (#{path})")
 
       {:frontmatter_error, reason} ->
-        first_line = reason |> String.split("\n") |> List.first()
-        IO.puts("  #{name}: FRONTMATTER/SPLIT ERROR: #{first_line}")
+        first_line = reason |> to_string() |> String.split("\n") |> List.first()
+        IO.puts("  #{name}: FRONTMATTER/QUERY ERROR: #{first_line}")
 
-      {:ok, {_frontmatter, rendered}} ->
-        IO.puts("  #{name}: {:ok, #{byte_size(rendered)}} (rendered length)")
+      {:ok, {_frontmatter, rendered_bodies}} ->
+        total_bytes = Enum.reduce(rendered_bodies, 0, fn r, acc -> acc + byte_size(r) end)
+        IO.puts("  #{name}: {:ok, #{length(rendered_bodies)} row(s), #{total_bytes} total bytes}")
 
       {:error, reason} ->
         IO.puts("  #{name}: {:error, #{inspect(reason)}}")
@@ -276,11 +300,11 @@ render_results =
 IO.puts("")
 
 templates_rendered_ok =
-  Enum.count(render_results, fn {_n, _p, r} -> match?({:ok, {_fm, _rendered}}, r) end)
+  Enum.count(render_results, fn {_n, _p, r} -> match?({:ok, {_fm, _bodies}}, r) end)
 
 # ---------------------------------------------------------------------------
-# 5. Syntax check every successfully-rendered template; extra compile check
-#    for the four core Spark/Ash extension modules.
+# 5. Syntax check every successfully-rendered template body; extra compile
+#    check for the four core Spark/Ash extension modules.
 # ---------------------------------------------------------------------------
 
 IO.puts("-- templates: syntax check --")
@@ -288,13 +312,23 @@ IO.puts("-- templates: syntax check --")
 syntax_results =
   Enum.map(render_results, fn {name, _path, result} ->
     case result do
-      {:ok, {_fm, rendered}} ->
-        case Code.string_to_quoted(rendered) do
-          {:ok, _quoted} ->
-            IO.puts("  #{name}: :valid_syntax")
+      {:ok, {_fm, bodies}} ->
+        body_results =
+          Enum.map(bodies, fn body ->
+            case Code.string_to_quoted(body) do
+              {:ok, _quoted} -> :valid_syntax
+              {:error, reason} -> {:syntax_error, reason}
+            end
+          end)
+
+        bad = Enum.find(body_results, &match?({:syntax_error, _}, &1))
+
+        case bad do
+          nil ->
+            IO.puts("  #{name}: :valid_syntax (#{length(bodies)} row(s))")
             {name, :valid_syntax}
 
-          {:error, reason} ->
+          {:syntax_error, reason} ->
             IO.puts("  #{name}: SYNTAX ERROR: #{inspect(reason)}")
             {name, {:syntax_error, reason}}
         end
@@ -317,7 +351,7 @@ core_rendered_bodies =
     Enum.find_value(render_results, fn {n, _p, result} ->
       if n == name do
         case result do
-          {:ok, {_fm, rendered}} -> rendered
+          {:ok, {_fm, [body | _]}} -> body
           _ -> nil
         end
       end
@@ -385,10 +419,7 @@ disclosure =
       "This run produced a MIX of real {:ok, _} and real {:error, _} results above -- " <>
         "some templates' `{% if %}`/row-indexed-access constructs are CONFIRMED working " <>
         "against the real WASM tera renderer, others are REFUTED (see the real {:error, ...} " <>
-        "lines above for which template and why) for the specific best-effort context " <>
-        "shape this script guessed. This does not yet prove or disprove the construct " <>
-        "itself works -- it may be this script's context-binding guess, not the renderer, " <>
-        "that is wrong for the failing templates."
+        "lines above for which template and why)."
 
     templates_rendered_ok == 0 and length(template_files) > 0 ->
       "No template rendered successfully this run (see MISSING/error lines above), so " <>

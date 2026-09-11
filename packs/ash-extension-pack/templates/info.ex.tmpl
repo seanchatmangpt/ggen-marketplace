@@ -18,9 +18,10 @@ sparql:
     ORDER BY ?section_name
   info_getters: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?getter_name ?getter_source_section WHERE {
+    SELECT ?getter_name ?getter_source_section_name WHERE {
       ?g a aex:InfoGetter ; aex:getterOf ?s ; aex:getterName ?getter_name ;
          aex:getterSourceSection ?getter_source_section .
+      ?getter_source_section aex:sectionName ?getter_source_section_name .
     } ORDER BY ?getter_name
 ---
 {# Generated Info module -- mirrors ash_r2rml/lib/ash_r2rml/resource.ex's
@@ -75,7 +76,7 @@ defmodule {{ module_name }}.Info do
     match?({:ok, _}, compiled_result(resource))
   end
 {% for g in info_getters %}
-  @doc "Returns the `:{{ g.getter_source_section }}`-derived `{{ g.getter_name }}`, or `nil` if `resource` has no compiled `{{ package_name }}` state."
+  @doc "Returns the `:{{ g.getter_source_section_name }}`-derived `{{ g.getter_name }}`, or `nil` if `resource` has no compiled `{{ package_name }}` state."
   def {{ g.getter_name }}(resource) do
     case {{ g.getter_name }}_result(resource) do
       {:ok, value} -> value
@@ -83,10 +84,10 @@ defmodule {{ module_name }}.Info do
     end
   end
 
-  @doc "Returns `{:ok, {{ g.getter_name }}}` or `{:error, :not_found}` for `resource`'s `:{{ g.getter_source_section }}` section."
+  @doc "Returns `{:ok, {{ g.getter_name }}}` or `{:error, :not_found}` for `resource`'s `:{{ g.getter_source_section_name }}` section."
   def {{ g.getter_name }}_result(resource) do
     case compiled_result(resource) do
-      {:ok, %{ {{ g.getter_source_section }}: value} } -> {:ok, value}
+      {:ok, %{ {{ g.getter_source_section_name }}: value} } -> {:ok, value}
       {:ok, _compiled} -> {:error, :not_found}
       {:error, _} = error -> error
     end

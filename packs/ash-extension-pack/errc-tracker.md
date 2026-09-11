@@ -144,16 +144,73 @@ Builds `packs/ash-extension-pack/` as a new, standalone pack; the two source pac
   documents the required-property and closed-type-set checks but omits the
   one_of-value-existence rule the query body actually implements.
 
-### Verification status — honest, not fabricated
+### Verification status — REAL, FINAL result (integration pass, this session)
 
-This consolidation has **NOT** yet been verified via a real `ggen sync run` (the Rust
-binary is still blocked, per both source packs' [FM-PACK-001]/[FM-PACK-002] disclosure —
-`ggen 26.8.28` hardcodes `/workspace` for `[packs]` path resolution regardless of actual
-cwd; not fixed by this consolidation). Verification instead goes through a separate
-`ggen_igniter`-based script (`packs/ash-extension-pack/verify/render_check.exs`, run via
-`cd ~/ggen_igniter && mix run <path>`), which is **another agent's real, in-progress work
-this same session** — its results are not fabricated here because they do not yet exist
-from this agent's vantage point. `python3 scripts/marketplace.py validate` is expected to
-still fail admission at the time this file is written, since `templates/` has not yet
-been populated by that parallel agent — that failure is expected, not a defect in the
-files this cycle produced.
+This consolidation is **NOT** verified via a real `ggen sync run` (the Rust binary is
+still blocked, per both source packs' [FM-PACK-001]/[FM-PACK-002] disclosure — `ggen
+26.8.28` hardcodes `/workspace` for `[packs]` path resolution regardless of actual cwd;
+not fixed by this consolidation or this integration pass). Verification instead went
+through `python3 scripts/marketplace.py validate`/`catalog` (structural admission) plus
+`packs/ash-extension-pack/verify/render_check.exs` (real render+compile), run via `cd
+~/ggen_igniter && mix run <path>`. Both ran for real, to completion, in this session.
+
+**`marketplace.py validate`**: PASSED. `validated packs=300 manifests=300
+ontologies=451 templates=1807 native_gates=1464 verifier_gates=37 ...` — no `REFUSED:`
+lines.
+
+**`marketplace.py catalog`**: the `ash-extension-pack` entry reports `native_gates: 6`,
+`templates: 8`, `ontology_files: 1` — matches the real file tree exactly.
+
+**`render_check.exs`** (final, after integration fixes below): gates run ok 6/6, queries
+run ok 2/2, **templates rendered ok 7/8**, templates with valid syntax 7/8, four-module
+compile check (`extension.ex.tmpl` + `persist.ex.tmpl` + `verify.ex.tmpl` +
+`info.ex.tmpl` concatenated) **`:compiles`**.
+
+The one real, disclosed gap: `reactor_pipeline.ex.tmpl` renders 0 rows because **no
+fixture in `ontology.ttl` sets `aex:workflowReactor true`** (both `AuditTrailSpec` and
+`AshR2RMLSpec` set it `false`; `NotificationExtensionSpec` uses
+`aex:generatesReceiptedAction` instead). This template's `{% if %}`/row-indexed/
+multi-row TeraWasm constructs remain genuinely untested end-to-end pending a real
+`workflowReactor=true` fixture — not fabricated as a pass. A candidate fixture was
+drafted and reverted during this pass specifically because `templates/
+reactor_pipeline.ex.tmpl`'s own `steps:` frontmatter query has no per-spec scoping
+(`?step aex:stepOf ?spec` with no filter binding `?spec` to the current `for_each` row)
+— it silently worked with exactly one `workflowReactor=true`+`ReactorStep` fixture in
+existence, but a second such fixture would leak all specs' steps into every rendered
+row. That is a real, separate, disclosed architectural gap in the template (not this
+integration pass's script), left unfixed here rather than patched with an unverified
+guess at the intended per-row scoping mechanism.
+
+**Real integration defects found and fixed this pass** (all in the git history as a
+separate commit on top of the three parallel agents' work):
+
+1. `verify/render_check.exs` referenced four gate files by names that do not match what
+   was actually built (`020_reactor_step_contract.rq` vs the real
+   `020_schema_field_contract.rq`, etc.) — fixed to the real filenames confirmed via
+   `find`.
+2. `verify/render_check.exs`'s original context-binding strategy fed every template a
+   generic superset-guess context unrelated to that template's own frontmatter
+   `sparql:`/`for_each:` declarations, so all 8 templates failed to render for a
+   context-mismatch reason, not a real tera/TeraWasm defect. Rewritten to run each
+   template's own frontmatter queries and bind via the real production function
+   `Mix.Tasks.GgenIgniter.Sync.build_bindings/2`.
+3. `templates/reactor_pipeline.ex.tmpl`'s `steps:` and `templates/
+   receipted_action.ex.tmpl`'s `spec:` frontmatter values were bare file-path strings
+   (`queries/reactor_steps.rq`, `queries/receipted_action.rq`) — the real frontmatter
+   contract (`GgenIgniter.Frontmatter`, mirroring the Rust struct) requires inline query
+   TEXT for `sparql:` values, not a path reference. Fixed by inlining the real query
+   text from those `.rq` files verbatim.
+4. `templates/info.ex.tmpl`'s `info_getters` query selected the raw `aex:InfoGetter`'s
+   section IRI (`?getter_source_section`) and the template rendered that full URI
+   directly as an Elixir map key (`%{ http://...#Section: value }`) — a syntax error.
+   Fixed by joining to `aex:sectionName` in the query (`?getter_source_section_name`)
+   and using that atom-name value in the template body instead of the raw IRI.
+5. `gates/040_reactor_step_graph_contract.rq` and `gates/
+   060_installer_target_mode_contract.rq` filtered `aex:workflowReactor`/
+   `aex:generatesReceiptedAction`/`aex:stepIsReturn`/`aex:dualLevelFixture` against the
+   **string** literal `"true"`, but `ontology.ttl` stores these as **unquoted**
+   `xsd:boolean` literals — a real type mismatch. This produced a confirmed FALSE
+   POSITIVE on gate 040 (4 violation rows reported against `NotificationExtensionSpec`,
+   which in fact satisfies the contract) and silently made the `receipted_action`
+   query/template always return 0 rows. Fixed by removing the quotes in all five
+   filter sites so the comparison is boolean-to-boolean.
