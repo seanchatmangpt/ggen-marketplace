@@ -65,6 +65,13 @@ sparql:
       ?field aex:fieldName ?field_name ; aex:fieldOf ?entity .
       ?entity aex:entityStruct ?entity_struct .
     } ORDER BY ?one_of_order
+  nested_entities: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?parent_entity_struct ?nested_field_name ?nested_entity_name ?nested_entity_struct WHERE {
+      ?n a aex:NestedEntity ; aex:nestedOf ?parent ; aex:nestedFieldName ?nested_field_name ;
+         aex:entityName ?nested_entity_name ; aex:entityStruct ?nested_entity_struct .
+      ?parent aex:entityStruct ?parent_entity_struct .
+    }
 ---
 {# Generated Spark.Dsl.Extension -- mirrors ash_r2rml/lib/ash_r2rml/resource.ex shape:
    struct modules + sections + entities (with positional args/identifier) + schema, wired to
@@ -99,10 +106,47 @@ defmodule {{ module_name }} do
     ]
   end
 {% endfor %}
+{% for nested in nested_entities %}
+  defmodule {{ nested.nested_entity_struct }} do
+    @moduledoc false
+{% set nested_args_here = entity_args | filter(attribute="entity_struct", value=nested.nested_entity_struct) %}
+{% if nested_args_here | length > 0 %}
+    @enforce_keys [{% for a in nested_args_here %}:{{ a.arg_name }}{% if not loop.last %}, {% endif %}{% endfor %}]
+{% endif %}
+{% set nested_fields_here = fields | filter(attribute="entity_struct", value=nested.nested_entity_struct) %}
+    defstruct [
+{% for f in nested_fields_here %}{% if not f.field_default %}      :{{ f.field_name }},
+{% endif %}{% endfor %}      :__identifier__,
+      :__spark_metadata__{% set nested_defaulted = nested_fields_here | filter(attribute="field_default") %}{% if nested_defaulted | length > 0 %},
+{% for f in nested_defaulted %}      {{ f.field_name }}: {{ f.field_default }}{% if not loop.last %},
+{% endif %}{% endfor %}
+{% endif %}
+    ]
+  end
+{% endfor %}
+
+{# Nested entities (ash_ai @tool_argument-under-@tool pattern, dsl.ex:228-268) must be
+   declared BEFORE any parent entity that references them via `entities: [...]`, since
+   Elixir module-attribute references are evaluation-order-dependent. #}
+{% for nested in nested_entities %}
+{% set nested_fields_here = fields | filter(attribute="entity_struct", value=nested.nested_entity_struct) %}
+{% set nested_args_here = entity_args | filter(attribute="entity_struct", value=nested.nested_entity_struct) %}
+  @{{ nested.nested_entity_name }} %Spark.Dsl.Entity{
+    name: :{{ nested.nested_entity_name }},
+    target: {{ nested.nested_entity_struct }},
+{% if nested_args_here | length > 0 %}
+    args: [{% for a in nested_args_here %}:{{ a.arg_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+{% endif %}
+    schema: [
+{% for f in nested_fields_here %}      {{ f.field_name }}: [type: {% if f.field_type == "one_of" %}{:one_of, [{% set ov = one_of_values | filter(attribute="entity_struct", value=nested.nested_entity_struct) | filter(attribute="field_name", value=f.field_name) %}{% for v in ov %}:{{ v.one_of_name }}{% if not loop.last %}, {% endif %}{% endfor %}]}{% elif f.field_type == "or_string_list_string" %}{:or, [:string, {:list, :string}]}{% elif f.field_type == "list_atom" %}{:list, :atom}{% elif f.field_type == "list_string" %}{:list, :string}{% else %}:{{ f.field_type }}{% endif %}, required: {{ f.field_required }}{% if f.field_default %}, default: {{ f.field_default }}{% endif %}, doc: "{{ f.field_doc }}"],
+{% endfor %}    ]
+  }
+{% endfor %}
 
 {% for entity in entities %}
 {% set entity_fields_here = fields | filter(attribute="entity_struct", value=entity.entity_struct) %}
 {% set entity_args_here = entity_args | filter(attribute="entity_struct", value=entity.entity_struct) %}
+{% set nested_here = nested_entities | filter(attribute="parent_entity_struct", value=entity.entity_struct) %}
   @{{ entity.entity_name }} %Spark.Dsl.Entity{
     name: :{{ entity.entity_name }},
     target: {{ entity.entity_struct }},
@@ -111,6 +155,9 @@ defmodule {{ module_name }} do
 {% endif %}
 {% if entity.entity_identifier %}
     identifier: :{{ entity.entity_identifier }},
+{% endif %}
+{% if nested_here | length > 0 %}
+    entities: [{% for n in nested_here %}{{ n.nested_field_name }}: [@{{ n.nested_entity_name }}]{% if not loop.last %}, {% endif %}{% endfor %}],
 {% endif %}
     schema: [
 {% for f in entity_fields_here %}      {{ f.field_name }}: [type: {% if f.field_type == "one_of" %}{:one_of, [{% set ov = one_of_values | filter(attribute="entity_struct", value=entity.entity_struct) | filter(attribute="field_name", value=f.field_name) %}{% for v in ov %}:{{ v.one_of_name }}{% if not loop.last %}, {% endif %}{% endfor %}]}{% elif f.field_type == "or_string_list_string" %}{:or, [:string, {:list, :string}]}{% elif f.field_type == "list_atom" %}{:list, :atom}{% elif f.field_type == "list_string" %}{:list, :string}{% else %}:{{ f.field_type }}{% endif %}, required: {{ f.field_required }}{% if f.field_default %}, default: {{ f.field_default }}{% endif %}, doc: "{{ f.field_doc }}"],

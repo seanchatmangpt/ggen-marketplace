@@ -1,0 +1,49 @@
+---
+to: "artifacts/autonomic-crown.json"
+sparql:
+  receipt: |
+    PREFIX crown: <https://seanchatmangpt.github.io/ontology/gym-autonomic-crown#>
+    SELECT ?boundary ?base ?count ?repository ?schema WHERE {
+      ?r a crown:CrownReceipt ;
+         crown:authorityBoundary ?boundary ;
+         crown:baseSha ?base ;
+         crown:changedCount ?count ;
+         crown:repository ?repository ;
+         crown:schema ?schema .
+    }
+  edges: |
+    PREFIX crown: <https://seanchatmangpt.github.io/ontology/gym-autonomic-crown#>
+    SELECT ?changed ?current ?default_ref ?latest ?name ?path ?url WHERE {
+      ?e a crown:SubmoduleEdge ;
+         crown:changed ?changed ;
+         crown:currentSha ?current ;
+         crown:defaultRef ?default_ref ;
+         crown:latestSha ?latest ;
+         crown:edgeName ?name ;
+         crown:edgePath ?path ;
+         crown:remoteUrl ?url .
+    }
+    ORDER BY ?path
+---
+{%- for r in receipt -%}
+{
+  "authority_boundary": "{{ r.boundary }}",
+  "base_sha": "{{ r.base }}",
+  "changed_count": {{ r.count }},
+  "repository": "{{ r.repository }}",
+  "schema": "{{ r.schema }}",
+  "submodules": [
+{%- for e in edges %}
+    {
+      "changed": {{ e.changed }},
+      "current": "{{ e.current }}",
+      "default_ref": "{{ e.default_ref }}",
+      "latest": "{{ e.latest }}",
+      "name": "{{ e.name }}",
+      "path": "{{ e.path }}",
+      "url": "{{ e.url }}"
+    }{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ]
+}
+{%- endfor %}

@@ -4,9 +4,14 @@ for_each: "spec"
 sparql:
   spec: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT DISTINCT ?package_name ?module_name WHERE {
+    SELECT DISTINCT ?package_name ?module_name
+           (SAMPLE(?legacy_adapter_module) AS ?legacy_adapter_module)
+           (SAMPLE(?legacy_adapter_function) AS ?legacy_adapter_function)
+    WHERE {
       ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ; aex:moduleName ?module_name .
-    }
+      OPTIONAL { ?s aex:legacyAdapterModule ?legacy_adapter_module }
+      OPTIONAL { ?s aex:legacyAdapterFunction ?legacy_adapter_function }
+    } GROUP BY ?package_name ?module_name
   sections: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
     SELECT ?section_name WHERE { ?s a aex:DslSection ; aex:sectionName ?section_name . }
@@ -27,6 +32,40 @@ defmodule {{ module_name }}.Info do
 {% endfor %}
   @doc "Returns the transformer-normalized compiled state for `resource`, or `nil` if the extension is not present."
   def compiled(resource) do
-    Spark.Dsl.Extension.get_persisted(resource, :{{ package_name }}_compiled)
+    case compiled_result(resource) do
+      {:ok, compiled} -> compiled
+      {:error, _} -> nil
+    end
+  end
+
+  @doc """
+  Returns `{:ok, compiled}` or `{:error, :not_compiled}` for `resource`.
+{% if legacy_adapter_module and legacy_adapter_function %}
+  Rescues to `{{ legacy_adapter_module }}.{{ legacy_adapter_function }}/1` on any error,
+  mirroring ash_r2rml's Info.mapping_result/1 rescue-to-legacy-adapter idiom.
+{% endif %}
+  """
+  def compiled_result(resource) do
+    case Spark.Dsl.Extension.get_persisted(resource, :{{ package_name }}_compiled, nil) do
+      nil -> {:error, :not_compiled}
+      compiled -> {:ok, compiled}
+    end
+{% if legacy_adapter_module and legacy_adapter_function %}
+  rescue
+    _ -> {{ legacy_adapter_module }}.{{ legacy_adapter_function }}(resource)
+{% endif %}
+  end
+
+  @doc "Bang variant of `compiled_result/1` -- raises `ArgumentError` instead of returning `{:error, _}`."
+  def compiled!(resource) do
+    case compiled_result(resource) do
+      {:ok, compiled} -> compiled
+      {:error, reason} -> raise ArgumentError, "{{ module_name }}.Info.compiled!/1: #{inspect(reason)}"
+    end
+  end
+
+  @doc "Predicate: does `resource` carry compiled `{{ package_name }}` state?"
+  def compiled?(resource) do
+    match?({:ok, _}, compiled_result(resource))
   end
 end

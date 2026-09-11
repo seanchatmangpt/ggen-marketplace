@@ -1,0 +1,116 @@
+# castle-changelog-release-pack ontology — PUBLIC-ONTOLOGY-FIRST (no
+# private namespace for the shared modeling vocabulary), matching the
+# doctrine already established in packs/dry-run-publish-pack/ontology.ttl
+# and packs/dogfood-lifecycle-pack/ontology.ttl.
+#
+# SCHEMA-ONLY PACK (same contract as packs/github-actions-pack and
+# dspy-pack before it): this file carries ZERO rel:Release / rel:ChangeEntry
+# individuals. A consumer project (e.g. castle) authors its own per-release
+# facts in its own repo's instance-data .ttl, wired through its own
+# ggen.toml, and unions them against this ontology. The pack itself never
+# bakes in one project's release history.
+#
+# Why one small `rel:` term-namespace exists at all, rather than being pure
+# SKOS/DCMI: neither SKOS nor DCMI models "a change belongs to exactly one
+# of {added, changed, deprecated, removed, fixed, security}" as a typed,
+# closed relation between a release and its entries -- that is this
+# pipeline's own process shape (Keep a Changelog's six-category taxonomy),
+# the same gap dry-run-publish-pack's gate-phase SKOS scheme and
+# dogfood-lifecycle-pack's own lifecycle terms fill without a public
+# vocabulary to reuse. `rel:Release` and `rel:ChangeEntry` are the only two
+# classes minted; every other concern (dates, human-readable descriptions,
+# the category value itself) is carried by dcterms/skos.
+#
+# Public vocabularies used:
+#   dcterms: dcterms:description (change entry text), dcterms:hasVersion
+#            (the release's own SemVer string, since dcterms:hasVersion's
+#            defined range is exactly "a related resource... a version"),
+#            dcterms:date (release date).
+#   skos:    rel:category range is skos:Concept, populated by six fixed
+#            skos:Concept individuals in a closed skos:ConceptScheme below
+#            (added/changed/deprecated/removed/fixed/security) -- Keep a
+#            Changelog's own six categories, carried as SKOS concepts
+#            exactly as dry-run-publish-pack carries its gate-phase taxonomy
+#            and dogfood-lifecycle-pack carries its own lifecycle stages,
+#            rather than as an rdfs:Class enum this pack would have to
+#            invent from nothing.
+#
+# The category scheme is CLOSED: templates/CHANGELOG.md.tmpl and any gate a
+# consumer adds should treat rel:catAdded/rel:catChanged/rel:catDeprecated/
+# rel:catRemoved/rel:catFixed/rel:catSecurity as the exhaustive set: a
+# rel:ChangeEntry's rel:category MUST be one of these six concepts, never a
+# consumer-minted seventh.
+
+@prefix rel:     <http://seanchatmangpt.github.io/packs/changelog-release#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+
+#################################################################
+# Layer 1 — Release
+#################################################################
+
+rel:Release a rdfs:Class ;
+    rdfs:label "One published (or Unreleased) version entry in a Keep-a-Changelog-style CHANGELOG.md. A CONSUMER project declares rel:Release individuals in its own instance-data .ttl; this pack declares none." .
+
+rel:version a rdf:Property ; rdfs:domain rel:Release ; rdfs:range xsd:string ;
+    rdfs:subPropertyOf dcterms:hasVersion ;
+    rdfs:label "the release's own SemVer string, e.g. \"26.8.16\", or the literal string \"Unreleased\" for the in-progress section Keep a Changelog reserves at the top of the file." .
+
+rel:date a rdf:Property ; rdfs:domain rel:Release ; rdfs:range xsd:date ;
+    rdfs:subPropertyOf dcterms:date ;
+    rdfs:label "release date, ISO 8601 (YYYY-MM-DD), per Keep a Changelog convention. Absent (or unbound) for the Unreleased section." .
+
+rel:yanked a rdf:Property ; rdfs:domain rel:Release ; rdfs:range xsd:boolean ;
+    rdfs:label "true if this release was yanked/pulled after publication; renders a [YANKED] marker next to the version heading, per Keep a Changelog." .
+
+#################################################################
+# Layer 2 — ChangeEntry
+#################################################################
+
+rel:ChangeEntry a rdfs:Class ;
+    rdfs:label "One bullet under one category, under one rel:Release. A CONSUMER project declares rel:ChangeEntry individuals in its own instance-data .ttl; this pack declares none." .
+
+rel:inRelease a rdf:Property ; rdfs:domain rel:ChangeEntry ; rdfs:range rel:Release ;
+    rdfs:label "the rel:Release this entry belongs to." .
+
+rel:category a rdf:Property ; rdfs:domain rel:ChangeEntry ; rdfs:range skos:Concept ;
+    rdfs:label "which of the six closed Keep-a-Changelog categories this entry belongs to; MUST be one of rel:catAdded/rel:catChanged/rel:catDeprecated/rel:catRemoved/rel:catFixed/rel:catSecurity." .
+
+rel:entryOrder a rdf:Property ; rdfs:domain rel:ChangeEntry ; rdfs:range xsd:integer ;
+    rdfs:label "stable ordering key among entries sharing the same rel:inRelease and rel:category, lowest first. Two entries in different categories are never compared by this property -- category grouping order is fixed by the scheme below, not by this value." .
+
+rel:description a rdf:Property ; rdfs:domain rel:ChangeEntry ;
+    rdfs:subPropertyOf dcterms:description ;
+    rdfs:label "the entry's rendered bullet text, one sentence, imperative or past tense per Keep a Changelog style (\"Added X\", not \"X was added\")." .
+
+#################################################################
+# Layer 3 — the closed six-category SKOS scheme
+#################################################################
+
+rel:changeCategoryScheme
+    a skos:ConceptScheme ;
+    rdfs:label "Keep a Changelog's six change categories"@en ;
+    skos:notation "CHANGELOG-CATEGORIES" ;
+    dcterms:description "The closed set of categories a rel:ChangeEntry's rel:category may take, per https://keepachangelog.com/ -- Added, Changed, Deprecated, Removed, Fixed, Security, in that fixed render order."@en .
+
+rel:catAdded a skos:Concept ; skos:inScheme rel:changeCategoryScheme ;
+    skos:notation "Added" ; skos:prefLabel "Added"@en ;
+    dcterms:description "for new features."@en .
+rel:catChanged a skos:Concept ; skos:inScheme rel:changeCategoryScheme ;
+    skos:notation "Changed" ; skos:prefLabel "Changed"@en ;
+    dcterms:description "for changes in existing functionality."@en .
+rel:catDeprecated a skos:Concept ; skos:inScheme rel:changeCategoryScheme ;
+    skos:notation "Deprecated" ; skos:prefLabel "Deprecated"@en ;
+    dcterms:description "for soon-to-be-removed features."@en .
+rel:catRemoved a skos:Concept ; skos:inScheme rel:changeCategoryScheme ;
+    skos:notation "Removed" ; skos:prefLabel "Removed"@en ;
+    dcterms:description "for now-removed features."@en .
+rel:catFixed a skos:Concept ; skos:inScheme rel:changeCategoryScheme ;
+    skos:notation "Fixed" ; skos:prefLabel "Fixed"@en ;
+    dcterms:description "for any bug fixes."@en .
+rel:catSecurity a skos:Concept ; skos:inScheme rel:changeCategoryScheme ;
+    skos:notation "Security" ; skos:prefLabel "Security"@en ;
+    dcterms:description "in case of vulnerabilities."@en .

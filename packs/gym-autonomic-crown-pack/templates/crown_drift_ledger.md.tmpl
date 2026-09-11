@@ -1,0 +1,41 @@
+---
+to: "artifacts/crown-drift-ledger.md"
+sparql:
+  receipt: |
+    PREFIX crown: <https://seanchatmangpt.github.io/ontology/gym-autonomic-crown#>
+    SELECT ?base ?count ?repository WHERE {
+      ?r a crown:CrownReceipt ; crown:baseSha ?base ; crown:changedCount ?count ; crown:repository ?repository .
+    }
+  drifted: |
+    PREFIX crown: <https://seanchatmangpt.github.io/ontology/gym-autonomic-crown#>
+    SELECT ?path ?current ?latest ?default_ref WHERE {
+      ?e a crown:SubmoduleEdge ; crown:driftState crown:Drifted ;
+         crown:edgePath ?path ; crown:currentSha ?current ; crown:latestSha ?latest ; crown:defaultRef ?default_ref .
+    } ORDER BY ?path
+  converged: |
+    PREFIX crown: <https://seanchatmangpt.github.io/ontology/gym-autonomic-crown#>
+    SELECT ?path ?current ?default_ref WHERE {
+      ?e a crown:SubmoduleEdge ; crown:driftState crown:Converged ;
+         crown:edgePath ?path ; crown:currentSha ?current ; crown:defaultRef ?default_ref .
+    } ORDER BY ?path
+---
+# Crown Drift Ledger
+{% for r in receipt %}
+Repository: `{{ r.repository }}`
+Superproject base: `{{ r.base }}`
+Drifted edges: **{{ r.count }}**
+{% endfor %}
+Authority boundary: `gitlinks+lock-only` — this ledger observes; it does not actuate.
+
+## Drifted
+
+| path | gitlink | remote head | default ref |
+| --- | --- | --- | --- |
+{% for d in drifted %}| `{{ d.path }}` | `{{ d.current }}` | `{{ d.latest }}` | `{{ d.default_ref }}` |
+{% endfor %}
+## Converged
+
+| path | sha | default ref |
+| --- | --- | --- |
+{% for c in converged %}| `{{ c.path }}` | `{{ c.current }}` | `{{ c.default_ref }}` |
+{% endfor %}

@@ -1,0 +1,79 @@
+---
+# Minimal "tag a release when Cargo.toml's [package].version changes" job.
+#
+# Composed with packs/github-actions-pack's gha: vocabulary, not re-minted
+# here: this pack has no ggen.toml of its own (semantic packs in this
+# marketplace never do -- ggen.toml is a consumer-side generation contract,
+# per this repo's own CLAUDE.md), so the composition happens in the
+# CONSUMER's ggen.toml (e.g. castle's), which unions both this pack's
+# ontology and github-actions-pack's ontology and authors ONE
+# gha:Workflow individual (fileName "release.yml") carrying:
+#   gha:trigger gha:EventPush ; gha:onBlock "  push:\n    branches: [main]\n    paths: [\"Cargo.toml\"]" ;
+#   gha:permissionCeiling "contents: write" ;
+# plus one gha:Job/gha:Step chain implementing the three steps documented
+# below. That composition renders through github-actions-pack's own
+# templates/workflow.yml.tmpl -- this pack does not re-render workflow YAML
+# from gha: facts a second time.
+#
+# This template instead ships the STANDALONE, directly-usable version of
+# that same job (no gha: facts required), for a consumer that wants
+# tag-on-version-change without first wiring github-actions-pack. A
+# consumer who does compose github-actions-pack should prefer that path and
+# skip installing this file, to avoid two workflow files doing the same
+# job.
+to: ".github/workflows/release.yml"
+---
+{% raw %}name: release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Cargo.toml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tag-on-version-change:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: detect Cargo.toml version change
+        id: version
+        run: |
+          set -euo pipefail
+          CURRENT="$(git show HEAD:Cargo.toml | grep -m1 '^version' | sed -E 's/version *= *"([^"]+)"/\1/')"
+          if git rev-parse HEAD~1 >/dev/null 2>&1 && git cat-file -e HEAD~1:Cargo.toml 2>/dev/null; then
+            PREVIOUS="$(git show HEAD~1:Cargo.toml | grep -m1 '^version' | sed -E 's/version *= *"([^"]+)"/\1/')"
+          else
+            PREVIOUS=""
+          fi
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          if [ "$CURRENT" != "$PREVIOUS" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: tag and create GitHub release
+        if: steps.version.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ steps.version.outputs.current }}
+        run: |
+          set -euo pipefail
+          git tag "$TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --generate-notes
+{% endraw %}

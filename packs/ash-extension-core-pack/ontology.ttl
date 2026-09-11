@@ -85,6 +85,53 @@ aex:compositionOf     a rdf:Property ; rdfs:domain aex:CompositionTarget ; rdfs:
 aex:compositionTarget a rdf:Property ; rdfs:domain aex:CompositionTarget ; rdfs:comment "closed: \"ash_graphql\" | \"ash_json_api\"" .
 
 #################################################################
+# v26.9.9 additions -- sourced from real, currently-read source, not invented shape.
+# Research citations: /Users/sac/xaas/deps/ash_ai (lib/ash_ai/transformers/resource_tools.ex,
+# lib/ash_ai/dsl.ex), /Users/sac/ash_r2rml (lib/ash_r2rml/resource.ex:188-194 after?/1),
+# /Users/sac/xaas (lib/xaas/library.ex:8, lib/xaas/library/book.ex:36 dual-level stacking).
+# Deliberately NOT added here: a "Spark.Igniter.add_extension + AST-aware idempotent
+# insertion" installer capability -- confirmed by direct read that ash_r2rml's own
+# installer (lib/mix/tasks/ash_r2rml.install.ex) does not use Spark.Igniter at all and
+# has no AST/zipper detection; no real exemplar of that pattern was found in either
+# source repo, so it is not modeled rather than fabricated. See errc-tracker.md Cycle 3.
+#################################################################
+
+aex:contextNormalize a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "boolean, default false -- opt in to a generated resource/domain context-normalization transformer step, the ash_ai AshAi.Transformers.ResourceTools pattern (lib/ash_ai/transformers/resource_tools.ex:13-55,125-127): detect resource-vs-domain via `Module.get_attribute(module, :spark_is) == Ash.Resource`, fill in the target-context field on resource-local (implicit) declarations, raise Spark.Error.DslError if that field is explicitly supplied at the resource level, raise Spark.Error.DslError if it is missing at the domain level. Requires aex:contextTargetEntity and aex:contextTargetField." .
+aex:contextTargetEntity a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "entity name (atom, no leading colon) whose instances carry the context-resolved field -- ash_ai's is \"tool\" (AshAi.Tool). Only meaningful when aex:contextNormalize is true." .
+aex:contextTargetField a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "field name (atom, no leading colon) on aex:contextTargetEntity that is positionally optional (Spark `{:optional, :field}` in that entity's :args) and gets filled in / validated by the normalization transformer -- ash_ai's is \"resource\" (AshAi.Tool.resource, dsl.ex:264 `args: [:name, {:optional, :resource}, :action]`). Only meaningful when aex:contextNormalize is true." .
+
+aex:afterTransformer a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "0+ rows -- a real Ash core transformer module name (e.g. \"Ash.Resource.Transformers.CachePrimaryKey\") this extension's Persist transformer must declare `after?/1 do: true` for, verbatim ash_r2rml/lib/ash_r2rml/resource.ex:188-194's five after?/1 clauses (CachePrimaryKey, DefaultPrimaryKey, SetRelationshipInformation, BelongsToAttribute, BelongsToSourceAttribute). Row order carries no meaning (each becomes its own independent after?/1 clause, `def after?(_), do: false` is the catch-all). Absence means Persist emits no after?/1 override at all (relies on Spark.Dsl.Transformer's own default of false for every module, same as ash_r2rml's implicit lack of a before?/1 override -- that repo has none, so this pack does not model before?/1 either)." .
+
+aex:normalizeModule a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "optional -- module whose function (aex:normalizeFunction) the Persist transformer pipes the compiled map through before persisting, mirroring ash_r2rml's `AshR2RML.Mapping.normalize()` pipe (resource.ex:241) before `Transformer.persist(dsl, :ash_r2rml_public_mapping, mapping)` (resource.ex:243). Absent means no normalize pipe (current pack behavior, unchanged)." .
+aex:normalizeFunction a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "function name (atom, no colon) on aex:normalizeModule, arity 1. Only meaningful when aex:normalizeModule is set." .
+aex:provenanceSource a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "optional atom text (no colon), e.g. \"ash_first\" -- when set, the compiled map gets a `metadata: %{source: :<value>}` field, mirroring ash_r2rml's metadata sub-map (resource.ex:197-249, `source: :ash_first`)." .
+
+aex:validateDelegateModule a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "optional -- when set (with aex:validateDelegateFunction), the generated Verify module's compiled-present branch delegates business validation to `Module.function(compiled)` instead of the per-aex:Verifier `with`-chain, mirroring ash_r2rml's exact 2-branch shape (resource.ex:492-511): nil-check stays inline, a separate module's `validate/1` does the real check, `:ok -> :ok`, `{:error, refusals} -> Spark.Error.DslError.exception(message: Enum.map_join(refusals, \"; \", &\"#{&1.code}: #{&1.detail}\"))`. Absent means the existing per-aex:Verifier stub chain is used (unchanged)." .
+aex:validateDelegateFunction a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "function name (atom, no colon) on aex:validateDelegateModule, arity 1, returning :ok | {:error, [%{code: _, detail: _}]}. Only meaningful when aex:validateDelegateModule is set." .
+
+aex:legacyAdapterModule a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "optional -- when set (with aex:legacyAdapterFunction), the generated Info module's result-tuple getter rescues to `Module.function(resource)` on any error, mirroring ash_r2rml's Info.mapping_result/1 (resource.ex:527-534, `rescue _ -> AshR2RML.Resource.LegacyAdapter.convert(resource)`). Absent means no rescue clause (a plain {:error, ...} on absence, unchanged)." .
+aex:legacyAdapterFunction a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "function name (atom, no colon) on aex:legacyAdapterModule, arity 1. Only meaningful when aex:legacyAdapterModule is set." .
+
+aex:NestedEntity a rdfs:Class ;
+    rdfs:label "One Spark.Dsl.Entity nested inside another entity's `entities:` field (ash_ai: @tool_argument nested under @tool via `entities: [arguments: [@tool_argument]]`, dsl.ex:228-268, target AshAi.Tool.Argument). Reuses aex:entityName/aex:entityStruct/aex:entityIdentifier and the existing aex:EntityArg (via aex:argOf)/aex:EntitySchemaField (via aex:fieldOf) vocabulary exactly like a top-level aex:DslEntity -- only the parent linkage differs." .
+aex:nestedOf       a rdf:Property ; rdfs:domain aex:NestedEntity ; rdfs:range aex:DslEntity ; rdfs:comment "the parent entity this is declared under." .
+aex:nestedFieldName a rdf:Property ; rdfs:domain aex:NestedEntity ; rdfs:comment "field name (atom, no colon) on the parent's `entities: [...]` keyword list AND the field on the parent struct holding the nested list, e.g. \"arguments\" for ash_ai's `entities: [arguments: [@tool_argument]]` / AshAi.Tool.arguments." .
+
+aex:dualLevelFixture a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "boolean, default false -- generate composition_test fixtures at BOTH a resource-level and a domain-level module, each stacking this extension alongside the spec's aex:CompositionTarget extensions, instead of a single bare-fixture compile check. Real exemplar: xaas's Xaas.Library domain (lib/xaas/library.ex:8: extensions: [AshJsonApi.Domain, AshGraphql.Domain, AshAdmin.Domain, AshAi]) and Xaas.Library.Book resource (lib/xaas/library/book.ex:36: extensions: [AshJsonApi.Resource, AshGraphql.Resource, AshAdmin.Resource, AshAi]) -- same extension family co-resident with 2-3 other extensions at both levels in one real package, proving actual multi-extension compatibility rather than isolated single-extension compilation." .
+
+#################################################################
 # Worked instance: AuditTrail fixture (the acceptance-gate round-trip for this pack)
 #################################################################
 

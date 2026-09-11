@@ -1,0 +1,12 @@
+# MESSAGE: a ctrl:ProductionReference points at a ctrl:ScopedComponent whose declaredScope is DEV_ONLY or TEST_ONLY -- a production build/projection must not carry an unresolved reference to a dev/test-only component; guard the reference (feature-flag it out of the prod projection) or move the component to PRODUCTION scope before this reference may stand
+PREFIX ctrl: <http://seanchatmangpt.github.io/packs/control-plane-invariants#>
+SELECT DISTINCT ?componentName ?declaredScope ?referencingProjection WHERE {
+  ?r a ctrl:ProductionReference ;
+     ctrl:referencedComponent ?comp .
+  OPTIONAL { ?r ctrl:referencingProjection ?referencingProjection }
+  ?comp a ctrl:ScopedComponent ;
+        ctrl:componentName ?componentName ;
+        ctrl:declaredScope ?declaredScope .
+  FILTER (?declaredScope = "DEV_ONLY" || ?declaredScope = "TEST_ONLY")
+}
+ORDER BY ?componentName

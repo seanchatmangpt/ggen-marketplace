@@ -1,0 +1,44 @@
+@prefix k8s: <http://seanchatmangpt.github.io/packs/kubernetes#> .
+@prefix ex:  <https://example.com/playground/legitimate-exception#> .
+
+# A legitimate secure-default EXCEPTION, not a violation: a network
+# diagnostics sidecar that genuinely needs NET_RAW (e.g. for ICMP) --
+# demonstrating the DfCM-required pattern of "secure default + explicit
+# typed exception + rationale + compensating control" rather than an
+# insecure default OR an impossible configuration that mechanically
+# drops every capability regardless of real workload need.
+#
+# Rationale: this container runs `ping`/`traceroute` for on-demand
+# connectivity diagnostics inside a locked-down namespace; NET_RAW is the
+# minimum additional capability beyond Restricted-profile's baseline
+# (drop ALL, add back only what's proven necessary -- CIS Kubernetes
+# Benchmark's "minimize added capabilities" control, not "never add any").
+# Compensating control: still allowPrivilegeEscalation: false, still
+# non-root, still no other capability added.
+#
+# Verify:
+#   ggen sync run --dry-run
+# Expected: ADMITTED by gate 010 (all required facts present); a future
+# typed-capabilities gate (SEC-PRIV-001's eventual fix) should admit this
+# specific NET_RAW exception while still refusing an unexplained
+# `privileged: true` or unrestricted capability add.
+
+ex:diagWorkload a k8s:Workload ;
+  k8s:workloadName "net-diag-sidecar" ;
+  k8s:fileName "net-diag-sidecar.yaml" ;
+  k8s:podSecurityContextBlock """runAsNonRoot: true
+seccompProfile:
+  type: RuntimeDefault""" .
+
+ex:diagContainer a k8s:Container ;
+  k8s:inWorkload ex:diagWorkload ;
+  k8s:containerName "net-diag" ;
+  k8s:image "example/net-diag@sha256:1111111111111111111111111111111111111111111111111111111111111a" ;
+  k8s:resourceRequestsBlock """cpu: 25m
+memory: 32Mi""" ;
+  k8s:resourceLimitsBlock """cpu: 100m
+memory: 64Mi""" ;
+  k8s:containerSecurityContextBlock """allowPrivilegeEscalation: false
+capabilities:
+  drop: ["ALL"]
+  add: ["NET_RAW"]""" .

@@ -6,7 +6,7 @@ The marketplace has two distinct acceptance layers.
 
 ## Runtime identity
 
-The canonical qualification rail uses **ggen v26.8.8** installed by `scripts/install-ggen.sh`. The release archive is selected by OS/architecture and verified against an admitted SHA-256 digest before extraction.
+The canonical qualification rail uses the ggen version pinned in `marketplace.toml`'s `[ggen].version` (currently **v26.8.11**), installed by `scripts/install-ggen.sh`. The release archive is selected by OS/architecture and verified against an admitted SHA-256 digest before extraction.
 
 Supported installer targets are Linux x86_64, Linux aarch64, macOS arm64, and macOS x86_64. Unsupported platforms refuse rather than selecting an unverified binary.
 

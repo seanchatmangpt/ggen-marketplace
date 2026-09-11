@@ -1,0 +1,41 @@
+[pack]
+name = "ggen-graph-wasm-pack"
+version = "0.1.0"
+description = """
+Manufactures a real, wasm32-buildable Rust crate scaffold implementing a `QueryEngine`
+trait with two implementations: `OxigraphEngine` (native-only, feature-gated,
+`#[cfg(not(target_arch = "wasm32"))]`, wraps `ggen-graph`'s existing in-memory
+`oxigraph::store::Store::new()` SPARQL/SHACL call shape) and `RemoteEngine` (wasm32-safe,
+delegates SPARQL query execution over HTTP to an already-running external endpoint via
+`reqwest`'s wasm `fetch` backend -- no embedded triplestore, mirroring `~/dev/ggen_igniter`'s
+`--engine qlever` precedent of holding a parsed graph in-process while delegating query
+*execution* externally).
+
+Motivation: `ggen`'s own Cargo workspace (`/Users/sac/ggen`, v26.8.24) has zero WASM
+scaffolding today, and its `ggen-graph`/`ggen-engine`/`ggen-marketplace` crates depend on
+`oxigraph 0.5.9` unconditionally -- mostly via in-memory `Store::new()` (SPARQL
+syntax-check, SHACL validation, RDF parse/serialize), with a minority of genuinely
+non-portable on-disk `Store::open(path)` usage (`ggen-marketplace`'s registry
+persistence) kept explicitly out of this pack's scope. No existing ggen-marketplace pack
+manufactures a generic, parametrized "Rust crate targeting wasm32 with a pluggable
+query-engine boundary" -- `tcps-wasm-pack` and the `wasm4pm-*` packs are product-specific
+(their templates echo one giant pre-written literal string stored in `ontology.ttl`
+verbatim, not a reusable parametrized shape). This pack fills that gap.
+
+construct_only scaffold, same discipline as `ggen-igniter-bootstrap-pack` (which
+manufactured `ggen_igniter`'s own module shells): the Cargo manifest and trait/impl
+signatures are real and compile; the actual HTTP request-building and
+response-row-parsing bodies inside `RemoteEngine` (which depend on the caller's chosen
+remote endpoint's exact result shape) are honest `todo!("...")` stubs -- never faked as
+done. `OxigraphEngine`'s body is NOT stubbed -- it's a real, working delegation to the
+same `oxigraph::store::Store::new()` + `SparqlEvaluator` call shape `ggen-graph`'s
+`src/dialect.rs`/`src/shacl.rs` already use today, since that logic already exists and
+this pack's job is to wrap it behind the trait, not reinvent it.
+
+Explicitly out of scope for this pack version (named here so they're visible next
+manufacturing edges, not silently dropped): `ggen-engine`'s full sync pipeline,
+`ggen-marketplace`'s on-disk `Store::open` registry persistence, and the
+`ggen-cli`/`ggen-lsp`/`ggen-mcp` crates (`tokio "full"`, `reqwest` native-mode, `notify`
+all pull in non-wasm32-portable deps at the crate level -- a first WASM slice targets
+only the query-engine boundary, not the whole CLI).
+"""

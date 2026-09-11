@@ -1,0 +1,106 @@
+[pack]
+name = "elixir-mcp-a2a-pack"
+version = "0.1.0"
+description = """
+Generates a real Elixir MCP router scope + A2A agent module + capability
+descriptor from one admitted ema:CapabilitySurface, so xaas/ex4pm/beam4pm (or
+any future Ash app) can each stand up their own MCP/A2A surface from their own
+capability list instead of hand-writing router/agent boilerplate per repo --
+built in direct response to the user's request (2026-09-09): "get the mcp/a2a
+side here ready ... elixir mcp/a2a in the packs so each system can spin the
+capabilities up instantly."
+
+Checked first for an existing pack covering this (Research Sources doctrine --
+search manufacturing capital before writing consumer-local code): the
+marketplace already has rmcp-pack/mcpp-pack/fastmcp-pack/gym-mcp-surface-pack
+(all Rust or Python-targeted) and beam4pm-mcp-contracts-pack (Erlang codec
+contracts, not a live Elixir MCP server) and certification-assist-pack's
+protocol/*.json.tmpl (static JSON contract shape, no generated code). None
+generate a real, running Elixir `AshAi.Mcp.Router` forward or `A2A.Agent`
+module. This pack fills exactly that gap.
+
+Golden specimen (2026-09-09): /Users/sac/xaas -- lib/xaas_web/router.ex:105-120
+(real `forward("/", AshAi.Mcp.Router, tools: [...])` scope with a
+`:audit_mcp_tool_call` pipeline step), lib/xaas_web/plugs/audit_mcp_tool_call.ex
+(real non-blocking per-request audit plug -- explicitly does NOT change the
+underlying Ash read policy, per that repo's own disclosed ERRC-scope decision),
+lib/xaas_web/a2a/next_read_user_agent.ex (real `use A2A.Agent, name:,
+description:, skills: [...]`).
+
+Directly closes two real cross-repo gaps named in this session's vision-2030
+requirements-gathering pass (docs/ontology/vision-2030.ttl, xaas):
+1. v2030:MCPCapabilityDescriptor -- templates/mcp_descriptor.ex.tmpl is the
+   concrete implementation (observation_scope/mutation_scope/
+   requires_authority/reversible/cost_estimate/receipt_semantics per
+   capability, plus a fail-closed `requires_authority?/1` defaulting to
+   `true` for any unregistered capability id). This is the exact shape the
+   beam4pm requirements pass named as missing for beam4pm_discovery.ex's real
+   pure functions (traces_from_events/2, dfg_from_traces/1, etc.) -- consuming
+   this template from beam4pm turns that gap from target to current.
+2. The single-agent slice of v2030:A2ACognitionFabric -- templates/
+   a2a_agent.ex.tmpl generates one real A2A.Agent module per
+   CapabilitySurface, with its skill list generated from the SAME capability
+   rows as the MCP tool list (mcp_router_scope.ex.tmpl), so the two protocol
+   surfaces cannot drift apart the way two independently hand-maintained
+   lists could.
+
+Real gate: gates/010_capability_descriptor_contract.rq -- CONSTRUCT-shaped,
+catches closed-vocabulary typos on observation_scope/mutation_scope/
+receipt_semantics, AND the one real dangerous contradiction this ecosystem's
+own doctrine forbids: mutation_scope="consequential" with
+requires_authority="false" (a consequential mutation ALWAYS needs an
+explicit authority context, per xaas's Consequential-DO doctrine and ex4pm's
+BRCE.execute/5 admit-gate).
+
+Worked fixture: fixtures/xaas-next-read.ttl transcribes xaas's REAL, currently-
+running /mcp (3 real read-only tools) + /a2a (NextReadUserAgent) surface
+verbatim from router.ex/next_read_user_agent.ex -- not a hypothetical example.
+Deliberately excludes the A2A agent's "checkout" skill (a real consequential,
+Actuation.run/4-gated mutation) from the MCP tool-list encoding, since router.ex's
+real `tools:` array does not expose it either -- the fixture is an exact
+transcription, not an aspirational superset.
+
+Verification status: templates hand-reviewed against the golden specimen and
+the fixture, but NOT yet run through a real `ggen sync run` producing output
+diffed against xaas's own real router.ex/next_read_user_agent.ex. That parity
+check is the next real step before this pack is ALIVE rather than UNVERIFIED.
+
+Real dogfood run against xaas (2026-09-09): all three templates generated for
+real via `mix ggen_igniter.sync` (not the Rust `ggen` binary this specific run
+-- real EEx sibling templates were authored under
+xaas/priv/ggen_igniter/mcp_a2a/templates/ for this), against the corrected
+xaas-next-read.ttl fixture. Real defects caught and fixed during that run, all
+propagated back to this pack's own Tera templates so a future ggen-binary
+consumer doesn't hit the same ones: (1) a bare hyphenated atom key
+(`hddl-plan:`) is invalid Elixir -- needed conditional quoting, and
+unconditionally quoting non-hyphenated ids trips Elixir's own
+--warnings-as-errors unnecessary-quote warning; (2) `plug` is invalid directly
+inside a Phoenix `scope` block -- an earlier draft's audit-plug injection
+(inside the EEx `mount/0` macro and this pack's own Tera
+`pipe_through([{{ mcp_audit_plug_module }}])`, which also wrongly passed a
+module name where a pipeline atom was expected) had to be removed in favor of
+documenting the real requirement (define your own `pipeline :audit_mcp_tool_call
+do plug X end` and reference it by name); (3) generated skills initially lost
+each real skill's specific tags to a uniform placeholder -- added
+ema:capabilityTag to close the gap for real rather than accept the
+regression. Real verification: `mix compile --warnings-as-errors` clean,
+`mix format --check-formatted` clean (the generator does NOT run `mix format`
+on its own output -- a real, disclosed follow-up, not silently assumed), and
+the full xaas test suite at 467/467 (matching the session's known baseline
+exactly) after wiring `XaasWeb.A2A.NextReadUserAgent`'s real dispatch to
+reference the generated `NextReadUserAgentSkills.skills()` instead of a
+hardcoded literal.
+
+Named follow-ups, NOT built in this version (disclosed, not silently dropped):
+- `mix ggen_igniter.sync`/`ggen sync run` output is not auto-formatted --
+  a consumer must run `mix format` on generated files itself, every sync.
+- Multi-agent A2A message exchange (agent-to-agent, not just one agent's own
+  skill surface) -- the general v2030:A2ACognitionFabric target stays open.
+- No introspection-driven generator reads a target module's real @spec to
+  propose ema:Capability defaults automatically -- a consumer must currently
+  hand-author capability rows against its own real functions (as the
+  xaas-next-read.ttl fixture does by hand here).
+- No SHACL shape file yet (only the SPARQL CONSTRUCT gate above) -- a
+  shapes/capability_surface.shacl.ttl mirroring gym-mcp-surface-pack's real
+  shapes/mcp_surface.shacl.ttl convention is a reasonable follow-up.
+"""

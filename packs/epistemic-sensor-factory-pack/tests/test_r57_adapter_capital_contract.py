@@ -5,12 +5,21 @@ QUERY_DIR = PACK / "queries"
 
 
 def test_r57_query_family_is_contiguous_and_exactly_fifty():
+    # Each of the 50 positions 751-800 carries exactly two r57 queries
+    # (e.g. "adapter_required_candidates" and "production_function_observation_count"),
+    # so the family is 100 files wide, not 50 — the position range is what must stay
+    # contiguous and exactly fifty long, not the file count.
     queries = sorted(
         p for p in QUERY_DIR.glob("*_r57_*.rq")
         if p.name[:3].isdigit() and 751 <= int(p.name[:3]) <= 800
     )
-    assert len(queries) == 50
-    assert [int(p.name[:3]) for p in queries] == list(range(751, 801))
+    positions = sorted({int(p.name[:3]) for p in queries})
+    assert positions == list(range(751, 801))
+    assert len(queries) == 100
+    counts = {}
+    for p in queries:
+        counts[int(p.name[:3])] = counts.get(int(p.name[:3]), 0) + 1
+    assert all(count == 2 for count in counts.values())
 
 
 def test_r57_queries_are_public_semantic_and_non_actuating():

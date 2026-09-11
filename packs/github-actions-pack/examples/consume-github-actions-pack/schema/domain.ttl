@@ -1,0 +1,42 @@
+@prefix gha: <http://seanchatmangpt.github.io/packs/github-actions#> .
+@prefix ex: <https://ggen.io/marketplace/examples/consume-github-actions-pack#> .
+
+# Real consumer individuals for github-actions-pack (the pack itself ships zero individuals by
+# design -- see packs/github-actions-pack/pack.toml's v0.2.0 note -- every consumer, including
+# this in-repo example, supplies its own facts against the shared vocabulary).
+#
+# This is the reusable composite Action other repos `uses:` to run `ggen sync run` inside the
+# real, pinned ggen-ecosystem container (ggen binary + marketplace packs bundled) instead of
+# downloading a release binary. Consumer usage:
+#
+#   - uses: seanchatmangpt/ggen-marketplace/packs/github-actions-pack/examples/consume-github-actions-pack/.github/actions/use-ggen-ecosystem@<pinned-sha>
+#     with:
+#       image_tag: v26.8.28
+#       working_directory: .
+ex:useGgenEcosystem
+    a gha:CompositeAction ;
+    gha:actionDirName "use-ggen-ecosystem" ;
+    gha:actionPurpose "Run ggen sync run inside the pinned ggen-ecosystem container (ggen + marketplace packs, no binary download)" ;
+    gha:actionInput "image_tag: Tag of ghcr.io/seanchatmangpt/ggen-ecosystem to run" ;
+    gha:actionInputDefault "image_tag:v26.8.28" ;
+    gha:actionInput "working_directory: Repository-relative directory containing the consumer's ggen.toml" ;
+    gha:actionInputDefault "working_directory:." ;
+    gha:actionInput "extra_args: Extra flags appended to ggen sync run (e.g. --dry-run)" ;
+    gha:actionInputDefault "extra_args:" ;
+    gha:actionOutput "exit_code: Exit code of ggen sync run inside the container" .
+
+ex:runInContainer
+    a gha:Step ;
+    gha:inJob ex:useGgenEcosystem ; gha:stepOrder 1 ;
+    gha:stepName "ggen sync run inside ghcr.io/seanchatmangpt/ggen-ecosystem" ;
+    gha:stepId "run" ;
+    gha:runCommand """set +e
+docker run --rm \\
+  -v "${{ github.workspace }}:/workspace" \\
+  -w "/workspace/${{ inputs.working_directory }}" \\
+  "ghcr.io/seanchatmangpt/ggen-ecosystem:${{ inputs.image_tag }}" \\
+  ggen sync run ${{ inputs.extra_args }}
+code=$?
+set -e
+echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+exit $code""" .

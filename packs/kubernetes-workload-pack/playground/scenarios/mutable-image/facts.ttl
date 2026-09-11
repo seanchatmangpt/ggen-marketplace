@@ -1,0 +1,31 @@
+@prefix k8s: <http://seanchatmangpt.github.io/packs/kubernetes#> .
+@prefix ex:  <https://example.com/negative-controls/mutable-image-tag#> .
+
+# KNOWN GAP, not a verified refusal. k8s:image is an untyped xsd:string
+# with no gate checking its value shape, so a floating `:latest` tag
+# (violating the NIST SP 800-190 / SLSA immutable-artifact expectation
+# documented in ../control-mapping/control-map.md's SEC-IMG-001 row) is
+# admitted unchanged today.
+#
+# Candidate fix (v0.2.0+, not yet built): a gate refusing k8s:image
+# values ending in `:latest` or lacking a `@sha256:` digest suffix for
+# any k8s:Workload declaring the (also not-yet-modeled) high-assurance
+# security profile.
+#
+# Verify (documents the gap, does not disprove it):
+#   ggen sync run --dry-run
+# Expected today: ADMITTED (the gap).
+
+ex:mutableImageWorkload a k8s:Workload ;
+  k8s:workloadName "mutable-image-demo" ;
+  k8s:fileName "mutable-image-demo.yaml" ;
+  k8s:podSecurityContextBlock """runAsNonRoot: true""" .
+
+ex:mutableImageContainer a k8s:Container ;
+  k8s:inWorkload ex:mutableImageWorkload ;
+  k8s:containerName "mutable-image-demo" ;
+  k8s:image "example/app:latest" ;
+  k8s:resourceRequestsBlock """cpu: 100m
+memory: 128Mi""" ;
+  k8s:resourceLimitsBlock """cpu: 250m
+memory: 256Mi""" .

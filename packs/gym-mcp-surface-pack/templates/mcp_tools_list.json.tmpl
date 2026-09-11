@@ -1,0 +1,72 @@
+---
+to: "mcp/tools_list.json"
+shape:
+  - shapes/mcp_surface.shacl.ttl
+sparql:
+  srv: |
+    PREFIX dct: <http://purl.org/dc/terms/>
+    SELECT ?ns ?title ?version
+    WHERE {
+      ?s a <urn:gymmcp:McpServer> ;
+         dct:identifier ?ns ;
+         dct:title ?title ;
+         dct:hasVersion ?version .
+    }
+    ORDER BY ?ns
+  ops: |
+    PREFIX dct: <http://purl.org/dc/terms/>
+    PREFIX sosa: <http://www.w3.org/ns/sosa/>
+    SELECT ?id ?description ?consequence_class ?admission
+    WHERE {
+      ?cap a sosa:Procedure ;
+           dct:title ?id ;
+           dct:description ?description ;
+           dct:type ?class .
+      OPTIONAL { ?cap <urn:gymmcp:requiresAdmission> ?ra }
+      BIND(IF(CONTAINS(STR(?class), "consequence:do"), "Do", "Read") AS ?consequence_class)
+      BIND(IF(BOUND(?ra) && ?ra = true, "true", "false") AS ?admission)
+    }
+    ORDER BY ?id
+  params: |
+    PREFIX dct: <http://purl.org/dc/terms/>
+    PREFIX sosa: <http://www.w3.org/ns/sosa/>
+    SELECT ?op ?name ?json_type ?required
+    WHERE {
+      ?cap a sosa:Procedure ; dct:title ?op ; <urn:gymmcp:hasParameter> ?p .
+      ?p dct:identifier ?name ; dct:type ?json_type .
+      OPTIONAL { ?p <urn:gymmcp:required> ?rq }
+      BIND(IF(BOUND(?rq) && ?rq = true, "true", "false") AS ?required)
+    }
+    ORDER BY ?op ?name
+---
+{% for s in srv -%}
+{
+  "_generated_by": "ggen / gym-mcp-surface-pack",
+  "_authority": "intents only; Do tools require GymAct/BRCE admission before execution",
+  "serverInfo": { "name": "{{ s.title }}", "version": "{{ s.version }}" },
+  "tools": [
+{%- for row in ops %}
+    {
+      "name": "{{ s.ns }}.{{ row.id }}",
+      "description": "{{ row.description }}",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+{%- set myparams = params | filter(attribute="op", value=row.id) %}
+{%- set required = myparams | filter(attribute="required", value="true") %}
+        "properties": {
+{%- for p in myparams %}
+          "{{ p.name }}": { "type": "{{ p.json_type }}" }{% if not loop.last %},{% endif %}
+{%- endfor %}
+        },
+        "required": [{% for p in required %}"{{ p.name }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+      },
+      "_meta": {
+        "consequenceClass": "{{ row.consequence_class }}",
+        "requiresAdmission": {{ row.admission }}
+      }
+    }{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ]
+}
+{% endfor %}

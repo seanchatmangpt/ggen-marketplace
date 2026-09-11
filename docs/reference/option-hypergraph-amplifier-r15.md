@@ -1,0 +1,3 @@
+# R15 option-hypergraph reference
+
+The extension defines `gp:Capability`, `gp:Composition`, `gp:ExecutableCandidate`, `gp:QualificationSurface`, `gp:MarketplaceSupport`, `gp:MissingPrimitive`, `gp:FrontierMember`, and `gp:Hyperedge`. Candidate evidence may bind capabilities, public ontologies, marketplace packs, repositories, qualification surfaces, missing primitives, reversibility, expected reuse, capability-space delta, authority/rollback cost, information gain, semantic-commit potential, standing, currentness, receipts, dominance, and actuation state. The 24 `r15-hyper-*` queries are executable inspection/falsifier courts over that vocabulary.

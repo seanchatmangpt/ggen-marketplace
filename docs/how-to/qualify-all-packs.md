@@ -12,7 +12,7 @@ python3 scripts/qualify_packs.py --report /tmp/ggen-marketplace-qualification.js
 python3 -m json.tool /tmp/ggen-marketplace-qualification.json >/dev/null
 ```
 
-The installer downloads ggen v26.8.8 for the current supported platform and refuses if the release-asset SHA-256 differs from the pinned digest.
+The installer downloads the ggen version pinned in `marketplace.toml`'s `[ggen].version` (currently v26.8.11) for the current supported platform and refuses if the release-asset SHA-256 differs from the pinned digest.
 
 `qualify_packs.py` discovers the complete admitted pack set from the same local marketplace calculus used by `marketplace.py`. It does not accept a hand-maintained pack list or pack-name exemptions.
 

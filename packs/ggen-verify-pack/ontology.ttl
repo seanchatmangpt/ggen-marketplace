@@ -74,26 +74,28 @@ ver:producer-binary a ver:Producer ;
     rdfs:comment "Double-cold-build reproducibility producer for the ggen binary." .
 
 # --- Required checks (policy) ----------------------------------------------
-
-ver:req-build a ver:RequiredCheck ;
-    ver:name "build" ;
-    ver:checkCommand "cargo build --workspace" ;
-    rdfs:comment "cargo build --workspace on the generated tree must have been run and recorded." .
-
-ver:req-test a ver:RequiredCheck ;
-    ver:name "test-workspace" ;
-    ver:checkCommand "cargo test --workspace" ;
-    rdfs:comment "cargo test --workspace on the generated tree must have been run and recorded." .
-
-ver:req-clippy-reference a ver:RequiredCheck ;
-    ver:name "clippy-reference-gate" ;
-    ver:checkCommand "cargo clippy --workspace --all-targets -- -D clippy::correctness -D clippy::suspicious -D clippy::perf" ;
-    rdfs:comment "clippy under the reference's own real CI gate (-D clippy::correctness -D clippy::suspicious -D clippy::perf) must have been run and recorded." .
-
-ver:req-byte-identity a ver:RequiredCheck ;
-    ver:name "byte-identity" ;
-    ver:checkCommand "bash scripts/checks/byte-identity.sh" ;
-    rdfs:comment "The sha256 byte-identity sweep of generated files against the pack's source-manifest/reference set must have been run and recorded. The sweep itself is consumer-specific, so ver:checkCommand delegates to a consumer-provided hook script (scripts/checks/byte-identity.sh) that runs the real sweep and exits nonzero on any non-allowlisted divergence. examples/tcps-generated implements the equivalent sweep inline in its own scripts/verify.sh." .
+#
+# This pack ships ZERO ver:RequiredCheck individuals (dspy-pack's proven
+# contract -- see github-actions-pack v0.2.0's identical fix). Gate
+# 010_evidence_present.rq queries generically for `?req a ver:RequiredCheck`
+# with no namespace/IRI constraint on the subject, so a consumer was always
+# free to admit its own required-check policy under its own namespace --
+# but this pack previously ALSO shipped four hardcoded individuals
+# (ver:req-build/req-test/req-clippy-reference/req-byte-identity) whose
+# ver:checkCommand literals assumed a Rust/cargo toolchain unconditionally
+# (`cargo build --workspace`, `cargo test --workspace`, `cargo clippy ...`).
+# A real non-Rust consumer (beam4pm, an Erlang/Elixir/Gleam BEAM project)
+# wiring this pack in hit exactly this: gate 010 refused sync because the
+# pack's own cargo-flavored required checks had no matching ver:Check
+# evidence in beam4pm's graph, and beam4pm's real check commands
+# (rebar3 eunit, mix test, ...) could never satisfy checks named for a
+# toolchain it doesn't have. Removed here, same as github-actions-pack's
+# "all project-specific individuals removed, ontology is pure vocabulary
+# now" precedent -- a consumer now authors its OWN ver:RequiredCheck facts
+# (any name, any ver:checkCommand, own namespace) against this vocabulary,
+# and gate 010 enforces exactly and only what that consumer actually
+# declared. qualification/consumer.ttl now supplies its own synthetic
+# RequiredCheck individuals so gate 010 stays exercised.
 
 # --- Known divergences (allowlist, each with its receipt-grade why) ---------
 

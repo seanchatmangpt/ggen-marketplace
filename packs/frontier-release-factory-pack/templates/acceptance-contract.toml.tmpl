@@ -1,0 +1,46 @@
+---
+to: "contracts/{{ slug }}.acceptance-contract.toml"
+for_each: rows
+sparql:
+  rows: |
+    PREFIX frf: <https://ggen.io/ontology/frontier-release-factory#>
+    SELECT ?opportunity ?slug ?source_url ?target_repository ?required_capability
+           ?response_mode ?benchmark_id ?acceptance_predicate ?falsifier
+    WHERE {
+      ?opportunity a frf:Opportunity ;
+                   frf:slug ?slug ;
+                   frf:responseMode ?response_mode ;
+                   frf:targetRepository ?target_repository ;
+                   frf:requiredCapability ?required_capability ;
+                   frf:benchmark ?benchmark .
+      ?benchmark frf:benchmarkId ?benchmark_id ;
+                 frf:acceptancePredicate ?acceptance_predicate ;
+                 frf:falsifier ?falsifier .
+      OPTIONAL {
+        ?source frf:derivedOpportunity ?opportunity ;
+                frf:sourceUrl ?source_url .
+      }
+    }
+    ORDER BY ?slug
+---
+schema = "frontier-release.acceptance.v1"
+benchmark_id = "{{ benchmark_id }}"
+source_url = "{{ source_url | default(value="") }}"
+target_repository = "{{ target_repository }}"
+required_capability = "{{ required_capability }}"
+response_mode = "{{ response_mode }}"
+acceptance_predicate = "{{ acceptance_predicate }}"
+falsifier = "{{ falsifier }}"
+
+[evidence]
+exact_subject_required = true
+verifier_identity_required = true
+execution_receipt_required = true
+replay_reference_required = true
+standing_required = "ALIVE"
+
+[authority]
+source_release_grants_authority = false
+model_output_grants_authority = false
+working_backwards_release_grants_authority = false
+publication_requires_verified_claims = true

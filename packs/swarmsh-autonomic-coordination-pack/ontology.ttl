@@ -1,0 +1,153 @@
+@prefix sw: <https://ggen.dev/ontology/swarmsh-autonomic-coordination#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix odrl: <http://www.w3.org/ns/odrl/2/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Public ontologies carry identity, provenance, taxonomy, and policy semantics.
+# The sw namespace is limited to swarmsh-specific projection and verification facts.
+sw:Capability a rdfs:Class ; rdfs:subClassOf skos:Concept .
+sw:Projection a rdfs:Class ; rdfs:subClassOf prov:Entity .
+sw:Release a rdfs:Class ; rdfs:subClassOf prov:Entity .
+sw:order a rdf:Property .
+sw:slug a rdf:Property .
+sw:rustVariant a rdf:Property .
+sw:category a rdf:Property .
+sw:outcome a rdf:Property .
+sw:falsifier a rdf:Property .
+sw:authority a rdf:Property .
+sw:proofSurface a rdf:Property .
+sw:target a rdf:Property .
+sw:version a rdf:Property .
+sw:projection a rdf:Property .
+sw:qualification a rdf:Property .
+
+sw:CapabilityScheme a skos:ConceptScheme ;
+  dcterms:title "swarmsh v26.8.25 Autonomic Coordination Capability Scheme" .
+
+sw:ConstructOnlyPolicy a odrl:Policy ;
+  dcterms:title "Generated projections have CONSTRUCT authority only" ;
+  odrl:permission [ odrl:action odrl:derive ] ;
+  odrl:prohibition [ odrl:action odrl:execute ] .
+
+sw:ShellProjection a sw:Projection ;
+  dcterms:title "POSIX shell capability projection" ;
+  sw:target "shell" ; sw:authority "construct-only" ;
+  prov:wasDerivedFrom sw:Release26_8_25 .
+
+sw:RustProjection a sw:Projection ;
+  dcterms:title "Rust capability projection" ;
+  sw:target "rust" ; sw:authority "construct-only" ;
+  prov:wasDerivedFrom sw:Release26_8_25 .
+
+sw:QualificationProjection a sw:Projection ;
+  dcterms:title "Cross-runtime qualification contract" ;
+  sw:target "qualification" ; sw:authority "verify-only" ;
+  prov:wasDerivedFrom sw:Release26_8_25 .
+
+sw:Release26_8_25 a sw:Release ;
+  dcterms:identifier "swarmsh-autonomic-coordination@26.8.25" ;
+  dcterms:title "swarmsh autonomic coordination v26.8.25" ;
+  sw:version "26.8.25" ;
+  sw:authority "construct-only" ;
+  sw:projection sw:ShellProjection, sw:RustProjection, sw:QualificationProjection ;
+  sw:qualification "deterministic-regeneration, exact-head-runtime, receipt-integrity, replay-integrity, zero-ambient-do-authority" .
+
+sw:ProcessIdentity a sw:Capability ;
+  sw:order 1 ; sw:slug "process-identity" ; sw:rustVariant "ProcessIdentity" ;
+  skos:prefLabel "Process Identity" ; skos:inScheme sw:CapabilityScheme ;
+  sw:category "Coordination" ; sw:authority "runtime-do" ;
+  sw:outcome "Every worker and supervisor has a stable observable execution identity." ;
+  sw:falsifier "Anonymous or ambiguous execution identities are refused by qualification." ;
+  sw:proofSurface "identity,receipt,replay" .
+
+sw:WorkAdmission a sw:Capability ;
+  sw:order 2 ; sw:slug "work-admission" ; sw:rustVariant "WorkAdmission" ;
+  skos:prefLabel "Work Admission" ; skos:inScheme sw:CapabilityScheme ;
+  sw:category "Admission" ; sw:authority "runtime-do" ;
+  sw:outcome "Work crosses the execution boundary only after explicit admission." ;
+  sw:falsifier "Unadmitted work cannot create consequential effects." ;
+  sw:proofSurface "positive,refusal,receipt" .
+
+sw:LeaseClaim a sw:Capability ;
+  sw:order 3 ; sw:slug "lease-claim" ; sw:rustVariant "LeaseClaim" ;
+  skos:prefLabel "Lease and Claim" ; skos:inScheme sw:CapabilityScheme ;
+  sw:category "Coordination" ; sw:authority "runtime-do" ;
+  sw:outcome "Concurrent workers coordinate through bounded claims with explicit expiry." ;
+  sw:falsifier "Duplicate live ownership and expired ownership are refused." ;
+  sw:proofSurface "concurrency,expiry,recovery" .
+
+sw:QueueHandoff a sw:Capability ;
+  sw:order 4 ; sw:slug "queue-handoff" ; sw:rustVariant "QueueHandoff" ;
+  skos:prefLabel "Queue Handoff" ; skos:inScheme sw:CapabilityScheme ;
+  sw:category "Coordination" ; sw:authority "runtime-do" ;
+  sw:outcome "Handoffs are durable state transitions rather than conversational implication." ;
+  sw:falsifier "Lost, duplicated, or causally detached handoffs fail qualification." ;
+  sw:proofSurface "handoff,receipt,replay" .
+
+sw:SupervisorRecovery a sw:Capability ;
+  sw:order 5 ; sw:slug "supervisor-recovery" ; sw:rustVariant "SupervisorRecovery" ;
+  skos:prefLabel "Supervisor Recovery" ; skos:inScheme sw:CapabilityScheme ;
+  sw:category "Reliability" ; sw:authority "runtime-do" ;
+  sw:outcome "Failed workers recover under bounded restart policy without inventing authority." ;
+  sw:falsifier "Unbounded restart storms and privilege expansion are refused." ;
+  sw:proofSurface "failure,restart,bound" .
+
+sw:HeartbeatHealth a sw:Capability ;
+  sw:order 6 ; sw:slug "heartbeat-health" ; sw:rustVariant "HeartbeatHealth" ;
+  skos:prefLabel "Heartbeat and Health" ; skos:inScheme sw:CapabilityScheme ;
+  sw:category "Observability" ; sw:authority "observe-only" ;
+  sw:outcome "Liveness and health are explicit observations with bounded freshness." ;
+  sw:falsifier "Stale heartbeats cannot be promoted to healthy standing." ;
+  sw:proofSurface "heartbeat,freshness,refusal" .
+
+sw:TelemetryTrace a sw:Capability ;
+  sw:order 7 ; sw:slug "telemetry-trace" ; sw:rustVariant "TelemetryTrace" ;
+  skos:prefLabel "Telemetry and Trace" ; skos:inScheme sw:CapabilityScheme ;
+  sw:category "Observability" ; sw:authority "observe-only" ;
+  sw:outcome "Execution emits causally attributable telemetry without becoming an actuation channel." ;
+  sw:falsifier "Telemetry that cannot be tied to an execution identity has no receipt standing." ;
+  sw:proofSurface "trace,causality,receipt" .
+
+sw:PolicySelection a sw:Capability ;
+  sw:order 8 ; sw:slug "policy-selection" ; sw:rustVariant "PolicySelection" ;
+  skos:prefLabel "Policy Selection" ; skos:inScheme sw:CapabilityScheme ;
+  sw:category "Policy" ; sw:authority "select-only" ;
+  sw:outcome "Human, deterministic, or LLM policy may select among admitted capabilities but cannot actuate them directly." ;
+  sw:falsifier "Any policy adapter with ambient DO authority fails qualification." ;
+  sw:proofSurface "selection,authority-refusal,receipt" .
+
+sw:AtomicActuation a sw:Capability ;
+  sw:order 9 ; sw:slug "atomic-actuation" ; sw:rustVariant "AtomicActuation" ;
+  skos:prefLabel "Atomic Actuation" ; skos:inScheme sw:CapabilityScheme ;
+  sw:category "Actuation" ; sw:authority "brce-only" ;
+  sw:outcome "Consequential actions cross exactly one bounded runtime boundary and produce evidence." ;
+  sw:falsifier "Unreceipted or partially committed actuation is refused." ;
+  sw:proofSurface "do,receipt,postcondition" .
+
+sw:ReceiptIntegrity a sw:Capability ;
+  sw:order 10 ; sw:slug "receipt-integrity" ; sw:rustVariant "ReceiptIntegrity" ;
+  skos:prefLabel "Receipt Integrity" ; skos:inScheme sw:CapabilityScheme ;
+  sw:category "Evidence" ; sw:authority "verify-only" ;
+  sw:outcome "Receipts bind the admitted intent, execution identity, outputs, and consequence evidence." ;
+  sw:falsifier "Mutation of receipt-bound evidence is detected and refused." ;
+  sw:proofSurface "digest,tamper,refusal" .
+
+sw:DeterministicReplay a sw:Capability ;
+  sw:order 11 ; sw:slug "deterministic-replay" ; sw:rustVariant "DeterministicReplay" ;
+  skos:prefLabel "Deterministic Replay" ; skos:inScheme sw:CapabilityScheme ;
+  sw:category "Evidence" ; sw:authority "verify-only" ;
+  sw:outcome "A receipt can reconstruct the causal execution record without repeating consequential effects." ;
+  sw:falsifier "Replay that actuates again or diverges from receipt-bound evidence is refused." ;
+  sw:proofSurface "replay,idempotency,integrity" .
+
+sw:DeterministicManufacture a sw:Capability ;
+  sw:order 12 ; sw:slug "deterministic-manufacture" ; sw:rustVariant "DeterministicManufacture" ;
+  skos:prefLabel "Deterministic Manufacture" ; skos:inScheme sw:CapabilityScheme ;
+  sw:category "Manufacturing" ; sw:authority "construct-only" ;
+  sw:outcome "One admitted semantic model deterministically manufactures shell, Rust, reference, and qualification projections." ;
+  sw:falsifier "Regeneration drift or generated ambient DO authority fails release qualification." ;
+  sw:proofSurface "regeneration,diff,authority-refusal" .

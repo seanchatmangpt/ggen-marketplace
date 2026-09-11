@@ -1,0 +1,69 @@
+---
+to: "releases/working-backwards/{{ slug }}.md"
+for_each: rows
+sparql:
+  rows: |
+    PREFIX frf: <https://ggen.io/ontology/frontier-release-factory#>
+    SELECT ?opportunity ?slug ?release_title ?source_url ?publisher ?observed_claim
+           ?reported_metric ?reported_cost ?customer_problem ?response_mode
+           ?target_repository ?required_capability ?benchmark_id
+           ?acceptance_predicate ?falsifier ?launch_claim
+    WHERE {
+      ?opportunity a frf:Opportunity ;
+                   frf:slug ?slug ;
+                   frf:responseMode ?response_mode ;
+                   frf:targetRepository ?target_repository ;
+                   frf:requiredCapability ?required_capability ;
+                   frf:benchmark ?benchmark .
+      ?benchmark frf:benchmarkId ?benchmark_id ;
+                 frf:acceptancePredicate ?acceptance_predicate ;
+                 frf:falsifier ?falsifier .
+      OPTIONAL { ?opportunity frf:releaseTitle ?release_title . }
+      OPTIONAL { ?opportunity frf:customerProblem ?customer_problem . }
+      OPTIONAL { ?opportunity frf:launchClaim ?launch_claim . }
+      OPTIONAL {
+        ?source frf:derivedOpportunity ?opportunity ;
+                frf:sourceUrl ?source_url ;
+                frf:publisher ?publisher ;
+                frf:observedClaim ?claim .
+        OPTIONAL { ?claim frf:claimText ?observed_claim . }
+        OPTIONAL { ?claim frf:reportedMetric ?reported_metric . }
+        OPTIONAL { ?claim frf:reportedCost ?reported_cost . }
+      }
+    }
+    ORDER BY ?slug
+---
+# {{ release_title | default(value=slug) }}
+
+_Status: WORKING_BACKWARDS / CANDIDATE — this document is a target contract, not an earned claim._
+
+## External trigger
+
+- Source: {{ source_url | default(value="(none admitted)") }}
+- Publisher: {{ publisher | default(value="(none admitted)") }}
+- Observed capability: {{ observed_claim | default(value="(none admitted)") }}
+- Reported benchmark/cost: {{ reported_metric | default(value="") }} {{ reported_cost | default(value="") }}
+
+## Customer problem
+
+{{ customer_problem | default(value="(not yet stated)") }}
+
+## Chatman inversion
+
+Instead of reproducing the announcement's most expensive implementation shape, this project will {{ response_mode }} the demonstrated capability using admitted reusable machinery.
+
+## Target capability
+
+- Repository: `{{ target_repository }}`
+- Capability: `{{ required_capability }}`
+- Benchmark: `{{ benchmark_id }}`
+- Acceptance: {{ acceptance_predicate }}
+- Falsifier: {{ falsifier }}
+
+## Working-backwards promise
+
+{{ launch_claim | default(value="(not yet stated)") }}
+
+## Evidence required before publication
+
+This promise may appear in an earned release only after the exact subject, verifier identity, execution receipt, replay reference, and standing are present. Source-release prose, model output, generated source, CI configuration, or a draft receipt do not satisfy this requirement.

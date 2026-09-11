@@ -1,0 +1,16 @@
+PREFIX crown: <https://seanchatmangpt.github.io/ontology/gym-autonomic-crown#>
+# VIOLATION gate. The receipt's `changed` boolean and the crown:driftState
+# concept are two encodings of one fact (current != latest). If the ingested
+# graph disagrees with the SHAs it carries, the receipt is lying and must not
+# be rendered. Empty result set = pass.
+SELECT ?edge ?current ?latest ?changed ?state WHERE {
+  ?edge a crown:SubmoduleEdge ;
+        crown:currentSha ?current ;
+        crown:latestSha ?latest ;
+        crown:changed ?changed ;
+        crown:driftState ?state .
+  FILTER(
+    ( ?current != ?latest && ( ?changed != "true"  || ?state != crown:Drifted   ) ) ||
+    ( ?current  = ?latest && ( ?changed != "false" || ?state != crown:Converged ) )
+  )
+}

@@ -1,0 +1,111 @@
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix sosa: <http://www.w3.org/ns/sosa/> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix bpw:  <urn:beam4pm:wasm:> .
+
+<urn:beam4pm:wasm:shape:engine>
+    a sh:NodeShape ;
+    sh:targetClass prov:SoftwareAgent ;
+    sh:property [
+        sh:path dct:title ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A beam4pm wasm engine must declare exactly one string dct:title (its engine name)."
+    ] ;
+    sh:property [
+        sh:path bpw:abiPrefix ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:pattern "^[a-z0-9]+_$" ;
+        sh:message "An engine must declare exactly one lowercase ABI export prefix ending in '_' (r4pm_/fp_/pg_/tr_)."
+    ] ;
+    sh:property [
+        sh:path bpw:wasmRelPath ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:pattern "^native/.*wasm32-wasip1/release/.*[.]wasm$" ;
+        sh:message "An engine's module path must be a repo-root-relative wasm32-wasip1 release artifact under native/."
+    ] ;
+    sh:property [
+        sh:path bpw:facadeModule ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:pattern "^BeamPM[.]" ;
+        sh:message "An engine must name exactly one BeamPM.* Elixir facade module."
+    ] ;
+    sh:property [
+        sh:path bpw:genServerName ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:message "An engine must name its singleton Wasmex GenServer; engines never share a store."
+    ] ;
+    sh:property [
+        sh:path bpw:cheapTimeoutMs ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:integer
+    ] .
+
+<urn:beam4pm:wasm:shape:op>
+    a sh:NodeShape ;
+    sh:targetClass sosa:Procedure ;
+    sh:property [
+        sh:path dct:title ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:pattern "^[a-z][a-z0-9_]*$" ;
+        sh:message "An engine op must declare exactly one snake_case wire op name."
+    ] ;
+    sh:property [
+        sh:path dct:type ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( <urn:gymact:consequence:read> <urn:gymact:consequence:do> ) ;
+        sh:message "An engine op must classify consequence as READ or DO; DO here means in-engine linear-memory mutation only."
+    ] ;
+    sh:property [
+        sh:path bpw:engine ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class prov:SoftwareAgent ;
+        sh:message "An engine op must belong to exactly one declared engine."
+    ] ;
+    sh:property [
+        sh:path bpw:timeoutClass ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( <urn:beam4pm:wasm:timeout:cheap> <urn:beam4pm:wasm:timeout:heavy> ) ;
+        sh:message "An engine op must bill against exactly one declared timeout class."
+    ] ;
+    sh:property [
+        sh:path bpw:handleReturning ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:boolean
+    ] ;
+    sh:property [
+        sh:path bpw:freesHandle ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:boolean
+    ] .
+
+<urn:beam4pm:wasm:shape:request-field>
+    a sh:NodeShape ;
+    sh:targetObjectsOf bpw:requestField ;
+    sh:property [
+        sh:path bpw:fieldName ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:pattern "^[a-z][a-z0-9_]*$" ;
+        sh:message "A request field must carry exactly one snake_case JSON wire key."
+    ] ;
+    sh:property [
+        sh:path bpw:fieldOrder ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:integer
+    ] .

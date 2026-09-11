@@ -1,0 +1,29 @@
+# MESSAGE: kubernetes-workload-pack required-facts gate. Every k8s:Workload
+# MESSAGE: must declare k8s:workloadName and k8s:fileName. Every k8s:Container
+# MESSAGE: must declare k8s:inWorkload, k8s:resourceRequestsBlock, and
+# MESSAGE: k8s:resourceLimitsBlock -- the real OOM-kill/CPU-throttle risk this
+# MESSAGE: pack's own README documents empirically (a live kind cluster: a
+# MESSAGE: 512Mi memory limit OOM-killed a real migration mid-run). Every
+# MESSAGE: k8s:Workload must declare k8s:podSecurityContextBlock -- the
+# MESSAGE: HIGH-severity gap found present, before this pack existed, on
+# MESSAGE: every workload of its own first real consumer (0 of 3 pods set a
+# MESSAGE: securityContext at all, per a real trivy misconfig scan). Any row
+# MESSAGE: = a subject missing the bound property.
+PREFIX k8s: <http://seanchatmangpt.github.io/packs/kubernetes#>
+SELECT ?s ?missing WHERE {
+  {
+    ?s a k8s:Workload . BIND(k8s:workloadName AS ?missing)
+  } UNION {
+    ?s a k8s:Workload . BIND(k8s:fileName AS ?missing)
+  } UNION {
+    ?s a k8s:Workload . BIND(k8s:podSecurityContextBlock AS ?missing)
+  } UNION {
+    ?s a k8s:Container . BIND(k8s:inWorkload AS ?missing)
+  } UNION {
+    ?s a k8s:Container . BIND(k8s:resourceRequestsBlock AS ?missing)
+  } UNION {
+    ?s a k8s:Container . BIND(k8s:resourceLimitsBlock AS ?missing)
+  }
+  FILTER NOT EXISTS { ?s ?missing ?any }
+}
+ORDER BY ?s ?missing

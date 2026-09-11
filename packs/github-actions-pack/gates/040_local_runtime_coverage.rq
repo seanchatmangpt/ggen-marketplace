@@ -1,0 +1,50 @@
+# MESSAGE: github-actions-pack local-runtime DfCM coverage gate.
+# MESSAGE: Any row means a required local GitHub capability has no admitted route,
+# MESSAGE: or a route is structurally incomplete. One failed edge is topology,
+# MESSAGE: but UNKNOWN is not ADMITTED: every required capability must be routed
+# MESSAGE: NATIVE, LOWERED, SIDECAR, SELF_HOSTED_FALLBACK, or explicitly UNSUPPORTED.
+PREFIX gha: <http://seanchatmangpt.github.io/packs/github-actions#>
+SELECT ?s WHERE {
+  {
+    ?profile a gha:LocalExecutionProfile ;
+             gha:requiresCapability ?cap .
+    FILTER NOT EXISTS {
+      ?route a gha:CapabilityRoute ;
+             gha:inProfile ?profile ;
+             gha:forCapability ?cap ;
+             gha:viaBackend ?backend ;
+             gha:routeMode ?mode ;
+             gha:routePriority ?priority ;
+             gha:semanticCeiling ?ceiling ;
+             gha:evidenceClass ?evidence .
+      VALUES ?mode {
+        gha:ModeNative
+        gha:ModeLowered
+        gha:ModeSidecar
+        gha:ModeSelfHostedFallback
+        gha:ModeUnsupported
+      }
+    }
+    BIND(?cap AS ?s)
+  }
+  UNION
+  {
+    ?route a gha:CapabilityRoute ;
+           gha:routeMode gha:ModeUnsupported .
+    FILTER NOT EXISTS { ?route gha:unsupportedReason ?why }
+    BIND(?route AS ?s)
+  }
+  UNION
+  {
+    ?profile a gha:LocalExecutionProfile .
+    FILTER NOT EXISTS { ?profile gha:receiptRoot ?root }
+    BIND(?profile AS ?s)
+  }
+  UNION
+  {
+    ?profile a gha:LocalExecutionProfile .
+    FILTER NOT EXISTS { ?profile gha:exactActSha ?sha }
+    BIND(?profile AS ?s)
+  }
+}
+ORDER BY ?s

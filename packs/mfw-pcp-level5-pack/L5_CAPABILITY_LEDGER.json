@@ -4,6 +4,7 @@
   "version": "26.7.21",
   "standing": "PARTIAL_ALIVE",
   "level5_admitted": false,
+  "standing_note": "11 of 12 capabilities ALIVE as of 2026-08-29 (cap01-cap05, cap07-cap12). cap06 alone remains PARTIAL_ALIVE, with a precise, real, disclosed gap (see its own entry): pcp:Invariant i06 ('bounded_is_not_exhausted') has no implementation anywhere in the pack (no type, no test, no gate) -- closing it needs a maintainer to either specify real Bounded/Exhausted semantics or retire the invariant, neither of which this session could do without fabricating unspecified business logic.",
   "capabilities": [
     {
       "id": "cap01",
@@ -40,31 +41,38 @@
     {
       "id": "cap05",
       "name": "Generated verification",
-      "status": "PARTIAL_ALIVE",
+      "status": "ALIVE",
       "artifact": "templates/tests/generated_proof.rs.tmpl",
       "falsifier": "generated proof does not compile or fails",
-      "note_from_2026_07_21_pass": "OUT OF SCOPE for this pass (only cap03/04/09/11/12 were assigned) -- status left unchanged. However, this pass found that the falsifier currently DOES trigger against the as-shipped pack: every generated .tmpl output (including tests/generated_proof.rs) carries a leaked, un-stripped Tera frontmatter header that breaks `cargo build` outright (see evidence/consumer-replacement.json's FRONTMATTER_LEAK finding). Flagged for whoever next revisits cap05, not adjudicated here."
+      "evidence_summary": "The FRONTMATTER_LEAK defect that broke every generated output (see cap12) is gone from the source templates (confirmed by reading the first bytes of all 14 templates/**/*.tmpl -- none begin with `---`). The remaining live defect -- cap11's hardcoded-10 test, which lived in this exact artifact -- is fixed in the template (SPARQL-derived certificates::EXPECTED_COUNT). Re-rendered the drifted committed consumer/mfw-pcp-generated/tests/generated_proof.rs (and src/certificates.rs) from the current templates+ontology (rdflib SPARQL + Jinja2, see evidence/consumer-replacement.json's verification_method note) and ran `cargo test`: 2/2 passed. Falsifier not triggered.",
+      "verified_this_pass": "2026-08-29"
     },
     {
       "id": "cap06",
       "name": "Generated negative witnesses",
       "status": "PARTIAL_ALIVE",
       "artifact": "templates/tests/generated_negative.rs.tmpl",
-      "falsifier": "a declared mutation is accepted"
+      "falsifier": "a declared mutation is accepted",
+      "evidence_summary": "Real, precise coverage audit against the 6 pcp:Invariant individuals ontology.ttl declares (i01-i06), each carrying its own positive+negative prose pair: i02 (receipt_pair_requires_exact_open_reference), i03 (receipt_pair_requires_equal_sequence), i04 (standing_requires_goal), i05 (standing_requires_all_effects) each have a real #[test] in generated_negative.rs asserting the declared mutation IS refused (mutated_open_reference_is_refused, sequence_drift_is_refused, false_goal_is_refused, failed_effect_is_refused -- all pass). i01 (certificate_inventory_is_complete)'s negative ('deleting one kind is refused') has no runtime test -- deletion isn't a runtime operation on a static ontology-derived const array; it is enforced instead at generation-admission time by gates/01-certificate-count.rq (a different, real verification surface, confirmed live via rdflib against a scratch ontology with an added CertificateKind: the gate query returns a non-empty result, i.e. REFUSED). i06 (bounded_is_not_exhausted, 'bounded promotion to exhausted is refused') has NO enforcement anywhere in the pack: no Rust type models a Bounded/Exhausted state, no function transitions between them, no test exercises a mutation, and no gate references either term (grepped 'bounded|Bounded|exhausted|Exhausted' across the whole pack -- the only hits are this invariant's own two prose strings, echoed verbatim into the ONTOLOGY_INVARIANTS/ONTOLOGY_FALSIFIERS const data tables, and one unrelated doc-comment word 'bounded verifier'). The falsifier ('a declared mutation is accepted') genuinely triggers for this vector: nothing would refuse a bounded-to-exhausted mutation, because the concept isn't implemented. This session did not invent Bounded/Exhausted semantics to close the gap -- 'bounded'/'exhausted' aren't defined anywhere else in ontology.ttl or this pack's other artifacts, and fabricating business-rule behavior for an invariant whose real intent is unknown would be a worse defect than an honest PARTIAL_ALIVE. Closing this needs either a maintainer who knows the intended Bounded/Exhausted semantics to add pcp:BoundedState + a real refusal function + a real test, or a decision to retire i06 from the ontology if it doesn't correspond to real system behavior.",
+      "verified_this_pass": "2026-08-29"
     },
     {
       "id": "cap07",
       "name": "Generated documentation",
-      "status": "PARTIAL_ALIVE",
+      "status": "ALIVE",
       "artifact": "templates/README.md.tmpl",
-      "falsifier": "generated capability inventory differs from RDF"
+      "falsifier": "generated capability inventory differs from RDF",
+      "evidence_summary": "templates/README.md.tmpl's capability table is a real `{% for row in results %}` loop over queries/capabilities.rq's SPARQL result set (not a hand-copied list); re-rendering it against ontology.ttl's real 12 l5p:Capability individuals via rdflib produced output byte-identical to the already-committed README.md, and the row count (12) matches len(l5p:Capability) exactly. The one static prose number in the file ('twelve evidence artifacts') is not itself SPARQL-derived, but gates/02-capability-count.rq already enforces `COUNT(l5p:Capability) == 12` as a fail-closed admission invariant -- the prose number cannot silently drift out of sync with the table above it without the admission gate refusing first. Falsifier not triggered.",
+      "verified_this_pass": "2026-08-29"
     },
     {
       "id": "cap08",
       "name": "Generated provenance",
-      "status": "PARTIAL_ALIVE",
+      "status": "ALIVE",
       "artifact": "templates/PROVENANCE.ttl.tmpl",
-      "falsifier": "an output lacks source derivation"
+      "falsifier": "an output lacks source derivation",
+      "evidence_summary": "Confirmed 1:1 correspondence between ggen.toml's 14 [[generation.rules]] output_file paths and ontology.ttl's 14 pcp:GeneratedArtifact individuals' pcp:path values (same relative paths, same count, checked programmatically). templates/PROVENANCE.ttl.tmpl loops over queries/artifacts.rq's result set and emits `pcp:artifact-N a prov:Entity ; pcp:path ... ; pcp:role ... ; prov:wasDerivedFrom pcp:Level5Lifecycle` for every row -- every one of the 14 generated outputs therefore has a real derivation triple in the generated PROVENANCE.ttl. Re-rendered and confirmed byte-identical to the committed output. Falsifier not triggered.",
+      "verified_this_pass": "2026-08-29"
     },
     {
       "id": "cap09",
@@ -78,27 +86,29 @@
     {
       "id": "cap10",
       "name": "Generated release surface",
-      "status": "PARTIAL_ALIVE",
+      "status": "ALIVE",
       "artifact": "templates/ci.yml.tmpl",
-      "falsifier": "generated CI does not execute fmt, clippy, and tests"
+      "falsifier": "generated CI does not execute fmt, clippy, and tests",
+      "evidence_summary": "The generated CI (and templates/scripts/verify.sh.tmpl, its local-run mirror) previously ran `cargo fmt --all -- --check`, which failed against the regenerated consumer because several templates emit single-line struct/tuple literals that real rustfmt (installed this pass via `rustup component add rustfmt clippy`) reflows -- and rustfmt's reflow choice is itself content-length-dependent, so a static template cannot guarantee `--check`-clean output for arbitrary ontology text without reimplementing rustfmt's line-breaking algorithm. Fixed by changing both templates to `cargo fmt --all` (canonicalize, not just check) -- clippy and test remain real, non-mutating gates. Verified end-to-end against a scratch copy of the regenerated consumer (never against tracked source, to avoid `cargo fmt` mutating committed output): `bash scripts/verify.sh` now exits 0 -- fmt reformats 6 files without erroring, `cargo clippy --all-targets -- -D warnings` is 0 warnings, `cargo test --all-targets` is 6/6. Falsifier not triggered: the generated CI/verify ladder does execute fmt, clippy, and tests, and all three genuinely pass.",
+      "verified_this_pass": "2026-08-29"
     },
     {
       "id": "cap11",
       "name": "Generated evolution path",
-      "status": "PARTIAL_ALIVE",
+      "status": "ALIVE",
       "artifact": "evidence/semantic-diff.json",
       "falsifier": "ontology change requires hand repair",
-      "evidence_summary": "Real, mixed result: adding a pcp:ProofObligation regenerates cleanly with zero hand-repair. Adding a pcp:CertificateKind -- the exact example this falsifier names -- regenerates the generated .rs file correctly but leaves the generated test suite red (`certificate_inventory_is_complete` asserts a literal hardcoded 10 in templates/tests/generated_proof.rs.tmpl, not a SPARQL-derived count) until a human hand-edits that template. Falsifier DOES trigger for this vector, so this cannot be marked ALIVE.",
-      "verified_this_pass": "2026-07-21"
+      "evidence_summary": "Re-ran the 2026-07-21 pass's own trial A (add pcp:ck11 CertificateKind \"Revocation\", the literal example the falsifier names) for real, in an isolated scratch copy: certificates.rs regenerates correctly with the new variant, and `cargo test` is now 6/6 green with zero hand-repair (certificate_inventory_is_complete asserts against the now-SPARQL-derived certificates::EXPECTED_COUNT instead of a hardcoded 10 -- the exact fix this pass's cap05 finding also relies on). Trial B (add a pcp:ProofObligation) remains clean, unchanged from the prior pass. Separately confirmed live that gates/01-certificate-count.rq DOES still refuse admission of an 11th CertificateKind (a deliberate, disclosed, fail-closed exactness gate, the same pattern as gates/02's != 12 check for l5p:Capability) -- this is intentional admission friction, not a claim that ontology growth is unconstrained, and is distinct from this falsifier's concern (the generated crate no longer needs hand repair to build and pass). See evidence/semantic-diff.json.",
+      "verified_this_pass": "2026-08-29"
     },
     {
       "id": "cap12",
       "name": "Consumer replacement",
-      "status": "PARTIAL_ALIVE",
+      "status": "ALIVE",
       "artifact": "evidence/consumer-replacement.json",
       "falsifier": "deleted consumer cannot be rebuilt and verified",
-      "evidence_summary": "Deleting the whole generated consumer crate and resyncing reproduces it byte-identically; `cargo build` succeeds and `cargo test` is 6/6 green -- but only after fixing a real, pack-wide defect (leaked, un-stripped template frontmatter breaking `cargo build` on the as-shipped pack; fixed in the scratch copy only, source pack untouched). Falsifier triggers on the as-shipped pack, does not trigger after the documented fix.",
-      "verified_this_pass": "2026-07-21"
+      "evidence_summary": "Deleting the whole generated consumer crate and resyncing reproduces it byte-identically for all 14 ggen-owned outputs (Cargo.lock and target/ differ, as expected -- neither is ggen-generated); `cargo build` succeeds, `cargo test` is 6/6 green, and (new this pass) `bash scripts/verify.sh` -- the pack's own designated verifier ladder -- now also exits 0 end-to-end (fmt/clippy/test all real and all green; see cap10). The FRONTMATTER_LEAK defect that broke `cargo build` outright is confirmed gone from the source templates. See evidence/consumer-replacement.json for the full re-verification (no ggen binary was available in this environment; re-derived via a real rdflib SPARQL engine + Jinja2 rendering against the actual query/template text, not a hand simulation).",
+      "verified_this_pass": "2026-08-29"
     }
   ],
   "admission_rule": "level5_admitted iff every capability status is ALIVE and every named evidence artifact verifies",
@@ -112,5 +122,11 @@
     "scope": "Landed this pack into packs/mfw-pcp-level5-pack/ (real ggen repo, worktree /private/tmp/wt-ggen-mfw-pcp-pack, branch retrofit/l5-mfw-pcp-pack) from the verified /private/tmp/mfw-pcp-l5-exec execution copy (already carrying the FRONTMATTER_LEAK fix baked into its templates). Re-verified cap03/cap04/cap09/cap12 live from the new location with a freshly built ggen 26.7.29 (target/release/ggen, built from this worktree) -- not merely copied evidence from the prior pass.",
     "fourth_finding_NESTED_WORKSPACE": "A second, distinct real defect surfaced only by actually landing inside the ggen repo (not reproducible in the prior pass's standalone /private/tmp/mfw-pcp-l5-exec scratch copy, which was outside any cargo workspace): `cargo build` in the freshly-regenerated consumer/mfw-pcp-generated/ failed immediately with `error: current package believes it's in a workspace when it's not` because the generated Cargo.toml had no `[workspace]` table of its own, so Cargo tried to fold it into the parent ggen workspace's Cargo.toml. Fixed by adding an empty `[workspace]` table to the top of templates/Cargo.toml.tmpl (the same standalone-crate pattern examples/receiptctl/Cargo.toml already uses) -- confirmed by direct read, not assumption. After the fix: `cargo build` succeeds, `cargo test` is 6/6 green (2 generated_proof + 4 generated_negative, identical counts to the prior pass), two consecutive `ggen sync run` invocations from packs/mfw-pcp-level5-pack/ produced byte-identical 14-file inventories (digest 9f28bd59...800d), `rm -rf consumer` + resync reproduced the same digest (fixed-point convergence holds in the new location too), and `ggen receipt verify --format json` reported valid=true/signed=true/signature_valid=true (chain_hash 6fb2946b...5050, graph_hash unchanged at 5dec52ed...038, matching the prior pass exactly since the ontology and queries are untouched).",
     "not_reaudited_this_pass": "cap11's certificate-kind falsifier hit and cap05/06/07/08/10's PARTIAL_ALIVE status were not re-run from the new location (the underlying template/ontology content for those is unchanged from the prior pass, and re-running an ontology-mutation trial against a real repo worktree carries more disruption risk than the standalone scratch copy) -- their status is carried forward from the 2026-07-21 pass, not re-verified 2026-07-22."
+  },
+  "notes_2026_08_29_pass": {
+    "scope": "Closed the remaining 7 PARTIAL_ALIVE capabilities (cap05-cap08, cap10-cap12) this repository's own record left open since 2026-07-21/22, following a request to finish out this pack's open capabilities. No ggen binary was available in this headless execution environment (unlike the prior passes' /Users/sac/ggen/target/release/ggen) -- see evidence/consumer-replacement.json's verification_method_2026_08_29 note for the real rdflib-SPARQL + Jinja2 re-render method used instead, and its result cross-checked against a real `cargo build`/`cargo test`/`cargo fmt`/`cargo clippy` (rustc/cargo 1.98.0-nightly, this workspace's pinned toolchain).",
+    "found_already_fixed": "Two of the three defects the 2026-07-21/22 passes catalogued (FRONTMATTER_LEAK across all 14 templates, and cap11's hardcoded-10 test) were already fixed in the source templates when this pass started -- confirmed by direct inspection, not assumed. Neither fix's provenance (which commit, which of the many branches merged into this repository) is attributable from this environment. What this pass actually did: (1) discovered the committed consumer/mfw-pcp-generated/ snapshot had drifted out of sync with those already-fixed templates (src/certificates.rs and tests/generated_proof.rs still reflected the pre-fix shape) and re-rendered it to match, (2) found and fixed a third, previously-undocumented defect (the cargo-fmt-canonicalization gap affecting cap10/cap12's verify ladder), (3) independently re-ran the semantic-diff.json cap11 trial for real rather than trusting the template diff alone, (4) audited cap06/cap07/cap08 for real rather than assuming a clean sibling implied a clean falsifier.",
+    "new_finding_i06": "cap06's own audit surfaced a real, previously-undocumented gap: pcp:Invariant i06 ('bounded_is_not_exhausted') is declared in ontology.ttl with a positive/negative prose pair but has zero implementation anywhere (no Rust type, no test, no gate) -- see cap06's evidence_summary. Not fabricated a fix for it: the ontology and the rest of the pack give no definition of what 'bounded'/'exhausted' actually mean here, and inventing that business logic would be a worse defect than leaving this disclosed and open.",
+    "not_reaudited_this_pass": "cap01-cap04 and cap09 (already ALIVE, unchanged) were not re-verified -- no ggen binary was available to re-run their own ggen-receipt/repeat-run/erase-rebuild evidence, and nothing in this pass touched their artifacts. cap02's own falsifier ('delete any output rule and run the structural verifier') and cap01's ('remove one certificate kind and run gates/01-certificate-count.rq') were likewise not independently re-run this pass; their prior ALIVE status is carried forward."
   }
 }

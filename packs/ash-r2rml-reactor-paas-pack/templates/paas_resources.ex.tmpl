@@ -1,0 +1,139 @@
+---
+to: generated/ggen_paas_resources.ex
+skip_empty: false
+determinism: true
+---
+{% for row in results %}
+{% if row.kind == "service" %}
+defmodule {{ row.module }} do
+  @moduledoc "Generated platform-service resource grounded in schema:SoftwareApplication."
+  use Ash.Resource, domain: {{ row.domainModule }}, data_layer: Ash.DataLayer.Ets, extensions: [AshR2RML]
+
+  r2rml do
+    class_iri("{{ row.classIri }}")
+    subject_template("{{ row.subjectTemplate }}")
+    table_name("{{ row.tableName }}")
+    attribute_mappings([{:name, "https://schema.org/name"}, {:description, "https://schema.org/description"}, {:version, "https://schema.org/softwareVersion"}])
+  end
+
+  attributes do
+    uuid_primary_key :id
+    attribute :name, :string, allow_nil?: false, public?: true
+    attribute :description, :string, allow_nil?: false, public?: true
+    attribute :version, :string, allow_nil?: false, public?: true
+    timestamps()
+  end
+
+  actions do
+    defaults [:read, :update, :destroy]
+    create :register do
+      primary? true
+      accept [:name, :description, :version]
+    end
+  end
+end
+{% elif row.kind == "intent" %}
+defmodule {{ row.module }} do
+  @moduledoc "Generated deployment-intent resource grounded in prov:Plan."
+  use Ash.Resource, domain: {{ row.domainModule }}, data_layer: Ash.DataLayer.Ets, extensions: [AshR2RML]
+
+  r2rml do
+    class_iri("{{ row.classIri }}")
+    subject_template("{{ row.subjectTemplate }}")
+    table_name("{{ row.tableName }}")
+    attribute_mappings([{:service_ref, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#serviceRef"}, {:target, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#target"}, {:requested_by, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#requestedBy"}, {:status, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#status"}])
+  end
+
+  attributes do
+    uuid_primary_key :id
+    attribute :service_ref, :string, allow_nil?: false, public?: true
+    attribute :target, :string, allow_nil?: false, public?: true
+    attribute :requested_by, :string, allow_nil?: false, public?: true
+    attribute :status, :atom, allow_nil?: false, default: :pending, constraints: [one_of: [:pending, :admitted, :refused, :executed]], public?: true
+    timestamps()
+  end
+
+  actions do
+    defaults [:read, :destroy]
+    create :request do
+      primary? true
+      accept [:service_ref, :target, :requested_by]
+    end
+    update :mark_admitted do
+      accept []
+      change set_attribute(:status, :admitted)
+    end
+    update :mark_refused do
+      accept []
+      change set_attribute(:status, :refused)
+    end
+    update :mark_executed do
+      accept []
+      change set_attribute(:status, :executed)
+    end
+  end
+end
+{% elif row.kind == "policy" %}
+defmodule {{ row.module }} do
+  @moduledoc "Generated authority-policy resource grounded in odrl:Policy."
+  use Ash.Resource, domain: {{ row.domainModule }}, data_layer: Ash.DataLayer.Ets, extensions: [AshR2RML]
+
+  r2rml do
+    class_iri("{{ row.classIri }}")
+    subject_template("{{ row.subjectTemplate }}")
+    table_name("{{ row.tableName }}")
+    attribute_mappings([{:actor, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#actor"}, {:action, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#action"}, {:target, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#target"}, {:decision, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#decision"}])
+  end
+
+  attributes do
+    uuid_primary_key :id
+    attribute :actor, :string, allow_nil?: false, public?: true
+    attribute :action, :string, allow_nil?: false, public?: true
+    attribute :target, :string, allow_nil?: false, public?: true
+    attribute :decision, :atom, allow_nil?: false, constraints: [one_of: [:permit, :deny]], public?: true
+    timestamps()
+  end
+
+  actions do
+    defaults [:read, :update, :destroy]
+    create :issue do
+      primary? true
+      accept [:actor, :action, :target, :decision]
+    end
+  end
+end
+{% elif row.kind == "receipt" %}
+defmodule {{ row.module }} do
+  @moduledoc "Generated execution-receipt resource grounded in prov:Entity."
+  use Ash.Resource, domain: {{ row.domainModule }}, data_layer: Ash.DataLayer.Ets, extensions: [AshR2RML]
+
+  r2rml do
+    class_iri("{{ row.classIri }}")
+    subject_template("{{ row.subjectTemplate }}")
+    table_name("{{ row.tableName }}")
+    attribute_mappings([{:intent_ref, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#intentRef"}, {:status, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#status"}, {:semantic_hash, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#semanticHash"}, {:artifact_hash, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#artifactHash"}, {:result, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#result"}])
+  end
+
+  attributes do
+    uuid_primary_key :id
+    attribute :intent_ref, :string, allow_nil?: false, public?: true
+    attribute :status, :atom, allow_nil?: false, constraints: [one_of: [:started, :succeeded, :failed]], public?: true
+    attribute :semantic_hash, :string, allow_nil?: false, public?: true
+    attribute :artifact_hash, :string, allow_nil?: true, public?: true
+    attribute :result, :string, allow_nil?: true, public?: true
+    timestamps()
+  end
+
+  actions do
+    defaults [:read]
+    create :start do
+      primary? true
+      accept [:intent_ref, :status, :semantic_hash]
+    end
+    update :seal do
+      accept [:status, :artifact_hash, :result]
+    end
+  end
+end
+{% endif %}
+{% endfor %}

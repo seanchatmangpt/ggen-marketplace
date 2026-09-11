@@ -1,0 +1,64 @@
+# control-plane-invariants-pack ontology: the ctrl: vocabulary for the
+# control-plane facts a dispatched agent (or the orchestrator watching it)
+# must emit before its work can be reported done.
+#
+# ctrl:WorkQueueItem and ctrl:BuildLease individuals are typically authored
+# directly by the orchestrator/control plane as it schedules and leases work.
+# ctrl:SubjectReceipt, ctrl:Claim (its evidenceCommand is authored as PLAN,
+# its literalEvidence/verdict are appended as EVIDENCE after the command is
+# actually run), and ctrl:RetryAttempt are the real-execution evidence facts
+# an agent must emit -- never hand-waved, never assumed true because a plan
+# says so. Same plan/evidence split ggen-verify-pack and
+# agent-fleet-isolation-pack use: the gates in gates/ refuse sync while any
+# of the six invariants below is violated.
+
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix ctrl:  <http://seanchatmangpt.github.io/packs/control-plane-invariants#> .
+
+# --- Vocabulary: subject identity evidence ----------------------------------
+
+ctrl:SubjectReceipt a rdfs:Class ;
+    rdfs:comment "One agent's real, emitted proof of which subject (repo/worktree) it actually observed itself running in, checked against the subject it was told to work on. Emitted by scripts/subject-receipt.sh as an agent's mandatory first action -- never hand-authored. Properties: ctrl:absolutePath (real `pwd`), ctrl:pwdObserved (xsd:boolean -- true once pwd was actually captured, false/absent means the receipt is a stub), ctrl:gitRemote (real `git remote get-url origin`, or a sentinel if none), ctrl:gitToplevel (real `git rev-parse --show-toplevel`), ctrl:headSha (real `git rev-parse HEAD`), ctrl:dirtyState (free text -- \"clean\" or the real `git status --porcelain` summary), ctrl:claimedSubject (the subject the agent was told to work on, as passed to the script), ctrl:matchesClaimed (xsd:boolean -- true only when the real observed subject actually resolves to claimedSubject)." .
+
+# --- Vocabulary: claims and their verdicts ----------------------------------
+
+ctrl:ClaimsManifest a rdfs:Class ;
+    rdfs:comment "A named group of ctrl:Claim individuals asserted about one piece of work (typically one ctrl:WorkQueueItem). Properties: ctrl:manifestId (stable key), ctrl:forItem (the ctrl:WorkQueueItem this manifest's claims are about)." .
+
+ctrl:Claim a rdfs:Class ;
+    rdfs:comment "One falsifiable claim about the work, joined across its PLAN and EVIDENCE facts by the shared literal key ctrl:claimId -- either on one individual (hand-authored fixtures) or split across two (the real pipeline: a PLAN individual authored up front with ctrl:claimId/ctrl:claimText/ctrl:evidenceCommand/ctrl:partOf/ctrl:forItem, and a separate EVIDENCE individual with the same ctrl:claimId plus ctrl:literalEvidence/ctrl:verdict appended by scripts/claims-verify.sh once it actually runs evidenceCommand for real). Same claimId-join pattern agent-fleet-isolation-pack uses for fleet:name/fleet:agentName. ctrl:verdict is exactly one of CONFIRMED, REFUTED, UNVERIFIABLE. A claimId with no ctrl:verdict fact anywhere in the graph has no standing -- it is treated as neither confirmed nor refuted, and gates/020 refuses sync while one exists." .
+
+# --- Vocabulary: build leases -----------------------------------------------
+
+ctrl:BuildLease a rdfs:Class ;
+    rdfs:comment "One real, time-boxed exclusive claim on a shared build/verify resource (a target dir, a lockfile, a CI runner slot), authored or emitted by whichever process acquires it. Properties: ctrl:resourceKey (stable identifier of the shared resource being leased), ctrl:holderIdentity (which agent/process holds it), ctrl:acquiredAt (xsd:dateTime, real), ctrl:expiresAt (xsd:dateTime, real), ctrl:released (xsd:boolean -- true once the holder released it; false or absent means it is still held). Two BuildLease individuals sharing a resourceKey while both are unreleased is a real defect -- lock contention or a double-acquire bug, never a benign overlap." .
+
+# --- Vocabulary: the work queue ---------------------------------------------
+
+ctrl:WorkQueueItem a rdfs:Class ;
+    rdfs:comment "One unit of control-plane-tracked work. Properties: ctrl:itemId (stable key), ctrl:project (which repo/project it targets), ctrl:status (exactly one of READY, LEASED, RUNNING, VERIFYING, REPAIRABLE, WAITING_DEPENDENCY, AUTHORITY_REQUIRED, ALIVE, SUPERSEDED, ARCHIVED, REFUSED), ctrl:blockingReason (free text, present only while status names a blocked state). ctrl:status ALIVE is a crown: it must never be set, and must never be left standing, without at least one ctrl:Claim (via ctrl:forItem) with verdict CONFIRMED backing it -- gates/050 and gates/060 enforce both directions of that rule." .
+
+# --- Vocabulary: retry discipline -------------------------------------------
+
+ctrl:RetryAttempt a rdfs:Class ;
+    rdfs:comment "One real record of a repeated attempt at the same ctrl:WorkQueueItem, emitted by whichever process re-dispatches it. Properties: ctrl:attemptNumber (xsd:integer, 1 for the first try), ctrl:hypothesis (free text -- what this attempt believes will be different this time), ctrl:changedFromPrevious (xsd:boolean -- true only when this attempt actually differs from the previous one: a new approach, a fixed root cause, corrected inputs). An attempt with ctrl:attemptNumber greater than 1 and ctrl:changedFromPrevious false is the UnchangedRetryGym defect: repeating the identical action against an unchanged subject and hoping for a different result -- gates/040 refuses sync while one exists." .
+
+# --- Vocabulary: subject resolution (pinned/referenced commit lookup) ------
+
+ctrl:SubjectResolutionCheck a rdfs:Class ;
+    rdfs:comment "One real record of resolving a pinned/referenced commit (or other subject reference) against object stores, distinguishing a merely-absent-locally object from a genuinely unresolvable one -- the 2026-09-02 regression this pack now encodes: a pinned commit was declared invalid because it was missing from a LOCAL object database, when it was never actually checked against the real remote. Properties: ctrl:refValue (the literal ref/SHA being resolved), ctrl:localResult (exactly one of FOUND, LOCAL_OBJECT_ABSENT, SHALLOW_FETCH, UNFETCHED_REF -- the real result of a real local lookup, e.g. `git cat-file -e` or `git rev-parse --verify` against the local object database), ctrl:remoteResult (exactly one of FOUND, REMOTE_OBJECT_ABSENT -- the real result of an actual remote check, e.g. `git ls-remote`/`git fetch` against the real remote named in ctrl:gitRemote; absent/blank means the remote was never actually checked), ctrl:finalVerdict (exactly one of RESOLVED, ACTUALLY_UNRESOLVABLE -- the verdict an agent or the control plane is permitted to act on). A local miss (LOCAL_OBJECT_ABSENT, SHALLOW_FETCH, UNFETCHED_REF) must never by itself produce ctrl:finalVerdict ACTUALLY_UNRESOLVABLE, and downgrading a ctrl:SubjectReceipt's ctrl:matchesClaimed (or any other crown/verdict) on the strength of ACTUALLY_UNRESOLVABLE requires that ctrl:remoteResult was actually populated with REMOTE_OBJECT_ABSENT from a real remote check -- never inferred from the local result alone. gates/070 refuses sync while a finalVerdict of ACTUALLY_UNRESOLVABLE stands with no ctrl:remoteResult fact." .
+
+# --- Vocabulary: dependency lock drift --------------------------------------
+
+ctrl:DependencyLockCheck a rdfs:Class ;
+    rdfs:comment "One real record of cross-checking a lockfile's declared/locked entries against what is actually materialized on disk -- the ex4pm/wasm4pm evidence this pack now encodes: commit 08cc60c519d5fc14b3fc5a54412f90fe6678ff03 in https://github.com/seanchatmangpt/ex4pm (worktree /Users/sac/ex4pm-worktrees/qualification-domain) records resolving a leftover `git stash pop` conflict on mix.lock that had kept a `ranch` entry with no corresponding materialized `deps/ranch/` directory until `mix deps.get` was rerun to produce a real, resolver-validated lockfile. Declared/locked dependency presence is never proof of currently-satisfiable dependency state -- a dependency-management system must verify the materialized artifact exists for EVERY locked entry, and must never let a nonzero drift count be silently absorbed into a reported PASS. Properties: ctrl:lockedPackageCount (xsd:integer -- total entries in the lockfile), ctrl:materializedPackageCount (xsd:integer -- entries with a real, corresponding materialized directory/artifact on disk), ctrl:staleEntryCount (xsd:integer -- lockedPackageCount minus materializedPackageCount; entries with a lock record but no materialized artifact), ctrl:staleEntryName (free text, zero or more -- the individual stale entries' names, e.g. \"ranch\", for diagnosis; not required for the gate), ctrl:reportedVerdict (exactly one of PASS, FAIL -- what the check actually reported to its caller/CI). The invariant this pack enforces is not that drift can never happen (a real materialization gap, like the ranch case, was correctly caught in ex4pm's own strict check) -- it is that no consumer of this class of check may report ctrl:reportedVerdict PASS while ctrl:staleEntryCount is greater than zero. gates/080 refuses sync while a DependencyLockCheck asserts PASS with staleEntryCount > 0: that combination is the check itself being weakened, not a benign state." .
+
+# --- Vocabulary: scope leakage across build projections ---------------------
+
+ctrl:ScopedComponent a rdfs:Class ;
+    rdfs:comment "One real declaration of a named component's (a library, dependency, module) intended availability scope, as actually declared in its owning manifest (e.g. a mix.exs `only: [:dev, :test]` dependency clause). Properties: ctrl:componentName (stable key, e.g. \"igniter\" or \"Igniter.Mix.Task\"), ctrl:declaredScope (exactly one of DEV_ONLY, TEST_ONLY, PRODUCTION -- the real scope as declared where the component is introduced, never inferred or assumed)." .
+
+ctrl:ProductionReference a rdfs:Class ;
+    rdfs:comment "One real record of a production build/projection unconditionally referencing a named component -- the ex4pm evidence this pack now encodes: apps/ex4pm_engine/lib/mix/tasks/ex4pm.engine.gen.adapter.ex (worktree /Users/sac/ex4pm-worktrees/qualification-domain, https://github.com/seanchatmangpt/ex4pm) does `use Igniter.Mix.Task` unconditionally, while apps/ex4pm_engine/mix.exs declares `{:igniter, \"~> 0.8.3\", only: [:dev, :test]}` -- so a MIX_ENV=prod compile of that mix-task file fails, because the dev/test-only dependency is never included in the prod dependency tree at all. Properties: ctrl:referencedComponent (points at the ctrl:ScopedComponent being referenced), ctrl:referencingProjection (free text -- the production build/projection or file making the reference, e.g. a module path or build target name). A production build/projection must never carry an unresolved reference to a component whose declared scope is dev-only or test-only -- gates/090 refuses sync while a ctrl:ProductionReference points at a ctrl:ScopedComponent with ctrl:declaredScope DEV_ONLY or TEST_ONLY." .

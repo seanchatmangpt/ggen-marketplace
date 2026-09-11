@@ -1,0 +1,61 @@
+# MESSAGE: any returned row refuses manufacture.
+#
+# Generalization of chatgptgym-gymact-bridge-pack/gates/010_execution_boundary.rq.
+# That gate whitelisted two literal DO titles by regex, which cannot travel to another
+# gym. This gate enforces the same authority boundary as a graph obligation instead:
+# a consequential operation may be PROJECTED as an MCP tool only when the graph itself
+# states that executing it requires GymAct/BRCE admission. No pack-local name list.
+PREFIX dct: <http://purl.org/dc/terms/>
+PREFIX sosa: <http://www.w3.org/ns/sosa/>
+SELECT ?subject ?problem WHERE {
+  {
+    ?subject a sosa:Procedure .
+    VALUES ?required { dct:title dct:type dct:description }
+    FILTER NOT EXISTS { ?subject ?required ?value }
+    BIND(CONCAT("missing:", STR(?required)) AS ?problem)
+  }
+  UNION
+  {
+    ?subject a sosa:Procedure ; dct:type ?consequence .
+    FILTER (?consequence NOT IN (<urn:gymact:consequence:read>, <urn:gymact:consequence:do>))
+    BIND("unknown-consequence-class-refused" AS ?problem)
+  }
+  UNION
+  {
+    # A DO operation without an explicit admission obligation would be projected as a
+    # freely callable MCP tool. That is ambient consequential authority. Refuse it.
+    ?subject a sosa:Procedure ; dct:type <urn:gymact:consequence:do> .
+    FILTER NOT EXISTS { ?subject <urn:gymmcp:requiresAdmission> true }
+    BIND("ambient-do-authority-refused" AS ?problem)
+  }
+  UNION
+  {
+    # A DO operation may never advertise itself as replay-safe: re-running a
+    # consequential call is not free of observable effect.
+    ?subject a sosa:Procedure ;
+      dct:type <urn:gymact:consequence:do> ;
+      <urn:gymmcp:replaySafe> true .
+    BIND("do-operation-claiming-replay-safety-refused" AS ?problem)
+  }
+  UNION
+  {
+    # A READ operation that demands admission is misclassified: observational calls
+    # do not pass through BRCE. Catches consequence/admission drift in either direction.
+    ?subject a sosa:Procedure ;
+      dct:type <urn:gymact:consequence:read> ;
+      <urn:gymmcp:requiresAdmission> true .
+    BIND("read-operation-requiring-admission-misclassified" AS ?problem)
+  }
+  UNION
+  {
+    # Every projected surface needs exactly one namespace; two server nodes would
+    # silently emit two conflicting MCP_TOOLS tables from one graph.
+    ?subject a <urn:gymmcp:McpServer> .
+    FILTER EXISTS {
+      ?other a <urn:gymmcp:McpServer> .
+      FILTER (?other != ?subject)
+    }
+    BIND("multiple-mcp-server-nodes-refused" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem

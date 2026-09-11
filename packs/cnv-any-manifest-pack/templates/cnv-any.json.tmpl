@@ -1,0 +1,67 @@
+---
+to: cnv-any.json
+force: true
+sparql:
+  cli: |
+    PREFIX cnv: <https://clap-noun-verb.dev/ontology#>
+    SELECT ?binary_name ?about WHERE {
+      ?cli a cnv:Cli ; cnv:binaryName ?binary_name ; cnv:about ?about .
+    }
+  commands: |
+    PREFIX cnv: <https://clap-noun-verb.dev/ontology#>
+    SELECT ?command ?noun ?verb ?about WHERE {
+      ?noun_node a cnv:Noun ; cnv:name ?noun ; cnv:hasCommand ?command .
+      ?command a cnv:Command ; cnv:name ?verb ; cnv:about ?about ;
+               cnv:belongsToNoun ?noun_node .
+    }
+    ORDER BY ?noun ?verb
+  arguments: |
+    PREFIX cnv: <https://clap-noun-verb.dev/ontology#>
+    SELECT ?command ?field ?value_kind
+           (STR(?required_value) AS ?required)
+           (STR(?position_value) AS ?position)
+           (COALESCE(STR(?long), "") AS ?long_flag)
+           (COALESCE(STR(?short), "") AS ?short_flag)
+           (COALESCE(STR(?action_raw), "set") AS ?action)
+    WHERE {
+      ?command a cnv:Command ; cnv:hasArgument ?argument .
+      ?argument a cnv:Argument ; cnv:fieldName ?field ; cnv:valueKind ?value_kind ;
+                cnv:required ?required_value ; cnv:position ?position_value .
+      OPTIONAL { ?argument cnv:longFlag ?long }
+      OPTIONAL { ?argument cnv:shortFlag ?short }
+      OPTIONAL { ?argument cnv:action ?action_raw }
+    }
+    ORDER BY ?command ?position_value ?field
+---
+{
+  "name": {{ cli[0].binary_name | json_encode | safe }},
+  "about": {% if cli[0].about %}{{ cli[0].about | json_encode | safe }}{% else %}null{% endif %},
+  "commands": [
+{%- for cmd in commands %}
+    {
+      "path": [{% if cmd.noun != "root" %}{{ cmd.noun | json_encode | safe }}, {% endif %}{{ cmd.verb | json_encode | safe }}],
+      "about": {% if cmd.about %}{{ cmd.about | json_encode | safe }}{% else %}null{% endif %},
+      "arguments": [
+{%- set_global first_arg = true %}
+{%- for arg in arguments %}{% if arg.command == cmd.command %}
+{%- if not first_arg %},{% endif %}{% set_global first_arg = false %}
+        {
+          "id": {{ arg.field | json_encode | safe }},
+{%- if arg.position == "0" %}
+          "long": {% if arg.long_flag %}{{ arg.long_flag | json_encode | safe }}{% else %}{{ arg.field | json_encode | safe }}{% endif %},
+{%- else %}
+          "long": null,
+{%- endif %}
+          "short": {% if arg.short_flag %}{{ arg.short_flag | json_encode | safe }}{% else %}null{% endif %},
+          "required": {{ arg.required }},
+          "positional": {% if arg.position == "0" %}false{% else %}true{% endif %},
+          "kind": {% if arg.value_kind == "bool" %}"boolean"{% elif arg.value_kind == "i64" or arg.value_kind == "u64" or arg.value_kind == "f64" %}"integer"{% else %}"string"{% endif %},
+          "behavior": {% if arg.action == "set_true" %}"set_true"{% elif arg.action == "set_false" %}"set_false"{% elif arg.action == "count" %}"count"{% elif arg.action == "append" %}"append"{% else %}"value"{% endif %}
+        }
+{%- endif %}{% endfor %}
+      ],
+      "callable": true
+    }{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ]
+}

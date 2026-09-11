@@ -1,0 +1,13 @@
+# MESSAGE: rfx:FixtureCorpus's declared rfx:memberCount does not match the real number of rfx:RegressionFixture individuals asserted rfx:partOf it -- this is the exact source-of-truth-drift class (a restated count going stale next to its own ground truth) this repo's source-of-truth-check skill exists to catch; recompute memberCount from the real COUNT rather than hand-editing it
+PREFIX rfx: <http://seanchatmangpt.github.io/packs/regression-fixtures#>
+SELECT ?corpus ?declared ?actual WHERE {
+  ?corpus a rfx:FixtureCorpus ; rfx:memberCount ?declared .
+  {
+    SELECT ?corpus (COUNT(?fixture) AS ?actual) WHERE {
+      ?fixture a rfx:RegressionFixture ; rfx:partOf ?corpus .
+    }
+    GROUP BY ?corpus
+  }
+  FILTER(?declared != ?actual)
+}
+ORDER BY ?corpus

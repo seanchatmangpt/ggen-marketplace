@@ -1,0 +1,64 @@
+PREFIX castle: <https://chatmangpt.com/ontology/castle#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+
+SELECT ?violation ?subject WHERE {
+  {
+    ?subject a castle:SecuritySource .
+    FILTER NOT EXISTS {
+      ?subject dcterms:identifier ?id ;
+        castle:authority ?authority ;
+        castle:versionLabel ?version ;
+        castle:versionPolicy ?versionPolicy ;
+        castle:securityKind ?kind ;
+        castle:machineSurface ?surface ;
+        castle:sourceUri ?uri ;
+        castle:fortune5SecurityCore ?core .
+    }
+    BIND("INCOMPLETE_SECURITY_SOURCE" AS ?violation)
+  }
+  UNION
+  {
+    ?left a castle:SecuritySource ; dcterms:identifier ?id .
+    ?right a castle:SecuritySource ; dcterms:identifier ?id .
+    FILTER(STR(?left) < STR(?right))
+    BIND(?left AS ?subject)
+    BIND("DUPLICATE_SECURITY_SOURCE_ID" AS ?violation)
+  }
+  UNION
+  {
+    BIND(castle:fortune5SecurityCore AS ?subject)
+    { SELECT (COUNT(?source) AS ?count) WHERE {
+        ?source a castle:SecuritySource ; castle:fortune5SecurityCore true .
+      }
+    }
+    FILTER(?count != 22)
+    BIND("FORTUNE5_SECURITY_CORE_COUNT" AS ?violation)
+  }
+  UNION
+  {
+    ?subject a castle:SecurityTool ; castle:directActuationAuthority true .
+    BIND("SECURITY_TOOL_AMBIENT_DO" AS ?violation)
+  }
+  UNION
+  {
+    ?subject a castle:SecurityTool .
+    FILTER NOT EXISTS {
+      ?subject dcterms:identifier ?id ;
+        castle:ecosystem ?ecosystem ;
+        castle:nativeSurface ?nativeSurface ;
+        castle:normalizedOutput ?normalizedOutput ;
+        castle:toolBoundary ?boundary ;
+        castle:directActuationAuthority false .
+    }
+    BIND("INCOMPLETE_SECURITY_TOOL" AS ?violation)
+  }
+  UNION
+  {
+    ?left a castle:SecurityTool ; dcterms:identifier ?id .
+    ?right a castle:SecurityTool ; dcterms:identifier ?id .
+    FILTER(STR(?left) < STR(?right))
+    BIND(?left AS ?subject)
+    BIND("DUPLICATE_SECURITY_TOOL_ID" AS ?violation)
+  }
+}
+ORDER BY ?violation ?subject

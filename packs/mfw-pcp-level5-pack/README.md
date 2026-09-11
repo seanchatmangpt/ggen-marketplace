@@ -17,30 +17,38 @@ ggen receipt verify
 
 The pack generates the complete bounded verifier crate: build manifest, certificate registry, obligation and distinction ledgers, receipt contracts, replay/standing verifier, positive tests, negative witnesses, documentation, provenance, CI, release standing, and verifier script.
 
-## Standing (real, 2026-07-21 audit -- not this pack's own optimistic self-assessment)
+## Standing (real, 2026-08-29 audit -- not this pack's own optimistic self-assessment)
 
 `L5_CAPABILITY_LEDGER.json` and `evidence/*.json` are authoritative for this pack, and reflect a
-live per-capability audit run against a real `ggen` binary (26.7.26), not a script that marks
-every row `ALIVE` on completion. Result: **5/12 ALIVE** (cap01, cap02, cap03, cap04, cap09),
-**7/12 PARTIAL_ALIVE** (cap05, cap06, cap07, cap08, cap10, cap11, cap12). `standing` is
-`PARTIAL_ALIVE` and `level5_admitted` is `false`. See `.specify/pack-l5-promotion.ttl`'s
-`l5p:pack_mfw_pcp_level5` individual (this repo's own L5 pack-closure promotion program) for the
-full evidentiary citation, and `docs/l5-promotion/L5_PROMOTION_PROGRAM.md` for its generated
-mirror.
+live per-capability audit, not a script that marks every row `ALIVE` on completion. Result:
+**11/12 ALIVE** (cap01-cap05, cap07-cap12), **1/12 PARTIAL_ALIVE** (cap06). `standing` is
+`PARTIAL_ALIVE` and `level5_admitted` is `false`. (`.specify/pack-l5-promotion.ttl` and
+`docs/l5-promotion/L5_PROMOTION_PROGRAM.md`, referenced by an earlier pass as this repo's L5
+pack-closure promotion program citation, do not currently exist in this repository -- a
+pre-existing dangling reference this pass did not fabricate a replacement for.)
 
-Two capabilities have a real, reproduced falsifier hit, not just an unaudited gap: cap11
-(Generated evolution path) breaks a generated test (`certificate_inventory_is_complete`,
-hardcodes `assert_eq!(certificates::ALL.len(), 10)` instead of a SPARQL-derived count) when a
-new `pcp:CertificateKind` is added -- exactly the example this capability's own falsifier names.
-cap12 (Consumer replacement) only succeeds after fixing a critical, pack-wide defect: every
-`templates/**/*.tmpl` file originally carried a leaked, un-stripped
-`---\nto:...\nsparql:...\n---` frontmatter header belonging to ggen's OTHER, mutually-exclusive
-"frontmatter" `ggen.toml` schema (this pack uses the declarative-rules schema, whose pipeline
-never strips it), which broke `cargo build` on every generated output (invalid TOML at
-`Cargo.toml:1:4`). The templates committed here already have that header stripped (a
-semantically-inert fix -- the header's `to`/`force`/`sparql` keys duplicate `ggen.toml`'s own
-`[[generation.rules]]` fields); see `evidence/consumer-replacement.json` for the full
-reproduction and fix detail.
+The 2026-07-21/22 passes' two real falsifier hits are now closed: the FRONTMATTER_LEAK that broke
+every generated output, and cap11's hardcoded-`10` test, were both already fixed in the source
+templates by the time this pass started (their committed `consumer/mfw-pcp-generated/` snapshot
+had simply drifted out of sync with the fix -- re-rendered to match, re-verified live). This pass
+additionally found and fixed a third, previously-undocumented defect: `cargo fmt --all -- --check`
+failed against the regenerated consumer because rustfmt's line-wrap decisions are content-length
+dependent and a static template can't guarantee `--check`-clean output for arbitrary ontology
+text; `templates/ci.yml.tmpl`/`templates/scripts/verify.sh.tmpl` now run `cargo fmt --all`
+(canonicalize) instead. See `evidence/consumer-replacement.json` and `evidence/semantic-diff.json`
+for full reproduction detail (no `ggen` binary was available in this pass's environment -- both
+files document the real rdflib-SPARQL + Jinja2 re-render method used in its place, cross-checked
+against a real `cargo build`/`test`/`fmt`/`clippy`).
+
+**cap06 (Generated negative witnesses) stays open, on a real, disclosed, unfabricated gap.**
+`ontology.ttl` declares 6 `pcp:Invariant` individuals; 4 have real passing positive+negative
+tests, 1 more (`certificate_inventory_is_complete`) is enforced at the admission-gate layer
+instead of at runtime. The 6th, `bounded_is_not_exhausted`, has no implementation anywhere in
+this pack -- no Rust type, no test, no gate references "bounded" or "exhausted" at all beyond
+this one invariant's own prose. This pass did not invent Bounded/Exhausted semantics to paper
+over that gap: nothing else in the ontology defines what they mean, and fabricating the business
+rule would be a worse defect than an honest `PARTIAL_ALIVE`. Closing it needs a maintainer who
+knows the intended semantics, or a decision to retire the invariant.
 
 ## Decisive verifier -- not carried forward from the source pack
 

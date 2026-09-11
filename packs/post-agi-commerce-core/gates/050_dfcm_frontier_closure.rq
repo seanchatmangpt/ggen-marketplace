@@ -1,0 +1,34 @@
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX c: <urn:ggen:pack:post-agi-commerce:>
+SELECT ?violation WHERE {
+  {
+    {
+      SELECT (COUNT(DISTINCT ?factor) AS ?factorCount) WHERE {
+        ?factor skos:inScheme c:design-factors .
+      }
+    }
+    FILTER(?factorCount != 8)
+    BIND(CONCAT("DfCM factor count != 8: ", STR(?factorCount)) AS ?violation)
+  }
+  UNION
+  {
+    {
+      SELECT (COUNT(DISTINCT ?alternative) AS ?alternativeCount) WHERE {
+        ?alternative dcterms:isPartOf ?factor .
+        ?factor skos:inScheme c:design-factors .
+      }
+    }
+    FILTER(?alternativeCount != 22)
+    BIND(CONCAT("DfCM alternative count != 22: ", STR(?alternativeCount)) AS ?violation)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS {
+      c:design-frontier dcterms:extent "2592"^^xsd:integer .
+      c:agent-frontier dcterms:extent "216"^^xsd:integer .
+    }
+    BIND("DfCM/agent frontier cardinality missing" AS ?violation)
+  }
+}

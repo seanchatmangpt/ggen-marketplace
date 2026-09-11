@@ -1,0 +1,25 @@
+# MESSAGE: a toolchain pin is missing a SHA-shaped actionRef, or a consumer asserts CI counts without a repo name
+PREFIX gymci: <http://seanchatmangpt.github.io/packs/gym-ci-toolchain-bblock#>
+SELECT ?subject ?field ?value WHERE {
+  {
+    ?subject a gymci:ToolchainPin ; gymci:actionRef ?raw .
+    FILTER(!REGEX(STR(?raw), "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}$"))
+    BIND("gymci:actionRef" AS ?field)
+    BIND(STR(?raw) AS ?value)
+  }
+  UNION
+  {
+    ?subject a gymci:ToolchainPin .
+    FILTER NOT EXISTS { ?subject gymci:versionComment ?vc }
+    BIND("gymci:versionComment" AS ?field)
+    BIND("missing" AS ?value)
+  }
+  UNION
+  {
+    ?subject a gymci:ConsumerRepo ; gymci:workflowCount ?wc .
+    FILTER NOT EXISTS { ?subject gymci:repoName ?rn }
+    BIND("gymci:repoName" AS ?field)
+    BIND("missing" AS ?value)
+  }
+}
+ORDER BY ?subject ?field

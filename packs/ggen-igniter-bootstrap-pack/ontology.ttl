@@ -1,0 +1,99 @@
+@prefix ggi:  <http://seanchatmangpt.github.io/packs/ggen-igniter-bootstrap#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+#################################################################
+# Vocabulary
+#################################################################
+
+ggi:LibrarySpec a rdfs:Class ;
+    rdfs:label "One Elixir library to scaffold (here: ggen_igniter itself)." .
+ggi:appName a rdf:Property ; rdfs:domain ggi:LibrarySpec ; rdfs:comment "snake_case OTP app name, e.g. ggen_igniter" .
+ggi:topModule a rdf:Property ; rdfs:domain ggi:LibrarySpec ; rdfs:comment "top Elixir module, e.g. GgenIgniter" .
+
+ggi:Module a rdfs:Class ;
+    rdfs:label "One module stub to manufacture: real @moduledoc + real function heads/@spec, TODO bodies." .
+ggi:moduleOf       a rdf:Property ; rdfs:domain ggi:Module ; rdfs:range ggi:LibrarySpec .
+ggi:moduleName     a rdf:Property ; rdfs:domain ggi:Module ; rdfs:comment "full module name, e.g. GgenIgniter.Ontology" .
+ggi:modulePath     a rdf:Property ; rdfs:domain ggi:Module ; rdfs:comment "lib/-relative file path, e.g. lib/ggen_igniter/ontology.ex" .
+ggi:moduleDoc      a rdf:Property ; rdfs:domain ggi:Module ; rdfs:comment "one-paragraph @moduledoc string" .
+ggi:moduleOrder    a rdf:Property ; rdfs:domain ggi:Module .
+ggi:isMixTask      a rdf:Property ; rdfs:domain ggi:Module ; rdfs:comment "boolean -- true for Mix.Tasks.GgenIgniter.Sync, false for library modules." .
+
+ggi:Function a rdfs:Class ;
+    rdfs:label "One public function this module exposes." .
+ggi:functionOf     a rdf:Property ; rdfs:domain ggi:Function ; rdfs:range ggi:Module .
+ggi:functionOrder  a rdf:Property ; rdfs:domain ggi:Function .
+ggi:functionName   a rdf:Property ; rdfs:domain ggi:Function ; rdfs:comment "e.g. load!" .
+ggi:functionArgs   a rdf:Property ; rdfs:domain ggi:Function ; rdfs:comment "comma-joined arg names as they'll appear in the head, e.g. \"path\"." .
+ggi:functionSpec   a rdf:Property ; rdfs:domain ggi:Function ; rdfs:comment "literal @spec type expression after the arrow, e.g. \"RDF.Graph.t()\"." .
+ggi:functionDoc    a rdf:Property ; rdfs:domain ggi:Function ; rdfs:comment "one-line @doc string." .
+ggi:functionTodo   a rdf:Property ; rdfs:domain ggi:Function ; rdfs:comment "one-line description of the real glue this function needs, rendered as a TODO comment -- an honest, visible gap, never a fake body." .
+
+#################################################################
+# Worked instance: ggen_igniter itself
+#################################################################
+
+ggi:GgenIgniterLib a ggi:LibrarySpec ;
+    ggi:appName "ggen_igniter" ;
+    ggi:topModule "GgenIgniter" .
+
+ggi:OntologyModule a ggi:Module ;
+    ggi:moduleOf ggi:GgenIgniterLib ; ggi:moduleOrder 1 ; ggi:isMixTask false ;
+    ggi:moduleName "GgenIgniter.Ontology" ;
+    ggi:modulePath "lib/ggen_igniter/ontology.ex" ;
+    ggi:moduleDoc "Loads a Turtle ontology file into an in-memory RDF.Graph via the `rdf` library. Real IO/parsing, no fixture stubbing." .
+
+ggi:OntologyLoad a ggi:Function ;
+    ggi:functionOf ggi:OntologyModule ; ggi:functionOrder 1 ;
+    ggi:functionName "load!" ; ggi:functionArgs "path" ; ggi:functionSpec "RDF.Graph.t()" ;
+    ggi:functionDoc "Parses the Turtle file at `path` into an RDF.Graph, raising on parse failure." ;
+    ggi:functionTodo "RDF.Turtle.read_file!(path)" .
+
+ggi:QueryModule a ggi:Module ;
+    ggi:moduleOf ggi:GgenIgniterLib ; ggi:moduleOrder 2 ; ggi:isMixTask false ;
+    ggi:moduleName "GgenIgniter.Query" ;
+    ggi:modulePath "lib/ggen_igniter/query.ex" ;
+    ggi:moduleDoc "Executes a SPARQL SELECT query against an in-memory RDF.Graph via the `sparql` library and reshapes results into plain maps keyed by column name (mirroring the row shape ggen's own Tera templates already consume)." .
+
+ggi:QueryRun a ggi:Function ;
+    ggi:functionOf ggi:QueryModule ; ggi:functionOrder 1 ;
+    ggi:functionName "run" ; ggi:functionArgs "graph, query_string" ; ggi:functionSpec "[map()]" ;
+    ggi:functionDoc "Runs `query_string` against `graph`, returning a list of %{column_name => value} maps." ;
+    ggi:functionTodo "SPARQL.execute_query(graph, query_string) then reshape %SPARQL.Query.Result{} rows -- strip RDF term wrappers (RDF.Literal/RDF.IRI) down to plain Elixir strings/values so callers never see RDF.ex's own struct types." .
+
+ggi:RenderModule a ggi:Module ;
+    ggi:moduleOf ggi:GgenIgniterLib ; ggi:moduleOrder 3 ; ggi:isMixTask false ;
+    ggi:moduleName "GgenIgniter.Render" ;
+    ggi:modulePath "lib/ggen_igniter/render.ex" ;
+    ggi:moduleDoc "Renders an EEx template string against query-result bindings into a final source-code string. Stdlib EEx, not a Tera/Liquid port -- see pack.toml for why." .
+
+ggi:RenderRender a ggi:Function ;
+    ggi:functionOf ggi:RenderModule ; ggi:functionOrder 1 ;
+    ggi:functionName "render" ; ggi:functionArgs "template_string, bindings" ; ggi:functionSpec "String.t()" ;
+    ggi:functionDoc "Evaluates `template_string` as EEx with `bindings` in scope, returning the rendered source string." ;
+    ggi:functionTodo "EEx.eval_string(template_string, bindings)" .
+
+ggi:ActuateModule a ggi:Module ;
+    ggi:moduleOf ggi:GgenIgniterLib ; ggi:moduleOrder 4 ; ggi:isMixTask false ;
+    ggi:moduleName "GgenIgniter.Actuate" ;
+    ggi:modulePath "lib/ggen_igniter/actuate.ex" ;
+    ggi:moduleDoc "v1: writes a rendered source string to a new file (greenfield case only). Igniter AST-patch actuation for incremental changes to an EXISTING file is an explicit, disclosed follow-on -- not implemented this pass (see pack.toml)." .
+
+ggi:ActuateWrite a ggi:Function ;
+    ggi:functionOf ggi:ActuateModule ; ggi:functionOrder 1 ;
+    ggi:functionName "write_new_file!" ; ggi:functionArgs "path, content" ; ggi:functionSpec ":ok" ;
+    ggi:functionDoc "Writes `content` to `path`, creating parent directories as needed." ;
+    ggi:functionTodo "File.mkdir_p!(Path.dirname(path)); File.write!(path, content)" .
+
+ggi:SyncTaskModule a ggi:Module ;
+    ggi:moduleOf ggi:GgenIgniterLib ; ggi:moduleOrder 5 ; ggi:isMixTask true ;
+    ggi:moduleName "Mix.Tasks.GgenIgniter.Sync" ;
+    ggi:modulePath "lib/mix/tasks/ggen_igniter.sync.ex" ;
+    ggi:moduleDoc "CLI entrypoint: `mix ggen_igniter.sync --ontology path.ttl --query path.rq --template path.eex --out path.ex`. Wires Ontology.load!/1 -> Query.run/2 -> Render.render/2 -> Actuate.write_new_file!/2 in sequence." .
+
+ggi:SyncIgniter a ggi:Function ;
+    ggi:functionOf ggi:SyncTaskModule ; ggi:functionOrder 1 ;
+    ggi:functionName "igniter" ; ggi:functionArgs "igniter" ; ggi:functionSpec "Igniter.t()" ;
+    ggi:functionDoc "Reads --ontology/--query/--template/--out options and runs the four-step pipeline." ;
+    ggi:functionTodo "graph = Ontology.load!(opts[:ontology]); rows = Query.run(graph, File.read!(opts[:query])); content = Render.render(File.read!(opts[:template]), bindings_from(rows)); Actuate.write_new_file!(opts[:out], content); igniter" .

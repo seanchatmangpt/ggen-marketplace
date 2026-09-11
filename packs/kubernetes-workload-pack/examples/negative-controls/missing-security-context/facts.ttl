@@ -1,0 +1,26 @@
+@prefix k8s: <http://seanchatmangpt.github.io/packs/kubernetes#> .
+@prefix ex:  <https://example.com/negative-controls/missing-security-context#> .
+
+# NEGATIVE CONTROL -- expected to be REFUSED by gate 010.
+# Workload declares no k8s:podSecurityContextBlock at all -- the exact
+# HIGH-severity gap this pack's own README documents as having been
+# present, before this pack existed, on every workload of its first real
+# consumer (0 of 3 pods set a securityContext, per a real trivy scan).
+#
+# Verify:
+#   ggen sync run --dry-run
+# Expected: refused, citing k8s:podSecurityContextBlock missing on
+# ex:noSecCtxWorkload.
+
+ex:noSecCtxWorkload a k8s:Workload ;
+  k8s:workloadName "no-sec-ctx" ;
+  k8s:fileName "no-sec-ctx.yaml" .
+
+ex:noSecCtxContainer a k8s:Container ;
+  k8s:inWorkload ex:noSecCtxWorkload ;
+  k8s:containerName "no-sec-ctx" ;
+  k8s:image "example/app:1.0.0" ;
+  k8s:resourceRequestsBlock """cpu: 100m
+memory: 128Mi""" ;
+  k8s:resourceLimitsBlock """cpu: 250m
+memory: 256Mi""" .

@@ -131,7 +131,12 @@ defmodule {{ module }} do
   ## Ops
 
   One public function per admitted `bpm:EngineOp`, each taking a trailing
-  `opts` keyword list (`:timeout` overrides the op's default budget):
+  `opts` keyword list (`:timeout` overrides the op's default budget). Every
+  op call fires exactly one `[:beam4pm, :engine, :{{ engine_name }}, op]`
+  `:telemetry.execute/3` event after the call returns, on both the success
+  and `{:error, reason}` refusal paths -- the OCEL evidence-contract Phase 2
+  event family consumed by `BeamPM.Ingest.Bridge`, `BeamPM.Evidence.OtelBridge`,
+  and `BeamPM.Evidence.ReceiptBridge` (`lib/beam4pm_evidence.ex`):
 {% for op in eops %}
 {%- set oargs = eargs | filter(attribute="op_key", value=op.op_key) %}
 {%- set positional = oargs | filter(attribute="positional", value="true") %}
@@ -259,11 +264,18 @@ defmodule {{ module }} do
 {%- set first_arg = positional | first %}
     {{ op.delegates_to }}(File.read!({{ first_arg.arg_name }}), opts)
 {%- else %}
-    %{"op" => "{{ op.wire_name }}"{% for a in inline_args %}, "{{ a.wire_key }}" => {% if a.mode == "keyword" %}Keyword.get(opts, :{{ a.arg_name }}, {{ a.arg_default }}){% elif a.encoding == "base64" %}Base.encode64({{ a.arg_name }}){% elif a.encoding == "tensor_list" %}Enum.map({{ a.arg_name }}, fn %{shape: shape, data: data} -> %{"shape" => shape, "data" => data} end){% elif a.encoding == "pair_list" %}Enum.map({{ a.arg_name }}, &Tuple.to_list/1){% else %}{{ a.arg_name }}{% endif %}{% endfor %}}
+    invocation_id = System.unique_integer([:positive, :monotonic])
+    start_native = System.monotonic_time()
+
+    result =
+      %{"op" => "{{ op.wire_name }}"{% for a in inline_args %}, "{{ a.wire_key }}" => {% if a.mode == "keyword" %}Keyword.get(opts, :{{ a.arg_name }}, {{ a.arg_default }}){% elif a.encoding == "base64" %}Base.encode64({{ a.arg_name }}){% elif a.encoding == "tensor_list" %}Enum.map({{ a.arg_name }}, fn %{shape: shape, data: data} -> %{"shape" => shape, "data" => data} end){% elif a.encoding == "pair_list" %}Enum.map({{ a.arg_name }}, &Tuple.to_list/1){% else %}{{ a.arg_name }}{% endif %}{% endfor %}}
 {%- for a in pipe_args %}
-    |> {% if a.encoding == "omit_when_nil" %}put_optional("{{ a.wire_key }}", {{ a.arg_name }}){% else %}Map.merge({{ a.arg_name }}){% endif %}
+      |> {% if a.encoding == "omit_when_nil" %}put_optional("{{ a.wire_key }}", {{ a.arg_name }}){% else %}Map.merge({{ a.arg_name }}){% endif %}
 {%- endfor %}
-    |> call(timeout(opts, @{{ op.timeout_class }}_timeout))
+      |> call(timeout(opts, @{{ op.timeout_class }}_timeout))
+
+    emit_engine_op_telemetry(:{{ op.op_name }}, result, invocation_id, start_native)
+    result
 {%- endif %}
   end
 {%- endfor %}
@@ -377,6 +389,36 @@ defmodule {{ module }} do
   defp put_optional(req, key, value), do: Map.put(req, key, value)
 {% endif %}
   defp timeout(opts, default), do: Keyword.get(opts, :timeout, default)
+
+  # ---------------------------------------------------------------------
+  # Telemetry -- fires the real `[:beam4pm, :engine, engine, op]` event
+  # this pack's OCEL evidence-contract Phase 2 consumers (BeamPM.Ingest.Bridge,
+  # BeamPM.Evidence.OtelBridge, BeamPM.Evidence.ReceiptBridge, all in
+  # lib/beam4pm_evidence.ex -- read, not guessed, before this wrapper was
+  # written) attach to. ONE :telemetry.execute/3 call after the op already
+  # returned (not a with_span/3 wrapper around the call site), matching
+  # OtelBridge's own handle_event/4 contract, which opens and closes its
+  # span from inside the callback using the already-known duration.
+  # ---------------------------------------------------------------------
+  defp emit_engine_op_telemetry(op, result, invocation_id, start_native) do
+    duration_native = System.monotonic_time() - start_native
+
+    metadata = %{
+      engine: :{{ engine_name }},
+      op: op,
+      op_iri: "https://ggen.dev/ontology/beam-process-model#{{ engine_name }}/" <> Atom.to_string(op),
+      invocation_id: invocation_id,
+      verification_class: :unverified
+    }
+
+    metadata =
+      case result do
+        {:error, reason} -> Map.put(metadata, :refusal_reason, inspect(reason))
+        _ -> metadata
+      end
+
+    :telemetry.execute([:beam4pm, :engine, :{{ engine_name }}, op], %{duration_native: duration_native}, metadata)
+  end
 end
 
 defmodule {{ module }}.Health do

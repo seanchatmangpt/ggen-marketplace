@@ -1,0 +1,55 @@
+@prefix gha:  <http://seanchatmangpt.github.io/packs/github-actions#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# DfCM local GitHub execution extension.
+# Reusable schema only: consumers mint profiles, capabilities, backends and routes.
+
+gha:LocalExecutionProfile a rdfs:Class ;
+  rdfs:label "A bounded local GitHub Actions execution profile. It admits a set of capabilities and one or more reversible routes per capability." .
+
+gha:LocalCapability a rdfs:Class ;
+  rdfs:label "One GitHub Actions or adjacent control-plane capability whose local standing must be explicit." .
+
+gha:ExecutionBackend a rdfs:Class ;
+  rdfs:label "A concrete execution/control backend, such as act, a local sidecar, or the official self-hosted runner." .
+
+gha:CapabilityRoute a rdfs:Class ;
+  rdfs:label "An admitted edge from a capability to a backend under one route mode and evidence ceiling." .
+
+gha:RouteMode a rdfs:Class .
+gha:ModeNative a gha:RouteMode ; rdfs:label "NATIVE" .
+gha:ModeLowered a gha:RouteMode ; rdfs:label "LOWERED" .
+gha:ModeSidecar a gha:RouteMode ; rdfs:label "SIDECAR" .
+gha:ModeSelfHostedFallback a gha:RouteMode ; rdfs:label "SELF_HOSTED_FALLBACK" .
+gha:ModeUnsupported a gha:RouteMode ; rdfs:label "UNSUPPORTED" .
+
+gha:profileName a rdf:Property ; rdfs:domain gha:LocalExecutionProfile .
+gha:requiresCapability a rdf:Property ; rdfs:domain gha:LocalExecutionProfile ; rdfs:range gha:LocalCapability .
+gha:receiptRoot a rdf:Property ; rdfs:domain gha:LocalExecutionProfile .
+gha:exactActSha a rdf:Property ; rdfs:domain gha:LocalExecutionProfile .
+gha:exactActVersion a rdf:Property ; rdfs:domain gha:LocalExecutionProfile .
+gha:exactActionsRunnerVersion a rdf:Property ; rdfs:domain gha:LocalExecutionProfile .
+gha:capabilityKey a rdf:Property ; rdfs:domain gha:LocalCapability .
+gha:capabilitySince a rdf:Property ; rdfs:domain gha:LocalCapability .
+gha:requiresGitHubControlPlane a rdf:Property ; rdfs:domain gha:LocalCapability ; rdfs:range xsd:boolean .
+gha:inProfile a rdf:Property ; rdfs:domain gha:CapabilityRoute ; rdfs:range gha:LocalExecutionProfile .
+gha:forCapability a rdf:Property ; rdfs:domain gha:CapabilityRoute ; rdfs:range gha:LocalCapability .
+gha:viaBackend a rdf:Property ; rdfs:domain gha:CapabilityRoute ; rdfs:range gha:ExecutionBackend .
+gha:routeMode a rdf:Property ; rdfs:domain gha:CapabilityRoute ; rdfs:range gha:RouteMode .
+gha:routePriority a rdf:Property ; rdfs:domain gha:CapabilityRoute ; rdfs:range xsd:integer .
+gha:semanticCeiling a rdf:Property ; rdfs:domain gha:CapabilityRoute .
+gha:evidenceClass a rdf:Property ; rdfs:domain gha:CapabilityRoute .
+gha:routeCommand a rdf:Property ; rdfs:domain gha:CapabilityRoute .
+gha:unsupportedReason a rdf:Property ; rdfs:domain gha:CapabilityRoute .
+
+# 2026 step-concurrency primitives.
+gha:background a rdf:Property ; rdfs:domain gha:Step ; rdfs:range xsd:boolean .
+gha:waitFor a rdf:Property ; rdfs:domain gha:Step ;
+  rdfs:label "One background step id to wait for; repeatable." .
+gha:waitAll a rdf:Property ; rdfs:domain gha:Step ; rdfs:range xsd:boolean .
+gha:cancelStep a rdf:Property ; rdfs:domain gha:Step ;
+  rdfs:label "Background step id to cancel." .
+gha:parallelBody a rdf:Property ; rdfs:domain gha:Step ;
+  rdfs:label "Exact YAML list body nested under a GitHub parallel: step. This is an explicit narrow migration escape hatch until parallel-member steps are first-class typed individuals; consumers may instead preserve the equivalent typed background+wait lower form." .

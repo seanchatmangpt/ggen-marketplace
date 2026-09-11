@@ -1,0 +1,32 @@
+# MESSAGE: canonical DfCM generation rules must be context-closed before manufacture; unresolved required variables or incomplete source/query/template/output identity refuses generation.
+PREFIX dfcm: <https://ggen.dev/ontology/dfcm#>
+SELECT ?rule ?problem WHERE {
+  ?rule a dfcm:GenerationRule .
+  {
+    VALUES (?property ?label) {
+      (dfcm:ruleName "ruleName")
+      (dfcm:sourcePack "sourcePack")
+      (dfcm:queryFile "queryFile")
+      (dfcm:templateFile "templateFile")
+      (dfcm:outputFile "outputFile")
+      (dfcm:generationMode "generationMode")
+      (dfcm:skipEmpty "skipEmpty")
+      (dfcm:bindingState "bindingState")
+      (dfcm:qualificationTimeoutSeconds "qualificationTimeoutSeconds")
+    }
+    FILTER NOT EXISTS { ?rule ?property ?value }
+    BIND(CONCAT("missing_", ?label) AS ?problem)
+  }
+  UNION
+  {
+    ?rule dfcm:bindingState ?state .
+    FILTER(STR(?state) != "CLOSED")
+    BIND("binding_not_closed" AS ?problem)
+  }
+  UNION
+  {
+    ?rule dfcm:missingVariable ?missing .
+    BIND(CONCAT("unresolved_variable_", STR(?missing)) AS ?problem)
+  }
+}
+ORDER BY ?rule ?problem

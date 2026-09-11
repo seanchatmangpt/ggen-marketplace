@@ -1,0 +1,66 @@
+# MESSAGE: any returned row refuses manufacture. beam4pm engine ops are bounded to
+# in-wasm linear memory behind the alloc/call/dealloc JSON ABI; this pack manufactures
+# reflection catalogs only and never grants host actuation authority. Consequential
+# host DO stays external, behind GymAct/BRCE admission.
+PREFIX dct:  <http://purl.org/dc/terms/>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX sosa: <http://www.w3.org/ns/sosa/>
+PREFIX bpw:  <urn:beam4pm:wasm:>
+SELECT ?subject ?problem WHERE {
+  {
+    # An op missing any load-bearing wire fact cannot be manufactured.
+    ?subject a sosa:Procedure .
+    VALUES ?required { dct:title dct:type bpw:engine bpw:timeoutClass bpw:handleReturning bpw:freesHandle }
+    FILTER NOT EXISTS { ?subject ?required ?value }
+    BIND(CONCAT("missing:", STR(?required)) AS ?problem)
+  }
+  UNION
+  {
+    ?subject a sosa:Procedure ; dct:type ?consequence .
+    FILTER (?consequence NOT IN (<urn:gymact:consequence:read>, <urn:gymact:consequence:do>))
+    BIND("unknown-consequence-class-refused" AS ?problem)
+  }
+  UNION
+  {
+    # DO is admitted ONLY as in-engine state mutation. Any op naming a host-side
+    # effect (filesystem, network, process, shell) is ambient authority and refused.
+    ?subject a sosa:Procedure ;
+      dct:type <urn:gymact:consequence:do> ;
+      dct:title ?title .
+    FILTER (regex(STR(?title), "(^|_)(exec|spawn|shell|system|http|fetch|post|write_file|read_file|delete|deploy|publish)(_|$)"))
+    BIND("ambient-host-authority-refused" AS ?problem)
+  }
+  UNION
+  {
+    # A READ op that mints or frees a handle is misclassified: handle lifecycle is DO.
+    ?subject a sosa:Procedure ;
+      dct:type <urn:gymact:consequence:read> ;
+      ?lifecycle true .
+    VALUES ?lifecycle { bpw:handleReturning bpw:freesHandle }
+    BIND("read-op-mutating-handle-lifecycle-refused" AS ?problem)
+  }
+  UNION
+  {
+    # An op must attach to an engine that actually declares the ABI it rides on.
+    ?subject a sosa:Procedure ; bpw:engine ?engine .
+    FILTER NOT EXISTS { ?engine a prov:SoftwareAgent ; bpw:abiPrefix ?prefix }
+    BIND("op-on-undeclared-engine-refused" AS ?problem)
+  }
+  UNION
+  {
+    # Only the four real, audited wasm engines are admitted. A fifth prefix is a
+    # new ABI surface and must be reviewed against real source before manufacture.
+    ?subject a prov:SoftwareAgent ; bpw:abiPrefix ?prefix .
+    FILTER (?prefix NOT IN ("r4pm_", "fp_", "pg_", "tr_"))
+    BIND("unadmitted-engine-abi-prefix-refused" AS ?problem)
+  }
+  UNION
+  {
+    # Two engines sharing a store or an export prefix would collide in linear memory.
+    ?subject a prov:SoftwareAgent ; bpw:abiPrefix ?prefix ; bpw:genServerName ?gs .
+    ?other a prov:SoftwareAgent ; bpw:genServerName ?gs .
+    FILTER (?other != ?subject)
+    BIND("engine-genserver-collision-refused" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem

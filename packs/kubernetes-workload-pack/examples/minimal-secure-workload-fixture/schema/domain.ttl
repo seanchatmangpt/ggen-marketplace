@@ -1,0 +1,28 @@
+@prefix k8s: <http://seanchatmangpt.github.io/packs/kubernetes#> .
+@prefix : <http://example.org/minimal-secure-workload-fixture#> .
+
+:web a k8s:Workload ;
+  k8s:workloadName "web" ;
+  k8s:namespace "default" ;
+  k8s:fileName "deployment.yaml" ;
+  k8s:replicas 2 ;
+  k8s:serviceAccountName "web-sa" ;
+  k8s:automountServiceAccountToken false ;
+  k8s:podSecurityContextBlock "runAsNonRoot: true\nrunAsUser: 1000\nfsGroup: 2000" ;
+  k8s:servicePort 80 ;
+  k8s:serviceTargetPort 8080 ;
+  k8s:serviceType "ClusterIP" .
+
+:webContainer a k8s:Container ;
+  k8s:inWorkload :web ;
+  k8s:containerName "web" ;
+  k8s:image "example.org/web:1.2.3" ;
+  k8s:imagePullPolicy "IfNotPresent" ;
+  k8s:containerPort 8080 ;
+  k8s:resourceRequestsBlock "cpu: 100m\nmemory: 128Mi" ;
+  k8s:resourceLimitsBlock "cpu: 500m\nmemory: 256Mi" ;
+  k8s:readinessProbeBlock "httpGet:\n  path: /healthz\n  port: 8080\ninitialDelaySeconds: 5" ;
+  k8s:livenessProbeBlock "httpGet:\n  path: /healthz\n  port: 8080\ninitialDelaySeconds: 10" ;
+  k8s:containerSecurityContextBlock "allowPrivilegeEscalation: false\nreadOnlyRootFilesystem: true" ;
+  k8s:envFromConfigMap "web-config" ;
+  k8s:envFromSecret "web-secret" .

@@ -1,0 +1,37 @@
+# MESSAGE: any returned row refuses manufacture. autofde-lab catalog facts are
+# observational (catalog/describe/match) or the single bounded-rollout `run`
+# intent; this pack never grants ambient consequential DO authority. Consequential
+# DO stays behind GymAct/BRCE admission and autofde-lab's own runtime gate.
+PREFIX dct: <http://purl.org/dc/terms/>
+PREFIX sosa: <http://www.w3.org/ns/sosa/>
+SELECT ?subject ?problem WHERE {
+  {
+    ?subject a sosa:Procedure .
+    VALUES ?required { dct:title dct:type }
+    FILTER NOT EXISTS { ?subject ?required ?value }
+    BIND(CONCAT("missing:", STR(?required)) AS ?problem)
+  }
+  UNION
+  {
+    ?subject a sosa:Procedure ; dct:type ?consequence .
+    FILTER (?consequence NOT IN (<urn:gymact:consequence:read>, <urn:gymact:consequence:do>))
+    BIND("unknown-consequence-class-refused" AS ?problem)
+  }
+  UNION
+  {
+    ?subject a sosa:Procedure ;
+      dct:type <urn:gymact:consequence:do> ;
+      dct:title ?title .
+    FILTER (!regex(STR(?title), "^run$"))
+    BIND("ambient-do-authority-refused" AS ?problem)
+  }
+  UNION
+  {
+    ?subject a sosa:Procedure ;
+      dct:type <urn:gymact:consequence:read> ;
+      dct:title ?title .
+    FILTER (!regex(STR(?title), "^(catalog|describe|match)$"))
+    BIND("non-observational-read-refused" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem

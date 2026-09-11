@@ -1,0 +1,34 @@
+# agent-fleet-isolation-pack ontology: the fleet: vocabulary for a declared
+# parallel-agent fleet plan, plus the real-execution evidence facts a
+# dispatched agent must emit before the fleet can be reported done.
+#
+# fleet:Agent individuals (the PLAN) are authored by the consumer before
+# dispatch. fleet:CwdAssertion and fleet:JidokaStop individuals (the
+# EVIDENCE) are NEVER hand-authored here -- they are emitted by the
+# generated scripts/agent-preamble.sh into evidence/ontology.ttl, which the
+# consumer wires as an [ontology] source, exactly the plan/evidence split
+# ggen-verify-pack uses for ver:RequiredCheck vs ver:Check.
+
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix fleet: <http://seanchatmangpt.github.io/packs/agent-fleet-isolation#> .
+
+# --- Vocabulary: the plan ---------------------------------------------------
+
+fleet:Fleet a rdfs:Class ;
+    rdfs:comment "One dispatched fleet run: a named group of fleet:Agent individuals working a shared task across a repo tree. Properties: fleet:name, fleet:task (free-text description of what the fleet was dispatched to do)." .
+
+fleet:Agent a rdfs:Class ;
+    rdfs:comment "One agent's declared assignment within a fleet:Fleet, authored BEFORE dispatch. Properties: fleet:name (stable key, matches a fleet:CwdAssertion and any fleet:JidokaStop), fleet:assignedRepo (path or URL of the target repo), fleet:worktreePath (the git worktree directory this agent -- and only this agent -- may write in), fleet:buildCacheDir (the private build-cache/target directory this agent -- and only this agent -- may use), fleet:partOf (the owning fleet:Fleet)." .
+
+# --- Vocabulary: real execution evidence ------------------------------------
+
+fleet:CwdAssertion a rdfs:Class ;
+    rdfs:comment "One agent's real, emitted proof that its first action ran `pwd && git rev-parse --show-toplevel && git log -1 --oneline` inside its assigned worktree and the result matched the plan. Emitted by scripts/agent-preamble.sh, never hand-authored. Properties: fleet:agentName (matches a fleet:Agent's fleet:name), fleet:actualToplevel (real `git rev-parse --show-toplevel` output), fleet:actualHeadOneline (real `git log -1 --oneline` output), fleet:matchesAssigned (xsd:boolean -- true only when actualToplevel resolves to the agent's declared worktreePath)." .
+
+fleet:JidokaStop a rdfs:Class ;
+    rdfs:comment "One agent's real halt-on-ambiguity record: raised when the agent hit a decision it must not guess (which branch is canonical, whether to delete something, conflicting requirements) per the fleet contract's jidoka rule. Properties: fleet:agentName, fleet:reason (free text, the actual ambiguity), fleet:resolved (xsd:boolean -- absent or false means the stop is still open and blocks the fleet from being reported done), fleet:resolution (free text, how a human or a follow-up decision closed it -- present only when fleet:resolved is true)." .
+
+fleet:EvidenceCommand a rdfs:Class ;
+    rdfs:comment "One agent's real, pasted last-action verification command and its output, proving the agent's claimed work is backed by executed evidence rather than a narrated claim. Properties: fleet:agentName, fleet:command (the exact command run), fleet:exitCode (xsd:integer, real), fleet:outputDigest (sha256 of the real captured output, so the evidence can be checked for tampering without re-running the command at gate time)." .

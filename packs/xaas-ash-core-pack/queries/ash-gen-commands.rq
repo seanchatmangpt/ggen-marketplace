@@ -1,0 +1,59 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX sh:  <http://www.w3.org/ns/shacl#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+# Generic projection. It contains no XaaS capability list and no custom
+# ontology vocabulary. Public SHACL target classes determine resources;
+# public datatype property shapes determine attributes.
+SELECT ?phase ?kind ?class ?module ?domain ?arg ?source
+WHERE {
+  ?shape a sh:NodeShape ;
+         sh:targetClass ?class .
+  FILTER(isIRI(?class))
+
+  BIND(REPLACE(STR(?class), "^.*[#/]", "") AS ?localName)
+  BIND(CONCAT("Xaas.Public.", ?localName) AS ?module)
+  BIND("Xaas.Public" AS ?domain)
+
+  {
+    BIND(10 AS ?phase)
+    BIND("resource" AS ?kind)
+    BIND("" AS ?arg)
+    BIND(STR(?class) AS ?source)
+  }
+  UNION
+  {
+    ?shape sh:property ?propertyShape .
+    ?propertyShape sh:path ?path ;
+                   sh:datatype ?datatype .
+    FILTER(isIRI(?path))
+
+    VALUES (?datatype ?ashType) {
+      (xsd:string             "string")
+      (rdf:langString         "string")
+      (xsd:boolean            "boolean")
+      (xsd:integer            "integer")
+      (xsd:int                "integer")
+      (xsd:long               "integer")
+      (xsd:nonNegativeInteger "integer")
+      (xsd:decimal            "decimal")
+      (xsd:float              "float")
+      (xsd:double             "float")
+      (xsd:date               "date")
+      (xsd:dateTime           "utc_datetime")
+      (xsd:anyURI             "string")
+    }
+
+    BIND(REPLACE(STR(?path), "^.*[#/]", "") AS ?attributeName)
+    OPTIONAL { ?propertyShape sh:minCount ?minCount . }
+    BIND(
+      IF(BOUND(?minCount) && ?minCount >= 1, ":required", "")
+      AS ?requiredModifier
+    )
+    BIND(CONCAT(?attributeName, ":", ?ashType, ?requiredModifier) AS ?arg)
+    BIND(20 AS ?phase)
+    BIND("attribute" AS ?kind)
+    BIND(STR(?path) AS ?source)
+  }
+}
+ORDER BY ?phase STR(?class) ?arg

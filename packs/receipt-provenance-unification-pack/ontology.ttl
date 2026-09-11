@@ -1,0 +1,330 @@
+@prefix rp:      <http://seanchatmangpt.github.io/packs/receipt-provenance#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix dcat:    <http://www.w3.org/ns/dcat#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix dqv:     <http://www.w3.org/ns/dqv#> .
+
+#################################################################
+# receipt-provenance-unification-pack
+#
+# One schema for the receipt contracts that are currently hand-maintained
+# in five separate places across the gym ecosystem. Every individual below
+# carries rp:sourceFile / rp:sourceLine citations to the REAL file it was
+# transcribed from (per the evidence-forcing rule: a fact without a
+# citation is not admitted).
+#
+# AUTHORITY BOUNDARY: this pack carries NO runtime actuation authority.
+# It generates a *validator* (a read-only predicate over receipt documents)
+# and a *contract matrix* (data). Consequential DO — writing receipts,
+# admitting actuation, mutating gitlinks — stays behind GymAct/BRCE
+# admission and is out of scope here.
+#################################################################
+
+rp:sourceFile a owl:DatatypeProperty ;
+    rdfs:subPropertyOf dcterms:source ;
+    rdfs:comment "Absolute path of the real file this fact was transcribed from." .
+
+rp:sourceLine a owl:DatatypeProperty ;
+    rdfs:comment "1-indexed line in rp:sourceFile, when the fact is line-anchored." .
+
+#################################################################
+# Classes
+#################################################################
+
+rp:ReceiptContract a owl:Class ;
+    rdfs:subClassOf dcat:Dataset ;
+    rdfs:label "Receipt contract" ;
+    rdfs:comment "One named, versioned receipt document shape actually observed in the ecosystem." .
+
+rp:FieldBinding a owl:Class ;
+    rdfs:subClassOf prov:Entity ;
+    rdfs:label "Field binding" ;
+    rdfs:comment "One field of a receipt contract: dotted path, value form, mandatory-ness." .
+
+rp:ValueForm a owl:Class ;
+    rdfs:subClassOf skos:Concept ;
+    rdfs:label "Value form" ;
+    rdfs:comment "The lexical shape a field's value must take (a regex-backed primitive)." .
+
+rp:Validator a owl:Class ;
+    rdfs:subClassOf prov:SoftwareAgent ;
+    rdfs:label "Validator" ;
+    rdfs:comment "A real, hand-maintained program that today checks one contract." .
+
+rp:DelimiterDivergence a owl:Class ;
+    rdfs:subClassOf dqv:QualityAnnotation ;
+    rdfs:label "Delimiter divergence" ;
+    rdfs:comment "Two contracts encode the same standing vocabulary with incompatible reason delimiters." .
+
+rp:contract      a owl:ObjectProperty ; rdfs:domain rp:FieldBinding ; rdfs:range rp:ReceiptContract .
+rp:valueForm     a owl:ObjectProperty ; rdfs:domain rp:FieldBinding ; rdfs:range rp:ValueForm .
+rp:validatedBy   a owl:ObjectProperty ; rdfs:domain rp:ReceiptContract ; rdfs:range rp:Validator .
+rp:dottedPath    a owl:DatatypeProperty ; rdfs:domain rp:FieldBinding .
+rp:mandatory     a owl:DatatypeProperty ; rdfs:domain rp:FieldBinding ; rdfs:range xsd:boolean .
+rp:pattern       a owl:DatatypeProperty ; rdfs:domain rp:ValueForm .
+rp:jsonType      a owl:DatatypeProperty ; rdfs:domain rp:ValueForm .
+rp:schemaUri     a owl:DatatypeProperty ; rdfs:domain rp:ReceiptContract .
+rp:contractKey   a owl:DatatypeProperty ; rdfs:domain rp:ReceiptContract .
+rp:reasonDelimiter a owl:DatatypeProperty ; rdfs:domain rp:ReceiptContract .
+
+#################################################################
+# Value forms — the primitives every contract re-derives by hand today
+# Transcribed from the real regexes in verify-receipt.sh and the real
+# JSON Schema "pattern" strings.
+#################################################################
+
+rp:vf_sha1 a rp:ValueForm ;
+    skos:prefLabel "git-sha1-hex" ;
+    rp:jsonType "string" ;
+    rp:pattern "^[0-9a-f]{40}$" ;
+    rp:sourceFile "/Users/sac/gym-ecosystem/vendor/ggen-ecosystem/scripts/verify-receipt.sh" ;
+    rp:sourceLine 49 .
+
+rp:vf_sha256 a rp:ValueForm ;
+    skos:prefLabel "sha256-hex-optionally-prefixed" ;
+    rp:jsonType "string" ;
+    rp:pattern "^(sha256:)?[0-9a-f]{64}$" ;
+    rp:sourceFile "/Users/sac/gym-ecosystem/vendor/ggen-ecosystem/scripts/verify-receipt.sh" ;
+    rp:sourceLine 50 .
+
+rp:vf_sha256_bare a rp:ValueForm ;
+    skos:prefLabel "sha256-hex-bare" ;
+    rp:jsonType "string" ;
+    rp:pattern "^[0-9a-f]{64}$" ;
+    rp:sourceFile "/Users/sac/gym-ecosystem/vendor/autofde-lab/src/autofde_lab/receipts/receipt.schema.json" ;
+    rp:sourceLine 24 .
+
+rp:vf_standing_bracket a rp:ValueForm ;
+    skos:prefLabel "standing-bracket-reason" ;
+    rp:jsonType "string" ;
+    rp:pattern "^(UNKNOWN|PARTIAL_ALIVE|ALIVE|BLOCKED|BUILD_BROKEN|UNSUPPORTED|REFUSED)(\\[[^\\]]+\\])?$" ;
+    rp:sourceFile "/Users/sac/gym-ecosystem/vendor/ggen-ecosystem/scripts/verify-receipt.sh" ;
+    rp:sourceLine 51 .
+
+rp:vf_standing_colon a rp:ValueForm ;
+    skos:prefLabel "standing-colon-reason" ;
+    rp:jsonType "string" ;
+    rp:pattern "^(UNKNOWN|PARTIAL_ALIVE|ALIVE|BLOCKED|BUILD_BROKEN|UNSUPPORTED)$|^REFUSED:.+$" ;
+    rp:sourceFile "/Users/sac/gym-ecosystem/vendor/autofde-lab/schemas/chatman-clean-session-receipt.schema.json" ;
+    rp:sourceLine 51 .
+
+rp:vf_admission a rp:ValueForm ;
+    skos:prefLabel "admission-result" ;
+    rp:jsonType "string" ;
+    rp:pattern "^(ADMITTED|REFUSED(\\[[^\\]]+\\])?)$" ;
+    rp:sourceFile "/Users/sac/gym-ecosystem/vendor/ggen-ecosystem/scripts/verify-receipt.sh" ;
+    rp:sourceLine 159 .
+
+rp:vf_string a rp:ValueForm ;
+    skos:prefLabel "nonempty-string" ;
+    rp:jsonType "string" ;
+    rp:pattern ".+" .
+
+rp:vf_int a rp:ValueForm ;
+    skos:prefLabel "integer" ;
+    rp:jsonType "integer" ;
+    rp:pattern "" .
+
+rp:vf_bool a rp:ValueForm ;
+    skos:prefLabel "boolean" ;
+    rp:jsonType "boolean" ;
+    rp:pattern "" .
+
+rp:vf_gitref a rp:ValueForm ;
+    skos:prefLabel "git-ref" ;
+    rp:jsonType "string" ;
+    rp:pattern "^refs/heads/.+$" ;
+    rp:sourceFile "/Users/sac/gym-ecosystem/artifacts/autonomic-crown.json" .
+
+#################################################################
+# Validators actually on disk today (each hand-maintained, each
+# covering exactly one contract, none sharing a line of code)
+#################################################################
+
+rp:val_verify_receipt_sh a rp:Validator ;
+    rdfs:label "verify-receipt.sh" ;
+    rp:sourceFile "/Users/sac/gym-ecosystem/vendor/ggen-ecosystem/scripts/verify-receipt.sh" ;
+    rdfs:comment "Embedded 200-line python3 block inside a bash wrapper; stdlib json only." .
+
+rp:val_receipt_store_py a rp:Validator ;
+    rdfs:label "receipt_store.ReceiptLedger.verify_chain" ;
+    rp:sourceFile "/Users/sac/gym-ecosystem/vendor/autofde-lab/src/autofde_lab/receipts/receipt_store.py" ;
+    rp:sourceLine 47 ;
+    rdfs:comment "Chain-link + digest re-derivation only; performs no field-shape validation." .
+
+rp:val_none a rp:Validator ;
+    rdfs:label "NONE" ;
+    rdfs:comment "No executable validator exists for this contract; the shape is enforced only by the producer that writes it." .
+
+#################################################################
+# The five real receipt contracts
+#################################################################
+
+rp:c_ecosystem_sync a rp:ReceiptContract ;
+    dcterms:title "ggen-ecosystem release sync receipt" ;
+    rp:contractKey "ecosystem_sync" ;
+    rp:schemaUri "https://ggen.dev/receipts/ecosystem-sync/v2" ;
+    rp:reasonDelimiter "bracket" ;
+    rp:validatedBy rp:val_verify_receipt_sh ;
+    rp:sourceFile "/Users/sac/gym-ecosystem/vendor/ggen-ecosystem/docs/RECEIPT-SCHEMA.md" .
+
+rp:c_ecosystem_bootstrap a rp:ReceiptContract ;
+    dcterms:title "ggen-ecosystem bootstrap receipt" ;
+    rp:contractKey "ecosystem_bootstrap" ;
+    rp:schemaUri "https://ggen.dev/receipts/ecosystem-bootstrap/v1" ;
+    rp:reasonDelimiter "bracket" ;
+    rp:validatedBy rp:val_none ;
+    rp:sourceFile "/Users/sac/gym-ecosystem/vendor/ggen-ecosystem/receipts/bootstrap-ggen-ecosystem-sync.json" .
+
+rp:c_gym_crown a rp:ReceiptContract ;
+    dcterms:title "gym autonomic crown receipt" ;
+    rp:contractKey "gym_autonomic_crown" ;
+    rp:schemaUri "https://ggen.dev/receipts/gym-autonomic-crown/v2" ;
+    rp:reasonDelimiter "none" ;
+    rp:validatedBy rp:val_none ;
+    rp:sourceFile "/Users/sac/gym-ecosystem/artifacts/autonomic-crown.json" .
+
+rp:c_autofde_ledger a rp:ReceiptContract ;
+    dcterms:title "autofde-lab broker ledger receipt" ;
+    rp:contractKey "autofde_ledger" ;
+    rp:schemaUri "https://autofde-lab.dev/schemas/receipt.schema.json" ;
+    rp:reasonDelimiter "none" ;
+    rp:validatedBy rp:val_receipt_store_py ;
+    rp:sourceFile "/Users/sac/gym-ecosystem/vendor/autofde-lab/src/autofde_lab/receipts/receipt.schema.json" .
+
+rp:c_clean_session a rp:ReceiptContract ;
+    dcterms:title "Chatman clean-session execution receipt" ;
+    rp:contractKey "clean_session" ;
+    rp:schemaUri "https://seanchatman.dev/schemas/chatman-clean-session-receipt.schema.json" ;
+    rp:reasonDelimiter "colon" ;
+    rp:validatedBy rp:val_none ;
+    rp:sourceFile "/Users/sac/gym-ecosystem/vendor/autofde-lab/schemas/chatman-clean-session-receipt.schema.json" .
+
+#################################################################
+# Field bindings — transcribed field-by-field from the real contracts
+#################################################################
+
+# --- ecosystem-sync/v2 (RECEIPT-SCHEMA.md field-contract table) ---
+rp:f_es_repo a rp:FieldBinding ; rp:contract rp:c_ecosystem_sync ;
+    rp:dottedPath "subject.repository" ; rp:valueForm rp:vf_string ; rp:mandatory true .
+rp:f_es_commit a rp:FieldBinding ; rp:contract rp:c_ecosystem_sync ;
+    rp:dottedPath "subject.commit" ; rp:valueForm rp:vf_sha1 ; rp:mandatory true .
+rp:f_es_version a rp:FieldBinding ; rp:contract rp:c_ecosystem_sync ;
+    rp:dottedPath "ecosystem.version" ; rp:valueForm rp:vf_string ; rp:mandatory true .
+rp:f_es_ggen a rp:FieldBinding ; rp:contract rp:c_ecosystem_sync ;
+    rp:dottedPath "ecosystem.ggen_commit" ; rp:valueForm rp:vf_sha1 ; rp:mandatory true .
+rp:f_es_mkt a rp:FieldBinding ; rp:contract rp:c_ecosystem_sync ;
+    rp:dottedPath "ecosystem.marketplace_commit" ; rp:valueForm rp:vf_sha1 ; rp:mandatory true .
+rp:f_es_digest a rp:FieldBinding ; rp:contract rp:c_ecosystem_sync ;
+    rp:dottedPath "ecosystem.container_digest" ; rp:valueForm rp:vf_sha256 ; rp:mandatory true .
+rp:f_es_admission a rp:FieldBinding ; rp:contract rp:c_ecosystem_sync ;
+    rp:dottedPath "admission.result" ; rp:valueForm rp:vf_admission ; rp:mandatory true .
+rp:f_es_cmd a rp:FieldBinding ; rp:contract rp:c_ecosystem_sync ;
+    rp:dottedPath "execution.command" ; rp:valueForm rp:vf_string ; rp:mandatory true .
+rp:f_es_exit a rp:FieldBinding ; rp:contract rp:c_ecosystem_sync ;
+    rp:dottedPath "execution.exit_code" ; rp:valueForm rp:vf_int ; rp:mandatory true .
+rp:f_es_cdigest a rp:FieldBinding ; rp:contract rp:c_ecosystem_sync ;
+    rp:dottedPath "consequence.digest" ; rp:valueForm rp:vf_sha256 ; rp:mandatory true .
+rp:f_es_doctor a rp:FieldBinding ; rp:contract rp:c_ecosystem_sync ;
+    rp:dottedPath "verification.doctor" ; rp:valueForm rp:vf_standing_bracket ; rp:mandatory true .
+rp:f_es_chicago a rp:FieldBinding ; rp:contract rp:c_ecosystem_sync ;
+    rp:dottedPath "verification.chicago" ; rp:valueForm rp:vf_standing_bracket ; rp:mandatory true .
+rp:f_es_dod a rp:FieldBinding ; rp:contract rp:c_ecosystem_sync ;
+    rp:dottedPath "verification.dod" ; rp:valueForm rp:vf_standing_bracket ; rp:mandatory true .
+rp:f_es_standing a rp:FieldBinding ; rp:contract rp:c_ecosystem_sync ;
+    rp:dottedPath "standing" ; rp:valueForm rp:vf_standing_bracket ; rp:mandatory true .
+rp:f_es_patch a rp:FieldBinding ; rp:contract rp:c_ecosystem_sync ;
+    rp:dottedPath "patch_sha256" ; rp:valueForm rp:vf_sha256 ; rp:mandatory false .
+
+# --- ecosystem-bootstrap/v1 (transcribed from the real receipt on disk) ---
+rp:f_eb_schema a rp:FieldBinding ; rp:contract rp:c_ecosystem_bootstrap ;
+    rp:dottedPath "schema" ; rp:valueForm rp:vf_string ; rp:mandatory true .
+rp:f_eb_artifact a rp:FieldBinding ; rp:contract rp:c_ecosystem_bootstrap ;
+    rp:dottedPath "artifact" ; rp:valueForm rp:vf_string ; rp:mandatory true .
+rp:f_eb_asha a rp:FieldBinding ; rp:contract rp:c_ecosystem_bootstrap ;
+    rp:dottedPath "artifact_sha256" ; rp:valueForm rp:vf_sha256 ; rp:mandatory true .
+rp:f_eb_standing a rp:FieldBinding ; rp:contract rp:c_ecosystem_bootstrap ;
+    rp:dottedPath "standing" ; rp:valueForm rp:vf_standing_bracket ; rp:mandatory true .
+rp:f_eb_mrepo a rp:FieldBinding ; rp:contract rp:c_ecosystem_bootstrap ;
+    rp:dottedPath "manufacturer.repository" ; rp:valueForm rp:vf_string ; rp:mandatory true .
+rp:f_eb_mhead a rp:FieldBinding ; rp:contract rp:c_ecosystem_bootstrap ;
+    rp:dottedPath "manufacturer.branch_head_sha" ; rp:valueForm rp:vf_sha1 ; rp:mandatory true .
+rp:f_eb_mco a rp:FieldBinding ; rp:contract rp:c_ecosystem_bootstrap ;
+    rp:dottedPath "manufacturer.github_checkout_sha" ; rp:valueForm rp:vf_sha1 ; rp:mandatory true .
+rp:f_eb_mrun a rp:FieldBinding ; rp:contract rp:c_ecosystem_bootstrap ;
+    rp:dottedPath "manufacturer.workflow_run_id" ; rp:valueForm rp:vf_int ; rp:mandatory true .
+rp:f_eb_mdigest a rp:FieldBinding ; rp:contract rp:c_ecosystem_bootstrap ;
+    rp:dottedPath "manufacturer.artifact_digest" ; rp:valueForm rp:vf_sha256 ; rp:mandatory true .
+rp:f_eb_grel a rp:FieldBinding ; rp:contract rp:c_ecosystem_bootstrap ;
+    rp:dottedPath "ggen.release" ; rp:valueForm rp:vf_string ; rp:mandatory true .
+rp:f_eb_gasset a rp:FieldBinding ; rp:contract rp:c_ecosystem_bootstrap ;
+    rp:dottedPath "ggen.release_asset_sha256" ; rp:valueForm rp:vf_sha256 ; rp:mandatory true .
+rp:f_eb_gbin a rp:FieldBinding ; rp:contract rp:c_ecosystem_bootstrap ;
+    rp:dottedPath "ggen.binary_sha256" ; rp:valueForm rp:vf_sha256 ; rp:mandatory true .
+
+# --- gym-autonomic-crown/v2 (transcribed from the real crown artifact) ---
+rp:f_gc_schema a rp:FieldBinding ; rp:contract rp:c_gym_crown ;
+    rp:dottedPath "schema" ; rp:valueForm rp:vf_string ; rp:mandatory true .
+rp:f_gc_repo a rp:FieldBinding ; rp:contract rp:c_gym_crown ;
+    rp:dottedPath "repository" ; rp:valueForm rp:vf_string ; rp:mandatory true .
+rp:f_gc_base a rp:FieldBinding ; rp:contract rp:c_gym_crown ;
+    rp:dottedPath "base_sha" ; rp:valueForm rp:vf_sha1 ; rp:mandatory true .
+rp:f_gc_auth a rp:FieldBinding ; rp:contract rp:c_gym_crown ;
+    rp:dottedPath "authority_boundary" ; rp:valueForm rp:vf_string ; rp:mandatory true .
+rp:f_gc_count a rp:FieldBinding ; rp:contract rp:c_gym_crown ;
+    rp:dottedPath "changed_count" ; rp:valueForm rp:vf_int ; rp:mandatory true .
+
+# crown submodule element fields (validated per-element)
+rp:f_gcs_name a rp:FieldBinding ; rp:contract rp:c_gym_crown ;
+    rp:dottedPath "submodules[].name" ; rp:valueForm rp:vf_string ; rp:mandatory true .
+rp:f_gcs_path a rp:FieldBinding ; rp:contract rp:c_gym_crown ;
+    rp:dottedPath "submodules[].path" ; rp:valueForm rp:vf_string ; rp:mandatory true .
+rp:f_gcs_url a rp:FieldBinding ; rp:contract rp:c_gym_crown ;
+    rp:dottedPath "submodules[].url" ; rp:valueForm rp:vf_string ; rp:mandatory true .
+rp:f_gcs_cur a rp:FieldBinding ; rp:contract rp:c_gym_crown ;
+    rp:dottedPath "submodules[].current" ; rp:valueForm rp:vf_sha1 ; rp:mandatory true .
+rp:f_gcs_lat a rp:FieldBinding ; rp:contract rp:c_gym_crown ;
+    rp:dottedPath "submodules[].latest" ; rp:valueForm rp:vf_sha1 ; rp:mandatory true .
+rp:f_gcs_ref a rp:FieldBinding ; rp:contract rp:c_gym_crown ;
+    rp:dottedPath "submodules[].default_ref" ; rp:valueForm rp:vf_gitref ; rp:mandatory true .
+rp:f_gcs_chg a rp:FieldBinding ; rp:contract rp:c_gym_crown ;
+    rp:dottedPath "submodules[].changed" ; rp:valueForm rp:vf_bool ; rp:mandatory true .
+
+# --- autofde ledger (receipt.schema.json required[]) ---
+rp:f_al_kind a rp:FieldBinding ; rp:contract rp:c_autofde_ledger ;
+    rp:dottedPath "kind" ; rp:valueForm rp:vf_string ; rp:mandatory true .
+rp:f_al_issued a rp:FieldBinding ; rp:contract rp:c_autofde_ledger ;
+    rp:dottedPath "issued_at_ms" ; rp:valueForm rp:vf_int ; rp:mandatory true .
+rp:f_al_digest a rp:FieldBinding ; rp:contract rp:c_autofde_ledger ;
+    rp:dottedPath "digest" ; rp:valueForm rp:vf_sha256_bare ; rp:mandatory true .
+rp:f_al_seq a rp:FieldBinding ; rp:contract rp:c_autofde_ledger ;
+    rp:dottedPath "body.sequence" ; rp:valueForm rp:vf_int ; rp:mandatory true .
+rp:f_al_prev a rp:FieldBinding ; rp:contract rp:c_autofde_ledger ;
+    rp:dottedPath "body.previous_receipt_digest" ; rp:valueForm rp:vf_sha256_bare ; rp:mandatory true .
+
+# --- clean-session (schema required[]) ---
+rp:f_cs_id a rp:FieldBinding ; rp:contract rp:c_clean_session ;
+    rp:dottedPath "receipt_id" ; rp:valueForm rp:vf_sha256_bare ; rp:mandatory true .
+rp:f_cs_task a rp:FieldBinding ; rp:contract rp:c_clean_session ;
+    rp:dottedPath "task_identity" ; rp:valueForm rp:vf_sha256_bare ; rp:mandatory true .
+rp:f_cs_standing a rp:FieldBinding ; rp:contract rp:c_clean_session ;
+    rp:dottedPath "standing" ; rp:valueForm rp:vf_standing_colon ; rp:mandatory true .
+rp:f_cs_state a rp:FieldBinding ; rp:contract rp:c_clean_session ;
+    rp:dottedPath "state_digest" ; rp:valueForm rp:vf_sha256_bare ; rp:mandatory true .
+
+#################################################################
+# The measured divergence (a dqv quality annotation, not an opinion)
+#################################################################
+
+rp:div_refused_delimiter a rp:DelimiterDivergence ;
+    dqv:inDimension dqv:Consistency ;
+    rdfs:label "REFUSED reason delimiter is bracket in ggen-ecosystem, colon in autofde-lab" ;
+    prov:used rp:c_ecosystem_sync , rp:c_clean_session ;
+    rdfs:comment "verify-receipt.sh accepts REFUSED[X] and rejects REFUSED:X; chatman-clean-session-receipt.schema.json accepts REFUSED:X and rejects REFUSED[X]. The same standing token is mutually invalid across the two repos." ;
+    rp:sourceFile "/Users/sac/gym-ecosystem/vendor/ggen-ecosystem/scripts/verify-receipt.sh" ;
+    rp:sourceLine 51 .

@@ -1,0 +1,86 @@
+@prefix ema:   <http://seanchatmangpt.github.io/packs/elixir-mcp-a2a#> .
+@prefix v2030: <http://xaas.chatmangpt.com/ontology/vision-2030#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+
+#################################################################
+# Generates a real Elixir MCP router scope + A2A agent module + capability
+# descriptor from ONE admitted ema:CapabilitySurface, so any consuming repo
+# (xaas, ex4pm, beam4pm) can stand up its own MCP/A2A surface from its own
+# capability list instead of hand-writing router/agent boilerplate per repo.
+#
+# Golden specimen this pack was extracted from (2026-09-09):
+# /Users/sac/xaas -- lib/xaas_web/router.ex:105-120 (real `forward("/",
+# AshAi.Mcp.Router, tools: [...])` scope, `:audit_mcp_tool_call` pipeline),
+# lib/xaas_web/plugs/audit_mcp_tool_call.ex (real non-blocking audit-log
+# plug wrapping the forward), lib/xaas_web/a2a/next_read_user_agent.ex
+# (real `use A2A.Agent, name:, description:, skills: [...]`).
+#
+# Directly closes the two real cross-repo gaps named in this session's
+# vision-2030 requirements pass: v2030:MCPCapabilityDescriptor (per-
+# capability observation/mutation/authority/reversibility/cost/receipt
+# metadata -- beam4pm_discovery.ex's real pure functions have no such
+# wrapper today) and the narrow, single-agent slice of
+# v2030:A2ACognitionFabric (this pack generates ONE agent's skill surface
+# per CapabilitySurface; it does NOT generate agent-to-agent message
+# exchange between multiple agents -- that remains a real, disclosed gap,
+# named again in this file's own follow-up comment below, not silently
+# claimed solved).
+#################################################################
+
+ema:CapabilitySurface a rdfs:Class ;
+    rdfs:label "One MCP+A2A surface to manufacture for a target Elixir app -- its router scope, its A2A agent module, and its capability descriptors, generalized from xaas's real router.ex/next_read_user_agent.ex shape." .
+
+ema:appModule       a rdf:Property ; rdfs:domain ema:CapabilitySurface ; rdfs:comment "top-level OTP app module, e.g. \"Xaas\" | \"Beam4pm\" | \"Ex4pm\"." .
+ema:otpApp           a rdf:Property ; rdfs:domain ema:CapabilitySurface ; rdfs:comment "the :otp_app atom AshAi.Mcp.Router needs, e.g. :xaas." .
+ema:mcpMountPath     a rdf:Property ; rdfs:domain ema:CapabilitySurface ; rdfs:comment "router scope path, e.g. \"/mcp\" (xaas's real convention, router.ex:105)." .
+ema:mcpProtocolVersion a rdf:Property ; rdfs:domain ema:CapabilitySurface ; rdfs:comment "e.g. \"2024-11-05\" (xaas's real value, router.ex:118)." .
+ema:mcpAuditPlugModule a rdf:Property ; rdfs:domain ema:CapabilitySurface ;
+    rdfs:comment "0-1 rows -- fully-qualified plug module for a non-blocking per-request audit log, mirroring XaasWeb.Plugs.AuditMcpToolCall's real convention (audit the forward itself, not each tool; a failed audit write never halts the real request). Absent means no audit plug is generated -- disclosed gap, not a silent security claim." .
+
+ema:agentModule   a rdf:Property ; rdfs:domain ema:CapabilitySurface ; rdfs:comment "the A2A.Agent module name, e.g. XaasWeb.A2A.NextReadUserAgent." .
+ema:skillsModule  a rdf:Property ; rdfs:domain ema:CapabilitySurface ;
+    rdfs:comment "explicit, admitted module name for the GENERATED, pure-data skills-list module (e.g. \"XaasWeb.A2A.NextReadUserAgentSkills\"), safe to fully regenerate every ggen_igniter.sync run. Stated as fact here, not derived by string-appending \"Skills\" to ema:agentModule -- the same 'echo, don't synthesize' discipline ash-extension-core-pack's aex:taskModuleName property already documents (a real parity bug there: naive derivation from a dotted module name produces the wrong camelization). The real hand-written ema:agentModule module (real dispatch logic, never regenerated) references this module's `skills/0` function instead of hardcoding its skill list inline -- this is the seam: generated metadata + hand-written dispatch, tied by an explicit name, mirroring Ash's own Persist/Verify/Info module split. Absent means the agent template still generates skills: inline as before (back-compat), and no separate skills module is produced." .
+ema:agentName     a rdf:Property ; rdfs:domain ema:CapabilitySurface ; rdfs:comment "A2A.Agent `name:` field." .
+ema:agentDescription a rdf:Property ; rdfs:domain ema:CapabilitySurface .
+ema:agentMountPath a rdf:Property ; rdfs:domain ema:CapabilitySurface ; rdfs:comment "e.g. \"/a2a\" (xaas's real convention)." .
+ema:agentSwarmRole a rdf:Property ; rdfs:domain ema:CapabilitySurface ; rdfs:range v2030:SwarmRole ;
+    rdfs:comment "0-1 rows -- links this generated A2A agent to a v2030:SwarmRole individual (Observer/Historian/Ontologist/...) when this surface is standing up one of the nine named Vision-2030 roles rather than a domain-specific agent like NextReadUserAgent. Optional: not every generated agent need be a swarm role." .
+
+ema:Capability a rdfs:Class ;
+    rdfs:label "One MCP tool / A2A skill this surface exposes, carrying the v2030:MCPCapabilityDescriptor metadata shape (observation/mutation/authority/reversibility/cost/receipt) as REAL, queryable fields rather than an unstructured tool list -- this is the concrete thing that flips v2030:MCPCapabilityDescriptor from target to current for a consumer that generates from this pack." .
+
+ema:capabilityOf        a rdf:Property ; rdfs:domain ema:Capability ; rdfs:range ema:CapabilitySurface .
+ema:capabilityOrder     a rdf:Property ; rdfs:domain ema:Capability .
+ema:capabilityId        a rdf:Property ; rdfs:domain ema:Capability ; rdfs:comment "MCP tool atom name and/or A2A skill id, per ema:exposedVia (see below)." .
+ema:exposedVia          a rdf:Property ; rdfs:domain ema:Capability ;
+    rdfs:comment "closed: \"mcp\" | \"a2a\" | \"both\". Corrected from an earlier draft's wrong assumption that one capability row always serves both protocol surfaces with the same id: real xaas has DISJOINT id sets -- router.ex's real /mcp `tools:` list is [:list_books, :books_by_grade_band, :active_curations_for_grade] (read-only Ash actions), while next_read_user_agent.ex's real A2A `skills:` list is [\"browse\", \"checkout\", \"hddl-plan\"] (persona-level tasks, one of which -- checkout -- is a real consequential mutation never exposed as an MCP tool at all). mcp_router_scope.ex.tmpl/eex must filter caps to exposedVia in (\"mcp\",\"both\"); the skills-module template must filter to exposedVia in (\"a2a\",\"both\"). A capability with no matching filter value is a real defect (would silently vanish from BOTH generated surfaces), not an accepted default -- gates/010 should eventually check this too (named follow-up, not yet added)." .
+ema:capabilityName      a rdf:Property ; rdfs:domain ema:Capability ; rdfs:comment "human-readable A2A skill name, e.g. \"Browse books\"." .
+ema:capabilityDescription a rdf:Property ; rdfs:domain ema:Capability .
+ema:capabilityTag a rdf:Property ; rdfs:domain ema:Capability ;
+    rdfs:comment "0+ rows -- free-text A2A skill tags, e.g. \"next-read\"/\"library\"/\"hddl\". Added after catching a real regression during the first ggen_igniter dogfood run against xaas: without this property, generating XaasWeb.A2A.NextReadUserAgentSkills silently replaced each real skill's specific tags with a uniform [\"generated\", app_module] placeholder -- a real fidelity loss, not cosmetic, since A2A skill cards use tags for discovery. Absent means the generated skill gets only the generic fallback tags, which the template must state plainly, not silently produce as if it were the real tag set." .
+ema:capabilityAshAction a rdf:Property ; rdfs:domain ema:Capability ; rdfs:comment "0-1 rows -- the real Ash code_interface function this capability dispatches to, when the target app uses AshAi's ash_ai.gen.mcp convention (e.g. \"Xaas.Library.list_books/1\"). Absent means this capability is registered in the descriptor but not yet backed by AshAi.Mcp.Router's own tool list -- a real, disclosed gap between 'described' and 'callable', not silently merged." .
+
+ema:observationScope    a rdf:Property ; rdfs:domain ema:Capability ; rdfs:comment "closed: \"none\" | \"read_only\" | \"read_write\" -- what this capability can observe." .
+ema:mutationScope       a rdf:Property ; rdfs:domain ema:Capability ; rdfs:comment "closed: \"none\" | \"idempotent\" | \"consequential\" -- \"consequential\" means this capability's real backing action must route through Xaas.Actuation.run/4 or ex4pm's BRCE.execute/5, per both repos' own doctrine that observation/projection never implies DO authority." .
+ema:requiresAuthority   a rdf:Property ; rdfs:domain ema:Capability ; rdfs:comment "boolean -- whether calling this capability requires an explicit authority context (mirrors ce:AgentRole/odrl:Permission's real shape in chatman-ecosystem.ttl, and xaas's own Consequential-DO doctrine in CLAUDE.md)." .
+ema:isReversible        a rdf:Property ; rdfs:domain ema:Capability ; rdfs:comment "boolean -- whether a real compensating action exists for this capability's effect." .
+ema:costEstimate        a rdf:Property ; rdfs:domain ema:Capability ; rdfs:comment "optional free-text cost note, e.g. \"O(n) over active checkouts\" -- deliberately not a formal cost model; naming a real number here where known beats a fabricated unit elsewhere." .
+ema:receiptSemantics    a rdf:Property ; rdfs:domain ema:Capability ; rdfs:comment "closed: \"none\" | \"logged\" | \"sealed_receipt\" -- \"sealed_receipt\" means this capability's call produces a real Xaas.Actuation-style or ex4pm BRCE-style receipt, not just an audit log line." .
+
+#################################################################
+# Named follow-ups, NOT built in this version (disclosed, not silently
+# dropped):
+# - Multi-agent A2A message exchange (agent-to-agent, not just one agent's
+#   own skill surface) -- the general v2030:A2ACognitionFabric target
+#   remains open; this pack only generates ONE agent per CapabilitySurface.
+# - No SHACL shape yet constrains ema:observationScope/mutationScope/
+#   receiptSemantics to their closed vocabularies -- a real gate belongs
+#   here (gates/010_capability_descriptor_contract.rq), not yet written.
+# - No template yet generates beam4pm_discovery.ex's real pure functions
+#   (traces_from_events/2, dfg_from_traces/1, etc.) as ema:Capability rows
+#   automatically -- a consumer must currently hand-author those rows
+#   against its own real functions; an introspection-driven generator
+#   (read a module's @spec, propose descriptor defaults) is a real,
+#   larger follow-up, not attempted here.
+#################################################################

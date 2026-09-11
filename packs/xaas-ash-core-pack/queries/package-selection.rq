@@ -1,0 +1,27 @@
+PREFIX xar: <https://ggen.io/ontology/xaas-ash-render#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+
+# Real package-catalog selection query.
+#
+# For xaas-core's own instantiation, "selection" is simply every real,
+# non-deprecated catalog entry that this deployment's own ecosystem script
+# already installs, PLUS the full real catalog available for a different
+# deployment's ontology to select from differently. This single query
+# returns the full real, valid (catalogStatus = "include") set -- a
+# per-deployment ggen.toml would narrow this further with a real FILTER
+# driven by that deployment's own ce:Capability domain facts (e.g.
+# `FILTER(?domainModule = "Xaas.Governance")` pulling in only
+# governance-relevant packages) once package-to-domain facts are encoded
+# (real, disclosed follow-up -- not yet built in this pass; every package
+# individual currently has no domain-affinity fact, only catalogStatus).
+SELECT ?hexPackage ?realOrg ?orgVerified ?alreadyInstalled ?description
+WHERE {
+  ?pkg a xar:PackageCandidate ;
+    xar:hexPackage ?hexPackage ;
+    xar:catalogStatus "include" ;
+    xar:realOrg ?realOrg ;
+    xar:orgVerified ?orgVerified ;
+    xar:alreadyInstalled ?alreadyInstalled .
+  OPTIONAL { ?pkg dcterms:description ?description }
+}
+ORDER BY DESC(?alreadyInstalled) ?hexPackage

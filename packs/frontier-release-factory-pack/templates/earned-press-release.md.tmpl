@@ -1,0 +1,64 @@
+---
+to: "releases/earned/{{ slug }}.md"
+for_each: rows
+sparql:
+  rows: |
+    PREFIX frf: <https://ggen.io/ontology/frontier-release-factory#>
+    SELECT ?release ?slug ?release_title ?verified_claim ?subject_identity
+           ?verifier_identity ?evidence_ref ?replay_ref ?standing
+           ?benchmark_id ?acceptance_predicate ?falsifier ?publisher ?source_url
+    WHERE {
+      ?release a frf:EarnedRelease ;
+               frf:slug ?slug ;
+               frf:observedClaim ?claim ;
+               frf:forOpportunity ?opportunity .
+      ?receipt a frf:EvidenceReceipt ;
+               frf:supportsClaim ?claim ;
+               frf:subjectIdentity ?subject_identity ;
+               frf:verifierIdentity ?verifier_identity ;
+               frf:evidenceRef ?evidence_ref ;
+               frf:replayRef ?replay_ref ;
+               frf:standing ?standing .
+      ?opportunity frf:benchmark ?benchmark .
+      ?benchmark frf:benchmarkId ?benchmark_id ;
+                 frf:acceptancePredicate ?acceptance_predicate ;
+                 frf:falsifier ?falsifier .
+      OPTIONAL { ?release frf:releaseTitle ?release_title . }
+      OPTIONAL { ?release frf:verifiedClaim ?verified_claim . }
+      OPTIONAL {
+        ?source frf:derivedOpportunity ?opportunity ;
+                frf:publisher ?publisher ;
+                frf:sourceUrl ?source_url .
+      }
+    }
+    ORDER BY ?slug
+---
+# {{ release_title | default(value=slug) }}
+
+_Status: EARNED RELEASE — render only from verified evidence-bearing claims._
+
+## What shipped
+
+{{ verified_claim | default(value="") }}
+
+## External context
+
+This work was triggered by {{ publisher | default(value="(none admitted)") }}'s announcement at {{ source_url | default(value="(none admitted)") }}. The external announcement is provenance and comparison context; it is not evidence for this release's standing.
+
+## Executed evidence
+
+- Exact subject: `{{ subject_identity }}`
+- Verifier: `{{ verifier_identity }}`
+- Execution receipt: `{{ evidence_ref }}`
+- Replay: `{{ replay_ref }}`
+- Standing: `{{ standing }}`
+
+## Benchmark
+
+- Benchmark: `{{ benchmark_id }}`
+- Acceptance: {{ acceptance_predicate }}
+- Falsifier: {{ falsifier }}
+
+## Claim fence
+
+No claim in this release is admitted solely from a working-backwards draft, source article, generated artifact, model output, workflow configuration, or unexecuted plan.

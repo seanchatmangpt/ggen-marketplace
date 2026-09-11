@@ -1,0 +1,25 @@
+# MESSAGE: every DfCM portfolio requires a declared selection policy and at least two valid candidate members; singleton/empty portfolios collapse option capital prematurely.
+PREFIX dfcm: <https://ggen.dev/ontology/dfcm#>
+SELECT ?portfolio ?problem WHERE {
+  ?portfolio a dfcm:Portfolio .
+  {
+    FILTER NOT EXISTS { ?portfolio dfcm:selectionPolicy ?policy }
+    BIND("missing_selection_policy" AS ?problem)
+  }
+  UNION
+  {
+    { SELECT ?portfolio (COUNT(DISTINCT ?member) AS ?count) WHERE {
+        ?portfolio a dfcm:Portfolio .
+        OPTIONAL { ?portfolio dfcm:member ?member }
+      } GROUP BY ?portfolio }
+    FILTER(?count < 2)
+    BIND("portfolio_requires_at_least_two_members" AS ?problem)
+  }
+  UNION
+  {
+    ?portfolio dfcm:member ?member .
+    FILTER NOT EXISTS { ?member a dfcm:Candidate }
+    BIND("member_is_not_candidate" AS ?problem)
+  }
+}
+ORDER BY ?portfolio ?problem

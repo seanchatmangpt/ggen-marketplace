@@ -1,0 +1,23 @@
+PREFIX sh: <http://www.w3.org/ns/shacl#>
+
+# Property shapes must identify a public IRI path and must not claim both
+# datatype and object-class semantics simultaneously.
+SELECT ?shape ?propertyShape ?reason
+WHERE {
+  ?shape a sh:NodeShape ;
+         sh:property ?propertyShape .
+  {
+    FILTER NOT EXISTS {
+      ?propertyShape sh:path ?path .
+      FILTER(isIRI(?path))
+    }
+    BIND("PROPERTY_PATH_MISSING_OR_NOT_IRI" AS ?reason)
+  }
+  UNION
+  {
+    ?propertyShape sh:datatype ?datatype ;
+                   sh:class ?class .
+    BIND("PROPERTY_SHAPE_HAS_BOTH_DATATYPE_AND_CLASS" AS ?reason)
+  }
+}
+ORDER BY STR(?shape) STR(?propertyShape) ?reason
