@@ -1,0 +1,39 @@
+# MESSAGE: every aex:InfoGetter must have a non-empty aex:getterOf/aex:getterName/
+# aex:getterSourceSection, aex:getterOf must reference a real aex:AshExtensionSpec,
+# and aex:getterSourceSection must resolve to a real aex:DslSection whose own
+# aex:sectionOf equals this same InfoGetter's aex:getterOf (a getter reading from a
+# section that belongs to a DIFFERENT spec is a real, checkable authoring error).
+# Any row = a violation.
+PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+
+SELECT ?s ?missing WHERE {
+  {
+    VALUES (?type ?missing) {
+      (aex:InfoGetter aex:getterOf)
+      (aex:InfoGetter aex:getterName)
+      (aex:InfoGetter aex:getterSourceSection)
+    }
+    ?s a ?type .
+    FILTER NOT EXISTS { ?s ?missing ?any }
+  }
+  UNION {
+    # getterOf must reference a real AshExtensionSpec
+    ?s a aex:InfoGetter ; aex:getterOf ?spec .
+    FILTER NOT EXISTS { ?spec a aex:AshExtensionSpec }
+    BIND(aex:getterOf AS ?missing)
+  }
+  UNION {
+    # getterSourceSection must reference a real DslSection
+    ?s a aex:InfoGetter ; aex:getterSourceSection ?section .
+    FILTER NOT EXISTS { ?section a aex:DslSection }
+    BIND(aex:getterSourceSection AS ?missing)
+  }
+  UNION {
+    # getterSourceSection's own sectionOf must equal this InfoGetter's own getterOf
+    ?s a aex:InfoGetter ; aex:getterOf ?spec ; aex:getterSourceSection ?section .
+    ?section a aex:DslSection .
+    FILTER NOT EXISTS { ?section aex:sectionOf ?spec }
+    BIND(aex:getterSourceSection AS ?missing)
+  }
+}
+ORDER BY ?s ?missing
