@@ -36,8 +36,26 @@ defmodule MarketplaceCli.Inspector do
 
   defmodule Pack do
     @moduledoc "Mirrors the real Python `Pack` dataclass, field-for-field."
-    @enforce_keys [:name, :version, :description, :path, :ontologies, :templates, :native_gates, :verifier_gates]
-    defstruct [:name, :version, :description, :path, :ontologies, :templates, :native_gates, :verifier_gates]
+    @enforce_keys [
+      :name,
+      :version,
+      :description,
+      :path,
+      :ontologies,
+      :templates,
+      :native_gates,
+      :verifier_gates
+    ]
+    defstruct [
+      :name,
+      :version,
+      :description,
+      :path,
+      :ontologies,
+      :templates,
+      :native_gates,
+      :verifier_gates
+    ]
 
     @type t :: %__MODULE__{
             name: String.t(),
@@ -150,6 +168,7 @@ defmodule MarketplaceCli.Inspector do
       {:ok, entries} ->
         Enum.flat_map(entries, fn entry ->
           full = Path.join(dir, entry)
+
           if symlink?(full) or not File.dir?(full) do
             [full]
           else
@@ -175,8 +194,11 @@ defmodule MarketplaceCli.Inspector do
           case File.read(manifest) do
             {:ok, content} ->
               case Toml.decode(content) do
-                {:ok, parsed} -> {parsed, []}
-                {:error, reason} -> {nil, [refusal("MANIFEST_INVALID", "#{dir_name}:#{inspect(reason)}")]}
+                {:ok, parsed} ->
+                  {parsed, []}
+
+                {:error, reason} ->
+                  {nil, [refusal("MANIFEST_INVALID", "#{dir_name}:#{inspect(reason)}")]}
               end
 
             {:error, reason} ->
@@ -194,18 +216,24 @@ defmodule MarketplaceCli.Inspector do
       end
 
     ontologies = ontology_files(directory)
-    ontology_issues = if ontologies == [], do: [refusal("ONTOLOGY_SOURCE_MISSING", dir_name)], else: []
+
+    ontology_issues =
+      if ontologies == [], do: [refusal("ONTOLOGY_SOURCE_MISSING", dir_name)], else: []
 
     templates = visible_files(Path.join(directory, "templates"))
 
     template_issues =
       templates
       |> Enum.reject(&String.ends_with?(&1, @template_suffixes))
-      |> Enum.map(&refusal("TEMPLATE_EXTENSION", relative_from_pack_root(&1, directory, dir_name)))
+      |> Enum.map(
+        &refusal("TEMPLATE_EXTENSION", relative_from_pack_root(&1, directory, dir_name))
+      )
 
     {native_gates, verifier_gates, gate_issues} = inspect_gates(directory, dir_name)
 
-    issues = manifest_issues ++ table_issues ++ dup_issue ++ ontology_issues ++ template_issues ++ gate_issues
+    issues =
+      manifest_issues ++
+        table_issues ++ dup_issue ++ ontology_issues ++ template_issues ++ gate_issues
 
     pack =
       if name && version && description && ontologies != [] do
@@ -301,7 +329,9 @@ defmodule MarketplaceCli.Inspector do
         extension_issues =
           gate_sources
           |> Enum.reject(&(Path.extname(&1) in @gate_source_suffixes))
-          |> Enum.map(&refusal("GATE_SOURCE_EXTENSION", relative_from_pack_root(&1, directory, dir_name)))
+          |> Enum.map(
+            &refusal("GATE_SOURCE_EXTENSION", relative_from_pack_root(&1, directory, dir_name))
+          )
 
         native = Enum.filter(gate_sources, &(Path.extname(&1) == ".rq"))
         verifier = Enum.filter(gate_sources, &(Path.extname(&1) == ".py"))
@@ -325,7 +355,9 @@ defmodule MarketplaceCli.Inspector do
         true ->
           case File.read(path) do
             {:ok, content} ->
-              if String.trim(content) == "", do: [refusal("DIATAXIS_DOCUMENT_EMPTY", relative)], else: []
+              if String.trim(content) == "",
+                do: [refusal("DIATAXIS_DOCUMENT_EMPTY", relative)],
+                else: []
 
             {:error, reason} ->
               [refusal("DIATAXIS_DOCUMENT_INVALID", "#{relative}:#{inspect(reason)}")]
@@ -525,12 +557,51 @@ defmodule MarketplaceCli.Inspector do
     _ -> nil
   end
 
-  defp marketplace_version(root) do
+  @doc """
+  Real port of Python's `marketplace_version()`, including its three real
+  refusal codes (`MARKETPLACE_TOML_MISSING`, `MARKETPLACE_TOML_INVALID`,
+  `MARKETPLACE_VERSION_MISSING`) -- confirmed missing from this module until
+  this fix: the prior version pattern-matched `{:ok, ...}` directly, which
+  raised an uninformative `MatchError` on a missing/invalid
+  `marketplace.toml` instead of Python's typed `REFUSED:` string, a real
+  capability gap for the one path (`catalog/1`/`version/1`) that calls this
+  function outside `require_admitted/1`'s own admission gate.
+  """
+  @spec marketplace_version(String.t()) :: String.t()
+  def marketplace_version(root) do
     path = Path.join(root, "marketplace.toml")
 
-    {:ok, content} = File.read(path)
-    {:ok, document} = Toml.decode(content)
-    document |> Map.fetch!("marketplace") |> Map.fetch!("version")
+    content =
+      case File.read(path) do
+        {:ok, content} -> content
+        {:error, _reason} -> raise refusal("MARKETPLACE_TOML_MISSING", "marketplace.toml")
+      end
+
+    document =
+      case Toml.decode(content) do
+        {:ok, document} -> document
+        {:error, reason} -> raise refusal("MARKETPLACE_TOML_INVALID", inspect(reason))
+      end
+
+    version =
+      document
+      |> Map.get("marketplace")
+      |> case do
+        table when is_map(table) -> Map.get(table, "version")
+        _ -> nil
+      end
+
+    case version do
+      version when is_binary(version) and byte_size(version) > 0 ->
+        if String.trim(version) == "" do
+          raise refusal("MARKETPLACE_VERSION_MISSING", "marketplace.toml:[marketplace].version")
+        else
+          version
+        end
+
+      _ ->
+        raise refusal("MARKETPLACE_VERSION_MISSING", "marketplace.toml:[marketplace].version")
+    end
   end
 
   defp sha256_file(path) do
@@ -570,7 +641,11 @@ defmodule MarketplaceCli.Inspector do
         {String.to_charlist(Path.join(pack.name, rel)), String.to_charlist(path)}
       end)
 
-    tmp = Path.join(System.tmp_dir!(), "marketplace_cli_pack_archive_#{:erlang.unique_integer([:positive])}.tar.gz")
+    tmp =
+      Path.join(
+        System.tmp_dir!(),
+        "marketplace_cli_pack_archive_#{:erlang.unique_integer([:positive])}.tar.gz"
+      )
 
     :ok = :erl_tar.create(String.to_charlist(tmp), entries, [:compressed])
     data = File.read!(tmp)
