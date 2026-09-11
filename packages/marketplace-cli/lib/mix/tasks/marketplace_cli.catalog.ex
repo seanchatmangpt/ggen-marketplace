@@ -22,13 +22,18 @@ defmodule Mix.Tasks.MarketplaceCli.Catalog do
 
   @impl Igniter.Mix.Task
   def igniter(igniter) do
-    root = igniter.args.options[:root] || Application.fetch_env!(:marketplace_cli, :marketplace_root)
+    root =
+      igniter.args.options[:root] || Application.fetch_env!(:marketplace_cli, :marketplace_root)
 
     case Dispatcher.dispatch(MarketplaceCli.Registry, ["marketplace", "catalog", "--root", root]) do
       {:ok, payload} ->
         json = Jason.encode!(payload, pretty: true)
         Mix.shell().info(json)
-        Igniter.add_notice(igniter, JsonOutput.encode_string(JsonOutput.encode(:ok, %{"printed" => true})))
+
+        Igniter.add_notice(
+          igniter,
+          JsonOutput.encode_string(JsonOutput.encode(:ok, %{"printed" => true}))
+        )
 
       {:error, error} ->
         envelope = JsonOutput.encode(:error, error)

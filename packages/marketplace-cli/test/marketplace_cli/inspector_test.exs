@@ -16,7 +16,10 @@ defmodule MarketplaceCli.InspectorTest do
   # are the load-bearing signal marketplace.py's own `validate()` prints.
   test "validate/1 matches real python3 scripts/marketplace.py validate on this marketplace tree" do
     {python_line, 0} =
-      System.cmd("python3", ["scripts/marketplace.py", "validate"], cd: @root, stderr_to_stdout: true)
+      System.cmd("python3", ["scripts/marketplace.py", "validate"],
+        cd: @root,
+        stderr_to_stdout: true
+      )
 
     result = Inspector.validate(@root)
 
@@ -28,7 +31,9 @@ defmodule MarketplaceCli.InspectorTest do
     catalog = Inspector.catalog(@root)
 
     assert length(catalog["packs"]) == length(packs)
-    assert Enum.map(catalog["packs"], & &1["name"]) |> Enum.sort() == Enum.map(packs, & &1.name) |> Enum.sort()
+
+    assert Enum.map(catalog["packs"], & &1["name"]) |> Enum.sort() ==
+             Enum.map(packs, & &1.name) |> Enum.sort()
 
     for record <- catalog["packs"] do
       assert is_binary(record["digest"])
@@ -38,7 +43,10 @@ defmodule MarketplaceCli.InspectorTest do
 
   test "catalog/1 pack count matches real python3 scripts/marketplace.py catalog on this marketplace tree" do
     {python_json, 0} =
-      System.cmd("python3", ["scripts/marketplace.py", "catalog"], cd: @root, stderr_to_stdout: true)
+      System.cmd("python3", ["scripts/marketplace.py", "catalog"],
+        cd: @root,
+        stderr_to_stdout: true
+      )
 
     python_payload = Jason.decode!(python_json)
     elixir_payload = Inspector.catalog(@root)

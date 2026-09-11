@@ -23,7 +23,8 @@ defmodule Mix.Tasks.MarketplaceCli.Validate do
 
   @impl Igniter.Mix.Task
   def igniter(igniter) do
-    root = igniter.args.options[:root] || Application.fetch_env!(:marketplace_cli, :marketplace_root)
+    root =
+      igniter.args.options[:root] || Application.fetch_env!(:marketplace_cli, :marketplace_root)
 
     case Dispatcher.dispatch(MarketplaceCli.Registry, ["marketplace", "validate", "--root", root]) do
       {:ok, %{line: line} = result} ->
