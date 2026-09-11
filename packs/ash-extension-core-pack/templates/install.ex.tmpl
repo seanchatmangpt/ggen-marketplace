@@ -8,11 +8,15 @@ sparql:
       ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ;
          aex:moduleName ?module_name ; aex:extensionTarget ?extension_target ;
          aex:taskModuleName ?task_module_name ; aex:formatterModule ?formatter_module .
+      FILTER NOT EXISTS { ?s aex:fixtureOnly true }
     }
   sections: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?section_name WHERE { ?s a aex:DslSection ; aex:sectionName ?section_name . }
-    ORDER BY ?section_name
+    SELECT ?package_name ?section_name WHERE {
+      ?section a aex:DslSection ; aex:sectionOf ?spec ; aex:sectionName ?section_name .
+      ?spec aex:packageName ?package_name .
+    }
+    ORDER BY ?package_name ?section_name
 ---
 {# Igniter installer -- upgraded past the golden specimen's gap, but only on the
    `--target` path: ash_r2rml/lib/mix/tasks/ash_r2rml.install.ex ALWAYS only adds the
@@ -29,12 +33,13 @@ sparql:
    ash_r2rml/lib/mix/tasks/ash_r2rml.install.ex's real dual-branch shape (an
    Igniter.Mix.Task branch plus a plain Mix.Task fallback that just prints manual
    instructions via Mix.shell().info/1 when Igniter isn't a project dependency). #}
+{% set sections_for_spec = sections | filter(attribute="package_name", value=package_name) %}
 if Code.ensure_loaded?(Igniter) do
 defmodule Mix.Tasks.{{ task_module_name }}.Install do
   @moduledoc """
   Installs `{{ package_name }}` into the current project: adds the formatter plugin,
   and patches the target {{ extension_target }} module to add
-  `extensions: [{{ module_name }}]` plus a starter `{% for s in sections %}:{{ s.section_name }}{% if not loop.last %}, {% endif %}{% endfor %}` block.
+  `extensions: [{{ module_name }}]` plus a starter `{% for s in sections_for_spec %}:{{ s.section_name }}{% if not loop.last %}, {% endif %}{% endfor %}` block.
   """
   use Igniter.Mix.Task
 
@@ -58,10 +63,6 @@ defmodule Mix.Tasks.{{ task_module_name }}.Install do
 
     case igniter.args.options[:target] do
       nil ->
-        # No --target given (e.g. plain `mix igniter.install {{ package_name }}`) --
-        # formatter is still wired up automatically; the resource/domain patch needs a
-        # target module, so fall back to a real, disclosed manual-instructions notice
-        # rather than guessing which module to patch.
         Igniter.add_notice(base, """
         {{ module_name }} installed successfully!
 
@@ -70,7 +71,7 @@ defmodule Mix.Tasks.{{ task_module_name }}.Install do
             use Ash.{{ extension_target | capitalize }},
               extensions: [{{ module_name }}]
 
-            {% for s in sections %}{% if loop.first %}{{ s.section_name }} do
+            {% for s in sections_for_spec %}{% if loop.first %}{{ s.section_name }} do
             end{% endif %}{% endfor %}
 
         Or re-run with `--target MyApp.SomeResource` to patch a specific module automatically.
@@ -87,21 +88,12 @@ defmodule Mix.Tasks.{{ task_module_name }}.Install do
     end
   end
 
-  # Inserts `extensions: [{{ module_name }}]` after the target module's `use
-  # Ash.{{ extension_target | capitalize }}` call. This is a single unconditional
-  # insert, not a detect-or-append merge -- it does not check whether an `extensions:`
-  # option already exists on that `use` call, so running install against a module that
-  # already has one will add a second `extensions:` option rather than merging into the
-  # first. Fine for the common case (patching a plain `use Ash.*` with no options yet);
-  # a real detect-and-merge is a follow-up, not implemented here.
   defp add_extension(zipper) do
     Igniter.Code.Common.add_code(zipper, "extensions: [{{ module_name }}]", placement: :after)
   end
 
-  # Adds a minimal, real starter block for the primary section so the target module
-  # compiles immediately after install rather than needing hand-authored DSL content.
   defp add_starter_dsl_block(zipper) do
-{% for s in sections %}{% if loop.first %}    Igniter.Code.Common.add_code(zipper, """
+{% for s in sections_for_spec %}{% if loop.first %}    Igniter.Code.Common.add_code(zipper, """
     {{ s.section_name }} do
     end
     """, placement: :after)
@@ -122,7 +114,7 @@ else
           use Ash.{{ extension_target | capitalize }},
             extensions: [{{ module_name }}]
 
-          {% for s in sections %}{% if loop.first %}{{ s.section_name }} do
+          {% for s in sections_for_spec %}{% if loop.first %}{{ s.section_name }} do
           end{% endif %}{% endfor %}
       """)
     end
