@@ -4,10 +4,12 @@ for_each: "spec"
 sparql:
   spec: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT DISTINCT ?package_name ?module_name ?extension_target ?single_extension_kind WHERE {
+    SELECT DISTINCT ?package_name ?module_name ?extension_target ?single_extension_kind ?codegen_task ?codegen_name WHERE {
       ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ;
          aex:moduleName ?module_name ; aex:extensionTarget ?extension_target .
       OPTIONAL { ?s aex:singleExtensionKind ?single_extension_kind }
+      OPTIONAL { ?s aex:codegenTask ?codegen_task }
+      OPTIONAL { ?s aex:codegenName ?codegen_name }
     }
   sections: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
@@ -35,12 +37,6 @@ sparql:
       OPTIONAL { ?entity aex:entityIdentifier ?entity_identifier }
       OPTIONAL { ?entity aex:entityOrder ?entity_order }
       ?section aex:sectionName ?section_name .
-      # COALESCE keeps ordering deterministic even if a future entity omits
-      # aex:entityOrder: ORDER BY over a sometimes-unbound OPTIONAL variable is
-      # implementation-defined SPARQL behavior. Every current DslEntity individual
-      # sets entityOrder explicitly, so this default (sort last) never fires today --
-      # it only guards against the exact "entities rendered reversed" class of bug
-      # the entityOrder property was added to prevent (see ontology.ttl's comment).
     } ORDER BY COALESCE(?entity_order, 999999)
   entity_args: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
@@ -125,9 +121,6 @@ defmodule {{ module_name }} do
   end
 {% endfor %}
 
-{# Nested entities (ash_ai @tool_argument-under-@tool pattern, dsl.ex:228-268) must be
-   declared BEFORE any parent entity that references them via `entities: [...]`, since
-   Elixir module-attribute references are evaluation-order-dependent. #}
 {% for nested in nested_entities %}
 {% set nested_fields_here = fields | filter(attribute="entity_struct", value=nested.nested_entity_struct) %}
 {% set nested_args_here = entity_args | filter(attribute="entity_struct", value=nested.nested_entity_struct) %}
@@ -192,5 +185,19 @@ defmodule {{ module_name }} do
     transformers: [{{ module_name }}.Persist],
     verifiers: [{{ module_name }}.Verify]{% if single_extension_kind %},
     single_extension_kinds: [:{{ single_extension_kind }}]{% endif %}
+{% if codegen_task %}
 
+  @behaviour Ash.Extension
+
+  @impl Ash.Extension
+  def codegen(argv) do
+    Mix.Task.reenable("{{ codegen_task }}")
+    Mix.Task.run("{{ codegen_task }}", argv)
+  end
+{% if codegen_name %}
+
+  @doc false
+  def name, do: "{{ codegen_name }}"
+{% endif %}
+{% endif %}
 end
