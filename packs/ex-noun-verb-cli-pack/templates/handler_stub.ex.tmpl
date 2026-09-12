@@ -1,0 +1,41 @@
+---
+to: lib/{{ project[0].app_name }}/{{ noun_mod.noun_snake }}.ex
+unless_exists: true
+sparql:
+  project: |
+    PREFIX nvc: <https://ggen.dev/marketplace/ex-noun-verb-cli-pack#>
+    SELECT ?app_name ?module_name WHERE {
+      ?p a nvc:GeneratedCliProject ; nvc:appName ?app_name ; nvc:moduleName ?module_name .
+    }
+  verbs: |
+    PREFIX nvc: <https://ggen.dev/marketplace/ex-noun-verb-cli-pack#>
+    SELECT ?noun ?verb ?handler_function ?verb_description ?body_expr WHERE {
+      ?p a nvc:GeneratedCliProject ; nvc:hasVerb ?v .
+      ?v a nvc:GeneratedVerb ; nvc:noun ?noun ; nvc:verb ?verb ;
+         nvc:handlerFunction ?handler_function ; nvc:verbDescription ?verb_description ;
+         nvc:handlerBodyExpr ?body_expr .
+    }
+    ORDER BY ?noun ?verb
+  args: |
+    PREFIX nvc: <https://ggen.dev/marketplace/ex-noun-verb-cli-pack#>
+    SELECT ?noun ?verb ?arg_name ?arg_order WHERE {
+      ?p a nvc:GeneratedCliProject ; nvc:hasVerb ?v .
+      ?v a nvc:GeneratedVerb ; nvc:noun ?noun ; nvc:verb ?verb ; nvc:hasArgument ?a .
+      ?a nvc:argName ?arg_name ; nvc:argOrder ?arg_order .
+    }
+    ORDER BY ?noun ?verb ?arg_order
+---
+defmodule {{ project[0].module_name }}.{{ noun_mod.noun_pascal }} do
+  @moduledoc """
+  Real handler functions for the `{{ noun_mod.noun }}` noun, generated once by
+  ggen (ex-noun-verb-cli-pack) from `nvc:handlerBodyExpr` playground facts.
+  `unless_exists: true` in this template's frontmatter -- like
+  clap-noun-verb-crate-pack's `custom_handlers.rs.tmpl` -- means this file is
+  scaffolding: a later `ggen sync` re-run never overwrites hand-edits made
+  here.
+  """
+
+{% for v in verbs %}  @doc "{{ v.verb_description }}"
+  def {{ v.handler_function }}({{ v.params_str }}), do: {{ v.body_str }}
+
+{% endfor %}end
