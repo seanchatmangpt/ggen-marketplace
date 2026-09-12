@@ -84,4 +84,38 @@ defmodule MarketplaceCli.InspectorTest do
     this_pack_dir = Path.join([@root, "packs", "noun-verb-cli-pack"])
     assert Path.join(this_pack_dir, "ontology.ttl") in Inspector.ontology_files(this_pack_dir)
   end
+
+  # Permanent regression falsifier for the tar-digest fix
+  # (3f3e641e1, "parallelize catalog/1 pack digesting"). That fix moved
+  # per-pack digesting from `Enum.map/2` to `Task.async_stream/3` --
+  # concurrent scheduling of the same real `:erl_tar.create/3` write +
+  # `File.read!` + `File.rm` round trip per pack. The real risk a
+  # parallelization refactor like that introduces is non-determinism: two
+  # concurrent tasks racing on the same `System.tmp_dir!()`-scoped tmp
+  # filename, or the archive's own byte layout depending on run order. This
+  # test builds the real catalog for the SAME pack tree from two independent
+  # `Inspector.catalog/1` calls (same process, real disk I/O both times) and
+  # asserts every pack's digest is byte-identical across both real
+  # calls -- a real clean-checkout-reproduction falsifier: if the
+  # parallelized path ever reintroduces order-dependence or tmp-file
+  # collision, this test fails on a real digest mismatch, not a
+  # hand-maintained fixture.
+  @tag timeout: 90_000
+  test "catalog/1 digest is byte-identical across two independent real calls (tar-digest regression falsifier)" do
+    first = Inspector.catalog(@root)
+    second = Inspector.catalog(@root)
+
+    first_digests =
+      first["packs"] |> Enum.map(&{&1["name"], &1["digest"]}) |> Enum.sort()
+
+    second_digests =
+      second["packs"] |> Enum.map(&{&1["name"], &1["digest"]}) |> Enum.sort()
+
+    assert first_digests == second_digests
+
+    for {name, digest} <- first_digests do
+      assert String.starts_with?(digest, "sha256:"),
+             "pack #{name} produced non-sha256 digest #{inspect(digest)}"
+    end
+  end
 end
