@@ -27,12 +27,20 @@ defmodule MarketplaceCli.InspectorTest do
   end
 
   # `catalog/1` builds a real deterministic tar archive (for a real sha256
-  # digest) per admitted pack -- at this marketplace's real current scale
-  # (301 packs) that genuinely exceeds ExUnit's default 60s timeout. Not a
-  # hang/bug: `mix test --timeout 300000` (or this tag) passes cleanly in
-  # ~2 minutes. Raised rather than optimized away, since the real work
-  # (hashing every pack's real file tree) is the thing under test.
-  @tag timeout: 300_000
+  # digest) per admitted pack. `build_pack_archive_digest/1` still does a
+  # real disk write+read+delete round trip per pack -- confirmed against
+  # OTP 28.3.1's `erl_tar` source (stdlib-7.2/src/erl_tar.erl): `erl_tar`'s
+  # in-memory `{binary, Bin}` open target is wired only for `read` access,
+  # never `write`, so there is no genuine in-memory tar-write target to swap
+  # in without hand-reimplementing `erl_tar`'s own writer. The real fix
+  # (`catalog/1` now runs per-pack digesting via `Task.async_stream/3`
+  # instead of serially) measured a real single call to `Inspector.catalog/1`
+  # at this marketplace's real current scale (301 packs) at ~28.5s wall clock
+  # (`mix test test/marketplace_cli/inspector_test.exs:<line> --timeout
+  # 300000`, 2026-09-11) -- comfortably under ExUnit's default 60s timeout.
+  # No explicit tag needed anymore; kept generous rather than exactly 60s
+  # since real wall-clock varies with machine load.
+  @tag timeout: 60_000
   test "catalog/1 pack count and names match require_admitted/1's own pack set" do
     packs = Inspector.require_admitted(@root)
     catalog = Inspector.catalog(@root)
@@ -48,7 +56,12 @@ defmodule MarketplaceCli.InspectorTest do
     end
   end
 
-  @tag timeout: 300_000
+  # Runs a real `python3 scripts/marketplace.py catalog` subprocess in
+  # addition to a real `Inspector.catalog/1` call -- generous timeout kept
+  # for the subprocess's own real startup+301-pack cost, but well below the
+  # old 300s: see the timeout note on the sibling test above for the real
+  # measured `Inspector.catalog/1` cost alone (~28.5s).
+  @tag timeout: 90_000
   test "catalog/1 pack count matches real python3 scripts/marketplace.py catalog on this marketplace tree" do
     {python_json, 0} =
       System.cmd("python3", ["scripts/marketplace.py", "catalog"],

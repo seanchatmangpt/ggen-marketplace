@@ -481,10 +481,31 @@ defmodule MarketplaceCli.Inspector do
   def catalog(root) do
     packs = require_admitted(root)
 
+    # Real fix for the 301-pack catalog/1 timeout: `build_pack_archive_digest/1`
+    # (per-pack tar+sha256) still does a real disk write+read+delete round trip
+    # per pack -- confirmed against OTP 28.3.1's `erl_tar` source
+    # (stdlib-7.2/src/erl_tar.erl): `erl_tar:open/2`'s `{binary, Bin}` in-memory
+    # target is only wired for `read` access (`open1({binary,Bin0}, read, ...)`);
+    # `write` access always goes through the `file:open(Name, Raw ++ [...])`
+    # clause, which requires a real filename. There is no genuine in-memory
+    # write target in this OTP version, so the disk round trip itself is not
+    # avoidable without reimplementing `erl_tar`'s tar-writing format by hand.
+    # The real, honest fix is therefore to stop doing that I/O-bound work
+    # serially: run it across the BEAM's real schedulers with
+    # `Task.async_stream/3` instead of `Enum.map/2`.
+    catalog_records =
+      packs
+      |> Task.async_stream(&catalog_record(&1, root),
+        max_concurrency: max(System.schedulers_online() * 2, 4),
+        timeout: 60_000,
+        ordered: true
+      )
+      |> Enum.map(fn {:ok, record} -> record end)
+
     %{
       "schema" => "https://ggen.dev/marketplace/catalog/v2",
       "marketplace_version" => marketplace_version(root),
-      "packs" => Enum.map(packs, &catalog_record(&1, root))
+      "packs" => catalog_records
     }
   end
 
@@ -632,6 +653,15 @@ defmodule MarketplaceCli.Inspector do
     digest |> :crypto.hash_final() |> Base.encode16(case: :lower)
   end
 
+  # Real, disclosed constraint (verified against OTP 28.3.1's `erl_tar` source,
+  # stdlib-7.2/src/erl_tar.erl): `erl_tar`'s in-memory `{binary, Bin}` target is
+  # only implemented for `read` access -- `write` access always requires a real
+  # filename (goes through `file:open(Name, Raw ++ [...])`). There is no
+  # genuine in-memory tar-write target to swap in here without reimplementing
+  # `erl_tar`'s own tar-format writer by hand, which is not a minimal fix.
+  # `catalog/1` therefore parallelizes calls to this function
+  # (`Task.async_stream/3`) instead of eliminating the per-call disk round
+  # trip -- see `catalog/1`'s moduledoc comment.
   defp build_pack_archive_digest(%Pack{} = pack) do
     files = visible_files(pack.path)
 

@@ -1,0 +1,65 @@
+[pack]
+name = "ex-noun-verb-cli-pack"
+version = "26.9.11"
+description = """
+Milestone 2 of ex_noun_verb_cli's design spec
+(~/ex_noun_verb_cli/docs/superpowers/specs/2026-09-11-ex-noun-verb-cli-design.md,
+section 5): the concrete Python-displacement evidence for scripts/marketplace.py.
+
+Named `ex-noun-verb-cli-pack` after the library it exercises (`ex_noun_verb_cli`),
+not `marketplace-cli-pack` -- every pack here already lives in the marketplace,
+so a pack name repeating "marketplace" is redundant with its own location.
+
+Unlike this marketplace's other packs, this pack's real deliverable is not a
+Tera-templated generator -- ex_noun_verb_cli is generator-first per its own
+charter, but proving the library works against a real consumer is this
+milestone's actual job. The deliverable is a real, runnable, hand-built Elixir
+consumer application under `packages/marketplace-cli/`:
+
+  * `mix marketplace_cli.validate` / `mix marketplace_cli.catalog` -- real
+    ex_noun_verb_cli-based Igniter.Mix.Tasks, dispatching through
+    `ExNounVerbCli.Dispatcher.dispatch/2` against a real
+    `ExNounVerbCli.Registry.Generated`-backed registry
+    (`MarketplaceCli.Registry`), exactly as `~/ex_noun_verb_cli`'s own generic
+    `mix ex_noun_verb_cli marketplace validate --root <path>` adapter would
+    dispatch the same call.
+  * `MarketplaceCli.GraphProvider.GgenIgniterProvider` -- a real
+    `ExNounVerbCli.GraphProvider` implementation wrapping
+    `GgenIgniter.Ontology.load!/1` + `GgenIgniter.Query.run/2` (real oxigraph
+    NIF-backed SPARQL via ggen_igniter's default `sparql` engine path), used
+    to report each pack's real ontology triple count -- the one place in
+    `scripts/marketplace.py`'s validate/catalog logic that is genuinely
+    SPARQL-shaped rather than plain file/TOML inspection. Every other piece
+    of `marketplace.py`'s `inspect_marketplace()`/`validate()`/`catalog()`
+    logic (pack.toml TOML parsing, SemVer validation, ontology/template/gate
+    file discovery, required-Diataxis-doc checks) is plain filesystem
+    walking, ported as such in `MarketplaceCli.Inspector` with no graph query
+    forced in where none is genuinely useful.
+  * `MarketplaceCli.Inspector` -- the real Elixir port of
+    `inspect_marketplace()`/`validate()`/`catalog()`, verified for real
+    behavioral parity against `python3 scripts/marketplace.py validate` run
+    against this same marketplace tree (see the consumer app's own test
+    suite and this pack's own commit message for the real comparison
+    output).
+
+This pack's own `ontology.ttl` describes the milestone's capability shape (not
+a template's generation target) so `scripts/marketplace.py inspect_marketplace()`'s
+`ONTOLOGY_SOURCE_MISSING` check admits this pack like any other. Its
+`nvc:CliVerb`/`nvc:noun`/`nvc:verb`/`nvc:belongsTo`/`nvc:displaces`/
+`nvc:usesLibrary`/`nvc:usesGraphEngine` facts each have a real consuming
+SPARQL query under `queries/` (`cli_verbs.rq`, `capability_shape.rq`) --
+this pack's generation-adjacent consumer in place of a Tera template --
+executed for real by `packages/marketplace-cli/test/marketplace_cli/cli_verbs_query_test.exs`.
+
+Scaffolded via `ggen pack new ex-noun-verb-cli-pack` (the canonical self-pack
+constructor), not hand-authored from scratch -- see this pack's own README.md
+for the generator's real receipt.
+"""
+category = "cli-framework"
+author = "ggen"
+license = "MIT OR Apache-2.0"
+production_ready = false
+
+[pack.metadata]
+tags = ["ggen", "noun-verb", "cli", "elixir"]
+keywords = ["ggen", "pack", "ex_noun_verb_cli", "marketplace-python-displacement"]
