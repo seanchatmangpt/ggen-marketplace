@@ -295,7 +295,7 @@ defmodule BeamPM.ReceiptChainTest do
     assert path == out.receipt_path
   end
 
-  test "no chain_id opt: receipt shape is byte-for-byte today's beam4pm-brce/v1 shape, zero new keys",
+  test "no chain_id opt: receipt shape is byte-for-byte today's beam4pm-brce/v1 shape, zero new chain keys",
        %{tmp_dir: tmp_dir} do
     {:ok, out} =
       Actuation.run(inc_action(), gym: "toy-counter", bridge: bridge_path(), receipts_dir: tmp_dir)
@@ -308,7 +308,94 @@ defmodule BeamPM.ReceiptChainTest do
     refute Map.has_key?(receipt, "prev_receipt_hash")
 
     assert Map.keys(receipt) |> Enum.sort() ==
-             Enum.sort(["receipt_schema", "action", "admission", "execution", "events", "replay"])
+             Enum.sort(["receipt_schema", "standing", "action", "admission", "execution", "events", "replay"])
+  end
+
+  # -- EX2 "standing" field: the fifth identity/authority/consequence/replay/
+  # standing quintet member --------------------------------------------
+
+  test "real receipt defaults to standing \"provisional\" unless a caller supplies one, and ReceiptChain exposes the same bounded vocabulary",
+       %{tmp_dir: tmp_dir} do
+    assert ReceiptChain.valid_standings() == ["provisional", "verified", "disputed", "superseded"]
+    assert ReceiptChain.default_standing() == "provisional"
+    assert ReceiptChain.valid_standing?("provisional")
+    assert ReceiptChain.valid_standing?("verified")
+    assert ReceiptChain.valid_standing?("disputed")
+    assert ReceiptChain.valid_standing?("superseded")
+    refute ReceiptChain.valid_standing?("bogus")
+    refute ReceiptChain.valid_standing?(nil)
+
+    {:ok, default_out} =
+      Actuation.run(inc_action(), gym: "toy-counter", bridge: bridge_path(), receipts_dir: tmp_dir, run_id: "act-standing-default")
+
+    default_receipt = default_out.receipt_path |> File.read!() |> JSON.decode!()
+    assert default_receipt["standing"] == "provisional"
+
+    {:ok, explicit_out} =
+      Actuation.run(inc_action(),
+        gym: "toy-counter",
+        bridge: bridge_path(),
+        receipts_dir: tmp_dir,
+        run_id: "act-standing-verified",
+        standing: "verified"
+      )
+
+    explicit_receipt = explicit_out.receipt_path |> File.read!() |> JSON.decode!()
+    assert explicit_receipt["standing"] == "verified"
+
+    assert_raise ArgumentError, ~r/invalid :standing/, fn ->
+      Actuation.run(inc_action(),
+        gym: "toy-counter",
+        bridge: bridge_path(),
+        receipts_dir: tmp_dir,
+        run_id: "act-standing-invalid",
+        standing: "not-a-real-standing"
+      )
+    end
+  end
+
+  test "real chained receipts: standing participates in the same file bytes hash_file!/1 hashes, so changing standing on a prior receipt is caught by verify/2 exactly like any other tamper",
+       %{tmp_dir: tmp_dir} do
+    chain_id = "standing-hash-chain"
+
+    run = fn n, standing_opts ->
+      {:ok, out} =
+        Actuation.run(
+          inc_action(),
+          [
+            gym: "toy-counter",
+            bridge: bridge_path(),
+            receipts_dir: tmp_dir,
+            run_id: "act-standing-chain-#{n}",
+            chain_id: chain_id
+          ] ++ standing_opts
+        )
+
+      out.receipt_path
+    end
+
+    path1 = run.(1, standing: "provisional")
+    path2 = run.(2, [])
+
+    receipt1 = path1 |> File.read!() |> JSON.decode!()
+    receipt2 = path2 |> File.read!() |> JSON.decode!()
+    assert receipt1["standing"] == "provisional"
+    assert receipt2["standing"] == "provisional"
+    assert receipt2["prev_receipt_hash"] == sha256_hex!(path1)
+
+    assert {:ok, %{chain_id: ^chain_id, length: 2}} = ReceiptChain.verify(tmp_dir, chain_id)
+
+    # Real, independent replay: rewriting receipt1's "standing" to "verified"
+    # (an out-of-band review/reconciliation, exactly the workflow the
+    # standing vocabulary is FOR) changes receipt1's real on-disk bytes and
+    # therefore its real sha256 -- receipt2's own recorded prev_receipt_hash
+    # no longer recomputes, so verify/2 must catch it without any bespoke
+    # standing-aware code.
+    updated = Map.put(receipt1, "standing", "verified")
+    File.write!(path1, JSON.encode!(updated))
+    refute sha256_hex!(path1) == receipt2["prev_receipt_hash"]
+
+    assert {:error, {:chain_broken, 2, :hash_mismatch}} = ReceiptChain.verify(tmp_dir, chain_id)
   end
 
   test "composes with BeamPM.ProcessGovernor: chain_id defaults to process_id automatically, real 2-step chain verifies",

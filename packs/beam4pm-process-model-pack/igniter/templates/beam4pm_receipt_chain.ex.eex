@@ -163,6 +163,40 @@ defmodule BeamPM.ReceiptChain do
   @tip_index_dir ".chain-tips"
   @tip_index_schema "beam4pm-chain-tip/v1"
 
+  @valid_standings ~w(provisional verified disputed superseded)
+
+  @typedoc """
+  The bounded `"standing"` vocabulary for a `beam4pm-brce/v1` receipt --
+  the fifth field of the paper's identity/authority/consequence/replay/
+  standing quintet (the first four already exist on every receipt:
+  `"action"`+`"admission"` = identity/authority, `"execution"`+`"events"` =
+  consequence, `"replay"` = replay). `"provisional"` is the default a
+  receipt is written with; `"verified"`, `"disputed"`, and `"superseded"`
+  are real dispositions a later, out-of-band process (a human review, a
+  reconciliation job) can move a receipt to by rewriting its `"standing"`
+  key -- which, being part of the same on-disk file `hash_file!/1` hashes
+  in full, automatically breaks that receipt's own downstream
+  `prev_receipt_hash` link the next time `verify/2` walks the chain. No
+  bespoke hashing logic is needed for `"standing"` to participate in the
+  hash chain: `hash_file!/1` already hashes the EXACT RAW BYTES of the
+  receipt file (see the moduledoc), so any key added to the receipt map
+  before it is written -- this one included -- is automatically covered.
+  """
+  @type standing :: String.t()
+
+  @doc "The bounded `standing` vocabulary a `beam4pm-brce/v1` receipt's `\"standing\"` key may hold."
+  @spec valid_standings() :: [String.t()]
+  def valid_standings, do: @valid_standings
+
+  @doc "The `standing` a receipt is written with unless a caller supplies its own."
+  @spec default_standing() :: String.t()
+  def default_standing, do: "provisional"
+
+  @doc "Whether `standing` is one of #{inspect(@valid_standings)}."
+  @spec valid_standing?(term()) :: boolean()
+  def valid_standing?(standing) when is_binary(standing), do: standing in @valid_standings
+  def valid_standing?(_), do: false
+
   @typedoc "The four chain fields to merge into a beam4pm-brce/v1 receipt map before writing."
   @type link :: %{
           chain_id: String.t(),

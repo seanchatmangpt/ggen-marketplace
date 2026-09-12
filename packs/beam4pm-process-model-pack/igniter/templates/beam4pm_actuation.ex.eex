@@ -670,6 +670,27 @@ defmodule BeamPM.Actuation do
           "act-#{System.system_time(:millisecond)}-#{System.unique_integer([:positive])}"
         ),
       chain_id: Keyword.get(opts, :chain_id),
+      # EX2 `"standing"` field (additive): the fifth of the paper's
+      # identity/authority/consequence/replay/standing receipt quintet.
+      # `"provisional"` unless a caller supplies `:standing` explicitly;
+      # ReceiptChain.valid_standing?/1 is the single bounded vocabulary
+      # both this default and any caller-supplied override are checked
+      # against, so an invalid value fails fast here rather than writing
+      # a receipt an auditor can't classify.
+      standing:
+        case Keyword.get(opts, :standing, ReceiptChain.default_standing()) do
+          standing when is_binary(standing) ->
+            if ReceiptChain.valid_standing?(standing) do
+              standing
+            else
+              raise ArgumentError,
+                    "invalid :standing #{inspect(standing)}, must be one of " <>
+                      inspect(ReceiptChain.valid_standings())
+            end
+
+          other ->
+            raise ArgumentError, "invalid :standing #{inspect(other)}, must be a string"
+        end,
       # Real gap, found by real testing: the toy in-memory gym bridge never
       # needed more than GymBridge.request/3's own 10_000ms default, but a
       # real production actuation target (e.g. a real Kubernetes rollout)
@@ -712,6 +733,7 @@ defmodule BeamPM.Actuation do
     receipt =
       %{
         "receipt_schema" => @receipt_schema,
+        "standing" => Map.fetch!(opts, :standing),
         "action" => Map.fetch!(fields, :action_map),
         "admission" => %{
           "admitted" => Map.fetch!(fields, :admitted),
