@@ -26,6 +26,13 @@ defmodule MarketplaceCli.InspectorTest do
     assert String.trim(result.line) == String.trim(python_line)
   end
 
+  # `catalog/1` builds a real deterministic tar archive (for a real sha256
+  # digest) per admitted pack -- at this marketplace's real current scale
+  # (301 packs) that genuinely exceeds ExUnit's default 60s timeout. Not a
+  # hang/bug: `mix test --timeout 300000` (or this tag) passes cleanly in
+  # ~2 minutes. Raised rather than optimized away, since the real work
+  # (hashing every pack's real file tree) is the thing under test.
+  @tag timeout: 300_000
   test "catalog/1 pack count and names match require_admitted/1's own pack set" do
     packs = Inspector.require_admitted(@root)
     catalog = Inspector.catalog(@root)
@@ -41,6 +48,7 @@ defmodule MarketplaceCli.InspectorTest do
     end
   end
 
+  @tag timeout: 300_000
   test "catalog/1 pack count matches real python3 scripts/marketplace.py catalog on this marketplace tree" do
     {python_json, 0} =
       System.cmd("python3", ["scripts/marketplace.py", "catalog"],
