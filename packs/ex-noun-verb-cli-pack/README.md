@@ -261,3 +261,38 @@ machinery, which treats every `gates/*.rq` as a plain `SELECT` and uses a
 see `lib/ggen_igniter/query.ex`'s own moduledoc). This is the same
 gate-verification approach this pack's `errc-tracker.md` already used for
 `gates/010`-`070`, not a new inconsistency introduced by this extension.
+
+## Extension 3: closing a real hand-authored gap (`instances/marketplace-cli.ttl`)
+
+`verify/generate.exs` is the GENERIC form of `render_check.exs`'s machinery
+-- point it at any `nvc:GeneratedCliProject` instance and a template subset,
+get real generated Elixir back:
+
+```
+cd ~/ggen_igniter && mix run <this pack>/verify/generate.exs \
+  <ontology.ttl> <output_dir> [template1.tmpl,template2.tmpl,...]
+```
+
+(`render_check.exs` is now a 6-line wrapper around this script, calling it
+with `playground/greet-cli.ttl` and all 5 templates -- confirmed
+byte-identical output to before this refactor.)
+
+`instances/marketplace-cli.ttl` uses it for real: `packages/marketplace-cli`'s
+own `MarketplaceCli.Registry` module was hand-written, disclosed in its own
+prior moduledoc as "hand-written rather than ggen-generated." This instance
+transcribes that real registry's two verbs (`marketplace validate`/`catalog`,
+delegating to the real `MarketplaceCli.Inspector`) as ontology facts, and
+`registry.ex.tmpl` alone (not the other 4 templates -- `marketplace-cli`
+already owns a real, richer `mix.exs` and a real `Inspector.ex`, which are
+not boilerplate) regenerates the module.
+
+Verified for real: the generated `registry.ex` swapped in for the hand-written
+one, `mix compile --warnings-as-errors` clean, `mix format --check-formatted`
+clean, `packages/marketplace-cli`'s full test suite still 8/8, and both real
+CLI verbs run end-to-end through the swapped registry --
+`mix marketplace_cli.validate --root <path>` and
+`mix marketplace_cli.catalog --root <path>` both dispatch correctly and
+produce the real 302-pack result. `MarketplaceCli.Registry`'s own moduledoc
+now points back at this instance as its source of truth and documents the
+regenerate command -- the file is generated output, not meant to be
+hand-edited going forward.
