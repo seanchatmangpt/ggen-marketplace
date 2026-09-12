@@ -512,3 +512,97 @@ nvc:CnvCustomBehaviorClass a nvc:OntologyClass ;
     rdfs:label "cnv:CustomBehavior" ;
     nvc:definedInPack nvc:SchemaPack ;
     rdfs:comment "Real class declaration `cnv:CustomBehavior a rdfs:Class ; rdfs:subClassOf cnv:Behavior` at packs/clap-noun-verb-schema-pack/ontology.ttl:58 -- the hand-written-domain-logic escape hatch this marketplace's own CLAUDE.md documents (custom_handlers.rs, generated once, never overwritten)." .
+
+################################################################################
+# EXTENSION 2 -- real generation layer (2026-09-11).
+#
+# Everything above (Milestone 2 facts + EXTENSION 1's capability-parity graph)
+# is untouched. This second extension adds a real, renderable shape: given a
+# `nvc:GeneratedCliProject` instance graph (see playground/greet-cli.ttl), this
+# pack's templates/*.tmpl produce a genuine, compiling Elixir consumer of
+# `~/ex_noun_verb_cli`'s real public API -- not a capability-parity survey of
+# an existing app, but a generator for a *new* one.
+#
+# Reuses this file's existing `nvc:` prefix (does NOT introduce a second
+# ontology namespace) and reuses `nvc:noun`/`nvc:verb` (used un-declared, as
+# plain predicates, by the original Milestone 2 `nvc:CliVerb` facts above) and
+# `nvc:description` (declared at line 121 above) rather than redeclaring them.
+# `nvc:GeneratedVerb` is `rdfs:subClassOf nvc:CliVerb` per this file's own
+# existing `nvc:CliVerb` class (comment: "A concrete noun/verb command pair")
+# -- a generated verb genuinely is one, just with a generation-time
+# handler/argument shape the capability-parity `nvc:CliVerb` individuals above
+# never needed.
+#
+# Every property below was checked against the real, installed
+# `~/ex_noun_verb_cli` source at extension time (2026-09-11):
+#   - `ExNounVerbCli.Verb.new/1` (lib/ex_noun_verb_cli/verb.ex:26,61-75):
+#     `@enforce_keys [:noun, :verb, :module, :function]` -- exactly the four
+#     required fields `nvc:GeneratedVerb` below supplies via
+#     `nvc:noun`/`nvc:verb`/`nvc:handlerModule`/`nvc:handlerFunction`.
+#   - `ExNounVerbCli.Registry.Generated`'s real `verbs:` entry shape
+#     (lib/ex_noun_verb_cli/registry/generated.ex:18-24, and the real
+#     `examples/calc/registry.ex:12-30` consumer of it): `info: %{schema:
+#     [x: :integer, ...], required: [:x, ...]}` -- exactly the shape
+#     `nvc:GeneratedArgument`'s `nvc:argName`/`nvc:argType`/`nvc:argRequired`
+#     below are designed to project into.
+#   - `ExNounVerbCli.Dispatcher.do_dispatch/2`
+#     (lib/ex_noun_verb_cli/dispatcher.ex:99-106): `args = positional_values ++
+#     required_values`, where `required_values` is built by mapping over
+#     `info.required` IN THE ORDER THAT LIST DECLARES -- i.e. a generated
+#     handler function's parameter order must match the `required:` keyword
+#     list's order exactly. `nvc:argOrder` is the fact this pack's templates
+#     use to keep both projections (the `schema`/`required` keyword lists and
+#     the handler function's own parameter list) in that same order.
+################################################################################
+
+# --- Classes ---
+
+nvc:GeneratedCliProject a rdfs:Class ;
+    rdfs:comment "Root individual for one generatable Elixir CLI project: real project identity (app/module name, Elixir/ex_noun_verb_cli version constraints) plus its nvc:GeneratedVerb commands. One per playground instance file (see gates/080_generated_project_exactly_one.rq)." .
+
+nvc:GeneratedVerb a rdfs:Class ;
+    rdfs:subClassOf nvc:CliVerb ;
+    rdfs:comment "A generatable noun/verb command: adds the handler module/function/body-expression and argument facts nvc:CliVerb's capability-parity individuals never needed, so `templates/registry.ex.tmpl` can emit a real ExNounVerbCli.Registry.Generated `verbs:` entry (module/function/info/doc, matching lib/ex_noun_verb_cli/registry/generated.ex's real shape) and `templates/handler_stub.ex.tmpl` can emit the real handler function it names." .
+
+nvc:GeneratedArgument a rdfs:Class ;
+    rdfs:comment "One argument of a nvc:GeneratedVerb: name, type, required-ness, and declared parameter position (nvc:argOrder), projecting directly into ExNounVerbCli.Verb's `info.schema`/`info.required` keyword-list shape (lib/ex_noun_verb_cli/verb.ex:15-20) and into the generated handler function's own parameter list, in the same order." .
+
+# --- Properties: nvc:GeneratedCliProject ---
+
+nvc:appName a rdf:Property ; rdfs:domain nvc:GeneratedCliProject ; rdfs:range xsd:string ;
+    rdfs:comment "snake_case OTP app name, e.g. \"greet_cli\" -- becomes `app:` in the generated mix.exs and the generated lib/ subdirectory name." .
+nvc:moduleName a rdf:Property ; rdfs:domain nvc:GeneratedCliProject ; rdfs:range xsd:string ;
+    rdfs:comment "PascalCase Elixir module prefix, e.g. \"GreetCli\" -- becomes `{{ module_name }}.MixProject`/`.Registry`/`.<Noun>` in generated source." .
+nvc:version a rdf:Property ; rdfs:domain nvc:GeneratedCliProject ; rdfs:range xsd:string ;
+    rdfs:comment "Generated project's own semver, e.g. \"0.1.0\" -- becomes mix.exs's `version:`." .
+nvc:elixirVersion a rdf:Property ; rdfs:domain nvc:GeneratedCliProject ; rdfs:range xsd:string ;
+    rdfs:comment "Elixir version requirement, e.g. \"~> 1.17\" (matches ~/ex_noun_verb_cli/mix.exs's own real `elixir: \"~> 1.17\"` at extension time) -- becomes mix.exs's `elixir:`." .
+nvc:exNounVerbCliVersion a rdf:Property ; rdfs:domain nvc:GeneratedCliProject ; rdfs:range xsd:string ;
+    rdfs:comment "Hex-style version requirement for the `{:ex_noun_verb_cli, ...}` dep, e.g. \"~> 26.9\" (~/ex_noun_verb_cli's own real `@version \"26.9.11\"` at extension time). Disclosed limitation: ex_noun_verb_cli is not yet published to Hex.pm (confirmed: `curl https://hex.pm/api/packages/ex_noun_verb_cli` -> 404 at extension time; nvc:HexPublishCapability above already documents this as a real, cited deferral) -- a real `mix deps.get` against this exact constraint will fail until publish; see README.md's real-compile section for how this pack's own verify step works around that honestly (a path-dependency override in a scratch copy, not a silent substitution in the committed generated project)." .
+
+# --- Properties: nvc:GeneratedVerb ---
+# (nvc:noun, nvc:verb reused from nvc:CliVerb -- see banner above.)
+
+nvc:hasVerb a rdf:Property ; rdfs:domain nvc:GeneratedCliProject ; rdfs:range nvc:GeneratedVerb ;
+    rdfs:comment "Links a GeneratedCliProject to one of its GeneratedVerb commands. Multi-valued." .
+nvc:handlerModule a rdf:Property ; rdfs:domain nvc:GeneratedVerb ; rdfs:range xsd:string ;
+    rdfs:comment "Fully-qualified Elixir module name (e.g. \"GreetCli.Greet\") that owns this verb's handler function -- target of ExNounVerbCli.Registry.Generated's `module:` entry key (lib/ex_noun_verb_cli/registry/generated.ex:21, real key name verified)." .
+nvc:handlerFunction a rdf:Property ; rdfs:domain nvc:GeneratedVerb ; rdfs:range xsd:string ;
+    rdfs:comment "Handler function name (e.g. \"hello\"), rendered as an atom -- target of the real `function:` entry key (same real source as nvc:handlerModule)." .
+nvc:verbDescription a rdf:Property ; rdfs:domain nvc:GeneratedVerb ; rdfs:range xsd:string ;
+    rdfs:comment "One-line description, rendered into the real `doc:` entry key (examples/calc/registry.ex:20 real precedent: `doc: \"Adds --x and --y.\"`)." .
+nvc:handlerBodyExpr a rdf:Property ; rdfs:domain nvc:GeneratedVerb ; rdfs:range xsd:string ;
+    rdfs:comment "The literal Elixir expression body of this verb's handler function (e.g. \"x + y\"), playground-authored per-instance (not a generalizable synthesis) so the generated handler is a real, compiling implementation -- not a `todo!()`-style stub -- matching this design's explicit divergence from clap-noun-verb-crate-pack's `templates/custom_handlers.rs.tmpl` stub convention (see that pack's own file, `unless_exists: true` + `todo!(...)` body)." .
+nvc:hasArgument a rdf:Property ; rdfs:domain nvc:GeneratedVerb ; rdfs:range nvc:GeneratedArgument ;
+    rdfs:comment "Links a GeneratedVerb to one of its GeneratedArgument facts. Multi-valued; order is NOT guaranteed by RDF -- always re-sort by nvc:argOrder (SPARQL ORDER BY, or Elixir-side Enum.sort_by/2) before projecting into a schema/required/parameter list. See gates/082_argument_order_dense_unique.rq." .
+
+# --- Properties: nvc:GeneratedArgument ---
+
+nvc:argName a rdf:Property ; rdfs:domain nvc:GeneratedArgument ; rdfs:range xsd:string ;
+    rdfs:comment "Argument name (e.g. \"x\") -- becomes both a key in the generated `schema:`/`required:` keyword lists and the handler function's own parameter name." .
+nvc:argType a rdf:Property ; rdfs:domain nvc:GeneratedArgument ; rdfs:range xsd:string ;
+    rdfs:comment "One of \"string\"|\"integer\"|\"float\"|\"boolean\" -- rendered as the matching Elixir atom in the generated `schema:` keyword list, mirroring OptionParser.parse/2's own `:strict` type atoms (which ExNounVerbCli.Dispatcher.do_dispatch/2 passes straight through, dispatcher.ex:81)." .
+nvc:argRequired a rdf:Property ; rdfs:domain nvc:GeneratedArgument ; rdfs:range xsd:boolean ;
+    rdfs:comment "Whether this argument's key is included in the generated `required:` keyword list -- every playground argument in this pack's own greet-cli.ttl instance is required (v1's toy verbs take no optional args), but the property itself makes optional args a real, representable future case, not a hidden assumption." .
+nvc:argOrder a rdf:Property ; rdfs:domain nvc:GeneratedArgument ; rdfs:range xsd:integer ;
+    rdfs:comment "Zero-based parameter position within this verb's argument list -- declares the order the generated handler function's parameters (and the `required:`-derived call-site values ExNounVerbCli.Dispatcher.do_dispatch/2 builds, dispatcher.ex:104-106) must agree on. Enforced dense/unique per verb by gates/082_argument_order_dense_unique.rq (a gate query, not a runtime check -- Tera has no arithmetic sort-guard of its own)." .

@@ -84,6 +84,51 @@ across all cited packs).
 See `errc-tracker.md` for the ERRC pass over this extension (what's
 promotable from DEFERRED to PORTED next, and what net-new capital this
 extension itself manufactures).
+
+## Extension 2: a real generation layer (26.9.11)
+
+Beyond documenting capability parity, `ontology.ttl`'s "EXTENSION 2" section
+adds a real, renderable shape: `nvc:GeneratedCliProject` /
+`nvc:GeneratedVerb` (`rdfs:subClassOf nvc:CliVerb`) / `nvc:GeneratedArgument`.
+Given a project instance graph (`playground/greet-cli.ttl`, a real two-noun/
+four-verb `greet_cli` CLI: `greet hello`/`greet shout`/`math add`/
+`math multiply`), 5 real Tera templates under `templates/*.tmpl`
+(`mix.exs.tmpl`, `config.exs.tmpl`, `registry.ex.tmpl`, `handler_stub.ex.tmpl`,
+`README.md.tmpl`) produce a genuine, compiling Elixir consumer of
+`~/ex_noun_verb_cli`'s real public API (`ExNounVerbCli.Registry.Generated`'s
+`verbs:` shape, `ExNounVerbCli.Escript` as `mix.exs`'s `escript:
+main_module`) -- not stubs: `nvc:handlerBodyExpr` playground facts (e.g.
+`"x + y"`) become real, non-`todo!()` handler function bodies.
+
+`verify/render_check.exs` is the real proof: run via
+`cd ~/ggen_igniter && mix run <this pack>/verify/render_check.exs`, it loads
+`playground/greet-cli.ttl`, parses each template's real frontmatter
+(`GgenIgniter.Frontmatter.split_template/1`), runs every named SPARQL query
+via the real oxigraph engine (`GgenIgniter.Query.Oxigraph.run/2` --
+`ORDER BY`-correct, unlike the default `sparql`-hex engine), renders both the
+`to:` path and the template body via the real WASM Tera renderer
+(`GgenIgniter.Render.TeraWasm.render/2`), writes every output under
+`examples/greet-cli/`, and `Code.string_to_quoted!/1`-validates every
+generated `.ex`/`.exs` file. Verified 2026-09-11: 6 files written, 5 Elixir
+files, all 5 quoted-ok, `render_check: PASS`.
+
+Ceiling verification, not just floor: a scratch copy of the generated project
+(with a `path:` override for `{:ex_noun_verb_cli, ...}` since it is not yet
+published to Hex -- confirmed 404, `nvc:exNounVerbCliVersion`'s own comment
+-- plus an explicit `{:igniter, "~> 0.5"}` dep, since `ex_noun_verb_cli`
+declares `:igniter` as `optional: true`, which Mix does not pull in for a
+consumer that does not itself depend on it) really ran `mix deps.get`,
+`mix compile --warnings-as-errors` (clean), `mix escript.build`, and the
+built `./greet_cli` binary for real, producing real JSON envelopes for all
+four verbs plus a real `unknown_verb` error envelope on an unregistered
+`math divide`.
+
+4 new gates (`gates/080`-`083`) enforce this generation shape's own
+integrity, ASK-true-means-violation per this pack's existing convention,
+each verified BOTH clean (`ASK=False`) against the real `playground/
+greet-cli.ttl` AND falsification-hardened (a real, independent mutation per
+gate flips its ASK to `True`) via `rdflib`, 2026-09-11 -- see README.md for
+the full falsifier table.
 """
 category = "cli-framework"
 author = "ggen"
