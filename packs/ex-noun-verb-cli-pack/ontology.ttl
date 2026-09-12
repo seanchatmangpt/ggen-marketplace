@@ -1,5 +1,11 @@
 @prefix nvc: <https://ggen.dev/marketplace/ex-noun-verb-cli-pack#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+################################################################################
+# Milestone 2 facts (original) -- KEPT VERBATIM, not touched by this extension.
+################################################################################
 
 nvc:MarketplaceCliApp a nvc:GeneratorFirstConsumer ;
     rdfs:label "marketplace_cli" ;
@@ -25,3 +31,484 @@ nvc:CatalogVerb a nvc:CliVerb ;
     nvc:noun "marketplace" ;
     nvc:verb "catalog" ;
     nvc:belongsTo nvc:MarketplaceCliApp .
+
+################################################################################
+# EXTENSION -- real-vs-clap-noun-verb capability-parity graph.
+#
+# Every individual below is traceable to something real found in research on
+# this machine at extension time (2026-09-11):
+#   - ~/ex_noun_verb_cli            (the Elixir port; file:line citations below
+#     were read in full and verified line-by-line against the real files)
+#   - ~/clap-noun-verb               (the Rust original; file:line citations
+#     below were verified against the real source, e.g.
+#     src/capability/registry.rs, src/error.rs, src/cli/preprocessor.rs,
+#     src/cli/registry.rs)
+#   - ~/clap-noun-verb/examples/*.rs (10 real example programs, verified to
+#     contain the cited noun!/verb!/#[verb(...)] registrations)
+#   - ~/clap-noun-verb/packs/clap-noun-verb-capability-pack (real local pack:
+#     1 gate, 1 query, 3 templates -- verified via `find`)
+#   - this worktree's own packs/clap-noun-verb-*-pack directories (real
+#     marketplace packs; gate counts below are exact `find gates -iname
+#     '*.rq' | wc -l` results per pack, verified at extension time)
+#   - docs/superpowers/specs/2026-09-11-ex-noun-verb-cli-design.md (the
+#     approved design spec this pack's own pack.toml already cites; section
+#     line numbers below were verified with `grep -n '^## '`)
+#
+# No capability below was invented: every DeferredCapability is either a real
+# in-code TODO or a real design-spec non-goal (or, for the one absent
+# candidate feature, an explicitly verified absence -- see
+# nvc:LevenshteinSuggestionCapability).
+################################################################################
+
+# --- Classes (10) ---
+
+nvc:Framework a rdfs:Class ;
+    rdfs:comment "A noun-verb CLI framework (the Rust original clap-noun-verb or its Elixir port ex_noun_verb_cli)." .
+
+nvc:Capability a rdfs:Class ;
+    rdfs:comment "One named feature/capability of the noun-verb CLI framework family. Never instantiated directly -- every individual is typed as one of its two leaf subclasses (see gates/060_no_orphan_capability.rq)." .
+
+nvc:PortedCapability a rdfs:Class ;
+    rdfs:subClassOf nvc:Capability ;
+    rdfs:comment "A Capability with a real, verified implementation in ~/ex_noun_verb_cli (Elixir port)." .
+
+nvc:DeferredCapability a rdfs:Class ;
+    rdfs:subClassOf nvc:Capability ;
+    rdfs:comment "A Capability explicitly deferred: either a real in-code TODO in ~/ex_noun_verb_cli or a real non-goal named in the approved design spec's section 6." .
+
+nvc:CliVerb a rdfs:Class ;
+    rdfs:comment "A concrete noun/verb command pair demonstrated somewhere in the research (a real example program, or a real marketplace_cli Igniter task)." .
+
+nvc:ExampleProgram a rdfs:Class ;
+    rdfs:comment "A real .rs example file under ~/clap-noun-verb/examples/." .
+
+nvc:LocalPack a rdfs:Class ;
+    rdfs:comment "A pack under ~/clap-noun-verb/packs/ (not published into this ggen-marketplace repo)." .
+
+nvc:MarketplacePack a rdfs:Class ;
+    rdfs:comment "A pack under this ggen-marketplace repo's packs/clap-noun-verb-*-pack/." .
+
+nvc:OntologyClass a rdfs:Class ;
+    rdfs:comment "An RDF class defined by a marketplace pack's own ontology.ttl -- reified so this pack can model 'packs that define vocabulary' as data, e.g. clap-noun-verb-schema-pack's cnv: classes." .
+
+nvc:Citation a rdfs:Class ;
+    rdfs:comment "A structured evidence pointer for one Capability: either nvc:filePath+nvc:lineRange (real source location, for a PortedCapability) or nvc:specSection (real design-spec section or in-code TODO location, for a DeferredCapability). Never both -- see gates/070_citation_exclusivity.rq." .
+
+# --- Properties ---
+
+nvc:hasCitation a rdf:Property ; rdfs:domain nvc:Capability ; rdfs:range nvc:Citation ;
+    rdfs:comment "Links a Capability to its one structured evidence Citation." .
+nvc:filePath a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "A real repo-relative (or examples/-relative) file path. Used on nvc:Citation, nvc:ExampleProgram, nvc:CliVerb, and nvc:LocalPack individuals." .
+nvc:lineRange a rdf:Property ; rdfs:domain nvc:Citation ; rdfs:range xsd:string ;
+    rdfs:comment "A real 'start-end' (or 'a,b-c' for a discontiguous citation) line range within the Citation's filePath, verified against the real file at extension time." .
+nvc:specSection a rdf:Property ; rdfs:domain nvc:Citation ; rdfs:range xsd:string ;
+    rdfs:comment "A real design-spec section/line reference, an in-code TODO location, or an explicitly verified absence note, for a DeferredCapability's Citation." .
+nvc:portedIn a rdf:Property ; rdfs:domain nvc:PortedCapability ; rdfs:range nvc:Framework ;
+    rdfs:comment "The Framework a PortedCapability is actually implemented in." .
+nvc:originatesIn a rdf:Property ; rdfs:domain nvc:Capability ; rdfs:range nvc:Framework ;
+    rdfs:comment "The Framework a Capability's design/behavior is explicitly documented (in its own moduledoc) as mirroring. Only asserted where the source moduledoc makes an explicit, quoted lineage claim -- not asserted for every PortedCapability, to avoid an unverified lineage claim." .
+nvc:demonstratesVerb a rdf:Property ; rdfs:domain nvc:ExampleProgram ; rdfs:range nvc:CliVerb ;
+    rdfs:comment "Links an ExampleProgram to a CliVerb it registers via noun!/verb! or #[verb(...)]." .
+nvc:definedInPack a rdf:Property ; rdfs:comment "Links a CliVerb or OntologyClass to the LocalPack or MarketplacePack it is defined in." .
+nvc:packHasGateCount a rdf:Property ; rdfs:range xsd:integer ;
+    rdfs:comment "Real count of gates/*.rq files in a LocalPack or MarketplacePack, verified via `find gates -iname '*.rq' | wc -l` at extension time." .
+nvc:packHasClassCount a rdf:Property ; rdfs:domain nvc:MarketplacePack ; rdfs:range xsd:integer ;
+    rdfs:comment "Real count of `a rdfs:Class` declarations in a MarketplacePack's ontology.ttl." .
+nvc:relatedCapability a rdf:Property ; rdfs:range nvc:Capability ;
+    rdfs:comment "Links a CliVerb or ExampleProgram to the abstract Capability it exercises, for a library-API-only example with no verb of its own." .
+nvc:name a rdf:Property ; rdfs:comment "A generic display name, alternative to rdfs:label where a pack/individual needs a distinct short identifier." .
+nvc:description a rdf:Property ; rdfs:range xsd:string ; rdfs:comment "A generic free-text description, used on LocalPack/MarketplacePack individuals." .
+
+################################################################################
+# Framework individuals
+################################################################################
+
+nvc:ClapNounVerb a nvc:Framework ;
+    rdfs:label "clap-noun-verb" ;
+    rdfs:comment "The Rust original, ~/clap-noun-verb (a linkme+proc-macro noun-verb CLI framework). 344-line src/capability/registry.rs, 453-line src/error.rs, and examples/ verified real at extension time." .
+
+# ExNounVerbCli already exists above (typed nvc:ElixirLibrary); add the
+# nvc:Framework type as an additional real fact without touching the
+# original triple.
+nvc:ExNounVerbCli a nvc:Framework ;
+    rdfs:comment "The Elixir port, ~/ex_noun_verb_cli -- a generator-first (POC) Elixir port of the useful parts of clap-noun-verb, per docs/superpowers/specs/2026-09-11-ex-noun-verb-cli-design.md section 1 ('Charter')." .
+
+################################################################################
+# PortedCapability individuals (10) -- real, verified against ~/ex_noun_verb_cli
+################################################################################
+
+nvc:DispatchCapability a nvc:PortedCapability ;
+    rdfs:label "Noun/verb dispatch" ;
+    nvc:portedIn nvc:ExNounVerbCli ;
+    nvc:hasCitation nvc:DispatchCapabilityCitation ;
+    rdfs:comment "ExNounVerbCli.Dispatcher.dispatch/2: splits argv into noun/verb, looks up the registered ExNounVerbCli.Verb, parses the rest with OptionParser against the verb's schema/aliases, and applies the handler. Source: lib/ex_noun_verb_cli/dispatcher.ex:44-155 (read in full, verified 2026-09-11)." .
+nvc:DispatchCapabilityCitation a nvc:Citation ;
+    nvc:filePath "lib/ex_noun_verb_cli/dispatcher.ex" ;
+    nvc:lineRange "44-155" .
+
+nvc:JsonOutputCapability a nvc:PortedCapability ;
+    rdfs:label "JSON-by-default output envelope" ;
+    nvc:portedIn nvc:ExNounVerbCli ;
+    nvc:hasCitation nvc:JsonOutputCapabilityCitation ;
+    rdfs:comment "ExNounVerbCli.JsonOutput.encode/2 + encode_string/1: wraps a dispatch {:ok,_}/{:error,_} result into a stable %{\"status\"=>...} envelope and encodes it via Jason.encode!/1. Source: lib/ex_noun_verb_cli/json_output.ex:20-42 (read in full, verified 2026-09-11)." .
+nvc:JsonOutputCapabilityCitation a nvc:Citation ;
+    nvc:filePath "lib/ex_noun_verb_cli/json_output.ex" ;
+    nvc:lineRange "20-42" .
+
+nvc:CapabilityRegistryCapability a nvc:PortedCapability ;
+    rdfs:label "Capability registry CRUD + evidence-derived standing" ;
+    nvc:portedIn nvc:ExNounVerbCli ;
+    nvc:originatesIn nvc:ClapNounVerb ;
+    nvc:hasCitation nvc:CapabilityRegistryCapabilityCitation ;
+    rdfs:comment "ExNounVerbCli.CapabilityRegistry (new/add_package/update_package/remove_package/get/packages/count/empty?/contains?), explicitly ported from the real Rust CapabilityRegistry -- moduledoc quotes '~/clap-noun-verb/src/capability/registry.rs:200-308 (read in full)'. Standing derivation (derive_standing/1, alive?/1) is a second real citation: lib/ex_noun_verb_cli/capability.ex:263-277 -- ExNounVerbCli.Capability.derive_standing/1, mirroring the real Rust CapabilityPackage::refresh_standing (registry.rs:154-165). Primary structured citation below is the registry file; the second citation is recorded here in prose per this pack's one-citation-per-Capability graph shape (see nvc:Citation class comment)." .
+nvc:CapabilityRegistryCapabilityCitation a nvc:Citation ;
+    nvc:filePath "lib/ex_noun_verb_cli/capability_registry.ex" ;
+    nvc:lineRange "31-132" .
+
+nvc:DependencyOrderCapability a nvc:PortedCapability ;
+    rdfs:label "Dependency-closed topological ordering" ;
+    nvc:portedIn nvc:ExNounVerbCli ;
+    nvc:originatesIn nvc:ClapNounVerb ;
+    nvc:hasCitation nvc:DependencyOrderCapabilityCitation ;
+    rdfs:comment "ExNounVerbCli.CapabilityRegistry.dependency_order/1: real DFS post-order topological sort with cycle/missing-dependency detection over sorted registry ids, mirroring the real Rust CapabilityRegistry::dependency_order exactly (recursive `visit` helper, temporary/permanent/ordered accumulator lists, same refusal message shapes). Elixir source: lib/ex_noun_verb_cli/capability_registry.ex:119-167. Rust source it mirrors: ~/clap-noun-verb/src/capability/registry.rs:256-289 (verified real: fn dependency_order at line 255, nested fn visit, identical temporary/permanent/ordered DFS shape)." .
+nvc:DependencyOrderCapabilityCitation a nvc:Citation ;
+    nvc:filePath "lib/ex_noun_verb_cli/capability_registry.ex" ;
+    nvc:lineRange "119-167" .
+
+nvc:ChainSplitCapability a nvc:PortedCapability ;
+    rdfs:label "Command chaining via literal ++ token" ;
+    nvc:portedIn nvc:ExNounVerbCli ;
+    nvc:hasCitation nvc:ChainSplitCapabilityCitation ;
+    rdfs:comment "ExNounVerbCli.Chaining.expand/1 + split_groups/1: splits a raw argv list on the literal token \"++\" into one argv group per chained invocation. Source: lib/ex_noun_verb_cli/chaining.ex:44-58 (read in full, verified 2026-09-11)." .
+nvc:ChainSplitCapabilityCitation a nvc:Citation ;
+    nvc:filePath "lib/ex_noun_verb_cli/chaining.ex" ;
+    nvc:lineRange "44-58" .
+
+nvc:StdinRawCapability a nvc:PortedCapability ;
+    rdfs:label "Raw stdin extraction via @-" ;
+    nvc:portedIn nvc:ExNounVerbCli ;
+    nvc:hasCitation nvc:StdinRawCapabilityCitation ;
+    rdfs:comment "ExNounVerbCli.Chaining resolve_token(\"@-\") + read_stdin_raw/0: replaces the literal token \"@-\" with the entire contents of stdin (IO.read(:eof)), read once per expand/1 call. Source: lib/ex_noun_verb_cli/chaining.ex line 64 (resolve_token clause) and lines 78-83 (read_stdin_raw/0), verified 2026-09-11." .
+nvc:StdinRawCapabilityCitation a nvc:Citation ;
+    nvc:filePath "lib/ex_noun_verb_cli/chaining.ex" ;
+    nvc:lineRange "64,78-83" .
+
+nvc:StdinJsonPathCapability a nvc:PortedCapability ;
+    rdfs:label "JSON-path stdin extraction via @-::path" ;
+    nvc:portedIn nvc:ExNounVerbCli ;
+    nvc:hasCitation nvc:StdinJsonPathCapabilityCitation ;
+    rdfs:comment "ExNounVerbCli.Chaining resolve_token(\"@-::\" <> json_path) + dig/2 + stringify/1: reads stdin, decodes it as JSON via Jason.decode!/1, then digs the dot-separated path out of the decoded map and stringifies the result. Source: lib/ex_noun_verb_cli/chaining.ex:66-74 (resolve_token clause) and :85-97 (dig/2, stringify/1), verified 2026-09-11." .
+nvc:StdinJsonPathCapabilityCitation a nvc:Citation ;
+    nvc:filePath "lib/ex_noun_verb_cli/chaining.ex" ;
+    nvc:lineRange "66-74,85-97" .
+
+nvc:KebabSnakeAliasCapability a nvc:PortedCapability ;
+    rdfs:label "Dual kebab-case/snake_case long-flag acceptance" ;
+    nvc:portedIn nvc:ExNounVerbCli ;
+    nvc:originatesIn nvc:ClapNounVerb ;
+    nvc:hasCitation nvc:KebabSnakeAliasCapabilityCitation ;
+    rdfs:comment "ExNounVerbCli.Dispatcher.normalize_underscore_flags/1: rewrites a bare --foo_bar long-flag token to --foo-bar before OptionParser.parse/2, so both spellings resolve to the same schema key. Its own code comment explicitly mirrors the real Rust '--profile-id'/'--profile_id' dual-acceptance convention in ~/clap-noun-verb/src/cli/registry.rs's build_argument function. Elixir source: lib/ex_noun_verb_cli/dispatcher.ex:121-143 (read in full, verified 2026-09-11)." .
+nvc:KebabSnakeAliasCapabilityCitation a nvc:Citation ;
+    nvc:filePath "lib/ex_noun_verb_cli/dispatcher.ex" ;
+    nvc:lineRange "121-143" .
+
+nvc:IgniterAdapterCapability a nvc:PortedCapability ;
+    rdfs:label "Igniter.Mix.Task adapter" ;
+    nvc:portedIn nvc:ExNounVerbCli ;
+    nvc:hasCitation nvc:IgniterAdapterCapabilityCitation ;
+    rdfs:comment "Mix.Tasks.ExNounVerbCli (`mix ex_noun_verb_cli <noun> <verb> [opts]`): a generic Igniter.Mix.Task adapter dispatching through the same ExNounVerbCli.Dispatcher.dispatch/2 core the escript adapter uses, folding the JSON-encoded result into Igniter.add_notice/2, and stripping Igniter's own global option switches (--dry-run etc.) via real OptionParser.next/2 semantics before forwarding argv. Source: lib/mix/tasks/ex_noun_verb_cli.ex:27-111 (whole module, read in full, verified 2026-09-11)." .
+nvc:IgniterAdapterCapabilityCitation a nvc:Citation ;
+    nvc:filePath "lib/mix/tasks/ex_noun_verb_cli.ex" ;
+    nvc:lineRange "27-111" .
+
+nvc:EscriptAdapterCapability a nvc:PortedCapability ;
+    rdfs:label "Escript (single-binary) adapter" ;
+    nvc:portedIn nvc:ExNounVerbCli ;
+    nvc:hasCitation nvc:EscriptAdapterCapabilityCitation ;
+    rdfs:comment "ExNounVerbCli.Escript.run/2 + main/1: raw argv -> Chaining.expand/1 -> one Dispatcher.dispatch/2 call per expanded group -> JsonOutput.encode/2 -> a JSON line printed to stdout, with run/2 kept side-effect-free (testable) and main/1 the thin System.halt-wrapping entry point. Source: lib/ex_noun_verb_cli_escript.ex:38-86 (read in full, verified 2026-09-11)." .
+nvc:EscriptAdapterCapabilityCitation a nvc:Citation ;
+    nvc:filePath "lib/ex_noun_verb_cli_escript.ex" ;
+    nvc:lineRange "38-86" .
+
+################################################################################
+# DeferredCapability individuals (8) -- real in-code TODO or real spec non-goal
+################################################################################
+
+nvc:StepRefCapability a nvc:DeferredCapability ;
+    rdfs:label "Cross-group step-reference substitution (@{N.path})" ;
+    nvc:originatesIn nvc:ClapNounVerb ;
+    nvc:hasCitation nvc:StepRefCapabilityCitation ;
+    rdfs:comment "@{N.path}-shaped tokens (referencing a prior chained group's dispatch result) are left unresolved by ExNounVerbCli.Chaining.expand/1 on purpose -- its own moduledoc names this a real TODO (not a design-spec non-goal): resolving it requires interleaving expansion with dispatch, which is legitimately the Dispatcher's job. The real Rust equivalent this displaces is ~/clap-noun-verb/src/cli/preprocessor.rs:32-100's preprocess_args (the '1. Resolve step references @{step.key}' block), verified real and present in that function." .
+nvc:StepRefCapabilityCitation a nvc:Citation ;
+    nvc:specSection "lib/ex_noun_verb_cli/chaining.ex:22-34 (in-code TODO, not spec non-goals list; Rust equivalent: ~/clap-noun-verb/src/cli/preprocessor.rs:32-100)" .
+
+nvc:LevenshteinSuggestionCapability a nvc:DeferredCapability ;
+    rdfs:label "Levenshtein-distance 'did you mean?' suggestions" ;
+    nvc:originatesIn nvc:ClapNounVerb ;
+    nvc:hasCitation nvc:LevenshteinSuggestionCapabilityCitation ;
+    rdfs:comment "clap-noun-verb has a real Levenshtein-distance find_best_matches/rendered_suggestion pair (~/clap-noun-verb/src/error.rs:45-82, verified real) used by NounVerbError's 'did you mean?' constructors (real real-world usage witnessed in examples/error_handling.rs's VerbNotFound/command_not_found_with_candidates calls). ex_noun_verb_cli has no equivalent: verified by `grep -rn -i 'levenshtein|did.you.mean|suggest' lib/` returning zero matches, and the capability is not named anywhere in the approved design spec's non-goals section (lines 109-121) either -- it is simply absent from both places, not a documented deferral." .
+nvc:LevenshteinSuggestionCapabilityCitation a nvc:Citation ;
+    nvc:specSection "absent -- not in docs/superpowers/specs/2026-09-11-ex-noun-verb-cli-design.md:109-121 (non-goals section), not present anywhere under lib/ (verified via grep -rn -i levenshtein lib/, zero matches, 2026-09-11)" .
+
+nvc:DynamicCompletionsCapability a nvc:DeferredCapability ;
+    rdfs:label "Dynamic shell completions" ;
+    nvc:originatesIn nvc:ClapNounVerb ;
+    nvc:hasCitation nvc:DynamicCompletionsCapabilityCitation ;
+    rdfs:comment "clap-noun-verb has real dynamic shell completions (examples/howto/completions_demo.rs, examples/shell_completions.rs, both verified real). Design spec section 6 names this a v1 non-goal: 'Dynamic shell completions (clap-noun-verb has this; real but deferred).'" .
+nvc:DynamicCompletionsCapabilityCitation a nvc:Citation ;
+    nvc:specSection "docs/superpowers/specs/2026-09-11-ex-noun-verb-cli-design.md:111" .
+
+nvc:IntrospectCapability a nvc:DeferredCapability ;
+    rdfs:label "--introspect LLM self-description" ;
+    nvc:hasCitation nvc:IntrospectCapabilityCitation ;
+    rdfs:comment "Design spec section 6 names this a v1 non-goal: '--introspect LLM self-description (real but deferred).'" .
+nvc:IntrospectCapabilityCitation a nvc:Citation ;
+    nvc:specSection "docs/superpowers/specs/2026-09-11-ex-noun-verb-cli-design.md:112" .
+
+nvc:ReflectionRegistryPrimaryCapability a nvc:DeferredCapability ;
+    rdfs:label "Reflection-based registry as primary path (not opt-in convenience)" ;
+    nvc:hasCitation nvc:ReflectionRegistryPrimaryCapabilityCitation ;
+    rdfs:comment "lib/ex_noun_verb_cli/registry/reflection.ex exists (verified real file) but design spec section 6 explicitly defers making Reflection anything but an opt-in convenience: 'Reflection-based registry as anything but an opt-in convenience -- the generated-registry path is what's actually exercised/tested in v1.'" .
+nvc:ReflectionRegistryPrimaryCapabilityCitation a nvc:Citation ;
+    nvc:specSection "docs/superpowers/specs/2026-09-11-ex-noun-verb-cli-design.md:113-114" .
+
+nvc:FrontierFeatureParityCapability a nvc:DeferredCapability ;
+    rdfs:label "Full parity with clap-noun-verb's frontier features" ;
+    nvc:originatesIn nvc:ClapNounVerb ;
+    nvc:hasCitation nvc:FrontierFeatureParityCapabilityCitation ;
+    rdfs:comment "clap-noun-verb has real frontier-feature examples (examples/semantic_coordinator.rs, examples/frontier_discovery_engine_demo.rs, examples/frontier_reflexive_testing_demo.rs, examples/c8/*, all verified real files). Design spec section 6 explicitly defers full parity: 'Full parity with clap-noun-verb's frontier features (semantic composition, economic simulation, quantum-ready crypto-agility, etc.) -- those are real capabilities in the Rust project but out of scope for this port's charter.'" .
+nvc:FrontierFeatureParityCapabilityCitation a nvc:Citation ;
+    nvc:specSection "docs/superpowers/specs/2026-09-11-ex-noun-verb-cli-design.md:115-118" .
+
+nvc:HexPublishCapability a nvc:DeferredCapability ;
+    rdfs:label "Real Hex.pm publish (vs. dry-run)" ;
+    nvc:hasCitation nvc:HexPublishCapabilityCitation ;
+    rdfs:comment "Design spec section 6 explicitly stops this pass at `mix hex.publish --dry-run`, not a real publish: 'Actually publishing to Hex.pm for real -- this pass ends at mix hex.publish --dry-run (a real, verified dry-run build/package step), not a real publish.'" .
+nvc:HexPublishCapabilityCitation a nvc:Citation ;
+    nvc:specSection "docs/superpowers/specs/2026-09-11-ex-noun-verb-cli-design.md:119-121" .
+
+nvc:GraphProviderConcreteCapability a nvc:DeferredCapability ;
+    rdfs:label "Concrete oxigraph/ggen_igniter-backed GraphProvider implementation" ;
+    nvc:hasCitation nvc:GraphProviderConcreteCapabilityCitation ;
+    rdfs:comment "lib/ex_noun_verb_cli/graph_provider.ex defines only the @callback load!/1 + query/2 behaviour (verified real: no oxigraph/ggen_igniter dependency anywhere in lib/, per the moduledoc's own explicit decision). The design spec's milestone 2 ('Real port', section 5) names the concrete GgenIgniter.Ontology.load!/1 + GgenIgniter.Query.run/2-backed implementation as the consumer's (this very ggen-marketplace pack's) job, not this library's." .
+nvc:GraphProviderConcreteCapabilityCitation a nvc:Citation ;
+    nvc:specSection "lib/ex_noun_verb_cli/graph_provider.ex (interface-only @callback behaviour, no concrete impl in lib/, verified 2026-09-11); docs/superpowers/specs/2026-09-11-ex-noun-verb-cli-design.md:103-107 (milestone 2, 'Real port')" .
+
+################################################################################
+# ExampleProgram individuals (10) -- real files under ~/clap-noun-verb/examples/
+################################################################################
+
+nvc:CoreApiExample a nvc:ExampleProgram ;
+    rdfs:label "core_api.rs" ;
+    nvc:filePath "examples/core_api.rs" ;
+    nvc:demonstratesVerb nvc:ServicesStatusVerb, nvc:ConfigGetVerb ;
+    rdfs:comment "~/clap-noun-verb/examples/core_api.rs: demonstrates the fundamental CliBuilder + noun!/verb! + run_cli_with_args API surface. Registers noun \"services\" with verb \"status\" (and \"restart\") and noun \"config\" with verb \"get\" (verified real, lines 41-64)." .
+
+nvc:VerbArgsExample a nvc:ExampleProgram ;
+    rdfs:label "verb_args.rs" ;
+    nvc:filePath "examples/verb_args.rs" ;
+    nvc:demonstratesVerb nvc:DeployStartVerb ;
+    rdfs:comment "~/clap-noun-verb/examples/verb_args.rs: demonstrates the VerbArgs API (get_one_str/get_one::<bool>). Registers noun \"deploy\" with verb \"start\" (verified real, lines 44-47)." .
+
+nvc:ErrorHandlingExample a nvc:ExampleProgram ;
+    rdfs:label "error_handling.rs" ;
+    nvc:filePath "examples/error_handling.rs" ;
+    nvc:demonstratesVerb nvc:DbConnectVerb ;
+    rdfs:comment "~/clap-noun-verb/examples/error_handling.rs: demonstrates NounVerbError constructors and CLI error propagation. Registers noun \"db\" with verb \"connect\" whose handler deliberately errors with \"db unreachable\" (verified real, lines 86-91)." .
+
+nvc:CapabilityRegistryExample a nvc:ExampleProgram ;
+    rdfs:label "capability_registry.rs" ;
+    nvc:filePath "examples/capability_registry.rs" ;
+    nvc:relatedCapability nvc:CapabilityRegistryCapability ;
+    rdfs:comment "~/clap-noun-verb/examples/capability_registry.rs: library-API-only example (uses CapabilityPackage/CapabilityRegistry/CapabilityStanding/ProofSurface directly, no noun!/verb! macro registration -- verified real, line 6 imports, line 23 CapabilityPackage::new). Cites the abstract capability it exercises via nvc:relatedCapability instead of a CliVerb, matching gates/030's library-API-only allowance." .
+
+nvc:VecMultiValueProbeExample a nvc:ExampleProgram ;
+    rdfs:label "vec_multi_value_probe.rs" ;
+    nvc:filePath "examples/vec_multi_value_probe.rs" ;
+    nvc:demonstratesVerb nvc:ProbeTagsVerb ;
+    rdfs:comment "~/clap-noun-verb/examples/vec_multi_value_probe.rs: a real regression witness probing a bare Vec<T> #[verb] parameter with no #[arg(action = \"append\")] override. Registers #[verb(\"tags\", \"probe\")] (verified real, line 37)." .
+
+nvc:OntologyToCliExample a nvc:ExampleProgram ;
+    rdfs:label "ontology_to_cli.rs" ;
+    nvc:filePath "examples/ontology_to_cli.rs" ;
+    nvc:demonstratesVerb nvc:GraphLoadVerb ;
+    rdfs:comment "~/clap-noun-verb/examples/ontology_to_cli.rs: demonstrates clap_noun_verb::rdf_to_ggen's rdf_spec_to_verb_code/rdf_triples_to_verb_definitions/sparql_results_to_verb_definitions. Constructs an RdfVerbDefinition for noun_name \"graph\" / verb \"load\" and asserts the generated adapter contains #[verb(\"load\", \"graph\")] (verified real, lines 15-41)." .
+
+nvc:TutorialBasicExample a nvc:ExampleProgram ;
+    rdfs:label "tutorial/basic.rs" ;
+    nvc:filePath "examples/tutorial/basic.rs" ;
+    nvc:demonstratesVerb nvc:ServicesStatusVerb, nvc:ServicesRestartVerb ;
+    rdfs:comment "~/clap-noun-verb/examples/tutorial/basic.rs: v3 attribute-macro tutorial. Registers #[verb(\"status\", \"services\")] and #[verb(\"restart\", \"services\")] (plus \"logs\"), with explicit noun since the filename is generic (verified real, lines 68-92)." .
+
+nvc:HowtoCompletionsDemoExample a nvc:ExampleProgram ;
+    rdfs:label "howto/completions_demo.rs" ;
+    nvc:filePath "examples/howto/completions_demo.rs" ;
+    nvc:relatedCapability nvc:DynamicCompletionsCapability ;
+    rdfs:comment "~/clap-noun-verb/examples/howto/completions_demo.rs: demonstrates clap-noun-verb's real dynamic shell completions, a capability explicitly deferred for ex_noun_verb_cli v1 (verified real file, noun \"services\"/verb \"status\" registered at lines 17-20)." .
+
+nvc:GgenTemplateCommandsExample a nvc:ExampleProgram ;
+    rdfs:label "ggen/template_commands.rs" ;
+    nvc:filePath "examples/ggen/template_commands.rs" ;
+    nvc:demonstratesVerb nvc:TemplateGenerateVerb ;
+    rdfs:comment "~/clap-noun-verb/examples/ggen/template_commands.rs: a real ggen-CLI-shaped example. Registers #[verb(\"generate\", \"template\")] (also \"render\"/\"validate\"/\"list\") -- the same Vec<String>-argument shape probed independently by vec_multi_value_probe.rs (verified real, line 276)." .
+
+nvc:GeneratedFromTurtleCalculatorExample a nvc:ExampleProgram ;
+    rdfs:label "generated-from-turtle/calculator-cli.rs" ;
+    nvc:filePath "examples/generated-from-turtle/calculator-cli.rs" ;
+    nvc:demonstratesVerb nvc:CalcAddVerb ;
+    rdfs:comment "~/clap-noun-verb/examples/generated-from-turtle/calculator-cli.rs: a real CLI generated from a Turtle ontology fragment (:Calculator a cli:Noun ; cli:hasVerb :Add, :Subtract, :Multiply, :Divide, quoted verbatim in the file's own header comment). Registers #[verb(\"add\", \"calc\")] (also subtract/multiply/divide) (verified real, line 89)." .
+
+################################################################################
+# CliVerb individuals (9 new) -- real noun/verb pairs cited above, plus
+# nvc:filePath added directly to the two pre-existing CliVerb individuals
+# (ValidateVerb, CatalogVerb) as an additive fact so gates/040 (every CliVerb
+# must carry a real file path) holds for them too, without touching their
+# original triples.
+################################################################################
+
+nvc:ServicesStatusVerb a nvc:CliVerb ;
+    nvc:noun "services" ; nvc:verb "status" ;
+    nvc:filePath "examples/core_api.rs" ;
+    rdfs:comment "Real noun/verb pair registered in both examples/core_api.rs (lines 41-49) and examples/tutorial/basic.rs (line 68)." .
+
+nvc:ConfigGetVerb a nvc:CliVerb ;
+    nvc:noun "config" ; nvc:verb "get" ;
+    nvc:filePath "examples/core_api.rs" ;
+    rdfs:comment "Real noun/verb pair registered in examples/core_api.rs, lines 55-61." .
+
+nvc:DeployStartVerb a nvc:CliVerb ;
+    nvc:noun "deploy" ; nvc:verb "start" ;
+    nvc:filePath "examples/verb_args.rs" ;
+    rdfs:comment "Real noun/verb pair registered in examples/verb_args.rs, lines 44-47." .
+
+nvc:DbConnectVerb a nvc:CliVerb ;
+    nvc:noun "db" ; nvc:verb "connect" ;
+    nvc:filePath "examples/error_handling.rs" ;
+    rdfs:comment "Real noun/verb pair registered in examples/error_handling.rs, lines 86-91." .
+
+nvc:ProbeTagsVerb a nvc:CliVerb ;
+    nvc:noun "probe" ; nvc:verb "tags" ;
+    nvc:filePath "examples/vec_multi_value_probe.rs" ;
+    rdfs:comment "Real noun/verb pair registered in examples/vec_multi_value_probe.rs, line 37 (#[verb(\"tags\", \"probe\")])." .
+
+nvc:GraphLoadVerb a nvc:CliVerb ;
+    nvc:noun "graph" ; nvc:verb "load" ;
+    nvc:filePath "examples/ontology_to_cli.rs" ;
+    rdfs:comment "Real noun/verb pair generated in examples/ontology_to_cli.rs from an RdfVerbDefinition (noun_name \"graph\", verb \"load\"), lines 15-41." .
+
+nvc:ServicesRestartVerb a nvc:CliVerb ;
+    nvc:noun "services" ; nvc:verb "restart" ;
+    nvc:filePath "examples/tutorial/basic.rs" ;
+    rdfs:comment "Real noun/verb pair registered in examples/tutorial/basic.rs, line 80 (also present in examples/core_api.rs, line 49)." .
+
+nvc:TemplateGenerateVerb a nvc:CliVerb ;
+    nvc:noun "template" ; nvc:verb "generate" ;
+    nvc:filePath "examples/ggen/template_commands.rs" ;
+    rdfs:comment "Real noun/verb pair registered in examples/ggen/template_commands.rs, line 276 (#[verb(\"generate\", \"template\")])." .
+
+nvc:CalcAddVerb a nvc:CliVerb ;
+    nvc:noun "calc" ; nvc:verb "add" ;
+    nvc:filePath "examples/generated-from-turtle/calculator-cli.rs" ;
+    rdfs:comment "Real noun/verb pair registered in examples/generated-from-turtle/calculator-cli.rs, line 89 (#[verb(\"add\", \"calc\")])." .
+
+# Additive facts on the two pre-existing CliVerb individuals (original
+# rdfs:label/nvc:noun/nvc:verb/nvc:belongsTo triples above are untouched):
+nvc:ValidateVerb nvc:filePath "packages/marketplace-cli/lib/mix/tasks/marketplace_cli.validate.ex" .
+nvc:CatalogVerb nvc:filePath "packages/marketplace-cli/lib/mix/tasks/marketplace_cli.catalog.ex" .
+
+################################################################################
+# LocalPack individual (1) -- real, under ~/clap-noun-verb/packs/
+################################################################################
+
+nvc:ClapNounVerbCapabilityPack a nvc:LocalPack ;
+    rdfs:label "clap-noun-verb-capability-pack" ;
+    nvc:filePath "packs/clap-noun-verb-capability-pack" ;
+    nvc:packHasGateCount 1 ;
+    nvc:description "15-capability/45-proof-surface crown pack: ontology.ttl + queries/capability-catalog.rq + 3 Tera templates (lib.rs.tera, Cargo.toml.tera, VERIFIER_REPORT.json.tera) + 1 gate (gates/capability-crown.rq, an ASK-true-means-violation gate asserting exactly 15 cnv:Capability individuals, each with featureName/defaultVerb/implementation/proofSurfaceCount=3)." ;
+    rdfs:comment "Real pack at ~/clap-noun-verb/packs/clap-noun-verb-capability-pack, verified 2026-09-11: `find gates -iname '*.rq'` returns exactly gates/capability-crown.rq (count 1); `find templates` returns exactly 3 .tera files; `find queries` returns exactly 1 .rq file (capability-catalog.rq); the ontology.ttl there declares 21 cnv:-namespaced individuals." .
+
+################################################################################
+# MarketplacePack individuals (12) -- real, under this repo's own packs/
+################################################################################
+
+nvc:SchemaPack a nvc:MarketplacePack ;
+    rdfs:label "clap-noun-verb-schema-pack" ;
+    nvc:packHasGateCount 16 ;
+    nvc:packHasClassCount 14 ;
+    rdfs:comment "Real pack at packs/clap-noun-verb-schema-pack, verified 2026-09-11: `find gates -iname '*.rq'` returns exactly 16 files; ontology.ttl declares 14 `a rdfs:Class` individuals (cnv:Cli, cnv:Noun, cnv:Command, cnv:Argument, cnv:Behavior, cnv:Boundary, and 8 further subclasses of cnv:Behavior/cnv:Boundary -- verified via `grep -n 'a rdfs:Class' ontology.ttl`). Note: 14, not the initially-estimated 8 -- corrected to the real grep count rather than propagated as an unverified guess." .
+
+nvc:CratePack a nvc:MarketplacePack ;
+    rdfs:label "clap-noun-verb-crate-pack" ;
+    nvc:packHasGateCount 0 ;
+    rdfs:comment "Real pack at packs/clap-noun-verb-crate-pack. `find gates -iname '*.rq'` returns zero files (verified 2026-09-11)." .
+
+nvc:RoutingPack a nvc:MarketplacePack ;
+    rdfs:label "clap-noun-verb-routing-pack" ;
+    nvc:packHasGateCount 0 ;
+    rdfs:comment "Real pack at packs/clap-noun-verb-routing-pack. `find gates -iname '*.rq'` returns zero files (verified 2026-09-11)." .
+
+nvc:BehaviorPack a nvc:MarketplacePack ;
+    rdfs:label "clap-noun-verb-behavior-pack" ;
+    nvc:packHasGateCount 0 ;
+    rdfs:comment "Real pack at packs/clap-noun-verb-behavior-pack. `find gates -iname '*.rq'` returns zero files (verified 2026-09-11)." .
+
+nvc:BoundaryPack a nvc:MarketplacePack ;
+    rdfs:label "clap-noun-verb-boundary-pack" ;
+    nvc:packHasGateCount 0 ;
+    rdfs:comment "Real pack at packs/clap-noun-verb-boundary-pack. `find gates -iname '*.rq'` returns zero files (verified 2026-09-11)." .
+
+nvc:VerificationPack a nvc:MarketplacePack ;
+    rdfs:label "clap-noun-verb-verification-pack" ;
+    nvc:packHasGateCount 0 ;
+    rdfs:comment "Real pack at packs/clap-noun-verb-verification-pack. `find gates -iname '*.rq'` returns zero files (verified 2026-09-11)." .
+
+nvc:AutonomicPack a nvc:MarketplacePack ;
+    rdfs:label "clap-noun-verb-autonomic-pack" ;
+    nvc:packHasGateCount 2 ;
+    rdfs:comment "Real pack at packs/clap-noun-verb-autonomic-pack. `find gates -iname '*.rq'` returns exactly 2 files (verified 2026-09-11)." .
+
+nvc:TelemetryPack a nvc:MarketplacePack ;
+    rdfs:label "clap-noun-verb-telemetry-pack" ;
+    nvc:packHasGateCount 2 ;
+    rdfs:comment "Real pack at packs/clap-noun-verb-telemetry-pack. `find gates -iname '*.rq'` returns exactly 2 files (verified 2026-09-11)." .
+
+nvc:PoliciesPack a nvc:MarketplacePack ;
+    rdfs:label "clap-noun-verb-policies-pack" ;
+    nvc:packHasGateCount 2 ;
+    rdfs:comment "Real pack at packs/clap-noun-verb-policies-pack. `find gates -iname '*.rq'` returns exactly 2 files (verified 2026-09-11)." .
+
+nvc:SpecimenPack a nvc:MarketplacePack ;
+    rdfs:label "clap-noun-verb-specimen-pack" ;
+    nvc:packHasGateCount 0 ;
+    rdfs:comment "Real pack at packs/clap-noun-verb-specimen-pack. `find gates -iname '*.rq'` returns zero files (verified 2026-09-11)." .
+
+nvc:ZeroconfigPack a nvc:MarketplacePack ;
+    rdfs:label "clap-noun-verb-zeroconfig-pack" ;
+    nvc:packHasGateCount 0 ;
+    rdfs:comment "Real pack at packs/clap-noun-verb-zeroconfig-pack. `find gates -iname '*.rq'` returns zero files (verified 2026-09-11)." .
+
+nvc:LegacyPack a nvc:MarketplacePack ;
+    rdfs:label "clap-noun-verb-pack" ;
+    nvc:packHasGateCount 3 ;
+    nvc:description "DEPRECATED, superseded by clap-noun-verb-schema-pack, clap-noun-verb-crate-pack, clap-noun-verb-routing-pack, clap-noun-verb-behavior-pack, clap-noun-verb-boundary-pack, and clap-noun-verb-verification-pack. Compatibility-only route-skeleton pack (legacy packed cnv:args representation, built-in specimen commands, raw cnv:staticResponse, crate::verbs::handlers::* seam)." ;
+    rdfs:comment "Real pack at packs/clap-noun-verb-pack (name has no '-legacy' suffix; deprecation is stated in its own pack.toml description, quoted verbatim above). `find gates -iname '*.rq'` returns exactly 3 files: gates/010_required.rq, gates/020_single_valued.rq, gates/030_value_constraints.rq (verified 2026-09-11)." .
+
+################################################################################
+# OntologyClass individuals (3, sampled from SchemaPack's real 14)
+################################################################################
+
+nvc:CnvCliClass a nvc:OntologyClass ;
+    rdfs:label "cnv:Cli" ;
+    nvc:definedInPack nvc:SchemaPack ;
+    rdfs:comment "Real class declaration `cnv:Cli a rdfs:Class` at packs/clap-noun-verb-schema-pack/ontology.ttl:14, required fields enforced by that pack's gates/010_required.rq (binaryName/crateName/version/edition/rustVersion/about/hasNoun)." .
+
+nvc:CnvBehaviorClass a nvc:OntologyClass ;
+    rdfs:label "cnv:Behavior" ;
+    nvc:definedInPack nvc:SchemaPack ;
+    rdfs:comment "Real class declaration `cnv:Behavior a rdfs:Class` at packs/clap-noun-verb-schema-pack/ontology.ttl:30, parent of 7 real subclasses (StaticJsonBehavior, EchoBehavior, ExpressionBehavior, FilesystemWriteBehavior, FilesystemListBehavior, RefusalBehavior, CustomBehavior)." .
+
+nvc:CnvCustomBehaviorClass a nvc:OntologyClass ;
+    rdfs:label "cnv:CustomBehavior" ;
+    nvc:definedInPack nvc:SchemaPack ;
+    rdfs:comment "Real class declaration `cnv:CustomBehavior a rdfs:Class ; rdfs:subClassOf cnv:Behavior` at packs/clap-noun-verb-schema-pack/ontology.ttl:58 -- the hand-written-domain-logic escape hatch this marketplace's own CLAUDE.md documents (custom_handlers.rs, generated once, never overwritten)." .
