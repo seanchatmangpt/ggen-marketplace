@@ -1,0 +1,57 @@
+@prefix pi: <https://ggen.dev/ontology/protocol-integration#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ===== CLASSES =====
+# The core invariant this pack enforces: a Capability's semantics are defined
+# exactly once (pi:semanticDefinition on the pi:Capability itself). An
+# pi:Adapter binds that Capability to a pi:Protocol over a pi:Transport --
+# it may bind the SAME Capability to any number of distinct Protocols, but
+# it must REUSE the Capability's own semanticDefinition, never assert a
+# competing one of its own. Violation is refused by
+# gates/010_no_semantic_redefinition.rq.
+pi:Protocol a rdfs:Class .
+pi:Transport a rdfs:Class .
+pi:Capability a rdfs:Class .
+pi:Adapter a rdfs:Class .
+
+# ===== PROPERTIES =====
+pi:semanticDefinition a rdf:Property ; rdfs:domain pi:Capability ; rdfs:range xsd:string .
+pi:bindsCapability a rdf:Property ; rdfs:domain pi:Adapter ; rdfs:range pi:Capability .
+pi:bindsProtocol a rdf:Property ; rdfs:domain pi:Adapter ; rdfs:range pi:Protocol .
+pi:usesTransport a rdf:Property ; rdfs:domain pi:Adapter ; rdfs:range pi:Transport .
+pi:reusesSemanticsOf a rdf:Property ; rdfs:domain pi:Adapter ; rdfs:range pi:Capability .
+
+# ===== REAL INDIVIDUALS: protocol / transport =====
+pi:HTTPProtocol a pi:Protocol ;
+    rdfs:label "HTTP/1.1 request-response protocol" .
+
+pi:GRPCProtocol a pi:Protocol ;
+    rdfs:label "gRPC protocol over HTTP/2" .
+
+pi:TCPTransport a pi:Transport ;
+    rdfs:label "TCP byte-stream transport" .
+
+# ===== REAL INDIVIDUAL: capability, semantics defined exactly once =====
+pi:SubmitOrderCapability a pi:Capability ;
+    rdfs:label "Submit a customer order for processing" ;
+    pi:semanticDefinition "Given an order payload with items and a customer id, atomically records the order as PENDING and returns an order id; idempotent under retry with the same idempotency key." .
+
+# ===== REAL INDIVIDUAL: adapter #1, binds capability to HTTP/TCP, REUSES semantics =====
+pi:SubmitOrderHTTPAdapter a pi:Adapter ;
+    rdfs:label "Adapter binding SubmitOrderCapability to HTTP over TCP" ;
+    pi:bindsCapability pi:SubmitOrderCapability ;
+    pi:bindsProtocol pi:HTTPProtocol ;
+    pi:usesTransport pi:TCPTransport ;
+    pi:reusesSemanticsOf pi:SubmitOrderCapability .
+
+# ===== REAL INDIVIDUAL: adapter #2, SAME capability, distinct second Protocol,
+# still REUSES semantics -- this is the "no semantic duplication" assertion:
+# one Capability, two Protocols, one semantic definition. =====
+pi:SubmitOrderGRPCAdapter a pi:Adapter ;
+    rdfs:label "Adapter binding the SAME SubmitOrderCapability to gRPC over TCP, without redefining its semantics" ;
+    pi:bindsCapability pi:SubmitOrderCapability ;
+    pi:bindsProtocol pi:GRPCProtocol ;
+    pi:usesTransport pi:TCPTransport ;
+    pi:reusesSemanticsOf pi:SubmitOrderCapability .

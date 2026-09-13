@@ -1,0 +1,28 @@
+# MESSAGE: an Adapter binds a Capability to a Protocol/Transport pair; it must
+# REUSE that Capability's own pi:semanticDefinition (via pi:reusesSemanticsOf
+# pointing back at the exact same Capability it binds), never redefine it.
+# An Adapter is refused if EITHER:
+#   (1) it asserts its own pi:semanticDefinition directly (competing with the
+#       Capability's canonical one instead of reusing it), OR
+#   (2) its pi:reusesSemanticsOf target is missing or does not match the
+#       pi:Capability named by its own pi:bindsCapability.
+# The same Capability may lawfully be bound by any number of Adapters to any
+# number of distinct Protocols -- that is not duplication, it is reuse; only
+# a competing/mismatched semantic assertion is refused.
+PREFIX pi: <https://ggen.dev/ontology/protocol-integration#>
+SELECT ?adapter ?capability ?problem WHERE {
+  ?adapter a pi:Adapter ;
+           pi:bindsCapability ?capability .
+  {
+    ?adapter pi:semanticDefinition ?ownDefinition .
+    BIND("adapter asserts its own competing semanticDefinition" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS {
+      ?adapter pi:reusesSemanticsOf ?capability .
+    }
+    BIND("adapter does not reuse its bound capability's semanticDefinition" AS ?problem)
+  }
+}
+ORDER BY ?adapter
