@@ -1,30 +1,75 @@
 # ggen Marketplace Agent Operating Contract
 
-This repository is the canonical, reviewable corpus of reusable ggen pack source. Scope is repository-wide unless a deeper `AGENTS.md` narrows a subtree. Live tree evidence outranks stale prose; deterministic manufacture and fail-closed admission outrank duplicated metadata or generated-output ownership.
+The canonical, reviewable corpus of reusable ggen pack source. This document provides cold-start navigation and non-negotiable repository invariants. Detailed rules and execution protocols live in `.agents/rules/` and `docs/`.
 
-## Preserve → Fence → Calculus
-Resolve repo/ref/base to an exact commit. Read applicable doctrine, `marketplace.toml`, pack manifests/ontologies/templates/gates, scripts, CI, docs, and release policy before editing. Preserve pack identity, provenance, source/generated ownership, path safety, admission, deterministic catalog/fingerprint behavior, and maximal reversible lawful alternatives. Apply Chesterton's fence before removing a rule. One failed pack/qualification edge is topology, not graph failure.
+---
 
-## Source hierarchy
-1. `marketplace.toml` declares marketplace operational law and is raw observation until admitted through the repository's current formal configuration boundary.
-2. `packs/<name>/pack.toml` declares pack identity; directory and declared identity must agree.
-3. `packs/<name>/ontology.ttl` carries admitted RDF facts.
-4. `templates/` projects facts.
-5. `gates/` may refuse invalid facts before generation.
-6. Pack/project `ggen.toml` files remain generation contracts, not a second marketplace control plane.
-7. Consumer outputs are generated consequences and do not belong here unless explicitly admitted source fixtures.
+## 1. Mission & Ecosystem Topology
 
-Do not hand-maintain a duplicate catalog, create a generated metadata namespace as source, use symlinks under packs, or duplicate release/platform/digest/qualification control values outside their authoritative configuration. CI is read-only evidence: it must not rewrite or push corrections. Preserve exact provenance when moving pack source. Keep Diátaxis categories semantically distinct.
+```text
+ggen-marketplace (THIS REPO: reusable capability discovery & pack source)
+    ↓
+ash_* (reusable Ash/Elixir machinery)
+    ↓
+ZOELA / zoela_phx (admitted application composition root)
+    ↓
+ZOE Marketplace / Clients (running projections)
+```
 
-## Evidence / authority
-Use `UNKNOWN | PARTIAL_ALIVE | ALIVE | BLOCKED | BUILD_BROKEN | UNSUPPORTED` plus typed `REFUSED_*`. `ALIVE` requires exact admitted execution. Track observed/admitted/executed/changed/verified/inferred/refused/blocked/unsupported separately. A green repository validator proves only the contract it executed; consequential pack behavior requires the matching ggen runtime and real consumer boundary when that claim changes.
+**Boundary Invariant**: This repository owns reusable pack source and marketplace documentation only. Consumer outputs and application composition logic do not belong here.
 
-`A = μ(O*)`; `R = receipt(A)`. Separate `SELECT`, `CONSTRUCT`, `DO`. Raw config, model/planner output, templates, generated source, and hooks have no ambient execution authority. Configuration becomes executable only after the current formal admission boundary returns its required witness. Consequential qualification/consumer execution must be receipted.
+---
 
-## Work / verification
-Follow `parse → orient → resolve → materialize → read doctrine → inspect → admit/refuse → diagnose/repair → construct → actuate → receipt → replay → standing`. Prefer the existing lawful path and smallest coherent diff. Edit ontology/config/template/gate sources rather than emitted catalogs/consumer outputs.
+## 2. Read First & Source of Truth
 
-Acceptance precedence: exact user behavior/command → live documented repository command → narrowest equivalent. Discover the current admission, validation, deterministic-catalog, fingerprint, and qualification commands from `scripts/`, configuration, CI, and docs at the admitted SHA. Run catalog generation twice and compare when determinism is in scope. On failure preserve command/exit/diagnostic, form a new hypothesis, repair narrowly, and rerun the failed boundary. CI supplements local proof; it is not truth.
+1. **Operational Law**: [`marketplace.toml`](file:///Users/sac/ggen-marketplace/marketplace.toml) — authoritative pins, asset digests, qualification limits.
+2. **Current Architecture**: [`docs/architecture.md`](file:///Users/sac/ggen-marketplace/docs/architecture.md) — observed components and pipelines.
+3. **Current Standing**: [`docs/context/standing.md`](file:///Users/sac/ggen-marketplace/docs/context/standing.md) — exact-head evidence and verification matrix.
+4. **Resumable Handoff**: [`docs/context/next.md`](file:///Users/sac/ggen-marketplace/docs/context/next.md) — machine handoff and active obligations.
 
-## GitHub / receipt
-Never silently move the admitted base. Unless explicitly instructed otherwise: purpose branch, intentional commit, non-force push, draft PR, no merge. Final receipt states repo/base/tree, O/O*, config admission witness, source/generated changes, transports/failures, commands/exits, qualification/replay, branch/SHA/PR, scoped standing, and falsifiers.
+---
+
+## 3. Constitutional Invariants
+
+- **Source Hierarchy**: `marketplace.toml` $\rightarrow$ `packs/<name>/pack.toml` $\rightarrow$ `ontology.ttl` $\rightarrow$ `templates/` $\rightarrow$ `gates/`.
+- **Chesterton's Fence**: Apply Chesterton's fence before altering any rule, gate, or invariant.
+- **Fail-Closed Admission**: Raw config, model outputs, templates, and hooks have **zero ambient execution authority**. Configuration executes only after `star-toml` admission ($q_{\text{config}}=1$).
+- **Manufacture First**: Search `packs/` and `ggen_igniter` before inventing patterns ($\text{REUSE} \rightarrow \text{COMPOSE} \rightarrow \text{EXTEND} \rightarrow \text{INVENT}$).
+- **No Duplicate Catalogs**: The catalog is a deterministic projection (`scripts/marketplace.py catalog`). Never commit a static `catalog.json`.
+- **Path Safety**: No symlinks under `packs/`; all packs are self-contained.
+- **Read-Only CI**: CI is read-only evidence; it must never rewrite or push pack corrections.
+
+---
+
+## 4. Operational Environment & Verification
+
+- **Python Runtime**: Python 3.11+ is strictly required (`tomllib` stdlib). Run with `python3.11`.
+- **Core CLI**: `scripts/marketplace.py` (zero external dependencies).
+- **Canonical Validation Loop**:
+  ```bash
+  python3.11 scripts/marketplace.py validate
+  python3.11 scripts/marketplace.py catalog > /tmp/a.json && python3.11 scripts/marketplace.py catalog > /tmp/b.json && cmp /tmp/a.json /tmp/b.json
+  python3.11 scripts/marketplace.py fingerprint
+  python3.11 -m pytest tests/ scripts/
+  ```
+
+---
+
+## 5. Concurrency & Git Integration
+
+- **Concurrency**: Serialize shared mutable trees. Isolated worktrees or separate repos may run concurrently (max 5 agents).
+- **Repository Authority**: Discover remote default branch and ancestry; never assume `main`.
+- **Baseline Before Blame**: Reproduce candidate failures on authoritative baseline before attributing regression.
+- **Branch Discipline**: Work on purpose branches (`feat/`, `fix/`, `docs/`); atomic commits; non-force push; open draft PR.
+- **Documentation Preservation**: A merge is not complete until code AND repository documentation are checked.
+
+---
+
+## 6. Where Detailed Rules & Decisions Live
+
+- **Calculus & Evidence**: [`.agents/rules/evidence.md`](file:///Users/sac/ggen-marketplace/.agents/rules/evidence.md) ($A = \mu(O^*)$, evidence states).
+- **Pack Manifest Contract**: [`.agents/rules/pack-contract.md`](file:///Users/sac/ggen-marketplace/.agents/rules/pack-contract.md) (`deny-unknown-fields`, profiles).
+- **Git & Concurrency**: [`.agents/rules/git-integration.md`](file:///Users/sac/ggen-marketplace/.agents/rules/git-integration.md) (branch discovery, locking).
+- **Security & Secrets**: [`.agents/rules/security.md`](file:///Users/sac/ggen-marketplace/.agents/rules/security.md) (token hygiene, path traversal).
+- **Role Instructions**: [`.agents/agents/`](file:///Users/sac/ggen-marketplace/.agents/agents/) (`pack-developer`, `pack-integrator`, `verifier`, etc.).
+- **Architectural Decisions**: [`docs/adr/`](file:///Users/sac/ggen-marketplace/docs/adr/) (`ADR-0001` through `ADR-0003`).
