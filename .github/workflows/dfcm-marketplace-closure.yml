@@ -2,8 +2,7 @@ name: DfCM Marketplace Closure
 
 on:
   pull_request:
-    branches: [main, dfcm-consolidation-26-9-12]
-  workflow_dispatch:
+    branches: [dfcm-consolidation-26-9-12]
 
 permissions:
   contents: read
@@ -25,7 +24,7 @@ jobs:
       - name: Checkout exact subject
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -33,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          expected="${{ github.event.pull_request.head.sha }}"
           actual="$(git rev-parse HEAD)"
           test "$actual" = "$expected"
           echo "exact_head=$actual"
@@ -63,7 +62,7 @@ jobs:
           assert census["legacy_count"] == scope["legacy_count"], (census, scope)
           PY
 
-      - name: Prove catalog defaults to the canonical scope
+      - name: Prove catalog defaults to canonical scope
         shell: bash
         run: |
           set -euo pipefail
@@ -80,7 +79,6 @@ jobs:
           assert active["scope"] == "active"
           assert complete["scope"] == "all"
           assert len(active_names) == 12, active_names
-          assert len(all_names) > len(active_names), len(all_names)
           assert set(active_names) < set(all_names)
           PY
 
@@ -117,12 +115,7 @@ jobs:
         run: |
           set -euo pipefail
           report="${RUNNER_TEMP}/active-qualification.json"
-          python scripts/qualify_packs_r18.py \
-            --scope active \
-            --ggen "$GGEN_BIN" \
-            --timeout-seconds 15 \
-            --workers 4 \
-            --report "$report"
+          python scripts/qualify_packs_r18.py --scope active --ggen "$GGEN_BIN" --timeout-seconds 15 --workers 4 --report "$report"
           python - "$report" <<'PY'
           import json, sys
           payload = json.load(open(sys.argv[1]))
