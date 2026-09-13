@@ -1,0 +1,171 @@
+@prefix pp: <https://ggen.dev/ontology/planning-policy#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ===== CLASSES =====
+# World model / role vocabulary
+pp:World a rdfs:Class .
+pp:Role a rdfs:Class .
+pp:Agent a rdfs:Class .
+pp:Observation a rdfs:Class .
+pp:WorkItem a rdfs:Class .
+# PDDL/HDDL/HTN decomposition vocabulary
+pp:CompoundTask a rdfs:Class .
+pp:PrimitiveTask a rdfs:Class .
+pp:Method a rdfs:Class .
+pp:Action a rdfs:Class .
+pp:Outcome a rdfs:Class .
+# FOND policy vocabulary
+pp:Policy a rdfs:Class .
+pp:PolicyBranch a rdfs:Class .
+# Bounded work selection / validation / replanning / explanation vocabulary
+pp:PlannerOutput a rdfs:Class .
+pp:ValidationResult a rdfs:Class .
+pp:ReplanningEvent a rdfs:Class .
+pp:Explanation a rdfs:Class .
+pp:Principle a rdfs:Class .
+
+# ===== PROPERTIES =====
+pp:hasRole a rdf:Property ; rdfs:domain pp:World ; rdfs:range pp:Role .
+pp:actsInWorld a rdf:Property ; rdfs:domain pp:Agent ; rdfs:range pp:World .
+pp:playsRole a rdf:Property ; rdfs:domain pp:Agent ; rdfs:range pp:Role .
+pp:observedIn a rdf:Property ; rdfs:domain pp:Observation ; rdfs:range pp:World .
+pp:selectsWorkItem a rdf:Property ; rdfs:domain pp:PlannerOutput ; rdfs:range pp:WorkItem .
+
+pp:decomposesInto a rdf:Property ; rdfs:domain pp:CompoundTask ; rdfs:range pp:PrimitiveTask .
+pp:subtaskOrder a rdf:Property ; rdfs:range xsd:integer .
+pp:realizedBy a rdf:Property ; rdfs:domain pp:CompoundTask ; rdfs:range pp:Method .
+
+pp:hasOutcome a rdf:Property ; rdfs:domain pp:Action ; rdfs:range pp:Outcome .
+pp:forAction a rdf:Property ; rdfs:domain pp:Policy ; rdfs:range pp:Action .
+pp:hasBranch a rdf:Property ; rdfs:domain pp:Policy ; rdfs:range pp:PolicyBranch .
+pp:forOutcome a rdf:Property ; rdfs:domain pp:PolicyBranch ; rdfs:range pp:Outcome .
+pp:recoveryAction a rdf:Property ; rdfs:domain pp:PolicyBranch ; rdfs:range pp:Action .
+
+pp:producedBy a rdf:Property ; rdfs:domain pp:PlannerOutput ; rdfs:range pp:Policy .
+# SELECT != DO: a PlannerOutput never carries execution authority by
+# assertion of this property alone. hasDOAuthority is a boolean marker
+# whose value must always be "false"^^xsd:boolean for any lawfully
+# admitted PlannerOutput -- gates/010_select_is_not_do.rq refuses any
+# PlannerOutput individual asserted with hasDOAuthority "true".
+pp:hasDOAuthority a rdf:Property ; rdfs:domain pp:PlannerOutput ; rdfs:range xsd:boolean .
+
+pp:validates a rdf:Property ; rdfs:domain pp:ValidationResult ; rdfs:range pp:PlannerOutput .
+pp:validationState a rdf:Property ; rdfs:domain pp:ValidationResult .
+pp:triggeredBy a rdf:Property ; rdfs:domain pp:ReplanningEvent ; rdfs:range pp:Observation .
+pp:replans a rdf:Property ; rdfs:domain pp:ReplanningEvent ; rdfs:range pp:PlannerOutput .
+pp:explains a rdf:Property ; rdfs:domain pp:Explanation ; rdfs:range pp:PlannerOutput .
+pp:explanationText a rdf:Property ; rdfs:domain pp:Explanation ; rdfs:range xsd:string .
+pp:principleStatement a rdf:Property ; rdfs:domain pp:Principle ; rdfs:range xsd:string .
+
+# ===== VALIDATION STATES =====
+pp:VALID a pp:ValidationResult .
+pp:INVALID a pp:ValidationResult .
+
+# ===== THE SELECT != DO PRINCIPLE =====
+# Explicit, machine-readable statement of the authority boundary this pack
+# exists to enforce: planning/policy output is a SELECT-scope artifact
+# (a candidate, admissible, evaluable work selection), never itself a DO
+# (actuation) authority. BRCE (per this repository's own root doctrine) is
+# the only lawful DO path; a PlannerOutput is, at most, one of BRCE's
+# admitted inputs.
+pp:SelectNotDoPrinciple a pp:Principle ;
+    rdfs:label "SELECT != DO: planner/policy output confers no actuation authority" ;
+    pp:principleStatement "A PlannerOutput (HDDL decomposition result or FOND policy branch selection) is SELECT-scope only: an admissible, bounded, explainable candidate for work. It is never itself DO (actuation) authority. Actuation requires a separate, receipted BRCE admission step; hasDOAuthority must be false on every lawfully admitted PlannerOutput."^^xsd:string .
+
+# ===== REAL INDIVIDUALS: world / role =====
+pp:WarehouseWorld a pp:World ;
+    rdfs:label "A warehouse fulfillment world model: shelves, trucks, packages, jams" .
+
+pp:PickerRole a pp:Role ;
+    rdfs:label "The picker role: navigates to a shelf and picks an item" .
+
+pp:WarehouseWorld pp:hasRole pp:PickerRole .
+
+pp:AgentPicker01 a pp:Agent ;
+    rdfs:label "A real picker agent individual acting in the warehouse world" ;
+    pp:actsInWorld pp:WarehouseWorld ;
+    pp:playsRole pp:PickerRole .
+
+# ===== REAL INDIVIDUALS: HDDL compound task with >=2 subtasks =====
+pp:DeliverPackageTask a pp:CompoundTask ;
+    rdfs:label "HDDL compound task: deliver a package end to end" .
+
+pp:NavigateToShelfTask a pp:PrimitiveTask ;
+    rdfs:label "HDDL primitive subtask: navigate to the shelf" .
+
+pp:PickItemTask a pp:PrimitiveTask ;
+    rdfs:label "HDDL primitive subtask: pick the item off the shelf" .
+
+pp:DeliverPackageTask pp:decomposesInto pp:NavigateToShelfTask , pp:PickItemTask .
+pp:NavigateToShelfTask pp:subtaskOrder 1 .
+pp:PickItemTask pp:subtaskOrder 2 .
+
+pp:DeliverPackageMethod a pp:Method ;
+    rdfs:label "The HTN method realizing DeliverPackageTask as [NavigateToShelfTask, PickItemTask]" .
+
+pp:DeliverPackageTask pp:realizedBy pp:DeliverPackageMethod .
+
+# ===== REAL INDIVIDUALS: FOND policy mapping >=2 outcomes to distinct branches =====
+pp:LoadTruckAction a pp:Action ;
+    rdfs:label "A nondeterministic action: load the picked package onto the truck" .
+
+pp:LoadSucceeded a pp:Outcome ;
+    rdfs:label "Outcome: the load action succeeded" .
+
+pp:LoadJammed a pp:Outcome ;
+    rdfs:label "Outcome: the load action jammed the conveyor" .
+
+pp:LoadTruckAction pp:hasOutcome pp:LoadSucceeded , pp:LoadJammed .
+
+pp:ProceedToNextStopAction a pp:Action ;
+    rdfs:label "Recovery action: proceed to the next delivery stop" .
+
+pp:ClearJamAndRetryAction a pp:Action ;
+    rdfs:label "Recovery action: clear the conveyor jam and retry the load" .
+
+pp:LoadTruckPolicy a pp:Policy ;
+    rdfs:label "A FOND policy over LoadTruckAction's two outcomes" ;
+    pp:forAction pp:LoadTruckAction ;
+    pp:hasBranch pp:LoadSucceededBranch , pp:LoadJammedBranch .
+
+pp:LoadSucceededBranch a pp:PolicyBranch ;
+    rdfs:label "Branch: on LoadSucceeded, proceed to the next stop" ;
+    pp:forOutcome pp:LoadSucceeded ;
+    pp:recoveryAction pp:ProceedToNextStopAction .
+
+pp:LoadJammedBranch a pp:PolicyBranch ;
+    rdfs:label "Branch: on LoadJammed, clear the jam and retry" ;
+    pp:forOutcome pp:LoadJammed ;
+    pp:recoveryAction pp:ClearJamAndRetryAction .
+
+# ===== REAL INDIVIDUALS: bounded work selection / planner output =====
+pp:DeliverPackageWorkItem a pp:WorkItem ;
+    rdfs:label "The bounded work item selected for this planning episode" .
+
+pp:LoadTruckPlannerOutput a pp:PlannerOutput ;
+    rdfs:label "Planner output selecting LoadTruckPolicy for the delivery episode" ;
+    pp:producedBy pp:LoadTruckPolicy ;
+    pp:selectsWorkItem pp:DeliverPackageWorkItem ;
+    pp:hasDOAuthority false .
+
+# ===== REAL INDIVIDUALS: observation / validation / replanning / explanation =====
+pp:ConveyorJamObservation a pp:Observation ;
+    rdfs:label "Observed: the conveyor jammed during loading" ;
+    pp:observedIn pp:WarehouseWorld .
+
+pp:LoadTruckOutputValidation a pp:ValidationResult ;
+    rdfs:label "Validation of LoadTruckPlannerOutput against WarehouseWorld preconditions" ;
+    pp:validates pp:LoadTruckPlannerOutput ;
+    pp:validationState pp:VALID .
+
+pp:ConveyorJamReplanningEvent a pp:ReplanningEvent ;
+    rdfs:label "Replanning triggered by the observed conveyor jam" ;
+    pp:triggeredBy pp:ConveyorJamObservation ;
+    pp:replans pp:LoadTruckPlannerOutput .
+
+pp:LoadTruckExplanation a pp:Explanation ;
+    rdfs:label "Explanation of why LoadJammedBranch was selected" ;
+    pp:explains pp:LoadTruckPlannerOutput ;
+    pp:explanationText "LoadTruckPolicy's LoadJammedBranch was selected because the ConveyorJamObservation matched the LoadJammed outcome; the branch's recoveryAction (ClearJamAndRetryAction) was proposed as SELECT-scope work only, per pp:SelectNotDoPrinciple -- it required a separate, receipted BRCE admission before any actuation occurred."^^xsd:string .
