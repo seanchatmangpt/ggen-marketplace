@@ -1,0 +1,61 @@
+@prefix eg: <https://ggen.dev/ontology/enterprise-governance#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ===== CLASSES =====
+# The core governance chain this pack enforces:
+#   GovernanceRequirement --satisfiedBy--> Control
+#   Control --evaluatedBy--> AssuranceCheck
+#   Certification --certifies--> GovernanceRequirement ; --backedBy--> AssuranceCheck
+# "NoPassingAssurance implies NoCertification": any Certification individual
+# must trace to a real es:AssuranceCheck (of the Control satisfying the
+# certified Requirement) whose es:checkResult is eg:Pass -- enforced
+# structurally here, refused if violated by
+# gates/010_no_certification_without_passing_assurance.rq.
+eg:GovernanceRequirement a rdfs:Class .
+eg:Control a rdfs:Class .
+eg:AssuranceCheck a rdfs:Class .
+eg:Certification a rdfs:Class .
+eg:AssuranceResult a rdfs:Class .
+
+# ===== PROPERTIES =====
+eg:satisfiedBy a rdf:Property ; rdfs:domain eg:GovernanceRequirement ; rdfs:range eg:Control .
+eg:satisfies a rdf:Property ; rdfs:domain eg:Control ; rdfs:range eg:GovernanceRequirement .
+eg:evaluatedBy a rdf:Property ; rdfs:domain eg:Control ; rdfs:range eg:AssuranceCheck .
+eg:evaluates a rdf:Property ; rdfs:domain eg:AssuranceCheck ; rdfs:range eg:Control .
+eg:checkResult a rdf:Property ; rdfs:domain eg:AssuranceCheck ; rdfs:range eg:AssuranceResult .
+eg:certifies a rdf:Property ; rdfs:domain eg:Certification ; rdfs:range eg:GovernanceRequirement .
+eg:backedBy a rdf:Property ; rdfs:domain eg:Certification ; rdfs:range eg:AssuranceCheck .
+eg:requirementId a rdf:Property ; rdfs:domain eg:GovernanceRequirement ; rdfs:range xsd:string .
+eg:checkedOn a rdf:Property ; rdfs:domain eg:AssuranceCheck ; rdfs:range xsd:string .
+
+# ===== ASSURANCE RESULT STATES =====
+eg:Pass a eg:AssuranceResult .
+eg:Fail a eg:AssuranceResult .
+eg:Pending a eg:AssuranceResult .
+
+# ===== REAL INDIVIDUALS: requirement / control / assurance / certification =====
+# Worked example: a data-residency governance requirement satisfied by an
+# access-control implementation, evaluated by a real assurance check that
+# passed, backing a real certification of the requirement.
+eg:DataResidencyRequirement a eg:GovernanceRequirement ;
+    rdfs:label "Enterprise data must remain within its declared jurisdiction" ;
+    eg:requirementId "GOV-REQ-DATA-RESIDENCY-001" ;
+    eg:satisfiedBy eg:RegionalAccessControl .
+
+eg:RegionalAccessControl a eg:Control ;
+    rdfs:label "Regional access-control policy restricting data-plane access by jurisdiction" ;
+    eg:satisfies eg:DataResidencyRequirement ;
+    eg:evaluatedBy eg:RegionalAccessControlAssuranceCheck-001 .
+
+eg:RegionalAccessControlAssuranceCheck-001 a eg:AssuranceCheck ;
+    rdfs:label "Independent assurance evaluation of the regional access-control policy" ;
+    eg:checkedOn "2026-09-10"^^xsd:string ;
+    eg:evaluates eg:RegionalAccessControl ;
+    eg:checkResult eg:Pass .
+
+eg:DataResidencyCertification-001 a eg:Certification ;
+    rdfs:label "Certification of the data-residency governance requirement" ;
+    eg:certifies eg:DataResidencyRequirement ;
+    eg:backedBy eg:RegionalAccessControlAssuranceCheck-001 .

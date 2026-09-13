@@ -1,0 +1,31 @@
+# MESSAGE: "NoPassingAssurance implies NoCertification" -- any eg:Certification
+# individual is refused unless it is es:backedBy a real individual actually
+# typed eg:AssuranceCheck whose eg:checkResult is eg:Pass. A Certification
+# backed by no AssuranceCheck at all, backed by something not typed
+# eg:AssuranceCheck, or backed by an AssuranceCheck that failed or is still
+# pending, all collapse to the same refusal -- a Certification can only ever
+# be lawfully asserted on top of a real, completed, passing assurance
+# evaluation of the Control that satisfies the certified
+# GovernanceRequirement.
+#
+# Each row names the offending Certification, the GovernanceRequirement it
+# claims to certify, and the AssuranceCheck it cites (if any) along with that
+# check's actual (non-passing) result.
+PREFIX eg: <https://ggen.dev/ontology/enterprise-governance#>
+SELECT ?certification ?requirement ?backingCheck ?actualResult WHERE {
+  ?certification a eg:Certification ;
+                  eg:certifies ?requirement .
+  OPTIONAL {
+    ?certification eg:backedBy ?backingCheck .
+    OPTIONAL {
+      ?backingCheck a eg:AssuranceCheck ;
+                     eg:checkResult ?actualResult .
+    }
+  }
+  FILTER NOT EXISTS {
+    ?certification eg:backedBy ?check .
+    ?check a eg:AssuranceCheck ;
+           eg:checkResult eg:Pass .
+  }
+}
+ORDER BY ?certification
