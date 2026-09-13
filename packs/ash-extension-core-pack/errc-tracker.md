@@ -252,76 +252,96 @@ ontology/gates/templates/pack.toml manifest, adversarially verified) run against
 `/Users/sac/ggen-marketplace/packs/ash-extension-core-pack`. 11 of 12 raw findings
 survived verification; ontology.ttl itself had zero findings.
 
+## Cycle 5 — 2026-09-13 (backlog-checklist accuracy audit, no template/ontology changes)
+
+Triggered by: "review the ggen marketplace ash extension pack to refactor using best
+practices." Read every item in the Backlog section below against the real, current
+template/gate content (not memory, not the Cycle 1 log alone) before touching
+anything. Result: **every actionable item was already fixed in Cycle 1** (2026-08-26)
+— the checkboxes below were simply never marked `[x]`, so the tracker itself had drifted
+from the real repo state it exists to describe. This is the same class of defect this
+session independently found and fixed elsewhere this cycle (a stale self-contradicting
+status in another repo's README) — a tracker that says "open" about a closed item is as
+real a defect as a template bug, since it costs a future reader (human or agent) the
+same re-diagnosis effort a real bug would.
+
+Verified fixed, this pass, by direct re-read of current file content (not re-trusting
+the Cycle 1 log's own say-so):
+- BLOCKING install.ex.tmpl nil-target claim — confirmed: lines 17-31 and 90-96 now
+  carry the exact honest disclosure Cycle 1's ELIMINATE fix describes ("falls back to
+  the same disclosed manual-notice... not claimed as one command for every invocation";
+  "single unconditional insert, not a detect-or-append merge").
+- MAJOR verify.ex.tmpl zero-verifier case — confirmed: a real `{% else %}` branch
+  (lines 65-69) renders a plain `:ok` with an explanatory comment, not an empty
+  `with ... do :ok end`. Structurally sound Tera (`{% if %}/{% elif %}/{% else %}/{% endif %}`,
+  confirmed by direct inspection of the control-flow lines).
+- MINOR extension.ex.tmpl entity ordering — confirmed: `ORDER BY COALESCE(?entity_order, 999999)`
+  is the real query, with a comment explaining exactly which risk class it guards
+  against and why it never fires today (every current `DslEntity` sets `entityOrder`
+  explicitly).
+- MINOR composition_test.exs.tmpl `Code.eval_string` comment — confirmed: the comment
+  at line 17 now says `Code.compile_string/1`, matching the real call at lines 56/58.
+- MINOR gates/020 header omitting the one_of rule — confirmed: the header (lines 1-13)
+  now documents the one_of-value-existence check, including the known
+  SectionSchemaField gap, in the same paragraph.
+
+Left open, correctly, not touched:
+- The gates/020 SectionSchemaField + `aex:oneOfValueOf` range gap remains genuinely
+  unfixed — it is PARKED pending user sign-off because it touches the ontology's closed
+  vocabulary/schema shape (widening `rdfs:range`), which Cycle 1 explicitly declined to
+  do unilaterally. Still the right call; not re-attempted here.
+- composition_test.exs.tmpl's per-target test still only asserts
+  `function_exported?/3` rather than attaching and introspecting through the real
+  target library — this is a disclosed, not a fixed, gap (pack.toml's own text says so),
+  and fixing it for real needs live ash_graphql/ash_json_api testing per Cycle 1's own
+  reasoning for not attempting it unverified. Still correctly deferred.
+
+No template, ontology, or gate file changed this cycle — this is a tracker-accuracy fix
+only. Branch: `errc-cycle-5-ash-extension-core-backlog-cleanup` (off `main`, per this
+repo's own CLAUDE.md rule to branch before editing).
+
 ## Backlog
 
-- [ ] **[BLOCKING]** `templates/install.ex.tmpl:22-77` — the `nil ->` branch of
-  `igniter/1` (no `--target` passed, i.e. the default/plain invocation) only calls
-  `Igniter.add_notice` with manual instructions to add `extensions: [...]` by hand.
-  The real `Igniter.Project.Module.find_and_update_module!` patch (line 71) only runs
-  in the `target ->` branch. `pack.toml` claims this pack's installer "performs the
-  real Igniter.Project.Module patch...so installation is one command, not a
-  README-driven manual step," in explicit contrast to ash_r2rml's installer — that
-  claim is false for the default invocation, reproducing the exact gap it claims to
-  close.
+- [x] **[BLOCKING]** `templates/install.ex.tmpl:22-77` — nil-target branch. **Fixed in
+  Cycle 1** (see Cycle 1's ELIMINATE entry and Cycle 5's re-verification above).
+  Checkbox was stale; content was already correct.
 
-- [ ] **[MAJOR]** `templates/install.ex.tmpl:79-83` — `add_extension/1`'s doc comment
-  claims it "creates the `use Ash.X, extensions: [...]` option if absent, or
-  appending to it if one already exists (never overwrites a sibling extension)." The
-  actual body is a single unconditional `Igniter.Code.Common.add_code(zipper,
-  "extensions: [...]", placement: :after)` call — no detect-or-append branching
-  exists. The comment misdescribes the generated code's real behavior.
+- [x] **[MAJOR]** `templates/install.ex.tmpl:79-83` — `add_extension/1` doc comment.
+  **Fixed in Cycle 1.** Checkbox was stale.
 
-- [ ] **[MAJOR]** `templates/verify.ex.tmpl:40-43` — the generated `with
-  {% for v in verifiers %}...{% endfor %} do :ok end` expression renders with zero
-  clauses (`with  do :ok end`, invalid Elixir) when a spec has zero `aex:Verifier`
-  rows. Legal per the ontology (0+ relation) but untested by either worked fixture
-  (AuditTrail, AshR2RML both have >=1 verifier), so this is a latent generation
-  defect for any future spec with no verifiers.
+- [x] **[MAJOR]** `templates/verify.ex.tmpl:40-43` — zero-verifier `with` clause.
+  **Fixed in Cycle 1** (the `{% else %}` branch exists and was re-verified structurally
+  sound in Cycle 5). Checkbox was stale.
 
-- [ ] **[MINOR]** `gates/020_schema_field_contract.rq:52` — the one_of-value-existence
-  check only filters on `?s a aex:EntitySchemaField`, not `aex:SectionSchemaField`,
-  even though `ontology.ttl:38` says `aex:sectionFieldType` shares the same closed
-  vocabulary (including `"one_of"`). Also, `aex:oneOfValueOf`'s `rdfs:range`
-  (`ontology.ttl:69`) is fixed to `aex:EntitySchemaField` only, so there's currently
-  no way to attach a `FieldOneOfValue` to a `SectionSchemaField` even if the gate were
-  fixed — this is a two-part gap (gate + ontology range), not just a gate bug.
+- [ ] **[MINOR, PARKED — needs user sign-off]** `gates/020_schema_field_contract.rq:52`
+  — the one_of-value-existence check only covers `aex:EntitySchemaField`, not
+  `aex:SectionSchemaField`; `aex:oneOfValueOf`'s `rdfs:range` (`ontology.ttl:69`) would
+  also need widening. Two-part fix touching closed ontology vocabulary — genuinely
+  still open, deliberately not attempted without sign-off.
 
-- [ ] **[MINOR]** `templates/composition_test.exs.tmpl:15` — header comment says the
-  fixture is compiled "via `Code.eval_string/1`"; the generated body actually calls
-  `Code.compile_string/1` (line 36). `compile_string/1` is in fact the correct API
-  for the `[{module, binary}] = ...` destructuring used, so the generated code is
-  functionally correct — only the comment is wrong.
+- [x] **[MINOR]** `templates/composition_test.exs.tmpl:15` — `Code.eval_string`
+  comment vs. real `Code.compile_string/1` call. **Fixed in Cycle 1.** Checkbox was
+  stale.
 
-- [ ] **[MINOR]** `templates/composition_test.exs.tmpl:48` — the per-composition-target
-  test titled "composes with real `{{ t.composition_target }}` introspection" only
-  asserts `function_exported?(X.Resource.Info, :type, 1)` on the library module
-  itself; `fixture` is bound in the test context but never referenced. It checks the
-  library is present and shaped as expected, not that the generated extension
-  actually composes with it.
+- [ ] **[MINOR, DISCLOSED not fixed]** `templates/composition_test.exs.tmpl:48` — the
+  per-composition-target test only asserts `function_exported?(X.Resource.Info, :type, 1)`;
+  it does not attach and introspect through the real target library. Genuinely still
+  open — needs live ash_graphql/ash_json_api testing to fix correctly, per Cycle 1's
+  original reasoning for deferring it. `pack.toml` already discloses this gap; not
+  silently passed off as full composition coverage.
 
-- [ ] **[MINOR]** `templates/extension.ex.tmpl:33-38` — the `entities` SPARQL query
-  wraps `?entity_order` in `OPTIONAL` then does `ORDER BY ?entity_order`. SPARQL's
-  `ORDER BY` over an unbound variable is implementation-defined. `ontology.ttl:44`'s
-  own comment says this exact ordering property exists because a prior parity check
-  against ash_r2rml caught entities rendering reversed without it — the field being
-  `OPTIONAL` while the render path's determinism silently depends on it reproduces
-  the risk class that property was added to prevent.
+- [x] **[MINOR]** `templates/extension.ex.tmpl:33-38` — entity `ORDER BY` over an
+  `OPTIONAL` variable. **Fixed in Cycle 1** (`COALESCE(?entity_order, 999999)`).
+  Checkbox was stale.
 
-- [ ] **[MINOR]** `gates/020_schema_field_contract.rq:1` — the header comment
-  documents the required-property and closed-type-set checks but omits the
-  one_of-value-existence rule the query body actually implements at lines 52-57.
+- [x] **[MINOR]** `gates/020_schema_field_contract.rq:1` — header comment omitting the
+  one_of rule. **Fixed in Cycle 1.** Checkbox was stale.
 
-- [ ] **[NOTE]** `gates/030_entity_identifier_contract.rq` houses both the
-  entityIdentifier-match rule and the argName-match rule together (organizational
-  choice, not a defect — both concern an entity's own schema-field-name namespace).
+- [x] **[NOTE]** `gates/030_entity_identifier_contract.rq` housing both rules together
+  — organizational, confirmed not a defect, closed in Cycle 1.
 
-- [ ] **[NOTE]** Ontology<->template variable cross-check across all 7 templates
-  found zero orphan Tera variables — every `{{ }}` binding traces to a real declared
-  `aex:` property. Nothing to fix; recorded for completeness.
+- [x] **[NOTE]** Ontology<->template variable cross-check — zero orphans, confirmed
+  clean in Cycle 1, nothing to fix.
 
-- [ ] **[NOTE]** `pack.toml`'s golden-specimen SHA claim
-  (`main@263aa768bbc5a933124409ee68f2b9efb9d09a3a`) checks out — the SHA is a real
-  ancestor of `main` in `/Users/sac/ash_r2rml`, and all five cited file paths exist.
-  The local ash_r2rml working tree just happens to currently be on a different
-  branch (`errc/ash-extension-core-pack-installer-and-pack-name-fix`), not `main`
-  itself — informational only, no correction needed.
+- [x] **[NOTE]** `pack.toml`'s golden-specimen SHA claim — verified accurate in
+  Cycle 1, informational only.
