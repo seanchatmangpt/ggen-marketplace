@@ -1,0 +1,165 @@
+@prefix do: <https://ggen.dev/ontology/decision-optionality#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+#################################################################
+# Classes
+#################################################################
+
+do:Candidate a rdfs:Class ;
+    rdfs:comment "A lawful possibility in the search space, admitted for consideration before selection." .
+
+do:OptionSet a rdfs:Class ;
+    rdfs:comment "A named grouping of candidates under simultaneous consideration." .
+
+do:Frontier a rdfs:Class ;
+    rdfs:subClassOf do:OptionSet ;
+    rdfs:comment "An OptionSet whose non-dominated candidates remain open for selection." .
+
+do:EvidenceRequirement a rdfs:Class ;
+    rdfs:comment "A named observation or measurement a candidate must satisfy before it may be selected." .
+
+do:Falsifier a rdfs:Class ;
+    rdfs:comment "A defined observation that, if made, retires a candidate from further consideration." .
+
+do:Selection a rdfs:Class ;
+    rdfs:comment "A recorded act of choosing one candidate, reversibly or irreversibly, from an OptionSet." .
+
+do:Rollback a rdfs:Class ;
+    rdfs:comment "A recorded reversal of a prior Selection, restoring the OptionSet to its pre-selection state." .
+
+do:Portfolio a rdfs:Class ;
+    rdfs:comment "A collection of OptionSets held concurrently under combinatorial-maximalism discipline." .
+
+#################################################################
+# Properties
+#################################################################
+
+do:member a rdf:Property ;
+    rdfs:domain do:OptionSet ;
+    rdfs:range do:Candidate ;
+    rdfs:comment "Relates an OptionSet/Frontier to a Candidate it contains." .
+
+do:partOf a rdf:Property ;
+    rdfs:domain do:OptionSet ;
+    rdfs:range do:Portfolio ;
+    rdfs:comment "Relates an OptionSet to the Portfolio it belongs to." .
+
+do:requiresEvidence a rdf:Property ;
+    rdfs:domain do:Candidate ;
+    rdfs:range do:EvidenceRequirement ;
+    rdfs:comment "Relates a Candidate to an EvidenceRequirement it must satisfy before selection." .
+
+do:falsifiedBy a rdf:Property ;
+    rdfs:domain do:Candidate ;
+    rdfs:range do:Falsifier ;
+    rdfs:comment "Relates a Candidate to the Falsifier observation that retired it." .
+
+do:dominates a rdf:Property ;
+    rdfs:domain do:Candidate ;
+    rdfs:range do:Candidate ;
+    rdfs:comment "Asserts the subject Candidate strictly dominates the object Candidate on every admitted criterion." .
+
+do:selects a rdf:Property ;
+    rdfs:domain do:Selection ;
+    rdfs:range do:Candidate ;
+    rdfs:comment "Relates a Selection act to the Candidate it chose." .
+
+do:rollback a rdf:Property ;
+    rdfs:domain do:Selection ;
+    rdfs:range do:Rollback ;
+    rdfs:comment "Relates a Selection to the Rollback that reversed it, if any." .
+
+do:reversible a rdf:Property ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "True when the subject (Candidate or Selection) can be undone without unrecoverable loss." .
+
+do:status a rdf:Property ;
+    rdfs:domain do:Candidate ;
+    rdfs:range xsd:string ;
+    rdfs:comment "One of \"available\", \"falsified\", or \"selected\" -- a Candidate's current admission state." .
+
+do:evidenceName a rdf:Property ;
+    rdfs:domain do:EvidenceRequirement ;
+    rdfs:range xsd:string .
+
+do:falsifierName a rdf:Property ;
+    rdfs:domain do:Falsifier ;
+    rdfs:range xsd:string .
+
+do:name a rdf:Property ;
+    rdfs:range xsd:string .
+
+#################################################################
+# Individuals: DfCM law as data
+#################################################################
+
+do:DfCMLaw a do:OptionSet ;
+    do:name "irreversible-selection-after-exhaustion" ;
+    do:reversible true ;
+    rdfs:comment "Standing law: irreversible selection must never precede exhaustion of lawful reversible possibility." .
+
+#################################################################
+# Individuals: a real portfolio with one frontier, three candidates,
+# one evidence requirement, one falsifier, one selection, one rollback
+#################################################################
+
+do:portfolio-search-space a do:Portfolio ;
+    do:name "candidate-space-portfolio" .
+
+do:frontier-1 a do:Frontier ;
+    do:name "reversible-vs-irreversible-frontier" ;
+    do:partOf do:portfolio-search-space ;
+    do:member do:cand-reversible-a, do:cand-reversible-b, do:cand-irreversible-c .
+
+do:evidence-benchmark a do:EvidenceRequirement ;
+    do:evidenceName "real-benchmark-run" .
+
+do:falsifier-regression a do:Falsifier ;
+    do:falsifierName "candidate-regresses-baseline-metric" .
+
+# A reversible candidate that was itself tried and selected earlier --
+# already exhausted as a live possibility (status "selected", not
+# "available"), reversibly, via selection-0 below.
+do:cand-reversible-a a do:Candidate ;
+    do:name "reversible-worktree-trial-a" ;
+    do:reversible true ;
+    do:status "selected" ;
+    do:requiresEvidence do:evidence-benchmark .
+
+# A reversible candidate that was tried and falsified -- retired lawfully.
+do:cand-reversible-b a do:Candidate ;
+    do:name "reversible-worktree-trial-b" ;
+    do:reversible true ;
+    do:status "falsified" ;
+    do:falsifiedBy do:falsifier-regression .
+
+# An irreversible candidate, still available -- dominates b (already
+# retired). Both reversible candidates in this Frontier are now exhausted
+# (a: selected, b: falsified), so selecting this candidate next is lawful:
+# gates/010 refuses only when a reversible candidate is still "available"
+# at the moment of an irreversible selection, which is not the case here.
+do:cand-irreversible-c a do:Candidate ;
+    do:name "irreversible-production-merge-c" ;
+    do:reversible false ;
+    do:status "available" ;
+    do:dominates do:cand-reversible-b .
+
+# selection-0: the earlier, reversible selection of cand-reversible-a --
+# exercised the reversible option first, as DfCM requires.
+do:selection-0 a do:Selection ;
+    do:selects do:cand-reversible-a ;
+    do:reversible true .
+
+# selection-1: the later, irreversible selection of cand-irreversible-c,
+# made only after every reversible candidate in the same Frontier was
+# exhausted (selected or falsified) -- the lawful ordering gates/010 admits.
+do:selection-1 a do:Selection ;
+    do:selects do:cand-irreversible-c ;
+    do:reversible false .
+
+do:rollback-0 a do:Rollback ;
+    do:name "rollback-of-selection-0" .
+
+do:selection-0 do:rollback do:rollback-0 .
