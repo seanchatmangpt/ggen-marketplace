@@ -8,7 +8,26 @@ sparql:
       ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ; aex:moduleName ?module_name ;
          aex:workflowReactor "true" ; aex:workflowReversible ?workflow_reversible .
     }
-  steps: queries/reactor_steps.rq
+  steps: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+
+    # Ordered step rows for one spec's declared Reactor pipeline. wait_for/compensate
+    # are OPTIONAL (0+ / boolean-with-default), matching aex:ReactorStep's own comment
+    # that not every step declares them -- absent means "no dependency"/"no compensate",
+    # never coerced to a false default silently at the query layer.
+    SELECT ?step_name ?step_module ?step_order ?max_retries ?has_compensate ?is_return
+           (GROUP_CONCAT(?wait_for_name; separator=",") AS ?wait_for_names)
+    WHERE {
+      ?step a aex:ReactorStep ; aex:stepOf ?spec ;
+            aex:stepName ?step_name ; aex:stepModule ?step_module ;
+            aex:stepOrder ?step_order .
+      OPTIONAL { ?step aex:stepMaxRetries ?max_retries }
+      OPTIONAL { ?step aex:stepHasCompensate ?has_compensate }
+      OPTIONAL { ?step aex:stepIsReturn ?is_return }
+      OPTIONAL { ?step aex:stepWaitFor ?wait_for_step . ?wait_for_step aex:stepName ?wait_for_name }
+    }
+    GROUP BY ?step_name ?step_module ?step_order ?max_retries ?has_compensate ?is_return
+    ORDER BY ?step_order
 ---
 {# Dynamic Reactor step-graph generation -- replaces ash-extension-core-pack's
    reactor_pipeline.ex.tmpl's HARDCODED five-step body (compile_resources ->
