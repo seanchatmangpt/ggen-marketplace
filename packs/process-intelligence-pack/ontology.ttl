@@ -1,0 +1,86 @@
+@prefix pi: <https://ggen.dev/ontology/process-intelligence#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ===== CLASSES =====
+# The core process-mining chain this pack enforces:
+#   Event --relatesObject--> Object ; --partOf--> ProcessModel (via derivedFromEvent)
+#   ProcessModel --derivedFromEvent--> Event (>= 2 required for a real model)
+#   ConformanceCheck --comparesEvent--> Event ; --checksAgainstModel--> ProcessModel
+#   Drift --observedIn--> ConformanceCheck (only when observed and model diverge)
+# A ConformanceCheck asserted pi:conformant "false" (i.e. divergent) without a
+# corresponding pi:Drift individual is incomplete reporting, but the gate
+# enforced here targets the narrower, structurally checkable invariant named
+# in this pack's charter: a ConformanceCheck asserted pi:conformant "true"
+# must trace to at least one real compared pi:Event -- enforced structurally
+# here, refused if violated by gates/010_conformance_requires_compared_event.rq.
+pi:Event a rdfs:Class .
+pi:Object a rdfs:Class .
+pi:ProcessModel a rdfs:Class .
+pi:ConformanceCheck a rdfs:Class .
+pi:Drift a rdfs:Class .
+
+# ===== PROPERTIES =====
+pi:relatesObject a rdf:Property ; rdfs:domain pi:Event ; rdfs:range pi:Object .
+pi:observedAt a rdf:Property ; rdfs:domain pi:Event ; rdfs:range xsd:dateTime .
+pi:activity a rdf:Property ; rdfs:domain pi:Event ; rdfs:range xsd:string .
+pi:objectType a rdf:Property ; rdfs:domain pi:Object ; rdfs:range xsd:string .
+pi:derivedFromEvent a rdf:Property ; rdfs:domain pi:ProcessModel ; rdfs:range pi:Event .
+pi:modelId a rdf:Property ; rdfs:domain pi:ProcessModel ; rdfs:range xsd:string .
+pi:comparesEvent a rdf:Property ; rdfs:domain pi:ConformanceCheck ; rdfs:range pi:Event .
+pi:checksAgainstModel a rdf:Property ; rdfs:domain pi:ConformanceCheck ; rdfs:range pi:ProcessModel .
+pi:conformant a rdf:Property ; rdfs:domain pi:ConformanceCheck ; rdfs:range xsd:boolean .
+pi:observedIn a rdf:Property ; rdfs:domain pi:Drift ; rdfs:range pi:ConformanceCheck .
+pi:driftReason a rdf:Property ; rdfs:domain pi:Drift ; rdfs:range xsd:string .
+
+# ===== REAL INDIVIDUALS: events / objects =====
+pi:Object-Order-001 a pi:Object ;
+    pi:objectType "PurchaseOrder" ;
+    rdfs:label "Real order object observed across the worked-example event log" .
+
+pi:Event-OrderPlaced-001 a pi:Event ;
+    pi:activity "OrderPlaced" ;
+    pi:observedAt "2026-09-01T09:00:00Z"^^xsd:dateTime ;
+    pi:relatesObject pi:Object-Order-001 ;
+    rdfs:label "First observed event: order placed" .
+
+pi:Event-OrderShipped-001 a pi:Event ;
+    pi:activity "OrderShipped" ;
+    pi:observedAt "2026-09-03T14:30:00Z"^^xsd:dateTime ;
+    pi:relatesObject pi:Object-Order-001 ;
+    rdfs:label "Second observed event: order shipped" .
+
+pi:Event-OrderCancelled-001 a pi:Event ;
+    pi:activity "OrderCancelled" ;
+    pi:observedAt "2026-09-05T11:00:00Z"^^xsd:dateTime ;
+    pi:relatesObject pi:Object-Order-001 ;
+    rdfs:label "Third observed event: order cancelled after shipment, diverging from the reference model" .
+
+# ===== REAL INDIVIDUAL: process model derived from >= 2 events =====
+pi:ProcessModel-OrderToShip-001 a pi:ProcessModel ;
+    pi:modelId "order-to-ship/26.9.12/001" ;
+    pi:derivedFromEvent pi:Event-OrderPlaced-001 ;
+    pi:derivedFromEvent pi:Event-OrderShipped-001 ;
+    rdfs:label "Reference process model: OrderPlaced -> OrderShipped, derived from the first two observed events" .
+
+# ===== REAL INDIVIDUAL: conformance check comparing observed vs model (conformant) =====
+pi:ConformanceCheck-OrderToShip-001 a pi:ConformanceCheck ;
+    pi:comparesEvent pi:Event-OrderPlaced-001 ;
+    pi:comparesEvent pi:Event-OrderShipped-001 ;
+    pi:checksAgainstModel pi:ProcessModel-OrderToShip-001 ;
+    pi:conformant true ;
+    rdfs:label "Conformant check: the placed/shipped pair replays the reference model exactly" .
+
+# ===== REAL INDIVIDUAL: conformance check that diverges, with a real Drift =====
+pi:ConformanceCheck-OrderToShip-002 a pi:ConformanceCheck ;
+    pi:comparesEvent pi:Event-OrderPlaced-001 ;
+    pi:comparesEvent pi:Event-OrderCancelled-001 ;
+    pi:checksAgainstModel pi:ProcessModel-OrderToShip-001 ;
+    pi:conformant false ;
+    rdfs:label "Divergent check: cancellation after placement does not replay the reference model" .
+
+pi:Drift-OrderToShip-001 a pi:Drift ;
+    pi:observedIn pi:ConformanceCheck-OrderToShip-002 ;
+    pi:driftReason "Observed OrderCancelled where the reference model requires OrderShipped" ;
+    rdfs:label "Real drift individual recording the divergence found by ConformanceCheck-OrderToShip-002" .
