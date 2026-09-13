@@ -1,0 +1,35 @@
+# MESSAGE: A GeneratedArtifact is structurally the consequence of a
+# ProjectionEvent, never a second source of truth. This gate refuses two
+# distinct violations of that boundary, unioned into one result set:
+#
+#   (1) Any individual typed BOTH sp:GeneratedArtifact and
+#       sp:CanonicalSemanticSource -- a generated artifact directly asserted
+#       as a semantic source -- or any sp:GeneratedArtifact explicitly
+#       marked sp:isSovereign true.
+#   (2) Any sp:ProjectionEvent that lacks a real sp:lineageSource link to an
+#       individual actually typed sp:CanonicalSemanticSource -- a projection
+#       with no traceable lineage back to a real source.
+#
+# Each row names the offending individual and the violation kind so a
+# consumer can distinguish "sovereign generated artifact" refusals from
+# "missing lineage" refusals without a second query.
+PREFIX sp: <https://ggen.dev/ontology/semantic-projection#>
+SELECT ?offender ?violation WHERE {
+  {
+    ?offender a sp:GeneratedArtifact .
+    {
+      ?offender a sp:CanonicalSemanticSource .
+    } UNION {
+      ?offender sp:isSovereign true .
+    }
+    BIND("GeneratedArtifact asserted as a semantic source" AS ?violation)
+  } UNION {
+    ?offender a sp:ProjectionEvent .
+    FILTER NOT EXISTS {
+      ?offender sp:lineageSource ?source .
+      ?source a sp:CanonicalSemanticSource .
+    }
+    BIND("ProjectionEvent missing lineage link to a real CanonicalSemanticSource" AS ?violation)
+  }
+}
+ORDER BY ?offender
