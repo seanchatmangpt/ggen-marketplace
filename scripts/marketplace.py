@@ -20,14 +20,11 @@ try:
 except ModuleNotFoundError as exc:  # pragma: no cover
     raise SystemExit("REFUSED:PYTHON_3_11_REQUIRED") from exc
 
+from marketplace_scope import select_packs
+
 ROOT = Path(__file__).resolve().parents[1]
 PACKS = ROOT / "packs"
 MARKETPLACE_TOML = ROOT / "marketplace.toml"
-# The GitHub Release a pack's `.tar.gz` archive is published under (one
-# rolling release, re-published on every push to `main` that changes
-# `packs/` — see docs/how-to/qualify-all-packs.md and .github/workflows/
-# publish.yml, which also cuts a second, immutable, versioned release
-# per `[marketplace].version` bump — see `marketplace_version()` below).
 GITHUB_ORG = "seanchatmangpt"
 GITHUB_REPO = "ggen-marketplace"
 RELEASE_TAG = "packs"
@@ -106,16 +103,6 @@ class Pack:
 
 
 def marketplace_version() -> str:
-    """This repository's own `[marketplace].version` from `marketplace.toml`
-    — a whole-registry-snapshot identifier, independent of individual
-    packs' SemVer and of `[ggen].version` (the pinned upstream binary).
-    Read directly via `tomllib` rather than through the Rust admitter
-    (`tools/marketplace-config`) — that binary's admission receipt is for
-    trusting `marketplace.toml` before installer/qualification execution,
-    a heavier guarantee this purely-informational catalog field doesn't
-    need; `tools/marketplace-config`'s own `Validate` impl still enforces
-    `[marketplace].version` is non-empty as real repository law.
-    """
     if not MARKETPLACE_TOML.is_file():
         raise SystemExit(refusal("MARKETPLACE_TOML_MISSING", "marketplace.toml"))
     try:
@@ -155,16 +142,6 @@ def fingerprint_paths(paths: Iterable[Path], base: Path) -> str:
 
 
 def build_pack_archive(pack: Pack) -> bytes:
-    """Deterministic `.tar.gz` of a pack's entire directory (`pack.toml`,
-    ontology, templates, gates, docs — everything `visible_files` admits,
-    same dotfile-exclusion rule as every other pack-source walk in this
-    module). Byte-identical across repeated calls on unchanged input: fixed
-    file order (`visible_files`' existing sort), zeroed mtime/uid/gid/owner
-    on every tar entry, and a zeroed gzip mtime — the same determinism
-    discipline `fingerprint_paths` already enforces for hashing, extended
-    here to a real, independently re-buildable and re-verifiable artifact
-    rather than just a hash.
-    """
     tar_buf = io.BytesIO()
     with tarfile.open(fileobj=tar_buf, mode="w", format=tarfile.PAX_FORMAT) as tar:
         for path in visible_files(pack.path):
@@ -323,6 +300,14 @@ def require_admitted() -> list[Pack]:
     return packs
 
 
+def scoped_packs(scope: str = "active") -> list[Pack]:
+    try:
+        return select_packs(require_admitted(), scope)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
+
+
 def validate() -> int:
     packs = require_admitted()
     profile_counts = {profile: sum(pack.profile == profile for pack in packs) for profile in ("projection", "semantic", "project")}
@@ -338,11 +323,12 @@ def validate() -> int:
     return 0
 
 
-def catalog() -> int:
-    packs = require_admitted()
+def catalog(scope: str = "active") -> int:
+    packs = scoped_packs(scope)
     payload = {
         "schema": "https://ggen.dev/marketplace/catalog/v2",
         "marketplace_version": marketplace_version(),
+        "scope": scope,
         "packs": [pack.catalog_record() for pack in packs],
     }
     json.dump(payload, sys.stdout, indent=2, sort_keys=True, ensure_ascii=False)
@@ -350,13 +336,8 @@ def catalog() -> int:
     return 0
 
 
-def archive() -> int:
-    """Build every admitted pack's deterministic `.tar.gz` into
-    `dist/packs/` (created if absent) and print one `name version sha256`
-    line per pack, sorted by name — the CI publish job's build step, and
-    the thing `catalog()`'s `digest`/`size_bytes` fields are computed from.
-    """
-    packs = require_admitted()
+def archive(scope: str = "active") -> int:
+    packs = scoped_packs(scope)
     out_dir = ROOT / "dist" / "packs"
     out_dir.mkdir(parents=True, exist_ok=True)
     for pack in packs:
@@ -374,10 +355,6 @@ def fingerprint() -> int:
 
 
 def version() -> int:
-    """Print this repository's own `[marketplace].version` bare (no
-    trailing metadata) — the CI publish job's own input for deciding
-    whether to cut a new immutable versioned release.
-    """
     print(marketplace_version())
     return 0
 
@@ -385,12 +362,15 @@ def version() -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("validate", "catalog", "fingerprint", "archive", "version"))
+    parser.add_argument("--scope", choices=("active", "all"), default="active")
     args = parser.parse_args()
+    if args.command == "catalog":
+        return catalog(args.scope)
+    if args.command == "archive":
+        return archive(args.scope)
     return {
         "validate": validate,
-        "catalog": catalog,
         "fingerprint": fingerprint,
-        "archive": archive,
         "version": version,
     }[args.command]()
 
