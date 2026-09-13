@@ -1,0 +1,65 @@
+@prefix st: <https://ggen.dev/ontology/state-transition#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ===== CLASSES =====
+# The five lawful state stages a subject moves through, in order:
+#   ObservedState -> SelectedState -> ConstructedState -> ExecutedState -> VerifiedState
+# Each stage is a real class; a concrete State individual is typed as exactly
+# one stage class and linked to its predecessor stage (for the same subject)
+# via st:precedes. "No skipping stages": a st:VerifiedState claim about a
+# subject must trace back, via one or more st:precedes hops, to a real
+# st:ExecutedState individual for that same subject -- enforced structurally
+# here, refused if violated by gates/010_no_skipping_executed.rq.
+st:Subject a rdfs:Class .
+st:State a rdfs:Class .
+st:ObservedState rdfs:subClassOf st:State .
+st:SelectedState rdfs:subClassOf st:State .
+st:ConstructedState rdfs:subClassOf st:State .
+st:ExecutedState rdfs:subClassOf st:State .
+st:VerifiedState rdfs:subClassOf st:State .
+
+# ===== PROPERTIES =====
+st:forSubject a rdf:Property ; rdfs:domain st:State ; rdfs:range st:Subject .
+st:precedes a rdf:Property ; rdfs:domain st:State ; rdfs:range st:State .
+st:stateId a rdf:Property ; rdfs:domain st:State ; rdfs:range xsd:string .
+
+# ===== REAL INDIVIDUALS: one concrete subject =====
+# Worked example: this exact pack's own admission into the marketplace
+# catalog is the subject under state transition. It carries a full run
+# through all five stages with real, ordered precedes edges between each
+# consecutive pair.
+st:StateTransitionPackAdmission a st:Subject ;
+    rdfs:label "Admission of packs/state-transition-pack into the marketplace catalog" .
+
+st:Observed-StateTransitionPack-001 a st:ObservedState ;
+    st:stateId "state-transition-pack/admission/observed/001" ;
+    st:forSubject st:StateTransitionPackAdmission ;
+    rdfs:label "Candidate pack directory observed on disk with a pack.toml and ontology.ttl" .
+
+st:Selected-StateTransitionPack-001 a st:SelectedState ;
+    st:stateId "state-transition-pack/admission/selected/001" ;
+    st:forSubject st:StateTransitionPackAdmission ;
+    rdfs:label "Pack selected for real qualification against the native ggen runtime" .
+
+st:Constructed-StateTransitionPack-001 a st:ConstructedState ;
+    st:stateId "state-transition-pack/admission/constructed/001" ;
+    st:forSubject st:StateTransitionPackAdmission ;
+    rdfs:label "Pack directory materialized: pack.toml, ontology.ttl, gate, qualification fixture" .
+
+st:Executed-StateTransitionPack-001 a st:ExecutedState ;
+    st:stateId "state-transition-pack/admission/executed/001" ;
+    st:forSubject st:StateTransitionPackAdmission ;
+    rdfs:label "qualify_pack() actually run against the pack via the native ggen binary" .
+
+st:Verified-StateTransitionPack-001 a st:VerifiedState ;
+    st:stateId "state-transition-pack/admission/verified/001" ;
+    st:forSubject st:StateTransitionPackAdmission ;
+    rdfs:label "qualify_pack() returned status ALIVE with no REFUSED code" .
+
+# Ordered transition edges: each stage precedes the next for the same subject.
+st:Observed-StateTransitionPack-001 st:precedes st:Selected-StateTransitionPack-001 .
+st:Selected-StateTransitionPack-001 st:precedes st:Constructed-StateTransitionPack-001 .
+st:Constructed-StateTransitionPack-001 st:precedes st:Executed-StateTransitionPack-001 .
+st:Executed-StateTransitionPack-001 st:precedes st:Verified-StateTransitionPack-001 .
