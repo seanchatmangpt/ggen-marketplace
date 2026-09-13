@@ -1,0 +1,59 @@
+# MESSAGE: any returned row refuses manufacture. Enforces mg:LifecycleLaw --
+# a LegacyPack may never be marked lifecycle-eligible without every
+# precondition (coverageComplete, independentReplacement, replayVerified,
+# noActiveConsumers) also being true, may never be missing a
+# replacementDecision entirely, and its replacementDecision must resolve to
+# exactly one of the three admitted ReplacementDecision individuals
+# (mg:ABSORB / mg:FIXTURE / mg:DROP). This is the real refusal shape for the
+# admission law the pack's ontology.ttl states in prose: unverified legacy
+# packs get FIXTURE or DROP, never lifecycleEligible=true, and an ABSORB
+# decision is only permitted once every retained-coverage precondition is
+# real.
+PREFIX mg: <https://ggen.dev/ontology/marketplace-governance#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?subject ?problem WHERE {
+  {
+    # Every LegacyPack must declare a replacementDecision.
+    ?subject a mg:LegacyPack .
+    FILTER NOT EXISTS { ?subject mg:replacementDecision ?decision }
+    BIND("legacy-pack-missing-replacement-decision-refused" AS ?problem)
+  }
+  UNION
+  {
+    # The declared replacementDecision must resolve to an admitted
+    # ReplacementDecision individual (ABSORB/FIXTURE/DROP).
+    ?subject mg:replacementDecision ?decision .
+    FILTER NOT EXISTS { ?decision a mg:ReplacementDecision }
+    BIND("unresolvable-replacement-decision-refused" AS ?problem)
+  }
+  UNION
+  {
+    # lifecycleEligible=true requires ALL four preconditions true.
+    ?subject a mg:LegacyPack ; mg:lifecycleEligible true .
+    FILTER(
+      NOT EXISTS { ?subject mg:coverageComplete true }
+      || NOT EXISTS { ?subject mg:independentReplacement true }
+      || NOT EXISTS { ?subject mg:replayVerified true }
+      || NOT EXISTS { ?subject mg:noActiveConsumers true }
+    )
+    BIND("lifecycle-eligible-without-full-precondition-refused" AS ?problem)
+  }
+  UNION
+  {
+    # An ABSORB decision must name the CanonicalPack it was absorbed into.
+    ?subject mg:replacementDecision mg:ABSORB .
+    FILTER NOT EXISTS { ?subject mg:absorbedInto ?target . ?target a mg:CanonicalPack }
+    BIND("absorb-decision-without-canonical-target-refused" AS ?problem)
+  }
+  UNION
+  {
+    # A QualificationReceipt must name a real pack and a non-empty status.
+    ?subject a mg:QualificationReceipt .
+    FILTER(
+      NOT EXISTS { ?subject mg:forPack ?p }
+      || NOT EXISTS { ?subject mg:receiptStatus ?s . FILTER(STRLEN(?s) > 0) }
+    )
+    BIND("receipt-missing-pack-or-status-refused" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem
