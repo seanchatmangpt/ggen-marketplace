@@ -13,10 +13,14 @@
 4. **Ecosystem Audit**: `docs/reference/ash-ecosystem-mapping.md` auditing all 8 `~/ash_*` repositories and their governing packs.
 5. **Jira Release Plan & DoD**: `docs/jira/v26.9.13/PLAN.md` with 7 strict Definition of Done gates.
 
-## 3. Immediate Next Tasks
-1. Execute full verification suite against all 7 DoD gates.
-2. Commit `docs/jira/v26.9.13/PLAN.md` and updated handoff documentation.
-3. Prepare draft PR for milestone `v26.9.13`.
+## 3. Completed DoD Gates
+- Gate 1 (`scripts/marketplace.py validate`): **PASS**
+- Gate 2 (Deterministic catalog projection `cmp`): **PASS**
+- Gate 3 (Corpus fingerprint calculation): **PASS**
+- Gate 4 (`pytest tests/test_marketplace.py`): **PASS**
+- Gate 5 (Episode verifier `verify_closure_episode.py`): **PASS**
+- Gate 6 (SPARQL security gates `010` & `020`): **PASS**
+- Gate 7 (Branch cleanliness & purposeful atomic commits): **PASS**
 
 ## 4. Backlog Obligations
 - Audit untracked directory `packages/marketplace-cli/` if scheduled for packaging.
