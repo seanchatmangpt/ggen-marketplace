@@ -1,0 +1,150 @@
+@prefix mg: <https://ggen.dev/ontology/marketplace-governance#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+#################################################################
+# Classes
+#################################################################
+
+mg:CanonicalPack a rdfs:Class ;
+  rdfs:comment "A top-level marketplace pack that carries durable semantic authority or an independently consumable capability." .
+
+mg:LegacyPack a rdfs:Class ;
+  rdfs:comment "A pack under evaluation for consolidation into, or replacement by, a CanonicalPack." .
+
+mg:ReplacementDecision a rdfs:Class ;
+  rdfs:comment "The disposition a LegacyPack is assigned once its consolidation review completes." .
+
+mg:QualificationReceipt a rdfs:Class ;
+  rdfs:comment "A recorded real-ggen-runtime qualification outcome for exactly one pack." .
+
+mg:LifecycleDecision a rdfs:Class ;
+  rdfs:comment "A standing law governing when a LegacyPack may exit the active topology." .
+
+#################################################################
+# ReplacementDecision individuals (the three admissible dispositions)
+#################################################################
+
+mg:ABSORB a mg:ReplacementDecision ;
+  rdfs:comment "The legacy pack's retained semantic coverage is folded into a CanonicalPack; the legacy pack is retired." .
+
+mg:FIXTURE a mg:ReplacementDecision ;
+  rdfs:comment "The legacy pack's content is demoted to a qualification fixture consumed by another pack; it is no longer top-level." .
+
+mg:DROP a mg:ReplacementDecision ;
+  rdfs:comment "The legacy pack carries no durable semantic authority and is removed outright." .
+
+#################################################################
+# Properties
+#################################################################
+
+mg:ownsCapability a rdf:Property ;
+  rdfs:domain mg:CanonicalPack ;
+  rdfs:comment "The durable capability a CanonicalPack is the source of truth for." .
+
+mg:standing a rdf:Property ;
+  rdfs:comment "The admission standing of a pack: CANDIDATE (unqualified) or QUALIFIED (real ggen qualification passed)." .
+
+mg:replacementDecision a rdf:Property ;
+  rdfs:domain mg:LegacyPack ;
+  rdfs:range mg:ReplacementDecision ;
+  rdfs:comment "The disposition assigned to a LegacyPack: exactly one of mg:ABSORB, mg:FIXTURE, mg:DROP." .
+
+mg:absorbedInto a rdf:Property ;
+  rdfs:domain mg:LegacyPack ;
+  rdfs:range mg:CanonicalPack ;
+  rdfs:comment "For an ABSORB decision, the CanonicalPack that now owns the legacy pack's retained coverage." .
+
+mg:coverageComplete a rdf:Property ;
+  rdfs:comment "True iff every semantic fact the legacy pack asserted is now retained somewhere in the admitted topology." .
+
+mg:independentReplacement a rdf:Property ;
+  rdfs:comment "True iff the replacement pack was qualified independently of the legacy pack it replaces." .
+
+mg:replayVerified a rdf:Property ;
+  rdfs:comment "True iff the replacement's qualification replay (two ggen sync passes converging to identical output) has been verified." .
+
+mg:noActiveConsumers a rdf:Property ;
+  rdfs:comment "True iff no admitted consumer graph still references the legacy pack directly." .
+
+mg:lifecycleEligible a rdf:Property ;
+  rdfs:comment "True iff the legacy pack is admitted to exit the active topology under mg:LifecycleLaw." .
+
+mg:forPack a rdf:Property ;
+  rdfs:domain mg:QualificationReceipt ;
+  rdfs:comment "The pack a QualificationReceipt records the outcome for." .
+
+mg:receiptStatus a rdf:Property ;
+  rdfs:domain mg:QualificationReceipt ;
+  rdfs:comment "The real qualify_pack() status string this receipt records: ALIVE, WARN, or a REFUSED:* code." .
+
+mg:qualifiedOn a rdf:Property ;
+  rdfs:domain mg:QualificationReceipt ;
+  rdfs:comment "The date this receipt's qualification run was recorded." .
+
+#################################################################
+# Standing law
+#################################################################
+
+mg:LifecycleLaw a mg:LifecycleDecision ;
+  rdfs:comment "A legacy pack may transition out of the active topology only after retained semantic coverage is complete, the replacement is independently qualified, replay is verified, and no active consumers remain. Enforced by gates/01-lifecycle-eligibility-law.rq: any mg:LegacyPack asserting mg:lifecycleEligible true without all four preconditions true, or any mg:LegacyPack missing an mg:replacementDecision entirely, is refused." .
+
+#################################################################
+# CanonicalPack individuals
+#################################################################
+
+mg:MarketplaceGovernance a mg:CanonicalPack ;
+  mg:ownsCapability "marketplace admission, consolidation, qualification and lifecycle law" ;
+  mg:standing "QUALIFIED" .
+
+#################################################################
+# LegacyPack individuals -- real consolidation decisions from the
+# 2026-09-12 canonical-consolidation review this pack's role describes.
+#################################################################
+
+mg:DfcmMarketplaceClosure26912 a mg:LegacyPack ;
+  rdfs:comment "dfcm-marketplace-closure-26-9-12: introduced this pack's own governance ontology skeleton (CanonicalPack/LegacyPack/ReplacementDecision/QualificationReceipt classes) but never carried it to a qualified individual graph or gate. Retained coverage (the class/property vocabulary) is absorbed here; the branch itself carries no further durable authority." ;
+  mg:replacementDecision mg:ABSORB ;
+  mg:absorbedInto mg:MarketplaceGovernance ;
+  mg:coverageComplete true ;
+  mg:independentReplacement true ;
+  mg:replayVerified true ;
+  mg:noActiveConsumers true ;
+  mg:lifecycleEligible true .
+
+mg:DfcmConsolidation26912 a mg:LegacyPack ;
+  rdfs:comment "dfcm-consolidation-26-9-12: unverified per the parallel audit that authorized this build (no isolated real-ggen qualification evidence found for its packs). Fixtured as a review input rather than absorbed or dropped outright until an independent qualification pass is run against it." ;
+  mg:replacementDecision mg:FIXTURE ;
+  mg:coverageComplete false ;
+  mg:independentReplacement false ;
+  mg:replayVerified false ;
+  mg:noActiveConsumers false ;
+  mg:lifecycleEligible false .
+
+mg:MsctMachineExperience26912 a mg:LegacyPack ;
+  rdfs:comment "msct-machine-experience-26-9-12: unverified per the parallel audit; no independent qualification receipt exists for its content, so it is dropped from lifecycle consideration rather than granted eligibility on an unverified claim." ;
+  mg:replacementDecision mg:DROP ;
+  mg:coverageComplete false ;
+  mg:independentReplacement false ;
+  mg:replayVerified false ;
+  mg:noActiveConsumers false ;
+  mg:lifecycleEligible false .
+
+mg:HumanTwinFondHddl26912 a mg:LegacyPack ;
+  rdfs:comment "human-twin-fond-hddl-26-9-12: unverified per the parallel audit; no independent qualification receipt exists for its content, so it is dropped from lifecycle consideration rather than granted eligibility on an unverified claim." ;
+  mg:replacementDecision mg:DROP ;
+  mg:coverageComplete false ;
+  mg:independentReplacement false ;
+  mg:replayVerified false ;
+  mg:noActiveConsumers false ;
+  mg:lifecycleEligible false .
+
+#################################################################
+# QualificationReceipt individuals
+#################################################################
+
+mg:ReceiptMarketplaceGovernance26912 a mg:QualificationReceipt ;
+  mg:forPack mg:MarketplaceGovernance ;
+  mg:receiptStatus "ALIVE" ;
+  mg:qualifiedOn "2026-09-12"^^xsd:date .
