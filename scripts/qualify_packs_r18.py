@@ -1,14 +1,5 @@
 #!/usr/bin/env python3
-"""R18 bounded qualification runner with explicit headroom for heavy packs.
-
-This reuses the canonical qualifier's pack preparation, deterministic replay,
-source-mutation refusal, and sharding semantics while widening only the
-per-pass temporal envelope from the original 5s contract to a bounded maximum
-of 30s. The 30s ceiling absorbs observed hosted-runner contention without
-changing pack semantics, pass criteria, source identity, or the enclosing
-workflow's finite 8-minute job bound. It exists as a separate subject so the
-prior 5s contract remains replayable.
-"""
+"""R18 bounded qualification runner with explicit marketplace scope."""
 from __future__ import annotations
 
 import argparse
@@ -36,7 +27,7 @@ def main() -> int:
     parser.add_argument("--report", type=Path)
     parser.add_argument("--shard-index", type=int, default=None)
     parser.add_argument("--shard-count", type=int, default=None)
-    parser.add_argument("--scope", choices=("all", "active"), default="all")
+    parser.add_argument("--scope", choices=("active", "all"), default="active")
     args = parser.parse_args()
 
     if (args.shard_index is None) != (args.shard_count is None):
