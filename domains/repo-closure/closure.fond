@@ -1,0 +1,35 @@
+(define (domain repo-closure-fond)
+  (:requirements :non-deterministic :typing)
+  (:types
+    repository - object
+  )
+
+  (:predicates
+    (compile-pass ?r - repository)
+    (compile-fail ?r - repository)
+    (compile-blocked ?r - repository)
+    (regenerate-identical ?r - repository)
+    (regenerate-updated ?r - repository)
+    (ready-to-compile ?r - repository)
+  )
+
+  ;; Non-deterministic compile action: can result in pass, fail, or blocked
+  (:action compile_repo
+    :parameters (?r - repository)
+    :precondition (ready-to-compile ?r)
+    :effect (oneof
+      (compile-pass ?r)
+      (compile-fail ?r)
+      (compile-blocked ?r)
+    )
+  )
+
+  ;; Non-deterministic regenerate action: can produce identical or updated source
+  (:action regenerate_source
+    :parameters (?r - repository)
+    :effect (oneof
+      (and (regenerate-identical ?r) (ready-to-compile ?r))
+      (and (regenerate-updated ?r) (ready-to-compile ?r))
+    )
+  )
+)
