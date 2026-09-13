@@ -1,0 +1,81 @@
+@prefix pp: <https://ggen.dev/ontology/planning-policy#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Minimal, independent, lawful positive qualification fixture: a second
+# world/role/HDDL task/FOND policy/PlannerOutput a downstream consumer
+# pack could query against -- exercises the full
+# world/role/decomposition/policy/planner-output/validation chain with
+# real individuals distinct from the pack's own worked example, so
+# scripts/qualify_packs.py's qualify_pack() has real facts to render and
+# query. This fixture is fully lawful (hasDOAuthority is false) and must
+# NOT trigger gates/010_select_is_not_do.rq.
+
+pp:ConsumerKitchenWorld a pp:World ;
+    rdfs:label "A downstream consumer's own world model: a commercial kitchen" .
+
+pp:ConsumerExpediterRole a pp:Role ;
+    rdfs:label "A downstream consumer's own role: the expediter" .
+
+pp:ConsumerKitchenWorld pp:hasRole pp:ConsumerExpediterRole .
+
+pp:ConsumerAgentExpediter01 a pp:Agent ;
+    rdfs:label "A downstream consumer's real expediter agent individual" ;
+    pp:actsInWorld pp:ConsumerKitchenWorld ;
+    pp:playsRole pp:ConsumerExpediterRole .
+
+pp:ConsumerPlateDishTask a pp:CompoundTask ;
+    rdfs:label "A downstream consumer's HDDL compound task: plate a dish" .
+
+pp:ConsumerAssembleTask a pp:PrimitiveTask ;
+    rdfs:label "A downstream consumer's HDDL primitive subtask: assemble components" .
+
+pp:ConsumerGarnishTask a pp:PrimitiveTask ;
+    rdfs:label "A downstream consumer's HDDL primitive subtask: garnish the plate" .
+
+pp:ConsumerPlateDishTask pp:decomposesInto pp:ConsumerAssembleTask , pp:ConsumerGarnishTask .
+pp:ConsumerAssembleTask pp:subtaskOrder 1 .
+pp:ConsumerGarnishTask pp:subtaskOrder 2 .
+
+pp:ConsumerFireAction a pp:Action ;
+    rdfs:label "A downstream consumer's own nondeterministic action: fire the dish" .
+
+pp:ConsumerFireOnTime a pp:Outcome ;
+    rdfs:label "Outcome: the dish fired on time" .
+
+pp:ConsumerFireLate a pp:Outcome ;
+    rdfs:label "Outcome: the dish fired late" .
+
+pp:ConsumerFireAction pp:hasOutcome pp:ConsumerFireOnTime , pp:ConsumerFireLate .
+
+pp:ConsumerServeAction a pp:Action ;
+    rdfs:label "Recovery action: serve the dish immediately" .
+
+pp:ConsumerRefireAction a pp:Action ;
+    rdfs:label "Recovery action: refire the dish" .
+
+pp:ConsumerFirePolicy a pp:Policy ;
+    rdfs:label "A downstream consumer's own FOND policy over ConsumerFireAction's outcomes" ;
+    pp:forAction pp:ConsumerFireAction ;
+    pp:hasBranch pp:ConsumerFireOnTimeBranch , pp:ConsumerFireLateBranch .
+
+pp:ConsumerFireOnTimeBranch a pp:PolicyBranch ;
+    pp:forOutcome pp:ConsumerFireOnTime ;
+    pp:recoveryAction pp:ConsumerServeAction .
+
+pp:ConsumerFireLateBranch a pp:PolicyBranch ;
+    pp:forOutcome pp:ConsumerFireLate ;
+    pp:recoveryAction pp:ConsumerRefireAction .
+
+pp:ConsumerPlateDishWorkItem a pp:WorkItem ;
+    rdfs:label "A downstream consumer's own bounded work item" .
+
+pp:ConsumerFirePlannerOutput a pp:PlannerOutput ;
+    rdfs:label "A downstream consumer's own lawful planner output (SELECT only, no DO authority)" ;
+    pp:producedBy pp:ConsumerFirePolicy ;
+    pp:selectsWorkItem pp:ConsumerPlateDishWorkItem ;
+    pp:hasDOAuthority false .
+
+pp:ConsumerFireOutputValidation a pp:ValidationResult ;
+    pp:validates pp:ConsumerFirePlannerOutput ;
+    pp:validationState pp:VALID .
