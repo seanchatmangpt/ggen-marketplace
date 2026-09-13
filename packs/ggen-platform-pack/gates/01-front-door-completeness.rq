@@ -1,0 +1,73 @@
+# MESSAGE: any returned row refuses manufacture. Enforces that a
+# gp:FrontDoor individual is a complete, correctly-named front door for the
+# fixed 11-pack canonical platform topology: it must declare exactly 11
+# distinct gp:hasComponent triples, each resolving to a gp:ComponentPack
+# whose gp:packName is one of the 11 fixed recognized canonical pack names
+# below. Any front door missing a component, declaring an unrecognized
+# name, declaring a duplicate name, or declaring more than 11 components is
+# refused.
+PREFIX gp: <https://ggen.dev/ontology/ggen-platform#>
+SELECT ?subject ?problem WHERE {
+  {
+    # Every hasComponent target must resolve to a gp:ComponentPack with a
+    # packName that is one of the 11 fixed recognized canonical names.
+    ?subject a gp:FrontDoor ; gp:hasComponent ?component .
+    FILTER NOT EXISTS {
+      ?component a gp:ComponentPack ; gp:packName ?name .
+      FILTER(?name IN (
+        "marketplace-governance-pack", "semantic-projection-pack",
+        "evidence-standing-pack", "decision-optionality-pack",
+        "planning-policy-pack", "process-intelligence-pack",
+        "state-transition-pack", "protocol-integration-pack",
+        "repository-lifecycle-pack", "enterprise-governance-pack",
+        "experience-projection-pack"
+      ))
+    }
+    BIND("component-unrecognized-or-malformed-refused" AS ?problem)
+  }
+  UNION
+  {
+    # Exactly 11 distinct declared components -- not fewer, not more.
+    ?subject a gp:FrontDoor .
+    {
+      SELECT ?subject (COUNT(DISTINCT ?component) AS ?n) WHERE {
+        ?subject a gp:FrontDoor ; gp:hasComponent ?component .
+      }
+      GROUP BY ?subject
+    }
+    FILTER(?n != 11)
+    BIND("front-door-component-count-not-eleven-refused" AS ?problem)
+  }
+  UNION
+  {
+    # A declared front door with zero hasComponent triples at all (the
+    # subquery above only fires when at least one exists).
+    ?subject a gp:FrontDoor .
+    FILTER NOT EXISTS { ?subject gp:hasComponent ?any }
+    BIND("front-door-declares-no-components-refused" AS ?problem)
+  }
+  UNION
+  {
+    # Within one FrontDoor, two of its declared components must never share
+    # a packName -- that would let a duplicate silently satisfy the
+    # count-11 check while actually omitting a real canonical pack. Scoped
+    # per-FrontDoor: distinct front doors are free to reference the same
+    # canonical sibling pack by name.
+    ?subject a gp:FrontDoor ; gp:hasComponent ?c1, ?c2 .
+    ?c1 gp:packName ?name .
+    ?c2 gp:packName ?name .
+    FILTER(?c1 != ?c2)
+    BIND("duplicate-component-pack-name-within-front-door-refused" AS ?problem)
+  }
+  UNION
+  {
+    # A QualificationReceipt must name a real pack and a non-empty status.
+    ?subject a gp:QualificationReceipt .
+    FILTER(
+      NOT EXISTS { ?subject gp:forPack ?p }
+      || NOT EXISTS { ?subject gp:receiptStatus ?s . FILTER(STRLEN(?s) > 0) }
+    )
+    BIND("receipt-missing-pack-or-status-refused" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem
