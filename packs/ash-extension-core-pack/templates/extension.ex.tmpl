@@ -4,82 +4,107 @@ for_each: "spec"
 sparql:
   spec: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT DISTINCT ?package_name ?module_name ?extension_target ?single_extension_kind WHERE {
+    SELECT DISTINCT ?package_name ?module_name ?extension_target ?single_extension_kind ?codegen_task ?codegen_name WHERE {
       ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ;
          aex:moduleName ?module_name ; aex:extensionTarget ?extension_target .
+      FILTER NOT EXISTS { ?s aex:fixtureOnly true }
       OPTIONAL { ?s aex:singleExtensionKind ?single_extension_kind }
+      OPTIONAL { ?s aex:codegenTask ?codegen_task }
+      OPTIONAL { ?s aex:codegenName ?codegen_name }
     }
   sections: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?section_name ?section_order ?section_describe WHERE {
-      ?s a aex:DslSection ; aex:sectionName ?section_name ; aex:sectionOrder ?section_order .
-      OPTIONAL { ?s aex:sectionDescribe ?section_describe }
-    } ORDER BY ?section_order
+    SELECT ?package_name ?section_name ?section_order ?section_describe WHERE {
+      ?section a aex:DslSection ; aex:sectionOf ?spec ; aex:sectionName ?section_name ; aex:sectionOrder ?section_order .
+      ?spec aex:packageName ?package_name .
+      OPTIONAL { ?section aex:sectionDescribe ?section_describe }
+    } ORDER BY ?package_name ?section_order
   singleton_keys: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?section_name ?singleton_key WHERE {
-      ?s a aex:DslSection ; aex:sectionName ?section_name ; aex:singletonEntityKey ?singleton_key .
+    SELECT ?package_name ?section_name ?singleton_key WHERE {
+      ?section a aex:DslSection ; aex:sectionOf ?spec ; aex:sectionName ?section_name ; aex:singletonEntityKey ?singleton_key .
+      ?spec aex:packageName ?package_name .
     }
   section_fields: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?section_name ?section_field_order ?section_field_name ?section_field_type WHERE {
+    SELECT ?package_name ?section_name ?section_field_order ?section_field_name ?section_field_type ?section_field_default ?section_field_doc WHERE {
       ?f a aex:SectionSchemaField ; aex:sectionFieldOf ?section ; aex:sectionFieldOrder ?section_field_order ;
          aex:sectionFieldName ?section_field_name ; aex:sectionFieldType ?section_field_type .
-      ?section aex:sectionName ?section_name .
-    } ORDER BY ?section_field_order
+      ?section aex:sectionOf ?spec ; aex:sectionName ?section_name .
+      ?spec aex:packageName ?package_name .
+      OPTIONAL { ?f aex:sectionFieldDefault ?section_field_default }
+      OPTIONAL { ?f aex:sectionFieldDoc ?section_field_doc }
+    } ORDER BY ?package_name ?section_field_order
   entities: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?section_name ?entity_name ?entity_struct ?entity_identifier ?entity_order WHERE {
+    SELECT ?package_name ?section_name ?entity_name ?entity_struct ?entity_identifier ?entity_order ?entity_describe WHERE {
       ?entity a aex:DslEntity ; aex:entityOf ?section ; aex:entityName ?entity_name ;
               aex:entityStruct ?entity_struct .
+      ?section aex:sectionOf ?spec ; aex:sectionName ?section_name .
+      ?spec aex:packageName ?package_name .
       OPTIONAL { ?entity aex:entityIdentifier ?entity_identifier }
       OPTIONAL { ?entity aex:entityOrder ?entity_order }
-      ?section aex:sectionName ?section_name .
-      # COALESCE keeps ordering deterministic even if a future entity omits
-      # aex:entityOrder: ORDER BY over a sometimes-unbound OPTIONAL variable is
-      # implementation-defined SPARQL behavior. Every current DslEntity individual
-      # sets entityOrder explicitly, so this default (sort last) never fires today --
-      # it only guards against the exact "entities rendered reversed" class of bug
-      # the entityOrder property was added to prevent (see ontology.ttl's comment).
-    } ORDER BY COALESCE(?entity_order, 999999)
+      OPTIONAL { ?entity aex:entityDescribe ?entity_describe }
+    } ORDER BY ?package_name COALESCE(?entity_order, 999999)
   entity_args: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?entity_struct ?arg_order ?arg_name WHERE {
+    SELECT ?package_name ?entity_struct ?arg_order ?arg_name WHERE {
       ?a a aex:EntityArg ; aex:argOf ?entity ; aex:argOrder ?arg_order ; aex:argName ?arg_name .
       ?entity aex:entityStruct ?entity_struct .
-    } ORDER BY ?arg_order
+      { ?entity aex:entityOf ?section . }
+      UNION
+      { ?entity aex:nestedOf ?parent . ?parent aex:entityOf ?section . }
+      ?section aex:sectionOf ?spec .
+      ?spec aex:packageName ?package_name .
+    } ORDER BY ?package_name ?arg_order
   fields: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?entity_struct ?field_order ?field_name ?field_type ?field_required ?field_doc ?field_default WHERE {
+    SELECT ?package_name ?entity_struct ?field_order ?field_name ?field_type ?field_required ?field_doc ?field_default WHERE {
       ?field a aex:EntitySchemaField ; aex:fieldOf ?entity ; aex:fieldOrder ?field_order ;
              aex:fieldName ?field_name ; aex:fieldType ?field_type ;
              aex:fieldRequired ?field_required ; aex:fieldDoc ?field_doc .
       OPTIONAL { ?field aex:fieldDefault ?field_default }
       ?entity aex:entityStruct ?entity_struct .
-    } ORDER BY ?field_order
+      { ?entity aex:entityOf ?section . }
+      UNION
+      { ?entity aex:nestedOf ?parent . ?parent aex:entityOf ?section . }
+      ?section aex:sectionOf ?spec .
+      ?spec aex:packageName ?package_name .
+    } ORDER BY ?package_name ?field_order
   one_of_values: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?entity_struct ?field_name ?one_of_order ?one_of_name WHERE {
+    SELECT ?package_name ?entity_struct ?field_name ?one_of_order ?one_of_name WHERE {
       ?v a aex:FieldOneOfValue ; aex:oneOfValueOf ?field ; aex:oneOfValueOrder ?one_of_order ;
          aex:oneOfValueName ?one_of_name .
       ?field aex:fieldName ?field_name ; aex:fieldOf ?entity .
       ?entity aex:entityStruct ?entity_struct .
-    } ORDER BY ?one_of_order
+      { ?entity aex:entityOf ?section . }
+      UNION
+      { ?entity aex:nestedOf ?parent . ?parent aex:entityOf ?section . }
+      ?section aex:sectionOf ?spec .
+      ?spec aex:packageName ?package_name .
+    } ORDER BY ?package_name ?one_of_order
   nested_entities: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?parent_entity_struct ?nested_field_name ?nested_entity_name ?nested_entity_struct WHERE {
+    SELECT ?package_name ?parent_entity_struct ?nested_field_name ?nested_entity_name ?nested_entity_struct WHERE {
       ?n a aex:NestedEntity ; aex:nestedOf ?parent ; aex:nestedFieldName ?nested_field_name ;
          aex:entityName ?nested_entity_name ; aex:entityStruct ?nested_entity_struct .
-      ?parent aex:entityStruct ?parent_entity_struct .
+      ?parent aex:entityStruct ?parent_entity_struct ; aex:entityOf ?section .
+      ?section aex:sectionOf ?spec .
+      ?spec aex:packageName ?package_name .
     }
 ---
-{# Generated Spark.Dsl.Extension -- mirrors ash_r2rml/lib/ash_r2rml/resource.ex shape:
-   struct modules + sections + entities (with positional args/identifier) + schema, wired to
-   a transformer/verifier/Info module manufactured as sibling files by this same pack. Full
-   coverage past pass-1's 80/20: positional args, entity identifier, section-level schema and
-   singleton_entity_keys, one_of/or/list/any field types with defaults -- all transcribed from
-   real Spark shapes (ash_r2rml's Class/Subject/Property/Reference/Graph/SparqlQuery), not
-   invented. Echoes admitted facts; never synthesizes. #}
+{# Generated Spark.Dsl.Extension. Every subordinate query carries the owning package_name
+   and is filtered against the current `spec` fan-out row below. This prevents the union
+   graph from mixing sibling extension specs or this pack's own fixture individuals. #}
+{% set sections_for_spec = sections | filter(attribute="package_name", value=package_name) %}
+{% set singleton_keys_for_spec = singleton_keys | filter(attribute="package_name", value=package_name) %}
+{% set section_fields_for_spec = section_fields | filter(attribute="package_name", value=package_name) %}
+{% set entities_for_spec = entities | filter(attribute="package_name", value=package_name) %}
+{% set entity_args_for_spec = entity_args | filter(attribute="package_name", value=package_name) %}
+{% set fields_for_spec = fields | filter(attribute="package_name", value=package_name) %}
+{% set one_of_values_for_spec = one_of_values | filter(attribute="package_name", value=package_name) %}
+{% set nested_entities_for_spec = nested_entities | filter(attribute="package_name", value=package_name) %}
 defmodule {{ module_name }} do
   @moduledoc """
   Spark.Dsl.Extension for `{{ package_name }}`.
@@ -88,14 +113,14 @@ defmodule {{ module_name }} do
   do not hand-edit; regenerate from the spec instead.
   """
 
-{% for entity in entities %}
+{% for entity in entities_for_spec %}
   defmodule {{ entity.entity_struct }} do
     @moduledoc false
-{% set entity_args_here = entity_args | filter(attribute="entity_struct", value=entity.entity_struct) %}
+{% set entity_args_here = entity_args_for_spec | filter(attribute="entity_struct", value=entity.entity_struct) %}
 {% if entity_args_here | length > 0 %}
     @enforce_keys [{% for a in entity_args_here %}:{{ a.arg_name }}{% if not loop.last %}, {% endif %}{% endfor %}]
 {% endif %}
-{% set entity_fields_here = fields | filter(attribute="entity_struct", value=entity.entity_struct) %}
+{% set entity_fields_here = fields_for_spec | filter(attribute="entity_struct", value=entity.entity_struct) %}
     defstruct [
 {% for f in entity_fields_here %}{% if not f.field_default %}      :{{ f.field_name }},
 {% endif %}{% endfor %}      :__identifier__,
@@ -106,14 +131,14 @@ defmodule {{ module_name }} do
     ]
   end
 {% endfor %}
-{% for nested in nested_entities %}
+{% for nested in nested_entities_for_spec %}
   defmodule {{ nested.nested_entity_struct }} do
     @moduledoc false
-{% set nested_args_here = entity_args | filter(attribute="entity_struct", value=nested.nested_entity_struct) %}
+{% set nested_args_here = entity_args_for_spec | filter(attribute="entity_struct", value=nested.nested_entity_struct) %}
 {% if nested_args_here | length > 0 %}
     @enforce_keys [{% for a in nested_args_here %}:{{ a.arg_name }}{% if not loop.last %}, {% endif %}{% endfor %}]
 {% endif %}
-{% set nested_fields_here = fields | filter(attribute="entity_struct", value=nested.nested_entity_struct) %}
+{% set nested_fields_here = fields_for_spec | filter(attribute="entity_struct", value=nested.nested_entity_struct) %}
     defstruct [
 {% for f in nested_fields_here %}{% if not f.field_default %}      :{{ f.field_name }},
 {% endif %}{% endfor %}      :__identifier__,
@@ -125,12 +150,9 @@ defmodule {{ module_name }} do
   end
 {% endfor %}
 
-{# Nested entities (ash_ai @tool_argument-under-@tool pattern, dsl.ex:228-268) must be
-   declared BEFORE any parent entity that references them via `entities: [...]`, since
-   Elixir module-attribute references are evaluation-order-dependent. #}
-{% for nested in nested_entities %}
-{% set nested_fields_here = fields | filter(attribute="entity_struct", value=nested.nested_entity_struct) %}
-{% set nested_args_here = entity_args | filter(attribute="entity_struct", value=nested.nested_entity_struct) %}
+{% for nested in nested_entities_for_spec %}
+{% set nested_fields_here = fields_for_spec | filter(attribute="entity_struct", value=nested.nested_entity_struct) %}
+{% set nested_args_here = entity_args_for_spec | filter(attribute="entity_struct", value=nested.nested_entity_struct) %}
   @{{ nested.nested_entity_name }} %Spark.Dsl.Entity{
     name: :{{ nested.nested_entity_name }},
     target: {{ nested.nested_entity_struct }},
@@ -138,18 +160,21 @@ defmodule {{ module_name }} do
     args: [{% for a in nested_args_here %}:{{ a.arg_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
 {% endif %}
     schema: [
-{% for f in nested_fields_here %}      {{ f.field_name }}: [type: {% if f.field_type == "one_of" %}{:one_of, [{% set ov = one_of_values | filter(attribute="entity_struct", value=nested.nested_entity_struct) | filter(attribute="field_name", value=f.field_name) %}{% for v in ov %}:{{ v.one_of_name }}{% if not loop.last %}, {% endif %}{% endfor %}]}{% elif f.field_type == "or_string_list_string" %}{:or, [:string, {:list, :string}]}{% elif f.field_type == "list_atom" %}{:list, :atom}{% elif f.field_type == "list_string" %}{:list, :string}{% else %}:{{ f.field_type }}{% endif %}, required: {{ f.field_required }}{% if f.field_default %}, default: {{ f.field_default }}{% endif %}, doc: "{{ f.field_doc }}"],
+{% for f in nested_fields_here %}      {{ f.field_name }}: [type: {% if f.field_type == "one_of" %}{:one_of, [{% set ov = one_of_values_for_spec | filter(attribute="entity_struct", value=nested.nested_entity_struct) | filter(attribute="field_name", value=f.field_name) %}{% for v in ov %}:{{ v.one_of_name }}{% if not loop.last %}, {% endif %}{% endfor %}]}{% elif f.field_type == "or_string_list_string" %}{:or, [:string, {:list, :string}]}{% elif f.field_type == "list_atom" %}{:list, :atom}{% elif f.field_type == "list_string" %}{:list, :string}{% else %}:{{ f.field_type }}{% endif %}, required: {{ f.field_required }}{% if f.field_default %}, default: {{ f.field_default }}{% endif %}, doc: "{{ f.field_doc }}"],
 {% endfor %}    ]
   }
 {% endfor %}
 
-{% for entity in entities %}
-{% set entity_fields_here = fields | filter(attribute="entity_struct", value=entity.entity_struct) %}
-{% set entity_args_here = entity_args | filter(attribute="entity_struct", value=entity.entity_struct) %}
-{% set nested_here = nested_entities | filter(attribute="parent_entity_struct", value=entity.entity_struct) %}
+{% for entity in entities_for_spec %}
+{% set entity_fields_here = fields_for_spec | filter(attribute="entity_struct", value=entity.entity_struct) %}
+{% set entity_args_here = entity_args_for_spec | filter(attribute="entity_struct", value=entity.entity_struct) %}
+{% set nested_here = nested_entities_for_spec | filter(attribute="parent_entity_struct", value=entity.entity_struct) %}
   @{{ entity.entity_name }} %Spark.Dsl.Entity{
     name: :{{ entity.entity_name }},
     target: {{ entity.entity_struct }},
+{% if entity.entity_describe %}
+    describe: "{{ entity.entity_describe }}",
+{% endif %}
 {% if entity_args_here | length > 0 %}
     args: [{% for a in entity_args_here %}:{{ a.arg_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
 {% endif %}
@@ -160,14 +185,14 @@ defmodule {{ module_name }} do
     entities: [{% for n in nested_here %}{{ n.nested_field_name }}: [@{{ n.nested_entity_name }}]{% if not loop.last %}, {% endif %}{% endfor %}],
 {% endif %}
     schema: [
-{% for f in entity_fields_here %}      {{ f.field_name }}: [type: {% if f.field_type == "one_of" %}{:one_of, [{% set ov = one_of_values | filter(attribute="entity_struct", value=entity.entity_struct) | filter(attribute="field_name", value=f.field_name) %}{% for v in ov %}:{{ v.one_of_name }}{% if not loop.last %}, {% endif %}{% endfor %}]}{% elif f.field_type == "or_string_list_string" %}{:or, [:string, {:list, :string}]}{% elif f.field_type == "list_atom" %}{:list, :atom}{% elif f.field_type == "list_string" %}{:list, :string}{% else %}:{{ f.field_type }}{% endif %}, required: {{ f.field_required }}{% if f.field_default %}, default: {{ f.field_default }}{% endif %}, doc: "{{ f.field_doc }}"],
+{% for f in entity_fields_here %}      {{ f.field_name }}: [type: {% if f.field_type == "one_of" %}{:one_of, [{% set ov = one_of_values_for_spec | filter(attribute="entity_struct", value=entity.entity_struct) | filter(attribute="field_name", value=f.field_name) %}{% for v in ov %}:{{ v.one_of_name }}{% if not loop.last %}, {% endif %}{% endfor %}]}{% elif f.field_type == "or_string_list_string" %}{:or, [:string, {:list, :string}]}{% elif f.field_type == "list_atom" %}{:list, :atom}{% elif f.field_type == "list_string" %}{:list, :string}{% else %}:{{ f.field_type }}{% endif %}, required: {{ f.field_required }}{% if f.field_default %}, default: {{ f.field_default }}{% endif %}, doc: "{{ f.field_doc }}"],
 {% endfor %}    ]
   }
 {% endfor %}
 
-{% for section in sections %}
-{% set section_singletons = singleton_keys | filter(attribute="section_name", value=section.section_name) %}
-{% set section_fields_here = section_fields | filter(attribute="section_name", value=section.section_name) %}
+{% for section in sections_for_spec %}
+{% set section_singletons = singleton_keys_for_spec | filter(attribute="section_name", value=section.section_name) %}
+{% set section_fields_here = section_fields_for_spec | filter(attribute="section_name", value=section.section_name) %}
   @{{ section.section_name }} %Spark.Dsl.Section{
     name: :{{ section.section_name }},
 {% if section.section_describe %}
@@ -175,11 +200,11 @@ defmodule {{ module_name }} do
 {% endif %}
 {% if section_fields_here | length > 0 %}
     schema: [
-{% for sf in section_fields_here %}      {{ sf.section_field_name }}: [type: {% if sf.section_field_type == "or_string_list_string" %}{:or, [:string, {:list, :string}]}{% elif sf.section_field_type == "list_atom" %}{:list, :atom}{% elif sf.section_field_type == "list_string" %}{:list, :string}{% else %}:{{ sf.section_field_type }}{% endif %}],
+{% for sf in section_fields_here %}      {{ sf.section_field_name }}: [type: {% if sf.section_field_type == "or_string_list_string" %}{:or, [:string, {:list, :string}]}{% elif sf.section_field_type == "list_atom" %}{:list, :atom}{% elif sf.section_field_type == "list_string" %}{:list, :string}{% else %}:{{ sf.section_field_type }}{% endif %}{% if sf.section_field_default %}, default: {{ sf.section_field_default }}{% endif %}{% if sf.section_field_doc %}, doc: "{{ sf.section_field_doc }}"{% endif %}],
 {% endfor %}    ],
 {% endif %}
     entities: [
-{% for entity in entities %}{% if entity.section_name == section.section_name %}      @{{ entity.entity_name }},
+{% for entity in entities_for_spec %}{% if entity.section_name == section.section_name %}      @{{ entity.entity_name }},
 {% endif %}{% endfor %}    ]{% if section_singletons | length > 0 %},
     singleton_entity_keys: [{% for k in section_singletons %}:{{ k.singleton_key }}{% if not loop.last %}, {% endif %}{% endfor %}]
 {% endif %}
@@ -188,9 +213,23 @@ defmodule {{ module_name }} do
 {% endfor %}
 
   use Spark.Dsl.Extension,
-    sections: [{% for section in sections %}@{{ section.section_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+    sections: [{% for section in sections_for_spec %}@{{ section.section_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
     transformers: [{{ module_name }}.Persist],
     verifiers: [{{ module_name }}.Verify]{% if single_extension_kind %},
     single_extension_kinds: [:{{ single_extension_kind }}]{% endif %}
+{% if codegen_task %}
 
+  @behaviour Ash.Extension
+
+  @impl Ash.Extension
+  def codegen(argv) do
+    Mix.Task.reenable("{{ codegen_task }}")
+    Mix.Task.run("{{ codegen_task }}", argv)
+  end
+{% if codegen_name %}
+
+  @doc false
+  def name, do: "{{ codegen_name }}"
+{% endif %}
+{% endif %}
 end

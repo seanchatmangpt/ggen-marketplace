@@ -1,30 +1,37 @@
 ---
-to: "lib/{{ package_name }}/info.ex"
+to: "lib/{{ package_name }}/{% if support_subdir %}{{ support_subdir }}/{% endif %}info.ex"
 for_each: "spec"
 sparql:
   spec: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
     SELECT DISTINCT ?package_name ?module_name
+           (SAMPLE(?support_subdir_value) AS ?support_subdir)
            (SAMPLE(?legacy_adapter_module) AS ?legacy_adapter_module)
            (SAMPLE(?legacy_adapter_function) AS ?legacy_adapter_function)
     WHERE {
       ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ; aex:moduleName ?module_name .
+      FILTER NOT EXISTS { ?s aex:fixtureOnly true }
+      OPTIONAL { ?s aex:supportSubdir ?support_subdir_value }
       OPTIONAL { ?s aex:legacyAdapterModule ?legacy_adapter_module }
       OPTIONAL { ?s aex:legacyAdapterFunction ?legacy_adapter_function }
     } GROUP BY ?package_name ?module_name
   sections: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?section_name WHERE { ?s a aex:DslSection ; aex:sectionName ?section_name . }
-    ORDER BY ?section_name
+    SELECT ?package_name ?section_name WHERE {
+      ?section a aex:DslSection ; aex:sectionOf ?spec ; aex:sectionName ?section_name .
+      ?spec aex:packageName ?package_name .
+    }
+    ORDER BY ?package_name ?section_name
 ---
 {# Generated Info module -- mirrors ash_r2rml/lib/ash_r2rml/resource.ex's
    AshR2RML.Resource.Info: the public, documented introspection API a consumer (or this
    pack's own composition test) reads instead of poking Spark.Dsl.Extension internals. #}
+{% set sections_for_spec = sections | filter(attribute="package_name", value=package_name) %}
 defmodule {{ module_name }}.Info do
   @moduledoc """
   Public introspection API for `{{ package_name }}`.
   """
-{% for s in sections %}
+{% for s in sections_for_spec %}
   @doc "Returns the raw `:{{ s.section_name }}` DSL entities declared on `resource`."
   def {{ s.section_name }}(resource) do
     Spark.Dsl.Extension.get_entities(resource, [:{{ s.section_name }}])
