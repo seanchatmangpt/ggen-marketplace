@@ -37,12 +37,61 @@ EXPECTED = {
         "pack.toml",
         "gates/010_safe_scope.rq",
     ),
+    "autofde-lab-gymact-bridge-pack": (
+        "pack.toml",
+        "ontology.ttl",
+        "gates/010_execution_boundary.rq",
+        "gates/020_no_custom_tbox.rq",
+    ),
+    "biblegym-pack": (
+        "pack.toml",
+        "ontology.ttl",
+        "gates/010_required_contract.rq",
+    ),
+    "claudecode-gymact-pack": (
+        "pack.toml",
+        "ontology.ttl",
+        "gates/010_required.rq",
+        "gates/020_single_valued.rq",
+        "gates/030_no_custom_tbox.rq",
+    ),
+    "gym-autonomic-crown-pack": (
+        "pack.toml",
+        "ontology.ttl",
+        "gates/010_every_edge_carries_both_observations.rq",
+        "gates/020_gitlink_mode_must_be_160000.rq",
+        "gates/030_drift_state_must_agree_with_sha_comparison.rq",
+        "gates/040_authority_boundary_is_gitlinks_and_lock_only.rq",
+    ),
+    "gym-ci-toolchain-bblock-pack": (
+        "pack.toml",
+        "ontology.ttl",
+        "gates/010_pin_required.rq",
+        "gates/020_no_actuation.rq",
+    ),
+    "gym-mcp-surface-pack": (
+        "pack.toml",
+        "ontology.ttl",
+        "gates/010_mcp_authority_boundary.rq",
+    ),
+    "gym-upper-ontology-pack": (
+        "pack.toml",
+        "ontology.ttl",
+        "gates/010_untyped_consequence_refused.rq",
+    ),
 }
 PACK_VERSIONS = {
     "autofde-gymact-certification-pack": "1.0.0",
     "chatgptgym-gymact-bridge-pack": VERSION,
     "lifegym-world-pack": VERSION,
     "ww3gym-planning-pack": VERSION,
+    "autofde-lab-gymact-bridge-pack": "26.9.1",
+    "biblegym-pack": "26.8.12",
+    "claudecode-gymact-pack": "26.8.12",
+    "gym-autonomic-crown-pack": "26.8.28",
+    "gym-ci-toolchain-bblock-pack": "0.1.0",
+    "gym-mcp-surface-pack": "26.9.1",
+    "gym-upper-ontology-pack": "26.9.1",
 }
 
 
