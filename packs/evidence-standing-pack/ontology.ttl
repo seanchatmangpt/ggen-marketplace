@@ -1,0 +1,84 @@
+@prefix es: <https://ggen.dev/ontology/evidence-standing#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ===== CLASSES =====
+# The core evidentiary chain this pack enforces:
+#   Identity --holds--> Authority --authorizes--> Receipt --grounds--> Standing
+#   ConsequentialAction --performedBy--> Identity ; --hasReceipt--> Receipt
+#   Replay --replays--> Receipt (independent re-execution confirming the receipt)
+# "NoReceipt implies NoStanding": any ConsequentialAction whose Standing claims
+# anything other than es:UNKNOWN must trace to a real es:Receipt authorized by
+# a real es:Authority -- enforced structurally here, refused if violated by
+# gates/010_no_receipt_no_standing.rq.
+es:ExactSubject a rdfs:Class .
+es:Observation a rdfs:Class .
+es:Receipt a rdfs:Class .
+es:Standing a rdfs:Class .
+es:Evidence a rdfs:Class .
+es:Provenance a rdfs:Class .
+es:Identity a rdfs:Class .
+es:Authority a rdfs:Class .
+es:ConsequentialAction a rdfs:Class .
+es:Replay a rdfs:Class .
+
+# ===== PROPERTIES =====
+es:subject a rdf:Property .
+es:provenance a rdf:Property .
+es:receipt a rdf:Property .
+es:standing a rdf:Property .
+es:replayOf a rdf:Property .
+es:holdsAuthority a rdf:Property ; rdfs:domain es:Identity ; rdfs:range es:Authority .
+es:performedBy a rdf:Property ; rdfs:domain es:ConsequentialAction ; rdfs:range es:Identity .
+es:hasReceipt a rdf:Property ; rdfs:domain es:ConsequentialAction ; rdfs:range es:Receipt .
+es:authorizedBy a rdf:Property ; rdfs:domain es:Receipt ; rdfs:range es:Authority .
+es:forAction a rdf:Property ; rdfs:domain es:Receipt ; rdfs:range es:ConsequentialAction .
+es:replays a rdf:Property ; rdfs:domain es:Replay ; rdfs:range es:Receipt .
+es:standingFor a rdf:Property ; rdfs:domain es:Standing ; rdfs:range es:ConsequentialAction .
+es:standingState a rdf:Property ; rdfs:domain es:Standing ; rdfs:range es:Standing .
+es:groundedBy a rdf:Property ; rdfs:domain es:Standing ; rdfs:range es:Receipt .
+es:receiptId a rdf:Property ; rdfs:domain es:Receipt ; rdfs:range xsd:string .
+
+# ===== STANDING STATES =====
+es:UNKNOWN a es:Standing .
+es:PARTIAL_ALIVE a es:Standing .
+es:ALIVE a es:Standing .
+es:BLOCKED a es:Standing .
+es:BUILD_BROKEN a es:Standing .
+es:UNSUPPORTED a es:Standing .
+es:REFUSED a es:Standing .
+
+# ===== REAL INDIVIDUALS: identity / authority =====
+es:AgentSean a es:Identity ;
+    rdfs:label "Sean Chatman, real committing identity for this pack's worked example" .
+
+es:MarketplaceReleaseAuthority a es:Authority ;
+    rdfs:label "The marketplace's own release/qualification authority" .
+
+es:AgentSean es:holdsAuthority es:MarketplaceReleaseAuthority .
+
+# ===== REAL INDIVIDUALS: consequence, receipt, replay, standing =====
+# Worked example: publishing this exact pack to the marketplace catalog is
+# the consequential action. It carries a real receipt authorized by the
+# marketplace release authority, a real replay of that receipt, and a
+# standing claim grounded by the receipt -- the full evidentiary chain
+# required for anything stronger than es:UNKNOWN.
+es:PublishEvidenceStandingPackAction a es:ConsequentialAction ;
+    rdfs:label "Publish packs/evidence-standing-pack to the marketplace catalog" ;
+    es:performedBy es:AgentSean ;
+    es:hasReceipt es:Receipt-EvidenceStandingPack-Publish-001 .
+
+es:Receipt-EvidenceStandingPack-Publish-001 a es:Receipt ;
+    es:receiptId "evidence-standing-pack/26.9.12/publish/001" ;
+    es:forAction es:PublishEvidenceStandingPackAction ;
+    es:authorizedBy es:MarketplaceReleaseAuthority .
+
+es:Replay-EvidenceStandingPack-Publish-001 a es:Replay ;
+    rdfs:label "Deterministic replay of the publish receipt via scripts/marketplace.py catalog a/b/cmp" ;
+    es:replays es:Receipt-EvidenceStandingPack-Publish-001 .
+
+es:Standing-EvidenceStandingPack-Publish-001 a es:Standing ;
+    es:standingFor es:PublishEvidenceStandingPackAction ;
+    es:standingState es:ALIVE ;
+    es:groundedBy es:Receipt-EvidenceStandingPack-Publish-001 .
