@@ -1,0 +1,44 @@
+@prefix rl: <https://ggen.dev/ontology/repository-lifecycle#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+# Minimal positive qualification fixture: a second, independently-named
+# repository lifecycle chain a consumer pack could query against -- exercises
+# the full Source->Build->Verify->Release chain with a real individual chain
+# distinct from the pack's own worked example, so scripts/qualify_packs.py's
+# qualify_pack() has real facts to render and gates/010_no_verify_no_release.rq
+# has more than one row to evaluate. This fixture is lawful (fully verified
+# before release) and must NOT trigger the gate.
+
+rl:ConsumerRepo a rl:Repository ;
+    rdfs:label "A downstream consumer's real repository" ;
+    rl:repoUrl "https://github.com/example/consumer-repo" ;
+    rl:hasSource rl:Source-Consumer-001 .
+
+rl:Source-Consumer-001 a rl:Source ;
+    rdfs:label "A downstream consumer's source checkout" ;
+    rl:commitSha "consumer-main-abc123" ;
+    rl:precedes rl:Build-Consumer-001 .
+
+rl:Build-Consumer-001 a rl:Build ;
+    rdfs:label "A downstream consumer's build" ;
+    rl:builtFrom rl:Source-Consumer-001 ;
+    rl:precedes rl:Verify-Consumer-001 .
+
+rl:Verify-Consumer-001 a rl:Verify ;
+    rdfs:label "A downstream consumer's verification, evidenced end to end" ;
+    rl:verifies rl:Build-Consumer-001 ;
+    rl:result rl:PASS ;
+    rl:precedes rl:Release-Consumer-001 .
+
+rl:Release-Consumer-001 a rl:Release ;
+    rdfs:label "A downstream consumer's release, lawfully verified" ;
+    rl:releasedFrom rl:Build-Consumer-001 ;
+    rl:verifiedBy rl:Verify-Consumer-001 ;
+    rl:tiedBy rl:ReleaseReceipt-Consumer-001 .
+
+rl:ReleaseReceipt-Consumer-001 a rl:ReleaseReceipt ;
+    rl:receiptId "consumer/release/001" ;
+    rl:forRelease rl:Release-Consumer-001 ;
+    rl:chainsSource rl:Source-Consumer-001 ;
+    rl:chainsBuild rl:Build-Consumer-001 ;
+    rl:chainsVerify rl:Verify-Consumer-001 .
