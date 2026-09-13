@@ -4,6 +4,12 @@ The canonical repository of reusable **ggen packs**.
 
 A pack is an ontology-backed manufacturing or semantic bundle: a manifest declares identity, RDF states admitted facts, templates may project those facts into consumer artifacts, and gates may refuse invalid inputs or verify pack-specific invariants. Generated consumer files are consequences of the pack; they are not a second source of truth.
 
+## Consolidation work
+
+PR #438 introduces the v26.9.12 candidate 80/20 capability topology. Existing packs remain in place while the repository measures coverage and maps the legacy catalog to the smaller canonical set. Issue #439 tracks the inventory and classification work required before any legacy pack is retired.
+
+The consolidation rule is `PackDirectory != PublicCapability`: versions, experiments, implementations, and compositions should normally be represented inside a durable capability family instead of creating a new top-level capability for every generation.
+
 ## Quick start
 
 ```bash
