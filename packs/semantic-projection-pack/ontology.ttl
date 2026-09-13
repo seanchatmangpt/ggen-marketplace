@@ -1,0 +1,59 @@
+@prefix sp: <https://ggen.dev/ontology/semantic-projection#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ===== CLASSES =====
+# The core projection chain this pack enforces:
+#   CanonicalSemanticSource --projectedBy--> ProjectionEvent --produces--> GeneratedArtifact
+#   ProjectionEvent --lineageSource--> CanonicalSemanticSource (mandatory)
+#   GeneratedArtifact --derivedFrom--> ProjectionEvent
+# A GeneratedArtifact is never itself a CanonicalSemanticSource -- it is
+# structurally the consequence of a projection, not a second source of
+# truth. Enforced/refused by gates/010_no_sovereign_generated_artifact.rq.
+sp:CanonicalSemanticSource a rdfs:Class .
+sp:ProjectionEvent a rdfs:Class .
+sp:GeneratedArtifact a rdfs:Class .
+sp:Lineage a rdfs:Class .
+sp:Fanout a rdfs:Class .
+
+# ===== PROPERTIES =====
+sp:projectsFrom a rdf:Property ; rdfs:domain sp:ProjectionEvent ; rdfs:range sp:CanonicalSemanticSource .
+sp:produces a rdf:Property ; rdfs:domain sp:ProjectionEvent ; rdfs:range sp:GeneratedArtifact .
+sp:derivedFrom a rdf:Property ; rdfs:domain sp:GeneratedArtifact ; rdfs:range sp:ProjectionEvent .
+sp:lineageSource a rdf:Property ; rdfs:domain sp:ProjectionEvent ; rdfs:range sp:CanonicalSemanticSource .
+sp:fanoutOf a rdf:Property ; rdfs:domain sp:Fanout ; rdfs:range sp:ProjectionEvent .
+sp:isSovereign a rdf:Property ; rdfs:range xsd:boolean .
+sp:deterministic a rdf:Property ; rdfs:range xsd:boolean .
+sp:eventId a rdf:Property ; rdfs:domain sp:ProjectionEvent ; rdfs:range xsd:string .
+
+# ===== REAL INDIVIDUALS: canonical source =====
+# The sole sovereign source of truth for this pack's own worked example: the
+# marketplace's own ontology.ttl for this pack, which every rendered/generated
+# consequence of this pack must trace back to.
+sp:SemanticProjectionPackOntology a sp:CanonicalSemanticSource ;
+    rdfs:label "packs/semantic-projection-pack/ontology.ttl -- the canonical RDF source for this pack" ;
+    sp:isSovereign true .
+
+# ===== REAL INDIVIDUALS: projection event with mandatory lineage =====
+sp:ProjectSemanticProjectionPackCatalogEvent a sp:ProjectionEvent ;
+    rdfs:label "scripts/marketplace.py catalog projecting this pack's manifest+ontology into a catalog record" ;
+    sp:eventId "semantic-projection-pack/26.9.12/catalog/001" ;
+    sp:projectsFrom sp:SemanticProjectionPackOntology ;
+    sp:lineageSource sp:SemanticProjectionPackOntology ;
+    sp:produces sp:SemanticProjectionPackCatalogRecord ;
+    sp:deterministic true .
+
+# ===== REAL INDIVIDUALS: generated artifact, explicitly non-sovereign =====
+# The catalog record is a real consequence of the projection event above. It
+# is explicitly marked non-sovereign: it is a rendering, never a second
+# source of truth, and must never be asserted as a sp:CanonicalSemanticSource.
+sp:SemanticProjectionPackCatalogRecord a sp:GeneratedArtifact ;
+    rdfs:label "The catalog.json record scripts/marketplace.py catalog projects for this pack" ;
+    sp:derivedFrom sp:ProjectSemanticProjectionPackCatalogEvent ;
+    sp:isSovereign false .
+
+# ===== REAL INDIVIDUAL: fanout over the projection event =====
+sp:SemanticProjectionPackCatalogFanout a sp:Fanout ;
+    rdfs:label "The a/b/cmp determinism check fanning out two independent runs of the same projection event" ;
+    sp:fanoutOf sp:ProjectSemanticProjectionPackCatalogEvent .
