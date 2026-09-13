@@ -1,0 +1,26 @@
+@prefix pi: <https://ggen.dev/ontology/protocol-integration#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+# Minimal independent positive qualification fixture: a second, distinct
+# Capability with its own real Protocol/Transport/Adapter chain, so
+# scripts/qualify_packs.py's qualify_pack() has real facts to render and
+# gates/010_no_semantic_redefinition.rq has more than one worked example to
+# evaluate. This fixture is lawful (the adapter reuses the capability's
+# semantics) and must NOT trigger the gate.
+
+pi:WebSocketProtocol a pi:Protocol ;
+    rdfs:label "WebSocket full-duplex protocol" .
+
+pi:UDPTransport a pi:Transport ;
+    rdfs:label "UDP datagram transport" .
+
+pi:StreamPriceUpdatesCapability a pi:Capability ;
+    rdfs:label "Stream live price updates to a subscribed client" ;
+    pi:semanticDefinition "Given a subscribed instrument id, pushes at-most-once-per-tick price updates to the client until unsubscribed; no update is ever reordered relative to its instrument's own sequence." .
+
+pi:StreamPriceUpdatesWebSocketAdapter a pi:Adapter ;
+    rdfs:label "Consumer adapter binding StreamPriceUpdatesCapability to WebSocket over UDP" ;
+    pi:bindsCapability pi:StreamPriceUpdatesCapability ;
+    pi:bindsProtocol pi:WebSocketProtocol ;
+    pi:usesTransport pi:UDPTransport ;
+    pi:reusesSemanticsOf pi:StreamPriceUpdatesCapability .
