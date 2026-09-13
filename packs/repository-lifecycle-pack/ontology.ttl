@@ -1,0 +1,80 @@
+@prefix rl: <https://ggen.dev/ontology/repository-lifecycle#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ===== CLASSES =====
+# The core lifecycle chain this pack enforces:
+#   Repository --hasSource--> Source --precedes--> Build --precedes--> Verify
+#     --precedes--> Release --tiedBy--> ReleaseReceipt
+# Each stage (Source/Build/Verify/Release) is its own individual, chained by
+# rl:precedes, and every Release must trace back through rl:verifiedBy to a
+# real rl:Verify individual carrying rl:result rl:PASS -- enforced structurally
+# here, refused if violated by gates/010_no_verify_no_release.rq.
+rl:Repository a rdfs:Class .
+rl:LifecycleStage a rdfs:Class .
+rl:Source a rdfs:Class ; rdfs:subClassOf rl:LifecycleStage .
+rl:Build a rdfs:Class ; rdfs:subClassOf rl:LifecycleStage .
+rl:Verify a rdfs:Class ; rdfs:subClassOf rl:LifecycleStage .
+rl:Release a rdfs:Class ; rdfs:subClassOf rl:LifecycleStage .
+rl:ReleaseReceipt a rdfs:Class .
+rl:VerifyResult a rdfs:Class .
+
+# ===== PROPERTIES =====
+rl:hasSource a rdf:Property ; rdfs:domain rl:Repository ; rdfs:range rl:Source .
+rl:precedes a rdf:Property ; rdfs:domain rl:LifecycleStage ; rdfs:range rl:LifecycleStage .
+rl:builtFrom a rdf:Property ; rdfs:domain rl:Build ; rdfs:range rl:Source .
+rl:verifies a rdf:Property ; rdfs:domain rl:Verify ; rdfs:range rl:Build .
+rl:verifiedBy a rdf:Property ; rdfs:domain rl:Release ; rdfs:range rl:Verify .
+rl:result a rdf:Property ; rdfs:domain rl:Verify ; rdfs:range rl:VerifyResult .
+rl:releasedFrom a rdf:Property ; rdfs:domain rl:Release ; rdfs:range rl:Build .
+rl:tiedBy a rdf:Property ; rdfs:domain rl:Release ; rdfs:range rl:ReleaseReceipt .
+rl:forRelease a rdf:Property ; rdfs:domain rl:ReleaseReceipt ; rdfs:range rl:Release .
+rl:chainsSource a rdf:Property ; rdfs:domain rl:ReleaseReceipt ; rdfs:range rl:Source .
+rl:chainsBuild a rdf:Property ; rdfs:domain rl:ReleaseReceipt ; rdfs:range rl:Build .
+rl:chainsVerify a rdf:Property ; rdfs:domain rl:ReleaseReceipt ; rdfs:range rl:Verify .
+rl:receiptId a rdf:Property ; rdfs:domain rl:ReleaseReceipt ; rdfs:range xsd:string .
+rl:repoUrl a rdf:Property ; rdfs:domain rl:Repository ; rdfs:range xsd:string .
+rl:commitSha a rdf:Property ; rdfs:domain rl:Source ; rdfs:range xsd:string .
+
+# ===== VERIFY RESULT STATES =====
+rl:PASS a rl:VerifyResult .
+rl:FAIL a rl:VerifyResult .
+
+# ===== REAL INDIVIDUALS: repository and lifecycle chain =====
+# Worked example: this exact pack's own repository, source commit, build,
+# verification, and release -- the full chain the gate requires before any
+# Release may be asserted.
+rl:GgenMarketplaceRepo a rl:Repository ;
+    rdfs:label "seanchatmangpt/ggen-marketplace, real committing repository" ;
+    rl:repoUrl "https://github.com/seanchatmangpt/ggen-marketplace" ;
+    rl:hasSource rl:Source-RepositoryLifecyclePack-001 .
+
+rl:Source-RepositoryLifecyclePack-001 a rl:Source ;
+    rdfs:label "Source checkout of packs/repository-lifecycle-pack at its authoring commit" ;
+    rl:commitSha "feat/repository-lifecycle-pack-26-9-12" ;
+    rl:precedes rl:Build-RepositoryLifecyclePack-001 .
+
+rl:Build-RepositoryLifecyclePack-001 a rl:Build ;
+    rdfs:label "Build of packs/repository-lifecycle-pack via ggen pack loader" ;
+    rl:builtFrom rl:Source-RepositoryLifecyclePack-001 ;
+    rl:precedes rl:Verify-RepositoryLifecyclePack-001 .
+
+rl:Verify-RepositoryLifecyclePack-001 a rl:Verify ;
+    rdfs:label "Verification of packs/repository-lifecycle-pack via scripts/qualify_packs.py" ;
+    rl:verifies rl:Build-RepositoryLifecyclePack-001 ;
+    rl:result rl:PASS ;
+    rl:precedes rl:Release-RepositoryLifecyclePack-001 .
+
+rl:Release-RepositoryLifecyclePack-001 a rl:Release ;
+    rdfs:label "Release of packs/repository-lifecycle-pack to the marketplace catalog" ;
+    rl:releasedFrom rl:Build-RepositoryLifecyclePack-001 ;
+    rl:verifiedBy rl:Verify-RepositoryLifecyclePack-001 ;
+    rl:tiedBy rl:ReleaseReceipt-RepositoryLifecyclePack-001 .
+
+rl:ReleaseReceipt-RepositoryLifecyclePack-001 a rl:ReleaseReceipt ;
+    rl:receiptId "repository-lifecycle-pack/26.9.12/release/001" ;
+    rl:forRelease rl:Release-RepositoryLifecyclePack-001 ;
+    rl:chainsSource rl:Source-RepositoryLifecyclePack-001 ;
+    rl:chainsBuild rl:Build-RepositoryLifecyclePack-001 ;
+    rl:chainsVerify rl:Verify-RepositoryLifecyclePack-001 .
