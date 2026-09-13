@@ -1,0 +1,166 @@
+@prefix pht: <https://ggen.dev/profile/permanent-human-twin#> .
+@prefix pp: <https://ggen.dev/ontology/planning-policy#> .
+@prefix sp: <https://ggen.dev/ontology/semantic-projection#> .
+@prefix es: <https://ggen.dev/ontology/evidence-standing#> .
+@prefix pi: <https://ggen.dev/ontology/process-intelligence#> .
+@prefix st: <https://ggen.dev/ontology/state-transition#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+pht:PermanentHumanTwin a rdfs:Class ;
+  rdfs:subClassOf sp:CanonicalSubject ;
+  rdfs:comment "The admitted computational representation of a human across time. It is not the human and is never the originating authority merely by being canonical." .
+
+pht:HumanInteractionPlanningProfile a sp:Profile ;
+  sp:source pht:PermanentHumanTwin ;
+  sp:deterministic true ;
+  rdfs:comment "Canonical composition profile for purpose-bound human interactions. HDDL decomposes lawful intent; FOND handles nondeterministic outcomes; BRCE remains the only DO path." .
+
+pht:ServeHumanInteraction a pp:CompoundTask ;
+  pp:usesFormalism pp:HDDL ;
+  pp:hasSubtask pht:OrientRequest,
+                pht:AdmitPurpose,
+                pht:DeriveRequiredDisclosure,
+                pht:ChooseIdentifierScope,
+                pht:ConstructMinimalProjection,
+                pht:AuthorizeDisclosure,
+                pht:ExecuteDisclosure,
+                pht:CaptureDisclosureReceipt,
+                pht:ClosePPCXLoop ;
+  pp:requiresAdmission pht:PurposeAdmission ;
+  pp:requiresAuthority pht:DisclosureAuthority .
+
+pht:OrientRequest a pp:PrimitiveTask .
+pht:AdmitPurpose a pp:PrimitiveTask .
+pht:DeriveRequiredDisclosure a pp:PrimitiveTask .
+pht:ChooseIdentifierScope a pp:CompoundTask .
+pht:ConstructMinimalProjection a pp:PrimitiveTask .
+pht:AuthorizeDisclosure a pp:PrimitiveTask .
+pht:ExecuteDisclosure a pp:PrimitiveTask ;
+  pp:realizesAction pht:PresentProjection ;
+  pp:requiresAuthority pht:DisclosureAuthority ;
+  rdfs:comment "Consequence-bearing disclosure. Planner selection is not authority; execution must route through BRCE and produce a receipt." .
+pht:CaptureDisclosureReceipt a pp:PrimitiveTask .
+pht:ClosePPCXLoop a pp:CompoundTask .
+
+pht:OrientRequest pp:orderedBefore pht:AdmitPurpose .
+pht:AdmitPurpose pp:orderedBefore pht:DeriveRequiredDisclosure .
+pht:DeriveRequiredDisclosure pp:orderedBefore pht:ChooseIdentifierScope .
+pht:ChooseIdentifierScope pp:orderedBefore pht:ConstructMinimalProjection .
+pht:ConstructMinimalProjection pp:orderedBefore pht:AuthorizeDisclosure .
+pht:AuthorizeDisclosure pp:orderedBefore pht:ExecuteDisclosure .
+pht:ExecuteDisclosure pp:orderedBefore pht:CaptureDisclosureReceipt .
+pht:CaptureDisclosureReceipt pp:orderedBefore pht:ClosePPCXLoop .
+
+pht:PurposeAdmission a pp:AdmissionCheck .
+pht:DisclosureAuthority a pp:AuthorityCheck .
+
+pht:AnonymousProofMethod a pp:Method ;
+  pp:decomposesTask pht:ChooseIdentifierScope ;
+  pp:hasEffect sp:AnonymousProof ;
+  rdfs:comment "Use when the relying party needs proof of a predicate but no persistent identifier." .
+pht:EphemeralIdentifierMethod a pp:Method ;
+  pp:decomposesTask pht:ChooseIdentifierScope ;
+  pp:hasEffect sp:EphemeralIdentifier ;
+  rdfs:comment "Use when transaction identity is needed but continuity is not." .
+pht:PairwiseIdentifierMethod a pp:Method ;
+  pp:decomposesTask pht:ChooseIdentifierScope ;
+  pp:hasEffect sp:PairwiseIdentifier ;
+  rdfs:comment "Use when relying-party continuity is needed without cross-context linkability." .
+pht:CanonicalIdentifierMethod a pp:Method ;
+  pp:decomposesTask pht:ChooseIdentifierScope ;
+  pp:hasEffect sp:CanonicalIdentifier ;
+  pp:requiresAdmission pht:CanonicalIdentityPurposeAdmission ;
+  pp:requiresAuthority pht:CanonicalIdentityDisclosureAuthority ;
+  rdfs:comment "Last-resort method. Canonical identity requires both an admitted purpose that needs it and separate disclosure authority." .
+
+pht:CanonicalIdentityPurposeAdmission a pp:AdmissionCheck .
+pht:CanonicalIdentityDisclosureAuthority a pp:AuthorityCheck .
+
+pht:InteractionProjection a sp:PurposeBoundProjection ;
+  sp:minimumSufficientDisclosure true ;
+  rdfs:comment "Discloses only predicates required or explicitly allowed by the admitted purpose. Forbidden or unrelated canonical predicates remain internal." .
+
+pht:DisclosurePolicy a pp:Policy ;
+  pp:usesFormalism pp:FOND ;
+  pp:selectsAction pht:PresentProjection ;
+  rdfs:comment "FOND policy over disclosure outcomes. No recovery branch may increase disclosure or bypass admission or authority merely to obtain success." .
+
+pht:PresentProjection a pp:Action ;
+  pp:requiresAdmission pht:PurposeAdmission ;
+  pp:requiresAuthority pht:DisclosureAuthority ;
+  pp:hasOutcome pht:PresentationAccepted,
+                pht:ProofFormatRejected,
+                pht:CanonicalIdentityDemanded,
+                pht:CredentialExpired,
+                pht:AuthorityRevoked,
+                pht:TransportFailed,
+                pht:ReceiptFailed .
+
+pht:PresentationAccepted a pp:NonDeterministicOutcome .
+pht:ProofFormatRejected a pp:NonDeterministicOutcome .
+pht:CanonicalIdentityDemanded a pp:NonDeterministicOutcome .
+pht:CredentialExpired a pp:NonDeterministicOutcome .
+pht:AuthorityRevoked a pp:NonDeterministicOutcome .
+pht:TransportFailed a pp:NonDeterministicOutcome .
+pht:ReceiptFailed a pp:NonDeterministicOutcome .
+
+pht:AcceptAndReceipt a pp:RecoveryBranch ;
+  pp:recoversFrom pht:PresentationAccepted ;
+  pp:recoveryAction pht:CaptureDisclosureReceipt ;
+  pp:preservesFence pht:PurposeAdmission, pht:DisclosureAuthority .
+
+pht:AlternativeProofFormat a pp:RecoveryBranch ;
+  pp:recoversFrom pht:ProofFormatRejected ;
+  pp:recoveryAction pht:ConstructMinimalProjection ;
+  pp:preservesFence pht:PurposeAdmission, pht:DisclosureAuthority ;
+  rdfs:comment "Construct an alternative already-admitted proof format; do not widen predicate or identity disclosure." .
+
+pht:ReadmitIdentityRequirement a pp:RecoveryBranch ;
+  pp:recoversFrom pht:CanonicalIdentityDemanded ;
+  pp:recoveryAction pht:AdmitPurpose ;
+  pp:preservesFence pht:PurposeAdmission, pht:DisclosureAuthority ;
+  rdfs:comment "Re-admit the relying party's purpose. A demand for canonical identity is not authority to reveal more data." .
+
+pht:ReissueBoundedCredential a pp:RecoveryBranch ;
+  pp:recoversFrom pht:CredentialExpired ;
+  pp:recoveryAction pht:ConstructMinimalProjection ;
+  pp:preservesFence pht:PurposeAdmission, pht:DisclosureAuthority .
+
+pht:RefuseRevokedAuthority a pp:RecoveryBranch ;
+  pp:recoversFrom pht:AuthorityRevoked ;
+  pp:recoveryAction pht:RefuseDisclosure ;
+  pp:terminalStanding es:REFUSED ;
+  pp:preservesFence pht:DisclosureAuthority .
+
+pht:RetryBoundedTransport a pp:RecoveryBranch ;
+  pp:recoversFrom pht:TransportFailed ;
+  pp:recoveryAction pht:PresentProjection ;
+  pp:preservesFence pht:PurposeAdmission, pht:DisclosureAuthority .
+
+pht:BlockUnreceiptedDisclosure a pp:RecoveryBranch ;
+  pp:recoversFrom pht:ReceiptFailed ;
+  pp:recoveryAction pht:BlockStanding ;
+  pp:terminalStanding es:BLOCKED ;
+  rdfs:comment "No receipt means no standing for the disclosure consequence." .
+
+pht:RefuseDisclosure a pp:Refusal .
+pht:BlockStanding a pp:Block .
+
+pht:DisclosureReceipt a es:DisclosureReceipt ;
+  es:recordsProjection pht:InteractionProjection ;
+  es:recordsPurpose pht:PurposeAdmission ;
+  es:recordsAuthorityDecision pht:DisclosureAuthority .
+
+pht:HumanInteractionClosure a pi:PPCXClosure ;
+  pi:initialAdmittedState pht:CurrentAdmittedHumanState ;
+  pi:selectedPolicy pht:DisclosurePolicy ;
+  pi:observedConsequence pht:ObservedInteractionConsequence ;
+  pi:closureEvidence pht:DisclosureReceipt ;
+  pi:nextAdmittedState pht:NextAdmittedHumanState ;
+  pi:closesInteraction pht:ServeHumanInteraction .
+
+pht:ObservedInteractionConsequence a pi:Event .
+
+pht:CurrentAdmittedHumanState a st:AdmittedState .
+pht:NextAdmittedHumanState a st:AdmittedState ;
+  st:admittedFrom pht:CurrentAdmittedHumanState .
