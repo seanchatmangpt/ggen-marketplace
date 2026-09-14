@@ -38,7 +38,8 @@ defmodule MarketplaceCli.MixProject do
       {:ex_noun_verb_cli, path: System.get_env("EX_NOUN_VERB_CLI_PATH", "/Users/sac/ex_noun_verb_cli")},
       {:ggen_igniter, path: System.get_env("GGEN_IGNITER_PATH", "/Users/sac/ggen_igniter")},
       {:igniter, "~> 0.8"},
-      {:jason, "~> 1.4"}
+      {:jason, "~> 1.4"},
+      {:a2a, "~> 0.2.0"}
     ]
   end
 end

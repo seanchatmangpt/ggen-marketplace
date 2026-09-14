@@ -41,4 +41,14 @@ defmodule MarketplaceCliWeb.A2A.MarketplaceAgent do
   # silently no-op a skill invocation). See MarketplaceCliWeb.McpDescriptor
   # for this same capability list's real ash_action bindings, where
   # present, as the source of truth for wiring a skill handler.
+  #
+  # Hand-written glue (not generated, per the pack's own design above):
+  # A2A.Agent requires a real handle_message/2 callback to compile at all.
+  # This stub honestly refuses every message rather than faking dispatch --
+  # none of the three capabilities (search/qualify_pack/consolidate) has a
+  # real backing implementation wired into this consumer app yet.
+  @impl A2A.Agent
+  def handle_message(_message, _context) do
+    {:error, :not_implemented}
+  end
 end
