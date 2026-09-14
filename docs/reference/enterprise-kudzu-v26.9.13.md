@@ -187,6 +187,61 @@ The profile should maximize prior-art reuse from the following capability famili
 
 These are prior-art capability inputs, not new top-level marketplace authorities.
 
+## Real-dependency + adapter convention
+
+Prior to v26.9.13, every `pr:PriorArtAdapter` individual in
+`packs/protocol-integration-pack/enterprise_kudzu.ttl` was pure description:
+`pr:supports` / `pr:integrationMode` / `pr:authorityCeiling` facts about a
+third-party tool or an Ash sibling repo, with zero code, templates, or gates
+touching the file. That Ontology -> Description framing is enough for
+third-party prior art (GraphQL Mesh, Nango, Airbyte, ...) that this profile
+only observes and never depends on. It is not enough for the `ash_*` sibling
+repos this profile can actually pilot a real integration against.
+
+v26.9.13 replaces that framing, for `ash_*` siblings only, with:
+
+**Ontology -> Template -> Real Consumer -> Receipt**
+
+1. **Ontology**: a `pr:PriorArtAdapter` individual admits eight real facts —
+   `pr:realDependencyCoordinate`, `pr:realDependencyApp`,
+   `pr:adapterModuleName`, `pr:adapterModulePath`,
+   `pr:adapterEntrypointModule`, `pr:adapterEntrypointFunction`,
+   `pr:adapterTestModuleName`, `pr:adapterTestPath` — or stays
+   `pr:priorArtFixtureOnly true` (pure observation, no code intended).
+2. **Template**: `packs/protocol-integration-pack/templates/` renders those
+   facts into a real Igniter mix.exs dependency installer
+   (`mix_dep_install.ex.tmpl`), a thin adapter over the real dependency's real
+   function (`adapter.ex.tmpl`), and a real-collaborator ExUnit test
+   (`adapter_test.exs.tmpl`) — never a mock of the dependency.
+3. **Real Consumer**: a generated project actually depends on the real
+   sibling repo (path or hex dependency) and actually compiles/runs the
+   adapter and its test.
+4. **Receipt**: a JSON file at
+   `docs/reference/enterprise-kudzu-pilot-receipts/<slug>.json` records the
+   real command, its real exit code, and which real consumer it ran in.
+   `scripts/verify_enterprise_kudzu_profile.py` refuses the profile until
+   both the eight properties and a passing receipt exist for every `ash_*`
+   sibling individual, and `gates/010_real_dependency_adapter_contract.rq`
+   refuses any non-`priorArtFixtureOnly` individual missing one of the eight
+   properties.
+
+### Pilot status (7 `ash_*` siblings)
+
+| `pr:PriorArtAdapter` individual | Local sibling repo | Real properties admitted | Receipt | Status |
+|---|---|---|---|---|
+| `pr:AshA2ARuntimeAdapters` | `ash_a2a` | yes (source-cited: `lib/ash_a2a/delivery/oban.ex:31-32`) | not yet | PENDING |
+| `pr:AshSurfaceAccessibility` | (accessibility-surface observer, not tied to one sibling) | no | not yet | PENDING |
+| `pr:AshR2RML` | `ash_r2rml` | no | not yet | PENDING |
+| `pr:AshAI` | `ash_ai` | no | not yet | PENDING |
+| `pr:AshExpo` | `ash_expo` | no | not yet | PENDING |
+| `pr:AshPlanningCenter` | `ash_planning_center` | no | not yet | PENDING |
+| `pr:AshEx4pm` | `ash_ex4pm` | no | not yet | PENDING |
+
+All 7 are PENDING as of this cycle — this section establishes the convention
+and the receipt-path contract; the Pilots phase fills in real properties and
+real receipts next, one sibling at a time, each independently verified
+before its row moves off PENDING.
+
 ## Production standing contract
 
 This profile is structurally falsified if any of the following occurs:
