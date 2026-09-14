@@ -9,6 +9,36 @@ pr:supports a rdf:Property .
 pr:integrationMode a rdf:Property .
 pr:authorityCeiling a rdf:Property .
 
+#################################################################
+# Real-dependency + adapter properties (v26.9.13 real-dependency
+# convention). Flat on pr:PriorArtAdapter, not a nested-entity class --
+# each individual binds to exactly one real dependency, so
+# ash-extension-core-pack's richer nested-class machinery (built for
+# ordered/multi-valued Spark DSL entities) would be unjustified
+# complexity here. Admitted as fact, never derived from another
+# property -- same "echo, don't derive" discipline as
+# ash-extension-core-pack's aex:taskModuleName / aex:supportSubdir.
+#################################################################
+
+pr:realDependencyCoordinate a rdf:Property ; rdfs:domain pr:PriorArtAdapter ;
+  rdfs:comment "Literal Elixir mix.exs dependency tuple source, rendered verbatim into the generated consumer's deps list, e.g. \"{:ash_a2a, path: \\\"../ash_a2a\\\"}\" or \"{:ash_a2a, \\\"~> 26.9\\\"}\"." .
+pr:realDependencyApp a rdf:Property ; rdfs:domain pr:PriorArtAdapter ;
+  rdfs:comment "Bare OTP app-name atom text (no leading colon), e.g. \"ash_a2a\" -- needed as its own fact because Igniter.Project.Deps.add_dep/2 and the receipt-file naming convention both need a real atom/slug, not one parsed out of realDependencyCoordinate's free-form tuple text." .
+pr:adapterModuleName a rdf:Property ; rdfs:domain pr:PriorArtAdapter ;
+  rdfs:comment "Target Elixir module for the generated thin adapter, e.g. \"MyApp.Adapters.AshA2ARuntime\"." .
+pr:adapterModulePath a rdf:Property ; rdfs:domain pr:PriorArtAdapter ;
+  rdfs:comment "Target relative file path under a consumer's lib/, e.g. \"lib/my_app/adapters/ash_a2a_runtime.ex\". Explicit and admitted, not derived from adapterModuleName." .
+pr:adapterEntrypointModule a rdf:Property ; rdfs:domain pr:PriorArtAdapter ;
+  rdfs:comment "The real dependency module the adapter calls, e.g. \"AshA2A.Delivery.Oban\" -- source-cited fact, never invented." .
+pr:adapterEntrypointFunction a rdf:Property ; rdfs:domain pr:PriorArtAdapter ;
+  rdfs:comment "Real function name+arity on adapterEntrypointModule, e.g. \"enqueue/3\"." .
+pr:adapterTestModuleName a rdf:Property ; rdfs:domain pr:PriorArtAdapter ;
+  rdfs:comment "Target ExUnit module name, e.g. \"MyApp.Adapters.AshA2ARuntimeTest\"." .
+pr:adapterTestPath a rdf:Property ; rdfs:domain pr:PriorArtAdapter ;
+  rdfs:comment "Target test file path, e.g. \"test/my_app/adapters/ash_a2a_runtime_test.exs\"." .
+pr:priorArtFixtureOnly a rdf:Property ; rdfs:domain pr:PriorArtAdapter ;
+  rdfs:comment "Boolean marker (mirrors ash-extension-core-pack's aex:fixtureOnly idiom): true on a PriorArtAdapter that is a pure third-party-prior-art observation with zero generated code, so gates/010_real_dependency_adapter_contract.rq does not refuse it for missing real-dependency/adapter/test properties. A spec admits real code only by setting the eight properties above and leaving this absent or false." .
+
 pr:OpenAPI a pr:DiscoveryCapability .
 pr:AsyncAPI a pr:DiscoveryCapability .
 pr:GraphQLIntrospection a pr:DiscoveryCapability .
@@ -32,50 +62,159 @@ pr:AsyncDelivery a pr:ConnectorCapability .
 pr:EphemeralTopology a pr:ConnectorCapability .
 pr:RuntimePlacement a pr:ConnectorCapability .
 
+# Pure third-party prior art -- description only, zero generated code.
+# priorArtFixtureOnly exempts these from gates/010's real-dependency
+# requirement.
+
 pr:GraphQLMesh a pr:PriorArtAdapter ;
   pr:supports pr:OpenAPI, pr:GraphQLIntrospection, pr:GRPCReflection, pr:WSDLXSD, pr:OData, pr:JSONSchema, pr:SQLMetadata ;
-  pr:integrationMode "schema-adapter" ; pr:authorityCeiling "OBSERVE" .
+  pr:integrationMode "schema-adapter" ; pr:authorityCeiling "OBSERVE" ;
+  pr:priorArtFixtureOnly true .
 
 pr:APIClarity a pr:PriorArtAdapter ;
   pr:supports pr:HTTPTraffic, pr:OpenAPI ;
-  pr:integrationMode "traffic-observer" ; pr:authorityCeiling "OBSERVE" .
+  pr:integrationMode "traffic-observer" ; pr:authorityCeiling "OBSERVE" ;
+  pr:priorArtFixtureOnly true .
 
 pr:Optic a pr:PriorArtAdapter ;
   pr:supports pr:HTTPTraffic, pr:OpenAPI ;
-  pr:integrationMode "contract-reconstruction" ; pr:authorityCeiling "OBSERVE" .
+  pr:integrationMode "contract-reconstruction" ; pr:authorityCeiling "OBSERVE" ;
+  pr:priorArtFixtureOnly true .
 
 pr:Kiota a pr:PriorArtAdapter ;
   pr:supports pr:OpenAPI ;
-  pr:integrationMode "surface-slicing" ; pr:authorityCeiling "CONSTRUCT" .
+  pr:integrationMode "surface-slicing" ; pr:authorityCeiling "CONSTRUCT" ;
+  pr:priorArtFixtureOnly true .
 
 pr:Nango a pr:PriorArtAdapter ;
   pr:supports pr:Authentication, pr:OAuthRefresh, pr:Pagination, pr:RateLimit, pr:Retry, pr:Webhook ;
-  pr:integrationMode "connector-lifecycle" ; pr:authorityCeiling "CONSTRUCT" .
+  pr:integrationMode "connector-lifecycle" ; pr:authorityCeiling "CONSTRUCT" ;
+  pr:priorArtFixtureOnly true .
 
 pr:Airbyte a pr:PriorArtAdapter ;
   pr:supports pr:Authentication, pr:Pagination, pr:RateLimit, pr:Retry, pr:CursorCheckpoint ;
-  pr:integrationMode "declarative-connector" ; pr:authorityCeiling "CONSTRUCT" .
+  pr:integrationMode "declarative-connector" ; pr:authorityCeiling "CONSTRUCT" ;
+  pr:priorArtFixtureOnly true .
 
 pr:MeltanoSinger a pr:PriorArtAdapter ;
   pr:supports pr:Authentication, pr:Pagination, pr:Retry, pr:CursorCheckpoint ;
-  pr:integrationMode "stateful-extraction" ; pr:authorityCeiling "CONSTRUCT" .
+  pr:integrationMode "stateful-extraction" ; pr:authorityCeiling "CONSTRUCT" ;
+  pr:priorArtFixtureOnly true .
 
 pr:AsyncAPIEcosystem a pr:PriorArtAdapter ;
   pr:supports pr:AsyncAPI, pr:Webhook ;
-  pr:integrationMode "event-protocol" ; pr:authorityCeiling "OBSERVE" .
+  pr:integrationMode "event-protocol" ; pr:authorityCeiling "OBSERVE" ;
+  pr:priorArtFixtureOnly true .
 
 pr:WSO2SoapToRest a pr:PriorArtAdapter ;
   pr:supports pr:WSDLXSD, pr:OpenAPI ;
-  pr:integrationMode "soap-rest-projection" ; pr:authorityCeiling "CONSTRUCT" .
+  pr:integrationMode "soap-rest-projection" ; pr:authorityCeiling "CONSTRUCT" ;
+  pr:priorArtFixtureOnly true .
 
 pr:OpenAPIToMCP a pr:PriorArtAdapter ;
   pr:supports pr:OpenAPI, pr:MCP ;
-  pr:integrationMode "tool-projection" ; pr:authorityCeiling "CONSTRUCT" .
+  pr:integrationMode "tool-projection" ; pr:authorityCeiling "CONSTRUCT" ;
+  pr:priorArtFixtureOnly true .
+
+# ash_* siblings -- local repos this profile pilots a real
+# dependency+adapter+receipt against (v26.9.13 Pilots phase, 2026-09-13).
+# Final standing per individual (see docs/reference/enterprise-kudzu-v26.9.13.md's
+# pilot table and docs/reference/enterprise-kudzu-pilot-receipts/*.json for the
+# real mix.exs/compile/test evidence behind each):
+#   pr:AshSurfaceAccessibility -- ALIVE (real adapter + receipt)
+#   pr:AshA2ARuntimeAdapters   -- ALIVE (real adapter + receipt; pr:supports/
+#                                 integrationMode/authorityCeiling left as the
+#                                 original broader Oban/Group/Presence/FLAME
+#                                 design scope -- only the 8 pointer properties
+#                                 were updated to this pilot's real, narrower
+#                                 AshA2A.Info.capability_index/1 surface)
+#   pr:AshR2RML                -- unchanged, stays pure fixture-only
+#   pr:AshR2RMLSemanticAdapter -- ALIVE (new individual, added alongside AshR2RML)
+#   pr:AshAI                   -- BLOCKED (sibling /Users/sac/ash_ai does not
+#                                 exist on disk); stays priorArtFixtureOnly true
+#   pr:AshExpo                 -- ALIVE (real adapter + receipt)
+#   pr:AshPlanningCenter       -- ALIVE (real adapter + receipt)
+#   pr:AshEx4pm                -- BLOCKED (real compile failure inside the
+#                                 :ex4pm dependency's own Igniter.Mix.Task use,
+#                                 unrelated to ggen-marketplace); stays
+#                                 priorArtFixtureOnly true
 
 pr:AshSurfaceAccessibility a pr:PriorArtAdapter ;
   pr:supports pr:AccessibilityTree ;
-  pr:integrationMode "accessibility-observer" ; pr:authorityCeiling "OBSERVE" .
+  pr:integrationMode "accessibility-observer" ; pr:authorityCeiling "OBSERVE" ;
+  pr:realDependencyCoordinate "{:ash_surface, path: \"/Users/sac/ash_surface\"}" ;
+  pr:realDependencyApp "ash_surface" ;
+  pr:adapterModuleName "KudzuPilotAshSurface.AshSurfaceAdapter" ;
+  pr:adapterModulePath "lib/kudzu_pilot_ash_surface/ash_surface_adapter.ex" ;
+  pr:adapterEntrypointModule "AshSurface" ;
+  pr:adapterEntrypointFunction "from_manifest/2" ;
+  pr:adapterTestModuleName "KudzuPilotAshSurface.AshSurfaceAdapterTest" ;
+  pr:adapterTestPath "test/ash_surface_adapter_test.exs" .
 
 pr:AshA2ARuntimeAdapters a pr:PriorArtAdapter ;
   pr:supports pr:AsyncDelivery, pr:EphemeralTopology, pr:RuntimePlacement ;
-  pr:integrationMode "oban-group-presence-flame" ; pr:authorityCeiling "CONSTRUCT" .
+  pr:integrationMode "oban-group-presence-flame" ; pr:authorityCeiling "CONSTRUCT" ;
+  pr:realDependencyCoordinate "{:ash_a2a, path: \"/Users/sac/ash_a2a\"}" ;
+  pr:realDependencyApp "ash_a2a" ;
+  pr:adapterModuleName "KudzuPilotAshA2a.Adapter" ;
+  pr:adapterModulePath "lib/kudzu_pilot_ash_a2a/adapter.ex" ;
+  pr:adapterEntrypointModule "AshA2A.Info" ;
+  pr:adapterEntrypointFunction "capability_index/1" ;
+  pr:adapterTestModuleName "KudzuPilotAshA2a.AdapterTest" ;
+  pr:adapterTestPath "test/kudzu_pilot_ash_a2a/adapter_test.exs" .
+
+pr:AshR2RML a pr:PriorArtAdapter ;
+  pr:supports pr:SQLMetadata ;
+  pr:integrationMode "rdf-r2rml-projection" ; pr:authorityCeiling "CONSTRUCT" ;
+  pr:priorArtFixtureOnly true .
+
+# Added alongside (not replacing) pr:AshR2RML above -- that individual
+# stays the pure fixture-only description; this is the real pilot's
+# adapter against a different, simpler real API surface
+# (AshR2RML.production_profile/0) that avoided needing a full compiled
+# Ash.Resource/Domain fixture. See docs/reference/enterprise-kudzu-pilot-receipts/ash-r2rml.json.
+pr:AshR2RMLSemanticAdapter a pr:PriorArtAdapter ;
+  pr:supports pr:SQLMetadata ;
+  pr:integrationMode "rdf-r2rml-production-profile-adapter" ; pr:authorityCeiling "CONSTRUCT" ;
+  pr:realDependencyCoordinate "{:ash_r2rml, path: \"/Users/sac/ash_r2rml\"}" ;
+  pr:realDependencyApp "ash_r2rml" ;
+  pr:adapterModuleName "KudzuPilotAshR2rml.R2RMLAdapter" ;
+  pr:adapterModulePath "lib/kudzu_pilot_ash_r2rml/r2rml_adapter.ex" ;
+  pr:adapterEntrypointModule "AshR2RML" ;
+  pr:adapterEntrypointFunction "production_profile/0" ;
+  pr:adapterTestModuleName "KudzuPilotAshR2rml.R2RMLAdapterTest" ;
+  pr:adapterTestPath "test/r2rml_adapter_test.exs" .
+
+pr:AshAI a pr:PriorArtAdapter ;
+  pr:supports pr:MCP ;
+  pr:integrationMode "ash-ai-tool-projection" ; pr:authorityCeiling "CONSTRUCT" ;
+  pr:priorArtFixtureOnly true .
+
+pr:AshExpo a pr:PriorArtAdapter ;
+  pr:supports pr:AccessibilityTree ;
+  pr:integrationMode "expo-runtime-surface" ; pr:authorityCeiling "CONSTRUCT" ;
+  pr:realDependencyCoordinate "{:ash_expo, path: \"../ash_expo\"}" ;
+  pr:realDependencyApp "ash_expo" ;
+  pr:adapterModuleName "KudzuPilotAshExpo.AshExpoAdapter" ;
+  pr:adapterModulePath "lib/kudzu_pilot_ash_expo/ash_expo_adapter.ex" ;
+  pr:adapterEntrypointModule "AshExpo.Manifest" ;
+  pr:adapterEntrypointFunction "build/1" ;
+  pr:adapterTestModuleName "KudzuPilotAshExpo.AshExpoAdapterTest" ;
+  pr:adapterTestPath "test/kudzu_pilot_ash_expo/ash_expo_adapter_test.exs" .
+
+pr:AshPlanningCenter a pr:PriorArtAdapter ;
+  pr:supports pr:Authentication, pr:Pagination, pr:Webhook ;
+  pr:integrationMode "planning-center-connector" ; pr:authorityCeiling "CONSTRUCT" ;
+  pr:realDependencyCoordinate "{:ash_planning_center, path: \"/Users/sac/ash_planning_center\"}" ;
+  pr:realDependencyApp "ash_planning_center" ;
+  pr:adapterModuleName "KudzuPilotAshPlanningCenter.Adapter" ;
+  pr:adapterModulePath "lib/kudzu_pilot_ash_planning_center/adapter.ex" ;
+  pr:adapterEntrypointModule "AshPlanningCenter.Domain" ;
+  pr:adapterEntrypointFunction "list_people/0" ;
+  pr:adapterTestModuleName "KudzuPilotAshPlanningCenter.AdapterTest" ;
+  pr:adapterTestPath "test/kudzu_pilot_ash_planning_center/adapter_test.exs" .
+
+pr:AshEx4pm a pr:PriorArtAdapter ;
+  pr:supports pr:HTTPTraffic ;
+  pr:integrationMode "ex4pm-connector" ; pr:authorityCeiling "CONSTRUCT" ;
+  pr:priorArtFixtureOnly true .

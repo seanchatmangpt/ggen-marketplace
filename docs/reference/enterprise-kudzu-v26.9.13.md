@@ -187,6 +187,69 @@ The profile should maximize prior-art reuse from the following capability famili
 
 These are prior-art capability inputs, not new top-level marketplace authorities.
 
+## Real-dependency + adapter convention
+
+Prior to v26.9.13, every `pr:PriorArtAdapter` individual in
+`packs/protocol-integration-pack/enterprise_kudzu.ttl` was pure description:
+`pr:supports` / `pr:integrationMode` / `pr:authorityCeiling` facts about a
+third-party tool or an Ash sibling repo, with zero code, templates, or gates
+touching the file. That Ontology -> Description framing is enough for
+third-party prior art (GraphQL Mesh, Nango, Airbyte, ...) that this profile
+only observes and never depends on. It is not enough for the `ash_*` sibling
+repos this profile can actually pilot a real integration against.
+
+v26.9.13 replaces that framing, for `ash_*` siblings only, with:
+
+**Ontology -> Template -> Real Consumer -> Receipt**
+
+1. **Ontology**: a `pr:PriorArtAdapter` individual admits eight real facts —
+   `pr:realDependencyCoordinate`, `pr:realDependencyApp`,
+   `pr:adapterModuleName`, `pr:adapterModulePath`,
+   `pr:adapterEntrypointModule`, `pr:adapterEntrypointFunction`,
+   `pr:adapterTestModuleName`, `pr:adapterTestPath` — or stays
+   `pr:priorArtFixtureOnly true` (pure observation, no code intended).
+2. **Template**: `packs/protocol-integration-pack/templates/` renders those
+   facts into a real Igniter mix.exs dependency installer
+   (`mix_dep_install.ex.tmpl`), a thin adapter over the real dependency's real
+   function (`adapter.ex.tmpl`), and a real-collaborator ExUnit test
+   (`adapter_test.exs.tmpl`) — never a mock of the dependency.
+3. **Real Consumer**: a generated project actually depends on the real
+   sibling repo (path or hex dependency) and actually compiles/runs the
+   adapter and its test.
+4. **Receipt**: a JSON file at
+   `docs/reference/enterprise-kudzu-pilot-receipts/<slug>.json` records the
+   real command, its real exit code, and which real consumer it ran in.
+   `scripts/verify_enterprise_kudzu_profile.py` refuses the profile until
+   both the eight properties and a passing receipt exist for every `ash_*`
+   sibling individual, and `gates/010_real_dependency_adapter_contract.rq`
+   refuses any non-`priorArtFixtureOnly` individual missing one of the eight
+   properties.
+
+### Pilot status (7 `ash_*` siblings) — final, 2026-09-13
+
+| `pr:PriorArtAdapter` individual | Local sibling repo | Real properties admitted | Receipt | Status | Chicago test coverage |
+|---|---|---|---|---|---|
+| `pr:AshA2ARuntimeAdapters` | `ash_a2a` | yes — real `AshA2A.Info.capability_index/1` adapter | `docs/reference/enterprise-kudzu-pilot-receipts/ash-a2a.json` | **ALIVE** | 2 → 10 tests (independently re-verified) |
+| `pr:AshSurfaceAccessibility` | `ash_surface` | yes — real `AshSurface.from_manifest/2` adapter | `docs/reference/enterprise-kudzu-pilot-receipts/ash-surface-accessibility.json` | **ALIVE** | 2 → 8 tests (independently re-verified) |
+| `pr:AshR2RML` / `pr:AshR2RMLSemanticAdapter` | `ash_r2rml` | yes, via new `pr:AshR2RMLSemanticAdapter` individual added alongside the original fixture-only `pr:AshR2RML` — real `AshR2RML.production_profile/0` adapter | `docs/reference/enterprise-kudzu-pilot-receipts/ash-r2rml.json` | **ALIVE** | 3 → 9 tests (independently re-verified; corrected from pilot's undercounted 2 → 8 claim — see receipt's `chicago_coverage.discrepancy_found_and_corrected`) |
+| `pr:AshAI` | `ash_ai` | no — stays `pr:priorArtFixtureOnly true` | `docs/reference/enterprise-kudzu-pilot-receipts/ash-ai.json` (records the blocked attempt) | **BLOCKED** — `/Users/sac/ash_ai` does not exist on disk (confirmed via `ls -la /Users/sac/`); no sibling repo to depend on, compile, or adapt against | n/a — no passing adapter to expand coverage on |
+| `pr:AshExpo` | `ash_expo` | yes — real `AshExpo.Manifest.build/1` adapter | `docs/reference/enterprise-kudzu-pilot-receipts/ash-expo.json` | **ALIVE** | 1 → 9 tests (independently re-verified) |
+| `pr:AshPlanningCenter` | `ash_planning_center` | yes — real `AshPlanningCenter.Domain.list_people/0` adapter | `docs/reference/enterprise-kudzu-pilot-receipts/ash-planning-center.json` | **ALIVE** | 2 → 7 tests (independently re-verified) |
+| `pr:AshEx4pm` | `ash_ex4pm` | no — stays `pr:priorArtFixtureOnly true` | `docs/reference/enterprise-kudzu-pilot-receipts/ash-ex4pm.json` (records the blocked attempt) | **BLOCKED** — `mix deps.get` succeeded, but `mix compile` failed with a real, reproduced error one level below `ash_ex4pm` itself, inside its own real (now Hex-published) `:ex4pm` dependency: `lib/mix/tasks/ex4pm.engine.gen.adapter.ex` unconditionally does `use Igniter.Mix.Task` even though `:igniter` is declared `optional: true` in both `mix.exs` files, producing `** (CompileError) ... module Igniter.Mix.Task is not loaded and could not be found`. Defect is in the `ex4pm`/`ash_ex4pm` sibling repos, out of `ggen-marketplace`'s scope to fix. | n/a — no passing adapter to expand coverage on |
+
+**Final: 5 ALIVE, 2 BLOCKED**, each with a real named reason and a receipt
+recording the real evidence — no pilot's status was inferred or assumed.
+
+All 5 ALIVE pilots' Chicago-style (real-collaborator, state-based) test
+coverage was expanded on 2026-09-13 from their original 1-3 tests each to
+7-10 tests each — see each pilot's `chicago_coverage` block in its receipt
+JSON for the exact mock-grep command/result and final `mix test` output.
+All 5 were independently re-verified live in this session (real `grep` +
+real `mix test` re-run against the real scratch pilot apps); one
+discrepancy was found (`ash_r2rml`'s own report undercounted its baseline
+by omitting a pre-existing default app test) and corrected to the real
+observed numbers.
+
 ## Production standing contract
 
 This profile is structurally falsified if any of the following occurs:

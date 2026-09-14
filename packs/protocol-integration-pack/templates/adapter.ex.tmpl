@@ -1,0 +1,33 @@
+---
+to: "{{ adapter_module_path }}"
+for_each: "spec"
+sparql:
+  spec: |
+    PREFIX pr: <https://ggen.dev/ontology/protocol-integration#>
+    SELECT DISTINCT ?adapter_module_path ?adapter_module_name ?adapter_entrypoint_module ?adapter_entrypoint_function WHERE {
+      ?s a pr:PriorArtAdapter ; pr:adapterModulePath ?adapter_module_path ;
+         pr:adapterModuleName ?adapter_module_name ;
+         pr:adapterEntrypointModule ?adapter_entrypoint_module ;
+         pr:adapterEntrypointFunction ?adapter_entrypoint_function .
+      FILTER NOT EXISTS { ?s pr:priorArtFixtureOnly true }
+    }
+---
+{# Thin adapter over a real dependency's real function -- echo-only style,
+   mirrors ash-extension-core-pack/templates/extension.ex.tmpl. This module
+   adds no new semantics: it only forwards to
+   {{ adapter_entrypoint_module }}.{{ adapter_entrypoint_function }}, admitted
+   verbatim from the pr:PriorArtAdapter spec, never invented. #}
+defmodule {{ adapter_module_name }} do
+  @moduledoc """
+  Thin adapter over the real `{{ adapter_entrypoint_module }}.{{ adapter_entrypoint_function }}`.
+  Manufactured by protocol-integration-pack -- do not hand-edit.
+  """
+
+  @spec available?() :: boolean()
+  def available?, do: Code.ensure_loaded?({{ adapter_entrypoint_module }})
+
+  @spec call(term(), keyword()) :: term()
+  def call(command, opts \\ []) do
+    apply({{ adapter_entrypoint_module }}, :{{ adapter_entrypoint_function | split(pat="/") | first }}, [command] ++ opts)
+  end
+end

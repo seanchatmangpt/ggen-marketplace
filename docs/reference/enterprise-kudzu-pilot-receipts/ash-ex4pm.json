@@ -1,0 +1,28 @@
+{
+  "individual": "pr:AshEx4pm",
+  "consumer": "/tmp/kudzu-adapter-pilots/ash_ex4pm/kudzu_pilot_ash_ex4pm (mix new --sup, scratch, outside any git repo)",
+  "command": "mix test",
+  "exit_code": 1,
+  "standing": "BLOCKED",
+  "blocker": "ex4pm-transitive-igniter-compile-failure (matches, but is more precise than, the class of failure ash_kudzu's README names for ash_ex4pm): `mix compile` (and therefore `mix test`, which recompiles first) fails while compiling the real `:ex4pm` dependency itself (ash_ex4pm's own real, now-Hex-published `{:ex4pm, \"== 26.9.9\"}` dependency, pulled in transitively via the `{:ash_ex4pm, path: ...}` path dependency) -- `lib/mix/tasks/ex4pm.engine.gen.adapter.ex:14: use Igniter.Mix.Task` fails with `module Igniter.Mix.Task is not loaded and could not be found`. `igniter` is declared `optional: true` in both ash_ex4pm's and ex4pm's own mix.exs, but ex4pm ships a real `Mix.Tasks.Ex4pm.Engine.Gen.Adapter` module under `lib/mix/tasks/` that unconditionally `use`s `Igniter.Mix.Task` at compile time with no guard -- so `igniter` being merely absent (rather than truly optional) breaks the whole dependency's compile, not just that one mix task. Confirmed real and reproducible: full compiler output captured below, not summarized.",
+  "real_dependency_line_used": "{:ash_ex4pm, path: \"/Users/sac/ash_ex4pm\"}",
+  "commands_run": [
+    { "cmd": "mix new kudzu_pilot_ash_ex4pm --sup", "exit_code": 0 },
+    { "cmd": "mix deps.get", "exit_code": 0 },
+    {
+      "cmd": "mix compile",
+      "exit_code": 1,
+      "stdout_tail": "==> ex4pm\nCompiling 320 files (.ex)\n    error: module Igniter.Mix.Task is not loaded and could not be found\n    │\n 14 │   use Igniter.Mix.Task\n    │   ^^^^^^^^^^^^^^^^^^^^\n    │\n    └─ lib/mix/tasks/ex4pm.engine.gen.adapter.ex:14: Mix.Tasks.Ex4pm.Engine.Gen.Adapter (module)\n\n\n== Compilation error in file lib/mix/tasks/ex4pm.engine.gen.adapter.ex ==\n** (CompileError) lib/mix/tasks/ex4pm.engine.gen.adapter.ex: cannot compile module Mix.Tasks.Ex4pm.Engine.Gen.Adapter (errors have been logged)\n    (elixir 1.19.5) expanding macro: Kernel.use/1\n    lib/mix/tasks/ex4pm.engine.gen.adapter.ex:14: Mix.Tasks.Ex4pm.Engine.Gen.Adapter (module)\ncould not compile dependency :ex4pm, \"mix compile\" failed. Errors may have been logged above. You can recompile this dependency with \"mix deps.compile ex4pm --force\", update it with \"mix deps.update ex4pm\" or clean it with \"mix deps.clean ex4pm\""
+    },
+    {
+      "cmd": "mix test",
+      "exit_code": 1,
+      "stdout_tail": "(same ex4pm compile failure as above -- mix test recompiles the dependency tree first and never reaches the test suite)"
+    }
+  ],
+  "adapter_module_path": null,
+  "adapter_entrypoint": null,
+  "test_file_path": null,
+  "test_pass_fail_counts": null,
+  "note_on_target_individual": "The task text referred to a target individual as pr:AshEx4pmOcelAdapter; the real individual already declared in packs/protocol-integration-pack/enterprise_kudzu.ttl (read at HEAD before writing this receipt) is pr:AshEx4pm, currently pr:priorArtFixtureOnly true, pr:supports pr:HTTPTraffic. This receipt does not promote it -- it stays priorArtFixtureOnly true, since no real adapter/test was reachable. This is a materially different, more specific BLOCKED than ash_kudzu README's prior paraphrase (\"igniter transitive-compile failure\", cited against an older mix.exs state where ex4pm itself was still a path dependency): the exact failure now originates one level deeper, inside the *real, Hex-published* :ex4pm package's own lib/mix/tasks/ex4pm.engine.gen.adapter.ex, not inside ash_ex4pm's own code, and not inside ggen_igniter (ggen_igniter, only: [:dev, :test], was never reached -- compilation failed on :ex4pm first, which is a non-test, non-optional-in-practice dependency of ash_ex4pm itself)."
+}
