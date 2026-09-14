@@ -225,22 +225,20 @@ v26.9.13 replaces that framing, for `ash_*` siblings only, with:
    refuses any non-`priorArtFixtureOnly` individual missing one of the eight
    properties.
 
-### Pilot status (7 `ash_*` siblings)
+### Pilot status (7 `ash_*` siblings) — final, 2026-09-13
 
 | `pr:PriorArtAdapter` individual | Local sibling repo | Real properties admitted | Receipt | Status |
 |---|---|---|---|---|
-| `pr:AshA2ARuntimeAdapters` | `ash_a2a` | yes (source-cited: `lib/ash_a2a/delivery/oban.ex:31-32`) | not yet | PENDING |
-| `pr:AshSurfaceAccessibility` | (accessibility-surface observer, not tied to one sibling) | no | not yet | PENDING |
-| `pr:AshR2RML` | `ash_r2rml` | no | not yet | PENDING |
-| `pr:AshAI` | `ash_ai` | no | not yet | PENDING |
-| `pr:AshExpo` | `ash_expo` | no | not yet | PENDING |
-| `pr:AshPlanningCenter` | `ash_planning_center` | no | not yet | PENDING |
-| `pr:AshEx4pm` | `ash_ex4pm` | no | not yet | PENDING |
+| `pr:AshA2ARuntimeAdapters` | `ash_a2a` | yes — real `AshA2A.Info.capability_index/1` adapter | `docs/reference/enterprise-kudzu-pilot-receipts/ash-a2a.json` | **ALIVE** |
+| `pr:AshSurfaceAccessibility` | `ash_surface` | yes — real `AshSurface.from_manifest/2` adapter | `docs/reference/enterprise-kudzu-pilot-receipts/ash-surface-accessibility.json` | **ALIVE** |
+| `pr:AshR2RML` / `pr:AshR2RMLSemanticAdapter` | `ash_r2rml` | yes, via new `pr:AshR2RMLSemanticAdapter` individual added alongside the original fixture-only `pr:AshR2RML` — real `AshR2RML.production_profile/0` adapter | `docs/reference/enterprise-kudzu-pilot-receipts/ash-r2rml.json` | **ALIVE** |
+| `pr:AshAI` | `ash_ai` | no — stays `pr:priorArtFixtureOnly true` | `docs/reference/enterprise-kudzu-pilot-receipts/ash-ai.json` (records the blocked attempt) | **BLOCKED** — `/Users/sac/ash_ai` does not exist on disk (confirmed via `ls -la /Users/sac/`); no sibling repo to depend on, compile, or adapt against |
+| `pr:AshExpo` | `ash_expo` | yes — real `AshExpo.Manifest.build/1` adapter | `docs/reference/enterprise-kudzu-pilot-receipts/ash-expo.json` | **ALIVE** |
+| `pr:AshPlanningCenter` | `ash_planning_center` | yes — real `AshPlanningCenter.Domain.list_people/0` adapter | `docs/reference/enterprise-kudzu-pilot-receipts/ash-planning-center.json` | **ALIVE** |
+| `pr:AshEx4pm` | `ash_ex4pm` | no — stays `pr:priorArtFixtureOnly true` | `docs/reference/enterprise-kudzu-pilot-receipts/ash-ex4pm.json` (records the blocked attempt) | **BLOCKED** — `mix deps.get` succeeded, but `mix compile` failed with a real, reproduced error one level below `ash_ex4pm` itself, inside its own real (now Hex-published) `:ex4pm` dependency: `lib/mix/tasks/ex4pm.engine.gen.adapter.ex` unconditionally does `use Igniter.Mix.Task` even though `:igniter` is declared `optional: true` in both `mix.exs` files, producing `** (CompileError) ... module Igniter.Mix.Task is not loaded and could not be found`. Defect is in the `ex4pm`/`ash_ex4pm` sibling repos, out of `ggen-marketplace`'s scope to fix. |
 
-All 7 are PENDING as of this cycle — this section establishes the convention
-and the receipt-path contract; the Pilots phase fills in real properties and
-real receipts next, one sibling at a time, each independently verified
-before its row moves off PENDING.
+**Final: 5 ALIVE, 2 BLOCKED**, each with a real named reason and a receipt
+recording the real evidence — no pilot's status was inferred or assumed.
 
 ## Production standing contract
 

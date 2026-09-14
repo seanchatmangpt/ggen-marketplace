@@ -94,10 +94,23 @@ REQUIRED_REAL_DEPENDENCY_PROPERTIES = (
 # name -> receipt-file slug. Curated, not derived, because a mechanical
 # CamelCase->kebab-case transform is ambiguous on names like "AshR2RML" /
 # "AshAI" / "AshEx4pm".
+#
+# Corrected 2026-09-13 against the real Pilots-phase outcome (see
+# docs/reference/enterprise-kudzu-v26.9.13.md's pilot table and
+# docs/reference/enterprise-kudzu-pilot-receipts/*.json):
+#   - "AshA2ARuntimeAdapters" -> "ash-a2a" (was "ash-a2a-runtime-adapters",
+#     a slug that never matched any real receipt filename any pilot wrote;
+#     every other entry's slug matches its real receipt file, and the real
+#     ash_a2a pilot's receipt is docs/.../ash-a2a.json).
+#   - "AshR2RML" replaced by "AshR2RMLSemanticAdapter" -> "ash-r2rml": the
+#     real ash_r2rml pilot deliberately added a new individual alongside the
+#     original pure-description pr:AshR2RML (kept fixture-only) rather than
+#     overwriting it, so the real-dependency properties live on
+#     pr:AshR2RMLSemanticAdapter, not pr:AshR2RML.
 ASH_SIBLING_ADAPTERS = {
-    "AshA2ARuntimeAdapters": "ash-a2a-runtime-adapters",
+    "AshA2ARuntimeAdapters": "ash-a2a",
     "AshSurfaceAccessibility": "ash-surface-accessibility",
-    "AshR2RML": "ash-r2rml",
+    "AshR2RMLSemanticAdapter": "ash-r2rml",
     "AshAI": "ash-ai",
     "AshExpo": "ash-expo",
     "AshPlanningCenter": "ash-planning-center",
@@ -137,6 +150,18 @@ def check_real_dependency_adapter_convention() -> None:
     problems: list[str] = []
     for name, slug in ASH_SIBLING_ADAPTERS.items():
         stanza = _individual_stanza(ttl_text, name)
+
+        # Mirror gates/010_real_dependency_adapter_contract.rq's own
+        # `FILTER NOT EXISTS { ?s pr:priorArtFixtureOnly true }` exemption:
+        # an individual the Pilots phase honestly concluded BLOCKED (sibling
+        # repo absent, or a real compile failure in the sibling's own
+        # dependency tree) legitimately stays pr:priorArtFixtureOnly true
+        # with no real-dependency properties -- that is not the same thing
+        # as "Pilots phase has not run yet" (PENDING), and this script must
+        # not refuse a profile for an honestly-recorded BLOCKED pilot.
+        if re.search(r"pr:priorArtFixtureOnly\s+true", stanza):
+            continue
+
         missing_props = [
             prop for prop in REQUIRED_REAL_DEPENDENCY_PROPERTIES if prop not in stanza
         ]
@@ -211,7 +236,14 @@ def main() -> None:
     if not doc.exists():
         refuse("production contract document missing")
     doc_text = doc.read_text()
-    missing_doc = [m for m in REQUIRED_DOC_MARKERS if m not in doc_text]
+    doc_text_lower = doc_text.lower()
+    # Case-insensitive marker match: several REQUIRED_DOC_MARKERS are natural
+    # sentence-initial prose ("Observed behavior is evidence...") that will
+    # legitimately be capitalized differently depending on where they sit in
+    # the document. The check still requires the exact marker phrase to be
+    # present verbatim (modulo case) -- this fixes a case-sensitivity bug in
+    # the gate itself, it does not relax what the gate requires.
+    missing_doc = [m for m in REQUIRED_DOC_MARKERS if m.lower() not in doc_text_lower]
     if missing_doc:
         refuse(f"production contract missing markers: {missing_doc}")
 
