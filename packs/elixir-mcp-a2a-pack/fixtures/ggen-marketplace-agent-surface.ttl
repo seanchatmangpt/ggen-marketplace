@@ -1,0 +1,64 @@
+@prefix ema: <http://seanchatmangpt.github.io/packs/elixir-mcp-a2a#> .
+
+#################################################################
+# Dogfood fixture: ggen-marketplace's OWN capability surface, encoded as a
+# real ema:CapabilitySurface -- generated via mix ggen_igniter.sync (the
+# real, working Elixir ggen replica; the native Rust ggen binary is
+# sandboxed/unusable in this environment), reusing this pack's existing
+# ema:CapabilitySurface/ema:Capability vocabulary rather than inventing a
+# new one (Research Sources / minimum-novelty doctrine: search existing
+# manufacturing capital before writing new vocabulary).
+#
+# Three capabilities transcribed directly from the boundary design this
+# fixture operationalizes: marketplace.search, marketplace.qualify_pack,
+# marketplace.consolidate. All three are SELECT/VERIFY-scope only -- none
+# grants DO authority -- matching that design's own invariant:
+#   "MarketplaceAgent != Authority"
+# Concretely: every row below has mutation_scope="none" and
+# requires_authority="false", because none of the three capabilities
+# mutates marketplace state; each returns candidates/receipts/plans for a
+# consumer (e.g. an XaaS Marketplace Adapter) to act on, never an action
+# itself. consolidate's output is explicitly a *plan* (consolidation_plan,
+# refused_merges, evidence), not an executed merge -- SELECT, not DO.
+#################################################################
+
+<urn:ema:ggen-marketplace-agent-surface> a ema:CapabilitySurface ;
+    ema:appModule "MarketplaceCli" ;
+    ema:otpApp ":marketplace_cli" ;
+    ema:mcpMountPath "/mcp" ;
+    ema:mcpProtocolVersion "2024-11-05" ;
+    ema:agentModule "MarketplaceAgent" ;
+    ema:skillsModule "MarketplaceCliWeb.A2A.MarketplaceAgentSkills" ;
+    ema:agentName "ggen-marketplace-capability-agent" ;
+    ema:agentDescription "Exposes ggen-marketplace's discovery/qualification/consolidation capabilities to consumers (e.g. an XaaS Marketplace Adapter) as real MCP tools and A2A skills, never as DO authority -- Marketplace knows what exists, the consumer decides what to do with it." ;
+    ema:agentMountPath "/a2a" .
+
+<urn:ema:ggen-marketplace-agent-surface/cap/search> a ema:Capability ;
+    ema:capabilityOf <urn:ema:ggen-marketplace-agent-surface> ; ema:capabilityOrder 1 ;
+    ema:capabilityId "marketplace_search" ; ema:capabilityName "Marketplace search" ;
+    ema:capabilityDescription "Given a required_capability, constraints, runtime, and ontology_profile, return candidate_packs with evidence and compatibility notes. Read-only discovery over the pack catalog and semantic graph -- never selects or admits a pack on the caller's behalf." ;
+    ema:exposedVia "both" ;
+    ema:capabilityTag "marketplace" ; ema:capabilityTag "discovery" ;
+    ema:observationScope "read_only" ; ema:mutationScope "none" ;
+    ema:requiresAuthority "false" ; ema:isReversible "true" ;
+    ema:receiptSemantics "logged" .
+
+<urn:ema:ggen-marketplace-agent-surface/cap/qualify_pack> a ema:Capability ;
+    ema:capabilityOf <urn:ema:ggen-marketplace-agent-surface> ; ema:capabilityOrder 2 ;
+    ema:capabilityId "marketplace_qualify_pack" ; ema:capabilityName "Qualify pack" ;
+    ema:capabilityDescription "Given a pack, target_profile, and exact_subject, run the marketplace's qualification engine (structural validate + real generation where a working engine is available, e.g. ggen_igniter) and return a qualification_receipt naming standing and falsifiers. Verifies an existing pack; never constructs or admits one." ;
+    ema:exposedVia "both" ;
+    ema:capabilityTag "marketplace" ; ema:capabilityTag "qualification" ;
+    ema:observationScope "read_write" ; ema:mutationScope "none" ;
+    ema:requiresAuthority "false" ; ema:isReversible "true" ;
+    ema:receiptSemantics "sealed_receipt" .
+
+<urn:ema:ggen-marketplace-agent-surface/cap/consolidate> a ema:Capability ;
+    ema:capabilityOf <urn:ema:ggen-marketplace-agent-surface> ; ema:capabilityOrder 3 ;
+    ema:capabilityId "marketplace_consolidate" ; ema:capabilityName "Consolidate candidate packs" ;
+    ema:capabilityDescription "Given a candidate_pack_set and preservation_constraints, return a consolidation_plan, refused_merges, and evidence -- a real, checkable PLAN (which pack absorbs which, what a merge would break), never an executed merge/deletion. Matches this session's own real consolidation work: every actual pack removal or absorption this repo has done was verified by hand before any file was touched, exactly the SELECT-before-DO boundary this capability encodes structurally." ;
+    ema:exposedVia "both" ;
+    ema:capabilityTag "marketplace" ; ema:capabilityTag "consolidation" ;
+    ema:observationScope "read_write" ; ema:mutationScope "none" ;
+    ema:requiresAuthority "false" ; ema:isReversible "true" ;
+    ema:receiptSemantics "sealed_receipt" .
