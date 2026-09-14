@@ -1,0 +1,64 @@
+---
+to: "components/deck/EntityDetailPanel.tsx"
+---
+{% raw %}
+"use client";
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import type { DeckEntity, EntityStatus } from "./OpsDeckCanvas";
+
+const STATUS_BADGE_VARIANT: Record<EntityStatus, "default" | "secondary" | "destructive"> = {
+  healthy: "default",
+  degraded: "secondary",
+  down: "destructive",
+};
+
+export interface EntityDetailPanelProps {
+  entity: DeckEntity | null;
+}
+
+/**
+ * Docked detail panel driven purely by deck.gl picking (OpsDeckCanvas's
+ * onPick -> info.object). No separately maintained hit-test.
+ */
+export function EntityDetailPanel({ entity }: EntityDetailPanelProps) {
+  if (!entity) {
+    return (
+      <Card className="w-80">
+        <CardHeader>
+          <CardTitle className="text-sm text-muted-foreground">No selection</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          Hover or click an entity on the canvas to inspect it.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="w-80">
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardTitle className="text-sm">{entity.label}</CardTitle>
+        <Badge variant={STATUS_BADGE_VARIANT[entity.status]}>{entity.status}</Badge>
+      </CardHeader>
+      <CardContent className="space-y-2 text-sm">
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">ID</span>
+          <span className="font-mono">{entity.id}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Metric</span>
+          <span>{entity.metric}</span>
+        </div>
+        <Separator />
+        <div className="text-xs text-muted-foreground">
+          Selected via real deck.gl picking (info.object) — position is not stored
+          separately from the layout map.
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+{% endraw %}

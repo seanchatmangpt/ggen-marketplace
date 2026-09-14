@@ -1,0 +1,86 @@
+---
+to: "soc2/03-CONTROL-MATRIX.md"
+force: true
+sparql:
+  rows: |
+    PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
+    PREFIX skos:    <http://www.w3.org/2004/02/skos/core#>
+    PREFIX prov:    <http://www.w3.org/ns/prov#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    SELECT ?notation ?categoryLabel ?critLabel ?statusNotation ?statusLabel ?owner ?source ?description WHERE {
+      ?concept skos:notation ?notation ; rdfs:label ?critLabel ;
+               skos:broader ?tscCat .
+      ?tscCat skos:inScheme ?tscScheme .
+      ?tscScheme skos:notation "TSC-CATEGORIES" .
+      ?tscCat rdfs:label ?categoryLabel .
+      OPTIONAL {
+        ?record rdf:type prov:Entity ; dcterms:subject ?notation .
+        OPTIONAL {
+          ?record dcterms:type ?statusNotation .
+          OPTIONAL {
+            ?statusConcept skos:notation ?statusNotation ; rdfs:label ?statusLabel ; skos:inScheme ?statusScheme .
+            ?statusScheme skos:notation "IMPL-STATUS" .
+          }
+        }
+        OPTIONAL { ?record dcterms:contributor ?owner . }
+        OPTIONAL { ?record dcterms:source ?source . }
+        OPTIONAL { ?record dcterms:description ?description . }
+      }
+    }
+    ORDER BY ?categoryLabel ?notation
+  totals: |
+    PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    PREFIX skos:    <http://www.w3.org/2004/02/skos/core#>
+    PREFIX prov:    <http://www.w3.org/ns/prov#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    SELECT (COUNT(DISTINCT ?notation) AS ?totalCriteria) (COUNT(DISTINCT ?addressedNotation) AS ?addressedCount) (COUNT(DISTINCT ?testedNotation) AS ?testedCount) WHERE {
+      ?concept skos:notation ?notation ; skos:broader ?tscCat .
+      ?tscCat skos:inScheme ?tscScheme .
+      ?tscScheme skos:notation "TSC-CATEGORIES" .
+      OPTIONAL {
+        ?record rdf:type prov:Entity ; dcterms:subject ?notation .
+        BIND(?notation AS ?addressedNotation)
+        OPTIONAL {
+          ?record dcterms:type "TESTED" .
+          BIND(?notation AS ?testedNotation)
+        }
+      }
+    }
+---
+{% raw %}
+# 03 — Control matrix
+
+The real cross-product: every one of the 28 AICPA Trust Services criteria
+this binder tracks, one row each, **regardless of whether this project has
+supplied evidence for it yet**. A criterion with no fact renders as `NOT
+STARTED` — visible by its presence in this table, not invisible by its
+absence from it.
+
+{% endraw %}{% for t in totals %}**Coverage: {{ t.addressedCount }} / {{ t.totalCriteria }} criteria addressed, {{ t.testedCount }} tested.**
+{% endfor %}
+{% raw %}
+| Criterion | Category | Status | Owner | Source | Notes |
+|---|---|---|---|---|---|
+{% endraw %}{% for row in rows %}| {{ row.notation }}: {{ row.critLabel | truncate(length=60) }} | {{ row.categoryLabel }} | {{ row.statusLabel | default(value="NOT STARTED") }} | {{ row.owner | default(value="—") }} | {{ row.source | default(value="—") }} | {{ row.description | default(value="") }} |
+{% endfor %}
+{% raw %}
+## How to add a row
+
+Assert one `prov:Entity` per criterion in your own `ontology.ttl` (see
+this pack's README for the full shape):
+
+```turtle
+[] a prov:Entity ;
+    dcterms:subject "CC6" ;
+    dcterms:type "TESTED" ;
+    dcterms:contributor "platform-team" ;
+    dcterms:source "platform-console/k8s/rbac.yaml" ;
+    dcterms:description "Namespace-scoped RBAC, verified via cross-tenant access test." .
+```
+
+`dcterms:type` must be one of this pack's `IMPL-STATUS` notations:
+`NOT-STARTED`, `PLANNED`, `IN-PROGRESS`, `IMPLEMENTED`, `TESTED`,
+`EXCEPTION`, `NOT-APPLICABLE`. A criterion with `EXCEPTION` status should
+have a matching row in `07-EXCEPTION-LOG.md`.
+{% endraw %}

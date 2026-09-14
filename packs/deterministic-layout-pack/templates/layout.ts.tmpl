@@ -1,0 +1,78 @@
+---
+to: "lib/layout/computeLayout.ts"
+---
+{% raw %}
+/**
+ * Pure, deterministic entity layout.
+ *
+ * - No Math.random(), no Date.now(), no other non-deterministic source.
+ * - Same set of entity IDs always yields the same coordinate map.
+ * - Callers should memoize on the sorted, joined entity-ID list.
+ */
+
+export interface LayoutEntity {
+  id: string;
+  category?: string;
+}
+
+export type LayoutPosition = [number, number];
+export type LayoutMap = Record<string, LayoutPosition>;
+
+const CELL_SIZE = 80;
+
+/** FNV-1a 32-bit hash, normalized to [0, 1). Deterministic, no external state. */
+export function hashStringToFloat(id: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < id.length; i += 1) {
+    hash ^= id.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  // Unsigned 32-bit, normalized.
+  return (hash >>> 0) / 0xffffffff;
+}
+
+/**
+ * Deterministic grid layout: entities sorted lexicographically by id,
+ * placed left-to-right, top-to-bottom in a ceil(sqrt(n))-column grid.
+ */
+export function computeLayout(entities: LayoutEntity[]): LayoutMap {
+  const sorted = [...entities].sort((a, b) => a.id.localeCompare(b.id));
+  const columns = Math.max(1, Math.ceil(Math.sqrt(sorted.length)));
+  const positions: LayoutMap = {};
+
+  sorted.forEach((entity, index) => {
+    const col = index % columns;
+    const row = Math.floor(index / columns);
+    positions[entity.id] = [col * CELL_SIZE, row * CELL_SIZE];
+  });
+
+  return positions;
+}
+
+/**
+ * Deterministic seeded-scatter layout: for cases where a grid is too rigid.
+ * Each entity's position is derived purely from a hash of its own id —
+ * no simulation, no settling, no randomness.
+ */
+export function computeSeededScatterLayout(
+  entities: LayoutEntity[],
+  width: number,
+  height: number,
+): LayoutMap {
+  const positions: LayoutMap = {};
+  for (const entity of entities) {
+    const hx = hashStringToFloat(`${entity.id}:x`);
+    const hy = hashStringToFloat(`${entity.id}:y`);
+    positions[entity.id] = [hx * width, hy * height];
+  }
+  return positions;
+}
+
+/** Memo key: stable regardless of input array order. */
+export function layoutMemoKey(entities: LayoutEntity[]): string {
+  return entities
+    .map((e) => e.id)
+    .sort()
+    .join(",");
+}
+{% endraw %}

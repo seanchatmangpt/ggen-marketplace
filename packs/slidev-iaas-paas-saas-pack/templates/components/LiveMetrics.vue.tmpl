@@ -1,0 +1,106 @@
+---
+to: "components/LiveMetrics.vue"
+---
+{% raw %}
+<script setup lang="ts">
+import { useLiveData } from "../composables/useLiveData";
+
+export interface RailEntity {
+  id: string;
+  label: string;
+  standing: "CANDIDATE" | "PARTIAL_ALIVE" | "ALIVE" | "REFUSED" | "UNKNOWN";
+}
+
+export interface RailEdge {
+  sourceId: string;
+  targetId: string;
+}
+
+const props = withDefaults(
+  defineProps<{
+    endpoint: string;
+    intervalMs?: number;
+  }>(),
+  { intervalMs: 5000 },
+);
+
+const { entities, isLoading, error, refresh } = useLiveData<RailEntity, RailEdge>(
+  props.endpoint,
+  props.intervalMs,
+);
+
+const standingColor: Record<RailEntity["standing"], string> = {
+  CANDIDATE: "#94a3b8",
+  PARTIAL_ALIVE: "#eab308",
+  ALIVE: "#22c55e",
+  REFUSED: "#ef4444",
+  UNKNOWN: "#64748b",
+};
+</script>
+
+<template>
+  <div class="live-metrics">
+    <div v-if="isLoading && entities.length === 0" class="state">
+      Loading live data from {{ endpoint }}…
+    </div>
+    <div v-else-if="error" class="state error">
+      Failed to load {{ endpoint }}: {{ error.message }}
+      <button @click="refresh">Retry</button>
+    </div>
+    <div v-else-if="entities.length === 0" class="state">
+      No rails reported by {{ endpoint }} yet.
+    </div>
+    <table v-else class="rail-table">
+      <thead>
+        <tr>
+          <th>Rail</th>
+          <th>Standing</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="entity in entities" :key="entity.id">
+          <td>{{ entity.label }}</td>
+          <td>
+            <span
+              class="badge"
+              :style="{ backgroundColor: standingColor[entity.standing] }"
+            >
+              {{ entity.standing }}
+            </span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</template>
+
+<style scoped>
+.live-metrics {
+  font-size: 0.95rem;
+}
+.state {
+  opacity: 0.7;
+  padding: 1rem 0;
+}
+.state.error {
+  color: #ef4444;
+}
+.rail-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.rail-table th,
+.rail-table td {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+}
+.badge {
+  color: white;
+  padding: 0.15rem 0.5rem;
+  border-radius: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+</style>
+{% endraw %}

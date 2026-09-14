@@ -1,0 +1,152 @@
+---
+to: "components/deck/OpsDeckCanvas.tsx"
+---
+{% raw %}
+"use client";
+
+import { useMemo } from "react";
+import DeckGL from "@deck.gl/react";
+import { OrthographicView, type OrthographicViewState } from "@deck.gl/core";
+import { ScatterplotLayer, ArcLayer, TextLayer } from "@deck.gl/layers";
+import { computeLayout, type LayoutEntity } from "@/lib/layout/computeLayout";
+
+/** Real status enum — never a fabricated good/bad binary. */
+export type EntityStatus = "healthy" | "degraded" | "down";
+
+export interface DeckEntity extends LayoutEntity {
+  id: string;
+  label: string;
+  status: EntityStatus;
+  /** A real metric driving marker radius (e.g. request rate, queue depth). */
+  metric: number;
+}
+
+export interface DeckEdge {
+  sourceId: string;
+  targetId: string;
+  /** A real observed weight (e.g. call volume) — determines arc width. */
+  weight: number;
+  direction: "outbound" | "inbound";
+}
+
+/** Fixed, documented status -> RGBA lookup. Never an unseeded scaleOrdinal. */
+export const STATUS_COLOR: Record<EntityStatus, [number, number, number, number]> = {
+  healthy: [34, 197, 94, 220], // emerald-500
+  degraded: [234, 179, 8, 220], // amber-500
+  down: [239, 68, 68, 220], // red-500
+};
+
+export interface OpsDeckCanvasProps {
+  entities: DeckEntity[];
+  edges: DeckEdge[];
+  onPick?: (entity: DeckEntity | null) => void;
+  width?: number;
+  height?: number;
+}
+
+function computeBounds(positions: [number, number][]) {
+  if (positions.length === 0) {
+    return { minX: 0, minY: 0, maxX: 1, maxY: 1 };
+  }
+  const xs = positions.map((p) => p[0]);
+  const ys = positions.map((p) => p[1]);
+  return {
+    minX: Math.min(...xs),
+    minY: Math.min(...ys),
+    maxX: Math.max(...xs),
+    maxY: Math.max(...ys),
+  };
+}
+
+export function OpsDeckCanvas({
+  entities,
+  edges,
+  onPick,
+  width = 960,
+  height = 640,
+}: OpsDeckCanvasProps) {
+  const layout = useMemo(() => computeLayout(entities), [entities]);
+
+  const positioned = useMemo(
+    () =>
+      entities.map((entity) => ({
+        ...entity,
+        position: layout[entity.id] ?? [0, 0],
+      })),
+    [entities, layout],
+  );
+
+  const arcs = useMemo(
+    () =>
+      edges
+        .filter((edge) => layout[edge.sourceId] && layout[edge.targetId])
+        .map((edge) => ({
+          ...edge,
+          sourcePosition: layout[edge.sourceId],
+          targetPosition: layout[edge.targetId],
+        })),
+    [edges, layout],
+  );
+
+  const bounds = useMemo(
+    () => computeBounds(Object.values(layout)),
+    [layout],
+  );
+
+  const initialViewState: OrthographicViewState = useMemo(() => {
+    const spanX = Math.max(1, bounds.maxX - bounds.minX);
+    const spanY = Math.max(1, bounds.maxY - bounds.minY);
+    const zoom = Math.log2(Math.min(width / spanX, height / spanY, 4));
+    return {
+      target: [(bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2, 0],
+      zoom: Number.isFinite(zoom) ? zoom : 0,
+    };
+  }, [bounds, width, height]);
+
+  const layers = [
+    new ArcLayer<(typeof arcs)[number]>({
+      id: "ops-edges",
+      data: arcs,
+      getSourcePosition: (d) => d.sourcePosition,
+      getTargetPosition: (d) => d.targetPosition,
+      getWidth: (d) => Math.max(1, Math.log2(d.weight + 1)),
+      getSourceColor: (d) => (d.direction === "outbound" ? [59, 130, 246, 160] : [148, 163, 184, 120]),
+      getTargetColor: (d) => (d.direction === "outbound" ? [59, 130, 246, 60] : [148, 163, 184, 60]),
+    }),
+    new ScatterplotLayer<(typeof positioned)[number]>({
+      id: "ops-entities",
+      data: positioned,
+      pickable: true,
+      getPosition: (d) => d.position,
+      getRadius: (d) => 6 + Math.sqrt(Math.max(0, d.metric)),
+      getFillColor: (d) => STATUS_COLOR[d.status],
+      onClick: (info) => onPick?.((info.object as DeckEntity) ?? null),
+      // Only forward real hover targets; never clear a click-based selection
+      // just because the pointer left the canvas or moved over empty space.
+      onHover: (info) => {
+        if (info.object) {
+          onPick?.(info.object as DeckEntity);
+        }
+      },
+    }),
+    new TextLayer<(typeof positioned)[number]>({
+      id: "ops-labels",
+      data: positioned,
+      getPosition: (d) => [d.position[0] + 6 + Math.sqrt(Math.max(0, d.metric)), d.position[1] + 8],
+      getText: (d) => d.label,
+      getSize: 12,
+      getColor: [226, 232, 240, 255], // theme foreground
+    }),
+  ];
+
+  return (
+    <DeckGL
+      views={new OrthographicView()}
+      initialViewState={initialViewState}
+      controller
+      layers={layers}
+      style={{ width, height, position: "relative" }}
+    />
+  );
+}
+{% endraw %}

@@ -1,0 +1,21 @@
+# MESSAGE: every MappingRule that targets an OCELEvent.relationships field must name a qualifier
+# in its derivation text, and every MappingRule targeting an OCELObject must name a concrete
+# object_type in its targetField -- an event-to-object mapping without a named qualifier or an
+# object without a named type is not a valid OCEL v2 E2O/O2O link, it is an unattributed guess.
+# Any returned row is refused.
+PREFIX rdf:      <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX otelocel: <https://chatmangpt.com/ontology/otel-weaver-ocel#>
+SELECT ?rule ?targetField ?derivation WHERE {
+  ?rule a otelocel:MappingRule ;
+    otelocel:targetField ?targetField ;
+    otelocel:derivation ?derivation .
+  {
+    FILTER(CONTAINS(STR(?targetField), "relationships"))
+    FILTER(!REGEX(STR(?derivation), "qualifier\\s+is\\s+[a-zA-Z_]+", "i"))
+  }
+  UNION
+  {
+    FILTER(CONTAINS(STR(?targetField), "OCELObject"))
+    FILTER(!REGEX(STR(?targetField), "object_type\\s+[a-zA-Z_]+", "i"))
+  }
+}

@@ -1,0 +1,47 @@
+---
+to: "soc2/06-ENGAGEMENT-TIMELINE.md"
+force: true
+sparql:
+  phases: |
+    PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
+    PREFIX skos:    <http://www.w3.org/2004/02/skos/core#>
+    PREFIX prov:    <http://www.w3.org/ns/prov#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    SELECT ?notation ?phaseLabel ?status ?startDate ?endDate ?notes WHERE {
+      ?concept skos:notation ?notation ; rdfs:label ?phaseLabel ;
+               skos:inScheme ?scheme .
+      ?scheme skos:notation "SOC2-AUDIT-PHASES" .
+      OPTIONAL {
+        ?record rdf:type prov:Activity ; dcterms:subject ?notation ; skos:notation "PHASE-STATUS" .
+        OPTIONAL { ?record skos:prefLabel ?status . }
+        OPTIONAL { ?record prov:startedAtTime ?startDate . }
+        OPTIONAL { ?record prov:endedAtTime ?endDate . }
+        OPTIONAL { ?record dcterms:description ?notes . }
+      }
+    }
+    ORDER BY ?notation
+---
+{% raw %}
+# 06 — Engagement timeline
+
+All 10 phases of a real SOC2 Type II engagement lifecycle, in order. A
+phase with no fact renders `NOT STARTED` — the timeline is complete by
+construction, not by how much the consumer has filled in.
+
+| # | Phase | Status | Started | Ended | Notes |
+|---|---|---|---|---|---|
+{% endraw %}{% for row in phases %}| {{ row.notation }} | {{ row.phaseLabel }} | {{ row.status | default(value="NOT STARTED") }} | {{ row.startDate | default(value="—") }} | {{ row.endDate | default(value="—") }} | {{ row.notes | default(value="") }} |
+{% endfor %}
+{% raw %}
+## How to update a phase
+
+```turtle
+[] a prov:Activity ;
+    dcterms:subject "AUDIT-OE-TESTING" ;
+    skos:notation "PHASE-STATUS" ;
+    skos:prefLabel "in progress" ;
+    prov:startedAtTime "2026-08-01"^^xsd:date ;
+    dcterms:description "Operating-effectiveness testing underway for CC6, CC7." .
+```
+{% endraw %}
