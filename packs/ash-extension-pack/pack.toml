@@ -1,0 +1,42 @@
+[pack]
+name = "ash-extension-pack"
+version = "0.1.0"
+description = """
+Consolidates ash-extension-core-pack and ash-extension-starter-pack into one canonical
+pack. This pack supersedes both source packs' own further development; the two source
+packs are left on disk unmodified (not deleted, not edited) by this consolidation.
+
+Two real conflicts this consolidation resolves, both surfaced by reading the two source
+ontologies and pack.toml files in full rather than by summary:
+
+1. **Competing reactor_pipeline templates targeting the same output path.**
+   ash-extension-core-pack's `templates/reactor_pipeline.ex.tmpl` hardcodes ash_r2rml's
+   own fixed five-step pipeline body (compile_resources -> verify_alignment/
+   evaluate_differential -> attach_provenance -> apply_policy -> render_r2rml_turtle).
+   ash-extension-starter-pack's `templates/reactor_pipeline_dynamic.ex.tmpl` generates an
+   arbitrary spec-declared step DAG from `aex:ReactorStep` rows and would write the same
+   generated module path for any spec that opts into `aex:workflowReactor`. Resolution:
+   starter-pack's dynamic, query-gated template is the sole winner going forward -- it is
+   a strict generalization (a spec with zero `aex:ReactorStep` rows and `workflowReactor
+   = true` is the one case core-pack's fixed template covered that the dynamic template
+   does not automatically reproduce, since the dynamic template needs step rows to render
+   anything). Core-pack's fixed five-step template is retired and NOT carried into this
+   pack at all.
+2. **The `aex:workflowReactor` vs `aex:generatesReceiptedAction` boundary.** These are
+   independent, composable capabilities, not a hierarchy or mutual exclusion -- a spec may
+   set either, both, or neither. `aex:workflowReactor` is a plain opt-in Reactor pipeline
+   (steps + optional compensate/undo). `aex:generatesReceiptedAction` layers an
+   idempotency-key-gated admission step, a sealed receipt entity, and a deterministic
+   replay path around that pipeline. This ontology's comment block near both properties
+   states this explicitly (see ontology.ttl), resolving a real boundary that was
+   previously underspecified across the two source packs.
+
+Verification for this pack goes through ggen_igniter's real oxigraph+WASM-Tera renderer
+(`packs/ash-extension-pack/verify/render_check.exs`, run via `cd ~/ggen_igniter && mix run
+<path>`), NOT the real Rust `ggen sync run` binary. Both source packs already disclosed
+(errc-tracker.md Cycle 3 addendum, this pack's own errc-tracker.md) that the Rust binary
+is blocked for this exact case: [FM-PACK-001]/[FM-PACK-002], ggen 26.8.28 hardcodes
+`/workspace` for `[packs]` path resolution regardless of actual cwd. That blocker is NOT
+fixed by this consolidation -- it is a pre-existing environment issue, reproduced against
+an unmodified, unrelated fixture pack in the prior cycle, and remains open here.
+"""

@@ -1,0 +1,23 @@
+# MESSAGE: every aex:AshExtensionSpec with aex:dualLevelFixture="true" must have a
+# well-formed aex:extensionTarget in the same closed "resource"|"domain" set gate 1
+# (010_required_extension_contract.rq) already enforces for every spec -- re-confirming
+# that closure specifically for dual-fixture specs, since a dual-level fixture's
+# resource+domain compilation only makes sense against a spec whose own single
+# extensionTarget value is itself legal. Any row = a violation.
+PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+
+SELECT ?s ?missing WHERE {
+  {
+    # dualLevelFixture=true but extensionTarget is missing entirely
+    ?s a aex:AshExtensionSpec ; aex:dualLevelFixture true .
+    FILTER NOT EXISTS { ?s aex:extensionTarget ?any }
+    BIND(aex:extensionTarget AS ?missing)
+  }
+  UNION {
+    # dualLevelFixture=true but extensionTarget is out of the closed resource|domain set
+    ?s a aex:AshExtensionSpec ; aex:dualLevelFixture true ; aex:extensionTarget ?value .
+    FILTER (?value != "resource" && ?value != "domain")
+    BIND(aex:extensionTarget AS ?missing)
+  }
+}
+ORDER BY ?s ?missing
