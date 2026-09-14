@@ -1,0 +1,39 @@
+# MESSAGE: every aex:ReactorStep's parent aex:AshExtensionSpec must have
+# aex:workflowReactor="true" OR aex:generatesReceiptedAction="true" (a step graph
+# with neither capability enabled on its parent spec is a real, checkable authoring
+# error). Among a spec's own aex:ReactorStep rows, exactly one row must have
+# aex:stepIsReturn="true" -- zero or more than one is a real, checkable defect (see
+# ontology.ttl's aex:stepIsReturn comment). Any row = a violation.
+PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+
+SELECT ?s ?missing WHERE {
+  {
+    # every ReactorStep's parent spec must opt into workflowReactor or generatesReceiptedAction
+    ?step a aex:ReactorStep ; aex:stepOf ?spec .
+    FILTER NOT EXISTS { ?spec aex:workflowReactor true }
+    FILTER NOT EXISTS { ?spec aex:generatesReceiptedAction true }
+    BIND(?spec AS ?s)
+    BIND(aex:workflowReactor AS ?missing)
+  }
+  UNION {
+    # a spec with zero aex:stepIsReturn="true" rows among its own ReactorSteps
+    SELECT ?s (aex:stepIsReturn AS ?missing) WHERE {
+      ?s a aex:AshExtensionSpec .
+      FILTER EXISTS { ?step0 a aex:ReactorStep ; aex:stepOf ?s }
+      FILTER NOT EXISTS {
+        ?step1 a aex:ReactorStep ; aex:stepOf ?s ; aex:stepIsReturn true .
+      }
+    }
+  }
+  UNION {
+    # a spec with more than one aex:stepIsReturn="true" row among its own ReactorSteps
+    SELECT ?s (aex:stepIsReturn AS ?missing) WHERE {
+      ?s a aex:AshExtensionSpec .
+      ?step2 a aex:ReactorStep ; aex:stepOf ?s ; aex:stepIsReturn true .
+      ?step3 a aex:ReactorStep ; aex:stepOf ?s ; aex:stepIsReturn true .
+      FILTER (?step2 != ?step3)
+    }
+    GROUP BY ?s
+  }
+}
+ORDER BY ?s ?missing

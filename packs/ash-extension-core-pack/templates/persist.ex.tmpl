@@ -1,10 +1,11 @@
 ---
-to: "lib/{{ package_name }}/persist.ex"
+to: "lib/{{ package_name }}/{% if support_subdir %}{{ support_subdir }}/{% endif %}persist.ex"
 for_each: "spec"
 sparql:
   spec: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
     SELECT DISTINCT ?package_name ?module_name
+           (SAMPLE(?support_subdir_value) AS ?support_subdir)
            (SAMPLE(?context_normalize) AS ?context_normalize)
            (SAMPLE(?context_target_entity) AS ?context_target_entity)
            (SAMPLE(?context_target_field) AS ?context_target_field)
@@ -13,6 +14,8 @@ sparql:
            (SAMPLE(?provenance_source) AS ?provenance_source)
     WHERE {
       ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ; aex:moduleName ?module_name .
+      FILTER NOT EXISTS { ?s aex:fixtureOnly true }
+      OPTIONAL { ?s aex:supportSubdir ?support_subdir_value }
       OPTIONAL { ?s aex:contextNormalize ?context_normalize }
       OPTIONAL { ?s aex:contextTargetEntity ?context_target_entity }
       OPTIONAL { ?s aex:contextTargetField ?context_target_field }
@@ -22,12 +25,17 @@ sparql:
     } GROUP BY ?package_name ?module_name
   sections: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?section_name WHERE { ?s a aex:DslSection ; aex:sectionName ?section_name . }
-    ORDER BY ?section_name
+    SELECT ?package_name ?section_name WHERE {
+      ?section a aex:DslSection ; aex:sectionOf ?spec ; aex:sectionName ?section_name .
+      ?spec aex:packageName ?package_name .
+    }
+    ORDER BY ?package_name ?section_name
   after_transformers: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT DISTINCT ?after_transformer WHERE { ?s a aex:AshExtensionSpec ; aex:afterTransformer ?after_transformer . }
-    ORDER BY ?after_transformer
+    SELECT DISTINCT ?package_name ?after_transformer WHERE {
+      ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ; aex:afterTransformer ?after_transformer .
+    }
+    ORDER BY ?package_name ?after_transformer
 ---
 {# Derive/Normalize transformer -- mirrors ash_r2rml/lib/ash_r2rml/resource.ex's
    AshR2RML.Resource.Persist: reads the raw DSL entities for each section, normalizes
@@ -43,16 +51,18 @@ sparql:
      `@spark_is` module attribute, fill in the target-context field on resource-local
      declarations, reject an explicit value at resource level, require one at domain
      level (gated on aex:contextNormalize). #}
+{% set sections_for_spec = sections | filter(attribute="package_name", value=package_name) %}
+{% set after_transformers_for_spec = after_transformers | filter(attribute="package_name", value=package_name) %}
 defmodule {{ module_name }}.Persist do
   @moduledoc """
-  Transformer for `{{ package_name }}`: normalizes the raw `{% for s in sections %}:{{ s.section_name }}{% if not loop.last %}, {% endif %}{% endfor %}`
+  Transformer for `{{ package_name }}`: normalizes the raw `{% for s in sections_for_spec %}:{{ s.section_name }}{% if not loop.last %}, {% endif %}{% endfor %}`
   DSL entities into a compiled struct and persists it as `:{{ package_name }}_compiled`.
   """
   use Spark.Dsl.Transformer
 
-{% if after_transformers | length > 0 %}
+{% if after_transformers_for_spec | length > 0 %}
   @impl true
-{% for t in after_transformers %}
+{% for t in after_transformers_for_spec %}
   def after?({{ t.after_transformer }}), do: true
 {% endfor %}
   def after?(_), do: false
@@ -95,12 +105,12 @@ defmodule {{ module_name }}.Persist do
       end)
 
 {% endif %}
-{% for s in sections %}
+{% for s in sections_for_spec %}
     {{ s.section_name }}_entities = Spark.Dsl.Transformer.get_entities(dsl_state, [:{{ s.section_name }}])
 {% endfor %}
 
     compiled = %{
-{% for s in sections %}      {{ s.section_name }}: {{ s.section_name }}_entities,
+{% for s in sections_for_spec %}      {{ s.section_name }}: {{ s.section_name }}_entities,
 {% endfor %}{% if provenance_source %}      metadata: %{source: :{{ provenance_source }}},
 {% endif %}    }
 {% if normalize_module and normalize_function %}

@@ -6,12 +6,16 @@ sparql:
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
     SELECT DISTINCT ?package_name ?module_name (SAMPLE(?dual_level_fixture) AS ?dual_level_fixture) WHERE {
       ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ; aex:moduleName ?module_name .
+      FILTER NOT EXISTS { ?s aex:fixtureOnly true }
       OPTIONAL { ?s aex:dualLevelFixture ?dual_level_fixture }
     } GROUP BY ?package_name ?module_name
   targets: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?composition_target WHERE { ?c a aex:CompositionTarget ; aex:compositionTarget ?composition_target . }
-    ORDER BY ?composition_target
+    SELECT ?package_name ?composition_target WHERE {
+      ?c a aex:CompositionTarget ; aex:compositionOf ?spec ; aex:compositionTarget ?composition_target .
+      ?spec aex:packageName ?package_name .
+    }
+    ORDER BY ?package_name ?composition_target
 ---
 {# Composition test -- mirrors ash_r2rml/test/ggen_api_bundle_test.exs: compile a real
    fixture resource with the generated extension attached via Code.compile_string/1,
@@ -25,6 +29,7 @@ sparql:
    lib/xaas/library/book.ex:36 Xaas.Library.Book resource both stacking AshAi
    alongside 2-3 other extensions) -- proving co-residence with multiple extensions
    at both levels, not just isolated single-extension compilation. #}
+{% set targets_for_spec = targets | filter(attribute="package_name", value=package_name) %}
 defmodule {{ module_name }}CompositionTest do
   use ExUnit.Case, async: true
 
@@ -32,7 +37,7 @@ defmodule {{ module_name }}CompositionTest do
   defmodule {{ package_name | capitalize }}CompositionFixture do
     use Ash.Resource,
       domain: nil,
-      extensions: [{{ module_name }}{% for t in targets %}, {{ t.composition_target | capitalize }}.Resource{% endfor %}]
+      extensions: [{{ module_name }}{% for t in targets_for_spec %}, {{ t.composition_target | capitalize }}.Resource{% endfor %}]
 
     attributes do
       uuid_primary_key :id
@@ -44,7 +49,7 @@ defmodule {{ module_name }}CompositionTest do
   @domain_fixture_source """
   defmodule {{ package_name | capitalize }}CompositionDomainFixture do
     use Ash.Domain,
-      extensions: [{{ module_name }}{% for t in targets %}, {{ t.composition_target | capitalize }}.Domain{% endfor %}]
+      extensions: [{{ module_name }}{% for t in targets_for_spec %}, {{ t.composition_target | capitalize }}.Domain{% endfor %}]
 
     resources do
     end
@@ -71,18 +76,17 @@ defmodule {{ module_name }}CompositionTest do
   end
 
 {% if dual_level_fixture | default(value="false") == "true" %}
-  test "the compiled DOMAIN fixture also carries the {{ module_name }} extension, co-resident with {{ targets | length }} other extension(s)", %{domain_fixture: domain_fixture} do
+  test "the compiled DOMAIN fixture also carries the {{ module_name }} extension, co-resident with {{ targets_for_spec | length }} other extension(s)", %{domain_fixture: domain_fixture} do
     assert {{ module_name }} in Spark.extensions(domain_fixture)
-{% for t in targets %}
+{% for t in targets_for_spec %}
     assert {{ t.composition_target | capitalize }}.Domain in Spark.extensions(domain_fixture)
 {% endfor %}
   end
 
 {% endif %}
-{% for t in targets %}
+{% for t in targets_for_spec %}
   @tag :{{ t.composition_target }}
   test "composes with real {{ t.composition_target }} introspection", %{fixture: fixture} do
-    # Real Info-module call against the fixture -- not a stubbed/mocked response.
     assert function_exported?({{ t.composition_target | capitalize }}.Resource.Info, :type, 1)
   end
 {% endfor %}

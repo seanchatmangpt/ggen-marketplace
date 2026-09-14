@@ -1,22 +1,26 @@
 ---
-to: "lib/{{ package_name }}/verify.ex"
+to: "lib/{{ package_name }}/{% if support_subdir %}{{ support_subdir }}/{% endif %}verify.ex"
 for_each: "spec"
 sparql:
   spec: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
     SELECT DISTINCT ?package_name ?module_name
+           (SAMPLE(?support_subdir_value) AS ?support_subdir)
            (SAMPLE(?validate_delegate_module) AS ?validate_delegate_module)
            (SAMPLE(?validate_delegate_function) AS ?validate_delegate_function)
     WHERE {
       ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ; aex:moduleName ?module_name .
+      FILTER NOT EXISTS { ?s aex:fixtureOnly true }
+      OPTIONAL { ?s aex:supportSubdir ?support_subdir_value }
       OPTIONAL { ?s aex:validateDelegateModule ?validate_delegate_module }
       OPTIONAL { ?s aex:validateDelegateFunction ?validate_delegate_function }
     } GROUP BY ?package_name ?module_name
   verifiers: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?verifier_name ?verifier_doc WHERE {
-      ?v a aex:Verifier ; aex:verifierName ?verifier_name ; aex:verifierDoc ?verifier_doc .
-    } ORDER BY ?verifier_name
+    SELECT ?package_name ?verifier_name ?verifier_doc WHERE {
+      ?v a aex:Verifier ; aex:verifierOf ?spec ; aex:verifierName ?verifier_name ; aex:verifierDoc ?verifier_doc .
+      ?spec aex:packageName ?package_name .
+    } ORDER BY ?package_name ?verifier_name
 ---
 {# Legality verifier -- mirrors ash_r2rml/lib/ash_r2rml/resource.ex's
    AshR2RML.Resource.Verify: asserts the transformer's persisted compiled struct exists,
@@ -24,9 +28,10 @@ sparql:
    instead of silently accepting an invalid  One private function stub per
    aex:Verifier -- fill in the real check; the stub itself is a real, honest TODO marker,
    never a fake always-true placeholder passed off as done. #}
+{% set verifiers_for_spec = verifiers | filter(attribute="package_name", value=package_name) %}
 defmodule {{ module_name }}.Verify do
   @moduledoc """
-  Verifier for `{{ package_name }}`: enforces {{ verifiers | length }} legality
+  Verifier for `{{ package_name }}`: enforces {{ verifiers_for_spec | length }} legality
   constraint(s) against the compiled `:{{ package_name }}_compiled` state.
   """
   use Spark.Dsl.Verifier
@@ -57,8 +62,8 @@ defmodule {{ module_name }}.Verify do
                path: []
              )}
         end
-{% elif verifiers | length > 0 %}
-        with {% for v in verifiers %}:ok <- check_{{ v.verifier_name }}(compiled){% if not loop.last %},
+{% elif verifiers_for_spec | length > 0 %}
+        with {% for v in verifiers_for_spec %}:ok <- check_{{ v.verifier_name }}(compiled){% if not loop.last %},
              {% endif %}{% endfor %} do
           :ok
         end
@@ -72,7 +77,7 @@ defmodule {{ module_name }}.Verify do
   end
 
 {% if not validate_delegate_module or not validate_delegate_function %}
-{% for v in verifiers %}
+{% for v in verifiers_for_spec %}
   # {{ v.verifier_doc }}
   defp check_{{ v.verifier_name }}(_compiled) do
     # TODO: implement the real "{{ v.verifier_name }}" constraint against `compiled`.
