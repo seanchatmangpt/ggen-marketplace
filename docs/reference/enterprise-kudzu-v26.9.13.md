@@ -227,18 +227,28 @@ v26.9.13 replaces that framing, for `ash_*` siblings only, with:
 
 ### Pilot status (7 `ash_*` siblings) — final, 2026-09-13
 
-| `pr:PriorArtAdapter` individual | Local sibling repo | Real properties admitted | Receipt | Status |
-|---|---|---|---|---|
-| `pr:AshA2ARuntimeAdapters` | `ash_a2a` | yes — real `AshA2A.Info.capability_index/1` adapter | `docs/reference/enterprise-kudzu-pilot-receipts/ash-a2a.json` | **ALIVE** |
-| `pr:AshSurfaceAccessibility` | `ash_surface` | yes — real `AshSurface.from_manifest/2` adapter | `docs/reference/enterprise-kudzu-pilot-receipts/ash-surface-accessibility.json` | **ALIVE** |
-| `pr:AshR2RML` / `pr:AshR2RMLSemanticAdapter` | `ash_r2rml` | yes, via new `pr:AshR2RMLSemanticAdapter` individual added alongside the original fixture-only `pr:AshR2RML` — real `AshR2RML.production_profile/0` adapter | `docs/reference/enterprise-kudzu-pilot-receipts/ash-r2rml.json` | **ALIVE** |
-| `pr:AshAI` | `ash_ai` | no — stays `pr:priorArtFixtureOnly true` | `docs/reference/enterprise-kudzu-pilot-receipts/ash-ai.json` (records the blocked attempt) | **BLOCKED** — `/Users/sac/ash_ai` does not exist on disk (confirmed via `ls -la /Users/sac/`); no sibling repo to depend on, compile, or adapt against |
-| `pr:AshExpo` | `ash_expo` | yes — real `AshExpo.Manifest.build/1` adapter | `docs/reference/enterprise-kudzu-pilot-receipts/ash-expo.json` | **ALIVE** |
-| `pr:AshPlanningCenter` | `ash_planning_center` | yes — real `AshPlanningCenter.Domain.list_people/0` adapter | `docs/reference/enterprise-kudzu-pilot-receipts/ash-planning-center.json` | **ALIVE** |
-| `pr:AshEx4pm` | `ash_ex4pm` | no — stays `pr:priorArtFixtureOnly true` | `docs/reference/enterprise-kudzu-pilot-receipts/ash-ex4pm.json` (records the blocked attempt) | **BLOCKED** — `mix deps.get` succeeded, but `mix compile` failed with a real, reproduced error one level below `ash_ex4pm` itself, inside its own real (now Hex-published) `:ex4pm` dependency: `lib/mix/tasks/ex4pm.engine.gen.adapter.ex` unconditionally does `use Igniter.Mix.Task` even though `:igniter` is declared `optional: true` in both `mix.exs` files, producing `** (CompileError) ... module Igniter.Mix.Task is not loaded and could not be found`. Defect is in the `ex4pm`/`ash_ex4pm` sibling repos, out of `ggen-marketplace`'s scope to fix. |
+| `pr:PriorArtAdapter` individual | Local sibling repo | Real properties admitted | Receipt | Status | Chicago test coverage |
+|---|---|---|---|---|---|
+| `pr:AshA2ARuntimeAdapters` | `ash_a2a` | yes — real `AshA2A.Info.capability_index/1` adapter | `docs/reference/enterprise-kudzu-pilot-receipts/ash-a2a.json` | **ALIVE** | 2 → 10 tests (independently re-verified) |
+| `pr:AshSurfaceAccessibility` | `ash_surface` | yes — real `AshSurface.from_manifest/2` adapter | `docs/reference/enterprise-kudzu-pilot-receipts/ash-surface-accessibility.json` | **ALIVE** | 2 → 8 tests (independently re-verified) |
+| `pr:AshR2RML` / `pr:AshR2RMLSemanticAdapter` | `ash_r2rml` | yes, via new `pr:AshR2RMLSemanticAdapter` individual added alongside the original fixture-only `pr:AshR2RML` — real `AshR2RML.production_profile/0` adapter | `docs/reference/enterprise-kudzu-pilot-receipts/ash-r2rml.json` | **ALIVE** | 3 → 9 tests (independently re-verified; corrected from pilot's undercounted 2 → 8 claim — see receipt's `chicago_coverage.discrepancy_found_and_corrected`) |
+| `pr:AshAI` | `ash_ai` | no — stays `pr:priorArtFixtureOnly true` | `docs/reference/enterprise-kudzu-pilot-receipts/ash-ai.json` (records the blocked attempt) | **BLOCKED** — `/Users/sac/ash_ai` does not exist on disk (confirmed via `ls -la /Users/sac/`); no sibling repo to depend on, compile, or adapt against | n/a — no passing adapter to expand coverage on |
+| `pr:AshExpo` | `ash_expo` | yes — real `AshExpo.Manifest.build/1` adapter | `docs/reference/enterprise-kudzu-pilot-receipts/ash-expo.json` | **ALIVE** | 1 → 9 tests (independently re-verified) |
+| `pr:AshPlanningCenter` | `ash_planning_center` | yes — real `AshPlanningCenter.Domain.list_people/0` adapter | `docs/reference/enterprise-kudzu-pilot-receipts/ash-planning-center.json` | **ALIVE** | 2 → 7 tests (independently re-verified) |
+| `pr:AshEx4pm` | `ash_ex4pm` | no — stays `pr:priorArtFixtureOnly true` | `docs/reference/enterprise-kudzu-pilot-receipts/ash-ex4pm.json` (records the blocked attempt) | **BLOCKED** — `mix deps.get` succeeded, but `mix compile` failed with a real, reproduced error one level below `ash_ex4pm` itself, inside its own real (now Hex-published) `:ex4pm` dependency: `lib/mix/tasks/ex4pm.engine.gen.adapter.ex` unconditionally does `use Igniter.Mix.Task` even though `:igniter` is declared `optional: true` in both `mix.exs` files, producing `** (CompileError) ... module Igniter.Mix.Task is not loaded and could not be found`. Defect is in the `ex4pm`/`ash_ex4pm` sibling repos, out of `ggen-marketplace`'s scope to fix. | n/a — no passing adapter to expand coverage on |
 
 **Final: 5 ALIVE, 2 BLOCKED**, each with a real named reason and a receipt
 recording the real evidence — no pilot's status was inferred or assumed.
+
+All 5 ALIVE pilots' Chicago-style (real-collaborator, state-based) test
+coverage was expanded on 2026-09-13 from their original 1-3 tests each to
+7-10 tests each — see each pilot's `chicago_coverage` block in its receipt
+JSON for the exact mock-grep command/result and final `mix test` output.
+All 5 were independently re-verified live in this session (real `grep` +
+real `mix test` re-run against the real scratch pilot apps); one
+discrepancy was found (`ash_r2rml`'s own report undercounted its baseline
+by omitting a pre-existing default app test) and corrected to the real
+observed numbers.
 
 ## Production standing contract
 
