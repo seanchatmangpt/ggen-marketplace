@@ -1,0 +1,36 @@
+PREFIX sd: <https://ggen.dev/ontology/semantic-documentation#>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX dct: <http://purl.org/dc/terms/>
+PREFIX sp: <https://ggen.dev/ontology/semantic-projection#>
+SELECT ?thing ?reason WHERE {
+  {
+    ?thing a sd:SourceEvidence .
+    FILTER NOT EXISTS { ?thing dct:source ?source }
+    BIND("source evidence missing dct:source" AS ?reason)
+  }
+  UNION
+  {
+    ?thing a sd:SourceEvidence .
+    FILTER NOT EXISTS { ?thing prov:wasDerivedFrom ?subject }
+    BIND("source evidence missing provenance subject" AS ?reason)
+  }
+  UNION
+  {
+    ?thing a sd:DocumentationEvidence .
+    FILTER NOT EXISTS { ?thing sd:documents ?subject }
+    BIND("documentation evidence missing documented subject" AS ?reason)
+  }
+  UNION
+  {
+    ?thing a sd:DocumentationEvidence .
+    FILTER NOT EXISTS { ?thing prov:wasDerivedFrom ?source }
+    BIND("documentation evidence missing provenance source" AS ?reason)
+  }
+  UNION
+  {
+    ?thing a sd:ProjectionProfile .
+    FILTER NOT EXISTS { ?thing sp:isSovereign false }
+    BIND("projection profile not explicitly non-sovereign" AS ?reason)
+  }
+}
+ORDER BY ?thing ?reason

@@ -1,0 +1,26 @@
+PREFIX sd: <https://ggen.dev/ontology/semantic-documentation#>
+SELECT ?subject ?reason WHERE {
+  ?subject a sd:SemanticDocumentationDataset .
+  {
+    FILTER NOT EXISTS { ?subject sd:repository ?repo }
+    BIND("missing repository" AS ?reason)
+  }
+  UNION
+  {
+    ?subject sd:repository ?repo .
+    FILTER(STRLEN(STR(?repo)) = 0 || UCASE(STR(?repo)) = "UNKNOWN")
+    BIND("repository is not exact" AS ?reason)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?subject sd:revision ?revision }
+    BIND("missing revision" AS ?reason)
+  }
+  UNION
+  {
+    ?subject sd:revision ?revision .
+    FILTER(STRLEN(STR(?revision)) < 7 || UCASE(STR(?revision)) = "UNKNOWN")
+    BIND("revision is not exact" AS ?reason)
+  }
+}
+ORDER BY ?subject ?reason
