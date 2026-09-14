@@ -1,0 +1,25 @@
+# MESSAGE: any returned row refuses manufacture. A pc:CompatibilityRequirement
+# individual must carry all three real, non-empty fields checkable by
+# scripts/check_pack_compatibility.py: componentName, versionRequirement, and
+# boundByPack. A missing field is a silent-checker-skip risk (an unbound
+# component would just never be checked, not fail loudly) -- refused here
+# instead. This gate does not itself validate that versionRequirement parses
+# as a real PEP 440 specifier (that's checked at runtime by
+# scripts/check_pack_compatibility.py's own SpecifierSet parse, which raises
+# a typed IncompatibleError naming the exact malformed string); it catches
+# the cheaper, purely-structural defect class at admission time.
+PREFIX pc: <https://ggen.dev/ontology/pack-compatibility#>
+SELECT ?requirement ?problem WHERE {
+  ?requirement a pc:CompatibilityRequirement .
+  {
+    FILTER NOT EXISTS { ?requirement pc:componentName ?n . FILTER(STRLEN(?n) > 0) }
+    BIND("missing-or-empty-componentName" AS ?problem)
+  } UNION {
+    FILTER NOT EXISTS { ?requirement pc:versionRequirement ?v . FILTER(STRLEN(?v) > 0) }
+    BIND("missing-or-empty-versionRequirement" AS ?problem)
+  } UNION {
+    FILTER NOT EXISTS { ?requirement pc:boundByPack ?p . FILTER(STRLEN(?p) > 0) }
+    BIND("missing-or-empty-boundByPack" AS ?problem)
+  }
+}
+ORDER BY ?requirement ?problem
