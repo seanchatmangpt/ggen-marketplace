@@ -1,0 +1,26 @@
+# MESSAGE: every pr:PriorArtAdapter with pr:integrationMode "cli-subprocess" and
+# not marked pr:priorArtFixtureOnly true is an ACTUATING fact and must carry all
+# six subprocess-adapter/test properties (adapterBinaryPath, adapterSubcommand,
+# adapterModuleName, adapterModulePath, adapterTestModuleName, adapterTestPath) --
+# a DIFFERENT required-property set than gates/010's eight in-process properties,
+# since a cli-subprocess adapter has no in-process Elixir dependency to declare
+# (no pr:realDependencyCoordinate/pr:adapterEntrypointModule/
+# pr:adapterEntrypointFunction). gates/010 remains unchanged and continues to
+# apply its original eight-property check to every PriorArtAdapter whose
+# integrationMode is absent or not "cli-subprocess" -- this gate and gates/010
+# never both fire on the same individual, since gates/010's check is meant for
+# in-process adapters. Any row = an actuating cli-subprocess PriorArtAdapter
+# missing a required property.
+PREFIX pr: <https://ggen.dev/ontology/protocol-integration#>
+
+SELECT ?s ?missing WHERE {
+  VALUES ?missing {
+    pr:adapterBinaryPath pr:adapterSubcommand
+    pr:adapterModuleName pr:adapterModulePath
+    pr:adapterTestModuleName pr:adapterTestPath
+  }
+  ?s a pr:PriorArtAdapter ; pr:integrationMode "cli-subprocess" .
+  FILTER NOT EXISTS { ?s pr:priorArtFixtureOnly true }
+  FILTER NOT EXISTS { ?s ?missing ?any }
+}
+ORDER BY ?s ?missing

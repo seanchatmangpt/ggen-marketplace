@@ -1,0 +1,40 @@
+---
+to: "{{ adapter_module_path }}"
+for_each: "spec"
+sparql:
+  spec: |
+    PREFIX pr: <https://ggen.dev/ontology/protocol-integration#>
+    SELECT DISTINCT ?adapter_module_path ?adapter_module_name ?adapter_binary_path ?adapter_subcommand WHERE {
+      ?s a pr:PriorArtAdapter ; pr:integrationMode "cli-subprocess" ;
+         pr:adapterModulePath ?adapter_module_path ;
+         pr:adapterModuleName ?adapter_module_name ;
+         pr:adapterBinaryPath ?adapter_binary_path ;
+         pr:adapterSubcommand ?adapter_subcommand .
+      FILTER NOT EXISTS { ?s pr:priorArtFixtureOnly true }
+    }
+---
+{# Thin adapter over a real compiled CLI binary -- the cli-subprocess sibling of
+   adapter.ex.tmpl's in-process pr:adapterEntrypointModule/pr:adapterEntrypointFunction
+   binding. There is no Elixir/Mix collaborator module to call here (the real
+   dependency is a Cargo binary crate with no lib.rs, e.g. open-ontologies or
+   deepwiki-rs), so this module shells out for real via System.cmd/3 against
+   {{ adapter_binary_path }} -- no shell string interpolation, no Port mocking,
+   admitted verbatim from the pr:PriorArtAdapter spec, never invented. #}
+defmodule {{ adapter_module_name }} do
+  @moduledoc """
+  Thin adapter over the real compiled binary at `{{ adapter_binary_path }}`,
+  invoking its `{{ adapter_subcommand }}` subcommand as a subprocess.
+  Manufactured by protocol-integration-pack -- do not hand-edit.
+  """
+
+  @binary_path "{{ adapter_binary_path }}"
+  @subcommand "{{ adapter_subcommand }}"
+
+  @spec available?() :: boolean()
+  def available?, do: File.exists?(@binary_path)
+
+  @spec call([String.t()]) :: {output :: String.t(), exit_code :: integer()}
+  def call(args \\ []) when is_list(args) do
+    System.cmd(@binary_path, [@subcommand | args], stderr_to_stdout: true)
+  end
+end

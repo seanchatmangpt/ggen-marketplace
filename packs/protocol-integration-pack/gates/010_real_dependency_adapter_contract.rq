@@ -4,7 +4,12 @@
 # adapterEntrypointModule, adapterEntrypointFunction, adapterTestModuleName,
 # adapterTestPath) -- mirrors ash-extension-core-pack's gates/010's VALUES-table
 # required-property pattern and its aex:fixtureOnly exemption idiom. Any row = an
-# actuating PriorArtAdapter missing a required property.
+# actuating PriorArtAdapter missing a required property. This check applies only
+# to in-process adapters: a PriorArtAdapter with pr:integrationMode "cli-subprocess"
+# has no in-process Elixir dependency to declare (no realDependencyCoordinate,
+# no adapterEntrypointModule/Function) and is instead checked by
+# gates/020_subprocess_adapter_contract.rq's distinct six-property set -- this
+# gate's behavior for non-subprocess adapters is unchanged from v26.9.13.
 PREFIX pr: <https://ggen.dev/ontology/protocol-integration#>
 
 SELECT ?s ?missing WHERE {
@@ -16,6 +21,7 @@ SELECT ?s ?missing WHERE {
   }
   ?s a pr:PriorArtAdapter .
   FILTER NOT EXISTS { ?s pr:priorArtFixtureOnly true }
+  FILTER NOT EXISTS { ?s pr:integrationMode "cli-subprocess" }
   FILTER NOT EXISTS { ?s ?missing ?any }
 }
 ORDER BY ?s ?missing
