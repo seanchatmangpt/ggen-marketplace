@@ -63,6 +63,102 @@ ACTIVE_PACK_NAMES: tuple[str, ...] = (
     "ggen-platform-pack",
 )
 
+# Real generation-equivalence findings (2026-09-14), NOT re-derivable from
+# OWNER_TERMS scoring -- classify_owner()/disposition() below are a keyword
+# heuristic over pack.name/description only; they cannot see actual RDF
+# vocabulary or generated-artifact shape. These 11 rows were checked for
+# real equivalence (read both packs' pack.toml/ontology.ttl/templates/gates
+# in full, compared RDF classes/properties and generated-output shape,
+# checked for live consumer references) and every one REFUTED: the
+# canonical_owner the heuristic assigned shares no real ontology vocabulary
+# or generated-artifact shape with the legacy pack -- the ABSORB guess
+# rested on description-text word overlap (e.g. "MCP"/"protocol") only.
+# See docs/reference/legacy-pack-census-26.9.12.json's "verification_note"
+# for the full methodology statement. Keyed by legacy_pack name; value is
+# (verified_disposition, verified_reason). Applied in build_census() so a
+# future re-run of this script does not silently regress these findings
+# back to unverified CANDIDATE standing.
+VERIFIED_OVERRIDES: dict[str, tuple[str, str]] = {
+    "autofde-lab-mcp-surface-pack": (
+        "REFUTED_NOT_EQUIVALENT",
+        "No shared ontology vocabulary, no shared template output shape (Rust MCP "
+        "tool surface + JSON tool list vs Elixir Adapter/Capability/Protocol/"
+        "Transport bindings). ABSORB guess rests on naming similarity "
+        "(\"MCP\"/\"protocol\") only. If retirable at all, the real candidate is "
+        "gym-mcp-surface-pack (stated byte-identical consumer), not "
+        "protocol-integration-pack -- untested by this pass.",
+    ),
+    "chatgptgym-gymact-bridge-pack": (
+        "REFUTED_NOT_EQUIVALENT",
+        "No shared class (sosa:Procedure vs pi:Capability/Adapter/Protocol/"
+        "Transport), no shared property, no shared template output language "
+        "(Rust vs Elixir). Also has real registry dependents (mcp-protocol family "
+        "list, verify-gym-packs.py's fixed 4-pack manifest) that would need "
+        "migration even if a real target existed.",
+    ),
+    "claudecode-gymact-pack": (
+        "REFUTED_NOT_EQUIVALENT",
+        "No shared ontology vocabulary or generated-artifact shape (Rust "
+        "operation-catalog constants vs Elixir adapter modules). Naming-"
+        "similarity ABSORB guess.",
+    ),
+    "elixir-mcp-a2a-pack": (
+        "REFUTED_NOT_EQUIVALENT",
+        "No shared ontology vocabulary (ema:CapabilitySurface/Capability vs "
+        "pi:Capability/Adapter/Protocol/Transport) or template targets "
+        "(AshAi.Mcp.Router/A2A.Agent modules vs thin adapter/mix-dep-install "
+        "modules).",
+    ),
+    "fastmcp-pack": (
+        "REFUTED_NOT_EQUIVALENT",
+        "No shared ontology vocabulary (fmcp:Server/Tool vs pi:Protocol/Transport/"
+        "Capability/Adapter) or output shape (single Python FastMCP server file "
+        "vs Elixir Mix adapters).",
+    ),
+    "gdmcp-pack": (
+        "REFUTED_NOT_EQUIVALENT",
+        "No shared domain: gdmcp models the MCP wire-protocol spec itself across "
+        "10 SDK languages; protocol-integration-pack models an abstract "
+        "capability-to-protocol-binding convention for Elixir consumers. Zero "
+        "ontology/template overlap.",
+    ),
+    "gym-mcp-surface-pack": (
+        "REFUTED_NOT_EQUIVALENT",
+        "No shared ontology vocabulary or output shape (gym-agnostic "
+        "sosa:Procedure -> Rust tool catalog vs pi:Capability/Adapter -> Elixir "
+        "adapters).",
+    ),
+    "portable-consequence-protocol-pack": (
+        "REFUTED_NOT_EQUIVALENT",
+        "Domain is a runtime authority/receipt/replay conformance protocol with "
+        "an executable Python reference witness (odrl/prov/earl-based); "
+        "protocol-integration-pack has no authority/consequence/receipt/replay "
+        "concept anywhere. Zero real overlap.",
+    ),
+    "rmcp-pack": (
+        "REFUTED_NOT_EQUIVALENT",
+        "Models one specific Rust crate's (rmcp) trait/macro/transport/feature "
+        "surface; protocol-integration-pack models an abstract cross-protocol "
+        "capability-reuse convention generating Elixir artifacts. Zero ontology/"
+        "template overlap.",
+    ),
+    "speedrun-talent-network-pack": (
+        "REFUTED_NOT_EQUIVALENT",
+        "Manufactures a full typed Rust REST/MCP API-client crate for one named "
+        "external building block; protocol-integration-pack generates Elixir "
+        "Mix-dependency adapters. Zero domain overlap.",
+    ),
+    "planning-federation-pack": (
+        "REFUTED_NOT_EQUIVALENT",
+        "Is itself a real RDF-to-Python planning-compiler (6 real generation "
+        "rules -> planner IR/catalog/symbolic/interchange/binary/projector). "
+        "planning-policy-pack is a semantic-only vocabulary pack (HDDL/FOND "
+        "terms, SELECT!=DO gate, no query->template->output pipeline at all). "
+        "Absorbing would delete planning-federation-pack's entire real "
+        "generation capability with no replacement.",
+    ),
+}
+
 OWNER_TERMS: dict[str, tuple[str, ...]] = {
     "decision-optionality-pack": (
         "dfcm", "candidate", "option", "opportunity", "selection", "portfolio",
@@ -158,7 +254,7 @@ def build_census() -> dict[str, object]:
             owner, scores = classify_owner(pack.name, pack.description)
             if owner is None:
                 unresolved.append(pack.name)
-        rows.append({
+        row: dict[str, object] = {
             "canonical_owner": owner,
             "description": pack.description,
             "disposition": action,
@@ -166,7 +262,16 @@ def build_census() -> dict[str, object]:
             "owner_scores": {key: value for key, value in sorted(scores.items()) if value > 0},
             "standing": "CANDIDATE" if action == "DROP" or owner is not None else "UNKNOWN",
             "version": pack.version,
-        })
+        }
+        override = VERIFIED_OVERRIDES.get(pack.name)
+        if override is not None:
+            verified_disposition, verified_reason = override
+            row["verified_disposition"] = verified_disposition
+            row["verified_reason"] = verified_reason
+            # A real, checked REFUTED overrides the heuristic's unverified
+            # CANDIDATE standing -- see VERIFIED_OVERRIDES' module comment.
+            row["standing"] = "REFUTED"
+        rows.append(row)
     return {
         "active_count": len(active),
         "active_packs": sorted(active),
@@ -180,6 +285,27 @@ def build_census() -> dict[str, object]:
         ),
         "unresolved_count": len(unresolved),
         "unresolved_packs": unresolved,
+        "verification_note": (
+            "2026-09-14: Real generation-equivalence check (not naming-similarity) "
+            "run against all 11 legacy_pack rows owned by "
+            "canonical_owner=protocol-integration-pack (10 rows) and "
+            "canonical_owner=planning-policy-pack (1 row) -- the two most "
+            "tractable-looking canonical packs (protocol-integration-pack already "
+            "had real templates; planning-policy-pack had only 1 mapped legacy "
+            "pack). Method: read both packs' pack.toml/ontology.ttl/templates/"
+            "gates in full, compare RDF vocabulary and generated-artifact shape, "
+            "check for live consumer references. Result: 11/11 REFUTED -- every "
+            "mapping was a naming-similarity artifact (shared words like "
+            "\"MCP\"/\"protocol\" in the description) with zero shared ontology "
+            "class/property or generated-output shape. This does not refute the "
+            "whole census (289 rows remain unchecked) but is strong evidence the "
+            "canonical_owner field (computed from owner_scores, a weighted "
+            "keyword heuristic) should not be treated as a verified absorption "
+            "target without the same per-row check applied here. See "
+            "VERIFIED_OVERRIDES in this script for the durable record (survives "
+            "re-running this script) and each row's verified_disposition/"
+            "verified_reason for the specific evidence."
+        ),
     }
 
 

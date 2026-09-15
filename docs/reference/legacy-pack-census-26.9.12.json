@@ -15,7 +15,7 @@
     "state-transition-pack"
   ],
   "issue": "https://github.com/seanchatmangpt/ggen-marketplace/issues/439",
-  "legacy_count": 300,
+  "legacy_count": 306,
   "note": "Investigation/classification only. No legacy pack has been retired, moved, or modified as a result of this census.",
   "rows": [
     {
@@ -101,45 +101,25 @@
     },
     {
       "canonical_owner": "semantic-projection-pack",
-      "description": "Manufactures a native Ash extension (Spark.Dsl.Extension + transformer + verifier + Info\nmodule + Igniter installer + optional Reactor pipeline + composition test) from a single\nadmitted aex:AshExtensionSpec, instead of hand-building each new Ash extension from scratch.\n\nGolden specimen this pack was extracted from (2026-08-26): /Users/sac/ash_r2rml,\nmain@263aa768bbc5a933124409ee68f2b9efb9d09a3a. That repo independently evolved exactly this\nshape by hand -- lib/ash_r2rml/resource.ex (AshR2RML.Resource: sections :r2rml/:sparql,\nentities Class/Subject/Property/Reference/Graph, transformer AshR2RML.Resource.Persist,\nverifier AshR2RML.Resource.Verify, Info module AshR2RML.Resource.Info),\nlib/mix/tasks/ash_r2rml.install.ex (Igniter installer), lib/ash_r2rml/reactor_pipeline.ex +\nlib/ash_r2rml/reactor/steps/*.ex (compile -> verify_alignment/evaluate_differential ->\nattach_provenance -> apply_policy -> render_r2rml_turtle), and lib/ash_r2rml/ggen.ex (a\nconstruct_only compiler boundary that returns a path/content graph + receipt and never\ntouches the filesystem itself -- ggen owns rendering/actuation, this pack's manufactured code\nnever does).\n\nTwo gaps in the golden specimen this pack deliberately does NOT repeat:\n1. ash_r2rml's installer (lib/mix/tasks/ash_r2rml.install.ex) only adds the formatter plugin\n   and then prints manual \"add `extensions: [AshR2RML.Resource]` yourself\" instructions via\n   Igniter.add_notice -- ALWAYS, no matter how it's invoked, because it never asks for a\n   target module. This pack's installer template performs the real Igniter.Project.Module\n   patch (adds the `extensions: [...]` entry and a starter DSL block) whenever the caller\n   passes `--target MyApp.SomeResource` -- one command, not a README-driven manual step, for\n   that invocation. Without `--target` it falls back to the same disclosed manual notice\n   ash_r2rml always uses (there's no way to know which module to patch otherwise) -- so the\n   upgrade over ash_r2rml is real but conditional on `--target`, not universal across every\n   invocation. (Confirmed via audit 2026-08-26: an earlier draft of this note overclaimed\n   \"installation is one command\" as if it held unconditionally.)\n2. The embedded pack at ash_r2rml/priv/ggen/ash-r2rml-pack/pack.toml declares\n   `name = \"ash-r2ml-pack\"` (missing the second \"r\" against its own directory name\n   \"ash-r2rml-pack\") -- a real, confirmed naming typo. This pack's own name is spelled and\n   verified correctly and is a distinct pack, not a copy of that one.\n\nScope of this pack version: the CORE capability only -- Spark DSL extension\n(section/entity/schema), one transformer, one verifier, the generated Info module, and an\nIgniter installer that really patches the target module. Reactor-pipeline generation is\nincluded as an opt-in capability (workflow.reactor = true on the spec) using ash_r2rml's\nreactor_pipeline.ex/reactor/steps shape as the template, but is not required for every\nextension -- Ash's own guidance is that Reactor is for workflows needing real orchestration,\nnot every extension. AshGraphql/AshJsonApi composition-fixture test generation follows\nash_r2rml's test/ggen_api_bundle_test.exs pattern (live Code.compile_string + real\nSpark.Dsl.Extension Info-module introspection, ash_graphql/ash_json_api as :test-only deps --\nnever a runtime dependency, never a mock). Note: the per-target composition assertion\ncurrently only checks that the target library's own Info module exposes the expected\nfunction (function_exported?/3) -- it does not yet attach ash_graphql/ash_json_api to the\ngenerated fixture and introspect through them, so it confirms the library is present and\nshaped as expected, not that the generated extension actually composes with it. Tracked as\na follow-up, not silently passed off as full composition coverage.\n\nDeferred to later pack versions (named here so they are visible next manufacturing edges, not\nsilently dropped): ash-extension-composition-pack (dedicated multi-extension compatibility\nfixture matrix), ash-extension-starter-pack (composition/root pack selecting capabilities),\nash_intelligence and ash_github (separate, larger packages -- out of scope for this pack).\n\nv26.9.9 (2026-09-09): purpose reframed per user direction -- this pack is not only a\ngenerator for NEW Ash extensions, it is the standing best-practices/ERRC vocabulary an\nEXISTING hand-written extension (ash_r2rml, ash_ai, or any third one) can be graded\nagainst and brought up to. Three real, source-cited capabilities added this cycle\n(full citations and the ranked ERRC decision in errc-tracker.md Cycle 3):\n1. aex:contextNormalize / aex:contextTargetEntity / aex:contextTargetField -- generates\n   the ash_ai AshAi.Transformers.ResourceTools resource/domain detection-and-fill-in\n   pattern (Module.get_attribute(module, :spark_is) == Ash.Resource), so a generated\n   (or audited) extension can be legally declared at both Resource and Domain level with\n   the same normalized IR, the way AshAi.Tool is.\n2. aex:afterTransformer -- generates explicit after?/1 clauses against real upstream Ash\n   core transformers, verbatim ash_r2rml/lib/ash_r2rml/resource.ex:188-194's five-clause\n   pattern, instead of an unordered Persist transformer.\n3. aex:dualLevelFixture -- composition_test now compiles BOTH a resource- and a\n   domain-level fixture stacking the extension alongside its aex:CompositionTarget\n   extensions, mirroring the real xaas exemplar (lib/xaas/library.ex:8 +\n   lib/xaas/library/book.ex:36 both stacking AshAi with 2-3 sibling extensions).\n\nDeliberately NOT added: a \"Spark.Igniter.add_extension + AST-aware idempotent block\ninsertion\" installer capability the user's plan asked for as an upgrade path. Direct\nread of ash_r2rml/lib/mix/tasks/ash_r2rml.install.ex (2026-09-09) confirms it contains\nzero references to Spark.Igniter and no AST/zipper-based detection of an existing DSL\nblock -- it only wires the formatter plugin and always emits a static manual-instructions\nnotice. That means the golden specimen does not actually exhibit the pattern the plan\ndescribed; this pack's existing --target-conditional real Igniter.Project.Module patch\nis already ahead of ash_r2rml on that specific axis. Not modeled here rather than\nfabricating an unverified API shape -- named as a future CREATE only if a real exemplar\nof Spark.Igniter.add_extension/4 is found elsewhere.\n\nv26.9.10 (2026-09-09): completed the remaining Cycle 3 deferred items, all source-cited\nagainst ash_r2rml/lib/ash_r2rml/resource.ex:\n- aex:normalizeModule/normalizeFunction + aex:provenanceSource: optional pre-persist\n  normalize pipe and metadata.source tag on the Persist template (resource.ex:197-249).\n- aex:validateDelegateModule/validateDelegateFunction: Verify's compiled-present branch\n  can now delegate to a separate module's validate/1 and join refusal code/detail pairs,\n  ash_r2rml's exact 2-branch shape (resource.ex:492-511), instead of only the inline\n  per-aex:Verifier stub chain.\n- Info module gained compiled_result/1 (tagged tuple, optional rescue-to-\n  aex:legacyAdapterModule fallback), compiled!/1 (bang), compiled?/1 (predicate) --\n  compiled/1 is now the nil-returning wrapper over compiled_result/1, matching\n  ash_r2rml's mapping/mapping_result/mapping!/mapped? 4-form Info surface\n  (resource.ex:514-553).\n- Install template now wraps the whole generated file in `if Code.ensure_loaded?(Igniter)\n  do ... else ... end`, with a plain Mix.Task fallback module, mirroring ash_r2rml's real\n  dual-branch installer shape.\n- aex:NestedEntity + aex:nestedOf/aex:nestedFieldName: entity-within-entity support\n  (ash_ai's @tool_argument nested under @tool via entities: [arguments: [@tool_argument]],\n  dsl.ex:228-268) -- reuses the existing aex:EntityArg/aex:EntitySchemaField vocabulary via\n  the same aex:argOf/aex:fieldOf predicates, only the parent linkage differs.\n\nThis closes every item named in errc-tracker.md Cycle 3's \"named, not yet built\" list.\nAll five are opt-in (SPARQL OPTIONAL / template {% if %} guards) -- a spec that sets none\nof the new properties generates byte-identical output to v26.9.9, verified structurally\nvia `marketplace.py validate`/`catalog` but NOT yet via a real `ggen sync run` against a\nfixture exercising every new property in combination -- see errc-tracker.md Cycle 3 for\nthe disclosed verification gap.",
+      "description": "Consolidates ash-extension-core-pack and ash-extension-starter-pack into one canonical\npack. This pack supersedes both source packs' own further development; the two source\npacks are left on disk unmodified (not deleted, not edited) by this consolidation.\n\nTwo real conflicts this consolidation resolves, both surfaced by reading the two source\nontologies and pack.toml files in full rather than by summary:\n\n1. **Competing reactor_pipeline templates targeting the same output path.**\n   ash-extension-core-pack's `templates/reactor_pipeline.ex.tmpl` hardcodes ash_r2rml's\n   own fixed five-step pipeline body (compile_resources -> verify_alignment/\n   evaluate_differential -> attach_provenance -> apply_policy -> render_r2rml_turtle).\n   ash-extension-starter-pack's `templates/reactor_pipeline_dynamic.ex.tmpl` generates an\n   arbitrary spec-declared step DAG from `aex:ReactorStep` rows and would write the same\n   generated module path for any spec that opts into `aex:workflowReactor`. Resolution:\n   starter-pack's dynamic, query-gated template is the sole winner going forward -- it is\n   a strict generalization (a spec with zero `aex:ReactorStep` rows and `workflowReactor\n   = true` is the one case core-pack's fixed template covered that the dynamic template\n   does not automatically reproduce, since the dynamic template needs step rows to render\n   anything). Core-pack's fixed five-step template is retired and NOT carried into this\n   pack at all.\n2. **The `aex:workflowReactor` vs `aex:generatesReceiptedAction` boundary.** These are\n   independent, composable capabilities, not a hierarchy or mutual exclusion -- a spec may\n   set either, both, or neither. `aex:workflowReactor` is a plain opt-in Reactor pipeline\n   (steps + optional compensate/undo). `aex:generatesReceiptedAction` layers an\n   idempotency-key-gated admission step, a sealed receipt entity, and a deterministic\n   replay path around that pipeline. This ontology's comment block near both properties\n   states this explicitly (see ontology.ttl), resolving a real boundary that was\n   previously underspecified across the two source packs.\n\nVerification for this pack goes through ggen_igniter's real oxigraph+WASM-Tera renderer\n(`packs/ash-extension-pack/verify/render_check.exs`, run via `cd ~/ggen_igniter && mix run\n<path>`), NOT the real Rust `ggen sync run` binary. Both source packs already disclosed\n(errc-tracker.md Cycle 3 addendum, this pack's own errc-tracker.md) that the Rust binary\nis blocked for this exact case: [FM-PACK-001]/[FM-PACK-002], ggen 26.8.28 hardcodes\n`/workspace` for `[packs]` path resolution regardless of actual cwd. That blocker is NOT\nfixed by this consolidation -- it is a pre-existing environment issue, reproduced against\nan unmodified, unrelated fixture pack in the prior cycle, and remains open here.",
       "disposition": "ABSORB",
-      "legacy_pack": "ash-extension-core-pack",
+      "legacy_pack": "ash-extension-pack",
       "owner_scores": {
         "decision-optionality-pack": 2,
-        "evidence-standing-pack": 3,
-        "experience-projection-pack": 1,
-        "marketplace-governance-pack": 2,
-        "planning-policy-pack": 1,
-        "process-intelligence-pack": 1,
-        "protocol-integration-pack": 1,
-        "repository-lifecycle-pack": 3,
-        "semantic-projection-pack": 6,
-        "state-transition-pack": 2
-      },
-      "standing": "CANDIDATE",
-      "version": "26.9.10"
-    },
-    {
-      "canonical_owner": "semantic-projection-pack",
-      "description": "Composition/root pack over ash-extension-core-pack, named as a deferred follow-up in\ncore-pack's own pack.toml (2026-08-26). Adds two REAL, review-confirmed capabilities\ncore-pack's fixed ash_r2rml-derived shape does not yet cover, rather than duplicating\nwhat core-pack already has (an earlier draft of this pack wrongly re-invented\ncore-pack's existing aex:workflowReactor/aex:CompositionTarget as a parallel\n`aexs:` vocabulary -- deleted after checking core-pack/ontology.ttl directly):\n\n1. **Dynamic Reactor step-graph generation** (`templates/reactor_pipeline_dynamic.ex.tmpl`) --\n   core-pack's own `reactor_pipeline.ex.tmpl` hardcodes ash_r2rml's specific five-step\n   pipeline body (compile_resources -> verify_alignment/evaluate_differential ->\n   attach_provenance -> apply_policy -> render_r2rml_turtle). A review of\n   `/Users/sac/ash_r2rml` (2026-09-09, ranked #1 of 5 confirmed gaps) found this\n   pipeline is really an ordered, dependency-wired step DAG with per-step\n   argument/result wiring, wait_for edges, max_retries, and compensate/4 -- not a\n   boolean toggle. This pack's `aex:ReactorStep` class (ontology.ttl) lets a spec\n   declare an ARBITRARY step graph, so a different extension's own pipeline shape\n   (not ash_r2rml's specific five steps) can be generated.\n\n2. **Receipted-action generation** (`templates/receipted_action.ex.tmpl`) -- a review\n   of `/Users/sac/xaas` (2026-09-09, finding #5) found its real `Xaas.Actuation.run/4`\n   (lib/xaas/actuation.ex:427-531) is architecturally distinct from core-pack's\n   `workflowReactor`: idempotency-key-gated admission, a sealed-receipt entity,\n   transaction-wrapped DO, and a deterministic-replay path -- exactly the shape\n   `ex4pm`'s real `Evidence.BRCE.execute/5` (admit -> pending-receipt -> run ->\n   outcome-receipt) already implements, and exactly what the ash_ex4pm extension's\n   planned `brce_gate` capability (/tmp/ash_ex4pm_prfaq.md, this session) needs.\n   `aex:generatesReceiptedAction` lets a spec opt into this shape. Disclosed as a\n   first cut, not a byte-for-byte Actuation.run/4 port: it does not yet wrap the\n   target action call in an explicit outer transaction the way xaas's own module\n   does (see the template's own header comment) -- named follow-up, not silently\n   claimed equivalent.\n\n**Tool-boundary disclosure (xaas review finding #4, real and previously paid-for in\nthis environment -- see xaas/docs/case-studies/next-read/RCA-ggen-tool-confusion.md):**\nThis pack, like ash-extension-core-pack, is driven by the Rust `ggen` binary\n(`ggen.toml` + Tera `.tmpl` templates with `sparql:`/`for_each:` frontmatter). It is\nUNRELATED to the Elixir `ggen_igniter` hex package (`mix ggen_igniter.sync\n--ontology/--query/--template/--out`, EEx templates, no `ggen.toml`), despite the\nsimilar name. A consumer whose own repo ALSO uses `ggen_igniter` for other generation\n(e.g. xaas's real `lib/mix/tasks/xaas.library.manufacture.ex`, generated by\n`ggen_igniter.sync --pack-dir`) must not assume this pack's templates run through\nthat same tool -- they are rendered via `ggen sync run` against a `ggen.toml`\npointing at this pack's (or core-pack's) `templates/` directory.\n\nNamed follow-ups from the two review passes, NOT implemented in this version (see\nontology.ttl's own follow-up comment block for the full list with file:line\ncitations): Reactor middleware declaration, transformer after?/before? ordering,\nverifier delegate-and-join-refusals idiom, Info module getter/getter!/predicate?\ntriple, arbitrary N-length third-party-extension composition (xaas resources\nroutinely stack 3-4 extensions -- AshJsonApi + AshGraphql + AshAdmin + AshAi on one\ndomain, lib/xaas/library.ex:8 -- not just the ash_graphql/ash_json_api pair\naex:CompositionTarget covers today), and a multi-phase orchestrating installer\n(ordered target list + `--phase` selector, matching xaas's real generated\n`xaas.library.manufacture` task shape).\n\nVerification status: ontology.ttl and both new templates are hand-reviewed against\ntheir cited real sources (ash_r2rml's reactor_pipeline.ex, xaas's actuation.ex) but\nNOT yet run through a real `ggen sync run` against a live spec fixture -- that is the\nnext real step before this pack can be called ALIVE rather than UNVERIFIED.",
-      "disposition": "FIXTURE",
-      "legacy_pack": "ash-extension-starter-pack",
-      "owner_scores": {
-        "evidence-standing-pack": 3,
-        "experience-projection-pack": 2,
+        "evidence-standing-pack": 2,
         "marketplace-governance-pack": 1,
         "planning-policy-pack": 1,
         "process-intelligence-pack": 1,
-        "repository-lifecycle-pack": 2,
+        "repository-lifecycle-pack": 1,
         "semantic-projection-pack": 6,
-        "state-transition-pack": 2
+        "state-transition-pack": 1
       },
       "standing": "CANDIDATE",
       "version": "0.1.0"
     },
     {
       "canonical_owner": "process-intelligence-pack",
-      "description": "Ontology-first structural option factory for Ash, Reactor, OCEL and dual-RevOps consumer surfaces",
+      "description": "Semantic exploration corpus for Ash, Reactor, OCEL and dual-RevOps candidate surfaces; executable manufacture is owned by ash-revops-structural-factory-pack",
       "disposition": "ABSORB",
       "legacy_pack": "ash-ocel-revops-surface-factory-pack",
       "owner_scores": {
@@ -148,7 +128,7 @@
         "semantic-projection-pack": 3
       },
       "standing": "CANDIDATE",
-      "version": "26.8.26"
+      "version": "26.9.11"
     },
     {
       "canonical_owner": "semantic-projection-pack",
@@ -175,15 +155,6 @@
         "semantic-projection-pack": 2,
         "state-transition-pack": 2
       },
-      "standing": "UNKNOWN",
-      "version": "26.8.26"
-    },
-    {
-      "canonical_owner": null,
-      "description": "Manufacture Reactor boundary normalization that preserves typed downstream domain refusals.",
-      "disposition": "ABSORB",
-      "legacy_pack": "ash-reactor-domain-error-contract-pack",
-      "owner_scores": {},
       "standing": "UNKNOWN",
       "version": "26.8.26"
     },
@@ -270,7 +241,9 @@
         "semantic-projection-pack": 2,
         "state-transition-pack": 2
       },
-      "standing": "CANDIDATE",
+      "standing": "REFUTED",
+      "verified_disposition": "REFUTED_NOT_EQUIVALENT",
+      "verified_reason": "No shared ontology vocabulary, no shared template output shape (Rust MCP tool surface + JSON tool list vs Elixir Adapter/Capability/Protocol/Transport bindings). ABSORB guess rests on naming similarity (\"MCP\"/\"protocol\") only. If retirable at all, the real candidate is gym-mcp-surface-pack (stated byte-identical consumer), not protocol-integration-pack -- untested by this pass.",
       "version": "26.9.1"
     },
     {
@@ -478,7 +451,7 @@
         "state-transition-pack": 5
       },
       "standing": "CANDIDATE",
-      "version": "0.1.17"
+      "version": "0.1.19"
     },
     {
       "canonical_owner": "semantic-projection-pack",
@@ -682,7 +655,9 @@
         "semantic-projection-pack": 2,
         "state-transition-pack": 1
       },
-      "standing": "CANDIDATE",
+      "standing": "REFUTED",
+      "verified_disposition": "REFUTED_NOT_EQUIVALENT",
+      "verified_reason": "No shared class (sosa:Procedure vs pi:Capability/Adapter/Protocol/Transport), no shared property, no shared template output language (Rust vs Elixir). Also has real registry dependents (mcp-protocol family list, verify-gym-packs.py's fixed 4-pack manifest) that would need migration even if a real target existed.",
       "version": "26.9.1"
     },
     {
@@ -980,7 +955,9 @@
         "protocol-integration-pack": 3,
         "semantic-projection-pack": 1
       },
-      "standing": "CANDIDATE",
+      "standing": "REFUTED",
+      "verified_disposition": "REFUTED_NOT_EQUIVALENT",
+      "verified_reason": "No shared ontology vocabulary or generated-artifact shape (Rust operation-catalog constants vs Elixir adapter modules). Naming-similarity ABSORB guess.",
       "version": "26.8.12"
     },
     {
@@ -1517,7 +1494,9 @@
         "semantic-projection-pack": 6,
         "state-transition-pack": 1
       },
-      "standing": "CANDIDATE",
+      "standing": "REFUTED",
+      "verified_disposition": "REFUTED_NOT_EQUIVALENT",
+      "verified_reason": "No shared ontology vocabulary (ema:CapabilitySurface/Capability vs pi:Capability/Adapter/Protocol/Transport) or template targets (AshAi.Mcp.Router/A2A.Agent modules vs thin adapter/mix-dep-install modules).",
       "version": "0.1.0"
     },
     {
@@ -1697,6 +1676,37 @@
       "version": "0.1.0"
     },
     {
+      "canonical_owner": "semantic-projection-pack",
+      "description": "Milestone 2 of ex_noun_verb_cli's design spec\n(~/ex_noun_verb_cli/docs/superpowers/specs/2026-09-11-ex-noun-verb-cli-design.md,\nsection 5): the concrete Python-displacement evidence for scripts/marketplace.py.\n\nNamed `ex-noun-verb-cli-pack` after the library it exercises (`ex_noun_verb_cli`),\nnot `marketplace-cli-pack` -- every pack here already lives in the marketplace,\nso a pack name repeating \"marketplace\" is redundant with its own location.\n\nUnlike this marketplace's other packs, this pack's real deliverable is not a\nTera-templated generator -- ex_noun_verb_cli is generator-first per its own\ncharter, but proving the library works against a real consumer is this\nmilestone's actual job. The deliverable is a real, runnable, hand-built Elixir\nconsumer application under `packages/marketplace-cli/`:\n\n  * `mix marketplace_cli.validate` / `mix marketplace_cli.catalog` -- real\n    ex_noun_verb_cli-based Igniter.Mix.Tasks, dispatching through\n    `ExNounVerbCli.Dispatcher.dispatch/2` against a real\n    `ExNounVerbCli.Registry.Generated`-backed registry\n    (`MarketplaceCli.Registry`), exactly as `~/ex_noun_verb_cli`'s own generic\n    `mix ex_noun_verb_cli marketplace validate --root <path>` adapter would\n    dispatch the same call.\n  * `MarketplaceCli.GraphProvider.GgenIgniterProvider` -- a real\n    `ExNounVerbCli.GraphProvider` implementation wrapping\n    `GgenIgniter.Ontology.load!/1` + `GgenIgniter.Query.run/2` (real oxigraph\n    NIF-backed SPARQL via ggen_igniter's default `sparql` engine path), used\n    to report each pack's real ontology triple count -- the one place in\n    `scripts/marketplace.py`'s validate/catalog logic that is genuinely\n    SPARQL-shaped rather than plain file/TOML inspection. Every other piece\n    of `marketplace.py`'s `inspect_marketplace()`/`validate()`/`catalog()`\n    logic (pack.toml TOML parsing, SemVer validation, ontology/template/gate\n    file discovery, required-Diataxis-doc checks) is plain filesystem\n    walking, ported as such in `MarketplaceCli.Inspector` with no graph query\n    forced in where none is genuinely useful.\n  * `MarketplaceCli.Inspector` -- the real Elixir port of\n    `inspect_marketplace()`/`validate()`/`catalog()`, verified for real\n    behavioral parity against `python3 scripts/marketplace.py validate` run\n    against this same marketplace tree (see the consumer app's own test\n    suite and this pack's own commit message for the real comparison\n    output).\n\nThis pack's own `ontology.ttl` describes the milestone's capability shape (not\na template's generation target) so `scripts/marketplace.py inspect_marketplace()`'s\n`ONTOLOGY_SOURCE_MISSING` check admits this pack like any other. Its\n`nvc:CliVerb`/`nvc:noun`/`nvc:verb`/`nvc:belongsTo`/`nvc:displaces`/\n`nvc:usesLibrary`/`nvc:usesGraphEngine` facts each have a real consuming\nSPARQL query under `queries/` (`cli_verbs.rq`, `capability_shape.rq`) --\nthis pack's generation-adjacent consumer in place of a Tera template --\nexecuted for real by `packages/marketplace-cli/test/marketplace_cli/cli_verbs_query_test.exs`.\n\nScaffolded via `ggen pack new ex-noun-verb-cli-pack` (the canonical self-pack\nconstructor), not hand-authored from scratch -- see this pack's own README.md\nfor the generator's real receipt.\n\n## Extension: real capability-parity graph vs. clap-noun-verb (26.9.11)\n\nBeyond the milestone-2 marketplace_cli evidence above, this pack's\n`ontology.ttl` also models, as real data, how much of the Rust original\n`~/clap-noun-verb`'s design `~/ex_noun_verb_cli` actually ports: 10\n`nvc:PortedCapability` individuals (each with a real `file:line` citation\ninto `~/ex_noun_verb_cli/lib/`, read and verified in full) and 8\n`nvc:DeferredCapability` individuals (each with a real design-spec\nnon-goal citation, a real in-code TODO citation, or an explicitly verified\nabsence note -- never an invented gap). It also models the real 10 example\nprograms under `~/clap-noun-verb/examples/` that demonstrate the cited\nverbs, the real local `clap-noun-verb-capability-pack`, and the 12 real\n`clap-noun-verb-*-pack` packs already living in this same marketplace\n(their real `gates/*.rq` counts and, for the schema pack, real\n`ontology.ttl` class count).\n\n7 gates under `gates/*.rq` enforce this graph's own integrity (every ported\nclaim has file evidence, every deferred claim has spec evidence, no\ncapability escapes the closed PORTED/DEFERRED dichotomy, no citation blurs\nboth evidence shapes at once, every verb/example/pack carries a real\ntraceable path or count). 6 further queries under `queries/*.rq` read this\ngraph back for real, each designed to back one real `ExUnit` test in\n`packages/marketplace-cli/test/` (asserting exact row counts: 10 ported,\n8 deferred, 10 example->verb links, 12 marketplace packs, 26 total gates\nacross all cited packs).\n\nSee `errc-tracker.md` for the ERRC pass over this extension (what's\npromotable from DEFERRED to PORTED next, and what net-new capital this\nextension itself manufactures).\n\n## Extension 2: a real generation layer (26.9.11)\n\nBeyond documenting capability parity, `ontology.ttl`'s \"EXTENSION 2\" section\nadds a real, renderable shape: `nvc:GeneratedCliProject` /\n`nvc:GeneratedVerb` (`rdfs:subClassOf nvc:CliVerb`) / `nvc:GeneratedArgument`.\nGiven a project instance graph (`playground/greet-cli.ttl`, a real two-noun/\nfour-verb `greet_cli` CLI: `greet hello`/`greet shout`/`math add`/\n`math multiply`), 5 real Tera templates under `templates/*.tmpl`\n(`mix.exs.tmpl`, `config.exs.tmpl`, `registry.ex.tmpl`, `handler_stub.ex.tmpl`,\n`README.md.tmpl`) produce a genuine, compiling Elixir consumer of\n`~/ex_noun_verb_cli`'s real public API (`ExNounVerbCli.Registry.Generated`'s\n`verbs:` shape, `ExNounVerbCli.Escript` as `mix.exs`'s `escript:\nmain_module`) -- not stubs: `nvc:handlerBodyExpr` playground facts (e.g.\n`\"x + y\"`) become real, non-`todo!()` handler function bodies.\n\n`verify/render_check.exs` is the real proof: run via\n`cd ~/ggen_igniter && mix run <this pack>/verify/render_check.exs`, it loads\n`playground/greet-cli.ttl`, parses each template's real frontmatter\n(`GgenIgniter.Frontmatter.split_template/1`), runs every named SPARQL query\nvia the real oxigraph engine (`GgenIgniter.Query.Oxigraph.run/2` --\n`ORDER BY`-correct, unlike the default `sparql`-hex engine), renders both the\n`to:` path and the template body via the real WASM Tera renderer\n(`GgenIgniter.Render.TeraWasm.render/2`), writes every output under\n`examples/greet-cli/`, and `Code.string_to_quoted!/1`-validates every\ngenerated `.ex`/`.exs` file. Verified 2026-09-11: 6 files written, 5 Elixir\nfiles, all 5 quoted-ok, `render_check: PASS`.\n\nCeiling verification, not just floor: a scratch copy of the generated project\n(with a `path:` override for `{:ex_noun_verb_cli, ...}` since it is not yet\npublished to Hex -- confirmed 404, `nvc:exNounVerbCliVersion`'s own comment\n-- plus an explicit `{:igniter, \"~> 0.5\"}` dep, since `ex_noun_verb_cli`\ndeclares `:igniter` as `optional: true`, which Mix does not pull in for a\nconsumer that does not itself depend on it) really ran `mix deps.get`,\n`mix compile --warnings-as-errors` (clean), `mix escript.build`, and the\nbuilt `./greet_cli` binary for real, producing real JSON envelopes for all\nfour verbs plus a real `unknown_verb` error envelope on an unregistered\n`math divide`.\n\n4 new gates (`gates/080`-`083`) enforce this generation shape's own\nintegrity, ASK-true-means-violation per this pack's existing convention,\neach verified BOTH clean (`ASK=False`) against the real `playground/\ngreet-cli.ttl` AND falsification-hardened (a real, independent mutation per\ngate flips its ASK to `True`) via `rdflib`, 2026-09-11 -- see README.md for\nthe full falsifier table.",
+      "disposition": "ABSORB",
+      "legacy_pack": "ex-noun-verb-cli-pack",
+      "owner_scores": {
+        "decision-optionality-pack": 3,
+        "evidence-standing-pack": 2,
+        "experience-projection-pack": 2,
+        "ggen-platform-pack": 6,
+        "marketplace-governance-pack": 3,
+        "protocol-integration-pack": 1,
+        "repository-lifecycle-pack": 2,
+        "semantic-projection-pack": 9
+      },
+      "standing": "CANDIDATE",
+      "version": "26.9.11"
+    },
+    {
+      "canonical_owner": null,
+      "description": "wasm4pm-ex4pm-bindings: extern \"C\" WASM export boundary for ex4pm Phase-1 process-intelligence algorithms (discover, conform, simulate, optimize, powl_mine), so Ex4pm.Engine can rank real WASM execution above the native :beam Elixir engine.",
+      "disposition": "ABSORB",
+      "legacy_pack": "ex4pm-wasm4pm-bindings-pack",
+      "owner_scores": {
+        "process-intelligence-pack": 2,
+        "semantic-projection-pack": 2,
+        "state-transition-pack": 1
+      },
+      "standing": "UNKNOWN",
+      "version": "0.1.0"
+    },
+    {
       "canonical_owner": null,
       "description": "Controls manufacturing fanout using realized qualified-action yield, efficiency, dependency relief, currentness, receipts, and BRCE-safe authority.",
       "disposition": "ABSORB",
@@ -1720,7 +1730,9 @@
         "protocol-integration-pack": 4,
         "semantic-projection-pack": 2
       },
-      "standing": "CANDIDATE",
+      "standing": "REFUTED",
+      "verified_disposition": "REFUTED_NOT_EQUIVALENT",
+      "verified_reason": "No shared ontology vocabulary (fmcp:Server/Tool vs pi:Protocol/Transport/Capability/Adapter) or output shape (single Python FastMCP server file vs Elixir Mix adapters).",
       "version": "0.1.0"
     },
     {
@@ -2019,7 +2031,9 @@
         "semantic-projection-pack": 1,
         "state-transition-pack": 1
       },
-      "standing": "CANDIDATE",
+      "standing": "REFUTED",
+      "verified_disposition": "REFUTED_NOT_EQUIVALENT",
+      "verified_reason": "No shared domain: gdmcp models the MCP wire-protocol spec itself across 10 SDK languages; protocol-integration-pack models an abstract capability-to-protocol-binding convention for Elixir consumers. Zero ontology/template overlap.",
       "version": "0.2.0"
     },
     {
@@ -2455,7 +2469,9 @@
         "semantic-projection-pack": 3,
         "state-transition-pack": 2
       },
-      "standing": "CANDIDATE",
+      "standing": "REFUTED",
+      "verified_disposition": "REFUTED_NOT_EQUIVALENT",
+      "verified_reason": "No shared ontology vocabulary or output shape (gym-agnostic sosa:Procedure -> Rust tool catalog vs pi:Capability/Adapter -> Elixir adapters).",
       "version": "26.9.1"
     },
     {
@@ -2474,6 +2490,21 @@
       },
       "standing": "UNKNOWN",
       "version": "26.9.1"
+    },
+    {
+      "canonical_owner": "semantic-projection-pack",
+      "description": "v0.1.0: closes gymact's payload-schema gap named in ~/.claude/plans/how-do-we-use-jolly-tarjan.md #2 -- today `Capability.title` (~/gymact/src/gymact/providers.py) folds a DO capability's actuate() payload shape into free text (e.g. 'Payload: {\"key\": <str>, \"amount\": <number, default 1>}.'), because nothing in gymact's admitted RDF/SHACL profile (~/gymact/src/gymact/semantic.py, ProfileAuthority.validate_capabilities, profile.shacl.ttl's <urn:gymact:shape:capability> shape) describes a capability's payload, only its identity (dct:title/dct:type). Schema-only pack (github-actions-pack v0.2.0 / dspy-pack contract): ontology.ttl ships ZERO gcs:CapabilityPayloadShape individuals; a consumer (gymact) supplies real ones in its own instance-data .ttl. Follows gymact's own semantic-authority rule (ProfileAuthority._custom_tbox_terms refuses a competing urn:gymact:-prefixed custom TBox) by reusing SHACL's sh:NodeShape/sh:PropertyShape/sh:property/sh:path/sh:datatype/sh:minCount/sh:maxCount/sh:name/sh:description/sh:defaultValue/sh:closed and gymact's already-admitted sosa:Procedure verbatim -- a payload shape IS structurally what SHACL property shapes already are, so nothing there is reinvented. Only two new gcs: terms are minted, because no standard predicate covers either relation: gcs:CapabilityPayloadShape (rdfs:subClassOf sh:NodeShape, prov:Entity -- prov:Entity reused from gymact's own <urn:gymact:profile:v26.8.7> a prof:Profile, prov:Entity pattern) names the ROLE a NodeShape plays; gcs:payloadShapeOf links it to the sosa:Procedure it constrains (SHACL's four target-declaration predicates all mean 'shape validates properties reached FROM this node', the wrong relation for a runtime payload dict passed ALONGSIDE actuate(), not stored ON the capability resource). qudt:hasUnit is documented as an available real optional annotation for physical-quantity payload fields, not fabricated into the worked example since gymact's real MemoryProvider payloads are unitless. templates/capability_payloads.py.tmpl (self-contained to:/sparql: frontmatter, no for_each -- one output file aggregating every shape row, same single-file multi-row-aggregation shape as star-toml-pack's star_toml_config.rs.tmpl) renders one Pydantic v2 BaseModel per gcs:CapabilityPayloadShape, mapping sh:datatype xsd: IRIs to Python types (string/anyURI->str, integer->int, double/decimal/float->float, boolean->bool, dateTime->datetime, else Any) and sh:minCount>=1 to a required field vs Optional-with-default otherwise -- never a template-hardcoded field type. gates/010_required.rq refuses (a) a Consequence.DO sosa:Procedure with no gcs:CapabilityPayloadShape naming it via gcs:payloadShapeOf, (b) a gcs:CapabilityPayloadShape with zero sh:property, (c) a gcs:CapabilityPayloadShape with no gcs:payloadShapeOf target; a Consequence.READ capability is correctly NOT required to declare one (observe()/checkpoint() take no payload). Verified end-to-end against a real isolated consumer (ggen 26.8.8, outside this repo, not assumed): facts.ttl declaring gymact's real MemoryProvider.increment capability (urn:gymact:memory:capability:increment) plus a real gcs:CapabilityPayloadShape synced cleanly and rendered gymact_capability_payloads.py containing IncrementPayload(BaseModel) with key: str (required) and amount: float | None = 1 (optional, real default) -- confirmed via ast.parse, python3 -m py_compile, and a real pydantic 2.12.5 import: instantiation with/without amount, ValidationError on a missing key, ValidationError on an unknown field (extra='forbid'). A second consumer with a real DO capability (urn:gymact:memory:capability:delete) and no payload shape was REFUSED by the gate at ggen sync run time ([FM-PACK-013], first row { ?missing = gcs:payloadShapeOf, ?s = urn:gymact:memory:capability:delete }). A third consumer with a real READ capability (urn:gymact:memory:capability:observe) and no payload shape synced cleanly, confirming no false positive. Re-running sync against the first consumer with no ontology change produced written:[]/skipped:[...], confirming idempotency. Known, disclosed v0.1.0 scope limits (not hidden): every generated field is single-valued regardless of sh:maxCount > 1 (list-valued payload fields not yet projected); sh:defaultValue is quoted for xsd:string/xsd:anyURI and emitted bare otherwise, not specially cased for xsd:boolean (Python needs True/False, not true/false) -- neither gap is exercised by gymact's real current capabilities, named here for a future consumer to extend rather than assume covered.",
+      "disposition": "ABSORB",
+      "legacy_pack": "gymact-capability-schema-pack",
+      "owner_scores": {
+        "decision-optionality-pack": 1,
+        "experience-projection-pack": 1,
+        "repository-lifecycle-pack": 3,
+        "semantic-projection-pack": 7,
+        "state-transition-pack": 1
+      },
+      "standing": "CANDIDATE",
+      "version": "0.1.0"
     },
     {
       "canonical_owner": "state-transition-pack",
@@ -2584,6 +2615,27 @@
       },
       "standing": "UNKNOWN",
       "version": "0.1.0"
+    },
+    {
+      "canonical_owner": "protocol-integration-pack",
+      "description": "Identity-only catalog of candidate integrations between ggen-marketplace's\nreal-dependency+adapter convention (as established by\nprotocol-integration-pack's enterprise_kudzu.ttl) and five real repos:\nbeam4pm, ash_ex4pm, deepwiki-rs, ash_a2a, open-ontologies. This pack does\nNOT ship working adapter code. It records, per repo, which are real\nALIVE_LOCAL candidates (beam4pm, ash_ex4pm, ash_a2a, open-ontologies) ready\nfor a Workflow-driven pilot, and which are BLOCKED (deepwiki-rs -- no\nin-process Rust library API, CLI-only) pending a new subprocess-adapter\ntemplate family this pack does not yet define.\n\n0.2.0: real Workflow-driven pilots were actually run against all five repos\n(scratch apps / real subprocess calls, never committed as live pack code\nper the marketplace's pack-source-hierarchy law). Real outcomes: beam4pm,\nash_ex4pm, and ash_a2a are now VERIFIED ALIVE (real mix compile + mix test\noutput, no mocks, evidence in each individual's rdfs:comment and in\ndocs/reference/kudzu-case-study-pilot-receipts/). deepwiki-rs is now also\nVERIFIED ALIVE, using the new cli-subprocess integrationMode and the new\nsubprocess-adapter template family (protocol-integration-pack\ngates/020_subprocess_adapter_contract.rq) added in this same release --\nits real subcommand (sync-knowledge) requires no LLM API key and was\nproven via a real built binary and a real passing ExUnit test.\nopen-ontologies remains BLOCKED, but for a different, re-derived real\nreason: its own cargo build --release fails today with 70 pre-existing\ncompilation errors (a BreedOutput struct/field mismatch in src/swarm.rs),\nnot merely \"build not yet attempted\" as previously recorded.",
+      "disposition": "ABSORB",
+      "legacy_pack": "kudzu-case-studies-pack",
+      "owner_scores": {
+        "decision-optionality-pack": 1,
+        "enterprise-governance-pack": 1,
+        "evidence-standing-pack": 2,
+        "experience-projection-pack": 1,
+        "ggen-platform-pack": 1,
+        "marketplace-governance-pack": 2,
+        "process-intelligence-pack": 2,
+        "protocol-integration-pack": 4,
+        "repository-lifecycle-pack": 3,
+        "semantic-projection-pack": 3,
+        "state-transition-pack": 1
+      },
+      "standing": "CANDIDATE",
+      "version": "0.2.0"
     },
     {
       "canonical_owner": "semantic-projection-pack",
@@ -2869,6 +2921,23 @@
       "version": "0.1.0"
     },
     {
+      "canonical_owner": "semantic-projection-pack",
+      "description": "Milestone 2 of ex_noun_verb_cli's design spec\n(~/ex_noun_verb_cli/docs/superpowers/specs/2026-09-11-ex-noun-verb-cli-design.md,\nsection 5): the concrete Python-displacement evidence for scripts/marketplace.py.\n\nUnlike this marketplace's other packs, this pack's real deliverable is not a\nTera-templated generator -- ex_noun_verb_cli is generator-first per its own\ncharter, but proving the library works against a real consumer is this\nmilestone's actual job. The deliverable is a real, runnable, hand-built Elixir\nconsumer application under `packages/marketplace-cli/`:\n\n  * `mix marketplace_cli.validate` / `mix marketplace_cli.catalog` -- real\n    ex_noun_verb_cli-based Igniter.Mix.Tasks, dispatching through\n    `ExNounVerbCli.Dispatcher.dispatch/2` against a real\n    `ExNounVerbCli.Registry.Generated`-backed registry\n    (`MarketplaceCli.Registry`), exactly as `~/ex_noun_verb_cli`'s own generic\n    `mix ex_noun_verb_cli marketplace validate --root <path>` adapter would\n    dispatch the same call.\n  * `MarketplaceCli.GraphProvider.GgenIgniterProvider` -- a real\n    `ExNounVerbCli.GraphProvider` implementation wrapping\n    `GgenIgniter.Ontology.load!/1` + `GgenIgniter.Query.run/2` (real oxigraph\n    NIF-backed SPARQL via ggen_igniter's default `sparql` engine path), used\n    to report each pack's real ontology triple count -- the one place in\n    `scripts/marketplace.py`'s validate/catalog logic that is genuinely\n    SPARQL-shaped rather than plain file/TOML inspection. Every other piece\n    of `marketplace.py`'s `inspect_marketplace()`/`validate()`/`catalog()`\n    logic (pack.toml TOML parsing, SemVer validation, ontology/template/gate\n    file discovery, required-Diataxis-doc checks) is plain filesystem\n    walking, ported as such in `MarketplaceCli.Inspector` with no graph query\n    forced in where none is genuinely useful.\n  * `MarketplaceCli.Inspector` -- the real Elixir port of\n    `inspect_marketplace()`/`validate()`/`catalog()`, verified for real\n    behavioral parity against `python3 scripts/marketplace.py validate` run\n    against this same marketplace tree (see the consumer app's own test\n    suite and this pack's own commit message for the real comparison\n    output).\n\nThis pack's own `ontology.ttl` describes the milestone's capability shape (not\na template's generation target) so `scripts/marketplace.py inspect_marketplace()`'s\n`ONTOLOGY_SOURCE_MISSING` check admits this pack like any other. Its\n`nvc:CliVerb`/`nvc:noun`/`nvc:verb`/`nvc:belongsTo`/`nvc:displaces`/\n`nvc:usesLibrary`/`nvc:usesGraphEngine` facts each have a real consuming\nSPARQL query under `queries/` (`cli_verbs.rq`, `capability_shape.rq`) --\nthis pack's generation-adjacent consumer in place of a Tera template --\nexecuted for real by `packages/marketplace-cli/test/marketplace_cli/cli_verbs_query_test.exs`.",
+      "disposition": "ABSORB",
+      "legacy_pack": "noun-verb-cli-pack",
+      "owner_scores": {
+        "evidence-standing-pack": 1,
+        "experience-projection-pack": 1,
+        "ggen-platform-pack": 4,
+        "marketplace-governance-pack": 3,
+        "protocol-integration-pack": 1,
+        "repository-lifecycle-pack": 1,
+        "semantic-projection-pack": 5
+      },
+      "standing": "CANDIDATE",
+      "version": "26.9.11"
+    },
+    {
       "canonical_owner": "experience-projection-pack",
       "description": "Semantic profile of the local React project at /Users/sac/bcinr/observatory-ui, a Vite + React 19 + TypeScript scaffold (npm/yarn-style package.json, no components.json). The project's package.json lists deck.gl ^9.3.7, @deck.gl/react, @deck.gl/layers, mapbox-gl, and react-map-gl as dependencies, but a source-content scan of src/ (App.tsx, App.css, data.ts, main.tsx, index.css) found zero deck.gl usage: no DeckGL component, no Layer subclass instantiation (ScatterplotLayer, GeoJsonLayer, HexagonLayer, ArcLayer, etc.), and no viewport/view-state code anywhere in .tsx/.ts files. src/App.tsx is the unmodified default Vite+React starter page (counter button, Vite/React links). src/data.ts defines a CMCAObject mock-data generator with 3D `position` fields, which is consistent with data intended for a future deck.gl visualization but is not itself deck.gl usage. No shadcn/ui indicators were found either: no components.json, no components/ui directory, no class-variance-authority or radix-ui imports, and no cn() helper in source. This pack records deck.gl and shadcn/ui as listed-but-unused dependencies, not confirmed usage.",
       "disposition": "ABSORB",
@@ -3139,6 +3208,22 @@
     },
     {
       "canonical_owner": null,
+      "description": "Real pack-to-runtime and pack-to-dependency compatibility matrix for the\nggen-marketplace, ported directly from a real, working reference this\nsession found by surveying the ecosystem: /Users/sac/beam4pm's\nBeamPM.Pro.Compatibility module (real semver requirement strings, checked\nvia Elixir's Version.match?/2, never hand-rolled comparison). This pack is\nthe ontology-first source of truth; scripts/check_pack_compatibility.py\nloads its pc:CompatibilityRequirement individuals and checks real candidate\nversions against them using packaging.specifiers.SpecifierSet /\npackaging.version.Version (the Python equivalent of Version.match?/2 --\nreal PEP 440 semver machinery, not a hand-rolled comparator).\n\nFills a real, previously-named gap: scripts/marketplace.py validates pack\nSTRUCTURE (files present, TOML well-formed, catalog deterministic) but\nnever checked \"is pack X's declared dependency version actually\ncompatible with what's installed\" -- a marketplace could validate cleanly\nwhile a consumer's real `ggen sync run` fails on an incompatible Reactor\nor ggen runtime pin. This pack and its checker close exactly that gap for\nthe bounds it declares, incrementally (starting with the ggen runtime\nversion this marketplace itself pins in marketplace.toml, plus the real\nreactor/spark version pins already load-bearing in ggen_igniter's own\nmix.lock -- not a hypothetical matrix).\n\nEvery requirement string here is a real, currently-true fact, verified\nagainst the actual pinned versions in this repo (marketplace.toml's\n[ggen].version) and in /Users/sac/ggen_igniter/mix.lock (reactor 1.0.6,\nwhich itself requires spark >= 2.3.3 and < 3.0.0-0) at the time this pack\nwas written -- not invented bounds. Extending the matrix to a new\ncomponent means adding one real, checkable pc:CompatibilityRequirement\nindividual, verified the same way, not editing a hand-maintained code\ntable.",
+      "disposition": "ABSORB",
+      "legacy_pack": "pack-compatibility-pack",
+      "owner_scores": {
+        "decision-optionality-pack": 1,
+        "experience-projection-pack": 1,
+        "marketplace-governance-pack": 2,
+        "repository-lifecycle-pack": 2,
+        "semantic-projection-pack": 2,
+        "state-transition-pack": 1
+      },
+      "standing": "UNKNOWN",
+      "version": "0.1.0"
+    },
+    {
+      "canonical_owner": null,
       "description": "ERRC consolidation court for ggen-marketplace pack capital. Classifies pack relationships as HARD_MERGE, EXTRACT_SHARED_ONTOLOGY, META_COMPOSE, DEPRECATE_INSTANCE, KEEP_DISTINCT, or UNKNOWN_WITH_REASON; generates a deterministic consolidation plan while refusing malformed or authority-ambiguous classifications. New packs are expected to prove that an existing canonical pack or composition does not already own the proposed semantic authority.",
       "disposition": "ABSORB",
       "legacy_pack": "pack-consolidation-court-pack",
@@ -3221,7 +3306,9 @@
         "process-intelligence-pack": 1,
         "semantic-projection-pack": 4
       },
-      "standing": "CANDIDATE",
+      "standing": "REFUTED",
+      "verified_disposition": "REFUTED_NOT_EQUIVALENT",
+      "verified_reason": "Is itself a real RDF-to-Python planning-compiler (6 real generation rules -> planner IR/catalog/symbolic/interchange/binary/projector). planning-policy-pack is a semantic-only vocabulary pack (HDDL/FOND terms, SELECT!=DO gate, no query->template->output pipeline at all). Absorbing would delete planning-federation-pack's entire real generation capability with no replacement.",
       "version": "26.9.4"
     },
     {
@@ -3284,7 +3371,9 @@
         "semantic-projection-pack": 1,
         "state-transition-pack": 1
       },
-      "standing": "CANDIDATE",
+      "standing": "REFUTED",
+      "verified_disposition": "REFUTED_NOT_EQUIVALENT",
+      "verified_reason": "Domain is a runtime authority/receipt/replay conformance protocol with an executable Python reference witness (odrl/prov/earl-based); protocol-integration-pack has no authority/consequence/receipt/replay concept anywhere. Zero real overlap.",
       "version": "1.0.0"
     },
     {
@@ -3415,12 +3504,14 @@
       "version": "26.7.7"
     },
     {
-      "canonical_owner": null,
-      "description": "Converts a flat, generic README (Run Locally, API Reference, Environment Variables, Tech Stack, FAQ) into a Diataxis-structured docs tree: tutorial, reference, and explanation pages projected deterministically from admitted RDF facts, not hand-written prose.",
+      "canonical_owner": "repository-lifecycle-pack",
+      "description": "Splits a flat, boilerplate-style README (API reference, install steps, env vars, FAQ, roadmap, tech stack, deployment, tests) into RDF facts and projects them into a correctly-quadranted Diataxis doc set: tutorials/getting-started.md (learning path), how-to/*.md (task recipes), reference/*.md (exact contracts, table-shaped), explanation/*.md (rationale), plus one docs/index.md nav page and one docs/meta.md page for project-identity/license/contributing/support content Diataxis itself keeps outside the four quadrants.",
       "disposition": "ABSORB",
       "legacy_pack": "readme-diataxis-pack",
-      "owner_scores": {},
-      "standing": "UNKNOWN",
+      "owner_scores": {
+        "repository-lifecycle-pack": 2
+      },
+      "standing": "CANDIDATE",
       "version": "0.1.0"
     },
     {
@@ -3614,7 +3705,9 @@
         "repository-lifecycle-pack": 3,
         "semantic-projection-pack": 5
       },
-      "standing": "CANDIDATE",
+      "standing": "REFUTED",
+      "verified_disposition": "REFUTED_NOT_EQUIVALENT",
+      "verified_reason": "Models one specific Rust crate's (rmcp) trait/macro/transport/feature surface; protocol-integration-pack models an abstract cross-protocol capability-reuse convention generating Elixir artifacts. Zero ontology/template overlap.",
       "version": "0.1.0"
     },
     {
@@ -3708,6 +3801,21 @@
     },
     {
       "canonical_owner": null,
+      "description": "Revision-bound semantic documentation contract. Compiler/source evidence and\nprovenance are canonical RDF; prose, C4, Diataxis, agent context, and registry\nrecords are non-sovereign projections. Requires exact repository+revision\nidentity, complete evidence lineage, explicit no-DO authority, and typed\nadmission standing. Reuses W3C PROV-O and the semantic-projection-pack boundary\ninstead of inventing a parallel provenance/projection model.",
+      "disposition": "ABSORB",
+      "legacy_pack": "semantic-documentation-contract-pack",
+      "owner_scores": {
+        "evidence-standing-pack": 4,
+        "experience-projection-pack": 1,
+        "marketplace-governance-pack": 2,
+        "repository-lifecycle-pack": 3,
+        "semantic-projection-pack": 4
+      },
+      "standing": "UNKNOWN",
+      "version": "26.9.14"
+    },
+    {
+      "canonical_owner": null,
       "description": "Manufactures a deterministic fail-closed court that binds semantic gates to positive and negative witnesses, refuses missing/orphan cases, and emits replayable qualification receipts for any GGen pack.",
       "disposition": "ABSORB",
       "legacy_pack": "semantic-gate-witness-court-pack",
@@ -3717,6 +3825,19 @@
       },
       "standing": "UNKNOWN",
       "version": "26.8.27"
+    },
+    {
+      "canonical_owner": "semantic-projection-pack",
+      "description": "Canonical semantic-manufacture epoch contract. v26.9.14 establishes the\nhuman-readable constitutional boundary; v26.9.15 extends it so generated\nimplementation is machine-native and disposable: projection readability and\npersistence are not requirements, exact graph/projection/manufacturer identity\nis required, and authority remains outside the projection. This is a\nsemantic/admission pack, not a new authority pack.",
+      "disposition": "ABSORB",
+      "legacy_pack": "semantic-manufacture-epoch-pack",
+      "owner_scores": {
+        "experience-projection-pack": 1,
+        "marketplace-governance-pack": 2,
+        "semantic-projection-pack": 4
+      },
+      "standing": "CANDIDATE",
+      "version": "26.9.15"
     },
     {
       "canonical_owner": "semantic-projection-pack",
@@ -3863,7 +3984,9 @@
         "repository-lifecycle-pack": 1,
         "semantic-projection-pack": 1
       },
-      "standing": "CANDIDATE",
+      "standing": "REFUTED",
+      "verified_disposition": "REFUTED_NOT_EQUIVALENT",
+      "verified_reason": "Manufactures a full typed Rust REST/MCP API-client crate for one named external building block; protocol-integration-pack generates Elixir Mix-dependency adapters. Zero domain overlap.",
       "version": "26.7.30"
     },
     {
@@ -4363,10 +4486,9 @@
     }
   ],
   "schema": "https://ggen.dev/marketplace/consolidation-census/v1",
-  "unresolved_count": 60,
+  "unresolved_count": 61,
   "unresolved_packs": [
     "ash-r2rml-reactor-paas-pack",
-    "ash-reactor-domain-error-contract-pack",
     "ash-runtime-integration-contract-pack",
     "autofde-lab-gymact-bridge-pack",
     "autofde-level4-actuation-pack",
@@ -4391,6 +4513,7 @@
     "evidence-capital-control-realization-pack",
     "evidence-capital-policy-adaptive-control-pack",
     "evidence-capital-realization-control-pack",
+    "ex4pm-wasm4pm-bindings-pack",
     "fanout-realization-controller-pack",
     "forced-top25-qualification-capsule-pack",
     "fortune5-testing-bblock-pack",
@@ -4408,16 +4531,17 @@
     "mfw-pack",
     "mmdio-pack",
     "otel-weaver-ocel-pack",
+    "pack-compatibility-pack",
     "pack-consolidation-court-pack",
     "phage-wars-3-react-pack",
     "platform-console-capability-pack",
     "quadrature-pack",
-    "readme-diataxis-pack",
     "regression-fixtures-pack",
     "revalidation-manufacturing-capital-pack",
     "revenue-structural-option-factory-pack",
     "run-protocol-observability-pack",
     "runtime-evidence-authenticity-pack",
+    "semantic-documentation-contract-pack",
     "semantic-gate-witness-court-pack",
     "shadcn-async-states-pack",
     "soc2-audit-pack",
@@ -4425,5 +4549,6 @@
     "tai-enterprise-rebuild-pack",
     "tcps-ffi-pack",
     "ww3gym-planning-pack"
-  ]
+  ],
+  "verification_note": "2026-09-14: Real generation-equivalence check (not naming-similarity) run against all 11 legacy_pack rows owned by canonical_owner=protocol-integration-pack (10 rows) and canonical_owner=planning-policy-pack (1 row) -- the two most tractable-looking canonical packs (protocol-integration-pack already had real templates; planning-policy-pack had only 1 mapped legacy pack). Method: read both packs' pack.toml/ontology.ttl/templates/gates in full, compare RDF vocabulary and generated-artifact shape, check for live consumer references. Result: 11/11 REFUTED -- every mapping was a naming-similarity artifact (shared words like \"MCP\"/\"protocol\" in the description) with zero shared ontology class/property or generated-output shape. This does not refute the whole census (289 rows remain unchecked) but is strong evidence the canonical_owner field (computed from owner_scores, a weighted keyword heuristic) should not be treated as a verified absorption target without the same per-row check applied here. See VERIFIED_OVERRIDES in this script for the durable record (survives re-running this script) and each row's verified_disposition/verified_reason for the specific evidence."
 }
