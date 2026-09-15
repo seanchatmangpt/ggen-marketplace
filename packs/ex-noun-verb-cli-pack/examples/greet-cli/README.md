@@ -11,8 +11,8 @@ mix escript.build
 
 ## Commands
 
-- `./greet_cli greet hello`
-- `./greet_cli greet shout`
-- `./greet_cli math add`
-- `./greet_cli math multiply`
+- `./greet_cli greet hello --name World`
+- `./greet_cli greet shout --name World`
+- `./greet_cli math add --x 2 --y 3`
+- `./greet_cli math multiply --x 4 --y 5`
 
