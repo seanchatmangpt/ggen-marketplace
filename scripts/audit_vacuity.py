@@ -30,6 +30,23 @@ SOURCE_SUFFIXES = {
 SKIP_ROOTS = {".git", ".cache", "target", "dist", "__pycache__", ".venv", "venv"}
 REFERENCE_PARTS = {"reference", "vendor", "third_party"}
 DOC_PARTS = {"docs"}
+# The largest genuine source/test file actually in this repo right now is
+# ~48KB (packs/tcps-*-pack/reference/tools/lifecycle.py); 2 MiB is a wide,
+# conservative margin above that, never a real source file. This exists
+# because a real vacuity-audit CI run (job 96322207827, feat/chicago-tdd-
+# tools-pack-level5) blew a 45-minute budget it had *just* been bumped to,
+# stuck on one step every time -- root-caused to specific branches
+# (agent/castle-dfcm-closure-v26.8.18 among them) carrying vendored OBO
+# Foundry `.owl` ontology dumps up to ~216 MB each under
+# ontologies/public/obo/. scan_content used to `.decode("utf-8")` + `.upper()`
+# + run every MARKERS substring search across the full text of every file
+# with no size gate, so those few branches alone cost multiple *minutes*
+# each. This is orthogonal to this module's own unique-blob dedup (that
+# helps when the same oversized blob recurs across branches; it does
+# nothing for the first, unique scan of that blob) -- skipping oversized
+# content here (same early-return shape as the existing binary/empty-file
+# checks just above) removes the actual per-file scan cost.
+MAX_SCANNED_FILE_BYTES = 2 * 1024 * 1024
 MARKERS = (
     ("TODO", "TODO"),
     ("FIX" + "ME", "FIXME"),
@@ -201,6 +218,12 @@ def scan_content(subject: str, path: str, data: bytes) -> list[Finding]:
     if not data or b"\x00" in data:
         if not data and _is_source(path):
             return [Finding(subject, path, 1, "EMPTY_SOURCE_FILE", "error", "zero-byte source")]
+        return []
+    if len(data) > MAX_SCANNED_FILE_BYTES:
+        # Oversized files are vendored/reference data (ontology dumps, etc.),
+        # never source or test code this scanner is trying to catch vacuity
+        # in -- see MAX_SCANNED_FILE_BYTES's comment for the real incident
+        # that motivated this early-return.
         return []
     try:
         text = data.decode("utf-8")
