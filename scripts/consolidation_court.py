@@ -7,8 +7,22 @@ proposed pack family (a kernel candidate + member packs), run pairwise
 ontology/query/template correspondence over every member pair and emit a
 single deterministic JSON report with a computed verdict.
 
-Diff strategy — v2, corrected from v1
---------------------------------------
+Diff strategy — v3, corrected from v2, corrected from v1
+----------------------------------------------------------
+v3 (2026-09-14) excludes GENERIC_VOCAB (standard RDF/RDFS/OWL/XSD
+meta-vocabulary — Class, Property, domain, range, label, comment, and
+similar terms every hand-authored ontology.ttl uses to declare its OWN
+classes/properties) from the vocabulary_diff/vocabulary_shared
+computation. v2 counted these as "shared vocabulary" between any two
+packs, which is true of any two valid ontology.ttl files in this repo
+and is not evidence of real domain overlap — confirmed by direct
+measurement: a wasm4pm-algorithms-pack/wasm4pm-breed-provenance-pack
+pair (PARTIAL under v2) showed vocabulary_diff.common=7, but 6 of those
+7 terms were exactly Class/Property/comment/domain/label/range. Re-run
+under v3 across all 9 families previously judged under v2 (see
+docs/jira/v26.8.19/README.md's v2->v3 comparison table for the full
+before/after). See GENERIC_VOCAB's own module comment for the exact
+excluded-term list. Full v2 rationale (which v3 keeps) follows.
 v1 of this script diffed ontologies as raw (s, p, o) triple sets and
 declared a pair "conflicting" whenever neither side's triple set was a
 subset of the other's. Run against every family in this marketplace, v1
@@ -102,6 +116,52 @@ except ImportError:
 ROOT = Path(__file__).resolve().parents[1]
 PACKS = ROOT / "packs"
 TEMPLATE_SUFFIXES = (".tmpl", ".tera")
+
+# v3 fix (2026-09-14): standard RDF/RDFS/OWL/XSD vocabulary that appears in
+# the TBox schema-declaration triples of virtually every hand-authored
+# ontology.ttl in this repo (every pack that defines its OWN classes/
+# properties uses rdfs:Class/rdf:Property/rdfs:domain/rdfs:range/
+# rdfs:label/rdfs:comment to declare them). Confirmed by direct
+# measurement: wasm4pm-algorithms-pack and wasm4pm-breed-provenance-pack
+# (a PARTIAL-verdict pair in the v2 wasm4pm court report) showed
+# vocabulary_diff.common=7, but rdf_vocabulary_set() on each pack directly
+# shows 6 of those 7 terms are exactly this generic set (Class, Property,
+# comment, domain, label, range) -- present because BOTH packs declare
+# their own unrelated domain vocabulary using the same RDFS meta-
+# vocabulary, not because they share real domain content. v2's
+# "vocabulary_shared = common > 0" rule cannot distinguish "these two
+# packs share a real kernel" from "these two packs both wrote valid
+# Turtle," which is true of any two ontology.ttl files in this repo. v3
+# excludes this set before computing vocabulary_diff/vocabulary_shared so
+# the verdict tracks real domain-vocabulary correspondence, not RDF's own
+# meta-vocabulary. Local names only (namespace-stripped, matching
+# local_name()'s own convention) -- kept flat (not split by class/
+# predicate kind) since a term like "type" can appear as either.
+GENERIC_VOCAB: frozenset[str] = frozenset(
+    {
+        # RDFS/OWL/RDF class-level meta-vocabulary
+        "Class", "Property", "ObjectProperty", "DatatypeProperty",
+        "AnnotationProperty", "FunctionalProperty",
+        "InverseFunctionalProperty", "TransitiveProperty",
+        "SymmetricProperty", "ReflexiveProperty", "IrreflexiveProperty",
+        "AsymmetricProperty", "Ontology", "Restriction", "NamedIndividual",
+        "Class_", "Thing", "Nothing", "Datatype",
+        # RDFS/OWL/RDF predicate-level meta-vocabulary
+        "type", "domain", "range", "label", "comment", "subClassOf",
+        "subPropertyOf", "seeAlso", "isDefinedBy", "versionInfo",
+        "imports", "equivalentClass", "equivalentProperty",
+        "disjointWith", "unionOf", "intersectionOf", "complementOf",
+        "onProperty", "someValuesFrom", "allValuesFrom", "hasValue",
+        "minCardinality", "maxCardinality", "cardinality",
+        "minQualifiedCardinality", "maxQualifiedCardinality",
+        "qualifiedCardinality", "onClass", "onDataRange", "first", "rest",
+        "nil", "value", "inverseOf", "sameAs", "differentFrom",
+        "allDifferent", "distinctMembers", "propertyChainAxiom",
+        # XSD datatypes routinely used as rdfs:range values
+        "string", "integer", "boolean", "dateTime", "date", "float",
+        "double", "decimal", "anyURI", "nonNegativeInteger", "positiveInteger",
+    }
+)
 
 
 def refusal(code: str, detail: str) -> str:
@@ -216,6 +276,13 @@ def rdf_vocabulary_set(paths: tuple[Path, ...]) -> frozenset[tuple[str, str]]:
     the schema-level signal for "do these packs share a kernel
     vocabulary" — orthogonal to whether their instance data (subjects,
     literals) happens to be identical, which it normally won't be.
+
+    v3: excludes GENERIC_VOCAB (standard RDF/RDFS/OWL/XSD terms every
+    hand-authored ontology.ttl uses to declare its OWN classes/
+    properties) — those terms being "shared" between two packs is a
+    property of both packs writing valid Turtle, not of the packs
+    sharing real domain vocabulary. See GENERIC_VOCAB's module comment
+    for the measurement that motivated this.
     """
     RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
     vocab: set[tuple[str, str]] = set()
@@ -223,9 +290,13 @@ def rdf_vocabulary_set(paths: tuple[Path, ...]) -> frozenset[tuple[str, str]]:
         for _s, p, o in graph:
             p_str = str(p)
             if p_str == RDF_TYPE:
-                vocab.add(("class", local_name(str(o))))
+                name = local_name(str(o))
+                if name not in GENERIC_VOCAB:
+                    vocab.add(("class", name))
             else:
-                vocab.add(("predicate", local_name(p_str)))
+                name = local_name(p_str)
+                if name not in GENERIC_VOCAB:
+                    vocab.add(("predicate", name))
     return frozenset(vocab)
 
 
@@ -372,7 +443,7 @@ def run(family_toml: Path) -> dict[str, Any]:
         "member_profiles": {name: members[name].profile for name in member_names},
         "diff_method": {
             "ontology": diff_method_ontology,
-            "ontology_vocabulary": "namespace_stripped_class_predicate_set" if RDFLIB_AVAILABLE else None,
+            "ontology_vocabulary": "namespace_stripped_class_predicate_set_v3_generic_excluded" if RDFLIB_AVAILABLE else None,
             "query": "line_normalized_text_set",
             "template": "line_normalized_text_set",
             "rdflib_available": RDFLIB_AVAILABLE,
@@ -384,14 +455,23 @@ def run(family_toml: Path) -> dict[str, Any]:
         "vocabulary_shared_pairs": vocabulary_shared_pairs,
         "verdict": verdict,
         "verdict_rule": (
-            "v2: ADMITTED if vocabulary_shared_pairs == total_pairs (every "
+            "v3: ADMITTED if vocabulary_shared_pairs == total_pairs (every "
             "pair shares >=1 real class/predicate local name across "
-            "namespaces); REFUTED if vocabulary_shared_pairs == 0 (no pair "
-            "shares any vocabulary); PARTIAL otherwise. "
-            "instance_conflicting_pairs (raw triple-set overlap, v1's old "
-            "metric) is reported per pair but does NOT drive verdict — "
-            "instance data (subjects, literals) differing between packs is "
-            "expected and is not evidence against a shared kernel."
+            "namespaces, EXCLUDING GENERIC_VOCAB -- standard RDF/RDFS/OWL/"
+            "XSD meta-vocabulary every hand-authored ontology.ttl uses to "
+            "declare its own classes/properties, which is not evidence of "
+            "shared domain content); REFUTED if vocabulary_shared_pairs == "
+            "0; PARTIAL otherwise. v2->v3 change (2026-09-14): v2 counted "
+            "GENERIC_VOCAB terms (Class, Property, domain, range, label, "
+            "comment, ...) as shared vocabulary, which is true of any two "
+            "valid ontology.ttl files in this repo regardless of real "
+            "domain overlap -- confirmed by direct measurement on a "
+            "wasm4pm PARTIAL pair where 6 of 7 v2-counted 'shared' terms "
+            "were exactly this generic set. instance_conflicting_pairs "
+            "(raw triple-set overlap, v1's old metric) is reported per "
+            "pair but does NOT drive verdict — instance data (subjects, "
+            "literals) differing between packs is expected and is not "
+            "evidence against a shared kernel."
         ),
         "consumer_boundary_check": None,
         "consumer_boundary_check_note": (

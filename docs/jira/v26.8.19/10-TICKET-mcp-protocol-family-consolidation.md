@@ -1,5 +1,7 @@
 # 10 Ticket MCP Protocol Family Consolidation
 
+**v3 correction (2026-09-14):** `scripts/consolidation_court.py` was corrected a second time (v2→v3) after direct measurement showed v2's "shared vocabulary" signal was inflated by generic RDF/RDFS/OWL/XSD meta-vocabulary (Class, Property, domain, range, label, comment, ...) that any two hand-authored `ontology.ttl` files share regardless of real domain overlap. Re-run under v3: **PARTIAL, 4/10 pairs share real vocabulary (was 5/10 under v2 -- 1 pair's overlap was purely generic RDF/RDFS/OWL boilerplate).** See `../README.md`'s v2→v3 correction section for the full cross-family comparison and methodology.
+
 Standing: PARTIAL_ALIVE — court run complete (v2 methodology). Real vocabulary-level correspondence found for at least one family; physical-merge phase NOT started (ticket 03 item 4, real consumer-boundary check against a live ggen runtime, has not been run).
 
 ## Quick reference
