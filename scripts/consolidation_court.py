@@ -7,8 +7,8 @@ proposed pack family (a kernel candidate + member packs), run pairwise
 ontology/query/template correspondence over every member pair and emit a
 single deterministic JSON report with a computed verdict.
 
-Diff strategy — v3, corrected from v2, corrected from v1
-----------------------------------------------------------
+Diff strategy — v4, corrected from v3, corrected from v2, corrected from v1
+------------------------------------------------------------------------------
 v3 (2026-09-14) excludes GENERIC_VOCAB (standard RDF/RDFS/OWL/XSD
 meta-vocabulary — Class, Property, domain, range, label, comment, and
 similar terms every hand-authored ontology.ttl uses to declare its OWN
@@ -18,11 +18,21 @@ packs, which is true of any two valid ontology.ttl files in this repo
 and is not evidence of real domain overlap — confirmed by direct
 measurement: a wasm4pm-algorithms-pack/wasm4pm-breed-provenance-pack
 pair (PARTIAL under v2) showed vocabulary_diff.common=7, but 6 of those
-7 terms were exactly Class/Property/comment/domain/label/range. Re-run
-under v3 across all 9 families previously judged under v2 (see
-docs/jira/v26.8.19/README.md's v2->v3 comparison table for the full
-before/after). See GENERIC_VOCAB's own module comment for the exact
-excluded-term list. Full v2 rationale (which v3 keeps) follows.
+7 terms were exactly Class/Property/comment/domain/label/range.
+
+v4 (2026-09-14, same day) excludes TOOLING_VOCAB_NAMESPACES — the same
+class of bug as v3, one layer up the stack. A real physical kernel+
+profile-split DESIGN pass on the 3 families still ADMITTED under v3
+(ui-shadcn, ui-deckgl, ui-react-remotion) found their entire
+universally-shared vocabulary was `ggen-create`'s own marketplace-wide
+tooling scaffold (a GenerationSubject individual with 10 name-casing
+predicates, injected into generated packs regardless of domain),
+present in 26 of this marketplace's 318 packs including packs with no
+relationship to the family's real domain. All 9 families re-run under
+v4 (see docs/jira/v26.8.19/README.md's full v2->v3->v4 comparison
+table). See GENERIC_VOCAB and TOOLING_VOCAB_NAMESPACES' own module
+comments for the exact exclusions. Full v2 rationale (which v3/v4 keep)
+follows.
 v1 of this script diffed ontologies as raw (s, p, o) triple sets and
 declared a pair "conflicting" whenever neither side's triple set was a
 subset of the other's. Run against every family in this marketplace, v1
@@ -163,6 +173,40 @@ GENERIC_VOCAB: frozenset[str] = frozenset(
     }
 )
 
+# v4 fix (2026-09-14): a real physical kernel+profile-split DESIGN pass on
+# the 3 families still ADMITTED under v3 (ui-shadcn, ui-deckgl,
+# ui-react-remotion) found the SAME class of bug GENERIC_VOCAB already
+# fixes, one layer up the stack: v3 excludes RDF/RDFS/OWL/XSD's own
+# meta-vocabulary, but has an identical blind spot for `ggen-create`'s own
+# marketplace-wide tooling scaffold -- a `GenerationSubject` individual
+# (name/upper/lower/capitalized/pascal/camel/snake/upper_snake/kebab/title
+# derived forms of one arbitrary subject string) that `ggen-create`
+# injects into generated packs. Confirmed by direct measurement: this
+# exact vocabulary (namespace https://ggen.io/ontology/ggen-create#) is
+# the ENTIRE universally-shared-across-all-9-members set that produced
+# ui-shadcn's ADMITTED verdict, and is independently present in 26 of this
+# marketplace's 318 packs, including packs with no UI/shadcn/React
+# relationship whatsoever (e.g. packs/platform-engineers-handbook,
+# packs/neako-web-deckgl-pack) -- it is `ggen-create`'s own scaffold, not
+# family-specific domain content, exactly parallel to GENERIC_VOCAB being
+# RDF's own meta-vocabulary rather than domain content.
+#
+# Checked by full IRI (namespace), not local name, unlike GENERIC_VOCAB:
+# bare local names like "name" or "title" are common enough as REAL domain
+# predicates elsewhere in this marketplace that blacklisting them
+# unconditionally would risk hiding genuine overlap in other families;
+# excluding only terms whose full IRI is actually rooted in one of these
+# known tooling namespaces is precise and does not generalize past what
+# was actually measured.
+TOOLING_VOCAB_NAMESPACES: frozenset[str] = frozenset(
+    {
+        # ggen-create's own generic name-casing scaffold (GenerationSubject
+        # + its 10 derived-casing predicates) -- injected into generated
+        # packs' own ontology.ttl regardless of the pack's real domain.
+        "https://ggen.io/ontology/ggen-create#",
+    }
+)
+
 
 def refusal(code: str, detail: str) -> str:
     return f"REFUSED:{code}:{detail}"
@@ -283,17 +327,33 @@ def rdf_vocabulary_set(paths: tuple[Path, ...]) -> frozenset[tuple[str, str]]:
     property of both packs writing valid Turtle, not of the packs
     sharing real domain vocabulary. See GENERIC_VOCAB's module comment
     for the measurement that motivated this.
+
+    v4: additionally excludes any term whose full IRI is rooted in a
+    TOOLING_VOCAB_NAMESPACES entry (checked before namespace-stripping,
+    since the exclusion is namespace-scoped, not bare-local-name-scoped —
+    see that constant's module comment). Same class of bug as v3, one
+    layer up: marketplace tooling scaffolding injected into generated
+    packs' own ontology.ttl, not family-specific domain content.
     """
     RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
+
+    def is_tooling_vocab(iri: str) -> bool:
+        return any(iri.startswith(ns) for ns in TOOLING_VOCAB_NAMESPACES)
+
     vocab: set[tuple[str, str]] = set()
     for graph in rdf_graphs(paths):
         for _s, p, o in graph:
             p_str = str(p)
             if p_str == RDF_TYPE:
-                name = local_name(str(o))
+                o_str = str(o)
+                if is_tooling_vocab(o_str):
+                    continue
+                name = local_name(o_str)
                 if name not in GENERIC_VOCAB:
                     vocab.add(("class", name))
             else:
+                if is_tooling_vocab(p_str):
+                    continue
                 name = local_name(p_str)
                 if name not in GENERIC_VOCAB:
                     vocab.add(("predicate", name))
@@ -443,7 +503,7 @@ def run(family_toml: Path) -> dict[str, Any]:
         "member_profiles": {name: members[name].profile for name in member_names},
         "diff_method": {
             "ontology": diff_method_ontology,
-            "ontology_vocabulary": "namespace_stripped_class_predicate_set_v3_generic_excluded" if RDFLIB_AVAILABLE else None,
+            "ontology_vocabulary": "namespace_stripped_class_predicate_set_v4_generic_and_tooling_excluded" if RDFLIB_AVAILABLE else None,
             "query": "line_normalized_text_set",
             "template": "line_normalized_text_set",
             "rdflib_available": RDFLIB_AVAILABLE,
@@ -455,19 +515,27 @@ def run(family_toml: Path) -> dict[str, Any]:
         "vocabulary_shared_pairs": vocabulary_shared_pairs,
         "verdict": verdict,
         "verdict_rule": (
-            "v3: ADMITTED if vocabulary_shared_pairs == total_pairs (every "
+            "v4: ADMITTED if vocabulary_shared_pairs == total_pairs (every "
             "pair shares >=1 real class/predicate local name across "
-            "namespaces, EXCLUDING GENERIC_VOCAB -- standard RDF/RDFS/OWL/"
-            "XSD meta-vocabulary every hand-authored ontology.ttl uses to "
-            "declare its own classes/properties, which is not evidence of "
-            "shared domain content); REFUTED if vocabulary_shared_pairs == "
-            "0; PARTIAL otherwise. v2->v3 change (2026-09-14): v2 counted "
-            "GENERIC_VOCAB terms (Class, Property, domain, range, label, "
-            "comment, ...) as shared vocabulary, which is true of any two "
-            "valid ontology.ttl files in this repo regardless of real "
-            "domain overlap -- confirmed by direct measurement on a "
-            "wasm4pm PARTIAL pair where 6 of 7 v2-counted 'shared' terms "
-            "were exactly this generic set. instance_conflicting_pairs "
+            "namespaces, EXCLUDING GENERIC_VOCAB and TOOLING_VOCAB_NAMESPACES "
+            "-- see both constants' module comments); REFUTED if "
+            "vocabulary_shared_pairs == 0; PARTIAL otherwise. v2->v3 change "
+            "(2026-09-14): v2 counted GENERIC_VOCAB terms (Class, Property, "
+            "domain, range, label, comment, ...) as shared vocabulary, which "
+            "is true of any two valid ontology.ttl files in this repo "
+            "regardless of real domain overlap -- confirmed by direct "
+            "measurement on a wasm4pm PARTIAL pair where 6 of 7 v2-counted "
+            "'shared' terms were exactly this generic set. v3->v4 change "
+            "(2026-09-14, same day): a real physical kernel+profile-split "
+            "DESIGN pass on the 3 families still ADMITTED under v3 found "
+            "the identical bug one layer up -- their entire universally-"
+            "shared vocabulary was `ggen-create`'s own marketplace-wide "
+            "tooling scaffold (GenerationSubject + 10 name-casing "
+            "predicates under https://ggen.io/ontology/ggen-create#), "
+            "confirmed present in 26 of this marketplace's 318 packs "
+            "including packs with no relationship to the family's real "
+            "domain at all. v4 excludes TOOLING_VOCAB_NAMESPACES the same "
+            "way v3 excludes GENERIC_VOCAB. instance_conflicting_pairs "
             "(raw triple-set overlap, v1's old metric) is reported per "
             "pair but does NOT drive verdict — instance data (subjects, "
             "literals) differing between packs is expected and is not "
