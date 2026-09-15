@@ -5,6 +5,21 @@ defmodule MarketplaceCli.InspectorTest do
 
   @root Application.compile_env(:marketplace_cli, :marketplace_root)
 
+  # `scripts/marketplace.py` REFUSED-gates on `import tomllib` (stdlib
+  # 3.11+), but stock macOS resolves bare `python3` to /usr/bin/python3
+  # (3.9, no tomllib) even when 3.11+ interpreters are installed and
+  # linked later in PATH. Resolve the oracle interpreter as the first
+  # tomllib-capable candidate instead of hardcoding "python3"
+  # (MARKETPLACE_PYTHON overrides for explicit pinning).
+  defp python_bin do
+    System.get_env("MARKETPLACE_PYTHON") ||
+      Enum.find(["python3", "python3.14", "python3.13", "python3.12", "python3.11"], fn bin ->
+        System.find_executable(bin) != nil and
+          match?({_out, 0}, System.cmd(bin, ["-c", "import tomllib"], stderr_to_stdout: true))
+      end) ||
+      raise "no tomllib-capable python found (need >= 3.11); set MARKETPLACE_PYTHON"
+  end
+
   # Real behavioral-parity check against `python3 scripts/marketplace.py
   # validate` run against this SAME marketplace tree. The real Python
   # command was run once by hand to obtain the comparison line below (see
@@ -16,7 +31,7 @@ defmodule MarketplaceCli.InspectorTest do
   # are the load-bearing signal marketplace.py's own `validate()` prints.
   test "validate/1 matches real python3 scripts/marketplace.py validate on this marketplace tree" do
     {python_line, 0} =
-      System.cmd("python3", ["scripts/marketplace.py", "validate"],
+      System.cmd(python_bin(), ["scripts/marketplace.py", "validate"],
         cd: @root,
         stderr_to_stdout: true
       )
@@ -63,8 +78,15 @@ defmodule MarketplaceCli.InspectorTest do
   # measured `Inspector.catalog/1` cost alone (~28.5s).
   @tag timeout: 90_000
   test "catalog/1 pack count matches real python3 scripts/marketplace.py catalog on this marketplace tree" do
+    # `--scope all`: the python oracle's catalog defaults to the "active"
+    # scope (the ~12-pack curated set in marketplace.active.toml), while
+    # `Inspector.catalog/1` catalogs every admitted pack (318) -- the
+    # default-scope comparison this test used to make silently diverged
+    # when the consolidation court shrank the active list, masked until
+    # now by bare `python3` (3.9, no tomllib) REFUSED-ing on this machine.
+    # Pin both sides to the full admitted set.
     {python_json, 0} =
-      System.cmd("python3", ["scripts/marketplace.py", "catalog"],
+      System.cmd(python_bin(), ["scripts/marketplace.py", "catalog", "--scope", "all"],
         cd: @root,
         stderr_to_stdout: true
       )
