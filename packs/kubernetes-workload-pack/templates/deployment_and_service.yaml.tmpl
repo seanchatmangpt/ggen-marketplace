@@ -26,7 +26,7 @@ sparql:
     PREFIX k8s: <http://seanchatmangpt.github.io/packs/kubernetes#>
     SELECT ?wl ?workloadName ?namespace ?fileName ?replicas ?serviceAccountName
            ?automountServiceAccountToken ?podSecurityContextBlock
-           ?servicePort ?serviceTargetPort ?serviceType
+           ?servicePort ?serviceTargetPort ?serviceType ?serviceClusterIP
     WHERE {
       ?wl a k8s:Workload ; k8s:workloadName ?workloadName ; k8s:fileName ?fileName .
       OPTIONAL { ?wl k8s:namespace ?namespace . }
@@ -37,6 +37,7 @@ sparql:
       OPTIONAL { ?wl k8s:servicePort ?servicePort . }
       OPTIONAL { ?wl k8s:serviceTargetPort ?serviceTargetPort . }
       OPTIONAL { ?wl k8s:serviceType ?serviceType . }
+      OPTIONAL { ?wl k8s:serviceClusterIP ?serviceClusterIP . }
     }
     ORDER BY ?fileName
   containers: |
@@ -158,6 +159,9 @@ metadata:
   name: {{ workloadName }}
   namespace: {{ namespace | default(value="default") }}
 spec:
+{%- if serviceClusterIP %}
+  clusterIP: {{ serviceClusterIP }}
+{%- endif %}
   selector:
     app: {{ workloadName }}
   ports:
