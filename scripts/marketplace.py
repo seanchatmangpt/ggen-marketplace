@@ -35,6 +35,39 @@ SEMVER = re.compile(
 )
 TEMPLATE_SUFFIXES = (".tmpl", ".tera")
 GATE_SOURCE_SUFFIXES = frozenset({".rq", ".py"})
+# Packs retired from normal marketplace discovery (docs/jira/v26.8.19/
+# 01-TICKET-retire-clap-noun-verb-legacy.md). The directory and its content
+# stay on disk for compatibility resolution by path-pinned consumers; only
+# catalog-level discoverability changes. Value is the tuple of successor
+# pack names that replace it.
+DEPRECATED_PACKS: dict[str, tuple[str, ...]] = {
+    "clap-noun-verb-pack": (
+        "clap-noun-verb-schema-pack",
+        "clap-noun-verb-crate-pack",
+        "clap-noun-verb-routing-pack",
+        "clap-noun-verb-behavior-pack",
+        "clap-noun-verb-boundary-pack",
+        "clap-noun-verb-verification-pack",
+    ),
+}
+# Portfolio-role classification, orthogonal to Pack.profile's generation
+# shape (docs/jira/v26.8.19/02-TICKET-pack-class-taxonomy.md). See
+# docs/reference/pack-classes.md for the seven-class definitions. Optional/
+# nullable: only packs whose file contents were actually checked in the
+# source audit are seeded here — every other pack is deliberately
+# unclassified (None) rather than guess-classified.
+PACK_CLASSES: dict[str, str] = {
+    "clap-noun-verb-pack": "CompatibilityPack",
+    "clap-noun-verb-schema-pack": "ProfilePack",
+    "clap-noun-verb-crate-pack": "ProfilePack",
+    "clap-noun-verb-routing-pack": "ProfilePack",
+    "clap-noun-verb-behavior-pack": "ProfilePack",
+    "clap-noun-verb-boundary-pack": "ProfilePack",
+    "clap-noun-verb-verification-pack": "ProfilePack",
+    "pack-authoring-pack": "KernelPack",
+    "pack-maturity-pack": "EvidencePack",
+    "wasm4pm-pack": "CapabilityPack",
+}
 REQUIRED_DOCS = (
     "docs/index.md",
     "docs/tutorials/first-pack.md",
@@ -82,6 +115,7 @@ class Pack:
         manifest = self.path / "pack.toml"
         archive = build_pack_archive(self)
         return {
+            "deprecated": self.name in DEPRECATED_PACKS,
             "description": self.description,
             "digest": f"sha256:{hashlib.sha256(archive).hexdigest()}",
             "download_url": (
@@ -93,9 +127,11 @@ class Pack:
             "native_gates": len(self.native_gates),
             "ontology_files": len(self.ontologies),
             "ontology_fingerprint_sha256": fingerprint_paths(self.ontologies, self.path),
+            "pack_class": PACK_CLASSES.get(self.name),
             "path": self.path.relative_to(ROOT).as_posix(),
             "profile": self.profile,
             "size_bytes": len(archive),
+            "successors": list(DEPRECATED_PACKS.get(self.name, ())),
             "templates": len(self.templates),
             "verifier_gates": len(self.verifier_gates),
             "version": self.version,

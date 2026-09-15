@@ -90,3 +90,41 @@ small set of canonical classes/kernels
 ```
 
 A large number of pack instances is healthy when semantic authority is not duplicated. See [Class closure and consolidation](../explanation/class-closure-and-consolidation.md) and [How to consolidate a pack family](../how-to/consolidate-a-pack-family.md).
+
+## Wiring into the catalog
+
+Class assignment is a portfolio-organization label only. It does not alter `ggen sync run`
+output for any consumer, and it is not wired into `build_pack_archive()`, `catalog_record()`'s
+`digest`/`size_bytes`/`ontology_fingerprint_sha256`, or any other generation-affecting
+computation — it is informational metadata surfaced via the `pack_class` field on the catalog
+record. The field is optional and nullable: only packs whose file contents have actually been
+checked are seeded in `PACK_CLASSES` (`scripts/marketplace.py`); every other pack is
+deliberately unclassified (`null`) rather than guess-classified.
+
+## Worked examples
+
+These are the only packs whose file contents were actually checked as of this milestone
+(`docs/jira/v26.8.19/00-PACK-PORTFOLIO-MATURITY-AUDIT.md`), so they are the only ones seeded
+in `PACK_CLASSES`:
+
+- `clap-noun-verb-pack` — `CompatibilityPack`. Retired from normal discovery per
+  `docs/jira/v26.8.19/01-TICKET-retire-clap-noun-verb-legacy.md`; kept on disk only so
+  path-pinned consumers keep resolving.
+- `clap-noun-verb-schema-pack`, `clap-noun-verb-crate-pack`, `clap-noun-verb-routing-pack`,
+  `clap-noun-verb-behavior-pack`, `clap-noun-verb-boundary-pack`,
+  `clap-noun-verb-verification-pack` — `ProfilePack`. The six successor packs named by
+  `clap-noun-verb-pack`'s own deprecation text; each projects a target-specific facet of the
+  retired pack's ontology.
+- `pack-authoring-pack` — `KernelPack`. Owns the canonical pack-authoring ontology other packs
+  project from.
+- `pack-maturity-pack` — `EvidencePack`. Owns maturity/standing evidence semantics.
+- `wasm4pm-pack` — `CapabilityPack`. An independently-owned WASM-for-project-management
+  capability, not a profile of another pack's kernel.
+
+## See Also
+
+- `docs/jira/v26.8.19/02-TICKET-pack-class-taxonomy.md` — the ticket this doc satisfies
+- `docs/jira/v26.8.19/01-TICKET-retire-clap-noun-verb-legacy.md` — the deprecation this doc's
+  `CompatibilityPack` example is grounded in
+- `docs/reference/pack-contract.md` — the structural `Pack.profile` axis this taxonomy sits
+  alongside
