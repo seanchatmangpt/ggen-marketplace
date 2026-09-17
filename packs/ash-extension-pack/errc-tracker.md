@@ -214,3 +214,32 @@ separate commit on top of the three parallel agents' work):
    which in fact satisfies the contract) and silently made the `receipted_action`
    query/template always return 0 rows. Fixed by removing the quotes in all five
    filter sites so the comparison is boolean-to-boolean.
+
+## Cycle 2 — 2026-09-17 (license-file family: first ledger-paydown capability, finish-paydown-026)
+
+EXTEND of the existing pack (no new top-level pack): a `aex:PackageLicenseFile`
+family -- vocabulary + worked instance (`aex:AshSurfaceLicense`, facts echoing the
+consumer repo ash_surface's real LICENSE byte-for-byte), `templates/LICENSE.tmpl`
+(SPARQL-frontmatter Tera, driver query `license`, emits the SPDX MIT body verbatim
+with the stated copyright line -- echo, don't synthesize), and
+`gates/070_license_file_contract.rq` (missing-fact + closed-spdx-set violations;
+only "MIT" is renderable truthfully today, anything else refuses fail-closed).
+
+Harness changes (`verify/render_check.exs`): gate 070 + LICENSE.tmpl added to the
+real file lists; the syntax check now scopes to Elixir templates
+(`.ex.tmpl`/`.exs.tmpl`) and reports `:non_elixir_text` for plain-text templates
+instead of pretending MIT text parsed as Elixir; new fail-closed byte-identity
+hook -- set `LICENSE_EXPECTED_PATH` to the consumer's LICENSE and a rendered-body
+mismatch halts the VM nonzero. Witnessed receipt for this cycle (real run against
+the consumer's file): rendered LICENSE byte-identical, 1069 bytes, md5
+1a18525b755dba67b8e1bbfa8348a642.
+
+Known limits disclosed, not papered over: (1) this pack's Rust `ggen sync run`
+blocker ([FM-PACK-001]/[FM-PACK-002], hardcoded `/workspace` `[packs]` resolution)
+still applies -- verification remains through ggen_igniter's real
+oxigraph+WASM-Tera pipeline; (2) the consumer-side paydown (retiring ash_surface's
+HANDWRITTEN `LICENSE` row + `surf:UnsupportedLedgerRow31`) is deliberately NOT done
+from this branch: marketplace admission (merge of this branch to the authoritative
+head) is an operator cut, and retiring the consumer pair against an unadmitted,
+unpushed pack SHA would fabricate provenance. The pair retires only after
+admission, via re-dispatch of finish-paydown-026.

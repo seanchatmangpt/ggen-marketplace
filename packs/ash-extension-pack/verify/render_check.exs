@@ -123,7 +123,7 @@ graph =
 IO.puts("")
 
 # ---------------------------------------------------------------------------
-# 3. Gates 010..060 and the two named queries -- real filenames on disk,
+# 3. Gates 010..070 and the two named queries -- real filenames on disk,
 #    confirmed via `find packs/ash-extension-pack -type f`.
 # ---------------------------------------------------------------------------
 
@@ -133,7 +133,8 @@ gate_files = [
   {"gate 030 (entity_identifier_contract)", Path.join([pack_root, "gates", "030_entity_identifier_contract.rq"])},
   {"gate 040 (reactor_step_graph_contract)", Path.join([pack_root, "gates", "040_reactor_step_graph_contract.rq"])},
   {"gate 050 (info_getter_quadruple_contract)", Path.join([pack_root, "gates", "050_info_getter_quadruple_contract.rq"])},
-  {"gate 060 (installer_target_mode_contract)", Path.join([pack_root, "gates", "060_installer_target_mode_contract.rq"])}
+  {"gate 060 (installer_target_mode_contract)", Path.join([pack_root, "gates", "060_installer_target_mode_contract.rq"])},
+  {"gate 070 (license_file_contract)", Path.join([pack_root, "gates", "070_license_file_contract.rq"])}
 ]
 
 query_files = [
@@ -166,7 +167,7 @@ gates_run = Enum.count(gate_results, fn {_l, _p, r} -> match?({:ok, _}, r) end)
 queries_run = Enum.count(query_results, fn {_l, _p, r} -> match?({:ok, _}, r) end)
 
 # ---------------------------------------------------------------------------
-# 4. Render each of the 8 templates, using EACH TEMPLATE'S OWN frontmatter
+# 4. Render each template, using EACH TEMPLATE'S OWN frontmatter
 #    `sparql:`/`for_each:` block -- the real production binding path
 #    (Mix.Tasks.GgenIgniter.Sync.build_bindings/2), not a guessed context.
 # ---------------------------------------------------------------------------
@@ -179,7 +180,8 @@ template_files = [
   {"install.ex.tmpl", Path.join([pack_root, "templates", "install.ex.tmpl"])},
   {"reactor_pipeline.ex.tmpl", Path.join([pack_root, "templates", "reactor_pipeline.ex.tmpl"])},
   {"receipted_action.ex.tmpl", Path.join([pack_root, "templates", "receipted_action.ex.tmpl"])},
-  {"composition_test.exs.tmpl", Path.join([pack_root, "templates", "composition_test.exs.tmpl"])}
+  {"composition_test.exs.tmpl", Path.join([pack_root, "templates", "composition_test.exs.tmpl"])},
+  {"LICENSE.tmpl", Path.join([pack_root, "templates", "LICENSE.tmpl"])}
 ]
 
 IO.puts("-- templates: render --")
@@ -314,19 +316,32 @@ syntax_results =
     case result do
       {:ok, {_fm, bodies}} ->
         body_results =
-          Enum.map(bodies, fn body ->
-            case Code.string_to_quoted(body) do
-              {:ok, _quoted} -> :valid_syntax
-              {:error, reason} -> {:syntax_error, reason}
-            end
-          end)
+          if String.ends_with?(name, ".ex.tmpl") or String.ends_with?(name, ".exs.tmpl") do
+            Enum.map(bodies, fn body ->
+              case Code.string_to_quoted(body) do
+                {:ok, _quoted} -> :valid_syntax
+                {:error, reason} -> {:syntax_error, reason}
+              end
+            end)
+          else
+            # Non-Elixir text template (LICENSE.tmpl): there is no Elixir syntax
+            # to check here. Its real contract is byte-identity with the
+            # consumer's expected file, checked by the LICENSE_EXPECTED_PATH
+            # hook in the summary section -- never silently treated as Elixir.
+            Enum.map(bodies, fn _body -> :non_elixir_text end)
+          end
 
         bad = Enum.find(body_results, &match?({:syntax_error, _}, &1))
 
         case bad do
           nil ->
-            IO.puts("  #{name}: :valid_syntax (#{length(bodies)} row(s))")
-            {name, :valid_syntax}
+            status =
+              if Enum.all?(body_results, &(&1 == :non_elixir_text)),
+                do: :non_elixir_text,
+                else: :valid_syntax
+
+            IO.puts("  #{name}: #{inspect(status)} (#{length(bodies)} row(s))")
+            {name, status}
 
           {:syntax_error, reason} ->
             IO.puts("  #{name}: SYNTAX ERROR: #{inspect(reason)}")
@@ -432,3 +447,51 @@ disclosure =
   end
 
 IO.puts("DISCLOSURE: #{disclosure}")
+
+# ---------------------------------------------------------------------------
+# 7. LICENSE byte-identity receipt hook (finish-paydown-026). Plain-text
+#    templates have no Elixir syntax to check; their real contract is that the
+#    rendered bytes EQUAL the artifact the consumer repo carries. When
+#    LICENSE_EXPECTED_PATH names the expected file, a mismatch here halts the
+#    VM with a nonzero exit -- fail-closed, never a printed warning only.
+# ---------------------------------------------------------------------------
+
+IO.puts("")
+
+license_byte_identity =
+  case Enum.find(render_results, fn {n, _p, _r} -> n == "LICENSE.tmpl" end) do
+    {"LICENSE.tmpl", _p, {:ok, {_fm, [rendered]}}} ->
+      case System.get_env("LICENSE_EXPECTED_PATH") do
+        nil ->
+          IO.puts("LICENSE byte identity: skipped (LICENSE_EXPECTED_PATH not set)")
+          :skipped
+
+        expected_path ->
+          expected = File.read!(expected_path)
+
+          if rendered == expected do
+            IO.puts(
+              "LICENSE byte identity: :ok -- rendered LICENSE byte-identical to " <>
+                "#{expected_path} (#{byte_size(expected)} bytes)"
+            )
+
+            :ok
+          else
+            IO.puts(
+              "LICENSE byte identity: :MISMATCH -- rendered #{byte_size(rendered)} bytes " <>
+                "vs expected #{byte_size(expected)} bytes (#{expected_path})"
+            )
+
+            :mismatch
+          end
+      end
+
+    _ ->
+      IO.puts("LICENSE byte identity: skipped (LICENSE.tmpl did not render a single body)")
+      :skipped
+  end
+
+if license_byte_identity == :mismatch do
+  IO.puts("FAIL: LICENSE byte identity mismatch -- refusing exit 0")
+  System.halt(1)
+end
