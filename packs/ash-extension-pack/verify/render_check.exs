@@ -123,7 +123,7 @@ graph =
 IO.puts("")
 
 # ---------------------------------------------------------------------------
-# 3. Gates 010..070 and the two named queries -- real filenames on disk,
+# 3. Gates 010..080 and the two named queries -- real filenames on disk,
 #    confirmed via `find packs/ash-extension-pack -type f`.
 # ---------------------------------------------------------------------------
 
@@ -134,7 +134,8 @@ gate_files = [
   {"gate 040 (reactor_step_graph_contract)", Path.join([pack_root, "gates", "040_reactor_step_graph_contract.rq"])},
   {"gate 050 (info_getter_quadruple_contract)", Path.join([pack_root, "gates", "050_info_getter_quadruple_contract.rq"])},
   {"gate 060 (installer_target_mode_contract)", Path.join([pack_root, "gates", "060_installer_target_mode_contract.rq"])},
-  {"gate 070 (license_file_contract)", Path.join([pack_root, "gates", "070_license_file_contract.rq"])}
+  {"gate 070 (license_file_contract)", Path.join([pack_root, "gates", "070_license_file_contract.rq"])},
+  {"gate 080 (scripts_index_contract)", Path.join([pack_root, "gates", "080_scripts_index_contract.rq"])}
 ]
 
 query_files = [
@@ -181,7 +182,8 @@ template_files = [
   {"reactor_pipeline.ex.tmpl", Path.join([pack_root, "templates", "reactor_pipeline.ex.tmpl"])},
   {"receipted_action.ex.tmpl", Path.join([pack_root, "templates", "receipted_action.ex.tmpl"])},
   {"composition_test.exs.tmpl", Path.join([pack_root, "templates", "composition_test.exs.tmpl"])},
-  {"LICENSE.tmpl", Path.join([pack_root, "templates", "LICENSE.tmpl"])}
+  {"LICENSE.tmpl", Path.join([pack_root, "templates", "LICENSE.tmpl"])},
+  {"SCRIPTS_README.tmpl", Path.join([pack_root, "templates", "SCRIPTS_README.tmpl"])}
 ]
 
 IO.puts("-- templates: render --")
@@ -324,10 +326,11 @@ syntax_results =
               end
             end)
           else
-            # Non-Elixir text template (LICENSE.tmpl): there is no Elixir syntax
-            # to check here. Its real contract is byte-identity with the
-            # consumer's expected file, checked by the LICENSE_EXPECTED_PATH
-            # hook in the summary section -- never silently treated as Elixir.
+            # Non-Elixir text templates (LICENSE.tmpl, SCRIPTS_README.tmpl):
+            # there is no Elixir syntax to check here. Their real contract is
+            # byte-identity with the consumer's expected file, checked by the
+            # LICENSE_EXPECTED_PATH / SCRIPTS_README_EXPECTED_PATH hooks in the
+            # summary section -- never silently treated as Elixir.
             Enum.map(bodies, fn _body -> :non_elixir_text end)
           end
 
@@ -493,5 +496,53 @@ license_byte_identity =
 
 if license_byte_identity == :mismatch do
   IO.puts("FAIL: LICENSE byte identity mismatch -- refusing exit 0")
+  System.halt(1)
+end
+
+# ---------------------------------------------------------------------------
+# 8. Scripts-index byte-identity receipt hook (chicago-ledger-shrink2-050).
+#    Same contract class as section 7: templates/SCRIPTS_README.tmpl renders
+#    the consumer repo's scripts/README.md from stated ontology facts; when
+#    SCRIPTS_README_EXPECTED_PATH names the expected file, any rendered-byte
+#    mismatch here halts the VM with a nonzero exit -- fail-closed.
+# ---------------------------------------------------------------------------
+
+IO.puts("")
+
+scripts_readme_byte_identity =
+  case Enum.find(render_results, fn {n, _p, _r} -> n == "SCRIPTS_README.tmpl" end) do
+    {"SCRIPTS_README.tmpl", _p, {:ok, {_fm, [rendered]}}} ->
+      case System.get_env("SCRIPTS_README_EXPECTED_PATH") do
+        nil ->
+          IO.puts("SCRIPTS_README byte identity: skipped (SCRIPTS_README_EXPECTED_PATH not set)")
+          :skipped
+
+        expected_path ->
+          expected = File.read!(expected_path)
+
+          if rendered == expected do
+            IO.puts(
+              "SCRIPTS_README byte identity: :ok -- rendered scripts index byte-identical to " <>
+                "#{expected_path} (#{byte_size(expected)} bytes)"
+            )
+
+            :ok
+          else
+            IO.puts(
+              "SCRIPTS_README byte identity: :MISMATCH -- rendered #{byte_size(rendered)} bytes " <>
+                "vs expected #{byte_size(expected)} bytes (#{expected_path})"
+            )
+
+            :mismatch
+          end
+      end
+
+    _ ->
+      IO.puts("SCRIPTS_README byte identity: skipped (SCRIPTS_README.tmpl did not render a single body)")
+      :skipped
+  end
+
+if scripts_readme_byte_identity == :mismatch do
+  IO.puts("FAIL: SCRIPTS_README byte identity mismatch -- refusing exit 0")
   System.halt(1)
 end
