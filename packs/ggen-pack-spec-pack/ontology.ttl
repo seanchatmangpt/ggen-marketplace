@@ -1,0 +1,344 @@
+# ggen-pack-spec-pack ontology — the canonical gp: vocabulary of
+# RFC-GPACK-001 v26.9.17 (the GGEN Semantic Pack Protocol).
+#
+# This pack is the RFC's own executable specification (RFC §94) and is
+# self-governed by the law it defines (RFC §93): the <urn:ggen:pack:ggen-pack-spec-pack>
+# individual at the bottom of this file describes THIS pack, and the gates
+# in gates/ run against this very graph.
+#
+# Namespace (RFC Appendix B): https://ggen.dev/ns/pack#
+# Profile/profile-name mapping (RFC §12/§88/§89 use the long form; the IRI
+# fragment is the short form):
+#   GGEN-PACK-CORE-1           -> gp:Core1
+#   GGEN-PACK-PORTABLE-1       -> gp:Portable1
+#   GGEN-PACK-RUST-1           -> gp:Rust1
+#   GGEN-PACK-IGNITER-1        -> gp:Igniter1
+#   GGEN-PACK-MARKETPLACE-1    -> gp:Marketplace1
+#   GGEN-PACK-RUST-LEGACY-1    -> gp:RustLegacy1
+#   GGEN-PACK-IGNITER-LEGACY-1 -> gp:IgniterLegacy1
+#
+# Typed refusal codes (RFC Appendix C) are individuals of gp:RefusalCode.
+# Their exact wire string ("REFUSED:<TYPE>", with the colon) is carried in
+# rdfs:label; the IRI fragment drops the colon because ':' is not legal in
+# a Turtle local name. Automation MUST key on the label, not the fragment.
+
+@prefix gp:  <https://ggen.dev/ns/pack#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+########################################################################
+# Classes (RFC §10 "Semantic Pack Vocabulary" list; namespace Appendix B)
+########################################################################
+
+gp:Pack a rdfs:Class ;
+    rdfs:label "Pack" ;
+    rdfs:comment "A portable semantic manufacturing unit: pack.toml + ontology.ttl + queries/gates/templates under one root (RFC §5.1, §6). Received is not admitted (§3.1); a pack is not a capability (§3.2) and carries no semantic authority by itself (§3.3)." .
+
+gp:PackRequirement a rdfs:Class ;
+    rdfs:label "Pack Requirement" ;
+    rdfs:comment "A declared requirement one pack imposes on its composition context — capability, pack, semantic, law, or projection dependency (RFC §26–§31). Declaration order is not meaning (§3.8); resolution is immutable (§33)." .
+
+gp:Capability a rdfs:Class ;
+    rdfs:label "Capability" ;
+    rdfs:comment "A publishable unit of function a pack provides or requires (RFC §76). Capability is not authority (§3.4); ambiguous providers must be refused, not resolved silently (REFUSED:AMBIGUOUS_CAPABILITY_PROVIDER)." .
+
+gp:Profile a rdfs:Class ;
+    rdfs:label "Profile" ;
+    rdfs:comment "A named conformance level selecting which protocol laws bind a pack (RFC §12)." .
+
+gp:Renderer a rdfs:Class ;
+    rdfs:label "Renderer" ;
+    rdfs:comment "An explicit template-rendering engine identity (RFC §17). Renderer identity MUST be explicit; '.tmpl' alone is never sufficient renderer identity (§20–§21)." .
+
+gp:AuthorityCeiling a rdfs:Class ;
+    rdfs:label "Authority Ceiling" ;
+    rdfs:comment "The upper bound of manufacture authority a pack may exercise (RFC §5.9, §46–§47). A pack definition itself does not grant external DO." .
+
+gp:TargetOwnership a rdfs:Class ;
+    rdfs:label "Target Ownership" ;
+    rdfs:comment "Declared ownership of a projection target path; collisions must be refused (RFC §42–§43, REFUSED:TARGET_OWNERSHIP_CONFLICT)." .
+
+gp:LifecycleState a rdfs:Class ;
+    rdfs:label "Lifecycle State" ;
+    rdfs:comment "Lifecycle is distinct from versioning (RFC §61). Individuals: Candidate, Active, Deprecated, CompatibilityOnly, Retired, Revoked." .
+
+gp:CompatibilityRelation a rdfs:Class ;
+    rdfs:label "Compatibility Relation" ;
+    rdfs:comment "A declared historical-compatibility seam between packs (RFC §63). Preservation of historical behavior is intentional contract, never promotion to canonical semantic model." .
+
+gp:QualificationProfile a rdfs:Class ;
+    rdfs:label "Qualification Profile" ;
+    rdfs:comment "The court set a pack must pass for a given claim (RFC §77–§78). Inspection is not execution; a gate never executed must not be reported as passed." .
+
+gp:PackClass a rdfs:Class ;
+    rdfs:label "Pack Class" ;
+    rdfs:comment "Descriptive semantic responsibility of a pack (RFC §11). Class(P) does NOT imply Authority(P): a class never implicitly grants execution rights." .
+
+########################################################################
+# Profiles (RFC §12, §88, §89) — all a gp:Profile
+########################################################################
+
+gp:Core1 a gp:Profile ;
+    rdfs:label "GGEN-PACK-CORE-1" ;
+    rdfs:comment "RFC §12.1: requires pack.toml, ontology.ttl, identity correspondence, content identity, path safety. No projection engine required." .
+
+gp:Portable1 a gp:Profile ;
+    rdfs:label "GGEN-PACK-PORTABLE-1" ;
+    rdfs:comment "RFC §12.2: adds portable SPARQL query and gate semantics, explicit renderer identity, canonical RDF binding representation, deterministic target projection, portable receipt envelope. The primary cross-engine interoperability profile (§78 required portable courts)." .
+
+gp:Rust1 a gp:Profile ;
+    rdfs:label "GGEN-PACK-RUST-1" ;
+    rdfs:comment "RFC §12.3: capabilities specific to Rust ggen including compatible native projection/write surfaces. MAY extend portable behavior; MUST NOT redefine Core terms." .
+
+gp:Igniter1 a gp:Profile ;
+    rdfs:label "GGEN-PACK-IGNITER-1" ;
+    rdfs:comment "RFC §12.4: Igniter-specific extensions — EEx rendering, Igniter task composition, AST codemods, reconciliation, stale-file handling. MUST NOT redefine Core terms." .
+
+gp:Marketplace1 a gp:Profile ;
+    rdfs:label "GGEN-PACK-MARKETPLACE-1" ;
+    rdfs:comment "RFC §12.5: adds distribution, snapshot identity, archive requirements, lifecycle publication, qualification metadata, catalog projection." .
+
+gp:RustLegacy1 a gp:Profile ;
+    rdfs:label "GGEN-PACK-RUST-LEGACY-1" ;
+    rdfs:comment "RFC §88: approximate classification of existing Rust packs (strict pack.toml, ontology.ttl, templates/**/*.tmpl = Tera/frontmatter, gates/*.rq = refusal law). Existing packs are not invalidated." .
+
+gp:IgniterLegacy1 a gp:Profile ;
+    rdfs:label "GGEN-PACK-IGNITER-LEGACY-1" ;
+    rdfs:comment "RFC §89: approximate classification of existing Igniter packs (pack.toml optional, gates/*.rq = named rendering queries, templates/*.eex|*.tmpl = EEx-oriented discovery). No new pack SHOULD choose this profile unless preserving compatibility." .
+
+########################################################################
+# Renderers (RFC §17)
+########################################################################
+
+gp:Tera1 a gp:Renderer ;
+    rdfs:label "Tera1" ;
+    rdfs:comment "The RECOMMENDED portable renderer (RFC §18). Portable packs use .tera discovery (§20)." .
+
+gp:EEx1 a gp:Renderer ;
+    rdfs:label "EEx1" ;
+    rdfs:comment "An Igniter extension renderer (RFC §19). A pack requiring EEx MUST advertise that requirement; an implementation lacking EEx classifies the projection UNSUPPORTED:RENDERER:EEx1, not malformed." .
+
+########################################################################
+# Authority ceilings (RFC §46 ladder, §47 default)
+#
+# The §46 manufacture-authority ladder, lowest elevation first:
+#   CONSTRUCT_FILES < MUTATE_STRUCTURED_SOURCE < EXECUTE_PROCESS
+#                   < NETWORK_DO < EXTERNAL_SYSTEM_DO
+# gp:Construct is the DEFAULT ceiling (§47): PackAuthority <= CONSTRUCT —
+# i.e. filesystem construction inside an admitted consumer root (the
+# CONSTRUCT_FILES rung) and nothing above it. Elevation above CONSTRUCT
+# requires an explicit higher-level authority system; a pack definition
+# itself never grants external DO (§47, §48, §49).
+########################################################################
+
+gp:Construct a gp:AuthorityCeiling ;
+    rdfs:label "Construct" ;
+    rdfs:comment "DEFAULT authority ceiling (RFC §47): PackAuthority <= CONSTRUCT. Covers exactly the CONSTRUCT_FILES rung of the §46 ladder — bounded filesystem construction inside an admitted consumer root. Every higher rung (MUTATE_STRUCTURED_SOURCE and above) is outside this ceiling unless explicitly elevated by a higher-level authority system." .
+
+gp:ConstructFiles a gp:AuthorityCeiling ;
+    rdfs:label "CONSTRUCT_FILES" ;
+    rdfs:comment "§46 ladder rung 1 (lowest): filesystem construction inside an admitted consumer root. Bounded manufacture consequence, not arbitrary external actuation. Equivalent in elevation to the gp:Construct default ceiling." .
+
+gp:MutateStructuredSource a gp:AuthorityCeiling ;
+    rdfs:label "MUTATE_STRUCTURED_SOURCE" ;
+    rdfs:comment "§46 ladder rung 2: mutation of structured source files (above CONSTRUCT_FILES, below EXECUTE_PROCESS). Requires explicit declared authority; never ambient." .
+
+gp:ExecuteProcess a gp:AuthorityCeiling ;
+    rdfs:label "EXECUTE_PROCESS" ;
+    rdfs:comment "§46 ladder rung 3: process execution. A portable pack MUST NOT execute arbitrary external commands on the Core path (§49); profiles permitting commands must declare capability, authority boundary, inputs, consequence classes, receipts, and refusal behavior." .
+
+gp:NetworkDo a gp:AuthorityCeiling ;
+    rdfs:label "NETWORK_DO" ;
+    rdfs:comment "§46 ladder rung 4: network actuation (above EXECUTE_PROCESS, below EXTERNAL_SYSTEM_DO). Requires explicit elevation; never granted by pack presence." .
+
+gp:ExternalSystemDo a gp:AuthorityCeiling ;
+    rdfs:label "EXTERNAL_SYSTEM_DO" ;
+    rdfs:comment "§46 ladder rung 5 (highest): arbitrary external system actuation. Never implied by any pack definition, class, capability, or hook (§47, §48)." .
+
+########################################################################
+# Lifecycle states (RFC §61) — all a gp:LifecycleState
+########################################################################
+
+gp:Candidate a gp:LifecycleState ;
+    rdfs:label "Candidate" ;
+    rdfs:comment "§61: proposed, not yet admitted/active. Initial state of this spec pack." .
+
+gp:Active a gp:LifecycleState ;
+    rdfs:label "Active" ;
+    rdfs:comment "§61: admitted and maintained." .
+
+gp:Deprecated a gp:LifecycleState ;
+    rdfs:label "Deprecated" ;
+    rdfs:comment "§61–§62: should identify successor capability/packs, compatibility seam, migration rule, last feature version." .
+
+gp:CompatibilityOnly a gp:LifecycleState ;
+    rdfs:label "CompatibilityOnly" ;
+    rdfs:comment "§61, §63: preserved solely as intentional compatibility contract; never the new canonical semantic model." .
+
+gp:Retired a gp:LifecycleState ;
+    rdfs:label "Retired" ;
+    rdfs:comment "§61: withdrawn from distribution; historical evidence only." .
+
+gp:Revoked a gp:LifecycleState ;
+    rdfs:label "Revoked" ;
+    rdfs:comment "§61: withdrawn for cause (e.g. failed re-qualification or provenance violation); must fail closed." .
+
+########################################################################
+# Pack classes (RFC §11) — descriptive only; Class(P) ⇏ Authority(P)
+########################################################################
+
+gp:KernelPack a gp:PackClass ;
+    rdfs:label "KernelPack" ;
+    rdfs:comment "§11: core vocabulary/law pack the protocol itself depends on. Descriptive only; grants no execution rights." .
+
+gp:CapabilityPack a gp:PackClass ;
+    rdfs:label "CapabilityPack" ;
+    rdfs:comment "§11: publishes capabilities for discovery and requirement matching. Descriptive only." .
+
+gp:ProfilePack a gp:PackClass ;
+    rdfs:label "ProfilePack" ;
+    rdfs:comment "§11: carries profile definitions/extensions. Descriptive only." .
+
+gp:WorldPack a gp:PackClass ;
+    rdfs:label "WorldPack" ;
+    rdfs:comment "§11: composes a broad world/model surface from other packs. Descriptive only." .
+
+gp:CompatibilityPack a gp:PackClass ;
+    rdfs:label "CompatibilityPack" ;
+    rdfs:comment "§11, §63: preserves historical behavior as intentional contract. Descriptive only." .
+
+gp:EvidencePack a gp:PackClass ;
+    rdfs:label "EvidencePack" ;
+    rdfs:comment "§11: ships receipts/evidence/court artifacts. Descriptive only." .
+
+gp:ReleaseControlPack a gp:PackClass ;
+    rdfs:label "ReleaseControlPack" ;
+    rdfs:comment "§11: governs release/lifecycle publication mechanics. Descriptive only." .
+
+gp:UmbrellaPack a gp:PackClass ;
+    rdfs:label "UmbrellaPack" ;
+    rdfs:comment "§11, §75: aggregate of member packs; adds no semantics of its own. Descriptive only." .
+
+gp:ProtocolPack a gp:PackClass ;
+    rdfs:label "ProtocolPack" ;
+    rdfs:comment "§11: executable protocol specification (this pack's class — RFC §94). Descriptive only; never an authority grant." .
+
+########################################################################
+# Properties (RFC Appendix B)
+########################################################################
+
+gp:name a rdf:Property ;
+    rdfs:label "name" ;
+    rdfs:comment "Canonical pack name (RFC §7.1, §8). Exactly one per gp:Pack; must equal the pack.toml [pack].name the pack ships under (Project(I_S)=I_B). Enforced by gates/010_identity.rq and gates/020_manifest_graph_correspondence.rq." .
+
+gp:version a rdf:Property ;
+    rdfs:label "version" ;
+    rdfs:comment "Declared pack version (RFC §7.1). Exactly one per gp:Pack; SemVer. Lifecycle is distinct from versioning (§61)." .
+
+gp:profile a rdf:Property ;
+    rdfs:label "profile" ;
+    rdfs:comment "Conformance profile of a pack; range gp:Profile (RFC §12)." .
+
+gp:renderer a rdf:Property ;
+    rdfs:label "renderer" ;
+    rdfs:comment "Explicit renderer identity; range gp:Renderer (RFC §17). MUST be explicit — never inferred from .tmpl." .
+
+gp:providesCapability a rdf:Property ;
+    rdfs:label "providesCapability" ;
+    rdfs:comment "Publishes a gp:Capability (RFC §76). Capability is not authority (§3.4)." .
+
+gp:requiresCapability a rdf:Property ;
+    rdfs:label "requiresCapability" ;
+    rdfs:comment "Declares a required gp:Capability (RFC §31). Ambiguous providers must be refused (App. C)." .
+
+gp:requiresPack a rdf:Property ;
+    rdfs:label "requiresPack" ;
+    rdfs:comment "Declares a pack dependency (RFC §26). Dependency is not ambient authority (§3.7)." .
+
+gp:dependencyScope a rdf:Property ;
+    rdfs:label "dependencyScope" ;
+    rdfs:comment "Scope of a declared dependency (RFC §26)." .
+
+gp:importsSemantics a rdf:Property ;
+    rdfs:label "importsSemantics" ;
+    rdfs:comment "Semantic dependency import (RFC §27)." .
+
+gp:importsLaw a rdf:Property ;
+    rdfs:label "importsLaw" ;
+    rdfs:comment "Law dependency import — gates/refusals (RFC §28)." .
+
+gp:importsProjection a rdf:Property ;
+    rdfs:label "importsProjection" ;
+    rdfs:comment "Projection dependency import (RFC §29)." .
+
+gp:authorityCeiling a rdf:Property ;
+    rdfs:label "authorityCeiling" ;
+    rdfs:comment "Declared gp:AuthorityCeiling (RFC §46–§47). Default gp:Construct when absent; a pack definition never grants external DO." .
+
+gp:ownsTarget a rdf:Property ;
+    rdfs:label "ownsTarget" ;
+    rdfs:comment "Declared gp:TargetOwnership of a projection path (RFC §42). Collisions refuse (§43)." .
+
+gp:lifecycle a rdf:Property ;
+    rdfs:label "lifecycle" ;
+    rdfs:comment "gp:LifecycleState of a pack (RFC §61); distinct from version." .
+
+gp:successor a rdf:Property ;
+    rdfs:label "successor" ;
+    rdfs:comment "Successor pack/capability of a deprecated pack (RFC §62)." .
+
+gp:qualificationProfile a rdf:Property ;
+    rdfs:label "qualificationProfile" ;
+    rdfs:comment "gp:QualificationProfile a pack qualifies under (RFC §77–§78)." .
+
+gp:contentDigest a rdf:Property ;
+    rdfs:label "contentDigest" ;
+    rdfs:comment "Content identity digest of a pack/artifact (RFC §37–§39)." .
+
+########################################################################
+# Typed refusal vocabulary (RFC Appendix C) — gp:RefusalCode individuals.
+# rdfs:label carries the exact wire string; that label is the stable
+# automation key (§16).
+########################################################################
+
+gp:RefusalCode a rdfs:Class ;
+    rdfs:label "Refusal Code" ;
+    rdfs:comment "Typed refusal identity (RFC §16, App. C, §82–§83). REFUSED means the implementation possesses the boundary and deliberately rejected the subject; it must never be collapsed into UNSUPPORTED or a bare failure." .
+
+gp:PACK_MANIFEST_MISSING a gp:RefusalCode ; rdfs:label "REFUSED:PACK_MANIFEST_MISSING" .
+gp:PACK_MANIFEST_INVALID a gp:RefusalCode ; rdfs:label "REFUSED:PACK_MANIFEST_INVALID" .
+gp:PACK_IDENTITY_MISMATCH a gp:RefusalCode ; rdfs:label "REFUSED:PACK_IDENTITY_MISMATCH" .
+gp:PACK_GRAPH_MISSING a gp:RefusalCode ; rdfs:label "REFUSED:PACK_GRAPH_MISSING" .
+gp:PACK_GRAPH_INVALID a gp:RefusalCode ; rdfs:label "REFUSED:PACK_GRAPH_INVALID" .
+gp:PACK_SYMLINK a gp:RefusalCode ; rdfs:label "REFUSED:PACK_SYMLINK" .
+gp:PACK_PATH_ESCAPE a gp:RefusalCode ; rdfs:label "REFUSED:PACK_PATH_ESCAPE" .
+gp:QUERY_INVALID a gp:RefusalCode ; rdfs:label "REFUSED:QUERY_INVALID" .
+gp:GATE_INVALID a gp:RefusalCode ; rdfs:label "REFUSED:GATE_INVALID" .
+gp:GATE_VIOLATION a gp:RefusalCode ; rdfs:label "REFUSED:GATE_VIOLATION" .
+gp:DEPENDENCY_UNSATISFIED a gp:RefusalCode ; rdfs:label "REFUSED:DEPENDENCY_UNSATISFIED" .
+gp:DEPENDENCY_CYCLE a gp:RefusalCode ; rdfs:label "REFUSED:DEPENDENCY_CYCLE" .
+gp:DEPENDENCY_VERSION_CONFLICT a gp:RefusalCode ; rdfs:label "REFUSED:DEPENDENCY_VERSION_CONFLICT" .
+gp:AMBIGUOUS_CAPABILITY_PROVIDER a gp:RefusalCode ; rdfs:label "REFUSED:AMBIGUOUS_CAPABILITY_PROVIDER" .
+gp:DUPLICATE_SEMANTIC_AUTHORITY a gp:RefusalCode ; rdfs:label "REFUSED:DUPLICATE_SEMANTIC_AUTHORITY" .
+gp:TARGET_OWNERSHIP_CONFLICT a gp:RefusalCode ; rdfs:label "REFUSED:TARGET_OWNERSHIP_CONFLICT" .
+gp:AUTHORITY_JOIN_INVALID a gp:RefusalCode ; rdfs:label "REFUSED:AUTHORITY_JOIN_INVALID" .
+gp:RENDERER_AMBIGUOUS a gp:RefusalCode ; rdfs:label "REFUSED:RENDERER_AMBIGUOUS" .
+gp:RENDERER_PROFILE_MISMATCH a gp:RefusalCode ; rdfs:label "REFUSED:RENDERER_PROFILE_MISMATCH" .
+gp:NONDETERMINISTIC_REPLAY a gp:RefusalCode ; rdfs:label "REFUSED:NONDETERMINISTIC_REPLAY" .
+gp:SOURCE_MUTATED_DURING_MANUFACTURE a gp:RefusalCode ; rdfs:label "REFUSED:SOURCE_MUTATED_DURING_MANUFACTURE" .
+gp:RECEIPT_IDENTITY_MISMATCH a gp:RefusalCode ; rdfs:label "REFUSED:RECEIPT_IDENTITY_MISMATCH" .
+
+########################################################################
+# Self-description (RFC §8 identity, §93 self-hosting, §94 spec pack).
+# gates/010 and gates/020 run against this very graph: this block is the
+# positive witness AND the subject of the sabotage court (§79).
+########################################################################
+
+<urn:ggen:pack:ggen-pack-spec-pack>
+    a gp:Pack ;
+    gp:name "ggen-pack-spec-pack" ;
+    gp:version "0.1.0" ;
+    gp:profile gp:Portable1 ;
+    gp:authorityCeiling gp:Construct ;
+    gp:lifecycle gp:Candidate .
