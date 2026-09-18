@@ -441,12 +441,19 @@ fn main() -> std::io::Result<()> {
             (tiny_http::Method::Post, "/compact") => {
                 let st = state.lock().unwrap();
                 match st.compact(&compacted_path) {
-                    Ok((events, objects)) => respond(
+                    Ok((_events, _objects)) => match std::fs::read_to_string(&compacted_path) {
+                        Ok(document) => respond(request, 200, document),
+                        Err(e) => respond(
+                            request,
+                            500,
+                            serde_json::json!({"error": format!("compacted OCEL read failed: {e}")}).to_string(),
+                        ),
+                    },
+                    Err(e) => respond(
                         request,
-                        200,
-                        serde_json::json!({"events": events, "objects": objects, "path": compacted_path}).to_string(),
+                        500,
+                        serde_json::json!({"error": e.to_string()}).to_string(),
                     ),
-                    Err(e) => respond(request, 500, serde_json::json!({"error": e.to_string()}).to_string()),
                 }
             }
             (tiny_http::Method::Get, "/healthz") => {
