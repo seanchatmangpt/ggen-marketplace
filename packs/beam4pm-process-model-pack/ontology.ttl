@@ -846,3 +846,197 @@ bpm:ParityCommandKind_lab_fabric_solve a bpm:ParityCommandKind ;
 bpm:ParityCommandKind_beam_hddl_solve a bpm:ParityCommandKind ;
     bpm:commandKindName "beam_hddl_solve" ;
     rdfs:comment "In-process leg: BeamPM.Ferroplan.start/0 then Ferroplan.hddl_solve(read(corpus[1]), read(corpus[2])) over the wasm engine; a response carrying an \"error\" envelope is a typed engine refusal and fails the check, never a silent pass." .
+# Persistent stdio JSON-lines port bridges (pack 0.1.20) -- bpm:PortBridge /
+# bpm:BridgeOp / bpm:BridgeArg
+# ===========================================================================
+#
+# Generalizes the reference consumer's hand-written persistent port bridge
+# (beam4pm lib/beam4pm_autofde_bridge.ex, v26.9.18 parity wave class 3): ONE
+# long-lived OS interpreter behind ONE BEAM Port serving many requests over
+# newline-delimited single-line JSON (so call 2+ skips the per-call
+# interpreter boot a one-shot CLI bridge pays), wrapped in a GenServer that
+# owns the framing buffer, a FIFO waiter queue, per-request timeouts, the
+# :bridge_down contract and the lazy/forced restart law. Measured shape of
+# the hand-written original: the GenServer + port plumbing + reply dispatch
+# is identical modulo names, the spawn command and the op table are
+# per-bridge facts, and the one-shot CLI path (oneshot_cmca_allocate et al)
+# is a DIFFERENT recurring class -- bpm:CliBridge / the CLI-bridge wrapper
+# family (v26.9.18 class 1), not this one. Recorded failed edge: folding the
+# one-shot path into this template family would have welded two different
+# lifecycles (per-call System.cmd vs persistent Port) into one template for
+# no shared line beyond JSON decode.
+#
+# What is a FACT here and what is TEMPLATE: the bridge's identity (names,
+# doc, ordinal), its spawn command (interpreter, args, env, cwd, optional
+# checkout-root resolution), framing, restart policy, timeout budgets and
+# its op surface (name, wire name, order, doc, reply shape, per-op timeout,
+# arg list with closed types/encodings) are facts declared by the CONSUMER,
+# one individual each. Everything else -- the GenServer, the Port lifecycle
+# (lazy ensure, close, exit_status handling), the FIFO waiter queue, the
+# strict-ordering timeout poisoning, the line drain/dispatch, restart/1 and
+# os_pid/1 -- is template, identical across bridges by construction
+# (templates/beam4pm_port_bridge.ex.tmpl) with its Chicago qualification
+# rendered alongside (templates/beam4pm_port_bridge_test.exs.tmpl).
+#
+# bpm:opRequestShape is deliberately NOT a literal: it is the bridge op's
+# ordered bpm:BridgeArg set, so the wire example rendered into the moduledoc
+# cannot drift from the request-builder code the same facts render (one
+# source of truth, the same doctrine as the 0.1.6 FieldType externalization).
+# bpm:opReplyShape IS a literal -- the reply envelope is produced by the
+# remote interpreter and can only be DESCRIBED, never built, by this pack --
+# and it is mandatory (gates/100 refuses an op without one): an op whose
+# reply shape nobody wrote down is an untestable wire promise.
+#
+# The __ROOT__ token inside bpm:envValue / bpm:bridgeCwd values is plain
+# string data (same convention as FieldType's __FIELD__ samples),
+# substituted at render time with the resolved checkout root (or unused when
+# the bridge declares no root resolution).
+#
+# Disclosed divergence, caught by the rendered qualification 2026-09-18: the
+# hand-written original's request/3 carries a LEADING default
+# (server \\ @registered_name). Elixir binds supplied args from the first
+# parameter and fills defaults in the tail, so its generated 2-arity clause
+# is request(server, req) -- a caller writing request(req_map, 100) binds
+# server=req_map and fails the is_map(req) guard (FunctionClauseError;
+# measured). The original never called it below 3-arity with two positionals
+# (its own test uses request/1, which is generated unambiguously), so the
+# trap stayed latent; the template keeps the original's API byte-for-byte and
+# the rendered qualification pins the safe explicit-3-arity raw call instead.
+
+bpm:PortBridge a rdfs:Class ;
+    rdfs:label "Persistent Port Bridge" ;
+    rdfs:comment "One long-lived OS interpreter process serving many requests over one BEAM Port with newline-delimited single-line JSON framing (one reply line per request line, in request order). Declared by the consumer, one individual per bridge; rendered by templates/beam4pm_port_bridge.ex.tmpl into lib/beam4pm_<bridgeName>_bridge.ex (BeamPM.<bridgeModule>) and its Chicago qualification into test/beam4pm_<bridgeName>_bridge_test.exs." .
+
+bpm:bridgeName a rdf:Property ; rdfs:domain bpm:PortBridge ; rdfs:range xsd:string ;
+    rdfs:comment "snake_case key. File stem lib/beam4pm_<name>_bridge.ex, generated test test/beam4pm_<name>_bridge_test.exs, and the :beam4pm/<name>_bridge telemetry/event prefix." .
+bpm:bridgeModule a rdf:Property ; rdfs:domain bpm:PortBridge ; rdfs:range xsd:string ;
+    rdfs:comment "Elixir module suffix under BeamPM.: the GenServer is BeamPM.<module> (also its own registered name, exactly like the hand-written original)." .
+bpm:bridgeDoc a rdf:Property ; rdfs:domain bpm:PortBridge ; rdfs:range xsd:string ;
+    rdfs:comment "One paragraph (single line) naming what the remote interpreter computes and where it lives. Rendered into the module doc's opening." .
+bpm:bridgeOrdinal a rdf:Property ; rdfs:domain bpm:PortBridge ; rdfs:range xsd:integer ;
+    rdfs:comment "Stable render order across bridges." .
+bpm:bridgeCommand a rdf:Property ; rdfs:domain bpm:PortBridge ; rdfs:range xsd:string ;
+    rdfs:comment "Interpreter program for :spawn_executable, resolved with System.find_executable/1 (e.g. python3). When bpm:bridgeInterpreterPref is set and the resolved root carries that relative interpreter, it wins (the lab venv's .venv/bin/python3 over PATH python3)." .
+bpm:bridgeCommandArgs a rdf:Property ; rdfs:domain bpm:PortBridge ; rdfs:range xsd:string ;
+    rdfs:comment "Space-split argument string passed after the interpreter (e.g. `-u -m autofde_lab.beam.beam_port_bridge` or `-u qualification/echo_port_bridge.py`). Plain string data split on single spaces; arguments containing spaces are not expressible (recorded limitation, none observed)." .
+bpm:bridgeFraming a rdf:Property ; rdfs:domain bpm:PortBridge ; rdfs:range bpm:BridgeFraming .
+bpm:bridgeRestartPolicy a rdf:Property ; rdfs:domain bpm:PortBridge ; rdfs:range bpm:BridgeRestartPolicy .
+bpm:bridgeDefaultTimeoutMs a rdf:Property ; rdfs:domain bpm:PortBridge ; rdfs:range xsd:integer ;
+    rdfs:comment "Per-request reply timeout in ms when the caller passes none; also the restart/1 call budget." .
+bpm:bridgeCallSlackMs a rdf:Property ; rdfs:domain bpm:PortBridge ; rdfs:range xsd:integer ;
+    rdfs:comment "Extra ms added to the caller timeout for the wrapping GenServer.call/3 (the reply must come back through one hop). Default 5000." .
+bpm:bridgeOsPidTimeoutMs a rdf:Property ; rdfs:domain bpm:PortBridge ; rdfs:range xsd:integer ;
+    rdfs:comment "os_pid/1 call budget in ms. Default 5000." .
+bpm:bridgeRootAppEnv a rdf:Property ; rdfs:domain bpm:PortBridge ; rdfs:range xsd:string ;
+    rdfs:comment "First root-resolution candidate: Application.get_env(:beam4pm, <this atom>) (e.g. autofde_lab_root)." .
+bpm:bridgeRootEnvVar a rdf:Property ; rdfs:domain bpm:PortBridge ; rdfs:range xsd:string ;
+    rdfs:comment "Second root-resolution candidate: System.get_env/1 of this name (e.g. AUTOFDE_LAB_ROOT)." .
+bpm:bridgeRootFallbacks a rdf:Property ; rdfs:domain bpm:PortBridge ; rdfs:range xsd:string ;
+    rdfs:comment "Space-split list of further root candidates, each Path.expand'ed against the cwd (e.g. `../autofde-lab ~/autofde-lab`). A candidate counts only when bpm:bridgeRootProbe exists under it." .
+bpm:bridgeRootProbe a rdf:Property ; rdfs:domain bpm:PortBridge ; rdfs:range xsd:string ;
+    rdfs:comment "Path (relative to the candidate root) that must exist for a root candidate to be accepted (e.g. src/autofde_lab)." .
+bpm:bridgeInterpreterPref a rdf:Property ; rdfs:domain bpm:PortBridge ; rdfs:range xsd:string ;
+    rdfs:comment "Optional path relative to the resolved root of a preferred interpreter (e.g. .venv/bin/python3); used when it exists, else System.find_executable(bridgeCommand)." .
+bpm:bridgeCwd a rdf:Property ; rdfs:domain bpm:PortBridge ; rdfs:range xsd:string ;
+    rdfs:comment "Optional {:cd, _} for the port; __ROOT__ substitutes the resolved root. Set it to __ROOT__ for module-spawned interpreters that import siblings relative to their checkout." .
+bpm:bridgeScriptProbe a rdf:Property ; rdfs:domain bpm:PortBridge ; rdfs:range xsd:string ;
+    rdfs:comment "Path that must exist before spawn (relative to the resolved root when root resolution is declared, else to the cwd). Drives available?/0, missing_reason/0 and the ensure_port refusal -- a bridge that cannot be spawned is a NAMED {:error, {:bridge_down, reason}}, never a fake." .
+bpm:bridgeProbeOp a rdf:Property ; rdfs:domain bpm:PortBridge ; rdfs:range bpm:BridgeOp ;
+    rdfs:comment "MANDATORY: the cheapest no-argument op of this bridge (the hand-written original's ping), used by the generated qualification to boot the port, round-trip a real reply, and verify recovery after restart and kill -9. gates/100 refuses a probe that is not a no-argument op of the same bridge." .
+
+bpm:BridgeEnv a rdfs:Class ;
+    rdfs:label "Bridge Port Environment Variable" ;
+    rdfs:comment "One extra environment variable set on the spawned port process (the OS environment is inherited whole, exactly like the hand-written original; these are merged on top)." .
+bpm:envBridge a rdf:Property ; rdfs:domain bpm:BridgeEnv ; rdfs:range bpm:PortBridge .
+bpm:envName a rdf:Property ; rdfs:domain bpm:BridgeEnv ; rdfs:range xsd:string .
+bpm:envValue a rdf:Property ; rdfs:domain bpm:BridgeEnv ; rdfs:range xsd:string ;
+    rdfs:comment "The literal value; the token __ROOT__ substitutes the resolved checkout root (e.g. __ROOT__/src)." .
+
+bpm:BridgeFraming a rdfs:Class ;
+    rdfs:comment "Closed vocabulary: how requests and replies are framed over the port's stdio." .
+bpm:framingName a rdf:Property ; rdfs:domain bpm:BridgeFraming ; rdfs:range xsd:string .
+bpm:Framing_lines_json a bpm:BridgeFraming ; bpm:framingName "lines_json" ;
+    rdfs:comment "Newline-delimited single-line JSON objects; exactly one reply line per request line, in request order; blank request lines ignored by the interpreter; every remote failure is an {\"ok\": false, ...} envelope LINE, never a dead port. The only framing witnessed against a real interpreter (autofde-lab beam_port_bridge.py @ fe81a552)." .
+
+bpm:BridgeRestartPolicy a rdfs:Class ;
+    rdfs:comment "Closed vocabulary: what happens when the port dies (exit_status) or a reply times out (which poisons strict reply ordering)." .
+bpm:restartPolicyName a rdf:Property ; rdfs:domain bpm:BridgeRestartPolicy ; rdfs:range xsd:string .
+bpm:RestartPolicy_lazy a bpm:BridgeRestartPolicy ; bpm:restartPolicyName "lazy" ;
+    rdfs:comment "The witnessed law (hand-written original): on death/timeout close the port, fail every remaining waiter {:error, :bridge_down}, and boot a fresh interpreter only on the NEXT request; restart/1 forces eagerly by just closing. No interpreter runs while the bridge is idle." .
+bpm:RestartPolicy_eager a bpm:BridgeRestartPolicy ; bpm:restartPolicyName "eager" ;
+    rdfs:comment "Same close/fail law, but a fresh interpreter is spawned immediately in the exit_status handler (best-effort; a failed eager spawn leaves the bridge down until the next request, which retries lazily). Choose lazy unless a real consumer needs warm-port semantics; every bridge witnessed so far is lazy." .
+
+bpm:BridgeOp a rdfs:Class ;
+    rdfs:label "Port Bridge Op" ;
+    rdfs:comment "One public function of a bridge's surface: builds the request line (op wire name + ordered args), sends it through the GenServer, and awaits the reply line. Rendered as one typed Elixir wrapper per op; the moduledoc's wire-contract table is rendered from the same facts." .
+bpm:opBridge a rdf:Property ; rdfs:domain bpm:BridgeOp ; rdfs:range bpm:PortBridge .
+bpm:opName a rdf:Property ; rdfs:domain bpm:BridgeOp ; rdfs:range xsd:string ;
+    rdfs:comment "snake_case Elixir function name and, unless bpm:opWireName says otherwise, the JSON \"op\" value." .
+bpm:opOrder a rdf:Property ; rdfs:domain bpm:BridgeOp ; rdfs:range xsd:integer .
+bpm:opDoc a rdf:Property ; rdfs:domain bpm:BridgeOp ; rdfs:range xsd:string ;
+    rdfs:comment "Single-line doc, rendered as the wrapper's @doc." .
+bpm:opReplyShape a rdf:Property ; rdfs:domain bpm:BridgeOp ; rdfs:range xsd:string ;
+    rdfs:comment "MANDATORY (gates/100 refuses an op without one): the reply envelope the remote interpreter sends for this op, as a single-line wire example, e.g. {\"ok\": true, \"plan\": {...}}. Rendered into the moduledoc's request->reply table and each wrapper's @doc. The reply is produced by the interpreter, so this is a described fact, never generated code." .
+bpm:opWireName a rdf:Property ; rdfs:domain bpm:BridgeOp ; rdfs:range xsd:string ;
+    rdfs:comment "Optional JSON \"op\" value when it differs from bpm:opName." .
+bpm:opTimeoutMs a rdf:Property ; rdfs:domain bpm:BridgeOp ; rdfs:range xsd:integer ;
+    rdfs:comment "Optional per-op default reply timeout overriding bpm:bridgeDefaultTimeoutMs for this op's wrapper (heavy solves vs cheap pings)." .
+bpm:opSampleRequest a rdf:Property ; rdfs:domain bpm:BridgeOp ; rdfs:range xsd:string ;
+    rdfs:comment "Optional single-line JSON request body (complete, with \"op\") rendered into the generated qualification as the payload of the timeout test: the test sends it with a 100 ms budget against an interpreter instructed to sleep past it, asserting the strict-ordering poisoning law end to end. Required on exactly the op the qualification should time out (gates/100: at most one per bridge)." .
+
+bpm:BridgeArg a rdfs:Class ;
+    rdfs:label "Port Bridge Op Argument" ;
+    rdfs:comment "One argument of one bpm:BridgeOp, in bpm:argOrder. The ordered arg set IS the op's request shape (there is no separate descriptive literal to drift from it)." .
+bpm:argOp a rdf:Property ; rdfs:domain bpm:BridgeArg ; rdfs:range bpm:BridgeOp .
+bpm:argName a rdf:Property ; rdfs:domain bpm:BridgeArg ; rdfs:range xsd:string ;
+    rdfs:comment "snake_case Elixir parameter name." .
+bpm:argOrder a rdf:Property ; rdfs:domain bpm:BridgeArg ; rdfs:range xsd:integer .
+bpm:argWireKey a rdf:Property ; rdfs:domain bpm:BridgeArg ; rdfs:range xsd:string ;
+    rdfs:comment "Optional JSON key when it differs from bpm:argName." .
+bpm:argType a rdf:Property ; rdfs:domain bpm:BridgeArg ; rdfs:range bpm:BridgeArgType .
+bpm:argEncoding a rdf:Property ; rdfs:domain bpm:BridgeArg ; rdfs:range bpm:BridgeArgEncoding ;
+    rdfs:comment "Default bpm:BridgeArgEncoding_passthrough." .
+bpm:argSample a rdf:Property ; rdfs:domain bpm:BridgeArg ; rdfs:range xsd:string ;
+    rdfs:comment "Optional Elixir literal (e.g. 2, \"x\") rendered into the generated qualification as this argument's sample value. An op whose EVERY argument carries a sample gets a real happy-path round-trip test; an op with any unsampled argument gets none (the qualification is fact-complete or silent, never half-built)." .
+
+bpm:BridgeArgType a rdfs:Class ;
+    rdfs:comment "Closed vocabulary of bridge-op argument types, each carrying its Elixir typespec + guard -- the port-bridge analogue of the bpm:EngineArgType vocabulary." .
+bpm:argTypeName a rdf:Property ; rdfs:domain bpm:BridgeArgType ; rdfs:range xsd:string .
+bpm:bridgeArgElixirType a rdf:Property ; rdfs:domain bpm:BridgeArgType ; rdfs:range xsd:string .
+bpm:bridgeArgElixirGuard a rdf:Property ; rdfs:domain bpm:BridgeArgType ; rdfs:range xsd:string ;
+    rdfs:comment "Optional guard function name (is_binary, is_integer, is_map, is_list); absent means the positional arg is unguarded." .
+bpm:bridgeArgWireExample a rdf:Property ; rdfs:domain bpm:BridgeArgType ; rdfs:range xsd:string ;
+    rdfs:comment "Type tag rendered into the moduledoc wire-contract line, e.g. <string> or <list_map>." .
+
+bpm:BridgeArgType_string a bpm:BridgeArgType ; bpm:argTypeName "string" ;
+    bpm:bridgeArgElixirType "String.t()" ; bpm:bridgeArgElixirGuard "is_binary" ;
+    bpm:bridgeArgWireExample "<string>" .
+bpm:BridgeArgType_integer a bpm:BridgeArgType ; bpm:argTypeName "integer" ;
+    bpm:bridgeArgElixirType "non_neg_integer()" ; bpm:bridgeArgElixirGuard "is_integer" ;
+    bpm:bridgeArgWireExample "<integer>" .
+bpm:BridgeArgType_number a bpm:BridgeArgType ; bpm:argTypeName "number" ;
+    bpm:bridgeArgElixirType "number()" ; bpm:bridgeArgElixirGuard "is_number" ;
+    bpm:bridgeArgWireExample "<number>" .
+bpm:BridgeArgType_boolean a bpm:BridgeArgType ; bpm:argTypeName "boolean" ;
+    bpm:bridgeArgElixirType "boolean()" ; bpm:bridgeArgElixirGuard "is_boolean" ;
+    bpm:bridgeArgWireExample "<boolean>" .
+bpm:BridgeArgType_map a bpm:BridgeArgType ; bpm:argTypeName "map" ;
+    bpm:bridgeArgElixirType "map()" ; bpm:bridgeArgElixirGuard "is_map" ;
+    bpm:bridgeArgWireExample "<map>" .
+bpm:BridgeArgType_list_map a bpm:BridgeArgType ; bpm:argTypeName "list_map" ;
+    bpm:bridgeArgElixirType "[map()]" ; bpm:bridgeArgElixirGuard "is_list" ;
+    bpm:bridgeArgWireExample "<list_map>" .
+bpm:BridgeArgType_term a bpm:BridgeArgType ; bpm:argTypeName "term" ;
+    bpm:bridgeArgElixirType "term()" ;
+    bpm:bridgeArgWireExample "<term>" ;
+    rdfs:comment "Unguarded pass-anythrough value for interpreters that accept JSON-independent payloads (already-encoded structures). No guard is rendered." .
+
+bpm:BridgeArgEncoding a rdfs:Class ;
+    rdfs:comment "Closed vocabulary: the host-side transform between the Elixir argument and the JSON request line. Atom keys must be stringified for JSON -- the witnessed interpreters all take string-keyed maps -- so the stringify family exists precisely to keep consumer call sites idiomatic (atom keys) while the wire stays string-keyed." .
+bpm:bridgeArgEncodingName a rdf:Property ; rdfs:domain bpm:BridgeArgEncoding ; rdfs:range xsd:string .
+bpm:BridgeArgEncoding_passthrough a bpm:BridgeArgEncoding ; bpm:bridgeArgEncodingName "passthrough" ;
+    rdfs:comment "\"<wireKey>\" => <arg>, verbatim (scalars, pre-stringified maps)." .
+bpm:BridgeArgEncoding_stringify a bpm:BridgeArgEncoding ; bpm:bridgeArgEncodingName "stringify" ;
+    rdfs:comment "\"<wireKey>\" => stringify_keys(<arg>) -- deep atom-to-string key rewrite (the hand-written original's stringify_keys/1)." .
+bpm:BridgeArgEncoding_stringify_list a bpm:BridgeArgEncoding ; bpm:bridgeArgEncodingName "stringify_list" ;
+    rdfs:comment "\"<wireKey>\" => Enum.map(<arg>, &stringify_keys/1) -- per-element deep key rewrite for list-of-map args." .
