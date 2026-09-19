@@ -1,0 +1,13 @@
+# MESSAGE: every bpm:ParityCorpus entry's bpm:corpusPath must equal the bpm:fixturePath of a consumer-admitted bpm:QualificationFixture -- parity engines may only be qualified over corpus the consumer graph actually admits, otherwise the rendered test would pin digests of an invented file (or silently skip); any row is a refusal. Disk-level existence + digest are re-asserted at test runtime by the rendered file, so this gate plus the test together refuse both unadmitted and deleted fixtures.
+PREFIX bpm: <https://ggen.dev/ontology/beam-process-model#>
+SELECT ?subject ?corpus_path WHERE {
+  ?check a bpm:ParityCheck ;
+         bpm:checkName ?check_name ;
+         bpm:hasCorpus ?subject .
+  ?subject bpm:corpusPath ?corpus_path .
+  FILTER NOT EXISTS {
+    ?fixture a bpm:QualificationFixture ;
+             bpm:fixturePath ?corpus_path .
+  }
+}
+ORDER BY ?check_name ?corpus_path

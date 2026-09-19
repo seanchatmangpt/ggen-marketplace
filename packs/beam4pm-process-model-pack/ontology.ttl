@@ -748,3 +748,101 @@ bpm:witnessExitCode a rdf:Property ; rdfs:domain bpm:CliWitness ; rdfs:range xsd
     rdfs:comment "The observed process exit code; gates/110 admits only 0 (a witnessed failure is a finding, not a qualification)." .
 bpm:witnessEnvelopeSha256 a rdf:Property ; rdfs:domain bpm:CliWitness ; rdfs:range xsd:string ;
     rdfs:comment "sha256 hex of the captured stdout envelope file. The gate enforces presence (a witness without captured evidence is vacuous); binding the hash to the bytes is the admitting session's receipt, not the gate's." .
+# --- Cross-engine parity qualification (pack 0.1.20) -----------------------
+#
+# The v26.9.18 parity wave hand-wrote ~1000 lines in a recurring test class
+# (P2 ocel_validate vs RF3Ocel, P5 sa2a replay, P10 graphlaw corners, and the
+# fabric-vs-ferroplan cross-validation): every instance is "run two real
+# engines over the same pinned corpus, pin each engine's verdict vocabulary
+# with digests, and hold one planted tamper falsifier that proves a corpus
+# flip is witnessed by BOTH engines." This vocabulary retires the class: a
+# consumer admits ONE bpm:ParityCheck individual (with ordered corpus entries,
+# digest pins, expected shared-verdict steps, and the tamper falsifier's
+# mechanical parameters) and templates/beam4pm_parity_check_test.exs.tmpl
+# renders the whole Chicago-style qualification test file from those facts.
+#
+# Existence is two-layered, matching the pack's graph-vs-disk discipline:
+# graph-level -- every bpm:hasCorpus entry must resolve to a consumer-admitted
+# bpm:QualificationFixture path (gates/100 refuses an unadmitted corpus path),
+# and disk-level -- the rendered test itself asserts File.exists? plus the
+# entry's sha256 pin at runtime, so a fixture admitted but deleted from disk
+# trips the same way a verdict flip does.
+
+bpm:ParityCheck a rdfs:Class ;
+    rdfs:label "Parity Check" ;
+    rdfs:comment "One cross-engine parity qualification: two named engines (left/right) run over byte-identical admitted corpus files, their verdicts are pinned, and one planted tamper falsifier must flip both engines in the same place. Rendered per individual by templates/beam4pm_parity_check_test.exs.tmpl into the consumer's test/ tree." .
+
+bpm:checkName a rdf:Property ; rdfs:domain bpm:ParityCheck ; rdfs:range xsd:string ;
+    rdfs:comment "snake_case check identity; unique (gates/120), rendered into the test file name and module doc." .
+bpm:checkDoc a rdf:Property ; rdfs:domain bpm:ParityCheck ; rdfs:range xsd:string ;
+    rdfs:comment "One-paragraph module-doc text naming both engines, their specs, and any known attributed divergence." .
+bpm:checkOrdinal a rdf:Property ; rdfs:domain bpm:ParityCheck ; rdfs:range xsd:integer .
+bpm:testPath a rdf:Property ; rdfs:domain bpm:ParityCheck ; rdfs:range xsd:string ;
+    rdfs:comment "Repo-root-relative output path of the rendered test (e.g. test/beam4pm_parity_<check_name>_test.exs). Unique (gates/120)." .
+bpm:testModule a rdf:Property ; rdfs:domain bpm:ParityCheck ; rdfs:range xsd:string ;
+    rdfs:comment "Full Elixir module name of the rendered test (e.g. BeamPM.ParityQualification.FerroplanVsLabFabric)." .
+bpm:leftCommand a rdf:Property ; rdfs:domain bpm:ParityCheck ; rdfs:range xsd:string ;
+    rdfs:comment "Human-witnessed command line of the LEFT leg, rendered verbatim into the module doc (e.g. the autofde-lab venv python -m autofde_lab.cli fabric solve invocation). Execution mechanics come from bpm:leftCommandKind + parameters, never from parsing this string." .
+bpm:rightCommand a rdf:Property ; rdfs:domain bpm:ParityCheck ; rdfs:range xsd:string ;
+    rdfs:comment "Human-witnessed BEAM call of the RIGHT leg, rendered verbatim into the module doc (e.g. BeamPM.Ferroplan.hddl_solve/2 over the wasm)." .
+bpm:leftCommandKind a rdf:Property ; rdfs:domain bpm:ParityCheck ; rdfs:range bpm:ParityCommandKind .
+bpm:rightCommandKind a rdf:Property ; rdfs:domain bpm:ParityCheck ; rdfs:range bpm:ParityCommandKind .
+bpm:leftDomain a rdf:Property ; rdfs:domain bpm:ParityCheck ; rdfs:range xsd:string ;
+    rdfs:comment "Registered fabric domain name for the lab_fabric_solve arm (e.g. HTNDomain). Required for that kind; unused otherwise." .
+bpm:leftSolver a rdf:Property ; rdfs:domain bpm:ParityCheck ; rdfs:range xsd:string ;
+    rdfs:comment "Solver name for the lab_fabric_solve arm (e.g. Astar). Required for that kind; unused otherwise." .
+bpm:hasCorpus a rdf:Property ; rdfs:domain bpm:ParityCheck ; rdfs:range bpm:ParityCorpus .
+bpm:hasDigestPin a rdf:Property ; rdfs:domain bpm:ParityCheck ; rdfs:range bpm:ParityDigestPin .
+bpm:hasExpectedStep a rdf:Property ; rdfs:domain bpm:ParityCheck ; rdfs:range bpm:ParityExpectedStep .
+bpm:consentLaw a rdf:Property ; rdfs:domain bpm:ParityCheck ; rdfs:range xsd:string ;
+    rdfs:comment "The law that makes running the two engines over the same corpus a lawful comparison and states what counts as agreement; rendered into the module doc. Agreement here = the shared expected-step ladder appears in BOTH engines' verdict vocabularies; any other divergence must be attributed in bpm:checkDoc, never normalized away." .
+bpm:tamperFalsifier a rdf:Property ; rdfs:domain bpm:ParityCheck ; rdfs:range xsd:string ;
+    rdfs:comment "The falsifier's claim, rendered into the tamper test: what a one-token corpus mutation must do to BOTH engines' verdicts. Executed against a temp copy -- real corpus files are never mutated." .
+bpm:tamperFind a rdf:Property ; rdfs:domain bpm:ParityCheck ; rdfs:range xsd:string ;
+    rdfs:comment "Literal token the tamper falsifier replaces in the temp copy of the corpus entry named by bpm:tamperCorpusOrder." .
+bpm:tamperReplace a rdf:Property ; rdfs:domain bpm:ParityCheck ; rdfs:range xsd:string ;
+    rdfs:comment "Replacement token; the rendered test asserts BOTH engines' verdicts now carry this token where the original appeared, and that the lab trajectory digest flipped off its pin." .
+bpm:tamperCorpusOrder a rdf:Property ; rdfs:domain bpm:ParityCheck ; rdfs:range xsd:integer ;
+    rdfs:comment "The bpm:corpusOrder of the entry the falsifier copies and mutates." .
+
+bpm:ParityCorpus a rdfs:Class ;
+    rdfs:label "Parity Corpus Entry" ;
+    rdfs:comment "One ordered, sha256-pinned input file shared byte-identically by both legs of a bpm:ParityCheck. Path must resolve to a consumer-admitted bpm:QualificationFixture (gates/100) and must exist on disk with the pinned digest at test runtime." .
+bpm:corpusPath a rdf:Property ; rdfs:domain bpm:ParityCorpus ; rdfs:range xsd:string ;
+    rdfs:comment "Repo-root-relative path (the lab CLI's domain-arguments convention), passed to the lab leg verbatim and Path.expand'ed for BEAM-side reads." .
+bpm:corpusSha256 a rdf:Property ; rdfs:domain bpm:ParityCorpus ; rdfs:range xsd:string ;
+    rdfs:comment "Hex sha256 of the file bytes; required (gates/110), asserted at test runtime." .
+bpm:corpusOrder a rdf:Property ; rdfs:domain bpm:ParityCorpus ; rdfs:range xsd:integer ;
+    rdfs:comment "1-based order; order 1/2 are the domain/problem pair for the lab_fabric_solve and beam_hddl_solve arms." .
+
+bpm:ParityDigestPin a rdfs:Class ;
+    rdfs:label "Parity Digest Pin" ;
+    rdfs:comment "One pinned digest of a leg's receipt vocabulary (P10 flip-ledger style): any engine/seam bump trips the pin and the test names the flip. Empty rows forbidden; 'no flip' is a row." .
+bpm:pinKey a rdf:Property ; rdfs:domain bpm:ParityDigestPin ; rdfs:range xsd:string ;
+    rdfs:comment "Response field the pin holds (e.g. input_sha256, receipt_sha256, trajectory_sha256)." .
+bpm:pinValue a rdf:Property ; rdfs:domain bpm:ParityDigestPin ; rdfs:range xsd:string .
+
+bpm:ParityExpectedStep a rdfs:Class ;
+    rdfs:label "Parity Expected Step" ;
+    rdfs:comment "One entry of the SHARED verdict ladder both engines must witness: the lab rollout executes it as an exact step action name in bpm:stepOrder, and the BEAM engine's own plan vocabulary must contain it. This is the parity contract -- agreement means the same ladder in two receipt vocabularies, not byte-identical responses." .
+bpm:stepOrder a rdf:Property ; rdfs:domain bpm:ParityExpectedStep ; rdfs:range xsd:integer .
+bpm:stepAction a rdf:Property ; rdfs:domain bpm:ParityExpectedStep ; rdfs:range xsd:string .
+
+bpm:QualificationFixture a rdfs:Class ;
+    rdfs:label "Qualification Fixture" ;
+    rdfs:comment "One consumer-admitted qualification input file (graph-level existence proof for parity corpus entries, PDDL fixtures, and every other corpus the pack projects). Admitted by the consumer's own ontology with its observed sha256; the pack's gates anti-join corpus paths against this set, and rendered tests re-assert existence + digest on disk at runtime." .
+bpm:fixturePath a rdf:Property ; rdfs:domain bpm:QualificationFixture ; rdfs:range xsd:string ;
+    rdfs:comment "Repo-root-relative path, unique across admitted fixtures (gates/120 refuses duplicates)." .
+bpm:fixtureSha256 a rdf:Property ; rdfs:domain bpm:QualificationFixture ; rdfs:range xsd:string ;
+    rdfs:comment "Observed hex sha256 of the fixture bytes at admission time." .
+bpm:fixtureDoc a rdf:Property ; rdfs:domain bpm:QualificationFixture ; rdfs:range xsd:string .
+
+bpm:ParityCommandKind a rdfs:Class ;
+    rdfs:comment "Closed vocabulary: how a parity leg is executed. Each member names one rendered helper arm in templates/beam4pm_parity_check_test.exs.tmpl -- adding a kind is ONE vocabulary member plus ONE template arm, the EngineOpKind discipline." .
+bpm:commandKindName a rdf:Property ; rdfs:domain bpm:ParityCommandKind ; rdfs:range xsd:string .
+bpm:ParityCommandKind_lab_fabric_solve a bpm:ParityCommandKind ;
+    bpm:commandKindName "lab_fabric_solve" ;
+    rdfs:comment "Subprocess leg: AUTOFDE_LAB_ROOT's .venv/bin/python3 -m autofde_lab.cli fabric solve <leftDomain> --solver <leftSolver> --domain-arguments {domain_path: corpus[1], problem_path: corpus[2]} run with cwd = repo root; stdout's leading log lines are skipped to the first '{' (observed lab envelope convention, same as the hand-written fabric test); requires the corpus' first two entries in that order." .
+bpm:ParityCommandKind_beam_hddl_solve a bpm:ParityCommandKind ;
+    bpm:commandKindName "beam_hddl_solve" ;
+    rdfs:comment "In-process leg: BeamPM.Ferroplan.start/0 then Ferroplan.hddl_solve(read(corpus[1]), read(corpus[2])) over the wasm engine; a response carrying an \"error\" envelope is a typed engine refusal and fails the check, never a silent pass." .
