@@ -356,3 +356,123 @@ bpm:demo_engine_op_free_thing a bpm:EngineOp ;
     bpm:opExposeErlang "false" ; bpm:opExposeGleam "false" .
 bpm:demo_engine_op_free_thing_handle a bpm:EngineArg ;
     bpm:argOp bpm:demo_engine_op_free_thing ; bpm:argName "handle" ; bpm:argOrder 1 ; bpm:argType bpm:EngineArgType_handle .
+
+# ===========================================================================
+# Synthetic CLI bridge fixture (pack 0.1.20) -- exercises every member of the
+# bpm:CliArgMode / bpm:CliArgEncoding / bpm:CliArgType / bpm:CliResultShape
+# closed vocabularies so no template arm renders for the first time on a real
+# consumer graph, and so gates/100 and gates/110 pass on the merged
+# qualification graph. SYNTHETIC by construction (see the file header): the
+# "frobnicate" bridge and its witnesses are fixture individuals -- the
+# witnesses carry the full observed-evidence SHAPE (date, command line, exit
+# 0, envelope sha256 of this fixture file) while the evidence binding to real
+# CLI runs is the admitting consumer's receipt, never claimed here.
+# ===========================================================================
+
+bpm:cli_bridge_synthetic a bpm:CliBridge ;
+    bpm:bridgeName "frobnicate" ;
+    bpm:bridgeModule "FrobnicateCli" ;
+    bpm:bridgeDoc "Synthetic fixture bridge over a fictional frobnicate CLI, exercising every closed CliBridge vocabulary member (render + gate fixture, never a real binary)." ;
+    bpm:bridgeOrdinal 999 ;
+    bpm:cliOtpApp "fixture" ;
+    bpm:cliAppEnvKey "frobnicate_cli_path" ;
+    bpm:cliEnvVar "FROBNICATE_CLI_PATH" ;
+    bpm:cliDefaultPath "priv/bin/frobnicate" ;
+    bpm:cliDefaultTimeoutMs 5000 .
+
+bpm:cli_frob_validate a bpm:CliCommand ;
+    bpm:cmdBridge bpm:cli_bridge_synthetic ; bpm:cmdName "frob_validate" ;
+    bpm:cmdGroup "frobnicate" ; bpm:cmdSubcommand "validate" ; bpm:cmdOrder 1 ;
+    bpm:cmdDoc "ok_map: positional raw string + flags json map." ;
+    bpm:cmdResultShape bpm:CliResultShape_ok_map ;
+    bpm:cmdResultFields "ok digest count error" ;
+    bpm:cmdRefusalReason "frob_validate_error" ;
+    bpm:cmdTimeoutMs 4000 .
+
+bpm:cli_frob_validate_log a bpm:CliArg ;
+    bpm:argCommand bpm:cli_frob_validate ; bpm:cliArgName "log_path" ; bpm:cliArgOrder 1 ;
+    bpm:cliArgType bpm:CliArgType_string ; bpm:cliArgMode bpm:CliArgMode_positional ;
+    bpm:cliArgEncoding bpm:CliArgEncoding_raw .
+
+bpm:cli_frob_validate_meta a bpm:CliArg ;
+    bpm:argCommand bpm:cli_frob_validate ; bpm:cliArgName "meta" ; bpm:cliArgOrder 2 ;
+    bpm:cliArgType bpm:CliArgType_map ; bpm:cliArgMode bpm:CliArgMode_flags ;
+    bpm:cliArgFlag "--meta" ; bpm:cliArgEncoding bpm:CliArgEncoding_json .
+
+bpm:cli_frob_stats a bpm:CliCommand ;
+    bpm:cmdBridge bpm:cli_bridge_synthetic ; bpm:cmdName "frob_stats" ;
+    bpm:cmdGroup "frobnicate" ; bpm:cmdSubcommand "stats" ; bpm:cmdOrder 2 ;
+    bpm:cmdDoc "batch: zero arguments, bare payload returned whole." ;
+    bpm:cmdResultShape bpm:CliResultShape_batch ;
+    bpm:cmdRefusalReason "frob_stats_error" ;
+    bpm:cmdTimeoutMs 2000 .
+
+bpm:cli_frob_replay a bpm:CliCommand ;
+    bpm:cmdBridge bpm:cli_bridge_synthetic ; bpm:cmdName "frob_replay" ;
+    bpm:cmdGroup "frobnicate" ; bpm:cmdSubcommand "replay" ; bpm:cmdOrder 3 ;
+    bpm:cmdDoc "typed_refusal: positional raw string + flags raw string." ;
+    bpm:cmdResultShape bpm:CliResultShape_typed_refusal ;
+    bpm:cmdRefusalReason "frob_replay_refused" ;
+    bpm:cmdTimeoutMs 3000 .
+
+bpm:cli_frob_replay_payload a bpm:CliArg ;
+    bpm:argCommand bpm:cli_frob_replay ; bpm:cliArgName "payload" ; bpm:cliArgOrder 1 ;
+    bpm:cliArgType bpm:CliArgType_string ; bpm:cliArgMode bpm:CliArgMode_positional ;
+    bpm:cliArgEncoding bpm:CliArgEncoding_raw .
+
+bpm:cli_frob_replay_hash a bpm:CliArg ;
+    bpm:argCommand bpm:cli_frob_replay ; bpm:cliArgName "expected_hash" ; bpm:cliArgOrder 2 ;
+    bpm:cliArgType bpm:CliArgType_string ; bpm:cliArgMode bpm:CliArgMode_flags ;
+    bpm:cliArgFlag "--expected-hash" ; bpm:cliArgEncoding bpm:CliArgEncoding_raw .
+
+bpm:cli_frob_push a bpm:CliCommand ;
+    bpm:cmdBridge bpm:cli_bridge_synthetic ; bpm:cmdName "frob_push" ;
+    bpm:cmdGroup "frobnicate" ; bpm:cmdSubcommand "push" ; bpm:cmdOrder 4 ;
+    bpm:cmdDoc "json_stdin: the map is JSON-encoded and piped via :stdin, never in argv." ;
+    bpm:cmdResultShape bpm:CliResultShape_batch ;
+    bpm:cmdRefusalReason "frob_push_error" ;
+    bpm:cmdTimeoutMs 3000 .
+
+bpm:cli_frob_push_payload a bpm:CliArg ;
+    bpm:argCommand bpm:cli_frob_push ; bpm:cliArgName "payload" ; bpm:cliArgOrder 1 ;
+    bpm:cliArgType bpm:CliArgType_map ; bpm:cliArgMode bpm:CliArgMode_json_stdin .
+
+bpm:cli_frob_commit a bpm:CliCommand ;
+    bpm:cmdBridge bpm:cli_bridge_synthetic ; bpm:cmdName "frob_commit" ;
+    bpm:cmdGroup "frobnicate" ; bpm:cmdSubcommand "commit" ; bpm:cmdOrder 5 ;
+    bpm:cmdDoc "temp_file: the map is JSON-encoded into a temp file whose path joins argv; removed in an after clause." ;
+    bpm:cmdResultShape bpm:CliResultShape_typed_refusal ;
+    bpm:cmdRefusalReason "frob_commit_refused" ;
+    bpm:cmdTimeoutMs 3000 .
+
+bpm:cli_frob_commit_manifest a bpm:CliArg ;
+    bpm:argCommand bpm:cli_frob_commit ; bpm:cliArgName "manifest" ; bpm:cliArgOrder 1 ;
+    bpm:cliArgType bpm:CliArgType_map ; bpm:cliArgMode bpm:CliArgMode_temp_file .
+
+# -- fixture witnesses: full evidence SHAPE, synthetic by construction -------
+
+bpm:cliwitness_frob_validate a bpm:CliWitness ;
+    bpm:witnessCommand bpm:cli_frob_validate ; bpm:witnessedAt "2026-09-18" ;
+    bpm:witnessCommandline "fixture: frobnicate validate <log> --meta <json> (synthetic, render fixture only)" ;
+    bpm:witnessExitCode 0 ;
+    bpm:witnessEnvelopeSha256 "fixture-sha256-not-a-real-run" .
+bpm:cliwitness_frob_stats a bpm:CliWitness ;
+    bpm:witnessCommand bpm:cli_frob_stats ; bpm:witnessedAt "2026-09-18" ;
+    bpm:witnessCommandline "fixture: frobnicate stats (synthetic, render fixture only)" ;
+    bpm:witnessExitCode 0 ;
+    bpm:witnessEnvelopeSha256 "fixture-sha256-not-a-real-run" .
+bpm:cliwitness_frob_replay a bpm:CliWitness ;
+    bpm:witnessCommand bpm:cli_frob_replay ; bpm:witnessedAt "2026-09-18" ;
+    bpm:witnessCommandline "fixture: frobnicate replay <payload> --expected-hash <h> (synthetic, render fixture only)" ;
+    bpm:witnessExitCode 0 ;
+    bpm:witnessEnvelopeSha256 "fixture-sha256-not-a-real-run" .
+bpm:cliwitness_frob_push a bpm:CliWitness ;
+    bpm:witnessCommand bpm:cli_frob_push ; bpm:witnessedAt "2026-09-18" ;
+    bpm:witnessCommandline "fixture: frobnicate push (stdin json) (synthetic, render fixture only)" ;
+    bpm:witnessExitCode 0 ;
+    bpm:witnessEnvelopeSha256 "fixture-sha256-not-a-real-run" .
+bpm:cliwitness_frob_commit a bpm:CliWitness ;
+    bpm:witnessCommand bpm:cli_frob_commit ; bpm:witnessedAt "2026-09-18" ;
+    bpm:witnessCommandline "fixture: frobnicate commit <tmpfile> (synthetic, render fixture only)" ;
+    bpm:witnessExitCode 0 ;
+    bpm:witnessEnvelopeSha256 "fixture-sha256-not-a-real-run" .

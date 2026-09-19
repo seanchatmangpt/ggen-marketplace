@@ -1,0 +1,67 @@
+# MESSAGE: every bpm:CliCommand / bpm:CliArg must name admitted members of the CLOSED CLI vocabularies (bpm:CliResultShape, bpm:CliArgMode, bpm:CliArgEncoding, bpm:CliArgType -- anti-joins exactly like gates/090 for the engine vocabularies), a command's bpm:cmdBridge must be an admitted bpm:CliBridge, no two commands of one bridge may share a bpm:cmdName or a (group, subcommand) invocation, no two args of one command may share a cliArgName or a cliArgOrder, and -- the fence this family adds over the engine family -- every rendered bpm:CliCommand must be WITNESSED by a bpm:CliWitness recorded from a real observed run (date, exact command line, exit code 0, sha256 of the captured stdout envelope): an unwitnessed command is refused, a witness naming a non-command is refused, and a witness missing its observed evidence is vacuous and refused; any row is a refusal.
+PREFIX bpm: <https://ggen.dev/ontology/beam-process-model#>
+SELECT ?subject ?problem WHERE {
+  {
+    ?subject a bpm:CliCommand ; bpm:cmdResultShape ?rs .
+    FILTER NOT EXISTS { ?rs a bpm:CliResultShape ; bpm:resultShapeName ?n1 }
+    BIND("result_shape_not_admitted" AS ?problem)
+  } UNION {
+    ?subject a bpm:CliArg ; bpm:cliArgMode ?m .
+    FILTER NOT EXISTS { ?m a bpm:CliArgMode ; bpm:cliArgModeName ?n2 }
+    BIND("arg_mode_not_admitted" AS ?problem)
+  } UNION {
+    ?subject a bpm:CliArg ; bpm:cliArgEncoding ?enc .
+    FILTER NOT EXISTS { ?enc a bpm:CliArgEncoding ; bpm:cliArgEncodingName ?n3 }
+    BIND("arg_encoding_not_admitted" AS ?problem)
+  } UNION {
+    ?subject a bpm:CliArg ; bpm:cliArgType ?t .
+    FILTER NOT EXISTS { ?t a bpm:CliArgType ; bpm:cliArgTypeName ?n4 ; bpm:cliArgElixirType ?x4 ; bpm:cliArgElixirGuard ?g4 }
+    BIND("arg_type_not_admitted" AS ?problem)
+  } UNION {
+    ?subject a bpm:CliCommand ; bpm:cmdBridge ?b .
+    FILTER NOT EXISTS { ?b a bpm:CliBridge }
+    BIND("bridge_not_admitted" AS ?problem)
+  } UNION {
+    ?subject a bpm:CliCommand ; bpm:cmdBridge ?b ; bpm:cmdName ?name .
+    ?other a bpm:CliCommand ; bpm:cmdBridge ?b ; bpm:cmdName ?name .
+    FILTER (?other != ?subject)
+    BIND("duplicate_command_name" AS ?problem)
+  } UNION {
+    ?subject a bpm:CliCommand ; bpm:cmdBridge ?b ; bpm:cmdGroup ?grp ; bpm:cmdSubcommand ?sub .
+    ?other a bpm:CliCommand ; bpm:cmdBridge ?b ; bpm:cmdGroup ?grp ; bpm:cmdSubcommand ?sub .
+    FILTER (?other != ?subject)
+    BIND("duplicate_cli_invocation" AS ?problem)
+  } UNION {
+    ?subject a bpm:CliArg ; bpm:argCommand ?c ; bpm:cliArgName ?an .
+    ?other a bpm:CliArg ; bpm:argCommand ?c ; bpm:cliArgName ?an .
+    FILTER (?other != ?subject)
+    BIND("duplicate_arg_name" AS ?problem)
+  } UNION {
+    ?subject a bpm:CliArg ; bpm:argCommand ?c ; bpm:cliArgOrder ?ord .
+    ?other a bpm:CliArg ; bpm:argCommand ?c ; bpm:cliArgOrder ?ord .
+    FILTER (?other != ?subject)
+    BIND("duplicate_arg_order" AS ?problem)
+  } UNION {
+    ?subject a bpm:CliCommand .
+    FILTER NOT EXISTS { ?w a bpm:CliWitness ; bpm:witnessCommand ?subject }
+    BIND("unwitnessed_command" AS ?problem)
+  } UNION {
+    ?subject a bpm:CliWitness ; bpm:witnessCommand ?c .
+    FILTER NOT EXISTS { ?c a bpm:CliCommand }
+    BIND("witness_names_no_admitted_command" AS ?problem)
+  } UNION {
+    ?subject a bpm:CliWitness ; bpm:witnessExitCode ?code .
+    FILTER (?code != 0)
+    BIND("witnessed_nonzero_exit" AS ?problem)
+  } UNION {
+    ?subject a bpm:CliWitness .
+    FILTER NOT EXISTS {
+      ?subject bpm:witnessedAt ?d ;
+               bpm:witnessCommandline ?cl ;
+               bpm:witnessExitCode ?e ;
+               bpm:witnessEnvelopeSha256 ?sha .
+    }
+    BIND("vacuous_witness_missing_observed_evidence" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem

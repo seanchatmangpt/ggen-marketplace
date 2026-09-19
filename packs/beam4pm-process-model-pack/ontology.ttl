@@ -578,3 +578,173 @@ bpm:argMode a rdf:Property ; rdfs:domain bpm:EngineArg ; rdfs:range bpm:ArgMode 
     rdfs:comment "Default bpm:ArgMode_required." .
 bpm:argDefault a rdf:Property ; rdfs:domain bpm:EngineArg ; rdfs:range xsd:string ;
     rdfs:comment "The Elixir default literal for optional/keyword modes (nil, %{}, [], 1.0). Required for those modes (gates/080)." .
+
+# ===========================================================================
+# One-shot CLI bridge wrappers (pack 0.1.20) -- bpm:CliBridge / bpm:CliCommand / bpm:CliArg
+# ===========================================================================
+#
+# v26.9.18 parity-wave class (1): the reference consumer hand-wrote a family of
+# typed one-shot CLI wrapper functions in BeamPM.Dfcm over the standalone
+# autofde-lab Typer CLI (ocel_validate/1, sa2a_replay/1, catalog/0,
+# graphlaw_*, sa2a_admit/2, fabric_match/2, fabric_solve/2, ...), each admitted
+# as counted manufacturing debt with the sunset plan "admit the CLI's command
+# surface as ontology facts and render the wrappers". Measured before: every
+# wrapper repeats the SAME shape -- resolve the binary (Application env ->
+# ENV var -> default path), build an argv prefix from a fixed group +
+# subcommand, append per-argument values (verbatim, JSON-encoded, or behind a
+# --flag), System.cmd once, JSON-decode stdout, and collapse the outcome into
+# {:ok, map()} or a TYPED {:error, term()} that keeps the lab's own refusal
+# envelope instead of hiding it. One template family therefore fits, and that
+# family is templates/beam4pm_cli_bridge.ex.tmpl (for_each: bridges).
+#
+# What is a FACT here and what is TEMPLATE (the bpm:Engine split, repeated):
+# the bridge's identity (module name, binary resolution ladder, default
+# timeout) and each command's surface (group, subcommand, doc, closed result
+# shape, refusal-reason atom, timeout budget, args) are facts declared by the
+# CONSUMER, one individual each. Everything else -- the resolution ladder, the
+# single System.cmd + JSON decode, the Task-based timeout with brutal-kill
+# reaping, the per-shape collapse into typed refusals -- is template,
+# identical across bridges by construction. The arg-mode / arg-encoding /
+# arg-type / result-shape vocabularies below are CLOSED (gates/110 anti-joins
+# against them exactly like gates/090 for the engine vocabularies): a consumer
+# names a member, never writes Elixir in RDF. Adding a member is a reviewed
+# edit to THIS file.
+#
+# Witnessing (the 柵 this family adds over the engine family): a rendered
+# command must be WITNESSED -- the consumer's graph carries one bpm:CliWitness
+# per admitted bpm:CliCommand, recorded from a REAL run of the exact
+# group/subcommand against the real binary (date, exact command line, observed
+# exit code 0, sha256 of the observed stdout envelope). gates/110 refuses a
+# rendered command no witness names and a witness missing its observed
+# evidence, so a fabricated command (or a vacuous, evidence-free witness)
+# cannot reach render. The gate cannot re-run the CLI; what it enforces is
+# that the admission RECORD carries observed evidence, the same scope as the
+# authorship gate's sha256/admission fields.
+#
+# Failed edges recorded (per the search ladder, silent pruning forbidden):
+#   - protocol-integration-pack's pr:PriorArtAdapter cli-subprocess adapter was
+#     considered and REJECTED as the owner: it renders a raw System.cmd
+#     passthrough ({output, exit_code} tuple, no JSON envelope decode, no
+#     typed refusal shapes, one fixed subcommand, no resolution ladder) -- a
+#     different capability family, not a prior art for this one.
+#   - Only an Elixir leg is rendered this wave (the hand-written wrappers are
+#     Elixir-only); bpm:cliArgElixirType/bpm:cliArgElixirGuard therefore carry
+#     no Erlang/Gleam siblings -- adding those legs is a reviewed extension,
+#     not an existing column left empty.
+#   - bpm:ArgMode_optional/keyword (the engine family's optional positional
+#     and opts-keyword modes) have NO CLI analogue yet: every hand-written
+#     wrapper's arguments are required. An optional --flag (e.g.
+#     graphlaw_validate/2's :shacl opt) needs a keyword-flag mode -- a named,
+#     unrendered gap that keeps those wrappers hand-written until admitted.
+
+bpm:CliBridge a rdfs:Class ;
+    rdfs:label "One-shot CLI Bridge" ;
+    rdfs:comment "One external CLI binary the consumer wraps with typed one-shot functions. Declared by the consumer, one individual per binary; rendered by templates/beam4pm_cli_bridge.ex.tmpl into lib/beam4pm_cli_<bridgeName>.ex as module BeamPM.<bridgeModule> with one public function per admitted bpm:CliCommand plus cli_path/0, cli_available?/0 and the shared run_cli/2,3 runner." .
+
+bpm:bridgeName a rdf:Property ; rdfs:domain bpm:CliBridge ; rdfs:range xsd:string ;
+    rdfs:comment "snake_case key. File stem of the rendered wrapper (lib/beam4pm_cli_<name>.ex) and the binary's prose name in docs." .
+bpm:bridgeModule a rdf:Property ; rdfs:domain bpm:CliBridge ; rdfs:range xsd:string ;
+    rdfs:comment "Elixir module suffix under BeamPM.: the rendered wrapper is BeamPM.<module> (e.g. DfcmCli). Distinct from any hand-authored module that still carries the not-yet-rendered wrappers." .
+bpm:bridgeDoc a rdf:Property ; rdfs:domain bpm:CliBridge ; rdfs:range xsd:string ;
+    rdfs:comment "One paragraph (single line) rendered into the module doc: what the wrapped CLI is and where it lives." .
+bpm:bridgeOrdinal a rdf:Property ; rdfs:domain bpm:CliBridge ; rdfs:range xsd:integer ;
+    rdfs:comment "Stable render order across bridges." .
+bpm:cliOtpApp a rdf:Property ; rdfs:domain bpm:CliBridge ; rdfs:range xsd:string ;
+    rdfs:comment "First rung of the resolution ladder: Application.get_env(:<cliOtpApp>, :<cliAppEnvKey>) (e.g. beam4pm)." .
+bpm:cliAppEnvKey a rdf:Property ; rdfs:domain bpm:CliBridge ; rdfs:range xsd:string ;
+    rdfs:comment "The application-env key of the first rung (e.g. autofde_cli_path)." .
+bpm:cliEnvVar a rdf:Property ; rdfs:domain bpm:CliBridge ; rdfs:range xsd:string ;
+    rdfs:comment "Second rung: System.get_env/<cliEnvVar> (e.g. AUTOFDE_CLI_PATH)." .
+bpm:cliDefaultPath a rdf:Property ; rdfs:domain bpm:CliBridge ; rdfs:range xsd:string ;
+    rdfs:comment "Third rung: repo-root-relative default, Path.expand'ed (e.g. priv/bin/autofde, the trampoline)." .
+bpm:cliDefaultTimeoutMs a rdf:Property ; rdfs:domain bpm:CliBridge ; rdfs:range xsd:integer ;
+    rdfs:comment "Default budget, in ms, for the shared run_cli/2 runner (run_cli/1 delegates to it). Each command's own bpm:cmdTimeoutMs overrides per call." .
+
+bpm:CliCommand a rdfs:Class ;
+    rdfs:label "One-shot CLI Command Wrapper" ;
+    rdfs:comment "One public wrapper function over one <group> <subcommand> invocation of a bridge's binary. Rendered with the exact @doc (including any doctest) from bpm:cmdDoc, a typespec derived from the admitted bpm:CliArg types, and the collapse behavior of its bpm:cmdResultShape." .
+bpm:cmdBridge a rdf:Property ; rdfs:domain bpm:CliCommand ; rdfs:range bpm:CliBridge .
+bpm:cmdName a rdf:Property ; rdfs:domain bpm:CliCommand ; rdfs:range xsd:string ;
+    rdfs:comment "snake_case Elixir function name (e.g. ocel_validate, fabric_cache_stats)." .
+bpm:cmdGroup a rdf:Property ; rdfs:domain bpm:CliCommand ; rdfs:range xsd:string ;
+    rdfs:comment "First CLI argv word (e.g. ocel, sa2a, fabric). Every observed invocation of the wrapped CLIs is <group> <subcommand> ...; a group-less command is a schema extension, not a silent omission (recorded failed edge)." .
+bpm:cmdSubcommand a rdf:Property ; rdfs:domain bpm:CliCommand ; rdfs:range xsd:string ;
+    rdfs:comment "Second CLI argv word (e.g. validate, replay, cache-stats -- hyphens allowed here; only the FUNCTION name is snake_case)." .
+bpm:cmdOrder a rdf:Property ; rdfs:domain bpm:CliCommand ; rdfs:range xsd:integer .
+bpm:cmdDoc a rdf:Property ; rdfs:domain bpm:CliCommand ; rdfs:range xsd:string ;
+    rdfs:comment "The FULL rendered @doc body, consumer-authored, carried verbatim (newlines and indentation included; a doctest travels inside this fact and must name the RENDERED module BeamPM.<bridgeModule>). Multi-line Turtle string." .
+bpm:cmdResultShape a rdf:Property ; rdfs:domain bpm:CliCommand ; rdfs:range bpm:CliResultShape .
+bpm:cmdResultFields a rdf:Property ; rdfs:domain bpm:CliCommand ; rdfs:range xsd:string ;
+    rdfs:comment "ok_map shapes only: space-separated top-level JSON keys projected into the returned atom-keyed map, in order; the key named \"ok\" binds the envelope's guarded boolean, every other key via Map.fetch!/2 (missing key = KeyError, a loud projection bug, never nil-fabrication)." .
+bpm:cmdRefusalReason a rdf:Property ; rdfs:domain bpm:CliCommand ; rdfs:range xsd:string ;
+    rdfs:comment "The atom naming this command's typed refusal tuple (e.g. ocel_validate_error, replay_refused). ok_map renders {:error, {<reason>, err, resp}} for an error-keyed envelope; typed_refusal renders {:error, {<reason>, resp}} for the CLI's own ok:false verdict." .
+bpm:cmdTimeoutMs a rdf:Property ; rdfs:domain bpm:CliCommand ; rdfs:range xsd:integer ;
+    rdfs:comment "Per-command budget, in ms, for the one System.cmd run (Task.yield + Task.shutdown(:brutal_kill); the orphaned port dies with its owner). Exceeding it is the typed refusal {:error, {:cli_timeout, ms}} -- never a hang, never a silent nil." .
+
+bpm:CliResultShape a rdfs:Class ;
+    rdfs:comment "Closed vocabulary: how the runner's {:ok, decoded} / {:error, _} outcome collapses for one command." .
+bpm:resultShapeName a rdf:Property ; rdfs:domain bpm:CliResultShape ; rdfs:range xsd:string .
+bpm:CliResultShape_ok_map a bpm:CliResultShape ; bpm:resultShapeName "ok_map" ;
+    rdfs:comment "The CLI exits 0 with a top-level \"ok\" boolean. ok=true -> {:ok, atom-keyed projection per bpm:cmdResultFields}; an envelope carrying a top-level \"error\" key -> {:error, {<cmdRefusalReason>, err, resp}}; every other exit-0 decode passes through untouched; runner failures verbatim. (ocel_validate/1's measured shape.)" .
+bpm:CliResultShape_batch a bpm:CliResultShape ; bpm:resultShapeName "batch" ;
+    rdfs:comment "The CLI exits 0 with a bare payload (no \"ok\" envelope): counters/aggregate batches returned WHOLE as {:ok, payload}. No envelope branching; runner failures verbatim. (fabric cache-stats' measured shape.)" .
+bpm:CliResultShape_typed_refusal a bpm:CliResultShape ; bpm:resultShapeName "typed_refusal" ;
+    rdfs:comment "Success is {:ok, resp} iff the CLI exits 0 with \"ok\": true; the lab's own refusal (verdict JSON on stdout, THEN exit 1) is decoded and surfaced as {:error, {<cmdRefusalReason>, resp}} -- the CLI's verdict travels, never hidden behind a raw exit; every other outcome verbatim. (sa2a_replay/1's measured shape.)" .
+
+bpm:CliArgMode a rdfs:Class ;
+    rdfs:comment "Closed vocabulary: how one argument reaches the CLI invocation." .
+bpm:cliArgModeName a rdf:Property ; rdfs:domain bpm:CliArgMode ; rdfs:range xsd:string .
+bpm:CliArgMode_positional a bpm:CliArgMode ; bpm:cliArgModeName "positional" ;
+    rdfs:comment "Appended to argv in bpm:cliArgOrder, in position (value JSON-encoded first when bpm:CliArgEncoding_json)." .
+bpm:CliArgMode_flags a bpm:CliArgMode ; bpm:cliArgModeName "flags" ;
+    rdfs:comment "Appended as [<bpm:cliArgFlag>, value]; the flag text is a fact (--expected-hash), the value JSON-encoded first when bpm:CliArgEncoding_json. Requires bpm:cliArgFlag (gates/100)." .
+bpm:CliArgMode_json_stdin a bpm:CliArgMode ; bpm:cliArgModeName "json_stdin" ;
+    rdfs:comment "Value JSON-encoded and piped via System.cmd's :stdin option; NEVER in argv. (The autofde cmca allocate inline-JSON form crashes on macOS for long JSON -- OSError 63, observed 2026-09-18 -- so stdin is the honest large-payload channel.)" .
+bpm:CliArgMode_temp_file a bpm:CliArgMode ; bpm:cliArgModeName "temp_file" ;
+    rdfs:comment "Value JSON-encoded into a unique temp file whose PATH is appended to argv; the file is removed in an after clause even on refusal (the cmca_allocate/2 measured shape)." .
+
+bpm:CliArgEncoding a rdfs:Class ;
+    rdfs:comment "Closed vocabulary: the host-side transform of an argument VALUE before it reaches argv or stdin (positional/flags only; json_stdin and temp_file encode by definition -- declaring raw on those is a gates/100 contradiction)." .
+bpm:cliArgEncodingName a rdf:Property ; rdfs:domain bpm:CliArgEncoding ; rdfs:range xsd:string .
+bpm:CliArgEncoding_raw a bpm:CliArgEncoding ; bpm:cliArgEncodingName "raw" ;
+    rdfs:comment "Value verbatim (the CLI parses it; paths, hashes, plain strings)." .
+bpm:CliArgEncoding_json a bpm:CliArgEncoding ; bpm:cliArgEncodingName "json" ;
+    rdfs:comment "JSON.encode!/1 before splicing (maps an --domain-arguments-style flag carries)." .
+
+bpm:CliArgType a rdfs:Class ;
+    rdfs:comment "Closed vocabulary of argument types, each carrying its Elixir typespec + guard -- the CLI-surface analogue of bpm:EngineArgType (Elixir leg only this wave; see the failed-edge note above)." .
+bpm:cliArgTypeName a rdf:Property ; rdfs:domain bpm:CliArgType ; rdfs:range xsd:string .
+bpm:cliArgElixirType a rdf:Property ; rdfs:domain bpm:CliArgType ; rdfs:range xsd:string .
+bpm:cliArgElixirGuard a rdf:Property ; rdfs:domain bpm:CliArgType ; rdfs:range xsd:string .
+bpm:CliArgType_string a bpm:CliArgType ; bpm:cliArgTypeName "string" ;
+    bpm:cliArgElixirType "String.t()" ; bpm:cliArgElixirGuard "is_binary" .
+bpm:CliArgType_map a bpm:CliArgType ; bpm:cliArgTypeName "map" ;
+    bpm:cliArgElixirType "map()" ; bpm:cliArgElixirGuard "is_map" .
+
+bpm:CliArg a rdfs:Class ;
+    rdfs:label "One-shot CLI Command Argument" ;
+    rdfs:comment "One argument of one bpm:CliCommand, in bpm:cliArgOrder (1-based, argv order across positional and flags modes; json_stdin/temp_file args take an order too, for the function-signature parameter order)." .
+bpm:argCommand a rdf:Property ; rdfs:domain bpm:CliArg ; rdfs:range bpm:CliCommand .
+bpm:cliArgName a rdf:Property ; rdfs:domain bpm:CliArg ; rdfs:range xsd:string ;
+    rdfs:comment "snake_case Elixir parameter name." .
+bpm:cliArgOrder a rdf:Property ; rdfs:domain bpm:CliArg ; rdfs:range xsd:integer .
+bpm:cliArgType a rdf:Property ; rdfs:domain bpm:CliArg ; rdfs:range bpm:CliArgType .
+bpm:cliArgMode a rdf:Property ; rdfs:domain bpm:CliArg ; rdfs:range bpm:CliArgMode ;
+    rdfs:comment "Default bpm:CliArgMode_positional." .
+bpm:cliArgFlag a rdf:Property ; rdfs:domain bpm:CliArg ; rdfs:range xsd:string ;
+    rdfs:comment "The literal flag text including dashes (e.g. --expected-hash). Required iff bpm:CliArgMode_flags (gates/100)." .
+bpm:cliArgEncoding a rdf:Property ; rdfs:domain bpm:CliArg ; rdfs:range bpm:CliArgEncoding ;
+    rdfs:comment "Default bpm:CliArgEncoding_raw." .
+
+bpm:CliWitness a rdfs:Class ;
+    rdfs:label "CLI Command Qualification Witness" ;
+    rdfs:comment "Consumer-declared, evidence-bearing admission record: one REAL observed run of the exact command against the real binary, recorded BEFORE the command's facts may render (gates/110 refuses an unwitnessed command). One per bpm:CliCommand. Inspection is not execution -- the witness exists so the graph only ever names invocations that were actually run and whose stdout envelope was captured." .
+bpm:witnessCommand a rdf:Property ; rdfs:domain bpm:CliWitness ; rdfs:range bpm:CliCommand .
+bpm:witnessedAt a rdf:Property ; rdfs:domain bpm:CliWitness ; rdfs:range xsd:string ;
+    rdfs:comment "ISO-8601 date (YYYY-MM-DD) of the observed run." .
+bpm:witnessCommandline a rdf:Property ; rdfs:domain bpm:CliWitness ; rdfs:range xsd:string ;
+    rdfs:comment "The exact argv observed, single line (e.g. 'priv/bin/autofde ocel validate <fixture>'), minus secret payloads." .
+bpm:witnessExitCode a rdf:Property ; rdfs:domain bpm:CliWitness ; rdfs:range xsd:integer ;
+    rdfs:comment "The observed process exit code; gates/110 admits only 0 (a witnessed failure is a finding, not a qualification)." .
+bpm:witnessEnvelopeSha256 a rdf:Property ; rdfs:domain bpm:CliWitness ; rdfs:range xsd:string ;
+    rdfs:comment "sha256 hex of the captured stdout envelope file. The gate enforces presence (a witness without captured evidence is vacuous); binding the hash to the bytes is the admitting session's receipt, not the gate's." .
