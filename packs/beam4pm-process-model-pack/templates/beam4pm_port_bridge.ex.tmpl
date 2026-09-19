@@ -423,8 +423,8 @@ defmodule {{ module }} do
     end
   end
 
-  defp port_command(root) do
 {% if has_root == "true" and has_pref == "true" %}
+  defp port_command(root) do
     pref = root && Path.join(root, "{{ interpreter_pref }}")
 
     if pref && File.exists?(pref) do
@@ -432,10 +432,12 @@ defmodule {{ module }} do
     else
       System.find_executable("{{ command }}") || "{{ command }}"
     end
-{% else %}
-    System.find_executable("{{ command }}") || "{{ command }}"
-{% endif %}
   end
+{% else %}
+  defp port_command(_root) do
+    System.find_executable("{{ command }}") || "{{ command }}"
+  end
+{% endif %}
 
   defp close_port(%{port: nil} = state), do: %{state | port: nil, buffer: <<>>}
 
@@ -463,8 +465,7 @@ defmodule {{ module }} do
 
   defp dispatch_reply(line, state) do
     case :queue.out(state.waiters) do
-      {head, rest} ->
-        {:value, {from, timer_ref}} = head
+      { {:value, {from, timer_ref}}, rest} ->
         Process.cancel_timer(timer_ref)
 
         reply =
