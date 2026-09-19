@@ -78,10 +78,22 @@ otelocel:rule-event-id a otelocel:MappingRule ;
   otelocel:derivation "id = format string of trace_id and span_id joined by a colon -- globally unique across traces" ;
   otelocel:witness "Ocel20" .
 
+otelocel:rule-event-id-override a otelocel:MappingRule ;
+  otelocel:order 15 ; otelocel:identifier "EventIdOverride" ; otelocel:slug "event-id-override" ;
+  otelocel:sourceField "span.attributes[ocel.event.id]" ; otelocel:targetField "OCELEvent.id (override)" ;
+  otelocel:derivation "when a non-empty ocel.event.id attribute is present, use it as the admitted domain event identity instead of trace_id:span_id; otherwise preserve the generic fallback" ;
+  otelocel:witness "Ocel20" .
+
 otelocel:rule-event-type a otelocel:MappingRule ;
   otelocel:order 20 ; otelocel:identifier "EventType" ; otelocel:slug "event-type" ;
   otelocel:sourceField "span.name" ; otelocel:targetField "OCELEvent.event_type" ;
   otelocel:derivation "event_type = span.name verbatim -- the activity label" ;
+  otelocel:witness "Ocel20" .
+
+otelocel:rule-event-type-override a otelocel:MappingRule ;
+  otelocel:order 25 ; otelocel:identifier "EventTypeOverride" ; otelocel:slug "event-type-override" ;
+  otelocel:sourceField "span.attributes[ocel.event.type]" ; otelocel:targetField "OCELEvent.event_type (override)" ;
+  otelocel:derivation "when a non-empty ocel.event.type attribute is present, use it as the admitted domain activity before capability-id/span-name fallback" ;
   otelocel:witness "Ocel20" .
 
 otelocel:rule-event-time a otelocel:MappingRule ;
@@ -112,6 +124,12 @@ otelocel:rule-object-trace a otelocel:MappingRule ;
   otelocel:order 60 ; otelocel:identifier "ObjectFromTraceId" ; otelocel:slug "object-from-trace-id" ;
   otelocel:sourceField "span.trace_id" ; otelocel:targetField "OCELObject with object_type trace" ;
   otelocel:derivation "one OCELObject per unique trace_id, giving every span in a trace a shared case object" ;
+  otelocel:witness "Ocel20" .
+
+otelocel:rule-semantic-object-overrides a otelocel:MappingRule ;
+  otelocel:order 65 ; otelocel:identifier "SemanticObjectOverrides" ; otelocel:slug "semantic-object-overrides" ;
+  otelocel:sourceField "span.attributes[ocel.object.<slot>.*]" ; otelocel:targetField "OCELObject + OCELEvent.relationships" ;
+  otelocel:derivation "for each complete slot carrying id and type, construct that domain OCELObject; optional qualifier links the event to it; attr.<name> fields become timestamped object attributes; incomplete slots are ignored rather than fabricated" ;
   otelocel:witness "Ocel20" .
 
 otelocel:rule-relationship-service a otelocel:MappingRule ;
