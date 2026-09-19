@@ -356,3 +356,61 @@ bpm:demo_engine_op_free_thing a bpm:EngineOp ;
     bpm:opExposeErlang "false" ; bpm:opExposeGleam "false" .
 bpm:demo_engine_op_free_thing_handle a bpm:EngineArg ;
     bpm:argOp bpm:demo_engine_op_free_thing ; bpm:argName "handle" ; bpm:argOrder 1 ; bpm:argType bpm:EngineArgType_handle .
+
+# --- bpm:ParityCheck synthetics (pack 0.1.20) -------------------------------
+# One synthetic parity check exercising every gates/100/110/120-enforced
+# predicate of the parity class (fixture admission, corpus pins, digest pins,
+# expected steps, tamper parameters, both command kinds). The digests are the
+# real observed values from the reference consumer's qualification corpus so
+# the synthetic render is byte-plausible; the synthetic check's corpus paths
+# are admission-consistent WITHIN this fixture graph only.
+
+bpm:qual_fixture_synthetic_domain a bpm:QualificationFixture ;
+    bpm:fixturePath "qualification/fixtures/synthetic/synth.domain.hddl" ;
+    bpm:fixtureSha256 "0000000000000000000000000000000000000000000000000000000000000000" ;
+    bpm:fixtureDoc "Synthetic domain fixture admitted for pack self-qualification of the parity class." .
+
+bpm:qual_fixture_synthetic_problem a bpm:QualificationFixture ;
+    bpm:fixturePath "qualification/fixtures/synthetic/synth.problem.hddl" ;
+    bpm:fixtureSha256 "1111111111111111111111111111111111111111111111111111111111111111" ;
+    bpm:fixtureDoc "Synthetic problem fixture admitted for pack self-qualification of the parity class." .
+
+bpm:parity_synth_check a bpm:ParityCheck ;
+    bpm:checkName "synth_left_vs_synth_right" ;
+    bpm:checkDoc "Synthetic parity check for pack self-qualification: names both command kinds, a pinned corpus, digest pins, an expected ladder, and the tamper falsifier's parameters." ;
+    bpm:checkOrdinal 1 ;
+    bpm:testPath "test/beam4pm_parity_synth_left_vs_synth_right_test.exs" ;
+    bpm:testModule "BeamPM.ParityQualification.SynthLeftVsSynthRight" ;
+    bpm:leftCommand "python -m autofde_lab.cli fabric solve SynthDomain --solver Astar --domain-arguments {\"domain_path\": \"qualification/fixtures/synthetic/synth.domain.hddl\", \"problem_path\": \"qualification/fixtures/synthetic/synth.problem.hddl\"}" ;
+    bpm:rightCommand "BeamPM.Ferroplan.hddl_solve(read(qualification/fixtures/synthetic/synth.domain.hddl), read(qualification/fixtures/synthetic/synth.problem.hddl))" ;
+    bpm:leftCommandKind bpm:ParityCommandKind_lab_fabric_solve ;
+    bpm:rightCommandKind bpm:ParityCommandKind_beam_hddl_solve ;
+    bpm:leftDomain "SynthDomain" ;
+    bpm:leftSolver "Astar" ;
+    bpm:hasCorpus bpm:parity_synth_corpus_domain ,
+                  bpm:parity_synth_corpus_problem ;
+    bpm:hasDigestPin bpm:parity_synth_pin_trajectory ;
+    bpm:hasExpectedStep bpm:parity_synth_step_1 ;
+    bpm:consentLaw "Synthetic consent law: both legs are qualified over the same admitted corpus and agreement is the shared expected ladder." ;
+    bpm:tamperFalsifier "renaming the one synthetic action must flip both engines' verdicts in the same place and move the trajectory pin" ;
+    bpm:tamperFind "synth-action-one" ;
+    bpm:tamperReplace "tampered-action-one" ;
+    bpm:tamperCorpusOrder 1 .
+
+bpm:parity_synth_corpus_domain a bpm:ParityCorpus ;
+    bpm:corpusPath "qualification/fixtures/synthetic/synth.domain.hddl" ;
+    bpm:corpusSha256 "0000000000000000000000000000000000000000000000000000000000000000" ;
+    bpm:corpusOrder 1 .
+
+bpm:parity_synth_corpus_problem a bpm:ParityCorpus ;
+    bpm:corpusPath "qualification/fixtures/synthetic/synth.problem.hddl" ;
+    bpm:corpusSha256 "1111111111111111111111111111111111111111111111111111111111111111" ;
+    bpm:corpusOrder 2 .
+
+bpm:parity_synth_pin_trajectory a bpm:ParityDigestPin ;
+    bpm:pinKey "trajectory_sha256" ;
+    bpm:pinValue "2222222222222222222222222222222222222222222222222222222222222222" .
+
+bpm:parity_synth_step_1 a bpm:ParityExpectedStep ;
+    bpm:stepOrder 1 ;
+    bpm:stepAction "synth-action-one" .
