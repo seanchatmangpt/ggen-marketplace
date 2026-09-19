@@ -1,0 +1,134 @@
+# MESSAGE: every bpm:PortBridge must carry bridgeName, bridgeModule, bridgeDoc, bridgeOrdinal, bridgeCommand, bridgeCommandArgs, bridgeFraming, bridgeRestartPolicy, bridgeDefaultTimeoutMs, bridgeScriptProbe and bridgeProbeOp; every bpm:BridgeOp must carry opBridge, opName, opOrder, opDoc and -- the named refusal this gate exists for -- opReplyShape (an op whose reply envelope nobody wrote down is an untestable wire promise); every bpm:BridgeArg must carry argOp, argName, argOrder and argType. Framing/restart-policy/arg-type/arg-encoding names must be admitted members of the CLOSED vocabularies (anti-joins exactly like gates/090), no two bridges may share a bridgeName, no two ops of one bridge may share an opName or a wire name, the probe op must be a no-argument op of the same bridge, at most one op per bridge may carry opSampleRequest (and that sample must name its own op), an __ROOT__ placeholder in an env value or cwd requires declared root resolution, declared root resolution requires bridgeRootProbe, and bpm:bridgeInterpreterPref likewise requires root resolution; any row is a refusal.
+PREFIX bpm: <https://ggen.dev/ontology/beam-process-model#>
+SELECT ?subject ?problem WHERE {
+  {
+    ?subject a bpm:PortBridge .
+    VALUES ?missing { bpm:bridgeName bpm:bridgeModule bpm:bridgeDoc bpm:bridgeOrdinal bpm:bridgeCommand bpm:bridgeCommandArgs bpm:bridgeFraming bpm:bridgeRestartPolicy bpm:bridgeDefaultTimeoutMs bpm:bridgeScriptProbe bpm:bridgeProbeOp }
+    FILTER NOT EXISTS { ?subject ?missing ?value }
+    BIND("missing_required_property" AS ?problem)
+  } UNION {
+    ?subject a bpm:BridgeOp .
+    VALUES ?missing { bpm:opBridge bpm:opName bpm:opOrder bpm:opDoc }
+    FILTER NOT EXISTS { ?subject ?missing ?value }
+    BIND("missing_required_property" AS ?problem)
+  } UNION {
+    ?subject a bpm:BridgeOp .
+    VALUES ?missing { bpm:opReplyShape }
+    FILTER NOT EXISTS { ?subject ?missing ?value }
+    BIND("bridge_op_without_reply_shape" AS ?problem)
+  } UNION {
+    ?subject a bpm:BridgeArg .
+    VALUES ?missing { bpm:argOp bpm:argName bpm:argOrder bpm:argType }
+    FILTER NOT EXISTS { ?subject ?missing ?value }
+    BIND("missing_required_property" AS ?problem)
+  } UNION {
+    ?subject a bpm:PortBridge ; bpm:bridgeFraming ?f .
+    FILTER NOT EXISTS { ?f a bpm:BridgeFraming ; bpm:framingName ?n1 }
+    BIND("framing_not_a_vocabulary_individual" AS ?problem)
+  } UNION {
+    ?subject a bpm:PortBridge ; bpm:bridgeFraming ?f1b .
+    ?f1b bpm:framingName ?n1b .
+    FILTER (?n1b != "lines_json")
+    BIND("framing_name_not_rendered" AS ?problem)
+  } UNION {
+    ?subject a bpm:PortBridge ; bpm:bridgeRestartPolicy ?rp .
+    FILTER NOT EXISTS { ?rp a bpm:BridgeRestartPolicy ; bpm:restartPolicyName ?n2 }
+    BIND("restart_policy_not_a_vocabulary_individual" AS ?problem)
+  } UNION {
+    ?subject a bpm:PortBridge ; bpm:bridgeRestartPolicy ?rp1b .
+    ?rp1b bpm:restartPolicyName ?n2b .
+    FILTER (?n2b != "lazy" && ?n2b != "eager")
+    BIND("restart_policy_name_not_rendered" AS ?problem)
+  } UNION {
+    ?subject a bpm:BridgeArg ; bpm:argType ?t .
+    FILTER NOT EXISTS { ?t a bpm:BridgeArgType ; bpm:argTypeName ?n3 ; bpm:bridgeArgElixirType ?x3 ; bpm:bridgeArgWireExample ?w3 }
+    BIND("arg_type_not_a_vocabulary_individual" AS ?problem)
+  } UNION {
+    ?subject a bpm:BridgeArg ; bpm:argType ?t1b .
+    ?t1b bpm:argTypeName ?n3b .
+    FILTER (?n3b != "string" && ?n3b != "integer" && ?n3b != "number" && ?n3b != "boolean" && ?n3b != "map" && ?n3b != "list_map" && ?n3b != "term")
+    BIND("arg_type_name_not_rendered" AS ?problem)
+  } UNION {
+    ?subject a bpm:BridgeArg ; bpm:argEncoding ?enc .
+    FILTER NOT EXISTS { ?enc a bpm:BridgeArgEncoding ; bpm:bridgeArgEncodingName ?n4 }
+    BIND("arg_encoding_not_a_vocabulary_individual" AS ?problem)
+  } UNION {
+    ?subject a bpm:BridgeArg ; bpm:argEncoding ?enc1b .
+    ?enc1b bpm:bridgeArgEncodingName ?n4b .
+    FILTER (?n4b != "passthrough" && ?n4b != "stringify" && ?n4b != "stringify_list")
+    BIND("arg_encoding_name_not_rendered" AS ?problem)
+  } UNION {
+    ?subject a bpm:PortBridge ; bpm:bridgeName ?name .
+    ?other a bpm:PortBridge ; bpm:bridgeName ?name .
+    FILTER (?other != ?subject)
+    BIND("duplicate_bridge_name" AS ?problem)
+  } UNION {
+    ?subject a bpm:BridgeOp ; bpm:opBridge ?b ; bpm:opName ?op_name .
+    ?other a bpm:BridgeOp ; bpm:opBridge ?b ; bpm:opName ?op_name .
+    FILTER (?other != ?subject)
+    BIND("duplicate_op_name" AS ?problem)
+  } UNION {
+    ?subject a bpm:BridgeOp ; bpm:opBridge ?b ; bpm:opName ?on1 .
+    ?other a bpm:BridgeOp ; bpm:opBridge ?b ; bpm:opName ?on2 .
+    OPTIONAL { ?subject bpm:opWireName ?w1o }
+    OPTIONAL { ?other bpm:opWireName ?w2o }
+    BIND(COALESCE(?w1o, ?on1) AS ?w1)
+    BIND(COALESCE(?w2o, ?on2) AS ?w2)
+    FILTER (?other != ?subject && ?w1 = ?w2)
+    BIND("duplicate_wire_name" AS ?problem)
+  } UNION {
+    ?subject a bpm:PortBridge ; bpm:bridgeProbeOp ?probe .
+    FILTER NOT EXISTS { ?probe a bpm:BridgeOp ; bpm:opBridge ?subject }
+    BIND("probe_op_not_an_op_of_this_bridge" AS ?problem)
+  } UNION {
+    ?subject a bpm:PortBridge ; bpm:bridgeProbeOp ?probe .
+    ?probe a bpm:BridgeOp ; bpm:opBridge ?subject .
+    FILTER EXISTS { ?arg a bpm:BridgeArg ; bpm:argOp ?probe }
+    BIND("probe_op_takes_arguments" AS ?problem)
+  } UNION {
+    ?subject a bpm:PortBridge .
+    ?op1 a bpm:BridgeOp ; bpm:opBridge ?subject ; bpm:opSampleRequest ?s1 .
+    ?op2 a bpm:BridgeOp ; bpm:opBridge ?subject ; bpm:opSampleRequest ?s2 .
+    FILTER (?op1 != ?op2)
+    BIND("more_than_one_sample_request_op" AS ?problem)
+  } UNION {
+    ?subject a bpm:BridgeOp ; bpm:opSampleRequest ?sample ; bpm:opBridge ?b ; bpm:opName ?op_name .
+    OPTIONAL { ?subject bpm:opWireName ?wo }
+    BIND(COALESCE(?wo, ?op_name) AS ?wire)
+    FILTER (!CONTAINS(?sample, ?wire))
+    BIND("sample_request_missing_own_op" AS ?problem)
+  } UNION {
+    ?subject a bpm:BridgeEnv ; bpm:envBridge ?b ; bpm:envValue ?v .
+    FILTER (CONTAINS(?v, "__ROOT__"))
+    FILTER NOT EXISTS { ?b bpm:bridgeRootAppEnv ?any1 }
+    FILTER NOT EXISTS { ?b bpm:bridgeRootEnvVar ?any2 }
+    FILTER NOT EXISTS { ?b bpm:bridgeRootFallbacks ?any3 }
+    BIND("root_placeholder_without_root_resolution" AS ?problem)
+  } UNION {
+    ?subject a bpm:PortBridge ; bpm:bridgeCwd ?cwd .
+    FILTER (CONTAINS(?cwd, "__ROOT__"))
+    FILTER NOT EXISTS { ?subject bpm:bridgeRootAppEnv ?any1 }
+    FILTER NOT EXISTS { ?subject bpm:bridgeRootEnvVar ?any2 }
+    FILTER NOT EXISTS { ?subject bpm:bridgeRootFallbacks ?any3 }
+    BIND("root_placeholder_without_root_resolution" AS ?problem)
+  } UNION {
+    ?subject a bpm:PortBridge ; bpm:bridgeInterpreterPref ?pref .
+    FILTER NOT EXISTS { ?subject bpm:bridgeRootAppEnv ?any1 }
+    FILTER NOT EXISTS { ?subject bpm:bridgeRootEnvVar ?any2 }
+    FILTER NOT EXISTS { ?subject bpm:bridgeRootFallbacks ?any3 }
+    BIND("interpreter_pref_requires_root_resolution" AS ?problem)
+  } UNION {
+    ?subject a bpm:PortBridge ; bpm:bridgeRootAppEnv ?a1 .
+    FILTER NOT EXISTS { ?subject bpm:bridgeRootProbe ?p1 }
+    BIND("root_resolution_requires_root_probe" AS ?problem)
+  } UNION {
+    ?subject a bpm:PortBridge ; bpm:bridgeRootEnvVar ?a2 .
+    FILTER NOT EXISTS { ?subject bpm:bridgeRootProbe ?p2 }
+    BIND("root_resolution_requires_root_probe" AS ?problem)
+  } UNION {
+    ?subject a bpm:PortBridge ; bpm:bridgeRootFallbacks ?a3 .
+    FILTER NOT EXISTS { ?subject bpm:bridgeRootProbe ?p3 }
+    BIND("root_resolution_requires_root_probe" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem

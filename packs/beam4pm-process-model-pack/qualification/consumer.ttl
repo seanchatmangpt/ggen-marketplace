@@ -356,3 +356,102 @@ bpm:demo_engine_op_free_thing a bpm:EngineOp ;
     bpm:opExposeErlang "false" ; bpm:opExposeGleam "false" .
 bpm:demo_engine_op_free_thing_handle a bpm:EngineArg ;
     bpm:argOp bpm:demo_engine_op_free_thing ; bpm:argName "handle" ; bpm:argOrder 1 ; bpm:argType bpm:EngineArgType_handle .
+
+# --- Synthetic bpm:PortBridge instance (pack 0.1.20) ----------------------
+#
+# One echo bridge exercising EVERY member of the port-bridge vocabulary, so
+# the pack's own qualification render walks every template branch: wire-name
+# rename (add/sum), stringify + stringify_list encodings over map/list_map
+# args (echo_map), a per-op timeout override and the sample-request timeout
+# test (sleep), plus the no-arg probe (ping). The script-probe path is
+# RELATIVE TO THE CONSUMING PROJECT's cwd at render/test time -- pack-side
+# qualification proves the render; a consuming project re-points
+# bpm:bridgeScriptProbe / bpm:bridgeCommandArgs at its own copy of
+# qualification/echo_port_bridge.py to run the rendered qualification for
+# real (witnessed: beam4pm wt-g3-proof, 2026-09-18).
+
+bpm:echo_bridge a bpm:PortBridge ;
+    bpm:bridgeName "echo" ;
+    bpm:bridgeModule "EchoBridge" ;
+    bpm:bridgeDoc "stdlib-only echo/sum/echo_map/sleep interpreter (qualification/echo_port_bridge.py) standing in for any real lab checkout." ;
+    bpm:bridgeOrdinal 1 ;
+    bpm:bridgeCommand "python3" ;
+    bpm:bridgeCommandArgs "-u qualification/echo_port_bridge.py" ;
+    bpm:bridgeFraming bpm:Framing_lines_json ;
+    bpm:bridgeRestartPolicy bpm:RestartPolicy_lazy ;
+    bpm:bridgeDefaultTimeoutMs 5000 ;
+    bpm:bridgeScriptProbe "qualification/echo_port_bridge.py" ;
+    bpm:bridgeProbeOp bpm:echo_op_ping .
+
+bpm:echo_env_mark a bpm:BridgeEnv ;
+    bpm:envBridge bpm:echo_bridge ;
+    bpm:envName "ECHO_BRIDGE_MARK" ;
+    bpm:envValue "pack-qualification" .
+
+bpm:echo_op_ping a bpm:BridgeOp ;
+    bpm:opBridge bpm:echo_bridge ;
+    bpm:opName "ping" ;
+    bpm:opOrder 1 ;
+    bpm:opDoc "Cheapest high-information gate: prove the interpreter answers." ;
+    bpm:opReplyShape "{\"ok\": true, \"pong\": true}" .
+
+bpm:echo_op_add a bpm:BridgeOp ;
+    bpm:opBridge bpm:echo_bridge ;
+    bpm:opName "add" ;
+    bpm:opWireName "sum" ;
+    bpm:opOrder 2 ;
+    bpm:opDoc "Add two integers on the interpreter." ;
+    bpm:opReplyShape "{\"ok\": true, \"sum\": <number>}" .
+
+bpm:echo_op_add_a a bpm:BridgeArg ;
+    bpm:argOp bpm:echo_op_add ;
+    bpm:argName "a" ;
+    bpm:argOrder 1 ;
+    bpm:argType bpm:BridgeArgType_integer ;
+    bpm:argSample "2" .
+
+bpm:echo_op_add_b a bpm:BridgeArg ;
+    bpm:argOp bpm:echo_op_add ;
+    bpm:argName "b" ;
+    bpm:argOrder 2 ;
+    bpm:argType bpm:BridgeArgType_integer ;
+    bpm:argSample "3" .
+
+bpm:echo_op_echo_map a bpm:BridgeOp ;
+    bpm:opBridge bpm:echo_bridge ;
+    bpm:opName "echo_map" ;
+    bpm:opOrder 3 ;
+    bpm:opDoc "Echo a string-keyed payload and per-item list back verbatim." ;
+    bpm:opReplyShape "{\"ok\": true, \"echoed\": {...}, \"items\": [...]}" .
+
+bpm:echo_op_echo_map_payload a bpm:BridgeArg ;
+    bpm:argOp bpm:echo_op_echo_map ;
+    bpm:argName "payload" ;
+    bpm:argOrder 1 ;
+    bpm:argType bpm:BridgeArgType_map ;
+    bpm:argEncoding bpm:BridgeArgEncoding_stringify ;
+    bpm:argSample "%{a: 1}" .
+
+bpm:echo_op_echo_map_items a bpm:BridgeArg ;
+    bpm:argOp bpm:echo_op_echo_map ;
+    bpm:argName "items" ;
+    bpm:argOrder 2 ;
+    bpm:argType bpm:BridgeArgType_list_map ;
+    bpm:argEncoding bpm:BridgeArgEncoding_stringify_list ;
+    bpm:argSample "[%{b: 2}]" .
+
+bpm:echo_op_sleep a bpm:BridgeOp ;
+    bpm:opBridge bpm:echo_bridge ;
+    bpm:opName "sleep" ;
+    bpm:opOrder 4 ;
+    bpm:opDoc "Sleep n ms, then reply; the qualification times it out deliberately." ;
+    bpm:opReplyShape "{\"ok\": true, \"slept\": <integer>}" ;
+    bpm:opTimeoutMs 10000 ;
+    bpm:opSampleRequest "{\"op\": \"sleep\", \"ms\": 5000}" .
+
+bpm:echo_op_sleep_ms a bpm:BridgeArg ;
+    bpm:argOp bpm:echo_op_sleep ;
+    bpm:argName "ms" ;
+    bpm:argOrder 1 ;
+    bpm:argType bpm:BridgeArgType_integer ;
+    bpm:argSample "1" .

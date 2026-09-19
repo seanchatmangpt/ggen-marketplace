@@ -1,0 +1,517 @@
+---
+to: "lib/beam4pm_{{ bridge_name }}_bridge.ex"
+force: true
+sparql:
+  bridges: |
+    PREFIX bpm: <https://ggen.dev/ontology/beam-process-model#>
+    SELECT ?bridge_name ?bridge_module ?bridge_doc ?ordinal ?command ?command_args ?framing
+           ?restart_policy ?default_timeout ?call_slack ?os_pid_timeout ?probe_name
+           ?root_app_env ?root_env_var ?root_fallbacks ?root_probe ?interpreter_pref ?cwd ?script_probe
+           ?has_root ?has_pref WHERE {
+      ?b a bpm:PortBridge ;
+         bpm:bridgeName ?bridge_name ;
+         bpm:bridgeModule ?bridge_module ;
+         bpm:bridgeDoc ?bridge_doc ;
+         bpm:bridgeOrdinal ?ordinal ;
+         bpm:bridgeCommand ?command ;
+         bpm:bridgeCommandArgs ?command_args ;
+         bpm:bridgeFraming ?f ;
+         bpm:bridgeRestartPolicy ?rpol ;
+         bpm:bridgeDefaultTimeoutMs ?default_timeout ;
+         bpm:bridgeScriptProbe ?script_probe ;
+         bpm:bridgeProbeOp ?probe .
+      ?probe a bpm:BridgeOp ; bpm:opName ?probe_name .
+      ?f a bpm:BridgeFraming ; bpm:framingName ?framing .
+      ?rpol a bpm:BridgeRestartPolicy ; bpm:restartPolicyName ?restart_policy .
+      OPTIONAL { ?b bpm:bridgeCallSlackMs ?slack_o }
+      OPTIONAL { ?b bpm:bridgeOsPidTimeoutMs ?ospid_o }
+      OPTIONAL { ?b bpm:bridgeRootAppEnv ?rae_o }
+      OPTIONAL { ?b bpm:bridgeRootEnvVar ?rev_o }
+      OPTIONAL { ?b bpm:bridgeRootFallbacks ?rfb_o }
+      OPTIONAL { ?b bpm:bridgeRootProbe ?rp_o }
+      OPTIONAL { ?b bpm:bridgeInterpreterPref ?ip_o }
+      OPTIONAL { ?b bpm:bridgeCwd ?cwd_o }
+      BIND(COALESCE(?slack_o, "5000") AS ?call_slack)
+      BIND(COALESCE(?ospid_o, "5000") AS ?os_pid_timeout)
+      BIND(COALESCE(?rae_o, "-") AS ?root_app_env)
+      BIND(COALESCE(?rev_o, "-") AS ?root_env_var)
+      BIND(COALESCE(?rfb_o, "-") AS ?root_fallbacks)
+      BIND(COALESCE(?rp_o, "-") AS ?root_probe)
+      BIND(COALESCE(?ip_o, "-") AS ?interpreter_pref)
+      BIND(COALESCE(?cwd_o, "-") AS ?cwd)
+      BIND(IF(?root_app_env != "-" || ?root_env_var != "-" || ?root_fallbacks != "-", "true", "false") AS ?has_root)
+      BIND(IF(?interpreter_pref != "-", "true", "false") AS ?has_pref)
+    } ORDER BY ?ordinal
+  ops: |
+    PREFIX bpm: <https://ggen.dev/ontology/beam-process-model#>
+    SELECT ?bridge_name ?op_key ?op_name ?op_order ?op_doc ?reply_shape ?wire_name ?timeout_ms ?sample_request WHERE {
+      ?op a bpm:BridgeOp ;
+          bpm:opBridge ?b ;
+          bpm:opName ?op_name ;
+          bpm:opOrder ?op_order ;
+          bpm:opDoc ?op_doc ;
+          bpm:opReplyShape ?reply_shape .
+      ?b a bpm:PortBridge ; bpm:bridgeName ?bridge_name .
+      OPTIONAL { ?op bpm:opWireName ?wire_o }
+      OPTIONAL { ?op bpm:opTimeoutMs ?to_o }
+      OPTIONAL { ?op bpm:opSampleRequest ?sr_o }
+      BIND(CONCAT(?bridge_name, "/", ?op_name) AS ?op_key)
+      BIND(COALESCE(?wire_o, ?op_name) AS ?wire_name)
+      BIND(COALESCE(STR(?to_o), "-") AS ?timeout_ms)
+      BIND(COALESCE(?sr_o, "-") AS ?sample_request)
+    } ORDER BY ?bridge_name ?op_order
+  args: |
+    PREFIX bpm: <https://ggen.dev/ontology/beam-process-model#>
+    SELECT ?bridge_name ?op_key ?arg_name ?arg_order ?wire_key ?type_name ?elixir_type ?guard
+           ?guarded ?encoding ?wire_example ?sample ?sampled WHERE {
+      ?a a bpm:BridgeArg ;
+         bpm:argOp ?op ;
+         bpm:argName ?arg_name ;
+         bpm:argOrder ?arg_order ;
+         bpm:argType ?t .
+      ?op a bpm:BridgeOp ; bpm:opBridge ?b ; bpm:opName ?op_name .
+      ?b a bpm:PortBridge ; bpm:bridgeName ?bridge_name .
+      ?t a bpm:BridgeArgType ;
+         bpm:argTypeName ?type_name ;
+         bpm:bridgeArgElixirType ?elixir_type ;
+         bpm:bridgeArgWireExample ?wire_example .
+      OPTIONAL { ?t bpm:bridgeArgElixirGuard ?guard_o }
+      OPTIONAL { ?a bpm:argWireKey ?wk_o }
+      OPTIONAL { ?a bpm:argEncoding ?enc . ?enc a bpm:BridgeArgEncoding ; bpm:bridgeArgEncodingName ?enc_name }
+      OPTIONAL { ?a bpm:argSample ?sample_o }
+      BIND(CONCAT(?bridge_name, "/", ?op_name) AS ?op_key)
+      BIND(COALESCE(?guard_o, "-") AS ?guard)
+      BIND(IF(?guard = "-", "false", "true") AS ?guarded)
+      BIND(COALESCE(?wk_o, ?arg_name) AS ?wire_key)
+      BIND(COALESCE(?enc_name, "passthrough") AS ?encoding)
+      BIND(COALESCE(?sample_o, "-") AS ?sample)
+      BIND(IF(?sample = "-", "false", "true") AS ?sampled)
+    } ORDER BY ?op_key ?arg_order
+  envs: |
+    PREFIX bpm: <https://ggen.dev/ontology/beam-process-model#>
+    SELECT ?bridge_name ?env_name ?env_value WHERE {
+      ?e a bpm:BridgeEnv ;
+         bpm:envBridge ?b ;
+         bpm:envName ?env_name ;
+         bpm:envValue ?env_value .
+      ?b a bpm:PortBridge ; bpm:bridgeName ?bridge_name .
+    } ORDER BY ?bridge_name ?env_name
+for_each: bridges
+---
+{%- set bops = ops | filter(attribute="bridge_name", value=bridge_name) %}
+{%- set bargs = args | filter(attribute="bridge_name", value=bridge_name) %}
+{%- set benvs = envs | filter(attribute="bridge_name", value=bridge_name) %}
+{%- set module = "BeamPM." ~ bridge_module -%}
+{%- set n_stringify = bargs | filter(attribute="encoding", value="stringify") | length -%}
+{%- set n_stringify_list = bargs | filter(attribute="encoding", value="stringify_list") | length -%}
+{%- set uses_stringify = n_stringify > 0 or n_stringify_list > 0 -%}
+{%- set command_args_list = command_args | split(pat=" ") -%}
+# GENERATED by ggen from the admitted bpm:PortBridge graph ({{ bridge_name }}). Do not edit.
+defmodule {{ module }} do
+  @moduledoc ~S"""
+  Persistent stdio JSON-lines port bridge. {{ bridge_doc }}
+
+  One long-lived OS interpreter serves many requests over a single
+  BEAM `Port` (stdio), so every request after the first skips the
+  interpreter boot a one-shot CLI bridge pays per call.
+
+  This module is rendered by ggen from the admitted `bpm:PortBridge` /
+  `bpm:BridgeOp` / `bpm:BridgeArg` facts: the spawn command and the op
+  surface are ontology, the GenServer + Port lifecycle below is template,
+  identical for every bridge.
+
+  ## Protocol contract ({{ bridge_name }}: framing `{{ framing }}`)
+
+  Framing: newline-delimited single-line JSON objects over the port's
+  stdio; exactly one reply line per request line, in request order;
+  blank request lines are ignored by the bridge. The bridge never
+  exits on a bad request: every failure becomes an
+  `{"ok": false, "error": ..., "exception_type": ...}` envelope line.
+
+  Requests (this client surfaces the admitted op set):
+
+{% for op in bops %}
+{%- set oargs_doc = bargs | filter(attribute="op_key", value=op.op_key) %}
+    * `{"op": "{{ op.wire_name }}"{% for a in oargs_doc %}, "{{ a.wire_key }}": {{ a.wire_example }}{% endfor %}` -> `{{ op.reply_shape }}`
+{%- endfor %}
+
+  ## Return values
+
+    * `{:ok, map()}` -- decoded reply line with `"ok": true`
+    * `{:error, {:bridge_error, map()}}` -- decoded reply line with
+      `"ok": false` (the bridge process itself stayed up)
+    * `{:error, :bridge_down}` -- the port process died or could not
+      be started; the GenServer restarts the interpreter lazily on
+      the next request (`restart/1` forces it eagerly)
+    * `{:error, :request_timeout}` -- no reply line within the
+      timeout; because replies are strictly ordered, ordering can no
+      longer be trusted, so the port is closed, remaining waiters are
+      failed, and the interpreter restarts on the next request
+  """
+
+  use GenServer
+
+  @default_timeout {{ default_timeout }}
+  @call_slack {{ call_slack }}
+  @os_pid_timeout {{ os_pid_timeout }}
+  @registered_name __MODULE__
+
+  ## --- client API ---
+
+  @spec start_link(keyword()) :: GenServer.on_start()
+  def start_link(opts \\ []) do
+    name = Keyword.get(opts, :name, @registered_name)
+
+    GenServer.start_link(__MODULE__, Map.new(Keyword.take(opts, [:root])), name: name)
+  end
+
+  @doc "The OS pid of the bridge interpreter process (integer or charlist), when the port is up."
+  @spec os_pid(GenServer.server()) :: integer() | charlist() | nil
+  def os_pid(server \\ @registered_name) do
+    GenServer.call(server, :os_pid, @os_pid_timeout)
+  end
+
+  @doc """
+  Force-close the current port (if any); the interpreter restarts
+  lazily on the next request. Returns :ok regardless of prior state.
+  """
+  @spec restart(GenServer.server()) :: :ok
+  def restart(server \\ @registered_name) do
+    GenServer.call(server, :restart, @default_timeout)
+  end
+
+  @doc "Send one raw request map (must carry an \"op\") and await its reply line."
+  @spec request(GenServer.server(), map(), non_neg_integer()) :: {:ok, map()} | {:error, term()}
+  def request(server \\ @registered_name, req, timeout \\ @default_timeout) when is_map(req) do
+    try do
+      GenServer.call(server, {:request, req, timeout}, timeout + @call_slack)
+    catch
+      :exit, {:timeout, _} -> {:error, :request_timeout}
+      :exit, {:noproc, _} -> {:error, :bridge_down}
+      :exit, _ -> {:error, :bridge_down}
+    end
+  end
+
+  # ---------------------------------------------------------------------
+  # Ops -- one typed wrapper per admitted bpm:BridgeOp, in bpm:opOrder
+  # ---------------------------------------------------------------------
+{%- for op in bops %}
+{%- set oargs = bargs | filter(attribute="op_key", value=op.op_key) %}
+{%- set guarded = oargs | filter(attribute="guarded", value="true") %}
+
+  @doc """
+  {{ op.op_doc }}
+
+  Wire: `{"op": "{{ op.wire_name }}"{% for a in oargs %}, "{{ a.wire_key }}": {{ a.wire_example }}{% endfor %}` -> `{{ op.reply_shape }}`
+  """
+  @spec {{ op.op_name }}(GenServer.server(){% for a in oargs %}, {{ a.elixir_type }}{% endfor %}, non_neg_integer()) ::
+          {:ok, map()} | {:error, term()}
+  def {{ op.op_name }}(server \\ @registered_name{% for a in oargs %}, {{ a.arg_name }}{% endfor %}, timeout \\ {% if op.timeout_ms != "-" %}{{ op.timeout_ms }}{% else %}@default_timeout{% endif %}){% if guarded | length > 0 %} when {% for g in guarded %}{% if not loop.first %} and {% endif %}{{ g.guard }}({{ g.arg_name }}){% endfor %}{% endif %} do
+    request(
+      server,
+      %{"op" => "{{ op.wire_name }}"{% for a in oargs %}, "{{ a.wire_key }}" => {% if a.encoding == "stringify" %}stringify_keys({{ a.arg_name }}){% elif a.encoding == "stringify_list" %}Enum.map({{ a.arg_name }}, &stringify_keys/1){% else %}{{ a.arg_name }}{% endif %}{% endfor %}},
+      timeout
+    )
+  end
+{%- endfor %}
+
+{%- if script_probe != "-" %}
+
+  @doc "True when the {{ bridge_name }} interpreter entry script can be resolved."
+  @spec available?() :: boolean()
+  def available? do
+{% if has_root == "true" %}
+    case bridge_root() do
+      nil -> false
+      root -> File.exists?(Path.join(root, "{{ script_probe }}"))
+    end
+{% else %}
+    File.exists?(Path.expand("{{ script_probe }}"))
+{% endif %}
+  end
+
+  @doc "Human-readable reason the bridge is unavailable, or nil when available."
+  @spec missing_reason() :: String.t() | nil
+  def missing_reason do
+    if available?(), do: nil, else: "{{ script_probe }} not resolvable{% if has_root == "true" %} under the resolved {{ bridge_name }} root{% endif %}"
+  end
+{%- endif %}
+{% if has_root == "true" %}
+
+  @doc """
+  Resolve the {{ bridge_name }} checkout root, first candidate that actually
+  contains `{{ root_probe }}`.
+  """
+  @spec bridge_root() :: String.t() | nil
+  def bridge_root do
+    candidates = [
+{% if root_app_env != "-" %}
+      Application.get_env(:beam4pm, :{{ root_app_env }}),
+{% endif %}
+{% if root_env_var != "-" %}
+      System.get_env("{{ root_env_var }}"),
+{% endif %}
+{% if root_fallbacks != "-" %}
+{% for fb in root_fallbacks | split(pat=" ") %}
+      Path.expand("{{ fb }}", File.cwd!()),
+{% endfor %}
+{% endif %}
+    ]
+
+    Enum.find(candidates, fn
+      root when is_binary(root) -> File.exists?(Path.join(root, "{{ root_probe }}"))
+      _ -> false
+    end)
+  end
+{%- endif %}
+
+  ## --- GenServer callbacks ---
+
+  @impl true
+  def init(opts) do
+    {:ok, %{root: Map.get(opts, :root), port: nil, buffer: <<>>,
+            waiters: :queue.new(), restarts: 0, replies: 0}}
+  end
+
+  @impl true
+  def handle_call({:request, req, timeout}, from, state) do
+    case ensure_port(state) do
+      {:ok, state} ->
+        timer_ref = Process.send_after(self(), {:request_timeout, from}, timeout)
+
+        try do
+          Port.command(state.port, JSON.encode!(req) <> "\n")
+
+          {:noreply,
+           %{state | waiters: :queue.in({from, timer_ref}, state.waiters)}}
+        rescue
+          ArgumentError ->
+            # port died between select and send; report and drop it
+            Process.cancel_timer(timer_ref)
+
+            {:reply, {:error, :bridge_down},
+             state |> close_port() |> Map.update!(:restarts, &(&1 + 1))}
+        end
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  def handle_call(:restart, _from, state) do
+    state =
+      state
+      |> close_port()
+      |> Map.update!(:restarts, &(&1 + 1))
+
+    {:reply, :ok, state}
+  end
+
+  def handle_call(:os_pid, _from, state) do
+    os_pid =
+      case state.port && Port.info(state.port, :os_pid) do
+        {:os_pid, pid} -> pid
+        _ -> nil
+      end
+
+    {:reply, os_pid, state}
+  end
+
+  @impl true
+  def handle_info({port, {:data, data}}, %{port: port} = state) do
+    {:noreply, state |> Map.update!(:buffer, &(&1 <> data)) |> drain_lines()}
+  end
+
+  def handle_info({port, {:exit_status, status}}, %{port: port} = state) do
+    :logger.debug("{{ module }} port exited (status #{status}); {{ restart_policy }} restart")
+
+    state =
+      state
+      |> close_port()
+      |> Map.update!(:restarts, &(&1 + 1))
+      |> fail_all_waiters({:error, :bridge_down})
+{% if restart_policy == "eager" %}
+
+    # bpm:RestartPolicy_eager: respawn immediately, best-effort. A failed
+    # eager spawn leaves the bridge down; the next request retries lazily.
+    state =
+      case ensure_port(state) do
+        {:ok, new_state} -> new_state
+        {:error, _reason} -> state
+      end
+{% endif %}
+    {:noreply, state}
+  end
+
+  def handle_info({:request_timeout, from}, state) do
+    # remove the timed-out waiter wherever it sits; replies are strictly
+    # ordered, so ANY timed-out waiter poisons the ordering: fail everyone
+    # remaining, drop the port, restart lazily on the next request
+    remaining =
+      state.waiters
+      |> :queue.to_list()
+      |> Enum.reject(fn {f, _t} -> f == from end)
+      |> :queue.from_list()
+
+    {:noreply,
+     %{state | waiters: remaining}
+     |> close_port()
+     |> Map.update!(:restarts, &(&1 + 1))
+     |> fail_all_waiters({:error, :bridge_down})
+     |> reply_one(from, {:error, :request_timeout})}
+  end
+
+  def handle_info(_other, state), do: {:noreply, state}
+
+  @impl true
+  def terminate(_reason, state) do
+    close_port(state)
+    :ok
+  end
+
+  ## --- port plumbing ---
+
+  defp ensure_port(%{port: port} = state) when port != nil, do: {:ok, state}
+
+  defp ensure_port(state) do
+{% if has_root == "true" %}
+    root = state.root || bridge_root()
+
+    spawn_ok = is_binary(root) and File.exists?(Path.join(root, "{{ script_probe }}"))
+{% else %}
+    root = nil
+    spawn_ok = File.exists?(Path.expand("{{ script_probe }}"))
+{% endif %}
+
+    if spawn_ok do
+      cmd = port_command(root)
+
+      env =
+        System.get_env()
+{% if benvs | length > 0 %}
+        |> Map.merge(%{
+{% for env in benvs %}
+{% if env.env_value is containing("__ROOT__") %}
+          "{{ env.env_name }}" => String.replace("{{ env.env_value }}", "__ROOT__", root || ""),
+{% else %}
+          "{{ env.env_name }}" => "{{ env.env_value }}",
+{% endif %}
+{% endfor %}
+        })
+{% endif %}
+        |> Enum.map(fn {k, v} -> {String.to_charlist(k), String.to_charlist(v)} end)
+
+      port =
+        Port.open({:spawn_executable, cmd}, [
+          :binary,
+          :exit_status,
+          :use_stdio,
+          {:args, [{% for a in command_args_list %}"{{ a }}"{% if not loop.last %}, {% endif %}{% endfor %}]},
+          {:env, env}
+{% if cwd != "-" %}
+{% if cwd is containing("__ROOT__") %}
+          ,{:cd, String.replace("{{ cwd }}", "__ROOT__", root || ".")}
+{% else %}
+          ,{:cd, Path.expand("{{ cwd }}")}
+{% endif %}
+{% endif %}
+        ])
+
+      {:ok, %{state | port: port, buffer: <<>>}}
+    else
+      {:error, {:bridge_down, missing_reason()}}
+    end
+  end
+
+  defp port_command(root) do
+{% if has_root == "true" and has_pref == "true" %}
+    pref = root && Path.join(root, "{{ interpreter_pref }}")
+
+    if pref && File.exists?(pref) do
+      pref
+    else
+      System.find_executable("{{ command }}") || "{{ command }}"
+    end
+{% else %}
+    System.find_executable("{{ command }}") || "{{ command }}"
+{% endif %}
+  end
+
+  defp close_port(%{port: nil} = state), do: %{state | port: nil, buffer: <<>>}
+
+  defp close_port(%{port: port} = state) do
+    try do
+      Port.close(port)
+    catch
+      :error, _ -> :ok
+    end
+
+    %{state | port: nil, buffer: <<>>}
+  end
+
+  defp drain_lines(state) do
+    case :binary.split(state.buffer, "\n") do
+      [line, rest] ->
+        state = %{state | buffer: rest}
+        state = dispatch_reply(line, state)
+        drain_lines(state)
+
+      [_incomplete] ->
+        state
+    end
+  end
+
+  defp dispatch_reply(line, state) do
+    case :queue.out(state.waiters) do
+      {head, rest} ->
+        {:value, {from, timer_ref}} = head
+        Process.cancel_timer(timer_ref)
+
+        reply =
+          case JSON.decode(line) do
+            {:ok, %{"ok" => true} = map} -> {:ok, map}
+            {:ok, %{"ok" => false} = map} -> {:error, {:bridge_error, map}}
+            {:ok, other} -> {:error, {:bad_envelope, other}}
+            {:error, err} -> {:error, {:invalid_json, err, line}}
+          end
+
+        GenServer.reply(from, reply)
+
+        %{state | waiters: rest, replies: state.replies + 1}
+
+      {:empty, _} ->
+        :logger.warning("{{ module }} got unsolicited bridge line: ~ts", [line])
+        state
+    end
+  end
+
+  defp reply_one(state, from, reply) do
+    GenServer.reply(from, reply)
+    state
+  end
+
+  defp fail_all_waiters(state, reply) do
+    :queue.to_list(state.waiters)
+    |> Enum.each(fn {_from, timer_ref} -> Process.cancel_timer(timer_ref) end)
+
+    Enum.reduce(:queue.to_list(state.waiters), state, fn {from, _t}, acc ->
+      GenServer.reply(from, reply)
+      acc
+    end)
+
+    %{state | waiters: :queue.new()}
+  end
+{% if uses_stringify %}
+
+  defp stringify_keys(map) when is_map(map) do
+    Map.new(map, fn
+      {k, v} when is_atom(k) -> {Atom.to_string(k), stringify_value(v)}
+      {k, v} -> {k, stringify_value(v)}
+    end)
+  end
+
+  defp stringify_value(v) when is_map(v), do: stringify_keys(v)
+  defp stringify_value(v) when is_list(v), do: Enum.map(v, &stringify_value/1)
+  defp stringify_value(v), do: v
+{% endif %}
+end
