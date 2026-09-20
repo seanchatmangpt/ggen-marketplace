@@ -48,6 +48,37 @@ construct-only boundary.
   in sequence order and exactly one (`sa2a_execute`, sequence 40) has
   `do_boundary?: true`. Both scratch outputs were removed after verification
   (`ggen_igniter/tmp_out/` is that repo's own scratch dir, not this pack's).
+- **Correction (marketplace-registry gap, retracted):** an earlier status
+  note called "publish this pack to the live marketplace registry" a real
+  open gap. It was not: this repository has no publish/register mechanism
+  at all beyond committing a pack under `packs/` (`marketplace.active.toml`
+  is a curated 12-pack "front-door" allowlist that `xaas-castle-bridge-pack`
+  — this pack's own model — is itself absent from; `marketplace.toml` is
+  ggen-binary qualification metadata, not a pack list; `packages/marketplace-cli`
+  has no publish/register command). This pack was already at parity with
+  its model pack's real status the moment it was committed. No action
+  needed; nothing was closed because nothing was open.
+- **MCP/A2A discoverability: ALIVE.** Composed `elixir-mcp-a2a-pack`'s real,
+  already-admitted `ema:CapabilitySurface`/`ema:Capability` vocabulary
+  (exact property names reused, not reinvented) into this pack's own
+  `ontology.ttl` — one `ema:Capability` individual per SA2A port op, with
+  `mutationScope`/`requiresAuthority` mirroring each op's `s2b:EdgeSpec`
+  `doBoundary` flag 1:1 (`sa2a_execute` is the sole `"consequential"` +
+  `requiresAuthority true` row). Two new gates
+  (`070_consequential_requires_authority.rq`, `080_exposed_via_closed_vocab.rq`)
+  mirror `elixir-mcp-a2a-pack`'s own capability-descriptor-contract gate;
+  all 8 gates pass (0 rows each) via `rdflib` against the updated
+  `ontology.ttl`. A new `ggen_igniter/{queries,templates}/*mcp_descriptor*`
+  pair renders `Xaas.Sa2a.Generated.McpDescriptor` (`capabilities/0`,
+  `describe/1`, `requires_authority?/1` fail-closed on unknown ids,
+  `mcp_exposed/0`, `a2a_exposed/0`) — proven end to end: real
+  `mix ggen_igniter.sync` render from `~/ggen_igniter`, then a second real
+  render into the live `~/xaas` checkout
+  (`lib/xaas/generated/sa2a_mcp_descriptor.ex`), `mix compile
+  --warnings-as-errors` clean, and a live `mix run` smoke script confirming
+  `requires_authority?("sa2a_execute") == true`,
+  `requires_authority?("sa2a_validate") == false`, and fail-closed
+  `requires_authority?("nonexistent") == true`.
 - **Not yet run**: wiring this into a real xaas checkout as a tracked,
   committed generation target (vendoring a project-local `ontology.ttl`
   instance per the existing `priv/zcode_plugin/` precedent, adding a
