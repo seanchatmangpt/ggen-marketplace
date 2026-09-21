@@ -1,0 +1,567 @@
+---
+to: src/pi_ocel_tap/rs/tap.rs
+sparql:
+  eventTypes: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id WHERE { ?t a pi:EventType ; pi:typeId ?id . } ORDER BY ?id
+  objectTypes: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id WHERE { ?t a pi:ObjectType ; pi:typeId ?id . } ORDER BY ?id
+  hashes: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id WHERE { ?l a pi:LanguageSupport ; pi:language "rs" ; pi:supportsHash ?id . } ORDER BY ?id
+  sources: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id ?kind ?nameField ?idField ?timeField ?algo WHERE {
+      ?s a pi:EventSource ; pi:sourceId ?id ; pi:sourceKind ?kind ; pi:nameField ?nameField ;
+         pi:idField ?idField ; pi:timeField ?timeField ; pi:chainPolicy ?p .
+      ?p pi:hashAlgorithm ?algo ; pi:targetLanguage "rs" .
+    } ORDER BY ?id
+  rules: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?rule ?src ?name ?event ?object ?qualifier ?path WHERE {
+      ?r a pi:MappingRule ; pi:ruleId ?rule ; pi:fromSource ?s ; pi:sourceEvent ?name ;
+         pi:emitsEventType ?et ; pi:hasRelation ?rel .
+      ?s pi:sourceId ?src ; pi:chainPolicy ?p . ?p pi:targetLanguage "rs" .
+      ?et pi:typeId ?event .
+      ?rel pi:relatesObjectType ?ot ; pi:hasQualifier ?q ; pi:objectIdPath ?path .
+      ?ot pi:typeId ?object . ?q pi:qualifierId ?qualifier .
+    } ORDER BY ?rule ?object ?qualifier ?path
+---
+// Generated OCEL 2.0 type registry, source adapter, event-tap mapper, serializer and hash chain.
+// Source of truth: the consumer's pi: individuals. Do not edit. Std-only: no external crates.
+#![allow(dead_code)]
+
+pub const EVENT_TYPES: &[&str] = &[{% for r in eventTypes %}"{{ r.id }}"{% if not loop.last %}, {% endif %}{% endfor %}];
+pub const OBJECT_TYPES: &[&str] = &[{% for r in objectTypes %}"{{ r.id }}"{% if not loop.last %}, {% endif %}{% endfor %}];
+pub const SUPPORTED_HASHES: &[&str] = &[{% for r in hashes %}"{{ r.id }}"{% if not loop.last %}, {% endif %}{% endfor %}];
+
+pub struct SourceSpec {
+    pub id: &'static str,
+    pub kind: &'static str,
+    pub name_field: &'static str,
+    pub id_field: &'static str,
+    pub time_field: &'static str,
+    pub hash: &'static str,
+}
+pub struct RuleSpec {
+    pub rule: &'static str,
+    pub source: &'static str,
+    pub name: &'static str,
+    pub event: &'static str,
+    pub object: &'static str,
+    pub qualifier: &'static str,
+    pub path: &'static str,
+}
+pub const SOURCES: &[SourceSpec] = &[
+{% for r in sources %}    SourceSpec { id: "{{ r.id }}", kind: "{{ r.kind }}", name_field: "{{ r.nameField }}", id_field: "{{ r.idField }}", time_field: "{{ r.timeField }}", hash: "{{ r.algo }}" },
+{% endfor %}];
+pub const RULES: &[RuleSpec] = &[
+{% for r in rules %}    RuleSpec { rule: "{{ r.rule }}", source: "{{ r.src }}", name: "{{ r.name }}", event: "{{ r.event }}", object: "{{ r.object }}", qualifier: "{{ r.qualifier }}", path: "{{ r.path }}" },
+{% endfor %}];
+{% raw %}
+pub const CALLBACK_KINDS: &[&str] = &["sdk-callback", "app-server-subscription"];
+
+// ---------- minimal JSON value (std-only) ----------
+#[derive(Clone, Debug, PartialEq)]
+pub enum Json {
+    Null,
+    Bool(bool),
+    Num(String),
+    Str(String),
+    Arr(Vec<Json>),
+    Obj(Vec<(String, Json)>),
+}
+
+impl Json {
+    pub fn get(&self, key: &str) -> Option<&Json> {
+        match self {
+            Json::Obj(kv) => kv.iter().find(|(k, _)| k == key).map(|(_, v)| v),
+            _ => None,
+        }
+    }
+    pub fn path(&self, path: &str) -> Option<&Json> {
+        let mut cur = self;
+        for k in path.split('.') {
+            cur = cur.get(k)?;
+        }
+        Some(cur)
+    }
+    fn scalar(&self) -> Option<String> {
+        match self {
+            Json::Str(s) => Some(s.clone()),
+            Json::Num(n) => Some(n.clone()),
+            Json::Bool(b) => Some(b.to_string()),
+            _ => None,
+        }
+    }
+    fn ids(&self) -> Vec<String> {
+        match self {
+            Json::Arr(items) => items.iter().filter_map(|i| i.scalar()).collect(),
+            Json::Null => vec![],
+            other => other.scalar().into_iter().collect(),
+        }
+    }
+}
+
+pub fn parse_json(text: &str) -> Result<Json, String> {
+    let chars: Vec<char> = text.chars().collect();
+    let mut p = 0usize;
+    let v = parse_value(&chars, &mut p)?;
+    skip_ws(&chars, &mut p);
+    if p != chars.len() {
+        return Err(format!("trailing characters at {}", p));
+    }
+    Ok(v)
+}
+
+fn skip_ws(c: &[char], p: &mut usize) {
+    while *p < c.len() && c[*p].is_whitespace() {
+        *p += 1;
+    }
+}
+
+fn parse_value(c: &[char], p: &mut usize) -> Result<Json, String> {
+    skip_ws(c, p);
+    if *p >= c.len() {
+        return Err("unexpected end".to_string());
+    }
+    match c[*p] {
+        '{' => {
+            *p += 1;
+            let mut kv = Vec::new();
+            skip_ws(c, p);
+            if *p < c.len() && c[*p] == '}' {
+                *p += 1;
+                return Ok(Json::Obj(kv));
+            }
+            loop {
+                skip_ws(c, p);
+                let k = match parse_value(c, p)? {
+                    Json::Str(s) => s,
+                    _ => return Err("object key must be a string".to_string()),
+                };
+                skip_ws(c, p);
+                if *p >= c.len() || c[*p] != ':' {
+                    return Err("expected ':'".to_string());
+                }
+                *p += 1;
+                let v = parse_value(c, p)?;
+                kv.push((k, v));
+                skip_ws(c, p);
+                match c.get(*p) {
+                    Some(',') => *p += 1,
+                    Some('}') => {
+                        *p += 1;
+                        return Ok(Json::Obj(kv));
+                    }
+                    _ => return Err("expected ',' or '}'".to_string()),
+                }
+            }
+        }
+        '[' => {
+            *p += 1;
+            let mut items = Vec::new();
+            skip_ws(c, p);
+            if *p < c.len() && c[*p] == ']' {
+                *p += 1;
+                return Ok(Json::Arr(items));
+            }
+            loop {
+                items.push(parse_value(c, p)?);
+                skip_ws(c, p);
+                match c.get(*p) {
+                    Some(',') => *p += 1,
+                    Some(']') => {
+                        *p += 1;
+                        return Ok(Json::Arr(items));
+                    }
+                    _ => return Err("expected ',' or ']'".to_string()),
+                }
+            }
+        }
+        '"' => {
+            *p += 1;
+            let mut out = String::new();
+            loop {
+                let ch = *c.get(*p).ok_or("unterminated string")?;
+                *p += 1;
+                match ch {
+                    '"' => return Ok(Json::Str(out)),
+                    '\\' => {
+                        let e = *c.get(*p).ok_or("bad escape")?;
+                        *p += 1;
+                        match e {
+                            '"' => out.push('"'),
+                            '\\' => out.push('\\'),
+                            '/' => out.push('/'),
+                            'b' => out.push('\u{8}'),
+                            'f' => out.push('\u{c}'),
+                            'n' => out.push('\n'),
+                            'r' => out.push('\r'),
+                            't' => out.push('\t'),
+                            'u' => {
+                                let mut code = hex4(c, p)?;
+                                if (0xD800..0xDC00).contains(&code) && c.get(*p) == Some(&'\\') && c.get(*p + 1) == Some(&'u') {
+                                    *p += 2;
+                                    let low = hex4(c, p)?;
+                                    code = 0x10000 + ((code - 0xD800) << 10) + (low.wrapping_sub(0xDC00));
+                                }
+                                out.push(char::from_u32(code).unwrap_or('\u{FFFD}'));
+                            }
+                            _ => return Err("bad escape".to_string()),
+                        }
+                    }
+                    other => out.push(other),
+                }
+            }
+        }
+        't' | 'f' | 'n' => {
+            for (lit, val) in [("true", Json::Bool(true)), ("false", Json::Bool(false)), ("null", Json::Null)] {
+                let l: Vec<char> = lit.chars().collect();
+                if c[*p..].starts_with(&l) {
+                    *p += l.len();
+                    return Ok(val);
+                }
+            }
+            Err("bad literal".to_string())
+        }
+        _ => {
+            let start = *p;
+            while *p < c.len() && (c[*p].is_ascii_digit() || "+-.eE".contains(c[*p])) {
+                *p += 1;
+            }
+            if start == *p {
+                return Err(format!("unexpected character at {}", start));
+            }
+            Ok(Json::Num(c[start..*p].iter().collect()))
+        }
+    }
+}
+
+fn hex4(c: &[char], p: &mut usize) -> Result<u32, String> {
+    if *p + 4 > c.len() {
+        return Err("bad \\u escape".to_string());
+    }
+    let s: String = c[*p..*p + 4].iter().collect();
+    *p += 4;
+    u32::from_str_radix(&s, 16).map_err(|_| "bad \\u escape".to_string())
+}
+
+/// JSON string literal, escaped exactly as the other generated languages do.
+pub fn jstr(s: &str) -> String {
+    let mut out = String::from("\"");
+    for ch in s.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\u{8}' => out.push_str("\\b"),
+            '\u{c}' => out.push_str("\\f"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+{% endraw %}{% for h in hashes %}{% if h.id == "sha256" %}{% raw %}
+// ---------- sha256 (std-only) ----------
+fn sha256_hex(data: &[u8]) -> String {
+    const K: [u32; 64] = [
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+        0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+        0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+    ];
+    let mut h: [u32; 8] = [
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+    ];
+    let mut msg = data.to_vec();
+    let bit_len = (data.len() as u64) * 8;
+    msg.push(0x80);
+    while msg.len() % 64 != 56 {
+        msg.push(0);
+    }
+    msg.extend_from_slice(&bit_len.to_be_bytes());
+    for chunk in msg.chunks(64) {
+        let mut w = [0u32; 64];
+        for i in 0..16 {
+            w[i] = u32::from_be_bytes([chunk[4 * i], chunk[4 * i + 1], chunk[4 * i + 2], chunk[4 * i + 3]]);
+        }
+        for i in 16..64 {
+            let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
+            let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
+            w[i] = w[i - 16].wrapping_add(s0).wrapping_add(w[i - 7]).wrapping_add(s1);
+        }
+        let mut v = h;
+        for i in 0..64 {
+            let s1 = v[4].rotate_right(6) ^ v[4].rotate_right(11) ^ v[4].rotate_right(25);
+            let ch = (v[4] & v[5]) ^ (!v[4] & v[6]);
+            let t1 = v[7].wrapping_add(s1).wrapping_add(ch).wrapping_add(K[i]).wrapping_add(w[i]);
+            let s0 = v[0].rotate_right(2) ^ v[0].rotate_right(13) ^ v[0].rotate_right(22);
+            let maj = (v[0] & v[1]) ^ (v[0] & v[2]) ^ (v[1] & v[2]);
+            let t2 = s0.wrapping_add(maj);
+            v[7] = v[6];
+            v[6] = v[5];
+            v[5] = v[4];
+            v[4] = v[3].wrapping_add(t1);
+            v[3] = v[2];
+            v[2] = v[1];
+            v[1] = v[0];
+            v[0] = t1.wrapping_add(t2);
+        }
+        for i in 0..8 {
+            h[i] = h[i].wrapping_add(v[i]);
+        }
+    }
+    h.iter().map(|x| format!("{:08x}", x)).collect()
+}
+{% endraw %}{% endif %}{% endfor %}{% raw %}
+pub fn hash_hex(alg: &str, data: &str) -> Result<String, String> {
+{% endraw %}{% for h in hashes %}{% if h.id == "sha256" %}    if alg == "sha256" {
+        return Ok(sha256_hex(data.as_bytes()));
+    }
+{% endif %}{% endfor %}{% raw %}    Err(format!("unsupported hash algorithm: {}", alg))
+}
+
+pub type Rel = (String, String);
+
+/// Canonical form: keys sorted, no whitespace. Identical across all generated languages.
+pub fn canon(id: &str, ty: &str, time: &str, rels: &[Rel]) -> String {
+    let r: Vec<String> = rels
+        .iter()
+        .map(|(o, q)| format!("{{\"objectId\":{},\"qualifier\":{}}}", jstr(o), jstr(q)))
+        .collect();
+    format!(
+        "{{\"id\":{},\"relationships\":[{}],\"time\":{},\"type\":{}}}",
+        jstr(id),
+        r.join(","),
+        jstr(time),
+        jstr(ty)
+    )
+}
+
+#[derive(Clone, Debug)]
+pub struct Ev {
+    pub id: String,
+    pub ty: String,
+    pub time: String,
+    pub rels: Vec<Rel>,
+    pub parent: String,
+    pub hash: String,
+}
+
+fn flatten_otel(raw: &Json) -> Json {
+    let (Json::Obj(kv), Some(Json::Arr(attrs))) = (raw, raw.get("attributes")) else {
+        return raw.clone();
+    };
+    let mut flat = Vec::new();
+    for a in attrs {
+        let Some(Json::Str(key)) = a.get("key") else { continue };
+        let val = match a.get("value") {
+            Some(v @ Json::Obj(_)) => ["stringValue", "intValue", "boolValue", "doubleValue"]
+                .iter()
+                .find_map(|k| v.get(k))
+                .cloned()
+                .unwrap_or(Json::Null),
+            Some(v) => v.clone(),
+            None => Json::Null,
+        };
+        flat.push((key.clone(), val));
+    }
+    let mut out: Vec<(String, Json)> = kv.iter().filter(|(k, _)| k != "attributes").cloned().collect();
+    out.push(("attributes".to_string(), Json::Obj(flat)));
+    Json::Obj(out)
+}
+
+pub struct Tap {
+    pub spec: &'static SourceSpec,
+    pub events: Vec<Ev>,
+    objects: Vec<(String, &'static str)>,
+    last: String,
+    sealed: bool,
+}
+
+impl Tap {
+    pub fn new(source_id: &str) -> Result<Tap, String> {
+        let spec = SOURCES
+            .iter()
+            .find(|s| s.id == source_id)
+            .ok_or_else(|| format!("unknown source: {}", source_id))?;
+        Ok(Tap { spec, events: vec![], objects: vec![], last: String::new(), sealed: false })
+    }
+
+    /// stream-json: newline-delimited text. Returns the number of events appended.
+    pub fn ingest_text(&mut self, text: &str) -> Result<usize, String> {
+        if self.sealed {
+            return Err("tap sealed".to_string());
+        }
+        if self.spec.kind != "stream-json" {
+            return Err(format!("{} expects a parsed record", self.spec.kind));
+        }
+        let mut n = 0;
+        for line in text.split('\n').filter(|l| !l.trim().is_empty()) {
+            n += self.append(&parse_json(line)?)?;
+        }
+        Ok(n)
+    }
+
+    /// every kind except stream-json: one parsed record. Returns the number of events appended.
+    pub fn ingest(&mut self, record: &Json) -> Result<usize, String> {
+        if self.sealed {
+            return Err("tap sealed".to_string());
+        }
+        if self.spec.kind == "stream-json" {
+            return Err("stream-json expects text".to_string());
+        }
+        self.append(record)
+    }
+
+    /// sdk-callback and app-server-subscription: hand the runtime a callback.
+    pub fn attach<R: FnOnce(&mut dyn FnMut(&Json))>(&mut self, register: R) -> Result<(), String> {
+        if !CALLBACK_KINDS.contains(&self.spec.kind) {
+            return Err(format!("{} has no callback attachment", self.spec.kind));
+        }
+        let mut failure: Option<String> = None;
+        register(&mut |r: &Json| {
+            if let Err(e) = self.ingest(r) {
+                failure.get_or_insert(e);
+            }
+        });
+        failure.map_or(Ok(()), Err)
+    }
+
+    fn append(&mut self, raw0: &Json) -> Result<usize, String> {
+        let flat;
+        let raw = if self.spec.kind == "otel" {
+            flat = flatten_otel(raw0);
+            &flat
+        } else {
+            raw0
+        };
+        let field = |f: &str| raw.path(f).and_then(|v| v.scalar());
+        let (Some(name), Some(id), Some(time)) =
+            (field(self.spec.name_field), field(self.spec.id_field), field(self.spec.time_field))
+        else {
+            return Ok(0);
+        };
+        let rs: Vec<&RuleSpec> = RULES.iter().filter(|r| r.source == self.spec.id && r.name == name).collect();
+        if rs.is_empty() {
+            return Ok(0);
+        }
+        let mut rels: Vec<Rel> = vec![];
+        for r in &rs {
+            for oid in raw.path(r.path).map(|v| v.ids()).unwrap_or_default() {
+                if !self.objects.iter().any(|(i, _)| *i == oid) {
+                    self.objects.push((oid.clone(), r.object));
+                }
+                rels.push((oid, r.qualifier.to_string()));
+            }
+        }
+        let ty = rs[0].event.to_string();
+        let parent = self.last.clone();
+        let hash = hash_hex(self.spec.hash, &format!("{}\n{}", parent, canon(&id, &ty, &time, &rels)))?;
+        self.last = hash.clone();
+        self.events.push(Ev { id, ty, time, rels, parent, hash });
+        Ok(1)
+    }
+
+    /// seal once: no further ingest; returns the head hash.
+    pub fn seal(&mut self) -> Result<String, String> {
+        if self.sealed {
+            return Err("tap already sealed".to_string());
+        }
+        self.sealed = true;
+        Ok(self.last.clone())
+    }
+
+    pub fn serialize(&self) -> String {
+        let types = |names: &[&str]| {
+            names.iter().map(|n| format!("{{\"name\":{},\"attributes\":[]}}", jstr(n))).collect::<Vec<_>>().join(",")
+        };
+        let objects = self
+            .objects
+            .iter()
+            .map(|(i, t)| format!("{{\"id\":{},\"type\":{},\"attributes\":[],\"relationships\":[]}}", jstr(i), jstr(t)))
+            .collect::<Vec<_>>()
+            .join(",");
+        let events = self
+            .events
+            .iter()
+            .map(|e| {
+                let rels = e
+                    .rels
+                    .iter()
+                    .map(|(o, q)| format!("{{\"objectId\":{},\"qualifier\":{}}}", jstr(o), jstr(q)))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                format!(
+                    "{{\"id\":{},\"type\":{},\"time\":{},\"attributes\":[{{\"name\":\"pi_parent\",\"value\":{}}},{{\"name\":\"pi_hash\",\"value\":{}}},{{\"name\":\"pi_hash_alg\",\"value\":{}}}],\"relationships\":[{}]}}",
+                    jstr(&e.id), jstr(&e.ty), jstr(&e.time), jstr(&e.parent), jstr(&e.hash), jstr(self.spec.hash), rels
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        format!(
+            "{{\"objectTypes\":[{}],\"eventTypes\":[{}],\"objects\":[{}],\"events\":[{}]}}",
+            types(OBJECT_TYPES),
+            types(EVENT_TYPES),
+            objects,
+            events
+        )
+    }
+}
+
+/// Recompute the chain over a serialized OCEL document. Returns None when intact, else the reason.
+pub fn verify_chain(doc: &Json, alg: &str) -> Option<String> {
+    let Some(Json::Arr(events)) = doc.get("events") else { return Some("no events".to_string()) };
+    let mut parent = String::new();
+    for e in events {
+        let s = |k: &str| match e.get(k) {
+            Some(Json::Str(v)) => v.clone(),
+            _ => String::new(),
+        };
+        let attr = |n: &str| -> String {
+            if let Some(Json::Arr(a)) = e.get("attributes") {
+                for x in a {
+                    if x.get("name") == Some(&Json::Str(n.to_string())) {
+                        if let Some(Json::Str(v)) = x.get("value") {
+                            return v.clone();
+                        }
+                    }
+                }
+            }
+            String::new()
+        };
+        let rels: Vec<Rel> = match e.get("relationships") {
+            Some(Json::Arr(r)) => r
+                .iter()
+                .map(|x| {
+                    let g = |k: &str| if let Some(Json::Str(v)) = x.get(k) { v.clone() } else { String::new() };
+                    (g("objectId"), g("qualifier"))
+                })
+                .collect(),
+            _ => vec![],
+        };
+        if attr("pi_parent") != parent {
+            return Some(format!("parent mismatch at {}", s("id")));
+        }
+        let want = match hash_hex(alg, &format!("{}\n{}", parent, canon(&s("id"), &s("type"), &s("time"), &rels))) {
+            Ok(h) => h,
+            Err(e) => return Some(e),
+        };
+        if attr("pi_hash") != want {
+            return Some(format!("hash mismatch at {}", s("id")));
+        }
+        parent = want;
+    }
+    None
+}
+{% endraw %}

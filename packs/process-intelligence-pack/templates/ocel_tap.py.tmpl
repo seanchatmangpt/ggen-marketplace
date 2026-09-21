@@ -1,0 +1,207 @@
+---
+to: src/pi_ocel_tap/py/tap.py
+sparql:
+  eventTypes: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id WHERE { ?t a pi:EventType ; pi:typeId ?id . } ORDER BY ?id
+  objectTypes: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id WHERE { ?t a pi:ObjectType ; pi:typeId ?id . } ORDER BY ?id
+  hashes: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id WHERE { ?l a pi:LanguageSupport ; pi:language "py" ; pi:supportsHash ?id . } ORDER BY ?id
+  sources: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id ?kind ?nameField ?idField ?timeField ?algo WHERE {
+      ?s a pi:EventSource ; pi:sourceId ?id ; pi:sourceKind ?kind ; pi:nameField ?nameField ;
+         pi:idField ?idField ; pi:timeField ?timeField ; pi:chainPolicy ?p .
+      ?p pi:hashAlgorithm ?algo ; pi:targetLanguage "py" .
+    } ORDER BY ?id
+  rules: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?rule ?src ?name ?event ?object ?qualifier ?path WHERE {
+      ?r a pi:MappingRule ; pi:ruleId ?rule ; pi:fromSource ?s ; pi:sourceEvent ?name ;
+         pi:emitsEventType ?et ; pi:hasRelation ?rel .
+      ?s pi:sourceId ?src ; pi:chainPolicy ?p . ?p pi:targetLanguage "py" .
+      ?et pi:typeId ?event .
+      ?rel pi:relatesObjectType ?ot ; pi:hasQualifier ?q ; pi:objectIdPath ?path .
+      ?ot pi:typeId ?object . ?q pi:qualifierId ?qualifier .
+    } ORDER BY ?rule ?object ?qualifier ?path
+---
+# Generated OCEL 2.0 type registry, source adapter, event-tap mapper, serializer and hash chain.
+# Source of truth: the consumer's pi: individuals. Do not edit.
+import hashlib
+import json
+
+EVENT_TYPES = [{% for r in eventTypes %}"{{ r.id }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+OBJECT_TYPES = [{% for r in objectTypes %}"{{ r.id }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+SUPPORTED_HASHES = [{% for r in hashes %}"{{ r.id }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+SOURCES = [
+{% for r in sources %}    {"id": "{{ r.id }}", "kind": "{{ r.kind }}", "nameField": "{{ r.nameField }}", "idField": "{{ r.idField }}", "timeField": "{{ r.timeField }}", "hash": "{{ r.algo }}"},
+{% endfor %}]
+RULES = [
+{% for r in rules %}    {"rule": "{{ r.rule }}", "source": "{{ r.src }}", "name": "{{ r.name }}", "event": "{{ r.event }}", "object": "{{ r.object }}", "qualifier": "{{ r.qualifier }}", "path": "{{ r.path }}"},
+{% endfor %}]
+{% raw %}
+CALLBACK_KINDS = ("sdk-callback", "app-server-subscription")
+
+
+def hash_hex(alg, data):
+{% endraw %}{% for h in hashes %}{% if h.id == "sha256" %}    if alg == "sha256":
+        return hashlib.sha256(data.encode("utf-8")).hexdigest()
+{% elif h.id == "blake2b256" %}    if alg == "blake2b256":
+        return hashlib.blake2b(data.encode("utf-8"), digest_size=32).hexdigest()
+{% endif %}{% endfor %}{% raw %}    raise ValueError("unsupported hash algorithm: " + alg)
+
+
+def _s(v):
+    return json.dumps(v, ensure_ascii=False)
+
+
+def canon(e):
+    """Canonical form: keys sorted, no whitespace. Identical across all generated languages."""
+    rels = ",".join(
+        '{"objectId":' + _s(r["objectId"]) + ',"qualifier":' + _s(r["qualifier"]) + "}"
+        for r in e["relationships"]
+    )
+    return '{"id":' + _s(e["id"]) + ',"relationships":[' + rels + '],"time":' + _s(e["time"]) + ',"type":' + _s(e["type"]) + "}"
+
+
+def _get_path(raw, path):
+    cur = raw
+    for k in path.split("."):
+        if not isinstance(cur, dict) or k not in cur:
+            return None
+        cur = cur[k]
+    return cur
+
+
+def _ids(v):
+    if v is None:
+        return []
+    return [_str(x) for x in (v if isinstance(v, list) else [v])]
+
+
+def _str(v):
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, float) and v == int(v):
+        return str(int(v))
+    return str(v)
+
+
+def _flatten_otel(raw):
+    attrs = raw.get("attributes")
+    if not isinstance(attrs, list):
+        return raw
+    flat = {}
+    for kv in attrs:
+        v = kv.get("value")
+        if isinstance(v, dict):
+            for k in ("stringValue", "intValue", "boolValue", "doubleValue"):
+                if k in v:
+                    v = v[k]
+                    break
+        flat[kv["key"]] = v
+    return {**raw, "attributes": flat}
+
+
+class Tap:
+    def __init__(self, source_id):
+        found = [s for s in SOURCES if s["id"] == source_id]
+        if not found:
+            raise ValueError("unknown source: " + source_id)
+        self.spec = found[0]
+        self.events = []
+        self.objects = {}
+        self.last = ""
+        self.sealed = False
+
+    def ingest(self, data):
+        """stream-json: pass newline-delimited text. every other kind: pass one parsed record."""
+        if self.sealed:
+            raise RuntimeError("tap sealed")
+        if self.spec["kind"] == "stream-json":
+            if not isinstance(data, str):
+                raise TypeError("stream-json expects text")
+            records = [json.loads(line) for line in data.split("\n") if line.strip()]
+        else:
+            if isinstance(data, str):
+                raise TypeError(self.spec["kind"] + " expects a parsed record")
+            records = [data]
+        out = []
+        for r in records:
+            e = self._append(r)
+            if e is not None:
+                out.append(e)
+        return out
+
+    def attach(self, register):
+        """sdk-callback and app-server-subscription: hand the runtime a callback."""
+        if self.spec["kind"] not in CALLBACK_KINDS:
+            raise ValueError(self.spec["kind"] + " has no callback attachment")
+        register(lambda record: self.ingest(record))
+
+    def _append(self, raw):
+        if self.spec["kind"] == "otel":
+            raw = _flatten_otel(raw)
+        name = _get_path(raw, self.spec["nameField"])
+        ident = _get_path(raw, self.spec["idField"])
+        when = _get_path(raw, self.spec["timeField"])
+        if name is None or ident is None or when is None:
+            return None
+        rs = [r for r in RULES if r["source"] == self.spec["id"] and r["name"] == _str(name)]
+        if not rs:
+            return None
+        rels = []
+        for r in rs:
+            for oid in _ids(_get_path(raw, r["path"])):
+                rels.append({"objectId": oid, "qualifier": r["qualifier"]})
+                self.objects.setdefault(oid, r["object"])
+        base = {"id": _str(ident), "type": rs[0]["event"], "time": _str(when), "relationships": rels}
+        parent = self.last
+        digest = hash_hex(self.spec["hash"], parent + "\n" + canon(base))
+        self.last = digest
+        ev = {
+            **base,
+            "attributes": [
+                {"name": "pi_parent", "value": parent},
+                {"name": "pi_hash", "value": digest},
+                {"name": "pi_hash_alg", "value": self.spec["hash"]},
+            ],
+        }
+        self.events.append(ev)
+        return ev
+
+    def seal(self):
+        """seal once: no further ingest; returns the head hash."""
+        if self.sealed:
+            raise RuntimeError("tap already sealed")
+        self.sealed = True
+        return self.last
+
+    def to_ocel(self):
+        return {
+            "objectTypes": [{"name": n, "attributes": []} for n in OBJECT_TYPES],
+            "eventTypes": [{"name": n, "attributes": []} for n in EVENT_TYPES],
+            "objects": [{"id": i, "type": t, "attributes": [], "relationships": []} for i, t in self.objects.items()],
+            "events": self.events,
+        }
+
+    def serialize(self):
+        return json.dumps(self.to_ocel(), ensure_ascii=False)
+
+
+def verify_chain(doc, alg):
+    """Recompute the chain over an OCEL document. Returns None when intact, else the reason."""
+    parent = ""
+    for e in doc["events"]:
+        attr = {a["name"]: a["value"] for a in e["attributes"]}
+        if attr.get("pi_parent") != parent:
+            return "parent mismatch at " + e["id"]
+        want = hash_hex(alg, parent + "\n" + canon(e))
+        if attr.get("pi_hash") != want:
+            return "hash mismatch at " + e["id"]
+        parent = want
+    return None
+{% endraw %}

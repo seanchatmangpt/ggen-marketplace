@@ -1,0 +1,198 @@
+---
+to: src/pi_ocel_tap/ts/tap.ts
+sparql:
+  eventTypes: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id WHERE { ?t a pi:EventType ; pi:typeId ?id . } ORDER BY ?id
+  objectTypes: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id WHERE { ?t a pi:ObjectType ; pi:typeId ?id . } ORDER BY ?id
+  hashes: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id WHERE { ?l a pi:LanguageSupport ; pi:language "ts" ; pi:supportsHash ?id . } ORDER BY ?id
+  sources: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id ?kind ?nameField ?idField ?timeField ?algo WHERE {
+      ?s a pi:EventSource ; pi:sourceId ?id ; pi:sourceKind ?kind ; pi:nameField ?nameField ;
+         pi:idField ?idField ; pi:timeField ?timeField ; pi:chainPolicy ?p .
+      ?p pi:hashAlgorithm ?algo ; pi:targetLanguage "ts" .
+    } ORDER BY ?id
+  rules: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?rule ?src ?name ?event ?object ?qualifier ?path WHERE {
+      ?r a pi:MappingRule ; pi:ruleId ?rule ; pi:fromSource ?s ; pi:sourceEvent ?name ;
+         pi:emitsEventType ?et ; pi:hasRelation ?rel .
+      ?s pi:sourceId ?src ; pi:chainPolicy ?p . ?p pi:targetLanguage "ts" .
+      ?et pi:typeId ?event .
+      ?rel pi:relatesObjectType ?ot ; pi:hasQualifier ?q ; pi:objectIdPath ?path .
+      ?ot pi:typeId ?object . ?q pi:qualifierId ?qualifier .
+    } ORDER BY ?rule ?object ?qualifier ?path
+---
+// Generated OCEL 2.0 type registry, source adapter, event-tap mapper, serializer and hash chain.
+// Source of truth: the consumer's pi: individuals. Do not edit.
+import { createHash } from "node:crypto";
+
+export const EVENT_TYPES: string[] = [{% for r in eventTypes %}"{{ r.id }}"{% if not loop.last %}, {% endif %}{% endfor %}];
+export const OBJECT_TYPES: string[] = [{% for r in objectTypes %}"{{ r.id }}"{% if not loop.last %}, {% endif %}{% endfor %}];
+export const SUPPORTED_HASHES: string[] = [{% for r in hashes %}"{{ r.id }}"{% if not loop.last %}, {% endif %}{% endfor %}];
+export type SourceSpec = { id: string; kind: string; nameField: string; idField: string; timeField: string; hash: string };
+export type RuleSpec = { rule: string; source: string; name: string; event: string; object: string; qualifier: string; path: string };
+export const SOURCES: SourceSpec[] = [
+{% for r in sources %}  { id: "{{ r.id }}", kind: "{{ r.kind }}", nameField: "{{ r.nameField }}", idField: "{{ r.idField }}", timeField: "{{ r.timeField }}", hash: "{{ r.algo }}" },
+{% endfor %}];
+export const RULES: RuleSpec[] = [
+{% for r in rules %}  { rule: "{{ r.rule }}", source: "{{ r.src }}", name: "{{ r.name }}", event: "{{ r.event }}", object: "{{ r.object }}", qualifier: "{{ r.qualifier }}", path: "{{ r.path }}" },
+{% endfor %}];
+{% raw %}
+export type Relationship = { objectId: string; qualifier: string };
+export type Attribute = { name: string; value: string };
+export type OcelEvent = { id: string; type: string; time: string; attributes: Attribute[]; relationships: Relationship[] };
+export type OcelDoc = {
+  objectTypes: { name: string; attributes: unknown[] }[];
+  eventTypes: { name: string; attributes: unknown[] }[];
+  objects: { id: string; type: string; attributes: unknown[]; relationships: unknown[] }[];
+  events: OcelEvent[];
+};
+
+export function hashHex(alg: string, data: string): string {
+{% endraw %}{% for h in hashes %}{% if h.id == "sha256" %}  if (alg === "sha256") return createHash("sha256").update(data, "utf8").digest("hex");
+{% endif %}{% endfor %}{% raw %}  throw new Error("unsupported hash algorithm: " + alg);
+}
+
+// Canonical form: keys sorted, no whitespace. Identical across all generated languages.
+export function canon(e: { id: string; type: string; time: string; relationships: Relationship[] }): string {
+  const rels = e.relationships
+    .map((r) => "{\"objectId\":" + JSON.stringify(r.objectId) + ",\"qualifier\":" + JSON.stringify(r.qualifier) + "}")
+    .join(",");
+  return "{\"id\":" + JSON.stringify(e.id) + ",\"relationships\":[" + rels + "],\"time\":" + JSON.stringify(e.time) + ",\"type\":" + JSON.stringify(e.type) + "}";
+}
+
+function getPath(raw: unknown, path: string): unknown {
+  let cur: unknown = raw;
+  for (const k of path.split(".")) {
+    if (cur === null || typeof cur !== "object") return undefined;
+    cur = (cur as Record<string, unknown>)[k];
+  }
+  return cur;
+}
+function ids(v: unknown): string[] {
+  if (v === undefined || v === null) return [];
+  return (Array.isArray(v) ? v : [v]).map((x) => String(x));
+}
+function flattenOtel(raw: any): any {
+  if (!Array.isArray(raw.attributes)) return raw;
+  const attrs: Record<string, unknown> = {};
+  for (const kv of raw.attributes) {
+    const v = kv.value;
+    attrs[kv.key] = v !== null && typeof v === "object" ? (v.stringValue ?? v.intValue ?? v.boolValue ?? v.doubleValue) : v;
+  }
+  return { ...raw, attributes: attrs };
+}
+
+export const CALLBACK_KINDS = ["sdk-callback", "app-server-subscription"];
+
+export class Tap {
+  readonly spec: SourceSpec;
+  private events: OcelEvent[] = [];
+  private objects = new Map<string, string>();
+  private last = "";
+  private sealed = false;
+
+  constructor(sourceId: string) {
+    const s = SOURCES.find((x) => x.id === sourceId);
+    if (!s) throw new Error("unknown source: " + sourceId);
+    this.spec = s;
+  }
+
+  /** stream-json: pass newline-delimited text. every other kind: pass one parsed record. */
+  ingest(input: string | object): OcelEvent[] {
+    if (this.sealed) throw new Error("tap sealed");
+    let records: unknown[];
+    if (this.spec.kind === "stream-json") {
+      if (typeof input !== "string") throw new Error("stream-json expects text");
+      records = input.split("\n").filter((l) => l.trim() !== "").map((l) => JSON.parse(l));
+    } else {
+      if (typeof input === "string") throw new Error(this.spec.kind + " expects a parsed record");
+      records = [input];
+    }
+    const out: OcelEvent[] = [];
+    for (const r of records) {
+      const e = this.append(r);
+      if (e) out.push(e);
+    }
+    return out;
+  }
+
+  /** sdk-callback and app-server-subscription: hand the runtime a callback. */
+  attach(register: (cb: (record: object) => void) => void): void {
+    if (!CALLBACK_KINDS.includes(this.spec.kind)) throw new Error(this.spec.kind + " has no callback attachment");
+    register((r) => {
+      this.ingest(r);
+    });
+  }
+
+  private append(raw0: unknown): OcelEvent | null {
+    const raw = this.spec.kind === "otel" ? flattenOtel(raw0) : raw0;
+    const name = getPath(raw, this.spec.nameField);
+    const id = getPath(raw, this.spec.idField);
+    const time = getPath(raw, this.spec.timeField);
+    if (name === undefined || id === undefined || time === undefined) return null;
+    const rs = RULES.filter((r) => r.source === this.spec.id && r.name === String(name));
+    if (rs.length === 0) return null;
+    const relationships: Relationship[] = [];
+    for (const r of rs) {
+      for (const oid of ids(getPath(raw, r.path))) {
+        relationships.push({ objectId: oid, qualifier: r.qualifier });
+        if (!this.objects.has(oid)) this.objects.set(oid, r.object);
+      }
+    }
+    const base = { id: String(id), type: rs[0].event, time: String(time), relationships };
+    const parent = this.last;
+    const hash = hashHex(this.spec.hash, parent + "\n" + canon(base));
+    this.last = hash;
+    const ev: OcelEvent = {
+      ...base,
+      attributes: [
+        { name: "pi_parent", value: parent },
+        { name: "pi_hash", value: hash },
+        { name: "pi_hash_alg", value: this.spec.hash },
+      ],
+    };
+    this.events.push(ev);
+    return ev;
+  }
+
+  /** seal once: no further ingest; returns the head hash. */
+  seal(): string {
+    if (this.sealed) throw new Error("tap already sealed");
+    this.sealed = true;
+    return this.last;
+  }
+
+  toOcel(): OcelDoc {
+    return {
+      objectTypes: OBJECT_TYPES.map((name) => ({ name, attributes: [] })),
+      eventTypes: EVENT_TYPES.map((name) => ({ name, attributes: [] })),
+      objects: [...this.objects].map(([id, type]) => ({ id, type, attributes: [], relationships: [] })),
+      events: this.events,
+    };
+  }
+
+  serialize(): string {
+    return JSON.stringify(this.toOcel());
+  }
+}
+
+/** Recompute the chain over a serialized OCEL document. Returns null when intact, else the reason. */
+export function verifyChain(doc: OcelDoc, alg: string): string | null {
+  let parent = "";
+  for (const e of doc.events) {
+    const attr = (n: string) => e.attributes.find((a) => a.name === n)?.value;
+    if (attr("pi_parent") !== parent) return "parent mismatch at " + e.id;
+    const want = hashHex(alg, parent + "\n" + canon(e));
+    if (attr("pi_hash") !== want) return "hash mismatch at " + e.id;
+    parent = want;
+  }
+  return null;
+}
+{% endraw %}

@@ -115,3 +115,95 @@ pi:observedConsequence a rdf:Property .
 pi:closureEvidence a rdf:Property .
 pi:nextAdmittedState a rdf:Property .
 pi:closesInteraction a rdf:Property .
+
+# ===== OCEL TAP SCHEMA (26.9.13): runtime-event -> OCEL 2.0 event + e2o relations =====
+# A consumer authors individuals of these classes; the templates/ render the
+# per-runtime adapter, type registry, mapper, OCEL 2.0 serializer and hash chain
+# from them. No domain vocabulary lives in templates/.
+pi:EventType a rdfs:Class .
+pi:ObjectType a rdfs:Class .
+pi:Qualifier a rdfs:Class .
+pi:E2ORelation a rdfs:Class .
+pi:MappingRule a rdfs:Class .
+pi:EventSource a rdfs:Class ;
+    rdfs:comment "A runtime's event feed. pi:sourceKind selects the adapter ingest shape." .
+pi:SourceKind a rdfs:Class .
+pi:RuntimeEvent a rdfs:Class ;
+    rdfs:comment "A named event a runtime can emit. Must be mapped by a rule or be a pi:Unmapped with a reason." .
+pi:Unmapped a rdfs:Class ;
+    rdfs:comment "Type a pi:RuntimeEvent additionally to declare it deliberately unmapped; requires pi:unmappedReason." .
+pi:ChainPolicy a rdfs:Class .
+pi:LanguageSupport a rdfs:Class .
+
+pi:typeId a rdf:Property ; rdfs:range xsd:string .
+pi:qualifierId a rdf:Property ; rdfs:domain pi:Qualifier ; rdfs:range xsd:string .
+pi:ruleId a rdf:Property ; rdfs:domain pi:MappingRule ; rdfs:range xsd:string .
+pi:sourceEvent a rdf:Property ; rdfs:domain pi:MappingRule ; rdfs:range xsd:string .
+pi:fromSource a rdf:Property ; rdfs:domain pi:MappingRule ; rdfs:range pi:EventSource .
+pi:emitsEventType a rdf:Property ; rdfs:domain pi:MappingRule ; rdfs:range pi:EventType .
+pi:hasRelation a rdf:Property ; rdfs:domain pi:MappingRule ; rdfs:range pi:E2ORelation .
+pi:relatesObjectType a rdf:Property ; rdfs:domain pi:E2ORelation ; rdfs:range pi:ObjectType .
+pi:hasQualifier a rdf:Property ; rdfs:domain pi:E2ORelation ; rdfs:range pi:Qualifier .
+pi:objectIdPath a rdf:Property ; rdfs:domain pi:E2ORelation ; rdfs:range xsd:string ;
+    rdfs:comment "Dot path into the raw runtime payload; resolves to a string or an array of strings." .
+
+pi:sourceId a rdf:Property ; rdfs:domain pi:EventSource ; rdfs:range xsd:string ;
+    rdfs:comment "Identifier matching [a-z][a-z0-9_]*." .
+pi:sourceKind a rdf:Property ; rdfs:domain pi:EventSource ; rdfs:range xsd:string ;
+    rdfs:comment "One of the pi:kindId values of the pi:SourceKind individuals." .
+pi:nameField a rdf:Property ; rdfs:domain pi:EventSource ; rdfs:range xsd:string .
+pi:idField a rdf:Property ; rdfs:domain pi:EventSource ; rdfs:range xsd:string .
+pi:timeField a rdf:Property ; rdfs:domain pi:EventSource ; rdfs:range xsd:string .
+pi:chainPolicy a rdf:Property ; rdfs:domain pi:EventSource ; rdfs:range pi:ChainPolicy .
+pi:kindId a rdf:Property ; rdfs:domain pi:SourceKind ; rdfs:range xsd:string .
+pi:runtimeEventName a rdf:Property ; rdfs:domain pi:RuntimeEvent ; rdfs:range xsd:string .
+pi:emittedBy a rdf:Property ; rdfs:domain pi:RuntimeEvent ; rdfs:range pi:EventSource .
+pi:unmappedReason a rdf:Property ; rdfs:domain pi:Unmapped ; rdfs:range xsd:string .
+pi:hashAlgorithm a rdf:Property ; rdfs:domain pi:ChainPolicy ; rdfs:range xsd:string .
+pi:targetLanguage a rdf:Property ; rdfs:domain pi:ChainPolicy ; rdfs:range xsd:string .
+pi:language a rdf:Property ; rdfs:domain pi:LanguageSupport ; rdfs:range xsd:string .
+pi:supportsHash a rdf:Property ; rdfs:domain pi:LanguageSupport ; rdfs:range xsd:string .
+
+# ===== Closed vocabulary: adapter ingest shapes =====
+pi:Kind-StreamJson a pi:SourceKind ; pi:kindId "stream-json" ; rdfs:comment "newline-delimited JSON text; ingest(text)" .
+pi:Kind-AppServerSubscription a pi:SourceKind ; pi:kindId "app-server-subscription" ; rdfs:comment "server pushes parsed events to a subscriber; attach(register)" .
+pi:Kind-Hook a pi:SourceKind ; pi:kindId "hook" ; rdfs:comment "synchronous hook payload; ingest(payload)" .
+pi:Kind-Otel a pi:SourceKind ; pi:kindId "otel" ; rdfs:comment "OTel span/log record with key/value attribute list; ingest(record)" .
+pi:Kind-SdkCallback a pi:SourceKind ; pi:kindId "sdk-callback" ; rdfs:comment "SDK invokes a registered callback; attach(register)" .
+
+# ===== Per-language hash support (facts about the generated runtimes; no deps) =====
+# sha256 uses each language's stdlib (rs carries a self-contained implementation).
+# blake2b256 exists only where the stdlib provides a 32-byte digest.
+# BLAKE3 is deliberately absent: Bun 1.3.7 lacks it and no new deps are allowed.
+pi:Lang-Ts a pi:LanguageSupport ; pi:language "ts" ; pi:supportsHash "sha256" .
+pi:Lang-Py a pi:LanguageSupport ; pi:language "py" ; pi:supportsHash "sha256" , "blake2b256" .
+pi:Lang-Rs a pi:LanguageSupport ; pi:language "rs" ; pi:supportsHash "sha256" .
+pi:Lang-Ex a pi:LanguageSupport ; pi:language "ex" ; pi:supportsHash "sha256" .
+
+# ===== Worked example (pack-owned): an order feed delivered by a hook =====
+pi:ChainPolicy-Default a pi:ChainPolicy ; pi:hashAlgorithm "sha256" ;
+    pi:targetLanguage "ts" , "py" , "rs" , "ex" .
+
+pi:Source-OrderHook a pi:EventSource ; pi:sourceId "order_hook" ; pi:sourceKind "hook" ;
+    pi:nameField "event" ; pi:idField "id" ; pi:timeField "ts" ; pi:chainPolicy pi:ChainPolicy-Default .
+
+pi:ObjectType-Order a pi:ObjectType ; pi:typeId "order" .
+pi:ObjectType-Item a pi:ObjectType ; pi:typeId "item" .
+pi:EventType-Place a pi:EventType ; pi:typeId "place_order" .
+pi:EventType-Ship a pi:EventType ; pi:typeId "ship_order" .
+pi:Qualifier-Subject a pi:Qualifier ; pi:qualifierId "subject" .
+pi:Qualifier-Contains a pi:Qualifier ; pi:qualifierId "contains" .
+
+pi:Rel-Place-Order a pi:E2ORelation ; pi:relatesObjectType pi:ObjectType-Order ; pi:hasQualifier pi:Qualifier-Subject ; pi:objectIdPath "order.id" .
+pi:Rel-Place-Item a pi:E2ORelation ; pi:relatesObjectType pi:ObjectType-Item ; pi:hasQualifier pi:Qualifier-Contains ; pi:objectIdPath "items" .
+pi:Rel-Ship-Order a pi:E2ORelation ; pi:relatesObjectType pi:ObjectType-Order ; pi:hasQualifier pi:Qualifier-Subject ; pi:objectIdPath "order.id" .
+
+pi:Rule-Place a pi:MappingRule ; pi:ruleId "rule-place" ; pi:fromSource pi:Source-OrderHook ; pi:sourceEvent "order.placed" ;
+    pi:emitsEventType pi:EventType-Place ; pi:hasRelation pi:Rel-Place-Order , pi:Rel-Place-Item .
+pi:Rule-Ship a pi:MappingRule ; pi:ruleId "rule-ship" ; pi:fromSource pi:Source-OrderHook ; pi:sourceEvent "order.shipped" ;
+    pi:emitsEventType pi:EventType-Ship ; pi:hasRelation pi:Rel-Ship-Order .
+
+pi:RuntimeEvent-OrderPlaced a pi:RuntimeEvent ; pi:runtimeEventName "order.placed" ; pi:emittedBy pi:Source-OrderHook .
+pi:RuntimeEvent-OrderShipped a pi:RuntimeEvent ; pi:runtimeEventName "order.shipped" ; pi:emittedBy pi:Source-OrderHook .
+pi:RuntimeEvent-OrderAudit a pi:RuntimeEvent , pi:Unmapped ; pi:runtimeEventName "order.audit" ; pi:emittedBy pi:Source-OrderHook ;
+    pi:unmappedReason "audit noise carries no process step; deliberately outside the event log" .
