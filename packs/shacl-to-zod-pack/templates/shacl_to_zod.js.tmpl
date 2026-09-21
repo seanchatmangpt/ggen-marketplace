@@ -1,0 +1,13 @@
+---
+to: "src/shacl_zod_schemas.js"
+sparql:
+  schemas: "PREFIX sp: <http://seanchatmangpt.github.io/packs/shacl-projection#> SELECT ?schemaName WHERE { ?schema a sp:ZodSchema ; sp:derivedFromShape ?shape ; sp:schemaName ?schemaName . } ORDER BY ?schemaName"
+  fields: "PREFIX sp: <http://seanchatmangpt.github.io/packs/shacl-projection#> PREFIX sh: <http://www.w3.org/ns/shacl#> PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> SELECT ?schemaName ?fieldName ?zodType ?nullable (GROUP_CONCAT(CONCAT('\"', STR(?enumValue), '\"'); separator=', ') AS ?enumValues) WHERE { ?schema a sp:ZodSchema ; sp:derivedFromShape ?shape ; sp:schemaName ?schemaName . ?shape sh:property ?prop . ?prop sh:path ?path ; sh:datatype ?dt . BIND(REPLACE(STR(?path), \"^.*[/#]\", \"\") AS ?fieldName) BIND(IF(?dt = <http://www.w3.org/2001/XMLSchema#string>, \"z.string()\", IF(?dt = <http://www.w3.org/2001/XMLSchema#boolean>, \"z.boolean()\", IF(?dt IN (<http://www.w3.org/2001/XMLSchema#integer>, <http://www.w3.org/2001/XMLSchema#long>), \"z.number().int()\", \"z.number()\"))) AS ?zodType) OPTIONAL { ?prop sp:nullable ?nullableRaw } OPTIONAL { ?prop sh:in ?enumList . ?enumList rdf:rest*/rdf:first ?enumValue } BIND(COALESCE(STR(?nullableRaw), \"false\") AS ?nullable) } GROUP BY ?schemaName ?fieldName ?zodType ?nullable ORDER BY ?schemaName ?fieldName"
+---
+import { z } from "zod";
+
+{% for s in schemas %}
+export const {{ s.schemaName }} = z.object({
+{% for f in fields %}{% if f.schemaName == s.schemaName %}  {{ f.fieldName }}: {% if f.enumValues %}z.enum([{{ f.enumValues }}]){% else %}{{ f.zodType }}{% endif %}{% if f.nullable == "true" %}.nullable(){% endif %},
+{% endif %}{% endfor %}});
+{% endfor %}
