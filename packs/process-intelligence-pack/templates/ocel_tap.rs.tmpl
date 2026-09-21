@@ -27,6 +27,15 @@ sparql:
       ?rel pi:relatesObjectType ?ot ; pi:hasQualifier ?q ; pi:objectIdPath ?path .
       ?ot pi:typeId ?object . ?q pi:qualifierId ?qualifier .
     } ORDER BY ?rule ?object ?qualifier ?path
+  roles: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id WHERE { ?r a pi:PhaseRole ; pi:phaseId ?id ; pi:phaseOrder ?o . } ORDER BY ?o
+  phased: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?type ?phase WHERE { ?t a pi:EventType ; pi:typeId ?type ; pi:phaseRole ?r . ?r pi:phaseId ?phase . } ORDER BY ?type
+  closes: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?outcome ?pending WHERE { ?o a pi:EventType ; pi:typeId ?outcome ; pi:closesEventType ?p . ?p pi:typeId ?pending . } ORDER BY ?outcome ?pending
 ---
 // Generated OCEL 2.0 type registry, source adapter, event-tap mapper, serializer and hash chain.
 // Source of truth: the consumer's pi: individuals. Do not edit. Std-only: no external crates.
@@ -59,7 +68,18 @@ pub const SOURCES: &[SourceSpec] = &[
 pub const RULES: &[RuleSpec] = &[
 {% for r in rules %}    RuleSpec { rule: "{{ r.rule }}", source: "{{ r.src }}", name: "{{ r.name }}", event: "{{ r.event }}", object: "{{ r.object }}", qualifier: "{{ r.qualifier }}", path: "{{ r.path }}" },
 {% endfor %}];
+pub const PHASE_OPEN: &str = "{% for r in roles %}{% if loop.first %}{{ r.id }}{% endif %}{% endfor %}";
+pub const PHASE_CLOSE: &str = "{% for r in roles %}{% if loop.last %}{{ r.id }}{% endif %}{% endfor %}";
+pub const PHASED: &[(&str, &str)] = &[
+{% for r in phased %}    ("{{ r.type }}", "{{ r.phase }}"),
+{% endfor %}];
+pub const CLOSES: &[(&str, &str)] = &[
+{% for r in closes %}    ("{{ r.outcome }}", "{{ r.pending }}"),
+{% endfor %}];
 {% raw %}
+fn phase_of(ty: &str) -> &'static str { PHASED.iter().find(|(t, _)| *t == ty).map(|(_, p)| *p).unwrap_or("") }
+fn closes_pair(outcome: &str, pending: &str) -> bool { CLOSES.iter().any(|(o, p)| *o == outcome && *p == pending) }
+fn object_set(rels: &[Rel]) -> Vec<String> { let mut v: Vec<String> = rels.iter().map(|(o, _)| o.clone()).collect(); v.sort(); v }
 pub const CALLBACK_KINDS: &[&str] = &["sdk-callback", "app-server-subscription"];
 
 // ---------- minimal JSON value (std-only) ----------
@@ -334,14 +354,17 @@ pub fn hash_hex(alg: &str, data: &str) -> Result<String, String> {
 pub type Rel = (String, String);
 
 /// Canonical form: keys sorted, no whitespace. Identical across all generated languages.
-pub fn canon(id: &str, ty: &str, time: &str, rels: &[Rel]) -> String {
+/// A phased event (phase != "") additionally binds pendingRef and phase into the digest.
+pub fn canon(id: &str, ty: &str, time: &str, rels: &[Rel], phase: &str, pref: &str) -> String {
     let r: Vec<String> = rels
         .iter()
         .map(|(o, q)| format!("{{\"objectId\":{},\"qualifier\":{}}}", jstr(o), jstr(q)))
         .collect();
+    let bound = if phase.is_empty() { String::new() } else { format!(",\"pendingRef\":{},\"phase\":{}", jstr(pref), jstr(phase)) };
     format!(
-        "{{\"id\":{},\"relationships\":[{}],\"time\":{},\"type\":{}}}",
+        "{{\"id\":{}{},\"relationships\":[{}],\"time\":{},\"type\":{}}}",
         jstr(id),
+        bound,
         r.join(","),
         jstr(time),
         jstr(ty)
@@ -356,6 +379,8 @@ pub struct Ev {
     pub rels: Vec<Rel>,
     pub parent: String,
     pub hash: String,
+    pub phase: String,
+    pub pending_ref: String,
 }
 
 fn flatten_otel(raw: &Json) -> Json {
@@ -387,6 +412,7 @@ pub struct Tap {
     objects: Vec<(String, &'static str)>,
     last: String,
     sealed: bool,
+    pub orphans: Vec<String>,
 }
 
 impl Tap {
@@ -395,7 +421,7 @@ impl Tap {
             .iter()
             .find(|s| s.id == source_id)
             .ok_or_else(|| format!("unknown source: {}", source_id))?;
-        Ok(Tap { spec, events: vec![], objects: vec![], last: String::new(), sealed: false })
+        Ok(Tap { spec, events: vec![], objects: vec![], last: String::new(), sealed: false, orphans: vec![] })
     }
 
     /// stream-json: newline-delimited text. Returns the number of events appended.
@@ -457,20 +483,50 @@ impl Tap {
             return Ok(0);
         }
         let mut rels: Vec<Rel> = vec![];
+        let mut found: Vec<(String, &'static str)> = vec![];
         for r in &rs {
             for oid in raw.path(r.path).map(|v| v.ids()).unwrap_or_default() {
-                if !self.objects.iter().any(|(i, _)| *i == oid) {
-                    self.objects.push((oid.clone(), r.object));
-                }
+                found.push((oid.clone(), r.object));
                 rels.push((oid, r.qualifier.to_string()));
             }
         }
         let ty = rs[0].event.to_string();
+        let phase = phase_of(&ty);
+        let mut pref = String::new();
+        if phase == PHASE_CLOSE {
+            match self.open_pending(&ty, &rels) {
+                Some(h) => pref = h,
+                None => {
+                    self.orphans.push(id); // outcome with no open pending: reported, not emitted
+                    return Ok(0);
+                }
+            }
+        }
+        for (oid, ot) in found {
+            if !self.objects.iter().any(|(i, _)| *i == oid) {
+                self.objects.push((oid, ot));
+            }
+        }
         let parent = self.last.clone();
-        let hash = hash_hex(self.spec.hash, &format!("{}\n{}", parent, canon(&id, &ty, &time, &rels)))?;
+        let hash = hash_hex(self.spec.hash, &format!("{}\n{}", parent, canon(&id, &ty, &time, &rels, phase, &pref)))?;
         self.last = hash.clone();
-        self.events.push(Ev { id, ty, time, rels, parent, hash });
+        self.events.push(Ev { id, ty, time, rels, parent, hash, phase: phase.to_string(), pending_ref: pref });
         Ok(1)
+    }
+
+    fn closed(&self, hash: &str) -> bool { self.events.iter().any(|e| e.pending_ref == hash) }
+
+    /// Oldest pending event this outcome type may close, over the same object set.
+    fn open_pending(&self, outcome: &str, rels: &[Rel]) -> Option<String> {
+        self.events
+            .iter()
+            .find(|e| e.phase == PHASE_OPEN && !self.closed(&e.hash) && closes_pair(outcome, &e.ty) && object_set(&e.rels) == object_set(rels))
+            .map(|e| e.hash.clone())
+    }
+
+    /// ids of pending events no outcome has closed yet (reported; the tap may still seal).
+    pub fn unpaired(&self) -> Vec<String> {
+        self.events.iter().filter(|e| e.phase == PHASE_OPEN && !self.closed(&e.hash)).map(|e| e.id.clone()).collect()
     }
 
     /// seal once: no further ingest; returns the head hash.
@@ -502,9 +558,16 @@ impl Tap {
                     .map(|(o, q)| format!("{{\"objectId\":{},\"qualifier\":{}}}", jstr(o), jstr(q)))
                     .collect::<Vec<_>>()
                     .join(",");
+                let mut extra = String::new();
+                if !e.phase.is_empty() {
+                    extra.push_str(&format!(",{{\"name\":\"pi_phase\",\"value\":{}}}", jstr(&e.phase)));
+                }
+                if e.phase == PHASE_CLOSE {
+                    extra.push_str(&format!(",{{\"name\":\"pi_pending_ref\",\"value\":{}}}", jstr(&e.pending_ref)));
+                }
                 format!(
-                    "{{\"id\":{},\"type\":{},\"time\":{},\"attributes\":[{{\"name\":\"pi_parent\",\"value\":{}}},{{\"name\":\"pi_hash\",\"value\":{}}},{{\"name\":\"pi_hash_alg\",\"value\":{}}}],\"relationships\":[{}]}}",
-                    jstr(&e.id), jstr(&e.ty), jstr(&e.time), jstr(&e.parent), jstr(&e.hash), jstr(self.spec.hash), rels
+                    "{{\"id\":{},\"type\":{},\"time\":{},\"attributes\":[{{\"name\":\"pi_parent\",\"value\":{}}},{{\"name\":\"pi_hash\",\"value\":{}}},{{\"name\":\"pi_hash_alg\",\"value\":{}}}{}],\"relationships\":[{}]}}",
+                    jstr(&e.id), jstr(&e.ty), jstr(&e.time), jstr(&e.parent), jstr(&e.hash), jstr(self.spec.hash), extra, rels
                 )
             })
             .collect::<Vec<_>>()
@@ -523,6 +586,8 @@ impl Tap {
 pub fn verify_chain(doc: &Json, alg: &str) -> Option<String> {
     let Some(Json::Arr(events)) = doc.get("events") else { return Some("no events".to_string()) };
     let mut parent = String::new();
+    let mut seen: Vec<(String, String, Vec<Rel>)> = Vec::new();
+    let mut used: Vec<String> = Vec::new();
     for e in events {
         let s = |k: &str| match e.get(k) {
             Some(Json::Str(v)) => v.clone(),
@@ -553,12 +618,31 @@ pub fn verify_chain(doc: &Json, alg: &str) -> Option<String> {
         if attr("pi_parent") != parent {
             return Some(format!("parent mismatch at {}", s("id")));
         }
-        let want = match hash_hex(alg, &format!("{}\n{}", parent, canon(&s("id"), &s("type"), &s("time"), &rels))) {
+        let (id, ty) = (s("id"), s("type"));
+        let (aphase, pref) = (attr("pi_phase"), attr("pi_pending_ref"));
+        let want = match hash_hex(alg, &format!("{}\n{}", parent, canon(&id, &ty, &s("time"), &rels, &aphase, &pref))) {
             Ok(h) => h,
             Err(e) => return Some(e),
         };
         if attr("pi_hash") != want {
-            return Some(format!("hash mismatch at {}", s("id")));
+            return Some(format!("hash mismatch at {}", id));
+        }
+        let phase = phase_of(&ty);
+        if aphase != phase {
+            return Some(format!("phase mismatch at {}", id));
+        }
+        if phase == PHASE_OPEN {
+            if !pref.is_empty() {
+                return Some(format!("pairing mismatch at {}", id));
+            }
+            seen.push((want.clone(), ty.clone(), rels.clone()));
+        } else if phase == PHASE_CLOSE {
+            let ok = !used.contains(&pref)
+                && seen.iter().any(|(h, t, r)| *h == pref && closes_pair(&ty, t) && object_set(r) == object_set(&rels));
+            if !ok {
+                return Some(format!("pairing mismatch at {}", id));
+            }
+            used.push(pref.clone());
         }
         parent = want;
     }

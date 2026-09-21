@@ -27,6 +27,15 @@ sparql:
       ?rel pi:relatesObjectType ?ot ; pi:hasQualifier ?q ; pi:objectIdPath ?path .
       ?ot pi:typeId ?object . ?q pi:qualifierId ?qualifier .
     } ORDER BY ?rule ?object ?qualifier ?path
+  roles: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id WHERE { ?r a pi:PhaseRole ; pi:phaseId ?id ; pi:phaseOrder ?o . } ORDER BY ?o
+  phased: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?type ?phase WHERE { ?t a pi:EventType ; pi:typeId ?type ; pi:phaseRole ?r . ?r pi:phaseId ?phase . } ORDER BY ?type
+  closes: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?outcome ?pending WHERE { ?o a pi:EventType ; pi:typeId ?outcome ; pi:closesEventType ?p . ?p pi:typeId ?pending . } ORDER BY ?outcome ?pending
 ---
 # Generated OCEL 2.0 type registry, source adapter, event-tap mapper, serializer and hash chain.
 # Source of truth: the consumer's pi: individuals. Do not edit. Needs OTP 27+ (:json).
@@ -39,6 +48,14 @@ defmodule PiOcelTap do
 {% endfor %}  ]
   @rules [
 {% for r in rules %}    %{rule: "{{ r.rule }}", source: "{{ r.src }}", name: "{{ r.name }}", event: "{{ r.event }}", object: "{{ r.object }}", qualifier: "{{ r.qualifier }}", path: "{{ r.path }}"}{% if not loop.last %},{% endif %}
+{% endfor %}  ]
+  @phase_open "{% for r in roles %}{% if loop.first %}{{ r.id }}{% endif %}{% endfor %}"
+  @phase_close "{% for r in roles %}{% if loop.last %}{{ r.id }}{% endif %}{% endfor %}"
+  @phased %{
+{% for r in phased %}    "{{ r.type }}" => "{{ r.phase }}"{% if not loop.last %},{% endif %}
+{% endfor %}  }
+  @closes [
+{% for r in closes %}    {"{{ r.outcome }}", "{{ r.pending }}"}{% if not loop.last %},{% endif %}
 {% endfor %}  ]
 {% raw %}
   @callback_kinds ["sdk-callback", "app-server-subscription"]
@@ -72,14 +89,19 @@ defmodule PiOcelTap do
   defp esc(<<c::utf8, r::binary>>, acc), do: esc(r, acc <> <<c::utf8>>)
 
   # Canonical form: keys sorted, no whitespace. Identical across all generated languages.
-  def canon(%{id: id, type: type, time: time, relationships: rels}) do
+  # A phased event (phase != "") additionally binds pendingRef and phase into the digest.
+  def canon(%{id: id, type: type, time: time, relationships: rels}, phase \\ "", ref \\ "") do
     r =
       rels
       |> Enum.map(fn %{object_id: o, qualifier: q} -> "{\"objectId\":" <> jstr(o) <> ",\"qualifier\":" <> jstr(q) <> "}" end)
       |> Enum.join(",")
 
-    "{\"id\":" <> jstr(id) <> ",\"relationships\":[" <> r <> "],\"time\":" <> jstr(time) <> ",\"type\":" <> jstr(type) <> "}"
+    bound = if phase != "", do: ",\"pendingRef\":" <> jstr(ref) <> ",\"phase\":" <> jstr(phase), else: ""
+
+    "{\"id\":" <> jstr(id) <> bound <> ",\"relationships\":[" <> r <> "],\"time\":" <> jstr(time) <> ",\"type\":" <> jstr(type) <> "}"
   end
+
+  defp object_set(rels), do: rels |> Enum.map(& &1.object_id) |> Enum.sort()
 
   defp get_path(raw, path) do
     Enum.reduce_while(String.split(path, "."), raw, fn k, cur ->
@@ -119,7 +141,7 @@ defmodule PiOcelTap do
   def start(source_id) do
     case Enum.find(@sources, &(&1.id == source_id)) do
       nil -> {:error, "unknown source: " <> source_id}
-      spec -> Agent.start_link(fn -> %{spec: spec, events: [], objects: [], last: "", sealed: false} end)
+      spec -> Agent.start_link(fn -> %{spec: spec, events: [], objects: [], last: "", sealed: false, orphans: []} end)
     end
   end
 
@@ -171,22 +193,53 @@ defmodule PiOcelTap do
 
     with false <- is_nil(name) or is_nil(id) or is_nil(time),
          [first | _] = rs <- Enum.filter(@rules, &(&1.source == spec.id and &1.name == to_s(name))) do
-      {rels, objects} =
-        Enum.reduce(rs, {[], st.objects}, fn r, {rels, objs} ->
-          Enum.reduce(ids(get_path(raw, r.path)), {rels, objs}, fn oid, {rl, ob} ->
-            ob = if List.keymember?(ob, oid, 0), do: ob, else: ob ++ [{oid, r.object}]
-            {rl ++ [%{object_id: oid, qualifier: r.qualifier}], ob}
+      {rels, found} =
+        Enum.reduce(rs, {[], []}, fn r, {rels, fnd} ->
+          Enum.reduce(ids(get_path(raw, r.path)), {rels, fnd}, fn oid, {rl, f} ->
+            {rl ++ [%{object_id: oid, qualifier: r.qualifier}], f ++ [{oid, r.object}]}
           end)
         end)
 
-      base = %{id: to_s(id), type: first.event, time: to_s(time), relationships: rels}
-      hash = hash_hex(spec.hash, st.last <> "\n" <> canon(base))
-      ev = Map.merge(base, %{parent: st.last, hash: hash, alg: spec.hash})
-      {ev, %{st | events: st.events ++ [ev], objects: objects, last: hash}}
+      phase = Map.get(@phased, first.event, "")
+      open = if phase == @phase_close, do: open_pending(st, first.event, rels)
+
+      if phase == @phase_close and is_nil(open) do
+        # outcome with no open pending: reported, not emitted
+        {nil, %{st | orphans: st.orphans ++ [to_s(id)]}}
+      else
+        ref = if open, do: open.hash, else: ""
+        objects = Enum.reduce(found, st.objects, fn {oid, ot}, ob -> if List.keymember?(ob, oid, 0), do: ob, else: ob ++ [{oid, ot}] end)
+        base = %{id: to_s(id), type: first.event, time: to_s(time), relationships: rels}
+        hash = hash_hex(spec.hash, st.last <> "\n" <> canon(base, phase, ref))
+        ev = Map.merge(base, %{parent: st.last, hash: hash, alg: spec.hash, phase: phase, ref: ref})
+        {ev, %{st | events: st.events ++ [ev], objects: objects, last: hash}}
+      end
     else
       _ -> {nil, st}
     end
   end
+
+  defp closed_refs(st), do: for(e <- st.events, e.ref != "", into: MapSet.new(), do: e.ref)
+
+  # Oldest pending event this outcome type may close, over the same object set.
+  defp open_pending(st, outcome, rels) do
+    closed = closed_refs(st)
+
+    Enum.find(st.events, fn e ->
+      e.phase == @phase_open and not MapSet.member?(closed, e.hash) and {outcome, e.type} in @closes and
+        object_set(e.relationships) == object_set(rels)
+    end)
+  end
+
+  @doc "ids of pending events no outcome has closed yet (reported; the tap may still seal)."
+  def unpaired(pid) do
+    st = Agent.get(pid, & &1)
+    closed = closed_refs(st)
+    for e <- st.events, e.phase == @phase_open, not MapSet.member?(closed, e.hash), do: e.id
+  end
+
+  @doc "ids of outcome records dropped because no pending was open."
+  def orphans(pid), do: Agent.get(pid, & &1.orphans)
 
   @doc "seal once: no further ingest; returns the head hash."
   def seal(pid) do
@@ -209,11 +262,14 @@ defmodule PiOcelTap do
             "id" => e.id,
             "type" => e.type,
             "time" => e.time,
-            "attributes" => [
-              %{"name" => "pi_parent", "value" => e.parent},
-              %{"name" => "pi_hash", "value" => e.hash},
-              %{"name" => "pi_hash_alg", "value" => e.alg}
-            ],
+            "attributes" =>
+              [
+                %{"name" => "pi_parent", "value" => e.parent},
+                %{"name" => "pi_hash", "value" => e.hash},
+                %{"name" => "pi_hash_alg", "value" => e.alg}
+              ] ++
+                if(e.phase != "", do: [%{"name" => "pi_phase", "value" => e.phase}], else: []) ++
+                if(e.phase == @phase_close, do: [%{"name" => "pi_pending_ref", "value" => e.ref}], else: []),
             "relationships" => Enum.map(e.relationships, &%{"objectId" => &1.object_id, "qualifier" => &1.qualifier})
           }
         end)
@@ -222,10 +278,10 @@ defmodule PiOcelTap do
 
   def serialize(pid), do: pid |> to_ocel() |> :json.encode() |> IO.iodata_to_binary()
 
-  @doc "Recompute the chain over a decoded OCEL document. Returns nil when intact, else the reason."
+  @doc "Recompute the chain over a decoded OCEL document and enforce phase pairing. Returns nil when intact, else the reason."
   def verify_chain(%{"events" => events}, alg) do
     events
-    |> Enum.reduce_while({:ok, ""}, fn e, {:ok, parent} ->
+    |> Enum.reduce_while({:ok, "", %{}, MapSet.new()}, fn e, {:ok, parent, seen, used} ->
       attr = fn n -> Enum.find_value(e["attributes"], fn a -> if a["name"] == n, do: a["value"] end) end
 
       ev = %{
@@ -235,16 +291,30 @@ defmodule PiOcelTap do
         relationships: Enum.map(e["relationships"], &%{object_id: &1["objectId"], qualifier: &1["qualifier"]})
       }
 
-      want = hash_hex(alg, parent <> "\n" <> canon(ev))
+      phase = Map.get(@phased, e["type"], "")
+      ref = attr.("pi_pending_ref") || ""
+      want = hash_hex(alg, parent <> "\n" <> canon(ev, attr.("pi_phase") || "", ref))
 
       cond do
         attr.("pi_parent") != parent -> {:halt, {:error, "parent mismatch at " <> e["id"]}}
         attr.("pi_hash") != want -> {:halt, {:error, "hash mismatch at " <> e["id"]}}
-        true -> {:cont, {:ok, want}}
+        (attr.("pi_phase") || "") != phase -> {:halt, {:error, "phase mismatch at " <> e["id"]}}
+        phase == @phase_open and ref != "" -> {:halt, {:error, "pairing mismatch at " <> e["id"]}}
+        phase == @phase_open -> {:cont, {:ok, want, Map.put(seen, want, ev), used}}
+        phase == @phase_close ->
+          p = Map.get(seen, ref)
+
+          if p != nil and not MapSet.member?(used, ref) and {e["type"], p.type} in @closes and
+               object_set(p.relationships) == object_set(ev.relationships) do
+            {:cont, {:ok, want, seen, MapSet.put(used, ref)}}
+          else
+            {:halt, {:error, "pairing mismatch at " <> e["id"]}}
+          end
+        true -> {:cont, {:ok, want, seen, used}}
       end
     end)
     |> case do
-      {:ok, _} -> nil
+      {:ok, _, _, _} -> nil
       {:error, reason} -> reason
     end
   end

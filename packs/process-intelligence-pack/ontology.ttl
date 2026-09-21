@@ -132,10 +132,18 @@ pi:RuntimeEvent a rdfs:Class ;
     rdfs:comment "A named event a runtime can emit. Must be mapped by a rule or be a pi:Unmapped with a reason." .
 pi:Unmapped a rdfs:Class ;
     rdfs:comment "Type a pi:RuntimeEvent additionally to declare it deliberately unmapped; requires pi:unmappedReason." .
+pi:PhaseRole a rdfs:Class ;
+    rdfs:comment "Lifecycle role an event type plays: the lowest pi:phaseOrder opens a phase (pending), the highest closes it (outcome)." .
 pi:ChainPolicy a rdfs:Class .
 pi:LanguageSupport a rdfs:Class .
 
 pi:typeId a rdf:Property ; rdfs:range xsd:string .
+pi:phaseId a rdf:Property ; rdfs:domain pi:PhaseRole ; rdfs:range xsd:string .
+pi:phaseOrder a rdf:Property ; rdfs:domain pi:PhaseRole ; rdfs:range xsd:integer .
+pi:phaseRole a rdf:Property ; rdfs:domain pi:EventType ; rdfs:range pi:PhaseRole ;
+    rdfs:comment "Which phase role events of this type play. Absent: the type is not phased." .
+pi:closesEventType a rdf:Property ; rdfs:domain pi:EventType ; rdfs:range pi:EventType ;
+    rdfs:comment "On a closing-role type: the opening-role type(s) whose open phase an event of this type may close (same object set)." .
 pi:qualifierId a rdf:Property ; rdfs:domain pi:Qualifier ; rdfs:range xsd:string .
 pi:ruleId a rdf:Property ; rdfs:domain pi:MappingRule ; rdfs:range xsd:string .
 pi:sourceEvent a rdf:Property ; rdfs:domain pi:MappingRule ; rdfs:range xsd:string .
@@ -170,6 +178,10 @@ pi:Kind-AppServerSubscription a pi:SourceKind ; pi:kindId "app-server-subscripti
 pi:Kind-Hook a pi:SourceKind ; pi:kindId "hook" ; rdfs:comment "synchronous hook payload; ingest(payload)" .
 pi:Kind-Otel a pi:SourceKind ; pi:kindId "otel" ; rdfs:comment "OTel span/log record with key/value attribute list; ingest(record)" .
 pi:Kind-SdkCallback a pi:SourceKind ; pi:kindId "sdk-callback" ; rdfs:comment "SDK invokes a registered callback; attach(register)" .
+
+# ===== Closed vocabulary: phase roles =====
+pi:Phase-Pending a pi:PhaseRole ; pi:phaseId "pending" ; pi:phaseOrder 1 .
+pi:Phase-Outcome a pi:PhaseRole ; pi:phaseId "outcome" ; pi:phaseOrder 2 .
 
 # ===== Per-language hash support (facts about the generated runtimes; no deps) =====
 # sha256 uses each language's stdlib (rs carries a self-contained implementation).

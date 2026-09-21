@@ -315,6 +315,10 @@ function finish(t: Tap, alg: string) {
 const out: any = {};
 const h = new Tap("order_hook"); for (const r of input.hook) h.ingest(r); out.hook = finish(h, "sha256");
 const s = new Tap("ticket_stream"); s.ingest(input.stream); out.stream = finish(s, "sha256");
+const ph = new Tap("ticket_stream"); ph.ingest(input.phased);
+const phDoc = JSON.parse(ph.serialize());
+out.phased = { doc: phDoc, unpaired: ph.unpaired(), orphans: ph.orphans, verify: verifyChain(phDoc, "sha256") };
+out.forged = Object.fromEntries(Object.entries(input.forged).map(([k, d]) => [k, verifyChain(d as any, "sha256")]));
 const cb = new Tap("order_hook"); (() => { try { cb.attach(() => {}); out.attachHookRefused = false; } catch { out.attachHookRefused = true; } })();
 console.log(JSON.stringify(out));
 '''
@@ -341,7 +345,10 @@ s = Tap("ticket_stream"); s.ingest(inp["stream"]); out["stream"] = finish(s, "sh
 o = Tap("ticket_otel")
 for r in inp["otel"]: o.ingest(r)
 out["otel"] = finish(o, "blake2b256")
-seen = []
+ph = Tap("ticket_stream"); ph.ingest(inp["phased"])
+ph_doc = json.loads(ph.serialize())
+out["phased"] = {"doc": ph_doc, "unpaired": ph.unpaired(), "orphans": ph.orphans, "verify": verify_chain(ph_doc, "sha256")}
+out["forged"] = {k: verify_chain(d, "sha256") for k, d in inp["forged"].items()}
 c = Tap("order_hook")
 try: c.attach(lambda cb: None); out["attachHookRefused"] = False
 except ValueError: out["attachHookRefused"] = True
@@ -392,7 +399,17 @@ fn main() {
     let stream_out = finish(st, "sha256", &hook[0]);
     let mut c = Tap::new("order_hook").unwrap();
     let refused = c.attach(|_| {}).is_err();
-    println!("{{\"hook\":{},\"stream\":{},\"attachHookRefused\":{}}}", hook_out, stream_out, refused);
+    let phased = match inp.get("phased") { Some(Json::Str(x)) => x.clone(), _ => panic!() };
+    let mut ph = Tap::new("ticket_stream").unwrap();
+    ph.ingest_text(&phased).unwrap();
+    let ph_doc = parse_json(&ph.serialize()).unwrap();
+    let list = |v: Vec<String>| format!("[{}]", v.iter().map(|x| jstr(x)).collect::<Vec<_>>().join(","));
+    let phased_out = format!("{{\"doc\":{},\"unpaired\":{},\"orphans\":{},\"verify\":{}}}", jv(&ph_doc), list(ph.unpaired()), list(ph.orphans.clone()), opt(verify_chain(&ph_doc, "sha256")));
+    let forged_out = match inp.get("forged") {
+        Some(Json::Obj(kv)) => kv.iter().map(|(k, d)| format!("{}:{}", jstr(k), opt(verify_chain(d, "sha256")))).collect::<Vec<_>>().join(","),
+        _ => panic!(),
+    };
+    println!("{{\"hook\":{},\"stream\":{},\"phased\":{},\"forged\":{{{}}},\"attachHookRefused\":{}}}", hook_out, stream_out, phased_out, forged_out, refused);
 }
 '''
 EX_DRIVER = r'''
@@ -417,21 +434,83 @@ hook_out = finish.(h, "sha256", hd(input["hook"]))
 {:ok, s} = PiOcelTap.start("ticket_stream")
 {:ok, _} = PiOcelTap.ingest(s, input["stream"])
 stream_out = finish.(s, "sha256", hd(input["hook"]))
+{:ok, ph} = PiOcelTap.start("ticket_stream")
+{:ok, _} = PiOcelTap.ingest(ph, input["phased"])
+ph_doc = ph |> PiOcelTap.serialize() |> :json.decode()
+nn2 = fn nil -> :null; x -> x end
+phased_out = %{"doc" => ph_doc, "unpaired" => PiOcelTap.unpaired(ph), "orphans" => PiOcelTap.orphans(ph), "verify" => nn2.(PiOcelTap.verify_chain(ph_doc, "sha256"))}
+forged_out = Map.new(input["forged"], fn {k, d} -> {k, nn2.(PiOcelTap.verify_chain(d, "sha256"))} end)
 {:ok, c} = PiOcelTap.start("order_hook")
 refused = match?({:error, _}, PiOcelTap.attach(c, fn _ -> :ok end))
-IO.puts(:json.encode(%{"hook" => hook_out, "stream" => stream_out, "attachHookRefused" => refused}) |> IO.iodata_to_binary())
+IO.puts(:json.encode(%{"hook" => hook_out, "stream" => stream_out, "phased" => phased_out, "forged" => forged_out, "attachHookRefused" => refused}) |> IO.iodata_to_binary())
 '''
+
+
+PHASED_TEXT = "\n".join(
+    json.dumps(e)
+    for e in [
+        {"type": "ticket.started", "uuid": "u1", "at": "2026-04-01T00:00:00Z", "ticket": {"id": "t1"}},
+        {"type": "ticket.scheduled", "uuid": "u2", "at": "2026-04-01T00:00:01Z", "ticket": {"id": "t1"}},
+        {"type": "ticket.complete", "uuid": "u3", "at": "2026-04-01T00:00:02Z", "ticket": {"id": "t1"}},
+        {"type": "ticket.result", "uuid": "u4", "at": "2026-04-01T00:00:03Z", "ticket": {"id": "t2"}},  # no open pending: orphan
+        {"type": "ticket.error", "uuid": "u5", "at": "2026-04-01T00:00:04Z", "ticket": {"id": "t1"}},
+        {"type": "ticket.started", "uuid": "u6", "at": "2026-04-01T00:00:05Z", "ticket": {"id": "t3"}},  # never closed
+    ]
+) + "\n"
+
+
+def _sha(text):
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def rechain(doc, edits):
+    """Independent oracle: apply edits to a copy of a phased doc, then recompute every parent/hash link
+    with sha256 so that only the phase-pairing rule (not the hash chain) can refuse the forgery."""
+    doc = json.loads(json.dumps(doc))
+    by_id = {e["id"]: e for e in doc["events"]}
+    for eid, fn in edits.items():
+        fn(by_id[eid], doc)
+    parent = ""
+    for e in doc["events"]:
+        attr = {a["name"]: a["value"] for a in e["attributes"]}
+        e["attributes"] = [a for a in e["attributes"] if a["name"] not in ("pi_parent", "pi_hash")]
+        attr = {a["name"]: a["value"] for a in e["attributes"]}
+        h = _sha(parent + "\n" + canon_event(e, attr.get("pi_phase", ""), attr.get("pi_pending_ref", "")))
+        e["attributes"] = [{"name": "pi_parent", "value": parent}, {"name": "pi_hash", "value": h},
+                           {"name": "pi_hash_alg", "value": "sha256"}] + [a for a in e["attributes"] if a["name"] not in ("pi_hash_alg",)]
+        parent = h
+    return doc
+
+
+def _set_attr(e, name, value):
+    e["attributes"] = [a for a in e["attributes"] if a["name"] != name] + ([{"name": name, "value": value}] if value is not None else [])
+
+
+def forge_cases(doc):
+    h = {e["id"]: {a["name"]: a["value"] for a in e["attributes"]}["pi_hash"] for e in doc["events"]}
+    return {
+        "wrong-type": (rechain(doc, {"u3": lambda e, d: _set_attr(e, "pi_pending_ref", h["u1"])}), "pairing mismatch at u3"),
+        "double-close": (rechain(doc, {"u5": lambda e, d: _set_attr(e, "pi_pending_ref", h["u2"])}), "pairing mismatch at u5"),
+        "dangling-ref": (rechain(doc, {"u3": lambda e, d: _set_attr(e, "pi_pending_ref", "deadbeef")}), "pairing mismatch at u3"),
+        "wrong-objects": (rechain(doc, {"u3": lambda e, d: e.update(relationships=[{"objectId": "t9", "qualifier": "consumer_target"}])}), "pairing mismatch at u3"),
+        "pending-with-ref": (rechain(doc, {"u2": lambda e, d: _set_attr(e, "pi_pending_ref", h["u1"])}), "pairing mismatch at u2"),
+        "phase-stripped": (rechain(doc, {"u1": lambda e, d: _set_attr(e, "pi_phase", None)}), "phase mismatch at u1"),
+    }
 
 
 @pytest.fixture(scope="module")
 def outputs(generated, tmp_path_factory):
-    stdin = json.dumps({"hook": HOOK_EVENTS, "stream": STREAM_TEXT, "otel": OTEL_RECORDS})
     work = tmp_path_factory.mktemp("run")
+    base = {"hook": HOOK_EVENTS, "stream": STREAM_TEXT, "otel": OTEL_RECORDS, "phased": PHASED_TEXT, "forged": {}}
     res = {}
+    d = work / "py"; d.mkdir(); shutil.copy(generated / "py/tap.py", d / "tap.py"); (d / "drv.py").write_text(PY_DRIVER)
+    first = json.loads(run([sys.executable, "drv.py"], d, json.dumps(base)))
+    cases = forge_cases(first["phased"]["doc"])
+    res["forgeExpected"] = {k: reason for k, (_, reason) in cases.items()}
+    stdin = json.dumps({**base, "forged": {k: doc for k, (doc, _) in cases.items()}})
+    res["py"] = json.loads(run([sys.executable, "drv.py"], d, stdin))
     d = work / "ts"; d.mkdir(); shutil.copy(generated / "ts/tap.ts", d / "tap.ts"); (d / "drv.ts").write_text(TS_DRIVER)
     res["ts"] = json.loads(run(["bun", "run", "drv.ts"], d, stdin))
-    d = work / "py"; d.mkdir(); shutil.copy(generated / "py/tap.py", d / "tap.py"); (d / "drv.py").write_text(PY_DRIVER)
-    res["py"] = json.loads(run([sys.executable, "drv.py"], d, stdin))
     d = work / "rs"; d.mkdir(); shutil.copy(generated / "rs/tap.rs", d / "tap.rs"); (d / "main.rs").write_text(RS_DRIVER)
     run(["rustc", "--edition", "2021", "-O", "main.rs", "-o", "drv"], d)
     res["rs"] = json.loads(run(["./drv"], d, stdin))
@@ -443,16 +522,18 @@ def outputs(generated, tmp_path_factory):
 LANGS = ["ts", "py", "rs", "ex"]
 
 
-def canon_event(e):
+def canon_event(e, phase="", ref=""):
     rels = ",".join('{"objectId":%s,"qualifier":%s}' % (json.dumps(r["objectId"], ensure_ascii=False), json.dumps(r["qualifier"], ensure_ascii=False)) for r in e["relationships"])
-    return '{"id":%s,"relationships":[%s],"time":%s,"type":%s}' % (
-        json.dumps(e["id"], ensure_ascii=False), rels, json.dumps(e["time"], ensure_ascii=False), json.dumps(e["type"], ensure_ascii=False))
+    bound = ',"pendingRef":%s,"phase":%s' % (json.dumps(ref, ensure_ascii=False), json.dumps(phase, ensure_ascii=False)) if phase else ""
+    return '{"id":%s%s,"relationships":[%s],"time":%s,"type":%s}' % (
+        json.dumps(e["id"], ensure_ascii=False), bound, rels, json.dumps(e["time"], ensure_ascii=False), json.dumps(e["type"], ensure_ascii=False))
 
 
 def oracle_head(events, hasher):
     parent = ""
     for e in events:
-        parent = hasher((parent + "\n" + canon_event(e)).encode("utf-8"))
+        attr = {a["name"]: a["value"] for a in e["attributes"]}
+        parent = hasher((parent + "\n" + canon_event(e, attr.get("pi_phase", ""), attr.get("pi_pending_ref", ""))).encode("utf-8"))
     return parent
 
 
@@ -517,3 +598,78 @@ def test_runtime_otel_source_uses_blake2b256_in_python_only(outputs, generated):
     assert out["verify"] is None and out["tampered"] is not None
     for lang, rel in (("ts", "ts/tap.ts"), ("rs", "rs/tap.rs"), ("ex", "ex/tap.ex")):
         assert "ticket_otel" not in (generated / rel).read_text(), lang
+
+
+# ---------------------------------------------------------------- phased lifecycle (pending / outcome)
+@pytest.mark.parametrize("lang", LANGS)
+def test_phased_started_scheduled_open_and_result_complete_error_close(outputs, lang):
+    ph = outputs[lang]["phased"]
+    events = ph["doc"]["events"]
+    assert [e["id"] for e in events] == ["u1", "u2", "u3", "u5", "u6"]  # u4 result had no open pending
+    attrs = {e["id"]: {a["name"]: a["value"] for a in e["attributes"]} for e in events}
+    assert [attrs[i]["pi_phase"] for i in ("u1", "u2", "u3", "u5", "u6")] == ["pending", "pending", "outcome", "outcome", "pending"]
+    assert attrs["u3"]["pi_pending_ref"] == attrs["u2"]["pi_hash"]  # complete closes the scheduled one
+    assert attrs["u5"]["pi_pending_ref"] == attrs["u1"]["pi_hash"]  # error closes the oldest open pending (started)
+    assert "pi_pending_ref" not in attrs["u1"] and "pi_pending_ref" not in attrs["u6"]
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_phased_unpaired_pending_and_orphan_outcome_are_reported(outputs, lang):
+    ph = outputs[lang]["phased"]
+    assert ph["unpaired"] == ["u6"]
+    assert ph["orphans"] == ["u4"]
+    assert "t2" not in {o["id"] for o in ph["doc"]["objects"]}  # a dropped outcome registers no object
+    assert ph["verify"] is None
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_phased_head_matches_independent_oracle(outputs, lang):
+    ph = outputs[lang]["phased"]
+    assert ph["doc"]["events"][-1]["attributes"][1]["value"] == oracle_head(ph["doc"]["events"], lambda b: hashlib.sha256(b).hexdigest())
+
+
+def test_phased_documents_identical_across_languages(outputs):
+    for lang in LANGS[1:]:
+        assert outputs[lang]["phased"] == outputs["ts"]["phased"], lang
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_phased_forgeries_rehashed_correctly_are_refused_by_pairing_rule(outputs, lang):
+    assert outputs[lang]["forged"] == outputs["forgeExpected"]
+
+
+def test_phased_role_ids_come_only_from_the_ontology(tmp_path, generated):
+    """Mutation: rename the closing role's pi:phaseId in the pack ontology -> every language's output
+    changes at exactly that token; and a consumer with no phased types generates an empty PHASED table."""
+    pack = tmp_path / "pack"
+    shutil.copytree(PACK, pack)
+    onto = pack / "ontology.ttl"
+    text = onto.read_text()
+    assert 'pi:phaseId "outcome"' in text
+    onto.write_text(text.replace('pi:phaseId "outcome"', 'pi:phaseId "verdict"'))
+    changed = out_files(generate(tmp_path / "m", consumer_text(), pack=pack))
+    base = out_files(generated)
+    for rel, t in base.items():
+        assert '"outcome"' in t and changed[rel] == t.replace('"outcome"', '"verdict"'), rel
+    bare = consumer_text().split("# Phased lifecycle")[0]
+    out = out_files(generate(tmp_path / "n", bare))
+    assert "consumer_started_ticket" not in out["py/tap.py"] and "PHASED = {\n}" in out["py/tap.py"]
+
+
+def test_gate_090_passes_and_refuses_each_malformed_phase_pairing():
+    assert gate_rows("090_phase_pairing.rq", ontology_text()) == []
+    def reasons(text):
+        return {(str(r[0]).rsplit("#", 1)[1], str(r[1])) for r in gate_rows("090_phase_pairing.rq", text)}
+    # outcome type that closes nothing
+    t = mutate('pi:phaseRole pi:Phase-Outcome ;\n    pi:closesEventType pi:ConsumerEventType-Started .', 'pi:phaseRole pi:Phase-Outcome .')
+    assert ("ConsumerEventType-Result", "outcome-without-closes") in reasons(t)
+    # closes target that is not an opening type
+    t = mutate('pi:closesEventType pi:ConsumerEventType-Scheduled .', 'pi:closesEventType pi:ConsumerEventType-Open .')
+    assert ("ConsumerEventType-Complete", "closes-non-opening-type") in reasons(t)
+    # closes on a type that is not closing-role
+    t = ontology_text() + "@prefix pi: <https://ggen.dev/ontology/process-intelligence#> .\npi:ConsumerEventType-Open pi:closesEventType pi:ConsumerEventType-Started .\n"
+    assert ("ConsumerEventType-Open", "closes-on-non-closing-type") in reasons(t)
+    # opening type nothing can close
+    t = ontology_text() + ("@prefix pi: <https://ggen.dev/ontology/process-intelligence#> .\n"
+                           'pi:EventType-Lonely a pi:EventType ; pi:typeId "lonely_start" ; pi:phaseRole pi:Phase-Pending .\n')
+    assert ("EventType-Lonely", "opening-never-closed") in reasons(t)
