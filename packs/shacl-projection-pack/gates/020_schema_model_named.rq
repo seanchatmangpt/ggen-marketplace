@@ -1,0 +1,17 @@
+# MESSAGE: every sp:SchemaModel projected to zod / JSON Schema must have exactly one non-empty sp:className and an sp:derivedFromShape link. Any row is a refusal.
+PREFIX sp: <http://seanchatmangpt.github.io/packs/shacl-projection#>
+SELECT ?projection ?violation WHERE {
+  {
+    ?projection a sp:SchemaModel .
+    FILTER NOT EXISTS { ?projection sp:className ?n }
+    BIND("sp:SchemaModel missing sp:className" AS ?violation)
+  } UNION {
+    ?projection a sp:SchemaModel .
+    FILTER NOT EXISTS { ?projection sp:derivedFromShape ?s }
+    BIND("sp:SchemaModel missing sp:derivedFromShape" AS ?violation)
+  } UNION {
+    ?projection a sp:SchemaModel ; sp:className ?n .
+    FILTER (!REGEX(STR(?n), "^[A-Za-z_][A-Za-z0-9_]*$"))
+    BIND("sp:className is not a valid identifier" AS ?violation)
+  }
+}
