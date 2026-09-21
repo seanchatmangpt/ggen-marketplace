@@ -122,6 +122,12 @@ es:entryId a rdf:Property ; rdfs:domain es:ChainEntry .
 es:parentEntry a rdf:Property ; rdfs:domain es:ChainEntry ; rdfs:range es:ChainEntry .
 es:parentHash a rdf:Property ; rdfs:domain es:ChainEntry .
 es:entryHash a rdf:Property ; rdfs:domain es:ChainEntry .
+es:requiresPendingRef a rdf:Property ; rdfs:domain es:Phase ;
+  rdfs:comment "true: an entry in this phase must reference (es:pendingEntry) an earlier entry of the phase that does not require one, same chain and action." .
+es:neutralStandingOnly a rdf:Property ; rdfs:domain es:Phase ;
+  rdfs:comment "true: entries in this phase carry only the es:neutralStanding standing; the full standing enum is legal only on the other phase." .
+es:neutralStanding a rdf:Property ; rdfs:domain es:Standing .
+es:pendingEntry a rdf:Property ; rdfs:domain es:ChainEntry ; rdfs:range es:ChainEntry .
 es:entryPhase a rdf:Property ; rdfs:domain es:ChainEntry ; rdfs:range es:Phase .
 es:entryStanding a rdf:Property ; rdfs:domain es:ChainEntry ; rdfs:range es:Standing .
 es:isSeal a rdf:Property ; rdfs:domain es:ChainEntry .
@@ -132,23 +138,25 @@ es:Sha512 a es:HashAlgorithm ; es:algorithmName "sha512" ; es:digestHexLength 12
 
 es:CanonLinesV1 a es:Canonicalization ;
     rdfs:comment "UTF-8 'name=value' lines joined by LF in fieldOrder; values must not contain LF." ;
-    es:canonField es:CF_entry_id, es:CF_parent_hash, es:CF_phase, es:CF_standing, es:CF_subject, es:CF_action .
+    es:canonField es:CF_entry_id, es:CF_parent_hash, es:CF_phase, es:CF_standing, es:CF_subject, es:CF_action, es:CF_pending_ref .
 es:CF_entry_id a es:CanonField ; es:fieldName "entry_id" ; es:fieldOrder 1 .
 es:CF_parent_hash a es:CanonField ; es:fieldName "parent_hash" ; es:fieldOrder 2 .
 es:CF_phase a es:CanonField ; es:fieldName "phase" ; es:fieldOrder 3 .
 es:CF_standing a es:CanonField ; es:fieldName "standing" ; es:fieldOrder 4 .
 es:CF_subject a es:CanonField ; es:fieldName "subject" ; es:fieldOrder 5 .
 es:CF_action a es:CanonField ; es:fieldName "action" ; es:fieldOrder 6 .
+es:CF_pending_ref a es:CanonField ; es:fieldName "pending_ref" ; es:fieldOrder 7 ;
+    rdfs:comment "Hash of the paired pending entry (outcome entries); empty for pending and seal entries." .
 
 es:DefaultChainPolicy a es:ChainPolicy ;
     es:hashAlgorithm es:Sha256 ;
     es:canonicalization es:CanonLinesV1 ;
     es:genesisHash "0000000000000000000000000000000000000000000000000000000000000000" .
 
-es:PhasePending a es:Phase ; es:phaseName "pending" ; es:phaseOrder 1 .
-es:PhaseOutcome a es:Phase ; es:phaseName "outcome" ; es:phaseOrder 2 .
+es:PhasePending a es:Phase ; es:phaseName "pending" ; es:phaseOrder 1 ; es:neutralStandingOnly true .
+es:PhaseOutcome a es:Phase ; es:phaseName "outcome" ; es:phaseOrder 2 ; es:requiresPendingRef true .
 
-es:UNKNOWN es:standingName "unknown" ; es:inChainEnum true .
+es:UNKNOWN es:standingName "unknown" ; es:inChainEnum true ; es:neutralStanding true .
 es:PARTIAL_ALIVE es:standingName "partial_alive" ; es:inChainEnum true .
 es:ALIVE es:standingName "alive" ; es:inChainEnum true .
 es:BLOCKED es:standingName "blocked" ; es:inChainEnum true .

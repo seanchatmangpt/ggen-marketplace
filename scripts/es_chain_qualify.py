@@ -60,7 +60,7 @@ def digest(alg: str, text: str) -> str:
     return hashlib.new(alg, data).hexdigest()
 
 
-def canon(e: dict, fields=("entry_id", "parent_hash", "phase", "standing", "subject", "action")) -> str:
+def canon(e: dict, fields=("entry_id", "parent_hash", "phase", "standing", "subject", "action", "pending_ref")) -> str:
     return "\n".join(f"{f}={e[f]}" for f in fields)
 
 
@@ -68,22 +68,38 @@ STANDINGS = {"unknown", "partial_alive", "alive", "blocked", "build_broken", "un
 
 
 def reference_run(vec_text: str, alg: str = "sha256") -> list[str]:
-    """Spec-level model of append/seal/verify, written from the rules, not from a template."""
+    """Spec-level model of pending/outcome/seal/verify, written from the rules, not from a template."""
     out: list[str] = []
     chain: list[dict] = []
 
-    def mk(i, ph, st, su, ac, seal):
+    def mk(i, ph, st, su, ac, seal, ref=""):
         e = {"entry_id": i, "parent_hash": chain[-1]["hash"] if chain else GENESIS,
-             "phase": ph, "standing": st, "subject": su, "action": ac, "seal": seal}
+             "phase": ph, "standing": st, "subject": su, "action": ac, "pending_ref": ref, "seal": seal}
         e["hash"] = digest(alg, canon(e))
         return e
 
+    def open_pendings():
+        closed = {e["pending_ref"] for e in chain if e["phase"] == "outcome" and e["pending_ref"]}
+        return [e for e in chain if e["phase"] == "pending" and e["hash"] not in closed]
+
     def ok_verify():
-        prev, seals = GENESIS, 0
+        prev, seals, seen, used = GENESIS, 0, {}, set()
         for e in chain:
             if e["parent_hash"] != prev or e["hash"] != digest(alg, canon(e)):
                 return False
-            seals += e["seal"]
+            if e["phase"] == "pending":
+                if e["standing"] != "unknown" or e["pending_ref"]:
+                    return False
+                seen[e["hash"]] = e
+            elif e["seal"]:
+                if e["pending_ref"] or set(seen) - used:
+                    return False
+                seals += 1
+            else:
+                p = seen.get(e["pending_ref"])
+                if p is None or p["action"] != e["action"] or e["pending_ref"] in used:
+                    return False
+                used.add(e["pending_ref"])
             prev = e["hash"]
         return seals <= 1 and (seals == 0 or chain[-1]["seal"])
 
@@ -91,26 +107,38 @@ def reference_run(vec_text: str, alg: str = "sha256") -> list[str]:
         if not raw or raw.startswith("#"):
             continue
         p = raw.split("|")
+        sealed = any(e["seal"] for e in chain)
         if raw.startswith("case "):
             chain = []
             out.append("case " + raw[5:])
-        elif p[0] == "append":
-            _, i, ph, st, su, ac = p
-            sealed = any(e["seal"] for e in chain)
-            bad = ph not in ("pending", "outcome") or st not in STANDINGS
-            no_pending = ph == "outcome" and not any(e["phase"] == "pending" and e["action"] == ac for e in chain)
-            if sealed or bad or no_pending:
+        elif p[0] == "pending":
+            _, i, su, ac = p
+            if sealed:
                 out.append("err")
             else:
-                chain.append(mk(i, ph, st, su, ac, False))
+                chain.append(mk(i, "pending", "unknown", su, ac, False))
+                out.append("ok " + chain[-1]["hash"])
+        elif p[0] == "outcome":
+            _, i, st, su, ac = p
+            match = next((e for e in open_pendings() if e["action"] == ac), None)
+            if sealed or st not in STANDINGS or match is None:
+                out.append("err")
+            else:
+                chain.append(mk(i, "outcome", st, su, ac, False, match["hash"]))
                 out.append("ok " + chain[-1]["hash"])
         elif p[0] == "seal":
             _, i, st, su = p
-            if any(e["seal"] for e in chain) or st not in STANDINGS:
+            if sealed or st not in STANDINGS or open_pendings():
                 out.append("err")
             else:
                 chain.append(mk(i, "outcome", st, su, "seal", True))
                 out.append("ok " + chain[-1]["hash"])
+        elif p[0] == "forge":
+            _, i, ph, st, su, ac, ri = p
+            chain.append(mk(i, ph, st, su, ac, False, chain[int(ri)]["hash"] if int(ri) >= 0 else ""))
+            out.append("ok " + chain[-1]["hash"])
+        elif p[0] == "unpaired":
+            out.append("unpaired " + ",".join(e["entry_id"] for e in open_pendings()))
         elif p[0] == "verify":
             out.append("verify " + ("true" if ok_verify() else "false"))
         elif p[0] == "tamper":
@@ -165,6 +193,7 @@ def derive_entries():
             "subject": str(g.value(s, es.entrySubject)),
             "action": str(g.value(s, es.entryAction)),
             "parent": g.value(s, es.parentEntry),
+            "pending": g.value(s, es.pendingEntry),
             "chain": str(g.value(s, es.chainId)),
             "cur_hash": str(g.value(s, es.entryHash)),
             "cur_parent_hash": str(g.value(s, es.parentHash)),
@@ -178,6 +207,7 @@ def derive_entries():
             return done[s]
         e = entries[s]
         e["parent_hash"] = solve(e["parent"])["hash"] if e["parent"] else genesis
+        e["pending_ref"] = solve(e["pending"])["hash"] if e["pending"] else ""
         e["hash"] = digest(alg, canon(e, fields))
         done[s] = e
         return e
@@ -239,10 +269,24 @@ def check_gates(rep):
                        'es:parentHash "0000000000000000000000000000000000000000000000000000000000000000" .\n', False, "sealed at most once"),
         "dangling-parent": ('es:ToyChainY a es:ChainEntry ; es:chainId "toy-2" ; es:chainPolicy es:DefaultChainPolicy ; '
                             'es:parentHash "ffff" .\n', False, "parent-hash closure"),
+        "outcome-without-pending": ('es:ToyChainZ a es:ChainEntry ; es:chainId "toy-3" ; es:chainPolicy es:DefaultChainPolicy ; '
+                                    'es:entryPhase es:PhaseOutcome ; es:entryStanding es:ALIVE ; es:entryAction "act" ; '
+                                    'es:parentHash "0000000000000000000000000000000000000000000000000000000000000000" .\n', False, "outcome-requires-pending"),
+        "outcome-pending-wrong-action": ('es:ToyChainW a es:ChainEntry ; es:chainId "toy-1" ; es:chainPolicy es:DefaultChainPolicy ; '
+                                         'es:entryPhase es:PhaseOutcome ; es:entryStanding es:ALIVE ; es:entryAction "other" ; '
+                                         'es:pendingEntry es:ToyChainE1 ; es:parentEntry es:ToyChainE3 ; es:parentHash "@E3HASH@" .\n', False, "outcome-requires-pending"),
+        "standing-on-pending": ('es:ToyChainV a es:ChainEntry ; es:chainId "toy-4" ; es:chainPolicy es:DefaultChainPolicy ; '
+                                'es:entryPhase es:PhasePending ; es:entryStanding es:ALIVE ; es:entryAction "act" ; '
+                                'es:parentHash "0000000000000000000000000000000000000000000000000000000000000000" .\n', False, "standing enum only on outcome"),
+        "unpaired-pending-sealed": ('es:ToyChainU a es:ChainEntry ; es:chainId "toy-1" ; es:chainPolicy es:DefaultChainPolicy ; '
+                                    'es:entryPhase es:PhasePending ; es:entryStanding es:UNKNOWN ; es:entryAction "open" ; '
+                                    'es:parentEntry es:ToyChainE3 ; es:parentHash "@E3HASH@" .\n', False, "unpaired-pending"),
         "unsupported-language": ('es:BadPolicy a es:ChainPolicy ; es:hashAlgorithm es:Blake2b256 ; es:targetLanguage es:LangRs ; '
                                  'es:policyPrecedence 5 ; es:genesisHash "0" ; es:canonicalization es:CanonLinesV1 .\n', False, "supported-set"),
     }
+    e3 = re.search(r'ToyChainE3 a es:ChainEntry.*?es:entryHash "([0-9a-f]+)"', base, re.S).group(1)
     for name, (extra, should_pass, needle) in cases.items():
+        extra = extra.replace("@E3HASH@", e3)
         with tempfile.TemporaryDirectory() as t:
             rc, out, _ = render(PACK, base + "\n" + extra, Path(t))
         ok = (rc == 0) if should_pass else (rc != 0 and needle in out)
@@ -386,7 +430,7 @@ def check_affidavit(rep):
     def ours(evs):
         chain, prev = [], GENESIS
         for id_, ph, ac in evs:
-            e = {"entry_id": id_, "parent_hash": prev, "phase": ph, "standing": "unknown", "subject": "s", "action": ac}
+            e = {"entry_id": id_, "parent_hash": prev, "phase": ph, "standing": "unknown", "subject": "s", "action": ac, "pending_ref": ""}
             prev = digest("sha256", canon(e))
             chain.append(prev)
         return chain[-1]
