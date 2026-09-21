@@ -1,0 +1,167 @@
+# frozen-duckdb-pack ontology — the frozen-duckdb domain laws as marketplace facts.
+#
+# 源 hierarchy: marketplace.toml -> packs/frozen-duckdb-pack/pack.toml -> THIS file
+#   -> templates/ -> gates/. Generated files are consequences: edit this ontology
+#   or the templates, never the projection.
+#
+# Vocabulary law: standard vocabularies only. Classes and predicates come
+# exclusively from rdf:/rdfs:/dcterms:/skos:/prov:/xsd:. Laws are skos:Concept
+# members of one skos:Collection; their stable handles are skos:notation
+# literals; evidence anchors are prov:Entity individuals carrying an
+# rdfs:label that names a repo-relative path (with the owning symbol/lines);
+# version correspondences are prov:Collection version-maps whose
+# prov:hadMember are prov:Entity individuals carrying prov:value version
+# strings. No private predicate or class namespace is introduced (see
+# README.md "Vocabulary law").
+
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix prov:   <http://www.w3.org/ns/prov#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+
+# ---------------------------------------------------------------------------
+# The law collection
+# ---------------------------------------------------------------------------
+
+<urn:frozen-duckdb:laws> a skos:Collection ;
+    dcterms:title "frozen-duckdb domain laws" ;
+    dcterms:description "The five laws a consumer of prebuilt (frozen) DuckDB binaries must hold: version pinning (mirror + duckdb-rs encoding), release-asset naming, central-cache normalization, DOCS_RS no-link builds, and soname/rpath propagation. Distilled from the frozen-duckdb repository (v1.5.5 wave, docs/sjira/v26.9.21) so future repos consume them instead of hand-rolling build.rs, fetch scripts and cache plumbing." ;
+    skos:member <urn:frozen-duckdb:law:version-pinning> ,
+                <urn:frozen-duckdb:law:release-asset-name> ,
+                <urn:frozen-duckdb:law:cache-normalization> ,
+                <urn:frozen-duckdb:law:docs-rs-no-link> ,
+                <urn:frozen-duckdb:law:soname-rpath> .
+
+# ---------------------------------------------------------------------------
+# Law 1 — version pinning (mirror + duckdb-rs crate-version encoding)
+# ---------------------------------------------------------------------------
+
+<urn:frozen-duckdb:law:version-pinning> a skos:Concept ;
+    skos:notation "version-pinning" ;
+    dcterms:title "Consumer crate version mirrors the bundled upstream DuckDB engine release" ;
+    dcterms:description "A frozen-duckdb consumer crate carries the same version as the upstream DuckDB engine it embeds: crate 1.5.5 ships DuckDB 1.5.5, so a consumer's crate pin names the engine era it will load at runtime. The upstream duckdb-rs crate encodes the engine release in its crate version as MAJOR.(MAJOR*10000+MINOR*100+PATCH).0 -- engine 1.5.5 becomes 1.10505.0. Derived pins (crates.io dependency pins, duckdb-rs source-build clone branches, standalone test workspaces) must be translated with this formula, never guessed or swept to a neighboring float." ;
+    skos:example "frozen-duckdb 1.5.5 <-> DuckDB 1.5.5; duckdb = \"1.10505\" crates.io pin; duckdb-rs clone --branch v1.10505.0" ;
+    prov:wasDerivedFrom <urn:frozen-duckdb:evidence:workspace-cargo-toml> ,
+                        <urn:frozen-duckdb:evidence:test-dependency-cargo-toml> ,
+                        <urn:frozen-duckdb:evidence:handwritten-md> ,
+                        <urn:frozen-duckdb:evidence:milestone-md> .
+
+# Version correspondences: prov:Collection version-maps whose members are the
+# crate-version and engine-version entities. Gates verify the encoding
+# arithmetic over exactly this shape; the sys build.rs template renders the
+# pinned engine version from it. Consumers assert their own version-map with
+# the same shape.
+
+<urn:frozen-duckdb:version:engine-1-5-5> a prov:Entity ;
+    dcterms:title "DuckDB engine release" ;
+    prov:value "1.5.5" .
+
+<urn:frozen-duckdb:version:crate-1-10505-0> a prov:Entity ;
+    dcterms:title "duckdb-rs crate version" ;
+    prov:value "1.10505.0" .
+
+<urn:frozen-duckdb:version-map:1-5-5> a prov:Entity , prov:Collection ;
+    dcterms:title "duckdb-rs 1.10505.0 encodes DuckDB 1.5.5" ;
+    prov:hadMember <urn:frozen-duckdb:version:crate-1-10505-0> ,
+                   <urn:frozen-duckdb:version:engine-1-5-5> ;
+    prov:wasDerivedFrom <urn:frozen-duckdb:evidence:test-dependency-cargo-toml> ,
+                        <urn:frozen-duckdb:evidence:integration-guide> .
+
+# ---------------------------------------------------------------------------
+# Law 2 — release asset naming
+# ---------------------------------------------------------------------------
+
+<urn:frozen-duckdb:law:release-asset-name> a skos:Concept ;
+    skos:notation "release-asset-name" ;
+    dcterms:title "Release assets are libduckdb_{arch}.{dylib|so} matching the ensure_binary() download URLs" ;
+    dcterms:description "A frozen DuckDB release asset is named libduckdb_{arch}.dylib on macOS and libduckdb_{arch}.so on Linux (Windows is a documented local-compile fallback), and the ensure_binary() downloader fetches exactly {base}/{tag}/libduckdb_{arch}.{ext} with the same platform extension used for the cached copy. The download URL asset and the cached binary name must carry the same extension on the host, or the download would write a file the linker cannot use. macOS assets are universal -- one dylib serving arm64 and x86_64 -- since DuckDB 1.5.x. Linux release assets may 404 until the release tag exists; the documented fallback is a pinned local compile (law: version-pinning supplies the branch)." ;
+    skos:example "libduckdb_arm64.dylib; libduckdb_x86_64.so; https://github.com/seanchatmangpt/frozen-duckdb/releases/download/v1.5.5/libduckdb_arm64.dylib" ;
+    prov:wasDerivedFrom <urn:frozen-duckdb:evidence:builder-lib-rs> ,
+                        <urn:frozen-duckdb:evidence:setup-env-sh> ,
+                        <urn:frozen-duckdb:evidence:milestone-md> .
+
+<urn:frozen-duckdb:asset-base-url> a prov:Entity ;
+    dcterms:title "release download base URL" ;
+    prov:value "https://github.com/seanchatmangpt/frozen-duckdb/releases/download" ;
+    prov:wasDerivedFrom <urn:frozen-duckdb:evidence:builder-lib-rs> .
+
+# ---------------------------------------------------------------------------
+# Law 3 — central cache normalization
+# ---------------------------------------------------------------------------
+
+<urn:frozen-duckdb:law:cache-normalization> a skos:Concept ;
+    skos:notation "cache-normalization" ;
+    dcterms:title "Every acquisition path normalizes ~/.frozen-duckdb/cache/v{version}-{arch}/" ;
+    dcterms:description "Whichever acquisition path wins (cached hit, prebuilt copy, release download, pinned local compile), the resulting layout is identical: ~/.frozen-duckdb/cache/v{version}-{arch}/ containing the arch-suffixed binary libduckdb_{arch}.{dylib|so}, the pinned engine version's headers under duckdb/ (bindgen reads {cache}/duckdb/duckdb.h; release downloads carry only the dylib, so the headers ship vendored inside frozen-duckdb-builder), and a plain link name libduckdb.{dylib,so} created beside the arch-suffixed binary so -lduckdb resolves. Dead fallback names (e.g. libfrozen_mega_*) must not reappear; the link name carries the host platform extension." ;
+    skos:example "~/.frozen-duckdb/cache/v1.5.5-arm64/{libduckdb_arm64.dylib, libduckdb.dylib, duckdb/duckdb.h}" ;
+    prov:wasDerivedFrom <urn:frozen-duckdb:evidence:builder-lib-rs> ,
+                        <urn:frozen-duckdb:evidence:handwritten-md> .
+
+<urn:frozen-duckdb:cache-root> a prov:Entity ;
+    dcterms:title "central cache root" ;
+    prov:value "~/.frozen-duckdb/cache" ;
+    prov:wasDerivedFrom <urn:frozen-duckdb:evidence:builder-lib-rs> .
+
+# ---------------------------------------------------------------------------
+# Law 4 — DOCS_RS no-link builds
+# ---------------------------------------------------------------------------
+
+<urn:frozen-duckdb:law:docs-rs-no-link> a skos:Concept ;
+    skos:notation "docs-rs-no-link" ;
+    dcterms:title "DOCS_RS=1 builds generate bindings from vendored headers and skip linking and rpath" ;
+    dcterms:description "Docs builds run on Linux where no libduckdb .so asset may exist and no compiler toolchain is available. The build script therefore branches on the DOCS_RS environment variable: under DOCS_RS=1 it generates bindings from the vendored headers and skips library lookup, cargo:rustc-link-lib and rpath emission entirely -- rustdoc never links, so docs.rs typechecks without the dylib. The build script must declare rerun-if-env-changed=DOCS_RS so a DOCS_RS transition (appearing or disappearing) re-runs it." ;
+    skos:example "if env::var(\"DOCS_RS\").is_ok() { docs_rs_main(); }" ;
+    prov:wasDerivedFrom <urn:frozen-duckdb:evidence:sys-build-rs> ,
+                        <urn:frozen-duckdb:evidence:handwritten-md> .
+
+<urn:frozen-duckdb:env:docs-rs> a prov:Entity ;
+    dcterms:title "docs.rs no-link trigger environment variable" ;
+    prov:value "DOCS_RS" ;
+    prov:wasDerivedFrom <urn:frozen-duckdb:evidence:sys-build-rs> .
+
+# ---------------------------------------------------------------------------
+# Law 5 — soname/rpath propagation
+# ---------------------------------------------------------------------------
+
+<urn:frozen-duckdb:law:soname-rpath> a skos:Concept ;
+    skos:notation "soname-rpath" ;
+    dcterms:title "DuckDB >= 1.5 dylibs carry the neutral install name @rpath/libduckdb.dylib; consumers embed the rpath" ;
+    dcterms:description "DuckDB >= 1.5 dylibs carry the neutral install name @rpath/libduckdb.dylib -- there is no versioned soname -- so the plain link name is what matters at load time. Consumers must embed the runtime search path at link time (cargo:rustc-link-arg=-Wl,-rpath,{lib_dir}); a link-time -L does not survive to load time, and without the rpath the loader aborts with 'Library not loaded: @rpath/libduckdb.dylib'. The unscoped rustc-link-arg also covers the crate's own test harness. Compatibility symlinks libduckdb.dylib, libduckdb.1.dylib and libduckdb.1.4.dylib pointing at the arch dylib keep older loaders and tools working; on Linux the same law makes -lduckdb resolve against libduckdb.so." ;
+    skos:example "@rpath/libduckdb.dylib; -Wl,-rpath,{lib_dir}; ln -sf libduckdb_arm64.dylib libduckdb.dylib" ;
+    prov:wasDerivedFrom <urn:frozen-duckdb:evidence:sys-build-rs> ,
+                        <urn:frozen-duckdb:evidence:setup-env-sh> ,
+                        <urn:frozen-duckdb:evidence:handwritten-md> .
+
+# ---------------------------------------------------------------------------
+# Evidence anchors — prov:Entity individuals whose rdfs:label names a
+# repo-relative path (with owning symbol/lines) in the frozen-duckdb
+# repository at v1.5.5 wave 4 (docs/sjira/v26.9.21). Gates refuse dangling
+# anchors: every prov:wasDerivedFrom target must be a declared prov:Entity
+# with an rdfs:label.
+# ---------------------------------------------------------------------------
+
+<urn:frozen-duckdb:evidence:workspace-cargo-toml> a prov:Entity ;
+    rdfs:label "Cargo.toml — [workspace.package] version = \"1.5.5\" (consumer crate mirrors engine era)" .
+
+<urn:frozen-duckdb:evidence:builder-lib-rs> a prov:Entity ;
+    rdfs:label "crates/frozen-duckdb-builder/src/lib.rs — ensure_binary / ensure_headers / ensure_link_name / release_asset_name_for / download_from_github_release (cache v{V}-{arch} layout, duckdb/ headers subdir, plain link name, libduckdb_{arch}.{dylib|so} assets, releases/download URL scheme)" .
+
+<urn:frozen-duckdb:evidence:sys-build-rs> a prov:Entity ;
+    rdfs:label "crates/frozen-duckdb-sys/build.rs — DOCS_RS branch + docs_rs_main (vendored-header bindings, no link/rpath), rerun-if-env-changed=DOCS_RS, cargo:rustc-link-arg=-Wl,-rpath,{lib_dir}, cargo:rustc-link-lib=dylib=duckdb" .
+
+<urn:frozen-duckdb:evidence:setup-env-sh> a prov:Entity ;
+    rdfs:label "prebuilt/setup_env.sh — asset law header (libduckdb_{arch}.dylib/.so), install-name compat symlinks libduckdb.dylib/.1.dylib/.1.4.dylib -> arch dylib, @rpath/libduckdb.dylib neutral install name (DuckDB >= 1.5)" .
+
+<urn:frozen-duckdb:evidence:handwritten-md> a prov:Entity ;
+    rdfs:label "HANDWRITTEN.md — 帳 ledger rows: DOCS_RS pattern, cache normalization on every acquisition path, install-name compat symlinks, crates.io pin duckdb = \"1.10505\" matching DuckDB 1.5.5" .
+
+<urn:frozen-duckdb:evidence:test-dependency-cargo-toml> a prov:Entity ;
+    rdfs:label "test-dependency/Cargo.toml — real crates.io pin duckdb = \"1.10505\" (duckdb-rs crate version encoding DuckDB 1.5.5)" .
+
+<urn:frozen-duckdb:evidence:milestone-md> a prov:Entity ;
+    rdfs:label "docs/sjira/v26.9.21/MILESTONE.md — universal macOS dylib serving arm64+x86_64, vendored 1.5.5 headers, @rpath propagation, crate version 1.5.5 mirrors DuckDB 1.5.5 (TR7 verify list)" .
+
+<urn:frozen-duckdb:evidence:integration-guide> a prov:Entity ;
+    rdfs:label "docs/guides/integration.md — upstream build output 'Compiling duckdb v1.10505.0' (duckdb-rs crate version encoding DuckDB 1.5.5)" .

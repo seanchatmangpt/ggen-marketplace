@@ -1,0 +1,60 @@
+# MESSAGE: every version-map (prov:Collection pairing a "duckdb-rs crate
+# version" member with a "DuckDB engine release" member) must satisfy the
+# duckdb-rs encoding law -- crate version MAJOR.(MAJOR*10000+MINOR*100+PATCH).0
+# for engine MAJOR.MINOR.PATCH (1.10505.0 encodes 1.5.5) -- and must carry both
+# members. A row below = a malformed or arithmetically-wrong pin. An empty
+# result = every pinned correspondence translates correctly.
+PREFIX prov:   <http://www.w3.org/ns/prov#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX xsd:    <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?map ?problem WHERE {
+  {
+    ?map a prov:Collection ;
+         prov:hadMember ?crate , ?engine .
+    ?crate dcterms:title "duckdb-rs crate version" ;
+           prov:value ?crateVersion .
+    ?engine dcterms:title "DuckDB engine release" ;
+            prov:value ?engineVersion .
+
+    BIND(STRBEFORE(?engineVersion, ".") AS ?eMajS)
+    BIND(STRBEFORE(STRAFTER(?engineVersion, "."), ".") AS ?eMinS)
+    BIND(STRAFTER(STRAFTER(?engineVersion, "."), ".") AS ?ePatchS)
+    BIND(xsd:integer(?eMajS) AS ?eMaj)
+    BIND(xsd:integer(?eMinS) AS ?eMin)
+    BIND(xsd:integer(?ePatchS) AS ?ePatch)
+    BIND(STR(?eMaj * 10000 + ?eMin * 100 + ?ePatch) AS ?encoded)
+
+    BIND(STRBEFORE(?crateVersion, ".") AS ?cMajS)
+    BIND(STRBEFORE(STRAFTER(?crateVersion, "."), ".") AS ?cEncodedS)
+    BIND(STRAFTER(STRAFTER(?crateVersion, "."), ".") AS ?cPatchS)
+
+    FILTER(?cMajS != ?eMajS || ?cEncodedS != ?encoded || ?cPatchS != "0")
+    BIND(CONCAT("crate version ", ?crateVersion,
+                " does not encode engine version ", ?engineVersion,
+                " as MAJOR.(MAJOR*10000+MINOR*100+PATCH).0") AS ?problem)
+  }
+  UNION
+  {
+    ?map a prov:Collection ;
+         prov:hadMember ?crate .
+    ?crate dcterms:title "duckdb-rs crate version" .
+    FILTER NOT EXISTS {
+      ?map prov:hadMember ?engine2 .
+      ?engine2 dcterms:title "DuckDB engine release" .
+    }
+    BIND("version-map carries a duckdb-rs crate version but no DuckDB engine release member" AS ?problem)
+  }
+  UNION
+  {
+    ?map a prov:Collection ;
+         prov:hadMember ?engine .
+    ?engine dcterms:title "DuckDB engine release" .
+    FILTER NOT EXISTS {
+      ?map prov:hadMember ?crate2 .
+      ?crate2 dcterms:title "duckdb-rs crate version" .
+    }
+    BIND("version-map carries a DuckDB engine release but no duckdb-rs crate version member" AS ?problem)
+  }
+}
+ORDER BY ?map ?problem
