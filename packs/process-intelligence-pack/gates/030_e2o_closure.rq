@@ -1,0 +1,30 @@
+# MESSAGE: e2o closure: every pi:MappingRule must come from a pi:EventSource, emit a
+# typed pi:EventType and have >= 1 pi:hasRelation; every pi:E2ORelation must
+# target a typed pi:ObjectType, carry a pi:objectIdPath, and belong to some rule.
+# Two rules for the same source and runtime event name must emit the same event type.
+# Rows name the offending individual.
+PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+SELECT ?subject WHERE {
+  { ?subject a pi:MappingRule .
+    FILTER NOT EXISTS { ?subject pi:emitsEventType ?t . ?t a pi:EventType . } }
+  UNION
+  { ?subject a pi:MappingRule .
+    FILTER NOT EXISTS { ?subject pi:fromSource ?s . ?s a pi:EventSource . } }
+  UNION
+  { ?subject a pi:MappingRule .
+    FILTER NOT EXISTS { ?subject pi:hasRelation ?r . } }
+  UNION
+  { ?subject a pi:MappingRule ; pi:fromSource ?s ; pi:sourceEvent ?n ; pi:emitsEventType ?t1 .
+    ?other a pi:MappingRule ; pi:fromSource ?s ; pi:sourceEvent ?n ; pi:emitsEventType ?t2 .
+    FILTER(?t1 != ?t2) }
+  UNION
+  { ?subject a pi:E2ORelation .
+    FILTER NOT EXISTS { ?subject pi:relatesObjectType ?o . ?o a pi:ObjectType . } }
+  UNION
+  { ?subject a pi:E2ORelation .
+    FILTER NOT EXISTS { ?subject pi:objectIdPath ?p . } }
+  UNION
+  { ?subject a pi:E2ORelation .
+    FILTER NOT EXISTS { ?rule pi:hasRelation ?subject . ?rule a pi:MappingRule . } }
+}
+ORDER BY ?subject

@@ -1,0 +1,322 @@
+---
+to: src/pi_ocel_tap/ex/tap.ex
+sparql:
+  eventTypes: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id WHERE { ?t a pi:EventType ; pi:typeId ?id . } ORDER BY ?id
+  objectTypes: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id WHERE { ?t a pi:ObjectType ; pi:typeId ?id . } ORDER BY ?id
+  hashes: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id WHERE { ?l a pi:LanguageSupport ; pi:language "ex" ; pi:supportsHash ?id . } ORDER BY ?id
+  sources: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id ?kind ?nameField ?idField ?timeField ?algo WHERE {
+      ?s a pi:EventSource ; pi:sourceId ?id ; pi:sourceKind ?kind ; pi:nameField ?nameField ;
+         pi:idField ?idField ; pi:timeField ?timeField ; pi:chainPolicy ?p .
+      ?p pi:hashAlgorithm ?algo ; pi:targetLanguage "ex" .
+    } ORDER BY ?id
+  rules: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?rule ?src ?name ?event ?object ?qualifier ?path WHERE {
+      ?r a pi:MappingRule ; pi:ruleId ?rule ; pi:fromSource ?s ; pi:sourceEvent ?name ;
+         pi:emitsEventType ?et ; pi:hasRelation ?rel .
+      ?s pi:sourceId ?src ; pi:chainPolicy ?p . ?p pi:targetLanguage "ex" .
+      ?et pi:typeId ?event .
+      ?rel pi:relatesObjectType ?ot ; pi:hasQualifier ?q ; pi:objectIdPath ?path .
+      ?ot pi:typeId ?object . ?q pi:qualifierId ?qualifier .
+    } ORDER BY ?rule ?object ?qualifier ?path
+  roles: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id WHERE { ?r a pi:PhaseRole ; pi:phaseId ?id ; pi:phaseOrder ?o . } ORDER BY ?o
+  phased: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?type ?phase WHERE { ?t a pi:EventType ; pi:typeId ?type ; pi:phaseRole ?r . ?r pi:phaseId ?phase . } ORDER BY ?type
+  closes: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?outcome ?pending WHERE { ?o a pi:EventType ; pi:typeId ?outcome ; pi:closesEventType ?p . ?p pi:typeId ?pending . } ORDER BY ?outcome ?pending
+---
+# Generated OCEL 2.0 type registry, source adapter, event-tap mapper, serializer and hash chain.
+# Source of truth: the consumer's pi: individuals. Do not edit. Needs OTP 27+ (:json).
+defmodule PiOcelTap do
+  @event_types [{% for r in eventTypes %}"{{ r.id }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+  @object_types [{% for r in objectTypes %}"{{ r.id }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+  @supported_hashes [{% for r in hashes %}"{{ r.id }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+  @sources [
+{% for r in sources %}    %{id: "{{ r.id }}", kind: "{{ r.kind }}", name_field: "{{ r.nameField }}", id_field: "{{ r.idField }}", time_field: "{{ r.timeField }}", hash: "{{ r.algo }}"}{% if not loop.last %},{% endif %}
+{% endfor %}  ]
+  @rules [
+{% for r in rules %}    %{rule: "{{ r.rule }}", source: "{{ r.src }}", name: "{{ r.name }}", event: "{{ r.event }}", object: "{{ r.object }}", qualifier: "{{ r.qualifier }}", path: "{{ r.path }}"}{% if not loop.last %},{% endif %}
+{% endfor %}  ]
+  @phase_open "{% for r in roles %}{% if loop.first %}{{ r.id }}{% endif %}{% endfor %}"
+  @phase_close "{% for r in roles %}{% if loop.last %}{{ r.id }}{% endif %}{% endfor %}"
+  @phased %{
+{% for r in phased %}    "{{ r.type }}" => "{{ r.phase }}"{% if not loop.last %},{% endif %}
+{% endfor %}  }
+  @closes [
+{% for r in closes %}    {"{{ r.outcome }}", "{{ r.pending }}"}{% if not loop.last %},{% endif %}
+{% endfor %}  ]
+{% raw %}
+  @callback_kinds ["sdk-callback", "app-server-subscription"]
+
+  def event_types, do: @event_types
+  def object_types, do: @object_types
+  def supported_hashes, do: @supported_hashes
+  def sources, do: @sources
+  def rules, do: @rules
+
+{% endraw %}{% for h in hashes %}{% if h.id == "sha256" %}  def hash_hex("sha256", data), do: :crypto.hash(:sha256, data) |> Base.encode16(case: :lower)
+{% endif %}{% endfor %}{% raw %}  def hash_hex(alg, _data), do: raise(ArgumentError, "unsupported hash algorithm: " <> alg)
+
+  # JSON string literal, escaped exactly as the other generated languages do.
+  def jstr(s), do: "\"" <> esc(s, "") <> "\""
+
+  defp esc(<<>>, acc), do: acc
+  defp esc(<<?", r::binary>>, acc), do: esc(r, acc <> "\\\"")
+  defp esc(<<?\\, r::binary>>, acc), do: esc(r, acc <> "\\\\")
+  defp esc(<<8, r::binary>>, acc), do: esc(r, acc <> "\\b")
+  defp esc(<<12, r::binary>>, acc), do: esc(r, acc <> "\\f")
+  defp esc(<<10, r::binary>>, acc), do: esc(r, acc <> "\\n")
+  defp esc(<<13, r::binary>>, acc), do: esc(r, acc <> "\\r")
+  defp esc(<<9, r::binary>>, acc), do: esc(r, acc <> "\\t")
+
+  defp esc(<<c::utf8, r::binary>>, acc) when c < 0x20 do
+    hex = c |> Integer.to_string(16) |> String.downcase() |> String.pad_leading(4, "0")
+    esc(r, acc <> "\\u" <> hex)
+  end
+
+  defp esc(<<c::utf8, r::binary>>, acc), do: esc(r, acc <> <<c::utf8>>)
+
+  # Canonical form: keys sorted, no whitespace. Identical across all generated languages.
+  # A phased event (phase != "") additionally binds pendingRef and phase into the digest.
+  def canon(%{id: id, type: type, time: time, relationships: rels}, phase \\ "", ref \\ "") do
+    r =
+      rels
+      |> Enum.map(fn %{object_id: o, qualifier: q} -> "{\"objectId\":" <> jstr(o) <> ",\"qualifier\":" <> jstr(q) <> "}" end)
+      |> Enum.join(",")
+
+    bound = if phase != "", do: ",\"pendingRef\":" <> jstr(ref) <> ",\"phase\":" <> jstr(phase), else: ""
+
+    "{\"id\":" <> jstr(id) <> bound <> ",\"relationships\":[" <> r <> "],\"time\":" <> jstr(time) <> ",\"type\":" <> jstr(type) <> "}"
+  end
+
+  defp object_set(rels), do: rels |> Enum.map(& &1.object_id) |> Enum.sort()
+
+  defp get_path(raw, path) do
+    Enum.reduce_while(String.split(path, "."), raw, fn k, cur ->
+      case cur do
+        %{^k => v} -> {:cont, v}
+        _ -> {:halt, nil}
+      end
+    end)
+  end
+
+  defp to_s(v) when is_binary(v), do: v
+  defp to_s(v) when is_float(v) and trunc(v) == v, do: Integer.to_string(trunc(v))
+  defp to_s(v), do: to_string(v)
+
+  defp ids(nil), do: []
+  defp ids(v) when is_list(v), do: Enum.map(v, &to_s/1)
+  defp ids(v), do: [to_s(v)]
+
+  defp flatten_otel(%{"attributes" => attrs} = raw) when is_list(attrs) do
+    flat =
+      Map.new(attrs, fn %{"key" => k} = kv ->
+        v =
+          case Map.get(kv, "value") do
+            %{} = m -> Enum.find_value(["stringValue", "intValue", "boolValue", "doubleValue"], &Map.get(m, &1))
+            other -> other
+          end
+
+        {k, v}
+      end)
+
+    %{raw | "attributes" => flat}
+  end
+
+  defp flatten_otel(raw), do: raw
+
+  # ---------- Tap: one Agent per source ----------
+  def start(source_id) do
+    case Enum.find(@sources, &(&1.id == source_id)) do
+      nil -> {:error, "unknown source: " <> source_id}
+      spec -> Agent.start_link(fn -> %{spec: spec, events: [], objects: [], last: "", sealed: false, orphans: []} end)
+    end
+  end
+
+  @doc "stream-json: pass newline-delimited text. every other kind: pass one decoded record (string-keyed map)."
+  def ingest(pid, input), do: Agent.get_and_update(pid, &do_ingest(&1, input))
+
+  @doc "sdk-callback and app-server-subscription: hand the runtime a callback."
+  def attach(pid, register) do
+    kind = Agent.get(pid, & &1.spec.kind)
+
+    if kind in @callback_kinds do
+      register.(fn record -> ingest(pid, record) end)
+      :ok
+    else
+      {:error, kind <> " has no callback attachment"}
+    end
+  end
+
+  defp do_ingest(%{sealed: true} = st, _), do: {{:error, "tap sealed"}, st}
+
+  defp do_ingest(%{spec: %{kind: "stream-json"}} = st, input) when is_binary(input) do
+    records =
+      input |> String.split("\n") |> Enum.reject(&(String.trim(&1) == "")) |> Enum.map(&:json.decode/1)
+
+    append_all(st, records)
+  end
+
+  defp do_ingest(%{spec: %{kind: "stream-json"}} = st, _), do: {{:error, "stream-json expects text"}, st}
+  defp do_ingest(%{spec: %{kind: kind}} = st, input) when is_binary(input), do: {{:error, kind <> " expects a decoded record"}, st}
+  defp do_ingest(st, input), do: append_all(st, [input])
+
+  defp append_all(st, records) do
+    {st, out} =
+      Enum.reduce(records, {st, []}, fn r, {s, acc} ->
+        case append(s, r) do
+          {nil, s2} -> {s2, acc}
+          {ev, s2} -> {s2, [ev | acc]}
+        end
+      end)
+
+    {{:ok, Enum.reverse(out)}, st}
+  end
+
+  defp append(%{spec: spec} = st, raw0) do
+    raw = if spec.kind == "otel", do: flatten_otel(raw0), else: raw0
+    name = get_path(raw, spec.name_field)
+    id = get_path(raw, spec.id_field)
+    time = get_path(raw, spec.time_field)
+
+    with false <- is_nil(name) or is_nil(id) or is_nil(time),
+         [first | _] = rs <- Enum.filter(@rules, &(&1.source == spec.id and &1.name == to_s(name))) do
+      {rels, found} =
+        Enum.reduce(rs, {[], []}, fn r, {rels, fnd} ->
+          Enum.reduce(ids(get_path(raw, r.path)), {rels, fnd}, fn oid, {rl, f} ->
+            {rl ++ [%{object_id: oid, qualifier: r.qualifier}], f ++ [{oid, r.object}]}
+          end)
+        end)
+
+      phase = Map.get(@phased, first.event, "")
+      open = if phase == @phase_close, do: open_pending(st, first.event, rels)
+
+      if phase == @phase_close and is_nil(open) do
+        # outcome with no open pending: reported, not emitted
+        {nil, %{st | orphans: st.orphans ++ [to_s(id)]}}
+      else
+        ref = if open, do: open.hash, else: ""
+        objects = Enum.reduce(found, st.objects, fn {oid, ot}, ob -> if List.keymember?(ob, oid, 0), do: ob, else: ob ++ [{oid, ot}] end)
+        base = %{id: to_s(id), type: first.event, time: to_s(time), relationships: rels}
+        hash = hash_hex(spec.hash, st.last <> "\n" <> canon(base, phase, ref))
+        ev = Map.merge(base, %{parent: st.last, hash: hash, alg: spec.hash, phase: phase, ref: ref})
+        {ev, %{st | events: st.events ++ [ev], objects: objects, last: hash}}
+      end
+    else
+      _ -> {nil, st}
+    end
+  end
+
+  defp closed_refs(st), do: for(e <- st.events, e.ref != "", into: MapSet.new(), do: e.ref)
+
+  # Oldest pending event this outcome type may close, over the same object set.
+  defp open_pending(st, outcome, rels) do
+    closed = closed_refs(st)
+
+    Enum.find(st.events, fn e ->
+      e.phase == @phase_open and not MapSet.member?(closed, e.hash) and {outcome, e.type} in @closes and
+        object_set(e.relationships) == object_set(rels)
+    end)
+  end
+
+  @doc "ids of pending events no outcome has closed yet (reported; the tap may still seal)."
+  def unpaired(pid) do
+    st = Agent.get(pid, & &1)
+    closed = closed_refs(st)
+    for e <- st.events, e.phase == @phase_open, not MapSet.member?(closed, e.hash), do: e.id
+  end
+
+  @doc "ids of outcome records dropped because no pending was open."
+  def orphans(pid), do: Agent.get(pid, & &1.orphans)
+
+  @doc "seal once: no further ingest; returns the head hash."
+  def seal(pid) do
+    Agent.get_and_update(pid, fn
+      %{sealed: true} = st -> {{:error, "tap already sealed"}, st}
+      st -> {{:ok, st.last}, %{st | sealed: true}}
+    end)
+  end
+
+  def to_ocel(pid) do
+    st = Agent.get(pid, & &1)
+
+    %{
+      "objectTypes" => Enum.map(@object_types, &%{"name" => &1, "attributes" => []}),
+      "eventTypes" => Enum.map(@event_types, &%{"name" => &1, "attributes" => []}),
+      "objects" => Enum.map(st.objects, fn {i, t} -> %{"id" => i, "type" => t, "attributes" => [], "relationships" => []} end),
+      "events" =>
+        Enum.map(st.events, fn e ->
+          %{
+            "id" => e.id,
+            "type" => e.type,
+            "time" => e.time,
+            "attributes" =>
+              [
+                %{"name" => "pi_parent", "value" => e.parent},
+                %{"name" => "pi_hash", "value" => e.hash},
+                %{"name" => "pi_hash_alg", "value" => e.alg}
+              ] ++
+                if(e.phase != "", do: [%{"name" => "pi_phase", "value" => e.phase}], else: []) ++
+                if(e.phase == @phase_close, do: [%{"name" => "pi_pending_ref", "value" => e.ref}], else: []),
+            "relationships" => Enum.map(e.relationships, &%{"objectId" => &1.object_id, "qualifier" => &1.qualifier})
+          }
+        end)
+    }
+  end
+
+  def serialize(pid), do: pid |> to_ocel() |> :json.encode() |> IO.iodata_to_binary()
+
+  @doc "Recompute the chain over a decoded OCEL document and enforce phase pairing. Returns nil when intact, else the reason."
+  def verify_chain(%{"events" => events}, alg) do
+    events
+    |> Enum.reduce_while({:ok, "", %{}, MapSet.new()}, fn e, {:ok, parent, seen, used} ->
+      attr = fn n -> Enum.find_value(e["attributes"], fn a -> if a["name"] == n, do: a["value"] end) end
+
+      ev = %{
+        id: e["id"],
+        type: e["type"],
+        time: e["time"],
+        relationships: Enum.map(e["relationships"], &%{object_id: &1["objectId"], qualifier: &1["qualifier"]})
+      }
+
+      phase = Map.get(@phased, e["type"], "")
+      ref = attr.("pi_pending_ref") || ""
+      want = hash_hex(alg, parent <> "\n" <> canon(ev, attr.("pi_phase") || "", ref))
+
+      cond do
+        attr.("pi_parent") != parent -> {:halt, {:error, "parent mismatch at " <> e["id"]}}
+        attr.("pi_hash") != want -> {:halt, {:error, "hash mismatch at " <> e["id"]}}
+        (attr.("pi_phase") || "") != phase -> {:halt, {:error, "phase mismatch at " <> e["id"]}}
+        phase == @phase_open and ref != "" -> {:halt, {:error, "pairing mismatch at " <> e["id"]}}
+        phase == @phase_open -> {:cont, {:ok, want, Map.put(seen, want, ev), used}}
+        phase == @phase_close ->
+          p = Map.get(seen, ref)
+
+          if p != nil and not MapSet.member?(used, ref) and {e["type"], p.type} in @closes and
+               object_set(p.relationships) == object_set(ev.relationships) do
+            {:cont, {:ok, want, seen, MapSet.put(used, ref)}}
+          else
+            {:halt, {:error, "pairing mismatch at " <> e["id"]}}
+          end
+        true -> {:cont, {:ok, want, seen, used}}
+      end
+    end)
+    |> case do
+      {:ok, _, _, _} -> nil
+      {:error, reason} -> reason
+    end
+  end
+end
+{% endraw %}
