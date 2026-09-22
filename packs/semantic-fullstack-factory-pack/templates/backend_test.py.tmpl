@@ -1,0 +1,39 @@
+---
+to: "generated/backend/test_generated_app.py"
+sparql:
+  scenarios: "PREFIX sf: <https://ggen.dev/ontology/semantic-fullstack#> SELECT ?scenarioId ?classification ?standing ?authority ?humanGate ?exposed ?order WHERE { ?s a sf:Scenario ; sf:scenarioId ?scenarioId ; sf:classification ?classification ; sf:standing ?standing ; sf:authority ?authority ; sf:humanGate ?humanGate ; sf:exposed ?exposed ; sf:order ?order . } ORDER BY ?order ?scenarioId"
+  transitions: "PREFIX sf: <https://ggen.dev/ontology/semantic-fullstack#> SELECT ?transitionId ?fromScenario ?toScenario WHERE { ?t a sf:Transition ; sf:transitionId ?transitionId ; sf:fromScenario ?fromScenario ; sf:toScenario ?toScenario . } ORDER BY ?transitionId"
+---
+"""GENERATED qualification court for the semantic backend."""
+
+from fastapi.testclient import TestClient
+from app import app
+
+client = TestClient(app)
+
+def test_health_proves_zero_runtime_intelligence_and_bounded_authority():
+    response = client.get("/health")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["runtime_intelligence"] == "NONE"
+    assert body["manufacture_mode"] == "DETERMINISTIC"
+    assert body["authority"] == "SELECT_CONSTRUCT_ONLY"
+
+{% for s in scenarios %}
+def test_scenario_{{ s.scenarioId }}():
+    response = client.get("/api/scenarios/{{ s.scenarioId }}")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["classification"] == "{{ s.classification }}"
+    assert body["standing"] == "{{ s.standing }}"
+    assert body["authority"] == "{{ s.authority }}"
+    assert body["human_gate"] == "{{ s.humanGate }}"
+
+{% endfor %}
+{% for t in transitions %}
+def test_transition_{{ t.transitionId }}():
+    response = client.get("/api/scenarios/{{ t.fromScenario }}?transition={{ t.transitionId }}")
+    assert response.status_code == 200
+    assert response.json()["id"] == "{{ t.toScenario }}"
+
+{% endfor %}

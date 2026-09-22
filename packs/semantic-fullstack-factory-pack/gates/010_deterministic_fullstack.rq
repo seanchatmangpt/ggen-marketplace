@@ -1,0 +1,75 @@
+# MESSAGE: Semantic full-stack manufacture is admitted only when the graph is
+# deterministic, authority-bounded, complete enough to render, and transition-closed.
+# Any returned row is a refusal.
+PREFIX sf: <https://ggen.dev/ontology/semantic-fullstack#>
+SELECT ?subject ?reason WHERE {
+  {
+    ?subject a sf:Application .
+    FILTER NOT EXISTS { ?subject sf:appName ?v }
+    BIND("application-missing-appName" AS ?reason)
+  } UNION {
+    ?subject a sf:Application .
+    FILTER NOT EXISTS { ?subject sf:pageTitle ?v }
+    BIND("application-missing-pageTitle" AS ?reason)
+  } UNION {
+    ?subject a sf:Application .
+    FILTER NOT EXISTS { ?subject sf:apiBasePath ?v }
+    BIND("application-missing-apiBasePath" AS ?reason)
+  } UNION {
+    ?subject a sf:Application .
+    FILTER NOT EXISTS { ?subject sf:defaultScenario ?v }
+    BIND("application-missing-defaultScenario" AS ?reason)
+  } UNION {
+    ?subject a sf:Application .
+    FILTER NOT EXISTS { ?subject sf:runtimeIntelligence "NONE" }
+    BIND("runtime-intelligence-must-be-NONE" AS ?reason)
+  } UNION {
+    ?subject a sf:Application .
+    FILTER NOT EXISTS { ?subject sf:manufactureMode "DETERMINISTIC" }
+    BIND("manufacture-mode-must-be-DETERMINISTIC" AS ?reason)
+  } UNION {
+    ?subject a sf:Application ; sf:defaultScenario ?id .
+    FILTER NOT EXISTS { ?scenario a sf:Scenario ; sf:scenarioId ?id }
+    BIND("default-scenario-does-not-exist" AS ?reason)
+  } UNION {
+    ?subject a sf:Scenario .
+    VALUES ?property {
+      sf:scenarioId sf:title sf:classification sf:standing sf:candidateMode
+      sf:confidenceBasis sf:nextAction sf:owningTeam sf:humanGate sf:authority
+      sf:evidenceCsv sf:missingEvidenceCsv sf:priorCasesCsv sf:exposed sf:order
+    }
+    FILTER NOT EXISTS { ?subject ?property ?v }
+    BIND(CONCAT("scenario-missing-", REPLACE(STR(?property), "^.*[#/]", "")) AS ?reason)
+  } UNION {
+    ?subject a sf:Scenario ; sf:authority ?authority .
+    FILTER (?authority != "SELECT_CONSTRUCT_ONLY")
+    BIND("ambient-DO-or-unknown-authority-forbidden" AS ?reason)
+  } UNION {
+    ?subject a sf:Scenario ; sf:humanGate ?gate .
+    FILTER (?gate != "ENGINEER_DISPOSITION_REQUIRED")
+    BIND("consequential-disposition-must-remain-human" AS ?reason)
+  } UNION {
+    ?subject a sf:Transition .
+    FILTER NOT EXISTS { ?subject sf:transitionId ?v }
+    BIND("transition-missing-id" AS ?reason)
+  } UNION {
+    ?subject a sf:Transition ; sf:fromScenario ?from .
+    FILTER NOT EXISTS { ?s a sf:Scenario ; sf:scenarioId ?from }
+    BIND("transition-from-scenario-does-not-exist" AS ?reason)
+  } UNION {
+    ?subject a sf:Transition ; sf:toScenario ?to .
+    FILTER NOT EXISTS { ?s a sf:Scenario ; sf:scenarioId ?to }
+    BIND("transition-to-scenario-does-not-exist" AS ?reason)
+  } UNION {
+    ?subject a sf:Transition .
+    FILTER NOT EXISTS { ?subject sf:triggerLabel ?v }
+    BIND("transition-missing-triggerLabel" AS ?reason)
+  } UNION {
+    ?a a sf:Scenario ; sf:scenarioId ?id .
+    ?b a sf:Scenario ; sf:scenarioId ?id .
+    FILTER (?a != ?b && STR(?a) < STR(?b))
+    BIND("duplicate-scenario-id" AS ?reason)
+    BIND(?a AS ?subject)
+  }
+}
+ORDER BY ?subject ?reason

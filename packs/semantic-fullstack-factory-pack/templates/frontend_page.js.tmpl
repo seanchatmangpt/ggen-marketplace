@@ -1,0 +1,106 @@
+---
+to: "generated/frontend/app/page.js"
+sparql:
+  apps: "PREFIX sf: <https://ggen.dev/ontology/semantic-fullstack#> SELECT ?pageTitle ?apiBasePath ?defaultScenario WHERE { ?app a sf:Application ; sf:pageTitle ?pageTitle ; sf:apiBasePath ?apiBasePath ; sf:defaultScenario ?defaultScenario . } ORDER BY ?pageTitle"
+---
+"use client";
+
+import { useEffect, useState } from "react";
+import { z } from "zod";
+
+const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+const API_BASE = "{{ apps[0].apiBasePath }}";
+const DEFAULT_SCENARIO = "{{ apps[0].defaultScenario }}";
+
+const Scenario = z.object({
+  id: z.string(),
+  title: z.string(),
+  classification: z.string(),
+  standing: z.string(),
+  candidate_mode: z.string(),
+  admitted_mode: z.string().nullable(),
+  confidence_basis: z.string(),
+  next_action: z.string(),
+  owning_team: z.string(),
+  human_gate: z.literal("ENGINEER_DISPOSITION_REQUIRED"),
+  authority: z.literal("SELECT_CONSTRUCT_ONLY"),
+  evidence: z.array(z.string()),
+  missing_evidence: z.array(z.string()),
+  prior_cases: z.array(z.string()),
+  exposed: z.boolean(),
+  order: z.number(),
+  transitions: z.array(z.object({ id: z.string(), label: z.string(), to: z.string() })),
+});
+
+export default function Page() {
+  const [scenarios, setScenarios] = useState([]);
+  const [current, setCurrent] = useState(null);
+  const [error, setError] = useState(null);
+
+  async function loadScenario(id, transition = null) {
+    const suffix = transition ? "?transition=" + encodeURIComponent(transition) : "";
+    const response = await fetch(API + API_BASE + "/scenarios/" + encodeURIComponent(id) + suffix);
+    if (!response.ok) throw new Error("scenario request failed " + response.status);
+    setCurrent(Scenario.parse(await response.json()));
+  }
+
+  useEffect(() => {
+    Promise.all([
+      fetch(API + API_BASE + "/scenarios").then((r) => r.json()),
+      loadScenario(DEFAULT_SCENARIO),
+    ])
+      .then(([items]) => setScenarios(z.array(Scenario).parse(items)))
+      .catch((reason) => setError(String(reason)));
+  }, []);
+
+  if (error) return <main data-testid="error">{error}</main>;
+  if (!current) return <main data-testid="loading">Loading semantic projection…</main>;
+
+  return (
+    <main data-testid="semantic-app-root" style={{ maxWidth: 1100, margin: "0 auto", padding: 32 }}>
+      <p>GENERATED · deterministic semantic full-stack projection</p>
+      <h1>{{ apps[0].pageTitle }}</h1>
+      <p data-testid="authority">{current.authority}</p>
+      <p data-testid="human-gate">{current.human_gate}</p>
+
+      <nav data-testid="scenario-nav" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {scenarios.map((scenario) => (
+          <button key={scenario.id} data-testid={"scenario-" + scenario.id}
+            onClick={() => loadScenario(scenario.id)}>
+            {scenario.id}
+          </button>
+        ))}
+      </nav>
+
+      <section style={{ marginTop: 24, display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 16 }}>
+        <article>
+          <h2>Classification</h2>
+          <strong data-testid="classification">{current.classification}</strong>
+          <p data-testid="standing">{current.standing}</p>
+          <p data-testid="admitted-mode">{current.admitted_mode || "NONE"}</p>
+          <p data-testid="confidence-basis">{current.confidence_basis}</p>
+        </article>
+        <article>
+          <h2>Action</h2>
+          <p data-testid="next-action">{current.next_action}</p>
+          <p>{current.owning_team}</p>
+          <h3>Missing evidence</h3>
+          <ul data-testid="missing-evidence">
+            {(current.missing_evidence.length ? current.missing_evidence : ["NONE"]).map((item) => <li key={item}>{item}</li>)}
+          </ul>
+          <h3>Prior cases</h3>
+          <ul data-testid="prior-cases">
+            {(current.prior_cases.length ? current.prior_cases : ["NONE"]).map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        </article>
+      </section>
+
+      {current.transitions.map((transition) => (
+        <button key={transition.id} data-testid={"transition-" + transition.id}
+          onClick={() => loadScenario(current.id, transition.id)}>
+          {transition.label}
+        </button>
+      ))}
+    </main>
+  );
+}
