@@ -1,0 +1,39 @@
+# MESSAGE: every ggen consumer-config form in the pack's config-form
+# collection must carry a witnessed status and every status must be lawful:
+# an "operative" claim is legal only for the two forms the declarative schema
+# actually binds ([ontology].imports, [[generation.rules]]), and a "refused"
+# claim must cite an FM- error-code evidence anchor (provably-witnessed
+# refusal, e.g. [FM-CONFIG-003]). A row below = an unwitnessed or lawless
+# config-form status. An empty result = the config law's fact set is
+# status-complete and every refusal is anchored.
+PREFIX skos:   <http://www.w3.org/2004/02/skos/core#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX prov:   <http://www.w3.org/ns/prov#>
+PREFIX rdfs:   <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?form ?problem WHERE {
+  <urn:frozen-duckdb:config-forms> skos:member ?form .
+  {
+    FILTER NOT EXISTS { ?form prov:value ?anyStatus }
+    BIND("config form carries no operative/refused status (prov:value)" AS ?problem)
+  }
+  UNION
+  {
+    ?form prov:value "operative" ;
+          skos:notation ?operativeNotation .
+    FILTER(?operativeNotation NOT IN ("[ontology].imports", "[[generation.rules]]"))
+    BIND(CONCAT("form claims operative status outside the lawful operative set: ",
+                ?operativeNotation) AS ?problem)
+  }
+  UNION
+  {
+    ?form prov:value "refused" .
+    FILTER NOT EXISTS {
+      ?form dcterms:references ?refusalEvidence .
+      ?refusalEvidence rdfs:label ?refusalLabel .
+      FILTER(CONTAINS(?refusalLabel, "FM-"))
+    }
+    BIND("refused config form cites no FM- error-code evidence anchor" AS ?problem)
+  }
+}
+ORDER BY ?form ?problem
