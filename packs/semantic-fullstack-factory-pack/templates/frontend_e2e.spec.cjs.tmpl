@@ -1,8 +1,8 @@
 ---
 to: "generated/frontend/e2e/semantic-generated.spec.cjs"
 sparql:
-  scenarios: "PREFIX sf: <https://ggen.dev/ontology/semantic-fullstack#> SELECT ?scenarioId ?classification ?admittedMode ?confidenceBasis ?exposed ?order WHERE { ?s a sf:Scenario ; sf:scenarioId ?scenarioId ; sf:classification ?classification ; sf:confidenceBasis ?confidenceBasis ; sf:exposed ?exposed ; sf:order ?order . OPTIONAL { ?s sf:admittedMode ?raw } BIND(COALESCE(?raw, \\\"\\\") AS ?admittedMode) FILTER(?exposed = true) } ORDER BY ?order ?scenarioId"
-  transitions: "PREFIX sf: <https://ggen.dev/ontology/semantic-fullstack#> SELECT ?transitionId ?fromScenario ?toScenario ?toClassification ?toAdmittedMode ?toConfidenceBasis WHERE { ?t a sf:Transition ; sf:transitionId ?transitionId ; sf:fromScenario ?fromScenario ; sf:toScenario ?toScenario . ?target a sf:Scenario ; sf:scenarioId ?toScenario ; sf:classification ?toClassification ; sf:confidenceBasis ?toConfidenceBasis . OPTIONAL { ?target sf:admittedMode ?raw } BIND(COALESCE(?raw, \\\"\\\") AS ?toAdmittedMode) } ORDER BY ?transitionId"
+  scenarios: "PREFIX sf: <https://ggen.dev/ontology/semantic-fullstack#> SELECT ?scenarioId ?classification ?admittedMode ?confidenceBasis ?exposed ?order WHERE { ?s a sf:Scenario ; sf:scenarioId ?scenarioId ; sf:classification ?classification ; sf:confidenceBasis ?confidenceBasis ; sf:exposed ?exposed ; sf:order ?order . sf:admittedMode ?admittedMode . FILTER(?exposed = true) } ORDER BY ?order ?scenarioId"
+  transitions: "PREFIX sf: <https://ggen.dev/ontology/semantic-fullstack#> SELECT ?transitionId ?fromScenario ?toScenario ?toClassification ?toAdmittedMode ?toConfidenceBasis WHERE { ?t a sf:Transition ; sf:transitionId ?transitionId ; sf:fromScenario ?fromScenario ; sf:toScenario ?toScenario . ?target a sf:Scenario ; sf:scenarioId ?toScenario ; sf:classification ?toClassification ; sf:confidenceBasis ?toConfidenceBasis . ?target sf:admittedMode ?toAdmittedMode . } ORDER BY ?transitionId"
 ---
 const { test, expect } = require("@playwright/test");
 
@@ -15,7 +15,7 @@ test("generated browser court preserves admitted semantic states", async ({ page
 {% for s in scenarios %}
   await page.locator('[data-testid="scenario-{{ s.scenarioId }}"]').click();
   await expect(page.locator('[data-testid="classification"]')).toHaveText("{{ s.classification }}");
-  await expect(page.locator('[data-testid="admitted-mode"]')).toHaveText("{% if s.admittedMode == "" %}NONE{% else %}{{ s.admittedMode }}{% endif %}");
+  await expect(page.locator('[data-testid="admitted-mode"]')).toHaveText("{{ s.admittedMode }}");
   await expect(page.locator('[data-testid="confidence-basis"]')).toHaveText("{{ s.confidenceBasis }}");
 
 {% endfor %}
@@ -23,7 +23,7 @@ test("generated browser court preserves admitted semantic states", async ({ page
   await page.locator('[data-testid="scenario-{{ t.fromScenario }}"]').click();
   await page.locator('[data-testid="transition-{{ t.transitionId }}"]').click();
   await expect(page.locator('[data-testid="classification"]')).toHaveText("{{ t.toClassification }}");
-  await expect(page.locator('[data-testid="admitted-mode"]')).toHaveText("{% if t.toAdmittedMode == "" %}NONE{% else %}{{ t.toAdmittedMode }}{% endif %}");
+  await expect(page.locator('[data-testid="admitted-mode"]')).toHaveText("{{ t.toAdmittedMode }}");
   await expect(page.locator('[data-testid="confidence-basis"]')).toHaveText("{{ t.toConfidenceBasis }}");
 {% endfor %}
 });
