@@ -1,0 +1,48 @@
+# STATUS: UNVERIFIED -- exercised only against a toy pair of graphs; no second real
+# consumer loop exists yet. Treat results as candidates, not findings, until one does.
+#
+# Compare two consumer loop graphs, each loaded into its own named graph and each
+# containing at least one pi:EventSource. For every pair (?loopA, ?loopB) with
+# STR(?loopA) < STR(?loopB), one row per vocabulary term (event type, object type,
+# qualifier, source kind, hash algorithm) saying whether it is shared or only in one.
+# Run against an RDF dataset (e.g. rdflib.Dataset / an oxigraph store), not the merged
+# default graph.
+PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+# Each UNION branch repeats the graph-pair prelude on purpose: a nested group is
+# evaluated independently, so ?loopA/?loopB must be bound inside the branch itself.
+SELECT ?loopA ?loopB ?kind ?term ?side WHERE {
+  {
+    GRAPH ?loopA { ?sa a pi:EventSource . }
+    GRAPH ?loopB { ?sb a pi:EventSource . }
+    FILTER(STR(?loopA) < STR(?loopB))
+    GRAPH ?loopA { ?x a ?cls ; ?prop ?term . }
+    OPTIONAL { GRAPH ?loopB { ?y a ?cls ; ?prop ?term . } }
+    FILTER(!BOUND(?y))
+    FILTER(?cls IN (pi:EventType, pi:ObjectType, pi:Qualifier, pi:EventSource, pi:ChainPolicy))
+    FILTER(?prop IN (pi:typeId, pi:qualifierId, pi:sourceKind, pi:hashAlgorithm))
+    BIND(IF(?cls = pi:EventType, "event-type", IF(?cls = pi:ObjectType, "object-type", IF(?cls = pi:Qualifier, "qualifier", IF(?cls = pi:EventSource, "source-kind", "hash-algorithm")))) AS ?kind)
+    BIND("only-in-a" AS ?side)
+  } UNION {
+    GRAPH ?loopA { ?sa a pi:EventSource . }
+    GRAPH ?loopB { ?sb a pi:EventSource . }
+    FILTER(STR(?loopA) < STR(?loopB))
+    GRAPH ?loopB { ?y a ?cls ; ?prop ?term . }
+    OPTIONAL { GRAPH ?loopA { ?x a ?cls ; ?prop ?term . } }
+    FILTER(!BOUND(?x))
+    FILTER(?cls IN (pi:EventType, pi:ObjectType, pi:Qualifier, pi:EventSource, pi:ChainPolicy))
+    FILTER(?prop IN (pi:typeId, pi:qualifierId, pi:sourceKind, pi:hashAlgorithm))
+    BIND(IF(?cls = pi:EventType, "event-type", IF(?cls = pi:ObjectType, "object-type", IF(?cls = pi:Qualifier, "qualifier", IF(?cls = pi:EventSource, "source-kind", "hash-algorithm")))) AS ?kind)
+    BIND("only-in-b" AS ?side)
+  } UNION {
+    GRAPH ?loopA { ?sa a pi:EventSource . }
+    GRAPH ?loopB { ?sb a pi:EventSource . }
+    FILTER(STR(?loopA) < STR(?loopB))
+    GRAPH ?loopA { ?x a ?cls ; ?prop ?term . }
+    GRAPH ?loopB { ?y a ?cls ; ?prop ?term . }
+    FILTER(?cls IN (pi:EventType, pi:ObjectType, pi:Qualifier, pi:EventSource, pi:ChainPolicy))
+    FILTER(?prop IN (pi:typeId, pi:qualifierId, pi:sourceKind, pi:hashAlgorithm))
+    BIND(IF(?cls = pi:EventType, "event-type", IF(?cls = pi:ObjectType, "object-type", IF(?cls = pi:Qualifier, "qualifier", IF(?cls = pi:EventSource, "source-kind", "hash-algorithm")))) AS ?kind)
+    BIND("shared" AS ?side)
+  }
+}
+ORDER BY ?loopA ?loopB ?kind ?term ?side
