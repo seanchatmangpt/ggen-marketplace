@@ -1,0 +1,122 @@
+name: SHACL rich projection court
+
+on:
+  push:
+    branches:
+      - feat/semantic-fullstack-factory-v26.9.21
+    paths:
+      - "packs/shacl-projection-pack/**"
+      - "packs/shacl-to-pydantic-pack/**"
+      - "packs/shacl-to-zod-pack/**"
+      - ".github/workflows/shacl-rich-projection.yml"
+  pull_request:
+    paths:
+      - "packs/shacl-projection-pack/**"
+      - "packs/shacl-to-pydantic-pack/**"
+      - "packs/shacl-to-zod-pack/**"
+      - ".github/workflows/shacl-rich-projection.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rich:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Bind exact producer
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Validate marketplace
+        run: python3 scripts/marketplace.py validate
+
+      - name: Install digest-verified ggen v26.9.12
+        shell: bash
+        env:
+          GGEN_URL: https://github.com/seanchatmangpt/ggen/releases/download/v26.9.12/ggen-x86_64-unknown-linux-gnu.tar.gz
+          GGEN_SHA256: ef51c03acc70752446d2147b255ee508ea1471862db45a6bdf5da3fdf62ff430
+        run: |
+          set -euo pipefail
+          curl --fail --location "$GGEN_URL" --output /tmp/ggen.tar.gz
+          echo "$GGEN_SHA256  /tmp/ggen.tar.gz" | sha256sum --check -
+          mkdir -p .constructor
+          tar -xzf /tmp/ggen.tar.gz -C .constructor
+          test -x .constructor/ggen
+
+      - name: Manufacture rich contracts
+        working-directory: packs/shacl-projection-pack/qualification/rich
+        run: |
+          rm -rf src
+          "$GITHUB_WORKSPACE/.constructor/ggen" sync run
+          test -s src/shacl_pydantic_models.py
+          test -s src/shacl_zod_schemas.js
+
+      - name: Execute rich Pydantic contract
+        working-directory: packs/shacl-projection-pack/qualification/rich
+        run: |
+          python -m pip install "pydantic>=2.9,<3"
+          PYTHONPATH=src python - <<'PY'
+          from shacl_pydantic_models import ParentGenerated
+
+          parent = ParentGenerated(
+              name="subject",
+              labels=["KNOWN", "ALIVE"],
+              items=[{"id": "E-1", "score": 0.9, "tags": ["waveform", "test"]}],
+              primary={"id": "E-2", "score": 0.8, "tags": []},
+          )
+          assert parent.items[0].id == "E-1"
+          assert parent.items[0].tags == ["waveform", "test"]
+          assert parent.primary.score == 0.8
+
+          try:
+              ParentGenerated(name="bad", labels="KNOWN", items=[], primary=None)
+          except Exception:
+              pass
+          else:
+              raise SystemExit("primitive collection admitted scalar")
+
+          print("SHACL_RICH_PYDANTIC_ALIVE")
+          PY
+
+      - name: Execute rich Zod contract
+        working-directory: packs/shacl-projection-pack/qualification/rich
+        run: |
+          npm install --ignore-scripts
+          node --input-type=module - <<'JS'
+          import { ParentGenerated } from "./src/shacl_zod_schemas.js";
+
+          const parsed = ParentGenerated.parse({
+            name: "subject",
+            labels: ["KNOWN", "ALIVE"],
+            items: [{ id: "E-1", score: 0.9, tags: ["waveform", "test"] }],
+            primary: { id: "E-2", score: 0.8, tags: [] },
+          });
+          if (parsed.items[0].id !== "E-1") process.exit(41);
+          if (ParentGenerated.safeParse({
+            name: "bad", labels: "KNOWN", items: [], primary: null,
+          }).success) process.exit(42);
+          console.log("SHACL_RICH_ZOD_ALIVE");
+          JS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shacl-rich-projection-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            packs/shacl-projection-pack/qualification/rich/src/shacl_pydantic_models.py
+            packs/shacl-projection-pack/qualification/rich/src/shacl_zod_schemas.js
+          if-no-files-found: error
+          retention-days: 30
