@@ -1,0 +1,22 @@
+---
+to: "schemas/shacl_projection.schema.json"
+sparql:
+  models: "PREFIX sp: <http://seanchatmangpt.github.io/packs/shacl-projection#> PREFIX sh: <http://www.w3.org/ns/shacl#> PREFIX dcterms: <http://purl.org/dc/terms/> SELECT ?className WHERE { ?m a sp:SchemaModel ; sp:className ?className ; sp:derivedFromShape ?s } ORDER BY ?className"
+  fields: "PREFIX sp: <http://seanchatmangpt.github.io/packs/shacl-projection#> PREFIX sh: <http://www.w3.org/ns/shacl#> PREFIX dcterms: <http://purl.org/dc/terms/> SELECT ?modelClassName ?fieldName ?jsonType WHERE { ?m a sp:SchemaModel ; sp:derivedFromShape ?shape ; sp:className ?modelClassName . ?shape sh:property ?prop . ?prop sh:path ?path ; sh:datatype ?dt . BIND(REPLACE(STR(?path), \"^.*[/#]\", \"\") AS ?fieldName) BIND(IF(?dt = <http://www.w3.org/2001/XMLSchema#string>, \"string\", IF(?dt = <http://www.w3.org/2001/XMLSchema#boolean>, \"boolean\", IF(?dt IN (<http://www.w3.org/2001/XMLSchema#integer>, <http://www.w3.org/2001/XMLSchema#long>), \"integer\", \"number\"))) AS ?jsonType) } ORDER BY ?modelClassName ?fieldName"
+---
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+{% for m in models %}    "{{ m.className }}": {
+      "title": "{{ m.className }}",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+{% set_global first = true %}{% for f in fields %}{% if f.modelClassName == m.className %}{% if not first %},
+{% endif %}        "{{ f.fieldName }}": { "type": "{{ f.jsonType }}" }{% set_global first = false %}{% endif %}{% endfor %}
+
+      },
+      "required": [{% set_global first = true %}{% for f in fields %}{% if f.modelClassName == m.className %}{% if not first %}, {% endif %}"{{ f.fieldName }}"{% set_global first = false %}{% endif %}{% endfor %}]
+    }{% if not loop.last %},{% endif %}
+{% endfor %}  }
+}

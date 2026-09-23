@@ -1,0 +1,26 @@
+# MESSAGE: phase pairing -- a type with the closing pi:phaseRole (highest pi:phaseOrder) must name pi:closesEventType targets, each carrying the opening role (lowest pi:phaseOrder); pi:closesEventType is legal only on closing-role types; every opening-role type must be closed by some closing-role type (an open type nothing can close is reported and refused).
+PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+SELECT ?type ?reason WHERE {
+  {
+    ?type a pi:EventType ; pi:phaseRole ?r . ?r pi:phaseOrder ?o .
+    FILTER NOT EXISTS { ?r2 a pi:PhaseRole ; pi:phaseOrder ?o2 . FILTER(?o2 > ?o) }
+    FILTER NOT EXISTS { ?type pi:closesEventType ?any }
+    BIND("outcome-without-closes" AS ?reason)
+  } UNION {
+    ?type a pi:EventType ; pi:closesEventType ?t .
+    OPTIONAL { ?t pi:phaseRole ?tr . ?tr pi:phaseOrder ?to }
+    FILTER(!BOUND(?to) || EXISTS { ?r3 a pi:PhaseRole ; pi:phaseOrder ?o3 . FILTER(?o3 < ?to) })
+    BIND("closes-non-opening-type" AS ?reason)
+  } UNION {
+    ?type a pi:EventType ; pi:closesEventType ?t2 .
+    OPTIONAL { ?type pi:phaseRole ?cr . ?cr pi:phaseOrder ?co }
+    FILTER(!BOUND(?co) || EXISTS { ?r4 a pi:PhaseRole ; pi:phaseOrder ?o4 . FILTER(?o4 > ?co) })
+    BIND("closes-on-non-closing-type" AS ?reason)
+  } UNION {
+    ?type a pi:EventType ; pi:phaseRole ?r5 . ?r5 pi:phaseOrder ?o5 .
+    FILTER NOT EXISTS { ?r6 a pi:PhaseRole ; pi:phaseOrder ?o6 . FILTER(?o6 < ?o5) }
+    FILTER NOT EXISTS { ?c pi:closesEventType ?type }
+    BIND("opening-never-closed" AS ?reason)
+  }
+}
+ORDER BY ?type ?reason
