@@ -1,0 +1,36 @@
+---
+to: "generated/backend/test_generated_app.py"
+---
+"""GENERATED qualification court for the semantic backend."""
+
+from fastapi.testclient import TestClient
+from app import API_BASE, SCENARIOS, TRANSITIONS, app
+
+client = TestClient(app)
+
+def test_health_proves_zero_runtime_intelligence_and_bounded_authority():
+    response = client.get("/health")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["runtime_intelligence"] == "NONE"
+    assert body["manufacture_mode"] == "DETERMINISTIC"
+    assert body["authority"] == "SELECT_CONSTRUCT_ONLY"
+
+def test_every_generated_scenario_preserves_authority_and_human_gate():
+    assert SCENARIOS
+    for scenario_id, expected in SCENARIOS.items():
+        response = client.get(f"{API_BASE}/scenarios/{scenario_id}")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["classification"] == expected["classification"]
+        assert body["standing"] == expected["standing"]
+        assert body["authority"] == "SELECT_CONSTRUCT_ONLY"
+        assert body["human_gate"] == "ENGINEER_DISPOSITION_REQUIRED"
+
+def test_every_generated_transition_closes_over_declared_scenarios():
+    for (source, transition_id), edge in TRANSITIONS.items():
+        assert source in SCENARIOS
+        assert edge["to"] in SCENARIOS
+        response = client.get(f"{API_BASE}/scenarios/{source}?transition={transition_id}")
+        assert response.status_code == 200
+        assert response.json()["id"] == edge["to"]
