@@ -21,6 +21,6 @@ machine-read contract (native code, native gate, runner verdict, runner reason).
 | M12-classification-basename-collision | `imports/fleet-classification.ttl` adds a second row whose identifier is also `ggen` | native gate 070 + runner (`fleet-classification-basename-collision:ggen`) |
 
 Revert check (receipt MP-RELPACK-XW): with gates 070, 075, 080 and 085 removed from a scratch
-copy of the pack, M1, M2, M3, M4, M5, M7, M9 and M11 sync with exit 0 and pass the runner,
-and the M1 render still lists all 16 roles (formal-proof with an empty boundary), so those
-refusals come from the new gates, not from the base.
+copy of the pack, all eleven graph mutants (M1-M5, M7-M12) sync with exit 0 and pass the
+runner, and the M1 render still lists all 16 roles (formal-proof with an empty boundary), so
+those refusals come from the new gates, not from the base.

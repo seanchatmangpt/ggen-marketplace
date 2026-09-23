@@ -103,8 +103,9 @@ overwritten. To regenerate after an input change, delete the stale output and ru
 `qualification/qualify.sh` runs everything in a scratch copy with the real ggen and rdflib:
 the synthetic `consumer.ttl`, a double render of `consumer-v26.9.23` (byte-identical), a control
 and a positive explicit-decision witness, and the 12 mutants of `qualification/mutants/`
-(expected code, gate and reason in `EXPECTED.tsv`). Removing gates 070-085 lets M1, M2, M3, M4,
-M5, M7, M9 and M11 render with exit 0, so those refusals come from the new gates.
+(expected code, gate and reason in `EXPECTED.tsv`). Removing gates 070-085 lets all eleven
+graph mutants (every mutant except M6) render with exit 0, so those refusals come from the new
+gates; M6 is refused by the no-force write law.
 
 ## See also
 
