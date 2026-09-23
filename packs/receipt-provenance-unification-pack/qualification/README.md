@@ -67,3 +67,4 @@ inside a ggen-marketplace checkout that holds commit `420bc91e7c1e291be73ab749b7
 | `durable/neg-dotdot-slug.json` | `b4ca797ca7f7d6f9` | identity.repo -> ../xaas (path segment, not a slug) |
 | `durable_standing/neg-alive-trailing-newline.json` | `750ef42f881cfac7` | pos-git-blob.json with standing.value -> "ALIVE\n" and the replay exit 75 kept: admitted by the default profile (schema $), refused by the durable profile (\Z) |
 | `durable_standing/pos-unknown-exact.json` | `b33ed69f4c4d5c1a` | same receipt as durable/pos-git-blob.json (standing UNKNOWN, exact): the strict standing binding admits it |
+| `durable/neg-sha0-https.json` | `c2dbcd911b9c8877` | slug repo, subject_sha -> 000..0, https durable_location: only the durable subject_commit probe can refuse it (R_missing_identity) |
