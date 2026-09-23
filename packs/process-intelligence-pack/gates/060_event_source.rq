@@ -1,0 +1,19 @@
+# MESSAGE: every pi:EventSource needs a pi:sourceKind from the closed pi:SourceKind
+# vocabulary, an identifier-shaped pi:sourceId, exactly one each of pi:nameField,
+# pi:idField, pi:timeField, and a pi:chainPolicy typed pi:ChainPolicy. Rows name
+# the offending source.
+PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+SELECT DISTINCT ?source WHERE {
+  ?source a pi:EventSource .
+  {
+    FILTER NOT EXISTS { ?source pi:sourceKind ?k . ?kind a pi:SourceKind ; pi:kindId ?k . }
+  } UNION {
+    FILTER NOT EXISTS { ?source pi:sourceId ?i . FILTER(REGEX(STR(?i), "^[a-z][a-z0-9_]*$")) }
+  } UNION {
+    VALUES ?p { pi:nameField pi:idField pi:timeField }
+    FILTER NOT EXISTS { ?source ?p ?v . }
+  } UNION {
+    FILTER NOT EXISTS { ?source pi:chainPolicy ?c . ?c a pi:ChainPolicy . }
+  }
+}
+ORDER BY ?source

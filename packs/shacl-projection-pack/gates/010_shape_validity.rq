@@ -7,6 +7,7 @@
 PREFIX sp:   <http://seanchatmangpt.github.io/packs/shacl-projection#>
 PREFIX sh:   <http://www.w3.org/ns/shacl#>
 PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 SELECT ?projection ?violation WHERE {
   {
     # Every reachable property shape must have both sh:path and sh:datatype.
@@ -33,7 +34,7 @@ SELECT ?projection ?violation WHERE {
     ?projection sp:derivedFromShape ?shape .
     ?shape sh:property ?prop .
     ?prop sh:path ?p .
-    BIND(REPLACE(STR(?p), "^.*[/#]", "") AS ?localName)
+    BIND(REPLACE(STR(?p), "^.*[/#:]", "") AS ?localName)
     FILTER (!REGEX(?localName, "^[a-zA-Z_][a-zA-Z0-9_]*$"))
     BIND(CONCAT("sh:path local name is not a valid Python identifier: ", ?localName) AS ?violation)
   } UNION {
@@ -42,10 +43,39 @@ SELECT ?projection ?violation WHERE {
     ?projection sp:derivedFromShape ?shape .
     ?shape sh:property ?propA , ?propB .
     ?propA sh:path ?pathA . ?propB sh:path ?pathB .
-    BIND(REPLACE(STR(?pathA), "^.*[/#]", "") AS ?nameA)
-    BIND(REPLACE(STR(?pathB), "^.*[/#]", "") AS ?nameB)
+    BIND(REPLACE(STR(?pathA), "^.*[/#:]", "") AS ?nameA)
+    BIND(REPLACE(STR(?pathB), "^.*[/#:]", "") AS ?nameB)
     FILTER (?propA != ?propB && ?nameA = ?nameB && STR(?propA) < STR(?propB))
     BIND(CONCAT("duplicate field name within one shape: ", ?nameA) AS ?violation)
+  } UNION {
+    # Explicit JSON-null projection metadata must be a real boolean.
+    ?projection sp:derivedFromShape ?shape .
+    ?shape sh:property ?prop .
+    ?prop sp:nullable ?nullable .
+    FILTER (?nullable != true && ?nullable != false)
+    BIND("sp:nullable must be an xsd:boolean" AS ?violation)
+  } UNION {
+    # Current enum/literal projection is deliberately bounded to strings.
+    ?projection sp:derivedFromShape ?shape .
+    ?shape sh:property ?prop .
+    ?prop sh:in ?enumList ; sh:datatype ?dt .
+    FILTER (?dt != xsd:string)
+    BIND("sh:in projection currently requires sh:datatype xsd:string" AS ?violation)
+  } UNION {
+    # An admitted enum is never silently empty.
+    ?projection sp:derivedFromShape ?shape .
+    ?shape sh:property ?prop .
+    ?prop sh:in ?enumList .
+    FILTER NOT EXISTS { ?enumList rdf:rest*/rdf:first ?enumValue }
+    BIND("sh:in list must contain at least one value" AS ?violation)
+  } UNION {
+    # Templates echo enum literals verbatim; reject values that would require escaping/synthesis.
+    ?projection sp:derivedFromShape ?shape .
+    ?shape sh:property ?prop .
+    ?prop sh:in ?enumList .
+    ?enumList rdf:rest*/rdf:first ?enumValue .
+    FILTER (REGEX(STR(?enumValue), "[\\\"\\\\\\n\\r]"))
+    BIND("sh:in string contains unsupported quote, backslash, or newline" AS ?violation)
   } UNION {
     # Every projection must have >=1 real sp:isPrimaryOutput field. Refuse rather than
     # fabricate a default. Target-agnostic on purpose: a dspy:Signature marks only its real
