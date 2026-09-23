@@ -1,0 +1,73 @@
+@prefix ivg:     <https://ggen.dev/ontology/invariant-gate#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+
+# ---------------------------------------------------------------------------
+# invariant-gate-pack
+#
+# Capability: turn DECLARED invariant facts into an executable, non-vacuous
+# gate (checker + fixture harness) with a strict exit-code contract.
+# Provenance: pattern extracted from the storehouse-infrastructure Cell8
+# checker experiment (scripts/cell8_invariants.py, scripts/test_invariants.sh,
+# 2026-09-16, receipt in dfcm-autonomous/RUNS.md) and promoted here so the
+# same reasoning is never hand-purchased again.
+#
+# Consumers declare ivg:InvariantCheck + ivg:Fixture individuals in their own
+# ontology (consumer facts never live in this pack) and wire this pack via
+# ggen.toml [packs]. Every rendered gate must be witnessed refusing on at
+# least one mutated fixture (zero-information check law: a gate that never
+# refuses carries no bits).
+# ---------------------------------------------------------------------------
+
+ivg:InvariantCheck a rdfs:Class ;
+    rdfs:label "declared invariant" ;
+    rdfs:comment "One executable invariant over a target file in the consumer tree." .
+
+ivg:Fixture a rdfs:Class ;
+    rdfs:label "negative fixture" ;
+    rdfs:comment "A declared mutation that the rendered checker must refuse (exit 1)." .
+
+ivg:id a rdf:Property ; rdfs:label "invariant id" .
+ivg:kind a rdf:Property ; rdfs:label "invariant kind" .
+ivg:target a rdf:Property ; rdfs:label "target path relative to consumer root" .
+ivg:expect a rdf:Property ; rdfs:label "expected count (skos-topconcepts-count)" .
+ivg:tokens a rdf:Property ; rdfs:label "pipe-separated tokens that must be present" .
+ivg:labels a rdf:Property ; rdfs:label "pipe-separated exact prefLabel set" .
+ivg:allowed a rdf:Property ; rdfs:label "pipe-separated allowed @prefix IRIs" .
+ivg:forbidden a rdf:Property ; rdfs:label "pipe-separated namespace tokens that must not appear" .
+ivg:requiredKeys a rdf:Property ; rdfs:label "pipe-separated JSON record keys" .
+ivg:hexHash a rdf:Property ; rdfs:label "require 64-hex digest in every JSONL record" .
+ivg:slug a rdf:Property ; rdfs:label "fixture slug (shell-safe identifier)" .
+ivg:mutate a rdf:Property ; rdfs:label "shell mutation lines; $R = fixture root, $S = source repo" .
+
+ivg:Kind-tokens-present a ivg:Kind ;
+    skos:prefLabel "tokens-present" ;
+    rdfs:comment "Every pipe-separated token occurs in the target file (source law witness)." .
+
+ivg:Kind-skos-topconcepts-count a ivg:Kind ;
+    skos:prefLabel "skos-topconcepts-count" ;
+    rdfs:comment "skos:hasTopConcept bracket-declarations equal ivg:expect." .
+
+ivg:Kind-preflabel-set a ivg:Kind ;
+    skos:prefLabel "preflabel-set" ;
+    rdfs:comment "skos:prefLabel literals equal the declared set exactly." .
+
+ivg:Kind-prefix-allowlist a ivg:Kind ;
+    skos:prefLabel "prefix-allowlist" ;
+    rdfs:comment "Every @prefix IRI is in the public allowlist; no forbidden namespace token appears." .
+
+ivg:Kind-turtle-blank-subjects a ivg:Kind ;
+    skos:prefLabel "turtle-blank-subjects" ;
+    rdfs:comment "Every top-level statement subject is a blank node (profile purity)." .
+
+ivg:Kind-jsonl-records a ivg:Kind ;
+    skos:prefLabel "jsonl-records" ;
+    rdfs:comment "Every non-empty JSONL line parses and carries the required keys (and a 64-hex digest when ivg:hexHash)." .
+
+ivg:Cell8Experiment20260916 a prov:Entity ;
+    rdfs:label "storehouse-infrastructure Cell8 checker experiment" ;
+    prov:wasDerivedFrom <https://github.com/seanchatmangpt/storehouse-infrastructure> ;
+    dcterms:date "2026-09-16" .
