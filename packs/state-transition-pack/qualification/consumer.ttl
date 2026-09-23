@@ -37,3 +37,16 @@ st:Observed-ConsumerDeploy-001 st:precedes st:Selected-ConsumerDeploy-001 .
 st:Selected-ConsumerDeploy-001 st:precedes st:Constructed-ConsumerDeploy-001 .
 st:Constructed-ConsumerDeploy-001 st:precedes st:Executed-ConsumerDeploy-001 .
 st:Executed-ConsumerDeploy-001 st:precedes st:Verified-ConsumerDeploy-001 .
+
+# ===== FSM fixture (lawful): 3 states, advance chain, one guarded, one retry =====
+st:OrderMachine a st:Machine ; st:machineName "Order" ; st:initial st:OrderNew .
+st:OrderNew a st:State ; st:inMachine st:OrderMachine ; st:stateName "New" ; st:seq 0 .
+st:OrderPaid a st:State ; st:inMachine st:OrderMachine ; st:stateName "Paid" ; st:seq 1 .
+st:OrderShipped a st:State ; st:inMachine st:OrderMachine ; st:stateName "Shipped" ; st:seq 2 .
+st:OrderPaidGuard a st:Guard ; st:guardName "payment_ok" ; st:predicateKey "payment_ok" .
+st:OrderPay a st:Transition ; st:transitionName "pay" ; st:kind "advance" ;
+  st:from st:OrderNew ; st:to st:OrderPaid ; st:guardedBy st:OrderPaidGuard .
+st:OrderShip a st:Transition ; st:transitionName "ship" ; st:kind "advance" ;
+  st:from st:OrderPaid ; st:to st:OrderShipped .
+st:OrderRetry a st:Transition ; st:transitionName "retry_pay" ; st:kind "retry" ;
+  st:from st:OrderPaid ; st:to st:OrderNew .

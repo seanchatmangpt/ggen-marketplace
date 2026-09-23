@@ -1,0 +1,20 @@
+# MESSAGE: coverage: every pi:RuntimeEvent must be mapped by a pi:MappingRule of
+# the same pi:EventSource whose pi:sourceEvent equals its pi:runtimeEventName, OR be
+# explicitly typed pi:Unmapped with a pi:unmappedReason. A mapped event must not also
+# be pi:Unmapped, and pi:Unmapped without a reason is refused. Rows name the event.
+PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+SELECT DISTINCT ?event WHERE {
+  ?event a pi:RuntimeEvent .
+  OPTIONAL { ?event pi:runtimeEventName ?n . }
+  OPTIONAL { ?event pi:emittedBy ?src . }
+  BIND(EXISTS { ?rule a pi:MappingRule ; pi:fromSource ?src ; pi:sourceEvent ?n . } AS ?mapped)
+  BIND(EXISTS { ?event a pi:Unmapped . } AS ?unmapped)
+  BIND(EXISTS { ?event a pi:Unmapped ; pi:unmappedReason ?r . FILTER(STRLEN(STR(?r)) > 0) } AS ?reasoned)
+  FILTER(
+    !BOUND(?n) || !BOUND(?src)
+    || (!?mapped && !?unmapped)
+    || (?mapped && ?unmapped)
+    || (?unmapped && !?reasoned)
+  )
+}
+ORDER BY ?event
