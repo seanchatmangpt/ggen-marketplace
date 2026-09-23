@@ -14,6 +14,29 @@ jobs:
   public-ontology-to-ash:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    # The generated smoke app runs real `mix ecto.create` / `mix test`
+    # against Postgres (Chicago-style: real database, never mocks). Without
+    # this service the job died at `tcp connect (localhost:5432):
+    # econnrefused` -- the generated script itself had rendered and compiled
+    # cleanly.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: xaas_public_smoke_dev
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: ecto://postgres:postgres@localhost:5432/xaas_public_smoke_dev
+      PGPASSWORD: postgres
     steps:
       - name: Checkout exact marketplace subject
         uses: actions/checkout@v7
@@ -49,7 +72,7 @@ jobs:
           components: rustfmt,clippy
 
       - name: Install sccache
-        uses: taiki-e/install-action@81ecf985428d5c2ea81dbf079bceca32bc9604ab
+        uses: taiki-e/install-action@4076c08d76dba979c11a7285295b0716c1d67908
         with:
           tool: sccache
 

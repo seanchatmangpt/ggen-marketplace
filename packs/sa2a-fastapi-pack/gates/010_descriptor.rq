@@ -1,0 +1,29 @@
+# MESSAGE: every SA2A capability projection must use admitted closed vocabularies and explicit authority metadata.
+PREFIX s2a: <https://ggen.dev/packs/sa2a-fastapi#>
+SELECT ?projection ?problem WHERE {
+  ?projection a s2a:CapabilityProjection .
+  {
+    FILTER NOT EXISTS { ?projection s2a:projectsCapability ?capability }
+    BIND("missing capability" AS ?problem)
+  } UNION {
+    FILTER NOT EXISTS { ?projection s2a:capabilityId ?id }
+    BIND("missing capability id" AS ?problem)
+  } UNION {
+    ?projection s2a:observationScope ?value .
+    FILTER (?value NOT IN ("none", "read_only", "read_write"))
+    BIND("invalid observation scope" AS ?problem)
+  } UNION {
+    ?projection s2a:mutationScope ?value .
+    FILTER (?value NOT IN ("none", "idempotent", "consequential"))
+    BIND("invalid mutation scope" AS ?problem)
+  } UNION {
+    ?projection s2a:receiptSemantics ?value .
+    FILTER (?value NOT IN ("none", "logged", "sealed_receipt"))
+    BIND("invalid receipt semantics" AS ?problem)
+  } UNION {
+    ?projection s2a:mutationScope "consequential" ;
+                s2a:requiresAuthority false .
+    BIND("consequential capability without authority" AS ?problem)
+  }
+}
+ORDER BY ?projection ?problem
