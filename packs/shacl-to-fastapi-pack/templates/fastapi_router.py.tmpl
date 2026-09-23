@@ -1,0 +1,33 @@
+---
+to: "src/wd_fa_api.py"
+sparql:
+  rows: |
+    PREFIX sfa: <https://ggen.dev/packs/shacl-to-fastapi#>
+    PREFIX sp: <http://seanchatmangpt.github.io/packs/shacl-projection#>
+    SELECT ?moduleName ?routerVar ?routePath ?httpMethod ?operationId ?requestModelName ?responseModelName
+    WHERE {
+      ?projection a sfa:FastAPIProjection ;
+                  sp:derivedFromShape ?shape ;
+                  sfa:moduleName ?moduleName ;
+                  sfa:routerVar ?routerVar ;
+                  sfa:routePath ?routePath ;
+                  sfa:httpMethod ?httpMethod ;
+                  sfa:operationId ?operationId ;
+                  sfa:requestModelName ?requestModelName ;
+                  sfa:responseModelName ?responseModelName .
+    }
+    ORDER BY ?operationId
+---
+"""Generated FastAPI projection. Domain semantics remain in the admitted SHACL graph."""
+
+from fastapi import APIRouter
+from shacl_pydantic_models import {% for row in rows %}{{ row.requestModelName }}, {{ row.responseModelName }}{% if not loop.last %}, {% endif %}{% endfor %}
+
+{{ rows[0].routerVar }} = APIRouter()
+
+{% for row in rows %}
+@{{ row.routerVar }}.{{ row.httpMethod | lower }}("{{ row.routePath }}", operation_id="{{ row.operationId }}", response_model={{ row.responseModelName }})
+def {{ row.operationId }}(payload: {{ row.requestModelName }}) -> {{ row.responseModelName }}:
+    raise NotImplementedError("application service must supply implementation")
+
+{% endfor %}

@@ -6,10 +6,12 @@
 // This module performs the transformation; it never bypasses admission.
 
 use chrono::{DateTime, FixedOffset};
+use std::collections::BTreeMap;
 use wasm4pm_compat::admission::{Admission, Admit, Refusal};
 use wasm4pm_compat::evidence::Evidence;
 use wasm4pm_compat::ocel::{
-    OCELAttributeValue, OCELEvent, OCELEventAttribute, OCELObject, OCELRelationship,
+    OCELAttributeValue, OCELEvent, OCELEventAttribute, OCELObject, OCELObjectAttribute,
+    OCELRelationship,
 };
 use wasm4pm_compat::state::Raw;
 use wasm4pm_compat::witness::Ocel20;
@@ -27,12 +29,15 @@ pub struct MappingRule {
 
 pub const MAPPING_RULES: &[MappingRule] = &[
     MappingRule { order: 10, identifier: "EventId", slug: "event-id", source_field: "trace_id:span_id", target_field: "OCELEvent.id", derivation: "id = format string of trace_id and span_id joined by a colon -- globally unique across traces" },
+    MappingRule { order: 15, identifier: "EventIdOverride", slug: "event-id-override", source_field: "span.attributes[ocel.event.id]", target_field: "OCELEvent.id (override)", derivation: "when a non-empty ocel.event.id attribute is present, use it as the admitted domain event identity instead of trace_id:span_id; otherwise preserve the generic fallback" },
     MappingRule { order: 20, identifier: "EventType", slug: "event-type", source_field: "span.name", target_field: "OCELEvent.event_type", derivation: "event_type = span.name verbatim -- the activity label" },
+    MappingRule { order: 25, identifier: "EventTypeOverride", slug: "event-type-override", source_field: "span.attributes[ocel.event.type]", target_field: "OCELEvent.event_type (override)", derivation: "when a non-empty ocel.event.type attribute is present, use it as the admitted domain activity before capability-id/span-name fallback" },
     MappingRule { order: 30, identifier: "EventTime", slug: "event-time", source_field: "span.start_time_unix_nano", target_field: "OCELEvent.time", derivation: "time = span start time, parsed to chrono::DateTime<FixedOffset>" },
     MappingRule { order: 40, identifier: "EventAttributes", slug: "event-attributes", source_field: "span.attributes", target_field: "OCELEvent.attributes", derivation: "each span attribute becomes one OCELEventAttribute { name, value: OCELAttributeValue::* }, after redact_attribute_value scrubs denylisted key names (api_key/token/secret/password/bearer/...), high-entropy base64/hex-shaped string values, and caps value length -- CISO finding: span attributes must never be copied verbatim into OCEL" },
     MappingRule { order: 45, identifier: "EventActivityCapability", slug: "event-activity-capability", source_field: "span.attributes[beam4pm.capability.id]", target_field: "OCELEvent.event_type (refinement)", derivation: "when the span carries a beam4pm.capability.id attribute (real span attribute emitted by beam4pm's BeamPM.Evidence.OtelBridge for every beam4pm engine telemetry event -- see beam4pm's lib/beam4pm_evidence.ex), it documents that event_type SHOULD read from beam4pm.capability.id (engine dot op, e.g. petgraph.graph_new) in preference to the bare span.name, since capability.id is the more specific OCEL activity label; the generic beam4pm.capability.engine/op/op_iri/invocation_id/verification_class/args_digest/duration_ms/outcome/refusal_reason attributes are NOT given their own rules here because rule-event-attributes order 40 already copies every span attribute verbatim after redaction into OCELEvent.attributes -- this rule only adds the activity-label refinement, it does not introduce a second event-attribute copy path" },
     MappingRule { order: 50, identifier: "ObjectFromServiceName", slug: "object-from-service-name", source_field: "resource.attributes[service.name]", target_field: "OCELObject with object_type service", derivation: "one OCELObject per unique resource service.name value, grouped across events" },
     MappingRule { order: 60, identifier: "ObjectFromTraceId", slug: "object-from-trace-id", source_field: "span.trace_id", target_field: "OCELObject with object_type trace", derivation: "one OCELObject per unique trace_id, giving every span in a trace a shared case object" },
+    MappingRule { order: 65, identifier: "SemanticObjectOverrides", slug: "semantic-object-overrides", source_field: "span.attributes[ocel.object.<slot>.*]", target_field: "OCELObject + OCELEvent.relationships", derivation: "for each complete slot carrying id and type, construct that domain OCELObject; optional qualifier links the event to it; attr.<name> fields become timestamped object attributes; incomplete slots are ignored rather than fabricated" },
     MappingRule { order: 70, identifier: "RelationshipPerformedBy", slug: "relationship-performed-by", source_field: "resource.attributes[service.name]", target_field: "OCELEvent.relationships", derivation: "relationships gains an OCELRelationship whose object_id is the service object id and qualifier is performed_by" },
     MappingRule { order: 80, identifier: "RelationshipPartOfTrace", slug: "relationship-part-of-trace", source_field: "span.trace_id", target_field: "OCELEvent.relationships", derivation: "relationships gains an OCELRelationship whose object_id is the trace object id and qualifier is part_of_trace" },
     MappingRule { order: 90, identifier: "RelationshipChildOfParentSpan", slug: "relationship-child-of-parent-span", source_field: "span.parent_span_id", target_field: "OCELEvent.relationships", derivation: "when parent_span_id is present (non-root span), relationships gains an OCELRelationship whose object_id is the PARENT EVENT's id (\"{trace_id}:{parent_span_id}\", an event-id reference, not an object reference) and qualifier is child_of_span -- gives DFG/Petri-net discovery a real causal edge instead of inferring sequence purely from start_time, which fabricates sibling-to-sibling precedence edges between spans sharing one parent" },
@@ -158,7 +163,12 @@ fn redact_attribute_value(name: &str, value: OtelAttributeValue) -> OtelAttribut
             if key_is_denylisted(name) {
                 return OtelAttributeValue::Str("[REDACTED]".to_string());
             }
-            if looks_high_entropy(&s) {
+            let lower_name = name.to_ascii_lowercase();
+            let integrity_value = lower_name.ends_with("_hash")
+                || lower_name.ends_with("_digest")
+                || lower_name.ends_with(".hash")
+                || lower_name.ends_with(".digest");
+            if looks_high_entropy(&s) && !integrity_value {
                 return OtelAttributeValue::Str("[REDACTED:high-entropy]".to_string());
             }
             if s.len() > MAX_ATTRIBUTE_VALUE_LEN {
@@ -178,6 +188,115 @@ fn redact_attribute_value(name: &str, value: OtelAttributeValue) -> OtelAttribut
             other
         }
     }
+}
+
+#[derive(Debug, Default)]
+struct SemanticObjectSpec {
+    id: Option<String>,
+    object_type: Option<String>,
+    qualifier: Option<String>,
+    attributes: Vec<(String, OtelAttributeValue)>,
+}
+
+fn string_span_attribute(
+    attributes: &[(String, OtelAttributeValue)],
+    name: &str,
+) -> Option<String> {
+    attributes.iter().find_map(|(key, value)| {
+        if key != name {
+            return None;
+        }
+        match value {
+            OtelAttributeValue::Str(value) if !value.trim().is_empty() => {
+                Some(value.clone())
+            }
+            _ => None,
+        }
+    })
+}
+
+/// Generic semantic override profile.
+///
+/// Any producer may attach:
+/// - ocel.event.id / ocel.event.type
+/// - ocel.object.<slot>.id
+/// - ocel.object.<slot>.type
+/// - ocel.object.<slot>.qualifier
+/// - ocel.object.<slot>.attr.<name>
+///
+/// Complete object slots become domain objects and qualified event-object
+/// links.  The profile is generic: manufacturing, incident, finance, or any
+/// other domain can project its admitted identities without this transformer
+/// learning a domain-specific vocabulary.
+fn semantic_object_projection(
+    attributes: &[(String, OtelAttributeValue)],
+    start_time: &DateTime<FixedOffset>,
+) -> (Vec<OCELObject>, Vec<OCELRelationship>) {
+    let mut slots: BTreeMap<String, SemanticObjectSpec> = BTreeMap::new();
+
+    for (name, value) in attributes {
+        let Some(rest) = name.strip_prefix("ocel.object.") else {
+            continue;
+        };
+        let mut parts = rest.splitn(3, '.');
+        let Some(slot) = parts.next() else {
+            continue;
+        };
+        let Some(field) = parts.next() else {
+            continue;
+        };
+        let tail = parts.next();
+        let spec = slots.entry(slot.to_string()).or_default();
+
+        match (field, tail, value) {
+            ("id", _, OtelAttributeValue::Str(value)) if !value.trim().is_empty() => {
+                spec.id = Some(value.clone());
+            }
+            ("type", _, OtelAttributeValue::Str(value)) if !value.trim().is_empty() => {
+                spec.object_type = Some(value.clone());
+            }
+            ("qualifier", _, OtelAttributeValue::Str(value))
+                if !value.trim().is_empty() =>
+            {
+                spec.qualifier = Some(value.clone());
+            }
+            ("attr", Some(attribute_name), _) if !attribute_name.trim().is_empty() => {
+                spec.attributes
+                    .push((attribute_name.to_string(), value.clone()));
+            }
+            _ => {}
+        }
+    }
+
+    let mut objects = Vec::new();
+    let mut relationships = Vec::new();
+    for (_, spec) in slots {
+        let (Some(id), Some(object_type)) = (spec.id, spec.object_type) else {
+            continue;
+        };
+        if let Some(qualifier) = spec.qualifier {
+            relationships.push(OCELRelationship {
+                object_id: id.clone(),
+                qualifier,
+            });
+        }
+        let object_attributes = spec
+            .attributes
+            .into_iter()
+            .map(|(name, value)| OCELObjectAttribute {
+                name: name.clone(),
+                value: redact_attribute_value(&name, value).into(),
+                time: start_time.clone(),
+            })
+            .collect();
+        objects.push(OCELObject {
+            id,
+            object_type,
+            attributes: object_attributes,
+            relationships: vec![],
+        });
+    }
+    (objects, relationships)
 }
 
 /// The named admission law this boundary enforces: a span must carry a
@@ -238,17 +357,28 @@ impl Admit for OtelToOcel {
             ));
         };
 
-        // Rule EventId (order 10): id = "{trace_id}:{span_id}".
-        let event_id = format!("{}:{}", span.trace_id, span.span_id);
+        // Generic semantic overrides are optional.  When absent the exact
+        // legacy trace/span mapping remains the fallback.
+        let semantic_event_id =
+            string_span_attribute(&span.attributes, "ocel.event.id");
+        let semantic_event_type =
+            string_span_attribute(&span.attributes, "ocel.event.type");
+        let (semantic_objects, semantic_relationships) =
+            semantic_object_projection(&span.attributes, &span.start_time);
+
+        // Rule EventId + EventIdOverride.
+        let event_id = semantic_event_id
+            .unwrap_or_else(|| format!("{}:{}", span.trace_id, span.span_id));
         let service_object_id = format!("service:{}", service_name);
         let trace_object_id = format!("trace:{}", span.trace_id);
 
-        // Rule EventAttributes (order 40): span attributes -> OCELEventAttribute,
-        // scrubbed through redact_attribute_value first (CISO finding: no
-        // secret redaction was applied before this fix).
+        // Projection-control attributes are consumed as control metadata and
+        // do not leak back into the domain event's ordinary attribute set.
         let attributes: Vec<OCELEventAttribute> = span
             .attributes
-            .into_iter()
+            .iter()
+            .filter(|(name, _)| !name.starts_with("ocel."))
+            .cloned()
             .map(|(name, value)| {
                 let scrubbed = redact_attribute_value(&name, value);
                 OCELEventAttribute {
@@ -269,6 +399,7 @@ impl Admit for OtelToOcel {
                 qualifier: "part_of_trace".to_string(),
             },
         ];
+        relationships.extend(semantic_relationships);
 
         // Rule RelationshipChildOfParentSpan (order 90): when this span carries
         // a non-empty parent_span_id, record a real causal edge to the parent
@@ -296,14 +427,16 @@ impl Admit for OtelToOcel {
         // Looked up in the already-built `attributes` vec (rule EventAttributes,
         // order 40) rather than re-deriving from raw span.attributes a second
         // time, so this introduces no second event-attribute copy path.
-        let event_type = attributes
-            .iter()
-            .find(|a| a.name == "beam4pm.capability.id")
-            .and_then(|a| match &a.value {
-                OCELAttributeValue::String(s) if !s.trim().is_empty() => Some(s.clone()),
-                _ => None,
-            })
-            .unwrap_or(span.name);
+        let event_type = semantic_event_type.unwrap_or_else(|| {
+            attributes
+                .iter()
+                .find(|a| a.name == "beam4pm.capability.id")
+                .and_then(|a| match &a.value {
+                    OCELAttributeValue::String(s) if !s.trim().is_empty() => Some(s.clone()),
+                    _ => None,
+                })
+                .unwrap_or_else(|| span.name.clone())
+        });
 
         // Rule EventTime (order 30): time = span start time.
         let event = OCELEvent {
@@ -314,7 +447,7 @@ impl Admit for OtelToOcel {
             relationships,
         };
 
-        let objects = vec![
+        let mut objects = vec![
             OCELObject {
                 id: service_object_id,
                 object_type: "service".to_string(),
@@ -328,6 +461,7 @@ impl Admit for OtelToOcel {
                 relationships: vec![],
             },
         ];
+        objects.extend(semantic_objects);
 
         Ok(Admission::new(OcelProjection { event, objects }))
     }

@@ -1,0 +1,45 @@
+---
+to: "lib/contracts/wd-fa.js"
+sparql:
+  contracts: |
+    PREFIX szj: <https://ggen.dev/packs/shacl-to-zod-jsdoc#>
+    PREFIX sp: <http://seanchatmangpt.github.io/packs/shacl-projection#>
+    SELECT ?schemaName ?typedefName ?shape
+    WHERE {
+      ?contract a szj:JavaScriptContract ;
+                sp:derivedFromShape ?shape ;
+                szj:schemaName ?schemaName ;
+                szj:typedefName ?typedefName .
+    }
+    ORDER BY ?schemaName
+  fields: |
+    PREFIX szj: <https://ggen.dev/packs/shacl-to-zod-jsdoc#>
+    PREFIX sp: <http://seanchatmangpt.github.io/packs/shacl-projection#>
+    PREFIX sh: <http://www.w3.org/ns/shacl#>
+    SELECT ?schemaName ?typedefName ?fieldName ?jsType ?zodType
+    WHERE {
+      ?contract a szj:JavaScriptContract ;
+                sp:derivedFromShape ?shape ;
+                szj:schemaName ?schemaName ;
+                szj:typedefName ?typedefName .
+      ?shape sh:property ?prop .
+      ?prop sh:path ?path ; sh:datatype ?dt .
+      BIND(REPLACE(STR(?path), "^.*[/#]", "") AS ?fieldName)
+      BIND(IF(?dt = <http://www.w3.org/2001/XMLSchema#string>, "string",
+           IF(?dt = <http://www.w3.org/2001/XMLSchema#boolean>, "boolean", "number")) AS ?jsType)
+      BIND(IF(?dt = <http://www.w3.org/2001/XMLSchema#string>, "z.string()",
+           IF(?dt = <http://www.w3.org/2001/XMLSchema#boolean>, "z.boolean()", "z.number()")) AS ?zodType)
+    }
+    ORDER BY ?schemaName ?fieldName
+---
+import { z } from "zod";
+
+{% for contract in contracts %}
+/**
+ * @typedef {Object} {{ contract.typedefName }}
+{% for field in fields %}{% if field.schemaName == contract.schemaName %} * @property {{{ field.jsType }}} {{ field.fieldName }}
+{% endif %}{% endfor %} */
+export const {{ contract.schemaName }} = z.object({
+{% for field in fields %}{% if field.schemaName == contract.schemaName %}  {{ field.fieldName }}: {{ field.zodType }},
+{% endif %}{% endfor %}});
+{% endfor %}

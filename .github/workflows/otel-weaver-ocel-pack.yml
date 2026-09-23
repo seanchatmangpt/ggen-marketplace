@@ -1,0 +1,57 @@
+name: OTEL Weaver OCEL pack court
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "packs/otel-weaver-ocel-pack/**"
+      - ".github/workflows/otel-weaver-ocel-pack.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generated-crate:
+    name: Generated crate builds from clean checkout
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Assert generated manifest equals generator template
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmp \
+            packs/otel-weaver-ocel-pack/templates/Cargo.toml.tmpl \
+            packs/otel-weaver-ocel-pack/generated/Cargo.toml
+
+      - name: Install nightly Rust
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install nightly --profile minimal
+          cargo +nightly --version
+          rustc +nightly --version
+
+      - name: Build generated library and real accumulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo +nightly check \
+            --manifest-path packs/otel-weaver-ocel-pack/generated/Cargo.toml
+          cargo +nightly test \
+            --manifest-path packs/otel-weaver-ocel-pack/generated/Cargo.toml
+
+      - name: Prove no ambient sibling path remains in generated manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -q 'path = "../../../../wasm4pm-compat"' \
+            packs/otel-weaver-ocel-pack/generated/Cargo.toml
+          grep -q 'serde = ' packs/otel-weaver-ocel-pack/generated/Cargo.toml
+          grep -q 'tiny_http = ' packs/otel-weaver-ocel-pack/generated/Cargo.toml
