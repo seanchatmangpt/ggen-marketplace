@@ -69,3 +69,95 @@ er:observedRef a rdf:Property ; rdfs:domain er:RefObservation .
 er:observedSha a rdf:Property ; rdfs:domain er:RefObservation .
 er:observedAt a rdf:Property ; rdfs:domain er:RefObservation .
 er:observedBy a rdf:Property ; rdfs:domain er:RefObservation ; rdfs:range prov:Agent .
+
+# ---------------------------------------------------------------------------
+# v0.2.0: legacy-role crosswalk, constitutional role mapping, requirement rows
+# (CE23-1 independent release subject; CE23-2 explicit disposition of every
+# predecessor required role). Still generic law: the predecessor manifest, the
+# fleet classification, court-reference observations and every explicit
+# decision are consumer-owned inputs (qualification/consumer-v26.9.23 shows
+# the shape). Role-boundary values are a value class of their own: they never
+# reuse er:Disposition (component disposition, domain er:Component) or the
+# er:StandingState individuals er:BLOCKED / er:UNSUPPORTED.
+# ---------------------------------------------------------------------------
+
+er:LegacyRelease a rdfs:Class ;
+    rdfs:label "Frozen predecessor release (lifted observation)" ;
+    dcterms:description "A predecessor release lifted from its committed manifest bytes (lift/manifest_to_er.py). Deliberately not an er:Release and its components are not er:Component, so gates 010-060 never re-judge frozen facts; gate 070 only requires that each of its required roles is crosswalked." .
+
+er:LegacyComponent a rdfs:Class ;
+    rdfs:label "Predecessor release component (lifted observation)" .
+
+er:RoleDisposition a rdfs:Class ;
+    rdfs:label "Role-boundary disposition" ;
+    dcterms:description "Exactly one per (predecessor required role, successor release): the boundary the successor release assigns to the old role, with its provenance (er:decidedBy for an explicit decision, er:derivedBy for a pack rule) and a non-empty er:reason." .
+
+er:RoleBoundary a rdfs:Class ;
+    rdfs:label "Role boundary value" .
+
+er:ROLE_REQUIRED a er:RoleBoundary ; rdfs:label "REQUIRED" .
+er:ROLE_SUCCESSOR a er:RoleBoundary ; rdfs:label "SUCCESSOR" .
+er:ROLE_BLOCKED a er:RoleBoundary ; rdfs:label "BLOCKED" .
+er:ROLE_UNSUPPORTED a er:RoleBoundary ; rdfs:label "UNSUPPORTED" .
+er:ROLE_REFUSED a er:RoleBoundary ; rdfs:label "REFUSED" .
+
+# Sentinel, deliberately untyped: it is NOT an er:RoleBoundary, so gate 070
+# refuses any disposition that carries it (an unknown fleet class, or an
+# explicit "we did not decide" row).
+er:ROLE_UNCLASSIFIED rdfs:label "UNCLASSIFIED" .
+
+er:crosswalkFrom a rdf:Property ; rdfs:domain er:Release ; rdfs:range er:LegacyRelease ;
+    dcterms:description "The successor release must dispose every required role of this predecessor release." .
+er:legacyRequiredRole a rdf:Property ; rdfs:domain er:LegacyRelease .
+er:legacyComponent a rdf:Property ; rdfs:range er:LegacyComponent ;
+    dcterms:description "LegacyRelease -> its lifted components; RoleDisposition -> the lifted component that supplied the role." .
+er:legacyRepository a rdf:Property ; rdfs:domain er:LegacyComponent .
+er:legacyRole a rdf:Property .
+er:legacySha a rdf:Property .
+er:legacyStanding a rdf:Property ; rdfs:range er:StandingState .
+er:componentId a rdf:Property ;
+    dcterms:description "Manifest component id (verify_release `id` / `depends_on` key)." .
+er:sourceSha256 a rdf:Property ;
+    dcterms:description "sha256:<hex> of the exact bytes a lifted or imported graph was derived from." .
+
+er:boundary a rdf:Property ; rdfs:domain er:RoleDisposition ; rdfs:range er:RoleBoundary .
+er:sourceRelease a rdf:Property ; rdfs:domain er:RoleDisposition ; rdfs:range er:LegacyRelease .
+er:targetRelease a rdf:Property ; rdfs:domain er:RoleDisposition ; rdfs:range er:Release .
+er:reason a rdf:Property ; rdfs:domain er:RoleDisposition .
+er:decidedBy a rdf:Property ; rdfs:domain er:RoleDisposition ;
+    dcterms:description "Authority of an explicit decision (operator testimony or an admitted first-mile proposition). Refused by gate 070 for a repository present in the fleet classification." .
+er:derivedBy a rdf:Property ; rdfs:domain er:RoleDisposition ;
+    dcterms:description "Pack rule that derived the disposition: rule:fleet-classification or rule:no-GC23-court-reference." .
+er:suppliedBy a rdf:Property ; rdfs:domain er:RoleDisposition ; rdfs:range er:Component .
+er:classificationSource a rdf:Property ;
+    dcterms:description "Identity of the imported fleet classification (repo@sha:path sha256:<hex>) consulted for a release or a disposition." .
+er:courtReferencesComponent a rdf:Property ;
+    dcterms:description "Observation: a court of the governing checkpoint executes this repository (object = owner/name slug). Such a repository never derives SUCCESSOR by rule:no-GC23-court-reference; it needs a fleet classification row or an explicit decision." .
+
+# Constitutional role mapping (survey_portfolio RELEASE_ROLE_UNMAPPED law).
+er:ConstitutionalRole a rdfs:Class ;
+    rdfs:label "Frozen constitutional calculus role" .
+er:constitutionalName a rdf:Property ; rdfs:domain er:ConstitutionalRole .
+er:calculusOrder a rdf:Property ; rdfs:domain er:ConstitutionalRole .
+
+er:CONST_OBSERVE a er:ConstitutionalRole ; er:constitutionalName "Observe" ; er:calculusOrder 1 .
+er:CONST_CANDIDATE_STATE a er:ConstitutionalRole ; er:constitutionalName "CandidateState" ; er:calculusOrder 2 .
+er:CONST_SEMANTIC_STATE a er:ConstitutionalRole ; er:constitutionalName "SemanticState" ; er:calculusOrder 3 .
+er:CONST_CONSTRUCT a er:ConstitutionalRole ; er:constitutionalName "Construct" ; er:calculusOrder 4 .
+er:CONST_PROJECT a er:ConstitutionalRole ; er:constitutionalName "Project" ; er:calculusOrder 5 .
+er:CONST_PRODUCE_EVIDENCE a er:ConstitutionalRole ; er:constitutionalName "ProduceEvidence" ; er:calculusOrder 6 .
+er:CONST_ADMIT a er:ConstitutionalRole ; er:constitutionalName "Admit" ; er:calculusOrder 7 .
+er:CONST_ACTUATE a er:ConstitutionalRole ; er:constitutionalName "Actuate" ; er:calculusOrder 8 .
+er:CONST_RECEIPT a er:ConstitutionalRole ; er:constitutionalName "Receipt" ; er:calculusOrder 9 .
+er:CONST_REPLAY a er:ConstitutionalRole ; er:constitutionalName "Replay" ; er:calculusOrder 10 .
+er:CONST_CLASS_CLOSE a er:ConstitutionalRole ; er:constitutionalName "ClassClose" ; er:calculusOrder 11 .
+
+er:RoleMapping a rdfs:Class ;
+    rdfs:label "Release role -> constitutional role mapping" .
+er:hasRoleMapping a rdf:Property ; rdfs:domain er:Release ; rdfs:range er:RoleMapping .
+er:releaseRole a rdf:Property ; rdfs:domain er:RoleMapping .
+er:primary a rdf:Property ; rdfs:domain er:RoleMapping ; rdfs:range er:ConstitutionalRole .
+er:capability a rdf:Property ; rdfs:domain er:RoleMapping ; rdfs:range er:ConstitutionalRole .
+er:authorityCeiling a rdf:Property ; rdfs:domain er:RoleMapping .
+er:brceExclusive a rdf:Property ; rdfs:domain er:RoleMapping ;
+    dcterms:description "Required true when the primary role is Actuate: consequential DO stays BRCE-exclusive." .
