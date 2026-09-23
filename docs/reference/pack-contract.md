@@ -42,3 +42,14 @@ Profiles describe packaging shape, not execution standing.
 ## Path safety
 
 Symlinks below `packs/` are refused so reviewed pack source cannot escape through path aliasing.
+
+## Targets extension
+
+A pack may declare the languages its templates project to in a sidecar `packs/<name>/targets.toml` holding a top-level `[targets]` table (not under `[pack]`, and not in `pack.toml`: ggen-engine denies unknown `pack.toml` tables, and `validate` refuses one with `TARGETS_IN_MANIFEST`):
+
+```toml
+[targets]
+languages = ["ts", "py", "rs", "ex"]
+```
+
+`languages` is a non-empty, duplicate-free list of lowercase identifiers matching `[a-z][a-z0-9_+-]*`. `validate` refuses a malformed table with `TARGETS_LANGUAGES`; `catalog` emits `target_languages` (empty list when absent).
