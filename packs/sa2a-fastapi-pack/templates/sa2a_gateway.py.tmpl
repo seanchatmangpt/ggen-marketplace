@@ -1,0 +1,56 @@
+---
+to: "src/sa2a_gateway.py"
+sparql:
+  surfaces: |
+    PREFIX s2a: <https://ggen.dev/packs/sa2a-fastapi#>
+    SELECT ?surfaceName ?mountPath
+    WHERE { ?surface a s2a:FastAPISA2ASurface ; s2a:surfaceName ?surfaceName ; s2a:mountPath ?mountPath . }
+    ORDER BY ?surfaceName
+  caps: |
+    PREFIX s2a: <https://ggen.dev/packs/sa2a-fastapi#>
+    PREFIX pi: <https://ggen.dev/ontology/protocol-integration#>
+    SELECT ?capabilityId ?semanticDefinition ?observationScope ?mutationScope ?requiresAuthority ?receiptSemantics
+    WHERE {
+      ?projection a s2a:CapabilityProjection ;
+                  s2a:projectsCapability ?capability ;
+                  s2a:capabilityId ?capabilityId ;
+                  s2a:observationScope ?observationScope ;
+                  s2a:mutationScope ?mutationScope ;
+                  s2a:requiresAuthority ?requiresAuthority ;
+                  s2a:receiptSemantics ?receiptSemantics .
+      ?capability pi:semanticDefinition ?semanticDefinition .
+    }
+    ORDER BY ?capabilityId
+---
+"""Generated FastAPI SA2A capability surface. Results are candidates, never authority."""
+
+from fastapi import APIRouter
+from pydantic import BaseModel
+
+router = APIRouter(prefix="{{ surfaces[0].mountPath }}")
+
+class SA2ARequest(BaseModel):
+    subject_id: str
+    evidence_digest: str
+    semantic_horizon: str
+
+class SA2AResult(BaseModel):
+    capability_id: str
+    status: str
+    candidate_digest: str
+
+CAPABILITIES = {
+{% for cap in caps %}    "{{ cap.capabilityId }}": {
+        "semantic_definition": "{{ cap.semanticDefinition }}",
+        "observation_scope": "{{ cap.observationScope }}",
+        "mutation_scope": "{{ cap.mutationScope }}",
+        "requires_authority": {{ cap.requiresAuthority | lower }},
+        "receipt_semantics": "{{ cap.receiptSemantics }}",
+    },
+{% endfor %}}
+
+@router.post("/tasks/{capability_id}", response_model=SA2AResult)
+def invoke(capability_id: str, request: SA2ARequest) -> SA2AResult:
+    if capability_id not in CAPABILITIES:
+        raise KeyError(capability_id)
+    raise NotImplementedError("candidate producer must be supplied by application composition")
