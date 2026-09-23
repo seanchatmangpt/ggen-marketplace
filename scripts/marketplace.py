@@ -102,6 +102,7 @@ class Pack:
     templates: tuple[Path, ...]
     native_gates: tuple[Path, ...]
     verifier_gates: tuple[Path, ...]
+    target_languages: tuple[str, ...] = ()
 
     @property
     def profile(self) -> str:
@@ -132,6 +133,7 @@ class Pack:
             "profile": self.profile,
             "size_bytes": len(archive),
             "successors": list(DEPRECATED_PACKS.get(self.name, ())),
+            "target_languages": list(self.target_languages),
             "templates": len(self.templates),
             "verifier_gates": len(self.verifier_gates),
             "version": self.version,
@@ -258,6 +260,27 @@ def inspect_marketplace() -> tuple[list[Pack], list[str]]:
             except (OSError, UnicodeError, tomllib.TOMLDecodeError) as exc:
                 issues.append(refusal("MANIFEST_INVALID", f"{directory.name}:{exc}"))
 
+        target_languages: tuple[str, ...] = ()
+        targets_path = directory / "targets.toml"
+        if document is not None and "targets" in document:
+            issues.append(refusal("TARGETS_IN_MANIFEST", f"{directory.name}:ggen-engine denies unknown pack.toml tables; use targets.toml"))
+        elif targets_path.is_file():
+            langs = None
+            try:
+                targets = tomllib.loads(targets_path.read_text(encoding="utf-8")).get("targets")
+                langs = targets.get("languages") if isinstance(targets, dict) else None
+            except (OSError, UnicodeError, tomllib.TOMLDecodeError):
+                pass
+            if (
+                not isinstance(langs, list)
+                or not langs
+                or not all(isinstance(x, str) and re.fullmatch(r"[a-z][a-z0-9_+-]*", x) for x in langs)
+                or len(set(langs)) != len(langs)
+            ):
+                issues.append(refusal("TARGETS_LANGUAGES", f"{directory.name}:{langs!r}"))
+            else:
+                target_languages = tuple(langs)
+
         name: str | None = None
         version: str | None = None
         description: str | None = None
@@ -311,7 +334,7 @@ def inspect_marketplace() -> tuple[list[Pack], list[str]]:
                 verifier_gates = tuple(path for path in gate_sources if path.suffix == ".py")
 
         if name is not None and version is not None and description is not None and ontologies:
-            packs.append(Pack(name, version, description, directory, ontologies, templates, native_gates, verifier_gates))
+            packs.append(Pack(name, version, description, directory, ontologies, templates, native_gates, verifier_gates, target_languages))
 
     for relative in REQUIRED_DOCS:
         path = ROOT / relative

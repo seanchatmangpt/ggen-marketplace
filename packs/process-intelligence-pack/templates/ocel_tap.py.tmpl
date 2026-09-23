@@ -1,0 +1,277 @@
+---
+to: src/pi_ocel_tap/py/tap.py
+sparql:
+  eventTypes: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id WHERE { ?t a pi:EventType ; pi:typeId ?id . } ORDER BY ?id
+  objectTypes: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id WHERE { ?t a pi:ObjectType ; pi:typeId ?id . } ORDER BY ?id
+  hashes: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id WHERE { ?l a pi:LanguageSupport ; pi:language "py" ; pi:supportsHash ?id . } ORDER BY ?id
+  sources: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id ?kind ?nameField ?idField ?timeField ?algo WHERE {
+      ?s a pi:EventSource ; pi:sourceId ?id ; pi:sourceKind ?kind ; pi:nameField ?nameField ;
+         pi:idField ?idField ; pi:timeField ?timeField ; pi:chainPolicy ?p .
+      ?p pi:hashAlgorithm ?algo ; pi:targetLanguage "py" .
+    } ORDER BY ?id
+  rules: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?rule ?src ?name ?event ?object ?qualifier ?path WHERE {
+      ?r a pi:MappingRule ; pi:ruleId ?rule ; pi:fromSource ?s ; pi:sourceEvent ?name ;
+         pi:emitsEventType ?et ; pi:hasRelation ?rel .
+      ?s pi:sourceId ?src ; pi:chainPolicy ?p . ?p pi:targetLanguage "py" .
+      ?et pi:typeId ?event .
+      ?rel pi:relatesObjectType ?ot ; pi:hasQualifier ?q ; pi:objectIdPath ?path .
+      ?ot pi:typeId ?object . ?q pi:qualifierId ?qualifier .
+    } ORDER BY ?rule ?object ?qualifier ?path
+  roles: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?id WHERE { ?r a pi:PhaseRole ; pi:phaseId ?id ; pi:phaseOrder ?o . } ORDER BY ?o
+  phased: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?type ?phase WHERE { ?t a pi:EventType ; pi:typeId ?type ; pi:phaseRole ?r . ?r pi:phaseId ?phase . } ORDER BY ?type
+  closes: >
+    PREFIX pi: <https://ggen.dev/ontology/process-intelligence#>
+    SELECT ?outcome ?pending WHERE { ?o a pi:EventType ; pi:typeId ?outcome ; pi:closesEventType ?p . ?p pi:typeId ?pending . } ORDER BY ?outcome ?pending
+---
+# Generated OCEL 2.0 type registry, source adapter, event-tap mapper, serializer and hash chain.
+# Source of truth: the consumer's pi: individuals. Do not edit.
+import hashlib
+import json
+
+EVENT_TYPES = [{% for r in eventTypes %}"{{ r.id }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+OBJECT_TYPES = [{% for r in objectTypes %}"{{ r.id }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+SUPPORTED_HASHES = [{% for r in hashes %}"{{ r.id }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+SOURCES = [
+{% for r in sources %}    {"id": "{{ r.id }}", "kind": "{{ r.kind }}", "nameField": "{{ r.nameField }}", "idField": "{{ r.idField }}", "timeField": "{{ r.timeField }}", "hash": "{{ r.algo }}"},
+{% endfor %}]
+RULES = [
+{% for r in rules %}    {"rule": "{{ r.rule }}", "source": "{{ r.src }}", "name": "{{ r.name }}", "event": "{{ r.event }}", "object": "{{ r.object }}", "qualifier": "{{ r.qualifier }}", "path": "{{ r.path }}"},
+{% endfor %}]
+PHASE_OPEN = "{% for r in roles %}{% if loop.first %}{{ r.id }}{% endif %}{% endfor %}"
+PHASE_CLOSE = "{% for r in roles %}{% if loop.last %}{{ r.id }}{% endif %}{% endfor %}"
+PHASED = {
+{% for r in phased %}    "{{ r.type }}": "{{ r.phase }}",
+{% endfor %}}
+CLOSES = {
+{% for r in closes %}    ("{{ r.outcome }}", "{{ r.pending }}"),
+{% endfor %}}
+{% raw %}
+CALLBACK_KINDS = ("sdk-callback", "app-server-subscription")
+
+
+def hash_hex(alg, data):
+{% endraw %}{% for h in hashes %}{% if h.id == "sha256" %}    if alg == "sha256":
+        return hashlib.sha256(data.encode("utf-8")).hexdigest()
+{% elif h.id == "blake2b256" %}    if alg == "blake2b256":
+        return hashlib.blake2b(data.encode("utf-8"), digest_size=32).hexdigest()
+{% endif %}{% endfor %}{% raw %}    raise ValueError("unsupported hash algorithm: " + alg)
+
+
+def _s(v):
+    return json.dumps(v, ensure_ascii=False)
+
+
+def canon(e, phase="", ref=""):
+    """Canonical form: keys sorted, no whitespace. Identical across all generated languages.
+    A phased event (phase != "") additionally binds pendingRef and phase into the digest."""
+    rels = ",".join(
+        '{"objectId":' + _s(r["objectId"]) + ',"qualifier":' + _s(r["qualifier"]) + "}"
+        for r in e["relationships"]
+    )
+    bound = ',"pendingRef":' + _s(ref) + ',"phase":' + _s(phase) if phase else ""
+    return '{"id":' + _s(e["id"]) + bound + ',"relationships":[' + rels + '],"time":' + _s(e["time"]) + ',"type":' + _s(e["type"]) + "}"
+
+
+def _get_path(raw, path):
+    cur = raw
+    for k in path.split("."):
+        if not isinstance(cur, dict) or k not in cur:
+            return None
+        cur = cur[k]
+    return cur
+
+
+def _ids(v):
+    if v is None:
+        return []
+    return [_str(x) for x in (v if isinstance(v, list) else [v])]
+
+
+def _str(v):
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, float) and v == int(v):
+        return str(int(v))
+    return str(v)
+
+
+def _flatten_otel(raw):
+    attrs = raw.get("attributes")
+    if not isinstance(attrs, list):
+        return raw
+    flat = {}
+    for kv in attrs:
+        v = kv.get("value")
+        if isinstance(v, dict):
+            for k in ("stringValue", "intValue", "boolValue", "doubleValue"):
+                if k in v:
+                    v = v[k]
+                    break
+        flat[kv["key"]] = v
+    return {**raw, "attributes": flat}
+
+
+class Tap:
+    def __init__(self, source_id):
+        found = [s for s in SOURCES if s["id"] == source_id]
+        if not found:
+            raise ValueError("unknown source: " + source_id)
+        self.spec = found[0]
+        self.events = []
+        self.objects = {}
+        self.last = ""
+        self.sealed = False
+        self.orphans = []
+
+    def ingest(self, data):
+        """stream-json: pass newline-delimited text. every other kind: pass one parsed record."""
+        if self.sealed:
+            raise RuntimeError("tap sealed")
+        if self.spec["kind"] == "stream-json":
+            if not isinstance(data, str):
+                raise TypeError("stream-json expects text")
+            records = [json.loads(line) for line in data.split("\n") if line.strip()]
+        else:
+            if isinstance(data, str):
+                raise TypeError(self.spec["kind"] + " expects a parsed record")
+            records = [data]
+        out = []
+        for r in records:
+            e = self._append(r)
+            if e is not None:
+                out.append(e)
+        return out
+
+    def attach(self, register):
+        """sdk-callback and app-server-subscription: hand the runtime a callback."""
+        if self.spec["kind"] not in CALLBACK_KINDS:
+            raise ValueError(self.spec["kind"] + " has no callback attachment")
+        register(lambda record: self.ingest(record))
+
+    def _append(self, raw):
+        if self.spec["kind"] == "otel":
+            raw = _flatten_otel(raw)
+        name = _get_path(raw, self.spec["nameField"])
+        ident = _get_path(raw, self.spec["idField"])
+        when = _get_path(raw, self.spec["timeField"])
+        if name is None or ident is None or when is None:
+            return None
+        rs = [r for r in RULES if r["source"] == self.spec["id"] and r["name"] == _str(name)]
+        if not rs:
+            return None
+        rels = []
+        found = []
+        for r in rs:
+            for oid in _ids(_get_path(raw, r["path"])):
+                rels.append({"objectId": oid, "qualifier": r["qualifier"]})
+                found.append((oid, r["object"]))
+        etype = rs[0]["event"]
+        phase = PHASED.get(etype, "")
+        ref = ""
+        if phase == PHASE_CLOSE:
+            pending = self._open_pending(etype, rels)
+            if pending is None:
+                self.orphans.append(_str(ident))  # outcome with no open pending: reported, not emitted
+                return None
+            ref = pending["pi_hash"]
+        for oid, otype in found:
+            self.objects.setdefault(oid, otype)
+        base = {"id": _str(ident), "type": etype, "time": _str(when), "relationships": rels}
+        parent = self.last
+        digest = hash_hex(self.spec["hash"], parent + "\n" + canon(base, phase, ref))
+        self.last = digest
+        attrs = [
+            {"name": "pi_parent", "value": parent},
+            {"name": "pi_hash", "value": digest},
+            {"name": "pi_hash_alg", "value": self.spec["hash"]},
+        ]
+        if phase:
+            attrs.append({"name": "pi_phase", "value": phase})
+        if phase == PHASE_CLOSE:
+            attrs.append({"name": "pi_pending_ref", "value": ref})
+        ev = {**base, "attributes": attrs}
+        self.events.append(ev)
+        return ev
+
+    def _open_pending(self, outcome_type, rels):
+        """Oldest pending event this outcome type may close, over the same object set."""
+        closed = {a["value"] for e in self.events for a in e["attributes"] if a["name"] == "pi_pending_ref"}
+        want = sorted(r["objectId"] for r in rels)
+        for e in self.events:
+            attr = {a["name"]: a["value"] for a in e["attributes"]}
+            if (attr.get("pi_phase") == PHASE_OPEN and attr["pi_hash"] not in closed
+                    and (outcome_type, e["type"]) in CLOSES
+                    and sorted(r["objectId"] for r in e["relationships"]) == want):
+                return attr
+        return None
+
+    def unpaired(self):
+        """ids of pending events no outcome has closed yet (reported; the tap may still seal)."""
+        closed = {a["value"] for e in self.events for a in e["attributes"] if a["name"] == "pi_pending_ref"}
+        return [e["id"] for e in self.events
+                if any(a["name"] == "pi_phase" and a["value"] == PHASE_OPEN for a in e["attributes"])
+                and next(a["value"] for a in e["attributes"] if a["name"] == "pi_hash") not in closed]
+
+    def seal(self):
+        """seal once: no further ingest; returns the head hash."""
+        if self.sealed:
+            raise RuntimeError("tap already sealed")
+        self.sealed = True
+        return self.last
+
+    def to_ocel(self):
+        return {
+            "objectTypes": [{"name": n, "attributes": []} for n in OBJECT_TYPES],
+            "eventTypes": [{"name": n, "attributes": []} for n in EVENT_TYPES],
+            "objects": [{"id": i, "type": t, "attributes": [], "relationships": []} for i, t in self.objects.items()],
+            "events": self.events,
+        }
+
+    def serialize(self):
+        return json.dumps(self.to_ocel(), ensure_ascii=False)
+
+
+def verify_chain(doc, alg):
+    """Recompute the chain over an OCEL document and enforce phase pairing. None when intact, else the reason."""
+    parent = ""
+    seen = {}
+    used = set()
+    for e in doc["events"]:
+        attr = {a["name"]: a["value"] for a in e["attributes"]}
+        phase = PHASED.get(e["type"], "")
+        ref = attr.get("pi_pending_ref", "")
+        if attr.get("pi_parent") != parent:
+            return "parent mismatch at " + e["id"]
+        want = hash_hex(alg, parent + "\n" + canon(e, attr.get("pi_phase", ""), ref))
+        if attr.get("pi_hash") != want:
+            return "hash mismatch at " + e["id"]
+        if attr.get("pi_phase", "") != phase:
+            return "phase mismatch at " + e["id"]
+        if phase == PHASE_OPEN:
+            if ref:
+                return "pairing mismatch at " + e["id"]
+            seen[want] = e
+        elif phase == PHASE_CLOSE:
+            p = seen.get(ref)
+            ok = (p is not None and ref not in used and (e["type"], p["type"]) in CLOSES
+                  and sorted(r["objectId"] for r in p["relationships"]) == sorted(r["objectId"] for r in e["relationships"]))
+            if not ok:
+                return "pairing mismatch at " + e["id"]
+            used.add(ref)
+        parent = want
+    return None
+{% endraw %}

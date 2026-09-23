@@ -37,3 +37,60 @@ pi:ConsumerConformanceCheck-TicketLifecycle-001 a pi:ConformanceCheck ;
     pi:checksAgainstModel pi:ConsumerProcessModel-TicketLifecycle-001 ;
     pi:conformant true ;
     rdfs:label "A downstream consumer's conformant check, evidenced end to end" .
+
+# OCEL tap fixture (toy loop, unrelated to any real runtime): lawful consumer
+# mapping that trips none of the OCEL tap gates. Two sources exercise the
+# per-language chain-policy filter (the second targets py only, blake2b256).
+pi:ConsumerPolicy-Sha a pi:ChainPolicy ; pi:hashAlgorithm "sha256" ; pi:targetLanguage "ts" , "py" , "rs" , "ex" .
+pi:ConsumerPolicy-Blake a pi:ChainPolicy ; pi:hashAlgorithm "blake2b256" ; pi:targetLanguage "py" .
+
+pi:ConsumerSource-Stream a pi:EventSource ; pi:sourceId "ticket_stream" ; pi:sourceKind "stream-json" ;
+    pi:nameField "type" ; pi:idField "uuid" ; pi:timeField "at" ; pi:chainPolicy pi:ConsumerPolicy-Sha .
+pi:ConsumerSource-Otel a pi:EventSource ; pi:sourceId "ticket_otel" ; pi:sourceKind "otel" ;
+    pi:nameField "name" ; pi:idField "spanId" ; pi:timeField "time" ; pi:chainPolicy pi:ConsumerPolicy-Blake .
+
+pi:ConsumerObjectType-Ticket a pi:ObjectType ; pi:typeId "consumer_ticket" .
+pi:ConsumerEventType-Open a pi:EventType ; pi:typeId "consumer_open_ticket" .
+pi:ConsumerEventType-Trace a pi:EventType ; pi:typeId "consumer_trace_ticket" .
+pi:ConsumerQualifier-Target a pi:Qualifier ; pi:qualifierId "consumer_target" .
+pi:ConsumerRel-Open-Ticket a pi:E2ORelation ; pi:relatesObjectType pi:ConsumerObjectType-Ticket ;
+    pi:hasQualifier pi:ConsumerQualifier-Target ; pi:objectIdPath "ticket.id" .
+pi:ConsumerRel-Trace-Ticket a pi:E2ORelation ; pi:relatesObjectType pi:ConsumerObjectType-Ticket ;
+    pi:hasQualifier pi:ConsumerQualifier-Target ; pi:objectIdPath "attributes.ticket" .
+pi:ConsumerRule-Open a pi:MappingRule ; pi:ruleId "consumer-rule-open" ; pi:fromSource pi:ConsumerSource-Stream ;
+    pi:sourceEvent "ticket.opened" ; pi:emitsEventType pi:ConsumerEventType-Open ; pi:hasRelation pi:ConsumerRel-Open-Ticket .
+pi:ConsumerRule-Trace a pi:MappingRule ; pi:ruleId "consumer-rule-trace" ; pi:fromSource pi:ConsumerSource-Otel ;
+    pi:sourceEvent "ticket.trace" ; pi:emitsEventType pi:ConsumerEventType-Trace ; pi:hasRelation pi:ConsumerRel-Trace-Ticket .
+
+pi:ConsumerRuntimeEvent-Opened a pi:RuntimeEvent ; pi:runtimeEventName "ticket.opened" ; pi:emittedBy pi:ConsumerSource-Stream .
+pi:ConsumerRuntimeEvent-Trace a pi:RuntimeEvent ; pi:runtimeEventName "ticket.trace" ; pi:emittedBy pi:ConsumerSource-Otel .
+pi:ConsumerRuntimeEvent-Heartbeat a pi:RuntimeEvent , pi:Unmapped ; pi:runtimeEventName "ticket.heartbeat" ;
+    pi:emittedBy pi:ConsumerSource-Stream ; pi:unmappedReason "liveness ping; not a process step" .
+
+# Phased lifecycle (started/scheduled open a phase; result/complete/error close it).
+# Which types open or close is stated only here, by pi:phaseRole / pi:closesEventType.
+pi:ConsumerEventType-Started a pi:EventType ; pi:typeId "consumer_started_ticket" ; pi:phaseRole pi:Phase-Pending .
+pi:ConsumerEventType-Scheduled a pi:EventType ; pi:typeId "consumer_scheduled_ticket" ; pi:phaseRole pi:Phase-Pending .
+pi:ConsumerEventType-Result a pi:EventType ; pi:typeId "consumer_result_ticket" ; pi:phaseRole pi:Phase-Outcome ;
+    pi:closesEventType pi:ConsumerEventType-Started .
+pi:ConsumerEventType-Complete a pi:EventType ; pi:typeId "consumer_complete_ticket" ; pi:phaseRole pi:Phase-Outcome ;
+    pi:closesEventType pi:ConsumerEventType-Scheduled .
+pi:ConsumerEventType-Error a pi:EventType ; pi:typeId "consumer_error_ticket" ; pi:phaseRole pi:Phase-Outcome ;
+    pi:closesEventType pi:ConsumerEventType-Started , pi:ConsumerEventType-Scheduled .
+
+pi:ConsumerRule-Started a pi:MappingRule ; pi:ruleId "consumer-rule-started" ; pi:fromSource pi:ConsumerSource-Stream ;
+    pi:sourceEvent "ticket.started" ; pi:emitsEventType pi:ConsumerEventType-Started ; pi:hasRelation pi:ConsumerRel-Open-Ticket .
+pi:ConsumerRule-Scheduled a pi:MappingRule ; pi:ruleId "consumer-rule-scheduled" ; pi:fromSource pi:ConsumerSource-Stream ;
+    pi:sourceEvent "ticket.scheduled" ; pi:emitsEventType pi:ConsumerEventType-Scheduled ; pi:hasRelation pi:ConsumerRel-Open-Ticket .
+pi:ConsumerRule-Result a pi:MappingRule ; pi:ruleId "consumer-rule-result" ; pi:fromSource pi:ConsumerSource-Stream ;
+    pi:sourceEvent "ticket.result" ; pi:emitsEventType pi:ConsumerEventType-Result ; pi:hasRelation pi:ConsumerRel-Open-Ticket .
+pi:ConsumerRule-Complete a pi:MappingRule ; pi:ruleId "consumer-rule-complete" ; pi:fromSource pi:ConsumerSource-Stream ;
+    pi:sourceEvent "ticket.complete" ; pi:emitsEventType pi:ConsumerEventType-Complete ; pi:hasRelation pi:ConsumerRel-Open-Ticket .
+pi:ConsumerRule-Error a pi:MappingRule ; pi:ruleId "consumer-rule-error" ; pi:fromSource pi:ConsumerSource-Stream ;
+    pi:sourceEvent "ticket.error" ; pi:emitsEventType pi:ConsumerEventType-Error ; pi:hasRelation pi:ConsumerRel-Open-Ticket .
+
+pi:ConsumerRuntimeEvent-Started a pi:RuntimeEvent ; pi:runtimeEventName "ticket.started" ; pi:emittedBy pi:ConsumerSource-Stream .
+pi:ConsumerRuntimeEvent-Scheduled a pi:RuntimeEvent ; pi:runtimeEventName "ticket.scheduled" ; pi:emittedBy pi:ConsumerSource-Stream .
+pi:ConsumerRuntimeEvent-Result a pi:RuntimeEvent ; pi:runtimeEventName "ticket.result" ; pi:emittedBy pi:ConsumerSource-Stream .
+pi:ConsumerRuntimeEvent-Complete a pi:RuntimeEvent ; pi:runtimeEventName "ticket.complete" ; pi:emittedBy pi:ConsumerSource-Stream .
+pi:ConsumerRuntimeEvent-Error a pi:RuntimeEvent ; pi:runtimeEventName "ticket.error" ; pi:emittedBy pi:ConsumerSource-Stream .
