@@ -18,6 +18,19 @@
 #      count), refused natively (FM-PACK-013 at gate 090), and admitted once gate 090 is
 #      removed (the refusal comes from gate 090). XAAS_REPO=<xaas checkout> also re-derives
 #      the fixtures byte-identically from the real receipt blobs.
+#   7. release court + root receipt (0.4.0, gates 095/097): in a copy of this pack made a real
+#      git repository, consumer-v26.9.23 renders its court script before any observation
+#      (receipts skipped), the court re-hashes the imports, runs the probes and gates (exit 0)
+#      and writes its observation; the re-sync renders the root receipt (standing ALIVE,
+#      subject = the repository HEAD, fleet validator ADMITTED, chatman receipt schema valid,
+#      IMPORTS.sha256 rechecked) twice identically; the committed observed.ttl is reproduced
+#      except for its subject line; a refused gate exits with its order and renders a BLOCKED
+#      receipt; an import tamper exits 100 and a probe failure 101, both leaving the
+#      observation untouched; a hand-edited court script or receipt is refused
+#      (FM-WRITE-005); every row of court-mutants.EXPECTED.tsv is refused natively
+#      (FM-PACK-013 at the named gate) and by the runner with the named reason, and admitted
+#      by the runner once that gate is removed. CHATMAN_ECOSYSTEM_BIN=<ecosystem binary> also
+#      seals the rendered receipt with chatman-ecosystem's own receipt law.
 # Usage: qualification/qualify.sh   (GGEN=<ggen binary> to override)
 set -u
 P=$(cd "$(dirname "$0")/.." && pwd)
@@ -224,6 +237,163 @@ while IFS=$'\t' read -r name src rows reason; do
     ok "crown mutant $name: $reason (rows=$got native=$n[FM-PACK-013 090] without-090=$rv)"
   else no "crown mutant $name: want $reason rows=$rows, got rows=$got native=$n without-090=$rv (see $W/m-crown-$name.*)"; fi
 done < "$P/qualification/imported-crown.EXPECTED.tsv"
+
+# 7. release court + root receipt (0.4.0, gates 095/097, templates release-court.sh,
+#    typed-checks.txt, root-receipt.toml/json, imports.sha256)
+C=qualification/consumer-v26.9.23
+PREFIX_LINE='@prefix er: <http://seanchatmangpt.github.io/packs/chatman-ecosystem-release#> .'
+court_copy() { # <dest>: a copy of this pack with a fresh consumer-v26.9.23 (no render, no ggen state)
+  cp -R "$P" "$1"
+  rm -rf "$1/$C/out" "$1/$C/.ggen" "$1/$C/.ggen-v2" "$1/.git"
+}
+git_commit() { # deterministic commit of the whole copy (real git, fixed identity and clock)
+  (cd "$1" && git init -q && git add -A \
+    && GIT_AUTHOR_NAME=qualify GIT_AUTHOR_EMAIL=qualify@localhost GIT_COMMITTER_NAME=qualify \
+       GIT_COMMITTER_EMAIL=qualify@localhost GIT_AUTHOR_DATE=2026-09-23T00:00:00Z \
+       GIT_COMMITTER_DATE=2026-09-23T00:00:00Z git commit -q -m "qualify court subject")
+}
+court() { # <copy> <log> [env...]: run the rendered court with COURT_OBSERVED=observed.ttl; echo exit
+  local d=$1 log=$2; shift 2
+  (cd "$d/$C" && env "$@" COURT_OBSERVED=observed.ttl bash out/scripts/crown_v26_9_23.sh > "$log" 2>&1); echo $?
+}
+sync_c() { (cd "$1/$C" && "$GGEN" sync run > "$2.json" 2> "$2.err"); }
+# 7a positive: sync (no observation) -> court -> sync -> receipts
+E="$W/court"; court_copy "$E"; printf '%s\n' "$PREFIX_LINE" > "$E/$C/observed.ttl"; git_commit "$E"
+HEAD_SHA=$(git -C "$E" rev-parse HEAD)
+if sync_c "$E" "$W/court-s1" && [ -s "$E/$C/out/scripts/crown_v26_9_23.sh" ] && [ -s "$E/$C/out/typed-checks.txt" ] \
+   && [ -s "$E/$C/out/receipts/IMPORTS.sha256" ] && [ ! -e "$E/$C/out/receipts/ROOT.json" ] && [ ! -e "$E/$C/out/receipts/root-receipt.unsealed.toml" ]; then
+  ok "court sync before observation: script, typed checks, IMPORTS.sha256 rendered; receipts skipped"; else no "court sync 1 (see $W/court-s1.*)"; fi
+r=$(court "$E" "$W/court-run.log")
+if [ "$r" = 0 ] && grep -q '^COURT_ALIVE ' "$W/court-run.log" && grep -q "er:observedOutput \"$HEAD_SHA\"" "$E/$C/observed.ttl" \
+   && [ "$(grep -c 'er:observedExit 0 \.$' "$E/$C/observed.ttl")" = 3 ]; then
+  ok "court exit 0 at $HEAD_SHA: 3 imports rehashed, 5 probes, 3 gates exit 0, observation written"; else no "court run exit $r (see $W/court-run.log)"; fi
+if sync_c "$E" "$W/court-s2" && cp -R "$E/$C/out" "$W/court-out2" && sync_c "$E" "$W/court-s3" && diff -r "$E/$C/out" "$W/court-out2" > /dev/null \
+   && python3 - "$W/court-s3.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert not d["written"], d["written"]
+PY
+then ok "receipts rendered after observation; a second sync writes nothing (byte-identical)"; else no "court sync 2/3 (see $W/court-s2.* $W/court-s3.*)"; fi
+if python3 ~/.claude/dfcm/validate_receipt.py "$E/$C/out/receipts/ROOT.json" > "$W/court-root-validate.log" 2>&1 \
+   && (cd "$E/$C" && shasum -a 256 -c --strict out/receipts/IMPORTS.sha256 > "$W/court-imports.log" 2>&1) \
+   && python3 - "$E/$C" "$P/qualification/fixtures/chatman-receipt.schema.json" "$HEAD_SHA" <<'PY'
+import json, sys, tomllib
+from pathlib import Path
+import jsonschema
+root, schema, head = Path(sys.argv[1]), json.load(open(sys.argv[2])), sys.argv[3]
+toml = tomllib.loads((root / "out/receipts/root-receipt.unsealed.toml").read_text())
+jsonschema.validate(toml, schema)
+assert (toml["standing_before"], toml["standing_after"], toml["digest"]) == ("PARTIAL_ALIVE", "ALIVE", "")
+assert toml["subject"].endswith("@" + head) and f"subject_sha={head}" in toml["observed"]
+assert toml["executed"] == ["gate 1 explicit-runner: exit 0", "gate 2 imports-recheck: exit 0", "gate 3 crosswalk-total: exit 0"]
+assert len(toml["replay"]) == 3 and len(toml["verified"]) == 3
+assert "check:Dependency license and source policy=SUCCESSOR failure_class=pre_existing" in toml["excluded"]
+root_json = json.loads((root / "out/receipts/ROOT.json").read_text())
+assert root_json["identity"]["subject_sha"] == head and root_json["standing"]["value"] == "ALIVE"
+assert [c["exit"] for c in root_json["replay"]["commands"]] == [0, 0, 0] and "broken_term" not in root_json["standing"]
+assert (root / "out/typed-checks.txt").read_text() == "Dependency license and source policy\n"
+print("receipt: PARTIAL_ALIVE -> ALIVE at", head, "; chatman schema valid; 3 imports; 1 typed check")
+PY
+then ok "root receipt contents (fleet ADMITTED, chatman schema, subject = HEAD, imports recheck)"; else no "root receipt contents (see $W/court-root-validate.log $W/court-imports.log)"; fi
+# 7b the committed observation is the court's own output (all lines but the subject)
+if diff <(grep -v '/probe-subject> ' "$P/$C/observed.ttl") <(grep -v '/probe-subject> ' "$E/$C/observed.ttl") > "$W/court-observed.diff"; then
+  ok "committed observed.ttl reproduced by the court (subject line excluded)"; else no "committed observed.ttl differs from a fresh court observation (see $W/court-observed.diff)"; fi
+CSUB=$(sed -n 's#.*/probe-subject> er:observedOutput "\([0-9a-f]\{40\}\)" \.$#\1#p' "$P/$C/observed.ttl")
+if [ -z "$CSUB" ]; then no "committed observed.ttl has no 40-hex subject"
+elif git -C "$P" rev-parse --git-dir > /dev/null 2>&1; then
+  if git -C "$P" merge-base --is-ancestor "$CSUB" HEAD 2> /dev/null; then ok "committed observation subject $CSUB is an ancestor of HEAD"; else no "committed observation subject $CSUB is not an ancestor of HEAD"; fi
+else echo "SKIP committed observation subject ancestry: $P is not in a git checkout"; fi
+# 7c a refused gate: exit = its er:gateOrder, observation carries the exit, receipt BLOCKED
+B="$W/court-blocked"; court_copy "$B"; printf '%s\n' "$PREFIX_LINE" > "$B/$C/observed.ttl"
+cat >> "$B/$C/release.ttl" <<'TTL'
+
+q23:release er:gate q23:gate-witness-refusal .
+q23:gate-witness-refusal a er:Gate ; er:gateOrder 4 ; er:gateName "witness-refusal" ; er:command "exit 7" .
+TTL
+git_commit "$B"; sync_c "$B" "$W/blocked-s1"
+r=$(court "$B" "$W/blocked-run.log")
+if [ "$r" = 4 ] && grep -q 'COURT_GATE_REFUSED order=4 name=witness-refusal exit=7' "$W/blocked-run.log" && grep -q 'gate-witness-refusal> er:observedExit 7 \.' "$B/$C/observed.ttl" \
+   && sync_c "$B" "$W/blocked-s2" && python3 ~/.claude/dfcm/validate_receipt.py "$B/$C/out/receipts/ROOT.json" > "$W/blocked-validate.log" 2>&1 \
+   && python3 - "$B/$C" <<'PY'
+import json, sys, tomllib
+from pathlib import Path
+root = Path(sys.argv[1])
+toml = tomllib.loads((root / "out/receipts/root-receipt.unsealed.toml").read_text())
+assert (toml["standing_before"], toml["standing_after"]) == ("PARTIAL_ALIVE", "BLOCKED"), toml["standing_after"]
+assert toml["executed"][-1] == "gate 4 witness-refusal: exit 7"
+r = json.loads((root / "out/receipts/ROOT.json").read_text())
+assert r["standing"]["value"] == "BLOCKED" and r["standing"]["broken_term"] == "mu_on_O"
+assert [c["exit"] for c in r["replay"]["commands"]] == [0, 0, 0, 7]
+PY
+then ok "refused gate: court exit 4 (typed), observed exit 7, receipt PARTIAL_ALIVE -> BLOCKED (mu_on_O), fleet ADMITTED"; else no "blocked witness exit $r (see $W/blocked-*)"; fi
+# 7d an imported file tampered after import: exit 100, observation untouched
+T="$W/court-tamper"; cp -R "$E" "$T"; cp "$T/$C/observed.ttl" "$W/tamper-observed.before"
+printf ' ' >> "$T/$C/imports/ce23-orders.ttl"
+r=$(court "$T" "$W/tamper-run.log")
+if [ "$r" = 100 ] && grep -q 'COURT_IMPORT_DIGEST_MISMATCH name=ce23-orders' "$W/tamper-run.log" && cmp -s "$T/$C/observed.ttl" "$W/tamper-observed.before" \
+   && ! ls "$T/$C"/observed.ttl.partial.* > /dev/null 2>&1; then
+  ok "import tamper: court exit 100 (typed), observation untouched"; else no "import tamper exit $r (see $W/tamper-run.log)"; fi
+# 7e a probe that cannot observe (no git repository): exit 101, observation untouched
+N="$W/court-nogit"; court_copy "$N"; cp "$P/$C/observed.ttl" "$W/nogit-observed.before"
+sync_c "$N" "$W/nogit-s1"; r=$(court "$N" "$W/nogit-run.log" GIT_CEILING_DIRECTORIES="$W")
+if [ "$r" = 101 ] && grep -q 'COURT_PROBE_FAILED name=subject_sha' "$W/nogit-run.log" && cmp -s "$N/$C/observed.ttl" "$W/nogit-observed.before"; then
+  ok "probe failure: court exit 101 (typed), observation untouched"; else no "probe failure exit $r (see $W/nogit-run.log)"; fi
+# 7f hand edits of a rendered court script or receipt are refused by the next sync (no force)
+for f in scripts/crown_v26_9_23.sh receipts/root-receipt.unsealed.toml; do
+  H="$W/court-hand-$(basename "$f")"; cp -R "$E" "$H"
+  python3 - "$H/$C/out/$f" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+s = s.replace("set -euo pipefail\n", "set -uo pipefail\n", 1) if p.endswith(".sh") else s.replace('standing_before = "PARTIAL_ALIVE"', 'standing_before = "UNKNOWN"', 1)
+open(p, "w").write(s)
+PY
+  (cd "$H/$C" && "$GGEN" sync run > "$H.json" 2> "$H.err"); r=$?
+  if [ "$r" != 0 ] && grep -q '\[FM-WRITE-005\]' "$H.err"; then ok "hand-edited out/$f refused by re-sync (FM-WRITE-005)"; else no "hand-edited out/$f survived re-sync (exit $r, see $H.err)"; fi
+done
+# 7g one-change graph mutants: refused natively and by the runner, admitted without the named gate;
+#    the admitted witness row renders its crown into the receipt's verified[]
+while IFS=$'\t' read -r name file old new gate reason; do
+  case "$name" in ''|'#'*) continue ;; esac
+  M="$W/cm-$name"; court_copy "$M"
+  python3 - "$M/$C/$file" "$old" "$new" <<'PY'
+import sys
+path, old, new = sys.argv[1:]
+s = open(path).read()
+assert s.count(old) == 1, (path, old, s.count(old))
+open(path, "w").write(s.replace(old, new))
+PY
+  (cd "$M/$C" && "$GGEN" sync run > "$M.json" 2> "$M.err"); n=$?
+  python3 "$M/bin/run-gates.py" "$M/$C/release.ttl" "$M/gates" > "$M.runner" 2>&1; g=$?
+  rv=-; if [ "$gate" != - ]; then rm "$M/gates/$gate"
+  python3 "$M/bin/run-gates.py" "$M/$C/release.ttl" "$M/gates" > "$M.revert" 2>&1; rv=$?; fi
+  if [ "$gate" = - ]; then
+    if [ "$n" = 0 ] && [ "$g" = 0 ] && python3 - "$M/$C/out/receipts/root-receipt.unsealed.toml" "$reason" <<'PY'
+import sys, tomllib
+assert sys.argv[2] in tomllib.load(open(sys.argv[1], "rb"))["verified"]
+PY
+    then ok "court witness $name admitted by both executors; receipt verified[] carries $reason"
+    else no "court witness $name: native=$n runner=$g (see $M.*)"; fi
+    continue
+  fi
+  if [ "$n" != 0 ] && grep -q '\[FM-PACK-013\]' "$M.err" && grep -q "gate \`$gate\`" "$M.err" \
+     && [ "$g" != 0 ] && grep -qF -- "| $reason" "$M.runner" && [ "$rv" = 0 ]; then
+    ok "court mutant $name: $reason (native=$n[FM-PACK-013 $gate] runner=$g without-gate=$rv)"
+  else no "court mutant $name: want $gate/$reason, native=$n runner=$g without-gate=$rv (see $M.*)"; fi
+done < "$P/qualification/court-mutants.EXPECTED.tsv"
+# 7h chatman-ecosystem's own receipt law (named skip without the binary)
+if [ -n "${CHATMAN_ECOSYSTEM_BIN:-}" ]; then
+  K="$W/chatman-seal"; mkdir -p "$K/receipts"
+  cp "$E/$C/out/receipts/root-receipt.unsealed.toml" "$K/receipts/release.toml"
+  if (cd "$K" && "$CHATMAN_ECOSYSTEM_BIN" receipt seal > "$W/chatman-seal.log" 2>&1 && "$CHATMAN_ECOSYSTEM_BIN" receipt verify-all >> "$W/chatman-seal.log" 2>&1) \
+     && grep -q 'RECEIPTS_SEALED count=1' "$W/chatman-seal.log" && grep -q 'RECEIPTS_ALIVE count=1' "$W/chatman-seal.log"; then
+    ok "chatman ecosystem receipt seal + verify-all admit the rendered receipt (PARTIAL_ALIVE -> ALIVE)"; else no "chatman seal (see $W/chatman-seal.log)"; fi
+  U="$W/chatman-unknown"; mkdir -p "$U/receipts"
+  sed 's/^standing_before = "PARTIAL_ALIVE"$/standing_before = "UNKNOWN"/' "$E/$C/out/receipts/root-receipt.unsealed.toml" > "$U/receipts/release.toml"
+  if (cd "$U" && "$CHATMAN_ECOSYSTEM_BIN" receipt seal > "$W/chatman-unknown.log" 2>&1); then no "chatman sealed an UNKNOWN -> ALIVE receipt"
+  elif grep -q 'illegal receipt transition Unknown -> Alive' "$W/chatman-unknown.log"; then ok "chatman seal refuses the UNKNOWN -> ALIVE variant (the transition gate 097 refuses)"
+  else no "chatman UNKNOWN variant refused for another reason (see $W/chatman-unknown.log)"; fi
+else echo "SKIP chatman receipt seal: set CHATMAN_ECOSYSTEM_BIN=<chatman-ecosystem ecosystem binary>"; fi
 
 printf 'QUALIFICATION %s scratch=%s\n' "$([ $fail = 0 ] && echo ALIVE || echo REFUSED)" "$W"
 exit $fail
