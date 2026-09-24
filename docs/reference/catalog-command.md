@@ -17,6 +17,9 @@ Records are sorted by pack identity and include:
 - template count;
 - native-SPARQL gate count;
 - verifier-gate count;
+- `target_languages` — the pack's target-language list from its `targets.toml` sidecar (see the
+  "Targets extension" section of [pack-contract.md](pack-contract.md)); an empty list when the
+  sidecar is absent;
 - SHA-256 of `pack.toml`;
 - `digest` — `sha256:<hex>` of the pack's deterministic `.tar.gz` (see `scripts marketplace.py
   archive`, below), computed fresh from `packs/` on every invocation — not read from a
