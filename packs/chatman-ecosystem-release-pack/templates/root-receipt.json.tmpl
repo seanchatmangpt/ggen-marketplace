@@ -1,12 +1,9 @@
 ---
 to: out/receipts/ROOT.json
-when: |
-  PREFIX er: <http://seanchatmangpt.github.io/packs/chatman-ecosystem-release#>
-  ASK { ?rr a er:RootReceipt ; er:receiptRelease ?r . ?r er:gate ?g . ?g er:observedExit ?e . }
 sparql:
   receipt: |
     PREFIX er: <http://seanchatmangpt.github.io/packs/chatman-ecosystem-release#>
-    SELECT ?rr ?release ?version ?id ?repository ?sha ?actor ?grant ?after ?root ?nGates ?nPass
+    SELECT ?rr ?release ?version ?id ?repository ?sha ?actor ?grant ?after ?root ?nGates ?nPass ?nFail ?brokenTerm
     WHERE {
       ?rr a er:RootReceipt ; er:receiptRelease ?release .
       { SELECT ?release (COUNT(DISTINCT ?g) AS ?nGates) WHERE { ?release a er:Release ; er:gate ?g . } GROUP BY ?release }
@@ -15,6 +12,12 @@ sparql:
           ?release er:gate ?g . ?g er:observedExit ?e .
           FILTER(isNumeric(?e) && ?e = 0)
           FILTER NOT EXISTS { ?g er:observedExit ?e2 . FILTER(?e2 != ?e) }
+        } GROUP BY ?release
+      }
+      OPTIONAL {
+        SELECT ?release (COUNT(DISTINCT ?g) AS ?failCount) WHERE {
+          ?release er:gate ?g . ?g er:observedExit ?e .
+          FILTER(!isNumeric(?e) || ?e != 0)
         } GROUP BY ?release
       }
       OPTIONAL { ?release er:version ?v . }
@@ -28,12 +31,17 @@ sparql:
       BIND(COALESCE(STR(?v), "") AS ?version)
       BIND(COALESCE(STR(?i), "") AS ?id)
       BIND(COALESCE(STR(?repo), "") AS ?repository)
-      BIND(COALESCE(STR(?o), "") AS ?sha)
+      BIND(COALESCE(STR(?o), "UNOBSERVED") AS ?sha)
       BIND(COALESCE(STR(?a), "") AS ?actor)
       BIND(COALESCE(STR(?gr), "NONE") AS ?grant)
       BIND(COALESCE(STRAFTER(STR(?af), "#"), "") AS ?after)
       BIND(COALESCE(STR(?cr), ".") AS ?root)
       BIND(COALESCE(?passCount, 0) AS ?nPass)
+      BIND(COALESCE(?failCount, 0) AS ?nFail)
+      # typed broken term of a non-ALIVE receipt: a refused gate (mu_on_O), no observed subject
+      # (R_missing_identity: the court never observed), or a gate without an observed exit
+      # (R_missing_consequence)
+      BIND(IF(?nFail > 0, "mu_on_O", IF(!BOUND(?o), "R_missing_identity", "R_missing_consequence")) AS ?brokenTerm)
     }
     ORDER BY ?rr
   gates: |
@@ -116,10 +124,9 @@ sparql:
     "durable_location": "out/receipts/ROOT.json (rendered by ggen sync from the consumer graph and the court's observations)"
   },
   "standing": {
-    "value": {{ r.after | json_encode() }},{% set derived = "release court of " ~ r.release ~ " at " ~ r.repository ~ "@" ~ r.sha ~ ": " ~ r.nPass ~ "/" ~ r.nGates ~ " gates observed exit 0; standing_after derived by chatman-ecosystem-release-pack from er:observedExit and admitted by gate 097 (er:permitsStanding)" %}
-    "derived_from": {{ derived | json_encode() }}{% if r.after == "BLOCKED" %},
-    "broken_term": "mu_on_O"{% elif r.after != "ALIVE" %},
-    "broken_term": "R_missing_consequence"{% endif %}
+    "value": {{ r.after | json_encode() }},{% set derived = "release court of " ~ r.release ~ " at " ~ r.repository ~ "@" ~ r.sha ~ ": " ~ r.nPass ~ "/" ~ r.nGates ~ " gates observed exit 0, " ~ r.nFail ~ " refused; standing_after derived by chatman-ecosystem-release-pack from er:observedExit and admitted by gate 097 (er:permitsStanding)" %}
+    "derived_from": {{ derived | json_encode() }}{% if r.after != "ALIVE" %},
+    "broken_term": {{ r.brokenTerm | json_encode() }}{% endif %}
   }
 }
 {% endfor %}

@@ -83,7 +83,11 @@ sparql:
 # Gate 095 refuses an observation whose court input differs from the current graph in any
 # element, so an observation cannot outlive an edit of the court it observed. The file is
 # replaced only when the court reaches a gate verdict (every gate passed, or one refused); an
-# import, probe or court-root failure leaves any previous observation untouched.
+# import, probe or court-root failure leaves any previous observation untouched. Replacing it
+# also removes the two receipts rendered from the superseded observation
+# (out/receipts/root-receipt.unsealed.toml and out/receipts/ROOT.json under the consumer root,
+# the `to:` of templates/root-receipt.{toml,json}.tmpl), so the next `ggen sync run` renders them
+# from the new observation instead of refusing the changed render (FM-WRITE-005).
 set -euo pipefail
 RELEASE='{{ release | replace(from="'", to="'\''") }}'
 VERSION='{{ version | replace(from="'", to="'\''") }}'
@@ -92,6 +96,7 @@ COURT_BASH="${BASH:-bash}"
 OBSERVED="${COURT_OBSERVED:-}"
 case "$OBSERVED" in ''|/*) ;; *) OBSERVED="$PWD/$OBSERVED" ;; esac
 cd "$(dirname "$0")/../.." 2> /dev/null || { echo "COURT_ROOT_MISSING consumer root of $0" >&2; exit 103; }
+CONSUMER_ROOT=$PWD
 cd "$ROOT" 2> /dev/null || { printf 'COURT_ROOT_MISSING court_root=%s\n' "$ROOT" >&2; exit 103; }
 PARTIAL=""
 INPUT=""
@@ -117,6 +122,13 @@ finish() {
     mv -f "$PARTIAL" "$OBSERVED" || exit 102
     PARTIAL=""
     echo "COURT_OBSERVED $OBSERVED"
+    local receipt
+    for receipt in "$CONSUMER_ROOT/out/receipts/root-receipt.unsealed.toml" "$CONSUMER_ROOT/out/receipts/ROOT.json"; do
+      if [ -e "$receipt" ]; then
+        rm -f "$receipt" || exit 102
+        echo "COURT_RECEIPT_SUPERSEDED $receipt"
+      fi
+    done
   fi
 }
 import_check() { # <ordinal> <name> <path> <sha256 hex>

@@ -68,7 +68,11 @@ SUCCESSOR by `rule:fleet-classification`, the other eleven are SUCCESSOR by
 `rule:no-GC23-court-reference`, and no role is REQUIRED. A second run skips every file as
 identical.
 
-With the committed observation, the same sync also writes the 0.4.0 outputs:
-`out/scripts/crown_v26_9_23.sh`, `out/typed-checks.txt` (one line), `out/receipts/IMPORTS.sha256`
-(three lines), `out/receipts/root-receipt.unsealed.toml` (PARTIAL_ALIVE -> ALIVE, subject = the
-observed commit) and `out/receipts/ROOT.json` (ADMITTED by `~/.claude/dfcm/validate_receipt.py`).
+The same sync also writes the 0.4.0 outputs: `out/scripts/crown_v26_9_23.sh`,
+`out/typed-checks.txt` (one line), `out/receipts/IMPORTS.sha256` (three lines), and, from the
+committed observation, `out/receipts/root-receipt.unsealed.toml` (PARTIAL_ALIVE -> ALIVE, subject =
+the observed commit) and `out/receipts/ROOT.json` (ADMITTED by `~/.claude/dfcm/validate_receipt.py`).
+With `observed.ttl` holding only its prefix line (before the court), both receipts are still
+written, typed: subject `UNOBSERVED`, PARTIAL_ALIVE -> PARTIAL_ALIVE, ROOT.json `broken_term`
+`R_missing_identity` (refused by the fleet validator). The court removes both when it writes its
+observation, so the following sync renders them from it.

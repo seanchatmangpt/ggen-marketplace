@@ -21,11 +21,14 @@ construct: |
     }
     BIND(COALESCE(?nPass, 0) AS ?pass)
     BIND(COALESCE(?nFail, 0) AS ?fail)
-    BIND(IF(?fail > 0, er:BLOCKED, IF(?nGates > 0 && ?pass = ?nGates, er:ALIVE, ?before)) AS ?after)
+    # ALIVE only when every gate of the release has exactly one observed exit and all are 0;
+    # BLOCKED when any observed exit is non-zero; otherwise (no or incomplete observation) the
+    # standing before carries over, except ALIVE, which is never carried without complete
+    # evidence: chatman Standing::permits leaves ALIVE only for BLOCKED.
+    BIND(IF(?fail > 0, er:BLOCKED,
+         IF(?nGates > 0 && ?pass = ?nGates, er:ALIVE,
+         IF(?before = er:ALIVE, er:BLOCKED, ?before))) AS ?after)
   }
-when: |
-  PREFIX er: <http://seanchatmangpt.github.io/packs/chatman-ecosystem-release#>
-  ASK { ?rr a er:RootReceipt ; er:receiptRelease ?r . ?r er:gate ?g . ?g er:observedExit ?e . }
 sparql:
   receipt: |
     PREFIX er: <http://seanchatmangpt.github.io/packs/chatman-ecosystem-release#>
@@ -43,7 +46,7 @@ sparql:
       OPTIONAL { ?rr er:timestamp ?ts . }
       BIND(COALESCE(STR(?i), "") AS ?id)
       BIND(COALESCE(STR(?repo), "") AS ?repository)
-      BIND(COALESCE(STR(?o), "") AS ?sha)
+      BIND(COALESCE(STR(?o), "UNOBSERVED") AS ?sha)
       BIND(COALESCE(STR(?a), "") AS ?actor)
       BIND(COALESCE(STR(?au), "") AS ?authority)
       BIND(COALESCE(STR(?in), "") AS ?intention)
@@ -151,7 +154,9 @@ sparql:
 # consumer copies it into its receipts/ and seals it (`ecosystem receipt seal`). Do not
 # hand-edit: a hand edit makes the next `ggen sync run` refuse (FM-WRITE-005).
 # standing_after is derived from the court's observed gate exits (construct above), and
-# gate 097 refuses a before->after pair that chatman Standing::permits refuses.
+# gate 097 refuses a before->after pair that chatman Standing::permits refuses. Rendered on
+# every sync: before the court observes, subject ends in @UNOBSERVED, every executed[] entry
+# is UNOBSERVED and standing_after is not ALIVE, so the receipt is typed, never omitted.
 {% for r in receipt %}id = {{ r.id | json_encode() }}
 {% set subject = "git:" ~ r.repository ~ "@" ~ r.sha %}subject = {{ subject | json_encode() }}
 actor = {{ r.actor | json_encode() }}

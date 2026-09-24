@@ -9,7 +9,9 @@
 #      in exactly the forged standing line.
 #   4. a valid explicit decision (positive witness) is admitted and rendered.
 #   5. every mutant in mutants/EXPECTED.tsv is refused by the declared executor
-#      with the declared code, gate and reason.
+#      with the declared code, gate and reason; each graph mutant is also run through the
+#      runner without its named gate and is admitted exactly when no other gate refused it
+#      (M3 and M5 are also refused by gate 080).
 #   6. imported crown (gate 090): every committed qualification/imported-crown.*.ttl is
 #      the lift of its fixtures/<name>-receipts dir; the lift refuses 0 or 2 STOP receipts;
 #      the positive crown passes both executors through bin/import-crown-generate.sh and
@@ -19,10 +21,13 @@
 #      removed (the refusal comes from gate 090). XAAS_REPO=<xaas checkout> also re-derives
 #      the fixtures byte-identically from the real receipt blobs.
 #   7. release court + root receipt (0.4.0, gates 095/097): in a copy of this pack made a real
-#      git repository, consumer-v26.9.23 renders its court script before any observation
-#      (receipts skipped), the court re-hashes the imports, runs the probes and gates (exit 0)
-#      and writes its observation, including the er:observedCourtInput set naming the whole court
-#      input (court, components, imports, probes, gates); the re-sync writes the root receipt (standing ALIVE,
+#      git repository, consumer-v26.9.23 renders its court script before any observation, and
+#      both receipts typed PARTIAL_ALIVE -> PARTIAL_ALIVE with subject @UNOBSERVED (ROOT.json
+#      broken_term R_missing_identity, refused by the fleet validator), never omitted; the court
+#      re-hashes the imports, runs the probes and gates (exit 0), writes its observation, including
+#      the er:observedCourtInput set naming the whole court input (court, components, imports,
+#      probes, gates), and removes the two receipts of the superseded observation; the re-sync
+#      writes the root receipt (standing ALIVE,
 #      subject = the repository HEAD, fleet validator ADMITTED, chatman receipt schema valid,
 #      IMPORTS.sha256 rechecked), a further sync writes nothing and a fresh render from an empty
 #      out/ reproduces every file; the committed observed.ttl is reproduced except for its
@@ -31,7 +36,10 @@
 #      receipt; a gate command with a shell syntax error is that gate's refusal (exit = its order,
 #      observed exit 2) while a command full of single quotes runs verbatim; a missing court root
 #      exits 103; an observation missing a gate exit renders PARTIAL_ALIVE with broken_term
-#      R_missing_consequence; an import tamper exits 100 and a probe failure 101, both leaving the
+#      R_missing_consequence; a standing before of ALIVE stays ALIVE only with every gate observed
+#      exit 0 and otherwise renders BLOCKED (R_missing_consequence / R_missing_identity), and a
+#      pack copy without that construct clause renders ALIVE without evidence (anti-vacuity);
+#      an import tamper exits 100 and a probe failure 101, both leaving the
 #      observation untouched; a hand-edited court script or receipt is refused
 #      (FM-WRITE-005); every row of court-mutants.EXPECTED.tsv is refused natively
 #      (FM-PACK-013 at the named gate) and by the runner with the named reason, and admitted
@@ -40,7 +48,12 @@
 #      the gates' closed tables; rows C20-C27 edit the court input after the committed
 #      observation (import digest or path, court root, component SHA, an added gate, a withdrawn
 #      import, the version) or drop its court-input set, so the stale observation must be refused
-#      (rows marked `none` in the 7th column run without the committed observation).
+#      (rows marked `none` in the 7th column run without the committed observation); rows
+#      C28-C35 witness each release-law gate 010-060 and 085 on this consumer (C29, C34 and C35:
+#      FILTER-only UNION branches that ggen admitted natively before each branch bound its own
+#      subject). The rows run concurrently (QUALIFY_JOBS, default 8).
+#      7j: every gates/*.rq must be the only refusing gate of at least one passing mutant (step 5,
+#      6e or 7g), so no gate is admission_vacuous.
 #      CHATMAN_ECOSYSTEM_BIN=<ecosystem binary>, or CHATMAN_REPO=<git clone of chatman-ecosystem>
 #      (qualify builds the committed qualification/chatman-harness against ecosystem-core extracted
 #      from c59596f5 with git archive, cargo --offline), also seals the rendered receipt with
@@ -143,21 +156,35 @@ assert tomllib.loads((out / "role-derivations.toml").read_text())["derivations"]
 PY
 then ok "explicit decision admitted and rendered"; else no "explicit decision witness"; fi
 
-# 5
+# 5 (each graph mutant is also run through the runner without its named gate: it is admitted
+#   exactly when no other gate refused it, and each admitted one is a sole-refusal witness for 7j)
+WIT="$W/witness.tsv"; : > "$WIT"
+gates_without() { # <gate file name> -> a gates dir without it (made once)
+  if [ ! -d "$W/gates-no-$1" ]; then cp -R "$P/gates" "$W/gates-no-$1"; rm "$W/gates-no-$1/$1"; fi
+  printf '%s\n' "$W/gates-no-$1"
+}
 while IFS=$'\t' read -r name code gate want reason; do
   case "$name" in ''|'#'*) continue ;; esac
   stage "$P/qualification/mutants/$name" "$W/m-$name" keep-out
-  (cd "$W/m-$name" && "$GGEN" sync run > "$W/m-$name.json" 2> "$W/m-$name.err"); r=$?
+  (cd "$W/m-$name" && "$GGEN" sync run > "$W/m-$name.json" 2> "$W/m-$name.err" < /dev/null); r=$?
   runner "$W/m-$name" "$W/m-$name.runner.log"; g=$?
-  verdict=ok
+  verdict=ok; also=""; rv=-
   [ "$r" -ne 0 ] && grep -q "\[$code\]" "$W/m-$name.err" || verdict=no
   if [ "$gate" != "-" ]; then grep -q "gate \`$gate\`" "$W/m-$name.err" || verdict=no; fi
   if [ "$want" = REFUSED ]; then
     [ "$g" -ne 0 ] && grep -q -- "$reason" "$W/m-$name.runner.log" || verdict=no
+    also=$(awk -v g="$gate" '$1 == "GATE_VIOLATION" && $2 != g {print $2}' "$W/m-$name.runner.log" | tr '\n' ' ' | sed 's/ $//')
+    python3 "$P/bin/run-gates.py" "$W/m-$name/release.ttl" "$(gates_without "$gate")" > "$W/m-$name.without-gate.log" 2>&1; rv=$?
+    if [ -z "$also" ]; then
+      if [ "$rv" = 0 ] && [ "$verdict" = ok ]; then printf '%s\tmutants/%s\n' "$gate" "$name" >> "$WIT"; else verdict=no; fi
+    else
+      [ "$rv" != 0 ] || verdict=no   # still refused by the other gates named in $also
+    fi
   else
     [ "$g" -eq 0 ] || verdict=no
   fi
-  if [ "$verdict" = ok ]; then ok "$name native=$r[$code] runner=$g"; else no "$name native=$r runner=$g (see $W/m-$name.*)"; fi
+  if [ "$verdict" = ok ]; then ok "$name native=$r[$code] runner=$g without-gate=$rv${also:+ (also refused by $also)}"
+  else no "$name native=$r runner=$g without-gate=$rv (see $W/m-$name.*)"; fi
 done < "$P/qualification/mutants/EXPECTED.tsv"
 
 # 6. imported upstream crown (0.3.0, gate 090, bin/import-crown-*)
@@ -249,6 +276,7 @@ while IFS=$'\t' read -r name src rows reason; do
   n=$(cat "$W/m-crown-$name.native"); rv=$(cat "$W/m-crown-$name.revert")
   if [ "$got" = "$rows" ] && grep -qxF -- "$reason" "$W/m-crown-$name.rows" && [ "$n" != 0 ] \
      && grep -q '\[FM-PACK-013\]' "$W/m-crown-$name.err" && grep -q 'gate `090_imported_crown.rq`' "$W/m-crown-$name.err" && [ "$rv" = 0 ]; then
+    printf '090_imported_crown.rq\timported-crown/%s\n' "$name" >> "$WIT"
     ok "crown mutant $name: $reason (rows=$got native=$n[FM-PACK-013 090] without-090=$rv)"
   else no "crown mutant $name: want $reason rows=$rows, got rows=$got native=$n without-090=$rv (see $W/m-crown-$name.*)"; fi
 done < "$P/qualification/imported-crown.EXPECTED.tsv"
@@ -276,12 +304,33 @@ sync_c() { (cd "$1/$C" && "$GGEN" sync run > "$2.json" 2> "$2.err"); }
 E="$W/court"; court_copy "$E"; printf '%s\n' "$PREFIX_LINE" > "$E/$C/observed.ttl"; git_commit "$E"
 HEAD_SHA=$(git -C "$E" rev-parse HEAD)
 if sync_c "$E" "$W/court-s1" && [ -s "$E/$C/out/scripts/crown_v26_9_23.sh" ] && [ -s "$E/$C/out/typed-checks.txt" ] \
-   && [ -s "$E/$C/out/receipts/IMPORTS.sha256" ] && [ ! -e "$E/$C/out/receipts/ROOT.json" ] && [ ! -e "$E/$C/out/receipts/root-receipt.unsealed.toml" ]; then
-  ok "court sync before observation: script, typed checks, IMPORTS.sha256 rendered; receipts skipped"; else no "court sync 1 (see $W/court-s1.*)"; fi
+   && [ -s "$E/$C/out/receipts/IMPORTS.sha256" ] \
+   && ! python3 ~/.claude/dfcm/validate_receipt.py "$E/$C/out/receipts/ROOT.json" > "$W/court-s1-validate.log" 2>&1 \
+   && grep -q "identity/subject_sha: 'UNOBSERVED' does not match" "$W/court-s1-validate.log" \
+   && python3 - "$E/$C" "$P/qualification/chatman-receipt.schema.json" <<'PY'
+import json, sys, tomllib
+from pathlib import Path
+import jsonschema
+root = Path(sys.argv[1])
+toml = tomllib.loads((root / "out/receipts/root-receipt.unsealed.toml").read_text())
+jsonschema.validate(toml, json.load(open(sys.argv[2])))
+assert (toml["standing_before"], toml["standing_after"]) == ("PARTIAL_ALIVE", "PARTIAL_ALIVE"), toml["standing_after"]
+assert toml["subject"].endswith("@UNOBSERVED") and "subject_sha=UNOBSERVED" in toml["observed"]
+assert toml["executed"] == ["gate 1 explicit-runner: UNOBSERVED", "gate 2 imports-recheck: UNOBSERVED", "gate 3 crosswalk-total: UNOBSERVED"]
+r = json.loads((root / "out/receipts/ROOT.json").read_text())
+assert r["standing"]["value"] == "PARTIAL_ALIVE" and r["standing"]["broken_term"] == "R_missing_identity", r["standing"]
+assert r["identity"]["subject_sha"] == "UNOBSERVED" and [c["exit"] for c in r["replay"]["commands"]] == [-1, -1, -1]
+PY
+then
+  ok "court sync before observation: script, typed checks, IMPORTS.sha256 and both receipts rendered; receipts typed PARTIAL_ALIVE -> PARTIAL_ALIVE @UNOBSERVED (R_missing_identity; the fleet validator refuses the missing subject)"
+else no "court sync 1 (see $W/court-s1.* $W/court-s1-validate.log)"; fi
 r=$(court "$E" "$W/court-run.log")
 if [ "$r" = 0 ] && grep -q '^COURT_ALIVE ' "$W/court-run.log" && grep -q "er:observedOutput \"$HEAD_SHA\"" "$E/$C/observed.ttl" \
-   && [ "$(grep -c 'er:observedExit 0 ; er:observedCommandSha256 "[0-9a-f]\{64\}" \.$' "$E/$C/observed.ttl")" = 3 ]; then
-  ok "court exit 0 at $HEAD_SHA: 3 imports rehashed, 5 probes, 3 gates exit 0, observation written"; else no "court run exit $r (see $W/court-run.log)"; fi
+   && [ "$(grep -c 'er:observedExit 0 ; er:observedCommandSha256 "[0-9a-f]\{64\}" \.$' "$E/$C/observed.ttl")" = 3 ] \
+   && [ "$(grep -c '^COURT_RECEIPT_SUPERSEDED ' "$W/court-run.log")" = 2 ] \
+   && [ ! -e "$E/$C/out/receipts/ROOT.json" ] && [ ! -e "$E/$C/out/receipts/root-receipt.unsealed.toml" ] && [ -s "$E/$C/out/receipts/IMPORTS.sha256" ]; then
+  ok "court exit 0 at $HEAD_SHA: 3 imports rehashed, 5 probes, 3 gates exit 0, observation written, the 2 receipts of the superseded observation removed"
+else no "court run exit $r (see $W/court-run.log)"; fi
 if python3 - "$E/$C/observed.ttl" > "$W/court-input.log" 2>&1 <<'PY'
 import sys
 from rdflib import Graph, URIRef
@@ -404,6 +453,53 @@ assert r["standing"]["value"] == "PARTIAL_ALIVE" and r["standing"]["broken_term"
 assert [c["exit"] for c in r["replay"]["commands"]] == [0, 0, -1]
 PY
 then ok "unobserved gate: receipt PARTIAL_ALIVE -> PARTIAL_ALIVE, ROOT.json broken_term R_missing_consequence, fleet ADMITTED"; else no "partial witness (see $W/partial-*)"; fi
+# 7c5 ALIVE only with complete evidence: a release whose standing before is ALIVE keeps ALIVE only
+#     when every gate observed exit 0; with an incomplete or no observation it renders BLOCKED (the
+#     only other transition chatman Standing::permits allows from ALIVE), typed by broken_term.
+#     The same witness on a copy of the pack whose construct lacks that clause renders
+#     ALIVE -> ALIVE without evidence (the clause is what the witness measures).
+alive_before() { # <copy> <observation: full|partial|none> <label>
+  local d=$1
+  cp -R "$E" "$d"; rm -rf "$d/$C/out" "$d/$C/.ggen" "$d/$C/.ggen-v2"
+  sed -i.bak 's/er:standingBefore er:PARTIAL_ALIVE ;/er:standingBefore er:ALIVE ;/' "$d/$C/release.ttl" && rm "$d/$C/release.ttl.bak"
+  case $2 in
+    partial) grep -v '/gate-crosswalk-total> er:observedExit ' "$E/$C/observed.ttl" > "$d/$C/observed.ttl" ;;
+    none) printf '%s\n' "$PREFIX_LINE" > "$d/$C/observed.ttl" ;;
+  esac
+  sync_c "$d" "$3" && python3 - "$d/$C" <<'PY'
+import json, sys, tomllib
+from pathlib import Path
+root = Path(sys.argv[1])
+t = tomllib.loads((root / "out/receipts/root-receipt.unsealed.toml").read_text())
+r = json.loads((root / "out/receipts/ROOT.json").read_text())
+print(t["standing_before"], t["standing_after"], r["standing"]["value"], r["standing"].get("broken_term", "-"))
+PY
+}
+A1=$(alive_before "$W/alive-full" full "$W/alive-full-s1"); A2=$(alive_before "$W/alive-partial" partial "$W/alive-partial-s1")
+A3=$(alive_before "$W/alive-none" none "$W/alive-none-s1")
+if [ "$A1" = "ALIVE ALIVE ALIVE -" ] && [ "$A2" = "ALIVE BLOCKED BLOCKED R_missing_consequence" ] && [ "$A3" = "ALIVE BLOCKED BLOCKED R_missing_identity" ] \
+   && python3 ~/.claude/dfcm/validate_receipt.py "$W/alive-partial/$C/out/receipts/ROOT.json" > "$W/alive-partial-validate.log" 2>&1; then
+  ok "standing before ALIVE: complete observation ALIVE -> ALIVE; one gate unobserved ALIVE -> BLOCKED (R_missing_consequence, fleet ADMITTED); no observation ALIVE -> BLOCKED (R_missing_identity)"
+else no "ALIVE-before witness: full=[$A1] partial=[$A2] none=[$A3] (see $W/alive-*)"; fi
+cp -R "$P" "$W/pack-no-alive-clause"; rm -rf "$W/pack-no-alive-clause/.git"
+python3 - "$W/pack-no-alive-clause/templates/root-receipt.toml.tmpl" <<'PY'
+import sys
+p = sys.argv[1]; s = open(p).read()
+old = "IF(?before = er:ALIVE, er:BLOCKED, ?before)"
+assert s.count(old) == 1, s.count(old)
+open(p, "w").write(s.replace(old, "?before"))
+PY
+cp -R "$W/alive-none" "$W/alive-none-mutant"; rm -rf "$W/alive-none-mutant/$C/out" "$W/alive-none-mutant/$C/.ggen" "$W/alive-none-mutant/$C/.ggen-v2"
+python3 - "$W/alive-none-mutant/$C/ggen.toml" "$W/pack-no-alive-clause" <<'PY'
+import re, sys
+path, pack = sys.argv[1], sys.argv[2]
+text, n = re.subn(r'path = "[^"]+"', f'path = "{pack}"', open(path).read())
+assert n == 1, n
+open(path, "w").write(text)
+PY
+if sync_c "$W/alive-none-mutant" "$W/alive-none-mutant-s1" && grep -qx 'standing_after = "ALIVE"' "$W/alive-none-mutant/$C/out/receipts/root-receipt.unsealed.toml"; then
+  ok "anti-vacuity: without the ALIVE clause the unobserved ALIVE-before receipt renders standing_after ALIVE (the witness above refuses exactly that)"
+else no "ALIVE-clause mutant did not render ALIVE without evidence (see $W/alive-none-mutant-s1.*)"; fi
 # 7d an imported file tampered after import: exit 100, observation untouched
 T="$W/court-tamper"; cp -R "$E" "$T"; cp "$T/$C/observed.ttl" "$W/tamper-observed.before"
 printf ' ' >> "$T/$C/imports/ce23-orders.ttl"
@@ -431,17 +527,20 @@ PY
 done
 # 7g one-change graph mutants: refused natively and by the runner, admitted without the named gate;
 #    the admitted witness row renders its crown into the receipt's verified[]
-while IFS=$'\t' read -r name file old new gate reason obs; do
-  case "$name" in ''|'#'*) continue ;; esac
-  M="$W/cm-$name"; court_copy "$M"
+#    Rows run concurrently (QUALIFY_JOBS, default 8; each row is its own pack copy) and report in
+#    table order; in columns 3 and 4 the two characters \n stand for a newline.
+court_row() { # <name> <file> <old> <new> <gate> <reason> <observation>: writes $M.verdict (+ $M.witness)
+  local name=$1 file=$2 old=$3 new=$4 gate=$5 reason=$6 obs=$7 M="$W/cm-$1" n g rv
+  court_copy "$M"
   if [ "${obs:-committed}" = none ]; then printf '%s\n' "$PREFIX_LINE" > "$M/$C/observed.ttl"; fi
-  python3 - "$M/$C/$file" "$old" "$new" <<'PY'
+  if ! python3 - "$M/$C/$file" "$old" "$new" > "$M.edit" 2>&1 <<'PY'
 import sys
-path, old, new = sys.argv[1:]
+path, old, new = sys.argv[1], sys.argv[2].replace("\\n", "\n"), sys.argv[3].replace("\\n", "\n")
 s = open(path).read()
 assert s.count(old) == 1, (path, old, s.count(old))
 open(path, "w").write(s.replace(old, new))
 PY
+  then echo "FAIL court mutant $name: the old text is not exactly once in $file (see $M.edit)" > "$M.verdict"; return 0; fi
   (cd "$M/$C" && "$GGEN" sync run > "$M.json" 2> "$M.err"); n=$?
   python3 "$M/bin/run-gates.py" "$M/$C/release.ttl" "$M/gates" > "$M.runner" 2>&1; g=$?
   rv=-; if [ "$gate" != - ]; then rm "$M/gates/$gate"
@@ -451,15 +550,39 @@ PY
 import sys, tomllib
 assert sys.argv[2] in tomllib.load(open(sys.argv[1], "rb"))["verified"]
 PY
-    then ok "court witness $name admitted by both executors; receipt verified[] carries $reason"
-    else no "court witness $name: native=$n runner=$g (see $M.*)"; fi
-    continue
+    then echo "PASS court witness $name admitted by both executors; receipt verified[] carries $reason" > "$M.verdict"
+    else echo "FAIL court witness $name: native=$n runner=$g (see $M.*)" > "$M.verdict"; fi
+    return 0
   fi
   if [ "$n" != 0 ] && grep -q '\[FM-PACK-013\]' "$M.err" && grep -q "gate \`$gate\`" "$M.err" \
      && [ "$g" != 0 ] && grep -qF -- "| $reason" "$M.runner" && [ "$rv" = 0 ]; then
-    ok "court mutant $name: $reason (native=$n[FM-PACK-013 $gate] runner=$g without-gate=$rv)"
-  else no "court mutant $name: want $gate/$reason, native=$n runner=$g without-gate=$rv (see $M.*)"; fi
+    printf '%s\tcourt-mutants/%s\n' "$gate" "$name" > "$M.witness"
+    echo "PASS court mutant $name: $reason (native=$n[FM-PACK-013 $gate] runner=$g without-gate=$rv)" > "$M.verdict"
+  else echo "FAIL court mutant $name: want $gate/$reason, native=$n runner=$g without-gate=$rv (see $M.*)" > "$M.verdict"; fi
+  return 0
+}
+court_rows=()
+while IFS=$'\t' read -r name file old new gate reason obs; do
+  case "$name" in ''|'#'*) continue ;; esac
+  court_rows+=("$name")
+  court_row "$name" "$file" "$old" "$new" "$gate" "$reason" "${obs:-}" < /dev/null &
+  while [ "$(jobs -rp | wc -l)" -ge "${QUALIFY_JOBS:-8}" ]; do wait -n 2> /dev/null || wait; done
 done < "$P/qualification/court-mutants.EXPECTED.tsv"
+wait
+for name in "${court_rows[@]}"; do
+  v=$(cat "$W/cm-$name.verdict" 2> /dev/null || echo "FAIL court mutant $name: no verdict")
+  case "$v" in PASS\ *) ok "${v#PASS }" ;; *) no "${v#FAIL }" ;; esac
+  if [ -f "$W/cm-$name.witness" ]; then cat "$W/cm-$name.witness" >> "$WIT"; fi
+done
+# 7j no admission_vacuous gate: every gates/*.rq is the only refusing gate of at least one passing
+#    mutant (step 5 or 7g: refused natively at that gate and by the runner, admitted by the runner
+#    once that gate is removed; step 6e: gate 090 rows admitted without 090)
+for rq in "$P"/gates/*.rq; do
+  gn=$(basename "$rq")
+  wits=$(awk -F'\t' -v g="$gn" '$1 == g {print $2}' "$WIT" | sort -u | tr '\n' ' ' | sed 's/ $//')
+  if [ -n "$wits" ]; then ok "gate $gn witnessed as the sole refusing gate: $wits"
+  else no "gate $gn has no mutant it alone refuses (admission_vacuous)"; fi
+done
 # 7h chatman-ecosystem's own receipt law (named skip without the binary). CHATMAN_REPO builds the committed
 #    qualification/chatman-harness against ecosystem-core extracted from the exact law commit.
 CHATMAN_LAW_SHA=c59596f5506e7a00ca4ed6b909ebf6d6659b74c1
