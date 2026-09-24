@@ -51,9 +51,12 @@ HEAD` as the receipt subject, `ggen --version`, `python3 --version`, sha256 of t
   `ce23-orders`), with the sha256 values listed there.
 
 `observed.ttl` is the court's own output, never hand-written: at the lane commit named by its
-`subject_sha` line, in this directory, `ggen sync run` then `COURT_OBSERVED=observed.ttl bash
-out/scripts/crown_v26_9_23.sh` (exit 0, `COURT_ALIVE`). It is committed in the child commit, since a
-commit cannot contain its own SHA. `qualification/qualify.sh` step 7 re-runs the court in a git copy
+`subject_sha` line, in this directory, with `observed.ttl` holding only its prefix line, `ggen sync
+run` then `COURT_OBSERVED=observed.ttl bash out/scripts/crown_v26_9_23.sh` (exit 0, `COURT_ALIVE`).
+Its last statement is the release's `er:observedCourtInput` set (14 elements: the court, 2
+components, 3 imports, 5 probes, 3 gates); gate 095 refuses it once any of those inputs is edited,
+so changing a gate, probe, import, component SHA or the court root here means re-running the court.
+It is committed in the child commit, since a commit cannot contain its own SHA. `qualification/qualify.sh` step 7 re-runs the court in a git copy
 of the pack and requires every line except the subject line to reproduce; the subject must be an
 ancestor of HEAD.
 

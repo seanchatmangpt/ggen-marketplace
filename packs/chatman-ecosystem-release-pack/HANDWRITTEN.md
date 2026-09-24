@@ -3,10 +3,11 @@
 Code in this pack that is not ontology, gate, template or generated projection. Every row is
 `UNSUPPORTED(generator-capability)` with the reason no generator covers it. Vocabulary,
 gates 070-097, the disposition rule and all twelve templates are pack capital, not residue.
-Version 0.4.0 (release court, typed checks, root receipt) adds no code residue: the court script,
-its import re-hash, probe and observation writer, the typed-checks list, IMPORTS.sha256 and both
-receipts are rendered by ggen from graph facts, and the standing derivation is a template
-`construct:`.
+Version 0.4.0 (release court, typed checks, root receipt) adds no product code residue: the court
+script, its import re-hash, probe and observation writer (including the court-input set), the
+typed-checks list, IMPORTS.sha256 and both receipts are rendered by ggen from graph facts, and the
+standing derivation is a template `construct:`. Its only new residue is qualification-side
+(`qualify.sh` step 7, `qualification/chatman-harness/`).
 
 | path | standing | reason | owner |
 |---|---|---|---|
@@ -15,7 +16,8 @@ receipts are rendered by ggen from graph facts, and the standing derivation is a
 | `bin/import-crown-lift.py` | UNSUPPORTED(generator-capability) | ggen renders RDF into text; it does not parse receipt JSON into RDF. The lift is generic for any upstream stop-court crown (STOP receipt found by `identity.subject` `<checkpoint>/STOP`, gate receipts by `gate.checkpoint`, gate count from the court's own `N/M gates ALIVE`, paired field configurable) and its output is a pure function of the receipt bytes and the two bound SHAs. Prototype: the scan's 31-line lift_ttl.py; this is 66 lines of stdlib. | this pack (crown-import step) |
 | `bin/import-crown-generate.sh` | UNSUPPORTED(generator-capability) | Orchestration only (lift, explicit runner, `ggen sync run`, byte comparison), following `packs/gym-autonomic-crown-pack/bin/crown-generate.sh`; ggen has no mode that lifts JSON, re-checks a committed lift and diffs a committed render in one command. Read-only on the consumer. | this pack |
 | `qualification/fixtures/derive-fixtures.py` | UNSUPPORTED(generator-capability) | Provenance replay for the imported-crown fixtures: re-derives every fixture directory from real xaas git blobs (checked by object id) and records each qualification rewrite in the rewritten receipt itself. | this pack |
-| `qualification/qualify.sh` | UNSUPPORTED(generator-capability) | Qualification harness (real ggen, real rdflib, real git repositories and the rendered court script in scratch copies; no mocks). The marketplace's `scripts/qualify_packs_r18.py` renders a pack once against `qualification/consumer.ttl` but has no mutant/expected-refusal contract. Step 7 (0.4.0) drives sync -> court -> sync, a fresh-render reproduction, the check that the committed observation is of the current pack tree, the typed-exit witnesses and `court-mutants.EXPECTED.tsv` (including the consumer-extension and ontology-drift rows C13-C19). | this pack |
+| `qualification/qualify.sh` | UNSUPPORTED(generator-capability) | Qualification harness (real ggen, real rdflib, real git repositories and the rendered court script in scratch copies; no mocks). The marketplace's `scripts/qualify_packs_r18.py` renders a pack once against `qualification/consumer.ttl` but has no mutant/expected-refusal contract. Step 7 (0.4.0) drives sync -> court -> sync, a fresh-render reproduction, the check that the committed observation is of the current pack tree and names the whole court input, the typed-exit witnesses (gate order, 100, 101, 103, a command syntax error), the PARTIAL_ALIVE broken_term witness and `court-mutants.EXPECTED.tsv` (including the consumer-extension and ontology-drift rows C13-C19 and the stale-observation rows C20-C27). | this pack |
+| `qualification/chatman-harness/` (`Cargo.toml`, `src/main.rs`) | UNSUPPORTED(generator-capability) | 40-line Rust binary for qualify step 7h/7i: the `receipt seal` / `receipt verify-all` arms of chatman-ecosystem `apps/ecosystem-cli/src/main.rs` at c59596f5 over the same `ecosystem_core::seal_all_receipts` / `verify_all_receipts` functions and output lines, without the CLI's deploy/MCP dependency tree. It holds no receipt law of its own: qualify builds it against ecosystem-core extracted byte-for-byte from c59596f5 (`CHATMAN_REPO`), so the seal and the 25-pair `Standing::permits` differential execute chatman's code. No marketplace pack generates a Rust client over another repository's crate API. | this pack (qualification only) |
 
 The fixture inputs under `qualification/` are byte copies or lifted observations of real sources,
 not handwritten facts; `qualification/consumer-v26.9.23/SOURCES.md` records each source and sha256.

@@ -21,21 +21,31 @@
 #   7. release court + root receipt (0.4.0, gates 095/097): in a copy of this pack made a real
 #      git repository, consumer-v26.9.23 renders its court script before any observation
 #      (receipts skipped), the court re-hashes the imports, runs the probes and gates (exit 0)
-#      and writes its observation; the re-sync writes the root receipt (standing ALIVE,
+#      and writes its observation, including the er:observedCourtInput set naming the whole court
+#      input (court, components, imports, probes, gates); the re-sync writes the root receipt (standing ALIVE,
 #      subject = the repository HEAD, fleet validator ADMITTED, chatman receipt schema valid,
 #      IMPORTS.sha256 rechecked), a further sync writes nothing and a fresh render from an empty
 #      out/ reproduces every file; the committed observed.ttl is reproduced except for its
 #      subject line, and its subject's pack tree equals the current one (the observation is of
 #      the current law); a refused gate exits with its order and renders a BLOCKED
-#      receipt; an import tamper exits 100 and a probe failure 101, both leaving the
+#      receipt; a gate command with a shell syntax error is that gate's refusal (exit = its order,
+#      observed exit 2) while a command full of single quotes runs verbatim; a missing court root
+#      exits 103; an observation missing a gate exit renders PARTIAL_ALIVE with broken_term
+#      R_missing_consequence; an import tamper exits 100 and a probe failure 101, both leaving the
 #      observation untouched; a hand-edited court script or receipt is refused
 #      (FM-WRITE-005); every row of court-mutants.EXPECTED.tsv is refused natively
 #      (FM-PACK-013 at the named gate) and by the runner with the named reason, and admitted
 #      by the runner once that gate is removed; rows C13-C19 are consumer triples that try to
 #      extend the transition or failure-class law, and pack-ontology copies that drift from
-#      the gates' closed tables. CHATMAN_ECOSYSTEM_BIN=<ecosystem binary> also
-#      seals the rendered receipt with chatman-ecosystem's own receipt law and runs gate 097
-#      against chatman's Standing::permits on all 25 pairs of the five receipt standings.
+#      the gates' closed tables; rows C20-C27 edit the court input after the committed
+#      observation (import digest or path, court root, component SHA, an added gate, a withdrawn
+#      import, the version) or drop its court-input set, so the stale observation must be refused
+#      (rows marked `none` in the 7th column run without the committed observation).
+#      CHATMAN_ECOSYSTEM_BIN=<ecosystem binary>, or CHATMAN_REPO=<git clone of chatman-ecosystem>
+#      (qualify builds the committed qualification/chatman-harness against ecosystem-core extracted
+#      from c59596f5 with git archive, cargo --offline), also seals the rendered receipt with
+#      chatman-ecosystem's own receipt law and runs gate 097 against chatman's Standing::permits
+#      on all 25 pairs of the five receipt standings.
 # Usage: qualification/qualify.sh   (GGEN=<ggen binary> to override)
 set -u
 P=$(cd "$(dirname "$0")/.." && pwd)
@@ -272,6 +282,19 @@ r=$(court "$E" "$W/court-run.log")
 if [ "$r" = 0 ] && grep -q '^COURT_ALIVE ' "$W/court-run.log" && grep -q "er:observedOutput \"$HEAD_SHA\"" "$E/$C/observed.ttl" \
    && [ "$(grep -c 'er:observedExit 0 ; er:observedCommandSha256 "[0-9a-f]\{64\}" \.$' "$E/$C/observed.ttl")" = 3 ]; then
   ok "court exit 0 at $HEAD_SHA: 3 imports rehashed, 5 probes, 3 gates exit 0, observation written"; else no "court run exit $r (see $W/court-run.log)"; fi
+if python3 - "$E/$C/observed.ttl" > "$W/court-input.log" 2>&1 <<'PY'
+import sys
+from rdflib import Graph, URIRef
+g = Graph().parse(sys.argv[1], format="turtle")
+p = URIRef("http://seanchatmangpt.github.io/packs/chatman-ecosystem-release#observedCourtInput")
+subjects = set(g.subjects(p, None))
+assert [str(s) for s in subjects] == ["https://ggen.dev/marketplace/qualification/chatman-ecosystem-release/v26.9.23/release"], subjects
+kinds = sorted(str(o).split("|", 1)[0] for o in g.objects(None, p))
+assert {k: kinds.count(k) for k in kinds} == {"component": 2, "court": 1, "gate": 3, "import": 3, "probe": 5}, kinds
+assert "court|26.9.23|." in {str(o) for o in g.objects(None, p)}
+print("court input:", len(kinds), "elements")
+PY
+then ok "observation names the whole court input on the release (1 court, 2 components, 3 imports, 5 probes, 3 gates)"; else no "observed court input (see $W/court-input.log)"; fi
 if sync_c "$E" "$W/court-s2" && cp -R "$E/$C/out" "$W/court-out2" && sync_c "$E" "$W/court-s3" && diff -r "$E/$C/out" "$W/court-out2" > /dev/null \
    && python3 - "$W/court-s2.json" "$W/court-s3.json" <<'PY'
 import json, sys
@@ -341,6 +364,46 @@ assert r["standing"]["value"] == "BLOCKED" and r["standing"]["broken_term"] == "
 assert [c["exit"] for c in r["replay"]["commands"]] == [0, 0, 0, 7]
 PY
 then ok "refused gate: court exit 4 (typed), observed exit 7, receipt PARTIAL_ALIVE -> BLOCKED (mu_on_O), fleet ADMITTED"; else no "blocked witness exit $r (see $W/blocked-*)"; fi
+# 7c2 a gate command with a shell syntax error is that gate's own refusal (exit = its order, observed
+#     exit 2), never a parse error of the court script; a command full of single quotes runs verbatim
+X="$W/court-syntax"; court_copy "$X"; printf '%s\n' "$PREFIX_LINE" > "$X/$C/observed.ttl"
+cat >> "$X/$C/release.ttl" <<'TTL'
+
+q23:release er:gate q23:gate-witness-quotes , q23:gate-witness-syntax .
+q23:gate-witness-quotes a er:Gate ; er:gateOrder 4 ; er:gateName "witness-quotes" ;
+    er:command """v='a'\\''b' ; test "$v" = "a'b" && test "$(printf '%s' "it's")" = "it's" && echo 'kept: $HOME `x`' """ .
+q23:gate-witness-syntax a er:Gate ; er:gateOrder 5 ; er:gateName "witness-syntax" ; er:command "if then fi" .
+TTL
+git_commit "$X"; sync_c "$X" "$W/syntax-s1"
+r=$(court "$X" "$W/syntax-run.log")
+if [ "$r" = 5 ] && grep -q 'COURT_GATE_PASS order=4 name=witness-quotes' "$W/syntax-run.log" && grep -qF 'kept: $HOME `x`' "$W/syntax-run.log" \
+   && grep -q 'COURT_GATE_REFUSED order=5 name=witness-syntax exit=2' "$W/syntax-run.log" \
+   && grep -q 'gate-witness-syntax> er:observedExit 2 ;' "$X/$C/observed.ttl" && grep -q 'gate-witness-quotes> er:observedExit 0 ;' "$X/$C/observed.ttl"; then
+  ok "syntax error in a gate command: court exit 5 (its order), observed exit 2; single-quoted command ran verbatim"; else no "syntax witness exit $r (see $W/syntax-run.log)"; fi
+# 7c3 a court root that is not a directory: exit 103 before any import, probe or gate; observation untouched
+Z="$W/court-noroot"; court_copy "$Z"; printf '%s\n' "$PREFIX_LINE" > "$Z/$C/observed.ttl"
+printf '\nq23:release er:courtRoot "no-such-dir" .\n' >> "$Z/$C/release.ttl"
+sync_c "$Z" "$W/noroot-s1"; cp "$Z/$C/observed.ttl" "$W/noroot-observed.before"
+r=$(court "$Z" "$W/noroot-run.log")
+if [ "$r" = 103 ] && grep -q 'COURT_ROOT_MISSING court_root=no-such-dir' "$W/noroot-run.log" && ! grep -q 'COURT_IMPORT_OK' "$W/noroot-run.log" \
+   && cmp -s "$Z/$C/observed.ttl" "$W/noroot-observed.before"; then
+  ok "missing court root: court exit 103 (typed), observation untouched"; else no "missing court root exit $r (see $W/noroot-run.log)"; fi
+# 7c4 an observation without one gate's exit (court input intact): PARTIAL_ALIVE kept, typed R_missing_consequence
+Q="$W/court-partial"; cp -R "$E" "$Q"; rm -rf "$Q/$C/out" "$Q/$C/.ggen" "$Q/$C/.ggen-v2"
+grep -v '/gate-crosswalk-total> er:observedExit ' "$E/$C/observed.ttl" > "$Q/$C/observed.ttl"
+if sync_c "$Q" "$W/partial-s1" && python3 ~/.claude/dfcm/validate_receipt.py "$Q/$C/out/receipts/ROOT.json" > "$W/partial-validate.log" 2>&1 \
+   && python3 - "$Q/$C" <<'PY'
+import json, sys, tomllib
+from pathlib import Path
+root = Path(sys.argv[1])
+toml = tomllib.loads((root / "out/receipts/root-receipt.unsealed.toml").read_text())
+assert (toml["standing_before"], toml["standing_after"]) == ("PARTIAL_ALIVE", "PARTIAL_ALIVE"), toml["standing_after"]
+assert toml["executed"][-1] == "gate 3 crosswalk-total: UNOBSERVED"
+r = json.loads((root / "out/receipts/ROOT.json").read_text())
+assert r["standing"]["value"] == "PARTIAL_ALIVE" and r["standing"]["broken_term"] == "R_missing_consequence"
+assert [c["exit"] for c in r["replay"]["commands"]] == [0, 0, -1]
+PY
+then ok "unobserved gate: receipt PARTIAL_ALIVE -> PARTIAL_ALIVE, ROOT.json broken_term R_missing_consequence, fleet ADMITTED"; else no "partial witness (see $W/partial-*)"; fi
 # 7d an imported file tampered after import: exit 100, observation untouched
 T="$W/court-tamper"; cp -R "$E" "$T"; cp "$T/$C/observed.ttl" "$W/tamper-observed.before"
 printf ' ' >> "$T/$C/imports/ce23-orders.ttl"
@@ -368,9 +431,10 @@ PY
 done
 # 7g one-change graph mutants: refused natively and by the runner, admitted without the named gate;
 #    the admitted witness row renders its crown into the receipt's verified[]
-while IFS=$'\t' read -r name file old new gate reason; do
+while IFS=$'\t' read -r name file old new gate reason obs; do
   case "$name" in ''|'#'*) continue ;; esac
   M="$W/cm-$name"; court_copy "$M"
+  if [ "${obs:-committed}" = none ]; then printf '%s\n' "$PREFIX_LINE" > "$M/$C/observed.ttl"; fi
   python3 - "$M/$C/$file" "$old" "$new" <<'PY'
 import sys
 path, old, new = sys.argv[1:]
@@ -396,7 +460,27 @@ PY
     ok "court mutant $name: $reason (native=$n[FM-PACK-013 $gate] runner=$g without-gate=$rv)"
   else no "court mutant $name: want $gate/$reason, native=$n runner=$g without-gate=$rv (see $M.*)"; fi
 done < "$P/qualification/court-mutants.EXPECTED.tsv"
-# 7h chatman-ecosystem's own receipt law (named skip without the binary)
+# 7h chatman-ecosystem's own receipt law (named skip without the binary). CHATMAN_REPO builds the committed
+#    qualification/chatman-harness against ecosystem-core extracted from the exact law commit.
+CHATMAN_LAW_SHA=c59596f5506e7a00ca4ed6b909ebf6d6659b74c1
+if [ -z "${CHATMAN_ECOSYSTEM_BIN:-}" ] && [ -n "${CHATMAN_REPO:-}" ]; then
+  HB="$W/chatman-harness-build"; mkdir -p "$HB"
+  if git -C "$CHATMAN_REPO" archive "$CHATMAN_LAW_SHA" Cargo.toml Cargo.lock crates/ecosystem-core | tar -x -C "$HB" \
+     && python3 - "$HB/Cargo.toml" <<'PY'
+import re, sys
+path = sys.argv[1]
+text = open(path).read()
+text, n = re.subn(r'(?s)members = \[.*?\]\n(exclude = \[.*?\]\n)?', 'members = ["crates/ecosystem-core", "harness"]\n', text, count=1)
+assert n == 1, n
+open(path, "w").write(text)
+PY
+  then cp -R "$P/qualification/chatman-harness" "$HB/harness"
+    if (cd "$HB" && rustc --version && cargo build --offline -p chatman-receipt-harness) > "$W/chatman-harness-build.log" 2>&1; then
+      CHATMAN_ECOSYSTEM_BIN="${CARGO_TARGET_DIR:-$HB/target}/debug/chatman-receipt-harness"
+      ok "chatman receipt harness built against ecosystem-core at $CHATMAN_LAW_SHA ($(head -1 "$W/chatman-harness-build.log"))"
+    else no "chatman receipt harness build (see $W/chatman-harness-build.log)"; fi
+  else no "chatman-ecosystem $CHATMAN_LAW_SHA not extractable from CHATMAN_REPO=$CHATMAN_REPO"; fi
+fi
 if [ -n "${CHATMAN_ECOSYSTEM_BIN:-}" ]; then
   K="$W/chatman-seal"; mkdir -p "$K/receipts"
   cp "$E/$C/out/receipts/root-receipt.unsealed.toml" "$K/receipts/release.toml"
@@ -444,7 +528,7 @@ print("DIFFERENTIAL_AGREE pairs=25 permitted=9", " ".join(permitted))
 PY
   then ok "gate 097 and chatman Standing::permits agree on all 25 standing pairs (9 permitted, UNKNOWN->ALIVE refused by both)"
   else no "gate 097 vs chatman Standing::permits differential (see $W/chatman-diff.log)"; fi
-else echo "SKIP chatman receipt seal: set CHATMAN_ECOSYSTEM_BIN=<chatman-ecosystem ecosystem binary>"; fi
+else echo "SKIP chatman receipt seal: set CHATMAN_REPO=<git clone of chatman-ecosystem> or CHATMAN_ECOSYSTEM_BIN=<ecosystem binary>"; fi
 
 printf 'QUALIFICATION %s scratch=%s\n' "$([ $fail = 0 ] && echo ALIVE || echo REFUSED)" "$W"
 exit $fail

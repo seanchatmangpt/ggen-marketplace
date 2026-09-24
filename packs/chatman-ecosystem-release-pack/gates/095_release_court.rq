@@ -13,8 +13,14 @@
 # MESSAGE: er:FailureClass individuals are exactly those six, each labelled only with its own name
 # MESSAGE: (a consumer cannot add a class or relabel one); an observed gate or probe carries
 # MESSAGE: er:observedCommandSha256 equal to the SHA256 of its current er:command (no observation of
-# MESSAGE: another command); gate and probe IRIs contain no single quote, er:courtRoot is one
-# MESSAGE: [A-Za-z0-9._/-]+ path, and a release that declares probes or typed checks declares a gate.
+# MESSAGE: another command); an observed court carries its er:observedCourtInput set, and that set equals
+# MESSAGE: the court's current input element for element (court|<version>|<court root>,
+# MESSAGE: component|<repository>|<commitSha>, import|<ordinal>|<name>|<path>|<digest>,
+# MESSAGE: probe|<IRI>|<order>|<name>|<command sha256>, gate|<IRI>|<order>|<name>|<command sha256>), so an
+# MESSAGE: import, component, court root, probe or gate edited, added or removed after the court ran
+# MESSAGE: makes its observation stale (re-run the court); gate and probe IRIs contain no single
+# MESSAGE: quote, er:courtRoot is one [A-Za-z0-9._/-]+ path, and a release that declares probes or typed
+# MESSAGE: checks declares a gate.
 PREFIX er: <http://seanchatmangpt.github.io/packs/chatman-ecosystem-release#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
@@ -141,6 +147,48 @@ SELECT DISTINCT ?subject ?reason WHERE {
     FILTER(NOT EXISTS { ?subject er:observedCommandSha256 ?h ; er:command ?c . FILTER(STR(?h) = SHA256(STR(?c))) }
            || EXISTS { ?subject er:observedCommandSha256 ?h . ?subject er:command ?c . FILTER(STR(?h) != SHA256(STR(?c))) })
     BIND("observation-of-another-command" AS ?reason)
+  } UNION {
+    # Court-input binding (the whole court input, not only each command): the generated court writes
+    # one er:observedCourtInput value per element of the input it ran; the current input is rebuilt
+    # here from the graph with the same element forms. Set equality, element by element (no
+    # aggregate, so the result does not depend on GROUP_CONCAT order in either executor).
+    ?subject a er:Release .
+    FILTER(EXISTS { ?subject er:gate ?og . { ?og er:observedExit ?ox . } UNION { ?og er:observedCommandSha256 ?oh . } }
+           || EXISTS { ?subject er:probe ?op . { ?op er:observedOutput ?oy . } UNION { ?op er:observedCommandSha256 ?oh . } })
+    FILTER NOT EXISTS { ?subject er:observedCourtInput ?anyInput . }
+    BIND("observation-without-court-input" AS ?reason)
+  } UNION {
+    ?subject a er:Release ; er:gate ?anyGate .
+    FILTER EXISTS { ?subject er:observedCourtInput ?anyInput . }
+    { ?subject er:version ?cv . OPTIONAL { ?subject er:courtRoot ?ccr . }
+        BIND(CONCAT("court|", STR(?cv), "|", COALESCE(STR(?ccr), ".")) AS ?el) }
+      UNION { ?subject er:hasComponent ?ck . ?ck er:repository ?ckr ; er:commitSha ?cks .
+        BIND(CONCAT("component|", STR(?ckr), "|", STR(?cks)) AS ?el) }
+      UNION { ?ci a er:ImportedReceipt ; er:importName ?cin ; er:importPath ?cip ; er:importDigest ?cid ; er:ordinal ?cio .
+        BIND(CONCAT("import|", STR(?cio), "|", STR(?cin), "|", STR(?cip), "|", STR(?cid)) AS ?el) }
+      UNION { ?subject er:probe ?cp . ?cp er:probeOrder ?cpo ; er:probeName ?cpn ; er:command ?cpc .
+        BIND(CONCAT("probe|", STR(?cp), "|", STR(?cpo), "|", STR(?cpn), "|", SHA256(STR(?cpc))) AS ?el) }
+      UNION { ?subject er:gate ?cg . ?cg er:gateOrder ?cgo ; er:gateName ?cgn ; er:command ?cgc .
+        BIND(CONCAT("gate|", STR(?cg), "|", STR(?cgo), "|", STR(?cgn), "|", SHA256(STR(?cgc))) AS ?el) }
+    FILTER NOT EXISTS { ?subject er:observedCourtInput ?oel . FILTER(STR(?oel) = ?el) }
+    BIND(CONCAT("court-input-not-observed:", ?el) AS ?reason)
+  } UNION {
+    ?subject er:observedCourtInput ?oel .
+    FILTER NOT EXISTS {
+      ?subject a er:Release ; er:gate ?anyGate .
+      { ?subject er:version ?cv . OPTIONAL { ?subject er:courtRoot ?ccr . }
+          BIND(CONCAT("court|", STR(?cv), "|", COALESCE(STR(?ccr), ".")) AS ?el) }
+        UNION { ?subject er:hasComponent ?ck . ?ck er:repository ?ckr ; er:commitSha ?cks .
+          BIND(CONCAT("component|", STR(?ckr), "|", STR(?cks)) AS ?el) }
+        UNION { ?ci a er:ImportedReceipt ; er:importName ?cin ; er:importPath ?cip ; er:importDigest ?cid ; er:ordinal ?cio .
+          BIND(CONCAT("import|", STR(?cio), "|", STR(?cin), "|", STR(?cip), "|", STR(?cid)) AS ?el) }
+        UNION { ?subject er:probe ?cp . ?cp er:probeOrder ?cpo ; er:probeName ?cpn ; er:command ?cpc .
+          BIND(CONCAT("probe|", STR(?cp), "|", STR(?cpo), "|", STR(?cpn), "|", SHA256(STR(?cpc))) AS ?el) }
+        UNION { ?subject er:gate ?cg . ?cg er:gateOrder ?cgo ; er:gateName ?cgn ; er:command ?cgc .
+          BIND(CONCAT("gate|", STR(?cg), "|", STR(?cgo), "|", STR(?cgn), "|", SHA256(STR(?cgc))) AS ?el) }
+      FILTER(?el = STR(?oel))
+    }
+    BIND(CONCAT("court-input-observed-but-gone:", STR(?oel)) AS ?reason)
   } UNION {
     { ?subject a er:Gate . } UNION { ?subject a er:Probe . }
     FILTER(REGEX(STR(?subject), "'"))

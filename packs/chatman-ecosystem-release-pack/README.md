@@ -101,7 +101,8 @@ operator individuals `er:subject_defect`, `er:environment`, `er:pre_existing`,
 `er:RootReceipt` (`er:receiptRelease`, `er:receiptId`, `er:subjectRepository`, `er:subjectProbe`,
 `er:actor`, `er:receiptAuthority`, `er:receiptGrant`, `er:intention`, `er:timestamp`,
 `er:changedPath`, `er:standingBefore`, `er:standingAfter`), the court observations
-`er:observedExit` / `er:observedOutput` / `er:observedCommandSha256`, and the transition law
+`er:observedExit` / `er:observedOutput` / `er:observedCommandSha256` / `er:observedCourtInput`, and
+the transition law
 `er:permitsStanding`
 (chatman-ecosystem `Standing::permits`, `crates/ecosystem-core/src/lib.rs:208-232` at c59596f5,
 restricted to UNKNOWN, PARTIAL_ALIVE, ALIVE, BLOCKED and UNSUPPORTED; UNKNOWN -> ALIVE is not in it).
@@ -122,17 +123,26 @@ The loop is sync, court, sync:
    The two receipts are skipped until an observation exists.
 2. `COURT_OBSERVED=observed.ttl bash out/scripts/crown_v<version>.sh` re-hashes every
    `er:ImportedReceipt` (exit 100 on a missing file or a digest mismatch), runs every probe (exit
-   101 on a failure) and then every gate in `er:gateOrder` order, each gate as a function body under
-   `set -euo pipefail`. A failing gate stops the court with exit status equal to its order and a
-   `COURT_GATE_REFUSED order=N name=... exit=...` line. The observation file (probe outputs, gate
-   exits, each with the SHA256 of the command text that ran) is replaced only when the court
-   reaches a gate verdict; an import or probe failure leaves the previous observation untouched.
-   Gate 095 refuses an observation whose command hash differs from the current `er:command`, so
-   an observation cannot outlive an edit of the court.
+   101 on a failure) and then every gate in `er:gateOrder` order, each command as one single-quoted
+   word run by `bash -euo pipefail -c` (a syntax error in a command is that gate's own refusal). A
+   failing gate stops the court with exit status equal to its order and a
+   `COURT_GATE_REFUSED order=N name=... exit=...` line; exit 103 means the consumer root or the
+   court root is not a directory. The observation file (probe outputs, gate exits, each with the
+   SHA256 of the command text that ran, and the release's `er:observedCourtInput` set naming the
+   whole court input: `court|<version>|<court root>`, `component|<repo>|<sha>` per component,
+   `import|<ordinal>|<name>|<path>|sha256:<hex re-hashed>` per import, and
+   `probe|`/`gate|<IRI>|<order>|<name>|<command sha256>`) is replaced only when the court reaches a
+   gate verdict; an import, probe or court-root failure leaves the previous observation untouched.
+   Gate 095 rebuilds the current input from the graph and refuses any element present on one side
+   only (and an observed court without the set), so an import digest or path, a component SHA, the
+   court root or version, or a probe or gate edited, added or removed after the court ran makes the
+   observation stale: re-run the court (empty `observed.ttl`, sync, court, sync) instead of
+   re-rendering receipts from it.
 3. `ggen sync run` again renders `out/receipts/root-receipt.unsealed.toml` (chatman `Receipt`
    shape, digest `""`, for `ecosystem receipt seal`) and `out/receipts/ROOT.json` (fleet R schema:
    replay exits are the observed exits, `-1` with an UNOBSERVED summary for a gate the court never
-   reached, BLOCKED carries `broken_term` `mu_on_O`).
+   reached; BLOCKED carries `broken_term` `mu_on_O`, and any other standing but ALIVE carries
+   `R_missing_consequence`, since a gate of the court input has no observed exit).
 
 `er:standingAfter` is derived by the `construct:` of `root-receipt.toml.tmpl`: BLOCKED when any
 observed exit is non-zero, ALIVE when every gate of the release has exactly one observed exit and
@@ -172,7 +182,7 @@ For each required role of the predecessor without an explicit decision:
 | 075_constitutional_role_mapping | a required role or required component role without exactly one mapping; non-constitutional primary/capability; empty authority ceiling; Actuate without BRCE exclusivity |
 | 080_critical_path_coverage | a CriticalPath repository, or a court-executed repository, that is not a required component of the release |
 | 085_requirement_row_identity | a checkpointed sj:WorkOrder without owner/name repository, 40-hex base SHA or falsifier description |
-| 095_release_court | an er:Gate not owned by exactly one release, with an order outside 1..99 or duplicated, a name outside `[A-Za-z0-9][A-Za-z0-9._:-]*`, a blank or multi-valued command, or an observed exit outside 0..255; an observed gate or probe without er:observedCommandSha256 equal to SHA256 of its current command; an er:Probe not owned by exactly one release, with a bad or duplicated name/order or a blank command, or two observed outputs; an er:CheckDisposition not owned by exactly one release, with a missing or multi-line or duplicated name, a failure class that is not one of the six operator classes (closed list in the gate), a boundary other than SUCCESSOR/BLOCKED/UNSUPPORTED/REFUSED, or no evidence; an er:FailureClass individual other than the six, one of the six missing, or one of them labelled other than its own name; a gate or probe IRI containing `'`; an unsafe er:courtRoot; probes or typed checks without a gate |
+| 095_release_court | an er:Gate not owned by exactly one release, with an order outside 1..99 or duplicated, a name outside `[A-Za-z0-9][A-Za-z0-9._:-]*`, a blank or multi-valued command, or an observed exit outside 0..255; an observed gate or probe without er:observedCommandSha256 equal to SHA256 of its current command; an observed court without its er:observedCourtInput set, or a set that differs from the current court input in any element (court version and root, component SHAs, import ordinal/name/path/digest, probe and gate IRI/order/name/command hash); an er:Probe not owned by exactly one release, with a bad or duplicated name/order or a blank command, or two observed outputs; an er:CheckDisposition not owned by exactly one release, with a missing or multi-line or duplicated name, a failure class that is not one of the six operator classes (closed list in the gate), a boundary other than SUCCESSOR/BLOCKED/UNSUPPORTED/REFUSED, or no evidence; an er:FailureClass individual other than the six, one of the six missing, or one of them labelled other than its own name; a gate or probe IRI containing `'`; an unsafe er:courtRoot; probes or typed checks without a gate |
 | 097_root_receipt | more than one er:RootReceipt; a receipt id outside `receipt:[a-z0-9_-]+`; no court release; an empty or multi-valued subject repository, actor, intention or timestamp; an authority that is not a chatman Authority; a standing before outside the five receipt standings; not exactly one derived standing after; a before -> after pair outside the gate's closed table of the nine chatman Standing::permits pairs; an er:permitsStanding triple outside that table, or a table pair missing from the graph; a subject probe not of the release, or an observed court without one 40-hex subject; no import; an import without exactly one name, path, sha256 digest and integer ordinal, with an unsafe name or path, or duplicated; an er:ImportedCrown digest that is not imported, or a crown or paired component that is not the release component of that repository at the same commit |
 | 090_imported_crown | an er:ImportedCrown whose STOP is not ALIVE, whose STOP or gate digest is absent, with fewer than er:requiredGateCount distinct ALIVE gates at the crown subject, whose STOP subject differs from the crown component commit, with a gate not ALIVE, at a foreign subject or against a foreign paired commit, or with a CE23-8 counter absent, null or not 0 |
 
@@ -197,7 +207,7 @@ overwritten. To regenerate after an input change, delete the stale output and ru
 | crosswalk.ttl.tmpl | `out/crosswalk.ttl`, every er:RoleDisposition as Turtle (ggen does not emit its enriched graph) |
 | role-disposition-rule.toml.tmpl | the disposition rule, and `out/role-derivations.toml` (derived vs decided rows) |
 | imported-crown.toml.tmpl | `out/imported-crown.toml`: per crown the checkpoint, STOP standing, subject and digest, both component repo@sha, required gate count, the two CE23-8 counters, and one row per gate receipt (id, standing, subject, paired subject, digest); `crown_count = 0` for a consumer without a crown |
-| release-court.sh.tmpl | `out/scripts/crown_v<version>.sh` per release with gates (`for_each` fan-out): imports re-hashed, probes, gates in order under `set -euo pipefail`, typed exits 1..99 / 100 / 101 / 102, optional observation output |
+| release-court.sh.tmpl | `out/scripts/crown_v<version>.sh` per release with gates (`for_each` fan-out): imports re-hashed, probes, gates in order, each command one single-quoted word run by `bash -euo pipefail -c`, typed exits 1..99 / 100 / 101 / 102 / 103, optional observation output including the whole court input |
 | typed-checks.txt.tmpl | `out/typed-checks.txt`: one er:checkName per line, sorted, nothing else, for a consumer check such as `comm -23 <failing check-runs> <(sort -u out/typed-checks.txt)` |
 | imports.sha256.tmpl | `out/receipts/IMPORTS.sha256`: `<hex>  <er:importPath>` per import, so `shasum -a 256 -c --strict out/receipts/IMPORTS.sha256` from the court root recomputes every digest |
 | root-receipt.toml.tmpl | `out/receipts/root-receipt.unsealed.toml` (after an observation), and the standing derivation `construct:` |
@@ -230,18 +240,30 @@ any observation (receipts skipped); the court exits 0 and writes its observation
 renders a PARTIAL_ALIVE -> ALIVE receipt bound to the repository HEAD (fleet validator ADMITTED,
 chatman `schemas/receipt.schema.json` valid, `shasum -c --strict` on IMPORTS.sha256), and a third
 sync writes nothing. The committed `consumer-v26.9.23/observed.ttl` must equal a fresh court
-observation except for its subject line, and its subject must be an ancestor of HEAD. Witnesses:
-an added refusing gate exits with its order and renders a BLOCKED receipt (`mu_on_O`); a tampered
-import exits 100 and a probe that cannot observe exits 101, both leaving the observation untouched;
-a hand edit of the rendered court script or receipt is refused by the next sync (FM-WRITE-005).
+observation except for its subject line, its subject must be an ancestor of HEAD, and the pack
+tree at that subject must equal the current one; the observation names the whole court input (1
+court, 2 components, 3 imports, 5 probes, 3 gates). Witnesses: an added refusing gate exits with its
+order and renders a BLOCKED receipt (`mu_on_O`); a gate command with a shell syntax error is that
+gate's refusal (court exit = its order, observed exit 2) while a command full of single quotes runs
+verbatim; a missing court root exits 103; an observation without one gate's exit renders
+PARTIAL_ALIVE with `R_missing_consequence`; a tampered import exits 100 and a probe that cannot
+observe exits 101, both leaving the observation untouched; a hand edit of the rendered court script
+or receipt is refused by the next sync (FM-WRITE-005).
 Every row of `qualification/court-mutants.EXPECTED.tsv` (UNKNOWN -> ALIVE, a declared standing
 after, a duplicated gate order, an unknown failure class, a REQUIRED typed check, a malformed or
 unsafe import, a non-SHA subject, an out-of-range exit, a crown at another subject, crown bytes not
-imported, an observation of an edited command) is refused natively (FM-PACK-013 at the named gate) and by the runner with the named
-reason, and admitted by the runner once that gate is removed; the admitted row carries a
-consistent crown into `verified[]`. `CHATMAN_ECOSYSTEM_BIN=<binary with chatman's receipt seal and
-verify-all>` also seals the rendered receipt with chatman's own receipt law and requires the
-UNKNOWN -> ALIVE variant to be refused there.
+imported, an observation of an edited command, consumer triples that extend the transition or
+failure-class law, ontology copies that drift from them, and C20-C27: an import digest or path, the
+court root, a component SHA, an added gate, a withdrawn import or the version edited after the
+committed observation, or the observation's court-input set dropped) is refused natively
+(FM-PACK-013 at the named gate) and by the runner with the named reason, and admitted by the runner
+once that gate is removed; the admitted row carries a consistent crown into `verified[]`.
+`CHATMAN_REPO=<git clone of chatman-ecosystem>` builds the committed `qualification/chatman-harness`
+(the `receipt seal` / `receipt verify-all` arms of chatman's CLI over the same ecosystem-core
+functions) against ecosystem-core extracted from c59596f5 with `git archive` (`cargo --offline`), or
+`CHATMAN_ECOSYSTEM_BIN=<binary>` names one; either seals the rendered receipt with chatman's own
+receipt law, requires the UNKNOWN -> ALIVE variant to be refused there, and runs gate 097 against
+chatman's `Standing::permits` on all 25 pairs of the five receipt standings.
 
 Lane gate (MP-RELPACK-CROWN), from the pack directory:
 
@@ -269,9 +291,9 @@ C=qualification/consumer-v26.9.23 && (cd $C && rm -rf out && ggen sync run > /de
 
 - `HANDWRITTEN.md`: the code residue ledger (`lift/manifest_to_er.py`, `bin/run-gates.py`,
   `bin/import-crown-lift.py`, `bin/import-crown-generate.sh`,
-  `qualification/fixtures/derive-fixtures.py`, `qualification/qualify.sh`). The 0.4.0 court and
-  receipt add no code residue: the court script, the observation writer and both receipts are
-  rendered from graph facts.
+  `qualification/fixtures/derive-fixtures.py`, `qualification/qualify.sh`,
+  `qualification/chatman-harness/`). The 0.4.0 court and receipt add no product code residue: the
+  court script, the observation writer and both receipts are rendered from graph facts.
 - `qualification/fixtures/SOURCES.md`: the xaas receipt blobs behind every imported-crown fixture.
 - `qualification/consumer-v26.9.23/SOURCES.md`: provenance and sha256 of every imported input.
 - `qualification/mutants/README.md`: each mutation as a one-change diff from the mutant base.
