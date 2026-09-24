@@ -1,0 +1,144 @@
+..F...................................................FF................ [ 22%]
+........................................................................ [ 44%]
+........................................................................ [ 66%]
+........................................................................ [ 89%]
+...................................                                      [100%]
+=================================== FAILURES ===================================
+_ BookNavigationCoverageTest.test_every_docs_markdown_file_has_a_navigation_entry _
+
+self = <test_book_nav_coverage.BookNavigationCoverageTest testMethod=test_every_docs_markdown_file_has_a_navigation_entry>
+
+    def test_every_docs_markdown_file_has_a_navigation_entry(self) -> None:
+        """No orphans: a page on disk that the built mdBook would never link to."""
+        declared = declared_nav_paths()
+        orphans = sorted(markdown_files_on_disk() - declared)
+>       self.assertEqual(
+            orphans,
+            [],
+            "these docs/ pages have no mdp:NavigationEntry in docs/book.ttl, so "
+            "they are absent from the generated docs/SUMMARY.md and from the "
+            "published mdBook: "
+            + ", ".join(orphans)
+            + ". Add an entry to docs/book.ttl (never hand-edit SUMMARY.md; CI "
+            "deletes and regenerates it), then re-run `ggen sync run`.",
+        )
+E       AssertionError: Lists differ: ['adr/ADR-0001-deterministic-catalog-proje[1898 chars].md'] != []
+E       
+E       First list contains 42 additional elements.
+E       First extra element 0:
+E       'adr/ADR-0001-deterministic-catalog-projection.md'
+E       
+E       Diff is 2076 characters long. Set self.maxDiff to None to see it. : these docs/ pages have no mdp:NavigationEntry in docs/book.ttl, so they are absent from the generated docs/SUMMARY.md and from the published mdBook: adr/ADR-0001-deterministic-catalog-projection.md, adr/ADR-0002-star-toml-admission-boundary.md, adr/ADR-0003-ecosystem-topology-and-composition-boundary.md, adr/ADR-0004-fond-hddl-mx-loop-pattern-and-calver.md, adr/ADR-0005-ash-surface-mx-consumer-projection.md, architecture.md, context/next.md, context/standing.md, explanation/ash-a2a-prd-ard.md, explanation/wbpr-26.9.12-canonical-consolidation.md, jira/v26.8.19/00-PACK-PORTFOLIO-MATURITY-AUDIT.md, jira/v26.8.19/01-TICKET-retire-clap-noun-verb-legacy.md, jira/v26.8.19/02-TICKET-pack-class-taxonomy.md, jira/v26.8.19/03-TICKET-consolidation-court-methodology.md, jira/v26.8.19/05-TICKET-tcps-family-consolidation.md, jira/v26.8.19/06-TICKET-wasm4pm-family-consolidation.md, jira/v26.8.19/07-TICKET-fortune5-ea-family-consolidation.md, jira/v26.8.19/08-TICKET-release-lifecycle-family-consolidation.md, jira/v26.8.19/09-TICKET-repo-lifecycle-family-consolidation.md, jira/v26.8.19/10-TICKET-mcp-protocol-family-consolidation.md, jira/v26.8.19/11-TICKET-ui-projection-kernel-family-consolidation.md, jira/v26.8.19/README.md, jira/v26.8.19/VERIFICATION.md, jira/v26.9.1/PLAN.md, jira/v26.9.11/ash-extension-pack-consolidation.md, jira/v26.9.11/local-clone-fast-forward-sync.md, jira/v26.9.11/noun-verb-cli-pack-marketplace-cli.md, jira/v26.9.11/pr428-htn-fond-hddl-integration.md, jira/v26.9.11/pr435-economic-isa-manufacturing-pack.md, jira/v26.9.11/pr436-cv-challenger-projection-policy-type2.md, jira/v26.9.13/PLAN.md, jira/v26.9.15/GMKT-2601-consolidation-court-negative-result.md, jira/v26.9.15/README.md, reference/ash-ecosystem-mapping.md, reference/enterprise-kudzu-v26.9.13.md, reference/kudzu-case-studies.md, reference/wbpr-26.9.12-falsifier-audit.md, sjira/v26.9.21/ACCEPTANCE.md, sjira/v26.9.21/ECOSYSTEM-CLOSURE.md, sjira/v26.9.21/PACK-MAP.md, sjira/v26.9.21/README.md, target-architecture.md. Add an entry to docs/book.ttl (never hand-edit SUMMARY.md; CI deletes and regenerates it), then re-run `ggen sync run`.
+
+tests/test_book_nav_coverage.py:87: AssertionError
+_____ RealCorpusTests.test_corpus_wide_unparseable_statements_stay_bounded _____
+
+self = <test_cross_pack_turtle_literals.RealCorpusTests testMethod=test_corpus_wide_unparseable_statements_stay_bounded>
+
+    def test_corpus_wide_unparseable_statements_stay_bounded(self) -> None:
+        """Regression bound. Before long-literal support the real corpus reported
+        3692 skipped statements; it now reports 669, all of them genuine blank-node
+        or collection syntax outside this tokenizer's declared dialect. This asserts
+        the blind spot does not silently regrow. The bound was raised to 950 after
+        a large branch-consolidation merge added many packs with their own
+        legitimate blank-node/collection Turtle; it still catches the class of
+        regression this test exists for (silent regrowth of the tokenizer's blind
+        spot), not organic corpus growth."""
+        total = sum(parse_ontology(load_pack_ontology_text(p)).skipped for p in self.packs)
+>       self.assertLessEqual(total, 950, f"unparseable-statement blind spot regrew to {total}")
+E       AssertionError: 1235 not less than or equal to 950 : unparseable-statement blind spot regrew to 1235
+
+tests/test_cross_pack_turtle_literals.py:188: AssertionError
+_ RealCorpusTests.test_every_pack_with_real_ontology_content_yields_statements _
+
+self = <test_cross_pack_turtle_literals.RealCorpusTests testMethod=test_every_pack_with_real_ontology_content_yields_statements>
+
+    def test_every_pack_with_real_ontology_content_yields_statements(self) -> None:
+        """Any ontology.ttl with non-comment content must parse to >=1 statement.
+    
+        Five packs (clap-noun-verb-{behavior,boundary,crate,routing,verification})
+        legitimately ship a comment-only ontology.ttl: they are templates-only packs
+        that render from the consumer's own graph and declare no pack-local
+        individuals, keeping the file solely to satisfy FM-PACK-004 ("every pack must
+        ship an ontology.ttl"). Zero statements is the correct reading of those, so
+        the invariant is keyed on real content, not on file presence.
+    
+        One further named exception: autofde-level4-actuation-pack's ontology is a
+        verbatim, unmodified copy of a real SHACL shapes file (see its own header:
+        "the ONLY expression of these constraints") using blank-node property lists
+        (`sh:property [ ... ]`, `sh:sparql [ ... ]`) -- a real Turtle feature this
+        module's hand-rolled, non-blank-node-aware tokenizer does not parse, so every
+        statement in that file is counted as skipped rather than recognized. This is
+        a tokenizer coverage gap, not evidence the file is contentless: the pack's own
+        gate (gates/010_level4_conformance.py) validates this exact file for real via
+        pyshacl.validate(), independently of this lightweight cross-pack scan.
+        """
+        silent = []
+        comment_only = []
+        parser_blind_spot = {"autofde-level4-actuation-pack"}
+        for pack in self.packs:
+            if not pack.ontologies:
+                continue
+            text = load_pack_ontology_text(pack)
+            has_content = bool(strip_comments(text).strip())
+            statements = parse_ontology(text).statements
+            if not has_content:
+                comment_only.append(pack.name)
+            elif not statements and pack.name not in parser_blind_spot:
+                silent.append(pack.name)
+        self.assertEqual(silent, [], f"ontologies with real content parsing to zero statements: {silent}")
+>       self.assertEqual(
+            sorted(comment_only),
+            [
+                "clap-noun-verb-behavior-pack",
+                "clap-noun-verb-boundary-pack",
+                "clap-noun-verb-crate-pack",
+                "clap-noun-verb-routing-pack",
+                "clap-noun-verb-verification-pack",
+                "cnv-any-manifest-pack",
+            ],
+            "the set of deliberately comment-only ontologies changed -- confirm intent",
+        )
+E       AssertionError: Lists differ: ['beam4pm-pro-entitlement-pack', 'clap-noun[169 chars]ack'] != ['clap-noun-verb-behavior-pack', 'clap-noun[137 chars]ack']
+E       
+E       First differing element 0:
+E       'beam4pm-pro-entitlement-pack'
+E       'clap-noun-verb-behavior-pack'
+E       
+E       First list contains 1 additional elements.
+E       First extra element 6:
+E       'cnv-any-manifest-pack'
+E       
+E       - ['beam4pm-pro-entitlement-pack',
+E       -  'clap-noun-verb-behavior-pack',
+E       ? ^
+E       
+E       + ['clap-noun-verb-behavior-pack',
+E       ? ^
+E       
+E          'clap-noun-verb-boundary-pack',
+E          'clap-noun-verb-crate-pack',
+E          'clap-noun-verb-routing-pack',
+E          'clap-noun-verb-verification-pack',
+E          'cnv-any-manifest-pack'] : the set of deliberately comment-only ontologies changed -- confirm intent
+
+tests/test_cross_pack_turtle_literals.py:224: AssertionError
+=============================== warnings summary ===============================
+tests/test_process_intelligence_ocel_tap.py::test_compare_loops_query_runs_over_two_named_graphs_toy_pair
+  /Users/sac/Library/Python/3.14/lib/python/site-packages/rdflib/graph.py:1721: DeprecationWarning: Dataset.default_context is deprecated, use Dataset.default_graph instead.
+    query_graph = self.default_context.identifier
+
+tests/test_process_intelligence_ocel_tap.py: 13 warnings
+  /Users/sac/Library/Python/3.14/lib/python/site-packages/rdflib/plugins/sparql/evaluate.py:233: DeprecationWarning: Dataset.contexts is deprecated, use Dataset.graphs instead.
+    for graph in ctx.dataset.contexts():
+
+tests/test_process_intelligence_ocel_tap.py: 39 warnings
+  /Users/sac/Library/Python/3.14/lib/python/site-packages/rdflib/plugins/sparql/evaluate.py:235: DeprecationWarning: Dataset.default_context is deprecated, use Dataset.default_graph instead.
+    if graph == ctx.dataset.default_context:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_book_nav_coverage.py::BookNavigationCoverageTest::test_every_docs_markdown_file_has_a_navigation_entry
+FAILED tests/test_cross_pack_turtle_literals.py::RealCorpusTests::test_corpus_wide_unparseable_statements_stay_bounded
+FAILED tests/test_cross_pack_turtle_literals.py::RealCorpusTests::test_every_pack_with_real_ontology_content_yields_statements
+3 failed, 320 passed, 53 warnings in 25.33s

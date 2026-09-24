@@ -28,7 +28,12 @@ SOURCE_SUFFIXES = {
     ".tmpl", ".tera",
 }
 SKIP_ROOTS = {".git", ".cache", "target", "dist", "__pycache__", ".venv", "venv"}
-REFERENCE_PARTS = {"reference", "vendor", "third_party"}
+# "imports" holds byte-pinned copies of another repository's files (their sha256 is recorded in the
+# consumer's IMPORTS.sha256) and "receipts" holds recorded gate evidence; neither is authored here, so
+# rewriting a marker word in them would break the pin or the evidence. Only marker-word severity
+# depends on this class: structural vacuity (empty/constant-success functions, no-op scripts) stays
+# an error on every path.
+REFERENCE_PARTS = {"reference", "vendor", "third_party", "imports", "receipts"}
 DOC_PARTS = {"docs"}
 # The largest genuine source/test file actually in this repo right now is
 # ~48KB (packs/tcps-*-pack/reference/tools/lifecycle.py); 2 MiB is a wide,
