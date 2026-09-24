@@ -21,16 +21,21 @@
 #   7. release court + root receipt (0.4.0, gates 095/097): in a copy of this pack made a real
 #      git repository, consumer-v26.9.23 renders its court script before any observation
 #      (receipts skipped), the court re-hashes the imports, runs the probes and gates (exit 0)
-#      and writes its observation; the re-sync renders the root receipt (standing ALIVE,
+#      and writes its observation; the re-sync writes the root receipt (standing ALIVE,
 #      subject = the repository HEAD, fleet validator ADMITTED, chatman receipt schema valid,
-#      IMPORTS.sha256 rechecked) twice identically; the committed observed.ttl is reproduced
-#      except for its subject line; a refused gate exits with its order and renders a BLOCKED
+#      IMPORTS.sha256 rechecked), a further sync writes nothing and a fresh render from an empty
+#      out/ reproduces every file; the committed observed.ttl is reproduced except for its
+#      subject line, and its subject's pack tree equals the current one (the observation is of
+#      the current law); a refused gate exits with its order and renders a BLOCKED
 #      receipt; an import tamper exits 100 and a probe failure 101, both leaving the
 #      observation untouched; a hand-edited court script or receipt is refused
 #      (FM-WRITE-005); every row of court-mutants.EXPECTED.tsv is refused natively
 #      (FM-PACK-013 at the named gate) and by the runner with the named reason, and admitted
-#      by the runner once that gate is removed. CHATMAN_ECOSYSTEM_BIN=<ecosystem binary> also
-#      seals the rendered receipt with chatman-ecosystem's own receipt law.
+#      by the runner once that gate is removed; rows C13-C19 are consumer triples that try to
+#      extend the transition or failure-class law, and pack-ontology copies that drift from
+#      the gates' closed tables. CHATMAN_ECOSYSTEM_BIN=<ecosystem binary> also
+#      seals the rendered receipt with chatman-ecosystem's own receipt law and runs gate 097
+#      against chatman's Standing::permits on all 25 pairs of the five receipt standings.
 # Usage: qualification/qualify.sh   (GGEN=<ggen binary> to override)
 set -u
 P=$(cd "$(dirname "$0")/.." && pwd)
@@ -268,12 +273,18 @@ if [ "$r" = 0 ] && grep -q '^COURT_ALIVE ' "$W/court-run.log" && grep -q "er:obs
    && [ "$(grep -c 'er:observedExit 0 ; er:observedCommandSha256 "[0-9a-f]\{64\}" \.$' "$E/$C/observed.ttl")" = 3 ]; then
   ok "court exit 0 at $HEAD_SHA: 3 imports rehashed, 5 probes, 3 gates exit 0, observation written"; else no "court run exit $r (see $W/court-run.log)"; fi
 if sync_c "$E" "$W/court-s2" && cp -R "$E/$C/out" "$W/court-out2" && sync_c "$E" "$W/court-s3" && diff -r "$E/$C/out" "$W/court-out2" > /dev/null \
-   && python3 - "$W/court-s3.json" <<'PY'
+   && python3 - "$W/court-s2.json" "$W/court-s3.json" <<'PY'
 import json, sys
-d = json.load(open(sys.argv[1]))
-assert not d["written"], d["written"]
+s2, s3 = (json.load(open(p)) for p in sys.argv[1:])
+wrote = {w if isinstance(w, str) else json.dumps(w) for w in s2["written"]}
+for want in ("out/receipts/root-receipt.unsealed.toml", "out/receipts/ROOT.json"):
+    assert any(want in w for w in wrote), (want, s2["written"])
+assert not s3["written"], s3["written"]
 PY
-then ok "receipts rendered after observation; a second sync writes nothing (byte-identical)"; else no "court sync 2/3 (see $W/court-s2.* $W/court-s3.*)"; fi
+then ok "receipts written by the sync after observation; a further sync writes nothing (byte-identical)"; else no "court sync 2/3 (see $W/court-s2.* $W/court-s3.*)"; fi
+F="$W/court-fresh"; cp -R "$E" "$F"; rm -rf "$F/$C/out" "$F/$C/.ggen" "$F/$C/.ggen-v2"
+if sync_c "$F" "$W/court-fresh" && diff -r "$E/$C/out" "$F/$C/out" > "$W/court-fresh.diff" 2>&1; then
+  ok "fresh render from an empty out/ reproduces every rendered file byte-identically"; else no "fresh render differs (see $W/court-fresh.diff $W/court-fresh.*)"; fi
 if python3 ~/.claude/dfcm/validate_receipt.py "$E/$C/out/receipts/ROOT.json" > "$W/court-root-validate.log" 2>&1 \
    && (cd "$E/$C" && shasum -a 256 -c --strict out/receipts/IMPORTS.sha256 > "$W/court-imports.log" 2>&1) \
    && python3 - "$E/$C" "$P/qualification/chatman-receipt.schema.json" "$HEAD_SHA" <<'PY'
@@ -302,6 +313,10 @@ CSUB=$(sed -n 's#.*/probe-subject> er:observedOutput "\([0-9a-f]\{40\}\)" ; .*#\
 if [ -z "$CSUB" ]; then no "committed observed.ttl has no 40-hex subject"
 elif git -C "$P" rev-parse --git-dir > /dev/null 2>&1; then
   if git -C "$P" merge-base --is-ancestor "$CSUB" HEAD 2> /dev/null; then ok "committed observation subject $CSUB is an ancestor of HEAD"; else no "committed observation subject $CSUB is not an ancestor of HEAD"; fi
+  if git -C "$P" diff --quiet "$CSUB" -- . ":(exclude)$C/observed.ttl" 2> "$W/court-law-current.err"; then
+    ok "committed observation is of the current pack law (pack tree at $CSUB = working tree, observed.ttl aside)"
+  else git -C "$P" diff --stat "$CSUB" -- . ":(exclude)$C/observed.ttl" > "$W/court-law-current.diff" 2>&1
+    no "pack changed since the observed subject $CSUB: re-run the court and commit its observation (see $W/court-law-current.diff)"; fi
 else echo "SKIP committed observation subject ancestry: $P is not in a git checkout"; fi
 # 7c a refused gate: exit = its er:gateOrder, observation carries the exit, receipt BLOCKED
 B="$W/court-blocked"; court_copy "$B"; printf '%s\n' "$PREFIX_LINE" > "$B/$C/observed.ttl"
@@ -393,6 +408,42 @@ if [ -n "${CHATMAN_ECOSYSTEM_BIN:-}" ]; then
   if (cd "$U" && "$CHATMAN_ECOSYSTEM_BIN" receipt seal > "$W/chatman-unknown.log" 2>&1); then no "chatman sealed an UNKNOWN -> ALIVE receipt"
   elif grep -q 'illegal receipt transition Unknown -> Alive' "$W/chatman-unknown.log"; then ok "chatman seal refuses the UNKNOWN -> ALIVE variant (the transition gate 097 refuses)"
   else no "chatman UNKNOWN variant refused for another reason (see $W/chatman-unknown.log)"; fi
+  # 7i differential: gate 097's transition law against chatman's own Standing::permits over all 25
+  #    pairs of the five receipt standings (gate executed by rdflib on the pack ontology plus one
+  #    receipt with the pair asserted; chatman executed by sealing the rendered receipt with the pair)
+  if python3 - "$P" "$E/$C/out/receipts/root-receipt.unsealed.toml" "$CHATMAN_ECOSYSTEM_BIN" "$W/chatman-diff" > "$W/chatman-diff.log" 2>&1 <<'PY'
+import re, subprocess, sys
+from pathlib import Path
+from rdflib import Graph, Namespace, RDF, URIRef
+pack, unsealed, binary, work = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3], Path(sys.argv[4])
+ER = Namespace("http://seanchatmangpt.github.io/packs/chatman-ecosystem-release#")
+names = ["UNKNOWN", "PARTIAL_ALIVE", "ALIVE", "BLOCKED", "UNSUPPORTED"]
+gate = (pack / "gates/097_root_receipt.rq").read_text()
+text = unsealed.read_text()
+permitted, mismatch = [], []
+for b in names:
+    for a in names:
+        g = Graph(); g.parse(pack / "ontology.ttl", format="turtle")
+        rr = URIRef("urn:qualify:receipt")
+        g.add((rr, RDF.type, ER.RootReceipt)); g.add((rr, ER.standingBefore, ER[b])); g.add((rr, ER.standingAfter, ER[a]))
+        gate_ok = not any(str(r[1]).startswith("illegal-standing-transition:") for r in g.query(gate))
+        d = work / f"{b}-{a}" / "receipts"; d.mkdir(parents=True)
+        body = re.sub(r'(?m)^standing_before = .*$', f'standing_before = "{b}"', text)
+        body = re.sub(r'(?m)^standing_after = .*$', f'standing_after = "{a}"', body)
+        (d / "release.toml").write_text(body)
+        run = subprocess.run([binary, "receipt", "seal"], cwd=d.parent, capture_output=True, text=True)
+        if run.returncode == 0: chatman_ok = True
+        elif "illegal receipt transition" in run.stderr + run.stdout: chatman_ok = False
+        else: raise SystemExit(f"{b}->{a}: chatman refused for another reason: {run.stderr.strip()}")
+        print(f"{b}->{a} gate097={'permit' if gate_ok else 'refuse'} chatman={'permit' if chatman_ok else 'refuse'}")
+        if gate_ok: permitted.append(f"{b}->{a}")
+        if gate_ok != chatman_ok: mismatch.append(f"{b}->{a}")
+assert not mismatch, mismatch
+assert len(permitted) == 9 and "UNKNOWN->ALIVE" not in permitted, permitted
+print("DIFFERENTIAL_AGREE pairs=25 permitted=9", " ".join(permitted))
+PY
+  then ok "gate 097 and chatman Standing::permits agree on all 25 standing pairs (9 permitted, UNKNOWN->ALIVE refused by both)"
+  else no "gate 097 vs chatman Standing::permits differential (see $W/chatman-diff.log)"; fi
 else echo "SKIP chatman receipt seal: set CHATMAN_ECOSYSTEM_BIN=<chatman-ecosystem ecosystem binary>"; fi
 
 printf 'QUALIFICATION %s scratch=%s\n' "$([ $fail = 0 ] && echo ALIVE || echo REFUSED)" "$W"

@@ -6,14 +6,18 @@
 # MESSAGE: with exactly one er:probeName [a-z0-9][a-z0-9_.-]* and one er:probeOrder >= 1 (both unique
 # MESSAGE: per release), one non-blank er:command and at most one er:observedOutput; every
 # MESSAGE: er:CheckDisposition belongs to exactly one release with exactly one single-line
-# MESSAGE: er:checkName (unique per release), exactly one er:failureClass that is an er:FailureClass,
-# MESSAGE: exactly one er:checkBoundary among SUCCESSOR/BLOCKED/UNSUPPORTED/REFUSED and non-empty
-# MESSAGE: er:checkEvidence; an observed gate or probe carries er:observedCommandSha256 equal to the
-# MESSAGE: SHA256 of its current er:command (no observation of another command); gate and probe
-# MESSAGE: IRIs contain no single quote, er:courtRoot is one [A-Za-z0-9._/-]+ path, and a release
-# MESSAGE: that declares probes or typed checks declares a gate.
+# MESSAGE: er:checkName (unique per release), exactly one er:failureClass among the six operator
+# MESSAGE: classes (subject_defect, environment, pre_existing, generator_drift, evidence_defect,
+# MESSAGE: infrastructure; a closed list carried by this gate), exactly one er:checkBoundary among
+# MESSAGE: SUCCESSOR/BLOCKED/UNSUPPORTED/REFUSED and non-empty er:checkEvidence; the graph's
+# MESSAGE: er:FailureClass individuals are exactly those six, each labelled only with its own name
+# MESSAGE: (a consumer cannot add a class or relabel one); an observed gate or probe carries
+# MESSAGE: er:observedCommandSha256 equal to the SHA256 of its current er:command (no observation of
+# MESSAGE: another command); gate and probe IRIs contain no single quote, er:courtRoot is one
+# MESSAGE: [A-Za-z0-9._/-]+ path, and a release that declares probes or typed checks declares a gate.
 PREFIX er: <http://seanchatmangpt.github.io/packs/chatman-ecosystem-release#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 SELECT DISTINCT ?subject ?reason WHERE {
   {
     ?subject a er:Gate .
@@ -100,10 +104,25 @@ SELECT DISTINCT ?subject ?reason WHERE {
   } UNION {
     ?subject a er:CheckDisposition .
     OPTIONAL { ?subject er:checkName ?cn . }
-    FILTER(NOT EXISTS { ?subject er:failureClass ?fc . ?fc a er:FailureClass . }
-           || EXISTS { ?subject er:failureClass ?fc . FILTER NOT EXISTS { ?fc a er:FailureClass . } }
+    # Closed list (DRIVER.md release closure procedure): decided on these six IRIs, never on graph
+    # data, so a consumer-declared er:FailureClass is not an operator class.
+    FILTER(NOT EXISTS { ?subject er:failureClass ?fc . FILTER(?fc IN (er:subject_defect, er:environment, er:pre_existing, er:generator_drift, er:evidence_defect, er:infrastructure)) }
+           || EXISTS { ?subject er:failureClass ?fc . FILTER(?fc NOT IN (er:subject_defect, er:environment, er:pre_existing, er:generator_drift, er:evidence_defect, er:infrastructure)) }
            || EXISTS { ?subject er:failureClass ?f1 , ?f2 . FILTER(?f1 != ?f2) })
     BIND(CONCAT("check-failure-class-not-exactly-one-operator-class:", COALESCE(STR(?cn), STR(?subject))) AS ?reason)
+  } UNION {
+    ?subject a er:FailureClass .
+    FILTER(?subject NOT IN (er:subject_defect, er:environment, er:pre_existing, er:generator_drift, er:evidence_defect, er:infrastructure))
+    BIND(CONCAT("failure-class-extended:", IF(CONTAINS(STR(?subject), "#"), STRAFTER(STR(?subject), "#"), STR(?subject))) AS ?reason)
+  } UNION {
+    VALUES ?subject { er:subject_defect er:environment er:pre_existing er:generator_drift er:evidence_defect er:infrastructure }
+    FILTER NOT EXISTS { ?subject a er:FailureClass . }
+    BIND(CONCAT("failure-class-missing:", STRAFTER(STR(?subject), "#")) AS ?reason)
+  } UNION {
+    VALUES ?subject { er:subject_defect er:environment er:pre_existing er:generator_drift er:evidence_defect er:infrastructure }
+    ?subject rdfs:label ?label .
+    FILTER(STR(?label) != STRAFTER(STR(?subject), "#"))
+    BIND(CONCAT("failure-class-label-not-its-name:", STRAFTER(STR(?subject), "#")) AS ?reason)
   } UNION {
     ?subject a er:CheckDisposition .
     OPTIONAL { ?subject er:checkName ?cn . }
