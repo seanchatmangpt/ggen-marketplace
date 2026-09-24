@@ -8,8 +8,10 @@
 # MESSAGE: er:CheckDisposition belongs to exactly one release with exactly one single-line
 # MESSAGE: er:checkName (unique per release), exactly one er:failureClass that is an er:FailureClass,
 # MESSAGE: exactly one er:checkBoundary among SUCCESSOR/BLOCKED/UNSUPPORTED/REFUSED and non-empty
-# MESSAGE: er:checkEvidence; gate and probe IRIs contain no single quote, er:courtRoot is one
-# MESSAGE: [A-Za-z0-9._/-]+ path, and a release that declares probes or typed checks declares a gate.
+# MESSAGE: er:checkEvidence; an observed gate or probe carries er:observedCommandSha256 equal to the
+# MESSAGE: SHA256 of its current er:command (no observation of another command); gate and probe
+# MESSAGE: IRIs contain no single quote, er:courtRoot is one [A-Za-z0-9._/-]+ path, and a release
+# MESSAGE: that declares probes or typed checks declares a gate.
 PREFIX er: <http://seanchatmangpt.github.io/packs/chatman-ecosystem-release#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 SELECT DISTINCT ?subject ?reason WHERE {
@@ -114,6 +116,12 @@ SELECT DISTINCT ?subject ?reason WHERE {
     OPTIONAL { ?subject er:checkName ?cn . }
     FILTER(NOT EXISTS { ?subject er:checkEvidence ?ev . FILTER(STRLEN(STR(?ev)) > 0) })
     BIND(CONCAT("check-without-evidence:", COALESCE(STR(?cn), STR(?subject))) AS ?reason)
+  } UNION {
+    { ?subject a er:Gate . } UNION { ?subject a er:Probe . }
+    FILTER(EXISTS { ?subject er:observedExit ?x . } || EXISTS { ?subject er:observedOutput ?y . })
+    FILTER(NOT EXISTS { ?subject er:observedCommandSha256 ?h ; er:command ?c . FILTER(STR(?h) = SHA256(STR(?c))) }
+           || EXISTS { ?subject er:observedCommandSha256 ?h . ?subject er:command ?c . FILTER(STR(?h) != SHA256(STR(?c))) })
+    BIND("observation-of-another-command" AS ?reason)
   } UNION {
     { ?subject a er:Gate . } UNION { ?subject a er:Probe . }
     FILTER(REGEX(STR(?subject), "'"))

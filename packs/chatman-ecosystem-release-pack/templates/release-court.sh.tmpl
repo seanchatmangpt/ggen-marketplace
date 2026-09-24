@@ -16,22 +16,24 @@ sparql:
     ORDER BY ?release
   gates: |
     PREFIX er: <http://seanchatmangpt.github.io/packs/chatman-ecosystem-release#>
-    SELECT ?owner ?gate ?order ?name ?command
+    SELECT ?owner ?gate ?order ?name ?command ?commandSha
     WHERE {
       ?owner a er:Release ; er:gate ?gate .
       ?gate er:gateOrder ?order ; er:gateName ?n ; er:command ?c .
       BIND(STR(?n) AS ?name)
       BIND(STR(?c) AS ?command)
+      BIND(SHA256(STR(?c)) AS ?commandSha)
     }
     ORDER BY ?owner ?order ?gate
   probes: |
     PREFIX er: <http://seanchatmangpt.github.io/packs/chatman-ecosystem-release#>
-    SELECT ?owner ?probe ?order ?name ?command
+    SELECT ?owner ?probe ?order ?name ?command ?commandSha
     WHERE {
       ?owner a er:Release ; er:probe ?probe .
       ?probe er:probeOrder ?order ; er:probeName ?n ; er:command ?c .
       BIND(STR(?n) AS ?name)
       BIND(STR(?c) AS ?command)
+      BIND(SHA256(STR(?c)) AS ?commandSha)
     }
     ORDER BY ?owner ?order ?probe
   imports: |
@@ -59,10 +61,11 @@ sparql:
 # sha256 differs from er:importDigest; 101 = a probe failed; 102 = the observation file
 # could not be written.
 # COURT_OBSERVED=<file> (relative to the caller's directory): also write what the court
-# observed (er:observedOutput per probe, er:observedExit per gate run) as Turtle, for the
-# consumer to feed back through extra_ontologies. The file is replaced only when the court
-# reaches a gate verdict (every gate passed, or one refused); an import or probe failure
-# leaves any previous observation untouched.
+# observed (er:observedOutput per probe, er:observedExit per gate run, each with
+# er:observedCommandSha256 = sha256 of the command text it ran) as Turtle, for the consumer
+# to feed back through extra_ontologies; gate 095 refuses an observation of another command.
+# The file is replaced only when the court reaches a gate verdict (every gate passed, or one
+# refused); an import or probe failure leaves any previous observation untouched.
 set -euo pipefail
 OBSERVED="${COURT_OBSERVED:-}"
 case "$OBSERVED" in ''|/*) ;; *) OBSERVED="$PWD/$OBSERVED" ;; esac
@@ -104,7 +107,7 @@ import_check() { # <name> <path> <sha256 hex>
   fi
   echo "COURT_IMPORT_OK name=$1 sha256:$got"
 }
-run_probe() { # <probe iri> <name> <function>
+run_probe() { # <probe iri> <name> <function> <command sha256>
   local out rc
   set +e
   out=$(set -euo pipefail; "$3")
@@ -115,16 +118,16 @@ run_probe() { # <probe iri> <name> <function>
     exit 101
   fi
   echo "COURT_PROBE name=$2 output=$out"
-  obs "<$1> er:observedOutput $(lit "$out") ."
+  obs "<$1> er:observedOutput $(lit "$out") ; er:observedCommandSha256 \"$4\" ."
 }
-run_gate() { # <gate iri> <order> <name> <function>
+run_gate() { # <gate iri> <order> <name> <function> <command sha256>
   local rc
   echo "COURT_GATE_RUN order=$2 name=$3"
   set +e
   (set -euo pipefail; "$4")
   rc=$?
   set -e
-  obs "<$1> er:observedExit $rc ."
+  obs "<$1> er:observedExit $rc ; er:observedCommandSha256 \"$5\" ."
   if [ "$rc" -ne 0 ]; then
     echo "COURT_GATE_REFUSED order=$2 name=$3 exit=$rc" >&2
     finish
@@ -145,10 +148,10 @@ gate_{{ g.order }}() {
 {% for i in imports %}import_check '{{ i.name }}' '{{ i.path }}' '{{ i.hex }}'
 {% endfor %}
 # probes (er:probeOrder)
-{% for p in probes %}{% if p.owner == release %}run_probe '{{ p.probe }}' '{{ p.name }}' probe_{{ p.order }}
+{% for p in probes %}{% if p.owner == release %}run_probe '{{ p.probe }}' '{{ p.name }}' probe_{{ p.order }} {{ p.commandSha }}
 {% endif %}{% endfor %}
 # gates (er:gateOrder)
-{% for g in gates %}{% if g.owner == release %}run_gate '{{ g.gate }}' {{ g.order }} '{{ g.name }}' gate_{{ g.order }}
+{% for g in gates %}{% if g.owner == release %}run_gate '{{ g.gate }}' {{ g.order }} '{{ g.name }}' gate_{{ g.order }} {{ g.commandSha }}
 {% endif %}{% endfor %}
 finish
 echo "COURT_ALIVE release={{ release }} version={{ version }}"

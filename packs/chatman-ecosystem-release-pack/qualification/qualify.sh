@@ -265,7 +265,7 @@ if sync_c "$E" "$W/court-s1" && [ -s "$E/$C/out/scripts/crown_v26_9_23.sh" ] && 
   ok "court sync before observation: script, typed checks, IMPORTS.sha256 rendered; receipts skipped"; else no "court sync 1 (see $W/court-s1.*)"; fi
 r=$(court "$E" "$W/court-run.log")
 if [ "$r" = 0 ] && grep -q '^COURT_ALIVE ' "$W/court-run.log" && grep -q "er:observedOutput \"$HEAD_SHA\"" "$E/$C/observed.ttl" \
-   && [ "$(grep -c 'er:observedExit 0 \.$' "$E/$C/observed.ttl")" = 3 ]; then
+   && [ "$(grep -c 'er:observedExit 0 ; er:observedCommandSha256 "[0-9a-f]\{64\}" \.$' "$E/$C/observed.ttl")" = 3 ]; then
   ok "court exit 0 at $HEAD_SHA: 3 imports rehashed, 5 probes, 3 gates exit 0, observation written"; else no "court run exit $r (see $W/court-run.log)"; fi
 if sync_c "$E" "$W/court-s2" && cp -R "$E/$C/out" "$W/court-out2" && sync_c "$E" "$W/court-s3" && diff -r "$E/$C/out" "$W/court-out2" > /dev/null \
    && python3 - "$W/court-s3.json" <<'PY'
@@ -276,7 +276,7 @@ PY
 then ok "receipts rendered after observation; a second sync writes nothing (byte-identical)"; else no "court sync 2/3 (see $W/court-s2.* $W/court-s3.*)"; fi
 if python3 ~/.claude/dfcm/validate_receipt.py "$E/$C/out/receipts/ROOT.json" > "$W/court-root-validate.log" 2>&1 \
    && (cd "$E/$C" && shasum -a 256 -c --strict out/receipts/IMPORTS.sha256 > "$W/court-imports.log" 2>&1) \
-   && python3 - "$E/$C" "$P/qualification/fixtures/chatman-receipt.schema.json" "$HEAD_SHA" <<'PY'
+   && python3 - "$E/$C" "$P/qualification/chatman-receipt.schema.json" "$HEAD_SHA" <<'PY'
 import json, sys, tomllib
 from pathlib import Path
 import jsonschema
@@ -298,7 +298,7 @@ then ok "root receipt contents (fleet ADMITTED, chatman schema, subject = HEAD, 
 # 7b the committed observation is the court's own output (all lines but the subject)
 if diff <(grep -v '/probe-subject> ' "$P/$C/observed.ttl") <(grep -v '/probe-subject> ' "$E/$C/observed.ttl") > "$W/court-observed.diff"; then
   ok "committed observed.ttl reproduced by the court (subject line excluded)"; else no "committed observed.ttl differs from a fresh court observation (see $W/court-observed.diff)"; fi
-CSUB=$(sed -n 's#.*/probe-subject> er:observedOutput "\([0-9a-f]\{40\}\)" \.$#\1#p' "$P/$C/observed.ttl")
+CSUB=$(sed -n 's#.*/probe-subject> er:observedOutput "\([0-9a-f]\{40\}\)" ; .*#\1#p' "$P/$C/observed.ttl")
 if [ -z "$CSUB" ]; then no "committed observed.ttl has no 40-hex subject"
 elif git -C "$P" rev-parse --git-dir > /dev/null 2>&1; then
   if git -C "$P" merge-base --is-ancestor "$CSUB" HEAD 2> /dev/null; then ok "committed observation subject $CSUB is an ancestor of HEAD"; else no "committed observation subject $CSUB is not an ancestor of HEAD"; fi
@@ -312,7 +312,7 @@ q23:gate-witness-refusal a er:Gate ; er:gateOrder 4 ; er:gateName "witness-refus
 TTL
 git_commit "$B"; sync_c "$B" "$W/blocked-s1"
 r=$(court "$B" "$W/blocked-run.log")
-if [ "$r" = 4 ] && grep -q 'COURT_GATE_REFUSED order=4 name=witness-refusal exit=7' "$W/blocked-run.log" && grep -q 'gate-witness-refusal> er:observedExit 7 \.' "$B/$C/observed.ttl" \
+if [ "$r" = 4 ] && grep -q 'COURT_GATE_REFUSED order=4 name=witness-refusal exit=7' "$W/blocked-run.log" && grep -q 'gate-witness-refusal> er:observedExit 7 ;' "$B/$C/observed.ttl" \
    && sync_c "$B" "$W/blocked-s2" && python3 ~/.claude/dfcm/validate_receipt.py "$B/$C/out/receipts/ROOT.json" > "$W/blocked-validate.log" 2>&1 \
    && python3 - "$B/$C" <<'PY'
 import json, sys, tomllib

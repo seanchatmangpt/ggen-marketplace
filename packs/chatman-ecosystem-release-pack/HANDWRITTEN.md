@@ -27,5 +27,5 @@ The two fixture-only choices (the target release's role names and constitutional
 `consumer-v26.9.23/release.ttl`) are qualification data, not v26.9.23 release decisions; so are
 its 0.4.0 court facts (gates, probes, the typed check, imports, root receipt). Its `observed.ttl`
 is the court's own output (`COURT_OBSERVED`), not hand-written; `qualify.sh` step 7 requires a
-fresh court run to reproduce it (subject line excepted). `qualification/fixtures/chatman-receipt.schema.json`
+fresh court run to reproduce it (subject line excepted). `qualification/chatman-receipt.schema.json`
 is a byte copy of chatman-ecosystem `schemas/receipt.schema.json` at c59596f5.

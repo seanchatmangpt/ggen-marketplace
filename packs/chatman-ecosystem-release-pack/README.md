@@ -101,7 +101,8 @@ operator individuals `er:subject_defect`, `er:environment`, `er:pre_existing`,
 `er:RootReceipt` (`er:receiptRelease`, `er:receiptId`, `er:subjectRepository`, `er:subjectProbe`,
 `er:actor`, `er:receiptAuthority`, `er:receiptGrant`, `er:intention`, `er:timestamp`,
 `er:changedPath`, `er:standingBefore`, `er:standingAfter`), the court observations
-`er:observedExit` / `er:observedOutput`, and the transition law `er:permitsStanding`
+`er:observedExit` / `er:observedOutput` / `er:observedCommandSha256`, and the transition law
+`er:permitsStanding`
 (chatman-ecosystem `Standing::permits`, `crates/ecosystem-core/src/lib.rs:208-232` at c59596f5,
 restricted to UNKNOWN, PARTIAL_ALIVE, ALIVE, BLOCKED and UNSUPPORTED; UNKNOWN -> ALIVE is not in it).
 
@@ -115,8 +116,10 @@ The loop is sync, court, sync:
    101 on a failure) and then every gate in `er:gateOrder` order, each gate as a function body under
    `set -euo pipefail`. A failing gate stops the court with exit status equal to its order and a
    `COURT_GATE_REFUSED order=N name=... exit=...` line. The observation file (probe outputs, gate
-   exits) is replaced only when the court reaches a gate verdict; an import or probe failure leaves
-   the previous observation untouched.
+   exits, each with the SHA256 of the command text that ran) is replaced only when the court
+   reaches a gate verdict; an import or probe failure leaves the previous observation untouched.
+   Gate 095 refuses an observation whose command hash differs from the current `er:command`, so
+   an observation cannot outlive an edit of the court.
 3. `ggen sync run` again renders `out/receipts/root-receipt.unsealed.toml` (chatman `Receipt`
    shape, digest `""`, for `ecosystem receipt seal`) and `out/receipts/ROOT.json` (fleet R schema:
    replay exits are the observed exits, `-1` with an UNOBSERVED summary for a gate the court never
@@ -160,7 +163,7 @@ For each required role of the predecessor without an explicit decision:
 | 075_constitutional_role_mapping | a required role or required component role without exactly one mapping; non-constitutional primary/capability; empty authority ceiling; Actuate without BRCE exclusivity |
 | 080_critical_path_coverage | a CriticalPath repository, or a court-executed repository, that is not a required component of the release |
 | 085_requirement_row_identity | a checkpointed sj:WorkOrder without owner/name repository, 40-hex base SHA or falsifier description |
-| 095_release_court | an er:Gate not owned by exactly one release, with an order outside 1..99 or duplicated, a name outside `[A-Za-z0-9][A-Za-z0-9._:-]*`, a blank or multi-valued command, or an observed exit outside 0..255; an er:Probe not owned by exactly one release, with a bad or duplicated name/order or a blank command, or two observed outputs; an er:CheckDisposition not owned by exactly one release, with a missing or multi-line or duplicated name, a failure class that is not one of the six er:FailureClass individuals, a boundary other than SUCCESSOR/BLOCKED/UNSUPPORTED/REFUSED, or no evidence; a gate or probe IRI containing `'`; an unsafe er:courtRoot; probes or typed checks without a gate |
+| 095_release_court | an er:Gate not owned by exactly one release, with an order outside 1..99 or duplicated, a name outside `[A-Za-z0-9][A-Za-z0-9._:-]*`, a blank or multi-valued command, or an observed exit outside 0..255; an observed gate or probe without er:observedCommandSha256 equal to SHA256 of its current command; an er:Probe not owned by exactly one release, with a bad or duplicated name/order or a blank command, or two observed outputs; an er:CheckDisposition not owned by exactly one release, with a missing or multi-line or duplicated name, a failure class that is not one of the six er:FailureClass individuals, a boundary other than SUCCESSOR/BLOCKED/UNSUPPORTED/REFUSED, or no evidence; a gate or probe IRI containing `'`; an unsafe er:courtRoot; probes or typed checks without a gate |
 | 097_root_receipt | more than one er:RootReceipt; a receipt id outside `receipt:[a-z0-9_-]+`; no court release; an empty or multi-valued subject repository, actor, intention or timestamp; an authority that is not a chatman Authority; a standing before outside the five receipt standings; not exactly one derived standing after; a before -> after pair not in er:permitsStanding; a subject probe not of the release, or an observed court without one 40-hex subject; no import; an import without exactly one name, path, sha256 digest and integer ordinal, with an unsafe name or path, or duplicated; an er:ImportedCrown digest that is not imported, or a crown or paired component that is not the release component of that repository at the same commit |
 | 090_imported_crown | an er:ImportedCrown whose STOP is not ALIVE, whose STOP or gate digest is absent, with fewer than er:requiredGateCount distinct ALIVE gates at the crown subject, whose STOP subject differs from the crown component commit, with a gate not ALIVE, at a foreign subject or against a foreign paired commit, or with a CE23-8 counter absent, null or not 0 |
 
@@ -225,7 +228,7 @@ a hand edit of the rendered court script or receipt is refused by the next sync 
 Every row of `qualification/court-mutants.EXPECTED.tsv` (UNKNOWN -> ALIVE, a declared standing
 after, a duplicated gate order, an unknown failure class, a REQUIRED typed check, a malformed or
 unsafe import, a non-SHA subject, an out-of-range exit, a crown at another subject, crown bytes not
-imported) is refused natively (FM-PACK-013 at the named gate) and by the runner with the named
+imported, an observation of an edited command) is refused natively (FM-PACK-013 at the named gate) and by the runner with the named
 reason, and admitted by the runner once that gate is removed; the admitted row carries a
 consistent crown into `verified[]`. `CHATMAN_ECOSYSTEM_BIN=<binary with chatman's receipt seal and
 verify-all>` also seals the rendered receipt with chatman's own receipt law and requires the
