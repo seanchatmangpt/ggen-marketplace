@@ -6,7 +6,8 @@ Reusable semantic PowerPoint manufacture for `ggen_igniter`.
 consumer deck.ttl
   -> SPARQL gates (deck / slides / blocks)
   -> ggen_igniter
-  -> deck.json + render.mjs
+  -> deck.json + renderer fragments
+  -> deterministic fragment assembly
   -> PptxGenJS
   -> .pptx + speaker notes
 ```
@@ -38,22 +39,23 @@ The layout vocabulary is intentionally small. Extend it only when a real deck sh
 
 ## Manufacture
 
-Use the pack's templates with a consumer ontology:
+Project the semantic deck spec with `deck.json.eex`, then project all four `render.partN.mjs.eex` templates. Concatenate the generated fragment bodies in numeric order to manufacture `render.mjs`; this split keeps the renderer reviewable while preserving byte-deterministic assembly.
 
-```bash
-mix ggen_igniter.sync \
-  --engine sparql \
-  --pack-dir /path/to/pptx-presentation-pack \
-  --ontology /path/to/deck.ttl \
-  --template /path/to/pptx-presentation-pack/templates/deck.json.eex \
-  --out tmp/deck.json
+A consumer CLI should therefore own orchestration:
 
-mix ggen_igniter.sync \
-  --engine sparql \
-  --pack-dir /path/to/pptx-presentation-pack \
-  --ontology /path/to/deck.ttl \
-  --template /path/to/pptx-presentation-pack/templates/render.mjs.eex \
-  --out tmp/render.mjs
+```text
+deck.ttl
+  -> ggen_igniter.sync(deck.json.eex)
+  -> ggen_igniter.sync(render.part0..3.mjs.eex)
+  -> concatenate render.part0..3.mjs
+  -> node render.mjs --spec deck.json --out presentation.pptx
+  -> verify OOXML + notes + receipt
 ```
 
-Then execute the generated renderer with an admitted PptxGenJS runtime. PptxGenJS 4.0.1 is the currently qualified consumer target for this pack; the consumer should pin it explicitly.
+Use `--engine sparql` for this v0.1.0 pack because the JSON template expects plain literal values and independently sorts the semantic rows instead of trusting engine row order.
+
+PptxGenJS `4.0.1` is the qualified consumer runtime target for this pack and should be pinned explicitly by the consuming project.
+
+## Evidence ceiling
+
+Marketplace validation proves pack admission and deterministic source/catalog projection. Consumer generation must separately prove the generated deck against the exact ontology, pack commit, runtime version and verifier. A generated `.pptx` does not gain external standing merely by existing.
