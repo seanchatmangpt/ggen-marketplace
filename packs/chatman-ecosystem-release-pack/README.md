@@ -218,9 +218,10 @@ overwritten. To regenerate after an input change, delete the stale output and ru
 `qualification/qualify.sh` runs everything in a scratch copy with the real ggen and rdflib:
 the synthetic `consumer.ttl`, a double render of `consumer-v26.9.23` (byte-identical), a control
 and a positive explicit-decision witness, and the 12 mutants of `qualification/mutants/`
-(expected code, gate and reason in `EXPECTED.tsv`). Removing gates 070-085 lets all eleven
-graph mutants (every mutant except M6) render with exit 0, so those refusals come from the new
-gates; M6 is refused by the no-force write law.
+(expected code, gate and reason in `EXPECTED.tsv`); each graph mutant is also run through the
+runner on a copy of the pack without its named gate, and every one except M3 and M5 (also refused
+by gate 080) is then admitted, so those refusals come from gates 070, 075, 080 and 085; M6 is
+refused by the no-force write law.
 
 Step 6 qualifies the imported crown (fixtures and their provenance: `qualification/fixtures/SOURCES.md`):
 every committed `qualification/imported-crown.<name>.ttl` must equal the lift of
@@ -257,7 +258,14 @@ failure-class law, ontology copies that drift from them, and C20-C27: an import 
 court root, a component SHA, an added gate, a withdrawn import or the version edited after the
 committed observation, or the observation's court-input set dropped) is refused natively
 (FM-PACK-013 at the named gate) and by the runner with the named reason, and admitted by the runner
-once that gate is removed; the admitted row carries a consistent crown into `verified[]`.
+once that gate is removed; the admitted row carries a consistent crown into `verified[]`. Rows
+C28-C33 give each release-law gate its own witness on the same consumer: ambient DO authority
+(010), a ref-check mode that is a string instead of an `er:RefCheckMode` (020), a dependency cycle
+(030), a required component disposed OUT_OF_RELEASE (040), EXTERNAL_EXACT without a ref observation
+(050) and a second component of the same repository (060).
+Step 7j closes the gate set against vacuity: every `gates/*.rq` must be the only refusing gate of at
+least one passing mutant row (step 5 with the runner admitting it once that gate is removed, step 6e
+or step 7g), so a gate that no mutated consumer can make refuse fails qualification.
 `CHATMAN_REPO=<git clone of chatman-ecosystem>` builds the committed `qualification/chatman-harness`
 (the `receipt seal` / `receipt verify-all` arms of chatman's CLI over the same ecosystem-core
 functions) against ecosystem-core extracted from c59596f5 with `git archive` (`cargo --offline`), or
