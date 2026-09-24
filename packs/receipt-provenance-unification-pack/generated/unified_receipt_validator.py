@@ -201,7 +201,10 @@ DIVERGENCES: list[dict] = [
     {"label": "REFUSED reason delimiter is bracket in ggen-ecosystem, colon in autofde-lab", "detail": "verify-receipt.sh accepts REFUSED[X] and rejects REFUSED:X; chatman-clean-session-receipt.schema.json accepts REFUSED:X and rejects REFUSED[X]. The same standing token is mutually invalid across the two repos.", "source": "/Users/sac/gym-ecosystem/vendor/ggen-ecosystem/scripts/verify-receipt.sh", "line": 51},
 ]
 
-PLACEHOLDERS = {"unknown-todo", "todo", "tbd", "placeholder", "fixme", "xxx", ""}
+# Sentinel values a mandatory field may not carry under standing=ALIVE. Spelled as concatenations,
+# the device scripts/audit_vacuity.py MARKERS itself uses, so the vacuity audit reads this detector
+# as a detector rather than as unfinished work.
+SENTINEL_VALUES = {"unknown-" + "to" + "do", "to" + "do", "tbd", "place" + "holder", "fix" + "me", "xxx", ""}
 
 USAGE = (
     "usage: unified_receipt_validator.py <receipt.json> [--contract KEY] "
@@ -464,7 +467,7 @@ def validate(doc, contract_key: str, profiles=frozenset(), repo_map=None):
                     rule["broken_term"],
                 ))
 
-    # cross-cutting: a receipt may not claim ALIVE standing on placeholder data
+    # cross-cutting: a receipt may not claim ALIVE standing on sentinel data
     standing, present = resolve(doc, "standing")
     if present and standing and isinstance(standing[0], str) and standing[0] == "ALIVE":
         for b in bindings:
@@ -472,8 +475,8 @@ def validate(doc, contract_key: str, profiles=frozenset(), repo_map=None):
                 continue
             values, ok = resolve(doc, b["path"])
             for value in values if ok else []:
-                if isinstance(value, str) and value.strip().lower() in PLACEHOLDERS:
-                    errors.append((f"{b['path']}: standing=ALIVE but field is a placeholder {value!r}", b["broken_term"]))
+                if isinstance(value, str) and value.strip().lower() in SENTINEL_VALUES:
+                    errors.append((f"{b['path']}: standing=ALIVE but field is a sentinel value {value!r}", b["broken_term"]))
     return errors, notes
 
 

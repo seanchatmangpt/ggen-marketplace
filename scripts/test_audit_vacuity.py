@@ -51,6 +51,16 @@ class VacuityAuditTests(unittest.TestCase):
         self.assertTrue(findings)
         self.assertTrue(all(f.severity == "warning" for f in findings))
 
+    def test_marker_in_pinned_import_or_receipt_evidence_is_warning(self):
+        for path in ("packs/p/qualification/c/imports/orders.ttl", "receipts/v1/X.gate/legacy.py"):
+            findings = [f for f in self.findings(path, "x = 'PLACE' 'HOLDER'  # PLACEHOLDER\n") if f.rule.startswith("MARKER_")]
+            self.assertEqual({(f.rule, f.severity) for f in findings}, {("MARKER_PLACEHOLDER", "warning")}, path)
+
+    def test_structural_vacuity_in_receipt_evidence_is_still_an_error(self):
+        findings = self.findings("receipts/v1/X.gate/gate.py", "def verify(x):\n    return True\n")
+        self.assertIn(("PYTHON_CONSTANT_SUCCESS", "error"), {(f.rule, f.severity) for f in findings})
+        self.assertIn(("SHELL_NOOP_SCRIPT", "error"), {(f.rule, f.severity) for f in self.findings("receipts/v1/g.sh", "exit 0\n")})
+
     def test_marker_in_test_fixture_is_warning(self):
         findings = self.findings("tests/test_fixture.py", "PAYLOAD = 'TODO: fixture'\n")
         self.assertTrue(findings)
