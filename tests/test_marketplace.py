@@ -173,6 +173,16 @@ def test_pack_profile_is_projection_with_templates(tmp_path: Path) -> None:
     assert pack.profile == "projection"
 
 
+def test_pack_profile_is_projection_with_eex_templates(tmp_path: Path) -> None:
+    pack_dir = make_pack_dir(tmp_path)
+    templates_dir = pack_dir / "templates"
+    templates_dir.mkdir()
+    (templates_dir / "a.eex").write_text("<%= @value %>", encoding="utf-8")
+    templates = marketplace.visible_files(templates_dir)
+    pack = Pack("demo-pack", "0.1.0", "demo", pack_dir, marketplace.ontology_files(pack_dir), templates, (), ())
+    assert pack.profile == "projection"
+
+
 def test_pack_profile_is_project_when_ggen_toml_present(tmp_path: Path) -> None:
     pack_dir = make_pack_dir(tmp_path)
     (pack_dir / "ggen.toml").write_text("", encoding="utf-8")
