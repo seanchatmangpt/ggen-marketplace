@@ -1,0 +1,68 @@
+@prefix spg: <https://seanchatmangpt.github.io/ggen-marketplace/spg#> .
+@prefix pa: <https://seanchatmangpt.github.io/ggen-marketplace/prior-art#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+spg:GraphShape a sh:NodeShape ;
+  sh:targetClass spg:Graph ;
+  sh:property [ sh:path spg:graphId ; sh:minCount 1 ; sh:maxCount 1 ] ;
+  sh:property [ sh:path spg:version ; sh:minCount 1 ; sh:maxCount 1 ] ;
+  sh:property [ sh:path spg:state ; sh:minCount 1 ; sh:maxCount 1 ; sh:in (spg:CANDIDATE spg:ADMITTED_STRUCTURE spg:REFUSED) ] ;
+  sh:property [ sh:path spg:standing ; sh:minCount 1 ; sh:maxCount 1 ; sh:in (spg:NONE spg:PARTIAL_ALIVE spg:BLOCKED spg:UNSUPPORTED) ] ;
+  sh:property [ sh:path spg:node ; sh:minCount 1 ] ;
+  sh:property [ sh:path spg:edge ; sh:minCount 1 ] ;
+  sh:property [ sh:path spg:priorArt ; sh:minCount 1 ] .
+
+spg:NodeShape a sh:NodeShape ;
+  sh:targetClass spg:Node ;
+  sh:property [ sh:path spg:nodeId ; sh:minCount 1 ; sh:maxCount 1 ] ;
+  sh:property [ sh:path spg:nodeClass ; sh:minCount 1 ; sh:maxCount 1 ; sh:in (spg:OBSERVE spg:SELECT spg:CONSTRUCT spg:DO) ] ;
+  sh:property [ sh:path spg:capability ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+spg:EdgeShape a sh:NodeShape ;
+  sh:targetClass spg:Edge ;
+  sh:property [ sh:path spg:edgeId ; sh:minCount 1 ; sh:maxCount 1 ] ;
+  sh:property [ sh:path spg:from ; sh:minCount 1 ; sh:maxCount 1 ; sh:class spg:Node ] ;
+  sh:property [ sh:path spg:to ; sh:minCount 1 ; sh:maxCount 1 ; sh:class spg:Node ] ;
+  sh:property [ sh:path spg:relation ; sh:minCount 1 ; sh:maxCount 1 ; sh:in (spg:LEADS_TO spg:TRIGGERS spg:PROVIDES_INPUT_FOR spg:CONVERGES_TO) ] ;
+  sh:property [ sh:path spg:guard ; sh:minCount 1 ] ;
+  sh:property [ sh:path spg:evidenceRequired ; sh:minCount 1 ] ;
+  sh:property [ sh:path spg:authorityRequired ; sh:minCount 1 ; sh:maxCount 1 ] ;
+  sh:property [ sh:path spg:consequence ; sh:minCount 1 ; sh:maxCount 1 ; sh:in (spg:Observational spg:Constructive spg:Consequential) ] ;
+  sh:property [ sh:path spg:receiptRequired ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:boolean ] ;
+  sh:sparql [
+    a sh:SPARQLConstraint ;
+    sh:message "Consequential edges require non-NONE authority, receipt=true, and a falsifier." ;
+    sh:select """
+      SELECT $this WHERE {
+        $this spg:consequence spg:Consequential ;
+              spg:authorityRequired ?auth ;
+              spg:receiptRequired ?receipt .
+        FILTER(
+          str(?auth) = "NONE" ||
+          ?receipt != true ||
+          NOT EXISTS { $this spg:falsifier ?f }
+        )
+      }
+    """
+  ] .
+
+spg:PriorArtClaimShape a sh:NodeShape ;
+  sh:targetClass spg:PriorArtClaim ;
+  sh:property [ sh:path spg:requiresSemantics ; sh:minCount 1 ] ;
+  sh:property [ sh:path spg:searchedPriorArt ; sh:minCount 1 ; sh:class pa:Reference ] ;
+  sh:property [ sh:path spg:disposition ; sh:minCount 1 ; sh:maxCount 1 ; sh:class pa:Disposition ] ;
+  sh:property [ sh:path spg:falsifier ; sh:minCount 1 ] ;
+  sh:sparql [
+    a sh:SPARQLConstraint ;
+    sh:message "NOVEL_GAP cannot select prior art and must carry at least one candidate failure." ;
+    sh:select """
+      SELECT $this WHERE {
+        $this spg:disposition pa:NOVEL_GAP .
+        FILTER(
+          EXISTS { $this spg:selectedPriorArt ?selected } ||
+          NOT EXISTS { $this spg:candidateFailure ?failure }
+        )
+      }
+    """
+  ] .
