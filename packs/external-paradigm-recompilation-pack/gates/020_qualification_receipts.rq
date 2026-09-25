@@ -1,0 +1,26 @@
+# MESSAGE: any returned row refuses EPR qualification standing.
+PREFIX epr: <https://ggen.dev/ontology/external-paradigm-recompilation#>
+SELECT ?subject ?problem WHERE {
+  {
+    ?subject a epr:QualificationClaim ; epr:passed true .
+    FILTER NOT EXISTS { ?subject epr:qualificationReceipt ?receipt }
+    BIND("passed-qualification-without-receipt" AS ?problem)
+  }
+  UNION {
+    ?subject a epr:QualificationClaim ; epr:qualificationReceipt ?receipt .
+    FILTER NOT EXISTS { ?subject epr:sourceSha ?sha }
+    BIND("qualification-receipt-without-exact-subject" AS ?problem)
+  }
+  UNION {
+    ?subject a epr:QualificationClaim ; epr:sourceSha ?sha .
+    FILTER (!regex(str(?sha), "^[0-9a-f]{40}$"))
+    BIND("qualification-claim-without-immutable-sha" AS ?problem)
+  }
+  UNION {
+    ?subject a epr:QualificationClaim ; epr:semanticEquivalence ?equivalence .
+    FILTER (str(?equivalence) != "UNCLAIMED")
+    FILTER NOT EXISTS { ?subject epr:passed true ; epr:qualificationReceipt ?receipt }
+    BIND("semantic-equivalence-before-receipted-qualification" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem
