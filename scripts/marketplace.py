@@ -33,7 +33,7 @@ SEMVER = re.compile(
     r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
     r"(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
 )
-TEMPLATE_SUFFIXES = (".tmpl", ".tera")
+TEMPLATE_SUFFIXES = (".tmpl", ".tera", ".eex")
 GATE_SOURCE_SUFFIXES = frozenset({".rq", ".py"})
 # Packs retired from normal marketplace discovery (docs/jira/v26.8.19/
 # 01-TICKET-retire-clap-noun-verb-legacy.md). The directory and its content
