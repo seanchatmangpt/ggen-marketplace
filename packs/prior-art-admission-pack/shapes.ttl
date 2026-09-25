@@ -1,0 +1,37 @@
+@prefix pa: <https://seanchatmangpt.github.io/ggen-marketplace/prior-art#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+
+pa:ReferenceShape a sh:NodeShape ;
+  sh:targetClass pa:Reference ;
+  sh:property [ sh:path pa:referenceId ; sh:minCount 1 ; sh:maxCount 1 ] ;
+  sh:property [ sh:path pa:name ; sh:minCount 1 ; sh:maxCount 1 ] ;
+  sh:property [ sh:path pa:retrievalUri ; sh:minCount 1 ; sh:maxCount 1 ] ;
+  sh:property [ sh:path pa:semanticCapability ; sh:minCount 1 ] .
+
+pa:SearchShape a sh:NodeShape ;
+  sh:targetClass pa:Search ;
+  sh:property [ sh:path pa:requiredSemantics ; sh:minCount 1 ] ;
+  sh:property [ sh:path pa:searched ; sh:minCount 1 ; sh:class pa:Reference ] ;
+  sh:property [ sh:path pa:disposition ; sh:minCount 1 ; sh:maxCount 1 ; sh:in (pa:REUSE pa:COMPOSE pa:EXTEND pa:NOVEL_GAP) ] ;
+  sh:property [ sh:path pa:falsifier ; sh:minCount 1 ] ;
+  sh:sparql [
+    a sh:SPARQLConstraint ;
+    sh:message "NOVEL_GAP requires a failed-candidate row for every searched prior-art reference and cannot retain a selected reference." ;
+    sh:select """
+      SELECT $this WHERE {
+        $this pa:disposition pa:NOVEL_GAP .
+        {
+          $this pa:selected ?selected .
+        }
+        UNION
+        {
+          $this pa:searched ?ref .
+          FILTER NOT EXISTS {
+            $this pa:candidateFailure ?failure .
+            ?failure pa:failedReference ?ref ;
+                     pa:missingSemantics ?missing .
+          }
+        }
+      }
+    """
+  ] .

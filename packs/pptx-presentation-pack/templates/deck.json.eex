@@ -1,0 +1,48 @@
+---
+to: "generated/presentation/deck.json"
+---
+<%
+integer = fn value ->
+  case Integer.parse(to_string(value || "0")) do
+    {n, _} -> n
+    :error -> 0
+  end
+end
+
+deck_row = List.first(deck) || %{}
+slides_sorted = Enum.sort_by(slides, fn row -> integer.(Map.get(row, "order")) end)
+blocks_by_slide =
+  blocks
+  |> Enum.sort_by(fn row -> {Map.get(row, "slide_id", ""), integer.(Map.get(row, "order"))} end)
+  |> Enum.group_by(&Map.get(&1, "slide_id", ""))
+
+clean = fn row, keys ->
+  Enum.reduce(keys, %{}, fn key, acc ->
+    case Map.get(row, key) do
+      nil -> acc
+      "" -> acc
+      value -> Map.put(acc, key, value)
+    end
+  end)
+end
+
+deck_spec = clean.(deck_row, ~w(deck_id title author company subject footer))
+slide_specs =
+  Enum.map(slides_sorted, fn row ->
+    sid = Map.fetch!(row, "slide_id")
+    slide = clean.(row, ~w(slide_id layout audience kicker title subtitle footer notes))
+    slide = Map.put(slide, "order", integer.(Map.get(row, "order")))
+
+    slide_blocks =
+      Map.get(blocks_by_slide, sid, [])
+      |> Enum.map(fn block ->
+        block
+        |> clean.(~w(role title body tone))
+        |> Map.put("order", integer.(Map.get(block, "order")))
+      end)
+
+    Map.put(slide, "blocks", slide_blocks)
+  end)
+
+spec = %{"deck" => deck_spec, "slides" => slide_specs}
+%><%= Jason.encode!(spec, pretty: true) %>

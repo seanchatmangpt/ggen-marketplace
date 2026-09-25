@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 from pathlib import Path
 from rdflib import Graph
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from test_r50_consumer_evidence_return import r50_queries  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "fixtures" / "r50-consumer-evidence-return.ttl"
@@ -10,10 +14,7 @@ def main():
     graph = Graph()
     graph.parse(ROOT / "ontology.ttl", format="turtle")
     graph.parse(FIXTURE, format="turtle")
-    queries = sorted(
-        p for p in (ROOT / "queries").glob("*.rq")
-        if p.name[:3].isdigit() and 350 <= int(p.name[:3]) <= 399
-    )
+    queries = r50_queries()
     assert len(queries) == 50, len(queries)
     results = {}
     for path in queries:

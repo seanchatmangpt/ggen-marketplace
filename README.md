@@ -31,7 +31,7 @@ Then run `ggen sync run` from the consumer project.
 
 The marketplace preserves real ggen pack diversity instead of forcing every pack into one scaffold:
 
-- **projection** — manifest + RDF + `.tmpl`/`.tera` templates;
+- **projection** — manifest + RDF + `.tmpl`/`.tera`/`.eex` templates;
 - **semantic** — manifest + RDF, with optional gates/catalogs and no required template;
 - **project** — a self-contained `ggen.toml` project with RDF and optional templates/rules/queries.
 
