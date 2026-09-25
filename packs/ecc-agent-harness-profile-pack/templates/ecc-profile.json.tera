@@ -1,0 +1,32 @@
+---
+to: "generated/epr/ecc-profile.json"
+sparql:
+  supplier: |
+    PREFIX ecc: <https://ggen.dev/ontology/ecc-agent-harness-profile#>
+    PREFIX epr: <https://ggen.dev/ontology/external-paradigm-recompilation#>
+    SELECT ?repo ?sha ?standing ?skills ?agents ?commands ?hooks ?workflows ?total
+    WHERE {
+      ecc:supplier epr:sourceRepository ?repo ; epr:sourceSha ?sha ; epr:standing ?standing ;
+        ecc:skillCount ?skills ; ecc:agentCount ?agents ; ecc:commandCount ?commands ;
+        ecc:hookCount ?hooks ; ecc:workflowCount ?workflows ; ecc:totalCount ?total .
+    }
+  bindings: |
+    PREFIX ecc: <https://ggen.dev/ontology/ecc-agent-harness-profile#>
+    PREFIX ahr: <https://ggen.dev/ontology/agent-harness-recompilation#>
+    SELECT ?path ?kind WHERE {
+      ?binding a ecc:PathBinding ; ecc:sourcePath ?path ; ecc:mapsToPart ?part .
+      ?part ahr:partKind ?kind .
+    } ORDER BY ?kind
+---
+{
+  "schema": "ggen.ecc-agent-harness-profile.v1",
+  "repository": "{{ supplier[0].repo }}",
+  "sha": "{{ supplier[0].sha }}",
+  "standing": "{{ supplier[0].standing }}",
+  "census": {"skills":{{ supplier[0].skills }},"agents":{{ supplier[0].agents }},"commands":{{ supplier[0].commands }},"hooks":{{ supplier[0].hooks }},"workflows":{{ supplier[0].workflows }},"total":{{ supplier[0].total }}},
+  "bindings": [
+{% for row in bindings %}
+    {"source_path":"{{ row.path }}","harness_part":"{{ row.kind }}"}{% if not loop.last %},{% endif %}
+{% endfor %}
+  ]
+}

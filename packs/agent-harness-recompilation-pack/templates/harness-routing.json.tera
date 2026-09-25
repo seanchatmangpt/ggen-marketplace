@@ -1,0 +1,28 @@
+---
+to: "generated/epr/agent-harness-routing.json"
+sparql:
+  parts: |
+    PREFIX ahr: <https://ggen.dev/ontology/agent-harness-recompilation#>
+    PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+    SELECT ?kind ?disposition ?retain ?replace ?authority ?pack
+    WHERE {
+      ?part a ahr:HarnessPart ;
+        ahr:partKind ?kind ;
+        ahr:disposition ?disp ;
+        ahr:retainSemantics ?retain ;
+        ahr:authorityCeiling ?authority ;
+        ahr:targetPack ?pack .
+      ?disp skos:prefLabel ?disposition .
+      OPTIONAL { ?part ahr:replaceSemantics ?replace }
+    }
+    ORDER BY ?kind ?pack
+---
+{
+  "schema": "ggen.agent-harness-routing.v1",
+  "authority": "NO_AMBIENT_DO",
+  "rows": [
+{% for row in parts %}
+    {"kind":"{{ row.kind }}","disposition":"{{ row.disposition }}","retain":"{{ row.retain }}","replace":"{{ row.replace | default(value="") }}","authority_ceiling":"{{ row.authority }}","target_pack":"{{ row.pack }}"}{% if not loop.last %},{% endif %}
+{% endfor %}
+  ]
+}

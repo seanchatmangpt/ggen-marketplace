@@ -1,0 +1,36 @@
+# MESSAGE: any returned row refuses the ECC profile.
+PREFIX ecc: <https://ggen.dev/ontology/ecc-agent-harness-profile#>
+PREFIX epr: <https://ggen.dev/ontology/external-paradigm-recompilation#>
+PREFIX ahr: <https://ggen.dev/ontology/agent-harness-recompilation#>
+SELECT ?subject ?problem WHERE {
+  {
+    ecc:supplier epr:sourceSha ?sha .
+    FILTER (str(?sha) != "e482e579415fde18357cafce70f177ae19fd7f03")
+    BIND(ecc:supplier AS ?subject)
+    BIND("ecc-exact-sha-drift" AS ?problem)
+  }
+  UNION {
+    ecc:supplier ecc:skillCount ?skills ; ecc:agentCount ?agents ;
+      ecc:commandCount ?commands ; ecc:hookCount ?hooks ;
+      ecc:workflowCount ?workflows ; ecc:totalCount ?total .
+    FILTER ((?skills + ?agents + ?commands + ?hooks + ?workflows) != ?total || ?total != 461)
+    BIND(ecc:supplier AS ?subject)
+    BIND("ecc-census-drift" AS ?problem)
+  }
+  UNION {
+    ecc:supplier epr:standing ?standing .
+    FILTER (str(?standing) != "CANDIDATE")
+    BIND(ecc:supplier AS ?subject)
+    BIND("ecc-self-standing-refused" AS ?problem)
+  }
+  UNION {
+    VALUES ?part {
+      ahr:adapter ahr:securityScanner ahr:capabilitySurface ahr:learning
+      ahr:planning ahr:verification ahr:memory ahr:hook ahr:workflow
+    }
+    FILTER NOT EXISTS { ?binding a ecc:PathBinding ; ecc:mapsToPart ?part }
+    BIND(?part AS ?subject)
+    BIND("ecc-missing-harness-part-binding" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem

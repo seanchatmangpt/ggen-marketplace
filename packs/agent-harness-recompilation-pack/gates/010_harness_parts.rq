@@ -1,0 +1,35 @@
+# MESSAGE: any returned row refuses harness recompilation.
+PREFIX ahr: <https://ggen.dev/ontology/agent-harness-recompilation#>
+PREFIX epr: <https://ggen.dev/ontology/external-paradigm-recompilation#>
+SELECT ?subject ?problem WHERE {
+  {
+    VALUES ?kind {
+      "adapter" "security_scanner" "capability_surface" "learning" "planning"
+      "verification" "memory" "hook" "workflow"
+    }
+    FILTER NOT EXISTS { ?subject a ahr:HarnessPart ; ahr:partKind ?kind }
+    BIND(IRI(CONCAT("urn:missing:harness-part:", ?kind)) AS ?subject)
+    BIND("missing-canonical-harness-part" AS ?problem)
+  }
+  UNION {
+    ?subject a ahr:HarnessPart ; ahr:grantsDoAuthority ?do .
+    FILTER (?do != false)
+    BIND("harness-part-grants-do-authority" AS ?problem)
+  }
+  UNION {
+    ?subject a ahr:HarnessPart ; ahr:authorityCeiling ?authority .
+    FILTER (contains(ucase(str(?authority)), "DO"))
+    BIND("do-present-in-authority-ceiling" AS ?problem)
+  }
+  UNION {
+    ?subject a ahr:HarnessPart ; ahr:disposition epr:REPLACE .
+    FILTER NOT EXISTS { ?subject ahr:replaceSemantics ?replacement }
+    BIND("replace-without-replacement-semantics" AS ?problem)
+  }
+  UNION {
+    ?subject a ahr:HarnessPart .
+    FILTER NOT EXISTS { ?subject ahr:targetPack ?pack }
+    BIND("harness-part-without-existing-pack-target" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem
