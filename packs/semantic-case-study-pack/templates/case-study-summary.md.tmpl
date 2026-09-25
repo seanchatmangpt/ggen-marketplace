@@ -1,0 +1,69 @@
+---
+to: case-study-summary.md
+cases: >
+  PREFIX cs: <urn:xaas:case-study:>
+  SELECT ?case ?caseId ?title ?boundSubject ?authorityCeiling ?evidenceCeiling ?humanGate WHERE {
+    ?case a cs:CaseStudy ; cs:caseId ?caseId ; cs:boundSubject ?boundSubject ;
+          cs:authorityCeiling ?authorityCeiling ; cs:evidenceCeiling ?evidenceCeiling .
+    OPTIONAL { ?case cs:title ?title }
+    OPTIONAL { ?case cs:humanGate ?humanGate }
+  } ORDER BY ?caseId
+claims: >
+  PREFIX cs: <urn:xaas:case-study:>
+  SELECT ?claimId ?claimText ?standing ?evidencePath ?exactSubject ?authorityCeiling WHERE {
+    ?claim a cs:Claim ; cs:claimId ?claimId ; cs:claimText ?claimText ; cs:standing ?standing ;
+           cs:authorityCeiling ?authorityCeiling ; cs:supportedBy ?evidence .
+    ?evidence cs:evidencePath ?evidencePath ; cs:exactSubject ?exactSubject .
+  } ORDER BY ?claimId
+nonclaims: >
+  PREFIX cs: <urn:xaas:case-study:>
+  SELECT ?nonClaimId ?nonClaimLabel WHERE {
+    ?nc a cs:NonClaim ; cs:nonClaimId ?nonClaimId ; cs:nonClaimLabel ?nonClaimLabel .
+  } ORDER BY ?nonClaimId
+assumptions: >
+  PREFIX cs: <urn:xaas:case-study:>
+  SELECT ?assumptionId ?question ?interimAssumption ?answerStatus WHERE {
+    ?a a cs:Assumption ; cs:assumptionId ?assumptionId ; cs:question ?question ;
+       cs:interimAssumption ?interimAssumption ; cs:answerStatus ?answerStatus .
+  } ORDER BY ?assumptionId
+falsifiers: >
+  PREFIX cs: <urn:xaas:case-study:>
+  SELECT ?falsifierId ?falsifierObservation ?falsifierCommand WHERE {
+    ?f a cs:Falsifier ; cs:falsifierId ?falsifierId ; cs:falsifierObservation ?falsifierObservation .
+    OPTIONAL { ?f cs:falsifierCommand ?falsifierCommand }
+  } ORDER BY ?falsifierId
+---
+# Case study summary{% if cases | length > 0 %}: {{ cases[0].caseId }}{% endif %}
+
+{% for c in cases %}
+- Case: {{ c.caseId }}{% if c.title %} -- {{ c.title }}{% endif %}
+- Bound subject: `{{ c.boundSubject }}`
+- Authority ceiling: {{ c.authorityCeiling }} (SELECT != CONSTRUCT != DO; this document never actuates)
+- Evidence ceiling: {{ c.evidenceCeiling }}
+{% if c.humanGate %}- Human gate: {{ c.humanGate }}{% endif %}
+
+{% endfor %}
+## Claims ledger
+
+| Claim | Text | Standing | Evidence path | Exact subject | Authority ceiling |
+|---|---|---|---|---|---|
+{% for c in claims %}| {{ c.claimId }} | {{ c.claimText }} | {{ c.standing }} | {{ c.evidencePath }} | `{{ c.exactSubject }}` | {{ c.authorityCeiling }} |
+{% endfor %}
+
+## Explicit non-claims
+
+{% for n in nonclaims %}- {{ n.nonClaimId }}: {{ n.nonClaimLabel }}
+{% else %}- (none declared)
+{% endfor %}
+
+## Assumptions (reversible, disclosed)
+
+{% for a in assumptions %}- {{ a.assumptionId }} ({{ a.answerStatus }}): {{ a.question }} -- interim: {{ a.interimAssumption }}
+{% else %}- (none declared)
+{% endfor %}
+
+## Falsifiers
+
+{% for f in falsifiers %}- {{ f.falsifierId }}: {{ f.falsifierObservation }}{% if f.falsifierCommand %} (command: `{{ f.falsifierCommand }}`){% endif %}
+{% else %}- (none declared)
+{% endfor %}

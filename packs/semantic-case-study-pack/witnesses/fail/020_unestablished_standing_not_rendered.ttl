@@ -1,0 +1,45 @@
+@prefix cs: <urn:xaas:case-study:> .
+@prefix min: <urn:example:semantic-case-study:minimal:> .
+
+# FAIL witness for 020_unestablished_standing_not_rendered.rq -- violates
+# EXACTLY this gate: claim C02 asserts standing UNKNOWN and is nonetheless
+# rendered by the projection (cs:renderedBy). SHACL-valid (UNKNOWN claims are
+# exempt from evidence); the other three SPARQL gates return zero rows.
+
+min:case a cs:CaseStudy ;
+  cs:caseId "minimal-pass" ;
+  cs:title "Minimal honest case study" ;
+  cs:boundSubject "seanchatmangpt/ggen-marketplace@f491458bfd673df7f816c092f6cfe7dc4c3f5acf" ;
+  cs:authorityCeiling "CONSTRUCT" ;
+  cs:evidenceCeiling "REPO_LOCAL_FIXTURE" ;
+  cs:humanGate "ENGINEER_DISPOSITION_REQUIRED" ;
+  cs:currentConformance "REPO_LOCAL_FIXTURE" .
+
+min:e01 a cs:Evidence ; cs:evidenceId "E01" ;
+  cs:evidencePath "packs/semantic-case-study-pack/witnesses/pass/010_claim_requires_evidence.ttl" ;
+  cs:exactSubject "seanchatmangpt/ggen-marketplace@f491458bfd673df7f816c092f6cfe7dc4c3f5acf" ;
+  cs:validator "python3 packs/semantic-case-study-pack/runners/semantic_runner.py" ;
+  cs:result "PASS witness: SHACL conforms, 0 gate refusal rows" .
+
+min:f01 a cs:Falsifier ; cs:falsifierId "F01" ;
+  cs:falsifierCommand "python3 packs/semantic-case-study-pack/runners/semantic_runner.py --gate gates/010_claim_requires_evidence.rq --witness witnesses/fail/010_claim_requires_evidence.ttl --expectation fail" ;
+  cs:falsifierObservation "The fail witness for this gate returns zero refusal rows, or the pass witness stops conforming." .
+
+min:f02 a cs:Falsifier ; cs:falsifierId "F02" ;
+  cs:falsifierObservation "An UNKNOWN claim is presented as an established finding to a stakeholder." .
+
+min:c01 a cs:Claim ; cs:claimId "C01" ; cs:claimOf min:case ;
+  cs:claimText "The bound subject contains this pack's witnesses and gates exactly as cited." ;
+  cs:standing "ALIVE_FIXTURE" ;
+  cs:evidenceCeiling "REPO_LOCAL_FIXTURE" ; cs:authorityCeiling "SELECT" ;
+  cs:supportedBy min:e01 ; cs:falsifiedBy min:f01 ;
+  cs:renderedBy min:deck .
+
+min:c02 a cs:Claim ; cs:claimId "C02" ; cs:claimOf min:case ;
+  cs:claimText "Stakeholders already adopted the recommendation." ;
+  cs:standing "UNKNOWN" ;
+  cs:evidenceCeiling "DESIGN_DOCUMENT" ; cs:authorityCeiling "NONE" ;
+  cs:falsifiedBy min:f02 ;
+  cs:renderedBy min:deck .
+
+min:deck a cs:Projection ; cs:projectionOf min:case ; cs:rendersClaim min:c01 .

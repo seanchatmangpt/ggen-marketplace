@@ -1,0 +1,28 @@
+# MESSAGE: projections may omit claims; they may never add one. A projection
+# element that renders a node not typed cs:Claim fabricates a claim out of
+# nothing; a projection that renders a claim belonging to a different case
+# smuggles a foreign claim across the case boundary; a claim rendered by a
+# node not typed cs:Projection severs the render edge from its owning
+# projection. All three are the same law: the render edge must land inside
+# the declared claim set of the projected case.
+#
+# Each row names the offending projection/render edge and the reason.
+PREFIX cs: <urn:xaas:case-study:>
+
+SELECT ?subject ?reason WHERE {
+  {
+    ?subject a cs:Projection ; cs:rendersClaim ?thing .
+    FILTER NOT EXISTS { ?thing a cs:Claim }
+    BIND("projection-renders-undeclared-claim" AS ?reason)
+  } UNION {
+    ?subject a cs:Projection ; cs:projectionOf ?case ; cs:rendersClaim ?claim .
+    ?claim a cs:Claim ; cs:claimOf ?otherCase .
+    FILTER(?case != ?otherCase)
+    BIND("projection-renders-foreign-case-claim" AS ?reason)
+  } UNION {
+    ?claim a cs:Claim ; cs:renderedBy ?subject .
+    FILTER NOT EXISTS { ?subject a cs:Projection }
+    BIND("claim-rendered-by-undeclared-projection" AS ?reason)
+  }
+}
+ORDER BY ?subject ?reason

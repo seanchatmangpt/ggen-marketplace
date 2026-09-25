@@ -1,0 +1,33 @@
+# MESSAGE: a claim that asserts any standing stronger than UNKNOWN must be
+# supported by declared evidence carrying an evidencePath and an exactSubject.
+# A supported claim whose support is not typed cs:Evidence, or whose evidence
+# lacks the path/subject binding, is the same refusal: both collapse the
+# claim/evidence boundary that the case-study court exists to guard.
+#
+# Each row names the offending claim (or its under-bound evidence) and the
+# reason.
+PREFIX cs: <urn:xaas:case-study:>
+
+SELECT ?subject ?reason WHERE {
+  {
+    ?subject a cs:Claim ; cs:standing ?standing .
+    FILTER(?standing != "UNKNOWN")
+    FILTER NOT EXISTS { ?subject cs:supportedBy ?evidence }
+    BIND("supported-claim-without-evidence" AS ?reason)
+  } UNION {
+    ?subject a cs:Claim ; cs:supportedBy ?undeclared .
+    FILTER NOT EXISTS { ?undeclared a cs:Evidence }
+    BIND("claim-supported-by-undeclared-evidence" AS ?reason)
+  } UNION {
+    ?subject a cs:Claim ; cs:supportedBy ?evidence .
+    ?evidence a cs:Evidence .
+    FILTER NOT EXISTS { ?evidence cs:evidencePath ?path }
+    BIND("evidence-without-evidence-path" AS ?reason)
+  } UNION {
+    ?subject a cs:Claim ; cs:supportedBy ?evidence .
+    ?evidence a cs:Evidence .
+    FILTER NOT EXISTS { ?evidence cs:exactSubject ?anySubject }
+    BIND("evidence-without-exact-subject" AS ?reason)
+  }
+}
+ORDER BY ?subject ?reason
