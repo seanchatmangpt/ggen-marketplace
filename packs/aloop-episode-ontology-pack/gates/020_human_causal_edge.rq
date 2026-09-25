@@ -1,0 +1,25 @@
+# MESSAGE: human-causal-edge violation -- after the autonomy epoch boundary, an actuation event (actuate | commit | merge | provider.replace, class aloop:ActuationEvent) associated with a aloop:HumanAgent via prov:wasAssociatedWith, or carrying an explicit aloop:humanCaused edge, is a violation row. Post-epoch the operator's lawful keystrokes are ontology edits, authority grants, and standing review -- never the next action.
+# This gate is Lane 1's crown input and Lane 9/10's analysis vocabulary (ALOOP-ZCODE-DOGFOOD-001).
+# Violation-row style (FM-PACK-013): zero rows = conforming; one row per human-causal edge.
+# sparql 0.3.12 law: positive violation patterns + OPTIONAL/!BOUND only -- no FILTER EXISTS.
+PREFIX aloop: <https://seanchatmangpt.github.io/packs/aloop-episode-ontology#>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+# DATA LAW: instances carry their full class chain explicitly (leaf class +
+# aloop:ActuationEvent + aloop:Event); the locked sparql 0.3.12 does no
+# subclass inference, so `a aloop:ActuationEvent` matches explicit typing only.
+SELECT ?event ?human ?kind WHERE {
+  {
+    ?event a aloop:ActuationEvent ;
+           aloop:postEpoch true ;
+           prov:wasAssociatedWith ?human .
+    ?human a aloop:HumanAgent .
+    BIND("actuation_associated_with_human" AS ?kind)
+  } UNION {
+    ?event a aloop:ActuationEvent ;
+           aloop:postEpoch true ;
+           aloop:humanCaused ?next .
+    ?next a aloop:HumanAgent .
+    BIND("explicit_human_causal_edge" AS ?kind)
+  }
+}
+ORDER BY ?kind ?event

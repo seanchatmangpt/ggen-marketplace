@@ -1,0 +1,53 @@
+---
+to: generated/episode_summary.json
+force: true
+sparql:
+  episodes: |
+    PREFIX aloop: <https://seanchatmangpt.github.io/packs/aloop-episode-ontology#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT ?id ?title ?exec ?verif WHERE {
+      ?e a aloop:Episode .
+      OPTIONAL { ?e dcterms:identifier ?id }
+      OPTIONAL { ?e dcterms:title ?title }
+      OPTIONAL { ?e aloop:executionStanding ?es . OPTIONAL { ?es rdfs:label ?exec } }
+      OPTIONAL { ?e aloop:verificationStanding ?vs . OPTIONAL { ?vs rdfs:label ?verif } }
+    } ORDER BY ?id
+  integrity_violations: |
+    PREFIX aloop: <https://seanchatmangpt.github.io/packs/aloop-episode-ontology#>
+    PREFIX oslc_cm: <http://open-services.net/ns/cm#>
+    SELECT ?violation ?kind WHERE {
+      { ?event a aloop:Event . OPTIONAL { ?event aloop:episode ?ep . } FILTER(!BOUND(?ep)) BIND(?event AS ?violation) BIND("event_without_episode" AS ?kind) }
+      UNION { ?episode a aloop:Episode . OPTIONAL { ?episode aloop:pursues ?objective . } FILTER(!BOUND(?objective)) BIND(?episode AS ?violation) BIND("episode_without_objective" AS ?kind) }
+      UNION { ?wo a aloop:WorkOrder . OPTIONAL { ?wo a oslc_cm:ChangeRequest . BIND(?wo AS ?cr) } FILTER(!BOUND(?cr)) BIND(?wo AS ?violation) BIND("workorder_not_dual_typed_change_request" AS ?kind) }
+    } ORDER BY ?kind ?violation
+  human_causal_edges: |
+    PREFIX aloop: <https://seanchatmangpt.github.io/packs/aloop-episode-ontology#>
+    PREFIX prov: <http://www.w3.org/ns/prov#>
+    SELECT ?event ?human ?kind WHERE {
+      { ?event a aloop:ActuationEvent ; aloop:postEpoch true ; prov:wasAssociatedWith ?human . ?human a aloop:HumanAgent . BIND("actuation_associated_with_human" AS ?kind) }
+      UNION { ?event a aloop:ActuationEvent ; aloop:postEpoch true ; aloop:humanCaused ?next . ?next a aloop:HumanAgent . BIND("explicit_human_causal_edge" AS ?kind) }
+    } ORDER BY ?kind ?event
+  bad_standings: |
+    PREFIX aloop: <https://seanchatmangpt.github.io/packs/aloop-episode-ontology#>
+    SELECT ?node ?standing ?kind WHERE {
+      { ?node aloop:executionStanding ?standing . OPTIONAL { ?standing a aloop:ExecutionStanding . BIND(?standing AS ?typed) } FILTER(!BOUND(?typed)) BIND("execution_standing_outside_closed_set" AS ?kind) }
+      UNION { ?node aloop:verificationStanding ?standing . OPTIONAL { ?standing a aloop:VerificationStanding . BIND(?standing AS ?typed) } FILTER(!BOUND(?typed)) BIND("verification_standing_outside_closed_set" AS ?kind) }
+    } ORDER BY ?kind ?node
+---
+{
+  "note": "ALOOP episode summary (generated). REFUSED verdicts name the exact offending nodes; the gates themselves refuse sync via FM-PACK-013.",
+  "episodes": [{% for e in episodes %}{"id": "{{ e.id | default(value="") }}", "title": {{ e.title | default(value="") | json_encode() }}, "execution_standing": "{{ e.exec | default(value="") }}", "verification_standing": "{{ e.verif | default(value="") }}"}{% if not loop.last %},{% endif %}{% endfor %}],
+  "gate_010_episode_integrity": {
+    "verdict": "{% if integrity_violations %}REFUSED{% else %}PASS{% endif %}",
+    "violations": [{% for v in integrity_violations %}{"node": "{{ v.violation }}", "kind": "{{ v.kind }}"}{% if not loop.last %},{% endif %}{% endfor %}]
+  },
+  "gate_020_human_causal_edge": {
+    "verdict": "{% if human_causal_edges %}REFUSED{% else %}PASS{% endif %}",
+    "edges": [{% for h in human_causal_edges %}{"event": "{{ h.event }}", "human": "{{ h.human }}", "kind": "{{ h.kind }}"}{% if not loop.last %},{% endif %}{% endfor %}]
+  },
+  "gate_030_closed_standings": {
+    "verdict": "{% if bad_standings %}REFUSED{% else %}PASS{% endif %}",
+    "violations": [{% for s in bad_standings %}{"node": "{{ s.node }}", "kind": "{{ s.kind }}"}{% if not loop.last %},{% endif %}{% endfor %}]
+  }
+}

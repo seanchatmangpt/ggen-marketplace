@@ -1,0 +1,67 @@
+---
+to: generated/provider_contract_summary.json
+force: true
+sparql:
+  providers: |
+    PREFIX pec: <https://seanchatmangpt.github.io/packs/provider-extinction-contract#>
+    SELECT ?id ?enabled ?ceiling ?invariant WHERE {
+      ?p a pec:ExecutionProvider ; pec:providerId ?id .
+      OPTIONAL { ?p pec:enabled ?enabled }
+      OPTIONAL { ?p pec:authorityCeiling ?ceiling }
+      OPTIONAL { ?p pec:extinctionInvariant ?invariant }
+    } ORDER BY ?id
+  unroutable: |
+    PREFIX pec: <https://seanchatmangpt.github.io/packs/provider-extinction-contract#>
+    SELECT ?capability ?capabilityId WHERE {
+      ?capability a pec:Capability ; pec:capabilityId ?capabilityId .
+      BIND(STRBEFORE(?capabilityId, ":") AS ?leftSegment)
+      OPTIONAL {
+        ?provider a pec:ExecutionProvider ; pec:providerId ?leftSegment ; pec:enabled true .
+        BIND(?provider AS ?routed)
+      }
+      FILTER(!BOUND(?routed))
+    } ORDER BY ?capabilityId
+  identity_leaks: |
+    PREFIX pec: <https://seanchatmangpt.github.io/packs/provider-extinction-contract#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    SELECT ?node ?field ?value WHERE {
+      { ?node a pec:WorkOrder ; dcterms:title ?value . BIND("workorder.title" AS ?field) }
+      UNION { ?node a pec:WorkOrder ; dcterms:description ?value . BIND("workorder.description" AS ?field) }
+      UNION { ?node a pec:AuthorityGrant ; dcterms:description ?value . BIND("authority.description" AS ?field) }
+      UNION { ?node a pec:AcceptanceCriterion ; dcterms:title ?value . BIND("acceptance.title" AS ?field) }
+      UNION { ?node a pec:AcceptanceCriterion ; dcterms:description ?value . BIND("acceptance.description" AS ?field) }
+      FILTER(REGEX(LCASE(STR(?value)), "(claude|zcode|anthropic|codex|gemini|openai|copilot|kimi|glm)"))
+    } ORDER BY ?field ?node
+  missing_receipt_fields: |
+    PREFIX pec: <https://seanchatmangpt.github.io/packs/provider-extinction-contract#>
+    SELECT ?receipt ?field WHERE {
+      { ?receipt a pec:ExecutionReceipt . OPTIONAL { ?receipt pec:workOrderId ?w1 . BIND(?w1 AS ?x1) } FILTER(!BOUND(?x1)) BIND("workOrderId" AS ?field) }
+      UNION { ?receipt a pec:ExecutionReceipt . OPTIONAL { ?receipt pec:originAuthority ?w2 . BIND(?w2 AS ?x2) } FILTER(!BOUND(?x2)) BIND("originAuthority" AS ?field) }
+      UNION { ?receipt a pec:ExecutionReceipt . OPTIONAL { ?receipt pec:provider ?w3 . BIND(?w3 AS ?x3) } FILTER(!BOUND(?x3)) BIND("provider" AS ?field) }
+      UNION { ?receipt a pec:ExecutionReceipt . OPTIONAL { ?receipt pec:providerExecutionId ?w4 . BIND(?w4 AS ?x4) } FILTER(!BOUND(?x4)) BIND("providerExecutionId" AS ?field) }
+      UNION { ?receipt a pec:ExecutionReceipt . OPTIONAL { ?receipt pec:subjectBefore ?w5 . BIND(?w5 AS ?x5) } FILTER(!BOUND(?x5)) BIND("subjectBefore" AS ?field) }
+      UNION { ?receipt a pec:ExecutionReceipt . OPTIONAL { ?receipt pec:subjectAfter ?w6 . BIND(?w6 AS ?x6) } FILTER(!BOUND(?x6)) BIND("subjectAfter" AS ?field) }
+      UNION { ?receipt a pec:ExecutionReceipt . OPTIONAL { ?receipt pec:commands ?w7 . BIND(?w7 AS ?x7) } FILTER(!BOUND(?x7)) BIND("commands" AS ?field) }
+      UNION { ?receipt a pec:ExecutionReceipt . OPTIONAL { ?receipt pec:consequences ?w8 . BIND(?w8 AS ?x8) } FILTER(!BOUND(?x8)) BIND("consequences" AS ?field) }
+      UNION { ?receipt a pec:ExecutionReceipt . OPTIONAL { ?receipt pec:evidence ?w9 . BIND(?w9 AS ?x9) } FILTER(!BOUND(?x9)) BIND("evidence" AS ?field) }
+      UNION { ?receipt a pec:ExecutionReceipt . OPTIONAL { ?receipt pec:exitStatus ?w10 . BIND(?w10 AS ?x10) } FILTER(!BOUND(?x10)) BIND("exitStatus" AS ?field) }
+      UNION { ?receipt a pec:ExecutionReceipt . OPTIONAL { ?receipt pec:timestamps ?w11 . BIND(?w11 AS ?x11) } FILTER(!BOUND(?x11)) BIND("timestamps" AS ?field) }
+      UNION { ?receipt a pec:ExecutionReceipt . OPTIONAL { ?receipt pec:replayBinding ?w12 . BIND(?w12 AS ?x12) } FILTER(!BOUND(?x12)) BIND("replayBinding" AS ?field) }
+    } ORDER BY ?field ?receipt
+---
+{
+  "note": "Provider-extinction contract summary (generated). REFUSED verdicts name the exact offending nodes; the gates themselves refuse sync via FM-PACK-013.",
+  "providers": [{% for p in providers %}{"id": "{{ p.id }}", "enabled": {{ p.enabled | default(value="null") }}, "authority_ceiling": "{{ p.ceiling | default(value="") }}", "extinction_invariant": "{{ p.invariant | default(value="") }}"}{% if not loop.last %},{% endif %}{% endfor %}],
+  "gate_010_no_provider_identity": {
+    "verdict": "{% if identity_leaks %}REFUSED{% else %}PASS{% endif %}",
+    "offenders": [{% for l in identity_leaks %}{"node": "{{ l.node }}", "field": "{{ l.field }}", "value": {{ l.value | json_encode() }}}{% if not loop.last %},{% endif %}{% endfor %}]
+  },
+  "gate_020_routing_totality": {
+    "verdict": "{% if unroutable %}REFUSED{% else %}PASS{% endif %}",
+    "unroutable_capabilities": [{% for c in unroutable %}{"capability": "{{ c.capability }}", "capability_id": "{{ c.capabilityId }}"}{% if not loop.last %},{% endif %}{% endfor %}]
+  },
+  "gate_030_receipt_shape": {
+    "verdict": "{% if missing_receipt_fields %}REFUSED{% else %}PASS{% endif %}",
+    "missing": [{% for m in missing_receipt_fields %}{"receipt": "{{ m.receipt }}", "field": "{{ m.field }}"}{% if not loop.last %},{% endif %}{% endfor %}]
+  }
+}

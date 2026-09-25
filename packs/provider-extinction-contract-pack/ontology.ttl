@@ -1,0 +1,193 @@
+@prefix pec: <https://seanchatmangpt.github.io/packs/provider-extinction-contract#> .
+@prefix gp: <https://ggen.dev/ns/pack#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<urn:ggen:pack:provider-extinction-contract-pack>
+    a gp:Pack ;
+    gp:name "provider-extinction-contract-pack" ;
+    gp:version "0.1.0" ;
+    gp:profile gp:Core1 .
+
+# ============================================================================
+# FAILED-EDGE RECORD against the public vocabulary set (why pec: exists)
+# ============================================================================
+# 1. prov:SoftwareAgent/Activity/Entity cover the agent and artifact spine and
+#    are REUSED as superclasses. Failed edge: prov has no notion of a
+#    ROUTING OBLIGATION (a capability that must resolve to >= 1 enabled
+#    provider) and no extinction invariant (the property that cancelling one
+#    agent individual changes only capacity/latency/cost/capability-set of the
+#    system, never the identity of in-flight work orders). prov wasAssociated
+#    facts describe what happened; they cannot oblige what must resolve.
+# 2. OCEL 2.0 (https://ocel-standard.org/2.0) models providers as opaque
+#    object-type attribute VALUES. Failed edge: attributes cannot carry
+#    constraints (enabled/disabled, concurrency, authority ceiling), so a
+#    routing-totality gate has nothing to select over.
+# 3. dcterms covers identifiers/titles and is REUSED. Failed edge: no
+#    capabilityId convention ("provider:id" left-segment), no enabled flag, no
+#    receipt field vocabulary.
+# 4. oslc_cm:ChangeRequest covers the work-order public type and is REUSED by
+#    documented dual-typing (pec:WorkOrder aligns with aloop:WorkOrder /
+#    oslc_cm:ChangeRequest when those packs are wired). Failed edge for direct
+#    reuse here: this pack must stand alone with zero cross-pack IRIs, so the
+#    class is re-declared locally with the alignment documented, not imported.
+# Everything minted below is either (a) a subclass/subproperty anchoring a
+# public term, or (b) a term whose failed edge is recorded above.
+
+# ── Contract classes ────────────────────────────────────────────────────────
+pec:WorkOrder a rdfs:Class ; rdfs:subClassOf prov:Activity ;
+    rdfs:label "Provider-neutral work order" ;
+    rdfs:comment "Dual-type with aloop:WorkOrder / oslc_cm:ChangeRequest when those packs are wired. Identity, authority, planner, acceptance, receipt schema and replay carry NO provider identity; provider appears only as the capabilityId left segment and in the provider's runtime descriptor." .
+pec:ExecutionRequest a rdfs:Class ; rdfs:subClassOf prov:Entity ;
+    rdfs:label "Execution request" ;
+    rdfs:comment "The provider-neutral payload issued against a work order: capability requirements, subject, authority, evidence requirements, resource constraints." .
+pec:ExecutionProvider a rdfs:Class ; rdfs:subClassOf prov:SoftwareAgent ;
+    rdfs:label "Execution provider" ;
+    rdfs:comment "A replaceable execution backend. Describes itself: capabilities, transport, availability, cost, concurrency, authority ceiling, receipt protocol." .
+pec:ExecutionReceipt a rdfs:Class ; rdfs:subClassOf prov:Entity ;
+    rdfs:label "Execution receipt" ;
+    rdfs:comment "Normalized result of one provider execution. Carries the 12 contract fields; provider-specific payload lives in pec:ext only." .
+pec:Capability a rdfs:Class ; rdfs:subClassOf prov:Entity ;
+    rdfs:label "Executable capability" ;
+    rdfs:comment "Named by a capabilityId \"provider:id\". The left segment is the ONLY lawful location of provider identity in a request." .
+pec:AcceptanceCriterion a rdfs:Class ; rdfs:subClassOf prov:Entity ;
+    rdfs:label "Acceptance criterion" ;
+    rdfs:comment "Provider-free acceptance surface of a work order." .
+pec:AuthorityGrant a rdfs:Class ; rdfs:subClassOf prov:Agent ;
+    rdfs:label "Origin authority grant" ;
+    rdfs:comment "The operator-supplied authority a request executes under. Provider-free by law." .
+pec:Cancellation a rdfs:Class ; rdfs:subClassOf prov:Activity ;
+    rdfs:label "Provider cancellation (extinction event)" ;
+    rdfs:comment "DESCRIBES an extinction. Executing a cancellation is actuation and is NOT claimed by this pack." .
+
+# ── Extinction invariant (the pack's central fact, failed edge vs prov) ─────
+pec:extinctionInvariant a rdf:Property ; rdfs:domain pec:ExecutionProvider ; rdfs:range xsd:string ;
+    rdfs:label "what a provider's extinction may change" ;
+    rdfs:comment "Fixed string: \"capacity latency cost capability-set\". Cancel(Claude) -- or any provider -- changes only these four; work-order identity, authority, acceptance, receipt schema and replay survive unchanged. Gate 010 enforces the identity half; this property records the invariant so consumers can assert it per provider." .
+
+# ── Request fields (provider-neutral by construction) ───────────────────────
+pec:capabilityRequirements a rdf:Property ; rdfs:domain pec:ExecutionRequest ; rdfs:range pec:Capability ;
+    rdfs:label "capability requirements" .
+pec:requestSubject a rdf:Property ; rdfs:domain pec:ExecutionRequest ; rdfs:range xsd:string ;
+    rdfs:label "exact subject (tree/SHA)" .
+pec:requestAuthority a rdf:Property ; rdfs:domain pec:ExecutionRequest ; rdfs:range pec:AuthorityGrant ;
+    rdfs:label "origin authority binding" .
+pec:evidenceRequirements a rdf:Property ; rdfs:domain pec:ExecutionRequest ;
+    rdfs:label "evidence requirements" .
+pec:resourceConstraints a rdf:Property ; rdfs:domain pec:ExecutionRequest ;
+    rdfs:label "resource constraints" .
+pec:requestsWorkOrder a rdf:Property ; rdfs:domain pec:ExecutionRequest ; rdfs:range pec:WorkOrder ;
+    rdfs:label "work order this request executes" .
+
+# ── Provider descriptor fields (the runtime descriptor) ─────────────────────
+pec:providerId a rdf:Property ; rdfs:domain pec:ExecutionProvider ; rdfs:range xsd:string ;
+    rdfs:label "provider id (left segment of a capabilityId)" .
+pec:enabled a rdf:Property ; rdfs:domain pec:ExecutionProvider ; rdfs:range xsd:boolean ;
+    rdfs:label "enabled for routing" .
+pec:transport a rdf:Property ; rdfs:domain pec:ExecutionProvider ;
+    rdfs:label "transport descriptor" .
+pec:availability a rdf:Property ; rdfs:domain pec:ExecutionProvider ;
+    rdfs:label "availability descriptor" .
+pec:cost a rdf:Property ; rdfs:domain pec:ExecutionProvider ;
+    rdfs:label "cost descriptor" .
+pec:concurrency a rdf:Property ; rdfs:domain pec:ExecutionProvider ;
+    rdfs:label "concurrency descriptor" .
+pec:authorityCeiling a rdf:Property ; rdfs:domain pec:ExecutionProvider ; rdfs:range xsd:string ;
+    rdfs:label "authority ceiling (OBSERVE|SELECT|CONSTRUCT vocabulary)" .
+pec:receiptProtocol a rdf:Property ; rdfs:domain pec:ExecutionProvider ;
+    rdfs:label "receipt protocol descriptor" .
+pec:providesCapability a rdf:Property ; rdfs:domain pec:ExecutionProvider ; rdfs:range pec:Capability ;
+    rdfs:label "capability this provider can execute" .
+
+# ── WorkOrder / capability identity fields (gate 010's leak surface) ────────
+pec:acceptance a rdf:Property ; rdfs:domain pec:WorkOrder ; rdfs:range pec:AcceptanceCriterion ;
+    rdfs:label "acceptance criteria" .
+pec:capabilityId a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:label "capabilityId \"provider:id\" (left segment = provider identity)" ;
+    rdfs:comment "The ONLY string on a work order or request in which a provider name may appear (as the left segment)." .
+
+# ── Receipt contract fields (gate 030's required set, contract-verbatim) ────
+pec:workOrderId a rdf:Property ; rdfs:domain pec:ExecutionReceipt ; rdfs:label "work order id" .
+pec:originAuthority a rdf:Property ; rdfs:domain pec:ExecutionReceipt ; rdfs:range pec:AuthorityGrant ; rdfs:label "origin authority" .
+pec:provider a rdf:Property ; rdfs:domain pec:ExecutionReceipt ; rdfs:range pec:ExecutionProvider ; rdfs:label "executing provider" .
+pec:providerExecutionId a rdf:Property ; rdfs:domain pec:ExecutionReceipt ; rdfs:label "provider-side execution id" .
+pec:subjectBefore a rdf:Property ; rdfs:domain pec:ExecutionReceipt ; rdfs:label "subject before" .
+pec:subjectAfter a rdf:Property ; rdfs:domain pec:ExecutionReceipt ; rdfs:label "subject after" .
+pec:commands a rdf:Property ; rdfs:domain pec:ExecutionReceipt ; rdfs:label "commands executed" .
+pec:consequences a rdf:Property ; rdfs:domain pec:ExecutionReceipt ; rdfs:label "consequences" .
+pec:evidence a rdf:Property ; rdfs:domain pec:ExecutionReceipt ; rdfs:label "evidence" .
+pec:exitStatus a rdf:Property ; rdfs:domain pec:ExecutionReceipt ; rdfs:label "exit status" .
+pec:timestamps a rdf:Property ; rdfs:domain pec:ExecutionReceipt ; rdfs:label "timestamps" .
+pec:replayBinding a rdf:Property ; rdfs:domain pec:ExecutionReceipt ; rdfs:label "replay binding" .
+pec:ext a rdf:Property ; rdfs:domain pec:ExecutionReceipt ;
+    rdfs:label "namespaced provider extension (ext.* in the contract)" .
+
+# ── Cancellation description ────────────────────────────────────────────────
+pec:cancelsProvider a rdf:Property ; rdfs:domain pec:Cancellation ; rdfs:range pec:ExecutionProvider ;
+    rdfs:label "provider this cancellation describes" .
+pec:survivingWorkOrders a rdf:Property ; rdfs:domain pec:Cancellation ; rdfs:label "work orders that must survive unchanged" .
+
+# ============================================================================
+# Dogfood individuals (episode ALOOP-ZCODE-DOGFOOD-001, lane 5): the gate
+# triple -- one request with two capabilities routed to two providers, one
+# receipt carrying all 12 fields -- witnesses the gates CLEAN against a real
+# graph. Violating fixtures inject in qualification/fixtures/, never here.
+# ============================================================================
+pec:wo-dogfood-lane5 a pec:WorkOrder ;
+    dcterms:identifier "ALOOP-ZCODE-DOGFOOD-001/lane-5" ;
+    dcterms:title "ALOOP episode pack + provider-extinction contract + sjira neutrality gate" ;
+    dcterms:description "Manufacture the reusable ALOOP semantic and instrumentation surfaces; provider extinction must not touch this identity." ;
+    pec:acceptance pec:acc-dogfood-gates-fired .
+
+pec:acc-dogfood-gates-fired a pec:AcceptanceCriterion ;
+    dcterms:title "every shipped gate fires on its violating fixture and is clean on the pack graph" .
+
+pec:authority-dogfood a pec:AuthorityGrant ;
+    dcterms:identifier "ALOOP-ZCODE-DOGFOOD-001/operator-grant" .
+
+pec:req-dogfood-lane5 a pec:ExecutionRequest ;
+    dcterms:identifier "ALOOP-ZCODE-DOGFOOD-001/lane-5/request" ;
+    pec:requestsWorkOrder pec:wo-dogfood-lane5 ;
+    pec:requestAuthority pec:authority-dogfood ;
+    pec:requestSubject "ggen-marketplace@81e2919c4caa972a3237cd79b9c23d8c3fc5892e" ;
+    pec:capabilityRequirements pec:cap-zcode-agent-fanout , pec:cap-recipe-deterministic-render ;
+    pec:resourceConstraints "scratch ~/.zcode/workspace/default/aloop-dogfood-001/lane-5/" .
+
+pec:cap-zcode-agent-fanout a pec:Capability ;
+    pec:capabilityId "zcode:agent-fanout" .
+pec:cap-recipe-deterministic-render a pec:Capability ;
+    pec:capabilityId "recipe:deterministic-render" .
+
+pec:provider-zcode a pec:ExecutionProvider ;
+    dcterms:identifier "zcode" ;
+    pec:providerId "zcode" ;
+    pec:enabled true ;
+    pec:authorityCeiling "CONSTRUCT" ;
+    pec:extinctionInvariant "capacity latency cost capability-set" ;
+    pec:providesCapability pec:cap-zcode-agent-fanout .
+
+pec:provider-recipe a pec:ExecutionProvider ;
+    dcterms:identifier "recipe" ;
+    pec:providerId "recipe" ;
+    pec:enabled true ;
+    pec:authorityCeiling "CONSTRUCT" ;
+    pec:extinctionInvariant "capacity latency cost capability-set" ;
+    pec:providesCapability pec:cap-recipe-deterministic-render .
+
+pec:rcpt-dogfood-lane5 a pec:ExecutionReceipt ;
+    dcterms:identifier "ALOOP-ZCODE-DOGFOOD-001/lane-5/receipt" ;
+    pec:workOrderId "ALOOP-ZCODE-DOGFOOD-001/lane-5" ;
+    pec:originAuthority pec:authority-dogfood ;
+    pec:provider pec:provider-zcode ;
+    pec:providerExecutionId "lane-5@2026-09-25" ;
+    pec:subjectBefore "ggen-marketplace@81e2919c4caa972a3237cd79b9c23d8c3fc5892e" ;
+    pec:subjectAfter "ggen-marketplace@<landed-head>" ;
+    pec:commands "git commit packs/aloop-episode-ontology-pack packs/provider-extinction-contract-pack" ;
+    pec:consequences "two marketplace packs landed; sjira additive gate + descriptor shape landed" ;
+    pec:evidence "gate falsifier runs (neg fixtures fire, pos graph clean); mix ggen_igniter.doctor exit 0" ;
+    pec:exitStatus 0 ;
+    pec:timestamps "2026-09-25T00:00:00Z/2026-09-25T23:59:59Z" ;
+    pec:replayBinding "receipts/v26.9.25-sjira lane-5 run record" .
