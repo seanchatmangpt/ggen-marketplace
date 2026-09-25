@@ -1,0 +1,46 @@
+@prefix spg: <https://ggen.dev/ontology/semantic-procedural-graph#> .
+@prefix sh:  <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+spg:ProcedureGraphShape a sh:NodeShape ;
+  sh:targetClass spg:ProcedureGraph ;
+  sh:property [ sh:path spg:state ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("CANDIDATE" "ADMITTED" "REFUSED") ] ;
+  sh:property [ sh:path spg:standing ; sh:minCount 1 ; sh:maxCount 1 ] ;
+  sh:property [ sh:path spg:hasNode ; sh:minCount 1 ; sh:class spg:ProcedureNode ] ;
+  sh:property [ sh:path spg:hasEdge ; sh:minCount 1 ; sh:class spg:ProcedureEdge ] .
+
+spg:ProcedureEdgeShape a sh:NodeShape ;
+  sh:targetClass spg:ProcedureEdge ;
+  sh:property [ sh:path spg:sourceNode ; sh:minCount 1 ; sh:maxCount 1 ; sh:class spg:ProcedureNode ] ;
+  sh:property [ sh:path spg:targetNode ; sh:minCount 1 ; sh:maxCount 1 ; sh:class spg:ProcedureNode ] ;
+  sh:property [ sh:path spg:relation ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("LEADS_TO" "TRIGGERS" "PROVIDES_INPUT_FOR" "CONVERGES_TO") ] ;
+  sh:property [ sh:path spg:guard ; sh:minCount 1 ; sh:maxCount 1 ] ;
+  sh:property [ sh:path spg:evidenceRequirement ; sh:minCount 1 ] ;
+  sh:property [ sh:path spg:authorityRequirement ; sh:minCount 1 ; sh:maxCount 1 ] ;
+  sh:property [ sh:path spg:consequenceClass ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("observational" "constructive" "consequential") ] ;
+  sh:property [ sh:path spg:receiptRequired ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:boolean ] ;
+  sh:sparql [
+    sh:message "Consequential transition requires non-NONE authority, receiptRequired true, and a falsifier." ;
+    sh:select """
+      SELECT $this WHERE {
+        $this spg:consequenceClass "consequential" .
+        FILTER (
+          NOT EXISTS { $this spg:authorityRequirement ?a . FILTER(?a != "NONE") } ||
+          NOT EXISTS { $this spg:receiptRequired true } ||
+          NOT EXISTS { $this spg:falsifier ?f }
+        )
+      }
+    """
+  ] .
+
+spg:NovelGapShape a sh:NodeShape ;
+  sh:targetClass spg:NovelGap ;
+  sh:property [ sh:path spg:requiredSemantic ; sh:minCount 1 ] ;
+  sh:property [ sh:path spg:searchedPriorArt ; sh:minCount 1 ] ;
+  sh:property [ sh:path spg:hasCandidateFailure ; sh:minCount 1 ; sh:class spg:CandidateFailure ] ;
+  sh:property [ sh:path spg:falsifier ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+spg:CandidateFailureShape a sh:NodeShape ;
+  sh:targetClass spg:CandidateFailure ;
+  sh:property [ sh:path spg:candidate ; sh:minCount 1 ; sh:maxCount 1 ] ;
+  sh:property [ sh:path spg:missingSemantic ; sh:minCount 1 ] .
