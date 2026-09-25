@@ -1,0 +1,34 @@
+# MESSAGE: receipt-shape violation -- a ashdspy:CompiledRoute that either
+# (A) carries no ashdspy:evidenceDigest or (B) carries a CourtVerdict whose
+# ashdspy:verdictDigest is missing is a violation row naming the route and
+# the missing field. A route that cannot be replayed (no evidence digest)
+# or whose verdict binds no evidence (no verdict digest) is not evidence --
+# it cannot be re-executed against the exact admitted subject after the
+# lattice demotes or the corpus moves.
+# Violation-row style (FM-PACK-013): zero rows on a conforming graph; one
+# row per missing field (a route failing both halves yields 2 rows).
+# BIND-witness pattern with DISTINCT witness variables per UNION branch
+# (a shared name leaks bindings across branches). GRAPH-SHAPE LAW
+# (falsifier-witnessed, lane 5 2026-09-25, both engines): the class-typing
+# triple lives INSIDE every UNION branch -- a shared outer BGP joined
+# against OPTIONAL/!BOUND branches silently drops rows once a conforming
+# route also exists in the graph.
+# sparql law: no FILTER inside EXISTS/OPTIONAL groups; group-level
+# FILTER(!BOUND) only. Digest SHAPE (is it sha256?) is deliberately NOT
+# checked here -- field PRESENCE is the gate; digest format policing is a
+# consumer-side SHACL concern (recorded failed edge: one gate, one law).
+PREFIX ashdspy: <https://seanchatmangpt.github.io/packs/ashdspy#>
+SELECT ?route ?field WHERE {
+  {
+    ?route a ashdspy:CompiledRoute .
+    OPTIONAL { ?route ashdspy:evidenceDigest ?w1 . BIND(?w1 AS ?witness1) }
+    FILTER(!BOUND(?witness1))
+    BIND("evidenceDigest" AS ?field)
+  } UNION {
+    ?route a ashdspy:CompiledRoute ; ashdspy:courtVerdict ?verdict .
+    OPTIONAL { ?verdict ashdspy:verdictDigest ?w2 . BIND(?w2 AS ?witness2) }
+    FILTER(!BOUND(?witness2))
+    BIND("verdictDigest" AS ?field)
+  }
+}
+ORDER BY ?field ?route
