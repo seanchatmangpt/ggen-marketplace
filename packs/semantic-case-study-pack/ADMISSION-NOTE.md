@@ -57,9 +57,11 @@ tomllib.
 
 1. `pres:`/pptx-presentation-pack: no such pack (or any `pres:` namespace)
    exists in this marketplace (grep over packs/, 0 hits). `cs:Projection`
-   stays native; `templates/slide-facts.md.tmpl` consumes the seed's own
-   projection conventions (`cs:rendersClaim`/`cs:renderedBy`/
-   `cs:noClaimReason`). A future presentation pack can map cs:→pres:.
+   stays native; `templates/slide-facts.md.tmpl` consumes the projection
+   conventions (`cs:renderedBy`/`cs:noClaimReason` seed-native,
+   `cs:rendersClaim`/`cs:projectionOf` declared canonically by this pack —
+   see ontology.ttl provenance note). A future presentation pack can map
+   cs:→pres:.
 2. No semantic runner instance existed repo-wide for the
    gate-witness-court contract (the court delegates to a caller-supplied
    runner by design). `runners/semantic_runner.py` is the first concrete
@@ -94,6 +96,14 @@ image's stored mode (`docker create` + `docker export | tar -tv`), prefer
 `docker save`-based extraction (mode-faithful) or an explicit
 `chmod +x "$root/bin/ggen"` only if the image layer mode is proven correct;
 R25-016: no unchanged re-run without a new hypothesis.
+
+Resolution update (2026-09-25, lane re-verification): the latest run on
+origin/main, 36166064962 (2026-09-25T17:16:18Z), concludes **success
+including "Verify exact packaged factory"** — the failure is resolved
+upstream (local main is behind origin/main by 19 commits; the fix is in
+that range). The EACCES classification above stands as the historical
+diagnosis of runs 36077005876/36076886081/36051906165. No further action
+by this lane.
 
 ## 5. Standing
 
