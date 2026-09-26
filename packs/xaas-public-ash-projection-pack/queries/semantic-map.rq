@@ -1,0 +1,24 @@
+PREFIX rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX sh:   <http://www.w3.org/ns/shacl#>
+
+# Deterministic semantic projection. Public class/property IRIs are exact
+# subjects; generated names are consequences only.
+SELECT ?phase ?kind ?shape ?class ?path ?datatype ?minCount
+WHERE {
+  {
+    ?shape a sh:NodeShape ; sh:targetClass ?class .
+    FILTER(isIRI(?class))
+    BIND(10 AS ?phase)
+    BIND("resource" AS ?kind)
+  }
+  UNION
+  {
+    ?shape a sh:NodeShape ; sh:targetClass ?class ; sh:property ?propertyShape .
+    ?propertyShape sh:path ?path ; sh:datatype ?datatype .
+    FILTER(isIRI(?class) && isIRI(?path))
+    OPTIONAL { ?propertyShape sh:minCount ?minCount }
+    BIND(20 AS ?phase)
+    BIND("attribute" AS ?kind)
+  }
+}
+ORDER BY ?phase ?class ?path
