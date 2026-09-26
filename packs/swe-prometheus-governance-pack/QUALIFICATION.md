@@ -1,50 +1,109 @@
-# Qualification — swe-prometheus-governance-pack
+# Qualification — swe-prometheus-governance-pack v0.2.0
 
 ## Subject
 
-Pack authored against `ggen-marketplace@d9dcc9e52b65361f2b6e8131b9ee993c315dd017`.
+v0.2 is authored from `ggen-marketplace@ba3641dee8ea95828a3aaa4358bac8b4a091136f`.
 
-The pack encodes the paired evidence interface from SWE-Prometheus
-(arXiv:2609.29465) and projects a one-case graph into the executable
-`autofde-lab.swe-prometheus-case/1` input consumed by the VGG court.
+The pack projects the SWE-Prometheus paired-governance evidence model into the
+runtime schemas consumed by autofde-lab's VGG, paired-probe, mutation, and exact
+git-reconstruction courts.
 
-## Local falsifier court
+## Court topology
 
-A local rdflib court parsed `ontology.ttl`, joined each qualification fixture,
-and executed all four violation-row gates.
+`gate-court.toml` registers the canonical marketplace semantic witness:
 
-| fixture | 010 identity | 020 dimensions | 030 mutation gate | 040 scores |
-|---|---:|---:|---:|---:|
-| `pos_clean.ttl` | 0 | 0 | 0 | 0 |
-| `neg_all.ttl` | 2 | 6 | 1 | 3 |
+```text
+ontology.ttl
+  + pos_clean.ttl
+  + each negative fixture
+  + gates/*.rq
+      |
+      v
+qualification/verify.py
+```
 
-The negative rows are not generic syntax failures:
+The positive graph must return zero rows from every gate. Each negative fixture
+pins an exact target row count for the gate family it exists to falsify; other
+guards may also fire because failure surfaces intentionally overlap.
 
-- 010: duplicate `baseCommit` + missing `patchDigest`;
-- 020: duplicate D1 + missing D2..D6;
-- 030: `gateStrength="detected"` without mutation receipt;
-- 040: out-of-range base score, missing treated score, invalid evidence status.
+| fixture | target gate | expected target rows |
+|---|---|---:|
+| `neg_all.ttl` | 010 exact identity | 2 |
+| `neg_all.ttl` | 020 dimension universe | 6 |
+| `neg_all.ttl` | 030 detected mutation receipt | 1 |
+| `neg_all.ttl` | 040 paired score shape | 3 |
+| `neg_enums.ttl` | 050 closed enums | 9 |
+| `neg_receipts.ttl` | 060 receipt binding | 6 |
+| `neg_scores.ttl` | 070 score cardinality | 6 |
+| `neg_plans.ttl` | 080 executable plan shape | 13 |
+| `neg_mutation_payload.ttl` | 090 mutation payload | 7 |
+| `neg_command_boundary.ttl` | 100 command boundary | 6 |
 
-This is **VERIFIER_ALIVE for the local rdflib court**, not a claim that every
-marketplace engine or ggen binary executed here.
+The original v0.1 rdflib court observed `0/0/0/0` on the clean fixture and
+`2/6/1/3` on the original negative fixture for gates 010–040. Those observations
+remain historical evidence for that exact source version; they are not silently
+promoted to the v0.2 head.
+
+## Positive execution-plan witness
+
+`pos_clean.ttl` now contains:
+
+- exact repository/base/patch identity;
+- six governance dimension observations;
+- PASS mutation/clean/replay receipt resources;
+- one governance ProbeSpec;
+- one behavior ProbeSpec;
+- one VerifierSpec;
+- one exact-preimage replace-once MutationSpec.
+
+That prevents the v0.2 plan gates from passing vacuously.
+
+## Generated runtime contracts
+
+A conforming consumer graph manufactures:
+
+- `generated/swe-prometheus-probe-manifest.json`
+  → `autofde-lab.swe-prometheus-probe-manifest/1`
+- `generated/swe-prometheus-mutation-manifest.json`
+  → `autofde-lab.swe-prometheus-mutation-manifest/1`
+- `generated/swe-prometheus-case.json`
+  → `autofde-lab.swe-prometheus-case/1`
+
+The first two are pre-execution plans. The case document is a downstream scored
+artifact and does not itself prove probe execution, reconstruction, mutation
+detection, replay, or production standing.
+
+## Content-addressed source receipt
+
+`qualification/receipt.py` hashes the pack metadata, ontology, court config,
+all gates, templates, and fixtures and emits:
+
+```text
+ggen.swe-prometheus-governance-qualification/1
+```
+
+The receipt identifies source bytes only. It is not a semantic-court PASS.
 
 ## Evidence ceiling
 
-Dual-engine marketplace admission (locked SPARQL + Oxigraph) and real `ggen
-sync` are **UNSUPPORTED in the current execution environment** and are not
-silently promoted to PASS. The PR's repository CI may add independent evidence,
-but CI is not production standing.
+Current-chat local execution cannot reach GitHub from the container, so no local
+claim is made for dual-engine marketplace execution or real ggen sync at this
+v0.2 head. Exact-head repository workflows are the next independent verifier
+source after the PR opens. CI remains verifier evidence and never implies deployed
+production standing.
 
 ## Authority boundary
 
-The pack provides vocabulary, structural gates, fixtures, and a deterministic
-projection template. It does not:
+The pack does not:
 
-- execute install/test/quality/security probes;
-- compute NGI;
-- decide `ALIVE` or `PARTIAL_ALIVE`;
-- mutate the target repository;
-- manufacture authority from an intent hook.
+- run repository commands;
+- clone or mutate target repositories;
+- apply mutation operators;
+- assign 1..5 governance scores;
+- compute NGI/VGG;
+- admit ALIVE;
+- grant DO authority.
 
-Those remain external: paired probes produce evidence; autofde-lab recomputes
-NGI and applies the evidence ceiling.
+Those remain external runtime courts. RDF is the source contract; generated JSON
+is projection; execution receipts are observations; VGG admission is a separate
+court.
