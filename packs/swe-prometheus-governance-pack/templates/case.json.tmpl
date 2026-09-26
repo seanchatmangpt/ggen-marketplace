@@ -1,0 +1,61 @@
+---
+to: generated/swe-prometheus-case.json
+force: true
+sparql:
+  cases: |
+    PREFIX spg: <https://seanchatmangpt.github.io/packs/swe-prometheus-governance#>
+    SELECT ?repository ?baseCommit ?patchDigest ?behavior ?gateStrength
+           ?mutationId ?cleanVerdict ?cleanId ?replayVerdict ?replayId WHERE {
+      ?case a spg:RetrofitCase ;
+            spg:repository ?repository ;
+            spg:baseCommit ?baseCommit ;
+            spg:patchDigest ?patchDigest ;
+            spg:behavior ?behavior ;
+            spg:gateStrength ?gateStrength ;
+            spg:cleanEnvironmentReceipt ?clean ;
+            spg:replayReceipt ?replay .
+      ?clean spg:verdict ?cleanVerdict ; spg:receiptId ?cleanId .
+      ?replay spg:verdict ?replayVerdict ; spg:receiptId ?replayId .
+      OPTIONAL {
+        ?case spg:mutationReceipt ?mutation .
+        ?mutation spg:receiptId ?mutationId .
+      }
+    } ORDER BY ?repository ?baseCommit
+  dimensions: |
+    PREFIX spg: <https://seanchatmangpt.github.io/packs/swe-prometheus-governance#>
+    SELECT ?key ?status ?base ?treated WHERE {
+      ?case a spg:RetrofitCase ; spg:dimensionObservation ?obs .
+      ?obs spg:dimension ?dimension ; spg:evidenceStatus ?status .
+      ?dimension spg:key ?key .
+      OPTIONAL { ?obs spg:baseScore ?base }
+      OPTIONAL { ?obs spg:treatedScore ?treated }
+    } ORDER BY ?key
+---
+{% for c in cases %}
+{
+  "schema": "autofde-lab.swe-prometheus-case/1",
+  "repository": "{{ c.repository }}",
+  "base_commit": "{{ c.baseCommit }}",
+  "patch_digest": "{{ c.patchDigest }}",
+  "behavior": "{{ c.behavior }}",
+  "gate_strength": "{{ c.gateStrength }}",
+  "mutation_receipt_id": {% if c.mutationId %}"{{ c.mutationId }}"{% else %}null{% endif %},
+  "clean_environment": {
+    "verdict": "{{ c.cleanVerdict }}",
+    "receipt_id": "{{ c.cleanId }}"
+  },
+  "replay": {
+    "verdict": "{{ c.replayVerdict }}",
+    "receipt_id": "{{ c.replayId }}"
+  },
+  "dimensions": {
+    {% for d in dimensions %}
+    "{{ d.key }}": {
+      "evidence_status": "{{ d.status }}"{% if d.base %},
+      "base": {{ d.base }}{% endif %}{% if d.treated %},
+      "treated": {{ d.treated }}{% endif %}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  }
+}
+{% endfor %}
