@@ -1,0 +1,33 @@
+# MESSAGE: explain-evidence shape violation.
+# Explain is evidence only when PASS plus provenance, ontology, and rationale ids
+# are all present. Zero rows = clean.
+PREFIX da: <https://seanchatmangpt.github.io/packs/delegation-admission#>
+SELECT ?artifact ?field WHERE {
+  {
+    ?artifact a da:DelegationArtifact ; da:hasExplain ?e .
+    OPTIONAL { ?e da:verdict ?v . BIND(?v AS ?w) }
+    FILTER(!BOUND(?w))
+    BIND("verdict" AS ?field)
+  } UNION {
+    ?artifact a da:DelegationArtifact ; da:hasExplain ?e .
+    ?e da:verdict ?v .
+    FILTER(?v != "PASS")
+    BIND("verdict:not-pass" AS ?field)
+  } UNION {
+    ?artifact a da:DelegationArtifact ; da:hasExplain ?e .
+    OPTIONAL { ?e da:provenanceId ?x . BIND(?x AS ?w) }
+    FILTER(!BOUND(?w))
+    BIND("provenanceId" AS ?field)
+  } UNION {
+    ?artifact a da:DelegationArtifact ; da:hasExplain ?e .
+    OPTIONAL { ?e da:ontologyId ?x . BIND(?x AS ?w) }
+    FILTER(!BOUND(?w))
+    BIND("ontologyId" AS ?field)
+  } UNION {
+    ?artifact a da:DelegationArtifact ; da:hasExplain ?e .
+    OPTIONAL { ?e da:rationaleId ?x . BIND(?x AS ?w) }
+    FILTER(!BOUND(?w))
+    BIND("rationaleId" AS ?field)
+  }
+}
+ORDER BY ?artifact ?field

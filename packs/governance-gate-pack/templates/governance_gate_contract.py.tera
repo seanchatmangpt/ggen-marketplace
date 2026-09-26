@@ -1,0 +1,95 @@
+"""Generated deterministic governance-gate contract.
+
+Source: ontology.ttl via queries/10-profile.rq.
+Generated files are projections; edit the ontology/template, never this output.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Iterable, Mapping
+
+SCHEMA = "ggen.governance-gate/1"
+
+
+class Standing(str, Enum):
+    PROPOSED = "PROPOSED"
+    ADMITTED = "ADMITTED"
+    AUTHORIZED = "AUTHORIZED"
+    PREPARED = "PREPARED"
+    REFUSED = "REFUSED"
+
+
+@dataclass(frozen=True, slots=True)
+class GateInput:
+    admitted: bool
+    authorized: bool
+    prepared_receipt: bool
+
+
+@dataclass(frozen=True, slots=True)
+class GateDecision:
+    standing: Standing
+    ready_for_do: bool
+    refusal_code: str | None = None
+
+
+def classify(value: GateInput) -> GateDecision:
+    if value.prepared_receipt and not value.authorized:
+        return GateDecision(Standing.REFUSED, False, "AUTHORITY_REQUIRED")
+    if value.authorized and not value.admitted:
+        return GateDecision(Standing.REFUSED, False, "NOT_ADMITTED")
+    if value.prepared_receipt and value.authorized and value.admitted:
+        return GateDecision(Standing.PREPARED, True)
+    if value.authorized:
+        return GateDecision(Standing.AUTHORIZED, False)
+    if value.admitted:
+        return GateDecision(Standing.ADMITTED, False)
+    return GateDecision(Standing.PROPOSED, False)
+
+
+def _canonical(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {str(k): _canonical(v) for k, v in sorted(value.items(), key=lambda x: str(x[0]))}
+    if isinstance(value, (list, tuple)):
+        return [_canonical(v) for v in value]
+    if isinstance(value, (set, frozenset)):
+        return sorted((_canonical(v) for v in value), key=repr)
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return repr(value)
+
+
+def _canonical_payload(value: Any) -> str:
+    return json.dumps(_canonical(value), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def observation_digest(value: Any) -> str:
+    return hashlib.sha256(_canonical_payload(value).encode("utf-8")).hexdigest()
+
+
+def evidence_ceiling(cases: Iterable[tuple[str, Any, frozenset[str]]]) -> dict[str, Any] | None:
+    """Return a minimal indistinguishable-input/disjoint-output witness.
+
+    Exact canonical observation equality is the proof condition. SHA-256 is
+    emitted as receipt identity only; hash equality is not used as evidence
+    that observations are equal.
+    """
+    seen: dict[str, list[tuple[str, frozenset[str]]]] = {}
+    for case_id, observation, accepted in cases:
+        canonical = _canonical_payload(observation)
+        bucket = seen.setdefault(canonical, [])
+        for prior_id, prior_accepted in bucket:
+            if prior_accepted.isdisjoint(accepted):
+                return {
+                    "code": "EVIDENCE_CEILING",
+                    "observation_digest": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+                    "left_case_id": prior_id,
+                    "right_case_id": case_id,
+                    "left_accepted_outputs": sorted(prior_accepted),
+                    "right_accepted_outputs": sorted(accepted),
+                }
+        bucket.append((case_id, accepted))
+    return None

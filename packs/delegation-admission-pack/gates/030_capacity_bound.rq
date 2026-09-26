@@ -1,0 +1,21 @@
+# MESSAGE: delegation-capacity violation.
+# The admissible delegation capacity is the MINIMUM scopeUnits across Explain,
+# Verify, Modify, and Account. Any missing scope or any scope below
+# delegationUnits is a refusal row.
+PREFIX da: <https://seanchatmangpt.github.io/packs/delegation-admission#>
+SELECT ?artifact ?edge ?delegated ?scope ?kind WHERE {
+  {
+    VALUES ?edge { da:hasExplain da:hasVerify da:hasModify da:hasAccount }
+    ?artifact a da:DelegationArtifact ; da:delegationUnits ?delegated ; ?edge ?e .
+    OPTIONAL { ?e da:scopeUnits ?s . BIND(?s AS ?w) }
+    FILTER(!BOUND(?w))
+    BIND("scopeUnits:missing" AS ?kind)
+  } UNION {
+    VALUES ?edge { da:hasExplain da:hasVerify da:hasModify da:hasAccount }
+    ?artifact a da:DelegationArtifact ; da:delegationUnits ?delegated ; ?edge ?e .
+    ?e da:scopeUnits ?scope .
+    FILTER(?scope < ?delegated)
+    BIND("scopeUnits:below-delegation" AS ?kind)
+  }
+}
+ORDER BY ?artifact ?edge ?kind

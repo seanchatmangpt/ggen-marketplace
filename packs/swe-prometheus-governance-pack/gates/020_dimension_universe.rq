@@ -1,0 +1,22 @@
+# Violation rows: each exact case has exactly one observation for D1..D6.
+PREFIX spg: <https://seanchatmangpt.github.io/packs/swe-prometheus-governance#>
+SELECT ?case ?dimension ?kind WHERE {
+  {
+    ?case a spg:RetrofitCase .
+    VALUES ?dimension { spg:D1 spg:D2 spg:D3 spg:D4 spg:D5 spg:D6 }
+    FILTER NOT EXISTS {
+      ?case spg:dimensionObservation ?obs .
+      ?obs spg:dimension ?dimension .
+    }
+    BIND("missing" AS ?kind)
+  }
+  UNION
+  {
+    ?case a spg:RetrofitCase ; spg:dimensionObservation ?a, ?b .
+    ?a spg:dimension ?dimension .
+    ?b spg:dimension ?dimension .
+    FILTER(STR(?a) < STR(?b))
+    BIND("duplicate" AS ?kind)
+  }
+}
+ORDER BY ?case ?dimension ?kind

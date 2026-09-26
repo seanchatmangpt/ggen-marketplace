@@ -1,0 +1,34 @@
+# MESSAGE: modify-evidence violation.
+# Modify means a delayed/changed requirement was actually exercised. PASS alone
+# is insufficient without the change identity, resulting artifact/evidence, and
+# replay identity.
+PREFIX da: <https://seanchatmangpt.github.io/packs/delegation-admission#>
+SELECT ?artifact ?field WHERE {
+  {
+    ?artifact a da:DelegationArtifact ; da:hasModify ?e .
+    OPTIONAL { ?e da:verdict ?v . BIND(?v AS ?w) }
+    FILTER(!BOUND(?w))
+    BIND("verdict" AS ?field)
+  } UNION {
+    ?artifact a da:DelegationArtifact ; da:hasModify ?e .
+    ?e da:verdict ?v .
+    FILTER(?v != "PASS")
+    BIND("verdict:not-pass" AS ?field)
+  } UNION {
+    ?artifact a da:DelegationArtifact ; da:hasModify ?e .
+    OPTIONAL { ?e da:changeId ?x . BIND(?x AS ?w) }
+    FILTER(!BOUND(?w))
+    BIND("changeId" AS ?field)
+  } UNION {
+    ?artifact a da:DelegationArtifact ; da:hasModify ?e .
+    OPTIONAL { ?e da:resultId ?x . BIND(?x AS ?w) }
+    FILTER(!BOUND(?w))
+    BIND("resultId" AS ?field)
+  } UNION {
+    ?artifact a da:DelegationArtifact ; da:hasModify ?e .
+    OPTIONAL { ?e da:replayId ?x . BIND(?x AS ?w) }
+    FILTER(!BOUND(?w))
+    BIND("replayId" AS ?field)
+  }
+}
+ORDER BY ?artifact ?field

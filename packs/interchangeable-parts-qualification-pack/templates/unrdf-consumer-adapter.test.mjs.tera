@@ -1,0 +1,115 @@
+/**
+ * GENERATED CONSUMER COURT — source is ontology/query/template.
+ */
+{% for row in rows %}
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  IPQ_ADAPTER_CONTRACT,
+  admitReceiptedSubstitution,
+  evaluateCandidate,
+  manufacturePassport,
+  manufactureReceipt,
+  manufactureRequirement,
+} from './unrdf-consumer-adapter.mjs';
+
+const contract = Object.freeze({
+  semanticContract: 'urn:test:semantic:v1',
+  inputContract: 'urn:test:input:v1',
+  outputContract: 'urn:test:output:v1',
+  stateContract: 'urn:test:state:v1',
+  rulesContract: 'urn:test:rules:v1',
+  informationFlowContract: 'urn:test:flow:v1',
+  lifecycleContract: 'urn:test:lifecycle:v1',
+});
+
+function requirement() {
+  return manufactureRequirement({
+    requirementId: 'req:test',
+    ...contract,
+    expectedInputs: ['x'],
+    requiredGuarantees: ['g'],
+    allowedEffects: ['read'],
+    allowedFailures: ['timeout'],
+    allowedAuthorityIssuers: ['brce'],
+    allowedCapabilities: ['select'],
+    maxDelegationDepth: 1,
+    resourceCeilings: { cpu: 1 },
+    requiredVerifiers: ['court'],
+    receiptSchema: 'consumer.receipt/1',
+    replayRequired: true,
+    allowedRuntimes: ['node'],
+  });
+}
+
+function passport(overrides = {}) {
+  return manufacturePassport({
+    partId: 'part:test',
+    version: '1',
+    artifactDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    ...contract,
+    acceptedInputs: ['x'],
+    guarantees: ['g'],
+    effects: ['read'],
+    failures: ['timeout'],
+    authorityIssuer: 'brce',
+    authoritySubject: 'subject:test',
+    capabilities: ['select'],
+    delegationDepth: 1,
+    resources: { cpu: 0.5 },
+    verifiers: ['court'],
+    receiptSchema: 'consumer.receipt/1',
+    replay: true,
+    runtime: 'node',
+    provenance: {
+      source: 'fixture:generated-consumer-court',
+      artifactDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    },
+    ...overrides,
+  });
+}
+
+test('generated adapter stays bound to canonical UNRDF schemas and no authority', () => {
+  assert.equal(IPQ_ADAPTER_CONTRACT.schema, '{{ row.adapterSchema }}');
+  assert.equal(IPQ_ADAPTER_CONTRACT.requirementSchema, '{{ row.requirementSchema }}');
+  assert.equal(IPQ_ADAPTER_CONTRACT.passportSchema, '{{ row.passportSchema }}');
+  assert.equal(IPQ_ADAPTER_CONTRACT.judgementSchema, '{{ row.judgementSchema }}');
+  assert.equal(IPQ_ADAPTER_CONTRACT.receiptSchema, '{{ row.receiptSchema }}');
+  assert.equal(IPQ_ADAPTER_CONTRACT.authority, 'none');
+  assert.equal(IPQ_ADAPTER_CONTRACT.grantsDoAuthority, false);
+});
+
+test('receipted consequence-preserving candidate is admitted without a DO grant', () => {
+  const req = requirement();
+  const candidate = passport();
+  const evaluation = evaluateCandidate({ requirement: req, candidate });
+  assert.equal(evaluation.state, 'ADMITTED');
+
+  const substitutionReceipt = manufactureReceipt({
+    requirement: req,
+    candidate,
+    receipt: {
+      receiptId: 'ipq-generated-court-1',
+      timestamp: '2026-09-25T00:00:00.000Z',
+    },
+  });
+
+  const admission = admitReceiptedSubstitution({
+    requirement: req,
+    candidate,
+    substitutionReceipt,
+  });
+  assert.equal(admission.state, 'ADMITTED');
+  assert.equal(admission.receiptValid, true);
+  assert.equal(admission.authority, 'none');
+  assert.equal(admission.grantsDoAuthority, false);
+});
+
+test('effect widening remains refused by canonical UNRDF semantics', () => {
+  const req = requirement();
+  const candidate = passport({ effects: ['read', 'write'] });
+  const evaluation = evaluateCandidate({ requirement: req, candidate });
+  assert.equal(evaluation.state, 'REFUSED');
+  assert.equal(evaluation.falsifier?.code, 'CONSEQUENCE_WIDENING_REFUSED');
+});
+{% endfor %}
