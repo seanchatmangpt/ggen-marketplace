@@ -1,5 +1,7 @@
 import importlib.util
+import sys
 import unittest
+from importlib.machinery import SourceFileLoader
 from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
@@ -7,10 +9,13 @@ CONTRACT = ROOT / "templates" / "governance_gate_contract.py.tera"
 
 
 def load_contract():
-    spec = importlib.util.spec_from_file_location("governance_gate_contract", CONTRACT)
+    name = "governance_gate_contract"
+    loader = SourceFileLoader(name, str(CONTRACT))
+    spec = importlib.util.spec_from_loader(name, loader)
+    assert spec is not None
     module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(module)
+    sys.modules[name] = module
+    loader.exec_module(module)
     return module
 
 
