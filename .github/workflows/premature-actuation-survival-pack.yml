@@ -1,0 +1,77 @@
+name: Premature actuation survival pack exact head
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "packs/premature-actuation-survival-pack/**"
+      - ".github/workflows/premature-actuation-survival-pack.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  survival-pack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Admit exact subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$expected"
+          printf "survival_pack_exact_head=%s\n" "$actual"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install semantic runner dependency
+        run: python -m pip install "rdflib==7.2.1"
+
+      - name: Validate marketplace structure
+        run: python scripts/marketplace.py validate
+
+      - name: Validate gate witness court correspondence
+        run: |
+          python scripts/check_gate_witness_courts.py \
+            --report "${RUNNER_TEMP}/survival-gate-courts.json"
+          python -m json.tool "${RUNNER_TEMP}/survival-gate-courts.json" >/dev/null
+
+      - name: Execute every survival gate against pass and fail witnesses
+        shell: bash
+        run: |
+          set -euo pipefail
+          pack="packs/premature-actuation-survival-pack"
+          runner="$pack/runners/semantic_runner.py"
+          cases=0
+          for gate in "$pack"/gates/*.rq; do
+            stem="$(basename "$gate" .rq)"
+            python "$runner" \
+              --gate "$gate" \
+              --witness "$pack/witnesses/pass/$stem.ttl" \
+              --expectation pass
+            python "$runner" \
+              --gate "$gate" \
+              --witness "$pack/witnesses/fail/$stem.ttl" \
+              --expectation fail
+            cases=$((cases + 2))
+          done
+          test "$cases" -eq 10
+          printf "survival_gate_cases=%s\n" "$cases"
+
+      - name: Assert no ambient authority in shipped positive fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R --line-number --fixed-string 'pas:grantsDoAuthority true' \
+            packs/premature-actuation-survival-pack/witnesses/pass \
+            packs/premature-actuation-survival-pack/qualification/fixtures/pos_survival.ttl
