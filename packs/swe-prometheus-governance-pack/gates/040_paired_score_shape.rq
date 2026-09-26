@@ -1,0 +1,41 @@
+# Violation rows: PASS evidence is paired executable/structured evidence, not
+# configuration presence. It needs both scores, each in the paper's [1,5] range.
+PREFIX spg: <https://seanchatmangpt.github.io/packs/swe-prometheus-governance#>
+SELECT ?obs ?kind WHERE {
+  {
+    ?obs a spg:DimensionObservation ; spg:evidenceStatus "pass" .
+    OPTIONAL { ?obs spg:baseScore ?b1 . BIND(?b1 AS ?w1) }
+    FILTER(!BOUND(?w1))
+    BIND("missing-base-score" AS ?kind)
+  }
+  UNION
+  {
+    ?obs a spg:DimensionObservation ; spg:evidenceStatus "pass" .
+    OPTIONAL { ?obs spg:treatedScore ?t1 . BIND(?t1 AS ?w2) }
+    FILTER(!BOUND(?w2))
+    BIND("missing-treated-score" AS ?kind)
+  }
+  UNION
+  {
+    ?obs a spg:DimensionObservation ;
+         spg:evidenceStatus "pass" ;
+         spg:baseScore ?b2 .
+    FILTER(?b2 < 1 || ?b2 > 5)
+    BIND("base-score-out-of-range" AS ?kind)
+  }
+  UNION
+  {
+    ?obs a spg:DimensionObservation ;
+         spg:evidenceStatus "pass" ;
+         spg:treatedScore ?t2 .
+    FILTER(?t2 < 1 || ?t2 > 5)
+    BIND("treated-score-out-of-range" AS ?kind)
+  }
+  UNION
+  {
+    ?obs a spg:DimensionObservation ; spg:evidenceStatus ?status .
+    FILTER(?status NOT IN ("pass", "fail", "timeout", "unavailable", "not_applicable"))
+    BIND("invalid-evidence-status" AS ?kind)
+  }
+}
+ORDER BY ?obs ?kind
