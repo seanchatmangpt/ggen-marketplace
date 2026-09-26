@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from enum import Enum
+from itertools import combinations
 from typing import Any, Iterable, Mapping
 
 SCHEMA = "ggen.governance-gate/1"
@@ -36,6 +37,36 @@ class GateDecision:
     refusal_code: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class GateDecisionReceipt:
+    subject_id: str
+    input: GateInput
+    decision: GateDecision
+    digest: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": SCHEMA,
+            "subject_id": self.subject_id,
+            "input": asdict(self.input),
+            "decision": {
+                "standing": self.decision.standing.value,
+                "ready_for_do": self.decision.ready_for_do,
+                "refusal_code": self.decision.refusal_code,
+            },
+            "digest": self.digest,
+        }
+
+
+class GovernanceGateRefusal(ValueError):
+    def __init__(self, decision: GateDecision) -> None:
+        self.decision = decision
+        super().__init__(
+            decision.refusal_code
+            or f"NOT_READY_FOR_DO:{decision.standing.value}"
+        )
+
+
 def classify(value: GateInput) -> GateDecision:
     if value.prepared_receipt and not value.authorized:
         return GateDecision(Standing.REFUSED, False, "AUTHORITY_REQUIRED")
@@ -50,46 +81,110 @@ def classify(value: GateInput) -> GateDecision:
     return GateDecision(Standing.PROPOSED, False)
 
 
+def require_ready_for_do(value: GateInput) -> GateDecision:
+    decision = classify(value)
+    if not decision.ready_for_do:
+        raise GovernanceGateRefusal(decision)
+    return decision
+
+
 def _canonical(value: Any) -> Any:
     if isinstance(value, Mapping):
-        return {str(k): _canonical(v) for k, v in sorted(value.items(), key=lambda x: str(x[0]))}
+        return {
+            str(k): _canonical(v)
+            for k, v in sorted(value.items(), key=lambda x: str(x[0]))
+        }
     if isinstance(value, (list, tuple)):
         return [_canonical(v) for v in value]
     if isinstance(value, (set, frozenset)):
         return sorted((_canonical(v) for v in value), key=repr)
+    if isinstance(value, Enum):
+        return value.value
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
+    if hasattr(value, "__dataclass_fields__"):
+        return _canonical(asdict(value))
     return repr(value)
 
 
 def _canonical_payload(value: Any) -> str:
-    return json.dumps(_canonical(value), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return json.dumps(
+        _canonical(value),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+
+
+def _digest(value: Any) -> str:
+    return "sha256:" + hashlib.sha256(
+        _canonical_payload(value).encode("utf-8")
+    ).hexdigest()
+
+
+def decision_receipt(subject_id: str, value: GateInput) -> GateDecisionReceipt:
+    if not subject_id:
+        raise ValueError("SUBJECT_ID_REQUIRED")
+    decision = classify(value)
+    body = {
+        "schema": SCHEMA,
+        "subject_id": subject_id,
+        "input": value,
+        "decision": decision,
+    }
+    return GateDecisionReceipt(
+        subject_id=subject_id,
+        input=value,
+        decision=decision,
+        digest=_digest(body),
+    )
+
+
+def replay_receipt(receipt: GateDecisionReceipt) -> GateDecision:
+    """Replay classification and refuse any receipt whose digest drifted."""
+    fresh = decision_receipt(receipt.subject_id, receipt.input)
+    if fresh.digest != receipt.digest:
+        raise ValueError("RECEIPT_DIGEST_MISMATCH")
+    if fresh.decision != receipt.decision:
+        raise ValueError("RECEIPT_DECISION_MISMATCH")
+    return fresh.decision
 
 
 def observation_digest(value: Any) -> str:
-    return hashlib.sha256(_canonical_payload(value).encode("utf-8")).hexdigest()
+    return _digest(value)
 
 
-def evidence_ceiling(cases: Iterable[tuple[str, Any, frozenset[str]]]) -> dict[str, Any] | None:
-    """Return a minimal indistinguishable-input/disjoint-output witness.
-
-    Exact canonical observation equality is the proof condition. SHA-256 is
-    emitted as receipt identity only; hash equality is not used as evidence
-    that observations are equal.
-    """
-    seen: dict[str, list[tuple[str, frozenset[str]]]] = {}
+def evidence_obstructions(
+    cases: Iterable[tuple[str, Any, frozenset[str]]],
+) -> tuple[dict[str, Any], ...]:
+    """Return every exact-observation/disjoint-output obstruction."""
+    buckets: dict[str, list[tuple[str, frozenset[str]]]] = {}
+    witnesses: list[dict[str, Any]] = []
     for case_id, observation, accepted in cases:
+        if not case_id:
+            raise ValueError("CASE_ID_REQUIRED")
+        if not accepted:
+            raise ValueError(f"ACCEPTED_OUTPUTS_REQUIRED:{case_id}")
         canonical = _canonical_payload(observation)
-        bucket = seen.setdefault(canonical, [])
+        bucket = buckets.setdefault(canonical, [])
         for prior_id, prior_accepted in bucket:
             if prior_accepted.isdisjoint(accepted):
-                return {
-                    "code": "EVIDENCE_CEILING",
-                    "observation_digest": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
-                    "left_case_id": prior_id,
-                    "right_case_id": case_id,
-                    "left_accepted_outputs": sorted(prior_accepted),
-                    "right_accepted_outputs": sorted(accepted),
-                }
+                witnesses.append(
+                    {
+                        "code": "EVIDENCE_CEILING",
+                        "observation_digest": _digest(observation),
+                        "left_case_id": prior_id,
+                        "right_case_id": case_id,
+                        "left_accepted_outputs": sorted(prior_accepted),
+                        "right_accepted_outputs": sorted(accepted),
+                    }
+                )
         bucket.append((case_id, accepted))
-    return None
+    return tuple(witnesses)
+
+
+def evidence_ceiling(
+    cases: Iterable[tuple[str, Any, frozenset[str]]],
+) -> dict[str, Any] | None:
+    witnesses = evidence_obstructions(cases)
+    return witnesses[0] if witnesses else None
