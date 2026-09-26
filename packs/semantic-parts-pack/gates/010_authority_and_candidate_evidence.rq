@@ -1,0 +1,41 @@
+# MESSAGE: semantic-part observations and substitution candidates are
+# SELECT/CONSTRUCT evidence only. Any row is a refusal: ambient authority was
+# asserted, a candidate has no shared semantic identity/evidence, or a
+# CodeGraph-derived candidate was promoted directly to VERIFIED.
+PREFIX sp: <https://chatmangpt.com/ontology/semantic-parts#>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+
+SELECT ?subject ?reason WHERE {
+  {
+    ?subject a ?type ;
+             sp:authorityBoundary ?authority .
+    VALUES ?type { sp:SoftwarePart sp:SubstitutionCandidate }
+    FILTER(STR(?authority) != "NONE")
+    BIND("AMBIENT_AUTHORITY" AS ?reason)
+  }
+  UNION
+  {
+    ?subject a sp:SubstitutionCandidate .
+    FILTER NOT EXISTS { ?subject sp:sharedSemanticIdentity ?identity }
+    BIND("CANDIDATE_WITHOUT_SHARED_SEMANTICS" AS ?reason)
+  }
+  UNION
+  {
+    ?subject a sp:SubstitutionCandidate .
+    FILTER NOT EXISTS { ?subject sp:evidenceRef ?evidence }
+    BIND("CANDIDATE_WITHOUT_EVIDENCE" AS ?reason)
+  }
+  UNION
+  {
+    ?subject a sp:SubstitutionCandidate ;
+             sp:standing sp:Verified ;
+             sp:evidenceRef ?evidence .
+    ?evidence prov:wasDerivedFrom sp:CodeGraphReleaseV1 .
+    FILTER NOT EXISTS {
+      ?subject sp:evidenceRef ?independent .
+      FILTER(?independent != ?evidence)
+    }
+    BIND("CODEGRAPH_ALONE_CANNOT_VERIFY_SUBSTITUTION" AS ?reason)
+  }
+}
+ORDER BY ?subject ?reason
