@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from rdflib import Graph, Literal, Namespace, URIRef
+from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import RDF, RDFS
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -111,7 +111,7 @@ def test_excerpt_split_across_short_literals_on_one_side_node_is_refused() -> No
     side = URIRef("urn:example:untyped-side")
     for index in range(5):
         graph.add((side, SD.note, Literal(f"{index}" + "k" * 89)))
-    assert reasons(graph, "050_no_excerpt") == ["literals-over-400-chars-total-on-any-node"]
+    assert "literals-over-400-chars-total-on-any-node" in reasons(graph, "050_no_excerpt")
 
 
 def test_nonclaim_prose_as_shipped_stays_under_the_side_node_budget() -> None:
@@ -260,6 +260,166 @@ def test_gate_latency_stays_within_the_recorded_regression_bound() -> None:
         assert observed["median_seconds"][stem] <= ceiling, (stem, observed["median_seconds"][stem], ceiling)
     assert observed["rows"] == {gate.stem: 0 for gate in GATES}
     # Scaling: 4x the strategies may cost at most the recorded growth bound.
-    small = bench_gates.measure(bench_gates.synthetic_graph(16), repeats=1)["total_seconds"]
-    large = bench_gates.measure(bench_gates.synthetic_graph(64), repeats=1)["total_seconds"]
+    small_report = bench_gates.measure(bench_gates.synthetic_graph(16), repeats=3)
+    large_report = bench_gates.measure(bench_gates.synthetic_graph(64), repeats=3)
+    small, large = small_report["total_seconds"], large_report["total_seconds"]
     assert large <= max(small * bound["scale_4x_factor"], bound["floor_seconds"]), (small, large)
+    # Per gate: one superlinear gate must not hide behind fast ones in the total.
+    assert bench_gates.per_gate_scale_violations(small_report, large_report, bound) == {}
+
+
+def test_recorded_benchmark_has_no_per_gate_scale_violation_and_matches_the_gates() -> None:
+    receipt = json.loads((PACK / "benchmarks" / "receipt.json").read_text(encoding="utf-8"))
+    assert receipt["gate_sha256"] == bench_gates.gate_digests()
+    assert receipt["per_gate_scale_violations"] == {}
+    bound = receipt["regression_bound"]
+    assert bound["per_gate_scale_4x_factor"] < 9.0  # a quadratic gate (3x triples -> ~9x) is out of bound
+    assert receipt["doctrine"]["repeats"] >= 5
+
+
+def test_per_gate_scale_bound_refuses_a_quadratic_gate_the_total_would_hide() -> None:
+    # Real recorded shape from the abcfa493 receipt: gate 050 grew 8.9x while
+    # the total grew 4.24x (inside the total bound). The per-gate bound refuses it.
+    small = {"median_seconds": {"050_no_excerpt": 0.7836, "020_applicability_public_class_only": 1.0311}}
+    large = {"median_seconds": {"050_no_excerpt": 6.9585, "020_applicability_public_class_only": 1.1032}}
+    assert bench_gates.per_gate_scale_violations(small, large) == {"050_no_excerpt": 8.88}
+
+
+# --- round-3 court findings: gate 050 split excerpts over the whole graph ---
+#
+# Each case reproduces a probe that was ADMITTED on abcfa493 (every gate 0
+# rows): text spread over side nodes, IRIs, blank-node chains or typed
+# counter-strategy nodes, linked by predicates outside the five closure
+# predicates, each node under its own cap. Gate 050 now bounds the prose and
+# IRI text carried OUTSIDE the catalog-entry closures for the whole graph.
+
+
+def _probe_graph() -> Graph:
+    return bench_gates.doctrine_graph()
+
+
+def _residual_reasons(graph: Graph) -> set[str]:
+    return set(reasons(graph, "050_no_excerpt")) & {
+        "prose-outside-catalog-closures-over-5100-chars",
+        "iri-text-outside-catalog-closures-over-1900-chars",
+        "iri-text-over-400-chars-across-strategy-closure",
+        "literals-over-400-chars-total-across-strategy-closure",
+    }
+
+
+def test_excerpt_split_over_untyped_side_nodes_linked_by_see_also_is_refused() -> None:
+    graph = _probe_graph()
+    for index in range(10):
+        side = URIRef(f"urn:x:s{index}")
+        graph.add((SD["strategy-11"], RDFS.seeAlso, side))
+        graph.add((side, SD.note, Literal("e" * 300)))
+    assert "prose-outside-catalog-closures-over-5100-chars" in reasons(graph, "050_no_excerpt")
+
+
+def test_excerpt_split_over_unlinked_side_nodes_each_under_every_node_cap_is_refused() -> None:
+    graph = _probe_graph()
+    for index in range(10):
+        graph.add((URIRef(f"urn:x:orphan-{index}"), SD.note, Literal(f"{index}" + "q" * 49)))
+    assert set(reasons(graph, "050_no_excerpt")) == {"prose-outside-catalog-closures-over-5100-chars"}
+
+
+def test_excerpt_carried_in_many_iri_local_names_is_refused() -> None:
+    graph = _probe_graph()
+    for index in range(20):
+        graph.add((SD["strategy-11"], RDFS.seeAlso, URIRef("urn:x:" + f"{index:02d}" + "w" * 58)))
+    assert "iri-text-outside-catalog-closures-over-1900-chars" in reasons(graph, "050_no_excerpt")
+
+
+def test_excerpt_carried_in_iri_local_names_inside_one_closure_is_refused() -> None:
+    graph = _probe_graph()
+    for index in range(8):
+        step = URIRef("urn:x:" + f"{index:02d}" + "v" * 58)
+        graph.add((SD["strategy-11"], SD.appliesWhen, step))
+    assert "iri-text-over-400-chars-across-strategy-closure" in reasons(graph, "050_no_excerpt")
+
+
+def test_excerpt_carried_in_minted_predicate_iris_is_refused() -> None:
+    graph = _probe_graph()
+    for index in range(20):
+        graph.add((SD["strategy-11"], URIRef("urn:x:p" + f"{index:02d}" + "u" * 57), Literal("1")))
+    assert "iri-text-outside-catalog-closures-over-1900-chars" in reasons(graph, "050_no_excerpt")
+
+
+def test_excerpt_split_over_a_blank_node_chain_is_refused() -> None:
+    graph = _probe_graph()
+    previous = SD["strategy-11"]
+    for _ in range(5):
+        node = BNode()
+        graph.add((previous, RDFS.seeAlso, node))
+        graph.add((node, RDFS.comment, Literal("c" * 300)))
+        previous = node
+    assert "prose-outside-catalog-closures-over-5100-chars" in reasons(graph, "050_no_excerpt")
+
+
+def test_excerpt_split_over_typed_counter_strategy_nodes_is_refused() -> None:
+    graph = _probe_graph()
+    for index in range(10):
+        counter = URIRef(f"urn:x:cs{index}")
+        graph.add((SD["strategy-11"], SD.counteredBy, counter))
+        graph.add((counter, RDF.type, SD.CounterStrategy))
+        graph.add((counter, RDFS.label, Literal("k" * 60)))
+        graph.add((counter, RDFS.comment, Literal("m" * 60)))
+    assert "prose-outside-catalog-closures-over-5100-chars" in reasons(graph, "050_no_excerpt")
+
+
+def test_extra_catalog_entries_reusing_an_ordinal_are_refused() -> None:
+    graph = _probe_graph()
+    fake = URIRef("urn:x:second-eleven")
+    graph.add((fake, RDF.type, SD.CatalogEntry))
+    graph.add((fake, SD.ordinal, Literal(11)))
+    graph.add((fake, SD.shortTitle, Literal("Own title reusing ordinal eleven")))
+    rows = list(graph.query((PACK / "gates" / "050_no_excerpt.rq").read_text(encoding="utf-8")))
+    shared = {str(row.subject) for row in rows if str(row.reason) == "catalog-ordinal-shared-by-several-entries"}
+    assert shared == {str(fake), str(SD["strategy-11"])}
+
+
+def test_text_carried_in_a_minted_literal_datatype_is_refused() -> None:
+    graph = _probe_graph()
+    graph.add((URIRef("urn:x:typed"), SD.note, Literal("1", datatype=URIRef("urn:x:" + "d" * 50))))
+    assert "literal-datatype-outside-xsd-and-rdf" in reasons(graph, "050_no_excerpt")
+
+
+def test_numeric_and_temporal_world_observations_do_not_consume_the_prose_budget() -> None:
+    graph = _probe_graph()
+    # IRI text is counted for every IRI (world IRIs included: the IRI budget is
+    # a ratchet), so the observations reuse four nodes; what must not count
+    # is the 800 numeric and temporal literal values themselves.
+    observations = [URIRef(f"urn:x:obs-{index}") for index in range(4)]
+    for index in range(400):
+        observation = observations[index % 4]
+        graph.add((observation, SD.note, Literal(0.125 + index)))
+        graph.add((observation, SD.note, Literal(f"2026-09-{1 + index % 28:02d}T23:59:{index % 60:02d}Z")))
+    assert _residual_reasons(graph) == set()
+
+
+def test_shipped_doctrine_leaves_headroom_under_every_whole_graph_budget() -> None:
+    graph = _probe_graph()
+    assert _residual_reasons(graph) == set()
+    # 400 chars of new side prose (one closure's worth) is still admitted ...
+    graph.add((URIRef("urn:x:headroom"), SD.note, Literal("h" * 200)))
+    graph.add((URIRef("urn:x:headroom-2"), SD.note, Literal("h" * 200)))
+    assert fired(graph) == {}
+
+
+# --- round-3 court findings: vacuity audit delta --------------------------
+
+
+def test_pack_sources_carry_no_blocking_vacuity_marker() -> None:
+    # The repository's own audit (scripts/audit_vacuity.py) is the admission
+    # function: the delta gate refuses any new error-severity finding.
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import audit_vacuity  # noqa: E402  (real repository module)
+
+    blocking = []
+    for path in sorted(PACK.rglob("*")):
+        if not path.is_file() or "__pycache__" in path.parts:
+            continue
+        relative = path.relative_to(ROOT).as_posix()
+        blocking.extend(f for f in audit_vacuity.scan_content("pack", relative, path.read_bytes())
+                        if f.severity == "error")
+    assert blocking == []

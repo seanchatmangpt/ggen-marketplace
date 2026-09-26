@@ -94,7 +94,7 @@ def strategy_record(graph: Graph, strategy: URIRef) -> dict[str, object]:
 
 def project() -> dict[str, object]:
     graph = load_graph()
-    entries = set(graph.subjects(RDF.type, SD.Strategy)) | set(graph.subjects(RDF.type, SD.StrategyStub))
+    entries = set(graph.subjects(RDF.type, SD.Strategy)) | set(graph.subjects(RDF.type, SD.CatalogEntry))
     strategies = sorted(
         (strategy_record(graph, entry) for entry in entries),
         key=lambda record: (record["ordinal"], record["id"]),

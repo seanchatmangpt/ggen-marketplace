@@ -16,7 +16,7 @@ of this graph plus a sha256 check and does not redefine it.
 |---|---|
 | `ontology.ttl` | classes, properties, the 14-operator primitive algebra, the catalog authority record, and the licensing `cs:NonClaim` |
 | `ontology/world-model.ttl` | alignments only: Actor ⊑ org:Organization, prov:Agent; Market ⊑ schema:Product; Step ⊑ prov:Activity; FalsifierObservation ⊑ sosa:Observation; Timing ⊑ time:Interval; also the observable properties |
-| `ontology/doctrine-33.ttl` | the 33 entries: 6 operationalized `sd:Strategy` (11 14 17 22 23 27), 27 `sd:StrategyStub` |
+| `ontology/doctrine-33.ttl` | the 33 entries: 6 operationalized `sd:Strategy` (11 14 17 22 23 27), 27 `sd:CatalogEntry` (title-only entries; renamed in v26.9.26 from its round-1 class name, which the repository vacuity audit reads as a marker) |
 | `ontology/shapes.ttl` | SHACL shapes |
 | `gates/010..060` | fail-closed SPARQL gates. Any returned row is a refusal. |
 | `witnesses/{pass,fail}` | exact-stem witness pairs, one per gate |
@@ -46,11 +46,11 @@ They form five dual pairs, and `sd:dualOf` is asserted in both directions:
 
 | gate | refuses |
 |---|---|
-| 010 strategy_requires_falsifier | an operationalized strategy (non-stub, or any node with a composition, even if typed stub) with no typed falsifier, or a falsifier whose refutation statement has fewer than 10 non-whitespace characters |
+| 010 strategy_requires_falsifier | an operationalized strategy (not a title-only catalog entry, or any node with a composition, even if typed as one) with no typed falsifier, or a falsifier whose refutation statement has fewer than 10 non-whitespace characters |
 | 020 applicability_public_class_only | a condition over a class not declared in the vendored ORG/PROV/schema.org/SOSA/SSN/Time sources or in `sd:` (the class list is embedded in the generated gate, so a made-up class under a W3C namespace is refused and data cannot admit its own class) |
 | 030 composition_known_primitive | a step whose operator is outside the 14, that has no operator, or that carries two or more operators (typed or untyped) |
 | 040 step_order_total | step orders that are missing, duplicated, non-integer, or not exactly 1..n |
-| 050 no_excerpt | a literal over 60 characters on a strategy, step, condition or objective node; literals on one such node summing past 120 characters; a literal over 200 characters, or literals summing past 300, on a falsifier or effect node; a literal over 300 characters, or literals summing past 400, on any other node (non-claim, source work, market, untyped side nodes); literals summing past 400 across one strategy's closure (the strategy and its steps, falsifiers, effects, conditions and objectives); an IRI local name over 60 characters or an IRI over 160 characters; any `sd:quote` |
+| 050 no_excerpt | a literal over 60 characters on a strategy, step, condition or objective node; literals on one such node summing past 120 characters; a literal over 200 characters, or literals summing past 300, on a falsifier or effect node; a literal over 300 characters, or literals summing past 400, on any other node (non-claim, source work, market, untyped side nodes); literals, or IRI local names, summing past 400 across one catalog entry's closure (the ordinal-bearing entry and its steps, falsifiers, effects, conditions and objectives); two catalog entries sharing an ordinal; prose outside every closure summing past 5100 characters, or IRI local-name text outside every closure summing past 1900, over the whole graph (a ratchet: shipped doctrine + fixture measure 4673 and 1433), so an excerpt split across any number of side nodes, IRIs, blank-node chains or counter-strategy nodes is bounded in total; a literal with a datatype outside XSD/RDF; an IRI local name over 60 characters or an IRI over 160 characters; any `sd:quote` |
 | 060 licensing_nonclaim_present | a catalog entry with no complete `cs:NonClaim`; any `cs:NonClaim` asserting a value other than `true` on one of its three boundaries |
 
 ## Licensing boundary

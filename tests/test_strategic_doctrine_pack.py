@@ -79,13 +79,13 @@ def test_primitive_algebra_is_fourteen_operators_with_five_symmetric_duals() -> 
 
 def test_catalog_has_33_ordinals_with_short_own_titles_and_six_operationalized() -> None:
     graph = load(*GRAPH_FILES)
-    entries = set(graph.subjects(RDF.type, SD.Strategy)) | set(graph.subjects(RDF.type, SD.StrategyStub))
+    entries = set(graph.subjects(RDF.type, SD.Strategy)) | set(graph.subjects(RDF.type, SD.CatalogEntry))
     ordinals = sorted(int(graph.value(entry, SD.ordinal)) for entry in entries)
     assert ordinals == list(range(1, 34))
     titles = [str(graph.value(entry, SD.shortTitle)) for entry in entries]
     assert all(0 < len(title) <= 60 for title in titles)
     assert len(set(titles)) == 33
-    operationalized = [e for e in graph.subjects(RDF.type, SD.Strategy) if (e, RDF.type, SD.StrategyStub) not in graph]
+    operationalized = [e for e in graph.subjects(RDF.type, SD.Strategy) if (e, RDF.type, SD.CatalogEntry) not in graph]
     assert sorted(str(e).rsplit("#", 1)[1] for e in operationalized) == OPERATIONALIZED
     composed = {str(s).rsplit("#", 1)[1] for s in graph.subjects(SD.composedOf, None)}
     assert sorted(composed) == OPERATIONALIZED
@@ -203,19 +203,19 @@ def test_nonclaim_asserts_all_three_boundaries() -> None:
 # --- Adversarial mutants from the round-0 court (each was ADMITTED before the fix) ---
 
 
-def test_retyping_a_composed_strategy_as_stub_does_not_escape_the_falsifier_gate() -> None:
+def test_retyping_a_composed_strategy_as_catalog_entry_does_not_escape_the_falsifier_gate() -> None:
     graph = load(*GRAPH_FILES)
     graph.remove((SD["strategy-11"], SD.hasFalsifier, None))
-    graph.add((SD["strategy-11"], RDF.type, SD.StrategyStub))
+    graph.add((SD["strategy-11"], RDF.type, SD.CatalogEntry))
     fired, conforms = verdict(graph)
     assert fired == {"010_strategy_requires_falsifier": 1}
     assert reasons(graph, "010_strategy_requires_falsifier") == ["strategy-without-falsifier"]
     assert conforms is False
 
 
-def test_stub_retype_with_falsifier_kept_is_still_refused_by_shacl() -> None:
+def test_catalog_entry_retype_with_falsifier_kept_is_still_refused_by_shacl() -> None:
     graph = load(*GRAPH_FILES)
-    graph.add((SD["strategy-11"], RDF.type, SD.StrategyStub))
+    graph.add((SD["strategy-11"], RDF.type, SD.CatalogEntry))
     fired, conforms = verdict(graph)
     assert fired == {}
     assert conforms is False

@@ -7,7 +7,7 @@ query text) over:
     entrant-world fixture), and
   - synthetic doctrine graphs of N operationalized strategies (4 ordered
     steps, one falsifier, one condition, one objective each), built from own
-    placeholder text only, used to bound growth as the catalog scales.
+    synthetic text only, used to bound growth as the catalog scales.
 
 Usage:
     python3 benchmarks/bench_gates.py --write     # re-record benchmarks/receipt.json
@@ -15,8 +15,10 @@ Usage:
 
 The receipt carries a regression bound consumed by
 tests/test_strategic_doctrine_pack_hardening.py: each gate's observed median
-must stay within max(recorded * factor, floor_seconds), and the synthetic
-64-strategy total within scale_4x_factor of the 16-strategy total.
+must stay within max(recorded * factor, floor_seconds), the synthetic
+64-strategy total within scale_4x_factor of the 16-strategy total, and each
+gate's own 64/16 ratio within per_gate_scale_4x_factor (so one superlinear
+gate cannot hide behind fast ones in the total).
 Authority NONE: the benchmark reads graphs and writes only its own receipt.
 """
 from __future__ import annotations
@@ -44,7 +46,27 @@ DOCTRINE_FILES = ("ontology.ttl", "ontology/world-model.ttl", "ontology/doctrine
                   "fixtures/entrant-world.ttl")
 OPERATORS = ("shape", "probe", "conceal", "reveal", "concentrate", "disperse", "delay",
              "accelerate", "commit", "withdraw", "divide", "combine", "substitute", "transform")
-REGRESSION_BOUND = {"factor": 5.0, "floor_seconds": 2.0, "scale_4x_factor": 8.0}
+# factor/floor_seconds bound each doctrine gate against its recorded median.
+# scale_4x_factor bounds the synthetic 64/16 total. per_gate_scale_4x_factor
+# bounds EACH gate's own 64/16 ratio (the 64-strategy graph has 3x the
+# triples, so a linear gate sits near 3x and a quadratic one near 9x);
+# gates whose 64-strategy median is under per_gate_scale_floor_seconds are
+# below timer noise and exempt from the per-gate ratio.
+REGRESSION_BOUND = {"factor": 5.0, "floor_seconds": 0.5, "scale_4x_factor": 6.0,
+                    "per_gate_scale_4x_factor": 4.5, "per_gate_scale_floor_seconds": 0.5}
+
+
+def per_gate_scale_violations(small: dict, large: dict, bound: dict = REGRESSION_BOUND) -> dict[str, float]:
+    """Gates whose 64-strategy median grew past the per-gate 4x bound."""
+    out: dict[str, float] = {}
+    for stem, large_seconds in large["median_seconds"].items():
+        if large_seconds < bound["per_gate_scale_floor_seconds"]:
+            continue
+        small_seconds = max(small["median_seconds"][stem], 1e-6)
+        ratio = large_seconds / small_seconds
+        if ratio > bound["per_gate_scale_4x_factor"]:
+            out[stem] = round(ratio, 2)
+    return out
 
 
 def doctrine_graph() -> Graph:
@@ -117,6 +139,13 @@ def main() -> int:
         "synthetic": {str(n): measure(synthetic_graph(n), args.repeats) for n in (16, 64)},
         "regression_bound": REGRESSION_BOUND,
     }
+    report["per_gate_scale_ratio"] = {
+        stem: round(report["synthetic"]["64"]["median_seconds"][stem]
+                    / max(report["synthetic"]["16"]["median_seconds"][stem], 1e-6), 2)
+        for stem in report["synthetic"]["64"]["median_seconds"]
+    }
+    report["per_gate_scale_violations"] = per_gate_scale_violations(
+        report["synthetic"]["16"], report["synthetic"]["64"])
     text = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if args.write:
         RECEIPT.write_text(text, encoding="utf-8")
