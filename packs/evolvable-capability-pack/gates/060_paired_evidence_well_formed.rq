@@ -1,0 +1,62 @@
+# MESSAGE: promotion evidence must be a typed champion/candidate pair over one cohort for the promoted capability.
+PREFIX ecap: <https://seanchatmangpt.github.io/packs/evolvable-capability#>
+SELECT DISTINCT ?promotion ?defect WHERE {
+  {
+    ?promotion a ecap:Promotion .
+    FILTER NOT EXISTS { ?promotion ecap:promotes ?anyPromoted }
+    BIND("missingPromotes" AS ?defect)
+  }
+  UNION
+  {
+    ?promotion a ecap:Promotion ;
+               ecap:pairedEvidence ?evidence .
+    FILTER NOT EXISTS { ?evidence a ecap:PairedEvidence }
+    BIND("untypedEvidence" AS ?defect)
+  }
+  UNION
+  {
+    ?promotion a ecap:Promotion ;
+               ecap:pairedEvidence ?evidence .
+    FILTER NOT EXISTS { ?evidence ecap:champion ?anyChampion }
+    BIND("missingChampion" AS ?defect)
+  }
+  UNION
+  {
+    ?promotion a ecap:Promotion ;
+               ecap:pairedEvidence ?evidence .
+    FILTER NOT EXISTS { ?evidence ecap:candidate ?anyCandidate }
+    BIND("missingCandidate" AS ?defect)
+  }
+  UNION
+  {
+    ?promotion a ecap:Promotion ;
+               ecap:pairedEvidence ?evidence .
+    FILTER NOT EXISTS { ?evidence ecap:cohortDigest ?anyCohort }
+    BIND("missingCohortDigest" AS ?defect)
+  }
+  UNION
+  {
+    ?promotion a ecap:Promotion ;
+               ecap:pairedEvidence ?evidence .
+    ?evidence ecap:champion ?same ;
+              ecap:candidate ?same .
+    BIND("championIsCandidate" AS ?defect)
+  }
+  UNION
+  {
+    ?promotion a ecap:Promotion ;
+               ecap:pairedEvidence ?evidence .
+    ?evidence ecap:champion ?champion .
+    FILTER NOT EXISTS { ?champion ecap:lifecycleState ecap:Released }
+    BIND("championNotReleased" AS ?defect)
+  }
+  UNION
+  {
+    ?promotion a ecap:Promotion ;
+               ecap:pairedEvidence ?evidence ;
+               ecap:promotes ?promoted .
+    FILTER NOT EXISTS { ?evidence ecap:candidate ?promoted }
+    BIND("candidateNotPromoted" AS ?defect)
+  }
+}
+ORDER BY ?promotion ?defect
