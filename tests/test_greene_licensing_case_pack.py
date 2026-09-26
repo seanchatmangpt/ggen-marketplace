@@ -11,6 +11,8 @@ digests. Nothing is mocked.
 from __future__ import annotations
 
 import hashlib
+import json
+import os
 import re
 import shutil
 import subprocess
@@ -36,7 +38,10 @@ LAB_SUBJECT = "seanchatmangpt/autofde-lab@d6becb595aedac4f18cab84f80bf5aa90e1a45
 MARKETPLACE_SUBJECT = "seanchatmangpt/ggen-marketplace@c0f27e5bed97b164ac267f86d8d9d989982319e8"
 ADMITTED_LAYOUTS = {"hero_flow", "agenda", "source_chain", "triad", "pipeline", "pairs", "graph",
                     "split", "chain", "stages", "timeline", "flow", "bullets", "three_part"}
-FORBIDDEN_RENDERED = re.compile(r"endors|approved by|in partnership", re.IGNORECASE)
+FORBIDDEN_RENDERED = re.compile(r"endors|approved\s+by|in\s+partnership", re.IGNORECASE)
+LAB_SHA = LAB_SUBJECT.rsplit("@", 1)[1]
+HEX64 = re.compile(r"\b[0-9a-f]{64}\b")
+ABBREVIATED = re.compile(r"\b([0-9a-f]{8})\.\.\.([0-9a-f]{4,})\b")
 
 
 def case_graph() -> Graph:
@@ -46,6 +51,11 @@ def case_graph() -> Graph:
                  CASE_PACK / "ontology.ttl", PACKS / "pptx-presentation-pack" / "ontology.ttl"):
         graph.parse(path, format="turtle")
     return graph
+
+
+def recorded_digests(graph: Graph) -> dict[str, str]:
+    return {str(graph.value(d, GLC.digestKind)): str(graph.value(d, GLC.sha256))
+            for d in graph.subjects(RDF.type, GLC.ReceiptDigest)}
 
 
 def rows(graph: Graph, gates: list[Path]) -> dict[str, int]:
@@ -192,5 +202,122 @@ def test_real_ggen_renders_packet_deterministically_without_forbidden_text(tmp_p
     assert "Sean Chatman" in letter
     assert len(letter.split()) <= 900
     appendix = outputs[0]["appendix.md"].decode("utf-8")
-    assert "f10e2294dbd5c6d7ee1c8b97b3af36fcb706326e6a6dc7ed88f5c8db441c8665" in appendix
-    assert "9f1d03a3188430dde6c8fad00c63714daff73aa3600229d9f521ec41e2edc6d4" in appendix
+    for digest in recorded_digests(case_graph()).values():
+        assert digest in appendix
+
+
+def test_every_digest_copy_in_the_pack_is_a_recorded_digest() -> None:
+    """Witnesses, deck bodies and templates may only repeat the graph's own digests.
+
+    A transposed copy anywhere (the report.json digest was once recorded with
+    digits 4-6 swapped in six files) is refused: every full 64-hex literal must
+    equal a recorded glc:sha256 and every abbreviated 8...N form must be the
+    prefix/suffix of one.
+    """
+    recorded = set(recorded_digests(case_graph()).values())
+    assert len(recorded) == 6
+    seen_full = seen_short = 0
+    for path in sorted(PACK.rglob("*")):
+        if path.suffix not in {".ttl", ".tmpl", ".md", ".toml", ".rq"}:
+            continue
+        text = path.read_text(encoding="utf-8")
+        for digest in HEX64.findall(text):
+            seen_full += 1
+            assert digest in recorded, f"{path.relative_to(PACK)}: {digest} is not a recorded digest"
+        for head, tail in ABBREVIATED.findall(text):
+            seen_short += 1
+            assert any(d.startswith(head) and d.endswith(tail) for d in recorded), \
+                f"{path.relative_to(PACK)}: {head}...{tail} abbreviates no recorded digest"
+    assert seen_full >= 12 and seen_short >= 4
+
+
+def autofde_lab_repo() -> Path | None:
+    candidates = [os.environ.get("AUTOFDE_LAB_REPO"), str(ROOT.parent / "autofde-lab"),
+                  str(Path.home() / "autofde-lab")]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        repo = Path(candidate)
+        probe = subprocess.run(["git", "-C", str(repo), "cat-file", "-e", f"{LAB_SHA}^{{commit}}"],
+                               capture_output=True) if (repo / ".git").exists() else None
+        if probe is not None and probe.returncode == 0:
+            return repo
+    return None
+
+
+LAB_REPO = autofde_lab_repo()
+LAB_DRIVER = """
+import sys
+sys.meta_path = [f for f in sys.meta_path if "editable" not in repr(f).lower()]
+sys.path = [p for p in sys.path if not p.rstrip("/").endswith("autofde-lab/src")]
+sys.path.insert(0, sys.argv[1])
+import autofde_lab.simulation.doctrine_lab as lab
+assert lab.__file__.startswith(sys.argv[1]), lab.__file__
+from autofde_lab.simulation.doctrine_lab.__main__ import main
+raise SystemExit(main(["--out", sys.argv[2], "--replay"]))
+"""
+
+
+@pytest.mark.skipif(LAB_REPO is None or shutil.which("git") is None,
+                    reason="autofde-lab checkout holding the bound commit not found (set AUTOFDE_LAB_REPO)")
+def test_lab_digests_recompute_from_a_real_run_of_the_bound_autofde_lab_commit(tmp_path: Path) -> None:
+    """Run the doctrine lab at the exact bound commit and recompute C01-C04's digests.
+
+    The lab source is materialized by `git archive <sha>` (never the working
+    tree), run twice in separate processes with --replay, and every recorded
+    lab digest must equal the recomputed value. The interpreter is the lab's
+    own virtualenv when present (AUTOFDE_LAB_PYTHON overrides).
+    """
+    assert LAB_REPO is not None
+    source = tmp_path / "lab"
+    source.mkdir()
+    archive = subprocess.run(["git", "-C", str(LAB_REPO), "archive", LAB_SHA, "--", "src/autofde_lab"],
+                             capture_output=True, check=True).stdout
+    subprocess.run(["tar", "-x", "-C", str(source)], input=archive, check=True)
+    venv = LAB_REPO / ".venv" / "bin" / "python"
+    python = os.environ.get("AUTOFDE_LAB_PYTHON") or (str(venv) if venv.exists() else sys.executable)
+    runs = []
+    for name in ("run1", "run2"):
+        out = tmp_path / name
+        result = subprocess.run([python, "-I", "-c", LAB_DRIVER, str(source / "src"), str(out)],
+                                text=True, capture_output=True)
+        assert result.returncode == 0, result.stdout + result.stderr
+        summary = json.loads(result.stdout)
+        runs.append({
+            "ledger tail digest": summary["ledger"]["tail_digest"],
+            "matrix digest": summary["matrix_digest"],
+            "report digest": summary["report_digest"],
+            "report.json file sha256": hashlib.sha256((out / "report.json").read_bytes()).hexdigest(),
+            "ledger.jsonl file sha256": hashlib.sha256((out / "ledger.jsonl").read_bytes()).hexdigest(),
+        })
+        assert summary["ledger"]["records"] == 252 and summary["ledger"]["valid"] is True
+        assert summary["verify_run"] == {"failures": [], "replayed": True, "valid": True}
+        assert summary["clusters"] == 2
+    assert runs[0] == runs[1]
+    recorded = recorded_digests(case_graph())
+    assert {kind: recorded[kind] for kind in runs[0]} == runs[0]
+
+
+def test_court_runner_refuses_a_pass_witness_whose_graph_fires_a_gate(tmp_path: Path) -> None:
+    """The pass branch refuses gate rows even when SHACL conforms."""
+    base = (PACK / "witnesses" / "pass" / f"{GATES[0].stem}.ttl").read_text(encoding="utf-8")
+    witness = tmp_path / "pass_with_gate_rows.ttl"
+    witness.write_text(base + '\n<urn:example:stray> <urn:example:note> "Sponsored  by a publisher" .\n',
+                       encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, "runners/semantic_runner.py", "--gate", str(GATES[0]), "--witness", str(witness),
+         "--expectation", "pass"],
+        cwd=PACK, text=True, capture_output=True,
+    )
+    assert result.returncode == 2, result.stdout + result.stderr
+    refusal = json.loads(result.stderr.strip().splitlines()[-1])
+    assert refusal["refusal"] == "REFUSED_GATE_ROWS_ON_PASS"
+    assert list(refusal["gates"]) == ["050_no_endorsement_language"]
+
+
+@pytest.mark.parametrize("phrase", ["Approved  by the author", "in\tpartnership with", "sponsored\nby a press",
+                                    "on behalf  of the author"])
+def test_gate_050_matches_backing_phrases_across_any_whitespace(phrase: str) -> None:
+    graph = case_graph()
+    graph.add((GLC.s4, GLC.body, Literal(phrase)))
+    assert rows(graph, GATES)["050_no_endorsement_language"] >= 1

@@ -20,7 +20,10 @@ Outputs land under <consumer>/greene-licensing/ (letter.md, rights-table.md,
 appendix.md, demo-spec.md) plus the case-study pack's slide-facts.md and
 case-study-summary.md. Prints one JSON object with the ggen exit code and the
 sha256 of every packet output. Exit 0 only when ggen exits 0 and all four
-packet outputs exist. Authority NONE: this writes files in the consumer
+packet outputs exist. The 10-slide deck (ontology/greene-deck.ttl) is not
+rendered here: pptx-presentation-pack ships only .eex templates, which ggen
+refuses (FM-PACK-005), so a .pptx is built outside this pack from the deck
+facts. Authority NONE: this writes files in the consumer
 directory only and sends nothing anywhere.
 """
 from __future__ import annotations

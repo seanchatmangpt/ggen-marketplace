@@ -12,7 +12,8 @@ ontology/cs-pres-bridge.ttl pres:Presentation, pres:Slide subClassOf cs:Projecti
   -> gates 050 / 060 / 070 + semantic-case-study-pack gates 010-040
   -> ggen sync run (runners/render_packet.py)
   -> letter.md, rights-table.md, appendix.md, demo-spec.md
-  -> deck.json + render.mjs via pptx-presentation-pack templates (ggen_igniter)
+  deck: greene-deck.ttl is NOT rendered by this pack; the .pptx is built
+  outside it from the deck facts (pptx .eex templates: ggen FM-PACK-005)
 ```
 
 ## Claims and evidence
