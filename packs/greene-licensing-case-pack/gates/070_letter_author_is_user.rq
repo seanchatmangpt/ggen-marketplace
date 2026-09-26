@@ -1,0 +1,61 @@
+# MESSAGE: every proposal letter is authored and signed by the user as its
+# single sender, stays a PROPOSAL_DRAFT, and is never sent. Refused:
+#   - a letter with no glc:sender;
+#   - a letter whose sender is not typed glc:User (a letter drafted or
+#     signed in anyone else's name);
+#   - a letter with more than one sender;
+#   - a letter whose glc:letterStatus is missing or not PROPOSAL_DRAFT;
+#   - a letter carrying glc:sentOn (nothing in this packet is sent by any
+#     tool; sending is the user's own act outside the packet).
+#   - a letter with more than one glc:letterStatus (a PROPOSAL_DRAFT
+#     status beside another one is not a draft);
+#   - any subject carrying glc:sender, glc:letterStatus or glc:sentOn that
+#     is not typed glc:Letter (an untyped letter escapes every check above);
+#   - any class declared rdfs:subClassOf glc:Letter (gates run without
+#     inference, so a subclass instance would escape every check above);
+#   - more than one glc:User (the user is the single human author, so a
+#     second User is a letter signable in someone else's name).
+# (Harden, v26.9.26.)
+#
+# Each row names the offending letter and the reason.
+PREFIX glc: <https://ggen.dev/ontology/greene-licensing-case#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT DISTINCT ?subject ?reason WHERE {
+  {
+    ?subject a glc:Letter .
+    FILTER NOT EXISTS { ?subject glc:sender ?anySender }
+    BIND("letter-without-sender" AS ?reason)
+  } UNION {
+    ?subject a glc:Letter ; glc:sender ?sender .
+    FILTER NOT EXISTS { ?sender a glc:User }
+    BIND("letter-sender-not-user" AS ?reason)
+  } UNION {
+    ?subject a glc:Letter ; glc:sender ?first , ?second .
+    FILTER(STR(?first) < STR(?second))
+    BIND("letter-with-multiple-senders" AS ?reason)
+  } UNION {
+    ?subject a glc:Letter .
+    FILTER NOT EXISTS { ?subject glc:letterStatus "PROPOSAL_DRAFT" }
+    BIND("letter-not-proposal-draft" AS ?reason)
+  } UNION {
+    ?subject a glc:Letter ; glc:sentOn ?when .
+    BIND("letter-marked-sent" AS ?reason)
+  } UNION {
+    ?subject a glc:Letter ; glc:letterStatus ?firstStatus , ?secondStatus .
+    FILTER(STR(?firstStatus) < STR(?secondStatus) || LANG(?firstStatus) < LANG(?secondStatus))
+    BIND("letter-with-multiple-statuses" AS ?reason)
+  } UNION {
+    ?subject glc:sender|glc:letterStatus|glc:sentOn ?letterField .
+    FILTER NOT EXISTS { ?subject a glc:Letter }
+    BIND("letter-field-on-untyped-subject" AS ?reason)
+  } UNION {
+    ?subject rdfs:subClassOf glc:Letter .
+    BIND("letter-subclass-declared" AS ?reason)
+  } UNION {
+    ?subject a glc:User . ?otherUser a glc:User .
+    FILTER(STR(?subject) > STR(?otherUser))
+    BIND("multiple-users-declared" AS ?reason)
+  }
+}
+ORDER BY ?subject ?reason

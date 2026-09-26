@@ -1,0 +1,57 @@
+# MESSAGE: the packet asserts no affiliation, sponsorship or backing by any
+# author, publisher or rights holder, in any literal anywhere in the graph.
+# Language that would imply such backing is refused wherever it appears:
+# the stem endors- (every inflection), approved by, approval of the author,
+# in partnership, partnered with, official partner, authorized/authorised
+# by, sanctioned by, sponsored by, on behalf of the author, with the
+# blessing of, officially supported/recognised/licensed/affiliated, and
+# backed/supported/recommended/blessed/vetted/certified/commissioned by the
+# author, publisher, estate or rights holder. Non-claims state the absence
+# of affiliation in words that do not trip this gate; a rendered projection
+# can therefore never carry them.
+#
+# Evasion closure (the match runs on a normalized copy of the literal):
+#   - invisible format characters (U+00AD soft hyphen, U+200B..U+200F,
+#     U+2060..U+2064, U+FEFF) are stripped before matching, so a word split
+#     by a zero-width character still matches; a literal carrying any of
+#     them is ALSO refused on its own (reason invisible-format-character),
+#     because a character nobody can see has no lawful use in the packet;
+#   - a hyphen followed by a line break (a soft-wrapped word) is joined, so
+#     "endor-" + newline + "sed" still matches;
+#   - words inside a phrase are joined by \s+, so any run of whitespace
+#     (double spaces, tabs, line breaks, no-break spaces) still matches.
+#   - hyphen, U+2010 or U+2011 followed by a line break is joined the same way;
+#   - confusable letters and combining marks are refused on their own (reason
+#     confusable-letter-or-combining-mark): accented and extended Latin
+#     (U+00C0..U+024F minus the two operators), IPA, combining marks
+#     (U+0300..U+036F, U+1AB0..U+1AFF, U+20D0..U+20FF, U+FE20..U+FE2F), Greek,
+#     Cyrillic, Armenian, Cherokee, phonetic and Latin-extended-additional,
+#     letterlike symbols, fullwidth/halfwidth forms and mathematical
+#     alphanumerics. Each is a way to spell a refused stem so that the ASCII
+#     match misses it (Cyrillic U+0435 for e, fullwidth letters, o + U+0301);
+#     the packet's literals are ASCII plus typographic punctuation, so none of
+#     these has a lawful use here. (Harden, v26.9.26.)
+# The gate is lexical: it bounds the vocabulary, it does not read meaning.
+#
+# Each row names the offending subject, predicate, and the reason.
+SELECT DISTINCT ?subject ?predicate ?reason WHERE {
+  {
+    ?subject ?predicate ?literal .
+    FILTER(isLiteral(?literal))
+    BIND(REPLACE(REPLACE(STR(?literal), "[­​-‏⁠-⁤﻿]", ""),
+                 "[-‐‑][ \t]*\r?\n[ \t]*", "") AS ?norm)
+    FILTER(REGEX(?norm,
+      "endors|approved\\s+by|approval\\s+of\\s+the\\s+author|in\\s+partnership|partnered\\s+with|official\\s+partner|authori[sz]ed\\s+by|sanctioned\\s+by|sponsored\\s+by|on\\s+behalf\\s+of\\s+the\\s+author|with\\s+the\\s+blessing\\s+of|officially\\s+(supported|recogni[sz]ed|licensed|affiliated)|(backed|supported|recommended|blessed|vetted|certified|commissioned)\\s+by\\s+(the\\s+)?(author|publisher|estate|rights\\s+holder)",
+      "i"))
+    BIND("affiliation-or-backing-language" AS ?reason)
+  } UNION {
+    ?subject ?predicate ?literal .
+    FILTER(isLiteral(?literal) && REGEX(STR(?literal), "[­​-‏⁠-⁤﻿]"))
+    BIND("invisible-format-character" AS ?reason)
+  } UNION {
+    ?subject ?predicate ?literal .
+    FILTER(isLiteral(?literal) && REGEX(STR(?literal), "[À-ÖØ-öø-ʯ̀-ͯͰ-ϿЀ-ԯ԰-֏Ꭰ-᏿᪰-᫿ᴀ-ỿ⃐-⃿℀-⅏︠-︯＀-￯𝐀-𝟿]"))
+    BIND("confusable-letter-or-combining-mark" AS ?reason)
+  }
+}
+ORDER BY ?subject ?predicate ?reason
