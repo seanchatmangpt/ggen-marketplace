@@ -1,0 +1,40 @@
+# MESSAGE: any returned row refuses EPR admission/manufacture.
+PREFIX epr: <https://ggen.dev/ontology/external-paradigm-recompilation#>
+SELECT ?subject ?problem WHERE {
+  {
+    epr:policyV1 epr:mutableRefsForbidden ?value .
+    FILTER (?value != true)
+    BIND(epr:policyV1 AS ?subject)
+    BIND("mutable-ref-policy-disabled" AS ?problem)
+  }
+  UNION {
+    epr:policyV1 epr:grantsDoAuthority ?value .
+    FILTER (?value != false)
+    BIND(epr:policyV1 AS ?subject)
+    BIND("ambient-do-authority-refused" AS ?problem)
+  }
+  UNION {
+    ?subject a epr:SupplierSubject ; epr:sourceSha ?sha .
+    FILTER (!regex(str(?sha), "^[0-9a-f]{40}$"))
+    BIND("mutable-or-invalid-supplier-sha" AS ?problem)
+  }
+  UNION {
+    ?subject a epr:SupplierSubject ; epr:standing ?standing .
+    FILTER (str(?standing) != "CANDIDATE")
+    BIND("supplier-self-standing-refused" AS ?problem)
+  }
+  UNION {
+    ?subject a epr:TargetEdge ;
+      epr:relation epr:DECLARED_TARGET ;
+      epr:semanticEquivalence ?equivalence .
+    FILTER (str(?equivalence) != "UNCLAIMED")
+    BIND("declared-target-equivalence-laundering" AS ?problem)
+  }
+  UNION {
+    ?subject a epr:PatternClassification ;
+      epr:disposition epr:NOVEL_GAP .
+    FILTER NOT EXISTS { ?subject epr:falsifier ?falsifier }
+    BIND("novel-gap-without-falsifier" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem
