@@ -38,7 +38,19 @@ LAB_SUBJECT = "seanchatmangpt/autofde-lab@d6becb595aedac4f18cab84f80bf5aa90e1a45
 MARKETPLACE_SUBJECT = "seanchatmangpt/ggen-marketplace@c0f27e5bed97b164ac267f86d8d9d989982319e8"
 ADMITTED_LAYOUTS = {"hero_flow", "agenda", "source_chain", "triad", "pipeline", "pairs", "graph",
                     "split", "chain", "stages", "timeline", "flow", "bullets", "three_part"}
-FORBIDDEN_RENDERED = re.compile(r"endors|approved\s+by|in\s+partnership", re.IGNORECASE)
+FORBIDDEN_RENDERED = re.compile(
+    r"endors|approved\s+by|approval\s+of\s+the\s+author|in\s+partnership|partnered\s+with|official\s+partner"
+    r"|authori[sz]ed\s+by|sanctioned\s+by|sponsored\s+by|on\s+behalf\s+of\s+the\s+author"
+    r"|with\s+the\s+blessing\s+of|officially\s+(supported|recogni[sz]ed|licensed|affiliated)"
+    r"|(backed|supported|recommended|blessed|vetted|certified|commissioned)\s+by\s+(the\s+)?"
+    r"(author|publisher|estate|rights\s+holder)", re.IGNORECASE)
+INVISIBLE = re.compile("[\u00ad\u200b-\u200f\u2060-\u2064\ufeff]")
+TYPOGRAPHIC_QUOTES = re.compile("[\u201c\u201d\u201e\u201f\u2018\u201a\u201b\u00ab\u00bb\u2039\u203a\u300c-\u300f]")
+
+
+def normalized(text: str) -> str:
+    """Same normalization gate 050 applies: strip invisible characters, join soft-wrapped words."""
+    return re.sub(r"-[ \t]*\r?\n[ \t]*", "", INVISIBLE.sub("", text))
 LAB_SHA = LAB_SUBJECT.rsplit("@", 1)[1]
 HEX64 = re.compile(r"\b[0-9a-f]{64}\b")
 ABBREVIATED = re.compile(r"\b([0-9a-f]{8})\.\.\.([0-9a-f]{4,})\b")
@@ -195,8 +207,10 @@ def test_real_ggen_renders_packet_deterministically_without_forbidden_text(tmp_p
     assert sorted(outputs[0]) == ["appendix.md", "demo-spec.md", "letter.md", "rights-table.md"]
     for name, data in outputs[0].items():
         text = data.decode("utf-8")
-        assert not FORBIDDEN_RENDERED.search(text), name
-        assert not any(line.lstrip().startswith(">") for line in text.splitlines()), name
+        assert not FORBIDDEN_RENDERED.search(normalized(text)), name
+        assert not INVISIBLE.search(text), name
+        assert not TYPOGRAPHIC_QUOTES.search(text), name
+        assert not any(line.lstrip().startswith((">", "&gt;")) for line in text.splitlines()), name
     letter = outputs[0]["letter.md"].decode("utf-8")
     assert "PROPOSAL_DRAFT" in letter and letter.rstrip().splitlines()[-3] == "Sender and author of this proposal draft"
     assert "Sean Chatman" in letter
@@ -321,3 +335,67 @@ def test_gate_050_matches_backing_phrases_across_any_whitespace(phrase: str) -> 
     graph = case_graph()
     graph.add((GLC.s4, GLC.body, Literal(phrase)))
     assert rows(graph, GATES)["050_no_endorsement_language"] >= 1
+
+
+@pytest.mark.parametrize("phrase", [
+    "end\u200borsed by the author",            # zero-width space inside the stem
+    "end\u00adorsed by the author",            # soft hyphen inside the stem
+    "endor-\nsed by the author",               # soft-wrapped word
+    "endor- \r\n  sed by the author",         # soft wrap with CRLF and indentation
+    "backed by the author",
+    "officially supported by the publisher",
+    "supported by the rights holder",
+    "vetted by the estate",
+    "approved\u00a0by the author",             # no-break space between words
+])
+def test_gate_050_closes_known_evasions(phrase: str) -> None:
+    graph = case_graph()
+    graph.add((GLC.s4, GLC.body, Literal(phrase)))
+    assert rows(graph, GATES)["050_no_endorsement_language"] >= 1
+    assert FORBIDDEN_RENDERED.search(normalized(phrase)) is not None
+
+
+def test_gate_050_refuses_an_invisible_character_even_without_backing_language() -> None:
+    graph = case_graph()
+    graph.add((GLC.s4, GLC.body, Literal("an ordinary\u2060sentence")))
+    reasons = {str(r[2]) for r in graph.query(GATES[0].read_text(encoding="utf-8"))}
+    assert reasons == {"invisible-format-character"}
+
+
+@pytest.mark.parametrize("literal", [
+    "\u2018a long excerpt copied verbatim from the source text\u2019",  # single typographic quotes
+    "\u201aa low opening quote",
+    "\u2039angle quotes\u203a",
+    '"abcdefghijklmnopqrstuvwx"',                                    # 24-char straight-quoted span
+    '"abcdefghijkl"',                                                # 12-char straight-quoted span
+    'a "two words" b',                                               # multi-word span of any length
+    "&gt; quoted",                                                   # escaped blockquote marker
+    "line one\n  &#62; quoted",
+])
+def test_gate_060_closes_known_evasions(literal: str) -> None:
+    graph = case_graph()
+    graph.add((GLC.s4, GLC.body, Literal(literal)))
+    assert rows(graph, GATES)["060_no_quoted_source_text"] >= 1
+
+
+@pytest.mark.parametrize("literal", ["the author\u2019s title", 'the "ALIVE" label', "a > b in prose",
+                                     'One of "available", "falsified", or "selected" -- a state.',
+                                     "no affiliation implied with any author"])
+def test_gates_050_and_060_admit_ordinary_prose(literal: str) -> None:
+    graph = case_graph()
+    graph.add((GLC.s4, GLC.body, Literal(literal)))
+    counts = rows(graph, GATES)
+    assert counts["050_no_endorsement_language"] == 0 and counts["060_no_quoted_source_text"] == 0
+
+
+def test_gates_admit_the_full_import_union_ggen_evaluates() -> None:
+    """ggen runs pack gates over the UNION graph, imports included (FM-PACK-013).
+
+    The rdflib case graph above omits evidence-standing-pack and
+    decision-optionality-pack; this union adds them, so a gate that would
+    refuse an imported ontology's own comments fails here, not only under ggen.
+    """
+    graph = case_graph()
+    for pack in ("evidence-standing-pack", "decision-optionality-pack"):
+        graph.parse(PACKS / pack / "ontology.ttl", format="turtle")
+    assert rows(graph, GATES) == {gate.stem: 0 for gate in GATES}
