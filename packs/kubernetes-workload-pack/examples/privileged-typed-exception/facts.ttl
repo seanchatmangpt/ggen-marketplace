@@ -1,0 +1,45 @@
+@prefix k8s: <http://seanchatmangpt.github.io/packs/kubernetes#> .
+@prefix ex:  <https://example.com/privileged-typed-exception#> .
+
+# ADMITTED by design: the lawful path for a workload that genuinely needs
+# privilege (a CSI node plugin mounting into the host mount namespace).
+# gates/020_privilege_refusal.rq admits `privileged: true` here ONLY
+# because this exact container binds a complete k8s:SecurityException for
+# SEC-PRIV-001 -- control id, rationale, compensating control, approver.
+# Nothing is inferred from the workload's name, namespace or labels; remove
+# any one exception field and ../negative-controls/privileged-incomplete-
+# exception/ shows the same graph refused.
+#
+# The gate proves the exception is typed, complete and container-scoped.
+# It does not authenticate the approver or expire the waiver -- those are
+# ORGANIZATIONAL_CONTROL (control-map.md), not generate-time facts.
+#
+# Verify:
+#   ggen sync run --dry-run
+# Expected: ADMITTED.
+
+ex:csiNodeWorkload a k8s:Workload ;
+  k8s:workloadName "csi-node" ;
+  k8s:fileName "csi-node.yaml" ;
+  k8s:namespace "storage-system" ;
+  k8s:serviceAccountName "csi-node" ;
+  k8s:automountServiceAccountToken true ;
+  k8s:podSecurityContextBlock """seccompProfile:
+  type: RuntimeDefault""" .
+
+ex:csiNodeContainer a k8s:Container ;
+  k8s:inWorkload ex:csiNodeWorkload ;
+  k8s:containerName "csi-node" ;
+  k8s:image "example/csi-node@sha256:2222222222222222222222222222222222222222222222222222222222222b" ;
+  k8s:resourceRequestsBlock """cpu: 50m
+memory: 64Mi""" ;
+  k8s:resourceLimitsBlock """cpu: 200m
+memory: 128Mi""" ;
+  k8s:containerSecurityContextBlock """privileged: true""" ;
+  k8s:privilegeException ex:csiNodeException .
+
+ex:csiNodeException a k8s:SecurityException ;
+  k8s:exceptionControl "SEC-PRIV-001" ;
+  k8s:exceptionRationale "CSI node plugin must mount volumes into the host mount namespace." ;
+  k8s:compensatingControl "Dedicated node pool; storage-system namespace isolated from tenant workloads; runtime detection on the node pool." ;
+  k8s:approvedBy "platform-security" .

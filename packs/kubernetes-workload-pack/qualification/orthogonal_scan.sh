@@ -15,6 +15,7 @@ set -euo pipefail
 PACK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRATCH="$(mktemp -d)"
 trap 'rm -rf "$SCRATCH"' EXIT
+GGEN="${GGEN:-$(command -v ggen)}"
 
 FIXTURES=(
   "examples/minimal-secure-workload"
@@ -24,22 +25,39 @@ FIXTURES=(
 )
 # Known-gap negative controls are included deliberately -- the point of
 # this scanner layer is to prove they DO fail somewhere, even though this
-# pack's own gate 010 cannot catch them (see control-mapping/control-map.md).
+# pack's own gates cannot catch them (see control-mapping/control-map.md).
 NEGATIVE_FIXTURES=(
-  "examples/negative-controls/privileged-container-KNOWN_GAP"
   "examples/negative-controls/mutable-image-tag-KNOWN_GAP"
+)
+# Gate-refused fixtures never reach the scanners: the evidence is that ggen
+# refuses to render them at all (gate 020, SEC-PRIV-001). A render here is a
+# regression and fails the script.
+REFUSED_FIXTURES=(
+  "examples/negative-controls/privileged-container"
+  "examples/negative-controls/privileged-incomplete-exception"
+  "examples/negative-controls/obfuscated-privilege-key"
+  "examples/negative-controls/scalar-newline-injection"
 )
 
 echo "== Render (real ggen, write mode into scratch) =="
 render() {
   local rel="$1" name
   name="$(basename "$rel")"
-  ( cd "$PACK_DIR/$rel" && /opt/homebrew/bin/ggen sync run --format json >/dev/null )
+  ( cd "$PACK_DIR/$rel" && "$GGEN" sync run --format json >/dev/null )
   cp "$PACK_DIR/$rel"/k8s/*.yaml "$SCRATCH/${name}.yaml"
   rm -rf "$PACK_DIR/$rel/k8s"
 }
-for f in "${FIXTURES[@]}" "${NEGATIVE_FIXTURES[@]}"; do
+for f in "${FIXTURES[@]}" "${NEGATIVE_FIXTURES[@]}" "examples/privileged-typed-exception"; do
   render "$f"
+done
+
+echo "== Generate-time refusals (gate 020; each must be REFUSED, never rendered) =="
+for f in "${REFUSED_FIXTURES[@]}"; do
+  if ( cd "$PACK_DIR/$f" && "$GGEN" sync run --dry-run --format json >/dev/null 2>&1 ); then
+    echo "REGRESSION: $f was admitted" >&2
+    exit 1
+  fi
+  echo "REFUSED $f"
 done
 
 echo "== kubeconform -strict (schema conformance) =="

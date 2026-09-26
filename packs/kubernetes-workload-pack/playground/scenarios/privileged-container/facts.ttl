@@ -1,30 +1,18 @@
 @prefix k8s: <http://seanchatmangpt.github.io/packs/kubernetes#> .
 @prefix ex:  <https://example.com/negative-controls/privileged-container#> .
 
-# KNOWN GAP, not a verified refusal -- do not run this expecting a
-# rejection. Every k8s:*SecurityContextBlock property is a raw YAML
-# string (deliberate design, ontology.ttl's header comment), opaque to
-# SPARQL gate matching. This fact graph sets `privileged: true` AND
-# still declares k8s:podSecurityContextBlock, so gate 010 (which only
-# checks PRESENCE of the property, never its content) admits it
-# unchanged -- exactly the Kubernetes Restricted Pod Security Standard
-# violation a real cluster's Pod Security Admission would reject at
-# apply-time, but which this pack's current gate cannot catch at
-# generate-time.
+# REFUSED since v0.2.0 by gates/020_privilege_refusal.rq
+# (PRIVILEGE_UNWAIVED): same graph as
+# ../../../examples/negative-controls/privileged-container/. Under v0.1.0
+# gate 010 checked only that the raw securityContext block was PRESENT and
+# admitted this unchanged. To watch the lawful path, add a
+# k8s:privilegeException binding a complete k8s:SecurityException for
+# SEC-PRIV-001 (see ../../../examples/privileged-typed-exception/) and
+# re-run; drop any one exception field and it is refused again.
 #
-# Candidate fix (v0.2.0+, not yet built): a typed
-# k8s:allowPrivileged/k8s:privileged xsd:boolean property (escaping the
-# raw-block pattern for exactly this one security-critical field) plus a
-# gate refusing k8s:privileged = true outside an explicit, named
-# SecurityException with a compensating control -- see
-# ../control-mapping/control-map.md's SEC-PRIV-001 row and
-# ../../playground/scenarios/privileged-container/ for the live
-# behavioral proof of what a real cluster does with this fact today.
-#
-# Verify (documents the gap, does not disprove it):
+# Verify:
 #   ggen sync run --dry-run
-# Expected today: ADMITTED (the gap). Expected after v0.2.0's typed gate:
-# REFUSED.
+# Expected: REFUSED.
 
 ex:privilegedWorkload a k8s:Workload ;
   k8s:workloadName "privileged-demo" ;
