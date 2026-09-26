@@ -1,0 +1,37 @@
+PREFIX pas: <https://seanchatmangpt.github.io/ggen-marketplace/ontology/premature-actuation-survival#>
+
+SELECT ?step ?failureType ?guardId
+WHERE {
+  ?step a pas:Step ;
+        pas:phase "DO" .
+  {
+    ?step pas:exactSubject false .
+    BIND("WRONG_SUBJECT_DO" AS ?failureType)
+    BIND("require_exact_subject_before_do" AS ?guardId)
+  }
+  UNION
+  {
+    ?step pas:authorized false .
+    BIND("UNAUTHORIZED_DO" AS ?failureType)
+    BIND("require_authority_before_do" AS ?guardId)
+  }
+  UNION
+  {
+    ?step pas:admitted false .
+    BIND("UNADMITTED_DO" AS ?failureType)
+    BIND("require_admission_before_do" AS ?guardId)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?step pas:receiptId ?receipt . }
+    BIND("UNRECEIPTED_DO" AS ?failureType)
+    BIND("require_receipt_before_do" AS ?guardId)
+  }
+  UNION
+  {
+    ?step pas:terminalReady false .
+    BIND("PREMATURE_DO" AS ?failureType)
+    BIND("require_terminal_predicate_before_do" AS ?guardId)
+  }
+}
+ORDER BY ?failureType ?step
