@@ -5,9 +5,15 @@
 #     a strategic condition, or a strategic objective;
 #   - literals on one such node whose lengths sum past 120 characters (an
 #     excerpt split into several short literals);
+#   - any literal longer than 200 characters on a falsifier or effect node
+#     (sd:Falsifier, sd:StrategicEffect, or any object of sd:hasFalsifier or
+#     sd:producesEffect);
+#   - literals on one falsifier or effect node whose lengths sum past 300
+#     characters;
 #   - any sd:quote triple anywhere.
 # Own paraphrased titles are at most 60 characters; longer own prose belongs
-# on falsifiers and effects only.
+# on falsifiers and effects only, and is bounded there too (200 per literal,
+# 300 per node), so no node type is an unbounded text channel.
 #
 # Each row names the offending subject, predicate, and the reason.
 PREFIX sd: <https://ggen.dev/ontology/strategic-doctrine#>
@@ -45,6 +51,40 @@ SELECT DISTINCT ?subject ?predicate ?reason WHERE {
     FILTER(?total > 120)
     BIND(sd:literalBudget AS ?predicate)
     BIND("literals-over-120-chars-total-on-catalog-node" AS ?reason)
+  } UNION {
+    {
+      ?subject a ?ptype .
+      FILTER(?ptype IN (sd:Falsifier, sd:StrategicEffect))
+    } UNION {
+      ?anyOwner sd:hasFalsifier ?subject .
+    } UNION {
+      ?anyOwner sd:producesEffect ?subject .
+    }
+    ?subject ?predicate ?proseLiteral .
+    FILTER(isLiteral(?proseLiteral) && STRLEN(STR(?proseLiteral)) > 200)
+    BIND("literal-over-200-chars-on-falsifier-or-effect-node" AS ?reason)
+  } UNION {
+    {
+      SELECT ?subject (SUM(STRLEN(STR(?proseLit))) AS ?proseTotal) WHERE {
+        {
+          SELECT DISTINCT ?subject WHERE {
+            {
+              ?subject a ?ptype .
+              FILTER(?ptype IN (sd:Falsifier, sd:StrategicEffect))
+            } UNION {
+              ?anyOwner sd:hasFalsifier ?subject .
+            } UNION {
+              ?anyOwner sd:producesEffect ?subject .
+            }
+          }
+        }
+        ?subject ?pp ?proseLit .
+        FILTER(isLiteral(?proseLit))
+      } GROUP BY ?subject
+    }
+    FILTER(?proseTotal > 300)
+    BIND(sd:literalBudget AS ?predicate)
+    BIND("literals-over-300-chars-total-on-falsifier-or-effect-node" AS ?reason)
   } UNION {
     ?subject sd:quote ?anything .
     BIND(sd:quote AS ?predicate)

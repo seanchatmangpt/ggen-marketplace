@@ -49,8 +49,8 @@ They form five dual pairs, and `sd:dualOf` is asserted in both directions:
 | 020 applicability_public_class_only | a condition over a class not declared in the vendored ORG/PROV/schema.org/SOSA/SSN/Time sources or in `sd:` (the class list is embedded in the generated gate, so a made-up class under a W3C namespace is refused and data cannot admit its own class) |
 | 030 composition_known_primitive | a step whose operator is outside the 14, or that has no operator |
 | 040 step_order_total | step orders that are missing, duplicated, non-integer, or not exactly 1..n |
-| 050 no_excerpt | a literal over 60 characters on a strategy, step, condition or objective node; literals on one such node summing past 120 characters; any `sd:quote` |
-| 060 licensing_nonclaim_present | a catalog entry with no complete `cs:NonClaim` |
+| 050 no_excerpt | a literal over 60 characters on a strategy, step, condition or objective node; literals on one such node summing past 120 characters; a literal over 200 characters, or literals summing past 300, on a falsifier or effect node; any `sd:quote` |
+| 060 licensing_nonclaim_present | a catalog entry with no complete `cs:NonClaim`; any `cs:NonClaim` asserting a value other than `true` on one of its three boundaries |
 
 ## Licensing boundary
 
@@ -70,7 +70,7 @@ The alignment between ordinals and the work's sequence is best-effort. It has
 not been verified against a licensed copy.
 
 The `sd:nonclaim-licensing` individual states this boundary in the graph, and
-gate 060 refuses any graph that lacks it.
+gate 060 refuses any graph that lacks it or that carries a contradictory non-claim.
 
 ## Public ontologies
 

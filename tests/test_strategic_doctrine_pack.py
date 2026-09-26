@@ -320,3 +320,103 @@ def test_public_class_gate_projection_detects_a_stale_gate(tmp_path: Path) -> No
                            capture_output=True, text=True, check=False)
     assert check.returncode == 1
     assert "REFUSED:GATE_PROJECTION_STALE" in check.stderr
+
+
+# --- Adversarial mutants from the round-1 court (each was ADMITTED before the fix) ---
+
+
+@pytest.mark.parametrize("flag", ["assertsNotLicensed", "assertsNoEndorsement", "assertsNoTextReproduced"])
+def test_contradictory_nonclaim_is_refused_by_gate_and_shacl(flag: str) -> None:
+    graph = load(*GRAPH_FILES)
+    graph.add((SD["nonclaim-licensing"], SD[flag], Literal(False)))
+    fired, conforms = verdict(graph)
+    assert fired == {"060_licensing_nonclaim_present": 2}
+    assert reasons(graph, "060_licensing_nonclaim_present") == [
+        "licensing-nonclaim-absent", "licensing-nonclaim-contradictory"]
+    assert conforms is False
+
+
+def test_contradictory_nonclaim_is_refused_even_beside_a_clean_one() -> None:
+    graph = load(*GRAPH_FILES)
+    forged = URIRef("urn:example:forged-nonclaim")
+    graph.add((forged, RDF.type, CS.NonClaim))
+    graph.add((forged, RDFS.comment, Literal("forged")))
+    for flag in ("assertsNotLicensed", "assertsNoEndorsement", "assertsNoTextReproduced"):
+        graph.add((forged, SD[flag], Literal(True)))
+    graph.add((forged, SD.assertsNoEndorsement, Literal("maybe")))
+    fired, conforms = verdict(graph)
+    assert fired == {"060_licensing_nonclaim_present": 1}
+    assert reasons(graph, "060_licensing_nonclaim_present") == ["licensing-nonclaim-contradictory"]
+    assert conforms is False
+
+
+@pytest.mark.parametrize("length", [201, 400, 5000])
+def test_long_refutation_statement_is_refused(length: int) -> None:
+    graph = load(*GRAPH_FILES)
+    falsifier = graph.value(SD["strategy-11"], SD.hasFalsifier)
+    graph.set((falsifier, SD.refutedWhen, Literal("z" * length)))
+    fired, conforms = verdict(graph)
+    # One row for the literal cap; a second for the node total once the
+    # falsifier's literals sum past 300 characters.
+    assert fired == {"050_no_excerpt": 1 if length <= 280 else 2}
+    assert "literal-over-200-chars-on-falsifier-or-effect-node" in reasons(graph, "050_no_excerpt")
+    assert conforms is False
+
+
+def test_refutation_statement_at_the_200_character_cap_is_admitted() -> None:
+    graph = load(*GRAPH_FILES)
+    falsifier = graph.value(SD["strategy-11"], SD.hasFalsifier)
+    graph.set((falsifier, SD.refutedWhen, Literal("r" * 200)))
+    assert verdict(graph) == ({}, True)
+
+
+def test_long_effect_label_is_refused() -> None:
+    graph = load(*GRAPH_FILES)
+    effect = URIRef("urn:example:effect")
+    graph.add((SD["strategy-11"], SD.producesEffect, effect))
+    graph.add((effect, RDF.type, SD.StrategicEffect))
+    graph.add((effect, RDFS.label, Literal("e" * 400)))
+    fired, conforms = verdict(graph)
+    assert fired == {"050_no_excerpt": 2}
+    assert reasons(graph, "050_no_excerpt") == [
+        "literal-over-200-chars-on-falsifier-or-effect-node",
+        "literals-over-300-chars-total-on-falsifier-or-effect-node"]
+    assert conforms is False
+
+
+def test_untyped_effect_split_into_short_literals_is_refused() -> None:
+    # Untyped object of sd:producesEffect: the gate still bounds it, and the
+    # per-node total catches an excerpt split into several short literals.
+    graph = load(*GRAPH_FILES)
+    effect = URIRef("urn:example:untyped-effect")
+    graph.add((SD["strategy-11"], SD.producesEffect, effect))
+    for index in range(4):
+        graph.add((effect, SD.note, Literal(f"{index}" + "q" * 99)))
+    assert reasons(graph, "050_no_excerpt") == ["literals-over-300-chars-total-on-falsifier-or-effect-node"]
+
+
+@pytest.mark.parametrize("mutation", ["contradictory-nonclaim", "long-falsifier", "long-effect"])
+def test_runner_refuses_round_one_mutants_as_pass_witnesses(mutation: str, tmp_path: Path) -> None:
+    # Real runner subprocess over a real mutant built from the real pass witness.
+    base = (PACK / "witnesses" / "pass" / "040_step_order_total.ttl").read_text(encoding="utf-8")
+    if mutation == "contradictory-nonclaim":
+        assert "sd:assertsNotLicensed true ;" in base
+        text = base.replace("sd:assertsNotLicensed true ;", "sd:assertsNotLicensed true , false ;")
+    elif mutation == "long-falsifier":
+        text = base + '\nw:falsifier sd:note "' + "f" * 400 + '" .\n'
+    else:
+        text = base + ('\nw:strategy sd:producesEffect w:eff .\nw:eff a sd:StrategicEffect ; rdfs:label "'
+                       + "g" * 400 + '" .\n')
+    witness = tmp_path / "mutant.ttl"
+    witness.write_text(text, encoding="utf-8")
+    run = subprocess.run([sys.executable, str(PACK / "runners" / "semantic_runner.py"),
+                          "--gate", str(PACK / "gates" / "040_step_order_total.rq"),
+                          "--witness", str(witness), "--expectation", "pass"],
+                         capture_output=True, text=True, check=False)
+    assert run.returncode == 2, run.stdout + run.stderr
+    assert "REFUSED_" in run.stderr
+    # Gate twin fires independently of SHACL.
+    graph = Graph()
+    graph.parse(witness, format="turtle")
+    stem = "060_licensing_nonclaim_present" if mutation == "contradictory-nonclaim" else "050_no_excerpt"
+    assert gate_rows(graph)[stem] >= 1

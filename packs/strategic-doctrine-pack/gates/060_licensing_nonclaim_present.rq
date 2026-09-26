@@ -3,23 +3,44 @@
 # not licensed, no endorsement, no text reproduced. Without it the catalog
 # could be read as licensed or endorsed material and is refused.
 #
-# One row (naming one catalog entry) when the non-claim is absent or partial.
+# A non-claim node that also asserts any value other than true on one of the
+# three boundary properties (for example sd:assertsNotLicensed true, false)
+# is contradictory: it does not count as the required non-claim, and it is
+# refused on its own even when a clean non-claim is also present.
+#
+# One row (naming one catalog entry) when the non-claim is absent or partial;
+# one row per contradictory non-claim node.
 PREFIX sd: <https://ggen.dev/ontology/strategic-doctrine#>
 PREFIX cs: <urn:xaas:case-study:>
 
 SELECT ?subject ?reason WHERE {
   {
-    SELECT (MIN(STR(?entry)) AS ?subject) WHERE {
-      ?entry a ?type .
-      FILTER(?type IN (sd:Strategy, sd:StrategyStub))
+    {
+      SELECT (MIN(STR(?entry)) AS ?subject) WHERE {
+        ?entry a ?type .
+        FILTER(?type IN (sd:Strategy, sd:StrategyStub))
+      }
+    }
+    FILTER(BOUND(?subject))
+    FILTER NOT EXISTS {
+      ?nonclaim a cs:NonClaim ;
+        sd:assertsNotLicensed true ;
+        sd:assertsNoEndorsement true ;
+        sd:assertsNoTextReproduced true .
+      FILTER NOT EXISTS {
+        ?nonclaim ?anyFlag ?anyValue .
+        FILTER(?anyFlag IN (sd:assertsNotLicensed, sd:assertsNoEndorsement, sd:assertsNoTextReproduced))
+        FILTER(!sameTerm(?anyValue, true))
+      }
+    }
+    BIND("licensing-nonclaim-absent" AS ?reason)
+  } UNION {
+    SELECT DISTINCT (STR(?badNonclaim) AS ?subject) ?reason WHERE {
+      ?badNonclaim a cs:NonClaim ;
+        ?flag ?value .
+      FILTER(?flag IN (sd:assertsNotLicensed, sd:assertsNoEndorsement, sd:assertsNoTextReproduced))
+      FILTER(!sameTerm(?value, true))
+      BIND("licensing-nonclaim-contradictory" AS ?reason)
     }
   }
-  FILTER(BOUND(?subject))
-  FILTER NOT EXISTS {
-    ?nonclaim a cs:NonClaim ;
-      sd:assertsNotLicensed true ;
-      sd:assertsNoEndorsement true ;
-      sd:assertsNoTextReproduced true .
-  }
-  BIND("licensing-nonclaim-absent" AS ?reason)
 }
