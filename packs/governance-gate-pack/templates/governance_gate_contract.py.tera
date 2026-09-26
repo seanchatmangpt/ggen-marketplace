@@ -62,22 +62,30 @@ def _canonical(value: Any) -> Any:
     return repr(value)
 
 
+def _canonical_payload(value: Any) -> str:
+    return json.dumps(_canonical(value), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
 def observation_digest(value: Any) -> str:
-    payload = json.dumps(_canonical(value), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    return hashlib.sha256(_canonical_payload(value).encode("utf-8")).hexdigest()
 
 
 def evidence_ceiling(cases: Iterable[tuple[str, Any, frozenset[str]]]) -> dict[str, Any] | None:
-    """Return a minimal indistinguishable-input/disjoint-output witness."""
+    """Return a minimal indistinguishable-input/disjoint-output witness.
+
+    Exact canonical observation equality is the proof condition. SHA-256 is
+    emitted as receipt identity only; hash equality is not used as evidence
+    that observations are equal.
+    """
     seen: dict[str, list[tuple[str, frozenset[str]]]] = {}
     for case_id, observation, accepted in cases:
-        digest = observation_digest(observation)
-        bucket = seen.setdefault(digest, [])
+        canonical = _canonical_payload(observation)
+        bucket = seen.setdefault(canonical, [])
         for prior_id, prior_accepted in bucket:
             if prior_accepted.isdisjoint(accepted):
                 return {
                     "code": "EVIDENCE_CEILING",
-                    "observation_digest": digest,
+                    "observation_digest": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
                     "left_case_id": prior_id,
                     "right_case_id": case_id,
                     "left_accepted_outputs": sorted(prior_accepted),
