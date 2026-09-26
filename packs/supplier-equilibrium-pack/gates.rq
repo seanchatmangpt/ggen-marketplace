@@ -1,0 +1,7 @@
+PREFIX se: <https://ggen.io/ontology/supplier-equilibrium#>
+SELECT ?subject ?reason WHERE {
+ { ?subject a se:SupplierProfile . FILTER NOT EXISTS { ?subject se:exactSubject ?x } BIND("MISSING_EXACT_SUBJECT" AS ?reason) }
+ UNION { ?subject a se:Selection ; se:authority ?a . FILTER(LCASE(STR(?a)) != "none") BIND("AUTHORITY_LAUNDERING" AS ?reason) }
+ UNION { ?subject a se:Selection . FILTER NOT EXISTS { ?subject se:receiptDigest ?d } BIND("MISSING_RECEIPT" AS ?reason) }
+ UNION { ?subject a se:Selection ; se:selectedSupplier ?chosen ; se:observation ?o1, ?o2 . ?o1 se:supplier ?chosen ; se:workloadDigest ?w ; se:outputDigest ?out ; se:consequenceDigest ?c . ?chosen se:intelligenceRank ?cr . ?o2 se:supplier ?other ; se:workloadDigest ?w ; se:outputDigest ?out ; se:consequenceDigest ?c . ?other se:intelligenceRank ?or . FILTER(?or < ?cr) BIND("NON_MINIMUM_INTELLIGENCE" AS ?reason) }
+}
