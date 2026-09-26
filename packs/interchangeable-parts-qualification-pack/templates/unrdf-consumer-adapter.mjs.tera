@@ -1,0 +1,121 @@
+/**
+ * GENERATED FILE — edit ontology/query/template, never this projection.
+ *
+ * Thin consumer adapter over the canonical UNRDF interchangeable-parts law.
+ * This file intentionally contains no independent substitution algorithm.
+ */
+{% for row in rows %}
+import {
+  PART_REQUIREMENT_SCHEMA,
+  PART_PASSPORT_SCHEMA,
+  SUBSTITUTION_JUDGEMENT_SCHEMA,
+  createPartRequirement,
+  createPartPassport,
+  evaluateSubstitution,
+} from '{{ row.coreModule }}';
+import {
+  SUBSTITUTION_RECEIPT_SCHEMA,
+  createSubstitutionReceipt,
+  verifySubstitutionReceipt,
+} from '{{ row.receiptsModule }}';
+
+export const IPQ_ADAPTER_CONTRACT = Object.freeze({
+  schema: '{{ row.adapterSchema }}',
+  requirementSchema: '{{ row.requirementSchema }}',
+  passportSchema: '{{ row.passportSchema }}',
+  judgementSchema: '{{ row.judgementSchema }}',
+  receiptSchema: '{{ row.receiptSchema }}',
+  authority: 'none',
+  grantsDoAuthority: false,
+});
+
+function assertCanonicalSchemas() {
+  if (PART_REQUIREMENT_SCHEMA !== IPQ_ADAPTER_CONTRACT.requirementSchema) {
+    throw new Error('REFUSED:IPQ_REQUIREMENT_SCHEMA_DRIFT');
+  }
+  if (PART_PASSPORT_SCHEMA !== IPQ_ADAPTER_CONTRACT.passportSchema) {
+    throw new Error('REFUSED:IPQ_PASSPORT_SCHEMA_DRIFT');
+  }
+  if (SUBSTITUTION_JUDGEMENT_SCHEMA !== IPQ_ADAPTER_CONTRACT.judgementSchema) {
+    throw new Error('REFUSED:IPQ_JUDGEMENT_SCHEMA_DRIFT');
+  }
+  if (SUBSTITUTION_RECEIPT_SCHEMA !== IPQ_ADAPTER_CONTRACT.receiptSchema) {
+    throw new Error('REFUSED:IPQ_RECEIPT_SCHEMA_DRIFT');
+  }
+}
+
+export function manufactureRequirement(input) {
+  assertCanonicalSchemas();
+  return createPartRequirement(input);
+}
+
+export function manufacturePassport(input) {
+  assertCanonicalSchemas();
+  return createPartPassport(input);
+}
+
+export function evaluateCandidate({ requirement, candidate, context = {} } = {}) {
+  assertCanonicalSchemas();
+  const judgement = evaluateSubstitution(requirement, candidate, context);
+  return Object.freeze({
+    schema: IPQ_ADAPTER_CONTRACT.schema,
+    state: judgement.state,
+    requirementDigest: requirement?.digest ?? null,
+    candidateDigest: candidate?.digest ?? null,
+    judgementDigest: judgement.digest,
+    falsifier: judgement.falsifier,
+    authority: 'none',
+    grantsDoAuthority: false,
+  });
+}
+
+export function manufactureReceipt({
+  requirement,
+  candidate,
+  context = {},
+  receipt = {},
+  options = {},
+} = {}) {
+  assertCanonicalSchemas();
+  return createSubstitutionReceipt(
+    { requirement, candidate, context, ...receipt },
+    options,
+  );
+}
+
+export function admitReceiptedSubstitution({
+  requirement,
+  candidate,
+  context = {},
+  substitutionReceipt,
+  options = {},
+} = {}) {
+  assertCanonicalSchemas();
+
+  const fresh = evaluateSubstitution(requirement, candidate, context);
+  const verification = verifySubstitutionReceipt(
+    substitutionReceipt,
+    { requirement, candidate, context },
+    options,
+  );
+
+  const admitted =
+    fresh.state === 'ADMITTED'
+    && verification.valid
+    && verification.state === 'ADMITTED';
+
+  return Object.freeze({
+    schema: IPQ_ADAPTER_CONTRACT.schema,
+    state: admitted ? 'ADMITTED' : 'REFUSED',
+    requirementDigest: requirement?.digest ?? null,
+    candidateDigest: candidate?.digest ?? null,
+    judgementDigest: fresh.digest,
+    receiptHash: substitutionReceipt?.receiptHash ?? null,
+    receiptValid: verification.valid,
+    receiptState: verification.state,
+    errors: Object.freeze([...(verification.errors ?? [])]),
+    authority: 'none',
+    grantsDoAuthority: false,
+  });
+}
+{% endfor %}
