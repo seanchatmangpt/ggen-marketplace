@@ -1,0 +1,19 @@
+PREFIX pa: <https://seanchatmangpt.github.io/ggen-marketplace/prior-art#>
+SELECT ?reference ?reason WHERE {
+  ?reference a pa:Reference .
+  {
+    FILTER NOT EXISTS { ?reference pa:exactSubject ?subject . }
+    BIND("missing_exact_subject" AS ?reason)
+  } UNION {
+    ?reference pa:exactSubject ?subject .
+    FILTER(!REGEX(STR(?subject), "^[^@ ]+@[0-9a-f]{40}$"))
+    BIND("mutable_or_malformed_subject" AS ?reason)
+  } UNION {
+    FILTER NOT EXISTS { ?reference pa:sourceDigest ?digest . }
+    BIND("missing_source_digest" AS ?reason)
+  } UNION {
+    FILTER NOT EXISTS { ?reference pa:qualificationReceipt ?receipt . }
+    BIND("unreceipted_qualification" AS ?reason)
+  }
+}
+ORDER BY ?reference ?reason
