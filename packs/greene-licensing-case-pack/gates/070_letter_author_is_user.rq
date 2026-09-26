@@ -1,0 +1,36 @@
+# MESSAGE: every proposal letter is authored and signed by the user as its
+# single sender, stays a PROPOSAL_DRAFT, and is never sent. Refused:
+#   - a letter with no glc:sender;
+#   - a letter whose sender is not typed glc:User (a letter drafted or
+#     signed in anyone else's name);
+#   - a letter with more than one sender;
+#   - a letter whose glc:letterStatus is missing or not PROPOSAL_DRAFT;
+#   - a letter carrying glc:sentOn (nothing in this packet is sent by any
+#     tool; sending is the user's own act outside the packet).
+#
+# Each row names the offending letter and the reason.
+PREFIX glc: <https://ggen.dev/ontology/greene-licensing-case#>
+
+SELECT DISTINCT ?subject ?reason WHERE {
+  {
+    ?subject a glc:Letter .
+    FILTER NOT EXISTS { ?subject glc:sender ?anySender }
+    BIND("letter-without-sender" AS ?reason)
+  } UNION {
+    ?subject a glc:Letter ; glc:sender ?sender .
+    FILTER NOT EXISTS { ?sender a glc:User }
+    BIND("letter-sender-not-user" AS ?reason)
+  } UNION {
+    ?subject a glc:Letter ; glc:sender ?first , ?second .
+    FILTER(STR(?first) < STR(?second))
+    BIND("letter-with-multiple-senders" AS ?reason)
+  } UNION {
+    ?subject a glc:Letter .
+    FILTER NOT EXISTS { ?subject glc:letterStatus "PROPOSAL_DRAFT" }
+    BIND("letter-not-proposal-draft" AS ?reason)
+  } UNION {
+    ?subject a glc:Letter ; glc:sentOn ?when .
+    BIND("letter-marked-sent" AS ?reason)
+  }
+}
+ORDER BY ?subject ?reason
