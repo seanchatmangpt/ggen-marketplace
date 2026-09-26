@@ -1,0 +1,113 @@
+@prefix da: <https://seanchatmangpt.github.io/packs/delegation-admission#> .
+@prefix gp: <https://ggen.dev/ns/pack#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix earl: <http://www.w3.org/ns/earl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<urn:ggen:pack:delegation-admission-pack>
+    a gp:Pack ;
+    gp:name "delegation-admission-pack" ;
+    gp:version "0.1.0" ;
+    gp:profile gp:Core1 .
+
+# Public-vocabulary reuse:
+# - prov:Entity anchors derived admission artifacts and receipts.
+# - earl:TestResult anchors PASS/COUNTEREXAMPLE evidence.
+# Failed edge: neither vocabulary expresses a conjunctive four-obligation
+# delegation boundary nor the law delegationUnits <= min(scopeUnits).
+
+da:DelegationArtifact a rdfs:Class ;
+    rdfs:subClassOf prov:Entity ;
+    rdfs:label "Delegation artifact" ;
+    rdfs:comment "Exact-subject candidate whose delegated scope is bounded by Explain, Verify, Modify, and Account evidence." .
+
+da:EvidenceObligation a rdfs:Class ;
+    rdfs:subClassOf earl:TestResult ;
+    rdfs:label "Evidence obligation" .
+
+da:ExplainEvidence a rdfs:Class ; rdfs:subClassOf da:EvidenceObligation .
+da:VerifyEvidence a rdfs:Class ; rdfs:subClassOf da:EvidenceObligation .
+da:ModifyEvidence a rdfs:Class ; rdfs:subClassOf da:EvidenceObligation .
+da:AccountEvidence a rdfs:Class ; rdfs:subClassOf da:EvidenceObligation .
+
+da:subjectId a rdf:Property ; rdfs:range xsd:string .
+da:delegationUnits a rdf:Property ; rdfs:domain da:DelegationArtifact ; rdfs:range xsd:integer .
+da:boundaryId a rdf:Property ; rdfs:domain da:DelegationArtifact ; rdfs:range xsd:string .
+da:authorityScopeId a rdf:Property ; rdfs:domain da:DelegationArtifact ; rdfs:range xsd:string .
+
+da:hasExplain a rdf:Property ; rdfs:domain da:DelegationArtifact ; rdfs:range da:ExplainEvidence .
+da:hasVerify a rdf:Property ; rdfs:domain da:DelegationArtifact ; rdfs:range da:VerifyEvidence .
+da:hasModify a rdf:Property ; rdfs:domain da:DelegationArtifact ; rdfs:range da:ModifyEvidence .
+da:hasAccount a rdf:Property ; rdfs:domain da:DelegationArtifact ; rdfs:range da:AccountEvidence .
+
+da:scopeUnits a rdf:Property ; rdfs:domain da:EvidenceObligation ; rdfs:range xsd:integer .
+da:verdict a rdf:Property ; rdfs:domain da:EvidenceObligation ; rdfs:range xsd:string .
+
+da:provenanceId a rdf:Property ; rdfs:domain da:ExplainEvidence ; rdfs:range xsd:string .
+da:ontologyId a rdf:Property ; rdfs:domain da:ExplainEvidence ; rdfs:range xsd:string .
+da:rationaleId a rdf:Property ; rdfs:domain da:ExplainEvidence ; rdfs:range xsd:string .
+
+da:independent a rdf:Property ; rdfs:domain da:VerifyEvidence ; rdfs:range xsd:boolean .
+da:verifierSetId a rdf:Property ; rdfs:domain da:VerifyEvidence ; rdfs:range xsd:string .
+da:receiptId a rdf:Property ; rdfs:range xsd:string .
+
+da:changeId a rdf:Property ; rdfs:domain da:ModifyEvidence ; rdfs:range xsd:string .
+da:resultId a rdf:Property ; rdfs:domain da:ModifyEvidence ; rdfs:range xsd:string .
+da:replayId a rdf:Property ; rdfs:range xsd:string .
+
+da:authorityId a rdf:Property ; rdfs:domain da:AccountEvidence ; rdfs:range xsd:string .
+da:consequenceId a rdf:Property ; rdfs:domain da:AccountEvidence ; rdfs:range xsd:string .
+da:standing a rdf:Property ; rdfs:domain da:AccountEvidence ; rdfs:range xsd:string .
+
+# Non-vacuous clean witness. The pack ontology itself must produce zero
+# violation rows under every gate.
+<urn:delegation-admission:example>
+    a da:DelegationArtifact ;
+    da:subjectId "git:example/repo@0123456789abcdef" ;
+    da:delegationUnits 3 ;
+    da:boundaryId "sha256:boundary" ;
+    da:authorityScopeId "sha256:authority-scope" ;
+    da:hasExplain <urn:delegation-admission:example:explain> ;
+    da:hasVerify <urn:delegation-admission:example:verify> ;
+    da:hasModify <urn:delegation-admission:example:modify> ;
+    da:hasAccount <urn:delegation-admission:example:account> .
+
+<urn:delegation-admission:example:explain>
+    a da:ExplainEvidence ;
+    da:subjectId "git:example/repo@0123456789abcdef" ;
+    da:scopeUnits 3 ;
+    da:verdict "PASS" ;
+    da:provenanceId "sha256:provenance" ;
+    da:ontologyId "sha256:ontology" ;
+    da:rationaleId "sha256:rationale" .
+
+<urn:delegation-admission:example:verify>
+    a da:VerifyEvidence ;
+    da:subjectId "git:example/repo@0123456789abcdef" ;
+    da:scopeUnits 3 ;
+    da:verdict "PASS" ;
+    da:independent true ;
+    da:verifierSetId "sha256:verifiers" ;
+    da:receiptId "sha256:verify-receipt" .
+
+<urn:delegation-admission:example:modify>
+    a da:ModifyEvidence ;
+    da:subjectId "git:example/repo@0123456789abcdef" ;
+    da:scopeUnits 3 ;
+    da:verdict "PASS" ;
+    da:changeId "sha256:changed-requirement" ;
+    da:resultId "sha256:changed-result" ;
+    da:replayId "sha256:changed-replay" .
+
+<urn:delegation-admission:example:account>
+    a da:AccountEvidence ;
+    da:subjectId "git:example/repo@0123456789abcdef" ;
+    da:scopeUnits 3 ;
+    da:verdict "PASS" ;
+    da:authorityId "sha256:authority" ;
+    da:consequenceId "sha256:consequence" ;
+    da:receiptId "sha256:receipt" ;
+    da:replayId "sha256:replay" ;
+    da:standing "PARTIAL_ALIVE" .
