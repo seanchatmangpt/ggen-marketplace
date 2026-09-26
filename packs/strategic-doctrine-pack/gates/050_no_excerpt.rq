@@ -1,0 +1,262 @@
+# MESSAGE: the catalog reproduces no text of its source work. Refused:
+#   - any literal longer than 60 characters on a catalog-side node: a
+#     strategy (sd:Strategy, sd:CatalogEntry, sd:CounterStrategy,
+#     sd:StrategicPattern), a step (sd:Step, or any object of sd:composedOf),
+#     a strategic condition, or a strategic objective;
+#   - literals on one such node whose lengths sum past 120 characters (an
+#     excerpt split into several short literals);
+#   - any literal longer than 200 characters on a falsifier or effect node
+#     (sd:Falsifier, sd:StrategicEffect, or any object of sd:hasFalsifier or
+#     sd:producesEffect);
+#   - literals on one falsifier or effect node whose lengths sum past 300
+#     characters;
+#   - any literal longer than 300 characters, or literals summing past 400
+#     characters, on any other node (cs:NonClaim, sd:SourceWork, sd:Market,
+#     untyped side nodes, anything not in the two tiers above);
+#   - literals whose lengths sum past 400 characters, or IRI local names
+#     whose lengths sum past 400 characters, across one catalog entry's
+#     closure (a node typed sd:Strategy or sd:CatalogEntry carrying an
+#     sd:ordinal, plus every object of its sd:composedOf, sd:hasFalsifier,
+#     sd:producesEffect, sd:appliesWhen, sd:servesObjective): an excerpt split
+#     across several nodes each under its own cap;
+#   - two or more catalog entries sharing one ordinal (entries are the only
+#     closure roots, so their number is bounded by the 1..33 ordinal range the
+#     SHACL shape enforces plus this uniqueness row);
+#   - WHOLE-GRAPH residual budgets, so text split across any number of nodes
+#     linked by any other predicate (rdfs:seeAlso, sd:counteredBy, blank-node
+#     chains, orphan nodes, minted predicates) is bounded in total: prose
+#     outside every catalog-entry closure may not exceed 5100 characters, and
+#     IRI local-name text of IRIs (any position) outside every closure may not
+#     exceed 1900 characters. Prose is every literal except a short (<= 40
+#     chars) numeric, date/dateTime or boolean lexical form, weighted by its
+#     lexical length plus its language tag, so world observations do not
+#     consume the budget but no letter set is exempt. The caps are a ratchet:
+#     the shipped doctrine graph plus the entrant fixture measures 4673 prose
+#     and 1433 IRI characters outside closures; the headroom (~400 each) is
+#     one closure budget. Growing the vocabulary or world model past it is a
+#     reviewed edit of this gate, not a silent admission;
+#   - any literal whose datatype IRI is outside the XSD and RDF namespaces
+#     (a minted datatype IRI is a text channel);
+#   - any IRI whose local name (text after the last '#', '/' or ':') is longer
+#     than 60 characters, or else whose full text is longer than 160
+#     characters (one row per IRI, local-name reason first): IRIs are not a
+#     text channel either;
+#   - any sd:quote triple anywhere.
+# Own paraphrased titles are at most 60 characters; longer own prose belongs
+# on falsifiers and effects only, and is bounded there too (200 per literal,
+# 300 per node), so no node type is an unbounded text channel.
+#
+# Each row names the offending subject, predicate, and the reason.
+PREFIX sd: <https://ggen.dev/ontology/strategic-doctrine#>
+
+SELECT DISTINCT ?subject ?predicate ?reason WHERE {
+  {
+    {
+      ?subject a ?type .
+      FILTER(?type IN (sd:Strategy, sd:CatalogEntry, sd:CounterStrategy, sd:StrategicPattern,
+                       sd:Step, sd:StrategicCondition, sd:StrategicObjective))
+    } UNION {
+      ?owner sd:composedOf ?subject .
+    }
+    ?subject ?predicate ?literal .
+    FILTER(isLiteral(?literal) && STRLEN(STR(?literal)) > 60)
+    BIND("literal-over-60-chars-on-catalog-node" AS ?reason)
+  } UNION {
+    {
+      SELECT ?subject (SUM(STRLEN(STR(?literal))) AS ?total) WHERE {
+        ?subject ?p ?literal .
+        FILTER(isLiteral(?literal))
+        FILTER(EXISTS {
+                 ?subject a ?type .
+                 FILTER(?type IN (sd:Strategy, sd:CatalogEntry, sd:CounterStrategy, sd:StrategicPattern,
+                                  sd:Step, sd:StrategicCondition, sd:StrategicObjective))
+               } || EXISTS { ?owner sd:composedOf ?subject })
+      } GROUP BY ?subject
+    }
+    FILTER(?total > 120)
+    BIND(sd:literalBudget AS ?predicate)
+    BIND("literals-over-120-chars-total-on-catalog-node" AS ?reason)
+  } UNION {
+    {
+      ?subject a ?ptype .
+      FILTER(?ptype IN (sd:Falsifier, sd:StrategicEffect))
+    } UNION {
+      ?anyOwner sd:hasFalsifier ?subject .
+    } UNION {
+      ?anyOwner sd:producesEffect ?subject .
+    }
+    ?subject ?predicate ?proseLiteral .
+    FILTER(isLiteral(?proseLiteral) && STRLEN(STR(?proseLiteral)) > 200)
+    BIND("literal-over-200-chars-on-falsifier-or-effect-node" AS ?reason)
+  } UNION {
+    {
+      SELECT ?subject (SUM(STRLEN(STR(?proseLit))) AS ?proseTotal) WHERE {
+        ?subject ?pp ?proseLit .
+        FILTER(isLiteral(?proseLit))
+        FILTER(EXISTS {
+                 ?subject a ?ptype .
+                 FILTER(?ptype IN (sd:Falsifier, sd:StrategicEffect))
+               } || EXISTS { ?anyOwner sd:hasFalsifier|sd:producesEffect ?subject })
+      } GROUP BY ?subject
+    }
+    FILTER(?proseTotal > 300)
+    BIND(sd:literalBudget AS ?predicate)
+    BIND("literals-over-300-chars-total-on-falsifier-or-effect-node" AS ?reason)
+  } UNION {
+    {
+      SELECT DISTINCT ?subject ?predicate WHERE {
+        ?subject ?predicate ?sideLiteral .
+        FILTER(isLiteral(?sideLiteral) && STRLEN(STR(?sideLiteral)) > 300)
+      }
+    }
+    FILTER NOT EXISTS {
+      ?subject a ?tieredType .
+      FILTER(?tieredType IN (sd:Strategy, sd:CatalogEntry, sd:CounterStrategy, sd:StrategicPattern,
+                             sd:Step, sd:StrategicCondition, sd:StrategicObjective,
+                             sd:Falsifier, sd:StrategicEffect))
+    }
+    FILTER NOT EXISTS { ?tierOwner sd:composedOf|sd:hasFalsifier|sd:producesEffect ?subject }
+    BIND("literal-over-300-chars-on-any-node" AS ?reason)
+  } UNION {
+    {
+      SELECT ?subject (SUM(STRLEN(STR(?sideLit))) AS ?sideTotal) WHERE {
+        ?subject ?sp ?sideLit .
+        FILTER(isLiteral(?sideLit))
+      } GROUP BY ?subject
+    }
+    FILTER(?sideTotal > 400)
+    FILTER NOT EXISTS {
+      ?subject a ?tieredType .
+      FILTER(?tieredType IN (sd:Strategy, sd:CatalogEntry, sd:CounterStrategy, sd:StrategicPattern,
+                             sd:Step, sd:StrategicCondition, sd:StrategicObjective,
+                             sd:Falsifier, sd:StrategicEffect))
+    }
+    FILTER NOT EXISTS { ?tierOwner sd:composedOf|sd:hasFalsifier|sd:producesEffect ?subject }
+    BIND(sd:literalBudget AS ?predicate)
+    BIND("literals-over-400-chars-total-on-any-node" AS ?reason)
+  } UNION {
+    {
+      SELECT ?subject (SUM(STRLEN(STR(?closureLit))) AS ?closureTotal) WHERE {
+        {
+          SELECT DISTINCT ?subject ?member ?cp ?closureLit WHERE {
+            ?subject sd:ordinal ?rootOrdinal ; a ?rootType .
+            FILTER(?rootType IN (sd:Strategy, sd:CatalogEntry))
+            ?subject (sd:composedOf|sd:hasFalsifier|sd:producesEffect|sd:appliesWhen|sd:servesObjective)? ?member .
+            ?member ?cp ?closureLit .
+            FILTER(isLiteral(?closureLit))
+          }
+        }
+      } GROUP BY ?subject
+    }
+    FILTER(?closureTotal > 400)
+    BIND(sd:closureBudget AS ?predicate)
+    BIND("literals-over-400-chars-total-across-strategy-closure" AS ?reason)
+  } UNION {
+    {
+      SELECT ?subject (SUM(STRLEN(REPLACE(STR(?irimember), "^.*[#/:]", ""))) AS ?closureIriTotal) WHERE {
+        {
+          SELECT DISTINCT ?subject ?irimember WHERE {
+            ?subject sd:ordinal ?rootOrdinal ; a ?rootType .
+            FILTER(?rootType IN (sd:Strategy, sd:CatalogEntry))
+            ?subject (sd:composedOf|sd:hasFalsifier|sd:producesEffect|sd:appliesWhen|sd:servesObjective)? ?irimember .
+            FILTER(isIRI(?irimember))
+          }
+        }
+      } GROUP BY ?subject
+    }
+    FILTER(?closureIriTotal > 400)
+    BIND(sd:iriBudget AS ?predicate)
+    BIND("iri-text-over-400-chars-across-strategy-closure" AS ?reason)
+  } UNION {
+    {
+      SELECT (COUNT(DISTINCT ?ordinalRoot) AS ?sharers) ?sharedOrdinal WHERE {
+        ?ordinalRoot sd:ordinal ?sharedOrdinal ; a ?ordinalType .
+        FILTER(?ordinalType IN (sd:Strategy, sd:CatalogEntry))
+      } GROUP BY ?sharedOrdinal
+    }
+    FILTER(?sharers > 1)
+    ?subject sd:ordinal ?sharedOrdinal ; a ?sharerType .
+    FILTER(?sharerType IN (sd:Strategy, sd:CatalogEntry))
+    BIND(sd:ordinal AS ?predicate)
+    BIND("catalog-ordinal-shared-by-several-entries" AS ?reason)
+  } UNION {
+    {
+      SELECT (SUM(?allWeight) AS ?allText) WHERE {
+        ?anyS ?anyP ?proseLit .
+        FILTER(isLiteral(?proseLit) && !(STRLEN(STR(?proseLit)) <= 40 && (REGEX(STR(?proseLit), "^[+-]?[0-9]*[.]?[0-9]+([eE][+-]?[0-9]+)?$")
+                                   || REGEX(STR(?proseLit), "^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})?)?$")
+                                   || STR(?proseLit) IN ("true", "false"))))
+        BIND(STRLEN(STR(?proseLit)) + STRLEN(LANG(?proseLit)) AS ?allWeight)
+      }
+    }
+    {
+      SELECT (COALESCE(SUM(?memberWeight), 0) AS ?closureText) WHERE {
+        {
+          SELECT DISTINCT ?textMember ?tp ?memberLit WHERE {
+            ?textRoot sd:ordinal ?textOrdinal ; a ?textRootType .
+            FILTER(?textRootType IN (sd:Strategy, sd:CatalogEntry))
+            ?textRoot (sd:composedOf|sd:hasFalsifier|sd:producesEffect|sd:appliesWhen|sd:servesObjective)? ?textMember .
+            ?textMember ?tp ?memberLit .
+            FILTER(isLiteral(?memberLit) && !(STRLEN(STR(?memberLit)) <= 40 && (REGEX(STR(?memberLit), "^[+-]?[0-9]*[.]?[0-9]+([eE][+-]?[0-9]+)?$")
+                                   || REGEX(STR(?memberLit), "^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})?)?$")
+                                   || STR(?memberLit) IN ("true", "false"))))
+          }
+        }
+        BIND(STRLEN(STR(?memberLit)) + STRLEN(LANG(?memberLit)) AS ?memberWeight)
+      }
+    }
+    FILTER(?allText - ?closureText > 5100)
+    BIND(sd:DoctrineGraph AS ?subject)
+    BIND(sd:residualTextBudget AS ?predicate)
+    BIND("prose-outside-catalog-closures-over-5100-chars" AS ?reason)
+  } UNION {
+    {
+      SELECT (SUM(STRLEN(REPLACE(STR(?graphIri), "^.*[#/:]", ""))) AS ?allIriText) WHERE {
+        {
+          SELECT DISTINCT ?graphIri WHERE {
+            { ?graphIri ?gp1 ?go1 } UNION { ?gs2 ?graphIri ?go2 } UNION { ?gs3 ?gp3 ?graphIri }
+            FILTER(isIRI(?graphIri))
+          }
+        }
+      }
+    }
+    {
+      SELECT (COALESCE(SUM(STRLEN(REPLACE(STR(?memberIri), "^.*[#/:]", ""))), 0) AS ?closureIriText) WHERE {
+        {
+          SELECT DISTINCT ?memberIri WHERE {
+            ?iriRoot sd:ordinal ?iriOrdinal ; a ?iriRootType .
+            FILTER(?iriRootType IN (sd:Strategy, sd:CatalogEntry))
+            ?iriRoot (sd:composedOf|sd:hasFalsifier|sd:producesEffect|sd:appliesWhen|sd:servesObjective)? ?memberIri .
+            FILTER(isIRI(?memberIri))
+          }
+        }
+      }
+    }
+    FILTER(?allIriText - ?closureIriText > 1900)
+    BIND(sd:DoctrineGraph AS ?subject)
+    BIND(sd:iriBudget AS ?predicate)
+    BIND("iri-text-outside-catalog-closures-over-1900-chars" AS ?reason)
+  } UNION {
+    ?subject ?predicate ?typedLiteral .
+    FILTER(isLiteral(?typedLiteral) && DATATYPE(?typedLiteral) != <http://www.w3.org/1999/02/22-rdf-syntax-ns#langString>
+           && !STRSTARTS(STR(DATATYPE(?typedLiteral)), "http://www.w3.org/2001/XMLSchema#")
+           && !STRSTARTS(STR(DATATYPE(?typedLiteral)), "http://www.w3.org/1999/02/22-rdf-syntax-ns#"))
+    BIND("literal-datatype-outside-xsd-and-rdf" AS ?reason)
+  } UNION {
+    {
+      SELECT DISTINCT ?subject WHERE {
+        { ?subject ?anyP ?anyO } UNION { ?anyS ?subject ?anyO } UNION { ?anyS ?anyP ?subject }
+        FILTER(isIRI(?subject) && STRLEN(STR(?subject)) > 60)
+      }
+    }
+    BIND(STRLEN(REPLACE(STR(?subject), "^.*[#/:]", "")) AS ?localLength)
+    FILTER(?localLength > 60 || STRLEN(STR(?subject)) > 160)
+    BIND(sd:iriBudget AS ?predicate)
+    BIND(IF(?localLength > 60, "iri-local-name-over-60-chars", "iri-over-160-chars") AS ?reason)
+  } UNION {
+    ?subject sd:quote ?anything .
+    BIND(sd:quote AS ?predicate)
+    BIND("sd-quote-present" AS ?reason)
+  }
+}
+ORDER BY ?subject ?predicate ?reason
