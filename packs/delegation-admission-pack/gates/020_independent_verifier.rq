@@ -1,0 +1,38 @@
+# MESSAGE: verify-evidence violation.
+# Verification must PASS, name a verifier set and receipt, and be explicitly
+# independent. Producer self-verification is not an admission witness.
+PREFIX da: <https://seanchatmangpt.github.io/packs/delegation-admission#>
+SELECT ?artifact ?field WHERE {
+  {
+    ?artifact a da:DelegationArtifact ; da:hasVerify ?e .
+    OPTIONAL { ?e da:verdict ?v . BIND(?v AS ?w) }
+    FILTER(!BOUND(?w))
+    BIND("verdict" AS ?field)
+  } UNION {
+    ?artifact a da:DelegationArtifact ; da:hasVerify ?e .
+    ?e da:verdict ?v .
+    FILTER(?v != "PASS")
+    BIND("verdict:not-pass" AS ?field)
+  } UNION {
+    ?artifact a da:DelegationArtifact ; da:hasVerify ?e .
+    OPTIONAL { ?e da:verifierSetId ?x . BIND(?x AS ?w) }
+    FILTER(!BOUND(?w))
+    BIND("verifierSetId" AS ?field)
+  } UNION {
+    ?artifact a da:DelegationArtifact ; da:hasVerify ?e .
+    OPTIONAL { ?e da:receiptId ?x . BIND(?x AS ?w) }
+    FILTER(!BOUND(?w))
+    BIND("receiptId" AS ?field)
+  } UNION {
+    ?artifact a da:DelegationArtifact ; da:hasVerify ?e .
+    OPTIONAL { ?e da:independent ?x . BIND(?x AS ?w) }
+    FILTER(!BOUND(?w))
+    BIND("independent" AS ?field)
+  } UNION {
+    ?artifact a da:DelegationArtifact ; da:hasVerify ?e .
+    ?e da:independent ?x .
+    FILTER(?x != true)
+    BIND("independent:not-true" AS ?field)
+  }
+}
+ORDER BY ?artifact ?field
