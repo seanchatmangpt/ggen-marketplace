@@ -1,0 +1,62 @@
+PREFIX ipq: <https://ggen.dev/ontology/interchangeable-parts-qualification#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?claim ?reason WHERE {
+  ?claim a ipq:SubstitutionClaim .
+  {
+    FILTER NOT EXISTS { ?claim ipq:originalPart ?original }
+    BIND("MISSING_ORIGINAL_PART" AS ?reason)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?claim ipq:replacementPart ?replacement }
+    BIND("MISSING_REPLACEMENT_PART" AS ?reason)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?claim ipq:requirement ?requirement }
+    BIND("MISSING_REQUIREMENT" AS ?reason)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?claim ipq:qualificationReceipt ?receipt }
+    BIND("MISSING_QUALIFICATION_RECEIPT" AS ?reason)
+  }
+  UNION
+  {
+    ?claim ipq:originalPart ?original ;
+           ipq:replacementPart ?replacement .
+    ?original ipq:consequenceDigest ?originalDigest .
+    ?replacement ipq:consequenceDigest ?replacementDigest .
+    FILTER (?originalDigest != ?replacementDigest)
+    BIND("CONSEQUENCE_DRIFT" AS ?reason)
+  }
+  UNION
+  {
+    ?claim ipq:replacementPart ?replacement .
+    FILTER NOT EXISTS {
+      ?replacement ipq:subjectSha ?sha .
+      FILTER regex(str(?sha), "^[0-9a-f]{40}$")
+    }
+    BIND("REPLACEMENT_SUBJECT_NOT_IMMUTABLE" AS ?reason)
+  }
+  UNION
+  {
+    ?claim ipq:qualificationReceipt ?receipt .
+    FILTER NOT EXISTS {
+      ?receipt a ipq:QualificationReceipt ;
+               ipq:verifierEvidence ?evidence ;
+               ipq:replayDigest ?replay ;
+               ipq:passed true .
+    }
+    BIND("UNQUALIFIED_RECEIPT" AS ?reason)
+  }
+  UNION
+  {
+    { ?claim ipq:grantsDoAuthority true }
+    UNION
+    { ?claim ipq:replacementPart ?replacement .
+      ?replacement ipq:grantsDoAuthority true }
+    BIND("DO_AUTHORITY_LAUNDERING" AS ?reason)
+  }
+}
