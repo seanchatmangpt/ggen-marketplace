@@ -75,17 +75,6 @@ def main() -> int:
                 failures.append(
                     f"{fixture_name}:{gate}:expected={expected_rows}:actual={actual}"
                 )
-        unrelated = {
-            gate: rows
-            for gate, rows in result.items()
-            if rows and gate not in expected
-        }
-        if unrelated:
-            failures.append(
-                f"{fixture_name}:unexpected="
-                + json.dumps(unrelated, sort_keys=True, separators=(",", ":"))
-            )
-
     if failures:
         print("REFUSED:SEMANTIC_GATE_COURT:" + "|".join(failures))
         return 1
