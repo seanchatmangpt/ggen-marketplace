@@ -1,35 +1,18 @@
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-PREFIX sh:  <http://www.w3.org/ns/shacl#>
-
-# Generic application-profile projection. No private XaaS capability list,
-# moduleName/domainModule/actionName facts, or domain vocabulary appears here.
-#
-# Deliberately minimal: every projected column binds straight from a graph
-# pattern or an integer/string literal, because ggen's declarative-config
-# validator refuses VALUES in a file-referenced .rq (error[E0010]) and its
-# SPARQL evaluator drops cross-BIND columns in UNION groups. All string
-# composition (local names, module names, Ash attribute args, source IRIs)
-# therefore lives in templates/gen-commands.sh.tmpl, not here.
-SELECT ?phase ?kind ?class ?path ?datatype ?minCount
+PREFIX sh: <http://www.w3.org/ns/shacl#>
+SELECT ?phase ?kind ?shape ?class ?shapeName ?path ?propertyName ?datatype ?minCount ?maxCount
 WHERE {
-  {
-    ?shape a sh:NodeShape ;
-           sh:targetClass ?class .
-    FILTER(isIRI(?class))
-    BIND(10 AS ?phase)
-    BIND("resource" AS ?kind)
-  }
-  UNION
-  {
-    ?shape a sh:NodeShape ;
-           sh:targetClass ?class ;
-           sh:property ?propertyShape .
-    ?propertyShape sh:path ?path ;
-                   sh:datatype ?datatype .
-    FILTER(isIRI(?path))
-    OPTIONAL { ?propertyShape sh:minCount ?minCount . }
-    BIND(20 AS ?phase)
-    BIND("attribute" AS ?kind)
-  }
+ { ?shape a sh:NodeShape ; sh:targetClass ?class .
+   FILTER(isIRI(?class)) OPTIONAL { ?shape sh:name ?shapeName . }
+   BIND(10 AS ?phase) BIND("resource" AS ?kind) }
+ UNION
+ { ?shape a sh:NodeShape ; sh:targetClass ?class ; sh:property ?propertyShape .
+   ?propertyShape sh:path ?path ; sh:datatype ?datatype .
+   FILTER(isIRI(?path))
+   OPTIONAL { ?shape sh:name ?shapeName . }
+   OPTIONAL { ?propertyShape sh:name ?propertyName . }
+   OPTIONAL { ?propertyShape sh:minCount ?minCount . }
+   OPTIONAL { ?propertyShape sh:maxCount ?maxCount . }
+   BIND(20 AS ?phase) BIND("attribute" AS ?kind) }
 }
 ORDER BY ?phase ?class ?path
