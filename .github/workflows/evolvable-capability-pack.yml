@@ -1,0 +1,40 @@
+name: Evolvable capability semantic court
+
+on:
+  pull_request:
+    paths:
+      - "packs/evolvable-capability-pack/**"
+      - ".github/workflows/evolvable-capability-pack.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-court:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Admit exact subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$expected"
+          printf 'evolvable_capability_exact_head=%s\n' "$actual"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install semantic engine
+        run: python -m pip install "rdflib==7.6.0"
+
+      - name: Execute positive and negative gate witnesses
+        run: python packs/evolvable-capability-pack/qualification/verify.py
