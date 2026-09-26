@@ -7,19 +7,19 @@ This map records the smallest marketplace composition currently supported by obs
 ### Platform law
 
 - `ggen-platform-pack@26.9.12`
-- `process-intelligence-pack@26.9.12`
+- `process-intelligence-pack@26.9.13`
 - `protocol-integration-pack@26.9.13`
 - `semantic-projection-pack@26.9.12`
-- `evidence-standing-pack@26.9.12`
+- `evidence-standing-pack@26.9.14`
 - `planning-policy-pack@26.9.12`
 - `decision-optionality-pack@26.9.12`
 - `experience-projection-pack@26.9.12`
-- `state-transition-pack@26.9.12`
+- `state-transition-pack@26.9.13`
 - `repository-lifecycle-pack@26.9.12`
 
 ### Projection/evidence machinery
 
-- `shacl-projection-pack@0.1.0`
+- `shacl-projection-pack@0.2.0`
 - `shacl-to-pydantic-pack@0.1.0`
 - `ggen-ecosystem-ocel-pack@26.8.26+1`
 - `autofde-lab-standing-vocabulary-pack@26.9.1`

@@ -18,3 +18,7 @@ It refuses when:
 Dotfiles under template/gate directories are treated as scaffolding, not executable source. Refusals use `REFUSED:*` and exit code `2`. Success prints pack, RDF, template, gate, profile, and Diátaxis counts and exits `0`.
 
 CI calls this same local command; CI is a wrapper, not a separate acceptance implementation.
+
+## Vacuity audit (CI admission gate)
+
+`scripts/audit_vacuity.py` runs in CI (`.github/workflows/vacuity-audit.yml`). Structural rules — empty/constant-success functions, no-op scripts — are ERRORS on every path. Marker-word findings under `imports/` and `receipts/` (REFERENCE_PARTS also includes `reference/`, `vendor/`, `third_party/`) are WARNINGS, not refusals.

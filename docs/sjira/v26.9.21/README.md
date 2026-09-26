@@ -57,7 +57,7 @@ The marketplace already contains the horizontal architecture. The implementation
 
 | Capability | Pack | Disposition |
 |---|---|---|
-| SHACL projection law | `shacl-projection-pack@0.1.0` | REUSE |
+| SHACL projection law | `shacl-projection-pack@0.2.0` | REUSE |
 | SHACL → Pydantic | `shacl-to-pydantic-pack@0.1.0` | REUSE with `shacl-projection-pack` |
 | OCEL manufacture | `ggen-ecosystem-ocel-pack@26.8.26+1` | REUSE/EXTEND for HDD object/event types |
 | POWL v2 semantics | `ontostar-mustar-powlv2-agent-pack@26.7.30` | REUSE semantics, not its full agent runtime |

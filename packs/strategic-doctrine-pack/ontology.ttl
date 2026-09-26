@@ -1,0 +1,116 @@
+@prefix sdo: <https://ggen.dev/ontology/strategic-doctrine#> .
+@prefix wdfa: <https://ggen.dev/ontology/wd-fa#> .
+@prefix do: <https://ggen.dev/ontology/decision-optionality#> .
+@prefix pp: <https://ggen.dev/ontology/planning-policy#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# strategic-doctrine-pack: the doctrine layer for strategic strategies.
+#
+# REUSE/EXTEND ledger (search ladder, per the marketplace's pack-authoring
+# contract): this pack mints NO vocabulary a sibling already expresses.
+#   - sdo:ApplicabilityCondition EXTENDS wdfa:ApplicabilityCondition
+#     (packs/wd-failure-analysis-pack/ontology.ttl:28, property :49) from
+#     failure-mode diagnostics to strategic doctrine.
+#   - sdo:Falsifier EXTENDS do:Falsifier
+#     (packs/decision-optionality-pack/ontology.ttl:23-24) exactly as
+#     wdfa:Falsifier already does (wd-fa ontology.ttl:30).
+#   - sdo:falsifiedBy is rdfs:subPropertyOf do:falsifiedBy
+#     (decision-optionality-pack ontology.ttl:54-57) so candidate-level and
+#     strategy-level falsification stay one relation family, not two.
+#   - sdo:Strategy is a skos:Concept subclass, following the skos:ConceptScheme
+#     strategy pattern of packs/consumer-realization-frontier-pack/
+#     ontology.ttl:12-16 (strategy families can be skos:ConceptSchemes of
+#     these concepts without new machinery).
+#   - sdo:method points at pp:Method (packs/planning-policy-pack/
+#     ontology.ttl:16), reusing the HDDL/HTN decomposition vocabulary
+#     (pp:decomposesInto :36, pp:realizedBy :38) as the realization layer.
+#
+# INVENTION with recorded failed edge: sdo:Counterstrategy. Closest public
+# prior art is the Toyota-Production-System "countermeasure" vocabulary
+# (corrective-action on a quality incident: non-adversarial, closes a defect)
+# and chess-theory "counterplay" (prose, not an ontology relation). Neither
+# expresses the semantics required here — a named adversarial response to an
+# opposing Strategy as doctrine-layer RDF, queryable for coverage gates.
+# failed(edge: wdfa:/do:/pp: families cannot express it) != failed(vocabulary):
+# sdo:Counterstrategy is admitted as the single missing fact, not a new
+# top-level structure.
+#
+# LICENSE POSTURE: this ontology ships ZERO sdo:Strategy individuals.
+# Strategy content (any published strategy canon) is unlicensed material;
+# none of it may enter this repository until a licensing decision exists.
+# Per-strategy dcterms:rights is REQUIRED by gates/030
+# _licensed_content_guard.rq, and the graph's strategy count must equal a
+# declared sdo:strategyCount literal raised in the same change. Fixture
+# strategies for qualification live in qualification/consumer.ttl and are
+# marked dcterms:rights "fixture".
+
+# ===== CLASSES =====
+
+sdo:Strategy a rdfs:Class ;
+    rdfs:subClassOf skos:Concept ;
+    rdfs:label "Strategic strategy" ;
+    rdfs:comment "A named strategic strategy as doctrine-layer RDF. Required doctrine elements: >=1 sdo:applicableWhen, >=1 sdo:counteredBy, >=1 sdo:falsifiedBy, >=1 sdo:method (gates/010_required.rq, gates/020_counterstrategy_required.rq). Every individual MUST carry dcterms:rights (gates/030_licensed_content_guard.rq) — this pack ships the vocabulary only; licensed strategy content is pending." .
+
+sdo:ApplicabilityCondition a rdfs:Class ;
+    rdfs:subClassOf wdfa:ApplicabilityCondition ;
+    rdfs:label "Strategic applicability condition" ;
+    rdfs:comment "The witnessed conditions under which a Strategy is eligible for consideration. Subclass of wd-fa's applicability vocabulary so diagnostic and strategic applicability stay one family." .
+
+sdo:Counterstrategy a rdfs:Class ;
+    rdfs:label "Counterstrategy" ;
+    rdfs:comment "A named adversarial response to an opposing Strategy. INVENTED vocabulary — failed edge recorded in the header comment above: the closest prior art (TPS countermeasure) is corrective and non-adversarial; no public ontology expresses this exact relation." .
+
+sdo:Falsifier a rdfs:Class ;
+    rdfs:subClassOf do:Falsifier ;
+    rdfs:label "Strategy falsifier" ;
+    rdfs:comment "A defined observation that, if made, retires a Strategy — same semantics as do:Falsifier (decision-optionality-pack), specialized to strategies. Every Strategy must carry >=1 falsifier (anti-decorative discipline: a strategy that cannot be falsified is not doctrine, it is decoration)." .
+
+sdo:StrategyRegistry a rdfs:Class ;
+    rdfs:label "Strategy registry" ;
+    rdfs:comment "Subject carrying the declared sdo:strategyCount honesty literal for a graph. Documentation-only: gates/030 matches any subject bearing sdo:strategyCount." .
+
+# ===== PROPERTIES =====
+
+sdo:applicableWhen a rdf:Property ;
+    rdfs:domain sdo:Strategy ;
+    rdfs:range sdo:ApplicabilityCondition ;
+    rdfs:label "applicable when" ;
+    rdfs:comment "Relates a Strategy to a condition that must hold before the strategy is eligible for consideration." .
+
+sdo:counteredBy a rdf:Property ;
+    rdfs:domain sdo:Strategy ;
+    rdfs:range sdo:Counterstrategy ;
+    rdfs:label "countered by" ;
+    rdfs:comment "Relates a Strategy to a Counterstrategy that defeats or blunts it. Required on every Strategy (gates/020): a strategy with no articulated counter is asserted invincibility, which the doctrine layer refuses." .
+
+sdo:falsifiedBy a rdf:Property ;
+    rdfs:subPropertyOf do:falsifiedBy ;
+    rdfs:domain sdo:Strategy ;
+    rdfs:range sdo:Falsifier ;
+    rdfs:label "falsified by" ;
+    rdfs:comment "Relates a Strategy to the Falsifier observation that retires it. Subproperty of do:falsifiedBy so strategy-level and candidate-level falsification remain one relation family." .
+
+sdo:method a rdf:Property ;
+    rdfs:domain sdo:Strategy ;
+    rdfs:range pp:Method ;
+    rdfs:label "HTN method realization" ;
+    rdfs:comment "Relates a Strategy to the pp:Method (planning-policy-pack HDDL vocabulary) whose decomposition realizes it. A strategy without a method realization is intent with no plan; gates/010 refuses it. SELECT != DO still applies downstream: the pp:Method realizes decomposition, never actuation authority." .
+
+sdo:strategyCount a rdf:Property ;
+    rdfs:domain sdo:StrategyRegistry ;
+    rdfs:range xsd:integer ;
+    rdfs:label "declared strategy count" ;
+    rdfs:comment "Honesty literal: the declared number of sdo:Strategy individuals a graph claims to contain. gates/030 refuses when the actual count diverges from the highest declared value, or when strategies exist with no declaration at all — so adding licensed strategies REQUIRES raising a declared count in the same, visible change." .
+
+# ===== INDIVIDUALS =====
+# Deliberately ZERO sdo:Strategy individuals (see LICENSE POSTURE above).
+# The only individual is this pack's own count registry, defaulting to zero.
+
+sdo:strategic-doctrine-pack a sdo:StrategyRegistry ;
+    rdfs:label "strategic-doctrine-pack count registry" ;
+    sdo:strategyCount 0 ;
+    rdfs:comment "This pack's own declaration: zero sdo:Strategy individuals ship in ontology.ttl. Any graph that adds strategies (consumer facts, future licensed content) must declare a matching raised sdo:strategyCount in the same change — gates/030 enforces it. qualification/consumer.ttl demonstrates the lawful raise with two dcterms:rights \"fixture\" strategies." .

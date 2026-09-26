@@ -1,0 +1,35 @@
+# MESSAGE: licensed-content honesty guard (two parts, one gate).
+# Part (a): every sdo:Strategy individual must carry an explicit
+#   dcterms:rights statement — a strategy without declared rights cannot be
+#   admitted, so no unlicensed strategy content can be smuggled into any
+#   graph this pack's gates run against.
+# Part (b): the number of sdo:Strategy individuals in the graph must equal
+#   the highest declared sdo:strategyCount literal — adding strategies
+#   REQUIRES raising a declared count in the same, visible change. A graph
+#   containing strategies but NO declaration at all is also refused
+#   (fail-closed; deleting the registry does not disarm the gate).
+# Any row = a violation. Detail string names which part fired.
+PREFIX sdo: <https://ggen.dev/ontology/strategic-doctrine#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?subject ?detail WHERE {
+  {
+    ?subject a sdo:Strategy .
+    FILTER NOT EXISTS { ?subject dcterms:rights ?rights }
+    BIND("strategy individual without dcterms:rights (unlicensed content guard, part a)" AS ?detail)
+  }
+  UNION
+  {
+    { SELECT (COUNT(?s) AS ?actual) WHERE { ?s a sdo:Strategy } }
+    { SELECT (MAX(?n) AS ?maxDeclared) WHERE { ?registry sdo:strategyCount ?n } }
+    FILTER (?maxDeclared != ?actual)
+    BIND(sdo:strategyCount AS ?subject)
+    BIND(CONCAT("sdo:Strategy count ", STR(?actual), " != max declared sdo:strategyCount ", STR(?maxDeclared), " (undeclared growth guard, part b)") AS ?detail)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?anyRegistry sdo:strategyCount ?anyCount }
+    BIND(sdo:strategic-doctrine-pack AS ?subject)
+    BIND("sdo:Strategy present but no sdo:strategyCount declared anywhere (part b, fail-closed)" AS ?detail)
+  }
+}
+ORDER BY ?subject ?detail
