@@ -1,0 +1,25 @@
+PREFIX zta: <https://seanchatmangpt.github.io/ggen-marketplace/nist-zero-trust-agentic-data#>
+SELECT ?answer ?reason WHERE {
+  ?answer a zta:VerifiedAnswer .
+  {
+    FILTER NOT EXISTS {
+      ?answer zta:snapshotDigest ?snapshot ;
+              zta:candidateResultDigest ?candidate ;
+              zta:canonicalResultDigest ?canonical ;
+              zta:exactResultEquivalent true ;
+              zta:groundingDigest ?grounding ;
+              zta:verificationEvidence ?verification .
+      ?verification zta:independentlyVerified true ;
+                    zta:evidenceDigest ?verificationDigest .
+    }
+    BIND("verified answer missing same-snapshot, exact-equivalence, grounding, or independent-verification evidence" AS ?reason)
+  }
+  UNION
+  {
+    ?answer zta:candidateResultDigest ?candidate ;
+            zta:canonicalResultDigest ?canonical ;
+            zta:exactResultEquivalent true .
+    FILTER(?candidate != ?canonical)
+    BIND("exactResultEquivalent=true while candidate and canonical result digests differ" AS ?reason)
+  }
+}
