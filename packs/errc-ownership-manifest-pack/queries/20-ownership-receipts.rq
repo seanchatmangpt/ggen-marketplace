@@ -1,29 +1,10 @@
 PREFIX errc: <https://ggen.dev/ontology/errc-ownership#>
 PREFIX dcterms: <http://purl.org/dc/terms/>
-
-SELECT ?path ?ownershipId ?evidenceKind ?evidenceRef ?evidenceDigest WHERE {
-  ?fact a errc:FileOwnership ;
-    errc:path ?path ;
-    errc:ownership ?ownership .
-  ?ownership dcterms:identifier ?ownershipId .
-
-  {
-    ?fact errc:generator ?evidenceRef ;
-      errc:generatorDigest ?evidenceDigest .
-    BIND("generator" AS ?evidenceKind)
-  }
-  UNION
-  {
-    ?fact errc:sourceOwner ?evidenceRef ;
-      errc:sourceDigest ?evidenceDigest .
-    BIND("source" AS ?evidenceKind)
-  }
-  UNION
-  {
-    ?fact errc:materializationReceipt ?receipt .
-    ?receipt errc:receiptDigest ?evidenceDigest .
-    BIND("materialization" AS ?evidenceKind)
-    BIND(STR(?receipt) AS ?evidenceRef)
-  }
+SELECT ?path ?ownershipId ?generator ?generatorDigest ?sourceOwner ?sourceDigest ?receiptDigest WHERE {
+ ?fact a errc:FileOwnership ; errc:path ?path ; errc:ownership ?ownership .
+ ?ownership dcterms:identifier ?ownershipId .
+ OPTIONAL { ?fact errc:generator ?generator ; errc:generatorDigest ?generatorDigest . }
+ OPTIONAL { ?fact errc:sourceOwner ?sourceOwner ; errc:sourceDigest ?sourceDigest . }
+ OPTIONAL { ?fact errc:materializationReceipt ?receipt . ?receipt errc:receiptDigest ?receiptDigest . }
 }
-ORDER BY ?path ?evidenceKind ?evidenceRef ?evidenceDigest
+ORDER BY ?path ?ownershipId
