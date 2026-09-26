@@ -35,12 +35,13 @@ PREFIXES = """@prefix ecap: <https://seanchatmangpt.github.io/packs/evolvable-ca
 @prefix dcterms: <http://purl.org/dc/terms/> .
 """
 
-# Regression bounds, applied to the largest measured size only (small sizes
-# are dominated by fixed SPARQL parse cost). Measured 2026-09-25 on Apple
-# silicon / CPython 3.14 / rdflib 7.6.0: ~0.0057 s per generation at N=800
-# (see qualification/bench-receipt.json). The absolute bound carries ~9x
-# headroom for slower runners; the scaling bound refuses super-linear growth:
-# time(largest)/time(next) may not exceed SCALING_SLACK x the size ratio
+# Regression bounds. The absolute bound applies to the largest measured size
+# only (small sizes are dominated by fixed SPARQL parse cost); the measured
+# per-generation cost lives in qualification/bench-receipt.json, never in this
+# comment, so prose cannot drift from the receipt. The bound carries roughly
+# an order of magnitude of headroom for slower runners. The scaling bound
+# refuses super-linear growth between every adjacent pair of measured sizes:
+# time(larger)/time(smaller) may not exceed SCALING_SLACK x the size ratio
 # (linear = 1.0x, quadratic = size-ratio x), so a gate going quadratic trips
 # it even on a fast machine.
 MAX_SECONDS_PER_GENERATION = 0.050
@@ -97,7 +98,21 @@ def defect() -> str:
     )
 
 
-def measure(generations: int, repeats: int) -> dict[str, object]:
+INJECTED_DEFECT_REFUSAL = frozenset({"030_closure_released_only"})
+
+
+def measure(
+    generations: int,
+    repeats: int,
+    defect_text: str | None = None,
+    expected_refusal: frozenset[str] = INJECTED_DEFECT_REFUSAL,
+) -> dict[str, object]:
+    """Time the gate set over an N-generation history.
+
+    Raises AssertionError if the conforming history is refused, or if the
+    injected defect (``defect()`` unless given) is not refused by exactly
+    ``expected_refusal`` -- a benchmark over a vacuous gate set is refused.
+    """
     text = history(generations)
     graph = verify.load_graph(text)
     samples: list[float] = []
@@ -113,8 +128,8 @@ def measure(generations: int, repeats: int) -> dict[str, object]:
             if found:
                 raise AssertionError(f"conforming history refused at N={generations}: {gate.stem}")
         samples.append(total)
-    poisoned = verify.refusing_gates(verify.load_graph(text, defect()))
-    if set(poisoned) != {"030_closure_released_only"}:
+    poisoned = verify.refusing_gates(verify.load_graph(text, defect() if defect_text is None else defect_text))
+    if set(poisoned) != set(expected_refusal):
         raise AssertionError(f"injected defect not isolated at N={generations}: {poisoned}")
     median = statistics.median(samples)
     return {
@@ -132,31 +147,51 @@ def measure(generations: int, repeats: int) -> dict[str, object]:
     }
 
 
-def run(sizes: list[int], repeats: int) -> dict[str, object]:
-    results = [measure(size, repeats) for size in sorted(sizes)]
+def judge(results: list[dict[str, object]]) -> dict[str, object]:
+    """Standing for measured results (ordered by generations ascending).
+
+    Pure function of the measurements, so the refusal paths are testable on
+    constructed inputs without depending on the speed of the host.
+    """
     largest = results[-1]
     per_generation_ok = float(largest["seconds_per_generation"]) <= MAX_SECONDS_PER_GENERATION
-    scaling: dict[str, object] = {"checked": False}
+    pairs: list[dict[str, object]] = []
     scaling_ok = True
-    if len(results) >= 2:
-        previous = results[-2]
-        size_ratio = int(largest["generations"]) / int(previous["generations"])
-        time_ratio = float(largest["median_seconds"]) / max(float(previous["median_seconds"]), 1e-9)
-        scaling_ok = time_ratio <= SCALING_SLACK * size_ratio
-        scaling = {
-            "checked": True,
-            "size_ratio": round(size_ratio, 3),
-            "time_ratio": round(time_ratio, 3),
-            "max_time_ratio": round(SCALING_SLACK * size_ratio, 3),
-        }
+    for smaller, larger in zip(results, results[1:]):
+        size_ratio = int(larger["generations"]) / int(smaller["generations"])
+        time_ratio = float(larger["median_seconds"]) / max(float(smaller["median_seconds"]), 1e-9)
+        pair_ok = time_ratio <= SCALING_SLACK * size_ratio
+        scaling_ok = scaling_ok and pair_ok
+        pairs.append(
+            {
+                "from_generations": int(smaller["generations"]),
+                "to_generations": int(larger["generations"]),
+                "size_ratio": round(size_ratio, 3),
+                "time_ratio": round(time_ratio, 3),
+                "max_time_ratio": round(SCALING_SLACK * size_ratio, 3),
+                "standing": "ALIVE" if pair_ok else "REFUSED",
+            }
+        )
+    scaling: dict[str, object] = {"checked": bool(pairs), "pairs": pairs}
     return {
-        "schema": "ggen.evolvable-capability-pack.bench/1",
+        "per_generation_ok": per_generation_ok,
+        "scaling": scaling,
+        "standing": "ALIVE" if per_generation_ok and scaling_ok else "REFUSED",
+    }
+
+
+def run(sizes: list[int], repeats: int) -> dict[str, object]:
+    results = [measure(size, repeats) for size in sorted(sizes)]
+    verdict = judge(results)
+    return {
+        "schema": "ggen.evolvable-capability-pack.bench/2",
         "engine": {"python": platform.python_version(), "rdflib": __import__("rdflib").__version__},
         "machine": {"system": platform.system(), "machine": platform.machine()},
         "bound_seconds_per_generation": MAX_SECONDS_PER_GENERATION,
+        "scaling_slack": SCALING_SLACK,
         "results": results,
-        "scaling": scaling,
-        "standing": "ALIVE" if per_generation_ok and scaling_ok else "REFUSED",
+        "scaling": verdict["scaling"],
+        "standing": verdict["standing"],
     }
 
 

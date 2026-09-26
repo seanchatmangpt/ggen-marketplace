@@ -118,13 +118,23 @@ def witness_matrix() -> tuple[list[dict[str, object]], bool]:
     return results, refused
 
 
-def fixture_matrix() -> tuple[list[dict[str, object]], bool]:
+def fixture_matrix(
+    qualification: Path = QUALIFICATION,
+    expectations: dict[str, frozenset[str]] | None = None,
+) -> tuple[list[dict[str, object]], bool]:
+    """Run the fixture matrix over ``qualification`` (default: this pack's).
+
+    Parameterized on the directory so the undeclared-fixture refusal can be
+    exercised against a real on-disk copy with an extra file in it.
+    """
+    if expectations is None:
+        expectations = FIXTURE_EXPECTATIONS
     results: list[dict[str, object]] = []
     refused = False
-    present = {CONSUMER} | set(FIXTURES.glob("*.ttl"))
+    present = {qualification / CONSUMER.name} | set((qualification / FIXTURES.name).glob("*.ttl"))
     for path in sorted(present):
-        key = path.relative_to(QUALIFICATION).as_posix()
-        expected = FIXTURE_EXPECTATIONS.get(key)
+        key = path.relative_to(qualification).as_posix()
+        expected = expectations.get(key)
         if expected is None:
             print(f"REFUSED:UNDECLARED_FIXTURE:{key}")
             refused = True
@@ -149,8 +159,8 @@ def fixture_matrix() -> tuple[list[dict[str, object]], bool]:
                 "standing": "ALIVE" if case_ok else "REFUSED",
             }
         )
-    for key in sorted(FIXTURE_EXPECTATIONS):
-        if not (QUALIFICATION / key).is_file():
+    for key in sorted(expectations):
+        if not (qualification / key).is_file():
             print(f"REFUSED:MISSING_FIXTURE:{key}")
             refused = True
     return results, refused

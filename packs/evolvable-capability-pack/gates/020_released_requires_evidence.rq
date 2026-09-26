@@ -1,26 +1,35 @@
-# MESSAGE: a released capability must preserve both admission and release evidence.
+# MESSAGE: a released capability must preserve both admission and release evidence, each a prov:Entity.
 PREFIX ecap: <https://seanchatmangpt.github.io/packs/evolvable-capability#>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+# Scope is every subject holding ecap:lifecycleState ecap:Released, typed or
+# not: the ontology's rdfs:domain is not entailed by either engine, so keying on
+# `a ecap:Capability` let an untyped released closure member skip this law.
 SELECT ?capability ?missing WHERE {
   {
-    ?capability a ecap:Capability ;
-                ecap:lifecycleState ecap:Released .
-    OPTIONAL {
-      ?capability ecap:admissionEvidence ?admission .
-      BIND(?admission AS ?admissionWitness)
-    }
-    FILTER(!BOUND(?admissionWitness))
+    ?capability ecap:lifecycleState ecap:Released .
+    FILTER NOT EXISTS { ?capability ecap:admissionEvidence ?admission }
     BIND("admissionEvidence" AS ?missing)
   }
   UNION
   {
-    ?capability a ecap:Capability ;
-                ecap:lifecycleState ecap:Released .
-    OPTIONAL {
-      ?capability ecap:releaseEvidence ?release .
-      BIND(?release AS ?releaseWitness)
-    }
-    FILTER(!BOUND(?releaseWitness))
+    ?capability ecap:lifecycleState ecap:Released .
+    FILTER NOT EXISTS { ?capability ecap:releaseEvidence ?release }
     BIND("releaseEvidence" AS ?missing)
+  }
+  UNION
+  {
+    ?capability ecap:lifecycleState ecap:Released ;
+                ecap:admissionEvidence ?admission .
+    FILTER NOT EXISTS { ?admission a/rdfs:subClassOf* prov:Entity }
+    BIND("admissionEvidenceNotEntity" AS ?missing)
+  }
+  UNION
+  {
+    ?capability ecap:lifecycleState ecap:Released ;
+                ecap:releaseEvidence ?release .
+    FILTER NOT EXISTS { ?release a/rdfs:subClassOf* prov:Entity }
+    BIND("releaseEvidenceNotEntity" AS ?missing)
   }
 }
 ORDER BY ?capability ?missing

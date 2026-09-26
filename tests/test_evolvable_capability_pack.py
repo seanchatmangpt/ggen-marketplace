@@ -24,7 +24,8 @@ import time
 import unittest
 from pathlib import Path
 
-from rdflib import Graph, Literal, URIRef
+from rdflib import RDF, Graph, Literal, URIRef
+from rdflib.namespace import XSD
 
 ROOT = Path(__file__).resolve().parents[1]
 PACK = ROOT / "packs" / "evolvable-capability-pack"
@@ -203,6 +204,107 @@ class AdversarialMutationTests(unittest.TestCase):
         graph.remove((urn("candidate"), ecap("implementationDigest"), None))
         self.assert_refused_by(graph, "040_frozen_identity_required")
 
+    # --- digest carriers: well-formed hex in a non-plain literal (110) -------
+
+    def test_iri_carrying_wellformed_hex_is_refused(self) -> None:
+        graph = replace(positive_graph(), urn("candidate"), ecap("implementationDigest"), URIRef("sha256:" + HEX))
+        self.assert_refused_by(graph, "110_digest_format")
+
+    def test_trailing_junk_after_hex_is_refused(self) -> None:
+        graph = replace(positive_graph(), urn("closure"), ecap("closureDigest"), Literal("sha256:" + HEX + "zz"))
+        self.assert_refused_by(graph, "110_digest_format")
+
+    def test_trailing_newline_after_hex_is_refused(self) -> None:
+        # Python re lets `$` match before a final newline; ggen refuses this.
+        graph = replace(positive_graph(), urn("closure"), ecap("closureDigest"), Literal("sha256:" + HEX + "\n"))
+        self.assert_refused_by(graph, "110_digest_format")
+
+    def test_typed_digest_literal_is_refused(self) -> None:
+        graph = replace(
+            positive_graph(), urn("pair"), ecap("cohortDigest"), Literal("sha256:" + HEX, datatype=XSD.anyURI)
+        )
+        self.assert_refused_by(graph, "110_digest_format")
+
+    def test_language_tagged_digest_is_refused(self) -> None:
+        graph = replace(positive_graph(), urn("pair"), ecap("evidenceDigest"), Literal("sha256:" + HEX, lang="en"))
+        self.assert_refused_by(graph, "110_digest_format")
+
+    def test_explicit_xsd_string_digest_is_admitted(self) -> None:
+        # "sha256:<hex>"^^xsd:string is the same RDF 1.1 term as the plain form.
+        graph = replace(
+            positive_graph(), urn("candidate"), ecap("implementationDigest"),
+            Literal("sha256:" + "b" * 64, datatype=XSD.string),
+        )
+        self.assert_refused_by(graph)
+
+    # --- untyped capabilities: rdfs:domain/range are not entailed -----------
+
+    def test_untyped_member_released_and_candidate_is_refused(self) -> None:
+        # Adversarial A5: the type triple is dropped and a Candidate state is
+        # smuggled beside Released, with no evidence at all.
+        graph = positive_graph()
+        graph.remove((urn("candidate"), RDF.type, None))
+        graph.remove((urn("candidate"), ecap("admissionEvidence"), None))
+        graph.remove((urn("candidate"), ecap("releaseEvidence"), None))
+        graph.add((urn("candidate"), ecap("lifecycleState"), ecap("Candidate")))
+        self.assert_refused_by(
+            graph,
+            "020_released_requires_evidence",
+            "080_single_lifecycle_state",
+            "130_declared_lifecycle_state",
+        )
+
+    def test_untyped_released_member_without_evidence_is_refused(self) -> None:
+        # Adversarial A4.
+        graph = positive_graph()
+        graph.remove((urn("candidate"), RDF.type, None))
+        graph.remove((urn("candidate"), ecap("admissionEvidence"), None))
+        graph.remove((urn("candidate"), ecap("releaseEvidence"), None))
+        self.assert_refused_by(graph, "020_released_requires_evidence", "130_declared_lifecycle_state")
+
+    def test_untyped_but_otherwise_lawful_member_is_refused_as_untyped(self) -> None:
+        graph = positive_graph()
+        graph.remove((urn("candidate"), RDF.type, None))
+        refused = verify.refusing_gates(graph)
+        self.assertEqual(set(refused), {"130_declared_lifecycle_state"})
+        rows = verify.rows(verify.GATES / "130_declared_lifecycle_state.rq", graph)
+        self.assertEqual({(str(r[0]), str(r[1])) for r in rows}, {("urn:test:candidate", "untypedCapability")})
+
+    def test_untyped_stateless_closure_member_is_refused(self) -> None:
+        graph = positive_graph()
+        graph.add((urn("closure"), ecap("closureMember"), urn("ghost")))
+        refused = verify.refusing_gates(graph)
+        self.assertIn("130_declared_lifecycle_state", refused)
+        self.assertIn("030_closure_released_only", refused)
+        rows = verify.rows(verify.GATES / "130_declared_lifecycle_state.rq", graph)
+        self.assertEqual(
+            {(str(r[0]), str(r[1])) for r in rows},
+            {("urn:test:ghost", "missingState"), ("urn:test:ghost", "untypedCapability")},
+        )
+
+    def test_second_digest_on_non_member_capability_is_refused(self) -> None:
+        graph = positive_graph()
+        graph.add((urn("champion"), ecap("implementationDigest"), Literal("sha256:" + HEX)))
+        self.assert_refused_by(graph, "100_single_digest_identity")
+
+    # --- evidence must be a prov:Entity (020) --------------------------------
+
+    def test_literal_admission_evidence_is_refused(self) -> None:
+        graph = replace(positive_graph(), urn("champion"), ecap("admissionEvidence"), Literal("trust me"))
+        self.assert_refused_by(graph, "020_released_requires_evidence")
+
+    def test_untyped_release_evidence_is_refused(self) -> None:
+        graph = replace(positive_graph(), urn("candidate"), ecap("releaseEvidence"), urn("nowhere"))
+        self.assert_refused_by(graph, "020_released_requires_evidence")
+
+    def test_evidence_typed_by_prov_subclass_is_admitted(self) -> None:
+        # ecap:Capability rdfs:subClassOf prov:Entity: subclass typing counts.
+        graph = positive_graph()
+        graph.remove((urn("champion-release"), RDF.type, None))
+        graph.add((urn("champion-release"), RDF.type, ecap("Capability")))
+        graph.add((urn("champion-release"), ecap("lifecycleState"), ecap("Candidate")))
+        self.assert_refused_by(graph)
+
     def test_duplicate_delivery_is_idempotent(self) -> None:
         graph = verify.load_graph(POSITIVE, POSITIVE, POSITIVE)
         self.assertEqual(len(graph), len(positive_graph()))
@@ -229,6 +331,45 @@ class AdversarialMutationTests(unittest.TestCase):
             with self.subTest(broken=broken[-40:]):
                 with self.assertRaisesRegex(verify.MalformedInput, "REFUSED:MALFORMED_INPUT"):
                     verify.load_graph(broken)
+
+
+class FixtureMatrixRefusalTests(unittest.TestCase):
+    """The fixture matrix over a real on-disk copy of qualification/."""
+
+    def copy(self) -> Path:
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        target = Path(temp.name) / "qualification"
+        shutil.copytree(QUALIFICATION, target, ignore=shutil.ignore_patterns("__pycache__"))
+        return target
+
+    def test_pristine_copy_is_alive(self) -> None:
+        fixtures, refused = verify.fixture_matrix(self.copy())
+        self.assertFalse(refused, fixtures)
+
+    def test_undeclared_fixture_is_refused(self) -> None:
+        target = self.copy()
+        shutil.copy(target / "fixtures" / "positive.ttl", target / "fixtures" / "stowaway.ttl")
+        fixtures, refused = verify.fixture_matrix(target)
+        self.assertTrue(refused)
+        self.assertNotIn("fixtures/stowaway.ttl", {f["fixture"] for f in fixtures})
+
+    def test_missing_declared_fixture_is_refused(self) -> None:
+        target = self.copy()
+        (target / "fixtures" / "neg-candidate-in-closure.ttl").unlink()
+        _, refused = verify.fixture_matrix(target)
+        self.assertTrue(refused)
+
+    def test_fixture_refused_by_wrong_gate_set_is_refused(self) -> None:
+        target = self.copy()
+        shutil.copy(
+            target / "fixtures" / "neg-released-without-evidence.ttl", target / "fixtures" / "positive.ttl"
+        )
+        fixtures, refused = verify.fixture_matrix(target)
+        self.assertTrue(refused)
+        positive = next(f for f in fixtures if f["fixture"] == "fixtures/positive.ttl")
+        self.assertEqual(positive["standing"], "REFUSED")
+        self.assertEqual(positive["observed_refusals"], ["020_released_requires_evidence"])
 
 
 def ggen_binary() -> str | None:
@@ -297,6 +438,38 @@ class GgenRuntimeTests(unittest.TestCase):
         self.assertIn("110_digest_format", completed.stdout + completed.stderr)
         self.assertFalse(output.exists())
 
+    def test_untyped_candidate_member_is_refused_before_projection(self) -> None:
+        # Adversarial A5 against the runtime: before the 020/080/130 rescope,
+        # ggen admitted this and projected urn:test:candidate into the closure.
+        text = (QUALIFICATION / "consumer.ttl").read_text(encoding="utf-8")
+        block_start = text.index("<urn:test:candidate> a ecap:Capability ;")
+        block_end = text.index(".\n", block_start) + 2
+        untyped = (
+            "<urn:test:candidate> ecap:lifecycleState ecap:Released ;\n"
+            "  ecap:lifecycleState ecap:Candidate ;\n"
+            '  dcterms:hasVersion "2" ;\n'
+            '  ecap:implementationDigest "sha256:' + "b" * 64 + '" .\n'
+        )
+        completed, output = self.sync(text[:block_start] + untyped + text[block_end:])
+        self.assertNotEqual(completed.returncode, 0)
+        # ggen stops at the first refusing gate (lexical order); the rdflib
+        # court names the full set in the mutation tests above.
+        self.assertIn("020_released_requires_evidence", completed.stdout + completed.stderr)
+        self.assertFalse(output.exists())
+
+    def test_trailing_newline_digest_is_refused_by_runtime_and_court_alike(self) -> None:
+        ontology = (QUALIFICATION / "consumer.ttl").read_text(encoding="utf-8").replace(
+            '"sha256:' + "e" * 64 + '"', '"sha256:' + "e" * 64 + '\\n"'
+        )
+        completed, output = self.sync(ontology)
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("110_digest_format", completed.stdout + completed.stderr)
+        self.assertFalse(output.exists())
+        with tempfile.NamedTemporaryFile("w", suffix=".ttl", delete=False) as handle:
+            handle.write(ontology)
+        self.addCleanup(os.unlink, handle.name)
+        self.assertIn("110_digest_format", verify.refusing_gates(verify.load_graph(Path(handle.name))))
+
     def test_ungated_literal_with_quotes_is_escaped_in_projection(self) -> None:
         hostile = 'v2", "authority": "DO'
         ontology = POSITIVE.read_text(encoding="utf-8").replace(
@@ -339,6 +512,50 @@ class BenchmarkRegressionTests(unittest.TestCase):
         self.assertEqual(verify.refusing_gates(verify.load_graph(bench.history(25))), {})
         poisoned = verify.load_graph(bench.history(25), bench.defect())
         self.assertEqual(set(verify.refusing_gates(poisoned)), {"030_closure_released_only"})
+
+    @staticmethod
+    def result(generations: int, seconds: float) -> dict[str, object]:
+        return {
+            "generations": generations,
+            "median_seconds": seconds,
+            "seconds_per_generation": seconds / generations,
+        }
+
+    def test_linear_scaling_is_admitted(self) -> None:
+        verdict = bench.judge([self.result(100, 0.2), self.result(400, 0.8)])
+        self.assertEqual(verdict["standing"], "ALIVE", verdict)
+
+    def test_quadratic_scaling_is_refused_even_when_fast(self) -> None:
+        # 4x the size, 16x the time: quadratic, although every absolute
+        # per-generation figure is far below the bound.
+        verdict = bench.judge([self.result(100, 0.001), self.result(400, 0.016)])
+        self.assertTrue(verdict["per_generation_ok"])
+        self.assertEqual(verdict["standing"], "REFUSED", verdict)
+
+    def test_superlinear_step_between_smaller_sizes_is_refused(self) -> None:
+        # The blow-up sits between the two smallest sizes; the largest pair is
+        # linear. Comparing only the largest pair would miss it.
+        verdict = bench.judge(
+            [self.result(50, 0.01), self.result(200, 0.5), self.result(800, 2.0)]
+        )
+        self.assertEqual([p["standing"] for p in verdict["scaling"]["pairs"]], ["REFUSED", "ALIVE"])
+        self.assertEqual(verdict["standing"], "REFUSED")
+
+    def test_absolute_bound_is_enforced_on_largest_size(self) -> None:
+        slow = bench.MAX_SECONDS_PER_GENERATION * 2
+        verdict = bench.judge([self.result(10, 10 * slow)])
+        self.assertFalse(verdict["per_generation_ok"])
+        self.assertEqual(verdict["standing"], "REFUSED")
+
+    def test_benchmark_refuses_a_defect_the_gates_do_not_catch(self) -> None:
+        # A "defect" that violates nothing: the anti-vacuity check must raise.
+        harmless = bench.PREFIXES + "<urn:bench:note> a <urn:bench:Note> .\n"
+        with self.assertRaisesRegex(AssertionError, "injected defect not isolated"):
+            bench.measure(10, 1, defect_text=harmless)
+
+    def test_benchmark_refuses_a_defect_caught_by_the_wrong_gate(self) -> None:
+        with self.assertRaisesRegex(AssertionError, "injected defect not isolated"):
+            bench.measure(10, 1, expected_refusal=frozenset({"020_released_requires_evidence"}))
 
     def test_committed_receipt_satisfies_its_own_bounds(self) -> None:
         receipt = json.loads((QUALIFICATION / "bench-receipt.json").read_text(encoding="utf-8"))
