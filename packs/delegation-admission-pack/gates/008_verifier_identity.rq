@@ -1,0 +1,25 @@
+# MESSAGE: verifier-identity violation.
+# independent=true is insufficient when producer and verifier are the same
+# identity. Both identities must be present and distinct.
+PREFIX da: <https://seanchatmangpt.github.io/packs/delegation-admission#>
+SELECT ?artifact ?field ?producer ?verifier WHERE {
+  {
+    ?artifact a da:DelegationArtifact ; da:hasVerify ?verify .
+    OPTIONAL { ?artifact da:producerId ?producer . BIND(?producer AS ?w) }
+    FILTER(!BOUND(?w))
+    BIND("producerId:missing" AS ?field)
+  } UNION {
+    ?artifact a da:DelegationArtifact ; da:hasVerify ?verify .
+    OPTIONAL { ?verify da:verifierId ?verifier . BIND(?verifier AS ?w) }
+    FILTER(!BOUND(?w))
+    BIND("verifierId:missing" AS ?field)
+  } UNION {
+    ?artifact a da:DelegationArtifact ;
+              da:producerId ?producer ;
+              da:hasVerify ?verify .
+    ?verify da:verifierId ?verifier .
+    FILTER(?producer = ?verifier)
+    BIND("producer-equals-verifier" AS ?field)
+  }
+}
+ORDER BY ?artifact ?field

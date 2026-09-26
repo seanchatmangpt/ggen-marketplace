@@ -1,0 +1,109 @@
+---
+to: generated/delegation-admission-cases.json
+force: true
+sparql:
+  cases: |
+    PREFIX da: <https://seanchatmangpt.github.io/packs/delegation-admission#>
+    SELECT ?subject ?delegation ?boundary ?authorityScope ?producer
+           ?explainScope ?provenance ?ontology ?rationale
+           ?verifyScope ?verifier ?verifierSet ?verifyReceipt ?independent
+           ?modifyScope ?change ?result ?modifyReplay
+           ?accountScope ?authority ?consequence ?accountReceipt ?accountReplay ?standing
+    WHERE {
+      ?artifact a da:DelegationArtifact ;
+                da:subjectId ?subject ;
+                da:delegationUnits ?delegation ;
+                da:boundaryId ?boundary ;
+                da:authorityScopeId ?authorityScope ;
+                da:producerId ?producer ;
+                da:hasExplain ?explain ;
+                da:hasVerify ?verify ;
+                da:hasModify ?modify ;
+                da:hasAccount ?account .
+
+      ?explain da:subjectId ?subject ;
+               da:scopeUnits ?explainScope ;
+               da:verdict "PASS" ;
+               da:provenanceId ?provenance ;
+               da:ontologyId ?ontology ;
+               da:rationaleId ?rationale .
+
+      ?verify da:subjectId ?subject ;
+              da:scopeUnits ?verifyScope ;
+              da:verdict "PASS" ;
+              da:verifierId ?verifier ;
+              da:verifierSetId ?verifierSet ;
+              da:receiptId ?verifyReceipt ;
+              da:independent ?independent .
+
+      ?modify da:subjectId ?subject ;
+              da:scopeUnits ?modifyScope ;
+              da:verdict "PASS" ;
+              da:changeId ?change ;
+              da:resultId ?result ;
+              da:replayId ?modifyReplay .
+
+      ?account da:subjectId ?subject ;
+               da:scopeUnits ?accountScope ;
+               da:verdict "PASS" ;
+               da:authorityId ?authority ;
+               da:consequenceId ?consequence ;
+               da:receiptId ?accountReceipt ;
+               da:replayId ?accountReplay ;
+               da:standing ?standing .
+    } ORDER BY ?subject
+---
+{
+  "schema": "autofde-lab.delegation-admission-batch/1",
+  "cases": [
+    {% for c in cases %}
+    {
+      "schema": "autofde-lab.delegation-admission/1",
+      "subject": "{{ c.subject }}",
+      "delegation": {
+        "units": {{ c.delegation }},
+        "boundary_id": "{{ c.boundary }}",
+        "authority_scope_id": "{{ c.authorityScope }}",
+        "producer_id": "{{ c.producer }}"
+      },
+      "obligations": {
+        "explain": {
+          "subject": "{{ c.subject }}",
+          "verdict": "PASS",
+          "scope_units": {{ c.explainScope }},
+          "provenance_id": "{{ c.provenance }}",
+          "ontology_id": "{{ c.ontology }}",
+          "rationale_id": "{{ c.rationale }}"
+        },
+        "verify": {
+          "subject": "{{ c.subject }}",
+          "verdict": "PASS",
+          "scope_units": {{ c.verifyScope }},
+          "verifier_id": "{{ c.verifier }}",
+          "verifier_set_id": "{{ c.verifierSet }}",
+          "receipt_id": "{{ c.verifyReceipt }}",
+          "independent": {{ c.independent }}
+        },
+        "modify": {
+          "subject": "{{ c.subject }}",
+          "verdict": "PASS",
+          "scope_units": {{ c.modifyScope }},
+          "change_id": "{{ c.change }}",
+          "result_id": "{{ c.result }}",
+          "replay_id": "{{ c.modifyReplay }}"
+        },
+        "account": {
+          "subject": "{{ c.subject }}",
+          "verdict": "PASS",
+          "scope_units": {{ c.accountScope }},
+          "authority_id": "{{ c.authority }}",
+          "consequence_id": "{{ c.consequence }}",
+          "receipt_id": "{{ c.accountReceipt }}",
+          "replay_id": "{{ c.accountReplay }}",
+          "standing": "{{ c.standing }}"
+        }
+      }
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ]
+}

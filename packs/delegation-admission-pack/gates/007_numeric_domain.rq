@@ -1,0 +1,28 @@
+# MESSAGE: delegation/scope numeric-domain violation.
+# Delegation and evidence scope are counts: xsd:integer and non-negative.
+PREFIX da: <https://seanchatmangpt.github.io/packs/delegation-admission#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?owner ?field ?value WHERE {
+  {
+    ?owner a da:DelegationArtifact ; da:delegationUnits ?value .
+    FILTER(datatype(?value) != xsd:integer)
+    BIND("delegationUnits:datatype" AS ?field)
+  } UNION {
+    ?owner a da:DelegationArtifact ; da:delegationUnits ?value .
+    FILTER(?value < 0)
+    BIND("delegationUnits:negative" AS ?field)
+  } UNION {
+    VALUES ?edge { da:hasExplain da:hasVerify da:hasModify da:hasAccount }
+    ?artifact a da:DelegationArtifact ; ?edge ?owner .
+    ?owner da:scopeUnits ?value .
+    FILTER(datatype(?value) != xsd:integer)
+    BIND("scopeUnits:datatype" AS ?field)
+  } UNION {
+    VALUES ?edge { da:hasExplain da:hasVerify da:hasModify da:hasAccount }
+    ?artifact a da:DelegationArtifact ; ?edge ?owner .
+    ?owner da:scopeUnits ?value .
+    FILTER(?value < 0)
+    BIND("scopeUnits:negative" AS ?field)
+  }
+}
+ORDER BY ?owner ?field
