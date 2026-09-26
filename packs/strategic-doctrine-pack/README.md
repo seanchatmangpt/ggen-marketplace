@@ -25,6 +25,7 @@ of this graph plus a sha256 check and does not redefine it.
 | `queries/admitted_applicability.rq` | admits a candidate only if all of its strategy's conditions hold. On the fixture it admits 3 of the 4. |
 | `generated/catalog.json` | deterministic projection (ordinal, id, title, primitives, falsifiers). Never hand-edited. |
 | `scripts/project_catalog.py` | regenerates the catalog; `--check` refuses a stale projection |
+| `scripts/project_public_classes.py` | generates gate 020 with the admitted class list (every class declared in a vendored vocabulary or in this pack) embedded in the query; `--check` refuses a stale gate. Gate 020 is never hand-edited. |
 | `sources/vendor/` | vendored copies of the public vocabularies, each with a `receipt.json`, plus `materialization-receipt.json` |
 
 ## Primitive algebra
@@ -44,11 +45,11 @@ They form five dual pairs, and `sd:dualOf` is asserted in both directions:
 
 | gate | refuses |
 |---|---|
-| 010 strategy_requires_falsifier | an operationalized strategy with no typed falsifier that states what refutes it |
-| 020 applicability_public_class_only | a condition over a class outside ORG/PROV/schema.org/SOSA/SSN/Time/`sd:` |
+| 010 strategy_requires_falsifier | an operationalized strategy (non-stub, or any node with a composition, even if typed stub) with no typed falsifier, or a falsifier whose refutation statement has fewer than 10 non-whitespace characters |
+| 020 applicability_public_class_only | a condition over a class not declared in the vendored ORG/PROV/schema.org/SOSA/SSN/Time sources or in `sd:` (the class list is embedded in the generated gate, so a made-up class under a W3C namespace is refused and data cannot admit its own class) |
 | 030 composition_known_primitive | a step whose operator is outside the 14, or that has no operator |
 | 040 step_order_total | step orders that are missing, duplicated, non-integer, or not exactly 1..n |
-| 050 no_excerpt | a literal over 60 characters on a strategy node, or any `sd:quote` |
+| 050 no_excerpt | a literal over 60 characters on a strategy, step, condition or objective node; literals on one such node summing past 120 characters; any `sd:quote` |
 | 060 licensing_nonclaim_present | a catalog entry with no complete `cs:NonClaim` |
 
 ## Licensing boundary

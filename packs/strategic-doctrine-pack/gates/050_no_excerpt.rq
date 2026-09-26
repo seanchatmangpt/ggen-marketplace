@@ -1,19 +1,50 @@
-# MESSAGE: the catalog reproduces no text of its source work. Any literal
-# longer than 60 characters attached to a strategy (sd:Strategy,
-# sd:StrategyStub, sd:CounterStrategy, sd:StrategicPattern) is treated as a
-# possible excerpt and refused, as is any sd:quote triple anywhere. Own
-# paraphrased titles are at most 60 characters; longer own prose belongs on
-# falsifiers and effects, never on the strategy node.
+# MESSAGE: the catalog reproduces no text of its source work. Refused:
+#   - any literal longer than 60 characters on a catalog-side node: a
+#     strategy (sd:Strategy, sd:StrategyStub, sd:CounterStrategy,
+#     sd:StrategicPattern), a step (sd:Step, or any object of sd:composedOf),
+#     a strategic condition, or a strategic objective;
+#   - literals on one such node whose lengths sum past 120 characters (an
+#     excerpt split into several short literals);
+#   - any sd:quote triple anywhere.
+# Own paraphrased titles are at most 60 characters; longer own prose belongs
+# on falsifiers and effects only.
 #
 # Each row names the offending subject, predicate, and the reason.
 PREFIX sd: <https://ggen.dev/ontology/strategic-doctrine#>
 
 SELECT DISTINCT ?subject ?predicate ?reason WHERE {
   {
-    ?subject a ?type ; ?predicate ?literal .
-    FILTER(?type IN (sd:Strategy, sd:StrategyStub, sd:CounterStrategy, sd:StrategicPattern))
+    {
+      ?subject a ?type .
+      FILTER(?type IN (sd:Strategy, sd:StrategyStub, sd:CounterStrategy, sd:StrategicPattern,
+                       sd:Step, sd:StrategicCondition, sd:StrategicObjective))
+    } UNION {
+      ?owner sd:composedOf ?subject .
+    }
+    ?subject ?predicate ?literal .
     FILTER(isLiteral(?literal) && STRLEN(STR(?literal)) > 60)
-    BIND("literal-over-60-chars-on-strategy" AS ?reason)
+    BIND("literal-over-60-chars-on-catalog-node" AS ?reason)
+  } UNION {
+    {
+      SELECT ?subject (SUM(STRLEN(STR(?literal))) AS ?total) WHERE {
+        {
+          SELECT DISTINCT ?subject WHERE {
+            {
+              ?subject a ?type .
+              FILTER(?type IN (sd:Strategy, sd:StrategyStub, sd:CounterStrategy, sd:StrategicPattern,
+                               sd:Step, sd:StrategicCondition, sd:StrategicObjective))
+            } UNION {
+              ?owner sd:composedOf ?subject .
+            }
+          }
+        }
+        ?subject ?p ?literal .
+        FILTER(isLiteral(?literal))
+      } GROUP BY ?subject
+    }
+    FILTER(?total > 120)
+    BIND(sd:literalBudget AS ?predicate)
+    BIND("literals-over-120-chars-total-on-catalog-node" AS ?reason)
   } UNION {
     ?subject sd:quote ?anything .
     BIND(sd:quote AS ?predicate)

@@ -1,6 +1,14 @@
-# MESSAGE: an operationalized strategy (typed sd:Strategy, not sd:StrategyStub)
-# must name at least one sd:Falsifier carrying a refutation statement. A
-# strategy that cannot be refuted by an observation is not admitted doctrine.
+# MESSAGE: an operationalized strategy must name at least one sd:Falsifier
+# carrying a refutation statement. A strategy that cannot be refuted by an
+# observation is not admitted doctrine.
+#
+# "Operationalized" is decided by content, not by type: any sd:Strategy that
+# is not an sd:StrategyStub, AND any node (stub-typed or not) that carries a
+# composition (sd:composedOf). Retyping a composed strategy as a stub does not
+# exempt it.
+#
+# A refutation statement must hold at least 10 non-whitespace characters; an
+# empty or blank sd:refutedWhen states no observable and is refused.
 #
 # Each row names the offending strategy (or its falsifier) and the reason.
 PREFIX sd: <https://ggen.dev/ontology/strategic-doctrine#>
@@ -8,17 +16,25 @@ PREFIX sd: <https://ggen.dev/ontology/strategic-doctrine#>
 SELECT ?subject ?reason WHERE {
   {
     ?subject a sd:Strategy .
-    FILTER NOT EXISTS { ?subject a sd:StrategyStub }
+    FILTER(NOT EXISTS { ?subject a sd:StrategyStub } || EXISTS { ?subject sd:composedOf ?step })
     FILTER NOT EXISTS { ?subject sd:hasFalsifier ?any }
     BIND("strategy-without-falsifier" AS ?reason)
   } UNION {
-    ?strategy a sd:Strategy ; sd:hasFalsifier ?subject .
+    ?subject sd:composedOf ?step .
+    FILTER NOT EXISTS { ?subject a sd:Strategy }
+    FILTER NOT EXISTS { ?subject sd:hasFalsifier ?any }
+    BIND("strategy-without-falsifier" AS ?reason)
+  } UNION {
+    ?strategy sd:hasFalsifier ?subject .
     FILTER NOT EXISTS { ?subject a sd:Falsifier }
     BIND("falsifier-not-typed-sd-Falsifier" AS ?reason)
   } UNION {
-    ?strategy a sd:Strategy ; sd:hasFalsifier ?subject .
+    ?strategy sd:hasFalsifier ?subject .
     ?subject a sd:Falsifier .
-    FILTER NOT EXISTS { ?subject sd:refutedWhen ?statement }
+    FILTER NOT EXISTS {
+      ?subject sd:refutedWhen ?statement .
+      FILTER(isLiteral(?statement) && STRLEN(REPLACE(STR(?statement), "\\s", "")) >= 10)
+    }
     BIND("falsifier-without-refutation-statement" AS ?reason)
   }
 }

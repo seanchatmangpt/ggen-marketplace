@@ -39,8 +39,23 @@ def load(*relative: str) -> Graph:
     return graph
 
 
+OPERATIONALIZED = ["strategy-11", "strategy-14", "strategy-17", "strategy-22", "strategy-23", "strategy-27"]
+
+
 def gate_rows(graph: Graph) -> dict[str, int]:
     return {gate.stem: len(list(graph.query(gate.read_text(encoding="utf-8")))) for gate in GATES}
+
+
+def reasons(graph: Graph, stem: str) -> list[str]:
+    query = (PACK / "gates" / f"{stem}.rq").read_text(encoding="utf-8")
+    return sorted(str(row.reason) for row in graph.query(query))
+
+
+def verdict(graph: Graph) -> tuple[dict[str, int], bool]:
+    fired = {stem: rows for stem, rows in gate_rows(graph).items() if rows}
+    conforms, _, _ = validate(graph, shacl_graph=str(PACK / "ontology" / "shapes.ttl"),
+                              inference="none", advanced=True)
+    return fired, conforms
 
 
 def test_six_gates_exist_with_exact_stems() -> None:
@@ -71,7 +86,9 @@ def test_catalog_has_33_ordinals_with_short_own_titles_and_six_operationalized()
     assert all(0 < len(title) <= 60 for title in titles)
     assert len(set(titles)) == 33
     operationalized = [e for e in graph.subjects(RDF.type, SD.Strategy) if (e, RDF.type, SD.StrategyStub) not in graph]
-    assert len(operationalized) >= 5
+    assert sorted(str(e).rsplit("#", 1)[1] for e in operationalized) == OPERATIONALIZED
+    composed = {str(s).rsplit("#", 1)[1] for s in graph.subjects(SD.composedOf, None)}
+    assert sorted(composed) == OPERATIONALIZED
     for entry in operationalized:
         assert list(graph.objects(entry, SD.composedOf))
         assert list(graph.objects(entry, SD.hasFalsifier))
@@ -181,3 +198,125 @@ def test_nonclaim_asserts_all_three_boundaries() -> None:
     for flag in (SD.assertsNotLicensed, SD.assertsNoEndorsement, SD.assertsNoTextReproduced):
         assert graph.value(nonclaims[0], flag).toPython() is True
     assert graph.value(nonclaims[0], RDFS.comment)
+
+
+# --- Adversarial mutants from the round-0 court (each was ADMITTED before the fix) ---
+
+
+def test_retyping_a_composed_strategy_as_stub_does_not_escape_the_falsifier_gate() -> None:
+    graph = load(*GRAPH_FILES)
+    graph.remove((SD["strategy-11"], SD.hasFalsifier, None))
+    graph.add((SD["strategy-11"], RDF.type, SD.StrategyStub))
+    fired, conforms = verdict(graph)
+    assert fired == {"010_strategy_requires_falsifier": 1}
+    assert reasons(graph, "010_strategy_requires_falsifier") == ["strategy-without-falsifier"]
+    assert conforms is False
+
+
+def test_stub_retype_with_falsifier_kept_is_still_refused_by_shacl() -> None:
+    graph = load(*GRAPH_FILES)
+    graph.add((SD["strategy-11"], RDF.type, SD.StrategyStub))
+    fired, conforms = verdict(graph)
+    assert fired == {}
+    assert conforms is False
+
+
+def test_untyped_node_with_composition_needs_a_falsifier() -> None:
+    graph = load(*GRAPH_FILES)
+    graph.add((URIRef("urn:example:loose"), SD.composedOf, SD["strategy-11-step-1"]))
+    assert reasons(graph, "010_strategy_requires_falsifier") == ["strategy-without-falsifier"]
+
+
+@pytest.mark.parametrize("statement", ["", "   ", "\t\n", "too short", "x y z w v u t"])
+def test_blank_or_trivial_refutation_statement_is_refused(statement: str) -> None:
+    graph = load(*GRAPH_FILES)
+    falsifier = graph.value(SD["strategy-11"], SD.hasFalsifier)
+    graph.set((falsifier, SD.refutedWhen, Literal(statement)))
+    fired, conforms = verdict(graph)
+    assert fired == {"010_strategy_requires_falsifier": 1}
+    assert reasons(graph, "010_strategy_requires_falsifier") == ["falsifier-without-refutation-statement"]
+    assert conforms is False
+
+
+def test_refutation_statement_at_the_ten_character_floor_is_admitted() -> None:
+    graph = load(*GRAPH_FILES)
+    falsifier = graph.value(SD["strategy-11"], SD.hasFalsifier)
+    graph.set((falsifier, SD.refutedWhen, Literal(" share<5% 90d ")))
+    assert verdict(graph) == ({}, True)
+
+
+def test_made_up_class_under_a_public_namespace_is_refused() -> None:
+    graph = load(*GRAPH_FILES)
+    forged = URIRef("http://www.w3.org/ns/org#PrivateRivalLedger")
+    graph.set((SD["cond-many-rivals"], SD.aboutClass, forged))
+    fired, _ = verdict(graph)
+    assert fired == {"020_applicability_public_class_only": 1}
+    assert reasons(graph, "020_applicability_public_class_only") == [
+        "condition-over-undeclared-class-in-public-namespace"]
+    # Data declaring its own class does not admit it: membership is embedded
+    # in the generated gate, never read from the data under judgement.
+    graph.add((forged, RDF.type, RDFS.Class))
+    graph.add((forged, RDFS.subClassOf, URIRef("http://www.w3.org/ns/org#Organization")))
+    assert gate_rows(graph)["020_applicability_public_class_only"] == 1
+
+
+@pytest.mark.parametrize("declared", [
+    "http://www.w3.org/ns/org#Organization",
+    "http://www.w3.org/ns/prov#Agent",
+    "https://schema.org/Product",
+    "http://www.w3.org/ns/sosa/Observation",
+    "http://www.w3.org/2006/time#Interval",
+    "https://ggen.dev/ontology/strategic-doctrine#Actor",
+])
+def test_declared_public_and_pack_classes_are_admitted(declared: str) -> None:
+    graph = load(*GRAPH_FILES)
+    graph.set((SD["cond-many-rivals"], SD.aboutClass, URIRef(declared)))
+    assert gate_rows(graph)["020_applicability_public_class_only"] == 0
+
+
+def test_long_literal_on_a_step_node_is_refused() -> None:
+    graph = load(*GRAPH_FILES)
+    graph.add((SD["strategy-11-step-1"], SD.note, Literal("x" * 500)))
+    fired, _ = verdict(graph)
+    assert fired == {"050_no_excerpt": 2}
+    assert reasons(graph, "050_no_excerpt") == [
+        "literal-over-60-chars-on-catalog-node", "literals-over-120-chars-total-on-catalog-node"]
+
+
+def test_excerpt_split_into_short_literals_is_refused() -> None:
+    graph = load(*GRAPH_FILES)
+    for index in range(3):
+        graph.add((SD["strategy-11"], SD.note, Literal(f"{index}" + "y" * 59)))
+    fired, _ = verdict(graph)
+    assert fired == {"050_no_excerpt": 1}
+    assert reasons(graph, "050_no_excerpt") == ["literals-over-120-chars-total-on-catalog-node"]
+
+
+def test_public_class_gate_projection_is_current_and_deterministic() -> None:
+    projector = PACK / "scripts" / "project_public_classes.py"
+    check = subprocess.run([sys.executable, str(projector), "--check"], capture_output=True, text=True, check=False)
+    assert check.returncode == 0, check.stderr
+    first = subprocess.run([sys.executable, str(projector), "--stdout"], capture_output=True, check=True).stdout
+    second = subprocess.run([sys.executable, str(projector), "--stdout"], capture_output=True, check=True).stdout
+    gate = PACK / "gates" / "020_applicability_public_class_only.rq"
+    assert first == second == gate.read_bytes()
+    text = first.decode("utf-8")
+    assert "GENERATED by scripts/project_public_classes.py" in text
+    assert "<http://www.w3.org/ns/org#Organization>" in text
+    assert "<http://www.w3.org/ns/org#PrivateRivalLedger>" not in text
+    assert "GRAPH " not in text and "GRAPH<" not in text  # ggen-engine refuses GRAPH clauses (FM-GRAPH-008)
+
+
+def test_public_class_gate_projection_detects_a_stale_gate(tmp_path: Path) -> None:
+    # Real projector against a real copy of the pack with one class removed
+    # from the gate: --check must refuse.
+    import shutil
+    copy = tmp_path / "strategic-doctrine-pack"
+    shutil.copytree(PACK, copy)
+    gate = copy / "gates" / "020_applicability_public_class_only.rq"
+    gate.write_text(gate.read_text(encoding="utf-8").replace(
+        "      <http://www.w3.org/ns/org#Organization>,\n", ""), encoding="utf-8")
+    check = subprocess.run([sys.executable, str(copy / "scripts" / "project_public_classes.py"), "--check"],
+                           capture_output=True, text=True, check=False)
+    assert check.returncode == 1
+    assert "REFUSED:GATE_PROJECTION_STALE" in check.stderr
