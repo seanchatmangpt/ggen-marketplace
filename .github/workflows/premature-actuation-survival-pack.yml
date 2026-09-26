@@ -34,11 +34,14 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install semantic runner dependency
-        run: python -m pip install "rdflib==7.2.1"
+      - name: Install semantic court dependencies
+        run: python -m pip install "rdflib==7.2.1" "pyshacl>=0.30,<1"
 
       - name: Validate marketplace structure
         run: python scripts/marketplace.py validate
+
+      - name: Qualify canonical ontology and generated catalogs
+        run: python packs/premature-actuation-survival-pack/qualification/verify_catalog.py
 
       - name: Validate gate witness court correspondence
         run: |
@@ -65,8 +68,10 @@ jobs:
               --expectation fail
             cases=$((cases + 2))
           done
-          test "$cases" -eq 12
-          printf "survival_gate_cases=%s\n" "$cases"
+          gates="$(find "$pack/gates" -maxdepth 1 -name '*.rq' | wc -l)"
+          expected=$((gates * 2))
+          test "$cases" -eq "$expected"
+          printf "survival_gates=%s survival_gate_cases=%s\n" "$gates" "$cases"
 
       - name: Assert no ambient authority in shipped positive fixture
         shell: bash
