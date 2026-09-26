@@ -1,0 +1,31 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX sh:  <http://www.w3.org/ns/shacl#>
+
+# Canonical projection IR: public IRIs remain semantic identity; sh:name is
+# only an explicit generated-name hint. Consumers may choose namespaces
+# without changing the exact subject represented by class/path.
+SELECT ?phase ?kind ?shape ?class ?resourceName ?propertyShape ?path ?attributeName ?datatype ?minCount
+WHERE {
+  {
+    ?shape a sh:NodeShape ;
+           sh:targetClass ?class .
+    FILTER(isIRI(?class))
+    OPTIONAL { ?shape sh:name ?resourceName . }
+    BIND(10 AS ?phase)
+    BIND("resource" AS ?kind)
+  }
+  UNION
+  {
+    ?shape a sh:NodeShape ;
+           sh:targetClass ?class ;
+           sh:property ?propertyShape .
+    ?propertyShape sh:path ?path ;
+                   sh:datatype ?datatype .
+    FILTER(isIRI(?path))
+    OPTIONAL { ?propertyShape sh:name ?attributeName . }
+    OPTIONAL { ?propertyShape sh:minCount ?minCount . }
+    BIND(20 AS ?phase)
+    BIND("attribute" AS ?kind)
+  }
+}
+ORDER BY ?phase ?class ?path
