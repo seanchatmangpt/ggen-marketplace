@@ -1,0 +1,40 @@
+# MESSAGE: obligation-completeness or exact-subject binding violation.
+# Zero rows means every DelegationArtifact links all four obligations and every
+# linked obligation names the same subjectId as the artifact.
+PREFIX da: <https://seanchatmangpt.github.io/packs/delegation-admission#>
+SELECT ?artifact ?field ?evidence WHERE {
+  {
+    ?artifact a da:DelegationArtifact .
+    OPTIONAL { ?artifact da:hasExplain ?x . BIND(?x AS ?w) }
+    FILTER(!BOUND(?w))
+    BIND("hasExplain" AS ?field)
+  } UNION {
+    ?artifact a da:DelegationArtifact .
+    OPTIONAL { ?artifact da:hasVerify ?x . BIND(?x AS ?w) }
+    FILTER(!BOUND(?w))
+    BIND("hasVerify" AS ?field)
+  } UNION {
+    ?artifact a da:DelegationArtifact .
+    OPTIONAL { ?artifact da:hasModify ?x . BIND(?x AS ?w) }
+    FILTER(!BOUND(?w))
+    BIND("hasModify" AS ?field)
+  } UNION {
+    ?artifact a da:DelegationArtifact .
+    OPTIONAL { ?artifact da:hasAccount ?x . BIND(?x AS ?w) }
+    FILTER(!BOUND(?w))
+    BIND("hasAccount" AS ?field)
+  } UNION {
+    VALUES ?edge { da:hasExplain da:hasVerify da:hasModify da:hasAccount }
+    ?artifact a da:DelegationArtifact ; da:subjectId ?subject ; ?edge ?evidence .
+    OPTIONAL { ?evidence da:subjectId ?evidenceSubject . BIND(?evidenceSubject AS ?w) }
+    FILTER(!BOUND(?w))
+    BIND("evidence.subjectId" AS ?field)
+  } UNION {
+    VALUES ?edge { da:hasExplain da:hasVerify da:hasModify da:hasAccount }
+    ?artifact a da:DelegationArtifact ; da:subjectId ?subject ; ?edge ?evidence .
+    ?evidence da:subjectId ?evidenceSubject .
+    FILTER(?evidenceSubject != ?subject)
+    BIND("evidence.subjectId:mismatch" AS ?field)
+  }
+}
+ORDER BY ?artifact ?field ?evidence
