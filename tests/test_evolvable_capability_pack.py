@@ -241,7 +241,8 @@ class AdversarialMutationTests(unittest.TestCase):
 
     def test_untyped_member_released_and_candidate_is_refused(self) -> None:
         # Adversarial A5: the type triple is dropped and a Candidate state is
-        # smuggled beside Released, with no evidence at all.
+        # smuggled beside Released, with no evidence at all. Gate 030 refuses
+        # the untyped closure member directly (court-507 A4 hardening).
         graph = positive_graph()
         graph.remove((urn("candidate"), RDF.type, None))
         graph.remove((urn("candidate"), ecap("admissionEvidence"), None))
@@ -250,23 +251,26 @@ class AdversarialMutationTests(unittest.TestCase):
         self.assert_refused_by(
             graph,
             "020_released_requires_evidence",
+            "030_closure_released_only",
             "080_single_lifecycle_state",
             "130_declared_lifecycle_state",
         )
 
     def test_untyped_released_member_without_evidence_is_refused(self) -> None:
-        # Adversarial A4.
+        # Adversarial A4; gate 030 refuses the untyped closure member too.
         graph = positive_graph()
         graph.remove((urn("candidate"), RDF.type, None))
         graph.remove((urn("candidate"), ecap("admissionEvidence"), None))
         graph.remove((urn("candidate"), ecap("releaseEvidence"), None))
-        self.assert_refused_by(graph, "020_released_requires_evidence", "130_declared_lifecycle_state")
+        self.assert_refused_by(
+            graph, "020_released_requires_evidence", "030_closure_released_only", "130_declared_lifecycle_state"
+        )
 
     def test_untyped_but_otherwise_lawful_member_is_refused_as_untyped(self) -> None:
         graph = positive_graph()
         graph.remove((urn("candidate"), RDF.type, None))
         refused = verify.refusing_gates(graph)
-        self.assertEqual(set(refused), {"130_declared_lifecycle_state"})
+        self.assertEqual(set(refused), {"030_closure_released_only", "130_declared_lifecycle_state"})
         rows = verify.rows(verify.GATES / "130_declared_lifecycle_state.rq", graph)
         self.assertEqual({(str(r[0]), str(r[1])) for r in rows}, {("urn:test:candidate", "untypedCapability")})
 
@@ -458,9 +462,15 @@ class GgenRuntimeTests(unittest.TestCase):
         self.assertFalse(output.exists())
 
     def test_trailing_newline_digest_is_refused_by_runtime_and_court_alike(self) -> None:
+        # Python re lets `$` match before a final newline; ggen refuses this.
+        # The substitution target is the consumer's bound closureDigest (the
+        # binding recipe computes sha256:fe90777a... for its member rows); it
+        # must stay in lockstep with qualification/consumer.ttl.
+        bound = "fe90777af6639c936c6302b63947b9e023be42641d2eceef9c6eacfa790bbd4a"
         ontology = (QUALIFICATION / "consumer.ttl").read_text(encoding="utf-8").replace(
-            '"sha256:' + "e" * 64 + '"', '"sha256:' + "e" * 64 + '\\n"'
+            f'"sha256:{bound}"', f'"sha256:{bound}\\n"'
         )
+        self.assertIn(f'"sha256:{bound}\\n"', ontology)
         completed, output = self.sync(ontology)
         self.assertNotEqual(completed.returncode, 0)
         self.assertIn("110_digest_format", completed.stdout + completed.stderr)

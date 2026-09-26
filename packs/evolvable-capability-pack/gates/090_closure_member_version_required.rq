@@ -1,13 +1,22 @@
-# MESSAGE: every frozen closure member must carry an explicit version identity.
+# MESSAGE: every frozen closure member carries exactly one non-empty version.
 PREFIX ecap: <https://seanchatmangpt.github.io/packs/evolvable-capability#>
 PREFIX dcterms: <http://purl.org/dc/terms/>
+# Refused: a member with no dcterms:hasVersion at all; an empty-string version
+# (court-507 A6: ggen projects "" indistinguishably from a missing default);
+# and two distinct versions on one member (court-507 A2: ggen admitted
+# duplicate conflicting member rows and projected versions 3 and 2 together).
 SELECT ?closure ?capability WHERE {
   ?closure a ecap:ExecutionClosure ;
            ecap:closureMember ?capability .
-  OPTIONAL {
-    ?capability dcterms:hasVersion ?version .
-    BIND(?version AS ?witness)
-  }
-  FILTER(!BOUND(?witness))
+  FILTER(
+    NOT EXISTS {
+      ?capability dcterms:hasVersion ?version .
+      FILTER(STRLEN(STR(?version)) > 0)
+    }
+    || EXISTS {
+         ?capability dcterms:hasVersion ?first , ?second .
+         FILTER(?first != ?second)
+       }
+  )
 }
 ORDER BY ?closure ?capability

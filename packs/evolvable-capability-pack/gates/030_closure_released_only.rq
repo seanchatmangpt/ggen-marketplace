@@ -1,12 +1,19 @@
-# MESSAGE: frozen execution closure may contain released capabilities only.
+# MESSAGE: frozen execution closure may contain typed, released capabilities only.
 PREFIX ecap: <https://seanchatmangpt.github.io/packs/evolvable-capability#>
+# A closure member is lawful only when it is typed ecap:Capability AND its
+# ecap:lifecycleState is exactly the ecap:Released concept (sameTerm, so a
+# literal or foreign-typed value cannot impersonate the Released IRI).
+# Refused: untyped members (court-507 A4), stateless members, and members in
+# any other declared state - Candidate, Admitted (court-507 A1), Retired.
 SELECT ?closure ?capability WHERE {
   ?closure a ecap:ExecutionClosure ;
            ecap:closureMember ?capability .
-  OPTIONAL {
-    ?capability ecap:lifecycleState ecap:Released .
-    BIND(?capability AS ?releasedWitness)
-  }
-  FILTER(!BOUND(?releasedWitness))
+  FILTER(
+    NOT EXISTS { ?capability a ecap:Capability }
+    || NOT EXISTS {
+         ?capability ecap:lifecycleState ?state .
+         FILTER(sameTerm(?state, ecap:Released))
+       }
+  )
 }
 ORDER BY ?closure ?capability
