@@ -1,0 +1,22 @@
+# MESSAGE: court-required-before-select violation -- a ashdspy:CompiledRoute
+# carrying no ashdspy:CourtVerdict is a violation row naming the route.
+# Selection without a court verdict is exactly the plausible-but-unverified
+# compiled-route failure mode: a route LOOKS lawful (it names a signature
+# and an implementation) but nothing witnessed its score. "Candidate until
+# admitted" starts with the verdict existing at all.
+# Violation-row style (FM-PACK-013): zero rows = every route carries a
+# verdict.
+# sparql law: no FILTER inside EXISTS/OPTIONAL groups; OPTIONAL +
+# group-level FILTER(!BOUND) only. Single branch -- no UNION -- so the
+# outer-BGP shape is safe here (the UNION drop-row hazard of pec gate 030
+# does not apply).
+PREFIX ashdspy: <https://seanchatmangpt.github.io/packs/ashdspy#>
+SELECT ?route WHERE {
+  ?route a ashdspy:CompiledRoute .
+  OPTIONAL {
+    ?route ashdspy:courtVerdict ?verdict .
+    BIND(?verdict AS ?witness)
+  }
+  FILTER(!BOUND(?witness))
+}
+ORDER BY ?route

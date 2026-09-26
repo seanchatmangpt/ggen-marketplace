@@ -1,0 +1,104 @@
+---
+to: generated/lattice_summary.json
+force: true
+sparql:
+  routes: |
+    PREFIX ashdspy: <https://seanchatmangpt.github.io/packs/ashdspy#>
+    SELECT ?route ?sig ?impl WHERE {
+      ?route a ashdspy:CompiledRoute ;
+             ashdspy:compiles ?sig ;
+             ashdspy:routeImplementation ?impl .
+    } ORDER BY ?route
+  programs: |
+    PREFIX ashdspy: <https://seanchatmangpt.github.io/packs/ashdspy#>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT ?program ?label WHERE {
+      ?program a ashdspy:SemanticProgram .
+      OPTIONAL { ?program rdfs:label ?label }
+    } ORDER BY ?program
+  open_lattice: |
+    PREFIX ashdspy: <https://seanchatmangpt.github.io/packs/ashdspy#>
+    SELECT ?impl ?kind WHERE {
+      { ?impl a ashdspy:Implementation .
+        OPTIONAL { ?impl a ashdspy:ReuseImplementation . BIND(?impl AS ?w1) }
+        OPTIONAL { ?impl a ashdspy:ComposeImplementation . BIND(?impl AS ?w2) }
+        OPTIONAL { ?impl a ashdspy:RuleImplementation . BIND(?impl AS ?w3) }
+        OPTIONAL { ?impl a ashdspy:PlanImplementation . BIND(?impl AS ?w4) }
+        OPTIONAL { ?impl a ashdspy:ConstraintImplementation . BIND(?impl AS ?w5) }
+        OPTIONAL { ?impl a ashdspy:GenerateImplementation . BIND(?impl AS ?w6) }
+        OPTIONAL { ?impl a ashdspy:SpecializedModelImplementation . BIND(?impl AS ?w7) }
+        OPTIONAL { ?impl a ashdspy:LLMImplementation . BIND(?impl AS ?w8) }
+        FILTER(!BOUND(?w1) && !BOUND(?w2) && !BOUND(?w3) && !BOUND(?w4) && !BOUND(?w5) && !BOUND(?w6) && !BOUND(?w7) && !BOUND(?w8))
+        BIND("bare_implementation_outside_lattice" AS ?kind) }
+      UNION
+      { ?r a ashdspy:CompiledRoute ; ashdspy:routeImplementation ?impl .
+        OPTIONAL { ?impl a ashdspy:ReuseImplementation . BIND(?impl AS ?x1) }
+        OPTIONAL { ?impl a ashdspy:ComposeImplementation . BIND(?impl AS ?x2) }
+        OPTIONAL { ?impl a ashdspy:RuleImplementation . BIND(?impl AS ?x3) }
+        OPTIONAL { ?impl a ashdspy:PlanImplementation . BIND(?impl AS ?x4) }
+        OPTIONAL { ?impl a ashdspy:ConstraintImplementation . BIND(?impl AS ?x5) }
+        OPTIONAL { ?impl a ashdspy:GenerateImplementation . BIND(?impl AS ?x6) }
+        OPTIONAL { ?impl a ashdspy:SpecializedModelImplementation . BIND(?impl AS ?x7) }
+        OPTIONAL { ?impl a ashdspy:LLMImplementation . BIND(?impl AS ?x8) }
+        FILTER(!BOUND(?x1) && !BOUND(?x2) && !BOUND(?x3) && !BOUND(?x4) && !BOUND(?x5) && !BOUND(?x6) && !BOUND(?x7) && !BOUND(?x8))
+        BIND("routed_implementation_without_lattice_type" AS ?kind) }
+    } ORDER BY ?kind ?impl
+  courtless_routes: |
+    PREFIX ashdspy: <https://seanchatmangpt.github.io/packs/ashdspy#>
+    SELECT ?route WHERE {
+      ?route a ashdspy:CompiledRoute .
+      OPTIONAL { ?route ashdspy:courtVerdict ?v . BIND(?v AS ?witness) }
+      FILTER(!BOUND(?witness))
+    } ORDER BY ?route
+  llm_despite_known: |
+    PREFIX ashdspy: <https://seanchatmangpt.github.io/packs/ashdspy#>
+    SELECT ?route ?sig ?llm ?knownAlt WHERE {
+      ?route a ashdspy:CompiledRoute ;
+             ashdspy:compiles ?sig ;
+             ashdspy:routeImplementation ?llm .
+      ?llm a ashdspy:LLMImplementation .
+      OPTIONAL {
+        VALUES ?t { ashdspy:ReuseImplementation ashdspy:ComposeImplementation
+                    ashdspy:RuleImplementation ashdspy:PlanImplementation
+                    ashdspy:ConstraintImplementation ashdspy:GenerateImplementation
+                    ashdspy:SpecializedModelImplementation }
+        ?knownAlt a ?t ; ashdspy:forSignature ?sig ; ashdspy:courtVerdict ?av .
+        ?av ashdspy:passed true .
+      }
+      FILTER(BOUND(?knownAlt))
+    } ORDER BY ?route
+  receipt_shape: |
+    PREFIX ashdspy: <https://seanchatmangpt.github.io/packs/ashdspy#>
+    SELECT ?route ?field WHERE {
+      { ?route a ashdspy:CompiledRoute .
+        OPTIONAL { ?route ashdspy:evidenceDigest ?w1 . BIND(?w1 AS ?witness1) }
+        FILTER(!BOUND(?witness1))
+        BIND("evidenceDigest" AS ?field) }
+      UNION
+      { ?route a ashdspy:CompiledRoute ; ashdspy:courtVerdict ?verdict .
+        OPTIONAL { ?verdict ashdspy:verdictDigest ?w2 . BIND(?w2 AS ?witness2) }
+        FILTER(!BOUND(?witness2))
+        BIND("verdictDigest" AS ?field) }
+    } ORDER BY ?field ?route
+---
+{
+  "note": "ashdspy lattice summary (generated). REFUSED verdicts name the exact offending nodes; the gates themselves refuse sync via FM-PACK-013.",
+  "programs": [{% for p in programs %}{"program": "{{ p.program }}", "label": "{{ p.label | default(value='') }}"}{% if not loop.last %},{% endif %}{% endfor %}],
+  "routes": [{% for r in routes %}{"route": "{{ r.route }}", "signature": "{{ r.sig }}", "implementation": "{{ r.impl }}"}{% if not loop.last %},{% endif %}{% endfor %}],
+  "gate_010_closed_lattice": {
+    "verdict": "{% if open_lattice %}REFUSED{% else %}PASS{% endif %}",
+    "offenders": [{% for o in open_lattice %}{"impl": "{{ o.impl }}", "kind": "{{ o.kind }}"}{% if not loop.last %},{% endif %}{% endfor %}]
+  },
+  "gate_020_court_required_before_select": {
+    "verdict": "{% if courtless_routes %}REFUSED{% else %}PASS{% endif %}",
+    "courtless": [{% for r in courtless_routes %}{"route": "{{ r.route }}"}{% if not loop.last %},{% endif %}{% endfor %}]
+  },
+  "gate_030_known_implies_no_llm": {
+    "verdict": "{% if llm_despite_known %}REFUSED{% else %}PASS{% endif %}",
+    "offenders": [{% for o in llm_despite_known %}{"route": "{{ o.route }}", "signature": "{{ o.sig }}", "llm": "{{ o.llm }}", "known_alt": "{{ o.knownAlt }}"}{% if not loop.last %},{% endif %}{% endfor %}]
+  },
+  "gate_040_receipt_shape": {
+    "verdict": "{% if receipt_shape %}REFUSED{% else %}PASS{% endif %}",
+    "missing": [{% for m in receipt_shape %}{"route": "{{ m.route }}", "field": "{{ m.field }}"}{% if not loop.last %},{% endif %}{% endfor %}]
+  }
+}

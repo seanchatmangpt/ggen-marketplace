@@ -1,0 +1,289 @@
+@prefix ashdspy: <https://seanchatmangpt.github.io/packs/ashdspy#> .
+@prefix gp: <https://ggen.dev/ns/pack#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix earl: <http://www.w3.org/ns/earl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<urn:ggen:pack:ashdspy-pack>
+    a gp:Pack ;
+    gp:name "ashdspy-pack" ;
+    gp:version "0.1.0" ;
+    gp:profile gp:Core1 .
+
+# ============================================================================
+# FAILED-EDGE RECORD against the public vocabulary set (why ashdspy: exists)
+# ============================================================================
+# 1. prov:Entity/Activity/SoftwareAgent + prov:wasDerivedFrom cover the
+#    artifact lineage spine and are REUSED (CompiledRoute is a prov:Entity).
+#    Failed edge: prov describes what HAPPENED (derivations, attributions)
+#    and cannot express a PREFERENCE ORDER over implementations or an
+#    allocation LAW (KNOWN => Allocation_LLM = 0). Nothing in prov makes one
+#    derivation rung "preferred" or makes selecting a higher rung a refusal
+#    while a lower rung holds a passing verdict.
+# 2. earl:Assertion/TestResult covers pass/fail with evidence and is REUSED
+#    (CourtVerdict rdfs:subClassOf earl:TestResult). Failed edge: earl has no
+#    typed score VECTOR (accuracy/determinism/replay/provenance/llm_residue),
+#    no digest-carrying evidence binding (verdictDigest), and no selection
+#    semantics -- an Assertion never PREFERS one implementation over another,
+#    and earl does not attach a verdict to a candidate lattice rung.
+# 3. dcterms covers identifiers/titles and is REUSED. Failed edge: pure
+#    metadata; no typed field contract (fieldName/fieldType/oneOf), no
+#    precedence integers, no boolean pass flag.
+# 4. oslc_cm:ChangeRequest dual-typed earl:TestRequirement is the public
+#    ticket vocabulary (session law) and covers the DEMAND side. Failed edge
+#    for reuse here: a ticket says what must hold; it says nothing about HOW
+#    a Signature may be implemented or which implementation class is lawful
+#    once a lower rung is proven. oslc_cm has no implementation-lattice
+#    semantics at all, so nothing to subclass without distorting ChangeRequest.
+# 5. SHACL was considered for the gates. Failed edge: the lattice law
+#    (gate 030) is a CROSS-RESOURCE existence-with-preference condition (a
+#    route is unlawful because a DIFFERENT node holds a passing verdict), and
+#    the pack convention is violation-row SELECT gates (rows = refusal,
+#    FM-PACK-013) proven under both locked engines; SHACL shapes would fork
+#    the admission vocabulary for no added semantics.
+# Everything minted below is either (a) a subclass/subproperty anchoring a
+# public term, or (b) a term whose failed edge is recorded above.
+
+# ============================================================================
+# Contract classes
+# ============================================================================
+
+ashdspy:SemanticProgram a rdfs:Class ;
+    rdfs:label "Semantic program" ;
+    rdfs:comment "A declarative program contract: it HAS a Signature (typed inputs/outputs), a Metric, Requirements, a current CompiledRoute and a RetirementState. The implementation of the signature is ABSENT from the contract by design -- it is selected by court over the intelligence lattice. This is the DSPy generalization this pack names." .
+
+ashdspy:Signature a rdfs:Class ;
+    rdfs:label "Signature" ;
+    rdfs:comment "Typed field contract of a semantic program: named Input fields and Output fields; Output fields may carry oneOf value domains. A Signature never names an implementation." .
+
+ashdspy:Input a rdfs:Class ;
+    rdfs:label "Input field" ;
+    rdfs:comment "One typed input field of a Signature: fieldName + fieldType." .
+
+ashdspy:Output a rdfs:Class ;
+    rdfs:label "Output field" ;
+    rdfs:comment "One typed output field of a Signature: fieldName + fieldType, optionally oneOf value atoms." .
+
+ashdspy:Metric a rdfs:Class ;
+    rdfs:label "Metric" ;
+    rdfs:comment "A scored evaluation dimension (e.g. accuracy) with a target bound, evaluated by the external court machinery." .
+
+ashdspy:Requirement a rdfs:Class ;
+    rdfs:label "Requirement" ;
+    rdfs:comment "A hard constraint on the program along a dimension (determinism, replay, provenance) with an explicit bound." .
+
+ashdspy:Implementation a rdfs:Class ;
+    rdfs:label "Implementation" ;
+    rdfs:comment "An executable realization of a Signature. NEVER instantiated with the bare base class: every implementation must carry one of the 8 lattice subclasses (gate 010 refuses the bare/unlattice-typed form). The lattice precedence orders implementations: lower rung preferred when its court verdict passes." .
+
+# ── The 8-rung intelligence lattice (precedence 1..8; lower = lower
+#    intelligence = PREFERRED once a passing CourtVerdict is witnessed) ──────
+
+ashdspy:ReuseImplementation a rdfs:Class ; rdfs:subClassOf ashdspy:Implementation ;
+    rdfs:label "Reuse implementation (precedence 1)" ;
+    rdfs:comment "Reuse an existing admitted artifact verbatim. Preferred rung." .
+ashdspy:ComposeImplementation a rdfs:Class ; rdfs:subClassOf ashdspy:Implementation ;
+    rdfs:label "Compose implementation (precedence 2)" ;
+    rdfs:comment "Compose existing primitives into the realization; no new intelligence." .
+ashdspy:RuleImplementation a rdfs:Class ; rdfs:subClassOf ashdspy:Implementation ;
+    rdfs:label "Rule implementation (precedence 3)" ;
+    rdfs:comment "Deterministic rules (code/lookup) realize the signature." .
+ashdspy:PlanImplementation a rdfs:Class ; rdfs:subClassOf ashdspy:Implementation ;
+    rdfs:label "Plan implementation (precedence 4)" ;
+    rdfs:comment "A symbolic planner (HTN/PDDL class) realizes the signature." .
+ashdspy:ConstraintImplementation a rdfs:Class ; rdfs:subClassOf ashdspy:Implementation ;
+    rdfs:label "Constraint implementation (precedence 5)" ;
+    rdfs:comment "A SAT/SMT/CP solver realizes the signature." .
+ashdspy:GenerateImplementation a rdfs:Class ; rdfs:subClassOf ashdspy:Implementation ;
+    rdfs:label "Generate implementation (precedence 6)" ;
+    rdfs:comment "A deterministic generator/template projects the realization from declared facts." .
+ashdspy:SpecializedModelImplementation a rdfs:Class ; rdfs:subClassOf ashdspy:Implementation ;
+    rdfs:label "Specialized model implementation (precedence 7)" ;
+    rdfs:comment "A trained specialized (non-LLM) model realizes the signature." .
+ashdspy:LLMImplementation a rdfs:Class ; rdfs:subClassOf ashdspy:Implementation ;
+    rdfs:label "LLM implementation (precedence 8)" ;
+    rdfs:comment "An LLM call realizes the signature. Highest-intelligence rung: LAWFUL only while no lower rung holds a passing CourtVerdict for the same Signature (gate 030 refuses an LLM route when a passing non-LLM implementation exists) -- the KNOWN => Allocation_LLM = 0 law." .
+
+# ── Precedence as data (classes carry it; consumers never re-state it) ──────
+ashdspy:precedence a rdf:Property ;
+    rdfs:domain rdfs:Class ; rdfs:range xsd:integer ;
+    rdfs:label "lattice precedence (1..8, lower = lower intelligence = preferred)" ;
+    rdfs:comment "Declared once per lattice subclass below. 1=Reuse 2=Compose 3=Rule 4=Plan 5=Constraint 6=Generate 7=SpecializedModel 8=LLM." .
+
+ashdspy:ReuseImplementation ashdspy:precedence 1 .
+ashdspy:ComposeImplementation ashdspy:precedence 2 .
+ashdspy:RuleImplementation ashdspy:precedence 3 .
+ashdspy:PlanImplementation ashdspy:precedence 4 .
+ashdspy:ConstraintImplementation ashdspy:precedence 5 .
+ashdspy:GenerateImplementation ashdspy:precedence 6 .
+ashdspy:SpecializedModelImplementation ashdspy:precedence 7 .
+ashdspy:LLMImplementation ashdspy:precedence 8 .
+
+ashdspy:CompiledRoute a rdfs:Class ; rdfs:subClassOf prov:Entity ;
+    rdfs:label "Compiled route" ;
+    rdfs:comment "A CANDIDATE selection: exactly one Implementation for one Signature, carrying a CourtVerdict and an evidenceDigest. A route is a candidate until admitted by external machinery (SA2A/BRCE); this pack describes it, it never actuates one. Gates 020/040 refuse verdict-less and digest-less routes." .
+
+ashdspy:CourtVerdict a rdfs:Class ; rdfs:subClassOf earl:TestResult ;
+    rdfs:label "Court verdict" ;
+    rdfs:comment "The court's typed result over a candidate: passed (boolean), per-dimension scores (accuracy/determinism/replay/provenance/llm_residue), and a verdictDigest binding the evidence. Running the court is EXTERNAL machinery; this class is only its declared shape." .
+
+ashdspy:RetirementRule a rdfs:Class ;
+    rdfs:label "Retirement rule" ;
+    rdfs:comment "Declares when a route/implementation is retired, e.g. when a lower-precedence rung first passes the court -- the demotion half of the lattice law." .
+
+ashdspy:Trace a rdfs:Class ;
+    rdfs:label "Trace" ;
+    rdfs:comment "An imported example-corpus entry: one example input with its expected output, used as court evidence." .
+
+# ============================================================================
+# Properties (domains/ranges; comments carry the semantics)
+# ============================================================================
+
+ashdspy:signature a rdf:Property ; rdfs:domain ashdspy:SemanticProgram ; rdfs:range ashdspy:Signature ;
+    rdfs:label "has signature" .
+ashdspy:metric a rdf:Property ; rdfs:domain ashdspy:SemanticProgram ; rdfs:range ashdspy:Metric ;
+    rdfs:label "has metric" .
+ashdspy:requirement a rdf:Property ; rdfs:domain ashdspy:SemanticProgram ; rdfs:range ashdspy:Requirement ;
+    rdfs:label "has requirement" .
+ashdspy:currentRoute a rdf:Property ; rdfs:domain ashdspy:SemanticProgram ; rdfs:range ashdspy:CompiledRoute ;
+    rdfs:label "current compiled route (candidate)" .
+ashdspy:retirementRule a rdf:Property ; rdfs:domain ashdspy:SemanticProgram ; rdfs:range ashdspy:RetirementRule ;
+    rdfs:label "has retirement rule" .
+ashdspy:retirementState a rdf:Property ; rdfs:domain ashdspy:SemanticProgram ; rdfs:range xsd:string ;
+    rdfs:label "retirement state" ;
+    rdfs:comment "Free-text standing of the program's lattice position, e.g. \"rule-run-based: llm retired\"." .
+ashdspy:trace a rdf:Property ; rdfs:domain ashdspy:SemanticProgram ; rdfs:range ashdspy:Trace ;
+    rdfs:label "has trace (example corpus entry)" .
+
+ashdspy:input a rdf:Property ; rdfs:domain ashdspy:Signature ; rdfs:range ashdspy:Input ;
+    rdfs:label "has input field" .
+ashdspy:output a rdf:Property ; rdfs:domain ashdspy:Signature ; rdfs:range ashdspy:Output ;
+    rdfs:label "has output field" .
+ashdspy:fieldName a rdf:Property ; rdfs:domain ashdspy:Input ; rdfs:range xsd:string ;
+    rdfs:label "field name" ;
+    rdfs:comment "Also lawful on ashdspy:Output; domain is the shared field super-case. Fielded names must match the consumer's Signature codegen contract verbatim." .
+ashdspy:fieldType a rdf:Property ; rdfs:domain ashdspy:Input ; rdfs:range xsd:string ;
+    rdfs:label "field type" ;
+    rdfs:comment "Also lawful on ashdspy:Output (see fieldName note)." .
+ashdspy:oneOf a rdf:Property ; rdfs:domain ashdspy:Output ; rdfs:range xsd:string ;
+    rdfs:label "one of value domain" ;
+    rdfs:comment "Repeatable: one triple per allowed value atom (e.g. \"low\", \"high\")." .
+
+ashdspy:dimension a rdf:Property ; rdfs:domain ashdspy:Metric ; rdfs:range xsd:string ;
+    rdfs:label "dimension" ;
+    rdfs:comment "Court dimensions: accuracy | determinism | replay | provenance | llm_residue. Also lawful on Requirement and CourtVerdict (see fieldName shared-domain note)." .
+ashdspy:bound a rdf:Property ; rdfs:domain ashdspy:Requirement ; rdfs:range xsd:string ;
+    rdfs:label "bound" ;
+    rdfs:comment "Explicit bound string, e.g. \">= 0.9\". Also lawful on Metric." .
+ashdspy:score a rdf:Property ; rdfs:domain ashdspy:CourtVerdict ; rdfs:range xsd:decimal ;
+    rdfs:label "dimension score" ;
+    rdfs:comment "Paired with ashdspy:dimension on the same verdict: one dimension/score pair per court dimension." .
+
+ashdspy:forSignature a rdf:Property ; rdfs:domain ashdspy:Implementation ; rdfs:range ashdspy:Signature ;
+    rdfs:label "implements signature" .
+ashdspy:compiles a rdf:Property ; rdfs:domain ashdspy:CompiledRoute ; rdfs:range ashdspy:Signature ;
+    rdfs:label "compiles signature" .
+ashdspy:routeImplementation a rdf:Property ; rdfs:domain ashdspy:CompiledRoute ; rdfs:range ashdspy:Implementation ;
+    rdfs:label "selected implementation (exactly one per route)" .
+ashdspy:courtVerdict a rdf:Property ; rdfs:domain ashdspy:CompiledRoute ; rdfs:range ashdspy:CourtVerdict ;
+    rdfs:label "court verdict" ;
+    rdfs:comment "Also lawful on ashdspy:Implementation (a candidate verdict on a not-yet-routed implementation -- the object gate 030 matches on). Routes MUST carry one before selection (gate 020)." .
+ashdspy:passed a rdf:Property ; rdfs:domain ashdspy:CourtVerdict ; rdfs:range xsd:boolean ;
+    rdfs:label "passed" .
+ashdspy:verdictDigest a rdf:Property ; rdfs:domain ashdspy:CourtVerdict ; rdfs:range xsd:string ;
+    rdfs:label "verdict digest" ;
+    rdfs:comment "sha256-shaped digest binding the verdict to its evidence. A verdict without a digest is not evidence (gate 040)." .
+ashdspy:evidenceDigest a rdf:Property ; rdfs:domain ashdspy:CompiledRoute ; rdfs:range xsd:string ;
+    rdfs:label "evidence digest" ;
+    rdfs:comment "sha256-shaped digest of the evidence corpus the route was compiled against. A route without one cannot be replayed (gate 040)." .
+
+ashdspy:retireWhen a rdf:Property ; rdfs:domain ashdspy:RetirementRule ; rdfs:range xsd:string ;
+    rdfs:label "retire when" ;
+    rdfs:comment "Condition string, e.g. \"a lower-precedence rung passes the court for the same signature\"." .
+ashdspy:exampleInput a rdf:Property ; rdfs:domain ashdspy:Trace ; rdfs:range xsd:string ;
+    rdfs:label "example input" .
+ashdspy:expectedOutput a rdf:Property ; rdfs:domain ashdspy:Trace ; rdfs:range xsd:string ;
+    rdfs:label "expected output" .
+
+# ============================================================================
+# Worked fixture: ticket-triage (the pack's one shipped instance; the pack
+# convention ships worked instances, and this one witnesses all four gates
+# CLEAN -- it is the positive anti-vacuity half on the shipped graph).
+# All digests are real sha256 of the fixture names, computed at authorship:
+#   rule verdict     sha256:a5e90a5b98a279ff9f1cbcb1cadcb8220d07e245938355455514bc18af004b0d
+#   route verdict    sha256:6803836fece3fdd016f366ecc675a3428e1e62ef8a30255e3b1ec1da9dd29ae8
+#   trace corpus     sha256:1148e555416c384939448a423e2baa369e67ba7af787b67cab57c47c81f90c73
+# ============================================================================
+
+ashdspy:ticketTriage a ashdspy:SemanticProgram ;
+    rdfs:label "ticket-triage" ;
+    dcterms:identifier "ashdspy-fixture/ticket-triage" ;
+    ashdspy:signature ashdspy:ticketTriageSignature ;
+    ashdspy:metric ashdspy:ticketTriageAccuracy ;
+    ashdspy:requirement ashdspy:ticketTriageDeterminism ;
+    ashdspy:currentRoute ashdspy:ticketTriageRoute ;
+    ashdspy:trace ashdspy:ticketTriageTrace1 ;
+    ashdspy:retirementState "rule-rung admitted; llm rung retired" .
+
+ashdspy:ticketTriageSignature a ashdspy:Signature ;
+    rdfs:label "ticket-triage signature" ;
+    ashdspy:input ashdspy:ticketTriageInput ;
+    ashdspy:output ashdspy:ticketTriageUrgency , ashdspy:ticketTriageTeam .
+
+ashdspy:ticketTriageInput a ashdspy:Input ;
+    ashdspy:fieldName "ticket" ;
+    ashdspy:fieldType "string" .
+
+ashdspy:ticketTriageUrgency a ashdspy:Output ;
+    ashdspy:fieldName "urgency" ;
+    ashdspy:fieldType "string" ;
+    ashdspy:oneOf "low" , "high" .
+
+ashdspy:ticketTriageTeam a ashdspy:Output ;
+    ashdspy:fieldName "team" ;
+    ashdspy:fieldType "string" .
+
+ashdspy:ticketTriageAccuracy a ashdspy:Metric ;
+    ashdspy:dimension "accuracy" ;
+    ashdspy:bound ">= 0.9" .
+
+ashdspy:ticketTriageDeterminism a ashdspy:Requirement ;
+    ashdspy:dimension "determinism" ;
+    ashdspy:bound "replay == 1.0" .
+
+ashdspy:ticketTriageRule a ashdspy:RuleImplementation ;
+    rdfs:label "ticket-triage rule implementation (rung 3)" ;
+    ashdspy:forSignature ashdspy:ticketTriageSignature ;
+    ashdspy:courtVerdict ashdspy:ticketTriageRuleVerdict .
+
+ashdspy:ticketTriageRuleVerdict a ashdspy:CourtVerdict ;
+    ashdspy:passed true ;
+    ashdspy:dimension "accuracy" ; ashdspy:score 0.97 ;
+    ashdspy:dimension "determinism" ; ashdspy:score 1.00 ;
+    ashdspy:dimension "replay" ; ashdspy:score 1.00 ;
+    ashdspy:dimension "provenance" ; ashdspy:score 1.00 ;
+    ashdspy:dimension "llm_residue" ; ashdspy:score 0.00 ;
+    ashdspy:verdictDigest "sha256:a5e90a5b98a279ff9f1cbcb1cadcb8220d07e245938355455514bc18af004b0d" .
+
+ashdspy:ticketTriageRoute a ashdspy:CompiledRoute ;
+    rdfs:label "ticket-triage current route (candidate)" ;
+    ashdspy:compiles ashdspy:ticketTriageSignature ;
+    ashdspy:routeImplementation ashdspy:ticketTriageRule ;
+    ashdspy:courtVerdict ashdspy:ticketTriageRouteVerdict ;
+    ashdspy:evidenceDigest "sha256:1148e555416c384939448a423e2baa369e67ba7af787b67cab57c47c81f90c73" .
+
+ashdspy:ticketTriageRouteVerdict a ashdspy:CourtVerdict ;
+    ashdspy:passed true ;
+    ashdspy:dimension "accuracy" ; ashdspy:score 0.97 ;
+    ashdspy:verdictDigest "sha256:6803836fece3fdd016f366ecc675a3428e1e62ef8a30255e3b1ec1da9dd29ae8" .
+
+ashdspy:ticketTriageTrace1 a ashdspy:Trace ;
+    ashdspy:exampleInput "gateway 502s on /checkout since 14:00Z; revenue impact" ;
+    ashdspy:expectedOutput "urgency=high; team=platform" .
+
+ashdspy:ticketTriageRetirement a ashdspy:RetirementRule ;
+    ashdspy:retireWhen "a lower-precedence rung passes the court for the same signature" .
+ashdspy:ticketTriage ashdspy:retirementRule ashdspy:ticketTriageRetirement .
