@@ -10,6 +10,17 @@
 #     sd:producesEffect);
 #   - literals on one falsifier or effect node whose lengths sum past 300
 #     characters;
+#   - any literal longer than 300 characters, or literals summing past 400
+#     characters, on any other node (cs:NonClaim, sd:SourceWork, sd:Market,
+#     untyped side nodes, anything not in the two tiers above);
+#   - literals whose lengths sum past 400 characters across one strategy's
+#     closure (the strategy plus every object of its sd:composedOf,
+#     sd:hasFalsifier, sd:producesEffect, sd:appliesWhen, sd:servesObjective):
+#     an excerpt split across several nodes each under its own cap;
+#   - any IRI whose local name (text after the last '#', '/' or ':') is longer
+#     than 60 characters, or else whose full text is longer than 160
+#     characters (one row per IRI, local-name reason first): IRIs are not a
+#     text channel either;
 #   - any sd:quote triple anywhere.
 # Own paraphrased titles are at most 60 characters; longer own prose belongs
 # on falsifiers and effects only, and is bounded there too (200 per literal,
@@ -85,6 +96,74 @@ SELECT DISTINCT ?subject ?predicate ?reason WHERE {
     FILTER(?proseTotal > 300)
     BIND(sd:literalBudget AS ?predicate)
     BIND("literals-over-300-chars-total-on-falsifier-or-effect-node" AS ?reason)
+  } UNION {
+    {
+      SELECT DISTINCT ?subject ?predicate WHERE {
+        ?subject ?predicate ?sideLiteral .
+        FILTER(isLiteral(?sideLiteral) && STRLEN(STR(?sideLiteral)) > 300)
+      }
+    }
+    FILTER NOT EXISTS {
+      ?subject a ?tieredType .
+      FILTER(?tieredType IN (sd:Strategy, sd:StrategyStub, sd:CounterStrategy, sd:StrategicPattern,
+                             sd:Step, sd:StrategicCondition, sd:StrategicObjective,
+                             sd:Falsifier, sd:StrategicEffect))
+    }
+    FILTER NOT EXISTS { ?tierOwner sd:composedOf|sd:hasFalsifier|sd:producesEffect ?subject }
+    BIND("literal-over-300-chars-on-any-node" AS ?reason)
+  } UNION {
+    {
+      SELECT ?subject (SUM(STRLEN(STR(?sideLit))) AS ?sideTotal) WHERE {
+        ?subject ?sp ?sideLit .
+        FILTER(isLiteral(?sideLit))
+      } GROUP BY ?subject
+    }
+    FILTER(?sideTotal > 400)
+    FILTER NOT EXISTS {
+      ?subject a ?tieredType .
+      FILTER(?tieredType IN (sd:Strategy, sd:StrategyStub, sd:CounterStrategy, sd:StrategicPattern,
+                             sd:Step, sd:StrategicCondition, sd:StrategicObjective,
+                             sd:Falsifier, sd:StrategicEffect))
+    }
+    FILTER NOT EXISTS { ?tierOwner sd:composedOf|sd:hasFalsifier|sd:producesEffect ?subject }
+    BIND(sd:literalBudget AS ?predicate)
+    BIND("literals-over-400-chars-total-on-any-node" AS ?reason)
+  } UNION {
+    {
+      SELECT ?subject (SUM(STRLEN(STR(?closureLit))) AS ?closureTotal) WHERE {
+        {
+          SELECT DISTINCT ?subject ?member ?cp ?closureLit WHERE {
+            {
+              SELECT DISTINCT ?subject WHERE {
+                {
+                  ?subject a ?stype .
+                  FILTER(?stype IN (sd:Strategy, sd:StrategyStub, sd:CounterStrategy, sd:StrategicPattern))
+                } UNION {
+                  ?subject sd:composedOf ?anyStep .
+                }
+              }
+            }
+            ?subject (sd:composedOf|sd:hasFalsifier|sd:producesEffect|sd:appliesWhen|sd:servesObjective)? ?member .
+            ?member ?cp ?closureLit .
+            FILTER(isLiteral(?closureLit))
+          }
+        }
+      } GROUP BY ?subject
+    }
+    FILTER(?closureTotal > 400)
+    BIND(sd:closureBudget AS ?predicate)
+    BIND("literals-over-400-chars-total-across-strategy-closure" AS ?reason)
+  } UNION {
+    {
+      SELECT DISTINCT ?subject WHERE {
+        { ?subject ?anyP ?anyO } UNION { ?anyS ?subject ?anyO } UNION { ?anyS ?anyP ?subject }
+        FILTER(isIRI(?subject) && STRLEN(STR(?subject)) > 60)
+      }
+    }
+    BIND(STRLEN(REPLACE(STR(?subject), "^.*[#/:]", "")) AS ?localLength)
+    FILTER(?localLength > 60 || STRLEN(STR(?subject)) > 160)
+    BIND(sd:iriBudget AS ?predicate)
+    BIND(IF(?localLength > 60, "iri-local-name-over-60-chars", "iri-over-160-chars") AS ?reason)
   } UNION {
     ?subject sd:quote ?anything .
     BIND(sd:quote AS ?predicate)

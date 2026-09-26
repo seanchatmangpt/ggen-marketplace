@@ -25,7 +25,9 @@ Semantics:
            fire alongside their SPARQL gate twins.
 
 Exit codes: 0 expectation observed; 2 expectation violated (REFUSED);
-3 structural error (missing file, unparseable graph).
+3 structural error (missing file, unparseable graph, or a --gate that is
+not one of this pack's gates -- a gate outside gates/ sharing a stem must
+not be judged as if it were the pack's own).
 """
 from __future__ import annotations
 
@@ -68,12 +70,18 @@ def main() -> int:
             raise FileNotFoundError(f"witness not found: {args.witness}")
         if not gate_path.is_file():
             raise FileNotFoundError(f"gate not found: {args.gate}")
-        data = load_graph(witness_path)
         gates = sorted(GATES_DIR.glob("*.rq"))
         if not gates:
             raise FileNotFoundError(f"no gates in {GATES_DIR}")
-    except (OSError, FileNotFoundError) as error:
+        if gate_path not in {candidate.resolve() for candidate in gates}:
+            raise FileNotFoundError(f"gate is not one of this pack's gates: {args.gate}")
+        data = load_graph(witness_path)
+    except OSError as error:
         print(json.dumps({"refusal": "REFUSED_STRUCTURAL", "error": str(error)}), file=sys.stderr)
+        return 3
+    except Exception as error:  # rdflib raises parser-specific types for malformed Turtle
+        print(json.dumps({"refusal": "REFUSED_STRUCTURAL", "error": f"unparseable witness: {type(error).__name__}"}),
+              file=sys.stderr)
         return 3
 
     if args.expectation == "pass":

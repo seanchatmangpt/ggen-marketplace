@@ -278,9 +278,11 @@ def test_long_literal_on_a_step_node_is_refused() -> None:
     graph = load(*GRAPH_FILES)
     graph.add((SD["strategy-11-step-1"], SD.note, Literal("x" * 500)))
     fired, _ = verdict(graph)
-    assert fired == {"050_no_excerpt": 2}
+    # Round 2: the 500 characters also spill strategy-11's closure budget.
+    assert fired == {"050_no_excerpt": 3}
     assert reasons(graph, "050_no_excerpt") == [
-        "literal-over-60-chars-on-catalog-node", "literals-over-120-chars-total-on-catalog-node"]
+        "literal-over-60-chars-on-catalog-node", "literals-over-120-chars-total-on-catalog-node",
+        "literals-over-400-chars-total-across-strategy-closure"]
 
 
 def test_excerpt_split_into_short_literals_is_refused() -> None:
@@ -288,8 +290,11 @@ def test_excerpt_split_into_short_literals_is_refused() -> None:
     for index in range(3):
         graph.add((SD["strategy-11"], SD.note, Literal(f"{index}" + "y" * 59)))
     fired, _ = verdict(graph)
-    assert fired == {"050_no_excerpt": 1}
-    assert reasons(graph, "050_no_excerpt") == ["literals-over-120-chars-total-on-catalog-node"]
+    # Round 2: 180 added characters also push strategy-11's closure (224 as
+    # shipped) past its 400-character budget.
+    assert fired == {"050_no_excerpt": 2}
+    assert reasons(graph, "050_no_excerpt") == [
+        "literals-over-120-chars-total-on-catalog-node", "literals-over-400-chars-total-across-strategy-closure"]
 
 
 def test_public_class_gate_projection_is_current_and_deterministic() -> None:
@@ -357,8 +362,9 @@ def test_long_refutation_statement_is_refused(length: int) -> None:
     graph.set((falsifier, SD.refutedWhen, Literal("z" * length)))
     fired, conforms = verdict(graph)
     # One row for the literal cap; a second for the node total once the
-    # falsifier's literals sum past 300 characters.
-    assert fired == {"050_no_excerpt": 1 if length <= 280 else 2}
+    # falsifier's literals sum past 300 characters; a third (round 2) once
+    # strategy-11's closure (224 as shipped, 73 of it this falsifier) sums past 400.
+    assert fired == {"050_no_excerpt": 1 + (length > 280) + (224 - 73 + length > 400)}
     assert "literal-over-200-chars-on-falsifier-or-effect-node" in reasons(graph, "050_no_excerpt")
     assert conforms is False
 
@@ -377,10 +383,11 @@ def test_long_effect_label_is_refused() -> None:
     graph.add((effect, RDF.type, SD.StrategicEffect))
     graph.add((effect, RDFS.label, Literal("e" * 400)))
     fired, conforms = verdict(graph)
-    assert fired == {"050_no_excerpt": 2}
+    assert fired == {"050_no_excerpt": 3}
     assert reasons(graph, "050_no_excerpt") == [
         "literal-over-200-chars-on-falsifier-or-effect-node",
-        "literals-over-300-chars-total-on-falsifier-or-effect-node"]
+        "literals-over-300-chars-total-on-falsifier-or-effect-node",
+        "literals-over-400-chars-total-across-strategy-closure"]
     assert conforms is False
 
 
@@ -392,7 +399,9 @@ def test_untyped_effect_split_into_short_literals_is_refused() -> None:
     graph.add((SD["strategy-11"], SD.producesEffect, effect))
     for index in range(4):
         graph.add((effect, SD.note, Literal(f"{index}" + "q" * 99)))
-    assert reasons(graph, "050_no_excerpt") == ["literals-over-300-chars-total-on-falsifier-or-effect-node"]
+    assert reasons(graph, "050_no_excerpt") == [
+        "literals-over-300-chars-total-on-falsifier-or-effect-node",
+        "literals-over-400-chars-total-across-strategy-closure"]
 
 
 @pytest.mark.parametrize("mutation", ["contradictory-nonclaim", "long-falsifier", "long-effect"])

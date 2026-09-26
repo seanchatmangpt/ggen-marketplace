@@ -1,8 +1,9 @@
 # MESSAGE: every step of a strategy's composition applies exactly one of the
 # fourteen primitive operators (shape probe conceal reveal concentrate
 # disperse delay accelerate commit withdraw divide combine substitute
-# transform). An unknown operator, or a step with none, is refused: the HDDL
-# domain and the lab PolicyVector map only these fourteen.
+# transform). An unknown operator, a step with none, or a step carrying two
+# or more operators (typed or untyped step alike) is refused: the HDDL domain
+# and the lab PolicyVector map only these fourteen, one per step.
 #
 # Each row names the offending step, its operator (if any), and the reason.
 PREFIX sd: <https://ggen.dev/ontology/strategic-doctrine#>
@@ -21,6 +22,11 @@ SELECT ?subject ?operator ?reason WHERE {
     FILTER NOT EXISTS { ?subject sd:operator ?any }
     BIND(sd:operator AS ?operator)
     BIND("step-without-operator" AS ?reason)
+  } UNION {
+    ?strategy sd:composedOf ?subject .
+    ?subject sd:operator ?operator , ?second .
+    FILTER(STR(?operator) < STR(?second))
+    BIND("step-with-multiple-operators" AS ?reason)
   }
 }
 ORDER BY ?subject ?reason
