@@ -1,0 +1,35 @@
+@prefix k8s: <http://seanchatmangpt.github.io/packs/kubernetes#> .
+@prefix ex:  <https://example.com/negative-controls/scalar-newline-injection#> .
+
+# VERIFIED REFUSAL (gates/020_privilege_refusal.rq, SCALAR_LINE_BREAK).
+# Every raw block here is clean -- the privilege keys never appear in one.
+# The attack rides a SCALAR: the template splices k8s:containerName
+# unescaped after `- name: `, so a line break followed by container-level
+# indentation would emit a sibling `securityContext: {privileged: true}`
+# key into the rendered container. Checking block content alone cannot see
+# it; refusing line breaks in every scalar literal closes the channel for
+# every scalar property at once, not just this one.
+#
+# Verify:
+#   ggen sync run --dry-run
+# Expected: REFUSED, one row:
+#   ex:injectedContainer SCALAR_LINE_BREAK k8s:containerName
+
+ex:injectedWorkload a k8s:Workload ;
+  k8s:workloadName "injected-demo" ;
+  k8s:fileName "injected-demo.yaml" ;
+  k8s:podSecurityContextBlock """runAsNonRoot: true
+seccompProfile:
+  type: RuntimeDefault""" .
+
+ex:injectedContainer a k8s:Container ;
+  k8s:inWorkload ex:injectedWorkload ;
+  k8s:containerName "app\n          securityContext: {privileged: true}" ;
+  k8s:image "example/app@sha256:3333333333333333333333333333333333333333333333333333333333333c" ;
+  k8s:resourceRequestsBlock """cpu: 100m
+memory: 128Mi""" ;
+  k8s:resourceLimitsBlock """cpu: 250m
+memory: 256Mi""" ;
+  k8s:containerSecurityContextBlock """allowPrivilegeEscalation: false
+capabilities:
+  drop: ["ALL"]""" .

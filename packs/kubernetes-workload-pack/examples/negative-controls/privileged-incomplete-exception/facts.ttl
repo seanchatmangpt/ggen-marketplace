@@ -1,0 +1,35 @@
+@prefix k8s: <http://seanchatmangpt.github.io/packs/kubernetes#> .
+@prefix ex:  <https://example.com/negative-controls/privileged-incomplete-exception#> .
+
+# VERIFIED REFUSAL (gates/020_privilege_refusal.rq). A privileged container
+# that binds a k8s:SecurityException missing its accountable approver. A
+# partial exception is not treated as absent and not treated as granted: it
+# is refused twice -- EXCEPTION_INCOMPLETE on the binding and
+# PRIVILEGE_UNWAIVED on the block it failed to waive. An exception is typed
+# and complete, or it does not exist.
+#
+# Verify:
+#   ggen sync run --dry-run
+# Expected: REFUSED, two rows for ex:csiNodeContainer.
+
+ex:csiNodeWorkload a k8s:Workload ;
+  k8s:workloadName "csi-node" ;
+  k8s:fileName "csi-node.yaml" ;
+  k8s:podSecurityContextBlock """seccompProfile:
+  type: RuntimeDefault""" .
+
+ex:csiNodeContainer a k8s:Container ;
+  k8s:inWorkload ex:csiNodeWorkload ;
+  k8s:containerName "csi-node" ;
+  k8s:image "example/csi-node@sha256:2222222222222222222222222222222222222222222222222222222222222b" ;
+  k8s:resourceRequestsBlock """cpu: 50m
+memory: 64Mi""" ;
+  k8s:resourceLimitsBlock """cpu: 200m
+memory: 128Mi""" ;
+  k8s:containerSecurityContextBlock """privileged: true""" ;
+  k8s:privilegeException ex:csiNodeException .
+
+ex:csiNodeException a k8s:SecurityException ;
+  k8s:exceptionControl "SEC-PRIV-001" ;
+  k8s:exceptionRationale "CSI node plugin must mount volumes into the host mount namespace." ;
+  k8s:compensatingControl "Dedicated node pool; namespace isolated from tenant workloads." .
