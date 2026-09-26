@@ -25,7 +25,10 @@ Semantics:
            fire alongside their SPARQL gate twins.
 
 Exit codes: 0 expectation observed; 2 expectation violated (REFUSED);
-3 structural error (missing file, unparseable graph).
+3 structural error (missing file, unparseable witness graph, unparseable
+gate query, or a --gate that is not one of this pack's gates/*.rq). Every
+structural error is a typed REFUSED_STRUCTURAL line on stderr, never a
+traceback (harden v26.9.26).
 """
 from __future__ import annotations
 
@@ -68,12 +71,19 @@ def main() -> int:
             raise FileNotFoundError(f"witness not found: {args.witness}")
         if not gate_path.is_file():
             raise FileNotFoundError(f"gate not found: {args.gate}")
-        data = load_graph(witness_path)
         gates = sorted(GATES_DIR.glob("*.rq"))
         if not gates:
             raise FileNotFoundError(f"no gates in {GATES_DIR}")
-    except (OSError, FileNotFoundError) as error:
-        print(json.dumps({"refusal": "REFUSED_STRUCTURAL", "error": str(error)}), file=sys.stderr)
+        if gate_path not in [g.resolve() for g in gates]:
+            # Only this pack's own gates are judged: a same-stem file elsewhere
+            # would otherwise be accepted by name while its body is never read.
+            raise ValueError(f"gate is not one of this pack's gates: {args.gate}")
+        data = load_graph(witness_path)
+        for candidate in gates:
+            gate_rows(candidate, Graph())  # every gate must parse before any verdict
+    except Exception as error:  # noqa: BLE001 -- any unreadable input is structural, never a verdict
+        print(json.dumps({"refusal": "REFUSED_STRUCTURAL", "error": f"{type(error).__name__}: {error}"}),
+              file=sys.stderr)
         return 3
 
     if args.expectation == "pass":

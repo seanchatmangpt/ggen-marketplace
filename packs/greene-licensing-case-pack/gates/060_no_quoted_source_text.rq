@@ -13,6 +13,19 @@
 #     (a multi-word quotation), at any length. A span must open and close on
 #     a word character, so the gap between two quoted single words
 #     ("a", "b") is not itself read as a span.
+#   - any literal containing an HTML character reference (&name; &#N;
+#     &#xH;), which renders as a character the lexical checks never saw
+#     (&ldquo; &#8220; for quotes, &#101; to spell a refused stem);
+#   - any literal containing an HTML quotation element (<blockquote>, <q>,
+#     <cite>), which Markdown renders as a quotation;
+#   - any literal containing a straight single-quoted span of four or more
+#     words opened after whitespace, ( or [ and closed on a word character
+#     (a pasted excerpt in single quotes). Contractions and possessives
+#     never open such a span; a shell argument of up to three words (the
+#     demo commands) is admitted. Every pattern here is written so that no
+#     two repetitions can match the same characters: a backtracking engine
+#     (rdflib's Python re) stays near-linear on adversarial input, which
+#     tests/test_greene_licensing_case_hardening.py bounds. (Harden, v26.9.26.)
 # The gate is lexical. It bounds the carriers of quotation; the rule that
 # no book text appears rests on authoring discipline (ordinals, own titles,
 # own compositions) plus this gate, and cs:NonClaim NC03 states it.
@@ -36,8 +49,20 @@ SELECT DISTINCT ?subject ?predicate ?reason WHERE {
     BIND("typographic-quotation-in-literal" AS ?reason)
   } UNION {
     ?subject ?predicate ?literal .
-    FILTER(isLiteral(?literal) && REGEX(STR(?literal), "\"\\w([^\"\n]{10,}|[^\"\n]*\\s[^\"\n]*)\\w\""))
+    FILTER(isLiteral(?literal) && REGEX(STR(?literal), "\"\\w([^\"\n]{10,}|[^\"\\s]*\\s[^\"\n]*)\\w\""))
     BIND("quoted-span-in-literal" AS ?reason)
+  } UNION {
+    ?subject ?predicate ?literal .
+    FILTER(isLiteral(?literal) && REGEX(STR(?literal), "&(#[0-9]+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);"))
+    BIND("html-character-reference" AS ?reason)
+  } UNION {
+    ?subject ?predicate ?literal .
+    FILTER(isLiteral(?literal) && REGEX(STR(?literal), "</?(blockquote|q|cite)([ \t\n>/]|$)", "i"))
+    BIND("html-quotation-element" AS ?reason)
+  } UNION {
+    ?subject ?predicate ?literal .
+    FILTER(isLiteral(?literal) && REGEX(STR(?literal), "(^|[\\s(\\[])'\\w[^'\\s]*(\\s+[^'\\s]+){3,}'"))
+    BIND("single-quoted-span-in-literal" AS ?reason)
   }
 }
 ORDER BY ?subject ?predicate ?reason
