@@ -1,0 +1,30 @@
+# MESSAGE: a capability is typed, carries a lifecycle state, and only a declared one.
+PREFIX ecap: <https://seanchatmangpt.github.io/packs/evolvable-capability#>
+# A capability is anything typed ecap:Capability, frozen as a closure member,
+# or holding a lifecycle state. Neither engine entails the ontology's
+# rdfs:domain/rdfs:range, so the untyped forms are refused explicitly rather
+# than silently falling outside every type-keyed law.
+SELECT DISTINCT ?capability ?defect WHERE {
+  {
+    { ?capability a ecap:Capability }
+    UNION
+    { ?closure ecap:closureMember ?capability }
+    FILTER NOT EXISTS { ?capability ecap:lifecycleState ?anyState }
+    BIND("missingState" AS ?defect)
+  }
+  UNION
+  {
+    ?capability ecap:lifecycleState ?state .
+    FILTER(?state NOT IN (ecap:Candidate, ecap:Admitted, ecap:Released, ecap:Retired))
+    BIND("undeclaredState" AS ?defect)
+  }
+  UNION
+  {
+    { ?closure ecap:closureMember ?capability }
+    UNION
+    { ?capability ecap:lifecycleState ?someState }
+    FILTER NOT EXISTS { ?capability a ecap:Capability }
+    BIND("untypedCapability" AS ?defect)
+  }
+}
+ORDER BY ?capability ?defect

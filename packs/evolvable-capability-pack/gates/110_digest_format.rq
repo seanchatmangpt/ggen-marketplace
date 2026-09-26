@@ -1,0 +1,24 @@
+# MESSAGE: every ecap digest must be a plain sha256:<64 lowercase hex> literal.
+PREFIX ecap: <https://seanchatmangpt.github.io/packs/evolvable-capability#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+# "Plain" is enforced structurally: a literal, no language tag, datatype
+# xsd:string, and exactly 71 characters. The length check is load-bearing:
+# Python `re` lets `$` match before a trailing newline, so rdflib alone would
+# admit "sha256:<hex>\n" that the ggen runtime refuses.
+SELECT ?subject ?property ?digest WHERE {
+  VALUES ?property {
+    ecap:implementationDigest
+    ecap:closureDigest
+    ecap:cohortDigest
+    ecap:evidenceDigest
+  }
+  ?subject ?property ?digest .
+  FILTER(
+    !isLiteral(?digest)
+    || LANG(?digest) != ""
+    || DATATYPE(?digest) != xsd:string
+    || STRLEN(STR(?digest)) != 71
+    || !REGEX(STR(?digest), "^sha256:[0-9a-f]{64}$")
+  )
+}
+ORDER BY ?subject ?property ?digest
