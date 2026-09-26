@@ -1,0 +1,35 @@
+# Violation rows: one graph is one exact repository/base/patch subject.
+PREFIX spg: <https://seanchatmangpt.github.io/packs/swe-prometheus-governance#>
+SELECT ?case ?field WHERE {
+  { ?case a spg:RetrofitCase .
+    OPTIONAL { ?case spg:repository ?v1 . BIND(?v1 AS ?w1) }
+    FILTER(!BOUND(?w1))
+    BIND("repository" AS ?field) }
+  UNION
+  { ?case a spg:RetrofitCase .
+    OPTIONAL { ?case spg:baseCommit ?v2 . BIND(?v2 AS ?w2) }
+    FILTER(!BOUND(?w2))
+    BIND("baseCommit" AS ?field) }
+  UNION
+  { ?case a spg:RetrofitCase .
+    OPTIONAL { ?case spg:patchDigest ?v3 . BIND(?v3 AS ?w3) }
+    FILTER(!BOUND(?w3))
+    BIND("patchDigest" AS ?field) }
+  UNION
+  { ?case a spg:RetrofitCase ; spg:repository ?a, ?b .
+    FILTER(STR(?a) < STR(?b))
+    BIND("repository:not-unique" AS ?field) }
+  UNION
+  { ?case a spg:RetrofitCase ; spg:baseCommit ?a, ?b .
+    FILTER(STR(?a) < STR(?b))
+    BIND("baseCommit:not-unique" AS ?field) }
+  UNION
+  { ?case a spg:RetrofitCase ; spg:patchDigest ?a, ?b .
+    FILTER(STR(?a) < STR(?b))
+    BIND("patchDigest:not-unique" AS ?field) }
+  UNION
+  { ?case a spg:RetrofitCase . ?other a spg:RetrofitCase .
+    FILTER(STR(?case) < STR(?other))
+    BIND("graph:multiple-retrofit-cases" AS ?field) }
+}
+ORDER BY ?case ?field
