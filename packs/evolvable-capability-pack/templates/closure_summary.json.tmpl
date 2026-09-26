@@ -1,0 +1,37 @@
+---
+to: generated/evolvable-capability-closure.json
+force: true
+sparql:
+  closures: |
+    PREFIX ecap: <https://seanchatmangpt.github.io/packs/evolvable-capability#>
+    SELECT ?closure ?digest WHERE {
+      ?closure a ecap:ExecutionClosure .
+      OPTIONAL { ?closure ecap:closureDigest ?digest }
+    } ORDER BY ?closure
+  members: |
+    PREFIX ecap: <https://seanchatmangpt.github.io/packs/evolvable-capability#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    SELECT ?closure ?capability ?version ?implementationDigest WHERE {
+      ?closure a ecap:ExecutionClosure ;
+               ecap:closureMember ?capability .
+      OPTIONAL { ?capability dcterms:hasVersion ?version }
+      OPTIONAL { ?capability ecap:implementationDigest ?implementationDigest }
+    } ORDER BY ?closure ?capability
+  promotions: |
+    PREFIX ecap: <https://seanchatmangpt.github.io/packs/evolvable-capability#>
+    SELECT ?promotion ?candidate ?cohortDigest WHERE {
+      ?promotion a ecap:Promotion ;
+                 ecap:promotes ?candidate .
+      OPTIONAL {
+        ?promotion ecap:pairedEvidence ?evidence .
+        ?evidence ecap:cohortDigest ?cohortDigest .
+      }
+    } ORDER BY ?promotion
+---
+{
+  "authority": "none",
+  "note": "Generated semantic projection. Runtime selection still requires SA2A/BRCE admission.",
+  "closures": [{% for c in closures %}{"closure": "{{ c.closure }}", "digest": "{{ c.digest | default(value='') }}"}{% if not loop.last %},{% endif %}{% endfor %}],
+  "members": [{% for m in members %}{"closure": "{{ m.closure }}", "capability": "{{ m.capability }}", "version": "{{ m.version | default(value='') }}", "implementation_digest": "{{ m.implementationDigest | default(value='') }}"}{% if not loop.last %},{% endif %}{% endfor %}],
+  "promotions": [{% for p in promotions %}{"promotion": "{{ p.promotion }}", "candidate": "{{ p.candidate }}", "cohort_digest": "{{ p.cohortDigest | default(value='') }}"}{% if not loop.last %},{% endif %}{% endfor %}]
+}
