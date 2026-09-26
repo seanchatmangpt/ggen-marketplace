@@ -9,7 +9,6 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass
 from enum import Enum
-from itertools import combinations
 from typing import Any, Iterable, Mapping
 
 SCHEMA = "ggen.governance-gate/1"
@@ -20,6 +19,7 @@ class Standing(str, Enum):
     ADMITTED = "ADMITTED"
     AUTHORIZED = "AUTHORIZED"
     PREPARED = "PREPARED"
+    RECEIPTED = "RECEIPTED"
     REFUSED = "REFUSED"
 
 
@@ -54,6 +54,34 @@ class GateDecisionReceipt:
                 "ready_for_do": self.decision.ready_for_do,
                 "refusal_code": self.decision.refusal_code,
             },
+            "digest": self.digest,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ConsequenceReceipt:
+    subject_id: str
+    prepared_decision_digest: str
+    consequence_digest: str
+    verifier_ref: str
+    verified: bool
+    replay_key: str
+    digest: str
+
+    @property
+    def standing(self) -> Standing:
+        return Standing.RECEIPTED
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": SCHEMA,
+            "standing": self.standing.value,
+            "subject_id": self.subject_id,
+            "prepared_decision_digest": self.prepared_decision_digest,
+            "consequence_digest": self.consequence_digest,
+            "verifier_ref": self.verifier_ref,
+            "verified": self.verified,
+            "replay_key": self.replay_key,
             "digest": self.digest,
         }
 
@@ -152,6 +180,90 @@ def replay_receipt(receipt: GateDecisionReceipt) -> GateDecision:
 
 def observation_digest(value: Any) -> str:
     return _digest(value)
+
+
+def consequence_receipt(
+    prepared: GateDecisionReceipt,
+    observed_consequence: Any,
+    *,
+    verifier_ref: str,
+    verified: bool,
+    replay_key: str,
+) -> ConsequenceReceipt:
+    """Mint post-DO evidence; receipt existence does not imply success."""
+    decision = replay_receipt(prepared)
+    if decision.standing is not Standing.PREPARED or not decision.ready_for_do:
+        raise ValueError("PREPARED_DECISION_RECEIPT_REQUIRED")
+    if observed_consequence is None:
+        raise ValueError("OBSERVED_CONSEQUENCE_REQUIRED")
+    if not verifier_ref:
+        raise ValueError("VERIFIER_REF_REQUIRED")
+    if not replay_key:
+        raise ValueError("REPLAY_KEY_REQUIRED")
+
+    consequence_digest = _digest(observed_consequence)
+    body = {
+        "schema": SCHEMA,
+        "subject_id": prepared.subject_id,
+        "prepared_decision_digest": prepared.digest,
+        "consequence_digest": consequence_digest,
+        "verifier_ref": verifier_ref,
+        "verified": bool(verified),
+        "replay_key": replay_key,
+    }
+    return ConsequenceReceipt(
+        subject_id=prepared.subject_id,
+        prepared_decision_digest=prepared.digest,
+        consequence_digest=consequence_digest,
+        verifier_ref=verifier_ref,
+        verified=bool(verified),
+        replay_key=replay_key,
+        digest=_digest(body),
+    )
+
+
+def replay_consequence_receipt(receipt: ConsequenceReceipt) -> ConsequenceReceipt:
+    """Validate content identity without re-observing the external world."""
+    body = {
+        "schema": SCHEMA,
+        "subject_id": receipt.subject_id,
+        "prepared_decision_digest": receipt.prepared_decision_digest,
+        "consequence_digest": receipt.consequence_digest,
+        "verifier_ref": receipt.verifier_ref,
+        "verified": receipt.verified,
+        "replay_key": receipt.replay_key,
+    }
+    if _digest(body) != receipt.digest:
+        raise ValueError("CONSEQUENCE_RECEIPT_DIGEST_MISMATCH")
+    return receipt
+
+
+def replay_key_conflicts(
+    receipts: Iterable[ConsequenceReceipt],
+) -> tuple[dict[str, Any], ...]:
+    """Detect one replay key being reused for another prepared consequence."""
+    seen: dict[str, ConsequenceReceipt] = {}
+    conflicts: list[dict[str, Any]] = []
+    for receipt in receipts:
+        replay_consequence_receipt(receipt)
+        prior = seen.get(receipt.replay_key)
+        if prior is None:
+            seen[receipt.replay_key] = receipt
+            continue
+        same_effect = (
+            prior.prepared_decision_digest == receipt.prepared_decision_digest
+            and prior.consequence_digest == receipt.consequence_digest
+        )
+        if not same_effect:
+            conflicts.append(
+                {
+                    "code": "REPLAY_KEY_CONFLICT",
+                    "replay_key": receipt.replay_key,
+                    "left_digest": prior.digest,
+                    "right_digest": receipt.digest,
+                }
+            )
+    return tuple(conflicts)
 
 
 def evidence_obstructions(
