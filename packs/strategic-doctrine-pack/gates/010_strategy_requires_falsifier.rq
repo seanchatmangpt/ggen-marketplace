@@ -1,0 +1,25 @@
+# MESSAGE: an operationalized strategy (typed sd:Strategy, not sd:StrategyStub)
+# must name at least one sd:Falsifier carrying a refutation statement. A
+# strategy that cannot be refuted by an observation is not admitted doctrine.
+#
+# Each row names the offending strategy (or its falsifier) and the reason.
+PREFIX sd: <https://ggen.dev/ontology/strategic-doctrine#>
+
+SELECT ?subject ?reason WHERE {
+  {
+    ?subject a sd:Strategy .
+    FILTER NOT EXISTS { ?subject a sd:StrategyStub }
+    FILTER NOT EXISTS { ?subject sd:hasFalsifier ?any }
+    BIND("strategy-without-falsifier" AS ?reason)
+  } UNION {
+    ?strategy a sd:Strategy ; sd:hasFalsifier ?subject .
+    FILTER NOT EXISTS { ?subject a sd:Falsifier }
+    BIND("falsifier-not-typed-sd-Falsifier" AS ?reason)
+  } UNION {
+    ?strategy a sd:Strategy ; sd:hasFalsifier ?subject .
+    ?subject a sd:Falsifier .
+    FILTER NOT EXISTS { ?subject sd:refutedWhen ?statement }
+    BIND("falsifier-without-refutation-statement" AS ?reason)
+  }
+}
+ORDER BY ?subject ?reason

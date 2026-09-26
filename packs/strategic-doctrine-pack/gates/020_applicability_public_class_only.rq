@@ -1,0 +1,31 @@
+# MESSAGE: a strategic condition is evaluated only over instances of a public
+# class (W3C ORG, PROV-O, schema.org, SOSA/SSN, OWL-Time) or an sd: class.
+# A condition over a private or ad hoc class leaks an unaligned world model
+# into doctrine and is refused. A condition with no class at all is refused
+# for the same reason.
+#
+# Each row names the offending condition, its class, and the reason.
+PREFIX sd: <https://ggen.dev/ontology/strategic-doctrine#>
+
+SELECT ?subject ?class ?reason WHERE {
+  {
+    ?subject a sd:StrategicCondition ; sd:aboutClass ?class .
+    FILTER(!(
+      STRSTARTS(STR(?class), "http://www.w3.org/ns/org#") ||
+      STRSTARTS(STR(?class), "http://www.w3.org/ns/prov#") ||
+      STRSTARTS(STR(?class), "https://schema.org/") ||
+      STRSTARTS(STR(?class), "http://schema.org/") ||
+      STRSTARTS(STR(?class), "http://www.w3.org/ns/sosa/") ||
+      STRSTARTS(STR(?class), "http://www.w3.org/ns/ssn/") ||
+      STRSTARTS(STR(?class), "http://www.w3.org/2006/time#") ||
+      STRSTARTS(STR(?class), "https://ggen.dev/ontology/strategic-doctrine#")
+    ))
+    BIND("condition-over-non-public-class" AS ?reason)
+  } UNION {
+    ?subject a sd:StrategicCondition .
+    FILTER NOT EXISTS { ?subject sd:aboutClass ?any }
+    BIND(sd:StrategicCondition AS ?class)
+    BIND("condition-without-class" AS ?reason)
+  }
+}
+ORDER BY ?subject ?reason

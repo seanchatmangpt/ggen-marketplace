@@ -1,0 +1,25 @@
+# MESSAGE: a graph that carries any catalog entry (sd:Strategy or
+# sd:StrategyStub) must also carry a cs:NonClaim asserting all three of:
+# not licensed, no endorsement, no text reproduced. Without it the catalog
+# could be read as licensed or endorsed material and is refused.
+#
+# One row (naming one catalog entry) when the non-claim is absent or partial.
+PREFIX sd: <https://ggen.dev/ontology/strategic-doctrine#>
+PREFIX cs: <urn:xaas:case-study:>
+
+SELECT ?subject ?reason WHERE {
+  {
+    SELECT (MIN(STR(?entry)) AS ?subject) WHERE {
+      ?entry a ?type .
+      FILTER(?type IN (sd:Strategy, sd:StrategyStub))
+    }
+  }
+  FILTER(BOUND(?subject))
+  FILTER NOT EXISTS {
+    ?nonclaim a cs:NonClaim ;
+      sd:assertsNotLicensed true ;
+      sd:assertsNoEndorsement true ;
+      sd:assertsNoTextReproduced true .
+  }
+  BIND("licensing-nonclaim-absent" AS ?reason)
+}

@@ -1,0 +1,23 @@
+# MESSAGE: the catalog reproduces no text of its source work. Any literal
+# longer than 60 characters attached to a strategy (sd:Strategy,
+# sd:StrategyStub, sd:CounterStrategy, sd:StrategicPattern) is treated as a
+# possible excerpt and refused, as is any sd:quote triple anywhere. Own
+# paraphrased titles are at most 60 characters; longer own prose belongs on
+# falsifiers and effects, never on the strategy node.
+#
+# Each row names the offending subject, predicate, and the reason.
+PREFIX sd: <https://ggen.dev/ontology/strategic-doctrine#>
+
+SELECT DISTINCT ?subject ?predicate ?reason WHERE {
+  {
+    ?subject a ?type ; ?predicate ?literal .
+    FILTER(?type IN (sd:Strategy, sd:StrategyStub, sd:CounterStrategy, sd:StrategicPattern))
+    FILTER(isLiteral(?literal) && STRLEN(STR(?literal)) > 60)
+    BIND("literal-over-60-chars-on-strategy" AS ?reason)
+  } UNION {
+    ?subject sd:quote ?anything .
+    BIND(sd:quote AS ?predicate)
+    BIND("sd-quote-present" AS ?reason)
+  }
+}
+ORDER BY ?subject ?predicate ?reason

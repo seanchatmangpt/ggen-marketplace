@@ -1,0 +1,43 @@
+# MESSAGE: within one strategy the steps are totally ordered: every step has
+# exactly one integer sd:order, no two steps share an order, and the orders
+# are exactly 1..n for n steps. Anything else leaves the HDDL method's
+# ordered subtasks undefined and is refused.
+#
+# Each row names the strategy, the offending step, and the reason.
+PREFIX sd: <https://ggen.dev/ontology/strategic-doctrine#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?strategy ?subject ?reason WHERE {
+  {
+    ?strategy sd:composedOf ?subject .
+    FILTER NOT EXISTS { ?subject sd:order ?any }
+    BIND("step-without-order" AS ?reason)
+  } UNION {
+    ?strategy sd:composedOf ?subject .
+    ?subject sd:order ?first , ?second .
+    FILTER(STR(?first) < STR(?second))
+    BIND("step-with-multiple-orders" AS ?reason)
+  } UNION {
+    ?strategy sd:composedOf ?subject , ?other .
+    ?subject sd:order ?position .
+    ?other sd:order ?otherPosition .
+    FILTER(?subject != ?other && STR(?position) = STR(?otherPosition))
+    BIND("duplicate-step-order" AS ?reason)
+  } UNION {
+    ?strategy sd:composedOf ?subject .
+    ?subject sd:order ?position .
+    FILTER(DATATYPE(?position) != xsd:integer)
+    BIND("non-integer-step-order" AS ?reason)
+  } UNION {
+    {
+      SELECT ?strategy (COUNT(DISTINCT ?member) AS ?size) WHERE {
+        ?strategy sd:composedOf ?member .
+      } GROUP BY ?strategy
+    }
+    ?strategy sd:composedOf ?subject .
+    ?subject sd:order ?position .
+    FILTER(DATATYPE(?position) = xsd:integer && (?position < 1 || ?position > ?size))
+    BIND("step-order-outside-1-to-n" AS ?reason)
+  }
+}
+ORDER BY ?strategy ?subject ?reason
