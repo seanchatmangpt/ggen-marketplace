@@ -147,3 +147,189 @@ pas:prematureGuard a pas:GuardCandidate ;
     pas:standing "CANDIDATE" ;
     pas:authority "none" ;
     pas:installation "NOT_PERFORMED" .
+
+
+# ============================================================================
+# Canonical campaign and analysis vocabulary
+# ============================================================================
+
+pas:Factor a rdfs:Class ; rdfs:subClassOf prov:Entity .
+pas:FactorLevel a rdfs:Class ; rdfs:subClassOf prov:Entity .
+pas:FaultKind a rdfs:Class ; rdfs:subClassOf prov:Entity .
+pas:AnalysisMethod a rdfs:Class ; rdfs:subClassOf prov:Entity .
+pas:CampaignProfile a rdfs:Class ; rdfs:subClassOf prov:Entity .
+
+pas:factorName a rdf:Property ; rdfs:range xsd:string .
+pas:levelId a rdf:Property ; rdfs:range xsd:string .
+pas:levelOf a rdf:Property ; rdfs:range pas:Factor .
+pas:faultKindId a rdf:Property ; rdfs:range xsd:string .
+pas:methodId a rdf:Property ; rdfs:range xsd:string .
+pas:methodFamily a rdf:Property ; rdfs:range xsd:string .
+pas:metricId a rdf:Property ; rdfs:range xsd:string .
+pas:outputSchema a rdf:Property ; rdfs:range xsd:string .
+pas:requiresFixedSubject a rdf:Property ; rdfs:range xsd:boolean .
+pas:requiresFixedWorkload a rdf:Property ; rdfs:range xsd:boolean .
+pas:requiresFixedHorizon a rdf:Property ; rdfs:range xsd:boolean .
+pas:allowsSubjectSeries a rdf:Property ; rdfs:range xsd:boolean .
+pas:syntheticExplicit a rdf:Property ; rdfs:range xsd:boolean .
+pas:receiptRequiredForDo a rdf:Property ; rdfs:range xsd:boolean .
+pas:replayEvidenceSupported a rdf:Property ; rdfs:range xsd:boolean .
+pas:analysisOwner a rdf:Property ; rdfs:range xsd:string .
+pas:manufactureOwner a rdf:Property ; rdfs:range xsd:string .
+pas:episodeSchema a rdf:Property ; rdfs:range xsd:string .
+pas:campaignSchema a rdf:Property ; rdfs:range xsd:string .
+
+pas:contractV1
+    pas:episodeSchema "autofde-lab.premature-actuation-episode/1" ;
+    pas:campaignSchema "gymact.survival-campaign/1" ;
+    pas:receiptRequiredForDo true ;
+    pas:replayEvidenceSupported true ;
+    pas:analysisOwner "autofde-lab" ;
+    pas:manufactureOwner "gymact" .
+
+# Canonical policy machinery ladder.
+pas:llmNativePolicy
+    a pas:Policy ;
+    pas:policyId "llm-native" ;
+    pas:machinery "llm-native" ;
+    pas:informationTopology "isolated" ;
+    pas:toolPolicy "none" ;
+    pas:authorityCeiling "OBSERVE|SELECT|CONSTRUCT" ;
+    pas:grantsDoAuthority false .
+
+pas:llmToolsPolicy
+    a pas:Policy ;
+    pas:policyId "llm-tools" ;
+    pas:machinery "llm-tools" ;
+    pas:informationTopology "broadcast" ;
+    pas:toolPolicy "mandatory" ;
+    pas:authorityCeiling "OBSERVE|SELECT|CONSTRUCT" ;
+    pas:grantsDoAuthority false .
+
+pas:selectiveLlmPolicy
+    a pas:Policy ;
+    pas:policyId "selective-llm" ;
+    pas:machinery "selective-llm" ;
+    pas:informationTopology "authority-filtered" ;
+    pas:toolPolicy "optional" ;
+    pas:authorityCeiling "OBSERVE|SELECT|CONSTRUCT" ;
+    pas:grantsDoAuthority false .
+
+pas:plannerResiduePolicy
+    a pas:Policy ;
+    pas:policyId "planner-llm-residue" ;
+    pas:machinery "planner-llm-residue" ;
+    pas:informationTopology "blackboard" ;
+    pas:toolPolicy "optional" ;
+    pas:authorityCeiling "OBSERVE|SELECT|CONSTRUCT" ;
+    pas:grantsDoAuthority false .
+
+# pas:formalPolicy above is the fifth canonical policy.
+
+# Canonical reversible campaign factors.
+pas:authorityFactor a pas:Factor ; pas:factorName "authority" .
+pas:transportFactor a pas:Factor ; pas:factorName "transport" .
+pas:evidenceFactor a pas:Factor ; pas:factorName "evidence" .
+pas:terminalSignalFactor a pas:Factor ; pas:factorName "terminal_signal" .
+
+pas:authorityFull a pas:FactorLevel ; pas:levelId "full" ; pas:levelOf pas:authorityFactor .
+pas:authorityFiltered a pas:FactorLevel ; pas:levelId "filtered" ; pas:levelOf pas:authorityFactor .
+pas:authorityExpired a pas:FactorLevel ; pas:levelId "expired" ; pas:levelOf pas:authorityFactor .
+
+pas:transportStable a pas:FactorLevel ; pas:levelId "stable" ; pas:levelOf pas:transportFactor .
+pas:transportLossy a pas:FactorLevel ; pas:levelId "lossy" ; pas:levelOf pas:transportFactor .
+pas:transportReordered a pas:FactorLevel ; pas:levelId "reordered" ; pas:levelOf pas:transportFactor .
+
+pas:evidenceComplete a pas:FactorLevel ; pas:levelId "complete" ; pas:levelOf pas:evidenceFactor .
+pas:evidenceDelayed a pas:FactorLevel ; pas:levelId "delayed" ; pas:levelOf pas:evidenceFactor .
+pas:evidenceMissing a pas:FactorLevel ; pas:levelId "missing" ; pas:levelOf pas:evidenceFactor .
+
+pas:terminalExact a pas:FactorLevel ; pas:levelId "exact" ; pas:levelOf pas:terminalSignalFactor .
+pas:terminalStale a pas:FactorLevel ; pas:levelId "stale" ; pas:levelOf pas:terminalSignalFactor .
+pas:terminalFalsePositive a pas:FactorLevel ; pas:levelId "false_positive" ; pas:levelOf pas:terminalSignalFactor .
+
+# Typed deterministic fault identities.
+pas:wrongSubjectFault a pas:FaultKind ; pas:faultKindId "wrong_subject" .
+pas:authorityDropFault a pas:FaultKind ; pas:faultKindId "authority_drop" .
+pas:admissionDropFault a pas:FaultKind ; pas:faultKindId "admission_drop" .
+pas:receiptDropFault a pas:FaultKind ; pas:faultKindId "receipt_drop" .
+pas:prematureTerminalFault a pas:FaultKind ; pas:faultKindId "premature_terminal" .
+pas:toolBlackoutFault a pas:FaultKind ; pas:faultKindId "tool_blackout" .
+pas:replayCorruptionFault a pas:FaultKind ; pas:faultKindId "replay_corruption" .
+pas:llmTokenBurstFault a pas:FaultKind ; pas:faultKindId "llm_token_burst" .
+
+# Analysis prior art. These methods are descriptive/verification machinery,
+# not authority and not policy-ranking semantics.
+pas:kaplanMeierMethod
+    a pas:AnalysisMethod ;
+    pas:methodId "kaplan-meier" ;
+    pas:methodFamily "survival" ;
+    pas:metricId "survival_curve" ;
+    pas:outputSchema "autofde-lab.premature-actuation-survival/1" ;
+    pas:requiresFixedSubject true ;
+    pas:requiresFixedWorkload true ;
+    pas:requiresFixedHorizon true ;
+    pas:allowsSubjectSeries false .
+
+pas:rmstMethod
+    a pas:AnalysisMethod ;
+    pas:methodId "rmst" ;
+    pas:methodFamily "survival" ;
+    pas:metricId "rmst_steps" ;
+    pas:outputSchema "autofde-lab.premature-actuation-survival/1" ;
+    pas:requiresFixedSubject true ;
+    pas:requiresFixedWorkload true ;
+    pas:requiresFixedHorizon true ;
+    pas:allowsSubjectSeries false .
+
+pas:greenwoodLoglogMethod
+    a pas:AnalysisMethod ;
+    pas:methodId "greenwood-loglog-ci" ;
+    pas:methodFamily "uncertainty" ;
+    pas:metricId "survival_confidence_interval" ;
+    pas:outputSchema "autofde-lab.survival-uncertainty/1" ;
+    pas:requiresFixedSubject true ;
+    pas:requiresFixedWorkload true ;
+    pas:requiresFixedHorizon true ;
+    pas:allowsSubjectSeries false .
+
+pas:wilsonMethod
+    a pas:AnalysisMethod ;
+    pas:methodId "wilson-failure-probability" ;
+    pas:methodFamily "uncertainty" ;
+    pas:metricId "failure_probability_observed" ;
+    pas:outputSchema "autofde-lab.survival-uncertainty/1" ;
+    pas:requiresFixedSubject true ;
+    pas:requiresFixedWorkload true ;
+    pas:requiresFixedHorizon true ;
+    pas:allowsSubjectSeries false .
+
+pas:logrankMethod
+    a pas:AnalysisMethod ;
+    pas:methodId "log-rank" ;
+    pas:methodFamily "comparison" ;
+    pas:metricId "first_failure_distribution" ;
+    pas:outputSchema "autofde-lab.survival-logrank/1" ;
+    pas:requiresFixedSubject true ;
+    pas:requiresFixedWorkload true ;
+    pas:requiresFixedHorizon true ;
+    pas:allowsSubjectSeries false .
+
+pas:cusumMethod
+    a pas:AnalysisMethod ;
+    pas:methodId "cusum" ;
+    pas:methodFamily "spc" ;
+    pas:metricId "configured_metric" ;
+    pas:outputSchema "autofde-lab.survival-spc/1" ;
+    pas:requiresFixedSubject false ;
+    pas:requiresFixedWorkload true ;
+    pas:requiresFixedHorizon true ;
+    pas:allowsSubjectSeries true .
+
+pas:canonicalCampaign
+    a pas:CampaignProfile ;
+    pas:syntheticExplicit true ;
+    pas:authorityCeiling "OBSERVE|SELECT|CONSTRUCT" ;
+    pas:grantsDoAuthority false ;
+    pas:receiptRequiredForDo true ;
+    pas:replayEvidenceSupported true .
