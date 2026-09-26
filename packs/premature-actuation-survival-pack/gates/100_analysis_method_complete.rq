@@ -1,0 +1,52 @@
+PREFIX pas: <https://seanchatmangpt.github.io/ggen-marketplace/ontology/premature-actuation-survival#>
+
+SELECT ?method ?reason
+WHERE {
+  ?method a pas:AnalysisMethod .
+  {
+    FILTER NOT EXISTS { ?method pas:methodId ?id . }
+    BIND("METHOD_ID_MISSING" AS ?reason)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?method pas:methodFamily ?family . }
+    BIND("METHOD_FAMILY_MISSING" AS ?reason)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?method pas:metricId ?metric . }
+    BIND("METRIC_ID_MISSING" AS ?reason)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?method pas:outputSchema ?schema . }
+    BIND("OUTPUT_SCHEMA_MISSING" AS ?reason)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?method pas:requiresFixedWorkload true . }
+    BIND("FIXED_WORKLOAD_OBLIGATION_MISSING" AS ?reason)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?method pas:requiresFixedHorizon true . }
+    BIND("FIXED_HORIZON_OBLIGATION_MISSING" AS ?reason)
+  }
+  UNION
+  {
+    ?method pas:methodFamily "spc" ;
+            pas:requiresFixedSubject ?fixed ;
+            pas:allowsSubjectSeries ?series .
+    FILTER(?fixed != false || ?series != true)
+    BIND("SPC_SUBJECT_SERIES_CONTRACT_INVALID" AS ?reason)
+  }
+  UNION
+  {
+    ?method pas:methodFamily ?family ;
+            pas:requiresFixedSubject ?fixed ;
+            pas:allowsSubjectSeries ?series .
+    FILTER(?family != "spc" && (?fixed != true || ?series != false))
+    BIND("FIXED_SUBJECT_CONTRACT_INVALID" AS ?reason)
+  }
+}
+ORDER BY ?method ?reason
