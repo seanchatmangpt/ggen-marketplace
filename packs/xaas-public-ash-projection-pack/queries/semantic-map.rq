@@ -1,0 +1,19 @@
+PREFIX sh: <http://www.w3.org/ns/shacl#>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+SELECT ?kind ?shape ?class ?path ?datatype ?minCount
+WHERE {
+  {
+    ?shape a sh:NodeShape ; sh:targetClass ?class .
+    FILTER(isIRI(?class))
+    BIND("resource" AS ?kind)
+  }
+  UNION
+  {
+    ?shape a sh:NodeShape ; sh:targetClass ?class ; sh:property ?propertyShape .
+    ?propertyShape sh:path ?path ; sh:datatype ?datatype .
+    FILTER(isIRI(?class) && isIRI(?path) && isIRI(?datatype))
+    OPTIONAL { ?propertyShape sh:minCount ?minCount . }
+    BIND("attribute" AS ?kind)
+  }
+}
+ORDER BY ?class ?kind ?path
