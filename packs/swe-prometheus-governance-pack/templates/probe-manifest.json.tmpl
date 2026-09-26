@@ -1,0 +1,53 @@
+---
+to: generated/swe-prometheus-probe-manifest.json
+force: true
+sparql:
+  cases: |
+    PREFIX spg: <https://seanchatmangpt.github.io/packs/swe-prometheus-governance#>
+    SELECT ?repository ?baseCommit ?patchDigest WHERE {
+      ?case a spg:RetrofitCase ;
+            spg:repository ?repository ;
+            spg:baseCommit ?baseCommit ;
+            spg:patchDigest ?patchDigest .
+    } ORDER BY ?repository ?baseCommit
+  probes: |
+    PREFIX spg: <https://seanchatmangpt.github.io/packs/swe-prometheus-governance#>
+    SELECT ?id ?role ?scope ?dimension ?argv ?cwd ?timeout ?expected ?comparison WHERE {
+      ?case a spg:RetrofitCase ; spg:probeSpec ?probe .
+      ?probe spg:probeId ?id ;
+             spg:role ?role ;
+             spg:scope ?scope ;
+             spg:argvJson ?argv .
+      OPTIONAL {
+        ?probe spg:governanceDimension ?dim .
+        ?dim spg:key ?dimension .
+      }
+      OPTIONAL { ?probe spg:cwd ?cwd }
+      OPTIONAL { ?probe spg:timeoutSeconds ?timeout }
+      OPTIONAL { ?probe spg:expectedExit ?expected }
+      OPTIONAL { ?probe spg:comparison ?comparison }
+    } ORDER BY ?id
+---
+{% for c in cases %}
+{
+  "schema": "autofde-lab.swe-prometheus-probe-manifest/1",
+  "repository": "{{ c.repository }}",
+  "base_commit": "{{ c.baseCommit }}",
+  "patch_digest": "{{ c.patchDigest }}",
+  "probes": [
+    {% for p in probes %}
+    {
+      "id": "{{ p.id }}",
+      "role": "{{ p.role }}",
+      "scope": "{{ p.scope }}",
+      "dimension": {% if p.dimension %}"{{ p.dimension }}"{% else %}null{% endif %},
+      "argv": {{ p.argv }},
+      "cwd": "{{ p.cwd | default(value='.') }}",
+      "timeout_seconds": {{ p.timeout | default(value=60) }},
+      "expected_exit": {{ p.expected | default(value=0) }},
+      "comparison": "{{ p.comparison | default(value='exit_only') }}"
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ]
+}
+{% endfor %}
