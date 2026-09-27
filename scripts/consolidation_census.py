@@ -99,15 +99,26 @@ ACTIVE_PACK_NAMES: tuple[str, ...] = (
 # assurance as this dict's per-pack citations. Do not read the absence of a
 # legacy_pack here as "confirmed fine" -- it means either (a) it was one of
 # the ~250 rows an agent counted as refuted in aggregate without producing
-# a named citation for that specific pack, or (b) it is one of the 3 rows
-# an agent explicitly flagged UNCERTAIN (ash-runtime-integration-contract-
-# pack, revalidation-manufacturing-capital-pack, run-protocol-observability-
-# pack -- each real, cross-cutting content the heuristic ties equally
-# between 2-3 owners; needs a human/deeper-agent tiebreak, not encoded
-# here). A pack not in this dict should still be treated as UNVERIFIED at
+# a named citation for that specific pack, or (b) it is one of the 2 rows
+# still explicitly flagged UNCERTAIN (revalidation-manufacturing-capital-pack,
+# run-protocol-observability-pack -- each real, cross-cutting content the
+# heuristic ties equally between 2-3 owners). ash-runtime-integration-contract-
+# pack was resolved 2026-09-27 as a cross-cutting legacy implementation profile:
+# it is retained as frozen evidence, not assigned a false single semantic owner.
+# A pack not in this dict should still be treated as UNVERIFIED at
 # the individual-citation level, even though its bucket's aggregate pass
 # leans REFUTED.
 VERIFIED_OVERRIDES: dict[str, tuple[str, str, str | None]] = {
+    "ash-runtime-integration-contract-pack": (
+        "CONFIRMED_CROSS_CUTTING_FIXTURE",
+        "Real content inspection shows this is an executable Ash/Igniter implementation "
+        "profile spanning several canonical semantic concerns, not a semantic equivalent "
+        "of any one active owner. Keep it as frozen provenance/qualification evidence "
+        "rather than forcing an ABSORB edge. Normal Ash construction is being promoted "
+        "to ggen_igniter's single ash-manufacture-pack profile; marketplace semantic "
+        "selection remains behind marketplace.active.toml/ggen-platform-pack.",
+        None,
+    ),
     "autofde-lab-mcp-surface-pack": (
         "REFUTED_NOT_EQUIVALENT",
         "No shared ontology vocabulary, no shared template output shape (Rust MCP "
@@ -734,15 +745,23 @@ def build_census() -> dict[str, object]:
         if action != "DROP":
             owner, scores = classify_owner(pack.name, pack.description)
         override = VERIFIED_OVERRIDES.get(pack.name)
+        verified_nonowner_fixture = False
         if override is not None:
             verified_disposition, verified_reason, corrected_owner = override
+            if verified_disposition == "CONFIRMED_CROSS_CUTTING_FIXTURE":
+                # A checked cross-cutting implementation profile has no lawful
+                # single semantic owner. Retain it as frozen evidence instead
+                # of manufacturing a false ABSORB edge merely to satisfy the
+                # census's one-owner column.
+                action = "FIXTURE"
+                verified_nonowner_fixture = True
             if corrected_owner is not None:
                 # A real, checked finding that the heuristic's owner=None (a
                 # false negative -- real content the keyword scorer simply
                 # missed) was wrong: install the corrected owner so this row
                 # stops appearing under canonical_owner=null/unresolved.
                 owner = corrected_owner
-        if owner is None and action != "DROP":
+        if owner is None and action != "DROP" and not verified_nonowner_fixture:
             unresolved.append(pack.name)
         row: dict[str, object] = {
             "canonical_owner": owner,
