@@ -1,0 +1,28 @@
+# MESSAGE: routing-totality violation -- every pec:Capability (the executable
+# set) must resolve to at least one ENABLED pec:ExecutionProvider whose
+# pec:providerId equals the capabilityId's left segment ("provider:id"). A
+# capability with no enabled provider is a work order that cannot be executed
+# by anyone after an extinction event -- the violation row names it.
+# Join law: the left segment is computed OUTSIDE the OPTIONAL (BIND
+# STRBEFORE), the OPTIONAL joins on it, and the group-level FILTER(!BOUND)
+# fires when no enabled provider matches. A malformed capabilityId (no ":")
+# yields left segment "" and is refused here too -- a capability that cannot
+# name its provider class is unroutable by construction.
+# Violation-row style (FM-PACK-013): zero rows = every executable capability
+# is routable.
+# sparql law: no FILTER inside EXISTS/OPTIONAL groups (locked engines compile
+# it to :"$undefined" and crash); OPTIONAL + group-level FILTER(!BOUND) only.
+PREFIX pec: <https://seanchatmangpt.github.io/packs/provider-extinction-contract#>
+SELECT ?capability ?capabilityId WHERE {
+  ?capability a pec:Capability ;
+              pec:capabilityId ?capabilityId .
+  BIND(STRBEFORE(?capabilityId, ":") AS ?leftSegment)
+  OPTIONAL {
+    ?provider a pec:ExecutionProvider ;
+              pec:providerId ?leftSegment ;
+              pec:enabled true .
+    BIND(?provider AS ?routed)
+  }
+  FILTER(!BOUND(?routed))
+}
+ORDER BY ?capabilityId

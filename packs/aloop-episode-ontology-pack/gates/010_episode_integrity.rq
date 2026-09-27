@@ -1,0 +1,29 @@
+# MESSAGE: episode integrity violation -- every aloop:Event must bind exactly one aloop:Episode (aloop:episode), every aloop:Episode must pursue an aloop:Objective (aloop:pursues), and every aloop:WorkOrder must be dual-typed oslc_cm:ChangeRequest (the public ticket law). Any row returned is a refusal.
+# Violation-row style (FM-PACK-013): zero rows on a conforming graph, one row per violating node.
+# sparql 0.3.12 law: FILTER inside EXISTS crashes (:\"$undefined\"); the sanctioned
+# forms are OPTIONAL + FILTER(!BOUND()) and nested MINUS -- all three branches here
+# use OPTIONAL + !BOUND. See priv/ggen/semantic-jira-pack/gates/050_frontier.rq header.
+PREFIX aloop: <https://seanchatmangpt.github.io/packs/aloop-episode-ontology#>
+PREFIX oslc_cm: <http://open-services.net/ns/cm#>
+SELECT ?violation ?kind WHERE {
+  {
+    ?event a aloop:Event .
+    OPTIONAL { ?event aloop:episode ?ep . }
+    FILTER(!BOUND(?ep))
+    BIND(?event AS ?violation)
+    BIND("event_without_episode" AS ?kind)
+  } UNION {
+    ?episode a aloop:Episode .
+    OPTIONAL { ?episode aloop:pursues ?objective . }
+    FILTER(!BOUND(?objective))
+    BIND(?episode AS ?violation)
+    BIND("episode_without_objective" AS ?kind)
+  } UNION {
+    ?wo a aloop:WorkOrder .
+    OPTIONAL { ?wo a oslc_cm:ChangeRequest . BIND(?wo AS ?cr) }
+    FILTER(!BOUND(?cr))
+    BIND(?wo AS ?violation)
+    BIND("workorder_not_dual_typed_change_request" AS ?kind)
+  }
+}
+ORDER BY ?kind ?violation
