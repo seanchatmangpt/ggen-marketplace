@@ -1,0 +1,34 @@
+PREFIX pas: <https://seanchatmangpt.github.io/ggen-marketplace/ontology/premature-actuation-survival#>
+
+SELECT ?campaign ?reason
+WHERE {
+  ?campaign a pas:CampaignProfile .
+  {
+    ?campaign pas:grantsDoAuthority ?grants .
+    FILTER(?grants != false)
+    BIND("CAMPAIGN_GRANTS_DO_AUTHORITY" AS ?reason)
+  }
+  UNION
+  {
+    ?campaign pas:authorityCeiling ?ceiling .
+    FILTER(?ceiling != "OBSERVE|SELECT|CONSTRUCT")
+    BIND("CAMPAIGN_AUTHORITY_CEILING_INVALID" AS ?reason)
+  }
+  UNION
+  {
+    ?campaign pas:syntheticExplicit ?synthetic .
+    FILTER(?synthetic != true)
+    BIND("SYNTHETIC_IDENTITY_NOT_EXPLICIT" AS ?reason)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?campaign pas:receiptRequiredForDo true . }
+    BIND("RECEIPT_OBLIGATION_MISSING" AS ?reason)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?campaign pas:replayEvidenceSupported true . }
+    BIND("REPLAY_OBLIGATION_MISSING" AS ?reason)
+  }
+}
+ORDER BY ?campaign ?reason
