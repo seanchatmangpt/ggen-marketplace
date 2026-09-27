@@ -1,0 +1,68 @@
+# MESSAGE: the packet carries no quoted source text. Refused:
+#   - any glc:quotedText or sd:quote triple (declared only to be refused);
+#   - any literal containing a Markdown blockquote marker (a line whose
+#     first non-blank character is >, or its HTML escapes &gt; &#62; &#x3e;),
+#     which a projection would render as a quotation block;
+#   - any literal containing typographic quotation marks: double (U+201C,
+#     U+201D, U+201E, U+201F), opening/reversed single (U+2018, U+201A,
+#     U+201B), guillemets (U+00AB, U+00BB, U+2039, U+203A) or corner
+#     brackets (U+300C..U+300F) -- the usual carriers of a pasted excerpt.
+#     U+2019 alone is an apostrophe and is not refused;
+#   - any literal containing a straight double-quoted span of 12 or more
+#     characters, or any straight double-quoted span containing whitespace
+#     (a multi-word quotation), at any length. A span must open and close on
+#     a word character, so the gap between two quoted single words
+#     ("a", "b") is not itself read as a span.
+#   - any literal containing an HTML character reference (&name; &#N;
+#     &#xH;), which renders as a character the lexical checks never saw
+#     (&ldquo; &#8220; for quotes, &#101; to spell a refused stem);
+#   - any literal containing an HTML quotation element (<blockquote>, <q>,
+#     <cite>), which Markdown renders as a quotation;
+#   - any literal containing a straight single-quoted span of four or more
+#     words opened after whitespace, ( or [ and closed on a word character
+#     (a pasted excerpt in single quotes). Contractions and possessives
+#     never open such a span; a shell argument of up to three words (the
+#     demo commands) is admitted. Every pattern here is written so that no
+#     two repetitions can match the same characters: a backtracking engine
+#     (rdflib's Python re) stays near-linear on adversarial input, which
+#     tests/test_greene_licensing_case_hardening.py bounds. (Harden, v26.9.26.)
+# The gate is lexical. It bounds the carriers of quotation; the rule that
+# no book text appears rests on authoring discipline (ordinals, own titles,
+# own compositions) plus this gate, and cs:NonClaim NC03 states it.
+#
+# Each row names the offending subject, predicate, and the reason.
+PREFIX glc: <https://ggen.dev/ontology/greene-licensing-case#>
+PREFIX sd: <https://ggen.dev/ontology/strategic-doctrine#>
+
+SELECT DISTINCT ?subject ?predicate ?reason WHERE {
+  {
+    ?subject ?predicate ?anything .
+    FILTER(?predicate IN (glc:quotedText, sd:quote))
+    BIND("quoted-text-predicate-present" AS ?reason)
+  } UNION {
+    ?subject ?predicate ?literal .
+    FILTER(isLiteral(?literal) && REGEX(STR(?literal), "(^|\n)[ \t]*(>|&gt;|&#62;|&#x3[eE];)"))
+    BIND("blockquote-marker-in-literal" AS ?reason)
+  } UNION {
+    ?subject ?predicate ?literal .
+    FILTER(isLiteral(?literal) && REGEX(STR(?literal), "[“”„‟‘‚‛«»‹›「-』]"))
+    BIND("typographic-quotation-in-literal" AS ?reason)
+  } UNION {
+    ?subject ?predicate ?literal .
+    FILTER(isLiteral(?literal) && REGEX(STR(?literal), "\"\\w([^\"\n]{10,}|[^\"\\s]*\\s[^\"\n]*)\\w\""))
+    BIND("quoted-span-in-literal" AS ?reason)
+  } UNION {
+    ?subject ?predicate ?literal .
+    FILTER(isLiteral(?literal) && REGEX(STR(?literal), "&(#[0-9]+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);"))
+    BIND("html-character-reference" AS ?reason)
+  } UNION {
+    ?subject ?predicate ?literal .
+    FILTER(isLiteral(?literal) && REGEX(STR(?literal), "</?(blockquote|q|cite)([ \t\n>/]|$)", "i"))
+    BIND("html-quotation-element" AS ?reason)
+  } UNION {
+    ?subject ?predicate ?literal .
+    FILTER(isLiteral(?literal) && REGEX(STR(?literal), "(^|[\\s(\\[])'\\w[^'\\s]*(\\s+[^'\\s]+){3,}'"))
+    BIND("single-quoted-span-in-literal" AS ?reason)
+  }
+}
+ORDER BY ?subject ?predicate ?reason
