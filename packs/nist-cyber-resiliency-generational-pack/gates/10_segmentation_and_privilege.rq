@@ -1,0 +1,17 @@
+PREFIX cr: <https://seanchatmangpt.github.io/ggen-marketplace/nist-cyber-resiliency-generational#>
+SELECT ?profile ?policy ?reason WHERE {
+  ?profile a cr:GenerationalResiliencyProfile ; cr:hasPolicy ?policy .
+  {
+    ?profile cr:usesTechnique cr:Segmentation .
+    ?policy a cr:SegmentationPolicy .
+    FILTER NOT EXISTS { ?policy cr:segmentationBoundaryDigest ?digest . }
+    BIND("segmentation requires an identity-bound boundary model" AS ?reason)
+  }
+  UNION
+  {
+    ?profile cr:usesTechnique cr:PrivilegeRestriction .
+    ?policy a cr:PrivilegePolicy .
+    FILTER NOT EXISTS { ?policy cr:capabilitySetDigest ?capabilities ; cr:leastPrivilege true . }
+    BIND("privilege restriction requires an explicit capability-set identity and least-privilege declaration" AS ?reason)
+  }
+}
