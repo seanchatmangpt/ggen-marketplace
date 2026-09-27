@@ -7,7 +7,7 @@
 ```text
 ggen-marketplace/
 ├── marketplace.toml      # Marketplace operational law (release pins, asset digests, qualification limits)
-├── packs/                # Canonical pack source directories (312 packs)
+├── packs/                # Canonical pack source directories (pack count grows per admission — see marketplace.toml / catalog)
 │   └── <pack-name>/
 │       ├── pack.toml     # Identity manifest ([pack] name, version, description)
 │       ├── ontology.ttl  # Admitted RDF graph(s)
