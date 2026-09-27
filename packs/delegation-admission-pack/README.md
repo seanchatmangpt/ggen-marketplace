@@ -21,6 +21,7 @@ standing in another.
 
 ## Gates
 
+- `005_artifact_shape.rq` — exact subject, delegation units, boundary, and authority-scope header are present.
 - `010_obligations_complete.rq` — all four obligations exist and are bound to
   the exact artifact subject.
 - `015_explain_evidence.rq` — Explain PASS with provenance, ontology, rationale.
@@ -33,6 +34,22 @@ standing in another.
 
 Queries use violation-row semantics: **zero rows = admitted by that gate; any row
 = refusal**.
+
+## AutoFDE projection
+
+`templates/autofde_cases.json.tmpl` compiles the admitted RDF graph into
+`generated/delegation-admission-cases.json` with schema
+`autofde-lab.delegation-admission-batch/1`. The projection contains one
+AutoFDE court artifact per `da:DelegationArtifact`, ordered by subject.
+
+This removes a second hand-maintained JSON contract: ontology facts are the source;
+the JSON batch is a generated projection consumed by the AutoFDE court.
+
+## Executable semantic court
+
+`qualification/verify.py` runs every SPARQL gate with `rdflib==7.6.0` against
+an exact-stem PASS witness and FAIL witness. Admission requires zero rows on the
+PASS witness and at least one row on the corresponding FAIL witness for every gate.
 
 ## Authority boundary
 
