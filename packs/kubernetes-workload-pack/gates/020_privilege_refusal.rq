@@ -1,0 +1,72 @@
+# MESSAGE: kubernetes-workload-pack privilege gate (SEC-PRIV-001). Closes the
+# MESSAGE: generate-time half of the control-map row: a privileged or
+# MESSAGE: escalation-capable container is refused BEFORE a Deployment exists,
+# MESSAGE: instead of rendered and left to Kyverno/Trivy/Kubescape or to PSA
+# MESSAGE: (which only warns on a Deployment wrapper -- control-map.md).
+# MESSAGE: Fail-closed over the raw blocks: the only lawful spelling of either
+# MESSAGE: key is the exact line `privileged: false` / `allowPrivilegeEscalation:
+# MESSAGE: false`; any other mention of either key in any raw block of a
+# MESSAGE: container or its workload is PRIVILEGE_UNWAIVED unless the container
+# MESSAGE: binds a complete k8s:SecurityException for SEC-PRIV-001. Security-
+# MESSAGE: context blocks may never carry YAML escapes, aliases or merge keys
+# MESSAGE: (the spellings that could name a key without its plain letters),
+# MESSAGE: exception or not. Scalar (non-block) literals may never carry a
+# MESSAGE: line break -- they are spliced unescaped into YAML, and a newline in
+# MESSAGE: e.g. k8s:containerName would inject a securityContext key the raw-
+# MESSAGE: block rules never see. Any row = a refused subject.
+PREFIX k8s: <http://seanchatmangpt.github.io/packs/kubernetes#>
+SELECT ?s ?violation ?property WHERE {
+  {
+    # Privilege keys in any raw block of the container, or of its workload.
+    ?c a k8s:Container ; k8s:inWorkload ?wl .
+    { ?c ?property ?block . } UNION { ?wl ?property ?block . }
+    VALUES ?property {
+      k8s:podSecurityContextBlock k8s:containerSecurityContextBlock
+      k8s:resourceRequestsBlock k8s:resourceLimitsBlock
+      k8s:readinessProbeBlock k8s:livenessProbeBlock
+    }
+    BIND(REPLACE(REPLACE(CONCAT("\n", STR(?block), "\n"),
+      "\n[ \t]*privileged:[ \t]*false[ \t]*(?:\r)?\n", "\n"),
+      "\n[ \t]*allowPrivilegeEscalation:[ \t]*false[ \t]*(?:\r)?\n", "\n") AS ?residue)
+    FILTER(REGEX(?residue, "privileged|allowprivilegeescalation", "i"))
+    FILTER NOT EXISTS {
+      ?c k8s:privilegeException ?x .
+      ?x a k8s:SecurityException ;
+         k8s:exceptionControl "SEC-PRIV-001" ;
+         k8s:exceptionRationale ?why ; k8s:compensatingControl ?cc ; k8s:approvedBy ?who .
+      FILTER(STRLEN(STR(?why)) > 0 && STRLEN(STR(?cc)) > 0 && STRLEN(STR(?who)) > 0)
+    }
+    BIND(?c AS ?s) BIND("PRIVILEGE_UNWAIVED" AS ?violation)
+  } UNION {
+    # A bound exception must be complete and scoped to SEC-PRIV-001.
+    ?s k8s:privilegeException ?x .
+    OPTIONAL { ?x k8s:exceptionControl ?ctl . }
+    OPTIONAL { ?x k8s:exceptionRationale ?why . }
+    OPTIONAL { ?x k8s:compensatingControl ?cc . }
+    OPTIONAL { ?x k8s:approvedBy ?who . }
+    FILTER(NOT EXISTS { ?x a k8s:SecurityException }
+      || !BOUND(?ctl) || STR(?ctl) != "SEC-PRIV-001"
+      || !BOUND(?why) || STRLEN(STR(?why)) = 0
+      || !BOUND(?cc) || STRLEN(STR(?cc)) = 0
+      || !BOUND(?who) || STRLEN(STR(?who)) = 0)
+    BIND(k8s:privilegeException AS ?property) BIND("EXCEPTION_INCOMPLETE" AS ?violation)
+  } UNION {
+    # Security-context blocks: no escape sequences, aliases or merge keys.
+    ?s ?property ?block .
+    VALUES ?property { k8s:podSecurityContextBlock k8s:containerSecurityContextBlock }
+    FILTER(REGEX(STR(?block), "\\\\|<<|(^|[\\s\\[{,:-])[&*][^\\s]"))
+    BIND("SECURITY_BLOCK_OBFUSCATION" AS ?violation)
+  } UNION {
+    # Scalar literals are spliced unescaped: no line breaks.
+    { ?s a k8s:Workload . } UNION { ?s a k8s:Container . }
+    ?s ?property ?value .
+    FILTER(ISLITERAL(?value))
+    FILTER(?property NOT IN (
+      k8s:podSecurityContextBlock, k8s:containerSecurityContextBlock,
+      k8s:resourceRequestsBlock, k8s:resourceLimitsBlock,
+      k8s:readinessProbeBlock, k8s:livenessProbeBlock))
+    FILTER(REGEX(STR(?value), "[\n\r]"))
+    BIND("SCALAR_LINE_BREAK" AS ?violation)
+  }
+}
+ORDER BY ?s ?violation ?property

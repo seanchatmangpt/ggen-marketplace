@@ -1,0 +1,35 @@
+@prefix k8s: <http://seanchatmangpt.github.io/packs/kubernetes#> .
+@prefix ex:  <https://example.com/negative-controls/obfuscated-privilege-key#> .
+
+# VERIFIED REFUSAL (gates/020_privilege_refusal.rq,
+# SECURITY_BLOCK_OBFUSCATION). YAML double-quoted keys decode escapes, so
+# "privil\x65ged" parses as the key `privileged` while never containing
+# those plain letters -- a token scan alone would admit it. Security-context
+# blocks therefore refuse backslash escapes, anchors/aliases and merge keys
+# outright; no lawful securityContext needs any of them. (The Turtle `\\`
+# below is one literal backslash in the admitted string.)
+#
+# Verify:
+#   ggen sync run --dry-run
+# Expected: REFUSED, one row:
+#   ex:obfuscatedContainer SECURITY_BLOCK_OBFUSCATION k8s:containerSecurityContextBlock
+
+ex:obfuscatedWorkload a k8s:Workload ;
+  k8s:workloadName "obfuscated-demo" ;
+  k8s:fileName "obfuscated-demo.yaml" ;
+  k8s:podSecurityContextBlock """runAsNonRoot: true
+seccompProfile:
+  type: RuntimeDefault""" .
+
+ex:obfuscatedContainer a k8s:Container ;
+  k8s:inWorkload ex:obfuscatedWorkload ;
+  k8s:containerName "obfuscated-demo" ;
+  k8s:image "example/app@sha256:4444444444444444444444444444444444444444444444444444444444444d" ;
+  k8s:resourceRequestsBlock """cpu: 100m
+memory: 128Mi""" ;
+  k8s:resourceLimitsBlock """cpu: 250m
+memory: 256Mi""" ;
+  k8s:containerSecurityContextBlock """allowPrivilegeEscalation: false
+"privil\\x65ged": true
+capabilities:
+  drop: ["ALL"]""" .

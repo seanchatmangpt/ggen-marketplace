@@ -53,3 +53,21 @@ k8s:envFromSecret a rdf:Property ; rdfs:domain k8s:Container ; rdfs:range xsd:st
 k8s:readinessProbeBlock a rdf:Property ; rdfs:domain k8s:Container ; rdfs:range xsd:string ; rdfs:comment "Raw YAML under readinessProbe:." .
 k8s:livenessProbeBlock a rdf:Property ; rdfs:domain k8s:Container ; rdfs:range xsd:string ; rdfs:comment "Raw YAML under livenessProbe:." .
 k8s:containerSecurityContextBlock a rdf:Property ; rdfs:domain k8s:Container ; rdfs:range xsd:string ; rdfs:comment "Raw YAML under securityContext: (container-level). Presence checked by gate 010 alongside the pod-level fact." .
+
+# v0.2.0 -- SEC-PRIV-001 closed at generate-time (gates/020_privilege_refusal.rq).
+# The raw securityContext blocks stay raw (the escape-hatch design above is
+# unchanged), but the gate reads their CONTENT fail-closed: the only lawful
+# spelling of either privilege key is the exact line `privileged: false` /
+# `allowPrivilegeEscalation: false`. Every other mention of either key, in any
+# raw block, is refused unless the container names a complete, typed
+# k8s:SecurityException for exactly that control. An exception is never
+# inferred -- a Workload-level or incomplete exception covers nothing.
+
+k8s:SecurityException a rdfs:Class ;
+  rdfs:comment "A typed, explicitly bound waiver of one named control for one container. Admitted only when every field below is bound to a non-empty, single-line literal; gate 020 refuses a partial exception rather than treating it as absent." .
+
+k8s:privilegeException a rdf:Property ; rdfs:domain k8s:Container ; rdfs:range k8s:SecurityException ; rdfs:comment "Binds a k8s:SecurityException to exactly this container. The only way a privilege-key mention other than the exact `: false` spelling is admitted." .
+k8s:exceptionControl a rdf:Property ; rdfs:domain k8s:SecurityException ; rdfs:range xsd:string ; rdfs:comment "Control identifier waived. Gate 020 admits only \"SEC-PRIV-001\" for k8s:privilegeException." .
+k8s:exceptionRationale a rdf:Property ; rdfs:domain k8s:SecurityException ; rdfs:range xsd:string ; rdfs:comment "Why the workload cannot run without the privilege." .
+k8s:compensatingControl a rdf:Property ; rdfs:domain k8s:SecurityException ; rdfs:range xsd:string ; rdfs:comment "What bounds the consequence of the waived control (node isolation, dedicated namespace, runtime detection, ...)." .
+k8s:approvedBy a rdf:Property ; rdfs:domain k8s:SecurityException ; rdfs:range xsd:string ; rdfs:comment "Accountable approver identity. Recorded, not authenticated -- the gate proves the exception is typed and complete, not that the approval is genuine." .
