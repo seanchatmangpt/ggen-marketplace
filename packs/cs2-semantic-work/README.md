@@ -1,11 +1,15 @@
-# CS2 semantic-work pack
+# CS2 semantic work pack
 
-Manufactures deterministic, authority-free work projections from canonical CS2 RDF.
+Canonical semantic projection pack for CS2 work.
 
-The pack separates canonical semantic identity from consumer representation. A projection carries exact subject, repository, source SHA and digest; it cannot grant consequential authority.
+The pack owns the producer-side representation only: exact subject, exact Git source binding, work identity, dependency edges, path scope, requested projections, acceptance/falsifier text, and an explicit `authority = NONE` fence.
 
-Pipeline:
+## Projection surfaces
 
-RDF -> SPARQL projection -> admission gates -> JSON schema -> JSON/Elixir consumer templates.
+- `work-projection.schema.json` / `work-projection.json.tera`: one projected work item.
+- `work-projection-batch.schema.json` / `work-projection-batch.json.tera`: a dependency-connected batch consumed by `ggen_igniter`.
+- `project_work.rq`: deterministic work projection.
+- `project_dependencies.rq`: deterministic dependency projection.
+- gates 010–080: exact-subject/source/authority/identity/dependency refusals.
 
-Consumers should bind the generated projection to their local admission boundary rather than duplicating CS2 work semantics by hand.
+The pack does **not** manufacture Semantic-Jira standing, runtime leases, execution authority, or XaaS actuation. Consumers expand this source-bound projection at their own admission boundaries.
