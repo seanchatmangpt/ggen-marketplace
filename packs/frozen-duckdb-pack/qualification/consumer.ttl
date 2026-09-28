@@ -1,0 +1,89 @@
+# frozen-duckdb-pack qualification fixture — deterministic consumer graph.
+#
+# Transcribes the frozen-duckdb repository's actual v1.5.5 state (the exact
+# consumers the pack was distilled against) into consumer-shaped facts: the
+# version-map the consumer pins, the release assets it names, the normalized
+# cache directories it maintains, and its build-policy environment. Doubles
+# as the pack's own worked example of the consumer adoption contract (see
+# README.md). Gates must hold with zero rows over ontology.ttl + this file.
+#
+# Same vocabulary law as ontology.ttl: standard vocabularies only; individuals
+# are prov:Entity facts carrying prov:value / dcterms:* and prov:wasDerivedFrom
+# back to the pack's evidence anchors.
+
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix prov:   <http://www.w3.org/ns/prov#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+
+# --- The consumer ----------------------------------------------------------
+
+<urn:frozen-duckdb:consumer:frozen-duckdb> a prov:Entity ;
+    dcterms:title "frozen-duckdb" ;
+    dcterms:description "Drop-in replacement for the duckdb (duckdb-rs) crate backed by prebuilt DuckDB binaries" ;
+    dcterms:license "MIT" ;
+    prov:value "1.5.5" .
+
+# --- Version pinning (law: version-pinning) --------------------------------
+# The consumer re-asserts the pack's witnessed correspondence as its own pin.
+
+<urn:frozen-duckdb:consumer:version:engine> a prov:Entity ;
+    dcterms:title "DuckDB engine release" ;
+    prov:value "1.5.5" .
+
+<urn:frozen-duckdb:consumer:version:crate> a prov:Entity ;
+    dcterms:title "duckdb-rs crate version" ;
+    prov:value "1.10505.0" .
+
+<urn:frozen-duckdb:consumer:version-map> a prov:Entity , prov:Collection ;
+    dcterms:title "consumer pin: duckdb-rs 1.10505.0 encodes DuckDB 1.5.5" ;
+    prov:hadMember <urn:frozen-duckdb:consumer:version:crate> ,
+                   <urn:frozen-duckdb:consumer:version:engine> ;
+    prov:wasDerivedFrom <urn:frozen-duckdb:evidence:workspace-cargo-toml> ,
+                        <urn:frozen-duckdb:evidence:test-dependency-cargo-toml> .
+
+# --- Release assets (law: release-asset-name) ------------------------------
+
+<urn:frozen-duckdb:consumer:asset:darwin-arm64> a prov:Entity ;
+    dcterms:title "release asset (macOS, universal since DuckDB 1.5.x)" ;
+    prov:value "libduckdb_arm64.dylib" ;
+    prov:wasDerivedFrom <urn:frozen-duckdb:evidence:setup-env-sh> .
+
+<urn:frozen-duckdb:consumer:asset:darwin-x86_64> a prov:Entity ;
+    dcterms:title "release asset (macOS, universal since DuckDB 1.5.x)" ;
+    prov:value "libduckdb_x86_64.dylib" ;
+    prov:wasDerivedFrom <urn:frozen-duckdb:evidence:setup-env-sh> .
+
+<urn:frozen-duckdb:consumer:asset:linux-x86_64> a prov:Entity ;
+    dcterms:title "release asset (Linux; may 404 until the release tag — pinned local-compile fallback)" ;
+    prov:value "libduckdb_x86_64.so" ;
+    prov:wasDerivedFrom <urn:frozen-duckdb:evidence:builder-lib-rs> .
+
+# --- Normalized cache directories (law: cache-normalization) ---------------
+
+<urn:frozen-duckdb:consumer:cache:v1-5-5-arm64> a prov:Entity ;
+    dcterms:title "normalized cache directory" ;
+    prov:value "~/.frozen-duckdb/cache/v1.5.5-arm64" ;
+    dcterms:description "contains libduckdb_arm64.dylib, plain link name libduckdb.dylib, pinned headers under duckdb/ (duckdb.h)" ;
+    prov:wasDerivedFrom <urn:frozen-duckdb:evidence:builder-lib-rs> .
+
+<urn:frozen-duckdb:consumer:cache:v1-5-5-x86_64> a prov:Entity ;
+    dcterms:title "normalized cache directory" ;
+    prov:value "~/.frozen-duckdb/cache/v1.5.5-x86_64" ;
+    dcterms:description "contains libduckdb_x86_64.dylib, plain link name libduckdb.dylib, pinned headers under duckdb/ (duckdb.h)" ;
+    prov:wasDerivedFrom <urn:frozen-duckdb:evidence:builder-lib-rs> .
+
+# --- Build policy (laws: docs-rs-no-link, soname-rpath) --------------------
+
+<urn:frozen-duckdb:consumer:env:docs-rs> a prov:Entity ;
+    dcterms:title "docs.rs no-link trigger environment variable" ;
+    prov:value "DOCS_RS" ;
+    prov:wasDerivedFrom <urn:frozen-duckdb:evidence:sys-build-rs> .
+
+<urn:frozen-duckdb:consumer:rpath> a prov:Entity ;
+    dcterms:title "neutral dylib install name consumed through the embedded rpath" ;
+    prov:value "@rpath/libduckdb.dylib" ;
+    prov:wasDerivedFrom <urn:frozen-duckdb:evidence:sys-build-rs> ,
+                        <urn:frozen-duckdb:evidence:setup-env-sh> .
