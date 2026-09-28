@@ -52,3 +52,14 @@ items, one dependency edge, one batch); `qualification/consumer.json` is the exp
 The pack does **not** manufacture Semantic-Jira standing, runtime leases, execution
 authority, or XaaS actuation. Consumers expand this source-bound projection at their
 own admission boundaries.
+
+## Live Elixir fixture
+
+`scripts/cs2_pack_live_fixture.sh` builds the qualification consumer with
+`qualify_packs.prepare_consumer`, runs `ggen sync run` twice (sha256 byte-identical
+check), copies `generated/cs2-semantic-work` verbatim into a capsule outside the pack,
+and runs `mix deps.get && mix compile --warnings-as-errors && mix test` in `fixture/`
+(`_build`/`deps` also live in the capsule). The tests read only the generated JSON
+and modules: batch admission, duplicate key / unknown or self dependency / foreign
+subject / `DO` authority / short SHA / empty batch refusals, per-item projection
+admission, and the typed `ConsumerWork` modules over the consumer JSON rows.
