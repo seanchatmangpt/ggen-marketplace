@@ -1,0 +1,220 @@
+@prefix aloop: <https://seanchatmangpt.github.io/packs/aloop-episode-ontology#> .
+@prefix gp: <https://ggen.dev/ns/pack#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix earl: <http://www.w3.org/ns/earl#> .
+@prefix oslc_cm: <http://open-services.net/ns/cm#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<urn:ggen:pack:aloop-episode-ontology-pack>
+    a gp:Pack ;
+    gp:name "aloop-episode-ontology-pack" ;
+    gp:version "0.1.0" ;
+    gp:profile gp:Core1 .
+
+# ============================================================================
+# FAILED-EDGE RECORD against the public vocabulary set (why aloop: exists)
+# ============================================================================
+# Law: public vocabularies precede custom namespaces. Each candidate public
+# term was evaluated and the exact failing edge recorded before minting alop:
+#
+# 1. prov:Activity/Entity/Agent/Plan cover the object spine and are REUSED as
+#    superclasses. Failed edge: prov has no standing vocabulary and no
+#    episode-terminal model -- an Episode's AUTONOMOUS vs ASSISTED outcome and
+#    the goal.blocked vs goal.satisfied terminal pair cannot be typed with any
+#    prov term; prov:wasAssociatedWith cannot be restricted to a closed agent
+#    class per event class.
+# 2. OCEL 2.0 (https://ocel-standard.org/2.0, the process-mining standard this
+#    event model follows) defines events/objects with ocel:ocel:type as OPAQUE
+#    STRING labels over an EAV schema. Failed edge: labels cannot be subjects
+#    of rdfs:subClassOf, so the 28 event classes cannot form the ActuationEvent
+#    subhierarchy the human-causal-edge gate selects over; OCEL 2.0 also has no
+#    notion of authority, standing, or a provider-neutral cancellation. The RDF
+#    projection here keeps 1:1 name parity with the OCEL 2.0 object-type and
+#    event-type labels so pm4py consumers can map losslessly.
+# 3. earl:Assertion/TestResult cover verification assertions and are REUSED.
+#    Failed edge: earl has no worker/provider identity fields, no replay
+#    binding, and no failure taxonomy (execution.crash vs failure.detect).
+# 4. oslc_cm:ChangeRequest + earl:TestRequirement cover the WorkOrder dual type
+#    (the marketplace's public ticket law) and are REUSED by dual-typing.
+#    Failed edge: oslc_cm has no episode qualifier vocabulary (parentEpisode,
+#    predecessor, originAuthority as distinct from a plain creator).
+# 5. dcterms covers identifiers/titles/dates and is REUSED. Failed edge: no
+#    causal qualifier relations (input/output/consequence as first-class
+#    qualified relations on an event) exist in dcterms.
+# Everything minted below is either (a) a subclass/subproperty anchoring a
+# public term, or (b) a term whose failed edge is recorded above.
+
+aloop:Episode a rdfs:Class ; rdfs:subClassOf prov:Activity ;
+    rdfs:label "Autonomous-execution episode" ;
+    rdfs:comment "One bounded autonomous run (ALOOP episode): observes, detects gaps, constructs and admits candidates, issues work orders through providers, and terminates in goal.satisfied or goal.blocked." .
+aloop:Objective a rdfs:Class ; rdfs:subClassOf prov:Entity ; rdfs:label "Episode objective" .
+aloop:Requirement a rdfs:Class ; rdfs:subClassOf prov:Entity ; rdfs:label "Episode requirement" .
+aloop:WorkOrder a rdfs:Class ; rdfs:subClassOf prov:Activity ;
+    rdfs:label "Work order (dual-typed oslc_cm:ChangeRequest + earl:TestRequirement)" ;
+    rdfs:comment "Provider-neutral work order. Identity, authority, planner, acceptance, receipt schema and replay carry NO provider identity; provider appears only as a capabilityId left-segment and a runtime descriptor." .
+aloop:Authority a rdfs:Class ; rdfs:subClassOf prov:Agent ; rdfs:label "Origin authority" .
+aloop:Repository a rdfs:Class ; rdfs:subClassOf prov:Entity ; rdfs:label "Repository" .
+aloop:Subject a rdfs:Class ; rdfs:subClassOf prov:Entity ; rdfs:label "Exact subject (tree/SHA)" .
+aloop:Provider a rdfs:Class ; rdfs:subClassOf prov:SoftwareAgent ; rdfs:label "Execution provider" .
+aloop:Worker a rdfs:Class ; rdfs:subClassOf prov:SoftwareAgent ; rdfs:label "Worker (lane/agent)" .
+aloop:WorkerRun a rdfs:Class ; rdfs:subClassOf prov:Activity ; rdfs:label "Worker run" .
+aloop:Plan a rdfs:Class ; rdfs:subClassOf prov:Plan ; rdfs:label "Episode plan" .
+aloop:Capability a rdfs:Class ; rdfs:subClassOf prov:Entity ; rdfs:label "Capability" ;
+    rdfs:comment "Named by a capabilityId whose left segment is the provider identity: \"provider:id\". The only lawful location of provider identity in a request." .
+aloop:Candidate a rdfs:Class ; rdfs:subClassOf prov:Entity ; rdfs:label "Candidate" .
+aloop:Consequence a rdfs:Class ; rdfs:subClassOf prov:Entity ; rdfs:label "Consequence" .
+aloop:Evidence a rdfs:Class ; rdfs:subClassOf prov:Entity ; rdfs:label "Evidence" .
+aloop:Receipt a rdfs:Class ; rdfs:subClassOf prov:Entity ; rdfs:label "Receipt" .
+aloop:Failure a rdfs:Class ; rdfs:subClassOf prov:Entity ; rdfs:label "Typed failure" .
+aloop:Benchmark a rdfs:Class ; rdfs:subClassOf prov:Activity ; rdfs:label "Benchmark" .
+aloop:Release a rdfs:Class ; rdfs:subClassOf prov:Entity ; rdfs:label "Release" .
+aloop:HumanAgent a rdfs:Class ; rdfs:subClassOf prov:Person ; rdfs:label "Human agent" ;
+    rdfs:comment "A human in the causal chain. Post-epoch association with an actuation event is a violation (gate 020)." .
+aloop:AutonomyEpoch a rdfs:Class ; rdfs:subClassOf prov:Instant ; rdfs:label "Autonomy epoch boundary" ;
+    rdfs:comment "The operator-declared instant after which human causal edges into actuation are violations, not business as usual." .
+
+# ── Event model (OCEL 2.0 name parity; each event class a named class) ──────
+aloop:Event a rdfs:Class ; rdfs:subClassOf prov:Activity ; rdfs:label "Episode event" .
+aloop:ActuationEvent a rdfs:Class ; rdfs:subClassOf aloop:Event ;
+    rdfs:label "Actuation-class event (consequential DO surface)" ;
+    rdfs:comment "Superclass of the events that carry consequential DO: actuate, commit, merge, provider.replace. The human-causal-edge gate (020) selects this class." .
+
+aloop:EpisodeStart a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "episode.start" .
+aloop:Observe a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "observe" .
+aloop:GapDetect a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "gap.detect" .
+aloop:CandidateConstruct a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "candidate.construct" .
+aloop:CandidateAdmit a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "candidate.admit" .
+aloop:PlanSelect a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "plan.select" .
+aloop:WorkOrderIssue a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "workorder.issue" .
+aloop:ProviderSelect a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "provider.select" .
+aloop:WorkerClaim a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "worker.claim" .
+aloop:ExecutionStart a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "execution.start" .
+aloop:ToolAdmit a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "tool.admit" .
+aloop:Actuate a rdfs:Class ; rdfs:subClassOf aloop:ActuationEvent ; rdfs:label "actuate" .
+aloop:Checkpoint a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "checkpoint" .
+aloop:ExecutionCrash a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "execution.crash" .
+aloop:ReceiptPersist a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "receipt.persist" .
+aloop:Verify a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "verify" .
+aloop:FalsifierRun a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "falsifier.run" .
+aloop:BenchmarkRun a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "benchmark.run" .
+aloop:FailureDetect a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "failure.detect" .
+aloop:Reconcile a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "reconcile" .
+aloop:Replan a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "replan" .
+aloop:ProviderReplace a rdfs:Class ; rdfs:subClassOf aloop:ActuationEvent ; rdfs:label "provider.replace" .
+aloop:Commit a rdfs:Class ; rdfs:subClassOf aloop:ActuationEvent ; rdfs:label "commit" .
+aloop:Merge a rdfs:Class ; rdfs:subClassOf aloop:ActuationEvent ; rdfs:label "merge" .
+aloop:Reobserve a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "reobserve" .
+aloop:GoalSatisfied a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "goal.satisfied" .
+aloop:GoalBlocked a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "goal.blocked" .
+aloop:EpisodeTerminal a rdfs:Class ; rdfs:subClassOf aloop:Event ; rdfs:label "episode.terminal" .
+
+# ── Qualifiers (contract qualifiers; prov-anchored where direction fits) ────
+aloop:episode a rdf:Property ; rdfs:domain aloop:Event ; rdfs:range aloop:Episode ;
+    rdfs:label "episode binding (every event carries exactly one)" .
+aloop:subject a rdf:Property ; rdfs:label "subject qualifier (exact subject)" .
+aloop:originAuthority a rdf:Property ; rdfs:subPropertyOf prov:wasAssociatedWith ; rdfs:range aloop:Authority ;
+    rdfs:label "originAuthority qualifier" .
+aloop:provider a rdf:Property ; rdfs:subPropertyOf prov:wasAssociatedWith ; rdfs:range aloop:Provider ;
+    rdfs:label "provider qualifier" .
+aloop:worker a rdf:Property ; rdfs:subPropertyOf prov:wasAssociatedWith ; rdfs:range aloop:Worker ;
+    rdfs:label "worker qualifier" .
+aloop:input a rdf:Property ; rdfs:subPropertyOf prov:used ; rdfs:label "input qualifier" .
+aloop:output a rdf:Property ; rdfs:subPropertyOf prov:generated ; rdfs:label "output qualifier" .
+aloop:evidence a rdf:Property ; rdfs:subPropertyOf prov:generated ; rdfs:range aloop:Evidence ;
+    rdfs:label "evidence qualifier" .
+aloop:consequence a rdf:Property ; rdfs:subPropertyOf prov:generated ; rdfs:range aloop:Consequence ;
+    rdfs:label "consequence qualifier" .
+aloop:receipt a rdf:Property ; rdfs:subPropertyOf prov:generated ; rdfs:range aloop:Receipt ;
+    rdfs:label "receipt qualifier" .
+aloop:parentEpisode a rdf:Property ; rdfs:subPropertyOf prov:wasInformedBy ;
+    rdfs:domain aloop:Episode ; rdfs:range aloop:Episode ; rdfs:label "parentEpisode qualifier" .
+aloop:predecessor a rdf:Property ; rdfs:subPropertyOf prov:wasInformedBy ;
+    rdfs:domain aloop:Event ; rdfs:range aloop:Event ; rdfs:label "predecessor qualifier" .
+aloop:pursues a rdf:Property ; rdfs:domain aloop:Episode ; rdfs:range aloop:Objective ;
+    rdfs:label "episode pursues objective" .
+aloop:issues a rdf:Property ; rdfs:domain aloop:Episode ; rdfs:range aloop:WorkOrder ;
+    rdfs:label "episode issues work order" .
+aloop:capabilityId a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:label "capabilityId \"provider:id\" (left segment = provider identity)" .
+aloop:postEpoch a rdf:Property ; rdfs:range xsd:boolean ;
+    rdfs:label "event observed after the autonomy epoch boundary" .
+aloop:humanCaused a rdf:Property ;
+    rdfs:label "explicit human-to-next-action causal edge" ;
+    rdfs:comment "Asserted when a human decision causes the next action. On a post-epoch actuation event this is a violation row (gate 020), never a standing fact." .
+aloop:epochBoundary a rdf:Property ; rdfs:range aloop:AutonomyEpoch ;
+    rdfs:label "epoch boundary this graph is measured against" .
+aloop:executionStanding a rdf:Property ; rdfs:range aloop:ExecutionStanding ;
+    rdfs:label "closed execution standing" .
+aloop:verificationStanding a rdf:Property ; rdfs:range aloop:VerificationStanding ;
+    rdfs:label "closed verification standing" .
+
+# ── Closed two-axis standing vocabulary (failed edge vs prov, see header) ───
+aloop:ExecutionStanding a rdfs:Class ; rdfs:label "Execution standing (closed)" .
+aloop:VerificationStanding a rdfs:Class ; rdfs:label "Verification standing (closed)" .
+aloop:st-AUTONOMOUS a aloop:ExecutionStanding ; rdfs:label "AUTONOMOUS" .
+aloop:st-ASSISTED a aloop:ExecutionStanding ; rdfs:label "ASSISTED" .
+aloop:st-BLOCKED_AUTHORITY a aloop:ExecutionStanding ; rdfs:label "BLOCKED_AUTHORITY" .
+aloop:st-BLOCKED_INFORMATION a aloop:ExecutionStanding ; rdfs:label "BLOCKED_INFORMATION" .
+aloop:st-FAILED a aloop:ExecutionStanding ; rdfs:label "FAILED" .
+aloop:sv-ALIVE a aloop:VerificationStanding ; rdfs:label "ALIVE" .
+aloop:sv-PARTIAL_ALIVE a aloop:VerificationStanding ; rdfs:label "PARTIAL_ALIVE" .
+aloop:sv-BLOCKED a aloop:VerificationStanding ; rdfs:label "BLOCKED" .
+aloop:sv-REFUSED a aloop:VerificationStanding ; rdfs:label "REFUSED" .
+aloop:sv-UNSUPPORTED a aloop:VerificationStanding ; rdfs:label "UNSUPPORTED" .
+aloop:sv-UNKNOWN a aloop:VerificationStanding ; rdfs:label "UNKNOWN" .
+
+# ============================================================================
+# Dogfood instance: this very episode (witnessed, receipted). The pack's gates
+# run clean against it; violating fixtures inject into a COPY, never here.
+# ============================================================================
+aloop:episode-ALOOP-ZCODE-DOGFOOD-001 a aloop:Episode ;
+    dcterms:identifier "ALOOP-ZCODE-DOGFOOD-001" ;
+    dcterms:title "Multi-agent autonomous-execution bootstrap episode (provider=zcode)" ;
+    prov:startedAtTime "2026-09-25T00:00:00Z"^^xsd:dateTime ;
+    aloop:pursues aloop:objective-dogfood ;
+    aloop:epochBoundary aloop:epoch-dogfood-001 ;
+    aloop:executionStanding aloop:st-AUTONOMOUS ;
+    aloop:issues aloop:wo-dogfood-lane5 .
+
+aloop:objective-dogfood a aloop:Objective ;
+    dcterms:title "Manufacture the reusable ALOOP semantic and instrumentation surfaces" .
+
+aloop:epoch-dogfood-001 a aloop:AutonomyEpoch ;
+    prov:atTime "2026-09-25T00:00:00Z"^^xsd:dateTime .
+
+aloop:wo-dogfood-lane5 a aloop:WorkOrder, oslc_cm:ChangeRequest, earl:TestRequirement ;
+    dcterms:identifier "ALOOP-ZCODE-DOGFOOD-001/lane-5" ;
+    dcterms:title "ALOOP episode pack + provider-extinction contract + sjira neutrality gate" ;
+    aloop:capabilityId "aloop-episode-ontology:episode-ontology" ;
+    aloop:verificationStanding aloop:sv-UNKNOWN .
+
+aloop:provider-zcode a aloop:Provider ; rdfs:label "zcode" ;
+    aloop:capabilityId "zcode:agent-fanout" .
+aloop:worker-lane5 a aloop:Worker ; rdfs:label "lane-5" .
+aloop:repo-marketplace a aloop:Repository ; dcterms:identifier "seanchatmangpt/ggen-marketplace" .
+
+# Observed event chain (post-epoch, non-actuation -- clean under gates 010/020).
+# DATA LAW (no reasoner in the locked sparql 0.3.12): every event instance
+# carries its FULL class chain explicitly -- leaf class, aloop:ActuationEvent
+# when actuation-class, and aloop:Event -- because `a aloop:Event` matches
+# explicit triples only, never inferred superclasses.
+aloop:ev-d5-start a aloop:EpisodeStart, aloop:Event ;
+    aloop:episode aloop:episode-ALOOP-ZCODE-DOGFOOD-001 ;
+    aloop:postEpoch true ;
+    prov:startedAtTime "2026-09-25T00:00:00Z"^^xsd:dateTime .
+aloop:ev-d5-observe a aloop:Observe, aloop:Event ;
+    aloop:episode aloop:episode-ALOOP-ZCODE-DOGFOOD-001 ;
+    aloop:predecessor aloop:ev-d5-start ;
+    aloop:input aloop:repo-marketplace ;
+    aloop:postEpoch true ;
+    prov:endedAtTime "2026-09-25T00:05:00Z"^^xsd:dateTime .
+aloop:ev-d5-issue a aloop:WorkOrderIssue, aloop:Event ;
+    aloop:episode aloop:episode-ALOOP-ZCODE-DOGFOOD-001 ;
+    aloop:predecessor aloop:ev-d5-observe ;
+    aloop:worker aloop:worker-lane5 ;
+    aloop:output aloop:wo-dogfood-lane5 ;
+    aloop:postEpoch true ;
+    prov:endedAtTime "2026-09-25T00:06:00Z"^^xsd:dateTime .

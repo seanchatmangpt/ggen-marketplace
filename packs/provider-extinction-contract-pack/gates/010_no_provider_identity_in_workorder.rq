@@ -1,0 +1,44 @@
+# MESSAGE: provider-identity violation -- a provider name carried in a
+# WorkOrder, AuthorityGrant, or AcceptanceCriterion SEMANTIC literal
+# (title/description) is a violation. Provider identity is lawful ONLY as the
+# left segment of a pec:capabilityId ("provider:id", gate 020's join key) and
+# inside a provider's own runtime descriptor. A work order naming "claude" or
+# "zcode" in its semantics is a work order that dies with that provider --
+# exactly the extinction failure this pack exists to prevent.
+# RECORDED FAILED EDGE (falsifier-witnessed 2026-09-25, lane 5): minted
+# identifiers are EXEMPT from this scan. The dogfood episode identifier
+# "ALOOP-ZCODE-DOGFOOD-001" embeds its bootstrap provider name because the
+# operator minted it pre-epoch; an identifier is an upstream pointer, not work
+# semantics -- it resolves identically no matter which provider executes.
+# Provider identity in free-text semantics is coupling; in a minted identifier
+# it is history. Branch C of the sjira 047 gate and the capabilityId segment
+# law still catch direct assertions.
+# Violation-row style (FM-PACK-013): zero rows on a conforming graph, one row
+# per leaking literal.
+# sparql law (0.3.12 + oxigraph): no FILTER inside EXISTS -- plain group-level
+# FILTER only. Case-insensitivity via LCASE(STR(?value)) + unflagged REGEX
+# (the regex `i` flag is not exercised by this corpus; LCASE is).
+# Provider-token list is CLOSED (the contract's named provider class); extend
+# the alternation when a new provider class is admitted, never silently.
+PREFIX pec: <https://seanchatmangpt.github.io/packs/provider-extinction-contract#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?node ?field ?value WHERE {
+  {
+    ?node a pec:WorkOrder ; dcterms:title ?value .
+    BIND("workorder.title" AS ?field)
+  } UNION {
+    ?node a pec:WorkOrder ; dcterms:description ?value .
+    BIND("workorder.description" AS ?field)
+  } UNION {
+    ?node a pec:AuthorityGrant ; dcterms:description ?value .
+    BIND("authority.description" AS ?field)
+  } UNION {
+    ?node a pec:AcceptanceCriterion ; dcterms:title ?value .
+    BIND("acceptance.title" AS ?field)
+  } UNION {
+    ?node a pec:AcceptanceCriterion ; dcterms:description ?value .
+    BIND("acceptance.description" AS ?field)
+  }
+  FILTER(REGEX(LCASE(STR(?value)), "(claude|zcode|anthropic|codex|gemini|openai|copilot|kimi|glm)"))
+}
+ORDER BY ?field ?node
