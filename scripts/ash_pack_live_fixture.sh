@@ -5,8 +5,10 @@
 #   prepare_consumer, i.e. the exact projection-profile capsule the marketplace
 #   qualification court uses, including qualification/consumer.ttl)
 #   -> second `ggen sync run` + sha256 comparison of every generated file
-#   -> copy of the generated Elixir under test into <capsule>/generated/
-#      (compiled by fixture/mix.exs via ASH_PACK_GENERATED)
+#   -> copy of EVERY generated file into the capsule: lib/**/*.ex into
+#      <capsule>/generated/ (compiled by fixture/mix.exs via ASH_PACK_GENERATED) and
+#      test/*_composition_test.exs into <capsule>/generated_test/ (run by mix test via
+#      ASH_PACK_GENERATED_TEST)
 #   -> mix deps.get -> mix compile --warnings-as-errors -> mix test
 #      (MIX_BUILD_ROOT / MIX_DEPS_PATH also point into the capsule)
 #
@@ -22,11 +24,6 @@ pack_dir="${root}/packs/ash-extension-pack"
 fixture="${pack_dir}/fixture"
 ggen_bin="${1:-${GGEN_BIN:-$(command -v ggen)}}"
 capsule="${ASH_PACK_CAPSULE:-$(mktemp -d "${TMPDIR:-/tmp}/ash-extension-pack-live.XXXXXX")}"
-# The Elixir projections the fixture compiles and executes. The other generated
-# files (resource/info/persist/verify/install/composition_test) are produced and
-# hashed by both sync passes but are not compiled here.
-generated=(receipt.ex receipted_action.ex reactor_pipeline.ex)
-package="pipeline_probe"
 
 echo "ggen: ${ggen_bin} ($("${ggen_bin}" --version 2>/dev/null | head -1))"
 echo "capsule: ${capsule}"
@@ -76,16 +73,30 @@ echo "determinism: $(wc -l <"${capsule}/sha256-pass1.txt" | tr -d ' ') files byt
 echo "sha256 manifest: $(shasum -a 256 "${capsule}/sha256-pass1.txt" | cut -d' ' -f1)"
 cat "${capsule}/sha256-pass1.txt"
 
-# Copy the projections under test out of the consumer tree. They stay in the
+# Copy every projection out of the consumer tree: all generated lib/**/*.ex (every
+# spec in the union graph: the pack ontology's worked specs plus
+# qualification/consumer.ttl's) and every generated composition test. They stay in the
 # capsule (not fixture/lib/generated) together with _build/ and deps/, because
 # marketplace.py archives every visible file under a pack and refuses symlinks.
 export ASH_PACK_GENERATED="${capsule}/generated"
+export ASH_PACK_GENERATED_TEST="${capsule}/generated_test"
 export MIX_BUILD_ROOT="${capsule}/_build"
 export MIX_DEPS_PATH="${capsule}/deps"
-mkdir -p "${ASH_PACK_GENERATED}/${package}"
-for file in "${generated[@]}"; do
-  cp "${consumer}/lib/${package}/${file}" "${ASH_PACK_GENERATED}/${package}/${file}"
-done
+mkdir -p "${ASH_PACK_GENERATED}" "${ASH_PACK_GENERATED_TEST}"
+(cd "${consumer}/lib" && find . -type f -name '*.ex' | LC_ALL=C sort | while read -r f; do
+  mkdir -p "${ASH_PACK_GENERATED}/$(dirname "${f}")"
+  cp "${f}" "${ASH_PACK_GENERATED}/${f}"
+done)
+cp "${consumer}"/test/*_composition_test.exs "${ASH_PACK_GENERATED_TEST}/"
+# mix test requires a helper in every test path; the fixture's own helper is reused.
+cp "${fixture}/test/test_helper.exs" "${ASH_PACK_GENERATED_TEST}/test_helper.exs"
+generated_ex="$(cd "${consumer}" && find lib -type f -name '*.ex' | wc -l | tr -d ' ')"
+generated_other="$(cd "${consumer}" && find lib -type f ! -name '*.ex' | wc -l | tr -d ' ')"
+if [[ "${generated_other}" != "0" ]]; then
+  echo "REFUSED:ASH_PACK_UNCOMPILED_GENERATED_LIB (${generated_other} non-.ex files under lib/)" >&2
+  exit 1
+fi
+echo "generated: ${generated_ex} lib .ex files and $(ls "${ASH_PACK_GENERATED_TEST}"/*_composition_test.exs | wc -l | tr -d ' ') composition tests copied into the compile capsule"
 
 cd "${fixture}"
 # Run under the toolchain pinned in fixture/.tool-versions when asdf is present

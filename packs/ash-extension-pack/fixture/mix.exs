@@ -1,18 +1,23 @@
 defmodule PipelineProbe.MixProject do
   use Mix.Project
 
-  # Consumer fixture for packs/ash-extension-pack. lib/generated/ is written by
-  # scripts/ash_pack_live_fixture.sh from a real `ggen sync run`; everything else
-  # under lib/ is consumer-owned code the pack does not generate (the Ash
-  # resource a receipted action wraps, and the Reactor step implementations the
-  # generated pipeline references by module name).
+  # Consumer fixture for packs/ash-extension-pack. ASH_PACK_GENERATED holds every
+  # lib/**/*.ex a real `ggen sync run` projected (all specs of the union graph,
+  # including the Reactor step modules), ASH_PACK_GENERATED_TEST every generated
+  # composition test; both are written by scripts/ash_pack_live_fixture.sh. lib/ holds
+  # only consumer-owned code the pack does not generate (the Ash domain + resource a
+  # receipted action wraps).
   def project do
     [
       app: :pipeline_probe,
       version: "0.1.0",
       elixir: "~> 1.18",
       start_permanent: false,
+      # The generated composition tests compile Ash resources at test time, which
+      # define Inspect impls; consolidated protocols would ignore them.
+      consolidate_protocols: Mix.env() != :test,
       elixirc_paths: ["lib", generated_path()],
+      test_paths: ["test" | generated_test_paths()],
       deps: deps()
     ]
   end
@@ -23,12 +28,23 @@ defmodule PipelineProbe.MixProject do
   # file under a pack and refuses symlinks, which _build/ is full of).
   defp generated_path, do: System.get_env("ASH_PACK_GENERATED", "lib/generated")
 
+  defp generated_test_paths do
+    case System.get_env("ASH_PACK_GENERATED_TEST") do
+      nil -> []
+      path -> [path]
+    end
+  end
+
   def application, do: [extra_applications: [:logger, :crypto]]
 
   defp deps do
     [
       {:ash, "~> 3.33"},
-      {:reactor, "~> 1.0"}
+      {:reactor, "~> 1.0"},
+      # aex:CompositionTarget libraries (ontology.ttl's AuditTrailSpec composes with
+      # both); only the generated composition tests load them.
+      {:ash_graphql, "~> 1.0", only: :test},
+      {:ash_json_api, "~> 1.0", only: :test}
     ]
   end
 end

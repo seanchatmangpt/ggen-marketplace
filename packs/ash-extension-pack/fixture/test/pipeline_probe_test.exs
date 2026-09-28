@@ -61,10 +61,29 @@ defmodule PipelineProbeTest do
     end
   end
 
-  describe "generated Reactor pipeline" do
+  describe "generated Reactor pipeline + generated step modules" do
+    # The step modules are projected by templates/reactor_step.ex.tmpl; the run order
+    # is read from the real [:reactor, :step, :run, :start] telemetry that the
+    # generated pipeline's Reactor.Middleware.Telemetry emits.
+    setup do
+      test_pid = self()
+      handler = "pipeline-probe-order-#{System.unique_integer([:positive])}"
+
+      :ok =
+        :telemetry.attach(
+          handler,
+          [:reactor, :step, :run, :start],
+          fn _event, _measurements, %{step: step}, _ -> send(test_pid, {:step_ran, step.name}) end,
+          nil
+        )
+
+      on_exit(fn -> :telemetry.detach(handler) end)
+      :ok
+    end
+
     test "runs the declared steps in aex:stepOrder and returns the return step" do
-      assert {:ok, :seal} =
-               Reactor.run(PipelineProbe.Reactor.Pipeline, %{}, %{observer: self()})
+      assert {:ok, %{step: :seal, arguments: %{}}} =
+               Reactor.run(PipelineProbe.Reactor.Pipeline, %{}, %{}, async?: false)
 
       order =
         for _ <- 1..3 do
@@ -74,6 +93,34 @@ defmodule PipelineProbeTest do
 
       assert order == [:admit, :deliver, :seal]
       refute_receive {:step_ran, _}
+    end
+
+    test "each generated step returns its own name and resolved arguments" do
+      for {module, name} <- [
+            {PipelineProbe.Reactor.Steps.Admit, :admit},
+            {PipelineProbe.Reactor.Steps.Deliver, :deliver},
+            {PipelineProbe.Reactor.Steps.Seal, :seal}
+          ] do
+        assert {:ok, %{step: ^name, arguments: %{x: 1}}} = module.run(%{x: 1}, %{}, [])
+      end
+    end
+
+    test "compensate/4 is generated exactly where aex:stepHasCompensate is true" do
+      # ledger_probe/reserve and notification_extension/deliver declare it; the
+      # PipelineProbe steps and ledger_probe/post, settle do not.
+      for module <- [
+            LedgerProbe.Resource.Reactor.Steps.Reserve,
+            LedgerProbe.Resource.Reactor.Steps.Post,
+            NotificationExtension.Resource.Reactor.Steps.Deliver,
+            PipelineProbe.Reactor.Steps.Seal
+          ],
+          do: Code.ensure_loaded!(module)
+
+      assert function_exported?(LedgerProbe.Resource.Reactor.Steps.Reserve, :compensate, 4)
+      assert :ok = LedgerProbe.Resource.Reactor.Steps.Reserve.compensate(:boom, %{}, %{}, [])
+      assert function_exported?(NotificationExtension.Resource.Reactor.Steps.Deliver, :compensate, 4)
+      refute function_exported?(LedgerProbe.Resource.Reactor.Steps.Post, :compensate, 4)
+      refute function_exported?(PipelineProbe.Reactor.Steps.Seal, :compensate, 4)
     end
   end
 end
