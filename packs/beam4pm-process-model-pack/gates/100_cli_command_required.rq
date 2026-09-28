@@ -1,0 +1,26 @@
+# MESSAGE: every bpm:CliBridge must carry bridgeName, bridgeModule, bridgeDoc, bridgeOrdinal, cliOtpApp, cliAppEnvKey, cliEnvVar, cliDefaultPath and cliDefaultTimeoutMs; every bpm:CliCommand must carry cmdBridge, cmdName, cmdGroup, cmdSubcommand, cmdOrder, cmdDoc, cmdResultShape, cmdRefusalReason and cmdTimeoutMs; an ok_map command must carry cmdResultFields (the projection would otherwise render an empty atom map); every bpm:CliArg must carry argCommand, cliArgName, cliArgOrder and cliArgType; a flags-mode arg must carry cliArgFlag; a json_stdin/temp_file arg must NOT declare raw encoding (those modes encode by definition -- the declaration would be a contradiction, not a default); any row is a refusal.
+PREFIX bpm: <https://ggen.dev/ontology/beam-process-model#>
+SELECT ?subject ?missing WHERE {
+  {
+    ?subject a bpm:CliBridge .
+    VALUES ?missing { bpm:bridgeName bpm:bridgeModule bpm:bridgeDoc bpm:bridgeOrdinal bpm:cliOtpApp bpm:cliAppEnvKey bpm:cliEnvVar bpm:cliDefaultPath bpm:cliDefaultTimeoutMs }
+  } UNION {
+    ?subject a bpm:CliCommand .
+    VALUES ?missing { bpm:cmdBridge bpm:cmdName bpm:cmdGroup bpm:cmdSubcommand bpm:cmdOrder bpm:cmdDoc bpm:cmdResultShape bpm:cmdRefusalReason bpm:cmdTimeoutMs }
+  } UNION {
+    ?subject a bpm:CliCommand ; bpm:cmdResultShape bpm:CliResultShape_ok_map .
+    VALUES ?missing { bpm:cmdResultFields }
+  } UNION {
+    ?subject a bpm:CliArg .
+    VALUES ?missing { bpm:argCommand bpm:cliArgName bpm:cliArgOrder bpm:cliArgType }
+  } UNION {
+    ?subject a bpm:CliArg ; bpm:cliArgMode bpm:CliArgMode_flags .
+    VALUES ?missing { bpm:cliArgFlag }
+  } UNION {
+    ?subject a bpm:CliArg ; bpm:cliArgMode ?mode ; bpm:cliArgEncoding bpm:CliArgEncoding_raw .
+    FILTER (?mode = bpm:CliArgMode_json_stdin || ?mode = bpm:CliArgMode_temp_file)
+    VALUES ?missing { bpm:cliArgEncoding }
+  }
+  FILTER NOT EXISTS { ?subject ?missing ?value }
+}
+ORDER BY ?subject ?missing
