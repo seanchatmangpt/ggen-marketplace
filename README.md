@@ -10,6 +10,12 @@ PR #438 introduces the v26.9.12 candidate 80/20 capability topology. Existing pa
 
 The consolidation rule is `PackDirectory != PublicCapability`: versions, experiments, implementations, and compositions should normally be represented inside a durable capability family instead of creating a new top-level capability for every generation.
 
+## Consolidation work
+
+PR #438 introduces the v26.9.12 candidate 80/20 capability topology. Existing packs remain in place while the repository measures coverage and maps the legacy catalog to the smaller canonical set. Issue #439 tracks the inventory and classification work required before any legacy pack is retired.
+
+The consolidation rule is `PackDirectory != PublicCapability`: versions, experiments, implementations, and compositions should normally be represented inside a durable capability family instead of creating a new top-level capability for every generation.
+
 ## Quick start
 
 ```bash
