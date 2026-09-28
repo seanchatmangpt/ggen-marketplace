@@ -1,5 +1,5 @@
 ---
-to: "lib/{{ package_name }}/verify.ex"
+to: "lib/{{ package_name }}/{% if support_subdir %}{{ support_subdir }}/{% endif %}verify.ex"
 for_each: "spec"
 sparql:
   spec: |
@@ -9,9 +9,10 @@ sparql:
     }
   verifiers: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?verifier_name ?verifier_doc WHERE {
-      ?v a aex:Verifier ; aex:verifierName ?verifier_name ; aex:verifierDoc ?verifier_doc .
-    } ORDER BY ?verifier_name
+    SELECT ?package_name ?verifier_name ?verifier_doc WHERE {
+      ?v a aex:Verifier ; aex:verifierOf ?spec ; aex:verifierName ?verifier_name ; aex:verifierDoc ?verifier_doc .
+      ?spec aex:packageName ?package_name .
+    } ORDER BY ?package_name ?verifier_name
 ---
 {# Legality verifier -- mirrors ash_r2rml/lib/ash_r2rml/resource.ex's
    AshR2RML.Resource.Verify: asserts the transformer's persisted compiled struct exists,
@@ -19,9 +20,10 @@ sparql:
    instead of silently accepting an invalid  One private function stub per
    aex:Verifier -- fill in the real check; the stub itself is a real, honest TODO marker,
    never a fake always-true placeholder passed off as done. #}
+{% set verifiers_for_spec = verifiers | filter(attribute="package_name", value=package_name) %}
 defmodule {{ module_name }}.Verify do
   @moduledoc """
-  Verifier for `{{ package_name }}`: enforces {{ verifiers | length }} legality
+  Verifier for `{{ package_name }}`: enforces {{ verifiers_for_spec | length }} legality
   constraint(s) against the compiled `:{{ package_name }}_compiled` state.
   """
   use Spark.Dsl.Verifier

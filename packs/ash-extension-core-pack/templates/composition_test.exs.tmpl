@@ -9,8 +9,11 @@ sparql:
     }
   targets: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?composition_target WHERE { ?c a aex:CompositionTarget ; aex:compositionTarget ?composition_target . }
-    ORDER BY ?composition_target
+    SELECT ?package_name ?composition_target WHERE {
+      ?c a aex:CompositionTarget ; aex:compositionOf ?spec ; aex:compositionTarget ?composition_target .
+      ?spec aex:packageName ?package_name .
+    }
+    ORDER BY ?package_name ?composition_target
 ---
 {# Composition test -- mirrors ash_r2rml/test/ggen_api_bundle_test.exs: compile a real
    fixture resource with the generated extension attached via Code.compile_string/1,
@@ -48,7 +51,6 @@ defmodule {{ module_name }}CompositionTest do
 {% for t in targets %}
   @tag :{{ t.composition_target }}
   test "composes with real {{ t.composition_target }} introspection", %{fixture: fixture} do
-    # Real Info-module call against the fixture -- not a stubbed/mocked response.
     assert function_exported?({{ t.composition_target | capitalize }}.Resource.Info, :type, 1)
   end
 {% endfor %}
