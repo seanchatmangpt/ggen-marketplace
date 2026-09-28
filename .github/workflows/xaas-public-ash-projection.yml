@@ -4,6 +4,11 @@ on:
   pull_request:
     paths:
       - "packs/xaas-public-ash-projection-pack/**"
+      # Query, template and gates are owned by xaas-ash-core-pack and
+      # composed by the public pack via ../xaas-ash-core-pack/... references.
+      - "packs/xaas-ash-core-pack/queries/**"
+      - "packs/xaas-ash-core-pack/templates/gen-commands.sh.tmpl"
+      - "packs/xaas-ash-core-pack/gates/**"
       - ".github/workflows/xaas-public-ash-projection.yml"
   workflow_dispatch:
 
@@ -90,8 +95,12 @@ jobs:
           from pathlib import Path
           from rdflib import Graph
           pack = Path('packs/xaas-public-ash-projection-pack')
+          core = Path('packs/xaas-ash-core-pack')
           graph = Graph().parse(pack / 'ontology.ttl', format='turtle')
-          for gate in sorted((pack / 'gates').glob('*.rq')):
+          gates = sorted((core / 'gates').glob('*.rq'))
+          if not gates:
+              raise SystemExit('REFUSED:NO_CORE_GATES')
+          for gate in gates:
               rows = list(graph.query(gate.read_text()))
               if rows:
                   raise SystemExit(f'REFUSED:{gate.name}:{rows}')

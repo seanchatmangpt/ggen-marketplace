@@ -2,12 +2,19 @@ PREFIX sh: <http://www.w3.org/ns/shacl#>
 
 # Ash has_one/has_many/belongs_to are persistence/ownership choices that do
 # not follow lawfully from RDF object-property direction or SHACL cardinality
-# alone. Refuse object-property generation until that projection is admitted.
-SELECT ?shape ?propertyShape ?path ?targetClass
+# alone. Refuse object-property generation until that projection is admitted:
+# any property shape carrying sh:class or sh:node, or lacking sh:datatype, is
+# a relationship-shaped (or untyped) edge and is refused, never guessed.
+SELECT ?shape ?propertyShape ?path ?reason
 WHERE {
   ?shape a sh:NodeShape ;
          sh:property ?propertyShape .
-  ?propertyShape sh:path ?path ;
-                 sh:class ?targetClass .
+  ?propertyShape sh:path ?path .
+  FILTER(
+    EXISTS { ?propertyShape sh:class ?targetClass } ||
+    EXISTS { ?propertyShape sh:node ?nodeShape } ||
+    !EXISTS { ?propertyShape sh:datatype ?datatype }
+  )
+  BIND("object-property-ash-relationship-projection-not-admitted" AS ?reason)
 }
 ORDER BY STR(?shape) STR(?propertyShape)

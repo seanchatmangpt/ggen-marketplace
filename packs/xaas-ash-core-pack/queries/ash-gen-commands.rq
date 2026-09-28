@@ -1,59 +1,49 @@
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 PREFIX sh:  <http://www.w3.org/ns/shacl#>
-PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 
-# Generic projection. It contains no XaaS capability list and no custom
-# ontology vocabulary. Public SHACL target classes determine resources;
-# public datatype property shapes determine attributes.
-SELECT ?phase ?kind ?class ?module ?domain ?arg ?source
+# Canonical XaaS public-profile -> Ash/Igniter generator-command projection.
+# Owned by xaas-ash-core-pack; xaas-public-ash-projection-pack composes this
+# pack and reuses this exact query/template (no copy).
+#
+# Generic: no XaaS capability list, moduleName/domainModule/actionName facts,
+# or domain vocabulary appears here. Public SHACL target classes determine
+# resources; public datatype property shapes determine attributes.
+#
+# Subset selection is a DATA predicate, not a copied query: a consumer's
+# application profile selects what is projected by which sh:NodeShape
+# instances it asserts, and excludes a shape with the standard SHACL
+# `sh:deactivated true` (W3C SHACL 2.1.5). No private selector vocabulary.
+#
+# Deliberately minimal: every projected column binds straight from a graph
+# pattern or an integer/string literal, because ggen's declarative-config
+# validator refuses VALUES in a file-referenced .rq (error[E0010]) and its
+# SPARQL evaluator drops cross-BIND columns in UNION groups. All string
+# composition (local names, module names, Ash attribute args, source IRIs)
+# and the datatype -> Ash type mapping therefore live in
+# templates/gen-commands.sh.tmpl.
+SELECT ?phase ?kind ?class ?path ?datatype ?minCount
 WHERE {
-  ?shape a sh:NodeShape ;
-         sh:targetClass ?class .
-  FILTER(isIRI(?class))
-
-  BIND(REPLACE(STR(?class), "^.*[#/]", "") AS ?localName)
-  BIND(CONCAT("Xaas.Public.", ?localName) AS ?module)
-  BIND("Xaas.Public" AS ?domain)
-
   {
+    ?shape a sh:NodeShape ;
+           sh:targetClass ?class .
+    FILTER(isIRI(?class))
+    FILTER NOT EXISTS { ?shape sh:deactivated true }
     BIND(10 AS ?phase)
     BIND("resource" AS ?kind)
-    BIND("" AS ?arg)
-    BIND(STR(?class) AS ?source)
   }
   UNION
   {
-    ?shape sh:property ?propertyShape .
+    ?shape a sh:NodeShape ;
+           sh:targetClass ?class ;
+           sh:property ?propertyShape .
     ?propertyShape sh:path ?path ;
                    sh:datatype ?datatype .
     FILTER(isIRI(?path))
-
-    VALUES (?datatype ?ashType) {
-      (xsd:string             "string")
-      (rdf:langString         "string")
-      (xsd:boolean            "boolean")
-      (xsd:integer            "integer")
-      (xsd:int                "integer")
-      (xsd:long               "integer")
-      (xsd:nonNegativeInteger "integer")
-      (xsd:decimal            "decimal")
-      (xsd:float              "float")
-      (xsd:double             "float")
-      (xsd:date               "date")
-      (xsd:dateTime           "utc_datetime")
-      (xsd:anyURI             "string")
-    }
-
-    BIND(REPLACE(STR(?path), "^.*[#/]", "") AS ?attributeName)
+    FILTER NOT EXISTS { ?shape sh:deactivated true }
+    FILTER NOT EXISTS { ?propertyShape sh:deactivated true }
     OPTIONAL { ?propertyShape sh:minCount ?minCount . }
-    BIND(
-      IF(BOUND(?minCount) && ?minCount >= 1, ":required", "")
-      AS ?requiredModifier
-    )
-    BIND(CONCAT(?attributeName, ":", ?ashType, ?requiredModifier) AS ?arg)
     BIND(20 AS ?phase)
     BIND("attribute" AS ?kind)
-    BIND(STR(?path) AS ?source)
   }
 }
-ORDER BY ?phase STR(?class) ?arg
+ORDER BY ?phase ?class ?path
