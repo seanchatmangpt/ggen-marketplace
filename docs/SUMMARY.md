@@ -14,6 +14,14 @@
 - [Take a pack through a Level-5 promotion slice](tutorials/level5-promotion.md)
 - [Explore option-capital hypergraphs](tutorials/option-hypergraph-amplifier-r15.md)
 
+- [Take a pack through a Level-5 promotion slice](tutorials/level5-promotion.md)
+
+
+
+- [Explore option-capital hypergraphs](tutorials/option-hypergraph-amplifier-r15.md)
+
+
+
 # How-to guides
 
 - [Consume a pack](how-to/consume-a-pack.md)
@@ -27,6 +35,18 @@
 - [Consolidate a pack family](how-to/consolidate-a-pack-family.md)
 - [Promote a pack to Level 5](how-to/promote-a-pack-to-level5.md)
 - [Query the R15 option hypergraph](how-to/query-option-hypergraph-r15.md)
+
+- [Consolidate a pack family](how-to/consolidate-a-pack-family.md)
+
+
+
+- [Promote a pack to Level 5](how-to/promote-a-pack-to-level5.md)
+
+
+
+- [Query the R15 option hypergraph](how-to/query-option-hypergraph-r15.md)
+
+
 
 # Reference
 
@@ -46,6 +66,22 @@
 - [Level-5 maturity contract](reference/level5-maturity-contract.md)
 - [R15 option-hypergraph reference](reference/option-hypergraph-amplifier-r15.md)
 - [Pack classes reference](reference/pack-classes.md)
+
+- [Documentation convergence receipt](reference/docs-update-receipt.md)
+
+
+
+- [Level-5 maturity contract](reference/level5-maturity-contract.md)
+
+
+
+- [R15 option-hypergraph reference](reference/option-hypergraph-amplifier-r15.md)
+
+
+
+- [Pack classes reference](reference/pack-classes.md)
+
+
 
 # Explanation
 
