@@ -1,0 +1,67 @@
+---
+to: generated/cs2-semantic-work/work-projection-batch.json
+force: true
+when: |
+  PREFIX cs2: <https://example.org/cs2#>
+  ASK { ?b a cs2:WorkBatch ; cs2:batchId ?id }
+sparql:
+  batch: |
+    PREFIX cs2: <https://example.org/cs2#>
+    SELECT ?batchId WHERE { ?b a cs2:WorkBatch ; cs2:batchId ?batchId . } ORDER BY ?batchId LIMIT 1
+  source: |
+    PREFIX cs2: <https://example.org/cs2#>
+    SELECT DISTINCT ?subject ?repo ?sha ?digest WHERE {
+     ?w a cs2:WorkItem ; cs2:subjectIri ?subject ; cs2:sourceRepo ?repo ;
+       cs2:sourceSha ?sha ; cs2:sourceDigest ?digest .
+    } ORDER BY ?subject ?repo ?sha ?digest
+  work: |
+    PREFIX cs2: <https://example.org/cs2#>
+    SELECT ?workKey ?title ?description ?objective ?acceptance ?falsifier ?nextEdge ?originAuthority WHERE {
+     ?w a cs2:WorkItem ; cs2:workKey ?workKey ; cs2:title ?title ; cs2:description ?description ;
+       cs2:objective ?objective ; cs2:acceptance ?acceptance ; cs2:falsifier ?falsifier ;
+       cs2:nextEdge ?nextEdge ; cs2:originAuthority ?originAuthority ; cs2:authority "NONE" .
+    } ORDER BY ?workKey
+  deps: |
+    PREFIX cs2: <https://example.org/cs2#>
+    SELECT ?workKey ?upstreamWorkKey WHERE {
+     ?w a cs2:WorkItem ; cs2:workKey ?workKey ; cs2:dependsOnWorkKey ?upstreamWorkKey .
+    } ORDER BY ?workKey ?upstreamWorkKey
+  paths: |
+    PREFIX cs2: <https://example.org/cs2#>
+    SELECT ?workKey ?pathScope WHERE {
+     ?w a cs2:WorkItem ; cs2:workKey ?workKey ; cs2:pathScope ?pathScope .
+    } ORDER BY ?workKey ?pathScope
+  projections: |
+    PREFIX cs2: <https://example.org/cs2#>
+    SELECT ?workKey ?projectionType WHERE {
+     ?w a cs2:WorkItem ; cs2:workKey ?workKey ; cs2:projectionType ?projectionType .
+    } ORDER BY ?workKey ?projectionType
+---
+{%- set src = source.0 -%}
+{
+  "batchId": {{ batch.0.batchId | json_encode() | safe }},
+  "subject": {{ src.subject | json_encode() | safe }},
+  "source": {
+    "repo": {{ src.repo | json_encode() | safe }},
+    "sha": {{ src.sha | json_encode() | safe }},
+    "digest": {{ src.digest | json_encode() | safe }}
+  },
+  "work": [
+{%- for item in work %}
+    {
+      "workKey": {{ item.workKey | json_encode() | safe }},
+      "title": {{ item.title | json_encode() | safe }},
+      "description": {{ item.description | json_encode() | safe }},
+      "objective": {{ item.objective | json_encode() | safe }},
+      "acceptance": {{ item.acceptance | json_encode() | safe }},
+      "falsifier": {{ item.falsifier | json_encode() | safe }},
+      "nextEdge": {{ item.nextEdge | json_encode() | safe }},
+      "dependencies": {{ deps | filter(attribute="workKey", value=item.workKey) | map(attribute="upstreamWorkKey") | json_encode() | safe }},
+      "pathScope": {{ paths | filter(attribute="workKey", value=item.workKey) | map(attribute="pathScope") | json_encode() | safe }},
+      "projections": {{ projections | filter(attribute="workKey", value=item.workKey) | map(attribute="projectionType") | json_encode() | safe }},
+      "originAuthority": {{ item.originAuthority | json_encode() | safe }}
+    }{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ],
+  "authority": "NONE"
+}

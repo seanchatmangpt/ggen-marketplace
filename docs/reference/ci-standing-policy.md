@@ -1,72 +1,44 @@
 # CI standing policy
 
-Grounded in a real, same-day 34-repo ecosystem health audit (2026-08-13) across three
-reconstitution manifests (`seanchatmangpt/autofde-lab`'s `gym-fleet`/`ecosystem-gap`
-manifests plus `seanchatmangpt/ggen-legacy`'s own independent 19-repo program). That audit
-found two distinct, real failure classes this policy addresses — not hypothetical concerns.
+Grounded in a real 34-repo ecosystem health audit (2026-08-13) across reconstitution manifests, this policy separates two failure classes that are easy to conflate: CI that exists but has never established default-branch standing, and CI whose declaration cannot establish default-branch standing because it lacks the relevant trigger.
 
-## The two real failure classes found
+## Failure class 1: green CI only on a working branch
 
-**1. CI that never runs on the default branch at all.** 4 repos (`rrgym`, `lifegym`,
-`biblegym`, `claudecodegym`) each had a real, currently-passing CI workflow — but every
-observed run sat on a working branch (`agent/ggen-ci-boost-v1`). `branch=main` returned zero
-runs for all four. The work was real and the fix was real; it simply never crossed into the
-branch anyone actually claims as the repository's standing. **This is a merge-discipline gap,
-not a CI-authoring gap** — no ontology gate can catch it, since it depends on live run
-history against a specific branch, not on how the workflow is declared. Detect it with
-`authority/ecosystem-reconstitution/check_head_drift.py` in `autofde-lab` (or an equivalent
-live-history check), not a `ggen` gate.
+A real, currently-passing workflow on a feature branch does not establish the default branch's standing. This is a merge/history/evidence gap, not necessarily a CI-authoring gap.
 
-**2. CI declared with no push trigger at all.** A `gha:Workflow` that never lists a push
-trigger structurally cannot ever discharge the obligation `gha:EventPush`'s own
-`gha:obligationSemantics` names ("the obligation to re-establish the standing of that ref...
-comes into existence at the moment of the push") — it can only ever run on PR, manual
-dispatch, or schedule, none of which re-establish standing for a push landing on the default
-branch. **This is an authoring-time gap, catchable at pack-admission time** — see
-`packs/github-actions-pack/gates/030_push_trigger_required.rq`, added in the same pass as
-this document.
+Detect it with a live run-history/default-head check such as the ecosystem reconstitution tooling in `autofde-lab`, not by asserting from workflow YAML that a run must have happened.
 
-## The policy
+## Failure class 2: no push trigger declared
 
-1. **Every repository's primary CI workflow must declare a push trigger, or state explicitly
-   why it doesn't.** Enforced by `github-actions-pack`'s gate `030_push_trigger_required.rq`:
-   a `gha:Workflow` with neither `gha:trigger gha:EventPush` nor a stated
-   `gha:noPushTriggerReason` is refused at `ggen sync` time. Legitimate exemptions (a
-   manual-dispatch-only release gate, a `workflow_call` reusable target) are real and allowed
-   — they just have to be named, not silently absent.
+A primary CI workflow with no push trigger cannot discharge an obligation to re-establish the standing of a pushed default-branch ref. This is an authoring-time defect that can be caught by `github-actions-pack` admission law.
 
-2. **A green run on a feature branch is not evidence of default-branch standing.** Per this
-   session's own standing-law vocabulary, a repo whose only green CI lives on an unmerged
-   branch is `PARTIAL_ALIVE` at best, never `ALIVE` — `ALIVE` requires a real, independently
-   observed green run against the branch the repository's own `default_branch` field names.
-   This is a live-evidence check, not a schema-time one; run it via a drift/history check
-   against real `gh api .../actions/runs?branch={default_branch}` results, not asserted from
-   a green run's existence alone.
+Legitimate workflow-call/manual-only/release-only cases can remain supported when the exception is explicit rather than silently absent.
 
-3. **`BUILD_BROKEN` and `UNKNOWN` are not the same finding and must not be conflated.** A
-   repository with a real, recent, failing CI run at its current HEAD is `BUILD_BROKEN`. A
-   repository with zero CI history on its default branch is `UNKNOWN` — absence of evidence,
-   not evidence of failure. The 2026-08-13 audit found both classes present across the 34
-   audited repos and kept them separate; any future audit reusing this policy must do the
-   same.
+## Policy
 
-## What this policy does not (yet) cover
+1. **Primary CI must declare the trigger needed to establish the standing it claims, or explicitly state why that trigger is not applicable.**
+2. **A green run on a feature branch is not evidence of default-branch standing.** Standing is attached to the exact ref/SHA that actually ran.
+3. **`BUILD_BROKEN` and `UNKNOWN` must stay distinct.** A real failing run is failure evidence; zero applicable execution history is absence of evidence.
+4. **A workflow file is not a workflow run.** Authored YAML, badges, and expected triggers are inspection evidence only.
+5. **A subcourt remains scoped.** A green pack-specific exact-head court can establish that boundary even when an unrelated aggregate guard fails, after dependency independence is proved. The reverse also holds: aggregate green cannot erase an owning domain failure.
 
-- **Merge promotion is not automated by this policy.** Nothing here merges a green
-  feature-branch CI run into the default branch — per this ecosystem's own standing
-  actuation-boundary discipline, that remains a human-directed action, one PR at a time,
-  never a policy-triggered automatic merge.
-- **Live run-history checking is out of scope for `ggen` gates.** Gate `030` catches the
-  authoring defect (no push trigger declared); it cannot and does not check whether a push
-  trigger that *is* declared has actually produced a green run recently. That half of the
-  policy is enforced by a separate live-history tool (see `check_head_drift.py`'s sibling
-  pattern), not by this pack.
+## Merge/promotion boundary
+
+This policy does not automatically merge green work or grant release/production authority. Merge, release, and consequential actuation remain separate transitions governed by their own authority and evidence requirements.
+
+## Live-history boundary
+
+Schema/ggen gates can catch declaration defects. They cannot prove that GitHub actually executed a green run against a particular live ref. That half of the policy requires observation of live run history and exact subject identity.
+
+## Relationship to Level 5
+
+CI is evidence infrastructure, not the definition of Level 5. A Level-5 pack may use CI to execute its maturity courts, but the claim still requires the semantic/admission/manufacture/execution/receipt/authority/composition and Diátaxis closure named by [the Level-5 maturity contract](level5-maturity-contract.md).
+
+A repository-wide green workflow cannot promote a domain runtime or external actuation boundary that the workflow did not execute. Likewise, generated Level-5 docs do not become ALIVE because Pages built them; the Pages run proves only the documentation manufacture/build boundary.
 
 ## See also
 
-- `packs/github-actions-pack/gates/030_push_trigger_required.rq` — the gate enforcing rule 1.
-- `packs/github-actions-pack/qualification/consumer.ttl` — real, passing fixtures proving the
-  gate admits legitimate cases (a real push trigger, a stated exemption) without false
-  positives.
-- `authority/ecosystem-reconstitution/check_head_drift.py` (in `seanchatmangpt/autofde-lab`)
-  — the live-history half of rule 2, checking recorded vs. actual default-branch HEAD.
+- `packs/github-actions-pack/gates/030_push_trigger_required.rq` — authoring-time push-trigger obligation.
+- `packs/github-actions-pack/qualification/consumer.ttl` — bounded fixtures for that gate.
+- ecosystem live-history/default-head drift checks in `seanchatmangpt/autofde-lab` — observation-time evidence for default-branch standing.
+- [Standing](standing.md) — state vocabulary and exact-subject law.

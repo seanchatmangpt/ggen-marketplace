@@ -1,0 +1,39 @@
+# MESSAGE: closed-vocabulary and uniqueness anti-joins for the parity class -- a ParityCheck naming an un-admitted bpm:ParityCommandKind member (the renderer has no arm for it, so the check cannot be executed), a duplicated checkName or testPath (two individuals rendering the same file or module is a silent last-write), a corpus entry claimed twice by one check at the same order, or a QualificationFixture admitting the same path twice, must be refused before render; any row is a refusal.
+PREFIX bpm: <https://ggen.dev/ontology/beam-process-model#>
+SELECT ?subject ?violation WHERE {
+  {
+    ?subject a bpm:ParityCheck ; bpm:leftCommandKind ?kind .
+    FILTER NOT EXISTS { ?kind a bpm:ParityCommandKind }
+    BIND(CONCAT("unadmitted leftCommandKind ", STR(?kind)) AS ?violation)
+  } UNION {
+    ?subject a bpm:ParityCheck ; bpm:rightCommandKind ?kind .
+    FILTER NOT EXISTS { ?kind a bpm:ParityCommandKind }
+    BIND(CONCAT("unadmitted rightCommandKind ", STR(?kind)) AS ?violation)
+  } UNION {
+    ?subject a bpm:ParityCheck ; bpm:checkName ?check_name .
+    ?other a bpm:ParityCheck ; bpm:checkName ?check_name .
+    FILTER(?subject != ?other)
+    BIND(CONCAT("duplicate checkName ", ?check_name) AS ?violation)
+  } UNION {
+    ?subject a bpm:ParityCheck ; bpm:testPath ?test_path .
+    ?other a bpm:ParityCheck ; bpm:testPath ?test_path .
+    FILTER(?subject != ?other)
+    BIND(CONCAT("duplicate testPath ", ?test_path) AS ?violation)
+  } UNION {
+    ?subject a bpm:ParityCorpus ; bpm:corpusOrder ?order .
+    ?check a bpm:ParityCheck ; bpm:hasCorpus ?subject ; bpm:hasCorpus ?twin .
+    ?twin bpm:corpusOrder ?order .
+    FILTER(?subject != ?twin)
+    BIND(CONCAT("duplicate corpusOrder ", STR(?order)) AS ?violation)
+  } UNION {
+    ?subject a bpm:QualificationFixture ; bpm:fixturePath ?fixture_path .
+    ?other a bpm:QualificationFixture ; bpm:fixturePath ?fixture_path .
+    FILTER(?subject != ?other)
+    BIND(CONCAT("duplicate fixturePath ", ?fixture_path) AS ?violation)
+  } UNION {
+    ?subject a bpm:ParityCorpus ; bpm:corpusPath ?corpus_path .
+    FILTER NOT EXISTS { ?subject bpm:corpusSha256 ?sha }
+    BIND(CONCAT("corpus entry without sha256 pin ", ?corpus_path) AS ?violation)
+  }
+}
+ORDER BY ?subject ?violation

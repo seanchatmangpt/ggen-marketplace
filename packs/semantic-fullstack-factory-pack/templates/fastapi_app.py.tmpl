@@ -1,0 +1,101 @@
+---
+to: "generated/backend/app.py"
+sparql:
+  apps: "PREFIX sf: <https://ggen.dev/ontology/semantic-fullstack#> SELECT ?appName ?pageTitle ?apiBasePath ?defaultScenario ?runtimeIntelligence ?manufactureMode WHERE { ?app a sf:Application ; sf:appName ?appName ; sf:pageTitle ?pageTitle ; sf:apiBasePath ?apiBasePath ; sf:defaultScenario ?defaultScenario ; sf:runtimeIntelligence ?runtimeIntelligence ; sf:manufactureMode ?manufactureMode . } ORDER BY ?appName"
+  scenarios: "PREFIX sf: <https://ggen.dev/ontology/semantic-fullstack#> SELECT ?scenarioId ?title ?classification ?standing ?candidateMode ?admittedMode ?confidenceBasis ?nextAction ?owningTeam ?humanGate ?authority ?evidenceCsv ?missingEvidenceCsv ?priorCasesCsv ?exposed ?order WHERE { ?s a sf:Scenario ; sf:scenarioId ?scenarioId ; sf:title ?title ; sf:classification ?classification ; sf:standing ?standing ; sf:candidateMode ?candidateMode ; sf:confidenceBasis ?confidenceBasis ; sf:nextAction ?nextAction ; sf:owningTeam ?owningTeam ; sf:humanGate ?humanGate ; sf:authority ?authority ; sf:evidenceCsv ?evidenceCsv ; sf:missingEvidenceCsv ?missingEvidenceCsv ; sf:priorCasesCsv ?priorCasesCsv ; sf:exposed ?exposed ; sf:order ?order ; sf:admittedMode ?admittedMode . } ORDER BY ?order ?scenarioId"
+  transitions: "PREFIX sf: <https://ggen.dev/ontology/semantic-fullstack#> SELECT ?transitionId ?fromScenario ?toScenario ?triggerLabel WHERE { ?t a sf:Transition ; sf:transitionId ?transitionId ; sf:fromScenario ?fromScenario ; sf:toScenario ?toScenario ; sf:triggerLabel ?triggerLabel . } ORDER BY ?transitionId"
+---
+"""GENERATED deterministic semantic application backend. Do not hand-edit."""
+
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+
+APP_NAME = "{{ apps[0].appName }}"
+PAGE_TITLE = "{{ apps[0].pageTitle }}"
+API_BASE = "{{ apps[0].apiBasePath }}"
+DEFAULT_SCENARIO = "{{ apps[0].defaultScenario }}"
+RUNTIME_INTELLIGENCE = "{{ apps[0].runtimeIntelligence }}"
+MANUFACTURE_MODE = "{{ apps[0].manufactureMode }}"
+
+def _split(value: str) -> list[str]:
+    return [item for item in value.split("|") if item]
+
+SCENARIOS = {
+{% for s in scenarios %}
+    "{{ s.scenarioId }}": {
+        "id": "{{ s.scenarioId }}",
+        "title": "{{ s.title }}",
+        "classification": "{{ s.classification }}",
+        "standing": "{{ s.standing }}",
+        "candidate_mode": "{{ s.candidateMode }}",
+        "admitted_mode": {% if s.admittedMode == "NONE" %}None{% else %}"{{ s.admittedMode }}"{% endif %},
+        "confidence_basis": "{{ s.confidenceBasis }}",
+        "next_action": "{{ s.nextAction }}",
+        "owning_team": "{{ s.owningTeam }}",
+        "human_gate": "{{ s.humanGate }}",
+        "authority": "{{ s.authority }}",
+        "evidence": _split("{{ s.evidenceCsv }}"),
+        "missing_evidence": _split("{{ s.missingEvidenceCsv }}"),
+        "prior_cases": _split("{{ s.priorCasesCsv }}"),
+        "exposed": {% if s.exposed %}True{% else %}False{% endif %},
+        "order": {{ s.order }},
+    },
+{% endfor %}
+}
+
+TRANSITIONS = {
+{% for t in transitions %}
+    ("{{ t.fromScenario }}", "{{ t.transitionId }}"): {
+        "to": "{{ t.toScenario }}",
+        "label": "{{ t.triggerLabel }}",
+    },
+{% endfor %}
+}
+
+app = FastAPI(title=APP_NAME)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://127.0.0.1:3000", "http://localhost:3000"],
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
+
+def _decorate(scenario: dict) -> dict:
+    result = dict(scenario)
+    result["transitions"] = [
+        {"id": transition_id, "label": value["label"], "to": value["to"]}
+        for (from_id, transition_id), value in TRANSITIONS.items()
+        if from_id == scenario["id"]
+    ]
+    return result
+
+@app.get("/health")
+def health() -> dict:
+    return {
+        "standing": "ALIVE",
+        "runtime_intelligence": RUNTIME_INTELLIGENCE,
+        "manufacture_mode": MANUFACTURE_MODE,
+        "authority": "SELECT_CONSTRUCT_ONLY",
+    }
+
+@app.get(f"{API_BASE}/scenarios")
+def scenarios() -> list[dict]:
+    return [
+        _decorate(value)
+        for value in sorted(SCENARIOS.values(), key=lambda item: (item["order"], item["id"]))
+        if value["exposed"]
+    ]
+
+@app.get(API_BASE + "/scenarios/{scenario_id}")
+def scenario(scenario_id: str, transition: str | None = Query(default=None)) -> dict:
+    selected = scenario_id
+    if transition is not None:
+        edge = TRANSITIONS.get((scenario_id, transition))
+        if edge is None:
+            raise HTTPException(status_code=409, detail="REFUSED_UNKNOWN_TRANSITION")
+        selected = edge["to"]
+
+    value = SCENARIOS.get(selected)
+    if value is None:
+        raise HTTPException(status_code=404, detail="UNKNOWN_SCENARIO")
+    return _decorate(value)

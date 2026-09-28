@@ -1,0 +1,61 @@
+---
+to: "artifacts/semantic-life-loop.observation-delta.json"
+sparql:
+  episode: |
+    PREFIX sll: <https://ggen.dev/ontology/semantic-life-loop#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    SELECT ?episode_id ?digest ?priority WHERE {
+      ?episode a sll:Episode ;
+               dcterms:identifier ?episode_id ;
+               sll:sourceDigest ?digest ;
+               sll:projectionPriority ?priority .
+    }
+    ORDER BY DESC(?priority) ?episode_id
+    LIMIT 1
+  candidates: |
+    PREFIX sll: <https://ggen.dev/ontology/semantic-life-loop#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    PREFIX prov: <http://www.w3.org/ns/prov#>
+    SELECT ?id ?kind ?delta_class ?subject_ref ?evidence_ref WHERE {
+      {
+        SELECT ?episode WHERE {
+          ?episode a sll:Episode ;
+                   sll:projectionPriority ?priority .
+        }
+        ORDER BY DESC(?priority) ?episode
+        LIMIT 1
+      }
+      ?episode sll:hasCandidate ?candidate .
+      ?candidate dcterms:identifier ?id ;
+                 dcterms:subject ?subject ;
+                 sll:deltaClass ?delta_class ;
+                 sll:workKind ?kind ;
+                 prov:wasDerivedFrom ?evidence .
+      ?evidence dcterms:identifier ?evidence_ref .
+      BIND(STR(?subject) AS ?subject_ref)
+    }
+    ORDER BY ?id
+---
+{%- for e in episode -%}
+{
+  "schema": "semantic-life-loop.observation-delta.v1",
+  "episode_id": "{{ e.episode_id }}",
+  "digest": "{{ e.digest }}",
+  "work_candidates": [
+{%- for c in candidates %}
+    {
+      "id": "{{ c.id }}",
+      "kind": "{{ c.kind }}",
+      "episode_id": "{{ e.episode_id }}",
+      "subject_ref": "{{ c.subject_ref }}",
+      "delta_class": "{{ c.delta_class }}",
+      "evidence_ref": "{{ c.evidence_ref }}",
+      "authority": "CONSTRUCT_ONLY",
+      "standing": "CANDIDATE",
+      "do_authority": false,
+      "dispatch": "NOT_EXECUTED"
+    }{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ]
+}
+{%- endfor %}

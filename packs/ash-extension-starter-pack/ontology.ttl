@@ -1,0 +1,93 @@
+@prefix aex:  <http://seanchatmangpt.github.io/packs/ash-extension-core#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+#################################################################
+# Vocabulary EXTENSIONS to ash-extension-core-pack's own aex: namespace --
+# not a parallel/duplicate vocabulary. An earlier draft of this file
+# introduced a separate `aexs:StarterCapabilities` class duplicating
+# core-pack's existing aex:workflowReactor/aex:CompositionTarget fields;
+# that draft was deleted after checking core-pack/ontology.ttl directly
+# (echo core-pack's own vocabulary, don't re-synthesize it -- the same
+# discipline core-pack's own aex:taskModuleName comment names).
+#
+# The two classes below extend aex:AshExtensionSpec with capabilities
+# confirmed as REAL, currently-uncaptured needs by two review passes
+# (2026-09-09): one over /Users/sac/ash_r2rml (the pack's own golden
+# specimen), one over /Users/sac/xaas (a real consumer with 4+ third-party
+# Ash extensions composed per resource, and a real receipted-action
+# contract in lib/xaas/actuation.ex).
+#################################################################
+
+#################################################################
+# 1. Receipted-action generation (xaas review finding #5).
+#
+# xaas's real Xaas.Actuation.run/4 (lib/xaas/actuation.ex:427-531) is
+# architecturally distinct from core-pack's existing aex:workflowReactor
+# (a plain opt-in Reactor pipeline with compensate/undo,
+# ash-extension-core-pack/ontology.ttl:79-80): it adds an idempotency-key-
+# gated admission step, a sealed-receipt entity, transaction-wrapped DO so
+# a committed mutation can never outrun its receipt, and a
+# normalize_transaction_result step recognizing a distinct :replayed
+# status. This is exactly the shape the ash_ex4pm PR/FAQ's `brce_gate`
+# capability (/tmp/ash_ex4pm_prfaq.md, this session) needs -- BRCE's own
+# admit -> pending-receipt -> run -> outcome-receipt sandwich is the same
+# pattern, not a coincidence.
+#################################################################
+
+aex:generatesReceiptedAction a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "boolean -- opt in to a generated receipted-action wrapper (idempotency-key admission -> pending receipt -> Ash.Reactor run -> sealed outcome receipt -> deterministic replay on a repeat idempotency key), modeled on xaas's real Xaas.Actuation.run/4 (lib/xaas/actuation.ex:427-531). Distinct from aex:workflowReactor: that property is a plain compensating pipeline; this one adds the receipt/idempotency/replay contract around it. Default false." .
+
+aex:receiptIdempotencyKeySource a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "0-1 rows if generatesReceiptedAction=true -- where the idempotency key comes from, e.g. \"caller_supplied\" | \"derived:<field>\". xaas's own stripe_webhook_controller need (an external event id as the key) is the motivating real case, per this session's Actuation.run/4 replay-path fix earlier in this work." .
+
+#################################################################
+# 2. Reactor step-graph declaration (ash_r2rml review finding #1, ranked
+# highest leverage of 5 confirmed gaps).
+#
+# ash_r2rml/lib/ash_r2rml/reactor_pipeline.ex:35-65 declares five ordered,
+# dependency-wired steps with per-step argument/result() wiring,
+# max_retries, and per-step compensate/4 behavior -- not expressible as
+# aex:workflowReactor's single boolean. Without this, core-pack can only
+# generate ash_r2rml's OWN fixed five-step shape (hardcoded in
+# reactor_pipeline.ex.tmpl's body), not an arbitrary spec-declared
+# pipeline for a different extension.
+#################################################################
+
+aex:ReactorStep a rdfs:Class ;
+    rdfs:label "One step of a generated Reactor pipeline, generalizing ash_r2rml/lib/ash_r2rml/reactor_pipeline.ex's five hardcoded steps (compile_resources -> verify_alignment/evaluate_differential -> attach_provenance -> apply_policy -> render_r2rml_turtle) into a spec-declared, arbitrary-length step graph." .
+
+aex:stepOf       a rdf:Property ; rdfs:domain aex:ReactorStep ; rdfs:range aex:AshExtensionSpec .
+aex:stepName     a rdf:Property ; rdfs:domain aex:ReactorStep ; rdfs:comment "atom step name, e.g. :compile_resources." .
+aex:stepOrder    a rdf:Property ; rdfs:domain aex:ReactorStep .
+aex:stepModule   a rdf:Property ; rdfs:domain aex:ReactorStep ; rdfs:comment "the Reactor step module's own suffix, e.g. \"CompileResources\" for lib/ash_r2rml/reactor/steps/compile_resources.ex." .
+aex:stepWaitFor  a rdf:Property ; rdfs:domain aex:ReactorStep ; rdfs:comment "0+ rows -- names of other aex:ReactorStep rows this step's `wait_for` depends on, e.g. attach_provenance waits_for verify_alignment (ash_r2rml/lib/ash_r2rml/reactor_pipeline.ex, wait_for :verify_alignment)." .
+aex:stepMaxRetries a rdf:Property ; rdfs:domain aex:ReactorStep ; rdfs:comment "integer, mirrors this step's own Reactor `max_retries`." .
+aex:stepHasCompensate a rdf:Property ; rdfs:domain aex:ReactorStep ; rdfs:comment "boolean -- whether this step defines its own compensate/4 (ash_r2rml/lib/ash_r2rml/reactor/steps/render_turtle.ex:27-31 is the worked real example)." .
+aex:stepIsReturn a rdf:Property ; rdfs:domain aex:ReactorStep ; rdfs:comment "boolean -- whether this is the pipeline's own `return :step_name` step. Exactly one row per spec should be true when generatesReceiptedAction or workflowReactor is set; a spec with zero or >1 true rows is a real, verifiable defect the pack's gates should catch (not yet implemented -- named as a follow-up)." .
+
+#################################################################
+# Named follow-ups from the two review passes, NOT captured by the two
+# classes above -- named here so they remain visible manufacturing edges,
+# not silently dropped:
+#
+# - Reactor middleware declaration (ash_r2rml finding #2: custom +
+#   library middlewares, e.g. AshR2RML.Reactor.Middleware.TelemetryLogger)
+# - transformer after?/before? ordering against specific upstream
+#   transformer modules (ash_r2rml finding #3, resource.ex:188-193)
+# - verifier delegate-to-domain-validate + join-typed-refusals-into-one-
+#   DslError idiom (ash_r2rml finding #4, resource.ex:493-511)
+# - Info module getter/getter!/predicate? triple + legacy-conversion
+#   fallback (ash_r2rml finding #5, resource.ex:514-553)
+# - arbitrary N-length third-party extension composition, not just the
+#   fixed ash_graphql/ash_json_api pair aex:CompositionTarget covers
+#   (xaas finding #1: real resources stack 3-4 extensions at once)
+# - multi-phase orchestrating installer (ordered target list + --phase
+#   selector), a second real installer shape beyond core-pack's single-
+#   module-patch install.ex.tmpl (xaas finding #3,
+#   lib/mix/tasks/xaas.library.manufacture.ex)
+# - the `when:`-conditional file-existence gate reactor_pipeline.ex.tmpl's
+#   own comment names as unresolved (core-pack limitation, not this
+#   pack's to fix without confirming the real Rust-ggen frontmatter
+#   contract against live docs first)
+#################################################################

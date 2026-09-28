@@ -1,0 +1,74 @@
+{% for row in results %}defmodule {{ row.actuatorModule }} do
+  @moduledoc """
+  Generated actuator behaviour for {{ row.workflowModule }}.
+
+  Runtime DO is injected-actuator-only: the workflow never actuates by itself.
+  Edit ontology/profile/templates, never this projection.
+  """
+
+  @callback actuate(request :: map()) ::
+              {:ok, %{artifact_hash: String.t(), result: String.t()}} | {:error, term()}
+end
+
+defmodule {{ row.defaultActuator }} do
+  @moduledoc "Generated default actuator: refuses every actuation until a real actuator is injected."
+  @behaviour {{ row.actuatorModule }}
+
+  @impl true
+  def actuate(_request), do: {:error, :no_actuator_injected}
+end
+
+defmodule {{ row.contractModule }} do
+  @moduledoc """
+  Generated operational contract for {{ row.workflowLabel }}.
+
+  Every value below is projected from the paas: operational profile.
+  Edit ontology/profile/templates, never this projection.
+  """
+
+  @doc "Reactor module that executes the provision workflow."
+  def workflow_module, do: {{ row.workflowModule }}
+
+  @doc "Ash domain carrying the workflow resources."
+  def domain_module, do: {{ row.domainModule }}
+
+  @doc "Actuator behaviour that runtime DO must implement."
+  def actuator_module, do: {{ row.actuatorModule }}
+
+  @doc "Actuator used when none is injected; refuses by construction."
+  def default_actuator, do: {{ row.defaultActuator }}
+
+  @doc "Exact AshR2RML commit this projection was manufactured against."
+  def ash_r2rml_ref, do: "{{ row.ashR2rmlRef }}"
+
+  @doc "Ash version floor."
+  def ash_floor, do: "{{ row.ashFloor }}"
+
+  @doc "Reactor version floor."
+  def reactor_floor, do: "{{ row.reactorFloor }}"
+
+  @doc "Declared authority of the workflow."
+  def authority, do: "{{ row.authority }}"
+
+  @doc "Whether the workflow performs consequential DO."
+  def consequential_do?, do: {{ row.consequentialDo }}
+
+  @doc "Every actuation is bracketed by a started and a sealed receipt."
+  def zero_unreceipted_actuation?, do: true
+
+  @doc "Ash resources in the workflow's semantic closure."
+  def resources do
+    [
+      {{ row.serviceModule }},
+      {{ row.intentModule }},
+      {{ row.policyModule }},
+      {{ row.receiptModule }}
+    ]
+  end
+
+  @doc "Mint the RDF subject IRI of a service, intent, or receipt record."
+  def subject(:service, id), do: String.replace("{{ row.serviceSubject }}", "{id}", to_string(id))
+  def subject(:intent, id), do: String.replace("{{ row.intentSubject }}", "{id}", to_string(id))
+  def subject(:receipt, id), do: String.replace("{{ row.receiptSubject }}", "{id}", to_string(id))
+end
+{% endfor %}

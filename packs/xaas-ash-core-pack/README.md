@@ -66,6 +66,22 @@ prove whether the correct Ash persistence realization is `belongs_to`,
 
 Likewise, unsupported RDF datatypes are refused rather than silently coerced.
 
+## Canonical owner and consumers
+
+This pack is the single owner of the XaaS public-profile generator-command projection:
+`queries/ash-gen-commands.rq` + `templates/gen-commands.sh.tmpl` + `gates/*.rq`.
+Other packs select a subset by DATA, not by copying the query: they supply their own SHACL
+application profile and reference this pack's files from their `ggen.toml`
+(`../xaas-ash-core-pack/...`). A shape or property shape is excluded with the standard SHACL
+`sh:deactivated true`.
+
+Known consumer: `xaas-public-ash-projection-pack` (initial FnO/DCAT/ORG/PROV/ODRL/SOSA/P-PLAN/QUDT
+profile; output `xaas-public-ash-GENERATED.sh`).
+
+The query is deliberately minimal (no `VALUES`, no cross-`BIND` UNION columns): ggen refuses
+`VALUES` in a file-referenced `.rq` (`error[E0010]`), so the RDF datatype → Ash type mapping
+and module-name derivation live in the template.
+
 ## Naming
 
 The initial proof derives `Xaas.Public.<IRI-local-name>` from the public target
