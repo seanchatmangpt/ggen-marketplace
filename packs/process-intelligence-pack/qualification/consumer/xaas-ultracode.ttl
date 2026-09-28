@@ -1,0 +1,126 @@
+# Second real consumer: the xaas Ultracode loop (Run / Epoch / tick / lease claim / close / refuse / receipt).
+# Event vocabulary read from xaas lib/xaas/ultracode/ocel_egress.ex (event-type table) and its object
+# types (Run, Epoch, Worker, Receipt, Worktree). No zcode terms. Consumed by pi:/st:/es: packs together.
+@prefix xu: <https://xaas.dev/ontology/ultracode-loop#> .
+@prefix pi: <https://ggen.dev/ontology/process-intelligence#> .
+@prefix st: <https://ggen.dev/ontology/state-transition#> .
+@prefix es: <https://ggen.dev/ontology/evidence-standing#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+xu:ChainPolicy a pi:ChainPolicy ; pi:hashAlgorithm "sha256" ; pi:targetLanguage "ts" , "py" , "rs" , "ex" .
+xu:StChainPolicy a st:ChainPolicy ; st:chosenAlgo "sha256" ; st:policyPrecedence 10 ; st:policyLanguage "ts" , "py" , "rs" , "ex" .
+xu:EsChainPolicy a es:ChainPolicy ; es:hashAlgorithm es:Sha256 ; es:canonicalization es:CanonLinesV1 ;
+  es:genesisHash "0000000000000000000000000000000000000000000000000000000000000000" ; es:policyPrecedence 10 ;
+  es:targetLanguage es:LangTs , es:LangPy , es:LangRs , es:LangEx .
+xu:Source-Egress a pi:EventSource ; pi:sourceId "xaas_ultracode_egress" ; pi:sourceKind "stream-json" ;
+  pi:nameField "type" ; pi:idField "id" ; pi:timeField "time" ; pi:chainPolicy xu:ChainPolicy ;
+  rdfs:comment "Xaas.Ultracode.OcelEgress: one OCEL 2.0 event per persisted Run/Epoch/Receipt transition" .
+
+xu:ObjectType-run a pi:ObjectType ; pi:typeId "run" .
+xu:ObjectType-epoch a pi:ObjectType ; pi:typeId "epoch" .
+xu:ObjectType-worker a pi:ObjectType ; pi:typeId "worker" .
+xu:ObjectType-receipt a pi:ObjectType ; pi:typeId "receipt" .
+xu:ObjectType-worktree a pi:ObjectType ; pi:typeId "worktree" .
+xu:Qualifier-in_run a pi:Qualifier ; pi:qualifierId "in_run" .
+xu:Qualifier-of_epoch a pi:Qualifier ; pi:qualifierId "of_epoch" .
+xu:Qualifier-by_worker a pi:Qualifier ; pi:qualifierId "by_worker" .
+xu:Qualifier-about_receipt a pi:Qualifier ; pi:qualifierId "about_receipt" .
+xu:Qualifier-in_worktree a pi:Qualifier ; pi:qualifierId "in_worktree" .
+xu:Rel-run a pi:E2ORelation ; pi:relatesObjectType xu:ObjectType-run ; pi:hasQualifier xu:Qualifier-in_run ; pi:objectIdPath "run.id" .
+xu:Rel-epoch a pi:E2ORelation ; pi:relatesObjectType xu:ObjectType-epoch ; pi:hasQualifier xu:Qualifier-of_epoch ; pi:objectIdPath "epoch.id" .
+xu:Rel-worker a pi:E2ORelation ; pi:relatesObjectType xu:ObjectType-worker ; pi:hasQualifier xu:Qualifier-by_worker ; pi:objectIdPath "worker.id" .
+xu:Rel-receipt a pi:E2ORelation ; pi:relatesObjectType xu:ObjectType-receipt ; pi:hasQualifier xu:Qualifier-about_receipt ; pi:objectIdPath "receipt.id" .
+xu:Rel-worktree a pi:E2ORelation ; pi:relatesObjectType xu:ObjectType-worktree ; pi:hasQualifier xu:Qualifier-in_worktree ; pi:objectIdPath "worktree.id" .
+xu:EventType-run_started a pi:EventType ; pi:typeId "run_started" ;
+  pi:phaseRole pi:Phase-Pending .
+xu:EventType-run_completed a pi:EventType ; pi:typeId "run_completed" ;
+  pi:phaseRole pi:Phase-Outcome ;
+  pi:closesEventType xu:EventType-run_started .
+xu:EventType-run_failed a pi:EventType ; pi:typeId "run_failed" ;
+  pi:phaseRole pi:Phase-Outcome ;
+  pi:closesEventType xu:EventType-run_started .
+xu:EventType-run_abandoned a pi:EventType ; pi:typeId "run_abandoned" ;
+  pi:phaseRole pi:Phase-Outcome ;
+  pi:closesEventType xu:EventType-run_started .
+xu:EventType-epoch_scheduled a pi:EventType ; pi:typeId "epoch_scheduled" ;
+  pi:phaseRole pi:Phase-Pending .
+xu:EventType-epoch_started a pi:EventType ; pi:typeId "epoch_started" ;
+  pi:phaseRole pi:Phase-Pending .
+xu:EventType-epoch_claimed a pi:EventType ; pi:typeId "epoch_claimed" .
+xu:EventType-worker_heartbeat a pi:EventType ; pi:typeId "worker_heartbeat" .
+xu:EventType-epoch_completed a pi:EventType ; pi:typeId "epoch_completed" ;
+  pi:phaseRole pi:Phase-Outcome ;
+  pi:closesEventType xu:EventType-epoch_started , xu:EventType-epoch_scheduled .
+xu:EventType-epoch_missed a pi:EventType ; pi:typeId "epoch_missed" ;
+  pi:phaseRole pi:Phase-Outcome ;
+  pi:closesEventType xu:EventType-epoch_scheduled .
+xu:EventType-epoch_failed a pi:EventType ; pi:typeId "epoch_failed" ;
+  pi:phaseRole pi:Phase-Outcome ;
+  pi:closesEventType xu:EventType-epoch_started , xu:EventType-epoch_scheduled .
+xu:EventType-receipt_closed a pi:EventType ; pi:typeId "receipt_closed" .
+xu:EventType-heartbeat_recorded a pi:EventType ; pi:typeId "heartbeat_recorded" .
+xu:EventType-verification_passed a pi:EventType ; pi:typeId "verification_passed" .
+xu:EventType-verification_failed a pi:EventType ; pi:typeId "verification_failed" .
+xu:EventType-refused a pi:EventType ; pi:typeId "refused" .
+xu:Rule-run_started a pi:MappingRule ; pi:ruleId "xaas-run_started" ; pi:fromSource xu:Source-Egress ; pi:sourceEvent "run.started" ;
+  pi:emitsEventType xu:EventType-run_started ; pi:hasRelation xu:Rel-run .
+xu:RuntimeEvent-run_started a pi:RuntimeEvent ; pi:runtimeEventName "run.started" ; pi:emittedBy xu:Source-Egress .
+xu:Rule-run_completed a pi:MappingRule ; pi:ruleId "xaas-run_completed" ; pi:fromSource xu:Source-Egress ; pi:sourceEvent "run.completed" ;
+  pi:emitsEventType xu:EventType-run_completed ; pi:hasRelation xu:Rel-run .
+xu:RuntimeEvent-run_completed a pi:RuntimeEvent ; pi:runtimeEventName "run.completed" ; pi:emittedBy xu:Source-Egress .
+xu:Rule-run_failed a pi:MappingRule ; pi:ruleId "xaas-run_failed" ; pi:fromSource xu:Source-Egress ; pi:sourceEvent "run.failed" ;
+  pi:emitsEventType xu:EventType-run_failed ; pi:hasRelation xu:Rel-run .
+xu:RuntimeEvent-run_failed a pi:RuntimeEvent ; pi:runtimeEventName "run.failed" ; pi:emittedBy xu:Source-Egress .
+xu:Rule-run_abandoned a pi:MappingRule ; pi:ruleId "xaas-run_abandoned" ; pi:fromSource xu:Source-Egress ; pi:sourceEvent "run.abandoned" ;
+  pi:emitsEventType xu:EventType-run_abandoned ; pi:hasRelation xu:Rel-run .
+xu:RuntimeEvent-run_abandoned a pi:RuntimeEvent ; pi:runtimeEventName "run.abandoned" ; pi:emittedBy xu:Source-Egress .
+xu:Rule-epoch_scheduled a pi:MappingRule ; pi:ruleId "xaas-epoch_scheduled" ; pi:fromSource xu:Source-Egress ; pi:sourceEvent "epoch.scheduled" ;
+  pi:emitsEventType xu:EventType-epoch_scheduled ; pi:hasRelation xu:Rel-run , xu:Rel-epoch .
+xu:RuntimeEvent-epoch_scheduled a pi:RuntimeEvent ; pi:runtimeEventName "epoch.scheduled" ; pi:emittedBy xu:Source-Egress .
+xu:Rule-epoch_started a pi:MappingRule ; pi:ruleId "xaas-epoch_started" ; pi:fromSource xu:Source-Egress ; pi:sourceEvent "epoch.started" ;
+  pi:emitsEventType xu:EventType-epoch_started ; pi:hasRelation xu:Rel-run , xu:Rel-epoch , xu:Rel-worktree .
+xu:RuntimeEvent-epoch_started a pi:RuntimeEvent ; pi:runtimeEventName "epoch.started" ; pi:emittedBy xu:Source-Egress .
+xu:Rule-epoch_claimed a pi:MappingRule ; pi:ruleId "xaas-epoch_claimed" ; pi:fromSource xu:Source-Egress ; pi:sourceEvent "epoch.claimed" ;
+  pi:emitsEventType xu:EventType-epoch_claimed ; pi:hasRelation xu:Rel-run , xu:Rel-epoch , xu:Rel-worktree .
+xu:RuntimeEvent-epoch_claimed a pi:RuntimeEvent ; pi:runtimeEventName "epoch.claimed" ; pi:emittedBy xu:Source-Egress .
+xu:Rule-worker_heartbeat a pi:MappingRule ; pi:ruleId "xaas-worker_heartbeat" ; pi:fromSource xu:Source-Egress ; pi:sourceEvent "worker.heartbeat" ;
+  pi:emitsEventType xu:EventType-worker_heartbeat ; pi:hasRelation xu:Rel-run , xu:Rel-epoch , xu:Rel-worker .
+xu:RuntimeEvent-worker_heartbeat a pi:RuntimeEvent ; pi:runtimeEventName "worker.heartbeat" ; pi:emittedBy xu:Source-Egress .
+xu:Rule-epoch_completed a pi:MappingRule ; pi:ruleId "xaas-epoch_completed" ; pi:fromSource xu:Source-Egress ; pi:sourceEvent "epoch.completed" ;
+  pi:emitsEventType xu:EventType-epoch_completed ; pi:hasRelation xu:Rel-run , xu:Rel-epoch .
+xu:RuntimeEvent-epoch_completed a pi:RuntimeEvent ; pi:runtimeEventName "epoch.completed" ; pi:emittedBy xu:Source-Egress .
+xu:Rule-epoch_missed a pi:MappingRule ; pi:ruleId "xaas-epoch_missed" ; pi:fromSource xu:Source-Egress ; pi:sourceEvent "epoch.missed" ;
+  pi:emitsEventType xu:EventType-epoch_missed ; pi:hasRelation xu:Rel-run , xu:Rel-epoch .
+xu:RuntimeEvent-epoch_missed a pi:RuntimeEvent ; pi:runtimeEventName "epoch.missed" ; pi:emittedBy xu:Source-Egress .
+xu:Rule-epoch_failed a pi:MappingRule ; pi:ruleId "xaas-epoch_failed" ; pi:fromSource xu:Source-Egress ; pi:sourceEvent "epoch.failed" ;
+  pi:emitsEventType xu:EventType-epoch_failed ; pi:hasRelation xu:Rel-run , xu:Rel-epoch .
+xu:RuntimeEvent-epoch_failed a pi:RuntimeEvent ; pi:runtimeEventName "epoch.failed" ; pi:emittedBy xu:Source-Egress .
+xu:Rule-receipt_closed a pi:MappingRule ; pi:ruleId "xaas-receipt_closed" ; pi:fromSource xu:Source-Egress ; pi:sourceEvent "receipt.closed" ;
+  pi:emitsEventType xu:EventType-receipt_closed ; pi:hasRelation xu:Rel-run , xu:Rel-epoch , xu:Rel-receipt .
+xu:RuntimeEvent-receipt_closed a pi:RuntimeEvent ; pi:runtimeEventName "receipt.closed" ; pi:emittedBy xu:Source-Egress .
+xu:Rule-heartbeat_recorded a pi:MappingRule ; pi:ruleId "xaas-heartbeat_recorded" ; pi:fromSource xu:Source-Egress ; pi:sourceEvent "heartbeat.recorded" ;
+  pi:emitsEventType xu:EventType-heartbeat_recorded ; pi:hasRelation xu:Rel-run , xu:Rel-epoch , xu:Rel-receipt .
+xu:RuntimeEvent-heartbeat_recorded a pi:RuntimeEvent ; pi:runtimeEventName "heartbeat.recorded" ; pi:emittedBy xu:Source-Egress .
+xu:Rule-verification_passed a pi:MappingRule ; pi:ruleId "xaas-verification_passed" ; pi:fromSource xu:Source-Egress ; pi:sourceEvent "verification.passed" ;
+  pi:emitsEventType xu:EventType-verification_passed ; pi:hasRelation xu:Rel-run , xu:Rel-epoch , xu:Rel-receipt .
+xu:RuntimeEvent-verification_passed a pi:RuntimeEvent ; pi:runtimeEventName "verification.passed" ; pi:emittedBy xu:Source-Egress .
+xu:Rule-verification_failed a pi:MappingRule ; pi:ruleId "xaas-verification_failed" ; pi:fromSource xu:Source-Egress ; pi:sourceEvent "verification.failed" ;
+  pi:emitsEventType xu:EventType-verification_failed ; pi:hasRelation xu:Rel-run , xu:Rel-epoch , xu:Rel-receipt .
+xu:RuntimeEvent-verification_failed a pi:RuntimeEvent ; pi:runtimeEventName "verification.failed" ; pi:emittedBy xu:Source-Egress .
+xu:Rule-refused a pi:MappingRule ; pi:ruleId "xaas-refused" ; pi:fromSource xu:Source-Egress ; pi:sourceEvent "lease.refused" ;
+  pi:emitsEventType xu:EventType-refused ; pi:hasRelation xu:Rel-run , xu:Rel-epoch , xu:Rel-receipt .
+xu:RuntimeEvent-refused a pi:RuntimeEvent ; pi:runtimeEventName "lease.refused" ; pi:emittedBy xu:Source-Egress .
+
+xu:EpochMachine a st:Machine ; st:machineName "UltracodeEpoch" ; st:initial xu:EpochNone .
+xu:EpochNone a st:State ; st:inMachine xu:EpochMachine ; st:stateName "None" ; st:seq 0 .
+xu:EpochScheduled a st:State ; st:inMachine xu:EpochMachine ; st:stateName "Scheduled" ; st:seq 1 .
+xu:EpochRunning a st:State ; st:inMachine xu:EpochMachine ; st:stateName "Running" ; st:seq 2 .
+xu:EpochCompleted a st:State ; st:inMachine xu:EpochMachine ; st:stateName "Completed" ; st:seq 3 .
+xu:EpochMissed a st:State ; st:inMachine xu:EpochMachine ; st:stateName "Missed" ; st:seq 4 .
+xu:EpochFailed a st:State ; st:inMachine xu:EpochMachine ; st:stateName "Failed" ; st:seq 5 .
+xu:EpochSchedule a st:Transition ; st:transitionName "epoch_scheduled" ; st:kind "advance" ; st:from xu:EpochNone ; st:to xu:EpochScheduled .
+xu:EpochStart a st:Transition ; st:transitionName "epoch_started" ; st:kind "advance" ; st:from xu:EpochScheduled ; st:to xu:EpochRunning .
+xu:EpochComplete a st:Transition ; st:transitionName "epoch_completed" ; st:kind "advance" ; st:from xu:EpochRunning ; st:to xu:EpochCompleted .
+xu:EpochMiss a st:Transition ; st:transitionName "epoch_missed" ; st:kind "abort" ; st:from xu:EpochScheduled ; st:to xu:EpochMissed .
+xu:EpochFail a st:Transition ; st:transitionName "epoch_failed" ; st:kind "abort" ; st:from xu:EpochRunning ; st:to xu:EpochFailed .
+xu:EpochRetry a st:Transition ; st:transitionName "epoch_started" ; st:kind "retry" ; st:from xu:EpochFailed ; st:to xu:EpochRunning .
