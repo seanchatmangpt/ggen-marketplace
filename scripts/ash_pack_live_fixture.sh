@@ -99,26 +99,18 @@ echo "elixir: $("${mix_cmd[@]}" run --no-start --no-compile --no-deps-check -e '
 "${mix_cmd[@]}" deps.get
 "${mix_cmd[@]}" deps.compile
 
-# Warnings-as-errors over the project's own sources (consumer lib/ + generated), with
-# exactly one named, time-boxed allowance: receipt.ex.tmpl renders
-# `@table :"<package>_receipts"`, a quoted atom Elixir 1.20 warns on. The source fix
-# (drop the quotes in templates/receipt.ex.tmpl) belongs to the concurrent
-# receipted-action lane that owns that file. When the fix lands the allowance stops
-# matching and this script fails until the allowance is deleted.
-allowed_warning="generated/${package}/receipt.ex:17"
+# Warnings-as-errors over the project's own sources (consumer lib/ + generated). The
+# former receipt.ex quoted-atom allowance was retired when templates/receipt.ex.tmpl
+# dropped the quotes (v26.9.27); zero project warnings are admitted.
 compile_log="${capsule}/compile.log"
 "${mix_cmd[@]}" compile --force 2>&1 | tee "${compile_log}"
 locations="$(grep -E '^[[:space:]]*└─ ' "${compile_log}" | sed -E 's/^[[:space:]]*└─ ([^: ]+:[0-9]+).*/\1/' || true)"
-unexpected="$(printf '%s\n' "${locations}" | grep -v -e '^$' -e "${allowed_warning}\$" || true)"
+unexpected="$(printf '%s\n' "${locations}" | grep -v -e '^$' || true)"
 if [[ -n "${unexpected}" ]]; then
   echo "REFUSED:ASH_PACK_FIXTURE_COMPILE_WARNINGS" >&2
   printf '%s\n' "${unexpected}" >&2
   exit 1
 fi
-if ! printf '%s\n' "${locations}" | grep -q "${allowed_warning}\$"; then
-  echo "REFUSED:ASH_PACK_FIXTURE_STALE_WARNING_ALLOWANCE ${allowed_warning} no longer warns; delete the allowance" >&2
-  exit 1
-fi
-echo "compile: 0 unexpected project warnings (1 allowed: ${allowed_warning} quoted atom)"
+echo "compile: 0 project warnings"
 
 "${mix_cmd[@]}" test
