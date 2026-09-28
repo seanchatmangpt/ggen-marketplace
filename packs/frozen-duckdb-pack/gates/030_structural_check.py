@@ -21,6 +21,19 @@ frozen-duckdb domain laws WITHOUT any actuation:
      once: a cache literal relocated to ~/duckdb-libs/1.5.5 escaped
      prefix-based extraction — prov:value is the fact-bearing property; prose
      is not scanned.)
+  8. Consumer-config law: every config-form stanza carries an
+     operative/refused status; "operative" is legal only for the two forms
+     the declarative schema binds ([ontology].imports, [[generation.rules]]);
+     a "refused" form cites a dcterms:references anchor whose label carries
+     the witnessed FM- error code; the imports form is present and operative.
+  9. Rendered-consequence ownership: a stanza titled "rendered consequence"
+     carries prov:wasDerivedFrom and names its owning rule ("owning rule:").
+ 10. Receipt runtime state: a prov:value literal under .ggen* must belong to
+     a stanza declaring it runtime/untracked — declaring receipt state as
+     tracked source is the violation.
+ 11. Single-writer fact files: consumer-fact subjects live only in the
+     consumer fixture, pack subjects only in the ontology — a concern
+     bleeding into a foreign writer's file is the multi-writer violation.
 
 Usage: gates/030_structural_check.py [pack-dir]   (default: this gate's ../)
 Exit 0 = all checks hold; exit 1 = refusals, with diagnostics. Refusal of a
@@ -38,12 +51,21 @@ VERSION_RE = re.compile(r"(?<![\w.])(\d+)\.(\d+)\.(\d+)(?![\w.])")
 CACHE_ROOT_LITERAL = "~/.frozen-duckdb/cache"
 CACHE_DIR_RE = re.compile(r"^~/\.frozen-duckdb/cache/v\d+\.\d+\.\d+-[A-Za-z0-9_]+$")
 PROV_VALUE_TILDE_RE = re.compile(r'prov:value\s+"(~[^"]*)"')
+PROV_VALUE_RE = re.compile(r'prov:value\s+"([^"]*)"')
+TITLE_RE = re.compile(r'dcterms:title\s+"([^"]*)"')
+SUBJECT_RE = re.compile(r"^<([^>]+)>")
+REFERENCES_RE = re.compile(r"dcterms:references\s+<([^>]+)>")
+OPERATIVE_NOTATIONS = {"[ontology].imports", "[[generation.rules]]"}
 LAW_HANDLES = (
     "version-pinning",
     "release-asset-name",
     "cache-normalization",
     "docs-rs-no-link",
     "soname-rpath",
+    "ggen-consumer-config",
+    "rendered-consequence-ownership",
+    "fact-file-per-concern",
+    "receipt-runtime-state",
 )
 
 failures: list[str] = []
@@ -53,6 +75,20 @@ def check(ok: bool, message: str) -> None:
     print(("PASS " if ok else "FAIL ") + message)
     if not ok:
         failures.append(message)
+
+
+def ttl_stanzas(text: str) -> list[tuple[str, str]]:
+    """Blank-line-separated TTL stanzas as (subject-iri | '', body) pairs.
+    Comment-only and @prefix blocks are skipped (the pack's source files are
+    stanza-formatted; this is a structural gate, not a Turtle parser)."""
+    stanzas: list[tuple[str, str]] = []
+    for raw in re.split(r"\n\s*\n", text):
+        body = raw.strip()
+        if not body or body.startswith("#") or body.startswith("@"):
+            continue
+        m = SUBJECT_RE.match(body)
+        stanzas.append((m.group(1) if m else "", body))
+    return stanzas
 
 
 def main(argv: list[str]) -> int:
@@ -75,7 +111,7 @@ def main(argv: list[str]) -> int:
     check(toml_name == pack.name,
           f"identity: pack.toml name '{toml_name}' matches directory '{pack.name}'")
 
-    # --- 3. the five law handles ------------------------------------------------
+    # --- 3. the nine law handles -------------------------------------------------
     ontology_text = ontology.read_text()
     for handle in LAW_HANDLES:
         check(f'skos:notation "{handle}"' in ontology_text,
@@ -87,8 +123,13 @@ def main(argv: list[str]) -> int:
         check(re.search(r"^to:", text, re.M) and re.search(r"^sparql:", text, re.M),
               f"template: {tmpl.name} carries to: + sparql: frontmatter")
 
-    # --- graph literals for laws 2/3/6 ------------------------------------------
-    graph_text = "\n".join(p.read_text() for p in (ontology, fixture))
+    # --- graph literals for laws 2/3/6-9 ------------------------------------------
+    fixture_text = fixture.read_text()
+    graph_text = ontology_text + "\n" + fixture_text
+    ontology_stanzas = ttl_stanzas(ontology_text)
+    fixture_stanzas = ttl_stanzas(fixture_text)
+    graph_stanzas = ontology_stanzas + fixture_stanzas
+    stanza_by_subject = {subj: body for subj, body in graph_stanzas if subj}
 
     # --- 5. asset-naming law ------------------------------------------------------
     assets = sorted(set(ASSET_RE.findall(graph_text)))
@@ -133,6 +174,73 @@ def main(argv: list[str]) -> int:
           "cache law: all ~/ prov:value literals are the central cache root or "
           "v{version}-{arch} cache dirs"
           + (f" (violations: {bad_cache})" if bad_cache else ""))
+
+    # --- 8. consumer-config law (config-form statuses) -------------------------------
+    config_stanzas = [body for _, body in graph_stanzas
+                      if 'prov:value "operative"' in body or 'prov:value "refused"' in body]
+    check(bool(config_stanzas),
+          "config law: config-form collection non-empty")
+    operative_imports = False
+    for body in config_stanzas:
+        notation_m = re.search(r'skos:notation\s+"([^"]*)"', body)
+        notation = notation_m.group(1) if notation_m else "(no notation)"
+        if 'prov:value "operative"' in body:
+            ok = notation in OPERATIVE_NOTATIONS
+            operative_imports = operative_imports or notation == "[ontology].imports"
+            check(ok, f"config law: operative form '{notation}' is in the lawful operative set"
+                  if ok else
+                  f"config law: form '{notation}' claims operative status outside "
+                  f"{sorted(OPERATIVE_NOTATIONS)}")
+        elif 'prov:value "refused"' in body:
+            refs = REFERENCES_RE.findall(body)
+            labeled = [r for r in refs
+                       if "FM-" in stanza_by_subject.get(r, "")]
+            ok = bool(refs) and bool(labeled)
+            check(ok, f"config law: refused form '{notation}' cites FM- error-code evidence"
+                  if ok else
+                  f"config law: refused form '{notation}' lacks a dcterms:references anchor "
+                  "whose label carries the witnessed FM- error code")
+    check(operative_imports,
+          "config law: [ontology].imports present and operative (the lawful pack binding)")
+
+    # --- 9. rendered-consequence ownership -------------------------------------------
+    owned = True
+    for _, body in graph_stanzas:
+        title_m = TITLE_RE.search(body)
+        if title_m and "rendered consequence" in title_m.group(1):
+            if "prov:wasDerivedFrom" not in body or "owning rule:" not in title_m.group(1):
+                owned = False
+                check(False, f"rendered-consequence law: '{title_m.group(1)}' must carry "
+                      "prov:wasDerivedFrom and name its owning rule")
+    check(owned and any("rendered consequence" in TITLE_RE.search(b).group(1)
+                        for _, b in graph_stanzas if TITLE_RE.search(b)),
+          "rendered-consequence law: every rendered-consequence fact is anchored and rule-owned")
+
+    # --- 10. receipt runtime state -----------------------------------------------------
+    receipt_ok = True
+    saw_receipt_state = False
+    for _, body in graph_stanzas:
+        for value in PROV_VALUE_RE.findall(body):
+            if value.startswith(".ggen"):
+                saw_receipt_state = True
+                title_m = TITLE_RE.search(body)
+                title = title_m.group(1) if title_m else "(no title)"
+                if "runtime state" not in title and "untracked" not in title:
+                    receipt_ok = False
+                    check(False, f"receipt law: '.ggen' state literal '{value}' declared without "
+                          "runtime-state/untracked marking (secrets law)")
+    check(receipt_ok and saw_receipt_state,
+          "receipt law: .ggen* prov:value literals exist and are all marked untracked runtime state")
+
+    # --- 11. single-writer fact files ----------------------------------------------------
+    consumer_in_ontology = [s for s, _ in ontology_stanzas if ":consumer:" in s]
+    check(not consumer_in_ontology,
+          "fact-file law: no consumer-fact subjects in the pack ontology (single writer per file)"
+          + (f" (violations: {consumer_in_ontology})" if consumer_in_ontology else ""))
+    pack_in_fixture = [s for s, _ in fixture_stanzas if s and ":consumer:" not in s]
+    check(not pack_in_fixture,
+          "fact-file law: fixture carries only consumer-fact subjects"
+          + (f" (violations: {pack_in_fixture})" if pack_in_fixture else ""))
 
     if failures:
         print(f"STRUCTURAL GATE: REFUSED ({len(failures)} refusal(s))")

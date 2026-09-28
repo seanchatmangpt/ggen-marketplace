@@ -6,13 +6,13 @@
 #
 # Vocabulary law: standard vocabularies only. Classes and predicates come
 # exclusively from rdf:/rdfs:/dcterms:/skos:/prov:/xsd:. Laws are skos:Concept
-# members of one skos:Collection; their stable handles are skos:notation
-# literals; evidence anchors are prov:Entity individuals carrying an
-# rdfs:label that names a repo-relative path (with the owning symbol/lines);
-# version correspondences are prov:Collection version-maps whose
-# prov:hadMember are prov:Entity individuals carrying prov:value version
-# strings. No private predicate or class namespace is introduced (see
-# README.md "Vocabulary law").
+# members of skos:Collections (the law collection and the config-form
+# collection); their stable handles are skos:notation literals; evidence
+# anchors are prov:Entity individuals carrying an rdfs:label that names a
+# repo-relative path (with the owning symbol/lines); version correspondences
+# are prov:Collection version-maps whose prov:hadMember are prov:Entity
+# individuals carrying prov:value version strings. No private predicate or
+# class namespace is introduced (see README.md "Vocabulary law").
 
 @prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
@@ -27,12 +27,16 @@
 
 <urn:frozen-duckdb:laws> a skos:Collection ;
     dcterms:title "frozen-duckdb domain laws" ;
-    dcterms:description "The five laws a consumer of prebuilt (frozen) DuckDB binaries must hold: version pinning (mirror + duckdb-rs encoding), release-asset naming, central-cache normalization, DOCS_RS no-link builds, and soname/rpath propagation. Distilled from the frozen-duckdb repository (v1.5.5 wave, docs/sjira/v26.9.21) so future repos consume them instead of hand-rolling build.rs, fetch scripts and cache plumbing." ;
+    dcterms:description "The nine laws a consumer of prebuilt (frozen) DuckDB binaries must hold: version pinning (mirror + duckdb-rs encoding), release-asset naming, central-cache normalization, DOCS_RS no-link builds, and soname/rpath propagation -- plus the four ggen-composition laws the v1.5.5 wave-4/5 composition witnessed (consumer config schema, rendered-consequence ownership, single-writer fact files, receipt runtime state). Distilled from the frozen-duckdb repository (v1.5.5 wave, docs/sjira/v26.9.21) so future repos consume them instead of hand-rolling build.rs, fetch scripts, cache plumbing, ggen.toml config and receipt plumbing." ;
     skos:member <urn:frozen-duckdb:law:version-pinning> ,
                 <urn:frozen-duckdb:law:release-asset-name> ,
                 <urn:frozen-duckdb:law:cache-normalization> ,
                 <urn:frozen-duckdb:law:docs-rs-no-link> ,
-                <urn:frozen-duckdb:law:soname-rpath> .
+                <urn:frozen-duckdb:law:soname-rpath> ,
+                <urn:frozen-duckdb:law:ggen-consumer-config> ,
+                <urn:frozen-duckdb:law:rendered-consequence-ownership> ,
+                <urn:frozen-duckdb:law:fact-file-per-concern> ,
+                <urn:frozen-duckdb:law:receipt-runtime-state> .
 
 # ---------------------------------------------------------------------------
 # Law 1 — version pinning (mirror + duckdb-rs crate-version encoding)
@@ -135,6 +139,104 @@
                         <urn:frozen-duckdb:evidence:handwritten-md> .
 
 # ---------------------------------------------------------------------------
+# Law 6 — ggen consumer config (wave-4/5 composition law)
+# ---------------------------------------------------------------------------
+
+<urn:frozen-duckdb:law:ggen-consumer-config> a skos:Concept ;
+    skos:notation "ggen-consumer-config" ;
+    dcterms:title "On the declarative ggen schema, packs bind through [ontology].imports; [[ontology.pack]] does not exist and the two config schemas are exclusive" ;
+    dcterms:description "A ggen 26.8.18 consumer on the declarative schema binds pack ontologies through [ontology].imports (absolute paths -- tilde is NOT expanded), never through [[ontology.pack]], which the schema refuses with [FM-CONFIG-003] unknown field 'pack' (OntologyConfig admits only source/imports/base_iri/prefixes/standard_only). The declarative and frontmatter config schemas are exclusive in one file: a [packs] table is refused as schema-ambiguous ([FM-CONFIG-101], a frontmatter marker), and rules = [] alongside [[generation.rules]] is a duplicate-key error ([FM-CONFIG-103]). Pack frontmatter templates (to:/sparql: contracts) are NOT parsed by declarative generation rules -- rules render template text as plain Tera with the rule query bound to results, and TemplateSource::Pack does not exist on this schema ('skipped: pack resolution is not implemented for the declarative-rules schema yet'). A declarative consumer therefore re-expresses wanted renderings as [[generation.rules]] whose queries select the pack's facts and whose templates bind rows via {% for r in results %} -- never the undocumented single-row-flattening form (bare {{ variable }}, the [FM-GEN-008] TEMPLATE_VARIABLE_MISSING trap)." ;
+    skos:example "[ontology] imports = [\"/abs/path/packs/frozen-duckdb-pack/ontology.ttl\"]; [[generation.rules]] template binds {% for r in results %}" ;
+    prov:wasDerivedFrom <urn:frozen-duckdb:evidence:ggen-toml> ,
+                        <urn:frozen-duckdb:evidence:ci-projection-md> ,
+                        <urn:frozen-duckdb:evidence:handwritten-md> .
+
+# The config forms themselves: one collection, each member a form with an
+# operative/refused status. Gate 025 refuses a member without a status, an
+# "operative" claim outside the lawful operative set, or a "refused" claim
+# whose error code is not anchored to witnessed evidence.
+
+<urn:frozen-duckdb:config-forms> a skos:Collection ;
+    dcterms:title "ggen 26.8.18 consumer config forms" ;
+    dcterms:description "The pack-binding and rule-surface forms a consumer ggen.toml can declare, with their witnessed status on the declarative schema (ggen 26.8.18, frozen-duckdb v1.5.5 wave). Exactly the two operative forms bind; the refused forms carry the error code that proves the refusal." ;
+    skos:member <urn:frozen-duckdb:config:ontology-imports> ,
+                <urn:frozen-duckdb:config:generation-rules> ,
+                <urn:frozen-duckdb:config:ontology-pack> ,
+                <urn:frozen-duckdb:config:packs-table> ,
+                <urn:frozen-duckdb:config:pack-template-source> .
+
+<urn:frozen-duckdb:config:ontology-imports> a skos:Concept ;
+    skos:notation "[ontology].imports" ;
+    dcterms:title "operative pack binding: graph-merge the pack ontology via imports" ;
+    dcterms:description "The operative pack binding on the declarative schema: [ontology].imports unions the pack's ontology.ttl into the sync graph, closure-recorded and content-hashed into every receipt. Paths must be absolute -- tilde is not expanded." ;
+    prov:value "operative" .
+
+<urn:frozen-duckdb:config:generation-rules> a skos:Concept ;
+    skos:notation "[[generation.rules]]" ;
+    dcterms:title "operative render surface: declarative generation rules" ;
+    dcterms:description "The operative render surface on the declarative schema: [[generation.rules]] with query + template + output_file + mode. Rule templates are plain Tera; the rule query result is bound as results and rows are iterated with {% for r in results %}. Overwrite mode makes the rule the owner of its output_file." ;
+    prov:value "operative" .
+
+<urn:frozen-duckdb:config:ontology-pack> a skos:Concept ;
+    skos:notation "[[ontology.pack]]" ;
+    dcterms:title "refused: no pack-declaration field exists under [ontology]" ;
+    dcterms:description "Ticket/bootstrap-declared form; ggen 26.8.18 refuses it: [FM-CONFIG-003] unknown field 'pack', expected one of source/imports/base_iri/prefixes/standard_only. Empirically probed (CI_PROJECTION.md row 2, /tmp scratch, C2/C4/C5/C7/C8/C11)." ;
+    prov:value "refused" ;
+    dcterms:references <urn:frozen-duckdb:evidence:ci-projection-md> .
+
+<urn:frozen-duckdb:config:packs-table> a skos:Concept ;
+    skos:notation "[packs]" ;
+    dcterms:title "refused on the declarative schema: schema-ambiguous frontmatter marker" ;
+    dcterms:description "A [packs] table is refused with [FM-CONFIG-101] schema ambiguity (frontmatter:packs_table_shaped conflicts with declarative markers); it is inert as a pack loader on the declarative schema -- sync resolves [[packs]] only as a rule-local file-source registry and pack ontologies/gates/templates do not auto-bind." ;
+    prov:value "refused" ;
+    dcterms:references <urn:frozen-duckdb:evidence:ci-projection-md> .
+
+<urn:frozen-duckdb:config:pack-template-source> a skos:Concept ;
+    skos:notation "TemplateSource::Pack" ;
+    dcterms:title "refused: no pack-sourced template variant exists on the declarative schema" ;
+    dcterms:description "template = { pack = ... } is refused with [FM-CONFIG-003] 'data did not match any variant of untagged enum TemplateSource' (probed in all three shapes); pack .tmpl files carry frontmatter contracts that declarative rules render raw, so pack templates cannot be emitters here." ;
+    prov:value "refused" ;
+    dcterms:references <urn:frozen-duckdb:evidence:ci-projection-md> .
+
+# ---------------------------------------------------------------------------
+# Law 7 — rendered-consequence ownership
+# ---------------------------------------------------------------------------
+
+<urn:frozen-duckdb:law:rendered-consequence-ownership> a skos:Concept ;
+    skos:notation "rendered-consequence-ownership" ;
+    dcterms:title "A rendered file is owned by exactly one generation rule; hand-unioned blocks are clobbered by the next sync" ;
+    dcterms:description "Every rendered file has exactly one owning rule (its output_file under Overwrite mode). Hand-unioning extra blocks into a rendered file loses them to the next successful sync -- the wave-4 dry run's Makefile was (a) clobbered by every sync because the hand-added C10 block was not in render-makefile-verify's rule and (b) truncated by a merge, leaving make genesis-check unrunnable. The lawful repair moves the block into the owning rule's template at the source (ggen.toml), re-renders, and re-verifies byte-identity of the pre-existing projection; a rendered-consequence fact must name its owning rule. Target-name discipline is part of ownership: rendered Makefile targets claim only their documented namespace (verify/verify-*), never a sibling rule's (sync/gates)." ;
+    skos:example "Makefile: '# GENERATED by ggen sync run (rule render-makefile-verify in ggen.toml)' -- edit schema/verify.ttl / the rule, never the projection" ;
+    prov:wasDerivedFrom <urn:frozen-duckdb:evidence:makefile> ,
+                        <urn:frozen-duckdb:evidence:milestone-dryrun> .
+
+# ---------------------------------------------------------------------------
+# Law 8 — single-writer fact files (domain.ttl multi-writer hazard)
+# ---------------------------------------------------------------------------
+
+<urn:frozen-duckdb:law:fact-file-per-concern> a skos:Concept ;
+    skos:notation "fact-file-per-concern" ;
+    dcterms:title "One source file, one writer, one concern: pack-owned fact files instead of a shared multi-writer ontology" ;
+    dcterms:description "Turtle has no standard 3-way merge, so a shared ontology file written by multiple branches/writers is a standing clobber hazard: the wave-4 domain.ttl union dropped C4's fd:project fact block entirely (its comment header survived, the facts did not), the query behind dry-run-publish-shapes returned zero rows, and the render failed with TEMPLATE_VARIABLE_MISSING variable 'v'; a C2 merge resolution earlier clobbered the canonical union outright and had to be restored byte-identical. The remedy is structural: facts live in per-concern, single-writer files (consumer-owned schema/<concern>.ttl, or pack-owned ontology files bound through [ontology].imports) and are never hand-appended into another writer's file. Consumer facts stay in consumer fact files; pack facts stay in pack files; a concern bleeding into a foreign file is the violation the gates refuse." ;
+    skos:example "schema/domain.ttl + schema/changelog.ttl + schema/verify.ttl + schema/reconciliation-vocab.ttl -- one concern per file, unioned by [ontology].imports, not by hand" ;
+    prov:wasDerivedFrom <urn:frozen-duckdb:evidence:handwritten-md> ,
+                        <urn:frozen-duckdb:evidence:milestone-dryrun> ,
+                        <urn:frozen-duckdb:evidence:ggen-toml> .
+
+# ---------------------------------------------------------------------------
+# Law 9 — receipt runtime state
+# ---------------------------------------------------------------------------
+
+<urn:frozen-duckdb:law:receipt-runtime-state> a skos:Concept ;
+    skos:notation "receipt-runtime-state" ;
+    dcterms:title "ggen receipt state (.ggen/, .ggen-v2/) is untracked runtime state, never committed; chains are BLAKE3-signed" ;
+    dcterms:description "ggen's runtime receipt state -- .ggen/ (signing keys) and .ggen-v2/ (receipt.json + receipt-log.jsonl) -- is untracked runtime state under the secrets law: it is gitignored (frozen-duckdb .gitignore rows '.ggen-v2/' and 'frozen-test-project/.ggen/'), never committed, and regenerated by every sync. Receipts are evidence, not source: each record chains prev_chain_hash_hex -> chain_hash_hex and carries a signature, and 'ggen receipt verify' validates the chain (valid/signed/signature_valid). A repo's tracked tree therefore carries no receipt bytes; importing receipt files from another machine is a provenance break, not a shortcut." ;
+    skos:example ".ggen-v2/receipt.json: prev_chain_hash_hex -> chain_hash_hex (BLAKE3), signed; ggen receipt verify -> valid: true" ;
+    prov:wasDerivedFrom <urn:frozen-duckdb:evidence:gitignore> ,
+                        <urn:frozen-duckdb:evidence:publish-runbook> ,
+                        <urn:frozen-duckdb:evidence:receipt-json> .
+
+# ---------------------------------------------------------------------------
 # Evidence anchors — prov:Entity individuals whose rdfs:label names a
 # repo-relative path (with owning symbol/lines) in the frozen-duckdb
 # repository at v1.5.5 wave 4 (docs/sjira/v26.9.21). Gates refuse dangling
@@ -155,7 +257,7 @@
     rdfs:label "prebuilt/setup_env.sh — asset law header (libduckdb_{arch}.dylib/.so), install-name compat symlinks libduckdb.dylib/.1.dylib/.1.4.dylib -> arch dylib, @rpath/libduckdb.dylib neutral install name (DuckDB >= 1.5)" .
 
 <urn:frozen-duckdb:evidence:handwritten-md> a prov:Entity ;
-    rdfs:label "HANDWRITTEN.md — 帳 ledger rows: DOCS_RS pattern, cache normalization on every acquisition path, install-name compat symlinks, crates.io pin duckdb = \"1.10505\" matching DuckDB 1.5.5" .
+    rdfs:label "HANDWRITTEN.md — 帳 ledger rows: DOCS_RS pattern, cache normalization on every acquisition path, install-name compat symlinks, crates.io pin duckdb = \"1.10505\" matching DuckDB 1.5.5; schema/domain.ttl multi-writer union row (remedy: one domain.ttl per concern or pack-owned fact files); ggen.toml consumer-config row ([[ontology.pack]] absent in ggen 26.8.18, FM-CONFIG-003; [[ontology]].imports operative)" .
 
 <urn:frozen-duckdb:evidence:test-dependency-cargo-toml> a prov:Entity ;
     rdfs:label "test-dependency/Cargo.toml — real crates.io pin duckdb = \"1.10505\" (duckdb-rs crate version encoding DuckDB 1.5.5)" .
@@ -165,3 +267,24 @@
 
 <urn:frozen-duckdb:evidence:integration-guide> a prov:Entity ;
     rdfs:label "docs/guides/integration.md — upstream build output 'Compiling duckdb v1.10505.0' (duckdb-rs crate version encoding DuckDB 1.5.5)" .
+
+<urn:frozen-duckdb:evidence:ggen-toml> a prov:Entity ;
+    rdfs:label "ggen.toml — consumer config header note: [[ontology.pack]] does not exist on ggen 26.8.18's declarative schema (FM-CONFIG-003); [[ontology]].imports is the operative pack binding; [[packs]] documents registry intent only; 13 imports (absolute paths, one concern per file: schema/reconciliation-vocab.ttl, schema/changelog.ttl, schema/verify.ttl + pack ontologies)" .
+
+<urn:frozen-duckdb:evidence:ci-projection-md> a prov:Entity ;
+    rdfs:label "docs/sjira/v26.9.21/CI_PROJECTION.md — probe table rows 2-4: [[ontology.pack]] -> [FM-CONFIG-003] unknown field 'pack'; [packs] -> [FM-CONFIG-101] schema ambiguity (frontmatter marker); template = { pack = ... } -> [FM-CONFIG-003] untagged enum TemplateSource (no pack-sourced template variant; declarative path dead)" .
+
+<urn:frozen-duckdb:evidence:makefile> a prov:Entity ;
+    rdfs:label "Makefile — rendered header: GENERATED by ggen sync run (rule render-makefile-verify in ggen.toml); edit schema/verify.ttl / schema/verify-gates.rq, never this file; target-name law: claims verify/verify-* only (sync/gates belong to C10)" .
+
+<urn:frozen-duckdb:evidence:milestone-dryrun> a prov:Entity ;
+    rdfs:label "docs/sjira/v26.9.21/MILESTONE.md — wave-4 dry run: Fix 1 (domain.ttl union dropped C4's fd:project facts, zero rows -> TEMPLATE_VARIABLE_MISSING [FM-GEN-008]; restored byte-identical + {% for r in results %} hardening); Fix 2 (Makefile hand-unioned C10 block clobbered by every sync + merge-truncated; moved into owning rule's template; HANDWRITTEN multi-rule-union row paid down)" .
+
+<urn:frozen-duckdb:evidence:gitignore> a prov:Entity ;
+    rdfs:label ".gitignore — secrets-law rows: '.ggen-v2/' and 'frozen-test-project/.ggen/' untracked (runtime ggen receipt state, commit 0019831)" .
+
+<urn:frozen-duckdb:evidence:publish-runbook> a prov:Entity ;
+    rdfs:label "docs/sjira/v26.9.21/PUBLISH_RUNBOOK.md — 'receipt-backed: every ggen sync run appends a BLAKE3-chained, signed receipt'" .
+
+<urn:frozen-duckdb:evidence:receipt-json> a prov:Entity ;
+    rdfs:label ".ggen-v2/receipt.json (runtime state, untracked) — ggen-receipt/v2 record: prev_chain_hash_hex -> chain_hash_hex, signature_hex; ggen receipt verify -> valid: true, signed: true, signature_valid: true" .
