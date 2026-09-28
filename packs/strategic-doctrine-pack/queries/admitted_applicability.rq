@@ -1,0 +1,38 @@
+# Admitted doctrine applicabilities (SELECT only; authority NONE).
+#
+# A candidate sd:DoctrineApplicability is admitted when its strategy has at
+# least one sd:appliesWhen condition and NO condition fails for the actor. A
+# condition holds when the actor is an instance of the condition's class and
+# some SOSA observation of the actor for the condition's property satisfies
+# the comparator against the threshold. Each admitted row carries the
+# strategy's falsifiers so the consumer can arm them.
+PREFIX sd: <https://ggen.dev/ontology/strategic-doctrine#>
+PREFIX sosa: <http://www.w3.org/ns/sosa/>
+
+SELECT ?applicability ?actor ?strategy ?falsifier WHERE {
+  ?applicability a sd:DoctrineApplicability ;
+    sd:applicabilityOf ?strategy ;
+    sd:actor ?actor .
+  ?strategy sd:hasFalsifier ?falsifier .
+  FILTER EXISTS { ?strategy sd:appliesWhen ?someCondition }
+  FILTER NOT EXISTS {
+    ?strategy sd:appliesWhen ?condition .
+    ?condition sd:aboutClass ?class ; sd:observedProperty ?property ;
+      sd:comparator ?comparator ; sd:threshold ?threshold .
+    FILTER NOT EXISTS {
+      ?actor a ?class .
+      ?observation a sosa:Observation ;
+        sosa:hasFeatureOfInterest ?actor ;
+        sosa:observedProperty ?property ;
+        sosa:hasSimpleResult ?value .
+      FILTER(
+        (?comparator = "lt"  && ?value <  ?threshold) ||
+        (?comparator = "lte" && ?value <= ?threshold) ||
+        (?comparator = "gt"  && ?value >  ?threshold) ||
+        (?comparator = "gte" && ?value >= ?threshold) ||
+        (?comparator = "eq"  && ?value =  ?threshold)
+      )
+    }
+  }
+}
+ORDER BY ?applicability ?falsifier
