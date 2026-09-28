@@ -14,19 +14,29 @@ sparql:
     } GROUP BY ?package_name ?module_name
   sections: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?section_name WHERE { ?s a aex:DslSection ; aex:sectionName ?section_name . }
-    ORDER BY ?section_name
+    SELECT ?package_name ?section_name WHERE {
+      ?s a aex:DslSection ; aex:sectionOf ?spec ; aex:sectionName ?section_name .
+      ?spec aex:packageName ?package_name .
+    } ORDER BY ?package_name ?section_name
   info_getters: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?getter_name ?getter_source_section_name WHERE {
+    SELECT ?package_name ?getter_name ?getter_source_section_name WHERE {
       ?g a aex:InfoGetter ; aex:getterOf ?s ; aex:getterName ?getter_name ;
          aex:getterSourceSection ?getter_source_section .
+      ?s aex:packageName ?package_name .
       ?getter_source_section aex:sectionName ?getter_source_section_name .
-    } ORDER BY ?getter_name
+    } ORDER BY ?package_name ?getter_name
 ---
 {# Generated Info module -- mirrors ash_r2rml/lib/ash_r2rml/resource.ex's
    AshR2RML.Resource.Info: the public, documented introspection API a consumer (or this
    pack's own composition test) reads instead of poking Spark.Dsl.Extension internals. #}
+{# Per-spec scoping: ggen evaluates each named `sparql:` result once against the whole
+   union graph, not per `for_each` row, so every non-spec query selects ?package_name
+   and is narrowed to the current spec here (the reactor_pipeline.ex.tmpl fix, applied
+   to every DSL family). Without it a multi-spec graph rendered every spec's sections,
+   entities, getters, verifiers and targets into every other spec's modules. #}
+{% set sections = sections | filter(attribute="package_name", value=package_name) %}
+{% set info_getters = info_getters | filter(attribute="package_name", value=package_name) %}
 defmodule {{ module_name }}.Info do
   @moduledoc """
   Public introspection API for `{{ package_name }}`.

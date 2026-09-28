@@ -15,19 +15,26 @@ sparql:
     # are OPTIONAL (0+ / boolean-with-default), matching aex:ReactorStep's own comment
     # that not every step declares them -- absent means "no dependency"/"no compensate",
     # never coerced to a false default silently at the query layer.
-    SELECT ?step_name ?step_module ?step_order ?max_retries ?has_compensate ?is_return
+    #
+    # ?package_name scopes each row to its owning spec: ggen's named `sparql:` results
+    # are evaluated once against the whole graph, not per `for_each` row, so the body
+    # filters `steps` on the current spec. Without it every reactor spec rendered every
+    # other spec's steps (first live `ggen sync run`, 2026-09-27: pipeline_probe's
+    # pipeline carried notification_extension's deliver/seal_receipt steps).
+    SELECT ?package_name ?step_name ?step_module ?step_order ?max_retries ?has_compensate ?is_return
            (GROUP_CONCAT(?wait_for_name; separator=",") AS ?wait_for_names)
     WHERE {
       ?step a aex:ReactorStep ; aex:stepOf ?spec ;
             aex:stepName ?step_name ; aex:stepModule ?step_module ;
             aex:stepOrder ?step_order .
+      ?spec aex:packageName ?package_name .
       OPTIONAL { ?step aex:stepMaxRetries ?max_retries }
       OPTIONAL { ?step aex:stepHasCompensate ?has_compensate }
       OPTIONAL { ?step aex:stepIsReturn ?is_return }
       OPTIONAL { ?step aex:stepWaitFor ?wait_for_step . ?wait_for_step aex:stepName ?wait_for_name }
     }
-    GROUP BY ?step_name ?step_module ?step_order ?max_retries ?has_compensate ?is_return
-    ORDER BY ?step_order
+    GROUP BY ?package_name ?step_name ?step_module ?step_order ?max_retries ?has_compensate ?is_return
+    ORDER BY ?package_name ?step_order
 ---
 {# Dynamic Reactor step-graph generation -- replaces ash-extension-core-pack's
    reactor_pipeline.ex.tmpl's HARDCODED five-step body (compile_resources ->
@@ -61,11 +68,10 @@ defmodule {{ module_name }}.Reactor.Pipeline do
     middleware Reactor.Middleware.Telemetry
   end
 
-{% for step in steps %}  step :{{ step.step_name }}, {{ module_name }}.Reactor.Steps.{{ step.step_module }} do
+{% for step in steps %}{% if step.package_name == package_name %}  step :{{ step.step_name }}, {{ module_name }}.Reactor.Steps.{{ step.step_module }} do
 {% if step.wait_for_names %}    wait_for {% for w in step.wait_for_names | split(pat=",") %}:{{ w }}{% if not loop.last %}, {% endif %}{% endfor %}
-
-{% endif %}{% if step.max_retries %}    max_retries {{ step.max_retries }}
+{% endif %}{% if step.max_retries is defined %}    max_retries {{ step.max_retries }}
 {% endif %}  end
 
-{% endfor %}{% for step in steps %}{% if step.is_return == "true" %}  return :{{ step.step_name }}
+{% endif %}{% endfor %}{% for step in steps %}{% if step.package_name == package_name and (step.is_return == true or step.is_return == "true") %}  return :{{ step.step_name }}
 {% endif %}{% endfor %}end
