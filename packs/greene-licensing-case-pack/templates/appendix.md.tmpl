@@ -1,0 +1,77 @@
+---
+to: greene-licensing/appendix.md
+sparql:
+  cases: |
+    PREFIX cs: <urn:xaas:case-study:>
+    PREFIX glc: <https://ggen.dev/ontology/greene-licensing-case#>
+    SELECT ?caseId ?boundSubject ?authorityCeiling ?evidenceCeiling ?humanGate WHERE {
+      ?case a cs:CaseStudy ; cs:caseId ?caseId ; cs:boundSubject ?boundSubject ;
+            cs:authorityCeiling ?authorityCeiling ; cs:evidenceCeiling ?evidenceCeiling ;
+            cs:humanGate ?humanGate .
+      ?letter a glc:Letter ; glc:letterOf ?case .
+    } ORDER BY ?caseId
+  claims: |
+    PREFIX cs: <urn:xaas:case-study:>
+    PREFIX glc: <https://ggen.dev/ontology/greene-licensing-case#>
+    SELECT ?claimId ?claimText ?standing ?evidenceCeiling ?authorityCeiling ?evidenceId ?evidencePath ?exactSubject ?result ?falsifierId WHERE {
+      ?letter a glc:Letter ; glc:letterOf ?case .
+      ?claim a cs:Claim ; cs:claimOf ?case ; cs:claimId ?claimId ; cs:claimText ?claimText ; cs:standing ?standing ;
+             cs:evidenceCeiling ?evidenceCeiling ; cs:authorityCeiling ?authorityCeiling ;
+             cs:supportedBy ?evidence ; cs:falsifiedBy ?falsifier .
+      ?evidence cs:evidenceId ?evidenceId ; cs:evidencePath ?evidencePath ;
+                cs:exactSubject ?exactSubject ; cs:result ?result .
+      ?falsifier cs:falsifierId ?falsifierId .
+    } ORDER BY ?claimId
+  digests: |
+    PREFIX cs: <urn:xaas:case-study:>
+    PREFIX glc: <https://ggen.dev/ontology/greene-licensing-case#>
+    SELECT ?order ?digestKind ?sha256 ?evidenceId WHERE {
+      ?d a glc:ReceiptDigest ; glc:order ?order ; glc:digestKind ?digestKind ; glc:sha256 ?sha256 ;
+         glc:digestOf ?evidence .
+      ?evidence cs:evidenceId ?evidenceId .
+    } ORDER BY ?order
+  replays: |
+    PREFIX glc: <https://ggen.dev/ontology/greene-licensing-case#>
+    SELECT ?order ?command ?expectedObservation WHERE {
+      ?r a glc:ReplayCommand ; glc:order ?order ; glc:command ?command ;
+         glc:expectedObservation ?expectedObservation .
+    } ORDER BY ?order
+  falsifiers: |
+    PREFIX cs: <urn:xaas:case-study:>
+    PREFIX glc: <https://ggen.dev/ontology/greene-licensing-case#>
+    SELECT DISTINCT ?falsifierId ?falsifierCommand ?falsifierObservation WHERE {
+      ?letter a glc:Letter ; glc:letterOf ?case .
+      ?claim a cs:Claim ; cs:claimOf ?case ; cs:falsifiedBy ?f .
+      ?f a cs:Falsifier ; cs:falsifierId ?falsifierId ; cs:falsifierCommand ?falsifierCommand ;
+         cs:falsifierObservation ?falsifierObservation .
+    } ORDER BY ?falsifierId
+---
+# Evidence appendix (proposal draft, not sent)
+
+{% for c in cases %}Case `{{ c.caseId }}` is bound to `{{ c.boundSubject }}`. Authority
+ceiling {{ c.authorityCeiling }}; evidence ceiling {{ c.evidenceCeiling }}; human
+gate {{ c.humanGate }}. Every digest below is repository-local evidence
+recomputed from the exact subject named with it; none of it is evidence about
+any real organization, market or conflict.
+{% endfor %}
+## Claims
+
+| Claim | Standing | Evidence ceiling | Authority | Evidence | Exact subject | Falsifier |
+|---|---|---|---|---|---|---|
+{% for c in claims %}| {{ c.claimId }}: {{ c.claimText }} | {{ c.standing }} | {{ c.evidenceCeiling }} | {{ c.authorityCeiling }} | {{ c.evidenceId }} `{{ c.evidencePath }}` ({{ c.result }}) | `{{ c.exactSubject }}` | {{ c.falsifierId }} |
+{% endfor %}
+## Receipt digests
+
+| # | Kind | sha256 | Evidence |
+|---|---|---|---|
+{% for d in digests %}| {{ d.order }} | {{ d.digestKind }} | `{{ d.sha256 }}` | {{ d.evidenceId }} |
+{% endfor %}
+## Replay commands
+
+{% for r in replays %}{{ r.order }}. `{{ r.command }}`
+   Expected: {{ r.expectedObservation }}
+{% endfor %}
+## Falsifiers
+
+{% for f in falsifiers %}- {{ f.falsifierId }}: {{ f.falsifierObservation }} Command: `{{ f.falsifierCommand }}`
+{% endfor %}
