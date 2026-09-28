@@ -1,0 +1,60 @@
+---
+to: generated/swe-prometheus-mutation-manifest.json
+force: true
+sparql:
+  cases: |
+    PREFIX spg: <https://seanchatmangpt.github.io/packs/swe-prometheus-governance#>
+    SELECT ?repository ?baseCommit ?patchDigest ?argv ?cwd ?timeout ?expected ?mode WHERE {
+      ?case a spg:RetrofitCase ;
+            spg:repository ?repository ;
+            spg:baseCommit ?baseCommit ;
+            spg:patchDigest ?patchDigest ;
+            spg:verifierSpec ?verifier .
+      ?verifier spg:argvJson ?argv .
+      OPTIONAL { ?verifier spg:cwd ?cwd }
+      OPTIONAL { ?verifier spg:timeoutSeconds ?timeout }
+      OPTIONAL { ?verifier spg:expectedExit ?expected }
+      OPTIONAL { ?verifier spg:detectionMode ?mode }
+    } ORDER BY ?repository ?baseCommit
+  mutations: |
+    PREFIX spg: <https://seanchatmangpt.github.io/packs/swe-prometheus-governance#>
+    SELECT ?id ?path ?preimage ?operator ?old ?new ?text WHERE {
+      ?case a spg:RetrofitCase ; spg:mutationSpec ?mutation .
+      ?mutation spg:mutationId ?id ;
+                spg:path ?path ;
+                spg:beforeSha256 ?preimage ;
+                spg:operator ?operator .
+      OPTIONAL { ?mutation spg:oldText ?old }
+      OPTIONAL { ?mutation spg:newText ?new }
+      OPTIONAL { ?mutation spg:text ?text }
+    } ORDER BY ?id
+---
+{% for c in cases %}
+{
+  "schema": "autofde-lab.swe-prometheus-mutation-manifest/1",
+  "repository": "{{ c.repository }}",
+  "base_commit": "{{ c.baseCommit }}",
+  "patch_digest": "{{ c.patchDigest }}",
+  "include_git_metadata": false,
+  "verifier": {
+    "argv": {{ c.argv }},
+    "cwd": "{{ c.cwd | default(value='.') }}",
+    "timeout_seconds": {{ c.timeout | default(value=60) }},
+    "expected_exit": {{ c.expected | default(value=0) }},
+    "detection_mode": "{{ c.mode | default(value='exit_changed') }}"
+  },
+  "mutations": [
+    {% for m in mutations %}
+    {
+      "id": "{{ m.id }}",
+      "path": "{{ m.path }}",
+      "before_sha256": "{{ m.preimage }}",
+      "operator": "{{ m.operator }}"{% if m.old %},
+      "old": {{ m.old | tojson }}{% endif %}{% if m.new %},
+      "new": {{ m.new | tojson }}{% endif %}{% if m.text %},
+      "text": {{ m.text | tojson }}{% endif %}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ]
+}
+{% endfor %}

@@ -1,0 +1,45 @@
+# Violation rows: every case needs one clean + one replay receipt; every bound
+# receipt needs an id and typed verdict. Detected mutation receipts remain gate 030.
+PREFIX spg: <https://seanchatmangpt.github.io/packs/swe-prometheus-governance#>
+SELECT ?case ?field ?receipt WHERE {
+  {
+    ?case a spg:RetrofitCase .
+    OPTIONAL { ?case spg:cleanEnvironmentReceipt ?r1 . BIND(?r1 AS ?w1) }
+    FILTER(!BOUND(?w1))
+    BIND("missing-clean-receipt" AS ?field)
+  } UNION {
+    ?case a spg:RetrofitCase .
+    OPTIONAL { ?case spg:replayReceipt ?r2 . BIND(?r2 AS ?w2) }
+    FILTER(!BOUND(?w2))
+    BIND("missing-replay-receipt" AS ?field)
+  } UNION {
+    ?case a spg:RetrofitCase ; spg:cleanEnvironmentReceipt ?receipt .
+    OPTIONAL { ?receipt spg:receiptId ?id1 . BIND(?id1 AS ?w3) }
+    FILTER(!BOUND(?w3))
+    BIND("clean-receipt-missing-id" AS ?field)
+  } UNION {
+    ?case a spg:RetrofitCase ; spg:cleanEnvironmentReceipt ?receipt .
+    OPTIONAL { ?receipt spg:verdict ?v1 . BIND(?v1 AS ?w4) }
+    FILTER(!BOUND(?w4))
+    BIND("clean-receipt-missing-verdict" AS ?field)
+  } UNION {
+    ?case a spg:RetrofitCase ; spg:replayReceipt ?receipt .
+    OPTIONAL { ?receipt spg:receiptId ?id2 . BIND(?id2 AS ?w5) }
+    FILTER(!BOUND(?w5))
+    BIND("replay-receipt-missing-id" AS ?field)
+  } UNION {
+    ?case a spg:RetrofitCase ; spg:replayReceipt ?receipt .
+    OPTIONAL { ?receipt spg:verdict ?v2 . BIND(?v2 AS ?w6) }
+    FILTER(!BOUND(?w6))
+    BIND("replay-receipt-missing-verdict" AS ?field)
+  } UNION {
+    ?case a spg:RetrofitCase ; spg:cleanEnvironmentReceipt ?a, ?b .
+    FILTER(STR(?a) < STR(?b))
+    BIND("duplicate-clean-receipt" AS ?field)
+  } UNION {
+    ?case a spg:RetrofitCase ; spg:replayReceipt ?a, ?b .
+    FILTER(STR(?a) < STR(?b))
+    BIND("duplicate-replay-receipt" AS ?field)
+  }
+}
+ORDER BY ?case ?field ?receipt

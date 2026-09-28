@@ -1,0 +1,31 @@
+# Violation rows: PASS evidence has one base/treated score each; non-PASS
+# evidence has no score, preventing stale score reuse after a probe failure.
+PREFIX spg: <https://seanchatmangpt.github.io/packs/swe-prometheus-governance#>
+SELECT ?obs ?field WHERE {
+  {
+    ?obs a spg:DimensionObservation ;
+         spg:evidenceStatus "pass" ;
+         spg:baseScore ?a, ?b .
+    FILTER(?a < ?b || ?b < ?a)
+    BIND("multiple-base-scores" AS ?field)
+  } UNION {
+    ?obs a spg:DimensionObservation ;
+         spg:evidenceStatus "pass" ;
+         spg:treatedScore ?a, ?b .
+    FILTER(?a < ?b || ?b < ?a)
+    BIND("multiple-treated-scores" AS ?field)
+  } UNION {
+    ?obs a spg:DimensionObservation ;
+         spg:evidenceStatus ?status ;
+         spg:baseScore ?score .
+    FILTER(?status != "pass")
+    BIND("nonpass-has-base-score" AS ?field)
+  } UNION {
+    ?obs a spg:DimensionObservation ;
+         spg:evidenceStatus ?status ;
+         spg:treatedScore ?score .
+    FILTER(?status != "pass")
+    BIND("nonpass-has-treated-score" AS ?field)
+  }
+}
+ORDER BY ?obs ?field

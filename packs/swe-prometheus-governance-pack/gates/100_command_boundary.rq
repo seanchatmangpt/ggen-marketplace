@@ -1,0 +1,22 @@
+# Violation rows: generated commands remain argv arrays and cwd stays under root.
+# Full JSON parsing remains the autofde runtime's authority; this is the RDF-side
+# cheapest structural guard.
+PREFIX spg: <https://seanchatmangpt.github.io/packs/swe-prometheus-governance#>
+SELECT ?plan ?field WHERE {
+  {
+    ?plan spg:argvJson ?argv .
+    FILTER(!STRSTARTS(STR(?argv), "[") || !STRENDS(STR(?argv), "]"))
+    BIND("argv-not-json-array-shaped" AS ?field)
+  } UNION {
+    ?plan spg:cwd ?cwd .
+    FILTER(STRSTARTS(STR(?cwd), "/") ||
+           CONTAINS(STR(?cwd), "../") ||
+           STR(?cwd) = "..")
+    BIND("cwd-escapes-subject-root" AS ?field)
+  } UNION {
+    ?plan spg:timeoutSeconds ?timeout .
+    FILTER(?timeout <= 0 || ?timeout > 3600)
+    BIND("timeout-out-of-runtime-range" AS ?field)
+  }
+}
+ORDER BY ?field ?plan
