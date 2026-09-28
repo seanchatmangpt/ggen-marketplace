@@ -1,0 +1,38 @@
+@prefix aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#> .
+
+# Positive qualification consumer for `ggen sync run` (scripts/qualify_packs.py
+# projection profile, and scripts/ash_pack_live_fixture.sh).
+#
+# The pack ontology's three worked specs all set aex:workflowReactor false, so before
+# this file reactor_pipeline.ex.tmpl had zero driving rows and was never rendered by a
+# real sync (errc-tracker.md, "reactor_pipeline renders 0 rows"). This spec opts into
+# BOTH independent capabilities (ontology.ttl's workflowReactor/generatesReceiptedAction
+# boundary comment): a three-step Reactor pipeline with exactly one return step
+# (gates/040) and the receipted-action wrapper with a caller-supplied idempotency key.
+# fixture/ compiles and executes exactly what ggen projects from this spec.
+
+aex:PipelineProbeSpec a aex:AshExtensionSpec ;
+    aex:packageName "pipeline_probe" ;
+    aex:moduleName "PipelineProbe" ;
+    aex:extensionTarget "resource" ;
+    aex:workflowReactor true ;
+    aex:workflowReversible false ;
+    aex:generatesReceiptedAction true ;
+    aex:receiptIdempotencyKeySource "caller_supplied" .
+
+aex:PipelineProbeAdmitStep a aex:ReactorStep ;
+    aex:stepOf aex:PipelineProbeSpec ;
+    aex:stepName "admit" ; aex:stepOrder 1 ; aex:stepModule "Admit" ;
+    aex:stepMaxRetries 0 ; aex:stepHasCompensate false ; aex:stepIsReturn false .
+
+aex:PipelineProbeDeliverStep a aex:ReactorStep ;
+    aex:stepOf aex:PipelineProbeSpec ;
+    aex:stepName "deliver" ; aex:stepOrder 2 ; aex:stepModule "Deliver" ;
+    aex:stepWaitFor aex:PipelineProbeAdmitStep ;
+    aex:stepMaxRetries 2 ; aex:stepHasCompensate false ; aex:stepIsReturn false .
+
+aex:PipelineProbeSealStep a aex:ReactorStep ;
+    aex:stepOf aex:PipelineProbeSpec ;
+    aex:stepName "seal" ; aex:stepOrder 3 ; aex:stepModule "Seal" ;
+    aex:stepWaitFor aex:PipelineProbeDeliverStep ;
+    aex:stepMaxRetries 0 ; aex:stepHasCompensate false ; aex:stepIsReturn true .
