@@ -1,0 +1,37 @@
+@prefix k8s: <http://seanchatmangpt.github.io/packs/kubernetes#> .
+@prefix ex:  <https://example.com/negative-controls/privileged-container#> .
+
+# VERIFIED REFUSAL since v0.2.0 (was privileged-container-KNOWN_GAP in
+# v0.1.0, when gate 010 checked only the PRESENCE of the raw
+# securityContext block and admitted this graph unchanged).
+#
+# gates/020_privilege_refusal.rq reads the raw block's CONTENT fail-closed:
+# the only lawful spelling of either privilege key is the exact line
+# `privileged: false` / `allowPrivilegeEscalation: false`. This container
+# says `true` for both and binds no k8s:SecurityException, so it is
+# refused before any Deployment exists -- the ordinary-workload semantics
+# have no privileged artifact in their image. Compare
+# ../../privileged-typed-exception/ (same keys, complete typed exception,
+# admitted) and ../privileged-incomplete-exception/ (partial exception,
+# refused). See ../../control-mapping/control-map.md's SEC-PRIV-001 row.
+#
+# Verify:
+#   ggen sync run --dry-run
+# Expected: REFUSED, one row:
+#   ex:privilegedContainer PRIVILEGE_UNWAIVED k8s:containerSecurityContextBlock
+
+ex:privilegedWorkload a k8s:Workload ;
+  k8s:workloadName "privileged-demo" ;
+  k8s:fileName "privileged-demo.yaml" ;
+  k8s:podSecurityContextBlock """runAsNonRoot: false""" .
+
+ex:privilegedContainer a k8s:Container ;
+  k8s:inWorkload ex:privilegedWorkload ;
+  k8s:containerName "privileged-demo" ;
+  k8s:image "example/app:1.0.0" ;
+  k8s:resourceRequestsBlock """cpu: 100m
+memory: 128Mi""" ;
+  k8s:resourceLimitsBlock """cpu: 250m
+memory: 256Mi""" ;
+  k8s:containerSecurityContextBlock """privileged: true
+allowPrivilegeEscalation: true""" .

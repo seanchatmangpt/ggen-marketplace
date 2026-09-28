@@ -34,6 +34,31 @@ before this pack existed (0 of 3 workloads on the pre-hardening `xaas`
 cluster set a `securityContext`; a `512Mi` memory limit OOM-killed a real
 migration mid-run before being raised).
 
+## Real gate: `gates/020_privilege_refusal.rq` (v0.2.0, SEC-PRIV-001)
+
+Refuses a privileged or escalation-capable container **before** a Deployment
+exists, instead of rendering it and hoping Kyverno/Trivy/Kubescape or Pod
+Security Admission (which only *warns* on a Deployment wrapper) notice later.
+The raw securityContext blocks stay raw; the gate reads their content
+fail-closed:
+
+| Row | Refuses |
+|---|---|
+| `PRIVILEGE_UNWAIVED` | any mention of `privileged` / `allowPrivilegeEscalation` in any raw block of a container or its workload other than the exact line `...: false`, unless the container binds a complete typed exception |
+| `EXCEPTION_INCOMPLETE` | a `k8s:privilegeException` whose `k8s:SecurityException` lacks the `SEC-PRIV-001` control id, rationale, compensating control or approver |
+| `SECURITY_BLOCK_OBFUSCATION` | YAML escapes, anchors/aliases or merge keys in a securityContext block (they can name a key without its plain letters) -- exception or not |
+| `SCALAR_LINE_BREAK` | a line break in any scalar literal (scalars are spliced unescaped; a newline in `k8s:containerName` would inject a `securityContext` key) |
+
+For ordinary workload facts the generator's image contains no privileged
+container: the only lawful route is the typed exception in
+`examples/privileged-typed-exception/`. Verdicts across every fixture and a
+13-spelling sweep are pinned on two SPARQL engines in
+`tests/test_kubernetes_privilege_gate.py`, and were cross-checked through
+ggen_igniter's oxigraph NIF (`scripts/igniter_gate_matrix.exs`).
+
+What it does **not** cover: `capabilities.add` contents (SEC-CTR-002), image
+digests (SEC-IMG-001), approver authentication or exception expiry.
+
 ## Try it
 
 See `examples/xaas-workload.ttl` and `playground/SCRATCH.md`.
