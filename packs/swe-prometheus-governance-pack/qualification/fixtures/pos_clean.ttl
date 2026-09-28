@@ -9,6 +9,9 @@
   spg:mutationReceipt <urn:r:mutation> ;
   spg:cleanEnvironmentReceipt <urn:r:clean> ;
   spg:replayReceipt <urn:r:replay> ;
+  spg:probeSpec <urn:p:tests>, <urn:p:behavior> ;
+  spg:verifierSpec <urn:v:behavior> ;
+  spg:mutationSpec <urn:m:flip> ;
   spg:dimensionObservation
     <urn:d:1>, <urn:d:2>, <urn:d:3>, <urn:d:4>, <urn:d:5>, <urn:d:6> .
 
@@ -21,6 +24,42 @@
 <urn:r:replay> a spg:EvidenceReceipt ;
   spg:receiptId "sha256:replay" ;
   spg:verdict "PASS" .
+
+<urn:p:tests> a spg:ProbeSpec ;
+  spg:probeId "tests" ;
+  spg:role "governance" ;
+  spg:scope "both" ;
+  spg:governanceDimension spg:D1 ;
+  spg:argvJson "[\"python\",\"-m\",\"pytest\"]" ;
+  spg:cwd "." ;
+  spg:timeoutSeconds 60 ;
+  spg:expectedExit 0 ;
+  spg:comparison "exit_only" .
+
+<urn:p:behavior> a spg:ProbeSpec ;
+  spg:probeId "behavior" ;
+  spg:role "behavior" ;
+  spg:scope "both" ;
+  spg:argvJson "[\"python\",\"-m\",\"pytest\",\"tests/behavior\"]" ;
+  spg:cwd "." ;
+  spg:timeoutSeconds 60 ;
+  spg:expectedExit 0 ;
+  spg:comparison "stdout_digest" .
+
+<urn:v:behavior> a spg:VerifierSpec ;
+  spg:argvJson "[\"python\",\"-m\",\"pytest\",\"tests/behavior\"]" ;
+  spg:cwd "." ;
+  spg:timeoutSeconds 60 ;
+  spg:expectedExit 0 ;
+  spg:detectionMode "exit_changed" .
+
+<urn:m:flip> a spg:MutationSpec ;
+  spg:mutationId "flip-assertion" ;
+  spg:path "src/example.py" ;
+  spg:beforeSha256 "sha256:0123456789abcdef" ;
+  spg:operator "replace_once" ;
+  spg:oldText "return True" ;
+  spg:newText "return False" .
 
 <urn:d:1> a spg:DimensionObservation ;
   spg:dimension spg:D1 ; spg:evidenceStatus "pass" ;

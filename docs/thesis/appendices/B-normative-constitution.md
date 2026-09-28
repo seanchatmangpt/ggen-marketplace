@@ -2,7 +2,7 @@
 
 ## 1. Status of this chapter
 
-This chapter extracts the repository's architectural doctrine into a compact normative specification. It is intended to become progressively executable: each requirement should either map to an existing validator, map to a planned validator with a named gap, or be removed if it cannot be operationalized.
+This chapter extracts the repository's architectural doctrine into a compact normative specification. It is intended to become progressively executable: each requirement should either map to an existing validator/court, map to a planned validator with a named gap, or be removed if it cannot be operationalized.
 
 The key words **MUST**, **MUST NOT**, **REQUIRED**, **SHALL**, **SHALL NOT**, **SHOULD**, **SHOULD NOT**, **RECOMMENDED**, **NOT RECOMMENDED**, **MAY**, and **OPTIONAL** are to be interpreted as described by BCP 14 (RFC 2119 and RFC 8174) when, and only when, they appear in all capitals.
 
@@ -14,12 +14,15 @@ The marketplace governs these objects:
 
 - **marketplace** — the admitted registry source and policy;
 - **pack** — a reusable semantic manufacturing contract;
+- **pack profile** — packaging shape (`projection`, `semantic`, or `project`);
+- **pack class** — semantic responsibility such as kernel, capability, profile/world, compatibility, evidence, release-control, or umbrella;
 - **consumer** — an admitted subject that invokes one or more packs;
 - **artifact** — a manufactured consequence;
 - **gate** — a predicate that can admit or refuse a subject;
 - **receipt** — evidence about an observed transition;
 - **standing** — evidence-derived status of a claim;
 - **actuation** — a consequential external transition;
+- **Diátaxis surface** — Tutorial, How-to, Reference, or Explanation projection bound to the same contract;
 - **release capsule** — a bounded collection of source identity, toolchain identity, artifacts, and receipts sufficient for independent verification under a declared reproducibility class.
 
 ## 3. Source authority
@@ -34,7 +37,7 @@ Generated files **MUST NOT** silently become a second source of truth merely bec
 
 ### GGM-SRC-003 — Source hierarchy
 
-The repository **MUST** define where marketplace policy, pack identity, ontology, templates, gates, fixtures, and generated consequences belong.
+The repository **MUST** define where marketplace policy, pack identity, ontology, templates, gates, fixtures, documentation control source, and generated consequences belong.
 
 ### GGM-SRC-004 — No hidden generated metadata namespace
 
@@ -43,6 +46,10 @@ Repository conventions that prohibit a generated metadata namespace **MUST** be 
 ### GGM-SRC-005 — No pack symlinks
 
 Pack source **MUST NOT** use symlink indirection where repository policy forbids it. A pack archive/fingerprint **MUST** describe the files actually admitted.
+
+### GGM-SRC-006 — Volatile operational facts
+
+Runtime release identities, asset digests, worker counts, timeout bounds, and other executable marketplace configuration **MUST NOT** be independently copied into scripts or normative documentation when `marketplace.toml` is the admitted source of truth.
 
 ## 4. Pack identity
 
@@ -61,6 +68,10 @@ Qualification evidence **MUST** bind to the exact admitted pack source or a cryp
 ### GGM-PACK-004 — Description is metadata, not proof
 
 Catalog metadata **MUST NOT** be interpreted as evidence that a pack manufactures successfully.
+
+### GGM-PACK-005 — Profile/class separation
+
+A packaging profile **MUST NOT** be treated as a semantic responsibility class, maturity level, or standing state.
 
 ## 5. Semantic source
 
@@ -270,11 +281,61 @@ The architecture **SHOULD** distinguish semantic reference, construction depende
 
 Receipt reuse **MAY** reduce validation work only when unchanged proof dependencies and equivalence conditions are established.
 
-## 15. Documentation and publication
+### GGM-COMP-005 — Class closure before duplication
+
+When multiple packs independently own semantically equivalent protocol, lifecycle, maturity, authority, or projection law, contributors **SHOULD** factor the shared authority into a canonical kernel/capability rather than create another independent copy.
+
+### GGM-COMP-006 — Preserve non-equivalence
+
+Class closure **MUST NOT** erase domain/world/runtime/compatibility differences unless equivalence or supersession has been established for the affected consumer contract.
+
+## 15. Level-5 maturity and class closure
+
+### GGM-L5-001 — Vector, not average
+
+Level-5 maturity **MUST** be evaluated as claim-relevant closure across semantic source, admission, manufacture, execution, receipt/replay, authority fencing, and composition. A stronger result on one dimension **MUST NOT** compensate for a missing required dimension.
+
+### GGM-L5-002 — Exact-subject crown
+
+A Level-5 standing claim **MUST** bind the exact subject and the exact boundaries executed. Pack name, version label, directory existence, generated documentation, or historical CI success are insufficient.
+
+### GGM-L5-003 — Diátaxis closure
+
+A Level-5 capability **MUST** expose Tutorial, How-to, Reference, and Explanation surfaces whose claims correspond to the same admitted semantic/manufacturing contract.
+
+### GGM-L5-004 — Structural docs are not execution
+
+A generated four-quadrant Diátaxis tree **MUST NOT** be interpreted as proof of domain behavior, external-system effect, or consequential authority without the corresponding execution evidence.
+
+### GGM-L5-005 — Generic maturity infrastructure cannot invent domain facts
+
+A generic maturity/qualification pack **MUST NOT** manufacture missing domain invariants, negative witnesses, benchmark outcomes, customer acceptance, cloud observations, or DO authority from the absence of domain evidence.
+
+### GGM-L5-006 — Pack class is explicit
+
+A Level-5 family **SHOULD** identify canonical semantic responsibility using pack classes and explicit composition/supersession relations rather than relying on names or directory shape.
+
+### GGM-L5-007 — Consolidation requires equivalence or migration evidence
+
+Physical merge, deletion, or supersession of overlapping packs **MUST NOT** occur solely from naming/structural similarity. The transition **MUST** preserve or explicitly migrate semantic authority, target ownership, admission/refusal behavior, runtime/toolchain requirements, receipt obligations, authority ceilings, provenance, and affected consumers.
+
+### GGM-L5-008 — Authority non-escalation under consolidation
+
+A class-closure/umbrella transition **MUST NOT** widen consequential authority unless a distinct authority contract is admitted and receipted.
+
+### GGM-L5-009 — Typed consolidation findings
+
+Where mechanized, consolidation analysis **SHOULD** emit typed findings for duplicate semantic authority, target conflicts, orphan profiles, umbrella cycles, missing successors, unmigrated consumers, missing kernels, and authority widening rather than mutating the corpus automatically.
+
+### GGM-L5-010 — Requalification after semantic/documentation drift
+
+A change to claim-relevant semantic source, admission, manufacturer/toolchain, runtime, authority, composition, or Level-5 documentation correspondence **MUST** invalidate/requalify the affected standing closure.
+
+## 16. Documentation and publication
 
 ### GGM-DOC-001 — Diátaxis preservation
 
-Tutorial, how-to, reference, and explanation documents **SHOULD** remain distinct in purpose. Research synthesis **MAY** cross-reference them but **SHOULD NOT** erase their operational roles.
+Tutorial, How-to, Reference, and Explanation documents **MUST** remain distinct in purpose for Level-5 surfaces. Research synthesis **MAY** cross-reference them but **SHOULD NOT** erase their operational roles.
 
 ### GGM-DOC-002 — Generated navigation
 
@@ -282,13 +343,21 @@ When book navigation is modeled semantically, `SUMMARY.md` **MUST** remain a gen
 
 ### GGM-DOC-003 — Target compiler
 
-The generated documentation control surface **MUST** be accepted by the actual pinned target compiler before the build can receive `ALIVE` standing.
+The generated documentation control surface **MUST** be accepted by the actual pinned target compiler before the book-build boundary can receive `ALIVE` standing.
 
 ### GGM-DOC-004 — Publication is distinct
 
 A successful static book build **MUST NOT** be reported as successful public deployment until the publication actuator executes and returns evidence.
 
-## 16. CI and workflow law
+### GGM-DOC-005 — Reference anti-duplication
+
+Exact reference facts that have an admitted executable source **SHOULD** be projected or linked to that source rather than copied as independently maintained volatile prose.
+
+### GGM-DOC-006 — Documentation authority ceiling
+
+Documentation generation, rendering, and publication **MUST NOT** grant semantic or consequential authority beyond the source/actuation contracts that produced them.
+
+## 17. CI and workflow law
 
 ### GGM-CI-001 — Workflow definition is not execution
 
@@ -306,7 +375,7 @@ Automated courts **SHOULD** declare finite timeout bounds so a hung validator be
 
 Validation CI **MUST NOT** silently rewrite and push corrections to pack source unless such mutation is a distinct explicitly authorized workflow.
 
-## 17. Release law
+## 18. Release law
 
 ### GGM-REL-001 — Release subject
 
@@ -320,21 +389,25 @@ A research-grade release **SHOULD** publish enough source/toolchain/evidence met
 
 Release notes **MUST NOT** imply execution of boundaries that were skipped. Missing higher-tier evidence **SHOULD** remain visible as `UNKNOWN`, `BLOCKED`, or another accurate standing.
 
-## 18. Requirement-to-enforcement matrix
+## 19. Requirement-to-enforcement matrix
 
-The constitution should eventually be generated into a machine-readable matrix with one row per requirement:
+The constitution should progressively become a machine-readable matrix with one row per requirement:
 
 | Requirement | Current enforcement | Negative control | Receipt field | Standing dependency |
 |---|---|---|---|---|
-| GGM-PACK-001 | marketplace validator | mismatched directory/name | subject.pack | admission |
-| GGM-PROJ-003 | qualification court | pack source mutation | consequence/source digests | qualification |
-| GGM-ID-003 | exact-head workflow assertion | deliberate SHA mismatch | subject.commit/tree | all CI crowns |
+| GGM-PACK-001 | marketplace validator | mismatched directory/name | `subject.pack` | admission |
+| GGM-PROJ-003 | qualification court | pack source mutation | source/consequence digests | qualification |
+| GGM-ID-003 | exact-head workflow assertion | deliberate SHA mismatch | `subject.commit/tree` | all CI crowns |
 | GGM-AUTH-005 | workflow permissions/jobs | deploy from PR qualification | authority witness | deployment |
-| GGM-DOC-003 | `mdbook build` | malformed generated summary | compiler result | book build |
+| GGM-DOC-003 | `mdbook build` | malformed generated summary | target-compiler result | book build |
+| GGM-L5-003 | generated `L5-DOC-*` structural court | missing quadrant/required marker | documentation correspondence | Level-5 docs |
+| GGM-L5-005 | generic maturity-pack scope + domain courts | absent domain fact/witness | domain evidence refs | Level-5 domain claim |
+| GGM-L5-007 | consolidation procedure; machine court OPEN | incompatible consumer/target/authority pair | migration/equivalence receipt | class closure |
+| GGM-L5-008 | authority policy + consolidation review | umbrella authority widening | authority before/after | class closure/DO |
 
 Rows without enforcement are explicit research/engineering gaps, not implied guarantees.
 
-## 19. Constitutional amendment rule
+## 20. Constitutional amendment rule
 
 A rule SHOULD be changed when one of the following is true:
 
@@ -346,10 +419,14 @@ A rule SHOULD be changed when one of the following is true:
 
 Amendments SHOULD preserve historical receipts by versioning the policy identity used to derive standing.
 
-## 20. Constitutional principle
+## 21. Constitutional principle
 
 The constitution reduces to one governing invariant:
 
 > **No artifact acquires more semantic authority, execution authority, or evidentiary standing than is justified by its admitted source, explicit transition contract, and observed receipts.**
 
-Everything else in the marketplace is an implementation of that bound.
+Level 5 adds one portfolio corollary:
+
+> **No pack family acquires class closure merely by accumulation: repeated truth is canonicalized, non-equivalence remains explicit, and every maturity crown stays bounded by exact evidence.**
+
+Everything else in the marketplace is an implementation of those bounds.

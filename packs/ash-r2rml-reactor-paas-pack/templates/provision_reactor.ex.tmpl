@@ -1,0 +1,180 @@
+{% for row in results %}defmodule {{ row.workflowModule }} do
+  @moduledoc """
+  Generated Reactor for {{ row.workflowLabel }}.
+
+  register service -> request intent -> admit against authority policies
+  (deny by default) -> AshR2RML semantic closure -> start receipt ->
+  injected actuation -> seal receipt -> finalize intent.
+
+  Actuation happens only for an admitted intent and only between a started
+  and a sealed receipt. Edit ontology/profile/templates, never this projection.
+  """
+
+  use Reactor
+
+  require Ash.Query
+
+  input :service
+  input :intent
+  input :action
+  input :actuator
+
+  step :register_service do
+    argument :service, input(:service)
+
+    run fn %{service: service}, _context ->
+      {{ row.serviceModule }}
+      |> Ash.Changeset.for_create(:register, service)
+      |> Ash.create(domain: {{ row.domainModule }})
+    end
+  end
+
+  step :request_intent do
+    argument :service, result(:register_service)
+    argument :intent, input(:intent)
+
+    run fn %{service: service, intent: intent}, _context ->
+      attrs = Map.put(intent, :service_ref, {{ row.contractModule }}.subject(:service, service.id))
+
+      {{ row.intentModule }}
+      |> Ash.Changeset.for_create(:request, attrs)
+      |> Ash.create(domain: {{ row.domainModule }})
+    end
+  end
+
+  step :admit do
+    argument :intent, result(:request_intent)
+    argument :action, input(:action)
+
+    run fn %{intent: intent, action: action}, _context ->
+      requested_by = intent.requested_by
+      target = intent.target
+
+      {:ok, policies} =
+        {{ row.policyModule }}
+        |> Ash.Query.filter(actor == ^requested_by and action == ^action and target == ^target)
+        |> Ash.read(domain: {{ row.domainModule }})
+
+      decisions = Enum.map(policies, & &1.decision)
+      admitted? = :permit in decisions and :deny not in decisions
+      transition = if admitted?, do: :mark_admitted, else: :mark_refused
+
+      intent
+      |> Ash.Changeset.for_update(transition, %{})
+      |> Ash.update(domain: {{ row.domainModule }})
+    end
+  end
+
+  step :semantic_closure do
+    argument :intent, result(:admit)
+
+    run fn %{intent: intent}, _context ->
+      with {:ok, r2rml} <- AshR2RML.R2RML.render({{ row.contractModule }}.resources()) do
+        subject = {{ row.contractModule }}.subject(:intent, intent.id)
+        {:ok, AshR2RML.Compiler.sha256(r2rml <> "\n" <> subject)}
+      end
+    end
+  end
+
+  step :start_receipt do
+    argument :intent, result(:admit)
+    argument :semantic_hash, result(:semantic_closure)
+
+    run fn %{intent: intent, semantic_hash: semantic_hash}, _context ->
+      case intent.status do
+        :admitted ->
+          {{ row.receiptModule }}
+          |> Ash.Changeset.for_create(:start, %{
+            intent_ref: {{ row.contractModule }}.subject(:intent, intent.id),
+            status: :started,
+            semantic_hash: semantic_hash
+          })
+          |> Ash.create(domain: {{ row.domainModule }})
+
+        _refused ->
+          {:ok, nil}
+      end
+    end
+  end
+
+  step :actuate do
+    argument :intent, result(:admit)
+    argument :receipt, result(:start_receipt)
+    argument :semantic_hash, result(:semantic_closure)
+    argument :actuator, input(:actuator)
+
+    run fn args, _context ->
+      case args.receipt do
+        nil ->
+          {:ok, :not_actuated}
+
+        receipt ->
+          request = %{intent: args.intent, receipt: receipt, semantic_hash: args.semantic_hash}
+          {:ok, args.actuator.actuate(request)}
+      end
+    end
+  end
+
+  step :seal_receipt do
+    argument :receipt, result(:start_receipt)
+    argument :outcome, result(:actuate)
+
+    run fn
+      %{receipt: nil}, _context ->
+        {:ok, nil}
+
+      %{receipt: receipt, outcome: outcome}, _context ->
+        attrs =
+          case outcome do
+            {:ok, %{artifact_hash: artifact_hash, result: result}} ->
+              %{status: :succeeded, artifact_hash: artifact_hash, result: result}
+
+            {:error, reason} ->
+              %{status: :failed, result: inspect(reason)}
+          end
+
+        receipt
+        |> Ash.Changeset.for_update(:seal, attrs)
+        |> Ash.update(domain: {{ row.domainModule }})
+    end
+  end
+
+  step :finalize do
+    argument :intent, result(:admit)
+    argument :receipt, result(:seal_receipt)
+
+    run fn
+      %{intent: intent, receipt: %{status: :succeeded} = receipt}, _context ->
+        with {:ok, intent} <-
+               intent
+               |> Ash.Changeset.for_update(:mark_executed, %{})
+               |> Ash.update(domain: {{ row.domainModule }}) do
+          {:ok, %{status: :executed, intent: intent, receipt: receipt}}
+        end
+
+      %{intent: %{status: :refused} = intent}, _context ->
+        {:ok, %{status: :refused, intent: intent, receipt: nil}}
+
+      %{intent: intent, receipt: receipt}, _context ->
+        {:ok, %{status: :actuation_failed, intent: intent, receipt: receipt}}
+    end
+  end
+
+  return :finalize
+
+  @doc """
+  Run the workflow. `params` carries `:service`, `:intent` and `:action`;
+  `opts[:actuator]` injects runtime DO and defaults to the refusing actuator.
+  """
+  def provision(params, opts \\ []) do
+    inputs = %{
+      service: Map.fetch!(params, :service),
+      intent: Map.fetch!(params, :intent),
+      action: Map.fetch!(params, :action),
+      actuator: Keyword.get(opts, :actuator, {{ row.contractModule }}.default_actuator())
+    }
+
+    Reactor.run(__MODULE__, inputs, %{}, async?: false)
+  end
+end
+{% endfor %}

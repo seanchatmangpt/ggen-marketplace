@@ -1,6 +1,6 @@
 # Initial ggen pack extraction receipt
 
-The marketplace began by extracting the complete `packs/` subtree from the ggen monorepo without editing the imported bytes.
+The marketplace began by extracting the complete `packs/` subtree from the ggen monorepo without editing the imported bytes. This file is a **historical migration receipt**. It records what was observed at each migration epoch; it is not the current pack contract, current marketplace version, or current Level-5 standing. For current law, use `AGENTS.md`, `marketplace.toml`, and `docs/reference/**`.
 
 ## Bound identities
 
@@ -29,33 +29,25 @@ After import, the destination `packs/` Git tree was `4d70ae027004db829a8c334d201
 
 ## Post-import admission repair
 
-The exact import intentionally precedes marketplace cleanup so provenance and modernization are not conflated. The first exhaustive marketplace validator then surfaced historical corpus debt.
+The exact import intentionally preceded marketplace cleanup so provenance and modernization were not conflated. The first exhaustive marketplace validator then surfaced historical corpus debt.
 
-Three source directories are excluded from the published marketplace because their own READMEs establish that they are not live reusable packs:
+Three source directories were excluded from the published marketplace because their own READMEs established that they were not live reusable packs:
 
 - `sbb-capability-density-pack` — explicitly `ORPHANED / SUPERSEDED`, zero consumers, with its README prescribing deletion;
 - `vision-2030-phase-change-pack` — explicitly `ORPHANED — zero consumers`, not compatible with the live Vision 2030 CLI input shape;
-- `rust-dialect-pack` — explicitly experimental, not wired into `ggen sync`/CI, and contains no `pack.toml`.
+- `rust-dialect-pack` — explicitly experimental, not wired into `ggen sync`/CI, and contained no `pack.toml`.
 
 Five live packs had valid names/versions but missing descriptions; their descriptions were repaired from each pack's own README rather than invented from outside context.
 
-The validator also learned the actual corpus contract: `.tera` and `.tmpl` are both template sources, project packs may keep RDF under `ontology/`, semantic packs need not contain templates, `.gitkeep` is scaffolding rather than executable content, and manifests may carry pack-specific extension tables in addition to `[pack]`.
+The marketplace validator also learned the observed corpus packaging shapes: `.tera` and `.tmpl` template sources, project packs with RDF under `ontology/`, semantic packs without templates, and dotfile scaffolding such as `.gitkeep`. That marketplace observation must not be confused with the real ggen loader's manifest schema. Current loader/marketplace compatibility law is documented in [`docs/reference/pack-contract.md`](docs/reference/pack-contract.md); do not infer that arbitrary `[pack]` extension keys are accepted by ggen merely because a lenient catalog parser can inspect them.
 
 The historical source-tree identity remains the extraction receipt; subsequent admission commits establish the curated marketplace state.
 
 ## 2026-08-10 second-wave extraction (10 packs, three source repositories)
 
-A local filesystem search across the maintainer's machine found 34 real, non-duplicate ggen
-pack candidates outside this marketplace. Ten were selected by richness (ontology depth,
-`sparql:`-driven template coverage, real domain grounding) and copied byte-for-byte, excluding
-any candidate whose design depends on a symlink to its source repository's own files (this
-marketplace's pack contract refuses symlinks under `packs/` — see
-[`docs/reference/pack-contract.md`](docs/reference/pack-contract.md) — so `gymact-bridge-pack`,
-`multicloud-gym-pack`, and `otel-weaver-pack` were excluded rather than imported as stale
-snapshots that silently lose their "always the same file as the source" guarantee).
+A local filesystem search across the maintainer's machine found 34 real, non-duplicate ggen pack candidates outside this marketplace. Ten were selected by richness (ontology depth, `sparql:`-driven template coverage, real domain grounding) and copied byte-for-byte, excluding any candidate whose design depended on a symlink to its source repository's own files. The marketplace contract refuses symlinks under `packs/`, so those candidates were excluded rather than imported as stale snapshots that silently lost their source-link guarantee.
 
-Bound identities at copy time (each source repository's own `HEAD`, working tree clean at the
-copied paths — verified via `git status --porcelain` before copying):
+Bound identities at copy time (each source repository's own `HEAD`, working tree clean at the copied paths — verified via `git status --porcelain` before copying):
 
 | Pack | Source repository | Source commit |
 |---|---|---|
@@ -70,12 +62,20 @@ copied paths — verified via `git status --porcelain` before copying):
 | `azure-terraform-pack` | `~/praxis` (`packs/azure-terraform-pack`) | `bc1272b2605a66d3efaa7a5ab11a5f49e96d67c3` |
 | `ggen-legacy-assurance-pack` | `~/ggen-legacy` (`packs/ggen-legacy-assurance-pack`) | `982fea0a476ae7c74d2c31ab876650bdae1bd6d4` |
 
-`~/praxis` and `~/ggen-legacy` are local-only working repositories (not GitHub remotes this
-document can point a reader at); the commit SHAs above are the exact, reproducible bound
-identity at copy time within those local repos, in the same spirit as this file's own initial
-extraction receipt above, not a claim that they're publicly fetchable.
+`~/praxis` and `~/ggen-legacy` were local working repositories at the migration epoch. The commit SHAs above bind the exact source identity observed in those repos; they are not a claim that those historical local paths remain publicly fetchable.
 
-No content was edited during the copy. Each pack was then admitted by
-`python3 scripts/marketplace.py validate` unchanged (94 packs total post-import) and composed
-with `pack-maturity-pack` in a real consumer to verify `l5p:cap03`/`cap04`/`cap09` — see each
-pack's own `pack.toml` for its specific maturity disclosure.
+No content was edited during the copy. Each pack was then admitted by the marketplace validator unchanged (94 packs total at that historical epoch) and composed with the then-current `pack-maturity-pack` to exercise its generic `l5p:cap03`/`cap04`/`cap09` mechanics.
+
+That result was **not** a global Level-5 crown for those packs. It established only the generic mechanical boundaries that `pack-maturity-pack` could prove for those exact migration subjects. Current Level-5 promotion requires the seven-dimensional closure and Diátaxis correspondence defined in [`docs/reference/level5-maturity-contract.md`](docs/reference/level5-maturity-contract.md).
+
+## Post-migration class closure
+
+As the marketplace grows, future migrations should avoid converting every imported project/profile into a new independent semantic authority. After byte/provenance preservation is receipted, modernization may classify imported packs as kernels, capabilities, profiles/worlds, compatibility surfaces, evidence packs, release-control packs, or umbrellas.
+
+Consolidation is a **separate transition** from migration. Before removing or merging source, prove semantic equivalence/supersession, target ownership compatibility, admission/refusal correspondence, consumer migration, and authority non-escalation. See:
+
+- [`docs/reference/pack-classes.md`](docs/reference/pack-classes.md)
+- [`docs/how-to/consolidate-a-pack-family.md`](docs/how-to/consolidate-a-pack-family.md)
+- [`docs/explanation/class-closure-and-consolidation.md`](docs/explanation/class-closure-and-consolidation.md)
+
+This preserves the core migration principle: exact provenance first, lawful modernization second.

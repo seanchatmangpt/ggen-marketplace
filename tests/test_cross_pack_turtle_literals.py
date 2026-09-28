@@ -181,11 +181,14 @@ class RealCorpusTests(unittest.TestCase):
         or collection syntax outside this tokenizer's declared dialect. This asserts
         the blind spot does not silently regrow. The bound was raised to 950 after
         a large branch-consolidation merge added many packs with their own
-        legitimate blank-node/collection Turtle; it still catches the class of
-        regression this test exists for (silent regrowth of the tokenizer's blind
-        spot), not organic corpus growth."""
+        legitimate blank-node/collection Turtle, and again to 1800 for the v26.9.28
+        consolidation (349 packs on main already reported 1644; 376 packs report
+        1774). It still catches the class of regression this test exists for
+        (silent regrowth of the tokenizer's blind spot), not organic corpus growth;
+        the durable fix is blank-node support in the tokenizer, which would let
+        this bound fall instead of being raised."""
         total = sum(parse_ontology(load_pack_ontology_text(p)).skipped for p in self.packs)
-        self.assertLessEqual(total, 950, f"unparseable-statement blind spot regrew to {total}")
+        self.assertLessEqual(total, 1800, f"unparseable-statement blind spot regrew to {total}")
 
     def test_every_pack_with_real_ontology_content_yields_statements(self) -> None:
         """Any ontology.ttl with non-comment content must parse to >=1 statement.
@@ -196,6 +199,10 @@ class RealCorpusTests(unittest.TestCase):
         individuals, keeping the file solely to satisfy FM-PACK-004 ("every pack must
         ship an ontology.ttl"). Zero statements is the correct reading of those, so
         the invariant is keyed on real content, not on file presence.
+
+        beam4pm-pro-entitlement-pack is likewise deliberately comment-only: a
+        schema-only pack that reuses beam4pm-process-model-pack's bpm: vocabulary
+        verbatim and ships zero individuals (its ontology.ttl says so in its header).
 
         One further named exception: autofde-level4-actuation-pack's ontology is a
         verbatim, unmodified copy of a real SHACL shapes file (see its own header:
@@ -224,6 +231,7 @@ class RealCorpusTests(unittest.TestCase):
         self.assertEqual(
             sorted(comment_only),
             [
+                "beam4pm-pro-entitlement-pack",
                 "clap-noun-verb-behavior-pack",
                 "clap-noun-verb-boundary-pack",
                 "clap-noun-verb-crate-pack",

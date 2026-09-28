@@ -2,13 +2,13 @@
 
 ## 1. Purpose
 
-A dissertation defense should not require the reader to reconstruct the thesis from hundreds of pages. This chapter is the **claim ledger** for the monograph. Every major claim is reduced to:
+A dissertation defense should not require a reader to reconstruct the thesis from hundreds of pages. This chapter is the **claim ledger** for the monograph. Every major claim is reduced to:
 
 - the proposition being defended;
 - the mechanism that could make it true;
-- the evidence currently admissible;
+- evidence currently admissible;
 - the strongest known falsifier;
-- the remaining proof or experiment debt.
+- remaining proof/experiment debt.
 
 The dossier intentionally includes incomplete claims. A research system earns credibility by exposing what is not yet proved.
 
@@ -23,7 +23,7 @@ Claims are classified as:
 - **economic** — statements about cost, throughput, coordination, or labor distribution;
 - **security** — statements about capability, integrity, or adversarial behavior.
 
-A constitutional rule can be valid policy without being a scientific discovery. An implementation can conform to a rule without proving the rule is economically optimal. These categories must remain separate.
+A constitutional rule can be valid policy without being a scientific discovery. Implementation conformance does not prove the rule economically optimal. These categories remain separate.
 
 ## 3. Thesis T1 — semantic source singularity
 
@@ -33,33 +33,27 @@ For classes of multi-representation software change, one admitted semantic autho
 
 ### Mechanism
 
-`semantic fact → deterministic projections`
+```text
+semantic fact → deterministic projections
+```
 
-replaces:
+replaces pairwise synchronization among independently editable representations.
 
-`representation_1 ↔ representation_2 ↔ ... ↔ representation_n`.
+### Evidence
 
-### Formal support
-
-The state-space proposition in the theorem/economics chapters shows that independent duplicate authorities admit inconsistent states that disappear when one source controls projections.
-
-### Implementation evidence
-
-The mdBook experiment models navigation in `docs/book.ttl` and projects `docs/SUMMARY.md` rather than maintaining both independently.
+The mdBook self-hosting path models navigation in `docs/book.ttl` and projects `docs/SUMMARY.md`/`book.toml` rather than maintaining them independently. Marketplace catalog/version/config docs similarly prefer executable source over copied volatile values.
 
 ### Falsifier
 
-Longitudinal studies show semantic source requires more coordination/maintenance than direct duplicated files, or generated artifacts still require independent edits often enough that source singularity is nominal only.
+Longitudinal studies show semantic source creates equal or greater maintenance/coordination cost, or generated artifacts require independent edits often enough that source singularity is nominal only.
 
-### Proof debt
+### Debt
 
-- empirical maintenance study against hand-maintained and structured-template baselines;
-- drift incident dataset;
-- measure authoritative edit count and reviewer coordination per change.
+Longitudinal maintenance baseline, drift-incident dataset, authoritative-edit count, reviewer/handoff graph.
 
 ### Standing
 
-**PARTIAL_ALIVE as empirical thesis; ALIVE for demonstrated mdBook source-singularity mechanism.**
+**PARTIAL_ALIVE as empirical thesis; ALIVE for exercised source-singularity mechanisms at their bounded subjects.**
 
 ## 4. Thesis T2 — deterministic semantic manufacture
 
@@ -69,97 +63,75 @@ For an exact complete subject, ontology/query/template manufacture can behave as
 
 ### Mechanism
 
-`S = (identity, G, Q, T, V, E)`
+`S = (I,G,Q,T,V,E)` and `A = μ(S)`.
 
-`A = μ(S)`.
+### Evidence
 
-### Formal support
-
-Functional determinism follows if `μ` is a function over a complete subject. Replay mismatch exposes either implementation impurity, incomplete subject modeling, or an underspecified equivalence relation.
-
-### Implementation evidence
-
-Marketplace pack qualification exercises real ggen manufacture and replay for admitted packs; deterministic catalog/archive courts compare reconstructed consequences.
+Marketplace all-pack qualification exercises real ggen manufacture/replay for admitted subjects; catalog/archive and `pack-maturity-pack` courts compare deterministic consequences.
 
 ### Falsifier
 
-An exact subject under a declared environment class produces non-equivalent specified artifacts on replay.
+An exact subject under its declared environment produces non-equivalent specified consequences on replay.
 
-### Proof debt
+### Debt
 
-- R3–R5 independent reproducibility studies;
-- canonical graph/digest semantics for semantic-equivalence claims;
-- explicit hidden-input perturbation suite.
+Independent R3–R5 reproduction, hidden-input perturbation, canonical graph/digest semantics for semantic equivalence.
 
 ### Standing
 
-**ALIVE for exercised exact-head qualification/replay boundaries; UNKNOWN beyond observed replay classes.**
+**ALIVE for exact subjects/boundaries whose replay courts succeed; UNKNOWN beyond observed replay classes.**
 
 ## 5. Thesis T3 — evidence must be boundary-scoped
 
 ### Claim
 
-A system represents truth more accurately when success/failure evidence is attached to exact boundaries rather than collapsed into one repository-level green/red status.
+Truth is represented more accurately when success/failure evidence attaches to exact boundaries rather than one repository-level green/red scalar.
 
 ### Mechanism
 
-Receipt DAG + claim-specific standing:
+Receipt DAG + claim-specific standing `σ(claim, receipts, time)`.
 
-`σ(claim, receipts, time)`.
+### Evidence
 
-### Formal support
-
-Local failure preservation theorem: failure at independent boundary `b2` does not negate a predicate already established at `b1`.
-
-### Implementation evidence
-
-The first self-hosting Pages run provided a natural experiment: generic marketplace CI and vacuity audit succeeded while root self-hosting manufacture failed on `FM-CONFIG-101`. The evidence model retained both facts and localized the repair to the consumer configuration.
+Marketplace history includes cases where lower/subsystem courts succeeded while a separate aggregate or self-hosting boundary failed. The operating doctrine preserves those facts rather than erasing one with the other.
 
 ### Falsifier
 
-Boundary-scoped evidence repeatedly causes operators to misdiagnose system health or proves too complex to improve decisions relative to ordinary CI status.
+Boundary-scoped evidence repeatedly causes worse diagnosis/decision-making than ordinary CI or proves too complex to operate.
 
-### Proof debt
+### Debt
 
-- executable receipt DAG;
-- standing derivation engine;
-- user study or operational MTTR comparison against untyped CI failure reporting.
+Executable receipt DAG, standing derivation engine, MTTR/decision-quality study.
 
 ### Standing
 
-**ALIVE as demonstrated failure-localization mechanism; empirical productivity advantage remains OPEN.**
+**ALIVE as demonstrated failure-localization mechanism; productivity advantage remains EMPIRICAL/OPEN.**
 
 ## 6. Thesis T4 — exact-subject law
 
 ### Claim
 
-Evidence is admissible for a software subject only when the executed immutable source identity equals the claimed identity or a claim-complete equivalence proof exists.
+Evidence is admissible for a software subject only when the executed immutable source identity equals the claimed identity or claim-complete equivalence is proved.
 
 ### Mechanism
 
-Exact checkout + identity assertion before crown-bearing execution.
+Exact checkout + identity assertion + receipt binding.
 
-### Formal support
+### Evidence
 
-Exact-subject necessity theorem.
-
-### Implementation evidence
-
-The marketplace workflows assert the checked-out commit against the subject SHA before execution of crown-bearing courts.
+Crown-bearing marketplace workflows assert exact subject identity; branch/prior-head success is not treated as current evidence after source changes.
 
 ### Falsifier
 
-A workflow can silently validate a different immutable tree while still satisfying the exact-subject guard, or the receipt omits identity needed to distinguish subjects.
+A workflow validates a different immutable tree while satisfying the exact-subject guard, or receipts omit identities needed to distinguish relevant subjects.
 
-### Proof debt
+### Debt
 
-- bind tree identity in addition to commit where useful;
-- signed/content-addressed receipt representation;
-- negative-control workflow deliberately attempting mismatch.
+Tree binding where useful, signed/content-addressed receipts, deliberate mismatch negative controls.
 
 ### Standing
 
-**ALIVE for current workflow assertion behavior; stronger signed receipt binding remains OPEN.**
+**ALIVE for current exact-head assertion behavior where executed; stronger signed binding OPEN.**
 
 ## 7. Thesis T5 — SELECT/CONSTRUCT/DO separation
 
@@ -169,89 +141,71 @@ Separating reversible construction from consequential actuation permits aggressi
 
 ### Mechanism
 
-`SELECT → CONSTRUCT → VERIFY → DO`
+`SELECT → CONSTRUCT → VERIFY → DO` with phase-specific capabilities.
 
-with phase-specific capability sets.
+### Evidence
 
-### Formal support
-
-Capability-exclusion theorem and construction/actuation optionality proposition.
-
-### Implementation evidence
-
-The Pages workflow builds on pull requests but upload/deployment actuators are main-only; PR validation can establish book-build standing without public deployment authority.
+Pull-request documentation/self-hosting can construct/build without receiving main-only Pages deployment authority; marketplace qualification manufactures artifacts but does not execute generated Terraform, MCP calls, cloud mutations, or arbitrary external actuators.
 
 ### Falsifier
 
-Construction contexts can directly invoke consequential mutation through available capabilities, or real operations require such broad authority that the separation is routinely bypassed.
+Construction contexts can directly perform consequential mutation through available capabilities, or real workflows routinely require broad authority that defeats the separation.
 
-### Proof debt
+### Debt
 
-- explicit capability graph;
-- automated authority-policy validation;
-- adversarial confused-deputy tests;
-- systematic secret/remote-write absence receipts.
+Capability graph, policy verifier, confused-deputy/adversarial tests, secret/remote-write absence receipts.
 
 ### Standing
 
-**ALIVE for the mdBook PR/deploy separation; broader ecosystem claim remains PARTIAL_ALIVE.**
+**ALIVE for bounded demonstrated workflow separations; ecosystem-wide claim PARTIAL_ALIVE.**
 
 ## 8. Thesis T6 — self-hosting is stronger integration evidence
 
 ### Claim
 
-A marketplace-critical pack that manufactures a real piece of marketplace infrastructure provides stronger integration evidence than a synthetic fixture alone.
+A marketplace-critical pack manufacturing real marketplace infrastructure provides stronger integration evidence than a synthetic fixture alone.
 
 ### Mechanism
 
-`marketplace distributes P`
+The marketplace distributes `P` and infrastructure consumes `P`.
 
-and
+### Evidence
 
-`marketplace infrastructure consumes P`.
-
-### Implementation evidence
-
-The mdBook pattern-language pack manufactures the marketplace's own book control surface, which is then accepted by the independent mdBook target compiler.
+The mdBook pattern-language pack manufactures the marketplace's own book control surface, then mdBook independently compiles the result.
 
 ### Falsifier
 
-Self-hosting fixtures become so coupled to implementation details that they stop detecting defects or systematically conceal incompatibilities external consumers experience.
+Self-hosting becomes so implementation-coupled that it stops detecting defects or predicts external-consumer compatibility poorly.
 
-### Proof debt
+### Debt
 
-- external consumer population;
-- compare defect discovery between synthetic qualification and self-hosting;
-- prevent self-hosting consumer from introducing pack-specific backdoors.
+External-consumer population, defect-discovery comparison, anti-backdoor controls.
 
 ### Standing
 
-**ALIVE for current mdBook self-hosting build boundary; general predictive superiority remains EMPIRICAL/OPEN.**
+**ALIVE for exact self-hosting build subjects that execute successfully; predictive superiority EMPIRICAL/OPEN.**
 
 ## 9. Thesis T7 — typed refusal improves repairability
 
 ### Claim
 
-Typed, localizable refusal reduces diagnostic entropy and can reduce repair lead time compared with generic failure.
+Typed localizable refusal reduces diagnostic entropy and may reduce repair lead time relative to generic failure.
 
 ### Mechanism
 
-`REFUSED:<domain>:<predicate>` partitions the failure space.
+`REFUSED:<domain>:<predicate>` partitions failure space.
 
-### Formal support
+### Evidence
 
-A finer failure partition contains more diagnostic information than one undifferentiated failure value.
+Marketplace admission/qualification, `L5-DOC-*`, and authority/identity courts use typed refusal families instead of silently skipping invalid states.
 
 ### Falsifier
 
-Typed codes do not reduce repair time, are routinely wrong, or impose maintenance cost larger than their diagnostic value.
+Codes are routinely wrong/stale or fail to reduce repair time enough to justify maintenance cost.
 
-### Proof debt
+### Debt
 
-- seeded-failure experiment;
-- MTTR comparison;
-- refusal precision/confusion matrix;
-- stable code taxonomy.
+Seeded-failure experiment, MTTR comparison, refusal precision/confusion matrix.
 
 ### Standing
 
@@ -267,21 +221,17 @@ A useful subset of packs can compose under a partial operator with explicit grap
 
 `⊗ : Pack × Pack ⇀ Pack`.
 
-### Formal support
+### Evidence
 
-Pack-algebra chapter defines conditional associativity, local independence/commutativity, target ownership, refinement, supersession, and receipt invalidation closure.
+The pack-algebra chapter defines target ownership, conditional associativity, refinement, supersession, authority joins, evidence invalidation, and cross-pack gates. Operational class/consolidation docs now apply the model to real pack families.
 
 ### Falsifier
 
-Real pack interactions require ad-hoc global side effects so frequently that compatibility predicates cannot remain local or compositional.
+Real interactions require ad-hoc global side effects so frequently that compatibility predicates cannot remain compositional.
 
-### Proof debt
+### Debt
 
-- machine-readable target ownership;
-- typed dependency edges;
-- authority join policy;
-- cross-pack fixtures;
-- mechanized associativity for admitted pure subset.
+Machine-readable target ownership, typed dependency edges, authority join policy, cross-pack fixtures, mechanized pure subset.
 
 ### Standing
 
@@ -291,26 +241,19 @@ Real pack interactions require ad-hoc global side effects so frequently that com
 
 ### Claim
 
-If proof dependencies are complete and exact identities are unchanged, prior receipts outside the changed dependency closure can be reused without re-execution.
+If proof dependencies are complete and exact claim-relevant identities are unchanged/equivalent, receipts outside changed dependency closure can be reused.
 
 ### Mechanism
 
 `invalidate(Δ) = Reachable_R(Δ)`.
 
-### Formal support
-
-Graph reachability over proof dependencies.
-
 ### Falsifier
 
-A reused receipt is later shown invalid because an unmodeled dependency changed, or dependency tracking costs exceed saved validation work.
+A reused receipt is later invalidated by an unmodeled dependency, or dependency tracking costs exceed re-execution savings.
 
-### Proof debt
+### Debt
 
-- complete dependency graph extraction;
-- claim-relative equivalence policy;
-- stale-receipt negative controls;
-- false-reuse incident monitoring.
+Complete dependency extraction, equivalence policy, stale-receipt controls, false-reuse monitoring.
 
 ### Standing
 
@@ -320,26 +263,19 @@ A reused receipt is later shown invalid because an unmodeled dependency changed,
 
 ### Claim
 
-When manufacturing throughput increases materially faster than validation/actuation throughput, evidence WIP dominates total delivery lead time.
+When manufacturing throughput rises materially faster than validation/actuation throughput, evidence WIP dominates delivery lead time.
 
 ### Mechanism
 
 Little's Law applied separately to manufacture, evidence, and actuation queues.
 
-### Formal support
-
-Under stable queue assumptions, increasing arrival/production rate with fixed service capacity increases WIP/lead time pressure.
-
 ### Falsifier
 
-Measured repositories remain construction-limited despite very high automated manufacture, or evidence work scales automatically enough that no persistent evidence queue forms.
+Measured high-automation repositories remain construction-limited, or evidence scales automatically enough that no persistent queue forms.
 
-### Proof debt
+### Debt
 
-- longitudinal event log;
-- queue classification;
-- observed `λ_M`, `λ_E`, `λ_D`, `L`, and `W`;
-- before/after comparison as deterministic pack coverage expands.
+Longitudinal event log, queue classification, observed rates/WIP/lead time, before/after deterministic-pack coverage.
 
 ### Standing
 
@@ -353,33 +289,25 @@ When many representations share one semantic authority, synchronization relation
 
 ### Mechanism
 
-Independent model:
-
-`E_sync ≈ n(n-1)/2`.
-
-Projection model:
-
-`E_projection ≈ n`.
+Independent model: `E_sync ≈ n(n-1)/2`; projection model: `E_projection ≈ n`.
 
 ### Falsifier
 
-Adapters and ontology governance reintroduce equivalent pairwise coordination, or the semantic source becomes a universal bottleneck requiring the same communication load.
+Adapters/ontology governance recreate equivalent pairwise coordination, or the semantic source becomes a universal bottleneck.
 
-### Proof debt
+### Debt
 
-- empirical handoff/coordination graph;
-- representation-change study;
-- ontology-governance cost measurement.
+Empirical handoff graph, representation-change study, ontology-governance cost.
 
 ### Standing
 
-**DERIVED as structural toy model; organizational claim OPEN.**
+**DERIVED as structural model; organizational claim OPEN.**
 
 ## 14. Thesis T12 — receipts can become a content-addressed evidence fabric
 
 ### Claim
 
-Structured receipts bound to immutable identities can support standing derivation, provenance audit, incremental invalidation, and release reconstruction more reliably than ephemeral unstructured CI badges/logs alone.
+Structured receipts bound to immutable identities can support standing derivation, provenance audit, incremental invalidation, Level-5 closure, and release reconstruction more reliably than ephemeral badges/logs alone.
 
 ### Mechanism
 
@@ -387,144 +315,159 @@ Receipt DAG + content identity + policy-versioned standing derivation.
 
 ### Prior-art alignment
 
-PROV-O, in-toto, SLSA provenance, Git identity, and reproducible-build practice provide substantial foundations. The marketplace-specific problem is integrating semantic manufacture, typed boundary standing, and actuation authority.
+PROV-O, in-toto, SLSA provenance, Git identity, and reproducible-build practice provide foundations. Marketplace-specific work integrates semantic manufacture, typed boundary standing, class closure, Diátaxis correspondence, and actuation authority.
 
 ### Falsifier
 
-Receipt capture omits too much context, cannot be canonicalized/verified economically, or duplicates existing attestation systems without additional operational value.
+Receipt capture is too incomplete/expensive to derive useful standing or merely duplicates existing attestation systems without additional operational value.
 
-### Proof debt
+### Debt
 
-- interoperable receipt schema implementation;
-- signed attestation envelope;
-- release capsule verifier;
-- comparison with direct SLSA/in-toto adoption.
+Interoperable receipt implementation, signed envelope, release capsule verifier, comparison with direct SLSA/in-toto adoption.
 
 ### Standing
 
 **DESIGN SPECIFICATION / OPEN IMPLEMENTATION.**
 
-## 15. Evidence ledger
+## 15. Thesis T13 — Level 5 is class/evidence closure, not artifact polish
+
+### Claim
+
+For a reusable pack family, the strongest maturity state is reached only when seven claim-relevant dimensions close over the exact subject—semantic source, admission, manufacture, execution, receipt/replay, authority fence, and composition/class closure—while Tutorial/How-to/Reference/Explanation correspond to that same contract.
+
+### Mechanism
+
+Maturity vector:
+
+`M(P,S) = (m_s,m_a,m_m,m_e,m_r,m_ω,m_c)`
+
+with non-compensatory evidence closure, plus:
+
+`L5Doc = Tutorial ∧ HowTo ∧ Reference ∧ Explanation ∧ Corr_D ∧ Exec_D`.
+
+Class closure factors repeated authority into kernels/capabilities while preserving domain/world/runtime/compatibility differences and preventing authority widening.
+
+### Current implementation evidence
+
+- `pack-maturity-pack` manufactures reusable fixed-point/receipt/Diátaxis mechanics and typed `L5-DOC-*` structural refusals;
+- marketplace reference/how-to/tutorial/explanation now defines the 5×7 contract and class-closure procedure;
+- the new Level-5 thesis chapter formalizes non-compensation, class taxonomy, consolidation morphisms, authority non-expansion, and falsifiers;
+- mdBook navigation remains generated from semantic source, demonstrating documentation source singularity.
+
+### Falsifier
+
+The model should narrow or be abandoned if class factoring increases total coordination cost, shared kernels become unstable mega-ontologies, structural Diátaxis systematically produces misleading docs, authority widens under umbrellas, domain teams must routinely fork canonical classes, or exact evidence closure costs more than the defects it prevents.
+
+### Debt
+
+- machine-readable pack class/supersession/target-ownership graph;
+- automated consolidation diagnostics/court;
+- consumer migration graph/witnesses;
+- machine standing lattice over all seven dimensions;
+- source-to-doc executable correspondence beyond structural `L5-DOC-*` checks;
+- portfolio before/after measurement of duplicated authority, drift, change lead time, and consumer migration cost.
+
+### Standing
+
+**Level-5 Diátaxis structure: EXECUTABLE for the generic structural boundary; 5×7/class taxonomy: operational specification; class-closure automation and portfolio benefit: OPEN/PARTIAL_ALIVE. No global L5 crown is implied for the corpus.**
+
+## 16. Evidence ledger
 
 | Claim | Strongest current evidence | Current limit |
 |---|---|---|
-| T1 source singularity | self-hosted mdBook navigation | no longitudinal maintenance comparison |
+| T1 source singularity | self-hosted semantic mdBook navigation/catalog/config law | no longitudinal maintenance comparison |
 | T2 deterministic manufacture | real-ggen qualification + replay | independent R4/R5 not established |
-| T3 boundary-scoped evidence | split CI/Pages first-run result | productivity advantage not quantified |
-| T4 exact-subject law | workflow exact-head assertions | signed receipt binding absent |
-| T5 authority separation | PR build vs main deploy split | ecosystem-wide capability graph absent |
-| T6 self-hosting | ggen manufacture + mdBook compile | limited external consumer population |
-| T7 typed refusal | named refusal/error discipline | MTTR effect unmeasured |
-| T8 pack algebra | formal partial-operator specification | not yet mechanized/enforced fully |
-| T9 receipt reuse | dependency-closure model | no production receipt cache |
-| T10 evidence bottleneck | queueing derivation | repository event study pending |
+| T3 boundary-scoped evidence | exact-subject court separation | productivity advantage unquantified |
+| T4 exact-subject law | workflow identity assertions | signed receipt binding incomplete |
+| T5 authority separation | construction/build vs main deploy boundaries | ecosystem capability graph incomplete |
+| T6 self-hosting | ggen manufacture + mdBook target compile | limited external-consumer population |
+| T7 typed refusal | repository/ggen/L5-DOC refusal discipline | MTTR effect unmeasured |
+| T8 pack algebra | partial-operator formal specification | mechanization incomplete |
+| T9 receipt reuse | dependency-closure model | no production proof cache |
+| T10 evidence bottleneck | queueing derivation | longitudinal event study pending |
 | T11 coordination collapse | state/edge-count model | organizational field study pending |
 | T12 evidence fabric | receipt schema + prior-art mapping | signer/verifier/capsule implementation pending |
+| T13 Level-5 class/evidence closure | 5×7 contract + Diátaxis generator + class/consolidation calculus | portfolio class graph/automated closure court incomplete |
 
-## 16. Defense questions
+## 17. Defense questions
 
-A skeptical committee should ask at least these questions.
+### DQ1 — Why RDF rather than a typed AST/relational model?
 
-### DQ1
+RDF is not axiomatically superior. The thesis depends on graph composability, public-vocabulary reuse, queryability, and multi-target semantic leverage. Benchmarks must justify its cost against alternatives.
 
-Why RDF rather than a typed AST, relational model, or language-specific schema?
+### DQ2 — Is this model-driven engineering with new terminology?
 
-**Required answer:** RDF is not axiomatically superior. The thesis depends on graph composability, public vocabulary reuse, queryability, and multi-target semantic leverage. Benchmarks must justify its maintenance cost against alternatives.
+Many primitives are inherited. Distinction must be demonstrated at the system level: exact evidence/standing, authority separation, distributable pack qualification, self-hosting, partial pack algebra, class closure, and receipt composition. Novelty claims narrow if literature shows this bundle already standard.
 
-### DQ2
+### DQ3 — Does replay prove correctness?
 
-Is this merely model-driven engineering with new terminology?
+No. Replay proves a declared equivalence property for a subject. Independent compilers, validators, tests, formal checks, policy, and domain evidence prove other predicates.
 
-**Required answer:** Many primitives are inherited. Distinction must be demonstrated at the system level: evidence-bounded standing, exact-subject courts, authority separation, distributable pack qualification, self-hosting, and receipt algebra. If literature review shows these are already standard together, novelty claims must narrow.
+### DQ4 — Who trusts the receipt signer?
 
-### DQ3
+Every receipt system has a trust root. Builder/principal identity and trust assumptions must be explicit; signatures do not rescue compromised builders or incomplete claims.
 
-Does replay prove correctness?
+### DQ5 — What happens when ontology is wrong?
 
-**Required answer:** No. Replay proves a determinism property under an equivalence relation. Independent target compilers, validators, tests, policy, and domain evidence establish other properties.
+Deterministic manufacture reproduces wrong meaning faithfully. Semantic review, constraints, tests, measurements, negative witnesses, and amendment remain necessary.
 
-### DQ4
+### DQ6 — Can the graph/kernel become a monolith?
 
-Who trusts the receipt signer?
+Yes. Class closure is not “one ontology for everything.” Canonicalize only proved shared law; keep domain/world/runtime boundaries and explicit bridges. Mega-ontology pressure is a falsifier.
 
-**Required answer:** Every receipt system has a trust root. The schema must identify builder/principal and make trust assumptions explicit; signatures do not eliminate compromised builders.
+### DQ7 — Why not let agents directly perform the workflow?
 
-### DQ5
+Agents may observe, plan, select, and construct. Consequential authority benefits from admitted deterministic boundaries and receipts. This is a security/operational hypothesis to test, not ideology.
 
-What happens when ontology is wrong?
+### DQ8 — How do you know evidence is the bottleneck?
 
-**Required answer:** Deterministic manufacture reproduces the wrong meaning faithfully. Semantic review, external constraints, tests, domain measurements, and amendment procedures remain necessary.
+We do not know universally. The economics chapter states a queueing-derived hypothesis and a measurement program.
 
-### DQ6
+### DQ9 — Is `ALIVE` just renamed test pass?
 
-Can the graph become a monolith?
+No. A test is one receipt/premise. ALIVE is claim-scoped exact-subject evidence closure.
 
-**Required answer:** Yes. The pack algebra and public-ontology discipline exist partly to prevent universal-schema overcoupling. Domain boundaries and explicit bridges are preferable to one omniscient ontology.
+### DQ10 — Why not average the 5×7 maturity matrix?
 
-### DQ7
+Because required predicates are conjunctive and non-compensatory. An L5 documentation surface cannot compensate for missing external execution or an unsafe authority join. Averages hide the exact work still required.
 
-Why not let agents directly perform the workflow?
+### DQ11 — Why consolidate packs at all?
 
-**Required answer:** Agents may plan and propose. The research hypothesis is that consequential authority benefits from deterministic admission/verification boundaries. This must be compared empirically rather than treated as ideology.
+Only when multiple packs duplicate semantic authority. Directory count is not the target. The target is reducing duplicate truth while preserving independent domains/runtimes/compatibility. Consolidation itself must prove benefit and non-escalation.
 
-### DQ8
+### DQ12 — What would make you abandon the architecture?
 
-How do you know evidence is the bottleneck?
+Repeated evidence that semantic modeling increases total cost without reducing drift/coordination; composition remains ad hoc; receipts are too expensive/incomplete; deterministic boundaries are routinely bypassed; class kernels become bottlenecks; external consumers do not generalize; or Level-5 closure becomes ceremony without predictive value.
 
-**Required answer:** We do not yet know universally. The economics chapter states a queueing-derived hypothesis and the experimental chapter defines how to measure it.
+## 18. Minimum evidence for external publication
 
-### DQ9
+Before presenting the work as a mature scientific result rather than an engineering research program, the following should exist:
 
-Is `ALIVE` just a renamed test pass?
+1. stratified corpus of real packs and consumers;
+2. external-consumer study;
+3. R3+ reproducibility data;
+4. negative-control suite with measured detection precision;
+5. receipt/standing prototype;
+6. incremental-evidence reuse experiment;
+7. coordination/maintenance baseline study;
+8. authority-containment adversarial study;
+9. machine-readable pack class/target/consumer graph and consolidation court;
+10. Level-5 source-to-doc correspondence experiment beyond structural completeness;
+11. completed academic literature review across MDE, build systems, capability security, process mining, program synthesis, documentation engineering, and software-product-line/modularity work;
+12. independent replication by a party that did not implement the original pack.
 
-**Required answer:** No. It is claim-scoped closure over exact-subject receipts. A single test can be one premise; it is not automatically the crown.
+Until then, the strongest description remains **an executable research architecture with substantial self-hosting evidence and explicit open proof obligations**.
 
-### DQ10
+## 19. Defense criterion
 
-What would make you abandon the architecture?
-
-**Required answer:** repeated evidence that semantic modeling increases total cost without reducing drift/coordination; composition remains ad hoc; receipts are too expensive/incomplete; deterministic boundaries are routinely bypassed; or external consumers do not generalize from the pack model.
-
-## 17. Minimum evidence for external publication
-
-Before presenting the work as a mature scientific result rather than an engineering research program, the following evidence should exist:
-
-1. a stratified corpus of real packs and consumers;
-2. an external-consumer study;
-3. R3 or higher reproducibility data;
-4. a negative-control suite with measured detection precision;
-5. a receipt/standing prototype;
-6. one incremental-evidence reuse experiment;
-7. a coordination/maintenance baseline study;
-8. an authority-containment adversarial study;
-9. a completed academic literature review in MDE, build systems, capability security, process mining, and program synthesis;
-10. independent replication by a party that did not implement the original pack.
-
-Until then, the strongest description is **an executable research architecture with substantial self-hosting evidence and explicit open proof obligations**.
-
-## 18. Defense criterion
-
-The monograph succeeds if a skeptical reader can disagree with the thesis **precisely**.
-
-They should be able to point to:
-
-- a definition that is too weak;
-- a theorem assumption that does not hold;
-- a validator that is unsound or vacuous;
-- a receipt edge that is missing;
-- a benchmark whose baseline is unfair;
-- a metric whose denominator is wrong;
-- a pack composition that violates the proposed algebra;
-- an authority escape;
-- a real consumer that falsifies genericity;
-- an economic result showing semantic manufacture costs more than it removes.
+The monograph succeeds if a skeptical reader can disagree with it precisely by pointing to a weak definition, invalid theorem assumption, unsound/vacuous validator, missing receipt edge, unfair benchmark, wrong denominator, non-compositional pack interaction, authority escape, misleading maturity coordinate, unsafe consolidation, external consumer falsifier, or economic result showing semantic manufacture/class closure costs more than it removes.
 
 A theory that admits those attacks can improve. A theory that can only be praised cannot.
 
-## 19. Final defense statement
+## 20. Final defense statement
 
 The work does not ask the reader to believe that software generation is new. It asks a narrower and harder question:
 
-> **Can software construction be reorganized around admitted semantic source, deterministic manufacture, exact evidence, and explicitly bounded authority strongly enough that artifacts cease to be the primary coordination unit?**
+> **Can software construction and reuse be reorganized around admitted semantic source, deterministic manufacture, exact evidence, explicit class composition, documentation correspondence, and bounded authority strongly enough that artifacts cease to be the primary coordination unit?**
 
-The repository, pack algebra, self-hosted book, qualification courts, receipt proposal, and benchmark plan together form a machine-testable attempt to answer that question.
+The repository, Level-5 contract, pack algebra, class-closure model, self-hosted book, qualification courts, receipt proposal, and benchmark program together form a machine-testable attempt to answer that question.

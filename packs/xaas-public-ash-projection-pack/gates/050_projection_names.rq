@@ -1,0 +1,26 @@
+PREFIX sh: <http://www.w3.org/ns/shacl#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+
+# Violation rows: the canonical configurable projection requires explicit,
+# non-empty resource, domain and attribute projection names.
+SELECT ?shape ?problem
+WHERE {
+  {
+    ?shape a sh:NodeShape .
+    FILTER NOT EXISTS { ?shape sh:name ?name . FILTER(STRLEN(STR(?name)) > 0) }
+    BIND("missing-resource-name" AS ?problem)
+  }
+  UNION
+  {
+    ?shape a sh:NodeShape ; dcterms:isPartOf ?domain .
+    FILTER NOT EXISTS { ?domain sh:name ?name . FILTER(STRLEN(STR(?name)) > 0) }
+    BIND("missing-domain-name" AS ?problem)
+  }
+  UNION
+  {
+    ?shape a sh:NodeShape ; sh:property ?property .
+    FILTER NOT EXISTS { ?property sh:name ?name . FILTER(STRLEN(STR(?name)) > 0) }
+    BIND("missing-attribute-name" AS ?problem)
+  }
+}
+ORDER BY ?shape ?problem

@@ -46,6 +46,9 @@
 - [Level-5 maturity contract](reference/level5-maturity-contract.md)
 - [R15 option-hypergraph reference](reference/option-hypergraph-amplifier-r15.md)
 - [Pack classes reference](reference/pack-classes.md)
+- [Reference: ash_* Ecosystem Mapping](reference/ash-ecosystem-mapping.md)
+- [Kudzu Case Studies](reference/kudzu-case-studies.md)
+- [Enterprise Kudzu v26.9.13](reference/enterprise-kudzu-v26.9.13.md)
 
 # Explanation
 
@@ -59,6 +62,9 @@
 - [Class closure and consolidation](explanation/class-closure-and-consolidation.md)
 - [Why Level 5 requires Diátaxis](explanation/level5-diataxis.md)
 - [Why option hypergraphs increase manufacturing capital](explanation/option-hypergraph-capital-r15.md)
+- [ash_a2a — PRD / ARD](explanation/ash-a2a-prd-ard.md)
+- [Working-Backwards Press Release](explanation/wbpr-26.9.12-canonical-consolidation.md)
+- [WBPR 26.9.12 Falsifier Audit — 12-Pack Canonical Consolidation, MSCT, Human Twin](reference/wbpr-26.9.12-falsifier-audit.md)
 
 # Research monograph
 
@@ -86,3 +92,18 @@
 # Additional
 
 - [Crown gap hardening](CROWN-GAP-HARDENING.md)
+
+# Architecture and decisions
+
+- [Current Observed Architecture: ggen-marketplace](architecture.md)
+- [Target Architecture: ggen-marketplace](target-architecture.md)
+- [ADR-0001: Deterministic Catalog Projection](adr/ADR-0001-deterministic-catalog-projection.md)
+- [ADR-0002: Formal star-toml Configuration Admission Boundary](adr/ADR-0002-star-toml-admission-boundary.md)
+- [ADR-0003: Ecosystem Topology and Platform Boundary: XaaS and ZOELA](adr/ADR-0003-ecosystem-topology-and-composition-boundary.md)
+- [ADR-0004: fond-hddl-mx-loop Closed-Loop Pattern & CalVer Admission](adr/ADR-0004-fond-hddl-mx-loop-pattern-and-calver.md)
+- [ADR-0005: AshSurface MX Consumer Surface Projection for ZOELA](adr/ADR-0005-ash-surface-mx-consumer-projection.md)
+
+# RFCs
+
+- [RFC-GGEN-001 v26.9.17](rfc/RFC-GGEN-001-semantic-pack-core.md)
+- [RFC v26.9.26 — ABB/SBB marketplace implementation seed](rfc/v26.9.26/abb-sbb-implementation.md)
