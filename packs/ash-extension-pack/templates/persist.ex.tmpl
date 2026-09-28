@@ -22,12 +22,15 @@ sparql:
     } GROUP BY ?package_name ?module_name
   sections: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?section_name WHERE { ?s a aex:DslSection ; aex:sectionName ?section_name . }
-    ORDER BY ?section_name
+    SELECT ?package_name ?section_name WHERE {
+      ?s a aex:DslSection ; aex:sectionOf ?spec ; aex:sectionName ?section_name .
+      ?spec aex:packageName ?package_name .
+    } ORDER BY ?package_name ?section_name
   after_transformers: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT DISTINCT ?after_transformer WHERE { ?s a aex:AshExtensionSpec ; aex:afterTransformer ?after_transformer . }
-    ORDER BY ?after_transformer
+    SELECT DISTINCT ?package_name ?after_transformer WHERE {
+      ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ; aex:afterTransformer ?after_transformer .
+    } ORDER BY ?package_name ?after_transformer
 ---
 {# Derive/Normalize transformer -- mirrors ash_r2rml/lib/ash_r2rml/resource.ex's
    AshR2RML.Resource.Persist: reads the raw DSL entities for each section, normalizes
@@ -43,6 +46,13 @@ sparql:
      `@spark_is` module attribute, fill in the target-context field on resource-local
      declarations, reject an explicit value at resource level, require one at domain
      level (gated on aex:contextNormalize). #}
+{# Per-spec scoping: ggen evaluates each named `sparql:` result once against the whole
+   union graph, not per `for_each` row, so every non-spec query selects ?package_name
+   and is narrowed to the current spec here (the reactor_pipeline.ex.tmpl fix, applied
+   to every DSL family). Without it a multi-spec graph rendered every spec's sections,
+   entities, getters, verifiers and targets into every other spec's modules. #}
+{% set sections = sections | filter(attribute="package_name", value=package_name) %}
+{% set after_transformers = after_transformers | filter(attribute="package_name", value=package_name) %}
 defmodule {{ module_name }}.Persist do
   @moduledoc """
   Transformer for `{{ package_name }}`: normalizes the raw `{% for s in sections %}:{{ s.section_name }}{% if not loop.last %}, {% endif %}{% endfor %}`

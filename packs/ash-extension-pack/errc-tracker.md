@@ -125,7 +125,8 @@ Builds `packs/ash-extension-pack/` as a new, standalone pack; the two source pac
   for the `[{module, binary}] = ...` destructuring used, so the generated code is
   functionally correct — only the comment is wrong.
 
-- [ ] **[MINOR]** `templates/composition_test.exs.tmpl:48` — the per-composition-target
+- [x] **[MINOR]** (closed 2026-09-27, fa5491625: target tests now assert co-residence on
+  `fixture` via `Spark.extensions/1`, executed by the live fixture) `templates/composition_test.exs.tmpl:48` — the per-composition-target
   test titled "composes with real `{{ t.composition_target }}` introspection" only
   asserts `function_exported?(X.Resource.Info, :type, 1)` on the library module
   itself; `fixture` is bound in the test context but never referenced. It checks the

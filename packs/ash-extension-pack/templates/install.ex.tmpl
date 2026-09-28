@@ -16,8 +16,10 @@ sparql:
     } GROUP BY ?package_name ?module_name ?extension_target ?task_module_name ?formatter_module
   sections: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?section_name WHERE { ?s a aex:DslSection ; aex:sectionName ?section_name . }
-    ORDER BY ?section_name
+    SELECT ?package_name ?section_name WHERE {
+      ?s a aex:DslSection ; aex:sectionOf ?spec ; aex:sectionName ?section_name .
+      ?spec aex:packageName ?package_name .
+    } ORDER BY ?package_name ?section_name
 ---
 {# Igniter installer -- upgraded past the golden specimen's gap, but only on the
    `--target` path: ash_r2rml/lib/mix/tasks/ash_r2rml.install.ex ALWAYS only adds the
@@ -43,6 +45,12 @@ sparql:
    - `aex:installerRuntimeDep` (a "<dep>|<version_req>" pair, e.g. "a2a|~> 0.2") adds a
      real `Igniter.Project.Deps.add_dep/2` pipe call, mirroring ash_a2a.install.ex:58.
      Unset: renders byte-identical to core-pack's install.ex.tmpl (no add_dep call). #}
+{# Per-spec scoping: ggen evaluates each named `sparql:` result once against the whole
+   union graph, not per `for_each` row, so every non-spec query selects ?package_name
+   and is narrowed to the current spec here (the reactor_pipeline.ex.tmpl fix, applied
+   to every DSL family). Without it a multi-spec graph rendered every spec's sections,
+   entities, getters, verifiers and targets into every other spec's modules. #}
+{% set sections = sections | filter(attribute="package_name", value=package_name) %}
 if Code.ensure_loaded?(Igniter) do
 defmodule Mix.Tasks.{{ task_module_name }}.Install do
   @moduledoc """
