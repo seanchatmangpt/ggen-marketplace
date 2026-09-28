@@ -2,29 +2,47 @@
 
 Use this when you need behavioral marketplace evidence beyond manifest/layout admission.
 
-## Run the bounded court
+## Admit configuration first
 
-Install the exact admitted ggen runtime and execute the complete corpus:
+`marketplace.toml` is the source of truth for qualification worker/timeout law and the pinned ggen release identity. Admit it before execution:
 
 ```bash
-export GGEN_BIN="$(scripts/install-ggen.sh)"
+bash scripts/admit-config.sh marketplace.toml /tmp/ggen-marketplace-admitted.json
+```
+
+Do not copy a ggen version, release commit, timeout, worker count, platform archive name, or asset digest into this document or another wrapper. Those values are intentionally centralized in admitted configuration so documentation cannot silently drift behind executable law.
+
+## Run the bounded court
+
+```bash
+export GGEN_MARKETPLACE_ADMITTED_CONFIG=/tmp/ggen-marketplace-admitted.json
+export GGEN_BIN="$(scripts/install-ggen.sh /tmp/ggen-marketplace-admitted.json)"
 python3 scripts/qualify_packs.py --report /tmp/ggen-marketplace-qualification.json
 python3 -m json.tool /tmp/ggen-marketplace-qualification.json >/dev/null
 ```
 
-The installer downloads ggen v26.8.8 for the current supported platform and refuses if the release-asset SHA-256 differs from the pinned digest.
+Or run the repository wrapper:
 
-`qualify_packs.py` discovers the complete admitted pack set from the same local marketplace calculus used by `marketplace.py`. It does not accept a hand-maintained pack list or pack-name exemptions.
+```bash
+GGEN_MARKETPLACE_ADMITTED_CONFIG=/tmp/ggen-marketplace-admitted.json \
+  bash scripts/qualify-marketplace.sh \
+  /tmp/ggen-marketplace-admitted.json \
+  /tmp/ggen-marketplace-qualification.json
+```
+
+The installer selects the admitted platform asset and refuses when release identity or the downloaded digest does not match admitted configuration.
+
+`qualify_packs.py` discovers the complete admitted pack set from the same marketplace calculus used by `marketplace.py`. It does not accept a hand-maintained pack list or pack-name exemptions.
 
 ## Understand the three capsule shapes
 
-For a **projection** pack, the court creates a throwaway consumer, references exactly that marketplace pack through ggen's local pack contract, adds any pack-owned positive consumer RDF/extra ontologies, and adds a tiny graph-load probe.
+For a **projection** pack, the court creates a throwaway consumer, references exactly that marketplace pack through ggen's local pack contract, adds pack-owned positive consumer RDF/extra ontologies, and adds a tiny graph-load probe.
 
-For a **semantic** pack, the court creates a throwaway declarative ggen project, loads the pack's native ontology files directly, attaches its native SPARQL gates, and manufactures the probe with an explicit generation rule. Semantic packs are not misrepresented as template packs merely to satisfy the court.
+For a **semantic** pack, the court creates a throwaway declarative ggen project, loads the pack's native ontology files directly, attaches native SPARQL gates, and manufactures the probe with an explicit generation rule. Semantic packs are not misrepresented as template packs merely to satisfy the court.
 
-For a **project** pack, the court copies the complete pack into a throwaway project capsule, overlays any source-owned `qualification/project/**` inputs, and runs that pack's own `ggen.toml` without modifying marketplace source.
+For a **project** pack, the court copies the complete pack into a throwaway project capsule, overlays source-owned `qualification/project/**` inputs, and runs that pack's own `ggen.toml` without modifying canonical marketplace source.
 
-When a pack needs a positive subject, keep that subject with the pack:
+When a pack needs a positive subject, keep it with the pack:
 
 ```text
 qualification/consumer.ttl
@@ -33,50 +51,56 @@ qualification/project/**
 qualification.toml
 ```
 
-Use `qualification.toml` only when the real consumer contract needs additional pack-local RDF authority:
+Use `qualification.toml` only when the real consumer contract needs additional pack-local RDF authority. Do not add pack-name branches to the generic court just to make one capability pass.
 
-```toml
-[consumer]
-extra_ontologies = ["bodies.ttl"]
-```
-
-Do not add pack names or special cases to `qualify_packs.py` just to make a capability pass.
+Fixtures are **synthetic admitted inputs**, not observations that an external event occurred. They can prove bounded compiler/gate behavior for the fixture; they cannot become customer evidence, cloud observation, benchmark result, or authority grant.
 
 ## Acceptance law
 
-Every pack must:
+For every admitted pack `p`, qualification establishes the configured bounded form of:
 
-1. complete `ggen sync run` within five seconds;
-2. complete a second sync within five seconds;
-3. produce an identical non-runtime file snapshot on the second pass;
-4. leave the marketplace pack source byte-identical;
-5. for projection/semantic profiles, materialize `qualification/marketplace-probe.txt`.
+```text
+source_digest_before(p)
+→ isolated capsule(p)
+→ ggen sync run
+→ consequence_1
+→ ggen sync run
+→ consequence_2
+→ consequence_1 == consequence_2
+→ source_digest_after(p) == source_digest_before(p)
+```
 
-The court runs packs concurrently, but each pack receives its own HOME/XDG state and filesystem capsule. Runtime-only ggen/cache/toolchain state is excluded from consequence comparison; canonical pack source and manufactured non-runtime output remain observable.
+Projection/semantic profiles must materialize the marketplace probe. Runtime-only ggen/cache/toolchain state is excluded from consequence comparison; canonical pack source and manufactured non-runtime output remain observable.
+
+The exact numeric timeout/concurrency values are read from admitted `marketplace.toml`, not this guide.
 
 ## Interpret refusals
 
-A failure is typed. Examples include:
+Representative refusal families include:
 
-- `REFUSED:GGEN_PACK_TIMEOUT` — the bounded manufacturer exceeded the admitted per-pass ceiling;
+- `REFUSED:GGEN_PACK_TIMEOUT` — bounded manufacture exceeded admitted timeout law;
 - `REFUSED:GGEN_PACK_SYNC_FAILED` — the real ggen runtime rejected or failed to manufacture the pack;
-- `REFUSED:GGEN_PACK_PROBE_MISSING` — ggen did not produce the graph-load witness for a projection/semantic pack;
-- `REFUSED:GGEN_PACK_NONDETERMINISTIC_REPLAY` — pass two changed the manufactured filesystem consequence;
+- `REFUSED:GGEN_PACK_PROBE_MISSING` — the graph-load witness was not manufactured for a profile that requires it;
+- `REFUSED:GGEN_PACK_NONDETERMINISTIC_REPLAY` — the second pass changed the manufactured consequence;
 - `REFUSED:GGEN_PACK_SOURCE_MUTATED` — qualification altered canonical marketplace source;
-- `REFUSED:QUALIFICATION_CONTRACT_INVALID` — a pack-owned qualification contract is malformed, unsafe, or references missing data.
+- `REFUSED:QUALIFICATION_CONTRACT_INVALID` — pack-owned qualification input is malformed, unsafe, or references missing data.
 
-Do not suppress a refusal to make CI green. Repair the pack's admitted source or source-owned qualification contract and re-run the complete corpus.
+Do not suppress a refusal to make CI green. Repair the owning semantic/manufacturing boundary, or classify a genuinely unsupported boundary explicitly.
 
 ## Verify the repository stayed clean
 
-Permanent CI runs with `PYTHONDONTWRITEBYTECODE=1` and finishes with:
+Permanent CI runs with read-only source authority and finishes with a strict source-mutation check. Qualification tooling must prevent temporary residue instead of teaching the guard to ignore arbitrary files.
 
-```bash
-git status --porcelain --untracked-files=all
-```
+## Relationship to Level 5
 
-Any residue refuses the exact-head qualification. The guard is intentionally strict; qualification tooling must prevent its own temporary files rather than teaching the guard to ignore arbitrary source-tree changes.
+All-pack qualification closes an important **manufacture/replay** boundary for the exact marketplace head. It does not by itself make every pack Level 5.
+
+A Level-5 pack additionally requires domain-specific closure for semantic authority, complete admission/negative witnesses, the claimed real consumer/runtime boundary, receipt/replay semantics, authority fencing, composition/class closure, and all four Diátaxis quadrants.
+
+See [Level-5 maturity contract](../reference/level5-maturity-contract.md) and [How to promote a pack to Level 5](promote-a-pack-to-level5.md).
 
 ## Evidence boundary
 
-This court proves bounded **ggen load/manufacture/replay behavior** for every admitted pack at one exact repository head. It does not execute manufactured programs, Terraform, emitted GitHub Actions, MCP calls, cloud operations, or arbitrary pack-owned Python verifier gates, and it does not establish consumer-specific business behavior, external consequence, or BRCE DO authority.
+This court exercises ggen's bounded filesystem manufacturer. It does not execute manufactured applications, Terraform, emitted GitHub Actions, MCP calls, cloud operations, arbitrary external actuators, or every pack-owned domain verifier.
+
+Therefore exact-head all-pack qualification may establish deterministic load/manufacture/replay standing for the admitted marketplace subject. It cannot establish generated-program runtime correctness, external-system consequence, customer acceptance, benchmark SOTA, cloud authority, physical-world consequence, organizational acceptance, or BRCE DO standing.
