@@ -1,0 +1,36 @@
+# MESSAGE: every aex:PackageLicenseFile must declare aex:licensePackage,
+# aex:licenseSpdx, and aex:licenseCopyrightLine; aex:licenseSpdx is a closed set
+# currently containing exactly "MIT" -- templates/LICENSE.tmpl renders only the
+# SPDX MIT body verbatim (echo, don't synthesize: the copyright line is stated as
+# a fact, never derived), so any other spdx value would render a WRONG license
+# body while claiming pack provenance. A missing fact would silently drop a line
+# of the emitted file. Any row = a violation.
+PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+
+SELECT ?s ?violation WHERE {
+  {
+    # licensePackage missing entirely
+    ?s a aex:PackageLicenseFile .
+    FILTER NOT EXISTS { ?s aex:licensePackage ?any_package }
+    BIND("missing aex:licensePackage" AS ?violation)
+  }
+  UNION {
+    # licenseSpdx missing entirely
+    ?s a aex:PackageLicenseFile .
+    FILTER NOT EXISTS { ?s aex:licenseSpdx ?any_spdx }
+    BIND("missing aex:licenseSpdx" AS ?violation)
+  }
+  UNION {
+    # licenseCopyrightLine missing entirely
+    ?s a aex:PackageLicenseFile .
+    FILTER NOT EXISTS { ?s aex:licenseCopyrightLine ?any_line }
+    BIND("missing aex:licenseCopyrightLine" AS ?violation)
+  }
+  UNION {
+    # licenseSpdx outside the closed set this pack's template can render truthfully
+    ?s a aex:PackageLicenseFile ; aex:licenseSpdx ?spdx .
+    FILTER (?spdx != "MIT")
+    BIND(?spdx AS ?violation)
+  }
+}
+ORDER BY ?s ?violation

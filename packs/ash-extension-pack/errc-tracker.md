@@ -214,3 +214,78 @@ separate commit on top of the three parallel agents' work):
    which in fact satisfies the contract) and silently made the `receipted_action`
    query/template always return 0 rows. Fixed by removing the quotes in all five
    filter sites so the comparison is boolean-to-boolean.
+
+## Cycle 2 — 2026-09-17 (license-file family: first ledger-paydown capability, finish-paydown-026)
+
+EXTEND of the existing pack (no new top-level pack): a `aex:PackageLicenseFile`
+family -- vocabulary + worked instance (`aex:AshSurfaceLicense`, facts echoing the
+consumer repo ash_surface's real LICENSE byte-for-byte), `templates/LICENSE.tmpl`
+(SPARQL-frontmatter Tera, driver query `license`, emits the SPDX MIT body verbatim
+with the stated copyright line -- echo, don't synthesize), and
+`gates/070_license_file_contract.rq` (missing-fact + closed-spdx-set violations;
+only "MIT" is renderable truthfully today, anything else refuses fail-closed).
+
+Harness changes (`verify/render_check.exs`): gate 070 + LICENSE.tmpl added to the
+real file lists; the syntax check now scopes to Elixir templates
+(`.ex.tmpl`/`.exs.tmpl`) and reports `:non_elixir_text` for plain-text templates
+instead of pretending MIT text parsed as Elixir; new fail-closed byte-identity
+hook -- set `LICENSE_EXPECTED_PATH` to the consumer's LICENSE and a rendered-body
+mismatch halts the VM nonzero. Witnessed receipt for this cycle (real run against
+the consumer's file): rendered LICENSE byte-identical, 1069 bytes, md5
+1a18525b755dba67b8e1bbfa8348a642.
+
+Known limits disclosed, not papered over: (1) this pack's Rust `ggen sync run`
+blocker ([FM-PACK-001]/[FM-PACK-002], hardcoded `/workspace` `[packs]` resolution)
+still applies -- verification remains through ggen_igniter's real
+oxigraph+WASM-Tera pipeline; (2) the consumer-side paydown (retiring ash_surface's
+HANDWRITTEN `LICENSE` row + `surf:UnsupportedLedgerRow31`) is deliberately NOT done
+from this branch: marketplace admission (merge of this branch to the authoritative
+head) is an operator cut, and retiring the consumer pair against an unadmitted,
+unpushed pack SHA would fabricate provenance. The pair retires only after
+admission, via re-dispatch of finish-paydown-026.
+
+## Cycle 3 — 2026-09-17 (scripts-index doc family: second ledger-paydown capability, chicago-ledger-shrink2-050)
+
+EXTEND of the existing pack (no new top-level pack), mirroring Cycle 2's prepared
+pattern for a second bounded consumer row: a `aex:ScriptsIndexDoc` /
+`aex:ScriptsIndexEntry` family — vocabulary + worked instance
+(`aex:AshSurfaceScriptsIndex` + three entries, facts echoing the consumer repo
+ash_surface's real scripts/README.md byte-for-byte: 6769 bytes, md5
+1ee5cc8cbc923bc478d28031e8b6d6ce), `templates/SCRIPTS_README.tmpl`
+(SPARQL-frontmatter Tera, driver query `scripts_index` + entry list query
+`scripts_entries`, renders '# <dir>/' + one '## <file> — <role>' section per
+entry, bodies stated verbatim in the ontology — echo, don't synthesize; section
+order is the template's ORDER BY ?entry_file law), and
+`gates/080_scripts_index_contract.rq` (violation-SELECT refusing missing facts,
+blank facts, unrenderable dirs/files/roles, nested '## ' headers inside a body,
+and duplicate entry files — every refusal names the wrong-render it prevents).
+
+Harness changes (`verify/render_check.exs`): gate 080 + SCRIPTS_README.tmpl added
+to the real file lists; new fail-closed byte-identity hook — set
+`SCRIPTS_README_EXPECTED_PATH` to the consumer's scripts/README.md and a
+rendered-byte mismatch halts the VM nonzero. pack.toml 0.2.0 -> 0.3.0 (one new
+backward-compatible family on top of Cycle 2's license-file family; this branch
+is stacked on feat/ash-extension-pack-license-file @832e2c1c2, so admission
+order is license-file first, this second — never a rebase-surprise).
+
+Witnessed receipt for this cycle (real runs, this branch):
+- ggen_igniter render_check (real oxigraph + WASM-Tera + build_bindings/2, run
+  from /Users/sac/ggen_igniter): gates 8/8 ok (080: 0 violation rows),
+  SCRIPTS_README.tmpl {:ok, 1 row, 6769 bytes}, SCRIPTS_README byte identity
+  :ok vs /Users/sac/ash-surface-wt/g50/scripts/README.md, exit 0.
+  reactor_pipeline.ex.tmpl 0-driver-rows error remains pre-existing (falsified
+  as a regression in Cycle 2: unmodified main renders with the identical error).
+- marketplace.py validate exit 0 (packs=318 templates=1831 — +1 for
+  SCRIPTS_README.tmpl); catalog projection byte-deterministic (two real runs,
+  cmp clean); pytest tests/test_marketplace.py 16 passed
+  (PYTHONPATH=scripts, tomllib-capable python3.13 per 14a139861).
+
+Known limits disclosed, not papered over: (1) the Rust `ggen sync run` blocker
+([FM-PACK-001]/[FM-PACK-002]) is unchanged — verification remains through
+ggen_igniter's real oxigraph+WASM-Tera pipeline; (2) the consumer-side paydown
+(retiring ash_surface's HANDWRITTEN `scripts/README.md` row +
+`surf:UnsupportedLedgerRow20`) is deliberately NOT done from this branch:
+marketplace admission (operator merge + push of the branch chain) is an
+operator cut, and retiring the consumer pair against an unadmitted, unpushed
+pack SHA would fabricate provenance. The pair retires only after admission,
+via re-dispatch of chicago-ledger-shrink2-050.

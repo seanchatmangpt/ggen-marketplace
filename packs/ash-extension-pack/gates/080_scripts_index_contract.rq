@@ -1,0 +1,70 @@
+# MESSAGE: every aex:ScriptsIndexDoc must declare aex:scriptsIndexRepo and
+# aex:scriptsIndexDir, and every aex:ScriptsIndexEntry must declare
+# aex:scriptsIndexEntryFile, aex:scriptsIndexEntryRole, and
+# aex:scriptsIndexEntryBody -- a missing fact would silently drop the doc
+# heading or a whole section of the emitted scripts index while claiming pack
+# provenance. The structural laws templates/SCRIPTS_README.tmpl renders by are
+# refused here fail-closed rather than rendering a WRONG index: a blank fact
+# renders an empty heading/section; a dir containing '/' or a newline breaks
+# the one-line "# <dir>/" heading law; a file containing '/' is a path, not an
+# indexed script name; a role containing a newline breaks the one-line
+# "## <file> — <role>" header law; a body containing a nested "## " header
+# would inject a foreign section under the wrong owner's provenance; duplicate
+# entry files emit two sections claiming the same script's provenance. Any row
+# = a violation.
+PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+
+SELECT ?s ?violation WHERE {
+  {
+    ?s a aex:ScriptsIndexDoc .
+    FILTER NOT EXISTS { ?s aex:scriptsIndexRepo ?any_repo }
+    BIND("missing aex:scriptsIndexRepo" AS ?violation)
+  }
+  UNION {
+    ?s a aex:ScriptsIndexDoc .
+    FILTER NOT EXISTS { ?s aex:scriptsIndexDir ?any_dir }
+    BIND("missing aex:scriptsIndexDir" AS ?violation)
+  }
+  UNION {
+    ?s a aex:ScriptsIndexEntry .
+    FILTER NOT EXISTS { ?s aex:scriptsIndexEntryFile ?any_file }
+    BIND("missing aex:scriptsIndexEntryFile" AS ?violation)
+  }
+  UNION {
+    ?s a aex:ScriptsIndexEntry .
+    FILTER NOT EXISTS { ?s aex:scriptsIndexEntryRole ?any_role }
+    BIND("missing aex:scriptsIndexEntryRole" AS ?violation)
+  }
+  UNION {
+    ?s a aex:ScriptsIndexEntry .
+    FILTER NOT EXISTS { ?s aex:scriptsIndexEntryBody ?any_body }
+    BIND("missing aex:scriptsIndexEntryBody" AS ?violation)
+  }
+  UNION {
+    ?s a aex:ScriptsIndexDoc ; aex:scriptsIndexDir ?dir .
+    FILTER (STRLEN(?dir) = 0 || CONTAINS(?dir, "/") || CONTAINS(?dir, "\n"))
+    BIND(CONCAT("unrenderable scriptsIndexDir: ", ?dir) AS ?violation)
+  }
+  UNION {
+    ?s a aex:ScriptsIndexEntry ; aex:scriptsIndexEntryFile ?file .
+    FILTER (STRLEN(?file) = 0 || CONTAINS(?file, "/") || CONTAINS(?file, "\n"))
+    BIND(CONCAT("unrenderable scriptsIndexEntryFile: ", ?file) AS ?violation)
+  }
+  UNION {
+    ?s a aex:ScriptsIndexEntry ; aex:scriptsIndexEntryRole ?role .
+    FILTER (STRLEN(?role) = 0 || CONTAINS(?role, "\n"))
+    BIND(CONCAT("unrenderable scriptsIndexEntryRole: ", ?role) AS ?violation)
+  }
+  UNION {
+    ?s a aex:ScriptsIndexEntry ; aex:scriptsIndexEntryBody ?body .
+    FILTER (STRLEN(?body) = 0 || CONTAINS(?body, "\n## "))
+    BIND(CONCAT("unrenderable scriptsIndexEntryBody (blank or nested '## ' section) on ", STR(?s)) AS ?violation)
+  }
+  UNION {
+    ?s a aex:ScriptsIndexEntry ; aex:scriptsIndexEntryFile ?file .
+    ?other a aex:ScriptsIndexEntry ; aex:scriptsIndexEntryFile ?file .
+    FILTER (?s != ?other)
+    BIND(CONCAT("duplicate scriptsIndexEntryFile across entries: ", ?file) AS ?violation)
+  }
+}
+ORDER BY ?s ?violation
