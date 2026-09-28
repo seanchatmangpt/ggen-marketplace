@@ -1,7 +1,7 @@
 [project]
 name = "xaas-public-ash-projection-pack"
-version = "0.1.0"
-description = "Public SHACL application profile to canonical Ash/Igniter construction program"
+version = "0.2.0"
+description = "Thin compatibility consumer: the XaaS initial public SHACL application profile projected through xaas-ash-core-pack's canonical query, template and gates"
 authors = ["Sean Chatman"]
 
 [ontology]
@@ -20,18 +20,32 @@ sosa = "http://www.w3.org/ns/sosa/"
 pplan = "http://purl.org/net/p-plan#"
 qudt = "http://qudt.org/schema/qudt/"
 
+# Composition by sibling reference (not copy). This pack owns ONLY its
+# application-profile data (ontology.ttl: which public classes/paths are
+# selected; `sh:deactivated true` excludes a shape). The admission gates, the
+# SPARQL projection and the Tera template are owned by xaas-ash-core-pack.
+# ggen's declarative schema cannot mix a `[packs]` table with
+# `[[generation.rules]]` (FM-CONFIG-101), and xaas-ash-core-pack is a
+# declarative project pack, so the composition edge is expressed as
+# `../xaas-ash-core-pack/...` file references; ggen records each referenced
+# file's sha256 in the sync receipt `closure`.
+[validation]
+gates = [
+  "../xaas-ash-core-pack/gates/010_no_custom_vocabulary.rq",
+  "../xaas-ash-core-pack/gates/020_public_target_classes.rq",
+  "../xaas-ash-core-pack/gates/030_profile_well_formed.rq",
+  "../xaas-ash-core-pack/gates/040_resource_name_collisions.rq",
+  "../xaas-ash-core-pack/gates/050_supported_datatypes.rq",
+  "../xaas-ash-core-pack/gates/060_object_property_projection_pending.rq",
+]
+
 [generation]
 output_dir = "."
 
 [[generation.rules]]
 name = "xaas-public-ash-construction"
-# The query file is deliberately minimal (see its header): ggen's engine
-# refuses VALUES in a file-referenced .rq (error[E0010]) and drops some
-# computed UNION-branch columns, so all string composition lives in the
-# template below, not in SPARQL BINDs.
-query = { file = "queries/ash-gen-commands.rq" }
-template = { file = "templates/gen-commands.sh.tmpl" }
+query = { file = "../xaas-ash-core-pack/queries/ash-gen-commands.rq" }
+template = { file = "../xaas-ash-core-pack/templates/gen-commands.sh.tmpl" }
 output_file = "xaas-public-ash-GENERATED.sh"
 skip_empty = false
 mode = "Overwrite"
-

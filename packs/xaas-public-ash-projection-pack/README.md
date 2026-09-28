@@ -2,6 +2,15 @@
 
 **Purpose:** turn an admitted SHACL application profile over **public ontology terms** into a canonical Ash/Igniter construction program.
 
+**Since 0.2.0 this is a thin compatibility pack.** It owns only its application-profile data
+(`ontology.ttl`). The generator-command projection (`queries/ash-gen-commands.rq`,
+`templates/gen-commands.sh.tmpl`) and all admission gates are owned by
+[`xaas-ash-core-pack`](../xaas-ash-core-pack/) and referenced from `ggen.toml` as
+`../xaas-ash-core-pack/...` (never copied). The output path `xaas-public-ash-GENERATED.sh`
+and its command content are unchanged for existing consumers
+(`.github/workflows/xaas-public-ash-projection.yml`). A shape is excluded from the
+projection with the standard SHACL `sh:deactivated true`.
+
 ```text
 public ontology locks
         ↓
@@ -70,9 +79,9 @@ Generated output is intentionally not committed as semantic source truth.
 
 `xaas-public-ontology-profile` owns public-artifact locks and competency qualification.
 
-`xaas-public-ash-projection-pack` owns the public SHACL → Ash construction projection.
-
-`xaas-ash-core-pack` currently preserves the larger Ash ecosystem research, speedrun, and the transitional 44-capability constructor. Its private `xar:` graph is historical/construction evidence, not the canonical XaaS ontology path.
+`xaas-ash-core-pack` owns the public SHACL → Ash construction projection (query, template,
+gates) plus the larger Ash ecosystem research. `xaas-public-ash-projection-pack` owns only the
+initial public application-profile selection and composes the core pack.
 
 ## Standing
 
@@ -80,5 +89,5 @@ Generated output is intentionally not committed as semantic source truth.
 - private XaaS domain vocabulary: **REFUSED by gate**;
 - datatype projection: **IMPLEMENTED**;
 - object relationship projection: **REFUSED / not admitted**;
-- `ggen sync run` on this exact new pack: **NOT YET EXECUTED** until an exact ggen runtime executes this branch;
+- `ggen sync run` (ggen 26.9.18, twice, byte-identical) through the composed core pack: **ALIVE** in marketplace qualification;
 - generated Ash runtime: **NOT YET EXECUTED** for this public-only projection.

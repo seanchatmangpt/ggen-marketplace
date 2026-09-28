@@ -353,6 +353,33 @@ def overlay_project_qualification(pack: Pack, consumer: Path) -> None:
         shutil.copy2(source, destination)
 
 
+def sibling_file_references(config: dict[str, Any]) -> tuple[str, ...]:
+    """Sibling pack directory names referenced as `../<pack>/...` by a
+    declarative ggen.toml's generation-rule query/template files or its
+    `[validation].gates` entries, sorted and de-duplicated."""
+    references: list[str] = []
+    generation = config.get("generation")
+    rules = generation.get("rules") if isinstance(generation, dict) else None
+    for rule in rules if isinstance(rules, list) else ():
+        if not isinstance(rule, dict):
+            continue
+        for key in ("query", "template"):
+            value = rule.get(key)
+            if isinstance(value, dict) and isinstance(value.get("file"), str):
+                references.append(value["file"])
+    validation = config.get("validation")
+    gates = validation.get("gates") if isinstance(validation, dict) else None
+    for gate in gates if isinstance(gates, list) else ():
+        if isinstance(gate, str):
+            references.append(gate)
+    siblings = set()
+    for reference in references:
+        parts = Path(reference).parts
+        if len(parts) >= 3 and parts[0] == ".." and parts[1] not in ("", ".", ".."):
+            siblings.add(parts[1])
+    return tuple(sorted(siblings))
+
+
 def copy_composed_packs(pack: Pack, capsule: Path) -> None:
     """For a project-profile pack whose own `ggen.toml` composes sibling
     marketplace packs via `[packs] name = { path = "../other-pack" }`
@@ -392,12 +419,23 @@ def copy_composed_packs(pack: Pack, capsule: Path) -> None:
     except (OSError, tomllib.TOMLDecodeError) as error:
         raise QualificationContractError(f"pack `{pack.name}`: invalid ggen.toml: {error}") from error
     packs_table = config.get("packs")
-    if not isinstance(packs_table, dict):
+    composed: dict[str, str] = {}
+    if isinstance(packs_table, dict):
+        for name, entry in packs_table.items():
+            if isinstance(entry, dict) and isinstance(entry.get("path"), str):
+                composed[name] = entry["path"]
+    # Declarative packs cannot carry a `[packs]` table beside
+    # `[[generation.rules]]` (ggen FM-CONFIG-101), so they compose a sibling
+    # by file reference instead (`query/template = { file = "../<pack>/..." }`,
+    # `[validation].gates = ["../<pack>/..."]`, e.g. xaas-public-ash-projection-pack
+    # -> xaas-ash-core-pack). Copy each such referenced sibling too.
+    for sibling in sibling_file_references(config):
+        composed.setdefault(sibling, f"../{sibling}")
+    if not composed:
         return
     packs_root = pack.path.resolve().parent
-    for name, entry in packs_table.items():
-        if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
-            continue
+    for name, path in sorted(composed.items()):
+        entry = {"path": path}
         source = (pack.path / entry["path"]).resolve()
         try:
             source.relative_to(packs_root)
