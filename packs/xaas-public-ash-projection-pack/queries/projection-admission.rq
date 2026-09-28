@@ -1,0 +1,30 @@
+PREFIX sh: <http://www.w3.org/ns/shacl#>
+SELECT ?violation ?subject ?detail
+WHERE {
+  {
+    ?shape a sh:NodeShape ; sh:targetClass ?class .
+    FILTER(!isIRI(?class))
+    BIND("non_iri_exact_subject" AS ?violation)
+    BIND(?shape AS ?subject)
+    BIND(STR(?class) AS ?detail)
+  }
+  UNION
+  {
+    ?shape a sh:NodeShape ; sh:targetClass ?class ; sh:property ?ps .
+    ?ps sh:path ?path .
+    FILTER(!isIRI(?path))
+    BIND("non_iri_property_subject" AS ?violation)
+    BIND(?ps AS ?subject)
+    BIND(STR(?path) AS ?detail)
+  }
+  UNION
+  {
+    ?left a sh:NodeShape ; sh:targetClass ?class .
+    ?right a sh:NodeShape ; sh:targetClass ?class .
+    FILTER(STR(?left) < STR(?right))
+    BIND("duplicate_class_projection" AS ?violation)
+    BIND(?class AS ?subject)
+    BIND(CONCAT(STR(?left), "|", STR(?right)) AS ?detail)
+  }
+}
+ORDER BY ?violation ?subject ?detail
