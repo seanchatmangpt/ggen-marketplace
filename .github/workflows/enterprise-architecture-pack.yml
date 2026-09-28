@@ -1,0 +1,39 @@
+name: Enterprise Architecture Pack Court
+
+on:
+  pull_request:
+    paths:
+      - 'packs/enterprise-architecture-pack/**'
+      - '.github/workflows/enterprise-architecture-pack.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'packs/enterprise-architecture-pack/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualification:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Positive exact-subject qualification
+        run: |
+          python packs/enterprise-architecture-pack/gates/validate_enterprise_architecture.py \
+            packs/enterprise-architecture-pack/fixtures/ea-graph.json
+      - name: Authority-widening falsifier must be caught
+        run: |
+          python packs/enterprise-architecture-pack/gates/validate_enterprise_architecture.py \
+            packs/enterprise-architecture-pack/fixtures/refused-authority.json \
+            --expect-refusal AUTHORITY_WIDENING
+      - name: Pack has no consequential authority declaration
+        run: |
+          ! grep -RniE 'grants_do_authority[[:space:]]*=[[:space:]]*true|authority[[:space:]]*=[[:space:]]*"DO"' \
+            packs/enterprise-architecture-pack/pack.toml \
+            packs/enterprise-architecture-pack/ggen.toml
