@@ -42,7 +42,13 @@ EXCLUDED_FILES = frozenset({"SUMMARY.md"})
 # superpowers/ holds skill working artifacts (plans and specs produced while
 # developing this repo). They live under docs/ for convenience but are not part
 # of the published book.
-EXCLUDED_DIRS = frozenset({"superpowers"})
+#
+# jira/ and sjira/ are per-release ticket and failure-analysis working records
+# (plans, PR review notes, milestone ledgers); context/ is the machine handoff
+# and exact-head standing scratch surface. They are operational records about
+# the repo's own development, not reader-facing chapters, and are deliberately
+# left out of the published book.
+EXCLUDED_DIRS = frozenset({"superpowers", "jira", "sjira", "context"})
 
 MDP_PATH_RE = re.compile(r'mdp:path\s+"([^"]+)"')
 
