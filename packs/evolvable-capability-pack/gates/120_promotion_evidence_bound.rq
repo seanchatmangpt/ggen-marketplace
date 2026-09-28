@@ -1,0 +1,25 @@
+# MESSAGE: a promotion names what it promotes, its evidence is typed paired evidence, and the champion is released.
+PREFIX ecap: <https://seanchatmangpt.github.io/packs/evolvable-capability#>
+SELECT DISTINCT ?promotion ?defect WHERE {
+  {
+    ?promotion a ecap:Promotion .
+    FILTER NOT EXISTS { ?promotion ecap:promotes ?anyPromoted }
+    BIND("missingPromotes" AS ?defect)
+  }
+  UNION
+  {
+    ?promotion a ecap:Promotion ;
+               ecap:pairedEvidence ?evidence .
+    FILTER NOT EXISTS { ?evidence a ecap:PairedEvidence }
+    BIND("untypedEvidence" AS ?defect)
+  }
+  UNION
+  {
+    ?promotion a ecap:Promotion ;
+               ecap:pairedEvidence ?evidence .
+    ?evidence ecap:champion ?champion .
+    FILTER NOT EXISTS { ?champion ecap:lifecycleState ecap:Released }
+    BIND("championNotReleased" AS ?defect)
+  }
+}
+ORDER BY ?promotion ?defect
