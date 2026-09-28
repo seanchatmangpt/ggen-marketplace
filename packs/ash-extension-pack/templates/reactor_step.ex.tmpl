@@ -1,0 +1,46 @@
+---
+to: "lib/{{ package_name }}/reactor/steps/{{ step_name }}.ex"
+for_each: "step"
+sparql:
+  step: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+
+    # One row per aex:ReactorStep, joined to its OWN spec through aex:stepOf, so every
+    # rendered file is scoped to exactly one spec by construction (the for_each row is
+    # the step itself -- no named-result filtering in the body is needed). Mirrored in
+    # queries/reactor_step_modules.rq.
+    SELECT ?package_name ?module_name ?step_name ?step_module ?step_order ?has_compensate WHERE {
+      ?step a aex:ReactorStep ; aex:stepOf ?spec ;
+            aex:stepName ?step_name ; aex:stepModule ?step_module ; aex:stepOrder ?step_order .
+      ?spec aex:packageName ?package_name ; aex:moduleName ?module_name .
+      OPTIONAL { ?step aex:stepHasCompensate ?has_compensate }
+    }
+    ORDER BY ?package_name ?step_order
+---
+{# Reactor step module -- one per aex:ReactorStep, named exactly as
+   reactor_pipeline.ex.tmpl references it ({{ module_name }}.Reactor.Steps.<stepModule>).
+   Before this template the step modules were consumer-written by hand in fixture/,
+   although every fact they carry (module name, step name, compensate capability) is
+   declared in the ontology.
+
+   run/3 is deterministic and arguments-derived: it returns the step's own name and the
+   arguments Reactor resolved for it. compensate/4 is emitted only when
+   aex:stepHasCompensate is true (the ash_r2rml render_turtle.ex:27-31 shape); it
+   returns :ok, i.e. "compensated, continue rolling back". Domain behavior beyond this
+   deterministic default is not declared in the ontology and is not synthesized. #}
+defmodule {{ module_name }}.Reactor.Steps.{{ step_module }} do
+  @moduledoc """
+  Reactor step `:{{ step_name }}` (order {{ step_order }}) of `{{ package_name }}`'s
+  declared pipeline. Generated from its `aex:ReactorStep` row -- regenerate, do not
+  hand-edit.
+  """
+  use Reactor.Step
+
+  @impl true
+  def run(arguments, _context, _options) do
+    {:ok, %{step: :{{ step_name }}, arguments: arguments}}
+  end
+{% if has_compensate is defined %}{% if has_compensate == true or has_compensate == "true" %}
+  @impl true
+  def compensate(_reason, _arguments, _context, _options), do: :ok
+{% endif %}{% endif %}end

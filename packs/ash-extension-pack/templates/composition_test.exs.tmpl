@@ -10,8 +10,13 @@ sparql:
     } GROUP BY ?package_name ?module_name
   targets: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?composition_target WHERE { ?c a aex:CompositionTarget ; aex:compositionTarget ?composition_target . }
-    ORDER BY ?composition_target
+    SELECT ?package_name ?composition_target ?composition_module WHERE {
+      ?c a aex:CompositionTarget ; aex:compositionOf ?spec ; aex:compositionTarget ?composition_target .
+      ?spec aex:packageName ?package_name .
+      # aex:compositionTarget is the closed OTP-app vocabulary; the Elixir namespace is
+      # not derivable by `capitalize` ("ash_graphql" -> "Ash_graphql" is not a module).
+      VALUES (?composition_target ?composition_module) { ("ash_graphql" "AshGraphql") ("ash_json_api" "AshJsonApi") }
+    } ORDER BY ?package_name ?composition_target
 ---
 {# Composition test -- mirrors ash_r2rml/test/ggen_api_bundle_test.exs: compile a real
    fixture resource with the generated extension attached via Code.compile_string/1,
@@ -25,14 +30,20 @@ sparql:
    lib/xaas/library/book.ex:36 Xaas.Library.Book resource both stacking AshAi
    alongside 2-3 other extensions) -- proving co-residence with multiple extensions
    at both levels, not just isolated single-extension compilation. #}
+{# Per-spec scoping: ggen evaluates each named `sparql:` result once against the whole
+   union graph, not per `for_each` row, so every non-spec query selects ?package_name
+   and is narrowed to the current spec here (the reactor_pipeline.ex.tmpl fix, applied
+   to every DSL family). Without it a multi-spec graph rendered every spec's sections,
+   entities, getters, verifiers and targets into every other spec's modules. #}
+{% set targets = targets | filter(attribute="package_name", value=package_name) %}
 defmodule {{ module_name }}CompositionTest do
   use ExUnit.Case, async: true
 
   @fixture_source """
-  defmodule {{ package_name | capitalize }}CompositionFixture do
+  defmodule {{ module_name }}.CompositionFixture do
     use Ash.Resource,
       domain: nil,
-      extensions: [{{ module_name }}{% for t in targets %}, {{ t.composition_target | capitalize }}.Resource{% endfor %}]
+      extensions: [{{ module_name }}{% for t in targets %}, {{ t.composition_module }}.Resource{% endfor %}]
 
     attributes do
       uuid_primary_key :id
@@ -42,9 +53,9 @@ defmodule {{ module_name }}CompositionTest do
 
 {% if dual_level_fixture | default(value="false") == "true" %}
   @domain_fixture_source """
-  defmodule {{ package_name | capitalize }}CompositionDomainFixture do
+  defmodule {{ module_name }}.CompositionDomainFixture do
     use Ash.Domain,
-      extensions: [{{ module_name }}{% for t in targets %}, {{ t.composition_target | capitalize }}.Domain{% endfor %}]
+      extensions: [{{ module_name }}{% for t in targets %}, {{ t.composition_module }}.Domain{% endfor %}]
 
     resources do
     end
@@ -52,10 +63,16 @@ defmodule {{ module_name }}CompositionTest do
   """
 
 {% endif %}
-  setup do
-    [{fixture_module, _bytecode}] = Code.compile_string(@fixture_source)
+  # setup_all: the fixture module is compiled once per test module, not redefined per
+  # test. Code.compile_string/1 returns every module the source defines -- an Ash
+  # resource also defines protocol impls (Inspect.<Fixture>, ...) -- so the fixture is
+  # looked up by its declared name, not by destructuring a one-element list.
+  setup_all do
+    fixture_module = {{ module_name }}.CompositionFixture
+    true = Enum.any?(Code.compile_string(@fixture_source), &match?({^fixture_module, _}, &1))
 {% if dual_level_fixture | default(value="false") == "true" %}
-    [{domain_module, _bytecode}] = Code.compile_string(@domain_fixture_source)
+    domain_module = {{ module_name }}.CompositionDomainFixture
+    true = Enum.any?(Code.compile_string(@domain_fixture_source), &match?({^domain_module, _}, &1))
     %{fixture: fixture_module, domain_fixture: domain_module}
 {% else %}
     %{fixture: fixture_module}
@@ -74,7 +91,7 @@ defmodule {{ module_name }}CompositionTest do
   test "the compiled DOMAIN fixture also carries the {{ module_name }} extension, co-resident with {{ targets | length }} other extension(s)", %{domain_fixture: domain_fixture} do
     assert {{ module_name }} in Spark.extensions(domain_fixture)
 {% for t in targets %}
-    assert {{ t.composition_target | capitalize }}.Domain in Spark.extensions(domain_fixture)
+    assert {{ t.composition_module }}.Domain in Spark.extensions(domain_fixture)
 {% endfor %}
   end
 
@@ -82,8 +99,11 @@ defmodule {{ module_name }}CompositionTest do
 {% for t in targets %}
   @tag :{{ t.composition_target }}
   test "composes with real {{ t.composition_target }} introspection", %{fixture: fixture} do
-    # Real Info-module call against the fixture -- not a stubbed/mocked response.
-    assert function_exported?({{ t.composition_target | capitalize }}.Resource.Info, :type, 1)
+    # The generated extension and {{ t.composition_module }}.Resource co-reside on the
+    # compiled fixture, and the library's real Info module is present.
+    assert {{ t.composition_module }}.Resource in Spark.extensions(fixture)
+    assert {{ module_name }} in Spark.extensions(fixture)
+    assert function_exported?({{ t.composition_module }}.Resource.Info, :type, 1)
   end
 {% endfor %}
 end

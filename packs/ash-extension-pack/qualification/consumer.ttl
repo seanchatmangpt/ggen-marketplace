@@ -36,3 +36,107 @@ aex:PipelineProbeSealStep a aex:ReactorStep ;
     aex:stepName "seal" ; aex:stepOrder 3 ; aex:stepModule "Seal" ;
     aex:stepWaitFor aex:PipelineProbeDeliverStep ;
     aex:stepMaxRetries 0 ; aex:stepHasCompensate false ; aex:stepIsReturn true .
+
+# PipelineProbe's own DSL surface, so its generated resource/info/persist modules carry
+# something that LedgerProbe's must not (cross-spec leakage falsifier, fixture/test).
+aex:PipelineProbeSection a aex:DslSection ;
+    aex:sectionOf aex:PipelineProbeSpec ;
+    aex:sectionName "pipeline" ;
+    aex:sectionOrder 1 ;
+    aex:sectionDescribe "Pipeline probe stage declarations." .
+
+aex:PipelineProbeStageEntity a aex:DslEntity ;
+    aex:entityOf aex:PipelineProbeSection ;
+    aex:entityOrder 1 ; aex:entityName "stage" ;
+    aex:entityStruct "PipelineProbe.Dsl.Stage" ; aex:entityIdentifier "name" .
+
+aex:PipelineProbeStageArgName a aex:EntityArg ;
+    aex:argOf aex:PipelineProbeStageEntity ; aex:argOrder 1 ; aex:argName "name" .
+
+aex:PipelineProbeStageName a aex:EntitySchemaField ;
+    aex:fieldOf aex:PipelineProbeStageEntity ;
+    aex:fieldOrder 1 ; aex:fieldName "name" ; aex:fieldType "atom" ;
+    aex:fieldRequired true ; aex:fieldDoc "The stage's slug." .
+
+aex:PipelineProbeStageGetter a aex:InfoGetter ;
+    aex:getterOf aex:PipelineProbeSpec ;
+    aex:getterName "stage_index" ;
+    aex:getterSourceSection aex:PipelineProbeSection .
+
+# Second qualification spec. Two specs in one consumer graph is the multi-spec case:
+# every generated file of one spec must mention none of the other spec's sections,
+# entities, getters, verifiers or steps (fixture/test/cross_spec_scoping_test.exs).
+# LedgerProbe also exercises the families PipelineProbe does not: a verifier, a
+# section-level schema field, an installer (taskModuleName/formatterModule), and a
+# step with compensate/4.
+aex:LedgerProbeSpec a aex:AshExtensionSpec ;
+    aex:packageName "ledger_probe" ;
+    aex:moduleName "LedgerProbe.Resource" ;
+    aex:extensionTarget "resource" ;
+    aex:taskModuleName "LedgerProbe" ;
+    aex:formatterModule "LedgerProbe.Formatter" ;
+    aex:workflowReactor true ;
+    aex:workflowReversible true ;
+    aex:generatesReceiptedAction false .
+
+aex:LedgerProbeSection a aex:DslSection ;
+    aex:sectionOf aex:LedgerProbeSpec ;
+    aex:sectionName "ledger" ;
+    aex:sectionOrder 1 ;
+    aex:sectionDescribe "Ledger probe posting declarations." .
+
+aex:LedgerProbeCurrencyField a aex:SectionSchemaField ;
+    aex:sectionFieldOf aex:LedgerProbeSection ;
+    aex:sectionFieldOrder 1 ; aex:sectionFieldName "currency" ; aex:sectionFieldType "string" .
+
+aex:LedgerProbePostingEntity a aex:DslEntity ;
+    aex:entityOf aex:LedgerProbeSection ;
+    aex:entityOrder 1 ; aex:entityName "posting" ;
+    aex:entityStruct "LedgerProbe.Dsl.Posting" ; aex:entityIdentifier "account" .
+
+aex:LedgerProbePostingArgAccount a aex:EntityArg ;
+    aex:argOf aex:LedgerProbePostingEntity ; aex:argOrder 1 ; aex:argName "account" .
+
+aex:LedgerProbePostingAccount a aex:EntitySchemaField ;
+    aex:fieldOf aex:LedgerProbePostingEntity ;
+    aex:fieldOrder 1 ; aex:fieldName "account" ; aex:fieldType "atom" ;
+    aex:fieldRequired true ; aex:fieldDoc "The posted account." .
+
+aex:LedgerProbePostingSide a aex:EntitySchemaField ;
+    aex:fieldOf aex:LedgerProbePostingEntity ;
+    aex:fieldOrder 2 ; aex:fieldName "side" ; aex:fieldType "one_of" ;
+    aex:fieldRequired false ; aex:fieldDefault ":debit" ;
+    aex:fieldDoc "Whether the posting is a :debit or a :credit." .
+
+aex:LedgerProbePostingSideDebit a aex:FieldOneOfValue ;
+    aex:oneOfValueOf aex:LedgerProbePostingSide ; aex:oneOfValueOrder 1 ; aex:oneOfValueName "debit" .
+
+aex:LedgerProbePostingSideCredit a aex:FieldOneOfValue ;
+    aex:oneOfValueOf aex:LedgerProbePostingSide ; aex:oneOfValueOrder 2 ; aex:oneOfValueName "credit" .
+
+aex:LedgerProbeBalancedVerifier a aex:Verifier ;
+    aex:verifierOf aex:LedgerProbeSpec ;
+    aex:verifierName "balanced_postings" ;
+    aex:verifierDoc "Debit and credit postings must balance." .
+
+aex:LedgerProbePostingGetter a aex:InfoGetter ;
+    aex:getterOf aex:LedgerProbeSpec ;
+    aex:getterName "posting_index" ;
+    aex:getterSourceSection aex:LedgerProbeSection .
+
+aex:LedgerProbeReserveStep a aex:ReactorStep ;
+    aex:stepOf aex:LedgerProbeSpec ;
+    aex:stepName "reserve" ; aex:stepOrder 1 ; aex:stepModule "Reserve" ;
+    aex:stepMaxRetries 1 ; aex:stepHasCompensate true ; aex:stepIsReturn false .
+
+aex:LedgerProbePostStep a aex:ReactorStep ;
+    aex:stepOf aex:LedgerProbeSpec ;
+    aex:stepName "post" ; aex:stepOrder 2 ; aex:stepModule "Post" ;
+    aex:stepWaitFor aex:LedgerProbeReserveStep ;
+    aex:stepMaxRetries 0 ; aex:stepHasCompensate false ; aex:stepIsReturn false .
+
+aex:LedgerProbeSettleStep a aex:ReactorStep ;
+    aex:stepOf aex:LedgerProbeSpec ;
+    aex:stepName "settle" ; aex:stepOrder 3 ; aex:stepModule "Settle" ;
+    aex:stepWaitFor aex:LedgerProbePostStep ;
+    aex:stepMaxRetries 0 ; aex:stepHasCompensate false ; aex:stepIsReturn true .
