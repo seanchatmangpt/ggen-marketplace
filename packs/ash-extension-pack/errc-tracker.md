@@ -125,7 +125,8 @@ Builds `packs/ash-extension-pack/` as a new, standalone pack; the two source pac
   for the `[{module, binary}] = ...` destructuring used, so the generated code is
   functionally correct — only the comment is wrong.
 
-- [ ] **[MINOR]** `templates/composition_test.exs.tmpl:48` — the per-composition-target
+- [x] **[MINOR]** (closed 2026-09-27, fa5491625: target tests now assert co-residence on
+  `fixture` via `Spark.extensions/1`, executed by the live fixture) `templates/composition_test.exs.tmpl:48` — the per-composition-target
   test titled "composes with real `{{ t.composition_target }}` introspection" only
   asserts `function_exported?(X.Resource.Info, :type, 1)` on the library module
   itself; `fixture` is bound in the test context but never referenced. It checks the
@@ -267,10 +268,60 @@ consumer) and 95b58e72f (fixture + script). Replay: `scripts/ash_pack_live_fixtu
   returns `:seal`. Mutation witness: deleting the generated `wait_for`/`return` lines makes
   the order test fail (observed `[:seal, :admit, :deliver]`, `[:deliver, :admit, :seal]`,
   `[:admit, :seal, :deliver]`).
-- **Still UNVERIFIED**: resource.ex / info.ex / persist.ex / verify.ex / install.ex and
+- **Still UNVERIFIED** (superseded by the "every generated family" receipt below): resource.ex / info.ex / persist.ex / verify.ex / install.ex and
   the composition tests are generated and hashed but not compiled by the fixture; their
   `sections:`/`entities:` queries lack the same per-spec scoping reactor_pipeline had, so
   a multi-spec graph mixes DSL sections across specs. Reactor step modules are
   consumer-owned (no template generates them). pack.toml's description still says the
   source packs are "left on disk unmodified"; they were deleted in 9e9c23875. That
   correction is not applied because pack.toml is being edited by the concurrent lane.
+
+### Every generated family compiled + per-spec scoping + generated steps (v26.9.27, 2026-09-27)
+
+Commits fa5491625 (templates/queries/consumer.ttl) and 50ba7d647 (fixture + script).
+Replay: `PATH=$HOME/.asdf/shims:$PATH scripts/ash_pack_live_fixture.sh ~/.local/bin/ggen`
+(ggen 26.9.18, Elixir 1.20.2 / OTP 28). Closes the three gaps recorded above:
+
+- [x] **(1) generated resource/info/persist/verify/install/composition-test files not
+  compiled.** The script now copies ALL 39 generated `lib/**/*.ex` (5 specs: the
+  ontology's AuditTrail/AshR2RML/NotificationExtension plus consumer.ttl's
+  PipelineProbe/LedgerProbe) and all 5 generated composition tests into the capsule,
+  refuses any non-`.ex` file under generated `lib/`, and admits zero project warnings.
+  The first full compile/run found and the templates now fix: entity structs nested in
+  the extension module aliased its namespace, so `transformers: [X.Persist]` resolved to
+  `X.X.Persist` (UndefinedFunctionError in every composition test); zero-verifier
+  `verify.ex` bound an unused `compiled`; composition tests used `capitalize` for module
+  names (`Ash_graphql.Resource`), destructured `Code.compile_string/1` as one module
+  (an Ash resource also defines protocol impls), and never read `fixture` in the target
+  tests (the MINOR item above, now asserting co-residence in `Spark.extensions/1`).
+  The fixture adds `ash_graphql`/`ash_json_api` as `only: :test` deps for AuditTrail's
+  composition targets.
+- [x] **(2) queries not scoped per spec.** Every non-spec named query in extension, info,
+  install, persist, verify and composition_test selects `?package_name` (through
+  `sectionOf`, `nestedOf*/entityOf/sectionOf`, `getterOf`, `verifierOf`,
+  `compositionOf`) and the body narrows it with `filter(attribute="package_name")`.
+  Falsifier `fixture/test/cross_spec_scoping_test.exs`: PipelineProbe's and LedgerProbe's
+  generated files contain none of the other specs' section/entity/getter/verifier/step
+  names; `sections/0`, Info getters and `Reactor.Info` steps are each spec's own.
+  Mutation witnesses: removing every filter -> compile refused (`cannot define module
+  AshR2RML.Dsl.Class`, duplicated across specs); removing only info/verify filters ->
+  2 failures (`pipeline_probe/info.ex leaks :r2rml`), 21/23 passed.
+- [x] **(3) no template generates Reactor step modules.** `templates/reactor_step.ex.tmpl`
+  (+ `queries/reactor_step_modules.rq`) emits one `use Reactor.Step` module per
+  `aex:ReactorStep`: `run/3` -> `{:ok, %{step: name, arguments: arguments}}`,
+  `compensate/4` only where `aex:stepHasCompensate` is true. The hand-written
+  `fixture/lib/pipeline_probe/steps/*` are deleted; the order test reads real
+  `[:reactor, :step, :run, :start]` telemetry and still sees `[:admit, :deliver, :seal]`.
+- **Receipt**: three full runs (two before and one after the final echo-only script tweak in 50ba7d647), each: `ggen sync run` x2 byte-identical over 45 files,
+  sha256 manifest `de1b1ae7fd4b80649412ce1d4c53c0886d6fc15a957dbe8d8af94329b1bda791`
+  (identical across runs), `compile: 0 project warnings`, `mix test` 23 passed, exit 0.
+  `python3 scripts/marketplace.py validate` exit 0.
+- **Still UNVERIFIED / open**: generated domain-level (`dualLevelFixture`) composition and
+  `contextNormalize`/`validateDelegate`/`legacyAdapter`/`normalize` branches (no spec in the
+  union graph sets them, so they render but are not compiled); the Igniter branch of
+  `install.ex` (Igniter is not a fixture dep, only the `Mix.Task` fallback compiles);
+  `aex:installerRuntimeDep` is written `"a2a ~> 0.2"` in ontology.ttl while
+  `install.ex.tmpl` splits on `|` (renders `{:a2a ~> 0.2, "a2a ~> 0.2"}` inside the
+  uncompiled Igniter branch); the generated `check_*` verifier bodies remain `:ok` stubs;
+  pack.toml's "other templates have not been re-measured" line is stale (pack.toml left to
+  its owning lane).
