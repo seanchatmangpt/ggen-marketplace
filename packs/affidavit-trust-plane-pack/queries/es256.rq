@@ -1,0 +1,42 @@
+# es256.rq — consumed by templates/crypto_trust_es256.rs.tmpl (affidavit-trust-plane-pack)
+#
+# Single-row rule: exactly one algorithm individual (ES256) joins the trust-plane
+# policy tag; zero rows = missing graph fact and the rule renders nothing
+# (fail-loud), >1 ES256 row would be a graph defect surfaced by the renderer.
+#
+# Projected columns (MUST equal crypto_trust_es256.rs.tmpl's {{ }} vars):
+#   alg_name      - ctp:alg-ES256 ctp:algorithmName, e.g. "ES256"
+#   spec_ref      - ctp:specRef via ctp:parameterSet, e.g. "RFC 6979 / SEC 2"
+#   pk_len        - ctp:publicKeyLength, e.g. "65" (SEC1 uncompressed point)
+#   deterministic - ctp:deterministic, "true" (RFC 6979 deterministic ECDSA)
+#   domain_tag    - ctp:policy-v1 ctp:domainTag, e.g. "affidavit.crypto-trust-plane.v1"
+#
+# All values pass through STR() so the Tera template receives plain strings
+# (proven wiring: rule SELECT columns are plain Tera variables).
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT
+  ?alg_name
+  ?spec_ref
+  ?pk_len
+  ?deterministic
+  ?domain_tag
+WHERE {
+  ?policy ctp:domainTag ?domainTagRaw .
+  BIND(STR(?domainTagRaw) AS ?domain_tag)
+
+  ?alg ctp:algorithmName ?algNameRaw ;
+       ctp:parameterSet ?paramSet ;
+       ctp:publicKeyLength ?pkLenRaw ;
+       ctp:deterministic ?detRaw .
+  ?paramSet ctp:specRef ?specRefRaw .
+  FILTER(STR(?algNameRaw) = "ES256")
+
+  BIND(STR(?algNameRaw) AS ?alg_name)
+  BIND(STR(?specRefRaw) AS ?spec_ref)
+  BIND(STR(?pkLenRaw) AS ?pk_len)
+  BIND(STR(?detRaw) AS ?deterministic)
+}
+ORDER BY ?alg_name
+LIMIT 1

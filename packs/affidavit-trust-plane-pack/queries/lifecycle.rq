@@ -1,0 +1,24 @@
+# lifecycle.rq — single-row binding for the epoch lifecycle module
+# (crypto_trust_lifecycle.rs). Binds the revocation-staleness bound and domain
+# tag from ctp:policy-v1, and the replay-key tuple + acceptance window from
+# ctp:nonce-policy-v1 (the RFC-SA2A-007-errata envelope binds these laws via
+# fields 6 revocation_epoch and 8 nonce).
+# Columns are consumed by ggen sync as plain Tera variables:
+#   {{ staleness }} {{ window }} {{ replay_key }} {{ domain_tag }}
+# domain_tag is bound here (the lifecycle template does not render it; the
+# canonical module owns DOMAIN_TAG) so a half-projected ctp:policy-v1
+# individual fails loudly with zero rows instead of rendering a partial module.
+# Any missing fact yields zero rows — the engine refuses, defaults never render.
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT ?staleness ?window ?replay_key ?domain_tag
+WHERE {
+  ctp:policy-v1
+      ctp:maxRevocationStalenessSeconds  ?staleness ;
+      ctp:domainTag                      ?domain_tag .
+  ctp:nonce-policy-v1
+      ctp:windowSeconds                  ?window ;
+      ctp:replayKey                      ?replay_key .
+}
+ORDER BY ?domain_tag
+LIMIT 1

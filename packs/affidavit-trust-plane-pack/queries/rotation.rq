@@ -1,0 +1,54 @@
+# rotation.rq — consumed by templates/crypto_trust_rotation.rs.tmpl (affidavit-trust-plane-pack)
+#
+# Single-row aggregate rule; single-file module -> single-row projection.
+# Projected columns (MUST equal crypto_trust_rotation.rs.tmpl's {{ }} vars):
+#   migrations  - every admitted profile migration as "fromName|toName|kind"
+#                 entries joined with "@@" (e.g.
+#                 "CLASSICAL|HYBRID|upgrade@@HYBRID|CLASSICAL|downgrade").
+#                 Each entry is one ctp:ProfileMigration individual; the
+#                 rotation ceremony derives admission from this table, never
+#                 from hardcoded pairs.
+#   domain_tag  - trust-plane policy domain tag (ctp:policy-v1
+#                 ctp:domainTag), e.g. "affidavit.crypto-trust-plane.v1"
+#
+# Ordering law: the inner subquery ORDER BYs the per-migration entry strings
+# BEFORE GROUP_CONCAT folds them, so the rendered table is deterministic
+# (lexicographic over "from|to|kind") independent of graph serialization
+# order. Profile names join through ctp:profileName (not IRIs), and each
+# migration must declare all three facts (fromProfile/toProfile/migrationKind)
+# or the row is dropped loudly from the table — a half-declared migration
+# never renders. A missing domain tag fails with ZERO rows rather than
+# rendering a module without its domain separation.
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT ?migrations ?domain_tag
+WHERE {
+  # Trust-plane policy domain tag (pinned predicate, pqc.rq precedent).
+  ?policy ctp:domainTag ?domain_tag_raw .
+
+  # All admitted profile migrations, deterministically ordered, folded into
+  # one "from|to|kind@@from|to|kind" string by the template splitter.
+  {
+    SELECT (GROUP_CONCAT(?entry ; separator="@@") AS ?migrations)
+    WHERE {
+      {
+        SELECT ?entry
+        WHERE {
+          ?migration a ctp:ProfileMigration ;
+                     ctp:fromProfile    ?from ;
+                     ctp:toProfile      ?to ;
+                     ctp:migrationKind  ?kind .
+          ?from ctp:profileName ?from_name .
+          ?to   ctp:profileName ?to_name .
+          BIND(CONCAT(STR(?from_name), "|", STR(?to_name), "|", STR(?kind)) AS ?entry)
+        }
+        ORDER BY ?entry
+      }
+    }
+  }
+
+  BIND(STR(?domain_tag_raw) AS ?domain_tag)
+}
+ORDER BY ?domain_tag
+LIMIT 1

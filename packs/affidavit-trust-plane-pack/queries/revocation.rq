@@ -1,0 +1,39 @@
+# revocation.rq — consumed by templates/crypto_trust_revocation.rs.tmpl
+# (affidavit-trust-plane-pack)
+#
+# Single-row binding for the signed revocation publication module
+# (crypto_trust_revocation.rs): the CTP-CRL-v1 wire-format identity and the
+# genesis revocation epoch from ctp:revocation-pub-v1, joined with the
+# trust-plane domain tag from ctp:policy-v1 (the same tag the ES256 provider
+# and the canonicalization module carry, so a publication is attributable to
+# one plane).
+#
+# Projected columns (MUST equal crypto_trust_revocation.rs.tmpl's {{ }} vars):
+#   crl_format  - ctp:revocation-pub-v1 ctp:publicationFormat, e.g. "CTP-CRL-v1"
+#   this_epoch  - ctp:revocation-pub-v1 ctp:thisEpoch, e.g. "0" (genesis epoch;
+#                 live publications stamp max(revoked_at) + 1 per lifecycle)
+#   domain_tag  - ctp:policy-v1 ctp:domainTag, e.g. "affidavit.crypto-trust-plane.v1"
+#
+# All values pass through STR() so the Tera template receives plain strings
+# (proven wiring: rule SELECT columns are plain Tera variables). Any missing
+# fact yields zero rows — the engine refuses, defaults never render.
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT
+  ?crl_format
+  ?this_epoch
+  ?domain_tag
+WHERE {
+  ctp:revocation-pub-v1
+      ctp:publicationFormat ?formatRaw ;
+      ctp:thisEpoch         ?epochRaw .
+  ctp:policy-v1
+      ctp:domainTag ?tagRaw .
+
+  BIND(STR(?formatRaw) AS ?crl_format)
+  BIND(STR(?epochRaw) AS ?this_epoch)
+  BIND(STR(?tagRaw) AS ?domain_tag)
+}
+ORDER BY ?crl_format
+LIMIT 1

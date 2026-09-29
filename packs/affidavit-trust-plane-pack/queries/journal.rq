@@ -1,0 +1,33 @@
+# journal.rq — single-row binding for the cryptographic standing journal
+# (templates/crypto_trust_journal.rs.tmpl, ggen.toml rule "ctp-journal").
+#
+# Binds the standing-journal policy facts (ctp:journal-v1) plus the trust-plane
+# domain tag the journal digests are domain-separated under (ctp:policy-v1):
+#   journal_format - ctp:journalFormat ("CTP-JOURNAL-v1"); the wire-format
+#                    identifier carried in the module const JOURNAL_FORMAT.
+#   genesis        - ctp:journalGenesis (64 lowercase-hex zeros); the prev
+#                    anchor for journal entry 0 (module const JOURNAL_GENESIS).
+#   domain_tag     - ctp:domainTag of ctp:policy-v1
+#                    ("affidavit.crypto-trust-plane.v1"); mixed into every
+#                    entry digest via crypto_trust_canonical::digest_hex
+#                    (module const JOURNAL_DOMAIN).
+#
+# Every fact is pinned to its subject (ctp:journal-v1 / ctp:policy-v1), so a
+# half-projected graph yields ZERO rows — the module refuses to render, the
+# genesis and format constants never default. ORDER BY satisfies the pack's
+# strict mode; LIMIT 1 keeps the projection single-row.
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT
+  ?journal_format
+  ?genesis
+  ?domain_tag
+WHERE {
+  ctp:journal-v1
+      ctp:journalFormat ?journal_format ;
+      ctp:journalGenesis ?genesis .
+  ctp:policy-v1 ctp:domainTag ?domain_tag .
+}
+ORDER BY ?journal_format
+LIMIT 1

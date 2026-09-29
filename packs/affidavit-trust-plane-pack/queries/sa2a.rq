@@ -1,0 +1,57 @@
+# sa2a.rq — consumed by templates/crypto_trust_sa2a.rs.tmpl (affidavit-trust-plane-pack)
+#
+# Single-row aggregate rule; single-file module -> single-row projection.
+# Projected columns (MUST equal crypto_trust_sa2a.rs.tmpl's {{ }} vars):
+#   approval_tag    - SA2A signed-message domain tag (ctp:sa2a-interop-v1
+#                     ctp:approvalTag), e.g. "SA2A-C2-APPROVAL-v1". Rendered
+#                     as SA2A_APPROVAL_TAG; its trailing component is also the
+#                     approval schema version `v` ("SA2A-C2-APPROVAL-v1" -> "1").
+#   envelope_fields - GROUP_CONCAT of the graph's ctp:SignatureEnvelopeField
+#                     individuals (ctp:fieldName), one name per "@@" group,
+#                     ordered by ctp:fieldOrder. Rendered as
+#                     ENVELOPE_FIELD_NAMES: the graph-side authority the
+#                     bridge's field-coverage test holds the envelope->approval
+#                     mapping to, so a graph-side field change breaks the
+#                     render loudly instead of silently dropping a signed
+#                     field.
+#   target_field_set- the foreign approval document field names
+#                     (ctp:sa2a-interop-v1 ctp:targetFieldSet). Bound but NOT
+#                     rendered: the errata field set is pinned by the
+#                     template's hardcoded JCS byte-exactness test. Binding is
+#                     load-bearing as an existence gate — a half-projected
+#                     ctp:sa2a-interop-v1 yields zero rows and the engine
+#                     refuses, defaults never render (same law as envelope.rq).
+#
+# Binding is by the pinned ctp:sa2a-interop-v1 IRI (envelope.rq precedent with
+# ctp:nonce-policy-v1 — exactly one wire-interop individual exists in the
+# graph), so the row count is exactly one: any missing interop fact yields
+# zero rows.
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT
+  ?approval_tag
+  ?target_field_set
+  ?envelope_fields
+WHERE {
+  ctp:sa2a-interop-v1 ctp:approvalTag    ?tagRaw ;
+                      ctp:targetFieldSet ?fieldSetRaw .
+  BIND(STR(?tagRaw) AS ?approval_tag)
+  BIND(STR(?fieldSetRaw) AS ?target_field_set)
+
+  {
+    SELECT (GROUP_CONCAT(?name ; separator="@@") AS ?envelope_fields)
+    WHERE {
+      {
+        SELECT ?name
+        WHERE {
+          ?field ctp:fieldName  ?name ;
+                 ctp:fieldOrder ?order .
+        }
+        ORDER BY ?order
+      }
+    }
+  }
+}
+ORDER BY ?approval_tag
+LIMIT 1

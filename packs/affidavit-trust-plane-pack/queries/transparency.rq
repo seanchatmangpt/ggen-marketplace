@@ -1,0 +1,23 @@
+# transparency.rq — single-row binding for the RFC 9162 transparency-log module
+# (crypto_trust_transparency.rs). Binds the transparency policy's log format and
+# the three proof/HASH domains from ctp:transparency-v1, plus the trust plane's
+# domain tag from ctp:policy-v1. The canonical module is the single owner of
+# DOMAIN_TAG, so the rendered module does NOT re-declare it as a const — it
+# asserts its own graph binding against crate::crypto_trust_canonical::DOMAIN_TAG
+# (a graph-side change breaks the render loudly instead of drifting silently).
+# Columns are consumed by ggen sync as plain Tera variables:
+#   {{ log_format }} {{ merkle_domain }} {{ inclusion_domain }} {{ consistency_domain }} {{ domain_tag }}
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT ?log_format ?merkle_domain ?inclusion_domain ?consistency_domain ?domain_tag
+WHERE {
+  ctp:transparency-v1
+      ctp:logFormat         ?log_format ;
+      ctp:merkleDomain      ?merkle_domain ;
+      ctp:inclusionDomain   ?inclusion_domain ;
+      ctp:consistencyDomain ?consistency_domain .
+  ctp:policy-v1
+      ctp:domainTag         ?domain_tag .
+}
+ORDER BY ?log_format
+LIMIT 1

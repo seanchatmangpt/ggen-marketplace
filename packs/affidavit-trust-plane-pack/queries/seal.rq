@@ -1,0 +1,32 @@
+# seal.rq — consumed by templates/crypto_trust_seal.rs.tmpl (affidavit-trust-plane-pack)
+#
+# Single-row aggregate rule; single-file module -> single-row projection.
+# Projected columns (MUST equal crypto_trust_seal.rs.tmpl's {{ }} vars):
+#   digest_alg       - digest algorithm over domain-separated bytes
+#                      (ctp:canon-JCS ctp:digestAlgorithm, e.g. "BLAKE3"); the
+#                      seal binds the subject digest under this algorithm.
+#   envelope_version - signed-envelope version (ctp:policy-v1
+#                      ctp:envelopeVersion, "CTP-ENVELOPE-v1"); SealedReceipt
+#                      conservation: the seal carries the envelope as-is and
+#                      refuses a subject digest that does not bind the base.
+#   domain_tag       - trust-plane policy domain tag (ctp:policy-v1
+#                      ctp:domainTag); the module renders its own consts (the
+#                      per-module single-row pattern) so a half-projected
+#                      ctp:policy-v1 individual fails loudly with zero rows
+#                      instead of rendering a partial module.
+#
+# Any missing fact yields zero rows — the engine refuses, defaults never render.
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT ?digest_alg ?envelope_version ?domain_tag
+WHERE {
+  ctp:policy-v1
+      ctp:domainTag        ?domain_tag ;
+      ctp:envelopeVersion  ?envelope_version ;
+      ctp:canonicalization ?canon .
+  ?canon
+      ctp:digestAlgorithm  ?digest_alg .
+}
+ORDER BY ?domain_tag
+LIMIT 1

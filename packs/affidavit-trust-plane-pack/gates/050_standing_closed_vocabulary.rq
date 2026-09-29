@@ -1,0 +1,14 @@
+# MESSAGE: cryptographic standing is a closed 8-value vocabulary bound to ctp:standingOrder 0..7 (VALID, INVALID, EXPIRED, REVOKED, REPLAY_REJECTED, UNKNOWN_KEY, PROFILE_REFUSED, MALFORMED). Any ctp:CryptographicStanding whose ctp:standingName is outside the set -- or is missing -- fabricates standing and is refused.
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+SELECT ?standing ?problem ?detail WHERE {
+  ?standing a ctp:CryptographicStanding .
+  OPTIONAL { ?standing ctp:standingName ?name }
+  BIND(COALESCE(?name, "(missing standingName)") AS ?value)
+  FILTER NOT EXISTS {
+    VALUES ?ok { "VALID" "INVALID" "EXPIRED" "REVOKED" "REPLAY_REJECTED" "UNKNOWN_KEY" "PROFILE_REFUSED" "MALFORMED" }
+    FILTER(?value = ?ok)
+  }
+  BIND("standing_name_outside_closed_vocabulary" AS ?problem)
+  BIND(?value AS ?detail)
+}
+ORDER BY ?standing ?detail

@@ -1,0 +1,38 @@
+# enclave.rq — consumed by templates/crypto_trust_enclave.rs.tmpl (affidavit-trust-plane-pack)
+#
+# Single-row rule: the SECURE_ENCLAVE signing provider. ctp:provider-HSM is
+# ctp:admitted false and declares neither ctp:targetOs nor
+# ctp:supportedAlgorithm, so it cannot satisfy this join — the admitted=false
+# typed-UNSUPPORTED law is enforced by the graph shape itself, not by a filter.
+#
+# Projected columns (MUST equal crypto_trust_enclave.rs.tmpl's {{ }} vars):
+#   provider_kind - ctp:provider-SECURE-ENCLAVE ctp:providerKind, "SECURE_ENCLAVE"
+#   target_os     - ctp:targetOs, "macos"
+#   exportable    - ctp:keyMaterialExportable, "false" (private key never leaves)
+#   alg_name      - ctp:supportedAlgorithm / ctp:algorithmName, "ES256"
+#
+# All values pass through STR() so the Tera template receives plain strings
+# (proven wiring: rule SELECT columns are plain Tera variables).
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT
+  ?provider_kind
+  ?target_os
+  ?exportable
+  ?alg_name
+WHERE {
+  ?provider ctp:providerKind ?providerKindRaw ;
+            ctp:keyMaterialExportable ?exportableRaw ;
+            ctp:targetOs ?targetOsRaw ;
+            ctp:supportedAlgorithm ?alg .
+  ?alg ctp:algorithmName ?algNameRaw .
+  FILTER(STR(?providerKindRaw) = "SECURE_ENCLAVE")
+
+  BIND(STR(?providerKindRaw) AS ?provider_kind)
+  BIND(STR(?exportableRaw) AS ?exportable)
+  BIND(STR(?targetOsRaw) AS ?target_os)
+  BIND(STR(?algNameRaw) AS ?alg_name)
+}
+ORDER BY ?provider_kind
+LIMIT 1
