@@ -108,3 +108,13 @@
 
 - [RFC-GGEN-001 v26.9.17](rfc/RFC-GGEN-001-semantic-pack-core.md)
 - [RFC v26.9.26 — ABB/SBB marketplace implementation seed](rfc/v26.9.26/abb-sbb-implementation.md)
+
+# Marketplace tooling
+
+- [Install ggen](how-to/install-ggen.md)
+- [Scaffold a pack](how-to/scaffold-a-pack.md)
+- [Pin and verify packs](how-to/pin-and-verify-packs.md)
+- [Pack catalog](reference/pack-catalog.md)
+- [Pack capabilities](reference/pack-capabilities.md)
+- [Qualification baseline](reference/qualification-baseline.md)
+- [Workflow map](reference/workflow-map.md)

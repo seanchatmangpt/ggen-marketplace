@@ -37,6 +37,7 @@ import concurrent.futures
 import hashlib
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -691,6 +692,7 @@ def qualify_pack(pack: Pack, ggen_bin: str, timeout_seconds: float) -> dict[str,
                                         "profile": pack.profile,
                                         "status": "WARN",
                                         "version": pack.version,
+                                        "warn_reason": warn_reason(detail),
                                     }
                                 else:
                                     record = refusal(pack, code, detail)
@@ -721,6 +723,24 @@ def qualify_pack(pack: Pack, ggen_bin: str, timeout_seconds: float) -> dict[str,
             f"before={source_before} after={source_after}",
         )
     return record
+
+
+def warn_reason(detail: str) -> str:
+    """Short single-line reason distilled from a generated-build failure detail.
+
+    Absolute paths are reduced to their last two components so the reason is
+    machine-independent (temp capsule names are random).
+    """
+    detail = re.sub(r"/(?:[^/`\s]+/)+([^/`\s]+/[^/`\s]+)", r"\1", detail)
+    lines = [line.strip() for line in detail.splitlines() if line.strip()]
+    for line in lines:
+        low = line.lower()
+        if "failed to read" in low or "no such file" in low or "path dependency" in low:
+            return "missing path dependency: " + line[:160]
+    for line in lines:
+        if line.startswith("error"):
+            return line[:200]
+    return (lines[0] if lines else "generated build failed")[:200]
 
 
 def shard(packs: list[Pack], index: int, count: int) -> list[Pack]:
@@ -824,6 +844,10 @@ def main() -> int:
         "--shard-count", type=int, default=None,
         help="total number of shards (requires --shard-index); omit both for the full corpus",
     )
+    parser.add_argument(
+        "--pack", action="append", default=None, metavar="NAME",
+        help="qualify only this pack (repeatable); composes with sharding",
+    )
     args = parser.parse_args()
 
     if (args.shard_index is None) != (args.shard_count is None):
@@ -852,6 +876,14 @@ def main() -> int:
         return 2
 
     packs = sorted(require_admitted(), key=lambda pack: pack.name)
+    if args.pack:
+        known = {pack.name for pack in packs}
+        unknown = sorted(set(args.pack) - known)
+        if unknown:
+            print(f"REFUSED:GGEN_PACK_UNKNOWN:{','.join(unknown)}", file=sys.stderr)
+            return 2
+        wanted = set(args.pack)
+        packs = [pack for pack in packs if pack.name in wanted]
     if args.shard_index is not None:
         try:
             packs = shard(packs, args.shard_index, args.shard_count)

@@ -1,63 +1,46 @@
 # How to consume a pack
 
-Reference the selected pack from the consumer project's `ggen.toml` using a local path or another transport supported by the admitted ggen version. For a local checkout:
+Recipe for wiring a pack into a consumer project. For a step-by-step learning walk with a runnable example, see [Tutorial: consume a marketplace pack](../tutorials/consume-a-pack.md).
+
+## Reference the pack
+
+In the consumer's `ggen.toml`, using a local marketplace checkout:
 
 ```toml
 [packs]
 my-pack = { path = "../ggen-marketplace/packs/my-pack" }
 ```
 
+The consumer also needs `[project]`, `[ontology]`, and an existing `[templates].dir`; see the complete file in [`examples/hello-pack/consumer`](../../examples/hello-pack/consumer/ggen.toml). Add only the consumer facts the pack contract requires, then `ggen sync run`.
+
 ## Resolve source identity first
 
-Before execution, record the marketplace revision and inspect the pack's manifest, RDF source, gates, templates/project rules, qualification fixtures, documentation, and dependencies. The pack name is not enough to identify an exact subject.
+The pack name is not an exact subject. Record the marketplace revision (`git rev-parse HEAD`) and `ggen --version` before execution.
 
-## Fetching without a local checkout
+## Fetch without a local checkout
 
-Every admitted published pack may be represented by a deterministic archive with URL/digest information projected by the marketplace catalog. Obtain the current values from:
-
-```bash
-python3 scripts/marketplace.py catalog
-```
-
-Verify the archive digest **before** extraction. Do not copy a digest/version from prose when executable catalog/configuration source is available.
-
-A published archive proves distribution identity; it does not prove consumer behavior.
-
-## Manufacture
-
-Add only the consumer facts/inputs required by the pack contract, then run:
+Every admitted published pack has a deterministic archive whose URL and digest are projected by the catalog. Read current values from executable source, never from prose:
 
 ```bash
-ggen sync run
+python3 scripts/marketplace.py catalog --scope all
 ```
 
-Generated files are consequences. Inspect them, but verify the behavior with the consumer's native compiler/tests/protocol/simulation court rather than treating existence as correctness.
+`catalog` defaults to `--scope active` (the frozen active set); use `--scope all` for every pack. Verify the archive digest **before** extraction. A published archive proves distribution identity, not consumer behavior.
 
-## Replay and receipts
+## Verify
 
-Run manufacture again without changing admitted inputs and prove the consequence converges. When the consumer uses ggen receipts:
-
-```bash
-ggen receipt verify
-```
-
-For Level-5 work, prefer composing `pack-maturity-pack` so fixed-point and receipt checks are generated consistently.
+Check behavior with the consumer's native compiler/tests/protocol/simulation, not file existence. Prove replay by running `ggen sync run` again and comparing bytes. When the consumer uses receipts, run `ggen receipt verify`. For Level-5 work compose `pack-maturity-pack` so fixed-point and receipt checks are generated consistently.
 
 ## Authority boundary
 
-A consumed pack may manufacture Terraform, GitHub Actions, MCP/API intents, deployment specifications, or other artifacts. Manufacture remains CONSTRUCT unless the consumer has a separately admitted consequential DO path.
-
-Never infer execution authority from pack publication, catalog membership, a generated artifact, or a successful marketplace qualification run.
+A consumed pack may manufacture Terraform, GitHub Actions, MCP/API intents, deployment specifications, or other artifacts. Manufacture remains CONSTRUCT unless the consumer has a separately admitted consequential DO path. Never infer execution authority from pack publication, catalog membership, a generated artifact, or a successful marketplace qualification run.
 
 ## Standing
 
-State separately:
+State separately: marketplace pack/source standing; ggen manufacture/replay standing; consumer runtime standing; external actuation standing. A green marketplace rail cannot substitute for the consumer boundary, and a green consumer simulation cannot silently become production authority.
 
-- marketplace pack/source standing;
-- ggen manufacture/replay standing;
-- consumer runtime standing;
-- external actuation standing.
+## See Also
 
-A green marketplace rail cannot substitute for the consumer boundary, and a green consumer simulation cannot silently become production authority.
-
-See [Tutorial: consume a pack](../tutorials/consume-a-pack.md) and [Level-5 maturity contract](../reference/level5-maturity-contract.md).
+- [Tutorial: consume a marketplace pack](../tutorials/consume-a-pack.md)
+- [Install ggen](install-ggen.md)
+- [Level-5 maturity contract](../reference/level5-maturity-contract.md)

@@ -22,6 +22,7 @@ except ModuleNotFoundError as exc:  # pragma: no cover
     raise SystemExit("REFUSED:PYTHON_3_11_REQUIRED") from exc
 
 from marketplace_scope import select_packs
+import marketplace_tiers
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKS = ROOT / "packs"
@@ -120,8 +121,10 @@ class Pack:
     def catalog_record(self) -> dict[str, Any]:
         manifest = self.path / "pack.toml"
         archive = build_pack_archive(self)
-        return {
-            "deprecated": self.name in DEPRECATED_PACKS,
+        sig = marketplace_tiers.signals(self.path)
+        life = marketplace_tiers.lifecycle(self.name, marketplace_tiers.manifest_pack_table(self.path), DEPRECATED_PACKS)
+        record = {
+            "deprecated": life["deprecated"],
             "description": self.description,
             "digest": f"sha256:{hashlib.sha256(archive).hexdigest()}",
             "download_url": (
@@ -137,12 +140,19 @@ class Pack:
             "path": self.path.relative_to(ROOT).as_posix(),
             "profile": self.profile,
             "size_bytes": len(archive),
-            "successors": list(DEPRECATED_PACKS.get(self.name, ())),
+            "readiness": sig,
+            "status": life["status"],
+            "successors": life["successors"],
             "target_languages": list(self.target_languages),
             "templates": len(self.templates),
+            "tier": marketplace_tiers.tier(sig, marketplace_tiers.file_count(self.path)),
             "verifier_gates": len(self.verifier_gates),
             "version": self.version,
         }
+        qualification = marketplace_tiers.load_baseline(ROOT).get(self.name)
+        if qualification is not None:
+            record["qualification"] = qualification
+        return record
 
 
 def marketplace_version() -> str:
@@ -348,6 +358,14 @@ def inspect_marketplace() -> tuple[list[Pack], list[str]]:
         if name is not None and version is not None and description is not None and ontologies:
             packs.append(Pack(name, version, description, directory, ontologies, templates, native_gates, verifier_gates, target_languages))
 
+    issues.extend(
+        marketplace_tiers.lifecycle_issues(
+            {d.name: marketplace_tiers.manifest_pack_table(d) for d in directories},
+            (d.name for d in directories),
+            refusal,
+        )
+    )
+
     for relative in REQUIRED_DOCS:
         path = ROOT / relative
         if not path.is_file():
@@ -404,6 +422,38 @@ def catalog(scope: str = "active") -> int:
     }
     json.dump(payload, sys.stdout, indent=2, sort_keys=True, ensure_ascii=False)
     sys.stdout.write("\n")
+    return 0
+
+
+def search(terms: list[str], scope: str) -> int:
+    if not terms:
+        print(refusal("SEARCH_TERMS_MISSING", "search <terms...>"), file=sys.stderr)
+        return 2
+    records = [pack.catalog_record() for pack in scoped_packs(scope)]
+    for record in marketplace_tiers.search(records, terms):
+        print(f"{record['name']} {record['version']} {record['tier']} {record['status']}")
+    return 0
+
+
+def show(names: list[str], scope: str) -> int:
+    if len(names) != 1:
+        print(refusal("SHOW_PACK_ARGUMENT", "show <pack>"), file=sys.stderr)
+        return 2
+    match = [pack for pack in scoped_packs("all") if pack.name == names[0]]
+    if not match:
+        print(refusal("PACK_UNKNOWN", names[0]), file=sys.stderr)
+        return 2
+    json.dump(match[0].catalog_record(), sys.stdout, indent=2, sort_keys=True, ensure_ascii=False)
+    sys.stdout.write("\n")
+    return 0
+
+
+def browse() -> int:
+    records = [pack.catalog_record() for pack in scoped_packs("all")]
+    target = ROOT / marketplace_tiers.BROWSE_RELATIVE
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(marketplace_tiers.browse_markdown(records), encoding="utf-8")
+    print(f"wrote {marketplace_tiers.BROWSE_RELATIVE} packs={len(records)}")
     return 0
 
 
@@ -561,7 +611,7 @@ def check(names: list[str], qualify: bool) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("validate", "catalog", "fingerprint", "archive", "version", "check", "diff", "release-check"))
+    parser.add_argument("command", choices=("validate", "catalog", "fingerprint", "archive", "version", "check", "diff", "release-check", "search", "show", "browse"))
     parser.add_argument("packs", nargs="*", help="check: pack names (default: all); diff: optional base tag")
     parser.add_argument("--scope", choices=("active", "all"), default="active")
     parser.add_argument("--no-qualify", action="store_true", help="check: skip the real-ggen qualification step")
@@ -573,6 +623,12 @@ def main() -> int:
         return diff(args.packs[0] if args.packs else None)
     if args.command == "release-check":
         return release_check(args.allow_unbumped)
+    if args.command == "search":
+        return search(args.packs, args.scope)
+    if args.command == "show":
+        return show(args.packs, args.scope)
+    if args.command == "browse":
+        return browse()
     if args.command == "catalog":
         return catalog(args.scope)
     if args.command == "archive":
