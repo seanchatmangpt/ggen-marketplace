@@ -49,6 +49,7 @@
 - [Reference: ash_* Ecosystem Mapping](reference/ash-ecosystem-mapping.md)
 - [Kudzu Case Studies](reference/kudzu-case-studies.md)
 - [Enterprise Kudzu v26.9.13](reference/enterprise-kudzu-v26.9.13.md)
+- [New packs 2026-09](reference/new-packs-2026-09.md)
 
 # Explanation
 

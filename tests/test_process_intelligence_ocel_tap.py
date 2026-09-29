@@ -260,7 +260,7 @@ def test_compare_loops_query_runs_over_two_named_graphs_toy_pair():
         ("source-kind", "hook", "only-in-a"),
         ("source-kind", "otel", "only-in-b"),
     }
-    assert (PACK / "queries" / "compare-loops.rq").read_text().startswith("# STATUS: UNVERIFIED")
+    assert (PACK / "queries" / "compare-loops.rq").read_text().startswith("# STATUS: exercised")
 
 
 def rdflib_uri(s: str):
