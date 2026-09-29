@@ -1,0 +1,15 @@
+# MESSAGE: A qualification receipt must qualify exactly one subject, carry one sha256 qualificationDigest and assert independentVerification true.
+PREFIX qce: <https://ggen.dev/ontology/qualified-capability-ecology#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?receipt WHERE {
+  ?receipt a qce:QualificationReceipt .
+  FILTER (
+    NOT EXISTS { ?receipt qce:qualifies ?q0 } ||
+    EXISTS { ?receipt qce:qualifies ?q1 . ?receipt qce:qualifies ?q2 . FILTER(?q1 != ?q2) } ||
+    NOT EXISTS { ?receipt qce:qualificationDigest ?d0 } ||
+    EXISTS { ?receipt qce:qualificationDigest ?d1 . ?receipt qce:qualificationDigest ?d2 . FILTER(?d1 != ?d2) } ||
+    EXISTS { ?receipt qce:qualificationDigest ?d3 . FILTER(!REGEX(STR(?d3), "^(sha256:)?[0-9a-f]{64}$")) } ||
+    NOT EXISTS { ?receipt qce:independentVerification true } ||
+    EXISTS { ?receipt qce:independentVerification ?v . FILTER(?v != true) }
+  )
+}

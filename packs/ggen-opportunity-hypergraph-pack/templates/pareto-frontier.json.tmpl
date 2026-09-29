@@ -1,0 +1,33 @@
+---
+to: "generated/opportunity-hypergraph/pareto-frontier.json"
+sparql:
+  rows: |
+      PREFIX ogh: <https://ggen.dev/ontology/opportunity-hypergraph#>
+      SELECT ?ledger ?authority ?actuation
+             (COUNT(DISTINCT ?candidate) AS ?frontierCount)
+             (SUM(?delta) AS ?frontierCapabilitySpaceDelta)
+             (MAX(?reuse) AS ?maxExpectedReuse)
+             (GROUP_CONCAT(DISTINCT ?id; separator=",") AS ?frontierIds)
+      WHERE {
+        ?ledger a ogh:OpportunityLedger ; ogh:authority ?authority ; ogh:actuationPerformed ?actuation .
+        ?candidate a ogh:CompositionCandidate ;
+          ogh:candidateId ?id ;
+          ogh:dominanceClass "pareto" ;
+          ogh:reversible true ;
+          ogh:expectedReuse ?reuse ;
+          ogh:expectedCapabilitySpaceDelta ?delta .
+      }
+      GROUP BY ?ledger ?authority ?actuation
+      HAVING (COUNT(DISTINCT ?candidate) >= 6)
+---
+{
+  "schema": "ggen.opportunity-frontier/1",
+  "ledger": "{{ rows[0].ledger }}",
+  "frontier_count": "{{ rows[0].frontierCount }}",
+  "frontier_capability_space_delta": "{{ rows[0].frontierCapabilitySpaceDelta }}",
+  "max_expected_reuse": "{{ rows[0].maxExpectedReuse }}",
+  "frontier_ids_csv": "{{ rows[0].frontierIds }}",
+  "authority": "{{ rows[0].authority }}",
+  "actuation_performed": {{ rows[0].actuation }},
+  "selection_policy": "preserve all reversible non-dominated candidates; selection is downstream"
+}

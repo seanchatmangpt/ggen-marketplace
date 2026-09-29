@@ -2,8 +2,37 @@
 to: "lib/{{ app_module | lower }}_web/mcp_descriptor.ex"
 for_each: "spec"
 sparql:
-  spec: queries/surface.rq
-  caps: queries/capabilities.rq
+  spec: |
+    PREFIX ema: <http://seanchatmangpt.github.io/packs/elixir-mcp-a2a#>
+
+    SELECT DISTINCT ?app_module ?otp_app ?mcp_mount_path ?mcp_protocol_version
+                    ?mcp_audit_plug_module ?agent_module ?agent_name
+                    ?agent_description ?agent_mount_path ?skills_module WHERE {
+      ?s a ema:CapabilitySurface ;
+         ema:appModule ?app_module ; ema:otpApp ?otp_app ;
+         ema:mcpMountPath ?mcp_mount_path ; ema:mcpProtocolVersion ?mcp_protocol_version ;
+         ema:agentModule ?agent_module ; ema:agentName ?agent_name ;
+         ema:agentDescription ?agent_description ; ema:agentMountPath ?agent_mount_path .
+      OPTIONAL { ?s ema:mcpAuditPlugModule ?mcp_audit_plug_module }
+      OPTIONAL { ?s ema:skillsModule ?skills_module }
+    }
+  caps: |
+    PREFIX ema: <http://seanchatmangpt.github.io/packs/elixir-mcp-a2a#>
+
+    SELECT ?capability_id ?capability_name ?capability_description ?capability_ash_action
+           ?observation_scope ?mutation_scope ?requires_authority ?is_reversible
+           ?cost_estimate ?receipt_semantics ?capability_order ?exposed_via WHERE {
+      ?c a ema:Capability ; ema:capabilityOf ?surface ;
+         ema:capabilityId ?capability_id ; ema:capabilityName ?capability_name ;
+         ema:capabilityDescription ?capability_description ;
+         ema:observationScope ?observation_scope ; ema:mutationScope ?mutation_scope ;
+         ema:requiresAuthority ?requires_authority ; ema:isReversible ?is_reversible ;
+         ema:receiptSemantics ?receipt_semantics ; ema:capabilityOrder ?capability_order ;
+         ema:exposedVia ?exposed_via .
+      OPTIONAL { ?c ema:capabilityAshAction ?capability_ash_action }
+      OPTIONAL { ?c ema:costEstimate ?cost_estimate }
+    }
+    ORDER BY ?capability_order
 ---
 {# Real implementation of v2030:MCPCapabilityDescriptor (docs/ontology/
    vision-2030.ttl, this session) -- the concrete module the beam4pm

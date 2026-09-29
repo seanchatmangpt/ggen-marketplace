@@ -2,8 +2,37 @@
 to: "lib/{{ app_module | lower }}_web/mcp_scope.ex"
 for_each: "spec"
 sparql:
-  spec: queries/surface.rq
-  caps: queries/mcp_capabilities.rq
+  spec: |
+    PREFIX ema: <http://seanchatmangpt.github.io/packs/elixir-mcp-a2a#>
+
+    SELECT DISTINCT ?app_module ?otp_app ?mcp_mount_path ?mcp_protocol_version
+                    ?mcp_audit_plug_module ?agent_module ?agent_name
+                    ?agent_description ?agent_mount_path ?skills_module WHERE {
+      ?s a ema:CapabilitySurface ;
+         ema:appModule ?app_module ; ema:otpApp ?otp_app ;
+         ema:mcpMountPath ?mcp_mount_path ; ema:mcpProtocolVersion ?mcp_protocol_version ;
+         ema:agentModule ?agent_module ; ema:agentName ?agent_name ;
+         ema:agentDescription ?agent_description ; ema:agentMountPath ?agent_mount_path .
+      OPTIONAL { ?s ema:mcpAuditPlugModule ?mcp_audit_plug_module }
+      OPTIONAL { ?s ema:skillsModule ?skills_module }
+    }
+  caps: |
+    PREFIX ema: <http://seanchatmangpt.github.io/packs/elixir-mcp-a2a#>
+
+    SELECT ?capability_id ?capability_name ?capability_description ?capability_ash_action
+           ?observation_scope ?mutation_scope ?requires_authority ?is_reversible
+           ?cost_estimate ?receipt_semantics ?capability_order WHERE {
+      ?c a ema:Capability ; ema:capabilityOf ?surface ; ema:exposedVia ?via .
+      FILTER (?via = "mcp" || ?via = "both")
+      ?c ema:capabilityId ?capability_id ; ema:capabilityName ?capability_name ;
+         ema:capabilityDescription ?capability_description ;
+         ema:observationScope ?observation_scope ; ema:mutationScope ?mutation_scope ;
+         ema:requiresAuthority ?requires_authority ; ema:isReversible ?is_reversible ;
+         ema:receiptSemantics ?receipt_semantics ; ema:capabilityOrder ?capability_order .
+      OPTIONAL { ?c ema:capabilityAshAction ?capability_ash_action }
+      OPTIONAL { ?c ema:costEstimate ?cost_estimate }
+    }
+    ORDER BY ?capability_order
 ---
 {# Real Phoenix router scope macro, mirroring xaas's own working /mcp scope
    (lib/xaas_web/router.ex:105-120) as a reusable `mcp_scope/0` macro any

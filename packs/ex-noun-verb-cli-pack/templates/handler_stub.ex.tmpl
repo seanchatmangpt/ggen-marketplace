@@ -1,7 +1,15 @@
 ---
-to: lib/{{ project[0].app_name }}/{{ noun_mod.noun_snake }}.ex
+to: lib/{{ project[0].app_name }}/{% if noun_mod is defined %}{{ noun_mod.noun_snake }}{% else %}{{ row.noun | replace(from="-", to="_") | lower }}{% endif %}.ex
 unless_exists: true
+for_each: nouns
 sparql:
+  nouns: |
+    PREFIX nvc: <https://ggen.dev/marketplace/ex-noun-verb-cli-pack#>
+    SELECT DISTINCT ?noun WHERE {
+      ?p a nvc:GeneratedCliProject ; nvc:hasVerb ?v .
+      ?v a nvc:GeneratedVerb ; nvc:noun ?noun .
+    }
+    ORDER BY ?noun
   project: |
     PREFIX nvc: <https://ggen.dev/marketplace/ex-noun-verb-cli-pack#>
     SELECT ?app_name ?module_name WHERE {
@@ -25,9 +33,9 @@ sparql:
     }
     ORDER BY ?noun ?verb ?arg_order
 ---
-defmodule {{ project[0].module_name }}.{{ noun_mod.noun_pascal }} do
+defmodule {% if noun_mod is defined %}{% set_global noun = noun_mod.noun %}{% set_global noun_pascal = noun_mod.noun_pascal %}{% else %}{% set_global noun = row.noun %}{% set_global noun_pascal = row.noun | capitalize %}{% endif %}{{ project[0].module_name }}.{{ noun_pascal }} do
   @moduledoc """
-  Real handler functions for the `{{ noun_mod.noun }}` noun, generated once by
+  Real handler functions for the `{{ noun }}` noun, generated once by
   ggen (ex-noun-verb-cli-pack) from `nvc:handlerBodyExpr` playground facts.
   `unless_exists: true` in this template's frontmatter -- like
   clap-noun-verb-crate-pack's `custom_handlers.rs.tmpl` -- means this file is
@@ -35,7 +43,7 @@ defmodule {{ project[0].module_name }}.{{ noun_mod.noun_pascal }} do
   here.
   """
 
-{% for v in verbs %}  @doc "{{ v.verb_description }}"
-  def {{ v.handler_function }}({{ v.params_str }}), do: {{ v.body_str }}
+{% for v in verbs %}{% if v.noun == noun %}{% if v.params_str is defined %}{% set_global params = v.params_str %}{% set_global body_expr = v.body_str %}{% else %}{% set_global params = "" %}{% set_global sep = "" %}{% for a in args %}{% if a.noun == v.noun and a.verb == v.verb %}{% set_global params = params ~ sep ~ a.arg_name %}{% set_global sep = ", " %}{% endif %}{% endfor %}{% set_global body_expr = v.body_expr %}{% endif %}  @doc "{{ v.verb_description }}"
+  def {{ v.handler_function }}({{ params }}), do: {{ body_expr }}
 
-{% endfor %}end
+{% endif %}{% endfor %}end

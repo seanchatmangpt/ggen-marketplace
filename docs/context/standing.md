@@ -1,6 +1,8 @@
 # Exact-Head Standing: ggen-marketplace
 
-## Current Head State
+Superseded: main advanced to v26.9.24 (351 packs as of 2026-09-27); this record is exact-head evidence for `00f14b1b9` only.
+
+## Standing @ 00f14b1b9 (2026-09-13)
 - **Base Commit**: `00f14b1b966900aa129f16a2e51727ef697823ec`
 - **Active Branch**: `docs/rewrite-agents-contract`
 - **Release Version**: `v26.9.13`

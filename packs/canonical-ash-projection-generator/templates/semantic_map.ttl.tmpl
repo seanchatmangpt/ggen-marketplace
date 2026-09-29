@@ -1,0 +1,43 @@
+---
+to: "generated/ash/semantic_map.ttl"
+sparql:
+  modules: |
+    PREFIX apg: <https://ggen.dev/ash-projection#>
+    SELECT DISTINCT ?module_name ?exact_subject ?domain_iri ?source_digest
+    WHERE {
+      ?profile a apg:ProjectionProfile ; apg:exactSubject ?exact_subject .
+      ?resource a apg:Resource ;
+        apg:moduleName ?module_name ;
+        apg:domainIri ?domain_iri ;
+        apg:sourceDigest ?source_digest .
+    } ORDER BY ?module_name
+  attributes: |
+    PREFIX apg: <https://ggen.dev/ash-projection#>
+    SELECT ?module_name ?attribute_name ?ash_type ?primary_key ?semantic_predicate
+    WHERE {
+      ?resource a apg:Resource ; apg:moduleName ?module_name ; apg:attribute ?attribute .
+      ?attribute apg:attributeName ?attribute_name ;
+        apg:ashType ?ash_type ;
+        apg:primaryKey ?primary_key ;
+        apg:semanticPredicate ?semantic_predicate .
+    } ORDER BY ?module_name ?attribute_name
+---
+@prefix map: <https://ggen.dev/ash-projection/map#> .
+@prefix apg: <https://ggen.dev/ash-projection#> .
+
+{% for m in modules %}
+map:{{ m.module_name }} a apg:SemanticBinding ;
+  apg:exactSubject "{{ m.exact_subject }}" ;
+  apg:domainIri <{{ m.domain_iri }}> ;
+  apg:sourceDigest "{{ m.source_digest }}" ;
+{% set n = 0 %}{% for a in attributes %}{% if a.module_name == m.module_name %}
+  apg:attribute map:{{ m.module_name }}_{{ a.attribute_name }}{% if not loop.last %} ;{% else %} .{% endif %}
+{% endif %}{% endfor %}
+{% endfor %}
+{% for a in attributes %}
+map:{{ a.module_name }}_{{ a.attribute_name }} a apg:Attribute ;
+  apg:attributeName "{{ a.attribute_name }}" ;
+  apg:ashType "{{ a.ash_type }}" ;
+  apg:primaryKey {{ a.primary_key }} ;
+  apg:semanticPredicate <{{ a.semantic_predicate }}> .
+{% endfor %}

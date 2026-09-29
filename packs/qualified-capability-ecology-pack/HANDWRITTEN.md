@@ -3,7 +3,6 @@
 ## Handwritten semantic source
 - `pack.toml`
 - `ontology.ttl`
-- `shapes.ttl`
 - `gates/*.rq`
 - `queries/*.rq`
 - `qualification/*.py`

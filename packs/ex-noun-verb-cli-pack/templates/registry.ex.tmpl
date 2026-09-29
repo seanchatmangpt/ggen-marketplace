@@ -1,5 +1,6 @@
 ---
 to: lib/{{ project[0].app_name }}/registry.ex
+for_each: project
 sparql:
   project: |
     PREFIX nvc: <https://ggen.dev/marketplace/ex-noun-verb-cli-pack#>
@@ -38,12 +39,12 @@ defmodule {{ project[0].module_name }}.Registry do
 
   use ExNounVerbCli.Registry.Generated,
     verbs: [
-{% for v in verbs %}      [
+{% for v in verbs %}{% if v.schema_str is defined %}{% set_global schema = v.schema_str %}{% set_global required = v.required_str %}{% else %}{% set_global schema = "" %}{% set_global required = "" %}{% set_global ssep = "" %}{% set_global rsep = "" %}{% for a in args %}{% if a.noun == v.noun and a.verb == v.verb %}{% set_global schema = schema ~ ssep ~ a.arg_name ~ ": :" ~ a.arg_type %}{% set_global ssep = ", " %}{% if a.arg_required and a.arg_required != "false" %}{% set_global required = required ~ rsep ~ ":" ~ a.arg_name %}{% set_global rsep = ", " %}{% endif %}{% endif %}{% endfor %}{% endif %}      [
         noun: "{{ v.noun }}",
         verb: "{{ v.verb }}",
         module: {{ v.handler_module }},
         function: :{{ v.handler_function }},
-        info: %{schema: [{{ v.schema_str }}], required: [{{ v.required_str }}]},
+        info: %{schema: [{{ schema }}], required: [{{ required }}]},
         doc: "{{ v.verb_description }}"
       ]{% if not loop.last %},
 {% endif %}

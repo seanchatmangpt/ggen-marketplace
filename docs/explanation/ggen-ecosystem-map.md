@@ -45,9 +45,9 @@ builds standalone.
 ### ggen-marketplace — the pack corpus
 
 Python 3.12 is the operational language (all of `scripts/`, run directly, no packaging manifest).
-One small Rust crate, `tools/marketplace-config`, is built with a pinned `nightly-2026-04-15`
-toolchain. `packs/` holds 120 packs — 162 ontologies, 877 templates, 396 native gates, 4 verifier
-gates.
+One small Rust crate, `tools/marketplace-config`, is built with a pinned `nightly-2026-06-22`
+toolchain. `packs/` holds 351 packs — 522 ontologies, 1897 templates, 1652 native gates, 42
+verifier gates (as of 2026-09-27; recompute with `python3.12 scripts/marketplace.py validate`).
 
 It consumes `ggen` as a **prebuilt release binary**: `marketplace.toml [ggen]` pins
 `version = "v26.8.11"`, `release_commit = 402cecd`, with per-platform asset SHA-256 digests. CI
@@ -165,8 +165,8 @@ Point-in-time only. Each row reflects one agent's actual command output during t
 `praxis-core` 137/137 pass (3 ignored). Branch `agent/lifecycle-boundary-doc-comment` in sync.
 
 **`ggen-marketplace`** — Rust tool `cargo check` clean. 115/115 pytest pass; `marketplace.py
-validate` admits 120 packs; cross-pack gate exits 0 with zero violations; catalog projection
-byte-identical across runs. Branch `main` in sync.
+validate` admits 351 packs as of 2026-09-27 (120 at the 2026-08-15 observation); cross-pack gate
+exits 0 with zero violations; catalog projection byte-identical across runs. Branch `main` in sync.
 
 **`ggen-create`** — builds clean, `cargo fmt --check` clean. 45/45 Rust tests pass; 110/110
 Python tests pass (1 skipped). Branch `feat/rust-dspy-kernel-20260812` in sync.

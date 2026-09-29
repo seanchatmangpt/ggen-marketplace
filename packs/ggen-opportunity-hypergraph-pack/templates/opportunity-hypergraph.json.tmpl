@@ -1,0 +1,36 @@
+---
+to: "generated/opportunity-hypergraph/opportunity-hypergraph.json"
+sparql:
+  rows: |
+      PREFIX ogh: <https://ggen.dev/ontology/opportunity-hypergraph#>
+      SELECT ?ledger ?observations ?authority ?actuation
+             (COUNT(DISTINCT ?candidate) AS ?candidateCount)
+             (SUM(?delta) AS ?totalCapabilitySpaceDelta)
+             (MAX(?arity) AS ?maxArity)
+             (GROUP_CONCAT(DISTINCT ?id; separator=",") AS ?candidateIds)
+      WHERE {
+        ?ledger a ogh:OpportunityLedger ;
+          ogh:actionableObservationCount ?observations ;
+          ogh:authority ?authority ;
+          ogh:actuationPerformed ?actuation .
+        ?candidate a ogh:CompositionCandidate ;
+          ogh:candidateId ?id ;
+          ogh:arity ?arity ;
+          ogh:expectedCapabilitySpaceDelta ?delta ;
+          ogh:reversible true .
+      }
+      GROUP BY ?ledger ?observations ?authority ?actuation
+      HAVING (COUNT(DISTINCT ?candidate) >= (3 * ?observations) && MAX(?arity) >= 3)
+---
+{
+  "schema": "ggen.opportunity-hypergraph/1",
+  "ledger": "{{ rows[0].ledger }}",
+  "actionable_observation_count": "{{ rows[0].observations }}",
+  "candidate_count": "{{ rows[0].candidateCount }}",
+  "total_capability_space_delta": "{{ rows[0].totalCapabilitySpaceDelta }}",
+  "max_arity": "{{ rows[0].maxArity }}",
+  "candidate_ids_csv": "{{ rows[0].candidateIds }}",
+  "authority": "{{ rows[0].authority }}",
+  "actuation_performed": {{ rows[0].actuation }},
+  "manufacturing_law": "public ontology -> hypergraph query -> reversible candidate projection -> court -> receipt"
+}

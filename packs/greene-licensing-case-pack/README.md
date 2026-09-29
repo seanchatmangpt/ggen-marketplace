@@ -24,7 +24,11 @@ and authority ceiling NONE. Claims C01-C04 are bound to the doctrine lab at
 digests (ledger tail, matrix, report, `report.json` and `ledger.jsonl`
 sha256) were recomputed by running the lab there and reproduced byte for
 byte by a second process. C05 is bound to the strategic-doctrine catalog
-projection at `seanchatmangpt/ggen-marketplace@c0f27e5bed97b164ac267f86d8d9d989982319e8`.
+projection at `seanchatmangpt/ggen-marketplace@225e3eff18f0570817646ebf7c210117ee1a82b5`,
+whose `catalog.json` sha256 is
+`34124262602efb8834d70961418e46edc86befe41eb162d8df3a1ace4b785a55`; the
+catalog digest claim recomputes from disk at the admitted tip
+(`git show 225e3eff1:packs/strategic-doctrine-pack/generated/catalog.json | shasum -a 256`).
 
 ## Gates
 

@@ -1,0 +1,80 @@
+---
+to: "generated/presentation/deck.json"
+sparql:
+  deck: |
+    PREFIX pres: <https://ggen.dev/ns/presentation#>
+    SELECT ?deck_id ?title ?author ?company ?subject ?footer
+    WHERE {
+      ?deck a pres:Presentation ;
+            pres:id ?deck_id ;
+            pres:title ?title .
+      OPTIONAL { ?deck pres:author ?author . }
+      OPTIONAL { ?deck pres:company ?company . }
+      OPTIONAL { ?deck pres:subject ?subject . }
+      OPTIONAL { ?deck pres:footer ?footer . }
+    }
+  slides: |
+    PREFIX pres: <https://ggen.dev/ns/presentation#>
+    PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+    SELECT ?slide_id ?order ?layout ?audience ?kicker ?title ?subtitle ?footer ?notes
+    WHERE {
+      ?slide a pres:Slide ;
+             pres:id ?slide_id ;
+             pres:order ?order ;
+             pres:layout ?layout ;
+             pres:title ?title .
+      OPTIONAL { ?slide pres:audience ?audience . }
+      OPTIONAL { ?slide pres:kicker ?kicker . }
+      OPTIONAL { ?slide pres:subtitle ?subtitle . }
+      OPTIONAL { ?slide pres:footer ?footer . }
+      OPTIONAL { ?slide pres:notes ?notes . }
+    } ORDER BY xsd:integer(?order)
+  blocks: |
+    PREFIX pres: <https://ggen.dev/ns/presentation#>
+    PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+    SELECT ?slide_id ?order ?role ?title ?body ?tone
+    WHERE {
+      ?block a pres:Block ;
+             pres:blockOf ?slide ;
+             pres:order ?order ;
+             pres:role ?role .
+      ?slide pres:id ?slide_id .
+      OPTIONAL { ?block pres:title ?title . }
+      OPTIONAL { ?block pres:body ?body . }
+      OPTIONAL { ?block pres:tone ?tone . }
+    } ORDER BY ?slide_id xsd:integer(?order)
+---
+{
+  "deck": {
+{% for d in deck %}{% if d.author %}    "author": {{ d.author | json_encode() }},
+{% endif %}{% if d.company %}    "company": {{ d.company | json_encode() }},
+{% endif %}{% if d.footer %}    "footer": {{ d.footer | json_encode() }},
+{% endif %}{% if d.subject %}    "subject": {{ d.subject | json_encode() }},
+{% endif %}    "deck_id": {{ d.deck_id | json_encode() }},
+    "title": {{ d.title | json_encode() }}
+{% endfor %}  },
+  "slides": [
+{% for s in slides %}    {
+{% if s.audience %}      "audience": {{ s.audience | json_encode() }},
+{% endif %}{% if s.footer %}      "footer": {{ s.footer | json_encode() }},
+{% endif %}{% if s.kicker %}      "kicker": {{ s.kicker | json_encode() }},
+{% endif %}{% if s.notes %}      "notes": {{ s.notes | json_encode() }},
+{% endif %}{% if s.subtitle %}      "subtitle": {{ s.subtitle | json_encode() }},
+{% endif %}      "layout": {{ s.layout | json_encode() }},
+      "order": {{ s.order }},
+      "slide_id": {{ s.slide_id | json_encode() }},
+      "title": {{ s.title | json_encode() }},
+      "blocks": [
+{% set_global first = true %}{% for b in blocks %}{% if b.slide_id == s.slide_id %}{% if not first %},
+{% endif %}{% set_global first = false %}        {
+{% if b.body %}          "body": {{ b.body | json_encode() }},
+{% endif %}{% if b.tone %}          "tone": {{ b.tone | json_encode() }},
+{% endif %}{% if b.title %}          "title": {{ b.title | json_encode() }},
+{% endif %}          "order": {{ b.order }},
+          "role": {{ b.role | json_encode() }}
+        }{% endif %}{% endfor %}
+
+      ]
+    }{% if not loop.last %},{% endif %}
+{% endfor %}  ]
+}

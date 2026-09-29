@@ -1,0 +1,22 @@
+# MESSAGE: A capability version must carry exactly one subjectRepository, one 40-hex subjectCommit, one sha256 artifactDigest and one boolean grantsDoAuthority.
+PREFIX qce: <https://ggen.dev/ontology/qualified-capability-ecology#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?version WHERE {
+  ?version a ?type .
+  ?type rdfs:subClassOf* qce:CapabilityVersion .
+  FILTER NOT EXISTS { ?version a qce:RetiredCapability }
+  FILTER (
+    NOT EXISTS { ?version qce:subjectRepository ?r0 } ||
+    EXISTS { ?version qce:subjectRepository ?r1 . ?version qce:subjectRepository ?r2 . FILTER(?r1 != ?r2) } ||
+    NOT EXISTS { ?version qce:subjectCommit ?c0 } ||
+    EXISTS { ?version qce:subjectCommit ?c1 . ?version qce:subjectCommit ?c2 . FILTER(?c1 != ?c2) } ||
+    EXISTS { ?version qce:subjectCommit ?c3 . FILTER(!REGEX(STR(?c3), "^[0-9a-f]{40}$")) } ||
+    NOT EXISTS { ?version qce:artifactDigest ?d0 } ||
+    EXISTS { ?version qce:artifactDigest ?d1 . ?version qce:artifactDigest ?d2 . FILTER(?d1 != ?d2) } ||
+    EXISTS { ?version qce:artifactDigest ?d3 . FILTER(!REGEX(STR(?d3), "^(sha256:)?[0-9a-f]{64}$")) } ||
+    NOT EXISTS { ?version qce:grantsDoAuthority ?g0 } ||
+    EXISTS { ?version qce:grantsDoAuthority ?g1 . ?version qce:grantsDoAuthority ?g2 . FILTER(?g1 != ?g2) } ||
+    EXISTS { ?version qce:grantsDoAuthority ?g3 . FILTER(datatype(?g3) != xsd:boolean) }
+  )
+}

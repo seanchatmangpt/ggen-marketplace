@@ -52,6 +52,8 @@ deck.ttl
   -> verify OOXML + notes + receipt
 ```
 
+The `*.tmpl` templates are the native ggen (Tera + front-matter SPARQL) projection of the same deck/render sources and are what `ggen sync run` consumes; the `*.eex` templates remain the `ggen_igniter` projection.
+
 Use `--engine sparql` for this v0.1.0 pack because the JSON template expects plain literal values and independently sorts the semantic rows instead of trusting engine row order.
 
 PptxGenJS `4.0.1` is the qualified consumer runtime target for this pack and should be pinned explicitly by the consuming project.
