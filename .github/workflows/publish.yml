@@ -114,6 +114,7 @@ jobs:
       - name: Checkout main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0 # release-check reads tags and pack trees
           persist-credentials: true
 
       - name: Download pack archives
@@ -152,6 +153,9 @@ jobs:
             echo "release $MARKETPLACE_VERSION already exists -- versioned releases are immutable, nothing to do"
             exit 0
           fi
+          # Release gate: monotonic unused version, and no pack changed since the last
+          # release without a version bump. Runs before the immutable tag exists.
+          python scripts/marketplace.py release-check
           python scripts/marketplace.py catalog > dist/packs/catalog.json
           gh release create "$MARKETPLACE_VERSION" dist/packs/*.tar.gz dist/packs/catalog.json \
             --title "ggen-marketplace $MARKETPLACE_VERSION" \

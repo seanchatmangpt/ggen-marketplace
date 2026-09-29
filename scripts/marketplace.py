@@ -9,6 +9,7 @@ import hashlib
 import io
 import json
 import re
+import subprocess
 import sys
 import tarfile
 from dataclasses import dataclass
@@ -68,6 +69,10 @@ PACK_CLASSES: dict[str, str] = {
     "pack-maturity-pack": "EvidencePack",
     "wasm4pm-pack": "CapabilityPack",
 }
+# The real ggen loader deserializes [pack] with deny-unknown-fields; anything else is
+# refused at pack-load time, so refuse it here first (see CLAUDE.md, "Pack profiles").
+PACK_TABLE_KEYS = frozenset({"name", "version", "description", "deprecated", "superseded_by"})
+VERSION_TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 REQUIRED_DOCS = (
     "docs/index.md",
     "docs/tutorials/first-pack.md",
@@ -284,11 +289,13 @@ def inspect_marketplace() -> tuple[list[Pack], list[str]]:
         name: str | None = None
         version: str | None = None
         description: str | None = None
+        extra_pack_keys: tuple[str, ...] = ()
         if document is not None:
             table = document.get("pack")
             if not isinstance(table, dict):
                 issues.append(refusal("MANIFEST_PACK_TABLE", directory.name))
             else:
+                extra_pack_keys = tuple(sorted(set(table) - PACK_TABLE_KEYS))
                 raw_name = table.get("name")
                 raw_version = table.get("version")
                 raw_description = table.get("description")
@@ -318,6 +325,11 @@ def inspect_marketplace() -> tuple[list[Pack], list[str]]:
         for path in templates:
             if not path.name.endswith(TEMPLATE_SUFFIXES):
                 issues.append(refusal("TEMPLATE_EXTENSION", path.relative_to(ROOT).as_posix()))
+
+        # Observed against ggen 26.9.28: the loader denies unknown [pack] keys for projection
+        # packs (templates, no ggen.toml); project and semantic packs qualify ALIVE with them.
+        if extra_pack_keys and templates and not (directory / "ggen.toml").is_file():
+            issues.append(refusal("PACK_KEY_UNADMITTED", f"{directory.name}:[pack].{','.join(extra_pack_keys)}:ggen admits only {sorted(PACK_TABLE_KEYS)}"))
 
         native_gates: tuple[Path, ...] = ()
         verifier_gates: tuple[Path, ...] = ()
@@ -418,11 +430,149 @@ def version() -> int:
     return 0
 
 
+def git(*args: str) -> str:
+    result = subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        raise SystemExit(refusal("GIT_FAILED", f"git {' '.join(args)}: {result.stderr.strip()}"))
+    return result.stdout
+
+
+def release_tags() -> list[tuple[tuple[int, int, int], str]]:
+    tags = []
+    for tag in git("tag", "--list", "v*").split():
+        match = VERSION_TAG.fullmatch(tag)
+        if match:
+            tags.append((tuple(int(part) for part in match.groups()), tag))
+    return sorted(tags)
+
+
+def diff_since(base_tag: str) -> dict[str, list[str]]:
+    """Classify packs against a previous release by git tree identity (read-only)."""
+    def pack_trees(ref: str) -> dict[str, str]:
+        out = git("ls-tree", ref, "packs/")
+        return {line.split("\t", 1)[1].removeprefix("packs/"): line.split()[2] for line in out.splitlines() if " tree " in line}
+
+    def pack_version(ref: str, name: str) -> str | None:
+        show = subprocess.run(["git", "show", f"{ref}:packs/{name}/pack.toml"], cwd=ROOT, capture_output=True, text=True, check=False)
+        if show.returncode != 0:
+            return None
+        try:
+            return tomllib.loads(show.stdout).get("pack", {}).get("version")
+        except tomllib.TOMLDecodeError:
+            return None
+
+    old, new = pack_trees(base_tag), pack_trees("HEAD")
+    report: dict[str, list[str]] = {"added": [], "removed": [], "changed": [], "unbumped": []}
+    report["added"] = sorted(set(new) - set(old))
+    report["removed"] = sorted(set(old) - set(new))
+    for name in sorted(set(old) & set(new)):
+        if old[name] != new[name]:
+            report["changed"].append(name)
+            if pack_version(base_tag, name) == pack_version("HEAD", name):
+                report["unbumped"].append(name)
+    return report
+
+
+def diff(base_tag: str | None) -> int:
+    require_admitted()
+    if base_tag is None:
+        tags = release_tags()
+        if not tags:
+            raise SystemExit(refusal("NO_RELEASE_TAG", "no v*.*.* tag to diff against"))
+        base_tag = tags[-1][1]
+    report = diff_since(base_tag)
+    print(f"# packs since {base_tag}")
+    for key in ("added", "removed", "changed", "unbumped"):
+        print(f"{key}={len(report[key])}")
+        for name in report[key]:
+            print(f"  {name}")
+    return 0
+
+
+def release_check(allow_unbumped: bool) -> int:
+    """Gate run immediately before an immutable release is cut."""
+    require_admitted()
+    current = marketplace_version()
+    match = VERSION_TAG.fullmatch(current)
+    if not match:
+        raise SystemExit(refusal("RELEASE_VERSION_FORMAT", f"{current!r} is not vYY.M.P"))
+    tags = release_tags()
+    if current in {tag for _, tag in tags}:
+        raise SystemExit(refusal("RELEASE_TAG_EXISTS", f"{current} already exists; releases are immutable, bump [marketplace].version"))
+    key = tuple(int(part) for part in match.groups())
+    if tags and key <= tags[-1][0]:
+        raise SystemExit(refusal("RELEASE_VERSION_NOT_MONOTONIC", f"{current} <= latest tag {tags[-1][1]}"))
+    if tags:
+        report = diff_since(tags[-1][1])
+        if report["unbumped"] and not allow_unbumped:
+            raise SystemExit(refusal("CONTENT_CHANGED_WITHOUT_VERSION_BUMP", f"{len(report['unbumped'])} packs: {', '.join(report['unbumped'][:12])}"))
+    print(f"release-check ok version={current} previous={tags[-1][1] if tags else 'none'}")
+    return 0
+
+
+def turtle_issues(packs: list[Pack]) -> list[str]:
+    try:
+        import logging
+
+        import rdflib
+    except ImportError:
+        return [refusal("RDFLIB_REQUIRED", "pip install rdflib to run the Turtle syntax check")]
+    logging.getLogger("rdflib").setLevel(logging.ERROR)
+    issues = []
+    for pack in packs:
+        for path in sorted(pack.path.rglob("*.ttl")):
+            try:
+                rdflib.Graph().parse(path, format="turtle")
+            except Exception as exc:  # rdflib raises several parser-specific types
+                issues.append(refusal("TURTLE_SYNTAX", f"{path.relative_to(ROOT).as_posix()}:{str(exc).splitlines()[0][:120]}"))
+    return issues
+
+
+def check(names: list[str], qualify: bool) -> int:
+    """Single-pack (or whole-corpus) preflight: validate + Turtle syntax + real-ggen qualification."""
+    packs = require_admitted()
+    if names:
+        unknown = sorted(set(names) - {pack.name for pack in packs})
+        if unknown:
+            raise SystemExit(refusal("UNKNOWN_PACK", ", ".join(unknown)))
+        packs = [pack for pack in packs if pack.name in names]
+    issues = turtle_issues(packs)
+    if qualify:
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import shutil
+
+        import qualify_packs
+
+        ggen = shutil.which("ggen")
+        if not ggen:
+            issues.append(refusal("GGEN_BINARY_REQUIRED", "install ggen (scripts/install-ggen.sh) or pass --no-qualify"))
+        else:
+            for pack in packs:
+                record = qualify_packs.qualify_pack(pack, ggen, 5.0)
+                if record["status"] == "REFUSED":
+                    issues.append(refusal("GGEN_QUALIFICATION", f"{pack.name}:{record['code']}:{record['detail'][-200:]!r}"))
+    for issue in issues:
+        print(issue, file=sys.stderr)
+    if issues:
+        return 2
+    print(f"check ok packs={len(packs)} turtle=ok qualify={'ok' if qualify else 'skipped'}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("validate", "catalog", "fingerprint", "archive", "version"))
+    parser.add_argument("command", choices=("validate", "catalog", "fingerprint", "archive", "version", "check", "diff", "release-check"))
+    parser.add_argument("packs", nargs="*", help="check: pack names (default: all); diff: optional base tag")
     parser.add_argument("--scope", choices=("active", "all"), default="active")
+    parser.add_argument("--no-qualify", action="store_true", help="check: skip the real-ggen qualification step")
+    parser.add_argument("--allow-unbumped", action="store_true", help="release-check: tolerate changed packs whose version was not bumped")
     args = parser.parse_args()
+    if args.command == "check":
+        return check(args.packs, not args.no_qualify)
+    if args.command == "diff":
+        return diff(args.packs[0] if args.packs else None)
+    if args.command == "release-check":
+        return release_check(args.allow_unbumped)
     if args.command == "catalog":
         return catalog(args.scope)
     if args.command == "archive":

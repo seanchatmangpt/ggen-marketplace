@@ -60,6 +60,18 @@ The mdBook navigation source is `docs/book.ttl`. The Pages rail deletes generate
 
 The generated `docs/SUMMARY.md` is not an editing surface.
 
+## 5a. One-pack preflight and release gate
+
+`python3 scripts/marketplace.py check <pack>` runs the checks that otherwise fail later in CI or in the
+real runtime: marketplace admission, Turtle syntax (needs `rdflib`), and real-ggen qualification
+(`--no-qualify` skips the last). `validate` also refuses unadmitted `[pack]` keys on projection packs, since
+ggen denies unknown keys there.
+
+`python3 scripts/marketplace.py diff [<tag>]` lists packs added, removed, changed and changed-without-a-version-bump
+since a release. `python3 scripts/marketplace.py release-check` is the gate `publish.yml` runs before it cuts an
+immutable release: unused, strictly increasing `[marketplace].version`, and no unbumped pack changes
+(`--allow-unbumped` overrides for an audited exception).
+
 ## 6. Full end-to-end lifecycle
 
 `scripts/e2e-lifecycle-test.sh` exercises the broader marketplace lifecycle: marketplace CLI, live published registry fetch/digest verification, a fresh consumer, real `ggen sync run`, and native compiled tests for the exercised sample path.
