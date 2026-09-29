@@ -1,0 +1,38 @@
+# quorum.rq — consumed by templates/crypto_trust_quorum.rs.tmpl
+# (affidavit-trust-plane-pack)
+#
+# Single-row binding for the k-of-n quorum module (crypto_trust_quorum.rs, the
+# SA2A-C3 seam at the cryptographic layer): the default quorum threshold and
+# the policy ceiling from ctp:quorum-v1, joined with the trust-plane domain tag
+# from ctp:policy-v1 (the same tag the envelope's signing_input carries, so a
+# quorum is attributable to one plane and every share signs the SAME envelope
+# pre-image).
+#
+# Projected columns (MUST equal crypto_trust_quorum.rs.tmpl's {{ }} vars):
+#   default_k  - ctp:quorum-v1 ctp:quorumDefaultK, e.g. "2"
+#   max_n      - ctp:quorum-v1 ctp:quorumMaxN, e.g. "5"
+#   domain_tag - ctp:policy-v1 ctp:domainTag, e.g. "affidavit.crypto-trust-plane.v1"
+#
+# All values pass through STR() so the Tera template receives plain strings
+# (proven wiring: rule SELECT columns are plain Tera variables). Any missing
+# fact yields zero rows — the engine refuses, defaults never render.
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT
+  ?default_k
+  ?max_n
+  ?domain_tag
+WHERE {
+  ctp:quorum-v1
+      ctp:quorumDefaultK ?kRaw ;
+      ctp:quorumMaxN     ?nRaw .
+  ctp:policy-v1
+      ctp:domainTag ?tagRaw .
+
+  BIND(STR(?kRaw) AS ?default_k)
+  BIND(STR(?nRaw) AS ?max_n)
+  BIND(STR(?tagRaw) AS ?domain_tag)
+}
+ORDER BY ?default_k
+LIMIT 1

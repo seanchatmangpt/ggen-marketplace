@@ -1,0 +1,88 @@
+# PASS witness for gate 110_wire_interop_field_closure: new-capability facts CONFORMING under the gate -- every gate returns 0 rows.
+# Standalone witness graph: declares the ctp vocabulary locally (a witness is
+# its own graph); namespace matches pack ontology <https://ggen.dev/ontology/affidavit-trust-plane#>.
+# Skeleton = canonical conforming graph (passes gates 010/020/030/050/060).
+
+@prefix ctp: <https://ggen.dev/ontology/affidavit-trust-plane#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# -- local vocabulary declarations --
+ctp:TrustPlanePolicy a rdfs:Class .
+ctp:NoncePolicy a rdfs:Class .
+ctp:SignatureAlgorithm a rdfs:Class .
+ctp:SignatureEnvelopeField a rdfs:Class .
+ctp:CryptographicStanding a rdfs:Class .
+ctp:CryptoProfile a rdfs:Class .
+ctp:minProfile a rdf:Property .
+ctp:supportedIn a rdf:Property .
+ctp:algorithmName a rdf:Property .
+ctp:fieldOrder a rdf:Property .
+ctp:fieldName a rdf:Property .
+ctp:maxRevocationStalenessSeconds a rdf:Property .
+ctp:windowSeconds a rdf:Property .
+ctp:standingName a rdf:Property .
+ctp:envelopeVersion a rdf:Property .
+
+# -- profile floor --
+ctp:profile-PQC a ctp:CryptoProfile ; rdfs:label "PQC" .
+
+# -- trust plane policy (conforming) --
+ctp:Policy-1 a ctp:TrustPlanePolicy ;
+    ctp:minProfile ctp:profile-PQC ;
+    ctp:maxRevocationStalenessSeconds "3600"^^xsd:integer ;
+    ctp:envelopeVersion "CTP-ENVELOPE-v1" .
+
+ctp:Nonce-1 a ctp:NoncePolicy ;
+    ctp:windowSeconds "300"^^xsd:integer .
+
+# -- signature algorithms, all supported in the admitted minimum profile --
+ctp:alg-ml-dsa-44 a ctp:SignatureAlgorithm ;
+    ctp:algorithmName "ML-DSA-44" ; ctp:supportedIn ctp:profile-PQC .
+ctp:alg-ed25519 a ctp:SignatureAlgorithm ;
+    ctp:algorithmName "Ed25519" ; ctp:supportedIn ctp:profile-PQC .
+ctp:alg-es256 a ctp:SignatureAlgorithm ;
+    ctp:algorithmName "ES256" ; ctp:supportedIn ctp:profile-PQC .
+ctp:alg-rsa-pss a ctp:SignatureAlgorithm ;
+    ctp:algorithmName "RSA-PSS-SHA256" ; ctp:supportedIn ctp:profile-PQC .
+
+# -- signature envelope fields (closed, contiguous 1..12) --
+ctp:field-01 a ctp:SignatureEnvelopeField ;
+    ctp:fieldOrder 1 ; ctp:fieldName "envelopeVersion" .
+ctp:field-02 a ctp:SignatureEnvelopeField ;
+    ctp:fieldOrder 2 ; ctp:fieldName "keyId" ; ctp:wireFieldName "keyId" .
+ctp:field-03 a ctp:SignatureEnvelopeField ;
+    ctp:fieldOrder 3 ; ctp:fieldName "algorithm" .
+ctp:field-04 a ctp:SignatureEnvelopeField ;
+    ctp:fieldOrder 4 ; ctp:fieldName "payloadHash" .
+ctp:field-05 a ctp:SignatureEnvelopeField ;
+    ctp:fieldOrder 5 ; ctp:fieldName "signature" .
+ctp:field-06 a ctp:SignatureEnvelopeField ;
+    ctp:fieldOrder 6 ; ctp:fieldName "signedAt" .
+ctp:field-07 a ctp:SignatureEnvelopeField ;
+    ctp:fieldOrder 7 ; ctp:fieldName "nonce" .
+ctp:field-08 a ctp:SignatureEnvelopeField ;
+    ctp:fieldOrder 8 ; ctp:fieldName "nonceWindow" .
+ctp:field-09 a ctp:SignatureEnvelopeField ;
+    ctp:fieldOrder 9 ; ctp:fieldName "chainHash" .
+ctp:field-10 a ctp:SignatureEnvelopeField ;
+    ctp:fieldOrder 10 ; ctp:fieldName "sealId" .
+ctp:field-11 a ctp:SignatureEnvelopeField ;
+    ctp:fieldOrder 11 ; ctp:fieldName "profile" .
+ctp:field-12 a ctp:SignatureEnvelopeField ;
+    ctp:fieldOrder 12 ; ctp:fieldName "evidenceRef" .
+
+# -- cryptographic standing (closed vocabulary) --
+ctp:standing-alive a ctp:CryptographicStanding ;
+    ctp:standingName "VALID" .
+
+# -- SA2A wire interop (CONFORMING: targetFieldSet == ordered comma-join of the
+#    graph's twelve ctp:fieldName values, so equality AND containment hold) --
+ctp:WireInterop a rdfs:Class .
+ctp:approvalTag a rdf:Property .
+ctp:targetFieldSet a rdf:Property .
+ctp:wireFieldName a rdf:Property ; rdfs:domain ctp:SignatureEnvelopeField ; rdfs:range xsd:string .
+ctp:sa2a-interop-v1 a ctp:WireInterop ;
+    ctp:approvalTag "SA2A-C2-APPROVAL-v1" ;
+    ctp:targetFieldSet "envelopeVersion,algorithm,payloadHash,signature,signedAt,nonce,nonceWindow,chainHash,sealId,profile,evidenceRef" .

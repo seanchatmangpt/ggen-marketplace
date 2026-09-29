@@ -1,0 +1,126 @@
+# ggen.toml — pack-local project profile (self-proof).
+# Renders generated/ from this pack's own ontology.ttl: the projection is the
+# pack's own conformance evidence (every rendered module re-proves the graph).
+# The CONSUMER (/Users/sac/affidavit ggen.toml) merges this ontology via
+# [ontology].imports and re-runs equivalent rules against the consumer graph —
+# a pack-local ggen.toml (project profile) renders generated/ as self-proof.
+#
+# STRICT MODE: every CONSTRUCT/ASK in queries/*.rq MUST carry an ORDER BY
+# (strict mode) — a query without ORDER BY is rejected by the engine.
+#
+# Data binding is proven wiring (do not re-derive): rule SELECT columns are
+# exposed to the Tera template as plain variables. Frontmatter `sparql:` is
+# NOT supported. queries/*.rq and templates/*.rs.tmpl are owned by sibling
+# lanes; this file only binds them.
+
+[project]
+name = "affidavit-trust-plane-pack"
+version = "26.9.28"
+
+[ontology]
+source = "ontology.ttl"
+
+[generation]
+output_dir = "."
+
+# 1. canonical — JCS (RFC 8785) canonicalization + BLAKE3 digest binding.
+[[generation.rules]]
+name = "canonical"
+mode = "Overwrite"
+query = { file = "queries/canonical.rq" }
+template = { file = "templates/crypto_trust_canonical.rs.tmpl" }
+output_file = "generated/crypto_trust_canonical.rs"
+
+# 2. keys — KeyRecord/CustodianIdentity/KeyOrigin enums + custody.
+[[generation.rules]]
+name = "keys"
+mode = "Overwrite"
+query = { file = "queries/keys.rq" }
+template = { file = "templates/crypto_trust_keys.rs.tmpl" }
+output_file = "generated/crypto_trust_keys.rs"
+
+# 3. lifecycle — KeyEpoch/RotationPolicy/RevocationList epoch machinery.
+[[generation.rules]]
+name = "lifecycle"
+mode = "Overwrite"
+query = { file = "queries/lifecycle.rq" }
+template = { file = "templates/crypto_trust_lifecycle.rs.tmpl" }
+output_file = "generated/crypto_trust_lifecycle.rs"
+
+# 4. envelope — the 12 SignatureEnvelopeField individuals (order 1..12),
+#    alg+kid+nonce+epochs INSIDE the signed bytes (RFC-SA2A-007-errata).
+[[generation.rules]]
+name = "envelope"
+mode = "Overwrite"
+query = { file = "queries/envelope.rq" }
+template = { file = "templates/crypto_trust_envelope.rs.tmpl" }
+output_file = "generated/crypto_trust_envelope.rs"
+
+# 5. es256 — ES256 / P-256-SHA256-RFC6979 (classical profile).
+[[generation.rules]]
+name = "es256"
+mode = "Overwrite"
+query = { file = "queries/es256.rq" }
+template = { file = "templates/crypto_trust_es256.rs.tmpl" }
+output_file = "generated/crypto_trust_es256.rs"
+
+# 6. enclave — SigningProvider dispatch (SOFTWARE / SECURE_ENCLAVE / HSM
+#    refuses: typed UNSUPPORTED, never faked).
+[[generation.rules]]
+name = "enclave"
+mode = "Overwrite"
+query = { file = "queries/enclave.rq" }
+template = { file = "templates/crypto_trust_enclave.rs.tmpl" }
+output_file = "generated/crypto_trust_enclave.rs"
+
+# 7. pqc — ML-DSA-65 (FIPS 204) + SLH-DSA-SHA2-128s (FIPS 205) + hybrid.
+[[generation.rules]]
+name = "pqc"
+mode = "Overwrite"
+query = { file = "queries/pqc.rq" }
+template = { file = "templates/crypto_trust_pqc.rs.tmpl" }
+output_file = "generated/crypto_trust_pqc.rs"
+
+# 8. verify — verification pipeline → CryptographicStanding (closed 0..7).
+[[generation.rules]]
+name = "verify"
+mode = "Overwrite"
+query = { file = "queries/verify.rq" }
+template = { file = "templates/crypto_trust_verify.rs.tmpl" }
+output_file = "generated/crypto_trust_verify.rs"
+
+# 9. seal — envelope construction/sealing with policy-v1 bindings.
+[[generation.rules]]
+name = "seal"
+mode = "Overwrite"
+query = { file = "queries/seal.rq" }
+template = { file = "templates/crypto_trust_seal.rs.tmpl" }
+output_file = "generated/crypto_trust_seal.rs"
+
+# 10. e2e — end-to-end tests over the rendered plane.
+[[generation.rules]]
+name = "e2e"
+mode = "Overwrite"
+query = { file = "queries/e2e.rq" }
+template = { file = "templates/crypto_trust_e2e.rs.tmpl" }
+output_file = "generated/crypto_trust_e2e_tests.rs"
+
+# 11. provider — SigningProvider trait seam: provider-polymorphic signing
+#     over the rendered plane (detached signatures; v26.9.28 consolidation
+#     port of the legacy WIP's only genuinely-new signing capability).
+[[generation.rules]]
+name = "provider"
+mode = "Overwrite"
+query = { file = "queries/provider.rq" }
+template = { file = "templates/crypto_trust_provider.rs.tmpl" }
+output_file = "generated/crypto_trust_provider.rs"
+
+# 12. nonce-store — disk-backed nonce journal: the envelope module's replay
+#     window law persisted across process restarts (v26.9.28 consolidation
+#     port; the in-memory NonceJournal alone dies with the process).
+[[generation.rules]]
+name = "nonce-store"
+mode = "Overwrite"
+query = { file = "queries/nonce-store.rq" }
+template = { file = "templates/crypto_trust_nonce_store.rs.tmpl" }
+output_file = "generated/crypto_trust_nonce_store.rs"

@@ -1,0 +1,70 @@
+# verify.rq — single-row binding for the verification engine
+# (templates/crypto_trust_verify.rs.tmpl, ggen.toml rule 8 "verify").
+#
+# Binds the trust-plane policy facts the verifier enforces (ctp:policy-v1):
+# the minimum assurance profile, the default profile, the revocation-staleness
+# bound, the envelope version, and the domain tag — plus the CLOSED
+# CryptographicStanding vocabulary (ctp:cr-VALID .. ctp:cr-MALFORMED) in its
+# graph-declared total order (ctp:standingOrder 0..7).
+#
+# Projected columns (MUST equal crypto_trust_verify.rs.tmpl's {{ }} vars):
+#   min_profile      - profileName of ctp:policy-v1 ctp:minProfile
+#                      (e.g. "CLASSICAL"); the policy floor.
+#   default_profile  - profileName of ctp:policy-v1 ctp:defaultProfile
+#                      (e.g. "HYBRID").
+#   staleness        - ctp:maxRevocationStalenessSeconds (300).
+#   envelope_version - ctp:envelopeVersion ("CTP-ENVELOPE-v1").
+#   domain_tag       - ctp:domainTag ("affidavit.crypto-trust-plane.v1").
+#   standings        - GROUP_CONCAT over the ctp:CryptographicStanding
+#                      individuals, ordered by ctp:standingOrder, one standing
+#                      per "@@" group, fields within a group separated by "|":
+#                        rustVariant | standingName | standingOrder
+#                      e.g. "Valid|VALID|0@@Invalid|INVALID|1@@..."
+#
+# Every fact is pinned to its subject (ctp:policy-v1 / the standing
+# individuals), so a half-projected graph yields ZERO rows — the engine
+# refuses, defaults never render. A standing individual that omits any of the
+# three contract predicates is silently pruned from the vocabulary by the
+# join; the template's standing-count and per-variant tests make that
+# omission loud (the closed 0..7 order is asserted in the rendered module).
+# ORDER BY satisfies the pack's strict mode; LIMIT 1 keeps the projection
+# single-row.
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT
+  ?min_profile
+  ?default_profile
+  ?staleness
+  ?envelope_version
+  ?domain_tag
+  ?standings
+WHERE {
+  ctp:policy-v1
+      ctp:minProfile                   ?minProfileInd ;
+      ctp:defaultProfile               ?defaultProfileInd ;
+      ctp:maxRevocationStalenessSeconds ?staleness ;
+      ctp:envelopeVersion              ?envelope_version ;
+      ctp:domainTag                    ?domain_tag .
+  ?minProfileInd     ctp:profileName ?min_profile .
+  ?defaultProfileInd ctp:profileName ?default_profile .
+
+  {
+    SELECT (GROUP_CONCAT(?standing ; separator="@@") AS ?standings)
+    WHERE {
+      {
+        SELECT ?standing
+        WHERE {
+          ?cr a ctp:CryptographicStanding ;
+              ctp:rustVariant    ?variant ;
+              ctp:standingName   ?name ;
+              ctp:standingOrder  ?order .
+          BIND(CONCAT(STR(?variant), "|", STR(?name), "|", STR(?order)) AS ?standing)
+        }
+        ORDER BY ?order
+      }
+    }
+  }
+}
+ORDER BY ?domain_tag
+LIMIT 1

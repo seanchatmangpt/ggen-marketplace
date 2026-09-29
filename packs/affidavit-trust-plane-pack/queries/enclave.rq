@@ -1,0 +1,51 @@
+# enclave.rq — consumed by templates/crypto_trust_enclave.rs.tmpl (affidavit-trust-plane-pack)
+#
+# Single-row rule: the SECURE_ENCLAVE signing provider. ctp:provider-HSM is
+# ctp:admitted false and declares neither ctp:targetOs nor
+# ctp:supportedAlgorithm, so it cannot satisfy this join — the admitted=false
+# typed-UNSUPPORTED law is enforced by the graph shape itself, not by a filter.
+#
+# Projected columns (MUST equal crypto_trust_enclave.rs.tmpl's {{ }} vars):
+#   provider_kind - ctp:provider-SECURE-ENCLAVE ctp:providerKind, "SECURE_ENCLAVE"
+#   target_os     - ctp:targetOs, "macos"
+#   exportable    - ctp:keyMaterialExportable, "false" (private key never leaves)
+#   alg_name      - ctp:supportedAlgorithm / ctp:algorithmName, "ES256"
+#
+# All values pass through STR() so the Tera template receives plain strings
+# (proven wiring: rule SELECT columns are plain Tera variables).
+#
+# Standing (witnessed 2026-09-28, lane w5-w1-lane1, darwin 25.2.0 arm64):
+# PARTIAL_ALIVE. Secure Enclave keygen is real — every refused persistence
+# attempt returned a fresh P-256 public key inside the error payload — but
+# the keychain ADD from a non-Apple-signed binary is refused by the OS:
+# plain ad-hoc (file and data-protection keychain, with and without the
+# access-control object) and ad-hoc + com.apple.security.application-groups
+# all give -34018 errSecMissingEntitlement; ad-hoc + keychain-access-groups
+# is killed by the platform (SIGKILL); `security find-identity -v -p
+# codesigning` = 0 valid identities on the witnessing host. The unblock
+# recipe (exact codesign command + entitlements) lives in
+# templates/crypto_trust_enclave.rs.tmpl ENCLAVE_KEYCHAIN_UNBLOCK_RECIPE and
+# is carried verbatim by the typed refusal on -34018.
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT
+  ?provider_kind
+  ?target_os
+  ?exportable
+  ?alg_name
+WHERE {
+  ?provider ctp:providerKind ?providerKindRaw ;
+            ctp:keyMaterialExportable ?exportableRaw ;
+            ctp:targetOs ?targetOsRaw ;
+            ctp:supportedAlgorithm ?alg .
+  ?alg ctp:algorithmName ?algNameRaw .
+  FILTER(STR(?providerKindRaw) = "SECURE_ENCLAVE")
+
+  BIND(STR(?providerKindRaw) AS ?provider_kind)
+  BIND(STR(?exportableRaw) AS ?exportable)
+  BIND(STR(?targetOsRaw) AS ?target_os)
+  BIND(STR(?algNameRaw) AS ?alg_name)
+}
+ORDER BY ?provider_kind
+LIMIT 1

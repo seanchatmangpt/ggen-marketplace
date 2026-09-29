@@ -1,0 +1,33 @@
+# journal-persist.rq — single-row binding for the durable nonce ledger
+# (templates/crypto_trust_journal_persist.rs.tmpl, ggen.toml rule
+# "ctp-journal-persist").
+#
+# Binds the nonce-persistence fact (ctp:journal-persist-v1) plus the
+# trust-plane domain tag the ledger's replay verdicts are evidence for
+# (ctp:policy-v1):
+#   journal_file - ctp:persistenceFile (".affi/nonce-journal.jsonl"); the
+#                  durable JSONL ledger path, relative to the consumer
+#                  repository root (module const PERSIST_FILE).
+#   domain_tag   - ctp:domainTag of ctp:policy-v1
+#                  ("affidavit.crypto-trust-plane.v1"); the plane whose
+#                  replay tuple this ledger is evidence for (module const
+#                  PERSIST_DOMAIN_TAG, cross-checked against
+#                  crypto_trust_journal::JOURNAL_DOMAIN).
+#
+# Every fact is pinned to its subject (ctp:journal-persist-v1 /
+# ctp:policy-v1), so a half-projected graph yields ZERO rows — the module
+# refuses to render, the persistence path never defaults. ORDER BY satisfies
+# the pack's strict mode; LIMIT 1 keeps the projection single-row.
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT
+  ?journal_file
+  ?domain_tag
+WHERE {
+  ctp:journal-persist-v1
+      ctp:persistenceFile ?journal_file .
+  ctp:policy-v1 ctp:domainTag ?domain_tag .
+}
+ORDER BY ?journal_file
+LIMIT 1

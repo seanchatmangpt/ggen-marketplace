@@ -1,0 +1,38 @@
+# log.rq — single-row binding for the transparency-log operations module
+# (templates/crypto_trust_log.rs.tmpl, rendered as crypto_trust_log.rs).
+#
+# Binds the log-operations policy facts (ctp:log-ops-v1, class ctp:LogOps) plus
+# the trust-plane domain tag the signed-tree-head signature pre-images are
+# domain-separated under (ctp:policy-v1):
+#   ops_file   - ctp:opsFile (".affi/transparency.jsonl"); the durable ops
+#                state file, relative to the consumer repository root (module
+#                const OPS_FILE).
+#   ops_format - ctp:opsFormat ("CTP-LOGOPS-v1"); the wire-format identity
+#                stamped on every persisted JSONL line, refused on load for any
+#                other value (module const OPS_FORMAT).
+#   domain_tag - ctp:domainTag of ctp:policy-v1
+#                ("affidavit.crypto-trust-plane.v1"); the ES256
+#                SignedTreeHead signature domain (module const
+#                HEAD_SIGNING_DOMAIN, asserted equal to the canonical module's
+#                single-owner DOMAIN_TAG — a graph-side change breaks the
+#                render loudly instead of drifting silently).
+#
+# Every fact is pinned to its subject (ctp:log-ops-v1 / ctp:policy-v1), so a
+# half-projected graph yields ZERO rows — the module refuses to render and the
+# ops file/format constants never default. ORDER BY satisfies the pack's
+# strict mode; LIMIT 1 keeps the projection single-row.
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT
+  ?ops_file
+  ?ops_format
+  ?domain_tag
+WHERE {
+  ctp:log-ops-v1
+      ctp:opsFile   ?ops_file ;
+      ctp:opsFormat ?ops_format .
+  ctp:policy-v1 ctp:domainTag ?domain_tag .
+}
+ORDER BY ?ops_format
+LIMIT 1

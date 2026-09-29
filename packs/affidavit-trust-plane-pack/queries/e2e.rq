@@ -1,0 +1,43 @@
+# e2e.rq — consumed by templates/crypto_trust_e2e.rs.tmpl (affidavit-trust-plane-pack)
+#
+# Single-row aggregate rule; the end-to-end court renders one test per
+# algorithm the graph admits, so the court is a projection of the graph, not a
+# hand-picked list: admit an algorithm individual and its e2e test renders.
+# Projected columns (MUST equal crypto_trust_e2e.rs.tmpl's {{ }} vars):
+#   envelope_version - signed-envelope version (ctp:policy-v1
+#                      ctp:envelopeVersion) pinned by the court.
+#   domain_tag       - trust-plane policy domain tag (ctp:policy-v1
+#                      ctp:domainTag) pinned by the court.
+#   algs             - GROUP_CONCAT of algorithm rustVariants, one per "@@"
+#                      group, ordered by ctp:algorithmName (ordered sub-SELECT
+#                      feeding the aggregate) so the rendered test order is
+#                      the graph's order — the same order the keys module
+#                      renders AlgorithmId in.
+#                      e.g. "Es256@@HybridEs256MlDsa65@@MlDsa65@@SlhDsa128s"
+#
+# Any missing fact yields zero rows — the engine refuses, defaults never render.
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT ?envelope_version ?domain_tag ?algs
+WHERE {
+  ctp:policy-v1
+      ctp:domainTag        ?domain_tag ;
+      ctp:envelopeVersion  ?envelope_version .
+
+  {
+    SELECT (GROUP_CONCAT(?variant ; separator="@@") AS ?algs)
+    WHERE {
+      {
+        SELECT ?variant
+        WHERE {
+          ?alg ctp:algorithmName ?name ;
+               ctp:rustVariant  ?variant .
+        }
+        ORDER BY ?name
+      }
+    }
+  }
+}
+ORDER BY ?domain_tag
+LIMIT 1

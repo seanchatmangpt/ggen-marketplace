@@ -1,0 +1,43 @@
+# MESSAGE: transparency domains are domain-separated under the plane tag: every ctp:TransparencyPolicy carries ctp:logFormat and three DISTINCT domains (ctp:merkleDomain, ctp:inclusionDomain, ctp:consistencyDomain), and each domain starts with the ctp:policy-v1 ctp:domainTag value followed by "/" (RFC 9162 domain separation). A missing log format, a missing domain, colliding domains, a domain outside the plane tag, or an unresolvable ctp:policy-v1 domain tag is refused.
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+SELECT ?subject ?problem ?detail WHERE {
+  {
+    ?subject a ctp:TransparencyPolicy .
+    FILTER NOT EXISTS { ?subject ctp:logFormat ?anyFormat }
+    BIND("transparency_log_format_missing" AS ?problem)
+    BIND("(no ctp:logFormat)" AS ?detail)
+  }
+  UNION
+  {
+    ?subject a ctp:TransparencyPolicy .
+    VALUES ?domainProp { ctp:merkleDomain ctp:inclusionDomain ctp:consistencyDomain }
+    FILTER NOT EXISTS { ?subject ?domainProp ?anyDomain }
+    BIND("transparency_domain_missing" AS ?problem)
+    BIND(STRAFTER(STR(?domainProp), "#") AS ?detail)
+  }
+  UNION
+  {
+    ?subject a ctp:TransparencyPolicy ;
+      ctp:merkleDomain ?merkle ; ctp:inclusionDomain ?inclusion ; ctp:consistencyDomain ?consistency .
+    FILTER( (?merkle = ?inclusion) || (?merkle = ?consistency) || (?inclusion = ?consistency) )
+    BIND("transparency_domains_not_distinct" AS ?problem)
+    BIND("(merkleDomain/inclusionDomain/consistencyDomain collide)" AS ?detail)
+  }
+  UNION
+  {
+    ?subject a ctp:TransparencyPolicy .
+    FILTER NOT EXISTS { ctp:policy-v1 ctp:domainTag ?anyTag }
+    BIND("transparency_domain_tag_unresolvable" AS ?problem)
+    BIND("(ctp:policy-v1 carries no ctp:domainTag)" AS ?detail)
+  }
+  UNION
+  {
+    ?subject a ctp:TransparencyPolicy ; ?domainProp ?domain .
+    VALUES ?domainProp { ctp:merkleDomain ctp:inclusionDomain ctp:consistencyDomain }
+    ctp:policy-v1 ctp:domainTag ?tag .
+    FILTER(!STRSTARTS(STR(?domain), CONCAT(STR(?tag), "/")))
+    BIND("transparency_domain_outside_plane_tag" AS ?problem)
+    BIND(CONCAT(STRAFTER(STR(?domainProp), "#"), "=", STR(?domain), " tag=", STR(?tag)) AS ?detail)
+  }
+}
+ORDER BY ?subject ?problem ?detail

@@ -1,0 +1,57 @@
+# kat.rq — consumed by templates/crypto_trust_kat.rs.tmpl (affidavit-trust-plane-pack)
+#
+# Single-row aggregate rule; single-file module -> single-row projection.
+# Projected columns (MUST equal crypto_trust_kat.rs.tmpl's {{ }} vars):
+#   domain_tag       - trust-plane policy domain tag (ctp:policy-v1
+#                      ctp:domainTag). Rendered as KAT_DOMAIN_TAG and used as
+#                      the digest domain for every seed, randomizer, and
+#                      message the KAT corpus derives: a graph-side domain
+#                      change re-seeds the corpus and breaks the embedded
+#                      golden literals loudly (cross-runtime bytes law).
+#   envelope_version - signed-envelope version (ctp:policy-v1
+#                      ctp:envelopeVersion, e.g. "CTP-ENVELOPE-v1"). Rendered
+#                      as KAT_ENVELOPE_VERSION: the envelope generation the
+#                      vectors were produced under; cross-module equality with
+#                      crypto_trust_envelope::ENVELOPE_VERSION is tested.
+#   algs             - GROUP_CONCAT of the admitted signature algorithms, one
+#                      "@@" group per algorithm, "name|rustVariant" within a
+#                      group, ordered by ctp:algorithmName:
+#                        algorithmName | rustVariant
+#                      e.g. "ES256|Es256@@ES256+ML-DSA-65|HybridEs256MlDsa65@@..."
+#                      The KAT corpus carries exactly ONE vector per registry
+#                      entry, in this order; the rendered registry and the
+#                      per-algorithm sign bodies must agree (coverage test).
+#
+# The ordered sub-SELECT feeds the aggregate (rotation.rq/envelope.rq
+# precedent) so the GROUP_CONCAT fold is deterministic. Any missing policy
+# fact yields zero rows — the engine refuses, defaults never render.
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT
+  ?domain_tag
+  ?envelope_version
+  ?algs
+WHERE {
+  ?policy ctp:domainTag       ?domainTagRaw ;
+          ctp:envelopeVersion ?envelopeVersionRaw .
+  BIND(STR(?domainTagRaw) AS ?domain_tag)
+  BIND(STR(?envelopeVersionRaw) AS ?envelope_version)
+
+  {
+    SELECT (GROUP_CONCAT(?spec ; separator="@@") AS ?algs)
+    WHERE {
+      {
+        SELECT ?spec
+        WHERE {
+          ?alg ctp:algorithmName ?name ;
+               ctp:rustVariant  ?variant .
+          BIND(CONCAT(STR(?name), "|", STR(?variant)) AS ?spec)
+        }
+        ORDER BY ?name
+      }
+    }
+  }
+}
+ORDER BY ?domain_tag
+LIMIT 1

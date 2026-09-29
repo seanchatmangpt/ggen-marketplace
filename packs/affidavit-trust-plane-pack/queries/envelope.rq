@@ -1,0 +1,80 @@
+# envelope.rq — consumed by templates/crypto_trust_envelope.rs.tmpl (affidavit-trust-plane-pack)
+#
+# Single-row aggregate rule; single-file module -> single-row projection.
+# Projected columns (MUST equal crypto_trust_envelope.rs.tmpl's {{ }} vars):
+#   envelope_version - signed-envelope version (ctp:policy-v1 ctp:envelopeVersion),
+#                      e.g. "CTP-ENVELOPE-v1"
+#   fields           - GROUP_CONCAT of the RFC-SA2A-007-errata signed-bytes field
+#                      registry, one field per "@@" group, "name|order" within a
+#                      group:
+#                        fieldName | fieldOrder
+#                      e.g. "version|1@@algorithm|2@@key_id|3@@..."
+#                      Ordered by ctp:fieldOrder (ordered sub-SELECT feeding the
+#                      aggregate); the template renders this as the
+#                      ENVELOPE_FIELDS registry the document shape is held to.
+#   domain_tag       - trust-plane domain tag (ctp:policy-v1 ctp:domainTag).
+#                      Bound here but NOT rendered: the canonical module owns
+#                      DOMAIN_TAG (single source of truth). It is load-bearing
+#                      as an existence gate — a half-projected ctp:policy-v1
+#                      yields zero rows and the engine refuses, defaults never
+#                      render (same law as lifecycle.rq).
+#   staleness        - max revocation-epoch staleness in seconds
+#                      (ctp:policy-v1 ctp:maxRevocationStalenessSeconds). Bound
+#                      but NOT rendered: crate::crypto_trust_lifecycle owns the
+#                      const; binding makes the governing policy fact mandatory
+#                      for this envelope render (envelope field 6 binds
+#                      revocation_epoch under it).
+#   replay_key       - replay-detection tuple (ctp:nonce-policy-v1 ctp:replayKey
+#                      = "kid,nonce"). Bound but NOT rendered: the lifecycle
+#                      module owns the const; the NonceJournal documents the
+#                      tuple it implements. Existence gate.
+#   window           - replay acceptance window in seconds
+#                      (ctp:nonce-policy-v1 ctp:windowSeconds). Bound but NOT
+#                      rendered: the lifecycle module owns the const and the
+#                      journal API takes the window per call. Existence gate.
+#
+# Binding is by pinned PREDICATE for the policy facts (survives lane-side class
+# renames) and by the pinned ctp:nonce-policy-v1 IRI (lifecycle.rq precedent —
+# exactly one nonce policy exists in the graph). Each aggregate sub-SELECT
+# yields exactly one row, so the outer join is single-row; any missing policy
+# fact yields zero rows — the engine refuses, defaults never render.
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT
+  ?envelope_version
+  ?domain_tag
+  ?staleness
+  ?replay_key
+  ?window
+  ?fields
+WHERE {
+  ?policy ctp:envelopeVersion           ?versionRaw ;
+          ctp:domainTag                 ?domainTagRaw ;
+          ctp:maxRevocationStalenessSeconds ?stalenessRaw .
+  BIND(STR(?versionRaw) AS ?envelope_version)
+  BIND(STR(?domainTagRaw) AS ?domain_tag)
+  BIND(STR(?stalenessRaw) AS ?staleness)
+
+  ctp:nonce-policy-v1 ctp:replayKey    ?replayKeyRaw ;
+                      ctp:windowSeconds ?windowRaw .
+  BIND(STR(?replayKeyRaw) AS ?replay_key)
+  BIND(STR(?windowRaw) AS ?window)
+
+  {
+    SELECT (GROUP_CONCAT(?spec ; separator="@@") AS ?fields)
+    WHERE {
+      {
+        SELECT ?spec
+        WHERE {
+          ?field ctp:fieldName  ?name ;
+                 ctp:fieldOrder ?order .
+          BIND(CONCAT(STR(?name), "|", STR(?order)) AS ?spec)
+        }
+        ORDER BY ?order
+      }
+    }
+  }
+}
+ORDER BY ?envelope_version
+LIMIT 1

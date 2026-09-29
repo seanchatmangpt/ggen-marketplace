@@ -212,6 +212,42 @@ jobs:
             exit 2
           fi
 
+  tests:
+    name: Full pytest suite (advisory until first green on main)
+    needs: admission
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.admission.outputs.exact_head }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Download admitted config
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: admitted-config
+          path: ${{ runner.temp }}
+      - name: Install ggen from admitted marketplace config
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ggen_bin="$(bash scripts/install-ggen.sh "${RUNNER_TEMP}/admitted-config.json")"
+          mkdir -p "${RUNNER_TEMP}/bin"
+          ln -sf "$ggen_bin" "${RUNNER_TEMP}/bin/ggen"
+          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+      - name: Install test dependencies
+        run: python -m pip install --disable-pip-version-check pytest rdflib pyyaml
+      - name: Run the full suite
+        run: python -m pytest tests/ scripts/ -q -p no:cacheprovider
+
   ci-status:
     name: CI status (aggregate)
     needs: [admission, qualify]

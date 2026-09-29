@@ -1,0 +1,40 @@
+# crl-file.rq — consumed by templates/crypto_trust_crl_file.rs.tmpl
+# (affidavit-trust-plane-pack)
+#
+# Single-row binding for the durable CRL file surface module
+# (crypto_trust_crl_file.rs): the publication file location from
+# ctp:crl-file-v1 (the file projection of ctp:revocation-pub-v1's signed
+# revocation list), joined with the trust-plane domain tag from
+# ctp:policy-v1 (the same tag the revocation, store, and keys modules carry,
+# so the file surface is attributable to one plane).
+#
+# Projected columns (MUST equal crypto_trust_crl_file.rs.tmpl's {{ }} vars):
+#   publication_file - ctp:crl-file-v1 ctp:publicationFile,
+#                      e.g. ".affi/crl.json"
+#   domain_tag       - ctp:policy-v1 ctp:domainTag,
+#                      e.g. "affidavit.crypto-trust-plane.v1"
+#
+# Binding is by pinned PREDICATE, not class IRI, so the query survives
+# lane-side class renames as long as the contract predicates are used:
+#   publication_file: subjects carrying ctp:publicationFile
+#   domain_tag:       subjects carrying ctp:domainTag
+# All values pass through STR() so the Tera template receives plain strings
+# (proven wiring: rule SELECT columns are plain Tera variables). Each binding
+# is single-valued over the graph, so the join is exactly one row; a missing
+# publicationFile fact fails loudly with zero rows — the engine refuses,
+# defaults never render.
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT
+  ?publication_file
+  ?domain_tag
+WHERE {
+  ?crl_file ctp:publicationFile ?fileRaw .
+  BIND(STR(?fileRaw) AS ?publication_file)
+
+  ?policy ctp:domainTag ?tagRaw .
+  BIND(STR(?tagRaw) AS ?domain_tag)
+}
+ORDER BY ?publication_file
+LIMIT 1

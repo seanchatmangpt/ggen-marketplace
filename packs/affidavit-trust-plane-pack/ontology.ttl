@@ -1,0 +1,688 @@
+# ontology.ttl — affidavit-trust-plane-pack
+# ============================================================================
+# FAILED-EDGE RECORD against the public vocabulary set (why ctp: exists)
+# ============================================================================
+# Law: public vocabularies precede custom namespaces. Each candidate public
+# vocabulary was evaluated and the exact failing edge recorded before minting
+# ctp: (aloop-episode-ontology-pack precedent):
+#
+# 1. es: (evidence-standing-pack, https://w3id.org/chatman/aps# standing
+#    individuals) covers standing vocabulary and assertion results. Failed
+#    edge: es has no signature, key, custody, algorithm, or envelope classes —
+#    a SignatureAlgorithm's parameter set, key length, or an epoch-bearing
+#    signed-bytes field order cannot be typed with any es term.
+# 2. prov: (W3C PROV-O) covers provenance spine (Activity/Entity/Agent) and
+#    is REUSED conceptually for generation lineage. Failed edge: prov has no
+#    key custody model — KeyOrigin (generated vs imported vs hardware-
+#    attested), KeyEpoch rotation, and RevocationList epochs have no prov
+#    equivalent; prov:wasAttributedTo cannot carry a key-id + epoch pair.
+# 3. sec-ontology (e.g. https://w3id.org/security, W3C Web Integrity /
+#    security vocabulary space) — ABSENT: no admitted, loadable security
+#    vocabulary exists in the marketplace graph or the consumer's imports;
+#    the JWS/COSE security-vocabulary draft terms are unregistered and
+#    unstable. Failed edge: nothing to reuse.
+# 4. cert: (W3C WebID certificate ontology) covers X.509 cert chains.
+#    Failed edge: no ML-DSA/SLH-DSA algorithm identities, no profile gating
+#    (CLASSICAL|HYBRID|PQC), no replay/nonce policy, no cryptographic
+#    standing vocabulary (REPLAY_REJECTED vs PROFILE_REFUSED are domain
+#    decisions, not certificate validity).
+# Everything minted below is a term whose failed edge is recorded above.
+# ============================================================================
+
+@prefix ctp: <https://ggen.dev/ontology/affidavit-trust-plane#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ── Classes ─────────────────────────────────────────────────────────────────
+
+ctp:CryptoProfile a rdfs:Class ;
+    rdfs:label "Crypto profile" ;
+    rdfs:comment "Closed profile lattice: CLASSICAL | HYBRID | PQC | HYBRID gating of which algorithm sets are admissible." .
+
+ctp:SignatureAlgorithm a rdfs:Class ;
+    rdfs:label "Signature algorithm" ;
+    rdfs:comment "An enumerable signature algorithm identity with its parameter set and wire lengths." .
+
+ctp:ParameterSet a rdfs:Class ;
+    rdfs:label "Parameter set" ;
+    rdfs:comment "A named cryptographic parameter set with an authoritative spec reference." .
+
+ctp:KeyRecord a rdfs:Class ;
+    rdfs:label "Key record" ;
+    rdfs:comment "Identity + custody record for one verification/signing key: origin, algorithm, provider, validity window." .
+
+ctp:CustodianIdentity a rdfs:Class ;
+    rdfs:label "Custodian identity" ;
+    rdfs:comment "The identity accountable for a key record." .
+
+ctp:KeyOrigin a rdfs:Class ;
+    rdfs:label "Key origin" ;
+    rdfs:comment "Closed origin vocabulary: GENERATED | IMPORTED | HARDWARE_ATTESTED." .
+
+ctp:KeyEpoch a rdfs:Class ;
+    rdfs:label "Key epoch" ;
+    rdfs:comment "A numbered rotation slice of a key's lifetime; envelope binds policy_epoch and revocation_epoch." .
+
+ctp:RotationPolicy a rdfs:Class ;
+    rdfs:label "Rotation policy" ;
+    rdfs:comment "Determines when a KeyEpoch advances: interval and overlap windows." .
+
+ctp:RevocationList a rdfs:Class ;
+    rdfs:label "Revocation list" ;
+    rdfs:comment "Epoch-stamped set of revoked key ids; staleness bounded by TrustPlanePolicy." .
+
+ctp:SignatureEnvelopeField a rdfs:Class ;
+    rdfs:label "Signature envelope field" ;
+    rdfs:comment "One field of the RFC-SA2A-007-errata signed-bytes envelope, with its canonical order (1..12)." .
+
+ctp:Canonicalization a rdfs:Class ;
+    rdfs:label "Canonicalization" ;
+    rdfs:comment "The byte-canonicalization scheme applied before signing (JCS RFC 8785) and its digest algorithm (BLAKE3)." .
+
+ctp:NoncePolicy a rdfs:Class ;
+    rdfs:label "Nonce policy" ;
+    rdfs:comment "Replay defense: the replay key tuple and acceptance window in seconds." .
+
+ctp:CryptographicStanding a rdfs:Class ;
+    rdfs:label "Cryptographic standing" ;
+    rdfs:comment "Closed result vocabulary of envelope verification, total order 0..7." .
+
+ctp:SigningProvider a rdfs:Class ;
+    rdfs:label "Signing provider" ;
+    rdfs:comment "Where private key material lives (software, secure enclave, HSM) and whether it is exportable." .
+
+ctp:TrustPlanePolicy a rdfs:Class ;
+    rdfs:label "Trust plane policy" ;
+    rdfs:comment "The top-level policy individual binding profile floor, canonicalization, nonce policy, staleness bound, envelope version, and domain tag." .
+
+# ── Properties: CryptoProfile ───────────────────────────────────────────────
+
+ctp:profileName a rdf:Property ;
+    rdfs:domain ctp:CryptoProfile ; rdfs:range xsd:string .
+
+# ── Properties: SignatureAlgorithm / ParameterSet ────────────────────────────
+
+ctp:algorithmName a rdf:Property ;
+    rdfs:domain ctp:SignatureAlgorithm ; rdfs:range xsd:string .
+
+# rustVariant is shared by SignatureAlgorithm, KeyOrigin, CryptographicStanding
+# and SigningProvider individuals (single primary domain declared; see users).
+ctp:rustVariant a rdf:Property ;
+    rdfs:domain ctp:SignatureAlgorithm ; rdfs:range xsd:string ;
+    rdfs:comment "Rust identifier for this individual; also used on KeyOrigin, CryptographicStanding, SigningProvider." .
+
+ctp:parameterSet a rdf:Property ;
+    rdfs:domain ctp:SignatureAlgorithm ; rdfs:range ctp:ParameterSet .
+
+ctp:publicKeyLength a rdf:Property ;
+    rdfs:domain ctp:SignatureAlgorithm ; rdfs:range xsd:integer .
+
+ctp:signatureLength a rdf:Property ;
+    rdfs:domain ctp:SignatureAlgorithm ; rdfs:range xsd:integer ;
+    rdfs:comment "Fixed signature length in bytes; OMIT for variable-length encodings (ES256 DER) — use ctp:signatureLengthVariable instead." .
+
+ctp:signatureLengthVariable a rdf:Property ;
+    rdfs:domain ctp:SignatureAlgorithm ; rdfs:range xsd:boolean .
+
+ctp:seedLength a rdf:Property ;
+    rdfs:domain ctp:SignatureAlgorithm ; rdfs:range xsd:integer .
+
+ctp:deterministic a rdf:Property ;
+    rdfs:domain ctp:SignatureAlgorithm ; rdfs:range xsd:boolean .
+
+ctp:supportedIn a rdf:Property ;
+    rdfs:domain ctp:SignatureAlgorithm ; rdfs:range ctp:CryptoProfile ;
+    rdfs:comment "Multi-valued: profiles in which this algorithm is admissible." .
+
+ctp:composedOf a rdf:Property ;
+    rdfs:domain ctp:SignatureAlgorithm ; rdfs:range ctp:SignatureAlgorithm ;
+    rdfs:comment "Hybrid composition: both component algorithms sign; verification requires both." .
+
+ctp:parameterSetName a rdf:Property ;
+    rdfs:domain ctp:ParameterSet ; rdfs:range xsd:string .
+
+ctp:specRef a rdf:Property ;
+    rdfs:domain ctp:ParameterSet ; rdfs:range xsd:string ;
+    rdfs:comment "Authoritative spec: 'FIPS 204', 'FIPS 205', 'RFC 6979 / SEC 2', 'draft-ietf-lamps-pq-composite-sig'." .
+
+# ── Properties: KeyRecord / CustodianIdentity / KeyEpoch ────────────────────
+
+ctp:keyId a rdf:Property ;
+    rdfs:domain ctp:KeyRecord ; rdfs:range xsd:string ;
+    rdfs:comment "The kid carried in envelope field 3 (key_id)." .
+
+ctp:keyOrigin a rdf:Property ;
+    rdfs:domain ctp:KeyRecord ; rdfs:range ctp:KeyOrigin .
+
+ctp:keyAlgorithm a rdf:Property ;
+    rdfs:domain ctp:KeyRecord ; rdfs:range ctp:SignatureAlgorithm .
+
+ctp:boundProfile a rdf:Property ;
+    rdfs:domain ctp:KeyRecord ; rdfs:range ctp:CryptoProfile .
+
+ctp:publicKey a rdf:Property ;
+    rdfs:domain ctp:KeyRecord ; rdfs:range xsd:string ;
+    rdfs:comment "Public key material in external encoding (hex/base64 per algorithm spec)." .
+
+ctp:keyProvider a rdf:Property ;
+    rdfs:domain ctp:KeyRecord ; rdfs:range ctp:SigningProvider .
+
+ctp:custodian a rdf:Property ;
+    rdfs:domain ctp:KeyRecord ; rdfs:range ctp:CustodianIdentity .
+
+ctp:notBefore a rdf:Property ;
+    rdfs:domain ctp:KeyRecord ; rdfs:range xsd:dateTime ;
+    rdfs:comment "Validity window start (envelope field 9: not_before)." .
+
+ctp:expiresAt a rdf:Property ;
+    rdfs:domain ctp:KeyRecord ; rdfs:range xsd:dateTime ;
+    rdfs:comment "Validity window end (envelope field 10: expires_at)." .
+
+ctp:generation a rdf:Property ;
+    rdfs:domain ctp:KeyRecord ; rdfs:range xsd:integer ;
+    rdfs:comment "Monotonic generation counter (envelope field 7: generation)." .
+
+ctp:custodianId a rdf:Property ;
+    rdfs:domain ctp:CustodianIdentity ; rdfs:range xsd:string .
+
+ctp:displayName a rdf:Property ;
+    rdfs:domain ctp:CustodianIdentity ; rdfs:range xsd:string .
+
+ctp:epochNumber a rdf:Property ;
+    rdfs:domain ctp:KeyEpoch ; rdfs:range xsd:integer .
+
+ctp:epochOf a rdf:Property ;
+    rdfs:domain ctp:KeyEpoch ; rdfs:range ctp:KeyRecord .
+
+# ── Properties: RotationPolicy / RevocationList ─────────────────────────────
+
+ctp:rotationIntervalSeconds a rdf:Property ;
+    rdfs:domain ctp:RotationPolicy ; rdfs:range xsd:integer .
+
+ctp:overlapSeconds a rdf:Property ;
+    rdfs:domain ctp:RotationPolicy ; rdfs:range xsd:integer .
+
+ctp:revocationEpoch a rdf:Property ;
+    rdfs:domain ctp:RevocationList ; rdfs:range xsd:integer ;
+    rdfs:comment "Epoch stamp (envelope field 6: revocation_epoch)." .
+
+ctp:revokedKey a rdf:Property ;
+    rdfs:domain ctp:RevocationList ; rdfs:range ctp:KeyRecord .
+
+ctp:publishedAt a rdf:Property ;
+    rdfs:domain ctp:RevocationList ; rdfs:range xsd:dateTime .
+
+# ── Properties: SignatureEnvelopeField ──────────────────────────────────────
+
+ctp:fieldName a rdf:Property ;
+    rdfs:domain ctp:SignatureEnvelopeField ; rdfs:range xsd:string ;
+    rdfs:comment "snake_case field name as it appears in the signed bytes (RFC-SA2A-007-errata)." .
+
+ctp:fieldOrder a rdf:Property ;
+    rdfs:domain ctp:SignatureEnvelopeField ; rdfs:range xsd:integer ;
+    rdfs:comment "1-based canonical position inside the signed bytes; total order, no gaps." .
+
+# ── Properties: Canonicalization / NoncePolicy ──────────────────────────────
+
+ctp:canonicalizationName a rdf:Property ;
+    rdfs:domain ctp:Canonicalization ; rdfs:range xsd:string .
+
+ctp:digestAlgorithm a rdf:Property ;
+    rdfs:domain ctp:Canonicalization ; rdfs:range xsd:string .
+
+ctp:replayKey a rdf:Property ;
+    rdfs:domain ctp:NoncePolicy ; rdfs:range xsd:string ;
+    rdfs:comment "Tuple of envelope fields forming the replay-detection key: 'kid,nonce'." .
+
+ctp:windowSeconds a rdf:Property ;
+    rdfs:domain ctp:NoncePolicy ; rdfs:range xsd:integer .
+
+# ── Properties: TrustPlanePolicy ────────────────────────────────────────────
+
+ctp:maxRevocationStalenessSeconds a rdf:Property ;
+    rdfs:domain ctp:TrustPlanePolicy ; rdfs:range xsd:integer .
+
+ctp:minProfile a rdf:Property ;
+    rdfs:domain ctp:TrustPlanePolicy ; rdfs:range ctp:CryptoProfile .
+
+ctp:canonicalization a rdf:Property ;
+    rdfs:domain ctp:TrustPlanePolicy ; rdfs:range ctp:Canonicalization .
+
+ctp:noncePolicy a rdf:Property ;
+    rdfs:domain ctp:TrustPlanePolicy ; rdfs:range ctp:NoncePolicy .
+
+ctp:envelopeVersion a rdf:Property ;
+    rdfs:domain ctp:TrustPlanePolicy ; rdfs:range xsd:string .
+
+ctp:domainTag a rdf:Property ;
+    rdfs:domain ctp:TrustPlanePolicy ; rdfs:range xsd:string ;
+    rdfs:comment "Domain-separation tag mixed into every signature; prevents cross-domain replay." .
+
+ctp:defaultProfile a rdf:Property ;
+    rdfs:domain ctp:TrustPlanePolicy ; rdfs:range ctp:CryptoProfile .
+
+# ── Properties: SigningProvider ─────────────────────────────────────────────
+
+ctp:providerKind a rdf:Property ;
+    rdfs:domain ctp:SigningProvider ; rdfs:range xsd:string .
+
+ctp:keyMaterialExportable a rdf:Property ;
+    rdfs:domain ctp:SigningProvider ; rdfs:range xsd:boolean .
+
+ctp:targetOs a rdf:Property ;
+    rdfs:domain ctp:SigningProvider ; rdfs:range xsd:string .
+
+ctp:supportedAlgorithm a rdf:Property ;
+    rdfs:domain ctp:SigningProvider ; rdfs:range ctp:SignatureAlgorithm .
+
+ctp:admitted a rdf:Property ;
+    rdfs:domain ctp:SigningProvider ; rdfs:range xsd:boolean ;
+    rdfs:comment "false = typed UNSUPPORTED in this pack; consuming code must refuse, never fake." .
+
+# ── Properties: CryptographicStanding ───────────────────────────────────────
+
+ctp:standingName a rdf:Property ;
+    rdfs:domain ctp:CryptographicStanding ; rdfs:range xsd:string ;
+    rdfs:comment "SCREAMING_SNAKE_CASE standing value." .
+
+ctp:standingOrder a rdf:Property ;
+    rdfs:domain ctp:CryptographicStanding ; rdfs:range xsd:integer ;
+    rdfs:comment "Closed total order 0..7 over the standing vocabulary." .
+
+# ── Individuals: CryptoProfile ──────────────────────────────────────────────
+
+ctp:profile-CLASSICAL a ctp:CryptoProfile ; ctp:profileName "CLASSICAL" .
+ctp:profile-HYBRID a ctp:CryptoProfile ; ctp:profileName "HYBRID" .
+ctp:profile-PQC a ctp:CryptoProfile ; ctp:profileName "PQC" .
+
+# ── Individuals: ParameterSet ───────────────────────────────────────────────
+
+ctp:param-P256-SHA256-RFC6979 a ctp:ParameterSet ;
+    ctp:parameterSetName "P-256-SHA256-RFC6979" ;
+    ctp:specRef "RFC 6979 / SEC 2" .
+
+ctp:param-FIPS204-MLDSA65 a ctp:ParameterSet ;
+    ctp:parameterSetName "FIPS204-MLDSA65" ;
+    ctp:specRef "FIPS 204" .
+
+ctp:param-FIPS205-SLHDSA128S a ctp:ParameterSet ;
+    ctp:parameterSetName "FIPS205-SLHDSA128S" ;
+    ctp:specRef "FIPS 205" .
+
+ctp:param-HYBRID-ES256-MLDSA65 a ctp:ParameterSet ;
+    ctp:parameterSetName "HYBRID-ES256-MLDSA65" ;
+    ctp:specRef "draft-ietf-lamps-pq-composite-sig" .
+
+# ── Individuals: SignatureAlgorithm ─────────────────────────────────────────
+
+ctp:alg-ES256 a ctp:SignatureAlgorithm ;
+    ctp:algorithmName "ES256" ;
+    ctp:rustVariant "Es256" ;
+    ctp:parameterSet ctp:param-P256-SHA256-RFC6979 ;
+    ctp:publicKeyLength 65 ;
+    ctp:signatureLengthVariable true ;
+    ctp:deterministic true ;
+    ctp:supportedIn ctp:profile-CLASSICAL, ctp:profile-HYBRID .
+
+ctp:alg-ML-DSA-65 a ctp:SignatureAlgorithm ;
+    ctp:algorithmName "ML-DSA-65" ;
+    ctp:rustVariant "MlDsa65" ;
+    ctp:parameterSet ctp:param-FIPS204-MLDSA65 ;
+    ctp:publicKeyLength 1952 ;
+    ctp:signatureLength 3309 ;
+    ctp:seedLength 32 ;
+    ctp:deterministic true ;
+    ctp:supportedIn ctp:profile-PQC, ctp:profile-HYBRID .
+
+ctp:alg-SLH-DSA-SHA2-128s a ctp:SignatureAlgorithm ;
+    ctp:algorithmName "SLH-DSA-SHA2-128s" ;
+    ctp:rustVariant "SlhDsa128s" ;
+    ctp:parameterSet ctp:param-FIPS205-SLHDSA128S ;
+    ctp:seedLength 48 ;
+    ctp:deterministic true ;
+    ctp:supportedIn ctp:profile-PQC .
+
+ctp:alg-HYBRID-ES256-MLDSA65 a ctp:SignatureAlgorithm ;
+    ctp:algorithmName "ES256+ML-DSA-65" ;
+    ctp:rustVariant "HybridEs256MlDsa65" ;
+    ctp:parameterSet ctp:param-HYBRID-ES256-MLDSA65 ;
+    ctp:deterministic true ;
+    ctp:supportedIn ctp:profile-HYBRID, ctp:profile-PQC ;
+    ctp:composedOf ctp:alg-ES256, ctp:alg-ML-DSA-65 .
+
+# ── Individuals: KeyOrigin ──────────────────────────────────────────────────
+
+ctp:origin-GENERATED a ctp:KeyOrigin ; ctp:rustVariant "Generated" .
+ctp:origin-IMPORTED a ctp:KeyOrigin ; ctp:rustVariant "Imported" .
+ctp:origin-HARDWARE-ATTESTED a ctp:KeyOrigin ; ctp:rustVariant "HardwareAttested" .
+
+# ── Individuals: CryptographicStanding (closed, order 0..7) ─────────────────
+
+ctp:cr-VALID a ctp:CryptographicStanding ;
+    ctp:standingName "VALID" ; ctp:rustVariant "Valid" ; ctp:standingOrder 0 .
+ctp:cr-INVALID a ctp:CryptographicStanding ;
+    ctp:standingName "INVALID" ; ctp:rustVariant "Invalid" ; ctp:standingOrder 1 .
+ctp:cr-EXPIRED a ctp:CryptographicStanding ;
+    ctp:standingName "EXPIRED" ; ctp:rustVariant "Expired" ; ctp:standingOrder 2 .
+ctp:cr-REVOKED a ctp:CryptographicStanding ;
+    ctp:standingName "REVOKED" ; ctp:rustVariant "Revoked" ; ctp:standingOrder 3 .
+ctp:cr-REPLAY-REJECTED a ctp:CryptographicStanding ;
+    ctp:standingName "REPLAY_REJECTED" ; ctp:rustVariant "ReplayRejected" ; ctp:standingOrder 4 .
+ctp:cr-UNKNOWN-KEY a ctp:CryptographicStanding ;
+    ctp:standingName "UNKNOWN_KEY" ; ctp:rustVariant "UnknownKey" ; ctp:standingOrder 5 .
+ctp:cr-PROFILE-REFUSED a ctp:CryptographicStanding ;
+    ctp:standingName "PROFILE_REFUSED" ; ctp:rustVariant "ProfileRefused" ; ctp:standingOrder 6 .
+ctp:cr-MALFORMED a ctp:CryptographicStanding ;
+    ctp:standingName "MALFORMED" ; ctp:rustVariant "Malformed" ; ctp:standingOrder 7 .
+
+# ── Individuals: SignatureEnvelopeField (RFC-SA2A-007-errata signed bytes) ──
+
+ctp:wireFieldName a rdf:Property ; rdfs:domain ctp:SignatureEnvelopeField ; rdfs:range xsd:string .
+ctp:ef-version a ctp:SignatureEnvelopeField ; ctp:fieldName "version" ; ctp:fieldOrder 1  ;
+    ctp:wireFieldName "v" .
+ctp:ef-algorithm a ctp:SignatureEnvelopeField ; ctp:fieldName "algorithm" ; ctp:fieldOrder 2  ;
+    ctp:wireFieldName "alg" .
+ctp:ef-key-id a ctp:SignatureEnvelopeField ; ctp:fieldName "key_id" ; ctp:fieldOrder 3  ;
+    ctp:wireFieldName "kid" .
+ctp:ef-profile a ctp:SignatureEnvelopeField ; ctp:fieldName "profile" ; ctp:fieldOrder 4 .
+ctp:ef-policy-epoch a ctp:SignatureEnvelopeField ; ctp:fieldName "policy_epoch" ; ctp:fieldOrder 5  ;
+    ctp:wireFieldName "policy_epoch" .
+ctp:ef-revocation-epoch a ctp:SignatureEnvelopeField ; ctp:fieldName "revocation_epoch" ; ctp:fieldOrder 6  ;
+    ctp:wireFieldName "revocation_epoch" .
+ctp:ef-generation a ctp:SignatureEnvelopeField ; ctp:fieldName "generation" ; ctp:fieldOrder 7  ;
+    ctp:wireFieldName "generation" .
+ctp:ef-nonce a ctp:SignatureEnvelopeField ; ctp:fieldName "nonce" ; ctp:fieldOrder 8  ;
+    ctp:wireFieldName "nonce" .
+ctp:ef-not-before a ctp:SignatureEnvelopeField ; ctp:fieldName "not_before" ; ctp:fieldOrder 9  ;
+    ctp:wireFieldName "not_before" .
+ctp:ef-expires a ctp:SignatureEnvelopeField ; ctp:fieldName "expires_at" ; ctp:fieldOrder 10  ;
+    ctp:wireFieldName "expires" .
+ctp:ef-subject-digest a ctp:SignatureEnvelopeField ; ctp:fieldName "subject_digest" ; ctp:fieldOrder 11  ;
+    ctp:wireFieldName "effect_digest" .
+ctp:ef-audience a ctp:SignatureEnvelopeField ; ctp:fieldName "audience" ; ctp:fieldOrder 12  ;
+    ctp:wireFieldName "audience" .
+# ── Individuals: Canonicalization / NoncePolicy ─────────────────────────────
+
+ctp:canon-JCS a ctp:Canonicalization ;
+    ctp:canonicalizationName "JCS-RFC8785" ;
+    ctp:digestAlgorithm "BLAKE3" .
+
+ctp:nonce-policy-v1 a ctp:NoncePolicy ;
+    ctp:replayKey "kid,nonce" ;
+    ctp:windowSeconds 300 .
+
+# ── Individuals: TrustPlanePolicy ───────────────────────────────────────────
+
+ctp:policy-v1 a ctp:TrustPlanePolicy ;
+    ctp:maxRevocationStalenessSeconds 300 ;
+    ctp:minProfile ctp:profile-CLASSICAL ;
+    ctp:canonicalization ctp:canon-JCS ;
+    ctp:noncePolicy ctp:nonce-policy-v1 ;
+    ctp:envelopeVersion "CTP-ENVELOPE-v1" ;
+    ctp:domainTag "affidavit.crypto-trust-plane.v1" ;
+    ctp:defaultProfile ctp:profile-HYBRID .
+
+# ── Individuals: SigningProvider ────────────────────────────────────────────
+
+ctp:provider-SOFTWARE a ctp:SigningProvider ;
+    ctp:admitted true ;
+    ctp:providerKind "SOFTWARE" ;
+    ctp:rustVariant "Software" ;
+    ctp:keyMaterialExportable true .
+
+ctp:provider-SECURE-ENCLAVE a ctp:SigningProvider ;
+    ctp:admitted true ;
+    ctp:providerKind "SECURE_ENCLAVE" ;
+    ctp:rustVariant "SecureEnclave" ;
+    ctp:keyMaterialExportable false ;
+    ctp:targetOs "macos" ;
+    ctp:supportedAlgorithm ctp:alg-ES256 .
+
+ctp:provider-HSM a ctp:SigningProvider ;
+    ctp:providerKind "HSM" ;
+    ctp:rustVariant "Hsm" ;
+    ctp:keyMaterialExportable false ;
+    ctp:admitted false ;
+    rdfs:comment "typed UNSUPPORTED until a cryptoki/TSS adapter is admitted — never faked" .
+
+# ── Store policy (wave 3, lane W3-L1): durable, tamper-evident key store ────
+
+ctp:StorePolicy a rdfs:Class ;
+    rdfs:label "Key store policy" ;
+    rdfs:comment "Durable, tamper-evident public-key store policy: on-disk format identity, store file location, and the tamper-evidence binding (checksum = domain-separated BLAKE3 hex over the JCS canonicalization of the records, so at-rest mutation is refused on load)." .
+
+ctp:storeFormat a rdf:Property ;
+    rdfs:domain ctp:StorePolicy ; rdfs:range xsd:string ;
+    rdfs:comment "Store format/version identity stamped in the file; load refuses any other value (typed WrongFormat refusal)." .
+
+ctp:storeFile a rdf:Property ;
+    rdfs:domain ctp:StorePolicy ; rdfs:range xsd:string ;
+    rdfs:comment "Store file location, relative to the consumer repository root." .
+
+ctp:store-v1 a ctp:StorePolicy ;
+    ctp:storeFormat "CTP-STORE-v1" ;
+    ctp:storeFile ".affi/keys.json" .
+
+# ── Class: JournalPolicy (append-only, wave-3 lane W3-L3) ───────────────────
+
+ctp:JournalPolicy a rdfs:Class ;
+    rdfs:label "Standing journal policy" ;
+    rdfs:comment "Append-only hash-chained standing-journal policy: the wire-format identifier and the genesis hash that anchors entry 0's prev link." .
+
+# ── Properties: JournalPolicy ───────────────────────────────────────────────
+
+ctp:journalFormat a rdf:Property ;
+    rdfs:domain ctp:JournalPolicy ; rdfs:range xsd:string ;
+    rdfs:comment "Journal wire-format identifier (e.g. CTP-JOURNAL-v1)." .
+
+ctp:journalGenesis a rdf:Property ;
+    rdfs:domain ctp:JournalPolicy ; rdfs:range xsd:string ;
+    rdfs:comment "64-zero lowercase-hex genesis hash anchoring the first journal entry's prev link." .
+
+# ── Individual: JournalPolicy ───────────────────────────────────────────────
+
+ctp:journal-v1 a ctp:JournalPolicy ;
+    ctp:journalFormat "CTP-JOURNAL-v1" ;
+    ctp:journalGenesis "0000000000000000000000000000000000000000000000000000000000000000" .
+
+# ── Wire interop (RFC-SA2A-007-errata) — appended wave-3 lane W3-L2 ─────────
+
+ctp:WireInterop a rdfs:Class ;
+    rdfs:label "Wire interop" ;
+    rdfs:comment "A bidirectional bridge making this trust plane's signed artifact a valid foreign-wire artifact and vice versa; carries the foreign signed-message domain tag and the exact foreign field set." .
+
+ctp:approvalTag a rdf:Property ;
+    rdfs:domain ctp:WireInterop ; rdfs:range xsd:string ;
+    rdfs:comment "Foreign-wire signed-message domain tag prepended to the signing pre-image (SA2A: tag || 0x00 || JCS(approval))." .
+
+ctp:targetFieldSet a rdf:Property ;
+    rdfs:domain ctp:WireInterop ; rdfs:range xsd:string ;
+    rdfs:comment "Comma-separated foreign-wire document field names, exactly as the foreign spec declares them." .
+
+ctp:sa2a-interop-v1 a ctp:WireInterop ;
+    ctp:approvalTag "SA2A-C2-APPROVAL-v1" ;
+    ctp:targetFieldSet "v,alg,kid,effect_digest,principal,policy_epoch,revocation_epoch,generation,nonce,not_before,expires,audience" ;
+    rdfs:comment "RFC-SA2A-007-errata approval wire: an affidavit SignatureEnvelope+signature IS a valid SA2A approval and vice versa via the crypto_trust_sa2a bridge; cross-domain signatures are refused (domain separation is the tooth)." .
+
+# ── Class + properties: ProfileMigration (rotation ceremony, wave-3 W3-L5) ──
+
+ctp:ProfileMigration a rdfs:Class ;
+    rdfs:label "Profile migration" ;
+    rdfs:comment "An admitted profile-to-profile migration edge for key rotation: source profile, target profile, and the migration kind. The rotation ceremony derives admission from these graph facts, never from hardcoded pairs." .
+
+ctp:fromProfile a rdf:Property ;
+    rdfs:domain ctp:ProfileMigration ; rdfs:range ctp:CryptoProfile .
+
+ctp:toProfile a rdf:Property ;
+    rdfs:domain ctp:ProfileMigration ; rdfs:range ctp:CryptoProfile .
+
+ctp:migrationKind a rdf:Property ;
+    rdfs:domain ctp:ProfileMigration ; rdfs:range xsd:string ;
+    rdfs:comment "Closed kind vocabulary: 'upgrade' | 'downgrade'." .
+
+# ── Individuals: ProfileMigration (the admitted migration lattice) ──────────
+
+ctp:migration-CLASSICAL-HYBRID a ctp:ProfileMigration ;
+    ctp:fromProfile ctp:profile-CLASSICAL ;
+    ctp:toProfile ctp:profile-HYBRID ;
+    ctp:migrationKind "upgrade" .
+
+ctp:migration-HYBRID-PQC a ctp:ProfileMigration ;
+    ctp:fromProfile ctp:profile-HYBRID ;
+    ctp:toProfile ctp:profile-PQC ;
+    ctp:migrationKind "upgrade" .
+
+ctp:migration-HYBRID-CLASSICAL a ctp:ProfileMigration ;
+    ctp:fromProfile ctp:profile-HYBRID ;
+    ctp:toProfile ctp:profile-CLASSICAL ;
+    ctp:migrationKind "downgrade" .
+
+# ── Class: TransparencyPolicy (append-only, wave-3 lane W3-L4) ──────────────
+
+ctp:TransparencyPolicy a rdfs:Class ;
+    rdfs:label "Transparency policy" ;
+    rdfs:comment "RFC 9162-style append-only Merkle transparency log over envelope commitments: wire format and the domain-separated digest domains for the tree hash, inclusion proofs, and consistency proofs." .
+
+# ── Properties: TransparencyPolicy ──────────────────────────────────────────
+
+ctp:logFormat a rdf:Property ;
+    rdfs:domain ctp:TransparencyPolicy ; rdfs:range xsd:string ;
+    rdfs:comment "Log wire-format identity (CTP-TRANS-v1)." .
+
+ctp:merkleDomain a rdf:Property ;
+    rdfs:domain ctp:TransparencyPolicy ; rdfs:range xsd:string ;
+    rdfs:comment "Domain-separation domain for the Merkle Tree Hash HASH function (RFC 9162 §2.1.1)." .
+
+ctp:inclusionDomain a rdf:Property ;
+    rdfs:domain ctp:TransparencyPolicy ; rdfs:range xsd:string ;
+    rdfs:comment "Domain bound to inclusion-proof evidence (RFC 9162 §2.1.3)." .
+
+ctp:consistencyDomain a rdf:Property ;
+    rdfs:domain ctp:TransparencyPolicy ; rdfs:range xsd:string ;
+    rdfs:comment "Domain bound to consistency-proof evidence (RFC 9162 §2.1.4)." .
+
+# ── Individual: TransparencyPolicy ──────────────────────────────────────────
+
+ctp:transparency-v1 a ctp:TransparencyPolicy ;
+    ctp:logFormat "CTP-TRANS-v1" ;
+    ctp:merkleDomain "affidavit.crypto-trust-plane.v1/merkle" ;
+    ctp:inclusionDomain "affidavit.crypto-trust-plane.v1/inclusion" ;
+    ctp:consistencyDomain "affidavit.crypto-trust-plane.v1/consistency" .
+
+# NOTE: ctp:ef-profile carries no ctp:wireFieldName — the profile is a local-only envelope field
+# with no RFC-SA2A-007 counterpart; ctp:sa2a-interop-v1 ctp:targetFieldSet additionally carries the
+# SA2A-only 'principal'. Gate 110 closes the mapped subset, not a bijection.
+
+# ── Class: RevocationPublication (append-only, wave-4 lane W4-L3) ────────────
+
+ctp:RevocationPublication a rdfs:Class ;
+    rdfs:label "Revocation publication" ;
+    rdfs:comment "A signed, publishable projection of the trust plane's revocation list (CTP-CRL-v1): an issuer-keyed, epoch-stamped signed revocation list that any party holding the issuer's public key can verify and apply atomically." .
+
+# ── Properties: RevocationPublication ───────────────────────────────────────
+
+ctp:publicationFormat a rdf:Property ;
+    rdfs:domain ctp:RevocationPublication ; rdfs:range xsd:string ;
+    rdfs:comment "Wire-format identity of the signed revocation list (CTP-CRL-v1)." .
+
+ctp:thisEpoch a rdf:Property ;
+    rdfs:domain ctp:RevocationPublication ; rdfs:range xsd:integer ;
+    rdfs:comment "The revocation epoch this publication format counts from (genesis 0); live publications stamp max(revoked_at) + 1 per the lifecycle revocation-epoch law." .
+
+# ── Individual: RevocationPublication ───────────────────────────────────────
+
+ctp:revocation-pub-v1 a ctp:RevocationPublication ;
+    ctp:publicationFormat "CTP-CRL-v1" ;
+    ctp:thisEpoch 0 .
+
+# ── Class: QuorumPolicy (append-only, wave-4 lane W4-L6, SA2A-C3 seam) ───────
+
+ctp:QuorumPolicy a rdfs:Class ;
+    rdfs:label "Quorum policy" ;
+    rdfs:comment "k-of-n signature quorum over ONE envelope signing_input: a share set carries cryptographic standing per signature set when at least k shares verify under DISTINCT registered kids (signer independence by distinct kids registered to distinct custodians). The plane never grants authority: quorum output is cryptographic standing per signature set; authorization remains SA2A's." .
+
+# ── Properties: QuorumPolicy ────────────────────────────────────────────────
+
+ctp:quorumDefaultK a rdf:Property ;
+    rdfs:domain ctp:QuorumPolicy ; rdfs:range xsd:integer ;
+    rdfs:comment "Default threshold k the plane renders as QUORUM_DEFAULT_K; callers may pass an explicit k per verification." .
+
+ctp:quorumMaxN a rdf:Property ;
+    rdfs:domain ctp:QuorumPolicy ; rdfs:range xsd:integer ;
+    rdfs:comment "Policy ceiling n: the largest quorum threshold the plane admits; a k above it is a structural KExceedsN refusal before any share is examined." .
+
+# ── Individual: QuorumPolicy ────────────────────────────────────────────────
+
+ctp:quorum-v1 a ctp:QuorumPolicy ;
+    ctp:quorumDefaultK 2 ;
+    ctp:quorumMaxN 5 .
+
+# ── Class: DoctorChecks (`affi doctor` crypto-health, wave-4 lane W4-L5) ────
+
+ctp:DoctorChecks a rdfs:Class ;
+    rdfs:label "Doctor checks" ;
+    rdfs:comment "Crypto-health doctor-check policy for `affi doctor`: the domain-separation domain under which every deterministic doctor self-test seed and message is derived (key-store integrity, ES256 self-test, envelope window-law spot check, ML-DSA-65 self-test). Doctor evidence is invalid in any other domain." .
+
+ctp:checkDomain a rdf:Property ;
+    rdfs:domain ctp:DoctorChecks ; rdfs:range xsd:string ;
+    rdfs:comment "Doctor self-test domain tag, a leaf under the trust-plane domain tag (e.g. affidavit.crypto-trust-plane.v1/doctor); BLAKE3 over this domain derives every fixed self-test seed and message." .
+
+ctp:doctor-v1 a ctp:DoctorChecks ;
+    ctp:checkDomain "affidavit.crypto-trust-plane.v1/doctor" .
+
+# ── Class: LogOps (append-only, wave-4 lane W4-L9) ───────────────────────────
+
+ctp:LogOps a rdfs:Class ;
+    rdfs:label "Transparency log operations" ;
+    rdfs:comment "Operational binding of the standing journal and the RFC 9162 transparency log into one surface: every journaled standing receipt's envelope-commitment binding (BLAKE3 over the receipt envelope_commitment hex) becomes exactly one log leaf, tree heads are ES256-signed and publishable, and the durable ops state (journal + leaves + heads) persists at opsFile in opsFormat; the load path re-audits every byte and refuses tampered state." .
+
+# ── Properties: LogOps ───────────────────────────────────────────────────────
+
+ctp:opsFile a rdf:Property ;
+    rdfs:domain ctp:LogOps ; rdfs:range xsd:string ;
+    rdfs:comment "Ops state file, relative to the consumer repository root (JSONL, one format-stamped line per journal entry, log leaf, and signed tree head)." .
+
+ctp:opsFormat a rdf:Property ;
+    rdfs:domain ctp:LogOps ; rdfs:range xsd:string ;
+    rdfs:comment "Ops state wire-format identity stamped on every persisted line; load refuses any other value." .
+
+# ── Individual: LogOps ───────────────────────────────────────────────────────
+
+ctp:log-ops-v1 a ctp:LogOps ;
+    ctp:opsFile ".affi/transparency.jsonl" ;
+    ctp:opsFormat "CTP-LOGOPS-v1" .
+
+# ── Class: JournalPersistence (append-only, wave-5 lane W5-L5) ───────────────
+
+ctp:JournalPersistence a rdfs:Class ;
+    rdfs:label "Nonce ledger persistence" ;
+    rdfs:comment "Durable, cross-process replay-evidence persistence for the replay tuple (ctp:nonce-policy-v1 ctp:replayKey = \"kid,nonce\"): an append-only JSONL file of nonce sightings, one {kid, nonce_hex, seen_at} JSON object per line, at persistenceFile. record refreshes from disk before its window check (the cross-process sync point), the window law is the in-memory nonce journal's half-open [first_seen, first_seen + window_seconds), writes are atomic (bytes synced to a same-directory tmp file, then renamed over the live path), and the load path re-parses every line, validates every nonce_hex as 32 lowercase hex chars, and refuses Corruption with the exact 1-based line number. Evidence split: this ledger is authoritative for (kid, nonce) replay evidence across processes; the hash-chained standing journal (ctp:journal-v1) stays authoritative for sealed receipt evidence — the two surfaces are joined by key_id only, never by a forged nonce column." .
+
+# ── Properties: JournalPersistence ───────────────────────────────────────────
+
+ctp:persistenceFile a rdf:Property ;
+    rdfs:domain ctp:JournalPersistence ; rdfs:range xsd:string ;
+    rdfs:comment "Nonce-ledger file, relative to the consumer repository root (JSONL, one {kid, nonce_hex, seen_at} line per recorded sighting; rewritten in full only by prune)." .
+
+# ── Individual: JournalPersistence ───────────────────────────────────────────
+
+ctp:journal-persist-v1 a ctp:JournalPersistence ;
+    ctp:persistenceFile ".affi/nonce-journal.jsonl" .
+
+# ── Class: RevocationPublicationFile (append-only, wave-5 lane W5-L8) ────────
+
+ctp:RevocationPublicationFile a rdfs:Class ;
+    rdfs:label "Revocation publication file" ;
+    rdfs:comment "Durable file surface of the signed revocation publication (CTP-CRL-v1, ctp:revocation-pub-v1): the SignedRevocationList persists as JCS-canonical JSON at publicationFile, writes are atomic (bytes synced to a same-directory tmp file, then renamed over the live path), and read fails closed — an absent, foreign-format, or unparsable file is a typed refusal, never an empty CRL. Admission stays with the revocation module: verify_publication/apply_to verify the issuer signature FIRST, then the staleness grace; this surface only carries the bytes, never the admission decision." .
+
+# ── Properties: RevocationPublicationFile ────────────────────────────────────
+
+ctp:publicationFile a rdf:Property ;
+    rdfs:domain ctp:RevocationPublicationFile ; rdfs:range xsd:string ;
+    rdfs:comment "CRL publication file location, relative to the consumer repository root (JCS-canonical JSON of a SignedRevocationList)." .
+
+# ── Individual: RevocationPublicationFile ────────────────────────────────────
+
+ctp:crl-file-v1 a ctp:RevocationPublicationFile ;
+    ctp:publicationFile ".affi/crl.json" .

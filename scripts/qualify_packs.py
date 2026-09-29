@@ -79,7 +79,11 @@ CARGO_BUILD_TIMEOUT_SECONDS = 120.0
 CARGO_BUILD_CHECK_BLOCKING = False
 
 IGNORED_RUNTIME_ROOTS = frozenset(
-    {".git", ".ggen", ".ggen-v2", ".cache", ".qualification-home", "target"}
+    # .clap-noun-verb: append-only OCEL telemetry the installed ggen CLI writes
+    # next to every invocation (same nondeterministic-by-construction class as
+    # .ggen-v2 — runtime logs, never source).
+    {".git", ".ggen", ".ggen-v2", ".cache", ".qualification-home", "target",
+     ".clap-noun-verb"}
 )
 FRONTMATTER_PROBE_TEMPLATE = """---
 to: "qualification/marketplace-probe.txt"

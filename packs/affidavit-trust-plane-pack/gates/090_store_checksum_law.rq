@@ -1,0 +1,32 @@
+# MESSAGE: the key store is pinned to its on-disk identity: every ctp:StorePolicy carries a ctp:storeFormat matching "^CTP-STORE-v\d+$" and a ctp:storeFile that is a dotfile path (starts with "."). A missing format, a format outside the CTP-STORE-vN family, a missing store file, or a non-dotfile location is refused (load refuses any other format: typed WrongFormat, never faked).
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+SELECT ?subject ?problem ?detail WHERE {
+  {
+    ?subject a ctp:StorePolicy .
+    FILTER NOT EXISTS { ?subject ctp:storeFormat ?anyFormat }
+    BIND("store_format_missing" AS ?problem)
+    BIND("(no ctp:storeFormat)" AS ?detail)
+  }
+  UNION
+  {
+    ?subject a ctp:StorePolicy ; ctp:storeFormat ?format .
+    FILTER(!REGEX(STR(?format), "^CTP-STORE-v\\d+$"))
+    BIND("store_format_not_CTP-STORE-vN" AS ?problem)
+    BIND(STR(?format) AS ?detail)
+  }
+  UNION
+  {
+    ?subject a ctp:StorePolicy .
+    FILTER NOT EXISTS { ?subject ctp:storeFile ?anyFile }
+    BIND("store_file_missing" AS ?problem)
+    BIND("(no ctp:storeFile)" AS ?detail)
+  }
+  UNION
+  {
+    ?subject a ctp:StorePolicy ; ctp:storeFile ?file .
+    FILTER(!STRSTARTS(STR(?file), "."))
+    BIND("store_file_not_a_dotfile" AS ?problem)
+    BIND(STR(?file) AS ?detail)
+  }
+}
+ORDER BY ?subject ?problem ?detail

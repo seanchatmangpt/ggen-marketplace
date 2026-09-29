@@ -1,0 +1,22 @@
+# doctor.rq — single-row binding for the `affi doctor` crypto-health module
+# (crypto_trust_doctor.rs, wave-4 lane W4-L5). Binds the doctor self-test
+# domain from ctp:doctor-v1. The canonical module is the single owner of
+# DOMAIN_TAG, so the rendered module does NOT re-declare it as a const — it
+# asserts domain cohesion against crate::crypto_trust_canonical::DOMAIN_TAG
+# (a graph-side change breaks the render loudly instead of drifting
+# silently), mirroring the transparency module's precedent.
+# Columns are consumed by ggen sync as plain Tera variables:
+#   {{ check_domain }}
+# Binding is by pinned individual + predicate, so the query survives
+# lane-side class renames; a missing ctp:checkDomain fact fails loudly with
+# zero rows rather than rendering a doctor module with an empty domain.
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT ?check_domain
+WHERE {
+  ctp:doctor-v1
+      ctp:checkDomain ?check_domain .
+}
+ORDER BY ?check_domain
+LIMIT 1

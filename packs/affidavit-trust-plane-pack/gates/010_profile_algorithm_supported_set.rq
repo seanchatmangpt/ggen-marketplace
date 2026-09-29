@@ -1,0 +1,50 @@
+# MESSAGE: trust-plane profile law. (1) Referential integrity: every
+# ctp:supportedIn / ctp:minProfile / ctp:defaultProfile value must be a declared
+# ctp:CryptoProfile individual, and every ctp:SignatureAlgorithm must be
+# ctp:supportedIn at least one profile. (2) Policy ordering: the pair
+# (minProfile, defaultProfile) must be an admitted floor/ceiling combination --
+# defaultProfile may never rank below minProfile. Any dangling profile reference,
+# algorithm with an empty supported set, or inverted policy is refused.
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+SELECT ?subject ?problem WHERE {
+  {
+    ?alg a ctp:SignatureAlgorithm .
+    FILTER NOT EXISTS { ?alg ctp:supportedIn ?anyProfile . ?anyProfile a ctp:CryptoProfile . }
+    BIND(?alg AS ?subject)
+    BIND("algorithm_without_supported_profile" AS ?problem)
+  }
+  UNION
+  {
+    ?alg ctp:supportedIn ?p .
+    FILTER NOT EXISTS { ?p a ctp:CryptoProfile . }
+    BIND(?alg AS ?subject)
+    BIND("supported_in_undeclared_profile" AS ?problem)
+  }
+  UNION
+  {
+    ?policy a ctp:TrustPlanePolicy ; ctp:minProfile ?min .
+    FILTER NOT EXISTS { ?min a ctp:CryptoProfile . }
+    BIND(?policy AS ?subject)
+    BIND("min_profile_undeclared" AS ?problem)
+  }
+  UNION
+  {
+    ?policy a ctp:TrustPlanePolicy ; ctp:defaultProfile ?def .
+    FILTER NOT EXISTS { ?def a ctp:CryptoProfile . }
+    BIND(?policy AS ?subject)
+    BIND("default_profile_undeclared" AS ?problem)
+  }
+  UNION
+  {
+    ?policy a ctp:TrustPlanePolicy ; ctp:minProfile ?min ; ctp:defaultProfile ?def .
+    VALUES (?min ?def)
+    {
+      (ctp:profile-HYBRID ctp:profile-CLASSICAL)
+      (ctp:profile-PQC ctp:profile-CLASSICAL)
+      (ctp:profile-PQC ctp:profile-HYBRID)
+    }
+    BIND(?policy AS ?subject)
+    BIND("default_profile_below_min_profile" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem

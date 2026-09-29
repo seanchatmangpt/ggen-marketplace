@@ -1,0 +1,85 @@
+# MESSAGE: profile migration is graph-admitted only: every ctp:ProfileMigration carries a ctp:fromProfile and a ctp:toProfile that are declared ctp:CryptoProfile individuals, and a ctp:migrationKind in the closed vocabulary {"upgrade", "downgrade"}; and any graph that declares ctp:ProfileMigration facts at all must admit the (profile-HYBRID -> profile-CLASSICAL) downgrade edge exactly once, with no duplicated (from, to, kind) row. A dangling profile reference, a missing or unknown kind, a duplicated migration, or a missing/duplicated HYBRID->CLASSICAL downgrade is refused -- the rotation ceremony derives admission from these facts, never from hardcoded pairs. A graph with no migrations models no lattice and is not judged by this gate.
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+SELECT ?subject ?problem ?detail WHERE {
+  {
+    ?subject a ctp:ProfileMigration .
+    FILTER NOT EXISTS { ?subject ctp:fromProfile ?anyFrom }
+    BIND("migration_from_profile_missing" AS ?problem)
+    BIND("(no ctp:fromProfile)" AS ?detail)
+  }
+  UNION
+  {
+    ?subject a ctp:ProfileMigration ; ctp:fromProfile ?from .
+    FILTER NOT EXISTS { ?from a ctp:CryptoProfile }
+    BIND("migration_from_profile_undeclared" AS ?problem)
+    BIND(STR(?from) AS ?detail)
+  }
+  UNION
+  {
+    ?subject a ctp:ProfileMigration .
+    FILTER NOT EXISTS { ?subject ctp:toProfile ?anyTo }
+    BIND("migration_to_profile_missing" AS ?problem)
+    BIND("(no ctp:toProfile)" AS ?detail)
+  }
+  UNION
+  {
+    ?subject a ctp:ProfileMigration ; ctp:toProfile ?to .
+    FILTER NOT EXISTS { ?to a ctp:CryptoProfile }
+    BIND("migration_to_profile_undeclared" AS ?problem)
+    BIND(STR(?to) AS ?detail)
+  }
+  UNION
+  {
+    ?subject a ctp:ProfileMigration .
+    FILTER NOT EXISTS { ?subject ctp:migrationKind ?anyKind }
+    BIND("migration_kind_missing" AS ?problem)
+    BIND("(no ctp:migrationKind)" AS ?detail)
+  }
+  UNION
+  {
+    ?subject a ctp:ProfileMigration ; ctp:migrationKind ?kind .
+    FILTER NOT EXISTS {
+      VALUES ?ok { "upgrade" "downgrade" }
+      FILTER(?kind = ?ok)
+    }
+    BIND("migration_kind_outside_closed_vocabulary" AS ?problem)
+    BIND(STR(?kind) AS ?detail)
+  }
+  UNION
+  {
+    {
+      SELECT ?from ?to ?kind (COUNT(DISTINCT ?mig) AS ?n)
+      WHERE {
+        ?mig a ctp:ProfileMigration ;
+             ctp:fromProfile ?from ; ctp:toProfile ?to ; ctp:migrationKind ?kind .
+      }
+      GROUP BY ?from ?to ?kind
+    }
+    FILTER(?n > 1)
+    BIND(?from AS ?subject)
+    BIND("migration_duplicate_row" AS ?problem)
+    BIND(CONCAT(STR(?from), " -> ", STR(?to), " kind=", ?kind, " n=", STR(?n)) AS ?detail)
+  }
+  UNION
+  {
+    # Scope: a graph that declares NO ctp:ProfileMigration facts models no
+    # migration lattice and is not judged by the mandated-pair law; a graph
+    # that DOES declare migrations must admit the HYBRID -> CLASSICAL
+    # downgrade edge exactly once.
+    FILTER EXISTS { ?pairScope a ctp:ProfileMigration }
+    {
+      SELECT (COUNT(DISTINCT ?mig) AS ?n)
+      WHERE {
+        ?mig a ctp:ProfileMigration ;
+             ctp:fromProfile ctp:profile-HYBRID ;
+             ctp:toProfile ctp:profile-CLASSICAL ;
+             ctp:migrationKind "downgrade" .
+      }
+    }
+    FILTER(?n != 1)
+    BIND(ctp:profile-HYBRID AS ?subject)
+    BIND("migration_hybrid_to_classical_downgrade_not_exactly_once" AS ?problem)
+    BIND(CONCAT("downgrade_edges=", STR(?n)) AS ?detail)
+  }
+}
+ORDER BY ?subject ?problem ?detail

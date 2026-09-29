@@ -1,0 +1,22 @@
+# MESSAGE: freshness bounds are mandatory and positive: every ctp:TrustPlanePolicy carries ctp:maxRevocationStalenessSeconds > 0 and every ctp:NoncePolicy carries ctp:windowSeconds > 0. A missing or non-positive value lets stale revocations or replayed nonces through and is refused.
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+SELECT ?subject ?problem ?detail WHERE {
+  {
+    ?subject a ctp:TrustPlanePolicy .
+    OPTIONAL { ?subject ctp:maxRevocationStalenessSeconds ?v }
+    BIND(COALESCE(?v, -1) AS ?val)
+    FILTER( (?val <= 0) || (!isNumeric(?val)) )
+    BIND("policy_maxRevocationStalenessSeconds_missing_or_non_positive" AS ?problem)
+    BIND(COALESCE(STR(?v), "missing") AS ?detail)
+  }
+  UNION
+  {
+    ?subject a ctp:NoncePolicy .
+    OPTIONAL { ?subject ctp:windowSeconds ?w }
+    BIND(COALESCE(?w, -1) AS ?val)
+    FILTER( (?val <= 0) || (!isNumeric(?val)) )
+    BIND("nonce_windowSeconds_missing_or_non_positive" AS ?problem)
+    BIND(COALESCE(STR(?w), "missing") AS ?detail)
+  }
+}
+ORDER BY ?subject ?problem

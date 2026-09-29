@@ -1,0 +1,25 @@
+# MESSAGE: the signature envelope field set is closed and contiguous: exactly 12 ctp:SignatureEnvelopeField individuals whose ctp:fieldOrder values are exactly 1..12 with no duplicates. Any other field count, any missing order, or any duplicated order is refused.
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+SELECT ?problem ?detail WHERE {
+  {
+    { SELECT (COUNT(DISTINCT ?f) AS ?n) WHERE { ?f a ctp:SignatureEnvelopeField } }
+    FILTER(?n != 12)
+    BIND("envelope_field_count_not_12" AS ?problem)
+    BIND(CONCAT("count=", STR(?n)) AS ?detail)
+  }
+  UNION
+  {
+    VALUES ?expected { 1 2 3 4 5 6 7 8 9 10 11 12 }
+    FILTER NOT EXISTS { ?f ctp:fieldOrder ?expected }
+    BIND("envelope_field_order_missing" AS ?problem)
+    BIND(CONCAT("missing_order=", STR(?expected)) AS ?detail)
+  }
+  UNION
+  {
+    { SELECT ?order (COUNT(DISTINCT ?f) AS ?c) WHERE { ?f ctp:fieldOrder ?order } GROUP BY ?order }
+    FILTER(?c > 1)
+    BIND("envelope_field_order_duplicated" AS ?problem)
+    BIND(CONCAT("order=", STR(?order), " fields=", STR(?c)) AS ?detail)
+  }
+}
+ORDER BY ?problem ?detail

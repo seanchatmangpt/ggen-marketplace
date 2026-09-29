@@ -1,0 +1,25 @@
+# MESSAGE: the standing journal is a hash chain: every ctp:JournalPolicy carries ctp:journalFormat and a ctp:journalGenesis of exactly 64 lowercase-hex characters (the 64-zero genesis anchors entry 0's prev link). A missing format, a missing genesis, or a malformed genesis (wrong length or non-hex) cannot anchor a chain and is refused.
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+SELECT ?subject ?problem ?detail WHERE {
+  {
+    ?subject a ctp:JournalPolicy .
+    FILTER NOT EXISTS { ?subject ctp:journalFormat ?anyFormat }
+    BIND("journal_format_missing" AS ?problem)
+    BIND("(no ctp:journalFormat)" AS ?detail)
+  }
+  UNION
+  {
+    ?subject a ctp:JournalPolicy .
+    FILTER NOT EXISTS { ?subject ctp:journalGenesis ?anyGenesis }
+    BIND("journal_genesis_missing" AS ?problem)
+    BIND("(no ctp:journalGenesis)" AS ?detail)
+  }
+  UNION
+  {
+    ?subject a ctp:JournalPolicy ; ctp:journalGenesis ?genesis .
+    FILTER( (STRLEN(STR(?genesis)) != 64) || (!REGEX(STR(?genesis), "^[0-9a-f]{64}$")) )
+    BIND("journal_genesis_not_64_lowercase_hex" AS ?problem)
+    BIND(CONCAT("len=", STR(STRLEN(STR(?genesis))), " value=", STR(?genesis)) AS ?detail)
+  }
+}
+ORDER BY ?subject ?problem ?detail
