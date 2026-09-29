@@ -20,9 +20,9 @@ under `dynamic_in_gates` in the allowlist; gates that fail to parse are also ref
 
 | metric | value |
 |---|---|
-| packs | 376 |
-| packs with Python scripts | 110 |
-| Python files scanned | 528 |
+| packs | 379 |
+| packs with Python scripts | 111 |
+| Python files scanned | 531 |
 | files failing to parse | 0 |
 
 ## Capability by role
@@ -32,7 +32,7 @@ Files using each capability, by inferred role (`gate` = under a `gates/` directo
 
 | role | network | exec | fs-write | env | dynamic |
 |---|---|---|---|---|---|
-| gate | 0 | 2 | 3 | 0 | 1 |
+| gate | 0 | 3 | 3 | 1 | 1 |
 | verifier | 0 | 3 | 10 | 0 | 2 |
 | other | 3 | 16 | 25 | 5 | 35 |
 
@@ -41,9 +41,9 @@ Files using each capability, by inferred role (`gate` = under a `gates/` directo
 | capability | packs |
 |---|---|
 | network | 3 |
-| exec | 12 |
+| exec | 13 |
 | fs-write | 21 |
-| env | 3 |
+| env | 4 |
 | dynamic | 13 |
 
 ## Network use in gates
@@ -65,10 +65,10 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 | state | packs |
 |---|---|
 | with LICENSE file | 3 |
-| lacking LICENSE file | 373 |
+| lacking LICENSE file | 376 |
 | with SPDX identifier | 4 |
-| lacking SPDX identifier | 372 |
-| lacking both | 369 |
+| lacking SPDX identifier | 375 |
+| lacking both | 372 |
 
 <details><summary>Packs lacking both</summary>
 
@@ -76,6 +76,7 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `adapter-family-registry`
 - `adjacency-rebloom-controller-pack`
 - `affidavit-pack`
+- `affidavit-trust-plane-pack`
 - `agent-fleet-isolation-pack`
 - `agent-harness-recompilation-pack`
 - `ai-chatbot-shadcn-pack`
@@ -370,6 +371,7 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `repo-reconciliation-pack`
 - `repository-factory-scheduler-pack`
 - `repository-lifecycle-pack`
+- `repository-reconstitution-pack`
 - `revalidation-manufacturing-capital-pack`
 - `revenue-structural-option-factory-pack`
 - `rmcp-pack`
@@ -379,6 +381,7 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `rwr-level5-foundation-pack`
 - `sa2a-bridge-pack`
 - `sa2a-fastapi-pack`
+- `sa2a-semantic-evidence-pack`
 - `safe-ea-strategy-self-play-pack`
 - `self-monitoring-pack`
 - `semantic-case-study-pack`

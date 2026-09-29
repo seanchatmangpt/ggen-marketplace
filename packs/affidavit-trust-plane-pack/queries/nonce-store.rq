@@ -1,0 +1,49 @@
+# nonce-store.rq — consumed by templates/crypto_trust_nonce_store.rs.tmpl (affidavit-trust-plane-pack)
+#
+# Single-row rule; single-file module -> single-row projection.
+# Projected columns (MUST equal crypto_trust_nonce_store.rs.tmpl's {{ }} vars):
+#   domain_tag - trust-plane policy domain tag (ctp:policy-v1 ctp:domainTag),
+#                stamped in the journal header; conformance-tested equal to
+#                crypto_trust_canonical::DOMAIN_TAG at render time.
+#   window     - replay acceptance window in seconds (ctp:nonce-policy-v1
+#                ctp:windowSeconds, 300); the default journal window. The
+#                boundary law is the envelope module's NonceJournal law:
+#                a repeat strictly inside the window is rejected, at or
+#                beyond it the entry restamps.
+#   replay_key - replay tuple identity (ctp:nonce-policy-v1 ctp:replayKey,
+#                "kid,nonce"); stamped in the journal header and asserted
+#                equal to the envelope module's journal-key law.
+#   store_file - the graph-bound key store location (ctp:store-v1
+#                ctp:storeFile, ".affi/keys.json"); the nonce journal's
+#                DEFAULT path is DERIVED as the sibling
+#                `<parent>/nonces.jsonl` so both files share one graph-owned
+#                home directory. The derivation is code (documented in the
+#                template), the directory is a graph fact.
+#
+# Binding is by pinned PREDICATE, not class IRI, so the query survives
+# lane-side class renames as long as the contract predicates are used. Each
+# binding is single-valued over the graph, so the join is exactly one row; a
+# missing fact fails loudly with zero rows rather than rendering a module
+# with an empty identity.
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT
+  ?domain_tag
+  ?window
+  ?replay_key
+  ?store_file
+WHERE {
+  ctp:policy-v1 ctp:domainTag ?domainTagRaw .
+  BIND(STR(?domainTagRaw) AS ?domain_tag)
+
+  ctp:nonce-policy-v1 ctp:windowSeconds ?windowRaw ;
+                      ctp:replayKey ?replayKeyRaw .
+  BIND(xsd:integer(?windowRaw) AS ?window)
+  BIND(STR(?replayKeyRaw) AS ?replay_key)
+
+  ctp:store-v1 ctp:storeFile ?storeFileRaw .
+  BIND(STR(?storeFileRaw) AS ?store_file)
+}
+ORDER BY ?domain_tag
+LIMIT 1
