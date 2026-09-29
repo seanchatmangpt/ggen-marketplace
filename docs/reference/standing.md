@@ -386,6 +386,7 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | repo-intervention-pack | 26.7.20 | projection | native-gates, templates |
 | repo-load-path-pack | 26.7.20 | projection | native-gates, templates |
 | repo-reconciliation-pack | 26.7.20 | projection | native-gates, templates |
+| repository-reconstitution-pack | 26.9.28 | projection | native-gates, templates |
 | repository-factory-scheduler-pack | 26.8.19 | semantic | verifier-gates |
 | repository-lifecycle-pack | 26.9.12 | semantic | native-gates |
 | revalidation-manufacturing-capital-pack | 26.8.26 | project | templates |
