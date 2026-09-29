@@ -1,0 +1,31 @@
+# provider.rq — consumed by templates/crypto_trust_provider.rs.tmpl (affidavit-trust-plane-pack)
+#
+# Single-row rule; single-file module -> single-row projection.
+# Projected columns (MUST equal crypto_trust_provider.rs.tmpl's {{ }} vars):
+#   domain_tag       - trust-plane policy domain tag (ctp:policy-v1
+#                      ctp:domainTag); conformance-tested equal to
+#                      crypto_trust_canonical::DOMAIN_TAG at render time.
+#   envelope_version - envelope version identity the seam signs under
+#                      (ctp:policy-v1 ctp:envelopeVersion,
+#                      "CTP-ENVELOPE-v1"); conformance-tested equal to
+#                      crypto_trust_envelope::ENVELOPE_VERSION.
+#
+# Binding is by pinned PREDICATE on the policy individual, so the query
+# survives lane-side class renames as long as the contract predicates are
+# used. Each binding is single-valued over the graph, so the join is exactly
+# one row; a missing domainTag/envelopeVersion fact fails loudly with zero
+# rows rather than rendering a module with an empty identity.
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT
+  ?domain_tag
+  ?envelope_version
+WHERE {
+  ctp:policy-v1 ctp:domainTag ?domainTagRaw ;
+                ctp:envelopeVersion ?envelopeVersionRaw .
+  BIND(STR(?domainTagRaw) AS ?domain_tag)
+  BIND(STR(?envelopeVersionRaw) AS ?envelope_version)
+}
+ORDER BY ?domain_tag
+LIMIT 1

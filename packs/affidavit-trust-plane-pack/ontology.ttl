@@ -652,3 +652,37 @@ ctp:opsFormat a rdf:Property ;
 ctp:log-ops-v1 a ctp:LogOps ;
     ctp:opsFile ".affi/transparency.jsonl" ;
     ctp:opsFormat "CTP-LOGOPS-v1" .
+
+# ── Class: JournalPersistence (append-only, wave-5 lane W5-L5) ───────────────
+
+ctp:JournalPersistence a rdfs:Class ;
+    rdfs:label "Nonce ledger persistence" ;
+    rdfs:comment "Durable, cross-process replay-evidence persistence for the replay tuple (ctp:nonce-policy-v1 ctp:replayKey = \"kid,nonce\"): an append-only JSONL file of nonce sightings, one {kid, nonce_hex, seen_at} JSON object per line, at persistenceFile. record refreshes from disk before its window check (the cross-process sync point), the window law is the in-memory nonce journal's half-open [first_seen, first_seen + window_seconds), writes are atomic (bytes synced to a same-directory tmp file, then renamed over the live path), and the load path re-parses every line, validates every nonce_hex as 32 lowercase hex chars, and refuses Corruption with the exact 1-based line number. Evidence split: this ledger is authoritative for (kid, nonce) replay evidence across processes; the hash-chained standing journal (ctp:journal-v1) stays authoritative for sealed receipt evidence — the two surfaces are joined by key_id only, never by a forged nonce column." .
+
+# ── Properties: JournalPersistence ───────────────────────────────────────────
+
+ctp:persistenceFile a rdf:Property ;
+    rdfs:domain ctp:JournalPersistence ; rdfs:range xsd:string ;
+    rdfs:comment "Nonce-ledger file, relative to the consumer repository root (JSONL, one {kid, nonce_hex, seen_at} line per recorded sighting; rewritten in full only by prune)." .
+
+# ── Individual: JournalPersistence ───────────────────────────────────────────
+
+ctp:journal-persist-v1 a ctp:JournalPersistence ;
+    ctp:persistenceFile ".affi/nonce-journal.jsonl" .
+
+# ── Class: RevocationPublicationFile (append-only, wave-5 lane W5-L8) ────────
+
+ctp:RevocationPublicationFile a rdfs:Class ;
+    rdfs:label "Revocation publication file" ;
+    rdfs:comment "Durable file surface of the signed revocation publication (CTP-CRL-v1, ctp:revocation-pub-v1): the SignedRevocationList persists as JCS-canonical JSON at publicationFile, writes are atomic (bytes synced to a same-directory tmp file, then renamed over the live path), and read fails closed — an absent, foreign-format, or unparsable file is a typed refusal, never an empty CRL. Admission stays with the revocation module: verify_publication/apply_to verify the issuer signature FIRST, then the staleness grace; this surface only carries the bytes, never the admission decision." .
+
+# ── Properties: RevocationPublicationFile ────────────────────────────────────
+
+ctp:publicationFile a rdf:Property ;
+    rdfs:domain ctp:RevocationPublicationFile ; rdfs:range xsd:string ;
+    rdfs:comment "CRL publication file location, relative to the consumer repository root (JCS-canonical JSON of a SignedRevocationList)." .
+
+# ── Individual: RevocationPublicationFile ────────────────────────────────────
+
+ctp:crl-file-v1 a ctp:RevocationPublicationFile ;
+    ctp:publicationFile ".affi/crl.json" .
