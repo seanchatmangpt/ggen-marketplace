@@ -44,8 +44,11 @@ def catalog_fingerprint() -> str:
 
 def tier_signals(pack: marketplace.Pack) -> str:
     signals = []
-    if pack.name in marketplace.DEPRECATED_PACKS:
-        signals.append("deprecated")
+    entry = marketplace.lifecycle_registry().get(pack.name, {})
+    if entry.get("state", "active") != "active":
+        signals.append(entry["state"])
+    if entry.get("intent"):
+        signals.append(f"intent:{entry['intent']}")
     if pack.native_gates:
         signals.append("native-gates")
     if pack.verifier_gates:

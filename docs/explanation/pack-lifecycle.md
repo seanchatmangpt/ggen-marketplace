@@ -62,4 +62,6 @@ As a family matures, its lifecycle should move duplicated semantic authority upw
 
 Deprecation is not deletion. A CompatibilityPack should name its successor and retained seam until the consumer graph demonstrates that removal is safe.
 
+Lifecycle decisions are recorded in the repository's lifecycle registry (`lifecycle.toml`) on two independent axes. **State** (`active`, `deprecated`, `superseded`, `retired`) says what a pack is now and what consumers should do. **Intent** (`consolidate`, `upgrade`, `replace`, `review`, `keep-separate`) says what we plan, and is advisory. Keeping them apart lets a review lead be recorded without pretending it is a deprecation, and lets a ruled-out overlap be recorded (`keep-separate`) so the next audit does not re-derive it. The registry lives beside `pack.toml` rather than in it because the real ggen loader refuses unknown `[pack]` keys. See [the registry reference](../reference/pack-lifecycle-registry.md) and [How to flag a pack's lifecycle](../how-to/flag-a-pack-lifecycle.md).
+
 See [Class closure and consolidation](class-closure-and-consolidation.md).
