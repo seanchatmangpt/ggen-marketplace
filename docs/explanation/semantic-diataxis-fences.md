@@ -1,0 +1,3 @@
+# Explanation: why semantic Diátaxis documents carry no authority
+
+The pack makes documentation a manufactured consequence of one RDF source. A document that could grant itself authority would turn prose into an actuation path, so gates refuse any authority other than `NONE` and require consequential steps to cite external authority. `semantic_equivalence` stays `UNCLAIMED`: the SA2A, `chatman.spg.v1` and capability-marketplace projections share a source, which does not prove they mean the same thing. Standing is per capability and `ALIVE` needs evidence bound to an exact 40-hex subject; historical success at another revision is not current evidence. Marketplace qualification proves only this bounded boundary, not any consumer runtime.
