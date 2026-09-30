@@ -10,9 +10,9 @@ generation run; a commit cannot contain its own hash, so it names the commit gen
 ### Repository facts
 
 - Marketplace version: `v26.9.29`
-- Pack count: 379
-- Catalog fingerprint: `sha256:5bf8dadbc68afcc63b5d9fe1ae251ed76f2571cdbd8ef4a6058945a01362a192`
-- Head SHA: `e960254006303898f5fea8158a6f4f1b9bb241b8`
+- Pack count: 380
+- Catalog fingerprint: `sha256:0df91db2a09d8f9973f20942b887825b4bf82c62225724a1ff6f4810007b6ff0`
+- Head SHA: `85562a71090702f86d6a3a429cd9c8adabf90364`
 
 ### Pack standing table
 
@@ -39,6 +39,7 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | ash-revops-structural-factory-pack | 26.8.26 | project | native-gates, templates |
 | ash-runtime-integration-contract-pack | 26.8.29 | project | native-gates, templates |
 | ashdspy-pack | 0.1.0 | projection | native-gates, templates |
+| authzen-spiffe-absorption-pack | 26.9.29 | projection | templates |
 | autofde-gymact-certification-pack | 1.0.0 | semantic | native-gates |
 | autofde-k8s-fault-taxonomy-pack | 1.0.0 | semantic | native-gates |
 | autofde-lab-gymact-bridge-pack | 26.9.1 | project | native-gates, templates |
