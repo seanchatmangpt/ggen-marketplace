@@ -1,0 +1,49 @@
+# MESSAGE: Every admitted requirement must have exactly one closure assessment.
+# CLOSED requires public ontology coverage; RESIDUAL requires an exact residual.
+PREFIX ic: <https://ggen.dev/ontology/industry-closure#>
+PREFIX req: <https://ggen.io/onto/requirements/>
+SELECT ?subject ?reason WHERE {
+  {
+    ?subject a req:CandidateRequirement .
+    FILTER NOT EXISTS { ?subject ic:hasAssessment ?a . ?a a ic:ClosureAssessment }
+    BIND("requirement-missing-closure-assessment" AS ?reason)
+  } UNION {
+    ?subject a req:CandidateRequirement ;
+             ic:hasAssessment ?a .
+    ?a a ic:ClosureAssessment .
+    FILTER NOT EXISTS { ?a ic:closureState ?state }
+    BIND("assessment-missing-state" AS ?reason)
+  } UNION {
+    ?subject a req:CandidateRequirement ;
+             ic:hasAssessment ?a .
+    ?a ic:closureState ic:CLOSED .
+    FILTER NOT EXISTS {
+      ?a ic:bindsPublicTerm ?binding .
+      ?binding a ic:OntologyBinding ;
+               ic:publicTermIri ?term ;
+               ic:ontologySource ?source ;
+               ic:ontologyDigest ?digest .
+    }
+    BIND("closed-requirement-without-public-ontology-binding" AS ?reason)
+  } UNION {
+    ?subject a req:CandidateRequirement ;
+             ic:hasAssessment ?a .
+    ?a ic:closureState ic:RESIDUAL .
+    FILTER NOT EXISTS {
+      ?a ic:emitsResidual ?residual .
+      ?residual a ic:ClosureResidual ;
+                ic:residualDigest ?digest ;
+                ic:residualKind ?kind ;
+                ic:missingSemanticCapability ?missing ;
+                ic:unresolved true .
+    }
+    BIND("residual-state-without-exact-open-residual" AS ?reason)
+  } UNION {
+    ?subject a req:CandidateRequirement ;
+             ic:hasAssessment ?a .
+    ?a ic:closureState ?state .
+    FILTER (?state NOT IN (ic:CLOSED, ic:RESIDUAL))
+    BIND("unknown-closure-state" AS ?reason)
+  }
+}
+ORDER BY ?subject ?reason
