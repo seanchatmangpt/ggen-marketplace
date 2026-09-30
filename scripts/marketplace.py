@@ -44,9 +44,13 @@ GATE_SOURCE_SUFFIXES = frozenset({".rq", ".py"})
 # packs stay on disk for path-pinned consumers; only catalog-level treatment changes.
 # See docs/reference/pack-lifecycle-registry.md.
 @functools.cache
+def _load_registry(root: Path) -> dict[str, dict[str, Any]]:
+    return marketplace_lifecycle.load(root)[0]
+
+
 def lifecycle_registry() -> dict[str, dict[str, Any]]:
-    entries, _problems = marketplace_lifecycle.load(ROOT)
-    return entries
+    # Located beside packs/, so a marketplace rooted elsewhere (tests) reads its own registry.
+    return _load_registry(PACKS.parent)
 
 
 # Portfolio-role classification, orthogonal to Pack.profile's generation
@@ -364,9 +368,9 @@ def inspect_marketplace() -> tuple[list[Pack], list[str]]:
 
     manifests = {d.name: marketplace_tiers.manifest_pack_table(d) for d in directories}
     issues.extend(marketplace_tiers.lifecycle_issues(manifests, (d.name for d in directories), refusal))
-    registry, registry_problems = marketplace_lifecycle.load(ROOT)
+    registry, registry_problems = marketplace_lifecycle.load(PACKS.parent)
     issues.extend(refusal(*problem.split(":", 1)) for problem in registry_problems)
-    issues.extend(marketplace_lifecycle.entry_issues(registry, manifests, ROOT, refusal))
+    issues.extend(marketplace_lifecycle.entry_issues(registry, manifests, PACKS.parent, refusal))
 
     for relative in REQUIRED_DOCS:
         path = ROOT / relative
