@@ -1,0 +1,18 @@
+PREFIX qri: <https://ggen.dev/ns/qri#>
+SELECT ?claim ?realization ?reason WHERE {
+  ?claim a qri:InterchangeabilityClaim ; qri:memberRealization ?realization ;
+         qri:underContract ?contract ; qri:interchangeableUnder ?context .
+  {
+    FILTER NOT EXISTS {
+      ?claim qri:basedOnQualification ?qualification .
+      ?qualification a qri:Qualification ; qri:subjectRealization ?realization ;
+                     qri:qualifiesFor ?contract ; qri:inContext ?context ; qri:qualificationVerdict qri:Pass .
+    }
+    BIND("MISSING_INDEPENDENT_QUALIFICATION" AS ?reason)
+  }
+  UNION {
+    ?contract qri:requiresInvariant ?required .
+    FILTER NOT EXISTS { ?claim qri:preservesInvariant ?required }
+    BIND("CLAIM_MISSING_REQUIRED_INVARIANT" AS ?reason)
+  }
+}

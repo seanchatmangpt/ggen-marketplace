@@ -1,33 +1,11 @@
-# Interchangeable Parts Qualification
+# Interchangeable Parts Qualification Pack — QRI v26.9.30
 
-The pack is now a three-layer contract:
+This pack is the executable Qualified Runtime Interchangeability (QRI) seam for ggen-marketplace.
 
-1. **UNRDF owns executable semantics.** `@unrdf/core` manufactures and
-   evaluates PartRequirement/PartPassport. `@unrdf/receipts` owns
-   substitution receipts and replay verification.
-2. **This pack owns semantic admission and generation metadata.** SHACL/SPARQL
-   refuse consequence drift, mutable replacement subjects, unqualified
-   receipts and DO-authority laundering.
-3. **ggen generates thin consumer adapters and their court.** The adapter
-   delegates every decision to UNRDF and binds the expected canonical schema
-   identities from `ipq:policyV1`.
+It separates capability contract, procedure, realization, artifact, execution context, qualification, admission decision, and standing. Interchangeability is bounded by the same contract and context and requires an independent passing qualification for each realization.
 
-```
-ontology + policyV1
-        |
-        v
-ggen query/template
-        |
-        +--> generated/unrdf-consumer-adapter.mjs
-        |
-        +--> generated/unrdf-consumer-adapter.test.mjs
-                       |
-                       v
-                 @unrdf/core
-                 @unrdf/receipts
-```
+The semantic witness court refuses incomplete passing qualifications, non-independent interchangeability claims, multiple current standing heads, and admission permits without passing qualification plus authority evidence.
 
-This topology makes future consumers add generated adapters rather than copy
-the substitution algorithm. Adapter results are SELECT/CONSTRUCT evidence and
-always expose `authority: none`, `grantsDoAuthority: false`. A valid
-substitution receipt proves qualification; it does not itself grant DO.
+The working-pattern court uses existing ex4pm/wasm4pm Phase-1 projections as the differential court. It overwrites generated QRI projections, regenerates them in scratch, byte-compares them, and proves a missing-replay-invariant fixture is refused.
+
+This proves the QRI manufacture/projection law. It does not infer external native/WASM/BEAM execution from source-pattern presence.
