@@ -119,17 +119,23 @@ jobs:
             exit 1
           fi
       - name: Validate marketplace and Diátaxis
+        if: ${{ !cancelled() }}
         run: python scripts/marketplace.py validate
-      - name: Supply-chain and standing hygiene (stdlib, no network)
+      - name: Supply-chain hygiene (stdlib, no network)
+        if: ${{ !cancelled() }}
         run: |
           python scripts/pin_actions.py --check
           python scripts/pack_capabilities.py --check
-          python scripts/standing.py --check
+      - name: Standing hygiene
+        if: ${{ !cancelled() }}
+        run: python scripts/standing.py --check
       - name: Lint cross-pack instance references
+        if: ${{ !cancelled() }}
         run: |
           python scripts/check_cross_pack_references.py --mode gate \
             --report "${RUNNER_TEMP}/cross-pack-references.json"
       - name: Prove deterministic catalog projection
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -euo pipefail
@@ -138,6 +144,7 @@ jobs:
           cmp "${RUNNER_TEMP}/catalog-a.json" "${RUNNER_TEMP}/catalog-b.json"
           python -m json.tool "${RUNNER_TEMP}/catalog-a.json" >/dev/null
       - name: Prove deterministic archive build
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -euo pipefail
@@ -148,10 +155,15 @@ jobs:
           cmp "${RUNNER_TEMP}/archive-manifest-a.txt" "${RUNNER_TEMP}/archive-manifest-b.txt"
           rm -rf dist "${RUNNER_TEMP}/packs-a"
       - name: Fingerprint admitted corpus
+        if: ${{ !cancelled() }}
         run: python scripts/marketplace.py fingerprint
       - name: Refuse migration actuator
+        if: ${{ !cancelled() }}
         run: test ! -e .github/workflows/one-shot-import.yml
+      # Independent checks keep running after a failure so one run reports
+      # every refusal; the job still fails if any of them did.
       - name: Run path-selected per-pack courts (parallel)
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -euo pipefail
