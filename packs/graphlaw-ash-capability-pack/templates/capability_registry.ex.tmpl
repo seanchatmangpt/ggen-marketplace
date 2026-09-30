@@ -1,0 +1,555 @@
+---
+to: "lib/ash_graphlaw/capability/registry.ex"
+sparql:
+  registry: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # One row: the registry identity the projection is stamped with.
+    SELECT ?schema_id ?graphlaw_version ?abi_version ?surface_sha256 ?registry_sha256 ?op_count ?dialect_count
+    WHERE {
+      ?registry a gac:Registry ;
+        gac:schemaId ?schema_id ;
+        gac:graphlawVersion ?graphlaw_version ;
+        gac:abiVersion ?abi_version ;
+        gac:surfaceSha256 ?surface_sha256 ;
+        gac:registrySha256 ?registry_sha256 ;
+        gac:opCount ?op_count ;
+        gac:dialectCount ?dialect_count .
+    }
+    ORDER BY ?registry_sha256
+  ops: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # One row per capability in registry order, with the consumer's optional OpBinding.
+    SELECT ?op_name ?op_order ?op_summary ?result_module ?binding_legacy
+    WHERE {
+      ?capability a gac:Capability ;
+        gac:opName ?op_name ;
+        gac:opOrder ?op_order ;
+        gac:opSummary ?op_summary .
+      OPTIONAL {
+        ?binding a gac:OpBinding ;
+          gac:bindingOp ?op_name .
+        OPTIONAL { ?binding gac:bindingResultModule ?result_module }
+        OPTIONAL { ?binding gac:bindingLegacy ?legacy_flag }
+      }
+      BIND(COALESCE(STR(?legacy_flag), "false") AS ?binding_legacy)
+    }
+    ORDER BY ?op_order
+  variants: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Response variants per op; an untagged op has exactly one variant with an empty tag.
+    SELECT ?variant_iri ?op_name ?variant_order ?variant_tag ?variant_tag_field
+    WHERE {
+      ?variant_iri a gac:ResponseVariant ;
+        gac:variantOf ?capability ;
+        gac:variantOrder ?variant_order ;
+        gac:variantTag ?variant_tag ;
+        gac:variantTagField ?variant_tag_field .
+      ?capability a gac:Capability ;
+        gac:opName ?op_name .
+    }
+    ORDER BY ?op_name ?variant_order
+  request_fields: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Request fields per op, in registry order.
+    SELECT ?op_name ?field_iri ?field_order ?field_name ?field_type ?field_required ?field_nullable ?field_doc ?field_default
+    WHERE {
+      ?field_iri a gac:CapabilityField ;
+        gac:fieldOwner ?capability ;
+        gac:fieldSide "request" ;
+        gac:fieldOrder ?field_order ;
+        gac:fieldName ?field_name ;
+        gac:fieldType ?field_type ;
+        gac:fieldRequired ?required ;
+        gac:fieldNullable ?nullable ;
+        gac:fieldDoc ?field_doc .
+      OPTIONAL { ?field_iri gac:fieldDefault ?field_default }
+      ?capability a gac:Capability ;
+        gac:opName ?op_name .
+      BIND(STR(?required) AS ?field_required)
+      BIND(STR(?nullable) AS ?field_nullable)
+    }
+    ORDER BY ?op_name ?field_order
+  response_fields: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Response fields per op and variant, in registry order.
+    SELECT ?op_name ?variant_iri ?variant_order ?field_iri ?field_order ?field_name ?field_type ?field_required ?field_nullable ?field_doc ?field_default
+    WHERE {
+      ?field_iri a gac:CapabilityField ;
+        gac:fieldOwner ?variant_iri ;
+        gac:fieldSide "response" ;
+        gac:fieldOrder ?field_order ;
+        gac:fieldName ?field_name ;
+        gac:fieldType ?field_type ;
+        gac:fieldRequired ?required ;
+        gac:fieldNullable ?nullable ;
+        gac:fieldDoc ?field_doc .
+      OPTIONAL { ?field_iri gac:fieldDefault ?field_default }
+      ?variant_iri a gac:ResponseVariant ;
+        gac:variantOf ?capability ;
+        gac:variantOrder ?variant_order .
+      ?capability a gac:Capability ;
+        gac:opName ?op_name .
+      BIND(STR(?required) AS ?field_required)
+      BIND(STR(?nullable) AS ?field_nullable)
+    }
+    ORDER BY ?op_name ?variant_order ?field_order
+  field_enums: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Informational enum values of any field (request, response, detail or law step).
+    SELECT ?field_iri ?enum_order ?enum_value
+    WHERE {
+      ?enum a gac:EnumValue ;
+        gac:enumOf ?field_iri ;
+        gac:enumOrder ?enum_order ;
+        gac:enumValue ?enum_value .
+    }
+    ORDER BY ?field_iri ?enum_order
+  op_refusal_kinds: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Refusal kinds each op can emit (a set: ordered by name, the registry keeps no order here).
+    SELECT ?op_name ?refusal_kind
+    WHERE {
+      ?capability a gac:Capability ;
+        gac:opName ?op_name ;
+        gac:opRefusalKind ?refusal_kind .
+    }
+    ORDER BY ?op_name ?refusal_kind
+  op_refusal_codes: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Refusal detail codes each op can emit (a set: ordered by name).
+    SELECT ?op_name ?refusal_code
+    WHERE {
+      ?capability a gac:Capability ;
+        gac:opName ?op_name ;
+        gac:opRefusalCode ?refusal_code .
+    }
+    ORDER BY ?op_name ?refusal_code
+  dialects: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Dialects in global order (rdf first, then other).
+    SELECT ?dialect_name ?dialect_order ?dialect_kind ?dialect_response_name ?dialect_media_type
+    WHERE {
+      ?dialect a gac:Dialect ;
+        gac:dialectName ?dialect_name ;
+        gac:dialectOrder ?dialect_order ;
+        gac:dialectKind ?dialect_kind ;
+        gac:dialectResponseName ?dialect_response_name .
+      OPTIONAL { ?dialect gac:dialectMediaType ?dialect_media_type }
+    }
+    ORDER BY ?dialect_order
+  dialect_aliases: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Accepted aliases per dialect (a set: ordered by alias).
+    SELECT ?dialect_name ?dialect_alias
+    WHERE {
+      ?dialect a gac:Dialect ;
+        gac:dialectName ?dialect_name ;
+        gac:dialectAlias ?dialect_alias .
+    }
+    ORDER BY ?dialect_name ?dialect_alias
+  law_steps: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Steps of the law op in registry order, keyed by wire name.
+    SELECT ?step_wire ?step_order ?step_ceiling
+    WHERE {
+      ?step a gac:LawStep ;
+        gac:lawStepName ?step_wire ;
+        gac:lawStepOrder ?step_order .
+      OPTIONAL { ?step gac:lawStepCeiling ?step_ceiling }
+    }
+    ORDER BY ?step_order
+  step_fields: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Fields of each law step.
+    SELECT ?step_wire ?field_iri ?field_order ?field_name ?field_type ?field_required ?field_nullable ?field_doc ?field_default
+    WHERE {
+      ?field_iri a gac:CapabilityField ;
+        gac:fieldOwner ?step ;
+        gac:fieldSide "law_step" ;
+        gac:fieldOrder ?field_order ;
+        gac:fieldName ?field_name ;
+        gac:fieldType ?field_type ;
+        gac:fieldRequired ?required ;
+        gac:fieldNullable ?nullable ;
+        gac:fieldDoc ?field_doc .
+      OPTIONAL { ?field_iri gac:fieldDefault ?field_default }
+      ?step a gac:LawStep ;
+        gac:lawStepName ?step_wire .
+      BIND(STR(?required) AS ?field_required)
+      BIND(STR(?nullable) AS ?field_nullable)
+    }
+    ORDER BY ?step_wire ?field_order
+  refusal_codes: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Engine refusal detail codes (details.code values) in registry order.
+    SELECT ?code_name ?code_order ?code_kind
+    WHERE {
+      ?code a gac:RefusalCode ;
+        gac:refusalCodeName ?code_name ;
+        gac:refusalCodeOrder ?code_order .
+      OPTIONAL { ?code gac:refusalCodeKind ?code_kind }
+    }
+    ORDER BY ?code_order
+  code_fields: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Detail fields of each refusal code.
+    SELECT ?code_name ?field_iri ?field_order ?field_name ?field_type ?field_required ?field_nullable ?field_doc ?field_default
+    WHERE {
+      ?field_iri a gac:CapabilityField ;
+        gac:fieldOwner ?code ;
+        gac:fieldSide "detail" ;
+        gac:fieldOrder ?field_order ;
+        gac:fieldName ?field_name ;
+        gac:fieldType ?field_type ;
+        gac:fieldRequired ?required ;
+        gac:fieldNullable ?nullable ;
+        gac:fieldDoc ?field_doc .
+      OPTIONAL { ?field_iri gac:fieldDefault ?field_default }
+      ?code a gac:RefusalCode ;
+        gac:refusalCodeName ?code_name .
+      BIND(STR(?required) AS ?field_required)
+      BIND(STR(?nullable) AS ?field_nullable)
+    }
+    ORDER BY ?code_name ?field_order
+  vocab: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Closed vocabularies: engines, refusal_kinds, regimes, lease_ceilings, lease_reasons, ...
+    SELECT ?vocab_name ?vocab_order ?vocab_value
+    WHERE {
+      ?entry a gac:VocabularyEntry ;
+        gac:vocabOf ?vocab_name ;
+        gac:vocabOrder ?vocab_order ;
+        gac:vocabValue ?vocab_value .
+    }
+    ORDER BY ?vocab_name ?vocab_order
+  limits: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Engine resource limits.
+    SELECT ?limit_name ?limit_value
+    WHERE {
+      ?limit a gac:Limit ;
+        gac:limitName ?limit_name ;
+        gac:limitValue ?limit_value .
+    }
+    ORDER BY ?limit_name
+---
+# SPDX-FileCopyrightText: 2026 ash_graphlaw contributors <https://github.com/seanchatmangpt/ash_graphlaw/graphs/contributors>
+#
+# SPDX-License-Identifier: MIT
+# GENERATED by ggen from ontology.ttl (graphlaw-ash-capability-pack, graphlaw capability registry). DO NOT EDIT.
+{# Registry literals. Every list keeps the registry's own order (op order, field order, variant
+   order, dialect order). Refusal kinds/codes per op are sets in the ontology, so they are emitted
+   sorted by name. Field `enum` values are informational and are never enforced client-side. #}
+defmodule AshGraphLaw.Capability.Registry do
+  @moduledoc ~S"""
+  The GraphLaw capability registry as compile-time literals.
+
+  Generated from the registry `{{ registry[0].schema_id }}` (GraphLaw `{{ registry[0].graphlaw_version }}`, ABI
+  `{{ registry[0].abi_version }}`). `digest/0` is the registry's own `registry_sha256`; `surface_digest/0` is the
+  SHA-256 over the canonical surface document (ABI version, op names, dialect names) that a live
+  engine's `capabilities` response can be compared against.
+
+  All maps use atom keys. A field map has the keys `:name :order :type :required :nullable :doc
+  :enum :default`; `:enum` is informational and is never enforced client-side.
+  """
+
+  @typedoc "One request, response, detail or law-step field."
+  @type field :: %{
+          name: String.t(),
+          order: pos_integer(),
+          type: String.t(),
+          required: boolean(),
+          nullable: boolean(),
+          doc: String.t(),
+          enum: [String.t()] | nil,
+          default: String.t() | integer() | boolean() | nil
+        }
+
+  @typedoc "One response variant; an untagged op has exactly one variant with a `nil` tag."
+  @type variant :: %{tag: String.t() | nil, tag_field: String.t() | nil, fields: [field()]}
+
+  @typedoc "One wire operation."
+  @type op :: %{
+          name: String.t(),
+          order: pos_integer(),
+          summary: String.t(),
+          request: [field()],
+          responses: [variant()],
+          refusal_kinds: [String.t()],
+          refusal_codes: [String.t()]
+        }
+
+  @typedoc "One serialization dialect."
+  @type dialect :: %{
+          name: String.t(),
+          order: pos_integer(),
+          aliases: [String.t()],
+          response_name: String.t(),
+          media_type: String.t() | nil,
+          kind: String.t()
+        }
+
+  @typedoc "One step of the `law` operation."
+  @type law_step :: %{
+          name: String.t(),
+          order: pos_integer(),
+          ceiling: String.t() | nil,
+          fields: [field()]
+        }
+
+  @typedoc "One engine refusal detail code (the `details.code` wire values)."
+  @type refusal_code :: %{
+          code: String.t(),
+          order: pos_integer(),
+          kind: String.t() | nil,
+          fields: [field()]
+        }
+
+  @schema {{ registry[0].schema_id | json_encode }}
+  @graphlaw_version {{ registry[0].graphlaw_version | json_encode }}
+  @abi_version {{ registry[0].abi_version }}
+  @digest {{ registry[0].registry_sha256 | json_encode }}
+  @surface_digest {{ registry[0].surface_sha256 | json_encode }}
+
+  @names [
+{%- for o in ops %}
+    {{ o.op_name | json_encode }}{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ]
+
+  @ops [
+{%- for o in ops %}
+    %{
+      name: {{ o.op_name | json_encode }},
+      order: {{ o.op_order }},
+      summary: {{ o.op_summary | json_encode | replace(from="#{", to="#\u007b") }},
+      request: [
+{%- for f in request_fields | filter(attribute="op_name", value=o.op_name) %}
+        %{
+          name: {{ f.field_name | json_encode }},
+          order: {{ f.field_order }},
+          type: {{ f.field_type | json_encode }},
+          required: {{ f.field_required }},
+          nullable: {{ f.field_nullable }},
+          doc: {{ f.field_doc | json_encode | replace(from="#{", to="#\u007b") }},
+          enum: {% set ev = field_enums | filter(attribute="field_iri", value=f.field_iri) %}{% if ev | length > 0 %}[{% for e in ev %}{{ e.enum_value | json_encode }}{% if not loop.last %}, {% endif %}{% endfor %}]{% else %}nil{% endif %},
+          default: {% if f.field_default is defined %}{{ f.field_default }}{% else %}nil{% endif %}
+        }{% if not loop.last %},{% endif %}
+{%- endfor %}
+      ],
+      responses: [
+{%- for v in variants | filter(attribute="op_name", value=o.op_name) %}
+        %{
+          tag: {% if v.variant_tag == "" %}nil{% else %}{{ v.variant_tag | json_encode }}{% endif %},
+          tag_field: {% if v.variant_tag_field == "" %}nil{% else %}{{ v.variant_tag_field | json_encode }}{% endif %},
+          fields: [
+{%- for f in response_fields | filter(attribute="variant_iri", value=v.variant_iri) %}
+            %{
+              name: {{ f.field_name | json_encode }},
+              order: {{ f.field_order }},
+              type: {{ f.field_type | json_encode }},
+              required: {{ f.field_required }},
+              nullable: {{ f.field_nullable }},
+              doc: {{ f.field_doc | json_encode | replace(from="#{", to="#\u007b") }},
+              enum: {% set ev = field_enums | filter(attribute="field_iri", value=f.field_iri) %}{% if ev | length > 0 %}[{% for e in ev %}{{ e.enum_value | json_encode }}{% if not loop.last %}, {% endif %}{% endfor %}]{% else %}nil{% endif %},
+              default: {% if f.field_default is defined %}{{ f.field_default }}{% else %}nil{% endif %}
+            }{% if not loop.last %},{% endif %}
+{%- endfor %}
+          ]
+        }{% if not loop.last %},{% endif %}
+{%- endfor %}
+      ],
+      refusal_kinds: [{% for k in op_refusal_kinds | filter(attribute="op_name", value=o.op_name) %}{{ k.refusal_kind | json_encode }}{% if not loop.last %}, {% endif %}{% endfor %}],
+      refusal_codes: [{% for k in op_refusal_codes | filter(attribute="op_name", value=o.op_name) %}{{ k.refusal_code | json_encode }}{% if not loop.last %}, {% endif %}{% endfor %}]
+    }{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ]
+
+  @ops_by_name Map.new(@ops, fn op -> {op.name, op} end)
+
+  @dialects [
+{%- for d in dialects %}
+    %{
+      name: {{ d.dialect_name | json_encode }},
+      order: {{ d.dialect_order }},
+      aliases: [{% for a in dialect_aliases | filter(attribute="dialect_name", value=d.dialect_name) %}{{ a.dialect_alias | json_encode }}{% if not loop.last %}, {% endif %}{% endfor %}],
+      response_name: {{ d.dialect_response_name | json_encode }},
+      media_type: {% if d.dialect_media_type is defined %}{{ d.dialect_media_type | json_encode }}{% else %}nil{% endif %},
+      kind: {{ d.dialect_kind | json_encode }}
+    }{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ]
+
+  @law_steps [
+{%- for s in law_steps %}
+    %{
+      name: {{ s.step_wire | json_encode }},
+      order: {{ s.step_order }},
+      ceiling: {% if s.step_ceiling is defined %}{{ s.step_ceiling | json_encode }}{% else %}nil{% endif %},
+      fields: [
+{%- for f in step_fields | filter(attribute="step_wire", value=s.step_wire) %}
+        %{
+          name: {{ f.field_name | json_encode }},
+          order: {{ f.field_order }},
+          type: {{ f.field_type | json_encode }},
+          required: {{ f.field_required }},
+          nullable: {{ f.field_nullable }},
+          doc: {{ f.field_doc | json_encode | replace(from="#{", to="#\u007b") }},
+          enum: {% set ev = field_enums | filter(attribute="field_iri", value=f.field_iri) %}{% if ev | length > 0 %}[{% for e in ev %}{{ e.enum_value | json_encode }}{% if not loop.last %}, {% endif %}{% endfor %}]{% else %}nil{% endif %},
+          default: {% if f.field_default is defined %}{{ f.field_default }}{% else %}nil{% endif %}
+        }{% if not loop.last %},{% endif %}
+{%- endfor %}
+      ]
+    }{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ]
+
+  @refusal_codes [
+{%- for c in refusal_codes %}
+    %{
+      code: {{ c.code_name | json_encode }},
+      order: {{ c.code_order }},
+      kind: {% if c.code_kind is defined %}{{ c.code_kind | json_encode }}{% else %}nil{% endif %},
+      fields: [
+{%- for f in code_fields | filter(attribute="code_name", value=c.code_name) %}
+        %{
+          name: {{ f.field_name | json_encode }},
+          order: {{ f.field_order }},
+          type: {{ f.field_type | json_encode }},
+          required: {{ f.field_required }},
+          nullable: {{ f.field_nullable }},
+          doc: {{ f.field_doc | json_encode | replace(from="#{", to="#\u007b") }},
+          enum: {% set ev = field_enums | filter(attribute="field_iri", value=f.field_iri) %}{% if ev | length > 0 %}[{% for e in ev %}{{ e.enum_value | json_encode }}{% if not loop.last %}, {% endif %}{% endfor %}]{% else %}nil{% endif %},
+          default: {% if f.field_default is defined %}{{ f.field_default }}{% else %}nil{% endif %}
+        }{% if not loop.last %},{% endif %}
+{%- endfor %}
+      ]
+    }{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ]
+
+  @vocabulary %{
+{%- set by_name = vocab | group_by(attribute="vocab_name") %}
+{%- for name, entries in by_name %}
+    {{ name | json_encode }} => [{% for e in entries %}{{ e.vocab_value | json_encode }}{% if not loop.last %}, {% endif %}{% endfor %}]{% if not loop.last %},{% endif %}
+{%- endfor %}
+  }
+
+  @limits %{
+{%- for l in limits %}
+    {{ l.limit_name }}: {{ l.limit_value }}{% if not loop.last %},{% endif %}
+{%- endfor %}
+  }
+
+  @doc "The registry schema id, for example `\"graphlaw.capability-registry/1\"`."
+  @spec schema() :: String.t()
+  def schema, do: @schema
+
+  @doc "The GraphLaw release the registry was generated from."
+  @spec graphlaw_version() :: String.t()
+  def graphlaw_version, do: @graphlaw_version
+
+  @doc "The GraphLaw ABI version the registry describes."
+  @spec abi_version() :: pos_integer()
+  def abi_version, do: @abi_version
+
+  @doc "The registry digest literal (`\"sha256:<hex>\"`), the registry's own `registry_sha256`."
+  @spec digest() :: String.t()
+  def digest, do: @digest
+
+  @doc "The surface digest literal (`\"sha256:<hex>\"`) over ABI version, op names and dialect names."
+  @spec surface_digest() :: String.t()
+  def surface_digest, do: @surface_digest
+
+  @doc "Wire operation names in registry order."
+  @spec names() :: [String.t()]
+  def names, do: @names
+
+  @doc "All operations in registry order."
+  @spec ops() :: [op()]
+  def ops, do: @ops
+
+  @doc "The operation named `name`, or `:error` when the registry has no such operation."
+  @spec op(String.t()) :: {:ok, op()} | :error
+  def op(name) when is_binary(name), do: Map.fetch(@ops_by_name, name)
+  def op(_name), do: :error
+
+  @doc "The typed capability module for the operation named `name`, or `:error`."
+  @spec module_for(String.t()) :: {:ok, module()} | :error
+{%- for o in ops %}
+  def module_for({{ o.op_name | json_encode }}), do: {:ok, AshGraphLaw.Capability.{{ o.op_name | capitalize }}}
+{%- endfor %}
+  def module_for(_name), do: :error
+
+  @doc "All dialects in global order (RDF dialects first, then the others)."
+  @spec dialects() :: [dialect()]
+  def dialects, do: @dialects
+
+  @doc "RDF dialect names in registry order."
+  @spec rdf_dialects() :: [String.t()]
+  def rdf_dialects, do: for(d <- @dialects, d.kind == "rdf", do: d.name)
+
+  @doc "Non-RDF dialect names in registry order."
+  @spec other_dialects() :: [String.t()]
+  def other_dialects, do: for(d <- @dialects, d.kind == "other", do: d.name)
+
+  @doc "The steps of the `law` operation in registry order, keyed by wire name (`\"record-receipts\"`)."
+  @spec law_steps() :: [law_step()]
+  def law_steps, do: @law_steps
+
+  @doc "The engine refusal detail codes (`details.code` wire values) in registry order."
+  @spec refusal_codes() :: [refusal_code()]
+  def refusal_codes, do: @refusal_codes
+
+  @doc "The engine resource limits as an atom-keyed map."
+  @spec limits() :: %{optional(atom()) => non_neg_integer()}
+  def limits, do: @limits
+
+  @doc "A closed registry vocabulary by name (`\"regimes\"`, `\"engines\"`, ...); `[]` when unknown."
+  @spec vocabulary(String.t()) :: [String.t()]
+  def vocabulary(name) when is_binary(name), do: Map.get(@vocabulary, name, [])
+
+  @doc "The entailment regimes the `entail` operation accepts."
+  @spec regimes() :: [String.t()]
+  def regimes, do: vocabulary("regimes")
+
+  @doc "The engines a `sniff` response may name."
+  @spec engines() :: [String.t()]
+  def engines, do: vocabulary("engines")
+
+  @doc "The engine refusal kinds."
+  @spec refusal_kinds() :: [String.t()]
+  def refusal_kinds, do: vocabulary("refusal_kinds")
+
+  @doc "The lease ceilings."
+  @spec lease_ceilings() :: [String.t()]
+  def lease_ceilings, do: vocabulary("lease_ceilings")
+
+  @doc "The lease refusal reasons."
+  @spec lease_reasons() :: [String.t()]
+  def lease_reasons, do: vocabulary("lease_reasons")
+
+  @doc "The receipt refusal reasons."
+  @spec receipt_reasons() :: [String.t()]
+  def receipt_reasons, do: vocabulary("receipt_reasons")
+
+  @doc "The `policy` operation refusal kinds."
+  @spec policy_refusal_kinds() :: [String.t()]
+  def policy_refusal_kinds, do: vocabulary("policy_refusal_kinds")
+end

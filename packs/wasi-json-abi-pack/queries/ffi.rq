@@ -1,0 +1,35 @@
+# ffi.rq -- consumed by templates/wasm_ffi.rs.tmpl (wasi-json-abi-pack)
+#
+# Single-row projection; a module is a single-file FFI shell.
+# Projected columns (MUST equal wasm_ffi.rs.tmpl's {{ }} vars):
+#   crate_name        - wja:crateName of the module (documentation only).
+#   export_prefix     - wja:exportPrefix; the four exports are
+#                       <prefix>_abi_version / _alloc / _free / _call.
+#   abi_version       - wja:abiVersion (documented in the shell header; the
+#                       value itself is rendered by abi_meta.rs).
+#   max_request_bytes - wja:maxRequestBytes (documented in the shell header;
+#                       enforced through abi_meta::MAX_REQUEST_BYTES).
+#
+# Strict mode: every fact is required. A module missing any of them yields
+# zero rows and the engine refuses; defaults never render.
+
+PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
+
+SELECT
+  ?crate_name
+  ?export_prefix
+  ?abi_version
+  ?max_request_bytes
+WHERE {
+  ?module a wja:WasmModule ;
+          wja:crateName       ?crateNameRaw ;
+          wja:exportPrefix    ?exportPrefixRaw ;
+          wja:abiVersion      ?abiVersionRaw ;
+          wja:maxRequestBytes ?maxRequestBytesRaw .
+  BIND(STR(?crateNameRaw) AS ?crate_name)
+  BIND(STR(?exportPrefixRaw) AS ?export_prefix)
+  BIND(STR(?abiVersionRaw) AS ?abi_version)
+  BIND(STR(?maxRequestBytesRaw) AS ?max_request_bytes)
+}
+ORDER BY ?crate_name
+LIMIT 1

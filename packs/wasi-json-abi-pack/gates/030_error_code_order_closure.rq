@@ -1,0 +1,31 @@
+# MESSAGE: error-code order closure: every error_code carries an integer wja:codeOrder, values are unique and lie within 1..N where N is the number of error_codes linked from the module, so the set is contiguous 1..N. A missing, out-of-range, or duplicated ordinal is refused.
+PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?problem ?detail WHERE {
+  {
+    ?m wja:hasErrorCode ?item .
+    FILTER NOT EXISTS { ?item wja:codeOrder ?any }
+    BIND("error_code_order_missing" AS ?problem)
+    BIND(STR(?item) AS ?detail)
+  }
+  UNION
+  {
+    { SELECT ?m (COUNT(DISTINCT ?x) AS ?n) WHERE { ?m wja:hasErrorCode ?x } GROUP BY ?m }
+    ?m wja:hasErrorCode ?item .
+    ?item wja:codeOrder ?o .
+    FILTER(!isLiteral(?o) || datatype(?o) != xsd:integer || ?o < 1 || ?o > ?n)
+    BIND("error_code_order_out_of_range" AS ?problem)
+    BIND(CONCAT(STR(?item), " order=", STR(?o), " n=", STR(?n)) AS ?detail)
+  }
+  UNION
+  {
+    ?m wja:hasErrorCode ?a .
+    ?m wja:hasErrorCode ?b .
+    ?a wja:codeOrder ?o .
+    ?b wja:codeOrder ?o .
+    FILTER(STR(?a) < STR(?b))
+    BIND("error_code_order_duplicate" AS ?problem)
+    BIND(CONCAT(STR(?a), " and ", STR(?b), " share order ", STR(?o)) AS ?detail)
+  }
+}
+ORDER BY ?problem ?detail

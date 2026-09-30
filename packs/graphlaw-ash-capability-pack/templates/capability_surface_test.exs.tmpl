@@ -1,0 +1,278 @@
+---
+to: "test/generated/capability_surface_test.exs"
+sparql:
+  registry: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # One row: the registry identity the projection is stamped with.
+    SELECT ?schema_id ?graphlaw_version ?abi_version ?surface_sha256 ?registry_sha256 ?op_count ?dialect_count
+    WHERE {
+      ?registry a gac:Registry ;
+        gac:schemaId ?schema_id ;
+        gac:graphlawVersion ?graphlaw_version ;
+        gac:abiVersion ?abi_version ;
+        gac:surfaceSha256 ?surface_sha256 ;
+        gac:registrySha256 ?registry_sha256 ;
+        gac:opCount ?op_count ;
+        gac:dialectCount ?dialect_count .
+    }
+    ORDER BY ?registry_sha256
+  ops: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # One row per capability in registry order, with the consumer's optional OpBinding.
+    SELECT ?op_name ?op_order ?op_summary ?result_module ?binding_legacy
+    WHERE {
+      ?capability a gac:Capability ;
+        gac:opName ?op_name ;
+        gac:opOrder ?op_order ;
+        gac:opSummary ?op_summary .
+      OPTIONAL {
+        ?binding a gac:OpBinding ;
+          gac:bindingOp ?op_name .
+        OPTIONAL { ?binding gac:bindingResultModule ?result_module }
+        OPTIONAL { ?binding gac:bindingLegacy ?legacy_flag }
+      }
+      BIND(COALESCE(STR(?legacy_flag), "false") AS ?binding_legacy)
+    }
+    ORDER BY ?op_order
+  result_ops: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Capabilities whose result struct is generated: those with no bindingResultModule override.
+    SELECT ?op_name ?op_order ?op_summary
+    WHERE {
+      ?capability a gac:Capability ;
+        gac:opName ?op_name ;
+        gac:opOrder ?op_order ;
+        gac:opSummary ?op_summary .
+      FILTER NOT EXISTS {
+        ?binding a gac:OpBinding ;
+          gac:bindingOp ?op_name ;
+          gac:bindingResultModule ?override_module .
+      }
+    }
+    ORDER BY ?op_order
+  request_fields: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Request fields per op, in registry order.
+    SELECT ?op_name ?field_iri ?field_order ?field_name ?field_type ?field_required ?field_nullable ?field_doc ?field_default
+    WHERE {
+      ?field_iri a gac:CapabilityField ;
+        gac:fieldOwner ?capability ;
+        gac:fieldSide "request" ;
+        gac:fieldOrder ?field_order ;
+        gac:fieldName ?field_name ;
+        gac:fieldType ?field_type ;
+        gac:fieldRequired ?required ;
+        gac:fieldNullable ?nullable ;
+        gac:fieldDoc ?field_doc .
+      OPTIONAL { ?field_iri gac:fieldDefault ?field_default }
+      ?capability a gac:Capability ;
+        gac:opName ?op_name .
+      BIND(STR(?required) AS ?field_required)
+      BIND(STR(?nullable) AS ?field_nullable)
+    }
+    ORDER BY ?op_name ?field_order
+  union_fields: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Union of the response fields of all variants of an op (first-seen order). A field is
+    # required only if every variant requires it and nullable if any variant allows null.
+    SELECT ?op_name ?field_name
+           (MIN(?variant_order) AS ?first_variant_order)
+           (MIN(?field_order) AS ?first_field_order)
+           (SAMPLE(?ftype) AS ?field_type)
+           (MIN(?freq) AS ?field_required)
+           (MAX(?fnull) AS ?field_nullable)
+           (SAMPLE(?fdoc) AS ?field_doc)
+           (SAMPLE(?fdefault) AS ?field_default)
+    WHERE {
+      ?field_iri a gac:CapabilityField ;
+        gac:fieldOwner ?variant_iri ;
+        gac:fieldSide "response" ;
+        gac:fieldOrder ?field_order ;
+        gac:fieldName ?field_name ;
+        gac:fieldType ?ftype ;
+        gac:fieldRequired ?required ;
+        gac:fieldNullable ?nullable ;
+        gac:fieldDoc ?fdoc .
+      OPTIONAL { ?field_iri gac:fieldDefault ?fdefault }
+      ?variant_iri a gac:ResponseVariant ;
+        gac:variantOf ?capability ;
+        gac:variantOrder ?variant_order .
+      ?capability a gac:Capability ;
+        gac:opName ?op_name .
+      BIND(STR(?required) AS ?freq)
+      BIND(STR(?nullable) AS ?fnull)
+    }
+    GROUP BY ?op_name ?field_name
+    ORDER BY ?op_name ?first_variant_order ?first_field_order
+  variants: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Response variants per op; an untagged op has exactly one variant with an empty tag.
+    SELECT ?variant_iri ?op_name ?variant_order ?variant_tag ?variant_tag_field
+    WHERE {
+      ?variant_iri a gac:ResponseVariant ;
+        gac:variantOf ?capability ;
+        gac:variantOrder ?variant_order ;
+        gac:variantTag ?variant_tag ;
+        gac:variantTagField ?variant_tag_field .
+      ?capability a gac:Capability ;
+        gac:opName ?op_name .
+    }
+    ORDER BY ?op_name ?variant_order
+---
+# SPDX-FileCopyrightText: 2026 ash_graphlaw contributors <https://github.com/seanchatmangpt/ash_graphlaw/graphs/contributors>
+#
+# SPDX-License-Identifier: MIT
+# GENERATED by ggen from ontology.ttl (graphlaw-ash-capability-pack, graphlaw capability registry). DO NOT EDIT.
+{# Pure surface court (no wasm, no engine, no doubles): the generated modules exist, export the
+   behaviour, agree with the registry literals, decode losslessly and refuse bad requests. Nothing
+   here hardcodes the operation count; it is compared against the ontology's gac:opCount. #}
+defmodule AshGraphLaw.Generated.CapabilitySurfaceTest do
+  @moduledoc """
+  Generated pure surface test for the typed capability API. It calls real generated modules only;
+  running an operation on the engine is covered by the parity court, not here.
+  """
+
+  use ExUnit.Case, async: true
+
+  alias AshGraphLaw.Capability.API
+  alias AshGraphLaw.Capability.Registry
+  alias AshGraphLaw.Refusal
+  alias AshGraphLaw.Result.Term
+
+  @registry_op_count {{ registry[0].op_count }}
+  @registry_digest {{ registry[0].registry_sha256 | json_encode }}
+  @surface_digest {{ registry[0].surface_sha256 | json_encode }}
+
+  # name, capability module, generated result module (nil when overridden), tag field (nil when
+  # untagged), response field keys, required request field names, minimal valid args
+  @surface [
+{%- for o in ops %}
+    %{
+      name: {{ o.op_name | json_encode }},
+      module: AshGraphLaw.Capability.{{ o.op_name | capitalize }},
+      function: :{{ o.op_name }},
+      result: {% if o.result_module is defined %}nil{% else %}AshGraphLaw.Result.{{ o.op_name | capitalize }}{% endif %},
+      tag_field: {% set fv = variants | filter(attribute="op_name", value=o.op_name) | first %}{% if fv.variant_tag_field == "" %}nil{% else %}{{ fv.variant_tag_field | json_encode }}{% endif %},
+      keys: [{% for f in union_fields | filter(attribute="op_name", value=o.op_name) %}:{{ f.field_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+      required: [{% for f in request_fields | filter(attribute="op_name", value=o.op_name) | filter(attribute="field_required", value="true") %}{{ f.field_name | json_encode }}{% if not loop.last %}, {% endif %}{% endfor %}],
+      args: [{% for f in request_fields | filter(attribute="op_name", value=o.op_name) | filter(attribute="field_required", value="true") %}{{ f.field_name }}: {% if f.field_type == "integer" %}1{% elif f.field_type == "boolean" %}true{% elif f.field_type == "object" or f.field_type == "term" %}%{}{% elif f.field_type is starting_with("list<") %}[]{% else %}"x"{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}]
+    }{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ]
+
+  describe "positive control: the registry surface is present" do
+    test "the registry lists the ontology's operations, in order, with the declared digests" do
+      names = Registry.names()
+
+      assert length(names) == @registry_op_count
+      assert names == Enum.map(@surface, & &1.name)
+      assert Registry.digest() == @registry_digest
+      assert Registry.surface_digest() == @surface_digest
+      assert Registry.ops() |> Enum.map(& &1.name) == names
+    end
+
+    test "every operation module exports the behaviour and the API exports both forms" do
+      for %{name: name, module: module, function: function} <- @surface do
+        assert Code.ensure_loaded?(module), "#{module} is not loaded"
+        assert module.op() == name
+        assert {:ok, ^module} = Registry.module_for(name)
+        assert function_exported?(module, :build_request, 1)
+        assert function_exported?(module, :decode, 1)
+        assert function_exported?(module, :run, 2)
+        assert function_exported?(module, :fields, 1)
+        assert function_exported?(API, function, 2)
+        assert function_exported?(API, :"#{function}!", 2)
+      end
+    end
+
+    test "build_request injects the op key for minimal valid args" do
+      for %{name: name, module: module, args: args} <- @surface do
+        assert {:ok, request} = module.build_request(args)
+        assert request["op"] == name
+      end
+    end
+
+    test "the field lists agree with the registry" do
+      for %{name: name, module: module, keys: keys} <- @surface do
+        {:ok, op} = Registry.op(name)
+
+        assert module.fields(:request) == op.request
+        assert module.fields(:response) |> Enum.map(&String.to_atom(&1.name)) == keys
+      end
+    end
+  end
+
+  describe "result structs decode losslessly" do
+    test "from_map keeps the whole response in raw and tolerates extra and missing keys" do
+      for %{result: result, keys: keys} when not is_nil(result) <- @surface do
+        assert Code.ensure_loaded?(result)
+
+        struct_keys = Map.keys(struct(result)) -- [:__struct__, :raw, :kind]
+        assert Enum.sort(struct_keys) == Enum.sort(keys)
+
+        empty = result.from_map(%{})
+        assert empty.raw == %{}
+
+        injected = %{"ok" => true, "future_field" => %{"a" => [1, 2]}}
+        assert result.from_map(injected).raw == injected
+        assert result.from_map("not a map").raw == "not a map"
+        assert result.from_map(nil).raw == nil
+      end
+    end
+
+    test "a mistyped value is returned untouched and never raises" do
+      for %{result: result, keys: [key | _]} when not is_nil(result) <- @surface do
+        mistyped = %{Atom.to_string(key) => %{"unexpected" => ["shape", 1, nil]}, "ok" => true}
+        decoded = result.from_map(mistyped)
+
+        assert decoded.raw == mistyped
+      end
+    end
+
+    test "tagged operations expose :kind and an unknown tag stays open" do
+      for %{result: result, tag_field: tag_field} <- @surface,
+          not is_nil(result) and not is_nil(tag_field) do
+        assert {:unknown, "brand_new_variant"} ==
+                 result.from_map(%{tag_field => "brand_new_variant"}).kind
+      end
+    end
+
+    test "Result.Term maps xml:lang to lang and keeps the raw map" do
+      term = %{"type" => "literal", "value" => "hola", "xml:lang" => "es"}
+      decoded = Term.from_map(term)
+
+      assert %Term{type: "literal", value: "hola", lang: "es", raw: ^term} = decoded
+      assert Term.from_map(:not_a_map).raw == :not_a_map
+    end
+  end
+
+  describe "requests refuse with a typed refusal" do
+    test "an unknown key refuses, and so does supplying the op key" do
+      for %{module: module, args: args} <- @surface do
+        assert {:error, %Refusal{code: :invalid_capability_request}} =
+                 module.build_request(Keyword.put(args, :no_such_field, "x"))
+
+        assert {:error, %Refusal{code: :invalid_capability_request}} =
+                 module.build_request(Keyword.put(args, :op, "other"))
+      end
+    end
+
+    test "a missing required field refuses" do
+      for %{module: module, required: [_ | _]} <- @surface do
+        assert {:error, %Refusal{code: :invalid_capability_request}} = module.build_request([])
+      end
+    end
+
+    test "an unknown capability name refuses through the dispatcher" do
+      assert {:error, %Refusal{code: :unknown_capability}} = API.run("no_such_capability", [])
+      assert Registry.module_for("no_such_capability") == :error
+      assert Registry.op("no_such_capability") == :error
+    end
+  end
+end

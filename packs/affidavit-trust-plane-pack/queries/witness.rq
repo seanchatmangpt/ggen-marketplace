@@ -1,0 +1,33 @@
+# witness.rq — consumed by templates/crypto_trust_witness.rs.tmpl
+# (affidavit-trust-plane-pack)
+#
+# Single-row binding for the head-witness cosigning module
+# (crypto_trust_witness.rs): the witness floor from ctp:witness-v1, joined with
+# the trust-plane domain tag from ctp:policy-v1 (the same tag the log module's
+# HEAD_SIGNING_DOMAIN carries, so a witness cosignature is attributable to one
+# plane and signs the SAME head pre-image the log's own signer signed).
+#
+# Projected columns (MUST equal crypto_trust_witness.rs.tmpl's {{ }} vars):
+#   min_witnesses - ctp:witness-v1 ctp:minWitnesses, e.g. "2"
+#   domain_tag    - ctp:policy-v1 ctp:domainTag, e.g. "affidavit.crypto-trust-plane.v1"
+#
+# All values pass through STR() so the Tera template receives plain strings
+# (proven wiring: rule SELECT columns are plain Tera variables). Any missing
+# fact yields zero rows — the engine refuses, defaults never render.
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT
+  ?min_witnesses
+  ?domain_tag
+WHERE {
+  ctp:witness-v1
+      ctp:minWitnesses ?minRaw .
+  ctp:policy-v1
+      ctp:domainTag ?tagRaw .
+
+  BIND(STR(?minRaw) AS ?min_witnesses)
+  BIND(STR(?tagRaw) AS ?domain_tag)
+}
+ORDER BY ?min_witnesses
+LIMIT 1

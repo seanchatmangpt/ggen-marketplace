@@ -1,0 +1,36 @@
+# MESSAGE: every gac:OpBinding (consumer-supplied) must carry bindingOp and bindingLegacy
+# (xsd:boolean); bindingOp must equal the opName of a gac:Capability in the graph; at most one
+# binding may name one op; bindingResultModule, when present, must be a non-empty plain string.
+# Any row = a binding that references no real operation or is malformed.
+PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT DISTINCT ?s ?missing WHERE {
+  {
+    VALUES ?missing { gac:bindingOp gac:bindingLegacy }
+    ?s a gac:OpBinding .
+    FILTER NOT EXISTS { ?s ?missing ?any }
+  }
+  UNION {
+    ?s a gac:OpBinding ; gac:bindingOp ?op .
+    FILTER NOT EXISTS { ?c a gac:Capability ; gac:opName ?n . FILTER (str(?n) = str(?op)) }
+    BIND(gac:bindingOp AS ?missing)
+  }
+  UNION {
+    ?s a gac:OpBinding ; gac:bindingLegacy ?v .
+    FILTER (!isLiteral(?v) || datatype(?v) != xsd:boolean)
+    BIND(gac:bindingLegacy AS ?missing)
+  }
+  UNION {
+    ?s a gac:OpBinding ; gac:bindingOp ?op .
+    ?t a gac:OpBinding ; gac:bindingOp ?op2 .
+    FILTER (?s != ?t && str(?op) = str(?op2))
+    BIND(gac:bindingOp AS ?missing)
+  }
+  UNION {
+    ?s a gac:OpBinding ; gac:bindingResultModule ?m .
+    FILTER (!isLiteral(?m) || str(?m) = "")
+    BIND(gac:bindingResultModule AS ?missing)
+  }
+}
+ORDER BY ?s ?missing

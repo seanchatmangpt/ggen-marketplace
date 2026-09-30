@@ -1,0 +1,23 @@
+# MESSAGE: every gac:CapabilityField must carry a gac:fieldType that is a plain string in
+# the closed type vocabulary: string integer boolean object any data_spec term
+# json_or_string list<string> list<object> list<any> list<term> list<list<string>>
+# list<list<term>>. Any row = a field with no type or a type outside the closed set.
+PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?s ?missing ?value WHERE {
+  {
+    ?s a gac:CapabilityField .
+    FILTER NOT EXISTS { ?s gac:fieldType ?any }
+    BIND(gac:fieldType AS ?missing)
+  }
+  UNION {
+    ?s a gac:CapabilityField ; gac:fieldType ?value .
+    FILTER (!isLiteral(?value) || datatype(?value) != xsd:string || !(str(?value) IN (
+      "string", "integer", "boolean", "object", "any", "data_spec", "term", "json_or_string",
+      "list<string>", "list<object>", "list<any>", "list<term>",
+      "list<list<string>>", "list<list<term>>")))
+    BIND(gac:fieldType AS ?missing)
+  }
+}
+ORDER BY ?s ?missing ?value

@@ -1,0 +1,32 @@
+PREFIX cc: <https://chicago.graphlaw.dev/court#>
+SELECT ?ordinal ?caseId ?kind ?title ?op ?request ?expect ?requestB ?expectB ?compare
+       ?ceiling ?byteIdentity ?axiom ?mutates ?courtId ?testFile ?standing ?policyNote
+WHERE {
+  ?case a cc:Case ;
+        cc:court cc:cross_authority_court ;
+        cc:caseId ?caseId ;
+        cc:ordinal ?ordinal ;
+        cc:kind ?kind ;
+        cc:title ?title ;
+        cc:op ?op ;
+        cc:request ?request ;
+        cc:expect ?expect ;
+        cc:ceiling ?ceiling .
+  { SELECT ?case (GROUP_CONCAT(STR(?a); separator=",") AS ?axiom)
+    WHERE { ?case cc:coversAxiom ?a } GROUP BY ?case }
+  cc:cross_authority_court cc:courtId ?courtId ;
+        cc:testFile ?testFile ;
+        cc:standing ?standing ;
+        cc:policyNote ?policyNote .
+  OPTIONAL { ?case cc:requestB ?rb }
+  OPTIONAL { ?case cc:expectB ?eb }
+  OPTIONAL { ?case cc:compare ?cmp }
+  OPTIONAL { ?case cc:byteIdentity ?bi }
+  OPTIONAL { ?case cc:mutates ?mut }
+  BIND(COALESCE(?rb, "") AS ?requestB)
+  BIND(COALESCE(?eb, "") AS ?expectB)
+  BIND(COALESCE(?cmp, "") AS ?compare)
+  BIND(STR(COALESCE(?bi, false)) AS ?byteIdentity)
+  BIND(STR(COALESCE(?mut, "")) AS ?mutates)
+}
+ORDER BY ?ordinal

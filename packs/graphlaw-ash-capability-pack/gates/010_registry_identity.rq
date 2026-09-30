@@ -1,0 +1,44 @@
+# MESSAGE: every gac:Registry must exist and carry schemaId (exactly
+# "graphlaw.capability-registry/1"), graphlawVersion, abiVersion (xsd:integer >= 1),
+# opCount, dialectCount, and both surfaceSha256 and registrySha256 matching
+# ^sha256:[0-9a-f]{64}$. A missing registry, a missing property, a wrong schema id, a
+# non-integer ABI version, or a malformed digest is one row.
+PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?s ?missing WHERE {
+  {
+    FILTER NOT EXISTS { ?x a gac:Registry }
+    BIND(gac:Registry AS ?s)
+    BIND(gac:schemaId AS ?missing)
+  }
+  UNION {
+    VALUES ?missing {
+      gac:schemaId gac:graphlawVersion gac:abiVersion gac:surfaceSha256
+      gac:registrySha256 gac:opCount gac:dialectCount
+    }
+    ?s a gac:Registry .
+    FILTER NOT EXISTS { ?s ?missing ?any }
+  }
+  UNION {
+    ?s a gac:Registry ; gac:schemaId ?v .
+    FILTER (!isLiteral(?v) || str(?v) != "graphlaw.capability-registry/1")
+    BIND(gac:schemaId AS ?missing)
+  }
+  UNION {
+    ?s a gac:Registry ; gac:graphlawVersion ?v .
+    FILTER (!isLiteral(?v) || str(?v) = "")
+    BIND(gac:graphlawVersion AS ?missing)
+  }
+  UNION {
+    ?s a gac:Registry ; gac:abiVersion ?v .
+    FILTER (!isLiteral(?v) || datatype(?v) != xsd:integer || ?v < 1)
+    BIND(gac:abiVersion AS ?missing)
+  }
+  UNION {
+    VALUES ?missing { gac:surfaceSha256 gac:registrySha256 }
+    ?s a gac:Registry ; ?missing ?v .
+    FILTER (!isLiteral(?v) || !regex(str(?v), "^sha256:[0-9a-f]{64}$"))
+  }
+}
+ORDER BY ?s ?missing

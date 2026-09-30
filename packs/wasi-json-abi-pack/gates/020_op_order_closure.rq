@@ -1,0 +1,31 @@
+# MESSAGE: op order closure: every op carries an integer wja:opOrder, values are unique and lie within 1..N where N is the number of ops linked from the module, so the set is contiguous 1..N. A missing, out-of-range, or duplicated ordinal is refused.
+PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?problem ?detail WHERE {
+  {
+    ?m wja:hasOp ?item .
+    FILTER NOT EXISTS { ?item wja:opOrder ?any }
+    BIND("op_order_missing" AS ?problem)
+    BIND(STR(?item) AS ?detail)
+  }
+  UNION
+  {
+    { SELECT ?m (COUNT(DISTINCT ?x) AS ?n) WHERE { ?m wja:hasOp ?x } GROUP BY ?m }
+    ?m wja:hasOp ?item .
+    ?item wja:opOrder ?o .
+    FILTER(!isLiteral(?o) || datatype(?o) != xsd:integer || ?o < 1 || ?o > ?n)
+    BIND("op_order_out_of_range" AS ?problem)
+    BIND(CONCAT(STR(?item), " order=", STR(?o), " n=", STR(?n)) AS ?detail)
+  }
+  UNION
+  {
+    ?m wja:hasOp ?a .
+    ?m wja:hasOp ?b .
+    ?a wja:opOrder ?o .
+    ?b wja:opOrder ?o .
+    FILTER(STR(?a) < STR(?b))
+    BIND("op_order_duplicate" AS ?problem)
+    BIND(CONCAT(STR(?a), " and ", STR(?b), " share order ", STR(?o)) AS ?detail)
+  }
+}
+ORDER BY ?problem ?detail
