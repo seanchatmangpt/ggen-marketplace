@@ -1,0 +1,39 @@
+# MESSAGE: Every unresolved closure residual must enter Semantic Jira and the
+# marketplace backlog; UNKNOWN is data, never an ambient coding permission.
+PREFIX mf: <https://ggen.dev/ontology/sjira-marketplace-feedback#>
+PREFIX ic: <https://ggen.dev/ontology/industry-closure#>
+PREFIX req: <https://ggen.io/onto/requirements/>
+SELECT ?subject ?reason WHERE {
+  {
+    ?subject a ic:ClosureResidual ;
+             ic:unresolved true .
+    FILTER NOT EXISTS {
+      ?subject mf:residualWorkOrder ?wo .
+      ?wo a req:WorkOrder ;
+          mf:semanticJiraKey ?key ;
+          mf:workOrderDigest ?digest ;
+          mf:authority "SELECT_CONSTRUCT_ONLY" .
+    }
+    BIND("unresolved-residual-without-bounded-sjira-work-order" AS ?reason)
+  } UNION {
+    ?subject a ic:ClosureResidual ;
+             ic:unresolved true ;
+             mf:residualWorkOrder ?wo .
+    FILTER NOT EXISTS {
+      ?wo mf:feedsDelta ?delta .
+      ?delta a mf:MarketplaceCapabilityDelta ;
+             mf:forResidual ?subject ;
+             mf:deltaDigest ?digest ;
+             mf:targetCapabilityClass ?class ;
+             mf:deltaState mf:OPEN .
+    }
+    BIND("sjira-work-order-without-open-marketplace-delta" AS ?reason)
+  } UNION {
+    ?subject a ic:ClosureResidual ;
+             mf:residualWorkOrder ?wo .
+    ?wo mf:authority ?authority .
+    FILTER (?authority != "SELECT_CONSTRUCT_ONLY")
+    BIND("semantic-jira-work-order-must-not-grant-DO-authority" AS ?reason)
+  }
+}
+ORDER BY ?subject ?reason
