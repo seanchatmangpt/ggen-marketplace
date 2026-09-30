@@ -118,3 +118,7 @@
 - [Pack capabilities](reference/pack-capabilities.md)
 - [Qualification baseline](reference/qualification-baseline.md)
 - [Workflow map](reference/workflow-map.md)
+- [First semantic Diátaxis contract](tutorials/semantic-diataxis-first-contract.md)
+- [Add a semantic Diátaxis document](how-to/add-a-semantic-diataxis-document.md)
+- [Semantic Diátaxis contract](reference/semantic-diataxis-contract.md)
+- [Why documents carry no authority](explanation/semantic-diataxis-fences.md)
