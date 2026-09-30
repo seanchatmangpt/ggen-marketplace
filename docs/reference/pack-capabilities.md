@@ -20,7 +20,7 @@ under `dynamic_in_gates` in the allowlist; gates that fail to parse are also ref
 
 | metric | value |
 |---|---|
-| packs | 379 |
+| packs | 380 |
 | packs with Python scripts | 111 |
 | Python files scanned | 531 |
 | files failing to parse | 0 |
@@ -65,10 +65,10 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 | state | packs |
 |---|---|
 | with LICENSE file | 3 |
-| lacking LICENSE file | 376 |
+| lacking LICENSE file | 377 |
 | with SPDX identifier | 4 |
-| lacking SPDX identifier | 375 |
-| lacking both | 372 |
+| lacking SPDX identifier | 376 |
+| lacking both | 373 |
 
 <details><summary>Packs lacking both</summary>
 
@@ -271,6 +271,7 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `github-live-evidence-ingestion-pack`
 - `governance-gate-pack`
 - `governed-runtime-adapter-pack`
+- `graphlaw-ash-capability-pack`
 - `greene-licensing-case-pack`
 - `gym-autonomic-crown-pack`
 - `gym-ci-toolchain-bblock-pack`

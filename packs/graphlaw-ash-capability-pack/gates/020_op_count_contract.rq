@@ -1,0 +1,48 @@
+# MESSAGE: gac:opCount and gac:dialectCount must be xsd:integer values equal to the number of
+# gac:Capability and gac:Dialect subjects that point at the registry through capabilityOf /
+# dialectOf; a registry declaring a positive count with no such subjects, a capability or
+# dialect whose back-reference is missing or names a non-registry, and a registry declaring
+# fewer than one operation are all violations. The expected count is read from the graph
+# (gac:opCount), never hardcoded.
+PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?s ?missing ?declared ?actual WHERE {
+  {
+    ?s a gac:Registry ; gac:opCount ?declared .
+    { SELECT ?s (COUNT(DISTINCT ?c) AS ?actual) WHERE {
+        ?c a gac:Capability ; gac:capabilityOf ?s .
+      } GROUP BY ?s }
+    FILTER (isLiteral(?declared) && datatype(?declared) = xsd:integer && ?declared != ?actual)
+    BIND(gac:opCount AS ?missing)
+  }
+  UNION {
+    ?s a gac:Registry ; gac:dialectCount ?declared .
+    { SELECT ?s (COUNT(DISTINCT ?d) AS ?actual) WHERE {
+        ?d a gac:Dialect ; gac:dialectOf ?s .
+      } GROUP BY ?s }
+    FILTER (isLiteral(?declared) && datatype(?declared) = xsd:integer && ?declared != ?actual)
+    BIND(gac:dialectCount AS ?missing)
+  }
+  UNION {
+    ?s a gac:Registry ; gac:opCount ?declared .
+    FILTER NOT EXISTS { ?c a gac:Capability ; gac:capabilityOf ?s }
+    BIND(gac:opCount AS ?missing)
+  }
+  UNION {
+    VALUES ?missing { gac:opCount gac:dialectCount }
+    ?s a gac:Registry ; ?missing ?declared .
+    FILTER (!isLiteral(?declared) || datatype(?declared) != xsd:integer || ?declared < 0)
+  }
+  UNION {
+    ?s a gac:Capability .
+    FILTER NOT EXISTS { ?s gac:capabilityOf ?r . ?r a gac:Registry }
+    BIND(gac:capabilityOf AS ?missing)
+  }
+  UNION {
+    ?s a gac:Dialect .
+    FILTER NOT EXISTS { ?s gac:dialectOf ?r . ?r a gac:Registry }
+    BIND(gac:dialectOf AS ?missing)
+  }
+}
+ORDER BY ?s ?missing

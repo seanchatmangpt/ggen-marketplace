@@ -1,0 +1,41 @@
+# MESSAGE: every gac:Capability must carry opName, opOrder, opSummary and capabilityOf;
+# opOrder must be an xsd:integer >= 1, unique within its registry and no larger than the
+# number of capabilities in that registry (unique + bounded = contiguous 1..n); opName must
+# be unique within its registry. Any row = a missing property, a bad or duplicate order,
+# a gap, or a duplicate op name. The bound n is counted from the graph, never hardcoded.
+PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT DISTINCT ?s ?missing WHERE {
+  {
+    VALUES ?missing { gac:opName gac:opOrder gac:opSummary gac:capabilityOf }
+    ?s a gac:Capability .
+    FILTER NOT EXISTS { ?s ?missing ?any }
+  }
+  UNION {
+    ?s a gac:Capability ; gac:opOrder ?o .
+    FILTER (!isLiteral(?o) || datatype(?o) != xsd:integer || ?o < 1)
+    BIND(gac:opOrder AS ?missing)
+  }
+  UNION {
+    ?s a gac:Capability ; gac:capabilityOf ?r ; gac:opOrder ?o .
+    ?t a gac:Capability ; gac:capabilityOf ?r ; gac:opOrder ?o2 .
+    FILTER (?s != ?t && ?o = ?o2)
+    BIND(gac:opOrder AS ?missing)
+  }
+  UNION {
+    ?s a gac:Capability ; gac:capabilityOf ?r ; gac:opOrder ?o .
+    { SELECT ?r (COUNT(DISTINCT ?c) AS ?n) WHERE {
+        ?c a gac:Capability ; gac:capabilityOf ?r .
+      } GROUP BY ?r }
+    FILTER (isLiteral(?o) && datatype(?o) = xsd:integer && ?o > ?n)
+    BIND(gac:opOrder AS ?missing)
+  }
+  UNION {
+    ?s a gac:Capability ; gac:capabilityOf ?r ; gac:opName ?name .
+    ?t a gac:Capability ; gac:capabilityOf ?r ; gac:opName ?name .
+    FILTER (?s != ?t)
+    BIND(gac:opName AS ?missing)
+  }
+}
+ORDER BY ?s ?missing

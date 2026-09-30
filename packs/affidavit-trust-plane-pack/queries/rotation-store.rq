@@ -1,0 +1,39 @@
+# rotation-store.rq — consumed by templates/crypto_trust_rotation_store.rs.tmpl
+# (affidavit-trust-plane-pack)
+#
+# Single-row binding for the durable rotation-record store module
+# (crypto_trust_rotation_store.rs): the append-only JSONL store file from
+# ctp:rotation-store-v1, joined with the trust-plane domain tag from
+# ctp:policy-v1 (the same tag the rotation, keys, and canonicalization
+# modules carry, so the store surface is attributable to one plane).
+#
+# Projected columns (MUST equal crypto_trust_rotation_store.rs.tmpl's {{ }} vars):
+#   store_file  - ctp:rotation-store-v1 ctp:rotationStoreFile,
+#                 e.g. ".affi/rotations.jsonl"
+#   domain_tag  - ctp:policy-v1 ctp:domainTag,
+#                 e.g. "affidavit.crypto-trust-plane.v1"
+#
+# Binding is by pinned PREDICATE, not class IRI, so the query survives
+# lane-side class renames as long as the contract predicates are used:
+#   store_file: subjects carrying ctp:rotationStoreFile
+#   domain_tag: subjects carrying ctp:domainTag
+# All values pass through STR() so the Tera template receives plain strings
+# (proven wiring: rule SELECT columns are plain Tera variables). Each binding
+# is single-valued over the graph, so the join is exactly one row; a missing
+# rotationStoreFile fact fails loudly with zero rows — the engine refuses,
+# defaults never render.
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT
+  ?store_file
+  ?domain_tag
+WHERE {
+  ?store ctp:rotationStoreFile ?fileRaw .
+  BIND(STR(?fileRaw) AS ?store_file)
+
+  ?policy ctp:domainTag ?tagRaw .
+  BIND(STR(?tagRaw) AS ?domain_tag)
+}
+ORDER BY ?store_file
+LIMIT 1

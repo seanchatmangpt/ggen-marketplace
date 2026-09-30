@@ -1,0 +1,63 @@
+# MESSAGE: every gac:Capability must have at least one gac:ResponseVariant, and every variant
+# at least one response-side gac:CapabilityField owned by it. A variant must carry variantOf
+# (naming a capability), variantTag, variantTagField and variantOrder; its tag and tag field
+# are both empty (untagged) or both non-empty (tagged); all variants of one capability agree
+# on the tag field and carry distinct variantOrder and variantTag values; a capability with a
+# non-empty tag field must have at least two variants. Any row = a violation.
+PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT DISTINCT ?s ?missing WHERE {
+  {
+    ?s a gac:Capability .
+    FILTER NOT EXISTS { ?v a gac:ResponseVariant ; gac:variantOf ?s }
+    BIND(gac:variantOf AS ?missing)
+  }
+  UNION {
+    ?s a gac:ResponseVariant .
+    FILTER NOT EXISTS { ?f a gac:CapabilityField ; gac:fieldOwner ?s ; gac:fieldSide "response" }
+    BIND(gac:fieldOwner AS ?missing)
+  }
+  UNION {
+    VALUES ?missing { gac:variantOf gac:variantTag gac:variantTagField gac:variantOrder }
+    ?s a gac:ResponseVariant .
+    FILTER NOT EXISTS { ?s ?missing ?any }
+  }
+  UNION {
+    ?s a gac:ResponseVariant ; gac:variantOf ?c .
+    FILTER NOT EXISTS { ?c a gac:Capability }
+    BIND(gac:variantOf AS ?missing)
+  }
+  UNION {
+    ?s a gac:ResponseVariant ; gac:variantTag ?tag ; gac:variantTagField ?tf .
+    FILTER ((str(?tag) = "" && str(?tf) != "") || (str(?tag) != "" && str(?tf) = ""))
+    BIND(gac:variantTagField AS ?missing)
+  }
+  UNION {
+    ?s a gac:ResponseVariant ; gac:variantOf ?c ; gac:variantTagField ?a .
+    ?t a gac:ResponseVariant ; gac:variantOf ?c ; gac:variantTagField ?b .
+    FILTER (?s != ?t && str(?a) != str(?b))
+    BIND(gac:variantTagField AS ?missing)
+  }
+  UNION {
+    ?s a gac:ResponseVariant ; gac:variantOf ?c ; gac:variantOrder ?o .
+    ?t a gac:ResponseVariant ; gac:variantOf ?c ; gac:variantOrder ?o2 .
+    FILTER (?s != ?t && ?o = ?o2)
+    BIND(gac:variantOrder AS ?missing)
+  }
+  UNION {
+    ?s a gac:ResponseVariant ; gac:variantOf ?c ; gac:variantTag ?tag .
+    ?t a gac:ResponseVariant ; gac:variantOf ?c ; gac:variantTag ?tag2 .
+    FILTER (?s != ?t && str(?tag) = str(?tag2))
+    BIND(gac:variantTag AS ?missing)
+  }
+  UNION {
+    ?s a gac:ResponseVariant ; gac:variantOf ?c ; gac:variantTagField ?tf .
+    { SELECT ?c (COUNT(DISTINCT ?v) AS ?n) WHERE {
+        ?v a gac:ResponseVariant ; gac:variantOf ?c .
+      } GROUP BY ?c }
+    FILTER (str(?tf) != "" && ?n < 2)
+    BIND(gac:variantTagField AS ?missing)
+  }
+}
+ORDER BY ?s ?missing

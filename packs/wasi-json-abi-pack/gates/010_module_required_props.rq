@@ -1,0 +1,20 @@
+# MESSAGE: exactly one wja:WasmModule must exist and carry every required property (crateName, exportPrefix, abiVersion, maxRequestBytes, maxJsonDepth, stackSizeBytes, importsPolicy). A missing property or a module count other than one is refused.
+PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?problem ?detail WHERE {
+  {
+    { SELECT (COUNT(?m) AS ?n) WHERE { ?m a wja:WasmModule } }
+    FILTER(?n != 1)
+    BIND("module_count_not_exactly_one" AS ?problem)
+    BIND(CONCAT("modules=", STR(?n)) AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule .
+    VALUES ?prop { wja:crateName wja:exportPrefix wja:abiVersion wja:maxRequestBytes wja:maxJsonDepth wja:stackSizeBytes wja:importsPolicy }
+    FILTER NOT EXISTS { ?m ?prop ?v }
+    BIND("module_required_property_missing" AS ?problem)
+    BIND(CONCAT(STR(?m), " lacks ", STR(?prop)) AS ?detail)
+  }
+}
+ORDER BY ?problem ?detail

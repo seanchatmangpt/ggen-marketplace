@@ -686,3 +686,89 @@ ctp:publicationFile a rdf:Property ;
 
 ctp:crl-file-v1 a ctp:RevocationPublicationFile ;
     ctp:publicationFile ".affi/crl.json" .
+
+# ── Class: AttestationRecord (append-only, wave-2 lane W2-L3) ────────────────
+# Boundary item: attested attributes attached to keys. An AttestationRecord is
+# the signed claim that a KeyRecord's custody attributes (attesting device
+# model, secure-hardware presence, non-exportability) hold at attestedAt, in
+# the wire format ctp:attest-v1 ctp:attestationFormat. Attribute truth is
+# licensed by the attested key's ctp:keyOrigin (HARDWARE_ATTESTED licenses
+# secureHardware/nonExportable true and kind "hardware"); a claim
+# contradicting the licensed derivation is a typed refusal, never a record.
+
+ctp:AttestationRecord a rdfs:Class ;
+    rdfs:label "Key attestation record" ;
+    rdfs:comment "Signed statement attaching attested custody attributes to one ctp:KeyRecord: the key it attests (ctp:attestsKey), the attestation kind (ctp:attestationKind, closed vocabulary self|hardware|import), the attesting device model (ctp:deviceModel), the hardware-presence and non-exportability claims (ctp:secureHardware, ctp:nonExportable), and the attestation epoch (ctp:attestedAt). The record carries the ES256 signature of its own JCS-canonical preimage (itself minus the signature); verification replays that preimage and fails closed." .
+
+ctp:AttestationPolicy a rdfs:Class ;
+    rdfs:label "Attestation policy" ;
+    rdfs:comment "Policy individual carrying the wire format identifier of attestation records rendered from this pack." .
+
+# ── Properties: AttestationRecord / AttestationPolicy ───────────────────────
+
+ctp:attestsKey a rdf:Property ;
+    rdfs:domain ctp:AttestationRecord ; rdfs:range ctp:KeyRecord ;
+    rdfs:comment "The key record this attestation is about; every attested attribute is cross-checked against the licensed derivation from that record's ctp:keyOrigin, and a contradiction is refused (AttributeMismatch)." .
+
+ctp:attestationKind a rdf:Property ;
+    rdfs:domain ctp:AttestationRecord ; rdfs:range xsd:string ;
+    rdfs:comment "Closed vocabulary: \"self\" | \"hardware\" | \"import\". Must equal the kind licensed by the attested key's origin (HARDWARE_ATTESTED licenses \"hardware\", IMPORTED licenses \"import\", GENERATED licenses \"self\")." .
+
+ctp:deviceModel a rdf:Property ;
+    rdfs:domain ctp:AttestationRecord ; rdfs:range xsd:string ;
+    rdfs:comment "Attesting device model. Present only for hardware-kind attestations and must equal the device named by the key's HARDWARE_ATTESTED origin; software-origin keys license no device." .
+
+ctp:secureHardware a rdf:Property ;
+    rdfs:domain ctp:AttestationRecord ; rdfs:range xsd:boolean ;
+    rdfs:comment "Whether the attested key lives in secure hardware; true is licensed only by a HARDWARE_ATTESTED origin." .
+
+ctp:nonExportable a rdf:Property ;
+    rdfs:domain ctp:AttestationRecord ; rdfs:range xsd:boolean ;
+    rdfs:comment "Whether the attested key's material is non-exportable; true is licensed only by a HARDWARE_ATTESTED origin." .
+
+ctp:attestedAt a rdf:Property ;
+    rdfs:domain ctp:AttestationRecord ; rdfs:range xsd:integer ;
+    rdfs:comment "Attestation epoch in unix seconds; must stay a JCS safe integer (absolute value <= 2^53) so the signed preimage canonicalizes — larger epochs are a typed Serialization refusal." .
+
+ctp:attestationFormat a rdf:Property ;
+    rdfs:domain ctp:AttestationPolicy ; rdfs:range xsd:string ;
+    rdfs:comment "Wire format identifier stamped in every attestation record's format field; verification refuses records carrying any other value (BadFormat)." .
+
+# ── Individual: AttestationPolicy ───────────────────────────────────────────
+
+ctp:attest-v1 a ctp:AttestationPolicy ;
+    ctp:attestationFormat "CTP-ATTEST-v1" .
+
+# ── Class: RotationStorePolicy (append-only, wave-2 lane W2-L8) ──────────────
+
+ctp:RotationStorePolicy a rdfs:Class ;
+    rdfs:label "Rotation record store policy" ;
+    rdfs:comment "Durable append-only store of key-rotation ceremonies (the crypto_trust_rotation module's RotationRecord): one JSONL line per ceremony at rotationStoreFile, each line a format-stamped envelope {record, successor_public_es256, successor_public_mldsa65} that carries the successor's hybrid public material BESIDE the signed record, so every load can re-run verify_rotation against that material before trusting the takeover. Append verifies FIRST: a record that does not verify under the supplied successor material is never persisted. Load fails closed: an absent store is a typed refusal (a missing history is not an empty one), and any line whose record fails verification is refused as a typed tamper error naming the 1-based line number. The latest appended record per key id wins (successor-keyed and predecessor-keyed queries). Lines are JCS-canonical JSON and ceremonies are deterministic (RFC 6979 + domain-bound ML-DSA rnd), so equal ceremony sequences render byte-identical stores." .
+
+# ── Properties: RotationStorePolicy ──────────────────────────────────────────
+
+ctp:rotationStoreFile a rdf:Property ;
+    rdfs:domain ctp:RotationStorePolicy ; rdfs:range xsd:string ;
+    rdfs:comment "Rotation-store file, relative to the consumer repository root (append-only JSONL, one format-stamped {record, successor_public_es256, successor_public_mldsa65} envelope line per rotation ceremony)." .
+
+# ── Individual: RotationStorePolicy ──────────────────────────────────────────
+
+ctp:rotation-store-v1 a ctp:RotationStorePolicy ;
+    ctp:rotationStoreFile ".affi/rotations.jsonl" .
+
+# ── Class: WitnessPolicy (append-only, wave-5 lane W5-L9) ────────────────────
+
+ctp:WitnessPolicy a rdfs:Class ;
+    rdfs:label "Head witness policy" ;
+    rdfs:comment "Witness cosigning over signed transparency-log tree heads (ctp:log-ops-v1): N real ES256 witness keys cosign a SignedTreeHead over the log module's own domain-separated head pre-image (domainTag, kid, tree_size-le, head), and the set is admitted when at least minWitnesses cosignatures verify under DISTINCT witness kids (the quorum court's independence law). A witness is a real second local key — network-reachable remote witness pools are future work behind the same wire form, never faked. Structural violations (count floor, duplicate kids on either side of the verification table, unknown kid, undecodable bytes or head hex) refuse the whole set; a well-formed cosignature that does not verify is a decided negative, not a refusal. Certify-don't-decide: a cosigned head is cryptographic evidence, never an authority grant." .
+
+# ── Properties: WitnessPolicy ────────────────────────────────────────────────
+
+ctp:minWitnesses a rdf:Property ;
+    rdfs:domain ctp:WitnessPolicy ; rdfs:range xsd:integer ;
+    rdfs:comment "Witness floor the plane renders as MIN_WITNESSES: the number of DISTINCT verifying witness kids a head needs to be reported cosigned; callers may pass an explicit threshold per adjudication. 0 is the vacuous quorum." .
+
+# ── Individual: WitnessPolicy ────────────────────────────────────────────────
+
+ctp:witness-v1 a ctp:WitnessPolicy ;
+    ctp:minWitnesses 2 .

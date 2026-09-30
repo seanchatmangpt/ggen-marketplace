@@ -1,0 +1,126 @@
+# ontology.ttl — wasi-json-abi-pack
+# ============================================================================
+# FAILED-EDGE RECORD against the public vocabulary set (why wja: exists)
+# ============================================================================
+# Public vocabularies precede custom namespaces; each candidate was evaluated:
+#
+# 1. wasm-core / WebAssembly text-format vocabularies (structural WASM module
+#    grammar): describe instructions, sections and imports of a binary. Failed
+#    edge: no term for a JSON request/response ABI, a linear-memory allocation
+#    contract, per-module request-size or JSON-depth limits, or typed error
+#    codes returned to the host.
+# 2. WASI (wasi_snapshot_preview1 witx interface definitions): defines syscall
+#    signatures. Failed edge: it types the host imports, not the module's own
+#    export surface; an imports-policy (WASI-only closure) has no class.
+# 3. OpenAPI / JSON Schema vocabularies: type request/response bodies. Failed
+#    edge: they have no notion of exported symbols with a naming prefix, an
+#    alloc/free memory protocol, or ordered op tables bound to an ABI version.
+# 4. dcterms: / rdfs: cover labels, versions and comments and are REUSED
+#    (rdfs:label, rdfs:comment); they cannot carry a byte limit or op order.
+# Everything minted below is a term whose failed edge is recorded above.
+# ============================================================================
+
+@prefix wja: <https://ggen.dev/ontology/wasi-json-abi#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# -- Classes --
+
+wja:WasmModule a rdfs:Class ;
+    rdfs:label "WASM module" ;
+    rdfs:comment "A WASI module exposing a JSON ABI: <exportPrefix>_abi_version, _alloc, _free, _call." .
+
+wja:Op a rdfs:Class ;
+    rdfs:label "Operation" ;
+    rdfs:comment "A named operation dispatched by _call; carries ordered request/response field lists and an example request." .
+
+wja:ErrorCode a rdfs:Class ;
+    rdfs:label "Error code" ;
+    rdfs:comment "A typed error code the module may return in a JSON error response." .
+
+# -- WasmModule properties --
+
+wja:crateName a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "crate name" ;
+    rdfs:comment "Name of the Rust crate that hosts the module." .
+
+wja:exportPrefix a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "export prefix" ;
+    rdfs:comment "Prefix of the four exported symbols, e.g. ex yields ex_alloc." .
+
+wja:abiVersion a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:integer ;
+    rdfs:label "ABI version" ;
+    rdfs:comment "Integer returned by <prefix>_abi_version." .
+
+wja:maxRequestBytes a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:integer ;
+    rdfs:label "max request bytes" ;
+    rdfs:comment "Upper bound on request size; alloc returns null and call returns a typed limit error above it." .
+
+wja:maxJsonDepth a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:integer ;
+    rdfs:label "max JSON depth" ;
+    rdfs:comment "Upper bound on JSON nesting depth accepted by the module." .
+
+wja:stackSizeBytes a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:integer ;
+    rdfs:label "stack size bytes" ;
+    rdfs:comment "Linear-memory stack size rendered into the cargo config." .
+
+wja:importsPolicy a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "imports policy" ;
+    rdfs:comment "Allowed import module; the only admitted value is wasi_snapshot_preview1." .
+
+wja:hasOp a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range wja:Op ;
+    rdfs:label "has op" ;
+    rdfs:comment "Links a module to an op it dispatches." .
+
+wja:hasErrorCode a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range wja:ErrorCode ;
+    rdfs:label "has error code" ;
+    rdfs:comment "Links a module to an error code it may return." .
+
+# -- Op properties --
+
+wja:opName a rdf:Property ;
+    rdfs:domain wja:Op ; rdfs:range xsd:string ;
+    rdfs:label "op name" ;
+    rdfs:comment "Wire name of the op." .
+
+wja:opOrder a rdf:Property ;
+    rdfs:domain wja:Op ; rdfs:range xsd:integer ;
+    rdfs:label "op order" ;
+    rdfs:comment "Stable ordinal fixing the op's position in the op table." .
+
+wja:requestFields a rdf:Property ;
+    rdfs:domain wja:Op ; rdfs:range xsd:string ;
+    rdfs:label "request fields" ;
+    rdfs:comment "Comma-separated request field names." .
+
+wja:responseFields a rdf:Property ;
+    rdfs:domain wja:Op ; rdfs:range xsd:string ;
+    rdfs:label "response fields" ;
+    rdfs:comment "Comma-separated response field names." .
+
+wja:exampleRequest a rdf:Property ;
+    rdfs:domain wja:Op ; rdfs:range xsd:string ;
+    rdfs:label "example request" ;
+    rdfs:comment "A JSON request string used for op-examples.json and differential tests." .
+
+# -- ErrorCode properties --
+
+wja:codeName a rdf:Property ;
+    rdfs:domain wja:ErrorCode ; rdfs:range xsd:string ;
+    rdfs:label "code name" ;
+    rdfs:comment "Wire name of the error code." .
+
+wja:codeOrder a rdf:Property ;
+    rdfs:domain wja:ErrorCode ; rdfs:range xsd:integer ;
+    rdfs:label "code order" ;
+    rdfs:comment "Stable ordinal fixing the code's position in the error table." .

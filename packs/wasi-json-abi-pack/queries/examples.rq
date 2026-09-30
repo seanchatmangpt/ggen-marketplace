@@ -1,0 +1,40 @@
+# examples.rq -- consumed by templates/wasm_op_examples.json.tmpl.
+#
+# Single-row aggregate. Projected columns (MUST equal the template's vars):
+#   abi_version - wja:abiVersion of the module.
+#   examples    - GROUP_CONCAT, one op per "@@" group:
+#                   <order zero-padded to 6>##opName##exampleRequest
+#                 exampleRequest is a JSON text embedded verbatim by the
+#                 template, so it MUST be valid JSON and MUST NOT contain "@@";
+#                 it is everything after the second "##" (a "##" inside it is
+#                 tolerated because the template re-joins the tail).
+# An op without wja:exampleRequest, or a module with no ops => zero rows =>
+# the engine refuses; nothing is defaulted.
+
+PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
+
+SELECT ?abi_version ?examples
+WHERE {
+  ?m a wja:WasmModule ;
+     wja:abiVersion ?abi_version .
+  {
+    SELECT ?m2 (GROUP_CONCAT(?spec; separator="@@") AS ?examples)
+    WHERE {
+      {
+        SELECT ?m2 ?spec
+        WHERE {
+          ?m2 wja:hasOp ?op .
+          ?op wja:opName ?on ;
+              wja:opOrder ?oo ;
+              wja:exampleRequest ?er .
+          BIND(CONCAT(SUBSTR("000000", STRLEN(STR(?oo)) + 1), STR(?oo), "##", STR(?on), "##", STR(?er)) AS ?spec)
+        }
+        ORDER BY ?oo
+      }
+    }
+    GROUP BY ?m2
+  }
+  FILTER(?m = ?m2)
+}
+ORDER BY ?abi_version
+LIMIT 1

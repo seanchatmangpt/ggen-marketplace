@@ -1,0 +1,57 @@
+# MESSAGE: every gac:CapabilityField must carry fieldOwner, fieldSide (closed to request |
+# response | detail | law_step), fieldOrder (xsd:integer >= 1), fieldName, fieldRequired and
+# fieldNullable (xsd:boolean) and fieldDoc; its owner must be an existing subject of the class
+# that side implies (request -> gac:Capability, response -> gac:ResponseVariant, detail ->
+# gac:RefusalCode, law_step -> gac:LawStep); and fieldOrder and fieldName must each be unique
+# within one owner and side. Any row = a violation.
+PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT DISTINCT ?s ?missing WHERE {
+  {
+    VALUES ?missing {
+      gac:fieldOwner gac:fieldSide gac:fieldOrder gac:fieldName
+      gac:fieldRequired gac:fieldNullable gac:fieldDoc
+    }
+    ?s a gac:CapabilityField .
+    FILTER NOT EXISTS { ?s ?missing ?any }
+  }
+  UNION {
+    ?s a gac:CapabilityField ; gac:fieldSide ?side .
+    FILTER (!isLiteral(?side) || !(str(?side) IN ("request", "response", "detail", "law_step")))
+    BIND(gac:fieldSide AS ?missing)
+  }
+  UNION {
+    ?s a gac:CapabilityField ; gac:fieldOrder ?o .
+    FILTER (!isLiteral(?o) || datatype(?o) != xsd:integer || ?o < 1)
+    BIND(gac:fieldOrder AS ?missing)
+  }
+  UNION {
+    VALUES ?missing { gac:fieldRequired gac:fieldNullable }
+    ?s a gac:CapabilityField ; ?missing ?v .
+    FILTER (!isLiteral(?v) || datatype(?v) != xsd:boolean)
+  }
+  UNION {
+    VALUES (?side ?class) {
+      ("request" gac:Capability) ("response" gac:ResponseVariant)
+      ("detail" gac:RefusalCode) ("law_step" gac:LawStep)
+    }
+    ?s a gac:CapabilityField ; gac:fieldSide ?sv ; gac:fieldOwner ?owner .
+    FILTER (str(?sv) = ?side)
+    FILTER NOT EXISTS { ?owner a ?class }
+    BIND(gac:fieldOwner AS ?missing)
+  }
+  UNION {
+    ?s a gac:CapabilityField ; gac:fieldOwner ?owner ; gac:fieldSide ?side ; gac:fieldOrder ?o .
+    ?t a gac:CapabilityField ; gac:fieldOwner ?owner ; gac:fieldSide ?side2 ; gac:fieldOrder ?o2 .
+    FILTER (?s != ?t && str(?side) = str(?side2) && ?o = ?o2)
+    BIND(gac:fieldOrder AS ?missing)
+  }
+  UNION {
+    ?s a gac:CapabilityField ; gac:fieldOwner ?owner ; gac:fieldSide ?side ; gac:fieldName ?n .
+    ?t a gac:CapabilityField ; gac:fieldOwner ?owner ; gac:fieldSide ?side2 ; gac:fieldName ?n2 .
+    FILTER (?s != ?t && str(?side) = str(?side2) && str(?n) = str(?n2))
+    BIND(gac:fieldName AS ?missing)
+  }
+}
+ORDER BY ?s ?missing

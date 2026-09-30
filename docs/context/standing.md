@@ -10,9 +10,9 @@ generation run; a commit cannot contain its own hash, so it names the commit gen
 ### Repository facts
 
 - Marketplace version: `v26.9.29`
-- Pack count: 379
-- Catalog fingerprint: `sha256:117432397b94ffc00061124fe3b9f501fe195985c1c62e967edcf0929eae53e0`
-- Head SHA: `22f6077e1bc185ab924e49c41b29ffe0645a0ba7`
+- Pack count: 380
+- Catalog fingerprint: `sha256:395af12674b5c79c16a95f479fe995fd11adba4173ebb5e841b6e03e4da34f0c`
+- Head SHA: `2b6126abf11017527ce400b6001c063e252fdfb6`
 
 ### Pack standing table
 
@@ -223,6 +223,7 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | github-live-evidence-ingestion-pack | 26.8.25 | project | verifier-gates, templates |
 | governance-gate-pack | 26.9.26 | project | native-gates, templates |
 | governed-runtime-adapter-pack | 0.1.0 | semantic | native-gates |
+| graphlaw-ash-capability-pack | 26.9.29 | semantic | native-gates |
 | greene-licensing-case-pack | 0.1.0 | projection | native-gates, templates |
 | gym-autonomic-crown-pack | 26.8.28 | project | native-gates, templates |
 | gym-ci-toolchain-bblock-pack | 0.1.0 | projection | native-gates, templates |
@@ -401,6 +402,13 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | xaas-public-ontology-profile | 0.1.0 | semantic | native-gates |
 
 <!-- /GENERATED:standing -->
+
+## Pack note: graphlaw-ash-capability-pack
+
+`graphlaw-ash-capability-pack` 26.9.29: standing `UNKNOWN` at the exact-SHA `ash_graphlaw`
+consumer boundary, `PARTIAL_ALIVE` at most at the marketplace boundary (ten gates with exact-stem
+pass/fail witnesses; no consumer receipt yet). Structural admission of the registry vocabulary is
+not execution of any GraphLaw op. See `docs/reference/graphlaw-ash-capability-pack.md`.
 
 ## Historical record: exact-head evidence for v26.9.13 (2026-09-13)
 
