@@ -2,10 +2,8 @@
 
 This pack is the executable Qualified Runtime Interchangeability (QRI) seam for ggen-marketplace.
 
-It separates capability contract, procedure, realization, artifact, execution context, qualification, admission decision, and standing. Interchangeability is bounded by the same contract and context and requires an independent passing qualification for each realization.
+The semantic court proves qualification, bounded interchangeability, causal standing heads, and authority-gated admission with explicit positive and negative witnesses.
 
-The semantic witness court refuses incomplete passing qualifications, non-independent interchangeability claims, multiple current standing heads, and admission permits without passing qualification plus authority evidence.
+The working-pattern court binds five observed ex4pm/wasm4pm Phase-1 source patterns (discover, conform, simulate, optimize, powl_mine) to exact marketplace blobs, then overwrites deterministic QRI **Candidate** projections and byte-checks regeneration. It never upgrades source presence into qualification or admission. The missing-replay fixture must be refused.
 
-The working-pattern court uses existing ex4pm/wasm4pm Phase-1 projections as the differential court. It overwrites generated QRI projections, regenerates them in scratch, byte-compares them, and proves a missing-replay-invariant fixture is refused.
-
-This proves the QRI manufacture/projection law. It does not infer external native/WASM/BEAM execution from source-pattern presence.
+Runtime qualification remains a separate court: native/WASM/BEAM execution observations must exist before a Candidate can become Qualified or Admitted.
