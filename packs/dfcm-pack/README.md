@@ -54,9 +54,27 @@ These values are design/admission targets, not claims of achieved production per
 - DR exercise cadence: `≤ 30 days`
 - immutable evidence retention baseline: `2555 days` (baseline only; not a jurisdictional legal claim)
 
+
+## CI optimization profile
+
+`CIOptimizationProfile` applies the same DfCM topology to continuous integration. Its lexicographic objective is pull-request wall-clock to trustworthy green first, then main/merge wall-clock, then billed compute/network cost, while verification strength is preserved or increased.
+
+The profile encodes **80/20 ERRC** rather than treating CI tuning as YAML cleanup:
+
+- **Eliminate** duplicate compilation, dependency work, tool bootstrap, overlapping workflows, useless matrix combinations, irrelevant full-suite work, repeated container builds, and artifact round trips that cost more than recomputation.
+- **Reduce** job/runner startups, network transfer, matrix cardinality, checkout surface, serial barriers, and redundant PR/main work.
+- **Raise** cache-hit probability, incremental reuse, critical-path parallelism, signal per compute-second, safe baseline reuse, and runtime-balanced sharding.
+- **Create** build-once/test-many only when it wins, precompiled tooling, deterministic caches, reusable workflows, dependency-aware change classification, fast/deep courts, prebuilt runner images, timing receipts, superseded-run cancellation, and runner selection by measured price-performance.
+
+The generated agent contract treats **build-once/test-many as a falsifiable hypothesis**, not doctrine. Artifact movement must beat cached recomputation. Likewise, parallelism is admitted only when wall-clock saved exceeds runner startup, duplicated setup, and coordination cost.
+
+Cache state never carries correctness authority. A cache miss must remain correct. Faster/cheaper claims are `UNKNOWN` until supported by exact-subject `OBSERVED`, `MEASURED`, or explicitly `ESTIMATED` evidence.
+
+The intended steady state is that CI computes the **semantic delta introduced by the commit** instead of repeatedly manufacturing unchanged information.
+
 ## Manufactured consumer surface
 
-`ggen sync` manufactures **29 coordinated projections** from the same graph.
+`ggen sync` manufactures **34 coordinated projections** from the same graph.
 
 ### Core DfCM
 
@@ -92,6 +110,17 @@ These values are design/admission targets, not claims of achieved production per
 27. `enterprise/CHAOS_POLICY.json`
 28. `enterprise/ENTERPRISE_INVARIANTS.json`
 29. `enterprise/enterprise_verify.py`
+
+### Post-AGI autonomous-agent projection
+
+30. `enterprise/POST_AGI_READINESS.json`
+
+### CI optimization projection
+
+31. `ci/CI_OPTIMIZATION_AGENT.md`
+32. `ci/CI_OPTIMIZATION_PROFILE.json`
+33. `ci/CI_OPTIMIZATION_POLICY.json`
+34. `ci/CI_OPTIMIZATION_RECEIPT.md`
 
 The Fortune-5 verifier accepts supplied evidence only. `FORTUNE5_ALIVE` is refused without exact-subject observed/admitted/executed/verified state, receipt + replay, all controls, and explicit evidence for capacity, DR, supply chain, data boundaries, and the SLO window.
 
