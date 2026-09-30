@@ -1,0 +1,47 @@
+name: Admit marketplace configuration
+description: >-
+  Admit marketplace.toml through the star-toml crate using a prebuilt binary
+  restored from the Actions cache. On a cache miss the pinned toolchain is
+  installed and the crate is built from source, so a miss costs time, never
+  correctness. Only pushes to the default branch save the cache; pull requests
+  read trusted default-branch state.
+outputs:
+  admitted-config:
+    description: Path of the admitted-config JSON receipt
+    value: ${{ steps.admit.outputs.path }}
+runs:
+  using: composite
+  steps:
+    - name: Restore admission binary
+      id: bin
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ~/.cache/marketplace-config-bin
+        key: marketplace-config-bin-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/marketplace-config/**', 'rust-toolchain.toml') }}
+    - name: Build admission binary (cache miss only)
+      if: steps.bin.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        channel="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' tools/marketplace-config/rust-toolchain.toml)"
+        rustup toolchain install "$channel" --profile minimal --no-self-update
+        export CARGO_TARGET_DIR="${RUNNER_TEMP}/marketplace-config-target"
+        cargo build --release --locked --quiet --manifest-path tools/marketplace-config/Cargo.toml
+        mkdir -p ~/.cache/marketplace-config-bin
+        cp "${CARGO_TARGET_DIR}/release/ggen-marketplace-config" ~/.cache/marketplace-config-bin/
+    - name: Save admission binary (default branch only)
+      if: steps.bin.outputs.cache-hit != 'true' && github.event_name == 'push'
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ~/.cache/marketplace-config-bin
+        key: ${{ steps.bin.outputs.cache-primary-key }}
+    - name: Admit operational law
+      id: admit
+      shell: bash
+      run: |
+        set -euo pipefail
+        export GGEN_MARKETPLACE_CONFIG_BIN="$HOME/.cache/marketplace-config-bin/ggen-marketplace-config"
+        out="${RUNNER_TEMP}/admitted-config.json"
+        bash scripts/admit-config.sh marketplace.toml "$out" >/dev/null
+        python3 -m json.tool "$out" >/dev/null
+        echo "path=$out" >> "$GITHUB_OUTPUT"

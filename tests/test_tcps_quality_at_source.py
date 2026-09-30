@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,13 +33,15 @@ def test_r78_ready_set_generation_is_deterministic_at_execution_edge():
     assert "DESC(?score)" in text, "POKAYOKE_LINEAR_EXTENSION_MUST_USE_SELECTION_SCORE"
 
 
-def test_structural_factory_workflows_are_temporally_bounded():
-    workflows = [
-        ROOT / ".github/workflows/measure-r75-throughput-learning.yml",
-        ROOT / ".github/workflows/measure-r76-portfolio-structural-census.yml",
-        ROOT / ".github/workflows/measure-r77-repository-universe.yml",
-    ]
-    for workflow in workflows:
-        text = workflow.read_text()
-        assert "runs-on:" in text
-        assert "timeout-minutes:" in text, f"ANDON_WORKFLOW_TIMEOUT_MISSING:{workflow.name}"
+def test_structural_factory_courts_are_temporally_bounded():
+    # These courts run inside ci.yml's `verify` job via ci/courts.json; each
+    # entry carries its own bound, enforced by scripts/ci_plan.py.
+    courts = {c["name"]: c for c in json.loads((ROOT / "ci/courts.json").read_text())}
+    for name in (
+        "measure-r75-throughput-learning",
+        "measure-r76-portfolio-structural-census",
+        "measure-r77-repository-universe",
+    ):
+        assert name in courts, f"ANDON_COURT_MISSING:{name}"
+        assert courts[name]["timeout_minutes"] > 0, f"ANDON_COURT_TIMEOUT_MISSING:{name}"
+        assert (ROOT / "ci/courts" / f"{name}.sh").is_file(), f"ANDON_COURT_SCRIPT_MISSING:{name}"

@@ -19,8 +19,16 @@ if command -v git >/dev/null 2>&1 && git -C "${root}" ls-files --error-unmatch t
   lock_tracked=true
 fi
 
-export CARGO_TARGET_DIR="${GGEN_MARKETPLACE_CONFIG_TARGET_DIR:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ggen-marketplace-config-target}"
-cargo run --quiet --manifest-path "${manifest}" -- "${config}" "${output}"
+# A prebuilt admission binary (same crate, same lockfile; see
+# .github/actions/admit-config) skips the toolchain install and compile. It is
+# an optimization only: without it, the crate is built and run from source.
+prebuilt="${GGEN_MARKETPLACE_CONFIG_BIN:-}"
+if [[ -n "${prebuilt}" && -x "${prebuilt}" ]]; then
+  "${prebuilt}" "${config}" "${output}"
+else
+  export CARGO_TARGET_DIR="${GGEN_MARKETPLACE_CONFIG_TARGET_DIR:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ggen-marketplace-config-target}"
+  cargo run --quiet --manifest-path "${manifest}" -- "${config}" "${output}"
+fi
 
 if [[ "${lock_tracked}" != true ]]; then
   rm -f "${lock}"
