@@ -1,0 +1,48 @@
+# harness.rq -- consumed by templates/wasm_test_harness.rs.tmpl.
+# Single-row projection. Columns (MUST equal the template's vars):
+#   crate_name, export_prefix, abi_version, error_style, wasm_env_var,
+#   has_abi_version_export ("true"|"false"), native_call,
+#   code_request_too_large, code_json_too_deep, code_missing_buffer,
+#   wasm_build_package, cfg_gate, pin_env, examples_path.
+# Required: wasmEnvVar, nativeCall, errorStyle. Optional columns are "" when absent
+# (examples_path defaults to registry/op-examples.json; has_abi_version_export to false).
+
+PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
+
+SELECT ?crate_name ?export_prefix ?abi_version ?error_style ?wasm_env_var
+       ?has_abi_version_export ?native_call
+       ?code_request_too_large ?code_json_too_deep ?code_missing_buffer
+       ?wasm_build_package ?cfg_gate ?pin_env ?examples_path
+WHERE {
+  ?m a wja:WasmModule ;
+     wja:crateName ?crateRaw ;
+     wja:exportPrefix ?prefixRaw ;
+     wja:abiVersion ?abiRaw ;
+     wja:errorStyle ?styleRaw ;
+     wja:wasmEnvVar ?envRaw ;
+     wja:nativeCall ?nativeRaw .
+  OPTIONAL { ?m wja:hasAbiVersionExport ?hav }
+  OPTIONAL { ?m wja:codeRequestTooLarge ?ctl }
+  OPTIONAL { ?m wja:codeJsonTooDeep ?ctd }
+  OPTIONAL { ?m wja:codeMissingBuffer ?cmb }
+  OPTIONAL { ?m wja:wasmBuildPackage ?wbp }
+  OPTIONAL { ?m wja:cfgGate ?cg }
+  OPTIONAL { ?m wja:pinEnv ?pe }
+  OPTIONAL { ?m wja:examplesPath ?ep }
+  BIND(STR(?crateRaw) AS ?crate_name)
+  BIND(STR(?prefixRaw) AS ?export_prefix)
+  BIND(STR(?abiRaw) AS ?abi_version)
+  BIND(STR(?styleRaw) AS ?error_style)
+  BIND(STR(?envRaw) AS ?wasm_env_var)
+  BIND(STR(?nativeRaw) AS ?native_call)
+  BIND(COALESCE(STR(?hav), "false") AS ?has_abi_version_export)
+  BIND(COALESCE(STR(?ctl), "") AS ?code_request_too_large)
+  BIND(COALESCE(STR(?ctd), "") AS ?code_json_too_deep)
+  BIND(COALESCE(STR(?cmb), "") AS ?code_missing_buffer)
+  BIND(COALESCE(STR(?wbp), "") AS ?wasm_build_package)
+  BIND(COALESCE(STR(?cg), "") AS ?cfg_gate)
+  BIND(COALESCE(STR(?pe), "") AS ?pin_env)
+  BIND(COALESCE(STR(?ep), "registry/op-examples.json") AS ?examples_path)
+}
+ORDER BY ?crate_name
+LIMIT 1

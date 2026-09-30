@@ -1,0 +1,104 @@
+@prefix qri:  <https://seanchatmangpt.github.io/packs/qri-qualification-profile-pack#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# SHACL Core + SHACL-SPARQL only (SHACL Advanced Features is a Working Group Note; not required).
+
+qri:CapabilityContractShape a sh:NodeShape ;
+    sh:targetClass qri:CapabilityContract ;
+    sh:property [ sh:path qri:specifiesCapability ; sh:class qri:Capability ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:contractVersion ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:invariantSet ; sh:class qri:InvariantSet ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:abiSymbolPrefix ; sh:datatype xsd:string ; sh:pattern "^[a-z][a-z0-9_]*$" ; sh:maxCount 1 ] .
+
+qri:InvariantShape a sh:NodeShape ;
+    sh:targetClass qri:Invariant ;
+    sh:property [ sh:path qri:invariantKind ; sh:class qri:InvariantKind ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+qri:FieldShape a sh:NodeShape ;
+    sh:targetClass qri:Field ;
+    sh:property [ sh:path qri:fieldName ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:fieldType ; sh:in ( "bytes" "string" "bool" "s32" "s64" "u32" "u64" ) ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+qri:QualificationReceiptShape a sh:NodeShape ;
+    sh:targetClass qri:QualificationReceipt ;
+    sh:property [ sh:path prov:wasGeneratedBy ; sh:class qri:Qualification ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:realization ; sh:class qri:Realization ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:runtimeContext ; sh:class qri:RuntimeContext ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:qualificationResult ; sh:class qri:QualificationResult ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:qualifiesFor ; sh:class qri:CapabilityContract ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:sparql [ a sh:SPARQLConstraint ;
+        sh:message "A passing qualification may not omit a required invariant." ;
+        sh:prefixes <https://seanchatmangpt.github.io/packs/qri-qualification-profile-pack> ;
+        sh:select """
+            PREFIX qri: <https://seanchatmangpt.github.io/packs/qri-qualification-profile-pack#>
+            SELECT $this WHERE {
+              $this qri:qualificationResult qri:Passed ; qri:qualifiesFor ?c .
+              ?c qri:invariantSet ?set . ?set qri:requiresInvariant ?i .
+              FILTER NOT EXISTS { $this qri:preservesInvariant ?i }
+            }""" ] .
+
+qri:SubstitutionClaimShape a sh:NodeShape ;
+    sh:targetClass qri:SubstitutionClaim ;
+    sh:property [ sh:path qri:sourceQualification ; sh:class qri:QualificationReceipt ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:targetQualification ; sh:class qri:QualificationReceipt ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:interchangeableUnder ; sh:class qri:RuntimeContext ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+# ---- host profile (all optional; SHACL Core only) ----
+qri:CapabilityContractHostShape a sh:NodeShape ;
+    sh:targetClass qri:CapabilityContract ;
+    sh:property [ sh:path qri:hostProfile ; sh:class qri:HostProfile ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:wasiImport ; sh:class qri:WasiImport ] ;
+    sh:property [ sh:path qri:optionalExport ; sh:datatype xsd:string ] .
+
+qri:HostProfileShape a sh:NodeShape ;
+    sh:targetClass qri:HostProfile ;
+    sh:property [ sh:path qri:freeSymbol ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:allocZeroPolicy ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:pinFormat ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:pathEnv ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:manifestRel ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:wasmRel ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:manifestSchema ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:handleNoun ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:taxonomyNamespace ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:refusalModule ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:moduleRoot ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:taskModuleRoot ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:otpApp ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:telemetryRoot ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:poolStrategy ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:probeOp ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:probeExpectKey ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:okKey ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:opKey ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:initExport ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:errorEnvelope ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:engineId ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:ptrMask ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:freeArity ; sh:datatype xsd:integer ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:outLenWidth ; sh:datatype xsd:integer ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:requestCap ; sh:datatype xsd:integer ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:poolSizeSource ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:poolSize ; sh:datatype xsd:integer ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:timeoutCheapMs ; sh:datatype xsd:integer ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:timeoutHeavyMs ; sh:datatype xsd:integer ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:lenType ; sh:datatype xsd:string ; sh:in ( "u32" "usize" ) ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:outMode ; sh:datatype xsd:string ; sh:in ( "packed_u64" "out_param" "len_prefix" ) ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:errorCollapse ; sh:datatype xsd:string ; sh:in ( "single_key_inspect" "any_key_raw" "ok_flag_refusal" "flat_code" "refusal_kind" ) ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:reqConsumed ; sh:datatype xsd:boolean ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:recycleOn ; sh:datatype xsd:string ] ;
+    sh:property [ sh:path qri:hostLimit ; sh:class qri:HostLimit ] .
+
+qri:HostLimitShape a sh:NodeShape ;
+    sh:targetClass qri:HostLimit ;
+    sh:property [ sh:path qri:limitName ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:limitDefault ; sh:datatype xsd:integer ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:limitOrder ; sh:datatype xsd:integer ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+qri:WasiImportShape a sh:NodeShape ;
+    sh:targetClass qri:WasiImport ;
+    sh:property [ sh:path qri:importName ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:importParams ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qri:importResults ; sh:datatype xsd:string ; sh:maxCount 1 ] .
