@@ -261,8 +261,17 @@ jobs:
           echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
       - name: Install test dependencies
         run: python -m pip install --disable-pip-version-check pytest pytest-xdist rdflib pyyaml
-      - name: Run the full suite
-        run: python -m pytest tests/ scripts/ -q -p no:cacheprovider -n auto
+      - name: Run the full suite (parallel; the one tree-mutating module runs serially after)
+        shell: bash
+        run: |
+          # tests/test_new_pack.py scaffolds real packs under packs/ while it runs, which
+          # races census/catalog readers on other xdist workers. Every other module uses
+          # temp directories, so the rest of the suite runs on all cores.
+          rc=0
+          python -m pytest tests/ scripts/ -q -p no:cacheprovider -n auto \
+            --ignore=tests/test_new_pack.py || rc=$?
+          python -m pytest tests/test_new_pack.py -q -p no:cacheprovider || rc=$?
+          exit "$rc"
 
   ci-status:
     name: CI status (aggregate)
