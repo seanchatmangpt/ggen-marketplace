@@ -88,7 +88,7 @@ For a legacy pack, record:
 - date/version at which new features stop landing in the legacy surface;
 - negative controls proving the successor does not accidentally import legacy specimen behavior.
 
-Do not hide compatibility status in prose alone when a machine-readable lifecycle vocabulary is available.
+Record compatibility status machine-readably in [`lifecycle.toml`](../reference/pack-lifecycle-registry.md) (`state`, `successors`, `reason`, `evidence`), not in prose alone; see [How to flag a pack's lifecycle](flag-a-pack-lifecycle.md). Flag the family with `intent = "consolidate"` before starting, and record each pair you prove non-equivalent as `intent = "keep-separate"`.
 
 ## 9. Re-run marketplace and consumer courts
 
