@@ -127,3 +127,7 @@
 - [Add a semantic Diátaxis document](how-to/add-a-semantic-diataxis-document.md)
 - [Semantic Diátaxis contract](reference/semantic-diataxis-contract.md)
 - [Why documents carry no authority](explanation/semantic-diataxis-fences.md)
+- [First QRI substitution](tutorials/qri-first-substitution.md)
+- [Qualify a realization](how-to/qualify-a-realization.md)
+- [QRI qualification profile](reference/qri-profile.md)
+- [Why QRI is a thin waist](explanation/qri-thin-waist.md)
