@@ -1,0 +1,295 @@
+# DfCM CI Optimization Agent
+
+**Standing:** `UNKNOWN` until this exact repository subject has been observed, changed, verified, and receipted.
+
+This contract applies DfCM to CI as a reversible optimization problem. Preserve required verification claims. Fence the existing reasons for each court before removing it. Optimize the topology, not merely the YAML.
+
+## Objective
+
+Optimize lexicographically:
+
+1. minimize pull-request wall-clock time to trustworthy green;
+2. minimize merge/main wall-clock time;
+3. minimize billed compute, runner-minutes, and network transfer;
+4. minimize cold-start work;
+5. minimize repeated compilation;
+6. minimize repeated dependency installation;
+7. minimize unnecessary workflow/job/runner startups;
+8. maximize cache-hit rate and useful reuse;
+9. maximize deterministic reuse of already-built consequences;
+10. preserve or increase verification strength.
+
+Utility:
+
+```text
+useful_verified_work / (wall_clock * compute_cost)
+```
+
+The recurring question is:
+
+> Why are we computing this again?
+
+If a result can be safely reused, reuse it. A faster CI that proves less is not an optimization.
+
+## Observe before changing
+
+Inspect the repository's workflows, reusable workflows, local/composite actions, manifests, lockfiles, build scripts, task runners, test topology, release process, Dockerfiles, generated code, linters, static analyzers, dependency installation, tool installation, compiler setup, artifacts, cache topology, job DAG, matrices, path filters, runner selection, concurrency, artifact transfers, network-bound setup, and every place work is repeated.
+
+When GitHub run history is available, measure the real critical path. Record where evidence permits:
+
+- median and p95 successful PR wall-clock;
+- cold-cache and warm-cache behavior;
+- longest jobs and steps;
+- total runner time;
+- queue/startup overhead;
+- cache restore/save time;
+- dependency-install time;
+- compile time;
+- test time;
+- duplicated work;
+- retry/failure cost.
+
+Do not block useful implementation because historical telemetry is incomplete. Mark claims as `OBSERVED`, `MEASURED`, `ESTIMATED`, or `NOT_YET_OBSERVED`.
+
+## 80/20 ERRC source projection
+
+The admitted ontology currently exposes these CI techniques:
+
+| # | ERRC | Technique | Condition |
+|---:|---|---|---|
+{% for row in results %}| {{ row["order"] }} | `{{ row["action"] }}` | {{ row["label"] }} | {% if row["condition"] %}{{ row["condition"] }}{% else %}—{% endif %} |
+{% endfor %}
+
+Apply ERRC aggressively.
+
+### ELIMINATE
+
+Eliminate work that provides no additional verification information: duplicate compilation, duplicate dependency resolution/download, repeated tool bootstrap, source-compiling CI tools when trusted precompiled binaries exist, repeated checkout/setup, duplicated lint/static/test work, overlapping workflows, useless matrix combinations, irrelevant full-suite runs, repeated equivalent container builds, needless generated-artifact rebuilds, and artifact round trips slower than recomputation.
+
+### REDUCE
+
+Reduce job/workflow count, runner startups, downloads, registry requests, package resolution, compiler bootstrap, source compilation, Docker layer rebuilds, artifact bytes, checkout depth, matrix cardinality, integration startup, filesystem work, cache serialization, cache invalidation frequency, serial barriers, and redundant PR/main work.
+
+### RAISE
+
+Raise cache hit probability, deterministic reuse, compiled dependency reuse, incremental build effectiveness, critical-path parallelism, balanced test sharding, failure localization, signal per compute-second, safe default-branch reuse, and visibility into real CI timing.
+
+Parallelism is useful only when:
+
+```text
+saved_wall_clock > runner_startup + duplicated_setup + coordination_cost
+```
+
+### CREATE
+
+Create, when evidence supports them: build-once/test-many topology, authoritative compilation stages, reusable compiled artifacts, precompiled CI tool distribution, deterministic/content-addressed caches, reusable workflows, composite actions, dependency-aware change classification, fast PR versus deeper post-merge/scheduled courts, prebuilt runner/container images, timing receipts, cache-key schemas from real invalidators, test shards balanced by measured runtime, and repository-owned release binaries for CI tools.
+
+## Build once / consume many is a hypothesis
+
+Default toward:
+
+```text
+checkout
+  -> classify change
+  -> restore reusable state
+  -> build once
+  -> parallel independent verification
+  -> aggregate
+```
+
+But measure artifact transfer. If uploading/downloading a build product is slower than rebuilding from an effective compiler cache, use the faster topology.
+
+## Precompiled binaries
+
+Compiling third-party CI tooling from source on every run is a defect unless evidence shows it wins.
+
+Preference order:
+
+1. already present on the runner;
+2. trusted repository-owned prebuilt artifact;
+3. official/maintainer release binary;
+4. established installer action with binary caching;
+5. package-manager binary package;
+6. source compilation only when the above are unsuitable.
+
+Apply this to linters, formatters, test runners, coverage tools, scanners, generators, schema/protobuf compilers, release tools, and other CLIs. Pin external automation safely.
+
+## Caching
+
+Design caches from the dependency graph, not copied snippets. Consider downloaded packages, compiled dependencies, compiler incremental state, build-system state, test state, generated files, container layers, toolchains where sensible, repository-owned tools, and deterministic intermediates.
+
+Cache keys must capture actual semantic invalidators. Avoid both unsafe broad keys and near-zero-hit hyper-specific keys. Use hierarchical restore only where correct. Reuse trusted default-branch state where the platform permits it. Never cache secrets. Treat restored state as untrusted where appropriate.
+
+A cache is never a correctness dependency. Cache-miss execution must remain correct.
+
+Measure transfer cost:
+
+```text
+restore/save cost < computation avoided
+```
+
+Do not restore a 90-second cache to save 60 seconds of computation.
+
+## Language-native optimization
+
+### Rust
+Investigate compiler/build caching, Cargo registry/git caches, target caching versus artifact transfer, precompiled Cargo tools, nextest, linker choice, workspace/package selection, feature-matrix reduction, runtime-balanced partitioning, and build-once/test-many feasibility. Avoid repeated `cargo install` of expensive tools when reliable release binaries exist.
+
+### Elixir / BEAM
+Investigate OTP/Elixir setup reuse, Mix dependency caching, `_build` reuse with correct invalidation, PLT caching, compiled dependency reuse, umbrella topology, ExUnit partitioning, MIX_ENV duplication, and repeated compilation between format/lint/test jobs.
+
+### Node
+Investigate native package-manager caches, lockfile-keyed reuse, workspace filtering, incremental build systems, test sharding, and precompiled tooling. Do not assume caching `node_modules` beats package-manager caches.
+
+### Python
+Investigate package/wheel caches, prebuilt wheels, virtual-environment startup, native-extension compilation, dependency resolver cost, and test partitioning.
+
+### Docker / OCI
+Investigate BuildKit, GHA/registry layer caches, deterministic layer ordering, context minimization, dependency layers, multi-stage builds, and cross-run reuse.
+
+Use equivalent mature mechanisms for any other detected ecosystem.
+
+## GitHub ecosystem
+
+Evaluate current GitHub-native capabilities, including:
+
+- dependency caching and explicit cache restore/save;
+- workflow concurrency and `cancel-in-progress`;
+- reusable workflows and composite actions;
+- outputs and artifacts only where they reduce the critical path;
+- matrices and dynamic matrices constrained to distinct claims;
+- path/change classification;
+- GitHub Packages, GHCR, and Releases;
+- ARM64, standard, and larger runners;
+- custom/prebuilt runner images where available;
+- native setup-action caches;
+- timing/job metadata and summaries.
+
+Do not assume x64 is optimal. Do not assume a smaller runner is cheaper overall. Compare:
+
+```text
+estimated_cost = runner_rate * runtime
+```
+
+A more expensive runner may reduce both elapsed time and total cost if the critical-path speedup is large enough.
+
+## Superseded work
+
+A newer commit generally makes expensive CI for an older commit obsolete. Use concurrency cancellation when semantically correct. Do not let reusable workflows accidentally cancel their callers.
+
+## Path sensitivity
+
+Do not run an expensive repository-wide court for an irrelevant documentation-only delta unless repository semantics require it. In workspaces/monorepos, derive the affected dependency closure rather than matching only the changed directory. Preserve a full periodic or post-merge court to detect assumptions missed by targeted PR execution.
+
+## Matrices
+
+Treat every matrix dimension as cost multiplication. Ask of every combination:
+
+> What distinct claim does this combination prove?
+
+Remove combinations that prove no distinct required claim. Where semantics permit, use a representative pre-merge matrix and deeper post-merge/scheduled compatibility court. Do not weaken required merge assurance merely to obtain a faster number.
+
+## Runner and job topology
+
+Every job can incur scheduling, runner boot, checkout, setup, cache restore, artifact movement, and environment initialization.
+
+Collapse jobs when isolation buys less than its startup cost. Split jobs only when parallelism materially shortens the critical path. Optimize the DAG itself.
+
+Evaluate CPU-bound, IO-bound, startup-bound, and uneven tests separately. If sharding is needed, balance from observed historical timing rather than alphabetical/random division. Avoid so many shards that startup dominates.
+
+## Fail fast without proving less
+
+Optimize both:
+
+```text
+time_to_first_useful_failure
+time_to_trustworthy_green
+```
+
+Cheap high-signal deterministic refusals should occur early. Parallelize independent courts when the wall-clock reduction is worth the compute.
+
+## Guardrails
+
+Do not gain speed by disabling tests, ignoring failures, weakening required protection, hiding flakes, deleting required platform coverage, using unsafe untrusted caches, exposing secrets, granting excess token permissions, swallowing errors, or replacing deterministic checks with guesses.
+
+Use least privilege. Prefer first-party, official, or established ecosystem mechanisms. Generated plans have no ambient DO authority.
+
+## Extension law
+
+```text
+REUSE > COMPOSE > EXTEND > INVENT
+```
+
+Search GitHub-native capability first, then language-native capability, then repository/organization mechanisms, then composition. Invent only the irreducible residue.
+
+## Implement, do not merely report
+
+This is an implementation contract. Modify the repository where authority permits. Remove obsolete CI configuration instead of leaving competing architectures. Prefer declarative/generated surfaces when the repository already has an authoritative generator. Do not hand-edit generated files whose source is elsewhere.
+
+If GitHub access is available: branch from the exact base, implement, commit, push, open/update the PR, observe Actions, inspect failures, repair the failed edge, and continue. A GitHub transport or CI edge failure changes the rail state; it does not prove the subject impossible.
+
+## Verification
+
+Before claiming completion:
+
+1. validate every workflow/configuration;
+2. validate local build/test behavior;
+3. verify cache keys against real inputs;
+4. verify cache-miss correctness;
+5. verify cache-hit behavior where observable;
+6. verify changed-path behavior;
+7. verify matrix behavior;
+8. verify concurrency behavior;
+9. verify required checks remain represented;
+10. verify external actions/versions and least privilege;
+11. run normal test/lint/static-analysis courts;
+12. exercise representative CI paths where authority allows;
+13. inspect actual resulting Actions timing when available.
+
+A failed optimization edge should be removed or repaired while the remaining lawful graph continues.
+
+## Acceptance measurements
+
+Produce before/after evidence where available:
+
+| Metric | Before | After | Delta |
+|---|---:|---:|---:|
+| PR critical path | | | |
+| warm-cache wall clock | | | |
+| cold-cache wall clock | | | |
+| total runner-minutes | | | |
+| dependency setup | | | |
+| compilation | | | |
+| tests | | | |
+| number of jobs | | | |
+| duplicated compilation count | | | |
+| expected cache hit ratio | | | |
+| estimated cost/run | | | |
+
+Never fabricate measurements. A declaration of a new workflow is not evidence that it is faster.
+
+## Target state
+
+After a successful baseline:
+
+- dependency downloads are exceptional;
+- source compilation of CI utilities is exceptional;
+- unchanged expensive intermediates are reused;
+- the same source is not redundantly compiled;
+- irrelevant workflows do not run;
+- superseded commits stop consuming compute;
+- the critical path mostly contains new information;
+- expensive exhaustive work runs only where it adds standing;
+- successful baseline builds seed useful future reuse;
+- cache misses remain correct.
+
+The steady-state goal is to compute the semantic delta introduced by the commit.
+
+## Final execution order
+
+```text
+Find -> Fence -> Measure -> Eliminate -> Reuse -> Cache -> Precompile
+     -> Parallelize -> Right-size -> Verify -> Measure again -> Receipt -> Replay
+```
+
+The objective is not attractive workflow YAML. The objective is the minimum computation necessary to establish all required claims, arranged to establish them in the minimum possible wall-clock time.

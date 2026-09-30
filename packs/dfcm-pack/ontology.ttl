@@ -414,3 +414,119 @@ dfcm:FUninterruptibleAgent a dfcm:Falsifier ; dfcm:slug "uninterruptible-agent" 
 dfcm:FAgentOnlyIrreversibleQuorum a dfcm:Falsifier ; dfcm:slug "agent-only-irreversible-quorum" ; skos:prefLabel "An irreversible or high-consequence DO is authorized by an authority quorum containing no human." .
 dfcm:FAgentPopulationOverrun a dfcm:Falsifier ; dfcm:slug "agent-population-overrun" ; skos:prefLabel "Concurrently active agent population or coordinated actuation exceeds its admitted ceiling or blast-radius bound." .
 dfcm:FUndetectedIntentDivergence a dfcm:Falsifier ; dfcm:slug "undetected-intent-divergence" ; skos:prefLabel "Agent-reported intent and agent-actuated behavior diverge with no detection evidence produced." .
+
+
+# --- CI optimization profile v2.1.0 ------------------------------------------------
+# Wall-clock-first CI optimization under DfCM. This is a target/decision
+# profile, not evidence that any repository has achieved the target.
+
+dfcm:OptimizationProfile a rdfs:Class ; rdfs:subClassOf prov:Plan .
+dfcm:ERRCAction a rdfs:Class ; rdfs:subClassOf skos:Concept .
+dfcm:CITechnique a rdfs:Class ; rdfs:subClassOf skos:Concept .
+dfcm:CILanguageProfile a rdfs:Class ; rdfs:subClassOf skos:Concept .
+dfcm:CIReceiptField a rdfs:Class ; rdfs:subClassOf prov:Entity .
+dfcm:EvidenceClassification a rdfs:Class ; rdfs:subClassOf skos:Concept .
+
+dfcm:policyVersion a rdf:Property .
+dfcm:primaryObjective a rdf:Property .
+dfcm:secondaryObjective a rdf:Property .
+dfcm:costFormula a rdf:Property .
+dfcm:utilityFormula a rdf:Property .
+dfcm:errcAction a rdf:Property .
+dfcm:condition a rdf:Property .
+dfcm:optimizationDirection a rdf:Property .
+
+dfcm:ERRCEliminate a dfcm:ERRCAction ; dfcm:slug "eliminate" ; skos:prefLabel "Eliminate" .
+dfcm:ERRCReduce a dfcm:ERRCAction ; dfcm:slug "reduce" ; skos:prefLabel "Reduce" .
+dfcm:ERRCRaise a dfcm:ERRCAction ; dfcm:slug "raise" ; skos:prefLabel "Raise" .
+dfcm:ERRCCreate a dfcm:ERRCAction ; dfcm:slug "create" ; skos:prefLabel "Create" .
+
+dfcm:EvidenceObserved a dfcm:EvidenceClassification ; dfcm:slug "OBSERVED" ; skos:prefLabel "Observed" .
+dfcm:EvidenceMeasured a dfcm:EvidenceClassification ; dfcm:slug "MEASURED" ; skos:prefLabel "Measured" .
+dfcm:EvidenceEstimated a dfcm:EvidenceClassification ; dfcm:slug "ESTIMATED" ; skos:prefLabel "Estimated" .
+dfcm:EvidenceNotYetObserved a dfcm:EvidenceClassification ; dfcm:slug "NOT_YET_OBSERVED" ; skos:prefLabel "Not yet observed" .
+
+dfcm:CIOptimizationProfile a dfcm:OptimizationProfile ;
+  dcterms:title "DfCM CI Optimization" ;
+  dfcm:slug "ci-wall-clock-80-20-errc" ;
+  dfcm:policyVersion "2.1.0" ;
+  dfcm:targetOnly true ;
+  dfcm:primaryObjective "minimize pull-request wall-clock time to trustworthy green" ;
+  dfcm:secondaryObjective "minimize merge/main wall-clock time, then billed compute/network cost, without reducing verification strength" ;
+  dfcm:costFormula "runner_rate * runtime" ;
+  dfcm:utilityFormula "useful_verified_work / (wall_clock * compute_cost)" ;
+  skos:note "Steady state should compute the semantic delta introduced by a commit rather than rebuild unchanged information." .
+
+# ELIMINATE
+dfcm:CI001 a dfcm:CITechnique ; dfcm:order 10 ; dfcm:slug "duplicate-compilation" ; dfcm:errcAction dfcm:ERRCEliminate ; skos:prefLabel "Duplicate compilation across jobs" .
+dfcm:CI002 a dfcm:CITechnique ; dfcm:order 20 ; dfcm:slug "duplicate-dependency-work" ; dfcm:errcAction dfcm:ERRCEliminate ; skos:prefLabel "Duplicate dependency resolution and downloads" .
+dfcm:CI003 a dfcm:CITechnique ; dfcm:order 30 ; dfcm:slug "repeated-tool-bootstrap" ; dfcm:errcAction dfcm:ERRCEliminate ; skos:prefLabel "Repeated CI tool installation or source compilation" .
+dfcm:CI004 a dfcm:CITechnique ; dfcm:order 40 ; dfcm:slug "duplicate-checks" ; dfcm:errcAction dfcm:ERRCEliminate ; skos:prefLabel "Duplicated lint, static-analysis, and test execution" .
+dfcm:CI005 a dfcm:CITechnique ; dfcm:order 50 ; dfcm:slug "workflow-overlap" ; dfcm:errcAction dfcm:ERRCEliminate ; skos:prefLabel "Overlapping workflows and matrix combinations with no distinct claim" .
+dfcm:CI006 a dfcm:CITechnique ; dfcm:order 60 ; dfcm:slug "irrelevant-full-suite" ; dfcm:errcAction dfcm:ERRCEliminate ; skos:prefLabel "Full-suite execution for irrelevant path changes" .
+dfcm:CI007 a dfcm:CITechnique ; dfcm:order 70 ; dfcm:slug "repeated-container-build" ; dfcm:errcAction dfcm:ERRCEliminate ; skos:prefLabel "Repeated equivalent Docker or OCI builds" .
+dfcm:CI008 a dfcm:CITechnique ; dfcm:order 80 ; dfcm:slug "slow-artifact-roundtrip" ; dfcm:errcAction dfcm:ERRCEliminate ; skos:prefLabel "Artifact upload/download cycles slower than equivalent recomputation" .
+
+# REDUCE
+dfcm:CI009 a dfcm:CITechnique ; dfcm:order 90 ; dfcm:slug "job-startups" ; dfcm:errcAction dfcm:ERRCReduce ; skos:prefLabel "Workflow, job, and runner startup count" .
+dfcm:CI010 a dfcm:CITechnique ; dfcm:order 100 ; dfcm:slug "network-transfer" ; dfcm:errcAction dfcm:ERRCReduce ; skos:prefLabel "Dependency downloads, registry requests, and artifact bytes" .
+dfcm:CI011 a dfcm:CITechnique ; dfcm:order 110 ; dfcm:slug "matrix-cardinality" ; dfcm:errcAction dfcm:ERRCReduce ; skos:prefLabel "Matrix cardinality to combinations that establish distinct claims" .
+dfcm:CI012 a dfcm:CITechnique ; dfcm:order 120 ; dfcm:slug "checkout-surface" ; dfcm:errcAction dfcm:ERRCReduce ; skos:prefLabel "Checkout depth, LFS, submodules, and filesystem work" .
+dfcm:CI013 a dfcm:CITechnique ; dfcm:order 130 ; dfcm:slug "serial-barriers" ; dfcm:errcAction dfcm:ERRCReduce ; skos:prefLabel "Critical-path dependencies and serial barriers with no dependency reason" .
+dfcm:CI014 a dfcm:CITechnique ; dfcm:order 140 ; dfcm:slug "pr-main-duplication" ; dfcm:errcAction dfcm:ERRCReduce ; skos:prefLabel "Unnecessary duplication between PR and main courts" .
+
+# RAISE
+dfcm:CI015 a dfcm:CITechnique ; dfcm:order 150 ; dfcm:slug "cache-hit-probability" ; dfcm:errcAction dfcm:ERRCRaise ; skos:prefLabel "Cache hit probability and deterministic reuse" .
+dfcm:CI016 a dfcm:CITechnique ; dfcm:order 160 ; dfcm:slug "incremental-build-reuse" ; dfcm:errcAction dfcm:ERRCRaise ; skos:prefLabel "Incremental compiler and build-system reuse" .
+dfcm:CI017 a dfcm:CITechnique ; dfcm:order 170 ; dfcm:slug "critical-path-parallelism" ; dfcm:errcAction dfcm:ERRCRaise ; skos:prefLabel "Parallelism on the actual critical path" ; dfcm:condition "saved_wall_clock > runner_startup + duplicated_setup + coordination_cost" .
+dfcm:CI018 a dfcm:CITechnique ; dfcm:order 180 ; dfcm:slug "signal-per-second" ; dfcm:errcAction dfcm:ERRCRaise ; skos:prefLabel "Verification signal per compute-second" .
+dfcm:CI019 a dfcm:CITechnique ; dfcm:order 190 ; dfcm:slug "default-branch-reuse" ; dfcm:errcAction dfcm:ERRCRaise ; skos:prefLabel "Safe trusted default-branch reuse by feature branches" .
+dfcm:CI020 a dfcm:CITechnique ; dfcm:order 200 ; dfcm:slug "balanced-test-shards" ; dfcm:errcAction dfcm:ERRCRaise ; skos:prefLabel "Test-shard balance using measured historical runtimes" .
+
+# CREATE
+dfcm:CI021 a dfcm:CITechnique ; dfcm:order 210 ; dfcm:slug "build-once-test-many" ; dfcm:errcAction dfcm:ERRCCreate ; skos:prefLabel "Build once and consume many when transfer beats recomputation" ; dfcm:condition "artifact_transfer_cost < equivalent_recomputation_cost" .
+dfcm:CI022 a dfcm:CITechnique ; dfcm:order 220 ; dfcm:slug "precompiled-tooling" ; dfcm:errcAction dfcm:ERRCCreate ; skos:prefLabel "Precompiled CI tooling and repository-owned release binaries" .
+dfcm:CI023 a dfcm:CITechnique ; dfcm:order 230 ; dfcm:slug "content-addressed-cache" ; dfcm:errcAction dfcm:ERRCCreate ; skos:prefLabel "Deterministic caches keyed from actual semantic invalidators" .
+dfcm:CI024 a dfcm:CITechnique ; dfcm:order 240 ; dfcm:slug "reusable-workflows" ; dfcm:errcAction dfcm:ERRCCreate ; skos:prefLabel "Reusable workflows and composite actions for proven common mechanics" .
+dfcm:CI025 a dfcm:CITechnique ; dfcm:order 250 ; dfcm:slug "dependency-aware-change-classification" ; dfcm:errcAction dfcm:ERRCCreate ; skos:prefLabel "Dependency-aware path and change classification" .
+dfcm:CI026 a dfcm:CITechnique ; dfcm:order 260 ; dfcm:slug "fast-and-deep-courts" ; dfcm:errcAction dfcm:ERRCCreate ; skos:prefLabel "Fast PR court plus deeper post-merge or scheduled courts where semantics permit" .
+dfcm:CI027 a dfcm:CITechnique ; dfcm:order 270 ; dfcm:slug "prebuilt-runner-images" ; dfcm:errcAction dfcm:ERRCCreate ; skos:prefLabel "Prebuilt runner or container images when amortization is favorable" .
+dfcm:CI028 a dfcm:CITechnique ; dfcm:order 280 ; dfcm:slug "timing-receipts" ; dfcm:errcAction dfcm:ERRCCreate ; skos:prefLabel "Critical-path, cache, runner, and cost timing receipts" .
+dfcm:CI029 a dfcm:CITechnique ; dfcm:order 290 ; dfcm:slug "superseded-run-cancellation" ; dfcm:errcAction dfcm:ERRCCreate ; skos:prefLabel "Concurrency cancellation for superseded PR commits" .
+dfcm:CI030 a dfcm:CITechnique ; dfcm:order 300 ; dfcm:slug "price-performance-runner-selection" ; dfcm:errcAction dfcm:ERRCCreate ; skos:prefLabel "x64, ARM64, standard, or larger runner selection by measured price-performance" ; dfcm:condition "choose by wall_clock and runner_rate * runtime, not per-minute rate alone" .
+
+# Ecosystem-specific profiles are guidance beneath the same DfCM policy.
+dfcm:CIRust a dfcm:CILanguageProfile ; dfcm:slug "rust" ; skos:prefLabel "Rust" ; skos:note "Compiler/build caching; Cargo registry/git reuse; target versus artifact-transfer economics; precompiled cargo tools; nextest; linker choice; workspace and feature selection; runtime-balanced tests." .
+dfcm:CIElixir a dfcm:CILanguageProfile ; dfcm:slug "elixir-beam" ; skos:prefLabel "Elixir / BEAM" ; skos:note "OTP/Elixir setup reuse; Mix dependency caching; _build reuse with correct invalidation; PLT caching; umbrella topology; ExUnit partitioning; avoid repeated MIX_ENV compilation." .
+dfcm:CINode a dfcm:CILanguageProfile ; dfcm:slug "node" ; skos:prefLabel "Node" ; skos:note "Native package-manager caches; lockfile-keyed reuse; workspace filtering; incremental builds; test sharding; precompiled tooling." .
+dfcm:CIPython a dfcm:CILanguageProfile ; dfcm:slug "python" ; skos:prefLabel "Python" ; skos:note "Package and wheel caches; prebuilt wheels; environment-startup reduction; native-extension avoidance where possible; test partitioning." .
+dfcm:CIDocker a dfcm:CILanguageProfile ; dfcm:slug "docker-oci" ; skos:prefLabel "Docker / OCI" ; skos:note "BuildKit; GHA or registry layer caches; deterministic layer order; minimal contexts; dependency layers; multi-stage builds; cross-run reuse." .
+
+# Exact-subject receipt fields.
+dfcm:CIR001 a dfcm:CIReceiptField ; dfcm:order 10 ; dfcm:slug "repository" ; skos:prefLabel "Repository" .
+dfcm:CIR002 a dfcm:CIReceiptField ; dfcm:order 20 ; dfcm:slug "base-sha" ; skos:prefLabel "Base SHA" .
+dfcm:CIR003 a dfcm:CIReceiptField ; dfcm:order 30 ; dfcm:slug "head-sha" ; skos:prefLabel "Head SHA" .
+dfcm:CIR004 a dfcm:CIReceiptField ; dfcm:order 40 ; dfcm:slug "before-architecture" ; skos:prefLabel "Before architecture" .
+dfcm:CIR005 a dfcm:CIReceiptField ; dfcm:order 50 ; dfcm:slug "after-architecture" ; skos:prefLabel "After architecture" .
+dfcm:CIR006 a dfcm:CIReceiptField ; dfcm:order 60 ; dfcm:slug "errc" ; skos:prefLabel "ERRC changes" .
+dfcm:CIR007 a dfcm:CIReceiptField ; dfcm:order 70 ; dfcm:slug "critical-path" ; skos:prefLabel "Critical-path changes" .
+dfcm:CIR008 a dfcm:CIReceiptField ; dfcm:order 80 ; dfcm:slug "runner" ; skos:prefLabel "Runner changes" .
+dfcm:CIR009 a dfcm:CIReceiptField ; dfcm:order 90 ; dfcm:slug "cache-topology" ; skos:prefLabel "Cache topology" .
+dfcm:CIR010 a dfcm:CIReceiptField ; dfcm:order 100 ; dfcm:slug "measurements" ; skos:prefLabel "Measured before and after" .
+dfcm:CIR011 a dfcm:CIReceiptField ; dfcm:order 110 ; dfcm:slug "cost-effect" ; skos:prefLabel "Estimated cost effect" .
+dfcm:CIR012 a dfcm:CIReceiptField ; dfcm:order 120 ; dfcm:slug "verification" ; skos:prefLabel "Verification executed" .
+dfcm:CIR013 a dfcm:CIReceiptField ; dfcm:order 130 ; dfcm:slug "irreducible-path" ; skos:prefLabel "Remaining irreducible critical path" .
+dfcm:CIR014 a dfcm:CIReceiptField ; dfcm:order 140 ; dfcm:slug "next-gradient" ; skos:prefLabel "Remaining opportunities ordered by delta wall-clock over implementation cost" .
+
+# CI-specific DfCM invariants.
+dfcm:I026 a dfcm:Invariant ; dfcm:order 260 ; dfcm:ruleCode "DFCM-I026" ; dfcm:ruleText "CI optimization may not reduce a required verification claim merely to improve latency." ; dfcm:falsifiedBy dfcm:FCIVerificationReduced .
+dfcm:I027 a dfcm:Invariant ; dfcm:order 270 ; dfcm:ruleCode "DFCM-I027" ; dfcm:ruleText "A cache is optimization state, never a correctness dependency; cache-miss execution remains correct." ; dfcm:falsifiedBy dfcm:FCICacheRequiredForCorrectness .
+dfcm:I028 a dfcm:Invariant ; dfcm:order 280 ; dfcm:ruleCode "DFCM-I028" ; dfcm:ruleText "A faster or cheaper standing claim requires exact-subject measured or explicitly estimated evidence; declarations do not self-crown." ; dfcm:falsifiedBy dfcm:FCIUnmeasuredSpeedClaim .
+dfcm:I029 a dfcm:Invariant ; dfcm:order 290 ; dfcm:ruleCode "DFCM-I029" ; dfcm:ruleText "Parallelism is admitted only when expected wall-clock saved exceeds runner startup, duplicated setup, and coordination cost." ; dfcm:falsifiedBy dfcm:FCIParallelismCostDominates .
+dfcm:I030 a dfcm:Invariant ; dfcm:order 300 ; dfcm:ruleCode "DFCM-I030" ; dfcm:ruleText "Build-once/test-many is a hypothesis: artifact transfer must beat equivalent recomputation before it becomes the selected topology." ; dfcm:falsifiedBy dfcm:FCIArtifactTransferDominates .
+
+dfcm:FCIVerificationReduced a dfcm:Falsifier ; dfcm:slug "ci-verification-reduced" ; skos:prefLabel "CI is made faster by removing a required verification claim." .
+dfcm:FCICacheRequiredForCorrectness a dfcm:Falsifier ; dfcm:slug "ci-cache-required-for-correctness" ; skos:prefLabel "A cache miss changes correctness or makes the required court impossible." .
+dfcm:FCIUnmeasuredSpeedClaim a dfcm:Falsifier ; dfcm:slug "ci-unmeasured-speed-claim" ; skos:prefLabel "A workflow declaration is reported as faster or cheaper without supporting evidence." .
+dfcm:FCIParallelismCostDominates a dfcm:Falsifier ; dfcm:slug "ci-parallelism-cost-dominates" ; skos:prefLabel "Added parallelism costs more startup/setup/coordination time than it saves." .
+dfcm:FCIArtifactTransferDominates a dfcm:Falsifier ; dfcm:slug "ci-artifact-transfer-dominates" ; skos:prefLabel "Build artifact transfer is slower than equivalent cached recomputation." .
