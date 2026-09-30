@@ -124,3 +124,67 @@ wja:codeOrder a rdf:Property ;
     rdfs:domain wja:ErrorCode ; rdfs:range xsd:integer ;
     rdfs:label "code order" ;
     rdfs:comment "Stable ordinal fixing the code's position in the error table." .
+
+# -- Guard prelude + wasmi harness facts (WasmModule) --
+# Consumed by queries/guards.rq and queries/harness.rq. Closed-set and cross-fact
+# rules are enforced by gates/070_error_style_closed.rq.
+
+wja:errorStyle a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "error style" ;
+    rdfs:comment "Closed set {flat-code, refusal-kind}. flat-code: {ok:false,error:{code,message,..}} with string codes drawn from the error table (guards fully generated). refusal-kind: the consumer owns a richer refusal envelope (only json_depth and the ordering helper are generated; the envelope is a HANDWRITTEN.md residue row)." .
+
+wja:codeRequestTooLarge a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "code: request too large" ;
+    rdfs:comment "flat-code only: wire code returned when the request length exceeds maxRequestBytes; must be a declared wja:codeName." .
+
+wja:codeJsonTooDeep a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "code: JSON too deep" ;
+    rdfs:comment "flat-code only: wire code returned when nesting exceeds maxJsonDepth; must be a declared wja:codeName." .
+
+wja:codeMissingBuffer a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "code: missing buffer" ;
+    rdfs:comment "flat-code only: wire code returned when _call receives a null request buffer; must be a declared wja:codeName." .
+
+wja:codeInternal a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "code: internal" ;
+    rdfs:comment "Optional (flat-code): code used by the encode fallback; defaults to internal." .
+
+wja:wasmEnvVar a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "wasm env var" ;
+    rdfs:comment "Environment variable naming a prebuilt .wasm for the harness; when unset the harness builds the module." .
+
+wja:wasmBuildPackage a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "wasm build package" ;
+    rdfs:comment "Optional cargo package (-p) that builds the wasm; absent means --lib of the current crate." .
+
+wja:hasAbiVersionExport a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:boolean ;
+    rdfs:label "has abi_version export" ;
+    rdfs:comment "Whether the module exports <prefix>_abi_version (harness binds it and asserts it equals abiVersion)." .
+
+wja:nativeCall a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "native call" ;
+    rdfs:comment "Rust path of the native entry point fn(&[u8]) -> Vec<u8>, e.g. echo_wasm::abi::call." .
+
+wja:cfgGate a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "cfg gate" ;
+    rdfs:comment "Optional cfg predicate placed in #![cfg(..)] on the harness; default not(target_arch = \"wasm32\")." .
+
+wja:pinEnv a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "pin env" ;
+    rdfs:comment "Optional environment variable naming a pin file that replaces the pin text passed to assert_pin. Never turns the check off." .
+
+wja:examplesPath a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "examples path" ;
+    rdfs:comment "Optional manifest-relative path of op-examples.json read by the harness; default registry/op-examples.json." .

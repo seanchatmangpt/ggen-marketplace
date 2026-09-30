@@ -1,7 +1,7 @@
 # HANDWRITTEN.md — wasi-json-abi-pack ledger
 
 Enumerable facts (module identity, export prefix, ABI version, limits, stack size,
-imports policy, ops, error codes) live in `ontology.ttl` and consumer graphs; the
+imports policy, error style and limit codes, harness env/build/native-call facts, ops, error codes) live in `ontology.ttl` and consumer graphs; the
 rendered projections are never hand-edited.
 
 | path | kind | standing | reason |
@@ -14,4 +14,5 @@ rendered projections are never hand-edited.
 | witnesses/{pass,fail}/*.ttl | witness | n/a (ggen-produced by definition) | gate court evidence |
 | runners/semantic_runner.py | runner | n/a (copied verbatim) | gate court runner |
 | consumer op bodies (request decoding, domain logic behind each wja:Op) | consumer code | UNSUPPORTED(generator-capability) | domain semantics of an op are not enumerable ontology facts; the consumer hand-writes them and the generated dispatch table names them |
-| consumer host glue (native/WASI runners, build scripts, CI wiring) | consumer code | UNSUPPORTED(generator-capability) | host-side toolchain integration is outside the projection |
+| consumer host glue (build scripts, CI wiring) | consumer code | UNSUPPORTED(generator-capability) | CI and build-script wiring is outside the projection; the wasmi test harness (`generated/tests_common.rs`) and guard prelude (`generated/guards.rs`) are now generated from the `wja:` facts |
+| refusal-kind error envelope (`limit_response`, `missing_buffer_response`, error body, `encode` when `wja:errorStyle` = refusal-kind) | consumer code | UNSUPPORTED(generator-capability) | a consumer-owned refusal envelope (kind/dialect/engine) is not an enumerable flat-code table; `generated/guards.rs` emits only `json_depth` and the op/error-code ordering helpers for this style, and the harness asserts only `ok == false` for limit cases |
