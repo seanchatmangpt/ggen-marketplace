@@ -1,0 +1,57 @@
+@prefix qri:  <https://seanchatmangpt.github.io/packs/qri-qualification-profile-pack#> .
+@prefix g:    <urn:qri:example:graphlaw:> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+
+# Reference contract modelled on the REAL graphlaw core-wasm ABI
+# (/Users/sac/graphlaw wasm/src/lib.rs: gl_alloc / gl_free / gl_call, JSON bytes in and out,
+# wasi_snapshot_preview1 only). One operation: a request document in, a response document out.
+g:capability a qri:Capability .
+
+g:contract a qri:CapabilityContract ;
+    qri:specifiesCapability g:capability ;
+    qri:contractVersion "1.0.0" ;
+    qri:abiSymbolPrefix "gl" ;
+    qri:abiKind "core-wasm-json" ;
+    qri:abiVersion "1" ;
+    qri:invariantSet g:invariants ;
+    qri:refusalScheme g:refusals ;
+    qri:allowedImport "wasi_snapshot_preview1::clock_time_get" ,
+                      "wasi_snapshot_preview1::environ_get" ,
+                      "wasi_snapshot_preview1::environ_sizes_get" ,
+                      "wasi_snapshot_preview1::fd_write" ,
+                      "wasi_snapshot_preview1::proc_exit" ,
+                      "wasi_snapshot_preview1::random_get" ,
+                      "wasi_snapshot_preview1::sched_yield" ;
+    qri:requiredExport "gl_alloc" , "gl_free" , "gl_call" , "memory" ;
+    qri:operation g:opCall .
+
+g:opCall a qri:Operation ;
+    qri:opName "call" ;
+    qri:input g:inRequest ;
+    qri:output g:outResponse .
+
+g:inRequest a qri:Field ; qri:fieldName "request" ; qri:fieldType "bytes" ; qri:fieldOrder 1 .
+g:outResponse a qri:Field ; qri:fieldName "response" ; qri:fieldType "bytes" ; qri:fieldOrder 1 .
+
+g:invariants a qri:InvariantSet ;
+    qri:requiresInvariant g:semanticResult , g:refusalBoundary , g:noNetwork , g:noCredentialRead ,
+                          g:determinism , g:memoryBound .
+
+g:semanticResult a qri:Invariant ; qri:invariantKind qri:Semantic .
+g:refusalBoundary a qri:Invariant ; qri:invariantKind qri:Refusal .
+g:noNetwork a qri:Invariant ; qri:invariantKind qri:InformationFlow .
+g:noCredentialRead a qri:Invariant ; qri:invariantKind qri:Authority .
+g:determinism a qri:Invariant ; qri:invariantKind qri:Determinism .
+g:memoryBound a qri:Invariant ; qri:invariantKind qri:Resource ;
+    qri:limitValue "67108864"^^xsd:integer .
+
+g:ctxBeam a qri:RuntimeContext ;
+    qri:host <urn:qri:platform:beam-wasmex> .
+
+# Controlled refusal vocabulary: REFUSED is neither a TRAP nor UNSUPPORTED nor BUILD_BROKEN.
+g:refusals a skos:ConceptScheme .
+g:rMalformed a qri:RefusalCode , skos:Concept ; skos:inScheme g:refusals ; qri:refusalCode "malformed-input" .
+g:rUnsupported a qri:RefusalCode , skos:Concept ; skos:inScheme g:refusals ; qri:refusalCode "unsupported" .
+g:rSemantic a qri:RefusalCode , skos:Concept ; skos:inScheme g:refusals ; qri:refusalCode "semantic-refusal" .
+g:rResource a qri:RefusalCode , skos:Concept ; skos:inScheme g:refusals ; qri:refusalCode "resource-bound" .
