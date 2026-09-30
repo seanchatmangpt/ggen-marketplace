@@ -1,0 +1,17 @@
+# MESSAGE: host profile selects an ABI family outside the closed sets => UNSUPPORTED(abi-family).
+PREFIX qri: <https://seanchatmangpt.github.io/packs/qri-qualification-profile-pack#>
+SELECT ?subject ?property ?value ?verdict WHERE {
+  ?subject a qri:HostProfile .
+  {
+    ?subject qri:outMode ?value . BIND("outMode" AS ?property)
+    FILTER(STR(?value) NOT IN ("packed_u64", "out_param", "len_prefix"))
+  } UNION {
+    ?subject qri:errorCollapse ?value . BIND("errorCollapse" AS ?property)
+    FILTER(STR(?value) NOT IN ("single_key_inspect", "any_key_raw", "ok_flag_refusal", "flat_code", "refusal_kind"))
+  } UNION {
+    ?subject qri:lenType ?value . BIND("lenType" AS ?property)
+    FILTER(STR(?value) NOT IN ("u32", "usize"))
+  }
+  BIND("UNSUPPORTED" AS ?verdict)
+}
+ORDER BY ?subject ?property ?value
