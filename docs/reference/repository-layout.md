@@ -24,7 +24,8 @@
 | `docs/reference/` | Exact contract/reference quadrant, including pack classes and the 5 × 7 maturity contract. |
 | `docs/explanation/` | Architecture/rationale quadrant, including Level-5 Diátaxis and class-closure explanations. |
 | `docs/thesis/` | Research monograph and appendices; explanatory/research corpus, not a parallel operational authority plane. |
-| `.github/workflows/ci.yml` | Read-only orchestration around repository acceptance/qualification. |
+| `.github/workflows/ci.yml` | Read-only orchestration around repository acceptance/qualification; runs path-selected per-pack courts from `ci/`. |
+| `ci/` | Declarative court index (`courts.json`), court bodies (`courts/*.sh`) and pinned CI Python dependencies. |
 | `.github/workflows/pages.yml` | Exact-subject ggen manufacture of mdBook control surfaces followed by mdBook build/deploy. |
 | `.ggen-packs-source-sha` | Historical initial source-commit receipt; provenance, not moving canonical authority. |
 
