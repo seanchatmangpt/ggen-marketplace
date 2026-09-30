@@ -149,3 +149,34 @@ def test_real_sync_is_idempotent(tmp_path):
     assert snap
     second = sync(); assert second.returncode == 0, second.stderr
     assert snap == {p.relative_to(work): p.read_bytes() for p in (work / "consumer").rglob("*") if p.is_file()}
+
+
+def _render_projections():
+    """Consumer ecosystem check: render the pack templates outside ggen (Jinja,
+    whose syntax overlaps the Tera subset used) over real rdflib query rows."""
+    import json
+    from jinja2 import Environment
+    g = graph()
+    out = {}
+    for tmpl, qfile in [("sa2a", "documents"), ("chatman-spg", "documents"), ("capability-marketplace", "capabilities")]:
+        res = [{str(v): str(r[v]) for v in r.labels} for r in g.query((PACK / "queries" / f"{qfile}.rq").read_text())]
+        text = Environment().from_string((PACK / "templates" / f"{tmpl}.json.tmpl").read_text()).render(results=res)
+        out[tmpl] = (text, json.loads(text))
+    return out
+
+
+def test_projections_are_valid_json_and_carry_the_fences():
+    out = _render_projections()
+    assert out["sa2a"][1]["authority"] == "NONE"
+    assert out["sa2a"][1]["semantic_equivalence"] == "UNCLAIMED"
+    assert len(out["sa2a"][1]["documents"]) == 4
+    assert {n["quadrant"] for n in out["chatman-spg"][1]["nodes"]} == {"tutorial", "how-to", "reference", "explanation"}
+    assert out["capability-marketplace"][1]["semantic_equivalence"] == "UNCLAIMED"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
+def test_node_consumer_parses_projections(tmp_path):
+    for name, (text, _) in _render_projections().items():
+        f = tmp_path / f"{name}.json"; f.write_text(text)
+        r = subprocess.run(["node", "-e", "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))", str(f)], capture_output=True, text=True)
+        assert r.returncode == 0, r.stderr
