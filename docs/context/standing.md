@@ -10,9 +10,9 @@ generation run; a commit cannot contain its own hash, so it names the commit gen
 ### Repository facts
 
 - Marketplace version: `v26.9.29`
-- Pack count: 381
-- Catalog fingerprint: `sha256:bf5af533bd677d9b1a422dba7090071980998aea585995b1a7f10af0e7dbba84`
-- Head SHA: `665371d42da1a35e617f2027f7e188e2d4b65c7e`
+- Pack count: 383
+- Catalog fingerprint: `sha256:d40285fb1f6ed76837f6ebaead0e4aa56e6604e580739929636950182c3ada4a`
+- Head SHA: `8734083bf9b4762a63085b773b3c1d39d1775d35`
 
 ### Pack standing table
 
@@ -232,6 +232,7 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | gymact-capability-schema-pack | 0.1.0 | projection | native-gates, templates |
 | human-value-runtime-crown-pack | 26.8.26 | project | templates |
 | hyperdimensional-standing-pack | 0.1.0 | semantic | ontology-only |
+| industry-closure-pack | 0.1.0 | semantic | native-gates |
 | innovation-errc-pack | 26.8.27 | project | native-gates, templates |
 | interchangeable-parts-qualification-pack | 26.9.25 | project | native-gates, templates |
 | invariant-gate-pack | 0.1.0 | project | templates |
@@ -356,6 +357,7 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | shadcn-command-palette-pack | 0.1.0 | projection | templates |
 | shadcn-dark-theme-tokens-pack | 0.1.0 | projection | templates |
 | shadcn-ui-primitives-pack | 0.1.0 | projection | templates |
+| sjira-marketplace-feedback-pack | 0.1.0 | semantic | native-gates |
 | slidev-iaas-paas-saas-pack | 0.1.0 | projection | templates |
 | soc2-audit-pack | 26.7.13 | projection | templates |
 | soc2-readiness-pack | 0.2.0 | projection | native-gates, templates |

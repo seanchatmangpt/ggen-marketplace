@@ -1,0 +1,32 @@
+# MESSAGE: Closing a residual requires a realized marketplace pack and an
+# independent receipt that names the exact residual it closes.
+PREFIX mf: <https://ggen.dev/ontology/sjira-marketplace-feedback#>
+PREFIX ic: <https://ggen.dev/ontology/industry-closure#>
+SELECT ?subject ?reason WHERE {
+  {
+    ?subject a ic:ClosureResidual ;
+             ic:unresolved false .
+    FILTER NOT EXISTS {
+      ?delta a mf:MarketplaceCapabilityDelta ;
+             mf:forResidual ?subject ;
+             mf:deltaState mf:REQUALIFIED ;
+             mf:implementedByPack ?pack ;
+             mf:requalificationEvidence ?receipt .
+      ?receipt a mf:FeedbackReceipt ;
+               mf:closesResidual ?subject ;
+               mf:receiptDigest ?digest .
+    }
+    BIND("resolved-residual-without-pack-requalification-receipt" AS ?reason)
+  } UNION {
+    ?subject a mf:MarketplaceCapabilityDelta ;
+             mf:deltaState mf:REQUALIFIED .
+    FILTER NOT EXISTS { ?subject mf:implementedByPack ?pack }
+    BIND("requalified-delta-without-implemented-pack" AS ?reason)
+  } UNION {
+    ?subject a mf:MarketplaceCapabilityDelta ;
+             mf:deltaState mf:REQUALIFIED .
+    FILTER NOT EXISTS { ?subject mf:requalificationEvidence ?receipt . ?receipt a mf:FeedbackReceipt }
+    BIND("requalified-delta-without-requalification-evidence" AS ?reason)
+  }
+}
+ORDER BY ?subject ?reason
