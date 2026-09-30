@@ -1,0 +1,22 @@
+PREFIX qri: <https://ggen.dev/ns/qri#>
+SELECT ?standing ?reason WHERE {
+  ?standing a qri:StandingAssertion ;
+            qri:standingState qri:AdmittedState ;
+            qri:standingOf ?realization ;
+            qri:underContract ?contract ;
+            qri:inContext ?context .
+  {
+    FILTER NOT EXISTS { ?standing qri:basedOnAdmissionDecision ?decision }
+    BIND("ADMITTED_WITHOUT_DECISION" AS ?reason)
+  }
+  UNION {
+    ?standing qri:basedOnAdmissionDecision ?decision .
+    FILTER NOT EXISTS {
+      ?decision a qri:AdmissionDecision ; qri:decision qri:Permit ; qri:forQualification ?qualification .
+      ?standing qri:basedOnQualification ?qualification .
+      ?qualification qri:subjectRealization ?realization ; qri:qualifiesFor ?contract ;
+                     qri:inContext ?context ; qri:qualificationVerdict qri:Pass .
+    }
+    BIND("ADMITTED_WITHOUT_MATCHING_PERMIT" AS ?reason)
+  }
+}
