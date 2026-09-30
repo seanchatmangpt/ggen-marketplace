@@ -122,3 +122,5 @@
 - [Add a semantic Diátaxis document](how-to/add-a-semantic-diataxis-document.md)
 - [Semantic Diátaxis contract](reference/semantic-diataxis-contract.md)
 - [Why documents carry no authority](explanation/semantic-diataxis-fences.md)
+- [SPIFFE capability donor](adoption/spiffe-capability-donor.md)
+- [QME-1 ecosystem reference](qme-1-reference.md)
