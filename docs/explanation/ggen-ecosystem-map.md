@@ -53,7 +53,7 @@ It consumes `ggen` as a **prebuilt release binary**: `marketplace.toml [ggen]` p
 `version = "v26.8.11"`, `release_commit = 402cecd`, with per-platform asset SHA-256 digests. CI
 installs that binary and qualifies every pack through the real runtime — no Rust compile of the
 engine. It also consumes `seanchatmangpt/star-toml` at rev `8395515c` and, transitively,
-`wasm4pm-compat =26.6.28` from crates.io.
+`wasm4pm-compat` from crates.io (exact version pinned in `tools/marketplace-config/Cargo.lock`).
 
 Source authority is asserted in `marketplace.toml [source_authority]` and enforced by
 `verify_source_authority.py`: this repository's `main` is canonical after admission, other
@@ -255,8 +255,8 @@ Unresolved items that need a human decision. Nothing in this section was fixed t
 13. **`ggen-mcp`**: an untracked 13-line `Justfile` wrapping `cargo make`, plus a checked-in
     backup file `src/state_original.rs.bak`.
 14. **`ggen-marketplace`**: live WIP in `packs/dflss-pack/` from a concurrent agent, uncommitted
-    at the end of this session. Stage file-by-file in this repository — the exact pin
-    `wasm4pm-compat = "=26.6.28"` has been broken before by a blind `git add -A`.
+    at the end of this session. Stage file-by-file in this repository — the exact
+    `wasm4pm-compat` pin in `tools/marketplace-config/` has been broken before by a blind `git add -A`.
 
 ### Repository hygiene and gates
 

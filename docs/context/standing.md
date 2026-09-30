@@ -10,9 +10,9 @@ generation run; a commit cannot contain its own hash, so it names the commit gen
 ### Repository facts
 
 - Marketplace version: `v26.9.29`
-- Pack count: 379
-- Catalog fingerprint: `sha256:81d89933ed8b0d86ab2fcc9b660b0f045b5621a5f734d6890e1a09936faac43e`
-- Head SHA: `2b6126abf11017527ce400b6001c063e252fdfb6`
+- Pack count: 381
+- Catalog fingerprint: `sha256:e35fad16cc26f8693ef7aeebb46017b68b5ecb4176b726de85327a7f5cf6cfe9`
+- Head SHA: `199f6532893b469dc6d59091ef5d7589f3e1f78b`
 
 ### Pack standing table
 
@@ -39,6 +39,7 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | ash-revops-structural-factory-pack | 26.8.26 | project | native-gates, templates |
 | ash-runtime-integration-contract-pack | 26.8.29 | project | native-gates, templates |
 | ashdspy-pack | 0.1.0 | projection | native-gates, templates |
+| authzen-spiffe-absorption-pack | 26.9.30 | projection | templates |
 | autofde-gymact-certification-pack | 1.0.0 | semantic | native-gates |
 | autofde-k8s-fault-taxonomy-pack | 1.0.0 | semantic | native-gates |
 | autofde-lab-gymact-bridge-pack | 26.9.1 | project | native-gates, templates |
@@ -333,6 +334,7 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | rwr-level5-foundation-pack | 26.7.30 | project | native-gates, templates |
 | sa2a-bridge-pack | 26.9.20 | projection | native-gates, templates |
 | sa2a-fastapi-pack | 0.1.0 | projection | native-gates, templates |
+| sa2a-semantic-diataxis-pack | 26.9.30 | project | native-gates, templates |
 | sa2a-semantic-evidence-pack | 26.9.29 | project | native-gates, templates |
 | safe-ea-strategy-self-play-pack | 26.7.30 | projection | native-gates, templates |
 | self-monitoring-pack | 26.7.13 | projection | native-gates, templates |

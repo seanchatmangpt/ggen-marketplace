@@ -13,7 +13,7 @@ The census is read-only over `.github/workflows/*.yml`.
 
 ## Family summary
 
-120 workflows. Family is the filename prefix; round is the `rNN` token.
+121 workflows. Family is the filename prefix; round is the `rNN` token.
 
 | family | files | pull_request | push | schedule | distinct job skeletons | largest identical group | largest shape group |
 |---|---|---|---|---|---|---|---|
@@ -22,7 +22,7 @@ The census is read-only over `.github/workflows/*.yml`.
 | explore | 3 | 3 | 0 | 0 | 3 | 1 | 1 |
 | implement | 8 | 8 | 0 | 0 | 8 | 1 | 2 |
 | measure | 45 | 45 | 2 | 0 | 45 | 1 | 11 |
-| other | 33 | 30 | 9 | 2 | 33 | 1 | 1 |
+| other | 34 | 31 | 10 | 2 | 34 | 1 | 1 |
 
 ## Consolidation candidates
 
@@ -63,7 +63,8 @@ Workflow files named inside `ci.yml`: none.
 | file | name | triggers | path filters | PR | push | sched | family | round | in ci.yml |
 |---|---|---|---|---|---|---|---|---|---|
 | `challenger-value-court.yml` | Challenger Value Court | pull_request, workflow_dispatch | `pull_request:.github/workflows/challenger-value-court.yml`<br>`pull_request:packs/challenger-value-framing-pack/**` | yes | no | no | other | - | no |
-| `ci.yml` | CI | pull_request, workflow_dispatch | - | yes | no | no | other | - | no |
+| `chicago-work-equivalent.yml` | Chicago work-equivalent court | pull_request, workflow_dispatch | `pull_request:.github/workflows/chicago-work-equivalent.yml`<br>`pull_request:docs/reference/chicago-work-equivalent-court.md`<br>`pull_request:evidence/chicago/marketplace-work-equivalent.json`<br>+2 more | yes | no | no | other | - | no |
+| `ci.yml` | CI | pull_request, push, workflow_dispatch | `push:.github/workflows/ci.yml`<br>`push:rust-toolchain.toml`<br>`push:tools/marketplace-config/**` | yes | yes | no | other | - | no |
 | `compose-r86-forced-top25-qualification-capsule.yml` | COMPOSE R86 ForcedTop25 Qualification Capsule | pull_request | `pull_request:.github/workflows/compose-r86-forced-top25-qualification-capsule.yml`<br>`pull_request:packs/forced-top25-qualification-capsule-pack/**` | yes | no | no | compose | 86 | no |
 | `dd-ui-profile.yml` | DDUI ecosystem profile | pull_request, push | `pull_request:.github/workflows/dd-ui-profile.yml`<br>`pull_request:dd-ui/**`<br>`pull_request:packs/deterministic-dynamic-ui-pack/**`<br>+3 more | yes | yes | no | other | - | no |
 | `delegation-admission-pack.yml` | Delegation admission semantic court | pull_request, workflow_dispatch | `pull_request:.github/workflows/delegation-admission-pack.yml`<br>`pull_request:packs/delegation-admission-pack/**` | yes | no | no | other | - | no |
