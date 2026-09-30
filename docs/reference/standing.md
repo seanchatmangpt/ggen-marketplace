@@ -400,6 +400,7 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | runtime-evidence-authenticity-pack | 0.1.0 | project | native-gates, templates |
 | rwr-level5-foundation-pack | 26.7.30 | project | native-gates, templates |
 | sa2a-bridge-pack | 26.9.20 | projection | native-gates, templates |
+| sa2a-diataxis-pack | 26.9.29 | projection | templates |
 | sa2a-fastapi-pack | 0.1.0 | projection | native-gates, templates |
 | sa2a-semantic-diataxis-pack | 26.9.30 | project | native-gates, templates |
 | sa2a-semantic-evidence-pack | 26.9.29 | project | native-gates, templates |
