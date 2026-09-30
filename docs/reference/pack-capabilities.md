@@ -20,7 +20,7 @@ under `dynamic_in_gates` in the allowlist; gates that fail to parse are also ref
 
 | metric | value |
 |---|---|
-| packs | 380 |
+| packs | 381 |
 | packs with Python scripts | 111 |
 | Python files scanned | 531 |
 | files failing to parse | 0 |
@@ -65,10 +65,10 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 | state | packs |
 |---|---|
 | with LICENSE file | 3 |
-| lacking LICENSE file | 377 |
+| lacking LICENSE file | 378 |
 | with SPDX identifier | 4 |
-| lacking SPDX identifier | 376 |
-| lacking both | 373 |
+| lacking SPDX identifier | 377 |
+| lacking both | 374 |
 
 <details><summary>Packs lacking both</summary>
 
@@ -382,6 +382,7 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `rwr-level5-foundation-pack`
 - `sa2a-bridge-pack`
 - `sa2a-fastapi-pack`
+- `sa2a-semantic-diataxis-pack`
 - `sa2a-semantic-evidence-pack`
 - `safe-ea-strategy-self-play-pack`
 - `self-monitoring-pack`
