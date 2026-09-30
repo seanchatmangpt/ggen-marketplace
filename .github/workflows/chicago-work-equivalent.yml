@@ -1,0 +1,100 @@
+name: Chicago work-equivalent court
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/chicago_work_equivalent.py"
+      - "tests/test_chicago_work_equivalent.py"
+      - "evidence/chicago/marketplace-work-equivalent.json"
+      - "docs/reference/chicago-work-equivalent-court.md"
+      - ".github/workflows/chicago-work-equivalent.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chicago-work-equivalent-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  chicago:
+    name: Exact-head 500M person-year court
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Assert exact subject identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$expected"
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Execute court twice and prove deterministic replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/chicago_work_equivalent.py             --root .             --ledger evidence/chicago/marketplace-work-equivalent.json             --receipt "${RUNNER_TEMP}/receipt-a.json"             > "${RUNNER_TEMP}/stdout-a.json"
+          python scripts/chicago_work_equivalent.py             --root .             --ledger evidence/chicago/marketplace-work-equivalent.json             --receipt "${RUNNER_TEMP}/receipt-b.json"             > "${RUNNER_TEMP}/stdout-b.json"
+          cmp "${RUNNER_TEMP}/receipt-a.json" "${RUNNER_TEMP}/receipt-b.json"
+          cmp "${RUNNER_TEMP}/stdout-a.json" "${RUNNER_TEMP}/stdout-b.json"
+          python -m json.tool "${RUNNER_TEMP}/receipt-a.json" >/dev/null
+
+      - name: Verify standing calculus
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - "${RUNNER_TEMP}/receipt-a.json" <<'PY'
+          import json, sys
+          from pathlib import Path
+          r = json.loads(Path(sys.argv[1]).read_text())
+          target = r["claim"]["target_person_years"]
+          observed = r["observation"]["person_years_lower_bound"]
+          standing = r["standing"]
+          if standing == "ALIVE":
+              assert observed >= target
+          else:
+              assert standing == "UNSUPPORTED:INSUFFICIENT_INDEPENDENT_HUMAN_BASELINE_EVIDENCE"
+              assert observed < target
+          print(f"standing={standing}")
+          print(f"lower_bound_person_years={observed}")
+          print(f"target_person_years={target}")
+          PY
+
+      - name: Run Chicago court tests
+        run: |
+          python -m pip install --disable-pip-version-check pytest
+          python -m pytest tests/test_chicago_work_equivalent.py -q -p no:cacheprovider
+
+      - name: Preserve court receipt
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v6.0.0
+        with:
+          name: chicago-work-equivalent-receipt
+          path: ${{ runner.temp }}/receipt-a.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Refuse source mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git status --porcelain --untracked-files=all)"
+          if [[ -n "$changed" ]]; then
+            echo "::error title=REFUSED:CHICAGO_MUTATED_SUBJECT::$changed"
+            exit 2
+          fi
