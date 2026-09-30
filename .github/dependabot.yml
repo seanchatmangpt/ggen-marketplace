@@ -1,11 +1,35 @@
 version: 2
 updates:
-  # Every action in this repo's workflows is pinned to a full commit SHA
-  # (see AGENTS.md's working discipline and the workflows themselves) --
-  # Dependabot opens a PR to bump the pin (and its version comment) when a
-  # new release lands, rather than this repo drifting to a stale, unpatched
-  # commit with no automated signal.
+  # Every action in this repo's workflows and composite actions is pinned to a full
+  # commit SHA (see AGENTS.md's working discipline and test_workflow_hygiene) --
+  # Dependabot bumps the pin (and its version comment) when a new release lands,
+  # rather than this repo drifting to a stale, unpatched commit with no signal.
+  # One grouped PR per week instead of one PR per action.
   - package-ecosystem: "github-actions"
-    directory: "/"
+    directories:
+      - "/"
+      - "/.github/actions/*"
     schedule:
       interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # CI python dependencies (pack courts, test suite): exact pins in ci/requirements-*.txt.
+  - package-ecosystem: "pip"
+    directory: "/ci"
+    schedule:
+      interval: "weekly"
+    groups:
+      ci-python:
+        patterns: ["*"]
+
+  # star-toml admission tool (tools/marketplace-config/Cargo.lock); the lockfile is
+  # also the key of the compiled-artifact cache, so a bump rebuilds exactly once.
+  - package-ecosystem: "cargo"
+    directory: "/tools/marketplace-config"
+    schedule:
+      interval: "weekly"
+    groups:
+      cargo:
+        patterns: ["*"]

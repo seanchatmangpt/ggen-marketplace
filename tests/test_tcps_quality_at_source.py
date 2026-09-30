@@ -32,13 +32,18 @@ def test_r78_ready_set_generation_is_deterministic_at_execution_edge():
     assert "DESC(?score)" in text, "POKAYOKE_LINEAR_EXTENSION_MUST_USE_SELECTION_SCORE"
 
 
-def test_structural_factory_workflows_are_temporally_bounded():
-    workflows = [
-        ROOT / ".github/workflows/measure-r75-throughput-learning.yml",
-        ROOT / ".github/workflows/measure-r76-portfolio-structural-census.yml",
-        ROOT / ".github/workflows/measure-r77-repository-universe.yml",
-    ]
-    for workflow in workflows:
-        text = workflow.read_text()
-        assert "runs-on:" in text
-        assert "timeout-minutes:" in text, f"ANDON_WORKFLOW_TIMEOUT_MISSING:{workflow.name}"
+def test_structural_factory_courts_are_temporally_bounded():
+    # The R75-R77 structural-factory courts run as rows of ci/courts.toml inside the
+    # `courts` job of ci.yml; the job owns the temporal bound (ANDON_WORKFLOW_TIMEOUT_MISSING).
+    import tomllib
+
+    courts = {c["id"] for c in tomllib.loads((ROOT / "ci/courts.toml").read_text())["court"]}
+    for court in (
+        "measure-r75-throughput-learning",
+        "measure-r76-portfolio-structural-census",
+        "measure-r77-repository-universe",
+    ):
+        assert court in courts, f"ANDON_COURT_MISSING:{court}"
+    ci = (ROOT / ".github/workflows/ci.yml").read_text()
+    jobs = ci.split("\n  courts:\n", 1)[1].split("\n  tests:\n", 1)[0]
+    assert "runs-on:" in jobs and "timeout-minutes:" in jobs, "ANDON_WORKFLOW_TIMEOUT_MISSING:courts"

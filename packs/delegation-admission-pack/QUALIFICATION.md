@@ -52,8 +52,9 @@ The generated batch is a projection, never a second source of truth.
 
 ## Exact-head workflow
 
-`.github/workflows/delegation-admission-pack.yml` checks out the exact PR head,
-installs rdflib 7.6.0, and executes `qualification/verify.py`.
+The `delegation-admission-pack` row of `ci/courts.toml` (run by the `courts` job of
+`.github/workflows/ci.yml` against the exact head) executes `qualification/verify.py` under the
+rdflib pin in `ci/requirements-courts.txt`.
 
 Repository-level courts remain additive:
 

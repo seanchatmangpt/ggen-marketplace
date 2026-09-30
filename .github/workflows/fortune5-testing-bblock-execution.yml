@@ -16,9 +16,14 @@ on:
       - 'scripts/fortune5_testing_bblock_scratch_facts.py'
       - 'scripts/fortune5_testing_bblock_assert_root.py'
       - '.github/workflows/fortune5-testing-bblock-execution.yml'
+      - '.github/actions/setup-marketplace/**'
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   execute:
@@ -31,24 +36,12 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
-      - name: Admit exact subject
-        env:
-          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
-        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      - name: Set up cached marketplace toolchain, admit config, install ggen
+        uses: ./.github/actions/setup-marketplace
         with:
-          python-version: "3.12"
-      - name: Admit marketplace config and install a real ggen binary
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash scripts/admit-config.sh marketplace.toml "${RUNNER_TEMP}/admitted-config.json"
-          ggen_bin="$(bash scripts/install-ggen.sh "${RUNNER_TEMP}/admitted-config.json")"
-          echo "GGEN_BIN=$ggen_bin" >> "$GITHUB_ENV"
-          "$ggen_bin" --version
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ggen: "true"
+
       - name: Build a scratch consumer (copy of the pack, pointed at itself)
         shell: bash
         run: |

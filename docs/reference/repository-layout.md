@@ -25,6 +25,9 @@
 | `docs/explanation/` | Architecture/rationale quadrant, including Level-5 Diátaxis and class-closure explanations. |
 | `docs/thesis/` | Research monograph and appendices; explanatory/research corpus, not a parallel operational authority plane. |
 | `.github/workflows/ci.yml` | Read-only orchestration around repository acceptance/qualification. |
+| `.github/actions/setup-marketplace/` | Composite action shared by CI jobs: exact-subject assertion, pip/cargo/ggen caches, star-toml admission, optional admitted-ggen install. |
+| `ci/courts.toml` | One row per pack court (paths, run body, `advisory`/`main_only`/`ggen` flags). Add a court here, not as a new workflow. |
+| `scripts/ci_courts.py` | Runs the `ci/courts.toml` rows a diff touches (`--base`), every row (`--all`), or validates the table (`--check`). |
 | `.github/workflows/pages.yml` | Exact-subject ggen manufacture of mdBook control surfaces followed by mdBook build/deploy. |
 | `.ggen-packs-source-sha` | Historical initial source-commit receipt; provenance, not moving canonical authority. |
 
