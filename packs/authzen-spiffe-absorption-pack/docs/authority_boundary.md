@@ -1,4 +1,4 @@
-# Authority boundary gate
+# Authority boundary
 
 A generated AuthZEN/SPIFFE adapter is admissible only when:
 
@@ -8,3 +8,5 @@ A generated AuthZEN/SPIFFE adapter is admissible only when:
 4. certificate issuance stays in the configured local C2 authority domain;
 5. protected DO still requires actuator-local certificate verification and claim;
 6. generated code contains no signing private key or protected effector credential.
+
+This document is non-executable rationale. Executable gates live only under `gates/`.
