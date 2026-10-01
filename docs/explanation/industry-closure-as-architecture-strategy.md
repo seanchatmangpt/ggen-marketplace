@@ -142,6 +142,10 @@ Several packs share words with these. Similar names are not equivalence proof.
 - `chatman-togaf-closure-pack` closes a per-project lifecycle. It is a different closure from industry closure and is not merged.
 - Hollow operating-model labels elsewhere in the marketplace are cited as non-equivalent and are not changed.
 
+## Relationship to the minimal public-ontology closure pack
+
+`industry-closure-pack` (namespace `https://ggen.dev/ontology/industry-closure#`) stays the minimal public-ontology closure law: an assessment is CLOSED or RESIDUAL against bound public terms, and `sjira-marketplace-feedback-pack` turns its unresolved residuals into marketplace deltas. This ledger pack extends that law with typed deficit classes, a monotone coverage ledger with STALE currentness, an evidence chain and a feedback packet. The relationship is recorded one way, in `ontology/alignment-industry-closure.ttl` inside this pack, using `skos:closeMatch`, `skos:narrowMatch` and `skos:relatedMatch` only. No equivalence is claimed, because the same local name carries different semantics (a main CLOSED is not a ledger COVERED), and a CLOSED assessment from main's vocabulary is never accepted as ledger coverage without VERIFIED evidence at the exact subject. Nothing is added to or imported from the other packs; `tests/test_industry_closure_alignment.py` guards the mapping against drift.
+
 ## Why three packs and no edits
 
 - A kernel owns the calculus because it is shared by every industry and by the enterprise-architecture family. Per-industry knowledge is data in a profile, not a new kernel.

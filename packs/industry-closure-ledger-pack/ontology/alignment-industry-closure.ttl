@@ -1,0 +1,61 @@
+# Alignment graph: industry-closure-ledger-pack -> industry-closure-pack and
+# sjira-marketplace-feedback-pack (both on main, owned by another session).
+#
+# One-directional by construction. This file lives only in the ledger pack; nothing is
+# added to, imported from, or asserted inside the other packs, and it is NOT listed in
+# ggen.toml [ontology].imports, so manufacture and the gates never load it. It is an
+# annotation surface for consumers and for the drift test
+# tests/test_industry_closure_alignment.py, which fails if any aligned IRI disappears.
+#
+# Namespace note. Both packs use the prefix ic: inside their own files but with
+# DIFFERENT namespaces. Here the ledger is ic: and main's minimal law is icm:.
+# Same local name is not equivalence: no owl:equivalentClass / owl:sameAs is used.
+#
+# Only terms that exist in BOTH files are aligned. Ledger terms with no counterpart on
+# main (Requirement, Coverage chain parts, WorkOrder id, DeficitClass, STALE, LIVE,
+# snapshots, authority literals) are deliberately left unaligned.
+#
+# Authority: SELECT -> CONSTRUCT -> DO is unchanged. Alignment grants no DO, and a CLOSED
+# value from main's vocabulary is NOT ledger coverage: ledger coverage needs the full
+# chain plus VERIFIED ExecutionEvidence at the SBB's exact subject (gate 050).
+
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix ic: <https://seanchatmangpt.github.io/packs/industry-closure-ledger-pack#> .
+@prefix icm: <https://ggen.dev/ontology/industry-closure#> .
+@prefix mf: <https://ggen.dev/ontology/sjira-marketplace-feedback#> .
+
+# Residual. Both are "one recorded unmet closure element". Close, not equal: main's
+# ClosureResidual is emitted by an assessment over a public-ontology term gap; the
+# ledger's Residual spans seven deficit classes (authority, ontology, ABB, contract,
+# SBB, qualification, evidence) keyed by (requirement, capability key), and is computed,
+# never asserted. skos:closeMatch, not rdfs:subClassOf, so no main-side axioms are
+# entailed on ledger residuals.
+ic:Residual skos:closeMatch icm:ClosureResidual .
+
+# Closed. Ledger COVERED is the classifier sentinel for "whole chain holds", which is
+# strictly stronger than main's CLOSED ("no open residual", with optional
+# qualificationEvidence). closeMatch only; a main CLOSED never implies ledger COVERED.
+ic:COVERED skos:closeMatch icm:CLOSED .
+
+# Assessment. A main ClosureAssessment is either CLOSED or RESIDUAL; a ledger Coverage
+# records only the positive, chain-complete outcome and carries LIVE/STALE currentness.
+# So the ledger term is the narrower one: the assessment is broader.
+icm:ClosureAssessment skos:narrowMatch ic:Coverage .
+
+# Ontology binding. A main OntologyBinding binds one public term to a source and digest;
+# a ledger KnowledgeSource is the admitted source that may provide many concepts, under
+# an admission state and licence boundary. Neither contains the other, so only a weak
+# related link is recorded (not close/narrow).
+ic:KnowledgeSource skos:relatedMatch icm:OntologyBinding .
+
+# Feedback packet -> sJira. The ledger manufactures generated/industry-closure/
+# feedback-packet.json (a JSON file, so it has no RDF term) and its ic:WorkOrder
+# projections; sJira work orders for unresolved main residuals consume that stream.
+# Recorded as a closeMatch note on the nearest shared term, without importing anything.
+# Close, not equal: the ledger WorkOrder is a candidate (UNKNOWN/BLOCKED, authority
+# NONE); mf:MarketplaceCapabilityDelta is a downstream marketplace delta with its own
+# OPEN/QUALIFIED/REQUALIFIED lifecycle and requalification receipt.
+ic:WorkOrder skos:closeMatch mf:MarketplaceCapabilityDelta ;
+    skos:note "The ledger feedback packet (generated/industry-closure/feedback-packet.json) and ic:WorkOrder projections are consumed by sjira-marketplace-feedback-pack work orders. Consumption is by notation only: nothing is imported, the sjira pack is not edited, and a ledger work order is a candidate that claims NONE authority." .

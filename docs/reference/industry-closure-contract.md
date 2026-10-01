@@ -357,6 +357,10 @@ The ledger never shrinks. Currentness is re-earned: a regression keeps the cover
 - Grounding in an ADMITTED source counts only when the closure uses that source (`ic:usesSource`). An `ea:Strategy` accepted as an origin or grounding is taken as typed; this pack does not judge that strategy's own provenance.
 - The classifier nests EXISTS inside BIND over variables bound earlier in the group. Its behaviour is shown under rdflib only. A native-engine run of the queries has never been made, so a divergence in unbound-variable or boolean handling there would not be caught here; that run is part of the real-ggen qualification and stays `BLOCKED:ggen_binary_unavailable` until it happens.
 
+## Alignment with the minimal closure pack
+
+`ontology/alignment-industry-closure.ttl` maps this pack's terms to `industry-closure-pack` (`https://ggen.dev/ontology/industry-closure#`) and `sjira-marketplace-feedback-pack` with `skos:closeMatch`, `skos:narrowMatch` and `skos:relatedMatch` only: `ic:Residual` close to `ClosureResidual`, `ic:COVERED` close to `CLOSED`, `ClosureAssessment` broader than `ic:Coverage`, `ic:KnowledgeSource` related to `OntologyBinding`, and `ic:WorkOrder` close to `mf:MarketplaceCapabilityDelta` with a note that the feedback packet is consumed by sJira work orders. This pack extends main's closure law; main's pack remains the minimal public-ontology law. The file is one-directional, is not in `ggen.toml` imports, never loads in gates, and grants no equivalence or authority: a main CLOSED is not ledger coverage without gate 050 evidence. Drift is checked by `tests/test_industry_closure_alignment.py`.
+
 ## Pack status
 
 - Derived packaging profile: project (the pack ships `ggen.toml`). Class: KernelPack, see [Pack classes](pack-classes.md). `[pack]` in `pack.toml` holds only name, version and description.
