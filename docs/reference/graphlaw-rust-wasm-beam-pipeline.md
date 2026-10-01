@@ -10,7 +10,7 @@ or grants DO authority.
 | hop | pack | input graph | projection | gate court |
 |---|---|---|---|---|
 | rust crate ABI to wasm module | `wasi-json-abi-pack` | `qualification/graphlaw-consumer.ttl`, `qualification/graphlaw-ops.ttl` | `generated/graphlaw/` (ABI metadata, capability registry, op examples, cargo stack and profile, artifact pins, guards, test harness) | gates 010-090, 9 cases |
-| wasm module to qualified runtime | `qri-qualification-profile-pack` | `ontology/examples/graphlaw-contract.ttl` | WIT, ABI ledger, Rust adapter, wasmex BEAM host | 8 gates |
+| wasm module to qualified runtime | `qri-qualification-profile-pack` | `ontology/examples/graphlaw-contract.ttl` | WIT, ABI ledger, Rust adapter, wasmex BEAM host | 10 gates |
 | registry to Elixir capability surface | `graphlaw-ash-capability-pack` | graphlaw `registry/capability-registry.json` as RDF | behaviour, registry, per-op modules, result structs, docs, surface test | see the pack's `gate-court.toml` |
 | evidence | `chicago-graphlaw-court-pack` | `cases/*.ttl` | Chicago-style Rust court tests over `graphlaw::abi::call` | gates and witnesses per pack |
 
@@ -46,9 +46,11 @@ Each has a same-stem pass and fail witness under `packs/wasi-json-abi-pack/witne
 ## Handwritten residue
 
 `packs/wasi-json-abi-pack/HANDWRITTEN-graphlaw.md` lists what stays hand-written in graphlaw's
-`wasm/src/lib.rs` (outstanding-allocation accounting, engine admission caps, the refusal-kind
-envelope, op bodies), each as `UNSUPPORTED(generator-capability)`. `ffi.rs` is not selected for
-graphlaw, so `ggen-graphlaw.toml` has no `ffi` rule.
+`wasm/src/lib.rs` (engine admission caps, the refusal-kind envelope, op bodies, and the module
+wiring), each as `UNSUPPORTED(generator-capability)`. The outstanding-allocation accounting
+(`wja:maxOutstandingBytes`, `wja:bufferStyle "vec"`, no `gl_abi_version`) is generated:
+`ggen-graphlaw.toml` has an `ffi` rule and `generated/graphlaw/ffi.rs` is differentially tested
+against the hand-written `lib.rs` for `wasm32-wasip1` (same exports, same `wasm_abi` results).
 
 ## Verification
 

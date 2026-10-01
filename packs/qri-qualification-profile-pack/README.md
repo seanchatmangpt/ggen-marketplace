@@ -11,7 +11,7 @@ JSON ABI adapter (Rust) and a wasmex BEAM host (Elixir). Authority ceiling NONE.
   `ontology/context.jsonld`; `ontology/examples/graphlaw-contract.ttl` (contract for the real
   graphlaw ABI).
 - `shapes/qri.shacl.ttl` SHACL Core + SHACL-SPARQL admission.
-- `gates/*.rq` eight gates, each with same-stem `witnesses/{pass,fail}`.
+- `gates/*.rq` ten gates, each with same-stem `witnesses/{pass,fail}`.
 - `queries/`, `templates/`, `ggen.toml`: projection rules (WIT, ABI ledger, Rust adapter, host).
 - `qualification/`: `verify.py` (gate court), `rdfc.py` (semantic digest), `qualify.py`
   (differential court), `host_probe.exs`, `reference/` (hand-written domain + contract).

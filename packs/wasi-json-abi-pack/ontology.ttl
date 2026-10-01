@@ -189,6 +189,25 @@ wja:examplesPath a rdf:Property ;
     rdfs:label "examples path" ;
     rdfs:comment "Optional manifest-relative path of op-examples.json read by the harness; default registry/op-examples.json." .
 
+# -- Allocation discipline facts (WasmModule; optional, consumed by queries/ffi.rq and queries/meta.rq) --
+# Absent facts keep the default boxed-slice shell with no outstanding-byte accounting.
+# Closed-set and cross-fact rules are enforced by gates/100_alloc_discipline_closed.rq.
+
+wja:maxOutstandingBytes a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:integer ;
+    rdfs:label "max outstanding bytes" ;
+    rdfs:comment "Optional cap on bytes handed to the host (alloc buffers and call responses) and not yet freed; alloc returns null once a reservation would exceed it. Rendered into abi_meta as MAX_OUTSTANDING_BYTES and enforced by the generated ffi shell. Must be >= maxRequestBytes." .
+
+wja:bufferStyle a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "buffer style" ;
+    rdfs:comment "Optional closed set {boxed-slice, vec}; default boxed-slice. boxed-slice: every buffer is a Box<[u8]> of length max(len,1), zeroed on alloc. vec: every buffer is a Vec<u8> with capacity max(len,1), reconstructed with Vec::from_raw_parts (the allocation discipline of graphlaw's wasm/src/lib.rs)." .
+
+wja:abiModulePath a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "ABI module path" ;
+    rdfs:comment "Optional Rust path of the safe core exposing call, limit_response and missing_buffer_response; default crate::abi (graphlaw: graphlaw::abi)." .
+
 # -- Host imports and release pins (consumer facts; graphlaw v26.9.29 specimen) --
 
 wja:WasiImport a rdfs:Class ;

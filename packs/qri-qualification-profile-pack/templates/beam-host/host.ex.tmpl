@@ -6,7 +6,7 @@ sparql:
     SELECT ?app ?root ?task_root ?prefix ?abi_version ?free_symbol ?len_type ?alloc_zero_policy ?out_mode
            ?req_consumed ?pin_format ?path_env ?handle_noun ?taxonomy_ns ?refusal_module ?request_cap
            ?manifest_rel ?wasm_rel ?manifest_schema ?ok_key ?op_key ?probe_op ?probe_expect
-           ?telemetry_root ?pool_strategy ?pool_size ?pool_size_source ?engine_id WHERE {
+           ?telemetry_root ?pool_strategy ?pool_size ?pool_size_source ?engine_id ?doc_example_op WHERE {
       ?c a qri:CapabilityContract ; qri:hostProfile ?hp ; qri:abiSymbolPrefix ?prefix .
       OPTIONAL { ?c qri:abiVersion ?abiv }
       OPTIONAL { ?hp qri:otpApp ?a }
@@ -35,6 +35,7 @@ sparql:
       OPTIONAL { ?hp qri:poolSize ?psz }
       OPTIONAL { ?hp qri:poolSizeSource ?pss }
       OPTIONAL { ?hp qri:engineId ?eid }
+      OPTIONAL { ?hp qri:docExampleOp ?deo }
       BIND(COALESCE(?a, "") AS ?app)
       BIND(COALESCE(?r, "") AS ?root)
       BIND(COALESCE(?tr, "") AS ?task_root)
@@ -62,14 +63,19 @@ sparql:
       BIND(COALESCE(?psz, 1) AS ?pool_size)
       BIND(COALESCE(?pss, "") AS ?pool_size_source)
       BIND(COALESCE(?eid, "") AS ?engine_id)
+      BIND(COALESCE(?deo, "") AS ?doc_example_op)
     }
     ORDER BY ?prefix
   limits: |
     PREFIX qri: <https://seanchatmangpt.github.io/packs/qri-qualification-profile-pack#>
-    SELECT ?prefix ?name ?default ?order WHERE {
+    SELECT ?prefix ?name ?default ?order ?zero_ok ?zero_meaning WHERE {
       ?c a qri:CapabilityContract ; qri:hostProfile ?hp ; qri:abiSymbolPrefix ?prefix .
       ?hp qri:hostLimit ?l .
       ?l qri:limitName ?name ; qri:limitDefault ?default ; qri:limitOrder ?order .
+      OPTIONAL { ?l qri:limitZeroOk ?z }
+      OPTIONAL { ?l qri:limitZeroMeaning ?zm }
+      BIND(COALESCE(?z, false) AS ?zero_ok)
+      BIND(COALESCE(?zm, "") AS ?zero_meaning)
     }
     ORDER BY ?prefix ?order ?name
   exports: |
@@ -83,11 +89,13 @@ sparql:
     ORDER BY ?prefix ?kind ?name
   recycle: |
     PREFIX qri: <https://seanchatmangpt.github.io/packs/qri-qualification-profile-pack#>
-    SELECT ?prefix ?code WHERE {
+    SELECT ?prefix ?code ?order WHERE {
       ?c a qri:CapabilityContract ; qri:hostProfile ?hp ; qri:abiSymbolPrefix ?prefix .
       ?hp qri:recycleOn ?code .
+      OPTIONAL { ?hp qri:recycleRule ?r . ?r qri:recycleCode ?code ; qri:recycleOrder ?o }
+      BIND(COALESCE(?o, 1000000) AS ?order)
     }
-    ORDER BY ?prefix ?code
+    ORDER BY ?prefix ?order ?code
 force: true
 ---
 {%- set p = profile[0] -%}
@@ -179,7 +187,7 @@ defmodule {{ p.root }}.Host do
   end
 
   @doc """
-  Runs one {{ p.engine_id }} request (a string-keyed map such as `%{"{{ p.op_key }}" => ...}`).
+  Runs one {{ p.engine_id }} request (a string-keyed map such as `%{"{{ p.op_key }}" => {% if p.doc_example_op != "" %}"{{ p.doc_example_op }}", ...{% else %}...{% endif %}}`).
 
   Returns the decoded response map whether the engine answered `"ok" => true`
   or `"ok" => false`; only transport and host failures are `{:error, refusal}`.

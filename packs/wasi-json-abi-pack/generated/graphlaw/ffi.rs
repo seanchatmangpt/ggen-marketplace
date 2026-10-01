@@ -1,55 +1,42 @@
-//! WebAssembly FFI shell for `{{ crate_name }}`: the only `unsafe` in the crate.
+//! WebAssembly FFI shell for `graphlaw-wasm`: the only `unsafe` in the crate.
 //
 // Consumed query columns (ffi.rq): crate_name, export_prefix, abi_version,
-// max_request_bytes.{% if max_outstanding_bytes != "" or buffer_style != "boxed-slice" or has_abi_version_export != "true" or abi_path != "crate::abi" %}
+// max_request_bytes.
 // Allocation-discipline columns (ffi.rq): has_abi_version_export, max_outstanding_bytes,
-// buffer_style, abi_path.{% endif %}
+// buffer_style, abi_path.
 // Rendered by ggen (wasi-json-abi-pack) from the wja: graph.
 // Edit the ontology and re-render; never edit this file by hand.
 //
-// Protocol (ABI version {{ abi_version }}, request limit {{ max_request_bytes }} bytes; all
+// Protocol (ABI version 1, request limit 16777216 bytes; all
 // integers are wasm `i32`/`i64`):
-// 1. `{{ export_prefix }}_alloc(len) -> ptr`: host reserves `len` bytes and writes a UTF-8
+// 1. `gl_alloc(len) -> ptr`: host reserves `len` bytes and writes a UTF-8
 //    JSON request there. Returns null when `len` exceeds the request limit.
-// 2. `{{ export_prefix }}_call(ptr, len) -> packed`: runs the request and consumes (frees)
+// 2. `gl_call(ptr, len) -> packed`: runs the request and consumes (frees)
 //    the request buffer. `packed = (out_ptr << 32) | out_len`.
 // 3. host reads `out_len` bytes at `out_ptr` (UTF-8 JSON), then
-//    `{{ export_prefix }}_free(out_ptr, out_len)`.
+//    `gl_free(out_ptr, out_len)`.
 //
 // A null request pointer or an oversize length never traps: the call returns a
 // typed error response built by the safe core.
 //
-// Contract with the hand-written safe core (`{{ abi_path }}`):
+// Contract with the hand-written safe core (`graphlaw::abi`):
 //   pub fn call(request: &[u8]) -> Vec<u8>
 //   pub fn limit_response(name: &str, observed: usize, max: usize) -> Vec<u8>
 //   pub fn missing_buffer_response() -> Vec<u8>
-// and with the generated `crate::abi_meta`: {% if has_abi_version_export == "true" %}`ABI_VERSION: u32`,
-// {% endif %}`MAX_REQUEST_BYTES: usize`{% if max_outstanding_bytes != "" %}, `MAX_OUTSTANDING_BYTES: usize`{% endif %}.
+// and with the generated `crate::abi_meta`: `MAX_REQUEST_BYTES: usize`, `MAX_OUTSTANDING_BYTES: usize`.
 //
-{%- if buffer_style == "vec" %}
 // Allocation discipline: every buffer crossing the boundary is a `Vec<u8>` of capacity
 // `len.max(1)` (responses are shrunk to capacity == length), so `_free` / `_call`
 // reconstruct the exact allocation with `Vec::from_raw_parts`.
-{%- else %}
-// Allocation discipline: every buffer crossing the boundary is a `Box<[u8]>` of
-// length `len.max(1)`, so `_free` / `_call` reconstruct the exact allocation.
-{%- endif %}
-{%- if max_outstanding_bytes != "" %}
 // Outstanding-byte cap: bytes handed to the host (`_alloc` buffers and `_call` responses)
 // and not yet freed are counted; `_alloc` returns null once a reservation would exceed
 // `MAX_OUTSTANDING_BYTES`, so a host that never frees cannot fill linear memory.
-{%- endif %}
 #![allow(unsafe_code)]
 #![deny(missing_docs)]
 // Native builds only exercise the helpers through tests; the exports are wasm32-only.
 #![cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 
-{% if has_abi_version_export == "true" -%}
-#[cfg(any(target_arch = "wasm32", test))]
-use crate::abi_meta::ABI_VERSION;
-{% endif -%}
 use crate::abi_meta::MAX_REQUEST_BYTES;
-{%- if max_outstanding_bytes != "" %}
 use crate::abi_meta::MAX_OUTSTANDING_BYTES;
 use core::sync::atomic::{AtomicUsize, Ordering};
 
@@ -71,8 +58,6 @@ fn release(bytes: usize) {
         Some(n.saturating_sub(bytes))
     });
 }
-{%- endif %}
-{%- if buffer_style == "vec" %}
 
 /// Leak a vec buffer to the host as a raw pointer.
 fn into_raw(mut buf: Vec<u8>) -> *mut u8 {
@@ -92,53 +77,17 @@ unsafe fn from_raw(ptr: *mut u8, len: u32) -> Vec<u8> {
     unsafe { Vec::from_raw_parts(ptr, len as usize, n) }
 }
 
-/// Reserve a buffer of capacity `len.max(1)`; null when `len` exceeds the request limit
-{%- if max_outstanding_bytes != "" %} or the reservation would exceed the outstanding cap{% endif %}.
+/// Reserve a buffer of capacity `len.max(1)`; null when `len` exceeds the request limit or the reservation would exceed the outstanding cap.
 pub fn alloc_buf(len: u32) -> *mut u8 {
     if len as usize > MAX_REQUEST_BYTES {
         return core::ptr::null_mut();
     }
-{%- if max_outstanding_bytes != "" %}
     // A host that allocates and never frees must not be able to fill linear memory.
     if !reserve((len as usize).max(1)) {
         return core::ptr::null_mut();
     }
-{%- endif %}
     into_raw(Vec::with_capacity((len as usize).max(1)))
 }
-{%- else %}
-
-/// Leak a boxed buffer to the host as a raw pointer.
-fn into_raw(buf: Box<[u8]>) -> *mut u8 {
-    Box::into_raw(buf) as *mut u8
-}
-
-/// Reclaim a buffer previously produced by [`into_raw`].
-///
-/// # Safety
-/// `ptr` must come from this module and `len` must be the length that was
-/// requested / returned for it; each pair may be reclaimed exactly once.
-unsafe fn from_raw(ptr: *mut u8, len: u32) -> Box<[u8]> {
-    let n = (len as usize).max(1);
-    // SAFETY: caller guarantees ptr/len describe a live allocation of `n` bytes.
-    unsafe { Box::from_raw(core::ptr::slice_from_raw_parts_mut(ptr, n)) }
-}
-
-/// Reserve `len` zeroed bytes; null when `len` exceeds the request limit
-{%- if max_outstanding_bytes != "" %} or the reservation would exceed the outstanding cap{% endif %}.
-pub fn alloc_buf(len: u32) -> *mut u8 {
-    if len as usize > MAX_REQUEST_BYTES {
-        return core::ptr::null_mut();
-    }
-{%- if max_outstanding_bytes != "" %}
-    // A host that allocates and never frees must not be able to fill linear memory.
-    if !reserve((len as usize).max(1)) {
-        return core::ptr::null_mut();
-    }
-{%- endif %}
-    into_raw(vec![0u8; (len as usize).max(1)].into_boxed_slice())
-}
-{%- endif %}
 
 /// Release a buffer obtained from [`alloc_buf`] or returned by [`call_buf`].
 ///
@@ -146,9 +95,7 @@ pub fn alloc_buf(len: u32) -> *mut u8 {
 /// `ptr`/`len` must be exactly a pair previously handed out by this module.
 pub unsafe fn free_buf(ptr: *mut u8, len: u32) {
     if !ptr.is_null() {
-{%- if max_outstanding_bytes != "" %}
         release((len as usize).max(1));
-{%- endif %}
         // SAFETY: forwarded caller contract.
         drop(unsafe { from_raw(ptr, len) });
     }
@@ -162,22 +109,16 @@ pub unsafe fn free_buf(ptr: *mut u8, len: u32) {
 /// `ptr`/`len` must describe a buffer from [`alloc_buf`] filled by the host.
 pub unsafe fn call_buf(ptr: *mut u8, len: u32) -> Vec<u8> {
     let response = if ptr.is_null() {
-        {{ abi_path }}::missing_buffer_response()
+        graphlaw::abi::missing_buffer_response()
     } else if len as usize > MAX_REQUEST_BYTES {
         // Not a buffer this module could have handed out; do not reconstruct it.
-        {{ abi_path }}::limit_response("request_bytes", len as usize, MAX_REQUEST_BYTES)
+        graphlaw::abi::limit_response("request_bytes", len as usize, MAX_REQUEST_BYTES)
     } else {
         // SAFETY: forwarded caller contract; len <= MAX_REQUEST_BYTES.
         let request = unsafe { from_raw(ptr, len) };
-{%- if buffer_style == "vec" %}
-        let response = {{ abi_path }}::call(&request);
-{%- else %}
-        let response = {{ abi_path }}::call(&request[..len as usize]);
-{%- endif %}
+        let response = graphlaw::abi::call(&request);
         drop(request);
-{%- if max_outstanding_bytes != "" %}
         release((len as usize).max(1));
-{%- endif %}
         response
     };
     if response.is_empty() {
@@ -190,46 +131,31 @@ pub unsafe fn call_buf(ptr: *mut u8, len: u32) -> Vec<u8> {
 /// Hand a response to the host; returns `(out_ptr << 32) | out_len`.
 fn pack_response(response: Vec<u8>) -> u64 {
     let out_len = response.len() as u64;
-{%- if max_outstanding_bytes != "" %}
     // The response is now host-owned until `_free`; count it (never zero-sized here).
     OUTSTANDING.fetch_add(response.len().max(1), Ordering::Relaxed);
-{%- endif %}
-{%- if buffer_style == "vec" %}
     let mut response = response;
     // Capacity must equal length so `_free` can reconstruct the allocation.
     response.shrink_to_fit();
     let out_ptr = into_raw(response) as usize as u64;
-{%- else %}
-    let out_ptr = into_raw(response.into_boxed_slice()) as usize as u64;
-{%- endif %}
     (out_ptr << 32) | out_len
 }
 
-{% if has_abi_version_export == "true" -%}
-/// ABI revision; see [`crate::abi_meta::ABI_VERSION`].
-#[cfg(target_arch = "wasm32")]
-#[unsafe(no_mangle)]
-pub extern "C" fn {{ export_prefix }}_abi_version() -> u32 {
-    ABI_VERSION
-}
-
-{% endif -%}
 /// Reserve `len` bytes of linear memory for the host. Returns null (0) when
-/// `len` exceeds the request limit{% if max_outstanding_bytes != "" %} or the outstanding-byte cap{% endif %}; a following `{{ export_prefix }}_call` on that null
+/// `len` exceeds the request limit or the outstanding-byte cap; a following `gl_call` on that null
 /// buffer yields a typed error response, never a trap.
 #[cfg(target_arch = "wasm32")]
 #[unsafe(no_mangle)]
-pub extern "C" fn {{ export_prefix }}_alloc(len: u32) -> *mut u8 {
+pub extern "C" fn gl_alloc(len: u32) -> *mut u8 {
     alloc_buf(len)
 }
 
-/// Release a buffer obtained from `{{ export_prefix }}_alloc` or returned by `{{ export_prefix }}_call`.
+/// Release a buffer obtained from `gl_alloc` or returned by `gl_call`.
 ///
 /// # Safety
 /// `ptr`/`len` must be exactly a pair previously handed out by this module.
 #[cfg(target_arch = "wasm32")]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn {{ export_prefix }}_free(ptr: *mut u8, len: u32) {
+pub unsafe extern "C" fn gl_free(ptr: *mut u8, len: u32) {
     // SAFETY: forwarded caller contract.
     unsafe { free_buf(ptr, len) }
 }
@@ -237,10 +163,10 @@ pub unsafe extern "C" fn {{ export_prefix }}_free(ptr: *mut u8, len: u32) {
 /// Execute one JSON request; returns `(out_ptr << 32) | out_len`.
 ///
 /// # Safety
-/// `ptr`/`len` must describe a buffer from `{{ export_prefix }}_alloc` filled by the host.
+/// `ptr`/`len` must describe a buffer from `gl_alloc` filled by the host.
 #[cfg(target_arch = "wasm32")]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn {{ export_prefix }}_call(ptr: *mut u8, len: u32) -> u64 {
+pub unsafe extern "C" fn gl_call(ptr: *mut u8, len: u32) -> u64 {
     // SAFETY: forwarded caller contract.
     pack_response(unsafe { call_buf(ptr, len) })
 }
@@ -270,12 +196,4 @@ mod tests {
         let b = unsafe { call_buf(core::ptr::dangling_mut::<u8>(), (MAX_REQUEST_BYTES as u32).saturating_add(1)) };
         assert!(!b.is_empty());
     }
-
-{%- if has_abi_version_export == "true" %}
-
-    #[test]
-    fn abi_version_is_nonzero() {
-        const { assert!(ABI_VERSION >= 1) };
-    }
-{%- endif %}
 }

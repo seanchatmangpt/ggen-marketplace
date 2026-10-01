@@ -6,13 +6,12 @@
 # Host-profile contract carrying ash_graphlaw's real wasmex host values.
 # Every value verified against /Users/sac/ash_graphlaw/lib/ash_graphlaw/{host,engine_load,pool,wasm_config,abi}.ex
 # and lib/mix/tasks/ash_graphlaw.{vendor,verify}.ex (2026-09-30).
-# LEDGER UNSUPPORTED(ontology-gap) vs hand code (no qri: vocabulary and no beam-host template support yet):
-#   - wasm_config zero-ok limits: hand code accepts 0 for table_elements, instances, tables, memories
-#     (min_limit/1); the generated wasm_config.ex ignores 0 for every limit. Needs a per-limit flag
-#     (e.g. qri:limitZeroOk) read by queries/51 and wasm_config.ex.tmpl. Not hacked into limitDefault.
-#   - recycle code order: hand code lists abi_failure, call_exited, call_trapped, call_timeout,
-#     fuel_exhausted; queries/54 orders by code, giving call_timeout before call_trapped. Needs an order
-#     property on recycleOn rows. The list is membership-only (`code in @recycle_codes`), so behavior is equal.
+# Formerly ledgered UNSUPPORTED(ontology-gap), now carried by vocabulary and projected:
+#   - zero-ok store limits: qri:limitZeroOk + qri:limitZeroMeaning on table_elements, instances, tables, memories
+#     (gate 090); queries/51 -> wasm_config.ex.tmpl renders `&1 >= min_limit(key)` with @zero_ok.
+#   - recycle code order: qri:recycleRule [ qri:recycleCode ; qri:recycleOrder ] rows (gate 100); queries/54 sorts by
+#     order, then code.
+#   - Host.request/3 @doc example op: qri:docExampleOp "law".
 # NOT imported by ggen.toml: a qri:hostProfile contract is projected by queries/50-54 only.
 
 gl:capability a qri:Capability .
@@ -64,7 +63,15 @@ gl:host a qri:HostProfile ;
     qri:poolStrategy "rest_for_one" ; qri:poolSizeSource "schedulers_online" ;
     qri:engineId "GraphLaw" ; qri:probeOp "capabilities" ; qri:probeExpectKey "abi" ;
     qri:recycleOn "abi_failure" , "call_exited" , "call_trapped" , "call_timeout" , "fuel_exhausted" ;
+    qri:recycleRule gl:recycle1 , gl:recycle2 , gl:recycle3 , gl:recycle4 , gl:recycle5 ;
+    qri:docExampleOp "law" ;
     qri:hostLimit gl:limFuelPerMs , gl:limInstantiateFuel , gl:limMemoryLimitBytes , gl:limRecycleBytes , gl:limMaxQueue , gl:limMaxResponseBytes , gl:limTableElements , gl:limInstances , gl:limTables , gl:limMemories , gl:limTimeoutMs , gl:limAbiTimeout , gl:limMargin , gl:limRetryBaseMs , gl:limRetryMaxMs , gl:limInitializeTimeoutMult , gl:limBackoffExpCap , gl:limMaxRedirects .
+
+gl:recycle1 a qri:RecycleRule ; qri:recycleCode "abi_failure" ; qri:recycleOrder 1 .
+gl:recycle2 a qri:RecycleRule ; qri:recycleCode "call_exited" ; qri:recycleOrder 2 .
+gl:recycle3 a qri:RecycleRule ; qri:recycleCode "call_trapped" ; qri:recycleOrder 3 .
+gl:recycle4 a qri:RecycleRule ; qri:recycleCode "call_timeout" ; qri:recycleOrder 4 .
+gl:recycle5 a qri:RecycleRule ; qri:recycleCode "fuel_exhausted" ; qri:recycleOrder 5 .
 
 # Limits and typed imports observed in /Users/sac/ash_graphlaw (ontology.ttl 'Engine import allowlist', engine_load.ex).
 gl:limFuelPerMs a qri:HostLimit ; qri:limitName "fuel_per_ms" ; qri:limitDefault 1000000 ; qri:limitOrder 1 .
@@ -73,10 +80,10 @@ gl:limMemoryLimitBytes a qri:HostLimit ; qri:limitName "memory_limit_bytes" ; qr
 gl:limRecycleBytes a qri:HostLimit ; qri:limitName "recycle_bytes" ; qri:limitDefault 134217728 ; qri:limitOrder 4 .
 gl:limMaxQueue a qri:HostLimit ; qri:limitName "max_queue" ; qri:limitDefault 64 ; qri:limitOrder 5 .
 gl:limMaxResponseBytes a qri:HostLimit ; qri:limitName "max_response_bytes" ; qri:limitDefault 33554432 ; qri:limitOrder 6 .
-gl:limTableElements a qri:HostLimit ; qri:limitName "table_elements" ; qri:limitDefault 100000 ; qri:limitOrder 7 .
-gl:limInstances a qri:HostLimit ; qri:limitName "instances" ; qri:limitDefault 10 ; qri:limitOrder 8 .
-gl:limTables a qri:HostLimit ; qri:limitName "tables" ; qri:limitDefault 10 ; qri:limitOrder 9 .
-gl:limMemories a qri:HostLimit ; qri:limitName "memories" ; qri:limitDefault 4 ; qri:limitOrder 10 .
+gl:limTableElements a qri:HostLimit ; qri:limitName "table_elements" ; qri:limitDefault 100000 ; qri:limitOrder 7 ; qri:limitZeroOk true ; qri:limitZeroMeaning "\"none allowed\", refused at instantiation" .
+gl:limInstances a qri:HostLimit ; qri:limitName "instances" ; qri:limitDefault 10 ; qri:limitOrder 8 ; qri:limitZeroOk true ; qri:limitZeroMeaning "\"none allowed\", refused at instantiation" .
+gl:limTables a qri:HostLimit ; qri:limitName "tables" ; qri:limitDefault 10 ; qri:limitOrder 9 ; qri:limitZeroOk true ; qri:limitZeroMeaning "\"none allowed\", refused at instantiation" .
+gl:limMemories a qri:HostLimit ; qri:limitName "memories" ; qri:limitDefault 4 ; qri:limitOrder 10 ; qri:limitZeroOk true ; qri:limitZeroMeaning "\"none allowed\", refused at instantiation" .
 gl:limTimeoutMs a qri:HostLimit ; qri:limitName "timeout_ms" ; qri:limitDefault 5000 ; qri:limitOrder 11 .
 gl:limAbiTimeout a qri:HostLimit ; qri:limitName "abi_timeout" ; qri:limitDefault 1000 ; qri:limitOrder 12 .
 gl:limMargin a qri:HostLimit ; qri:limitName "margin" ; qri:limitDefault 1000 ; qri:limitOrder 13 .

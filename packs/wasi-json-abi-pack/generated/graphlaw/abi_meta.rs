@@ -2,6 +2,7 @@
 //
 // Consumed query columns (meta.rq): crate_name, export_prefix, abi_version,
 // max_request_bytes, max_json_depth, ops, error_codes.
+// Optional column (meta.rq): max_outstanding_bytes.
 // Rendered by ggen (wasi-json-abi-pack) from the wja: graph.
 // Edit the ontology and re-render; never edit this file by hand.
 #![allow(dead_code)]
@@ -20,6 +21,9 @@ pub const MAX_REQUEST_BYTES: usize = 16777216;
 
 /// Upper bound on accepted JSON nesting depth.
 pub const MAX_JSON_DEPTH: usize = 64;
+
+/// Upper bound on bytes handed to the host and not yet freed; alloc returns null above it.
+pub const MAX_OUTSTANDING_BYTES: usize = 268435456;
 
 /// Op table, ordered by `wja:opOrder`.
 pub const OPS: &[&str] = &[

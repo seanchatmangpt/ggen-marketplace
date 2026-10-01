@@ -22,7 +22,7 @@ under `dynamic_in_gates` in the allowlist; gates that fail to parse are also ref
 |---|---|
 | packs | 389 |
 | packs with Python scripts | 117 |
-| Python files scanned | 546 |
+| Python files scanned | 548 |
 | files failing to parse | 0 |
 
 ## Capability by role
@@ -34,7 +34,7 @@ Files using each capability, by inferred role (`gate` = under a `gates/` directo
 |---|---|---|---|---|---|
 | gate | 0 | 3 | 3 | 1 | 1 |
 | verifier | 0 | 4 | 11 | 0 | 2 |
-| other | 3 | 19 | 28 | 7 | 35 |
+| other | 3 | 19 | 28 | 7 | 36 |
 
 ## Packs using each capability
 
@@ -44,7 +44,7 @@ Files using each capability, by inferred role (`gate` = under a `gates/` directo
 | exec | 16 |
 | fs-write | 25 |
 | env | 6 |
-| dynamic | 13 |
+| dynamic | 14 |
 
 ## Network use in gates
 

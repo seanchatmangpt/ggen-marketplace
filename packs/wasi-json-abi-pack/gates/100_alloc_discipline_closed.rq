@@ -1,0 +1,38 @@
+# MESSAGE: wja:bufferStyle, when present, must be exactly "boxed-slice" or "vec"; wja:maxOutstandingBytes, when present, must be an integer no smaller than wja:maxRequestBytes (otherwise a maximal request could never be allocated); wja:abiModulePath, when present, must be a Rust path of identifiers separated by ::. Anything else is refused.
+PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?problem ?detail WHERE {
+  {
+    ?m a wja:WasmModule ;
+       wja:bufferStyle ?s .
+    FILTER(!isLiteral(?s) || !(STR(?s) IN ("boxed-slice", "vec")))
+    BIND("buffer_style_not_in_closed_set" AS ?problem)
+    BIND(STR(?s) AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule ;
+       wja:maxOutstandingBytes ?o .
+    FILTER(!isLiteral(?o) || datatype(?o) != xsd:integer)
+    BIND("max_outstanding_bytes_not_integer" AS ?problem)
+    BIND(STR(?o) AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule ;
+       wja:maxOutstandingBytes ?o ;
+       wja:maxRequestBytes ?r .
+    FILTER(isLiteral(?o) && datatype(?o) = xsd:integer && isLiteral(?r) && datatype(?r) = xsd:integer && ?o < ?r)
+    BIND("max_outstanding_below_max_request" AS ?problem)
+    BIND(CONCAT("maxOutstandingBytes=", STR(?o), " maxRequestBytes=", STR(?r)) AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule ;
+       wja:abiModulePath ?p .
+    FILTER(!isLiteral(?p) || !REGEX(STR(?p), "^[A-Za-z_][A-Za-z0-9_]*(::[A-Za-z_][A-Za-z0-9_]*)*$"))
+    BIND("abi_module_path_not_rust_path" AS ?problem)
+    BIND(STR(?p) AS ?detail)
+  }
+}
+ORDER BY ?problem ?detail
