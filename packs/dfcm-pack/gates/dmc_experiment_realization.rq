@@ -1,0 +1,29 @@
+# Converted from positive-existence ASK to per-realization violation-row SELECT at
+# consolidation (2026-10-01): every dmc:ExperimentRealization carries the complete
+# receipted observation contract (exact subject/digest formats, nonnegative gains and
+# costs, OBSERVE|VERIFY authority only, no actuation).
+PREFIX dmc: <https://ggen.dev/ontology/dfcm-maximalist-court#>
+SELECT ?r ?problem WHERE {
+  ?r a dmc:ExperimentRealization .
+  { FILTER NOT EXISTS { ?r dmc:subjectSha ?v } BIND("missing_subjectSha" AS ?problem) }
+  UNION { ?r dmc:subjectSha ?v . FILTER(!REGEX(STR(?v), "^[0-9a-f]{40}$")) BIND("bad_subjectSha" AS ?problem) }
+  UNION { FILTER NOT EXISTS { ?r dmc:semanticDigest ?v } BIND("missing_semanticDigest" AS ?problem) }
+  UNION { ?r dmc:semanticDigest ?v . FILTER(!REGEX(STR(?v), "^[0-9a-f]{64}$")) BIND("bad_semanticDigest" AS ?problem) }
+  UNION { FILTER NOT EXISTS { ?r dmc:experimentId ?v } BIND("missing_experimentId" AS ?problem) }
+  UNION { FILTER NOT EXISTS { ?r dmc:predictedInformationGain ?v } BIND("missing_predictedInformationGain" AS ?problem) }
+  UNION { ?r dmc:predictedInformationGain ?v . FILTER(?v < 0) BIND("negative_predictedInformationGain" AS ?problem) }
+  UNION { FILTER NOT EXISTS { ?r dmc:realizedInformationGain ?v } BIND("missing_realizedInformationGain" AS ?problem) }
+  UNION { ?r dmc:realizedInformationGain ?v . FILTER(?v < 0) BIND("negative_realizedInformationGain" AS ?problem) }
+  UNION { FILTER NOT EXISTS { ?r dmc:frontierBefore ?v } BIND("missing_frontierBefore" AS ?problem) }
+  UNION { ?r dmc:frontierBefore ?v . FILTER(?v < 0) BIND("negative_frontierBefore" AS ?problem) }
+  UNION { FILTER NOT EXISTS { ?r dmc:frontierAfter ?v } BIND("missing_frontierAfter" AS ?problem) }
+  UNION { ?r dmc:frontierAfter ?v . FILTER(?v < 0) BIND("negative_frontierAfter" AS ?problem) }
+  UNION { FILTER NOT EXISTS { ?r dmc:experimentCost ?v } BIND("missing_experimentCost" AS ?problem) }
+  UNION { ?r dmc:experimentCost ?v . FILTER(?v < 0) BIND("negative_experimentCost" AS ?problem) }
+  UNION { FILTER NOT EXISTS { ?r dmc:latencyMs ?v } BIND("missing_latencyMs" AS ?problem) }
+  UNION { ?r dmc:latencyMs ?v . FILTER(?v < 0) BIND("negative_latencyMs" AS ?problem) }
+  UNION { FILTER NOT EXISTS { ?r dmc:currentGeneration true } BIND("missing_currentGeneration" AS ?problem) }
+  UNION { FILTER NOT EXISTS { ?r dmc:authority "OBSERVE|VERIFY" } BIND("authority_not_observe_verify" AS ?problem) }
+  UNION { FILTER NOT EXISTS { ?r dmc:actuationPerformed false } BIND("actuation_performed" AS ?problem) }
+}
+ORDER BY ?r ?problem

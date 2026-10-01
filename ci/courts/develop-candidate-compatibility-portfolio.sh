@@ -7,21 +7,21 @@ cd "$(git rev-parse --show-toplevel)"
 echo "::group::develop-candidate-compatibility-portfolio: Compile pack algorithms"
 (
 set -e
-python3 -m py_compile packs/dfcm-candidate-compatibility-portfolio-pack/scripts/*.py packs/dfcm-candidate-compatibility-portfolio-pack/tests/*.py
+python3 -m py_compile packs/dfcm-pack/families/candidate-compatibility-portfolio/scripts/*.py packs/dfcm-pack/families/candidate-compatibility-portfolio/tests/*.py
 )
 echo "::endgroup::"
 # --- Permanent courts
 echo "::group::develop-candidate-compatibility-portfolio: Permanent courts"
 (
 set -e
-export PYTHONPATH="packs/dfcm-candidate-compatibility-portfolio-pack"
-python3 -m unittest discover -s packs/dfcm-candidate-compatibility-portfolio-pack/tests -p 'test_*.py' -v
+export PYTHONPATH="packs/dfcm-pack/families/candidate-compatibility-portfolio"
+python3 -m unittest discover -s packs/dfcm-pack/families/candidate-compatibility-portfolio/tests -p 'test_*.py' -v
 )
 echo "::endgroup::"
 # --- Refuse ambient consequential DO
 echo "::group::develop-candidate-compatibility-portfolio: Refuse ambient consequential DO"
 (
 set -e
-! grep -R -E "subprocess\.|os\.system|requests\.(post|put|patch|delete)" packs/dfcm-candidate-compatibility-portfolio-pack/scripts packs/dfcm-candidate-compatibility-portfolio-pack/tests
+! grep -R -E "subprocess\.|os\.system|requests\.(post|put|patch|delete)" packs/dfcm-pack/families/candidate-compatibility-portfolio/scripts packs/dfcm-pack/families/candidate-compatibility-portfolio/tests
 )
 echo "::endgroup::"

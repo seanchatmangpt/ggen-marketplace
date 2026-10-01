@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ggen.dev/schema/dfcm/fortune5-evidence.schema.json",
+  "title": "DfCM Fortune 5 exact-subject evidence snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["subject", "as_of", "controls"],
+  "properties": {
+    "subject": {"type": "string", "minLength": 1},
+    "as_of": {"type": "string", "format": "date-time"},
+    "certification_claims": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim", "scope", "verifier", "external_receipt_digest"],
+        "properties": {
+          "claim": {"type": "string", "minLength": 1},
+          "scope": {"type": "string", "minLength": 1},
+          "verifier": {"type": "string", "minLength": 1},
+          "external_receipt_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "controls": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+{% for row in results %}        "{{ row["slug"] }}"{% if not loop.last %},{% endif %}
+{% endfor %}      ],
+      "properties": {
+{% for row in results %}        "{{ row["slug"] }}": {"$ref": "#/$defs/controlEvidence"}{% if not loop.last %},{% endif %}
+{% endfor %}      }
+    }
+  },
+  "$defs": {
+    "controlEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subject", "standing", "observed_at", "observed", "admitted", "executed",
+        "verified", "replay_verified", "falsifier_checked", "digest_algorithm",
+        "evidence_digest", "receipt_digest"
+      ],
+      "properties": {
+        "subject": {"type": "string", "minLength": 1},
+        "standing": {"const": "ALIVE"},
+        "observed_at": {"type": "string", "format": "date-time"},
+        "observed": {"const": true},
+        "admitted": {"const": true},
+        "executed": {"const": true},
+        "verified": {"const": true},
+        "replay_verified": {"const": true},
+        "falsifier_checked": {"const": true},
+        "digest_algorithm": {"const": "blake3"},
+        "evidence_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "receipt_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "evidence_uri": {"type": "string"}
+      }
+    }
+  }
+}

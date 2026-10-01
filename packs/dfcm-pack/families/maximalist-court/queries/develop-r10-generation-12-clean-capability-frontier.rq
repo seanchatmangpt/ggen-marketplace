@@ -1,0 +1,7 @@
+PREFIX dmc: <https://ggen.dev/ontology/dfcm-maximalist-court#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?pack ?rule (COUNT(?obs) AS ?attempts) (AVG(IF(?success,1.0,0.0)) AS ?successRate) (AVG(IF(?det,1.0,0.0)) AS ?deterministicRate) WHERE {
+ ?obs a dmc:GenerationCapabilityObservation ; dmc:capabilityPack ?pack ; dmc:capabilityRule ?rule ; dmc:capabilitySuccess ?success ; dmc:capabilityDeterministic ?det ; dmc:capabilityCurrent true ; dmc:capabilityReceiptDigest ?receipt .
+ FILTER NOT EXISTS { ?obs dmc:capabilityFailureClass ?failure }
+ FILTER NOT EXISTS { ?obs dmc:capabilityCollision true }
+} GROUP BY ?pack ?rule HAVING(COUNT(?obs) >= 5 && AVG(IF(?success,1.0,0.0)) >= 0.95 && AVG(IF(?det,1.0,0.0)) = 1.0) ORDER BY DESC(?successRate) ?pack ?rule
