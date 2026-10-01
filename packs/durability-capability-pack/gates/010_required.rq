@@ -1,0 +1,70 @@
+# MESSAGE: identity/property completeness for every dcap class. Any row = a subject
+# missing a required property, or asserting an out-of-enum value:
+#   - dcap:Capability needs rdfs:label (the PINNED dotted capability ID),
+#     dcterms:identifier (the resolver-join literal), dcap:compensatable,
+#     dcap:reversible (COMPENSATABLE != REVERSIBLE: both stated, never defaulted)
+#     and >=1 dcap:declaredOutcome (success + typed failures, declared not implied).
+#   - dcap:Realization needs dcap:realizes/providerRepo/providerModule/
+#     sourceCoordinates/versionPinPolicy/inspected (provider metadata; inspected is
+#     the anti-fabrication flag).
+#   - dcap:QualificationCondition needs dcap:conditionStatement;
+#     dcap:IdempotencyContract needs keyFormula + uniquenessScope;
+#     dcap:DeterminismContract needs byteIdenticalRequired + evidenceKind.
+#   - Runtime claims: dcap:Checkpoint needs checkpointIdentity + boundSubject;
+#     dcap:HaltClaim needs haltsWorkflow + authoritySuspended; dcap:ResumeClaim needs
+#     resumesWorkflow + versionBoundaryCrossed + resumeOutcome.
+#   - dcap:resumeOutcome is CLOSED: "ALIVE" | "REFUSED_VERSION_BOUNDARY" | "REQUALIFIED".
+# Any row = a violation; zero rows = conforming.
+PREFIX dcap:    <https://ggen.dev/ontology/durability-capability#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?s ?missing WHERE {
+  {
+    VALUES (?type ?missing) {
+      (dcap:Capability dcap:compensatable)
+      (dcap:Capability dcap:reversible)
+      (dcap:Capability dcap:declaredOutcome)
+      (dcap:Realization dcap:realizes)
+      (dcap:Realization dcap:providerRepo)
+      (dcap:Realization dcap:providerModule)
+      (dcap:Realization dcap:sourceCoordinates)
+      (dcap:Realization dcap:versionPinPolicy)
+      (dcap:Realization dcap:inspected)
+      (dcap:QualificationCondition dcap:conditionStatement)
+      (dcap:IdempotencyContract dcap:keyFormula)
+      (dcap:IdempotencyContract dcap:uniquenessScope)
+      (dcap:DeterminismContract dcap:byteIdenticalRequired)
+      (dcap:DeterminismContract dcap:evidenceKind)
+      (dcap:WorkflowSubject dcap:workflowIdentity)
+      (dcap:WorkflowSubject dcap:projectionVersion)
+      (dcap:Checkpoint dcap:checkpointIdentity)
+      (dcap:Checkpoint dcap:boundSubject)
+      (dcap:HaltClaim dcap:haltsWorkflow)
+      (dcap:HaltClaim dcap:authoritySuspended)
+      (dcap:ResumeClaim dcap:resumesWorkflow)
+      (dcap:ResumeClaim dcap:versionBoundaryCrossed)
+      (dcap:ResumeClaim dcap:resumeOutcome)
+    }
+    ?s a ?type .
+    FILTER NOT EXISTS { ?s ?missing ?any }
+  }
+  UNION {
+    # MESSAGE (same file, second check): the pinned dotted ID must be present on BOTH
+    # the label surface (RESOLUTIONS pin) and the identifier surface (resolver join).
+    ?s a dcap:Capability .
+    FILTER NOT EXISTS { ?s rdfs:label ?id1 . FILTER(STRLEN(?id1) > 0) }
+    BIND("missing-rdfs-label-dotted-id" AS ?missing)
+  }
+  UNION {
+    ?s a dcap:Capability .
+    FILTER NOT EXISTS { ?s dcterms:identifier ?id2 . FILTER(STRLEN(?id2) > 0) }
+    BIND("missing-dcterms-identifier" AS ?missing)
+  }
+  UNION {
+    # MESSAGE (same file, third check): dcap:resumeOutcome is a closed enum.
+    ?s a dcap:ResumeClaim ; dcap:resumeOutcome ?value .
+    FILTER (?value != "ALIVE" && ?value != "REFUSED_VERSION_BOUNDARY" && ?value != "REQUALIFIED")
+    BIND("resumeOutcome-out-of-enum" AS ?missing)
+  }
+}
+ORDER BY ?s ?missing
