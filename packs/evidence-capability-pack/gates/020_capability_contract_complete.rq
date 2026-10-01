@@ -1,0 +1,58 @@
+# MESSAGE: capability contract completeness. Every ecap:Capability must carry
+# exactly one dcterms:identifier (the resolver join key), one
+# ecap:capabilityFamily, at least one ecap:input, one ecap:output, one
+# ecap:outcome, and an ecap:authorityCeiling inside the closed enum
+# observe < select < construct. Any row is a capability whose contract is
+# incomplete and therefore unresolvable.
+PREFIX ecap: <https://ggen.dev/ontology/evidence-capability#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?cap ?missing WHERE {
+  {
+    ?cap a ecap:Capability .
+    FILTER NOT EXISTS { ?cap dcterms:identifier ?i0 }
+    BIND(dcterms:identifier AS ?missing)
+  }
+  UNION
+  {
+    ?cap a ecap:Capability ; dcterms:identifier ?i1 , ?i2 .
+    FILTER (?i1 != ?i2)
+    BIND("duplicate-identifier-on-one-capability" AS ?missing)
+  }
+  UNION
+  {
+    ?cap a ecap:Capability .
+    FILTER NOT EXISTS { ?cap ecap:capabilityFamily ?f0 }
+    BIND(ecap:capabilityFamily AS ?missing)
+  }
+  UNION
+  {
+    ?cap a ecap:Capability .
+    FILTER NOT EXISTS { ?cap ecap:input ?in0 }
+    BIND(ecap:input AS ?missing)
+  }
+  UNION
+  {
+    ?cap a ecap:Capability .
+    FILTER NOT EXISTS { ?cap ecap:output ?out0 }
+    BIND(ecap:output AS ?missing)
+  }
+  UNION
+  {
+    ?cap a ecap:Capability .
+    FILTER NOT EXISTS { ?cap ecap:outcome ?o0 }
+    BIND(ecap:outcome AS ?missing)
+  }
+  UNION
+  {
+    ?cap a ecap:Capability .
+    FILTER NOT EXISTS { ?cap ecap:authorityCeiling ?c0 }
+    BIND(ecap:authorityCeiling AS ?missing)
+  }
+  UNION
+  {
+    ?cap a ecap:Capability ; ecap:authorityCeiling ?c1 .
+    FILTER (?c1 != "observe" && ?c1 != "select" && ?c1 != "construct")
+    BIND("authority-ceiling-outside-enum" AS ?missing)
+  }
+}
+ORDER BY ?cap ?missing
