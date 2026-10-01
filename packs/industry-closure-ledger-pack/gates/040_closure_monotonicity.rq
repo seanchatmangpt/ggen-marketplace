@@ -1,0 +1,16 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX ic: <https://seanchatmangpt.github.io/packs/industry-closure-ledger-pack#>
+PREFIX ea: <https://chatman.ai/ontology/enterprise-architecture#>
+PREFIX togaf: <http://www.semanticweb.org/ontologies/2020/4/OntologyTOGAFContentMetamodel.owl#>
+# MESSAGE: every (capability, ABB) coverage recorded in snapshot t is present in t+1 (any state) unless a receipted (sha256 digest), reasoned Retirement names it.
+SELECT ?subject ?reason WHERE {
+  { ?subject a ic:Coverage ; ic:inSnapshot ?prev ; ic:coversCapability ?cap ; ic:byABB ?abb . ?next ic:supersedes ?prev .
+    FILTER NOT EXISTS { ?c2 a ic:Coverage ; ic:inSnapshot ?next ; ic:coversCapability ?cap ; ic:byABB ?abb }
+    FILTER NOT EXISTS { ?ret a ic:Retirement ; ic:retires ?subject ; ic:receiptDigest ?rd ; ic:retirementReason ?why }
+    BIND("REFUSED:IC_CLOSURE_SHRINK" AS ?reason) }
+  UNION { ?subject a ic:Retirement . OPTIONAL { ?subject ic:retires ?x } FILTER(!BOUND(?x)) BIND("REFUSED:IC_RETIREMENT_MALFORMED" AS ?reason) }
+  UNION { ?subject a ic:Retirement ; ic:retires ?x . OPTIONAL { ?subject ic:receiptDigest ?rd } FILTER(!BOUND(?rd)) BIND("REFUSED:IC_RETIREMENT_UNRECEIPTED" AS ?reason) }
+  UNION { ?subject a ic:Retirement ; ic:retires ?x . OPTIONAL { ?subject ic:retirementReason ?why } FILTER(!BOUND(?why)) BIND("REFUSED:IC_RETIREMENT_UNREASONED" AS ?reason) }
+  UNION { ?subject a ic:Retirement ; ic:receiptDigest ?rd . FILTER(!REGEX(STR(?rd), "^sha256:[0-9a-f]{64}$")) BIND("REFUSED:IC_RETIREMENT_DIGEST_MALFORMED" AS ?reason) }
+} ORDER BY ?subject ?reason

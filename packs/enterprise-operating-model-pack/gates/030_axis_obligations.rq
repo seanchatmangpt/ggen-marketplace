@@ -1,0 +1,24 @@
+# MESSAGE: interpretation gate. The foundation must match the decision's axes, not its model name: high standardization means standard processes, high integration means enterprise-scope data, and low axes forbid the opposite.
+PREFIX eom: <https://seanchatmangpt.github.io/packs/enterprise-operating-model-pack#>
+SELECT ?subject ?reason WHERE {
+  { ?f eom:hasCoreProcess ?subject .
+    ?d a eom:OperatingModelDecision ; eom:standardizationLevel eom:HIGH ; eom:hasFoundation ?f .
+    FILTER NOT EXISTS { ?subject eom:standardVariant true }
+    BIND("REFUSED:EOM_STANDARDIZATION_PROCESS_NOT_STANDARD" AS ?reason) }
+  UNION
+  { ?f eom:hasSharedData ?subject .
+    ?d a eom:OperatingModelDecision ; eom:integrationLevel eom:HIGH ; eom:hasFoundation ?f .
+    FILTER NOT EXISTS { ?subject eom:enterpriseScope true }
+    BIND("REFUSED:EOM_INTEGRATION_DATA_NOT_SHARED" AS ?reason) }
+  UNION
+  { ?f eom:hasSharedData ?subject .
+    ?d a eom:OperatingModelDecision ; eom:integrationLevel eom:LOW ; eom:hasFoundation ?f .
+    ?subject eom:enterpriseScope true .
+    BIND("REFUSED:EOM_OVERINTEGRATION" AS ?reason) }
+  UNION
+  { ?f eom:hasCoreProcess ?subject .
+    ?d a eom:OperatingModelDecision ; eom:standardizationLevel eom:LOW ; eom:hasFoundation ?f .
+    ?subject eom:standardVariant true .
+    BIND("REFUSED:EOM_OVERSTANDARDIZATION" AS ?reason) }
+}
+ORDER BY ?subject ?reason
