@@ -1,0 +1,17 @@
+# MESSAGE: REFUSED:PRODUCER_SUBJECT_AMBIGUOUS: artifact pins require exactly one immutable producer commit subject.
+PREFIX qcb: <https://seanchatmangpt.github.io/packs/qri-consumer-binding-pack#>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+SELECT ?pin ?count WHERE {
+  {
+    SELECT ?pin (COUNT(DISTINCT ?producer) AS ?count) WHERE {
+      ?pin a qcb:ArtifactPin .
+      OPTIONAL {
+        ?pin prov:wasDerivedFrom ?producer .
+        FILTER(isIRI(?producer) && REGEX(STR(?producer), "^https://github[.]com/[^/]+/[^/]+/commit/[0-9a-f]{40}$"))
+      }
+    }
+    GROUP BY ?pin
+  }
+  FILTER (?count != 1)
+}
+ORDER BY ?pin
