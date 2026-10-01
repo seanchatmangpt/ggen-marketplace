@@ -32,12 +32,12 @@ ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 PACKS = ROOT / "packs"
 
-IC_PACK = PACKS / "industry-closure-pack"
+IC_PACK = PACKS / "industry-closure-ledger-pack"
 EOM_PACK = PACKS / "enterprise-operating-model-pack"
 LND_PACK = PACKS / "industry-closure-retail-lending-profile-pack"
 EA_ONTOLOGY = PACKS / "enterprise-architecture-pack" / "ontology.ttl"
 
-IC_NS = "https://seanchatmangpt.github.io/packs/industry-closure-pack#"
+IC_NS = "https://seanchatmangpt.github.io/packs/industry-closure-ledger-pack#"
 EOM_NS = "https://seanchatmangpt.github.io/packs/enterprise-operating-model-pack#"
 EA_NS = "https://chatman.ai/ontology/enterprise-architecture#"
 

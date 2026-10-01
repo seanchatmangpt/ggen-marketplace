@@ -1,6 +1,6 @@
 # Reference: industry closure contract
 
-Exact contract of `industry-closure-pack` (KernelPack) and of the profile gate in `industry-closure-retail-lending-profile-pack` (ProfilePack). This page is a reference: it states what the sources declare and does not teach or justify them. For the learning path see [Generate an industry closure](../tutorials/generate-an-industry-closure.md); for tasks see [Add an industry to a closure](../how-to/add-an-industry-to-closure.md) and [Triage an industry-closure residual](../how-to/triage-an-industry-closure-residual.md); for rationale see [Industry closure as architecture strategy](../explanation/industry-closure-as-architecture-strategy.md). The companion contract for strategy-derived requirements is [Enterprise operating model contract](enterprise-operating-model-contract.md).
+Exact contract of `industry-closure-ledger-pack` (KernelPack) and of the profile gate in `industry-closure-retail-lending-profile-pack` (ProfilePack). This page is a reference: it states what the sources declare and does not teach or justify them. For the learning path see [Generate an industry closure](../tutorials/generate-an-industry-closure.md); for tasks see [Add an industry to a closure](../how-to/add-an-industry-to-closure.md) and [Triage an industry-closure residual](../how-to/triage-an-industry-closure-residual.md); for rationale see [Industry closure as architecture strategy](../explanation/industry-closure-as-architecture-strategy.md). The companion contract for strategy-derived requirements is [Enterprise operating model contract](enterprise-operating-model-contract.md).
 
 Nothing on this page copies a ggen release, commit, platform asset, digest or timeout. The canonical sources are the pack files named below; where this page and a source differ, the source wins and this page is repaired.
 
@@ -14,7 +14,7 @@ Nothing on this page copies a ggen release, commit, platform asset, digest or ti
 
 | Prefix | Namespace | Owner |
 |---|---|---|
-| `ic:` | `https://seanchatmangpt.github.io/packs/industry-closure-pack#` | this pack |
+| `ic:` | `https://seanchatmangpt.github.io/packs/industry-closure-ledger-pack#` | this pack |
 | `eom:` | `https://seanchatmangpt.github.io/packs/enterprise-operating-model-pack#` | [enterprise-operating-model-pack](enterprise-operating-model-contract.md) |
 | `ea:` | `https://chatman.ai/ontology/enterprise-architecture#` | `enterprise-architecture-pack`, consumed by IRI only |
 | `togaf:` | the anchor IRI declared in `togaf-adm-pack` | consumed by IRI only |
@@ -25,7 +25,7 @@ Jurisdiction guard: a gate acts on `ic:`-typed subjects or on `ea:` objects thos
 
 ## Vocabulary
 
-Generated from the declarations in `packs/industry-closure-pack/ontology.ttl`. Meanings are paraphrased in the source; read the source for the full text.
+Generated from the declarations in `packs/industry-closure-ledger-pack/ontology.ttl`. Meanings are paraphrased in the source; read the source for the full text.
 
 ### Classes
 
@@ -302,7 +302,7 @@ Repairs for each code are catalogued in [Triage an industry-closure residual](..
 
 A consumer supplies Turtle only.
 
-- Industry side: `industry-closure-pack/ontology/industry-input.ttl` ships empty. A ProfilePack or the consumer supplies an `ic:IndustryClosure` with its base IRI, bound path prefix and scope; knowledge sources (ADMITTED, EXCLUDED, UNKNOWN); requirements; capability individuals; any known ABBs, contracts, SBBs and evidence in `ea:` shape; and snapshots, coverages and residuals.
+- Industry side: `industry-closure-ledger-pack/ontology/industry-input.ttl` ships empty. A ProfilePack or the consumer supplies an `ic:IndustryClosure` with its base IRI, bound path prefix and scope; knowledge sources (ADMITTED, EXCLUDED, UNKNOWN); requirements; capability individuals; any known ABBs, contracts, SBBs and evidence in `ea:` shape; and snapshots, coverages and residuals.
 - Enterprise side: [enterprise-operating-model-pack](enterprise-operating-model-contract.md) supplies strategy-derived requirements and skeletons as generated Turtle that the consumer appends to its imports.
 - `qualification/project/ontology/industry-input.ttl` overlays the empty contract with synthetic data at the same relative path; synthetic data lives only under `qualification/` and `fixtures/`, never in `ontology.ttl`.
 

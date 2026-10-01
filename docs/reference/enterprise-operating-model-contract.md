@@ -1,6 +1,6 @@
 # Reference: enterprise operating model contract
 
-Exact contract of `enterprise-operating-model-pack` (CapabilityPack). It models an enterprise operating-model decision, the foundation for execution that decision requires, four maturity stages, an engagement model, the order and artifact kinds of the architecture development method (ADM), and value-stream anchoring. It manufactures strategy-derived requirements and pending-approval building-block skeletons for [industry-closure-pack](industry-closure-contract.md).
+Exact contract of `enterprise-operating-model-pack` (CapabilityPack). It models an enterprise operating-model decision, the foundation for execution that decision requires, four maturity stages, an engagement model, the order and artifact kinds of the architecture development method (ADM), and value-stream anchoring. It manufactures strategy-derived requirements and pending-approval building-block skeletons for [industry-closure-ledger-pack](industry-closure-contract.md).
 
 This page is a reference. For learning see [Generate an industry closure](../tutorials/generate-an-industry-closure.md); for tasks see [Add an industry to a closure](../how-to/add-an-industry-to-closure.md); for rationale and what is interpretation versus source see [Industry closure as architecture strategy](../explanation/industry-closure-as-architecture-strategy.md).
 
@@ -266,5 +266,5 @@ The skeleton is never approved by generation. Approval needs a named human and a
 ## Pack status
 
 - Derived packaging profile: project (the pack ships `ggen.toml`). Class: CapabilityPack, see [Pack classes](pack-classes.md). `[pack]` in `pack.toml` holds only name, version and description.
-- The dependency direction is this pack to `industry-closure-pack` (templates emit its vocabulary), never the reverse.
+- The dependency direction is this pack to `industry-closure-ledger-pack` (templates emit its vocabulary), never the reverse.
 - Manufacture, execution and replay: `BLOCKED:ggen_binary_unavailable` in an environment without a ggen binary. The gates are proven under rdflib only; `eom:precedes` order uses a property path whose native-engine behaviour is unproven until a real ggen run. Nothing here is ALIVE and no Level-5 claim is made.

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import functools
 import gzip
 import hashlib
 import io
@@ -22,6 +23,7 @@ except ModuleNotFoundError as exc:  # pragma: no cover
     raise SystemExit("REFUSED:PYTHON_3_11_REQUIRED") from exc
 
 from marketplace_scope import select_packs
+import marketplace_lifecycle
 import marketplace_tiers
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,21 +39,20 @@ SEMVER = re.compile(
 )
 TEMPLATE_SUFFIXES = (".tmpl", ".tera", ".eex")
 GATE_SOURCE_SUFFIXES = frozenset({".rq", ".py"})
-# Packs retired from normal marketplace discovery (docs/jira/v26.8.19/
-# 01-TICKET-retire-clap-noun-verb-legacy.md). The directory and its content
-# stay on disk for compatibility resolution by path-pinned consumers; only
-# catalog-level discoverability changes. Value is the tuple of successor
-# pack names that replace it.
-DEPRECATED_PACKS: dict[str, tuple[str, ...]] = {
-    "clap-noun-verb-pack": (
-        "clap-noun-verb-schema-pack",
-        "clap-noun-verb-crate-pack",
-        "clap-noun-verb-routing-pack",
-        "clap-noun-verb-behavior-pack",
-        "clap-noun-verb-boundary-pack",
-        "clap-noun-verb-verification-pack",
-    ),
-}
+# Per-pack lifecycle (state + planned intent) lives in lifecycle.toml, not here and not in
+# pack.toml: the real ggen loader refuses unknown [pack] keys. Directories of retired/superseded
+# packs stay on disk for path-pinned consumers; only catalog-level treatment changes.
+# See docs/reference/pack-lifecycle-registry.md.
+@functools.cache
+def _load_registry(root: Path) -> dict[str, dict[str, Any]]:
+    return marketplace_lifecycle.load(root)[0]
+
+
+def lifecycle_registry() -> dict[str, dict[str, Any]]:
+    # Located beside packs/, so a marketplace rooted elsewhere (tests) reads its own registry.
+    return _load_registry(PACKS.parent)
+
+
 # Portfolio-role classification, orthogonal to Pack.profile's generation
 # shape (docs/jira/v26.8.19/02-TICKET-pack-class-taxonomy.md). See
 # docs/reference/pack-classes.md for the seven-class definitions. Optional/
@@ -69,7 +70,7 @@ PACK_CLASSES: dict[str, str] = {
     "pack-authoring-pack": "KernelPack",
     "pack-maturity-pack": "EvidencePack",
     "wasm4pm-pack": "CapabilityPack",
-    "industry-closure-pack": "KernelPack",
+    "industry-closure-ledger-pack": "KernelPack",
     "enterprise-operating-model-pack": "CapabilityPack",
     "industry-closure-retail-lending-profile-pack": "ProfilePack",
 }
@@ -125,7 +126,13 @@ class Pack:
         manifest = self.path / "pack.toml"
         archive = build_pack_archive(self)
         sig = marketplace_tiers.signals(self.path)
-        life = marketplace_tiers.lifecycle(self.name, marketplace_tiers.manifest_pack_table(self.path), DEPRECATED_PACKS)
+        manifest_table = marketplace_tiers.manifest_pack_table(self.path)
+        life = marketplace_lifecycle.resolve(
+            self.name,
+            lifecycle_registry().get(self.name),
+            manifest_table,
+            lambda: marketplace_tiers.lifecycle(self.name, manifest_table, {}),
+        )
         record = {
             "deprecated": life["deprecated"],
             "description": self.description,
@@ -134,6 +141,7 @@ class Pack:
                 f"https://github.com/{GITHUB_ORG}/{GITHUB_REPO}/releases/"
                 f"download/{RELEASE_TAG}/{self.name}-{self.version}.tar.gz"
             ),
+            "lifecycle": life["lifecycle"],
             "manifest_sha256": sha256_file(manifest),
             "name": self.name,
             "native_gates": len(self.native_gates),
@@ -361,13 +369,11 @@ def inspect_marketplace() -> tuple[list[Pack], list[str]]:
         if name is not None and version is not None and description is not None and ontologies:
             packs.append(Pack(name, version, description, directory, ontologies, templates, native_gates, verifier_gates, target_languages))
 
-    issues.extend(
-        marketplace_tiers.lifecycle_issues(
-            {d.name: marketplace_tiers.manifest_pack_table(d) for d in directories},
-            (d.name for d in directories),
-            refusal,
-        )
-    )
+    manifests = {d.name: marketplace_tiers.manifest_pack_table(d) for d in directories}
+    issues.extend(marketplace_tiers.lifecycle_issues(manifests, (d.name for d in directories), refusal))
+    registry, registry_problems = marketplace_lifecycle.load(PACKS.parent)
+    issues.extend(refusal(*problem.split(":", 1)) for problem in registry_problems)
+    issues.extend(marketplace_lifecycle.entry_issues(registry, manifests, PACKS.parent, refusal))
 
     for relative in REQUIRED_DOCS:
         path = ROOT / relative
@@ -457,6 +463,14 @@ def browse() -> int:
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(marketplace_tiers.browse_markdown(records), encoding="utf-8")
     print(f"wrote {marketplace_tiers.BROWSE_RELATIVE} packs={len(records)}")
+    return 0
+
+
+def lifecycle(state: str | None, intent: str | None) -> int:
+    """List every pack carrying lifecycle information: name status intent links reason."""
+    records = [pack.catalog_record() for pack in scoped_packs("all")]
+    for line in marketplace_lifecycle.listing(records, state, intent):
+        print(line)
     return 0
 
 
@@ -614,9 +628,11 @@ def check(names: list[str], qualify: bool) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("validate", "catalog", "fingerprint", "archive", "version", "check", "diff", "release-check", "search", "show", "browse"))
+    parser.add_argument("command", choices=("validate", "catalog", "fingerprint", "archive", "version", "check", "diff", "release-check", "search", "show", "browse", "lifecycle"))
     parser.add_argument("packs", nargs="*", help="check: pack names (default: all); diff: optional base tag")
     parser.add_argument("--scope", choices=("active", "all"), default="active")
+    parser.add_argument("--state", choices=marketplace_lifecycle.STATES, help="lifecycle: only packs in this state")
+    parser.add_argument("--intent", choices=marketplace_lifecycle.INTENTS, help="lifecycle: only packs flagged with this intent")
     parser.add_argument("--no-qualify", action="store_true", help="check: skip the real-ggen qualification step")
     parser.add_argument("--allow-unbumped", action="store_true", help="release-check: tolerate changed packs whose version was not bumped")
     args = parser.parse_args()
@@ -632,6 +648,8 @@ def main() -> int:
         return show(args.packs, args.scope)
     if args.command == "browse":
         return browse()
+    if args.command == "lifecycle":
+        return lifecycle(args.state, args.intent)
     if args.command == "catalog":
         return catalog(args.scope)
     if args.command == "archive":

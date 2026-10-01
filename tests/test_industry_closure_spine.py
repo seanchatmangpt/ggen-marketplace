@@ -1,4 +1,4 @@
-"""Spine court: enterprise-operating-model-pack -> industry-closure-pack, end to end.
+"""Spine court: enterprise-operating-model-pack -> industry-closure-ledger-pack, end to end.
 
 One synthetic enterprise is pushed through the whole two-pass pipeline and one
 full turn of the closure loop, using real collaborators only: the real Turtle on
@@ -7,7 +7,7 @@ by rdflib, the real templates rendered through the restricted Jinja2 proxy in
 ``ic_support`` (the subset Tera also executes), and no mocks.
 
     PASS 1  enterprise-operating-model-pack: strategy -> requirements + ABB skeletons
-    PASS 2  industry-closure-pack:           residual ledger, work orders,
+    PASS 2  industry-closure-ledger-pack:           residual ledger, work orders,
                                              feedback packet, closure-next
     turn    residual -> delta packet -> upstream lane acts -> re-closure,
             with Cl_{t+1} a strict superset of Cl_t on the recorded ledger.

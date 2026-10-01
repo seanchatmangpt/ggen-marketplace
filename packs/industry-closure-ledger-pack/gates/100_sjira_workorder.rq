@@ -1,0 +1,23 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX ic: <https://seanchatmangpt.github.io/packs/industry-closure-ledger-pack#>
+PREFIX ea: <https://chatman.ai/ontology/enterprise-architecture#>
+PREFIX togaf: <http://www.semanticweb.org/ontologies/2020/4/OntologyTOGAFContentMetamodel.owl#>
+# MESSAGE: every OPEN residual has exactly one well-formed sJira work order whose delta code is its class's, with a non-blank falsifier and standing UNKNOWN or BLOCKED.
+SELECT ?subject ?reason WHERE {
+  { ?subject a ic:Residual ; ic:status "OPEN" . FILTER NOT EXISTS { ?wo a ic:WorkOrder ; ic:forResidual ?subject } BIND("REFUSED:IC_WORKORDER_MISSING" AS ?reason) }
+  UNION { ?subject a ic:WorkOrder .
+          OPTIONAL { ?subject ic:workOrderId ?q1 } OPTIONAL { ?subject ic:forResidual ?q2 } OPTIONAL { ?subject ic:deltaCode ?q3 }
+          OPTIONAL { ?subject ic:acceptance ?q4 } OPTIONAL { ?subject ic:falsifier ?q5 } OPTIONAL { ?subject ic:standing ?q6 } OPTIONAL { ?subject ic:authorityClaim ?q7 }
+          FILTER(!BOUND(?q1) || !BOUND(?q2) || !BOUND(?q3) || !BOUND(?q4) || !BOUND(?q5) || !BOUND(?q6) || !BOUND(?q7))
+          BIND("REFUSED:IC_WORKORDER_MALFORMED" AS ?reason) }
+  UNION { ?subject a ic:WorkOrder ; ic:falsifier ?f . FILTER(!REGEX(STR(?f), "[^\\s]")) BIND("REFUSED:IC_WORKORDER_FALSIFIER_BLANK" AS ?reason) }
+  UNION { ?subject a ic:WorkOrder ; ic:workOrderId ?id . ?other a ic:WorkOrder ; ic:workOrderId ?id . FILTER(STR(?subject) < STR(?other))
+          BIND("REFUSED:IC_WORKORDER_DUPLICATE_ID" AS ?reason) }
+  UNION { ?subject a ic:WorkOrder ; ic:forResidual ?r . FILTER NOT EXISTS { ?r a ic:Residual } BIND("REFUSED:IC_WORKORDER_ORPHAN" AS ?reason) }
+  UNION { ?subject a ic:WorkOrder ; ic:forResidual ?r ; ic:deltaCode ?dc . ?r ic:deficitClass ?c . ?c ic:deltaCode ?want . FILTER(?dc != ?want)
+          BIND("REFUSED:IC_WORKORDER_DELTA_MISMATCH" AS ?reason) }
+  UNION { ?subject a ic:WorkOrder ; ic:standing ?s . FILTER(!(STR(?s) IN ("UNKNOWN","BLOCKED"))) BIND("REFUSED:IC_WORKORDER_STANDING_PROMOTED" AS ?reason) }
+  UNION { ?subject a ic:WorkOrder ; ic:forResidual ?rr . ?other a ic:WorkOrder ; ic:forResidual ?rr . FILTER(STR(?subject) < STR(?other))
+          BIND("REFUSED:IC_WORKORDER_DUPLICATE_FOR_RESIDUAL" AS ?reason) }
+} ORDER BY ?subject ?reason

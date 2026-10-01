@@ -1,4 +1,4 @@
-"""Court A for packs/industry-closure-pack (Chicago style, real files, no mocks).
+"""Court A for packs/industry-closure-ledger-pack (Chicago style, real files, no mocks).
 
 Real collaborators throughout: the real Turtle on disk parsed by rdflib, the
 real SPARQL gates and queries executed by rdflib, the real gate-court structural
@@ -198,7 +198,7 @@ def test_pack_manifest_is_minimal_and_matches_directory() -> None:
     assert set(payload) == {"pack"}
     pack = payload["pack"]
     assert set(pack) == {"name", "version", "description"}
-    assert pack["name"] == PACK.name == "industry-closure-pack"
+    assert pack["name"] == PACK.name == "industry-closure-ledger-pack"
     assert re.fullmatch(r"\d+\.\d+\.\d+", pack["version"])
     assert pack["description"].strip()
 
@@ -910,7 +910,7 @@ def catalog_raw() -> bytes:
 
 def test_catalog_lists_the_pack_deterministically(catalog_raw: bytes) -> None:
     assert S.catalog_bytes() == catalog_raw
-    entry = S.catalog_entries(catalog_raw)["industry-closure-pack"]
+    entry = S.catalog_entries(catalog_raw)["industry-closure-ledger-pack"]
     assert entry["profile"] == "project"
     assert entry["native_gates"] == len(EXPECTED_STEMS)
     assert entry["templates"] == len(TEMPLATE_FILES)
@@ -922,16 +922,16 @@ def test_catalog_lists_the_pack_deterministically(catalog_raw: bytes) -> None:
     finally:
         sys.path.remove(str(ROOT / "scripts"))
 
-    assert entry["pack_class"] == PACK_CLASSES.get("industry-closure-pack")
-    assert PACK_CLASSES.get("industry-closure-pack", "KernelPack") == "KernelPack"
+    assert entry["pack_class"] == PACK_CLASSES.get("industry-closure-ledger-pack")
+    assert PACK_CLASSES.get("industry-closure-ledger-pack", "KernelPack") == "KernelPack"
 
 
 def test_catalog_binding_marks_a_mismatched_bound_sbb_stale(catalog_raw: bytes) -> None:
     entries = S.catalog_entries(catalog_raw)
-    current = entries["industry-closure-pack"]["digest"]
+    current = entries["industry-closure-ledger-pack"]["digest"]
     graph = S.merged(Graph(), f"""{PFX}
-ex:sbbCurrent a ea:SolutionBuildingBlock ; ic:marketplacePack "industry-closure-pack" ; ic:packDigest "{current}" .
-ex:sbbDrift a ea:SolutionBuildingBlock ; ic:marketplacePack "industry-closure-pack" ; ic:packDigest "{digest('drifted')}" .
+ex:sbbCurrent a ea:SolutionBuildingBlock ; ic:marketplacePack "industry-closure-ledger-pack" ; ic:packDigest "{current}" .
+ex:sbbDrift a ea:SolutionBuildingBlock ; ic:marketplacePack "industry-closure-ledger-pack" ; ic:packDigest "{digest('drifted')}" .
 ex:sbbGhost a ea:SolutionBuildingBlock ; ic:marketplacePack "no-such-pack" ; ic:packDigest "{digest('ghost')}" .
 ex:sbbUnbound a ea:SolutionBuildingBlock .
 """)
@@ -1206,7 +1206,7 @@ def _ggen_binary() -> "str | None":
 
 
 @pytest.mark.skipif(_ggen_binary() is None, reason="ggen not installed (set GGEN_BIN): manufacture and replay are BLOCKED:ggen_binary_unavailable")
-@pytest.mark.parametrize("name", ["industry-closure-pack", "enterprise-operating-model-pack", "industry-closure-retail-lending-profile-pack"])
+@pytest.mark.parametrize("name", ["industry-closure-ledger-pack", "enterprise-operating-model-pack", "industry-closure-retail-lending-profile-pack"])
 def test_real_ggen_manufactures_and_replays_the_pack(name: str, tmp_path: Path) -> None:
     import subprocess
 

@@ -1,0 +1,21 @@
+# MESSAGE: Marketplace feedback must be admitted work with an explicit
+# counterfactual and measurable recurrence/impact, not a prose wishlist.
+PREFIX mf: <https://ggen.dev/ontology/sjira-marketplace-feedback#>
+PREFIX req: <https://ggen.io/onto/requirements/>
+SELECT ?subject ?reason WHERE {
+  {
+    ?subject a req:WorkOrder ;
+             mf:feedsDelta ?delta .
+    FILTER NOT EXISTS { ?subject req:hasCounterfactual ?counterfactual . ?counterfactual a req:Counterfactual }
+    BIND("feedback-work-order-missing-counterfactual" AS ?reason)
+  } UNION {
+    ?subject a mf:MarketplaceCapabilityDelta .
+    FILTER NOT EXISTS { ?subject mf:recurrenceCount ?n }
+    BIND("marketplace-delta-missing-recurrence-count" AS ?reason)
+  } UNION {
+    ?subject a mf:MarketplaceCapabilityDelta .
+    FILTER NOT EXISTS { ?subject mf:impactScore ?score }
+    BIND("marketplace-delta-missing-impact-score" AS ?reason)
+  }
+}
+ORDER BY ?subject ?reason

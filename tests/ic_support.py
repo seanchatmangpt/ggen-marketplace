@@ -24,10 +24,10 @@ from rdflib import Graph
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKS = ROOT / "packs"
-PACK = PACKS / "industry-closure-pack"
+PACK = PACKS / "industry-closure-ledger-pack"
 ONTOLOGY = PACK / "ontology.ttl"
 
-IC = "https://seanchatmangpt.github.io/packs/industry-closure-pack#"
+IC = "https://seanchatmangpt.github.io/packs/industry-closure-ledger-pack#"
 EA = "https://chatman.ai/ontology/enterprise-architecture#"
 TOGAF = "http://www.semanticweb.org/ontologies/2020/4/OntologyTOGAFContentMetamodel.owl#"
 

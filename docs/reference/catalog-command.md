@@ -18,6 +18,8 @@ and inspect/admit `marketplace.toml` for runtime qualification identity.
 
 Records are sorted by pack identity and include the fields defined by the current catalog schema, including pack identity/description/path, derived packaging profile, source/template/gate metadata, deterministic source fingerprints, deterministic archive digest/size, and the projected download URL.
 
+`status` is `active`, `deprecated`, `superseded`, or `retired`; `deprecated` and `successors` derive from it, and `lifecycle` is `null` or an object carrying planned `intent`, `reason`, `related` peers, `since`, and `evidence`, all projected from [`lifecycle.toml`](pack-lifecycle-registry.md) (legacy `pack.toml` `deprecated`/`superseded_by` keys are still honored when no registry entry exists). `python3 scripts/marketplace.py lifecycle` lists flagged packs.
+
 `profile` is one of `projection`, `semantic`, or `project`. It describes packaging shape, not [pack class](pack-classes.md), maturity, or standing.
 
 Archive digest/size are computed from deterministic archive construction rather than a hand-maintained artifact table. The download URL is deterministic metadata; it may still be unavailable until the publication workflow has produced the corresponding release asset.

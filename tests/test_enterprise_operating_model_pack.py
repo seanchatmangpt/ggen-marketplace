@@ -44,10 +44,10 @@ PACK_NAME = "enterprise-operating-model-pack"
 PACK = ROOT / "packs" / PACK_NAME
 TOGAF_PACK = ROOT / "packs" / "togaf-adm-pack"
 EA_PACK = ROOT / "packs" / "enterprise-architecture-pack"
-IC_PACK = ROOT / "packs" / "industry-closure-pack"
+IC_PACK = ROOT / "packs" / "industry-closure-ledger-pack"
 
 EOM = "https://seanchatmangpt.github.io/packs/enterprise-operating-model-pack#"
-IC = "https://seanchatmangpt.github.io/packs/industry-closure-pack#"
+IC = "https://seanchatmangpt.github.io/packs/industry-closure-ledger-pack#"
 EA = "https://chatman.ai/ontology/enterprise-architecture#"
 TOGAF = "http://www.semanticweb.org/ontologies/2020/4/OntologyTOGAFContentMetamodel.owl#"
 SKOS_NOTATION = URIRef("http://www.w3.org/2004/02/skos/core#notation")

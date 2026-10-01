@@ -106,7 +106,7 @@ The kernel's `ggen.toml` reads only one input: `ontology/industry-input.ttl`, wh
 
 ```bash
 scratch=$(mktemp -d)
-cp -R packs/industry-closure-pack/. "$scratch"/
+cp -R packs/industry-closure-ledger-pack/. "$scratch"/
 cp packs/industry-closure-<industry>-profile-pack/ontology.ttl "$scratch/ontology/industry-input.ttl"
 (cd "$scratch" && ggen sync run && ggen sync run)
 ```

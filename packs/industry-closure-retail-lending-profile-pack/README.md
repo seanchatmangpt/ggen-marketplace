@@ -1,7 +1,7 @@
 # industry-closure-retail-lending-profile-pack
 
 ProfilePack for the industry closure calculus: one bounded real industry, consumer and mortgage
-lending origination, expressed as ABox over `industry-closure-pack` vocabulary. Later industries are
+lending origination, expressed as ABox over `industry-closure-ledger-pack` vocabulary. Later industries are
 sibling profile packs of the same shape, never new kernels.
 
 ## What it carries

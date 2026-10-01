@@ -11,7 +11,7 @@ Everything here uses synthetic data (`example.invalid` IRIs) from the packs' fix
 Three packs take part:
 
 - `enterprise-operating-model-pack` turns an enterprise's operating-model decision into requirements and pending-approval building-block skeletons (pass 1).
-- `industry-closure-pack` computes the residual (requirements minus what the chain already closes), routes each gap, and proposes the next ledger snapshot (pass 2).
+- `industry-closure-ledger-pack` computes the residual (requirements minus what the chain already closes), routes each gap, and proposes the next ledger snapshot (pass 2).
 - `industry-closure-retail-lending-profile-pack` is a real industry's data over that vocabulary. It ships no building blocks, so its starting residual is honest and non-empty. You will only look at it.
 
 ## 1. Set up a helper
@@ -23,7 +23,7 @@ import sys
 sys.path.insert(0, "tests")          # run from the repository root
 import ic_support as s
 
-K = s.PACK                           # packs/industry-closure-pack
+K = s.PACK                           # packs/industry-closure-ledger-pack
 stages = sorted((K / "fixtures/closure-growth").glob("stage*.ttl"))
 ```
 
@@ -138,7 +138,7 @@ Gate `040_closure_monotonicity.rq` is the monotonicity court: every (capability,
 
 ```python
 snap2 = """
-@prefix ic: <https://seanchatmangpt.github.io/packs/industry-closure-pack#> .
+@prefix ic: <https://seanchatmangpt.github.io/packs/industry-closure-ledger-pack#> .
 <https://example.invalid/synthetic/snapshot/2> a ic:ClosureSnapshot ;
     ic:snapshotOf <https://example.invalid/synthetic/closure> ;
     ic:epoch 2 ;
@@ -211,7 +211,7 @@ Each gate runs under rdflib against a passing witness (zero rows) and a failing 
 
 ## With a real ggen
 
-If you have installed the admitted ggen (`scripts/install-ggen.sh`), build a scratch consumer, run pass 1 (`enterprise-operating-model-pack`) then pass 2 (`industry-closure-pack`), run `ggen sync run` twice for each, and byte-compare `generated/**`. To try the real profile of step 8, copy the profile's `ontology.ttl` over the kernel's `ontology/industry-input.ttl` in the scratch consumer first; the exact commands, and the three checks to make afterwards, are in section 8 of [Add an industry to a closure](../how-to/add-an-industry-to-closure.md). Confirm the generated residual ledger agrees with the rdflib result above. The residual in step 8 is rdflib-only evidence: no overlay builds that profile through ggen, so until it is done on the exact subject, manufacture, execution and replay stay `UNKNOWN` or `BLOCKED:ggen_binary_unavailable`.
+If you have installed the admitted ggen (`scripts/install-ggen.sh`), build a scratch consumer, run pass 1 (`enterprise-operating-model-pack`) then pass 2 (`industry-closure-ledger-pack`), run `ggen sync run` twice for each, and byte-compare `generated/**`. To try the real profile of step 8, copy the profile's `ontology.ttl` over the kernel's `ontology/industry-input.ttl` in the scratch consumer first; the exact commands, and the three checks to make afterwards, are in section 8 of [Add an industry to a closure](../how-to/add-an-industry-to-closure.md). Confirm the generated residual ledger agrees with the rdflib result above. The residual in step 8 is rdflib-only evidence: no overlay builds that profile through ggen, so until it is done on the exact subject, manufacture, execution and replay stay `UNKNOWN` or `BLOCKED:ggen_binary_unavailable`.
 
 ## Standing
 

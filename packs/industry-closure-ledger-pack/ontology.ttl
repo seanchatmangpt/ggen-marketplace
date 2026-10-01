@@ -1,0 +1,684 @@
+# industry-closure-ledger-pack ontology: vocabulary and DeficitClass / FeedbackTarget individuals only.
+#
+# This file carries NO specimen ABox. Any synthetic industry lives under
+# qualification/project/ and fixtures/ as consumer-side data; real industries
+# are sibling ProfilePacks.
+#
+# Terms of the enterprise-architecture-pack vocabulary (strategy, capability,
+# building blocks, contract, exact subject, standing) are consumed by IRI in
+# gates and queries and are deliberately NOT prefix-declared or re-typed here.
+# Gates act only on industry-closure subjects or on the objects they reference.
+#
+# Authority: queries and gates SELECT, templates CONSTRUCT candidate data.
+# No DO individual, class or property is declared anywhere in this namespace.
+# Authority vocabulary (literals): "NONE" | "OBSERVE" | "SELECT" | "CONSTRUCT".
+# Standing (literal, restricted by gate 090, no new vocabulary):
+#   ^(UNKNOWN|PARTIAL_ALIVE|ALIVE|BLOCKED|BUILD_BROKEN|UNSUPPORTED|REFUSED:[A-Z0-9_]+)$
+
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcat: <http://www.w3.org/ns/dcat#> .
+@prefix ic: <https://seanchatmangpt.github.io/packs/industry-closure-ledger-pack#> .
+
+# ---------------------------------------------------------------------------
+# Classes
+# ---------------------------------------------------------------------------
+
+ic:IndustryClosure a owl:Class ;
+    rdfs:subClassOf prov:Collection ;
+    rdfs:label "Industry closure" ;
+    rdfs:comment "One bounded industry scope with its admitted knowledge sources, requirements and a chain of closure snapshots." .
+
+ic:KnowledgeSource a owl:Class ;
+    rdfs:subClassOf prov:Entity , dcat:Dataset ;
+    rdfs:label "Knowledge source" ;
+    rdfs:comment "A public knowledge source. It enters the closure only through admission: ADMITTED, EXCLUDED with a reason, or UNKNOWN with a falsifier." .
+
+ic:Requirement a owl:Class ;
+    rdfs:label "Requirement" ;
+    rdfs:comment "An atomic, paraphrased requirement with identity, a safe key, an explicit scope disposition and an admitted origin. Prose never originates a requirement." .
+
+ic:ClosureSnapshot a owl:Class ;
+    rdfs:label "Closure snapshot" ;
+    rdfs:comment "One epoch of the coverage ledger of a closure. Epoch equals predecessor plus one, with a single successor per snapshot." .
+
+ic:Coverage a owl:Class ;
+    rdfs:label "Coverage" ;
+    rdfs:comment "A recorded (capability, architecture building block) coverage in one snapshot. LIVE or STALE. The ABB is the identity of a coverage, so SBB substitution stays monotone." .
+
+ic:Retirement a owl:Class ;
+    rdfs:label "Retirement" ;
+    rdfs:comment "A receipted, reasoned removal of a recorded coverage. The only lawful way a (capability, ABB) pair leaves the ledger." .
+
+ic:ExecutionEvidence a owl:Class ;
+    rdfs:subClassOf prov:Entity ;
+    rdfs:label "Execution evidence" ;
+    rdfs:comment "An independently verified outcome for a solution building block at its current exact subject. Evidence at any other subject is never joined." .
+
+ic:DeficitClass a owl:Class ;
+    rdfs:label "Deficit class" ;
+    rdfs:comment "One of the seven first-failing-link classes of the residual. Each individual carries its own routing, delta code, acceptance text and falsifier text, so routing is data, not code." .
+
+ic:FeedbackTarget a owl:Class ;
+    rdfs:label "Feedback target" ;
+    rdfs:comment "A typed upstream lane that a deficit class routes to." .
+
+ic:Residual a owl:Class ;
+    rdfs:label "Residual" ;
+    rdfs:comment "One recorded element of the residual for a (requirement, capability key) pair. Computed from the closure, never a second source of truth; gate 060 forces the recorded ledger to equal the computed residual." .
+
+ic:WorkOrder a owl:Class ;
+    rdfs:subClassOf prov:Entity ;
+    rdfs:seeAlso <http://open-services.net/ns/cm#ChangeRequest> ;
+    rdfs:label "Work order" ;
+    rdfs:comment "A pure projection of one residual into a candidate sJira change record. Standing UNKNOWN or BLOCKED, authority claim NONE." .
+
+# Closed value sets (enumeration classes for the individuals below).
+
+ic:AdmissionState a owl:Class ;
+    rdfs:label "Admission state" ;
+    rdfs:comment "ADMITTED, EXCLUDED or UNKNOWN." .
+
+ic:ScopeDisposition a owl:Class ;
+    rdfs:label "Scope disposition" ;
+    rdfs:comment "IN_SCOPE or OUT_OF_SCOPE. Out of scope needs a scope justification; nothing leaves the residual silently." .
+
+ic:CoverageState a owl:Class ;
+    rdfs:label "Coverage state" ;
+    rdfs:comment "LIVE or STALE. STALE needs a stale reason and keeps the ledger monotone." .
+
+ic:EvidenceOutcome a owl:Class ;
+    rdfs:label "Evidence outcome" ;
+    rdfs:comment "VERIFIED, FALSIFIED or INCONCLUSIVE." .
+
+ic:EvidenceKind a owl:Class ;
+    rdfs:label "Evidence kind" ;
+    rdfs:comment "OBSERVED or SYNTHETIC. Synthetic evidence can never support ALIVE." .
+
+ic:ApprovalStatus a owl:Class ;
+    rdfs:label "Approval status" ;
+    rdfs:comment "PENDING_HUMAN_APPROVAL, APPROVED or REJECTED, carried on architecture contracts. APPROVED requires approvedBy and approvalReceipt, which are human rights and never generated." .
+
+# ---------------------------------------------------------------------------
+# Closure and knowledge-source properties
+# ---------------------------------------------------------------------------
+
+ic:industryScope a owl:DatatypeProperty ;
+    rdfs:domain ic:IndustryClosure ;
+    rdfs:range xsd:string ;
+    rdfs:label "industry scope" ;
+    rdfs:comment "Human-readable statement of the bounded industry scope." .
+
+ic:baseIri a owl:DatatypeProperty ;
+    rdfs:domain ic:IndustryClosure ;
+    rdfs:range xsd:string ;
+    rdfs:label "base IRI" ;
+    rdfs:comment "Base IRI string from which generated residual, work-order and snapshot IRIs are minted." .
+
+ic:boundPathPrefix a owl:DatatypeProperty ;
+    rdfs:domain ic:IndustryClosure ;
+    rdfs:range xsd:string ;
+    rdfs:label "bound path prefix" ;
+    rdfs:comment "Vendored path prefix inside which every admitted source locator of the closure must lie." .
+
+ic:usesSource a owl:ObjectProperty ;
+    rdfs:domain ic:IndustryClosure ;
+    rdfs:range ic:KnowledgeSource ;
+    rdfs:label "uses source" ;
+    rdfs:comment "Links a closure to a knowledge source it considered, in any admission state." .
+
+ic:hasSnapshot a owl:ObjectProperty ;
+    rdfs:domain ic:IndustryClosure ;
+    rdfs:range ic:ClosureSnapshot ;
+    rdfs:label "has snapshot" ;
+    rdfs:comment "Links a closure to a snapshot of its ledger. The head is the snapshot with no successor." .
+
+ic:admission a owl:ObjectProperty ;
+    rdfs:domain ic:KnowledgeSource ;
+    rdfs:range ic:AdmissionState ;
+    rdfs:label "admission" ;
+    rdfs:comment "Admission state of a knowledge source." .
+
+ic:sourceIri a owl:ObjectProperty ;
+    rdfs:domain ic:KnowledgeSource ;
+    rdfs:label "source IRI" ;
+    rdfs:comment "Version IRI of an ADMITTED source, read from the vendored file." .
+
+ic:sourceVersion a owl:DatatypeProperty ;
+    rdfs:domain ic:KnowledgeSource ;
+    rdfs:range xsd:string ;
+    rdfs:label "source version" ;
+    rdfs:comment "Version string of an ADMITTED source, read from the vendored file." .
+
+ic:sourceDigest a owl:DatatypeProperty ;
+    rdfs:domain ic:KnowledgeSource ;
+    rdfs:range xsd:string ;
+    rdfs:label "source digest" ;
+    rdfs:comment "Pinned digest of the vendored source file, in the form sha256:<64 lowercase hex>." .
+
+ic:licenseBoundary a owl:DatatypeProperty ;
+    rdfs:domain ic:KnowledgeSource ;
+    rdfs:range xsd:string ;
+    rdfs:label "license boundary" ;
+    rdfs:comment "Statement of the licence terms under which the source is vendored and used." .
+
+ic:sourceLocator a owl:DatatypeProperty ;
+    rdfs:domain ic:KnowledgeSource ;
+    rdfs:range xsd:string ;
+    rdfs:label "source locator" ;
+    rdfs:comment "Repository-relative path of the vendored source. Must start under ontologies/public/ and inside the closure's bound path prefix when ADMITTED." .
+
+ic:exclusionReason a owl:DatatypeProperty ;
+    rdfs:domain ic:KnowledgeSource ;
+    rdfs:range xsd:string ;
+    rdfs:label "exclusion reason" ;
+    rdfs:comment "Why an EXCLUDED source is outside the closure. Required for EXCLUDED." .
+
+ic:falsifier a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:label "falsifier" ;
+    rdfs:comment "The condition that would prove the claim wrong. Required on an UNKNOWN knowledge source and on every work order; must not be blank." .
+
+ic:providesConcept a owl:ObjectProperty ;
+    rdfs:domain ic:KnowledgeSource ;
+    rdfs:label "provides concept" ;
+    rdfs:comment "An IRI of a class that the admitted source defines." .
+
+# ---------------------------------------------------------------------------
+# Requirement and capability properties
+# (capability individuals are typed by the enterprise-architecture vocabulary
+#  or the TOGAF anchor; ic only adds the keys and grounding links below)
+# ---------------------------------------------------------------------------
+
+ic:requirementId a owl:DatatypeProperty ;
+    rdfs:domain ic:Requirement ;
+    rdfs:range xsd:string ;
+    rdfs:label "requirement id" ;
+    rdfs:comment "Safe identity key, matching ^[A-Za-z0-9._-]+$, unique across requirements." .
+
+ic:statement a owl:DatatypeProperty ;
+    rdfs:domain ic:Requirement ;
+    rdfs:range xsd:string ;
+    rdfs:label "statement" ;
+    rdfs:comment "Paraphrased statement of the requirement." .
+
+ic:inClosure a owl:ObjectProperty ;
+    rdfs:domain ic:Requirement ;
+    rdfs:range ic:IndustryClosure ;
+    rdfs:label "in closure" ;
+    rdfs:comment "The closure that owns the requirement." .
+
+ic:disposition a owl:ObjectProperty ;
+    rdfs:domain ic:Requirement ;
+    rdfs:range ic:ScopeDisposition ;
+    rdfs:label "disposition" ;
+    rdfs:comment "Explicit scope disposition: IN_SCOPE or OUT_OF_SCOPE." .
+
+ic:scopeJustification a owl:DatatypeProperty ;
+    rdfs:domain ic:Requirement ;
+    rdfs:range xsd:string ;
+    rdfs:label "scope justification" ;
+    rdfs:comment "Required reason for an OUT_OF_SCOPE requirement." .
+
+ic:requiresCapability a owl:ObjectProperty ;
+    rdfs:domain ic:Requirement ;
+    rdfs:label "requires capability" ;
+    rdfs:comment "The capability a requirement needs. The object is the capability individual; its identity is this link plus its capability key." .
+
+ic:needsDoAuthority a owl:DatatypeProperty ;
+    rdfs:domain ic:Requirement ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "needs DO authority" ;
+    rdfs:comment "A NEED, never a grant. A requirement that needs consequential authority permanently classifies as DEFICIT_AUTHORITY with standing BLOCKED." .
+
+ic:derivedFrom a owl:ObjectProperty ;
+    rdfs:domain ic:Requirement ;
+    rdfs:range ic:KnowledgeSource ;
+    rdfs:label "derived from" ;
+    rdfs:comment "Origin of a requirement in an ADMITTED knowledge source." .
+
+ic:originAuthority a owl:ObjectProperty ;
+    rdfs:domain ic:Requirement ;
+    rdfs:label "origin authority" ;
+    rdfs:comment "Alternative origin of a requirement: a strategy individual of the enterprise-architecture vocabulary." .
+
+ic:capabilityKey a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:label "capability key" ;
+    rdfs:comment "Safe identity key of a capability individual, matching ^[A-Za-z0-9._-]+$." .
+
+ic:concept a owl:ObjectProperty ;
+    rdfs:label "concept" ;
+    rdfs:comment "An IRI of a class, defined in an admitted source, that a capability individual denotes." .
+
+ic:groundedIn a owl:ObjectProperty ;
+    rdfs:range ic:KnowledgeSource ;
+    rdfs:label "grounded in" ;
+    rdfs:comment "A capability is grounded when it is grounded in an ADMITTED knowledge source (or grounded in a strategy)." .
+
+ic:groundedInStrategy a owl:ObjectProperty ;
+    rdfs:label "grounded in strategy" ;
+    rdfs:comment "A capability is grounded in a strategy individual of the enterprise-architecture vocabulary." .
+
+# ---------------------------------------------------------------------------
+# Snapshot, coverage, retirement properties
+# ---------------------------------------------------------------------------
+
+ic:snapshotOf a owl:ObjectProperty ;
+    rdfs:domain ic:ClosureSnapshot ;
+    rdfs:range ic:IndustryClosure ;
+    rdfs:label "snapshot of" ;
+    rdfs:comment "The closure a snapshot belongs to." .
+
+ic:epoch a owl:DatatypeProperty ;
+    rdfs:domain ic:ClosureSnapshot ;
+    rdfs:range xsd:integer ;
+    rdfs:label "epoch" ;
+    rdfs:comment "Epoch number. Epoch 0 is the empty ledger; each successor is predecessor plus one." .
+
+ic:supersedes a owl:ObjectProperty ;
+    rdfs:domain ic:ClosureSnapshot ;
+    rdfs:range ic:ClosureSnapshot ;
+    rdfs:label "supersedes" ;
+    rdfs:comment "The immediate predecessor snapshot." .
+
+ic:inSnapshot a owl:ObjectProperty ;
+    rdfs:domain ic:Coverage ;
+    rdfs:range ic:ClosureSnapshot ;
+    rdfs:label "in snapshot" ;
+    rdfs:comment "The snapshot a coverage is recorded in." .
+
+ic:coversCapability a owl:ObjectProperty ;
+    rdfs:domain ic:Coverage ;
+    rdfs:label "covers capability" ;
+    rdfs:comment "The capability a coverage records." .
+
+ic:byABB a owl:ObjectProperty ;
+    rdfs:domain ic:Coverage ;
+    rdfs:label "by ABB" ;
+    rdfs:comment "The architecture building block, the identity of the coverage." .
+
+ic:bySBB a owl:ObjectProperty ;
+    rdfs:domain ic:Coverage ;
+    rdfs:label "by SBB" ;
+    rdfs:comment "The solution building block currently satisfying the ABB." .
+
+ic:coverageState a owl:ObjectProperty ;
+    rdfs:domain ic:Coverage ;
+    rdfs:range ic:CoverageState ;
+    rdfs:label "coverage state" ;
+    rdfs:comment "LIVE or STALE." .
+
+ic:staleBecause a owl:DatatypeProperty ;
+    rdfs:domain ic:Coverage ;
+    rdfs:range xsd:string ;
+    rdfs:label "stale because" ;
+    rdfs:comment "Required reason when a coverage is STALE." .
+
+ic:evidencedBy a owl:ObjectProperty ;
+    rdfs:domain ic:Coverage ;
+    rdfs:range ic:ExecutionEvidence ;
+    rdfs:label "evidenced by" ;
+    rdfs:comment "The execution evidence a coverage standing rests on." .
+
+ic:retires a owl:ObjectProperty ;
+    rdfs:domain ic:Retirement ;
+    rdfs:range ic:Coverage ;
+    rdfs:label "retires" ;
+    rdfs:comment "The recorded coverage a retirement removes." .
+
+ic:retirementReason a owl:DatatypeProperty ;
+    rdfs:domain ic:Retirement ;
+    rdfs:range xsd:string ;
+    rdfs:label "retirement reason" ;
+    rdfs:comment "Required reason for a retirement." .
+
+ic:receiptDigest a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:label "receipt digest" ;
+    rdfs:comment "Receipt digest in the form sha256:<64 lowercase hex>. Required on a retirement and on execution evidence." .
+
+ic:standing a owl:DatatypeProperty ;
+    rdfs:label "standing" ;
+    rdfs:comment "Standing literal matching ^(UNKNOWN|PARTIAL_ALIVE|ALIVE|BLOCKED|BUILD_BROKEN|UNSUPPORTED|REFUSED:[A-Z0-9_]+)$. No new vocabulary. QUALIFIED is not ALIVE." .
+
+# ---------------------------------------------------------------------------
+# Execution evidence and catalog binding properties
+# ---------------------------------------------------------------------------
+
+ic:evidenceFor a owl:ObjectProperty ;
+    rdfs:domain ic:ExecutionEvidence ;
+    rdfs:label "evidence for" ;
+    rdfs:comment "The solution building block the evidence is about." .
+
+ic:evidenceSubject a owl:DatatypeProperty ;
+    rdfs:domain ic:ExecutionEvidence ;
+    rdfs:range xsd:string ;
+    rdfs:label "evidence subject" ;
+    rdfs:comment "Exact subject digest the evidence was observed at. It counts only while it equals the SBB's current exact subject." .
+
+ic:outcome a owl:ObjectProperty ;
+    rdfs:domain ic:ExecutionEvidence ;
+    rdfs:range ic:EvidenceOutcome ;
+    rdfs:label "outcome" ;
+    rdfs:comment "VERIFIED, FALSIFIED or INCONCLUSIVE." .
+
+ic:producedBy a owl:ObjectProperty ;
+    rdfs:domain ic:ExecutionEvidence ;
+    rdfs:label "produced by" ;
+    rdfs:comment "The agent that produced the evidence." .
+
+ic:verifiedBy a owl:ObjectProperty ;
+    rdfs:domain ic:ExecutionEvidence ;
+    rdfs:label "verified by" ;
+    rdfs:comment "The agent that verified the evidence. Must differ from the producer." .
+
+ic:evidenceKind a owl:ObjectProperty ;
+    rdfs:domain ic:ExecutionEvidence ;
+    rdfs:range ic:EvidenceKind ;
+    rdfs:label "evidence kind" ;
+    rdfs:comment "OBSERVED or SYNTHETIC." .
+
+ic:marketplacePack a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:label "marketplace pack" ;
+    rdfs:comment "Optional binding of a solution building block to a marketplace pack name. ALIVE requires it." .
+
+ic:packDigest a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:label "pack digest" ;
+    rdfs:comment "Optional catalog digest recorded for the bound pack. ALIVE requires it; a mismatch with the derived catalog marks the coverage STALE." .
+
+# ---------------------------------------------------------------------------
+# Contract approval properties (carried on architecture contract individuals)
+# ---------------------------------------------------------------------------
+
+ic:approvalStatus a owl:ObjectProperty ;
+    rdfs:range ic:ApprovalStatus ;
+    rdfs:label "approval status" ;
+    rdfs:comment "Approval status of an architecture contract. Generated skeletons carry PENDING_HUMAN_APPROVAL only." .
+
+ic:approvedBy a owl:ObjectProperty ;
+    rdfs:range prov:Agent ;
+    rdfs:label "approved by" ;
+    rdfs:comment "The human agent who approved a contract. Never generated." .
+
+ic:approvalReceipt a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:label "approval receipt" ;
+    rdfs:comment "Receipt reference for a human approval. Never generated." .
+
+# ---------------------------------------------------------------------------
+# Deficit, residual, routing and work-order properties
+# ---------------------------------------------------------------------------
+
+ic:deficitCode a owl:DatatypeProperty ;
+    rdfs:domain ic:DeficitClass ;
+    rdfs:range xsd:string ;
+    rdfs:label "deficit code" ;
+    rdfs:comment "Local name of the deficit class as a literal; used to mint the class reference in generated rows." .
+
+ic:routesTo a owl:ObjectProperty ;
+    rdfs:domain ic:DeficitClass ;
+    rdfs:range ic:FeedbackTarget ;
+    rdfs:label "routes to" ;
+    rdfs:comment "The single upstream target a deficit class routes to." .
+
+ic:deltaCode a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:label "delta code" ;
+    rdfs:comment "Typed delta kind requested of the factory. On a deficit class it is the source of truth; a work order must repeat its class's value." .
+
+ic:acceptanceText a owl:DatatypeProperty ;
+    rdfs:domain ic:DeficitClass ;
+    rdfs:range xsd:string ;
+    rdfs:label "acceptance text" ;
+    rdfs:comment "Paraphrased acceptance criterion copied into work orders." .
+
+ic:falsifierText a owl:DatatypeProperty ;
+    rdfs:domain ic:DeficitClass ;
+    rdfs:range xsd:string ;
+    rdfs:label "falsifier text" ;
+    rdfs:comment "Paraphrased falsifier copied into work orders." .
+
+ic:targetCode a owl:DatatypeProperty ;
+    rdfs:domain ic:FeedbackTarget ;
+    rdfs:range xsd:string ;
+    rdfs:label "target code" ;
+    rdfs:comment "Local name of the feedback target as a literal." .
+
+ic:residualKey a owl:DatatypeProperty ;
+    rdfs:domain ic:Residual ;
+    rdfs:range xsd:string ;
+    rdfs:label "residual key" ;
+    rdfs:comment "Requirement id, two hyphens, capability key or UNMAPPED. A plain literal everywhere." .
+
+ic:residualOf a owl:ObjectProperty ;
+    rdfs:domain ic:Residual ;
+    rdfs:range ic:Requirement ;
+    rdfs:label "residual of" ;
+    rdfs:comment "The in-scope requirement the residual belongs to." .
+
+ic:forCapabilityKey a owl:DatatypeProperty ;
+    rdfs:domain ic:Residual ;
+    rdfs:range xsd:string ;
+    rdfs:label "for capability key" ;
+    rdfs:comment "Capability key of the residual, or UNMAPPED." .
+
+ic:deficitClass a owl:ObjectProperty ;
+    rdfs:domain ic:Residual ;
+    rdfs:range ic:DeficitClass ;
+    rdfs:label "deficit class" ;
+    rdfs:comment "The exactly-one class of a residual (the first failing link)." .
+
+ic:feedbackTarget a owl:ObjectProperty ;
+    rdfs:domain ic:Residual ;
+    rdfs:range ic:FeedbackTarget ;
+    rdfs:label "feedback target" ;
+    rdfs:comment "The upstream target of a residual; must equal its class's routesTo." .
+
+ic:status a owl:DatatypeProperty ;
+    rdfs:domain ic:Residual ;
+    rdfs:range xsd:string ;
+    rdfs:label "status" ;
+    rdfs:comment "Residual status literal. OPEN for every generated residual." .
+
+ic:blockedReason a owl:DatatypeProperty ;
+    rdfs:domain ic:Residual ;
+    rdfs:range xsd:string ;
+    rdfs:label "blocked reason" ;
+    rdfs:comment "Required reason on a residual routed to UPSTREAM_AUTHORITY." .
+
+ic:authorityClaim a owl:DatatypeProperty ;
+    rdfs:label "authority claim" ;
+    rdfs:comment "Authority claimed by a residual or work order. The only lawful value is NONE." .
+
+ic:authorityCeiling a owl:DatatypeProperty ;
+    rdfs:label "authority ceiling" ;
+    rdfs:comment "Authority ceiling literal: NONE, OBSERVE, SELECT or CONSTRUCT. The consequential level is unrepresentable." .
+
+ic:workOrderId a owl:DatatypeProperty ;
+    rdfs:domain ic:WorkOrder ;
+    rdfs:range xsd:string ;
+    rdfs:label "work order id" ;
+    rdfs:comment "Unique identifier of a work order." .
+
+ic:forResidual a owl:ObjectProperty ;
+    rdfs:domain ic:WorkOrder ;
+    rdfs:range ic:Residual ;
+    rdfs:label "for residual" ;
+    rdfs:comment "The residual a work order projects." .
+
+ic:acceptance a owl:DatatypeProperty ;
+    rdfs:domain ic:WorkOrder ;
+    rdfs:range xsd:string ;
+    rdfs:label "acceptance" ;
+    rdfs:comment "Acceptance text of a work order, taken from its deficit class." .
+
+# ---------------------------------------------------------------------------
+# Closed value individuals
+# ---------------------------------------------------------------------------
+
+ic:ADMITTED a ic:AdmissionState ;
+    rdfs:label "ADMITTED" ;
+    rdfs:comment "Pinned, licensed, vendored and inside the closure scope." .
+
+ic:EXCLUDED a ic:AdmissionState ;
+    rdfs:label "EXCLUDED" ;
+    rdfs:comment "Considered and out of scope; carries an exclusion reason." .
+
+ic:UNKNOWN a ic:AdmissionState ;
+    rdfs:label "UNKNOWN" ;
+    rdfs:comment "Not yet reviewed; carries a falsifier." .
+
+ic:IN_SCOPE a ic:ScopeDisposition ;
+    rdfs:label "IN_SCOPE" ;
+    rdfs:comment "The requirement belongs to the residual computation." .
+
+ic:OUT_OF_SCOPE a ic:ScopeDisposition ;
+    rdfs:label "OUT_OF_SCOPE" ;
+    rdfs:comment "The requirement is explicitly excluded, with a scope justification." .
+
+ic:LIVE a ic:CoverageState ;
+    rdfs:label "LIVE" ;
+    rdfs:comment "The recorded coverage satisfies the full chain at the current subject." .
+
+ic:STALE a ic:CoverageState ;
+    rdfs:label "STALE" ;
+    rdfs:comment "The recorded coverage is kept in the ledger but no longer current; the derived residual reappears." .
+
+ic:VERIFIED a ic:EvidenceOutcome ;
+    rdfs:label "VERIFIED" ;
+    rdfs:comment "Independent verification succeeded at the exact subject." .
+
+ic:FALSIFIED a ic:EvidenceOutcome ;
+    rdfs:label "FALSIFIED" ;
+    rdfs:comment "Verification failed at the exact subject; fails closed for the capability." .
+
+ic:INCONCLUSIVE a ic:EvidenceOutcome ;
+    rdfs:label "INCONCLUSIVE" ;
+    rdfs:comment "Verification did not decide; counts as neither verified nor falsified." .
+
+ic:OBSERVED a ic:EvidenceKind ;
+    rdfs:label "OBSERVED" ;
+    rdfs:comment "Evidence observed at a real boundary." .
+
+ic:SYNTHETIC a ic:EvidenceKind ;
+    rdfs:label "SYNTHETIC" ;
+    rdfs:comment "Evidence constructed for a test; never supports ALIVE." .
+
+ic:PENDING_HUMAN_APPROVAL a ic:ApprovalStatus ;
+    rdfs:label "PENDING_HUMAN_APPROVAL" ;
+    rdfs:comment "Generated contract skeleton awaiting a human decision." .
+
+ic:APPROVED a ic:ApprovalStatus ;
+    rdfs:label "APPROVED" ;
+    rdfs:comment "Approved by a named human with a receipt. Never emitted by a template." .
+
+ic:REJECTED a ic:ApprovalStatus ;
+    rdfs:label "REJECTED" ;
+    rdfs:comment "Rejected by a human." .
+
+# ---------------------------------------------------------------------------
+# Feedback targets
+# ---------------------------------------------------------------------------
+
+ic:UPSTREAM_KNOWLEDGE a ic:FeedbackTarget ;
+    ic:targetCode "UPSTREAM_KNOWLEDGE" ;
+    rdfs:label "Upstream knowledge" ;
+    rdfs:comment "Admit another public source through gate 010." .
+
+ic:UPSTREAM_ARCHITECTURE a ic:FeedbackTarget ;
+    ic:targetCode "UPSTREAM_ARCHITECTURE" ;
+    rdfs:label "Upstream architecture" ;
+    rdfs:comment "Author an ABB or have a human approve a contract." .
+
+ic:UPSTREAM_MARKETPLACE a ic:FeedbackTarget ;
+    ic:targetCode "UPSTREAM_MARKETPLACE" ;
+    rdfs:label "Upstream marketplace" ;
+    rdfs:comment "Supply an SBB by extending or composing an existing pack, or by a class-closure-justified new pack." .
+
+ic:UPSTREAM_QUALIFICATION a ic:FeedbackTarget ;
+    ic:targetCode "UPSTREAM_QUALIFICATION" ;
+    rdfs:label "Upstream qualification" ;
+    rdfs:comment "Qualify the SBB and produce independent evidence at the exact subject." .
+
+ic:UPSTREAM_AUTHORITY a ic:FeedbackTarget ;
+    ic:targetCode "UPSTREAM_AUTHORITY" ;
+    rdfs:label "Upstream authority" ;
+    rdfs:comment "Consequential authority is required. Never closed inside these packs; BLOCKED." .
+
+# ---------------------------------------------------------------------------
+# Deficit classes. Precedence of the classifier (first failing link):
+#   AUTHORITY, ONTOLOGY, ABB, CONTRACT, SBB, QUALIFICATION, EVIDENCE.
+# ---------------------------------------------------------------------------
+
+ic:DEFICIT_AUTHORITY a ic:DeficitClass ;
+    ic:deficitCode "DEFICIT_AUTHORITY" ;
+    ic:routesTo ic:UPSTREAM_AUTHORITY ;
+    ic:deltaCode "AUTHORITY_BLOCK" ;
+    ic:acceptanceText "Blocked: the requirement needs consequential authority that no pack here grants. Leave it open; closing it needs a separately admitted consequential path outside this closure." ;
+    ic:falsifierText "Falsified if the requirement can be satisfied with SELECT or CONSTRUCT authority alone, in which case its need flag is wrong." ;
+    rdfs:label "Deficit: authority" ;
+    rdfs:comment "The requirement needs DO authority. Permanently BLOCKED." .
+
+ic:DEFICIT_ONTOLOGY a ic:DeficitClass ;
+    ic:deficitCode "DEFICIT_ONTOLOGY" ;
+    ic:routesTo ic:UPSTREAM_KNOWLEDGE ;
+    ic:deltaCode "ONTOLOGY_DELTA" ;
+    ic:acceptanceText "Ground the capability: map the requirement to a capability key and admit a public source, pinned by digest with a licence boundary and a falsifier, that defines its concept." ;
+    ic:falsifierText "Falsified if an already admitted source defines the concept, in which case the capability grounding is missing rather than the source." ;
+    rdfs:label "Deficit: ontology" ;
+    rdfs:comment "The requirement is unmapped or its capability is not grounded in an admitted source or strategy." .
+
+ic:DEFICIT_ABB a ic:DeficitClass ;
+    ic:deficitCode "DEFICIT_ABB" ;
+    ic:routesTo ic:UPSTREAM_ARCHITECTURE ;
+    ic:deltaCode "ARCHITECTURE_DELTA" ;
+    ic:acceptanceText "Author an architecture building block that realizes the capability, reusing an existing one when it already fits, and bind it to a contract skeleton that stays pending until a human decides." ;
+    ic:falsifierText "Falsified if an architecture building block realizing the capability already exists in the merged graph." ;
+    rdfs:label "Deficit: ABB" ;
+    rdfs:comment "No architecture building block realizes the capability." .
+
+ic:DEFICIT_CONTRACT a ic:DeficitClass ;
+    ic:deficitCode "DEFICIT_CONTRACT" ;
+    ic:routesTo ic:UPSTREAM_ARCHITECTURE ;
+    ic:deltaCode "ARCHITECTURE_DELTA" ;
+    ic:acceptanceText "A named human reviews the contract and approves it with an approver and a receipt, and the contract carries an authority boundary. Nothing generated may approve." ;
+    ic:falsifierText "Falsified if an approved contract with an authority boundary already governs a building block of the capability." ;
+    rdfs:label "Deficit: contract" ;
+    rdfs:comment "A building block exists but no approved contract with an authority boundary governs it." .
+
+ic:DEFICIT_SBB a ic:DeficitClass ;
+    ic:deficitCode "DEFICIT_SBB" ;
+    ic:routesTo ic:UPSTREAM_MARKETPLACE ;
+    ic:deltaCode "PACK_DELTA" ;
+    ic:acceptanceText "Survey the marketplace first: extend or compose an existing pack before proposing a new one. A new pack needs the class-closure justification of the consolidation how-to. Then declare the solution building block against the approved building block." ;
+    ic:falsifierText "Falsified if an existing pack already satisfies the building block, in which case the gap is the missing declaration, not the pack." ;
+    rdfs:label "Deficit: SBB" ;
+    rdfs:comment "The building block has an approved contract but no solution building block satisfies it." .
+
+ic:DEFICIT_QUALIFICATION a ic:DeficitClass ;
+    ic:deficitCode "DEFICIT_QUALIFICATION" ;
+    ic:routesTo ic:UPSTREAM_QUALIFICATION ;
+    ic:deltaCode "QUALIFICATION_DELTA" ;
+    ic:acceptanceText "Qualify the solution building block through the real runtime boundary and record the QUALIFIED standing together with its pinned exact subject digest." ;
+    ic:falsifierText "Falsified if a qualified and pinned solution building block already exists for the approved building block." ;
+    rdfs:label "Deficit: qualification" ;
+    rdfs:comment "A solution building block exists but none is QUALIFIED with a pinned exact subject." .
+
+ic:DEFICIT_EVIDENCE a ic:DeficitClass ;
+    ic:deficitCode "DEFICIT_EVIDENCE" ;
+    ic:routesTo ic:UPSTREAM_QUALIFICATION ;
+    ic:deltaCode "COURT_DELTA" ;
+    ic:acceptanceText "Obtain execution evidence at the current exact subject from an independent verifier with a receipt. QUALIFIED alone is not evidence. Any falsified outcome at the current subject fails the capability closed until repaired and re-verified." ;
+    ic:falsifierText "Falsified if independent VERIFIED evidence at the current exact subject already exists and no FALSIFIED evidence exists at that subject." ;
+    rdfs:label "Deficit: evidence" ;
+    rdfs:comment "A QUALIFIED solution building block lacks VERIFIED evidence at its current subject, or has FALSIFIED evidence at it." .
+
+ic:COVERED a owl:NamedIndividual ;
+    rdfs:label "COVERED" ;
+    rdfs:comment "Sentinel of the classifier meaning the whole chain holds. Never emitted as a deficit class and deliberately not a DeficitClass." .
