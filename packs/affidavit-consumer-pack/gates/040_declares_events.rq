@@ -1,0 +1,13 @@
+# MESSAGE: a consumer must emit at least one event type, every emitted node must be an afc:EventType with a name, and every used object an afc:ObjectType with a name.
+PREFIX afc: <https://ggen.dev/ontology/affidavit-consumer#>
+SELECT ?problem ?detail WHERE {
+  { ?c a afc:Consumer . FILTER NOT EXISTS { ?c afc:emits ?e }
+    BIND("no_event_types" AS ?problem) BIND(STR(?c) AS ?detail) }
+  UNION
+  { ?c afc:emits ?e . FILTER NOT EXISTS { ?e a afc:EventType ; afc:name ?n }
+    BIND("emitted_node_not_a_named_event_type" AS ?problem) BIND(STR(?e) AS ?detail) }
+  UNION
+  { ?c afc:usesObject ?o . FILTER NOT EXISTS { ?o a afc:ObjectType ; afc:name ?n }
+    BIND("used_node_not_a_named_object_type" AS ?problem) BIND(STR(?o) AS ?detail) }
+}
+ORDER BY ?problem ?detail

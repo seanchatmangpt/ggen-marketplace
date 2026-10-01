@@ -1,0 +1,15 @@
+# vocab.rq -- consumed by templates/affidavit_events.{ts,py}.tmpl and action.yml.tmpl.
+# One row. Columns: project_name, profile, receipt_path,
+#   events  - GROUP_CONCAT of event names joined by "@@" (template sorts)
+#   objects - GROUP_CONCAT of object type names joined by "@@"
+PREFIX afc: <https://ggen.dev/ontology/affidavit-consumer#>
+SELECT ?project_name ?profile ?receipt_path
+       (GROUP_CONCAT(DISTINCT ?en; separator="@@") AS ?events)
+       (GROUP_CONCAT(DISTINCT ?on; separator="@@") AS ?objects)
+WHERE {
+  ?c a afc:Consumer ; afc:projectName ?project_name ; afc:profile ?profile ; afc:receiptPath ?receipt_path ;
+     afc:emits ?e ; afc:usesObject ?o .
+  ?e afc:name ?en . ?o afc:name ?on .
+}
+GROUP BY ?project_name ?profile ?receipt_path
+ORDER BY ?project_name
