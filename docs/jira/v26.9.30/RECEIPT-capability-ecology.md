@@ -89,3 +89,28 @@ The ten per-family capability packs were consolidated into **one
   fingerprint `sha256:077826feba2cacd3ed3bbf71ef3c7babf611fcc0da814f929fbc0ffdd07ec3cd`;
   consolidated tests 198/198 passed; full suite re-run recorded below.
 - Operator did not write: any of the consolidation (moves, court, patches, commits).
+
+## Addendum (2026-10-01) — consolidation execution wave
+
+Operator order: perform the frontier consolidation + delete packs stale >7d (cutoff
+2026-09-24). 10-lane execution wave + coordinator integration. **396 → 283 packs.**
+
+- Consolidations: dfcm 15→1, forced-top25 9→1 (head-SHA conflicts reconciled +
+  conserved), adapter/fleet 7→1+profile, tcps 5→1 (+121 vendored files deduped with
+  sha256 provenance), MCP trio→1, wasm4pm facts single-owner (−972 duplicate triples),
+  projection-matrix 3→1, beam4pm contracts 2→1, ash-extension port-then-delete, 5
+  decided retirements, witness-court runner kernelized (4 byte-identical projections),
+  3 vocabulary de-redeclarations (rea:/gp:/ret:).
+- Deletion court (7d rule): 68 packs (of 288 stale) — conservation-excluded 119
+  consumer-referenced + 38 cross-pack-protected + 77 fresh + 11 front-door. Full ledger
+  in lane-8 report; rollback = git history on this unpushed branch.
+- Ladder (final tree): validate exit 0 (283 packs); real-ggen check 22 wave packs
+  exit 0; courts ALIVE; witness sweep 35 packs ALIVE; catalog deterministic; final
+  fingerprint sha256:56d6e04ec2e616861d1a7b22582aad4b9702e147de61fc229b89512f50c7a704
+  (files=15323); full suite 1580 passed with only the asdf-elixir env class remaining
+  (green under ASDF_ELIXIR_VERSION=1.19.0-otp-28); one real wave-caused test fixed
+  (historical UI-family registry members retired).
+- Open items for operator: 17 untracked .ggen/keys/signing.key occurrences (rotation
+  decision); sjira-marketplace-feedback references the retired industry-closure
+  namespace (IRIs still resolve; repoint optional); two vacuous keep-separate entries
+  removed where their only peer was deleted (closed-loop, fortune5-architecture).
