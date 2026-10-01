@@ -117,6 +117,14 @@ OBSERVE
 The planner resolves every requested capability through REUSE/COMPOSE/EXTEND/INVENT before
 projection.
 
+
+The HDDL encodes that closure rather than treating it as prose: `resolve_required_capabilities`
+recurses over every admitted `capability-required` fact and can terminate only when every
+required capability is represented. Spark projection and implementation projection use the
+same quantified closure pattern. Qualification then uses separate courts for hidden
+implementation semantics and dead Spark semantics; neither condition is asserted by
+construction alone.
+
 ## Qualification and burn-in
 
 Burn-in is a qualification method, not a sibling pack:
