@@ -1,0 +1,64 @@
+---
+to: generated/contract.json
+when: "PREFIX qcb: <https://seanchatmangpt.github.io/packs/qri-consumer-binding-pack#> ASK { ?b a qcb:ConsumerBinding ; qcb:requestedProjection \"op-names\" }"
+sparql:
+  contract: |
+    PREFIX qcb: <https://seanchatmangpt.github.io/packs/qri-consumer-binding-pack#>
+    PREFIX qri: <https://seanchatmangpt.github.io/packs/qri-qualification-profile-pack#>
+    SELECT ?version ?digest ?registry ?profile ?ceiling ?abi_kind ?abi_prefix ?abi_version WHERE {
+      ?b a qcb:ConsumerBinding ; qcb:contract ?c ; qcb:realizationProfile ?rp ; qcb:authorityCeiling ?ceiling .
+      ?rp qcb:profileId ?profile .
+      ?c qri:contractVersion ?version ; qri:contractDigest ?digest ; qcb:registrySha256 ?registry .
+      OPTIONAL { ?c qri:abiKind ?ak }
+      OPTIONAL { ?c qri:abiSymbolPrefix ?ap }
+      OPTIONAL { ?c qri:abiVersion ?av }
+      BIND(COALESCE(?ak, "") AS ?abi_kind)
+      BIND(COALESCE(?ap, "") AS ?abi_prefix)
+      BIND(COALESCE(?av, "") AS ?abi_version)
+    }
+    ORDER BY ?digest
+  operations: |
+    PREFIX qcb: <https://seanchatmangpt.github.io/packs/qri-consumer-binding-pack#>
+    PREFIX qri: <https://seanchatmangpt.github.io/packs/qri-qualification-profile-pack#>
+    SELECT ?name WHERE {
+      ?b a qcb:ConsumerBinding ; qcb:logicalOperation ?o .
+      ?o qri:opName ?name .
+    }
+    ORDER BY ?name
+  refusals: |
+    PREFIX qcb: <https://seanchatmangpt.github.io/packs/qri-consumer-binding-pack#>
+    PREFIX qri: <https://seanchatmangpt.github.io/packs/qri-qualification-profile-pack#>
+    SELECT ?code WHERE {
+      ?b a qcb:ConsumerBinding ; qcb:contract ?c .
+      ?c qri:refusalScheme ?s .
+      ?r qri:refusalCode ?code ; <http://www.w3.org/2004/02/skos/core#inScheme> ?s .
+    }
+    ORDER BY ?code
+---
+{#- SPDX-License-Identifier: MIT -#}
+{#- Capability-contract identity record (schema qcb.capability-contract/1): operation NAMES only
+    (field types are UNSUPPORTED(projection): the registry carries names, not types). Keys alphabetical. -#}
+{%- set c = contract[0] -%}
+{
+  "abi": {
+    "kind": {{ c.abi_kind | json_encode() | safe }},
+    "prefix": {{ c.abi_prefix | json_encode() | safe }},
+    "version": {{ c.abi_version | json_encode() | safe }}
+  },
+  "authority_ceiling": {{ c.ceiling | json_encode() | safe }},
+  "contract_digest": {{ c.digest | json_encode() | safe }},
+  "contract_version": {{ c.version | json_encode() | safe }},
+  "operations": [
+{%- for o in operations %}
+    {{ o.name | json_encode() | safe }}{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ],
+  "profile": {{ c.profile | json_encode() | safe }},
+  "refusal_codes": [
+{%- for r in refusals %}
+    {{ r.code | json_encode() | safe }}{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ],
+  "registry_sha256": {{ c.registry | json_encode() | safe }},
+  "schema": "qcb.capability-contract/1"
+}

@@ -20,9 +20,9 @@ under `dynamic_in_gates` in the allowlist; gates that fail to parse are also ref
 
 | metric | value |
 |---|---|
-| packs | 394 |
-| packs with Python scripts | 117 |
-| Python files scanned | 548 |
+| packs | 395 |
+| packs with Python scripts | 118 |
+| Python files scanned | 549 |
 | files failing to parse | 0 |
 
 ## Capability by role
@@ -34,15 +34,15 @@ Files using each capability, by inferred role (`gate` = under a `gates/` directo
 |---|---|---|---|---|---|
 | gate | 0 | 3 | 3 | 1 | 1 |
 | verifier | 0 | 4 | 11 | 0 | 2 |
-| other | 3 | 19 | 28 | 7 | 36 |
+| other | 3 | 20 | 29 | 7 | 36 |
 
 ## Packs using each capability
 
 | capability | packs |
 |---|---|
 | network | 3 |
-| exec | 16 |
-| fs-write | 25 |
+| exec | 17 |
+| fs-write | 26 |
 | env | 6 |
 | dynamic | 14 |
 
@@ -65,8 +65,8 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 | state | packs |
 |---|---|
 | with LICENSE file | 3 |
-| lacking LICENSE file | 391 |
-| with SPDX identifier | 5 |
+| lacking LICENSE file | 392 |
+| with SPDX identifier | 6 |
 | lacking SPDX identifier | 389 |
 | lacking both | 386 |
 
