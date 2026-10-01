@@ -4,12 +4,12 @@ defmodule MarketplaceCli.CliVerbsQueryTest do
   alias MarketplaceCli.GraphProvider.GgenIgniterProvider
 
   @root Application.compile_env(:marketplace_cli, :marketplace_root)
-  @pack_dir Path.join([@root, "packs", "noun-verb-cli-pack"])
+  @pack_dir Path.join([@root, "packs", "ex-noun-verb-cli-pack"])
   @consumer_dir Path.join([@root, "packages", "marketplace-cli"])
 
   # Chicago-style: real ggen_igniter Turtle parser + real `sparql` hex query
   # engine, real .rq files on disk, real ontology.ttl on disk -- no
-  # mock/fixture stub. These two queries are noun-verb-cli-pack's real
+  # mock/fixture stub. These two queries are ex-noun-verb-cli-pack's real
   # consumers for its nvc:CliVerb / nvc:noun / nvc:verb / nvc:belongsTo /
   # nvc:displaces / nvc:usesLibrary / nvc:usesGraphEngine facts (the pack has
   # no Tera templates, so a SPARQL query is the generation-adjacent consumer
