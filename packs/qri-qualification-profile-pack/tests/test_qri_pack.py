@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -37,6 +38,22 @@ class GateCourt(unittest.TestCase):
                 f = Graph().parse(PACK / "witnesses/fail" / f"{gate.stem}.ttl")
                 self.assertEqual(gate_rows(gate, p), 0, "pass witness must be admitted")
                 self.assertGreater(gate_rows(gate, f), 0, "fail witness must be refused (non-vacuous)")
+
+    def test_court_toml_entries_match_gates_and_discriminate(self) -> None:
+        court = tomllib.loads((PACK / "gate-court.toml").read_text(encoding="utf-8"))
+        self.assertEqual(court["court"]["schema"], "ggen.semantic-gate-witness-court/1")
+        entries = court["gate"]
+        stems = [e["stem"] for e in entries]
+        self.assertEqual(len(stems), len(set(stems)), "duplicate [[gate]] stems")
+        self.assertEqual(set(stems), {g.stem for g in (PACK / "gates").glob("*.rq")})
+        for e in entries:
+            with self.subTest(gate=e["stem"]):
+                gate = PACK / court["court"]["gate_dir"] / f"{e['stem']}.rq"
+                self.assertTrue(gate.is_file())
+                self.assertTrue((PACK / e["pass"]).is_file())
+                self.assertTrue((PACK / e["fail"]).is_file())
+                self.assertEqual(gate_rows(gate, Graph().parse(PACK / e["pass"])), 0)
+                self.assertGreater(gate_rows(gate, Graph().parse(PACK / e["fail"])), 0)
 
     def test_example_contract_is_admitted_by_every_gate(self) -> None:
         data = Graph().parse(CONTRACT)
