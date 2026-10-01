@@ -1,0 +1,29 @@
+# FIRES ONLY gates/050_endpoint_resolution_precondition_required.rq:
+# Http.Trace carries an 'authority'-kind precondition instead of the required
+# 'endpoint-resolution' kind, so a resolver could admit a request to an
+# unresolved or unadmitted endpoint (wrong-recipient falsifier).
+@prefix ncap:    <https://ggen.dev/ontology/network-capability#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+
+ncap:neg-unresolved-endpoint a ncap:Capability ;
+    dcterms:identifier "Http.Trace" ;
+    ncap:consequenceClass "DO" ;
+    ncap:input "url" ; ncap:input "headers" ;
+    ncap:output "response" ;
+    ncap:hasPrecondition ncap:neg-precondition-authority-only ;
+    ncap:hasOutcome ncap:outcome-success, ncap:failure-dns-failure, ncap:failure-connect-timeout,
+        ncap:failure-read-timeout, ncap:failure-http-4xx, ncap:failure-http-5xx, ncap:failure-tls-error ;
+    ncap:requiresEvidence "earl:request-response-receipt" ;
+    ncap:requiresAuthority true ;
+    ncap:authorityScope "consequential-endpoint" ;
+    ncap:determinism "nondeterministic" ;
+    ncap:retryClass "manual" ;
+    ncap:realizedBy ncap:neg-unresolved-realization .
+
+ncap:neg-precondition-authority-only a ncap:Precondition ;
+    ncap:preconditionKind "authority" ;
+    ncap:statement "fixture: authority precondition present, endpoint-resolution precondition absent" .
+
+ncap:neg-unresolved-realization a ncap:Realization ;
+    dcterms:identifier "fixture.trace-step-unresolved" ;
+    ncap:qualificationCondition "fixture-scoped provider pinned by consumer lock" .

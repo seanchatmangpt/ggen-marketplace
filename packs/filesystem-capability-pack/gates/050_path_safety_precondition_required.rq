@@ -1,0 +1,16 @@
+# MESSAGE: family falsifier -- every fscap:Capability whose pinned identifier starts
+# with 'File.' or 'Dir.' must carry a precondition of kind 'path-safety'. Any row = a
+# path-touching capability whose contract lacks the traversal/confinement precondition,
+# i.e. a resolution engine could admit it against a path outside the workspace root.
+PREFIX fscap: <https://ggen.dev/ontology/filesystem-capability#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?cap ?id WHERE {
+  ?cap a fscap:Capability ;
+       dcterms:identifier ?id .
+  FILTER(STRSTARTS(STR(?id), "File.") || STRSTARTS(STR(?id), "Dir."))
+  FILTER NOT EXISTS {
+    ?cap fscap:hasPrecondition ?precondition .
+    ?precondition fscap:preconditionKind "path-safety" .
+  }
+}
+ORDER BY ?id

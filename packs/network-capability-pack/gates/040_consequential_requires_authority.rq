@@ -1,0 +1,23 @@
+# MESSAGE: every ncap:Capability of consequence class 'DO' must bind authority:
+# ncap:requiresAuthority true AND a non-empty ncap:authorityScope. Any row = a
+# consequential capability (Remote.Invoke on a consequential endpoint, or a
+# mutating HTTP method) reachable by a resolver with no authority requirement.
+# ProviderAvailable != Authorized: endpoint reachability never substitutes for
+# bound authority.
+PREFIX ncap: <https://ggen.dev/ontology/network-capability#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?cap ?id ?gap WHERE {
+  ?cap a ncap:Capability ;
+       dcterms:identifier ?id ;
+       ncap:consequenceClass "DO" .
+  {
+    FILTER NOT EXISTS { ?cap ncap:requiresAuthority true . }
+    BIND("requires-authority-not-true" AS ?gap)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?cap ncap:authorityScope ?scope . }
+    BIND("authority-scope-missing" AS ?gap)
+  }
+}
+ORDER BY ?id ?gap

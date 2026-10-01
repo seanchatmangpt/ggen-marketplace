@@ -1,0 +1,58 @@
+# MESSAGE: every ncap:Capability must model a typed network failure set. Every
+# capability covers dns-failure and connect-timeout (universal for outbound
+# network operations); Http.* and Remote.Invoke additionally cover the HTTP
+# classes http-4xx and http-5xx (deterministic client-error vs nondeterministic
+# server-error). Any row = a capability whose outcome model hides a real failure
+# class (silent failure absorption).
+PREFIX ncap: <https://ggen.dev/ontology/network-capability#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?cap ?id ?gap WHERE {
+  ?cap a ncap:Capability ;
+       dcterms:identifier ?id .
+  {
+    FILTER NOT EXISTS {
+      ?cap ncap:hasOutcome ?outcome .
+      ?outcome ncap:outcomeClass "failure" .
+    }
+    BIND("no-typed-failure-outcome" AS ?gap)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS {
+      ?cap ncap:hasOutcome ?o1 .
+      ?o1 ncap:outcomeClass "failure" ;
+          ncap:failureClass "dns-failure" .
+    }
+    BIND("missing-failure-class:dns-failure" AS ?gap)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS {
+      ?cap ncap:hasOutcome ?o2 .
+      ?o2 ncap:outcomeClass "failure" ;
+          ncap:failureClass "connect-timeout" .
+    }
+    BIND("missing-failure-class:connect-timeout" AS ?gap)
+  }
+  UNION
+  {
+    FILTER(STRSTARTS(STR(?id), "Http.") || ?id = "Remote.Invoke")
+    FILTER NOT EXISTS {
+      ?cap ncap:hasOutcome ?o3 .
+      ?o3 ncap:outcomeClass "failure" ;
+          ncap:failureClass "http-4xx" .
+    }
+    BIND("missing-failure-class:http-4xx" AS ?gap)
+  }
+  UNION
+  {
+    FILTER(STRSTARTS(STR(?id), "Http.") || ?id = "Remote.Invoke")
+    FILTER NOT EXISTS {
+      ?cap ncap:hasOutcome ?o4 .
+      ?o4 ncap:outcomeClass "failure" ;
+          ncap:failureClass "http-5xx" .
+    }
+    BIND("missing-failure-class:http-5xx" AS ?gap)
+  }
+}
+ORDER BY ?id ?gap

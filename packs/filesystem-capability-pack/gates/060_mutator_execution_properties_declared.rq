@@ -1,0 +1,28 @@
+# MESSAGE: every fscap:Capability of consequence class 'DO' must declare its
+# execution properties: fscap:reversibilityClass (reversible | compensable |
+# irreversible -- File.Move reversible, File.Delete compensable, and any departure
+# must be an explicit 'irreversible') and fscap:idempotent as a boolean. Any row = a
+# mutating capability whose replay/compensation stance is undeclared or out of enum.
+PREFIX fscap: <https://ggen.dev/ontology/filesystem-capability#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?cap ?id ?gap WHERE {
+  ?cap a fscap:Capability ;
+       dcterms:identifier ?id ;
+       fscap:consequenceClass "DO" .
+  {
+    FILTER NOT EXISTS { ?cap fscap:reversibilityClass ?reversibility . }
+    BIND("reversibility-class-missing" AS ?gap)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?cap fscap:idempotent ?idempotent . }
+    BIND("idempotency-undeclared" AS ?gap)
+  }
+  UNION
+  {
+    ?cap fscap:reversibilityClass ?badReversibility .
+    FILTER(?badReversibility NOT IN ("reversible", "compensable", "irreversible"))
+    BIND("reversibility-class-out-of-enum" AS ?gap)
+  }
+}
+ORDER BY ?id ?gap

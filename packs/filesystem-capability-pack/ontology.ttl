@@ -1,0 +1,463 @@
+# filesystem-capability-pack ontology: the filesystem capability family.
+#
+# Vocabulary + worked instance in one admitted graph: every fscap:Capability
+# individual below is a semantic identity (CAPABILITY != IMPLEMENTATION); every
+# fscap:Realization is provider metadata (hex/OTP coordinates cited from
+# hexdocs listings 2026-09-30, no local code inspection claimed) plus the
+# qualification conditions that admit it as that capability. Gates in gates/
+# are violation-row SELECTs: rows mean refusal.
+#
+# Invariants encoded here and in gates/: Plan != Execution (a capability
+# declaration plans nothing; execution needs an admitted realization),
+# ProviderAvailable != Authorized (gates/040), Generated != Admitted (a
+# realization without qualification conditions admits nothing, gates/020),
+# Projection != Source (this graph is the source; any rendered manifest is a
+# projection and may not be edited back).
+
+@prefix fscap:   <https://ggen.dev/ontology/filesystem-capability#> .
+@prefix qce:     <https://ggen.dev/ontology/qualified-capability-ecology#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix earl:    <http://www.w3.org/ns/earl#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+
+#################################################################
+# Vocabulary
+#################################################################
+
+fscap:Capability a rdfs:Class, prov:Entity ;
+    rdfs:label "Capability" ;
+    skos:definition "Semantic identity of one filesystem operation family member (e.g. File.Read), pinned by its dotted dcterms:identifier. Never a package, module or version: those are realizations. Plan != Execution: declaring a capability plans nothing." .
+
+fscap:Realization a rdfs:Class ;
+    rdfs:subClassOf qce:CapabilityVersion ;
+    rdfs:label "Realization" ;
+    skos:definition "A provider-specific implementation counted as some capability under explicit qualification conditions. Lifecycle-aligned with qce:CapabilityVersion: candidate -> qualified -> frozen is consumer-court work, never self-declared (Generated != Admitted)." .
+
+fscap:Precondition a rdfs:Class, prov:Entity ;
+    rdfs:label "Precondition" ;
+    skos:definition "Condition that must hold before execution; typed by fscap:preconditionKind (path-safety for every filesystem capability)." .
+
+fscap:Postcondition a rdfs:Class, prov:Entity ;
+    rdfs:label "Postcondition" .
+
+fscap:Outcome a rdfs:Class, prov:Entity ;
+    rdfs:label "Outcome" ;
+    skos:definition "One possible result class: fscap:outcomeClass 'success', or 'failure' with a typed fscap:failureClass. The typed failure set is part of the capability contract, not implementation trivia." .
+
+fscap:QualificationCondition a rdfs:Class, prov:Entity ;
+    rdfs:label "QualificationCondition" ;
+    skos:definition "Condition under which a realization counts as its capability (version pin, confinement, error mapping, evidence duty). A realization with none admits nothing." .
+
+fscap:consequenceClass a rdf:Property ;
+    rdfs:comment "Closed enum 'READ' | 'DO' (value vocabulary shared with the domain-capability family's dcp:consequence; family-local property so the families join at the value level, not through one pack's domain)." .
+
+fscap:input a rdf:Property ; rdfs:comment "Named input parameter of the capability (repeatable)." .
+fscap:output a rdf:Property ; rdfs:comment "Named output of the capability (repeatable where applicable)." .
+
+fscap:hasPrecondition a rdf:Property .
+fscap:preconditionKind a rdf:Property ; rdfs:comment "Closed enum: 'path-safety'." .
+fscap:statement a rdf:Property ; rdfs:comment "Human-readable condition or postcondition text." .
+fscap:hasPostcondition a rdf:Property .
+
+fscap:hasOutcome a rdf:Property .
+fscap:outcomeClass a rdf:Property ; rdfs:comment "Closed enum: 'success' | 'failure'." .
+fscap:failureClass a rdf:Property ; rdfs:comment "Typed failure class: enoent, eacces, eexist, eisdir, enotdir, enospc, exdev, enotempty, overwrite-refused." .
+
+fscap:requiresEvidence a rdf:Property ;
+    rdfs:comment "Evidence requirement token, EARL-aligned (earl: assertions named in the contract). Earned at execution time, never by this graph." .
+
+fscap:requiresAuthority a rdf:Property ; rdfs:range xsd:boolean ;
+    rdfs:comment "ProviderAvailable != Authorized: reachability of a provider never substitutes for bound authority on a DO capability." .
+fscap:authorityScope a rdf:Property ;
+    rdfs:comment "Scope string the authority must be bound to when fscap:requiresAuthority is true." .
+
+fscap:durability a rdf:Property ; rdfs:comment "Closed enum: 'durable' | 'ephemeral'." .
+fscap:idempotent a rdf:Property ; rdfs:range xsd:boolean .
+fscap:reversibilityClass a rdf:Property ;
+    rdfs:comment "Closed enum for DO capabilities: 'reversible' (undo restores prior state directly), 'compensable' (a compensation exists but needs captured evidence), 'irreversible'." .
+fscap:isolation a rdf:Property ; rdfs:comment "Confinement boundary the execution must respect (e.g. 'workspace-root')." .
+fscap:concurrency a rdf:Property ; rdfs:comment "Declared concurrency stance (e.g. 'concurrent-safe', 'exclusive-required')." .
+
+fscap:realizedBy a rdf:Property ;
+    rdfs:comment "Capability -> qualified fscap:Realization. A capability with zero realizations is unresolvable and is refused by gates/010." .
+fscap:qualificationCondition a rdf:Property .
+fscap:surfacesFailure a rdf:Property ; rdfs:comment "fscap:failureClass values this realization's provider actually maps for the capability." .
+
+fscap:providerModule a rdf:Property ; rdfs:comment "Provider-side module or function coordinate (cited metadata, not a local claim)." .
+fscap:providerRepo a rdf:Property ; rdfs:comment "Provider repository or documentation URL." .
+fscap:providerHexPackage a rdf:Property ; rdfs:comment "Hex package name for hex-published providers; omitted for OTP-stdlib realizations." .
+fscap:providerHexVersion a rdf:Property ; rdfs:comment "Provider version the qualification conditions were cited against." .
+fscap:versionPinPolicy a rdf:Property ; rdfs:comment "How consumers must pin the provider ('hex-caret' | 'otp-release')." .
+
+#################################################################
+# Shared outcome, precondition and postcondition individuals
+# (family-level typed results; capabilities select their applicable set)
+#################################################################
+
+fscap:outcome-success a fscap:Outcome ;
+    fscap:outcomeClass "success" .
+
+fscap:failure-enoent a fscap:Outcome ; fscap:outcomeClass "failure" ; fscap:failureClass "enoent" ;
+    skos:definition "Target path does not exist." .
+fscap:failure-eacces a fscap:Outcome ; fscap:outcomeClass "failure" ; fscap:failureClass "eacces" ;
+    skos:definition "Permission denied on target path." .
+fscap:failure-eexist a fscap:Outcome ; fscap:outcomeClass "failure" ; fscap:failureClass "eexist" ;
+    skos:definition "Destination path already exists and policy refuses overwrite." .
+fscap:failure-eisdir a fscap:Outcome ; fscap:outcomeClass "failure" ; fscap:failureClass "eisdir" ;
+    skos:definition "Path is a directory where a file was required." .
+fscap:failure-enotdir a fscap:Outcome ; fscap:outcomeClass "failure" ; fscap:failureClass "enotdir" ;
+    skos:definition "Path is a file where a directory was required." .
+fscap:failure-enospc a fscap:Outcome ; fscap:outcomeClass "failure" ; fscap:failureClass "enospc" ;
+    skos:definition "No space left on the containing volume." .
+fscap:failure-exdev a fscap:Outcome ; fscap:outcomeClass "failure" ; fscap:failureClass "exdev" ;
+    skos:definition "Source and destination lie on different filesystems; atomic rename refused." .
+fscap:failure-enotempty a fscap:Outcome ; fscap:outcomeClass "failure" ; fscap:failureClass "enotempty" ;
+    skos:definition "Directory not empty where removal required empty." .
+fscap:failure-overwrite-refused a fscap:Outcome ; fscap:outcomeClass "failure" ; fscap:failureClass "overwrite-refused" ;
+    skos:definition "Provider-level overwrite policy refused the write (Reactor.File.OverwriteError class)." .
+
+fscap:precondition-path-safety a fscap:Precondition ;
+    fscap:preconditionKind "path-safety" ;
+    fscap:statement "Target path MUST be resolved (symlinks followed) and confined to the consumer's declared workspace root before execution; traversal segments escaping the root are refused pre-execution." .
+
+fscap:post-content-delivered a fscap:Postcondition ;
+    fscap:statement "Returned content reflects the path's state at execution time." .
+fscap:post-target-state a fscap:Postcondition ;
+    fscap:statement "On success the target path holds the requested end state." .
+fscap:post-source-gone a fscap:Postcondition ;
+    fscap:statement "On success the source path no longer exists and the carried content lives at the surviving path." .
+
+#################################################################
+# Pinned capabilities (dcterms:identifier dotted IDs per v26.9.30 resolutions)
+#################################################################
+
+fscap:file-read a fscap:Capability ;
+    dcterms:identifier "File.Read" ;
+    rdfs:label "File.Read" ;
+    skos:definition "Read the byte content of one file at a resolved path inside the workspace root." ;
+    fscap:consequenceClass "READ" ;
+    fscap:input "path" ; fscap:input "encoding" ;
+    fscap:output "content" ;
+    fscap:hasPrecondition fscap:precondition-path-safety ;
+    fscap:hasPostcondition fscap:post-content-delivered ;
+    fscap:hasOutcome fscap:outcome-success, fscap:failure-enoent, fscap:failure-eacces, fscap:failure-eisdir ;
+    fscap:requiresEvidence "earl:content-digest-receipt" ;
+    fscap:requiresAuthority false ;
+    fscap:durability "ephemeral" ;
+    fscap:idempotent true ;
+    fscap:isolation "workspace-root" ;
+    fscap:concurrency "concurrent-safe" ;
+    fscap:realizedBy fscap:real-reactor-read-file .
+
+fscap:file-write a fscap:Capability ;
+    dcterms:identifier "File.Write" ;
+    rdfs:label "File.Write" ;
+    skos:definition "Write byte content to one file path inside the workspace root under an explicit overwrite policy." ;
+    fscap:consequenceClass "DO" ;
+    fscap:input "path" ; fscap:input "content" ; fscap:input "overwrite-policy" ;
+    fscap:output "bytes-written" ;
+    fscap:hasPrecondition fscap:precondition-path-safety ;
+    fscap:hasPostcondition fscap:post-target-state ;
+    fscap:hasOutcome fscap:outcome-success, fscap:failure-enoent, fscap:failure-eacces,
+        fscap:failure-eisdir, fscap:failure-enospc, fscap:failure-overwrite-refused ;
+    fscap:requiresEvidence "earl:before-after-digest-receipt" ;
+    fscap:requiresAuthority true ;
+    fscap:authorityScope "workspace-root" ;
+    fscap:durability "durable" ;
+    fscap:idempotent true ;
+    fscap:reversibilityClass "compensable" ;
+    fscap:isolation "workspace-root" ;
+    fscap:concurrency "exclusive-required" ;
+    fscap:realizedBy fscap:real-reactor-write-file .
+
+fscap:file-copy a fscap:Capability ;
+    dcterms:identifier "File.Copy" ;
+    rdfs:label "File.Copy" ;
+    skos:definition "Copy one file (or recursively a tree) to a destination path inside the workspace root under an explicit overwrite policy." ;
+    fscap:consequenceClass "DO" ;
+    fscap:input "source" ; fscap:input "destination" ; fscap:input "overwrite-policy" ;
+    fscap:output "destination" ;
+    fscap:hasPrecondition fscap:precondition-path-safety ;
+    fscap:hasPostcondition fscap:post-target-state ;
+    fscap:hasOutcome fscap:outcome-success, fscap:failure-enoent, fscap:failure-eacces, fscap:failure-eexist ;
+    fscap:requiresEvidence "earl:before-after-digest-receipt" ;
+    fscap:requiresAuthority true ;
+    fscap:authorityScope "workspace-root" ;
+    fscap:durability "durable" ;
+    fscap:idempotent true ;
+    fscap:reversibilityClass "reversible" ;
+    fscap:isolation "workspace-root" ;
+    fscap:concurrency "exclusive-required" ;
+    fscap:realizedBy fscap:real-reactor-cp, fscap:real-reactor-cp-r .
+
+fscap:file-move a fscap:Capability ;
+    dcterms:identifier "File.Move" ;
+    rdfs:label "File.Move" ;
+    skos:definition "Atomically move one file from source to destination inside the workspace root (reversible: the inverse move restores prior state)." ;
+    fscap:consequenceClass "DO" ;
+    fscap:input "source" ; fscap:input "destination" ;
+    fscap:output "destination" ;
+    fscap:hasPrecondition fscap:precondition-path-safety ;
+    fscap:hasPostcondition fscap:post-source-gone ;
+    fscap:hasOutcome fscap:outcome-success, fscap:failure-enoent, fscap:failure-eacces,
+        fscap:failure-eexist, fscap:failure-exdev ;
+    fscap:requiresEvidence "earl:source-destination-path-receipt" ;
+    fscap:requiresAuthority true ;
+    fscap:authorityScope "workspace-root" ;
+    fscap:durability "durable" ;
+    fscap:idempotent true ;
+    fscap:reversibilityClass "reversible" ;
+    fscap:isolation "workspace-root" ;
+    fscap:concurrency "exclusive-required" ;
+    fscap:realizedBy fscap:real-otp-file-rename .
+
+fscap:file-delete a fscap:Capability ;
+    dcterms:identifier "File.Delete" ;
+    rdfs:label "File.Delete" ;
+    skos:definition "Delete one file inside the workspace root; compensable: restoration requires the content snapshot captured in the required evidence receipt." ;
+    fscap:consequenceClass "DO" ;
+    fscap:input "path" ;
+    fscap:output "path" ;
+    fscap:hasPrecondition fscap:precondition-path-safety ;
+    fscap:hasPostcondition fscap:post-source-gone ;
+    fscap:hasOutcome fscap:outcome-success, fscap:failure-enoent, fscap:failure-eacces, fscap:failure-eisdir ;
+    fscap:requiresEvidence "earl:content-snapshot-receipt" ;
+    fscap:requiresAuthority true ;
+    fscap:authorityScope "workspace-root" ;
+    fscap:durability "durable" ;
+    fscap:idempotent true ;
+    fscap:reversibilityClass "compensable" ;
+    fscap:isolation "workspace-root" ;
+    fscap:concurrency "exclusive-required" ;
+    fscap:realizedBy fscap:real-reactor-rm .
+
+fscap:file-exists a fscap:Capability ;
+    dcterms:identifier "File.Exists" ;
+    rdfs:label "File.Exists" ;
+    skos:definition "Report whether one path inside the workspace root exists as a file, distinguishing absence from inaccessibility." ;
+    fscap:consequenceClass "READ" ;
+    fscap:input "path" ;
+    fscap:output "exists" ;
+    fscap:hasPrecondition fscap:precondition-path-safety ;
+    fscap:hasPostcondition fscap:post-content-delivered ;
+    fscap:hasOutcome fscap:outcome-success, fscap:failure-enoent, fscap:failure-eacces ;
+    fscap:requiresEvidence "earl:request-receipt" ;
+    fscap:requiresAuthority false ;
+    fscap:durability "ephemeral" ;
+    fscap:idempotent true ;
+    fscap:isolation "workspace-root" ;
+    fscap:concurrency "concurrent-safe" ;
+    fscap:realizedBy fscap:real-otp-read-file-info .
+
+fscap:dir-list a fscap:Capability ;
+    dcterms:identifier "Dir.List" ;
+    rdfs:label "Dir.List" ;
+    skos:definition "List directory entries inside the workspace root (optionally filtered by a confined glob pattern)." ;
+    fscap:consequenceClass "READ" ;
+    fscap:input "path" ; fscap:input "pattern" ;
+    fscap:output "entries" ;
+    fscap:hasPrecondition fscap:precondition-path-safety ;
+    fscap:hasPostcondition fscap:post-content-delivered ;
+    fscap:hasOutcome fscap:outcome-success, fscap:failure-enoent, fscap:failure-eacces, fscap:failure-enotdir ;
+    fscap:requiresEvidence "earl:request-receipt" ;
+    fscap:requiresAuthority false ;
+    fscap:durability "ephemeral" ;
+    fscap:idempotent true ;
+    fscap:isolation "workspace-root" ;
+    fscap:concurrency "concurrent-safe" ;
+    fscap:realizedBy fscap:real-reactor-glob .
+
+fscap:dir-mkdir a fscap:Capability ;
+    dcterms:identifier "Dir.Mkdir" ;
+    rdfs:label "Dir.Mkdir" ;
+    skos:definition "Create a directory inside the workspace root, single-level or recursive under an explicit parents policy." ;
+    fscap:consequenceClass "DO" ;
+    fscap:input "path" ; fscap:input "parents-policy" ;
+    fscap:output "path" ;
+    fscap:hasPrecondition fscap:precondition-path-safety ;
+    fscap:hasPostcondition fscap:post-target-state ;
+    fscap:hasOutcome fscap:outcome-success, fscap:failure-enoent, fscap:failure-eacces,
+        fscap:failure-eexist, fscap:failure-enospc ;
+    fscap:requiresEvidence "earl:before-after-digest-receipt" ;
+    fscap:requiresAuthority true ;
+    fscap:authorityScope "workspace-root" ;
+    fscap:durability "durable" ;
+    fscap:idempotent true ;
+    fscap:reversibilityClass "reversible" ;
+    fscap:isolation "workspace-root" ;
+    fscap:concurrency "exclusive-required" ;
+    fscap:realizedBy fscap:real-reactor-mkdir, fscap:real-reactor-mkdir-p .
+
+fscap:dir-remove a fscap:Capability ;
+    dcterms:identifier "Dir.Remove" ;
+    rdfs:label "Dir.Remove" ;
+    skos:definition "Remove one empty directory inside the workspace root; compensable: restoration requires the tree manifest captured in the required evidence receipt." ;
+    fscap:consequenceClass "DO" ;
+    fscap:input "path" ;
+    fscap:hasPrecondition fscap:precondition-path-safety ;
+    fscap:hasPostcondition fscap:post-source-gone ;
+    fscap:hasOutcome fscap:outcome-success, fscap:failure-enoent, fscap:failure-eacces, fscap:failure-enotempty ;
+    fscap:requiresEvidence "earl:tree-manifest-receipt" ;
+    fscap:requiresAuthority true ;
+    fscap:authorityScope "workspace-root" ;
+    fscap:durability "durable" ;
+    fscap:idempotent true ;
+    fscap:reversibilityClass "compensable" ;
+    fscap:isolation "workspace-root" ;
+    fscap:concurrency "exclusive-required" ;
+    fscap:realizedBy fscap:real-reactor-rmdir .
+
+#################################################################
+# Qualified realizations (provider metadata cited from hexdocs/hex listings
+# 2026-09-30: reactor_file v0.18.5, Erlang/OTP stdlib; no local code inspection
+# of any provider is claimed)
+#################################################################
+
+fscap:real-reactor-read-file a fscap:Realization ;
+    dcterms:identifier "Reactor.File.Step.ReadFile" ;
+    rdfs:label "reactor_file ReadFile" ;
+    fscap:providerModule "Reactor.File.Step.ReadFile" ;
+    fscap:providerRepo "https://github.com/ash-project/reactor_file" ;
+    fscap:providerHexPackage "reactor_file" ;
+    fscap:providerHexVersion "0.18.5" ;
+    fscap:versionPinPolicy "hex-caret" ;
+    fscap:surfacesFailure "enoent" , "eacces" , "eisdir" ;
+    fscap:qualificationCondition
+        "consumer lock pins reactor_file >= 0.18.0 and < 0.19.0 (caret)" ,
+        "path argument already passed the capability's path-safety precondition" ,
+        "Reactor.File.FileError payloads are mapped to fscap:failureClass enoent/eacces/eisdir" .
+
+fscap:real-reactor-write-file a fscap:Realization ;
+    dcterms:identifier "Reactor.File.Step.WriteFile" ;
+    rdfs:label "reactor_file WriteFile" ;
+    fscap:providerModule "Reactor.File.Step.WriteFile" ;
+    fscap:providerRepo "https://github.com/ash-project/reactor_file" ;
+    fscap:providerHexPackage "reactor_file" ;
+    fscap:providerHexVersion "0.18.5" ;
+    fscap:versionPinPolicy "hex-caret" ;
+    fscap:surfacesFailure "enoent" , "eacces" , "eisdir" , "enospc" , "overwrite-refused" ;
+    fscap:qualificationCondition
+        "consumer lock pins reactor_file >= 0.18.0 and < 0.19.0 (caret)" ,
+        "destination path already passed the capability's path-safety precondition" ,
+        "overwrite policy is explicit and Reactor.File.OverwriteError maps to fscap:failureClass overwrite-refused" ,
+        "authority envelope bound to workspace-root is present at execution (ProviderAvailable != Authorized)" .
+
+fscap:real-reactor-cp a fscap:Realization ;
+    dcterms:identifier "Reactor.File.Step.Cp" ;
+    rdfs:label "reactor_file Cp" ;
+    fscap:providerModule "Reactor.File.Step.Cp" ;
+    fscap:providerRepo "https://github.com/ash-project/reactor_file" ;
+    fscap:providerHexPackage "reactor_file" ;
+    fscap:providerHexVersion "0.18.5" ;
+    fscap:versionPinPolicy "hex-caret" ;
+    fscap:surfacesFailure "enoent" , "eacces" , "eexist" ;
+    fscap:qualificationCondition
+        "single-file source only (recursive copies route to Reactor.File.Step.CpR)" ,
+        "source and destination both inside workspace root; overwrite policy explicit" ,
+        "authority envelope bound to workspace-root is present at execution" .
+
+fscap:real-reactor-cp-r a fscap:Realization ;
+    dcterms:identifier "Reactor.File.Step.CpR" ;
+    rdfs:label "reactor_file CpR" ;
+    fscap:providerModule "Reactor.File.Step.CpR" ;
+    fscap:providerRepo "https://github.com/ash-project/reactor_file" ;
+    fscap:providerHexPackage "reactor_file" ;
+    fscap:providerHexVersion "0.18.5" ;
+    fscap:versionPinPolicy "hex-caret" ;
+    fscap:surfacesFailure "enoent" , "eacces" , "eexist" ;
+    fscap:qualificationCondition
+        "whole source tree resolves inside workspace root (no traversal edges)" ,
+        "destination tree also inside workspace root; eexist policy declared" ,
+        "authority envelope bound to workspace-root is present at execution" .
+
+fscap:real-otp-file-rename a fscap:Realization ;
+    dcterms:identifier ":file.rename/2" ;
+    rdfs:label "Erlang/OTP file rename" ;
+    fscap:providerModule "Erlang :file.rename/2" ;
+    fscap:providerRepo "https://www.erlang.org/doc/man/file.html" ;
+    fscap:versionPinPolicy "otp-release" ;
+    fscap:surfacesFailure "enoent" , "eacces" , "eexist" , "exdev" ;
+    fscap:qualificationCondition
+        "same-filesystem rename only: exdev is surfaced as a typed failure, never coerced to copy+delete" ,
+        "atomicity relied on is POSIX rename semantics of the host OTP release" ,
+        "authority envelope bound to workspace-root is present at execution" .
+
+fscap:real-reactor-rm a fscap:Realization ;
+    dcterms:identifier "Reactor.File.Step.Rm" ;
+    rdfs:label "reactor_file Rm" ;
+    fscap:providerModule "Reactor.File.Step.Rm" ;
+    fscap:providerRepo "https://github.com/ash-project/reactor_file" ;
+    fscap:providerHexPackage "reactor_file" ;
+    fscap:providerHexVersion "0.18.5" ;
+    fscap:versionPinPolicy "hex-caret" ;
+    fscap:surfacesFailure "enoent" , "eacces" , "eisdir" ;
+    fscap:qualificationCondition
+        "file (not directory) target; directory removal routes to Dir.Remove" ,
+        "content snapshot captured in the evidence receipt BEFORE deletion (compensability duty)" ,
+        "authority envelope bound to workspace-root is present at execution" .
+
+fscap:real-otp-read-file-info a fscap:Realization ;
+    dcterms:identifier ":file.read_file_info/1" ;
+    rdfs:label "Erlang/OTP read_file_info" ;
+    fscap:providerModule "Erlang :file.read_file_info/1" ;
+    fscap:providerRepo "https://www.erlang.org/doc/man/file.html" ;
+    fscap:versionPinPolicy "otp-release" ;
+    fscap:surfacesFailure "enoent" , "eacces" ;
+    fscap:qualificationCondition
+        "errno mapping distinguishes absence (enoent) from inaccessibility (eacces); existence reporting is a result, not an error" .
+
+fscap:real-reactor-glob a fscap:Realization ;
+    dcterms:identifier "Reactor.File.Step.Glob" ;
+    rdfs:label "reactor_file Glob" ;
+    fscap:providerModule "Reactor.File.Step.Glob" ;
+    fscap:providerRepo "https://github.com/ash-project/reactor_file" ;
+    fscap:providerHexPackage "reactor_file" ;
+    fscap:providerHexVersion "0.18.5" ;
+    fscap:versionPinPolicy "hex-caret" ;
+    fscap:surfacesFailure "enoent" , "eacces" , "enotdir" ;
+    fscap:qualificationCondition
+        "glob pattern contains no traversal segments and is confined to the workspace root (pattern confinement added because Glob takes a pattern, not a plain directory path)" .
+
+fscap:real-reactor-mkdir a fscap:Realization ;
+    dcterms:identifier "Reactor.File.Step.Mkdir" ;
+    rdfs:label "reactor_file Mkdir" ;
+    fscap:providerModule "Reactor.File.Step.Mkdir" ;
+    fscap:providerRepo "https://github.com/ash-project/reactor_file" ;
+    fscap:providerHexPackage "reactor_file" ;
+    fscap:providerHexVersion "0.18.5" ;
+    fscap:versionPinPolicy "hex-caret" ;
+    fscap:surfacesFailure "enoent" , "eacces" , "eexist" , "enospc" ;
+    fscap:qualificationCondition
+        "single-level create: parent directory must already exist inside workspace root" ,
+        "authority envelope bound to workspace-root is present at execution" .
+
+fscap:real-reactor-mkdir-p a fscap:Realization ;
+    dcterms:identifier "Reactor.File.Step.MkdirP" ;
+    rdfs:label "reactor_file MkdirP" ;
+    fscap:providerModule "Reactor.File.Step.MkdirP" ;
+    fscap:providerRepo "https://github.com/ash-project/reactor_file" ;
+    fscap:providerHexPackage "reactor_file" ;
+    fscap:providerHexVersion "0.18.5" ;
+    fscap:versionPinPolicy "hex-caret" ;
+    fscap:surfacesFailure "enoent" , "eacces" , "enospc" , "eexist" ;
+    fscap:qualificationCondition
+        "recursive create: whole intermediate chain resolves inside workspace root" ,
+        "authority envelope bound to workspace-root is present at execution" .
+
+fscap:real-reactor-rmdir a fscap:Realization ;
+    dcterms:identifier "Reactor.File.Step.Rmdir" ;
+    rdfs:label "reactor_file Rmdir" ;
+    fscap:providerModule "Reactor.File.Step.Rmdir" ;
+    fscap:providerRepo "https://github.com/ash-project/reactor_file" ;
+    fscap:providerHexPackage "reactor_file" ;
+    fscap:providerHexVersion "0.18.5" ;
+    fscap:versionPinPolicy "hex-caret" ;
+    fscap:surfacesFailure "enoent" , "eacces" , "enotempty" ;
+    fscap:qualificationCondition
+        "empty-directory-only: enotempty surfaced as typed failure, recursive removal NOT admitted under this capability" ,
+        "tree manifest captured in the evidence receipt BEFORE removal (compensability duty)" ,
+        "authority envelope bound to workspace-root is present at execution" .
