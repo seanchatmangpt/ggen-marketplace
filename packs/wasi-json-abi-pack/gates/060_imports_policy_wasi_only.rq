@@ -1,11 +1,22 @@
-# MESSAGE: wja:importsPolicy must be exactly "wasi_snapshot_preview1"; any other import module is refused so the module stays WASI-only.
+# MESSAGE: wja:importsPolicy must be exactly "wasi_snapshot_preview1" (the module may import only WASI) or "none" (the module imports nothing at all -- the zero-import invariant); any other policy is refused, and a "none" policy alongside any enumerated wja:WasiImport is refused.
 PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 SELECT ?problem ?detail WHERE {
-  ?m a wja:WasmModule ;
-     wja:importsPolicy ?p .
-  FILTER(!isLiteral(?p) || STR(?p) != "wasi_snapshot_preview1")
-  BIND("imports_policy_not_wasi_only" AS ?problem)
-  BIND(CONCAT("importsPolicy=", STR(?p)) AS ?detail)
+  {
+    ?m a wja:WasmModule ;
+       wja:importsPolicy ?p .
+    FILTER(!isLiteral(?p) || !(STR(?p) IN ("wasi_snapshot_preview1", "none")))
+    BIND("imports_policy_not_in_closed_set" AS ?problem)
+    BIND(CONCAT("importsPolicy=", STR(?p)) AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule ;
+       wja:importsPolicy ?p .
+    FILTER(isLiteral(?p) && STR(?p) = "none")
+    FILTER EXISTS { ?m wja:hasWasiImport ?any }
+    BIND("zero_import_policy_with_enumerated_imports" AS ?problem)
+    BIND("importsPolicy=none but hasWasiImport rows exist" AS ?detail)
+  }
 }
 ORDER BY ?detail
