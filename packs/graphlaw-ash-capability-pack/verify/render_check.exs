@@ -193,6 +193,7 @@ expected_templates = ~w(
   capability_behaviour.ex.tmpl capability_registry.ex.tmpl capability_module.ex.tmpl
   capability_api.ex.tmpl result_term.ex.tmpl result_struct.ex.tmpl capability_doc.md.tmpl
   capability_index.md.tmpl capability_surface_test.exs.tmpl
+  capability_model.ex.tmpl capability_enums.ex.tmpl capability_limits.ex.tmpl
 )
 
 for name <- expected_templates do
@@ -226,12 +227,12 @@ for {label, prefix} <- [
       {"capability modules", "lib/ash_graphlaw/capability/"},
       {"op docs", "documentation/reference/capabilities/"}
     ] do
-  # capability/ also holds registry.ex and api.ex
+  # capability/ also holds registry.ex, api.ex and limits.ex
   got = count_to.(prefix)
-  want = if label == "capability modules", do: fixture_op_count + 2, else: fixture_op_count
+  want = if label == "capability modules", do: fixture_op_count + 3, else: fixture_op_count
 
   if got == want do
-    IO.puts("  #{label}: #{got} == gac:opCount#{if label == "capability modules", do: " + registry + api", else: ""} (ok)")
+    IO.puts("  #{label}: #{got} == gac:opCount#{if label == "capability modules", do: " + registry + api + limits", else: ""} (ok)")
   else
     fail.("#{label}: rendered #{got}, expected #{want}")
   end
@@ -254,6 +255,40 @@ if result_files == fixture_op_count - overrides do
   IO.puts("  result structs: #{result_files} == gac:opCount - #{overrides} bindingResultModule override(s) (ok)")
 else
   fail.("result structs: rendered #{result_files}, expected #{fixture_op_count - overrides}")
+end
+
+# typed models: one struct file per gac:Model, one Enums module, one Limits module
+count_of = fn class ->
+  [%{"n" => n}] =
+    CapRenderCheck.query_text(
+      pos_graph,
+      """
+      PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+      SELECT (COUNT(?x) AS ?n) WHERE { ?x a gac:#{class} }
+      """
+    )
+
+  n |> to_string() |> String.to_integer()
+end
+
+model_files =
+  Enum.count(rendered, fn {_n, to, _b} ->
+    String.starts_with?(to, "lib/ash_graphlaw/model/") and to != "lib/ash_graphlaw/model/enums.ex"
+  end)
+
+fixture_models = count_of.("Model")
+fixture_limits = count_of.("Limit")
+
+if fixture_models > 0 and model_files == fixture_models do
+  IO.puts("  model structs: #{model_files} == count(gac:Model) (ok)")
+else
+  fail.("model structs: rendered #{model_files}, expected #{fixture_models} (> 0)")
+end
+
+for path <- ["lib/ash_graphlaw/model/enums.ex", "lib/ash_graphlaw/capability/limits.ex"] do
+  if Enum.any?(rendered, fn {_n, to, _b} -> to == path end),
+    do: IO.puts("  #{path}: rendered (ok)"),
+    else: fail.("missing rendered file #{path}")
 end
 
 # --- 5. inline query == queries/*.rq --------------------------------------------------------
@@ -503,6 +538,34 @@ if match?({:ok, _}, compile_result) do
       Enum.sort([:kind, :nquads, :quads, :raw, :rows, :value, :variables]))
 
   check.("no Result.Law is generated (bindingResultModule override)", not Code.ensure_loaded?(AshGraphLaw.Result.Law))
+
+  alias AshGraphLaw.Capability.Limits
+  alias AshGraphLaw.Model
+
+  check.("Limits.all/0 length == count(gac:Limit)", length(Limits.all()) == fixture_limits)
+  check.("Limits agree with Registry.limits/0", Map.new(Limits.all(), &{&1.name, &1.value}) == Registry.limits())
+  check.("every limit carries scope, unit and source", Enum.all?(Limits.all(), &(&1.scope != "" and &1.unit != "" and &1.source != "")))
+  check.("n3 scope holds the n3 limits", Enum.all?(Limits.in_scope("n3"), &String.starts_with?(Atom.to_string(&1.name), "n3_")))
+
+  check.("Model.Enums knows Ceiling in order", Model.Enums.values("Ceiling") == ["observe", "select", "construct"])
+  check.("Model.Enums.member?/2 is informational", Model.Enums.member?("Ceiling", "select") and not Model.Enums.member?("Ceiling", "root"))
+
+  wire = %{
+    "lease" => %{"id" => "l1", "holder" => "h", "ceiling" => "select", "scope" => ["shacl"], "expires_unix" => 9, "issued_unix" => 0},
+    "attestation" => %{"payload_sha256" => "aa", "key_id" => "k", "signature" => "ss", "future" => 1},
+    "future_top" => [1, 2]
+  }
+
+  signed = Model.SignedLease.from_map(wire)
+  check.("SignedLease decodes its nested Lease", is_struct(signed.lease, Model.Lease) and signed.lease.id == "l1" and signed.lease.scope == ["shacl"])
+  check.("SignedLease decodes its nested Attestation", is_struct(signed.attestation, Model.Attestation) and signed.attestation.key_id == "k")
+  check.("unknown wire keys are kept in :extra at every level", signed.extra == %{"future_top" => [1, 2]} and signed.attestation.extra == %{"future" => 1})
+  check.("to_map(from_map(m)) == m for a fully populated SignedLease", Model.SignedLease.to_map(signed) == wire)
+  check.("Receipt omits absent optional keys and keeps required keys",
+    Model.Receipt.from_map(%{}) |> Model.Receipt.to_map() |> Map.keys() |> Enum.sort() ==
+      ~w(added authority child parent revision step))
+  check.("from_map never raises on non-maps", is_struct(Model.Plan.from_map(1), Model.Plan) and Model.Lease.from_map(nil).extra == %{})
+  check.("Plan decodes list<model:Action>", (case Model.Plan.from_map(%{"actions" => [%{"name" => "a"}]}).actions do [action] -> is_struct(action, Model.Action) and action.name == "a"; _ -> false end))
 end
 
 # --- 7b. run the generated pure surface test against the real collaborators -----------------

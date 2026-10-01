@@ -124,6 +124,59 @@ sparql:
         gac:opName ?op_name .
     }
     ORDER BY ?op_name ?variant_order
+  models: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # One row per typed model in registry order; model_snake is the file and accessor stem.
+    SELECT ?model_name ?model_order ?model_snake ?model_elixir_module ?model_rust_path ?model_doc
+    WHERE {
+      ?model a gac:Model ;
+        gac:modelName ?model_name ;
+        gac:modelOrder ?model_order ;
+        gac:modelElixirModule ?model_elixir_module ;
+        gac:modelRustPath ?model_rust_path .
+      OPTIONAL { ?model gac:modelDoc ?doc_raw }
+      BIND(COALESCE(STR(?doc_raw), "") AS ?model_doc)
+      BIND(LCASE(REPLACE(REPLACE(STR(?model_name), "([A-Z])", "_$1"), "^_", "")) AS ?model_snake)
+    }
+    ORDER BY ?model_order
+  model_fields: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Fields per model, in registry order.
+    SELECT ?model_name ?field_order ?field_name ?field_type ?field_required ?field_nullable ?field_doc
+    WHERE {
+      ?field a gac:ModelField ;
+        gac:modelFieldOf ?model ;
+        gac:modelFieldOrder ?field_order ;
+        gac:modelFieldName ?field_name ;
+        gac:modelFieldType ?field_type ;
+        gac:modelFieldRequired ?required ;
+        gac:modelFieldNullable ?nullable ;
+        gac:modelFieldDoc ?field_doc .
+      ?model a gac:Model ;
+        gac:modelName ?model_name .
+      BIND(STR(?required) AS ?field_required)
+      BIND(STR(?nullable) AS ?field_nullable)
+    }
+    ORDER BY ?model_name ?field_order
+  limits: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Engine resource limits with their optional scope, unit and enforcing source ('' when absent).
+    SELECT ?limit_name ?limit_value ?limit_scope ?limit_unit ?limit_source
+    WHERE {
+      ?limit a gac:Limit ;
+        gac:limitName ?limit_name ;
+        gac:limitValue ?limit_value .
+      OPTIONAL { ?limit gac:limitScope ?scope_raw }
+      OPTIONAL { ?limit gac:limitUnit ?unit_raw }
+      OPTIONAL { ?limit gac:limitSource ?source_raw }
+      BIND(COALESCE(STR(?scope_raw), "") AS ?limit_scope)
+      BIND(COALESCE(STR(?unit_raw), "") AS ?limit_unit)
+      BIND(COALESCE(STR(?source_raw), "") AS ?limit_source)
+    }
+    ORDER BY ?limit_name
 ---
 # SPDX-FileCopyrightText: 2026 ash_graphlaw contributors <https://github.com/seanchatmangpt/ash_graphlaw/graphs/contributors>
 #
@@ -141,6 +194,7 @@ defmodule AshGraphLaw.Generated.CapabilitySurfaceTest do
   use ExUnit.Case, async: true
 
   alias AshGraphLaw.Capability.API
+  alias AshGraphLaw.Capability.Limits
   alias AshGraphLaw.Capability.Registry
   alias AshGraphLaw.Refusal
   alias AshGraphLaw.Result.Term
@@ -163,6 +217,25 @@ defmodule AshGraphLaw.Generated.CapabilitySurfaceTest do
       required: [{% for f in request_fields | filter(attribute="op_name", value=o.op_name) | filter(attribute="field_required", value="true") %}{{ f.field_name | json_encode }}{% if not loop.last %}, {% endif %}{% endfor %}],
       args: [{% for f in request_fields | filter(attribute="op_name", value=o.op_name) | filter(attribute="field_required", value="true") %}{{ f.field_name }}: {% if f.field_type == "integer" %}1{% elif f.field_type == "boolean" %}true{% elif f.field_type == "object" or f.field_type == "term" %}%{}{% elif f.field_type is starting_with("list<") %}[]{% else %}"x"{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}]
     }{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ]
+
+  # model name, generated module, declared field keys, required field keys
+  @models [
+{%- for m in models %}
+    %{
+      name: {{ m.model_name | json_encode }},
+      module: {{ m.model_elixir_module }},
+      keys: [{% for f in model_fields | filter(attribute="model_name", value=m.model_name) %}:{{ f.field_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+      required: [{% for f in model_fields | filter(attribute="model_name", value=m.model_name) | filter(attribute="field_required", value="true") %}{{ f.field_name | json_encode }}{% if not loop.last %}, {% endif %}{% endfor %}]
+    }{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ]
+
+  # limit name, value, scope
+  @limits [
+{%- for l in limits %}
+    {:{{ l.limit_name }}, {{ l.limit_value }}, {{ l.limit_scope | json_encode }}}{% if not loop.last %},{% endif %}
 {%- endfor %}
   ]
 
@@ -274,6 +347,62 @@ defmodule AshGraphLaw.Generated.CapabilitySurfaceTest do
       assert {:error, %Refusal{code: :unknown_capability}} = API.run("no_such_capability", [])
       assert Registry.module_for("no_such_capability") == :error
       assert Registry.op("no_such_capability") == :error
+    end
+  end
+
+  describe "typed models" do
+    test "every model is a struct with its declared keys plus :extra" do
+      for %{module: module, keys: keys} <- @models do
+        assert Code.ensure_loaded?(module), "#{module} is not loaded"
+        struct_keys = Map.keys(struct(module)) -- [:__struct__]
+        assert Enum.sort(struct_keys) == Enum.sort([:extra | keys])
+        assert module.keys() == Enum.map(keys, &Atom.to_string/1)
+      end
+    end
+
+    test "from_map is tolerant and unknown keys survive a round trip" do
+      for %{module: module} <- @models do
+        injected = %{"future_field" => %{"a" => [1, 2]}}
+        decoded = module.from_map(injected)
+
+        assert decoded.extra == injected
+        assert module.to_map(decoded)["future_field"] == %{"a" => [1, 2]}
+        assert %{} = module.from_map(:not_a_map).extra
+        assert module.from_map(nil).extra == %{}
+      end
+    end
+
+    test "to_map keeps required keys and omits absent optional keys" do
+      for %{module: module, required: required} <- @models do
+        assert module.from_map(%{}) |> module.to_map() |> Map.keys() |> Enum.sort() ==
+                 Enum.sort(required)
+      end
+    end
+
+    test "wire values decode by key, with atom keys accepted" do
+      for %{module: module, keys: [key | _]} <- @models do
+        wire = Atom.to_string(key)
+        assert Map.fetch!(module.from_map(%{wire => "x"}), key) == "x"
+        assert Map.fetch!(module.from_map(%{key => "x"}), key) == "x"
+        assert module.from_map(%{key => "x"}).extra == %{}
+      end
+    end
+  end
+
+  describe "limits" do
+    test "the Limits module agrees with the registry limits" do
+      assert Limits.all() |> Enum.map(&{&1.name, &1.value, &1.scope}) == @limits
+      assert Limits.all() |> Map.new(&{&1.name, &1.value}) == Registry.limits()
+    end
+
+    test "get/1 and in_scope/1 are total" do
+      for {name, value, scope} <- @limits do
+        assert {:ok, %{value: ^value}} = Limits.get(name)
+        assert Enum.any?(Limits.in_scope(scope), &(&1.name == name))
+        assert apply(Limits, name, []) == value
+      end
+
+      assert Limits.get(:no_such_limit) == :error
     end
   end
 end

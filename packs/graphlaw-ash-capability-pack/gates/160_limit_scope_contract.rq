@@ -1,0 +1,39 @@
+# MESSAGE: limit metadata must use the closed vocabularies. Every gac:Limit with a gac:limitName
+# must have a name matching ^[a-z][a-z0-9_]*$; a limit that declares gac:limitScope must use one of
+# abi hooks n3 plan wasm; a limit that declares gac:limitUnit must use one of bytes count steps
+# firings rounds quads; a limit that declares gac:limitSource must give a non-empty plain string;
+# a limit that declares one of scope, unit or source must declare all three. Limits that declare
+# none of the three (legacy registries) are not checked for them. Any row = an unusable limit.
+PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT DISTINCT ?s ?missing ?value WHERE {
+  {
+    ?s a gac:Limit ; gac:limitName ?value .
+    FILTER (!isLiteral(?value) || !regex(str(?value), "^[a-z][a-z0-9_]*$"))
+    BIND(gac:limitName AS ?missing)
+  }
+  UNION {
+    ?s a gac:Limit ; gac:limitScope ?value .
+    FILTER (!isLiteral(?value) || !(str(?value) IN ("abi", "hooks", "n3", "plan", "wasm")))
+    BIND(gac:limitScope AS ?missing)
+  }
+  UNION {
+    ?s a gac:Limit ; gac:limitUnit ?value .
+    FILTER (!isLiteral(?value) || !(str(?value) IN ("bytes", "count", "steps", "firings", "rounds", "quads")))
+    BIND(gac:limitUnit AS ?missing)
+  }
+  UNION {
+    ?s a gac:Limit ; gac:limitSource ?value .
+    FILTER (!isLiteral(?value) || datatype(?value) != xsd:string || str(?value) = "")
+    BIND(gac:limitSource AS ?missing)
+  }
+  UNION {
+    VALUES ?missing { gac:limitScope gac:limitUnit gac:limitSource }
+    ?s a gac:Limit .
+    FILTER (EXISTS { ?s gac:limitScope ?a } || EXISTS { ?s gac:limitUnit ?b } || EXISTS { ?s gac:limitSource ?c })
+    FILTER NOT EXISTS { ?s ?missing ?any }
+    BIND("" AS ?value)
+  }
+}
+ORDER BY ?s ?missing ?value

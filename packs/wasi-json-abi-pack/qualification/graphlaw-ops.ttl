@@ -1,0 +1,93 @@
+# QUALIFICATION OVERLAY: graphlaw-wasm (graphlaw v26.9.29) -- completes qualification/graphlaw-consumer.ttl
+# with the facts the registry/examples/guards/harness queries require: per-op request and response
+# field lists, one example request per op, the 7 host imports of the wasm32-wasip1 module, release
+# pins, and the native-call/env facts. Merge order: graphlaw-consumer.ttl + this file + ontology.ttl.
+# Op fields and example requests are projected from graphlaw registry/capability-registry.json and
+# registry/op-examples.json (first outcome=ok example per op); response fields are the union over
+# the op's response variants, in registry order.
+
+@prefix wja: <https://ggen.dev/ontology/wasi-json-abi#> .
+@prefix gl: <https://graphlaw.dev/wasm#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+wja:WasmModule a rdfs:Class .
+wja:Op a rdfs:Class .
+wja:ErrorCode a rdfs:Class .
+wja:WasiImport a rdfs:Class .
+
+gl:module wja:wasmEnvVar "GRAPHLAW_WASM" ;
+    wja:wasmBuildPackage "graphlaw-wasm" ;
+    wja:hasAbiVersionExport false ;
+    wja:nativeCall "graphlaw::abi::call" ;
+    wja:pinEnv "GRAPHLAW_WASM_PIN" ;
+    wja:wasmSha256 "b4cf5dd164c736ed694c2c0362a4af2b8d7969d932d4fa6f2b6812f43ee3ef6d" ;
+    wja:wasmBytes 6616140 ;
+    wja:registrySha256 "8f3ef15bad35fc095e4a832b4cca945414e90152c485dc5a5a92d2ff0f804e16" ;
+    wja:surfaceSha256 "fcee74ee068940f9e9879ccd41371807f469d63950c8f63b095117391dbc8e28" ;
+    wja:hasWasiImport gl:imp-random-get , gl:imp-environ-get , gl:imp-environ-sizes-get , gl:imp-clock-time-get , gl:imp-fd-write , gl:imp-proc-exit , gl:imp-sched-yield .
+
+gl:op-capabilities wja:requestFields "op" ;
+    wja:responseFields "ok,abi,abi_version,crate,authorities,rdf_dialects,other_dialects,ops,registry_schema,registry_sha256,surface_sha256" ;
+    wja:exampleRequest "{\"op\":\"capabilities\"}" .
+
+gl:op-sniff wja:requestFields "op,text,hint" ;
+    wja:responseFields "ok,dialect,engine" ;
+    wja:exampleRequest "{\"op\":\"sniff\",\"text\":\"@prefix e: <https://e/> . e:s e:p e:o .\"}" .
+
+gl:op-parse wja:requestFields "op,text,dialect,hint,base" ;
+    wja:responseFields "ok,dialect,quads,id,valid" ;
+    wja:exampleRequest "{\"dialect\":\"turtle\",\"op\":\"parse\",\"text\":\"@prefix ex: <https://e/> . ex:s ex:p ex:o, \\\"caf\\\\u00e9\\\"@fr, 42 ; a ex:T .\"}" .
+
+gl:op-convert wja:requestFields "op,text,to,dialect,hint,base" ;
+    wja:responseFields "ok,text,id" ;
+    wja:exampleRequest "{\"dialect\":\"turtle\",\"op\":\"convert\",\"text\":\"@prefix ex: <https://e/> . ex:s ex:p ex:o, \\\"caf\\\\u00e9\\\"@fr, 42 ; a ex:T .\",\"to\":\"turtle\"}" .
+
+gl:op-canonical wja:requestFields "op,data" ;
+    wja:responseFields "ok,id,nquads,quads" ;
+    wja:exampleRequest "{\"data\":{\"dialect\":\"turtle\",\"text\":\"@prefix ex: <https://e/> . ex:s ex:p ex:o, \\\"caf\\\\u00e9\\\"@fr, 42 ; a ex:T .\"},\"op\":\"canonical\"}" .
+
+gl:op-sparql wja:requestFields "op,data,query,base" ;
+    wja:responseFields "ok,variables,rows,nquads,quads,value" ;
+    wja:exampleRequest "{\"data\":{\"dialect\":\"turtle\",\"text\":\"@prefix ex: <https://e/> . ex:s ex:p ex:o, \\\"caf\\\\u00e9\\\"@fr, 42 ; a ex:T .\"},\"op\":\"sparql\",\"query\":\"SELECT ?o WHERE { <https://e/s> <https://e/p> ?o } ORDER BY ?o\"}" .
+
+gl:op-shacl wja:requestFields "op,data,shapes,base" ;
+    wja:responseFields "ok,conforms,results" ;
+    wja:exampleRequest "{\"data\":{\"text\":\"@prefix ex: <https://e/> . ex:s a ex:T ; ex:p 1 .\"},\"op\":\"shacl\",\"shapes\":\"@prefix sh: <http://www.w3.org/ns/shacl#> . @prefix ex: <https://e/> . @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\\nex:S a sh:NodeShape ; sh:targetClass ex:T ; sh:property [ sh:path ex:p ; sh:datatype xsd:integer ] .\"}" .
+
+gl:op-shex wja:requestFields "op,data,schema,schema_dialect,map,base" ;
+    wja:responseFields "ok,conforms,entries" ;
+    wja:exampleRequest "{\"data\":{\"text\":\"@prefix ex: <https://e/> . ex:cat ex:says \\\"meow\\\" . ex:rock ex:weight 5 .\"},\"map\":\"<https://e/cat>@<https://e/Cat>, <https://e/rock>@<https://e/Cat>\",\"op\":\"shex\",\"schema\":\"PREFIX ex: <https://e/>\\nex:Cat { ex:says . }\"}" .
+
+gl:op-n3 wja:requestFields "op,text" ;
+    wja:responseFields "ok,derived" ;
+    wja:exampleRequest "{\"op\":\"n3\",\"text\":\"@prefix : <https://e/> . :s a :Human . { ?x a :Human } => { ?x a :Mortal } .\"}" .
+
+gl:op-entail wja:requestFields "op,data,regime" ;
+    wja:responseFields "ok,nquads,added" ;
+    wja:exampleRequest "{\"data\":{\"text\":\"@prefix ex: <https://e/> . @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> . ex:Cat rdfs:subClassOf ex:Animal . ex:tom a ex:Cat .\"},\"op\":\"entail\",\"regime\":\"simple\"}" .
+
+gl:op-datalog wja:requestFields "op,rules,facts" ;
+    wja:responseFields "ok,count,facts" ;
+    wja:exampleRequest "{\"facts\":[[\"https://e/a\",\"https://e/par\",\"https://e/b\"],[\"https://e/b\",\"https://e/par\",\"https://e/c\"]],\"op\":\"datalog\",\"rules\":[{\"body\":[[\"?x\",\"https://e/par\",\"?y\"]],\"head\":[\"?x\",\"https://e/anc\",\"?y\"]},{\"body\":[[\"?x\",\"https://e/anc\",\"?y\"],[\"?y\",\"https://e/par\",\"?z\"]],\"head\":[\"?x\",\"https://e/anc\",\"?z\"]}]}" .
+
+gl:op-hooks wja:requestFields "op,pack,data" ;
+    wja:responseFields "ok,id,rounds,quads,nquads,firings" ;
+    wja:exampleRequest "{\"data\":{\"dialect\":\"turtle\",\"text\":\"@prefix ex: <https://e/> . ex:x a ex:A .\"},\"op\":\"hooks\",\"pack\":{\"dialect\":\"turtle\",\"text\":\"@prefix kh: <http://seanchatmangpt.github.io/praxis/kh#> . @prefix ex: <https://e/> .\\nex:h a kh:Hook ; kh:kind \\\"sparql\\\" ; kh:effect \\\"emit-delta\\\" ; kh:action ex:a ;\\n  kh:query \\\"SELECT ?x WHERE { ?x a <https://e/A> }\\\" .\\nex:a a kh:Action ; kh:handler <http://seanchatmangpt.github.io/praxis/handler#sparql-construct> ;\\n  kh:query \\\"CONSTRUCT { ?x a <https://e/B> } WHERE { ?x a <https://e/A> }\\\" .\\n\"}}" .
+
+gl:op-law wja:requestFields "op,data,steps,signed_lease,lease,trusted_keys,max_skew_secs,unverified_lease,now_unix" ;
+    wja:responseFields "ok,states,receipts,nquads" ;
+    wja:exampleRequest "{\"data\":{\"dialect\":\"turtle\",\"text\":\"@prefix ex: <https://e/> . ex:a a ex:T ; ex:name \\\"a\\\" .\"},\"op\":\"law\",\"steps\":[{\"rules\":\"@prefix ex: <https://e/> . { ?x a ex:T } => { ?x a ex:Checked } .\",\"step\":\"n3\"},{\"shapes\":\"@prefix sh: <http://www.w3.org/ns/shacl#> . @prefix ex: <https://e/> .\\nex:S a sh:NodeShape ; sh:targetClass ex:T ; sh:property [ sh:path ex:name ; sh:minCount 1 ] .\",\"step\":\"shacl\"}]}" .
+
+gl:op-policy wja:requestFields "op,problem,policy" ;
+    wja:responseFields "ok,initial_states,reachable,goal_states,entries,ntriples" ;
+    wja:exampleRequest "{\"op\":\"policy\",\"policy\":{\"policy\":[{\"action\":\"flip\",\"outcomes\":[{\"probability_ppm\":500000,\"state\":\"g\"},{\"probability_ppm\":500000,\"state\":\"s0\"}],\"state\":\"s0\"}]},\"problem\":{\"goal\":{\"facts\":[\"done\"]},\"initial_states\":[\"s0\"],\"states\":[{\"id\":\"s0\"},{\"facts\":[\"done\"],\"id\":\"g\"}],\"transitions\":[{\"action\":\"flip\",\"from\":\"s0\",\"probability_ppm\":500000,\"to\":\"g\"},{\"action\":\"flip\",\"from\":\"s0\",\"probability_ppm\":500000,\"to\":\"s0\"}]}}" .
+
+gl:imp-random-get a wja:WasiImport ; wja:importModule "wasi_snapshot_preview1" ; wja:importName "random_get" .
+gl:imp-environ-get a wja:WasiImport ; wja:importModule "wasi_snapshot_preview1" ; wja:importName "environ_get" .
+gl:imp-environ-sizes-get a wja:WasiImport ; wja:importModule "wasi_snapshot_preview1" ; wja:importName "environ_sizes_get" .
+gl:imp-clock-time-get a wja:WasiImport ; wja:importModule "wasi_snapshot_preview1" ; wja:importName "clock_time_get" .
+gl:imp-fd-write a wja:WasiImport ; wja:importModule "wasi_snapshot_preview1" ; wja:importName "fd_write" .
+gl:imp-proc-exit a wja:WasiImport ; wja:importModule "wasi_snapshot_preview1" ; wja:importName "proc_exit" .
+gl:imp-sched-yield a wja:WasiImport ; wja:importModule "wasi_snapshot_preview1" ; wja:importName "sched_yield" .

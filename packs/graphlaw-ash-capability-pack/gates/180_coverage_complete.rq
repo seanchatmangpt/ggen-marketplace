@@ -1,0 +1,103 @@
+# MESSAGE: the coverage ledger must account for every capability and native module. Every
+# gac:Capability opName needs a gac:CapabilityCoverage row of kind "op"; every module in the
+# closed list (LawState, attest, ReceiptStore, qualification, smon, capability_intake, plan,
+# policy, hooks) and every declared gac:NativeModule needs a row of kind "module". Rows must
+# carry subject, kind (op|module) and status (GENERATED|UNSUPPORTED); GENERATED needs a
+# coverageArtifact; UNSUPPORTED needs a closed coverageReason and a non-empty coverageNote; a row
+# must name a declared op or module; subject+kind must be unique. Counts are read from the graph.
+PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT DISTINCT ?s ?missing WHERE {
+  {
+    ?s a gac:Capability ; gac:opName ?name .
+    FILTER NOT EXISTS {
+      ?r a gac:CapabilityCoverage ; gac:coverageSubject ?name ; gac:coverageSubjectKind "op" .
+    }
+    BIND(CONCAT("coverage-row:op:", STR(?name)) AS ?missing)
+  }
+  UNION
+  {
+    {
+      VALUES ?name { "LawState" "attest" "ReceiptStore" "qualification" "smon" "capability_intake" "plan" "policy" "hooks" }
+    }
+    UNION
+    {
+      ?m a gac:NativeModule ; gac:moduleName ?name .
+    }
+    FILTER NOT EXISTS {
+      ?r a gac:CapabilityCoverage ; gac:coverageSubject ?name ; gac:coverageSubjectKind "module" .
+    }
+    BIND(gac:NativeModule AS ?s)
+    BIND(CONCAT("coverage-row:module:", STR(?name)) AS ?missing)
+  }
+  UNION
+  {
+    ?s a gac:NativeModule .
+    FILTER NOT EXISTS { ?s gac:moduleName ?n }
+    BIND(gac:moduleName AS ?missing)
+  }
+  UNION
+  {
+    VALUES ?missing { gac:coverageSubject gac:coverageSubjectKind gac:coverageStatus }
+    ?s a gac:CapabilityCoverage .
+    FILTER NOT EXISTS { ?s ?missing ?any }
+  }
+  UNION
+  {
+    ?s a gac:CapabilityCoverage ; gac:coverageStatus ?v .
+    FILTER (!isLiteral(?v) || !(STR(?v) IN ("GENERATED", "UNSUPPORTED")))
+    BIND(gac:coverageStatus AS ?missing)
+  }
+  UNION
+  {
+    ?s a gac:CapabilityCoverage ; gac:coverageSubjectKind ?v .
+    FILTER (!isLiteral(?v) || !(STR(?v) IN ("op", "module")))
+    BIND(gac:coverageSubjectKind AS ?missing)
+  }
+  UNION
+  {
+    ?s a gac:CapabilityCoverage ; gac:coverageStatus ?v .
+    FILTER (isLiteral(?v) && STR(?v) = "GENERATED")
+    FILTER NOT EXISTS { ?s gac:coverageArtifact ?a . FILTER (isLiteral(?a) && REGEX(STR(?a), "\\S")) }
+    BIND(gac:coverageArtifact AS ?missing)
+  }
+  UNION
+  {
+    ?s a gac:CapabilityCoverage ; gac:coverageStatus ?v .
+    FILTER (isLiteral(?v) && STR(?v) = "UNSUPPORTED")
+    FILTER NOT EXISTS {
+      ?s gac:coverageReason ?q .
+      FILTER (isLiteral(?q) && STR(?q) IN ("generator-capability", "ontology-gap", "authority-ceiling"))
+    }
+    BIND(gac:coverageReason AS ?missing)
+  }
+  UNION
+  {
+    ?s a gac:CapabilityCoverage ; gac:coverageStatus ?v .
+    FILTER (isLiteral(?v) && STR(?v) = "UNSUPPORTED")
+    FILTER NOT EXISTS { ?s gac:coverageNote ?n . FILTER (isLiteral(?n) && REGEX(STR(?n), "\\S")) }
+    BIND(gac:coverageNote AS ?missing)
+  }
+  UNION
+  {
+    ?s a gac:CapabilityCoverage ; gac:coverageSubject ?name ; gac:coverageSubjectKind "op" .
+    FILTER NOT EXISTS { ?c a gac:Capability ; gac:opName ?name }
+    BIND(CONCAT("unknown-op:", STR(?name)) AS ?missing)
+  }
+  UNION
+  {
+    ?s a gac:CapabilityCoverage ; gac:coverageSubject ?name ; gac:coverageSubjectKind "module" .
+    FILTER NOT EXISTS { ?m a gac:NativeModule ; gac:moduleName ?name }
+    FILTER (!(STR(?name) IN ("LawState", "attest", "ReceiptStore", "qualification", "smon", "capability_intake", "plan", "policy", "hooks")))
+    BIND(CONCAT("unknown-module:", STR(?name)) AS ?missing)
+  }
+  UNION
+  {
+    ?s a gac:CapabilityCoverage ; gac:coverageSubject ?name ; gac:coverageSubjectKind ?kind .
+    ?other a gac:CapabilityCoverage ; gac:coverageSubject ?name ; gac:coverageSubjectKind ?kind .
+    FILTER (STR(?s) < STR(?other))
+    BIND(CONCAT("duplicate:", STR(?kind), ":", STR(?name)) AS ?missing)
+  }
+}
+ORDER BY ?s ?missing

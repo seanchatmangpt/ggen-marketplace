@@ -1,0 +1,41 @@
+# MESSAGE: when a gac:Registry declares gac:limitCount, it must be an xsd:integer >= 1 equal to the
+# number of gac:Limit individuals, every gac:Limit must carry limitName and an xsd:integer
+# limitValue >= 0, and limitName must be unique. A registry that declares no limitCount is not
+# checked. Any row = a limit list that is incomplete or inconsistent with its declared count.
+PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT DISTINCT ?s ?missing WHERE {
+  FILTER EXISTS { ?any a gac:Registry ; gac:limitCount ?declared }
+  {
+    ?s a gac:Registry ; gac:limitCount ?c .
+    FILTER (!isLiteral(?c) || datatype(?c) != xsd:integer || ?c < 1)
+    BIND(gac:limitCount AS ?missing)
+  }
+  UNION {
+    ?s a gac:Registry ; gac:limitCount ?c .
+    FILTER (isLiteral(?c) && datatype(?c) = xsd:integer)
+    {
+      SELECT (COUNT(DISTINCT ?l) AS ?n) WHERE { ?l a gac:Limit } ORDER BY ?n
+    }
+    FILTER (?n != ?c)
+    BIND(gac:limitCount AS ?missing)
+  }
+  UNION {
+    VALUES ?missing { gac:limitName gac:limitValue }
+    ?s a gac:Limit .
+    FILTER NOT EXISTS { ?s ?missing ?any }
+  }
+  UNION {
+    ?s a gac:Limit ; gac:limitValue ?v .
+    FILTER (!isLiteral(?v) || datatype(?v) != xsd:integer || ?v < 0)
+    BIND(gac:limitValue AS ?missing)
+  }
+  UNION {
+    ?s a gac:Limit ; gac:limitName ?n .
+    ?t a gac:Limit ; gac:limitName ?n2 .
+    FILTER (?s != ?t && str(?n) = str(?n2))
+    BIND(gac:limitName AS ?missing)
+  }
+}
+ORDER BY ?s ?missing

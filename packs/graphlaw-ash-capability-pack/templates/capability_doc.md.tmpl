@@ -117,6 +117,39 @@ sparql:
         gac:opRefusalCode ?refusal_code .
     }
     ORDER BY ?op_name ?refusal_code
+  models: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # One row per typed model in registry order; model_snake is the file and accessor stem.
+    SELECT ?model_name ?model_order ?model_snake ?model_elixir_module ?model_rust_path ?model_doc
+    WHERE {
+      ?model a gac:Model ;
+        gac:modelName ?model_name ;
+        gac:modelOrder ?model_order ;
+        gac:modelElixirModule ?model_elixir_module ;
+        gac:modelRustPath ?model_rust_path .
+      OPTIONAL { ?model gac:modelDoc ?doc_raw }
+      BIND(COALESCE(STR(?doc_raw), "") AS ?model_doc)
+      BIND(LCASE(REPLACE(REPLACE(STR(?model_name), "([A-Z])", "_$1"), "^_", "")) AS ?model_snake)
+    }
+    ORDER BY ?model_order
+  limits: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Engine resource limits with their optional scope, unit and enforcing source ('' when absent).
+    SELECT ?limit_name ?limit_value ?limit_scope ?limit_unit ?limit_source
+    WHERE {
+      ?limit a gac:Limit ;
+        gac:limitName ?limit_name ;
+        gac:limitValue ?limit_value .
+      OPTIONAL { ?limit gac:limitScope ?scope_raw }
+      OPTIONAL { ?limit gac:limitUnit ?unit_raw }
+      OPTIONAL { ?limit gac:limitSource ?source_raw }
+      BIND(COALESCE(STR(?scope_raw), "") AS ?limit_scope)
+      BIND(COALESCE(STR(?unit_raw), "") AS ?limit_unit)
+      BIND(COALESCE(STR(?source_raw), "") AS ?limit_source)
+    }
+    ORDER BY ?limit_name
 ---
 <!--
 SPDX-FileCopyrightText: 2026 ash_graphlaw contributors <https://github.com/seanchatmangpt/ash_graphlaw/graphs/contributors>
@@ -181,6 +214,12 @@ Refusal detail codes: {% for k in codes %}`{{ k.refusal_code }}`{% if not loop.l
 
 Client-side, a bad request refuses with `:invalid_capability_request` before the engine is called.
 A refusal is an observation about one exact input and never grants authority.
+
+## Shared typed models and limits
+
+Typed models (see the [capability reference](../capabilities.md)): {% for m in models %}`{{ m.model_elixir_module }}`{% if not loop.last %}, {% endif %}{% endfor %}.
+
+Engine limits that can refuse any operation: {% for l in limits %}`{{ l.limit_name }}`={{ l.limit_value }}{% if l.limit_scope != "" %} ({{ l.limit_scope }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}.
 
 ## See Also
 

@@ -1,0 +1,61 @@
+# MESSAGE: every gac:ModelField must carry modelFieldOf, modelFieldName (^[a-z][a-z0-9_]*$ and
+# not "extra", which the generated struct reserves), modelFieldOrder (xsd:integer >= 1),
+# modelFieldType, modelFieldRequired and modelFieldNullable (xsd:boolean) and modelFieldDoc (plain
+# string). modelFieldType must be in the closed field-type vocabulary or be model:<Name>,
+# list<model:<Name>> or enum:<Name>. Order and name must be unique per model. Any row = a malformed
+# model field.
+PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT DISTINCT ?s ?missing WHERE {
+  {
+    VALUES ?missing { gac:modelFieldOf gac:modelFieldName gac:modelFieldOrder gac:modelFieldType
+                      gac:modelFieldRequired gac:modelFieldNullable gac:modelFieldDoc }
+    ?s a gac:ModelField .
+    FILTER NOT EXISTS { ?s ?missing ?any }
+  }
+  UNION {
+    ?s a gac:ModelField ; gac:modelFieldName ?n .
+    FILTER (!isLiteral(?n) || datatype(?n) != xsd:string || !regex(str(?n), "^[a-z][a-z0-9_]*$") || str(?n) = "extra")
+    BIND(gac:modelFieldName AS ?missing)
+  }
+  UNION {
+    ?s a gac:ModelField ; gac:modelFieldOrder ?o .
+    FILTER (!isLiteral(?o) || datatype(?o) != xsd:integer || ?o < 1)
+    BIND(gac:modelFieldOrder AS ?missing)
+  }
+  UNION {
+    ?s a gac:ModelField ; gac:modelFieldType ?t .
+    FILTER (!isLiteral(?t) || datatype(?t) != xsd:string || !(
+      str(?t) IN ("string", "integer", "boolean", "object", "any", "data_spec", "term", "json_or_string",
+                  "list<string>", "list<object>", "list<any>", "list<term>",
+                  "list<list<string>>", "list<list<term>>")
+      || regex(str(?t), "^model:[A-Z][A-Za-z0-9]*$")
+      || regex(str(?t), "^list<model:[A-Z][A-Za-z0-9]*>$")
+      || regex(str(?t), "^enum:[A-Z][A-Za-z0-9]*$")))
+    BIND(gac:modelFieldType AS ?missing)
+  }
+  UNION {
+    VALUES ?missing { gac:modelFieldRequired gac:modelFieldNullable }
+    ?s a gac:ModelField ; ?missing ?v .
+    FILTER (!isLiteral(?v) || datatype(?v) != xsd:boolean)
+  }
+  UNION {
+    ?s a gac:ModelField ; gac:modelFieldDoc ?d .
+    FILTER (!isLiteral(?d) || datatype(?d) != xsd:string)
+    BIND(gac:modelFieldDoc AS ?missing)
+  }
+  UNION {
+    ?s a gac:ModelField ; gac:modelFieldOf ?m ; gac:modelFieldOrder ?o .
+    ?t a gac:ModelField ; gac:modelFieldOf ?m ; gac:modelFieldOrder ?o2 .
+    FILTER (?s != ?t && ?o = ?o2)
+    BIND(gac:modelFieldOrder AS ?missing)
+  }
+  UNION {
+    ?s a gac:ModelField ; gac:modelFieldOf ?m ; gac:modelFieldName ?n .
+    ?t a gac:ModelField ; gac:modelFieldOf ?m ; gac:modelFieldName ?n2 .
+    FILTER (?s != ?t && str(?n) = str(?n2))
+    BIND(gac:modelFieldName AS ?missing)
+  }
+}
+ORDER BY ?s ?missing

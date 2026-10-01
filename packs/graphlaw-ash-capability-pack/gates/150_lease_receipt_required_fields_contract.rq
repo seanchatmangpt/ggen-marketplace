@@ -1,0 +1,51 @@
+# MESSAGE: when the graph declares any gac:Model, the authority models must be complete. Models
+# Lease, SignedLease, Receipt and Attestation must exist, and each must carry the fields below with
+# the stated type and required flag: Lease (id string, holder string, ceiling enum:Ceiling, scope
+# list<string>, expires_unix integer, issued_unix integer), SignedLease (lease model:Lease,
+# attestation model:Attestation), Receipt (parent child step authority revision string; added
+# integer; lease_id plan_sha256 subject_sha256 optional strings), Attestation (payload_sha256
+# key_id signature string). A graph with no gac:Model individuals is not checked. Any row = a
+# missing authority model, a missing field, or a field with the wrong type or required flag.
+PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT DISTINCT ?model ?field ?missing WHERE {
+  FILTER EXISTS { ?any a gac:Model }
+  VALUES (?model ?field ?type ?req) {
+    ("Lease" "id" "string" "true")
+    ("Lease" "holder" "string" "true")
+    ("Lease" "ceiling" "enum:Ceiling" "true")
+    ("Lease" "scope" "list<string>" "true")
+    ("Lease" "expires_unix" "integer" "true")
+    ("Lease" "issued_unix" "integer" "true")
+    ("SignedLease" "lease" "model:Lease" "true")
+    ("SignedLease" "attestation" "model:Attestation" "true")
+    ("Receipt" "parent" "string" "true")
+    ("Receipt" "child" "string" "true")
+    ("Receipt" "step" "string" "true")
+    ("Receipt" "authority" "string" "true")
+    ("Receipt" "revision" "string" "true")
+    ("Receipt" "added" "integer" "true")
+    ("Receipt" "lease_id" "string" "false")
+    ("Receipt" "plan_sha256" "string" "false")
+    ("Receipt" "subject_sha256" "string" "false")
+    ("Attestation" "payload_sha256" "string" "true")
+    ("Attestation" "key_id" "string" "true")
+    ("Attestation" "signature" "string" "true")
+  }
+  OPTIONAL {
+    ?m a gac:Model ; gac:modelName ?mn .
+    FILTER (str(?mn) = ?model)
+  }
+  OPTIONAL {
+    ?f a gac:ModelField ; gac:modelFieldOf ?m ; gac:modelFieldName ?fn ;
+      gac:modelFieldType ?ft ; gac:modelFieldRequired ?fr .
+    FILTER (str(?fn) = ?field)
+  }
+  BIND(IF(!BOUND(?m), "model",
+       IF(!BOUND(?f), "field",
+       IF(str(?ft) != ?type, "type",
+       IF(str(?fr) != ?req, "required", "")))) AS ?missing)
+  FILTER (?missing != "")
+}
+ORDER BY ?model ?field ?missing

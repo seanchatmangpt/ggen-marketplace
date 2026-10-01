@@ -331,7 +331,7 @@ class HostProfileQueries(unittest.TestCase):
         self.assertEqual((row["root"], row["task_root"], row["app"]), ("AshGraphLaw", "AshGraphlaw", "ash_graphlaw"))
         self.assertEqual((row["pool_strategy"], row["pool_size_source"]), ("rest_for_one", "schedulers_online"))  # pool.ex:110
         self.assertEqual((row["taxonomy_ns"], row["telemetry_root"], row["pin_format"]), ("chatman", "ash_graphlaw", "sha256-hex"))
-        self.assertEqual((row["engine_id"], row["probe_op"], row["probe_expect"]), ("GraphLaw", "capabilities", "abi_version"))
+        self.assertEqual((row["engine_id"], row["probe_op"], row["probe_expect"]), ("GraphLaw", "capabilities", "abi"))
         self.assertEqual(data.value(next(data.subjects(RDF.type, QRI.HostProfile)), QRI.freeArity).toPython(), 2)  # gl_free(ptr, len)
         self.assertEqual(len(select(q("51"), data)), 18)
         self.assertIn(("gl", "fuel_per_ms", "1000000", "1"), select(q("51"), data))

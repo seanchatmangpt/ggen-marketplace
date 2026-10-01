@@ -6,6 +6,13 @@
 # Host-profile contract carrying ash_graphlaw's real wasmex host values.
 # Every value verified against /Users/sac/ash_graphlaw/lib/ash_graphlaw/{host,engine_load,pool,wasm_config,abi}.ex
 # and lib/mix/tasks/ash_graphlaw.{vendor,verify}.ex (2026-09-30).
+# LEDGER UNSUPPORTED(ontology-gap) vs hand code (no qri: vocabulary and no beam-host template support yet):
+#   - wasm_config zero-ok limits: hand code accepts 0 for table_elements, instances, tables, memories
+#     (min_limit/1); the generated wasm_config.ex ignores 0 for every limit. Needs a per-limit flag
+#     (e.g. qri:limitZeroOk) read by queries/51 and wasm_config.ex.tmpl. Not hacked into limitDefault.
+#   - recycle code order: hand code lists abi_failure, call_exited, call_trapped, call_timeout,
+#     fuel_exhausted; queries/54 orders by code, giving call_timeout before call_trapped. Needs an order
+#     property on recycleOn rows. The list is membership-only (`code in @recycle_codes`), so behavior is equal.
 # NOT imported by ggen.toml: a qri:hostProfile contract is projected by queries/50-54 only.
 
 gl:capability a qri:Capability .
@@ -55,7 +62,7 @@ gl:host a qri:HostProfile ;
     qri:handleNoun "engine" ; qri:taxonomyNamespace "chatman" ; qri:refusalModule "AshGraphLaw.Refusal" ;
     qri:telemetryRoot "ash_graphlaw" ; qri:okKey "ok" ; qri:opKey "op" ;
     qri:poolStrategy "rest_for_one" ; qri:poolSizeSource "schedulers_online" ;
-    qri:engineId "GraphLaw" ; qri:probeOp "capabilities" ; qri:probeExpectKey "abi_version" ;
+    qri:engineId "GraphLaw" ; qri:probeOp "capabilities" ; qri:probeExpectKey "abi" ;
     qri:recycleOn "abi_failure" , "call_exited" , "call_trapped" , "call_timeout" , "fuel_exhausted" ;
     qri:hostLimit gl:limFuelPerMs , gl:limInstantiateFuel , gl:limMemoryLimitBytes , gl:limRecycleBytes , gl:limMaxQueue , gl:limMaxResponseBytes , gl:limTableElements , gl:limInstances , gl:limTables , gl:limMemories , gl:limTimeoutMs , gl:limAbiTimeout , gl:limMargin , gl:limRetryBaseMs , gl:limRetryMaxMs , gl:limInitializeTimeoutMult , gl:limBackoffExpCap , gl:limMaxRedirects .
 

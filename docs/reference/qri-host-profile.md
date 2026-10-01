@@ -1,4 +1,4 @@
-# qri-host-profile
+# Reference: qri-host-profile
 
 Reference for `qri:HostProfile`, the optional host-layer parameter block of a
 `qri:CapabilityContract` in `qri-qualification-profile-pack`. Sources: `ontology.ttl`
@@ -133,9 +133,24 @@ Templates under `templates/beam-host` (`abi`, `engine_load`, `host`, `pool`, `ve
 `verify_task`, `wasm_config`) embed queries 50-54 verbatim and render one hand-written
 `ash_graphlaw` module each. The default `ggen.toml` does not import a host-profile contract.
 
+## Standing
+
+Marketplace boundary only. A host profile is a parameter block for generated BEAM host source; it
+carries no authority and a profile's existence is not evidence that a host loads a module. See
+[standing](standing.md).
+
+## Verification
+
+```bash
+python3 -m pytest packs/qri-qualification-profile-pack/tests -q
+python3 scripts/check_gate_witness_courts.py
+```
+
 ## See Also
 
-- `packs/qri-qualification-profile-pack/README.md`
-- `packs/qri-qualification-profile-pack/ontology.ttl`
-- `packs/qri-qualification-profile-pack/shapes/qri.shacl.ttl`
-- `packs/qri-qualification-profile-pack/ontology/examples/ash-graphlaw-contract.ttl`
+- [QRI qualification profile](qri-profile.md)
+- [Why QRI is a thin waist](../explanation/qri-thin-waist.md)
+- [Qualify a realization](../how-to/qualify-a-realization.md)
+- [First QRI substitution](../tutorials/qri-first-substitution.md)
+- Pack sources: `packs/qri-qualification-profile-pack/README.md`, `ontology.ttl`,
+  `shapes/qri.shacl.ttl`, `ontology/examples/ash-graphlaw-contract.ttl`

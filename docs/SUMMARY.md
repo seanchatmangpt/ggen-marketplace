@@ -13,6 +13,8 @@
 - [From stale memory to a qualified manufacturing plan (R73)](tutorials/r73-revalidation-manufacturing-capital.md)
 - [Take a pack through a Level-5 promotion slice](tutorials/level5-promotion.md)
 - [Explore option-capital hypergraphs](tutorials/option-hypergraph-amplifier-r15.md)
+- [GraphLaw through rust, wasm and beam](tutorials/graphlaw-rust-wasm-beam.md)
+- [First QRI substitution](tutorials/qri-first-substitution.md)
 
 # How-to guides
 
@@ -27,6 +29,9 @@
 - [Consolidate a pack family](how-to/consolidate-a-pack-family.md)
 - [Promote a pack to Level 5](how-to/promote-a-pack-to-level5.md)
 - [Query the R15 option hypergraph](how-to/query-option-hypergraph-r15.md)
+- [Consume graphlaw through wasi-json-abi](how-to/consume-graphlaw-through-wasi-json-abi.md)
+- [Represent a Rust ABI crate](how-to/represent-a-rust-abi-crate.md)
+- [Qualify a realization](how-to/qualify-a-realization.md)
 
 # Reference
 
@@ -49,7 +54,13 @@
 - [Reference: ash_* Ecosystem Mapping](reference/ash-ecosystem-mapping.md)
 - [Kudzu Case Studies](reference/kudzu-case-studies.md)
 - [Enterprise Kudzu v26.9.13](reference/enterprise-kudzu-v26.9.13.md)
+- [GraphLaw Ash capability pack](reference/graphlaw-ash-capability-pack.md)
+- [GraphLaw rust, wasm, beam/elixir pipeline](reference/graphlaw-rust-wasm-beam-pipeline.md)
+- [wasi-json-abi-pack](reference/wasi-json-abi-pack.md)
+- [QRI qualification profile](reference/qri-profile.md)
+- [QRI host profile](reference/qri-host-profile.md)
 - [New packs 2026-09](reference/new-packs-2026-09.md)
+- [WBPR 26.9.12 Falsifier Audit — 12-Pack Canonical Consolidation, MSCT, Human Twin](reference/wbpr-26.9.12-falsifier-audit.md)
 
 # Explanation
 
@@ -65,7 +76,8 @@
 - [Why option hypergraphs increase manufacturing capital](explanation/option-hypergraph-capital-r15.md)
 - [ash_a2a — PRD / ARD](explanation/ash-a2a-prd-ard.md)
 - [Working-Backwards Press Release](explanation/wbpr-26.9.12-canonical-consolidation.md)
-- [WBPR 26.9.12 Falsifier Audit — 12-Pack Canonical Consolidation, MSCT, Human Twin](reference/wbpr-26.9.12-falsifier-audit.md)
+- [Why QRI is a thin waist](explanation/qri-thin-waist.md)
+- [Why graphlaw is a rust, wasm, beam/elixir pipeline](explanation/rust-wasm-beam-pipeline.md)
 
 # Research monograph
 
@@ -125,8 +137,3 @@
 - [SPIFFE capability donor](adoption/spiffe-capability-donor.md)
 - [QME-1 reference](qme-1-reference.md)
 - [Chicago work-equivalent court](reference/chicago-work-equivalent-court.md)
-- [GraphLaw Ash capability pack](reference/graphlaw-ash-capability-pack.md)
-- [First QRI substitution](tutorials/qri-first-substitution.md)
-- [Qualify a realization](how-to/qualify-a-realization.md)
-- [QRI qualification profile](reference/qri-profile.md)
-- [Why QRI is a thin waist](explanation/qri-thin-waist.md)

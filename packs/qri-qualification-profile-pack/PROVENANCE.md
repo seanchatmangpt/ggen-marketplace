@@ -14,3 +14,8 @@ Reused capital (read, not modified):
   `qce:SubstitutionClaim`); linked with `skos:relatedMatch`, not equated.
 
 No ODRL, SPDX or QUDT pack exists in this repository; those are referenced by IRI only.
+
+Known deltas of the generated beam host against `/Users/sac/ash_graphlaw` (2026-09-30), ledgered as
+UNSUPPORTED(ontology-gap), recorded in `ontology/examples/ash-graphlaw-contract.ttl`: zero-valid store
+limits (`table_elements`, `instances`, `tables`, `memories`) and the `@recycle_codes` element order.
+`probeExpectKey` is `abi`, the key the `capabilities` op actually returns.

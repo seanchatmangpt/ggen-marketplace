@@ -20,9 +20,9 @@ under `dynamic_in_gates` in the allowlist; gates that fail to parse are also ref
 
 | metric | value |
 |---|---|
-| packs | 387 |
-| packs with Python scripts | 115 |
-| Python files scanned | 540 |
+| packs | 389 |
+| packs with Python scripts | 117 |
+| Python files scanned | 546 |
 | files failing to parse | 0 |
 
 ## Capability by role
@@ -34,16 +34,16 @@ Files using each capability, by inferred role (`gate` = under a `gates/` directo
 |---|---|---|---|---|---|
 | gate | 0 | 3 | 3 | 1 | 1 |
 | verifier | 0 | 4 | 11 | 0 | 2 |
-| other | 3 | 17 | 26 | 5 | 35 |
+| other | 3 | 19 | 28 | 7 | 35 |
 
 ## Packs using each capability
 
 | capability | packs |
 |---|---|
 | network | 3 |
-| exec | 14 |
-| fs-write | 23 |
-| env | 4 |
+| exec | 16 |
+| fs-write | 25 |
+| env | 6 |
 | dynamic | 13 |
 
 ## Network use in gates
@@ -65,16 +65,17 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 | state | packs |
 |---|---|
 | with LICENSE file | 3 |
-| lacking LICENSE file | 384 |
+| lacking LICENSE file | 386 |
 | with SPDX identifier | 5 |
-| lacking SPDX identifier | 382 |
-| lacking both | 379 |
+| lacking SPDX identifier | 384 |
+| lacking both | 381 |
 
 <details><summary>Packs lacking both</summary>
 
 - `adapter-family-matrix`
 - `adapter-family-registry`
 - `adjacency-rebloom-controller-pack`
+- `affidavit-consumer-pack`
 - `affidavit-pack`
 - `affidavit-trust-plane-pack`
 - `agent-fleet-isolation-pack`
@@ -113,6 +114,7 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `bitjob-chrome-ext-shadcn-pack`
 - `candidate-admission-portfolio-pack`
 - `canonical-ash-projection-generator`
+- `capability-closure-pack`
 - `capability-lineage-propagation-pack`
 - `cargo-cicd-pack`
 - `castle-board-pack`
