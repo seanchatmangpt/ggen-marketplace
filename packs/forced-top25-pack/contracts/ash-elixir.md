@@ -1,0 +1,3 @@
+# Ash/Elixir consumer composition contract
+
+Consumers using Ash, Reactor, Phoenix or LiveView must receive generated source through the canonical GGEN pack path, never hand-edited generated outputs. Required OCEL events: `admit`, `select`, `generate`, `realize`, and `refuse` on typed failure. Exact consumer head and exact GGEN producer head are mandatory before generation. Product/runtime commits are downstream consumer work; Project-memory request/receipt traffic is CONTROL. Qualification must preserve policies, migrations, tests, UI projections and `VERIFY|CONSTRUCT` authority without ambient DO.

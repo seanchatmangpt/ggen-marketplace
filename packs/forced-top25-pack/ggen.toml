@@ -1,0 +1,79 @@
+[project]
+name = "forced-top25-pack"
+version = "26.9.30"
+
+[ontology]
+source = "ontology/admissibility.ttl"
+imports = [
+  "ontology/standard-consumer.ttl",
+  "ontology/r75-realization.ttl",
+  "ontology/generated-closure.ttl",
+  "ontology/qualification-capsule.ttl",
+  "ontology/r90-fanout.ttl",
+  "ontology/cell3-allocation.ttl",
+  "ontology/cell3-current-run.ttl",
+  "ontology/reconciliation.ttl",
+  "targets/population.ttl",
+]
+
+[generation]
+output_dir = "."
+
+[[generation.rules]]
+name = "forced-top25-admissibility-receipts"
+query = { file = "queries/ftadm_050-clean-admissibility-frontier.rq" }
+template = { file = "templates/ftadm_admissibility-receipts.json.tera" }
+output_file = "generated/forced-top25-admissibility/receipts.json"
+skip_empty = true
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "forced-top25-consumer-subjects"
+query = { file = "queries/ftfac_10-ready-set.rq" }
+template = { file = "templates/ftfac_consumer-subject.json.tmpl" }
+output_file = "generated/forced-top25/{{ rank }}.json"
+mode = "Overwrite"
+skip_empty = true
+
+[[generation.rules]]
+name = "forced-top25-consumer-manifests"
+query = { file = "queries/ftr90_ready-consumers.rq" }
+template = { file = "templates/ftr90_consumer-manifest.tera" }
+output_file = "generated/forced-top25-consumer-manifests/{{ repo }}.json"
+mode = "Overwrite"
+skip_empty = true
+
+[[generation.rules]]
+name = "forced-top25-ocel-transitions"
+query = { inline = "PREFIX r90: <https://ggen.dev/ontology/r90#> SELECT ?owner ?repo ?consumer_head ?ggen_source_head ?event WHERE { ?t a r90:FanoutTarget ; r90:owner ?owner ; r90:repo ?repo ; r90:exactConsumerHead ?consumer_head ; r90:exactGgenSourceHead ?ggen_source_head ; r90:fanoutState ?fanout_state ; r90:qualificationState ?qualification_state . VALUES ?event { \"admit\" \"select\" \"generate\" \"realize\" \"refuse\" } FILTER((?event = \"realize\" && ?fanout_state = \"DOWNSTREAM_REALIZED\") || (?event = \"refuse\" && CONTAINS(?qualification_state,\"REFUSED\")) || (?event = \"admit\") || (?event = \"select\") || (?event = \"generate\")) } ORDER BY ?repo ?event" }
+template = { file = "templates/ftr90_ocel-transition.tera" }
+output_file = "generated/forced-top25-ocel-events/{{ repo }}-{{ event }}.json"
+mode = "Overwrite"
+skip_empty = true
+
+[[generation.rules]]
+name = "forced-top25-qualification-capsules"
+query = { file = "queries/ftr86_10-capsule-ready-set.rq" }
+template = { file = "templates/ftr86_qualification-capsule.json.tmpl" }
+output_file = "generated/forced-top25-capsules/{{ rank }}.json"
+mode = "Overwrite"
+skip_empty = true
+
+[[generation.rules]]
+name = "forced-top25-semantic-standing"
+query = { file = "queries/ftr86_20-semantic-standing.rq" }
+template = { file = "templates/ftr86_semantic-standing.json.tmpl" }
+output_file = "generated/forced-top25-semantic-standing/{{ consumer_repo }}.json"
+mode = "Overwrite"
+skip_empty = true
+
+[[generation.rules]]
+name = "forced-top25-materialization-plan"
+query = { file = "queries/ftr86_30-materialization-plan.rq" }
+template = { file = "templates/ftr86_materialization-plan.json.tmpl" }
+output_file = "generated/forced-top25-materialization/{{ consumer_repo }}.json"
+mode = "Overwrite"
+skip_empty = true
+
+[law]
+rules = []
