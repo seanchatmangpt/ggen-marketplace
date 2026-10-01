@@ -1,5 +1,5 @@
 (define (domain ash-extension-vision2040)
-  (:requirements :hierarchy :typing :negative-preconditions :universal-preconditions)
+  (:requirements :hierarchy :typing :negative-preconditions :universal-preconditions :method-preconditions)
 
   (:types
     extension capability gap - object
@@ -13,6 +13,8 @@
     (spark-surface-closed ?e - extension)
     (implementation-surface-closed ?e - extension)
     (projected ?e - extension)
+    (resource-domain-composed ?e - extension)
+    (runtime-realizations-composed ?e - extension)
     (composed ?e - extension)
     (qualified ?e - extension)
     (standing ?e - extension)
@@ -20,8 +22,14 @@
     ;; Per-capability inventory. The extension-specific problem supplies one
     ;; capability-required fact per admitted capability.
     (capability-required ?e - extension ?c - capability)
+    ;; Generated problem instances set capability-unresolved for every
+    ;; capability-required fact. Each phase carries its own explicit
+    ;; unresolved token, so quantified closure needs no disjunction.
+    (capability-unresolved ?e - extension ?c - capability)
     (capability-represented ?e - extension ?c - capability)
+    (spark-unresolved ?e - extension ?c - capability)
     (spark-represented ?e - extension ?c - capability)
+    (implementation-unresolved ?e - extension ?c - capability)
     (implementation-consumes ?e - extension ?c - capability)
 
     ;; Exactly one resolution strategy is admitted for each required capability
@@ -140,7 +148,7 @@
     :precondition (and
       (semantics-admitted ?e)
       (capability-required ?e ?c)
-      (not (capability-represented ?e ?c))
+      (capability-unresolved ?e ?c)
     )
     :subtasks (and
       (resolve_capability ?e ?c)
@@ -151,10 +159,7 @@
   (:method m_required_capabilities_closed
     :task (resolve_required_capabilities ?e)
     :precondition (forall (?c - capability)
-      (or
-        (not (capability-required ?e ?c))
-        (capability-represented ?e ?c)
-      )
+      (not (capability-unresolved ?e ?c))
     )
     :subtasks (and
       (seal_capability_surface ?e)
@@ -183,6 +188,7 @@
     :task (resolve_capability ?e ?c)
     :precondition (and
       (capability-required ?e ?c)
+      (not (reuse-admissible ?c))
       (composition-admissible ?c)
     )
     :subtasks (and
@@ -194,6 +200,8 @@
     :task (resolve_capability ?e ?c)
     :precondition (and
       (capability-required ?e ?c)
+      (not (reuse-admissible ?c))
+      (not (composition-admissible ?c))
       (extension-required ?c)
     )
     :subtasks (and
@@ -205,6 +213,9 @@
     :task (resolve_capability ?e ?c)
     :precondition (and
       (capability-required ?e ?c)
+      (not (reuse-admissible ?c))
+      (not (composition-admissible ?c))
+      (not (extension-required ?c))
       (invention-required ?c)
       (irreducible-concept ?c)
     )
@@ -219,35 +230,57 @@
       (capability-required ?e ?c)
       (reuse-admissible ?c)
     )
-    :effect (capability-represented ?e ?c)
+    :effect (and
+      (capability-represented ?e ?c)
+      (not (capability-unresolved ?e ?c))
+      (spark-unresolved ?e ?c)
+    )
   )
 
   (:action compose_capability
     :parameters (?e - extension ?c - capability)
     :precondition (and
       (capability-required ?e ?c)
+      (not (reuse-admissible ?c))
       (composition-admissible ?c)
     )
-    :effect (capability-represented ?e ?c)
+    :effect (and
+      (capability-represented ?e ?c)
+      (not (capability-unresolved ?e ?c))
+      (spark-unresolved ?e ?c)
+    )
   )
 
   (:action extend_canonical_capability
     :parameters (?e - extension ?c - capability)
     :precondition (and
       (capability-required ?e ?c)
+      (not (reuse-admissible ?c))
+      (not (composition-admissible ?c))
       (extension-required ?c)
     )
-    :effect (capability-represented ?e ?c)
+    :effect (and
+      (capability-represented ?e ?c)
+      (not (capability-unresolved ?e ?c))
+      (spark-unresolved ?e ?c)
+    )
   )
 
   (:action invent_in_canonical_manufacturer
     :parameters (?e - extension ?c - capability)
     :precondition (and
       (capability-required ?e ?c)
+      (not (reuse-admissible ?c))
+      (not (composition-admissible ?c))
+      (not (extension-required ?c))
       (invention-required ?c)
       (irreducible-concept ?c)
     )
-    :effect (capability-represented ?e ?c)
+    :effect (and
+      (capability-represented ?e ?c)
+      (not (capability-unresolved ?e ?c))
+      (spark-unresolved ?e ?c)
+    )
   )
 
   (:action seal_capability_surface
@@ -255,10 +288,7 @@
     :precondition (and
       (semantics-admitted ?e)
       (forall (?c - capability)
-        (or
-          (not (capability-required ?e ?c))
-          (capability-represented ?e ?c)
-        )
+        (not (capability-unresolved ?e ?c))
       )
     )
     :effect (capability-surface-closed ?e)
@@ -280,7 +310,7 @@
       (capability-surface-closed ?e)
       (capability-required ?e ?c)
       (capability-represented ?e ?c)
-      (not (spark-represented ?e ?c))
+      (spark-unresolved ?e ?c)
     )
     :subtasks (and
       (project_capability_to_spark ?e ?c)
@@ -293,10 +323,7 @@
     :precondition (and
       (capability-surface-closed ?e)
       (forall (?c - capability)
-        (or
-          (not (capability-required ?e ?c))
-          (spark-represented ?e ?c)
-        )
+        (not (spark-unresolved ?e ?c))
       )
     )
     :subtasks (and
@@ -310,16 +337,17 @@
       (capability-represented ?e ?c)
       (capability-required ?e ?c)
     )
-    :effect (spark-represented ?e ?c)
+    :effect (and
+      (spark-represented ?e ?c)
+      (not (spark-unresolved ?e ?c))
+      (implementation-unresolved ?e ?c)
+    )
   )
 
   (:action seal_spark_surface
     :parameters (?e - extension)
     :precondition (forall (?c - capability)
-      (or
-        (not (capability-required ?e ?c))
-        (spark-represented ?e ?c)
-      )
+      (not (spark-unresolved ?e ?c))
     )
     :effect (spark-surface-closed ?e)
   )
@@ -341,7 +369,7 @@
       (spark-surface-closed ?e)
       (capability-required ?e ?c)
       (spark-represented ?e ?c)
-      (not (implementation-consumes ?e ?c))
+      (implementation-unresolved ?e ?c)
     )
     :subtasks (and
       (project_capability_implementation ?e ?c)
@@ -354,10 +382,7 @@
     :precondition (and
       (spark-surface-closed ?e)
       (forall (?c - capability)
-        (or
-          (not (capability-required ?e ?c))
-          (implementation-consumes ?e ?c)
-        )
+        (not (implementation-unresolved ?e ?c))
       )
     )
     :subtasks (and
@@ -371,16 +396,16 @@
       (capability-required ?e ?c)
       (spark-represented ?e ?c)
     )
-    :effect (implementation-consumes ?e ?c)
+    :effect (and
+      (implementation-consumes ?e ?c)
+      (not (implementation-unresolved ?e ?c))
+    )
   )
 
   (:action seal_implementation_surface
     :parameters (?e - extension)
     :precondition (forall (?c - capability)
-      (or
-        (not (capability-required ?e ?c))
-        (implementation-consumes ?e ?c)
-      )
+      (not (implementation-unresolved ?e ?c))
     )
     :effect (and
       (implementation-surface-closed ?e)
@@ -409,18 +434,22 @@
   (:action compose_resource_and_domain_extensions
     :parameters (?e - extension)
     :precondition (projected ?e)
-    :effect ()
+    :effect (resource-domain-composed ?e)
   )
 
   (:action compose_runtime_realizations
     :parameters (?e - extension)
-    :precondition (projected ?e)
-    :effect ()
+    :precondition (resource-domain-composed ?e)
+    :effect (runtime-realizations-composed ?e)
   )
 
   (:action seal_composition
     :parameters (?e - extension)
-    :precondition (projected ?e)
+    :precondition (and
+      (projected ?e)
+      (resource-domain-composed ?e)
+      (runtime-realizations-composed ?e)
+    )
     :effect (composed ?e)
   )
 
