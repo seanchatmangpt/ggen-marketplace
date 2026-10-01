@@ -15,14 +15,17 @@ class Solver(unittest.TestCase):
         self.assertEqual({r["id"] for r in out["reuse"]},
                          {"wasm-host:elixir-wasmex", "ci:github-composite-action"})
 
-    def test_affidavit_consumer_residual_after_consumer_pack(self):
+    def test_affidavit_consumer_requirement_is_fully_closed(self):
         out = solve.solve(ROOT / "fixtures" / "req-affidavit-consumer.ttl")
-        got = {r["id"]: (r["disposition"], r["reason"]) for r in out["residual"]}
-        self.assertEqual(got, {
-            "affidavit:rust-catalog-fork": ("EXTEND", "only_stale_provider"),
-            "wasm-host:python": ("EXTEND", "no_provider"),
-            "wasm-host:typescript": ("EXTEND", "no_provider"),
-        })
+        self.assertEqual(out["residual"], [])
+        self.assertEqual(out["coverage"]["needs"], 7)
+        self.assertIn("wasm-host:typescript", {r["id"] for r in out["reuse"]})
+
+    def test_a_stale_provider_is_residual_not_reuse(self):
+        out = solve.solve(ROOT / "fixtures" / "req-stale-only.ttl")
+        self.assertEqual([(r["id"], r["reason"], r["disposition"]) for r in out["residual"]],
+                         [("affidavit:rust-catalog-fork", "only_stale_provider", "EXTEND")])
+        self.assertEqual(out["reuse"], [])
 
     def test_closure_follows_requires_edges(self):
         out = solve.solve(ROOT / "fixtures" / "req-fully-provided.ttl")
