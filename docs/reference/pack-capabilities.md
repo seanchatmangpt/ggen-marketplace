@@ -20,7 +20,7 @@ under `dynamic_in_gates` in the allowlist; gates that fail to parse are also ref
 
 | metric | value |
 |---|---|
-| packs | 389 |
+| packs | 394 |
 | packs with Python scripts | 117 |
 | Python files scanned | 548 |
 | files failing to parse | 0 |
@@ -65,10 +65,10 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 | state | packs |
 |---|---|
 | with LICENSE file | 3 |
-| lacking LICENSE file | 386 |
+| lacking LICENSE file | 391 |
 | with SPDX identifier | 5 |
-| lacking SPDX identifier | 384 |
-| lacking both | 381 |
+| lacking SPDX identifier | 389 |
+| lacking both | 386 |
 
 <details><summary>Packs lacking both</summary>
 
@@ -199,6 +199,7 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `enterprise-architecture-connection-pack`
 - `enterprise-architecture-pack`
 - `enterprise-governance-pack`
+- `enterprise-operating-model-pack`
 - `environment-evolution-pack`
 - `epistemic-sensor-factory-pack`
 - `errc-innovation-contract-pack`
@@ -284,6 +285,9 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `gymact-capability-schema-pack`
 - `human-value-runtime-crown-pack`
 - `hyperdimensional-standing-pack`
+- `industry-closure-ledger-pack`
+- `industry-closure-pack`
+- `industry-closure-retail-lending-profile-pack`
 - `innovation-errc-pack`
 - `interchangeable-parts-qualification-pack`
 - `invariant-gate-pack`
@@ -410,6 +414,7 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `shadcn-command-palette-pack`
 - `shadcn-dark-theme-tokens-pack`
 - `shadcn-ui-primitives-pack`
+- `sjira-marketplace-feedback-pack`
 - `slidev-iaas-paas-saas-pack`
 - `soc2-audit-pack`
 - `soc2-readiness-pack`

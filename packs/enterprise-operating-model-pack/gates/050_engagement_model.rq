@@ -1,0 +1,39 @@
+# MESSAGE: an engagement model has enterprise-level, project-level and linking mechanisms that join to ENG- notations; a work package is reviewed or carries an owned, expiring dispensation.
+PREFIX eom: <https://seanchatmangpt.github.io/packs/enterprise-operating-model-pack#>
+PREFIX togaf: <http://www.semanticweb.org/ontologies/2020/4/OntologyTOGAFContentMetamodel.owl#>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+SELECT ?subject ?reason WHERE {
+  { ?subject a eom:EngagementModel .
+    FILTER NOT EXISTS { ?subject eom:enterpriseGovernance ?g }
+    BIND("REFUSED:EOM_ENGAGEMENT_NO_ENTERPRISE_LEVEL" AS ?reason) }
+  UNION
+  { ?subject a eom:EngagementModel .
+    FILTER NOT EXISTS { ?subject eom:projectGovernance ?g }
+    BIND("REFUSED:EOM_ENGAGEMENT_NO_PROJECT_LEVEL" AS ?reason) }
+  UNION
+  { ?subject a eom:EngagementModel .
+    FILTER NOT EXISTS { ?subject eom:linkingMechanism ?g }
+    BIND("REFUSED:EOM_ENGAGEMENT_NO_LINKING" AS ?reason) }
+  UNION
+  { ?subject a eom:EngagementModel ; ?p ?g .
+    FILTER(?p IN (eom:enterpriseGovernance, eom:projectGovernance, eom:linkingMechanism))
+    OPTIONAL { ?g skos:notation ?n }
+    FILTER(!BOUND(?n) || !STRSTARTS(STR(?n), "ENG-"))
+    BIND("REFUSED:EOM_ENGAGEMENT_MECHANISM_UNKNOWN" AS ?reason) }
+  UNION
+  { ?subject a eom:OperatingModelDecision .
+    FILTER NOT EXISTS { ?subject eom:hasEngagementModel ?m . ?m a eom:EngagementModel }
+    BIND("REFUSED:EOM_DECISION_NO_ENGAGEMENT" AS ?reason) }
+  UNION
+  { ?subject a togaf:WorkPackage ; eom:ofEnterprise ?e .
+    FILTER NOT EXISTS { ?subject eom:reviewedBy ?r }
+    FILTER NOT EXISTS { ?subject eom:dispensation ?d . ?d a eom:Dispensation ; eom:owner ?do ; eom:expires ?dx }
+    BIND("REFUSED:EOM_WORKPACKAGE_UNREVIEWED" AS ?reason) }
+  UNION
+  { ?subject a eom:Dispensation .
+    OPTIONAL { ?subject eom:owner ?o }
+    OPTIONAL { ?subject eom:expires ?x }
+    FILTER(!BOUND(?o) || !BOUND(?x))
+    BIND("REFUSED:EOM_DISPENSATION_UNBOUNDED" AS ?reason) }
+}
+ORDER BY ?subject ?reason

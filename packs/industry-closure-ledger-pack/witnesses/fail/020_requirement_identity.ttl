@@ -1,0 +1,147 @@
+# 020_requirement_identity fail witness: one violating requirement or capability per declared code.
+# Synthetic data only (example.invalid IRIs). Loaded together with ontology.ttl by the gate court.
+
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix ic: <https://seanchatmangpt.github.io/packs/industry-closure-ledger-pack#> .
+@prefix ea: <https://chatman.ai/ontology/enterprise-architecture#> .
+@prefix ex: <https://example.invalid/synthetic/> .
+
+ex:closure a ic:IndustryClosure ;
+    ic:industryScope "synthetic bounded scope for witnesses and fixtures" ;
+    ic:baseIri "https://example.invalid/synthetic/" ;
+    ic:boundPathPrefix "ontologies/public/synthetic/" ;
+    ic:usesSource ex:srcA ;
+    ic:hasSnapshot ex:snap0 .
+
+ex:snap0 a ic:ClosureSnapshot ;
+    ic:snapshotOf ex:closure ;
+    ic:epoch 0 .
+
+ex:srcA a ic:KnowledgeSource ;
+    ic:admission ic:ADMITTED ;
+    ic:sourceIri <https://example.invalid/source/a> ;
+    ic:sourceVersion "1.0.0" ;
+    ic:sourceDigest "sha256:c2922945bce9302c46fb563eb14f55a7d5fa796bcb3a229c49e9013ccc4e04bc" ;
+    ic:licenseBoundary "synthetic test source, no external licence" ;
+    ic:sourceLocator "ontologies/public/synthetic/a.ttl" ;
+    ic:providesConcept <https://example.invalid/concept/A> .
+
+ex:capA a ea:Capability ;
+    ic:capabilityKey "CAP-A" ;
+    ic:groundedIn ex:srcA ;
+    ic:concept <https://example.invalid/concept/A> .
+
+ex:reqA a ic:Requirement ;
+    ic:requirementId "REQ-A" ;
+    ic:statement "Synthetic requirement A stated in paraphrase." ;
+    ic:inClosure ex:closure ;
+    ic:disposition ic:IN_SCOPE ;
+    ic:requiresCapability ex:capA ;
+    ic:derivedFrom ex:srcA .
+
+ex:reqOOS a ic:Requirement ;
+    ic:requirementId "REQ-OOS" ;
+    ic:statement "A synthetic requirement outside the declared scope." ;
+    ic:inClosure ex:closure ;
+    ic:disposition ic:OUT_OF_SCOPE ;
+    ic:scopeJustification "The synthetic scope excludes this capability family." ;
+    ic:derivedFrom ex:srcA .
+
+ex:strategy a ea:Strategy .
+
+ex:capS a ea:Capability ;
+    ic:capabilityKey "CAP-S" ;
+    ic:groundedInStrategy ex:strategy .
+
+ex:reqS a ic:Requirement ;
+    ic:requirementId "REQ-S" ;
+    ic:statement "A synthetic requirement originating from a strategy individual." ;
+    ic:inClosure ex:closure ;
+    ic:disposition ic:IN_SCOPE ;
+    ic:requiresCapability ex:capS ;
+    ic:originAuthority ex:strategy .
+
+ex:srcExcluded a ic:KnowledgeSource ;
+    ic:admission ic:EXCLUDED ;
+    ic:exclusionReason "Outside the synthetic scope." .
+
+ex:reqMalformed a ic:Requirement ;
+    ic:requirementId "REQ-MALFORMED" ;
+    ic:inClosure ex:closure ;
+    ic:disposition ic:IN_SCOPE ;
+    ic:derivedFrom ex:srcA .
+
+ex:reqUnsafe a ic:Requirement ;
+    ic:requirementId "REQ UNSAFE/ID" ;
+    ic:statement "A requirement with an unsafe identity key." ;
+    ic:inClosure ex:closure ;
+    ic:disposition ic:IN_SCOPE ;
+    ic:derivedFrom ex:srcA .
+
+ex:capUnsafe a ea:Capability ;
+    ic:capabilityKey "CAP UNSAFE" ;
+    ic:groundedIn ex:srcA .
+
+ex:capNoKey a ea:Capability ;
+    ic:groundedIn ex:srcA .
+
+ex:reqNoKey a ic:Requirement ;
+    ic:requirementId "REQ-NOKEY" ;
+    ic:statement "A requirement whose capability has no key." ;
+    ic:inClosure ex:closure ;
+    ic:disposition ic:IN_SCOPE ;
+    ic:requiresCapability ex:capNoKey ;
+    ic:derivedFrom ex:srcA .
+
+ex:reqBadDisposition a ic:Requirement ;
+    ic:requirementId "REQ-BADDISP" ;
+    ic:statement "A requirement with an invalid disposition." ;
+    ic:inClosure ex:closure ;
+    ic:disposition ex:MAYBE ;
+    ic:derivedFrom ex:srcA .
+
+ex:reqSilentDrop a ic:Requirement ;
+    ic:requirementId "REQ-DROP" ;
+    ic:statement "An out-of-scope requirement without a justification." ;
+    ic:inClosure ex:closure ;
+    ic:disposition ic:OUT_OF_SCOPE ;
+    ic:derivedFrom ex:srcA .
+
+ex:reqDup1 a ic:Requirement ;
+    ic:requirementId "REQ-DUP" ;
+    ic:statement "First requirement with a duplicated id." ;
+    ic:inClosure ex:closure ;
+    ic:disposition ic:IN_SCOPE ;
+    ic:derivedFrom ex:srcA .
+
+ex:reqDup2 a ic:Requirement ;
+    ic:requirementId "REQ-DUP" ;
+    ic:statement "Second requirement with a duplicated id." ;
+    ic:inClosure ex:closure ;
+    ic:disposition ic:IN_SCOPE ;
+    ic:derivedFrom ex:srcA .
+
+ex:reqProse a ic:Requirement ;
+    ic:requirementId "REQ-PROSE" ;
+    ic:statement "An in-scope requirement derived only from an excluded source." ;
+    ic:inClosure ex:closure ;
+    ic:disposition ic:IN_SCOPE ;
+    ic:derivedFrom ex:srcExcluded .
+
+# IC_REQUIREMENT_CLOSURE_UNDECLARED: the requirement points at a closure no one declared, so it would vanish from Delta.
+ex:reqNoClosure a ic:Requirement ;
+    ic:requirementId "REQ-NOCLOSURE" ;
+    ic:statement "A synthetic requirement whose closure is not declared." ;
+    ic:inClosure ex:closureUndeclared ;
+    ic:disposition ic:IN_SCOPE ;
+    ic:derivedFrom ex:srcA .
+
+# IC_NEEDS_DO_MALFORMED: a DO-need flag typed as a string would not read as a boolean; the gate refuses it.
+ex:reqNeedsDoString a ic:Requirement ;
+    ic:requirementId "REQ-NEEDSDO-STR" ;
+    ic:statement "A synthetic requirement whose DO-need flag is a string." ;
+    ic:inClosure ex:closure ;
+    ic:disposition ic:IN_SCOPE ;
+    ic:derivedFrom ex:srcA ;
+    ic:needsDoAuthority "true" .

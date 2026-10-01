@@ -43,6 +43,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -895,13 +896,18 @@ def main() -> int:
             print(f"REFUSED:GGEN_PACK_SHARD_INVALID:{error}", file=sys.stderr)
             return 2
 
+    def timed_qualify(pack: Pack) -> tuple[dict[str, Any], float]:
+        started = time.monotonic()
+        record = qualify_pack(pack, args.ggen, args.timeout_seconds)
+        return record, time.monotonic() - started
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as executor:
-        records = list(
-            executor.map(
-                lambda pack: qualify_pack(pack, args.ggen, args.timeout_seconds),
-                packs,
-            )
-        )
+        timed = list(executor.map(timed_qualify, packs))
+    records = [record for record, _ in timed]
+    # Wall-clock per pack is kept OUT of the per-pack records so the records
+    # stay a deterministic function of the subject; timing is a separate,
+    # explicitly non-deterministic observation (see scripts/manufacture_timing.py).
+    pack_seconds = {record["name"]: round(seconds, 3) for record, seconds in timed}
     records.sort(key=lambda item: item["name"])
     # SKIPPED (a real, distinct status -- see qualify_pack's SKIPPED branch)
     # is a harness limitation, not a pack defect; only REFUSED counts as a
@@ -923,6 +929,11 @@ def main() -> int:
         "shard_count": args.shard_count,
         "shard_index": args.shard_index,
         "timeout_seconds": args.timeout_seconds,
+        "timings": {
+            "pack_seconds": pack_seconds,
+            "schema": "https://ggen.dev/marketplace/qualification-timings/v1",
+            "workers": args.workers,
+        },
     }
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)

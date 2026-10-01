@@ -10,9 +10,9 @@ generation run; a commit cannot contain its own hash, so it names the commit gen
 ### Repository facts
 
 - Marketplace version: `v26.9.29`
-- Pack count: 389
-- Catalog fingerprint: `sha256:a2f71dbdb208b2f740649db16b0070e439d08865048d4f2588aaf8c0a5d38f7b`
-- Head SHA: `1e6c11049d8eda663382fc0edc3ef9dfaa92555c`
+- Pack count: 394
+- Catalog fingerprint: `sha256:39762c77b5e9065129b6c99ec1743704b3950148b6730cb181624990707611c8`
+- Head SHA: `aa36c96cec84b04b6b98b8785234af4412c24aeb`
 
 ### Pack standing table
 
@@ -20,20 +20,20 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 
 | Pack | Version | Profile | Tier signals |
 |---|---|---|---|
-| adapter-family-matrix | 26.9.27 | projection | native-gates, templates |
-| adapter-family-registry | 0.1.0 | projection | templates |
+| adapter-family-matrix | 26.9.27 | projection | intent:review, native-gates, templates |
+| adapter-family-registry | 0.1.0 | projection | intent:review, templates |
 | adjacency-rebloom-controller-pack | 26.8.24 | project | verifier-gates, templates |
 | affidavit-consumer-pack | 26.9.30 | project | native-gates, templates |
 | affidavit-pack | 0.1.0 | projection | templates |
-| affidavit-trust-plane-pack | 26.9.28 | project | native-gates, verifier-gates, templates |
+| affidavit-trust-plane-pack | 26.9.28 | project | intent:keep-separate, native-gates, verifier-gates, templates |
 | agent-fleet-isolation-pack | 26.9.1 | projection | native-gates, templates |
 | agent-harness-recompilation-pack | 26.9.25 | projection | native-gates, templates |
-| ai-chatbot-shadcn-pack | 0.1.0 | project | templates |
+| ai-chatbot-shadcn-pack | 0.1.0 | project | intent:review, templates |
 | aloop-episode-ontology-pack | 0.1.0 | projection | native-gates, templates |
 | anti-llm-cheat-lsp-pack | 0.1.0 | projection | templates |
-| ash-extension-core-pack | 0.1.0 | projection | native-gates, templates |
-| ash-extension-pack | 0.3.0 | projection | native-gates, templates |
-| ash-extension-starter-pack | 0.1.0 | projection | templates |
+| ash-extension-core-pack | 0.1.0 | projection | intent:consolidate, native-gates, templates |
+| ash-extension-pack | 0.3.0 | projection | intent:upgrade, native-gates, templates |
+| ash-extension-starter-pack | 0.1.0 | projection | intent:consolidate, templates |
 | ash-ocel-revops-surface-factory-pack | 26.9.11 | semantic | ontology-only |
 | ash-r2rml-paas-pack | 26.8.27 | project | native-gates, templates |
 | ash-r2rml-reactor-paas-pack | 26.8.26 | project | native-gates, templates |
@@ -43,39 +43,39 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | authzen-spiffe-absorption-pack | 26.9.30 | projection | templates |
 | autofde-gymact-certification-pack | 1.0.0 | semantic | native-gates |
 | autofde-k8s-fault-taxonomy-pack | 1.0.0 | semantic | native-gates |
-| autofde-lab-gymact-bridge-pack | 26.9.1 | project | native-gates, templates |
-| autofde-lab-mcp-surface-pack | 26.9.1 | project | native-gates, templates |
+| autofde-lab-gymact-bridge-pack | 26.9.1 | project | intent:review, native-gates, templates |
+| autofde-lab-mcp-surface-pack | 26.9.1 | project | intent:review, native-gates, templates |
 | autofde-lab-standing-vocabulary-pack | 26.9.1 | project | native-gates, templates |
 | autofde-level4-actuation-pack | 1.0.0 | semantic | verifier-gates |
-| autofde-openclaw-bridge-cnv-pack | 1.0.0 | project | templates |
+| autofde-openclaw-bridge-cnv-pack | 1.0.0 | project | intent:review, templates |
 | autofde-semantic-registry-pack | 1.0.0 | projection | verifier-gates, templates |
-| autofde-sota-factory-cnv-pack | 1.0.0 | project | templates |
-| automatic-autonomic-operations-pack | 26.7.31 | project | native-gates, templates |
+| autofde-sota-factory-cnv-pack | 1.0.0 | project | intent:keep-separate, templates |
+| automatic-autonomic-operations-pack | 26.7.31 | project | intent:review, native-gates, templates |
 | azure-terraform-pack | 26.7.13 | projection | templates |
-| beam4pm-ai-contracts-pack | 0.1.1 | projection | native-gates, templates |
-| beam4pm-mcp-contracts-pack | 0.1.0 | projection | native-gates, templates |
+| beam4pm-ai-contracts-pack | 0.1.1 | projection | intent:review, native-gates, templates |
+| beam4pm-mcp-contracts-pack | 0.1.0 | projection | intent:review, native-gates, templates |
 | beam4pm-post-llm-runtime-pack | 26.8.29 | projection | templates |
 | beam4pm-pro-entitlement-pack | 0.1.1 | projection | templates |
 | beam4pm-pro-infra-pack | 0.1.3 | projection | native-gates, templates |
 | beam4pm-process-model-pack | 0.1.23 | projection | native-gates, templates |
-| beam4pm-wasm-engine-pack | 26.9.1 | project | native-gates, templates |
+| beam4pm-wasm-engine-pack | 26.9.1 | project | intent:review, native-gates, templates |
 | biblegym-pack | 26.8.12 | projection | native-gates, templates |
-| bitjob-chrome-ext-shadcn-pack | 0.1.0 | project | templates |
+| bitjob-chrome-ext-shadcn-pack | 0.1.0 | project | intent:keep-separate, templates |
 | candidate-admission-portfolio-pack | 26.8.24 | projection | native-gates, templates |
 | canonical-ash-projection-generator | 0.1.0 | projection | native-gates, templates |
 | capability-closure-pack | 26.9.30 | semantic | native-gates |
-| capability-lineage-propagation-pack | 26.8.24 | project | native-gates, templates |
+| capability-lineage-propagation-pack | 26.8.24 | project | intent:keep-separate, native-gates, templates |
 | cargo-cicd-pack | 0.1.0 | projection | templates |
 | castle-board-pack | 26.8.15 | project | templates |
 | castle-changelog-release-pack | 0.1.0 | projection | templates |
 | castle-paas-pack | 26.8.26 | project | native-gates, templates |
 | castle-pack | 26.8.18+dfcm.1 | project | native-gates, templates |
-| certification-assist-evidence-control-pack | 26.7.31 | project | native-gates, templates |
-| certification-assist-pack | 26.7.30 | project | native-gates, templates |
+| certification-assist-evidence-control-pack | 26.7.31 | project | intent:review, native-gates, templates |
+| certification-assist-pack | 26.7.30 | project | intent:upgrade, native-gates, templates |
 | challenger-value-framing-pack | 26.8.27 | project | templates |
-| chatgptgym-gymact-bridge-pack | 26.9.1 | project | native-gates, templates |
+| chatgptgym-gymact-bridge-pack | 26.9.1 | project | intent:review, native-gates, templates |
 | chatman-ecosystem-release-pack | 0.4.0 | projection | native-gates, templates |
-| chatman-ecosystem-v26-9-1-release-gate | 26.9.3 | semantic | ontology-only |
+| chatman-ecosystem-v26-9-1-release-gate | 26.9.3 | semantic | deprecated, intent:review |
 | chatman-engine-pack | 26.7.10 | projection | templates |
 | chatman-marketplace-commerce-dod-pack | 26.8.19 | semantic | verifier-gates |
 | chatman-togaf-closure-pack | 0.1.0 | semantic | native-gates |
@@ -85,7 +85,7 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | clap-noun-verb-autonomic-pack | 1.0.0 | projection | native-gates, templates |
 | clap-noun-verb-behavior-pack | 1.0.0 | projection | templates, ProfilePack |
 | clap-noun-verb-boundary-pack | 1.0.0 | projection | templates, ProfilePack |
-| clap-noun-verb-crate-pack | 1.0.0 | projection | templates, ProfilePack |
+| clap-noun-verb-crate-pack | 1.0.0 | projection | intent:upgrade, templates, ProfilePack |
 | clap-noun-verb-pack | 0.1.0 | projection | deprecated, native-gates, templates, CompatibilityPack |
 | clap-noun-verb-policies-pack | 1.0.0 | projection | native-gates, templates |
 | clap-noun-verb-routing-pack | 1.0.0 | projection | templates, ProfilePack |
@@ -95,50 +95,50 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | clap-noun-verb-verification-pack | 1.0.0 | projection | templates, ProfilePack |
 | clap-noun-verb-zeroconfig-pack | 0.1.0 | project | ontology-only |
 | claude-code-pack | 26.7.19 | projection | native-gates, templates |
-| claudecode-gymact-pack | 26.8.12 | project | native-gates, templates |
-| closed-loop-option-capital-pack | 26.8.24 | project | native-gates, templates |
+| claudecode-gymact-pack | 26.8.12 | project | intent:review, native-gates, templates |
+| closed-loop-option-capital-pack | 26.8.24 | project | intent:keep-separate, native-gates, templates |
 | cnv-any-manifest-pack | 1.0.0 | projection | templates |
 | collective-skill-court-pack | 26.9.24 | project | verifier-gates, templates |
 | composition-leverage-matrix-pack | 26.8.25 | project | native-gates, templates |
 | consequence-ir-pack | 0.2.0 | projection | native-gates, templates |
-| consumer-realization-frontier-pack | 26.8.25 | project | native-gates, templates |
+| consumer-realization-frontier-pack | 26.8.25 | project | intent:review, native-gates, templates |
 | control-plane-causality-observability-pack | 26.8.25 | semantic | ontology-only |
 | control-plane-invariants-pack | 26.9.1 | projection | native-gates, templates |
 | counterfactual-frontier-replay-pack | 26.8.24 | project | native-gates, templates |
 | crown-conjecture-pack | 0.1.0 | projection | templates |
 | cs2-canonical-pack | 26.9.27 | projection | templates |
-| cs2-conformance-pack | 26.9.26 | semantic | native-gates |
-| cs2-exact-subject-pack | 26.9.26 | projection | native-gates, templates |
+| cs2-conformance-pack | 26.9.26 | semantic | intent:review, native-gates |
+| cs2-exact-subject-pack | 26.9.26 | projection | intent:review, native-gates, templates |
 | cs2-fleet-contract | 1.0.0 | project | templates |
-| cs2-projection-matrix | 0.1.0 | projection | templates |
+| cs2-projection-matrix | 0.1.0 | projection | intent:review, templates |
 | cs2-semantic-work | 26.9.27 | projection | native-gates, templates |
 | cyberpunk-tv-platform | 26.8.3 | project | native-gates, templates |
-| decision-optionality-pack | 26.9.12 | semantic | native-gates |
+| decision-optionality-pack | 26.9.12 | semantic | intent:review, native-gates |
 | deckgl-entity-picking-panel-pack | 0.1.0 | projection | templates |
 | deckgl-orthographic-layers-pack | 0.1.0 | projection | templates |
 | delegation-admission-pack | 0.2.0 | projection | native-gates, templates |
 | deterministic-dynamic-ui-pack | 26.8.18 | project | templates |
 | deterministic-layout-pack | 0.1.0 | projection | templates |
-| dev-my-app-shadcn-pack | 0.1.0 | project | templates |
-| dfcm-candidate-compatibility-portfolio-pack | 0.1.0 | project | native-gates, templates |
+| dev-my-app-shadcn-pack | 0.1.0 | project | intent:keep-separate, templates |
+| dfcm-candidate-compatibility-portfolio-pack | 0.1.0 | project | intent:review, native-gates, templates |
 | dfcm-dd-ui-pack | 26.8.18 | project | templates |
 | dfcm-develop-maximalist-pack | 26.8.24 | project | verifier-gates, templates |
-| dfcm-explore-candidate-factory-pack | 26.8.23 | semantic | ontology-only |
-| dfcm-explore-court-pack | 26.8.24 | project | templates |
-| dfcm-explore-maximalist-pack | 0.1.0 | project | verifier-gates, templates |
-| dfcm-full-deployment-pack | 26.8.14 | project | native-gates, templates |
+| dfcm-explore-candidate-factory-pack | 26.8.23 | semantic | intent:review |
+| dfcm-explore-court-pack | 26.8.24 | project | intent:consolidate, templates |
+| dfcm-explore-maximalist-pack | 0.1.0 | project | intent:review, verifier-gates, templates |
+| dfcm-full-deployment-pack | 26.8.14 | project | intent:consolidate, native-gates, templates |
 | dfcm-maximalist-court-pack | 26.8.24 | project | native-gates, templates |
-| dfcm-maximalist-selection-control-pack | 26.8.24 | project | native-gates, templates |
+| dfcm-maximalist-selection-control-pack | 26.8.24 | project | intent:consolidate, native-gates, templates |
 | dfcm-pack | 2.1.0 | project | native-gates, templates |
-| dfcm-selection-capital-pack | 26.8.23 | project | native-gates, templates |
+| dfcm-selection-capital-pack | 26.8.23 | project | intent:consolidate, native-gates, templates |
 | dfcm-selection-evidence-acquisition-pack | 0.1.0 | project | native-gates, templates |
 | dfcm-selection-falsifier-closure-pack | 0.1.0 | project | native-gates, templates |
 | dfcm-selection-frontier-execution-pack | 26.8.24 | project | native-gates, templates |
-| dfcm-selection-portfolio-consensus-pack | 26.8.24 | semantic | native-gates |
+| dfcm-selection-portfolio-consensus-pack | 26.8.24 | semantic | intent:review, native-gates |
 | dflss-pack | 0.2.0 | projection | native-gates, templates |
-| diataxis-documentation-pack | 26.9.5 | semantic | ontology-only |
+| diataxis-documentation-pack | 26.9.5 | semantic | intent:review |
 | dogfood-lifecycle-pack | 26.7.13 | projection | native-gates, templates |
-| domain-capability-pack | 0.1.0 | projection | native-gates, templates |
+| domain-capability-pack | 0.1.0 | projection | intent:upgrade, native-gates, templates |
 | dry-run-publish-pack | 26.7.13 | projection | templates |
 | dspy-pack | 0.5.1 | projection | native-gates, templates |
 | dsrust-pack | 0.2.0 | projection | native-gates, templates |
@@ -149,50 +149,51 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | empire-ostar-dfcm-pack | 0.1.0 | projection | native-gates, templates |
 | empire-ostar-reconstitution-pack | 0.1.0 | projection | native-gates, templates |
 | enterprise-architecture-connection-pack | 0.1.0 | semantic | verifier-gates |
-| enterprise-architecture-pack | 26.9.26 | semantic | verifier-gates |
+| enterprise-architecture-pack | 26.9.26 | semantic | intent:keep-separate, verifier-gates |
 | enterprise-governance-pack | 26.9.12 | semantic | native-gates |
+| enterprise-operating-model-pack | 26.9.30 | project | native-gates, templates, CapabilityPack |
 | environment-evolution-pack | 26.9.25 | semantic | ontology-only |
-| epistemic-sensor-factory-pack | 26.8.25 | project | templates |
-| errc-innovation-contract-pack | 26.8.27 | projection | native-gates, templates |
+| epistemic-sensor-factory-pack | 26.8.25 | project | intent:review, templates |
+| errc-innovation-contract-pack | 26.8.27 | projection | intent:review, native-gates, templates |
 | errc-ownership-manifest-pack | 26.9.26 | project | native-gates, templates |
 | evidence-capital-admission-pack | 26.8.24 | project | native-gates, templates |
 | evidence-capital-control-policy-pack | 26.8.24 | project | native-gates, templates |
-| evidence-capital-control-realization-pack | 0.1.0 | project | native-gates, templates |
+| evidence-capital-control-realization-pack | 0.1.0 | project | intent:review, native-gates, templates |
 | evidence-capital-policy-adaptive-control-pack | 0.1.0 | project | native-gates, templates |
-| evidence-capital-policy-realization-pack | 0.1.0 | project | native-gates, templates |
+| evidence-capital-policy-realization-pack | 0.1.0 | project | intent:review, native-gates, templates |
 | evidence-capital-realization-control-pack | 0.1.0 | project | native-gates, templates |
-| evidence-capital-realization-pack | 0.1.0 | project | native-gates, templates |
-| evidence-lineage-independence-pack | 0.1.0 | project | native-gates, templates |
+| evidence-capital-realization-pack | 0.1.0 | project | intent:review, native-gates, templates |
+| evidence-lineage-independence-pack | 0.1.0 | project | intent:review, native-gates, templates |
 | evidence-standing-pack | 26.9.14 | projection | native-gates, verifier-gates, templates |
 | evolvable-capability-pack | 0.1.0 | projection | native-gates, templates |
 | ex-noun-verb-cli-pack | 26.9.11 | projection | native-gates, templates |
 | ex4pm-wasm4pm-bindings-pack | 0.1.0 | projection | native-gates, templates |
 | experience-projection-pack | 26.9.12 | semantic | native-gates |
-| external-paradigm-recompilation-pack | 26.9.25 | projection | native-gates, templates |
+| external-paradigm-recompilation-pack | 26.9.25 | projection | intent:keep-separate, native-gates, templates |
 | fanout-realization-controller-pack | 26.8.24 | project | native-gates, templates |
 | fastmcp-pack | 0.1.0 | projection | native-gates, templates |
 | fde20-revops-pack | 0.2.0 | projection | native-gates, templates |
-| fleet-adapter-matrix | 0.1.0 | project | native-gates, templates |
+| fleet-adapter-matrix | 0.1.0 | project | intent:review, native-gates, templates |
 | fleet-family-registry | 0.1.0 | project | native-gates, templates |
-| fleet-package-compiler | 0.1.0 | project | native-gates, templates |
-| fleet-package-compose | 26.9.27 | project | native-gates, templates |
-| fleet-projection-closure | 26.9.27 | project | native-gates, templates |
-| forced-top25-admissibility-factory-pack | 26.8.26 | project | templates |
-| forced-top25-admissibility-pack | 26.8.26 | project | native-gates, templates |
+| fleet-package-compiler | 0.1.0 | project | intent:review, native-gates, templates |
+| fleet-package-compose | 26.9.27 | project | intent:review, native-gates, templates |
+| fleet-projection-closure | 26.9.27 | project | intent:keep-separate, native-gates, templates |
+| forced-top25-admissibility-factory-pack | 26.8.26 | project | intent:upgrade, templates |
+| forced-top25-admissibility-pack | 26.8.26 | project | intent:review, native-gates, templates |
 | forced-top25-cell3-allocation-pack | 26.8.26 | semantic | ontology-only |
 | forced-top25-cell3-current-run-allocation-pack | 26.8.27 | projection | templates |
 | forced-top25-generated-closure-pack | 26.8.26 | project | native-gates, templates |
 | forced-top25-ocel-fanout-meta-pack | 0.1.0 | project | native-gates, templates |
 | forced-top25-qualification-capsule-pack | 26.8.26 | project | templates |
 | forced-top25-r75-realization-composition-pack | 26.8.26 | project | native-gates, templates |
-| forced-top25-standard-consumer-factory-pack | 26.8.26 | project | templates |
-| fortune5-architecture-pack | 26.7.30 | projection | native-gates, templates |
+| forced-top25-standard-consumer-factory-pack | 26.8.26 | project | intent:review, templates |
+| fortune5-architecture-pack | 26.7.30 | projection | intent:keep-separate, native-gates, templates |
 | fortune5-deployment-blocks-pack | 26.7.31 | projection | native-gates, templates |
-| fortune5-enterprise-architecture-pack | 0.1.0 | semantic | native-gates |
-| fortune5-required-capabilities-pack | 26.7.30 | project | native-gates, templates |
+| fortune5-enterprise-architecture-pack | 0.1.0 | semantic | intent:keep-separate, native-gates |
+| fortune5-required-capabilities-pack | 26.7.30 | project | intent:review, native-gates, templates |
 | fortune5-testing-bblock-pack | 26.7.31 | project | templates |
 | frontier-derivative-pack | 26.8.25 | project | native-gates, templates |
-| frontier-release-beam-pack | 0.1.0 | projection | templates |
+| frontier-release-beam-pack | 0.1.0 | projection | intent:keep-separate, templates |
 | frontier-release-factory-pack | 0.1.0 | projection | native-gates, templates |
 | frozen-duckdb-pack | 0.1.1 | projection | native-gates, verifier-gates, templates |
 | gall-core-pack | 26.7.30 | projection | native-gates, templates |
@@ -203,7 +204,7 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | ggen-constitution-pack | 0.1.0 | projection | native-gates, templates |
 | ggen-dashboard-pack | 26.8.27 | projection | native-gates, templates |
 | ggen-dfcm-explore-candidate-space | 0.1.0 | semantic | ontology-only |
-| ggen-ecosystem-mcp-surface-pack | 26.9.1 | project | native-gates, templates |
+| ggen-ecosystem-mcp-surface-pack | 26.9.1 | project | intent:review, native-gates, templates |
 | ggen-ecosystem-ocel-pack | 26.8.26+1 | projection | native-gates, templates |
 | ggen-ecosystem-standing-pack | 26.9.1 | project | native-gates, templates |
 | ggen-graph-wasm-pack | 0.1.0 | projection | native-gates, templates |
@@ -213,10 +214,10 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | ggen-legacy-ingestion-pack | 26.8.14 | semantic | verifier-gates |
 | ggen-opportunity-hypergraph-pack | 26.8.24 | projection | templates |
 | ggen-pack-spec-pack | 0.1.0 | semantic | native-gates |
-| ggen-platform-pack | 26.9.12 | projection | native-gates, templates |
+| ggen-platform-pack | 26.9.12 | projection | intent:upgrade, native-gates, templates |
 | ggen-project-boundary-pack | 26.8.25 | project | native-gates, templates |
 | ggen-release-pack | 0.1.1 | projection | templates |
-| ggen-self-host-pack | 26.7.30 | projection | native-gates, templates |
+| ggen-self-host-pack | 26.7.30 | projection | intent:keep-separate, native-gates, templates |
 | ggen-self-pack | 0.1.1 | project | native-gates, templates |
 | ggen-verify-pack | 26.7.20 | projection | native-gates, templates |
 | gh-actions-errc-pack | 0.2.0 | projection | native-gates, templates |
@@ -225,30 +226,33 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | github-actions-pack | 0.3.2 | projection | native-gates, templates |
 | github-cloud-operating-doctrine-pack | 1.0.0 | projection | native-gates, templates |
 | github-controloutcome-observation-pack | 26.8.25 | project | native-gates, verifier-gates, templates |
-| github-live-evidence-ingestion-pack | 26.8.25 | project | verifier-gates, templates |
+| github-live-evidence-ingestion-pack | 26.8.25 | project | intent:keep-separate, verifier-gates, templates |
 | governance-gate-pack | 26.9.26 | project | native-gates, templates |
 | governed-runtime-adapter-pack | 0.1.0 | semantic | native-gates |
 | graphlaw-ash-capability-pack | 26.9.30 | projection | native-gates, templates |
 | greene-licensing-case-pack | 0.1.0 | projection | native-gates, templates |
 | gym-autonomic-crown-pack | 26.8.28 | project | native-gates, templates |
 | gym-ci-toolchain-bblock-pack | 0.1.0 | projection | native-gates, templates |
-| gym-mcp-surface-pack | 26.9.1 | project | native-gates, templates |
-| gym-upper-ontology-pack | 26.9.1 | project | native-gates, templates |
+| gym-mcp-surface-pack | 26.9.1 | project | intent:consolidate, native-gates, templates |
+| gym-upper-ontology-pack | 26.9.1 | project | intent:review, native-gates, templates |
 | gymact-capability-schema-pack | 0.1.0 | projection | native-gates, templates |
 | human-value-runtime-crown-pack | 26.8.26 | project | templates |
 | hyperdimensional-standing-pack | 0.1.0 | semantic | ontology-only |
-| innovation-errc-pack | 26.8.27 | project | native-gates, templates |
-| interchangeable-parts-qualification-pack | 26.9.25 | project | native-gates, templates |
+| industry-closure-ledger-pack | 26.9.30 | project | native-gates, templates, KernelPack |
+| industry-closure-pack | 0.1.0 | semantic | native-gates |
+| industry-closure-retail-lending-profile-pack | 26.9.30 | semantic | native-gates, ProfilePack |
+| innovation-errc-pack | 26.8.27 | project | intent:review, native-gates, templates |
+| interchangeable-parts-qualification-pack | 26.9.25 | project | intent:review, native-gates, templates |
 | invariant-gate-pack | 0.1.0 | project | templates |
 | jotp-benchmark-site-shadcn-pack | 0.1.0 | project | templates |
 | kgc-4d-playground-shadcn-pack | 0.1.0 | project | templates |
-| kgc-sidecar-dashboard-shadcn-pack | 0.1.0 | project | templates |
+| kgc-sidecar-dashboard-shadcn-pack | 0.1.0 | project | intent:keep-separate, templates |
 | knowing-christ-formation-pack | 0.1.0 | projection | native-gates, templates |
 | kubernetes-workload-pack | 0.2.0 | projection | native-gates, templates |
 | kudzu-case-studies-pack | 0.2.0 | semantic | ontology-only |
 | lean-math-pack | 26.7.7 | projection | templates |
 | level-five-book-pack | 0.1.0 | projection | native-gates, templates |
-| lifegym-world-pack | 26.9.1 | projection | native-gates, templates |
+| lifegym-world-pack | 26.9.1 | projection | intent:review, native-gates, templates |
 | live-data-polling-pack | 0.1.0 | projection | templates |
 | lsp-max-pack | 0.1.0 | projection | native-gates, templates |
 | ma-case-study-pack | 26.7.13 | projection | native-gates, templates |
@@ -265,29 +269,29 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | multicell-consumer-factory-pack | 26.8.24 | project | native-gates, templates |
 | neako-web-deckgl-pack | 0.1.0 | project | templates |
 | nextjs-ai-sdk-pack | 26.7.24 | projection | native-gates, templates |
-| nextjs-ai-sdk-ui-shadcn-pack | 0.1.0 | project | templates |
+| nextjs-ai-sdk-ui-shadcn-pack | 0.1.0 | project | intent:review, templates |
 | nist-cyber-resiliency-generational-pack | 26.9.26 | semantic | native-gates |
 | nist-zero-trust-agentic-data-pack | 0.1.0 | semantic | native-gates |
-| noun-verb-cli-pack | 26.9.11 | semantic | ontology-only |
-| observatory-ui-deckgl-pack | 0.1.0 | project | templates |
+| noun-verb-cli-pack | 26.9.11 | semantic | intent:replace |
+| observatory-ui-deckgl-pack | 0.1.0 | project | intent:review, templates |
 | ocel-drift-pack | 1.0.2 | projection | native-gates, templates |
 | ocel-feedback-pack | 1.0.0 | projection | native-gates, templates |
-| ontostar-mustar-powlv2-agent-pack | 26.7.30 | project | native-gates, templates |
+| ontostar-mustar-powlv2-agent-pack | 26.7.30 | project | intent:review, native-gates, templates |
 | opportunity-currentness-pack | 26.8.25 | project | verifier-gates, templates |
 | ops-dashboard-legend-pack | 0.1.0 | projection | templates |
-| optimus-shadcn-pack | 0.1.0 | project | templates |
-| option-capital-hypergraph-pack | 26.8.24 | project | native-gates, templates |
+| optimus-shadcn-pack | 0.1.0 | project | intent:review, templates |
+| option-capital-hypergraph-pack | 26.8.24 | project | intent:review, native-gates, templates |
 | option-capital-recombination-pack | 26.8.25 | project | native-gates, templates |
 | orthogonal-consumer-capital-pack | 26.8.25 | project | templates |
 | osx-clnr-pack | 0.1.0 | projection | templates |
-| otel-weaver-ocel-pack | 0.1.0 | project | native-gates, templates |
+| otel-weaver-ocel-pack | 0.1.0 | project | intent:review, native-gates, templates |
 | otel-weaver-pack | 26.8.18 | project | native-gates, templates |
 | owning-rail-observability-pack | 26.8.23 | project | native-gates, templates |
-| owning-rail-remediation-counterfactual-pack | 26.8.24 | semantic | native-gates |
-| owning-rail-remediation-counterfactual-realization-pack | 26.8.24 | projection | native-gates, templates |
+| owning-rail-remediation-counterfactual-pack | 26.8.24 | semantic | intent:review, native-gates |
+| owning-rail-remediation-counterfactual-realization-pack | 26.8.24 | projection | intent:review, native-gates, templates |
 | owning-rail-remediation-pack | 26.8.23 | project | native-gates, templates |
-| owning-rail-remediation-realization-pack | 26.8.23 | project | native-gates, templates |
-| pack-authoring-pack | 0.1.1 | projection | native-gates, templates, KernelPack |
+| owning-rail-remediation-realization-pack | 26.8.23 | project | intent:upgrade, native-gates, templates |
+| pack-authoring-pack | 0.1.1 | projection | deprecated, intent:consolidate, native-gates, templates, KernelPack |
 | pack-compatibility-pack | 0.1.0 | semantic | native-gates |
 | pack-consolidation-court-pack | 26.8.26 | projection | native-gates, templates |
 | pack-maturity-pack | 0.2.0 | projection | templates, EvidencePack |
@@ -306,28 +310,28 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | pptx-presentation-pack | 0.1.0 | projection | native-gates, templates |
 | pragmatic-programmer-sparql-pack | 0.2.1 | projection | native-gates, templates |
 | praxis-core-pack | 0.3.0 | projection | templates |
-| premature-actuation-survival-pack | 26.9.25 | project | native-gates, templates |
-| prior-art-admission-pack | 0.1.0 | semantic | native-gates |
+| premature-actuation-survival-pack | 26.9.25 | project | intent:keep-separate, native-gates, templates |
+| prior-art-admission-pack | 0.1.0 | semantic | intent:keep-separate, native-gates |
 | process-intelligence-pack | 26.9.13 | projection | native-gates, verifier-gates, templates |
 | process-intelligence-rag-pack | 0.1.0 | projection | native-gates, templates |
 | process-mining-proof-pack | 0.1.0 | projection | native-gates, templates |
-| projection-matrix-compose | 0.1.0 | projection | templates |
-| projection-matrix-pack | 0.1.0 | projection | templates |
+| projection-matrix-compose | 0.1.0 | projection | intent:review, templates |
+| projection-matrix-pack | 0.1.0 | projection | intent:review, templates |
 | protocol-integration-pack | 26.9.13 | projection | native-gates, templates |
 | provider-extinction-contract-pack | 0.1.0 | projection | native-gates, templates |
 | qri-qualification-profile-pack | 26.9.30 | project | native-gates, templates |
 | quadrature-pack | 26.7.7 | projection | templates |
 | qualified-capability-ecology-pack | 0.1.0 | projection | native-gates, templates |
 | readme-diataxis-pack | 0.1.0 | projection | native-gates, templates |
-| realization-calibration-hypergraph-pack | 26.8.24 | project | native-gates, templates |
+| realization-calibration-hypergraph-pack | 26.8.24 | project | intent:keep-separate, native-gates, templates |
 | receipt-provenance-unification-pack | 0.1.0 | project | native-gates, templates |
 | regression-fixtures-pack | 26.9.1 | semantic | native-gates |
 | remotion-y6f9kf-react-pack | 0.1.0 | project | templates |
 | replication-epistemic-observability-pack | 26.8.25 | project | templates |
-| repo-as-found-pack | 26.7.20 | projection | native-gates, templates |
-| repo-intervention-pack | 26.7.20 | projection | native-gates, templates |
-| repo-load-path-pack | 26.7.20 | projection | native-gates, templates |
-| repo-reconciliation-pack | 26.7.20 | projection | native-gates, templates |
+| repo-as-found-pack | 26.7.20 | projection | intent:keep-separate, native-gates, templates |
+| repo-intervention-pack | 26.7.20 | projection | intent:review, native-gates, templates |
+| repo-load-path-pack | 26.7.20 | projection | intent:review, native-gates, templates |
+| repo-reconciliation-pack | 26.7.20 | projection | intent:review, native-gates, templates |
 | repository-factory-scheduler-pack | 26.8.19 | semantic | verifier-gates |
 | repository-lifecycle-pack | 26.9.12 | semantic | native-gates |
 | repository-reconstitution-pack | 26.9.28 | projection | native-gates, templates |
@@ -335,78 +339,79 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | revenue-structural-option-factory-pack | 26.8.26 | project | native-gates, templates |
 | rmcp-pack | 0.1.0 | projection | native-gates, templates |
 | run-protocol-observability-pack | 26.8.25 | project | templates |
-| runtime-evidence-authenticity-control-pack | 0.1.1 | project | native-gates, templates |
+| runtime-evidence-authenticity-control-pack | 0.1.1 | project | intent:consolidate, native-gates, templates |
 | runtime-evidence-authenticity-pack | 0.1.0 | project | native-gates, templates |
-| rwr-level5-foundation-pack | 26.7.30 | project | native-gates, templates |
-| sa2a-bridge-pack | 26.9.20 | projection | native-gates, templates |
+| rwr-level5-foundation-pack | 26.7.30 | project | intent:review, native-gates, templates |
+| sa2a-bridge-pack | 26.9.20 | projection | intent:review, native-gates, templates |
 | sa2a-diataxis-pack | 26.9.29 | projection | templates |
 | sa2a-fastapi-pack | 0.1.0 | projection | native-gates, templates |
 | sa2a-semantic-diataxis-pack | 26.9.30 | project | native-gates, templates |
 | sa2a-semantic-evidence-pack | 26.9.29 | project | native-gates, templates |
-| safe-ea-strategy-self-play-pack | 26.7.30 | projection | native-gates, templates |
+| safe-ea-strategy-self-play-pack | 26.7.30 | projection | intent:review, native-gates, templates |
 | self-monitoring-pack | 26.7.13 | projection | native-gates, templates |
 | semantic-case-study-pack | 0.1.0 | projection | native-gates, templates |
 | semantic-documentation-contract-pack | 26.9.14 | project | native-gates, templates |
 | semantic-fullstack-factory-pack | 0.1.0 | projection | native-gates, templates |
 | semantic-gate-witness-court-pack | 26.8.27 | project | native-gates, templates |
 | semantic-life-loop-pack | 26.9.22 | projection | native-gates, templates |
-| semantic-manufacture-epoch-pack | 26.9.15 | semantic | native-gates |
+| semantic-manufacture-epoch-pack | 26.9.15 | semantic | intent:keep-separate, native-gates |
 | semantic-parts-pack | 0.1.0 | semantic | native-gates |
-| semantic-procedural-graph-pack | 0.1.0 | semantic | ontology-only |
+| semantic-procedural-graph-pack | 0.1.0 | semantic | intent:review |
 | semantic-projection-pack | 26.9.12 | semantic | native-gates |
-| shacl-projection-pack | 0.2.0 | projection | native-gates, verifier-gates, templates |
+| shacl-projection-pack | 0.2.0 | projection | intent:review, native-gates, verifier-gates, templates |
 | shacl-to-fastapi-pack | 0.1.0 | projection | native-gates, templates |
-| shacl-to-pydantic-pack | 0.2.0 | projection | templates |
-| shacl-to-zod-jsdoc-pack | 0.1.0 | projection | native-gates, templates |
-| shacl-to-zod-pack | 0.2.0 | projection | templates |
+| shacl-to-pydantic-pack | 0.2.0 | projection | intent:review, templates |
+| shacl-to-zod-jsdoc-pack | 0.1.0 | projection | intent:review, native-gates, templates |
+| shacl-to-zod-pack | 0.2.0 | projection | intent:keep-separate, templates |
 | shadcn-async-states-pack | 0.1.0 | projection | templates |
 | shadcn-command-palette-pack | 0.1.0 | projection | templates |
 | shadcn-dark-theme-tokens-pack | 0.1.0 | projection | templates |
-| shadcn-ui-primitives-pack | 0.1.0 | projection | templates |
+| shadcn-ui-primitives-pack | 0.1.0 | projection | intent:keep-separate, templates |
+| sjira-marketplace-feedback-pack | 0.1.0 | semantic | native-gates |
 | slidev-iaas-paas-saas-pack | 0.1.0 | projection | templates |
-| soc2-audit-pack | 26.7.13 | projection | templates |
-| soc2-readiness-pack | 0.2.0 | projection | native-gates, templates |
-| speedrun-talent-network-pack | 26.7.30 | project | native-gates, templates |
+| soc2-audit-pack | 26.7.13 | projection | intent:review, templates |
+| soc2-readiness-pack | 0.2.0 | projection | intent:review, native-gates, templates |
+| speedrun-talent-network-pack | 26.7.30 | project | intent:upgrade, native-gates, templates |
 | standing-ladder-pack | 0.1.1 | projection | native-gates, templates |
 | star-toml-pack | 0.3.0 | projection | templates |
 | state-transition-pack | 26.9.13 | projection | native-gates, verifier-gates, templates |
-| strategic-doctrine-compiler-pack | 26.9.27 | semantic | ontology-only |
+| strategic-doctrine-compiler-pack | 26.9.27 | semantic | intent:keep-separate |
 | strategic-doctrine-pack | 0.1.0 | semantic | native-gates |
 | supabase-pack | 0.1.0 | projection | native-gates, templates |
 | supplier-equilibrium-pack | 26.9.25 | semantic | ontology-only |
 | supply-chain-evidence-pack | 0.1.0 | projection | native-gates, templates |
 | swarmsh-autonomic-coordination-pack | 26.8.25 | project | templates |
 | swe-prometheus-governance-pack | 0.2.1 | projection | native-gates, templates |
-| tai-enterprise-rebuild-pack | 26.7.31 | projection | native-gates, templates |
+| tai-enterprise-rebuild-pack | 26.7.31 | projection | intent:review, native-gates, templates |
 | tcps-cli-pack | 0.1.0 | projection | native-gates, templates |
 | tcps-consumer-fanout-factory-pack | 26.8.26 | projection | templates |
-| tcps-core-pack | 0.1.0 | projection | native-gates, templates |
+| tcps-core-pack | 0.1.0 | projection | intent:keep-separate, native-gates, templates |
 | tcps-ffi-pack | 0.1.0 | projection | native-gates, templates |
-| tcps-release-pack | 0.1.0 | projection | native-gates, templates |
+| tcps-release-pack | 0.1.0 | projection | intent:review, native-gates, templates |
 | tcps-std-pack | 0.1.0 | projection | native-gates, templates |
 | tcps-wasm-pack | 0.1.0 | projection | native-gates, templates |
 | temporal-truth-observability-pack | 26.8.26 | semantic | ontology-only |
 | temporary-works-pack | 26.7.20 | projection | native-gates, templates |
 | togaf-adm-pack | 26.7.13 | projection | templates |
-| tps-cell3-heijunka-kanban-pack | 26.8.26 | semantic | ontology-only |
+| tps-cell3-heijunka-kanban-pack | 26.8.26 | semantic | intent:review |
 | trialbase-dashboard-shadcn-pack | 0.1.0 | project | templates |
 | typer-pack | 0.1.0 | projection | native-gates, templates |
-| value-innovation-errc-pack | 0.2.0 | projection | native-gates, templates |
+| value-innovation-errc-pack | 0.2.0 | projection | intent:review, native-gates, templates |
 | wasi-json-abi-pack | 26.9.29 | project | native-gates, templates |
-| wasm4pm-algorithms-pack | 0.1.0 | projection | native-gates, templates |
+| wasm4pm-algorithms-pack | 0.1.0 | projection | intent:review, native-gates, templates |
 | wasm4pm-breed-provenance-pack | 0.1.0 | projection | native-gates, templates |
-| wasm4pm-cognition-pack | 0.1.0 | projection | native-gates, templates |
+| wasm4pm-cognition-pack | 0.1.0 | projection | intent:consolidate, native-gates, templates |
 | wasm4pm-compat-pack | 0.1.0 | projection | templates |
-| wasm4pm-facts-pack | 0.2.1 | projection | native-gates, templates |
+| wasm4pm-facts-pack | 0.2.1 | projection | intent:review, native-gates, templates |
 | wasm4pm-interview-assist-pack | 0.1.0 | projection | native-gates, templates |
-| wasm4pm-interview-site-pack | 0.1.0 | projection | native-gates, templates |
+| wasm4pm-interview-site-pack | 0.1.0 | projection | superseded, intent:replace, native-gates, templates |
 | wasm4pm-operator-applicability-pack | 0.1.0 | semantic | ontology-only |
 | wasm4pm-pack | 0.1.0 | projection | native-gates, templates, CapabilityPack |
-| wasm4pm-sandbox-pack | 0.1.0 | projection | native-gates, templates |
+| wasm4pm-sandbox-pack | 0.1.0 | projection | superseded, intent:replace, native-gates, templates |
 | wd-failure-analysis-pack | 0.1.0 | semantic | native-gates |
 | ww3gym-planning-pack | 26.9.1 | projection | native-gates, templates |
 | xaas-ash-core-pack | 0.1.0 | project | native-gates, templates |
-| xaas-castle-bridge-pack | 26.8.27 | project | native-gates, templates |
+| xaas-castle-bridge-pack | 26.8.27 | project | intent:review, native-gates, templates |
 | xaas-public-ash-projection-pack | 0.2.0 | project | native-gates, templates |
 | xaas-public-ontology-profile | 0.1.0 | semantic | native-gates |
 

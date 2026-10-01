@@ -1,0 +1,55 @@
+# industry-closure-ledger-pack generation contract (PASS 2 of the two-pass pipeline).
+#
+# [ontology] imports the shipped EMPTY industry input contract; a consumer or the
+# qualification overlay supplies the industry at the same relative path, and a
+# consumer may append generated/enterprise-operating-model/*.ttl to its imports
+# (PASS 1 is enterprise-operating-model-pack/ggen.toml). Every rule writes under
+# generated/industry-closure/ and none shares a path with the other pack.
+#
+# Authority: queries SELECT, templates CONSTRUCT candidate Turtle/JSON. Nothing
+# here grants DO; generated residuals, work orders and snapshots claim NONE and
+# stand UNKNOWN or BLOCKED. skip_empty = false so an empty residual still writes
+# an empty ledger (the fixed point).
+
+[project]
+name = "industry-closure-ledger-pack"
+version = "26.9.30"
+
+[ontology]
+source = "ontology.ttl"
+imports = ["ontology/industry-input.ttl"]
+
+[generation]
+output_dir = "."
+
+[[generation.rules]]
+name = "residual-ledger"
+query = { file = "queries/10-residual.rq" }
+template = { file = "templates/residual-ledger.ttl.tera" }
+output_file = "generated/industry-closure/residual-ledger.ttl"
+skip_empty = false
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "sjira-workorders"
+query = { file = "queries/10-residual.rq" }
+template = { file = "templates/sjira-workorders.ttl.tera" }
+output_file = "generated/industry-closure/sjira-workorders.ttl"
+skip_empty = false
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "closure-next"
+query = { file = "queries/20-closure-frontier.rq" }
+template = { file = "templates/closure-next.ttl.tera" }
+output_file = "generated/industry-closure/closure-next.ttl"
+skip_empty = false
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "feedback-packet"
+query = { file = "queries/10-residual.rq" }
+template = { file = "templates/feedback-packet.json.tera" }
+output_file = "generated/industry-closure/feedback-packet.json"
+skip_empty = false
+mode = "Overwrite"

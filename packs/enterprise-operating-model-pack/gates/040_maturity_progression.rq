@@ -1,0 +1,36 @@
+# MESSAGE: interpretation gate. A maturity claim needs receipted evidence for its stage and every lower stage (no skipping) and the foundation prerequisites of that stage.
+PREFIX eom: <https://seanchatmangpt.github.io/packs/enterprise-operating-model-pack#>
+SELECT ?subject ?reason WHERE {
+  { ?subject a eom:OperatingModelDecision ; eom:atStage ?st .
+    FILTER NOT EXISTS { ?ev a eom:StageEvidence ; eom:forDecision ?subject ; eom:forStage ?st ; eom:receiptDigest ?r
+                        FILTER(REGEX(STR(?r), "^sha256:[0-9a-f]{64}$")) }
+    BIND("REFUSED:EOM_MATURITY_UNEVIDENCED" AS ?reason) }
+  UNION
+  { ?subject a eom:OperatingModelDecision ; eom:atStage ?st .
+    ?st eom:stageOrdinal ?n .
+    ?low a eom:MaturityStage ; eom:stageOrdinal ?m .
+    FILTER(?m < ?n)
+    FILTER NOT EXISTS { ?ev a eom:StageEvidence ; eom:forDecision ?subject ; eom:forStage ?low ; eom:receiptDigest ?r
+                        FILTER(REGEX(STR(?r), "^sha256:[0-9a-f]{64}$")) }
+    BIND("REFUSED:EOM_MATURITY_SKIP" AS ?reason) }
+  UNION
+  { ?subject a eom:OperatingModelDecision ; eom:atStage ?st ; eom:hasFoundation ?f .
+    ?st eom:stageOrdinal ?n .
+    FILTER(?n >= 2)
+    FILTER NOT EXISTS { ?f eom:hasLinkingAutomation ?l }
+    BIND("REFUSED:EOM_MATURITY_STAGE2_NO_SHARED_INFRA" AS ?reason) }
+  UNION
+  { ?subject a eom:OperatingModelDecision ; eom:atStage ?st ; eom:hasFoundation ?f .
+    ?st eom:stageOrdinal ?n .
+    FILTER(?n >= 3)
+    ?f eom:hasCoreProcess ?p .
+    FILTER NOT EXISTS { ?p eom:standardVariant true }
+    BIND("REFUSED:EOM_MATURITY_STAGE3_NOT_STANDARD_CORE" AS ?reason) }
+  UNION
+  { ?subject a eom:OperatingModelDecision ; eom:atStage ?st ; eom:hasFoundation ?f .
+    ?st eom:stageOrdinal ?n .
+    FILTER(?n >= 4)
+    FILTER NOT EXISTS { ?f eom:hasModularComponent ?mc }
+    BIND("REFUSED:EOM_MATURITY_STAGE4_NO_MODULARITY" AS ?reason) }
+}
+ORDER BY ?subject ?reason
