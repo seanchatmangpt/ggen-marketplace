@@ -7,7 +7,7 @@ cd "$(git rev-parse --show-toplevel)"
 echo "::group::measure-evidence-capital-realization: Compile realization pack"
 (
 set -e
-python3 -m py_compile packs/evidence-capital-realization-pack/scripts/*.py packs/evidence-capital-realization-pack/tests/*.py
+python3.11 -m py_compile packs/evidence-capital-realization-pack/scripts/*.py packs/evidence-capital-realization-pack/tests/*.py
 )
 echo "::endgroup::"
 # --- Run permanent realization courts
@@ -15,7 +15,7 @@ echo "::group::measure-evidence-capital-realization: Run permanent realization c
 (
 set -e
 export PYTHONPATH="packs/evidence-capital-realization-pack"
-python3 -m unittest discover -s packs/evidence-capital-realization-pack/tests -p 'test_*.py' -v
+python3.11 -m unittest discover -s packs/evidence-capital-realization-pack/tests -p 'test_*.py' -v
 )
 echo "::endgroup::"
 # --- Refuse ambient consequential actuation
