@@ -1,0 +1,11 @@
+# MESSAGE: REFUSED:PRODUCER_PROVENANCE_DIVERGENCE: machine producer subject and legacy provenance SHA must not disagree.
+PREFIX qcb: <https://seanchatmangpt.github.io/packs/qri-consumer-binding-pack#>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?pin ?producer ?provenance WHERE {
+  ?pin a qcb:ArtifactPin ; prov:wasDerivedFrom ?producer ; dcterms:provenance ?provenance .
+  BIND(REPLACE(STR(?producer), "^.*/commit/", "") AS ?producerSha)
+  FILTER(REGEX(STR(?provenance), "[0-9a-f]{40}"))
+  FILTER(!CONTAINS(STR(?provenance), ?producerSha))
+}
+ORDER BY ?pin
