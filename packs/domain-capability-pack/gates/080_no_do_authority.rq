@@ -1,0 +1,23 @@
+# MESSAGE: Policy != Authority -- no DO authority, anywhere in the DOMAIN contract
+# layer. The resolver refuses wanted==:do outright and refuses any ceiling==:do
+# (~/ash_pplan/lib/ash_pplan/providers/resolver.ex check_authority/2:
+# {:authority_refused, :do}); the CapabilityPack ceiling is capped at :construct
+# (~/ash_pplan/lib/ash_pplan/capability_pack.ex: "Declaring a capability confers no
+# authority"). Branch 1: any subject claiming qce:grantsDoAuthority true. Branch 2:
+# any capability whose dcp:authorityRequirement is "do" (also caught by gate 040's
+# enum closure -- deliberate defense in depth, mirroring the resolver's own explicit
+# :do refusal). Any row = a DO authority claim, refused.
+PREFIX dcp: <https://ggen.dev/ontology/domain-capability#>
+PREFIX qce: <https://ggen.dev/ontology/qualified-capability-ecology#>
+SELECT ?s ?violation WHERE {
+  {
+    ?s qce:grantsDoAuthority true .
+    BIND("do-authority-granted" AS ?violation)
+  }
+  UNION
+  {
+    ?s dcp:authorityRequirement "do" .
+    BIND("do-authority-required" AS ?violation)
+  }
+}
+ORDER BY ?s ?violation

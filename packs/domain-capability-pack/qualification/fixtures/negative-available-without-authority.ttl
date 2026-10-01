@@ -1,0 +1,52 @@
+@prefix dcp: <https://ggen.dev/ontology/domain-capability#> .
+@prefix qce: <https://ggen.dev/ontology/qualified-capability-ecology#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix ex: <https://example.test/dcp/> .
+
+# NEGATIVE fixture for gates/070_availability_requires_authority.rq (FIRES it,
+# both branches): ProviderAvailable != Authorized.
+#   ex:neg-noauth-real: marked dcp:available true with NO qce:authorityEnvelope
+#     -> branch "available-without-bound-authority".
+#   ex:neg-underauth-real: marked available with an envelope whose ceiling is
+#     "observe" while its capability requires "construct"
+#     -> branch "available-above-bound-authority".
+# Both realizations carry all gate-040/060-required fields so 070 is the gate
+# under test.
+
+ex:neg-noauth-cap a dcp:DomainCapability ;
+    rdfs:label "Domain.Action.Invoke" ;
+    dcterms:identifier "Domain.Action.Invoke" ;
+    dcp:authorityRequirement "construct" ;
+    dcp:precondition "Target resource and action exist." ;
+    dcp:outcome "success: the action's return value" .
+
+ex:neg-noauth-real a dcp:Realization ;
+    dcp:realizes ex:neg-noauth-cap ;
+    dcp:providerPackage "ash" ;
+    dcp:providerModule "Ash.Reactor.ActionStep" ;
+    dcp:versionPinPolicy "hex pin via consumer mix.exs constraint + mix.lock" ;
+    dcp:evidenceKind "ash_result" ;
+    dcp:qualificationCondition "Compiled domain exposes the action; policies decide authorization." ;
+    dcp:available true .
+
+ex:neg-underauth-cap a dcp:DomainCapability ;
+    rdfs:label "Domain.Change.Apply" ;
+    dcterms:identifier "Domain.Change.Apply" ;
+    dcp:authorityRequirement "construct" ;
+    dcp:precondition "Target resource and change action exist." ;
+    dcp:outcome "success: updated record" .
+
+ex:neg-underauth-real a dcp:Realization ;
+    dcp:realizes ex:neg-underauth-cap ;
+    dcp:providerPackage "ash" ;
+    dcp:providerModule "Ash.Reactor.UpdateStep" ;
+    dcp:versionPinPolicy "hex pin via consumer mix.exs constraint + mix.lock" ;
+    dcp:evidenceKind "ash_result" ;
+    dcp:qualificationCondition "Compiled domain exposes the update action; policies decide authorization." ;
+    dcp:available true ;
+    qce:authorityEnvelope ex:neg-underauth-env .
+
+ex:neg-underauth-env a qce:AuthorityEnvelope ;
+    qce:authorityDigest "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" ;
+    qce:authorityCeiling "observe" .
