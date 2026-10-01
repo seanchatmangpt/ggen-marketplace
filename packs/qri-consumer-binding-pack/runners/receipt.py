@@ -37,9 +37,9 @@ DEPENDENCY_ROOTS = ("pack.toml", "ontology.ttl", "gates", "templates")
 
 
 def contract_closure(graph: Graph, contract: URIRef) -> Graph:
-    closure, seen, todo = Graph(), set(), [contract]
-    while todo:
-        node = todo.pop()
+    closure, seen, frontier = Graph(), set(), [contract]
+    while frontier:
+        node = frontier.pop()
         if node in seen:
             continue
         seen.add(node)
@@ -48,7 +48,7 @@ def contract_closure(graph: Graph, contract: URIRef) -> Graph:
                 continue
             closure.add((s, p, o))
             if not isinstance(o, Literal):
-                todo.append(o)
+                frontier.append(o)
     return closure
 
 
