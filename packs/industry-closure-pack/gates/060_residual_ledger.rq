@@ -1,0 +1,96 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX ic: <https://seanchatmangpt.github.io/packs/industry-closure-pack#>
+PREFIX ea: <https://chatman.ai/ontology/enterprise-architecture#>
+PREFIX togaf: <http://www.semanticweb.org/ontologies/2020/4/OntologyTOGAFContentMetamodel.owl#>
+# MESSAGE: the recorded residual ledger must equal the computed residual: nothing unrecorded, nothing stale or misclassified, nothing orphaned.
+SELECT ?subject ?reason WHERE {
+  {
+  # BEGIN R_CORE
+  ?closure a ic:IndustryClosure ; ic:baseIri ?base .
+  ?req a ic:Requirement ; ic:inClosure ?closure ; ic:requirementId ?rid ; ic:disposition ic:IN_SCOPE .
+  OPTIONAL { ?req ic:requiresCapability ?cap . ?cap ic:capabilityKey ?ckey }
+  BIND(EXISTS { ?req ic:needsDoAuthority ?nv . FILTER(!(isLiteral(?nv) && DATATYPE(?nv) = xsd:boolean && STR(?nv) IN ("false", "0"))) } AS ?needsDo)
+  BIND(BOUND(?cap) AS ?mapped)
+  BIND(?mapped && (EXISTS { ?cap ic:groundedIn ?s0 . ?s0 ic:admission ic:ADMITTED . ?closure ic:usesSource ?s0 }
+                   || EXISTS { ?cap ic:groundedInStrategy ?st0 . ?st0 a ea:Strategy }) AS ?grounded)
+  BIND(?mapped && EXISTS { ?a1 ea:realizesCapability ?cap } AS ?hasAbb)
+  BIND(?hasAbb && EXISTS { ?a2 ea:realizesCapability ?cap ; ea:governedByContract ?k2 .
+        ?k2 a ea:ArchitectureContract ; ic:approvalStatus ic:APPROVED ; ea:hasAuthorityBoundary ?b2 } AS ?hasContract)
+  BIND(?hasContract && EXISTS { ?a3 ea:realizesCapability ?cap ; ea:governedByContract ?k3 .
+        ?k3 a ea:ArchitectureContract ; ic:approvalStatus ic:APPROVED ; ea:hasAuthorityBoundary ?b3 .
+        ?x3 ea:satisfiesABB ?a3 } AS ?hasSbb)
+  BIND(?hasSbb && EXISTS { ?a4 ea:realizesCapability ?cap ; ea:governedByContract ?k4 .
+        ?k4 a ea:ArchitectureContract ; ic:approvalStatus ic:APPROVED ; ea:hasAuthorityBoundary ?b4 .
+        ?x4 ea:satisfiesABB ?a4 ; ea:hasStanding ea:QUALIFIED ; ea:exactSubject ?d4 } AS ?hasQualified)
+  BIND(?hasQualified && EXISTS { ?a5 ea:realizesCapability ?cap . ?x5 ea:satisfiesABB ?a5 ;
+        ea:hasStanding ea:QUALIFIED ; ea:exactSubject ?d5 .
+        ?e5 ic:evidenceFor ?x5 ; ic:evidenceSubject ?d5 ; ic:outcome ic:FALSIFIED } AS ?falsified)
+  BIND(?hasQualified && EXISTS { ?a6 ea:realizesCapability ?cap ; ea:governedByContract ?k6 .
+        ?k6 a ea:ArchitectureContract ; ic:approvalStatus ic:APPROVED ; ea:hasAuthorityBoundary ?b6 .
+        ?x6 ea:satisfiesABB ?a6 ; ea:hasStanding ea:QUALIFIED ; ea:exactSubject ?d6 .
+        ?e6 ic:evidenceFor ?x6 ; ic:evidenceSubject ?d6 ; ic:outcome ic:VERIFIED ; ic:producedBy ?p6 ; ic:verifiedBy ?v6 .
+        FILTER(?p6 != ?v6) } AS ?verified)
+  BIND(IF(?needsDo, ic:DEFICIT_AUTHORITY,
+       IF(!?grounded, ic:DEFICIT_ONTOLOGY,
+       IF(!?hasAbb, ic:DEFICIT_ABB,
+       IF(!?hasContract, ic:DEFICIT_CONTRACT,
+       IF(!?hasSbb, ic:DEFICIT_SBB,
+       IF(!?hasQualified, ic:DEFICIT_QUALIFICATION,
+       IF(?falsified || !?verified, ic:DEFICIT_EVIDENCE, ic:COVERED))))))) AS ?class)
+  BIND(CONCAT(?rid, "--", COALESCE(?ckey, "UNMAPPED")) AS ?rkey)
+  # END R_CORE
+    FILTER(?class != ic:COVERED)
+    FILTER NOT EXISTS { ?res a ic:Residual ; ic:residualKey ?rkey ; ic:deficitClass ?class ; ic:status "OPEN" }
+    BIND(?req AS ?subject) BIND("REFUSED:IC_RESIDUAL_UNRECORDED" AS ?reason) }
+  UNION
+  { ?subject a ic:Residual ; ic:status "OPEN" ; ic:residualOf ?req ; ic:forCapabilityKey ?ck ; ic:deficitClass ?rc .
+  # BEGIN R_CORE
+  ?closure a ic:IndustryClosure ; ic:baseIri ?base .
+  ?req a ic:Requirement ; ic:inClosure ?closure ; ic:requirementId ?rid ; ic:disposition ic:IN_SCOPE .
+  OPTIONAL { ?req ic:requiresCapability ?cap . ?cap ic:capabilityKey ?ckey }
+  BIND(EXISTS { ?req ic:needsDoAuthority ?nv . FILTER(!(isLiteral(?nv) && DATATYPE(?nv) = xsd:boolean && STR(?nv) IN ("false", "0"))) } AS ?needsDo)
+  BIND(BOUND(?cap) AS ?mapped)
+  BIND(?mapped && (EXISTS { ?cap ic:groundedIn ?s0 . ?s0 ic:admission ic:ADMITTED . ?closure ic:usesSource ?s0 }
+                   || EXISTS { ?cap ic:groundedInStrategy ?st0 . ?st0 a ea:Strategy }) AS ?grounded)
+  BIND(?mapped && EXISTS { ?a1 ea:realizesCapability ?cap } AS ?hasAbb)
+  BIND(?hasAbb && EXISTS { ?a2 ea:realizesCapability ?cap ; ea:governedByContract ?k2 .
+        ?k2 a ea:ArchitectureContract ; ic:approvalStatus ic:APPROVED ; ea:hasAuthorityBoundary ?b2 } AS ?hasContract)
+  BIND(?hasContract && EXISTS { ?a3 ea:realizesCapability ?cap ; ea:governedByContract ?k3 .
+        ?k3 a ea:ArchitectureContract ; ic:approvalStatus ic:APPROVED ; ea:hasAuthorityBoundary ?b3 .
+        ?x3 ea:satisfiesABB ?a3 } AS ?hasSbb)
+  BIND(?hasSbb && EXISTS { ?a4 ea:realizesCapability ?cap ; ea:governedByContract ?k4 .
+        ?k4 a ea:ArchitectureContract ; ic:approvalStatus ic:APPROVED ; ea:hasAuthorityBoundary ?b4 .
+        ?x4 ea:satisfiesABB ?a4 ; ea:hasStanding ea:QUALIFIED ; ea:exactSubject ?d4 } AS ?hasQualified)
+  BIND(?hasQualified && EXISTS { ?a5 ea:realizesCapability ?cap . ?x5 ea:satisfiesABB ?a5 ;
+        ea:hasStanding ea:QUALIFIED ; ea:exactSubject ?d5 .
+        ?e5 ic:evidenceFor ?x5 ; ic:evidenceSubject ?d5 ; ic:outcome ic:FALSIFIED } AS ?falsified)
+  BIND(?hasQualified && EXISTS { ?a6 ea:realizesCapability ?cap ; ea:governedByContract ?k6 .
+        ?k6 a ea:ArchitectureContract ; ic:approvalStatus ic:APPROVED ; ea:hasAuthorityBoundary ?b6 .
+        ?x6 ea:satisfiesABB ?a6 ; ea:hasStanding ea:QUALIFIED ; ea:exactSubject ?d6 .
+        ?e6 ic:evidenceFor ?x6 ; ic:evidenceSubject ?d6 ; ic:outcome ic:VERIFIED ; ic:producedBy ?p6 ; ic:verifiedBy ?v6 .
+        FILTER(?p6 != ?v6) } AS ?verified)
+  BIND(IF(?needsDo, ic:DEFICIT_AUTHORITY,
+       IF(!?grounded, ic:DEFICIT_ONTOLOGY,
+       IF(!?hasAbb, ic:DEFICIT_ABB,
+       IF(!?hasContract, ic:DEFICIT_CONTRACT,
+       IF(!?hasSbb, ic:DEFICIT_SBB,
+       IF(!?hasQualified, ic:DEFICIT_QUALIFICATION,
+       IF(?falsified || !?verified, ic:DEFICIT_EVIDENCE, ic:COVERED))))))) AS ?class)
+  BIND(CONCAT(?rid, "--", COALESCE(?ckey, "UNMAPPED")) AS ?rkey)
+  # END R_CORE
+    FILTER(COALESCE(?ckey, "UNMAPPED") = ?ck) FILTER(?class != ?rc)
+    BIND("REFUSED:IC_RESIDUAL_STALE_OR_MISCLASSIFIED" AS ?reason) }
+  UNION
+  { ?subject a ic:Residual ; ic:residualOf ?req .
+    FILTER NOT EXISTS { ?req a ic:Requirement ; ic:disposition ic:IN_SCOPE }
+    BIND("REFUSED:IC_RESIDUAL_ORPHAN" AS ?reason) }
+  UNION
+  { ?subject a ic:Residual ; ic:status "OPEN" ; ic:residualKey ?dk .
+    ?other a ic:Residual ; ic:status "OPEN" ; ic:residualKey ?dk . FILTER(STR(?subject) < STR(?other))
+    BIND("REFUSED:IC_RESIDUAL_DUPLICATE_KEY" AS ?reason) }
+  UNION
+  { ?subject a ic:Residual ; ic:status "OPEN" ; ic:residualOf ?dr ; ic:forCapabilityKey ?dc .
+    ?other a ic:Residual ; ic:status "OPEN" ; ic:residualOf ?dr ; ic:forCapabilityKey ?dc . FILTER(STR(?subject) < STR(?other))
+    BIND("REFUSED:IC_RESIDUAL_DUPLICATE_KEY" AS ?reason) }
+} ORDER BY ?subject ?reason

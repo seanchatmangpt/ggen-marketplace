@@ -1,0 +1,51 @@
+# MESSAGE: an operating-model decision answers one strategy, picks exactly one model, carries consistent axes, a safe key, a valid target and a source.
+PREFIX eom: <https://seanchatmangpt.github.io/packs/enterprise-operating-model-pack#>
+PREFIX ea: <https://chatman.ai/ontology/enterprise-architecture#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?subject ?reason WHERE {
+  { ?subject a eom:OperatingModelDecision .
+    FILTER NOT EXISTS { ?subject eom:forStrategy ?s . ?s a ea:Strategy }
+    BIND("REFUSED:EOM_DECISION_NO_STRATEGY" AS ?reason) }
+  UNION
+  { ?subject a eom:OperatingModelDecision .
+    FILTER NOT EXISTS { ?subject eom:chosenModel ?m . ?m a eom:OperatingModel }
+    BIND("REFUSED:EOM_OM_CHOICE_MISSING" AS ?reason) }
+  UNION
+  { ?subject a eom:OperatingModelDecision ; eom:chosenModel ?a , ?b .
+    FILTER(STR(?a) < STR(?b))
+    BIND("REFUSED:EOM_OM_CHOICE_AMBIGUOUS" AS ?reason) }
+  UNION
+  { ?subject a eom:OperatingModelDecision .
+    OPTIONAL { ?subject eom:integrationLevel ?i }
+    OPTIONAL { ?subject eom:standardizationLevel ?s }
+    FILTER(!BOUND(?i) || !BOUND(?s))
+    BIND("REFUSED:EOM_OM_AXES_MISSING" AS ?reason) }
+  UNION
+  { ?subject a eom:OperatingModelDecision ; eom:chosenModel ?m ; eom:integrationLevel ?i ; eom:standardizationLevel ?s .
+    FILTER NOT EXISTS { ?m eom:integrationLevel ?i ; eom:standardizationLevel ?s }
+    BIND("REFUSED:EOM_OM_AXES_INCONSISTENT" AS ?reason) }
+  UNION
+  { ?subject a ea:Strategy ; eom:ofEnterprise ?e .
+    FILTER NOT EXISTS { ?d a eom:OperatingModelDecision ; eom:forStrategy ?subject }
+    BIND("REFUSED:EOM_STRATEGY_NO_OPMODEL" AS ?reason) }
+  UNION
+  { ?d a eom:OperatingModelDecision ; eom:forStrategy ?subject . ?subject a ea:Strategy .
+    FILTER NOT EXISTS { ?subject eom:ofEnterprise ?e }
+    BIND("REFUSED:EOM_STRATEGY_NO_ENTERPRISE" AS ?reason) }
+  UNION
+  { ?subject a eom:OperatingModelDecision .
+    FILTER NOT EXISTS { ?subject dcterms:source ?x }
+    BIND("REFUSED:EOM_PROVENANCE_MISSING" AS ?reason) }
+  UNION
+  { ?subject a eom:OperatingModelDecision .
+    OPTIONAL { ?subject eom:decisionKey ?k }
+    FILTER(!BOUND(?k) || !REGEX(STR(?k), "^[A-Za-z0-9._-]+$"))
+    BIND("REFUSED:EOM_DECISION_KEY_UNSAFE" AS ?reason) }
+  UNION
+  { ?subject a eom:OperatingModelDecision .
+    OPTIONAL { ?subject eom:targetClosure ?c }
+    OPTIONAL { ?subject eom:targetBaseIri ?b }
+    FILTER(!BOUND(?c) || !BOUND(?b) || !REGEX(STR(?b), "^https?://[A-Za-z0-9._~:/-]+[/#]$"))
+    BIND("REFUSED:EOM_DECISION_TARGET_INVALID" AS ?reason) }
+}
+ORDER BY ?subject ?reason

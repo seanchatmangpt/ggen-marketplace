@@ -1,0 +1,107 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX ic: <https://seanchatmangpt.github.io/packs/industry-closure-pack#>
+PREFIX ea: <https://chatman.ai/ontology/enterprise-architecture#>
+PREFIX togaf: <http://www.semanticweb.org/ontologies/2020/4/OntologyTOGAFContentMetamodel.owl#>
+# Candidate next snapshot: every recorded coverage of the head snapshot carried forward, plus the frontier
+# (covered capabilities not yet recorded). Literals and STR() only.
+# A carried coverage is re-evaluated against the same chain R_CORE uses, per capability (CAP_CORE below):
+# it stays LIVE only while its capability is still COVERED and its own SBB has current independent VERIFIED
+# evidence and no current FALSIFIED evidence; otherwise it is re-marked STALE with the reason kept (the deficit
+# class code, or EVIDENCE_NOT_CURRENT). A coverage named by a receipted, reasoned Retirement is not carried.
+# CAP_CORE is the R_CORE ladder with the requirement removed: a capability needs DO when any in-scope requirement
+# that requires it does. Each branch of the UNION is self-contained so no engine depends on outer bindings.
+SELECT DISTINCT (STR(?head) AS ?snapshotIri) (?e + 1 AS ?nextEpoch) (STR(?closure) AS ?closureIri) (STR(?base) AS ?baseIri)
+       ?source ?capabilityKey (STR(?cap) AS ?capIri) (STR(?abb) AS ?abbIri) (STR(?sbb) AS ?sbbIri)
+       (CONCAT(?capabilityKey, "--", SUBSTR(SHA256(STR(?abb)), 1, 12), "--", SUBSTR(SHA256(STR(?sbb)), 1, 12)) AS ?coverageKey)
+       ?state ?staleBecause
+WHERE {
+  ?closure a ic:IndustryClosure ; ic:baseIri ?base .
+  ?head ic:snapshotOf ?closure ; ic:epoch ?e .
+  FILTER NOT EXISTS { ?n ic:supersedes ?head }
+  {
+    ?closure a ic:IndustryClosure ; ic:baseIri ?base .
+    ?head ic:snapshotOf ?closure ; ic:epoch ?e .
+    ?cov a ic:Coverage ; ic:inSnapshot ?head ; ic:coversCapability ?cap ; ic:byABB ?abb ; ic:bySBB ?sbb . ?cap ic:capabilityKey ?capabilityKey .
+    FILTER NOT EXISTS { ?rt a ic:Retirement ; ic:retires ?cov ; ic:receiptDigest ?rd ; ic:retirementReason ?why }
+    BIND("carried" AS ?source)
+    BIND(EXISTS { ?ev ic:evidenceFor ?sbb ; ic:evidenceSubject ?d ; ic:outcome ic:VERIFIED ; ic:producedBy ?pv ; ic:verifiedBy ?vv .
+                  ?sbb ea:exactSubject ?d . FILTER(?pv != ?vv) } AS ?okv)
+    BIND(EXISTS { ?fv ic:evidenceFor ?sbb ; ic:evidenceSubject ?d2 ; ic:outcome ic:FALSIFIED . ?sbb ea:exactSubject ?d2 } AS ?bad)
+    # BEGIN CAP_CORE
+    BIND(EXISTS { ?rq ic:inClosure ?closure ; ic:disposition ic:IN_SCOPE ; ic:requiresCapability ?cap ; ic:needsDoAuthority ?cnv .
+                  FILTER(!(isLiteral(?cnv) && DATATYPE(?cnv) = xsd:boolean && STR(?cnv) IN ("false", "0"))) } AS ?cNeedsDo)
+    BIND((EXISTS { ?cap ic:groundedIn ?cs0 . ?cs0 ic:admission ic:ADMITTED . ?closure ic:usesSource ?cs0 }
+          || EXISTS { ?cap ic:groundedInStrategy ?cst0 . ?cst0 a ea:Strategy }) AS ?cGrounded)
+    BIND(EXISTS { ?ca1 ea:realizesCapability ?cap } AS ?cHasAbb)
+    BIND(?cHasAbb && EXISTS { ?ca2 ea:realizesCapability ?cap ; ea:governedByContract ?ck2 .
+          ?ck2 a ea:ArchitectureContract ; ic:approvalStatus ic:APPROVED ; ea:hasAuthorityBoundary ?cb2 } AS ?cHasContract)
+    BIND(?cHasContract && EXISTS { ?ca3 ea:realizesCapability ?cap ; ea:governedByContract ?ck3 .
+          ?ck3 a ea:ArchitectureContract ; ic:approvalStatus ic:APPROVED ; ea:hasAuthorityBoundary ?cb3 .
+          ?cx3 ea:satisfiesABB ?ca3 } AS ?cHasSbb)
+    BIND(?cHasSbb && EXISTS { ?ca4 ea:realizesCapability ?cap ; ea:governedByContract ?ck4 .
+          ?ck4 a ea:ArchitectureContract ; ic:approvalStatus ic:APPROVED ; ea:hasAuthorityBoundary ?cb4 .
+          ?cx4 ea:satisfiesABB ?ca4 ; ea:hasStanding ea:QUALIFIED ; ea:exactSubject ?cd4 } AS ?cHasQualified)
+    BIND(?cHasQualified && EXISTS { ?ca5 ea:realizesCapability ?cap . ?cx5 ea:satisfiesABB ?ca5 ;
+          ea:hasStanding ea:QUALIFIED ; ea:exactSubject ?cd5 .
+          ?ce5 ic:evidenceFor ?cx5 ; ic:evidenceSubject ?cd5 ; ic:outcome ic:FALSIFIED } AS ?cFalsified)
+    BIND(?cHasQualified && EXISTS { ?ca6 ea:realizesCapability ?cap ; ea:governedByContract ?ck6 .
+          ?ck6 a ea:ArchitectureContract ; ic:approvalStatus ic:APPROVED ; ea:hasAuthorityBoundary ?cb6 .
+          ?cx6 ea:satisfiesABB ?ca6 ; ea:hasStanding ea:QUALIFIED ; ea:exactSubject ?cd6 .
+          ?ce6 ic:evidenceFor ?cx6 ; ic:evidenceSubject ?cd6 ; ic:outcome ic:VERIFIED ; ic:producedBy ?cp6 ; ic:verifiedBy ?cv6 .
+          FILTER(?cp6 != ?cv6) } AS ?cVerified)
+    BIND(IF(?cNeedsDo, "DEFICIT_AUTHORITY",
+         IF(!?cGrounded, "DEFICIT_ONTOLOGY",
+         IF(!?cHasAbb, "DEFICIT_ABB",
+         IF(!?cHasContract, "DEFICIT_CONTRACT",
+         IF(!?cHasSbb, "DEFICIT_SBB",
+         IF(!?cHasQualified, "DEFICIT_QUALIFICATION",
+         IF(?cFalsified || !?cVerified, "DEFICIT_EVIDENCE", "COVERED"))))))) AS ?cClass)
+    # END CAP_CORE
+    BIND(IF(?cClass = "COVERED" && ?okv && !?bad, "LIVE", "STALE") AS ?state)
+    BIND(IF(?cClass = "COVERED" && ?okv && !?bad, "",
+         IF(?cClass = "COVERED" || ?cClass = "DEFICIT_EVIDENCE", "EVIDENCE_NOT_CURRENT", ?cClass)) AS ?staleBecause)
+  } UNION {
+  # BEGIN R_CORE
+  ?closure a ic:IndustryClosure ; ic:baseIri ?base .
+  ?req a ic:Requirement ; ic:inClosure ?closure ; ic:requirementId ?rid ; ic:disposition ic:IN_SCOPE .
+  OPTIONAL { ?req ic:requiresCapability ?cap . ?cap ic:capabilityKey ?ckey }
+  BIND(EXISTS { ?req ic:needsDoAuthority ?nv . FILTER(!(isLiteral(?nv) && DATATYPE(?nv) = xsd:boolean && STR(?nv) IN ("false", "0"))) } AS ?needsDo)
+  BIND(BOUND(?cap) AS ?mapped)
+  BIND(?mapped && (EXISTS { ?cap ic:groundedIn ?s0 . ?s0 ic:admission ic:ADMITTED . ?closure ic:usesSource ?s0 }
+                   || EXISTS { ?cap ic:groundedInStrategy ?st0 . ?st0 a ea:Strategy }) AS ?grounded)
+  BIND(?mapped && EXISTS { ?a1 ea:realizesCapability ?cap } AS ?hasAbb)
+  BIND(?hasAbb && EXISTS { ?a2 ea:realizesCapability ?cap ; ea:governedByContract ?k2 .
+        ?k2 a ea:ArchitectureContract ; ic:approvalStatus ic:APPROVED ; ea:hasAuthorityBoundary ?b2 } AS ?hasContract)
+  BIND(?hasContract && EXISTS { ?a3 ea:realizesCapability ?cap ; ea:governedByContract ?k3 .
+        ?k3 a ea:ArchitectureContract ; ic:approvalStatus ic:APPROVED ; ea:hasAuthorityBoundary ?b3 .
+        ?x3 ea:satisfiesABB ?a3 } AS ?hasSbb)
+  BIND(?hasSbb && EXISTS { ?a4 ea:realizesCapability ?cap ; ea:governedByContract ?k4 .
+        ?k4 a ea:ArchitectureContract ; ic:approvalStatus ic:APPROVED ; ea:hasAuthorityBoundary ?b4 .
+        ?x4 ea:satisfiesABB ?a4 ; ea:hasStanding ea:QUALIFIED ; ea:exactSubject ?d4 } AS ?hasQualified)
+  BIND(?hasQualified && EXISTS { ?a5 ea:realizesCapability ?cap . ?x5 ea:satisfiesABB ?a5 ;
+        ea:hasStanding ea:QUALIFIED ; ea:exactSubject ?d5 .
+        ?e5 ic:evidenceFor ?x5 ; ic:evidenceSubject ?d5 ; ic:outcome ic:FALSIFIED } AS ?falsified)
+  BIND(?hasQualified && EXISTS { ?a6 ea:realizesCapability ?cap ; ea:governedByContract ?k6 .
+        ?k6 a ea:ArchitectureContract ; ic:approvalStatus ic:APPROVED ; ea:hasAuthorityBoundary ?b6 .
+        ?x6 ea:satisfiesABB ?a6 ; ea:hasStanding ea:QUALIFIED ; ea:exactSubject ?d6 .
+        ?e6 ic:evidenceFor ?x6 ; ic:evidenceSubject ?d6 ; ic:outcome ic:VERIFIED ; ic:producedBy ?p6 ; ic:verifiedBy ?v6 .
+        FILTER(?p6 != ?v6) } AS ?verified)
+  BIND(IF(?needsDo, ic:DEFICIT_AUTHORITY,
+       IF(!?grounded, ic:DEFICIT_ONTOLOGY,
+       IF(!?hasAbb, ic:DEFICIT_ABB,
+       IF(!?hasContract, ic:DEFICIT_CONTRACT,
+       IF(!?hasSbb, ic:DEFICIT_SBB,
+       IF(!?hasQualified, ic:DEFICIT_QUALIFICATION,
+       IF(?falsified || !?verified, ic:DEFICIT_EVIDENCE, ic:COVERED))))))) AS ?class)
+  BIND(CONCAT(?rid, "--", COALESCE(?ckey, "UNMAPPED")) AS ?rkey)
+  # END R_CORE
+    FILTER(?class = ic:COVERED) FILTER(BOUND(?cap))
+    ?head ic:snapshotOf ?closure ; ic:epoch ?e . FILTER NOT EXISTS { ?n ic:supersedes ?head }
+    ?abb ea:realizesCapability ?cap ; ea:governedByContract ?k . ?k a ea:ArchitectureContract ; ic:approvalStatus ic:APPROVED ; ea:hasAuthorityBoundary ?b .
+    ?sbb ea:satisfiesABB ?abb ; ea:hasStanding ea:QUALIFIED ; ea:exactSubject ?d .
+    ?ev2 ic:evidenceFor ?sbb ; ic:evidenceSubject ?d ; ic:outcome ic:VERIFIED ; ic:producedBy ?pf ; ic:verifiedBy ?vf . FILTER(?pf != ?vf)
+    FILTER NOT EXISTS { ?cv a ic:Coverage ; ic:inSnapshot ?head ; ic:coversCapability ?cap ; ic:byABB ?abb ; ic:bySBB ?sbb }
+    BIND(?ckey AS ?capabilityKey) BIND("frontier" AS ?source) BIND("LIVE" AS ?state) BIND("" AS ?staleBecause)
+  }
+} ORDER BY ?capabilityKey ?abbIri ?sbbIri

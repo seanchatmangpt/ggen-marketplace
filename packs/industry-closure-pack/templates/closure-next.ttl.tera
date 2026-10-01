@@ -1,0 +1,24 @@
+# Candidate next closure snapshot (epoch + 1). CONSTRUCTED from queries/20-closure-frontier.rq: every
+# recorded coverage of the head snapshot carried forward (re-marked STALE, with the deficit class as the reason,
+# when its capability is no longer covered or its evidence is no longer current; a retired coverage is not carried)
+# plus the frontier of newly covered capabilities. Coverage standing is always UNKNOWN.
+# Admission is through gates 030, 040, 050 and 055 after a human appends it to the industry input.
+@prefix ic: <https://seanchatmangpt.github.io/packs/industry-closure-pack#> .
+
+{% for row in results %}<{{ row.baseIri }}snapshot/{{ row.nextEpoch }}> a ic:ClosureSnapshot ;
+    ic:snapshotOf <{{ row.closureIri }}> ;
+    ic:epoch {{ row.nextEpoch }} ;
+    ic:supersedes <{{ row.snapshotIri }}> .
+
+<{{ row.closureIri }}> ic:hasSnapshot <{{ row.baseIri }}snapshot/{{ row.nextEpoch }}> .
+
+<{{ row.baseIri }}coverage/{{ row.nextEpoch }}/{{ row.coverageKey }}> a ic:Coverage ;
+    ic:inSnapshot <{{ row.baseIri }}snapshot/{{ row.nextEpoch }}> ;
+    ic:coversCapability <{{ row.capIri }}> ;
+    ic:byABB <{{ row.abbIri }}> ;
+    ic:bySBB <{{ row.sbbIri }}> ;
+    ic:coverageState ic:{{ row.state }} ;
+{% if row.state == "STALE" %}    ic:staleBecause "{{ row.staleBecause }}" ;
+{% endif %}    ic:standing "UNKNOWN" .
+
+{% endfor %}

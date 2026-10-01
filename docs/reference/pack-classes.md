@@ -120,6 +120,15 @@ in `PACK_CLASSES`:
 - `pack-maturity-pack` — `EvidencePack`. Owns maturity/standing evidence semantics.
 - `wasm4pm-pack` — `CapabilityPack`. An independently-owned WASM-for-project-management
   capability, not a profile of another pack's kernel.
+- `industry-closure-pack` — `KernelPack`. Owns the reusable closure calculus (deficit classes,
+  residual ledger, gates); the synthetic specimen lives only in consumer-side fixtures.
+- `enterprise-operating-model-pack` — `CapabilityPack`. An orthogonal operating-model and
+  architecture-method capability that depends on `industry-closure-pack`, never the reverse.
+- `industry-closure-retail-lending-profile-pack` — `ProfilePack`. ABox-only industry scope,
+  knowledge sources and requirements bound to the closure kernel.
+
+`togaf-adm-pack`, `enterprise-architecture-pack` and `chatman-togaf-closure-pack` are consumed
+by this family but are not reclassified here.
 
 ## See Also
 

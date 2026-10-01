@@ -1,0 +1,18 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX ic: <https://seanchatmangpt.github.io/packs/industry-closure-pack#>
+# MESSAGE: a lending-profile capability names a concept and is grounded in a concept its own admitted source provides; a requirement cites only sources its closure uses; a LOAN-scoped closure admits only FIBO LOAN sources.
+SELECT ?subject ?reason WHERE {
+  { ?subject ic:groundedIn ?s ; ic:concept ?c . FILTER NOT EXISTS { ?s ic:providesConcept ?c }
+    BIND("REFUSED:LND_CAPABILITY_CONCEPT_NOT_PROVIDED" AS ?reason) }
+  UNION
+  { ?subject a ic:Requirement ; ic:inClosure ?cl ; ic:derivedFrom ?s . FILTER NOT EXISTS { ?cl ic:usesSource ?s }
+    BIND("REFUSED:LND_REQUIREMENT_SOURCE_NOT_IN_CLOSURE" AS ?reason) }
+  UNION
+  { ?subject ic:groundedIn ?s . FILTER NOT EXISTS { ?subject ic:concept ?c }
+    BIND("REFUSED:LND_CAPABILITY_CONCEPT_MISSING" AS ?reason) }
+  UNION
+  { ?cl a ic:IndustryClosure ; ic:boundPathPrefix "ontologies/public/fibo/LOAN/" ; ic:usesSource ?subject .
+    ?subject ic:admission ic:ADMITTED ; ic:sourceIri ?i .
+    FILTER(!STRSTARTS(STR(?i), "https://spec.edmcouncil.org/fibo/ontology/LOAN/"))
+    BIND("REFUSED:LND_SOURCE_NOT_FIBO_LOAN" AS ?reason) }
+} ORDER BY ?subject ?reason

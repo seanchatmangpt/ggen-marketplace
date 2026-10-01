@@ -1,0 +1,51 @@
+# MESSAGE: a decision has a foundation with at least one process, shared data and linking automation; every element has a safe key, a keyed capability and its own obligations.
+PREFIX eom: <https://seanchatmangpt.github.io/packs/enterprise-operating-model-pack#>
+PREFIX ea: <https://chatman.ai/ontology/enterprise-architecture#>
+PREFIX org: <http://www.w3.org/ns/org#>
+SELECT ?subject ?reason WHERE {
+  { ?subject a eom:FoundationForExecution .
+    FILTER NOT EXISTS { ?d eom:hasFoundation ?subject }
+    BIND("REFUSED:EOM_FOUNDATION_NO_DECISION" AS ?reason) }
+  UNION
+  { ?subject a eom:OperatingModelDecision .
+    FILTER NOT EXISTS { ?subject eom:hasFoundation ?f }
+    BIND("REFUSED:EOM_DECISION_NO_FOUNDATION" AS ?reason) }
+  UNION
+  { ?subject a eom:FoundationForExecution .
+    FILTER NOT EXISTS { ?subject eom:hasCoreProcess ?p }
+    BIND("REFUSED:EOM_FOUNDATION_NO_PROCESS" AS ?reason) }
+  UNION
+  { ?subject a eom:FoundationForExecution .
+    FILTER NOT EXISTS { ?subject eom:hasSharedData ?p }
+    BIND("REFUSED:EOM_FOUNDATION_NO_SHARED_DATA" AS ?reason) }
+  UNION
+  { ?subject a eom:FoundationForExecution .
+    FILTER NOT EXISTS { ?subject eom:hasLinkingAutomation ?p }
+    BIND("REFUSED:EOM_FOUNDATION_NO_LINKING" AS ?reason) }
+  UNION
+  { ?f (eom:hasCoreProcess|eom:hasSharedData|eom:hasLinkingAutomation) ?subject .
+    ?f a eom:FoundationForExecution .
+    FILTER NOT EXISTS { ?subject eom:supportsCapability ?c }
+    BIND("REFUSED:EOM_ELEMENT_NO_CAPABILITY" AS ?reason) }
+  UNION
+  { ?f (eom:hasCoreProcess|eom:hasSharedData|eom:hasLinkingAutomation) ?subject .
+    ?f a eom:FoundationForExecution .
+    ?subject eom:supportsCapability ?c .
+    FILTER NOT EXISTS { ?c <https://seanchatmangpt.github.io/packs/industry-closure-pack#capabilityKey> ?ck }
+    BIND("REFUSED:EOM_ELEMENT_CAPABILITY_UNKEYED" AS ?reason) }
+  UNION
+  { ?f (eom:hasCoreProcess|eom:hasSharedData|eom:hasLinkingAutomation) ?subject .
+    ?f a eom:FoundationForExecution .
+    OPTIONAL { ?subject eom:elementKey ?k }
+    FILTER(!BOUND(?k) || !REGEX(STR(?k), "^[A-Za-z0-9._-]+$"))
+    BIND("REFUSED:EOM_ELEMENT_KEY_UNSAFE" AS ?reason) }
+  UNION
+  { ?subject a eom:SharedDataDomain .
+    FILTER NOT EXISTS { ?subject eom:ownedBy ?r . ?r a org:Role }
+    BIND("REFUSED:EOM_DATA_UNOWNED" AS ?reason) }
+  UNION
+  { ?subject a eom:LinkingAutomation .
+    FILTER NOT EXISTS { ?subject eom:realizedByABB ?a . ?a a ea:ArchitectureBuildingBlock }
+    BIND("REFUSED:EOM_LINKING_NO_ABB" AS ?reason) }
+}
+ORDER BY ?subject ?reason

@@ -1,0 +1,35 @@
+# MESSAGE: the ADM is an acyclic chain; an ACHIEVED phase record has its required artifact kinds, its predecessor ACHIEVED in the same engagement, and a requirements-management review.
+PREFIX eom: <https://seanchatmangpt.github.io/packs/enterprise-operating-model-pack#>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+SELECT ?subject ?reason WHERE {
+  { ?subject a eom:AdmPhase ; eom:precedes+ ?subject .
+    BIND("REFUSED:EOM_ADM_CYCLE" AS ?reason) }
+  UNION
+  { ?subject a eom:PhaseRecord ; eom:phase ?ph ; eom:status "ACHIEVED" .
+    ?ph eom:requiresArtifactKind ?k .
+    FILTER NOT EXISTS { ?subject eom:produced ?a . ?a eom:artifactKind ?k }
+    BIND("REFUSED:EOM_ADM_ARTIFACT_MISSING" AS ?reason) }
+  UNION
+  { ?subject a eom:PhaseRecord ; eom:phase ?ph ; eom:ofEngagement ?eng ; eom:status "ACHIEVED" .
+    ?pre eom:precedes ?ph .
+    FILTER NOT EXISTS { ?prec a eom:PhaseRecord ; eom:phase ?pre ; eom:ofEngagement ?eng ; eom:status "ACHIEVED" }
+    BIND("REFUSED:EOM_ADM_PREDECESSOR_NOT_ACHIEVED" AS ?reason) }
+  UNION
+  { ?subject a eom:PhaseRecord ; eom:phase ?ph ; eom:status "ACHIEVED" .
+    OPTIONAL { ?ph skos:notation ?n }
+    FILTER(!BOUND(?n) || ?n != "ADM-REQ-MGMT")
+    FILTER NOT EXISTS { ?subject eom:reqMgmtReview ?rv }
+    BIND("REFUSED:EOM_ADM_REQMGMT_MISSING" AS ?reason) }
+  UNION
+  { ?subject a eom:PhaseRecord ; eom:status ?s .
+    FILTER(!(STR(?s) IN ("NOT_STARTED", "IN_PROGRESS", "ACHIEVED")))
+    BIND("REFUSED:EOM_ADM_STATUS_INVALID" AS ?reason) }
+  UNION
+  { ?subject a eom:PhaseRecord .
+    OPTIONAL { ?subject eom:phase ?q1 }
+    OPTIONAL { ?subject eom:ofEngagement ?q2 }
+    OPTIONAL { ?subject eom:status ?q3 }
+    FILTER(!BOUND(?q1) || !BOUND(?q2) || !BOUND(?q3))
+    BIND("REFUSED:EOM_ADM_RECORD_MALFORMED" AS ?reason) }
+}
+ORDER BY ?subject ?reason

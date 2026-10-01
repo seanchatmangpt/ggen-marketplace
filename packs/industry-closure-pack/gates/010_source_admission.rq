@@ -1,0 +1,32 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX ic: <https://seanchatmangpt.github.io/packs/industry-closure-pack#>
+PREFIX ea: <https://chatman.ai/ontology/enterprise-architecture#>
+PREFIX togaf: <http://www.semanticweb.org/ontologies/2020/4/OntologyTOGAFContentMetamodel.owl#>
+# MESSAGE: public knowledge enters O* only through admission: pinned, licensed, vendored, inside scope; EXCLUDED has a reason; UNKNOWN has a falsifier.
+SELECT ?subject ?reason WHERE {
+  { ?subject a ic:KnowledgeSource . OPTIONAL { ?subject ic:admission ?a }
+    FILTER(!BOUND(?a) || !(?a IN (ic:ADMITTED, ic:EXCLUDED, ic:UNKNOWN)))
+    BIND("REFUSED:IC_SOURCE_ADMISSION_INVALID" AS ?reason) }
+  UNION
+  { ?subject a ic:KnowledgeSource ; ic:admission ic:ADMITTED .
+    OPTIONAL { ?subject ic:sourceIri ?p1 } OPTIONAL { ?subject ic:sourceVersion ?p2 } OPTIONAL { ?subject ic:sourceDigest ?p3 }
+    OPTIONAL { ?subject ic:licenseBoundary ?p4 } OPTIONAL { ?subject ic:sourceLocator ?p5 }
+    FILTER(!BOUND(?p1) || !BOUND(?p2) || !BOUND(?p3) || !BOUND(?p4) || !BOUND(?p5))
+    BIND("REFUSED:IC_SOURCE_PROVENANCE_MISSING" AS ?reason) }
+  UNION
+  { ?subject a ic:KnowledgeSource ; ic:sourceDigest ?d . FILTER(!REGEX(STR(?d), "^sha256:[0-9a-f]{64}$"))
+    BIND("REFUSED:IC_SOURCE_DIGEST_MALFORMED" AS ?reason) }
+  UNION
+  { ?subject a ic:KnowledgeSource ; ic:admission ic:ADMITTED ; ic:sourceLocator ?loc . FILTER(!STRSTARTS(STR(?loc), "ontologies/public/"))
+    BIND("REFUSED:IC_SOURCE_NOT_VENDORED" AS ?reason) }
+  UNION
+  { ?subject a ic:KnowledgeSource ; ic:admission ic:ADMITTED ; ic:sourceLocator ?loc . ?cl a ic:IndustryClosure ; ic:boundPathPrefix ?px ; ic:usesSource ?subject .
+    FILTER(!STRSTARTS(STR(?loc), STR(?px))) BIND("REFUSED:IC_SOURCE_OUTSIDE_SCOPE" AS ?reason) }
+  UNION
+  { ?subject a ic:KnowledgeSource ; ic:admission ic:EXCLUDED . OPTIONAL { ?subject ic:exclusionReason ?r }
+    FILTER(!BOUND(?r)) BIND("REFUSED:IC_SOURCE_EXCLUSION_UNREASONED" AS ?reason) }
+  UNION
+  { ?subject a ic:KnowledgeSource ; ic:admission ic:UNKNOWN . OPTIONAL { ?subject ic:falsifier ?f }
+    FILTER(!BOUND(?f)) BIND("REFUSED:IC_SOURCE_UNKNOWN_NO_FALSIFIER" AS ?reason) }
+} ORDER BY ?subject ?reason

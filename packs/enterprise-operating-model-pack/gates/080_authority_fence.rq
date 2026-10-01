@@ -1,0 +1,20 @@
+# MESSAGE: DO is unrepresentable. An authority ceiling, claim or class of DO (literal or IRI), or a DO grant that is not a typed false, is refused; a ceiling must be NONE, OBSERVE, SELECT or CONSTRUCT.
+PREFIX eom: <https://seanchatmangpt.github.io/packs/enterprise-operating-model-pack#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?subject ?reason WHERE {
+  { ?subject ?p eom:DO .
+    BIND("REFUSED:EOM_AUTHORITY_DO_FORBIDDEN" AS ?reason) }
+  UNION
+  { ?subject (eom:authorityCeiling|eom:authorityClaim|eom:authorityClass) ?a .
+    FILTER(STR(?a) = STR(eom:DO) || UCASE(STR(?a)) = "DO")
+    BIND("REFUSED:EOM_AUTHORITY_DO_FORBIDDEN" AS ?reason) }
+  UNION
+  { ?subject eom:grantsDoAuthority ?g .
+    FILTER(!(isLiteral(?g) && DATATYPE(?g) = xsd:boolean && STR(?g) IN ("false", "0")))
+    BIND("REFUSED:EOM_AUTHORITY_DO_FORBIDDEN" AS ?reason) }
+  UNION
+  { ?subject eom:authorityCeiling ?a .
+    FILTER(!(STR(?a) IN ("NONE", "OBSERVE", "SELECT", "CONSTRUCT")))
+    BIND("REFUSED:EOM_AUTHORITY_CEILING_INVALID" AS ?reason) }
+}
+ORDER BY ?subject ?reason

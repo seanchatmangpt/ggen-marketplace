@@ -1,0 +1,30 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX ic: <https://seanchatmangpt.github.io/packs/industry-closure-pack#>
+PREFIX ea: <https://chatman.ai/ontology/enterprise-architecture#>
+PREFIX togaf: <http://www.semanticweb.org/ontologies/2020/4/OntologyTOGAFContentMetamodel.owl#>
+# MESSAGE: a requirement has identity, a safe key, an explicit scope disposition, a declared closure, a boolean DO-need flag, and an admitted origin; prose never originates one.
+SELECT ?subject ?reason WHERE {
+  { ?subject a ic:Requirement .
+    OPTIONAL { ?subject ic:requirementId ?q1 } OPTIONAL { ?subject ic:statement ?q2 } OPTIONAL { ?subject ic:disposition ?q3 } OPTIONAL { ?subject ic:inClosure ?q4 }
+    FILTER(!BOUND(?q1) || !BOUND(?q2) || !BOUND(?q3) || !BOUND(?q4)) BIND("REFUSED:IC_REQUIREMENT_MALFORMED" AS ?reason) }
+  UNION { ?subject a ic:Requirement ; ic:requirementId ?id . FILTER(!REGEX(STR(?id), "^[A-Za-z0-9._-]+$")) BIND("REFUSED:IC_KEY_UNSAFE" AS ?reason) }
+  UNION { ?subject ic:capabilityKey ?k . FILTER(!REGEX(STR(?k), "^[A-Za-z0-9._-]+$")) BIND("REFUSED:IC_KEY_UNSAFE" AS ?reason) }
+  UNION { ?r a ic:Requirement ; ic:requiresCapability ?subject . OPTIONAL { ?subject ic:capabilityKey ?k }
+          FILTER(!BOUND(?k)) BIND("REFUSED:IC_CAPABILITY_KEY_MISSING" AS ?reason) }
+  UNION { ?subject a ic:Requirement ; ic:disposition ?d . FILTER(!(?d IN (ic:IN_SCOPE, ic:OUT_OF_SCOPE)))
+          BIND("REFUSED:IC_REQUIREMENT_DISPOSITION_INVALID" AS ?reason) }
+  UNION { ?subject a ic:Requirement ; ic:disposition ic:OUT_OF_SCOPE . OPTIONAL { ?subject ic:scopeJustification ?j }
+          FILTER(!BOUND(?j)) BIND("REFUSED:IC_REQUIREMENT_SILENT_DROP" AS ?reason) }
+  UNION { ?subject a ic:Requirement ; ic:requirementId ?id . ?other a ic:Requirement ; ic:requirementId ?id .
+          FILTER(STR(?subject) < STR(?other)) BIND("REFUSED:IC_REQUIREMENT_DUPLICATE_ID" AS ?reason) }
+  UNION { ?subject a ic:Requirement ; ic:disposition ic:IN_SCOPE .
+          FILTER NOT EXISTS { ?subject ic:derivedFrom ?s . ?s a ic:KnowledgeSource ; ic:admission ic:ADMITTED }
+          FILTER NOT EXISTS { ?subject ic:originAuthority ?o . ?o a ea:Strategy }
+          BIND("REFUSED:IC_REQUIREMENT_ORIGIN_UNADMITTED" AS ?reason) }
+  UNION { ?subject a ic:Requirement ; ic:inClosure ?cl . FILTER NOT EXISTS { ?cl a ic:IndustryClosure }
+          BIND("REFUSED:IC_REQUIREMENT_CLOSURE_UNDECLARED" AS ?reason) }
+  UNION { ?subject a ic:Requirement ; ic:needsDoAuthority ?nv .
+          FILTER(!isLiteral(?nv) || DATATYPE(?nv) != xsd:boolean || !(STR(?nv) IN ("true", "false", "1", "0")))
+          BIND("REFUSED:IC_NEEDS_DO_MALFORMED" AS ?reason) }
+} ORDER BY ?subject ?reason
