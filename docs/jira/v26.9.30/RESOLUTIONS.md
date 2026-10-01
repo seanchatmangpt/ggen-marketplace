@@ -2,6 +2,19 @@
 
 Cross-lane seams resolved BEFORE dispatch. Lanes code against these, not against each other.
 
+## Topology amendment (2026-10-01, operator order): one binding pack
+
+The ten per-family packs (lanes 2–7) were a lane-partition artifact, not a durable
+topology. Consolidated into ONE `capability-ecology-pack` (one version, one admission
+unit, one uniform exact-stem court — the drift law: one kernel `qce:`, N family
+bindings). Family namespaces (fscap: … ecap:) are UNCHANGED; modules live at
+`packs/capability-ecology-pack/ontology/<family>.ttl`; gates/witnesses/fixtures carry
+family prefixes; original lane READMEs preserved as `families/<family>.md`. Join
+doctrine unchanged: pinned dotted-ID literals, consumer-side resolution. Kept separate
+on purpose: `domain-capability-pack` (pre-existing pack, extended), `workflow-corpus-pack`
+(test subjects, not contracts), `qualified-capability-ecology-pack` (pure kernel).
+
+
 ## Namespaces
 
 | prefix | IRI | owner lane |

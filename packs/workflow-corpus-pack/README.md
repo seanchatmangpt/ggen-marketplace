@@ -50,8 +50,8 @@ mishandles the fixture.
 
 There are NO in-tree cross-pack imports. `wfc:capability` literals are the
 pinned dotted IDs from `RESOLUTIONS.md`; the consumer (ash_pplan) joins them
-against the capability-family packs (`filesystem-capability-pack`,
-`network-capability-pack`, `authority-capability-pack`, ...) by literal. The
+against the capability-family packs (`capability-ecology-pack (filesystem family)`,
+`capability-ecology-pack (network family)`, `capability-ecology-pack (authority family)`, ...) by literal. The
 same join-by-literal doctrine names realizations on `wfc:ProviderClosure`
 individuals (this corpus uses `dcterms:identifier`; the conflict gate scans
 all literal values on a closure individual property-agnostically).

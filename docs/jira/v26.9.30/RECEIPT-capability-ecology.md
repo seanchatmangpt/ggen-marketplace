@@ -66,3 +66,26 @@ owner: ash_pplan).
 
 All 12 packs, 12 test files, both coordination files, all commits — 100% of this wave's
 bytes. 比: 100% 法面 (pack source), zero 産面 bytes written.
+
+## Addendum (2026-10-01) — consolidation into ONE pack (operator order)
+
+The ten per-family capability packs were consolidated into **one
+`capability-ecology-pack`** (lane-partition artifact → durable topology; one kernel
+`qce:`, N family bindings). Marketplace: 405 → 396 packs.
+
+- Mechanics: git-mv with family prefixes (`fscap_`…`ecap_`); ontologies →
+  `ontology/<family>.ttl`; ten heterogeneous verify.py courts → ONE uniform exact-stem
+  court (`qualification/verify.py`, 59 gates × pass-silent/fail-fires over the union
+  graph); wave READMEs preserved as `families/<family>.md`; tests renamed
+  `tests/test_capability_ecology_<family>.py` and repointed.
+- Real defect found by the uniform court (old courts never EXECUTED pass witnesses —
+  they were structurally checked only): authcap/ecap `010_pinned_capability_identity`
+  pass witnesses carried pin-duplicating individuals violating their own
+  duplicate-key law; replaced with the families' proven-silent positive fixtures.
+  Anti-vacuity intact: every gate keeps a firing fail witness (court ALIVE, 59/59).
+- Ladder on the consolidated tree (all observed): `validate` exit 0 (packs=396);
+  real-ggen `check capability-ecology-pack` exit 0; uniform court ALIVE 59 gates;
+  witness-court sweep ALIVE (30 configured packs); catalog byte-deterministic;
+  fingerprint `sha256:077826feba2cacd3ed3bbf71ef3c7babf611fcc0da814f929fbc0ffdd07ec3cd`;
+  consolidated tests 198/198 passed; full suite re-run recorded below.
+- Operator did not write: any of the consolidation (moves, court, patches, commits).
