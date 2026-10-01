@@ -1,0 +1,90 @@
+# Regeneration court (Lane C9) -- the pack's sync law as a falsifiable court.
+#
+# Law under test: the semantic facts (ontology.ttl / facts.exs) are the ONLY
+# authority. The generator is a pure function of them. Therefore:
+#   R1. rendering twice from unchanged facts is byte-identical;
+#   R2. a committed/generated artifact that differs from a fresh render from
+#       the current facts is a STALE VIOLATION -- a court that passes while a
+#       stale artifact differs MUST fail, so this court fails loudly on it;
+#   R3. changing exactly one source semantic fact MUST change the output;
+#   R4. restoring the fact restores determinism byte-for-byte.
+#
+# Run:  elixir templates/regeneration_court.exs.tmpl
+# (or via fixture/regeneration/run_courts.exs; SPECIMEN_ROOT overrides the
+#  specimen location).
+
+defmodule RegenerationCourt do
+  @specimen_root System.get_env("SPECIMEN_ROOT") ||
+                   Path.expand("../fixture/regeneration", __DIR__)
+
+  def run do
+    Code.put_compiler_option(:ignore_module_conflict, true)
+    Code.eval_file(Path.join(@specimen_root, "specimen_kit.exs"), @specimen_root)
+
+    kit = RegenerationSpecimen.Kit
+    facts = kit.load_facts(@specimen_root)
+    kit.ensure_generator(@specimen_root)
+
+    IO.puts("== regeneration court ==")
+    IO.puts("specimen_root: #{@specimen_root}")
+
+    # --- R1: byte-identical double render --------------------------------
+    out1 = kit.render(facts)
+    out2 = kit.render(facts)
+    kit.assert!(out1 == out2, "double render from unchanged facts is not byte-identical")
+
+    src1 = out1[kit.extension_path()]
+
+    IO.puts("R1 double render: byte-identical (#{byte_size(src1)} bytes, " <>
+             "sha256 #{kit.sha256(src1)})")
+
+    # --- R2: fresh render MUST equal the committed specimen --------------
+    committed_path = Path.join(@specimen_root, "specimen/extension.ex")
+    committed = File.read!(committed_path)
+    kit.assert!(src1 == committed,
+      "stale artifact: committed specimen/extension.ex differs from a fresh render " <>
+        "from the current facts (generated files are never authoritative)")
+
+    IO.puts("R2 fresh render == committed specimen: #{byte_size(committed)} bytes match")
+
+    # Adversarial: a hand-edited committed artifact MUST be caught.
+    tampered = String.replace(committed, "unique_event_name", "renamed_event_name")
+    caught = src1 != tampered
+
+    kit.assert!(caught,
+      "court blindness: a hand-edited committed artifact passed the stale check")
+
+    IO.puts("R2 adversarial (hand-edited artifact): caught = #{caught}")
+
+    # --- R3: one changed fact MUST change the output ---------------------
+    mutated_facts =
+      update_in(facts, [:sections, Access.at(0), :entities, Access.at(0), :fields, Access.at(1)], fn
+        field -> %{field | required: true}
+      end)
+
+    src_mutated = kit.render_extension(mutated_facts)
+    kit.assert!(src_mutated != src1,
+      "changing one source semantic fact did NOT change the generated output")
+
+    diff_lines =
+      src1
+      |> String.split("\n")
+      |> Enum.zip(String.split(src_mutated, "\n"))
+      |> Enum.count(fn {a, b} -> a != b end)
+
+    IO.puts("R3 one-fact mutation (event.description optional -> required): " <>
+             "output changed (#{diff_lines} differing lines)")
+
+    # --- R4: restore the fact, restore determinism -----------------------
+    src_restored = kit.render_extension(facts)
+    kit.assert!(src_restored == src1,
+      "restoring the fact did not restore the original bytes")
+
+    IO.puts("R4 restore: byte-identical to the original render (sha256 #{kit.sha256(src_restored)})")
+
+    IO.puts("regeneration court: PASS")
+    :ok
+  end
+end
+
+RegenerationCourt.run()

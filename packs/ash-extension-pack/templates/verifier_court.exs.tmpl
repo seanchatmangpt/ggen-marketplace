@@ -1,0 +1,336 @@
+---
+to: "test/{{ package_name }}_verifier_court_test.exs"
+for_each: "spec"
+sparql:
+  spec: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT DISTINCT ?package_name ?module_name ?support_subdir
+           (SAMPLE(?validate_delegate_module) AS ?validate_delegate_module)
+           (SAMPLE(?validate_delegate_function) AS ?validate_delegate_function)
+    WHERE {
+      ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ; aex:moduleName ?module_name .
+      OPTIONAL { ?s aex:validateDelegateModule ?validate_delegate_module }
+      OPTIONAL { ?s aex:validateDelegateFunction ?validate_delegate_function }
+      OPTIONAL { ?s aex:supportSubdir ?support_subdir }
+    } GROUP BY ?package_name ?module_name ?support_subdir
+  verifiers: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?package_name ?verifier_name ?verifier_doc WHERE {
+      ?v a aex:Verifier ; aex:verifierOf ?spec ; aex:verifierName ?verifier_name ; aex:verifierDoc ?verifier_doc .
+      ?spec aex:packageName ?package_name .
+    } ORDER BY ?package_name ?verifier_name
+  sections: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?package_name ?section_name ?section_order ?section_describe WHERE {
+      ?s a aex:DslSection ; aex:sectionOf ?spec ; aex:sectionName ?section_name ; aex:sectionOrder ?section_order .
+      ?spec aex:packageName ?package_name .
+      OPTIONAL { ?s aex:sectionDescribe ?section_describe }
+    } ORDER BY ?package_name ?section_order
+  singleton_keys: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?package_name ?section_name ?singleton_key WHERE {
+      ?s a aex:DslSection ; aex:sectionOf ?spec ; aex:sectionName ?section_name ; aex:singletonEntityKey ?singleton_key .
+      ?spec aex:packageName ?package_name .
+    } ORDER BY ?package_name ?section_name ?singleton_key
+  section_fields: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?package_name ?section_name ?section_field_order ?section_field_name ?section_field_type WHERE {
+      ?f a aex:SectionSchemaField ; aex:sectionFieldOf ?section ; aex:sectionFieldOrder ?section_field_order ;
+         aex:sectionFieldName ?section_field_name ; aex:sectionFieldType ?section_field_type .
+      ?section aex:sectionName ?section_name ; aex:sectionOf ?spec .
+      ?spec aex:packageName ?package_name .
+    } ORDER BY ?package_name ?section_name ?section_field_order
+  entities: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?package_name ?section_name ?entity_name ?entity_struct ?entity_identifier ?entity_order WHERE {
+      ?entity a aex:DslEntity ; aex:entityOf ?section ; aex:entityName ?entity_name ;
+              aex:entityStruct ?entity_struct .
+      OPTIONAL { ?entity aex:entityIdentifier ?entity_identifier }
+      OPTIONAL { ?entity aex:entityOrder ?entity_order }
+      ?section aex:sectionName ?section_name ; aex:sectionOf ?spec .
+      ?spec aex:packageName ?package_name .
+    } ORDER BY ?package_name COALESCE(?entity_order, 999999) ?entity_name
+  entity_args: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?package_name ?entity_struct ?arg_order ?arg_name WHERE {
+      ?a a aex:EntityArg ; aex:argOf ?entity ; aex:argOrder ?arg_order ; aex:argName ?arg_name .
+      ?entity aex:entityStruct ?entity_struct ; aex:nestedOf*/aex:entityOf/aex:sectionOf ?spec .
+      ?spec aex:packageName ?package_name .
+    } ORDER BY ?package_name ?entity_struct ?arg_order
+  fields: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?package_name ?entity_struct ?field_order ?field_name ?field_type ?field_required ?field_doc ?field_default WHERE {
+      ?field a aex:EntitySchemaField ; aex:fieldOf ?entity ; aex:fieldOrder ?field_order ;
+             aex:fieldName ?field_name ; aex:fieldType ?field_type ;
+             aex:fieldRequired ?field_required ; aex:fieldDoc ?field_doc .
+      OPTIONAL { ?field aex:fieldDefault ?field_default }
+      ?entity aex:entityStruct ?entity_struct ; aex:nestedOf*/aex:entityOf/aex:sectionOf ?spec .
+      ?spec aex:packageName ?package_name .
+    } ORDER BY ?package_name ?entity_struct ?field_order
+  one_of_values: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?package_name ?entity_struct ?field_name ?one_of_order ?one_of_name WHERE {
+      ?v a aex:FieldOneOfValue ; aex:oneOfValueOf ?field ; aex:oneOfValueOrder ?one_of_order ;
+         aex:oneOfValueName ?one_of_name .
+      ?field aex:fieldName ?field_name ; aex:fieldOf ?entity .
+      ?entity aex:entityStruct ?entity_struct ; aex:nestedOf*/aex:entityOf/aex:sectionOf ?spec .
+      ?spec aex:packageName ?package_name .
+    } ORDER BY ?package_name ?entity_struct ?field_name ?one_of_order
+  nested_entities: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?package_name ?parent_entity_struct ?nested_field_name ?nested_entity_name ?nested_entity_struct WHERE {
+      ?n a aex:NestedEntity ; aex:nestedOf ?parent ; aex:nestedFieldName ?nested_field_name ;
+         aex:entityName ?nested_entity_name ; aex:entityStruct ?nested_entity_struct .
+      ?parent aex:entityStruct ?parent_entity_struct ; aex:nestedOf*/aex:entityOf/aex:sectionOf ?spec .
+      ?spec aex:packageName ?package_name .
+    } ORDER BY ?package_name ?parent_entity_struct ?nested_entity_name
+---
+{# Verifier closure court -- the negative-witness court for verify.ex.tmpl.
+
+   Spec law: every legality constraint expressible before runtime must be a Spark
+   verifier, and a verifier with no negative witness is VACUOUS. This court generates
+   the negative witnesses: one deliberately-malformed .ex specimen per verifier refusal
+   condition (fixture/malformed_specimens/), each compiled with Code.compile_string/1
+   against the REAL generated extension ({{ module_name }}) or the court's ScratchTrail
+   (same sections/entity structs, `transformers: []`) so the REAL {{ module_name }}.Verify
+   runs. A specimen that compiles cleanly = vacuous verifier = the court FAILS naming
+   the verifier.
+
+   Specimen contract: each specimen file's leading comments declare
+     # VERIFIER: <slug>            -- which refusal condition it witnesses
+     # EXPECT-RAISE: <Module>      -- Spark.Error.DslError | CompileError
+     # EXPECT-MESSAGE: <substring> -- required substring of the refusal message
+     # REFUSAL-CONDITION: <prose>  -- which template raise/verify branch it kills
+   The court parses this metadata at compile time; a specimen dir with zero
+   parseable specimens is itself a court failure (an empty court proves nothing).
+
+   ScratchTrail mirrors the persist-before-verify mutant direction: it reuses the
+   REAL {{ module_name }}.Verify against a state where Persist never ran, so the
+   nil branch of verify/1 is the ONLY thing standing between the missing-persisted
+   specimen and a clean compile. Removing that branch (or stubbing the with-chain
+   clause) in {{ module_name }}.Verify and re-running this court is the captured
+   failing-output direction: the court must fail naming the removed verifier. #}
+{# Per-spec scoping: ggen evaluates each named `sparql:` result once against the whole
+   union graph, not per `for_each` row, so every non-spec query selects ?package_name
+   and is narrowed to the current spec here (the reactor_pipeline.ex.tmpl fix, applied
+   to every DSL family). Without it a multi-spec graph rendered every spec's sections,
+   entities, getters, verifiers and targets into every other spec's modules. #}
+{% set verifiers = verifiers | filter(attribute="package_name", value=package_name) %}
+{% set sections = sections | filter(attribute="package_name", value=package_name) %}
+{% set singleton_keys = singleton_keys | filter(attribute="package_name", value=package_name) %}
+{% set section_fields = section_fields | filter(attribute="package_name", value=package_name) %}
+{% set entities = entities | filter(attribute="package_name", value=package_name) %}
+{% set entity_args = entity_args | filter(attribute="package_name", value=package_name) %}
+{% set fields = fields | filter(attribute="package_name", value=package_name) %}
+{% set one_of_values = one_of_values | filter(attribute="package_name", value=package_name) %}
+{% set nested_entities = nested_entities | filter(attribute="package_name", value=package_name) %}
+defmodule {{ module_name }}.Court.Sections do
+  @moduledoc false
+
+  # Rebuilds the spec's sections with the REAL generated entity structs
+  # ({{ module_name }}-family, defined by lib/{{ package_name }}/resource.ex) so
+  # ScratchTrail presents the identical section surface with `transformers: []`.
+  {%- for section in sections %}
+  {%- set section_singletons = singleton_keys | filter(attribute="section_name", value=section.section_name) %}
+  {%- set section_fields_here = section_fields | filter(attribute="section_name", value=section.section_name) %}
+  {%- set section_entities = entities | filter(attribute="section_name", value=section.section_name) %}
+
+  def {{ section.section_name }} do
+    %Spark.Dsl.Section{
+      name: :{{ section.section_name }},
+      {%- if section.section_describe %}
+      describe: "{{ section.section_describe }}",
+      {%- endif %}
+      {%- if section_fields_here | length > 0 %}
+      schema: [
+        {%- for sf in section_fields_here %}
+        {{ sf.section_field_name }}: [type: {% if sf.section_field_type == "or_string_list_string" %}{:or, [:string, {:list, :string}]}{% elif sf.section_field_type == "list_atom" %}{:list, :atom}{% elif sf.section_field_type == "list_string" %}{:list, :string}{% else %}:{{ sf.section_field_type }}{% endif %}],
+        {%- endfor %}
+      ],
+      {%- endif %}
+      entities: [
+        {%- for entity in section_entities %}
+        {%- set entity_args_here = entity_args | filter(attribute="entity_struct", value=entity.entity_struct) %}
+        {%- set entity_fields_here = fields | filter(attribute="entity_struct", value=entity.entity_struct) %}
+        %Spark.Dsl.Entity{
+          name: :{{ entity.entity_name }},
+          target: {{ entity.entity_struct }},
+          {%- if entity_args_here | length > 0 %}
+          args: [{% for a in entity_args_here %}:{{ a.arg_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+          {%- endif %}
+          {%- if entity.entity_identifier %}
+          identifier: :{{ entity.entity_identifier }},
+          {%- endif %}
+          schema: [
+            {%- for f in entity_fields_here %}
+            {{ f.field_name }}: [type: {% if f.field_type == "one_of" %}{:one_of, [{% set ov = one_of_values | filter(attribute="entity_struct", value=entity.entity_struct) | filter(attribute="field_name", value=f.field_name) %}{% for v in ov %}:{{ v.one_of_name }}{% if not loop.last %}, {% endif %}{% endfor %}]}{% elif f.field_type == "or_string_list_string" %}{:or, [:string, {:list, :string}]}{% elif f.field_type == "list_atom" %}{:list, :atom}{% elif f.field_type == "list_string" %}{:list, :string}{% else %}:{{ f.field_type }}{% endif %}, required: {{ f.field_required }}{% if f.field_default %}, default: {{ f.field_default }}{% endif %}, doc: "{{ f.field_doc }}"],
+            {%- endfor %}
+          ]
+        }{% if not loop.last %},{% endif %}
+        {%- endfor %}
+      ]
+      {%- if section_singletons | length > 0 %},
+      singleton_entity_keys: [{% for k in section_singletons %}:{{ k.singleton_key }}{% if not loop.last %}, {% endif %}{% endfor %}]
+      {%- endif %}
+    }
+  end
+  {%- endfor %}
+end
+
+defmodule {{ module_name }}.Court.ScratchTrail do
+  @moduledoc false
+
+  # Same surface, no transformers: the REAL {{ module_name }}.Verify must still
+  # refuse anything compiled under it, because nothing persists
+  # :{{ package_name }}_compiled.
+  use Spark.Dsl.Extension,
+    sections: [{% for section in sections %}{{ module_name }}.Court.Sections.{{ section.section_name }}(){% if not loop.last %}, {% endif %}{% endfor %}],
+    transformers: [],
+    verifiers: [{{ module_name }}.Verify]
+end
+
+defmodule {{ module_name }}.Court.Dsl do
+  @moduledoc false
+
+  use Spark.Dsl, default_extensions: [extensions: [{{ module_name }}]]
+end
+
+defmodule {{ module_name }}.Court.ScratchDsl do
+  @moduledoc false
+
+  use Spark.Dsl, default_extensions: [extensions: [{{ module_name }}.Court.ScratchTrail]]
+end
+
+defmodule {{ module_name }}VerifierCourtTest do
+  use ExUnit.Case, async: false
+
+  @specimen_dir Path.join(File.cwd!(), "{{ specimen_dir | default(value="fixture/malformed_specimens") }}")
+  {%- if verifiers | length > 0 %}
+  @verifiers [{% for v in verifiers %}"{{ v.verifier_name }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+  {%- else %}
+  @verifiers []
+  {%- endif %}
+
+  @specimens @specimen_dir
+             |> Path.join("*.ex")
+             |> Path.wildcard()
+             |> Enum.sort()
+             |> Enum.map(fn path ->
+               source = File.read!(path)
+
+               meta = fn key ->
+                 case Regex.run(~r/^# #{key}: (.*)$/m, source) do
+                   [_, value] -> String.trim(value)
+                   nil -> nil
+                 end
+               end
+
+               %{
+                 path: path,
+                 name: path |> Path.basename(".ex"),
+                 source: source,
+                 verifier: meta.("VERIFIER"),
+                 expect_raise: meta.("EXPECT-RAISE"),
+                 expect_message: meta.("EXPECT-MESSAGE"),
+                 scratch?: match?({:ok, _}, Regex.run(~r/use Court.ScratchDsl/, source))
+               }
+             end)
+
+  # -- happy-path guard: the extension itself must accept a legal module, so any
+  # -- specimen failure below is attributable to the refusal condition, not to a
+  # -- broken extension render.
+  @happy_path_source """
+  defmodule Court.HappyPath do
+    use {{ module_name }}.Court.Dsl
+
+    {% for section in sections %}{{ section.section_name }} do
+    end
+    {% endfor %}end
+  """
+
+  test "court is non-vacuous: specimens exist and cover declared verifiers" do
+    refute @specimens == [], "no malformed specimens found in #{@specimen_dir} -- an empty court proves nothing"
+    refute @verifiers == [], "spec declares no aex:Verifier rows -- nothing for the court to close"
+
+    witnessed = Enum.map(@specimens, & &1.verifier)
+
+    missing =
+      Enum.reject(witnessed, fn v ->
+        v in @verifiers or v in ["persist_before_verify", "verify_section_singleton_entities", "section_surface", "entity_surface"]
+      end)
+
+    assert missing == [],
+           "specimens witness unknown verifier(s): #{inspect(missing)} -- declared verifiers: #{inspect(@verifiers)}"
+  end
+
+  test "happy path: a legal module compiles against the real extension" do
+    {mods, diagnostics} =
+      Code.with_diagnostics(fn ->
+        Code.compile_string(@happy_path_source)
+      end)
+
+    assert Enum.any?(mods, &match?({Court.HappyPath, _}, &1)),
+           "the legal happy-path module failed to compile -- the extension render itself is broken, so any specimen refusal would be unattributable"
+
+    error_diagnostics = Enum.filter(diagnostics, &(&1.severity == :error))
+
+    assert error_diagnostics == [],
+           "the legal happy-path module produced compiler error diagnostics: #{inspect(error_diagnostics)}"
+  end
+
+  test "every malformed specimen is refused by the real generated verifier" do
+    Enum.each(@specimens, fn specimen ->
+      source =
+        specimen.source
+        |> String.split("\n")
+        |> Enum.reject(&String.starts_with?(&1, "#"))
+        |> Enum.join("\n")
+        |> String.replace("Court.ScratchDsl", "{{ module_name }}.Court.ScratchDsl")
+        |> String.replace("Court.Dsl", "{{ module_name }}.Court.Dsl")
+
+      # Elixir 1.19+ hazards: a Spark verifier raising inside the parallel checker
+      # can surface as a swallowed warning with a SUCCESSFUL compile. The court
+      # therefore treats a refusal as: a real raise OR a captured compiler
+      # diagnostic carrying the specimen's EXPECT-MESSAGE substring. A clean
+      # compile with no matching diagnostic = vacuous verifier.
+      {outcome, diagnostics} =
+        Code.with_diagnostics(fn ->
+          try do
+            Code.compile_string(source)
+            :compiled_clean
+          rescue
+            e -> {:raised, e.__struct__ |> Module.split() |> Enum.join("."), Exception.message(e)}
+          end
+        end)
+
+      case outcome do
+        {:raised, kind, message} ->
+          matched? =
+            String.contains?(message, specimen.expect_message) or
+              Enum.any?(diagnostics, fn d ->
+                d.severity in [:error, :warning] and String.contains?(d.message, specimen.expect_message)
+              end)
+
+          assert kind == specimen.expect_raise and matched?,
+                 "specimen #{specimen.name}: expected #{specimen.expect_raise} matching \"#{specimen.expect_message}\", " <>
+                   "got #{kind}: #{message}"
+
+        :compiled_clean ->
+          diagnostic =
+            Enum.find(diagnostics, fn d ->
+              d.severity in [:error, :warning] and String.contains?(d.message, specimen.expect_message)
+            end)
+
+          unless diagnostic do
+            flunk(
+              "VACUOUS VERIFIER #{specimen.verifier || "?"}: specimen #{specimen.name} " <>
+                "(#{specimen.path}) compiled CLEANLY with no matching refusal diagnostic -- " <>
+                "refusal condition never fires, so the verifier carries no bits. " <>
+                "Expected raise #{specimen.expect_raise} matching \"#{specimen.expect_message}\". " <>
+                "Captured diagnostics: #{inspect(Enum.map(diagnostics, &{&1.severity, String.slice(&1.message, 0, 120)}))}"
+            )
+          end
+      end
+    end)
+  end
+end

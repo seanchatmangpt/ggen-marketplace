@@ -1,0 +1,191 @@
+---
+to: "test/{{ package_name }}_spark_parity_court_test.exs"
+for_each: "spec"
+sparql:
+  spec: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT DISTINCT ?package_name ?module_name WHERE {
+      ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ; aex:moduleName ?module_name .
+    }
+  facts: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?package_name ?fact_name ?has_impl ?has_decl WHERE {
+      ?f a aex:SemanticFact ; aex:factName ?fact_name .
+      OPTIONAL {
+        ?i a aex:SurfaceFact ; aex:surfaceOf ?f ; aex:surfaceKind "implemented" ;
+           aex:surfacePackage ?package_name .
+      }
+      OPTIONAL {
+        ?d a aex:SurfaceFact ; aex:surfaceOf ?f ; aex:surfaceKind "sparkDeclared" ;
+           aex:surfacePackage ?package_name .
+      }
+      BIND(BOUND(?i) AS ?has_impl)
+      BIND(BOUND(?d) AS ?has_decl)
+    }
+    ORDER BY ?package_name ?fact_name
+  declared: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?package_name ?kind ?section_name ?entity_struct ?name WHERE {
+      {
+        ?section a aex:DslSection ; aex:sectionOf ?spec ;
+                 aex:sectionName ?name .
+        ?spec aex:packageName ?package_name .
+        BIND("section" AS ?kind)
+        BIND("" AS ?section_name)
+        BIND("" AS ?entity_struct)
+      } UNION {
+        ?entity a aex:DslEntity ; aex:entityOf ?section ;
+                aex:entityName ?name ; aex:entityStruct ?entity_struct .
+        ?section aex:sectionName ?section_name ; aex:sectionOf ?spec .
+        ?spec aex:packageName ?package_name .
+        BIND("entity" AS ?kind)
+      } UNION {
+        ?field a aex:EntitySchemaField ; aex:fieldOf ?entity ;
+               aex:fieldName ?name .
+        ?entity aex:entityStruct ?entity_struct ;
+                aex:entityOf/aex:sectionOf ?spec .
+        ?spec aex:packageName ?package_name .
+        BIND("field" AS ?kind)
+        BIND("" AS ?section_name)
+      } UNION {
+        ?arg a aex:EntityArg ; aex:argOf ?entity ; aex:argName ?name .
+        ?entity aex:entityStruct ?entity_struct ;
+                aex:entityOf/aex:sectionOf ?spec .
+        ?spec aex:packageName ?package_name .
+        BIND("arg" AS ?kind)
+        BIND("" AS ?section_name)
+      } UNION {
+        ?sf a aex:SectionSchemaField ; aex:sectionFieldOf ?section ;
+            aex:sectionFieldName ?name .
+        ?section aex:sectionName ?section_name ; aex:sectionOf ?spec .
+        ?spec aex:packageName ?package_name .
+        BIND("sectionfield" AS ?kind)
+        BIND("" AS ?entity_struct)
+      } UNION {
+        ?v a aex:FieldOneOfValue ; aex:oneOfValueOf ?field ; aex:oneOfValueName ?name .
+        ?field aex:fieldOf ?entity .
+        ?entity aex:entityStruct ?entity_struct ;
+                aex:entityOf/aex:sectionOf ?spec .
+        ?spec aex:packageName ?package_name .
+        BIND("oneof" AS ?kind)
+        BIND("" AS ?section_name)
+      }
+    }
+    ORDER BY ?package_name ?kind ?entity_struct ?name
+---
+
+{# Spark parity court -- the runtime mirror of gates/110_spark_completeness.rq.
+   Generated into the consumer fixture per aex:AshExtensionSpec (for_each spec).
+
+   Test 1 re-asserts the graph-level closure over the rendered fact rows: every
+   fact that carries an "implemented" SurfaceFact must also carry a
+   "sparkDeclared" SurfaceFact, and the test FAILS naming the orphan's
+   aex:factName otherwise.
+
+   Test 2 is the Chicago real-collaborator check: it compiles a real fixture
+   resource with the generated extension attached and introspects the extension's
+   REAL compiled Spark surface via the Spark.Dsl.Extension sections/0 callback,
+   asserting every declared section/entity/field/arg/sectionfield/oneof fact is
+   present in that compiled surface -- again failing with the row's name.
+
+   Anti-vacuity: adding an implemented-only ghost fact
+   (aex:MutationCourtGhostField in ontology.ttl) makes Test 1 FAIL with the
+   ghost's factName; see the lane C1 session receipt for the captured runs. #}
+{# Per-spec scoping: every non-spec query selects ?package_name and is narrowed to
+   the current spec here (the extension.ex.tmpl fix, applied to both fact
+   families). #}
+{% set facts = facts | filter(attribute="package_name", value=package_name) %}
+{% set declared = declared | filter(attribute="package_name", value=package_name) %}
+defmodule {{ module_name }}ParityCourtTest do
+  @moduledoc false
+  use ExUnit.Case, async: true
+
+  # Fact rows baked in at generation time from the pack ontology
+  # (aex:SemanticFact / aex:SurfaceFact). The compiled extension under test is the
+  # one this same graph generated -- real collaborators, no doubles.
+  @orphan_check [
+{% for f in facts %}{% if f.has_impl | default(value="false") == "true" and f.has_decl | default(value="false") != "true" %}    "{{ f.fact_name }}",
+{% endif %}{% endfor %}  ]
+
+  @declared [
+{% for r in declared %}    {:"{{ r.kind }}", "{{ r.section_name }}", "{{ r.entity_struct }}", "{{ r.name }}"},
+{% endfor %}  ]
+
+  test "every implemented fact has a sparkDeclared visibility (closure, {{ package_name }})" do
+    assert @orphan_check == [], """
+    spark parity VIOLATION: implemented facts with no sparkDeclared SurfaceFact:
+
+    #{Enum.map_join(@orphan_check, "\n", &"  - #{&1}")}
+
+    (implemented - sparkDeclared must be the empty set; see
+    gates/110_spark_completeness.rq and ontology.ttl's closure vocabulary.)
+    """
+  end
+
+  test "compiled Spark surface carries every declared fact ({{ package_name }})" do
+    fixture = compile_fixture()
+    extension = {{ module_name }}
+    assert extension in Spark.extensions(fixture)
+
+    declared = MapSet.new(@declared)
+
+    compiled =
+      extension.sections()
+      |> Enum.flat_map(fn section ->
+        section_name = Atom.to_string(section.name)
+        rows = [{:section, "", "", section_name}]
+
+        entity_rows =
+          Enum.flat_map(section.entities || [], fn entity ->
+            struct_name = if entity.target, do: inspect(entity.target), else: ""
+            field_rows = Enum.map(entity.schema || [], fn {f, _} -> {:field, "", struct_name, Atom.to_string(f)} end)
+            arg_rows = Enum.map(entity.args || [], fn a -> {:arg, "", struct_name, Atom.to_string(a)} end)
+
+            oneof_rows =
+              Enum.flat_map(entity.schema || [], fn {f, opts} ->
+                case opts[:type] do
+                  {:one_of, values} -> Enum.map(values, fn v -> {:oneof, "", struct_name, Atom.to_string(v)} end)
+                  _ -> []
+                end
+              end)
+
+            entity_row = [{:entity, section_name, struct_name, Atom.to_string(entity.name)}]
+            entity_row ++ field_rows ++ arg_rows ++ oneof_rows
+          end)
+
+        sectionfield_rows =
+          Enum.map(section.schema || [], fn {f, _} -> {:sectionfield, section_name, "", Atom.to_string(f)} end)
+
+        rows ++ entity_rows ++ sectionfield_rows
+      end)
+      |> MapSet.new()
+
+    missing = MapSet.difference(declared, compiled)
+    assert MapSet.size(missing) == 0, """
+    spark parity VIOLATION: declared facts absent from the COMPILED extension surface:
+
+    #{Enum.map_join(missing, "\n", &"  - #{inspect(&1)}")}
+
+    (the compiled extension under test is the one this graph generated --
+    introspected via the real Spark.Dsl.Extension sections/0 callback.)
+    """
+  end
+
+  defp compile_fixture do
+    source = """
+    defmodule {{ module_name }}.ParityFixture do
+      use Ash.Resource,
+        domain: nil,
+        extensions: [{{ module_name }}]
+    attributes do
+        uuid_primary_key :id
+      end
+    end
+    """
+
+    modules = Code.compile_string(source)
+    fixture = {{ module_name }}.ParityFixture
+    assert Enum.any?(modules, &match?({^fixture, _}, &1))
+    fixture
+  end
+end
