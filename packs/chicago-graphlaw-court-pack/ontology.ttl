@@ -1,0 +1,81 @@
+# Chicago GraphLaw court vocabulary (base vocab + court individuals).
+# Cases live in cases/a.ttl (cross-authority court) and cases/b.ttl (FIBO court).
+# Standing: finite published corpus passes on exact subject; authority NONE;
+# synthetic subject; no general financial safety claim.
+@prefix cc:   <https://chicago.graphlaw.dev/court#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+
+<https://chicago.graphlaw.dev/court> a owl:Ontology ;
+  dct:title "Chicago GraphLaw court vocabulary" ;
+  owl:versionInfo "v26.9.29" .
+
+# ---- classes -------------------------------------------------------------
+cc:Court a owl:Class ; rdfs:label "Court" ;
+  rdfs:comment "A generated Rust integration-test file: one court, many cases." .
+cc:Case a owl:Class ; rdfs:label "Case" ;
+  rdfs:comment "One #[test]: an ABI request (or chain) plus an expected observation." .
+cc:Axiom a owl:Class ; rdfs:label "Axiom" ;
+  rdfs:comment "A published invariant a case covers; must carry cc:source." .
+cc:PositiveCase a owl:Class ; rdfs:subClassOf cc:Case .
+cc:NegativeCase a owl:Class ; rdfs:subClassOf cc:Case .
+cc:InvarianceCase a owl:Class ; rdfs:subClassOf cc:Case .
+cc:CrossAuthorityCase a owl:Class ; rdfs:subClassOf cc:Case .
+cc:BoundaryMutationCase a owl:Class ; rdfs:subClassOf cc:Case .
+
+# ---- court properties ----------------------------------------------------
+cc:courtId a owl:DatatypeProperty ; rdfs:domain cc:Court .
+cc:testFile a owl:DatatypeProperty ; rdfs:domain cc:Court ;
+  rdfs:comment "Path (relative to the consumer repo) of the generated test file." .
+cc:authority a owl:DatatypeProperty ; rdfs:domain cc:Court .
+cc:consequence a owl:DatatypeProperty ; rdfs:domain cc:Court .
+cc:standing a owl:DatatypeProperty ; rdfs:domain cc:Court .
+cc:policyNote a owl:DatatypeProperty ; rdfs:domain cc:Court .
+cc:thresholdMicros a owl:DatatypeProperty ; rdfs:domain cc:Court ; rdfs:range xsd:integer ;
+  rdfs:comment "Court policy threshold in micros. Chicago court policy, not FIBO." .
+
+# ---- case properties -----------------------------------------------------
+cc:court a owl:ObjectProperty ; rdfs:domain cc:Case ; rdfs:range cc:Court .
+cc:caseId a owl:DatatypeProperty ; rdfs:domain cc:Case ;
+  rdfs:comment "snake_case Rust fn name; regex ^[a-z][a-z0-9_]{2,63}$." .
+cc:ordinal a owl:DatatypeProperty ; rdfs:domain cc:Case ; rdfs:range xsd:integer .
+cc:kind a owl:DatatypeProperty ; rdfs:domain cc:Case ;
+  rdfs:comment "positive | negative | invariance | cross-authority | boundary-mutation." .
+cc:title a owl:DatatypeProperty ; rdfs:domain cc:Case .
+cc:op a owl:DatatypeProperty ; rdfs:domain cc:Case ; rdfs:comment "Primary ABI op exercised (documentation)." .
+cc:request a owl:DatatypeProperty ; rdfs:domain cc:Case ;
+  rdfs:comment "JSON literal: one ABI request object, or an array = chain ($PREV:/ptr, $FILE:path tokens)." .
+cc:expect a owl:DatatypeProperty ; rdfs:domain cc:Case ;
+  rdfs:comment "JSON array of assertions {ptr, eq|contains|len|absent} over the last response." .
+cc:requestB a owl:DatatypeProperty ; rdfs:domain cc:Case .
+cc:expectB a owl:DatatypeProperty ; rdfs:domain cc:Case .
+cc:compare a owl:DatatypeProperty ; rdfs:domain cc:Case ;
+  rdfs:comment "JSON array of {a, rel(eq|neq), b}: pointers into response A and response B." .
+cc:mutates a owl:ObjectProperty ; rdfs:domain cc:Case ; rdfs:range cc:Case .
+cc:byteIdentity a owl:DatatypeProperty ; rdfs:domain cc:Case ; rdfs:range xsd:boolean ;
+  rdfs:comment "Single-request cases only: native and wasm raw responses must be byte-identical." .
+cc:coversAxiom a owl:ObjectProperty ; rdfs:domain cc:Case ; rdfs:range cc:Axiom .
+cc:ceiling a owl:DatatypeProperty ; rdfs:domain cc:Case ;
+  rdfs:comment "observe | select | construct (documentation of the lease ceiling the case runs under)." .
+cc:note a owl:DatatypeProperty ; rdfs:domain cc:Case .
+cc:source a owl:DatatypeProperty ; rdfs:domain cc:Axiom .
+
+# ---- court individuals (cases are added by cases/a.ttl, cases/b.ttl) ----
+cc:cross_authority_court a cc:Court ;
+  cc:courtId "chicago-cross-authority" ;
+  cc:testFile "tests/chicago_cross_authority.rs" ;
+  cc:authority "NONE" ;
+  cc:consequence "EVIDENCE_ONLY" ;
+  cc:standing "finite published corpus passes on exact subject; authority NONE; synthetic subject; no general financial safety claim" ;
+  cc:policyNote "Cross-authority agreement (n3, datalog, owl-rl entail, shacl, sparql, canonical) on shared closures; representative cases only." .
+
+cc:fibo_court a cc:Court ;
+  cc:courtId "chicago-fibo" ;
+  cc:testFile "tests/chicago_fibo.rs" ;
+  cc:authority "NONE" ;
+  cc:consequence "EVIDENCE_ONLY" ;
+  cc:thresholdMicros 10000000000000 ;
+  cc:standing "finite published corpus passes on exact subject; authority NONE; synthetic subject; no general financial safety claim" ;
+  cc:policyNote "Synthetic financial subject only; no real payment rail. The 10M threshold (10000000000000 micros) is Chicago court policy, not FIBO's." .

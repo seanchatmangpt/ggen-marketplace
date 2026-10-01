@@ -1,0 +1,42 @@
+# MESSAGE: every gac:LawStep must carry lawStepName (non-empty) and lawStepOrder (xsd:integer
+# >= 1, unique across law steps); lawStepName must be unique; lawStepCeiling is optional (a
+# step with no ceiling, such as record-receipts, is legal) but when present it must be one of
+# "observe" | "select" | "construct". Any row = a violation.
+PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT DISTINCT ?s ?missing WHERE {
+  {
+    VALUES ?missing { gac:lawStepName gac:lawStepOrder }
+    ?s a gac:LawStep .
+    FILTER NOT EXISTS { ?s ?missing ?any }
+  }
+  UNION {
+    ?s a gac:LawStep ; gac:lawStepName ?n .
+    FILTER (!isLiteral(?n) || str(?n) = "")
+    BIND(gac:lawStepName AS ?missing)
+  }
+  UNION {
+    ?s a gac:LawStep ; gac:lawStepOrder ?o .
+    FILTER (!isLiteral(?o) || datatype(?o) != xsd:integer || ?o < 1)
+    BIND(gac:lawStepOrder AS ?missing)
+  }
+  UNION {
+    ?s a gac:LawStep ; gac:lawStepCeiling ?c .
+    FILTER (!isLiteral(?c) || !(str(?c) IN ("observe", "select", "construct")))
+    BIND(gac:lawStepCeiling AS ?missing)
+  }
+  UNION {
+    ?s a gac:LawStep ; gac:lawStepOrder ?o .
+    ?t a gac:LawStep ; gac:lawStepOrder ?o2 .
+    FILTER (?s != ?t && ?o = ?o2)
+    BIND(gac:lawStepOrder AS ?missing)
+  }
+  UNION {
+    ?s a gac:LawStep ; gac:lawStepName ?n .
+    ?t a gac:LawStep ; gac:lawStepName ?n2 .
+    FILTER (?s != ?t && str(?n) = str(?n2))
+    BIND(gac:lawStepName AS ?missing)
+  }
+}
+ORDER BY ?s ?missing

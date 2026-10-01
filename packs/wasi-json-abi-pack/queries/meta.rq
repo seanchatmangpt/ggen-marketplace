@@ -1,0 +1,65 @@
+# meta.rq — single-row binding for the rendered ABI metadata module (abi_meta.rs).
+# Columns are consumed by ggen sync as plain Tera variables:
+#   {{ crate_name }} {{ export_prefix }} {{ abi_version }} {{ max_request_bytes }}
+#   {{ max_json_depth }} {{ max_outstanding_bytes }} {{ ops }} {{ error_codes }}
+# max_outstanding_bytes is optional (wja:maxOutstandingBytes); "" when absent, in which
+# case the template emits no MAX_OUTSTANDING_BYTES constant.
+# ops / error_codes are "@@"-joined groups, each "<zero-padded order>|<name>";
+# the template sorts them lexically (zero padding makes that numeric order) and
+# strips the order prefix. A missing module, op or error-code fact yields zero
+# rows (refusal) rather than an empty table.
+
+PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
+
+SELECT ?crate_name ?export_prefix ?abi_version ?max_request_bytes ?max_json_depth ?max_outstanding_bytes ?ops ?error_codes
+WHERE {
+  ?module a wja:WasmModule ;
+          wja:crateName       ?crateRaw ;
+          wja:exportPrefix    ?prefixRaw ;
+          wja:abiVersion      ?abiRaw ;
+          wja:maxRequestBytes ?maxReqRaw ;
+          wja:maxJsonDepth    ?maxDepthRaw .
+  OPTIONAL { ?module wja:maxOutstandingBytes ?moRaw }
+  BIND(COALESCE(STR(?moRaw), "") AS ?max_outstanding_bytes)
+  BIND(STR(?crateRaw) AS ?crate_name)
+  BIND(STR(?prefixRaw) AS ?export_prefix)
+  BIND(STR(?abiRaw) AS ?abi_version)
+  BIND(STR(?maxReqRaw) AS ?max_request_bytes)
+  BIND(STR(?maxDepthRaw) AS ?max_json_depth)
+
+  {
+    SELECT ?module (GROUP_CONCAT(?opSpec ; separator="@@") AS ?ops)
+    WHERE {
+      {
+        SELECT ?module ?opSpec
+        WHERE {
+          ?module wja:hasOp ?op .
+          ?op wja:opName ?opName ;
+              wja:opOrder ?opOrder .
+          BIND(CONCAT(SUBSTR("000000", 1, 6 - STRLEN(STR(?opOrder))), STR(?opOrder), "|", STR(?opName)) AS ?opSpec)
+        }
+        ORDER BY ?opOrder
+      }
+    }
+    GROUP BY ?module
+  }
+
+  {
+    SELECT ?module (GROUP_CONCAT(?codeSpec ; separator="@@") AS ?error_codes)
+    WHERE {
+      {
+        SELECT ?module ?codeSpec
+        WHERE {
+          ?module wja:hasErrorCode ?code .
+          ?code wja:codeName ?codeName ;
+                wja:codeOrder ?codeOrder .
+          BIND(CONCAT(SUBSTR("000000", 1, 6 - STRLEN(STR(?codeOrder))), STR(?codeOrder), "|", STR(?codeName)) AS ?codeSpec)
+        }
+        ORDER BY ?codeOrder
+      }
+    }
+    GROUP BY ?module
+  }
+}
+ORDER BY ?crate_name
+LIMIT 1

@@ -1,0 +1,11 @@
+# MESSAGE: exactly one afc:Consumer with projectName, profile and receiptPath.
+PREFIX afc: <https://ggen.dev/ontology/affidavit-consumer#>
+SELECT ?problem ?detail WHERE {
+  { { SELECT (COUNT(?c) AS ?n) WHERE { ?c a afc:Consumer } } FILTER(?n != 1)
+    BIND("consumer_count_not_exactly_one" AS ?problem) BIND(CONCAT("consumers=",STR(?n)) AS ?detail) }
+  UNION
+  { ?c a afc:Consumer . VALUES ?p { afc:projectName afc:profile afc:receiptPath }
+    FILTER NOT EXISTS { ?c ?p ?v }
+    BIND("consumer_property_missing" AS ?problem) BIND(CONCAT(STR(?c)," lacks ",STR(?p)) AS ?detail) }
+}
+ORDER BY ?problem ?detail

@@ -1,0 +1,55 @@
+# ffi.rq -- consumed by templates/wasm_ffi.rs.tmpl (wasi-json-abi-pack)
+#
+# Single-row projection; a module is a single-file FFI shell.
+# Projected columns (MUST equal wasm_ffi.rs.tmpl's {{ }} vars):
+#   crate_name        - wja:crateName of the module (documentation only).
+#   export_prefix     - wja:exportPrefix; the four exports are
+#                       <prefix>_abi_version / _alloc / _free / _call.
+#   abi_version       - wja:abiVersion (documented in the shell header; the
+#                       value itself is rendered by abi_meta.rs).
+#   max_request_bytes - wja:maxRequestBytes (documented in the shell header;
+#                       enforced through abi_meta::MAX_REQUEST_BYTES).
+#   has_abi_version_export - wja:hasAbiVersionExport; "true" emits <prefix>_abi_version.
+#                       Default "true" (the shell has always exported it).
+#   max_outstanding_bytes - wja:maxOutstandingBytes; non-empty enables outstanding-byte
+#                       accounting against abi_meta::MAX_OUTSTANDING_BYTES. Default "".
+#   buffer_style      - wja:bufferStyle, "boxed-slice" (default) or "vec".
+#   abi_path          - wja:abiModulePath, default "crate::abi".
+#
+# Strict mode: the four module facts are required; a module missing any of them
+# yields zero rows and the engine refuses. The four allocation-discipline columns
+# are optional and default to the historical shell, so profiles that do not set
+# them render byte-identical output.
+
+PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
+
+SELECT
+  ?crate_name
+  ?export_prefix
+  ?abi_version
+  ?max_request_bytes
+  ?has_abi_version_export
+  ?max_outstanding_bytes
+  ?buffer_style
+  ?abi_path
+WHERE {
+  ?module a wja:WasmModule ;
+          wja:crateName       ?crateNameRaw ;
+          wja:exportPrefix    ?exportPrefixRaw ;
+          wja:abiVersion      ?abiVersionRaw ;
+          wja:maxRequestBytes ?maxRequestBytesRaw .
+  BIND(STR(?crateNameRaw) AS ?crate_name)
+  BIND(STR(?exportPrefixRaw) AS ?export_prefix)
+  BIND(STR(?abiVersionRaw) AS ?abi_version)
+  OPTIONAL { ?module wja:hasAbiVersionExport ?havRaw }
+  OPTIONAL { ?module wja:maxOutstandingBytes ?moRaw }
+  OPTIONAL { ?module wja:bufferStyle ?bsRaw }
+  OPTIONAL { ?module wja:abiModulePath ?apRaw }
+  BIND(STR(?maxRequestBytesRaw) AS ?max_request_bytes)
+  BIND(COALESCE(STR(?havRaw), "true") AS ?has_abi_version_export)
+  BIND(COALESCE(STR(?moRaw), "") AS ?max_outstanding_bytes)
+  BIND(COALESCE(STR(?bsRaw), "boxed-slice") AS ?buffer_style)
+  BIND(COALESCE(STR(?apRaw), "crate::abi") AS ?abi_path)
+}
+ORDER BY ?crate_name
+LIMIT 1

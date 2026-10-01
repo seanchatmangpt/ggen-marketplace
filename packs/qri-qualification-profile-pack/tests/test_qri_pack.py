@@ -251,7 +251,8 @@ class RealDifferentialCourt(unittest.TestCase):
 
 ASH = PACK / "ontology/examples/ash-graphlaw-contract.ttl"
 EXAMPLES = [ASH, PACK / "ontology/examples/beam4pm-pg-contract.ttl", PACK / "ontology/examples/autofde-cmca-contract.ttl"]
-HOST_GATES = ("070_typed_import_matches_allowed", "080_abi_family_closed")
+HOST_GATES = ("070_typed_import_matches_allowed", "080_abi_family_closed",
+              "090_zero_ok_declares_meaning", "100_recycle_rule_names_declared_code")
 
 
 def select(query: Path, data: Graph) -> list[tuple]:
@@ -331,10 +332,12 @@ class HostProfileQueries(unittest.TestCase):
         self.assertEqual((row["root"], row["task_root"], row["app"]), ("AshGraphLaw", "AshGraphlaw", "ash_graphlaw"))
         self.assertEqual((row["pool_strategy"], row["pool_size_source"]), ("rest_for_one", "schedulers_online"))  # pool.ex:110
         self.assertEqual((row["taxonomy_ns"], row["telemetry_root"], row["pin_format"]), ("chatman", "ash_graphlaw", "sha256-hex"))
-        self.assertEqual((row["engine_id"], row["probe_op"], row["probe_expect"]), ("GraphLaw", "capabilities", "abi_version"))
+        self.assertEqual((row["engine_id"], row["probe_op"], row["probe_expect"]), ("GraphLaw", "capabilities", "abi"))
         self.assertEqual(data.value(next(data.subjects(RDF.type, QRI.HostProfile)), QRI.freeArity).toPython(), 2)  # gl_free(ptr, len)
         self.assertEqual(len(select(q("51"), data)), 18)
-        self.assertIn(("gl", "fuel_per_ms", "1000000", "1"), select(q("51"), data))
+        self.assertIn(("gl", "fuel_per_ms", "1000000", "1", "false", ""), select(q("51"), data))
+        zero_ok = {r[1] for r in select(q("51"), data) if r[4] == "true"}
+        self.assertEqual(zero_ok, {"table_elements", "instances", "tables", "memories"})
         imps = select(q("52"), data)
         self.assertEqual(len(imps), 7)
         self.assertIn(("gl", "clock_time_get", "i32,i64,i32", "i32"), imps)
@@ -344,7 +347,8 @@ class HostProfileQueries(unittest.TestCase):
         self.assertEqual(ex, {("gl_alloc", "required"), ("gl_call", "required"), ("gl_free", "required"),
                               ("memory", "required"), ("_initialize", "optional")})
         self.assertEqual([r[1] for r in select(q("54"), data)],
-                         ["abi_failure", "call_exited", "call_timeout", "call_trapped", "fuel_exhausted"])
+                         ["abi_failure", "call_exited", "call_trapped", "call_timeout", "fuel_exhausted"])  # recycleRule order, not alphabetical
+        self.assertEqual(row["doc_example_op"], "law")
 
     def test_defaults_apply_for_other_families(self) -> None:
         q50 = next((PACK / "queries").glob("50-*.rq"))
@@ -463,6 +467,48 @@ class BeamHostProjection(unittest.TestCase):
         self.assertIn(b"strategy: :one_for_one", out["pool.ex"])
         self.assertIn(b"strategy: :rest_for_one", base["pool.ex"])
 
+    def test_zero_ok_limits_recycle_order_and_doc_example_come_from_the_graph(self) -> None:
+        base, text = self.render(), ASH.read_text(encoding="utf-8")
+        cfg = base["wasm_config.ex"]
+        self.assertIn(b"@zero_ok [:table_elements, :instances, :tables, :memories]", cfg)
+        self.assertIn(b"&1 >= min_limit(key)", cfg)
+        self.assertIn(b"defp min_limit(key) when key in @zero_ok, do: 0", cfg)
+        self.assertIn(b":call_trapped, :call_timeout", base["host.ex"])
+        self.assertIn(b'`%{"op" => "law", ...}`', base["host.ex"])
+        # dropping the flag from one limit removes it from @zero_ok; dropping all removes the clause
+        one = self.render(text.replace(' ; qri:limitZeroOk true ; qri:limitZeroMeaning "\\"none allowed\\", refused at instantiation" .', ' .', 1))
+        self.assertNotIn(b":table_elements, :instances", one["wasm_config.ex"])
+        self.assertIn(b"@zero_ok [:instances, :tables, :memories]", one["wasm_config.ex"])
+        swapped = text.replace('qri:recycleOrder 3', 'qri:recycleOrder 9').replace('qri:recycleOrder 4', 'qri:recycleOrder 3')
+        line = self.render(swapped)["host.ex"].split(b"@recycle_codes [")[1].split(b"]")[0]
+        self.assertEqual(line, b":abi_failure, :call_exited, :call_timeout, :fuel_exhausted, :call_trapped")
+        bare = text.replace('qri:docExampleOp "law" ;', '')
+        self.assertIn(b'`%{"op" => ...}`', self.render(bare)["host.ex"])
+
+    def test_contract_without_optional_export_renders_a_host_with_no_initialize_call(self) -> None:
+        """A module with no `_initialize` (e.g. the affidavit module) must render, not fail on `init_export`."""
+        text = ASH.read_text(encoding="utf-8")
+        bare = text.replace('    qri:optionalExport "_initialize" ;\n', '', 1)
+        self.assertNotIn("optionalExport", bare, "fixture edit must remove the only optional export")
+        host = self.render(bare)["host.ex"]
+        self.assertNotIn(b'"_initialize"', host)
+        self.assertIn(b"defp run_initialize(_state), do: :ok", host)
+        self.assertIn(b"initialize?: false", host)
+        if have("elixir"):
+            tmp = tempfile.TemporaryDirectory()
+            self.addCleanup(tmp.cleanup)
+            f = Path(tmp.name) / "host.ex"
+            f.write_bytes(host)
+            code = ('src = File.read!(hd(System.argv())); Code.string_to_quoted!(src); '
+                    'fmt = src |> Code.format_string!(line_length: 120, trailing_comma: true, local_pipe_with_parens: true, single_clause_on_do: true) '
+                    '|> IO.iodata_to_binary(); if fmt <> "\\n" != src, do: raise("not format-clean"); IO.puts("ok")')
+            r = subprocess.run(["elixir", "-e", code, str(f)], capture_output=True, text=True)
+            self.assertEqual((r.returncode, r.stdout.strip()), (0, "ok"), r.stderr[-600:])
+        # the declared form is unchanged
+        declared = self.render()["host.ex"]
+        self.assertIn(b'call_raw(state, "_initialize"', declared)
+        self.assertIn(b'Map.has_key?(admitted.exports, "_initialize")', declared)
+
     def test_unsupported_host_shape_fails_loudly_instead_of_emitting_a_wrong_host(self) -> None:
         text = ASH.read_text(encoding="utf-8").replace('qri:outMode "packed_u64"', 'qri:outMode "out_param"')
         tmp = tempfile.TemporaryDirectory()
@@ -514,7 +560,10 @@ class BeamHostProjection(unittest.TestCase):
         self.assertIn((g.value(next(g.subjects(RDF.type, QRI.HostProfile)), QRI.freeArity).toPython()), {2})
         self.assertIn(f"@required_exports [{', '.join(chr(34) + r[1] + chr(34) for r in select(q('53'), g) if r[2] == 'required')}]", eng)
         self.assertIn("@recycle_codes [" + ", ".join(":" + r[1] for r in
-                      sorted(select(q("54"), g), key=lambda r: ["abi_failure", "call_exited", "call_trapped", "call_timeout", "fuel_exhausted"].index(r[1]))) + "]", host)
+                      select(q("54"), g)) + "]", host)
+        zero = re.search(r"@zero_ok \[([^\]]*)\]", cfg).group(1)
+        self.assertEqual({z.strip().lstrip(":") for z in zero.split(",")}, {r[1] for r in select(q("51"), g) if r[4] == "true"})
+        self.assertIn('Runs one GraphLaw request (a string-keyed map such as `%{"' + row["op_key"] + '" => "' + row["doc_example_op"] + '", ...}`)', host)
         defaults = dict(re.findall(r"^\s+(\w+): ([\d_]+),?$", cfg.split("@defaults %{", 1)[1].split("}", 1)[0], re.M))
         attrs = dict(re.findall(r"@(abi_timeout|margin|retry_base_ms|retry_max_ms) ([\d_]+)", host))
         lims = {r[1]: r[2] for r in select(q("51"), g)}

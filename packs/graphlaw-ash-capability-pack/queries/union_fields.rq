@@ -1,0 +1,33 @@
+PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+# Union of the response fields of all variants of an op (first-seen order). A field is
+# required only if every variant requires it and nullable if any variant allows null.
+SELECT ?op_name ?field_name
+       (MIN(?variant_order) AS ?first_variant_order)
+       (MIN(?field_order) AS ?first_field_order)
+       (SAMPLE(?ftype) AS ?field_type)
+       (MIN(?freq) AS ?field_required)
+       (MAX(?fnull) AS ?field_nullable)
+       (SAMPLE(?fdoc) AS ?field_doc)
+       (SAMPLE(?fdefault) AS ?field_default)
+WHERE {
+  ?field_iri a gac:CapabilityField ;
+    gac:fieldOwner ?variant_iri ;
+    gac:fieldSide "response" ;
+    gac:fieldOrder ?field_order ;
+    gac:fieldName ?field_name ;
+    gac:fieldType ?ftype ;
+    gac:fieldRequired ?required ;
+    gac:fieldNullable ?nullable ;
+    gac:fieldDoc ?fdoc .
+  OPTIONAL { ?field_iri gac:fieldDefault ?fdefault }
+  ?variant_iri a gac:ResponseVariant ;
+    gac:variantOf ?capability ;
+    gac:variantOrder ?variant_order .
+  ?capability a gac:Capability ;
+    gac:opName ?op_name .
+  BIND(STR(?required) AS ?freq)
+  BIND(STR(?nullable) AS ?fnull)
+}
+GROUP BY ?op_name ?field_name
+ORDER BY ?op_name ?first_variant_order ?first_field_order

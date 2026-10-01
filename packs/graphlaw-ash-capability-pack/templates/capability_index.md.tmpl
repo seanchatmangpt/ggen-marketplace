@@ -1,0 +1,250 @@
+---
+to: "documentation/reference/capabilities.md"
+sparql:
+  registry: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # One row: the registry identity the projection is stamped with.
+    SELECT ?schema_id ?graphlaw_version ?abi_version ?surface_sha256 ?registry_sha256 ?op_count ?dialect_count
+    WHERE {
+      ?registry a gac:Registry ;
+        gac:schemaId ?schema_id ;
+        gac:graphlawVersion ?graphlaw_version ;
+        gac:abiVersion ?abi_version ;
+        gac:surfaceSha256 ?surface_sha256 ;
+        gac:registrySha256 ?registry_sha256 ;
+        gac:opCount ?op_count ;
+        gac:dialectCount ?dialect_count .
+    }
+    ORDER BY ?registry_sha256
+  ops: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # One row per capability in registry order, with the consumer's optional OpBinding.
+    SELECT ?op_name ?op_order ?op_summary ?result_module ?binding_legacy
+    WHERE {
+      ?capability a gac:Capability ;
+        gac:opName ?op_name ;
+        gac:opOrder ?op_order ;
+        gac:opSummary ?op_summary .
+      OPTIONAL {
+        ?binding a gac:OpBinding ;
+          gac:bindingOp ?op_name .
+        OPTIONAL { ?binding gac:bindingResultModule ?result_module }
+        OPTIONAL { ?binding gac:bindingLegacy ?legacy_flag }
+      }
+      BIND(COALESCE(STR(?legacy_flag), "false") AS ?binding_legacy)
+    }
+    ORDER BY ?op_order
+  op_refusal_kinds: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Refusal kinds each op can emit (a set: ordered by name, the registry keeps no order here).
+    SELECT ?op_name ?refusal_kind
+    WHERE {
+      ?capability a gac:Capability ;
+        gac:opName ?op_name ;
+        gac:opRefusalKind ?refusal_kind .
+    }
+    ORDER BY ?op_name ?refusal_kind
+  dialects: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Dialects in global order (rdf first, then other).
+    SELECT ?dialect_name ?dialect_order ?dialect_kind ?dialect_response_name ?dialect_media_type
+    WHERE {
+      ?dialect a gac:Dialect ;
+        gac:dialectName ?dialect_name ;
+        gac:dialectOrder ?dialect_order ;
+        gac:dialectKind ?dialect_kind ;
+        gac:dialectResponseName ?dialect_response_name .
+      OPTIONAL { ?dialect gac:dialectMediaType ?dialect_media_type }
+    }
+    ORDER BY ?dialect_order
+  dialect_aliases: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Accepted aliases per dialect (a set: ordered by alias).
+    SELECT ?dialect_name ?dialect_alias
+    WHERE {
+      ?dialect a gac:Dialect ;
+        gac:dialectName ?dialect_name ;
+        gac:dialectAlias ?dialect_alias .
+    }
+    ORDER BY ?dialect_name ?dialect_alias
+  law_steps: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Steps of the law op in registry order, keyed by wire name.
+    SELECT ?step_wire ?step_order ?step_ceiling
+    WHERE {
+      ?step a gac:LawStep ;
+        gac:lawStepName ?step_wire ;
+        gac:lawStepOrder ?step_order .
+      OPTIONAL { ?step gac:lawStepCeiling ?step_ceiling }
+    }
+    ORDER BY ?step_order
+  refusal_codes: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Engine refusal detail codes (details.code values) in registry order.
+    SELECT ?code_name ?code_order ?code_kind
+    WHERE {
+      ?code a gac:RefusalCode ;
+        gac:refusalCodeName ?code_name ;
+        gac:refusalCodeOrder ?code_order .
+      OPTIONAL { ?code gac:refusalCodeKind ?code_kind }
+    }
+    ORDER BY ?code_order
+  vocab: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Closed vocabularies: engines, refusal_kinds, regimes, lease_ceilings, lease_reasons, ...
+    SELECT ?vocab_name ?vocab_order ?vocab_value
+    WHERE {
+      ?entry a gac:VocabularyEntry ;
+        gac:vocabOf ?vocab_name ;
+        gac:vocabOrder ?vocab_order ;
+        gac:vocabValue ?vocab_value .
+    }
+    ORDER BY ?vocab_name ?vocab_order
+  limits: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Engine resource limits with their optional scope, unit and enforcing source ('' when absent).
+    SELECT ?limit_name ?limit_value ?limit_scope ?limit_unit ?limit_source
+    WHERE {
+      ?limit a gac:Limit ;
+        gac:limitName ?limit_name ;
+        gac:limitValue ?limit_value .
+      OPTIONAL { ?limit gac:limitScope ?scope_raw }
+      OPTIONAL { ?limit gac:limitUnit ?unit_raw }
+      OPTIONAL { ?limit gac:limitSource ?source_raw }
+      BIND(COALESCE(STR(?scope_raw), "") AS ?limit_scope)
+      BIND(COALESCE(STR(?unit_raw), "") AS ?limit_unit)
+      BIND(COALESCE(STR(?source_raw), "") AS ?limit_source)
+    }
+    ORDER BY ?limit_name
+  models: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # One row per typed model in registry order; model_snake is the file and accessor stem.
+    SELECT ?model_name ?model_order ?model_snake ?model_elixir_module ?model_rust_path ?model_doc
+    WHERE {
+      ?model a gac:Model ;
+        gac:modelName ?model_name ;
+        gac:modelOrder ?model_order ;
+        gac:modelElixirModule ?model_elixir_module ;
+        gac:modelRustPath ?model_rust_path .
+      OPTIONAL { ?model gac:modelDoc ?doc_raw }
+      BIND(COALESCE(STR(?doc_raw), "") AS ?model_doc)
+      BIND(LCASE(REPLACE(REPLACE(STR(?model_name), "([A-Z])", "_$1"), "^_", "")) AS ?model_snake)
+    }
+    ORDER BY ?model_order
+  model_fields: |
+    PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+
+    # Fields per model, in registry order.
+    SELECT ?model_name ?field_order ?field_name ?field_type ?field_required ?field_nullable ?field_doc
+    WHERE {
+      ?field a gac:ModelField ;
+        gac:modelFieldOf ?model ;
+        gac:modelFieldOrder ?field_order ;
+        gac:modelFieldName ?field_name ;
+        gac:modelFieldType ?field_type ;
+        gac:modelFieldRequired ?required ;
+        gac:modelFieldNullable ?nullable ;
+        gac:modelFieldDoc ?field_doc .
+      ?model a gac:Model ;
+        gac:modelName ?model_name .
+      BIND(STR(?required) AS ?field_required)
+      BIND(STR(?nullable) AS ?field_nullable)
+    }
+    ORDER BY ?model_name ?field_order
+---
+<!--
+SPDX-FileCopyrightText: 2026 ash_graphlaw contributors <https://github.com/seanchatmangpt/ash_graphlaw/graphs/contributors>
+
+SPDX-License-Identifier: MIT
+
+GENERATED by ggen from ontology.ttl (graphlaw-ash-capability-pack, graphlaw capability registry). DO NOT EDIT.
+-->
+{# Index of the generated capability surface. #}
+# capabilities
+
+The typed GraphLaw capability surface, generated from the capability registry
+`{{ registry[0].schema_id }}`.
+
+- GraphLaw release: `{{ registry[0].graphlaw_version }}` (ABI `{{ registry[0].abi_version }}`).
+- Capabilities: {{ registry[0].op_count }}. Dialects: {{ registry[0].dialect_count }}.
+- Registry digest: `{{ registry[0].registry_sha256 }}`.
+- Surface digest: `{{ registry[0].surface_sha256 }}`.
+
+Every capability is reachable through `AshGraphLaw.Capability.API` without `AshGraphLaw.call/2`.
+Requests are validated client-side; enum lists are informational and never enforced. Results are
+observations: a decoded result is not standing and grants no authority.
+
+## Operations
+
+| Op | Summary | Refusal kinds | Typed API |
+|---|---|---|---|
+{% for o in ops -%}
+| [`{{ o.op_name }}`](capabilities/{{ o.op_name }}.md) | {{ o.op_summary | replace(from="|", to="&#124;") }} | {% for k in op_refusal_kinds | filter(attribute="op_name", value=o.op_name) %}`{{ k.refusal_kind }}`{% if not loop.last %}, {% endif %}{% endfor %} | `AshGraphLaw.Capability.API.{{ o.op_name }}/2` |
+{% endfor %}
+## Dialects
+
+| Dialect | Kind | Response name | Media type | Aliases |
+|---|---|---|---|---|
+{% for d in dialects -%}
+| `{{ d.dialect_name }}` | {{ d.dialect_kind }} | `{{ d.dialect_response_name }}` | {% if d.dialect_media_type is defined %}`{{ d.dialect_media_type }}`{% else %}none{% endif %} | {% for a in dialect_aliases | filter(attribute="dialect_name", value=d.dialect_name) %}`{{ a.dialect_alias }}`{% if not loop.last %}, {% endif %}{% else %}none{% endfor %} |
+{% endfor %}
+## Law steps
+
+| Step | Ceiling |
+|---|---|
+{% for s in law_steps -%}
+| `{{ s.step_wire }}` | {% if s.step_ceiling is defined %}`{{ s.step_ceiling }}`{% else %}none{% endif %} |
+{% endfor %}
+## Engine refusal codes
+
+| Code | Kind |
+|---|---|
+{% for c in refusal_codes -%}
+| `{{ c.code_name }}` | {% if c.code_kind is defined %}`{{ c.code_kind }}`{% else %}none{% endif %} |
+{% endfor %}
+## Vocabularies
+
+{% set by_name = vocab | group_by(attribute="vocab_name") -%}
+{% for name, entries in by_name -%}
+- `{{ name }}`: {% for e in entries %}`{{ e.vocab_value }}`{% if not loop.last %}, {% endif %}{% endfor %}
+{% endfor %}
+## Typed models
+
+Value models shared by the typed surface; each is generated as an Elixir struct under
+`AshGraphLaw.Model` that keeps unknown wire keys in `:extra`.
+
+| Model | Elixir module | Engine type | Fields |
+|---|---|---|---|
+{% for m in models -%}
+| `{{ m.model_name }}` | `{{ m.model_elixir_module }}` | `{{ m.model_rust_path }}` | {% for f in model_fields | filter(attribute="model_name", value=m.model_name) %}`{{ f.field_name }}`{% if not loop.last %}, {% endif %}{% endfor %} |
+{% endfor %}
+## Limits
+
+| Limit | Value | Scope | Unit | Enforced in |
+|---|---|---|---|---|
+{% for l in limits -%}
+| `{{ l.limit_name }}` | {{ l.limit_value }} | {% if l.limit_scope != "" %}`{{ l.limit_scope }}`{% else %}unscoped{% endif %} | {% if l.limit_unit != "" %}`{{ l.limit_unit }}`{% else %}unknown{% endif %} | {% if l.limit_source != "" %}`{{ l.limit_source }}`{% else %}unknown{% endif %} |
+{% endfor %}
+## Limit scopes
+
+{% set by_scope = limits | group_by(attribute="limit_scope") -%}
+{% for scope, entries in by_scope -%}
+- {% if scope == "" %}unscoped{% else %}`{{ scope }}`{% endif %}: {% for l in entries %}`{{ l.limit_name }}`{% if not loop.last %}, {% endif %}{% endfor %}
+{% endfor %}
+## See Also
+
+- `AshGraphLaw.Capability.Registry`
+- `AshGraphLaw.Capability.API`
+- `AshGraphLaw.Capability.Limits`
+- `AshGraphLaw.Model.Enums`
+- [Typed refusals](typed_refusals.md)

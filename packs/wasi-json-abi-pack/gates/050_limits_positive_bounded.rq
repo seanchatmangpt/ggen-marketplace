@@ -1,0 +1,22 @@
+# MESSAGE: abiVersion, maxRequestBytes, maxJsonDepth and stackSizeBytes must be positive integers, and maxJsonDepth must not exceed 256. Zero, negative, non-integer, or over-bound values are refused.
+PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?problem ?detail WHERE {
+  {
+    ?m a wja:WasmModule .
+    VALUES ?prop { wja:abiVersion wja:maxRequestBytes wja:maxJsonDepth wja:stackSizeBytes }
+    ?m ?prop ?v .
+    FILTER(!isLiteral(?v) || datatype(?v) != xsd:integer || ?v <= 0)
+    BIND("limit_not_positive_integer" AS ?problem)
+    BIND(CONCAT(STR(?prop), "=", STR(?v)) AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule ;
+       wja:maxJsonDepth ?d .
+    FILTER(isLiteral(?d) && datatype(?d) = xsd:integer && ?d > 256)
+    BIND("json_depth_exceeds_256" AS ?problem)
+    BIND(CONCAT("maxJsonDepth=", STR(?d)) AS ?detail)
+  }
+}
+ORDER BY ?problem ?detail

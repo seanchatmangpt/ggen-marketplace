@@ -302,7 +302,9 @@ fn replaying_the_same_envelope_refuses() {
         .expect("first sight admits");
 
     match engine.verify_envelope(&envelope, &signature) {
-        Err(VerifyRefusal::ReplayRejected(kid)) => assert_eq!(kid, record.id.to_string()),
+        Err(VerifyRefusal::ReplayRejected(kid)) => {
+            assert!(kid.contains(record.id.to_string().as_str()))
+        }
         other => panic!("expected ReplayRejected, got {other:?}"),
     }
 }

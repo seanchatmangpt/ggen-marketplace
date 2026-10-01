@@ -1,0 +1,23 @@
+# G = Required - Closure. One row per need that the index cannot satisfy.
+#   no_provider       : no capability carries the needed id
+#   only_stale_provider: every provider is STALE (a stale fork is not a provider)
+# disposition: EXTEND when a non-STALE capability of the same family exists, else BUILD.
+PREFIX cc: <https://ggen.dev/ontology/capability-closure#>
+SELECT ?req ?id ?reason (IF(COUNT(?peer) > 0, "EXTEND", "BUILD") AS ?disposition) (SAMPLE(?peerId) AS ?extendFrom) WHERE {
+  ?req a cc:Requirement ; cc:need ?n .
+  ?n cc:id ?id ; cc:family ?fam .
+  {
+    FILTER NOT EXISTS { ?c a cc:Capability ; cc:id ?id }
+    BIND("no_provider" AS ?reason)
+  } UNION {
+    ?s a cc:Capability ; cc:id ?id ; cc:standing "STALE" .
+    FILTER NOT EXISTS { ?ok a cc:Capability ; cc:id ?id . FILTER NOT EXISTS { ?ok cc:standing "STALE" } }
+    BIND("only_stale_provider" AS ?reason)
+  }
+  OPTIONAL {
+    ?peer a cc:Capability ; cc:family ?fam ; cc:id ?peerId ; cc:standing ?ps .
+    FILTER(?ps != "STALE")
+  }
+}
+GROUP BY ?req ?id ?reason
+ORDER BY ?req ?id

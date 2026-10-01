@@ -109,33 +109,41 @@ defmodule Mix.Tasks.{{ task_module_name }}.Install do
       target ->
         target_module = Igniter.Project.Module.parse(target)
 
-        Igniter.Project.Module.find_and_update_module!(base, target_module, fn zipper ->
-          zipper
-          |> add_extension()
-          |> add_starter_dsl_block()
-        end)
+        base
+        |> Spark.Igniter.add_extension(target_module, Ash.{{ extension_target | capitalize }}, :extensions, {{ module_name }})
+        |> Igniter.Project.Module.find_and_update_module!(target_module, &add_starter_dsl_block/1)
     end
-  end
-
-  # Inserts `extensions: [{{ module_name }}]` after the target module's `use
-  # Ash.{{ extension_target | capitalize }}` call. This is a single unconditional
-  # insert, not a detect-or-append merge -- it does not check whether an `extensions:`
-  # option already exists on that `use` call, so running install against a module that
-  # already has one will add a second `extensions:` option rather than merging into the
-  # first. Fine for the common case (patching a plain `use Ash.*` with no options yet);
-  # a real detect-and-merge is a follow-up, not implemented here.
-  defp add_extension(zipper) do
-    Igniter.Code.Common.add_code(zipper, "extensions: [{{ module_name }}]", placement: :after)
   end
 
   # Adds a minimal, real starter block for the primary section so the target module
   # compiles immediately after install rather than needing hand-authored DSL content.
+  # Skipped when the block already exists, so a second run is a no-op. The extension
+  # itself is added by `Spark.Igniter.add_extension/5` above, which emits valid Elixir,
+  # is idempotent, and merges into an existing `extensions:` list instead of inserting a
+  # second option (a bare `extensions: [...]` fragment is not a statement and cannot be
+  # inserted with `Igniter.Code.Common.add_code/3`).
   defp add_starter_dsl_block(zipper) do
-{% for s in sections %}{% if loop.first %}    Igniter.Code.Common.add_code(zipper, """
-    {{ s.section_name }} do
+{% for s in sections %}{% if loop.first %}    already? =
+      zipper
+      |> Sourceror.Zipper.node()
+      |> Sourceror.to_string()
+      |> String.contains?("{{ s.section_name }} do")
+
+    if already? do
+      {:ok, zipper}
+    else
+      {:ok,
+       Igniter.Code.Common.add_code(
+         zipper,
+         """
+         {{ s.section_name }} do
+         end
+         """,
+         placement: :after
+       )}
     end
-    """, placement: :after)
-{% endif %}{% endfor %}  end
+{% endif %}{% endfor %}{% if sections | length == 0 %}    {:ok, zipper}
+{% endif %}  end
 end
 else
   defmodule Mix.Tasks.{{ task_module_name }}.Install do

@@ -1,0 +1,69 @@
+# MESSAGE: every gac:ModelEnum must carry modelName (^[A-Z][A-Za-z0-9]*$, unique among enums) and
+# modelOrder (xsd:integer >= 1, unique among enums) and must have at least one gac:ModelEnumValue;
+# every gac:ModelEnumValue must carry enumOf, enumOrder (xsd:integer >= 1) and enumValue (non-empty
+# plain string); order and value must be unique within one enum. Any row = a malformed enum.
+PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT DISTINCT ?s ?missing WHERE {
+  {
+    VALUES ?missing { gac:modelName gac:modelOrder }
+    ?s a gac:ModelEnum .
+    FILTER NOT EXISTS { ?s ?missing ?any }
+  }
+  UNION {
+    ?s a gac:ModelEnum ; gac:modelName ?n .
+    FILTER (!isLiteral(?n) || datatype(?n) != xsd:string || !regex(str(?n), "^[A-Z][A-Za-z0-9]*$"))
+    BIND(gac:modelName AS ?missing)
+  }
+  UNION {
+    ?s a gac:ModelEnum ; gac:modelOrder ?o .
+    FILTER (!isLiteral(?o) || datatype(?o) != xsd:integer || ?o < 1)
+    BIND(gac:modelOrder AS ?missing)
+  }
+  UNION {
+    ?s a gac:ModelEnum ; gac:modelName ?n .
+    ?t a gac:ModelEnum ; gac:modelName ?n2 .
+    FILTER (?s != ?t && str(?n) = str(?n2))
+    BIND(gac:modelName AS ?missing)
+  }
+  UNION {
+    ?s a gac:ModelEnum ; gac:modelOrder ?o .
+    ?t a gac:ModelEnum ; gac:modelOrder ?o2 .
+    FILTER (?s != ?t && ?o = ?o2)
+    BIND(gac:modelOrder AS ?missing)
+  }
+  UNION {
+    ?s a gac:ModelEnum .
+    FILTER NOT EXISTS { ?v a gac:ModelEnumValue ; gac:enumOf ?s }
+    BIND(gac:enumValue AS ?missing)
+  }
+  UNION {
+    VALUES ?missing { gac:enumOf gac:enumOrder gac:enumValue }
+    ?s a gac:ModelEnumValue .
+    FILTER NOT EXISTS { ?s ?missing ?any }
+  }
+  UNION {
+    ?s a gac:ModelEnumValue ; gac:enumOrder ?o .
+    FILTER (!isLiteral(?o) || datatype(?o) != xsd:integer || ?o < 1)
+    BIND(gac:enumOrder AS ?missing)
+  }
+  UNION {
+    ?s a gac:ModelEnumValue ; gac:enumValue ?v .
+    FILTER (!isLiteral(?v) || datatype(?v) != xsd:string || str(?v) = "")
+    BIND(gac:enumValue AS ?missing)
+  }
+  UNION {
+    ?s a gac:ModelEnumValue ; gac:enumOf ?e ; gac:enumOrder ?o .
+    ?t a gac:ModelEnumValue ; gac:enumOf ?e ; gac:enumOrder ?o2 .
+    FILTER (?s != ?t && ?o = ?o2)
+    BIND(gac:enumOrder AS ?missing)
+  }
+  UNION {
+    ?s a gac:ModelEnumValue ; gac:enumOf ?e ; gac:enumValue ?v .
+    ?t a gac:ModelEnumValue ; gac:enumOf ?e ; gac:enumValue ?v2 .
+    FILTER (?s != ?t && str(?v) = str(?v2))
+    BIND(gac:enumValue AS ?missing)
+  }
+}
+ORDER BY ?s ?missing

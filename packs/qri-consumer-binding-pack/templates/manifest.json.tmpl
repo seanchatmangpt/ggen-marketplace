@@ -1,0 +1,95 @@
+---
+to: generated/MANIFEST.json
+when: "PREFIX qcb: <https://seanchatmangpt.github.io/packs/qri-consumer-binding-pack#> ASK { ?b a qcb:ConsumerBinding ; qcb:requestedProjection \"host\" ; qcb:realizationProfile ?rp . ?rp qcb:profileId \"beam-wasmex\" }"
+sparql:
+  host: |
+    PREFIX qcb: <https://seanchatmangpt.github.io/packs/qri-consumer-binding-pack#>
+    PREFIX qri: <https://seanchatmangpt.github.io/packs/qri-qualification-profile-pack#>
+    PREFIX dcat: <http://www.w3.org/ns/dcat#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    PREFIX owl: <http://www.w3.org/2002/07/owl#>
+    PREFIX spdx: <http://spdx.org/rdf/terms#>
+    SELECT ?schema ?engine ?wasm_rel ?abi ?sha ?bytes ?url ?version ?provenance ?module WHERE {
+      ?b a qcb:ConsumerBinding ; qcb:contract ?c ; qcb:artifactPin ?p .
+      ?c qri:hostProfile ?hp ; qri:allowedImport ?ai .
+      ?hp qri:manifestSchema ?schema ; qri:engineId ?engine ; qri:wasmRel ?wasm_rel .
+      ?p qcb:abiVersion ?abi ; dcat:byteSize ?bytes ; qcb:checksum ?ck .
+      ?ck spdx:checksumValue ?sha .
+      OPTIONAL { ?p dcat:downloadURL ?u }
+      OPTIONAL { ?p owl:versionInfo ?v }
+      OPTIONAL { ?p dcterms:provenance ?pv }
+      BIND(COALESCE(?u, "") AS ?url)
+      BIND(COALESCE(?v, "") AS ?version)
+      BIND(COALESCE(?pv, "") AS ?provenance)
+      BIND(STRBEFORE(?ai, "::") AS ?module)
+    }
+    ORDER BY ?module
+    LIMIT 1
+  exports: |
+    PREFIX qcb: <https://seanchatmangpt.github.io/packs/qri-consumer-binding-pack#>
+    PREFIX qri: <https://seanchatmangpt.github.io/packs/qri-qualification-profile-pack#>
+    SELECT ?name WHERE {
+      ?b a qcb:ConsumerBinding ; qcb:contract ?c .
+      ?c qri:requiredExport ?name .
+    }
+    ORDER BY ?name
+  imports: |
+    PREFIX qcb: <https://seanchatmangpt.github.io/packs/qri-consumer-binding-pack#>
+    PREFIX qri: <https://seanchatmangpt.github.io/packs/qri-qualification-profile-pack#>
+    SELECT ?name ?params ?results WHERE {
+      ?b a qcb:ConsumerBinding ; qcb:contract ?c .
+      ?c qri:wasiImport ?i .
+      ?i qri:importName ?name .
+      OPTIONAL { ?i qri:importParams ?p }
+      OPTIONAL { ?i qri:importResults ?r }
+      BIND(COALESCE(?p, "") AS ?params)
+      BIND(COALESCE(?r, "") AS ?results)
+    }
+    ORDER BY ?name
+---
+{#- SPDX-License-Identifier: MIT -#}
+{#- Host manifest (same fields and key order as the manifest schema named by qri:manifestSchema).
+    The "<engine>_version" key is derived from qri:engineId. Layout is two-space pretty JSON, arrays one
+    element per line, so it is byte-comparable with an Elixir Jason pretty rendering. -#}
+{%- set h = host[0] -%}
+{%- set vkey = h.engine | lower -%}
+{%- set vkey = vkey ~ "_version" -%}
+{
+  "schema": {{ h.schema | json_encode() | safe }},
+  {{ vkey | json_encode() | safe }}: {{ h.version | json_encode() | safe }},
+  "abi_version": {{ h.abi }},
+  "artifact": {
+    "file": {{ h.wasm_rel | split(pat="/") | last | json_encode() | safe }},
+    "sha256": {{ h.sha | json_encode() | safe }},
+    "bytes": {{ h.bytes }},
+    "url": {{ h.url | json_encode() | safe }}
+  },
+  "host_abi": {
+    "exports": [
+{%- for e in exports %}
+      {{ e.name | json_encode() | safe }}{% if not loop.last %},{% endif %}
+{%- endfor %}
+    ],
+    "import_module": {{ h.module | json_encode() | safe }},
+    "imports": [
+{%- for i in imports %}
+      {
+        "name": {{ i.name | json_encode() | safe }},
+        "params": {% if i.params == "" %}[]{% else %}[
+{%- set ps = i.params | split(pat=",") %}
+{%- for x in ps %}
+          {{ x | json_encode() | safe }}{% if not loop.last %},{% endif %}
+{%- endfor %}
+        ]{% endif %},
+        "results": {% if i.results == "" %}[]{% else %}[
+{%- set rs = i.results | split(pat=",") %}
+{%- for x in rs %}
+          {{ x | json_encode() | safe }}{% if not loop.last %},{% endif %}
+{%- endfor %}
+        ]{% endif %}
+      }{% if not loop.last %},{% endif %}
+{%- endfor %}
+    ]
+  },
+  "provenance": {{ h.provenance | json_encode() | safe }}
+}

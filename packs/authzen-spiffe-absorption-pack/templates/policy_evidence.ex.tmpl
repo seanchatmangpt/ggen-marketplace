@@ -1,0 +1,31 @@
+---
+to: "generated/policy_evidence.ex"
+sparql:
+  evidence: |
+    PREFIX asa: <https://chatmangpt.com/ontology/authzen-spiffe#>
+    PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    SELECT ?authority ?consequence
+    WHERE {
+      ?e a asa:PolicyEvidence ;
+        asa:authorityCeiling ?authority ;
+        asa:consequence ?consequence .
+    } ORDER BY ?authority ?consequence
+---
+{% for row in evidence %}
+defmodule Asa.PolicyEvidence do
+  @moduledoc "Generated authority-free policy evidence projection."
+  @authority :{{ row.authority | lower }}
+  @consequence :{{ row.consequence | lower }}
+
+  def project(decision, pdp, principal, effect_digest) do
+    %{
+      decision: decision,
+      policy_decision_point: pdp,
+      principal: principal,
+      effect_digest: effect_digest,
+      authority: @authority,
+      consequence: @consequence
+    }
+  end
+end
+{% endfor %}

@@ -1,0 +1,13 @@
+# host.rq -- consumed by templates/affidavit_host.{ts,py}.tmpl.
+# One row over the single wja:WasmModule. ops/codes: "@@"-joined "<order6>##name" groups
+# (zero-padded so the template's lexical sort equals wja:opOrder / wja:codeOrder).
+PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
+SELECT ?crate_name ?export_prefix ?abi_version ?max_request_bytes
+       (GROUP_CONCAT(DISTINCT CONCAT(SUBSTR("000000", 1, 6 - STRLEN(STR(?oo))), STR(?oo), "##", ?on); separator="@@") AS ?ops)
+WHERE {
+  ?m a wja:WasmModule ; wja:crateName ?crate_name ; wja:exportPrefix ?export_prefix ;
+     wja:abiVersion ?abi_version ; wja:maxRequestBytes ?max_request_bytes ; wja:hasOp ?op .
+  ?op wja:opName ?on ; wja:opOrder ?oo .
+}
+GROUP BY ?crate_name ?export_prefix ?abi_version ?max_request_bytes
+ORDER BY ?crate_name

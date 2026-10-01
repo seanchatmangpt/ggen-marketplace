@@ -1,0 +1,35 @@
+# guards.rq -- consumed by templates/wasm_guards.rs.tmpl.
+# Single-row projection. Columns (MUST equal the template's vars):
+#   crate_name, export_prefix, error_style, max_request_bytes, max_json_depth,
+#   code_request_too_large, code_json_too_deep, code_missing_buffer, code_internal.
+# error_style is required (no module or no errorStyle => zero rows => refusal).
+# The code_* columns are "" when absent; gate 070 guarantees they are present and
+# declared for error_style = flat-code. code_internal defaults to "internal".
+
+PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
+
+SELECT ?crate_name ?export_prefix ?error_style ?max_request_bytes ?max_json_depth
+       ?code_request_too_large ?code_json_too_deep ?code_missing_buffer ?code_internal
+WHERE {
+  ?m a wja:WasmModule ;
+     wja:crateName ?crateRaw ;
+     wja:exportPrefix ?prefixRaw ;
+     wja:errorStyle ?styleRaw ;
+     wja:maxRequestBytes ?maxReqRaw ;
+     wja:maxJsonDepth ?maxDepthRaw .
+  OPTIONAL { ?m wja:codeRequestTooLarge ?ctl }
+  OPTIONAL { ?m wja:codeJsonTooDeep ?ctd }
+  OPTIONAL { ?m wja:codeMissingBuffer ?cmb }
+  OPTIONAL { ?m wja:codeInternal ?cin }
+  BIND(STR(?crateRaw) AS ?crate_name)
+  BIND(STR(?prefixRaw) AS ?export_prefix)
+  BIND(STR(?styleRaw) AS ?error_style)
+  BIND(STR(?maxReqRaw) AS ?max_request_bytes)
+  BIND(STR(?maxDepthRaw) AS ?max_json_depth)
+  BIND(COALESCE(STR(?ctl), "") AS ?code_request_too_large)
+  BIND(COALESCE(STR(?ctd), "") AS ?code_json_too_deep)
+  BIND(COALESCE(STR(?cmb), "") AS ?code_missing_buffer)
+  BIND(COALESCE(STR(?cin), "internal") AS ?code_internal)
+}
+ORDER BY ?crate_name
+LIMIT 1

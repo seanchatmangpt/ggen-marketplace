@@ -1,0 +1,38 @@
+# MESSAGE: model references must close. Every gac:modelFieldOf must name a gac:Model; a field typed
+# model:<Name> or list<model:<Name>> must name an existing gac:Model by modelName; a field typed
+# enum:<Name> must name an existing gac:ModelEnum by modelName; every gac:enumOf of a
+# gac:ModelEnumValue must name a gac:ModelEnum. Any row = a dangling model reference.
+PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT DISTINCT ?s ?missing ?value WHERE {
+  {
+    ?s a gac:ModelField ; gac:modelFieldOf ?m .
+    FILTER NOT EXISTS { ?m a gac:Model }
+    BIND(gac:modelFieldOf AS ?missing)
+    BIND(str(?m) AS ?value)
+  }
+  UNION {
+    ?s a gac:ModelField ; gac:modelFieldType ?t .
+    FILTER (isLiteral(?t) && (strstarts(str(?t), "model:") || strstarts(str(?t), "list<model:")))
+    BIND(replace(replace(str(?t), "^list<model:", ""), "^model:|>$", "") AS ?ref)
+    FILTER NOT EXISTS { ?x a gac:Model ; gac:modelName ?n . FILTER (str(?n) = ?ref) }
+    BIND(gac:modelFieldType AS ?missing)
+    BIND(?ref AS ?value)
+  }
+  UNION {
+    ?s a gac:ModelField ; gac:modelFieldType ?t .
+    FILTER (isLiteral(?t) && strstarts(str(?t), "enum:"))
+    BIND(replace(str(?t), "^enum:", "") AS ?ref)
+    FILTER NOT EXISTS { ?x a gac:ModelEnum ; gac:modelName ?n . FILTER (str(?n) = ?ref) }
+    BIND(gac:modelFieldType AS ?missing)
+    BIND(?ref AS ?value)
+  }
+  UNION {
+    ?s a gac:ModelEnumValue ; gac:enumOf ?e .
+    FILTER NOT EXISTS { ?e a gac:ModelEnum }
+    BIND(gac:enumOf AS ?missing)
+    BIND(str(?e) AS ?value)
+  }
+}
+ORDER BY ?s ?missing ?value

@@ -20,9 +20,9 @@ under `dynamic_in_gates` in the allowlist; gates that fail to parse are also ref
 
 | metric | value |
 |---|---|
-| packs | 387 |
-| packs with Python scripts | 112 |
-| Python files scanned | 535 |
+| packs | 395 |
+| packs with Python scripts | 118 |
+| Python files scanned | 549 |
 | files failing to parse | 0 |
 
 ## Capability by role
@@ -33,18 +33,18 @@ Files using each capability, by inferred role (`gate` = under a `gates/` directo
 | role | network | exec | fs-write | env | dynamic |
 |---|---|---|---|---|---|
 | gate | 0 | 3 | 3 | 1 | 1 |
-| verifier | 0 | 4 | 10 | 0 | 2 |
-| other | 3 | 17 | 26 | 6 | 35 |
+| verifier | 0 | 4 | 11 | 0 | 2 |
+| other | 3 | 20 | 29 | 7 | 36 |
 
 ## Packs using each capability
 
 | capability | packs |
 |---|---|
 | network | 3 |
-| exec | 14 |
-| fs-write | 22 |
-| env | 5 |
-| dynamic | 13 |
+| exec | 17 |
+| fs-write | 26 |
+| env | 6 |
+| dynamic | 14 |
 
 ## Network use in gates
 
@@ -65,16 +65,17 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 | state | packs |
 |---|---|
 | with LICENSE file | 3 |
-| lacking LICENSE file | 384 |
-| with SPDX identifier | 4 |
-| lacking SPDX identifier | 383 |
-| lacking both | 380 |
+| lacking LICENSE file | 392 |
+| with SPDX identifier | 6 |
+| lacking SPDX identifier | 389 |
+| lacking both | 386 |
 
 <details><summary>Packs lacking both</summary>
 
 - `adapter-family-matrix`
 - `adapter-family-registry`
 - `adjacency-rebloom-controller-pack`
+- `affidavit-consumer-pack`
 - `affidavit-pack`
 - `affidavit-trust-plane-pack`
 - `agent-fleet-isolation-pack`
@@ -113,6 +114,7 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `bitjob-chrome-ext-shadcn-pack`
 - `candidate-admission-portfolio-pack`
 - `canonical-ash-projection-generator`
+- `capability-closure-pack`
 - `capability-lineage-propagation-pack`
 - `cargo-cicd-pack`
 - `castle-board-pack`
@@ -128,6 +130,7 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `chatman-engine-pack`
 - `chatman-marketplace-commerce-dod-pack`
 - `chatman-togaf-closure-pack`
+- `chicago-graphlaw-court-pack`
 - `chicago-pytest-dataclass-pack`
 - `chicago-tdd-tools-pack`
 - `clap-noun-verb-behavior-pack`
@@ -219,6 +222,7 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `fastmcp-pack`
 - `fde20-revops-pack`
 - `fleet-adapter-matrix`
+- `fleet-family-registry`
 - `fleet-package-compiler`
 - `fleet-package-compose`
 - `fleet-projection-closure`
@@ -386,6 +390,7 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `runtime-evidence-authenticity-pack`
 - `rwr-level5-foundation-pack`
 - `sa2a-bridge-pack`
+- `sa2a-diataxis-pack`
 - `sa2a-fastapi-pack`
 - `sa2a-semantic-diataxis-pack`
 - `sa2a-semantic-evidence-pack`
@@ -437,6 +442,7 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `trialbase-dashboard-shadcn-pack`
 - `typer-pack`
 - `value-innovation-errc-pack`
+- `wasi-json-abi-pack`
 - `wasm4pm-algorithms-pack`
 - `wasm4pm-breed-provenance-pack`
 - `wasm4pm-cognition-pack`

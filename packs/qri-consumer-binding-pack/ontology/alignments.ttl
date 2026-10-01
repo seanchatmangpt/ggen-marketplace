@@ -1,0 +1,80 @@
+@prefix qcb:  <https://seanchatmangpt.github.io/packs/qri-consumer-binding-pack#> .
+@prefix qri:  <https://seanchatmangpt.github.io/packs/qri-qualification-profile-pack#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcat: <http://www.w3.org/ns/dcat#> .
+@prefix odrl: <http://www.w3.org/ns/odrl/2/> .
+@prefix spdx: <http://spdx.org/rdf/terms#> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+
+# Public vocabularies own their nouns (PROV-O, DCAT, SPDX, ODRL, SKOS, qri). Two relations are used and
+# they never contradict ontology.ttl:
+#   * entailing links (rdfs:subClassOf / rdfs:subPropertyOf) live ONLY in ontology.ttl; a term listed there
+#     is not re-stated here with a weaker skos relation;
+#   * this file states the non-entailing skos correspondences and the justification (skos:scopeNote) for
+#     every qcb term that has no entailing public parent: the delta it adds over the public term.
+# Nothing is imported from any private (non-public) vocabulary.
+
+# --- classes: entailing parents are in ontology.ttl (prov:Entity, dcat:Distribution, qri:ReplayReceipt).
+qcb:ConsumerBinding      skos:relatedMatch qri:CapabilityContract ;
+    skos:scopeNote "Delta: a selection input tying one contract, one realization, one profile and one pin; no public class carries that tuple." .
+qcb:ArtifactPin          skos:relatedMatch spdx:Package ;
+    skos:scopeNote "Delta: dcat:Distribution plus an spdx:Checksum, exact byte size and registry digest as one identity; spdx:Package has no byte-size or registry digest." .
+qcb:GeneratedProjection  skos:scopeNote "Delta: prov:Entity (ontology.ttl) for the set of files manufactured from one binding; no public class names a file-set projection." .
+qcb:ProjectionReceipt    skos:relatedMatch qri:ReplayReceipt ;
+    skos:scopeNote "Delta: qri:ReplayReceipt (ontology.ttl) narrowed to the identities of one projection." .
+qcb:RealizationProfile   skos:relatedMatch qri:HostProfile ;
+    skos:scopeNote "Delta: named host/realization profile; host knobs live in its individuals. Profile identifiers are opaque strings to the contract layer." .
+
+# qri:contractDigest is reused directly (no qcb duplicate): the receipt reaches it through the bound contract.
+# --- properties: entailing parents (spdx:checksum, qri:abiVersion, prov:wasDerivedFrom, dct:identifier) are in ontology.ttl.
+qcb:checksum             skos:scopeNote "Delta over spdx:checksum: range fixed to spdx:Checksum on a qcb:ArtifactPin; kept as a subproperty so SPDX tooling still reads it." .
+qcb:abiVersion           skos:scopeNote "Delta over qri:abiVersion: domain narrowed to qcb:ArtifactPin (the artifact's own declared ABI), qri:abiVersion states the contract's." .
+qcb:projectionOf         skos:scopeNote "Delta over prov:wasDerivedFrom: range narrowed to qcb:ConsumerBinding." .
+qcb:registrySha256       skos:relatedMatch spdx:checksumValue ;
+    skos:scopeNote "Delta: sha256 of the operation registry, compared across pin and contract (gate 120); no public term names a registry digest." .
+qcb:bindingDigest        skos:relatedMatch spdx:checksumValue ;
+    skos:scopeNote "Delta: digest of the canonical binding graph (RDFC-1.0); spdx:checksumValue carries no algorithm or subject here." .
+qcb:outputDigest         skos:relatedMatch spdx:checksumValue ;
+    skos:scopeNote "Delta: digest of the sorted (path, sha256) listing of emitted files." .
+qcb:packContentDigest    skos:relatedMatch spdx:checksumValue ;
+    skos:scopeNote "Delta: digest of the generator pack's content at generation time." .
+qcb:packVersion          skos:relatedMatch prov:wasAssociatedWith ;
+    skos:relatedMatch owl:versionInfo ;
+    skos:scopeNote "Delta: version of the pack that rendered the projection." .
+qcb:generatorVersion     skos:relatedMatch prov:wasAssociatedWith ;
+    skos:relatedMatch owl:versionInfo ;
+    skos:scopeNote "Delta: identity of the generator that rendered the projection; opaque to the contract." .
+qcb:authorityCeiling     rdfs:seeAlso odrl:Policy ;
+    skos:scopeNote "Delta: an upper bound with the single value NONE. It is not an ODRL permission; odrl:permission and qri:grantsAuthority are refused (gate 160)." .
+qcb:artifactPin          skos:relatedMatch dcat:distribution ;
+    skos:scopeNote "Delta: binds a ConsumerBinding to exactly one qcb:ArtifactPin; dcat:distribution links a dataset, not a selection tuple." .
+qcb:contract             skos:relatedMatch qri:specifiesCapability ;
+    skos:scopeNote "Delta: binds a ConsumerBinding to exactly one qri:CapabilityContract." .
+qcb:projection           skos:relatedMatch prov:wasDerivedFrom ;
+    skos:scopeNote "Delta: receipt-to-projection link (qcb:ProjectionReceipt to qcb:GeneratedProjection)." .
+qcb:realizationProfile   skos:relatedMatch prov:used ;
+    skos:scopeNote "Delta: selects the qcb:RealizationProfile of the binding." .
+qcb:profileId            skos:scopeNote "Delta over dct:identifier: opaque identifier of a profile; the admitted set is admission policy (gate 140), not vocabulary." .
+qcb:requestedProjection  skos:relatedMatch dct:type ;
+    skos:scopeNote "Delta: which projection kind the consumer asks for; admission policy (gate 150) bounds it." .
+qcb:logicalOperation     skos:relatedMatch qri:opName ;
+    skos:scopeNote "Delta: operation names the consumer binds; names only." .
+qcb:candidateRealization skos:relatedMatch qri:realization ;
+    skos:scopeNote "Delta: realizations considered by the consumer; the chosen one must be among them (gate 105)." .
+qcb:chosenRealization    skos:relatedMatch qri:realization ;
+    skos:scopeNote "Delta: the single realization selected by the binding." .
+
+# --- refusal vocabulary: no public counterpart is adopted (HTTP problem types are transport-specific).
+qcb:generation-refusals  skos:relatedMatch qri:refusalScheme ;
+    skos:scopeNote "Delta: typed refusal codes of one projection; no public vocabulary defines generation refusal codes." .
+qcb:refusalClass         skos:relatedMatch dct:type ;
+    skos:scopeNote "Delta: refusal class of a code; refused_* versus unsupported." .
+qcb:brokenTerm           skos:relatedMatch skos:notation ;
+    skos:scopeNote "Delta: names the broken term of the failure taxonomy a refusal refers to (SRFC-001 section 12)." .
+qcb:refusedByGate        skos:relatedMatch prov:wasInfluencedBy ;
+    skos:scopeNote "Delta: stem of the gate that emits the code." .
+qcb:standingLiteral      skos:relatedMatch skos:notation ;
+    skos:scopeNote "Delta: derived literal for a code; never stored on a binding or receipt." .

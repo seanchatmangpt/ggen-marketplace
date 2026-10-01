@@ -35,6 +35,10 @@ Authority ceiling: NONE. Nothing here grants DO.
 | `040_ambiguous_projection_unsupported` | field with no admitted wire type (`UNSUPPORTED`, never guessed) |
 | `050_import_subset` | actual WASM import outside the contract's `qri:allowedImport` |
 | `060_invariant_complete` | Passed receipt missing a required invariant |
+| `070_typed_import_matches_allowed` | typed `qri:wasiImport` with no matching `qri:allowedImport` string |
+| `080_abi_family_closed` | host profile selecting an ABI family outside the closed sets (`UNSUPPORTED(abi-family)`) |
+| `090_zero_ok_declares_meaning` | `qri:limitZeroOk true` limit with no non-empty `qri:limitZeroMeaning` |
+| `100_recycle_rule_names_declared_code` | `qri:recycleRule` ordering a code absent from the same profile's `qri:recycleOn` |
 
 Every gate has same-stem `witnesses/pass` and `witnesses/fail` files; the fail witness must
 produce at least one row.

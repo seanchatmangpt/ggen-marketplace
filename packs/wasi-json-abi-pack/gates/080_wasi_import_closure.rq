@@ -1,0 +1,28 @@
+# MESSAGE: every wja:WasiImport must carry a non-empty importName and an importModule equal to "wasi_snapshot_preview1"; any other import module or a nameless import is refused so the enumerated host surface stays WASI-only.
+PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?problem ?detail WHERE {
+  {
+    ?i a wja:WasiImport ;
+       wja:importModule ?mod .
+    FILTER(!isLiteral(?mod) || STR(?mod) != "wasi_snapshot_preview1")
+    BIND("import_module_not_wasi" AS ?problem)
+    BIND(CONCAT(STR(?i), " importModule=", STR(?mod)) AS ?detail)
+  }
+  UNION
+  {
+    ?i a wja:WasiImport .
+    FILTER NOT EXISTS { ?i wja:importModule ?anyMod }
+    BIND("import_module_missing" AS ?problem)
+    BIND(STR(?i) AS ?detail)
+  }
+  UNION
+  {
+    ?i a wja:WasiImport .
+    OPTIONAL { ?i wja:importName ?n }
+    FILTER(!BOUND(?n) || !isLiteral(?n) || STRLEN(STR(?n)) = 0)
+    BIND("import_name_missing" AS ?problem)
+    BIND(STR(?i) AS ?detail)
+  }
+}
+ORDER BY ?problem ?detail

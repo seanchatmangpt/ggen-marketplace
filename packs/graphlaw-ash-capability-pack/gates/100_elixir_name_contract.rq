@@ -1,0 +1,25 @@
+# MESSAGE: every gac:opName and every gac:fieldName must match ^[a-z][a-z0-9_]*$ so it maps
+# to an Elixir atom and module segment without quoting, and no response-side field may be
+# named "raw" (the generated Result struct reserves :raw for the entire decoded response).
+# Any row = an unusable name or a reserved-name collision.
+PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT DISTINCT ?s ?missing ?value WHERE {
+  {
+    ?s a gac:Capability ; gac:opName ?value .
+    FILTER (!isLiteral(?value) || !regex(str(?value), "^[a-z][a-z0-9_]*$"))
+    BIND(gac:opName AS ?missing)
+  }
+  UNION {
+    ?s a gac:CapabilityField ; gac:fieldName ?value .
+    FILTER (!isLiteral(?value) || !regex(str(?value), "^[a-z][a-z0-9_]*$"))
+    BIND(gac:fieldName AS ?missing)
+  }
+  UNION {
+    ?s a gac:CapabilityField ; gac:fieldSide "response" ; gac:fieldName ?value .
+    FILTER (str(?value) = "raw")
+    BIND(gac:fieldName AS ?missing)
+  }
+}
+ORDER BY ?s ?missing ?value

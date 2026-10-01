@@ -1,0 +1,42 @@
+# MESSAGE: wja:errorStyle, when present, must be exactly "flat-code" or "refusal-kind"; flat-code requires wja:codeRequestTooLarge, wja:codeJsonTooDeep and wja:codeMissingBuffer, each naming a declared wja:codeName; wja:hasAbiVersionExport must be xsd:boolean. Anything else is refused.
+PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?problem ?detail WHERE {
+  {
+    ?m a wja:WasmModule ;
+       wja:errorStyle ?s .
+    FILTER(!isLiteral(?s) || !(STR(?s) IN ("flat-code", "refusal-kind")))
+    BIND("error_style_not_in_closed_set" AS ?problem)
+    BIND(STR(?s) AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule ;
+       wja:errorStyle ?s .
+    FILTER(isLiteral(?s) && STR(?s) = "flat-code")
+    VALUES ?prop { wja:codeRequestTooLarge wja:codeJsonTooDeep wja:codeMissingBuffer }
+    FILTER NOT EXISTS { ?m ?prop ?any }
+    BIND("flat_code_missing_code_fact" AS ?problem)
+    BIND(STR(?prop) AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule ;
+       wja:errorStyle ?s .
+    FILTER(isLiteral(?s) && STR(?s) = "flat-code")
+    VALUES ?prop { wja:codeRequestTooLarge wja:codeJsonTooDeep wja:codeMissingBuffer }
+    ?m ?prop ?c .
+    FILTER NOT EXISTS { ?m wja:hasErrorCode ?e . ?e wja:codeName ?n . FILTER(STR(?n) = STR(?c)) }
+    BIND("flat_code_undeclared_code" AS ?problem)
+    BIND(CONCAT(STR(?prop), "=", STR(?c)) AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule ;
+       wja:hasAbiVersionExport ?b .
+    FILTER(!isLiteral(?b) || datatype(?b) != xsd:boolean)
+    BIND("has_abi_version_export_not_boolean" AS ?problem)
+    BIND(STR(?b) AS ?detail)
+  }
+}
+ORDER BY ?problem ?detail

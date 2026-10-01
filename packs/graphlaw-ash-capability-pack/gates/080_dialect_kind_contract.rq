@@ -1,0 +1,51 @@
+# MESSAGE: every gac:Dialect must carry dialectOf, dialectName, dialectOrder (xsd:integer >= 1),
+# dialectKind (closed to "rdf" | "other") and dialectResponseName; dialectMediaType, when
+# present, must be non-empty; dialectOrder and dialectName must be unique within a registry;
+# and every rdf-kind dialect must order before every other-kind dialect (the registry order is
+# global: rdf first, then other). Any row = a violation.
+PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT DISTINCT ?s ?missing WHERE {
+  {
+    VALUES ?missing {
+      gac:dialectOf gac:dialectName gac:dialectOrder gac:dialectKind gac:dialectResponseName
+    }
+    ?s a gac:Dialect .
+    FILTER NOT EXISTS { ?s ?missing ?any }
+  }
+  UNION {
+    ?s a gac:Dialect ; gac:dialectKind ?k .
+    FILTER (!isLiteral(?k) || !(str(?k) IN ("rdf", "other")))
+    BIND(gac:dialectKind AS ?missing)
+  }
+  UNION {
+    ?s a gac:Dialect ; gac:dialectOrder ?o .
+    FILTER (!isLiteral(?o) || datatype(?o) != xsd:integer || ?o < 1)
+    BIND(gac:dialectOrder AS ?missing)
+  }
+  UNION {
+    ?s a gac:Dialect ; gac:dialectMediaType ?m .
+    FILTER (!isLiteral(?m) || str(?m) = "")
+    BIND(gac:dialectMediaType AS ?missing)
+  }
+  UNION {
+    ?s a gac:Dialect ; gac:dialectOf ?r ; gac:dialectOrder ?o .
+    ?t a gac:Dialect ; gac:dialectOf ?r ; gac:dialectOrder ?o2 .
+    FILTER (?s != ?t && ?o = ?o2)
+    BIND(gac:dialectOrder AS ?missing)
+  }
+  UNION {
+    ?s a gac:Dialect ; gac:dialectOf ?r ; gac:dialectName ?n .
+    ?t a gac:Dialect ; gac:dialectOf ?r ; gac:dialectName ?n2 .
+    FILTER (?s != ?t && str(?n) = str(?n2))
+    BIND(gac:dialectName AS ?missing)
+  }
+  UNION {
+    ?s a gac:Dialect ; gac:dialectOf ?r ; gac:dialectKind ?k ; gac:dialectOrder ?o .
+    ?t a gac:Dialect ; gac:dialectOf ?r ; gac:dialectKind ?k2 ; gac:dialectOrder ?o2 .
+    FILTER (str(?k) = "other" && str(?k2) = "rdf" && ?o < ?o2)
+    BIND(gac:dialectKind AS ?missing)
+  }
+}
+ORDER BY ?s ?missing

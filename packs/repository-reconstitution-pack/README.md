@@ -31,9 +31,9 @@ specific packs and canonical owners selected by the manifest.
 ## Files
 
 - `ontology.ttl` — reusable vocabulary plus reference ggen-legacy v26.9.28 spec.
-- `templates/reconstitution-manifest.json.tmpl` — deterministic projection.
-- `gates/spec.rq` — single admitted reconstitution subject.
-- `gates/owners.rq` — ordered exact capability-owner rows.
+- `templates/reconstitution-manifest.json.tmpl` — deterministic projection; its frontmatter holds
+  the `spec` (single admitted reconstitution subject) and `owners` (ordered capability-owner rows)
+  SELECTs. They are not `gates/*.rq`: a gate refuses when it returns rows, and these return data.
 - `qualification/invalid-two-do-owners.ttl` — negative-control fixture.
 
 The reference projection is intentionally smaller than a complete repository.

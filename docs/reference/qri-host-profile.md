@@ -1,4 +1,4 @@
-# qri-host-profile
+# Reference: qri-host-profile
 
 Reference for `qri:HostProfile`, the optional host-layer parameter block of a
 `qri:CapabilityContract` in `qri-qualification-profile-pack`. Sources: `ontology.ttl`
@@ -80,10 +80,19 @@ Pool and timeouts:
 ## Multi-valued properties
 
 - `qri:recycleOn` : string, repeatable; refusal or trap codes after which the instance is
-  recycled. Read by query 54 (`prefix`, `code`).
+  recycled. Read by query 54 (`prefix`, `code`, `order`). Emission order comes from optional
+  `qri:recycleRule` nodes (`qri:RecycleRule` with `qri:recycleCode`, `qri:recycleOrder` integer);
+  unranked codes follow, ordered by code. Gate `100` refuses a rule naming a code not in `recycleOn`.
 - `qri:hostLimit` : `qri:HostLimit`, repeatable. Each limit carries `qri:limitName` (string),
-  `qri:limitDefault` (integer) and `qri:limitOrder` (integer). Read by query 51, ordered by
-  `limitOrder` then `limitName`.
+  `qri:limitDefault` (integer) and `qri:limitOrder` (integer), plus optional `qri:limitZeroOk`
+  (boolean, default false: 0 is a real bound; `wasm_config.ex` then resolves it with
+  `&1 >= min_limit(key)` and lists the key in `@zero_ok`) and `qri:limitZeroMeaning` (string,
+  required by gate `090` when `limitZeroOk` is true). Read by query 51
+  (`prefix`, `name`, `default`, `order`, `zero_ok`, `zero_meaning`), ordered by `limitOrder` then
+  `limitName`.
+- `qri:docExampleOp` : string on the profile; operation shown in the `Host.request/3` `@doc`
+  example (`%{"op" => "law", ...}`); default elided (`%{"op" => ...}`). Read by query 50
+  (`doc_example_op`).
 
 ## Contract-level companions
 
@@ -98,10 +107,10 @@ Read together with the profile by queries 52 and 53, but declared on the contrac
 ## Queries
 
 - `queries/50-profile.rq` : one row per profile with every scalar, defaults applied above.
-- `queries/51-limits.rq` : `prefix`, `name`, `default`, `order`.
+- `queries/51-limits.rq` : `prefix`, `name`, `default`, `order`, `zero_ok`, `zero_meaning`.
 - `queries/52-imports.rq` : `prefix`, `name`, `params`, `results`.
 - `queries/53-exports.rq` : `prefix`, `name`, `kind`.
-- `queries/54-recycle.rq` : `prefix`, `code`.
+- `queries/54-recycle.rq` : `prefix`, `code`, `order`.
 
 All five order by `?prefix` first, so output is deterministic.
 
@@ -109,6 +118,8 @@ All five order by `?prefix` first, so output is deterministic.
 
 - SHACL `qri:HostProfileShape` enforces datatypes, `maxCount 1` on scalars, and the closed sets
   for `lenType`, `outMode`, `errorCollapse`.
+- Gates `090_zero_ok_declares_meaning` and `100_recycle_rule_names_declared_code` refuse a
+  zero-ok limit without declared zero semantics and an orphan recycle order row.
 - Gate `080_abi_family_closed` returns a row with verdict `UNSUPPORTED` for an `outMode`,
   `errorCollapse` or `lenType` value outside its closed set.
 
@@ -133,9 +144,24 @@ Templates under `templates/beam-host` (`abi`, `engine_load`, `host`, `pool`, `ve
 `verify_task`, `wasm_config`) embed queries 50-54 verbatim and render one hand-written
 `ash_graphlaw` module each. The default `ggen.toml` does not import a host-profile contract.
 
+## Standing
+
+Marketplace boundary only. A host profile is a parameter block for generated BEAM host source; it
+carries no authority and a profile's existence is not evidence that a host loads a module. See
+[standing](standing.md).
+
+## Verification
+
+```bash
+python3 -m pytest packs/qri-qualification-profile-pack/tests -q
+python3 scripts/check_gate_witness_courts.py
+```
+
 ## See Also
 
-- `packs/qri-qualification-profile-pack/README.md`
-- `packs/qri-qualification-profile-pack/ontology.ttl`
-- `packs/qri-qualification-profile-pack/shapes/qri.shacl.ttl`
-- `packs/qri-qualification-profile-pack/ontology/examples/ash-graphlaw-contract.ttl`
+- [QRI qualification profile](qri-profile.md)
+- [Why QRI is a thin waist](../explanation/qri-thin-waist.md)
+- [Qualify a realization](../how-to/qualify-a-realization.md)
+- [First QRI substitution](../tutorials/qri-first-substitution.md)
+- Pack sources: `packs/qri-qualification-profile-pack/README.md`, `ontology.ttl`,
+  `shapes/qri.shacl.ttl`, `ontology/examples/ash-graphlaw-contract.ttl`

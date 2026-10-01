@@ -1,0 +1,22 @@
+# MESSAGE: wasmSha256, registrySha256 and surfaceSha256 must be 64-char lowercase hex literals and wasmBytes a positive integer when present; malformed pins are refused.
+PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?problem ?detail WHERE {
+  {
+    ?m a wja:WasmModule .
+    VALUES ?prop { wja:wasmSha256 wja:registrySha256 wja:surfaceSha256 }
+    ?m ?prop ?v .
+    FILTER(!isLiteral(?v) || !REGEX(STR(?v), "^[0-9a-f]{64}$"))
+    BIND("digest_not_lowercase_sha256_hex" AS ?problem)
+    BIND(CONCAT(STR(?prop), "=", STR(?v)) AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule ;
+       wja:wasmBytes ?b .
+    FILTER(!isLiteral(?b) || datatype(?b) != xsd:integer || ?b <= 0)
+    BIND("wasm_bytes_not_positive_integer" AS ?problem)
+    BIND(CONCAT("wasmBytes=", STR(?b)) AS ?detail)
+  }
+}
+ORDER BY ?problem ?detail

@@ -1,0 +1,26 @@
+# artifacts.rq -- single-row binding for templates/wasm_artifacts.sha256.tmpl.
+# Columns (Tera vars): crate_name, abi_version, and the optional release pins
+#   wasm_sha256, wasm_bytes, registry_sha256, surface_sha256 -- each "" when the consumer graph
+# carries no such fact, in which case the template keeps the placeholder skeleton.
+# A module missing crateName or abiVersion yields zero rows => refusal.
+
+PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
+
+SELECT ?crate_name ?abi_version ?wasm_sha256 ?wasm_bytes ?registry_sha256 ?surface_sha256
+WHERE {
+  ?m a wja:WasmModule ;
+     wja:crateName ?crateRaw ;
+     wja:abiVersion ?abiRaw .
+  OPTIONAL { ?m wja:wasmSha256 ?ws }
+  OPTIONAL { ?m wja:wasmBytes ?wb }
+  OPTIONAL { ?m wja:registrySha256 ?rs }
+  OPTIONAL { ?m wja:surfaceSha256 ?ss }
+  BIND(STR(?crateRaw) AS ?crate_name)
+  BIND(STR(?abiRaw) AS ?abi_version)
+  BIND(COALESCE(STR(?ws), "") AS ?wasm_sha256)
+  BIND(COALESCE(STR(?wb), "") AS ?wasm_bytes)
+  BIND(COALESCE(STR(?rs), "") AS ?registry_sha256)
+  BIND(COALESCE(STR(?ss), "") AS ?surface_sha256)
+}
+ORDER BY ?crate_name
+LIMIT 1

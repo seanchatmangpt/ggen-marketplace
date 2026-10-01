@@ -1,0 +1,59 @@
+# MESSAGE: every gac:Model must carry modelName (plain string matching ^[A-Z][A-Za-z0-9]*$),
+# modelOrder (xsd:integer >= 1), modelElixirModule (dotted UpperCamelCase module name) and
+# modelRustPath (non-empty string); modelDoc is optional but must be a plain string when present.
+# modelName, modelOrder and modelElixirModule must each be unique across gac:Model individuals.
+# Any row = a model without a usable identity.
+PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT DISTINCT ?s ?missing WHERE {
+  {
+    VALUES ?missing { gac:modelName gac:modelOrder gac:modelElixirModule gac:modelRustPath }
+    ?s a gac:Model .
+    FILTER NOT EXISTS { ?s ?missing ?any }
+  }
+  UNION {
+    ?s a gac:Model ; gac:modelName ?n .
+    FILTER (!isLiteral(?n) || datatype(?n) != xsd:string || !regex(str(?n), "^[A-Z][A-Za-z0-9]*$"))
+    BIND(gac:modelName AS ?missing)
+  }
+  UNION {
+    ?s a gac:Model ; gac:modelOrder ?o .
+    FILTER (!isLiteral(?o) || datatype(?o) != xsd:integer || ?o < 1)
+    BIND(gac:modelOrder AS ?missing)
+  }
+  UNION {
+    ?s a gac:Model ; gac:modelElixirModule ?m .
+    FILTER (!isLiteral(?m) || datatype(?m) != xsd:string || !regex(str(?m), "^[A-Z][A-Za-z0-9]*(\\.[A-Z][A-Za-z0-9]*)*$"))
+    BIND(gac:modelElixirModule AS ?missing)
+  }
+  UNION {
+    ?s a gac:Model ; gac:modelRustPath ?r .
+    FILTER (!isLiteral(?r) || datatype(?r) != xsd:string || str(?r) = "")
+    BIND(gac:modelRustPath AS ?missing)
+  }
+  UNION {
+    ?s a gac:Model ; gac:modelDoc ?d .
+    FILTER (!isLiteral(?d) || datatype(?d) != xsd:string)
+    BIND(gac:modelDoc AS ?missing)
+  }
+  UNION {
+    ?s a gac:Model ; gac:modelName ?n .
+    ?t a gac:Model ; gac:modelName ?n2 .
+    FILTER (?s != ?t && str(?n) = str(?n2))
+    BIND(gac:modelName AS ?missing)
+  }
+  UNION {
+    ?s a gac:Model ; gac:modelOrder ?o .
+    ?t a gac:Model ; gac:modelOrder ?o2 .
+    FILTER (?s != ?t && ?o = ?o2)
+    BIND(gac:modelOrder AS ?missing)
+  }
+  UNION {
+    ?s a gac:Model ; gac:modelElixirModule ?m .
+    ?t a gac:Model ; gac:modelElixirModule ?m2 .
+    FILTER (?s != ?t && str(?m) = str(?m2))
+    BIND(gac:modelElixirModule AS ?missing)
+  }
+}
+ORDER BY ?s ?missing

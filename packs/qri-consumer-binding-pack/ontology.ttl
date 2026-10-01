@@ -1,0 +1,145 @@
+@prefix qcb:  <https://seanchatmangpt.github.io/packs/qri-consumer-binding-pack#> .
+@prefix qri:  <https://seanchatmangpt.github.io/packs/qri-qualification-profile-pack#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcat: <http://www.w3.org/ns/dcat#> .
+@prefix spdx: <http://spdx.org/rdf/terms#> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+
+# QRI Consumer Binding: the smallest delta over qri/PROV-O/SPDX/DCAT that lets a consumer say
+# "this capability contract, this realization profile, this exact artifact, authority NONE".
+# Technology-independent: host/runtime knobs live in RealizationProfile individuals, never here.
+# Standing is DERIVED from receipts; no class or property here is a mutable status flag.
+
+<https://seanchatmangpt.github.io/packs/qri-consumer-binding-pack>
+    a owl:Ontology ;
+    owl:versionInfo "26.9.30" ;
+    owl:imports <https://seanchatmangpt.github.io/packs/qri-qualification-profile-pack> ;
+    rdfs:comment "QCB delta. authorityCeiling NONE: nothing here grants DO authority." .
+
+# ---- classes ------------------------------------------------------------------------------
+qcb:ConsumerBinding a rdfs:Class ; rdfs:subClassOf prov:Entity ;
+    rdfs:label "ConsumerBinding" ;
+    rdfs:comment "Consumer selection input: one contract, one chosen realization, one profile, one exact artifact pin, authorityCeiling NONE." .
+qcb:RealizationProfile a rdfs:Class ; rdfs:subClassOf prov:Entity ;
+    rdfs:label "RealizationProfile" ;
+    rdfs:comment "Named realization/host profile selected by a binding; host knobs stay in the profile layer, never in the contract." .
+qcb:ArtifactPin a rdfs:Class ; rdfs:subClassOf prov:Entity, dcat:Distribution ;
+    rdfs:label "ArtifactPin" ;
+    rdfs:comment "Exact artifact identity (spdx:Checksum, byte size, media type, registry digest). Identity, never authorization." .
+qcb:GeneratedProjection a rdfs:Class ; rdfs:subClassOf prov:Entity ;
+    rdfs:label "GeneratedProjection" ;
+    rdfs:comment "Set of files manufactured from a ConsumerBinding by a pack at an exact content digest." .
+qcb:ProjectionReceipt a rdfs:Class ; rdfs:subClassOf qri:ReplayReceipt ;
+    rdfs:label "ProjectionReceipt" ;
+    rdfs:comment "Replay receipt of one projection: pack, generator, binding, contract and output identities." .
+
+# ---- binding properties -------------------------------------------------------------------
+qcb:contract a rdf:Property ; rdfs:domain qcb:ConsumerBinding ; rdfs:range qri:CapabilityContract .
+qcb:candidateRealization a rdf:Property ; rdfs:domain qcb:ConsumerBinding ; rdfs:range qri:Realization ;
+    rdfs:comment "Realizations the consumer considered; more than one without a chosen realization is AMBIGUOUS_REALIZATION." .
+qcb:chosenRealization a rdf:Property ; rdfs:domain qcb:ConsumerBinding ; rdfs:range qri:Realization .
+qcb:realizationProfile a rdf:Property ; rdfs:domain qcb:ConsumerBinding ; rdfs:range qcb:RealizationProfile .
+qcb:artifactPin a rdf:Property ; rdfs:domain qcb:ConsumerBinding ; rdfs:range qcb:ArtifactPin .
+qcb:authorityCeiling a rdf:Property ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( qcb:ConsumerBinding qcb:GeneratedProjection qcb:ProjectionReceipt ) ] ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Closed: exactly the literal NONE. Evidence, standing, signatures and qualification never raise it." .
+qcb:requestedProjection a rdf:Property ; rdfs:domain qcb:ConsumerBinding ; rdfs:range xsd:string ;
+    rdfs:comment "Closed: host | op-names | tests. Anything else (e.g. typed-bindings) is UNSUPPORTED(projection)." .
+qcb:logicalOperation a rdf:Property ; rdfs:domain qcb:ConsumerBinding ; rdfs:range qri:Operation ;
+    rdfs:comment "Operation NAMES only (qri:opName). Field types are UNSUPPORTED(projection): the registry has names, not types." .
+qcb:profileId a rdf:Property ; rdfs:subPropertyOf dct:identifier ; rdfs:domain qcb:RealizationProfile ; rdfs:range xsd:string ;
+    rdfs:comment "Opaque identifier of a RealizationProfile individual. The set of supported identifiers is admission policy (gate 140), not part of this vocabulary." .
+
+# ---- artifact pin properties --------------------------------------------------------------
+qcb:checksum a rdf:Property ; rdfs:subPropertyOf spdx:checksum ; rdfs:domain qcb:ArtifactPin ; rdfs:range spdx:Checksum .
+qcb:registrySha256 a rdf:Property ; rdfs:domain [ a owl:Class ; owl:unionOf ( qcb:ArtifactPin qri:CapabilityContract ) ] ;
+    rdfs:range xsd:string ;
+    rdfs:comment "sha256 (lowercase hex) of the operation registry. Pin and contract must agree (gate 120)." .
+qcb:abiVersion a rdf:Property ; rdfs:subPropertyOf qri:abiVersion ; rdfs:domain qcb:ArtifactPin ; rdfs:range xsd:string .
+# byte size, media type and source: dcat:byteSize, dcat:mediaType, dcat:downloadURL, prov:wasDerivedFrom.
+
+# ---- projection and receipt properties ----------------------------------------------------
+qcb:projectionOf a rdf:Property ; rdfs:subPropertyOf prov:wasDerivedFrom ; rdfs:domain qcb:GeneratedProjection ; rdfs:range qcb:ConsumerBinding .
+qcb:outputDigest a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "sha256 of the sorted (path, sha256) listing of emitted files." .
+qcb:projection a rdf:Property ; rdfs:domain qcb:ProjectionReceipt ; rdfs:range qcb:GeneratedProjection .
+qcb:packVersion a rdf:Property ; rdfs:domain qcb:ProjectionReceipt ; rdfs:range xsd:string .
+qcb:packContentDigest a rdf:Property ; rdfs:domain qcb:ProjectionReceipt ; rdfs:range xsd:string .
+qcb:generatorVersion a rdf:Property ; rdfs:domain qcb:ProjectionReceipt ; rdfs:range xsd:string ;
+    rdfs:comment "Identity (name and version) of the generator that rendered the projection; opaque to the contract." .
+qcb:bindingDigest a rdf:Property ; rdfs:domain qcb:ProjectionReceipt ; rdfs:range xsd:string .
+# The contract digest is qri:contractDigest on the bound contract (reused, not duplicated); a receipt reaches it
+# through qcb:projection / qcb:projectionOf / qcb:contract.
+
+# ---- refusal vocabulary -------------------------------------------------------------------
+qcb:refusalClass a rdf:Property ; rdfs:domain qri:RefusalCode ; rdfs:range xsd:string ;
+    rdfs:comment "Neutral class: refused_identity | refused_structure | refused_authority | refused_admission | blocked_resource | unsupported." .
+qcb:brokenTerm a rdf:Property ; rdfs:domain qri:RefusalCode ; rdfs:range xsd:string ;
+    rdfs:comment "Chatman-equation failure taxonomy term that the refusal names." .
+qcb:refusedByGate a rdf:Property ; rdfs:domain qri:RefusalCode ; rdfs:range xsd:string ;
+    rdfs:comment "Stem of the gate whose row emits this code." .
+qcb:standingLiteral a rdf:Property ; rdfs:domain qri:RefusalCode ; rdfs:range xsd:string ;
+    rdfs:comment "Derived literal REFUSED:<CODE>, or UNSUPPORTED:<CODE> for class unsupported. Never stored on a binding or receipt." .
+
+qcb:generation-refusals a skos:ConceptScheme ;
+    rdfs:label "generation-refusals" ;
+    rdfs:comment "Typed refusals of the consumer-binding projection. A refusal means zero files emitted." .
+
+qcb:AMBIGUOUS_REALIZATION a qri:RefusalCode, skos:Concept ; skos:inScheme qcb:generation-refusals ;
+    skos:notation "AMBIGUOUS_REALIZATION" ; qcb:refusalClass "refused_structure" ;
+    qcb:brokenTerm "admission_vacuous" ; qcb:refusedByGate "100_realization_unambiguous" ;
+    qcb:standingLiteral "REFUSED:AMBIGUOUS_REALIZATION" .
+qcb:PIN_MISSING a qri:RefusalCode, skos:Concept ; skos:inScheme qcb:generation-refusals ;
+    skos:notation "PIN_MISSING" ; qcb:refusalClass "refused_identity" ;
+    qcb:brokenTerm "R_missing_identity" ; qcb:refusedByGate "090_pin_present" ;
+    qcb:standingLiteral "REFUSED:PIN_MISSING" .
+qcb:PIN_DIGEST_MALFORMED a qri:RefusalCode, skos:Concept ; skos:inScheme qcb:generation-refusals ;
+    skos:notation "PIN_DIGEST_MALFORMED" ; qcb:refusalClass "refused_identity" ;
+    qcb:brokenTerm "R_missing_identity" ; qcb:refusedByGate "095_pin_digest_wellformed" ;
+    qcb:standingLiteral "REFUSED:PIN_DIGEST_MALFORMED" .
+qcb:PIN_REGISTRY_MISMATCH a qri:RefusalCode, skos:Concept ; skos:inScheme qcb:generation-refusals ;
+    skos:notation "PIN_REGISTRY_MISMATCH" ; qcb:refusalClass "refused_identity" ;
+    qcb:brokenTerm "mu_on_O" ; qcb:refusedByGate "120_pin_registry_match" ;
+    qcb:standingLiteral "REFUSED:PIN_REGISTRY_MISMATCH" .
+qcb:CEILING_NOT_NONE a qri:RefusalCode, skos:Concept ; skos:inScheme qcb:generation-refusals ;
+    skos:notation "CEILING_NOT_NONE" ; qcb:refusalClass "refused_authority" ;
+    qcb:brokenTerm "R_missing_authority" ; qcb:refusedByGate "110_authority_ceiling_none" ;
+    qcb:standingLiteral "REFUSED:CEILING_NOT_NONE" .
+qcb:CONTRACT_DIGEST_MISSING a qri:RefusalCode, skos:Concept ; skos:inScheme qcb:generation-refusals ;
+    skos:notation "CONTRACT_DIGEST_MISSING" ; qcb:refusalClass "refused_identity" ;
+    qcb:brokenTerm "R_missing_identity" ; qcb:refusedByGate "130_contract_digest_present" ;
+    qcb:standingLiteral "REFUSED:CONTRACT_DIGEST_MISSING" .
+qcb:PROFILE_UNSUPPORTED a qri:RefusalCode, skos:Concept ; skos:inScheme qcb:generation-refusals ;
+    skos:notation "PROFILE_UNSUPPORTED" ; qcb:refusalClass "unsupported" ;
+    qcb:brokenTerm "mu_on_O" ; qcb:refusedByGate "140_profile_supported" ;
+    qcb:standingLiteral "UNSUPPORTED:PROFILE_UNSUPPORTED" .
+qcb:PROJECTION_TYPE_UNSUPPORTED a qri:RefusalCode, skos:Concept ; skos:inScheme qcb:generation-refusals ;
+    skos:notation "PROJECTION_TYPE_UNSUPPORTED" ; qcb:refusalClass "unsupported" ;
+    qcb:brokenTerm "mu_on_O" ; qcb:refusedByGate "150_projection_type_supported" ;
+    qcb:standingLiteral "UNSUPPORTED:PROJECTION_TYPE_UNSUPPORTED" .
+qcb:PIN_AMBIGUOUS a qri:RefusalCode, skos:Concept ; skos:inScheme qcb:generation-refusals ;
+    skos:notation "PIN_AMBIGUOUS" ; qcb:refusalClass "refused_identity" ;
+    qcb:brokenTerm "admission_vacuous" ; qcb:refusedByGate "092_pin_exactly_one" ;
+    qcb:standingLiteral "REFUSED:PIN_AMBIGUOUS" .
+qcb:REALIZATION_CONTRACT_MISMATCH a qri:RefusalCode, skos:Concept ; skos:inScheme qcb:generation-refusals ;
+    skos:notation "REALIZATION_CONTRACT_MISMATCH" ; qcb:refusalClass "refused_structure" ;
+    qcb:brokenTerm "mu_on_O" ; qcb:refusedByGate "105_realization_implements_contract" ;
+    qcb:standingLiteral "REFUSED:REALIZATION_CONTRACT_MISMATCH" .
+qcb:AUTHORITY_GRANTED a qri:RefusalCode, skos:Concept ; skos:inScheme qcb:generation-refusals ;
+    skos:notation "AUTHORITY_GRANTED" ; qcb:refusalClass "refused_authority" ;
+    qcb:brokenTerm "R_missing_authority" ; qcb:refusedByGate "160_no_authority_grant" ;
+    qcb:standingLiteral "REFUSED:AUTHORITY_GRANTED" .
+qcb:CONTRACT_DIGEST_MISMATCH a qri:RefusalCode, skos:Concept ; skos:inScheme qcb:generation-refusals ;
+    skos:notation "CONTRACT_DIGEST_MISMATCH" ; qcb:refusalClass "refused_identity" ;
+    qcb:brokenTerm "R_missing_identity" ; qcb:refusedByGate "consume" ;
+    qcb:standingLiteral "REFUSED:CONTRACT_DIGEST_MISMATCH" .
+qcb:SHAPE_NONCONFORMANT a qri:RefusalCode, skos:Concept ; skos:inScheme qcb:generation-refusals ;
+    skos:notation "SHAPE_NONCONFORMANT" ; qcb:refusalClass "refused_structure" ;
+    qcb:brokenTerm "mu_on_O" ; qcb:refusedByGate "shacl" ;
+    qcb:standingLiteral "REFUSED:SHAPE_NONCONFORMANT" .

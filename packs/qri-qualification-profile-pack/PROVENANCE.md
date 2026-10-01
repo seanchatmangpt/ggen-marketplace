@@ -14,3 +14,16 @@ Reused capital (read, not modified):
   `qce:SubstitutionClaim`); linked with `skos:relatedMatch`, not equated.
 
 No ODRL, SPDX or QUDT pack exists in this repository; those are referenced by IRI only.
+
+Formerly ledgered UNSUPPORTED(ontology-gap) deltas of the generated beam host against
+`/Users/sac/ash_graphlaw`, now closed by vocabulary and projection (2026-09-30), values in
+`ontology/examples/ash-graphlaw-contract.ttl`:
+
+- zero-valid store limits (`table_elements`, `instances`, `tables`, `memories`): `qri:limitZeroOk` +
+  `qri:limitZeroMeaning` (gate 090); `wasm_config.ex` generates `min_limit/1` and `@zero_ok`.
+- `@recycle_codes` order: `qri:recycleRule` / `qri:recycleOrder` (gate 100); query 54 sorts by order.
+- `Host.request/3` `@doc` example op: `qri:docExampleOp`.
+
+Still residue (not generated): module `@moduledoc`/prose docs, SPDX headers and the
+UNSUPPORTED(generator-capability) banner of the hand-written modules. `probeExpectKey` is `abi`, the
+key the `capabilities` op actually returns.

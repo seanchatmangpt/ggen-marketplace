@@ -48,5 +48,28 @@ git log main --since=2026-09-20 --diff-filter=A --name-only -- 'packs/*/pack.tom
 | swe-prometheus-governance-pack | e896ac36f | 0.1.0 | Semantic interchange contract for SWE-Prometheus-style repository retrofit evidence. |
 | wd-failure-analysis-pack | 420bc91e7 | 0.1.0 | Semantic HDD failure-analysis overlay for exact drive/build/process subjects, evidence, failure-mode applicability, falsifiers, diagnostic actions, dispositions, corrective actions, and KNOWN/PARTIAL/UNKNOWN admission. Reuses public provenance/observation vocabularies and marketplace process/decision/standing semantics instead of redefining them. |
 
+## Addendum: graphlaw packs, 2026-09-29..2026-09-30
+
+Added 2026-09-30 on branch `graphlaw-full-representation`. Same derivation as above with the window
+moved, run against this branch rather than `main`:
+
+```bash
+git log --since=2026-09-29 --diff-filter=A --name-only -- 'packs/*/pack.toml'
+```
+
+`chicago-graphlaw-court-pack`, `graphlaw-ash-capability-pack`, `qri-qualification-profile-pack`
+and `wasi-json-abi-pack` carry the rust > wasm > beam/elixir representation of graphlaw v26.9.29;
+`sa2a-semantic-evidence-pack` consumes the merged GraphLaw contract. See
+[the pipeline reference](graphlaw-rust-wasm-beam-pipeline.md). Version and capability text are
+verbatim from `pack.toml`.
+
+| Pack | Admitted by | Version | Capability |
+|---|---|---|---|
+| chicago-graphlaw-court-pack | d52a79a53 | 26.9.29 | Manufacture Chicago-style GraphLaw ABI court test files (one #[test] per case) from an RDF case ontology. Evidence only: authority NONE. |
+| graphlaw-ash-capability-pack | d52a79a53 | 26.9.30 | Projects a typed Elixir capability surface (behaviour, registry, per-operation modules, API, lossless result structs, reference docs, and a pure surface test) from the GraphLaw capability registry (schema graphlaw.capability-registry/1). Also projects typed value models (Lease, SignedLease, Receipt, Attestation, Plan, Action, PolicyEntry, PolicyOutcome) with tolerant :extra-preserving structs, informational enum lists, and a Limits module carrying scope, unit and source. Qualified by deterministic render and SPARQL gates over the registry RDF; not qualified by domain execution against the GraphLaw engine. Grants no execution authority. |
+| qri-qualification-profile-pack | 7151ef9dc | 26.9.30 | Qualified Runtime Interchangeability (QRI) profile: a thin qualification/admission/substitution vocabulary over SOSA/SSN, PROV-O, ODRL, SPDX, QUDT and SHACL, with gates, witnesses and a ggen projection to WIT, a core-WASM JSON ABI adapter and a wasmex BEAM host. Grants no execution authority. |
+| sa2a-semantic-evidence-pack | cb11b87b9 | 26.9.29 | Manufacture authority-free SA2A semantic evidence envelopes and admission surfaces from the merged GraphLaw v26.9.29 contract. |
+| wasi-json-abi-pack | d52a79a53 | 26.9.29 | Generic WASI JSON-ABI module substrate: renders the FFI shell (\<prefix>_abi_version/_alloc/_free/_call with null/oversize guards and typed limit errors), ABI metadata (version, limits, op table, error codes), capability registry, op examples, cargo stack/profile fragments and an artifact-pin skeleton from an ontology of wja:WasmModule / wja:Op / wja:ErrorCode. Project specifics are ontology parameters supplied by the consumer. |
+
 This file is a point-in-time record, not a standing guarantee; it does not claim that the
 listed versions are still current.

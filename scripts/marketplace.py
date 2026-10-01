@@ -635,7 +635,7 @@ def main() -> int:
     parser.add_argument("--intent", choices=marketplace_lifecycle.INTENTS, help="lifecycle: only packs flagged with this intent")
     parser.add_argument("--no-qualify", action="store_true", help="check: skip the real-ggen qualification step")
     parser.add_argument("--allow-unbumped", action="store_true", help="release-check: tolerate changed packs whose version was not bumped")
-    args = parser.parse_args()
+    args = parser.parse_intermixed_args()
     if args.command == "check":
         return check(args.packs, not args.no_qualify)
     if args.command == "diff":
