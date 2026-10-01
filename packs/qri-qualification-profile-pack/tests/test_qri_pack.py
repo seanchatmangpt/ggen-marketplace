@@ -485,6 +485,30 @@ class BeamHostProjection(unittest.TestCase):
         bare = text.replace('qri:docExampleOp "law" ;', '')
         self.assertIn(b'`%{"op" => ...}`', self.render(bare)["host.ex"])
 
+    def test_contract_without_optional_export_renders_a_host_with_no_initialize_call(self) -> None:
+        """A module with no `_initialize` (e.g. the affidavit module) must render, not fail on `init_export`."""
+        text = ASH.read_text(encoding="utf-8")
+        bare = text.replace('    qri:optionalExport "_initialize" ;\n', '', 1)
+        self.assertNotIn("optionalExport", bare, "fixture edit must remove the only optional export")
+        host = self.render(bare)["host.ex"]
+        self.assertNotIn(b'"_initialize"', host)
+        self.assertIn(b"defp run_initialize(_state), do: :ok", host)
+        self.assertIn(b"initialize?: false", host)
+        if have("elixir"):
+            tmp = tempfile.TemporaryDirectory()
+            self.addCleanup(tmp.cleanup)
+            f = Path(tmp.name) / "host.ex"
+            f.write_bytes(host)
+            code = ('src = File.read!(hd(System.argv())); Code.string_to_quoted!(src); '
+                    'fmt = src |> Code.format_string!(line_length: 120, trailing_comma: true, local_pipe_with_parens: true, single_clause_on_do: true) '
+                    '|> IO.iodata_to_binary(); if fmt <> "\\n" != src, do: raise("not format-clean"); IO.puts("ok")')
+            r = subprocess.run(["elixir", "-e", code, str(f)], capture_output=True, text=True)
+            self.assertEqual((r.returncode, r.stdout.strip()), (0, "ok"), r.stderr[-600:])
+        # the declared form is unchanged
+        declared = self.render()["host.ex"]
+        self.assertIn(b'call_raw(state, "_initialize"', declared)
+        self.assertIn(b'Map.has_key?(admitted.exports, "_initialize")', declared)
+
     def test_unsupported_host_shape_fails_loudly_instead_of_emitting_a_wrong_host(self) -> None:
         text = ASH.read_text(encoding="utf-8").replace('qri:outMode "packed_u64"', 'qri:outMode "out_param"')
         tmp = tempfile.TemporaryDirectory()
