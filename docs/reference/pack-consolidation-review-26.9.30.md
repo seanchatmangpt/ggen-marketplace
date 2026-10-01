@@ -26,6 +26,25 @@ A read-only, evidence-based review of every pack in the marketplace for consolid
 
 Verification changed the outcome often: of 121 flags verified, 42 were confirmed as proposed, 79 were recorded at a weaker intent, and 5 were dropped. `consolidate` is therefore rare and reserved for verified duplicate truth; `review` marks a lead, not a finding.
 
+## Not reviewed
+
+The review subject is 381 packs. HEAD at v26.9.30 has 394. These 13 packs were added after the
+subject commit and were **not reviewed**; no flag, intent, or absence of flag is implied for them:
+
+- `affidavit-consumer-pack`
+- `capability-closure-pack`
+- `chicago-graphlaw-court-pack`
+- `enterprise-operating-model-pack`
+- `fleet-family-registry`
+- `graphlaw-ash-capability-pack`
+- `industry-closure-ledger-pack`
+- `industry-closure-pack`
+- `industry-closure-retail-lending-profile-pack`
+- `qri-qualification-profile-pack`
+- `sa2a-diataxis-pack`
+- `sjira-marketplace-feedback-pack`
+- `wasi-json-abi-pack`
+
 ## Flags recorded
 
 | pack | state | intent | peers / successors | reason |

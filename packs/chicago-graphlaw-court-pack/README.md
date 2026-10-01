@@ -4,9 +4,12 @@ Generates Chicago-style (real collaborators, no mocks) GraphLaw ABI court test f
 case ontology. One `#[test]` per case, each driving `graphlaw::abi::call` and asserting on the
 final response.
 
-Standing: finite published corpus passes on exact subject; authority NONE; synthetic subject; no
-general financial safety claim. The 10M threshold (`10000000000000` micros) is Chicago court
-policy, not FIBO's.
+Standing: UNVERIFIED. No committed run shows the corpus passing. A run on 2026-09-30 of
+`verify/validate.sh witnesses` returned `WITNESSES_OK (0 bad)`, but `verify/validate.sh corpus` was
+`REFUSED (3 problems)`: gate `130_compare_pairs_with_request_b` reported a violation, the SHACL check
+was NONCONFORMANT (117 results), and `cases/*.ttl` carried a JSON request error (`step lacks op`).
+Authority NONE; synthetic subject; no general financial safety claim. The 10M threshold
+(`10000000000000` micros) is Chicago court policy, not FIBO's.
 
 ## Layout
 

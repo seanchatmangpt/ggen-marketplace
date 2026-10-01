@@ -4,6 +4,12 @@ This court operationalizes claims such as:
 
 > "ggen-marketplace can collapse a solution space whose independent human reconstruction cost is 500,000,000 person-years."
 
+**Measured status at v26.9.30: UNSUPPORTED (unmeasured).** The committed ledger
+`evidence/chicago/marketplace-work-equivalent.json` holds 0 admitted evidence items, so the court
+returns `UNSUPPORTED:INSUFFICIENT_INDEPENDENT_HUMAN_BASELINE_EVIDENCE` with a lower bound of 0.0
+person-years. The 500,000,000 person-year figure is a target named by the ledger, not a measured
+result, and must not be cited as fact.
+
 It does **not** treat that sentence as true because the repository is large or because many packs can be combined. The court exists to make the claim falsifiable.
 
 ## Exact subject
