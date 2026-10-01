@@ -1,0 +1,36 @@
+---
+to: generated/artifact-pin.json
+sparql:
+  pin: |
+    PREFIX qcb: <https://seanchatmangpt.github.io/packs/qri-consumer-binding-pack#>
+    PREFIX dcat: <http://www.w3.org/ns/dcat#>
+    PREFIX owl: <http://www.w3.org/2002/07/owl#>
+    PREFIX spdx: <http://spdx.org/rdf/terms#>
+    SELECT ?sha ?bytes ?media ?registry ?abi ?url ?version WHERE {
+      ?b a qcb:ConsumerBinding ; qcb:artifactPin ?p .
+      ?p qcb:checksum ?ck ; dcat:byteSize ?bytes ; dcat:mediaType ?media ;
+         qcb:registrySha256 ?registry ; qcb:abiVersion ?abi .
+      ?ck spdx:checksumValue ?sha .
+      OPTIONAL { ?p dcat:downloadURL ?u }
+      OPTIONAL { ?p owl:versionInfo ?v }
+      BIND(COALESCE(?u, "") AS ?url)
+      BIND(COALESCE(?v, "") AS ?version)
+    }
+    ORDER BY ?sha
+---
+{#- SPDX-License-Identifier: MIT -#}
+{#- Consumer-side pin record (schema qcb.artifact-pin/1) rendered from the binding's qcb:ArtifactPin.
+    Pin = identity, never authority. Keys alphabetical; every string through json_encode. -#}
+{%- set p = pin[0] -%}
+{
+  "abi_version": {{ p.abi }},
+  "bytes": {{ p.bytes }},
+{%- if p.url != "" %}
+  "download_url": {{ p.url | json_encode() | safe }},
+{%- endif %}
+  "media_type": {{ p.media | json_encode() | safe }},
+  "registry_sha256": {{ p.registry | json_encode() | safe }},
+  "schema": "qcb.artifact-pin/1",
+  "sha256": {{ p.sha | json_encode() | safe }}{%- if p.version != "" %},
+  "version": {{ p.version | json_encode() | safe }}{%- endif %}
+}

@@ -10,9 +10,9 @@ generation run; a commit cannot contain its own hash, so it names the commit gen
 ### Repository facts
 
 - Marketplace version: `v26.9.30`
-- Pack count: 394
-- Catalog fingerprint: `sha256:6fe2ced295c0d49353e24d895a36191172f5a47e6463cb95ea77f6923b581f3d`
-- Head SHA: `96d3dc2f3c03ea641f56edf1e8aeffd574c189d0`
+- Pack count: 395
+- Catalog fingerprint: `sha256:9be724c04dc8f466593e0c5889eb2bcdfa96060b0e7c666539600d8b382c98b5`
+- Head SHA: `80d429f13cc887f66855ba4029f6d83aa3a8098f`
 
 ### Pack standing table
 
@@ -319,6 +319,7 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | projection-matrix-pack | 0.1.1 | projection | intent:review, templates |
 | protocol-integration-pack | 26.9.13 | projection | native-gates, templates |
 | provider-extinction-contract-pack | 0.1.0 | projection | native-gates, templates |
+| qri-consumer-binding-pack | 26.9.30 | project | intent:keep-separate, native-gates, templates |
 | qri-qualification-profile-pack | 26.9.30 | project | native-gates, templates |
 | quadrature-pack | 26.7.7 | projection | templates |
 | qualified-capability-ecology-pack | 0.1.0 | projection | native-gates, templates |

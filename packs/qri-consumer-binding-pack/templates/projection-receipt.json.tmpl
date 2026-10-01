@@ -1,0 +1,50 @@
+---
+to: generated/projection-receipt.json
+when: "PREFIX qcb: <https://seanchatmangpt.github.io/packs/qri-consumer-binding-pack#> ASK { ?r a qcb:ProjectionReceipt }"
+sparql:
+  receipt: |
+    PREFIX qcb: <https://seanchatmangpt.github.io/packs/qri-consumer-binding-pack#>
+    PREFIX qri: <https://seanchatmangpt.github.io/packs/qri-qualification-profile-pack#>
+    SELECT ?pack_version ?generator_version ?pack_digest ?binding_digest ?contract_digest ?output_digest ?ceiling WHERE {
+      ?r a qcb:ProjectionReceipt ; qcb:projection ?pr .
+      ?pr qcb:projectionOf ?b .
+      ?b qcb:contract ?c .
+      ?c qri:contractDigest ?contract_digest .
+      ?r qcb:packVersion ?pack_version ; qcb:generatorVersion ?generator_version ;
+         qcb:packContentDigest ?pack_digest ; qcb:bindingDigest ?binding_digest ;
+         qcb:outputDigest ?output_digest ;
+         qcb:authorityCeiling ?ceiling .
+    }
+    ORDER BY ?output_digest
+  files: |
+    PREFIX qcb: <https://seanchatmangpt.github.io/packs/qri-consumer-binding-pack#>
+    PREFIX prov: <http://www.w3.org/ns/prov#>
+    PREFIX spdx: <http://spdx.org/rdf/terms#>
+    SELECT ?path ?sha WHERE {
+      ?r a qcb:ProjectionReceipt ; qcb:projection ?pr .
+      ?pr prov:hadMember ?f .
+      ?f spdx:fileName ?path ; spdx:checksum ?ck .
+      ?ck spdx:checksumValue ?sha .
+    }
+    ORDER BY ?path
+---
+{#- SPDX-License-Identifier: MIT -#}
+{#- Replay receipt (schema qcb.projection-receipt/1) rendered from the ProjectionReceipt facts that
+    runners/receipt.py computed from the first-pass outputs. No standing field: standing is derived,
+    never stored. Authority ceiling NONE. -#}
+{%- set r = receipt[0] -%}
+{
+  "authority_ceiling": {{ r.ceiling | json_encode() | safe }},
+  "binding_digest": {{ r.binding_digest | json_encode() | safe }},
+  "contract_digest": {{ r.contract_digest | json_encode() | safe }},
+  "generator_version": {{ r.generator_version | json_encode() | safe }},
+  "output_digest": {{ r.output_digest | json_encode() | safe }},
+  "outputs": [
+{%- for f in files %}
+    {"path": {{ f.path | json_encode() | safe }}, "sha256": {{ f.sha | json_encode() | safe }}}{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ],
+  "pack_content_digest": {{ r.pack_digest | json_encode() | safe }},
+  "pack_version": {{ r.pack_version | json_encode() | safe }},
+  "schema": "qcb.projection-receipt/1"
+}
