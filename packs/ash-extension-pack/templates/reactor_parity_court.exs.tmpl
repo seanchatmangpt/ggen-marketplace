@@ -8,7 +8,7 @@ sparql:
       ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ; aex:moduleName ?module_name ;
          aex:workflowReactor true .
       OPTIONAL { ?s aex:supportSubdir ?support_subdir }
-    }
+    } ORDER BY ?package_name ?module_name
   steps: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
     SELECT ?package_name ?step_name ?step_module ?step_order ?max_retries ?has_compensate ?is_return
@@ -81,7 +81,7 @@ defmodule {{ module_name }}.ReactorParityCourt do
       name: :{{ step.step_name }},
       impl: {{ module_name }}.Reactor.Steps.{{ step.step_module }},
       max_retries: {% if step.max_retries is defined %}{{ step.max_retries }}{% else %}:infinity{% endif %},
-      wait_for: [{% if step.wait_for_names %}{% for w in step.wait_for_names | split(pat=",") %}:{{ w | trim }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}],
+      wait_for: [{% if step.wait_for_names %}{% set ws = step.wait_for_names | split(pat=",") | sort %}{% for w in ws %}:{{ w | trim }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}],
       compensate?: {% if step.has_compensate == true or step.has_compensate == "true" %}true{% else %}false{% endif %},
       return?: {% if step.is_return == true or step.is_return == "true" %}true{% else %}false{% endif %}
     }{% if not loop.last %},{% endif %}

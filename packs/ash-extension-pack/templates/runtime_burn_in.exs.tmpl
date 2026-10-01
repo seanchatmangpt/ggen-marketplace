@@ -6,9 +6,9 @@ sparql:
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
     SELECT DISTINCT ?package_name ?module_name WHERE {
       ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ; aex:moduleName ?module_name .
-    }
+    } ORDER BY ?package_name ?module_name
 ---
-{% set module_prefix = module_name | replace(".Resource", "") %}
+{% set module_prefix = module_name | replace(from=".Resource", to="") %}
 {# Lane C10 runtime burn-in court. Renders a self-contained burn-in script per
    aex:AshExtensionSpec: real recompile cycles over the generated extension shape
    (section + entity + transformer + verifier + Info + Reactor steps), semantic
@@ -425,7 +425,7 @@ defmodule RuntimeBurnInTest do
     started = System.monotonic_time(:millisecond)
     mods = Code.compile_string(specimen_source())
 
-    compiled? = Enum.any?(mods, &match?({{{ module_prefix }}.BurnIn.Specimen, _}, &1))
+    compiled? = Enum.any?(mods, fn {m, _} -> m == {{ module_prefix }}.BurnIn.Specimen end)
     assert compiled?, "specimen compile did not produce the specimen module"
 
     BurnIn.Evidence.record("specimen_compiled", subject_and_extension(), %{
@@ -693,7 +693,7 @@ end
 # ---------------------------------------------------------------------------
 mods = Code.compile_string(specimen_source = BurnIn.SpecimenSource.source())
 
-true = Enum.any?(mods, &match?({{{ module_prefix }}.BurnIn.Specimen, _}, &1))
+true = Enum.any?(mods, fn {m, _} -> m == {{ module_prefix }}.BurnIn.Specimen end)
 
 digest_snapshot = %{
   compiled: {{ module_name }}.Info.compiled({{ module_prefix }}.BurnIn.Specimen),

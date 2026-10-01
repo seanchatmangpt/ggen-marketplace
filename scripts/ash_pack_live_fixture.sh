@@ -7,8 +7,9 @@
 #   -> second `ggen sync run` + sha256 comparison of every generated file
 #   -> copy of EVERY generated file into the capsule: lib/**/*.ex into
 #      <capsule>/generated/ (compiled by fixture/mix.exs via ASH_PACK_GENERATED) and
-#      test/*_composition_test.exs into <capsule>/generated_test/ (run by mix test via
-#      ASH_PACK_GENERATED_TEST)
+#      every generated test (the composition tests plus every spark/parity/verifier/
+#      transformer/igniter/dead-surface court) into <capsule>/generated_test/ (run by
+#      mix test via ASH_PACK_GENERATED_TEST)
 #   -> mix deps.get -> mix compile --warnings-as-errors -> mix test
 #      (MIX_BUILD_ROOT / MIX_DEPS_PATH also point into the capsule)
 #
@@ -87,7 +88,25 @@ mkdir -p "${ASH_PACK_GENERATED}" "${ASH_PACK_GENERATED_TEST}"
   mkdir -p "${ASH_PACK_GENERATED}/$(dirname "${f}")"
   cp "${f}" "${ASH_PACK_GENERATED}/${f}"
 done)
+# Copy the composition tests (the original selection) plus every generated court.
+# Court templates emit two shapes: runnable ExUnit files already named
+# *_court_test.exs, and ExUnit files named *_court.exs -- mix test only executes
+# *_test.exs paths, so the latter are copied under a _test.exs name. That is a
+# transport rename only: file contents are copied verbatim, never hand-edited.
 cp "${consumer}"/test/*_composition_test.exs "${ASH_PACK_GENERATED_TEST}/"
+for court in "${consumer}"/test/*_court_test.exs; do
+  [[ -e "${court}" ]] || continue
+  cp "${court}" "${ASH_PACK_GENERATED_TEST}/"
+done
+for court in "${consumer}"/test/*_court.exs; do
+  [[ -e "${court}" ]] || continue
+  cp "${court}" "${ASH_PACK_GENERATED_TEST}/$(basename "${court%.exs}")_test.exs"
+done
+# The court chain is load-bearing: copying zero courts is a refusal, not a pass.
+if [[ "$(find "${ASH_PACK_GENERATED_TEST}" -name '*_court*_test.exs' | wc -l | tr -d ' ')" -eq 0 ]]; then
+  echo "REFUSED:ASH_PACK_NO_COURTS_COPIED" >&2
+  exit 1
+fi
 # mix test requires a helper in every test path; the fixture's own helper is reused.
 cp "${fixture}/test/test_helper.exs" "${ASH_PACK_GENERATED_TEST}/test_helper.exs"
 generated_ex="$(cd "${consumer}" && find lib -type f -name '*.ex' | wc -l | tr -d ' ')"
@@ -96,7 +115,7 @@ if [[ "${generated_other}" != "0" ]]; then
   echo "REFUSED:ASH_PACK_UNCOMPILED_GENERATED_LIB (${generated_other} non-.ex files under lib/)" >&2
   exit 1
 fi
-echo "generated: ${generated_ex} lib .ex files and $(ls "${ASH_PACK_GENERATED_TEST}"/*_composition_test.exs | wc -l | tr -d ' ') composition tests copied into the compile capsule"
+echo "generated: ${generated_ex} lib .ex files and $(find "${ASH_PACK_GENERATED_TEST}" -name '*_test.exs' ! -name 'test_helper.exs' | wc -l | tr -d ' ') generated tests ($(find "${ASH_PACK_GENERATED_TEST}" -name '*_court*_test.exs' | wc -l | tr -d ' ') courts) copied into the compile capsule"
 
 cd "${fixture}"
 # Run under the toolchain pinned in fixture/.tool-versions when asdf is present

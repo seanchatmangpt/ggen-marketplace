@@ -78,18 +78,6 @@ if [ ! -f "${capsule}/lib/mix/tasks/ledger_probe.install.ex" ]; then
   exit 1
 fi
 
-# KNOWN PACK DEFECT (reported, lane C7): install.ex.tmpl splits aex:installerRuntimeDep
-# on "|", but the NotificationExtensionSpec row carries "a2a ~> 0.2" (no pipe), so the
-# rendered installer contains the syntactically-poisonous
-# `Igniter.Project.Deps.add_dep({:a2a ~> 0.2, "a2a ~> 0.2"})` and any consumer over the
-# union graph fails to compile. The court cannot run until the owning lane fixes the
-# template or the ontology row; until then the capsule drops this one projection.
-if [ -f "${capsule}/lib/mix/tasks/notification_extension.install.ex" ]; then
-  echo "WARN: dropping notification_extension projection (known installerRuntimeDep pipe-split defect)"
-  rm -f "${capsule}/lib/mix/tasks/notification_extension.install.ex"
-  rm -f "${capsule}/test/notification_extension_igniter_idempotence_court_test.exs"
-fi
-
 cd "${capsule}"
 export MIX_ENV=test
 mix deps.get

@@ -1,0 +1,15 @@
+# MESSAGE: every aex:installerRuntimeDep literal must be a "<dep-name> <requirement>"
+# pair: name first (one or more of [a-zA-Z0-9_]), then exactly one space, then a
+# non-space requirement string (e.g. "a2a ~> 0.2"). The installer template
+# (templates/install.ex.tmpl) splits this value at RENDER time on the first space into
+# the add_dep tuple {:name, "requirement"}, so a value that fails this shape renders a
+# syntactically-poisonous Elixir tuple (the historical defect: "a2a ~> 0.2" rendered
+# add_dep({:a2a ~> 0.2, "a2a ~> 0.2"}) because the template split on "|"). Any row = a
+# malformed installer runtime dependency value that would break the generated installer.
+PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+
+SELECT ?s ?bad WHERE {
+  ?s aex:installerRuntimeDep ?bad .
+  FILTER (!REGEX(STR(?bad), "^[a-zA-Z0-9_]+ [^ ].*"))
+}
+ORDER BY ?s ?bad

@@ -91,7 +91,7 @@ defmodule {{ module_name }}TransformerClosureCourt do
 
   # The specimen section: the spec's own first DSL section (ordered), so the
   # specimen declares entities under a section the generated Persist reads.
-  @specimen_section :{{ (sections | first).section_name }}
+  @specimen_section :{% set specimen_section = sections | first %}{{ specimen_section.section_name }}
 
   # Mutant runs: the subject is a source file, not a compiled dep -- load it once.
   setup_all do
@@ -117,7 +117,7 @@ defmodule {{ module_name }}TransformerClosureCourt do
       use Spark.Dsl.Extension,
         sections: [
           %Spark.Dsl.Section{
-            name: :{{ (sections | first).section_name }},
+            name: :{% set specimen_section = sections | first %}{{ specimen_section.section_name }},
             schema: [],
             entities: [
               %Spark.Dsl.Entity{
@@ -303,7 +303,7 @@ defmodule {{ module_name }}TransformerClosureCourt do
             end
 
           # :persistent_term via alias form (PersistentTerm.get)
-          {{:., m, [{:__aliases__, _, [mod]}, fun]}, _ca, _args} = node,
+{% raw %}{{:., m, [{:__aliases__, _, [mod]}, fun]}, _ca, _args} = node,{% endraw %}
           {defined, violations}
           when mod in [:persistent_term, :PersistentTerm] ->
             {node,
@@ -314,7 +314,7 @@ defmodule {{ module_name }}TransformerClosureCourt do
               ] ++ violations}}
 
           # :persistent_term via erlang atom form (:persistent_term.get)
-          {{:., m, [:persistent_term, fun]}, _ca, _args} = node, {defined, violations} ->
+{% raw %}{{:., m, [:persistent_term, fun]}, _ca, _args} = node, {defined, violations} ->{% endraw %}
             {node,
              {defined,
               [
@@ -323,7 +323,7 @@ defmodule {{ module_name }}TransformerClosureCourt do
               ] ++ violations}}
 
           # Process dictionary
-          {{:., m, [{:__aliases__, _, [:Process]}, fun]}, _ca, _args} = node,
+{% raw %}{{:., m, [{:__aliases__, _, [:Process]}, fun]}, _ca, _args} = node,{% endraw %}
           {defined, violations}
           when fun in [:put, :get, :delete, :get_and_update] ->
             {node,
@@ -334,7 +334,7 @@ defmodule {{ module_name }}TransformerClosureCourt do
               ] ++ violations}}
 
           # Application env outside the contract-permitted list
-          {{:., m, [{:__aliases__, _, [:Application]}, fun]}, _ca, _args} = node,
+{% raw %}{{:., m, [{:__aliases__, _, [:Application]}, fun]}, _ca, _args} = node,{% endraw %}
           {defined, violations}
           when fun in [:get_env, :fetch_env, :fetch_env!, :get_all_env] ->
             {node,
