@@ -1,0 +1,21 @@
+# MESSAGE: ProviderAvailable != Authorized. A realization is refused when
+# (shape A) it emits onto a sink marked consequentialSink=true for a
+# capability whose consequence flows through the sink, or (shape B) its
+# capability is unconditionally consequential -- and it names NO explicit
+# authority requirement. ocap:providerAvailable true NEVER discharges this
+# (the gate never reads that property). Policy != Authority.
+# REFUSED_NO_AUTHORITY class.
+PREFIX ocap: <https://ggen.dev/ontology/observation-capability#>
+SELECT ?realization ?why WHERE {
+  { ?realization ocap:realizes ?capability ; ocap:emitsOn ?sink .
+    ?sink ocap:consequentialSink true .
+    ?capability ocap:consequencesThroughSink true .
+    FILTER NOT EXISTS { ?realization ocap:authorityRequirement ?authority }
+    BIND("consequential-sink" AS ?why) }
+  UNION
+  { ?realization ocap:realizes ?capability .
+    ?capability ocap:consequential true .
+    FILTER NOT EXISTS { ?realization ocap:authorityRequirement ?authority }
+    BIND("unconditionally-consequential" AS ?why) }
+}
+ORDER BY ?realization ?why
