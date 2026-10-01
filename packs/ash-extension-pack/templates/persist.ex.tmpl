@@ -1,10 +1,11 @@
 ---
-to: "lib/{{ package_name }}/persist.ex"
+to: "lib/{{ package_name }}/{% if support_subdir %}{{ support_subdir }}/{% endif %}persist.ex"
 for_each: "spec"
 sparql:
   spec: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
     SELECT DISTINCT ?package_name ?module_name
+           (SAMPLE(?support_subdir) AS ?support_subdir)
            (SAMPLE(?context_normalize) AS ?context_normalize)
            (SAMPLE(?context_target_entity) AS ?context_target_entity)
            (SAMPLE(?context_target_field) AS ?context_target_field)
@@ -13,12 +14,14 @@ sparql:
            (SAMPLE(?provenance_source) AS ?provenance_source)
     WHERE {
       ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ; aex:moduleName ?module_name .
+      OPTIONAL { ?s aex:supportSubdir ?support_subdir }
       OPTIONAL { ?s aex:contextNormalize ?context_normalize }
       OPTIONAL { ?s aex:contextTargetEntity ?context_target_entity }
       OPTIONAL { ?s aex:contextTargetField ?context_target_field }
       OPTIONAL { ?s aex:normalizeModule ?normalize_module }
       OPTIONAL { ?s aex:normalizeFunction ?normalize_function }
       OPTIONAL { ?s aex:provenanceSource ?provenance_source }
+      FILTER NOT EXISTS { ?s aex:fixtureOnly true }
     } GROUP BY ?package_name ?module_name
   sections: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>

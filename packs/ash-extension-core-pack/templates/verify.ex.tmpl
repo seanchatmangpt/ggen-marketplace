@@ -4,17 +4,9 @@ for_each: "spec"
 sparql:
   spec: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT DISTINCT ?package_name ?module_name
-           (SAMPLE(?support_subdir) AS ?support_subdir)
-           (SAMPLE(?validate_delegate_module) AS ?validate_delegate_module)
-           (SAMPLE(?validate_delegate_function) AS ?validate_delegate_function)
-    WHERE {
+    SELECT DISTINCT ?package_name ?module_name WHERE {
       ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ; aex:moduleName ?module_name .
-      OPTIONAL { ?s aex:supportSubdir ?support_subdir }
-      OPTIONAL { ?s aex:validateDelegateModule ?validate_delegate_module }
-      OPTIONAL { ?s aex:validateDelegateFunction ?validate_delegate_function }
-      FILTER NOT EXISTS { ?s aex:fixtureOnly true }
-    } GROUP BY ?package_name ?module_name
+    }
   verifiers: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
     SELECT ?package_name ?verifier_name ?verifier_doc WHERE {
@@ -28,15 +20,10 @@ sparql:
    instead of silently accepting an invalid  One private function stub per
    aex:Verifier -- fill in the real check; the stub itself is a real, honest TODO marker,
    never a fake always-true placeholder passed off as done. #}
-{# Per-spec scoping: ggen evaluates each named `sparql:` result once against the whole
-   union graph, not per `for_each` row, so every non-spec query selects ?package_name
-   and is narrowed to the current spec here (the reactor_pipeline.ex.tmpl fix, applied
-   to every DSL family). Without it a multi-spec graph rendered every spec's sections,
-   entities, getters, verifiers and targets into every other spec's modules. #}
-{% set verifiers = verifiers | filter(attribute="package_name", value=package_name) %}
+{% set verifiers_for_spec = verifiers | filter(attribute="package_name", value=package_name) %}
 defmodule {{ module_name }}.Verify do
   @moduledoc """
-  Verifier for `{{ package_name }}`: enforces {{ verifiers | length }} legality
+  Verifier for `{{ package_name }}`: enforces {{ verifiers_for_spec | length }} legality
   constraint(s) against the compiled `:{{ package_name }}_compiled` state.
   """
   use Spark.Dsl.Verifier
@@ -51,23 +38,8 @@ defmodule {{ module_name }}.Verify do
            path: []
          )}
 
-      {% if validate_delegate_module and validate_delegate_function %}compiled{% elif verifiers | length > 0 %}compiled{% else %}_compiled{% endif %} ->
-{% if validate_delegate_module and validate_delegate_function %}
-        # ash_r2rml's exact 2-branch shape (resource.ex:492-511): nil-check stays
-        # inline (above), business validation delegates to a separate module's
-        # validate function instead of an inline per-verifier chain.
-        case {{ validate_delegate_module }}.{{ validate_delegate_function }}(compiled) do
-          :ok ->
-            :ok
-
-          {:error, refusals} ->
-            {:error,
-             Spark.Error.DslError.exception(
-               message: Enum.map_join(refusals, "; ", &"#{&1.code}: #{&1.detail}"),
-               path: []
-             )}
-        end
-{% elif verifiers | length > 0 %}
+      compiled ->
+{% if verifiers | length > 0 %}
         with {% for v in verifiers %}:ok <- check_{{ v.verifier_name }}(compiled){% if not loop.last %},
              {% endif %}{% endfor %} do
           :ok
@@ -75,14 +47,12 @@ defmodule {{ module_name }}.Verify do
 {% else %}
         # No aex:Verifier rows on this spec -- a legal, unconstrained extension.
         # (A `with` with zero clauses is invalid Elixir, so this is a plain :ok,
-        # not an empty `with ... do :ok end`; the persisted state is bound as
-        # `_compiled` because nothing reads it.)
+        # not an empty `with ... do :ok end`.)
         :ok
 {% endif %}
     end
   end
 
-{% if not validate_delegate_module or not validate_delegate_function %}
 {% for v in verifiers %}
   # {{ v.verifier_doc }}
   defp check_{{ v.verifier_name }}(_compiled) do
@@ -91,5 +61,4 @@ defmodule {{ module_name }}.Verify do
     :ok
   end
 {% endfor %}
-{% endif %}
 end

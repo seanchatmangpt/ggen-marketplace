@@ -123,7 +123,7 @@ graph =
 IO.puts("")
 
 # ---------------------------------------------------------------------------
-# 3. Gates 010..080 and the two named queries -- real filenames on disk,
+# 3. Gates 010..100 and the two named queries -- real filenames on disk,
 #    confirmed via `find packs/ash-extension-pack -type f`.
 # ---------------------------------------------------------------------------
 
@@ -135,7 +135,9 @@ gate_files = [
   {"gate 050 (info_getter_quadruple_contract)", Path.join([pack_root, "gates", "050_info_getter_quadruple_contract.rq"])},
   {"gate 060 (installer_target_mode_contract)", Path.join([pack_root, "gates", "060_installer_target_mode_contract.rq"])},
   {"gate 070 (license_file_contract)", Path.join([pack_root, "gates", "070_license_file_contract.rq"])},
-  {"gate 080 (scripts_index_contract)", Path.join([pack_root, "gates", "080_scripts_index_contract.rq"])}
+  {"gate 080 (scripts_index_contract)", Path.join([pack_root, "gates", "080_scripts_index_contract.rq"])},
+  {"gate 090 (codegen_callback_contract)", Path.join([pack_root, "gates", "090_codegen_callback_contract.rq"])},
+  {"gate 100 (projection_isolation_contract)", Path.join([pack_root, "gates", "100_projection_isolation_contract.rq"])}
 ]
 
 query_files = [

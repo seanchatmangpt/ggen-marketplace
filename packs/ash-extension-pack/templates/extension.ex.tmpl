@@ -4,10 +4,13 @@ for_each: "spec"
 sparql:
   spec: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT DISTINCT ?package_name ?module_name ?extension_target ?single_extension_kind WHERE {
+    SELECT DISTINCT ?package_name ?module_name ?extension_target ?single_extension_kind ?codegen_task ?codegen_name WHERE {
       ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ;
          aex:moduleName ?module_name ; aex:extensionTarget ?extension_target .
       OPTIONAL { ?s aex:singleExtensionKind ?single_extension_kind }
+      OPTIONAL { ?s aex:codegenTask ?codegen_task }
+      OPTIONAL { ?s aex:codegenName ?codegen_name }
+      FILTER NOT EXISTS { ?s aex:fixtureOnly true }
     }
   sections: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
@@ -24,19 +27,22 @@ sparql:
     } ORDER BY ?package_name ?section_name ?singleton_key
   section_fields: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?package_name ?section_name ?section_field_order ?section_field_name ?section_field_type WHERE {
+    SELECT ?package_name ?section_name ?section_field_order ?section_field_name ?section_field_type ?section_field_default ?section_field_doc WHERE {
       ?f a aex:SectionSchemaField ; aex:sectionFieldOf ?section ; aex:sectionFieldOrder ?section_field_order ;
          aex:sectionFieldName ?section_field_name ; aex:sectionFieldType ?section_field_type .
+      OPTIONAL { ?f aex:sectionFieldDefault ?section_field_default }
+      OPTIONAL { ?f aex:sectionFieldDoc ?section_field_doc }
       ?section aex:sectionName ?section_name ; aex:sectionOf ?spec .
       ?spec aex:packageName ?package_name .
     } ORDER BY ?package_name ?section_name ?section_field_order
   entities: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT ?package_name ?section_name ?entity_name ?entity_struct ?entity_identifier ?entity_order WHERE {
+    SELECT ?package_name ?section_name ?entity_name ?entity_struct ?entity_identifier ?entity_order ?entity_describe WHERE {
       ?entity a aex:DslEntity ; aex:entityOf ?section ; aex:entityName ?entity_name ;
               aex:entityStruct ?entity_struct .
       OPTIONAL { ?entity aex:entityIdentifier ?entity_identifier }
       OPTIONAL { ?entity aex:entityOrder ?entity_order }
+      OPTIONAL { ?entity aex:entityDescribe ?entity_describe }
       ?section aex:sectionName ?section_name ; aex:sectionOf ?spec .
       ?spec aex:packageName ?package_name .
       # COALESCE keeps ordering deterministic even if a future entity omits
@@ -150,7 +156,7 @@ defmodule {{ module_name }} do
   @moduledoc """
   Spark.Dsl.Extension for `{{ package_name }}`.
 
-  Manufactured by ash-extension-core-pack from an admitted `aex:AshExtensionSpec` --
+  Manufactured by ash-extension-pack from an admitted `aex:AshExtensionSpec` --
   do not hand-edit; regenerate from the spec instead.
   """
 
@@ -179,6 +185,9 @@ defmodule {{ module_name }} do
   @{{ entity.entity_name }} %Spark.Dsl.Entity{
     name: :{{ entity.entity_name }},
     target: {{ entity.entity_struct }},
+{% if entity.entity_describe %}
+    describe: "{{ entity.entity_describe }}",
+{% endif %}
 {% if entity_args_here | length > 0 %}
     args: [{% for a in entity_args_here %}:{{ a.arg_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
 {% endif %}
@@ -204,7 +213,7 @@ defmodule {{ module_name }} do
 {% endif %}
 {% if section_fields_here | length > 0 %}
     schema: [
-{% for sf in section_fields_here %}      {{ sf.section_field_name }}: [type: {% if sf.section_field_type == "or_string_list_string" %}{:or, [:string, {:list, :string}]}{% elif sf.section_field_type == "list_atom" %}{:list, :atom}{% elif sf.section_field_type == "list_string" %}{:list, :string}{% else %}:{{ sf.section_field_type }}{% endif %}],
+{% for sf in section_fields_here %}      {{ sf.section_field_name }}: [type: {% if sf.section_field_type == "or_string_list_string" %}{:or, [:string, {:list, :string}]}{% elif sf.section_field_type == "list_atom" %}{:list, :atom}{% elif sf.section_field_type == "list_string" %}{:list, :string}{% else %}:{{ sf.section_field_type }}{% endif %}{% if sf.section_field_default %}, default: {{ sf.section_field_default }}{% endif %}{% if sf.section_field_doc %}, doc: "{{ sf.section_field_doc }}"{% endif %}],
 {% endfor %}    ],
 {% endif %}
     entities: [
@@ -221,5 +230,20 @@ defmodule {{ module_name }} do
     transformers: [{{ module_name }}.Persist],
     verifiers: [{{ module_name }}.Verify]{% if single_extension_kind %},
     single_extension_kinds: [:{{ single_extension_kind }}]{% endif %}
+{% if codegen_task %}
+
+  @behaviour Ash.Extension
+
+  @impl Ash.Extension
+  def codegen(argv) do
+    Mix.Task.reenable("{{ codegen_task }}")
+    Mix.Task.run("{{ codegen_task }}", argv)
+  end
+{% if codegen_name %}
+
+  @doc false
+  def name, do: "{{ codegen_name }}"
+{% endif %}
+{% endif %}
 
 end

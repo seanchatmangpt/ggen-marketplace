@@ -290,3 +290,32 @@ marketplace admission (operator merge + push of the branch chain) is an
 operator cut, and retiring the consumer pair against an unadmitted, unpushed
 pack SHA would fabricate provenance. The pair retires only after admission,
 via re-dispatch of chicago-ledger-shrink2-050.
+
+
+## Cycle 4 — 2026-10-01 (Vision 2040 consolidation closure)
+
+The initial Vision 2040 consolidation removed the legacy core/starter trees before the
+repository's own lifecycle and consolidation courts were closed. CI correctly refused the
+exact subject with LIFECYCLE_PACK_UNKNOWN and LIFECYCLE_EVIDENCE_MISSING.
+
+A semantic inventory against the pre-consolidation source found seven core terms absent
+from the canonical ontology: codegenTask, codegenName, supportSubdir, fixtureOnly,
+entityDescribe, sectionFieldDefault, and sectionFieldDoc. This cycle ports those semantics,
+their codegen/projection-isolation gates, and the corresponding template projections into
+the canonical pack.
+
+The old core/starter paths are restored byte-for-byte as lifecycle-marked superseded
+compatibility surfaces. They are not canonical and receive no new reusable semantics.
+Physical deletion remains deferred until consumer migration evidence is available, per
+docs/how-to/consolidate-a-pack-family.md.
+
+The source packs did not contain positive worked instances for every late capability
+(codegenName/supportSubdir/entityDescribe/sectionFieldDefault/sectionFieldDoc in particular),
+so this cycle does not fabricate such witnesses. It preserves the vocabulary, gates, and
+projection behavior and leaves positive coverage as an explicit qualification edge.
+
+Canonical law after this cycle:
+- reusable Ash-extension semantics land only in ash-extension-pack;
+- compatibility paths may remain resolvable without becoming semantic authorities;
+- Spark/implementation closure may not be claimed by deleting unported source semantics;
+- lifecycle evidence must reference live paths.
