@@ -74,22 +74,39 @@ sparql:
       target ->
         target_module = Igniter.Project.Module.parse(target)
 
-        Igniter.Project.Module.find_and_update_module!(base, target_module, fn zipper ->
-          zipper
-          |> add_extension()
-          |> add_starter_dsl_block()
-        end)
+        base
+        |> Spark.Igniter.add_extension(target_module, Ash.{{ extension_target | capitalize }}, :extensions, {{ module_name }})
+        |> Igniter.Project.Module.find_and_update_module!(target_module, &add_starter_dsl_block/1)
     end
   end
 
-  defp add_extension(zipper) do
-    Igniter.Code.Common.add_code(zipper, "extensions: [{{ module_name }}]", placement: :after)
-  end
-
+  # Adds a minimal, real starter block for the primary section so the target module
+  # compiles immediately after install rather than needing hand-authored DSL content.
+  # Skipped when the block already exists, so a second run is a no-op. The extension
+  # itself is added by `Spark.Igniter.add_extension/5` above, which emits valid Elixir,
+  # is idempotent, and merges into an existing `extensions:` list instead of inserting a
+  # second option (a bare `extensions: [...]` fragment is not a statement and cannot be
+  # inserted with `Igniter.Code.Common.add_code/3`).
   defp add_starter_dsl_block(zipper) do
-{% for s in sections_for_spec %}{% if loop.first %}    Igniter.Code.Common.add_code(zipper, """
-    {{ s.section_name }} do
+{% for s in sections_for_spec %}{% if loop.first %}    already? =
+      zipper
+      |> Sourceror.Zipper.node()
+      |> Sourceror.to_string()
+      |> String.contains?("{{ s.section_name }} do")
+
+    if already? do
+      {:ok, zipper}
+    else
+      {:ok,
+       Igniter.Code.Common.add_code(
+         zipper,
+         """
+         {{ s.section_name }} do
+         end
+         """,
+         placement: :after
+       )}
     end
-    """, placement: :after)
-{% endif %}{% endfor %}  end
+{% endif %}{% endfor %}{% if sections_for_spec | length == 0 %}    {:ok, zipper}
+{% endif %}  end
 end
