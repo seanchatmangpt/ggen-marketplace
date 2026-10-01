@@ -14,6 +14,7 @@
 - [Take a pack through a Level-5 promotion slice](tutorials/level5-promotion.md)
 - [Explore option-capital hypergraphs](tutorials/option-hypergraph-amplifier-r15.md)
 - [Plan an engagement as a standing ledger](tutorials/standing-ledger-for-an-engagement.md)
+- [Flag a pack for consolidation and deprecation](tutorials/flag-a-pack.md)
 
 # How-to guides
 
@@ -29,6 +30,7 @@
 - [Promote a pack to Level 5](how-to/promote-a-pack-to-level5.md)
 - [Query the R15 option hypergraph](how-to/query-option-hypergraph-r15.md)
 - [Measure manufacture time across toolchain changes](how-to/measure-manufacture-time.md)
+- [Flag a pack's lifecycle](how-to/flag-a-pack-lifecycle.md)
 
 # Reference
 
@@ -52,8 +54,11 @@
 - [Kudzu Case Studies](reference/kudzu-case-studies.md)
 - [Enterprise Kudzu v26.9.13](reference/enterprise-kudzu-v26.9.13.md)
 - [New packs 2026-09](reference/new-packs-2026-09.md)
+- [Chicago work-equivalent court](reference/chicago-work-equivalent-court.md)
 - [Manufacture timing contract](reference/manufacture-timing-contract.md)
 - [Engagement standing ledger](reference/engagement-standing-ledger.md)
+- [Pack lifecycle registry](reference/pack-lifecycle-registry.md)
+- [Pack consolidation review 26.9.30](reference/pack-consolidation-review-26.9.30.md)
 
 # Explanation
 
@@ -71,6 +76,7 @@
 - [Working-Backwards Press Release](explanation/wbpr-26.9.12-canonical-consolidation.md)
 - [WBPR 26.9.12 Falsifier Audit — 12-Pack Canonical Consolidation, MSCT, Human Twin](reference/wbpr-26.9.12-falsifier-audit.md)
 - [Why manufacture time and standing time are different clocks](explanation/manufacture-time-vs-standing-time.md)
+- [Pack replaceability survey across owner repositories](explanation/pack-replaceability-survey.md)
 
 # Research monograph
 
@@ -127,18 +133,13 @@
 - [Add a semantic Diátaxis document](how-to/add-a-semantic-diataxis-document.md)
 - [Semantic Diátaxis contract](reference/semantic-diataxis-contract.md)
 - [Why documents carry no authority](explanation/semantic-diataxis-fences.md)
+- [CI architecture](reference/ci-architecture.md)
+- [Add or migrate a CI court](how-to/add-a-ci-court.md)
+- [Why CI is path-classified](explanation/why-ci-is-path-classified.md)
 - [First QRI substitution](tutorials/qri-first-substitution.md)
 - [Qualify a realization](how-to/qualify-a-realization.md)
 - [QRI qualification profile](reference/qri-profile.md)
 - [Why QRI is a thin waist](explanation/qri-thin-waist.md)
-- [Flag a pack for consolidation and deprecation](tutorials/flag-a-pack.md)
-- [Flag a pack's lifecycle](how-to/flag-a-pack-lifecycle.md)
-- [Chicago work-equivalent court](reference/chicago-work-equivalent-court.md)
-- [Pack lifecycle registry](reference/pack-lifecycle-registry.md)
-- [Pack consolidation review 26.9.30](reference/pack-consolidation-review-26.9.30.md)
-- [CI architecture](reference/ci-architecture.md)
-- [Add or migrate a CI court](how-to/add-a-ci-court.md)
-- [Why CI is path-classified](explanation/why-ci-is-path-classified.md)
 - [SPIFFE capability donor](adoption/spiffe-capability-donor.md)
 - [QME-1 ecosystem reference](qme-1-reference.md)
 - [QRI host profile](reference/qri-host-profile.md)
@@ -148,3 +149,7 @@
 - [Industry closure contract](reference/industry-closure-contract.md)
 - [Enterprise operating model contract](reference/enterprise-operating-model-contract.md)
 - [Industry closure as architecture strategy](explanation/industry-closure-as-architecture-strategy.md)
+- [Compose a capability cover](tutorials/compose-a-capability-cover.md)
+- [Add a capability atom to the solver basis](how-to/add-a-capability-atom.md)
+- [Composition solver contract](reference/composition-solver-contract.md)
+- [Why the composition solver is bounded](explanation/why-the-composition-solver-is-bounded.md)
