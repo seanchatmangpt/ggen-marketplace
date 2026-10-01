@@ -15,7 +15,7 @@ change that makes the corpus worse. It is a ratchet: WARN may only fall.
 
 ```json
 {
-  "counts": {"ALIVE": 359, "REFUSED": 0, "SKIPPED": 5, "WARN": 12},
+  "counts": {"ALIVE": 377, "REFUSED": 0, "SKIPPED": 5, "WARN": 12},
   "ggen_version": "ggen 26.9.28",
   "packs": {"some-pack": {"status": "WARN", "warn_reason": "missing path dependency: ..."}},
   "schema": "https://ggen.dev/marketplace/qualification-baseline/v1"

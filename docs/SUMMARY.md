@@ -150,6 +150,7 @@
 - [Chicago work-equivalent court](reference/chicago-work-equivalent-court.md)
 - [Pack lifecycle registry](reference/pack-lifecycle-registry.md)
 - [Pack consolidation review 26.9.30](reference/pack-consolidation-review-26.9.30.md)
+- [Release v26.9.30](reference/release-v26.9.30.md)
 - [CI architecture](reference/ci-architecture.md)
 - [Add or migrate a CI court](how-to/add-a-ci-court.md)
 - [Why CI is path-classified](explanation/why-ci-is-path-classified.md)
