@@ -1,0 +1,33 @@
+[pack]
+name = "beam-wasmex-host-pack"
+version = "0.1.0"
+description = """
+Generates the Elixir/Wasmex HOST transport for a zero-import (or WASI-only)
+reactor wasm module: store/instance bootstrap (Wasmex.Store.new + Wasmex.start_link),
+admission with a host-side digest-verification hook (fail-closed pin, sha256),
+call/3 + replay/3 over the real alloc -> write -> call -> read -> free sequence,
+both guest return modes (packed (out_ptr<<32)|out_len u64 AND
+out-len-through-pointer: call(ptr,len,out_len_ptr)->out_ptr with the length
+written back as a little-endian u32), typed refusals, per-algorithm wrapper
+modules for <algo>_v1/<algo>_replay_v1 export pairs, a mix.exs dependency
+snippet (wasmex pinned as ex4pm pins it: "~> 0.14"), and a host-manifest JSON
+(schema beam.wasmex.host.manifest/v1) modeled on ash_a2a's priv/graphlaw
+WASMEX_HOST_MANIFEST.json / MANIFEST.json field structure tying artifact
+sha256/blake3 + export list + ABI version to the host module.
+
+Failed-edge documented in README.md: beam4pm-wasm-engine-pack manufactures
+engine CATALOGS/manifests only (no transport code), ex4pm-wasm4pm-bindings-pack
+owns the GUEST-side Rust exports plus an ex4pm-Adapter wrapper that assumes a
+hand-written host, elixir-mcp-a2a-pack is MCP/A2A protocol surfaces, and the
+nearest Wasmex-host generator (qri-qualification-profile-pack
+templates/beam-host) structurally REFUSES every non packed_u64 / req-consumed /
+u32 profile (host.ex.tmpl:112), derives a single free symbol
+(host.ex.tmpl:43 CONCAT(prefix,"_free")) that cannot express the ex4pm
+alloc/free/dealloc trio, and hardcodes the WASI import namespace
+(engine_load.ex.tmpl:95) with no zero-import admission and no replay pairs.
+Consumers targeted: ex4pm (worked rows grounded in
+Ex4pmEngine.Wasm.RealTransport / .Admission / .Core.Hash), ash_a2a
+(GraphLaw.WasmexHost manifest consumers), future graphlaw/affidavit hosts.
+Grants no execution authority: transport success is not a receipt of
+consequence; host DO stays behind the consumer's own BRCE/admission discipline.
+"""
