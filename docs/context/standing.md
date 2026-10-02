@@ -10,9 +10,9 @@ generation run; a commit cannot contain its own hash, so it names the commit gen
 ### Repository facts
 
 - Marketplace version: `v26.10.2`
-- Pack count: 293
-- Catalog fingerprint: `sha256:f508ee15eb90fbd7bc68a5d3d835ed7cee35edbef27f3dc0dc504d215dacdfc1`
-- Head SHA: `0e514ed0197f39cfb003d193dc2a726722ff0722`
+- Pack count: 291
+- Catalog fingerprint: `sha256:5c18d0b0015dcade11d5665db7a9fc8d793f5cd0d7c3589e3474d7a3437a4149`
+- Head SHA: `25b44b97d3fe2291c73d2ded39ccb58496e1f35e`
 
 ### Pack standing table
 
@@ -29,9 +29,7 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | ai-chatbot-shadcn-pack | 0.1.0 | project | intent:review, templates |
 | aloop-episode-ontology-pack | 0.1.0 | projection | native-gates, templates |
 | ash-ex4pm-evidence-pack | 0.1.0 | projection | native-gates, templates |
-| ash-extension-core-pack | 0.1.1 | projection | superseded, native-gates, templates |
-| ash-extension-pack | 0.4.1 | projection | native-gates, templates |
-| ash-extension-starter-pack | 0.1.0 | projection | superseded, templates |
+| ash-extension-pack | 0.4.0 | projection | intent:upgrade, native-gates, templates |
 | ash-ocel-revops-surface-factory-pack | 26.9.11 | semantic | ontology-only |
 | ash-pplan-chaos-pack | 0.1.0 | projection | native-gates, templates |
 | ash-pplan-protocol-court-pack | 0.1.0 | projection | native-gates, templates |
