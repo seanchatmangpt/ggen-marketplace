@@ -1,0 +1,40 @@
+@prefix p: <https://seanchatmangpt.github.io/packs/composition-solver-pack#> .
+@prefix b: <https://seanchatmangpt.github.io/packs/composition-solver-pack/basis#> .
+
+# Seed capability basis. Every atom names the marketplace pack (or external boundary)
+# that actually owns the capability; provides/requires are the solver's reading of that
+# pack's documented contract (docs/reference/industry-closure-contract.md and the pack
+# descriptions), NOT a declaration made by those packs. A pack that wants its atoms
+# authoritative must declare them itself (see docs/reference/composition-solver-contract.md,
+# "Known limits", item L4).
+
+b:public-source-listed a p:Proposition ; p:propId "public-source-listed" ;
+    p:given true ; p:admittedFrom "ontologies/public/ (admitted by industry-closure-ledger-pack gate 020)" .
+b:pack-source-admitted a p:Proposition ; p:propId "pack-source-admitted" ;
+    p:given true ; p:admittedFrom "marketplace.py validate over packs/" .
+
+b:public-knowledge-admitted a p:Proposition ; p:propId "public-knowledge-admitted" .
+b:residual-computed a p:Proposition ; p:propId "residual-computed" .
+b:workorder-projected a p:Proposition ; p:propId "workorder-projected" .
+b:residual-feedback-routed a p:Proposition ; p:propId "residual-feedback-routed" .
+b:pack-qualified-exact-subject a p:Proposition ; p:propId "pack-qualified-exact-subject" .
+b:consequence-actuated a p:Proposition ; p:propId "consequence-actuated" .
+
+b:atom-knowledge-admission a p:CapabilityAtom ; p:atomId "knowledge-admission" ;
+    p:fromPack "industry-closure-ledger-pack" ; p:authorityClass "SELECT" ;
+    p:requires b:public-source-listed ; p:provides b:public-knowledge-admitted .
+b:atom-residual-computation a p:CapabilityAtom ; p:atomId "residual-computation" ;
+    p:fromPack "industry-closure-ledger-pack" ; p:authorityClass "SELECT" ;
+    p:requires b:public-knowledge-admitted ; p:provides b:residual-computed .
+b:atom-workorder-projection a p:CapabilityAtom ; p:atomId "workorder-projection" ;
+    p:fromPack "industry-closure-ledger-pack" ; p:authorityClass "CONSTRUCT" ;
+    p:requires b:residual-computed ; p:provides b:workorder-projected .
+b:atom-feedback-routing a p:CapabilityAtom ; p:atomId "feedback-routing" ;
+    p:fromPack "sjira-marketplace-feedback-pack" ; p:authorityClass "CONSTRUCT" ;
+    p:requires b:workorder-projected ; p:provides b:residual-feedback-routed .
+b:atom-pack-qualification a p:CapabilityAtom ; p:atomId "pack-qualification" ;
+    p:fromPack "scripts/qualify_packs.py (real admitted ggen runtime)" ; p:authorityClass "CONSTRUCT" ;
+    p:requires b:pack-source-admitted ; p:provides b:pack-qualified-exact-subject .
+b:atom-consequential-actuation a p:CapabilityAtom ; p:atomId "consequential-actuation" ;
+    p:fromPack "BRCE (separately admitted consequential DO path; external)" ; p:authorityClass "DO" ;
+    p:requires b:pack-qualified-exact-subject ; p:provides b:consequence-actuated .

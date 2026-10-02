@@ -10,9 +10,9 @@ generation run; a commit cannot contain its own hash, so it names the commit gen
 ### Repository facts
 
 - Marketplace version: `v26.10.2`
-- Pack count: 293
-- Catalog fingerprint: `sha256:12fa46477cb80ec70a00c592499ca4937239dd2d99d33bb0d511f64f6232856e`
-- Head SHA: `da01069133bb3133d24a3e4cbf326ee0c6c75502`
+- Pack count: 292
+- Catalog fingerprint: `sha256:f7b819b24d3ebceaf4f05403df53cedfc109dee2b3f6dbe94b0065d83d216110`
+- Head SHA: `2d07b3fb8a752414a6bf401d06a823d51a8bb86e`
 
 ### Pack standing table
 
@@ -29,9 +29,7 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | ai-chatbot-shadcn-pack | 0.1.0 | project | intent:review, templates |
 | aloop-episode-ontology-pack | 0.1.0 | projection | native-gates, templates |
 | ash-ex4pm-evidence-pack | 0.1.0 | projection | native-gates, templates |
-| ash-extension-core-pack | 0.1.1 | projection | superseded, native-gates, templates |
-| ash-extension-pack | 0.4.1 | projection | native-gates, templates |
-| ash-extension-starter-pack | 0.1.0 | projection | superseded, templates |
+| ash-extension-pack | 0.4.0 | projection | intent:upgrade, native-gates, templates |
 | ash-ocel-revops-surface-factory-pack | 26.9.11 | semantic | ontology-only |
 | ash-pplan-chaos-pack | 0.1.0 | projection | native-gates, templates |
 | ash-pplan-protocol-court-pack | 0.1.0 | projection | native-gates, templates |
@@ -95,6 +93,7 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | cnv-any-manifest-pack | 1.0.0 | projection | templates |
 | collective-skill-court-pack | 26.9.24 | project | verifier-gates, templates |
 | composition-leverage-matrix-pack | 26.8.25 | project | native-gates, templates |
+| composition-solver-pack | 26.9.0 | project | native-gates, templates |
 | consequence-ir-pack | 0.2.0 | projection | native-gates, templates |
 | consumer-realization-frontier-pack | 26.8.25 | project | intent:review, native-gates, templates |
 | control-plane-causality-observability-pack | 26.8.25 | semantic | ontology-only |
