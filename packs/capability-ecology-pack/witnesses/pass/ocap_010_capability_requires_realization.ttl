@@ -1,0 +1,45 @@
+# POSITIVE fixture: a second, self-contained CONFORMING instance. Every gate
+# MUST return zero rows over this fixture alone AND over ontology+fixture.
+# It exercises exactly-once sampling-family observation and a non-consequential
+# stream -- proving the gates admit fully-evidenced capability offers.
+@prefix ocap: <https://ggen.dev/ontology/observation-capability#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+ocap:stream-perf-metrics a ocap:TelemetryStream ;
+    rdfs:label "perf-metrics" ;
+    ocap:consequentialSink false .
+
+ocap:observation-profile a ocap:ObservationCapability, ocap:Capability ;
+    rdfs:label "Observation.Profile" ;
+    dcterms:identifier "Observation.Profile" ;
+    ocap:input "traced surface, profile window" ;
+    ocap:output "one profile datapoint per traced span inside the window" ;
+    ocap:precondition "the traced surface is reachable and the window bounds are declared" ;
+    ocap:postcondition "per span inside the window: one datapoint or one typed failure" ;
+    ocap:successOutcome "datapoint produced per span under exactly-once delivery" ;
+    ocap:failureOutcome ocap:failure-surface-unavailable ;
+    ocap:nondeterministicOutcome "span completion order inside the window is unspecified" ;
+    ocap:deliverySemantics ocap:exactlyOnce ;
+    ocap:consequencesThroughSink false ;
+    ocap:consequential false ;
+    ocap:evidenceRequirement "profile datapoint per traced span, bound to the span id" ;
+    ocap:authorityRequirement "none: profiling is non-consequential" ;
+    ocap:durability "datapoints durable at the evidence sink" ;
+    ocap:replay "re-profiling a span produces a new datapoint; span id dedupes inside the window" ;
+    ocap:isolation "read-only over the traced surface" ;
+    ocap:concurrency "one profiler per surface" .
+
+ocap:qc-profile-window a ocap:QualificationCondition ;
+    rdfs:label "profile window bounds are declared; datapoints outside the window are typed failures" .
+
+ocap:realization-profile a ocap:Realization ;
+    ocap:realizes ocap:observation-profile ;
+    ocap:providerRepo "example-conforming" ;
+    ocap:providerModule "idempotent exactly-once profiler (fixture example; not a claimed provider)" ;
+    ocap:versionPinPolicy "fixture-local example coordinate" ;
+    ocap:providerAvailable true ;
+    ocap:qualificationCondition ocap:qc-profile-window ;
+    ocap:evidenceRequirement "profile datapoint per traced span, bound to the span id" ;
+    ocap:produces ocap:record-sample-datapoint ;
+    ocap:attachesTo ocap:stream-perf-metrics .

@@ -1,0 +1,81 @@
+# POSITIVE fixture: the fully conforming durability claim world. Every gate in
+# gates/*.rq MUST return zero rows against ontology.ttl + this graph. Synthetic
+# digests (repeated hex digits) are test data, clearly not production receipts.
+@prefix dcap:    <https://ggen.dev/ontology/durability-capability#> .
+@prefix qce:     <https://ggen.dev/ontology/qualified-capability-ecology#> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+
+# --- workflow subjects -------------------------------------------------------
+
+dcap:wf-onboarding a dcap:WorkflowSubject ;
+    dcap:workflowIdentity "urn:wf:demo:onboarding" ;
+    dcap:projectionVersion "v26.9.30" .
+
+dcap:wf-migration a dcap:WorkflowSubject ;
+    dcap:workflowIdentity "urn:wf:demo:migration" ;
+    dcap:projectionVersion "v26.9.30" .
+
+# --- checkpoints (content-bound: subject + 64-hex state digest) --------------
+
+dcap:cp-onboarding-1 a dcap:Checkpoint ;
+    dcap:checkpointIdentity "urn:gall:checkpoint:demo:onboarding-ep-1" ;
+    dcap:boundSubject dcap:wf-onboarding ;
+    dcap:baseSha "1111111111111111111111111111111111111111" ;
+    qce:closureDigest "9999999999999999999999999999999999999999999999999999999999999999" ;
+    dcap:capturedProjectionVersion "v26.9.30" .
+
+dcap:cp-migration-1 a dcap:Checkpoint ;
+    dcap:checkpointIdentity "urn:gall:checkpoint:demo:migration-ep-1" ;
+    dcap:boundSubject dcap:wf-migration ;
+    dcap:baseSha "2222222222222222222222222222222222222222" ;
+    qce:closureDigest "8888888888888888888888888888888888888888888888888888888888888888" ;
+    dcap:capturedProjectionVersion "v26.9.29" .
+
+# --- halt: opens the human-approval gap (authority suspended) ----------------
+
+dcap:halt-onboarding-1 a dcap:HaltClaim ;
+    dcap:haltsWorkflow dcap:wf-onboarding ;
+    dcap:authoritySuspended true ;
+    dcap:haltedAt "2026-09-30T10:00:00Z"^^xsd:dateTime .
+
+# --- resumes: all three lawful outcomes modeled ------------------------------
+
+# 1. plain in-version resume after a halt: FRESH authority envelope re-bound.
+dcap:rc-onboarding-resume a dcap:ResumeClaim ;
+    dcap:resumesWorkflow dcap:wf-onboarding ;
+    dcap:resumesCheckpoint dcap:cp-onboarding-1 ;
+    dcap:versionBoundaryCrossed false ;
+    dcap:resumeOutcome "ALIVE" ;
+    dcap:authorityEnvelope dcap:env-resume-1 ;
+    dcap:idempotencyKey "sha256:demo:onboarding:resume:1" .
+
+dcap:env-resume-1 a qce:AuthorityEnvelope ;
+    qce:authorityDigest "7777777777777777777777777777777777777777777777777777777777777777" .
+
+# 2. version-boundary crossing resolved as the TYPED REFUSAL (lawful outcome a).
+dcap:rc-migration-refused a dcap:ResumeClaim ;
+    dcap:resumesWorkflow dcap:wf-migration ;
+    dcap:resumesCheckpoint dcap:cp-migration-1 ;
+    dcap:versionBoundaryCrossed true ;
+    dcap:resumeOutcome "REFUSED_VERSION_BOUNDARY" .
+
+# 3. version-boundary crossing resolved as EXPLICIT REQUALIFICATION (lawful outcome b):
+#    qce:QualificationReceipt with its own qualification digest + fresh authority.
+dcap:rc-migration-requalified a dcap:ResumeClaim ;
+    dcap:resumesWorkflow dcap:wf-migration ;
+    dcap:resumesCheckpoint dcap:cp-migration-1 ;
+    dcap:versionBoundaryCrossed true ;
+    dcap:resumeOutcome "REQUALIFIED" ;
+    dcap:requalificationReceipt dcap:qrec-migration-v26930 ;
+    dcap:authorityEnvelope dcap:env-resume-2 ;
+    dcap:idempotencyKey "sha256:demo:migration:requalify:1" .
+
+dcap:qrec-migration-v26930 a qce:QualificationReceipt ;
+    qce:qualificationDigest "6666666666666666666666666666666666666666666666666666666666666666" .
+
+dcap:env-resume-2 a qce:AuthorityEnvelope ;
+    qce:authorityDigest "5555555555555555555555555555555555555555555555555555555555555555" .

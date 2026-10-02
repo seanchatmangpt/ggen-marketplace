@@ -1,0 +1,207 @@
+# Chicago verification matrix rows (strict law: SELECT ending in ORDER BY).
+# Row shapes: meta = root context, digest = vendored source digests,
+# layer = REQUIRED layers only (one row per required layer, no inherited
+# standing: status is receipt-backed or UNKNOWN), falsifier = root falsifiers,
+# scenario = candidate cases with polarity and observedStanding.
+PREFIX sj: <https://ggen-igniter.dev/ontology/semantic-jira#>
+PREFIX chi: <https://ggen-igniter.dev/sjira/v26.10.1/chicago#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?rowKind ?sortKey ?subject ?identifier ?label ?repository ?baseSha
+       ?authorityCeiling ?evidenceHorizon ?replayIdentity ?id ?pathScope
+       ?status ?evidenceRefs ?receiptRefs ?layerFalsifier ?falsifierLabel
+       ?falsifierDescription ?caseId ?caseLabel ?caseDescription ?caseSubject
+       ?polarity ?candidateOnly ?authorityClaim ?observedStanding ?path
+       ?packPath ?canonicalPath ?sha256
+WHERE {
+  {
+    BIND("meta" AS ?rowKind)
+    BIND("0" AS ?sortKey)
+    ?root a sj:GoalCheckpoint .
+    FILTER NOT EXISTS { ?hasPartParent dcterms:hasPart ?root }
+    ?root dcterms:identifier ?identifier ;
+          rdfs:label ?label ;
+          sj:repository ?repository ;
+          sj:baseSha ?baseSha ;
+          sj:authorityCeiling ?authorityCeiling ;
+          sj:evidenceHorizon ?evidenceHorizon ;
+          sj:replayIdentity ?replayIdentity .
+    OPTIONAL {
+      ?subjectElement a prov:Entity ;
+                      dcterms:isPartOf ?root ;
+                      dcterms:identifier ?subjectIdentifier .
+    }
+    BIND(COALESCE(?subjectIdentifier, "") AS ?subject)
+    BIND("" AS ?id)
+    BIND("" AS ?pathScope)
+    BIND("" AS ?status)
+    BIND("" AS ?evidenceRefs)
+    BIND("" AS ?receiptRefs)
+    BIND("" AS ?layerFalsifier)
+    BIND("" AS ?falsifierLabel)
+    BIND("" AS ?falsifierDescription)
+    BIND("" AS ?caseId)
+    BIND("" AS ?caseLabel)
+    BIND("" AS ?caseDescription)
+    BIND("" AS ?caseSubject)
+    BIND("" AS ?polarity)
+    BIND("" AS ?candidateOnly)
+    BIND("" AS ?authorityClaim)
+    BIND("" AS ?observedStanding)
+    BIND("" AS ?path)
+    BIND("" AS ?packPath)
+    BIND("" AS ?canonicalPath)
+    BIND("" AS ?sha256)
+  }
+  UNION
+  {
+    BIND("digest" AS ?rowKind)
+    ?renderSource a chi:RenderSource ;
+                  chi:packPath ?packPath ;
+                  chi:sha256 ?sha256 .
+    OPTIONAL { ?renderSource chi:canonicalPath ?canonicalPathValue }
+    BIND(COALESCE(?canonicalPathValue, "") AS ?canonicalPath)
+    BIND(COALESCE(?canonicalPathValue, ?packPath) AS ?path)
+    BIND(?path AS ?sortKey)
+    BIND("" AS ?subject)
+    BIND("" AS ?identifier)
+    BIND("" AS ?label)
+    BIND("" AS ?repository)
+    BIND("" AS ?baseSha)
+    BIND("" AS ?authorityCeiling)
+    BIND("" AS ?evidenceHorizon)
+    BIND("" AS ?replayIdentity)
+    BIND("" AS ?id)
+    BIND("" AS ?pathScope)
+    BIND("" AS ?status)
+    BIND("" AS ?evidenceRefs)
+    BIND("" AS ?receiptRefs)
+    BIND("" AS ?layerFalsifier)
+    BIND("" AS ?falsifierLabel)
+    BIND("" AS ?falsifierDescription)
+    BIND("" AS ?caseId)
+    BIND("" AS ?caseLabel)
+    BIND("" AS ?caseDescription)
+    BIND("" AS ?caseSubject)
+    BIND("" AS ?polarity)
+    BIND("" AS ?candidateOnly)
+    BIND("" AS ?authorityClaim)
+    BIND("" AS ?observedStanding)
+  }
+  UNION
+  {
+    BIND("layer" AS ?rowKind)
+    ?layer a sj:GoalCheckpoint ;
+           dcterms:identifier ?identifier ;
+           rdfs:label ?label ;
+           sj:repository ?repository ;
+           sj:pathScope ?pathScope ;
+           sj:boundaryClass ?boundaryClassIri ;
+           sj:authorityCeiling ?authorityCeiling ;
+           sj:evidenceHorizon ?evidenceHorizon ;
+           sj:falsifier ?layerFalsifier .
+    ?layer chi:contractId ?id .
+    FILTER(?boundaryClassIri != sj:Successor)
+    OPTIONAL {
+      ?layer sj:receipt ?layerReceipt .
+      ?layerReceipt a sj:Receipt ;
+                    sj:standing ?layerReceiptStanding .
+    }
+    BIND(COALESCE(?layerReceiptStanding, "UNKNOWN") AS ?status)
+    BIND(?identifier AS ?sortKey)
+    BIND("" AS ?subject)
+    BIND("" AS ?baseSha)
+    BIND("" AS ?replayIdentity)
+    BIND("" AS ?evidenceRefs)
+    BIND("" AS ?receiptRefs)
+    BIND("" AS ?falsifierLabel)
+    BIND("" AS ?falsifierDescription)
+    BIND("" AS ?caseId)
+    BIND("" AS ?caseLabel)
+    BIND("" AS ?caseDescription)
+    BIND("" AS ?caseSubject)
+    BIND("" AS ?polarity)
+    BIND("" AS ?candidateOnly)
+    BIND("" AS ?authorityClaim)
+    BIND("" AS ?observedStanding)
+    BIND("" AS ?path)
+    BIND("" AS ?packPath)
+    BIND("" AS ?canonicalPath)
+    BIND("" AS ?sha256)
+  }
+  UNION
+  {
+    BIND("falsifier" AS ?rowKind)
+    ?root2 a sj:GoalCheckpoint .
+    FILTER NOT EXISTS { ?hasPartParent2 dcterms:hasPart ?root2 }
+    ?root2 sj:falsifier ?falsifierNode .
+    ?falsifierNode a sj:Falsifier ;
+                   rdfs:label ?falsifierLabel ;
+                   dcterms:description ?falsifierDescription .
+    BIND(?falsifierLabel AS ?sortKey)
+    BIND("" AS ?subject)
+    BIND("" AS ?identifier)
+    BIND("" AS ?label)
+    BIND("" AS ?repository)
+    BIND("" AS ?baseSha)
+    BIND("" AS ?authorityCeiling)
+    BIND("" AS ?evidenceHorizon)
+    BIND("" AS ?replayIdentity)
+    BIND("" AS ?id)
+    BIND("" AS ?pathScope)
+    BIND("" AS ?status)
+    BIND("" AS ?evidenceRefs)
+    BIND("" AS ?receiptRefs)
+    BIND("" AS ?layerFalsifier)
+    BIND("" AS ?caseId)
+    BIND("" AS ?caseLabel)
+    BIND("" AS ?caseDescription)
+    BIND("" AS ?caseSubject)
+    BIND("" AS ?polarity)
+    BIND("" AS ?candidateOnly)
+    BIND("" AS ?authorityClaim)
+    BIND("" AS ?observedStanding)
+    BIND("" AS ?path)
+    BIND("" AS ?packPath)
+    BIND("" AS ?canonicalPath)
+    BIND("" AS ?sha256)
+  }
+  UNION
+  {
+    BIND("scenario" AS ?rowKind)
+    ?case a sj:Prediction ;
+          dcterms:identifier ?caseId ;
+          rdfs:label ?caseLabel ;
+          dcterms:description ?caseDescription ;
+          sj:subject ?caseSubject ;
+          sj:candidateOnly ?candidateOnlyValue ;
+          sj:authorityClaim ?authorityClaim ;
+          sj:observedStanding ?observedStanding .
+    OPTIONAL { ?case chi:polarity ?polarityValue }
+    BIND(COALESCE(?polarityValue, "") AS ?polarity)
+    BIND(STR(?candidateOnlyValue) AS ?candidateOnly)
+    BIND(?caseId AS ?sortKey)
+    BIND("" AS ?subject)
+    BIND("" AS ?identifier)
+    BIND("" AS ?label)
+    BIND("" AS ?repository)
+    BIND("" AS ?baseSha)
+    BIND("" AS ?authorityCeiling)
+    BIND("" AS ?evidenceHorizon)
+    BIND("" AS ?replayIdentity)
+    BIND("" AS ?id)
+    BIND("" AS ?pathScope)
+    BIND("" AS ?status)
+    BIND("" AS ?evidenceRefs)
+    BIND("" AS ?receiptRefs)
+    BIND("" AS ?layerFalsifier)
+    BIND("" AS ?falsifierLabel)
+    BIND("" AS ?falsifierDescription)
+    BIND("" AS ?path)
+    BIND("" AS ?packPath)
+    BIND("" AS ?canonicalPath)
+    BIND("" AS ?sha256)
+  }
+}
+ORDER BY ?rowKind ?sortKey

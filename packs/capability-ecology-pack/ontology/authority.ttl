@@ -1,0 +1,225 @@
+@prefix authcap: <https://ggen.dev/ontology/authority-capability#> .
+@prefix qce: <https://ggen.dev/ontology/qualified-capability-ecology#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+#################################################################
+# Vocabulary
+#################################################################
+
+authcap:Capability a rdfs:Class, prov:Entity ;
+    rdfs:label "Capability" ;
+    rdfs:comment "A semantic identity (Family.Name), never an implementation. Plans target capabilities; realizations are resolved separately. The dotted short name is carried as rdfs:label and the pinned join key as dcterms:identifier." .
+
+authcap:ConsequentialCapability a rdfs:Class ;
+    rdfs:subClassOf authcap:Capability ;
+    rdfs:comment "A capability whose execution is a consequential act. A consequential capability MUST declare a typed qce:AuthorityEnvelope precondition (authcap:authorityEnvelope -> typed qce:AuthorityEnvelope individual), MUST name the capability whose successful verification authorizes it (authcap:authorizingCapability), and MUST carry a first-class REFUSED_NO_AUTHORITY outcome. Enforced by gates 050 and 060, not prose." .
+
+authcap:Realization a rdfs:Class, prov:Entity ;
+    rdfs:label "Realization" ;
+    rdfs:comment "Provider metadata describing how one capability is realized: repo, binding module, source file, version-pin policy and qualification conditions. A realization is never the capability and never widens its authority (gate 070)." .
+
+authcap:Outcome a rdfs:Class ;
+    rdfs:label "Outcome" ;
+    rdfs:comment "One distinct caller-visible outcome of a capability: success, a typed refusal, or one member of a nondeterministic outcome set." .
+
+authcap:capabilityFamily a rdf:Property ;
+    rdfs:comment "Closed family literal of a capability; in this pack always \"authority\"." .
+
+authcap:input a rdf:Property ;
+    rdfs:comment "One input of the capability, as a human-readable field description literal." .
+authcap:output a rdf:Property ;
+    rdfs:comment "One output of the capability, as a human-readable field description literal." .
+authcap:precondition a rdf:Property ;
+    rdfs:comment "One precondition of the capability, as a literal." .
+authcap:postcondition a rdf:Property ;
+    rdfs:comment "One postcondition of the capability, as a literal." .
+authcap:executionProperty a rdf:Property ;
+    rdfs:comment "One execution property (e.g. \"deterministic\", \"side-effect-free\", \"consequential\")." .
+
+authcap:outcome a rdf:Property ;
+    rdfs:domain authcap:Capability ;
+    rdfs:range authcap:Outcome .
+authcap:outcomeKind a rdf:Property ;
+    rdfs:comment "Closed enum: \"success\" | \"refusal\" | \"nondeterministic\"." .
+authcap:refusalCode a rdf:Property ;
+    rdfs:comment "Typed refusal code of a refusal-kind outcome, e.g. \"REFUSED_NO_AUTHORITY\". REFUSED_NO_AUTHORITY is first-class: a consequential capability that cannot refuse is an ambient grant (gate 060)." .
+
+authcap:authorityCeiling a rdf:Property ;
+    rdfs:comment "The highest ceiling this capability (or realization) operates under. Closed enum \"observe\" < \"select\" < \"construct\", aligned with AshGraphLaw.Authority's ceiling ordering and ash_pplan's pack ceiling. A realization's ceiling must never exceed its capability's (gate 070: no authority increase)." .
+
+authcap:realization a rdf:Property ;
+    rdfs:domain authcap:Capability ;
+    rdfs:range authcap:Realization .
+authcap:authorizingCapability a rdf:Property ;
+    rdfs:domain authcap:ConsequentialCapability ;
+    rdfs:range authcap:Capability ;
+    rdfs:comment "The capability whose successful verification authorizes this consequential one. Policy != Authority: naming an authorizing policy is not authority; the bound envelope is checked separately (gate 050)." .
+authcap:authorityEnvelope a rdf:Property ;
+    rdfs:comment "NOT USED on instances: this pack deliberately reuses qce:authorityEnvelope (packs/qualified-capability-ecology-pack) as the envelope link — authority is leased, typed, revocable, never ambient. Declared only to document the reuse decision; gate 050 reads the qce property." .
+
+authcap:evidenceRequirement a rdf:Property ;
+    rdfs:comment "Pinned dotted capability ID literal this capability requires as evidence (composition by reference into packs/capability-ecology-pack, e.g. \"Evidence.Establish\"). The join happens in the consumer resolver." .
+authcap:authorityRequirement a rdf:Property ;
+    rdfs:comment "Pinned dotted capability ID literal whose successful verification is required before this capability may run (e.g. \"Authority.Verify\")." .
+
+authcap:providerRepo a rdf:Property ; rdfs:domain authcap:Realization .
+authcap:bindingModule a rdf:Property ; rdfs:domain authcap:Realization ;
+    rdfs:comment "The real module/binding in providerRepo that implements the capability, transcribed from direct read of the source file, never from memory or docs." .
+authcap:sourceFile a rdf:Property ; rdfs:domain authcap:Realization ;
+    rdfs:comment "The exact file opened this session to transcribe the realization facts." .
+authcap:versionPinPolicy a rdf:Property ; rdfs:domain authcap:Realization ;
+    rdfs:comment "How the realization is pinned (release tag / digest policy), never a floating version promise." .
+authcap:qualificationCondition a rdf:Property ; rdfs:domain authcap:Realization ;
+    rdfs:comment "One condition under which this realization qualifies for the capability. A realization with zero qualification conditions is refused by gate 040. Includes the honest limits found during inspection." .
+
+#################################################################
+# Worked instance: the pinned authority family (2026-09-30)
+#
+# Realization facts transcribed verbatim from direct reads this session
+# (paths in authcap:sourceFile), never from memory or docs. The
+# ash_graphlaw surface correction: the family brief said
+# "Policy.Evaluate / Constraint.Decide" — the real GraphLaw capability
+# registry (lib/ash_graphlaw/capability/registry.ex, GraphLaw 26.9.29 ABI 1)
+# has no such ops; its 14 ops are canonical capabilities convert hooks
+# datalog parse entail law shex policy sparql n3 sniff shacl, and op
+# "policy" ADMITS a FOND policy as strong-cyclic
+# (lib/ash_graphlaw/capability/policy.ex). The real authority surface is
+# AshGraphLaw.Authority: a signed-lease PRESENTATION check.
+#################################################################
+
+authcap:authority-verify a authcap:Capability ;
+    dcterms:identifier "Authority.Verify" ;
+    rdfs:label "Authority.Verify" ;
+    authcap:capabilityFamily "authority" ;
+    authcap:input "signed lease presented in caller context (a map carrying signed_lease: {lease: {id, ceiling, ...}, attestation: {key_id, signature, ...}})" ,
+        "required admission ceiling (observe | select | construct)" ;
+    authcap:output "ceiling-satisfied verdict: the claimed ceiling satisfies the required ceiling, or a typed refusal" ,
+        "lease identity (lease id, signer key id, lease digest) recorded so the authority behind an admitted change is replayable" ;
+    authcap:precondition "trust anchors (trusted keys) and maximum clock skew come only from resource runtime configuration, never from caller context" ,
+        "a request NAMING authority is not that authority: an atom ceiling, an unsigned lease, or an unverified lease in context grants :observe and nothing more" ;
+    authcap:postcondition "no authority is granted: the verdict establishes only that the material the ceiling demands was presented; the signature is verified by the engine on the same request, not in the caller" ;
+    authcap:outcome authcap:outcome-verify-satisfied , authcap:outcome-verify-refused ;
+    authcap:authorityCeiling "observe" ;
+    authcap:evidenceRequirement "Evidence.Establish" ;
+    authcap:executionProperty "deterministic" , "side-effect-free" , "total (returns a typed outcome, never raises)" ;
+    authcap:realization authcap:realization-graphlaw-authority .
+
+authcap:outcome-verify-satisfied a authcap:Outcome ;
+    rdfs:label "lease presentation satisfies the required ceiling" ;
+    authcap:outcomeKind "success" .
+authcap:outcome-verify-refused a authcap:Outcome ;
+    rdfs:label "lease presentation refused (forged or insufficient claim)" ;
+    authcap:outcomeKind "refusal" ;
+    authcap:refusalCode "REFUSED_NO_AUTHORITY" .
+
+authcap:realization-graphlaw-authority a authcap:Realization ;
+    dcterms:identifier "ash-graphlaw-authority" ;
+    authcap:authorityCeiling "observe" ;
+    authcap:providerRepo "ash_graphlaw" ;
+    authcap:bindingModule "AshGraphLaw.Authority" ;
+    authcap:sourceFile "lib/ash_graphlaw/authority.ex" ;
+    authcap:versionPinPolicy "Hex package ash_graphlaw release v26.9.30 (mix.exs @version, read 2026-09-30); pin by exact release tag; the pinned engine is GraphLaw v26.9.28 (AshGraphLaw.Capability.Registry moduledoc)" ;
+    authcap:qualificationCondition "ceiling pre-check only: only a SIGNED lease counts (signed_lease with lease ceiling + attestation); a bare ceiling atom, a bare :ceiling key, :lease, :unverified_lease or nil all grant :observe — a caller can never self-grant :select or :construct by writing an atom into context (read 2026-09-30)" ,
+        "ceiling ordering is total: :observe < :select < :construct; a lease satisfies an admission when its claimed ceiling is >= the required ceiling and never widens what the engine derives" ,
+        "honest limit: the pinned GraphLaw v26.9.28 engine ignores lease keys entirely (UNSUPPORTED(engine-capability) per lib/ash_graphlaw/authority.ex) — it neither verifies the signature, signer or expiry nor stamps a lease_id; the ONLY lease check enforced today is the ceiling pre-check on the claimed ceiling" ,
+        "GraphLaw derives and validates; it never authorizes (module doc): this realization verifies presentation of lease material, it does not mint authority" .
+
+authcap:authority-grant a authcap:Capability, authcap:ConsequentialCapability ;
+    dcterms:identifier "Authority.Grant" ;
+    rdfs:label "Authority.Grant" ;
+    authcap:capabilityFamily "authority" ;
+    authcap:input "explicit operator authority cut (fresh, operator-supplied; never derived from a request that merely names authority)" ,
+        "subject, scope, ceiling and expiry to grant" ;
+    authcap:output "a signed, receipted lease bound to subject + scope + ceiling + expiry" ,
+        "typed refusal REFUSED_NO_AUTHORITY when the grantor holds no authority to grant" ;
+    authcap:precondition "granting is itself a consequential act: the grantor must already hold a verified authority envelope of at least equal ceiling (Authority.Verify satisfied first)" ,
+        "granting requires authority: no ambient, implied or self-granted authority exists anywhere in the family" ;
+    authcap:postcondition "the grant exists only as a receipted, revocable lease with identity, ceiling, scope and expiry; it is never ambient and never transferable by assertion" ;
+    authcap:outcome authcap:outcome-grant-minted , authcap:outcome-grant-refused ;
+    authcap:authorityCeiling "construct" ;
+    qce:authorityEnvelope authcap:required-grant-envelope ;
+    authcap:authorizingCapability authcap:authority-verify ;
+    authcap:authorityRequirement "Authority.Verify" ;
+    authcap:evidenceRequirement "Receipt.Sign" ;
+    authcap:executionProperty "consequential" , "requires an explicit fresh operator cut" , "revocable (the lease is withdrawn by revocation, not by forgetting)" ;
+    authcap:realization authcap:realization-graphlaw-authority-readside .
+
+authcap:outcome-grant-minted a authcap:Outcome ;
+    rdfs:label "lease minted, signed and receipted" ;
+    authcap:outcomeKind "success" .
+authcap:outcome-grant-refused a authcap:Outcome ;
+    rdfs:label "grantor holds no authority to grant" ;
+    authcap:outcomeKind "refusal" ;
+    authcap:refusalCode "REFUSED_NO_AUTHORITY" .
+
+authcap:realization-graphlaw-authority-readside a authcap:Realization ;
+    dcterms:identifier "ash-graphlaw-authority-readside" ;
+    authcap:authorityCeiling "observe" ;
+    authcap:providerRepo "ash_graphlaw" ;
+    authcap:bindingModule "AshGraphLaw.Authority (claim/1, identity/1)" ;
+    authcap:sourceFile "lib/ash_graphlaw/authority.ex" ;
+    authcap:versionPinPolicy "Hex package ash_graphlaw release v26.9.30; pin by exact release tag" ;
+    authcap:qualificationCondition "read side only: this realization parses the signed-lease shape and records lease identity so grants are replayable; lease ISSUANCE is not implemented in any module inspected this session (ash_graphlaw, ash_affidavit, xaas) — issuance remains a brokered operator cut; recorded UNSUPPORTED(generator-capability) in the owning repos" ,
+        "the signature itself is never checked in Elixir (module doc): verification is the engine's job on the same request, and the pinned engine does not verify leases — grant replay therefore proves presentation, not cryptographic validity" .
+
+authcap:actuation-execute a authcap:Capability, authcap:ConsequentialCapability ;
+    dcterms:identifier "Actuation.Execute" ;
+    rdfs:label "Actuation.Execute" ;
+    authcap:capabilityFamily "authority" ;
+    authcap:input "an admitted work order / intent for one registered {resource, action} pair" ,
+        "a bound, unexpired authority envelope for the exact subject (qce:AuthorityEnvelope)" ,
+        "exact subject identity" ;
+    authcap:output "a sealed, replayable receipt of the consequential DO" ,
+        "typed refusal when no valid authority binds the subject" ;
+    authcap:precondition "ProviderAvailable != Authorized: provider reachability, capability existence and policy permission establish nothing; a verified authority envelope bound to the exact subject must exist first (Authority.Verify satisfied)" ,
+        "Plan != Execution and candidate != verified != authorized != actuated: an admitted plan is an input, not a license" ,
+        "the invoked {resource, action} pair must be registered; an unregistered pair is refused, never improvised" ;
+    authcap:postcondition "every consequence exists only with a sealed receipt (identity, authority, consequence, replay, standing) and a replay path; zero unreceipted actuation" ;
+    authcap:outcome authcap:outcome-actuate-sealed , authcap:outcome-actuate-refused , authcap:outcome-actuate-environmental ;
+    authcap:authorityCeiling "construct" ;
+    qce:authorityEnvelope authcap:required-actuation-envelope ;
+    authcap:authorizingCapability authcap:authority-verify ;
+    authcap:authorityRequirement "Authority.Verify" ;
+    authcap:evidenceRequirement "Receipt.Sign" , "Provenance.Record" ;
+    authcap:executionProperty "consequential" , "irreversible-by-class for external consequences (three-commit protocol, no pretend rollback)" , "nondeterministic environment effect" ;
+    authcap:realization authcap:realization-xaas-actuation .
+
+authcap:outcome-actuate-sealed a authcap:Outcome ;
+    rdfs:label "consequential DO executed and sealed with a receipt" ;
+    authcap:outcomeKind "success" .
+authcap:outcome-actuate-refused a authcap:Outcome ;
+    rdfs:label "no valid authority envelope binds the subject, or the pair is unregistered" ;
+    authcap:outcomeKind "refusal" ;
+    authcap:refusalCode "REFUSED_NO_AUTHORITY" .
+authcap:outcome-actuate-environmental a authcap:Outcome ;
+    rdfs:label "environment-dependent execution outcome (interrupted outer seal, external failure)" ;
+    authcap:outcomeKind "nondeterministic" .
+
+authcap:realization-xaas-actuation a authcap:Realization ;
+    dcterms:identifier "xaas-actuation-run" ;
+    authcap:authorityCeiling "construct" ;
+    authcap:providerRepo "xaas" ;
+    authcap:bindingModule "Xaas.Actuation.run/4" ;
+    authcap:sourceFile "lib/xaas/actuation.ex" ;
+    authcap:versionPinPolicy "xaas repo VERSION 26.9.28 (read 2026-09-30); pin by exact release tag + receipt schema version" ;
+    authcap:qualificationCondition "exclusive control-plane API for consequential Ash actions: ontology projection -> admission -> intent/prepared receipt -> synchronous Ash.Reactor DO -> sealed receipt -> replay (module doc, read 2026-09-30)" ,
+        "external consequences use prepare_external/4 + checkpoint_external/2 + seal_external/2: a three-commit protocol because a Postgres rollback cannot undo a remote side effect; an interrupted outer seal leaves the prepared receipt and inert CONSTRUCT checkpoint durably recoverable" ,
+        "authority enters as an explicit lease over the work (BRCE): admission of the intent is an identity/registration check and is not itself the authority; REFUSED_NO_AUTHORITY covers invocation without a valid envelope" .
+
+#################################################################
+# Required envelope shapes (declarations of what a bound envelope must be
+# typed as — not live grants; no digest material is fabricated here)
+#################################################################
+
+authcap:required-actuation-envelope a qce:AuthorityEnvelope ;
+    rdfs:label "required envelope shape for Actuation.Execute: typed, leased, subject-bound, unexpired, revocable" ;
+    qce:delegationDepth 0 .
+
+authcap:required-grant-envelope a qce:AuthorityEnvelope ;
+    rdfs:label "required envelope shape for Authority.Grant: the grantor's own verified authority of at least equal ceiling" ;
+    qce:delegationDepth 0 .

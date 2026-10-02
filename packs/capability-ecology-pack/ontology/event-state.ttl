@@ -1,0 +1,415 @@
+@prefix escap: <https://ggen.dev/ontology/event-state-capability#> .
+@prefix qce:   <https://ggen.dev/ontology/qualified-capability-ecology#> .
+@prefix prov:  <http://www.w3.org/ns/prov#> .
+@prefix earl:  <http://www.w3.org/ns/earl#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos:  <http://www.w3.org/2004/02/skos/core#> .
+@prefix aps:   <https://w3id.org/chatman/aps#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+
+#################################################################
+# esc: capability ecology -- REUSE ladder
+#
+# REUSE  qce: lifecycle vocabulary (candidate/qualified/frozen) stays the
+#        canonical lifecycle; this family defines the CONTRACT shape qce:
+#        does not carry (inputs/outcomes/realizations/semantics).
+# REUSE  public vocab: prov (Entity/Activity), dcterms (identifier),
+#        skos (Concept/prefLabel), earl (seeAlso anchor only).
+# REUSE  APS standing individuals for standing vocabulary.
+# EXTEND this family: Event.* and State.* (pinned IDs via rdfs:label +
+#        dcterms:identifier; dotted ID join happens in the consumer
+#        resolver, not in-tree, per docs/jira/v26.9.30/RESOLUTIONS.md).
+#
+# CAPABILITY != IMPLEMENTATION: escap:Capability individuals are semantic
+# identities. Provider packages appear only on escap:Realization with
+# provider metadata + qualification conditions. Plan != Execution: nothing
+# here executes; a realization named here is an offered implementation,
+# its execution requires authority + a receipt.
+#################################################################
+
+escap:Capability a rdfs:Class, prov:Entity ;
+    rdfs:subClassOf prov:Entity ;
+    rdfs:label "Capability (event/state family): a semantic identity for what an actor can do with events or observed state -- never a package, module, or version." ;
+    rdfs:seeAlso qce:CapabilityVersion .
+
+escap:EventCapability a rdfs:Class ;
+    rdfs:subClassOf escap:Capability ;
+    rdfs:label "Event-family capability: acts on a topic (emit, subscribe, dead-letter). Its delivery semantics MUST be declared (gate 030)." .
+
+escap:StateCapability a rdfs:Class ;
+    rdfs:subClassOf escap:Capability ;
+    rdfs:label "State-family capability: observes or queries observed state. NON-consequential by default; its observation semantics MUST be declared (gate 030) and its realizations MUST state an evidence requirement (gate 040)." .
+
+escap:Realization a rdfs:Class, prov:Entity ;
+    rdfs:subClassOf prov:Entity ;
+    rdfs:label "A provider-backed implementation of exactly one capability. Carries provider metadata (repo, module, version-pin policy) and qualification conditions. ProviderAvailable != Authorized." ;
+    rdfs:seeAlso qce:QualifiedCapability .
+
+escap:Topic a rdfs:Class ;
+    rdfs:label "A named event stream/topic. consequentialTopic=true makes any emit onto it an authority-requiring transition." .
+
+escap:QualificationCondition a rdfs:Class, prov:Entity ;
+    rdfs:label "A checkable condition under which a realization may be selected for its capability." .
+
+escap:FailureMode a rdfs:Class, skos:Concept ;
+    rdfs:label "A typed failure of a capability (never silent: every failure mode is a named individual)." .
+
+# --- delivery semantics (Event.*) -------------------------------
+escap:atLeastOnce a escap:DeliverySemantics, skos:Concept ;
+    skos:prefLabel "atLeastOnce" ;
+    skos:scopeNote "Duplicates are possible; consumers must be idempotent. Loss is not." .
+escap:exactlyOnce a escap:DeliverySemantics, skos:Concept ;
+    skos:prefLabel "exactlyOnce" ;
+    skos:scopeNote "Effect-once inside a declared dedupe window; the window is a qualification condition, not an axiom." .
+escap:atMostOnce a escap:DeliverySemantics, skos:Concept ;
+    skos:prefLabel "atMostOnce" ;
+    skos:scopeNote "Loss is permitted and MUST surface as a typed failure mode, never silently." .
+
+escap:DeliverySemantics a rdfs:Class, skos:Concept .
+
+# --- observation semantics (State.*) ----------------------------
+escap:monotonicObservedState a escap:ObservationSemantics, skos:Concept ;
+    skos:prefLabel "monotonicObservedState" ;
+    skos:scopeNote "The observed projection never regresses: once an event is observed, later observations include it (or its explicit retraction)." .
+escap:pointInTimeSnapshot a escap:ObservationSemantics, skos:Concept ;
+    skos:prefLabel "pointInTimeSnapshot" ;
+    skos:scopeNote "A frozen view at one instant; staleness after the instant is a typed failure (staleObservation)." .
+escap:streamingTail a escap:ObservationSemantics, skos:Concept ;
+    skos:prefLabel "streamingTail" ;
+    skos:scopeNote "Open-ended tail of a stream; interleaving of concurrent occurrences is unspecified (nondeterministic outcome)." .
+
+escap:ObservationSemantics a rdfs:Class, skos:Concept .
+
+# --- capability contract properties -----------------------------
+escap:input a rdf:Property ; rdfs:domain escap:Capability ; rdfs:range xsd:string ;
+    rdfs:comment "Declared input facet." .
+escap:output a rdf:Property ; rdfs:domain escap:Capability ; rdfs:range xsd:string ;
+    rdfs:comment "Declared output facet." .
+escap:precondition a rdf:Property ; rdfs:domain escap:Capability ; rdfs:range xsd:string .
+escap:postcondition a rdf:Property ; rdfs:domain escap:Capability ; rdfs:range xsd:string .
+escap:successOutcome a rdf:Property ; rdfs:domain escap:Capability ; rdfs:range xsd:string .
+escap:failureOutcome a rdf:Property ; rdfs:domain escap:Capability ;
+    rdfs:comment "Typed failure -> escap:FailureMode individual. Never a bare string: failures are first-class, queryable individuals." .
+escap:nondeterministicOutcome a rdf:Property ; rdfs:domain escap:Capability ; rdfs:range xsd:string ;
+    rdfs:comment "A member of the nondeterministic outcome set the caller must tolerate (FOND honesty)." .
+escap:evidenceRequirement a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "What receipt/observation record proves this capability (contract level) or realization (gate 040) actually happened." .
+escap:authorityRequirement a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "The authority envelope needed. Policy != Authority: naming the requirement is not holding the authority." .
+escap:deliverySemantics a rdf:Property ; rdfs:domain escap:EventCapability ; rdfs:range escap:DeliverySemantics .
+escap:observationSemantics a rdf:Property ; rdfs:domain escap:StateCapability ; rdfs:range escap:ObservationSemantics .
+escap:consequential a rdf:Property ; rdfs:domain escap:Capability ; rdfs:range xsd:boolean ;
+    rdfs:comment "true only for UNCONDITIONALLY consequential capabilities. Event.Emit is conditionally consequential through its topic (consequencesThroughTopic), not unconditionally." .
+escap:consequencesThroughTopic a rdf:Property ; rdfs:domain escap:EventCapability ; rdfs:range xsd:boolean ;
+    rdfs:comment "true: consequence flows through the bound topic; the TOPIC's consequentialTopic flag decides authority (gate 050 shape A)." .
+escap:durability a rdf:Property ; rdfs:domain escap:Capability ; rdfs:range xsd:string .
+escap:replay a rdf:Property ; rdfs:domain escap:Capability ; rdfs:range xsd:string .
+escap:isolation a rdf:Property ; rdfs:domain escap:Capability ; rdfs:range xsd:string .
+escap:concurrency a rdf:Property ; rdfs:domain escap:Capability ; rdfs:range xsd:string .
+
+# --- realization properties -------------------------------------
+escap:realizes a rdf:Property ; rdfs:domain escap:Realization ; rdfs:range escap:Capability .
+escap:providerRepo a rdf:Property ; rdfs:domain escap:Realization ; rdfs:range xsd:string ;
+    rdfs:comment "Provider coordinate. Cited, never fabricated: 'confirmed by direct read <date>' only where the file was actually opened this session." .
+escap:providerModule a rdf:Property ; rdfs:domain escap:Realization ; rdfs:range xsd:string .
+escap:versionPinPolicy a rdf:Property ; rdfs:domain escap:Realization ; rdfs:range xsd:string ;
+    rdfs:comment "How the provider version is pinned. A version number is NEVER the capability identity." .
+escap:providerAvailable a rdf:Property ; rdfs:domain escap:Realization ; rdfs:range xsd:boolean ;
+    rdfs:comment "ProviderAvailable != Authorized: true here NEVER satisfies escap:authorityRequirement (gate 050 ignores this property)." .
+escap:qualificationCondition a rdf:Property ; rdfs:domain escap:Realization ; rdfs:range escap:QualificationCondition ;
+    rdfs:comment ">= 1 required (gate 020)." .
+escap:emitsOn a rdf:Property ; rdfs:domain escap:Realization ; rdfs:range escap:Topic .
+escap:attachesTo a rdf:Property ; rdfs:domain escap:Realization ; rdfs:range escap:Topic .
+escap:readsFrom a rdf:Property ; rdfs:domain escap:Realization ; rdfs:range escap:Topic .
+
+#################################################################
+# Typed failure modes (queryable individuals, never silent strings)
+#################################################################
+
+escap:failure-duplicate-delivery a escap:FailureMode ;
+    skos:prefLabel "duplicateDelivery" ;
+    skos:definition "The same logical event may be delivered more than once under atLeastOnce semantics." .
+escap:failure-delivery-loss a escap:FailureMode ;
+    skos:prefLabel "deliveryLoss" ;
+    skos:definition "A permitted loss under atMostOnce semantics; must be surfaced, never silent." .
+escap:failure-topic-unavailable a escap:FailureMode ;
+    skos:prefLabel "topicUnavailable" ;
+    skos:definition "The target topic/pubsub is not reachable at emit/subscribe time." .
+escap:failure-authorization-denied a escap:FailureMode ;
+    skos:prefLabel "authorizationDenied" ;
+    skos:definition "REFUSED_NO_AUTHORITY class: the authority envelope is absent, expired, or out of scope." .
+escap:failure-stale-observation a escap:FailureMode ;
+    skos:prefLabel "staleObservation" ;
+    skos:definition "A pointInTimeSnapshot no longer reflects the referenced instant." .
+escap:failure-dedupe-window-exceeded a escap:FailureMode ;
+    skos:prefLabel "dedupeWindowExceeded" ;
+    skos:definition "A duplicate arriving after the exactly-once dedupe window closes escapes dedupe." .
+escap:failure-subscriber-backpressure a escap:FailureMode ;
+    skos:prefLabel "subscriberBackpressure" ;
+    skos:definition "A subscriber cannot keep up; delivery to it may be shed or buffered." .
+
+#################################################################
+# Worked instance: pinned capabilities (dotted IDs in
+# rdfs:label AND dcterms:identifier -- the resolver joins on the
+# literal; the IRI spelling is intentionally dot-free).
+#################################################################
+
+escap:event-emit a escap:EventCapability, escap:Capability ;
+    rdfs:label "Event.Emit" ;
+    dcterms:identifier "Event.Emit" ;
+    escap:input "topic (escap:Topic), event payload, optional idempotency key" ;
+    escap:output "delivery intent accepted by the provider; per-topic typed failure on refusal" ;
+    escap:precondition "topic exists; payload passes the topic's schema; if the topic is consequential, a valid authority envelope is held (Policy != Authority)" ;
+    escap:postcondition "either at least one subscriber path accepts the event, or a typed failure mode is returned" ;
+    escap:successOutcome "event accepted for delivery on the topic under the declared delivery semantics" ;
+    escap:failureOutcome escap:failure-topic-unavailable, escap:failure-authorization-denied ;
+    escap:nondeterministicOutcome "delivery order across independent subscribers is unspecified" ;
+    escap:deliverySemantics escap:atLeastOnce ;
+    escap:consequencesThroughTopic true ;
+    escap:consequential false ;
+    escap:evidenceRequirement "emit receipt naming topic + event id + delivery semantics" ;
+    escap:authorityRequirement "none by default; REQUIRED when the target topic is consequentialTopic=true (gate 050)" ;
+    escap:durability "durable until acknowledged by the transport under the declared semantics" ;
+    escap:replay "redelivery after nack/reconnect; duplicates under atLeastOnce" ;
+    escap:isolation "per-topic ordering only; no cross-topic isolation claimed" ;
+    escap:concurrency "fan-out to all current subscribers" .
+
+escap:event-subscribe a escap:EventCapability, escap:Capability ;
+    rdfs:label "Event.Subscribe" ;
+    dcterms:identifier "Event.Subscribe" ;
+    escap:input "topic, handler registration" ;
+    escap:output "live subscription delivering events to the handler" ;
+    escap:precondition "topic exists; handler is registered before delivery begins" ;
+    escap:postcondition "events on the topic are delivered to the handler under the declared semantics; the subscription itself performs no consequence -- the HANDLER's own capability does" ;
+    escap:successOutcome "subscription active; events delivered under declared semantics" ;
+    escap:failureOutcome escap:failure-topic-unavailable, escap:failure-subscriber-backpressure ;
+    escap:nondeterministicOutcome "delivery order within a redelivery window is unspecified" ;
+    escap:deliverySemantics escap:atLeastOnce ;
+    escap:consequencesThroughTopic false ;
+    escap:consequential false ;
+    escap:durability "subscription lifetime-scoped; redelivery after reconnect under atLeastOnce" ;
+    escap:replay "from subscription point forward; no historical backfill claimed" ;
+    escap:isolation "per-subscription" ;
+    escap:concurrency "one handler thread per subscription, provider-defined" .
+
+escap:state-observe a escap:StateCapability, escap:Capability ;
+    rdfs:label "State.Observe" ;
+    dcterms:identifier "State.Observe" ;
+    escap:input "projection target (topic/table/process), observation window" ;
+    escap:output "observation record advancing the monotonic observed state" ;
+    escap:precondition "the observed surface is reachable; NO authority needed (non-consequential -- Policy != Authority does not apply to reading)" ;
+    escap:postcondition "observed state advances monotonically; a proof record exists" ;
+    escap:successOutcome "observation record emitted with monotonic sequence evidence" ;
+    escap:failureOutcome escap:failure-stale-observation, escap:failure-topic-unavailable ;
+    escap:nondeterministicOutcome "interleaving of concurrent occurrences in the tail is unspecified" ;
+    escap:observationSemantics escap:monotonicObservedState ;
+    escap:consequential false ;
+    escap:evidenceRequirement "observation record with a monotonic sequence number proving what was seen and when" ;
+    escap:durability "observation records durable at the evidence sink declared by the realization" ;
+    escap:replay "re-observation is safe and cannot regress observed state" ;
+    escap:isolation "read-only over the observed surface" ;
+    escap:concurrency "concurrent observers allowed; each keeps its own monotonic position" .
+
+escap:state-query a escap:StateCapability, escap:Capability ;
+    rdfs:label "State.Query" ;
+    dcterms:identifier "State.Query" ;
+    escap:input "query (key or predicate)" ;
+    escap:output "point-in-time answer + staleness bounds" ;
+    escap:precondition "the queried store is reachable read-only" ;
+    escap:postcondition "answer returned or typed failure; no mutation" ;
+    escap:successOutcome "answer consistent as of a declared instant" ;
+    escap:failureOutcome escap:failure-stale-observation ;
+    escap:nondeterministicOutcome "results under concurrent writes reflect an unspecified commit point within the declared staleness bounds" ;
+    escap:observationSemantics escap:pointInTimeSnapshot ;
+    escap:consequential false ;
+    escap:evidenceRequirement "query answer bound to the instant (and, where supported, the store revision) it was evaluated at" ;
+    escap:durability "none claimed for the answer itself; evidence record durable at the sink" ;
+    escap:replay "re-evaluation may diverge after writes; the recorded instant is the replay anchor" ;
+    escap:isolation "read-only" ;
+    escap:concurrency "concurrent queries allowed" .
+
+# --- minted siblings (recorded in README; no other family touched) ---
+escap:event-dead-letter a escap:EventCapability, escap:Capability ;
+    rdfs:label "Event.DeadLetter" ;
+    dcterms:identifier "Event.DeadLetter" ;
+    escap:input "poisoned event + failure reason" ;
+    escap:output "event parked on a dead-letter topic with its failure evidence" ;
+    escap:precondition "a dead-letter topic exists; the poison evidence is attached" ;
+    escap:postcondition "the event is parked off the main path; the move is itself consequential on the DLQ topic" ;
+    escap:successOutcome "event parked with failure evidence intact" ;
+    escap:failureOutcome escap:failure-topic-unavailable, escap:failure-authorization-denied ;
+    escap:nondeterministicOutcome "parking order across concurrent poison events is unspecified" ;
+    escap:deliverySemantics escap:atLeastOnce ;
+    escap:consequencesThroughTopic true ;
+    escap:consequential false ;
+    escap:evidenceRequirement "park receipt naming source topic, DLQ topic, failure mode" ;
+    escap:authorityRequirement "none by default; REQUIRED when the DLQ topic is consequentialTopic=true (gate 050)" ;
+    escap:durability "DLQ topic durability applies" ;
+    escap:replay "replay from DLQ is a separate capability (durability family), not claimed here" ;
+    escap:isolation "DLQ isolated from the live path" ;
+    escap:concurrency "serialized parking per source partition" .
+
+escap:state-snapshot a escap:StateCapability, escap:Capability ;
+    rdfs:label "State.Snapshot" ;
+    dcterms:identifier "State.Snapshot" ;
+    escap:input "observed-state projection" ;
+    escap:output "frozen point-in-time snapshot + digest" ;
+    escap:precondition "a projection to freeze exists" ;
+    escap:postcondition "snapshot materialized and digest-recorded; observed state untouched" ;
+    escap:successOutcome "snapshot available with content digest" ;
+    escap:failureOutcome escap:failure-stale-observation ;
+    escap:nondeterministicOutcome "none: snapshot of a frozen instant is deterministic (declared empty nondeterministic set)" ;
+    escap:observationSemantics escap:pointInTimeSnapshot ;
+    escap:consequential false ;
+    escap:evidenceRequirement "snapshot digest + row count + capture instant" ;
+    escap:durability "snapshot durable where materialized" ;
+    escap:replay "same instant re-captures byte-identical content (digest equality)" ;
+    escap:isolation "copy-on-freeze; no interference with the live projection" ;
+    escap:concurrency "concurrent snapshots allowed" .
+
+#################################################################
+# Topics (consequentiality lives HERE -- this is what makes
+# ProviderAvailable != Authorized concrete: the same Event.Emit
+# realization is lawful without authority on one topic and refused
+# without authority on the other).
+#################################################################
+
+escap:topic-order-lifecycle a escap:Topic ;
+    rdfs:label "order-lifecycle" ;
+    escap:consequentialTopic true ;
+    skos:definition "Consequential topic: emitting here changes the admitted order ledger; requires a bound authority envelope (gate 050)." .
+
+escap:topic-runtime-metrics a escap:Topic ;
+    rdfs:label "runtime-metrics" ;
+    escap:consequentialTopic false ;
+    skos:definition "Non-consequential observability topic: emit needs no authority." .
+
+#################################################################
+# Realizations. Provider coordinates are CITATIONS:
+#  - zcode-cli ocel-tap.ts, xaas ocel_ndjson.ex / ocel_ash_emitter.ex:
+#    confirmed by direct read 2026-09-30.
+#  - ash / telemetry / telemetry_poller: public API coordinates,
+#    cited WITHOUT local inspection claims.
+#################################################################
+
+escap:qc-notifier-configured a escap:QualificationCondition ;
+    rdfs:label "notifier configured and its pubsub topic matches the declared topic, verified by config-derived introspection (extension presence alone is not evidence)" .
+
+escap:qc-pubsub-subscription-active a escap:QualificationCondition ;
+    rdfs:label "pubsub subscription established before the first event is delivered; reconnect redelivers under atLeastOnce" .
+
+escap:qc-telemetry-handler-attached a escap:QualificationCondition ;
+    rdfs:label "the :telemetry handler is attached for the exact event name before the first emit; unattached emits are silent no-ops and must be caught by the evidence check" .
+
+escap:qc-poller-measures-declared a escap:QualificationCondition ;
+    rdfs:label "telemetry_poller declares the exact measures and poll interval; a poll with zero measures emits no evidence and is a typed failure" .
+
+escap:qc-ocel-tap-gated a escap:QualificationCondition ;
+    rdfs:label "the OCEL tap is environment-gated (ZCODE_OCEL=1) and its generated mapping modules are present; absent gate = no evidence = tap not qualified" .
+
+escap:qc-ocel-emitter-conformant a escap:QualificationCondition ;
+    rdfs:label "every emitted line is an individually conformant OCEL 2.0 document (four top-level arrays); the conformance court stays authoritative over the emitter" .
+
+escap:qc-ets-table-exists a escap:QualificationCondition ;
+    rdfs:label "the ETS table exists with read_concurrency enabled; queries bind to a table revision, never to wall-clock" .
+
+escap:qc-ash-read-action-admitted a escap:QualificationCondition ;
+    rdfs:label "the Ash read action is admitted by its resource configuration (not merely by extension presence) and returns data with staleness bounds" .
+
+escap:qc-snapshot-frozen-instant a escap:QualificationCondition ;
+    rdfs:label "snapshot captures a declared instant; digest equality is the replay test" .
+
+escap:qc-dlq-topic-exists a escap:QualificationCondition ;
+    rdfs:label "the DLQ topic exists and is distinct from the source topic; parking must carry failure evidence" .
+
+escap:realization-ash-notifier-emit a escap:Realization ;
+    escap:realizes escap:event-emit ;
+    escap:providerRepo "ash" ;
+    escap:providerModule "Ash.Notifier -> Phoenix.PubSub notification (public API coordinate; no local inspection claimed)" ;
+    escap:versionPinPolicy "hex semver range on ash, pinned by the consuming project lock" ;
+    escap:providerAvailable true ;
+    escap:qualificationCondition escap:qc-notifier-configured ;
+    escap:evidenceRequirement "emit receipt naming topic + event id" ;
+    escap:authorityRequirement "brokered lease naming topic order-lifecycle; REFUSED_NO_AUTHORITY otherwise" ;
+    escap:emitsOn escap:topic-order-lifecycle .
+
+escap:realization-telemetry-execute-emit a escap:Realization ;
+    escap:realizes escap:event-emit ;
+    escap:providerRepo "telemetry (hex :telemetry)" ;
+    escap:providerModule ":telemetry.execute/3 (public API coordinate; no local inspection claimed)" ;
+    escap:versionPinPolicy "hex semver range on telemetry" ;
+    escap:providerAvailable true ;
+    escap:qualificationCondition escap:qc-telemetry-handler-attached ;
+    escap:evidenceRequirement "handler-side telemetry measurement record per executed event" ;
+    escap:emitsOn escap:topic-runtime-metrics .
+# NOTE: no authorityRequirement here BY DESIGN: topic-runtime-metrics is
+# consequentialTopic=false, so gate 050 must NOT fire. This is the
+# ProviderAvailable != Authorized counterfactual kept alive in the
+# positive graph: same capability, different topic, different authority.
+
+escap:realization-pubsub-subscribe a escap:Realization ;
+    escap:realizes escap:event-subscribe ;
+    escap:providerRepo "ash" ;
+    escap:providerModule "Ash pubsub subscription surface (Phoenix.PubSub.subscribe/2; public API coordinate; no local inspection claimed)" ;
+    escap:versionPinPolicy "hex semver range on ash" ;
+    escap:providerAvailable true ;
+    escap:qualificationCondition escap:qc-pubsub-subscription-active ;
+    escap:emitsOn escap:topic-runtime-metrics .
+
+escap:realization-telemetry-poller-observe a escap:Realization ;
+    escap:realizes escap:state-observe ;
+    escap:providerRepo "telemetry_poller (hex :telemetry_poller)" ;
+    escap:providerModule "periodic VM measure polling (public API coordinate; no local inspection claimed)" ;
+    escap:versionPinPolicy "hex semver range on telemetry_poller" ;
+    escap:providerAvailable true ;
+    escap:qualificationCondition escap:qc-poller-measures-declared ;
+    escap:evidenceRequirement "measurement event per poll interval with poll timestamp" .
+
+escap:realization-ocel-tap-observe a escap:Realization ;
+    escap:realizes escap:state-observe ;
+    escap:providerRepo "zcode-cli" ;
+    escap:providerModule "src/ocel-tap.ts launcher-level OCEL 2.0 tap (confirmed by direct read 2026-09-30: hash-chain receipts via verifyChain, env-gated ZCODE_OCEL=1)" ;
+    escap:versionPinPolicy "repo commit pin; generated tap modules must be present" ;
+    escap:providerAvailable true ;
+    escap:qualificationCondition escap:qc-ocel-tap-gated ;
+    escap:evidenceRequirement "OCEL 2.0 event line + hash-chain receipt entry per observed occurrence" .
+
+escap:realization-ets-query a escap:Realization ;
+    escap:realizes escap:state-query ;
+    escap:providerRepo "otp" ;
+    escap:providerModule ":ets.lookup/2 (public OTP API coordinate; no local inspection claimed)" ;
+    escap:versionPinPolicy "OTP platform version of the consuming release" ;
+    escap:providerAvailable true ;
+    escap:qualificationCondition escap:qc-ets-table-exists ;
+    escap:evidenceRequirement "query answer bound to table revision at evaluation instant" .
+
+escap:realization-ash-read-query a escap:Realization ;
+    escap:realizes escap:state-query ;
+    escap:providerRepo "ash" ;
+    escap:providerModule "Ash.read/2 over an admitted read action (public API coordinate; no local inspection claimed)" ;
+    escap:versionPinPolicy "hex semver range on ash" ;
+    escap:providerAvailable true ;
+    escap:qualificationCondition escap:qc-ash-read-action-admitted ;
+    escap:evidenceRequirement "query answer bound to declared staleness bounds" .
+
+escap:realization-ets-snapshot a escap:Realization ;
+    escap:realizes escap:state-snapshot ;
+    escap:providerRepo "otp" ;
+    escap:providerModule ":ets.tab2list/1 freeze (public OTP API coordinate; no local inspection claimed)" ;
+    escap:versionPinPolicy "OTP platform version of the consuming release" ;
+    escap:providerAvailable true ;
+    escap:qualificationCondition escap:qc-snapshot-frozen-instant ;
+    escap:evidenceRequirement "snapshot digest + row count + capture instant" .
+
+escap:realization-notifier-dead-letter a escap:Realization ;
+    escap:realizes escap:event-dead-letter ;
+    escap:providerRepo "ash" ;
+    escap:providerModule "Ash.Notifier reroute to DLQ topic (public API coordinate; no local inspection claimed)" ;
+    escap:versionPinPolicy "hex semver range on ash" ;
+    escap:providerAvailable true ;
+    escap:qualificationCondition escap:qc-dlq-topic-exists ;
+    escap:evidenceRequirement "park receipt naming source topic, DLQ topic, failure mode" ;
+    escap:authorityRequirement "brokered lease naming the DLQ topic; REFUSED_NO_AUTHORITY otherwise" ;
+    escap:emitsOn escap:topic-order-lifecycle .

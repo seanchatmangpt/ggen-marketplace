@@ -1,0 +1,23 @@
+# MESSAGE: pinned capability identity conformance. The four pinned join keys
+# (joined by consumers as dcterms:identifier literals) must be typed as
+# ecap:Capability, and no two ecap:Capability individuals may share one
+# dcterms:identifier (a duplicate join key makes consumer resolution ambiguous
+# -> refuse). Any row is a refusal.
+PREFIX ecap: <https://ggen.dev/ontology/evidence-capability#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?s ?problem WHERE {
+  {
+    ?s dcterms:identifier ?id .
+    FILTER (?id = "Evidence.Establish" || ?id = "Evidence.Bind" || ?id = "Receipt.Sign" || ?id = "Provenance.Record")
+    FILTER NOT EXISTS { ?s a ecap:Capability }
+    BIND("pinned-identifier-not-typed-as-capability" AS ?problem)
+  }
+  UNION
+  {
+    ?s a ecap:Capability ; dcterms:identifier ?id .
+    ?t a ecap:Capability ; dcterms:identifier ?id .
+    FILTER (?s != ?t)
+    BIND("duplicate-capability-identifier" AS ?problem)
+  }
+}
+ORDER BY ?s ?problem

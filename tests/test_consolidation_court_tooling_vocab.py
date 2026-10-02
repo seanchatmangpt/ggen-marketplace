@@ -153,7 +153,13 @@ def test_real_ui_families_are_now_refuted_after_tooling_vocab_exclusion():
 
     for name, toml_path in families.items():
         _family_name, _kernel_candidate, member_names = cc.load_family(toml_path)
-        members = [cc.load_member(member_name) for member_name in member_names]
+        # The v26.8.19 registry is a historical record; members retired by the
+        # 2026-10-01 consolidation/deletion wave (docs/jira/v26.9.30/
+        # CONSOLIDATION-FRONTIER.md) are skipped rather than loaded.
+        surviving = [m for m in member_names if (cc.PACKS / m).is_dir()]
+        if not surviving:
+            pytest.skip(f"{name}: all historical members retired 2026-10-01")
+        members = [cc.load_member(member_name) for member_name in surviving]
         for i in range(len(members)):
             for j in range(i + 1, len(members)):
                 vocab_a = cc.rdf_vocabulary_set(members[i].ontologies)

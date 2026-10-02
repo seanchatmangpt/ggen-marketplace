@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
-"""Semantic runner for the semantic-gate-witness-court contract.
+"""Canonical semantic gate witness runner (SPARQL violation-row courts).
 
-Copied from packs/strategic-doctrine-pack/runners/semantic_runner.py (contract,
-exit codes and refusal vocabulary unchanged) and adapted for this pack: this
-pack's admission surface is SPARQL violation-row gates only, so the pyshacl
-pass-witness leg is dropped. The runner judges this pack's witnesses against
-this pack's gates; paths resolve relative to this file.
+Source of truth: packs/semantic-gate-witness-court-pack/templates/semantic-runner.py.tera
+(semantic-gate-witness-court-pack v26.9.30). A consumer pack's
+runners/semantic_runner.py is a byte-identical projection of that template:
+do not edit the copy -- edit the kernel template and re-project every consumer
+(byte-identity is enforced by the kernel pack's contract test
+tests/test_contract.py::test_consumer_runners_are_byte_identical_projections).
+
+Provenance: consolidated 2026-10-01 from the byte-identical runner quad
+(affidavit-consumer, affidavit-trust-plane, capability-closure, wasi-json-abi),
+ancestor sha256 b82b63220cc004032700a111b682d5f72c30387addffd15eaaa8de0f26a7badd.
+The runner resolves its gates relative to this file (PACK_ROOT law), so the
+projection stays pack-local by construction; the gate-court.toml `runner`
+declaration is pack-relative for the same reason.
 
 Contract (argv tokens {gate} {witness} {expectation} are formatted by the court):
 
@@ -21,8 +29,8 @@ Exit codes: 0 expectation observed; 2 expectation violated (REFUSED);
 3 structural error (missing file, unparseable graph, or a --gate that is not
 one of this pack's gates).
 
-040_no_mock_crypto.py is a python verifier gate (exit 0 ALIVE / exit 2
-REFUSED) and is outside this court: this runner judges .rq gates only.
+Python verifier gates (gates/*.py) sit OUTSIDE this court: this runner judges
+.rq gates only; they are witnessed by direct execution.
 """
 from __future__ import annotations
 

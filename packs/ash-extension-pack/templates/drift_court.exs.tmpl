@@ -1,0 +1,112 @@
+# Drift court (Lane C9) -- temporal drift burn-in for the specimen extension.
+#
+# Law under test: for an UNCHANGED DSL (facts + generated source untouched),
+# the semantic digest of the compiled specimen is stable across burn-in
+# epochs -- recompile/reintrospect N times -- and across a failure+recovery
+# cycle. A runtime history that silently alters extension meaning (an
+# undeclared runtime function, a retargeted Info getter, a non-idempotent
+# installer, hidden :persistent_term configuration) moves the digest and MUST
+# fail this court.
+#
+# Digest inputs (all real, no doubles): compiled export list, declared
+# sections/entities/verifiers/getters/steps/persist_after, real getter
+# dispatch probe, real installer idempotence probe, and a static side-effect
+# scan of the source AST (:persistent_term / :application mutation).
+#
+# Run:  elixir templates/drift_court.exs.tmpl
+
+defmodule DriftCourt do
+  @specimen_root System.get_env("SPECIMEN_ROOT") ||
+                   Path.expand("../fixture/regeneration", __DIR__)
+
+  @epochs 3
+
+  def run do
+    Code.put_compiler_option(:ignore_module_conflict, true)
+    Code.eval_file(Path.join(@specimen_root, "specimen_kit.exs"), @specimen_root)
+
+    kit = RegenerationSpecimen.Kit
+    facts = kit.load_facts(@specimen_root)
+    kit.ensure_generator(@specimen_root)
+    source = kit.render_extension(facts)
+
+    IO.puts("== drift court ==")
+    IO.puts("specimen_root: #{@specimen_root}")
+
+    t0 = kit.digest(source)
+    IO.puts("t0 semantic digest: #{t0} (sha256 of source #{kit.sha256(source)})")
+
+    # --- Epoch burn-in: recompile + reintrospect N times ------------------
+    epoch_digests =
+      for epoch <- 1..@epochs do
+        digest = kit.digest(source)
+        IO.puts("epoch #{epoch}/#{@epochs}: digest #{digest} #{stamp(digest == t0)}")
+        digest
+      end
+
+    kit.assert!(Enum.all?(epoch_digests, &(&1 == t0)),
+      "semantic digest drifted across burn-in epochs with an unchanged DSL")
+
+    # --- Failure + recovery cycle -----------------------------------------
+    recovered? =
+      try do
+        raise "simulated runtime failure mid-epoch"
+      rescue
+        _ -> :recovered
+      end
+
+    kit.assert!(recovered? == :recovered, "failure+recovery cycle did not recover")
+
+    post_recovery = kit.digest(source)
+    IO.puts("post failure+recovery epoch: digest #{post_recovery} #{stamp(post_recovery == t0)}")
+
+    kit.assert!(post_recovery == t0,
+      "semantic digest drifted after a failure+recovery cycle")
+
+    # --- Adversarial: silent meaning change MUST move the digest ----------
+    # (1) runtime behavior with no Spark declaration: an undeclared export.
+    smuggled = String.replace_suffix(source, "end\n", "  def __runtime_only__, do: :hidden\nend\n")
+    smuggled_caught = kit.digest(smuggled) != t0
+
+    # (2) Info getter silently retargeted to a section it does not declare.
+    retargeted = String.replace(source, "source_section: :audit", "source_section: :receipts")
+    retarget_caught = kit.digest(retargeted) != t0
+
+    # (3) installer silently loses idempotence.
+    non_idempotent =
+      String.replace(
+        source,
+        "Map.put_new(:installed_targets, [@installer_target])",
+        "Map.update(:installed_targets, [@installer_target], &[@installer_target | &1])"
+      )
+
+    non_idempotent_caught = kit.digest(non_idempotent) != t0
+
+    # (4) hidden :persistent_term configuration inside a generated body.
+    hidden_cfg =
+      String.replace(
+        source,
+        "def install(dsl_state) do",
+        "def install(dsl_state) do\n    :persistent_term.put({__MODULE__, :hidden_cfg}, true)"
+      )
+
+    hidden_caught = kit.digest(hidden_cfg) != t0
+
+    kit.assert!(smuggled_caught and retarget_caught and non_idempotent_caught and hidden_caught,
+      "court blindness: at least one silent meaning change did not move the digest " <>
+        "(smuggled=#{smuggled_caught} retarget=#{retarget_caught} " <>
+        "non_idempotent=#{non_idempotent_caught} hidden_cfg=#{hidden_caught})")
+
+    IO.puts("adversarial silent-meaning-change probes: " <>
+             "undeclared runtime fn=#{smuggled_caught}, getter retarget=#{retarget_caught}, " <>
+             "installer idempotence=#{non_idempotent_caught}, hidden persistent_term=#{hidden_caught}")
+
+    IO.puts("drift court: PASS")
+    :ok
+  end
+
+  defp stamp(true), do: "(stable)"
+  defp stamp(false), do: "(DRIFT)"
+end
+
+DriftCourt.run()

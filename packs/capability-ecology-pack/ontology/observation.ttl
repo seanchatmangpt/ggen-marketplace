@@ -1,0 +1,375 @@
+@prefix ocap:  <https://ggen.dev/ontology/observation-capability#> .
+@prefix qce:   <https://ggen.dev/ontology/qualified-capability-ecology#> .
+@prefix prov:  <http://www.w3.org/ns/prov#> .
+@prefix earl:  <http://www.w3.org/ns/earl#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos:  <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+
+#################################################################
+# ocap: evidence-first observation capability ecology
+#
+# REUSE  qce: lifecycle vocabulary stays canonical; this family defines
+#        the observation CONTRACT shape (evidence records, semantics).
+# REUSE  public vocab: prov, dcterms, skos; EARL for verification
+#        semantics (earl:Assertion / earl:Result / earl:TestResult,
+#        earl:outcome -- passed/failed/not-tested). Failed edge: EARL
+#        has NO delivery-semantics, authority, or realization vocabulary
+#        (recorded in README), so ocap: extends EARL rather than
+#        misusing it.
+# EXTEND this family: Observation.* and Telemetry.* pinned IDs via
+#        rdfs:label + dcterms:identifier (literal join in the consumer
+#        resolver per docs/jira/v26.9.30/RESOLUTIONS.md).
+#
+# EVIDENCE-FIRST: an observation that cannot produce evidence is not an
+# observation -- it is a rumor. Gate 040 refuses observation realizations
+# without an evidence requirement and refuses any realization that
+# declares itself evidence-incapable.
+#################################################################
+
+ocap:Capability a rdfs:Class, prov:Entity ;
+    rdfs:subClassOf prov:Entity ;
+    rdfs:label "Capability (observation/telemetry family): a semantic identity for what an actor can observe or emit -- never a package, module, or version." ;
+    rdfs:seeAlso qce:CapabilityVersion .
+
+ocap:ObservationCapability a rdfs:Class ;
+    rdfs:subClassOf ocap:Capability ;
+    rdfs:label "Observation-family capability (Tap, Sample, siblings): produces observation records. Its realizations MUST state an evidence requirement (gate 040)." .
+
+ocap:Realization a rdfs:Class, prov:Entity ;
+    rdfs:subClassOf prov:Entity ;
+    rdfs:label "A provider-backed implementation of exactly one capability. ProviderAvailable != Authorized." ;
+    rdfs:seeAlso qce:QualifiedCapability .
+
+ocap:EvidenceRecord a rdfs:Class, prov:Entity ;
+    rdfs:label "A kind of durable record that proves an observation happened. Every kind must be nameable and re-expressible as an EARL assertion (seeAlso earl:Assertion)." .
+
+ocap:QualificationCondition a rdfs:Class, prov:Entity ;
+    rdfs:label "A checkable condition under which a realization may be selected for its capability." .
+
+ocap:TelemetryStream a rdfs:Class ;
+    rdfs:label "A named telemetry sink/stream. consequentialSink=true makes any emit or flush onto it an authority-requiring transition." .
+
+ocap:FailureMode a rdfs:Class, skos:Concept ;
+    rdfs:label "A typed failure of a capability (never silent)." .
+
+# --- delivery semantics -----------------------------------------
+ocap:DeliverySemantics a rdfs:Class, skos:Concept .
+ocap:atLeastOnce a ocap:DeliverySemantics, skos:Concept ;
+    skos:prefLabel "atLeastOnce" ;
+    skos:scopeNote "Duplicates possible (idempotent sinks required); loss is not." .
+ocap:atMostOnce a ocap:DeliverySemantics, skos:Concept ;
+    skos:prefLabel "atMostOnce" ;
+    skos:scopeNote "Loss permitted; must surface as a typed failure mode, never silently." .
+ocap:exactlyOnce a ocap:DeliverySemantics, skos:Concept ;
+    skos:prefLabel "exactlyOnce" ;
+    skos:scopeNote "Effect-once inside a declared dedupe window; the window is a qualification condition." .
+ocap:sampleMayDrop a ocap:DeliverySemantics, skos:Concept ;
+    skos:prefLabel "sampleMayDrop" ;
+    skos:scopeNote "Sampling semantics: observations between ticks are dropped by design; the sample rate is the declared fidelity bound." .
+
+# --- contract properties -----------------------------------------
+ocap:input a rdf:Property ; rdfs:domain ocap:Capability ; rdfs:range xsd:string .
+ocap:output a rdf:Property ; rdfs:domain ocap:Capability ; rdfs:range xsd:string .
+ocap:precondition a rdf:Property ; rdfs:domain ocap:Capability ; rdfs:range xsd:string .
+ocap:postcondition a rdf:Property ; rdfs:domain ocap:Capability ; rdfs:range xsd:string .
+ocap:successOutcome a rdf:Property ; rdfs:domain ocap:Capability ; rdfs:range xsd:string .
+ocap:failureOutcome a rdf:Property ; rdfs:domain ocap:Capability ;
+    rdfs:comment "Typed failure -> ocap:FailureMode individual." .
+ocap:nondeterministicOutcome a rdf:Property ; rdfs:domain ocap:Capability ; rdfs:range xsd:string .
+ocap:deliverySemantics a rdf:Property ; rdfs:domain ocap:Capability ; rdfs:range ocap:DeliverySemantics ;
+    rdfs:comment "Required on every ocap:Capability (gate 030)." .
+ocap:evidenceRequirement a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "What receipt/observation record proves this capability or realization happened. Mandatory on observation realizations (gate 040)." .
+ocap:produces a rdf:Property ; rdfs:domain ocap:Realization ; rdfs:range ocap:EvidenceRecord ;
+    rdfs:comment "The evidence record kinds a realization yields. Names the record; the evidenceRequirement states when/for what." .
+ocap:evidenceCapable a rdf:Property ; rdfs:domain ocap:Realization ; rdfs:range xsd:boolean ;
+    rdfs:comment "false = this realization cannot produce evidence. Gate 040 refuses it outright: an evidence-incapable tap is a rumor generator." .
+ocap:authorityRequirement a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "The authority envelope needed. Policy != Authority: naming it is not holding it." .
+ocap:consequential a rdf:Property ; rdfs:domain ocap:Capability ; rdfs:range xsd:boolean ;
+    rdfs:comment "true for UNCONDITIONALLY consequential capabilities only." .
+ocap:consequencesThroughSink a rdf:Property ; rdfs:domain ocap:Capability ; rdfs:range xsd:boolean ;
+    rdfs:comment "true: consequence flows through the bound sink; the SINK's consequentialSink flag decides authority (gate 050 shape A)." .
+ocap:durability a rdf:Property ; rdfs:domain ocap:Capability ; rdfs:range xsd:string .
+ocap:replay a rdf:Property ; rdfs:domain ocap:Capability ; rdfs:range xsd:string .
+ocap:isolation a rdf:Property ; rdfs:domain ocap:Capability ; rdfs:range xsd:string .
+ocap:concurrency a rdf:Property ; rdfs:domain ocap:Capability ; rdfs:range xsd:string .
+
+# --- realization properties --------------------------------------
+ocap:realizes a rdf:Property ; rdfs:domain ocap:Realization ; rdfs:range ocap:Capability .
+ocap:providerRepo a rdf:Property ; rdfs:domain ocap:Realization ; rdfs:range xsd:string ;
+    rdfs:comment "Cited coordinate: 'confirmed by direct read <date>' only where the file was actually opened." .
+ocap:providerModule a rdf:Property ; rdfs:domain ocap:Realization ; rdfs:range xsd:string .
+ocap:versionPinPolicy a rdf:Property ; rdfs:domain ocap:Realization ; rdfs:range xsd:string ;
+    rdfs:comment "A version number is NEVER the capability identity." .
+ocap:providerAvailable a rdf:Property ; rdfs:domain ocap:Realization ; rdfs:range xsd:boolean ;
+    rdfs:comment "ProviderAvailable != Authorized: never satisfies ocap:authorityRequirement (gate 050 ignores it)." .
+ocap:qualificationCondition a rdf:Property ; rdfs:domain ocap:Realization ; rdfs:range ocap:QualificationCondition ;
+    rdfs:comment ">= 1 required (gate 020)." .
+ocap:emitsOn a rdf:Property ; rdfs:domain ocap:Realization ; rdfs:range ocap:TelemetryStream .
+ocap:attachesTo a rdf:Property ; rdfs:domain ocap:Realization ; rdfs:range ocap:TelemetryStream .
+
+#################################################################
+# Typed failure modes
+#################################################################
+
+ocap:failure-tap-misfire a ocap:FailureMode ;
+    skos:prefLabel "tapMisfire" ;
+    skos:definition "The tap missed an occurrence on the observed surface (attach raced or handler absent)." .
+ocap:failure-surface-unavailable a ocap:FailureMode ;
+    skos:prefLabel "surfaceUnavailable" ;
+    skos:definition "The execution surface to observe is not reachable." .
+ocap:failure-evidence-sink-down a ocap:FailureMode ;
+    skos:prefLabel "evidenceSinkDown" ;
+    skos:definition "The evidence sink rejects or cannot receive records; observations must buffer or fail typed, never vanish." .
+ocap:failure-handler-crash a ocap:FailureMode ;
+    skos:prefLabel "handlerCrash" ;
+    skos:definition "A telemetry handler raised; under atMostOnce dispatch the occurrence is lost and typed as this failure." .
+ocap:failure-handler-not-attached a ocap:FailureMode ;
+    skos:prefLabel "handlerNotAttached" ;
+    skos:definition "An emit executed with no attached handler: the event vanished. Detectable only through the evidence check." .
+ocap:failure-authorization-denied a ocap:FailureMode ;
+    skos:prefLabel "authorizationDenied" ;
+    skos:definition "REFUSED_NO_AUTHORITY class: authority absent, expired, or out of scope for the consequential sink." .
+
+#################################################################
+# Evidence record kinds (each re-expressible as an EARL assertion;
+# the EARL mapping is stated per kind, not invented per realization)
+#################################################################
+
+ocap:record-ocel2-event-line a ocap:EvidenceRecord ;
+    rdfs:label "ocel2EventLine" ;
+    rdfs:seeAlso earl:Assertion ;
+    skos:definition "One individually conformant OCEL 2.0 document per line (four top-level arrays). EARL mapping: the line is the earl:subject; a conformance verdict over it is the earl:result." .
+
+ocap:record-receipt-chain-entry a ocap:EvidenceRecord ;
+    rdfs:label "receiptChainEntry" ;
+    rdfs:seeAlso earl:Assertion ;
+    skos:definition "An entry in a hash-chained receipt log, verifiable by chain verification. EARL mapping: chain validity = earl:outcome passed." .
+
+ocap:record-telemetry-measurement a ocap:EvidenceRecord ;
+    rdfs:label "telemetryMeasurement" ;
+    rdfs:seeAlso earl:Assertion ;
+    skos:definition "A handler-side measurement record (event name, measurements, timestamp). EARL mapping: presence of the record for the claimed event = passed." .
+
+ocap:record-sample-datapoint a ocap:EvidenceRecord ;
+    rdfs:label "sampleDatapoint" ;
+    rdfs:seeAlso earl:Assertion ;
+    skos:definition "One sampled measure value bound to its poll tick. EARL mapping: value within declared fidelity bounds = passed." .
+
+ocap:record-earl-assertion a ocap:EvidenceRecord ;
+    rdfs:label "earlAssertion" ;
+    rdfs:seeAlso earl:Assertion ;
+    skos:definition "A direct EARL assertion record: earl:subject = observed surface, earl:result = earl:TestResult with earl:outcome passed/failed/not-tested. The flush realization commits these." .
+
+#################################################################
+# Worked instance: pinned capabilities
+#################################################################
+
+ocap:observation-tap a ocap:ObservationCapability, ocap:Capability ;
+    rdfs:label "Observation.Tap" ;
+    dcterms:identifier "Observation.Tap" ;
+    ocap:input "execution surface (stream, runtime output, telemetry name), tap filter" ;
+    ocap:output "one observation record per matched occurrence, at the declared evidence sink" ;
+    ocap:precondition "the surface is reachable; the tap is attached before the first occurrence it claims (late attach is a tapMisfire, typed)" ;
+    ocap:postcondition "every matched occurrence has a record, or a typed failure names the gap" ;
+    ocap:successOutcome "observation record produced per occurrence under the declared delivery semantics" ;
+    ocap:failureOutcome ocap:failure-tap-misfire, ocap:failure-surface-unavailable, ocap:failure-evidence-sink-down ;
+    ocap:nondeterministicOutcome "interleaving order of concurrent occurrences in the record stream is unspecified" ;
+    ocap:deliverySemantics ocap:atLeastOnce ;
+    ocap:consequencesThroughSink false ;
+    ocap:consequential false ;
+    ocap:evidenceRequirement "per-occurrence record whose kind is named by the realization (ocap:produces); a tap producing no record for a claimed window is a tapMisfire" ;
+    ocap:authorityRequirement "none: observing is non-consequential (reading needs no authority)" ;
+    ocap:durability "records durable at the evidence sink the realization declares" ;
+    ocap:replay "re-observation cannot un-produce records; chain verification re-validates produced ones" ;
+    ocap:isolation "passive over the surface; zero write-back claimed" ;
+    ocap:concurrency "multiple taps on one surface allowed; records are per-tap" .
+
+ocap:observation-sample a ocap:ObservationCapability, ocap:Capability ;
+    rdfs:label "Observation.Sample" ;
+    dcterms:identifier "Observation.Sample" ;
+    ocap:input "measure(s), sample interval" ;
+    ocap:output "sample datapoint per tick at the declared evidence sink" ;
+    ocap:precondition "measures are declared and the poller/scheduler is running; a tick with zero declared measures emits no evidence and is typed" ;
+    ocap:postcondition "per tick: one datapoint or one typed failure" ;
+    ocap:successOutcome "datapoint produced per tick under sampleMayDrop fidelity bounds" ;
+    ocap:failureOutcome ocap:failure-handler-not-attached, ocap:failure-surface-unavailable ;
+    ocap:nondeterministicOutcome "occurrences between ticks are dropped by design (declared sampling gap, not a failure)" ;
+    ocap:deliverySemantics ocap:sampleMayDrop ;
+    ocap:consequencesThroughSink false ;
+    ocap:consequential false ;
+    ocap:evidenceRequirement "datapoint bound to its poll tick (timestamp + measure + value); ticks with no datapoint must be explainable as declared gaps" ;
+    ocap:authorityRequirement "none: sampling is non-consequential" ;
+    ocap:durability "datapoints durable at the evidence sink" ;
+    ocap:replay "re-sampling produces new ticks; old datapoints are immutable" ;
+    ocap:isolation "read-only over the measured surface" ;
+    ocap:concurrency "one sampler per (measure, interval) pair" .
+
+ocap:telemetry-emit a ocap:Capability ;
+    rdfs:label "Telemetry.Emit" ;
+    dcterms:identifier "Telemetry.Emit" ;
+    ocap:input "telemetry event name, measurements, metadata" ;
+    ocap:output "dispatch of the event to attached handlers / append to the declared sink" ;
+    ocap:precondition "the sink is declared; if the sink is consequentialSink=true, a valid authority envelope is held (Policy != Authority)" ;
+    ocap:postcondition "either each attached handler received the event once (per declared semantics) or a typed failure names the loss" ;
+    ocap:successOutcome "event recorded at the sink under the declared delivery semantics" ;
+    ocap:failureOutcome ocap:failure-handler-not-attached, ocap:failure-handler-crash, ocap:failure-authorization-denied ;
+    ocap:nondeterministicOutcome "handler execution order is unspecified" ;
+    ocap:deliverySemantics ocap:atMostOnce ;
+    ocap:consequencesThroughSink true ;
+    ocap:consequential false ;
+    ocap:evidenceRequirement "sink-side record (or handler-side measurement) per executed emit; an emit with no trace at any sink is a handlerNotAttached failure, detectable only via evidence" ;
+    ocap:authorityRequirement "none by default; REQUIRED when the target sink is consequentialSink=true (gate 050)" ;
+    ocap:durability "sink durability applies" ;
+    ocap:replay "re-emit produces a new record; dedupe is a qualification condition, not an axiom" ;
+    ocap:isolation "per-sink" ;
+    ocap:concurrency "fan-out to attached handlers" .
+
+# --- minted sibling (recorded in README; no other family touched) ---
+ocap:observation-flush a ocap:ObservationCapability, ocap:Capability ;
+    rdfs:label "Observation.Flush" ;
+    dcterms:identifier "Observation.Flush" ;
+    ocap:input "buffered observation records, target evidence sink" ;
+    ocap:output "durable committed records at the sink" ;
+    ocap:precondition "a buffer of records exists; if the sink is consequentialSink=true (an audit/evidence sink), a valid authority envelope is held" ;
+    ocap:postcondition "records committed durably or a typed failure; the buffer is only cleared after a sink acknowledgment" ;
+    ocap:successOutcome "records committed; commit receipt naming the record chain positions" ;
+    ocap:failureOutcome ocap:failure-evidence-sink-down, ocap:failure-authorization-denied ;
+    ocap:nondeterministicOutcome "commit order within one flush batch preserves buffer order; across concurrent flushes it is unspecified" ;
+    ocap:deliverySemantics ocap:atLeastOnce ;
+    ocap:consequencesThroughSink true ;
+    ocap:consequential false ;
+    ocap:evidenceRequirement "commit receipt naming the committed record positions (the flush itself must leave evidence)" ;
+    ocap:authorityRequirement "none by default; REQUIRED when the target sink is consequentialSink=true (gate 050)" ;
+    ocap:durability "durable at the sink on success" ;
+    ocap:replay "idempotent flush (records carry chain positions; double-commit is deduped by position)" ;
+    ocap:isolation "per-sink serialization" ;
+    ocap:concurrency "serialized per sink" .
+
+#################################################################
+# Telemetry streams (consequentiality lives HERE -- the same emit is
+# lawful without authority on one sink and refused without it on the
+# other; ProviderAvailable != Authorized made concrete).
+#################################################################
+
+ocap:stream-runtime-telemetry a ocap:TelemetryStream ;
+    rdfs:label "runtime-telemetry" ;
+    ocap:consequentialSink false ;
+    skos:definition "Non-consequential observability stream: emit needs no authority." .
+
+ocap:stream-audit-evidence a ocap:TelemetryStream ;
+    rdfs:label "audit-evidence" ;
+    ocap:consequentialSink true ;
+    skos:definition "Consequential evidence sink: writing here creates the durable audit record itself; requires a bound authority envelope (gate 050)." .
+
+#################################################################
+# Realizations. Provider coordinates are CITATIONS:
+#  - zcode-cli src/ocel-tap.ts, xaas ocel_ndjson.ex + ocel_ash_emitter.ex:
+#    confirmed by direct read 2026-09-30.
+#  - telemetry / telemetry_poller / ash: public API coordinates, cited
+#    WITHOUT local inspection claims.
+#################################################################
+
+ocap:qc-tap-env-gated a ocap:QualificationCondition ;
+    rdfs:label "the tap's environment gate is set (ZCODE_OCEL=1) and its generated mapping modules are present; an ungated tap produces no evidence and is not qualified" .
+
+ocap:qc-emitter-line-conformance a ocap:QualificationCondition ;
+    rdfs:label "every emitted line is an individually conformant OCEL 2.0 document (four top-level arrays); the conformance court stays authoritative over the emitter" .
+
+ocap:qc-telemetry-handler-attached a ocap:QualificationCondition ;
+    rdfs:label "the handler is attached for the exact event name before the first claimed occurrence; unattached emits are silent no-ops caught by the evidence check" .
+
+ocap:qc-poller-measures-declared a ocap:QualificationCondition ;
+    rdfs:label "telemetry_poller declares the exact measures and poll interval; a tick with zero measures emits no evidence and is typed" .
+
+ocap:qc-flush-idempotent-positions a ocap:QualificationCondition ;
+    rdfs:label "flush commits by record chain position with position-keyed dedupe; double-flush cannot double-commit" .
+
+ocap:qc-ndjson-sink-appends a ocap:QualificationCondition ;
+    rdfs:label "the ndjson sink appends whole lines atomically; a torn line is a typed evidenceSinkDown, never a partial record" .
+
+ocap:realization-ocel-tap a ocap:Realization ;
+    ocap:realizes ocap:observation-tap ;
+    ocap:providerRepo "zcode-cli" ;
+    ocap:providerModule "src/ocel-tap.ts launcher-level OCEL 2.0 tap (confirmed by direct read 2026-09-30: consumes runtime stream-json/app-server lines, hash-chain receipts via verifyChain, env-gated ZCODE_OCEL=1)" ;
+    ocap:versionPinPolicy "repo commit pin; generated tap modules must be present" ;
+    ocap:providerAvailable true ;
+    ocap:qualificationCondition ocap:qc-tap-env-gated ;
+    ocap:evidenceRequirement "per-occurrence OCEL 2.0 event line + receipt-chain entry; window with zero records must be explainable" ;
+    ocap:produces ocap:record-ocel2-event-line, ocap:record-receipt-chain-entry ;
+    ocap:attachesTo ocap:stream-runtime-telemetry .
+
+ocap:realization-ocel-ash-emitter a ocap:Realization ;
+    ocap:realizes ocap:observation-tap ;
+    ocap:providerRepo "xaas" ;
+    ocap:providerModule "lib/xaas/telemetry/ocel_ash_emitter.ex (confirmed by direct read 2026-09-30: reshaped emitter writing one complete OCEL 2.0 JSON document per line)" ;
+    ocap:versionPinPolicy "repo commit pin" ;
+    ocap:providerAvailable true ;
+    ocap:qualificationCondition ocap:qc-emitter-line-conformance ;
+    ocap:evidenceRequirement "one conformant OCEL 2.0 line per occurrence; conformance court verdict over the assembled log" ;
+    ocap:produces ocap:record-ocel2-event-line ;
+    ocap:attachesTo ocap:stream-runtime-telemetry .
+
+ocap:realization-telemetry-handler-tap a ocap:Realization ;
+    ocap:realizes ocap:observation-tap ;
+    ocap:providerRepo "telemetry (hex :telemetry)" ;
+    ocap:providerModule ":telemetry.attach/4 handler (public API coordinate; no local inspection claimed)" ;
+    ocap:versionPinPolicy "hex semver range on telemetry" ;
+    ocap:providerAvailable true ;
+    ocap:qualificationCondition ocap:qc-telemetry-handler-attached ;
+    ocap:evidenceRequirement "handler-side measurement record per matched telemetry event" ;
+    ocap:produces ocap:record-telemetry-measurement ;
+    ocap:attachesTo ocap:stream-runtime-telemetry .
+
+ocap:realization-telemetry-poller-sample a ocap:Realization ;
+    ocap:realizes ocap:observation-sample ;
+    ocap:providerRepo "telemetry_poller (hex :telemetry_poller)" ;
+    ocap:providerModule "periodic VM measure polling (public API coordinate; no local inspection claimed)" ;
+    ocap:versionPinPolicy "hex semver range on telemetry_poller" ;
+    ocap:providerAvailable true ;
+    ocap:qualificationCondition ocap:qc-poller-measures-declared ;
+    ocap:evidenceRequirement "sample datapoint per poll tick bound to tick timestamp" ;
+    ocap:produces ocap:record-sample-datapoint ;
+    ocap:attachesTo ocap:stream-runtime-telemetry .
+
+ocap:realization-telemetry-execute a ocap:Realization ;
+    ocap:realizes ocap:telemetry-emit ;
+    ocap:providerRepo "telemetry (hex :telemetry)" ;
+    ocap:providerModule ":telemetry.execute/3 (public API coordinate; no local inspection claimed)" ;
+    ocap:versionPinPolicy "hex semver range on telemetry" ;
+    ocap:providerAvailable true ;
+    ocap:qualificationCondition ocap:qc-telemetry-handler-attached ;
+    ocap:evidenceRequirement "handler-side measurement record per executed emit" ;
+    ocap:produces ocap:record-telemetry-measurement ;
+    ocap:emitsOn ocap:stream-runtime-telemetry .
+# NOTE: no authorityRequirement here BY DESIGN: stream-runtime-telemetry
+# is consequentialSink=false, so gate 050 must NOT fire. Same capability
+# onto stream-audit-evidence WOULD require authority -- the counterfactual
+# stays alive in the positive graph.
+
+ocap:realization-ocel-ndjson-emit a ocap:Realization ;
+    ocap:realizes ocap:telemetry-emit ;
+    ocap:providerRepo "xaas" ;
+    ocap:providerModule "lib/xaas/telemetry/ocel_ndjson.ex append path (confirmed by direct read 2026-09-30: append-only line format, blank-line skipping, line-numbered violation paths)" ;
+    ocap:versionPinPolicy "repo commit pin" ;
+    ocap:providerAvailable true ;
+    ocap:qualificationCondition ocap:qc-ndjson-sink-appends ;
+    ocap:evidenceRequirement "one appended OCEL 2.0 line per emitted event; torn line = typed evidenceSinkDown" ;
+    ocap:produces ocap:record-ocel2-event-line ;
+    ocap:emitsOn ocap:stream-runtime-telemetry .
+
+ocap:realization-earl-assertion-flush a ocap:Realization ;
+    ocap:realizes ocap:observation-flush ;
+    ocap:providerRepo "earl (public EARL vocabulary convention)" ;
+    ocap:providerModule "earl:Assertion commit to an audit evidence sink (vocabulary coordinate; no implementation claimed)" ;
+    ocap:versionPinPolicy "EARL is a stable W3C vocabulary; no version pin needed for the vocabulary itself" ;
+    ocap:providerAvailable true ;
+    ocap:qualificationCondition ocap:qc-flush-idempotent-positions ;
+    ocap:evidenceRequirement "commit receipt naming the committed assertion positions" ;
+    ocap:produces ocap:record-earl-assertion ;
+    ocap:emitsOn ocap:stream-audit-evidence ;
+    ocap:authorityRequirement "brokered lease naming the audit-evidence sink; REFUSED_NO_AUTHORITY otherwise" .

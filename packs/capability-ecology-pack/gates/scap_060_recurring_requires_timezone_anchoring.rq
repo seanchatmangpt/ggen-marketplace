@@ -1,0 +1,22 @@
+# MESSAGE: recurring schedule without timezone anchoring — a recurring capability or a realization of one without a declared anchor (utc | named-zone | none) cannot be shown DST-correct or UTC-correct; wall-clock calendar semantics are exactly what breaks silently across DST boundaries. Declare the anchor or refuse.
+PREFIX scap: <https://ggen.dev/ontology/scheduling-capability#>
+SELECT ?subject ?kind WHERE {
+  {
+    ?cap a scap:Capability ;
+         scap:temporalKind "recurring" .
+    FILTER NOT EXISTS { ?cap scap:timezoneAnchoring ?tz . }
+    BIND(?cap AS ?subject)
+    BIND("capability" AS ?kind)
+  }
+  UNION
+  {
+    ?real a scap:CapabilityRealization ;
+          scap:realizes ?cap2 .
+    ?cap2 a scap:Capability ;
+          scap:temporalKind "recurring" .
+    FILTER NOT EXISTS { ?real scap:timezoneAnchoring ?tz2 . }
+    BIND(?real AS ?subject)
+    BIND("realization" AS ?kind)
+  }
+}
+ORDER BY ?subject ?kind

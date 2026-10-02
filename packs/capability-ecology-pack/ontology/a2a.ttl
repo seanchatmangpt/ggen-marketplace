@@ -1,0 +1,364 @@
+@prefix aacap: <https://ggen.dev/ontology/a2a-capability#> .
+@prefix qce:   <https://ggen.dev/ontology/qualified-capability-ecology#> .
+@prefix prov:  <http://www.w3.org/ns/prov#> .
+@prefix earl:  <http://www.w3.org/ns/earl#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos:  <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+#################################################################
+# aacap: capability-contract layer for distributed agent-to-agent
+# (SA2A) invocation. Composes existing vocabulary BY REFERENCE:
+#   qce:AuthorityEnvelope  (packs/qualified-capability-ecology-pack)
+#   earl:outcome earl:passed (public EARL) for qualification conditions
+#   prov:/dcterms:/skos:/xsd: (public, first per RESOLUTIONS)
+# sa2a-semantic-evidence-pack's envelope schema is referenced by its
+# schema string; dcap's Workflow.Resume by pinned dotted-ID literal.
+# Custom aacap: terms each carry a failed-edge justification (README).
+#
+# Invariants encoded (and gated):
+#   Plan != Execution            -> aacap:grantsDoAuthority false everywhere
+#   Policy != Authority          -> aacap:admissionPolicy never satisfies gate 030
+#   ProviderAvailable != Authorized -> aacap:providerReachable never satisfies gate 030
+#   Projection != Source         -> aacap:derivedFromSource on index realizations
+#   Generated != Admitted        -> generated card qualifies only via declared
+#                                   aacap:QualificationCondition (gate 020)
+#################################################################
+
+#################################################################
+# Vocabulary
+#################################################################
+
+aacap:Capability a rdfs:Class, prov:Entity ;
+    rdfs:label "Semantic identity of one distributed agent-to-agent capability, keyed by its pinned dotted ID (dcterms:identifier). A capability is NEVER a package, module, or version: those are aacap:Realization provider metadata." .
+
+aacap:Realization a rdfs:Class, prov:Entity ;
+    rdfs:label "One implementing surface of a capability. Plan-level: carries provider facts and qualification conditions; grants no DO authority. A realization never becomes the capability's identity." .
+
+aacap:QualificationCondition a rdfs:Class, prov:Entity ;
+    rdfs:label "The witnessed condition under which one realization qualifies for its capability. earl:outcome earl:passed + scope + statement; Generated!=Admitted: a generated surface without a declared condition is unqualified (gates/020)." .
+
+aacap:EvidenceRequirement a rdfs:Class, prov:Entity ;
+    rdfs:label "The evidence a consequence-bearing capability's realization must produce: remote receipt or ack provenance, optionally bound to an evidence-envelope schema (composed by reference from sa2a-semantic-evidence-pack's sa2a.semantic-evidence-envelope.v1)." .
+
+aacap:Outcome a rdfs:Class ;
+    rdfs:label "One typed outcome of a capability: success plus typed failures (peer_unreachable, timeout, refused_remote, partial_completion) and the nondeterministic retry set. No existing sa2a-family vocabulary expresses typed remote failure sets -- failed edge recorded in README." .
+
+aacap:realizationOf a rdf:Property ; rdfs:domain aacap:Realization ; rdfs:range aacap:Capability .
+aacap:qualificationCondition a rdf:Property ; rdfs:domain aacap:Realization ; rdfs:range aacap:QualificationCondition .
+aacap:conditionStatement a rdf:Property ; rdfs:domain aacap:QualificationCondition ; rdfs:range xsd:string .
+aacap:conditionScope a rdf:Property ; rdfs:domain aacap:QualificationCondition ; rdfs:range xsd:string ;
+    rdfs:comment "Where the condition was witnessed. inspection != execution: an inspection-scope condition never claims ALIVE execution standing." .
+aacap:requiresEvidence a rdf:Property ; rdfs:domain aacap:Capability ; rdfs:range aacap:EvidenceRequirement .
+aacap:evidenceKind a rdf:Property ; rdfs:domain aacap:EvidenceRequirement ; rdfs:range xsd:string ;
+    rdfs:comment "Closed: \"remote_receipt\" | \"remote_ack_provenance\" | \"local_log\". Only the first two satisfy gate 050 for consequence-bearing capabilities." .
+aacap:evidenceEnvelopeSchema a rdf:Property ; rdfs:domain aacap:EvidenceRequirement ; rdfs:range xsd:string ;
+    rdfs:comment "Schema string of the evidence envelope, composed by reference (e.g. sa2a-semantic-evidence-pack's sa2a.semantic-evidence-envelope.v1). No cross-pack import." .
+
+aacap:consequenceClass a rdf:Property ; rdfs:domain aacap:Capability ; rdfs:range xsd:string ;
+    rdfs:comment "Closed: \"observation\" | \"change\" | \"external_do\" -- transcribed 1:1 from the real AshA2A.Skill consequence calculus (lib/ash_a2a/skill.ex: :observe/:change/:external_do, with :unknown failing closed as :consequence_unclassified). Failed edges: ema:mutationScope is surface-local descriptor data, dcp:consequence is a world-local READ|DO pair; neither carries this cross-agent fail-closed calculus." .
+
+aacap:expectsInput a rdf:Property ; rdfs:domain aacap:Capability .
+aacap:producesOutput a rdf:Property ; rdfs:domain aacap:Capability .
+aacap:precondition a rdf:Property ; rdfs:domain aacap:Capability .
+aacap:postcondition a rdf:Property ; rdfs:domain aacap:Capability .
+aacap:outcome a rdf:Property ; rdfs:domain aacap:Capability ; rdfs:range aacap:Outcome .
+aacap:outcomeKind a rdf:Property ; rdfs:domain aacap:Outcome ; rdfs:range xsd:string .
+aacap:nondeterministic a rdf:Property ; rdfs:domain aacap:Outcome ; rdfs:range xsd:boolean ;
+    rdfs:comment "true: membership in the nondeterministic retry set -- repeating the invocation may yield a different typed outcome; planners must treat the set, not one row, as the contract." .
+
+aacap:requiresAuthority a rdf:Property ; rdfs:domain aacap:Capability ; rdfs:range xsd:boolean ;
+    rdfs:comment "Whether actuation authority is required to execute this capability at all. A2A.Discover must never be true (gates/040)." .
+
+aacap:authorityLocation a rdf:Property ; rdfs:domain aacap:Realization ; rdfs:range xsd:string ;
+    rdfs:comment "Closed: \"none\" | \"local\" | \"remote\" | \"both\" -- where the authority envelope must be VALID for this realization. Remote authority is never ambient: \"remote\"/\"both\" demand an envelope valid at the remote end (gates/030)." .
+aacap:validAtEnd a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "On a qce:AuthorityEnvelope individual: closed \"local\" | \"remote\" | \"both\". An envelope valid only at the local end does NOT authorize a remote realization." .
+aacap:authorityEnvelope a rdf:Property ; rdfs:domain aacap:Realization ; rdfs:range qce:AuthorityEnvelope ;
+    rdfs:comment "Composed verbatim from packs/qualified-capability-ecology-pack (qce:AuthorityEnvelope). The envelope is minted by the REMOTE end's authority broker and must survive live re-verification at execution time (Policy != Authority)." .
+aacap:admissionPolicy a rdf:Property ; rdfs:domain aacap:Realization ; rdfs:range xsd:string ;
+    rdfs:comment "Transport/endpoint admission fact (Policy). NEVER satisfies authority: gates/030 ignores it. e.g. AshA2A.Egress.EndpointPolicy/WebhookPolicy admission is https-only endpoint admission, not DO authority." .
+aacap:providerReachable a rdf:Property ; rdfs:domain aacap:Realization ; rdfs:range xsd:boolean ;
+    rdfs:comment "Transport reachability of the provider. ProviderAvailable != Authorized: true never satisfies gates/030." .
+
+aacap:providerRepo a rdf:Property ; rdfs:domain aacap:Realization ; rdfs:range xsd:string .
+aacap:providerModule a rdf:Property ; rdfs:domain aacap:Realization ; rdfs:range xsd:string ;
+    rdfs:comment "The real implementing module/function. Provider metadata, never the capability identity." .
+aacap:providerSourceFile a rdf:Property ; rdfs:domain aacap:Realization ; rdfs:range xsd:string ;
+    rdfs:comment "Exact file the realization facts were transcribed from. Failed edge vs dcp:sourceFile: dcp's properties carry rdfs:domain dcp:Capability, so reusing them on aacap:Realization would be a domain violation; minted here instead (README)." .
+aacap:providerSourceCommit a rdf:Property ; rdfs:domain aacap:Realization ; rdfs:range xsd:string ;
+    rdfs:comment "Exact commit SHA of the provider tree the facts were inspected at (receipt identity for the inspection)." .
+aacap:versionPinPolicy a rdf:Property ; rdfs:domain aacap:Realization ; rdfs:range xsd:string ;
+    rdfs:comment "How consumers pin this provider (e.g. hex package pin in the consumer's mix.lock). A version number is never the capability." .
+
+aacap:derivedFromSource a rdf:Property ; rdfs:domain aacap:Realization ; rdfs:range xsd:boolean ;
+    rdfs:comment "Projection != Source: true when the realization is a derived projection of canonical source facts (e.g. the A2A capability index derived from Ash.Resource.Info.public_actions/1); the projection is never authored as a second copy of the source." .
+aacap:grantsDoAuthority a rdf:Property ; rdfs:range xsd:boolean ;
+    rdfs:comment "Always false in this pack: Plan != Execution. This pack is SELECT/CONSTRUCT-only; BRCE remains the sole consequential actuation boundary." .
+
+aacap:durability a rdf:Property ; rdfs:domain aacap:Realization ; rdfs:range xsd:string ;
+    rdfs:comment "Closed: \"volatile\" | \"node_local_persistent\" | \"durable\" -- stated only where witnessed in provider source." .
+aacap:isolation a rdf:Property ; rdfs:domain aacap:Realization ; rdfs:range xsd:string ;
+    rdfs:comment "Closed: \"inline\" | \"supervised_task\" | \"deferred_job\"." .
+aacap:replayable a rdf:Property ; rdfs:domain aacap:Realization ; rdfs:range xsd:boolean .
+aacap:concurrency a rdf:Property ; rdfs:domain aacap:Realization ; rdfs:range xsd:string ;
+    rdfs:comment "Closed: \"bounded\" | \"unbounded\" -- stated only where a real ceiling is witnessed." .
+
+aacap:resumeReference a rdf:Property ; rdfs:domain aacap:Capability ; rdfs:range xsd:string ;
+    rdfs:comment "Dotted-ID reference to the capability that resumes a suspended await (pinned dcap ID \"Workflow.Resume\"). By dotted-ID literal only: no cross-pack import; the join happens in the consumer resolver." .
+
+#################################################################
+# Worked instance: the pinned capability trio
+# (docs/jira/v26.9.30/RESOLUTIONS.md; consumed by ash_pplan via
+# dcterms:identifier literals -- the join is in the resolver)
+#################################################################
+
+# --- A2A.Invoke -----------------------------------------------
+# Consequence-bearing invocation of a REMOTE agent's skill. The remote
+# end re-classifies consequence (AshA2A.Skill :change/:external_do) and
+# re-admits through its own DO boundary; a local policy admission or a
+# reachable peer authorizes nothing.
+
+aacap:capability-invoke a aacap:Capability ;
+    dcterms:identifier "A2A.Invoke" ;
+    rdfs:label "A2A.Invoke" ;
+    skos:prefLabel "Invoke a remote agent's skill under remote-valid authority" ;
+    aacap:consequenceClass "external_do" ;
+    aacap:requiresAuthority true ;
+    aacap:grantsDoAuthority false ;
+    aacap:expectsInput "Invoke request naming the target peer skill (pinned dotted ID), message parts, and an authority token reference" ;
+    aacap:producesOutput "Remote receipt (or typed failure); locally, an execution receipt wrapping the remote outcome" ;
+    aacap:precondition "An authority envelope valid at the REMOTE end exists for the named remote action; the remote skill's consequence is classified (never :unknown -- the remote CommandBus fails :consequence_unclassified closed)" ;
+    aacap:postcondition "The remote end either produced a receiptable effect or returned a typed refusal; the local caller gained no ambient authority" ;
+    aacap:outcome aacap:invoke-success, aacap:invoke-peer-unreachable, aacap:invoke-timeout,
+        aacap:invoke-refused-remote, aacap:invoke-partial-completion, aacap:invoke-retry-set ;
+    aacap:requiresEvidence aacap:evidence-remote-receipt .
+
+aacap:invoke-success a aacap:Outcome ;
+    aacap:outcomeKind "success" ; aacap:nondeterministic false .
+aacap:invoke-peer-unreachable a aacap:Outcome ;
+    aacap:outcomeKind "peer_unreachable" ; aacap:nondeterministic true .
+aacap:invoke-timeout a aacap:Outcome ;
+    aacap:outcomeKind "timeout" ; aacap:nondeterministic true .
+aacap:invoke-refused-remote a aacap:Outcome ;
+    aacap:outcomeKind "refused_remote" ; aacap:nondeterministic false ;
+    rdfs:comment "The REMOTE end refused (authority, admission, or consequence classification). A local admission passing is irrelevant to this outcome." .
+aacap:invoke-partial-completion a aacap:Outcome ;
+    aacap:outcomeKind "partial_completion" ; aacap:nondeterministic true .
+aacap:invoke-retry-set a aacap:Outcome ;
+    aacap:outcomeKind "retry_nondeterministic" ; aacap:nondeterministic true ;
+    rdfs:comment "The retry outcome set is nondeterministic: a retry may land in any member outcome. Planners consume the set." .
+
+aacap:evidence-remote-receipt a aacap:EvidenceRequirement ;
+    aacap:evidenceKind "remote_receipt" ;
+    aacap:evidenceEnvelopeSchema "sa2a.semantic-evidence-envelope.v1" ;
+    rdfs:comment "Remote receipt/ack provenance required for every A2A.Invoke realization. Envelope schema composed by reference from packs/sa2a-semantic-evidence-pack (sa2a:DefaultEvidenceEnvelopeContract, contractVersion v26.9.29); no cross-pack import." .
+
+# Remote-valid authority envelope (class composed from qce: verbatim).
+aacap:envelope-remote-exec a qce:AuthorityEnvelope ;
+    aacap:validAtEnd "remote" ;
+    rdfs:comment "Minted by the remote end's authority broker (e.g. AshA2A.Authority.Broker) and re-verified LIVE at execution time -- reconstruct/2 restores the enqueue-time grant with its real expires_at, verify_live!/3 re-queries the broker so a revoked/expired grant fails at the remote end (lib/ash_a2a/delivery/oban_authority.ex). No digest is fabricated here: this individual models the REQUIREMENT shape, not a witnessed grant." .
+
+# Realizations (all transcribed from direct read-only inspection of
+# ~/ash_a2a @ fbea18c5d58c5b38776b70b477d9cd24c96963a8, 2026-09-30).
+
+aacap:real-execute-command a aacap:Realization ;
+    aacap:realizationOf aacap:capability-invoke ;
+    dcterms:identifier "aacap:real-execute-command" ;
+    aacap:providerRepo "ash_a2a" ;
+    aacap:providerModule "AshA2A.Reactor.ExecuteCommand" ;
+    aacap:providerSourceFile "lib/ash_a2a/reactor/execute_command.ex" ;
+    aacap:providerSourceCommit "fbea18c5d58c5b38776b70b477d9cd24c96963a8" ;
+    aacap:versionPinPolicy "hex dependency pinned by the consuming project's mix.lock" ;
+    aacap:authorityLocation "remote" ;
+    aacap:authorityEnvelope aacap:envelope-remote-exec ;
+    aacap:isolation "inline" ;
+    aacap:grantsDoAuthority false ;
+    aacap:qualificationCondition aacap:cond-execute-command .
+
+aacap:cond-execute-command a aacap:QualificationCondition ;
+    earl:outcome earl:passed ;
+    aacap:conditionStatement "Reactor step adapter only: coordinates the DAG, holds no independent authority, never calls AshA2A.Dispatcher directly; all command execution routes through AshA2A.CommandBus.run/4, which returns {:ok, receipt}." ;
+    aacap:conditionScope "source inspection 2026-09-30, ash_a2a fbea18c5d58c5b38776b70b477d9cd24c96963a8 -- inspection, not execution" .
+
+aacap:real-command-bus a aacap:Realization ;
+    aacap:realizationOf aacap:capability-invoke ;
+    dcterms:identifier "aacap:real-command-bus" ;
+    aacap:providerRepo "ash_a2a" ;
+    aacap:providerModule "AshA2A.CommandBus.run/4" ;
+    aacap:providerSourceFile "lib/ash_a2a/command_bus.ex" ;
+    aacap:providerSourceCommit "fbea18c5d58c5b38776b70b477d9cd24c96963a8" ;
+    aacap:versionPinPolicy "hex dependency pinned by the consuming project's mix.lock" ;
+    aacap:authorityLocation "remote" ;
+    aacap:authorityEnvelope aacap:envelope-remote-exec ;
+    aacap:grantsDoAuthority false ;
+    aacap:qualificationCondition aacap:cond-command-bus .
+
+aacap:cond-command-bus a aacap:QualificationCondition ;
+    earl:outcome earl:passed ;
+    aacap:conditionStatement "The receipted command boundary: run(command, message, resource_or_domain, opts) -> {:ok, receipt} | {:error, reason}. An :unknown-consequence skill fails closed (:consequence_unclassified) rather than bypassing the DO boundary." ;
+    aacap:conditionScope "source inspection 2026-09-30, ash_a2a fbea18c5d58c5b38776b70b477d9cd24c96963a8 -- inspection, not execution" .
+
+aacap:real-dispatcher-fence a aacap:Realization ;
+    aacap:realizationOf aacap:capability-invoke ;
+    dcterms:identifier "aacap:real-dispatcher-fence" ;
+    aacap:providerRepo "ash_a2a" ;
+    aacap:providerModule "AshA2A.Dispatcher.dispatch/6" ;
+    aacap:providerSourceFile "lib/ash_a2a/dispatcher.ex" ;
+    aacap:providerSourceCommit "fbea18c5d58c5b38776b70b477d9cd24c96963a8" ;
+    aacap:versionPinPolicy "hex dependency pinned by the consuming project's mix.lock" ;
+    aacap:authorityLocation "remote" ;
+    aacap:authorityEnvelope aacap:envelope-remote-exec ;
+    aacap:grantsDoAuthority false ;
+    aacap:qualificationCondition aacap:cond-dispatcher-fence .
+
+aacap:cond-dispatcher-fence a aacap:QualificationCondition ;
+    earl:outcome earl:passed ;
+    aacap:conditionStatement "W4 kernel fence enforced per skill: a consequence-bearing skill is refused unless the call entered through ConsequenceKernel.W4.DispatcherFence (DispatchInversion); an observation skill needs no fence (W4B EntryPolicy.admit(:observe, :observation)). Auth identity must come from context.metadata[\"a2a.auth\"] -- fails closed instead of silently trusting the message." ;
+    aacap:conditionScope "source inspection 2026-09-30, ash_a2a fbea18c5d58c5b38776b70b477d9cd24c96963a8 -- inspection, not execution" .
+
+aacap:real-oban-authority a aacap:Realization ;
+    aacap:realizationOf aacap:capability-invoke ;
+    dcterms:identifier "aacap:real-oban-authority" ;
+    aacap:providerRepo "ash_a2a" ;
+    aacap:providerModule "AshA2A.Delivery.ObanAuthority (reconstruct/2 + verify_live!/3)" ;
+    aacap:providerSourceFile "lib/ash_a2a/delivery/oban_authority.ex" ;
+    aacap:providerSourceCommit "fbea18c5d58c5b38776b70b477d9cd24c96963a8" ;
+    aacap:versionPinPolicy "hex dependency pinned by the consuming project's mix.lock" ;
+    aacap:authorityLocation "remote" ;
+    aacap:authorityEnvelope aacap:envelope-remote-exec ;
+    aacap:isolation "deferred_job" ;
+    aacap:durability "durable" ;
+    aacap:grantsDoAuthority false ;
+    aacap:qualificationCondition aacap:cond-oban-authority .
+
+aacap:cond-oban-authority a aacap:QualificationCondition ;
+    earl:outcome earl:passed ;
+    aacap:conditionStatement "Carries an AshA2A.Authority across a DB-persisted Oban.Job and re-verifies it LIVE at execution time against the configured AshA2A.Authority.Broker (revocation/expiry honored) -- the Oban instance of RFC-SA2A-001 'none may regain ambient DO'. A frozen enqueue-time snapshot alone is unqualified." ;
+    aacap:conditionScope "source inspection 2026-09-30, ash_a2a fbea18c5d58c5b38776b70b477d9cd24c96963a8 -- inspection, not execution" .
+
+# --- A2A.Discover ----------------------------------------------
+# Read-only observation of a peer's capability surface. NEVER requires
+# actuation authority (gates/040). The served card is a derived
+# projection of canonical Ash introspection (Projection != Source).
+
+aacap:capability-discover a aacap:Capability ;
+    dcterms:identifier "A2A.Discover" ;
+    rdfs:label "A2A.Discover" ;
+    skos:prefLabel "Observe a peer agent's capability surface (read-only)" ;
+    aacap:consequenceClass "observation" ;
+    aacap:requiresAuthority false ;
+    aacap:grantsDoAuthority false ;
+    aacap:expectsInput "Peer agent identity (agent card location or capability-index reference)" ;
+    aacap:producesOutput "Derived capability projection (real A2A.AgentCard) with per-skill consequence classification" ;
+    aacap:precondition "Peer endpoint resolvable; transport-level endpoint admission (policy, not authority) may apply and is independently insufficient for anything consequential" ;
+    aacap:postcondition "A read-only local projection exists; zero consequence at either end; no authority consumed" ;
+    aacap:outcome aacap:discover-success, aacap:discover-peer-unreachable .
+
+aacap:discover-success a aacap:Outcome ;
+    aacap:outcomeKind "success" ; aacap:nondeterministic false .
+aacap:discover-peer-unreachable a aacap:Outcome ;
+    aacap:outcomeKind "peer_unreachable" ; aacap:nondeterministic true .
+
+aacap:real-capability-index a aacap:Realization ;
+    aacap:realizationOf aacap:capability-discover ;
+    dcterms:identifier "aacap:real-capability-index" ;
+    aacap:providerRepo "ash_a2a" ;
+    aacap:providerModule "AshA2A.CapabilityIndex (build_agent_card/2 -> AshA2A.CapabilityIndex.AgentCardBuilder; validate/1 -> AshA2A.CapabilityIndex.Validator)" ;
+    aacap:providerSourceFile "lib/ash_a2a/capability_index.ex" ;
+    aacap:providerSourceCommit "fbea18c5d58c5b38776b70b477d9cd24c96963a8" ;
+    aacap:versionPinPolicy "hex dependency pinned by the consuming project's mix.lock" ;
+    aacap:authorityLocation "none" ;
+    aacap:derivedFromSource true ;
+    aacap:grantsDoAuthority false ;
+    aacap:qualificationCondition aacap:cond-capability-index .
+
+aacap:cond-capability-index a aacap:QualificationCondition ;
+    earl:outcome earl:passed ;
+    aacap:conditionStatement "The capability index is not authored or persisted as a second business model: it is derived from Ash.Resource.Info.public_actions/1 through AshA2A.CapabilityIndex.Compiler; overrides are admitted only when they point at an existing public action -- they cannot expose a private action or manufacture a missing one. Generates a deterministic real A2A.AgentCard." ;
+    aacap:conditionScope "source inspection 2026-09-30, ash_a2a fbea18c5d58c5b38776b70b477d9cd24c96963a8 -- inspection, not execution" .
+
+aacap:real-capability-compiler a aacap:Realization ;
+    aacap:realizationOf aacap:capability-discover ;
+    dcterms:identifier "aacap:real-capability-compiler" ;
+    aacap:providerRepo "ash_a2a" ;
+    aacap:providerModule "AshA2A.CapabilityIndex.Compiler.compile/3 + capability_id/2" ;
+    aacap:providerSourceFile "lib/ash_a2a/capability_index/compiler.ex" ;
+    aacap:providerSourceCommit "fbea18c5d58c5b38776b70b477d9cd24c96963a8" ;
+    aacap:versionPinPolicy "hex dependency pinned by the consuming project's mix.lock" ;
+    aacap:authorityLocation "none" ;
+    aacap:derivedFromSource true ;
+    aacap:grantsDoAuthority false ;
+    aacap:qualificationCondition aacap:cond-capability-compiler .
+
+aacap:cond-capability-compiler a aacap:QualificationCondition ;
+    earl:outcome earl:passed ;
+    aacap:conditionStatement "Derives the A2A capability index from canonical Ash introspection; 'the compiler never creates business semantics'. Input set is exactly Ash.Resource.Info.public_actions/1; stable default capability id is Resource.action." ;
+    aacap:conditionScope "source inspection 2026-09-30, ash_a2a fbea18c5d58c5b38776b70b477d9cd24c96963a8 -- inspection, not execution" .
+
+# --- A2A.Await --------------------------------------------------
+# Suspension over an in-flight remote task: the suspension GAP between
+# dispatch and terminal task state. Composes Workflow.Resume (dcap
+# pinned dotted ID) by literal reference; the join happens in the
+# consumer resolver, never as a cross-pack import.
+
+aacap:capability-await a aacap:Capability ;
+    dcterms:identifier "A2A.Await" ;
+    rdfs:label "A2A.Await" ;
+    skos:prefLabel "Suspend until a remote task reaches a terminal state" ;
+    aacap:consequenceClass "observation" ;
+    aacap:requiresAuthority false ;
+    aacap:grantsDoAuthority false ;
+    aacap:expectsInput "Remote task id; optional resubscribe cursor (last seen sequence number)" ;
+    aacap:producesOutput "Terminal task state with sequence-numbered event backlog" ;
+    aacap:precondition "A task in flight from a prior A2A.Invoke; the awaiting process holds no authority over the remote task" ;
+    aacap:postcondition "The caller observed a terminal state (or typed timeout); no consequence produced by awaiting itself" ;
+    aacap:outcome aacap:await-success, aacap:await-timeout ;
+    aacap:resumeReference "Workflow.Resume" ;
+    rdfs:comment "Models the suspension gap: the resolver joins this capability's completion to dcap Workflow.Resume by dotted-ID reference (docs/jira/v26.9.30/RESOLUTIONS.md pins the ID; no cross-pack import). Durability of the suspension is a REALIZATION property, not a capability promise: the default transport surface is volatile by design (node-local, in-memory, swept retention), the durable variant persists task state on disk." .
+
+aacap:await-success a aacap:Outcome ;
+    aacap:outcomeKind "success" ; aacap:nondeterministic false .
+aacap:await-timeout a aacap:Outcome ;
+    aacap:outcomeKind "timeout" ; aacap:nondeterministic true ;
+    rdfs:comment "Suspension gap exceeded without a terminal task state. Resumption after timeout is a Workflow.Resume concern (dotted-ID reference), not this capability's." .
+
+aacap:real-task-events a aacap:Realization ;
+    aacap:realizationOf aacap:capability-await ;
+    dcterms:identifier "aacap:real-task-events" ;
+    aacap:providerRepo "ash_a2a" ;
+    aacap:providerModule "AshA2A.A2ATransport.TaskEvents (subscribe-before-backlog; monotonic per-task seq; duplicate-key Registry fan-out)" ;
+    aacap:providerSourceFile "lib/ash_a2a/a2a_transport/task_events.ex" ;
+    aacap:providerSourceCommit "fbea18c5d58c5b38776b70b477d9cd24c96963a8" ;
+    aacap:versionPinPolicy "hex dependency pinned by the consuming project's mix.lock" ;
+    aacap:authorityLocation "none" ;
+    aacap:durability "volatile" ;
+    aacap:isolation "supervised_task" ;
+    aacap:concurrency "bounded" ;
+    aacap:grantsDoAuthority false ;
+    aacap:qualificationCondition aacap:cond-task-events .
+
+aacap:cond-task-events a aacap:QualificationCondition ;
+    earl:outcome earl:passed ;
+    aacap:conditionStatement "publish/4 is serialized through one process: assigns the next monotonic seq, appends to an :ordered_set ETS log, fans out to every Registry subscriber. subscribe/2 registers BEFORE reading the backlog, so an event is either in the returned backlog or delivered as a message -- none can fall between. State is node-local and in-memory: a finalized task's log is swept after retention_ms (default 300s) and bounded by max_events; a task started on node A cannot be resubscribed on node B, and nothing survives a restart (lib/ash_a2a/a2a_transport/transport.ex documents the runtime). Stream pumps and webhook deliveries run under separate bounded Task.Supervisors (max_children default 1024 pumps / 256 deliveries)." ;
+    aacap:conditionScope "source inspection 2026-09-30, ash_a2a fbea18c5d58c5b38776b70b477d9cd24c96963a8 -- inspection, not execution" .
+
+aacap:real-task-store-ekv a aacap:Realization ;
+    aacap:realizationOf aacap:capability-await ;
+    dcterms:identifier "aacap:real-task-store-ekv" ;
+    aacap:providerRepo "ash_a2a" ;
+    aacap:providerModule "AshA2A.TaskStore.Ekv (put/2, get; A2A.Agent consults :task_store on every write and read miss)" ;
+    aacap:providerSourceFile "lib/ash_a2a/task_store/ekv.ex" ;
+    aacap:providerSourceCommit "fbea18c5d58c5b38776b70b477d9cd24c96963a8" ;
+    aacap:versionPinPolicy "hex dependency pinned by the consuming project's mix.lock" ;
+    aacap:authorityLocation "none" ;
+    aacap:durability "durable" ;
+    aacap:grantsDoAuthority false ;
+    aacap:qualificationCondition aacap:cond-task-store-ekv .
+
+aacap:cond-task-store-ekv a aacap:QualificationCondition ;
+    earl:outcome earl:passed ;
+    aacap:conditionStatement "EKV-backed on-disk task store: task state survives agent crash/restart and BEAM/node restart against the same :data_dir. :data_dir is required (fail closed -- no OS-tmp default, which would silently not survive a host reboot). EKV errors are not swallowed: put/2 raises AshA2A.TaskStore.Ekv.WriteError on any non-:ok result so an agent can never acknowledge a task it failed to persist. At rest it strips metadata[\"a2a.auth\"] (the verified credential) before writing." ;
+    aacap:conditionScope "source inspection 2026-09-30, ash_a2a fbea18c5d58c5b38776b70b477d9cd24c96963a8 -- inspection, not execution" .

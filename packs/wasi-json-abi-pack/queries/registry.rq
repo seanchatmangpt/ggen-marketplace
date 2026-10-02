@@ -4,6 +4,14 @@
 # (MUST equal the template's {{ }} vars):
 #   crate_name, export_prefix, abi_version, max_request_bytes, max_json_depth,
 #   stack_size_bytes, imports_policy -- scalar module facts.
+#   has_abi_version_export - wja:hasAbiVersionExport, "true" (default) or "false";
+#                       "false" omits the abi-version export from the list.
+#   input_release_policy - wja:inputReleasePolicy, "call-consumes" (default) or
+#                       "host-dealloc" (adds the <prefix>_dealloc<suffix> export).
+#   alloc_symbol / call_symbol / free_symbol / dealloc_symbol /
+#   abi_version_export_symbol - rendered export symbols <prefix>_<verb><suffix>,
+#                       with the abi-version symbol overridden by
+#                       wja:abiVersionExportName when declared.
 #   ops   - GROUP_CONCAT, one op per "@@" group, fields joined by "##":
 #             <order zero-padded to 6>##opName##requestFields##responseFields
 #           The zero-padded order prefix makes the template's lexical sort
@@ -17,7 +25,9 @@
 PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
 
 SELECT ?crate_name ?export_prefix ?abi_version ?max_request_bytes ?max_json_depth
-       ?stack_size_bytes ?imports_policy ?ops ?codes
+       ?stack_size_bytes ?imports_policy ?has_abi_version_export ?input_release_policy
+       ?alloc_symbol ?call_symbol ?free_symbol ?dealloc_symbol ?abi_version_export_symbol
+       ?ops ?codes
 WHERE {
   ?m a wja:WasmModule ;
      wja:crateName ?crate_name ;
@@ -27,6 +37,18 @@ WHERE {
      wja:maxJsonDepth ?max_json_depth ;
      wja:stackSizeBytes ?stack_size_bytes ;
      wja:importsPolicy ?imports_policy .
+  OPTIONAL { ?m wja:hasAbiVersionExport ?havRaw }
+  OPTIONAL { ?m wja:inputReleasePolicy ?irpRaw }
+  OPTIONAL { ?m wja:symbolSuffix ?ssRaw }
+  OPTIONAL { ?m wja:abiVersionExportName ?avenRaw }
+  BIND(COALESCE(STR(?havRaw), "true") AS ?has_abi_version_export)
+  BIND(COALESCE(STR(?irpRaw), "call-consumes") AS ?input_release_policy)
+  BIND(COALESCE(STR(?ssRaw), "") AS ?sfx)
+  BIND(CONCAT(STR(?export_prefix), "_alloc", ?sfx) AS ?alloc_symbol)
+  BIND(CONCAT(STR(?export_prefix), "_call", ?sfx) AS ?call_symbol)
+  BIND(CONCAT(STR(?export_prefix), "_free", ?sfx) AS ?free_symbol)
+  BIND(CONCAT(STR(?export_prefix), "_dealloc", ?sfx) AS ?dealloc_symbol)
+  BIND(COALESCE(STR(?avenRaw), CONCAT(STR(?export_prefix), "_abi_version", ?sfx)) AS ?abi_version_export_symbol)
   {
     SELECT ?m2 (GROUP_CONCAT(?spec; separator="@@") AS ?ops)
     WHERE {

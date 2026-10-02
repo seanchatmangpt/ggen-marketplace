@@ -1,0 +1,236 @@
+# Chicago executive/seller projection rows (strict law: SELECT ending in
+# ORDER BY). Row shapes (RESOLUTIONS R3): meta = root context, digest = vendored
+# source digests, narrative = executive narrative facts (source/narrative.ttl),
+# capability = one row per layer (contract slug + required|successor role +
+# receipt-backed status), scenario = candidate case with polarity and per-case
+# failure recovery, boundary = root authority exclusions, evidence = layer-keyed
+# standing slot (UNKNOWN until a real receipt binds observed execution).
+PREFIX sj: <https://ggen-igniter.dev/ontology/semantic-jira#>
+PREFIX chi: <https://ggen-igniter.dev/sjira/v26.10.1/chicago#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?rowKind ?sortKey ?subject ?identifier ?label ?repository ?baseSha
+       ?authorityCeiling ?evidenceHorizon ?replayIdentity ?id ?capabilityId
+       ?role ?status ?caseId ?caseLabel ?caseDescription ?polarity
+       ?failureRecovery ?boundaryText ?narrativeAudience ?narrativeHeadline
+       ?narrativeProblem ?narrativeOutcome ?narrativePath ?path ?packPath
+       ?canonicalPath ?sha256
+WHERE {
+  {
+    BIND("meta" AS ?rowKind)
+    BIND("0" AS ?sortKey)
+    ?root a sj:GoalCheckpoint .
+    FILTER NOT EXISTS { ?hasPartParent dcterms:hasPart ?root }
+    ?root dcterms:identifier ?identifier ;
+          rdfs:label ?label ;
+          sj:repository ?repository ;
+          sj:baseSha ?baseSha ;
+          sj:authorityCeiling ?authorityCeiling ;
+          sj:evidenceHorizon ?evidenceHorizon ;
+          sj:replayIdentity ?replayIdentity .
+    OPTIONAL {
+      ?subjectElement a prov:Entity ;
+                      dcterms:isPartOf ?root ;
+                      dcterms:identifier ?subjectIdentifier .
+    }
+    BIND(COALESCE(?subjectIdentifier, "") AS ?subject)
+    BIND("" AS ?id)
+    BIND("" AS ?capabilityId)
+    BIND("" AS ?role)
+    BIND("" AS ?status)
+    BIND("" AS ?caseId)
+    BIND("" AS ?caseLabel)
+    BIND("" AS ?caseDescription)
+    BIND("" AS ?polarity)
+    BIND("" AS ?failureRecovery)
+    BIND("" AS ?boundaryText)
+    BIND("" AS ?narrativeAudience)
+    BIND("" AS ?narrativeHeadline)
+    BIND("" AS ?narrativeProblem)
+    BIND("" AS ?narrativeOutcome)
+    BIND("" AS ?narrativePath)
+    BIND("" AS ?path)
+    BIND("" AS ?packPath)
+    BIND("" AS ?canonicalPath)
+    BIND("" AS ?sha256)
+  }
+  UNION
+  {
+    BIND("digest" AS ?rowKind)
+    ?renderSource a chi:RenderSource ;
+                  chi:packPath ?packPath ;
+                  chi:sha256 ?sha256 .
+    OPTIONAL { ?renderSource chi:canonicalPath ?canonicalPathValue }
+    BIND(COALESCE(?canonicalPathValue, "") AS ?canonicalPath)
+    BIND(COALESCE(?canonicalPathValue, ?packPath) AS ?path)
+    BIND(?path AS ?sortKey)
+    BIND("" AS ?subject)
+    BIND("" AS ?identifier)
+    BIND("" AS ?label)
+    BIND("" AS ?repository)
+    BIND("" AS ?baseSha)
+    BIND("" AS ?authorityCeiling)
+    BIND("" AS ?evidenceHorizon)
+    BIND("" AS ?replayIdentity)
+    BIND("" AS ?id)
+    BIND("" AS ?capabilityId)
+    BIND("" AS ?role)
+    BIND("" AS ?status)
+    BIND("" AS ?caseId)
+    BIND("" AS ?caseLabel)
+    BIND("" AS ?caseDescription)
+    BIND("" AS ?polarity)
+    BIND("" AS ?failureRecovery)
+    BIND("" AS ?boundaryText)
+    BIND("" AS ?narrativeAudience)
+    BIND("" AS ?narrativeHeadline)
+    BIND("" AS ?narrativeProblem)
+    BIND("" AS ?narrativeOutcome)
+    BIND("" AS ?narrativePath)
+  }
+  UNION
+  {
+    BIND("narrative" AS ?rowKind)
+    BIND("0" AS ?sortKey)
+    ?narrative a chi:Narrative ;
+               chi:audience ?narrativeAudience ;
+               chi:headline ?narrativeHeadline ;
+               chi:customerProblem ?narrativeProblem ;
+               chi:desiredOutcome ?narrativeOutcome ;
+               chi:semanticPath ?narrativePath .
+    BIND("" AS ?subject)
+    BIND("" AS ?identifier)
+    BIND("" AS ?label)
+    BIND("" AS ?repository)
+    BIND("" AS ?baseSha)
+    BIND("" AS ?authorityCeiling)
+    BIND("" AS ?evidenceHorizon)
+    BIND("" AS ?replayIdentity)
+    BIND("" AS ?id)
+    BIND("" AS ?capabilityId)
+    BIND("" AS ?role)
+    BIND("" AS ?status)
+    BIND("" AS ?caseId)
+    BIND("" AS ?caseLabel)
+    BIND("" AS ?caseDescription)
+    BIND("" AS ?polarity)
+    BIND("" AS ?failureRecovery)
+    BIND("" AS ?boundaryText)
+    BIND("" AS ?path)
+    BIND("" AS ?packPath)
+    BIND("" AS ?canonicalPath)
+    BIND("" AS ?sha256)
+  }
+  UNION
+  {
+    BIND("capability" AS ?rowKind)
+    ?layer a sj:GoalCheckpoint ;
+           rdfs:label ?label ;
+           sj:repository ?repository ;
+           sj:boundaryClass ?boundaryClassIri ;
+           sj:requiresCapability ?capability ;
+           sj:evidenceHorizon ?evidenceHorizon .
+    ?capability sj:capabilityId ?capabilityId .
+    ?layer chi:contractId ?id .
+    BIND(IF(?boundaryClassIri = sj:Successor, "successor", "required") AS ?role)
+    OPTIONAL {
+      ?layer sj:receipt ?layerReceipt .
+      ?layerReceipt a sj:Receipt ;
+                    sj:standing ?layerReceiptStanding .
+    }
+    BIND(COALESCE(?layerReceiptStanding, "UNKNOWN") AS ?status)
+    BIND(?id AS ?sortKey)
+    BIND("" AS ?subject)
+    BIND("" AS ?identifier)
+    BIND("" AS ?baseSha)
+    BIND("" AS ?authorityCeiling)
+    BIND("" AS ?replayIdentity)
+    BIND("" AS ?caseId)
+    BIND("" AS ?caseLabel)
+    BIND("" AS ?caseDescription)
+    BIND("" AS ?polarity)
+    BIND("" AS ?failureRecovery)
+    BIND("" AS ?boundaryText)
+    BIND("" AS ?narrativeAudience)
+    BIND("" AS ?narrativeHeadline)
+    BIND("" AS ?narrativeProblem)
+    BIND("" AS ?narrativeOutcome)
+    BIND("" AS ?narrativePath)
+    BIND("" AS ?path)
+    BIND("" AS ?packPath)
+    BIND("" AS ?canonicalPath)
+    BIND("" AS ?sha256)
+  }
+  UNION
+  {
+    BIND("scenario" AS ?rowKind)
+    ?case a sj:Prediction ;
+          dcterms:identifier ?caseId ;
+          rdfs:label ?caseLabel ;
+          dcterms:description ?caseDescription ;
+          sj:subject ?subject ;
+          sj:candidateOnly ?candidateOnlyValue .
+    OPTIONAL { ?case chi:polarity ?polarityValue }
+    OPTIONAL { ?case chi:failureRecovery ?failureRecoveryValue }
+    BIND(COALESCE(?polarityValue, "") AS ?polarity)
+    BIND(COALESCE(?failureRecoveryValue, "") AS ?failureRecovery)
+    BIND(?caseId AS ?sortKey)
+    BIND("" AS ?identifier)
+    BIND("" AS ?label)
+    BIND("" AS ?repository)
+    BIND("" AS ?baseSha)
+    BIND("" AS ?authorityCeiling)
+    BIND("" AS ?evidenceHorizon)
+    BIND("" AS ?replayIdentity)
+    BIND("" AS ?id)
+    BIND("" AS ?capabilityId)
+    BIND("" AS ?role)
+    BIND("" AS ?status)
+    BIND("" AS ?boundaryText)
+    BIND("" AS ?narrativeAudience)
+    BIND("" AS ?narrativeHeadline)
+    BIND("" AS ?narrativeProblem)
+    BIND("" AS ?narrativeOutcome)
+    BIND("" AS ?narrativePath)
+    BIND("" AS ?path)
+    BIND("" AS ?packPath)
+    BIND("" AS ?canonicalPath)
+    BIND("" AS ?sha256)
+  }
+  UNION
+  {
+    BIND("boundary" AS ?rowKind)
+    ?root2 a sj:GoalCheckpoint .
+    FILTER NOT EXISTS { ?hasPartParent2 dcterms:hasPart ?root2 }
+    ?root2 sj:exclusion ?boundaryText .
+    BIND(?boundaryText AS ?sortKey)
+    BIND("" AS ?subject)
+    BIND("" AS ?identifier)
+    BIND("" AS ?label)
+    BIND("" AS ?repository)
+    BIND("" AS ?baseSha)
+    BIND("" AS ?authorityCeiling)
+    BIND("" AS ?evidenceHorizon)
+    BIND("" AS ?replayIdentity)
+    BIND("" AS ?id)
+    BIND("" AS ?capabilityId)
+    BIND("" AS ?role)
+    BIND("" AS ?status)
+    BIND("" AS ?caseId)
+    BIND("" AS ?caseLabel)
+    BIND("" AS ?caseDescription)
+    BIND("" AS ?polarity)
+    BIND("" AS ?failureRecovery)
+    BIND("" AS ?narrativeAudience)
+    BIND("" AS ?narrativeHeadline)
+    BIND("" AS ?narrativeProblem)
+    BIND("" AS ?narrativeOutcome)
+    BIND("" AS ?narrativePath)
+    BIND("" AS ?path)
+    BIND("" AS ?packPath)
+    BIND("" AS ?canonicalPath)
+    BIND("" AS ?sha256)
+  }
+}
+ORDER BY ?rowKind ?sortKey

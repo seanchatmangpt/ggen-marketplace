@@ -1,0 +1,21 @@
+# MESSAGE: ProviderAvailable != Authorized. A realization is refused when
+# (shape A) it emits onto a topic marked consequentialTopic=true for a
+# capability whose consequence flows through the topic, or (shape B) its
+# capability is unconditionally consequential -- and it names NO explicit
+# authority requirement. escap:providerAvailable true NEVER discharges this
+# (the gate never reads that property): holding the provider is not holding
+# the authority. Policy != Authority. REFUSED_NO_AUTHORITY class.
+PREFIX escap: <https://ggen.dev/ontology/event-state-capability#>
+SELECT ?realization ?why WHERE {
+  { ?realization escap:realizes ?capability ; escap:emitsOn ?topic .
+    ?topic escap:consequentialTopic true .
+    ?capability escap:consequencesThroughTopic true .
+    FILTER NOT EXISTS { ?realization escap:authorityRequirement ?authority }
+    BIND("consequential-topic" AS ?why) }
+  UNION
+  { ?realization escap:realizes ?capability .
+    ?capability escap:consequential true .
+    FILTER NOT EXISTS { ?realization escap:authorityRequirement ?authority }
+    BIND("unconditionally-consequential" AS ?why) }
+}
+ORDER BY ?realization ?why

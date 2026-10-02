@@ -1,19 +1,22 @@
 # MESSAGE: any returned row refuses manufacture. Enforces that a
-# gp:FrontDoor individual is a complete, correctly-named front door for the
+# gpl:FrontDoor individual is a complete, correctly-named front door for the
 # fixed 11-pack canonical platform topology: it must declare exactly 11
-# distinct gp:hasComponent triples, each resolving to a gp:ComponentPack
-# whose gp:packName is one of the 11 fixed recognized canonical pack names
-# below. Any front door missing a component, declaring an unrecognized
+# distinct gpl:hasComponent triples, each resolving to a gpl:ComponentPack
+# whose gpl:packName is one of the 11 fixed recognized canonical pack names
+# below. Receipt vocabulary (mg:QualificationReceipt/mg:forPack/
+# mg:receiptStatus) is single-owner marketplace-governance vocabulary, used
+# here by IRI. Any front door missing a component, declaring an unrecognized
 # name, declaring a duplicate name, or declaring more than 11 components is
 # refused.
-PREFIX gp: <https://ggen.dev/ontology/ggen-platform#>
+PREFIX gpl: <https://ggen.dev/ontology/ggen-platform#>
+PREFIX mg: <https://ggen.dev/ontology/marketplace-governance#>
 SELECT ?subject ?problem WHERE {
   {
-    # Every hasComponent target must resolve to a gp:ComponentPack with a
+    # Every hasComponent target must resolve to a gpl:ComponentPack with a
     # packName that is one of the 11 fixed recognized canonical names.
-    ?subject a gp:FrontDoor ; gp:hasComponent ?component .
+    ?subject a gpl:FrontDoor ; gpl:hasComponent ?component .
     FILTER NOT EXISTS {
-      ?component a gp:ComponentPack ; gp:packName ?name .
+      ?component a gpl:ComponentPack ; gpl:packName ?name .
       FILTER(?name IN (
         "marketplace-governance-pack", "semantic-projection-pack",
         "evidence-standing-pack", "decision-optionality-pack",
@@ -28,10 +31,10 @@ SELECT ?subject ?problem WHERE {
   UNION
   {
     # Exactly 11 distinct declared components -- not fewer, not more.
-    ?subject a gp:FrontDoor .
+    ?subject a gpl:FrontDoor .
     {
       SELECT ?subject (COUNT(DISTINCT ?component) AS ?n) WHERE {
-        ?subject a gp:FrontDoor ; gp:hasComponent ?component .
+        ?subject a gpl:FrontDoor ; gpl:hasComponent ?component .
       }
       GROUP BY ?subject
     }
@@ -42,8 +45,8 @@ SELECT ?subject ?problem WHERE {
   {
     # A declared front door with zero hasComponent triples at all (the
     # subquery above only fires when at least one exists).
-    ?subject a gp:FrontDoor .
-    FILTER NOT EXISTS { ?subject gp:hasComponent ?any }
+    ?subject a gpl:FrontDoor .
+    FILTER NOT EXISTS { ?subject gpl:hasComponent ?any }
     BIND("front-door-declares-no-components-refused" AS ?problem)
   }
   UNION
@@ -53,19 +56,19 @@ SELECT ?subject ?problem WHERE {
     # count-11 check while actually omitting a real canonical pack. Scoped
     # per-FrontDoor: distinct front doors are free to reference the same
     # canonical sibling pack by name.
-    ?subject a gp:FrontDoor ; gp:hasComponent ?c1, ?c2 .
-    ?c1 gp:packName ?name .
-    ?c2 gp:packName ?name .
+    ?subject a gpl:FrontDoor ; gpl:hasComponent ?c1, ?c2 .
+    ?c1 gpl:packName ?name .
+    ?c2 gpl:packName ?name .
     FILTER(?c1 != ?c2)
     BIND("duplicate-component-pack-name-within-front-door-refused" AS ?problem)
   }
   UNION
   {
     # A QualificationReceipt must name a real pack and a non-empty status.
-    ?subject a gp:QualificationReceipt .
+    ?subject a mg:QualificationReceipt .
     FILTER(
-      NOT EXISTS { ?subject gp:forPack ?p }
-      || NOT EXISTS { ?subject gp:receiptStatus ?s . FILTER(STRLEN(?s) > 0) }
+      NOT EXISTS { ?subject mg:forPack ?p }
+      || NOT EXISTS { ?subject mg:receiptStatus ?s . FILTER(STRLEN(?s) > 0) }
     )
     BIND("receipt-missing-pack-or-status-refused" AS ?problem)
   }

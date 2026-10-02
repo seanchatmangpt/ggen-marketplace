@@ -1,0 +1,27 @@
+# MESSAGE: grant-without-authority. Two laws, one gate. (a) Authority.Grant is
+# itself a consequential act: granting requires authority, so every
+# authcap:ConsequentialCapability must name the capability whose successful
+# verification authorizes it (authcap:authorizingCapability) — Policy !=
+# Authority: a policy or request naming authority is not authority. (b) A
+# consequential capability that cannot refuse is an ambient grant: its outcome
+# set must contain a first-class REFUSED_NO_AUTHORITY refusal outcome. Any row
+# is a refusal.
+PREFIX authcap: <https://ggen.dev/ontology/authority-capability#>
+SELECT ?cap ?violation WHERE {
+  {
+    ?cap a authcap:ConsequentialCapability .
+    FILTER NOT EXISTS { ?cap authcap:authorizingCapability ?a0 }
+    BIND("no-authorizing-capability" AS ?violation)
+  }
+  UNION
+  {
+    ?cap a authcap:ConsequentialCapability .
+    FILTER NOT EXISTS {
+      ?cap authcap:outcome ?o .
+      ?o authcap:outcomeKind "refusal" ;
+         authcap:refusalCode "REFUSED_NO_AUTHORITY" .
+    }
+    BIND("outcome-set-lacks-REFUSED_NO_AUTHORITY" AS ?violation)
+  }
+}
+ORDER BY ?cap ?violation

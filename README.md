@@ -6,13 +6,7 @@ A pack is not merely a template directory. Its manifest establishes identity, RD
 
 ## Consolidation work
 
-PR #438 introduces the v26.9.12 candidate 80/20 capability topology. Existing packs remain in place while the repository measures coverage and maps the legacy catalog to the smaller canonical set. Issue #439 tracks the inventory and classification work required before any legacy pack is retired.
-
-The consolidation rule is `PackDirectory != PublicCapability`: versions, experiments, implementations, and compositions should normally be represented inside a durable capability family instead of creating a new top-level capability for every generation.
-
-## Consolidation work
-
-The marketplace's own release version is `v26.9.24` (`marketplace.toml`). PR #438 introduced the v26.9.12-era 80/20 capability topology (point-in-time): existing packs remained in place while the repository measured coverage and mapped the legacy catalog to the smaller canonical set. Issue #439 tracks the inventory and classification work required before any legacy pack is retired. `marketplace.active.toml`'s `[active]` set is that frozen v26.9.12 candidate, not the current corpus (351 packs as of 2026-09-27).
+The marketplace's own release version is `v26.9.30` (`marketplace.toml`). PR #438 introduced the v26.9.12-era 80/20 capability topology (point-in-time): existing packs remained in place while the repository measured coverage and mapped the legacy catalog to the smaller canonical set. Issue #439 tracks the inventory and classification work required before any legacy pack is retired. `marketplace.active.toml`'s `[active]` set is that frozen v26.9.12 candidate, not the current corpus (284 packs as of 2026-10-01).
 
 The consolidation rule is `PackDirectory != PublicCapability`: versions, experiments, implementations, and compositions should normally be represented inside a durable capability family instead of creating a new top-level capability for every generation.
 

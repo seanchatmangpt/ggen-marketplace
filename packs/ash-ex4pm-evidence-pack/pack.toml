@@ -1,0 +1,39 @@
+[pack]
+name = "ash-ex4pm-evidence-pack"
+version = "0.1.0"
+description = """
+Generalizes ash_pplan's evidence machinery -- machinery that exists in no other
+marketplace pack -- into reusable, consumer-facing manufacturing capital:
+
+1. The ProcessEvidence behaviour: receipts -> task_attempted / task_succeeded /
+   task_failed OCEL events (generalized from AshPPlan.ProcessEvidence, lib
+   ash_pplan/lib/ash_pplan/process_evidence.ex, which is where the attempted/succeeded
+   pair + dead-after-failure semantics were first witnessed on real receipts).
+2. Content-addressed, tamper-evident evidence digests (generalized from
+   AshPPlan.Reactor.Durable.LedgerOCEL.digest/3 -- sha256 over
+   term_to_binary({id, activity, attributes}), so any attribute change flips the digest).
+3. The guarded AshEx4pm adapter pattern (generalized from
+   AshPPlan.ProcessEvidence.AshEx4pm): build the ash_ex4pm/1 wire envelope purely,
+   validate through the real Ex4pm.OCEL.validate_envelope/1, ingest through the real
+   Ex4pm.Stream.Ingest.ingest_envelope/2, with an OPT-IN broadcaster threaded through
+   app env. Guarded with Code.ensure_loaded?/apply so every rendered module compiles
+   and runs with ex4pm/ash_ex4pm absent, returning
+   {:error, %{reason: :unsupported, detail: :ex4pm_not_available}}.
+4. The bounded realtime seam: producers write to :persistent_term, one bridge process
+   drains into a capacity-bounded ETS ring buffer with drop-oldest overflow. This is
+   the post-incident pattern: an unbounded broadcaster crashed the VM at ~20k queued
+   events; the bounded ring makes the same flood a bounded-memory, drop-oldest event
+   instead.
+
+Templates render against a consumer's OWN Ash resources (declared as ex4ev:Emitter
+rows in the consumer-facing ontology): no ash_pplan (or any producer) module is ever
+embedded in rendered output. Every rendered artifact names its ontology row.
+
+Verification (measured 2026-10-01, ggen_igniter 0abed8a from ~/ash_pplan,
+MIX_BUILD_ROOT=_build-d6): all four templates rendered via
+`mix ggen_igniter.sync --pack-dir` into ~/ash_pplan/tmp/d6/consumer/lib/
+(my-app evidence namespace), manifest under tmp/mf-d6; all rendered .ex modules
+compile in a bare `elixir` VM with ex4pm absent (guarded-adapter contract); the
+rendered evidence court ran against the REAL Ex4pm (compiled from the ~/ex4pm
+checkout) and passed fresh/duplicate/refusal/digest-tamper invariants.
+"""

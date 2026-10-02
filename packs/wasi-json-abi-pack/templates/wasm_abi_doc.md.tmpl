@@ -1,0 +1,81 @@
+{%- set op_list = ops | split(pat="@@") | sort -%}
+{%- set row_list = export_rows | split(pat="@@") | sort -%}
+{%- if has_abi_version_export == "true" %}{% set_global core_count = 4 %}{% else %}{% set_global core_count = 3 %}{% endif %}
+{%- if input_release_policy == "host-dealloc" %}{% set_global core_count = core_count + 1 %}{% endif -%}
+# {{ crate_name }} ABI
+
+Generated companion to the capability registry (`registry/capability-registry.json`):
+both are projections of the same `wja:` graph, rendered by ggen
+(wasi-json-abi-pack). Regenerate; do not edit.
+
+## Summary
+
+- ABI version {{ abi_version }}, wasm32 target (pointers and `usize` lower to `i32`).
+{%- if return_convention == "out-len-pointer" %}
+- {{ core_count }} core exports, {{ op_count }} request/response algorithms{% if replay_count != "0" %}, {{ replay_count }} replay companions{% endif %}.
+{%- else %}
+- {{ core_count }} core exports plus one dispatch entry (`{{ call_symbol }}`) serving {{ op_count }} ops{% if replay_count != "0" %}, {{ replay_count }} replay companions{% endif %}.
+{%- endif %}
+- Imports policy: `{{ imports_policy }}`{% if imports_policy == "none" %} (zero imports: the module is self-contained and imports nothing at all){% endif %}.
+- Startup: {% if startup_convention == "reactor-initialize" %}WASI reactor (`_initialize`).{% else %}default `cdylib` command startup.{% endif %}
+
+## Calling convention
+
+1. `ptr = {{ alloc_symbol }}(len)`; write the UTF-8 JSON request into linear memory at `ptr`.
+2. Call `{{ call_symbol }}(ptr, len{% if return_convention == "out-len-pointer" %}, out_len_ptr{% endif %})`{% if return_convention == "packed-u64" %}; the packed `u64` result encodes `(out_ptr << 32) | out_len`{% else %}; the response length is written through `out_len_ptr` and the response pointer is returned{% endif %}.
+3. Read `out_len` bytes at `out_ptr` (UTF-8 JSON), then release with `{{ free_symbol }}(out_ptr, out_len)`.
+{%- if input_release_policy == "host-dealloc" %}
+4. Release the request buffer with `{{ dealloc_symbol }}(ptr, len)` (same `len` as
+   `{{ alloc_symbol }}`). Reading an input never frees it; the host owns that release.
+{%- endif %}
+
+## Envelope
+
+{%- if error_style == "flat-code" %}
+- Success: `{"ok": true, ...}` with the op's response fields.
+- Failure: `{"ok": false, "error": {"code": <code>, "message": ...}}` with string
+  codes drawn from the module's error table.
+{%- elif error_style == "result-digest" %}
+- Success: `{"result": <body>, "digest": "<{{ digest_hex_chars }} lowercase hex chars>"}`
+- Failure (unparsable request): `{"error": "<message>"}` — no digest.
+{%- elif error_style == "refusal-kind" %}
+- Refusals are consumer-owned typed values (refusal-kind style); generated guards
+  cover JSON depth and table ordering only.
+{%- else %}
+- Envelope is consumer-owned; this module declares no generated error style.
+{%- endif %}
+
+{%- if digest_algorithm != "" %}
+
+## Digest and replay
+
+- Digest: {{ digest_algorithm }} over the {{ digest_input }} serialization bytes,
+  formatted `{{ digest_format }}` ({{ digest_hex_chars }} lowercase hex chars).
+  Non-cryptographic in-WASM self-check; receipt identity hashing stays with the consumer.
+- `<algo>_replay` exports re-execute the computation from the same request bytes and
+  return 1 iff the recomputed response is non-empty; hosts compare the `digest` field
+  of the original and recomputed responses. Computations are deterministic, so equal
+  requests yield equal digests.
+{%- endif %}
+
+## Memory ownership
+
+| Buffer | Produced by | Released by |
+|---|---|---|
+| request | `{{ alloc_symbol }}(len)` | {% if input_release_policy == "host-dealloc" %}host, `{{ dealloc_symbol }}(ptr, len)`{% else %}the module, inside `{{ call_symbol }}`{% endif %} |
+| response | `{{ call_symbol }}` | host, `{{ free_symbol }}(ptr, out_len)` |
+
+## Algorithms
+
+{% for o in op_list %}{% set p = o | split(pat="##") %}{{ p[1] }}{% if not loop.last %}, {% endif %}{% endfor %}
+
+## Exports
+
+| export | kind | params | result | source |
+|---|---|---|---|---|
+{%- for row in row_list %}
+{%- if row != "" %}
+{%- set f = row | split(pat="##") %}
+| `{{ f[0] }}` | {{ f[1] }} | `{{ f[2] }}` | {{ f[3] }} | {{ f[4] }} |
+{%- endif %}
+{%- endfor %}

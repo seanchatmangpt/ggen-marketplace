@@ -1,0 +1,31 @@
+---
+to: "docs/domain-capability/domain-capability-contract.md"
+sparql:
+  rows: |
+    PREFIX dcp: <https://ggen.dev/ontology/domain-capability#>
+    PREFIX dcterms: <http://purl.org/dc/terms/>
+    PREFIX qce: <https://ggen.dev/ontology/qualified-capability-ecology#>
+    SELECT ?identifier ?authority ?providerPackage ?providerModule ?version ?available ?ceiling WHERE {
+      ?cap a dcp:DomainCapability ; dcterms:identifier ?identifier ; dcp:authorityRequirement ?authority .
+      ?realization a dcp:Realization ; dcp:realizes ?cap ;
+          dcp:providerPackage ?providerPackage ; dcp:providerModule ?providerModule .
+      OPTIONAL { ?realization dcp:providerVersion ?version }
+      OPTIONAL { ?realization dcp:available ?available }
+      OPTIONAL { ?realization qce:authorityEnvelope ?env . ?env qce:authorityCeiling ?ceiling }
+    } ORDER BY ?identifier ?providerModule
+---
+# Domain capability contract (projection -- a consequence, never the source)
+
+Every row below echoes literals already stored in this pack's admitted ontology
+(`dcp:DomainCapability` x `dcp:Realization` bindings). Nothing is synthesized;
+projections are re-admitted nowhere.
+
+Capability IDs are the pinned dotted identifiers (`dcterms:identifier`), joined by
+the consumer's resolver (`ash_pplan v26.9.30`). `ceiling` is the realization's bound
+`qce:authorityCeiling`; availability without a ceiling that admits the capability's
+authority requirement is refused by `gates/070_availability_requires_authority.rq`.
+
+| Capability | Authority req | Provider package | Module | Version | Available | Authority ceiling |
+|------------|---------------|------------------|--------|---------|-----------|-------------------|
+{% for row in rows %}| `{{ row.identifier }}` | {{ row.authority }} | `{{ row.providerPackage }}` | `{{ row.providerModule }}` | {{ row.version }} | {{ row.available }} | {{ row.ceiling }} |
+{% endfor %}

@@ -1,0 +1,66 @@
+# NEGATIVE fixture for gates/authcap_060_grant_without_authority.rq (fires it, both
+# branches). ex:grant has a typed envelope but its outcome set contains only a
+# success — no first-class REFUSED_NO_AUTHORITY refusal, so it can never
+# refuse and is an ambient grant. ex:revoke has a complete outcome set but no
+# authcap:authorizingCapability — a consequential act that names nothing as
+# its authority basis (a request naming authority is not authority).
+@prefix authcap: <https://ggen.dev/ontology/authority-capability#> .
+@prefix qce: <https://ggen.dev/ontology/qualified-capability-ecology#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix ex: <https://example.test/authcap/> .
+
+ex:grant a authcap:Capability, authcap:ConsequentialCapability ;
+    dcterms:identifier "Authority.Regrant" ;
+    authcap:capabilityFamily "authority" ;
+    authcap:input "requested grant" ;
+    authcap:output "minted lease" ;
+    authcap:outcome ex:g-ok ;
+    authcap:authorityCeiling "construct" ;
+    authcap:authorityEnvelope ex:env ;
+    authcap:authorizingCapability ex:verifier ;
+    authcap:realization ex:r .
+
+ex:revoke a authcap:Capability, authcap:ConsequentialCapability ;
+    dcterms:identifier "Authority.Revoke" ;
+    authcap:capabilityFamily "authority" ;
+    authcap:input "lease to revoke" ;
+    authcap:output "revocation receipt" ;
+    authcap:outcome ex:g-ok, ex:r-refused ;
+    authcap:authorityCeiling "construct" ;
+    authcap:authorityEnvelope ex:env ;
+    authcap:realization ex:r .
+
+ex:verifier a authcap:Capability ;
+    dcterms:identifier "Authority.Audit" ;
+    authcap:capabilityFamily "authority" ;
+    authcap:input "envelope material" ;
+    authcap:output "verification verdict" ;
+    authcap:outcome ex:g-ok ;
+    authcap:authorityCeiling "observe" ;
+    authcap:realization ex:r2 .
+
+ex:env a qce:AuthorityEnvelope ;
+    qce:delegationDepth 1 .
+
+ex:g-ok a authcap:Outcome ;
+    authcap:outcomeKind "success" .
+ex:r-refused a authcap:Outcome ;
+    authcap:outcomeKind "refusal" ;
+    authcap:refusalCode "REFUSED_NO_AUTHORITY" .
+
+ex:r a authcap:Realization ;
+    dcterms:identifier "grant-broker" ;
+    authcap:authorityCeiling "construct" ;
+    authcap:providerRepo "somewhere" ;
+    authcap:bindingModule "Somewhere.Broker" ;
+    authcap:sourceFile "lib/somewhere/broker.ex" ;
+    authcap:versionPinPolicy "pin by release tag" ;
+    authcap:qualificationCondition "brokered grant path only" .
+ex:r2 a authcap:Realization ;
+    dcterms:identifier "audit-verify" ;
+    authcap:authorityCeiling "observe" ;
+    authcap:providerRepo "somewhere" ;
+    authcap:bindingModule "Somewhere.AuditVerify" ;
+    authcap:sourceFile "lib/somewhere/audit_verify.ex" ;
+    authcap:versionPinPolicy "pin by release tag" ;
+    authcap:qualificationCondition "presentation check only" .

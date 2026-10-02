@@ -1,0 +1,22 @@
+# MESSAGE: a Workflow.Halt opens a human-approval gap in which NO execution authority
+# exists; the capability is declared dcap:suspendsAuthority true. A resume of a
+# workflow that has a dcap:HaltClaim must therefore RE-BIND FRESH authority:
+# dcap:authorityEnvelope -> a qce:AuthorityEnvelope (composed class) carrying its own
+# qce:authorityDigest. Inherited, pre-halt, or ambient authority does not survive the
+# gap (ProviderAvailable != Authorized; a request naming authority is not that
+# authority). Any row = a resume across an authority gap that does not re-bind
+# authority.
+PREFIX dcap: <https://ggen.dev/ontology/durability-capability#>
+PREFIX qce:  <https://ggen.dev/ontology/qualified-capability-ecology#>
+SELECT ?resume ?workflow WHERE {
+  ?resume a dcap:ResumeClaim ;
+      dcap:resumesWorkflow ?workflow .
+  ?halt a dcap:HaltClaim ;
+      dcap:haltsWorkflow ?workflow .
+  FILTER NOT EXISTS {
+    ?resume dcap:authorityEnvelope ?envelope .
+    ?envelope a qce:AuthorityEnvelope ;
+        qce:authorityDigest ?digest .
+  }
+}
+ORDER BY ?resume ?workflow

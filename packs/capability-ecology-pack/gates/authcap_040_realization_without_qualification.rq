@@ -1,0 +1,66 @@
+# MESSAGE: realization-without-qualification. Every authcap:Realization must
+# carry an identifier, provider repo, real binding module, source file,
+# version-pin policy and at least one authcap:qualificationCondition; its
+# authorityCeiling (when the capability declares one) must stay inside the
+# closed enum; and it must be linked from a capability (no orphans). A
+# realization with zero qualification conditions is an unqualified promotion:
+# capability != implementation, and the gap between them must be stated, not
+# silent. Any row is a refusal.
+PREFIX authcap: <https://ggen.dev/ontology/authority-capability#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?r ?missing WHERE {
+  {
+    ?r a authcap:Realization .
+    FILTER NOT EXISTS { ?r dcterms:identifier ?i0 }
+    BIND(dcterms:identifier AS ?missing)
+  }
+  UNION
+  {
+    ?r a authcap:Realization .
+    FILTER NOT EXISTS { ?r authcap:providerRepo ?p0 }
+    BIND(authcap:providerRepo AS ?missing)
+  }
+  UNION
+  {
+    ?r a authcap:Realization .
+    FILTER NOT EXISTS { ?r authcap:bindingModule ?b0 }
+    BIND(authcap:bindingModule AS ?missing)
+  }
+  UNION
+  {
+    ?r a authcap:Realization .
+    FILTER NOT EXISTS { ?r authcap:sourceFile ?s0 }
+    BIND(authcap:sourceFile AS ?missing)
+  }
+  UNION
+  {
+    ?r a authcap:Realization .
+    FILTER NOT EXISTS { ?r authcap:versionPinPolicy ?v0 }
+    BIND(authcap:versionPinPolicy AS ?missing)
+  }
+  UNION
+  {
+    ?r a authcap:Realization .
+    FILTER NOT EXISTS { ?r authcap:qualificationCondition ?q0 }
+    BIND(authcap:qualificationCondition AS ?missing)
+  }
+  UNION
+  {
+    ?r a authcap:Realization .
+    FILTER NOT EXISTS { ?r authcap:authorityCeiling ?c0 }
+    BIND(authcap:authorityCeiling AS ?missing)
+  }
+  UNION
+  {
+    ?r a authcap:Realization ; authcap:authorityCeiling ?c1 .
+    FILTER (?c1 != "observe" && ?c1 != "select" && ?c1 != "construct")
+    BIND("realization-ceiling-outside-enum" AS ?missing)
+  }
+  UNION
+  {
+    ?r a authcap:Realization .
+    FILTER NOT EXISTS { ?owner authcap:realization ?r }
+    BIND("orphan-realization-not-linked-from-capability" AS ?missing)
+  }
+}
+ORDER BY ?r ?missing

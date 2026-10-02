@@ -1,0 +1,296 @@
+# Mutation league (Lane C9) -- the mutation league driven as data.
+#
+# Each row names a real semantic mutation class for the specimen extension,
+# applies it to a scratch copy (facts edit or generated-source edit), runs the
+# named court's detection predicate, and asserts the mutation is KILLED. A
+# survivor is a recorded GAP -- never suppressed; the league exits non-zero if
+# anything survives.
+#
+# Court detection predicates (the same predicates the two courts enforce):
+#   :regeneration -> fresh render from the (possibly mutated) facts must equal
+#                    BOTH the scratch artifact AND the committed specimen.
+#                    Any mismatch = generated files are not authoritative.
+#   :drift        -> semantic digest of the compiled scratch source must equal
+#                    the t0 digest of the pristine specimen (exports, declared
+#                    surfaces, getter/installer probes, side-effect scan).
+#
+# Run:  elixir templates/mutation_league.exs.tmpl
+
+defmodule MutationLeague do
+  @specimen_root System.get_env("SPECIMEN_ROOT") ||
+                   Path.expand("../fixture/regeneration", __DIR__)
+
+  def run do
+    Code.put_compiler_option(:ignore_module_conflict, true)
+    Code.eval_file(Path.join(@specimen_root, "specimen_kit.exs"), @specimen_root)
+
+    kit = RegenerationSpecimen.Kit
+    facts = kit.load_facts(@specimen_root)
+    kit.ensure_generator(@specimen_root)
+    pristine = kit.render_extension(facts)
+    committed = File.read!(Path.join(@specimen_root, "specimen/extension.ex"))
+
+    kit.assert!(pristine == committed,
+      "committed specimen is stale relative to the current facts; league baseline invalid")
+
+    t0 = kit.digest(pristine)
+
+    league = league_table()
+    width = 38
+
+    IO.puts("== mutation league ==")
+    IO.puts("specimen_root: #{@specimen_root}")
+    IO.puts("t0 digest: #{t0}; #{Enum.count(league)} mutations, each must be KILLED")
+    IO.puts("")
+    IO.puts(String.pad_trailing("mutation", width) <> "court          verdict   detection")
+    IO.puts(String.duplicate("-", width + 50))
+
+    results =
+      Enum.map(league, fn entry ->
+        verdict = run_mutation(kit, facts, pristine, committed, t0, entry)
+
+        IO.puts(
+          String.pad_trailing(entry.name, width) <>
+            String.pad_trailing(Atom.to_string(entry.court), 15) <>
+            verdict.label <> "   " <> verdict.reason
+        )
+
+        Map.put(entry, :verdict, verdict)
+      end)
+
+    survivors = Enum.filter(results, &(&1.verdict.status == :survivor))
+
+    IO.puts("")
+    IO.puts("killed: #{Enum.count(results) - Enum.count(survivors)}/#{Enum.count(results)}")
+
+    if survivors == [] do
+      IO.puts("survivors: none -- every mutation was killed by its named court")
+      IO.puts("mutation league: PASS")
+      :ok
+    else
+      IO.puts("survivors (recorded GAPS, not suppressed):")
+
+      Enum.each(survivors, fn s ->
+        IO.puts("  GAP: #{s.name} survived the #{s.court} court (#{s.verdict.reason})")
+      end)
+
+      kit.court_failure("#{Enum.count(survivors)} mutation(s) survived the league")
+    end
+  end
+
+  # ------------------------------------------------------------------
+  # One league row: apply the mutation to a scratch copy, run the named
+  # court's detection predicate, expect a kill.
+  # ------------------------------------------------------------------
+  defp run_mutation(kit, facts, pristine, committed, t0, entry) do
+    {mutated_facts, mutated_source} = entry.mutate.({facts, pristine})
+
+    violation =
+      case entry.court do
+        :regeneration ->
+          fresh = kit.render_extension(mutated_facts)
+
+          cond do
+            fresh != committed ->
+              {:killed,
+               "fresh render from mutated facts != committed specimen (facts moved, artifact stale)"}
+
+            fresh != mutated_source ->
+              {:killed,
+               "scratch artifact != fresh render from unchanged facts (generated files not authoritative)"}
+
+            true ->
+              :survivor
+          end
+
+        :drift ->
+          if kit.digest(mutated_source) != t0 do
+            {:killed, "semantic digest moved (silent meaning change detected)"}
+          else
+            :survivor
+          end
+      end
+
+    case violation do
+      {:killed, reason} -> %{status: :killed, label: "KILLED   ", reason: reason}
+      :survivor -> %{status: :survivor, label: "SURVIVOR ", reason: "no court detected the mutation"}
+    end
+  rescue
+    e -> %{status: :killed, label: "KILLED   ", reason: "court refused the scratch copy: #{Exception.message(e)}"}
+  end
+
+  # ------------------------------------------------------------------
+  # The league, as data. mutate/1 receives {facts, pristine_source} and
+  # returns the scratch-copy {facts, source} after the edit.
+  # ------------------------------------------------------------------
+  defp league_table do
+    [
+      %{
+        name: "remove_spark_field_keep_runtime",
+        court: :regeneration,
+        mutate: fn {f, src} ->
+          {f, drop_line(src, "%{name: :description, type: :string, required: false, default: nil},")}
+        end
+      },
+      %{
+        name: "add_runtime_behavior_not_in_spark",
+        court: :drift,
+        mutate: fn {f, src} ->
+          {f, String.replace_suffix(src, "end\n", "  def __runtime_only__, do: :hidden\nend\n")}
+        end
+      },
+      %{
+        name: "change_transformer_ordering",
+        court: :regeneration,
+        mutate: fn {f, src} ->
+          src
+          |> String.replace("Ash.Resource.Transformers.CachePrimaryKey", "__SWAP__")
+          |> String.replace("Ash.Resource.Transformers.SetRelationshipInformation", "Ash.Resource.Transformers.CachePrimaryKey")
+          |> then(&String.replace(&1, "__SWAP__", "Ash.Resource.Transformers.SetRelationshipInformation"))
+          |> then(&{f, &1})
+        end
+      },
+      %{
+        name: "drop_a_verifier",
+        court: :regeneration,
+        mutate: fn {f, src} ->
+          {f,
+           String.replace(
+             src,
+             ~s({:unique_event_name, "Every :audit event name must be unique within the resource."}),
+             ""
+           )}
+        end
+      },
+      %{
+        name: "change_info_getter_source_section",
+        court: :drift,
+        mutate: fn {f, src} ->
+          {f, String.replace(src, "source_section: :audit", "source_section: :receipts")}
+        end
+      },
+      %{
+        name: "leak_a_step_across_specs",
+        court: :regeneration,
+        mutate: fn {f, src} ->
+          steps =
+            Enum.map(f.steps, fn
+              %{name: "admit"} = s -> %{s | scope: "r2rml_foreign_spec"}
+              other -> other
+            end)
+
+          {%{f | steps: steps}, src}
+        end
+      },
+      %{
+        name: "duplicate_return_step",
+        court: :regeneration,
+        mutate: fn {f, src} ->
+          steps =
+            Enum.map(f.steps, fn
+              %{name: "deliver"} = s -> %{s | is_return: true}
+              other -> other
+            end)
+
+          {%{f | steps: steps}, src}
+        end
+      },
+      %{
+        name: "remove_compensation_declaration",
+        court: :regeneration,
+        mutate: fn {f, src} ->
+          {f, String.replace(src, "has_compensate: true", "has_compensate: false")}
+        end
+      },
+      %{
+        name: "change_installer_target",
+        court: :regeneration,
+        mutate: fn {f, src} -> {%{f | installer_target: "Some.Other.Target"}, src} end
+      },
+      %{
+        name: "install_duplicate_extension",
+        court: :regeneration,
+        mutate: fn {f, src} ->
+          {f,
+           String.replace(
+             src,
+             "@single_extension_kinds [:regeneration_specimen]",
+             "@single_extension_kinds [:regeneration_specimen, :regeneration_specimen]"
+           )}
+        end
+      },
+      %{
+        name: "make_installer_non_idempotent",
+        court: :drift,
+        mutate: fn {f, src} ->
+          {f,
+           String.replace(
+             src,
+             "Map.put_new(:installed_targets, [@installer_target])",
+             "Map.update(:installed_targets, [@installer_target], &[@installer_target | &1])"
+           )}
+        end
+      },
+      %{
+        name: "edit_generated_code_without_ontology_change",
+        court: :regeneration,
+        mutate: fn {f, src} ->
+          {f,
+           String.replace(
+             src,
+             "Generated regeneration specimen extension.",
+             "Generated regeneration specimen extension (hand-tuned)."
+           )}
+        end
+      },
+      %{
+        name: "add_unused_spark_property",
+        court: :regeneration,
+        mutate: fn {f, src} ->
+          {f, String.replace(src, "singleton_entity_keys: [],", "singleton_entity_keys: [],\n      unused_option: :ignored,")}
+        end
+      },
+      %{
+        name: "hidden_persistent_term_config",
+        court: :drift,
+        mutate: fn {f, src} ->
+          {f,
+           String.replace(
+             src,
+             "def install(dsl_state) do",
+             "def install(dsl_state) do\n    :persistent_term.put({__MODULE__, :hidden_cfg}, true)"
+           )}
+        end
+      },
+      %{
+        name: "reuse_a_stale_generated_artifact",
+        court: :regeneration,
+        mutate: fn {f, src} ->
+          # Change the EVENT.name field type in the facts but keep the
+          # committed/scratch artifact as-is: the classic stale-artifact run.
+          facts2 =
+            update_in(
+              f,
+              [
+                Access.key!(:sections),
+                Access.at(0),
+                Access.key!(:entities),
+                Access.at(0),
+                Access.key!(:fields),
+                Access.at(0)
+              ],
+              fn field -> %{field | type: "string"} end
+            )
+
+          {facts2, src}
+        end
+      }
+    ]
+  end
+
+  defp drop_line(src, needle) do
+    String.replace(src, "        " <> needle <> "\n", "")
+  end
+end
+
+MutationLeague.run()

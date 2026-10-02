@@ -1,0 +1,407 @@
+@prefix dcap:    <https://ggen.dev/ontology/durability-capability#> .
+@prefix qce:     <https://ggen.dev/ontology/qualified-capability-ecology#> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+
+#################################################################
+# dcap: durability/replay/resume capability family.
+#
+# CAPABILITY != IMPLEMENTATION. A dcap:Capability is a semantic
+# requirement identified by its pinned dotted rdfs:label
+# ("Durability.Checkpoint", ...); a dcap:Realization is one
+# implementing package/module that may satisfy it. Provider
+# availability NEVER grants authority, and selecting a realization
+# never alters workflow identity (mirrors ~/ash_pplan
+# AshPPlan.Provider @modoc, opened 2026-09-30).
+#
+# Capability IDs are pinned for the v26.9.30 capability-ecology
+# wave (docs/jira/v26.9.30/RESOLUTIONS.md): dotted short names via
+# rdfs:label; consumers (wfc: corpus) reference them as
+# dcterms:identifier literals — this pack emits BOTH, same
+# literal, so the resolver join holds either way.
+#################################################################
+
+dcap:Capability a rdfs:Class, prov:Entity ;
+    rdfs:comment "A semantic durability/workflow-control requirement (Family.Name dotted ID in rdfs:label), never an implementation. Every capability independently declares dcap:compensatable AND dcap:reversible (xsd:boolean) — COMPENSATABLE != REVERSIBLE: a compensatable step has a typed undo; a reversible step restores prior state; neither implies the other, so both facts must be stated, never defaulted." .
+
+dcap:Realization a rdfs:Class, prov:Entity ;
+    rdfs:comment "One implementing package/module for a capability. Carries provider metadata (repo, module, source coordinates, version-pin policy, inspected flag — did a session actually open the source?) plus >=1 dcap:QualificationCondition. A realization is a candidate until qualified; realizing never actuates." .
+
+dcap:QualificationCondition a rdfs:Class, prov:Entity ;
+    rdfs:comment "A named condition under which a realization is qualified to resolve for a requirement (inputs the provider's qualify/2 demands, evidence it must emit, authority it must NOT hold). A realization with zero conditions is unqualified-by-construction (gate 070)." .
+
+dcap:IdempotencyContract a rdfs:Class, prov:Entity ;
+    rdfs:comment "Declares how re-driving a durable operation is made safe: the key formula and the uniqueness scope that enforces it. Grounded in Xaas.Sa2a.Execution: idempotency_key = sha256(work_order_digest|query|plan_hash) with a unique identity on that column (~/xaas lib/xaas/sa2a/execution.ex, opened 2026-09-30)." .
+
+dcap:DeterminismContract a rdfs:Class, prov:Entity ;
+    rdfs:comment "Declares the replay-determinism discipline of a realization: byte-identical replay required (the ecosystem exact-SHA receipt discipline, qce:ReplayReceipt + qce:replayDigest), the evidence kind that witnesses it, and the receipt class it must instantiate. Absent on a Durability.Replay realization = gate 040." .
+
+dcap:WorkflowSubject a rdfs:Class, prov:Entity ;
+    rdfs:comment "The durable workflow whose identity survives halt/resume. Holds the workflow identity and the projection version it is currently defined by. Runtime claim surface: instantiated by consumers, exercised by qualification/fixtures." .
+
+dcap:Checkpoint a rdfs:Class, prov:Entity ;
+    rdfs:comment "A durable checkpoint of a workflow subject. Identity binds by CONTENT: the checkpoint carries its urn identity, the bound dcap:WorkflowSubject, the base sha it was captured against, and — the load-bearing field — qce:closureDigest (COMPOSED from the qualified-capability-ecology vocabulary, not redefined): the state digest that pins this checkpoint to its exact workflow-subject state. Mirrors Xaas.Gall.Checkpoint (content-addressed graph digest + 40-hex base_sha + urn:gall:checkpoint:<repo>:<id> identity) and Xaas.Gall.CheckpointBinding.matches_checkpoint?/2 (stale-content falsification), opened 2026-09-30." .
+
+dcap:HaltClaim a rdfs:Class, prov:Activity ;
+    rdfs:comment "A witnessed halt of a workflow: authority is suspended for the interval until a conforming resume. The gap is a first-class fact (dcap:authoritySuspended), not an implied one: during the gap NO execution authority exists — ProviderAvailable != Authorized." .
+
+dcap:ResumeClaim a rdfs:Class, prov:Activity ;
+    rdfs:comment "A witnessed resume of a halted/checkpointed workflow. Declares whether a projection-version boundary was crossed (dcap:versionBoundaryCrossed) and its closed outcome (dcap:resumeOutcome: ALIVE | REFUSED_VERSION_BOUNDARY | REQUALIFIED). A crossing is lawful only as an explicit typed refusal or an explicit requalification receipt (qce:QualificationReceipt) — never a silent continue (gate 050). A resume that follows a HaltClaim must re-bind fresh authority via a qce:AuthorityEnvelope (gate 060)." .
+
+#################################################################
+# Execution properties (skos:Concept — public vocabulary, no
+# custom class). Values aligned with the consumer's provider
+# contract: AshPPlan.Provider properties() returns atoms like
+# :durable, :resumable, :checkpointed; AshPPlan.Providers.Durability
+# declares exactly [:durable, :resumable, :checkpointed]
+# (~/ash_pplan lib/ash_pplan/providers/durability.ex, opened).
+#################################################################
+
+dcap:PropDurable a skos:Concept ; skos:prefLabel "durable" ;
+    skos:definition "Survives process crash: state is committed before the step returns." .
+dcap:PropResumable a skos:Concept ; skos:prefLabel "resumable" ;
+    skos:definition "An interrupted run can continue from persisted state." .
+dcap:PropCheckpointed a skos:Concept ; skos:prefLabel "checkpointed" ;
+    skos:definition "Persists explicit checkpoints bound to the workflow subject." .
+dcap:PropIdempotent a skos:Concept ; skos:prefLabel "idempotent" ;
+    skos:definition "Re-driving with the same idempotency key cannot double-apply." .
+dcap:PropDeterministic a skos:Concept ; skos:prefLabel "deterministic" ;
+    skos:definition "Same inputs and recorded decisions yield byte-identical replay." .
+dcap:PropIsolated a skos:Concept ; skos:prefLabel "isolated" ;
+    skos:definition "Concurrent resumes of the same subject are fenced (one live lease)." .
+
+#################################################################
+# Evidence kinds (skos:Concept). Values aligned with the
+# consumer's AshPPlan.Provider evidence() atoms (:continuation) and
+# the xaas receipt surfaces actually opened this session.
+#################################################################
+
+dcap:EvContinuation a skos:Concept ; skos:prefLabel "continuation" ;
+    skos:definition "A persisted continuation (AshPPlan.Continuation.capture/5) sufficient to resume." .
+dcap:EvReplayReceipt a skos:Concept ; skos:prefLabel "replay_receipt" ;
+    skos:definition "A qce:ReplayReceipt witnessing byte-identical replay (qce:replayDigest + qce:replayVerified)." .
+dcap:EvCheckpointReceipt a skos:Concept ; skos:prefLabel "checkpoint_receipt" ;
+    skos:definition "A receipt binding a written checkpoint to its subject digest." .
+dcap:EvIdempotencyReceipt a skos:Concept ; skos:prefLabel "idempotency_receipt" ;
+    skos:definition "A receipt recording the idempotency key a re-drive was admitted under." .
+dcap:EvAdmitReceipt a skos:Concept ; skos:prefLabel "admit_receipt" ;
+    skos:definition "An admission receipt binding the resume decision to admitted authority." .
+
+dcap:requiresProperty a rdf:Property ; rdfs:domain dcap:Capability ; rdfs:range skos:Concept .
+dcap:providesProperty a rdf:Property ; rdfs:domain dcap:Realization ; rdfs:range skos:Concept .
+dcap:requiresEvidence a rdf:Property ; rdfs:domain dcap:Capability ; rdfs:range skos:Concept .
+dcap:emitsEvidence a rdf:Property ; rdfs:domain dcap:Realization ; rdfs:range skos:Concept .
+
+dcap:realizes a rdf:Property ; rdfs:domain dcap:Realization ; rdfs:range dcap:Capability ;
+    rdfs:comment "Implementation -> semantic requirement. Many realizations may realize one capability (interchangeability is judged by the consumer, e.g. Xaas.Fabric.Contract.qri_key/1 — same URI+semantic_id+effect_class+invariants+evidence = interchangeable, ~/xaas lib/xaas/fabric/contract.ex, opened)." .
+dcap:providerRepo a rdf:Property ; rdfs:domain dcap:Realization ; rdfs:range xsd:string .
+dcap:providerModule a rdf:Property ; rdfs:domain dcap:Realization ; rdfs:range xsd:string .
+dcap:sourceCoordinates a rdf:Property ; rdfs:domain dcap:Realization ; rdfs:range xsd:string ;
+    rdfs:comment "File path inside providerRepo, or hex coordinates when no local checkout exists. Inspection claims never outrun this coordinate." .
+dcap:versionPinPolicy a rdf:Property ; rdfs:domain dcap:Realization ; rdfs:range xsd:string ;
+    rdfs:comment "How the realization is pinned (mix.lock pin, path dep, hex coordinate). Version numbers are provider metadata, NEVER the capability identity." .
+dcap:inspected a rdf:Property ; rdfs:domain dcap:Realization ; rdfs:range xsd:boolean ;
+    rdfs:comment "true only when a session actually opened the source file. false = hex-coordinate citation; claiming inspection without opening is fabrication." .
+dcap:qualificationCondition a rdf:Property ; rdfs:domain dcap:Realization ; rdfs:range dcap:QualificationCondition .
+dcap:conditionStatement a rdf:Property ; rdfs:domain dcap:QualificationCondition ; rdfs:range xsd:string .
+dcap:idempotencyContract a rdf:Property ; rdfs:domain dcap:Realization ; rdfs:range dcap:IdempotencyContract .
+dcap:determinismContract a rdf:Property ; rdfs:domain dcap:Realization ; rdfs:range dcap:DeterminismContract .
+dcap:freshAuthorityRebinding a rdf:Property ; rdfs:domain dcap:Realization ; rdfs:range xsd:boolean ;
+    rdfs:comment "true when the realization re-derives authority per execution instead of inheriting it (deny-by-default floor). Required semantic for Workflow.Resume realizations." .
+
+dcap:keyFormula a rdf:Property ; rdfs:domain dcap:IdempotencyContract ; rdfs:range xsd:string .
+dcap:uniquenessScope a rdf:Property ; rdfs:domain dcap:IdempotencyContract ; rdfs:range xsd:string .
+dcap:byteIdenticalRequired a rdf:Property ; rdfs:domain dcap:DeterminismContract ; rdfs:range xsd:boolean .
+dcap:evidenceKind a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "Evidence-kind literal (skos:prefLabel of a dcap:EvidenceKind concept). String form because the consumer matches atoms." .
+dcap:receiptClass a rdf:Property ;
+    rdfs:comment "The qce: receipt class a determinism contract demands, e.g. qce:ReplayReceipt (composed, not redefined)." .
+
+# capability-level semantic flags (each independently stated)
+dcap:compensatable a rdf:Property ; rdfs:domain dcap:Capability ; rdfs:range xsd:boolean ;
+    rdfs:comment "A typed undo exists (COMPENSATABLE). Distinct from dcap:reversible; neither implies the other." .
+dcap:reversible a rdf:Property ; rdfs:domain dcap:Capability ; rdfs:range xsd:boolean ;
+    rdfs:comment "Prior state is restorable (REVERSIBLE). UNKNOWN != REVERSIBLE: when restoration is unproven, the honest value is false, not true." .
+dcap:determinismRequired a rdf:Property ; rdfs:domain dcap:Capability ; rdfs:range xsd:boolean .
+dcap:idempotencyRequired a rdf:Property ; rdfs:domain dcap:Capability ; rdfs:range xsd:boolean .
+dcap:freshAuthorityRequired a rdf:Property ; rdfs:domain dcap:Capability ; rdfs:range xsd:boolean ;
+    rdfs:comment "Resuming requires NEWLY granted authority; inherited/historical authority is void across the halt gap." .
+dcap:suspendsAuthority a rdf:Property ; rdfs:domain dcap:Capability ; rdfs:range xsd:boolean ;
+    rdfs:comment "Executing this capability suspends execution authority until a conforming resume." .
+dcap:declaredOutcome a rdf:Property ; rdfs:domain dcap:Capability ; rdfs:range xsd:string ;
+    rdfs:comment "Closed outcome set: the success value plus typed failures plus (for resume) the requalification value. Declared, never implied." .
+
+# runtime claim surface
+dcap:workflowIdentity a rdf:Property ; rdfs:domain dcap:WorkflowSubject ; rdfs:range xsd:string .
+dcap:projectionVersion a rdf:Property ; rdfs:domain dcap:WorkflowSubject ; rdfs:range xsd:string .
+dcap:checkpointIdentity a rdf:Property ; rdfs:domain dcap:Checkpoint ; rdfs:range xsd:string ;
+    rdfs:comment "Urn identity of the checkpoint, canonical form urn:gall:checkpoint:<repo>:<id> (Xaas.Gall.Checkpoint admission rule)." .
+dcap:boundSubject a rdf:Property ; rdfs:domain dcap:Checkpoint ; rdfs:range dcap:WorkflowSubject .
+dcap:baseSha a rdf:Property ; rdfs:domain dcap:Checkpoint ; rdfs:range xsd:string ;
+    rdfs:comment "40-hex subject commit the checkpoint was captured against (refusal otherwise, per Xaas.Gall.Checkpoint :refused_subject_mismatch)." .
+dcap:capturedProjectionVersion a rdf:Property ; rdfs:domain dcap:Checkpoint ; rdfs:range xsd:string .
+dcap:haltsWorkflow a rdf:Property ; rdfs:domain dcap:HaltClaim ; rdfs:range dcap:WorkflowSubject .
+dcap:authoritySuspended a rdf:Property ; rdfs:domain dcap:HaltClaim ; rdfs:range xsd:boolean .
+dcap:haltedAt a rdf:Property ; rdfs:domain dcap:HaltClaim ; rdfs:range xsd:dateTime .
+dcap:resumesWorkflow a rdf:Property ; rdfs:domain dcap:ResumeClaim ; rdfs:range dcap:WorkflowSubject .
+dcap:resumesCheckpoint a rdf:Property ; rdfs:domain dcap:ResumeClaim ; rdfs:range dcap:Checkpoint .
+dcap:versionBoundaryCrossed a rdf:Property ; rdfs:domain dcap:ResumeClaim ; rdfs:range xsd:boolean ;
+    rdfs:comment "True when the resume crosses a projection-version boundary (capturedProjectionVersion != current projectionVersion)." .
+dcap:resumeOutcome a rdf:Property ; rdfs:domain dcap:ResumeClaim ; rdfs:range xsd:string ;
+    rdfs:comment "Closed enum: \"ALIVE\" | \"REFUSED_VERSION_BOUNDARY\" | \"REQUALIFIED\". Standing mapping (documentation, not identity): ALIVE -> https://w3id.org/chatman/aps#ALIVE; the two refusal/requalification values are capability-fine-grained and have no aps individual — recorded failed edge, see README." .
+dcap:requalificationReceipt a rdf:Property ; rdfs:domain dcap:ResumeClaim ; rdfs:range qce:QualificationReceipt ;
+    rdfs:comment "COMPOSED qce: class: the receipt proving the capability was requalified at the new projection version." .
+dcap:authorityEnvelope a rdf:Property ; rdfs:domain dcap:ResumeClaim ; rdfs:range qce:AuthorityEnvelope ;
+    rdfs:comment "COMPOSED qce: class: the FRESH authority this resume executes under. Must carry qce:authorityDigest (gate 060)." .
+dcap:idempotencyKey a rdf:Property ; rdfs:domain dcap:ResumeClaim ; rdfs:range xsd:string .
+
+#################################################################
+# Pinned capabilities (v26.9.30 RESOLUTIONS) — rdfs:label IS the
+# dotted ID. Human description lives in rdfs:comment.
+#################################################################
+
+dcap:capability-checkpoint a dcap:Capability ;
+    rdfs:label "Durability.Checkpoint" ;
+    dcterms:identifier "Durability.Checkpoint" ;
+    rdfs:comment "Persist a durable checkpoint of a workflow subject, bound by content (state digest) to that subject. Real-grounded refusal semantics: Xaas.Gall.Checkpoint returns :refused_subject_mismatch for a base_sha that is not 40-hex or an identity outside urn:gall:checkpoint:<repo>:<id>." ;
+    dcap:requiresProperty dcap:PropDurable, dcap:PropCheckpointed ;
+    dcap:requiresEvidence dcap:EvCheckpointReceipt ;
+    dcap:declaredOutcome "ALIVE", "REFUSED_SUBJECT_MISMATCH" ;
+    dcap:compensatable true ;
+    dcap:reversible false .
+
+dcap:capability-replay a dcap:Capability ;
+    rdfs:label "Durability.Replay" ;
+    dcterms:identifier "Durability.Replay" ;
+    rdfs:comment "Re-execute a recorded decision sequence and require BYTE-IDENTICAL results (exact-SHA replay discipline: qce:ReplayReceipt with qce:replayDigest + qce:replayVerified true). A replay bundle is evidence for a court, never proof the court executed (AshPPlan.FOND.Replay @modoc, opened)." ;
+    dcap:requiresProperty dcap:PropDeterministic ;
+    dcap:requiresEvidence dcap:EvReplayReceipt ;
+    dcap:declaredOutcome "ALIVE", "REFUSED_DIGEST_MISMATCH" ;
+    dcap:determinismRequired true ;
+    dcap:compensatable false ;
+    dcap:reversible false .
+
+dcap:capability-resume a dcap:Capability ;
+    rdfs:label "Durability.Resume" ;
+    dcterms:identifier "Durability.Resume" ;
+    rdfs:comment "Continue an interrupted run from a checkpoint/continuation. Idempotency required: a re-driven resume carries an idempotency key (Xaas.Sa2a.Execution identity discipline). Crossing a projection-version boundary yields exactly two lawful outcomes: typed refusal (REFUSED_VERSION_BOUNDARY) or explicit requalification (REQUALIFIED with qce:QualificationReceipt) — gate 050." ;
+    dcap:requiresProperty dcap:PropResumable ;
+    dcap:requiresEvidence dcap:EvContinuation ;
+    dcap:declaredOutcome "ALIVE", "REFUSED_VERSION_BOUNDARY", "REQUALIFIED" ;
+    dcap:idempotencyRequired true ;
+    dcap:compensatable true ;
+    dcap:reversible false .
+
+dcap:capability-halt a dcap:Capability ;
+    rdfs:label "Workflow.Halt" ;
+    dcterms:identifier "Workflow.Halt" ;
+    rdfs:comment "Suspend a workflow at a safe point. Opens a HUMAN-APPROVAL GAP: from haltedAt until a conforming resume, NO execution authority exists (dcap:authoritySuspended true on the claim). Grounded: AshPPlan.Providers.Steps.Checkpoint returns {:halt, ...} so AshPPlan.Continuation.capture/5 can persist the reactor; Xaas.Actuation.Middleware hooks Reactor.Middleware.halt/1 on the actuation control plane (both opened 2026-09-30)." ;
+    dcap:requiresProperty dcap:PropDurable, dcap:PropCheckpointed ;
+    dcap:requiresEvidence dcap:EvCheckpointReceipt ;
+    dcap:declaredOutcome "ALIVE", "REFUSED_NO_AUTHORITY" ;
+    dcap:suspendsAuthority true ;
+    dcap:compensatable true ;
+    dcap:reversible false .
+
+dcap:capability-workflow-resume a dcap:Capability ;
+    rdfs:label "Workflow.Resume" ;
+    dcterms:identifier "Workflow.Resume" ;
+    rdfs:comment "Resume a HALTED workflow across a human-approval gap. Two hard requirements: (1) FRESH authority — a qce:AuthorityEnvelope bound to this resume (gate 060); inherited or pre-halt authority is void; (2) idempotency — the resume carries an idempotency key. Grounded: Xaas.Sa2a.Execution admits exactly one actor (Xaas.Checks.SystemActor exact-subject map) behind a deny-by-default floor and re-runs the court per execution — authority is re-derived per actuation, never ambient (opened)." ;
+    dcap:requiresProperty dcap:PropResumable, dcap:PropIsolated ;
+    dcap:requiresEvidence dcap:EvAdmitReceipt ;
+    dcap:declaredOutcome "ALIVE", "REFUSED_NO_AUTHORITY", "REQUALIFIED" ;
+    dcap:idempotencyRequired true ;
+    dcap:freshAuthorityRequired true ;
+    dcap:compensatable true ;
+    dcap:reversible false .
+
+# --- minted family siblings (recorded in README; grounded, not decorative) ---
+
+dcap:capability-continuation a dcap:Capability ;
+    rdfs:label "Durability.Continuation" ;
+    dcterms:identifier "Durability.Continuation" ;
+    rdfs:comment "Capture/restore a suspended execution context as a first-class continuation (AshPPlan.Continuation.capture/5 + resume/4; evidence kind :continuation is literally what AshPPlan.Providers.Durability declares). Minted because Durability.Checkpoint names the persisted state, not the capture/restore pair around it." ;
+    dcap:requiresProperty dcap:PropDurable, dcap:PropResumable ;
+    dcap:requiresEvidence dcap:EvContinuation ;
+    dcap:declaredOutcome "ALIVE", "REFUSED_NO_CONTINUATION" ;
+    dcap:compensatable true ;
+    dcap:reversible false .
+
+dcap:capability-compensate a dcap:Capability ;
+    rdfs:label "Workflow.Compensate" ;
+    dcterms:identifier "Workflow.Compensate" ;
+    rdfs:comment "Run typed undo for completed steps after a failure — the COMPENSATABLE half of COMPENSATABLE != REVERSIBLE. Minted so the compensatability every capability declares above has a capability that realizes it. Grounded in Reactor's undo/compensation semantics (hex coordinate; no local checkout — provider metadata only, inspected=false)." ;
+    dcap:requiresProperty dcap:PropIdempotent, dcap:PropIsolated ;
+    dcap:requiresEvidence dcap:EvIdempotencyReceipt ;
+    dcap:declaredOutcome "ALIVE", "REFUSED_COMPENSATION_INCOMPLETE" ;
+    dcap:compensatable false ;
+    dcap:reversible false .
+
+#################################################################
+# Realizations — provider metadata only. dcap:inspected=true means
+# a session opened the cited file THIS WAVE (2026-09-30); false
+# means hex-coordinate citation (never claim local inspection).
+#################################################################
+
+dcap:real-xaas-gall-checkpoint a dcap:Realization ;
+    dcap:realizes dcap:capability-checkpoint ;
+    dcap:providerRepo "xaas" ;
+    dcap:providerModule "Xaas.Gall.Checkpoint" ;
+    dcap:sourceCoordinates "lib/xaas/gall/checkpoint.ex" ;
+    dcap:versionPinPolicy "monorepo source, pinned by repo HEAD at admission" ;
+    dcap:inspected true ;
+    dcap:providesProperty dcap:PropDurable, dcap:PropCheckpointed ;
+    dcap:emitsEvidence dcap:EvCheckpointReceipt ;
+    dcap:qualificationCondition dcap:qual-gall-checkpoint-admission, dcap:qual-no-do-authority .
+
+dcap:qual-gall-checkpoint-admission a dcap:QualificationCondition ;
+    dcap:conditionStatement "Admits only canonical identities (urn:gall:checkpoint:<repo>:<id>), 40-hex base_sha, standing inside the standing vocabulary; every invalid input is a typed {:refused, reason}, never a raise (Xaas.Gall.Checkpoint refusal vocabulary, opened 2026-09-30)." .
+
+dcap:qual-no-do-authority a dcap:QualificationCondition ;
+    dcap:conditionStatement "The realization performs no actuation, holds no lease and grants no authority (admission-layer only); consumers must route DO through their own BRCE path." .
+
+dcap:real-xaas-sjira-checkpoint a dcap:Realization ;
+    dcap:realizes dcap:capability-checkpoint ;
+    dcap:providerRepo "xaas" ;
+    dcap:providerModule "Xaas.Sjira.Checkpoint" ;
+    dcap:sourceCoordinates "lib/xaas/sjira/checkpoint.ex" ;
+    dcap:versionPinPolicy "monorepo source, pinned by repo HEAD at admission" ;
+    dcap:inspected true ;
+    dcap:providesProperty dcap:PropCheckpointed ;
+    dcap:emitsEvidence dcap:EvCheckpointReceipt ;
+    dcap:qualificationCondition dcap:qual-sjira-checkpoint-atomic .
+
+dcap:qual-sjira-checkpoint-atomic a dcap:QualificationCondition ;
+    dcap:conditionStatement "Checkpoints are written to a sibling temp file then atomically renamed; scope/run keys are hashed before touching the filesystem so semantic identifiers never become path-traversal input (opened 2026-09-30)." .
+
+dcap:real-ashpplan-steps-checkpoint a dcap:Realization ;
+    dcap:realizes dcap:capability-checkpoint, dcap:capability-halt ;
+    dcap:providerRepo "ash_pplan" ;
+    dcap:providerModule "AshPPlan.Providers.Steps.Checkpoint" ;
+    dcap:sourceCoordinates "lib/ash_pplan/providers/steps/checkpoint.ex" ;
+    dcap:versionPinPolicy "path dependency (consumer mix.exs path:)" ;
+    dcap:inspected true ;
+    dcap:providesProperty dcap:PropCheckpointed, dcap:PropDurable ;
+    dcap:emitsEvidence dcap:EvContinuation ;
+    dcap:qualificationCondition dcap:qual-steps-checkpoint-halt .
+
+dcap:qual-steps-checkpoint-halt a dcap:QualificationCondition ;
+    dcap:conditionStatement "The step halts the Reactor ({:halt, ...}) so AshPPlan.Continuation.capture/5 can persist it, and completes only when the resume context carries resume: true via AshPPlan.Continuation.resume/4 — halt and resume are the same module's two paths, never two identities (opened 2026-09-30)." .
+
+dcap:real-xaas-sa2a-bridge-replay a dcap:Realization ;
+    dcap:realizes dcap:capability-replay ;
+    dcap:providerRepo "xaas" ;
+    dcap:providerModule "Xaas.Sa2a.Bridge" ;
+    dcap:sourceCoordinates "lib/xaas/sa2a/bridge.ex (replay/2)" ;
+    dcap:versionPinPolicy "monorepo source, pinned by repo HEAD at admission" ;
+    dcap:inspected true ;
+    dcap:providesProperty dcap:PropDeterministic ;
+    dcap:emitsEvidence dcap:EvReplayReceipt ;
+    dcap:determinismContract dcap:determinism-byte-identical ;
+    dcap:qualificationCondition dcap:qual-bridge-replay-hash .
+
+dcap:qual-bridge-replay-hash a dcap:QualificationCondition ;
+    dcap:conditionStatement "replay(manifest, expected_hash) verifies the replayed manifest against the expected hash; Xaas.Sa2a.Changes.Execute builds a replayable manifest and runs Bridge.replay automatically, setting replay_verified on the durable Execution row (opened 2026-09-30)." .
+
+dcap:real-xaas-fabric-capability-replay a dcap:Realization ;
+    dcap:realizes dcap:capability-replay ;
+    dcap:providerRepo "xaas" ;
+    dcap:providerModule "Xaas.Fabric.Capability" ;
+    dcap:sourceCoordinates "lib/xaas/fabric/capability.ex" ;
+    dcap:versionPinPolicy "monorepo source, pinned by repo HEAD at admission" ;
+    dcap:inspected true ;
+    dcap:providesProperty dcap:PropDeterministic ;
+    dcap:emitsEvidence dcap:EvReplayReceipt ;
+    dcap:determinismContract dcap:determinism-byte-identical ;
+    dcap:qualificationCondition dcap:qual-fabric-replay-callback .
+
+dcap:qual-fabric-replay-callback a dcap:QualificationCondition ;
+    dcap:conditionStatement "replay/2 is a behaviour callback defaulting to {:error, {:unsupported, :replay}} — a realization claiming this capability must implement the callback, and only :realization_failed/:transport_failed/:unsupported close an edge and fall over (failure-class table, opened 2026-09-30)." .
+
+dcap:real-ashpplan-fond-replay a dcap:Realization ;
+    dcap:realizes dcap:capability-replay ;
+    dcap:providerRepo "ash_pplan" ;
+    dcap:providerModule "AshPPlan.FOND.Replay" ;
+    dcap:sourceCoordinates "lib/ash_pplan/fond/replay.ex" ;
+    dcap:versionPinPolicy "path dependency (consumer mix.exs path:)" ;
+    dcap:inspected true ;
+    dcap:providesProperty dcap:PropDeterministic ;
+    dcap:emitsEvidence dcap:EvReplayReceipt ;
+    dcap:determinismContract dcap:determinism-byte-identical ;
+    dcap:qualificationCondition dcap:qual-fond-replay-bundle .
+
+dcap:qual-fond-replay-bundle a dcap:QualificationCondition ;
+    dcap:conditionStatement "The replay bundle (schema ash_pplan/fond-replay/v1) freezes exact subject identity, rendered model, native verdict and seed; it is evidence input for a future court, NOT proof the court executed — consumers must not read a bundle as standing (opened 2026-09-30)." .
+
+dcap:real-xaas-gall-checkpoint-binding a dcap:Realization ;
+    dcap:realizes dcap:capability-resume ;
+    dcap:providerRepo "xaas" ;
+    dcap:providerModule "Xaas.Gall.CheckpointBinding" ;
+    dcap:sourceCoordinates "lib/xaas/gall/checkpoint_binding.ex" ;
+    dcap:versionPinPolicy "monorepo source, pinned by repo HEAD at admission" ;
+    dcap:inspected true ;
+    dcap:providesProperty dcap:PropResumable, dcap:PropIsolated ;
+    dcap:emitsEvidence dcap:EvAdmitReceipt ;
+    dcap:qualificationCondition dcap:qual-binding-matches .
+
+dcap:qual-binding-matches a dcap:QualificationCondition ;
+    dcap:conditionStatement "A run/epoch may resume only against a binding whose matches_checkpoint?/2 holds: same checkpoint identity, repository, 40-hex base_sha and UNCHANGED graph_digest — stale content or subject drift is falsified before the lease is honored (opened 2026-09-30)." .
+
+dcap:real-ashpplan-providers-durability a dcap:Realization ;
+    dcap:realizes dcap:capability-resume, dcap:capability-continuation, dcap:capability-workflow-resume ;
+    dcap:providerRepo "ash_pplan" ;
+    dcap:providerModule "AshPPlan.Providers.Durability" ;
+    dcap:sourceCoordinates "lib/ash_pplan/providers/durability.ex" ;
+    dcap:versionPinPolicy "path dependency (consumer mix.exs path:)" ;
+    dcap:inspected true ;
+    dcap:providesProperty dcap:PropDurable, dcap:PropResumable, dcap:PropCheckpointed ;
+    dcap:emitsEvidence dcap:EvContinuation ;
+    dcap:freshAuthorityRebinding true ;
+    dcap:qualificationCondition dcap:qual-durability-provider, dcap:qual-no-do-authority .
+
+dcap:qual-durability-provider a dcap:QualificationCondition ;
+    dcap:conditionStatement "AshPPlan.Provider contract: qualify/2 must admit the (requirement, context) or the candidate is removed; realize/2 returns a Reactor.Step realization; capability IDs are dotted Family.Name strings resolved against AshPPlan.Capability.parse/1 — this pack's rdfs:label IDs are exactly that surface (opened 2026-09-30)." .
+
+dcap:real-xaas-sa2a-execution a dcap:Realization ;
+    dcap:realizes dcap:capability-workflow-resume ;
+    dcap:providerRepo "xaas" ;
+    dcap:providerModule "Xaas.Sa2a.Execution" ;
+    dcap:sourceCoordinates "lib/xaas/sa2a/execution.ex" ;
+    dcap:versionPinPolicy "monorepo source, pinned by repo HEAD at admission" ;
+    dcap:inspected true ;
+    dcap:providesProperty dcap:PropResumable, dcap:PropIdempotent ;
+    dcap:emitsEvidence dcap:EvAdmitReceipt, dcap:EvIdempotencyReceipt ;
+    dcap:idempotencyContract dcap:idempotency-sha256-workorder-query-planhash ;
+    dcap:freshAuthorityRebinding true ;
+    dcap:qualificationCondition dcap:qual-sa2a-execution-authority .
+
+dcap:qual-sa2a-execution-authority a dcap:QualificationCondition ;
+    dcap:conditionStatement "The create :execute action admits exactly one actor — a Xaas.SystemAuthority holding the scoped :sa2a_executor capability (Xaas.Checks.SystemActor exact-subject map) — behind a deny-by-default policy floor; a violated condition is a typed Xaas.Actuation.Refusal with the changeset rolled back and the receipt sealed :refused. Authority is re-derived per execution: ProviderAvailable != Authorized (opened 2026-09-30)." .
+
+dcap:real-reactor-undo-compensate a dcap:Realization ;
+    dcap:realizes dcap:capability-compensate ;
+    dcap:providerRepo "hex:reactor" ;
+    dcap:providerModule "Reactor (step undo/compensation)" ;
+    dcap:sourceCoordinates "https://hex.pm/packages/reactor — no local checkout; hex coordinate citation only" ;
+    dcap:versionPinPolicy "hex coordinate; pin the exact release at consumer adoption" ;
+    dcap:inspected false ;
+    dcap:providesProperty dcap:PropIdempotent, dcap:PropIsolated ;
+    dcap:emitsEvidence dcap:EvIdempotencyReceipt ;
+    dcap:qualificationCondition dcap:qual-reactor-undo-uninspected .
+
+dcap:qual-reactor-undo-uninspected a dcap:QualificationCondition ;
+    dcap:conditionStatement "UNSUPPORTED this wave: grounded in Reactor's published undo/compensation semantics via hex coordinates, not local inspection (dcap:inspected false). Before relying on it, a session must open the reactor source and flip the flag; until then treat the realization as provider metadata, not a witnessed capability." .
+
+dcap:idempotency-sha256-workorder-query-planhash a dcap:IdempotencyContract ;
+    dcap:keyFormula "sha256(work_order_digest|query|plan_hash)" ;
+    dcap:uniquenessScope "sa2a_executions.idempotency_key (unique identity; Xaas.Sa2a.Execution, opened 2026-09-30)" .
+
+dcap:determinism-byte-identical a dcap:DeterminismContract ;
+    dcap:byteIdenticalRequired true ;
+    dcap:evidenceKind "replay_receipt" ;
+    dcap:receiptClass qce:ReplayReceipt ;
+    rdfs:comment "Byte-identical replay demanded (ecosystem exact-SHA discipline). The witnessing receipt is a qce:ReplayReceipt carrying qce:replayDigest + qce:replayVerified true — COMPOSED from the qualified-capability-ecology vocabulary, never redefined here. Receipt INSTANCES belong to runtime qualification (see qualification/fixtures), not to this pack graph: a fabricated digest in a pack is fabricated evidence." .
