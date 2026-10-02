@@ -19,9 +19,11 @@ pack for each newly discovered Ash pattern fragments that semantic surface.
 1. **One canonical generic Ash-extension manufacturer**:
    `packs/ash-extension-pack` owns reusable Ash/Spark extension manufacturing semantics.
 
-2. **Remove superseded generic manufacturers**:
-   `ash-extension-core-pack` and `ash-extension-starter-pack` are deleted. Their
-   generalized behavior already lives in the canonical pack.
+2. **Retain superseded compatibility surfaces until migration is proved**:
+   `ash-extension-core-pack` and `ash-extension-starter-pack` remain resolvable only as
+   lifecycle-marked compatibility paths. No new reusable semantics land there. Physical
+   deletion is deferred until consumer migration evidence satisfies the repository's
+   consolidation procedure.
 
 3. **Mandatory search order**:
    `REUSE -> COMPOSE -> EXTEND -> INVENT`. Reusable gaps extend the canonical pack.
@@ -52,5 +54,7 @@ pack for each newly discovered Ash pattern fragments that semantic surface.
 - Future generic Ash-extension work has one obvious home.
 - Existing domain-specific packs become consumers/profiles of the canonical manufacturer
   instead of competing sources of Ash-extension mechanics.
+- The former generic core/starter paths are compatibility-only and lifecycle-marked
+  `superseded`; their late semantic delta is ported into the canonical pack before removal.
 - Surviving mutation/burn-in gaps recursively enlarge the canonical capability vocabulary.
-- Marketplace structure now matches the consolidation claim in the canonical manifest.
+- Physical deletion of compatibility paths requires consumer migration evidence.

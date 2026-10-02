@@ -1,6 +1,6 @@
 # Ash codegen callback projection
 
-`ash-extension-pack` declares two optional consumer RDF facts on an `aex:AshExtensionSpec` in its canonical `ontology.ttl`:
+`ash-extension-core-pack` declares two optional consumer RDF facts on an `aex:AshExtensionSpec` in its canonical `ontology.ttl`:
 
 - `aex:codegenTask` — exact Mix task name invoked by `Ash.Extension.codegen/1`.
 - `aex:codegenName` — optional human-readable extension name used by `mix ash.codegen`; it is admitted only when `aex:codegenTask` exists.
