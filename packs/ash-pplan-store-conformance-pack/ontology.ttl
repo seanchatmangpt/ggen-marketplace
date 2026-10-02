@@ -1,0 +1,138 @@
+@prefix scb: <https://seanchatmangpt.github.io/packs/ash-pplan-store-conformance#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Consumer-facing store-conformance ontology.
+#
+# Generalized from ash_pplan's priv/ggen/ash-pplan-store-conformance-pack: any
+# consumer with a stateful store behaviour declares its callbacks (scb:Callback),
+# the behavioural laws the callbacks must obey (scb:Law, with an executable Elixir
+# body), and a conformance target (scb:Target: consumer suite module + behaviour
+# module + reference-store module + boot/start bodies). The pack then renders:
+#
+#   * a generated ExUnit conformance suite (one test per law, plus `run/2` used
+#     by the anti-vacuity court), and
+#   * a conformance court (reference store + sabotage wrapper + suite execution,
+#     exit 1 on any violated invariant),
+#
+# against a specimen generic lease-KV store contract. Replace the specimen rows
+# with YOUR behaviour's callbacks/laws/target; no ash_pplan module is ever
+# embedded in rendered output.
+
+<https://seanchatmangpt.github.io/packs/ash-pplan-store-conformance> a owl:Ontology ;
+    dcterms:title "store behaviour conformance laws (consumer-facing)" ;
+    owl:versionInfo "0.1.0" .
+
+# ---------------------------------------------------------------------------
+# Classes
+# ---------------------------------------------------------------------------
+
+scb:Target a rdfs:Class ; rdfs:label "Conformance target" ;
+    rdfs:comment "Names the consumer modules and executable boot/start bodies the templates render against. No producer module is ever embedded: every module name on this row belongs to the consumer." .
+scb:Callback a rdfs:Class ; rdfs:label "Store behaviour callback" .
+scb:Law a rdfs:Class ; rdfs:label "Store behavioural law" .
+scb:Mutant a rdfs:Class ; rdfs:label "Broken-store negative control" ;
+    rdfs:comment "Names one callback the sabotage wrapper breaks (it raises instead of delegating). The court requires the suite to refuse the sabotaged store." .
+
+# ---------------------------------------------------------------------------
+# Target row (specimen: generic lease-KV store, consumer namespace)
+# ---------------------------------------------------------------------------
+
+scb:target-kv a scb:Target ;
+    scb:suiteModule "ConsumerApp.Test.StoreConformance" ;
+    scb:behaviorModule "ConsumerApp.KvStore" ;
+    scb:referenceStoreModule "ConsumerApp.Test.KvReferenceStore" ;
+    scb:outRoot "tmp/x5/store-conformance/lib" ;
+    scb:bootBody """
+{:ok, _} = mod.put(s, "k1", 0)
+""" ;
+    scb:startBody "fn -> ConsumerApp.Test.KvReferenceStore.start() end" ;
+    rdfs:comment "Specimen conformance target. Replace suiteModule/behaviorModule/referenceStoreModule with YOUR modules and bootBody/startBody with YOUR fixtures." .
+
+# ---------------------------------------------------------------------------
+# Callbacks (specimen contract: generic lease-KV store)
+# ---------------------------------------------------------------------------
+
+scb:cb_put a scb:Callback ; scb:callbackName "put" ; scb:arity 3 .
+scb:cb_get a scb:Callback ; scb:callbackName "get" ; scb:arity 2 .
+scb:cb_delete a scb:Callback ; scb:callbackName "delete" ; scb:arity 2 .
+scb:cb_list a scb:Callback ; scb:callbackName "list" ; scb:arity 1 .
+scb:cb_claim a scb:Callback ; scb:callbackName "claim" ; scb:arity 3 .
+scb:cb_release a scb:Callback ; scb:callbackName "release" ; scb:arity 3 .
+
+# ---------------------------------------------------------------------------
+# Laws (specimen: executable Elixir bodies; `mod` is the store under test and
+# `s` the started store; `@t0` is a fixed clock)
+# ---------------------------------------------------------------------------
+
+scb:law_put_get_roundtrip a scb:Law ;
+    scb:lawId "put_get_roundtrip" ; scb:order 10 ;
+    scb:statement "put round-trips through get, get of a missing key is nil, and list is in insertion order" ;
+    scb:covers scb:cb_put, scb:cb_get, scb:cb_list ;
+    scb:body """
+assert {:ok, v1} = mod.put(s, "k1", 1)
+assert {:ok, v2} = mod.put(s, "k2", 2)
+assert v1.seq < v2.seq
+assert mod.get(s, "k1").value == 1
+assert mod.get(s, "nope") == nil
+assert Enum.map(mod.list(s), & &1.key) == ["k1", "k2"]
+""" .
+
+scb:law_delete_idempotent a scb:Law ;
+    scb:lawId "delete_idempotent" ; scb:order 20 ;
+    scb:statement "delete removes exactly the key, is idempotent, and a deleted key is puttable again" ;
+    scb:covers scb:cb_delete, scb:cb_get, scb:cb_put ;
+    scb:body """
+{:ok, _} = mod.put(s, "k1", 1)
+assert :ok = mod.delete(s, "k1")
+assert mod.get(s, "k1") == nil
+assert :ok = mod.delete(s, "k1")
+assert :ok = mod.delete(s, "missing")
+{:ok, _} = mod.put(s, "k1", 2)
+assert mod.get(s, "k1").value == 2
+""" .
+
+scb:law_claim_exclusive a scb:Law ;
+    scb:lawId "claim_exclusive" ; scb:order 30 ;
+    scb:statement "claim admits the first claimer and refuses the second until the holder releases; release is owner-scoped and idempotent" ;
+    scb:covers scb:cb_claim, scb:cb_release, scb:cb_get ;
+    scb:body """
+assert {:ok, k1} = mod.claim(s, "k1", :a)
+assert k1.claimed_by == :a
+assert :taken = mod.claim(s, "k1", :b)
+assert :taken = mod.release(s, "k1", :b)
+assert mod.get(s, "k1").claimed_by == :a
+assert :ok = mod.release(s, "k1", :a)
+assert mod.get(s, "k1").claimed_by == nil
+assert :ok = mod.release(s, "k1", :a)
+assert {:ok, _} = mod.claim(s, "k1", :b)
+assert :taken = mod.claim(s, "missing", :a)
+""" .
+
+scb:law_claim_exclusive_concurrent a scb:Law ;
+    scb:lawId "claim_exclusive_concurrent" ; scb:order 40 ;
+    scb:statement "concurrent claims have exactly one winner" ;
+    scb:covers scb:cb_claim ;
+    scb:body """
+t0 = @t0
+
+results =
+  1..32
+  |> Task.async_stream(fn n -> mod.claim(s, "k1", {:c, n}) end, max_concurrency: 32)
+  |> Enum.map(fn {:ok, r} -> r end)
+
+assert Enum.count(results, &match?({:ok, _}, &1)) == 1
+assert Enum.count(results, &(&1 == :taken)) == 31
+""" .
+
+# ---------------------------------------------------------------------------
+# Mutants (negative controls): each row breaks one callback in the sabotage
+# wrapper; the court requires the suite to refuse each sabotaged store.
+# ---------------------------------------------------------------------------
+
+scb:mutant_claim a scb:Mutant ;
+    scb:mutantId "mutant_claim" ;
+    scb:brokenCallback scb:cb_claim ;
+    rdfs:comment "Sabotage: claim/3 raises instead of leasing -- the claim laws must fail." .
