@@ -93,14 +93,6 @@ PACK_VERSIONS = {
     "gym-mcp-surface-pack": "26.9.30",
     "gym-upper-ontology-pack": "26.9.1",
 }
-PACK_VERSIONS = {
-    "autofde-gymact-certification-pack": "1.0.0",
-    "chatgptgym-gymact-bridge-pack": VERSION,
-    "lifegym-world-pack": VERSION,
-    "ww3gym-planning-pack": VERSION,
-}
-
-
 class Refusal(RuntimeError):
     def __init__(self, code: str, detail: str):
         super().__init__(detail)
