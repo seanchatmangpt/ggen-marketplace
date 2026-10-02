@@ -7,14 +7,14 @@ cd "$(git rev-parse --show-toplevel)"
 echo "::group::measure-dfcm-experiment-inference: Require complete inference court"
 (
 set -e
-test "$(find packs/dfcm-maximalist-court-pack/queries -maxdepth 1 -name 'inference-*.rq' | wc -l)" -ge 30
-grep -RIl 'ExperimentRealization' packs/dfcm-maximalist-court-pack/queries/inference-*.rq >/dev/null
+test "$(find packs/dfcm-pack/families/maximalist-court/queries -maxdepth 1 -name 'inference-*.rq' | wc -l)" -ge 30
+grep -RIl 'ExperimentRealization' packs/dfcm-pack/families/maximalist-court/queries/inference-*.rq >/dev/null
 )
 echo "::endgroup::"
 # --- Refuse ambient consequential actuation
 echo "::group::measure-dfcm-experiment-inference: Refuse ambient consequential actuation"
 (
 set -e
-! grep -REn 'curl |wget |gh |requests\.(post|put|patch|delete)|subprocess\.|os\.system' packs/dfcm-maximalist-court-pack/queries/inference-*.rq
+! grep -REn 'curl |wget |gh |requests\.(post|put|patch|delete)|subprocess\.|os\.system' packs/dfcm-pack/families/maximalist-court/queries/inference-*.rq
 )
 echo "::endgroup::"

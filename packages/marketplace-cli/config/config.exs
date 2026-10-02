@@ -11,13 +11,13 @@ config :ex_noun_verb_cli, :registry, MarketplaceCli.Registry
 # config.exs -> config/ -> marketplace-cli/ -> packages/ -> marketplace root.
 #
 # Deliberately placed under packages/ (a sibling of packs/), NOT nested
-# inside packs/noun-verb-cli-pack/ itself: a real, compiled Mix project's
+# inside packs/ex-noun-verb-cli-pack/ itself: a real, compiled Mix project's
 # _build/deps trees contain real symlinks (priv/src/include dirs from
 # hex packages like rdf/sparql/rustler/yamerl/telemetry), and
 # scripts/marketplace.py's own PACKS.rglob("*") walk -- ported faithfully
 # in MarketplaceCli.Inspector -- refuses ANY symlink found anywhere under
 # packs/ (REFUSED:PACK_SYMLINK). A first attempt at nesting this consumer
-# app under packs/noun-verb-cli-pack/consumer/ confirmed this the hard way:
+# app under packs/ex-noun-verb-cli-pack/consumer/ confirmed this the hard way:
 # `mix deps.get`/`compile` there made `Inspector.validate/1` (and the real
 # `python3 scripts/marketplace.py validate`) both refuse the ENTIRE
 # marketplace once real deps were fetched, which is real, correct

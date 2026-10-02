@@ -1,0 +1,22 @@
+# MESSAGE: every fscap:Capability of consequence class 'DO' must bind authority:
+# fscap:requiresAuthority true AND a non-empty fscap:authorityScope. Any row = a
+# mutating capability reachable by a resolver with no authority requirement.
+# ProviderAvailable != Authorized: provider reachability never substitutes for
+# bound authority on a DO capability.
+PREFIX fscap: <https://ggen.dev/ontology/filesystem-capability#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?cap ?id ?gap WHERE {
+  ?cap a fscap:Capability ;
+       dcterms:identifier ?id ;
+       fscap:consequenceClass "DO" .
+  {
+    FILTER NOT EXISTS { ?cap fscap:requiresAuthority true . }
+    BIND("requires-authority-not-true" AS ?gap)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?cap fscap:authorityScope ?scope . }
+    BIND("authority-scope-missing" AS ?gap)
+  }
+}
+ORDER BY ?id ?gap

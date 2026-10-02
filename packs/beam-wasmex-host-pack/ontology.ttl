@@ -1,0 +1,139 @@
+# beam-wasmex-host-pack: Elixir/Wasmex host-transport vocabulary.
+#
+# GROUNDED IN REAL SOURCE. Every fact below is read from a real, named file:
+#   - ~/ex4pm/lib/ex4pm_engine/wasm/real_transport.ex  (Wasmex idiom, alloc ->
+#     write -> call -> read -> free sequence, out-len-through-pointer return,
+#     call/replay pair, per-call limits, typed refusals)
+#   - ~/ex4pm/lib/ex4pm_engine/wasm/admission.ex       (digest-pin admission
+#     court, compile-time-embedded MANIFEST.json, allocator export trio)
+#   - ~/ex4pm/lib/ex4pm/core.ex (Ex4pm.Core.Hash, l.76+)  (host-authoritative
+#     digest: "sha256:" <> lowercase hex over canonicalized term_to_binary)
+#   - ~/ex4pm/lib/ex4pm_engine/wasm/mean.ex            (per-algo wrapper shape)
+#   - ~/ash_a2a/priv/graphlaw/WASMEX_HOST_MANIFEST.json and MANIFEST.json
+#     (host-manifest field structure this pack's JSON template models)
+#   - ~/ex4pm/mix.exs l.109 + mix.lock l.81            (wasmex pin "~> 0.14",
+#     lock resolves 0.15.1)
+# The ex4pm host row below is the WORKED exemplar: rendering it reproduces a
+# transport in the exact shape Ex4pmEngine.Wasm.RealTransport already proves
+# against the wasm4pm-ex4pm-bindings crate.
+
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix bwh:  <urn:beam:wasmex:host:> .
+
+# --- classes -----------------------------------------------------------------
+
+bwh:WasmexHostSurface a rdfs:Class ;
+    rdfs:comment "One generated Elixir host-transport module for one wasm artifact family. 1 row per consumer app." .
+
+bwh:AlgorithmBinding a rdfs:Class ;
+    rdfs:comment "One guest algorithm bound to its <algo>_v1 call export and <algo>_replay_v1 replay export pair, plus the generated wrapper module name. Same pairing convention the wasm4pm-ex4pm-bindings crate exposes (33 pairs = 66 exports)." .
+
+bwh:OutMode a rdfs:Class ;
+    rdfs:comment "How the guest returns its output buffer location+length. Closed vocabulary: bwh:outMode values are constrained to the two individuals below." .
+
+# --- out-mode individuals (the ONLY two the generated host implements) -------
+
+bwh:outMode-out_len_through_pointer a bwh:OutMode ;
+    skos:prefLabel "out_len_through_pointer" ;
+    dct:description "call(call_export, [in_ptr, in_len, out_len_ptr]) returns [out_ptr]; the guest writes the real output length as a little-endian u32 through out_len_ptr before returning. Verified shape: ex4pm real_transport.ex l.23-27 (moduledoc) and l.414-449 (invoke/8)." .
+
+bwh:outMode-packed_u64 a bwh:OutMode ;
+    skos:prefLabel "packed_u64" ;
+    dct:description "call(call_export, [in_ptr, in_len]) returns [packed] where packed = (out_ptr <<< 32) | out_len as one u64. The alternative return the guest-ABI contract names alongside out-len-through-pointer." .
+
+# --- host-surface properties ---------------------------------------------------
+
+bwh:otpApp a rdf:Property ; rdfs:domain bwh:WasmexHostSurface ;
+    rdfs:comment "OTP app atom used for the Application.get_env digest-pin fallback, e.g. :ex4pm (mirrors ex4pm Admission admission_opts/1: Application.get_env(:ex4pm, :wasm4pm_sha256))." .
+bwh:rootModule a rdf:Property ; rdfs:domain bwh:WasmexHostSurface ;
+    rdfs:comment "Fully-qualified name of the GENERATED host module, e.g. Ex4pmEngine.Wasm.GeneratedHost." .
+bwh:targetPath a rdf:Property ; rdfs:domain bwh:WasmexHostSurface ;
+    rdfs:comment "Consumer-repo path the host template renders to, e.g. lib/ex4pm_engine/wasm/generated_host.ex." .
+bwh:artifactPath a rdf:Property ; rdfs:domain bwh:WasmexHostSurface ;
+    rdfs:comment "Default .wasm artifact path (priv-relative), passed to start/1 unless overridden." .
+bwh:outMode a rdf:Property ; rdfs:domain bwh:WasmexHostSurface ;
+    rdfs:comment "Closed: \"out_len_through_pointer\" | \"packed_u64\" (the two bwh:OutMode individuals). Any other value leaves the template emitting a literal UNSUPPORTED marker instead of a host module." .
+bwh:importMode a rdf:Property ; rdfs:domain bwh:WasmexHostSurface ;
+    rdfs:comment "Closed: \"zero\" | \"wasi_only\". zero: admission refuses ANY import (ex4pm's zero-import artifact, real_transport.ex moduledoc l.48-57). wasi_only: only wasi_snapshot_preview1 imports, judged against the manifest allowlist, zero-value stubs derived from the SAME list so allowlist and stubs cannot drift (ex4pm stub_imports/1 l.530-556)." .
+bwh:allocExport a rdf:Property ; rdfs:domain bwh:WasmexHostSurface ;
+    rdfs:comment "Guest allocator export reserving len bytes, e.g. wasm4pm_ex4pm_bindings_alloc_v1 (ex4pm Admission @alloc)." .
+bwh:freeExport a rdf:Property ; rdfs:domain bwh:WasmexHostSurface ;
+    rdfs:comment "Guest export freeing the OUTPUT buffer, e.g. wasm4pm_ex4pm_bindings_free_v1 (ex4pm Admission @free)." .
+bwh:deallocExport a rdf:Property ; rdfs:domain bwh:WasmexHostSurface ;
+    rdfs:comment "Guest export freeing the INPUT + out_len buffers, e.g. wasm4pm_ex4pm_bindings_dealloc_v1 (ex4pm Admission @dealloc). A host that fuses free and dealloc into one symbol cannot serve this ABI." .
+bwh:memoryExport a rdf:Property ; rdfs:domain bwh:WasmexHostSurface ;
+    rdfs:comment "Exported linear memory name, default \"memory\" (ex4pm required_exports/0)." .
+bwh:initializeExport a rdf:Property ; rdfs:domain bwh:WasmexHostSurface ;
+    rdfs:comment "0-1 rows. Reactor-model init export invoked once after instantiation (wasm reactor _initialize convention). Absent = staticlib-style module with no init (the ex4pm artifact)." .
+bwh:digestPrefix a rdf:Property ; rdfs:domain bwh:WasmexHostSurface ;
+    rdfs:comment "Prefix of the host-authoritative digest, e.g. \"sha256:\" (Ex4pm.Core.Hash.digest returns \"sha256:\" <> lower hex). The host computes the authoritative digest; any in-guest self-check digest is advisory only." .
+bwh:maxRequestBytes a rdf:Property ; rdfs:domain bwh:WasmexHostSurface ;
+    rdfs:comment "Request JSON byte cap. ex4pm: 16777216 (16 MiB, real_transport.ex l.72)." .
+bwh:maxResponseBytes a rdf:Property ; rdfs:domain bwh:WasmexHostSurface ;
+    rdfs:comment "Response byte cap checked BEFORE reading the output buffer. ex4pm: 67108864 (64 MiB, real_transport.ex l.73)." .
+bwh:callTimeoutMs a rdf:Property ; rdfs:domain bwh:WasmexHostSurface ;
+    rdfs:comment "Default Wasmex.call_function deadline in ms. ex4pm: 5000 (real_transport.ex l.74)." .
+bwh:manifestRel a rdf:Property ; rdfs:domain bwh:WasmexHostSurface ;
+    rdfs:comment "0-1 rows. Consumer-repo-relative host manifest JSON embedded at compile time (@external_resource discipline, ex4pm Admission l.45-47); supplies the default digest pin and import allowlist." .
+bwh:manifestExpand a rdf:Property ; rdfs:domain bwh:WasmexHostSurface ;
+    rdfs:comment "The exact Path.expand/2 first argument for the manifest, relative to the generated file, e.g. ../../../priv/wasm4pm/MANIFEST.json (ex4pm Admission l.45)." .
+bwh:manifestTarget a rdf:Property ; rdfs:domain bwh:WasmexHostSurface ;
+    rdfs:comment "Where the host-manifest JSON template renders, e.g. priv/ex4pm/wasmex_host_manifest.json." .
+bwh:wasmexDepSpec a rdf:Property ; rdfs:domain bwh:WasmexHostSurface ;
+    rdfs:comment "The mix dependency spec this consumer pins wasmex at. ex4pm: \"~> 0.14\" (mix.exs l.109; lock resolves 0.15.1, mix.lock l.81)." .
+bwh:depsTarget a rdf:Property ; rdfs:domain bwh:WasmexHostSurface ;
+    rdfs:comment "Where the mix.exs dependency-snippet template renders, e.g. priv/ggen/wasmex_deps.exs (the consumer merges it into its own mix.exs deps list)." .
+
+# --- algorithm-binding properties ---------------------------------------------
+
+bwh:algorithmId a rdf:Property ; rdfs:domain bwh:AlgorithmBinding ; rdfs:comment "Snake-case algorithm id, e.g. mean." .
+bwh:callExport a rdf:Property ; rdfs:domain bwh:AlgorithmBinding ; rdfs:comment "The <algo>_v1 export, e.g. wasm4pm_ex4pm_mean_v1." .
+bwh:replayExport a rdf:Property ; rdfs:domain bwh:AlgorithmBinding ; rdfs:comment "The paired <algo>_replay_v1 export re-executing the same request and returning exactly 0 or 1 (real_transport.ex replay/3 l.223-258)." .
+bwh:wrapperModule a rdf:Property ; rdfs:domain bwh:AlgorithmBinding ; rdfs:comment "Fully-qualified name of the GENERATED per-algo wrapper module." .
+bwh:wrapperPath a rdf:Property ; rdfs:domain bwh:AlgorithmBinding ; rdfs:comment "Consumer-repo path the wrapper template renders to." .
+bwh:hostModule a rdf:Property ; rdfs:domain bwh:AlgorithmBinding ; rdfs:comment "The host module this wrapper delegates to (matches exactly one bwh:rootModule). Explicit name, never derived -- the 'echo, don't synthesize' discipline elixir-mcp-a2a-pack records for ema:skillsModule." .
+
+# --- WORKED exemplar: ex4pm / wasm4pm-ex4pm-bindings ---------------------------
+
+<urn:beam:wasmex:host:ex4pm-bindings> a bwh:WasmexHostSurface, prov:SoftwareAgent ;
+    dct:title "ex4pm wasm4pm-ex4pm-bindings Wasmex host" ;
+    bwh:otpApp "ex4pm" ;
+    bwh:rootModule "Ex4pmEngine.Wasm.GeneratedHost" ;
+    bwh:targetPath "lib/ex4pm_engine/wasm/generated_host.ex" ;
+    bwh:artifactPath "priv/wasm4pm/wasm4pm_ex4pm_bindings.wasm" ;
+    bwh:outMode "out_len_through_pointer" ;
+    bwh:importMode "zero" ;
+    bwh:allocExport "wasm4pm_ex4pm_bindings_alloc_v1" ;
+    bwh:freeExport "wasm4pm_ex4pm_bindings_free_v1" ;
+    bwh:deallocExport "wasm4pm_ex4pm_bindings_dealloc_v1" ;
+    bwh:memoryExport "memory" ;
+    bwh:digestPrefix "sha256:" ;
+    bwh:maxRequestBytes "16777216"^^xsd:integer ;
+    bwh:maxResponseBytes "67108864"^^xsd:integer ;
+    bwh:callTimeoutMs "5000"^^xsd:integer ;
+    bwh:manifestRel "priv/wasm4pm/MANIFEST.json" ;
+    bwh:manifestExpand "../../../priv/wasm4pm/MANIFEST.json" ;
+    bwh:manifestTarget "priv/wasm4pm/wasmex_host_manifest.json" ;
+    bwh:depsTarget "priv/ggen/wasmex_deps.exs" ;
+    bwh:wasmexDepSpec "~> 0.14" .
+
+<urn:beam:wasmex:host:ex4pm-bindings#mean> a bwh:AlgorithmBinding ;
+    bwh:algorithmId "mean" ;
+    bwh:callExport "wasm4pm_ex4pm_mean_v1" ;
+    bwh:replayExport "wasm4pm_ex4pm_mean_replay_v1" ;
+    bwh:wrapperModule "Ex4pmEngine.Wasm.Generated.Mean" ;
+    bwh:wrapperPath "lib/ex4pm_engine/wasm/generated/mean.ex" ;
+    bwh:hostModule "Ex4pmEngine.Wasm.GeneratedHost" .
+
+<urn:beam:wasmex:host:ex4pm-bindings#discover> a bwh:AlgorithmBinding ;
+    bwh:algorithmId "discover" ;
+    bwh:callExport "wasm4pm_ex4pm_discover_v1" ;
+    bwh:replayExport "wasm4pm_ex4pm_discover_replay_v1" ;
+    bwh:wrapperModule "Ex4pmEngine.Wasm.Generated.Discover" ;
+    bwh:wrapperPath "lib/ex4pm_engine/wasm/generated/discover.ex" ;
+    bwh:hostModule "Ex4pmEngine.Wasm.GeneratedHost" .

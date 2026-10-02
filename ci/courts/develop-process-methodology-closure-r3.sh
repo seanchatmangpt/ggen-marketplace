@@ -7,7 +7,7 @@ cd "$(git rev-parse --show-toplevel)"
 echo "::group::develop-process-methodology-closure-r3: Verify eleven methodology projections"
 (
 set -e
-test "$(find packs/dfcm-maximalist-court-pack/queries -maxdepth 1 -name 'develop-method-*.rq' | wc -l)" -ge 11
+test "$(find packs/dfcm-pack/families/maximalist-court/queries -maxdepth 1 -name 'develop-method-*.rq' | wc -l)" -ge 11
 )
 echo "::endgroup::"
 # --- Verify selection authority receipt

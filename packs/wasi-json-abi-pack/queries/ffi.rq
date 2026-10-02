@@ -3,22 +3,36 @@
 # Single-row projection; a module is a single-file FFI shell.
 # Projected columns (MUST equal wasm_ffi.rs.tmpl's {{ }} vars):
 #   crate_name        - wja:crateName of the module (documentation only).
-#   export_prefix     - wja:exportPrefix; the four exports are
-#                       <prefix>_abi_version / _alloc / _free / _call.
+#   export_prefix     - wja:exportPrefix; the core exports are
+#                       <prefix>_abi_version / _alloc / _free / _call,
+#                       each followed by the symbol suffix.
 #   abi_version       - wja:abiVersion (documented in the shell header; the
 #                       value itself is rendered by abi_meta.rs).
 #   max_request_bytes - wja:maxRequestBytes (documented in the shell header;
 #                       enforced through abi_meta::MAX_REQUEST_BYTES).
-#   has_abi_version_export - wja:hasAbiVersionExport; "true" emits <prefix>_abi_version.
+#   has_abi_version_export - wja:hasAbiVersionExport; "true" emits the
+#                       abi-version export named by abi_version_export_symbol.
 #                       Default "true" (the shell has always exported it).
 #   max_outstanding_bytes - wja:maxOutstandingBytes; non-empty enables outstanding-byte
 #                       accounting against abi_meta::MAX_OUTSTANDING_BYTES. Default "".
 #   buffer_style      - wja:bufferStyle, "boxed-slice" (default) or "vec".
 #   abi_path          - wja:abiModulePath, default "crate::abi".
+#   return_convention - wja:returnConvention, "packed-u64" (default; call returns
+#                       (out_ptr << 32) | out_len) or "out-len-pointer" (call takes
+#                       an out_len pointer and returns out_ptr).
+#   symbol_suffix     - wja:symbolSuffix (e.g. "_v1") appended to every export
+#                       symbol. Default "".
+#   input_release_policy - wja:inputReleasePolicy, "call-consumes" (default; the
+#                       call frees the request buffer) or "host-dealloc" (reading
+#                       never frees; <prefix>_dealloc releases request buffers,
+#                       <prefix>_free releases response buffers).
+#   abi_version_export_symbol - full symbol of the abi-version export:
+#                       wja:abiVersionExportName when declared, else
+#                       <prefix>_abi_version<suffix>.
 #
 # Strict mode: the four module facts are required; a module missing any of them
-# yields zero rows and the engine refuses. The four allocation-discipline columns
-# are optional and default to the historical shell, so profiles that do not set
+# yields zero rows and the engine refuses. Every wire-convention column is
+# optional and defaults to the historical shell, so profiles that do not set
 # them render byte-identical output.
 
 PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
@@ -32,6 +46,10 @@ SELECT
   ?max_outstanding_bytes
   ?buffer_style
   ?abi_path
+  ?return_convention
+  ?symbol_suffix
+  ?input_release_policy
+  ?abi_version_export_symbol
 WHERE {
   ?module a wja:WasmModule ;
           wja:crateName       ?crateNameRaw ;
@@ -41,15 +59,23 @@ WHERE {
   BIND(STR(?crateNameRaw) AS ?crate_name)
   BIND(STR(?exportPrefixRaw) AS ?export_prefix)
   BIND(STR(?abiVersionRaw) AS ?abi_version)
+  BIND(STR(?maxRequestBytesRaw) AS ?max_request_bytes)
   OPTIONAL { ?module wja:hasAbiVersionExport ?havRaw }
   OPTIONAL { ?module wja:maxOutstandingBytes ?moRaw }
   OPTIONAL { ?module wja:bufferStyle ?bsRaw }
   OPTIONAL { ?module wja:abiModulePath ?apRaw }
-  BIND(STR(?maxRequestBytesRaw) AS ?max_request_bytes)
+  OPTIONAL { ?module wja:returnConvention ?rcRaw }
+  OPTIONAL { ?module wja:symbolSuffix ?ssRaw }
+  OPTIONAL { ?module wja:inputReleasePolicy ?irpRaw }
+  OPTIONAL { ?module wja:abiVersionExportName ?avenRaw }
   BIND(COALESCE(STR(?havRaw), "true") AS ?has_abi_version_export)
   BIND(COALESCE(STR(?moRaw), "") AS ?max_outstanding_bytes)
   BIND(COALESCE(STR(?bsRaw), "boxed-slice") AS ?buffer_style)
   BIND(COALESCE(STR(?apRaw), "crate::abi") AS ?abi_path)
+  BIND(COALESCE(STR(?rcRaw), "packed-u64") AS ?return_convention)
+  BIND(COALESCE(STR(?ssRaw), "") AS ?symbol_suffix)
+  BIND(COALESCE(STR(?irpRaw), "call-consumes") AS ?input_release_policy)
+  BIND(COALESCE(STR(?avenRaw), CONCAT(?export_prefix, "_abi_version", COALESCE(STR(?ssRaw), ""))) AS ?abi_version_export_symbol)
 }
 ORDER BY ?crate_name
 LIMIT 1

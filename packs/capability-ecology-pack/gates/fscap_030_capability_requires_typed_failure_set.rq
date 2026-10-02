@@ -1,0 +1,37 @@
+# MESSAGE: every fscap:Capability must model a typed failure set: at least one
+# outcome of class 'failure', and coverage of the family-universal failure classes
+# enoent (absence) and eacces (permission) -- the two failures any filesystem
+# capability can surface. Any row = a capability whose outcome model hides a real
+# failure class (silent failure absorption).
+PREFIX fscap: <https://ggen.dev/ontology/filesystem-capability#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?cap ?id ?gap WHERE {
+  ?cap a fscap:Capability ;
+       dcterms:identifier ?id .
+  {
+    FILTER NOT EXISTS {
+      ?cap fscap:hasOutcome ?outcome .
+      ?outcome fscap:outcomeClass "failure" .
+    }
+    BIND("no-typed-failure-outcome" AS ?gap)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS {
+      ?cap fscap:hasOutcome ?o1 .
+      ?o1 fscap:outcomeClass "failure" ;
+          fscap:failureClass "enoent" .
+    }
+    BIND("missing-failure-class:enoent" AS ?gap)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS {
+      ?cap fscap:hasOutcome ?o2 .
+      ?o2 fscap:outcomeClass "failure" ;
+          fscap:failureClass "eacces" .
+    }
+    BIND("missing-failure-class:eacces" AS ?gap)
+  }
+}
+ORDER BY ?id ?gap

@@ -7,13 +7,13 @@ cd "$(git rev-parse --show-toplevel)"
 echo "::group::compose-r86-forced-top25-qualification-capsule: Parse public ontology"
 (
 set -e
-python -c "from rdflib import Graph; Graph().parse('packs/forced-top25-qualification-capsule-pack/ontology.ttl', format='turtle')"
+python -c "from rdflib import Graph; Graph().parse('packs/forced-top25-pack/ontology.ttl', format='turtle')"
 )
 echo "::endgroup::"
 # --- Execute R86 court
 echo "::group::compose-r86-forced-top25-qualification-capsule: Execute R86 court"
 (
 set -e
-pytest -q packs/forced-top25-qualification-capsule-pack/tests/test_r86_qualification_capsule.py
+pytest -q packs/forced-top25-pack/tests/test_r86_qualification_capsule.py
 )
 echo "::endgroup::"

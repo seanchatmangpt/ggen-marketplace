@@ -1,0 +1,58 @@
+# MESSAGE: capability contract completeness. Every authcap:Capability must carry
+# exactly one dcterms:identifier (the resolver join key), one
+# authcap:capabilityFamily, at least one authcap:input, one authcap:output, one
+# authcap:outcome, and an authcap:authorityCeiling inside the closed enum
+# observe < select < construct. Any row is a capability whose contract is
+# incomplete and therefore unresolvable.
+PREFIX authcap: <https://ggen.dev/ontology/authority-capability#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?cap ?missing WHERE {
+  {
+    ?cap a authcap:Capability .
+    FILTER NOT EXISTS { ?cap dcterms:identifier ?i0 }
+    BIND(dcterms:identifier AS ?missing)
+  }
+  UNION
+  {
+    ?cap a authcap:Capability ; dcterms:identifier ?i1 , ?i2 .
+    FILTER (?i1 != ?i2)
+    BIND("duplicate-identifier-on-one-capability" AS ?missing)
+  }
+  UNION
+  {
+    ?cap a authcap:Capability .
+    FILTER NOT EXISTS { ?cap authcap:capabilityFamily ?f0 }
+    BIND(authcap:capabilityFamily AS ?missing)
+  }
+  UNION
+  {
+    ?cap a authcap:Capability .
+    FILTER NOT EXISTS { ?cap authcap:input ?in0 }
+    BIND(authcap:input AS ?missing)
+  }
+  UNION
+  {
+    ?cap a authcap:Capability .
+    FILTER NOT EXISTS { ?cap authcap:output ?out0 }
+    BIND(authcap:output AS ?missing)
+  }
+  UNION
+  {
+    ?cap a authcap:Capability .
+    FILTER NOT EXISTS { ?cap authcap:outcome ?o0 }
+    BIND(authcap:outcome AS ?missing)
+  }
+  UNION
+  {
+    ?cap a authcap:Capability .
+    FILTER NOT EXISTS { ?cap authcap:authorityCeiling ?c0 }
+    BIND(authcap:authorityCeiling AS ?missing)
+  }
+  UNION
+  {
+    ?cap a authcap:Capability ; authcap:authorityCeiling ?c1 .
+    FILTER (?c1 != "observe" && ?c1 != "select" && ?c1 != "construct")
+    BIND("authority-ceiling-outside-enum" AS ?missing)
+  }
+}
+ORDER BY ?cap ?missing

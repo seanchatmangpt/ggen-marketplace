@@ -1,0 +1,57 @@
+# Chicago replay manifest rows (strict law: SELECT ending in ORDER BY).
+# Row shapes: meta = root replay identity + exact subject, digest = one row per
+# render input (canonical vendored graphs carry the xaas-canonical path used in
+# sourceDigests/sources; pack-authored inputs carry only their pack path).
+PREFIX sj: <https://ggen-igniter.dev/ontology/semantic-jira#>
+PREFIX chi: <https://ggen-igniter.dev/sjira/v26.10.1/chicago#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?rowKind ?sortKey ?subject ?identifier ?label ?repository ?baseSha
+       ?authorityCeiling ?evidenceHorizon ?replayIdentity ?path ?packPath
+       ?canonicalPath ?sha256
+WHERE {
+  {
+    BIND("meta" AS ?rowKind)
+    BIND("0" AS ?sortKey)
+    ?root a sj:GoalCheckpoint .
+    FILTER NOT EXISTS { ?hasPartParent dcterms:hasPart ?root }
+    ?root dcterms:identifier ?identifier ;
+          rdfs:label ?label ;
+          sj:repository ?repository ;
+          sj:baseSha ?baseSha ;
+          sj:authorityCeiling ?authorityCeiling ;
+          sj:evidenceHorizon ?evidenceHorizon ;
+          sj:replayIdentity ?replayIdentity .
+    OPTIONAL {
+      ?subjectElement a prov:Entity ;
+                      dcterms:isPartOf ?root ;
+                      dcterms:identifier ?subjectIdentifier .
+    }
+    BIND(COALESCE(?subjectIdentifier, "") AS ?subject)
+    BIND("" AS ?path)
+    BIND("" AS ?packPath)
+    BIND("" AS ?canonicalPath)
+    BIND("" AS ?sha256)
+  }
+  UNION
+  {
+    BIND("digest" AS ?rowKind)
+    ?renderSource a chi:RenderSource ;
+                  chi:packPath ?packPath ;
+                  chi:sha256 ?sha256 .
+    OPTIONAL { ?renderSource chi:canonicalPath ?canonicalPathValue }
+    BIND(COALESCE(?canonicalPathValue, "") AS ?canonicalPath)
+    BIND(COALESCE(?canonicalPathValue, ?packPath) AS ?path)
+    BIND(?path AS ?sortKey)
+    BIND("" AS ?subject)
+    BIND("" AS ?identifier)
+    BIND("" AS ?label)
+    BIND("" AS ?repository)
+    BIND("" AS ?baseSha)
+    BIND("" AS ?authorityCeiling)
+    BIND("" AS ?evidenceHorizon)
+    BIND("" AS ?replayIdentity)
+  }
+}
+ORDER BY ?rowKind ?sortKey

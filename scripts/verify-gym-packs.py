@@ -90,7 +90,7 @@ PACK_VERSIONS = {
     "claudecode-gymact-pack": "26.8.12",
     "gym-autonomic-crown-pack": "26.8.28",
     "gym-ci-toolchain-bblock-pack": "0.1.0",
-    "gym-mcp-surface-pack": "26.9.1",
+    "gym-mcp-surface-pack": "26.9.30",
     "gym-upper-ontology-pack": "26.9.1",
 }
 PACK_VERSIONS = {

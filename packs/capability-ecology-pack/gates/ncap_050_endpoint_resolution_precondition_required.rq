@@ -1,0 +1,17 @@
+# MESSAGE: family falsifier -- every ncap:Capability whose pinned identifier starts
+# with 'Http.' or is 'Remote.Invoke' must carry a precondition of kind
+# 'endpoint-resolution'. Any row = an outbound capability whose contract allows a
+# request to an unresolved or unadmitted endpoint (SSRF / wrong-recipient
+# falsifier: the request target is pinned by Endpoint.Resolve before execution).
+PREFIX ncap: <https://ggen.dev/ontology/network-capability#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?cap ?id WHERE {
+  ?cap a ncap:Capability ;
+       dcterms:identifier ?id .
+  FILTER(STRSTARTS(STR(?id), "Http.") || ?id = "Remote.Invoke")
+  FILTER NOT EXISTS {
+    ?cap ncap:hasPrecondition ?precondition .
+    ?precondition ncap:preconditionKind "endpoint-resolution" .
+  }
+}
+ORDER BY ?id

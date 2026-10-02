@@ -1,0 +1,47 @@
+# projection-matrix-compose — bindings module (generation contract).
+#
+# The generation contract lives here as declared facts (NOT in pack.toml
+# [[inputs]]/[[projections]] tables — the ggen pack loader does not admit
+# those under FM-PACK-003); consumers bind these rules in their own
+# ggen.toml. Relocated from this pack's own pre-consolidation ontology.ttl.
+#
+# Legacy renderer vocabulary conserved from projection-matrix-pack: its
+# binding.ttl renderer referenced pm:sourceIdentity and pm:emits without
+# ever declaring either term (recorded failed edge: dead template vocabulary
+# — the renderer emitted empty/unbound values against its own fixture).
+# Declared here so the conserved templates/binding.ttl.tmpl resolves against
+# the union graph instead of silently referencing undeclared IRIs.
+
+@prefix pm: <https://ggen.dev/ontology/projection-matrix#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+pm:Input a rdfs:Class ; rdfs:label "Input" ; rdfs:comment "One RDF input bound into the generation contract." .
+pm:ProjectionRule a rdfs:Class ; rdfs:label "Projection Rule" ; rdfs:comment "One query x template x output binding a consumer's ggen.toml admits." .
+pm:path a rdf:Property ; rdfs:domain pm:Input ; rdfs:range xsd:string .
+pm:format a rdf:Property ; rdfs:domain pm:Input ; rdfs:range xsd:string .
+pm:query a rdf:Property ; rdfs:domain pm:ProjectionRule ; rdfs:range xsd:string .
+pm:template a rdf:Property ; rdfs:domain pm:ProjectionRule ; rdfs:range xsd:string .
+pm:output a rdf:Property ; rdfs:domain pm:ProjectionRule ; rdfs:range xsd:string .
+pm:ruleName a rdf:Property ; rdfs:domain pm:ProjectionRule ; rdfs:range xsd:string .
+
+# Legacy binding renderer vocabulary (conserved, was undeclared).
+pm:sourceIdentity a rdf:Property ; rdfs:domain pm:Projection ; rdfs:range xsd:string ;
+  rdfs:comment "Legacy renderer identity string conserved from projection-matrix-pack's binding renderer; was referenced undeclared there (recorded failed edge)." .
+pm:emits a rdf:Property ; rdfs:domain pm:Projection ; rdfs:range xsd:string ;
+  rdfs:comment "Legacy renderer output-path echo conserved from projection-matrix-pack; was referenced undeclared there (recorded failed edge)." .
+
+pm:FleetInput a pm:Input ; pm:path "fixtures/core_fleet.ttl" ; pm:format "turtle" .
+
+pm:ConsumerBindingsRule a pm:ProjectionRule ;
+  pm:ruleName "consumer-bindings" ;
+  pm:query "queries/consumer-bindings.rq" ;
+  pm:template "templates/consumer-binding.ttl.tmpl" ;
+  pm:output "generated/{{ consumer_slug }}/bindings/{{ subject_slug }}.ttl" .
+
+pm:PackageManifestsRule a pm:ProjectionRule ;
+  pm:ruleName "package-manifests" ;
+  pm:query "queries/consumer-bindings.rq" ;
+  pm:template "templates/package-manifest.toml.tmpl" ;
+  pm:output "generated/{{ consumer_slug }}/{{ subject_slug }}/pack.toml" .

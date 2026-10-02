@@ -1,0 +1,38 @@
+# MESSAGE: contract-layer required fields. Every dcp:DomainCapability must carry a
+# non-empty dcterms:identifier (the pinned dotted ID), rdfs:label (the pinned dotted
+# ID per RESOLUTIONS.md), dcp:authorityRequirement, at least one dcp:precondition and
+# at least one dcp:outcome. Every dcp:Realization must carry dcp:realizes,
+# dcp:providerPackage, dcp:providerModule, dcp:versionPinPolicy and dcp:evidenceKind
+# (RESOLUTIONS.md: realizations carry provider metadata: repo, module, version-pin
+# policy). Any row = a subject missing its required property.
+# Second branch: dcp:authorityRequirement is closed to "none" | "observe" |
+# "construct" (the resolver's authority rank, ~/ash_pplan/lib/ash_pplan/providers/
+# resolver.ex). Any row = an out-of-enum value (including "do", which is also
+# independently refused by gates/080_no_do_authority.rq).
+PREFIX dcp: <https://ggen.dev/ontology/domain-capability#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?s ?missing WHERE {
+  {
+    VALUES (?type ?missing) {
+      (dcp:DomainCapability dcterms:identifier)
+      (dcp:DomainCapability rdfs:label)
+      (dcp:DomainCapability dcp:authorityRequirement)
+      (dcp:DomainCapability dcp:precondition)
+      (dcp:DomainCapability dcp:outcome)
+      (dcp:Realization dcp:realizes)
+      (dcp:Realization dcp:providerPackage)
+      (dcp:Realization dcp:providerModule)
+      (dcp:Realization dcp:versionPinPolicy)
+      (dcp:Realization dcp:evidenceKind)
+    }
+    ?s a ?type .
+    FILTER NOT EXISTS { ?s ?missing ?any }
+  }
+  UNION {
+    ?s a dcp:DomainCapability ; dcp:authorityRequirement ?value .
+    FILTER (?value != "none" && ?value != "observe" && ?value != "construct")
+    BIND(dcp:authorityRequirement AS ?missing)
+  }
+}
+ORDER BY ?s ?missing

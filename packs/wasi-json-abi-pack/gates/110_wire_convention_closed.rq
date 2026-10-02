@@ -1,0 +1,128 @@
+# MESSAGE: wire-convention facts, when present, must be inside their closed sets and cross-fact rules: wja:returnConvention in {packed-u64, out-len-pointer}; wja:symbolSuffix matching ^(_[a-z][a-z0-9_]*)?$; wja:opSymbolPrefix a C-identifier prefix; wja:inputReleasePolicy in {call-consumes, host-dealloc} and host-dealloc excludes wja:maxOutstandingBytes; wja:abiVersionExportName a C identifier and never combined with hasAbiVersionExport false; wja:startupConvention in {cdylib, reactor-initialize}; the four wja:digest facts require errorStyle "result-digest" and are required by it, with digestAlgorithm "FNV-1a-64", digestInput in {result-body, full-envelope}, digestHexChars a positive integer <= 128; per-op wja:hasReplayCompanion must be xsd:boolean and wja:opSourceFile a non-empty string. Anything else is refused.
+PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?problem ?detail WHERE {
+  {
+    ?m a wja:WasmModule ;
+       wja:returnConvention ?rc .
+    FILTER(!isLiteral(?rc) || !(STR(?rc) IN ("packed-u64", "out-len-pointer")))
+    BIND("return_convention_not_in_closed_set" AS ?problem)
+    BIND(STR(?rc) AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule ;
+       wja:symbolSuffix ?sfx .
+    FILTER(!isLiteral(?sfx) || !REGEX(STR(?sfx), "^(_[a-z][a-z0-9_]*)?$"))
+    BIND("symbol_suffix_not_version_suffix" AS ?problem)
+    BIND(CONCAT("symbolSuffix=", STR(?sfx)) AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule ;
+       wja:opSymbolPrefix ?osp .
+    FILTER(!isLiteral(?osp) || !REGEX(STR(?osp), "^[a-z][a-z0-9_]*$"))
+    BIND("op_symbol_prefix_not_c_identifier" AS ?problem)
+    BIND(CONCAT("opSymbolPrefix=", STR(?osp)) AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule ;
+       wja:inputReleasePolicy ?irp .
+    FILTER(!isLiteral(?irp) || !(STR(?irp) IN ("call-consumes", "host-dealloc")))
+    BIND("input_release_policy_not_in_closed_set" AS ?problem)
+    BIND(STR(?irp) AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule ;
+       wja:inputReleasePolicy ?irp ;
+       wja:maxOutstandingBytes ?mo .
+    FILTER(isLiteral(?irp) && STR(?irp) = "host-dealloc")
+    BIND("outstanding_cap_requires_call_consumes" AS ?problem)
+    BIND(CONCAT("inputReleasePolicy=host-dealloc maxOutstandingBytes=", STR(?mo)) AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule ;
+       wja:abiVersionExportName ?avn .
+    FILTER(!isLiteral(?avn) || !REGEX(STR(?avn), "^[a-z][a-z0-9_]*$"))
+    BIND("abi_version_export_name_not_c_identifier" AS ?problem)
+    BIND(CONCAT("abiVersionExportName=", STR(?avn)) AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule ;
+       wja:abiVersionExportName ?avn ;
+       wja:hasAbiVersionExport false .
+    BIND("abi_version_export_name_without_export" AS ?problem)
+    BIND(CONCAT("abiVersionExportName=", STR(?avn), " hasAbiVersionExport=false") AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule ;
+       wja:startupConvention ?sc .
+    FILTER(!isLiteral(?sc) || !(STR(?sc) IN ("cdylib", "reactor-initialize")))
+    BIND("startup_convention_not_in_closed_set" AS ?problem)
+    BIND(STR(?sc) AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule .
+    VALUES ?prop { wja:digestAlgorithm wja:digestInput wja:digestFormat wja:digestHexChars }
+    ?m ?prop ?any .
+    FILTER NOT EXISTS { ?m wja:errorStyle ?es . FILTER(isLiteral(?es) && STR(?es) = "result-digest") }
+    BIND("digest_facts_require_result_digest_style" AS ?problem)
+    BIND(STR(?prop) AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule ;
+       wja:errorStyle "result-digest" .
+    VALUES ?prop { wja:digestAlgorithm wja:digestInput wja:digestFormat wja:digestHexChars }
+    FILTER NOT EXISTS { ?m ?prop ?any }
+    BIND("result_digest_missing_digest_fact" AS ?problem)
+    BIND(STR(?prop) AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule ;
+       wja:digestAlgorithm ?da .
+    FILTER(!isLiteral(?da) || STR(?da) != "FNV-1a-64")
+    BIND("digest_algorithm_not_admitted" AS ?problem)
+    BIND(CONCAT("digestAlgorithm=", STR(?da)) AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule ;
+       wja:digestInput ?di .
+    FILTER(!isLiteral(?di) || !(STR(?di) IN ("result-body", "full-envelope")))
+    BIND("digest_input_not_in_closed_set" AS ?problem)
+    BIND(STR(?di) AS ?detail)
+  }
+  UNION
+  {
+    ?m a wja:WasmModule ;
+       wja:digestHexChars ?dhc .
+    FILTER(!isLiteral(?dhc) || datatype(?dhc) != xsd:integer || ?dhc < 1 || ?dhc > 128)
+    BIND("digest_hex_chars_out_of_bounds" AS ?problem)
+    BIND(STR(?dhc) AS ?detail)
+  }
+  UNION
+  {
+    ?op a wja:Op ;
+        wja:hasReplayCompanion ?hrc .
+    FILTER(!isLiteral(?hrc) || datatype(?hrc) != xsd:boolean)
+    BIND("replay_companion_not_boolean" AS ?problem)
+    BIND(CONCAT(STR(?op), " hasReplayCompanion=", STR(?hrc)) AS ?detail)
+  }
+  UNION
+  {
+    ?op a wja:Op ;
+        wja:opSourceFile ?osf .
+    FILTER(!isLiteral(?osf) || STRLEN(STR(?osf)) = 0)
+    BIND("op_source_file_empty" AS ?problem)
+    BIND(STR(?op) AS ?detail)
+  }
+}
+ORDER BY ?problem ?detail

@@ -28,3 +28,36 @@ require_fail = false
 ```
 
 The generated court can be run structurally with `python3 generated/semantic_gate_witness_court.py <pack-root>` or semantically with `--runner '... {gate} {witness} {expectation} ...'` once a consumer supplies its engine-specific adapter.
+
+## Canonical runner (v26.9.30)
+
+This pack also owns the canonical semantic runner: `templates/semantic-runner.py.tera`,
+the rdflib-based adapter that judges `gates/*.rq` against pass/fail witnesses with the
+exactly-one-gate-fires law. Consumer packs carry `runners/semantic_runner.py` as a
+byte-identical projection of that template; byte-identity is enforced by
+`tests/test_contract.py::test_consumer_runners_are_byte_identical_projections`.
+Edit the template, then re-project every consumer copy — never edit a copy.
+
+Mechanism record (v26.9.30 consolidation wave, lane 7):
+
+- A `gate-court.toml` `runner` field pointing at a shared cross-pack runner was
+  examined and REFUSED as a mechanism: nothing in `scripts/check_gate_witness_courts.py`
+  reads `runner` (only `gate_dir`/`pass_dir`/`fail_dir` are `safe_dir`-guarded), and the
+  runner itself resolves its gates relative to its own file location
+  (`PACK_ROOT = Path(__file__).resolve().parents[1]`), so a runner file outside the
+  consumer pack would judge the wrong `gates/` directory and refuse every gate
+  (exit 3). Fixing that means changing the root-resolution law — a behavior change.
+- Dedup is therefore template + byte-identical projections (mechanism B). The quad
+  affidavit-consumer, affidavit-trust-plane, capability-closure and wasi-json-abi
+  shipped one byte-identical runner (ancestor sha256
+  `b82b63220cc004032700a111b682d5f72c30387addffd15eaaa8de0f26a7badd`); it is now
+  projected from this template (canonical sha256
+  `81d1b9e1af2f362b0879e3c5d7fd4371eeb6dabe75bc3f3e673e5d551f6c4f08`). A template
+  cannot carry its own digest (fixed point); the ancestor digest is recorded instead.
+- Per-pack `gate-court.toml` files cannot be shared either: the checker hardcodes
+  `pack / "gate-court.toml"` and `safe_dir` refuses `..`, so per-pack configs are the
+  design, not drift. The shared byte-strings across the 18 configured courts are the
+  `[court]` table above plus the standard runner invocation line.
+- Deliberately divergent runners (premature-actuation, interchangeable-parts,
+  strategic-doctrine, greene-licensing families) are out of scope: consolidating them
+  changes behavior and requires witness reruns.

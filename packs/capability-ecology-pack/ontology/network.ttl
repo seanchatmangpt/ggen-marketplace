@@ -1,0 +1,380 @@
+# capability-ecology-pack (network family) ontology: the network/HTTP capability family.
+#
+# Vocabulary + worked instance in one admitted graph: every ncap:Capability
+# individual below is a semantic identity (CAPABILITY != IMPLEMENTATION); every
+# ncap:Realization is provider metadata (hex/OTP coordinates cited from
+# hexdocs listings 2026-09-30: reactor_req 0.1.7, Erlang/OTP :inet; no local
+# code inspection claimed) plus the qualification conditions that admit it as
+# that capability. Gates in gates/ are violation-row SELECTs: rows mean refusal.
+#
+# Invariants encoded here and in gates/: Plan != Execution (a capability
+# declaration plans nothing; execution needs an admitted realization),
+# ProviderAvailable != Authorized (gates/040; Remote.Invoke on a consequential
+# endpoint requires a bound authority envelope, never mere reachability),
+# Generated != Admitted (gates/020), Projection != Source (this graph is the
+# source; rendered manifests are projections and are never edited back).
+
+@prefix ncap:    <https://ggen.dev/ontology/network-capability#> .
+@prefix qce:     <https://ggen.dev/ontology/qualified-capability-ecology#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix earl:    <http://www.w3.org/ns/earl#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+
+#################################################################
+# Vocabulary
+#################################################################
+
+ncap:Capability a rdfs:Class, prov:Entity ;
+    rdfs:label "Capability" ;
+    skos:definition "Semantic identity of one network operation family member (e.g. Http.Get), pinned by its dotted dcterms:identifier. Never a package, module or version: those are realizations. Plan != Execution: declaring a capability plans nothing." .
+
+ncap:Realization a rdfs:Class ;
+    rdfs:subClassOf qce:CapabilityVersion ;
+    rdfs:label "Realization" ;
+    skos:definition "A provider-specific implementation counted as some capability under explicit qualification conditions. Lifecycle-aligned with qce:CapabilityVersion: candidate -> qualified -> frozen is consumer-court work, never self-declared (Generated != Admitted)." .
+
+ncap:Precondition a rdfs:Class, prov:Entity ;
+    rdfs:label "Precondition" ;
+    skos:definition "Condition that must hold before execution; typed by ncap:preconditionKind (endpoint-resolution for every outbound HTTP capability)." .
+
+ncap:Postcondition a rdfs:Class, prov:Entity ;
+    rdfs:label "Postcondition" .
+
+ncap:Outcome a rdfs:Class, prov:Entity ;
+    rdfs:label "Outcome" ;
+    skos:definition "One possible result class: ncap:outcomeClass 'success', or 'failure' with a typed ncap:failureClass (dns-failure, connect-timeout, read-timeout, http-4xx, http-5xx, tls-error). The typed failure set and the nondeterministic retry stance are part of the capability contract, not implementation trivia." .
+
+ncap:QualificationCondition a rdfs:Class, prov:Entity ;
+    rdfs:label "QualificationCondition" ;
+    skos:definition "Condition under which a realization counts as its capability (version pin, endpoint pinning, error mapping, authority duty). A realization with none admits nothing." .
+
+ncap:consequenceClass a rdf:Property ;
+    rdfs:comment "Closed enum 'READ' | 'DO' (value vocabulary shared with the domain-capability family's dcp:consequence; family-local property so the families join at the value level)." .
+
+ncap:input a rdf:Property ; rdfs:comment "Named input parameter of the capability (repeatable)." .
+ncap:output a rdf:Property ; rdfs:comment "Named output of the capability (repeatable where applicable)." .
+
+ncap:hasPrecondition a rdf:Property .
+ncap:preconditionKind a rdf:Property ; rdfs:comment "Closed enum: 'endpoint-resolution'." .
+ncap:statement a rdf:Property ; rdfs:comment "Human-readable condition or postcondition text." .
+ncap:hasPostcondition a rdf:Property .
+
+ncap:hasOutcome a rdf:Property .
+ncap:outcomeClass a rdf:Property ; rdfs:comment "Closed enum: 'success' | 'failure'." .
+ncap:failureClass a rdf:Property ; rdfs:comment "Typed failure class: dns-failure, connect-timeout, read-timeout, http-4xx, http-5xx, tls-error." .
+
+ncap:requiresEvidence a rdf:Property ;
+    rdfs:comment "Evidence requirement token, EARL-aligned. Earned at execution time, never by this graph." .
+
+ncap:requiresAuthority a rdf:Property ; rdfs:range xsd:boolean ;
+    rdfs:comment "ProviderAvailable != Authorized: a reachable endpoint never substitutes for bound authority on a DO capability." .
+ncap:authorityScope a rdf:Property ;
+    rdfs:comment "Scope string the authority must be bound to when ncap:requiresAuthority is true." .
+
+ncap:determinism a rdf:Property ; rdfs:comment "Closed enum: 'deterministic' | 'nondeterministic' (all remote capabilities are nondeterministic: the remote can change between calls)." .
+ncap:retryClass a rdf:Property ;
+    rdfs:comment "Closed enum for nondeterministic capabilities: 'idempotent-retry' (safe to replay), 'no-retry' (replay may repeat a consequential effect), 'manual' (method-dependent; resolver must decide per request)." .
+
+ncap:realizedBy a rdf:Property ;
+    rdfs:comment "Capability -> qualified ncap:Realization. A capability with zero realizations is unresolvable and is refused by gates/010." .
+ncap:qualificationCondition a rdf:Property .
+ncap:surfacesFailure a rdf:Property ; rdfs:comment "ncap:failureClass values this realization's provider actually maps for the capability." .
+
+ncap:providerModule a rdf:Property ; rdfs:comment "Provider-side module coordinate (cited metadata, not a local claim)." .
+ncap:providerRepo a rdf:Property ; rdfs:comment "Provider repository or documentation URL." .
+ncap:providerHexPackage a rdf:Property ; rdfs:comment "Hex package name for hex-published providers; omitted for OTP-stdlib realizations." .
+ncap:providerHexVersion a rdf:Property ; rdfs:comment "Provider version the qualification conditions were cited against." .
+ncap:versionPinPolicy a rdf:Property ; rdfs:comment "How consumers must pin the provider ('hex-caret' | 'otp-release')." .
+
+#################################################################
+# Shared outcome, precondition and postcondition individuals
+#################################################################
+
+ncap:outcome-success a ncap:Outcome ;
+    ncap:outcomeClass "success" .
+
+ncap:failure-dns-failure a ncap:Outcome ; ncap:outcomeClass "failure" ; ncap:failureClass "dns-failure" ;
+    skos:definition "Name resolution failed or resolved to an unadmitted address." .
+ncap:failure-connect-timeout a ncap:Outcome ; ncap:outcomeClass "failure" ; ncap:failureClass "connect-timeout" ;
+    skos:definition "Transport connection not established within the declared bound." .
+ncap:failure-read-timeout a ncap:Outcome ; ncap:outcomeClass "failure" ; ncap:failureClass "read-timeout" ;
+    skos:definition "Connection open but response not completed within the declared bound." .
+ncap:failure-http-4xx a ncap:Outcome ; ncap:outcomeClass "failure" ; ncap:failureClass "http-4xx" ;
+    skos:definition "Remote refused the request (client-error class); deterministic, non-retryable." .
+ncap:failure-http-5xx a ncap:Outcome ; ncap:outcomeClass "failure" ; ncap:failureClass "http-5xx" ;
+    skos:definition "Remote failed while handling a possibly-valid request (server-error class); nondeterministic, retry stance per capability." .
+ncap:failure-tls-error a ncap:Outcome ; ncap:outcomeClass "failure" ; ncap:failureClass "tls-error" ;
+    skos:definition "TLS handshake or certificate verification failed." .
+
+ncap:precondition-endpoint-resolution a ncap:Precondition ;
+    ncap:preconditionKind "endpoint-resolution" ;
+    ncap:statement "The request's scheme and host MUST be resolved through Endpoint.Resolve from an admitted endpoint registry before execution; requests to unresolved or unadmitted endpoints are refused pre-execution." .
+
+ncap:post-response-delivered a ncap:Postcondition ;
+    ncap:statement "Returned response reflects the remote's state at execution time (remote capabilities are nondeterministic; no stronger postcondition is claimable)." .
+ncap:post-endpoint-pinned a ncap:Postcondition ;
+    ncap:statement "The resolved endpoint address is recorded in the request's evidence receipt." .
+
+#################################################################
+# Pinned capabilities (dcterms:identifier dotted IDs per v26.9.30 resolutions)
+# plus three provider-closed siblings (recorded in README)
+#################################################################
+
+ncap:http-request a ncap:Capability ;
+    dcterms:identifier "Http.Request" ;
+    rdfs:label "Http.Request" ;
+    skos:definition "Issue one method-agnostic HTTP request to an admitted endpoint (method-dependent retry stance is the resolver's duty)." ;
+    ncap:consequenceClass "DO" ;
+    ncap:input "method" ; ncap:input "url" ; ncap:input "headers" ; ncap:input "body" ;
+    ncap:output "response" ;
+    ncap:hasPrecondition ncap:precondition-endpoint-resolution ;
+    ncap:hasPostcondition ncap:post-response-delivered, ncap:post-endpoint-pinned ;
+    ncap:hasOutcome ncap:outcome-success, ncap:failure-dns-failure, ncap:failure-connect-timeout,
+        ncap:failure-read-timeout, ncap:failure-http-4xx, ncap:failure-http-5xx, ncap:failure-tls-error ;
+    ncap:requiresEvidence "earl:request-response-receipt" ;
+    ncap:requiresAuthority true ;
+    ncap:authorityScope "consequential-endpoint" ;
+    ncap:determinism "nondeterministic" ;
+    ncap:retryClass "manual" ;
+    ncap:realizedBy ncap:real-req-request .
+
+ncap:http-get a ncap:Capability ;
+    dcterms:identifier "Http.Get" ;
+    rdfs:label "Http.Get" ;
+    skos:definition "Issue one safe HTTP GET to an admitted endpoint; no request body, replay-safe." ;
+    ncap:consequenceClass "READ" ;
+    ncap:input "url" ; ncap:input "headers" ;
+    ncap:output "response" ;
+    ncap:hasPrecondition ncap:precondition-endpoint-resolution ;
+    ncap:hasPostcondition ncap:post-response-delivered, ncap:post-endpoint-pinned ;
+    ncap:hasOutcome ncap:outcome-success, ncap:failure-dns-failure, ncap:failure-connect-timeout,
+        ncap:failure-read-timeout, ncap:failure-http-4xx, ncap:failure-http-5xx, ncap:failure-tls-error ;
+    ncap:requiresEvidence "earl:request-response-receipt" ;
+    ncap:requiresAuthority false ;
+    ncap:determinism "nondeterministic" ;
+    ncap:retryClass "idempotent-retry" ;
+    ncap:realizedBy ncap:real-req-get .
+
+ncap:http-post a ncap:Capability ;
+    dcterms:identifier "Http.Post" ;
+    rdfs:label "Http.Post" ;
+    skos:definition "Issue one HTTP POST to an admitted endpoint; potentially consequential, default no-retry." ;
+    ncap:consequenceClass "DO" ;
+    ncap:input "url" ; ncap:input "headers" ; ncap:input "body" ;
+    ncap:output "response" ;
+    ncap:hasPrecondition ncap:precondition-endpoint-resolution ;
+    ncap:hasPostcondition ncap:post-response-delivered, ncap:post-endpoint-pinned ;
+    ncap:hasOutcome ncap:outcome-success, ncap:failure-dns-failure, ncap:failure-connect-timeout,
+        ncap:failure-read-timeout, ncap:failure-http-4xx, ncap:failure-http-5xx, ncap:failure-tls-error ;
+    ncap:requiresEvidence "earl:request-response-receipt" ;
+    ncap:requiresAuthority true ;
+    ncap:authorityScope "consequential-endpoint" ;
+    ncap:determinism "nondeterministic" ;
+    ncap:retryClass "no-retry" ;
+    ncap:realizedBy ncap:real-req-post .
+
+ncap:http-put a ncap:Capability ;
+    dcterms:identifier "Http.Put" ;
+    rdfs:label "Http.Put" ;
+    skos:definition "Issue one HTTP PUT to an admitted endpoint; idempotent by method semantics (sibling minted on witnessed provider closure, see README)." ;
+    ncap:consequenceClass "DO" ;
+    ncap:input "url" ; ncap:input "headers" ; ncap:input "body" ;
+    ncap:output "response" ;
+    ncap:hasPrecondition ncap:precondition-endpoint-resolution ;
+    ncap:hasPostcondition ncap:post-response-delivered, ncap:post-endpoint-pinned ;
+    ncap:hasOutcome ncap:outcome-success, ncap:failure-dns-failure, ncap:failure-connect-timeout,
+        ncap:failure-read-timeout, ncap:failure-http-4xx, ncap:failure-http-5xx, ncap:failure-tls-error ;
+    ncap:requiresEvidence "earl:request-response-receipt" ;
+    ncap:requiresAuthority true ;
+    ncap:authorityScope "consequential-endpoint" ;
+    ncap:determinism "nondeterministic" ;
+    ncap:retryClass "idempotent-retry" ;
+    ncap:realizedBy ncap:real-req-put .
+
+ncap:http-delete a ncap:Capability ;
+    dcterms:identifier "Http.Delete" ;
+    rdfs:label "Http.Delete" ;
+    skos:definition "Issue one HTTP DELETE to an admitted endpoint; idempotent by method semantics (sibling minted on witnessed provider closure, see README)." ;
+    ncap:consequenceClass "DO" ;
+    ncap:input "url" ; ncap:input "headers" ;
+    ncap:output "response" ;
+    ncap:hasPrecondition ncap:precondition-endpoint-resolution ;
+    ncap:hasPostcondition ncap:post-response-delivered, ncap:post-endpoint-pinned ;
+    ncap:hasOutcome ncap:outcome-success, ncap:failure-dns-failure, ncap:failure-connect-timeout,
+        ncap:failure-read-timeout, ncap:failure-http-4xx, ncap:failure-http-5xx, ncap:failure-tls-error ;
+    ncap:requiresEvidence "earl:request-response-receipt" ;
+    ncap:requiresAuthority true ;
+    ncap:authorityScope "consequential-endpoint" ;
+    ncap:determinism "nondeterministic" ;
+    ncap:retryClass "idempotent-retry" ;
+    ncap:realizedBy ncap:real-req-delete .
+
+ncap:http-head a ncap:Capability ;
+    dcterms:identifier "Http.Head" ;
+    rdfs:label "Http.Head" ;
+    skos:definition "Issue one safe HTTP HEAD to an admitted endpoint; headers only, replay-safe (sibling minted on witnessed provider closure, see README)." ;
+    ncap:consequenceClass "READ" ;
+    ncap:input "url" ; ncap:input "headers" ;
+    ncap:output "response-headers" ;
+    ncap:hasPrecondition ncap:precondition-endpoint-resolution ;
+    ncap:hasPostcondition ncap:post-response-delivered, ncap:post-endpoint-pinned ;
+    ncap:hasOutcome ncap:outcome-success, ncap:failure-dns-failure, ncap:failure-connect-timeout,
+        ncap:failure-read-timeout, ncap:failure-http-4xx, ncap:failure-http-5xx, ncap:failure-tls-error ;
+    ncap:requiresEvidence "earl:request-response-receipt" ;
+    ncap:requiresAuthority false ;
+    ncap:determinism "nondeterministic" ;
+    ncap:retryClass "idempotent-retry" ;
+    ncap:realizedBy ncap:real-req-head .
+
+ncap:remote-invoke a ncap:Capability ;
+    dcterms:identifier "Remote.Invoke" ;
+    rdfs:label "Remote.Invoke" ;
+    skos:definition "Invoke one consequential remote operation (RPC/webhook/service call) at an admitted endpoint; actuation requires a bound authority envelope -- ProviderAvailable is not Authorized." ;
+    ncap:consequenceClass "DO" ;
+    ncap:input "endpoint" ; ncap:input "operation" ; ncap:input "payload" ;
+    ncap:output "invocation-result" ;
+    ncap:hasPrecondition ncap:precondition-endpoint-resolution ;
+    ncap:hasPostcondition ncap:post-response-delivered, ncap:post-endpoint-pinned ;
+    ncap:hasOutcome ncap:outcome-success, ncap:failure-dns-failure, ncap:failure-connect-timeout,
+        ncap:failure-read-timeout, ncap:failure-http-4xx, ncap:failure-http-5xx, ncap:failure-tls-error ;
+    ncap:requiresEvidence "earl:actuation-receipt" ;
+    ncap:requiresAuthority true ;
+    ncap:authorityScope "consequential-endpoint" ;
+    ncap:determinism "nondeterministic" ;
+    ncap:retryClass "no-retry" ;
+    ncap:realizedBy ncap:real-req-post-remote-invoke .
+
+ncap:endpoint-resolve a ncap:Capability ;
+    dcterms:identifier "Endpoint.Resolve" ;
+    rdfs:label "Endpoint.Resolve" ;
+    skos:definition "Resolve one admitted endpoint name to its scheme+address, binding the address into the request's evidence receipt (DNS is nondeterministic; resolution is idempotent-retry)." ;
+    ncap:consequenceClass "READ" ;
+    ncap:input "endpoint-name" ;
+    ncap:output "resolved-endpoint" ;
+    ncap:hasPostcondition ncap:post-endpoint-pinned ;
+    ncap:hasOutcome ncap:outcome-success, ncap:failure-dns-failure, ncap:failure-connect-timeout ;
+    ncap:requiresEvidence "earl:endpoint-resolution-receipt" ;
+    ncap:requiresAuthority false ;
+    ncap:determinism "nondeterministic" ;
+    ncap:retryClass "idempotent-retry" ;
+    ncap:realizedBy ncap:real-inet-getaddr .
+
+#################################################################
+# Qualified realizations (provider metadata cited from hexdocs/hex listings
+# 2026-09-30: reactor_req v0.1.7 wrapping Req; Erlang/OTP :inet. reactor_req
+# has NO local checkout -- nothing here claims code-level inspection)
+#################################################################
+
+ncap:real-req-request a ncap:Realization ;
+    dcterms:identifier "Reactor.Req.Dsl.Request" ;
+    rdfs:label "reactor_req Request" ;
+    ncap:providerModule "Reactor.Req.Dsl.Request" ;
+    ncap:providerRepo "https://github.com/ash-project/reactor_req" ;
+    ncap:providerHexPackage "reactor_req" ;
+    ncap:providerHexVersion "0.1.7" ;
+    ncap:versionPinPolicy "hex-caret" ;
+    ncap:surfacesFailure "dns-failure" , "connect-timeout" , "read-timeout" , "http-4xx" , "http-5xx" , "tls-error" ;
+    ncap:qualificationCondition
+        "consumer lock pins reactor_req >= 0.1.6 and < 0.2.0 (caret)" ,
+        "url built only from an Endpoint.Resolve result (admitted endpoint registry)" ,
+        "http_errors option enabled so Req errors surface as ncap:failureClass values instead of exceptions" ,
+        "authority envelope bound to consequential-endpoint present at execution when the method is consequential" .
+
+ncap:real-req-get a ncap:Realization ;
+    dcterms:identifier "Reactor.Req.Dsl.Get" ;
+    rdfs:label "reactor_req Get" ;
+    ncap:providerModule "Reactor.Req.Dsl.Get" ;
+    ncap:providerRepo "https://github.com/ash-project/reactor_req" ;
+    ncap:providerHexPackage "reactor_req" ;
+    ncap:providerHexVersion "0.1.7" ;
+    ncap:versionPinPolicy "hex-caret" ;
+    ncap:surfacesFailure "dns-failure" , "connect-timeout" , "read-timeout" , "http-4xx" , "http-5xx" , "tls-error" ;
+    ncap:qualificationCondition
+        "safe method: no request body, replay admissible under idempotent-retry" ,
+        "url built only from an Endpoint.Resolve result" ,
+        "http_errors option enabled so Req errors surface as ncap:failureClass values" .
+
+ncap:real-req-post a ncap:Realization ;
+    dcterms:identifier "Reactor.Req.Dsl.Post" ;
+    rdfs:label "reactor_req Post" ;
+    ncap:providerModule "Reactor.Req.Dsl.Post" ;
+    ncap:providerRepo "https://github.com/ash-project/reactor_req" ;
+    ncap:providerHexPackage "reactor_req" ;
+    ncap:providerHexVersion "0.1.7" ;
+    ncap:versionPinPolicy "hex-caret" ;
+    ncap:surfacesFailure "dns-failure" , "connect-timeout" , "read-timeout" , "http-4xx" , "http-5xx" , "tls-error" ;
+    ncap:qualificationCondition
+        "unsafe method: default no-retry (replay may repeat a consequential effect)" ,
+        "authority envelope bound to consequential-endpoint present at execution (ProviderAvailable != Authorized)" ,
+        "url built only from an Endpoint.Resolve result" .
+
+ncap:real-req-put a ncap:Realization ;
+    dcterms:identifier "Reactor.Req.Dsl.Put" ;
+    rdfs:label "reactor_req Put" ;
+    ncap:providerModule "Reactor.Req.Dsl.Put" ;
+    ncap:providerRepo "https://github.com/ash-project/reactor_req" ;
+    ncap:providerHexPackage "reactor_req" ;
+    ncap:providerHexVersion "0.1.7" ;
+    ncap:versionPinPolicy "hex-caret" ;
+    ncap:surfacesFailure "dns-failure" , "connect-timeout" , "read-timeout" , "http-4xx" , "http-5xx" , "tls-error" ;
+    ncap:qualificationCondition
+        "idempotent by method semantics: retry admissible under idempotent-retry" ,
+        "authority envelope bound to consequential-endpoint present at execution" ,
+        "url built only from an Endpoint.Resolve result" .
+
+ncap:real-req-delete a ncap:Realization ;
+    dcterms:identifier "Reactor.Req.Dsl.Delete" ;
+    rdfs:label "reactor_req Delete" ;
+    ncap:providerModule "Reactor.Req.Dsl.Delete" ;
+    ncap:providerRepo "https://github.com/ash-project/reactor_req" ;
+    ncap:providerHexPackage "reactor_req" ;
+    ncap:providerHexVersion "0.1.7" ;
+    ncap:versionPinPolicy "hex-caret" ;
+    ncap:surfacesFailure "dns-failure" , "connect-timeout" , "read-timeout" , "http-4xx" , "http-5xx" , "tls-error" ;
+    ncap:qualificationCondition
+        "idempotent by method semantics: retry admissible under idempotent-retry" ,
+        "authority envelope bound to consequential-endpoint present at execution" ,
+        "url built only from an Endpoint.Resolve result" .
+
+ncap:real-req-head a ncap:Realization ;
+    dcterms:identifier "Reactor.Req.Dsl.Head" ;
+    rdfs:label "reactor_req Head" ;
+    ncap:providerModule "Reactor.Req.Dsl.Head" ;
+    ncap:providerRepo "https://github.com/ash-project/reactor_req" ;
+    ncap:providerHexPackage "reactor_req" ;
+    ncap:providerHexVersion "0.1.7" ;
+    ncap:versionPinPolicy "hex-caret" ;
+    ncap:surfacesFailure "dns-failure" , "connect-timeout" , "read-timeout" , "http-4xx" , "http-5xx" , "tls-error" ;
+    ncap:qualificationCondition
+        "safe method: headers only, replay admissible under idempotent-retry" ,
+        "url built only from an Endpoint.Resolve result" .
+
+ncap:real-req-post-remote-invoke a ncap:Realization ;
+    dcterms:identifier "Reactor.Req.Dsl.Post (Remote.Invoke qualification)" ;
+    rdfs:label "reactor_req Post as Remote.Invoke" ;
+    ncap:providerModule "Reactor.Req.Dsl.Post" ;
+    ncap:providerRepo "https://github.com/ash-project/reactor_req" ;
+    ncap:providerHexPackage "reactor_req" ;
+    ncap:providerHexVersion "0.1.7" ;
+    ncap:versionPinPolicy "hex-caret" ;
+    ncap:surfacesFailure "dns-failure" , "connect-timeout" , "read-timeout" , "http-4xx" , "http-5xx" , "tls-error" ;
+    ncap:qualificationCondition
+        "ProviderAvailable != Authorized: endpoint reachability NEVER admits the invocation; a fresh operator-supplied authority envelope bound to consequential-endpoint must exist before actuation" ,
+        "invocation consequence recorded in an earl:actuation-receipt before success is reportable (BRCE path)" ,
+        "no-retry: a replayed invocation may repeat the consequential remote effect" ,
+        "url built only from an Endpoint.Resolve result" .
+
+ncap:real-inet-getaddr a ncap:Realization ;
+    dcterms:identifier ":inet.getaddr/2" ;
+    rdfs:label "Erlang/OTP inet getaddr" ;
+    ncap:providerModule "Erlang :inet.getaddr/2" ;
+    ncap:providerRepo "https://www.erlang.org/doc/man/inet.html" ;
+    ncap:versionPinPolicy "otp-release" ;
+    ncap:surfacesFailure "dns-failure" , "connect-timeout" ;
+    ncap:qualificationCondition
+        "resolved address recorded in the endpoint-resolution receipt (post-endpoint-pinned duty)" ,
+        "resolver failure surfaces as ncap:failureClass dns-failure, never as a silent fallback address" .

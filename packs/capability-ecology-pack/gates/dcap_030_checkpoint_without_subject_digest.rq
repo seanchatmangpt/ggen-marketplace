@@ -1,0 +1,20 @@
+# MESSAGE: checkpoint identity binds by CONTENT. A dcap:Checkpoint must carry BOTH
+# dcap:boundSubject (the dcap:WorkflowSubject it checkpoints) AND a qce:closureDigest
+# (COMPOSED from qualified-capability-ecology, not redefined) whose value is a 64-hex
+# state digest pinning the checkpoint to that subject's exact state. Mirrors the real
+# surfaces: Xaas.Gall.Checkpoint content-addressed graph_digest + CheckpointBinding.
+# matches_checkpoint?/2 falsifies stale content. Any row = a checkpoint whose subject
+# binding is unproven (missing subject, missing digest, or malformed digest).
+PREFIX dcap: <https://ggen.dev/ontology/durability-capability#>
+PREFIX qce:  <https://ggen.dev/ontology/qualified-capability-ecology#>
+SELECT ?checkpoint ?identity WHERE {
+  ?checkpoint a dcap:Checkpoint ;
+      dcap:checkpointIdentity ?identity .
+  FILTER NOT EXISTS {
+    ?checkpoint dcap:boundSubject ?subject ;
+                qce:closureDigest ?digest .
+    ?subject a dcap:WorkflowSubject .
+    FILTER(ISLITERAL(?digest) && STRLEN(?digest) = 64)
+  }
+}
+ORDER BY ?identity

@@ -1,0 +1,29 @@
+# MESSAGE: every ncap:Capability must declare ncap:determinism ('deterministic' |
+# 'nondeterministic'), and every nondeterministic capability must declare its retry
+# stance ncap:retryClass ('idempotent-retry' | 'no-retry' | 'manual'). Any row = a
+# capability whose replay behaviour on the nondeterministic failure set (timeouts,
+# 5xx) is undeclared or out of enum -- a resolver could retry a consequential
+# invocation that must not be replayed.
+PREFIX ncap: <https://ggen.dev/ontology/network-capability#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?cap ?id ?gap WHERE {
+  ?cap a ncap:Capability ;
+       dcterms:identifier ?id .
+  {
+    FILTER NOT EXISTS { ?cap ncap:determinism ?determinism . }
+    BIND("determinism-undeclared" AS ?gap)
+  }
+  UNION
+  {
+    ?cap ncap:determinism "nondeterministic" .
+    FILTER NOT EXISTS { ?cap ncap:retryClass ?retry . }
+    BIND("retry-class-missing" AS ?gap)
+  }
+  UNION
+  {
+    ?cap ncap:retryClass ?badRetry .
+    FILTER(?badRetry NOT IN ("idempotent-retry", "no-retry", "manual"))
+    BIND("retry-class-out-of-enum" AS ?gap)
+  }
+}
+ORDER BY ?id ?gap

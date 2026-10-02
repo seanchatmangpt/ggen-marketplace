@@ -1,0 +1,29 @@
+@prefix dcp: <https://ggen.dev/ontology/domain-capability#> .
+@prefix qce: <https://ggen.dev/ontology/qualified-capability-ecology#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix ex: <https://example.test/dcp/> .
+
+# NEGATIVE fixture for gates/090_runtime_only_frozen.rq (FIRES it): Plan != Execution.
+# A qce:RuntimeEpisode claims to have executed a qualified-but-NOT-frozen
+# dcp:Realization. Inspection != execution; a candidate/qualified declaration never
+# executed anything. Expected: 090 returns >= 1 row (ex:neg-unfrozen-episode,
+# ex:neg-unfrozen-real).
+
+ex:neg-unfrozen-cap a dcp:DomainCapability ;
+    rdfs:label "Domain.Query.Read" ;
+    dcterms:identifier "Domain.Query.Read" ;
+    dcp:authorityRequirement "observe" ;
+    dcp:precondition "Target resource and read action exist." ;
+    dcp:outcome "success: list of records" .
+
+ex:neg-unfrozen-real a dcp:Realization, qce:QualifiedCapability ;
+    dcp:realizes ex:neg-unfrozen-cap ;
+    dcp:providerPackage "ash" ;
+    dcp:providerModule "Ash.Reactor.ReadStep" ;
+    dcp:versionPinPolicy "hex pin via consumer mix.exs constraint + mix.lock" ;
+    dcp:evidenceKind "ash_result" ;
+    dcp:qualificationCondition "Compiled domain exposes the read action; policies decide authorization." .
+
+ex:neg-unfrozen-episode a qce:RuntimeEpisode ;
+    qce:executedCapability ex:neg-unfrozen-real .

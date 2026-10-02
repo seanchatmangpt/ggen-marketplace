@@ -1,12 +1,13 @@
 ---
-to: "lib/{{ package_name }}/reactor_pipeline.ex"
+to: "lib/{{ package_name }}/{% if support_subdir %}{{ support_subdir }}/{% endif %}reactor_pipeline.ex"
 for_each: "spec"
 sparql:
   spec: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
-    SELECT DISTINCT ?package_name ?module_name ?workflow_reversible WHERE {
+    SELECT DISTINCT ?package_name ?module_name ?workflow_reversible ?support_subdir WHERE {
       ?s a aex:AshExtensionSpec ; aex:packageName ?package_name ; aex:moduleName ?module_name ;
          aex:workflowReactor true ; aex:workflowReversible ?workflow_reversible .
+      OPTIONAL { ?s aex:supportSubdir ?support_subdir }
     }
   steps: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
@@ -69,7 +70,7 @@ defmodule {{ module_name }}.Reactor.Pipeline do
   end
 
 {% for step in steps %}{% if step.package_name == package_name %}  step :{{ step.step_name }}, {{ module_name }}.Reactor.Steps.{{ step.step_module }} do
-{% if step.wait_for_names %}    wait_for {% for w in step.wait_for_names | split(pat=",") %}:{{ w }}{% if not loop.last %}, {% endif %}{% endfor %}
+{% if step.wait_for_names %}    wait_for {% set ws = step.wait_for_names | split(pat=",") | sort %}{% for w in ws %}:{{ w }}{% if not loop.last %}, {% endif %}{% endfor %}
 {% endif %}{% if step.max_retries is defined %}    max_retries {{ step.max_retries }}
 {% endif %}  end
 

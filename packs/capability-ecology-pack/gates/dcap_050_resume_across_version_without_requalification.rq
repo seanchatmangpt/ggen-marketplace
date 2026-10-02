@@ -1,0 +1,28 @@
+# MESSAGE: a replay that crosses a projection-version boundary is a DIFFERENT subject
+# until requalified. A dcap:ResumeClaim with dcap:versionBoundaryCrossed true has
+# exactly two lawful endings, and both must be explicit:
+#   (a) dcap:resumeOutcome "REFUSED_VERSION_BOUNDARY" — the typed refusal; or
+#   (b) dcap:resumeOutcome "REQUALIFIED" plus a REAL requalification receipt:
+#       dcap:requalificationReceipt -> a qce:QualificationReceipt (composed class)
+#       carrying its own qce:qualificationDigest.
+# A silent continue (outcome "ALIVE" across a boundary), or a "REQUALIFIED" claim
+# whose receipt is missing/digest-less, is refused. Both outcomes are modeled in the
+# positive fixture; this gate fires on the unmodeled third option. Any row = such a
+# resume.
+PREFIX dcap: <https://ggen.dev/ontology/durability-capability#>
+PREFIX qce:  <https://ggen.dev/ontology/qualified-capability-ecology#>
+SELECT ?resume ?outcome WHERE {
+  ?resume a dcap:ResumeClaim ;
+      dcap:versionBoundaryCrossed true ;
+      dcap:resumeOutcome ?outcome .
+  FILTER NOT EXISTS {
+    ?resume dcap:resumeOutcome "REFUSED_VERSION_BOUNDARY" .
+  }
+  FILTER NOT EXISTS {
+    ?resume dcap:resumeOutcome "REQUALIFIED" ;
+        dcap:requalificationReceipt ?receipt .
+    ?receipt a qce:QualificationReceipt ;
+        qce:qualificationDigest ?digest .
+  }
+}
+ORDER BY ?resume ?outcome

@@ -60,8 +60,14 @@ Historical evidence may be reused only after identity/equivalence has been prove
 
 As a family matures, its lifecycle should move duplicated semantic authority upward into kernels/capability modules and move product/environment-specific facts downward into profiles/worlds.
 
-Deprecation is not deletion. A CompatibilityPack should name its successor and retained seam until the consumer graph demonstrates that removal is safe.
+Deprecation is not deletion — but staleness can be. A CompatibilityPack should name its successor and retained seam until the consumer graph demonstrates that removal is safe. Separately, packs that go stale (no updates within the freshness window) may still be deleted outright by the staleness deletion court, after conservation checks confirm no consumer is left behind (see below).
 
 Lifecycle decisions are recorded in the repository's lifecycle registry (`lifecycle.toml`) on two independent axes. **State** (`active`, `deprecated`, `superseded`, `retired`) says what a pack is now and what consumers should do. **Intent** (`consolidate`, `upgrade`, `replace`, `review`, `keep-separate`) says what we plan, and is advisory. Keeping them apart lets a review lead be recorded without pretending it is a deprecation, and lets a ruled-out overlap be recorded (`keep-separate`) so the next audit does not re-derive it. The registry lives beside `pack.toml` rather than in it because the real ggen loader refuses unknown `[pack]` keys. See [the registry reference](../reference/pack-lifecycle-registry.md) and [How to flag a pack's lifecycle](../how-to/flag-a-pack-lifecycle.md).
 
 See [Class closure and consolidation](class-closure-and-consolidation.md).
+
+## Staleness deletion court
+
+Deprecation keeps a pack on disk; staleness does not. Under the 7d-staleness deletion policy, a pack directory that has not been updated within 7 days (cutoff 2026-09-24) is eligible for deletion — but only after a conservation court verifies zero consumer references, zero cross-pack references, and no front-door status. The court ran on 2026-10-01 (commit `ee6008a41`), deleting 68 pack directories in one pass.
+
+Deletion by the court is not loss: every deleted pack remains recoverable from git history at `ee6008a41^` (see [the retired-packs ledger](../reference/retired-packs-26.10.01.md)).

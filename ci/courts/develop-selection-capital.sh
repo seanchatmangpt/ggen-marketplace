@@ -7,6 +7,6 @@ cd "$(git rev-parse --show-toplevel)"
 echo "::group::develop-selection-capital: Refuse ambient DO in pack source"
 (
 set -e
-! grep -R -E "(requests\.(post|put|patch|delete)|subprocess\.|os\.system)" packs/dfcm-selection-capital-pack
+! grep -R -E "(requests\.(post|put|patch|delete)|subprocess\.|os\.system)" packs/dfcm-pack/families/selection-capital
 )
 echo "::endgroup::"

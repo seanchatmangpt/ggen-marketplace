@@ -1,0 +1,24 @@
+# MESSAGE: actuation-without-authority-envelope / authority-is-never-ambient.
+# Every authcap:ConsequentialCapability must link qce:authorityEnvelope to an
+# individual explicitly typed qce:AuthorityEnvelope (reused from
+# packs/qualified-capability-ecology-pack). A missing link means the act claims
+# to be consequential with no authority precondition at all; a link to an
+# untyped node (string, blank, bare resource) is an AMBIENT authority claim —
+# authority is leased, typed and revocable, never ambient. ProviderAvailable
+# != Authorized. Any row is a refusal.
+PREFIX authcap: <https://ggen.dev/ontology/authority-capability#>
+PREFIX qce: <https://ggen.dev/ontology/qualified-capability-ecology#>
+SELECT ?cap ?violation WHERE {
+  {
+    ?cap a authcap:ConsequentialCapability .
+    FILTER NOT EXISTS { ?cap qce:authorityEnvelope ?e0 }
+    BIND("no-envelope-precondition" AS ?violation)
+  }
+  UNION
+  {
+    ?cap a authcap:ConsequentialCapability ; qce:authorityEnvelope ?env .
+    FILTER NOT EXISTS { ?env a qce:AuthorityEnvelope }
+    BIND("envelope-link-not-typed-qce-AuthorityEnvelope" AS ?violation)
+  }
+}
+ORDER BY ?cap ?violation

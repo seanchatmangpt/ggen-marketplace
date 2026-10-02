@@ -1,0 +1,33 @@
+# GATE 110 -- spark completeness ("implemented - sparkDeclared = empty set").
+#
+# MESSAGE: every aex:SurfaceFact with aex:surfaceKind="implemented" (a behavior the
+# pack's templates render) must have a matching aex:SurfaceFact with
+# aex:surfaceKind="sparkDeclared" (the behavior is declared on the generated
+# Spark.Dsl surface), matched on the same aex:surfaceOf fact and the same
+# aex:surfacePackage. An implemented row with no declared counterpart is hidden
+# semantic surface: implemented but not Spark-declared -- a real, checkable defect.
+# The query returns ZERO rows on a conforming pack. Consumed facts
+# (surfaceKind="consumed": ecosystem contracts like ash_graphql/ash_json_api the
+# generated code consumes rather than declares) are excluded by kind. See
+# ontology.ttl's closure-vocabulary block and templates/spark_parity_court.exs.tmpl
+# (the runtime mirror that fails naming the orphan's aex:factName).
+#
+# Anti-vacuity: deleting any aex:SF_decl_* row (e.g. SF_decl_AshR2RMLSubjectConstant,
+# per aex:MutationGate110DeleteDeclaredSubjectConstant in ontology.ttl) makes this
+# gate return that fact's aex:factName -- captured in the lane C1 session receipt.
+PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+
+SELECT ?package ?fact_name WHERE {
+  ?impl a aex:SurfaceFact ;
+        aex:surfaceKind "implemented" ;
+        aex:surfaceOf ?fact ;
+        aex:surfacePackage ?package .
+  ?fact aex:factName ?fact_name .
+  FILTER NOT EXISTS {
+    ?decl a aex:SurfaceFact ;
+          aex:surfaceKind "sparkDeclared" ;
+          aex:surfaceOf ?fact ;
+          aex:surfacePackage ?package .
+  }
+}
+ORDER BY ?package ?fact_name

@@ -1,0 +1,21 @@
+# MESSAGE: remote authority unmodeled.
+# Remote authority is never ambient: a realization whose authority location is
+# "remote" or "both" must carry a qce:AuthorityEnvelope with aacap:validAtEnd
+# "remote" or "both". An endpoint admission policy (Policy != Authority) or a
+# reachable peer (ProviderAvailable != Authorized) satisfies nothing here; an
+# envelope valid only at the local end authorizes nothing remote. A row is a refusal.
+PREFIX aacap: <https://ggen.dev/ontology/a2a-capability#>
+PREFIX qce: <https://ggen.dev/ontology/qualified-capability-ecology#>
+SELECT ?module WHERE {
+  ?realization a aacap:Realization ;
+               aacap:providerModule ?module ;
+               aacap:authorityLocation ?location .
+  FILTER (?location IN ("remote", "both"))
+  FILTER NOT EXISTS {
+    ?realization aacap:authorityEnvelope ?envelope .
+    ?envelope a qce:AuthorityEnvelope ;
+              aacap:validAtEnd ?envelopeLocation .
+    FILTER (?envelopeLocation IN ("remote", "both"))
+  }
+}
+ORDER BY ?module

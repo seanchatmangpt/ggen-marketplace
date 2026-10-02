@@ -1,0 +1,83 @@
+# MESSAGE: Host-surface ABI gate. Any row = a real defect in the RDF facts this
+# pack renders from. Checks, per bwh:WasmexHostSurface:
+#   1. missing required allocator/memory facts (alloc/free/dealloc/digestPrefix/
+#      outMode/importMode/targetPath/rootModule/artifactPath) — the generated
+#      host cannot compile or cannot call the guest without them;
+#   2. an out_mode outside the closed {out_len_through_pointer, packed_u64}
+#      set (the template emits a literal UNSUPPORTED marker for any other);
+#   3. an import_mode outside the closed {zero, wasi_only} set;
+#   4. an AlgorithmBinding that lacks callExport+replayExport+wrapperModule+
+#      wrapperPath+hostModule, or whose hostModule matches no host surface.
+# Gate policy: any row blocks pack admission (fail closed; an empty result is
+# the only pass).
+PREFIX bwh: <urn:beam:wasmex:host:>
+SELECT ?surface ?defect WHERE {
+  ?surface a bwh:WasmexHostSurface .
+  {
+    ?surface a bwh:WasmexHostSurface .
+    FILTER NOT EXISTS { ?surface bwh:allocExport ?a . FILTER(BOUND(?a)) }
+    BIND("missing bwh:allocExport" AS ?defect)
+  } UNION {
+    ?surface a bwh:WasmexHostSurface .
+    FILTER NOT EXISTS { ?surface bwh:freeExport ?f . FILTER(BOUND(?f)) }
+    BIND("missing bwh:freeExport" AS ?defect)
+  } UNION {
+    ?surface a bwh:WasmexHostSurface .
+    FILTER NOT EXISTS { ?surface bwh:deallocExport ?d . FILTER(BOUND(?d)) }
+    BIND("missing bwh:deallocExport" AS ?defect)
+  } UNION {
+    ?surface a bwh:WasmexHostSurface .
+    FILTER NOT EXISTS { ?surface bwh:digestPrefix ?p . FILTER(BOUND(?p)) }
+    BIND("missing bwh:digestPrefix" AS ?defect)
+  } UNION {
+    ?surface a bwh:WasmexHostSurface .
+    FILTER NOT EXISTS { ?surface bwh:targetPath ?t . FILTER(BOUND(?t)) }
+    BIND("missing bwh:targetPath" AS ?defect)
+  } UNION {
+    ?surface a bwh:WasmexHostSurface .
+    FILTER NOT EXISTS { ?surface bwh:rootModule ?r . FILTER(BOUND(?r)) }
+    BIND("missing bwh:rootModule" AS ?defect)
+  } UNION {
+    ?surface a bwh:WasmexHostSurface .
+    FILTER NOT EXISTS { ?surface bwh:artifactPath ?ap . FILTER(BOUND(?ap)) }
+    BIND("missing bwh:artifactPath" AS ?defect)
+  } UNION {
+    ?surface bwh:outMode ?om .
+    FILTER(?om != "out_len_through_pointer" && ?om != "packed_u64")
+    BIND(CONCAT("out_mode outside closed set: ", STR(?om)) AS ?defect)
+  } UNION {
+    ?surface a bwh:WasmexHostSurface .
+    FILTER NOT EXISTS { ?surface bwh:outMode ?om2 . FILTER(BOUND(?om2)) }
+    BIND("missing bwh:outMode" AS ?defect)
+  } UNION {
+    ?surface bwh:importMode ?im .
+    FILTER(?im != "zero" && ?im != "wasi_only")
+    BIND(CONCAT("import_mode outside closed set: ", STR(?im)) AS ?defect)
+  } UNION {
+    ?surface a bwh:WasmexHostSurface .
+    FILTER NOT EXISTS { ?surface bwh:importMode ?im2 . FILTER(BOUND(?im2)) }
+    BIND("missing bwh:importMode" AS ?defect)
+  } UNION {
+    ?binding a bwh:AlgorithmBinding .
+    BIND(?binding AS ?surface)
+    FILTER NOT EXISTS {
+      ?binding bwh:algorithmId ?id .
+      ?binding bwh:callExport ?ce .
+      ?binding bwh:replayExport ?re .
+      ?binding bwh:wrapperModule ?wm .
+      ?binding bwh:wrapperPath ?wp .
+      ?binding bwh:hostModule ?hm .
+    }
+    BIND(CONCAT("incomplete AlgorithmBinding: ", STR(?binding)) AS ?defect)
+  } UNION {
+    ?binding a bwh:AlgorithmBinding ;
+             bwh:hostModule ?hm2 .
+    BIND(?binding AS ?surface)
+    FILTER NOT EXISTS {
+      ?h2 a bwh:WasmexHostSurface ; bwh:rootModule ?rm2 .
+      FILTER(STR(?rm2) = STR(?hm2))
+    }
+    BIND(CONCAT("AlgorithmBinding hostModule matches no host surface: ", STR(?hm2)) AS ?defect)
+  }
+}
+ORDER BY ?surface ?defect
