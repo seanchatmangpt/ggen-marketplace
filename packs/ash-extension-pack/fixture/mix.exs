@@ -41,6 +41,18 @@ defmodule PipelineProbe.MixProject do
     [
       {:ash, "~> 3.33"},
       {:reactor, "~> 1.0"},
+      # igniter_court deps: the generated igniter idempotence court's scratch
+      # consumer apps (copies of spark-closure-consumer) resolve {:igniter, "~> 0.6"}
+      # and {:sourceror, "~> 1.7"} against THIS fixture's shared MIX_DEPS_PATH;
+      # without them the scratch install subprocess refuses with
+      # "the dependency is not available, run mix deps.get".
+      {:igniter, "~> 0.6", only: :test},
+      {:sourceror, "~> 1.7", only: :test},
+      # aex:installerRuntimeDep for NotificationExtensionSpec ("a2a ~> 0.2"): the
+      # generated notification install task adds {:a2a, "~> 0.2"} to the scratch's
+      # mix.exs, whose NEXT `mix <task>` run dep-checks it. Fetched here so the
+      # shared MIX_DEPS_PATH + copied mix.lock satisfy the scratch's check.
+      {:a2a, "~> 0.2", only: :test},
       # aex:CompositionTarget libraries (ontology.ttl's AuditTrailSpec composes with
       # both); only the generated composition tests load them.
       {:ash_graphql, "~> 1.0", only: :test},

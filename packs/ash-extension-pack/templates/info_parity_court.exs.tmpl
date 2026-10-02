@@ -212,15 +212,24 @@ defmodule {{ module_name }}InfoParityCourt do
   end
 
   defp discovered_mutant_path do
-    @mutant_relative
-    |> then(&Path.join(Path.expand("."), &1))
-    |> then(fn path ->
-      if File.exists?(path) do
-        path
-      else
-        raise ArgumentError,
-              "info parity court: mutant not found at #{path} (set INFO_PARITY_MUTANT_PATH)"
-      end
-    end)
+    # cwd-dependent: standalone fixture runs (mix test in
+    # packs/ash-extension-pack/fixture) find info_mutants/ directly; repo-root runs
+    # and the live-fixture capsule need the packs/-prefixed path.
+    # ASH_PACK_FIXTURE_DIR overrides (the live chain exports it).
+    env_dir = System.get_env("ASH_PACK_FIXTURE_DIR")
+
+    candidates =
+      [
+        env_dir && Path.join(env_dir, "info_mutants/info_mutant.exs"),
+        Path.expand("info_mutants/info_mutant.exs"),
+        Path.expand("fixture/info_mutants/info_mutant.exs"),
+        Path.expand(@mutant_relative)
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    Enum.find(candidates, &File.exists?/1) ||
+      raise ArgumentError,
+            "info parity court: mutant not found; tried #{inspect(candidates)} " <>
+              "(set INFO_PARITY_MUTANT_PATH or ASH_PACK_FIXTURE_DIR)"
   end
 end

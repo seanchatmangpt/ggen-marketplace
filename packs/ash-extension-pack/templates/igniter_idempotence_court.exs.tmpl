@@ -35,6 +35,10 @@ sparql:
 {% set sections = sections | filter(attribute="package_name", value=package_name) %}
 defmodule {{ task_module_name }}IgniterIdempotenceCourtTest do
   use ExUnit.Case, async: false
+  # Each test drives real `mix <pkg>.install` subprocesses (which compile the vendored
+  # extension package); under a loaded machine one install can exceed ExUnit's 60s
+  # default, so the whole court gets a wide budget.
+  @moduletag timeout: 300_000
 
   @package_name "{{ package_name }}"
   @task_name "{{ package_name }}.install"
@@ -45,7 +49,21 @@ defmodule {{ task_module_name }}IgniterIdempotenceCourtTest do
 
   @scratch_root System.tmp_dir!()
                 |> Path.join("spark-closure-consumer-court-scratch-#{System.unique_integer([:positive])}")
-  @fixture_root File.cwd!()
+
+  # The scratch app is a copy of the spark-closure-consumer fixture app. In a
+  # standalone fixture run (mix test in packs/.../fixture) that app lives one level
+  # down (fixture/spark-closure-consumer/); the court's original home had it AT cwd.
+  # First candidate whose lib/spark_closure_consumer exists wins;
+  # AEX_IGNITER_FIXTURE_ROOT overrides (the live chain can export it).
+  @fixture_root Enum.find(
+                  [
+                    System.get_env("AEX_IGNITER_FIXTURE_ROOT"),
+                    Path.join(File.cwd!(), "spark-closure-consumer"),
+                    File.cwd!()
+                  ]
+                  |> Enum.reject(&is_nil/1),
+                  &File.dir?(Path.join(&1, "lib/spark_closure_consumer"))
+                ) || File.cwd!()
 
   setup do
     File.rm_rf!(@scratch_root)
@@ -138,6 +156,34 @@ defmodule {{ task_module_name }}IgniterIdempotenceCourtTest do
         File.cp!(path, real)
     end
 
+    # Lock the scratch's deps against the parent app's lock, so the install
+    # subprocess finds locked deps in the shared MIX_DEPS_PATH instead of refusing
+    # with "the dependency is not locked ... each subprocess reuses the parent's
+    # compiled beams for ash/spark/igniter.
+    parent_lock = Path.join(File.cwd!(), "mix.lock")
+
+    if File.exists?(parent_lock) do
+      File.cp!(parent_lock, Path.join(@scratch_root, "mix.lock"))
+    end
+
+    # The generated `mix <pkg>.install` task is projected into the live chain's
+    # capsule (ASH_PACK_GENERATED/mix/tasks/) rather than living in the committed
+    # consumer fixture (the standalone runner, installer_court.sh, syncs it into
+    # its own capsule instead). The scratch app has neither, so copy it in.
+    case System.get_env("ASH_PACK_GENERATED") do
+      nil ->
+        :ok
+
+      gen ->
+        task = Path.join([gen, "mix/tasks/{{ package_name }}.install.ex"])
+
+        if File.exists?(task) do
+          dest = Path.join([@scratch_root, "lib/mix/tasks/"])
+          File.mkdir_p!(dest)
+          File.cp!(task, Path.join(dest, "{{ package_name }}.install.ex"))
+        end
+    end
+
     vendor_extension_package()
     @scratch_root
   end
@@ -148,9 +194,22 @@ defmodule {{ task_module_name }}IgniterIdempotenceCourtTest do
   # patched resource to compile, and `.formatter.exs`'s `import_deps: [:{{ package_name }}]`
   # must resolve against a real dependency.
   defp vendor_extension_package do
-    src = Path.join(@fixture_root, "lib/{{ package_name }}")
+    # The extension lib to vendor: standalone fixture runs have lib/<pkg> under the
+    # fixture dir; the live-fixture capsule exposes the generated projection at
+    # ASH_PACK_GENERATED/<pkg> (copied flat, no lib/ level).
+    env = System.get_env("ASH_PACK_GENERATED")
 
-    if File.dir?(src) do
+    src =
+      Enum.find(
+        [
+          Path.join(File.cwd!(), "lib/{{ package_name }}"),
+          env && Path.join(env, "{{ package_name }}")
+        ]
+        |> Enum.reject(&is_nil/1),
+        &File.dir?/1
+      )
+
+    if src do
       vendor = Path.join([@scratch_root, "vendor/{{ package_name }}"])
       File.mkdir_p!(Path.join(vendor, "lib"))
       File.cp_r!(src, Path.join(vendor, "lib/{{ package_name }}"))
@@ -211,8 +270,13 @@ defmodule {{ task_module_name }}IgniterIdempotenceCourtTest do
   defp run_install(scratch, argv) do
     env = %{
       "MIX_ENV" => "test",
-      "MIX_DEPS_PATH" => System.get_env("MIX_DEPS_PATH") || Path.join(@fixture_root, "deps"),
-      "MIX_BUILD_ROOT" => System.get_env("AEX_SCRATCH_BUILD_ROOT") || Path.join(@fixture_root, "_build")
+      "MIX_DEPS_PATH" => System.get_env("MIX_DEPS_PATH") || Path.join(File.cwd!(), "deps"),
+      # Default to the PARENT app's build root: the scratch install only needs to
+      # compile the vendored extension package, not ash/spark/igniter from scratch
+      # (a per-scratch build root makes every install a multi-minute cold build and
+      # times the court out). AEX_SCRATCH_BUILD_ROOT still overrides.
+      "MIX_BUILD_ROOT" =>
+        System.get_env("AEX_SCRATCH_BUILD_ROOT") || Path.join(File.cwd!(), "_build")
     }
 
     System.cmd("mix", [@task_name | argv], cd: scratch, stderr_to_stdout: true, env: env)

@@ -23,6 +23,9 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 pack_dir="${root}/packs/ash-extension-pack"
 fixture="${pack_dir}/fixture"
+# A previous chain run's igniter-court scratch installs can leave a _build tree
+# (with deps symlinks) inside the fixture dir; the pack archiver refuses symlinks.
+rm -rf "${fixture}/_build"
 ggen_bin="${1:-${GGEN_BIN:-$(command -v ggen)}}"
 capsule="${ASH_PACK_CAPSULE:-$(mktemp -d "${TMPDIR:-/tmp}/ash-extension-pack-live.XXXXXX")}"
 
@@ -40,7 +43,22 @@ sys.path.insert(0, str(root / "scripts"))
 import marketplace  # noqa: E402
 import qualify_packs  # noqa: E402
 
-[pack] = [p for p in marketplace.require_admitted() if p.name == "ash-extension-pack"]
+# The live chain is pack-scoped: admit ash-extension-pack on its OWN issues. A
+# concurrent wave can hold OTHER packs mid-edit (MANIFEST_MISSING on a pack another
+# lane is writing); those are foreign flux, not this chain's subject, and are
+# reported as a typed note instead of blocking the chain. This pack's issues still
+# refuse.
+packs, issues = marketplace.inspect_marketplace()
+target = "ash-extension-pack"
+own = [i for i in issues if target in i]
+foreign = [i for i in issues if target not in i]
+if own:
+    for issue in own:
+        print(issue, file=sys.stderr)
+    raise SystemExit(2)
+if foreign:
+    print(f"NOTE:FOREIGN_PACK_FLUX n={len(foreign)} (chain scoped to {target}; first: {foreign[0]})", file=sys.stderr)
+[pack] = [p for p in packs if p.name == target]
 print(f"profile: {pack.profile}")
 print(f"consumer: {qualify_packs.prepare_consumer(pack, capsule)}")
 PY
@@ -81,6 +99,9 @@ cat "${capsule}/sha256-pass1.txt"
 # marketplace.py archives every visible file under a pack and refuses symlinks.
 export ASH_PACK_GENERATED="${capsule}/generated"
 export ASH_PACK_GENERATED_TEST="${capsule}/generated_test"
+# Repo fixture dir, for courts that need pack fixture support files (specimens,
+# mutants) regardless of the cwd mix test runs from.
+export ASH_PACK_FIXTURE_DIR="${fixture}"
 export MIX_BUILD_ROOT="${capsule}/_build"
 export MIX_DEPS_PATH="${capsule}/deps"
 mkdir -p "${ASH_PACK_GENERATED}" "${ASH_PACK_GENERATED_TEST}"

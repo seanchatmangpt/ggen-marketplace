@@ -75,9 +75,13 @@ defmodule {{ module_name }}TransformerClosureCourt do
   # COURT_TRANSFORMER_SOURCE overrides all candidates (mutant runs).
   @source_candidates [
     System.get_env("COURT_TRANSFORMER_SOURCE"),
+    # live-fixture capsule layout: consumer lib/** is copied flat, so the generated
+    # persist.ex is <capsule>/generated/{{ package_name }}/persist.ex (no lib/ level).
+    Path.join(System.get_env("ASH_PACK_GENERATED", "lib/generated"), "{{ package_name }}/persist.ex"),
+    # fixture mount layout: elixirc_paths appends ASH_PACK_GENERATED under lib/.
     Path.join(System.get_env("ASH_PACK_GENERATED", "lib/generated"), "lib/{{ package_name }}/persist.ex"),
-    "lib/{{ package_name }}/persist.ex",
-    "lib/{{ package_name }}_generated/lib/{{ package_name }}/persist.ex"
+    Path.expand("lib/{{ package_name }}/persist.ex"),
+    Path.expand("lib/{{ package_name }}_generated/lib/{{ package_name }}/persist.ex")
   ]
 
   # Contract-permitted Application env reads: none by default. An ontology row
@@ -157,9 +161,12 @@ defmodule {{ module_name }}TransformerClosureCourt do
     """
   end
 
-  # Compiles a FRESH specimen + draft per call with unique module names, so two
-  # "equivalent drafts" are genuinely independent compilations.
-  defp compile_draft(steps, pre_setup) do
+  # Compiles a FRESH specimen once, then compiles drafts against it. The specimen
+  # (and with it the entity struct identity) MUST be shared across the two
+  # determinism-leg drafts: the persisted state embeds the entity struct module
+  # name, so per-draft specimens would make two pure-transformer drafts differ by
+  # tag alone (false nondeterminism). Drafts remain independent compilations.
+  defp compile_specimen do
     tag = System.unique_integer([:positive])
 
     specimen_src =
@@ -176,6 +183,12 @@ defmodule {{ module_name }}TransformerClosureCourt do
     # two court-owned modules are asserted present by name, not position.
     true = specimen in compiled
     true = step_struct in compiled
+
+    {specimen, step_struct}
+  end
+
+  defp compile_draft({specimen, step_struct}, steps, pre_setup) do
+    tag = System.unique_integer([:positive])
 
     draft_mod = Module.concat(["{{ module_name }}.Court.Draft#{tag}"])
 
@@ -206,7 +219,8 @@ defmodule {{ module_name }}TransformerClosureCourt do
   # ===========================================================================
   @tag :transformer_closure_court
   test "(a) parity: persisted state equals the Spark-declared inputs" do
-    {draft, _} = compile_draft([{:alpha, "court-declared-alpha"}], nil)
+    specimen = compile_specimen()
+    {draft, _} = compile_draft(specimen, [{:alpha, "court-declared-alpha"}], nil)
     blob = persisted_binary(draft)
 
     for token <- ["court-declared-alpha", "alpha"] do
@@ -231,14 +245,16 @@ defmodule {{ module_name }}TransformerClosureCourt do
     # transformer derives only from dsl_state and is blind to them; a transformer
     # that sneaks config through :persistent_term or Application env sees the
     # flip and the two equivalent drafts persist different state.
+    specimen = compile_specimen()
+
     {draft1, _} =
-      compile_draft(steps, fn ->
+      compile_draft(specimen, steps, fn ->
         :persistent_term.put({:{{ package_name }}, :hidden_mode}, :a)
         Application.put_env(:{{ package_name }}, :hidden_mode, :a)
       end)
 
     {draft2, _} =
-      compile_draft(steps, fn ->
+      compile_draft(specimen, steps, fn ->
         :persistent_term.put({:{{ package_name }}, :hidden_mode}, :b)
         Application.put_env(:{{ package_name }}, :hidden_mode, :b)
       end)

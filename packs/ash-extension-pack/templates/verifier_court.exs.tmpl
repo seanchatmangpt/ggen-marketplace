@@ -205,7 +205,20 @@ end
 defmodule {{ module_name }}VerifierCourtTest do
   use ExUnit.Case, async: false
 
-  @specimen_dir Path.join(File.cwd!(), "{{ specimen_dir | default(value="fixture/malformed_specimens") }}")
+  # Specimen dir resolution is cwd-dependent: standalone fixture runs (mix test in
+  # packs/ash-extension-pack/fixture) need the bare name; repo-root runs and the
+  # live-fixture capsule need the fixture/-prefixed path. First existing wins;
+  # ASH_PACK_FIXTURE_DIR overrides (the capsule chain exports it).
+  @specimen_dir Enum.find(
+                  [
+                    System.get_env("ASH_PACK_FIXTURE_DIR") &&
+                      Path.join(System.get_env("ASH_PACK_FIXTURE_DIR"), "malformed_specimens"),
+                    Path.join(File.cwd!(), "malformed_specimens"),
+                    Path.join(File.cwd!(), "fixture/malformed_specimens")
+                  ]
+                  |> Enum.reject(&is_nil/1),
+                  &File.dir?/1
+                ) || Path.join(File.cwd!(), "fixture/malformed_specimens")
   {%- if verifiers | length > 0 %}
   @verifiers [{% for v in verifiers %}"{{ v.verifier_name }}"{% if not loop.last %}, {% endif %}{% endfor %}]
   {%- else %}
@@ -280,7 +293,23 @@ defmodule {{ module_name }}VerifierCourtTest do
   end
 
   test "every malformed specimen is refused by the real generated verifier" do
-    Enum.each(@specimens, fn specimen ->
+    # Specimens are spec-scoped (they call the spec's own section macros and cite
+    # a VERIFIER header). A specimen whose VERIFIER is not declared by THIS spec is
+    # not applicable: compiling it here would produce a section-macro CompileError
+    # that proves nothing about this spec's verifiers. With verifiers declared but
+    # zero applicable specimens the refusal leg is UNPROVEN, not passing.
+    if @verifiers == [] do
+      IO.puts(
+        "NOTE(verifier-court {{ package_name }}): spec declares no aex:Verifier rows -- " <>
+          "specimen legs skipped; the non-vacuity test carries the typed refusal"
+      )
+    else
+      applicable = Enum.filter(@specimens, &(&1.verifier in @verifiers))
+
+      assert applicable != [],
+             "no malformed specimen witnesses any declared verifier #{inspect(@verifiers)} -- refusal leg unproven"
+
+      Enum.each(applicable, fn specimen ->
       source =
         specimen.source
         |> String.split("\n")
@@ -314,7 +343,13 @@ defmodule {{ module_name }}VerifierCourtTest do
 
           assert kind == specimen.expect_raise and matched?,
                  "specimen #{specimen.name}: expected #{specimen.expect_raise} matching \"#{specimen.expect_message}\", " <>
-                   "got #{kind}: #{message}"
+                   "got #{kind}: #{message}" <>
+                   if(diagnostics == [],
+                     do: "",
+                     else:
+                       "\n  captured diagnostics: " <>
+                         inspect(Enum.map(diagnostics, &{&1.severity, &1.message}), limit: :infinity)
+                   )
 
         :compiled_clean ->
           diagnostic =
@@ -333,5 +368,6 @@ defmodule {{ module_name }}VerifierCourtTest do
           end
       end
     end)
+    end
   end
 end
