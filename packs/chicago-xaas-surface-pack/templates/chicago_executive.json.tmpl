@@ -1,0 +1,86 @@
+{%- set metas = results | filter(attribute="rowKind", value="meta") -%}
+{%- set digests = results | filter(attribute="rowKind", value="digest") -%}
+{%- set narratives = results | filter(attribute="rowKind", value="narrative") -%}
+{%- set capabilities = results | filter(attribute="rowKind", value="capability") -%}
+{%- set scenarios = results | filter(attribute="rowKind", value="scenario") -%}
+{%- set boundaries = results | filter(attribute="rowKind", value="boundary") -%}
+{%- set_global n_required = 0 -%}
+{%- set_global n_demonstrated = 0 -%}
+{%- set_global n_successor = 0 -%}
+{%- for c in capabilities -%}
+{%- if c["role"] == "required" -%}
+{%- set_global n_required = n_required + 1 -%}
+{%- if c["status"] == "ALIVE" -%}
+{%- set_global n_demonstrated = n_demonstrated + 1 -%}
+{%- endif -%}
+{%- endif -%}
+{%- if c["role"] == "successor" -%}
+{%- set_global n_successor = n_successor + 1 -%}
+{%- endif -%}
+{%- endfor -%}
+{
+  "generated": true,
+  "authorityClaim": "NONE",
+  "subject": "{{ metas[0]["subject"] | safe }}",
+  "projectionType": "executive",
+  "sourceDigests": [
+    {%- for d in digests %}
+    { "path": "{{ d["path"] | safe }}", "sha256": "{{ d["sha256"] | safe }}" }{% if not loop.last %},{% endif %}{% endfor %}
+  ],
+  "generatorIdentity": "ggen-marketplace/chicago-xaas-surface-pack@26.10.1",
+  "narrative": {
+    "audience": "{{ narratives[0]["narrativeAudience"] | safe }}",
+    "headline": "{{ narratives[0]["narrativeHeadline"] | safe }}",
+    "customerProblem": "{{ narratives[0]["narrativeProblem"] | safe }}",
+    "desiredOutcome": "{{ narratives[0]["narrativeOutcome"] | safe }}",
+    "semanticPath": "{{ narratives[0]["narrativePath"] | safe }}"
+  },
+  "capabilities": [
+    {%- for r in capabilities %}
+    {
+      "id": "{{ r["id"] | safe }}",
+      "label": "{{ r["label"] | safe }}",
+      "capabilityId": "{{ r["capabilityId"] | safe }}",
+      "repository": "{{ r["repository"] | safe }}",
+      "role": "{{ r["role"] | safe }}",
+      "status": "{{ r["status"] | safe }}"
+    }{% if not loop.last %},{% endif %}{% endfor %}
+  ],
+  "demonstrated": [
+    {%- set_global n_shown = 0 -%}
+    {%- for r in capabilities -%}
+    {%- if r["status"] == "ALIVE" -%}
+    {%- set_global n_shown = n_shown + 1 -%}
+    "{{ r["id"] | safe }}"{% if n_shown < n_demonstrated %},{% endif %}
+    {%- endif -%}
+    {%- endfor %}
+  ],
+  "scenarios": [
+    {%- for r in scenarios %}
+    {
+      "id": "{{ r["caseId"] | safe }}",
+      "label": "{{ r["caseLabel"] | safe }}",
+      "polarity": "{{ r["polarity"] | safe }}",
+      "failureRecovery": "{{ r["failureRecovery"] | safe }}"
+    }{% if not loop.last %},{% endif %}{% endfor %}
+  ],
+  "authorityBoundaries": [
+    {%- for r in boundaries %}
+    "{{ r["boundaryText"] | safe }}"{% if not loop.last %},{% endif %}{% endfor %}
+  ],
+  "evidence": [
+    {%- for r in capabilities %}
+    {
+      "layer": "{{ r["id"] | safe }}",
+      "standing": "{{ r["status"] | safe }}",
+      "evidenceHorizon": "{{ r["evidenceHorizon"] | safe }}"
+    }{% if not loop.last %},{% endif %}{% endfor %}
+  ],
+  "deliveryState": {
+    "requiredLayers": {{ n_required }},
+    "demonstratedLayers": {{ n_demonstrated }},
+    "candidateLayers": {{ n_required - n_demonstrated }},
+    "successorLayers": {{ n_successor }},
+    "overallStanding": "{% if n_demonstrated == n_required and n_required > 0 %}ALIVE{% else %}UNKNOWN{% endif %}"
+  }
+}
