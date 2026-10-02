@@ -159,3 +159,7 @@
 - [Industry closure contract](reference/industry-closure-contract.md)
 - [Enterprise operating model contract](reference/enterprise-operating-model-contract.md)
 - [Industry closure as architecture strategy](explanation/industry-closure-as-architecture-strategy.md)
+- [Compose a capability cover](tutorials/compose-a-capability-cover.md)
+- [Add a capability atom to the solver basis](how-to/add-a-capability-atom.md)
+- [Composition solver contract](reference/composition-solver-contract.md)
+- [Why the composition solver is bounded](explanation/why-the-composition-solver-is-bounded.md)
