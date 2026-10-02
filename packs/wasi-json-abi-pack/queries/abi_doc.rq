@@ -1,0 +1,166 @@
+# abi_doc.rq -- consumed by templates/wasm_abi_doc.md.tmpl.
+#
+# Single-row binding for the ABI documentation skeleton (calling convention,
+# envelope, digest/replay, memory ownership and the exports table).
+# Projected columns (MUST equal the template's {{ }} vars):
+#   crate_name, abi_version            - scalar module facts.
+#   return_convention                  - wja:returnConvention, default "packed-u64".
+#   symbol_suffix                      - wja:symbolSuffix, default "".
+#   input_release_policy               - wja:inputReleasePolicy, default "call-consumes".
+#   imports_policy                     - wja:importsPolicy; "none" = zero imports.
+#   startup_convention                 - wja:startupConvention, default "cdylib".
+#   error_style                        - wja:errorStyle, default "" (consumer-owned).
+#   has_abi_version_export             - wja:hasAbiVersionExport, default "true".
+#   alloc_symbol / call_symbol / free_symbol / dealloc_symbol /
+#   abi_version_export_symbol          - rendered export symbols (see registry.rq).
+#   op_symbol_prefix                   - wja:opSymbolPrefix, default exportPrefix.
+#   digest_algorithm / digest_input / digest_format / digest_hex_chars
+#                                      - the four wja:digest facts, "" when absent.
+#   op_count                           - number of wja:hasOp ops (0 when none).
+#   replay_count                       - ops with wja:hasReplayCompanion true (0 default).
+#   ops        - GROUP_CONCAT, one op per "@@" group, fields joined by "##":
+#                 <order zero-padded to 6>##opName##requestFields##responseFields
+#                 ##replayFlag##sourceFile
+#   export_rows - GROUP_CONCAT, one export per "@@" group, fields joined by "##":
+#                 symbol##kind##params##result##source
+#                 (kind in {core, request_response, replay}; empty groups are
+#                 skipped by the template so the lexical sort equals the
+#                 alphabetical export order).
+# A module missing crateName/abiVersion/exports facts => zero rows => refusal.
+
+PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
+
+SELECT ?crate_name ?abi_version ?return_convention ?symbol_suffix ?input_release_policy
+       ?imports_policy ?startup_convention ?error_style ?has_abi_version_export
+       ?alloc_symbol ?call_symbol ?free_symbol ?dealloc_symbol ?abi_version_export_symbol
+       ?op_symbol_prefix ?digest_algorithm ?digest_input ?digest_format ?digest_hex_chars
+       ?op_count ?replay_count ?ops ?export_rows
+WHERE {
+  ?m a wja:WasmModule ;
+     wja:crateName ?crate_name ;
+     wja:exportPrefix ?exportPrefixRaw ;
+     wja:abiVersion ?abi_version ;
+     wja:importsPolicy ?imports_policy .
+  OPTIONAL { ?m wja:returnConvention ?rcRaw }
+  OPTIONAL { ?m wja:symbolSuffix ?ssRaw }
+  OPTIONAL { ?m wja:inputReleasePolicy ?irpRaw }
+  OPTIONAL { ?m wja:startupConvention ?scRaw }
+  OPTIONAL { ?m wja:errorStyle ?esRaw }
+  OPTIONAL { ?m wja:hasAbiVersionExport ?havRaw }
+  OPTIONAL { ?m wja:opSymbolPrefix ?ospRaw }
+  OPTIONAL { ?m wja:abiVersionExportName ?avenRaw }
+  OPTIONAL { ?m wja:digestAlgorithm ?daRaw }
+  OPTIONAL { ?m wja:digestInput ?diRaw }
+  OPTIONAL { ?m wja:digestFormat ?dfRaw }
+  OPTIONAL { ?m wja:digestHexChars ?dhcRaw }
+  BIND(STR(?exportPrefixRaw) AS ?export_prefix)
+  BIND(COALESCE(STR(?rcRaw), "packed-u64") AS ?return_convention)
+  BIND(COALESCE(STR(?ssRaw), "") AS ?symbol_suffix)
+  BIND(COALESCE(STR(?irpRaw), "call-consumes") AS ?input_release_policy)
+  BIND(COALESCE(STR(?scRaw), "cdylib") AS ?startup_convention)
+  BIND(COALESCE(STR(?esRaw), "") AS ?error_style)
+  BIND(COALESCE(STR(?havRaw), "true") AS ?has_abi_version_export)
+  BIND(COALESCE(STR(?ospRaw), ?export_prefix) AS ?op_symbol_prefix)
+  BIND(COALESCE(STR(?daRaw), "") AS ?digest_algorithm)
+  BIND(COALESCE(STR(?diRaw), "") AS ?digest_input)
+  BIND(COALESCE(STR(?dfRaw), "") AS ?digest_format)
+  BIND(COALESCE(STR(?dhcRaw), "") AS ?digest_hex_chars)
+  BIND(CONCAT(?export_prefix, "_alloc", COALESCE(STR(?ssRaw), "")) AS ?alloc_symbol)
+  BIND(CONCAT(?export_prefix, "_call", COALESCE(STR(?ssRaw), "")) AS ?call_symbol)
+  BIND(CONCAT(?export_prefix, "_free", COALESCE(STR(?ssRaw), "")) AS ?free_symbol)
+  BIND(CONCAT(?export_prefix, "_dealloc", COALESCE(STR(?ssRaw), "")) AS ?dealloc_symbol)
+  BIND(COALESCE(STR(?avenRaw), CONCAT(?export_prefix, "_abi_version", COALESCE(STR(?ssRaw), ""))) AS ?abi_version_export_symbol)
+
+  {
+    SELECT ?m2 (COUNT(?op2) AS ?op_count)
+    WHERE { ?m2 wja:hasOp ?op2 }
+    GROUP BY ?m2
+  }
+  OPTIONAL {
+    SELECT ?m3 (COUNT(?op3) AS ?replayCount3)
+    WHERE { ?m3 wja:hasOp ?op3 . ?op3 wja:hasReplayCompanion true }
+    GROUP BY ?m3
+  }
+  BIND(COALESCE(STR(?replayCount3), "0") AS ?replay_count)
+
+  {
+    SELECT ?m7 (GROUP_CONCAT(?spec; separator="@@") AS ?ops)
+    WHERE {
+      {
+        SELECT ?m7 ?spec
+        WHERE {
+          ?m7 wja:hasOp ?op .
+          ?op wja:opName ?on ;
+              wja:opOrder ?oo ;
+              wja:requestFields ?rq ;
+              wja:responseFields ?rs .
+          OPTIONAL { ?op wja:hasReplayCompanion ?hrc }
+          OPTIONAL { ?op wja:opSourceFile ?osf }
+          BIND(CONCAT(SUBSTR("000000", STRLEN(STR(?oo)) + 1), STR(?oo), "##", STR(?on), "##", STR(?rq), "##", STR(?rs), "##", COALESCE(STR(?hrc), "false"), "##", COALESCE(STR(?osf), "-")) AS ?spec)
+        }
+        ORDER BY ?oo
+      }
+    }
+    GROUP BY ?m7
+  }
+
+  {
+    SELECT ?m4 (GROUP_CONCAT(?row; separator="@@") AS ?export_rows)
+    WHERE {
+      {
+        SELECT ?m4 ?row WHERE {
+          ?m4 a wja:WasmModule ;
+              wja:exportPrefix ?ep4 .
+          OPTIONAL { ?m4 wja:symbolSuffix ?ss4 }
+          OPTIONAL { ?m4 wja:returnConvention ?rc4 }
+          OPTIONAL { ?m4 wja:inputReleasePolicy ?irp4 }
+          OPTIONAL { ?m4 wja:hasAbiVersionExport ?hav4 }
+          OPTIONAL { ?m4 wja:abiVersionExportName ?aven4 }
+          BIND(COALESCE(STR(?ss4), "") AS ?sfx4)
+          BIND(COALESCE(STR(?rc4), "packed-u64") AS ?rcv4)
+          BIND(COALESCE(STR(?irp4), "call-consumes") AS ?irv4)
+          BIND(COALESCE(STR(?hav4), "true") AS ?havv4)
+          BIND(CONCAT(STR(?ep4), "_alloc", ?sfx4) AS ?al4)
+          BIND(CONCAT(STR(?ep4), "_call", ?sfx4) AS ?ca4)
+          BIND(CONCAT(STR(?ep4), "_free", ?sfx4) AS ?fr4)
+          BIND(CONCAT(STR(?ep4), "_dealloc", ?sfx4) AS ?de4)
+          BIND(COALESCE(STR(?aven4), CONCAT(STR(?ep4), "_abi_version", ?sfx4)) AS ?ab4)
+          BIND(IF(?rcv4 = "packed-u64", "(ptr: i32, len: i32)", "(ptr: i32, len: i32, out_len: i32)") AS ?cparams4)
+          BIND(IF(?rcv4 = "packed-u64", "i64", "i32") AS ?cresult4)
+          BIND(CONCAT(?al4, "##core##(len: i32)##i32##-") AS ?rowAlloc4)
+          BIND(CONCAT(?ca4, "##core##", ?cparams4, "##", ?cresult4, "##-") AS ?rowCall4)
+          BIND(CONCAT(?fr4, "##core##(ptr: i32, len: i32)##-##-") AS ?rowFree4)
+          BIND(IF(?irv4 = "host-dealloc", CONCAT(?de4, "##core##(ptr: i32, len: i32)##-##-"), "") AS ?rowDealloc4)
+          BIND(IF(?havv4 = "true", CONCAT(?ab4, "##core##()##i32##-"), "") AS ?rowAbi4)
+          BIND(CONCAT(?rowAlloc4, "@@", ?rowCall4, "@@", ?rowDealloc4, "@@", ?rowAbi4) AS ?row)
+        }
+      }
+      UNION
+      {
+        SELECT ?m4 ?row WHERE {
+          ?m4 wja:hasOp ?op4 ;
+              wja:exportPrefix ?ep5 .
+          ?op4 wja:opName ?on4 ;
+               wja:opOrder ?oo4 .
+          OPTIONAL { ?m4 wja:opSymbolPrefix ?osp5 }
+          OPTIONAL { ?m4 wja:returnConvention ?rc5 }
+          OPTIONAL { ?m4 wja:symbolSuffix ?ss5 }
+          OPTIONAL { ?op4 wja:hasReplayCompanion ?hrc5 }
+          OPTIONAL { ?op4 wja:opSourceFile ?osf5 }
+          BIND(COALESCE(STR(?osp5), STR(?ep5)) AS ?prefix5)
+          BIND(COALESCE(STR(?rc5), "packed-u64") AS ?rcv5)
+          BIND(COALESCE(STR(?ss5), "") AS ?sfx5)
+          BIND(CONCAT(?prefix5, "_", STR(?on4), ?sfx5) AS ?opsym5)
+          BIND(CONCAT(?prefix5, "_", STR(?on4), "_replay", ?sfx5) AS ?rpsym5)
+          BIND(IF(?rcv5 = "out-len-pointer", CONCAT(?opsym5, "##request_response##(ptr: i32, len: i32, out_len: i32)##i32##", COALESCE(STR(?osf5), "-")), "") AS ?rowOp5)
+          BIND(IF(?rcv5 = "out-len-pointer" && isLiteral(?hrc5) && STR(?hrc5) = "true", CONCAT(?rpsym5, "##replay##(ptr: i32, len: i32)##i32##", COALESCE(STR(?osf5), "-")), "") AS ?rowReplay5)
+          BIND(IF(?rowOp5 != "", CONCAT(?rowOp5, "@@", ?rowReplay5), "") AS ?row)
+        }
+      }
+    }
+    GROUP BY ?m4
+  }
+  FILTER(?m = ?m2 && ?m = ?m4)
+}
+ORDER BY ?crate_name
+LIMIT 1

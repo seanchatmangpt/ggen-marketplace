@@ -3,18 +3,23 @@
 // Consumed query columns (ffi.rq): crate_name, export_prefix, abi_version,
 // max_request_bytes.{% if max_outstanding_bytes != "" or buffer_style != "boxed-slice" or has_abi_version_export != "true" or abi_path != "crate::abi" %}
 // Allocation-discipline columns (ffi.rq): has_abi_version_export, max_outstanding_bytes,
-// buffer_style, abi_path.{% endif %}
+// buffer_style, abi_path.{% endif %}{% if return_convention != "packed-u64" or symbol_suffix != "" or input_release_policy != "call-consumes" or abi_version_export_symbol != export_prefix ~ "_abi_version" ~ symbol_suffix %}
+// Wire-convention columns (ffi.rq): return_convention, symbol_suffix,
+// input_release_policy, abi_version_export_symbol.{% endif %}
 // Rendered by ggen (wasi-json-abi-pack) from the wja: graph.
 // Edit the ontology and re-render; never edit this file by hand.
 //
 // Protocol (ABI version {{ abi_version }}, request limit {{ max_request_bytes }} bytes; all
 // integers are wasm `i32`/`i64`):
-// 1. `{{ export_prefix }}_alloc(len) -> ptr`: host reserves `len` bytes and writes a UTF-8
+// 1. `{{ export_prefix }}_alloc{{ symbol_suffix }}(len) -> ptr`: host reserves `len` bytes and writes a UTF-8
 //    JSON request there. Returns null when `len` exceeds the request limit.
-// 2. `{{ export_prefix }}_call(ptr, len) -> packed`: runs the request and consumes (frees)
-//    the request buffer. `packed = (out_ptr << 32) | out_len`.
+// 2. `{{ export_prefix }}_call{{ symbol_suffix }}(ptr, len{% if return_convention == "out-len-pointer" %}, out_len{% endif %}) -> {% if return_convention == "packed-u64" %}packed{% else %}out_ptr{% endif %}`: runs the request and {% if input_release_policy == "call-consumes" %}consumes (frees)
+//    the request buffer{% else %}reads the request buffer without freeing it (the host releases it
+//    via `{{ export_prefix }}_dealloc{{ symbol_suffix }}`){% endif %}{% if return_convention == "packed-u64" %}. `packed = (out_ptr << 32) | out_len`{% else %}; the response
+//    length is written through `out_len`{% endif %}.
 // 3. host reads `out_len` bytes at `out_ptr` (UTF-8 JSON), then
-//    `{{ export_prefix }}_free(out_ptr, out_len)`.
+//    `{{ export_prefix }}_free{{ symbol_suffix }}(out_ptr, out_len)`{% if input_release_policy == "host-dealloc" %}, and releases the request buffer with
+//    `{{ export_prefix }}_dealloc{{ symbol_suffix }}(ptr, len)` (same `len` as alloc){% endif %}.
 //
 // A null request pointer or an oversize length never traps: the call returns a
 // typed error response built by the safe core.
@@ -140,7 +145,7 @@ pub fn alloc_buf(len: u32) -> *mut u8 {
 }
 {%- endif %}
 
-/// Release a buffer obtained from [`alloc_buf`] or returned by [`call_buf`].
+/// Release a buffer {% if input_release_policy == "call-consumes" %}obtained from [`alloc_buf`] or returned by [`call_buf`].{% else %}pair handed out by this module (a request buffer from [`alloc_buf`] or a response buffer from a call).{% endif %}
 ///
 /// # Safety
 /// `ptr`/`len` must be exactly a pair previously handed out by this module.
@@ -154,7 +159,7 @@ pub unsafe fn free_buf(ptr: *mut u8, len: u32) {
     }
 }
 
-/// Run one request buffer and return the JSON response bytes. Null pointers and
+{% if input_release_policy == "call-consumes" %}/// Run one request buffer and return the JSON response bytes. Null pointers and
 /// oversize lengths yield typed error responses; the request buffer is consumed
 /// only when it is a buffer this module could have handed out.
 ///
@@ -186,8 +191,31 @@ pub unsafe fn call_buf(ptr: *mut u8, len: u32) -> Vec<u8> {
     }
     response
 }
-
-/// Hand a response to the host; returns `(out_ptr << 32) | out_len`.
+{% else %}/// Run one borrowed request buffer and return the JSON response bytes. The
+/// host owns the input buffer, so this only reads through `ptr` and never
+/// reconstructs or frees it. Null pointers and oversize lengths yield typed
+/// error responses; releasing the input stays the host's job.
+///
+/// # Safety
+/// `ptr`/`len` must describe a host-owned readable buffer of `len` bytes.
+pub unsafe fn call_borrowed(ptr: *const u8, len: u32) -> Vec<u8> {
+    let response = if ptr.is_null() {
+        {{ abi_path }}::missing_buffer_response()
+    } else if len as usize > MAX_REQUEST_BYTES {
+        {{ abi_path }}::limit_response("request_bytes", len as usize, MAX_REQUEST_BYTES)
+    } else {
+        // SAFETY: caller guarantees `len` readable bytes behind `ptr`.
+        let request = unsafe { core::slice::from_raw_parts(ptr, len as usize) };
+        {{ abi_path }}::call(request)
+    };
+    if response.is_empty() {
+        // Keep len >= 1 so the host's free reclaims the exact allocation.
+        return b"{}".to_vec();
+    }
+    response
+}
+{% endif %}
+{% if return_convention == "packed-u64" %}/// Hand a response to the host; returns `(out_ptr << 32) | out_len`.
 fn pack_response(response: Vec<u8>) -> u64 {
     let out_len = response.len() as u64;
 {%- if max_outstanding_bytes != "" %}
@@ -204,47 +232,112 @@ fn pack_response(response: Vec<u8>) -> u64 {
 {%- endif %}
     (out_ptr << 32) | out_len
 }
+{%- endif %}{% if return_convention == "out-len-pointer" %}/// Hand a response to the host through the out-len pointer: the response
+/// length is written through `out_len` and the response buffer pointer is
+/// returned directly.
+fn hand_response(response: Vec<u8>, out_len: *mut usize) -> *mut u8 {
+    if !out_len.is_null() {
+        // SAFETY: `out_len` is the host-supplied response-length pointer
+        // required by the ABI contract.
+        unsafe { *out_len = response.len() };
+    }
+{%- if buffer_style == "vec" %}
+    let mut response = response;
+    // Capacity must equal length so `_free` can reconstruct the allocation.
+    response.shrink_to_fit();
+    into_raw(response)
+{%- else %}
+    into_raw(response.into_boxed_slice())
+{%- endif %}
+}
+{%- endif %}
 
 {% if has_abi_version_export == "true" -%}
 /// ABI revision; see [`crate::abi_meta::ABI_VERSION`].
 #[cfg(target_arch = "wasm32")]
 #[unsafe(no_mangle)]
-pub extern "C" fn {{ export_prefix }}_abi_version() -> u32 {
+pub extern "C" fn {{ abi_version_export_symbol }}() -> u32 {
     ABI_VERSION
 }
 
 {% endif -%}
 /// Reserve `len` bytes of linear memory for the host. Returns null (0) when
-/// `len` exceeds the request limit{% if max_outstanding_bytes != "" %} or the outstanding-byte cap{% endif %}; a following `{{ export_prefix }}_call` on that null
+/// `len` exceeds the request limit{% if max_outstanding_bytes != "" %} or the outstanding-byte cap{% endif %}; a following `{{ export_prefix }}_call{{ symbol_suffix }}` on that null
 /// buffer yields a typed error response, never a trap.
 #[cfg(target_arch = "wasm32")]
 #[unsafe(no_mangle)]
-pub extern "C" fn {{ export_prefix }}_alloc(len: u32) -> *mut u8 {
+pub extern "C" fn {{ export_prefix }}_alloc{{ symbol_suffix }}(len: u32) -> *mut u8 {
     alloc_buf(len)
 }
 
-/// Release a buffer obtained from `{{ export_prefix }}_alloc` or returned by `{{ export_prefix }}_call`.
+{%- if input_release_policy == "host-dealloc" %}
+
+/// Release a request buffer obtained from `{{ export_prefix }}_alloc{{ symbol_suffix }}`.
+/// Reading an input never frees it: releasing request buffers is the host's job.
 ///
 /// # Safety
 /// `ptr`/`len` must be exactly a pair previously handed out by this module.
 #[cfg(target_arch = "wasm32")]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn {{ export_prefix }}_free(ptr: *mut u8, len: u32) {
+pub unsafe extern "C" fn {{ export_prefix }}_dealloc{{ symbol_suffix }}(ptr: *mut u8, len: u32) {
     // SAFETY: forwarded caller contract.
     unsafe { free_buf(ptr, len) }
 }
 
-/// Execute one JSON request; returns `(out_ptr << 32) | out_len`.
+/// Release a response buffer returned by `{{ export_prefix }}_call{{ symbol_suffix }}`.
 ///
 /// # Safety
-/// `ptr`/`len` must describe a buffer from `{{ export_prefix }}_alloc` filled by the host.
+/// `ptr`/`len` must be exactly a pair previously handed out by this module.
 #[cfg(target_arch = "wasm32")]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn {{ export_prefix }}_call(ptr: *mut u8, len: u32) -> u64 {
+pub unsafe extern "C" fn {{ export_prefix }}_free{{ symbol_suffix }}(ptr: *mut u8, len: u32) {
     // SAFETY: forwarded caller contract.
-    pack_response(unsafe { call_buf(ptr, len) })
+    unsafe { free_buf(ptr, len) }
 }
+{% else %}
 
+/// Release a buffer obtained from `{{ export_prefix }}_alloc{{ symbol_suffix }}` or returned by `{{ export_prefix }}_call{{ symbol_suffix }}`.
+///
+/// # Safety
+/// `ptr`/`len` must be exactly a pair previously handed out by this module.
+#[cfg(target_arch = "wasm32")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn {{ export_prefix }}_free{{ symbol_suffix }}(ptr: *mut u8, len: u32) {
+    // SAFETY: forwarded caller contract.
+    unsafe { free_buf(ptr, len) }
+}
+{% endif %}
+{% if return_convention == "packed-u64" %}/// Execute one JSON request; returns `(out_ptr << 32) | out_len`.
+///
+/// # Safety
+/// `ptr`/`len` must describe a buffer from `{{ export_prefix }}_alloc{{ symbol_suffix }}` filled by the host.
+#[cfg(target_arch = "wasm32")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn {{ export_prefix }}_call{{ symbol_suffix }}(ptr: *mut u8, len: u32) -> u64 {
+    // SAFETY: forwarded caller contract.
+{%- if input_release_policy == "call-consumes" %}
+    pack_response(unsafe { call_buf(ptr, len) })
+{%- else %}
+    pack_response(unsafe { call_borrowed(ptr, len) })
+{%- endif %}
+}
+{% else %}/// Execute one JSON request; the response length is written through `out_len`
+/// and the response buffer pointer is returned.
+///
+/// # Safety
+/// `ptr`/`len` must describe a buffer from `{{ export_prefix }}_alloc{{ symbol_suffix }}` filled by the host;
+/// `out_len` must be a writable `usize`.
+#[cfg(target_arch = "wasm32")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn {{ export_prefix }}_call{{ symbol_suffix }}(ptr: *mut u8, len: u32, out_len: *mut usize) -> *mut u8 {
+    // SAFETY: forwarded caller contract.
+{%- if input_release_policy == "call-consumes" %}
+    hand_response(unsafe { call_buf(ptr, len) }, out_len)
+{%- else %}
+    hand_response(unsafe { call_borrowed(ptr, len) }, out_len)
+{%- endif %}
+}
+{% endif %}
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
@@ -265,10 +358,17 @@ mod tests {
 
     #[test]
     fn null_and_oversize_call_are_typed_not_traps() {
+{%- if input_release_policy == "call-consumes" %}
         let a = unsafe { call_buf(core::ptr::null_mut(), 0) };
         assert!(!a.is_empty());
         let b = unsafe { call_buf(core::ptr::dangling_mut::<u8>(), (MAX_REQUEST_BYTES as u32).saturating_add(1)) };
         assert!(!b.is_empty());
+{%- else %}
+        let a = unsafe { call_borrowed(core::ptr::null(), 0) };
+        assert!(!a.is_empty());
+        let b = unsafe { call_borrowed(core::ptr::dangling::<u8>(), (MAX_REQUEST_BYTES as u32).saturating_add(1)) };
+        assert!(!b.is_empty());
+{%- endif %}
     }
 
 {%- if has_abi_version_export == "true" %}

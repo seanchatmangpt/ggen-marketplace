@@ -1,0 +1,49 @@
+# MESSAGE: receipt-missing-field. A receipt is a receipt only when it carries
+# ALL FIVE fields: identity (qce:subjectCommit — the exact subject SHA),
+# authority (qce:authorityDigest or qce:authorityEnvelope), consequence
+# (qce:consequenceDigest), replay (qce:replayReceipt or qce:replayDigest) and
+# standing (ecap:standing -> public APS individual). Missing ANY field: not a
+# receipt, and an ecap:ReceiptClaim asserting it is refused. Receipt classes
+# themselves are REUSED from packs/qualified-capability-ecology-pack — this
+# gate judges claims over them, it does not redefine them. Any row is a
+# refusal.
+PREFIX ecap: <https://ggen.dev/ontology/evidence-capability#>
+PREFIX qce: <https://ggen.dev/ontology/qualified-capability-ecology#>
+SELECT ?claim ?missingField WHERE {
+  {
+    ?claim a ecap:ReceiptClaim .
+    FILTER NOT EXISTS { ?claim ecap:assertsReceipt ?r0 }
+    BIND("receipt" AS ?missingField)
+  }
+  UNION
+  {
+    ?claim a ecap:ReceiptClaim ; ecap:assertsReceipt ?r1 .
+    FILTER NOT EXISTS { ?r1 qce:subjectCommit ?f1 }
+    BIND("identity" AS ?missingField)
+  }
+  UNION
+  {
+    ?claim a ecap:ReceiptClaim ; ecap:assertsReceipt ?r2 .
+    FILTER ( NOT EXISTS { ?r2 qce:authorityDigest ?f2a } && NOT EXISTS { ?r2 qce:authorityEnvelope ?f2b } )
+    BIND("authority" AS ?missingField)
+  }
+  UNION
+  {
+    ?claim a ecap:ReceiptClaim ; ecap:assertsReceipt ?r3 .
+    FILTER NOT EXISTS { ?r3 qce:consequenceDigest ?f3 }
+    BIND("consequence" AS ?missingField)
+  }
+  UNION
+  {
+    ?claim a ecap:ReceiptClaim ; ecap:assertsReceipt ?r4 .
+    FILTER ( NOT EXISTS { ?r4 qce:replayReceipt ?f4a } && NOT EXISTS { ?r4 qce:replayDigest ?f4b } )
+    BIND("replay" AS ?missingField)
+  }
+  UNION
+  {
+    ?claim a ecap:ReceiptClaim ; ecap:assertsReceipt ?r5 .
+    FILTER NOT EXISTS { ?r5 ecap:standing ?f5 }
+    BIND("standing" AS ?missingField)
+  }
+}
+ORDER BY ?claim ?missingField

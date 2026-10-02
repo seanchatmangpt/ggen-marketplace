@@ -18,7 +18,7 @@ For imported packs, preserve existing semantics/provenance unless the purpose is
 
 Every admitted pack keeps manifest and RDF authority self-contained under `packs/<pack-name>/`. Projection packs carry templates; semantic packs may intentionally omit templates; project packs may carry `ggen.toml`, split RDF, templates, queries, rules, fixtures, and pack-owned verification surfaces. Optional gates remain inside the pack boundary.
 
-The directory name must equal `[pack].name`; versions use SemVer; descriptions are non-empty. Never commit consumer-generated corrections as a substitute for fixing admitted RDF/query/template/gate/project source.
+The directory name must equal `[pack].name`; versions use CalVer (`vYY.MM.P` tags on the marketplace repo; individual packs version per their own `pack.toml`/`mix.exs`); descriptions are non-empty. Never commit consumer-generated corrections as a substitute for fixing admitted RDF/query/template/gate/project source.
 
 If the change adds semantic truth already owned by a sibling, stop and evaluate class closure instead of creating a second authority. Use an umbrella/profile when composition/default selection is the actual need.
 

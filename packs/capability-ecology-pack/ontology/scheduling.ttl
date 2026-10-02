@@ -1,0 +1,345 @@
+# capability-ecology-pack (scheduling family) — qualified capability contracts for the
+# scheduling family. Lane 3, v26.9.30 capability ecology wave.
+#
+# Search-ladder record (REUSE -> COMPOSE -> EXTEND -> INVENT):
+# - REUSE failed for this family: no admitted pack expresses scheduling
+#   capability contracts with temporal semantics. repository-factory-scheduler-pack
+#   schedules repository WORK (waves/lanes), not time-anchored capability
+#   firings; capability-ecology-pack (process family) (same lane) is the process family, a
+#   sibling namespace — its contract skeleton is deliberately MIRRORED here
+#   rather than imported so scoped real-ggen qualification stays a
+#   single-graph evaluation per pack (cross-pack gates would need the union
+#   graph the scoped check does not build). Failed edge recorded; nothing
+#   silently pruned.
+# - COMPOSE: qce: (canonical qualified-capability-ecology contract) for the
+#   capability-lifecycle base class and admission flag; public prov:, earl:,
+#   dcterms:, skos:, xsd:. dcp:'s closed consequence convention ("READ"|"DO")
+#   is reused as a convention.
+# - INVENT (custom terms, each against a recorded failed edge in README):
+#   temporal semantics (temporalKind, timezoneAnchoring, missedFirePolicy,
+#   durability) and the provider-metadata/qualification-condition properties.
+#   No public vocabulary (prov/earl/dcterms/skos) or qce: term expresses a
+#   missed-fire policy or timezone-anchoring requirement.
+
+@prefix scap: <https://ggen.dev/ontology/scheduling-capability#> .
+@prefix qce: <https://ggen.dev/ontology/qualified-capability-ecology#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix earl: <http://www.w3.org/ns/earl#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+#################################################################
+# Encoded invariants (lane contract rule 9)
+#################################################################
+
+scap:plan-not-execution a skos:Concept ;
+    skos:prefLabel "Plan != Execution" ;
+    skos:definition "A scheduled occurrence named in a plan is a requirement, never a firing; a gate that admits a schedule without a missed-fire policy admits a plan that silently diverges from execution (gates/030)." .
+
+scap:policy-not-authority a skos:Concept ;
+    skos:prefLabel "Policy != Authority" ;
+    skos:definition "A crontab expression or missed-fire policy in this graph is policy; it grants no authority to actuate the scheduled target (gates/040)." .
+
+scap:provider-available-not-authorized a skos:Concept ;
+    skos:prefLabel "ProviderAvailable != Authorized" ;
+    skos:definition "oban or quantum being present in deps confers zero authority to fire a consequential job at a time; provider availability never satisfies the authority requirement (gates/040)." .
+
+scap:projection-not-source a skos:Concept ;
+    skos:prefLabel "Projection != Source" ;
+    skos:definition "This ontology is the source; any resolver catalog or rendered schedule table derived from it is a projection and is never hand-edited." .
+
+scap:generated-not-admitted a skos:Concept ;
+    skos:prefLabel "Generated != Admitted" ;
+    skos:definition "A declared realization is not a qualified one; qualification conditions and witnessed evidence are the admission boundary (gates/020)." .
+
+#################################################################
+# Vocabulary — capability side
+#################################################################
+
+scap:Capability a rdfs:Class, prov:Entity ;
+    rdfs:subClassOf qce:CapabilityVersion ;
+    rdfs:label "Scheduling capability" ;
+    rdfs:comment "A semantic identity in the scheduling family (Family.Name via dcterms:identifier), never an implementation. Typed as a qce:CapabilityVersion subclass so the canonical qualification lifecycle applies unchanged." .
+
+scap:capabilityFamily a rdf:Property ;
+    rdfs:domain scap:Capability ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Closed family tag: scheduling-instant (one-shot at an absolute time) | scheduling-calendar (calendar-recurring) | scheduling-relative (relative delay)." .
+
+scap:consequence a rdf:Property ;
+    rdfs:domain scap:Capability ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Closed set READ | DO (convention reused from dcp:). Every scheduling capability that fires a target is DO and MUST carry scap:authorityRequirement (gates/040)." .
+
+scap:temporalKind a rdf:Property ;
+    rdfs:domain scap:Capability ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Closed set: one-shot | recurring. Required on every scheduling capability; drives gates/030 (missed-fire policy) and gates/060 (timezone anchoring for recurring)." .
+
+scap:timezoneAnchoring a rdf:Property ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Closed set: none (no calendar semantics; relative delays) | utc (anchored to UTC wall-clock instants) | named-zone (IANA zone, DST-aware calendar anchoring). Required on every recurring capability and every realization realizing one (gates/060). DST is exactly why named-zone is not a fixed offset." .
+
+scap:missedFirePolicy a rdf:Property ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Closed set: catch_up (fire every missed occurrence on recovery) | skip (fire at most once on recovery, then resume the schedule) | drop (discard occurrences missed while down). On a Capability: the policy the contract requires the resolver to honor. On a CapabilityRealization: the policy the provider provides. Required on every capability and every realization (gates/030). Failed edge: no public or qce property expresses a missed-fire policy." .
+
+scap:durability a rdf:Property ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Closed set: in-memory | durable-store. Whether the schedule and its firing history survive node restart." .
+
+scap:inputContract a rdf:Property ; rdfs:domain scap:Capability ; rdfs:range xsd:string .
+scap:outputContract a rdf:Property ; rdfs:domain scap:Capability ; rdfs:range xsd:string .
+scap:precondition a rdf:Property ; rdfs:domain scap:Capability ; rdfs:range xsd:string .
+scap:postcondition a rdf:Property ; rdfs:domain scap:Capability ; rdfs:range xsd:string .
+
+scap:Outcome a rdfs:Class ;
+    rdfs:label "Typed outcome" ;
+    rdfs:comment "One outcome of executing the capability: success, a typed failure, or a member of the nondeterministic outcome set." .
+
+scap:outcome a rdf:Property ; rdfs:domain scap:Capability ; rdfs:range scap:Outcome .
+scap:outcomeKind a rdf:Property ;
+    rdfs:domain scap:Outcome ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Closed set: success | typed_failure | nondeterministic." .
+
+scap:evidenceRequirement a rdf:Property ;
+    rdfs:domain scap:Capability ;
+    rdfs:range xsd:string ;
+    rdfs:comment "What evidence a qualifying run must emit (earl:-anchored): the firing observed on the exact subject at its anchored time. inspection != execution." .
+
+scap:authorityRequirement a rdf:Property ;
+    rdfs:domain scap:Capability ;
+    rdfs:range xsd:string ;
+    rdfs:comment "The authority envelope a firing requires. Schedule.At on a consequential target REQUIRES bound authority; enforced on every consequence-DO capability by gates/040. A request naming authority is not that authority." .
+
+scap:executionProperty a rdf:Property ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Timing-precision, durability and concurrency facts. On a Capability: properties the consumer must assume. On a CapabilityRealization: properties the provider provides." .
+
+#################################################################
+# Vocabulary — realization side (provider metadata; cite, never fabricate)
+#################################################################
+
+scap:CapabilityRealization a rdfs:Class, prov:Entity ;
+    rdfs:label "Qualified capability realization" ;
+    rdfs:comment "A provider binding that realizes one or more scheduling capabilities. CAPABILITY != IMPLEMENTATION: realizations name packages; capabilities never do (gates/050)." .
+
+scap:realizes a rdf:Property ; rdfs:domain scap:CapabilityRealization ; rdfs:range scap:Capability .
+
+scap:providerRepo a rdf:Property ; rdfs:domain scap:CapabilityRealization ; rdfs:range xsd:string .
+scap:hexPackage a rdf:Property ; rdfs:domain scap:CapabilityRealization ; rdfs:range xsd:string .
+scap:hexVersion a rdf:Property ; rdfs:domain scap:CapabilityRealization ; rdfs:range xsd:string .
+scap:hexUrl a rdf:Property ; rdfs:domain scap:CapabilityRealization ; rdfs:range xsd:string .
+scap:bindingModule a rdf:Property ; rdfs:domain scap:CapabilityRealization ; rdfs:range xsd:string ;
+    rdfs:comment "The implementing module/service family (e.g. Oban.Cron service, Quantum scheduler, Process.send_after)." .
+scap:versionPinPolicy a rdf:Property ; rdfs:domain scap:CapabilityRealization ; rdfs:range xsd:string .
+scap:providerMetadataBasis a rdf:Property ; rdfs:domain scap:CapabilityRealization ; rdfs:range xsd:string ;
+    rdfs:comment "Exactly what was observed to ground the provider metadata (hex.pm/hexdocs citation), so no fact here is fabricated inspection." .
+
+scap:qualificationCondition a rdf:Property ;
+    rdfs:domain scap:CapabilityRealization ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Declarative condition under which the realization qualifies. Required on every realization (gates/020)." .
+
+scap:evidenceReference a rdf:Property ;
+    rdfs:domain scap:CapabilityRealization ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Reference to the replayable earl:-anchored assertion that witnessed admission; bound at admission time." .
+
+#################################################################
+# Worked instances — capabilities (pinned IDs + minted sibling)
+#################################################################
+
+# --- Schedule.At (pinned) ---
+
+scap:cap-at a scap:Capability ;
+    dcterms:identifier "Schedule.At" ;
+    rdfs:label "Schedule.At" ;
+    skos:prefLabel "Fire a target once at an absolute instant" ;
+    scap:capabilityFamily "scheduling-instant" ;
+    scap:consequence "DO" ;
+    scap:temporalKind "one-shot" ;
+    scap:timezoneAnchoring "utc" ;
+    scap:missedFirePolicy "catch_up" ;
+    scap:durability "durable-store" ;
+    scap:inputContract "target job/action + absolute anchor instant (UTC)" ;
+    scap:outputContract "exactly one firing at-or-after the anchor instant, per the missed-fire policy" ;
+    scap:precondition "anchor instant resolvable as a UTC instant; target is a consequential actuation ONLY with bound authority" ;
+    scap:postcondition "target fired once (or the declared missed-fire outcome applied if the system was down across the anchor)" ;
+    scap:authorityRequirement "Requires an authority envelope binding the scheduled target's consequence scope. Scheduling a consequential firing on someone else's domain is an attempt to launder actuation through time; Plan != Execution and Policy != Authority both bind here." ;
+    scap:evidenceRequirement "earl: assertion from observed execution on the exact subject: the firing observed once at/after the anchor (or the policy-declared missed outcome observed)" ;
+    scap:executionProperty "timing: at-least-once firing after the anchor; no sub-second precision guarantee across providers" ;
+    scap:executionProperty "durability: the schedule must survive node restart (durable-store required by this contract)" ;
+    scap:outcome scap:out-at-fired, scap:out-at-duplicate, scap:out-at-lost .
+
+scap:out-at-fired a scap:Outcome ;
+    skos:prefLabel "success:fired-once" ;
+    scap:outcomeKind "success" .
+
+scap:out-at-duplicate a scap:Outcome ;
+    skos:prefLabel "typed_failure:duplicate-firing" ;
+    scap:outcomeKind "typed_failure" ;
+    rdfs:comment "More than one firing for one anchor (e.g. uncoordinated nodes) violates the contract and must be caught by the consumer's dedupe evidence." .
+
+scap:out-at-lost a scap:Outcome ;
+    skos:prefLabel "nondeterministic:missed-while-down" ;
+    scap:outcomeKind "nondeterministic" ;
+    rdfs:comment "If the system is down across the anchor, the outcome is governed by the declared missed-fire policy (catch_up fires on recovery)." .
+
+# --- Schedule.Cron (pinned) ---
+
+scap:cap-cron a scap:Capability ;
+    dcterms:identifier "Schedule.Cron" ;
+    rdfs:label "Schedule.Cron" ;
+    skos:prefLabel "Fire a target on a recurring calendar pattern" ;
+    scap:capabilityFamily "scheduling-calendar" ;
+    scap:consequence "DO" ;
+    scap:temporalKind "recurring" ;
+    scap:timezoneAnchoring "named-zone" ;
+    scap:missedFirePolicy "skip" ;
+    scap:durability "durable-store" ;
+    scap:inputContract "crontab pattern + target job/action + zone (IANA name preferred)" ;
+    scap:outputContract "a firing per matching calendar occurrence in the anchor zone, per the missed-fire policy" ;
+    scap:precondition "pattern parseable by the provider's crontab grammar; zone resolvable (DST-aware when named-zone)" ;
+    scap:postcondition "occurrences fired per pattern; calendar semantics (DST shifts) honored for named-zone anchoring" ;
+    scap:authorityRequirement "Requires an authority envelope binding the scheduled target's consequence scope; a recurring expression is a policy, never a grant of authority." ;
+    scap:evidenceRequirement "earl: assertion from observed execution on the exact subject: occurrences observed at pattern-matching wall-clock times in the anchor zone across at least one DST boundary when named-zone" ;
+    scap:executionProperty "timing: calendar-correct in the anchor zone, not fixed-interval" ;
+    scap:executionProperty "concurrency: multi-node deployments must guarantee single firing per occurrence" ;
+    scap:outcome scap:out-cron-fired, scap:out-cron-dst, scap:out-cron-dup .
+
+scap:out-cron-fired a scap:Outcome ;
+    skos:prefLabel "success:occurrence-fired" ;
+    scap:outcomeKind "success" .
+
+scap:out-cron-dst a scap:Outcome ;
+    skos:prefLabel "nondeterministic:dst-shift" ;
+    scap:outcomeKind "nondeterministic" ;
+    rdfs:comment "In named-zone anchoring, DST transitions move wall-clock occurrences; nonexistent/ambiguous local times resolve per the anchor zone's rules." .
+
+scap:out-cron-dup a scap:Outcome ;
+    skos:prefLabel "typed_failure:duplicate-occurrence" ;
+    scap:outcomeKind "typed_failure" ;
+    rdfs:comment "Two firings for one calendar occurrence across nodes violates the contract." .
+
+# --- Schedule.Delay (pinned) ---
+
+scap:cap-delay a scap:Capability ;
+    dcterms:identifier "Schedule.Delay" ;
+    rdfs:label "Schedule.Delay" ;
+    skos:prefLabel "Fire a target once after a relative duration" ;
+    scap:capabilityFamily "scheduling-relative" ;
+    scap:consequence "DO" ;
+    scap:temporalKind "one-shot" ;
+    scap:timezoneAnchoring "none" ;
+    scap:missedFirePolicy "drop" ;
+    scap:durability "in-memory" ;
+    scap:inputContract "duration + target job/action" ;
+    scap:outputContract "one firing at-or-after now+duration on the same runtime" ;
+    scap:precondition "the scheduling runtime stays alive for the delay window (in-memory contract unless a durable provider is chosen)" ;
+    scap:postcondition "target fired once after the delay; process restarts inside the window drop the pending firing per policy" ;
+    scap:authorityRequirement "Requires an authority envelope binding the scheduled target's consequence scope." ;
+    scap:evidenceRequirement "earl: assertion from observed execution on the exact subject: the firing observed after the delay on the same runtime" ;
+    scap:executionProperty "timing: relative; no calendar anchoring" ;
+    scap:executionProperty "durability: none by contract default — a restart inside the window drops the firing (declared policy: drop)" ;
+    scap:outcome scap:out-delay-fired, scap:out-delay-dropped .
+
+scap:out-delay-fired a scap:Outcome ;
+    skos:prefLabel "success:fired-after-delay" ;
+    scap:outcomeKind "success" .
+
+scap:out-delay-dropped a scap:Outcome ;
+    skos:prefLabel "typed_failure:dropped-on-restart" ;
+    scap:outcomeKind "typed_failure" ;
+    rdfs:comment "In-memory providers lose the pending firing on restart; consumers needing survival must resolve a durable-store realization instead." .
+
+# --- Schedule.Interval (minted sibling) ---
+
+scap:cap-interval a scap:Capability ;
+    dcterms:identifier "Schedule.Interval" ;
+    rdfs:label "Schedule.Interval" ;
+    skos:prefLabel "Fire a target on a fixed recurring interval" ;
+    rdfs:comment "Minted sibling (lane 3), recorded in README. Fixed-rate cadence, NOT calendar semantics: a fixed interval has no DST behavior and drifts against wall-clock calendars; express calendar patterns with Schedule.Cron." ;
+    scap:capabilityFamily "scheduling-instant" ;
+    scap:consequence "DO" ;
+    scap:temporalKind "recurring" ;
+    scap:timezoneAnchoring "utc" ;
+    scap:missedFirePolicy "skip" ;
+    scap:durability "durable-store" ;
+    scap:inputContract "interval duration + target job/action" ;
+    scap:outputContract "firings separated by (approximately) the interval, per the missed-fire policy" ;
+    scap:precondition "interval > 0; target consequential actuation only with bound authority" ;
+    scap:postcondition "recurring firings at the declared cadence" ;
+    scap:authorityRequirement "Requires an authority envelope binding the scheduled target's consequence scope." ;
+    scap:evidenceRequirement "earl: assertion from observed execution on the exact subject: consecutive firings observed at the declared cadence" ;
+    scap:executionProperty "timing: fixed-rate cadence; drift against wall-clock is expected and lawful" ;
+    scap:outcome scap:out-int-fired, scap:out-int-drift .
+
+scap:out-int-fired a scap:Outcome ;
+    skos:prefLabel "success:interval-fired" ;
+    scap:outcomeKind "success" .
+
+scap:out-int-drift a scap:Outcome ;
+    skos:prefLabel "nondeterministic:cadence-drift" ;
+    scap:outcomeKind "nondeterministic" ;
+    rdfs:comment "Scheduler load shifts firing times within a tolerance; the count, not the instant, is contractual." .
+
+#################################################################
+# Worked instances — realizations (provider metadata: cite, never fabricate)
+#################################################################
+
+scap:real-oban a scap:CapabilityRealization ;
+    rdfs:label "Oban durable job processing" ;
+    scap:realizes scap:cap-at, scap:cap-delay, scap:cap-cron, scap:cap-interval ;
+    scap:providerRepo "https://github.com/oban-bg/oban" ;
+    scap:hexPackage "oban" ;
+    scap:hexVersion "2.24.1" ;
+    scap:hexUrl "https://hex.pm/packages/oban" ;
+    scap:bindingModule "Oban.insert (scheduled jobs, 'down to the second'), Oban.Cron service (crontab recurring), Oban.Lifeline (orphan rescue), stager (availability of scheduled jobs)" ;
+    scap:versionPinPolicy "~> 2.24 in the consumer's mix.exs; re-run qualification on any bump" ;
+    scap:providerMetadataBasis "cited from https://hex.pm/packages/oban (v2.24.1, oban-bg, sorentwo): 'Robust job processing, backed by modern PostgreSQL, SQLite3, and MySQL.' and https://oban.hexdocs.pm/Oban.html (scheduled jobs at any future time; Oban.Cron 'Automatically enqueue jobs on a cron-like schedule. Duplicate jobs are never enqueued'; Oban.Lifeline rescues orphaned jobs). No local checkout claimed beyond these citations." ;
+    scap:qualificationCondition "qualified when the composed Oban configuration (queue + Oban.Cron crontab + Lifeline) is receipted on the exact subject: a firing observed at/after the anchor, single-firing-per-occurrence observed across two nodes, and the missed-fire behavior observed by restart mutation. Missed-cron-INSERTION semantics (retro-insertion of occurrences missed while fully down) are NOT witnessed in the cited docs and must be qualified at consumption before catch_up is claimed for calendar patterns." ;
+    scap:evidenceReference "pending: to be bound to the consumer qualification run's earl: assertion id at admission time (qce:admitted stays false until then)" ;
+    scap:missedFirePolicy "catch_up" ;
+    scap:timezoneAnchoring "utc" ;
+    scap:durability "durable-store" ;
+    scap:executionProperty "durability: DB-backed queue (PostgreSQL/SQLite3/MySQL) — schedule survives node restart" ;
+    scap:executionProperty "concurrency: multi-node with single-firing-per-occurrence guaranteed by the store" ;
+    qce:admitted false .
+
+scap:real-quantum a scap:CapabilityRealization ;
+    rdfs:label "Quantum cron-like scheduler" ;
+    scap:realizes scap:cap-cron ;
+    scap:providerRepo "https://github.com/quantum-elixir/quantum-core" ;
+    scap:hexPackage "quantum" ;
+    scap:hexVersion "3.5.3" ;
+    scap:hexUrl "https://hex.pm/packages/quantum" ;
+    scap:bindingModule "Quantum scheduler (cron-like job scheduler for Elixir)" ;
+    scap:versionPinPolicy "~> 3.5 in the consumer's mix.exs; re-run qualification on any bump" ;
+    scap:providerMetadataBasis "cited from https://hex.pm/packages/quantum (v3.5.3, quantum-elixir/quantum-core, maennchen): 'Cron-like job scheduler for Elixir.' No timezone/missed-job feature claims are made here beyond the cited description; zone and missed-fire behavior must be qualified against the composed scheduler config at consumption." ;
+    scap:qualificationCondition "qualified when the consumer's scheduler supervision tree is receipted on the exact subject: an occurrence firing at its wall-clock time in the anchor zone. Because the cited surface is in-memory, the consumer must state and witness the missed-fire outcome across a restart before any policy other than drop is claimed." ;
+    scap:evidenceReference "pending: to be bound to the consumer qualification run's earl: assertion id at admission time" ;
+    scap:missedFirePolicy "drop" ;
+    scap:timezoneAnchoring "utc" ;
+    scap:durability "in-memory" ;
+    scap:executionProperty "durability: in-memory scheduler — firings missed while the scheduler process or node is down are structurally dropped unless the consumer composes external persistence and re-qualifies" ;
+    qce:admitted false .
+
+scap:real-otp-timer a scap:CapabilityRealization ;
+    rdfs:label "OTP timer primitives" ;
+    scap:realizes scap:cap-delay ;
+    scap:providerRepo "https://github.com/erlang/otp" ;
+    scap:bindingModule "Process.send_after/3, :timer module (relative delays on the BEAM)" ;
+    scap:versionPinPolicy "OTP 26+ per consumer release" ;
+    scap:providerMetadataBasis "public Erlang/OTP stdlib API surface (kernel documentation); no local OTP checkout claimed" ;
+    scap:qualificationCondition "qualified when a receipted run on the exact subject observes the delayed message arriving after the requested duration on the same runtime" ;
+    scap:evidenceReference "pending: to be bound to the consumer runtime receipt's earl: assertion id at admission time" ;
+    scap:missedFirePolicy "drop" ;
+    scap:timezoneAnchoring "none" ;
+    scap:durability "in-memory" ;
+    scap:executionProperty "durability: none — timers die with the runtime; restart inside the window drops the firing" ;
+    qce:admitted false .

@@ -1,0 +1,62 @@
+# QUALIFICATION: conventions consumer graph -- one toy module (w4p / echo-wasm)
+# exercising every wire-convention fact of the converged family: out-len-pointer
+# return convention, _v1 symbol suffix, distinct op symbol prefix, host-dealloc
+# ownership split (dealloc/free pair), zero imports, result-digest envelope with
+# FNV-1a digest facts, reactor startup, named abi-version export, per-op replay
+# companions. Mirrors witnesses/pass/110_wire_convention_closed.ttl plus op
+# example requests (op-examples requires one per op). Every gate returns 0 rows.
+
+@prefix wja: <https://ggen.dev/ontology/wasi-json-abi#> .
+@prefix ex: <https://example.org/echo-wasm#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+wja:WasmModule a rdfs:Class .
+wja:Op a rdfs:Class .
+wja:ErrorCode a rdfs:Class .
+
+ex:module a wja:WasmModule ;
+    wja:crateName "echo-wasm" ;
+    wja:exportPrefix "w4p" ;
+    wja:abiVersion 1 ;
+    wja:maxRequestBytes 1048576 ;
+    wja:maxJsonDepth 64 ;
+    wja:stackSizeBytes 16777216 ;
+    wja:importsPolicy "none" ;
+    wja:errorStyle "result-digest" ;
+    wja:digestAlgorithm "FNV-1a-64" ;
+    wja:digestInput "result-body" ;
+    wja:digestFormat "{:016x}" ;
+    wja:digestHexChars 16 ;
+    wja:returnConvention "out-len-pointer" ;
+    wja:symbolSuffix "_v1" ;
+    wja:opSymbolPrefix "w4pm" ;
+    wja:inputReleasePolicy "host-dealloc" ;
+    wja:startupConvention "reactor-initialize" ;
+    wja:hasAbiVersionExport true ;
+    wja:abiVersionExportName "w4pm_module_version_v1" ;
+    wja:hasOp ex:op-echo , ex:op-len ;
+    wja:hasErrorCode ex:err-bad-json , ex:err-unknown-op , ex:err-internal .
+
+ex:op-echo a wja:Op ;
+    wja:opName "echo" ;
+    wja:opOrder 1 ;
+    wja:requestFields "op,text" ;
+    wja:responseFields "result" ;
+    wja:hasReplayCompanion true ;
+    wja:opSourceFile "src/lib.rs" ;
+    wja:exampleRequest "{\"op\":\"echo\",\"text\":\"hi\"}" .
+
+ex:op-len a wja:Op ;
+    wja:opName "len" ;
+    wja:opOrder 2 ;
+    wja:requestFields "op,text" ;
+    wja:responseFields "result" ;
+    wja:hasReplayCompanion false ;
+    wja:opSourceFile "src/lib.rs" ;
+    wja:exampleRequest "{\"op\":\"len\",\"text\":\"hi\"}" .
+
+ex:err-bad-json a wja:ErrorCode ; wja:codeName "BAD_JSON" ; wja:codeOrder 1 .
+ex:err-unknown-op a wja:ErrorCode ; wja:codeName "UNKNOWN_OP" ; wja:codeOrder 2 .
+ex:err-internal a wja:ErrorCode ; wja:codeName "INTERNAL" ; wja:codeOrder 3 .

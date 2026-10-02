@@ -1,0 +1,65 @@
+# MESSAGE: realization-without-qualification. Every ecap:Realization must
+# carry an identifier, provider repo, real binding module, source file,
+# version-pin policy and at least one ecap:qualificationCondition; its
+# authorityCeiling must stay inside the closed enum; and it must be linked
+# from a capability (no orphans). A realization with zero qualification
+# conditions is an unqualified promotion: capability != implementation, and
+# the gap between them must be stated, not silent. Any row is a refusal.
+PREFIX ecap: <https://ggen.dev/ontology/evidence-capability#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?r ?missing WHERE {
+  {
+    ?r a ecap:Realization .
+    FILTER NOT EXISTS { ?r dcterms:identifier ?i0 }
+    BIND(dcterms:identifier AS ?missing)
+  }
+  UNION
+  {
+    ?r a ecap:Realization .
+    FILTER NOT EXISTS { ?r ecap:providerRepo ?p0 }
+    BIND(ecap:providerRepo AS ?missing)
+  }
+  UNION
+  {
+    ?r a ecap:Realization .
+    FILTER NOT EXISTS { ?r ecap:bindingModule ?b0 }
+    BIND(ecap:bindingModule AS ?missing)
+  }
+  UNION
+  {
+    ?r a ecap:Realization .
+    FILTER NOT EXISTS { ?r ecap:sourceFile ?s0 }
+    BIND(ecap:sourceFile AS ?missing)
+  }
+  UNION
+  {
+    ?r a ecap:Realization .
+    FILTER NOT EXISTS { ?r ecap:versionPinPolicy ?v0 }
+    BIND(ecap:versionPinPolicy AS ?missing)
+  }
+  UNION
+  {
+    ?r a ecap:Realization .
+    FILTER NOT EXISTS { ?r ecap:qualificationCondition ?q0 }
+    BIND(ecap:qualificationCondition AS ?missing)
+  }
+  UNION
+  {
+    ?r a ecap:Realization .
+    FILTER NOT EXISTS { ?r ecap:authorityCeiling ?c0 }
+    BIND(ecap:authorityCeiling AS ?missing)
+  }
+  UNION
+  {
+    ?r a ecap:Realization ; ecap:authorityCeiling ?c1 .
+    FILTER (?c1 != "observe" && ?c1 != "select" && ?c1 != "construct")
+    BIND("realization-ceiling-outside-enum" AS ?missing)
+  }
+  UNION
+  {
+    ?r a ecap:Realization .
+    FILTER NOT EXISTS { ?owner ecap:realization ?r }
+    BIND("orphan-realization-not-linked-from-capability" AS ?missing)
+  }
+}
+ORDER BY ?r ?missing

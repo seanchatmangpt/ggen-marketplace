@@ -7,17 +7,17 @@ cd "$(git rev-parse --show-toplevel)"
 echo "::group::measure-generation-capability: Verify generation capability surface"
 (
 set -e
-test -f packs/dfcm-maximalist-court-pack/generation-capability.ttl
-count=$(find packs/dfcm-maximalist-court-pack/queries -maxdepth 1 -name 'generation-capability-*.rq' | wc -l)
+test -f packs/dfcm-pack/families/maximalist-court/generation-capability.ttl
+count=$(find packs/dfcm-pack/families/maximalist-court/queries -maxdepth 1 -name 'generation-capability-*.rq' | wc -l)
 test "$count" -ge 30
-grep -q 'GenerationCapabilityObservation' packs/dfcm-maximalist-court-pack/generation-capability.ttl
-grep -Rqs 'capabilityActuationPerformed false' packs/dfcm-maximalist-court-pack/queries/generation-capability-*.rq
+grep -q 'GenerationCapabilityObservation' packs/dfcm-pack/families/maximalist-court/generation-capability.ttl
+grep -Rqs 'capabilityActuationPerformed false' packs/dfcm-pack/families/maximalist-court/queries/generation-capability-*.rq
 )
 echo "::endgroup::"
 # --- Refuse ambient consequential actuation
 echo "::group::measure-generation-capability: Refuse ambient consequential actuation"
 (
 set -e
-! grep -REn 'requests\.(post|put|patch|delete)|urllib\.request\.(Request|urlopen)|subprocess\.|os\.system|boto3|azure\.|google\.cloud' packs/dfcm-maximalist-court-pack/generation-capability.ttl packs/dfcm-maximalist-court-pack/queries/generation-capability-*.rq
+! grep -REn 'requests\.(post|put|patch|delete)|urllib\.request\.(Request|urlopen)|subprocess\.|os\.system|boto3|azure\.|google\.cloud' packs/dfcm-pack/families/maximalist-court/generation-capability.ttl packs/dfcm-pack/families/maximalist-court/queries/generation-capability-*.rq
 )
 echo "::endgroup::"

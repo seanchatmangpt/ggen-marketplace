@@ -1,0 +1,286 @@
+@prefix ecap: <https://ggen.dev/ontology/evidence-capability#> .
+@prefix qce: <https://ggen.dev/ontology/qualified-capability-ecology#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+#################################################################
+# Vocabulary
+#
+# Capability/realization/outcome shapes mirror packs/capability-ecology-pack
+# (same lane, same resolver contract) — each family owns the terms in its own
+# namespace; consumers join on the pinned dcterms:identifier literals.
+# Receipts are NOT redefined: qce:QualificationReceipt / qce:ReplayReceipt and
+# their digest properties are reused; standing uses the public APS individuals.
+#################################################################
+
+ecap:Capability a rdfs:Class, prov:Entity ;
+    rdfs:label "Capability" ;
+    rdfs:comment "A semantic identity (Family.Name), never an implementation. The dotted short name is carried as rdfs:label and the pinned join key as dcterms:identifier." .
+
+ecap:Realization a rdfs:Class, prov:Entity ;
+    rdfs:label "Realization" ;
+    rdfs:comment "Provider metadata describing how one capability is realized: repo, binding module, source file, version-pin policy and qualification conditions. A realization is never the capability." .
+
+ecap:Outcome a rdfs:Class ;
+    rdfs:label "Outcome" ;
+    rdfs:comment "One distinct caller-visible outcome of a capability: success, a typed refusal, or one member of a nondeterministic outcome set." .
+
+ecap:ReceiptClaim a rdfs:Class, prov:Entity ;
+    rdfs:comment "A claim that an artifact IS a receipt. The claim is lawful only when the asserted artifact carries ALL FIVE fields — identity (qce:subjectCommit), authority (qce:authorityDigest or qce:authorityEnvelope), consequence (qce:consequenceDigest), replay (qce:replayReceipt or qce:replayDigest), standing (ecap:standing -> public APS individual). Missing any field: not a receipt. Enforced by gate 050, not prose." .
+
+ecap:EvidenceClaim a rdfs:Class, prov:Entity ;
+    rdfs:comment "An evidence assertion. Admissible only when bound to an exact subject by SHA-256 digest (ecap:subjectDigest, 64 lowercase hex). Unbound evidence is refused by gate 060." .
+
+ecap:assertsReceipt a rdf:Property ;
+    rdfs:domain ecap:ReceiptClaim ;
+    rdfs:comment "The receipt individual this claim asserts (typically a qce: receipt class — composed, not redefined)." .
+ecap:subjectDigest a rdf:Property ;
+    rdfs:domain ecap:EvidenceClaim ;
+    rdfs:comment "SHA-256 (64 lowercase hex) of the exact subject the evidence is bound to. Provenance is SHA-bound; unbound evidence is inadmissible." .
+ecap:standing a rdf:Property ;
+    rdfs:comment "Standing of the receipt or evidence, as a link to a public APS individual (https://w3id.org/chatman/aps# — ALIVE, PARTIAL_ALIVE, UNKNOWN, ...). Standing is derived from a result and bound to the exact input digest; admission alone never yields ALIVE." .
+
+ecap:capabilityFamily a rdf:Property ;
+    rdfs:comment "Closed family literal of a capability; in this pack always \"evidence\"." .
+ecap:input a rdf:Property .
+ecap:output a rdf:Property .
+ecap:precondition a rdf:Property .
+ecap:postcondition a rdf:Property .
+ecap:executionProperty a rdf:Property .
+
+ecap:outcome a rdf:Property ; rdfs:domain ecap:Capability ; rdfs:range ecap:Outcome .
+ecap:outcomeKind a rdf:Property ;
+    rdfs:comment "Closed enum: \"success\" | \"refusal\" | \"nondeterministic\"." .
+ecap:refusalCode a rdf:Property ;
+    rdfs:comment "Typed refusal code of a refusal-kind outcome (e.g. \"REFUSED_INVALID_INPUT\")." .
+
+ecap:authorityCeiling a rdf:Property ;
+    rdfs:comment "The highest ceiling this capability (or realization) operates under. Closed enum \"observe\" < \"select\" < \"construct\", aligned with AshGraphLaw.Authority and ash_pplan pack ceilings." .
+ecap:realization a rdf:Property ; rdfs:domain ecap:Capability ; rdfs:range ecap:Realization .
+ecap:evidenceRequirement a rdf:Property ;
+    rdfs:comment "Pinned dotted capability ID literal required as evidence (composition by reference)." .
+ecap:authorityRequirement a rdf:Property ;
+    rdfs:comment "Pinned dotted capability ID literal whose successful verification is required (composition by reference into packs/capability-ecology-pack)." .
+
+ecap:providerRepo a rdf:Property ; rdfs:domain ecap:Realization .
+ecap:bindingModule a rdf:Property ; rdfs:domain ecap:Realization ;
+    rdfs:comment "The real module/binding in providerRepo, transcribed from direct read of the source file, never from memory or docs." .
+ecap:sourceFile a rdf:Property ; rdfs:domain ecap:Realization ;
+    rdfs:comment "The exact file opened this session to transcribe the realization facts." .
+ecap:versionPinPolicy a rdf:Property ; rdfs:domain ecap:Realization .
+ecap:qualificationCondition a rdf:Property ; rdfs:domain ecap:Realization ;
+    rdfs:comment "One condition under which this realization qualifies for the capability. Zero qualification conditions is refused by gate 040. Includes honest limits found during inspection." .
+
+#################################################################
+# Worked instance: the pinned evidence/provenance family (2026-09-30)
+#
+# Realization facts transcribed verbatim from direct reads this session
+# (paths in ecap:sourceFile). Naming corrections the real source forced:
+# the affidavit engine ASSEMBLES and CHECKS receipts — it signs nothing
+# ("Receipt.Sign" qualifies as assemble + content-address binding plus
+# signing-input verification); GraphLaw has no authz policy evaluation —
+# its Evidence/Receipt/Standing modules are observations bound to exact
+# input digests and graph state ids.
+#################################################################
+
+ecap:evidence-establish a ecap:Capability ;
+    dcterms:identifier "Evidence.Establish" ;
+    rdfs:label "Evidence.Establish" ;
+    ecap:capabilityFamily "evidence" ;
+    ecap:input "operation events / observations to establish evidence over" ,
+        "expected evidence profile (accepted outcomes, principals, effect digests)" ;
+    ecap:output "verified evidence assertion bound to a content address" ,
+        "typed refusal for malformed, oversized or unknown-op input" ;
+    ecap:precondition "inspection != execution: establishing evidence is observation over an exact input, never actuation" ;
+    ecap:postcondition "the established evidence carries a content address and typed outcomes so it can later be bound to an exact subject digest" ;
+    ecap:outcome ecap:outcome-establish-ok , ecap:outcome-establish-refused ;
+    ecap:authorityCeiling "observe" ;
+    ecap:executionProperty "deterministic" , "side-effect-free" , "total (returns a typed outcome, never raises)" ;
+    ecap:realization ecap:realization-affidavit-verify , ecap:realization-affidavit-certify-authzen .
+
+ecap:outcome-establish-ok a ecap:Outcome ;
+    rdfs:label "receipt accepted / external evidence certified" ;
+    ecap:outcomeKind "success" .
+ecap:outcome-establish-refused a ecap:Outcome ;
+    rdfs:label "input refused by the closed engine code set" ;
+    ecap:outcomeKind "refusal" ;
+    ecap:refusalCode "REFUSED_INVALID_INPUT" .
+
+ecap:realization-affidavit-verify a ecap:Realization ;
+    dcterms:identifier "ash-affidavit-verify-op" ;
+    ecap:authorityCeiling "observe" ;
+    ecap:providerRepo "ash_affidavit" ;
+    ecap:bindingModule "AshAffidavit.Change.Receipt (op: :verify) / AshAffidavit.call/2 op \"verify\"" ;
+    ecap:sourceFile "lib/ash_affidavit/change/receipt.ex + priv/affidavit/capability-registry.json" ;
+    ecap:versionPinPolicy "Hex package ash_affidavit release v26.9.30 (mix.exs @version, read 2026-09-30); pin by exact release tag + capability-registry.json digest" ;
+    ecap:qualificationCondition "op verify request fields {op, receipt}; response {ok, op, accepted, profile, outcomes, reason, content_address} — an acceptance judgment over one exact receipt (registry read 2026-09-30)" ,
+        "refusals are typed (AshAffidavit.Refusal, closed code set); {:ok, _} is the engine's computation over exactly the request given, never an authorization, a receipt of any DO, or a standing (moduledoc)" ,
+        "Ash change path: refused/trap/unsupported outcomes add AshAffidavit.Error.Refused to the changeset so the typed refusal stays recoverable (change/receipt.ex)" .
+
+ecap:realization-affidavit-certify-authzen a ecap:Realization ;
+    dcterms:identifier "ash-affidavit-certify-authzen" ;
+    ecap:authorityCeiling "observe" ;
+    ecap:providerRepo "ash_affidavit" ;
+    ecap:bindingModule "AshAffidavit.call/2 op \"certify_authzen_evidence\"" ;
+    ecap:sourceFile "lib/ash_affidavit.ex + priv/affidavit/capability-registry.json" ;
+    ecap:versionPinPolicy "Hex package ash_affidavit release v26.9.30; pin by exact release tag + capability-registry.json digest" ;
+    ecap:qualificationCondition "certifies external AuthZEN evidence: request {request, decision, policy_decision_point, expected_policy_decision_point, expected_principal, expected_effect_digest}; response carries certified, standard, policy_allows, principal, effect_digest, evidence_digest (registry read 2026-09-30)" ,
+        "authority NONE, evidence only (moduledoc); policy_allows is an observed fact about the presented decision, NOT authorization to act — Policy != Authority" ,
+        "a companion op certify_spiffe_evidence certifies SPIFFE/SVID evidence the same way; modeled as the same capability's realization family, not a separate capability" .
+
+ecap:evidence-bind a ecap:Capability ;
+    dcterms:identifier "Evidence.Bind" ;
+    rdfs:label "Evidence.Bind" ;
+    ecap:capabilityFamily "evidence" ;
+    ecap:input "one admission result / observation" ,
+        "projection origin and graph state ids reported by the engine" ;
+    ecap:output "an evidence structure with the SHA-256 of the exact projected input" ,
+        "a canonical digest: identical evidence yields byte-identical digests" ;
+    ecap:precondition "the observation being bound must already exist; binding never manufactures the observation" ;
+    ecap:postcondition "evidence is bound to the exact input digest; the digest field is excluded from its own digested content; the lease identity (when a lease was presented) is recorded so the authority behind an admitted change is replayable" ;
+    ecap:outcome ecap:outcome-bind-ok , ecap:outcome-bind-refused ;
+    ecap:authorityCeiling "observe" ;
+    ecap:executionProperty "deterministic" , "side-effect-free" ;
+    ecap:realization ecap:realization-graphlaw-evidence .
+
+ecap:outcome-bind-ok a ecap:Outcome ;
+    rdfs:label "evidence bound to exact input digest" ;
+    ecap:outcomeKind "success" .
+ecap:outcome-bind-refused a ecap:Outcome ;
+    rdfs:label "binding refused (no observation to bind)" ;
+    ecap:outcomeKind "refusal" ;
+    ecap:refusalCode "REFUSED_NO_SUBJECT" .
+
+ecap:realization-graphlaw-evidence a ecap:Realization ;
+    dcterms:identifier "ash-graphlaw-evidence" ;
+    ecap:authorityCeiling "observe" ;
+    ecap:providerRepo "ash_graphlaw" ;
+    ecap:bindingModule "AshGraphLaw.Evidence (digest/1)" ;
+    ecap:sourceFile "lib/ash_graphlaw/evidence.ex" ;
+    ecap:versionPinPolicy "Hex package ash_graphlaw release v26.9.30 (read 2026-09-30); pin by exact release tag" ;
+    ecap:qualificationCondition "evidence records which admission ran, the standing derived from its result, the SHA-256 of the projected input, graph state ids, engine receipts, engine identity (wasm_sha256, graphlaw_release) and the signed-lease identity (read 2026-09-30)" ,
+        "digest/1 is SHA-256 over a canonical encoding with map keys sorted; the :digest field is excluded from the digested content — byte-identical replay is checkable" ,
+        "it is data, not authority: GraphLaw derives and validates; it never authorizes (module doc)" .
+
+ecap:receipt-sign a ecap:Capability ;
+    dcterms:identifier "Receipt.Sign" ;
+    rdfs:label "Receipt.Sign" ;
+    ecap:capabilityFamily "evidence" ;
+    ecap:input "operation events to assemble into a receipt" ,
+        "an envelope_json + expected_signing_input_hex to verify a signing input against" ;
+    ecap:output "an assembled receipt with content address and BLAKE3 chain hash (64 lowercase hex)" ,
+        "a signing-input verification verdict {verified, signing_input_hex}" ;
+    ecap:precondition "the engine assembles and checks receipts and holds no signing key: 'Sign' qualifies as assemble + content-address binding, with signing-input verification as the signature-adjacent check (naming correction recorded in the pack description)" ;
+    ecap:postcondition "the receipt is content-addressed and chain-hashed so its artifact identity is replayable; signature production, when needed, belongs to an external signer verified via the signing-input check" ;
+    ecap:outcome ecap:outcome-sign-ok , ecap:outcome-sign-refused ;
+    ecap:authorityCeiling "construct" ;
+    ecap:authorityRequirement "Authority.Verify" ;
+    ecap:executionProperty "deterministic" , "durable-artifact-creating" ;
+    ecap:realization ecap:realization-affidavit-assemble , ecap:realization-affidavit-signature-input .
+
+ecap:outcome-sign-ok a ecap:Outcome ;
+    rdfs:label "receipt assembled / signing input verified" ;
+    ecap:outcomeKind "success" .
+ecap:outcome-sign-refused a ecap:Outcome ;
+    rdfs:label "assembly or signing-input check refused" ;
+    ecap:outcomeKind "refusal" ;
+    ecap:refusalCode "REFUSED_INVALID_INPUT" .
+
+ecap:realization-affidavit-assemble a ecap:Realization ;
+    dcterms:identifier "ash-affidavit-assemble-op" ;
+    ecap:authorityCeiling "construct" ;
+    ecap:providerRepo "ash_affidavit" ;
+    ecap:bindingModule "AshAffidavit.Change.Receipt (op: :assemble) / AshAffidavit.call/2 op \"assemble\"" ;
+    ecap:sourceFile "lib/ash_affidavit/change/receipt.ex + priv/affidavit/capability-registry.json + lib/ash_affidavit/type/chain_hash.ex" ;
+    ecap:versionPinPolicy "Hex package ash_affidavit release v26.9.30; pin by exact release tag + capability-registry.json digest" ;
+    ecap:qualificationCondition "op assemble request {op, events}; response {ok, receipt, content_address, chain_hash} — the engine ASSEMBLES a receipt over operation events (registry read 2026-09-30); no signing operation exists on the engine surface" ,
+        "chain hash is 64 lowercase hex BLAKE3 (AshAffidavit.Type.ChainHash.cast_input/2; uppercase input normalized)" .
+
+ecap:realization-affidavit-signature-input a ecap:Realization ;
+    dcterms:identifier "ash-affidavit-signature-input" ;
+    ecap:authorityCeiling "observe" ;
+    ecap:providerRepo "ash_affidavit" ;
+    ecap:bindingModule "AshAffidavit.call/2 op \"verify_signature_input\"" ;
+    ecap:sourceFile "lib/ash_affidavit.ex + priv/affidavit/capability-registry.json" ;
+    ecap:versionPinPolicy "Hex package ash_affidavit release v26.9.30; pin by exact release tag + capability-registry.json digest" ;
+    ecap:qualificationCondition "op verify_signature_input request {op, envelope_json, expected_signing_input_hex}; response {verified, signing_input_hex} — checks a signing input byte-exactly; it does not produce a signature (registry read 2026-09-30)" ,
+        "pairs with assemble: assembly binds content; this op verifies the exact signing input an external signer would sign" .
+
+ecap:provenance-record a ecap:Capability ;
+    dcterms:identifier "Provenance.Record" ;
+    rdfs:label "Provenance.Record" ;
+    ecap:capabilityFamily "evidence" ;
+    ecap:input "one engine law step with its parent and child graph state ids" ,
+        "a payload to commitment-bind before later claims reference it" ;
+    ecap:output "a typed provenance record: step, parent/child state ids, added triple count, authority label (an observation, not a grant), lease id, plan digest, and the untouched raw engine map" ,
+        "a payload commitment binding the payload to its content address" ;
+    ecap:precondition "the step or payload being recorded must already have happened; recording is lossless projection, never narration" ;
+    ecap:postcondition "provenance binds each step to its parent and child state ids so lineage is reconstructable; unknown engine keys survive verbatim (nothing is lost by projection); the record grants nothing" ;
+    ecap:outcome ecap:outcome-prov-ok , ecap:outcome-prov-refused ;
+    ecap:authorityCeiling "observe" ;
+    ecap:executionProperty "deterministic" , "side-effect-free" , "lossless (raw kept)" ;
+    ecap:realization ecap:realization-graphlaw-receipt , ecap:realization-affidavit-commit .
+
+ecap:outcome-prov-ok a ecap:Outcome ;
+    rdfs:label "provenance record produced" ;
+    ecap:outcomeKind "success" .
+ecap:outcome-prov-refused a ecap:Outcome ;
+    rdfs:label "record refused (malformed step or payload)" ;
+    ecap:outcomeKind "refusal" ;
+    ecap:refusalCode "REFUSED_INVALID_INPUT" .
+
+ecap:realization-graphlaw-receipt a ecap:Realization ;
+    dcterms:identifier "ash-graphlaw-receipt" ;
+    ecap:authorityCeiling "observe" ;
+    ecap:providerRepo "ash_graphlaw" ;
+    ecap:bindingModule "AshGraphLaw.Receipt (from_map/1)" ;
+    ecap:sourceFile "lib/ash_graphlaw/receipt.ex" ;
+    ecap:versionPinPolicy "Hex package ash_graphlaw release v26.9.30 (read 2026-09-30); pin by exact release tag" ;
+    ecap:qualificationCondition "lossless typed projection of one engine receipt: step, parent/child graph state ids, added, authority (an observation, not a grant), revision, lease_id, plan_sha256, index; the untouched engine map is kept in :raw and unknown keys survive (read 2026-09-30)" ,
+        "never raises for a map; missing fields become nil — projection totality is part of the qualification" .
+
+ecap:realization-affidavit-commit a ecap:Realization ;
+    dcterms:identifier "ash-affidavit-commit-op" ;
+    ecap:authorityCeiling "observe" ;
+    ecap:providerRepo "ash_affidavit" ;
+    ecap:bindingModule "AshAffidavit.Change.Receipt (op: :commit) / AshAffidavit.call/2 op \"commit\"" ;
+    ecap:sourceFile "lib/ash_affidavit/change/receipt.ex + priv/affidavit/capability-registry.json" ;
+    ecap:versionPinPolicy "Hex package ash_affidavit release v26.9.30; pin by exact release tag + capability-registry.json digest" ;
+    ecap:qualificationCondition "op commit request {op, payload, payload_hex}; response {ok, op, commitment, bytes} — content-addresses a payload so later provenance claims can bind to it (registry read 2026-09-30)" .
+
+#################################################################
+# Minted family sibling (recorded per RESOLUTIONS.md): derived standing.
+# The consumer family list currently knows authority/evidence families;
+# "Standing.Derive" parses to family "standing" — recorded as a cross-wave
+# seam note, not silently dropped.
+#################################################################
+
+ecap:standing-derive a ecap:Capability ;
+    dcterms:identifier "Standing.Derive" ;
+    rdfs:label "Standing.Derive" ;
+    ecap:capabilityFamily "evidence" ;
+    ecap:input "one admission outcome ({:ok, admitted} | typed refusal | anything else)" ;
+    ecap:output "a standing value from the closed vocabulary UNKNOWN | PARTIAL_ALIVE | ALIVE | BLOCKED | BUILD_BROKEN | UNSUPPORTED" ;
+    ecap:precondition "the outcome being mapped must be a result of an observed admission or refusal, never an assertion" ;
+    ecap:postcondition "standing is derived from the result and bound to the exact input digest; it is never stored on the DSL and never carried between inputs; admission alone NEVER yields ALIVE" ;
+    ecap:outcome ecap:outcome-standing-ok ;
+    ecap:authorityCeiling "observe" ;
+    ecap:executionProperty "deterministic" , "total" , "closed-vocabulary" ;
+    ecap:realization ecap:realization-graphlaw-standing .
+
+ecap:outcome-standing-ok a ecap:Outcome ;
+    rdfs:label "standing value derived" ;
+    ecap:outcomeKind "success" .
+
+ecap:realization-graphlaw-standing a ecap:Realization ;
+    dcterms:identifier "ash-graphlaw-standing" ;
+    ecap:authorityCeiling "observe" ;
+    ecap:providerRepo "ash_graphlaw" ;
+    ecap:bindingModule "AshGraphLaw.Standing (of/1)" ;
+    ecap:sourceFile "lib/ash_graphlaw/standing.ex" ;
+    ecap:versionPinPolicy "Hex package ash_graphlaw release v26.9.30 (read 2026-09-30); pin by exact release tag" ;
+    ecap:qualificationCondition "closed mapping: {:ok, admitted} -> PARTIAL_ALIVE (never ALIVE from admission alone); refusal class blocked_resource -> BLOCKED; class unsupported -> UNSUPPORTED; anything else -> UNKNOWN (read 2026-09-30)" ,
+        "the vocabulary itself is generated from the ontology (queries/standing.rq per module doc) — no hand-maintained enum" .

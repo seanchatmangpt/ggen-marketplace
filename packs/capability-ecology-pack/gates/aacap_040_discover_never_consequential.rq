@@ -1,0 +1,26 @@
+# MESSAGE: discover marked consequential, or observation capability claiming actuation authority.
+# A2A.Discover is observation: it must never be re-typed change/external_do and must
+# never require actuation authority. Any observation-class capability that requires
+# authority or carries an authority envelope is a refusal. A row is a refusal.
+PREFIX aacap: <https://ggen.dev/ontology/a2a-capability#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?identifier ?why WHERE {
+  ?capability a aacap:Capability ;
+              dcterms:identifier ?identifier .
+  {
+    FILTER EXISTS {
+      ?capability aacap:consequenceClass "observation" .
+      { ?capability aacap:requiresAuthority true }
+      UNION
+      { ?capability aacap:authorityEnvelope ?envelope }
+    }
+    BIND("observation-capability-claims-actuation-authority" AS ?why)
+  }
+  UNION
+  {
+    ?capability aacap:consequenceClass ?class .
+    FILTER (?identifier = "A2A.Discover" && ?class != "observation")
+    BIND("discover-marked-consequential" AS ?why)
+  }
+}
+ORDER BY ?identifier ?why

@@ -21,7 +21,10 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKS = ("ash-extension-pack", "ash-extension-core-pack")
+# v26.9.30 consolidation lane 6: ash-extension-pack is the sole canonical identity
+# (core's codegen/gates/support_subdir capabilities ported into it); the
+# ash-extension-core-pack identity is retired delete-ready pending coordinator repoints.
+PACKS = ("ash-extension-pack",)
 
 # Read-only compiled Igniter/Spark/Ash tree used only to execute the generated task.
 IGNITER_LIBS = Path("/Users/sac/ash_graphlaw/_build/test/lib")
@@ -112,18 +115,10 @@ def have(*tools: str) -> bool:
 
 
 def render_installer(pack: str, dest: Path) -> str:
-    """Render the installer through real ggen.
-
-    ash-extension-pack renders as a pack. ash-extension-core-pack's other templates need a richer
-    spec than this probe, so only its installer template is copied into the project.
-    """
+    """Render the installer through real ggen, as a marketplace pack reference."""
     (dest / "templates").mkdir(parents=True)
     (dest / "ontology.ttl").write_text(ONTOLOGY, encoding="utf-8")
-    packs = ""
-    if pack == "ash-extension-pack":
-        packs = f'[packs]\n{pack} = {{ path = "{ROOT / "packs" / pack}" }}\n'
-    else:
-        shutil.copy(ROOT / "packs" / pack / "templates/install.ex.tmpl", dest / "templates/install.ex.tmpl")
+    packs = f'[packs]\n{pack} = {{ path = "{ROOT / "packs" / pack}" }}\n'
     (dest / "ggen.toml").write_text(
         '[project]\nname = "ash_probe"\n[ontology]\nsource = "ontology.ttl"\n' + packs +
         '[templates]\ndir = "templates"\n',

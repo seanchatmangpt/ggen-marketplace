@@ -182,3 +182,31 @@ pack could programmatically pull and diff at sync time, or for
 `ggen sync` itself to support an upstream-ontology-URL fetch+diff hook. That
 capability does not exist in `ggen-engine` today; adding it is an
 engine-level change outside this pack's own files.
+
+## 2026-10-01 (v26.9.30 consolidation wave) — drift CLOSED by single-ownership
+
+The open cross-pack inconsistency recorded on 2026-07-19 ("algorithms-pack still
+carries the stale value on the identical subject IRIs") is now resolved
+structurally, not by a fourth re-fix: this pack is the single owner of the
+wasm4pm individual facts. `wasm4pm-cognition-pack` and `wasm4pm-algorithms-pack`
+dropped their duplicated individuals (277 and 695 exact-duplicate triples
+respectively, measured by rdflib set intersection against this pack's graph
+before deletion) and join to these individuals by IRI literal in the consumer
+union graph — the capability-ecology dotted-ID pattern, no cross-pack import.
+
+Absorbed into this pack's `ontology.ttl` this round:
+- 55 `compat:breedFamily` triples (one per breed, the 13-family grouping; these
+  were the only breed facts unique to cognition's copies) — moved verbatim.
+- 1 `pi:verifiedAgainst` triple (`pi:Algo_ocel_dfg` →
+  `wasm4pm-compat@26.6.29::discover_ocel_dfg ...`; the only fidelity-verified
+  row, required by algorithms-pack's dispatch/fidelity templates) — moved verbatim.
+
+The two long-drifting subjects (`pi:Algo_optimized_dfg`, `pi:Algo_streaming_log`)
+no longer exist outside this pack: their stale `pi:wasmExport` copies died with
+the dropped duplicates, so the round-1..4 recurrence (same 2 individuals
+re-drifting because a second uncorrected copy kept surviving elsewhere) cannot
+recur. This pack's corrected values are the only remaining assertions.
+
+Verification this round: graph parses (rdflib), 55 breedFamily + 1
+verifiedAgainst present, this pack's gates 010/020/030 all 0 refusal rows after
+the edit. Upstream drift script not re-run (no `~/wasm4pm` change is claimed).

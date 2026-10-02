@@ -125,3 +125,108 @@ The intended steady state is that CI computes the **semantic delta introduced by
 The Fortune-5 verifier accepts supplied evidence only. `FORTUNE5_ALIVE` is refused without exact-subject observed/admitted/executed/verified state, receipt + replay, all controls, and explicit evidence for capacity, DR, supply chain, data boundaries, and the SLO window.
 
 Marketplace qualification can establish deterministic graph load/manufacture/replay standing for these projections. It does **not** itself execute generated deployment programs, enterprise benchmarks, chaos experiments, DR exercises, formal proofs, or external actuators. Those boundaries remain `UNKNOWN` until their exact subjects execute and produce receipts.
+
+## v2.2.0 consolidation — one admission unit, sixteen modules, one court (2026-10-01)
+
+The fourteen `dfcm-*` satellite packs were absorbed into this pack per the v26.9.30
+consolidation wave (`docs/jira/v26.9.30/CONSOLIDATION-FRONTIER.md`, Tier-1 "dfcm family
+15 → 1"). The satellite ontology already mapped five satellite namespaces with
+`owl:equivalentClass` and machine-registered seven projection packs with
+`dfcm:semanticOwner "dfcm-pack"`; this consolidation makes that registration physically
+true. `ggen-combinatorial-maximalism-pack` intentionally remains a separate projection
+(doctrine-referenced); its registry entry is unchanged.
+
+Ruling made physical: the selection siblings carry **deliberately different algorithms** —
+so the consolidation shares ontology/gates/court (one admission unit) and preserves every
+algorithm verbatim as a family module under `families/<family>/` (scripts, queries,
+templates, tests, shapes, python gates). Nothing algorithmic was rewritten.
+
+### Layout
+
+| path | content |
+|---|---|
+| `ontology/deployment.ttl` | the deployment/Fortune-5/CI law (formerly root `ontology.ttl`) |
+| `ontology/option-capital.ttl` | canonical option-capital + compatibility map + projection registry |
+| `ontology/<family>.ttl` | 14 satellite ontology modules, namespaces moved **verbatim** (no IRI changed) |
+| `gates/*.rq` | 64 violation-row SELECTs with ORDER BY: 34 base + 30 family-prefixed (`dmc_ dmsc_ dsc_ dsea_ dsfc_ dsfe_ dspc_ dccp_ dfd_`) |
+| `witnesses/{pass,fail}/<stem>.ttl` | exact-stem witness per gate (128 files) |
+| `qualification/verify.py` | the ONE uniform exact-stem witness court (exit 0 = ADMITTED) |
+| `qualification/fixtures/` | court fixtures (the five legacy JSON acceptance mocks retired: no consumer, mock subjects, not exact-subject evidence) |
+| `families/<family>/` | satellite algorithms preserved verbatim (scripts/queries/templates/tests/shapes/python gates/docs) |
+| `families/<family>.md` | satellite README preserved verbatim, or a synthesized family note where none existed |
+
+### Uniform court semantics
+
+For every gate: `union(ontology/*.ttl) + witnesses/pass/<stem>.ttl` must yield **zero rows**
+(pass silent), and the standalone self-contained `witnesses/fail/<stem>.ttl` must yield
+**at least one row** (fail fires). Fail-side deviation from the capability-ecology
+precedent, recorded: dfcm's gate corpus is dominated by absence laws (fire when a required
+fact is missing), which no additive witness can fire, so fail graphs are standalone minimal
+worlds mined from each satellite court's own tests/expectations rather than union+additive.
+
+### ggen wiring
+
+`ggen.toml` now loads all 16 ontology modules (`[ontology] imports`) and enforces 63 of the
+64 gates through real ggen (`[validation].gates`). `dfd_040_fortune5_closure` is
+court-only: its count closure (exactly 50 required F5 controls) is satisfied by the
+family fixture plane, not the bare union, and its pass witness re-injects the 50 verbatim
+controls as the conservation witness.
+
+### Recorded deviations (all minimal, all in owned paths)
+
+1. ASK-form satellite gates converted to equivalent violation-row SELECTs (ggen admits
+   refusal SELECTs only): `dmc_all_candidates_*`, `dmc_develop_no_do`,
+   `dmc_experiment_realization`, `dmsc_010/020/030`, `dsea_01/02/03`, `dccp_01/02`.
+   Positive-existence ASKs (dsea_01/02, dmc_experiment_realization) were converted to
+   per-individual violation form; conversions are commented in each gate file.
+2. `ORDER BY` appended to 26 base gates and all merged gates (strict-mode determinism; no
+   semantic change).
+3. `dfd_030_fortune5_required` and the duplicate-slug branch of `dfd_040_fortune5_closure`
+   are population-scoped to the F5 control IRIs: the F5 vocabulary shares the
+   `https://ggen.dev/ontology/dfcm#` control class with the base 29 C-controls, and the
+   two well-formedness laws quantify over disjoint property sets.
+4. The 50 F5 `EnterpriseControl` individuals moved verbatim from the satellite ontology to
+   `families/full-deployment/fixtures/f5_controls.ttl` (family fixture plane, outside the
+   union) for the same disjoint-population reason.
+5. `sfe:SelectionRun` (a policy/exemplar individual typed as an execution run, carrying no
+   subject) moved to `families/selection-frontier-execution/fixtures/selection_run.ttl`;
+   stamping a fabricated SHA onto it to satisfy `dsfe_exact_subject` would be fabricated
+   evidence.
+
+### DfcmAdmission.lean template seam — resolved
+
+Both this pack and `dfcm-full-deployment-pack` shipped `templates/DfcmAdmission.lean.tmpl`.
+Canonical (kept, unchanged): **this pack's** — the strict superset (adds the `Status`
+inductive, `authorityRoute` + `do_requires_brce`, `unsupported_ne_refused`,
+`unknown_ne_alive`, `receipted`/`exactSubject` in `Evidence`/`Alive`, and a dynamic
+`ecosystemComponents` count theorem). Superseded: full-deployment's leaner variant
+(4-field `Evidence`, no Status/authorityRoute theorems, hard-coded `requiredComponents`
+count = 12). Witness rerun after the consolidation: `ggen sync run` renders the canonical
+template cleanly (`ecosystemComponents.length = 20`, dynamic), the 64-gate court is ALIVE,
+and the full-deployment deployment-component population stays witnessed by
+`dfd_010/020` (12 required components, complete property sets).
+
+### Supersession
+
+| absorbed pack (version) | namespace | module | family notes |
+|---|---|---|---|
+| `dfcm-explore-court-pack` (26.8.24) | `ex:` ggen.dev/ontology/dfcm-explore# | `ontology/explore-court.ttl` | `families/explore-court.md` |
+| `dfcm-maximalist-court-pack` (26.8.24) | `dmc:` | `ontology/maximalist-court.ttl` | `families/maximalist-court.md` |
+| `dfcm-maximalist-selection-control-pack` (26.8.24) | `dms:` | `ontology/maximalist-selection-control.ttl` | `families/maximalist-selection-control.md` |
+| `dfcm-selection-capital-pack` (26.8.23) | `sel:` | `ontology/selection-capital.ttl` | `families/selection-capital.md` |
+| `dfcm-selection-evidence-acquisition-pack` (0.1.0) | `dea:` | `ontology/selection-evidence-acquisition.ttl` | `families/selection-evidence-acquisition.md` |
+| `dfcm-selection-falsifier-closure-pack` (0.1.0) | `chatman.ai/dfcm#` | `ontology/selection-falsifier-closure.ttl` | `families/selection-falsifier-closure.md` |
+| `dfcm-selection-frontier-execution-pack` (26.8.24) | `sfe:` | `ontology/selection-frontier-execution.ttl` | `families/selection-frontier-execution.md` |
+| `dfcm-selection-portfolio-consensus-pack` (26.8.24) | `dspc:` | `ontology/selection-portfolio-consensus.ttl` | `families/selection-portfolio-consensus.md` |
+| `dfcm-candidate-compatibility-portfolio-pack` (0.1.0) | `seanchatman.dev/ontology/dfcm#` | `ontology/candidate-compatibility-portfolio.ttl` | `families/candidate-compatibility-portfolio.md` |
+| `dfcm-explore-candidate-factory-pack` (0.1.0) | `.../dfcm/explore#` | `ontology/explore-candidate-factory.ttl` | `families/explore-candidate-factory.md` |
+| `dfcm-explore-maximalist-pack` (26.8.24) | `.../dfcm/explore#` (shared IRI space with candidate-factory; additive union, SPARQL-safe) | `ontology/explore-maximalist.ttl` | `families/explore-maximalist.md` |
+| `dfcm-full-deployment-pack` (26.8.14) | `dfcm:` ggen.dev (shared with deployment.ttl) | `ontology/full-deployment.ttl` | `families/full-deployment.md` |
+| `dfcm-develop-maximalist-pack` (26.8.24) | `dev:` | `ontology/develop-maximalist.ttl` | `families/develop-maximalist.md` |
+| `dfcm-dd-ui-pack` (26.8.18) | `ddui:` | `ontology/dd-ui.ttl` | `families/dd-ui.md` |
+
+Superseded per pack: its `pack.toml` (absorbed into this manifest), its `ggen.toml`
+generation wiring (queries/templates preserved as family modules; not re-wired — the
+satellite generation queries predate strict-mode ORDER BY and stay verbatim), and its
+per-pack court (replaced by the one uniform court above). Namespaces and individuals moved
+verbatim; no IRI changed anywhere in this consolidation.

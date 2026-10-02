@@ -41,6 +41,22 @@
 #     ggen_igniter loads exactly one --ontology file). Any unbound value is
 #     refused below BY RECORD AND FIELD NAME -- an unmapped type is a named
 #     render failure, never a silently dropped attribute.
+#   ?ocel_type_expr (v26.10.1) - the same vocabulary's bpm:ocelTypeExpr, a
+#     second, deliberately WEAKER optional join: unbound means "non-scalar
+#     type" (list_string, map today), which is ADMITTED semantics, not a
+#     refusal -- the field is left out of the rendered `object_type
+#     attributes:` list and the skip is rendered as a named comment below,
+#     never silently. OCEL 2.0 object attributes are scalars only, so there
+#     is no loud-refusal path here; the two non-scalar FieldTypes carry no
+#     bpm:ocelTypeExpr by ontology law (pack ontology.ttl, v26.10.1).
+#   No `notifiers:` is rendered, deliberately (v26.10.1 R2):
+#     AshEx4pm.Transformers.Persist auto-registers AshEx4pm.Notifier as a
+#     simple notifier whenever `extensions: [AshEx4pm]` is present
+#     (deps/ash_ex4pm/.../transformers/persist.ex, register_notifier/2), and
+#     Ash.Resource.Info.notifiers/1 does NOT deduplicate -- an explicit
+#     `notifiers: [AshEx4pm.Notifier]` here would double-fire every
+#     notification (persist.ex's already_explicit? guard exists precisely
+#     for that case).
 #
 # Engine-shape note: both engines now return PLAIN lexical values for
 # list-bound query results (GgenIgniter.Query.Oxigraph moduledoc, "Term
@@ -100,6 +116,7 @@ flds =
       name: norm.(f["field_name"]),
       type: norm.(f["field_type"]),
       ash_type: lex.(f["ash_type_expr"]),
+      ocel_type: lex.(f["ocel_type_expr"]),
       doc: norm.(f["field_doc"]),
       required: norm.(f["field_required"]) == "true",
       order: to_int.(f["field_order"])
@@ -130,6 +147,34 @@ attrs =
       if(f.required, do: ", allow_nil?: false", else: "")
   end)
 
+# OCEL object-type projection (v26.10.1): only fields whose type carries a
+# bpm:ocelTypeExpr enter `object_type attributes:`; the rest are rendered as
+# named skip comments. Order follows field_order (already sorted above), so
+# the keyword list is deterministic run to run.
+ocel_attrs =
+  flds
+  |> Enum.filter(fn f -> f.ocel_type not in [nil, ""] end)
+  |> Enum.map(fn f -> "#{f.name}: #{f.ocel_type}" end)
+
+ocel_skipped =
+  flds
+  |> Enum.filter(fn f -> f.ocel_type in [nil, ""] end)
+  |> Enum.map(fn f ->
+    "    # skipped field :#{f.name} (bpm:fieldType \"#{f.type}\") - no bpm:ocelTypeExpr: " <>
+      "OCEL object attributes are scalars only"
+  end)
+
+ex4pm_lines =
+  [
+    "  ex4pm do",
+    "    object_type :#{this_name}, attributes: [#{Enum.join(ocel_attrs, ", ")}]"
+  ] ++
+    ocel_skipped ++
+    [
+      "    activity :#{this_name}_created, on: :create",
+      "  end"
+    ]
+
 rendered =
   Enum.join(
     [
@@ -140,19 +185,24 @@ rendered =
       "  use Ash.Resource,",
       "    domain: BeamPM.Ash.Domain,",
       "    data_layer: Ash.DataLayer.Ets,",
-      "    validate_domain_inclusion?: false",
-      "",
-      "  attributes do",
-      "    uuid_primary_key :id",
-      attrs,
-      "  end",
-      "",
-      "  actions do",
-      "    default_accept :*",
-      "    defaults [:create, :read]",
-      "  end",
-      "end"
-    ],
+      "    validate_domain_inclusion?: false,",
+      "    extensions: [AshEx4pm]",
+      ""
+    ] ++
+      ex4pm_lines ++
+      [
+        "",
+        "  attributes do",
+        "    uuid_primary_key :id",
+        attrs,
+        "  end",
+        "",
+        "  actions do",
+        "    default_accept :*",
+        "    defaults [:create, :read]",
+        "  end",
+        "end"
+      ],
     "\n"
   ) <> "\n"
 %><%= rendered %>

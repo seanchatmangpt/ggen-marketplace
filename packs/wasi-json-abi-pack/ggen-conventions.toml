@@ -1,0 +1,85 @@
+# ggen-conventions.toml -- wire-convention qualification profile. Renders
+# generated/conventions/ from qualification/conventions-consumer.ttl merged with
+# this pack's ontology. ggen reads only ./ggen.toml: copy this file to ggen.toml
+# in a scratch copy of the pack and run `ggen sync run`.
+#
+# The consumer sets the full converged wire-convention shape: returnConvention
+# out-len-pointer, symbolSuffix _v1, opSymbolPrefix distinct from exportPrefix,
+# inputReleasePolicy host-dealloc, importsPolicy none, errorStyle result-digest
+# with the four FNV-1a digest facts, startupConvention reactor-initialize, and
+# per-op replay companions. The ffi rule renders the out-len-pointer shell
+# (call takes an out_len pointer, dealloc/free split, borrowed input); the
+# registry and ABI-doc rules render the parameterized export surface.
+#
+# EXCLUDED rules (packed-u64-only today; see HANDWRITTEN.md): harness
+# (tests_common.rs binds the packed call signature via wasmi) and guards
+# (limit-guard prelude emits flat-code/refusal-kind artifacts). A consumer on
+# the out-len-pointer convention owns its own tests and refusal envelope until
+# the pack gains convention-parameterized harness/guards rules.
+
+[project]
+name = "wasi-json-abi-pack"
+version = "26.10.0"
+
+[ontology]
+source = "qualification/conventions-consumer.ttl"
+imports = ["ontology.ttl"]
+
+[generation]
+output_dir = "."
+
+[[generation.rules]]
+name = "ffi"
+mode = "Overwrite"
+query = { file = "queries/ffi.rq" }
+template = { file = "templates/wasm_ffi.rs.tmpl" }
+output_file = "generated/conventions/ffi.rs"
+
+[[generation.rules]]
+name = "meta"
+mode = "Overwrite"
+query = { file = "queries/meta.rq" }
+template = { file = "templates/wasm_abi_meta.rs.tmpl" }
+output_file = "generated/conventions/abi_meta.rs"
+
+[[generation.rules]]
+name = "registry"
+mode = "Overwrite"
+query = { file = "queries/registry.rq" }
+template = { file = "templates/wasm_capability_registry.json.tmpl" }
+output_file = "generated/conventions/capability-registry.json"
+
+[[generation.rules]]
+name = "abi-doc"
+mode = "Overwrite"
+query = { file = "queries/abi_doc.rq" }
+template = { file = "templates/wasm_abi_doc.md.tmpl" }
+output_file = "generated/conventions/abi-doc.md"
+
+[[generation.rules]]
+name = "examples"
+mode = "Overwrite"
+query = { file = "queries/examples.rq" }
+template = { file = "templates/wasm_op_examples.json.tmpl" }
+output_file = "generated/conventions/op-examples.json"
+
+[[generation.rules]]
+name = "cargo-config"
+mode = "Overwrite"
+query = { file = "queries/cargo.rq" }
+template = { file = "templates/wasm_cargo_config.toml.tmpl" }
+output_file = "generated/conventions/cargo-config.toml"
+
+[[generation.rules]]
+name = "cargo-profile"
+mode = "Overwrite"
+query = { file = "queries/cargo.rq" }
+template = { file = "templates/wasm_cargo_profile.toml.tmpl" }
+output_file = "generated/conventions/cargo-profile.toml"
+
+[[generation.rules]]
+name = "artifacts"
+mode = "Overwrite"
+query = { file = "queries/artifacts.rq" }
+template = { file = "templates/wasm_artifacts.sha256.tmpl" }
+output_file = "generated/conventions/ARTIFACTS.sha256"

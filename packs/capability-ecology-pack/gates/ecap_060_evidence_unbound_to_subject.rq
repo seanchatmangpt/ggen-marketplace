@@ -1,0 +1,20 @@
+# MESSAGE: evidence-unbound-to-subject. Evidence is admissible only when bound
+# to an exact subject by SHA-256 digest: every ecap:EvidenceClaim must carry
+# ecap:subjectDigest and the digest must be 64 lowercase hex characters
+# (provenance is SHA-bound; a claim without a subject digest, or with a
+# non-digest string, binds to nothing and is refused).
+PREFIX ecap: <https://ggen.dev/ontology/evidence-capability#>
+SELECT ?ev ?violation WHERE {
+  {
+    ?ev a ecap:EvidenceClaim .
+    FILTER NOT EXISTS { ?ev ecap:subjectDigest ?d0 }
+    BIND("no-subject-digest" AS ?violation)
+  }
+  UNION
+  {
+    ?ev a ecap:EvidenceClaim ; ecap:subjectDigest ?d .
+    FILTER (!REGEX(STR(?d), "^[0-9a-f]{64}$"))
+    BIND("subject-digest-not-sha256-hex64" AS ?violation)
+  }
+}
+ORDER BY ?ev ?violation

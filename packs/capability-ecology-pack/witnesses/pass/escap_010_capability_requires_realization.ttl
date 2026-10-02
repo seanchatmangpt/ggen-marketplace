@@ -1,0 +1,48 @@
+# POSITIVE fixture: a second, self-contained CONFORMING instance. Every gate
+# MUST return zero rows over this fixture alone AND over ontology+fixture.
+# It exercises exactly-once delivery, a consequential topic WITH bound
+# authority, and an empty nondeterministic set -- the counterfactual that
+# keeps gate 050 honest (authority-bound consequential use is ADMITTED).
+@prefix escap: <https://ggen.dev/ontology/event-state-capability#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+escap:topic-audit-trail a escap:Topic ;
+    rdfs:label "audit-trail" ;
+    escap:consequentialTopic true ;
+    skos:definition "Fixture consequential topic: forwarding here writes the audit record itself." .
+
+escap:event-forward a escap:EventCapability, escap:Capability ;
+    rdfs:label "Event.Forward" ;
+    dcterms:identifier "Event.Forward" ;
+    escap:input "source topic, destination topic, event id" ;
+    escap:output "event re-emitted exactly once on the destination topic" ;
+    escap:precondition "event id resolves; destination topic exists" ;
+    escap:postcondition "exactly one delivery per event id inside the dedupe window" ;
+    escap:successOutcome "forwarded event delivered exactly once" ;
+    escap:failureOutcome escap:failure-dedupe-window-exceeded ;
+    escap:nondeterministicOutcome "none: forwarding a fixed event id is deterministic (declared empty set)" ;
+    escap:deliverySemantics escap:exactlyOnce ;
+    escap:consequencesThroughTopic true ;
+    escap:consequential false ;
+    escap:evidenceRequirement "forward receipt naming source topic, destination topic, dedupe window" ;
+    escap:authorityRequirement "required when the destination topic is consequentialTopic=true" ;
+    escap:durability "destination topic durability applies" ;
+    escap:replay "re-forward of the same id dedupes inside the window" ;
+    escap:isolation "per destination topic" ;
+    escap:concurrency "id-keyed dedupe is race-safe under the window" .
+
+escap:qc-forward-dedupe-window a escap:QualificationCondition ;
+    rdfs:label "forward dedupes on event id within the declared window; a late duplicate surfaces as dedupeWindowExceeded" .
+
+escap:realization-forward-audit a escap:Realization ;
+    escap:realizes escap:event-forward ;
+    escap:providerRepo "example-conforming" ;
+    escap:providerModule "idempotent exactly-once forwarder (fixture example; not a claimed provider)" ;
+    escap:versionPinPolicy "fixture-local example coordinate" ;
+    escap:providerAvailable true ;
+    escap:qualificationCondition escap:qc-forward-dedupe-window ;
+    escap:evidenceRequirement "forward receipt naming source topic, destination topic, dedupe window" ;
+    escap:authorityRequirement "brokered lease naming topic audit-trail; REFUSED_NO_AUTHORITY otherwise" ;
+    escap:emitsOn escap:topic-audit-trail .

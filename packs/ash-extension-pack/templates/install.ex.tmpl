@@ -43,7 +43,9 @@ sparql:
    - `aex:dualLevelFixture = "true"` adds a `--type` (resource|domain) schema option
      with a `defaults: [type: "resource"]` default, mirroring ash_a2a.install.ex:38,47-51.
      Unset/false: renders byte-identical to core-pack's install.ex.tmpl (no --type at all).
-   - `aex:installerRuntimeDep` (a "<dep>|<version_req>" pair, e.g. "a2a|~> 0.2") adds a
+   - `aex:installerRuntimeDep` (a "<dep> <version_req>" pair, e.g. "a2a ~> 0.2"; the
+     dep name is everything before the first space, the requirement everything after;
+     a value with no space falls back to the requirement ">= 0.0.0") adds a
      real `Igniter.Project.Deps.add_dep/2` pipe call, mirroring ash_a2a.install.ex:58.
      Unset: renders byte-identical to core-pack's install.ex.tmpl (no add_dep call). #}
 {# Per-spec scoping: ggen evaluates each named `sparql:` result once against the whole
@@ -82,7 +84,8 @@ defmodule Mix.Tasks.{{ task_module_name }}.Install do
     base =
       igniter
 {% if installer_runtime_dep %}
-      |> Igniter.Project.Deps.add_dep({:{{ installer_runtime_dep | split(pat="|") | first }}, "{{ installer_runtime_dep | split(pat="|") | last }}"})
+{% set dep_parts = installer_runtime_dep | split(pat=" ") %}
+      |> Igniter.Project.Deps.add_dep({:{{ dep_parts | first }}, "{{ dep_parts | slice(start=1) | join(sep=" ") | default(value=">= 0.0.0", boolean=true) }}"})
 {% endif %}
       |> Igniter.Project.Formatter.import_dep(:{{ package_name }})
       |> Igniter.Project.Formatter.add_formatter_plugin({{ formatter_module }})

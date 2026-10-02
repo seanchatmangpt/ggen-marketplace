@@ -9,7 +9,7 @@ defmodule MarketplaceCli.GraphProviderTest do
   # Chicago-style: real ggen_igniter (real RDF.ex Turtle parser + real
   # `sparql` hex query engine), real file on disk -- no mock/fixture stub.
   test "load!/1 + query/2 count this pack's own ontology.ttl's real triples" do
-    path = Path.join([@root, "packs", "noun-verb-cli-pack", "ontology.ttl"])
+    path = Path.join([@root, "packs", "ex-noun-verb-cli-pack", "ontology.ttl"])
 
     graph = GgenIgniterProvider.load!(path)
     assert %RDF.Graph{} = graph
@@ -20,11 +20,11 @@ defmodule MarketplaceCli.GraphProviderTest do
 
   test "Inspector.ontology_triple_count/2 uses the real GraphProvider end to end" do
     pack = %Inspector.Pack{
-      name: "noun-verb-cli-pack",
+      name: "ex-noun-verb-cli-pack",
       version: "26.9.11",
       description: "x",
-      path: Path.join([@root, "packs", "noun-verb-cli-pack"]),
-      ontologies: [Path.join([@root, "packs", "noun-verb-cli-pack", "ontology.ttl"])],
+      path: Path.join([@root, "packs", "ex-noun-verb-cli-pack"]),
+      ontologies: [Path.join([@root, "packs", "ex-noun-verb-cli-pack", "ontology.ttl"])],
       templates: [],
       native_gates: [],
       verifier_gates: []

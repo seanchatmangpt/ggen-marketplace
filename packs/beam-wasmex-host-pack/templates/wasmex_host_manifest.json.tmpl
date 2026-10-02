@@ -1,0 +1,100 @@
+---
+to: "{{ host[0].manifest_target }}"
+force: true
+sparql:
+  memory_rows: |
+    PREFIX bwh: <urn:beam:wasmex:host:>
+    SELECT ?v WHERE { ?h a bwh:WasmexHostSurface ; bwh:memoryExport ?v . } ORDER BY ?v LIMIT 1
+  init_rows: |
+    PREFIX bwh: <urn:beam:wasmex:host:>
+    SELECT ?v WHERE { ?h a bwh:WasmexHostSurface ; bwh:initializeExport ?v . } ORDER BY ?v LIMIT 1
+  host: |
+    PREFIX bwh: <urn:beam:wasmex:host:>
+    SELECT ?otp_app ?root_module ?artifact_path ?out_mode ?import_mode
+           ?alloc_export ?free_export ?dealloc_export ?digest_prefix ?wasmex_dep_spec
+           ?manifest_target
+           (COALESCE(GROUP_CONCAT(?pair; separator=";"), "") AS ?algo_csv)
+    WHERE {
+      ?h a bwh:WasmexHostSurface ;
+         bwh:otpApp ?otp_app ;
+         bwh:rootModule ?root_module ;
+         bwh:artifactPath ?artifact_path ;
+         bwh:outMode ?out_mode ;
+         bwh:importMode ?import_mode ;
+         bwh:allocExport ?alloc_export ;
+         bwh:freeExport ?free_export ;
+         bwh:deallocExport ?dealloc_export ;
+         bwh:digestPrefix ?digest_prefix ;
+         bwh:manifestTarget ?manifest_target .
+      OPTIONAL { ?h bwh:wasmexDepSpec ?wasmex_dep_spec }
+      OPTIONAL {
+        ?b a bwh:AlgorithmBinding ;
+           bwh:algorithmId ?algorithm_id ;
+           bwh:callExport ?call_export ;
+           bwh:replayExport ?replay_export .
+        BIND(CONCAT(COALESCE(?algorithm_id, ""), "|", COALESCE(?call_export, ""), "|", COALESCE(?replay_export, "")) AS ?pair)
+      }
+    } GROUP BY ?otp_app ?root_module ?artifact_path ?out_mode ?import_mode
+             ?alloc_export ?free_export ?dealloc_export ?digest_prefix ?wasmex_dep_spec
+             ?manifest_target
+    ORDER BY ?root_module LIMIT 1
+---
+{%- set h = host[0] -%}
+{%- set memory_export = "memory" -%}
+{%- if memory_rows | length > 0 %}{% set memory_export = memory_rows[0].v %}{% endif -%}
+{%- set initialize_export = "" -%}
+{%- if init_rows | length > 0 %}{% set initialize_export = init_rows[0].v %}{% endif -%}
+{%- set algo_pairs = h.algo_csv | split(pat=";") -%}
+{
+  "schema": "beam.wasmex.host.manifest/v1",
+  "artifact": {
+    "name": "{{ h.artifact_path | split(pat="/") | last }}",
+    "path": "{{ h.artifact_path }}",
+    "bytes": null,
+    "sha256": null,
+    "blake3": null
+  },
+  "host": {
+    "module": "{{ h.root_module }}",
+    "otp_app": ":{{ h.otp_app }}",
+    "runtime": "wasmtime via wasmex {{ h.wasmex_dep_spec | default(value="~> 0.14") }}",
+    "imports_required": [{% if h.import_mode == "zero" %}{% else %}"wasi_snapshot_preview1" (allowlist-judged){% endif %}]
+  },
+  "host_abi": {
+    "out_mode": "{{ h.out_mode }}",
+    "import_mode": "{{ h.import_mode }}",
+    "digest_prefix": "{{ h.digest_prefix }}",
+    "memory_export": "{{ memory_export }}",
+    "allocator": {
+      "alloc": "{{ h.alloc_export }}",
+      "free": "{{ h.free_export }}",
+      "dealloc": "{{ h.dealloc_export }}"
+    },
+    "initialize_export": {% if initialize_export != "" %}"{{ initialize_export }}"{% else %}null{% endif %},
+    "string_abi": {
+      "request": "host writes UTF-8 JSON at alloc(len) -> ptr via memory write",
+      "call": "call_export(in_ptr, in_len{% if h.out_mode == "out_len_through_pointer" %}, out_len_ptr{% endif %}){% if h.out_mode == "out_len_through_pointer" %} -> out_ptr with the output length written back as little-endian u32 through out_len_ptr{% else %} -> packed u64 (out_ptr <<< 32) | out_len{% endif %}",
+      "response": "host reads out_len bytes at out_ptr, decodes UTF-8 JSON object",
+      "free": "free(out_ptr, out_len) for the output buffer; dealloc(in_ptr, in_len) and dealloc(out_len_ptr, 4) for host-allocated buffers"
+    },
+    "imports": []
+  },
+  "exports_used": [
+    "{{ memory_export }}",
+    "{{ h.alloc_export }}",
+    "{{ h.free_export }}",
+    "{{ h.dealloc_export }}"{% if initialize_export != "" %},
+    "{{ initialize_export }}"{% endif %}{% for pair in algo_pairs %}{% set f = pair | split(pat="|") %}{% if f[0] != "" %},
+    "{{ f[1] }}",
+    "{{ f[2] }}"{% endif %}{% endfor %}
+  ],
+  "algorithms": [{% set_global first_algo = true %}{% for pair in algo_pairs %}{% set f = pair | split(pat="|") %}{% if f[0] != "" %}{% if not first_algo %},{% endif %}
+    { "algorithm_id": "{{ f[0] }}", "call_export": "{{ f[1] }}", "replay_export": "{{ f[2] }}" }{% set_global first_algo = false %}{% endif %}{% endfor %}
+  ],
+  "measurement_provenance": {
+    "sha256_command": "shasum -a 256 {{ h.artifact_path }}",
+    "blake3_command": "b3sum {{ h.artifact_path }}",
+    "bytes_command": "wc -c < {{ h.artifact_path }}",
+    "note": "artifact.bytes/sha256/blake3 above are MEASURED fields left null by generation: fill them from the real artifact bytes with the commands above before admission will pass (the generated host refuses an unpinned digest). Do not assert a digest without running the command."
+  }
+}

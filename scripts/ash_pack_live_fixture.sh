@@ -7,8 +7,9 @@
 #   -> second `ggen sync run` + sha256 comparison of every generated file
 #   -> copy of EVERY generated file into the capsule: lib/**/*.ex into
 #      <capsule>/generated/ (compiled by fixture/mix.exs via ASH_PACK_GENERATED) and
-#      test/*_composition_test.exs into <capsule>/generated_test/ (run by mix test via
-#      ASH_PACK_GENERATED_TEST)
+#      every generated test (the composition tests plus every spark/parity/verifier/
+#      transformer/igniter/dead-surface court) into <capsule>/generated_test/ (run by
+#      mix test via ASH_PACK_GENERATED_TEST)
 #   -> mix deps.get -> mix compile --warnings-as-errors -> mix test
 #      (MIX_BUILD_ROOT / MIX_DEPS_PATH also point into the capsule)
 #
@@ -22,6 +23,9 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 pack_dir="${root}/packs/ash-extension-pack"
 fixture="${pack_dir}/fixture"
+# A previous chain run's igniter-court scratch installs can leave a _build tree
+# (with deps symlinks) inside the fixture dir; the pack archiver refuses symlinks.
+rm -rf "${fixture}/_build"
 ggen_bin="${1:-${GGEN_BIN:-$(command -v ggen)}}"
 capsule="${ASH_PACK_CAPSULE:-$(mktemp -d "${TMPDIR:-/tmp}/ash-extension-pack-live.XXXXXX")}"
 
@@ -39,7 +43,22 @@ sys.path.insert(0, str(root / "scripts"))
 import marketplace  # noqa: E402
 import qualify_packs  # noqa: E402
 
-[pack] = [p for p in marketplace.require_admitted() if p.name == "ash-extension-pack"]
+# The live chain is pack-scoped: admit ash-extension-pack on its OWN issues. A
+# concurrent wave can hold OTHER packs mid-edit (MANIFEST_MISSING on a pack another
+# lane is writing); those are foreign flux, not this chain's subject, and are
+# reported as a typed note instead of blocking the chain. This pack's issues still
+# refuse.
+packs, issues = marketplace.inspect_marketplace()
+target = "ash-extension-pack"
+own = [i for i in issues if target in i]
+foreign = [i for i in issues if target not in i]
+if own:
+    for issue in own:
+        print(issue, file=sys.stderr)
+    raise SystemExit(2)
+if foreign:
+    print(f"NOTE:FOREIGN_PACK_FLUX n={len(foreign)} (chain scoped to {target}; first: {foreign[0]})", file=sys.stderr)
+[pack] = [p for p in packs if p.name == target]
 print(f"profile: {pack.profile}")
 print(f"consumer: {qualify_packs.prepare_consumer(pack, capsule)}")
 PY
@@ -80,6 +99,9 @@ cat "${capsule}/sha256-pass1.txt"
 # marketplace.py archives every visible file under a pack and refuses symlinks.
 export ASH_PACK_GENERATED="${capsule}/generated"
 export ASH_PACK_GENERATED_TEST="${capsule}/generated_test"
+# Repo fixture dir, for courts that need pack fixture support files (specimens,
+# mutants) regardless of the cwd mix test runs from.
+export ASH_PACK_FIXTURE_DIR="${fixture}"
 export MIX_BUILD_ROOT="${capsule}/_build"
 export MIX_DEPS_PATH="${capsule}/deps"
 mkdir -p "${ASH_PACK_GENERATED}" "${ASH_PACK_GENERATED_TEST}"
@@ -87,7 +109,25 @@ mkdir -p "${ASH_PACK_GENERATED}" "${ASH_PACK_GENERATED_TEST}"
   mkdir -p "${ASH_PACK_GENERATED}/$(dirname "${f}")"
   cp "${f}" "${ASH_PACK_GENERATED}/${f}"
 done)
+# Copy the composition tests (the original selection) plus every generated court.
+# Court templates emit two shapes: runnable ExUnit files already named
+# *_court_test.exs, and ExUnit files named *_court.exs -- mix test only executes
+# *_test.exs paths, so the latter are copied under a _test.exs name. That is a
+# transport rename only: file contents are copied verbatim, never hand-edited.
 cp "${consumer}"/test/*_composition_test.exs "${ASH_PACK_GENERATED_TEST}/"
+for court in "${consumer}"/test/*_court_test.exs; do
+  [[ -e "${court}" ]] || continue
+  cp "${court}" "${ASH_PACK_GENERATED_TEST}/"
+done
+for court in "${consumer}"/test/*_court.exs; do
+  [[ -e "${court}" ]] || continue
+  cp "${court}" "${ASH_PACK_GENERATED_TEST}/$(basename "${court%.exs}")_test.exs"
+done
+# The court chain is load-bearing: copying zero courts is a refusal, not a pass.
+if [[ "$(find "${ASH_PACK_GENERATED_TEST}" -name '*_court*_test.exs' | wc -l | tr -d ' ')" -eq 0 ]]; then
+  echo "REFUSED:ASH_PACK_NO_COURTS_COPIED" >&2
+  exit 1
+fi
 # mix test requires a helper in every test path; the fixture's own helper is reused.
 cp "${fixture}/test/test_helper.exs" "${ASH_PACK_GENERATED_TEST}/test_helper.exs"
 generated_ex="$(cd "${consumer}" && find lib -type f -name '*.ex' | wc -l | tr -d ' ')"
@@ -96,7 +136,7 @@ if [[ "${generated_other}" != "0" ]]; then
   echo "REFUSED:ASH_PACK_UNCOMPILED_GENERATED_LIB (${generated_other} non-.ex files under lib/)" >&2
   exit 1
 fi
-echo "generated: ${generated_ex} lib .ex files and $(ls "${ASH_PACK_GENERATED_TEST}"/*_composition_test.exs | wc -l | tr -d ' ') composition tests copied into the compile capsule"
+echo "generated: ${generated_ex} lib .ex files and $(find "${ASH_PACK_GENERATED_TEST}" -name '*_test.exs' ! -name 'test_helper.exs' | wc -l | tr -d ' ') generated tests ($(find "${ASH_PACK_GENERATED_TEST}" -name '*_court*_test.exs' | wc -l | tr -d ' ') courts) copied into the compile capsule"
 
 cd "${fixture}"
 # Run under the toolchain pinned in fixture/.tool-versions when asdf is present

@@ -28,6 +28,16 @@ aex:supportSubdir a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
 aex:fixtureOnly a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
     rdfs:comment "boolean marker for pack-owned worked examples. fixtureOnly=true individuals remain available to gates/audits but MUST NOT fan out consumer artifacts." .
 
+# Ported from ash-extension-core-pack ontology.ttl (v26.9.30 consolidation, lane 6):
+# the CODEGEN_CALLBACK and support_subdir capabilities, verbatim.
+
+aex:codegenTask a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "optional exact Mix task name delegated to by the generated Ash.Extension codegen/1 callback, e.g. \"ash_expo.codegen\". The renderer re-enables and runs this task with the argv supplied by mix ash.codegen; the task name is admitted as fact and is never synthesized from packageName." .
+aex:codegenName a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "optional human/display name returned by name/0 when aex:codegenTask is present, e.g. \"ash_expo\". Ash's mix ash.codegen uses this only for display; it does not grant authority or alter callback dispatch." .
+aex:supportSubdir a rdf:Property ; rdfs:domain aex:AshExtensionSpec ;
+    rdfs:comment "optional safe relative subdirectory under lib/<package>/ for generated support modules (Persist, Verify, Info, and Reactor). Absent preserves the historical paths directly under lib/<package>/. Used when a consumer already owns a handwritten file such as lib/ash_expo/info.ex and generated support must remain separately owned." .
+
 aex:DslSection a rdfs:Class ;
     rdfs:label "One Spark.Dsl.Section this extension contributes (ash_r2rml has two: :r2rml, :sparql)." .
 aex:sectionOf   a rdf:Property ; rdfs:domain aex:DslSection ; rdfs:range aex:AshExtensionSpec .
@@ -782,3 +792,756 @@ Battery order: env-read guard, `mix deps.get`, `npm install --no-audit`
 `npm test`, `mix test.zero`. Every step prints `EXIT[<label>]=<code>`
 before the next one starts, so a run log records **every exit code**;
 the final line is `ZERO_CONFIG_OK` only when all of them were 0.""" .
+#################################################################
+# Spark closure vocabulary (lane C1, spark-closure-courts) -- APPEND-ONLY.
+#
+# Law: implemented - sparkDeclared = the empty set. Every behavior the pack's
+# templates implement is stated as a aex:SemanticFact; each carries aex:SurfaceFact
+# rows: one "implemented" (the pack's templates render it), one "sparkDeclared"
+# (it lands in the generated Spark.Dsl surface: section/entity/schema/args/
+# identifier/one_of/single_extension_kinds), and optionally "consumed" (it
+# consumes an external ecosystem contract rather than declaring Spark surface).
+# gates/110_spark_completeness.rq returns ZERO rows iff every implemented
+# SurfaceFact has a matching sparkDeclared SurfaceFact (hidden surface = 0).
+# templates/spark_parity_court.exs.tmpl re-asserts the closure at runtime against
+# the COMPILED extension (Spark.Dsl.Extension.sections/0) and FAILS naming the
+# orphan's aex:factName otherwise.
+#
+# Per the pack's echo-don't-synthesize discipline, existing surface individuals
+# are RETYPED below (append-only `a aex:SemanticFact` + `aex:factName` rows);
+# their declared names/links are never restated, only referenced.
+#################################################################
+
+aex:SemanticFact a rdfs:Class ;
+    rdfs:label "One behaviorally meaningful element of an AshExtensionSpec's surface (a section, entity, schema field, positional arg, one_of value, or extension option) that the pack's templates implement -- the unit the spark-parity closure is stated over." .
+
+aex:factName a rdf:Property ; rdfs:domain aex:SemanticFact ;
+    rdfs:comment "dotted fact key scoped by the owning package, e.g. \"ash_r2rml.entity.r2rml.subject\" -- the stable name gate 110 and the parity court report on failure." .
+
+aex:SurfaceFact a rdfs:Class ;
+    rdfs:label "One visibility of a aex:SemanticFact on a named surface." .
+
+aex:surfaceKind a rdf:Property ; rdfs:domain aex:SurfaceFact ;
+    rdfs:comment "closed: \"implemented\" | \"sparkDeclared\" | \"consumed\"." .
+aex:surfaceOf a rdf:Property ; rdfs:domain aex:SurfaceFact ; rdfs:range aex:SemanticFact ;
+    rdfs:comment "the SemanticFact this visibility belongs to." .
+aex:surfacePackage a rdf:Property ; rdfs:domain aex:SurfaceFact ;
+    rdfs:comment "owning hex package, e.g. \"ash_r2rml\"." .
+
+aex:ParityCourt a rdfs:Class ;
+    rdfs:label "The generated ExUnit court (templates/spark_parity_court.exs.tmpl): asserts every aex:SemanticFact carrying an implemented SurfaceFact also carries a sparkDeclared SurfaceFact, and that the compiled extension's real Spark surface (sections/0) carries each declared fact -- failing with the orphan's factName otherwise." .
+
+aex:MutationSpec a rdfs:Class ;
+    rdfs:label "One anti-vacuity mutation: which individual to delete (or add) and which court must then fail." .
+aex:mutates a rdf:Property ; rdfs:domain aex:MutationSpec ;
+    rdfs:comment "the individual the mutation removes (or adds)." .
+aex:expectedCourt a rdf:Property ; rdfs:domain aex:MutationSpec ;
+    rdfs:comment "which court must fail under the mutation: the SPARQL gate or the generated ExUnit court." .
+
+aex:BurnEpoch a rdfs:Class ;
+    rdfs:label "One burn epoch: a dated cycle in which the parity courts were actually run against this pack, pass AND fail, as evidence the closure vocabulary stays exercised rather than ceremonial." .
+aex:burnVerdict a rdf:Property ; rdfs:domain aex:BurnEpoch ;
+    rdfs:comment "verdict summary for the epoch." .
+aex:burnDigest a rdf:Property ; rdfs:domain aex:BurnEpoch ;
+    rdfs:comment "sha256 of the gate/court evidence bundle for that epoch." .
+
+#################################################################
+# SemanticFact retyping of every existing surface individual (append-only).
+# factName shape: <package>.<kind>.<scope>.<name>, where kind in
+# section | entity | field | sectionfield | arg | oneof | extension_option | consumed.
+#################################################################
+
+aex:AuditTrailSection a aex:SemanticFact ;
+    aex:factName "audit_trail.section.audit" .
+aex:SF_impl_AuditTrailSection a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AuditTrailSection ;
+    aex:surfacePackage "audit_trail" .
+aex:SF_decl_AuditTrailSection a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AuditTrailSection ;
+    aex:surfacePackage "audit_trail" .
+aex:AuditTrailEventEntity a aex:SemanticFact ;
+    aex:factName "audit_trail.entity.event" .
+aex:SF_impl_AuditTrailEventEntity a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AuditTrailEventEntity ;
+    aex:surfacePackage "audit_trail" .
+aex:SF_decl_AuditTrailEventEntity a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AuditTrailEventEntity ;
+    aex:surfacePackage "audit_trail" .
+aex:AuditTrailEventName a aex:SemanticFact ;
+    aex:factName "audit_trail.field.AuditTrail.Dsl.Event.name" .
+aex:SF_impl_AuditTrailEventName a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AuditTrailEventName ;
+    aex:surfacePackage "audit_trail" .
+aex:SF_decl_AuditTrailEventName a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AuditTrailEventName ;
+    aex:surfacePackage "audit_trail" .
+aex:AuditTrailEventDescription a aex:SemanticFact ;
+    aex:factName "audit_trail.field.AuditTrail.Dsl.Event.description" .
+aex:SF_impl_AuditTrailEventDescription a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AuditTrailEventDescription ;
+    aex:surfacePackage "audit_trail" .
+aex:SF_decl_AuditTrailEventDescription a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AuditTrailEventDescription ;
+    aex:surfacePackage "audit_trail" .
+aex:AuditTrailProjectionEntity a aex:SemanticFact ;
+    aex:factName "audit_trail.entity.projection" .
+aex:SF_impl_AuditTrailProjectionEntity a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AuditTrailProjectionEntity ;
+    aex:surfacePackage "audit_trail" .
+aex:SF_decl_AuditTrailProjectionEntity a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AuditTrailProjectionEntity ;
+    aex:surfacePackage "audit_trail" .
+aex:AuditTrailProjectionField a aex:SemanticFact ;
+    aex:factName "audit_trail.field.AuditTrail.Dsl.Projection.attribute" .
+aex:SF_impl_AuditTrailProjectionField a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AuditTrailProjectionField ;
+    aex:surfacePackage "audit_trail" .
+aex:SF_decl_AuditTrailProjectionField a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AuditTrailProjectionField ;
+    aex:surfacePackage "audit_trail" .
+aex:AshR2RMLR2rmlSection a aex:SemanticFact ;
+    aex:factName "ash_r2rml.section.r2rml" .
+aex:SF_impl_AshR2RMLR2rmlSection a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLR2rmlSection ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLR2rmlSection a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLR2rmlSection ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLSparqlSection a aex:SemanticFact ;
+    aex:factName "ash_r2rml.section.sparql" .
+aex:SF_impl_AshR2RMLSparqlSection a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLSparqlSection ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLSparqlSection a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLSparqlSection ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLR2rmlTableName a aex:SemanticFact ;
+    aex:factName "ash_r2rml.sectionfield.table_name" .
+aex:SF_impl_AshR2RMLR2rmlTableName a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLR2rmlTableName ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLR2rmlTableName a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLR2rmlTableName ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLR2rmlSqlQuery a aex:SemanticFact ;
+    aex:factName "ash_r2rml.sectionfield.sql_query" .
+aex:SF_impl_AshR2RMLR2rmlSqlQuery a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLR2rmlSqlQuery ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLR2rmlSqlQuery a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLR2rmlSqlQuery ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLR2rmlSchema a aex:SemanticFact ;
+    aex:factName "ash_r2rml.sectionfield.schema" .
+aex:SF_impl_AshR2RMLR2rmlSchema a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLR2rmlSchema ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLR2rmlSchema a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLR2rmlSchema ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLClassEntity a aex:SemanticFact ;
+    aex:factName "ash_r2rml.entity.class" .
+aex:SF_impl_AshR2RMLClassEntity a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLClassEntity ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLClassEntity a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLClassEntity ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLClassArgIri a aex:SemanticFact ;
+    aex:factName "ash_r2rml.arg.AshR2RML.Dsl.Class.iri" .
+aex:SF_impl_AshR2RMLClassArgIri a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLClassArgIri ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLClassArgIri a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLClassArgIri ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLClassIri a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.Class.iri" .
+aex:SF_impl_AshR2RMLClassIri a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLClassIri ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLClassIri a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLClassIri ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLSubjectEntity a aex:SemanticFact ;
+    aex:factName "ash_r2rml.entity.subject" .
+aex:SF_impl_AshR2RMLSubjectEntity a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLSubjectEntity ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLSubjectEntity a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLSubjectEntity ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLSubjectTemplate a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.Subject.template" .
+aex:SF_impl_AshR2RMLSubjectTemplate a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLSubjectTemplate ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLSubjectTemplate a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLSubjectTemplate ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLSubjectColumn a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.Subject.column" .
+aex:SF_impl_AshR2RMLSubjectColumn a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLSubjectColumn ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLSubjectColumn a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLSubjectColumn ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLSubjectConstant a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.Subject.constant" .
+aex:SF_impl_AshR2RMLSubjectConstant a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLSubjectConstant ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLSubjectConstant a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLSubjectConstant ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLSubjectTermType a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.Subject.term_type" .
+aex:SF_impl_AshR2RMLSubjectTermType a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLSubjectTermType ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLSubjectTermType a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLSubjectTermType ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLSubjectTermTypeIri a aex:SemanticFact ;
+    aex:factName "ash_r2rml.oneof.AshR2RML.Dsl.Subject.iri" .
+aex:SF_impl_AshR2RMLSubjectTermTypeIri a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLSubjectTermTypeIri ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLSubjectTermTypeIri a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLSubjectTermTypeIri ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLSubjectTermTypeBlankNode a aex:SemanticFact ;
+    aex:factName "ash_r2rml.oneof.AshR2RML.Dsl.Subject.blank_node" .
+aex:SF_impl_AshR2RMLSubjectTermTypeBlankNode a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLSubjectTermTypeBlankNode ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLSubjectTermTypeBlankNode a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLSubjectTermTypeBlankNode ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLPropertyEntity a aex:SemanticFact ;
+    aex:factName "ash_r2rml.entity.property" .
+aex:SF_impl_AshR2RMLPropertyEntity a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLPropertyEntity ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLPropertyEntity a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLPropertyEntity ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLPropertyArgAttribute a aex:SemanticFact ;
+    aex:factName "ash_r2rml.arg.AshR2RML.Dsl.Property.attribute" .
+aex:SF_impl_AshR2RMLPropertyArgAttribute a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLPropertyArgAttribute ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLPropertyArgAttribute a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLPropertyArgAttribute ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLPropertyArgPredicateIri a aex:SemanticFact ;
+    aex:factName "ash_r2rml.arg.AshR2RML.Dsl.Property.predicate_iri" .
+aex:SF_impl_AshR2RMLPropertyArgPredicateIri a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLPropertyArgPredicateIri ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLPropertyArgPredicateIri a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLPropertyArgPredicateIri ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLPropertyAttribute a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.Property.attribute" .
+aex:SF_impl_AshR2RMLPropertyAttribute a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLPropertyAttribute ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLPropertyAttribute a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLPropertyAttribute ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLPropertyPredicateIri a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.Property.predicate_iri" .
+aex:SF_impl_AshR2RMLPropertyPredicateIri a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLPropertyPredicateIri ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLPropertyPredicateIri a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLPropertyPredicateIri ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLPropertyDatatype a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.Property.datatype" .
+aex:SF_impl_AshR2RMLPropertyDatatype a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLPropertyDatatype ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLPropertyDatatype a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLPropertyDatatype ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLPropertyLanguage a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.Property.language" .
+aex:SF_impl_AshR2RMLPropertyLanguage a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLPropertyLanguage ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLPropertyLanguage a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLPropertyLanguage ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLPropertyLanguageColumn a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.Property.language_column" .
+aex:SF_impl_AshR2RMLPropertyLanguageColumn a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLPropertyLanguageColumn ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLPropertyLanguageColumn a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLPropertyLanguageColumn ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLPropertyConstant a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.Property.constant" .
+aex:SF_impl_AshR2RMLPropertyConstant a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLPropertyConstant ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLPropertyConstant a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLPropertyConstant ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLPropertyTemplate a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.Property.template" .
+aex:SF_impl_AshR2RMLPropertyTemplate a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLPropertyTemplate ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLPropertyTemplate a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLPropertyTemplate ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLPropertyTermType a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.Property.term_type" .
+aex:SF_impl_AshR2RMLPropertyTermType a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLPropertyTermType ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLPropertyTermType a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLPropertyTermType ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLPropertyTermTypeLiteral a aex:SemanticFact ;
+    aex:factName "ash_r2rml.oneof.AshR2RML.Dsl.Property.literal" .
+aex:SF_impl_AshR2RMLPropertyTermTypeLiteral a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLPropertyTermTypeLiteral ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLPropertyTermTypeLiteral a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLPropertyTermTypeLiteral ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLPropertyTermTypeIri a aex:SemanticFact ;
+    aex:factName "ash_r2rml.oneof.AshR2RML.Dsl.Property.iri" .
+aex:SF_impl_AshR2RMLPropertyTermTypeIri a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLPropertyTermTypeIri ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLPropertyTermTypeIri a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLPropertyTermTypeIri ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLPropertyTermTypeBlankNode a aex:SemanticFact ;
+    aex:factName "ash_r2rml.oneof.AshR2RML.Dsl.Property.blank_node" .
+aex:SF_impl_AshR2RMLPropertyTermTypeBlankNode a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLPropertyTermTypeBlankNode ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLPropertyTermTypeBlankNode a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLPropertyTermTypeBlankNode ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLReferenceEntity a aex:SemanticFact ;
+    aex:factName "ash_r2rml.entity.reference" .
+aex:SF_impl_AshR2RMLReferenceEntity a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLReferenceEntity ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLReferenceEntity a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLReferenceEntity ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLReferenceArgRelationship a aex:SemanticFact ;
+    aex:factName "ash_r2rml.arg.AshR2RML.Dsl.Reference.relationship" .
+aex:SF_impl_AshR2RMLReferenceArgRelationship a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLReferenceArgRelationship ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLReferenceArgRelationship a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLReferenceArgRelationship ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLReferenceArgPredicateIri a aex:SemanticFact ;
+    aex:factName "ash_r2rml.arg.AshR2RML.Dsl.Reference.predicate_iri" .
+aex:SF_impl_AshR2RMLReferenceArgPredicateIri a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLReferenceArgPredicateIri ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLReferenceArgPredicateIri a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLReferenceArgPredicateIri ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLReferenceRelationship a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.Reference.relationship" .
+aex:SF_impl_AshR2RMLReferenceRelationship a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLReferenceRelationship ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLReferenceRelationship a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLReferenceRelationship ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLReferencePredicateIri a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.Reference.predicate_iri" .
+aex:SF_impl_AshR2RMLReferencePredicateIri a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLReferencePredicateIri ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLReferencePredicateIri a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLReferencePredicateIri ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLReferenceInversePredicate a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.Reference.inverse_predicate" .
+aex:SF_impl_AshR2RMLReferenceInversePredicate a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLReferenceInversePredicate ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLReferenceInversePredicate a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLReferenceInversePredicate ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLReferenceDirection a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.Reference.direction" .
+aex:SF_impl_AshR2RMLReferenceDirection a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLReferenceDirection ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLReferenceDirection a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLReferenceDirection ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLReferenceDirectionOutgoing a aex:SemanticFact ;
+    aex:factName "ash_r2rml.oneof.AshR2RML.Dsl.Reference.outgoing" .
+aex:SF_impl_AshR2RMLReferenceDirectionOutgoing a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLReferenceDirectionOutgoing ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLReferenceDirectionOutgoing a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLReferenceDirectionOutgoing ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLReferenceDirectionIncoming a aex:SemanticFact ;
+    aex:factName "ash_r2rml.oneof.AshR2RML.Dsl.Reference.incoming" .
+aex:SF_impl_AshR2RMLReferenceDirectionIncoming a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLReferenceDirectionIncoming ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLReferenceDirectionIncoming a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLReferenceDirectionIncoming ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLReferenceGuardClass a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.Reference.guard_class" .
+aex:SF_impl_AshR2RMLReferenceGuardClass a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLReferenceGuardClass ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLReferenceGuardClass a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLReferenceGuardClass ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLGraphEntity a aex:SemanticFact ;
+    aex:factName "ash_r2rml.entity.graph" .
+aex:SF_impl_AshR2RMLGraphEntity a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLGraphEntity ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLGraphEntity a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLGraphEntity ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLGraphArgIri a aex:SemanticFact ;
+    aex:factName "ash_r2rml.arg.AshR2RML.Dsl.Graph.iri" .
+aex:SF_impl_AshR2RMLGraphArgIri a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLGraphArgIri ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLGraphArgIri a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLGraphArgIri ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLGraphIri a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.Graph.iri" .
+aex:SF_impl_AshR2RMLGraphIri a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLGraphIri ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLGraphIri a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLGraphIri ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLGraphScope a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.Graph.scope" .
+aex:SF_impl_AshR2RMLGraphScope a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLGraphScope ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLGraphScope a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLGraphScope ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLGraphScopeResource a aex:SemanticFact ;
+    aex:factName "ash_r2rml.oneof.AshR2RML.Dsl.Graph.resource" .
+aex:SF_impl_AshR2RMLGraphScopeResource a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLGraphScopeResource ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLGraphScopeResource a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLGraphScopeResource ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLGraphScopeSubject a aex:SemanticFact ;
+    aex:factName "ash_r2rml.oneof.AshR2RML.Dsl.Graph.subject" .
+aex:SF_impl_AshR2RMLGraphScopeSubject a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLGraphScopeSubject ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLGraphScopeSubject a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLGraphScopeSubject ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLSparqlQueryEntity a aex:SemanticFact ;
+    aex:factName "ash_r2rml.entity.query" .
+aex:SF_impl_AshR2RMLSparqlQueryEntity a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLSparqlQueryEntity ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLSparqlQueryEntity a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLSparqlQueryEntity ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLSparqlQueryArgName a aex:SemanticFact ;
+    aex:factName "ash_r2rml.arg.AshR2RML.Dsl.SparqlQuery.name" .
+aex:SF_impl_AshR2RMLSparqlQueryArgName a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLSparqlQueryArgName ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLSparqlQueryArgName a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLSparqlQueryArgName ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLSparqlQueryName a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.SparqlQuery.name" .
+aex:SF_impl_AshR2RMLSparqlQueryName a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLSparqlQueryName ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLSparqlQueryName a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLSparqlQueryName ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLSparqlQueryForm a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.SparqlQuery.form" .
+aex:SF_impl_AshR2RMLSparqlQueryForm a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLSparqlQueryForm ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLSparqlQueryForm a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLSparqlQueryForm ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLSparqlQueryFormSelect a aex:SemanticFact ;
+    aex:factName "ash_r2rml.oneof.AshR2RML.Dsl.SparqlQuery.select" .
+aex:SF_impl_AshR2RMLSparqlQueryFormSelect a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLSparqlQueryFormSelect ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLSparqlQueryFormSelect a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLSparqlQueryFormSelect ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLSparqlQueryFormConstruct a aex:SemanticFact ;
+    aex:factName "ash_r2rml.oneof.AshR2RML.Dsl.SparqlQuery.construct" .
+aex:SF_impl_AshR2RMLSparqlQueryFormConstruct a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLSparqlQueryFormConstruct ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLSparqlQueryFormConstruct a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLSparqlQueryFormConstruct ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLSparqlQueryFormAsk a aex:SemanticFact ;
+    aex:factName "ash_r2rml.oneof.AshR2RML.Dsl.SparqlQuery.ask" .
+aex:SF_impl_AshR2RMLSparqlQueryFormAsk a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLSparqlQueryFormAsk ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLSparqlQueryFormAsk a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLSparqlQueryFormAsk ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLSparqlQueryFormDescribe a aex:SemanticFact ;
+    aex:factName "ash_r2rml.oneof.AshR2RML.Dsl.SparqlQuery.describe" .
+aex:SF_impl_AshR2RMLSparqlQueryFormDescribe a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLSparqlQueryFormDescribe ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLSparqlQueryFormDescribe a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLSparqlQueryFormDescribe ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLSparqlQuerySelect a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.SparqlQuery.select" .
+aex:SF_impl_AshR2RMLSparqlQuerySelect a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLSparqlQuerySelect ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLSparqlQuerySelect a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLSparqlQuerySelect ;
+    aex:surfacePackage "ash_r2rml" .
+aex:AshR2RMLSparqlQueryWhere a aex:SemanticFact ;
+    aex:factName "ash_r2rml.field.AshR2RML.Dsl.SparqlQuery.where" .
+aex:SF_impl_AshR2RMLSparqlQueryWhere a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLSparqlQueryWhere ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLSparqlQueryWhere a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLSparqlQueryWhere ;
+    aex:surfacePackage "ash_r2rml" .
+aex:NotificationExtensionSection a aex:SemanticFact ;
+    aex:factName "notification_extension.section.notification" .
+aex:SF_impl_NotificationExtensionSection a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:NotificationExtensionSection ;
+    aex:surfacePackage "notification_extension" .
+aex:SF_decl_NotificationExtensionSection a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:NotificationExtensionSection ;
+    aex:surfacePackage "notification_extension" .
+aex:NotificationExtensionChannelEntity a aex:SemanticFact ;
+    aex:factName "notification_extension.entity.channel" .
+aex:SF_impl_NotificationExtensionChannelEntity a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:NotificationExtensionChannelEntity ;
+    aex:surfacePackage "notification_extension" .
+aex:SF_decl_NotificationExtensionChannelEntity a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:NotificationExtensionChannelEntity ;
+    aex:surfacePackage "notification_extension" .
+aex:NotificationExtensionChannelName a aex:SemanticFact ;
+    aex:factName "notification_extension.field.NotificationExtension.Dsl.Channel.name" .
+aex:SF_impl_NotificationExtensionChannelName a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:NotificationExtensionChannelName ;
+    aex:surfacePackage "notification_extension" .
+aex:SF_decl_NotificationExtensionChannelName a aex:SurfaceFact ; rdfs:comment "declared in the generated Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:NotificationExtensionChannelName ;
+    aex:surfacePackage "notification_extension" .
+#################################################################
+# consumed SurfaceFacts -- ecosystem contracts the generated code consumes rather
+# than declares on the Spark surface (excluded from gate 110 by kind).
+#################################################################
+
+aex:AuditTrailGraphqlComposition a aex:SemanticFact ;
+    aex:factName "audit_trail.consumed.ash_graphql" .
+aex:AuditTrailJsonApiComposition a aex:SemanticFact ;
+    aex:factName "audit_trail.consumed.ash_json_api" .
+aex:SF_consumed_AuditTrailGraphqlComposition a aex:SurfaceFact ;
+    aex:surfaceKind "consumed" ;
+    aex:surfaceOf aex:AuditTrailGraphqlComposition ;
+    aex:surfacePackage "audit_trail" .
+aex:SF_consumed_AuditTrailJsonApiComposition a aex:SurfaceFact ;
+    aex:surfaceKind "consumed" ;
+    aex:surfaceOf aex:AuditTrailJsonApiComposition ;
+    aex:surfacePackage "audit_trail" .
+
+#################################################################
+# Spec-level option facts -- the Spark.Dsl.Extension option surface.
+# aex:singleExtensionKind renders as `single_extension_kinds: [...]` on the
+# generated `use Spark.Dsl.Extension` -- implemented AND Spark-declared.
+#################################################################
+
+aex:AshR2RMLSpec a aex:SemanticFact ;
+    aex:factName "ash_r2rml.extension_option.single_extension_kinds" .
+aex:SF_impl_AshR2RMLSpec a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ;
+    aex:surfaceOf aex:AshR2RMLSpec ;
+    aex:surfacePackage "ash_r2rml" .
+aex:SF_decl_AshR2RMLSpec a aex:SurfaceFact ;
+    aex:surfaceKind "sparkDeclared" ;
+    aex:surfaceOf aex:AshR2RMLSpec ;
+    aex:surfacePackage "ash_r2rml" .
+
+#################################################################
+# Anti-vacuity witness rows (lane C1) -- the mutations that were ACTUALLY run
+# (pass/fail output tails are captured in the session receipt for this lane).
+#################################################################
+
+aex:MutationGate110DeleteDeclaredSubjectConstant a aex:MutationSpec ;
+    rdfs:label "delete one sparkDeclared SurfaceFact; gate 110 must return the orphan row" ;
+    aex:mutates aex:SF_decl_AshR2RMLSubjectConstant ;
+    aex:expectedCourt "gates/110_spark_completeness.rq" .
+
+aex:MutationCourtGhostField a aex:MutationSpec ;
+    rdfs:label "add an implemented-only ghost fact; the parity court must FAIL naming it" ;
+    aex:mutates aex:SF_impl_ghost ;
+    aex:expectedCourt "templates/spark_parity_court.exs.tmpl" .
+
+aex:BurnEpoch261001 a aex:BurnEpoch ;
+    rdfs:label "2026-10-01 burn epoch -- lane C1 anti-vacuity runs" ;
+    aex:burnVerdict "gate110 conforming=0 rows; gate110 mutated=1 row; parity court conforming=pass; parity court ghost=FAIL(orphan)" ;
+    aex:burnDigest "91f5186e4d2f73428afb9503ef2f9f7498138327bc26becdf075d8b620b252c4" .

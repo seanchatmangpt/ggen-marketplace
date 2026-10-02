@@ -1,0 +1,26 @@
+# MESSAGE: replay without determinism evidence is a replay of nothing. Any
+# dcap:Realization of the capability labelled "Durability.Replay" must carry a
+# dcap:DeterminismContract that (a) requires byte-identical replay
+# (dcap:byteIdenticalRequired true — the ecosystem exact-SHA receipt discipline),
+# (b) names the witnessing evidence kind "replay_receipt", and (c) binds the receipt
+# CLASS it must instantiate to qce:ReplayReceipt (composed, not redefined). A
+# realization claiming Durability.Replay without that contract asserts determinism it
+# cannot witness. Any row = such a realization.
+PREFIX dcap: <https://ggen.dev/ontology/durability-capability#>
+PREFIX qce:  <https://ggen.dev/ontology/qualified-capability-ecology#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?realization ?module WHERE {
+  ?realization a dcap:Realization ;
+      dcap:providerModule ?module ;
+      dcap:realizes ?capability .
+  ?capability a dcap:Capability ;
+      rdfs:label "Durability.Replay" .
+  FILTER NOT EXISTS {
+    ?realization dcap:determinismContract ?contract .
+    ?contract a dcap:DeterminismContract ;
+        dcap:byteIdenticalRequired true ;
+        dcap:evidenceKind "replay_receipt" ;
+        dcap:receiptClass qce:ReplayReceipt .
+  }
+}
+ORDER BY ?module

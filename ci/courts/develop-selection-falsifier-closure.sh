@@ -7,21 +7,21 @@ cd "$(git rev-parse --show-toplevel)"
 echo "::group::develop-selection-falsifier-closure: Compile reusable control"
 (
 set -e
-python3 -m py_compile packs/dfcm-selection-falsifier-closure-pack/scripts/*.py packs/dfcm-selection-falsifier-closure-pack/tests/*.py
+python3 -m py_compile packs/dfcm-pack/families/selection-falsifier-closure/scripts/*.py packs/dfcm-pack/families/selection-falsifier-closure/tests/*.py
 )
 echo "::endgroup::"
 # --- Permanent control court
 echo "::group::develop-selection-falsifier-closure: Permanent control court"
 (
 set -e
-export PYTHONPATH="packs/dfcm-selection-falsifier-closure-pack"
-python3 -m unittest discover -s packs/dfcm-selection-falsifier-closure-pack/tests -p 'test_*.py' -v
+export PYTHONPATH="packs/dfcm-pack/families/selection-falsifier-closure"
+python3 -m unittest discover -s packs/dfcm-pack/families/selection-falsifier-closure/tests -p 'test_*.py' -v
 )
 echo "::endgroup::"
 # --- Refuse ambient consequential DO
 echo "::group::develop-selection-falsifier-closure: Refuse ambient consequential DO"
 (
 set -e
-! grep -R -E "(subprocess\.|os\.system|requests\.(post|put|patch|delete))" packs/dfcm-selection-falsifier-closure-pack/scripts packs/dfcm-selection-falsifier-closure-pack/tests
+! grep -R -E "(subprocess\.|os\.system|requests\.(post|put|patch|delete))" packs/dfcm-pack/families/selection-falsifier-closure/scripts packs/dfcm-pack/families/selection-falsifier-closure/tests
 )
 echo "::endgroup::"

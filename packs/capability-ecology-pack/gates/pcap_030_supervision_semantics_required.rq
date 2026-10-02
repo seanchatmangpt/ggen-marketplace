@@ -1,0 +1,24 @@
+# MESSAGE: supervision semantics missing — a supervision capability or a realization of one without declared restart-intensity, isolation and link-failure-propagation semantics hides the exact failure coupling the consumer inherits; declare them or refuse.
+PREFIX pcap: <https://ggen.dev/ontology/process-capability#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?subject ?kind WHERE {
+  {
+    ?cap a pcap:Capability ;
+         pcap:capabilityFamily "process-supervision" ;
+         dcterms:identifier ?id .
+    FILTER NOT EXISTS { ?cap pcap:supervisionSemantics ?s . }
+    BIND(?id AS ?subject)
+    BIND("capability" AS ?kind)
+  }
+  UNION
+  {
+    ?real a pcap:CapabilityRealization ;
+          pcap:realizes ?cap2 .
+    ?cap2 a pcap:Capability ;
+          pcap:capabilityFamily "process-supervision" .
+    FILTER NOT EXISTS { ?real pcap:supervisionSemantics ?s2 . }
+    BIND(?real AS ?subject)
+    BIND("realization" AS ?kind)
+  }
+}
+ORDER BY ?subject ?kind

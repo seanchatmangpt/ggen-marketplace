@@ -1,0 +1,22 @@
+# MESSAGE: every pm:adapterKind must name an admitted pm:AdapterKind individual (anti-join against ontology/cs2-adapter.ttl's closed vocabulary — admit a 4th kind there, never here), and targetPath/sourceSha/sourceDigest must be non-empty; any row is a refusal.
+PREFIX pm: <https://ggen.dev/ontology/projection-matrix#>
+SELECT ?s ?violation ?value WHERE {
+  {
+    ?s pm:adapterKind ?value .
+    BIND("unadmitted_adapter_kind" AS ?violation)
+    FILTER NOT EXISTS { ?k a pm:AdapterKind ; pm:kindName ?value . }
+  } UNION {
+    ?s pm:targetPath ?value .
+    FILTER (STRLEN(STR(?value)) = 0)
+    BIND("empty_target_path" AS ?violation)
+  } UNION {
+    ?s pm:sourceSha ?value .
+    FILTER (STRLEN(STR(?value)) = 0)
+    BIND("empty_source_sha" AS ?violation)
+  } UNION {
+    ?s pm:sourceDigest ?value .
+    FILTER (STRLEN(STR(?value)) = 0)
+    BIND("empty_source_digest" AS ?violation)
+  }
+}
+ORDER BY ?s ?violation

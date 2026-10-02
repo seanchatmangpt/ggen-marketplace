@@ -1,0 +1,31 @@
+# MESSAGE: ProviderAvailable != Authorized (the invariant, encoded). A realization
+# marked dcp:available true must have its authority bound through a
+# qce:authorityEnvelope whose qce:authorityCeiling admits the capability's
+# dcp:authorityRequirement. Rank order: none(0) < observe(1) < construct(2), the
+# resolver's own @authority_rank (~/ash_pplan/lib/ash_pplan/providers/resolver.ex).
+# Any row = either branch:
+#   "available-without-bound-authority"  -- availability marker, no envelope at all
+#     (availability is not authority; an unbound-available realization is refused);
+#   "available-above-bound-authority"    -- envelope bound but its ceiling is BELOW
+#     the capability's requirement (claiming availability the bound authority cannot
+#     admit).
+PREFIX dcp: <https://ggen.dev/ontology/domain-capability#>
+PREFIX qce: <https://ggen.dev/ontology/qualified-capability-ecology#>
+SELECT ?realization ?violation WHERE {
+  ?realization a dcp:Realization ;
+      dcp:available true ;
+      dcp:realizes ?capability .
+  ?capability dcp:authorityRequirement ?req .
+  OPTIONAL {
+    ?realization qce:authorityEnvelope ?env .
+    ?env qce:authorityCeiling ?ceil .
+  }
+  BIND(COALESCE(?ceil, "unbound") AS ?ceiling)
+  BIND(IF(?ceiling = "none", 0, IF(?ceiling = "observe", 1, IF(?ceiling = "construct", 2, -1))) AS ?ceilRank)
+  BIND(IF(?req = "none", 0, IF(?req = "observe", 1, IF(?req = "construct", 2, -1))) AS ?reqRank)
+  BIND(IF(?ceiling = "unbound",
+        "available-without-bound-authority",
+        IF(?ceilRank < ?reqRank, "available-above-bound-authority", "ok")) AS ?violation)
+  FILTER (?violation != "ok")
+}
+ORDER BY ?realization ?violation

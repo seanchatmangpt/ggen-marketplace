@@ -1,0 +1,33 @@
+# MESSAGE: pinned capability identity conformance. The three pinned join keys
+# (joined by consumers as dcterms:identifier literals) must be typed as
+# authcap:Capability; Authority.Grant and Actuation.Execute are consequential
+# acts and must additionally be typed authcap:ConsequentialCapability; and no
+# two authcap:Capability individuals may share one dcterms:identifier (a
+# duplicate join key makes consumer resolution ambiguous -> refuse). Any row
+# is a refusal.
+PREFIX authcap: <https://ggen.dev/ontology/authority-capability#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?s ?problem WHERE {
+  {
+    ?s dcterms:identifier ?id .
+    FILTER (?id = "Authority.Verify" || ?id = "Authority.Grant" || ?id = "Actuation.Execute")
+    FILTER NOT EXISTS { ?s a authcap:Capability }
+    BIND("pinned-identifier-not-typed-as-capability" AS ?problem)
+  }
+  UNION
+  {
+    ?s dcterms:identifier ?id .
+    FILTER (?id = "Authority.Grant" || ?id = "Actuation.Execute")
+    ?s a authcap:Capability .
+    FILTER NOT EXISTS { ?s a authcap:ConsequentialCapability }
+    BIND("consequential-pinned-id-missing-consequential-type" AS ?problem)
+  }
+  UNION
+  {
+    ?s a authcap:Capability ; dcterms:identifier ?id .
+    ?t a authcap:Capability ; dcterms:identifier ?id .
+    FILTER (?s != ?t)
+    BIND("duplicate-capability-identifier" AS ?problem)
+  }
+}
+ORDER BY ?s ?problem

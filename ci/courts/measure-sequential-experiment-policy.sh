@@ -10,9 +10,9 @@ set -e
 python3 - <<'PY'
 from pathlib import Path
 import re
-q = sorted(Path('packs/dfcm-maximalist-court-pack/queries').glob('seq-*.rq'))
+q = sorted(Path('packs/dfcm-pack/families/maximalist-court/queries').glob('seq-*.rq'))
 assert len(q) >= 32, len(q)
-ontology = Path('packs/dfcm-maximalist-court-pack/ontology.ttl').read_text()
+ontology = Path('packs/dfcm-pack/ontology/maximalist-court.ttl').read_text()
 for term in ('ExperimentStep','sequenceId','stepIndex','predictedGain','realizedGain','policyDecision','actuationPerformed'):
     assert f'dmc:{term}' in ontology, term
 for path in q:
@@ -26,6 +26,6 @@ echo "::endgroup::"
 echo "::group::measure-sequential-experiment-policy: Refuse ambient consequential actuation"
 (
 set -e
-! grep -REn 'curl |wget |requests\.(post|put|patch|delete)|subprocess\.|os\.system|boto3|azure\.|google\.cloud' packs/dfcm-maximalist-court-pack/queries/seq-*.rq
+! grep -REn 'curl |wget |requests\.(post|put|patch|delete)|subprocess\.|os\.system|boto3|azure\.|google\.cloud' packs/dfcm-pack/families/maximalist-court/queries/seq-*.rq
 )
 echo "::endgroup::"

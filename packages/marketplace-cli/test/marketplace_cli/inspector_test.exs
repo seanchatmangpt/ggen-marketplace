@@ -103,7 +103,7 @@ defmodule MarketplaceCli.InspectorTest do
   end
 
   test "ontology_files/1 finds this pack's own real ontology.ttl" do
-    this_pack_dir = Path.join([@root, "packs", "noun-verb-cli-pack"])
+    this_pack_dir = Path.join([@root, "packs", "ex-noun-verb-cli-pack"])
     assert Path.join(this_pack_dir, "ontology.ttl") in Inspector.ontology_files(this_pack_dir)
   end
 

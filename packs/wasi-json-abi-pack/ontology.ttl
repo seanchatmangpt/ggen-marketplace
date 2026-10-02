@@ -18,6 +18,22 @@
 # 4. dcterms: / rdfs: cover labels, versions and comments and are REUSED
 #    (rdfs:label, rdfs:comment); they cannot carry a byte limit or op order.
 # Everything minted below is a term whose failed edge is recorded above.
+#
+# Failed edges considered at v26.10.0 (wire-convention consolidation) and NOT
+# encoded:
+# 5. Per-op export dispatch geometry (one export symbol per algorithm, the
+#    wasm4pm <algo>_v1 shape). wja:dispatchStyle was considered and rejected:
+#    the rendered shell is a single <prefix>_call dispatching ops by request
+#    field, no pack consumer renders per-op exports through this pack yet, and
+#    the naming facts that DO exist (wja:opSymbolPrefix, wja:symbolSuffix,
+#    wja:hasReplayCompanion) plus the ABI-doc projections already express the
+#    per-op surface. UNSUPPORTED(ffi shell, per-op export dispatch) until a
+#    consumer orders it -- record the failed edge, prune nothing silently.
+# 6. wja:startupConvention (reactor _initialize) is admitted on coordinator
+#    survey testimony of the rust->wasm->elixir convergence; a grep over
+#    graphlaw/wasm/src, affidavit-wasm/src and wasm4pm-ex4pm-bindings/src at
+#    encoding time (2026-10-01) witnessed no _initialize, so its local
+#    standing is UNKNOWN-by-inspection and the fact stays optional.
 # ============================================================================
 
 @prefix wja: <https://ggen.dev/ontology/wasi-json-abi#> .
@@ -74,7 +90,7 @@ wja:stackSizeBytes a rdf:Property ;
 wja:importsPolicy a rdf:Property ;
     rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
     rdfs:label "imports policy" ;
-    rdfs:comment "Allowed import module; the only admitted value is wasi_snapshot_preview1." .
+    rdfs:comment "Closed set {wasi_snapshot_preview1, none}. wasi_snapshot_preview1: the module may import only WASI (any enumerated wja:WasiImport must use that module). none: the module imports nothing at all -- a hard zero-import invariant (the wasm4pm/ex4pm family, down from 87 __wbindgen_* imports); a module with importsPolicy none must not enumerate any wja:WasiImport (gates/060_imports_policy_wasi_only.rq)." .
 
 wja:hasOp a rdf:Property ;
     rdfs:domain wja:WasmModule ; rdfs:range wja:Op ;
@@ -132,7 +148,7 @@ wja:codeOrder a rdf:Property ;
 wja:errorStyle a rdf:Property ;
     rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
     rdfs:label "error style" ;
-    rdfs:comment "Closed set {flat-code, refusal-kind}. flat-code: {ok:false,error:{code,message,..}} with string codes drawn from the error table (guards fully generated). refusal-kind: the consumer owns a richer refusal envelope (only json_depth and the ordering helper are generated; the envelope is a HANDWRITTEN.md residue row)." .
+    rdfs:comment "Closed set {flat-code, refusal-kind, result-digest}. flat-code: {ok:false,error:{code,message,..}} with string codes drawn from the error table (guards fully generated). refusal-kind: the consumer owns a richer refusal envelope (only json_depth and the ordering helper are generated; the envelope is a HANDWRITTEN.md residue row). result-digest: success envelope {\"result\":<body>,\"digest\":\"<hex>\"} and failure envelope {\"error\":<message>} carrying NO digest; requires the four wja:digest facts (gates/110_wire_convention_closed.rq). The digest wraps the op result, not the refusal: a refused request has no digest by construction." .
 
 wja:codeRequestTooLarge a rdf:Property ;
     rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
@@ -207,6 +223,81 @@ wja:abiModulePath a rdf:Property ;
     rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
     rdfs:label "ABI module path" ;
     rdfs:comment "Optional Rust path of the safe core exposing call, limit_response and missing_buffer_response; default crate::abi (graphlaw: graphlaw::abi)." .
+
+# -- Wire-convention facts (WasmModule; optional, consumed by queries/ffi.rq,
+#    queries/registry.rq and queries/abi_doc.rq) --
+# Absent facts keep the historical packed-u64, call-consumes, prefixed-symbol
+# shell byte-for-byte. Closed sets and cross-fact rules are enforced by
+# gates/110_wire_convention_closed.rq. The converged family this section
+# captures (re-verified against source 2026-10-01): graphlaw (packed-u64,
+# call-consumes, vec buffers, 256 MiB outstanding cap, no abi_version export),
+# affidavit-wasm (packed-u64, af_abi_version export), wasm4pm/ex4pm-bindings
+# (out-len-pointer, _v1 suffix, host-dealloc dealloc/free split, zero imports,
+# FNV-1a result-digest envelope, per-algo replay companions).
+
+wja:returnConvention a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "return convention" ;
+    rdfs:comment "Closed set {packed-u64, out-len-pointer}; default packed-u64. packed-u64: the call export returns (out_ptr << 32) | out_len in one u64 (graphlaw gl_call, affidavit af_call). out-len-pointer: the call export takes an out_len pointer and returns the out_ptr directly, writing the response length through the pointer ((ptr, len, out_len) -> out_ptr; the wasm4pm_ex4pm_<algo>_v1 convention)." .
+
+wja:symbolSuffix a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "symbol suffix" ;
+    rdfs:comment "Optional versioned suffix appended to every exported symbol, e.g. _v1 yields <prefix>_alloc_v1 / _call_v1 / _free_v1 (wasm4pm). Must match ^(_[a-z][a-z0-9_]*)?$; default empty." .
+
+wja:opSymbolPrefix a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "op symbol prefix" ;
+    rdfs:comment "Optional prefix of the per-op export symbols under the out-len-pointer convention; default is the module's exportPrefix. wasm4pm uses wasm4pm_ex4pm for per-algo exports while its core exports use wasm4pm_ex4pm_bindings, so the two prefixes are distinct facts." .
+
+wja:inputReleasePolicy a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "input release policy" ;
+    rdfs:comment "Closed set {call-consumes, host-dealloc}; default call-consumes. call-consumes: running the call frees the request buffer; <prefix>_free releases both request and response buffers (graphlaw/affidavit shell). host-dealloc: reading an input never frees it; the host owns both releases -- <prefix>_dealloc releases request buffers, <prefix>_free releases response buffers (the wasm4pm dealloc_v1/free_v1 split). host-dealloc and wja:maxOutstandingBytes are mutually exclusive because the outstanding cap models buffers the module consumed (gates/110_wire_convention_closed.rq)." .
+
+wja:abiVersionExportName a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "abi version export name" ;
+    rdfs:comment "Optional full symbol name of the abi-version export, overriding the default <prefix>_abi_version<suffix> (wasm4pm names it wasm4pm_ex4pm_bindings_version_v1). A required surface element when wja:hasAbiVersionExport is true: the harness asserts it equals wja:abiVersion and the exports projections list it; naming it while hasAbiVersionExport is false is refused." .
+
+wja:startupConvention a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "startup convention" ;
+    rdfs:comment "Closed set {cdylib, reactor-initialize}; default cdylib. reactor-initialize: the module is built as a WASI reactor and the host drives it through the _initialize export. Declared on coordinator survey of the rust->wasm->elixir convergence; not re-witnessed in the three local pipelines at encoding time (see the failed-edge record below)." .
+
+# -- Result-digest envelope facts (WasmModule; require errorStyle result-digest) --
+
+wja:digestAlgorithm a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "digest algorithm" ;
+    rdfs:comment "Algorithm of the digest embedded in a result-digest success envelope. Admitted value: FNV-1a-64 (offset basis 0xcbf29ce484222325, prime 0x100000001b3 -- definitional constants of the algorithm, not module parameters). A cheap non-cryptographic replay self-check; receipt identity hashing stays with the consumer (e.g. BLAKE3 on the ex4pm side)." .
+
+wja:digestInput a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "digest input" ;
+    rdfs:comment "Closed set {result-body, full-envelope}: which serialization bytes the digest covers. wasm4pm digests the serialized result body only, never the whole envelope." .
+
+wja:digestFormat a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:label "digest format" ;
+    rdfs:comment "Rust format spec of the rendered digest, e.g. {:016x} (zero-padded lowercase hex)." .
+
+wja:digestHexChars a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:integer ;
+    rdfs:label "digest hex chars" ;
+    rdfs:comment "Length in hex characters of the rendered digest (16 for FNV-1a-64); positive and bounded." .
+
+# -- Op-level surface facts (wja:Op) --
+
+wja:hasReplayCompanion a rdf:Property ;
+    rdfs:domain wja:Op ; rdfs:range xsd:boolean ;
+    rdfs:label "has replay companion" ;
+    rdfs:comment "Whether the op exposes a per-algo replay export named <opSymbolPrefix>_<opName>_replay<symbolSuffix>: it re-executes the same computation from the same request bytes and returns 1 iff the recomputed response is non-empty; the host compares digest fields of original and recomputed responses. Deterministic computations make equal requests yield equal digests (the wasm4pm <algo>_replay_v1 surface)." .
+
+wja:opSourceFile a rdf:Property ;
+    rdfs:domain wja:Op ; rdfs:range xsd:string ;
+    rdfs:label "op source file" ;
+    rdfs:comment "Optional consumer source file implementing the op body (e.g. src/phase2.rs), rendered as the source column of the ABI-doc exports table; absent renders as -." .
 
 # -- Host imports and release pins (consumer facts; graphlaw v26.9.29 specimen) --
 

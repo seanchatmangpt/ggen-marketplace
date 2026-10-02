@@ -1,7 +1,50 @@
-@prefix dcp:  <http://seanchatmangpt.github.io/packs/domain-capability#> .
+@prefix dcp:  <https://ggen.dev/ontology/domain-capability#> .
+@prefix qce:  <https://ggen.dev/ontology/qualified-capability-ecology#> .
 @prefix errc: <http://seanchatmangpt.github.io/packs/gh-actions-errc#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 @prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+#################################################################
+# NAMESPACE ALIGNMENT (v0.2.0, 2026-09-30) -- explicit, not silent.
+#
+# v0.1.0 published this vocabulary at
+#   http://seanchatmangpt.github.io/packs/domain-capability#
+# The v26.9.30 capability-ecology wave pins dcp: to
+#   https://ggen.dev/ontology/domain-capability#
+# (docs/jira/v26.9.30/RESOLUTIONS.md namespace table; lane 1 owns the
+# alignment). Every legacy term moved verbatim (definitions unchanged);
+# each legacy IRI is recorded below with dcterms:isReplacedBy. Known
+# consumers of the legacy IRIs (gym-upper-ontology-pack,
+# standing-ladder-pack) carry their own self-contained copies of the
+# legacy facts in their qualification fixtures, so this migration does
+# not strand them; their references remain valid historical provenance.
+#################################################################
+
+dcp:NamespaceAlignment2026-09-30 a prov:Entity ;
+    rdfs:label "Namespace alignment record: legacy seanchatmangpt.github.io/packs/domain-capability# terms republished at the pinned https://ggen.dev/ontology/domain-capability# namespace" ;
+    dcterms:description "15 legacy terms moved verbatim; per-term mapping via dcterms:isReplacedBy below. No term was deleted or redefined; the SREGym worked instance, its manifest, the autofde-lab allowlist, and the ERRC grid are conserved unchanged." ;
+    dcterms:created "2026-09-30"^^xsd:date ;
+    prov:wasDerivedFrom <http://seanchatmangpt.github.io/packs/domain-capability#> .
+
+<http://seanchatmangpt.github.io/packs/domain-capability#Capability> dcterms:isReplacedBy dcp:Capability .
+<http://seanchatmangpt.github.io/packs/domain-capability#LabAllowlist> dcterms:isReplacedBy dcp:LabAllowlist .
+<http://seanchatmangpt.github.io/packs/domain-capability#CapabilitySourceManifest> dcterms:isReplacedBy dcp:CapabilitySourceManifest .
+<http://seanchatmangpt.github.io/packs/domain-capability#order> dcterms:isReplacedBy dcp:order .
+<http://seanchatmangpt.github.io/packs/domain-capability#slug> dcterms:isReplacedBy dcp:slug .
+<http://seanchatmangpt.github.io/packs/domain-capability#consequence> dcterms:isReplacedBy dcp:consequence .
+<http://seanchatmangpt.github.io/packs/domain-capability#worldBinding> dcterms:isReplacedBy dcp:worldBinding .
+<http://seanchatmangpt.github.io/packs/domain-capability#sourceRepo> dcterms:isReplacedBy dcp:sourceRepo .
+<http://seanchatmangpt.github.io/packs/domain-capability#sourceFile> dcterms:isReplacedBy dcp:sourceFile .
+<http://seanchatmangpt.github.io/packs/domain-capability#sourceIri> dcterms:isReplacedBy dcp:sourceIri .
+<http://seanchatmangpt.github.io/packs/domain-capability#ownerRepo> dcterms:isReplacedBy dcp:ownerRepo .
+<http://seanchatmangpt.github.io/packs/domain-capability#allows> dcterms:isReplacedBy dcp:allows .
+<http://seanchatmangpt.github.io/packs/domain-capability#manifestSourceRepo> dcterms:isReplacedBy dcp:manifestSourceRepo .
+<http://seanchatmangpt.github.io/packs/domain-capability#manifestSourceFile> dcterms:isReplacedBy dcp:manifestSourceFile .
+<http://seanchatmangpt.github.io/packs/domain-capability#expectedCapabilityCount> dcterms:isReplacedBy dcp:expectedCapabilityCount .
 
 #################################################################
 # Vocabulary
@@ -169,6 +212,418 @@ dcp:autofde-lab-sregym-allowlist a dcp:LabAllowlist ;
         dcp:sregym-submit-mitigation .
 
 #################################################################
+# CONTRACT LAYER (v0.2.0, 2026-09-30) -- the DOMAIN family capability
+# contract consumable by a capability-resolution engine (consumer:
+# ash_pplan v26.9.30, built in parallel; provider contract read at
+# ~/ash_pplan/lib/ash_pplan/provider.ex and
+# ~/ash_pplan/lib/ash_pplan/providers/resolver.ex, 2026-09-30).
+#
+# Composition, not reinvention:
+#   qce: (packs/qualified-capability-ecology-pack) supplies the lifecycle:
+#   a realization IS a qce:QualifiedCapability (a qualified capability
+#   VERSION), and execution is qce:RuntimeEpisode executing only frozen
+#   versions. dcp: supplies exactly what qce lacks for the DOMAIN family:
+#   stable semantic identity + family-scoped contract fields + the
+#   semantic-identity -> realization edge. prov/dcterms/skos/xsd are the
+#   public substrate (RESOLUTIONS.md: public vocabularies before custom).
+#
+# CAPABILITY != IMPLEMENTATION (pinned lane rule): a dcp:DomainCapability
+# is semantic identity only (e.g. Domain.Action.Invoke). A dcp:Realization
+# is one qualified implementing binding (package + module + pin policy +
+# qualification conditions). Plans target capabilities; the resolver
+# selects realizations; selection never grants authority (resolver.ex:
+# "availability is not authority").
+#
+# Invariants encoded here and refused by gates:
+#   Plan != Execution            -> gates/090_runtime_only_frozen.rq
+#   Policy != Authority          -> gates/080_no_do_authority.rq
+#   ProviderAvailable != Authorized -> gates/070_availability_requires_authority.rq
+#   capability without realization / realization without qualification
+#                                -> gates/050_..., gates/060_...
+#   Projection != Source, Generated != Admitted: this graph is admitted
+#   source-of-record for the DOMAIN family; projections rendered from it
+#   (templates/) are consequences and never re-admitted as source.
+#################################################################
+
+dcp:DomainCapability a rdfs:Class ;
+    rdfs:label "Stable semantic identity of one DOMAIN-family capability, carried as the pinned dotted ID (rdfs:label and dcterms:identifier, e.g. \"Domain.Action.Invoke\"). Deliberately a SIBLING of dcp:Capability (the transcription class), not a subclass: gate 010's required-fields contract is keyed to direct dcp:Capability transcription facts (order/slug/worldBinding/sourceRepo/sourceFile) which a semantic identity must not fabricate; the contract layer carries its own required-fields gate (gates/040_required_contract_fields.rq). A declaration is a Plan: it never executes and never grants authority." .
+
+dcp:Realization a rdfs:Class ;
+    rdfs:subClassOf qce:QualifiedCapability ;
+    rdfs:label "One qualified implementing binding of a dcp:DomainCapability: a provider package + module (+ version-pin policy + qualification conditions + evidence kinds). Composition point with qce:: qce: has receipts qualifying capability versions (qce:qualifies) but no stable-semantic-identity-to-realization edge -- that missing edge is dcp:realizes (failed edge recorded). Selection of a realization never grants authority (ProviderAvailable != Authorized)." .
+
+dcp:realizes a rdf:Property ;
+    rdfs:domain dcp:Realization ;
+    rdfs:range dcp:DomainCapability ;
+    rdfs:comment "FAILED EDGE (public set): qce:qualifies binds a QualificationReceipt to a capability version; qce:replacesCapability/originalCapability bind substitutions; no public term (prov/dcterms/skos/qce) expresses 'this qualified capability version realizes this stable semantic identity'. Minted as the family's one missing edge; everything else about the lifecycle is reused from qce:." .
+
+dcp:authorityRequirement a rdf:Property ;
+    rdfs:domain dcp:DomainCapability ;
+    rdfs:comment "FAILED EDGE (public set): ODRL expresses permissions/policies over assets, not the resolver's closed authority-rank requirement (none < observe < construct, never do) -- ~/ash_pplan/lib/ash_pplan/providers/resolver.ex @authority_rank. Closed enum: \"none\" | \"observe\" | \"construct\". The value \"do\" is REFUSED (gates/080_no_do_authority.rq), mirroring the resolver's own refusal of wanted==:do." .
+
+dcp:precondition a rdf:Property ; rdfs:domain dcp:DomainCapability ;
+    rdfs:comment "FAILED EDGE (public set): SHACL sh:condition validates node shapes, not capability preconditions; odrl constraints gate permissions. String form of the precondition the capability contract asserts." .
+dcp:postcondition a rdf:Property ; rdfs:domain dcp:DomainCapability ;
+    rdfs:comment "FAILED EDGE (public set): same reasoning as dcp:precondition. String form of the postcondition the capability contract asserts." .
+
+dcp:outcome a rdf:Property ; rdfs:domain dcp:DomainCapability ;
+    rdfs:comment "FAILED EDGE (public set): earl:TestResult asserts test outcomes, not the outcome SET a capability may produce. Values are prefixed strings: \"success: ...\", \"failure: <typed failure class>\", \"nondeterministic: ...\" -- success + typed failures + the nondeterministic set, per the pinned capability-contract shape." .
+
+dcp:acceptsInput a rdf:Property ; rdfs:domain dcp:DomainCapability ;
+    rdfs:comment "FAILED EDGE (public set): no prov/dcterms/skos/earl term expresses a capability's input signature. String form; the implementing step's real options are the ground truth (see realizations)." .
+dcp:producesOutput a rdf:Property ; rdfs:domain dcp:DomainCapability ;
+    rdfs:comment "FAILED EDGE (public set): no public term expresses a capability's output signature. String form." .
+
+dcp:executionProperty a rdf:Property ;
+    rdfs:comment "Execution property a capability or realization supports (e.g. \"transactional\", \"policy_checked\"). FAILED EDGE (public set): these are the resolver's own property atoms (AshPPlan.Provider.properties/0, observed [:transactional, :policy_checked] on the domain provider); public vocabularies do not name execution properties." .
+
+dcp:evidenceKind a rdf:Property ;
+    rdfs:comment "Evidence kind a realization can emit (e.g. \"ash_result\"). FAILED EDGE (public set): earl states assertions about tests, not the evidence kinds a provider emits; the kind atoms are the resolver's own (AshPPlan.Provider.evidence/0)." .
+
+dcp:available a rdf:Property ;
+    rdfs:comment "Provider-side operational availability marker on a realization. Available != Authorized: gates/070_availability_requires_authority.rq refuses any available realization whose authority is not bound through qce:authorityEnvelope with a ceiling that admits the capability's dcp:authorityRequirement." .
+
+dcp:providerId a rdf:Property ;
+    rdfs:comment "Stable provider id atom as string (AshPPlan.Provider.id/0), e.g. \"domain\"." .
+dcp:providerPackage a rdf:Property ;
+    rdfs:comment "Real package providing the realization (e.g. \"ash\", \"ash_pplan\"). Provider metadata per RESOLUTIONS.md; never claimed without a local-inspection source note or hex coordinate." .
+dcp:providerModule a rdf:Property ;
+    rdfs:comment "Real implementing module or function family (e.g. \"Ash.Reactor.ReadStep\", \"AshPPlan.Providers.Steps.DomainAction\", \"Ash.CodeInterface\")." .
+dcp:providerVersion a rdf:Property ;
+    rdfs:comment "Observed version of providerPackage (e.g. ash 3.33.11 read from ~/ash_pplan/deps/ash/mix.exs @version, 2026-09-30)." .
+dcp:providerAlias a rdf:Property ; rdfs:domain dcp:DomainCapability ;
+    rdfs:comment "ALIGNMENT FACT: a capability-ID spelling observed on a provider side that maps to this pinned capability (e.g. ash_pplan's current \"Domain.Action\" for Domain.Action.Invoke). Recorded so the consumer's rename to the pinned IDs is an explicit alignment, not a silent break; the pinned ID in dcterms:identifier/rdfs:label remains canonical." .
+dcp:versionPinPolicy a rdf:Property ; rdfs:domain dcp:Realization ;
+    rdfs:comment "How the provider package is pinned for this realization (RESOLUTIONS.md: realizations carry repo, module, version-pin policy)." .
+dcp:qualificationCondition a rdf:Property ; rdfs:domain dcp:Realization ;
+    rdfs:comment "Condition under which this realization qualifies for selection (checked by gates/060_realization_requires_qualification.rq: a realization with zero qualification conditions is refused). The implementing step's own policies decide authorization; a condition never bypasses them." .
+
+#################################################################
+# Worked instance: the pinned DOMAIN capabilities + realizations.
+#
+# Pinned IDs (docs/jira/v26.9.30/RESOLUTIONS.md): Domain.Action.Invoke,
+# Domain.Query.Read, Domain.Change.Apply. Family siblings minted per the
+# lane grant (RESOLUTIONS.md: "Lanes may mint family siblings freely
+# inside their own namespace"), each grounded in the real Ash surface
+# actually opened read-only on 2026-09-30:
+#   ~/ash_pplan @de92fceb8a2567d803689aee69232469be17c2e7
+#     lib/ash_pplan/providers/domain.ex            (AshPPlan.Providers.Domain)
+#     lib/ash_pplan/providers/steps/domain_action.ex (AshPPlan.Providers.Steps.DomainAction)
+#     lib/ash_pplan/provider.ex, lib/ash_pplan/capability.ex,
+#     lib/ash_pplan/providers/resolver.ex          (contract + authority rank)
+#     deps/ash 3.33.11 (hex constraint "~> 3.33 and >= 3.33.11", mix.exs:40)
+#       lib/ash/reactor/reactor.ex (Ash.Reactor), steps/*.ex
+#       (Ash.Reactor.{Read,ReadOne,Create,Update,Destroy,BulkCreate,BulkUpdate,
+#        BulkDestroy,Action}Step), lib/ash/code_interface.ex (Ash.CodeInterface),
+#       lib/ash.ex (Ash.bulk_create/4, Ash.bulk_update/4, Ash.bulk_destroy/4),
+#       lib/ash/error/forbidden.ex (Ash.Error.Forbidden), lib/ash/error/invalid/
+# qce:artifactDigest / qce:sourceDigest values are REAL sha256 of those files.
+#################################################################
+
+# --- Capabilities -----------------------------------------------------
+
+dcp:domain-action-invoke a dcp:DomainCapability ;
+    rdfs:label "Domain.Action.Invoke" ;
+    dcterms:identifier "Domain.Action.Invoke" ;
+    dcp:providerAlias "Domain.Action" ;
+    dcp:authorityRequirement "construct" ;
+    dcp:precondition "Target resource and action exist in the consumer's compiled Ash domain boundary; the action is a generic (non-CRUD) action; its policies are satisfiable for the given actor." ;
+    dcp:postcondition "The action has run to completion and its effects are committed under the action's own transaction semantics; the actor is returned or an error is raised." ;
+    dcp:outcome "success: the action's return value" ;
+    dcp:outcome "failure: Ash.Error.Forbidden (the action's own policies denied authorization; the realizing step never bypasses them)" ;
+    dcp:outcome "failure: Ash.Error.Invalid (invalid/ error classes: invalid input, missing argument)" ;
+    dcp:outcome "failure: Ash.Error.Unknown (infrastructure/unexpected failure)" ;
+    dcp:outcome "nondeterministic: generic actions may touch external state; re-execution is not guaranteed side-effect-free without the action's own idempotency" ;
+    dcp:acceptsInput "resource, action name, input map, optional actor (the implementing step's real surface: Ash.ActionInput.for_action(action, input, opts) then Ash.run_action)" ;
+    dcp:producesOutput "action-defined return value" ;
+    dcp:executionProperty "policy_checked" .
+
+dcp:domain-query-read a dcp:DomainCapability ;
+    rdfs:label "Domain.Query.Read" ;
+    dcterms:identifier "Domain.Query.Read" ;
+    dcp:providerAlias "Domain.Read" ;
+    dcp:authorityRequirement "observe" ;
+    dcp:precondition "Target resource and read action exist in the compiled domain; read policies are satisfiable for the given actor." ;
+    dcp:postcondition "A query result (list of records) is returned; no domain state is changed." ;
+    dcp:outcome "success: list of records (possibly empty)" ;
+    dcp:outcome "failure: Ash.Error.Forbidden (read policies denied)" ;
+    dcp:outcome "failure: Ash.Error.Invalid (invalid query input)" ;
+    dcp:outcome "nondeterministic: result contents follow live domain state; ordering is only what the action's own sort/limit declares" ;
+    dcp:acceptsInput "resource, read action, query input map, optional actor (real surface: Ash.Query.for_read(action, input, opts) then Ash.read)" ;
+    dcp:producesOutput "list of records" ;
+    dcp:executionProperty "policy_checked" .
+
+dcp:domain-change-apply a dcp:DomainCapability ;
+    rdfs:label "Domain.Change.Apply" ;
+    dcterms:identifier "Domain.Change.Apply" ;
+    dcp:authorityRequirement "construct" ;
+    dcp:precondition "Target resource and create/update/destroy action exist in the compiled domain; change policies are satisfiable for the given actor; a record is supplied for update/destroy." ;
+    dcp:postcondition "The record change is committed under the action's transaction semantics; destroy returns the destroyed record (return_destroyed?: true on the real step)." ;
+    dcp:outcome "success: created/updated/destroyed record" ;
+    dcp:outcome "failure: Ash.Error.Forbidden (change policies denied)" ;
+    dcp:outcome "failure: Ash.Error.Invalid (invalid changeset/input)" ;
+    dcp:outcome "nondeterministic: changes may fire notifications/side effects; replay requires the action's own idempotency" ;
+    dcp:acceptsInput "resource, action name, input map, record (required for update/destroy), optional actor (real surface: Ash.Changeset.for_create/for_update/for_destroy then Ash.create/update/destroy)" ;
+    dcp:producesOutput "created/updated/destroyed record" ;
+    dcp:executionProperty "policy_checked" ;
+    dcp:executionProperty "transactional" .
+
+dcp:domain-query-read-one a dcp:DomainCapability ;
+    rdfs:label "Domain.Query.ReadOne" ;
+    dcterms:identifier "Domain.Query.ReadOne" ;
+    dcp:authorityRequirement "observe" ;
+    dcp:precondition "Target resource and read action exist; the query resolves to at most one record." ;
+    dcp:postcondition "Zero or one record returned; no state changed." ;
+    dcp:outcome "success: one record or nil" ;
+    dcp:outcome "failure: Ash.Error.Forbidden" ;
+    dcp:outcome "nondeterministic: which record is 'one' follows live domain state when the query under-specifies" ;
+    dcp:acceptsInput "resource, read action, query input (real surface: Ash.Reactor.ReadOneStep)" ;
+    dcp:producesOutput "single record or nil" ;
+    dcp:executionProperty "policy_checked" .
+
+dcp:domain-record-create a dcp:DomainCapability ;
+    rdfs:label "Domain.Record.Create" ;
+    dcterms:identifier "Domain.Record.Create" ;
+    dcp:providerAlias "Domain.Create" ;
+    dcp:authorityRequirement "construct" ;
+    dcp:precondition "Target resource and create action exist in the compiled domain." ;
+    dcp:postcondition "One new record committed." ;
+    dcp:outcome "success: created record" ;
+    dcp:outcome "failure: Ash.Error.Forbidden" ;
+    dcp:outcome "failure: Ash.Error.Invalid" ;
+    dcp:outcome "nondeterministic: create may fire notifications; not replay-safe without action idempotency" ;
+    dcp:acceptsInput "resource, create action, input map, optional actor" ;
+    dcp:producesOutput "created record" ;
+    dcp:executionProperty "policy_checked" ;
+    dcp:executionProperty "transactional" .
+
+dcp:domain-record-update a dcp:DomainCapability ;
+    rdfs:label "Domain.Record.Update" ;
+    dcterms:identifier "Domain.Record.Update" ;
+    dcp:providerAlias "Domain.Update" ;
+    dcp:authorityRequirement "construct" ;
+    dcp:precondition "Target record exists and its update action's policies are satisfiable." ;
+    dcp:postcondition "The record's changes are committed." ;
+    dcp:outcome "success: updated record" ;
+    dcp:outcome "failure: Ash.Error.Forbidden" ;
+    dcp:outcome "failure: Ash.Error.Invalid" ;
+    dcp:outcome "nondeterministic: update may fire notifications; not replay-safe without action idempotency" ;
+    dcp:acceptsInput "record, update action, input map, optional actor" ;
+    dcp:producesOutput "updated record" ;
+    dcp:executionProperty "policy_checked" ;
+    dcp:executionProperty "transactional" .
+
+dcp:domain-record-destroy a dcp:DomainCapability ;
+    rdfs:label "Domain.Record.Destroy" ;
+    dcterms:identifier "Domain.Record.Destroy" ;
+    dcp:providerAlias "Domain.Destroy" ;
+    dcp:authorityRequirement "construct" ;
+    dcp:precondition "Target record exists and its destroy action's policies are satisfiable." ;
+    dcp:postcondition "The record is destroyed; the destroyed record is returned (return_destroyed?: true)." ;
+    dcp:outcome "success: destroyed record" ;
+    dcp:outcome "failure: Ash.Error.Forbidden" ;
+    dcp:outcome "failure: Ash.Error.Invalid" ;
+    dcp:outcome "nondeterministic: destroy may cascade; not replay-safe" ;
+    dcp:acceptsInput "record, destroy action, optional actor" ;
+    dcp:producesOutput "destroyed record" ;
+    dcp:executionProperty "policy_checked" ;
+    dcp:executionProperty "transactional" .
+
+dcp:domain-bulk-apply a dcp:DomainCapability ;
+    rdfs:label "Domain.Bulk.Apply" ;
+    dcterms:identifier "Domain.Bulk.Apply" ;
+    dcp:authorityRequirement "construct" ;
+    dcp:precondition "Target resource and bulk action exist; the inputs collection is finite; bulk options (batch size, return mode) are admitted by the action." ;
+    dcp:postcondition "The bulk operation has streamed its batches; per-record outcomes are reported per the requested return mode." ;
+    dcp:outcome "success: Ash.BulkResult with per-record status" ;
+    dcp:outcome "failure: Ash.Error.Forbidden (bulk policies denied per record or wholesale)" ;
+    dcp:outcome "failure: Ash.Error.Invalid" ;
+    dcp:outcome "nondeterministic: partial batch failure order; error ordering across batches is not stable" ;
+    dcp:acceptsInput "resource, action, inputs collection, bulk options (real surface: Ash.bulk_create/4, Ash.bulk_update/4, Ash.bulk_destroy/4)" ;
+    dcp:producesOutput "Ash.BulkResult" ;
+    dcp:executionProperty "policy_checked" ;
+    dcp:executionProperty "transactional" .
+
+# --- Authority envelopes (qce: reuse; ProviderAvailable != Authorized) --
+
+dcp:envelope-ash-construct a qce:AuthorityEnvelope ;
+    rdfs:label "Authority binding for realizations provided by the ash package itself: ceiling construct, delegation depth 1 (the step IS the Ash surface)." ;
+    qce:authorityDigest "3fd84b802bfee00c343c6d565e2aaaeb09b32098951a00fa805f3e9e1dfa60bb" ;
+    qce:authorityCeiling "construct" ;
+    qce:delegationDepth 1 .
+
+dcp:envelope-ashpplan-construct a qce:AuthorityEnvelope ;
+    rdfs:label "Authority binding for AshPPlan provider realizations: ceiling construct (CapabilityPack.validate refuses authority above construct), delegation depth 2 (provider -> Ash step)." ;
+    qce:authorityDigest "de7fda7b2a1123d896c7b0f694a17ebe410968b6757cc252568ce8aea4812856" ;
+    qce:authorityCeiling "construct" ;
+    qce:delegationDepth 2 .
+
+# --- Realizations (one per capability binding; dcp:realizes is the join) --
+
+dcp:domain-action-invoke-reactor a dcp:Realization, qce:QualifiedCapability ;
+    dcp:realizes dcp:domain-action-invoke ;
+    dcp:providerPackage "ash" ; dcp:providerModule "Ash.Reactor.ActionStep" ; dcp:providerVersion "3.33.11" ;
+    dcp:versionPinPolicy "hex constraint \"~> 3.33 and >= 3.33.11\" observed at ~/ash_pplan/mix.exs:40; exact resolution pinned by mix.lock" ;
+    dcp:evidenceKind "ash_result" ;
+    dcp:qualificationCondition "The consumer's compiled Ash domain exposes the targeted generic action; the Reactor DSL step is registered by use Ash.Reactor; authorization is delegated to the action's own policies (authorize? true default)." ;
+    dcp:available true ; qce:authorityEnvelope dcp:envelope-ash-construct ;
+    qce:subjectRepository "hex:ash (source tree inspected read-only at ~/ash_pplan/deps/ash)" ;
+    qce:artifactDigest "43b47de4af2c3d1a7010c6cc8d7abadf9d3272f3bc61907b09beeeca7e6dd5eb" ;
+    dcterms:source "read-only inspection: deps/ash/lib/ash/reactor/steps/action_step.ex (defmodule Ash.Reactor.ActionStep) via ~/ash_pplan @de92fceb8a2567d803689aee69232469be17c2e7, 2026-09-30" .
+
+dcp:domain-action-invoke-ashpplan a dcp:Realization, qce:QualifiedCapability ;
+    dcp:realizes dcp:domain-action-invoke ;
+    dcp:providerPackage "ash_pplan" ; dcp:providerModule "AshPPlan.Providers.Steps.DomainAction" ; dcp:providerId "domain" ;
+    dcp:providerVersion "26.9.30" ;
+    dcp:versionPinPolicy "consumer pins ash_pplan by hex/git dep constraint in its mix.exs; exact resolution via mix.lock (observed ~/ash_pplan/mix.exs:4 @version \"26.9.30\", mix.lock present)" ;
+    dcp:executionProperty "transactional", "policy_checked" ;
+    dcp:evidenceKind "ash_result" ;
+    dcp:qualificationCondition "AshPPlan.Providers.Domain.qualify/2 passes: capability in ~w(Domain.Create Domain.Read Domain.Update Domain.Destroy Domain.Action), required properties/evidence are subsets of the provider's, and the context authority ceiling admits the requirement (never do). The step runs Ash.ActionInput.for_action(action, input, opts) |> Ash.run_action() and never bypasses policies." ;
+    dcp:available true ; qce:authorityEnvelope dcp:envelope-ashpplan-construct ;
+    qce:subjectRepository "~/ash_pplan" ;
+    qce:subjectCommit "de92fceb8a2567d803689aee69232469be17c2e7" ;
+    qce:artifactDigest "2ecd52345efd56ef28506a0ee8bef08d0df0b416b75b327d046d846e1dc3cdee" ;
+    dcterms:source "read-only inspection: ~/ash_pplan/lib/ash_pplan/providers/domain.ex (@table kind: :action) and lib/ash_pplan/providers/steps/domain_action.ex, 2026-09-30" .
+
+dcp:domain-query-read-reactor a dcp:Realization, qce:QualifiedCapability ;
+    dcp:realizes dcp:domain-query-read ;
+    dcp:providerPackage "ash" ; dcp:providerModule "Ash.Reactor.ReadStep" ; dcp:providerVersion "3.33.11" ;
+    dcp:versionPinPolicy "hex constraint \"~> 3.33 and >= 3.33.11\" observed at ~/ash_pplan/mix.exs:40; exact resolution pinned by mix.lock" ;
+    dcp:evidenceKind "ash_result" ;
+    dcp:qualificationCondition "The consumer's compiled Ash domain exposes the targeted read action; the Reactor DSL read step is registered by use Ash.Reactor; read policies decide authorization." ;
+    dcp:available true ; qce:authorityEnvelope dcp:envelope-ash-construct ;
+    qce:subjectRepository "hex:ash (source tree inspected read-only at ~/ash_pplan/deps/ash)" ;
+    qce:artifactDigest "13b65f1059b3dadff95258e43038d5276b70fb5643458601e5471f2c044fb724" ;
+    dcterms:source "read-only inspection: deps/ash/lib/ash/reactor/steps/read_step.ex (defmodule Ash.Reactor.ReadStep; wired by builders/read.ex) via ~/ash_pplan @de92fceb, 2026-09-30" .
+
+dcp:domain-query-read-ashpplan a dcp:Realization, qce:QualifiedCapability ;
+    dcp:realizes dcp:domain-query-read ;
+    dcp:providerPackage "ash_pplan" ; dcp:providerModule "AshPPlan.Providers.Steps.DomainAction" ; dcp:providerId "domain" ;
+    dcp:providerVersion "26.9.30" ;
+    dcp:versionPinPolicy "consumer pins ash_pplan by hex/git dep constraint in its mix.exs; exact resolution via mix.lock (observed ~/ash_pplan/mix.exs:4 @version \"26.9.30\", mix.lock present)" ;
+    dcp:executionProperty "transactional", "policy_checked" ;
+    dcp:evidenceKind "ash_result" ;
+    dcp:qualificationCondition "AshPPlan.Providers.Domain.qualify/2 passes for the read binding (kind: :read): the step runs Ash.Query.for_read(action, input, opts) |> Ash.read(); policies decide authorization." ;
+    dcp:available true ; qce:authorityEnvelope dcp:envelope-ashpplan-construct ;
+    qce:subjectRepository "~/ash_pplan" ;
+    qce:subjectCommit "de92fceb8a2567d803689aee69232469be17c2e7" ;
+    qce:artifactDigest "2ecd52345efd56ef28506a0ee8bef08d0df0b416b75b327d046d846e1dc3cdee" ;
+    dcterms:source "read-only inspection: ~/ash_pplan/lib/ash_pplan/providers/steps/domain_action.ex do_run(:read, ...), 2026-09-30" .
+
+dcp:domain-query-read-codeinterface a dcp:Realization, qce:QualifiedCapability ;
+    dcp:realizes dcp:domain-query-read ;
+    dcp:providerPackage "ash" ; dcp:providerModule "Ash.CodeInterface" ; dcp:providerVersion "3.33.11" ;
+    dcp:versionPinPolicy "hex constraint \"~> 3.33 and >= 3.33.11\" observed at ~/ash_pplan/mix.exs:40; exact resolution pinned by mix.lock" ;
+    dcp:evidenceKind "ash_result" ;
+    dcp:qualificationCondition "The resource declares code_interface/1 with the read action (generate generated functions); the generated function delegates to the same Ash.Query.for_read path, so policies apply identically." ;
+    dcp:available true ; qce:authorityEnvelope dcp:envelope-ash-construct ;
+    qce:subjectRepository "hex:ash (source tree inspected read-only at ~/ash_pplan/deps/ash)" ;
+    qce:artifactDigest "9976fb6d8e878e0be7276b2ddb4ff9f168ed82546d8a708d5154b8bbc60a1131" ;
+    dcterms:source "read-only inspection: deps/ash/lib/ash/code_interface.ex (defmodule Ash.CodeInterface) via ~/ash_pplan @de92fceb, 2026-09-30" .
+
+dcp:domain-query-read-one-reactor a dcp:Realization, qce:QualifiedCapability ;
+    dcp:realizes dcp:domain-query-read-one ;
+    dcp:providerPackage "ash" ; dcp:providerModule "Ash.Reactor.ReadOneStep" ; dcp:providerVersion "3.33.11" ;
+    dcp:versionPinPolicy "hex constraint \"~> 3.33 and >= 3.33.11\" observed at ~/ash_pplan/mix.exs:40; exact resolution pinned by mix.lock" ;
+    dcp:evidenceKind "ash_result" ;
+    dcp:qualificationCondition "The consumer's compiled Ash domain exposes the targeted read action and the query resolves to at most one record; policies decide authorization." ;
+    dcp:available true ; qce:authorityEnvelope dcp:envelope-ash-construct ;
+    qce:subjectRepository "hex:ash (source tree inspected read-only at ~/ash_pplan/deps/ash)" ;
+    qce:artifactDigest "a728f499c436265cc0f1728922b78d5eb571d4f86f68f5c1e63c63a35dfaf61e" ;
+    dcterms:source "read-only inspection: deps/ash/lib/ash/reactor/steps/read_one_step.ex (defmodule Ash.Reactor.ReadOneStep) via ~/ash_pplan @de92fceb, 2026-09-30" .
+
+dcp:domain-change-apply-ashpplan a dcp:Realization, qce:QualifiedCapability ;
+    dcp:realizes dcp:domain-change-apply ;
+    dcp:providerPackage "ash_pplan" ; dcp:providerModule "AshPPlan.Providers.Steps.DomainAction" ; dcp:providerId "domain" ;
+    dcp:providerVersion "26.9.30" ;
+    dcp:versionPinPolicy "consumer pins ash_pplan by hex/git dep constraint in its mix.exs; exact resolution via mix.lock (observed ~/ash_pplan/mix.exs:4 @version \"26.9.30\", mix.lock present)" ;
+    dcp:executionProperty "transactional", "policy_checked" ;
+    dcp:evidenceKind "ash_result" ;
+    dcp:qualificationCondition "AshPPlan.Providers.Domain.qualify/2 passes for one of the change bindings (kind: :create | :update | :destroy); update/destroy require a :record argument; the step runs Ash.Changeset.for_create/for_update/for_destroy then Ash.create/update/destroy (destroy with return_destroyed?: true); policies decide authorization." ;
+    dcp:available true ; qce:authorityEnvelope dcp:envelope-ashpplan-construct ;
+    qce:subjectRepository "~/ash_pplan" ;
+    qce:subjectCommit "de92fceb8a2567d803689aee69232469be17c2e7" ;
+    qce:artifactDigest "2ecd52345efd56ef28506a0ee8bef08d0df0b416b75b327d046d846e1dc3cdee" ;
+    dcterms:source "read-only inspection: ~/ash_pplan/lib/ash_pplan/providers/steps/domain_action.ex do_run(:create/:update/:destroy, ...), 2026-09-30" .
+
+dcp:domain-change-apply-reactor a dcp:Realization, qce:QualifiedCapability ;
+    dcp:realizes dcp:domain-change-apply ;
+    dcp:providerPackage "ash" ; dcp:providerModule "Ash.Reactor.CreateStep, Ash.Reactor.UpdateStep, Ash.Reactor.DestroyStep" ; dcp:providerVersion "3.33.11" ;
+    dcp:versionPinPolicy "hex constraint \"~> 3.33 and >= 3.33.11\" observed at ~/ash_pplan/mix.exs:40; exact resolution pinned by mix.lock" ;
+    dcp:evidenceKind "ash_result" ;
+    dcp:qualificationCondition "The consumer's compiled Ash domain exposes the targeted create/update/destroy action; the corresponding Reactor DSL step is registered by use Ash.Reactor; change policies decide authorization." ;
+    dcp:available true ; qce:authorityEnvelope dcp:envelope-ash-construct ;
+    qce:subjectRepository "hex:ash (source tree inspected read-only at ~/ash_pplan/deps/ash)" ;
+    qce:artifactDigest "3f87ff7a436d4d290eb12df782c44c6c5b03dae405682b417168912464dc0a76" ;
+    dcterms:source "read-only inspection: deps/ash/lib/ash/reactor/steps/{create,update,destroy}_step.ex (defmodule Ash.Reactor.CreateStep / UpdateStep / DestroyStep; digest given is create_step.ex) via ~/ash_pplan @de92fceb, 2026-09-30" .
+
+dcp:domain-record-create-reactor a dcp:Realization, qce:QualifiedCapability ;
+    dcp:realizes dcp:domain-record-create ;
+    dcp:providerPackage "ash" ; dcp:providerModule "Ash.Reactor.CreateStep" ; dcp:providerVersion "3.33.11" ;
+    dcp:versionPinPolicy "hex constraint \"~> 3.33 and >= 3.33.11\" observed at ~/ash_pplan/mix.exs:40; exact resolution pinned by mix.lock" ;
+    dcp:evidenceKind "ash_result" ;
+    dcp:qualificationCondition "The consumer's compiled Ash domain exposes the targeted create action; the Reactor DSL create step is registered by use Ash.Reactor." ;
+    dcp:available true ; qce:authorityEnvelope dcp:envelope-ash-construct ;
+    qce:subjectRepository "hex:ash (source tree inspected read-only at ~/ash_pplan/deps/ash)" ;
+    qce:artifactDigest "3f87ff7a436d4d290eb12df782c44c6c5b03dae405682b417168912464dc0a76" ;
+    dcterms:source "read-only inspection: deps/ash/lib/ash/reactor/steps/create_step.ex, 2026-09-30" .
+
+dcp:domain-record-create-codeinterface a dcp:Realization, qce:QualifiedCapability ;
+    dcp:realizes dcp:domain-record-create ;
+    dcp:providerPackage "ash" ; dcp:providerModule "Ash.CodeInterface" ; dcp:providerVersion "3.33.11" ;
+    dcp:versionPinPolicy "hex constraint \"~> 3.33 and >= 3.33.11\" observed at ~/ash_pplan/mix.exs:40; exact resolution pinned by mix.lock" ;
+    dcp:evidenceKind "ash_result" ;
+    dcp:qualificationCondition "The resource declares code_interface/1 with the create action; the generated function delegates to Ash.Changeset.for_create + Ash.create, so policies apply identically. (Update/destroy code-interface analogues realize Domain.Record.Update/Destroy through the same module.)" ;
+    dcp:available true ; qce:authorityEnvelope dcp:envelope-ash-construct ;
+    qce:subjectRepository "hex:ash (source tree inspected read-only at ~/ash_pplan/deps/ash)" ;
+    qce:artifactDigest "9976fb6d8e878e0be7276b2ddb4ff9f168ed82546d8a708d5154b8bbc60a1131" ;
+    dcterms:source "read-only inspection: deps/ash/lib/ash/code_interface.ex, 2026-09-30" .
+
+dcp:domain-record-update-reactor a dcp:Realization, qce:QualifiedCapability ;
+    dcp:realizes dcp:domain-record-update ;
+    dcp:providerPackage "ash" ; dcp:providerModule "Ash.Reactor.UpdateStep" ; dcp:providerVersion "3.33.11" ;
+    dcp:versionPinPolicy "hex constraint \"~> 3.33 and >= 3.33.11\" observed at ~/ash_pplan/mix.exs:40; exact resolution pinned by mix.lock" ;
+    dcp:evidenceKind "ash_result" ;
+    dcp:qualificationCondition "The consumer's compiled Ash domain exposes the targeted update action and a record is supplied; the Reactor DSL update step is registered by use Ash.Reactor." ;
+    dcp:available true ; qce:authorityEnvelope dcp:envelope-ash-construct ;
+    qce:subjectRepository "hex:ash (source tree inspected read-only at ~/ash_pplan/deps/ash)" ;
+    qce:artifactDigest "216f3df882cc8512585717062587bcd4babe4f2e6c42177f81d91622a049ad59" ;
+    dcterms:source "read-only inspection: deps/ash/lib/ash/reactor/steps/update_step.ex, 2026-09-30" .
+
+dcp:domain-record-destroy-reactor a dcp:Realization, qce:QualifiedCapability ;
+    dcp:realizes dcp:domain-record-destroy ;
+    dcp:providerPackage "ash" ; dcp:providerModule "Ash.Reactor.DestroyStep" ; dcp:providerVersion "3.33.11" ;
+    dcp:versionPinPolicy "hex constraint \"~> 3.33 and >= 3.33.11\" observed at ~/ash_pplan/mix.exs:40; exact resolution pinned by mix.lock" ;
+    dcp:evidenceKind "ash_result" ;
+    dcp:qualificationCondition "The consumer's compiled Ash domain exposes the targeted destroy action and a record is supplied; the Reactor DSL destroy step is registered by use Ash.Reactor." ;
+    dcp:available true ; qce:authorityEnvelope dcp:envelope-ash-construct ;
+    qce:subjectRepository "hex:ash (source tree inspected read-only at ~/ash_pplan/deps/ash)" ;
+    qce:artifactDigest "723c714e6e552f6ddbf3a45b5c32fdd625dece6ebae68b67ddeaed08ac8483e4" ;
+    dcterms:source "read-only inspection: deps/ash/lib/ash/reactor/steps/destroy_step.ex, 2026-09-30" .
+
+dcp:domain-bulk-apply-kernel a dcp:Realization, qce:QualifiedCapability ;
+    dcp:realizes dcp:domain-bulk-apply ;
+    dcp:providerPackage "ash" ; dcp:providerModule "Ash (bulk_create/4, bulk_update/4, bulk_destroy/4)" ; dcp:providerVersion "3.33.11" ;
+    dcp:versionPinPolicy "hex constraint \"~> 3.33 and >= 3.33.11\" observed at ~/ash_pplan/mix.exs:40; exact resolution pinned by mix.lock" ;
+    dcp:evidenceKind "ash_result" ;
+    dcp:qualificationCondition "The consumer's compiled Ash domain exposes the targeted bulk action; Ash.bulk_create/bulk_update/bulk_destroy stream batches and report Ash.BulkResult; bulk policies decide authorization per record." ;
+    dcp:available true ; qce:authorityEnvelope dcp:envelope-ash-construct ;
+    qce:subjectRepository "hex:ash (source tree inspected read-only at ~/ash_pplan/deps/ash)" ;
+    qce:artifactDigest "ec48dddf5a941920de7bd569bf39112213c5ba82bcd0c937539de0ae5264c4c0" ;
+    dcterms:source "read-only inspection: deps/ash/lib/ash.ex (def bulk_create/4 at :3663; bulk_update/bulk_destroy alongside) via ~/ash_pplan @de92fceb, 2026-09-30" .
+
+dcp:domain-bulk-apply-reactor a dcp:Realization, qce:QualifiedCapability ;
+    dcp:realizes dcp:domain-bulk-apply ;
+    dcp:providerPackage "ash" ; dcp:providerModule "Ash.Reactor.BulkCreateStep, Ash.Reactor.BulkUpdateStep, Ash.Reactor.BulkDestroyStep" ; dcp:providerVersion "3.33.11" ;
+    dcp:versionPinPolicy "hex constraint \"~> 3.33 and >= 3.33.11\" observed at ~/ash_pplan/mix.exs:40; exact resolution pinned by mix.lock" ;
+    dcp:evidenceKind "ash_result" ;
+    dcp:qualificationCondition "The consumer's compiled Ash domain exposes the targeted bulk action; the corresponding Reactor DSL bulk step is registered by use Ash.Reactor." ;
+    dcp:available true ; qce:authorityEnvelope dcp:envelope-ash-construct ;
+    qce:subjectRepository "hex:ash (source tree inspected read-only at ~/ash_pplan/deps/ash)" ;
+    qce:artifactDigest "eec9ae75ff4642167e7a47b06787c9fd1897582a667d64b56464936b4e45b57f" ;
+    dcterms:source "read-only inspection: deps/ash/lib/ash/reactor/steps/{bulk_create,bulk_update,bulk_destroy}_step.ex (digest given is bulk_create_step.ex) via ~/ash_pplan @de92fceb, 2026-09-30" .
+
+#################################################################
 # ERRC grid — reuses errc:Finding verbatim from packs/gh-actions-errc-pack (same
 # class/predicate IRIs; not reinvented). 80/20 analysis of the autonomic/automation gap
 # this pack answers.
@@ -222,3 +677,17 @@ errc:CreateDomainCapabilityPack a errc:Finding ;
     errc:statement "dcp:Capability / dcp:LabAllowlist / dcp:CapabilitySourceManifest, admitting SREGym's real 14 capabilities and autofde-lab's real 5-entry allowlist, with 2 gates that would catch the exact drift already found while authoring this pack." ;
     errc:evidence "This pack's own ontology.ttl (14 dcp:Capability + 1 dcp:LabAllowlist individuals) and gates/." ;
     errc:impact "The 80/20 answer to the autonomic/automation gap: proves the vocabulary against real, already-existing data instead of shipping a schema no one has tried yet." .
+
+errc:ExtendDomainCapabilityPackContractLayer a errc:Finding ;
+    rdfs:label "Create (v0.2.0): the DOMAIN-family contract layer with realizations grounded in the real Ash surface, consumable by a capability-resolution engine" ;
+    errc:category "Create" ;
+    errc:statement "v0.1.0 transcribed one world's capability list but expressed no capability CONTRACT: no realization bindings, no authority requirements, no outcome sets, no qualification conditions -- nothing a resolver could select against. v0.2.0 adds dcp:DomainCapability / dcp:Realization composed with qce:'s lifecycle (realizations ARE qce:QualifiedCapability individuals), the 3 pinned IDs (Domain.Action.Invoke / Domain.Query.Read / Domain.Change.Apply) plus 5 grounded siblings, and 6 new refusal gates. Every realization names a module actually read this session (Ash.Reactor.*Step, AshPPlan.Providers.Steps.DomainAction, Ash.CodeInterface, Ash.bulk_*/4) with real sha256 artifact digests." ;
+    errc:evidence "Read-only inspection 2026-09-30 of ~/ash_pplan @de92fceb (lib/ash_pplan/providers/*, lib/ash_pplan/provider.ex, deps/ash 3.33.11 reactor steps, code_interface, bulk actions); docs/jira/v26.9.30/RESOLUTIONS.md pinned IDs and namespaces." ;
+    errc:impact "The DOMAIN family joins the qualified capability ecology as admitted source-of-record: plans target dcp:DomainCapability identities; resolvers select dcp:Realization bindings; neither grants authority (gates 070/080/090)." .
+
+errc:AlignLegacyNamespace a errc:Finding ;
+    rdfs:label "Eliminate (v0.2.0): a second, ad-hoc namespace spelling for a family the wave has pinned" ;
+    errc:category "Eliminate" ;
+    errc:statement "v0.1.0 published dcp: at http://seanchatmangpt.github.io/packs/domain-capability# before the capability-ecology wave pinned family namespaces at https://ggen.dev/ontology/<family>-capability#. The vocabulary moved verbatim to the pinned IRI with per-term dcterms:isReplacedBy records (dcp:NamespaceAlignment2026-09-30); nothing was deleted or renamed silently, and both known consumers of the legacy IRIs carry self-contained copies in their own qualification fixtures." ;
+    errc:evidence "docs/jira/v26.9.30/RESOLUTIONS.md namespace table (dcp: -> https://ggen.dev/ontology/domain-capability#); gym-upper-ontology-pack and standing-ladder-pack qualification fixtures embed their own legacy-IRI copies (read 2026-09-30)." ;
+    errc:impact "One namespace per family across the capability ecology; consumers resolve pinned dotted IDs through one stable IRI." .
