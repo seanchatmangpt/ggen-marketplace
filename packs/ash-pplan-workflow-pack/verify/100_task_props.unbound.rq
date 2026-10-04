@@ -1,0 +1,25 @@
+PREFIX ap: <https://w3id.org/ash-pplan#>
+
+# INVERTED COMPANION to gates/100_task_props.rq. ZERO ROWS IS THE PASS CONDITION.
+# The gate's rows join on ap:taskId (task) and the ap:supportsCapability /
+# ap:supportsProperty provider edge, so the companion refutes (a) tasks missing
+# the ap:taskId join key and (b) task capability requirements no provider
+# supports -- the gate's own blind spot is a task whose capability has NO
+# supporting provider, which yields no join row and escapes :gate_failed.
+
+SELECT ?subject ?missing_property
+WHERE {
+  {
+    ?subject a ap:Task .
+    OPTIONAL { ?subject ap:taskId ?p_id }
+    FILTER (!BOUND(?p_id))
+    BIND("ap:taskId" AS ?missing_property)
+  }
+  UNION
+  {
+    ?subject a ap:Task ; ap:requiresCapability ?c .
+    OPTIONAL { ?provider ap:supportsCapability ?c }
+    FILTER (!BOUND(?provider))
+    BIND("ap:supportsCapability" AS ?missing_property)
+  }
+}
