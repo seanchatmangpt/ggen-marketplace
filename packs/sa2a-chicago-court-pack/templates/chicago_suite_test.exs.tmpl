@@ -1,0 +1,89 @@
+# GENERATED FROM ggen-marketplace: sa2a-chicago-court-pack
+# Pure pack-deployed Chicago adversarial test suite. Zero mocks, real collaborators.
+
+defmodule AshA2A.PackDeployed.ChicagoCourtTest do
+  use ExUnit.Case, async: false
+
+  @moduledoc """
+  Chicago Court test generated purely from sa2a-chicago-court-pack.
+  Exercises real TwoPortGate conjunct masks, exact-SHA leases, and offline tamper verification.
+  """
+
+  alias AshA2A.Authority.{Lease, TwoPortGate}
+  alias AshA2A.{Command, SemanticSubject}
+
+  @ga "sha256:" <> String.duplicate("a", 64)
+  @gb "sha256:" <> String.duplicate("b", 64)
+  @gc "sha256:" <> String.duplicate("c", 64)
+  @gd "sha256:" <> String.duplicate("d", 64)
+
+  defp make_subject do
+    {:ok, subj} =
+      SemanticSubject.new(
+        graph_digest: @ga,
+        projection_digest: @gb,
+        manufacturer_digest: @gc,
+        ephemeral?: false
+      )
+    subj
+  end
+
+  defp make_command do
+    Command.new("AshA2A.Test.Fixture.Echo.read",
+      command_id: "two-port-pack-1",
+      agent_id: "pack-agent",
+      principal_id: "p-pack",
+      task_id: "task-pack-1",
+      semantic_subject: make_subject()
+    )
+  end
+
+  defp make_keypair do
+    :crypto.generate_key(:eddsa, :ed25519)
+  end
+
+  describe "Pack-Deployed Court CHI-DEPLOY-BRCE" do
+    test "positive falsifier: Valid leased actuation passes TwoPortGate without refusal" do
+      {pub, priv} = make_keypair()
+      cmd = make_command()
+
+      {:ok, signed} = cmd |> Lease.for_command() |> Lease.sign(priv)
+
+      result = TwoPortGate.evaluate(cmd, signed, lease_public_key: pub)
+      assert result == :admitted
+    end
+
+    test "negative falsifier: Scope mismatch fails TwoPortGate with mask 0x1" do
+      {pub, priv} = make_keypair()
+      cmd = make_command()
+
+      {:ok, signed} =
+        cmd
+        |> Lease.for_command()
+        |> struct(scope_digest: @gd)
+        |> Lease.sign(priv)
+
+      result = TwoPortGate.evaluate(cmd, signed, lease_public_key: pub)
+      assert {:error, {:refused_lease, mask, %{codes: codes}}} = result
+      assert Bitwise.band(mask, 0x1) == 0x1
+      assert :lease_scope_mismatch in codes
+    end
+
+    test "mutation falsifier: Expired cross-VM lease refuses with mask 0x4" do
+      {pub, priv} = make_keypair()
+      cmd = make_command()
+
+      expired =
+        cmd
+        |> Lease.for_command(issued_monotonic_ms: nil)
+        |> struct(not_before: ~U[2020-01-01 00:00:00Z], expires_at: ~U[2020-01-02 00:00:00Z])
+
+      {:ok, signed} = Lease.sign(expired, priv)
+
+      result = TwoPortGate.evaluate(cmd, signed, lease_public_key: pub)
+      assert {:error, {:refused_lease, mask, %{codes: codes}}} = result
+      assert Bitwise.band(mask, 0x4) == 0x4
+      assert :lease_expired in codes
+    end
+  end
+end
