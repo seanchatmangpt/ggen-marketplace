@@ -745,6 +745,7 @@ ap:reactorBody a rdf:Property ;
 # workflow-pack mirror to the canonical root (2026-10-04); mirrors re-synced.
 
 ap:wf_Signup a ap:Workflow ;
+    rdfs:label "signup" ;
     ap:workflowName "signup" ;
     ap:goal "Signup reactor flow" ;
     ap:reactorDoc """  Customer signup: verify the signup JWT (typed refusal on
@@ -849,6 +850,7 @@ argument :entitlement, result(:apply_creation_event)""" ;
     end""" .
 
 ap:wf_Activation a ap:Workflow ;
+    rdfs:label "activation" ;
     ap:workflowName "activation" ;
     ap:goal "Activation reactor flow" ;
     ap:reactorDoc """  Entitlement activation with the race-condition safeguard: the procurement
@@ -930,6 +932,7 @@ argument :entitlement, result(:apply_active_event)""" ;
     end""" .
 
 ap:wf_Usage a ap:Workflow ;
+    rdfs:label "usage" ;
     ap:workflowName "usage" ;
     ap:goal "Usage reactor flow" ;
     ap:reactorDoc """  Turns a completed durable workflow run into metered usage: runs a real
@@ -1018,6 +1021,7 @@ argument :usage, result(:post_usage)""" ;
     ap:reactorBody """    run fn %{run: run, usage: usage}, _context -> {:ok, %{run: run, usage: usage}} end""" .
 
 ap:wf_Reporting a ap:Workflow ;
+    rdfs:label "reporting" ;
     ap:workflowName "reporting" ;
     ap:goal "Reporting reactor flow" ;
     ap:reactorDoc """  Reporting: aggregates metered `plan_solve` usage over a half-open window,
@@ -1152,3 +1156,22 @@ argument :pool_id, input(:pool_id)""" ;
        }}
     end""" .
 
+
+# p-plan projection of the reactor individuals: ap:Workflow subClassOf p-plan:Plan,
+# so ap:PlanShape (rdfs:label x1, >=1 p-plan:isStepOfPlan step) binds each
+# ap:wf_* individual; each task carries the isStepOfPlan edge to its workflow.
+ap:task_signup_verify_jwt p-plan:isStepOfPlan ap:wf_Signup .
+ap:task_signup_create_account p-plan:isStepOfPlan ap:wf_Signup .
+ap:task_signup_apply_creation_event p-plan:isStepOfPlan ap:wf_Signup .
+ap:task_signup_assert_account p-plan:isStepOfPlan ap:wf_Signup .
+ap:task_activation_approve_account p-plan:isStepOfPlan ap:wf_Activation .
+ap:task_activation_apply_active_event p-plan:isStepOfPlan ap:wf_Activation .
+ap:task_activation_confirm_active p-plan:isStepOfPlan ap:wf_Activation .
+ap:task_usage_run_workflow p-plan:isStepOfPlan ap:wf_Usage .
+ap:task_usage_post_usage p-plan:isStepOfPlan ap:wf_Usage .
+ap:task_usage_result p-plan:isStepOfPlan ap:wf_Usage .
+ap:task_reporting_aggregate p-plan:isStepOfPlan ap:wf_Reporting .
+ap:task_reporting_build_payload p-plan:isStepOfPlan ap:wf_Reporting .
+ap:task_reporting_ensure_pool p-plan:isStepOfPlan ap:wf_Reporting .
+ap:task_reporting_record_drawdown p-plan:isStepOfPlan ap:wf_Reporting .
+ap:task_reporting_result p-plan:isStepOfPlan ap:wf_Reporting .
