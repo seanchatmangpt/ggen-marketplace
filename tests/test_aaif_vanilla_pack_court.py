@@ -136,6 +136,28 @@ class TestFailWitnessAntiVacuity:
         rows = run_gate(g, gate_path)
         assert len(rows) > 0, "Gate 080 is vacuous: failed to trip when skillTag was missing"
 
+    def test_gate_090_trips_when_delegated_agent_lacks_passport_key(self) -> None:
+        g = load_admitted_graph("enterprise_agent.ttl")
+        g.remove((AAIF.DemoPassport, AAIF.ed25519PublicKey, None))
+        gate_path = GATES_DIR / "090_agent_passport_monotonic_delegation.rq"
+        rows = run_gate(g, gate_path)
+        assert len(rows) > 0, "Gate 090 is vacuous: failed to trip when passport Ed25519 key was missing"
+
+    def test_gate_100_trips_when_trace_attestation_lacks_evidence_hash(self) -> None:
+        g = load_admitted_graph("enterprise_agent.ttl")
+        g.remove((AAIF.DemoTrace, AAIF.complianceEvidenceHash, None))
+        gate_path = GATES_DIR / "100_trace_compliance_attestation.rq"
+        rows = run_gate(g, gate_path)
+        assert len(rows) > 0, "Gate 100 is vacuous: failed to trip when complianceEvidenceHash was missing"
+
+    def test_gate_110_trips_when_streaming_channel_lacks_transport(self) -> None:
+        g = load_admitted_graph("enterprise_agent.ttl")
+        g.remove((AAIF.DemoStreaming, AAIF.streamTransport, None))
+        gate_path = GATES_DIR / "110_bidi_streaming_steering_contract.rq"
+        rows = run_gate(g, gate_path)
+        assert len(rows) > 0, "Gate 110 is vacuous: failed to trip when streamTransport was missing"
+
+
 
 class TestMarketplacePackAdmission:
     def test_marketplace_validate_admits_aaif_vanilla_pack(self) -> None:
