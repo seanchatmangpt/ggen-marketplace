@@ -34,6 +34,9 @@ With `--out solutions/acme`:
 
 - `profile.json` — normalized profile, sorted keys, schema
   `https://ggen.dev/marketplace/profile-intake/v1`.
+  A `.json` input may carry an optional `deployment.residencyRegionLock`
+  string; it is projected onto the agent as an `aaif:residencyRegionLock`
+  triple and omitted entirely when absent.
 - `profile.ttl` — graph using vendored `ontologies/public/` vocabularies
   (FOAF, Schema.org, Org) plus parallel `aaif:Agent` individuals minted from
   the normalized fields.
