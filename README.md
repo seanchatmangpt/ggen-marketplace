@@ -50,6 +50,17 @@ Every admitted profile still requires `pack.toml`, a SemVer identity, a non-empt
 
 The permanent catalog is the set of admitted manifests under `packs/`. `scripts/marketplace.py catalog` is a deterministic projection; this repository deliberately does not maintain a second hand-edited catalog.
 
+## Commerce plane
+
+The marketplace also carries a monetization plane alongside the qualification plane:
+
+- `monetization.toml` — root registry of monetizable solutions, admitted by `scripts/admit-config.sh` and checked by `scripts/marketplace.py validate`;
+- `scripts/profile_intake.py` — manufactures a consumer scaffold under `solutions/<slug>/` from an admitted profile;
+- `scripts/deploy_aaif_solution.py` — pay-before-manufacture deployer: renders `kind`/`gke` plan bytes and emits a paid-delivery receipt chain;
+- entitlement seam with `backend = sim|real`.
+
+Standing is per rail: the `sim` backend is `PARTIAL_ALIVE` for its own bounded boundary; the `real` GCP backend is `BLOCKED: vendor onboarding`. Receipts bind to the exact deployed subject; validation and receipts do not confer DO authority.
+
 ## Level 5
 
 Level 5 is **closure**, not a badge attached to a directory. The marketplace evaluates maturity across seven dimensions:
