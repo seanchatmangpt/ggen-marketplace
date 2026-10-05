@@ -23,9 +23,9 @@ Within the modeled surface, raw LLM outputs, configuration templates, and agent 
 ```mermaid
 graph TD
     A[Inbound Agent Intent / Request] --> B{SPARQL / SHACL Gate Admission}
-    B -- Refused (q=0) --> X[Immediate Typed Refusal: REFUSED_GATE_FAILED, emitted by the deployer refusal ladder]
+    B -- Refused (q=0) --> X[Immediate Typed Refusal: REFUSED:SOLUTION_GATE_VIOLATION, emitted by the deployer refusal ladder]
     B -- Admitted (q=1) --> C{Monotonic Grant Evaluation}
-    C -- Escalation Attempt --> Y[Immediate Refusal: REFUSED_NON_MONOTONIC_GRANT, emitted by the deployer refusal ladder on gate 090]
+    C -- Escalation Attempt --> Y[Immediate Refusal: REFUSED:NON_MONOTONIC_GRANT, emitted by the deployer refusal ladder on gate 090]
     C -- C_child ⊆ C_parent --> D[Typed Authority Ceiling: CONSTRUCT]
     D --> E{Leased BRCE Actuation}
     E -- No Active Lease --> Z[Execution Blocked: UNAUTHORIZED_PATH]
@@ -77,7 +77,7 @@ Fortune 5 financial, defense, and healthcare enterprises face strict regulatory 
 
 | Enterprise Risk Surface | Failure Mechanism | Defensible Engineering Resolution |
 | :--- | :--- | :--- |
-| **Data Leakage & Sovereignty** | Uncontrolled payload routing to external models or cross-border network egress. | **Inline DLP & Geographic Residency Locks** (`aaif:InlineDLPPolicy`): High-entropy PII/PHI redaction via reversible tokenization; requests violating jurisdictional region locks fail closed with the typed `:REFUSED_DATA_RESIDENCY_VIOLATION` refusal (emitted by the deployer refusal ladder, fail-closed via the `aaif:InlineDLPPolicy` gate 140). |
+| **Data Leakage & Sovereignty** | Uncontrolled payload routing to external models or cross-border network egress. | **Inline DLP & Geographic Residency Locks** (`aaif:InlineDLPPolicy`): High-entropy PII/PHI redaction via reversible tokenization; requests violating jurisdictional region locks fail closed with the typed `REFUSED:DATA_RESIDENCY_VIOLATION` refusal (emitted by the deployer refusal ladder, fail-closed via the `aaif:InlineDLPPolicy` gate 140). |
 | **Key Exfiltration** | Long-lived plaintext encryption keys stored in memory or local configuration files. | **CMEK / BYOK FIPS 140 Envelope Encryption** (`aaif:CMEKEncryptionPolicy`): Payloads encrypted with ephemeral AES-256-GCM DEKs wrapped by customer KEKs in Cloud KMS / HSM. Plaintext DEKs never touch cold storage. |
 | **Runaway Billing Risk** | Unbounded autonomous loops generating compounding API charges. | **Fail-Closed FinOps Circuit Breakers** (`aaif:FinOpsBudgetGuardrail`): Cost-center tagging with hard USD budget ceilings. Quota breach halts dispatch before execution, court-pinned with zero-side-effect witnesses. |
 | **Node Eviction & State Loss** | Uncoordinated SIGTERM during Kubernetes pod preemption or rolling updates. | **Two-Phase Graceful DRAIN Protocol** (`aaif:GracefulDrainContract`): Phase 1 (Cordon, HTTP 503) -> Phase 2 (Drain, checkpoint execution frame to durable storage and cluster handover within 30s). |
