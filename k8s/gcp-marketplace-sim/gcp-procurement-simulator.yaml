@@ -313,6 +313,49 @@ data:
         print("Wire-Indistinguishable GCP Marketplace Server running on :%d" % PORT)
         server.serve_forever()
 ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gcp-procurement-simulator
+  namespace: gcp-marketplace
+  labels:
+    app: gcp-procurement-simulator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gcp-procurement-simulator
+  template:
+    metadata:
+      labels:
+        app: gcp-procurement-simulator
+    spec:
+      containers:
+      - name: simulator
+        image: python:3.11-alpine
+        command: ["sh", "-c", "pip install --quiet cryptography && python -u /app/server.py"]
+        env:
+        - name: AAIF_SIM_PORT
+          value: "8443"
+        - name: AAIF_SIM_DISCOVERY_DIR
+          value: "/app"
+        ports:
+        - containerPort: 8443
+          name: api
+        volumeMounts:
+        - name: code
+          mountPath: /app
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8443
+          initialDelaySeconds: 2
+          periodSeconds: 3
+      volumes:
+      - name: code
+        configMap:
+          name: gcp-procurement-simulator-code
+---
 apiVersion: v1
 kind: Service
 metadata:
