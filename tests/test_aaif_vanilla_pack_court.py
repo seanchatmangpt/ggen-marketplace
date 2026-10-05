@@ -263,87 +263,38 @@ class TestMarketplacePackAdmission:
         assert "validated packs=" in res.stdout
 
 
-class TestRealProjectionAndReplayLoop:
-    def test_real_materialization_and_deterministic_replay(self, tmp_path: Path) -> None:
-        """Run real projection twice and verify byte-identical output."""
-        fixture = FIXTURES_DIR / "marketplace_swarm.ttl"
-        out_dir_1 = tmp_path / "run1"
-        out_dir_2 = tmp_path / "run2"
+class TestLegacyRendererRetired:
+    """render_aaif_pack.py is intentionally retired (I2): the modern projection
+    path is `ggen sync run` against packs/aaif-vanilla-pack/ggen.toml, proven
+    byte-identical by TestRealGgenSyncReplay. The legacy renderer's templates
+    were stripped of their frontmatter, so it now materializes 0 manifests by
+    design. These tests are retirement witnesses documenting that fact.
+    """
 
-        # Run 1
-        res1 = subprocess.run(
-            [sys.executable, str(RENDER_SCRIPT), "--fixture", str(fixture), "--out", str(out_dir_1)],
-            cwd=str(ROOT),
-            capture_output=True,
-            text=True
-        )
-        assert res1.returncode == 0, f"Render pass 1 failed: {res1.stderr}"
-
-        # Run 2
-        res2 = subprocess.run(
-            [sys.executable, str(RENDER_SCRIPT), "--fixture", str(fixture), "--out", str(out_dir_2)],
-            cwd=str(ROOT),
-            capture_output=True,
-            text=True
-        )
-        assert res2.returncode == 0, f"Render pass 2 failed: {res2.stderr}"
-
-        files1 = sorted([p.relative_to(out_dir_1) for p in out_dir_1.rglob("*") if p.is_file()])
-        files2 = sorted([p.relative_to(out_dir_2) for p in out_dir_2.rglob("*") if p.is_file()])
-        assert files1 == files2
-        assert len(files1) == 8, f"Expected 8 emitted manifests, got {len(files1)}"
-
-        # Verify byte identity between runs
-        for rel_p in files1:
-            bytes1 = (out_dir_1 / rel_p).read_bytes()
-            bytes2 = (out_dir_2 / rel_p).read_bytes()
-            assert bytes1 == bytes2, f"Replay non-deterministic for {rel_p}"
-
-    def test_syntax_and_specification_fidelity_of_emitted_swarm(self, tmp_path: Path) -> None:
-        """Verify emitted artifacts comply with upstream AAIF project schemas."""
+    def test_legacy_renderer_is_retired(self, tmp_path: Path) -> None:
+        """The legacy renderer exits 0 and emits zero manifests (retired)."""
         fixture = FIXTURES_DIR / "marketplace_swarm.ttl"
         out_dir = tmp_path / "dist"
-        subprocess.run(
+
+        res = subprocess.run(
             [sys.executable, str(RENDER_SCRIPT), "--fixture", str(fixture), "--out", str(out_dir)],
             cwd=str(ROOT),
-            check=True
+            capture_output=True,
+            text=True,
+        )
+        assert res.returncode == 0, f"Legacy renderer should exit 0: {res.stderr}"
+
+        emitted = sorted(p.relative_to(out_dir) for p in out_dir.rglob("*") if p.is_file())
+        assert emitted == [], (
+            "Legacy renderer emitted manifests; it was retired by design "
+            "(template frontmatter stripped) and must stay inert"
         )
 
-        # 1. A2A Agent Card (.well-known/agent.json)
-        agent_card = json.loads((out_dir / ".well-known" / "agent.json").read_text())
-        assert "Coordinator" in agent_card["name"] or "Marketplace" in agent_card["name"]
-        assert "capabilities" in agent_card
-        assert "security_schemes" in agent_card
-        assert len(agent_card["supported_interfaces"]) == 2
-
-        # 2. MCP Servers (mcp/mcp_servers.json)
-        mcp_cfg = json.loads((out_dir / "mcp" / "mcp_servers.json").read_text())
-        assert "mcpServers" in mcp_cfg
-        assert "filesystem" in mcp_cfg["mcpServers"]
-        assert "fetch" in mcp_cfg["mcpServers"]
-
-        # 3. Agentgateway Config (agentgateway/config.json)
-        ag_cfg = json.loads((out_dir / "agentgateway" / "config.json").read_text())
-        assert ag_cfg["binds"][0]["port"] == 8080
-
-        # 4. Agent Router CRDs (k8s/agent-router.yaml)
-        crds = list(yaml.safe_load_all((out_dir / "k8s" / "agent-router.yaml").read_text()))
-        kinds = {c["kind"] for c in crds}
-        assert "AIGatewayRoute" in kinds
-        assert "AIServiceBackend" in kinds
-        assert len(crds) == 7
-
-        # 5. Goose Config & Recipe (.config/goose/*)
-        goose_cfg = yaml.safe_load((out_dir / ".config" / "goose" / "config.yaml").read_text())
-        assert goose_cfg["active_provider"] == "anthropic"
-        assert goose_cfg["providers"]["anthropic"]["model"] == "claude-3-7-sonnet"
-
-        recipe = yaml.safe_load((out_dir / ".config" / "goose" / "recipes" / "default.yaml").read_text())
-        assert "Swarm" in recipe["title"]
-
-        # 6. AGENTS.md
-        agents_md = (out_dir / "AGENTS.md").read_text()
-        assert "Open Protocol Conformances" in agents_md
+    def test_legacy_renderer_documented(self) -> None:
+        """The script's docstring must name its retirement and the modern path."""
+        doc = RENDER_SCRIPT.read_text()
+        assert "RETIRED" in doc
+        assert "ggen.toml" in doc
 
 
 EXPECTED_DIST_FILES = (

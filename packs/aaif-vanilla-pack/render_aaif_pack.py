@@ -3,6 +3,11 @@
 Projection runner script to project aaif-vanilla-pack templates into concrete artifacts
 using rdflib and jinja2, conforming strictly to vanilla AAIF standards.
 Supports configurable fixture source and output target directory.
+
+RETIRED: the modern projection path is `ggen sync run` driven by ggen.toml
+in this pack directory (see tests/test_aaif_vanilla_pack_court.py::TestRealGgenSyncReplay).
+Pack templates no longer carry render frontmatter, so this script emits 0
+manifests by design and is retained only as a retirement witness.
 """
 
 import argparse
