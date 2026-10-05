@@ -215,47 +215,148 @@ def retaylor_profile_json(body, tailoring):
     return json.dumps(data, indent=2, sort_keys=True) + "\n"
 
 
-def recompute_lock(solution_dir):
-    """Recompute the whole capsule lock: profile_sha256 AND per-pack digests.
+def _visible(path, base):
+    """Same visibility law as marketplace.visible_files: no dot-dirs/dotfiles,
+    no __pycache__ (ggen runtime state must not enter any digest fold)."""
+    return not any(
+        part.startswith(".") or part == "__pycache__"
+        for part in path.relative_to(base).parts
+    )
 
-    Mirrors the deployer's own folds (marketplace.fingerprint_paths over every
-    solution input file except solution.json and any dist/ tree, and over each
-    pack's files). Needed because the capsule tailoring changes solution
-    inputs, and because the committed repo lock can drift from pack trees
-    (capsule-only repair; repo files are never touched).
+
+def _pack_files(pack_path):
+    return sorted(
+        p
+        for p in pack_path.rglob("*")
+        if p.is_file() and not p.is_symlink() and _visible(p, pack_path)
+    )
+
+
+def _solution_input_files(solution_dir):
+    return [
+        p
+        for p in solution_dir.rglob("*")
+        if p.is_file()
+        and not p.is_symlink()
+        and p.name != "solution.json"
+        and "dist" not in p.relative_to(solution_dir).parts
+        and _visible(p, solution_dir)
+    ]
+
+
+def refuse_symlinks_in(*roots):
+    """Defense-in-depth: no symlink may appear in any capsule source tree.
+
+    A symlink smuggles host-file content (or arbitrary paths) into the
+    capsule copy and therefore into the receipt digest chain. Walk every
+    source tree first and refuse before any copy.
+    """
+    for root in roots:
+        for p in sorted(root.rglob("*")):
+            if p.is_symlink():
+                raise refused("SYMLINK_IN_SOURCE", f"{p} (-> {os.readlink(p)})", 2)
+
+
+def check_repo_lock_drift(repo_root):
+    """Recompute the REPO tree's lock (in memory, same folds as the deployer)
+    and diff field-by-field against the committed solution.json.
+
+    Returns the list of drifted key names. Empty list == no drift. Always
+    operates on repo paths -- never the (possibly tailored) capsule copy.
     """
     sys.path.insert(0, str(ROOT / "scripts"))
     import marketplace
 
-    input_files = [
-        p
-        for p in solution_dir.rglob("*")
-        if p.is_file()
-        and p.name != "solution.json"
-        and "dist" not in p.relative_to(solution_dir).parts
-    ]
+    solution_dir = repo_root / "solutions" / SOLUTION_NAME
+    committed = json.loads(
+        (solution_dir / "solution.json").read_text(encoding="utf-8")
+    )
+
+    computed = json.loads((solution_dir / "solution.json").read_text())
+    computed["profile_sha256"] = marketplace.fingerprint_paths(
+        _solution_input_files(solution_dir), solution_dir
+    )
+    for pack in computed["packs"]:
+        pack_path = (repo_root / "packs" / pack["name"]).resolve()
+        pack["content_hash"] = (
+            "sha256:"
+            + marketplace.fingerprint_paths(_pack_files(pack_path), pack_path)
+        )
+
+    diffs = []
+    if computed["profile_sha256"] != committed["profile_sha256"]:
+        diffs.append("profile_sha256")
+    committed_packs = {p["name"]: p for p in committed.get("packs", [])}
+    for pack in computed["packs"]:
+        c = committed_packs.get(pack["name"])
+        if c is None:
+            diffs.append(f"packs[{pack['name']}] (absent from committed lock)")
+        elif c.get("content_hash") != pack["content_hash"]:
+            diffs.append(f"packs[{pack['name']}].content_hash")
+    for name in sorted(set(committed_packs) - {p["name"] for p in computed["packs"]}):
+        diffs.append(f"packs[{name}] (in committed lock, absent from repo tree)")
+    return diffs
+
+
+def recompute_lock(solution_dir, repo_root, accept_drift):
+    """Detect repo-vs-lock drift, then recompute the whole capsule lock.
+
+    First the REPO tree's lock is recomputed (same folds, repo paths) and
+    diffed field-by-field against the committed solution.json. Any mismatch
+    is a typed refusal -- silently overwriting the lock would launder
+    repo-vs-lock drift past the deployer's digest law. --accept-drift is the
+    explicit regeneration workflow: it prints the diff and proceeds, and the
+    capsule recompute then runs only from that accepted basis.
+    """
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import marketplace
+
+    diffs = check_repo_lock_drift(repo_root)
+    if diffs:
+        detail = ";".join(diffs)
+        if not accept_drift:
+            raise refused(
+                "LOCK_DRIFT",
+                f"repo tree differs from committed solution lock: {detail}"
+                " (pass --accept-drift to regenerate the lock deliberately)",
+                2,
+            )
+        print(
+            f"WARNING: --accept-drift: regenerating lock over "
+            f"REFUSED:LOCK_DRIFT basis: {detail}",
+            file=sys.stderr,
+        )
+
     lock = json.loads((solution_dir / "solution.json").read_text(encoding="utf-8"))
-    lock["profile_sha256"] = marketplace.fingerprint_paths(input_files, solution_dir)
+    lock["profile_sha256"] = marketplace.fingerprint_paths(
+        _solution_input_files(solution_dir), solution_dir
+    )
     for pack in lock["packs"]:
         pack_path = (solution_dir / pack["path"]).resolve()
-        pack_files = sorted(p for p in pack_path.rglob("*") if p.is_file())
-        actual = marketplace.fingerprint_paths(pack_files, pack_path)
+        actual = marketplace.fingerprint_paths(_pack_files(pack_path), pack_path)
         pack["content_hash"] = "sha256:" + actual
     (solution_dir / "solution.json").write_text(
         json.dumps(lock, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
 
 
-def build_capsule(tmp, profile):
+def build_capsule(tmp, profile, repo_root=ROOT, accept_drift=False):
     """Temp capsule: solutions/enterprise-aaif + locked packs; repo untouched."""
+    repo_solution = repo_root / "solutions" / SOLUTION_NAME
     capsule = tmp / "capsule"
     solution_dir = capsule / "solutions" / SOLUTION_NAME
-    shutil.copytree(REPO_SOLUTION, solution_dir)
+    # Preserve, never follow: a symlinked entry would copy host-file content
+    # into the capsule (and its digests). The guard below refuses first.
+    shutil.copytree(repo_solution, solution_dir, symlinks=True)
+    refuse_symlinks_in(solution_dir)
     lock = json.loads((solution_dir / "solution.json").read_text(encoding="utf-8"))
     for pack in lock["packs"]:
+        pack_src = repo_root / "packs" / pack["name"]
+        refuse_symlinks_in(pack_src)
         shutil.copytree(
-            ROOT / "packs" / pack["name"],
+            pack_src,
             capsule / "packs" / pack["name"],
+            symlinks=True,
             ignore=shutil.ignore_patterns(".clap-noun-verb", "__pycache__", ".*"),
         )
     if PROFILE_TAILORINGS[profile]:
@@ -270,7 +371,7 @@ def build_capsule(tmp, profile):
             retaylor_profile_json(profile_json.read_text(encoding="utf-8"), tailoring),
             encoding="utf-8",
         )
-    recompute_lock(solution_dir)
+    recompute_lock(solution_dir, repo_root, accept_drift)
     return capsule, solution_dir
 
 
@@ -321,19 +422,35 @@ def main(argv=None):
     parser.add_argument(
         "--keep", action="store_true", help="keep the temp capsule dir on success"
     )
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        default=ROOT,
+        help="source root for solutions/ + packs/ capsule inputs "
+        "(injectable seam; defaults to this repo)",
+    )
+    parser.add_argument(
+        "--accept-drift",
+        action="store_true",
+        help="accept repo-vs-committed-lock drift: print the diff loudly and "
+        "regenerate the capsule lock from it (legit regeneration workflow)",
+    )
     args = parser.parse_args(argv)
 
+    repo_solution = args.repo_root / "solutions" / SOLUTION_NAME
     if not shutil.which("ggen"):
         raise refused("GGEN_NOT_FOUND", "ggen not on PATH; run scripts/install-ggen.sh", 7)
-    if not DEPLOY.is_file() or not SIM.is_file() or not REPO_SOLUTION.is_dir():
-        raise refused("INPUTS_MISSING", f"{DEPLOY} / {SIM} / {REPO_SOLUTION}", 2)
+    if not DEPLOY.is_file() or not SIM.is_file() or not repo_solution.is_dir():
+        raise refused("INPUTS_MISSING", f"{DEPLOY} / {SIM} / {repo_solution}", 2)
 
     work = Path(tempfile.mkdtemp(prefix="aaif-solution-quickstart-"))
     sim = CommerceSim()
     try:
         with sim:
             sim.seed(ACCOUNT_ID, SOLUTION_NAME)
-            capsule, capsule_solution = build_capsule(work, args.profile)
+            capsule, capsule_solution = build_capsule(
+                work, args.profile, args.repo_root, args.accept_drift
+            )
             out_dir = capsule_solution / "dist"
             receipts_dir = work / "receipts"
             result = run_deployer(

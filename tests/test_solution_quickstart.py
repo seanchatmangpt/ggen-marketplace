@@ -26,6 +26,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+_GIT_SOLUTIONS_BEFORE: str | None = None
 SCRIPT = ROOT / "scripts" / "run_solution_quickstart.py"
 
 needs_ggen = pytest.mark.skipif(
@@ -120,3 +121,89 @@ def test_missing_ggen_is_typed_refusal():
     assert result.returncode == 7
     assert "REFUSED:GGEN_NOT_FOUND" in result.stderr
     assert "Traceback" not in result.stderr
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _snapshot_solutions_status():
+    global _GIT_SOLUTIONS_BEFORE
+    _GIT_SOLUTIONS_BEFORE = _git_status_solutions()
+
+
+def _make_source_root(tmp_path: Path) -> Path:
+    """Injectable repo-root: real copies of solutions/enterprise-aaif + packs/,
+    so drift/symlink scenarios never touch the canonical checkout."""
+    src = tmp_path / "repo"
+    solution = json.loads(
+        (ROOT / "solutions" / "enterprise-aaif" / "solution.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    (src / "solutions" / "enterprise-aaif").parent.mkdir(parents=True)
+    shutil.copytree(
+        ROOT / "solutions" / "enterprise-aaif",
+        src / "solutions" / "enterprise-aaif",
+        symlinks=True,
+    )
+    (src / "packs").mkdir()
+    for pack in solution["packs"]:
+        shutil.copytree(
+            ROOT / "packs" / pack["name"],
+            src / "packs" / pack["name"],
+            symlinks=True,
+            ignore=shutil.ignore_patterns(".clap-noun-verb", "__pycache__", ".*"),
+        )
+    return src
+
+
+@needs_ggen
+def test_committed_lock_drift_is_typed_refusal(tmp_path):
+    """Hand-modify the committed lock in the injected source: the quickstart
+    must refuse with REFUSED:LOCK_DRIFT naming the drifted key, exit 2."""
+    src = _make_source_root(tmp_path)
+    lock_path = src / "solutions" / "enterprise-aaif" / "solution.json"
+    lock = json.loads(lock_path.read_text(encoding="utf-8"))
+    victim = lock["packs"][0]["name"]
+    lock["packs"][0]["content_hash"] = "sha256:" + "0" * 64
+    lock_path.write_text(json.dumps(lock, indent=2, sort_keys=True) + "\n")
+
+    result = _run_quickstart("--repo-root", str(src))
+    assert result.returncode == 2, (result.returncode, result.stderr[-1500:])
+    assert "REFUSED:LOCK_DRIFT" in result.stderr
+    assert f"packs[{victim}].content_hash" in result.stderr
+    # and the canonical checkout stayed untouched (before == after)
+    assert _git_status_solutions() == _GIT_SOLUTIONS_BEFORE
+
+
+@needs_ggen
+def test_accept_drift_prints_diff_and_proceeds(tmp_path):
+    src = _make_source_root(tmp_path)
+    lock_path = src / "solutions" / "enterprise-aaif" / "solution.json"
+    lock = json.loads(lock_path.read_text(encoding="utf-8"))
+    lock["packs"][0]["content_hash"] = "sha256:" + "0" * 64
+    lock_path.write_text(json.dumps(lock, indent=2, sort_keys=True) + "\n")
+
+    result = _run_quickstart("--repo-root", str(src), "--accept-drift")
+    assert result.returncode == 0, result.stderr[-1500:]
+    assert "REFUSED:LOCK_DRIFT" in result.stderr  # loud warning names the basis
+    summary = _summary(result.stdout)
+    assert len(summary["receipt_chain_hash"]) == 64
+    assert _git_status_solutions() == _GIT_SOLUTIONS_BEFORE
+
+
+@needs_ggen
+def test_symlink_in_capsule_source_is_typed_refusal(tmp_path):
+    src = _make_source_root(tmp_path)
+    solution = json.loads(
+        (src / "solutions" / "enterprise-aaif" / "solution.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    victim_pack = solution["packs"][0]["name"]
+    secret = src / "packs" / victim_pack / "host-secret.txt"
+    secret.symlink_to("/etc/hostname")
+
+    result = _run_quickstart("--repo-root", str(src))
+    assert result.returncode == 2, (result.returncode, result.stderr[-1500:])
+    assert "REFUSED:SYMLINK_IN_SOURCE" in result.stderr
+    assert str(secret) in result.stderr
+    assert _git_status_solutions() == _GIT_SOLUTIONS_BEFORE
