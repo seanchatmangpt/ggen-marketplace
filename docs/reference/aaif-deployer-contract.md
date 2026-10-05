@@ -139,6 +139,46 @@ The executable source for these fields is
 `scripts/entitlement.py` and `scripts/deploy_aaif_solution.py`; this
 document does not restate their internal counts or current standing values.
 
+## Security posture
+
+The commerce plane verifies entitlements instead of trusting them.
+
+- **JWT verification** (`scripts/entitlement.py` `_verify_jwt`): the record's
+  JWT must be RS256 (alg checked; `none` is refused), with a non-empty `kid`
+  resolved through the x509 metadata map fetched from
+  `{base_url}/robot/v1/metadata/x509/cloud-commerce-partner@system.gserviceaccount.com`.
+  The signing key is the certificate's public key. Claims checked: `iss` must
+  be the canonical Google robot URL or the metadata URL actually fetched (both
+  accepted because a sim/override endpoint cannot match the canonical fetch
+  URL), `aud` must equal the provider id, and `exp` must be a positive
+  integer in the future.
+- **Loopback pinning**: an `AAIF_ENTITLEMENT_ENDPOINT` override must resolve
+  to a loopback host unless `AAIF_ENTITLEMENT_ALLOW_REMOTE=1` is set;
+  otherwise the decision is `REFUSED_ENDPOINT_NOT_LOOPBACK`.
+- **Id validation**: `entitlement_id` is interpolated into URLs, so only
+  `^[A-Za-z0-9._-]{1,128}$` is accepted (`REFUSED_ID_INVALID`).
+- **Receipt chain fold** (`scripts/paid_delivery_receipt.py`): verify
+  recomputes the chain hash over every envelope and refuses on any field,
+  schema, chain-rule, timestamp, payload-hash, prev-chain, or fold mismatch;
+  per-slug files must match their chain lines exactly. Append rewrites the
+  `HEAD` anchor file with the new chain head hash.
+- **HEAD anchor**: tamper evidence is *comparison, not unforgeability* — the
+  anchor proves nothing by itself; detection requires comparing `HEAD`
+  against an out-of-band copy of the head hash taken at grant time. An
+  attacker who rewrites the whole chain including `HEAD` is not stopped by
+  the anchor alone.
+- **Forged-prior refusal** (`scripts/deploy_aaif_solution.py`
+  `prior_receipt`): a prior receipt grants redeploy only if the slug file
+  exists, the FULL chain verifies, and the stored `payload_hash_hex`
+  recomputes from the embedded payload. Anything else — forged, corrupt, or
+  unverifiable — is `REFUSED:PRIOR_RECEIPT_INVALID` (exit 13); redeploy is
+  never granted from an unverified receipt.
+- **Sim `:report` gate** (`k8s/gcp-marketplace-sim/server.py`): usage
+  reports must correlate a consumerId to an `ENTITLEMENT_ACTIVE` record
+  (directly or through the consumer->entitlement binding); an unresolvable
+  or inactive consumer gets HTTP 403 `ENTITLEMENT_REQUIRED` and no revenue
+  or report record is counted.
+
 ## See also
 
 - `tutorials/deploy-an-aaif-solution.md`

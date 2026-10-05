@@ -134,8 +134,11 @@ treated as `{}`.
   10,000 units with a fixed `requested = 1 + sum` rule.
 - **No push subscription.** `pubsubEnvelope` is embedded in the approve
   response; nothing is delivered to a subscriber endpoint.
-- **JWT minted, not externally verified.** The sim signs with its own key and
-  `:check` does not validate any caller JWT or OAuth token; the `/oauth2/v4/token`
-  endpoint returns a static-shape token without credential checking.
+- **JWT minted by the sim, verified by the client.** The sim signs with its
+  own key; `entitlement.py` `decide()` now cryptographically verifies that
+  JWT (RS256 + x509 `kid` lookup + `iss`/`aud`/`exp`) before honoring an
+  entitlement. `:check` still does not validate any caller JWT or OAuth
+  token, and the `/oauth2/v4/token` endpoint still returns a static-shape
+  token without credential checking.
 - Requests are matched by substring/`endswith` on the raw path, not by the
   real resource-path grammar.
