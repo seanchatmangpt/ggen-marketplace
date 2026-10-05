@@ -184,3 +184,75 @@ def test_cli_append_echoes_head_anchor(tmp_path: Path, capsys):
     assert out["head_anchor"] == str(
         tmp_path / "receipts" / "paid-delivery" / "HEAD"
     )
+
+
+def test_verify_with_matching_anchor_ok(tmp_path: Path):
+    e1 = pdr.append(tmp_path, "d-a0", payload("a0"))
+    e2 = pdr.append(tmp_path, "d-a1", payload("a1"))
+    ok, problems = pdr.verify(tmp_path, anchor_hash=e2["chain_hash_hex"])
+    assert ok
+    assert problems == []
+
+
+def test_verify_with_stale_anchor_refused(tmp_path: Path):
+    e1 = pdr.append(tmp_path, "d-s0", payload("s0"))
+    pdr.append(tmp_path, "d-s1", payload("s1"))
+    ok, problems = pdr.verify(tmp_path, anchor_hash=e1["chain_hash_hex"])
+    assert not ok
+    assert any(
+        "REFUSED_ANCHOR_MISMATCH" in p
+        and f"expected={e1['chain_hash_hex']}" in p
+        for p in problems
+    )
+
+
+def test_verify_anchor_detects_tampered_chain(tmp_path: Path):
+    # fully re-forged chain: every hash recomputed, so the internal fold is
+    # self-consistent -- only the out-of-band anchor exposes the tampering.
+    pdr.append(tmp_path, "d-t0", payload("original-0"))
+    head = tmp_path / "receipts" / "paid-delivery" / "HEAD"
+    good_head = head.read_text().strip()
+    chain = tmp_path / "receipts" / "paid-delivery" / "chain.jsonl"
+    env = json.loads(chain.read_text().splitlines()[0])
+    env["payload"] = payload("tampered")
+    env["payload_hash_hex"] = pdr.sha256_hex(pdr.canonical_json(env["payload"]))
+    env["chain_hash_hex"] = pdr.sha256_hex(
+        (env["prev_chain_hash_hex"] + env["payload_hash_hex"]).encode("utf-8")
+    )
+    chain.write_text(pdr.canonical_json(env) + "\n", encoding="utf-8")
+    ok, problems = pdr.verify(tmp_path, anchor_hash=good_head)
+    assert not ok
+    assert any("REFUSED_ANCHOR_MISMATCH" in p for p in problems)
+
+
+def test_verify_anchor_from_head_file_path(tmp_path: Path):
+    pdr.append(tmp_path, "d-h", payload("h"))
+    head = tmp_path / "receipts" / "paid-delivery" / "HEAD"
+    ok, problems = pdr.verify(tmp_path, anchor_hash=head.read_text().strip())
+    assert ok
+
+
+def test_cli_verify_with_anchor_flag_hex(tmp_path: Path, capsys):
+    p = tmp_path / "p.json"
+    p.write_text(json.dumps(payload("cli-a")))
+    env = pdr.append(tmp_path, "d-cli-a", payload("cli-a"))
+    assert p.is_file()
+    rc = pdr.main(["verify", str(tmp_path), "--anchor", env["chain_hash_hex"]])
+    assert rc == 0
+    assert "ALIVE" in capsys.readouterr().out
+
+
+def test_cli_verify_with_anchor_flag_head_file(tmp_path: Path, capsys):
+    pdr.append(tmp_path, "d-cli-h", payload("cli-h"))
+    head = tmp_path / "receipts" / "paid-delivery" / "HEAD"
+    rc = pdr.main(["verify", str(tmp_path), "--anchor", str(head)])
+    assert rc == 0
+    assert "ALIVE" in capsys.readouterr().out
+
+
+def test_cli_verify_anchor_mismatch_exit_2(tmp_path: Path, capsys):
+    e1 = pdr.append(tmp_path, "d-cli-m", payload("cli-m"))
+    pdr.append(tmp_path, "d-cli-m2", payload("cli-m2"))
+    rc = pdr.main(["verify", str(tmp_path), "--anchor", e1["chain_hash_hex"]])
+    assert rc == 2
+    assert "REFUSED_ANCHOR_MISMATCH" in capsys.readouterr().err

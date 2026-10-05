@@ -110,8 +110,17 @@ def append(receipts_dir: Path, slug: str, payload: dict) -> dict:
     return envelope
 
 
-def verify(receipts_dir: Path) -> tuple[bool, list[str]]:
-    """Re-walk the chain. Returns (ok, problems); problems are typed strings."""
+class AnchorMismatch(ValueError):
+    """Typed refusal: chain head does not equal the out-of-band anchor hash."""
+
+
+def verify(receipts_dir: Path, anchor_hash: str | None = None) -> tuple[bool, list[str]]:
+    """Re-walk the chain. Returns (ok, problems); problems are typed strings.
+
+    When `anchor_hash` is given, the final chain head must equal it, else
+    REFUSED_ANCHOR_MISMATCH naming both hexes (tamper evidence vs. the
+    out-of-band copy taken at grant time).
+    """
     receipts_dir = Path(receipts_dir)
     problems: list[str] = []
     chain = _read_chain(receipts_dir)
@@ -156,6 +165,13 @@ def verify(receipts_dir: Path) -> tuple[bool, list[str]]:
         on_disk = json.loads(f.read_text(encoding="utf-8"))
         if on_disk != env:
             problems.append(f"chain[{i}]:{slug}:REFUSED_SLUG_FILE_DRIFT")
+    if anchor_hash is not None:
+        expected = anchor_hash.strip().lower()
+        actual = chain[-1]["chain_hash_hex"].strip().lower()
+        if actual != expected:
+            problems.append(
+                f"head:REFUSED_ANCHOR_MISMATCH:expected={expected},actual={actual}"
+            )
     return (not problems), problems
 
 
@@ -170,6 +186,11 @@ def main(argv: list[str] | None = None) -> int:
 
     a_verify = sub.add_parser("verify", help="verify the whole chain")
     a_verify.add_argument("receipts_dir")
+    a_verify.add_argument(
+        "--anchor",
+        default=None,
+        help="expected final chain hash: raw hex, or path to a HEAD file",
+    )
 
     args = ap.parse_args(argv)
     if args.cmd == "append":
@@ -190,7 +211,13 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 0
-    ok, problems = verify(Path(args.receipts_dir))
+    anchor = args.anchor
+    if anchor is not None:
+        candidate = Path(anchor)
+        if len(anchor) != 64 or any(c not in "0123456789abcdefABCDEF" for c in anchor):
+            if candidate.is_file():
+                anchor = candidate.read_text(encoding="utf-8").strip()
+    ok, problems = verify(Path(args.receipts_dir), anchor_hash=anchor)
     if ok:
         print("ALIVE: paid-delivery chain verified")
         return 0
