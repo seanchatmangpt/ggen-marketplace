@@ -26,7 +26,8 @@ Refusal -> exit-code table (house scheme):
     7  ggen runtime not found
     8  gate/scope violation (SPARQL gate row, cluster-scoped manifest,
                             data-residency mismatch)
-    9  digest drift (profile/pack lock drift, non-monotonic grant)
+    9  digest drift (profile/pack lock drift, input drift during
+                            manufacture -> dist quarantined, non-monotonic grant)
    10  gcloud/kubectl actuation tooling or project mismatch
    12  ggen sync actuation failure
    13  paid-delivery receipt write failure / forged or unverifiable
@@ -238,37 +239,54 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def check_lock_digests(solution_dir: Path, lock: dict[str, Any]) -> None:
-    """Profile digest + per-pack content_hash drift -> exit 9.
+def input_folds(solution_dir: Path, lock: dict[str, Any]) -> tuple[str, list[str]]:
+    """(profile digest, per-pack content folds) over the solution INPUTS.
 
     The profile digest is the fingerprint_paths fold over every file in the
     solution dir except solution.json and any dist/ output (the lock covers
-    the solution's INPUTS only).
+    the solution's INPUTS only). Pack folds are aligned with lock["packs"]
+    and normalized (sha256: prefix stripped).
     """
+    GGEN_RUNTIME_STATE = frozenset({".ggen", ".ggen-v2", ".clap-noun-verb"})
     input_files = [
         p
         for p in solution_dir.rglob("*")
         if p.is_file()
         and p.name != "solution.json"
         and "dist" not in p.relative_to(solution_dir).parts
+        and not (set(p.relative_to(solution_dir).parts) & GGEN_RUNTIME_STATE)
     ]
-    digest = fingerprint_paths(input_files, solution_dir)
-    if digest != lock["profile_sha256"]:
-        raise refused(
-            "PROFILE_DIGEST_DRIFT",
-            f"solution inputs {digest} != lock {lock['profile_sha256']}",
-            EXIT_DIGEST_DRIFT,
-        )
+    profile = fingerprint_paths(input_files, solution_dir)
+    pack_folds: list[str] = []
     for pack in lock["packs"]:
         pack_path = (solution_dir / pack["path"]).resolve()
-        if not pack_path.is_dir():
-            raise refused(
-                "PROFILE_DIGEST_DRIFT",
-                f"pack {pack['name']}: path missing: {pack_path}",
-                EXIT_DIGEST_DRIFT,
-            )
         pack_files = sorted(p for p in pack_path.rglob("*") if p.is_file())
-        actual = fingerprint_paths(pack_files, pack_path)
+        pack_folds.append(fingerprint_paths(pack_files, pack_path) if pack_files else "")
+    return profile, pack_folds
+
+
+def _missing_pack(solution_dir: Path, lock: dict[str, Any]) -> str | None:
+    for pack in lock["packs"]:
+        if not (solution_dir / pack["path"]).resolve().is_dir():
+            return pack["name"]
+    return None
+
+
+def check_lock_digests(solution_dir: Path, lock: dict[str, Any]) -> None:
+    """Pre-manufacture input-digest admission: profile + per-pack drift -> exit 9."""
+    missing = _missing_pack(solution_dir, lock)
+    if missing is not None:
+        raise refused(
+            "PROFILE_DIGEST_DRIFT", f"pack {missing}: path missing", EXIT_DIGEST_DRIFT
+        )
+    profile, pack_folds = input_folds(solution_dir, lock)
+    if profile != lock["profile_sha256"]:
+        raise refused(
+            "PROFILE_DIGEST_DRIFT",
+            f"solution inputs {profile} != lock {lock['profile_sha256']}",
+            EXIT_DIGEST_DRIFT,
+        )
+    for pack, actual in zip(lock["packs"], pack_folds):
         expected = pack["content_hash"]
         if expected.startswith("sha256:"):
             expected = expected.split(":", 1)[1]
@@ -278,6 +296,50 @@ def check_lock_digests(solution_dir: Path, lock: dict[str, Any]) -> None:
                 f"pack {pack['name']}: content {actual} != lock {expected}",
                 EXIT_DIGEST_DRIFT,
             )
+
+
+def verify_inputs_post(
+    solution_dir: Path,
+    lock: dict[str, Any],
+    out_dir: Path,
+) -> tuple[str, list[str]]:
+    """AE2 finding 7: `ggen sync run` re-reads inputs under a different process,
+    so the pre-manufacture fold does not cover the files ggen actually read.
+    After manufacture, RE-compute the input folds and compare against the lock;
+    any drift means the artifact was manufactured from UNADMITTED inputs:
+
+    - dist/ is quarantined (deleted) BEFORE the refusal -- a consequence of
+      unadmitted inputs must not survive;
+    - typed refusal REFUSED:INPUT_DRIFT_DURING_MANUFACTURE (exit 9 family).
+
+    Unchanged inputs -> returns the (profile, pack_folds) folds.
+    """
+    try:
+        missing = _missing_pack(solution_dir, lock)
+        profile, pack_folds = input_folds(solution_dir, lock)
+        if missing is None:
+            if profile != lock["profile_sha256"]:
+                missing = "<profile>"
+            else:
+                for pack, actual in zip(lock["packs"], pack_folds):
+                    expected = pack["content_hash"]
+                    if expected.startswith("sha256:"):
+                        expected = expected.split(":", 1)[1]
+                    if actual != expected:
+                        missing = pack["name"]
+                        break
+        if missing is not None:
+            raise refused(
+                "INPUT_DRIFT_DURING_MANUFACTURE",
+                f"post-manufacture input folds differ from lock (pack={missing!r}); "
+                f"quarantining {out_dir}",
+                EXIT_DIGEST_DRIFT,
+            )
+    except Refused:
+        # Quarantine first: manufactured-from-unadmitted-inputs must not survive.
+        shutil.rmtree(out_dir, ignore_errors=True)
+        raise
+    return profile, pack_folds
 
 
 # ---------------------------------------------------------------------------
@@ -586,6 +648,7 @@ def write_receipt(
         "schema": "https://ggen.dev/marketplace/paid-delivery/v1",
         "monetization": monetization_block,
         "actuation": {**actuation_block, "graph_hash": graph_hash},
+        "closure": {"input_digest_verified_post": True},
     }
     try:
         return paid_delivery_receipt.append(receipts_dir, slug, payload)
@@ -748,6 +811,12 @@ def main(argv: list[str] | None = None) -> int:
 
         # 5. manufacture
         manufacture(solution_dir, timeout_seconds=args.timeout_seconds)
+
+        # 5b. AE2 finding 7: post-manufacture input re-verification. ggen sync
+        #     re-reads the inputs in its own process; a file changed between
+        #     the pre-check and the sync is manufactured without digest
+        #     coverage. Drift here quarantines dist/ and refuses (exit 9).
+        verify_inputs_post(solution_dir, lock, out_dir)
 
         # 6. pack SPARQL gates on the manufactured graph
         solution_gates(solution_dir, lock)

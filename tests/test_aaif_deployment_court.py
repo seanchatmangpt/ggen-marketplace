@@ -623,6 +623,66 @@ class TestForgedPriorReceipt:
 
 
 # ---------------------------------------------------------------------------
+# AE2 finding 7: post-manufacture input re-verification. ggen sync re-reads
+# inputs under its own process; a file changed between the pre-check and the
+# sync is manufactured without digest coverage. The deployer must re-fold the
+# inputs after manufacture, quarantine dist/ on drift, and refuse typed.
+# ---------------------------------------------------------------------------
+
+
+class TestPostManufactureInputDrift:
+    def test_drifted_input_refused_exit_9_dist_quarantined(self, tmp_path):
+        """(a) Capture the lock over clean inputs, mutate a generation input
+        AFTER the pre-check would have run, then run the post-manufacture
+        verify: REFUSED:INPUT_DRIFT_DURING_MANUFACTURE (exit 9) and the dist/
+        is quarantined (deleted) -- no artifact manufactured from unadmitted
+        inputs survives."""
+        deploy = _import_deploy()
+        solution_dir = _write_solution(tmp_path)
+        lock = deploy.read_solution_lock(solution_dir)
+        # dist exists as if ggen sync had just manufactured it
+        dist = solution_dir / "dist"
+        (dist / "k8s").mkdir(parents=True)
+        (dist / "k8s" / "namespace.yaml").write_text(
+            "apiVersion: v1\nkind: Namespace\nmetadata:\n  name: acme\n",
+            encoding="utf-8",
+        )
+        # mutate a real input, leaving the lock stale (the mid-manufacture edit)
+        tmpl = solution_dir / "packs" / "tiny-pack" / "templates" / "namespace.yaml.tmpl"
+        tmpl.write_text(tmpl.read_text(encoding="utf-8").replace("acme", "acme-evil"),
+                        encoding="utf-8")
+        with pytest.raises(deploy.Refused) as ei:
+            deploy.verify_inputs_post(solution_dir, lock, dist)
+        assert ei.value.exit_code == 9
+        assert "INPUT_DRIFT_DURING_MANUFACTURE" in str(ei.value)
+        # quarantine: the artifact is gone
+        assert not dist.exists()
+
+    def test_unchanged_inputs_post_check_passes_receipt_caries_closure(self, tmp_path):
+        """(b) Happy path: unchanged inputs -> post-check returns the folds;
+        the receipt payload's closure block carries
+        input_digest_verified_post: true."""
+        deploy = _import_deploy()
+        solution_dir = _write_solution(tmp_path)
+        lock = deploy.read_solution_lock(solution_dir)
+        dist = solution_dir / "dist"
+        dist.mkdir()
+        profile, pack_folds = deploy.verify_inputs_post(solution_dir, lock, dist)
+        assert profile == lock["profile_sha256"]
+        assert len(pack_folds) == len(lock["packs"])
+
+        receipts_dir = tmp_path / "receipts-root"
+        receipt = deploy.write_receipt(
+            receipts_dir,
+            "solution-acme",
+            {"backend": "sim"},
+            {"target": "kind", "target_standing": "SIMULATED"},
+            graph_hash="a" * 64,
+        )
+        assert receipt["payload"]["closure"] == {"input_digest_verified_post": True}
+
+
+# ---------------------------------------------------------------------------
 # Namespace-scope gate
 # ---------------------------------------------------------------------------
 
