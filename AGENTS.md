@@ -84,6 +84,8 @@ ZOE Marketplace / Clients (running projections)
 - **Intake**: `scripts/profile_intake.py` → `solutions/<slug>/` consumer scaffold (two-pack path pins, `solution.json` lock).
 - **Deploy**: `scripts/deploy_aaif_solution.py` — entitlement gate precedes manufacture; refusal ladder exits 2–13; paid-delivery receipt chain `paid-delivery-chain/v1`; `kind|gke` produce identical plan bytes.
 - **Standing fence**: sim/`kind` is `PARTIAL_ALIVE`; real GCP actuation is `BLOCKED:vendor-onboarding`; receipts carry no DO authority.
+- **Security landings**: entitlement tokens are verified (JWT) and the entitlement endpoint is allowlisted to Google/loopback (`REFUSED_ENDPOINT_NOT_GOOGLE` / `REFUSED_ENDPOINT_NOT_LOOPBACK`); plan manifests anchor a `HEAD` ref and are compared out-of-band, not trusted from the deploy response; redeploy is idempotent, and a forged/unreadable prior receipt refuses `REFUSED_PRIOR_RECEIPT_INVALID` (exit 13).
+- **Exit-set precision**: refusal exits are the house set {2..10, 12, 13} — no exit 11; input drift detected during manufacture sits in the exit-9 family.
 
 ---
 

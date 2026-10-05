@@ -19,7 +19,7 @@ The ggen runtime lives elsewhere; this repository owns canonical pack source, ma
 
 ## Commerce plane
 
-`monetization.toml` is the admitted commerce registry (closed key set, `backend: sim|real`, one billing authority). `scripts/profile_intake.py` scaffolds `solutions/<slug>/`; `scripts/deploy_aaif_solution.py` gates entitlement before manufacture (refusal ladder exits 2–13, receipt chain `paid-delivery-chain/v1`, identical plan bytes on `kind|gke`). Sim/`kind` is `PARTIAL_ALIVE`; real GCP actuation is `BLOCKED:vendor-onboarding`; receipts carry no DO authority. See AGENTS.md §6.
+`monetization.toml` is the admitted commerce registry (closed key set, `backend: sim|real`, one billing authority). `scripts/profile_intake.py` scaffolds `solutions/<slug>/`; `scripts/deploy_aaif_solution.py` gates entitlement before manufacture (refusal ladder house exit set {2..10, 12, 13}, receipt chain `paid-delivery-chain/v1`, identical plan bytes on `kind|gke`). Sim/`kind` is `PARTIAL_ALIVE`; real GCP actuation is `BLOCKED:vendor-onboarding`; receipts carry no DO authority. See AGENTS.md §6.
 
 ## Canonical command sequence
 
