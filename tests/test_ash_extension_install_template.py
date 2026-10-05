@@ -39,7 +39,7 @@ ex:Spec a aex:AshExtensionSpec ;
     aex:singleExtensionKind "ash_probe" ;
     aex:taskModuleName "AshProbe" ;
     aex:formatterModule "AshProbe.Formatter" ;
-    aex:installerRuntimeDep "wasmex|~> 0.15" ;
+    aex:installerRuntimeDep "wasmex ~> 0.15" ;
     aex:workflowReactor false ;
     aex:workflowReversible false ;
     aex:generatesReceiptedAction false ;
