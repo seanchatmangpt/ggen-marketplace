@@ -275,7 +275,7 @@ class FakeServer:
             def do_GET(self):
                 for path, payload in self.server.routes.items():
                     if self.path.split("?")[0] == path:
-                        body = json.dumps(payload).encode()
+                        body = payload if isinstance(payload, bytes) else json.dumps(payload).encode()
                         self.send_response(200)
                         self.send_header("Content-Type", "application/json")
                         self.end_headers()
@@ -443,3 +443,156 @@ def test_cli_id_invalid_exit_code(sim, tmp_path):
     )
     assert proc.returncode == 5
     assert "REFUSED_ENTITLEMENT_ID_INVALID" in proc.stdout
+
+
+# ---------------------------------------------------------------------------
+# AX3 re-attack hardening: backend-scoped iss fence, duplicate-kid JSON,
+# bool exp, real-rail googleapis pinning
+# ---------------------------------------------------------------------------
+
+def test_iss_fence_is_single_valued_per_backend():
+    """The issuer fence accepts exactly one iss per backend; the canonical
+    Google URL is never accepted on the sim rail and the fetched metadata URL
+    is never accepted on the real rail."""
+    sim_meta = "http://127.0.0.1:8443" + entitlement.METADATA_PATH
+    future = 9999999999
+    good = {"aud": "demo-provider", "exp": future}
+    for backend, accepted, rejected in (
+        ("sim", sim_meta, entitlement.CANONICAL_ISSUER),
+        ("real", entitlement.CANONICAL_ISSUER, sim_meta),
+    ):
+        ok, _ = entitlement._claims_ok(dict(good, iss=accepted), accepted,
+                                       "demo-provider", "k")
+        assert ok is True, backend
+        bad, _ = entitlement._claims_ok(dict(good, iss=rejected), accepted,
+                                        "demo-provider", "k")
+        assert bad is False, backend
+
+
+def test_bool_exp_refused():
+    for bad_exp in (True, False):
+        ok, _ = entitlement._claims_ok(
+            {"iss": entitlement.CANONICAL_ISSUER, "aud": "demo-provider",
+             "exp": bad_exp},
+            entitlement.CANONICAL_ISSUER, "demo-provider", "k")
+        assert ok is False, bad_exp
+
+
+def test_sim_backend_canonical_iss_token_refused(sim):
+    """A token claiming the canonical Google issuer, served by a non-sim-keyed
+    endpoint, is refused on the sim rail — never ALIVE."""
+    _seed(sim)
+    forged_jwt = ("eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImZha2UifQ."
+                  + base64.urlsafe_b64encode(json.dumps({
+                      "iss": entitlement.CANONICAL_ISSUER,
+                      "aud": "demo-provider",
+                      "exp": 9999999999,
+                  }).encode()).decode().rstrip("=")
+                  + ".c2ln")
+    fake = FakeServer({
+        "/entitlements/ent-1": {"state": "ENTITLEMENT_ACTIVE", "jwt": forged_jwt},
+    })
+    try:
+        with _endpoint(fake):
+            result = entitlement.decide("ent-1", CONFIG)
+    finally:
+        fake.stop()
+    assert result == {"standing": "BLOCKED",
+                      "refusal": "REFUSED_ENTITLEMENT_JWT_INVALID"}
+
+
+_RAW_DUP_KID_KEYMAP = b'{"fake-kid": "one", "fake-kid": "two"}'
+
+
+def test_fetch_strict_rejects_duplicate_kid():
+    """Duplicate keys in the x509 map are a hard parse failure under strict
+    mode (which _verify_jwt uses), not a silent last-win."""
+    fake = FakeServer({"/robot/v1/metadata/x509/"
+                       "cloud-commerce-partner@system.gserviceaccount.com":
+                       _RAW_DUP_KID_KEYMAP})
+    url = (f"http://127.0.0.1:{fake.port}/robot/v1/metadata/x509/"
+           "cloud-commerce-partner@system.gserviceaccount.com")
+    try:
+        status_strict, parsed_strict = entitlement._fetch(url, strict=True)
+        status_lenient, parsed_lenient = entitlement._fetch(url, strict=False)
+    finally:
+        fake.stop()
+    assert status_strict == 200 and parsed_strict is None
+    # lenient parse proves the map really does contain the duplicate
+    assert status_lenient == 200 and parsed_lenient == {"fake-kid": "two"}
+
+
+def test_duplicate_kid_keymap_refused_end_to_end():
+    path = "/robot/v1/metadata/x509/cloud-commerce-partner@system.gserviceaccount.com"
+    forged_jwt = ("eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImZha2UifQ."
+                  + base64.urlsafe_b64encode(json.dumps({
+                      "iss": entitlement.CANONICAL_ISSUER,
+                      "aud": "demo-provider",
+                      "exp": 9999999999,
+                  }).encode()).decode().rstrip("=")
+                  + ".c2ln")
+    fake = FakeServer({
+        "/entitlements/ent-1": {"state": "ENTITLEMENT_ACTIVE", "jwt": forged_jwt},
+        path: _RAW_DUP_KID_KEYMAP,
+    })
+    try:
+        with _endpoint(fake):
+            result = entitlement.decide("ent-1", CONFIG)
+    finally:
+        fake.stop()
+    assert result == {"standing": "BLOCKED",
+                      "refusal": "REFUSED_ENTITLEMENT_JWT_INVALID"}
+
+
+def test_real_backend_non_google_endpoint_refused():
+    old_ep = os.environ.get("AAIF_ENTITLEMENT_ENDPOINT")
+    old_remote = os.environ.get("AAIF_ENTITLEMENT_ALLOW_REMOTE")
+    os.environ["AAIF_ENTITLEMENT_ENDPOINT"] = "https://evil.example.com"
+    os.environ["AAIF_ENTITLEMENT_ALLOW_REMOTE"] = "1"
+    try:
+        result = entitlement.decide(
+            "ent-1", {"backend": "real",
+                      "billing_authorities": ["GOOGLE_CLOUD_MARKETPLACE"]})
+    finally:
+        if old_ep is None:
+            os.environ.pop("AAIF_ENTITLEMENT_ENDPOINT", None)
+        else:
+            os.environ["AAIF_ENTITLEMENT_ENDPOINT"] = old_ep
+        if old_remote is None:
+            os.environ.pop("AAIF_ENTITLEMENT_ALLOW_REMOTE", None)
+        else:
+            os.environ["AAIF_ENTITLEMENT_ALLOW_REMOTE"] = old_remote
+    assert result == {"standing": "BLOCKED",
+                      "refusal": "REFUSED_ENTITLEMENT_ENDPOINT_NOT_GOOGLE"}
+
+
+def test_real_backend_googleapis_subdomain_accepted_as_endpoint():
+    old_ep = os.environ.get("AAIF_ENTITLEMENT_ENDPOINT")
+    old_remote = os.environ.get("AAIF_ENTITLEMENT_ALLOW_REMOTE")
+    os.environ["AAIF_ENTITLEMENT_ENDPOINT"] = (
+        "https://cloudcommerceprocurement.googleapis.com")
+    os.environ["AAIF_ENTITLEMENT_ALLOW_REMOTE"] = "1"
+    try:
+        result = entitlement.decide(
+            "ent-1", {"backend": "real",
+                      "billing_authorities": ["GOOGLE_CLOUD_MARKETPLACE"]})
+    finally:
+        if old_ep is None:
+            os.environ.pop("AAIF_ENTITLEMENT_ENDPOINT", None)
+        else:
+            os.environ["AAIF_ENTITLEMENT_ENDPOINT"] = old_ep
+        if old_remote is None:
+            os.environ.pop("AAIF_ENTITLEMENT_ALLOW_REMOTE", None)
+        else:
+            os.environ["AAIF_ENTITLEMENT_ALLOW_REMOTE"] = old_remote
+    # passes the endpoint fence; falls through to the REAL_NOT_PERMITTED gate
+    assert result["refusal"] == "REFUSED_ENTITLEMENT_REAL_NOT_PERMITTED"
+
+
+def test_is_googleapis_shapes():
+    assert entitlement._is_googleapis("https://cloudcommerceprocurement.googleapis.com")
+    assert entitlement._is_googleapis("https://googleapis.com")
+    for bad in ("http://cloudcommerceprocurement.googleapis.com",
+                "https://googleapis.com.evil.example.com",
+                "https://evil-googleapis.com", "not a url"):
+        assert entitlement._is_googleapis(bad) is False, bad

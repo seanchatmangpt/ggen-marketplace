@@ -164,7 +164,7 @@ class ProductionGradeGCPHandler(BaseHTTPRequestHandler):
             # account reference travels in the body and in the record below).
             acc_id = "default"
             jwt_token = create_google_jwt({
-                "iss": "https://www.googleapis.com/robot/v1/metadata/x509/cloud-commerce-partner@system.gserviceaccount.com",
+                "iss": f"http://{self.headers.get('Host', 'localhost')}/robot/v1/metadata/x509/cloud-commerce-partner@system.gserviceaccount.com",
                 "sub": f"account-{acc_id}",
                 "aud": "demo-provider",
                 "entitlement_id": ent_id,

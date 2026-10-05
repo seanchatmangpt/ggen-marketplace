@@ -93,7 +93,8 @@ Typed refusal codes per exit, quoted from the `Refused` call sites:
   `REFUSED:SOLUTION_LOCK_MISSING`, `REFUSED:SOLUTION_LOCK_INVALID`,
   `REFUSED:DIST_ALREADY_EXISTS`, `REFUSED:BUDGET_EXCEEDED`
 - exit 3: `REFUSED_ENTITLEMENT_UNREACHABLE`,
-  `REFUSED_ENTITLEMENT_PROVIDER_UNREACHABLE`
+  `REFUSED_ENTITLEMENT_PROVIDER_UNREACHABLE`,
+  `REFUSED_ENTITLEMENT_ENDPOINT_NOT_GOOGLE`
 - exit 4: `REFUSED_ENTITLEMENT_NOT_ACTIVE`,
   `REFUSED_ENTITLEMENT_NOT_FOUND`
 - exit 5: `REFUSED:ENTITLEMENT_INVALID_RESPONSE:<detail>`
@@ -148,9 +149,9 @@ The commerce plane verifies entitlements instead of trusting them.
   resolved through the x509 metadata map fetched from
   `{base_url}/robot/v1/metadata/x509/cloud-commerce-partner@system.gserviceaccount.com`.
   The signing key is the certificate's public key. Claims checked: `iss` must
-  be the canonical Google robot URL or the metadata URL actually fetched (both
-  accepted because a sim/override endpoint cannot match the canonical fetch
-  URL), `aud` must equal the provider id, and `exp` must be a positive
+  match exactly one backend-scoped value — the metadata URL actually fetched on
+  the sim rail, the canonical Google robot URL on the real rail (never both) —
+  `aud` must equal the provider id, and `exp` must be a positive
   integer in the future.
 - **Loopback pinning**: an `AAIF_ENTITLEMENT_ENDPOINT` override must resolve
   to a loopback host unless `AAIF_ENTITLEMENT_ALLOW_REMOTE=1` is set;

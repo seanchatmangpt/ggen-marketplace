@@ -45,6 +45,7 @@ REFUSED_BACKEND_UNKNOWN = "REFUSED_BACKEND_UNKNOWN"
 REFUSED_REGISTRY_INVALID = "REFUSED_REGISTRY_INVALID"
 REFUSED_ID_INVALID = "REFUSED_ENTITLEMENT_ID_INVALID"
 REFUSED_ENDPOINT_NOT_LOOPBACK = "REFUSED_ENTITLEMENT_ENDPOINT_NOT_LOOPBACK"
+REFUSED_ENDPOINT_NOT_GOOGLE = "REFUSED_ENTITLEMENT_ENDPOINT_NOT_GOOGLE"
 REFUSED_JWT_INVALID = "REFUSED_ENTITLEMENT_JWT_INVALID"
 REFUSED_CRYPTO_UNAVAILABLE = "REFUSED_ENTITLEMENT_CRYPTO_UNAVAILABLE"
 
@@ -89,6 +90,18 @@ def _validate_endpoint() -> str | None:
     return REFUSED_ENDPOINT_NOT_LOOPBACK
 
 
+def _is_googleapis(url: str) -> bool:
+    """True only for https URLs whose host is googleapis.com or a subdomain."""
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except ValueError:
+        return False
+    host = parsed.hostname or ""
+    return parsed.scheme == "https" and (
+        host == "googleapis.com" or host.endswith(".googleapis.com")
+    )
+
+
 def _validate_registry(config: dict) -> str | None:
     """Return a refusal code when the monetization registry is unusable."""
     if "backend" not in config:
@@ -107,8 +120,19 @@ def _validate_entitlement_id(entitlement_id: str) -> str | None:
     return None
 
 
-def _fetch(url: str) -> tuple[int, dict | None]:
-    """GET url. Returns (status, parsed-json-or-None); never raises on transport error."""
+def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict:
+    """object_pairs_hook that refuses duplicate JSON keys instead of last-win."""
+    out: dict = {}
+    for k, v in pairs:
+        if k in out:
+            raise ValueError(f"duplicate key: {k}")
+        out[k] = v
+    return out
+
+
+def _fetch(url: str, strict: bool = False) -> tuple[int, dict | None]:
+    """GET url. Returns (status, parsed-json-or-None); never raises on transport error.
+    strict=True additionally refuses JSON with duplicate keys (returns (status, None))."""
     try:
         req = urllib.request.Request(url, method="GET")
         with urllib.request.urlopen(req, timeout=DEFAULT_TIMEOUT_SECS) as resp:
@@ -120,6 +144,9 @@ def _fetch(url: str) -> tuple[int, dict | None]:
     except Exception:
         return 0, None
     try:
+        if strict:
+            return status, json.loads(body.decode("utf-8"),
+                                      object_pairs_hook=_reject_duplicate_keys)
         return status, json.loads(body.decode("utf-8"))
     except Exception:
         return status, None
@@ -130,9 +157,16 @@ def _b64url_decode(segment: str) -> bytes:
     return base64.urlsafe_b64decode(padded.encode("utf-8"))
 
 
-def _verify_jwt(jwt_token: str, base_url: str, provider_id: str) -> tuple[bool, str]:
+def _verify_jwt(jwt_token: str, base_url: str, provider_id: str,
+                backend: str = "sim") -> tuple[bool, str]:
     """Verify the record's RS256 JWT against the x509 metadata map served at
-    {base_url}{METADATA_PATH}. Returns (ok, kid)."""
+    {base_url}{METADATA_PATH}. Returns (ok, kid).
+
+    Issuer fence is backend-scoped:
+      backend == "sim"  -> iss must equal the metadata URL actually fetched;
+      backend == "real" -> iss must equal the canonical Google robot URL.
+    Either way exactly one issuer value is accepted, so an endpoint serving the
+    x509 map can never mint tokens claiming the other identity."""
     try:
         from cryptography.exceptions import InvalidSignature
         from cryptography.hazmat.primitives import hashes
@@ -158,7 +192,7 @@ def _verify_jwt(jwt_token: str, base_url: str, provider_id: str) -> tuple[bool, 
         return False, ""
 
     metadata_url = base_url + METADATA_PATH
-    status, keys = _fetch(metadata_url)
+    status, keys = _fetch(metadata_url, strict=True)
     if status != 200 or not isinstance(keys, dict):
         return False, kid
     pem = keys.get(kid)
@@ -175,16 +209,24 @@ def _verify_jwt(jwt_token: str, base_url: str, provider_id: str) -> tuple[bool, 
 
     if not isinstance(claims, dict):
         return False, kid
-    # The issuer is the canonical Google robot metadata URL; when the keys are
-    # served by a sim/override endpoint the fetch URL differs from the iss the
-    # (real or sim) signer embeds, so both are accepted.
-    if claims.get("iss") not in (CANONICAL_ISSUER, metadata_url):
+    # Exactly one issuer is accepted, scoped to the backend (see docstring).
+    expected_iss = metadata_url if backend == "sim" else CANONICAL_ISSUER
+    return _claims_ok(claims, expected_iss, provider_id, kid)
+
+
+def _claims_ok(claims: dict, expected_iss: str, provider_id: str,
+               kid: str) -> tuple[bool, str]:
+    """Claim fence: exactly one accepted issuer, provider audience, future int
+    exp (bool explicitly refused)."""
+    if claims.get("iss") != expected_iss:
         return False, kid
     if claims.get("aud") != provider_id:
         return False, kid
     exp = claims.get("exp")
     now = int(time.time())
-    if not isinstance(exp, int) or exp <= 0 or exp <= now:
+    # bool is an int subclass; a JSON true/false exp must not pass as a valid
+    # expiry.
+    if isinstance(exp, bool) or not isinstance(exp, int) or exp <= 0 or exp <= now:
         return False, kid
     return True, kid
 
@@ -204,6 +246,12 @@ def decide(entitlement_id: str, config: dict) -> dict:
 
     backend = config.get("backend")
     if backend == "real":
+        # Real rail: the endpoint override must be a Google apis host. An
+        # ALLOW_REMOTE override pointing anywhere else is refused before any
+        # request is made.
+        override = os.environ.get("AAIF_ENTITLEMENT_ENDPOINT")
+        if override and not _is_googleapis(override):
+            return _refused(REFUSED_ENDPOINT_NOT_GOOGLE)
         if os.environ.get("AAIF_ENTITLEMENT_REAL_PERMIT") != "1":
             return _refused(REFUSED_REAL_NOT_PERMITTED)
         # Real cloudcommerceprocurement rail: no vendor id / ADC material is
@@ -233,7 +281,7 @@ def decide(entitlement_id: str, config: dict) -> dict:
     if not isinstance(provider_id, str) or not provider_id:
         return _refused(REFUSED_REGISTRY_INVALID)
     jwt_token = record.get("jwt")
-    ok, kid = _verify_jwt(jwt_token, _base_url(), provider_id)
+    ok, kid = _verify_jwt(jwt_token, _base_url(), provider_id, backend="sim")
     if not ok:
         if kid == REFUSED_CRYPTO_UNAVAILABLE:
             return _refused(REFUSED_CRYPTO_UNAVAILABLE)
@@ -280,7 +328,7 @@ def main(argv: list[str] | None = None) -> int:
     if refusal == REFUSED_NOT_ACTIVE:
         return EXIT_NOT_ACTIVE
     if refusal in (REFUSED_UNREACHABLE, REFUSED_PROVIDER_UNREACHABLE,
-                   REFUSED_ENDPOINT_NOT_LOOPBACK):
+                   REFUSED_ENDPOINT_NOT_LOOPBACK, REFUSED_ENDPOINT_NOT_GOOGLE):
         return EXIT_UNREACHABLE
     if refusal == REFUSED_REGISTRY_INVALID:
         return EXIT_REGISTRY_INVALID
