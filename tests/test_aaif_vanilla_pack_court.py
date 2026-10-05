@@ -171,6 +171,36 @@ class TestFailWitnessAntiVacuity:
         rows2 = run_gate(g2, gate_path)
         assert len(rows2) > 0, "Gate 120 is vacuous: failed to trip when hasAutofdeEngine was missing"
 
+    def test_gate_130_trips_when_enterprise_agent_lacks_spiffe_or_authzen(self) -> None:
+        g = load_admitted_graph("enterprise_agent.ttl")
+        g.remove((AAIF.DemoAgent, AAIF.hasSpiffeIdentity, None))
+        gate_path = GATES_DIR / "130_spiffe_authzen_identity.rq"
+        rows = run_gate(g, gate_path)
+        assert len(rows) > 0, "Gate 130 is vacuous: failed to trip when SPIFFE identity was missing"
+
+    def test_gate_140_trips_when_enterprise_agent_lacks_dlp_residency(self) -> None:
+        g = load_admitted_graph("enterprise_agent.ttl")
+        g.remove((AAIF.DemoDLPPolicy, AAIF.residencyRegionLock, None))
+        gate_path = GATES_DIR / "140_inline_dlp_residency.rq"
+        rows = run_gate(g, gate_path)
+        assert len(rows) > 0, "Gate 140 is vacuous: failed to trip when residencyRegionLock was missing"
+
+    def test_gate_150_trips_when_enterprise_agent_lacks_drain_contract(self) -> None:
+        g = load_admitted_graph("enterprise_agent.ttl")
+        g.remove((AAIF.DemoDrainContract, AAIF.checkpointIntervalSeconds, None))
+        gate_path = GATES_DIR / "150_sre_graceful_drain.rq"
+        rows = run_gate(g, gate_path)
+        assert len(rows) > 0, "Gate 150 is vacuous: failed to trip when checkpointIntervalSeconds was missing"
+
+    def test_gate_160_trips_when_enterprise_agent_lacks_affidavit_trust_plane(self) -> None:
+        g = load_admitted_graph("enterprise_agent.ttl")
+        g.remove((AAIF.DemoAgent, AAIF.hasAffidavitTrustPlane, None))
+        gate_path = GATES_DIR / "160_affidavit_post_quantum_seal.rq"
+        rows = run_gate(g, gate_path)
+        assert len(rows) > 0, "Gate 160 is vacuous: failed to trip when hasAffidavitTrustPlane was missing"
+
+
+
 
 
 

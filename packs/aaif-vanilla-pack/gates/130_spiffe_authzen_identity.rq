@@ -1,0 +1,19 @@
+PREFIX aaif: <https://aaif.io/ontology#>
+
+# FAIL-CLOSED GATE: An enterprise AAIF Agent MUST have a verified SPIFFE Workload Identity
+# with an active trust domain and be bound to an AuthZEN Policy Decision Point (PDP).
+SELECT ?agent ?spiffe ?pdp WHERE {
+    ?agent a aaif:Agent ;
+           aaif:hasPassport ?passport .
+
+    OPTIONAL {
+        ?agent aaif:hasSpiffeIdentity ?spiffe ;
+               aaif:boundToAuthZENPdp ?pdp .
+        ?spiffe aaif:spiffeId ?id ;
+                aaif:trustDomain ?domain .
+        ?pdp aaif:pdpEndpoint ?endpoint ;
+             aaif:preventsPdpMixup true .
+    }
+
+    FILTER (!BOUND(?spiffe) || !BOUND(?pdp) || !BOUND(?id) || !BOUND(?endpoint))
+}
