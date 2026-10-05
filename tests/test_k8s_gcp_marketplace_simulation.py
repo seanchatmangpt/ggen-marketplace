@@ -118,6 +118,17 @@ class TestK8sAAIFGCPMarketplaceSimulation:
             task_resp = json.loads(resp.read().decode('utf-8'))
             assert task_resp["result"]["status"] == "COMPLETED"
             assert task_resp["result"]["computeUnitsMetered"] == 1000
+            # Prove ash_a2a BEAM/WASM high-assurance execution
+            ash_rt = task_resp["result"]["ash_a2a_runtime"]
+            assert ash_rt["unforgeableAuth"] is True
+            assert "affidavit-wasm-sig-" in ash_rt["affidavitWasmReceipt"]
+            assert ash_rt["jwsCardSignature"] == "detached-jws-verified"
+            # Prove autofde-lab formal decision planning
+            fde_eng = task_resp["result"]["autofde_lab_engine"]
+            assert fde_eng["solver"] == "scikit-decide-astar"
+            assert fde_eng["bellmanOptimalityGated"] is True
+            assert "ocel-trace-" in fde_eng["ocel2EventTraceId"]
+
 
         # 4. Audit billing summary and verify revenue realized
         with urllib.request.urlopen(f"{GCP_SIMULATOR_URL}/v1/billing/summary", timeout=5) as resp:

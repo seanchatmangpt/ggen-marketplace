@@ -157,6 +157,21 @@ class TestFailWitnessAntiVacuity:
         rows = run_gate(g, gate_path)
         assert len(rows) > 0, "Gate 110 is vacuous: failed to trip when streamTransport was missing"
 
+    def test_gate_120_trips_when_enterprise_agent_lacks_ash_or_autofde_backend(self) -> None:
+        # Trip when AshA2A backend is removed
+        g1 = load_admitted_graph("enterprise_agent.ttl")
+        g1.remove((AAIF.DemoAgent, AAIF.hasAshA2ABackend, None))
+        gate_path = GATES_DIR / "120_unified_ash_autofde_runtime.rq"
+        rows1 = run_gate(g1, gate_path)
+        assert len(rows1) > 0, "Gate 120 is vacuous: failed to trip when hasAshA2ABackend was missing"
+
+        # Trip when Autofde backend is removed
+        g2 = load_admitted_graph("enterprise_agent.ttl")
+        g2.remove((AAIF.DemoAgent, AAIF.hasAutofdeEngine, None))
+        rows2 = run_gate(g2, gate_path)
+        assert len(rows2) > 0, "Gate 120 is vacuous: failed to trip when hasAutofdeEngine was missing"
+
+
 
 
 class TestMarketplacePackAdmission:

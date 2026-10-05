@@ -1,0 +1,22 @@
+PREFIX aaif: <https://aaif.io/ontology#>
+
+# FAIL-CLOSED GATE: An enterprise AAIF Agent MUST have both an admitted AshA2AExecutionRuntime
+# (with unforgeablePrincipalAuth and wasmAffidavitEngineEnabled) AND an admitted AutofdeDecisionEngine
+# (with bellmanOptimalityGated = true).
+SELECT ?agent WHERE {
+    ?agent a aaif:Agent .
+    
+    # Check if agent declares enterprise profile (has security scheme, passport, etc.)
+    ?agent aaif:hasPassport ?passport .
+
+    OPTIONAL {
+        ?agent aaif:hasAshA2ABackend ?ash .
+        ?ash aaif:unforgeablePrincipalAuth true ;
+             aaif:wasmAffidavitEngineEnabled true .
+        
+        ?agent aaif:hasAutofdeEngine ?fde .
+        ?fde aaif:bellmanOptimalityGated true .
+    }
+
+    FILTER (!BOUND(?ash) || !BOUND(?fde))
+}
