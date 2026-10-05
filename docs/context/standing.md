@@ -11,8 +11,8 @@ generation run; a commit cannot contain its own hash, so it names the commit gen
 
 - Marketplace version: `v26.10.2`
 - Pack count: 305
-- Catalog fingerprint: `sha256:e4bc181b0b0bb41c93624b849fb04378d4cfb7d14de41a4ca83cee69b30e74f4`
-- Head SHA: `de46386955e59fa5b62c7da37341233fbaeabc77`
+- Catalog fingerprint: `sha256:c0b133672b81f4826a94a8f0d5c132fbfa8e4a68a6883b39bc2f34156298ef75`
+- Head SHA: `3dac26768522d12ab27297fa75574d1edc821a70`
 
 ### Pack standing table
 
