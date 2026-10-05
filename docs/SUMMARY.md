@@ -36,6 +36,7 @@
 - [Measure manufacture time across toolchain changes](how-to/measure-manufacture-time.md)
 - [Flag a pack's lifecycle](how-to/flag-a-pack-lifecycle.md)
 - [Ingest a profile into the AAIF pipeline](how-to/ingest-a-profile.md)
+- [Tailor a solution from a deployment profile](how-to/tailor-a-solution-profile.md)
 - [Run the local kind commerce rail](how-to/run-the-kind-commerce-rail.md)
 
 # Reference
@@ -71,6 +72,7 @@
 - [Release v26.9.30](reference/release-v26.9.30.md)
 - [AAIF deployer contract](reference/aaif-deployer-contract.md)
 - [Retired packs — 2026-10-01](reference/retired-packs-26.10.01.md)
+- [GCP Commerce Sim API](reference/gcp-commerce-sim-api.md)
 - [ADOPTION DOSSIER — affidavit (reference adoption)](rust-wasm-elixir/ADOPTION/affidavit.md)
 - [ADOPTION DOSSIER — ash_a2a](rust-wasm-elixir/ADOPTION/ash_a2a.md)
 - [ADOPTION DOSSIER — bcinr](rust-wasm-elixir/ADOPTION/bcinr.md)
