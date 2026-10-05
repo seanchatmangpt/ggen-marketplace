@@ -1,5 +1,30 @@
+# MESSAGE: any row = an EntitlementState contract violation. Every
+# gcp:EntitlementState must carry a gcp:stateValue, and stateValues must be
+# unique across the family (two states answering to one wire value would make
+# the generated state machine ambiguous). The 8-value Entitlement.State enum
+# itself is the discovery-doc contract; this gate refuses a missing value or a
+# duplicate value, never the declared count (verified 2026-10-05; previously
+# this file was a bare projection of the 8 declared states, which the loader's
+# violation polarity treats as 8 refusals).
 PREFIX gcp: <https://seanchatmangpt.dev/ontology/gcp-marketplace#>
-SELECT ?stateValue WHERE {
-  ?s a gcp:EntitlementState ; gcp:stateValue ?stateValue .
+SELECT DISTINCT ?stateValue ?problem WHERE {
+  {
+    FILTER NOT EXISTS { ?s a gcp:EntitlementState }
+    BIND("empty-state-family" AS ?problem)
+  }
+  UNION
+  {
+    ?s a gcp:EntitlementState .
+    FILTER NOT EXISTS { ?s gcp:stateValue ?v }
+    BIND(?s AS ?stateValue)
+    BIND("missing-stateValue" AS ?problem)
+  }
+  UNION
+  {
+    ?s a gcp:EntitlementState ; gcp:stateValue ?stateValue .
+    ?s2 a gcp:EntitlementState ; gcp:stateValue ?stateValue .
+    FILTER(?s != ?s2)
+    BIND("duplicate-stateValue" AS ?problem)
+  }
 }
-ORDER BY ?stateValue
+ORDER BY ?stateValue ?problem

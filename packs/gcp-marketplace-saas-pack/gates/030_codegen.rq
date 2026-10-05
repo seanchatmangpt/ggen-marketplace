@@ -1,4 +1,28 @@
+# MESSAGE: any row = a codegen contract violation. Exactly one gcp:CodegenConfig
+# with a gcp:moduleName must exist (the templates refuse to render without it);
+# absence or ambiguity is a refusal (verified 2026-10-05; previously a bare
+# `LIMIT 1` projection of the moduleName, which the loader's violation polarity
+# treats as a refusal).
 PREFIX gcp: <https://seanchatmangpt.dev/ontology/gcp-marketplace#>
-SELECT ?moduleName WHERE {
-  ?c a gcp:CodegenConfig ; gcp:moduleName ?moduleName .
-} LIMIT 1
+SELECT ?problem WHERE {
+  {
+    FILTER NOT EXISTS {
+      ?c a gcp:CodegenConfig ; gcp:moduleName ?moduleName .
+    }
+    BIND("missing-codegen-config" AS ?problem)
+  }
+  UNION
+  {
+    ?c a gcp:CodegenConfig ; gcp:moduleName ?moduleName .
+    FILTER NOT EXISTS { ?c gcp:moduleName ?any }
+    BIND("missing-moduleName" AS ?problem)
+  }
+  UNION
+  {
+    ?c a gcp:CodegenConfig ; gcp:moduleName ?m1 .
+    ?c gcp:moduleName ?m2 .
+    FILTER(?m1 != ?m2)
+    BIND("ambiguous-moduleName" AS ?problem)
+  }
+}
+ORDER BY ?problem

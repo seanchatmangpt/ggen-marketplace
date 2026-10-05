@@ -1,9 +1,32 @@
+# MESSAGE: any row = a ProcurementEvent transition-table violation. Every
+# gcp:ProcurementEvent must carry gcp:eventType and a gcp:resultingState that
+# resolves to a declared gcp:EntitlementState; an event MAY leave
+# resultingState empty/absent — that is the documented "leaves current status
+# unchanged (still advances the watermark)" contract (OFFER_ENDED / DELETED).
+# Self-transitions (eventType ENTITLEMENT_ACTIVE -> st_active) are LEGAL:
+# re-affirming the current state is the idempotent-renewal shape of the
+# 8-value Entitlement.State enum, so the gate refuses dangling or missing
+# targets, never same-state rows. (Previously this file was a bare projection
+# of all 13 transition rows, which the loader's violation polarity treats as
+# 13 refusals; rewritten to the loader contract. Verified 2026-10-05.)
 PREFIX gcp: <https://seanchatmangpt.dev/ontology/gcp-marketplace#>
-SELECT DISTINCT ?eventType ?resultingState WHERE {
-  ?e a gcp:ProcurementEvent ;
-     gcp:eventType ?eventType ;
-     gcp:resultingState ?rs .
-  OPTIONAL { ?rs gcp:stateValue ?sv }
-  BIND(COALESCE(?sv, "") AS ?resultingState)
+SELECT DISTINCT ?eventType ?problem WHERE {
+  {
+    FILTER NOT EXISTS { ?e a gcp:ProcurementEvent }
+    BIND("empty-event-family" AS ?problem)
+  }
+  UNION
+  {
+    ?e a gcp:ProcurementEvent .
+    FILTER NOT EXISTS { ?e gcp:eventType ?v }
+    BIND("missing-eventType" AS ?problem)
+  }
+  UNION
+  {
+    ?e a gcp:ProcurementEvent ; gcp:eventType ?eventType ; gcp:resultingState ?rs .
+    OPTIONAL { ?rs gcp:stateValue ?sv }
+    FILTER(BOUND(?rs) && ISIRI(?rs) && !BOUND(?sv))
+    BIND("dangling-resultingState" AS ?problem)
+  }
 }
-ORDER BY ?eventType
+ORDER BY ?eventType ?problem
