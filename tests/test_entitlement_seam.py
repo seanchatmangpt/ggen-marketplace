@@ -103,7 +103,8 @@ def sim():
 def _seed(server, ent_id="ent-1"):
     status, _ = server.post(f"/entitlements/{ent_id}:approve", {"plan": "enterprise-unlimited"})
     assert status == 200, "seed approval failed"
-    return {"backend": "sim", "billing_authorities": ["GOOGLE_CLOUD_MARKETPLACE"]}
+    return {"backend": "sim", "billing_authorities": ["GOOGLE_CLOUD_MARKETPLACE"],
+            "provider_id": "demo-provider"}
 
 
 def test_alive_simulated(sim):
@@ -151,7 +152,7 @@ def test_wrong_state_refused(sim):
         # not ACTIVE — use the not-found-free wrong-shape path: fetch the real
         # record and confirm the sim cannot produce a non-active state, then
         # assert the refusal logic against decide's registry-free path.
-        result = entitlement.decide("ent-1", {"backend": "sim", "billing_authorities": ["GOOGLE_CLOUD_MARKETPLACE"]})
+        result = entitlement.decide("ent-1", {"backend": "sim", "billing_authorities": ["GOOGLE_CLOUD_MARKETPLACE"], "provider_id": "demo-provider"})
         assert result["standing"] == "ALIVE"
     # The sim has no state-demotion endpoint, so the NOT_ACTIVE branch is
     # exercised by a record the server would return with a different state —
@@ -213,6 +214,7 @@ def test_cli_exit_codes(sim, tmp_path):
     reg.write_text(
         'schema_version = 1\nbackend = "sim"\n'
         'billing_authorities = ["GOOGLE_CLOUD_MARKETPLACE"]\n'
+        'provider_id = "demo-provider"\n'
     )
     with _endpoint(sim):
         rc_alive = subprocess.run(
@@ -247,3 +249,197 @@ def test_cli_exit_codes(sim, tmp_path):
     assert "REFUSED_BILLING_AUTHORITY_CARDINALITY" in rc_bad.stdout
     assert rc_no_reg.returncode == 6
     assert "REFUSED_REGISTRY_INVALID" in rc_no_reg.stdout
+
+
+# ---------------------------------------------------------------------------
+# JWT verification, endpoint pinning, id validation (security-fix lane)
+# ---------------------------------------------------------------------------
+
+import base64  # noqa: E402
+import hashlib  # noqa: E402
+import threading  # noqa: E402
+from http.server import BaseHTTPRequestHandler, HTTPServer  # noqa: E402
+
+CONFIG = {"backend": "sim",
+          "billing_authorities": ["GOOGLE_CLOUD_MARKETPLACE"],
+          "provider_id": "demo-provider"}
+
+
+class FakeServer:
+    """Real local HTTP server with caller-supplied route table (no mocks)."""
+
+    def __init__(self, routes: dict[str, object]):
+        self.routes = routes
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                for path, payload in self.server.routes.items():
+                    if self.path.split("?")[0] == path:
+                        body = json.dumps(payload).encode()
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.end_headers()
+                        self.wfile.write(body)
+                        return
+                self.send_response(404)
+                self.end_headers()
+
+            def log_message(self, *args):
+                pass
+
+        self.httpd = HTTPServer(("127.0.0.1", 0), Handler)
+        self.httpd.routes = routes
+        self.port = self.httpd.server_address[1]
+        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.thread.start()
+
+    def stop(self):
+        self.httpd.shutdown()
+        self.httpd.server_close()
+
+
+def _b64url(segment: str) -> str:
+    return segment + "=" * (-len(segment) % 4)
+
+
+def _real_record_and_keymap(sim, ent_id="ent-1"):
+    """Fetch the sim's real signed record and its real x509 key map."""
+    with urllib.request.urlopen(sim.url(f"/entitlements/{ent_id}"), timeout=5) as r:
+        record = json.loads(r.read().decode())
+    path = "/robot/v1/metadata/x509/cloud-commerce-partner@system.gserviceaccount.com"
+    with urllib.request.urlopen(sim.url(path), timeout=5) as r:
+        keymap = json.loads(r.read().decode())
+    return record, keymap
+
+
+def test_alive_has_verified_jwt(sim):
+    _seed(sim)
+    with _endpoint(sim):
+        result = entitlement.decide("ent-1", CONFIG)
+    assert result["standing"] == "ALIVE"
+    assert result["backend_standing"] == "SIMULATED"
+    assert result["jwt_verified"] is True
+    kid = result["jwt_kid"]
+    assert isinstance(kid, str) and len(kid) >= 1
+    # old receipt-relevant fields remain intact
+    assert result["entitlement"]["state"] == "ENTITLEMENT_ACTIVE"
+    assert result["entitlement"]["name"].endswith("/entitlements/ent-1")
+    # the kid matches the real key the sim serves
+    _, keymap = _real_record_and_keymap(sim)
+    assert kid in keymap
+
+
+def test_tampered_jwt_payload_refused(sim):
+    """Flip the JWT payload, keep the sim's signature -> signature mismatch."""
+    _seed(sim)
+    record, keymap = _real_record_and_keymap(sim)
+    header_b64, payload_b64, sig_b64 = record["jwt"].split(".")
+    claims = json.loads(base64.urlsafe_b64decode(_b64url(payload_b64)))
+    claims["entitlement_id"] = "ent-other"
+    tampered = (header_b64 + "."
+                + base64.urlsafe_b64encode(json.dumps(claims).encode()).decode().rstrip("=")
+                + "." + sig_b64)
+    record["jwt"] = tampered
+    path = "/robot/v1/metadata/x509/cloud-commerce-partner@system.gserviceaccount.com"
+    fake = FakeServer({
+        "/entitlements/ent-1": record,
+        path: keymap,
+    })
+    try:
+        with _endpoint(fake):
+            result = entitlement.decide("ent-1", CONFIG)
+    finally:
+        fake.stop()
+    assert result == {"standing": "BLOCKED", "refusal": "REFUSED_ENTITLEMENT_JWT_INVALID"}
+
+
+def test_forged_entitlement_without_x509_endpoint_refused():
+    """FAKE local server mints its own 'active' record with a self-signed JWT
+    and serves no x509 metadata map -> refused, never ALIVE."""
+    forged_jwt = ("eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImZha2UifQ."
+                  + base64.urlsafe_b64encode(json.dumps({
+                      "iss": "https://www.googleapis.com/robot/v1/metadata/x509/"
+                             "cloud-commerce-partner@system.gserviceaccount.com",
+                      "aud": "demo-provider",
+                      "exp": 9999999999,
+                  }).encode()).decode().rstrip("=")
+                  + ".c2ln")
+    fake = FakeServer({
+        "/entitlements/ent-1": {"state": "ENTITLEMENT_ACTIVE", "jwt": forged_jwt},
+    })
+    try:
+        with _endpoint(fake):
+            result = entitlement.decide("ent-1", CONFIG)
+    finally:
+        fake.stop()
+    assert result == {"standing": "BLOCKED", "refusal": "REFUSED_ENTITLEMENT_JWT_INVALID"}
+
+
+def test_no_jwt_field_refused():
+    fake = FakeServer({"/entitlements/ent-1": {"state": "ENTITLEMENT_ACTIVE"}})
+    try:
+        with _endpoint(fake):
+            result = entitlement.decide("ent-1", CONFIG)
+    finally:
+        fake.stop()
+    assert result == {"standing": "BLOCKED", "refusal": "REFUSED_ENTITLEMENT_JWT_INVALID"}
+
+
+def test_invalid_entitlement_id_refused():
+    for bad in ("../etc/passwd", "", "a" * 129, "ent 1", "ent#1", None, 7):
+        result = entitlement.decide(bad, CONFIG)  # type: ignore[arg-type]
+        assert result == {"standing": "BLOCKED",
+                          "refusal": "REFUSED_ENTITLEMENT_ID_INVALID"}, f"id={bad!r}"
+    ok = entitlement.decide("ent-1.x_y-9" + "a" * 100, CONFIG)
+    # Valid charset: passes id validation and proceeds to endpoint/transport.
+    assert ok["refusal"] != "REFUSED_ENTITLEMENT_ID_INVALID"
+
+
+def test_endpoint_pinning_requires_opt_in():
+    cases = ["http://example.com:8443", "https://metadata.google.internal",
+             "http://[::2]:8443"]  # ::2 is not the loopback ::1
+    for url in cases:
+        old = os.environ.get("AAIF_ENTITLEMENT_ENDPOINT")
+        os.environ["AAIF_ENTITLEMENT_ENDPOINT"] = url
+        try:
+            result = entitlement.decide("ent-1", CONFIG)
+        finally:
+            if old is None:
+                os.environ.pop("AAIF_ENTITLEMENT_ENDPOINT", None)
+            else:
+                os.environ["AAIF_ENTITLEMENT_ENDPOINT"] = old
+        assert result == {"standing": "BLOCKED",
+                          "refusal": "REFUSED_ENTITLEMENT_ENDPOINT_NOT_LOOPBACK"}, url
+
+
+def test_endpoint_pinning_allows_all_loopback_forms():
+    old_remote = os.environ.get("AAIF_ENTITLEMENT_ALLOW_REMOTE")
+    for url in ("http://127.0.0.2:8443", "http://localhost:8443", "http://[::1]:8443"):
+        os.environ["AAIF_ENTITLEMENT_ENDPOINT"] = url
+        result = entitlement.decide("ent-1", CONFIG)
+        assert result["refusal"] == entitlement.REFUSED_UNREACHABLE, url
+    # explicit opt-in lifts the pin for a non-loopback override
+    os.environ["AAIF_ENTITLEMENT_ENDPOINT"] = "http://example.invalid"
+    os.environ["AAIF_ENTITLEMENT_ALLOW_REMOTE"] = "1"
+    try:
+        result = entitlement.decide("ent-1", CONFIG)
+        assert result["refusal"] == entitlement.REFUSED_UNREACHABLE
+    finally:
+        os.environ.pop("AAIF_ENTITLEMENT_ENDPOINT", None)
+        os.environ.pop("AAIF_ENTITLEMENT_ALLOW_REMOTE", None)
+        if old_remote is not None:
+            os.environ["AAIF_ENTITLEMENT_ALLOW_REMOTE"] = old_remote
+
+
+def test_cli_id_invalid_exit_code(sim, tmp_path):
+    _seed(sim)
+    reg = tmp_path / "monetization.toml"
+    reg.write_text('backend = "sim"\n'
+                   'billing_authorities = ["GOOGLE_CLOUD_MARKETPLACE"]\n'
+                   'provider_id = "demo-provider"\n')
+    proc = subprocess.run(
+        [sys.executable, ENTITLEMENT, "decide", "../evil", "--config", str(reg)],
+        capture_output=True, text=True,
+    )
+    assert proc.returncode == 5
+    assert "REFUSED_ENTITLEMENT_ID_INVALID" in proc.stdout
