@@ -199,6 +199,49 @@ class TestFailWitnessAntiVacuity:
         rows = run_gate(g, gate_path)
         assert len(rows) > 0, "Gate 160 is vacuous: failed to trip when hasAffidavitTrustPlane was missing"
 
+    def test_gate_170_trips_when_enterprise_agent_lacks_cmek_key_or_fips(self) -> None:
+        # Trip when kmsKeyUri is missing
+        g1 = load_admitted_graph("enterprise_agent.ttl")
+        g1.remove((AAIF.DemoCMEKPolicy, AAIF.kmsKeyUri, None))
+        gate_path = GATES_DIR / "170_cmek_encryption_policy.rq"
+        rows1 = run_gate(g1, gate_path)
+        assert len(rows1) > 0, "Gate 170 is vacuous: failed to trip when kmsKeyUri was missing"
+
+        # Trip when fips140Level is < 2
+        g2 = load_admitted_graph("enterprise_agent.ttl")
+        g2.remove((AAIF.DemoCMEKPolicy, AAIF.fips140Level, None))
+        g2.add((AAIF.DemoCMEKPolicy, AAIF.fips140Level, rdflib.Literal(1, datatype=rdflib.XSD.integer)))
+        rows2 = run_gate(g2, gate_path)
+        assert len(rows2) > 0, "Gate 170 is vacuous: failed to trip when fips140Level was < 2"
+
+    def test_gate_180_trips_when_finops_guardrail_lacks_cost_center_or_circuit_breaker(self) -> None:
+        # Trip when circuitBreaksOnLimit is removed
+        g1 = load_admitted_graph("enterprise_agent.ttl")
+        g1.remove((AAIF.DemoFinOpsGuardrail, AAIF.circuitBreaksOnLimit, None))
+        gate_path = GATES_DIR / "180_finops_budget_guardrail.rq"
+        rows1 = run_gate(g1, gate_path)
+        assert len(rows1) > 0, "Gate 180 is vacuous: failed to trip when circuitBreaksOnLimit was missing"
+
+        # Trip when costCenterTag is removed
+        g2 = load_admitted_graph("enterprise_agent.ttl")
+        g2.remove((AAIF.DemoFinOpsGuardrail, AAIF.costCenterTag, None))
+        rows2 = run_gate(g2, gate_path)
+        assert len(rows2) > 0, "Gate 180 is vacuous: failed to trip when costCenterTag was missing"
+
+    def test_gate_190_trips_when_siem_egress_lacks_endpoint_or_type(self) -> None:
+        # Trip when siemEndpoint is removed
+        g1 = load_admitted_graph("enterprise_agent.ttl")
+        g1.remove((AAIF.DemoSIEMEgress, AAIF.siemEndpoint, None))
+        gate_path = GATES_DIR / "190_siem_telemetry_egress.rq"
+        rows1 = run_gate(g1, gate_path)
+        assert len(rows1) > 0, "Gate 190 is vacuous: failed to trip when siemEndpoint was missing"
+
+        # Trip when siemType is removed
+        g2 = load_admitted_graph("enterprise_agent.ttl")
+        g2.remove((AAIF.DemoSIEMEgress, AAIF.siemType, None))
+        rows2 = run_gate(g2, gate_path)
+        assert len(rows2) > 0, "Gate 190 is vacuous: failed to trip when siemType was missing"
+
 
 
 
