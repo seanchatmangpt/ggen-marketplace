@@ -58,7 +58,7 @@ graph TD
 
 ### 3.2. Metering & Monetization Mechanics
 - **Real-Time Entitlement Gating**: Ingress endpoints enforce fail-closed authorization via Google Cloud Commerce Partner Procurement API. Requests without active entitlements receive HTTP 403 (`ENTITLEMENT_INACTIVE`).
-- **Google Service Control Metering**: High-assurance compute execution is metered in real time (`/v1/services/{service}:report`), generating tamper-evident transaction receipts and automated revenue realization.
+- **Google Service Control Metering**: The distribution exercises the Service Control `:check` and `:allocateQuota` endpoints against a wire-shaped simulator today, with `:report`-based usage metering landing through the entitlement-seam work (`scripts/entitlement.py`), generating tamper-evident transaction receipts and automated revenue realization.
 - **FinOps Hard Quotas**: Department cost centers are bound to usage caps, providing predictable billing while maximizing platform utilization.
 
 ---
@@ -69,17 +69,19 @@ graph TD
 | :--- | :--- | :--- |
 | **CISO / Infosec** | *"Agents have ambient access to internal tools and leak data via model prompt injections."* | **Identically Zero Ambient Authority**: 19 fail-closed SPARQL/SHACL gates, monotonic grant narrowing ($\mathcal{C}_{child} \subseteq \mathcal{C}_{parent}$), inline DLP PII/PHI redaction, and FIPS 140 Level 3 Cloud KMS envelope encryption. |
 | **Chief Risk / Compliance** | *"We cannot audit agent decision trails, and logs can be altered."* | **Post-Quantum Cryptographic Provenance**: Every task execution generates an immutable `PQ-SEAL-v1` receipt (ML-DSA-65 + BLAKE3 hash chains) exported as IEEE OCEL v2 logs directly into corporate SIEMs (Splunk, Chronicle). |
-| **CFO / FinOps** | *"Autonomous agents will trigger compounding, runaway LLM token spend."* | **Fail-Closed Budget Circuit Breakers**: Hard monthly USD budget ceilings evaluated pre-dispatch; quota breaches trigger immediate `:REFUSED_BUDGET_EXCEEDED` refusals with zero downstream token consumption. |
-| **VP of SRE / Platform** | *"Agent scripts crash Kubernetes nodes and lose state during rolling reboots."* | **Production Kubernetes Integration**: Standard Envoy AI Gateway CRDs, and a two-phase graceful DRAIN protocol (HTTP 503 cordon -> state frame serialization & cluster handover within 25s). |
+| **CFO / FinOps** | *"Autonomous agents will trigger compounding, runaway LLM token spend."* | **Fail-Closed Budget Circuit Breakers**: Hard monthly USD budget ceilings evaluated pre-dispatch; quota breaches trigger an immediate typed `:REFUSED_BUDGET_EXCEEDED` refusal (emitted by the deployment refusal ladder, fail-closed via the `aaif:FinOpsBudgetGuardrail` gate 180) with zero downstream token consumption. |
+| **VP of SRE / Platform** | *"Agent scripts crash Kubernetes nodes and lose state during rolling reboots."* | **Production Kubernetes Integration**: Standard Envoy AI Gateway CRDs, and a two-phase graceful DRAIN protocol (HTTP 503 cordon -> state frame serialization & cluster handover within 30s). |
 | **Procurement Lead** | *"Integrating 10 different open-source agent tools creates vendor sprawl."* | **Single Vendor AAIF Distribution**: Procured as one line item on their existing Google Cloud invoice covering all 6 AAIF open specifications. |
 
 ---
 
 ## 5. Execution & Production Verification Standing
-The GCP Marketplace distribution is not a conceptual roadmap; it is verified by Chicago-school real-collaborator test courts:
-1. **Wire-Indistinguishable Google Cloud Simulation**:
-   - `tests/test_chicago_gcp_marketplace_indistinguishable.py` runs against real partner procurement discovery documents and RS256 token verification.
-2. **End-to-End Kubernetes Cluster Execution**:
-   - `tests/test_k8s_gcp_marketplace_simulation.py` runs on a live multi-node Kind cluster, proving entitlement checks, A2A task execution across `ash_a2a` and `autofde-lab`, and Service Control metering.
-3. **Ontology Admission & Gate Validation**:
-   - `packs/aaif-vanilla-pack` is validated by `scripts/marketplace.py validate` and covered by 43 automated court tests (`tests/test_aaif_vanilla_pack_court.py`) with 100% anti-vacuity witness coverage.
+The GCP Marketplace distribution is verified by Chicago-school real-collaborator test courts. Standing is graded honestly per surface:
+1. **Wire-Indistinguishable Google Cloud Simulation — PARTIAL_ALIVE (simulator required)**:
+   - `tests/test_chicago_gcp_marketplace_indistinguishable.py` passes when the localhost:8443 GCP Marketplace simulator (`k8s/gcp-marketplace-sim/server.py`) is running; the court requires that simulator as a real collaborator and does not pass without it.
+2. **End-to-End Kubernetes Cluster Execution — PARTIAL_ALIVE (kind cluster required)**:
+   - `tests/test_k8s_gcp_marketplace_simulation.py` requires a provisioned Kind cluster; against it, the court proves entitlement checks, A2A task execution across `ash_a2a` and `autofde-lab`, and Service Control `:check`/`:allocateQuota` metering.
+3. **Real GCP Marketplace Actuation — BLOCKED (external)**:
+   - Real vendor onboarding, live Service Control metering (`:report`), and partner procurement discovery are external-blocked pending Google Cloud Marketplace vendor onboarding; the flip is a one-line registry change (`backend = "real"` in `monetization.toml`).
+4. **Ontology Admission & Gate Validation — ALIVE (local)**:
+   - `packs/aaif-vanilla-pack` is validated by `scripts/marketplace.py validate`, enforces 19 fail-closed gates, and is covered by 43 automated court tests (`tests/test_aaif_vanilla_pack_court.py`) with 100% anti-vacuity witness coverage.

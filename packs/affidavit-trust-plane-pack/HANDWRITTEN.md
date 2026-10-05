@@ -21,3 +21,18 @@ are real code inside Tera templates.
 | gates/ (13) | gate | n/a (ggen-produced by definition) | anti-vacuity gates over the rendered plane |
 | generated/*.rs (12) | projection | n/a (ggen-produced by definition) | byte-output of `ggen sync run` in this pack (self-proof; the 12 `ggen.toml` rules); never hand-edited. Regenerate with `ggen sync run` from the pack directory |
 | templates/*.rs.tmpl (algorithmic bodies: signing, verification, canonicalization logic) | template | UNSUPPORTED(generator-capability) | crypto algorithmic bodies are real code inside Tera templates per the admitted affidavit-pack Round-5 boundary: no ggen generator capability expresses algorithm bodies; enumerable facts remain in ontology.ttl, algorithms live in templates |
+
+## Upstream provenance pin
+
+- upstream: `/Users/sac/affidavit` branch `feat/advanced-witness-capability-set`
+- commit: `3b2e4138313844fa85b14e4fbff51e734c4babad` (2026-10-05, clean HEAD)
+- seam 1: `crypto_trust_verify::certify_signed(&SignatureEnvelope, &[u8], &str,
+  &Es256SigningKey) -> Result<CryptoStandingReceipt, VerifyRefusal>`;
+  feature-gated `crypto-trust` (lib.rs:167; method at
+  src/crypto_trust_verify.rs:471)
+- seam 2: `event_builder::EventBuilder` (ungated, src/lib.rs:118)
+- role: OPTIONAL certified-receipts upgrade seam for paid-delivery receipts.
+  The chain rule stays `paid-delivery-chain/v1` plain sha256 fold; this seam
+  adds signatures, never replaces it.
+- failure mode: fail-open-to-uncertified — missing seam or unsigned records
+  still verify fold-only.

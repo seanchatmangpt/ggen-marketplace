@@ -20,9 +20,9 @@ under `dynamic_in_gates` in the allowlist; gates that fail to parse are also ref
 
 | metric | value |
 |---|---|
-| packs | 395 |
-| packs with Python scripts | 118 |
-| Python files scanned | 549 |
+| packs | 305 |
+| packs with Python scripts | 106 |
+| Python files scanned | 525 |
 | files failing to parse | 0 |
 
 ## Capability by role
@@ -32,19 +32,19 @@ Files using each capability, by inferred role (`gate` = under a `gates/` directo
 
 | role | network | exec | fs-write | env | dynamic |
 |---|---|---|---|---|---|
-| gate | 0 | 3 | 3 | 1 | 1 |
-| verifier | 0 | 4 | 11 | 0 | 2 |
-| other | 3 | 20 | 29 | 7 | 36 |
+| gate | 0 | 3 | 3 | 2 | 1 |
+| verifier | 0 | 4 | 14 | 0 | 3 |
+| other | 3 | 14 | 33 | 7 | 25 |
 
 ## Packs using each capability
 
 | capability | packs |
 |---|---|
 | network | 3 |
-| exec | 17 |
-| fs-write | 26 |
+| exec | 16 |
+| fs-write | 29 |
 | env | 6 |
-| dynamic | 14 |
+| dynamic | 12 |
 
 ## Network use in gates
 
@@ -64,17 +64,20 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 
 | state | packs |
 |---|---|
-| with LICENSE file | 3 |
-| lacking LICENSE file | 392 |
+| with LICENSE file | 2 |
+| lacking LICENSE file | 303 |
 | with SPDX identifier | 6 |
-| lacking SPDX identifier | 389 |
-| lacking both | 386 |
+| lacking SPDX identifier | 299 |
+| lacking both | 297 |
 
 <details><summary>Packs lacking both</summary>
 
+- `a2a-conformance-pack`
+- `a2a-durability-pack`
+- `a2a-hex-migration-pack`
+- `aaif-profile-tailoring-pack`
+- `aaif-vanilla-pack`
 - `adapter-family-matrix`
-- `adapter-family-registry`
-- `adjacency-rebloom-controller-pack`
 - `affidavit-consumer-pack`
 - `affidavit-pack`
 - `affidavit-trust-plane-pack`
@@ -82,10 +85,14 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `agent-harness-recompilation-pack`
 - `ai-chatbot-shadcn-pack`
 - `aloop-episode-ontology-pack`
-- `anti-llm-cheat-lsp-pack`
+- `ash-ex4pm-evidence-pack`
 - `ash-extension-core-pack`
 - `ash-extension-starter-pack`
 - `ash-ocel-revops-surface-factory-pack`
+- `ash-pplan-chaos-pack`
+- `ash-pplan-igniter-pack`
+- `ash-pplan-protocol-court-pack`
+- `ash-pplan-store-conformance-pack`
 - `ash-r2rml-paas-pack`
 - `ash-r2rml-reactor-paas-pack`
 - `ash-revops-structural-factory-pack`
@@ -93,9 +100,7 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `ashdspy-pack`
 - `authzen-spiffe-absorption-pack`
 - `autofde-gymact-certification-pack`
-- `autofde-k8s-fault-taxonomy-pack`
 - `autofde-lab-gymact-bridge-pack`
-- `autofde-lab-mcp-surface-pack`
 - `autofde-lab-standing-vocabulary-pack`
 - `autofde-level4-actuation-pack`
 - `autofde-openclaw-bridge-cnv-pack`
@@ -103,43 +108,39 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `autofde-sota-factory-cnv-pack`
 - `automatic-autonomic-operations-pack`
 - `azure-terraform-pack`
-- `beam4pm-ai-contracts-pack`
-- `beam4pm-mcp-contracts-pack`
+- `beam-wasmex-host-pack`
+- `beam4pm-contracts-pack`
 - `beam4pm-post-llm-runtime-pack`
 - `beam4pm-pro-entitlement-pack`
 - `beam4pm-pro-infra-pack`
 - `beam4pm-process-model-pack`
 - `beam4pm-wasm-engine-pack`
 - `biblegym-pack`
-- `bitjob-chrome-ext-shadcn-pack`
 - `candidate-admission-portfolio-pack`
 - `canonical-ash-projection-generator`
 - `capability-closure-pack`
+- `capability-ecology-pack`
 - `capability-lineage-propagation-pack`
 - `cargo-cicd-pack`
 - `castle-board-pack`
 - `castle-changelog-release-pack`
-- `castle-paas-pack`
-- `castle-pack`
 - `certification-assist-evidence-control-pack`
 - `certification-assist-pack`
 - `challenger-value-framing-pack`
 - `chatgptgym-gymact-bridge-pack`
 - `chatman-ecosystem-release-pack`
 - `chatman-ecosystem-v26-9-1-release-gate`
-- `chatman-engine-pack`
 - `chatman-marketplace-commerce-dod-pack`
 - `chatman-togaf-closure-pack`
 - `chicago-graphlaw-court-pack`
-- `chicago-pytest-dataclass-pack`
 - `chicago-tdd-tools-pack`
+- `chicago-xaas-surface-pack`
 - `clap-noun-verb-behavior-pack`
 - `clap-noun-verb-boundary-pack`
 - `clap-noun-verb-crate-pack`
 - `clap-noun-verb-pack`
 - `clap-noun-verb-routing-pack`
 - `clap-noun-verb-schema-pack`
-- `clap-noun-verb-specimen-pack`
 - `clap-noun-verb-verification-pack`
 - `clap-noun-verb-zeroconfig-pack`
 - `claude-code-pack`
@@ -148,6 +149,7 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `cnv-any-manifest-pack`
 - `collective-skill-court-pack`
 - `composition-leverage-matrix-pack`
+- `composition-solver-pack`
 - `consequence-ir-pack`
 - `consumer-realization-frontier-pack`
 - `control-plane-causality-observability-pack`
@@ -158,33 +160,14 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `cs2-conformance-pack`
 - `cs2-exact-subject-pack`
 - `cs2-fleet-contract`
-- `cs2-projection-matrix`
 - `cs2-semantic-work`
 - `cyberpunk-tv-platform`
 - `decision-optionality-pack`
-- `deckgl-entity-picking-panel-pack`
-- `deckgl-orthographic-layers-pack`
 - `delegation-admission-pack`
 - `deterministic-dynamic-ui-pack`
 - `deterministic-layout-pack`
-- `dev-my-app-shadcn-pack`
-- `dfcm-candidate-compatibility-portfolio-pack`
-- `dfcm-dd-ui-pack`
-- `dfcm-develop-maximalist-pack`
-- `dfcm-explore-candidate-factory-pack`
-- `dfcm-explore-court-pack`
-- `dfcm-explore-maximalist-pack`
-- `dfcm-full-deployment-pack`
-- `dfcm-maximalist-court-pack`
-- `dfcm-maximalist-selection-control-pack`
 - `dfcm-pack`
-- `dfcm-selection-capital-pack`
-- `dfcm-selection-evidence-acquisition-pack`
-- `dfcm-selection-falsifier-closure-pack`
-- `dfcm-selection-frontier-execution-pack`
-- `dfcm-selection-portfolio-consensus-pack`
 - `dflss-pack`
-- `diataxis-documentation-pack`
 - `dogfood-lifecycle-pack`
 - `domain-capability-pack`
 - `dry-run-publish-pack`
@@ -194,15 +177,12 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `ecc-agent-harness-profile-pack`
 - `economic-isa-dfcm-pack`
 - `elixir-mcp-a2a-pack`
-- `empire-ostar-dfcm-pack`
-- `empire-ostar-reconstitution-pack`
 - `enterprise-architecture-connection-pack`
 - `enterprise-architecture-pack`
 - `enterprise-governance-pack`
 - `enterprise-operating-model-pack`
 - `environment-evolution-pack`
 - `epistemic-sensor-factory-pack`
-- `errc-innovation-contract-pack`
 - `errc-ownership-manifest-pack`
 - `evidence-capital-admission-pack`
 - `evidence-capital-control-policy-pack`
@@ -221,45 +201,19 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `fanout-realization-controller-pack`
 - `fastmcp-pack`
 - `fde20-revops-pack`
-- `fleet-adapter-matrix`
-- `fleet-family-registry`
-- `fleet-package-compiler`
-- `fleet-package-compose`
 - `fleet-projection-closure`
-- `forced-top25-admissibility-factory-pack`
-- `forced-top25-admissibility-pack`
-- `forced-top25-cell3-allocation-pack`
-- `forced-top25-cell3-current-run-allocation-pack`
-- `forced-top25-generated-closure-pack`
-- `forced-top25-ocel-fanout-meta-pack`
-- `forced-top25-qualification-capsule-pack`
-- `forced-top25-r75-realization-composition-pack`
-- `forced-top25-standard-consumer-factory-pack`
+- `forced-top25-pack`
 - `fortune5-architecture-pack`
 - `fortune5-deployment-blocks-pack`
-- `fortune5-enterprise-architecture-pack`
-- `fortune5-required-capabilities-pack`
 - `fortune5-testing-bblock-pack`
 - `frontier-derivative-pack`
-- `frontier-release-beam-pack`
 - `frontier-release-factory-pack`
-- `frozen-duckdb-pack`
 - `gall-core-pack`
-- `gate-vacuity-court-pack`
-- `gcp-exact-conformance-pack`
+- `gcp-marketplace-saas-pack`
 - `gdmcp-pack`
 - `ggen-combinatorial-maximalism-pack`
 - `ggen-constitution-pack`
-- `ggen-dashboard-pack`
-- `ggen-dfcm-explore-candidate-space`
-- `ggen-ecosystem-mcp-surface-pack`
 - `ggen-ecosystem-ocel-pack`
-- `ggen-ecosystem-standing-pack`
-- `ggen-graph-wasm-pack`
-- `ggen-igniter-bootstrap-pack`
-- `ggen-lean4-rust-pipeline-pack`
-- `ggen-legacy-assurance-pack`
-- `ggen-legacy-ingestion-pack`
 - `ggen-opportunity-hypergraph-pack`
 - `ggen-pack-spec-pack`
 - `ggen-platform-pack`
@@ -272,9 +226,7 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `gh-enterprise-architecture-pack`
 - `gh-terraform-pack`
 - `github-actions-pack`
-- `github-cloud-operating-doctrine-pack`
 - `github-controloutcome-observation-pack`
-- `github-live-evidence-ingestion-pack`
 - `governance-gate-pack`
 - `governed-runtime-adapter-pack`
 - `greene-licensing-case-pack`
@@ -282,19 +234,11 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `gym-ci-toolchain-bblock-pack`
 - `gym-mcp-surface-pack`
 - `gym-upper-ontology-pack`
-- `gymact-capability-schema-pack`
-- `human-value-runtime-crown-pack`
-- `hyperdimensional-standing-pack`
 - `industry-closure-ledger-pack`
-- `industry-closure-pack`
 - `industry-closure-retail-lending-profile-pack`
-- `innovation-errc-pack`
 - `interchangeable-parts-qualification-pack`
 - `invariant-gate-pack`
 - `jotp-benchmark-site-shadcn-pack`
-- `kgc-4d-playground-shadcn-pack`
-- `kgc-sidecar-dashboard-shadcn-pack`
-- `knowing-christ-formation-pack`
 - `kubernetes-workload-pack`
 - `kudzu-case-studies-pack`
 - `lean-math-pack`
@@ -309,7 +253,6 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `mdbook-pattern-language-pack`
 - `mermaid-pack`
 - `mfact-pack`
-- `mfact-ui-deckgl-pack`
 - `mfw-pack`
 - `mfw-pcp-level5-pack`
 - `mmdio-pack`
@@ -319,15 +262,8 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `nextjs-ai-sdk-ui-shadcn-pack`
 - `nist-cyber-resiliency-generational-pack`
 - `nist-zero-trust-agentic-data-pack`
-- `noun-verb-cli-pack`
-- `observatory-ui-deckgl-pack`
-- `ocel-drift-pack`
-- `ocel-feedback-pack`
 - `ontostar-mustar-powlv2-agent-pack`
-- `opportunity-currentness-pack`
 - `ops-dashboard-legend-pack`
-- `optimus-shadcn-pack`
-- `option-capital-hypergraph-pack`
 - `option-capital-recombination-pack`
 - `orthogonal-consumer-capital-pack`
 - `osx-clnr-pack`
@@ -342,20 +278,13 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `pack-compatibility-pack`
 - `pack-consolidation-court-pack`
 - `pack-maturity-pack`
-- `pcq-marketplace-pack`
-- `pddl-embedded-workflow-pack`
-- `phage-wars-3-react-pack`
 - `planning-federation-pack`
 - `planning-policy-pack`
-- `platform-console-capability-pack`
 - `platform-engineers-handbook`
-- `platform-engineers-handbook-ch02-cluster-pack`
 - `portable-consequence-protocol-pack`
 - `portfolio-epistemic-observability-pack`
-- `post-agi-commerce-core`
 - `post-release-pack`
 - `pptx-presentation-pack`
-- `pragmatic-programmer-sparql-pack`
 - `praxis-core-pack`
 - `premature-actuation-survival-pack`
 - `prior-art-admission-pack`
@@ -363,17 +292,13 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `process-intelligence-rag-pack`
 - `process-mining-proof-pack`
 - `projection-matrix-compose`
-- `projection-matrix-pack`
 - `protocol-integration-pack`
 - `provider-extinction-contract-pack`
 - `qri-qualification-profile-pack`
 - `quadrature-pack`
 - `qualified-capability-ecology-pack`
 - `readme-diataxis-pack`
-- `realization-calibration-hypergraph-pack`
 - `receipt-provenance-unification-pack`
-- `regression-fixtures-pack`
-- `remotion-y6f9kf-react-pack`
 - `replication-epistemic-observability-pack`
 - `repo-as-found-pack`
 - `repo-intervention-pack`
@@ -388,19 +313,18 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `run-protocol-observability-pack`
 - `runtime-evidence-authenticity-control-pack`
 - `runtime-evidence-authenticity-pack`
-- `rwr-level5-foundation-pack`
 - `sa2a-bridge-pack`
-- `sa2a-diataxis-pack`
+- `sa2a-chicago-court-pack`
 - `sa2a-fastapi-pack`
+- `sa2a-governed-process-pack`
 - `sa2a-semantic-diataxis-pack`
 - `sa2a-semantic-evidence-pack`
-- `safe-ea-strategy-self-play-pack`
+- `sa2a-spark-dsl-pack`
 - `self-monitoring-pack`
 - `semantic-case-study-pack`
 - `semantic-documentation-contract-pack`
 - `semantic-fullstack-factory-pack`
 - `semantic-gate-witness-court-pack`
-- `semantic-life-loop-pack`
 - `semantic-manufacture-epoch-pack`
 - `semantic-parts-pack`
 - `semantic-procedural-graph-pack`
@@ -410,14 +334,8 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `shacl-to-pydantic-pack`
 - `shacl-to-zod-jsdoc-pack`
 - `shacl-to-zod-pack`
-- `shadcn-async-states-pack`
-- `shadcn-command-palette-pack`
-- `shadcn-dark-theme-tokens-pack`
 - `shadcn-ui-primitives-pack`
 - `sjira-marketplace-feedback-pack`
-- `slidev-iaas-paas-saas-pack`
-- `soc2-audit-pack`
-- `soc2-readiness-pack`
 - `speedrun-talent-network-pack`
 - `standing-ladder-pack`
 - `star-toml-pack`
@@ -429,18 +347,13 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `supply-chain-evidence-pack`
 - `swarmsh-autonomic-coordination-pack`
 - `swe-prometheus-governance-pack`
-- `tai-enterprise-rebuild-pack`
-- `tcps-cli-pack`
 - `tcps-consumer-fanout-factory-pack`
-- `tcps-ffi-pack`
-- `tcps-std-pack`
-- `tcps-wasm-pack`
+- `tcps-release-pack`
 - `temporal-truth-observability-pack`
 - `temporary-works-pack`
 - `togaf-adm-pack`
-- `tps-cell3-heijunka-kanban-pack`
-- `trialbase-dashboard-shadcn-pack`
-- `typer-pack`
+- `tokyo-depeg-burn-in-pack`
+- `toolchain-unify-pack`
 - `value-innovation-errc-pack`
 - `wasi-json-abi-pack`
 - `wasm4pm-algorithms-pack`
@@ -449,11 +362,9 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `wasm4pm-compat-pack`
 - `wasm4pm-facts-pack`
 - `wasm4pm-interview-assist-pack`
-- `wasm4pm-interview-site-pack`
-- `wasm4pm-operator-applicability-pack`
 - `wasm4pm-pack`
-- `wasm4pm-sandbox-pack`
 - `wd-failure-analysis-pack`
+- `workflow-corpus-pack`
 - `ww3gym-planning-pack`
 - `xaas-castle-bridge-pack`
 - `xaas-public-ash-projection-pack`
