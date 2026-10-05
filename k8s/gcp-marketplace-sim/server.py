@@ -43,6 +43,8 @@ ACCOUNTS = {}
 ENTITLEMENTS = {}
 USAGE_REPORTS = []
 QUOTA_BUCKETS = {"default": 10000}  # 10,000 units
+
+DISCOVERY_DIR = os.environ.get("AAIF_SIM_DISCOVERY_DIR", "/app")
 PRICING_PER_METRIC_UNIT = 0.05
 
 def b64url_encode(data: bytes) -> str:
@@ -74,10 +76,10 @@ class ProductionGradeGCPHandler(BaseHTTPRequestHandler):
 
         # 2. Dynamic Discovery Documents
         elif 'cloudcommerceprocurement' in parsed.path and '$discovery/rest' in parsed.path:
-            with open('/app/procurement_discovery.json') as f:
+            with open(os.path.join(DISCOVERY_DIR, 'procurement_discovery.json')) as f:
                 return self._send_json(200, json.load(f))
         elif 'servicecontrol' in parsed.path and '$discovery/rest' in parsed.path:
-            with open('/app/servicecontrol_discovery.json') as f:
+            with open(os.path.join(DISCOVERY_DIR, 'servicecontrol_discovery.json')) as f:
                 return self._send_json(200, json.load(f))
 
         elif parsed.path == '/healthz':
@@ -138,9 +140,13 @@ class ProductionGradeGCPHandler(BaseHTTPRequestHandler):
         elif '/entitlements/' in parsed.path and parsed.path.endswith(':approve'):
             parts = parsed.path.split('/')
             ent_id = parts[parts.index('entitlements') + 1].split(':')[0]
+            # Account approvals live on a separate endpoint; this branch never
+            # has an account id in scope, so use the default subject (the
+            # account reference travels in the body and in the record below).
+            acc_id = "default"
             jwt_token = create_google_jwt({
                 "iss": "https://www.googleapis.com/robot/v1/metadata/x509/cloud-commerce-partner@system.gserviceaccount.com",
-                "sub": f"account-{acc_id if 'acc_id' in locals() else 'default'}",
+                "sub": f"account-{acc_id}",
                 "aud": "demo-provider",
                 "entitlement_id": ent_id,
                 "exp": int(time.time()) + 86400
@@ -238,6 +244,7 @@ class ProductionGradeGCPHandler(BaseHTTPRequestHandler):
         self._send_json(404, {"error": {"code": 404, "message": f"Path not found: {parsed.path}"}})
 
 if __name__ == '__main__':
-    server = HTTPServer(('0.0.0.0', 8443), ProductionGradeGCPHandler)
-    print("Wire-Indistinguishable GCP Marketplace Server running on :8443")
+    PORT = int(os.environ.get("AAIF_SIM_PORT", "8443"))
+    server = HTTPServer(('0.0.0.0', PORT), ProductionGradeGCPHandler)
+    print("Wire-Indistinguishable GCP Marketplace Server running on :%d" % PORT)
     server.serve_forever()
