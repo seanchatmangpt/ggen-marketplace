@@ -22,18 +22,18 @@ data:
     from cryptography import x509
     from cryptography.x509.oid import NameOID
     import datetime
-
+    
     # 1. Cryptographic Identity Setup: Real RS256 CA and Keypair
     PRIVATE_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     PUBLIC_KEY = PRIVATE_KEY.public_key()
-
+    
     subject = issuer = x509.Name([
         x509.NameAttribute(NameOID.COUNTRY_NAME, "US"),
         x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "California"),
         x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Google LLC"),
         x509.NameAttribute(NameOID.COMMON_NAME, "cloud-commerce-partner@system.gserviceaccount.com"),
     ])
-
+    
     CERT = x509.CertificateBuilder().subject_name(
         subject
     ).issuer_name(
@@ -47,21 +47,40 @@ data:
     ).not_valid_after(
         datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=365)
     ).sign(PRIVATE_KEY, hashes.SHA256())
-
+    
     CERT_PEM = CERT.public_bytes(serialization.Encoding.PEM).decode('utf-8')
     KEY_ID = hashlib.sha1(CERT.public_bytes(serialization.Encoding.DER)).hexdigest()
-
+    
     ACCOUNTS = {}
     ENTITLEMENTS = {}
+    # AE2 finding 6 fix: consumerId -> entitlementId correlation for :report gating.
+    # Minimal-fidelity seeding: the aaif-swarm mesh (k8s/aaif-swarm/aaif-swarm-mesh.yaml)
+    # hardcodes consumerId "project:demo-client-gcp" in its :report calls and never
+    # runs the procurement approve flow, so we pre-seed one active demo entitlement
+    # and map that consumerId to it. This mirrors the state the approve handler
+    # below would create (ENTITLEMENT_ACTIVE + consumer binding) without changing
+    # the mesh's wire behavior. Any other consumerId must either be
+    # "entitlement:<id>" pointing at an ENTITLEMENT_ACTIVE record, or appear here.
+    CONSUMER_ENTITLEMENTS = {"project:demo-client-gcp": "demo-ent-001"}
+    ENTITLEMENTS["demo-ent-001"] = {
+        "name": "providers/demo-provider/entitlements/demo-ent-001",
+        "account": "providers/demo-provider/accounts/acc-001",
+        "plan": "enterprise-unlimited",
+        "state": "ENTITLEMENT_ACTIVE",
+        "usageReportingId": "usage-demo-ent-001",
+        "consumerId": "project:demo-client-gcp",
+        "createTime": "2026-10-05T00:00:00Z",
+        "updateTime": "2026-10-05T00:00:00Z"
+    }
     USAGE_REPORTS = []
     QUOTA_BUCKETS = {"default": 10000}  # 10,000 units
-
+    
     DISCOVERY_DIR = os.environ.get("AAIF_SIM_DISCOVERY_DIR", "/app")
     PRICING_PER_METRIC_UNIT = 0.05
-
+    
     def b64url_encode(data: bytes) -> str:
         return base64.urlsafe_b64encode(data).decode('utf-8').rstrip('=')
-
+    
     def create_google_jwt(claims: dict) -> str:
         header = {"alg": "RS256", "typ": "JWT", "kid": KEY_ID}
         header_b64 = b64url_encode(json.dumps(header).encode('utf-8'))
@@ -69,7 +88,7 @@ data:
         signing_input = f"{header_b64}.{claims_b64}".encode('utf-8')
         sig = PRIVATE_KEY.sign(signing_input, padding.PKCS1v15(), hashes.SHA256())
         return f"{header_b64}.{claims_b64}.{b64url_encode(sig)}"
-
+    
     class ProductionGradeGCPHandler(BaseHTTPRequestHandler):
         def _send_json(self, status, payload):
             self.send_response(status)
@@ -78,14 +97,14 @@ data:
             self.send_header('X-Content-Type-Options', 'nosniff')
             self.end_headers()
             self.wfile.write(json.dumps(payload, indent=2).encode('utf-8'))
-
+    
         def do_GET(self):
             parsed = urllib.parse.urlparse(self.path)
-
+    
             # 1. Official Google Robot x509 Key Metadata Endpoint
             if parsed.path.endswith('/robot/v1/metadata/x509/cloud-commerce-partner@system.gserviceaccount.com'):
                 return self._send_json(200, {KEY_ID: CERT_PEM})
-
+    
             # 2. Dynamic Discovery Documents
             elif 'cloudcommerceprocurement' in parsed.path and '$discovery/rest' in parsed.path:
                 with open(os.path.join(DISCOVERY_DIR, 'procurement_discovery.json')) as f:
@@ -93,10 +112,10 @@ data:
             elif 'servicecontrol' in parsed.path and '$discovery/rest' in parsed.path:
                 with open(os.path.join(DISCOVERY_DIR, 'servicecontrol_discovery.json')) as f:
                     return self._send_json(200, json.load(f))
-
+    
             elif parsed.path == '/healthz':
                 return self._send_json(200, {"status": "SERVING", "service": "cloudcommerceprocurement.googleapis.com"})
-
+    
             # Billing summary & receipts
             elif parsed.path == '/v1/billing/summary':
                 total_units = sum(r.get('int64Value', 0) for r in USAGE_REPORTS)
@@ -116,9 +135,9 @@ data:
                 if ent:
                     return self._send_json(200, ent)
                 return self._send_json(404, {"error": {"code": 404, "message": f"Entitlement {ent_id} not found"}})
-
+    
             self._send_json(404, {"error": {"code": 404, "message": "Method not found"}})
-
+    
         def do_POST(self):
             parsed = urllib.parse.urlparse(self.path)
             length = int(self.headers.get('Content-Length', 0))
@@ -127,7 +146,7 @@ data:
                 data = json.loads(body.decode('utf-8'))
             except Exception:
                 data = {}
-
+    
             # OAuth2 token exchange
             if parsed.path in ['/oauth2/v4/token', '/token']:
                 return self._send_json(200, {
@@ -135,7 +154,7 @@ data:
                     "expires_in": 3600,
                     "token_type": "Bearer"
                 })
-
+    
             # Signup / Account Approval
             elif '/accounts/' in parsed.path and parsed.path.endswith(':approve'):
                 parts = parsed.path.split('/')
@@ -147,19 +166,23 @@ data:
                     "approvalTime": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                 }
                 return self._send_json(200, ACCOUNTS[acc_id])
-
+    
             # Entitlement Approval with Authentic Signed RS256 JWT & Pub/Sub payload
             elif '/entitlements/' in parsed.path and parsed.path.endswith(':approve'):
                 parts = parsed.path.split('/')
                 ent_id = parts[parts.index('entitlements') + 1].split(':')[0]
+                # Account approvals live on a separate endpoint; this branch never
+                # has an account id in scope, so use the default subject (the
+                # account reference travels in the body and in the record below).
+                acc_id = "default"
                 jwt_token = create_google_jwt({
                     "iss": "https://www.googleapis.com/robot/v1/metadata/x509/cloud-commerce-partner@system.gserviceaccount.com",
-                    "sub": f"account-{acc_id if 'acc_id' in locals() else 'default'}",
+                    "sub": f"account-{acc_id}",
                     "aud": "demo-provider",
                     "entitlement_id": ent_id,
                     "exp": int(time.time()) + 86400
                 })
-
+    
                 ent_record = {
                     "name": f"providers/demo-provider/entitlements/{ent_id}",
                     "account": data.get("account", "providers/demo-provider/accounts/acc-001"),
@@ -171,7 +194,13 @@ data:
                     "updateTime": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                 }
                 ENTITLEMENTS[ent_id] = ent_record
-
+                # Bind the account reference as a resolvable consumerId so
+                # :report can correlate it (entitlement:<id> always resolves
+                # directly; this adds the project-style form when provided).
+                consumer_ref = data.get("consumerId")
+                if consumer_ref and consumer_ref not in CONSUMER_ENTITLEMENTS:
+                    CONSUMER_ENTITLEMENTS[consumer_ref] = ent_id
+    
                 # Emit wrapped Pub/Sub push notification envelope
                 pubsub_message = {
                     "eventId": f"event-{int(time.time()*1000)}",
@@ -189,7 +218,7 @@ data:
                     "subscription": "projects/demo-provider/subscriptions/gcp-marketplace-entitlements"
                 }
                 return self._send_json(200, ent_record)
-
+    
             # Service Control: check
             elif ':check' in parsed.path:
                 if QUOTA_BUCKETS.get("default", 0) <= 0:
@@ -198,7 +227,7 @@ data:
                         "serviceConfigId": "2026-10-04r1"
                     })
                 return self._send_json(200, {"checkErrors": [], "serviceConfigId": "2026-10-04r1"})
-
+    
             # Service Control: allocateQuota
             elif ':allocateQuota' in parsed.path:
                 requested = 1
@@ -206,7 +235,7 @@ data:
                 for mvs in op.get("quotaMetrics", []):
                     for mv in mvs.get("metricValues", []):
                         requested += mv.get("int64Value", 1)
-
+                
                 current = QUOTA_BUCKETS.get("default", 0)
                 if current < requested:
                     return self._send_json(200, {
@@ -219,19 +248,46 @@ data:
                     "serviceConfigId": "2026-10-04r1",
                     "operationId": op.get("operationId")
                 })
-
+    
             # Service Control: report
             elif ':report' in parsed.path:
                 operations = data.get("operations", [])
                 admitted_ops = []
+                report_errors = []
                 for op in operations:
                     op_id = op.get("operationId")
                     consumer_id = op.get("consumerId")
+    
+                    # AE2 finding 6: entitlement correlation gate. Usage only
+                    # counts (revenue + report record) when the consumerId
+                    # resolves to an ENTITLEMENT_ACTIVE record.
+                    ent = None
+                    if isinstance(consumer_id, str) and consumer_id.startswith("entitlement:"):
+                        ent = ENTITLEMENTS.get(consumer_id.split(":", 1)[1])
+                    else:
+                        ent_id = CONSUMER_ENTITLEMENTS.get(consumer_id)
+                        if ent_id:
+                            ent = ENTITLEMENTS.get(ent_id)
+                    if not ent or ent.get("state") != "ENTITLEMENT_ACTIVE":
+                        return self._send_json(403, {
+                            "error": {"code": 403, "message": "ENTITLEMENT_REQUIRED"}
+                        })
+    
                     units = 0
                     for mvs in op.get("metricValueSets", []):
                         for mv in mvs.get("metricValues", []):
                             units += mv.get("int64Value", 1)
-
+    
+                    # Correlate with :allocateQuota semantics: each reported
+                    # unit consumes quota from the same shared bucket.
+                    if QUOTA_BUCKETS.get("default", 0) < units:
+                        report_errors.append({
+                            "code": "RESOURCE_EXHAUSTED",
+                            "detail": f"Insufficient quota for operation {op_id}"
+                        })
+                        continue
+                    QUOTA_BUCKETS["default"] -= units
+    
                     record = {
                         "operationId": op_id,
                         "consumerId": consumer_id,
@@ -241,64 +297,21 @@ data:
                     }
                     USAGE_REPORTS.append(record)
                     admitted_ops.append(record)
-
+    
                 return self._send_json(200, {
                     "serviceConfigId": "2026-10-04r1",
-                    "reportErrors": [],
+                    "reportErrors": report_errors,
                     "serviceRolloutId": "rollout-aaif-001",
                     "admittedCount": len(admitted_ops)
                 })
-
+    
             self._send_json(404, {"error": {"code": 404, "message": f"Path not found: {parsed.path}"}})
-
+    
     if __name__ == '__main__':
         PORT = int(os.environ.get("AAIF_SIM_PORT", "8443"))
         server = HTTPServer(('0.0.0.0', PORT), ProductionGradeGCPHandler)
         print("Wire-Indistinguishable GCP Marketplace Server running on :%d" % PORT)
         server.serve_forever()
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: gcp-procurement-simulator
-  namespace: gcp-marketplace
-  labels:
-    app: gcp-procurement-simulator
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: gcp-procurement-simulator
-  template:
-    metadata:
-      labels:
-        app: gcp-procurement-simulator
-    spec:
-      containers:
-      - name: simulator
-        image: python:3.11-alpine
-        command: ["sh", "-c", "pip install --quiet cryptography && python -u /app/server.py"]
-        env:
-        - name: AAIF_SIM_PORT
-          value: "8443"
-        - name: AAIF_SIM_DISCOVERY_DIR
-          value: "/app"
-        ports:
-        - containerPort: 8443
-          name: api
-        volumeMounts:
-        - name: code
-          mountPath: /app
-        readinessProbe:
-          httpGet:
-            path: /healthz
-            port: 8443
-          initialDelaySeconds: 2
-          periodSeconds: 3
-      volumes:
-      - name: code
-        configMap:
-          name: gcp-procurement-simulator-code
 ---
 apiVersion: v1
 kind: Service

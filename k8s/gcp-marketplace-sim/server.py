@@ -41,6 +41,25 @@ KEY_ID = hashlib.sha1(CERT.public_bytes(serialization.Encoding.DER)).hexdigest()
 
 ACCOUNTS = {}
 ENTITLEMENTS = {}
+# AE2 finding 6 fix: consumerId -> entitlementId correlation for :report gating.
+# Minimal-fidelity seeding: the aaif-swarm mesh (k8s/aaif-swarm/aaif-swarm-mesh.yaml)
+# hardcodes consumerId "project:demo-client-gcp" in its :report calls and never
+# runs the procurement approve flow, so we pre-seed one active demo entitlement
+# and map that consumerId to it. This mirrors the state the approve handler
+# below would create (ENTITLEMENT_ACTIVE + consumer binding) without changing
+# the mesh's wire behavior. Any other consumerId must either be
+# "entitlement:<id>" pointing at an ENTITLEMENT_ACTIVE record, or appear here.
+CONSUMER_ENTITLEMENTS = {"project:demo-client-gcp": "demo-ent-001"}
+ENTITLEMENTS["demo-ent-001"] = {
+    "name": "providers/demo-provider/entitlements/demo-ent-001",
+    "account": "providers/demo-provider/accounts/acc-001",
+    "plan": "enterprise-unlimited",
+    "state": "ENTITLEMENT_ACTIVE",
+    "usageReportingId": "usage-demo-ent-001",
+    "consumerId": "project:demo-client-gcp",
+    "createTime": "2026-10-05T00:00:00Z",
+    "updateTime": "2026-10-05T00:00:00Z"
+}
 USAGE_REPORTS = []
 QUOTA_BUCKETS = {"default": 10000}  # 10,000 units
 
@@ -163,6 +182,12 @@ class ProductionGradeGCPHandler(BaseHTTPRequestHandler):
                 "updateTime": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
             }
             ENTITLEMENTS[ent_id] = ent_record
+            # Bind the account reference as a resolvable consumerId so
+            # :report can correlate it (entitlement:<id> always resolves
+            # directly; this adds the project-style form when provided).
+            consumer_ref = data.get("consumerId")
+            if consumer_ref and consumer_ref not in CONSUMER_ENTITLEMENTS:
+                CONSUMER_ENTITLEMENTS[consumer_ref] = ent_id
 
             # Emit wrapped Pub/Sub push notification envelope
             pubsub_message = {
@@ -216,14 +241,41 @@ class ProductionGradeGCPHandler(BaseHTTPRequestHandler):
         elif ':report' in parsed.path:
             operations = data.get("operations", [])
             admitted_ops = []
+            report_errors = []
             for op in operations:
                 op_id = op.get("operationId")
                 consumer_id = op.get("consumerId")
+
+                # AE2 finding 6: entitlement correlation gate. Usage only
+                # counts (revenue + report record) when the consumerId
+                # resolves to an ENTITLEMENT_ACTIVE record.
+                ent = None
+                if isinstance(consumer_id, str) and consumer_id.startswith("entitlement:"):
+                    ent = ENTITLEMENTS.get(consumer_id.split(":", 1)[1])
+                else:
+                    ent_id = CONSUMER_ENTITLEMENTS.get(consumer_id)
+                    if ent_id:
+                        ent = ENTITLEMENTS.get(ent_id)
+                if not ent or ent.get("state") != "ENTITLEMENT_ACTIVE":
+                    return self._send_json(403, {
+                        "error": {"code": 403, "message": "ENTITLEMENT_REQUIRED"}
+                    })
+
                 units = 0
                 for mvs in op.get("metricValueSets", []):
                     for mv in mvs.get("metricValues", []):
                         units += mv.get("int64Value", 1)
-                
+
+                # Correlate with :allocateQuota semantics: each reported
+                # unit consumes quota from the same shared bucket.
+                if QUOTA_BUCKETS.get("default", 0) < units:
+                    report_errors.append({
+                        "code": "RESOURCE_EXHAUSTED",
+                        "detail": f"Insufficient quota for operation {op_id}"
+                    })
+                    continue
+                QUOTA_BUCKETS["default"] -= units
+
                 record = {
                     "operationId": op_id,
                     "consumerId": consumer_id,
@@ -236,7 +288,7 @@ class ProductionGradeGCPHandler(BaseHTTPRequestHandler):
 
             return self._send_json(200, {
                 "serviceConfigId": "2026-10-04r1",
-                "reportErrors": [],
+                "reportErrors": report_errors,
                 "serviceRolloutId": "rollout-aaif-001",
                 "admittedCount": len(admitted_ops)
             })
