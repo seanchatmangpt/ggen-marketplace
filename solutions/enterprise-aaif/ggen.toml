@@ -1,0 +1,47 @@
+[project]
+name = "enterprise-aaif"
+version = "26.10.5"
+
+[ontology]
+source = "ontology.ttl"
+
+[ontology.prefixes]
+aaif = "https://aaif.io/ontology#"
+aaift = "https://aaif.io/profile-tailoring#"
+rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+rdfs = "http://www.w3.org/2000/01/rdf-schema#"
+owl = "http://www.w3.org/2002/07/owl#"
+xsd = "http://www.w3.org/2001/XMLSchema#"
+
+[[packs]]
+name = "aaif-vanilla-pack"
+registry = "local"
+path = "../../packs/aaif-vanilla-pack"
+
+[[packs]]
+name = "aaif-profile-tailoring-pack"
+registry = "local"
+path = "../../packs/aaif-profile-tailoring-pack"
+
+[generation]
+output_dir = "dist"
+
+# Deployment-profile tailoring projections, sourced from
+# aaif-profile-tailoring-pack (declared in [[packs]] above). File paths are
+# resolved relative to this ggen.toml.
+[[generation.rules]]
+name = "aaift-k8s-overlay"
+query = { file = "../../packs/aaif-profile-tailoring-pack/queries/10-profile.rq" }
+template = { file = "templates/k8s-overlay.yaml.tmpl" }
+output_file = "profile/k8s-overlay.yaml"
+
+[[generation.rules]]
+name = "aaift-profile-summary"
+query = { file = "../../packs/aaif-profile-tailoring-pack/queries/20-profile-summary.rq" }
+template = { file = "templates/deployment-profile.json.tmpl" }
+output_file = "profile/deployment-profile.json"
+
+# Pack gates run inside pack qualification; the deployer re-runs them at deploy
+# time (pack-gates-before-consequence), so the solution itself declares none.
+[validation]
+gates = []
