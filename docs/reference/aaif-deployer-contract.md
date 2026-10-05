@@ -103,8 +103,11 @@ Typed refusal codes per exit, quoted from the `Refused` call sites:
   `REFUSED_BILLING_AUTHORITY_CARDINALITY`
 - exit 7: `REFUSED:GGEN_NOT_FOUND`
 - exit 8: `REFUSED:SOLUTION_GATE_VIOLATION`,
-  `REFUSED:MANIFEST_CLUSTER_SCOPED`, `REFUSED:DATA_RESIDENCY_VIOLATION`
-- exit 9: `REFUSED:PROFILE_DIGEST_DRIFT`, `REFUSED:NON_MONOTONIC_GRANT`
+  `REFUSED:MANIFEST_CLUSTER_SCOPED`, `REFUSED:MANIFEST_UNPARSEABLE`,
+  `REFUSED:YAML_PARSER_UNAVAILABLE`, `REFUSED:DATA_RESIDENCY_VIOLATION`,
+  `REFUSED:RESIDENCY_CONFLICT`
+- exit 9: `REFUSED:PROFILE_DIGEST_DRIFT`, `REFUSED:NON_MONOTONIC_GRANT`,
+  `REFUSED:INPUT_DRIFT_DURING_MANUFACTURE`
 - exit 10: `REFUSED:GKE_TOOLING_MISSING`, `REFUSED:GCLOUD_PROJECT_MISMATCH`
 - exit 12: `REFUSED:GGEN_SYNC_FAILED`
 - exit 13: `REFUSED:RECEIPT_WRITE_FAILED`, `REFUSED:RECEIPT_READ_FAILED`
@@ -122,7 +125,10 @@ Paid-delivery receipts use schema `ggen-receipt/v2` with the chain rule
 timestamped). Layout: `receipts/paid-delivery/<slug>.json` one envelope per
 delivery, `receipts/paid-delivery/chain.jsonl` append-only, one compact JSON
 envelope per line. Verification is the es-chain verify-walk
-(`scripts/es_chain_qualify.py`); a tampered line fails the walk.
+(`scripts/es_chain_qualify.py`); a tampered line fails the walk. Out-of-band
+anchoring: every append rewrites `receipts/paid-delivery/HEAD` to the chain
+head hash, and `verify --anchor <hash-or-HEAD-file>` refuses with
+`REFUSED_ANCHOR_MISMATCH` (naming both hexes) if the final chain head differs.
 
 ## Typed standings
 
