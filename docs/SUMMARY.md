@@ -16,6 +16,7 @@
 - [GraphLaw through rust, wasm and beam](tutorials/graphlaw-rust-wasm-beam.md)
 - [Plan an engagement as a standing ledger](tutorials/standing-ledger-for-an-engagement.md)
 - [Flag a pack for consolidation and deprecation](tutorials/flag-a-pack.md)
+- [Deploy an AAIF solution on kind](tutorials/deploy-an-aaif-solution.md)
 
 # How-to guides
 
@@ -34,6 +35,8 @@
 - [Represent a Rust ABI crate](how-to/represent-a-rust-abi-crate.md)
 - [Measure manufacture time across toolchain changes](how-to/measure-manufacture-time.md)
 - [Flag a pack's lifecycle](how-to/flag-a-pack-lifecycle.md)
+- [Ingest a profile into the AAIF pipeline](how-to/ingest-a-profile.md)
+- [Run the local kind commerce rail](how-to/run-the-kind-commerce-rail.md)
 
 # Reference
 
@@ -66,6 +69,15 @@
 - [Pack lifecycle registry](reference/pack-lifecycle-registry.md)
 - [Pack consolidation review 26.9.30](reference/pack-consolidation-review-26.9.30.md)
 - [Release v26.9.30](reference/release-v26.9.30.md)
+- [AAIF deployer contract](reference/aaif-deployer-contract.md)
+- [Retired packs — 2026-10-01](reference/retired-packs-26.10.01.md)
+- [ADOPTION DOSSIER — affidavit (reference adoption)](rust-wasm-elixir/ADOPTION/affidavit.md)
+- [ADOPTION DOSSIER — ash_a2a](rust-wasm-elixir/ADOPTION/ash_a2a.md)
+- [ADOPTION DOSSIER — bcinr](rust-wasm-elixir/ADOPTION/bcinr.md)
+- [ADOPTION DOSSIER — ex4pm](rust-wasm-elixir/ADOPTION/ex4pm.md)
+- [ADOPTION DOSSIER — graphlaw](rust-wasm-elixir/ADOPTION/graphlaw.md)
+- [ADOPTION DOSSIER — wasm4pm](rust-wasm-elixir/ADOPTION/wasm4pm.md)
+- [CONSOLIDATION_MAP.md — rust→wasm→elixir packs and usages](rust-wasm-elixir/CONSOLIDATION_MAP.md)
 
 # Explanation
 
@@ -85,6 +97,8 @@
 - [Why graphlaw is a rust, wasm, beam/elixir pipeline](explanation/rust-wasm-beam-pipeline.md)
 - [Why manufacture time and standing time are different clocks](explanation/manufacture-time-vs-standing-time.md)
 - [Pack replaceability survey across owner repositories](explanation/pack-replaceability-survey.md)
+- [AAIF commerce seams](explanation/aaif-commerce-seams.md)
+- [Executive Summary: GCP Marketplace Strategy & Enterprise Commercial Moat](strategy/gcp-marketplace-executive-summary.md)
 
 # Research monograph
 
@@ -101,6 +115,7 @@
 - [Evidence economics, throughput, and coordination collapse](thesis/10-evidence-economics.md)
 - [Defense dossier: claims, evidence, falsifiers, and proof debt](thesis/11-defense-dossier.md)
 - [Level-5 maturity, Diátaxis correspondence, and class closure](thesis/12-level5-maturity-and-class-closure.md)
+- [The Autonomous Semantic Utility: Commercial Realization, Zero-Drift Swarms, and the Industrialization of Enterprise AI on Google Cloud](thesis/AUTONOMOUS_SEMANTIC_UTILITY_THESIS.md)
 
 # Research appendices
 
@@ -112,6 +127,8 @@
 # Additional
 
 - [Crown gap hardening](CROWN-GAP-HARDENING.md)
+- [Design for Lean Six Sigma (DfLSS) Project Charter](dflss/DFLSS_PROJECT_CHARTER_v26.10.4.md)
+- [Product Requirements Document (PRD): `ggen-marketplace` (`ggmkt`) v26.10.4](prd/PRD_GGMKT_v26.10.4.md)
 
 # Architecture and decisions
 
@@ -122,6 +139,8 @@
 - [ADR-0003: Ecosystem Topology and Platform Boundary: XaaS and ZOELA](adr/ADR-0003-ecosystem-topology-and-composition-boundary.md)
 - [ADR-0004: fond-hddl-mx-loop Closed-Loop Pattern & CalVer Admission](adr/ADR-0004-fond-hddl-mx-loop-pattern-and-calver.md)
 - [ADR-0005: AshSurface MX Consumer Surface Projection for ZOELA](adr/ADR-0005-ash-surface-mx-consumer-projection.md)
+- [Architectural Specification: The 4 Defensible Pillars of the Enterprise AAIF Distribution](architecture/enterprise-monopoly-four-pillars.md)
+- [ADR-0006: Canonical Ash Extension Manufacturer](adr/ADR-0006-canonical-ash-extension-manufacturer.md)
 
 # RFCs
 
