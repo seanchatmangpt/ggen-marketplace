@@ -13,7 +13,10 @@ Disciplines (per ~/.claude/rules/testing-chicago-style.md):
 """
 from __future__ import annotations
 
+import hashlib
 import json
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -341,3 +344,163 @@ class TestRealProjectionAndReplayLoop:
         # 6. AGENTS.md
         agents_md = (out_dir / "AGENTS.md").read_text()
         assert "Open Protocol Conformances" in agents_md
+
+
+EXPECTED_DIST_FILES = (
+    ".well-known/agent.json",
+    "mcp/mcp_servers.json",
+    "agentgateway/config.json",
+    "k8s/agent-router.yaml",
+    ".config/goose/config.yaml",
+    ".config/goose/recipes/default.yaml",
+    ".goosehints",
+    "AGENTS.md",
+)
+
+GGEN_BIN = shutil.which("ggen")
+
+
+class TestRealGgenSyncReplay:
+    """Real `ggen sync run` twice against a throwaway capsule copy of the
+    pack (never the repo tree itself), with HOME/XDG redirected into the
+    capsule. Chicago: real subprocess, assert final on-disk state, no mocks.
+    """
+
+    def _prepare_capsule(self, capsule: Path) -> Path:
+        consumer = capsule / "consumer"
+        shutil.copytree(
+            PACK,
+            consumer,
+            ignore=shutil.ignore_patterns("__pycache__", ".ggen", ".ggen-v2", ".cache"),
+        )
+        home = capsule / "home"
+        for sub in ("cache", "config", "data", "state"):
+            (home / sub).mkdir(parents=True, exist_ok=True)
+        return consumer
+
+    def _sync_env(self, capsule: Path) -> dict:
+        env = dict(os.environ)
+        home = capsule / "home"
+        env.update(
+            {
+                "HOME": str(home),
+                "XDG_CACHE_HOME": str(home / "cache"),
+                "XDG_CONFIG_HOME": str(home / "config"),
+                "XDG_DATA_HOME": str(home / "data"),
+                "XDG_STATE_HOME": str(home / "state"),
+            }
+        )
+        return env
+
+    def _run_sync(self, consumer: Path, capsule: Path) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [GGEN_BIN, "sync", "run"],
+            cwd=str(consumer),
+            env=self._sync_env(capsule),
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
+    def _dist_digests(self, consumer: Path) -> dict:
+        dist = consumer / "dist"
+        return {
+            p.relative_to(dist).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in sorted(dist.rglob("*"))
+            if p.is_file()
+        }
+
+    def _require_modern_path(self) -> None:
+        if GGEN_BIN is None:
+            pytest.skip("ggen binary not found on PATH (shutil.which('ggen') is None)")
+        if not (PACK / "ggen.toml").is_file():
+            pytest.skip(
+                "aaif-vanilla-pack has no ggen.toml yet (legacy render_aaif_pack.py path "
+                "still canonical; modern ggen path not migrated)"
+            )
+
+    def test_two_sync_passes_emit_eight_dist_files_byte_identical(self, tmp_path: Path) -> None:
+        """Both `ggen sync run` passes exit 0, emit exactly the 8 expected
+        dist/ files, and the second pass replays the tree byte-identically
+        (sha256 per file)."""
+        self._require_modern_path()
+        consumer = self._prepare_capsule(tmp_path)
+
+        first = self._run_sync(consumer, tmp_path)
+        assert first.returncode == 0, (
+            f"ggen sync run pass=1 failed:\nSTDOUT:\n{first.stdout}\nSTDERR:\n{first.stderr}"
+        )
+        digests_one = self._dist_digests(consumer)
+
+        second = self._run_sync(consumer, tmp_path)
+        assert second.returncode == 0, (
+            f"ggen sync run pass=2 failed:\nSTDOUT:\n{second.stdout}\nSTDERR:\n{second.stderr}"
+        )
+        digests_two = self._dist_digests(consumer)
+
+        assert set(EXPECTED_DIST_FILES) == set(digests_one), (
+            f"dist/ tree mismatch: missing={sorted(set(EXPECTED_DIST_FILES) - set(digests_one))} "
+            f"unexpected={sorted(set(digests_one) - set(EXPECTED_DIST_FILES))}"
+        )
+        assert digests_one == digests_two, (
+            "Non-deterministic replay under real ggen sync: "
+            + ",".join(sorted(k for k in set(digests_one) | set(digests_two) if digests_one.get(k) != digests_two.get(k)))
+        )
+
+    def test_second_pass_dist_files_nonempty_and_parse(self, tmp_path: Path) -> None:
+        """Emitted dist/ artifacts are real final state: non-empty, and the
+        JSON/YAML members parse cleanly (no placeholder/stub output)."""
+        self._require_modern_path()
+        consumer = self._prepare_capsule(tmp_path)
+        res = self._run_sync(consumer, tmp_path)
+        assert res.returncode == 0, f"ggen sync run failed:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}"
+
+        dist = consumer / "dist"
+        for rel in EXPECTED_DIST_FILES:
+            path = dist / rel
+            assert path.is_file(), f"expected dist artifact missing: {rel}"
+            assert path.stat().st_size > 0, f"dist artifact is empty: {rel}"
+
+        agent_card = json.loads((dist / ".well-known/agent.json").read_text())
+        assert agent_card.get("name"), "agent card missing name"
+        mcp_cfg = json.loads((dist / "mcp/mcp_servers.json").read_text())
+        assert "mcpServers" in mcp_cfg
+        ag_cfg = json.loads((dist / "agentgateway/config.json").read_text())
+        assert ag_cfg["binds"][0]["port"] == 8080
+        crds = list(yaml.safe_load_all((dist / "k8s/agent-router.yaml").read_text()))
+        assert {"AIGatewayRoute", "AIServiceBackend"} <= {c["kind"] for c in crds}
+        goose_cfg = yaml.safe_load((dist / ".config/goose/config.yaml").read_text())
+        assert goose_cfg["active_provider"] == "anthropic"
+
+    def test_capsule_sync_does_not_mutate_repo_sources(self, tmp_path: Path) -> None:
+        """Capsule replay leaves the canonical pack sources untouched: the
+        repo's committed dist/, templates, gates and ontology are unchanged
+        after two real ggen sync passes in the capsule."""
+        self._require_modern_path()
+
+        repo_dist_digests = {
+            p.relative_to(PACK).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in sorted((PACK / "dist").rglob("*"))
+            if p.is_file()
+        }
+        repo_source_digests = {
+            p.relative_to(PACK).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in sorted(PACK.rglob("*"))
+            if p.is_file() and "dist" not in p.relative_to(PACK).parts and "__pycache__" not in p.parts
+        }
+
+        consumer = self._prepare_capsule(tmp_path)
+        for _ in range(2):
+            res = self._run_sync(consumer, tmp_path)
+            assert res.returncode == 0, f"ggen sync run failed:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}"
+
+        assert repo_dist_digests == {
+            p.relative_to(PACK).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in sorted((PACK / "dist").rglob("*"))
+            if p.is_file()
+        }, "capsule sync mutated the repo's committed dist/ tree"
+        assert repo_source_digests == {
+            p.relative_to(PACK).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in sorted(PACK.rglob("*"))
+            if p.is_file() and "dist" not in p.relative_to(PACK).parts and "__pycache__" not in p.parts
+        }, "capsule sync mutated the repo's pack sources"
