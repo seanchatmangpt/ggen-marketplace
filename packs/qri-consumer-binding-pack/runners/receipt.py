@@ -25,6 +25,10 @@ PACK_ROOT = Path(__file__).resolve().parents[1]
 QRI_QUAL = PACK_ROOT.parent / "qri-qualification-profile-pack" / "qualification"
 if str(QRI_QUAL) not in sys.path:
     sys.path.insert(0, str(QRI_QUAL))
+# The sibling pack's ggen.lock pins its content hash: a stray __pycache__ written by this import
+# would change that hash and refuse the next in-repo qualification (FM-PACK-008). Never write
+# bytecode into a pack source tree.
+sys.dont_write_bytecode = True
 import rdfc  # noqa: E402  (reused from qri-qualification-profile-pack; never copied)
 
 QRI = "https://seanchatmangpt.github.io/packs/qri-qualification-profile-pack#"

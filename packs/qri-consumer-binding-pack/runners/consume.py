@@ -38,6 +38,23 @@ import semantic_runner  # noqa: E402
 QCB, QRI = receipt.QCB, receipt.QRI
 CAPSULE_SKIP = {"generated", ".ggen-v2", ".ggen", "__pycache__", "fixtures", "tests", "docs"}
 
+# Single-source law (frozen ggen v26.8.11 refuses [ontology] imports): ggen reads only ontology.ttl,
+# so the consumer's binding is swapped into the marked region of the capsule's ontology.ttl on disk,
+# before each ggen pass. Frozen ggen never sees the swap -- it only ever parses the resulting file.
+REGION_BEGIN = "# ==== BINDING-SWAP-REGION BEGIN ===="
+REGION_END = "# ==== BINDING-SWAP-REGION END ===="
+
+
+def swap_binding(ontology: Path, binding_text: str) -> None:
+    """Replace the marked binding block inside ontology.ttl with binding_text (in place)."""
+    text = ontology.read_text(encoding="utf-8")
+    begin = text.index(REGION_BEGIN)
+    head = text.index("\n", begin) + 1
+    tail = text.index(REGION_END, head)
+    if text.count(REGION_BEGIN) != 1 or text.count(REGION_END) != 1:
+        raise ValueError("binding-swap region markers are not unique in ontology.ttl")
+    ontology.write_text(text[:head] + binding_text.rstrip("\n") + "\n\n" + text[tail:], encoding="utf-8")
+
 
 def refusal_record(pack: Path, code: str, gate: str | None) -> dict:
     ontology = Graph().parse(pack / "ontology.ttl")
@@ -172,7 +189,9 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="qcb-consume-") as raw:
         capsule = Path(raw)
         consumer = build_capsule(pack, capsule, target, composes)
-        shutil.copyfile(args.binding.resolve(), consumer / "qualification" / "consumer.ttl")
+        ontology = consumer / "ontology.ttl"
+        binding_text = args.binding.resolve().read_text(encoding="utf-8")
+        swap_binding(ontology, binding_text)
         generated = consumer / "generated"
 
         # 4. pass 1
@@ -189,8 +208,8 @@ def main() -> int:
             binding=node, binding_dig=receipt.binding_digest(graph),
             pack_version=pack_version, generator_version=gver,
             pack_dig=receipt.pack_content_digest(pack, composes), output_dig=output_dig, files=files1)
-        combined = (args.binding.resolve().read_text(encoding="utf-8") + "\n" + facts)
-        (consumer / "qualification" / "consumer.ttl").write_text(combined, encoding="utf-8")
+        combined = (binding_text + "\n" + facts)
+        swap_binding(ontology, combined)
         try:
             post = shacl_violations(Graph().parse(data=combined, format="turtle"), pack)
         except ImportError:
