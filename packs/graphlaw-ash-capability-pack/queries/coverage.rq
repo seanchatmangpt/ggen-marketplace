@@ -2,9 +2,8 @@ PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
 
 # One row per coverage-ledger entry: kind, subject, status, artifacts, reason and note.
 # ?artifacts is fed by an ordered inner sub-SELECT (GROUP_CONCAT determinism law).
-# NOTE: rows without a coverageArtifact still raise rdflib's DISTINCT-unbound
-# NotBoundError, exactly as before this rewrite (pre-existing engine behavior,
-# preserved deliberately).
+# Rows without a coverageArtifact contribute "" to the fold via COALESCE, so
+# GROUP_CONCAT(DISTINCT ...) never sees an unbound variable (rdflib NotBoundError).
 SELECT ?subject_kind ?subject ?status ?artifacts ?reason ?note
 WHERE {
   ?row a gac:CapabilityCoverage ;
@@ -14,7 +13,7 @@ WHERE {
   OPTIONAL { ?row gac:coverageReason ?reason }
   OPTIONAL { ?row gac:coverageNote ?note }
   {
-    SELECT ?row (GROUP_CONCAT(DISTINCT ?artifact; separator=", ") AS ?artifacts)
+    SELECT ?row (GROUP_CONCAT(DISTINCT COALESCE(STR(?artifact), ""); separator=", ") AS ?artifacts)
     WHERE {
       ?row a gac:CapabilityCoverage .
       OPTIONAL {
