@@ -130,6 +130,15 @@ anchoring: every append rewrites `receipts/paid-delivery/HEAD` to the chain
 head hash, and `verify --anchor <hash-or-HEAD-file>` refuses with
 `REFUSED_ANCHOR_MISMATCH` (naming both hexes) if the final chain head differs.
 
+## Solution lock regeneration
+
+`scripts/regen_solution_lock.py --check`/`--regen` recomputes pack folds via
+the deployer's own `input_folds` (the same helper the quickstart imports);
+a stale lock exits 9 with `REFUSED:LOCK_STALE` plus the diff. The quickstart
+(`scripts/run_solution_quickstart.py`) refuses `REFUSED:LOCK_DRIFT` on
+repo-vs-lock drift (`--accept-drift` regenerates deliberately) and
+`REFUSED:SYMLINK_IN_SOURCE` on any symlink in source.
+
 ## Typed standings
 
 - `backend_standing`: `SIMULATED` when the monetization backend is `sim`;
