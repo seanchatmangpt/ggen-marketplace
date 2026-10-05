@@ -1,0 +1,114 @@
+---
+to: "test/{{ requirement_id }}_conformance_test.exs"
+for_each: "requirement"
+sparql:
+  requirement: |
+    PREFIX a2ac: <http://seanchatmangpt.github.io/packs/a2a-conformance#>
+    SELECT ?requirement_id ?requirement_cite ?requirement_summary ?court_family ?positive_witness ?negative_witness ?refusal_code
+    WHERE {
+      ?r a a2ac:NewSpecRequirement ;
+         a2ac:requirementId ?requirement_id ;
+         a2ac:requirementCite ?requirement_cite ;
+         a2ac:requirementSummary ?requirement_summary ;
+         a2ac:courtFamily ?court_family ;
+         a2ac:positiveWitness ?positive_witness ;
+         a2ac:negativeWitness ?negative_witness ;
+         a2ac:refusalCode ?refusal_code .
+    } ORDER BY ?requirement_id
+---
+{# Conformance-court SKELETON for a NEW A2A spec requirement.
+
+   House style of the cited court family (test/ash_a2a_v1_*.exs):
+   Chicago discipline -- real collaborators (real agents, real Plug.Test
+   conns, real codecs), zero mocks; assert on final wire state, never on
+   call counts. Three legs, all three REQUIRED for a non-vacuous court:
+
+     1. positive control  -- the surface works BEFORE any conformance
+        assertion, so any failure below is attributable to the requirement,
+        not to a broken fixture (a court that cannot show its own happy
+        path proves nothing).
+     2. conformance leg   -- the positive witness: the wire behavior the
+        spec requirement demands, asserted on real state.
+     3. kill leg          -- the negative witness: the deliberately
+        non-conformant shape is REFUSED with the pinned typed refusal.
+        A conformance court with no negative witness is vacuous: it
+        passes on an implementation that never enforced anything.
+
+   The consumer's ontology supplies the facts via a2ac:NewSpecRequirement;
+   the SKELETON marks the three TODO slots where the real wire shapes go.
+   A skeleton rendered and committed unedited is itself a court failure:
+   the non-vacuity test at the bottom refuses TODO markers. #}
+defmodule {{ requirement_id }}ConformanceTest do
+  @moduledoc """
+  A2A v1.0 conformance court (SKELETON) -- {{ requirement_summary }}.
+
+  Spec surface: {{ requirement_cite }}
+  Court family: {{ court_family }}
+
+  House rules (inherited from the ash_a2a v1 court family):
+
+    * Chicago style: real collaborators, zero mocks, assert on final state.
+    * Every court carries a positive control, a positive witness, and a
+      negative witness (kill). A court missing any leg is vacuous.
+    * Reality that differs from the spec is PINNED here in the moduledoc,
+      never papered over.
+
+  Falsifier: this court fails if the implementation stops enforcing the
+  requirement (positive witness dies) or stops refusing the violation
+  (kill leg dies), or if the skeleton was rendered but never filled in
+  (TODO markers present).
+  """
+
+  use ExUnit.Case, async: true
+
+  alias AshA2A.Protocol.JSON
+  alias AshA2A.Protocol.Message
+  alias AshA2A.Protocol.Part
+
+  @base_url "http://localhost:4105/a2a"
+  @refusal_code {{ refusal_code }}
+
+  # ---------------------------------------------------------------------------
+  # Leg 1 -- positive control: the surface itself works before we judge it
+  # ---------------------------------------------------------------------------
+
+  describe "positive control" do
+    test "the exercised surface produces a real wire response" do
+      # TODO(control): build the REAL request against the REAL surface
+      # (a real agent + real Plug.Test conn, same as the cited family), then
+      # assert the baseline shape the conformance leg below depends on.
+      # Example shape:
+      #   conn = post(plug_opts, "/a2a", request_json)
+      #   assert conn.status == 200
+      #   assert %{"result" => %{"id" => task_id}} = Jason.decode!(conn.resp_body)
+      flunk("skeleton not filled in: positive control for {{ requirement_id }} is still a TODO")
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Leg 2 -- conformance: the positive witness
+  # ---------------------------------------------------------------------------
+
+  describe "conformance: {{ requirement_summary }}" do
+    test "{{ requirement_cite }} holds on the real wire" do
+      # TODO(positive-witness): drive the REAL surface into the state the
+      # requirement governs and assert the demanded wire shape on the
+      # response. Cite the spec clause inline next to each assert.
+      flunk("skeleton not filled in: positive witness for {{ requirement_id }} is still a TODO")
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Leg 3 -- kill: the negative witness
+  # ---------------------------------------------------------------------------
+
+  describe "kill: {{ negative_witness }}" do
+    test "the deliberately non-conformant wire shape is refused {{ refusal_code }}" do
+      # TODO(kill): send the deliberately VIOLATING shape and assert the
+      # pinned typed refusal ({{ refusal_code }}). If the implementation
+      # ever stops refusing it, this leg dies -- that death is the court
+      # carrying bits. A missing kill leg = vacuous court.
+      flunk("skeleton not filled in: kill leg for {{ requirement_id }} is still a TODO")
+    end
+  end
+end

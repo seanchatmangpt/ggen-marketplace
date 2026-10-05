@@ -1,0 +1,210 @@
+@prefix ahm:  <http://seanchatmangpt.github.io/packs/a2a-hex-migration#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+#################################################################
+# Vocabulary
+#
+# Truth source for every literal below: ash_a2a's migration guide,
+# docs/how-to/migrate-from-a2a-hex.md (grep-verified against
+# lib/ash_a2a/protocol/* on the 26.10.3 tree). This pack is a
+# projection of that guide, not an independent authority: where the
+# pack and the guide disagree, the guide wins and the pack is
+# regenerated.
+#################################################################
+
+ahm:MigrationSpec a rdfs:Class ;
+    rdfs:label "The whole a2a-hex -> AshA2A.Protocol migration: one spec individual drives one generated Mix task per consumer project." .
+
+ahm:MigrationStep a rdfs:Class ;
+    rdfs:label "One ordered step of the migration, citing the guide section that defines it." .
+
+ahm:ModuleMapping a rdfs:Class ;
+    rdfs:label "One verified old->new reference mapping row from the guide's table (guide section 1)." .
+
+ahm:WireShapeDelta a rdfs:Class ;
+    rdfs:label "One raw-JSON wire-shape delta from the guide's table (guide section 2), printed as a checklist by the generated task." .
+
+ahm:specOf          a rdf:Property ; rdfs:domain ahm:MigrationStep ; rdfs:range ahm:MigrationSpec .
+ahm:stepOrder       a rdf:Property ; rdfs:domain ahm:MigrationStep ; rdfs:comment "1-based order of application." .
+ahm:stepName        a rdf:Property ; rdfs:domain ahm:MigrationStep ; rdfs:comment "Human step title, rendered into the generated task's step list." .
+ahm:guideSection    a rdf:Property ; rdfs:domain ahm:MigrationStep ;
+    rdfs:comment "Exact guide heading (docs/how-to/migrate-from-a2a-hex.md) this step is defined by. Gate 020 refuses a step whose guideSection does not start with the guide's numbered-heading shape." .
+
+ahm:mappingOf       a rdf:Property ; rdfs:domain ahm:ModuleMapping ; rdfs:range ahm:MigrationSpec .
+ahm:oldRef          a rdf:Property ; rdfs:domain ahm:ModuleMapping ; rdfs:comment "Exact old reference, e.g. \"A2A.Message.new_user\" -- replaced as a literal string, longest-first, before any generic rewrite." .
+ahm:newRef          a rdf:Property ; rdfs:domain ahm:ModuleMapping ; rdfs:comment "Exact new reference, e.g. \"AshA2A.Protocol.Message.new_user\"." .
+ahm:oldModule       a rdf:Property ; rdfs:domain ahm:ModuleMapping ; rdfs:comment "Old module segment, e.g. \"A2A.Message\" -- the anti-join key for gate 010's guide-module coverage assertion." .
+ahm:newModule       a rdf:Property ; rdfs:domain ahm:ModuleMapping ; rdfs:comment "New module, e.g. \"AshA2A.Protocol.Message\"." .
+ahm:grounding       a rdf:Property ; rdfs:domain ahm:ModuleMapping ;
+    rdfs:comment "Guide's grounding citation for the new side: a lib/ash_a2a/... path plus the defmodule/def line. Gate 030 refuses a mapping whose grounding is not under lib/ash_a2a/." .
+
+ahm:deltaOf         a rdf:Property ; rdfs:domain ahm:WireShapeDelta ; rdfs:range ahm:MigrationSpec .
+ahm:deltaOrder      a rdf:Property ; rdfs:domain ahm:WireShapeDelta ; rdfs:comment "1-based checklist order (guide section 2 order)." .
+ahm:deltaTitle      a rdf:Property ; rdfs:domain ahm:WireShapeDelta ; rdfs:comment "Short checklist title, e.g. \"final boolean dropped\"." .
+ahm:deltaDoc        a rdf:Property ; rdfs:domain ahm:WireShapeDelta ; rdfs:comment "One-paragraph checklist body incl. the guide's v0.3 -> v1.0 grounding." .
+
+ahm:taskModuleSegment a rdf:Property ; rdfs:domain ahm:MigrationSpec ;
+    rdfs:comment "Generated Mix task's module-name segment, e.g. \"A2aHexMigrate\" -> Mix.Tasks.A2aHexMigrate / mix a2a_hex.migrate. Admitted as fact, not derived." .
+ahm:fromPackage     a rdf:Property ; rdfs:domain ahm:MigrationSpec ; rdfs:comment "Old package identity stated in the guide's header." .
+ahm:toPackage       a rdf:Property ; rdfs:domain ahm:MigrationSpec ; rdfs:comment "Target package identity stated in the guide (ash_a2a mix.exs:25 = 26.10.3)." .
+ahm:guideDoc        a rdf:Property ; rdfs:domain ahm:MigrationSpec ; rdfs:comment "Repo-relative path of the governing guide inside ash_a2a." .
+ahm:aliasPattern    a rdf:Property ; rdfs:domain ahm:MigrationSpec ;
+    rdfs:comment "Bare `alias A2A` port form called out by the guide; the generated task rewrites it in the same pass." .
+
+#################################################################
+# Spec
+#################################################################
+
+ahm:a2aHexToAshA2a a ahm:MigrationSpec ;
+    rdfs:label "a2a hex 0.3.0 -> ash_a2a 26.10.3 protocol absorption" ;
+    ahm:taskModuleSegment "A2aHexMigrate" ;
+    ahm:fromPackage "a2a 0.3.0 (hex {:a2a, \"~> 0.2\"})" ;
+    ahm:toPackage "ash_a2a v26.10.3 (protocol surface vendored as AshA2A.Protocol.* under lib/ash_a2a/protocol/; the :a2a package is no longer needed)" ;
+    ahm:guideDoc "docs/how-to/migrate-from-a2a-hex.md" ;
+    ahm:aliasPattern "alias A2A" ;
+    rdfs:comment "Consumer class per the guide: xaas (ash_a2a git ref 3325032d9dea201e6deb82ef242c534aacb3b420 + {:a2a, \"~> 0.2\"} at /Users/sac/xaas/mix.exs:103-111) and ggen_igniter ({:ash_a2a, \"~> 26.9\"} at /Users/sac/ggen_igniter/mix.exs:271, installer assertion at test/ggen_igniter_semantic_a2a_manufacture_test.exs:66)." .
+
+#################################################################
+# Migration steps (each cites the guide section that defines it)
+#################################################################
+
+ahm:DropA2aDep a ahm:MigrationStep ;
+    ahm:specOf ahm:a2aHexToAshA2a ;
+    ahm:stepOrder 1 ;
+    ahm:stepName "Drop the :a2a dependency from mix.exs" ;
+    ahm:guideSection "1. Remove the `:a2a` dependency and port `A2A.*` calls" ;
+    rdfs:comment "Delete the {:a2a, \"~> 0.2\"} line from the consumer's mix.exs. The generated task removes the dep tuple and prints what it removed." .
+
+ahm:RetypeModules a ahm:MigrationStep ;
+    ahm:specOf ahm:a2aHexToAshA2a ;
+    ahm:stepOrder 2 ;
+    ahm:stepName "Port A2A.* module refs to AshA2A.Protocol.* per the verified mapping table" ;
+    ahm:guideSection "1. Remove the `:a2a` dependency and port `A2A.*` calls" ;
+    rdfs:comment "It is a namespace rename: structs, field names, and function names are unchanged (guide section 1). The generated task applies the 9 verified literal mappings first, then a word-boundary generic prefix rewrite for anything else, reporting every outside-table rename as unverified." .
+
+ahm:WireShapeUpdate a ahm:MigrationStep ;
+    ahm:specOf ahm:a2aHexToAshA2a ;
+    ahm:stepOrder 3 ;
+    ahm:stepName "Check raw-JSON assertions against the wire-shape deltas" ;
+    ahm:guideSection "2. Wire-shape deltas for code asserting raw JSON" ;
+    rdfs:comment "Only relevant if you assert on raw JSON-RPC frames in tests or a self-decoding client. The generated task prints this checklist; no code rewrite is implied." .
+
+ahm:InstallerRerun a ahm:MigrationStep ;
+    ahm:specOf ahm:a2aHexToAshA2a ;
+    ahm:stepOrder 4 ;
+    ahm:stepName "Re-run mix ash_a2a.install under 26.10.3" ;
+    ahm:guideSection "3. Installer flow" ;
+    rdfs:comment "mix ash_a2a.install no longer adds an :a2a dependency; its only optional dep is the plan provider via --with-pplan (ash_a2a.install.ex:40-42,152-153,162,174)." .
+
+ahm:SiblingTestFix a ahm:MigrationStep ;
+    ahm:specOf ahm:a2aHexToAshA2a ;
+    ahm:stepOrder 5 ;
+    ahm:stepName "Fix sibling-repo assertions that pin the old shape" ;
+    ahm:guideSection "5. Sibling-repo follow-ups" ;
+    rdfs:comment "ggen_igniter's installer-assertion test (test/ggen_igniter_semantic_a2a_manufacture_test.exs:66-68) flips to asserting the dep is absent; the dispatch test (test/ggen_igniter_semantic_a2a_dispatch_test.exs:44-56) still aliases A2A.Plug.Auth / A2A.Plug / %A2A.SecurityScheme.HTTPAuth{}. Tracked in the sibling repos, not here." .
+
+#################################################################
+# Module mappings (guide section 1 table, all 9 rows, verbatim)
+#################################################################
+
+ahm:MessageNewUser a ahm:ModuleMapping ;
+    ahm:mappingOf ahm:a2aHexToAshA2a ;
+    ahm:oldRef "A2A.Message.new_user" ;
+    ahm:newRef "AshA2A.Protocol.Message.new_user" ;
+    ahm:oldModule "A2A.Message" ;
+    ahm:newModule "AshA2A.Protocol.Message" ;
+    ahm:grounding "lib/ash_a2a/protocol/message.ex:37" .
+
+ahm:MessageNewAgent a ahm:ModuleMapping ;
+    ahm:mappingOf ahm:a2aHexToAshA2a ;
+    ahm:oldRef "A2A.Message.new_agent" ;
+    ahm:newRef "AshA2A.Protocol.Message.new_agent" ;
+    ahm:oldModule "A2A.Message" ;
+    ahm:newModule "AshA2A.Protocol.Message" ;
+    ahm:grounding "lib/ash_a2a/protocol/message.ex:53" .
+
+ahm:PartText a ahm:ModuleMapping ;
+    ahm:mappingOf ahm:a2aHexToAshA2a ;
+    ahm:oldRef "A2A.Part.Text" ;
+    ahm:newRef "AshA2A.Protocol.Part.Text" ;
+    ahm:oldModule "A2A.Part" ;
+    ahm:newModule "AshA2A.Protocol.Part" ;
+    ahm:grounding "lib/ash_a2a/protocol/part.ex:15" .
+
+ahm:PartFile a ahm:ModuleMapping ;
+    ahm:mappingOf ahm:a2aHexToAshA2a ;
+    ahm:oldRef "A2A.Part.File" ;
+    ahm:newRef "AshA2A.Protocol.Part.File" ;
+    ahm:oldModule "A2A.Part" ;
+    ahm:newModule "AshA2A.Protocol.Part" ;
+    ahm:grounding "lib/ash_a2a/protocol/part.ex:36" .
+
+ahm:PartData a ahm:ModuleMapping ;
+    ahm:mappingOf ahm:a2aHexToAshA2a ;
+    ahm:oldRef "A2A.Part.Data" ;
+    ahm:newRef "AshA2A.Protocol.Part.Data" ;
+    ahm:oldModule "A2A.Part" ;
+    ahm:newModule "AshA2A.Protocol.Part" ;
+    ahm:grounding "lib/ash_a2a/protocol/part.ex:58" .
+
+ahm:Plug a ahm:ModuleMapping ;
+    ahm:mappingOf ahm:a2aHexToAshA2a ;
+    ahm:oldRef "A2A.Plug" ;
+    ahm:newRef "AshA2A.Protocol.Plug" ;
+    ahm:oldModule "A2A.Plug" ;
+    ahm:newModule "AshA2A.Protocol.Plug" ;
+    ahm:grounding "lib/ash_a2a/protocol/plug.ex:2" .
+
+ahm:PlugAuth a ahm:ModuleMapping ;
+    ahm:mappingOf ahm:a2aHexToAshA2a ;
+    ahm:oldRef "A2A.Plug.Auth" ;
+    ahm:newRef "AshA2A.Protocol.Plug.Auth" ;
+    ahm:oldModule "A2A.Plug.Auth" ;
+    ahm:newModule "AshA2A.Protocol.Plug.Auth" ;
+    ahm:grounding "lib/ash_a2a/protocol/plug/auth.ex:2" .
+
+ahm:AgentSupervisor a ahm:ModuleMapping ;
+    ahm:mappingOf ahm:a2aHexToAshA2a ;
+    ahm:oldRef "A2A.AgentSupervisor" ;
+    ahm:newRef "AshA2A.Protocol.AgentSupervisor" ;
+    ahm:oldModule "A2A.AgentSupervisor" ;
+    ahm:newModule "AshA2A.Protocol.AgentSupervisor" ;
+    ahm:grounding "lib/ash_a2a/protocol/agent_supervisor.ex:1" .
+
+ahm:Agent a ahm:ModuleMapping ;
+    ahm:mappingOf ahm:a2aHexToAshA2a ;
+    ahm:oldRef "A2A.Agent" ;
+    ahm:newRef "AshA2A.Protocol.Agent" ;
+    ahm:oldModule "A2A.Agent" ;
+    ahm:newModule "AshA2A.Protocol.Agent" ;
+    ahm:grounding "lib/ash_a2a/protocol/agent.ex:1" .
+
+#################################################################
+# Wire-shape deltas (guide section 2, all 4, verbatim order)
+#################################################################
+
+ahm:KindDiscriminatorDropped a ahm:WireShapeDelta ;
+    ahm:deltaOf ahm:a2aHexToAshA2a ;
+    ahm:deltaOrder 1 ;
+    ahm:deltaTitle "kind discriminator dropped in favor of flat frames" ;
+    ahm:deltaDoc "v0.3 discriminated the event union with a \"kind\" field (lib/ash_a2a/protocol/json.ex:789); v1.0 SSE frames are flat StreamResponse wrappers ({\"task\": ...}, {\"statusUpdate\": ...}, {\"artifactUpdate\": ...}). Decode-side the codec still accepts the v0.3 \"kind\" discriminator as a fallback (lib/ash_a2a/protocol/json.ex:460-464), so a not-yet-migrated peer still decodes. A2A.Event.StatusUpdate / A2A.Event.ArtifactUpdate structs still exist on the new side as AshA2A.Protocol.Event.StatusUpdate / AshA2A.Protocol.Event.ArtifactUpdate." .
+
+ahm:FinalBooleanDropped a ahm:WireShapeDelta ;
+    ahm:deltaOf ahm:a2aHexToAshA2a ;
+    ahm:deltaOrder 2 ;
+    ahm:deltaTitle "final boolean dropped" ;
+    ahm:deltaDoc "v0.3 carried finality in \"final\": true (lib/ash_a2a/protocol/json.ex:18); v1.0 never emits it -- finality is carried by a terminal status state (completed, canceled, failed, rejected; lib/ash_a2a/protocol/task.ex:31, lib/ash_a2a/protocol/event.ex:22). The decode path reads it from legacy frames only (lib/ash_a2a/protocol/json.ex:581)." .
+
+ahm:ErrorInfoPayloads a ahm:WireShapeDelta ;
+    ahm:deltaOf ahm:a2aHexToAshA2a ;
+    ahm:deltaOrder 3 ;
+    ahm:deltaTitle "Error payloads are google.rpc.ErrorInfo objects" ;
+    ahm:deltaDoc "Every A2A-specific error (-32001..-32009 plus -32602) serializes its data as a google.rpc.ErrorInfo with domain a2a-protocol.org (-32001 TASK_NOT_FOUND, -32002 TASK_NOT_CANCELABLE, -32003 PUSH_NOTIFICATION_NOT_SUPPORTED, -32004 UNSUPPORTED_OPERATION, -32602 INVALID_PARAMS); registry in lib/ash_a2a/protocol/jsonrpc/error.ex:8 and mapping in lib/ash_a2a/protocol/client.ex:772-810." .
+
+ahm:CardUrlInsideInterfaces a ahm:WireShapeDelta ;
+    ahm:deltaOf ahm:a2aHexToAshA2a ;
+    ahm:deltaOrder 4 ;
+    ahm:deltaTitle "Card url moved inside supportedInterfaces[]" ;
+    ahm:deltaDoc "The old A2A.AgentCard had a top-level url plus top-level protocolVersion (a2a 0.3.0, deps/a2a/lib/a2a/agent_card.ex:59-63). The v1.0 card keeps url but carries protocolVersion only inside supportedInterfaces[] (lib/ash_a2a/protocol/card_signing.ex:32-34), with the interface URL seeded as supportedInterfaces[0].url (card_signing.ex:84), and the struct gains supported_interfaces (agent_card.ex:80,105). protocolVersion is 1.0 (version.ex:12) with 0.3 still listed in supported (version.ex:16); an empty or missing A2A-Version header is interpreted as 0.3 (version.ex:7,49-50)." .

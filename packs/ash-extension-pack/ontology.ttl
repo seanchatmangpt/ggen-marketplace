@@ -1543,5 +1543,377 @@ aex:MutationCourtGhostField a aex:MutationSpec ;
 
 aex:BurnEpoch261001 a aex:BurnEpoch ;
     rdfs:label "2026-10-01 burn epoch -- lane C1 anti-vacuity runs" ;
-    aex:burnVerdict "gate110 conforming=0 rows; gate110 mutated=1 row; parity court conforming=pass; parity court ghost=FAIL(orphan)" ;
+    aex:burnVerdict "gate110 conforming=0 rows; gate110 mutated=1 row; verify/render_check.exs: PASS (11 templates x real Oxigraph queries + TeraWasm render, 0 MISS/0 fail)" ;
     aex:burnDigest "91f5186e4d2f73428afb9503ef2f9f7498138327bc26becdf075d8b620b252c4" .
+
+#################################################################
+# ash_a2a a2a-section projection surface (M2 lane, 2026-10-04) --
+# the canonical pack absorbs the real, already-shipped ash_a2a A2A-projection
+# DSL shape, transcribed from /Users/sac/ash_a2a/lib/ash_a2a/dsl.ex and
+# /Users/sac/ash_a2a/lib/ash_a2a/verifiers/verify_skills.ex
+# (main@5a84d886e0696cd43115799bbdc4bc8ec481376c, dsl.ex/verify_skills.ex
+# unchanged since 19a03c8 "publish ash_a2a 26.10.2"; confirmed by direct read,
+# not memory) -- the same acceptance-fixture discipline as the AshR2RMLSpec
+# block above. Only the DSL SHAPE is modeled; ash_a2a's real transformer/
+# verifier BODIES (BuildCapabilityIndex, VerifySkills' four checks) are
+# hand-written domain logic and are deliberately NOT modeled or regenerated
+# here.
+#
+# Reuses the existing aex: vocabulary (aex:DslSection / aex:DslEntity /
+# aex:EntitySchemaField / aex:SectionSchemaField / aex:NestedEntity /
+# aex:EntityArg / aex:FieldOneOfValue / aex:SemanticFact / aex:SurfaceFact).
+# ONE new property: aex:dslCitation, carrying the verbatim lib/ash_a2a/dsl.ex
+# line range each fact was transcribed from (echo, don't synthesize).
+# aex:dslCitation is attested consumed by templates/a2a_skill.ex.tmpl and
+# gates/140_a2a_skill_fields_contract.rq; see gates/150_a2a_dead_surface.rq.
+#
+# Two transcription notes, stated rather than silently degraded:
+#  - the skill entity's real positional args are
+#    [:name, {:optional, :resource}, :action] (dsl.ex:153); aex:EntityArg
+#    models plain names only, so the {:optional, :resource} wrapper is stated
+#    in the aex:AshA2aSkillArgResource comment, not fabricated as new syntax.
+#  - aex:fieldType's closed vocabulary has no :map or tuple form; fields whose
+#    real Spark type is {:map, :string, :atom} / {:list, {:tuple, ...}} /
+#    {:or, [:module, :mfa]} carry fieldType "any" and state the exact Spark
+#    type in fieldDoc -- same echo discipline as aex:fieldType's own comment.
+#################################################################
+
+aex:dslCitation a rdf:Property ;
+    rdfs:comment "verbatim source citation for a transcribed DSL fact, e.g. \"lib/ash_a2a/dsl.ex:69-77\" -- the line range the fact was read from on the cited SHA, stated at transcription time so drift between this pack and its ground truth is greppable. Domain: any aex:DslSection / aex:DslEntity / aex:EntitySchemaField / aex:SectionSchemaField individual. Consumed by templates/a2a_skill.ex.tmpl (renders the citation into the generated example's moduledoc) and gates/140_a2a_skill_fields_contract.rq (refuses the three v26.10 skill fields without their dsl.ex citation); dead-surface checked by gates/150_a2a_dead_surface.rq." .
+
+# --- Worked instance: the real ash_a2a extension (the a2a-section fixture) ---
+
+aex:AshA2aSpec a aex:AshExtensionSpec ;
+    aex:packageName "ash_a2a" ;
+    aex:moduleName "AshA2A.Dsl" ;
+    aex:extensionTarget "domain" ;
+    aex:dslCitation "lib/ash_a2a/ash_a2a.ex:25 (sections: AshA2A.Dsl.sections()) + lib/ash_a2a/dsl.ex:221 (sections/0 -> [@a2a, @authority, @hooks])" ;
+    rdfs:comment "The real AshA2A extension module (lib/ash_a2a.ex:24-29) attaches one extension to BOTH resources and domains (use Ash.Resource, extensions: [AshA2A] / use Ash.Domain, extensions: [AshA2A], e.g. test/support/auth_plug_fixture.ex:21,47); aex:extensionTarget is single-valued and closed, so the spec carries \"domain\" and this comment carries the dual-attachment fact." .
+
+# --- :a2a section (dsl.ex:158-185) ---
+
+aex:AshA2aSection a aex:DslSection ;
+    aex:sectionOf aex:AshA2aSpec ;
+    aex:sectionName "a2a" ;
+    aex:sectionOrder 1 ;
+    aex:sectionDescribe "Optional residual A2A overrides. Public Ash actions are exposed without declarations." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:158-185" .
+
+# --- skill entity (dsl.ex:147-156), target AshA2A.Skill (lib/ash_a2a/skill.ex) ---
+
+aex:AshA2aSkillEntity a aex:DslEntity ;
+    aex:entityOf aex:AshA2aSection ;
+    aex:entityOrder 1 ; aex:entityName "skill" ;
+    aex:entityStruct "AshA2A.Skill" ; aex:entityIdentifier "name" ;
+    aex:entityDescribe "Overrides A2A projection metadata for an existing public Ash action." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:147-156" .
+
+# Positional args: args: [:name, {:optional, :resource}, :action] (dsl.ex:153).
+aex:AshA2aSkillArgName a aex:EntityArg ;
+    aex:argOf aex:AshA2aSkillEntity ; aex:argOrder 1 ; aex:argName "name" .
+aex:AshA2aSkillArgResource a aex:EntityArg ;
+    rdfs:comment "rendered positionally as :resource; the real Spark args list wraps this entry as {:optional, :resource} (dsl.ex:153), which aex:EntityArg's plain-name vocabulary does not model -- see the block comment." ;
+    aex:argOf aex:AshA2aSkillEntity ; aex:argOrder 2 ; aex:argName "resource" .
+aex:AshA2aSkillArgAction a aex:EntityArg ;
+    aex:argOf aex:AshA2aSkillEntity ; aex:argOrder 3 ; aex:argName "action" .
+
+# --- skill entity schema fields (aex:EntitySchemaField; fieldOrder mirrors the
+# --- @skill_schema keyword order at dsl.ex:15-95) ---
+
+aex:AshA2aSkillName a aex:EntitySchemaField ;
+    aex:fieldOf aex:AshA2aSkillEntity ;
+    aex:fieldOrder 1 ; aex:fieldName "name" ; aex:fieldType "atom" ;
+    aex:fieldRequired true ;
+    aex:fieldDoc "A2A display/selector name override for the referenced public Ash action." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:16-20" .
+
+aex:AshA2aSkillResource a aex:EntitySchemaField ;
+    aex:fieldOf aex:AshA2aSkillEntity ;
+    aex:fieldOrder 2 ; aex:fieldName "resource" ; aex:fieldType "module" ;
+    aex:fieldRequired false ;
+    aex:fieldDoc "Target resource. Required on a domain; implicit on a resource. Real Spark type {:spark, Ash.Resource}." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:21-25" .
+
+aex:AshA2aSkillAction a aex:EntitySchemaField ;
+    aex:fieldOf aex:AshA2aSkillEntity ;
+    aex:fieldOrder 3 ; aex:fieldName "action" ; aex:fieldType "atom" ;
+    aex:fieldRequired true ;
+    aex:fieldDoc "Canonical public Ash action to override." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:26-30" .
+
+aex:AshA2aSkillDescription a aex:EntitySchemaField ;
+    aex:fieldOf aex:AshA2aSkillEntity ;
+    aex:fieldOrder 4 ; aex:fieldName "description" ; aex:fieldType "string" ;
+    aex:fieldRequired false ;
+    aex:fieldDoc "Optional A2A-only description override." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:31-35" .
+
+aex:AshA2aSkillTags a aex:EntitySchemaField ;
+    aex:fieldOf aex:AshA2aSkillEntity ;
+    aex:fieldOrder 5 ; aex:fieldName "tags" ; aex:fieldType "list_string" ;
+    aex:fieldRequired false ;
+    aex:fieldDoc "Optional A2A-only tags override." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:36-40" .
+
+aex:AshA2aSkillExpose a aex:EntitySchemaField ;
+    aex:fieldOf aex:AshA2aSkillEntity ;
+    aex:fieldOrder 6 ; aex:fieldName "expose?" ; aex:fieldType "boolean" ;
+    aex:fieldRequired false ; aex:fieldDefault "true" ;
+    aex:fieldDoc "Whether this otherwise-public Ash action is exposed through AshA2A.Protocol." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:41-45" .
+
+aex:AshA2aSkillConsequence a aex:EntitySchemaField ;
+    aex:fieldOf aex:AshA2aSkillEntity ;
+    aex:fieldOrder 7 ; aex:fieldName "consequence" ; aex:fieldType "one_of" ;
+    aex:fieldRequired false ;
+    aex:fieldDoc "Explicit consequence classification (AshA2A.Skill @moduledoc); observe_on_mutating_action is a compile-time DslError (SEC-04)." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:46-56" .
+
+aex:AshA2aSkillConsequenceObserve a aex:FieldOneOfValue ;
+    aex:oneOfValueOf aex:AshA2aSkillConsequence ; aex:oneOfValueOrder 1 ; aex:oneOfValueName "observe" .
+aex:AshA2aSkillConsequenceChange a aex:FieldOneOfValue ;
+    aex:oneOfValueOf aex:AshA2aSkillConsequence ; aex:oneOfValueOrder 2 ; aex:oneOfValueName "change" .
+aex:AshA2aSkillConsequenceExternalDo a aex:FieldOneOfValue ;
+    aex:oneOfValueOf aex:AshA2aSkillConsequence ; aex:oneOfValueOrder 3 ; aex:oneOfValueName "external_do" .
+aex:AshA2aSkillConsequenceUnknown a aex:FieldOneOfValue ;
+    aex:oneOfValueOf aex:AshA2aSkillConsequence ; aex:oneOfValueOrder 4 ; aex:oneOfValueName "unknown" .
+
+aex:AshA2aSkillOnCancel a aex:EntitySchemaField ;
+    aex:fieldOf aex:AshA2aSkillEntity ;
+    aex:fieldOrder 8 ; aex:fieldName "on_cancel" ; aex:fieldType "any" ;
+    aex:fieldRequired false ;
+    aex:fieldDoc "Real Ash-side compensation hook (AshA2A.OnCancel). Real Spark type {:or, [:module, :mfa]} (dsl.ex:58)." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:57-68" .
+
+# THE THREE NEW v26.10 FIELDS (M2's asserted surface):
+aex:AshA2aSkillArgumentMapping a aex:EntitySchemaField ;
+    aex:fieldOf aex:AshA2aSkillEntity ;
+    aex:fieldOrder 9 ; aex:fieldName "argument_mapping" ; aex:fieldType "any" ;
+    aex:fieldRequired false ; aex:fieldDefault "%{}" ;
+    aex:fieldDoc "Map of wire (string) argument name to atom action argument name. Real Spark type {:map, :string, :atom}. Verified by AshA2A.Verifiers.VerifySkills (refused_argument_mapping_target, verify_skills.ex:184-199)." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:69-77" .
+
+aex:AshA2aSkillGet a aex:EntitySchemaField ;
+    aex:fieldOf aex:AshA2aSkillEntity ;
+    aex:fieldOrder 10 ; aex:fieldName "get?" ; aex:fieldType "boolean" ;
+    aex:fieldRequired false ; aex:fieldDefault "false" ;
+    aex:fieldDoc "Marks a read skill as a single-record get (mirrors ash_json_api's get? semantic); read via the compiled capability index." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:78-85" .
+
+aex:AshA2aSkillLeaseRequired a aex:EntitySchemaField ;
+    aex:fieldOf aex:AshA2aSkillEntity ;
+    aex:fieldOrder 11 ; aex:fieldName "lease_required?" ; aex:fieldType "boolean" ;
+    aex:fieldRequired false ; aex:fieldDefault "false" ;
+    aex:fieldDoc "Governance boundary: dispatch under this skill requires a valid authority lease; the authorizer consequence is enforced by the architecture verifier. Compile-time refusal refused_lease_required_no_authorizer (verify_skills.ex:299-311)." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:86-94" .
+
+# --- skill's nested entities (dsl.ex:155, entities: [arguments: [@argument],
+# --- hddl_operators: [@hddl_operator]]) ---
+
+aex:AshA2aArgumentEntity a aex:NestedEntity ;
+    aex:nestedOf aex:AshA2aSkillEntity ;
+    aex:nestedFieldName "arguments" ;
+    aex:entityName "argument" ; aex:entityStruct "AshA2A.Argument" ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:102-110 (+155)" ;
+    rdfs:comment "Deprecated compatibility-only argument declaration (dsl.ex:104-105); capability compilation ignores it -- AshA2A.Verify's dead_argument_warning (verify.ex:75-88) surfaces a declaration as a compile-time warning." .
+
+aex:AshA2aArgumentName a aex:EntitySchemaField ;
+    aex:fieldOf aex:AshA2aArgumentEntity ;
+    aex:fieldOrder 1 ; aex:fieldName "name" ; aex:fieldType "atom" ; aex:fieldRequired true ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:98" .
+aex:AshA2aArgumentType a aex:EntitySchemaField ;
+    aex:fieldOf aex:AshA2aArgumentEntity ;
+    aex:fieldOrder 2 ; aex:fieldName "type" ; aex:fieldType "any" ; aex:fieldRequired true ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:99" .
+aex:AshA2aArgumentArgName a aex:EntityArg ;
+    aex:argOf aex:AshA2aArgumentEntity ; aex:argOrder 1 ; aex:argName "name" .
+aex:AshA2aArgumentArgType a aex:EntityArg ;
+    aex:argOf aex:AshA2aArgumentEntity ; aex:argOrder 2 ; aex:argName "type" .
+
+aex:AshA2aHddlOperatorEntity a aex:NestedEntity ;
+    aex:nestedOf aex:AshA2aSkillEntity ;
+    aex:nestedFieldName "hddl_operators" ;
+    aex:entityName "hddl_operator" ; aex:entityStruct "AshA2A.HddlOperator" ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:137-145 (+155)" ;
+    rdfs:comment "Declares this skill's HDDL :action operator for the deterministic, non-LLM planning path (dsl.ex:140-141). Identifier is {:auto, :unique_integer} (dsl.ex:144) -- not a named field, so no aex:entityIdentifier row; aex:EntityArg has no positional args to model." .
+
+aex:AshA2aHddlParameters a aex:EntitySchemaField ;
+    aex:fieldOf aex:AshA2aHddlOperatorEntity ;
+    aex:fieldOrder 1 ; aex:fieldName "parameters" ; aex:fieldType "list_atom" ;
+    aex:fieldRequired false ; aex:fieldDefault "[]" ;
+    aex:fieldDoc "Ordered HDDL parameter variable names for this operator's :parameters." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:115-119" .
+aex:AshA2aHddlPreconditions a aex:EntitySchemaField ;
+    aex:fieldOf aex:AshA2aHddlOperatorEntity ;
+    aex:fieldOrder 2 ; aex:fieldName "preconditions" ; aex:fieldType "any" ;
+    aex:fieldRequired false ; aex:fieldDefault "[]" ;
+    aex:fieldDoc "Facts required before this operator. Real Spark type {:list, {:tuple, [:atom, {:list, :atom}]}} (dsl.ex:112,120-125)." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:120-125" .
+aex:AshA2aHddlAddEffects a aex:EntitySchemaField ;
+    aex:fieldOf aex:AshA2aHddlOperatorEntity ;
+    aex:fieldOrder 3 ; aex:fieldName "add_effects" ; aex:fieldType "any" ;
+    aex:fieldRequired false ; aex:fieldDefault "[]" ;
+    aex:fieldDoc "Facts asserted true after this operator runs. Real Spark type {:list, {:tuple, [:atom, {:list, :atom}]}}." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:126-130" .
+aex:AshA2aHddlDeleteEffects a aex:EntitySchemaField ;
+    aex:fieldOf aex:AshA2aHddlOperatorEntity ;
+    aex:fieldOrder 4 ; aex:fieldName "delete_effects" ; aex:fieldType "any" ;
+    aex:fieldRequired false ; aex:fieldDefault "[]" ;
+    aex:fieldDoc "Facts retracted after this operator runs. Real Spark type {:list, {:tuple, [:atom, {:list, :atom}]}}." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:131-134" .
+
+# --- :authority section (dsl.ex:187-202) ---
+
+aex:AshA2aAuthoritySection a aex:DslSection ;
+    aex:sectionOf aex:AshA2aSpec ;
+    aex:sectionName "authority" ;
+    aex:sectionOrder 2 ;
+    aex:sectionDescribe "Declarative two-port gate policies and lease constraints for A2A actions." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:187-202" .
+
+aex:AshA2aAuthorityGate a aex:SectionSchemaField ;
+    aex:sectionFieldOf aex:AshA2aAuthoritySection ;
+    aex:sectionFieldOrder 1 ; aex:sectionFieldName "gate" ; aex:sectionFieldType "one_of" ;
+    aex:sectionFieldDefault ":two_port" ;
+    aex:sectionFieldDoc "Default admission gate applied to consequence-bearing actions. Closed values: :two_port | :open | :disabled (dsl.ex:192); aex:FieldOneOfValue binds to entity fields only, so the section-level enum is stated here. Compile-time coupling: an :external_do/:change consequence under gate :open/:disabled is a DslError (verify.ex:42-58)." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:191-194" .
+
+aex:AshA2aAuthorityLeaseDuration a aex:SectionSchemaField ;
+    aex:sectionFieldOf aex:AshA2aAuthoritySection ;
+    aex:sectionFieldOrder 2 ; aex:sectionFieldName "lease_duration_ms" ; aex:sectionFieldType "integer" ;
+    aex:sectionFieldDefault "60_000" ;
+    aex:sectionFieldDoc "Default lease lifetime in milliseconds. Real Spark type :pos_integer (dsl.ex:197)." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:195-200" .
+
+# --- :hooks section (dsl.ex:204-219) ---
+
+aex:AshA2aHooksSection a aex:DslSection ;
+    aex:sectionOf aex:AshA2aSpec ;
+    aex:sectionName "hooks" ;
+    aex:sectionOrder 3 ;
+    aex:sectionDescribe "Declarative binding of GraphLaw knowledge hooks to action lifecycle points." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:204-219" .
+
+aex:AshA2aHooksPreDispatch a aex:SectionSchemaField ;
+    aex:sectionFieldOf aex:AshA2aHooksSection ;
+    aex:sectionFieldOrder 1 ; aex:sectionFieldName "pre_dispatch" ; aex:sectionFieldType "list_atom" ;
+    aex:sectionFieldDefault "[]" ;
+    aex:sectionFieldDoc "Hook identifiers evaluated before action dispatch." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:208-212" .
+
+aex:AshA2aHooksPostDispatch a aex:SectionSchemaField ;
+    aex:sectionFieldOf aex:AshA2aHooksSection ;
+    aex:sectionFieldOrder 2 ; aex:sectionFieldName "post_dispatch" ; aex:sectionFieldType "list_atom" ;
+    aex:sectionFieldDefault "[]" ;
+    aex:sectionFieldDoc "Hook identifiers evaluated after action execution." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:213-217" .
+
+# --- :a2a section's own schema option (dsl.ex:163-184) ---
+
+aex:AshA2aSemanticRequests a aex:SectionSchemaField ;
+    aex:sectionFieldOf aex:AshA2aSection ;
+    aex:sectionFieldOrder 1 ; aex:sectionFieldName "semantic_requests" ; aex:sectionFieldType "boolean" ;
+    aex:sectionFieldDefault "false" ;
+    aex:sectionFieldDoc "Explicit opt-in to the semantic-compilation A2A surface (AshA2A.Semantic.Compiler). Two gates must both be true before a dispatch reaches Compiler.compile/3: this option AND the inbound message metadata :semantic_request flag (dsl.ex:174-181) -- never a surprise LLM invocation." ;
+    aex:dslCitation "lib/ash_a2a/dsl.ex:164-183" .
+
+#################################################################
+# SemanticFact retyping of the ash_a2a surface facts (append-only, same
+# shape as the audit_trail/ash_r2rml/notification_extension retyping above).
+# surfacePackage is "ash_a2a": "implemented" = the fact is in the real
+# shipped lib (the cited dsl.ex lines ARE the implementation); "sparkDeclared"
+# = it lands on the real compiled Spark surface via AshA2A.Dsl.sections/0
+# (dsl.ex:221). Keeps gate 110's implemented-sparkDeclared closure conforming
+# across the newly absorbed surface.
+#################################################################
+
+aex:AshA2aSection a aex:SemanticFact ;
+    aex:factName "ash_a2a.section.a2a" .
+aex:SF_impl_AshA2aSection a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ; aex:surfaceOf aex:AshA2aSection ; aex:surfacePackage "ash_a2a" .
+aex:SF_decl_AshA2aSection a aex:SurfaceFact ; rdfs:comment "declared in the real compiled Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ; aex:surfaceOf aex:AshA2aSection ; aex:surfacePackage "ash_a2a" .
+
+aex:AshA2aSkillEntity a aex:SemanticFact ;
+    aex:factName "ash_a2a.entity.skill" .
+aex:SF_impl_AshA2aSkillEntity a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ; aex:surfaceOf aex:AshA2aSkillEntity ; aex:surfacePackage "ash_a2a" .
+aex:SF_decl_AshA2aSkillEntity a aex:SurfaceFact ; rdfs:comment "declared in the real compiled Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ; aex:surfaceOf aex:AshA2aSkillEntity ; aex:surfacePackage "ash_a2a" .
+
+aex:AshA2aSkillArgumentMapping a aex:SemanticFact ;
+    aex:factName "ash_a2a.field.AshA2A.Skill.argument_mapping" .
+aex:SF_impl_AshA2aSkillArgumentMapping a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ; aex:surfaceOf aex:AshA2aSkillArgumentMapping ; aex:surfacePackage "ash_a2a" .
+aex:SF_decl_AshA2aSkillArgumentMapping a aex:SurfaceFact ; rdfs:comment "declared in the real compiled Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ; aex:surfaceOf aex:AshA2aSkillArgumentMapping ; aex:surfacePackage "ash_a2a" .
+
+aex:AshA2aSkillGet a aex:SemanticFact ;
+    aex:factName "ash_a2a.field.AshA2A.Skill.get?" .
+aex:SF_impl_AshA2aSkillGet a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ; aex:surfaceOf aex:AshA2aSkillGet ; aex:surfacePackage "ash_a2a" .
+aex:SF_decl_AshA2aSkillGet a aex:SurfaceFact ; rdfs:comment "declared in the real compiled Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ; aex:surfaceOf aex:AshA2aSkillGet ; aex:surfacePackage "ash_a2a" .
+
+aex:AshA2aSkillLeaseRequired a aex:SemanticFact ;
+    aex:factName "ash_a2a.field.AshA2A.Skill.lease_required?" .
+aex:SF_impl_AshA2aSkillLeaseRequired a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ; aex:surfaceOf aex:AshA2aSkillLeaseRequired ; aex:surfacePackage "ash_a2a" .
+aex:SF_decl_AshA2aSkillLeaseRequired a aex:SurfaceFact ; rdfs:comment "declared in the real compiled Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ; aex:surfaceOf aex:AshA2aSkillLeaseRequired ; aex:surfacePackage "ash_a2a" .
+
+aex:AshA2aHddlOperatorEntity a aex:SemanticFact ;
+    aex:factName "ash_a2a.entity.hddl_operator" .
+aex:SF_impl_AshA2aHddlOperatorEntity a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ; aex:surfaceOf aex:AshA2aHddlOperatorEntity ; aex:surfacePackage "ash_a2a" .
+aex:SF_decl_AshA2aHddlOperatorEntity a aex:SurfaceFact ; rdfs:comment "declared in the real compiled Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ; aex:surfaceOf aex:AshA2aHddlOperatorEntity ; aex:surfacePackage "ash_a2a" .
+
+aex:AshA2aSemanticRequests a aex:SemanticFact ;
+    aex:factName "ash_a2a.sectionfield.semantic_requests" .
+aex:SF_impl_AshA2aSemanticRequests a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ; aex:surfaceOf aex:AshA2aSemanticRequests ; aex:surfacePackage "ash_a2a" .
+aex:SF_decl_AshA2aSemanticRequests a aex:SurfaceFact ; rdfs:comment "declared in the real compiled Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ; aex:surfaceOf aex:AshA2aSemanticRequests ; aex:surfacePackage "ash_a2a" .
+
+aex:AshA2aAuthoritySection a aex:SemanticFact ;
+    aex:factName "ash_a2a.section.authority" .
+aex:SF_impl_AshA2aAuthoritySection a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ; aex:surfaceOf aex:AshA2aAuthoritySection ; aex:surfacePackage "ash_a2a" .
+aex:SF_decl_AshA2aAuthoritySection a aex:SurfaceFact ; rdfs:comment "declared in the real compiled Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ; aex:surfaceOf aex:AshA2aAuthoritySection ; aex:surfacePackage "ash_a2a" .
+
+aex:AshA2aAuthorityGate a aex:SemanticFact ;
+    aex:factName "ash_a2a.sectionfield.authority.gate" .
+aex:SF_impl_AshA2aAuthorityGate a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ; aex:surfaceOf aex:AshA2aAuthorityGate ; aex:surfacePackage "ash_a2a" .
+aex:SF_decl_AshA2aAuthorityGate a aex:SurfaceFact ; rdfs:comment "declared in the real compiled Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ; aex:surfaceOf aex:AshA2aAuthorityGate ; aex:surfacePackage "ash_a2a" .
+
+aex:AshA2aAuthorityLeaseDuration a aex:SemanticFact ;
+    aex:factName "ash_a2a.sectionfield.authority.lease_duration_ms" .
+aex:SF_impl_AshA2aAuthorityLeaseDuration a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ; aex:surfaceOf aex:AshA2aAuthorityLeaseDuration ; aex:surfacePackage "ash_a2a" .
+aex:SF_decl_AshA2aAuthorityLeaseDuration a aex:SurfaceFact ; rdfs:comment "declared in the real compiled Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ; aex:surfaceOf aex:AshA2aAuthorityLeaseDuration ; aex:surfacePackage "ash_a2a" .
+
+aex:AshA2aHooksSection a aex:SemanticFact ;
+    aex:factName "ash_a2a.section.hooks" .
+aex:SF_impl_AshA2aHooksSection a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ; aex:surfaceOf aex:AshA2aHooksSection ; aex:surfacePackage "ash_a2a" .
+aex:SF_decl_AshA2aHooksSection a aex:SurfaceFact ; rdfs:comment "declared in the real compiled Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ; aex:surfaceOf aex:AshA2aHooksSection ; aex:surfacePackage "ash_a2a" .
+
+aex:AshA2aHooksPreDispatch a aex:SemanticFact ;
+    aex:factName "ash_a2a.sectionfield.hooks.pre_dispatch" .
+aex:SF_impl_AshA2aHooksPreDispatch a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ; aex:surfaceOf aex:AshA2aHooksPreDispatch ; aex:surfacePackage "ash_a2a" .
+aex:SF_decl_AshA2aHooksPreDispatch a aex:SurfaceFact ; rdfs:comment "declared in the real compiled Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ; aex:surfaceOf aex:AshA2aHooksPreDispatch ; aex:surfacePackage "ash_a2a" .
+
+aex:AshA2aHooksPostDispatch a aex:SemanticFact ;
+    aex:factName "ash_a2a.sectionfield.hooks.post_dispatch" .
+aex:SF_impl_AshA2aHooksPostDispatch a aex:SurfaceFact ;
+    aex:surfaceKind "implemented" ; aex:surfaceOf aex:AshA2aHooksPostDispatch ; aex:surfacePackage "ash_a2a" .
+aex:SF_decl_AshA2aHooksPostDispatch a aex:SurfaceFact ; rdfs:comment "declared in the real compiled Spark surface" ;
+    aex:surfaceKind "sparkDeclared" ; aex:surfaceOf aex:AshA2aHooksPostDispatch ; aex:surfacePackage "ash_a2a" .

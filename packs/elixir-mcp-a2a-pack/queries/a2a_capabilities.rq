@@ -1,9 +1,17 @@
 PREFIX ema: <http://seanchatmangpt.github.io/packs/elixir-mcp-a2a#>
 
+# v1.0 (2026-10-04): multi-valued ema:capabilityTag / ema:inputModes /
+# ema:outputModes are each aggregated over their own DISTINCT (capability,
+# value) subselect, so no OPTIONAL join cross-multiplies another field's
+# rendered list (a plain GROUP_CONCAT over a shared row set duplicated every
+# multi-valued field by the product of the others' cardinality -- observed
+# for real on the xaas fixture's checkout row before this rewrite).
 SELECT ?capability_id ?capability_name ?capability_description ?capability_ash_action
        ?observation_scope ?mutation_scope ?requires_authority ?is_reversible
-       ?cost_estimate ?receipt_semantics ?capability_order
-       (GROUP_CONCAT(?tag; separator=",") AS ?tags) WHERE {
+       ?cost_estimate ?receipt_semantics ?capability_order ?consequence
+       (GROUP_CONCAT(?tag; separator=",") AS ?tags)
+       (GROUP_CONCAT(?input_mode; separator=",") AS ?input_modes)
+       (GROUP_CONCAT(?output_mode; separator=",") AS ?output_modes) WHERE {
   ?c a ema:Capability ; ema:capabilityOf ?surface ; ema:exposedVia ?via .
   FILTER (?via = "a2a" || ?via = "both")
   ?c ema:capabilityId ?capability_id ; ema:capabilityName ?capability_name ;
@@ -13,9 +21,24 @@ SELECT ?capability_id ?capability_name ?capability_description ?capability_ash_a
      ema:receiptSemantics ?receipt_semantics ; ema:capabilityOrder ?capability_order .
   OPTIONAL { ?c ema:capabilityAshAction ?capability_ash_action }
   OPTIONAL { ?c ema:costEstimate ?cost_estimate }
-  OPTIONAL { ?c ema:capabilityTag ?tag }
+  OPTIONAL { ?c ema:consequence ?consequence }
+  OPTIONAL {
+    SELECT ?c (GROUP_CONCAT(?t; separator=",") AS ?tag) WHERE {
+      SELECT DISTINCT ?c ?t WHERE { ?c a ema:Capability ; ema:capabilityTag ?t }
+    } GROUP BY ?c
+  }
+  OPTIONAL {
+    SELECT ?c (GROUP_CONCAT(?im; separator=",") AS ?input_mode) WHERE {
+      SELECT DISTINCT ?c ?im WHERE { ?c a ema:Capability ; ema:inputModes ?im }
+    } GROUP BY ?c
+  }
+  OPTIONAL {
+    SELECT ?c (GROUP_CONCAT(?om; separator=",") AS ?output_mode) WHERE {
+      SELECT DISTINCT ?c ?om WHERE { ?c a ema:Capability ; ema:outputModes ?om }
+    } GROUP BY ?c
+  }
 }
 GROUP BY ?capability_id ?capability_name ?capability_description ?capability_ash_action
          ?observation_scope ?mutation_scope ?requires_authority ?is_reversible
-         ?cost_estimate ?receipt_semantics ?capability_order
+         ?cost_estimate ?receipt_semantics ?capability_order ?consequence
 ORDER BY ?capability_order

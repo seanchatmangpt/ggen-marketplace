@@ -10,9 +10,9 @@ generation run; a commit cannot contain its own hash, so it names the commit gen
 ### Repository facts
 
 - Marketplace version: `v26.10.2`
-- Pack count: 294
-- Catalog fingerprint: `sha256:87c3b5cc0609993b629c256b799df349b814fc624faf09526a1874a461180803`
-- Head SHA: `b2ab29442f2319fa68d6499ffd087d28ae853864`
+- Pack count: 301
+- Catalog fingerprint: `sha256:d6fd626e8af9e229f382efb628728bf7a855a9d14100d97da2dc06a9d3475394`
+- Head SHA: `384cd5e46790c43988db3301d3a07d752d2583e6`
 
 ### Pack standing table
 
@@ -20,6 +20,7 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 
 | Pack | Version | Profile | Tier signals |
 |---|---|---|---|
+| aaif-vanilla-pack | 0.1.0 | projection | native-gates, templates |
 | adapter-family-matrix | 26.9.30 | projection | intent:review, native-gates, templates |
 | affidavit-consumer-pack | 26.9.30 | project | native-gates, templates |
 | affidavit-pack | 0.1.1 | projection | deprecated, templates |
@@ -33,9 +34,10 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | ash-extension-pack | 0.4.1 | projection | native-gates, templates |
 | ash-extension-starter-pack | 0.1.0 | projection | superseded, templates |
 | ash-ocel-revops-surface-factory-pack | 26.9.11 | semantic | ontology-only |
-| ash-pplan-chaos-pack | 0.1.0 | projection | native-gates, templates |
-| ash-pplan-protocol-court-pack | 0.1.0 | projection | native-gates, templates |
-| ash-pplan-store-conformance-pack | 0.1.0 | projection | native-gates, templates |
+| ash-pplan-chaos-pack | 0.1.0 | projection | intent:review, native-gates, templates |
+| ash-pplan-igniter-pack | 26.10.3 | projection | native-gates, templates |
+| ash-pplan-protocol-court-pack | 0.1.0 | projection | intent:review, native-gates, templates |
+| ash-pplan-store-conformance-pack | 0.1.0 | projection | intent:review, native-gates, templates |
 | ash-r2rml-paas-pack | 26.8.27 | project | native-gates, templates |
 | ash-r2rml-reactor-paas-pack | 26.8.26 | project | native-gates, templates |
 | ash-revops-structural-factory-pack | 26.8.26 | project | native-gates, templates |
@@ -155,6 +157,7 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | frontier-derivative-pack | 26.8.25 | project | native-gates, templates |
 | frontier-release-factory-pack | 0.1.0 | projection | native-gates, templates |
 | gall-core-pack | 26.7.30 | projection | native-gates, templates |
+| gcp-marketplace-saas-pack | 0.1.0 | projection | native-gates, templates |
 | gdmcp-pack | 0.2.0 | projection | native-gates, templates |
 | ggen-combinatorial-maximalism-pack | 26.7.29 | projection | native-gates, templates |
 | ggen-constitution-pack | 0.1.0 | projection | native-gates, templates |
@@ -261,9 +264,12 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | runtime-evidence-authenticity-control-pack | 0.2.0 | project | intent:consolidate, native-gates, templates |
 | runtime-evidence-authenticity-pack | 0.1.0 | project | native-gates, templates |
 | sa2a-bridge-pack | 26.9.20 | projection | intent:review, native-gates, templates |
+| sa2a-chicago-court-pack | 0.1.0 | projection | templates |
 | sa2a-fastapi-pack | 0.1.0 | projection | native-gates, templates |
+| sa2a-governed-process-pack | 0.1.0 | semantic | ontology-only |
 | sa2a-semantic-diataxis-pack | 26.9.30 | project | native-gates, templates |
 | sa2a-semantic-evidence-pack | 26.9.29 | project | native-gates, templates |
+| sa2a-spark-dsl-pack | 0.1.0 | semantic | ontology-only |
 | self-monitoring-pack | 26.7.13 | projection | native-gates, templates |
 | semantic-case-study-pack | 0.1.0 | projection | native-gates, templates |
 | semantic-documentation-contract-pack | 26.9.14 | project | native-gates, templates |
@@ -297,6 +303,7 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | temporal-truth-observability-pack | 26.8.26 | semantic | ontology-only |
 | temporary-works-pack | 26.7.20 | projection | native-gates, templates |
 | togaf-adm-pack | 26.7.13 | projection | templates |
+| tokyo-depeg-burn-in-pack | 0.1.0 | projection | intent:review, native-gates, templates |
 | toolchain-unify-pack | 0.1.0 | projection | native-gates, templates |
 | value-innovation-errc-pack | 0.2.0 | projection | intent:review, native-gates, templates |
 | wasi-json-abi-pack | 26.10.0 | project | native-gates, templates |

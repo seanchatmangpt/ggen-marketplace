@@ -1,0 +1,63 @@
+# GATE 020 -- pack.toml promise-vs-content ("the description promises what the
+# graph actually models").
+#
+# MESSAGE: the pack individual sa2a:ThisPack (<urn:sa2a:spark:ThisPack>) carries
+# sa2a:promise tokens; each token is closed to one of entities | sections |
+# transformers | verifiers, and each must be backed by a modeled individual of
+# the matching class in this same graph:
+#
+#   "entities"     -> at least one spark:Entity individual      (sa2a:SkillEntity)
+#   "sections"     -> at least one spark:Section individual     (a2a / authority / hooks)
+#   "transformers" -> at least one spark:Transformer individual (BuildCapabilityIndex)
+#   "verifiers"    -> at least one spark:Verifier individual    (Verify, VerifySkills)
+#
+# Any row = a promised kind with no modeled content, i.e. an empty husk: the
+# exact defect the wave-1 audit found (pack.toml promised "DSL entities,
+# sections, transformers, and compile-time verifiers" while only pack.toml +
+# ontology.ttl existed, with zero codegen). SELECT gate semantics: Violation =
+# RowCount > 0. Zero rows = the pack's description is now true.
+#
+# Anti-vacuity: remove every spark:Transformer individual (or replace a
+# sa2a:promise token with an out-of-enum value) and this gate returns a row
+# naming the broken promise.
+PREFIX spark: <urn:spark:dsl:>
+PREFIX sa2a: <urn:sa2a:spark:>
+
+SELECT ?pack ?promise ?violation WHERE {
+  ?pack a sa2a:Pack .
+  {
+    ?pack sa2a:promise ?p .
+    FILTER(?p NOT IN ("entities", "sections", "transformers", "verifiers"))
+    BIND(?p AS ?promise)
+    BIND("SA2A-PACK-PROMISE-NOT-IN-ENUM" AS ?violation)
+  }
+  UNION
+  {
+    ?pack sa2a:promise "entities" .
+    FILTER NOT EXISTS { ?e a spark:Entity }
+    BIND("entities" AS ?promise)
+    BIND("SA2A-PACK-PROMISE-UNBACKED" AS ?violation)
+  }
+  UNION
+  {
+    ?pack sa2a:promise "sections" .
+    FILTER NOT EXISTS { ?s a spark:Section }
+    BIND("sections" AS ?promise)
+    BIND("SA2A-PACK-PROMISE-UNBACKED" AS ?violation)
+  }
+  UNION
+  {
+    ?pack sa2a:promise "transformers" .
+    FILTER NOT EXISTS { ?t a spark:Transformer }
+    BIND("transformers" AS ?promise)
+    BIND("SA2A-PACK-PROMISE-UNBACKED" AS ?violation)
+  }
+  UNION
+  {
+    ?pack sa2a:promise "verifiers" .
+    FILTER NOT EXISTS { ?v a spark:Verifier }
+    BIND("verifiers" AS ?promise)
+    BIND("SA2A-PACK-PROMISE-UNBACKED" AS ?violation)
+  }
+}
+ORDER BY ?promise ?violation

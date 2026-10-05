@@ -55,3 +55,152 @@ pi:SubmitOrderGRPCAdapter a pi:Adapter ;
     pi:bindsProtocol pi:GRPCProtocol ;
     pi:usesTransport pi:TCPTransport ;
     pi:reusesSemanticsOf pi:SubmitOrderCapability .
+
+# ===== GRPCAdapter (v26.10.4): the gRPC transport adapter class =====
+#
+# The canonical adapter vocabulary gains its third transport form (after the
+# in-process entrypoint adapter and the cli-subprocess adapter): a gRPC
+# server adapter wiring ONE proto service to ONE existing Capability
+# entrypoint. The grounding is the landed ash_a2a gRPC surface
+# (2026-10-04, lane Z20):
+#
+#   * lib/ash_a2a/transport/grpc/dispatch.ex  -- the dispatch map: 11 A2A
+#     v1.0 RPCs (`a2a.A2AService` path -> internal JSON-RPC method, streaming
+#     flag) plus the 15-entry JSON-RPC -> gRPC status table (A2A v1.0
+#     §3.3.2). `call/4` strips the service prefix and routes the bare RPC
+#     name, so the wire service name is the proto's canonical
+#     `lf.a2a.v1.A2AService` while dispatch accepts any prefix.
+#   * lib/ash_a2a/transport/grpc/framing.ex   -- the length-prefixed
+#     5-byte frame codec + trailer map codec (PARTIAL boundary: the HTTP/2
+#     socket is the host's).
+#   * lib/ash_a2a/transport/grpc/server.ex    -- the ALIVE server: unary RPCs
+#     delegate to Dispatch.call/4 with Protobuf.JSON bridging; the two
+#     server-streaming RPCs pump the same per-task event log the SSE
+#     transport uses.
+#   * priv/proto/a2a.proto                    -- canonical proto, package
+#     `lf.a2a.v1`, service `A2AService`, with the protoc + protoc-gen-elixir
+#     regeneration recipe in its provenance header.
+#
+# Same reuse discipline as the rest of this pack: an adapter REUSES the
+# canonical dispatch table (pi:inDispatchTable true individuals below) and
+# its status mapping -- it never redefines a competing method table.
+
+pi:GRPCAdapter a rdfs:Class ;
+    rdfs:subClassOf pi:Adapter ;
+    rdfs:label "Adapter binding one Capability to a gRPC proto service via a dispatch module" .
+
+# Per-RPC facts, reified (flat on the method individual, not nested):
+# grounded verbatim in dispatch.ex's @methods table and server.ex's
+# descriptor-confirmed response types.
+pi:RpcMethod a rdfs:Class .
+pi:StatusMapping a rdfs:Class .
+
+pi:grpcService a rdf:Property ; rdfs:domain pi:GRPCAdapter ; rdfs:range xsd:string ;
+    rdfs:comment "Fully-qualified wire service name, e.g. \"lf.a2a.v1.A2AService\"." .
+pi:bindsRpcMethod a rdf:Property ; rdfs:domain pi:GRPCAdapter ; rdfs:range pi:RpcMethod .
+pi:mapsStatus a rdf:Property ; rdfs:domain pi:GRPCAdapter ; rdfs:range pi:StatusMapping .
+pi:rpcName a rdf:Property ; rdfs:domain pi:RpcMethod ; rdfs:range xsd:string ;
+    rdfs:comment "Proto RPC name, e.g. \"SendMessage\"." .
+pi:rpcInternal a rdf:Property ; rdfs:domain pi:RpcMethod ; rdfs:range xsd:string ;
+    rdfs:comment "Internal JSON-RPC method the RPC maps to, e.g. \"message/send\"." .
+pi:streams a rdf:Property ; rdfs:domain pi:RpcMethod ; rdfs:range xsd:boolean ;
+    rdfs:comment "True for the server-streaming RPCs." .
+pi:pbResponseModule a rdf:Property ; rdfs:domain pi:RpcMethod ; rdfs:range xsd:string ;
+    rdfs:comment "Generated protobuf response module for the RPC, e.g. \"Lf.A2a.V1.Task\" (server.ex-descriptor-confirmed)." .
+pi:inDispatchTable a rdf:Property ; rdfs:domain pi:RpcMethod, pi:StatusMapping ; rdfs:range xsd:boolean ;
+    rdfs:comment "True on the canonical dispatch-table members: the method/status sets every non-fixture GRPCAdapter must bind/map completely (gates/030)." .
+pi:jsonrpcErrorCode a rdf:Property ; rdfs:domain pi:StatusMapping ; rdfs:range xsd:integer ;
+    rdfs:comment "A2A JSON-RPC error code, e.g. -32001." .
+pi:grpcStatusCode a rdf:Property ; rdfs:domain pi:StatusMapping ; rdfs:range xsd:integer ;
+    rdfs:comment "gRPC status code it maps to, e.g. 5 (NOT_FOUND)." .
+pi:grpcStatusName a rdf:Property ; rdfs:domain pi:StatusMapping ; rdfs:range xsd:string ;
+    rdfs:comment "Canonical gRPC status name, e.g. \"NOT_FOUND\" (dispatch.ex status_name/1 table)." .
+pi:dispatchModule a rdf:Property ; rdfs:domain pi:GRPCAdapter ; rdfs:range xsd:string ;
+    rdfs:comment "Dispatch module the generated server delegates to, exposing call/4, methods/0 and trailers/1 -- e.g. \"AshA2A.Transport.Grpc.Dispatch\"." .
+pi:framingModule a rdf:Property ; rdfs:domain pi:GRPCAdapter ; rdfs:range xsd:string ;
+    rdfs:comment "Framing codec module (length-prefixed frames + trailer codec), e.g. \"AshA2A.Transport.Grpc.Framing\"." .
+pi:handlerModule a rdf:Property ; rdfs:domain pi:GRPCAdapter ; rdfs:range xsd:string ;
+    rdfs:comment "The existing Capability entrypoint (JSONRPC behaviour module) the dispatch calls through, e.g. \"AshA2A.Transport.Plug\"." .
+pi:serverModuleName a rdf:Property ; rdfs:domain pi:GRPCAdapter ; rdfs:range xsd:string ;
+    rdfs:comment "Generated gRPC server module, e.g. \"MyApp.A2A.GrpcServer\"." .
+pi:serverModulePath a rdf:Property ; rdfs:domain pi:GRPCAdapter ; rdfs:range xsd:string ;
+    rdfs:comment "Target relative path of the generated server, e.g. \"lib/my_app/a2a/grpc_server.ex\". Admitted, not derived from serverModuleName." .
+pi:pbServiceModule a rdf:Property ; rdfs:domain pi:GRPCAdapter ; rdfs:range xsd:string ;
+    rdfs:comment "Generated GRPC.Service descriptor module, e.g. \"Lf.A2a.V1.A2AService.Service\" -- the compile-time method-set court reads its __rpc_calls__/0." .
+pi:protoPath a rdf:Property ; rdfs:domain pi:GRPCAdapter ; rdfs:range xsd:string ;
+    rdfs:comment "Path to the canonical .proto (with its provenance/regeneration header), e.g. \"priv/proto/a2a.proto\"." .
+pi:grpcFixtureOnly a rdf:Property ; rdfs:domain pi:GRPCAdapter ; rdfs:range xsd:boolean ;
+    rdfs:comment "True on a GRPCAdapter that is pure description (no generated code); gates/030 exempts it exactly like pr:priorArtFixtureOnly exempts fixture-only PriorArtAdapters." .
+
+# ===== Canonical dispatch-table grounding: the 11 RPC methods =====
+# Verbatim from lib/ash_a2a/transport/grpc/dispatch.ex @methods (2026-10-04).
+# pbResponseModule values are confirmed against both server.ex and the
+# committed pb descriptor (Lf.A2a.V1.A2AService.Service.__rpc_calls__/0).
+
+pi:m.SendMessage a pi:RpcMethod ; pi:rpcName "SendMessage" ; pi:rpcInternal "message/send" ; pi:streams false ; pi:pbResponseModule "Lf.A2a.V1.SendMessageResponse" ; pi:inDispatchTable true .
+pi:m.SendStreamingMessage a pi:RpcMethod ; pi:rpcName "SendStreamingMessage" ; pi:rpcInternal "message/stream" ; pi:streams true ; pi:pbResponseModule "Lf.A2a.V1.StreamResponse" ; pi:inDispatchTable true .
+pi:m.GetTask a pi:RpcMethod ; pi:rpcName "GetTask" ; pi:rpcInternal "tasks/get" ; pi:streams false ; pi:pbResponseModule "Lf.A2a.V1.Task" ; pi:inDispatchTable true .
+pi:m.CancelTask a pi:RpcMethod ; pi:rpcName "CancelTask" ; pi:rpcInternal "tasks/cancel" ; pi:streams false ; pi:pbResponseModule "Lf.A2a.V1.Task" ; pi:inDispatchTable true .
+pi:m.ListTasks a pi:RpcMethod ; pi:rpcName "ListTasks" ; pi:rpcInternal "tasks/list" ; pi:streams false ; pi:pbResponseModule "Lf.A2a.V1.ListTasksResponse" ; pi:inDispatchTable true .
+pi:m.SubscribeToTask a pi:RpcMethod ; pi:rpcName "SubscribeToTask" ; pi:rpcInternal "tasks/resubscribe" ; pi:streams true ; pi:pbResponseModule "Lf.A2a.V1.StreamResponse" ; pi:inDispatchTable true .
+pi:m.CreateTaskPushNotificationConfig a pi:RpcMethod ; pi:rpcName "CreateTaskPushNotificationConfig" ; pi:rpcInternal "tasks/pushNotificationConfig/set" ; pi:streams false ; pi:pbResponseModule "Lf.A2a.V1.TaskPushNotificationConfig" ; pi:inDispatchTable true .
+pi:m.GetTaskPushNotificationConfig a pi:RpcMethod ; pi:rpcName "GetTaskPushNotificationConfig" ; pi:rpcInternal "tasks/pushNotificationConfig/get" ; pi:streams false ; pi:pbResponseModule "Lf.A2a.V1.TaskPushNotificationConfig" ; pi:inDispatchTable true .
+pi:m.ListTaskPushNotificationConfigs a pi:RpcMethod ; pi:rpcName "ListTaskPushNotificationConfigs" ; pi:rpcInternal "tasks/pushNotificationConfig/list" ; pi:streams false ; pi:pbResponseModule "Lf.A2a.V1.ListTaskPushNotificationConfigsResponse" ; pi:inDispatchTable true .
+pi:m.DeleteTaskPushNotificationConfig a pi:RpcMethod ; pi:rpcName "DeleteTaskPushNotificationConfig" ; pi:rpcInternal "tasks/pushNotificationConfig/delete" ; pi:streams false ; pi:pbResponseModule "Google.Protobuf.Empty" ; pi:inDispatchTable true .
+pi:m.GetExtendedAgentCard a pi:RpcMethod ; pi:rpcName "GetExtendedAgentCard" ; pi:rpcInternal "agent/getAuthenticatedExtendedCard" ; pi:streams false ; pi:pbResponseModule "Lf.A2a.V1.AgentCard" ; pi:inDispatchTable true .
+
+# ===== Canonical dispatch-table grounding: the 15-entry status mapping =====
+# Verbatim from dispatch.ex @grpc_from_jsonrpc (A2A v1.0 §3.3.2
+# cross-binding error mapping). Totality over this set is gated in
+# gates/030.
+
+pi:status.32700 a pi:StatusMapping ; pi:jsonrpcErrorCode -32700 ; pi:grpcStatusCode 3 ; pi:grpcStatusName "INVALID_ARGUMENT" ; pi:inDispatchTable true .
+pi:status.32600 a pi:StatusMapping ; pi:jsonrpcErrorCode -32600 ; pi:grpcStatusCode 3 ; pi:grpcStatusName "INVALID_ARGUMENT" ; pi:inDispatchTable true .
+pi:status.32601 a pi:StatusMapping ; pi:jsonrpcErrorCode -32601 ; pi:grpcStatusCode 12 ; pi:grpcStatusName "UNIMPLEMENTED" ; pi:inDispatchTable true .
+pi:status.32602 a pi:StatusMapping ; pi:jsonrpcErrorCode -32602 ; pi:grpcStatusCode 3 ; pi:grpcStatusName "INVALID_ARGUMENT" ; pi:inDispatchTable true .
+pi:status.32603 a pi:StatusMapping ; pi:jsonrpcErrorCode -32603 ; pi:grpcStatusCode 13 ; pi:grpcStatusName "INTERNAL" ; pi:inDispatchTable true .
+pi:status.32000 a pi:StatusMapping ; pi:jsonrpcErrorCode -32000 ; pi:grpcStatusCode 14 ; pi:grpcStatusName "UNAVAILABLE" ; pi:inDispatchTable true .
+pi:status.32001 a pi:StatusMapping ; pi:jsonrpcErrorCode -32001 ; pi:grpcStatusCode 5 ; pi:grpcStatusName "NOT_FOUND" ; pi:inDispatchTable true .
+pi:status.32002 a pi:StatusMapping ; pi:jsonrpcErrorCode -32002 ; pi:grpcStatusCode 9 ; pi:grpcStatusName "FAILED_PRECONDITION" ; pi:inDispatchTable true .
+pi:status.32003 a pi:StatusMapping ; pi:jsonrpcErrorCode -32003 ; pi:grpcStatusCode 12 ; pi:grpcStatusName "UNIMPLEMENTED" ; pi:inDispatchTable true .
+pi:status.32004 a pi:StatusMapping ; pi:jsonrpcErrorCode -32004 ; pi:grpcStatusCode 12 ; pi:grpcStatusName "UNIMPLEMENTED" ; pi:inDispatchTable true .
+pi:status.32005 a pi:StatusMapping ; pi:jsonrpcErrorCode -32005 ; pi:grpcStatusCode 3 ; pi:grpcStatusName "INVALID_ARGUMENT" ; pi:inDispatchTable true .
+pi:status.32006 a pi:StatusMapping ; pi:jsonrpcErrorCode -32006 ; pi:grpcStatusCode 13 ; pi:grpcStatusName "INTERNAL" ; pi:inDispatchTable true .
+pi:status.32007 a pi:StatusMapping ; pi:jsonrpcErrorCode -32007 ; pi:grpcStatusCode 9 ; pi:grpcStatusName "FAILED_PRECONDITION" ; pi:inDispatchTable true .
+pi:status.32008 a pi:StatusMapping ; pi:jsonrpcErrorCode -32008 ; pi:grpcStatusCode 9 ; pi:grpcStatusName "FAILED_PRECONDITION" ; pi:inDispatchTable true .
+pi:status.32009 a pi:StatusMapping ; pi:jsonrpcErrorCode -32009 ; pi:grpcStatusCode 12 ; pi:grpcStatusName "UNIMPLEMENTED" ; pi:inDispatchTable true .
+
+# ===== Real individual: the A2A v1.0 gRPC adapter =====
+# Binds the A2A agent-messaging capability to gRPC over TCP, REUSING the
+# capability's semantics and the canonical dispatch table -- never
+# redefining either. Complete against gates/030 (all 11 methods, all 15
+# mappings, all eight codegen-pointer properties), so it is a worked
+# positive example, not a fixture.
+
+pi:A2AAgentMessagingCapability a pi:Capability ;
+    rdfs:label "A2A v1.0 agent messaging capability" ;
+    pi:semanticDefinition "Given a proto-JSON message/task/push-config request for an A2A agent, dispatches it through the transport-agnostic JSON-RPC dispatcher and returns the result, an error, or (for the two streaming RPCs) a server-stream of StreamResponse events in task-log order; semantics are the JSON-RPC dispatcher's, shared with the HTTP binding." .
+
+pi:A2AGrpcAdapter a pi:GRPCAdapter ;
+    rdfs:label "A2A v1.0 gRPC adapter: service lf.a2a.v1.A2AService wired to the JSONRPC handler via AshA2A.Transport.Grpc.Dispatch" ;
+    pi:bindsCapability pi:A2AAgentMessagingCapability ;
+    pi:bindsProtocol pi:GRPCProtocol ;
+    pi:usesTransport pi:TCPTransport ;
+    pi:reusesSemanticsOf pi:A2AAgentMessagingCapability ;
+    pi:grpcService "lf.a2a.v1.A2AService" ;
+    pi:dispatchModule "AshA2A.Transport.Grpc.Dispatch" ;
+    pi:framingModule "AshA2A.Transport.Grpc.Framing" ;
+    pi:handlerModule "AshA2A.Transport.Plug" ;
+    pi:serverModuleName "MyApp.A2A.GrpcServer" ;
+    pi:serverModulePath "lib/my_app/a2a/grpc_server.ex" ;
+    pi:pbServiceModule "Lf.A2a.V1.A2AService.Service" ;
+    pi:protoPath "priv/proto/a2a.proto" ;
+    pi:bindsRpcMethod pi:m.SendMessage, pi:m.SendStreamingMessage, pi:m.GetTask,
+        pi:m.CancelTask, pi:m.ListTasks, pi:m.SubscribeToTask,
+        pi:m.CreateTaskPushNotificationConfig, pi:m.GetTaskPushNotificationConfig,
+        pi:m.ListTaskPushNotificationConfigs, pi:m.DeleteTaskPushNotificationConfig,
+        pi:m.GetExtendedAgentCard ;
+    pi:mapsStatus pi:status.32700, pi:status.32600, pi:status.32601, pi:status.32602,
+        pi:status.32603, pi:status.32000, pi:status.32001, pi:status.32002,
+        pi:status.32003, pi:status.32004, pi:status.32005, pi:status.32006,
+        pi:status.32007, pi:status.32008, pi:status.32009 .

@@ -137,7 +137,12 @@ gate_files = [
   {"gate 070 (license_file_contract)", Path.join([pack_root, "gates", "070_license_file_contract.rq"])},
   {"gate 080 (scripts_index_contract)", Path.join([pack_root, "gates", "080_scripts_index_contract.rq"])},
   {"gate 090 (codegen_callback_contract)", Path.join([pack_root, "gates", "090_codegen_callback_contract.rq"])},
-  {"gate 100 (projection_isolation_contract)", Path.join([pack_root, "gates", "100_projection_isolation_contract.rq"])}
+  {"gate 100 (projection_isolation_contract)", Path.join([pack_root, "gates", "100_projection_isolation_contract.rq"])},
+  {"gate 110 (spark_completeness)", Path.join([pack_root, "gates", "110_spark_completeness.rq"])},
+  {"gate 120 (spark_dead_surface)", Path.join([pack_root, "gates", "120_spark_dead_surface.rq"])},
+  {"gate 130 (installer_dep_contract)", Path.join([pack_root, "gates", "130_installer_dep_contract.rq"])},
+  {"gate 140 (a2a_skill_fields_contract)", Path.join([pack_root, "gates", "140_a2a_skill_fields_contract.rq"])},
+  {"gate 150 (a2a_dead_surface)", Path.join([pack_root, "gates", "150_a2a_dead_surface.rq"])}
 ]
 
 query_files = [
@@ -181,6 +186,7 @@ template_files = [
   {"verify.ex.tmpl", Path.join([pack_root, "templates", "verify.ex.tmpl"])},
   {"info.ex.tmpl", Path.join([pack_root, "templates", "info.ex.tmpl"])},
   {"install.ex.tmpl", Path.join([pack_root, "templates", "install.ex.tmpl"])},
+  {"a2a_skill.ex.tmpl", Path.join([pack_root, "templates", "a2a_skill.ex.tmpl"])},
   {"reactor_pipeline.ex.tmpl", Path.join([pack_root, "templates", "reactor_pipeline.ex.tmpl"])},
   {"receipted_action.ex.tmpl", Path.join([pack_root, "templates", "receipted_action.ex.tmpl"])},
   {"composition_test.exs.tmpl", Path.join([pack_root, "templates", "composition_test.exs.tmpl"])},

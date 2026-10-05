@@ -1,0 +1,23 @@
+# sa2a-spark-dsl-pack query: verifier refusal codes
+#
+# Extracts every sa2a:Verifier individual with its grounded source file and
+# its named compile-time refusal codes (the codes its landed source raises as
+# Spark.Error.DslError), concatenated per verifier with "; " separators.
+# One row per verifier; a verifier with no declared codes still returns a row
+# with an empty concatenation.
+#
+# The codegen templates read the flat spark:refusalCodeList projection of
+# these same codes (ggen's template context does not support aggregation), so
+# gates/030 gates that projection against the individuals extracted here.
+PREFIX spark: <urn:spark:dsl:>
+
+SELECT ?verifier ?name ?source_file
+       (GROUP_CONCAT(DISTINCT ?code; SEPARATOR="; ") AS ?refusal_codes)
+WHERE {
+  ?verifier a spark:Verifier ;
+            spark:sourceFile ?source_file .
+  OPTIONAL { ?verifier spark:hasRefusalCode ?code }
+  BIND(STRAFTER(STR(?verifier), "urn:sa2a:spark:") as ?name)
+}
+GROUP BY ?verifier ?name ?source_file
+ORDER BY ?name

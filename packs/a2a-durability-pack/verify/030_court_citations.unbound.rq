@@ -1,0 +1,21 @@
+# INVERTED COMPANION to gates/030_court_citations.rq. ZERO ROWS IS THE PASS CONDITION.
+# Court-citation gate (fail-closed form): every DurabilitySurface cites at least
+# one landed durability court, and every citation resolves to a real dur:Court
+# with a dur:courtPath. A surface with no citation, or a citation to a court
+# that does not exist in the graph, refuses the pack.
+PREFIX dur: <https://seanchatmangpt.github.io/packs/a2a-durability#>
+SELECT ?subject ?problem
+WHERE {
+  {
+    ?subject a dur:DurabilitySurface .
+    FILTER NOT EXISTS { ?subject dur:citesCourt ?court . }
+    BIND("no dur:citesCourt edge" AS ?problem)
+  }
+  UNION
+  {
+    ?subject a dur:DurabilitySurface ;
+             dur:citesCourt ?court .
+    FILTER NOT EXISTS { ?court a dur:Court ; dur:courtPath ?path . }
+    BIND("dangling court citation" AS ?problem)
+  }
+}

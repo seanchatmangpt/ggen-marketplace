@@ -1,6 +1,6 @@
 [pack]
 name = "protocol-integration-pack"
-version = "26.9.13"
+version = "26.10.4"
 description = """
 Canonical protocol/transport/adapter vocabulary: an Adapter binds one
 Capability to one Protocol/Transport pair by REUSING that Capability's
@@ -49,4 +49,34 @@ to declare. gates/010 was extended with one FILTER NOT EXISTS excluding
 pr:integrationMode "cli-subprocess" individuals so the two gates never both
 fire on the same individual; its original eight-property check for in-process
 adapters is otherwise unchanged.
+
+v26.10.4 (2026-10-04): added the gRPC transport adapter convention, grounded
+in the landed ash_a2a gRPC surface (lane Z20, 2026-10-04:
+lib/ash_a2a/transport/grpc/{framing,dispatch,server}.ex, priv/proto/a2a.proto).
+A new pi:GRPCAdapter class (rdfs:subClassOf pi:Adapter) carries the
+service/rpc-methods/streaming-flags/status-mapping facts; the canonical
+dispatch table (11 A2A v1.0 RPCs, two server-streaming) and the 15-entry
+JSON-RPC -> gRPC status table (A2A v1.0 §3.3.2) are grounded as
+pi:inDispatchTable-true pi:RpcMethod and pi:StatusMapping individuals
+verbatim from dispatch.ex, so adapters REUSE the canonical tables and never
+redefine a competing method set. New template grpc_adapter.ex.tmpl
+manufactures a gRPC server adapter wiring one proto service to one existing
+Capability entrypoint by delegating every RPC to the dispatch module, with a
+compile-time method-set court: the generated function set is derived from
+{{ dispatch_module }}.methods() and cross-checked against the pb descriptor's
+__rpc_calls__/0, so drift between generated adapter and dispatched method set
+fails compilation (the pack falsifier is structural, not aspirational). New
+gate gates/030_grpc_adapter_contract.rq refuses any non-fixture GRPCAdapter
+that is (a) missing one of eight codegen-pointer properties, (b) incomplete
+against the canonical dispatch table, or (c) non-total on the canonical
+status mapping. Verified 2026-10-04: ontology tables match dispatch.ex
+exactly (11/11 methods, 15/15 mappings, programmatic cross-check); gate is
+non-vacuous (dropped method/mapping/property each produce exactly one
+violation row; fixture-only exemption fires); rendered adapter compiles
+against the real ash_a2a dev build and exports exactly the 11 dispatched rpc
+functions (9 unary + send_streaming_message/subscribe_to_task); the
+compile-time court refuses all three drift classes (dispatch-missing-rpc,
+flag drift, ghost dispatch entry) while compiling the lawful stub pair; a
+real unary call through AshA2A.Transport.Grpc.Dispatch maps A2A -32001 to
+gRPC NOT_FOUND(5) and bridges a real task to %Lf.A2a.V1.Task{}.
 """

@@ -1,0 +1,55 @@
+---
+to: "priv/a2a_v1_spec_corpus/entries/{{ entry_id }}.json"
+for_each: "entry"
+sparql:
+  entry: |
+    PREFIX a2ac: <http://seanchatmangpt.github.io/packs/a2a-conformance#>
+    SELECT ?entry_id ?family ?source ?expect ?decode ?deviations ?finding ?expected_error ?wire
+    WHERE {
+      ?e a a2ac:NewCorpusEntry ;
+         a2ac:entryId ?entry_id ;
+         a2ac:entryFamily ?family ;
+         a2ac:entrySource ?source ;
+         a2ac:entryExpect ?expect ;
+         a2ac:entryDecode ?decode ;
+         a2ac:entryDeviations ?deviations ;
+         a2ac:entryFinding ?finding ;
+         a2ac:entryExpectedError ?expected_error ;
+         a2ac:entryWire ?wire .
+    } ORDER BY ?entry_id
+---
+{# Spec-corpus entry generator.
+
+   Renders ONE new corpus example in EXACTLY the frozen corpus's key shape
+   (truth: priv/a2a_v1_spec_corpus/v1_spec_examples.json, `examples` list):
+
+     id, family, source, expect, decode, deviations, finding,
+     expected_error, wire
+
+   Contract carried over from the frozen corpus:
+
+     * `source` MUST cite the real specification line (e.g.
+       "specification.md L1008 - AgentCard example"), and `wire` MUST be
+       the byte-faithful spec JSON -- a corpus of hand-invented wire shapes
+       is not a spec corpus.
+     * `expect` is closed: "conformant" | "codec_gap". A codec_gap entry
+       pins the exact decode error and the finding; NO lib/ code is edited
+       to make it pass -- the finding is the deliverable.
+     * `family` is closed to the corpus's 9 families: agent_card, message,
+       task, status, artifact, part, event, jsonrpc_request, jsonrpc_error.
+
+   The template renders into priv/a2a_v1_spec_corpus/entries/ (a staging
+   area); fold the rendered entry into v1_spec_examples.json's `examples`
+   list with a real review step, then the corpus court's integrity tests
+   (unique ids, family closure, spec provenance header) take over. #}
+{
+  "id": "{{ entry_id }}",
+  "family": "{{ family }}",
+  "source": "{{ source }}",
+  "expect": "{{ expect }}",
+  "decode": "{{ decode }}",
+  "deviations": [{{ deviations }}],
+  "finding": "{{ finding }}",
+  "expected_error": {{ expected_error }},
+  "wire": {{ wire }}
+}

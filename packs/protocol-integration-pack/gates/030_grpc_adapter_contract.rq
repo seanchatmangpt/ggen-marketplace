@@ -1,0 +1,50 @@
+# MESSAGE: every non-fixture pi:GRPCAdapter is an ACTUATING fact and must be
+# (a) codegen-complete: carry all eight properties the grpc_adapter.ex.tmpl
+#     template renders from (grpcService, dispatchModule, framingModule,
+#     handlerModule, pbServiceModule, protoPath, serverModuleName,
+#     serverModulePath) -- the same VALUES-table required-property pattern as
+#     gates/010's eight in-process properties and gates/020's six subprocess
+#     properties;
+# (b) method-complete against the canonical dispatch table: bind EVERY
+#     pi:RpcMethod individual carrying pi:inDispatchTable true (the landed
+#     AshA2A.Transport.Grpc.Dispatch method table -- 11 A2A v1.0 RPCs, two
+#     server-streaming). A GRPCAdapter that omits a dispatched RPC would
+#     generate a server whose method set is smaller than the dispatched set
+#     -- exactly the falsifier, caught here at the ontology layer;
+# (c) status-mapping-total: map EVERY canonical pi:StatusMapping individual
+#     (the landed 15-entry JSON-RPC -> gRPC status table, A2A v1.0 §3.3.2).
+#     A partial mapping silently degrades unmapped error codes to UNKNOWN(2).
+# pi:grpcFixtureOnly true exempts a pure-description GRPCAdapter, the same
+# opt-out idiom as pr:priorArtFixtureOnly on gates/010/020. Any row = a
+# violation of one of the three clauses.
+PREFIX pi: <https://ggen.dev/ontology/protocol-integration#>
+
+SELECT ?adapter ?violation WHERE {
+  {
+    ?adapter a pi:GRPCAdapter .
+    FILTER NOT EXISTS { ?adapter pi:grpcFixtureOnly true }
+    VALUES ?violation {
+      pi:grpcService pi:dispatchModule pi:framingModule pi:handlerModule
+      pi:pbServiceModule pi:protoPath
+      pi:serverModuleName pi:serverModulePath
+    }
+    FILTER NOT EXISTS { ?adapter ?violation ?any }
+  }
+  UNION
+  {
+    ?adapter a pi:GRPCAdapter .
+    FILTER NOT EXISTS { ?adapter pi:grpcFixtureOnly true }
+    ?method a pi:RpcMethod ; pi:inDispatchTable true ; pi:rpcName ?rpc_name .
+    FILTER NOT EXISTS { ?adapter pi:bindsRpcMethod ?method }
+    BIND(CONCAT("missing rpc method: ", ?rpc_name) AS ?violation)
+  }
+  UNION
+  {
+    ?adapter a pi:GRPCAdapter .
+    FILTER NOT EXISTS { ?adapter pi:grpcFixtureOnly true }
+    ?mapping a pi:StatusMapping ; pi:inDispatchTable true ; pi:jsonrpcErrorCode ?code .
+    FILTER NOT EXISTS { ?adapter pi:mapsStatus ?mapping }
+    BIND(CONCAT("missing status mapping: jsonrpc ", STR(?code)) AS ?violation)
+  }
+}
+ORDER BY ?adapter ?violation

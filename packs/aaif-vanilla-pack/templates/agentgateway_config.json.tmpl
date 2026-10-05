@@ -1,0 +1,48 @@
+---
+to: "agentgateway/config.json"
+for_each: "gateway"
+sparql:
+  gateway: |
+    PREFIX aaif: <https://aaif.io/ontology#>
+    SELECT ?port ?xds_address ?auth_issuer WHERE {
+      ?s a aaif:Gateway ;
+         aaif:port ?port ;
+         aaif:xdsAddress ?xds_address ;
+         aaif:authIssuer ?auth_issuer .
+    }
+---
+{
+  "config": {
+    "logging": {
+      "format": "json"
+    }
+  },
+  "frontendPolicies": {
+    "cors": {
+      "allowOrigins": ["*"],
+      "allowHeaders": ["content-type", "authorization", "cache-control"]
+    }
+  },
+  "binds": [
+    {
+      "port": {{ port }},
+      "listeners": [
+        {
+          "routes": [
+            {
+              "policies": {
+                "a2a": {},
+                "mcp": {}
+              },
+              "backends": [
+                {
+                  "host": "{{ xds_address }}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

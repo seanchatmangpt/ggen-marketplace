@@ -176,3 +176,34 @@ rt:outputSanitizationModule a rdf:Property .
 rt:policyContextModule a rdf:Property .
 rt:domainErrorModule a rdf:Property .
 rt:eventEnvelopeModule a rdf:Property .
+
+# ---- saga compensation (REACTOR-SAGA lane, 2026-10-03) ------------------------------------
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+rt:SagaCompensation a rdfs:Class ;
+  rdfs:subClassOf prov:Entity ;
+  rdfs:label "Saga compensation" ;
+  rdfs:comment "A generated compensate/4 delegate for one durable-engine effect step: on failure it emits a typed undo event into the durable ledger; it never retries (the engine owns retry policy)." .
+
+rt:seqOrder a rdf:Property .
+rt:compensationModule a rdf:Property .
+rt:stepModule a rdf:Property .
+rt:stepLabel a rdf:Property .
+rt:undoPrefix a rdf:Property .
+rt:effect a rdf:Property .
+
+rt:saga-comp-dispatch a rt:SagaCompensation ;
+  rt:seqOrder 1 ;
+  rt:compensationModule "AshPPlan.Reactor.Durable.Compensations.Dispatch" ;
+  rt:stepModule "AshPPlan.Reactor.Durable.Steps.Dispatch" ;
+  rt:stepLabel "dispatch" ;
+  rt:undoPrefix "ash_pplan.undo.dispatch" ;
+  rt:effect "starts a child run via Engine.start/3 (a real durable-ledger side effect); the step has undo/4 but no compensate/4" .
+
+rt:saga-comp-poll a rt:SagaCompensation ;
+  rt:seqOrder 2 ;
+  rt:compensationModule "AshPPlan.Reactor.Durable.Compensations.Poll" ;
+  rt:stepModule "AshPPlan.Reactor.Durable.Steps.Poll" ;
+  rt:stepLabel "poll" ;
+  rt:undoPrefix "ash_pplan.undo.poll" ;
+  rt:effect "parks a :poll waiter in the store (a real durable-ledger side effect); the step has neither undo/4 nor compensate/4" .

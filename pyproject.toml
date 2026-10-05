@@ -1,0 +1,89 @@
+[build-system]  # https://docs.astral.sh/uv/concepts/build-backend/
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
+
+[project]  # https://packaging.python.org/en/latest/specifications/pyproject-toml/
+name = "ggen-marketplace"
+version = "0.1.0"
+description = "The canonical pack registry and semantic manufacturing substrate for ggen"
+readme = "README.md"
+authors = [
+  { name = "Sean Chatman", email = "sean@chatman.ai" },
+]
+requires-python = ">=3.12,<4.0"
+dependencies = [
+  "poethepoet>=0.32.0",
+  "rdflib>=7.1.0",
+  "jinja2>=3.1.5",
+  "pyyaml>=6.0.2",
+  "requests>=2.32.3",
+  "typer>=0.15.0",
+  "rich>=13.9.0",
+  "tomli>=2.0.1; python_version < '3.11'",
+  "cryptography>=50.0.2",
+  "pyshacl>=0.40.1",
+  "a2a-sdk>=1.2.1",
+  "mcp>=2.3.0",
+  "pytest-asyncio>=1.4.0",
+  "pm4py>=2.7.23.8",
+  "pm4pytest",
+]
+
+[project.scripts]
+ggmkt = "ggen_marketplace.cli:app"
+ggen-mp = "ggen_marketplace.cli:app"
+
+[project.entry-points.pytest11]
+pm4pytest = "pm4pytest.plugin"
+
+[tool.uv.sources]
+pm4pytest = { path = "packages/pm4pytest", editable = true }
+
+[project.urls]
+homepage = "https://github.com/seanchatmangpt/ggen-marketplace"
+source = "https://github.com/seanchatmangpt/ggen-marketplace"
+documentation = "https://seanchatmangpt.github.io/ggen-marketplace"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3.0",
+  "ruff>=0.9.0",
+  "commitizen>=4.1.0",
+]
+
+[tool.poe.tasks]
+mkt = "ggmkt"
+validate = "python scripts/marketplace.py validate"
+catalog = "python scripts/marketplace.py catalog"
+fingerprint = "python scripts/marketplace.py fingerprint"
+test = "pytest tests/"
+test-court = "pytest tests/test_aaif_vanilla_pack_court.py -v"
+test-cli = "pytest tests/test_typer_cli.py -v"
+test-k8s = "pytest tests/test_k8s_gcp_marketplace_simulation.py -v"
+test-indistinguishable = "pytest tests/test_chicago_gcp_marketplace_indistinguishable.py -v"
+test-aaif-sdk = "pytest tests/test_aaif_native_sdk_execution.py -v"
+test-thesis = "pytest tests/test_autonomous_semantic_utility_thesis.py -v"
+test-ocel = "pytest tests/test_ocel2_pm4py_court.py -k test_json -v"
+test-pm4py = "pytest tests/test_ocel2_pm4py_court.py -k test_pm4py -v"
+test-ocpq = "pytest tests/test_ocel2_pm4py_court.py -k test_entitlement -v"
+test-mining = "pytest tests/test_ocel2_pm4py_court.py -v"
+test-plugin = "pytest tests/test_pytest_ocpq_plugin.py -v"
+test-all = "pytest tests/ -v"
+install-aaif-binaries = "bash scripts/install_aaif_binaries.sh"
+aaif-coverage = "python scripts/track_aaif_coverage.py"
+k8s-sim = "python scripts/simulate_gcp_marketplace_k8s.py --action test"
+k8s-setup = "python scripts/simulate_gcp_marketplace_k8s.py --action setup"
+k8s-cleanup = "python scripts/simulate_gcp_marketplace_k8s.py --action cleanup"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501", "E702", "E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+pythonpath = [".", "scripts"]

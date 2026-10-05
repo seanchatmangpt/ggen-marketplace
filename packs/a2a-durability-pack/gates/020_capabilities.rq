@@ -1,0 +1,28 @@
+PREFIX dur: <https://seanchatmangpt.github.io/packs/a2a-durability#>
+
+# Capability-shape gate (fail-closed: any row = a violation).
+#
+# Every dur:hasCapability edge must resolve to a capability carrying ALL three
+# modeled properties (dur:capabilityName, dur:producesStates, dur:capabilityDetail),
+# and the provider surface must have at least one capability. Companion:
+# verify/020_capabilities.unbound.rq (its inverted form; zero rows = pass).
+
+SELECT ?cap ?violation WHERE {
+  {
+    ?surface a dur:DurabilitySurface ; dur:kind "provider" .
+    FILTER NOT EXISTS { ?surface dur:hasCapability ?anyCap . }
+    BIND(?surface AS ?cap)
+    BIND("provider surface has no dur:hasCapability edge" AS ?violation)
+  }
+  UNION
+  {
+    ?surface a dur:DurabilitySurface ; dur:hasCapability ?cap .
+    FILTER NOT EXISTS {
+      ?cap dur:capabilityName ?n ;
+           dur:producesStates ?p ;
+           dur:capabilityDetail ?d .
+    }
+    BIND("capability missing dur:capabilityName/dur:producesStates/dur:capabilityDetail" AS ?violation)
+  }
+}
+ORDER BY ?cap ?violation

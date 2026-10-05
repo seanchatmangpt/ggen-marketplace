@@ -1,0 +1,286 @@
+---
+to: "{{ server_module_path }}"
+for_each: "spec"
+sparql:
+  spec: |
+    PREFIX pi: <https://ggen.dev/ontology/protocol-integration#>
+    SELECT DISTINCT ?server_module_path ?server_module_name ?grpc_service
+      ?dispatch_module ?framing_module ?handler_module ?pb_service_module
+      ?proto_path WHERE {
+      ?s a pi:GRPCAdapter ;
+         pi:serverModulePath ?server_module_path ;
+         pi:serverModuleName ?server_module_name ;
+         pi:grpcService ?grpc_service ;
+         pi:dispatchModule ?dispatch_module ;
+         pi:framingModule ?framing_module ;
+         pi:pbServiceModule ?pb_service_module ;
+         pi:handlerModule ?handler_module ;
+         pi:protoPath ?proto_path .
+      FILTER NOT EXISTS { ?s pi:grpcFixtureOnly true }
+    }
+---
+{# gRPC transport adapter -- the third adapter form of this pack, after the
+   in-process entrypoint adapter (adapter.ex.tmpl) and the cli-subprocess
+   adapter (subprocess_adapter.ex.tmpl). Instantiates the landed ash_a2a
+   pattern (2026-10-04): framing codec + dispatch map + server, each with an
+   explicit PARTIAL/ALIVE boundary. This module owns ONLY the server slice:
+   the HTTP/2 socket, TLS and trailer sequencing belong to the :grpc_server
+   dependency; the wire layer (length-prefixed frames + trailer-block codec)
+   lives in {{ framing_module }}; every RPC delegates to
+   {{ dispatch_module }}.call/4, which routes the bare RPC name through the
+   transport-agnostic JSON-RPC dispatcher to the existing Capability
+   entrypoint {{ handler_module }}. No protocol logic is invented here --
+   admitted verbatim from the pi:GRPCAdapter spec, never invented. #}
+defmodule {{ server_module_name }} do
+  @moduledoc """
+  gRPC server adapter for service `{{ grpc_service }}`, wiring the proto
+  service to the existing Capability entrypoint `{{ handler_module }}` by
+  delegating every RPC to `{{ dispatch_module }}.call/4`.
+
+  **Scope: ALIVE dispatch+bridge, host-owned socket.** The pattern this
+  module instantiates (the ash_a2a gRPC surface):
+
+    * framing codec (`{{ framing_module }}`) -- length-prefixed 5-byte
+      frames (1-byte compressed flag + 4-byte big-endian length + payload),
+      multi-message split with caller-owned buffer, `grpc-status` /
+      `grpc-message` trailer maps in the HTTP/2 trailer-block line format.
+      PARTIAL boundary: a host server driving raw bytes consumes this
+      layer; this module does not (the :grpc_server dependency frames).
+    * dispatch map (`{{ dispatch_module }}`) -- proto-RPC name -> internal
+      method, `{:ok, reply} | {:error, grpc_status, message} |
+      {:stream, method, params, id}`, JSON-RPC error codes -> gRPC statuses
+      per A2A v1.0 §3.3.2. PARTIAL boundary: the dispatch layer is complete;
+      the socket is not the dispatch's problem.
+    * server (this module) -- ALIVE: unary RPCs bridge protobuf <-> proto-JSON
+      via `Protobuf.JSON`, delegate to the dispatch, and raise
+      `GRPC.RPCError` from the mapped status; streaming RPCs get the
+      `{:stream, internal, params, _id}` tuple from the dispatch and pump a
+      host-supplied event enumerator.
+
+  ## Wiring
+
+      Application.put_env({{ server_module_name }}, {{ server_module_name }},
+        handler: MyApp.A2AHandler,
+        ctx: %{},
+        stream_fun: {MyApp.A2AStreams, :events}
+      )
+
+      {:ok, _pid, port} =
+        GRPC.Server.start_endpoint({{ server_module_name }}.Endpoint, 50051)
+
+    * `:handler` -- required at call time; the module implementing the
+      JSONRPC behaviour that `{{ dispatch_module }}.call/4` routes to
+      (the same handler the HTTP binding uses). Calls are refused
+      UNAVAILABLE(14) without it.
+    * `:ctx` -- the context map `{{ handler_module }}` requires; default `%{}`.
+    * `:stream_fun` -- required only when a streaming RPC is invoked: a
+      2-arity `{module, function}` tuple (or bare 2-arity fun) called as
+      `fun.(internal_method, params)` returning `{:ok, events}` (an
+      enumerable of proto-JSON payload maps) or `{:error, %GRPC.RPCError{}}`.
+      Refused UNIMPLEMENTED(12) without it.
+
+  ## Compile-time method-set court
+
+  The generated function set is DERIVED from `{{ dispatch_module }}.methods()`
+  -- the dispatched set -- and each entry is cross-checked against the proto
+  descriptor `{{ pb_service_module }}.__rpc_calls__/0` at compile time: a
+  dispatch entry with no matching rpc, a streaming-flag disagreement between
+  dispatch table and descriptor, or a descriptor rpc with no dispatch entry
+  fails compilation. The generated adapter therefore cannot drift from the
+  dispatched method set.
+
+  ## Proto regeneration
+
+  `{{ proto_path }}` carries the full provenance + regeneration header.
+  Never hand-edit the generated pb projection; to regenerate:
+
+      # 1. fetch the canonical proto + google/api includes (same upstream SHA)
+      # 2. build the pinned protoc plugin:
+      git clone --depth 1 --branch v0.17.0 https://github.com/elixir-protobuf/protobuf /tmp/protobuf-src
+      (cd /tmp/protobuf-src && MIX_ENV=prod mix escript.build)
+      # 3. generate (only the a2a proto emits code; includes are parsed for options):
+      PATH=/tmp/protobuf-src:$PATH protoc \\
+        --elixir_out=plugins=grpc:lib \\
+        -I priv/proto -I /opt/homebrew/include \\
+        {{ proto_path }}
+  """
+
+  use GRPC.Server, service: {{ pb_service_module }}
+
+  # -- compile-time method-set court ----------------------------------------
+  # {{ dispatch_module }}.methods() is the single source of the function set.
+  # Every entry must match one rpc descriptor on {{ pb_service_module }} --
+  # by name AND streaming flag -- and the descriptor must not carry any rpc
+  # the dispatch table lacks. "Generated adapter matches the dispatched
+  # method set" is therefore structural, not aspirational: drift fails
+  # compilation with the offending method named.
+  server_rpcs = {{ pb_service_module }}.__rpc_calls__()
+
+  dispatch_names =
+    for %{name: name} <- {{ dispatch_module }}.methods(), uniq: true do
+      name
+    end
+
+  for {rpc_name, {_req_mod, _req_stream?}, {resp_mod, resp_stream?}, _opts} <-
+        server_rpcs do
+    rpc_name_string = to_string(rpc_name)
+
+    case rpc_name_string in dispatch_names do
+      true ->
+        case Enum.find({{ dispatch_module }}.methods(), fn %{name: n} -> n == rpc_name_string end) do
+          nil ->
+            :ok
+
+          %{streaming: dispatch_streaming?} ->
+            if dispatch_streaming? != resp_stream? do
+              raise ArgumentError,
+                    "{{ server_module_name }}: dispatch table says #{rpc_name_string} " <>
+                      "streaming=#{inspect(dispatch_streaming?)} but the proto descriptor " <>
+                      "says streaming=#{inspect(resp_stream?)} -- regenerate the pb projection " <>
+                      "from {{ proto_path }} and reconcile"
+            end
+
+            fn_name = String.to_atom(Macro.underscore(rpc_name_string))
+
+            if dispatch_streaming? do
+              def unquote(fn_name)(req, mat) do
+                __MODULE__.__start_stream__(
+                  unquote(rpc_name_string),
+                  unquote(resp_mod),
+                  req,
+                  mat
+                )
+              end
+            else
+              def unquote(fn_name)(req, mat) do
+                req
+                |> GRPC.Stream.unary(materializer: mat)
+                |> GRPC.Stream.map(fn _ ->
+                  __MODULE__.__unary__(unquote(rpc_name_string), unquote(resp_mod), req)
+                end)
+                |> GRPC.Stream.run()
+              end
+            end
+        end
+
+      false ->
+        raise ArgumentError,
+              "{{ server_module_name }}: proto descriptor rpc #{rpc_name_string} has no " <>
+                "matching entry in {{ dispatch_module }}.methods() -- the generated " <>
+                "adapter would silently 404 a live RPC; add it to the dispatch table " <>
+                "or regenerate from {{ proto_path }}"
+    end
+  end
+
+  # Every dispatch entry must have landed above (the descriptor loop covers
+  # descriptor->dispatch); this loop is the reverse direction.
+  for %{name: name} <- {{ dispatch_module }}.methods() do
+    unless Enum.any?(server_rpcs, fn {n, _, _, _} -> to_string(n) == name end) do
+      raise ArgumentError,
+            "{{ server_module_name }}: dispatch table entry #{inspect(name)} has no " <>
+              "matching rpc on {{ pb_service_module }} -- stale dispatch entry or " <>
+              "regenerate the pb projection from {{ proto_path }}"
+    end
+  end
+
+  # -- unary delegation (the landed server.ex bridging, verbatim shape) ------
+
+  @doc false
+  def __unary__(method, resp_mod, req) do
+    with {:ok, params} <- to_params(req),
+         {:ok, result} <- {{ dispatch_module }}.call(method, params, handler!(), ctx()) do
+      to_pb!(resp_mod, result)
+    else
+      {:error, code, msg} -> {:error, GRPC.RPCError.exception(status: code, message: msg)}
+    end
+  end
+
+  # -- server-streaming delegation ------------------------------------------
+  # The dispatch already decoded and validated: {:stream, internal, params,
+  # id} is returned, and the host's :stream_fun turns (internal, params)
+  # into the event enumerator. Each event is a proto-JSON payload map,
+  # bridged to the descriptor's response module and pumped via GRPC.Stream.
+  @doc false
+  def __start_stream__(method, resp_mod, req, mat) do
+    with {:ok, params} <- to_params(req),
+         {:stream, internal, stream_params, _id} <-
+           {{ dispatch_module }}.call(method, params, handler!(), ctx()) do
+      case stream_events(internal, stream_params) do
+        {:ok, events} ->
+          events
+          |> GRPC.Stream.from(stages: 1)
+          |> GRPC.Stream.map(fn payload -> to_pb!(resp_mod, payload) end)
+          |> GRPC.Stream.run_with(mat)
+
+        {:error, %GRPC.RPCError{} = error} ->
+          {:error, error}
+      end
+    else
+      {:error, code, msg} -> {:error, GRPC.RPCError.exception(status: code, message: msg)}
+      {:ok, _} ->
+        {:error,
+         GRPC.RPCError.exception(
+           status: 13,
+           message: "#{method} dispatched a unary result"
+         )}
+    end
+  end
+
+  defp stream_events(internal, stream_params) do
+    case config()[:stream_fun] do
+      {m, f} when is_atom(m) and is_atom(f) -> apply(m, f, [internal, stream_params])
+      fun when is_function(fun, 2) -> fun.(internal, stream_params)
+
+      nil ->
+        {:error,
+         GRPC.RPCError.exception(
+           status: 12,
+           message:
+             "no :stream_fun configured for #{__MODULE__}; the streaming RPC " <>
+               "#{inspect(internal)} cannot be driven"
+         )}
+    end
+  end
+
+  # -- host trailer helper ----------------------------------------------------
+  # For hosts driving raw bytes through {{ framing_module }}: the gRPC
+  # trailer map for any dispatch result, ready for
+  # {{ framing_module }}.encode_trailers/1.
+  @doc "gRPC trailer map for a dispatch result, for {{ framing_module }}.encode_trailers/1."
+  def trailers(result), do: {{ dispatch_module }}.trailers(result)
+
+  # -- config (the landed server.ex config shape, app key = this module) -----
+
+  defp handler! do
+    case config() do
+      kw when is_list(kw) ->
+        Keyword.fetch!(kw, :handler)
+
+      nil ->
+        raise GRPC.RPCError,
+          status: 14,
+          message: "gRPC transport not configured: no :handler in application env"
+    end
+  end
+
+  defp ctx do
+    case config() do
+      kw when is_list(kw) -> Keyword.get(kw, :ctx, %{})
+      nil -> %{}
+    end
+  end
+
+  defp config, do: Application.get_env({{ server_module_name }}, __MODULE__)
+
+  # -- proto-JSON bridge (verbatim server.ex shape) ---------------------------
+
+  defp to_params(req) do
+    {:ok, req |> Protobuf.JSON.encode!() |> Jason.decode!()}
+  rescue
+    e -> {:error, GRPC.RPCError.exception(status: 3, message: "bad request: #{Exception.message(e)}")}
+  end
+
+  defp to_pb!(resp_mod, result_map) do
+    result_map |> Jason.encode!() |> Protobuf.JSON.decode!(resp_mod)
+  end
+end

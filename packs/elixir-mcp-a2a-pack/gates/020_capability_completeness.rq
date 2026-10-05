@@ -1,0 +1,28 @@
+PREFIX ema: <http://seanchatmangpt.github.io/packs/elixir-mcp-a2a#>
+
+# Completeness gate (v1.0, 2026-10-04). SELECT-shaped (any row = violation;
+# an empty result is the passing case, mirroring gates/010's convention):
+# every ema:Capability row must declare BOTH required fields --
+#
+# 1. ema:exposedVia -- a capability with no exposedVia (or a value outside
+#    "mcp"|"a2a"|"both") matches NO surface filter and silently vanishes
+#    from BOTH generated protocol surfaces; ontology.ttl's own ema:exposedVia
+#    comment names this exact defect class and named this gate as the
+#    follow-up.
+# 2. ema:requiresAuthority -- the v1.0 authority field: the generated
+#    governance lookups and McpDescriptor's requires_authority?/1 both
+#    project from it, and the v1.0 runtime fails closed on it
+#    (AshA2A.Authority.Grant.authorize/3 returning nil refuses
+#    :authority_required for :change/:external_do capabilities,
+#    lib/ash_a2a/agent.ex:931-952). A row without it cannot be projected.
+SELECT DISTINCT ?c ?missing WHERE {
+  { ?c a ema:Capability .
+    BIND("exposedVia" AS ?missing)
+    FILTER NOT EXISTS { ?c ema:exposedVia ?via }
+  } UNION {
+    ?c a ema:Capability .
+    BIND("requiresAuthority" AS ?missing)
+    FILTER NOT EXISTS { ?c ema:requiresAuthority ?ra }
+  }
+}
+ORDER BY ?c ?missing

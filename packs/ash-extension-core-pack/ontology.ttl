@@ -364,3 +364,156 @@ aex:AshR2RMLSparqlQueryWhere a aex:EntitySchemaField ;
     aex:fieldOrder 4 ; aex:fieldName "where" ; aex:fieldType "any" ; aex:fieldRequired false ;
     aex:fieldDefault "[]" ;
     aex:fieldDoc "WHERE-clause pattern data." .
+
+#################################################################
+# Vocabulary: Reactor-as-generic-action bridge (2026-10-03 research
+# finding: Ash generic actions accept a Reactor module directly as their
+# `run` option -- the documented preferred initiation pattern; every Reactor
+# input must map to an action argument; `transaction? true` forces the
+# Reactor to run synchronously, async?: false).
+#################################################################
+
+aex:ReactorActionBridge a rdfs:Class ;
+    rdfs:label "One Ash generic action that binds a Reactor module as its `run`, plus the dedicated resource/domain that carries it." .
+
+aex:bridgePackageName a rdf:Property ; rdfs:domain aex:ReactorActionBridge ; rdfs:comment "snake_case consumer package, e.g. ash_pplan." .
+aex:bridgeModule a rdf:Property ; rdfs:domain aex:ReactorActionBridge ; rdfs:comment "Generated Ash resource module carrying the Reactor-backed generic action, e.g. AshPPlan.Reactor.GenericActionBridge." .
+aex:bridgeDomainModule a rdf:Property ; rdfs:domain aex:ReactorActionBridge ; rdfs:comment "Generated Ash.Domain module owning the bridge resource." .
+aex:bridgeActionName a rdf:Property ; rdfs:domain aex:ReactorActionBridge ; rdfs:comment "Generic action atom name (without colon), e.g. run_reactor." .
+aex:bridgeReactorModule a rdf:Property ; rdfs:domain aex:ReactorActionBridge ; rdfs:comment "Reactor module bound as the action's `run`; generated as a nested sibling module of bridgeModule." .
+aex:bridgeTransactional a rdf:Property ; rdfs:domain aex:ReactorActionBridge ;
+    rdfs:comment "boolean -- when true the generated action sets transaction? true; the emitted doc comment carries the forced-synchronous (async?: false) caveat either way." .
+
+aex:BridgeInput a rdfs:Class ;
+    rdfs:label "One Reactor input of the bound reactor; rendered 1:1 as an action argument (the mapping is checked at runtime by the generated bridge)." .
+aex:bridgeInputOf a rdf:Property ; rdfs:domain aex:BridgeInput ; rdfs:range aex:ReactorActionBridge .
+aex:bridgeInputOrder a rdf:Property ; rdfs:domain aex:BridgeInput .
+aex:bridgeInputName a rdf:Property ; rdfs:domain aex:BridgeInput ; rdfs:comment "atom name without colon; must match a Reactor `input` of the bound module." .
+aex:bridgeInputType a rdf:Property ; rdfs:domain aex:BridgeInput ; rdfs:comment "closed set: integer | string | term (rendered as the Ash type)." .
+aex:bridgeInputRequired a rdf:Property ; rdfs:domain aex:BridgeInput ; rdfs:comment "boolean -- render allow_nil?: false when true." .
+aex:bridgeInputDoc a rdf:Property ; rdfs:domain aex:BridgeInput ; rdfs:comment "optional argument doc string." .
+
+#################################################################
+# Worked instance: ash_pplan bridge (lane REACTOR-ACTION, 2026-10-03)
+#################################################################
+
+aex:AshPPlanReactorBridge a aex:ReactorActionBridge ;
+    aex:bridgePackageName "ash_pplan" ;
+    aex:bridgeModule "AshPPlan.Reactor.GenericActionBridge" ;
+    aex:bridgeDomainModule "AshPPlan.Reactor.GenericActionBridge.Domain" ;
+    aex:bridgeActionName "run_reactor" ;
+    aex:bridgeReactorModule "AshPPlan.Reactor.GenericActionBridge.Workflow" ;
+    aex:bridgeTransactional false .
+
+aex:AshPPlanBridgeValueInput a aex:BridgeInput ;
+    aex:bridgeInputOf aex:AshPPlanReactorBridge ;
+    aex:bridgeInputOrder 1 ;
+    aex:bridgeInputName "value" ;
+    aex:bridgeInputType "integer" ;
+    aex:bridgeInputRequired true ;
+    aex:bridgeInputDoc "Integer piped through the bound Reactor; proves the argument->input hop." .
+
+#################################################################
+# Reactor adapter extension: Ash.Reactor step-kind coverage
+# (lane ASH-REACTOR-STEPS, 2026-10-04)
+#
+# The consumer's existing adapter (ash_pplan lib/ash_pplan/reactor/adapters/
+# ash_reactor.ex) covers only the domain-action kinds (create/read/update/
+# destroy/action through its own Steps.DomainAction wrapper). Ash.Reactor
+# itself ships one Reactor step module per action type -- verified against
+# ash 3.x sources under deps/ash/lib/ash/reactor/steps/ (module names read
+# from the real defmodule headers, never guessed):
+#
+#   generic      -> Ash.Reactor.ActionStep      (steps/action_step.ex)
+#   ash_step     -> Ash.Reactor.AshStep         (steps/ash_step.ex)
+#   read_one     -> Ash.Reactor.ReadOneStep     (steps/read_one_step.ex)
+#   load         -> Ash.Reactor.LoadStep        (steps/load_step.ex)
+#   bulk create  -> Ash.Reactor.BulkCreateStep  (steps/bulk_create_step.ex)
+#   bulk update  -> Ash.Reactor.BulkUpdateStep  (steps/bulk_update_step.ex)
+#   bulk destroy -> Ash.Reactor.BulkDestroyStep (steps/bulk_destroy_step.ex)
+#
+# Facts only; the template renders the adapter's @table 1:1 from these rows.
+# Step-module option contracts (verified in the same sources):
+#   ActionStep/ReadOneStep: options[:resource], options[:action], input via
+#     arguments[:input]; actor/authorize? from context/options/arguments.
+#   LoadStep: arguments.records + arguments[:load].
+#   AshStep: options[:run] (1/2-arity fun or MFA) or options[:impl] {mod, opts}.
+#   BulkCreateStep: options[:resource], options[:action], inputs via
+#     arguments.initial (list of input maps), options[:return_records?].
+#################################################################
+
+aex:ReactorAdapterSpec a rdfs:Class ;
+    rdfs:label "One consumer-side adapter module extending coverage of Ash.Reactor step kinds, generated as a companion to (never a hand-edit of) an existing adapter." .
+
+aex:adapterPackageName a rdf:Property ; rdfs:domain aex:ReactorAdapterSpec ; rdfs:comment "Consumer hex package (output root lib/<package>/...), e.g. ash_pplan." .
+aex:adapterModuleName  a rdf:Property ; rdfs:domain aex:ReactorAdapterSpec ; rdfs:comment "Full generated adapter module name, e.g. AshPPlan.Reactor.Adapters.AshReactorExtended." .
+aex:adapterId          a rdf:Property ; rdfs:domain aex:ReactorAdapterSpec ; rdfs:comment "Adapter id atom (without colon) returned by id/0, e.g. ash_reactor_extended." .
+aex:adapterBaseModule  a rdf:Property ; rdfs:domain aex:ReactorAdapterSpec ; rdfs:comment "Existing adapter module this companion extends, e.g. AshPPlan.Reactor.Adapters.AshReactor -- referenced in the generated moduledoc; binds the companion to the adapter it extends." .
+
+aex:ReactorAdapterOp a rdfs:Class ;
+    rdfs:label "One op of the generated adapter: an op atom mapped to the real Ash.Reactor step module that implements it." .
+
+aex:adapterOpOf        a rdf:Property ; rdfs:domain aex:ReactorAdapterOp ; rdfs:range aex:ReactorAdapterSpec .
+aex:adapterOpOrder     a rdf:Property ; rdfs:domain aex:ReactorAdapterOp ; rdfs:comment "Position in ops/0 ordering." .
+aex:adapterOpName      a rdf:Property ; rdfs:domain aex:ReactorAdapterOp ; rdfs:comment "Adapter op atom (without colon), e.g. ash_read_one." .
+aex:adapterOpStepModule a rdf:Property ; rdfs:domain aex:ReactorAdapterOp ; rdfs:comment "Exact Ash.Reactor step module, verified against deps/ash/lib/ash/reactor/steps/, e.g. Ash.Reactor.ReadOneStep." .
+aex:adapterOpNote      a rdf:Property ; rdfs:domain aex:ReactorAdapterOp ; rdfs:comment "Optional short note rendered into the @table comment." .
+
+#################################################################
+# Worked instance: ash_pplan AshReactorExtended (lane ASH-REACTOR-STEPS, 2026-10-04)
+#################################################################
+
+aex:AshPPlanAshReactorExtended a aex:ReactorAdapterSpec ;
+    aex:adapterPackageName "ash_pplan" ;
+    aex:adapterModuleName "AshPPlan.Reactor.Adapters.AshReactorExtended" ;
+    aex:adapterId "ash_reactor_extended" ;
+    aex:adapterBaseModule "AshPPlan.Reactor.Adapters.AshReactor" .
+
+aex:AshPPlanAdapterOpGeneric a aex:ReactorAdapterOp ;
+    aex:adapterOpOf aex:AshPPlanAshReactorExtended ;
+    aex:adapterOpOrder 1 ;
+    aex:adapterOpName "ash_generic" ;
+    aex:adapterOpStepModule "Ash.Reactor.ActionStep" ;
+    aex:adapterOpNote "generic actions (action_step.ex)" .
+
+aex:AshPPlanAdapterOpAshStep a aex:ReactorAdapterOp ;
+    aex:adapterOpOf aex:AshPPlanAshReactorExtended ;
+    aex:adapterOpOrder 2 ;
+    aex:adapterOpName "ash_step" ;
+    aex:adapterOpStepModule "Ash.Reactor.AshStep" ;
+    aex:adapterOpNote "step-module or anonymous fun with notification enqueueing (ash_step.ex)" .
+
+aex:AshPPlanAdapterOpReadOne a aex:ReactorAdapterOp ;
+    aex:adapterOpOf aex:AshPPlanAshReactorExtended ;
+    aex:adapterOpOrder 3 ;
+    aex:adapterOpName "ash_read_one" ;
+    aex:adapterOpStepModule "Ash.Reactor.ReadOneStep" ;
+    aex:adapterOpNote "get actions (read_one_step.ex)" .
+
+aex:AshPPlanAdapterOpLoad a aex:ReactorAdapterOp ;
+    aex:adapterOpOf aex:AshPPlanAshReactorExtended ;
+    aex:adapterOpOrder 4 ;
+    aex:adapterOpName "ash_load" ;
+    aex:adapterOpStepModule "Ash.Reactor.LoadStep" ;
+    aex:adapterOpNote "load calculations/relationships on records (load_step.ex)" .
+
+aex:AshPPlanAdapterOpBulkCreate a aex:ReactorAdapterOp ;
+    aex:adapterOpOf aex:AshPPlanAshReactorExtended ;
+    aex:adapterOpOrder 5 ;
+    aex:adapterOpName "bulk_create" ;
+    aex:adapterOpStepModule "Ash.Reactor.BulkCreateStep" ;
+    aex:adapterOpNote "bulk creates; inputs via arguments.initial (bulk_create_step.ex)" .
+
+aex:AshPPlanAdapterOpBulkUpdate a aex:ReactorAdapterOp ;
+    aex:adapterOpOf aex:AshPPlanAshReactorExtended ;
+    aex:adapterOpOrder 6 ;
+    aex:adapterOpName "bulk_update" ;
+    aex:adapterOpStepModule "Ash.Reactor.BulkUpdateStep" ;
+    aex:adapterOpNote "bulk updates (bulk_update_step.ex)" .
+
+aex:AshPPlanAdapterOpBulkDestroy a aex:ReactorAdapterOp ;
+    aex:adapterOpOf aex:AshPPlanAshReactorExtended ;
+    aex:adapterOpOrder 7 ;
+    aex:adapterOpName "bulk_destroy" ;
+    aex:adapterOpStepModule "Ash.Reactor.BulkDestroyStep" ;
+    aex:adapterOpNote "bulk destroys (bulk_destroy_step.ex)" .

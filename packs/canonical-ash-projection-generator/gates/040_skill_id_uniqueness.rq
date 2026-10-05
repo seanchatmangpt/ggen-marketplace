@@ -1,0 +1,16 @@
+# MESSAGE: distinct skills must get distinct IRIs -- the RDFC-1.0 canonical
+# identity of the generated projection (AshA2A.Semantic.CanonicalGraph,
+# lib/ash_a2a/semantic/canonical_graph.ex) presupposes one skillId per skill
+# individual, so two skill individuals sharing one skillId would silently merge
+# under canonicalization-sensitive consumption.
+PREFIX apg: <https://ggen.dev/ash-projection#>
+SELECT ?skill_id ?problem WHERE {
+  {
+    SELECT ?skill_id (COUNT(DISTINCT ?skill) AS ?n) WHERE {
+      ?skill a apg:Skill ; apg:skillId ?skill_id .
+    } GROUP BY ?skill_id
+  }
+  FILTER (?n > 1)
+  BIND("skill-id-shared-by-multiple-skill-IRIs" AS ?problem)
+}
+ORDER BY ?skill_id

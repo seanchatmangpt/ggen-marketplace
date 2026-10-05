@@ -1,0 +1,69 @@
+# MESSAGE: runner-completeness gate over the pack's own graph (SPARQL half).
+# Executable half: gates/verify_runner_completeness.sh, which checks the REAL
+# runner source and the REAL filesystem. Falsifier: "the runner task exists
+# and its court list matches the pack's inventory." Any row below = an
+# inventory violation in the graph.
+PREFIX a2ac: <http://seanchatmangpt.github.io/packs/a2a-conformance#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?s ?violation WHERE {
+  {
+    # the runner must name its task, source, and list size
+    ?s a a2ac:CourtRunner .
+    FILTER NOT EXISTS {
+      ?s a2ac:taskName ?t ; a2ac:runnerSourcePath ?p ; a2ac:runnerListSize ?n .
+    }
+    BIND("CourtRunner missing taskName/runnerSourcePath/runnerListSize" AS ?violation)
+  }
+  UNION {
+    # the maintained list size is PINNED at 25 (count the runner's @v1_courts)
+    ?s a a2ac:CourtRunner ; a2ac:runnerListSize ?n .
+    FILTER (?n != 25)
+    BIND("runnerListSize != 25 -- re-count the runner's @v1_courts list" AS ?violation)
+  }
+  UNION {
+    # every listed court carries file, order, and family
+    VALUES (?prop ?name) {
+      (a2ac:courtFile "courtFile")
+      (a2ac:runnerListIndex "runnerListIndex")
+      (a2ac:courtFamily "courtFamily")
+      (a2ac:inRunnerList "inRunnerList")
+    }
+    ?s a a2ac:CourtFile .
+    FILTER NOT EXISTS { ?s ?prop ?any }
+    BIND(CONCAT("CourtFile missing required property: ", ?name) AS ?violation)
+  }
+  UNION {
+    # runner list indices are 1..25, each used exactly once
+    ?s a a2ac:CourtFile ; a2ac:runnerListIndex ?i .
+    FILTER (?i < 1 || ?i > 25)
+    BIND(CONCAT("runnerListIndex outside 1..25: ", STR(?i)) AS ?violation)
+  }
+  UNION {
+    # duplicate index = the inventory cannot be ordered like the runner's list
+    ?s a a2ac:CourtFile ; a2ac:runnerListIndex ?i .
+    FILTER EXISTS {
+      ?other a a2ac:CourtFile ; a2ac:runnerListIndex ?i .
+      FILTER (?other != ?s)
+    }
+    BIND(CONCAT("duplicate runnerListIndex: ", STR(?i)) AS ?violation)
+  }
+  UNION {
+    # inventory size must equal the pinned list size
+    SELECT ?s ?violation WHERE {
+      ?s a a2ac:CourtRunner ; a2ac:runnerListSize ?n .
+      {
+        SELECT (COUNT(?c) AS ?cnt) WHERE { ?c a a2ac:CourtFile . }
+      }
+      FILTER (?cnt != ?n)
+      BIND("CourtFile inventory size != CourtRunner runnerListSize" AS ?violation)
+    }
+  }
+  UNION {
+    # an exclusion with no stated reason is a silent omission, not an admission
+    ?s a a2ac:ExcludedCourtFile ; a2ac:courtFile ?f .
+    FILTER NOT EXISTS { ?s rdfs:comment ?why . FILTER (STRLEN(?why) > 0) }
+    BIND(CONCAT("excluded court file without a stated reason: ", ?f) AS ?violation)
+  }
+}
+ORDER BY ?s ?violation

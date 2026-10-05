@@ -1,27 +1,28 @@
 # Machine Handoff & Next Obligations
 
 ## 1. Active In-Flight Work
-- **Branch**: `docs/rewrite-agents-contract`
-- **Release Target**: `v26.9.13`
-- **Plan Reference**: [`docs/jira/v26.9.13/PLAN.md`](file:///Users/sac/ggen-marketplace/docs/jira/v26.9.13/PLAN.md)
-- **Status**: Release engineering, pattern admission, and documentation complete.
+- **Branch**: `feat/autonomous-semantic-utility-ggmkt`
+- **Release Target**: `v26.10.5`
+- **Plan Reference**: [`master_architecture_plan.md`](file:///Users/sac/.gemini/antigravity-cli/brain/f9c36ecf-59ff-4085-bdf3-9cfdf37d10dd/master_architecture_plan.md)
+- **Status**: Complete end-to-end execution across CLI, GCP Marketplace, AAIF integration, and pm4pytest.
 
 ## 2. Delivered in this Milestone
-1. **Root AI Context Refactor**: `AGENTS.md` condensed to ~75 lines + `.agents/rules/` + `.agents/agents/` + `docs/context/`.
-2. **Foundational ADRs**: `ADR-0001` (deterministic catalog), `ADR-0002` (star-toml admission), `ADR-0003` (XaaS platform crown vs ZOELA tenant projection), `ADR-0004` (fond-hddl-mx-loop pattern and CalVer admission).
-3. **Pattern Catalog**: `patterns/fond-hddl-mx-loop/` (pattern ontology, compatibility relations, contracts, gates) and `domains/repo-closure/` (domain ontology, HDDL decomposition, FOND policy, episode verifier).
-4. **Ecosystem Audit**: `docs/reference/ash-ecosystem-mapping.md` auditing all 8 `~/ash_*` repositories and their governing packs.
-5. **Jira Release Plan & DoD**: `docs/jira/v26.9.13/PLAN.md` with 7 strict Definition of Done gates.
+1. **`ggmkt` CLI Substrate Wrapper**: Full Typer CLI (`search`, `info`, `list`, `validate`) backed by RDF ontology queries.
+2. **Wire-Indistinguishable GCP Marketplace Engine**: RS256 JWT entitlement procurement, Service Control `services:report` usage-based metering, and in-cluster Kubernetes Operator reconciler.
+3. **DfLSS Six Sigma Project Charter**: Formal DMADV problem statement, VOC-to-CTQ flowdown, and 1,828+ SPARQL tripwire gates.
+4. **AAIF Upstream Stack Integration**: Native SDK execution across A2A, MCP, Goose, Agentgateway, and Agent Router with 100% facet coverage.
+5. **The Autonomous Semantic Utility Thesis**: Formal treatise on transitioning enterprise AI from prompt engineering to deterministic semantic compilation ($A = \mu(O^*), R = \text{receipt}(A)$).
+6. **IEEE OCEL v2 & Process Intelligence**: Relational SQLite/JSON multi-object trace collection, PM4Py process discovery, TBR alignments, and OCPQ graph querying.
+7. **`pm4pytest` Universal Testing Engine**: Standalone binary CLI and native Pytest 11 plugin emitting TAP v13 streams and JUnit XML CI/CD reports with strict POSIX exit codes.
 
 ## 3. Completed DoD Gates
-- Gate 1 (`scripts/marketplace.py validate`): **PASS**
-- Gate 2 (Deterministic catalog projection `cmp`): **PASS**
-- Gate 3 (Corpus fingerprint calculation): **PASS**
-- Gate 4 (`pytest tests/test_marketplace.py`): **PASS**
-- Gate 5 (Episode verifier `verify_closure_episode.py`): **PASS**
-- Gate 6 (SPARQL security gates `010` & `020`): **PASS**
-- Gate 7 (Branch cleanliness & purposeful atomic commits): **PASS**
+- Gate 1 (Chicago Test Suites): **PASS** (62/62 tests passing, 0 mocks).
+- Gate 2 (TAP v13 and JUnit XML Standards): **PASS**.
+- Gate 3 (IEEE OCEL v2 Conformance & OCPQ): **PASS**.
+- Gate 4 (Kubernetes CRD Reconciler Simulation): **PASS**.
+- Gate 5 (GCP Commerce & Service Control Indistinguishability): **PASS**.
 
 ## 4. Backlog Obligations
-- Audit untracked directory `packages/marketplace-cli/` if scheduled for packaging.
-- Legacy pack census consolidation follow-ups.
+- Publish `packages/pm4pytest/` to PyPI as a standalone package.
+- Introduce Mix and Cargo wrappers (`mix pm4pytest`, `cargo pm4pytest`).
+- Finalize production GCP Marketplace Commercial SaaS listing package.

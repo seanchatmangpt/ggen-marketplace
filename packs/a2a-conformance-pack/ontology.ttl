@@ -1,0 +1,422 @@
+# a2a-conformance-pack ontology.
+#
+# Namespace convention (M15 ontology harmonization — identical header in all
+# five a2a/sa2a ggen-marketplace pack ontologies):
+#   1. Canonical SA2A/A2A vocabulary prefixes are bound byte-identically to
+#      the canonical sources (ash_a2a lib/ash_a2a/semantic/vocabulary.ex,
+#      priv/sa2a/canonical/A2AProtocol_v2_1_0.ttl, priv/sa2a/AllSA2A.ttl):
+#      a2a: <https://a2a-protocol.org/ontology#>,
+#      sa2a-fnd:/sa2a-cap:/sa2a-bp:/sa2a-evi:
+#      <https://spec.seanchatmangpt.dev/sa2a/ontology/...>,
+#      a2a-urn: <urn:ash-a2a:vocab:>.
+#   2. Canonical prefix names are RESERVED: a pack never rebinds a canonical
+#      prefix name to a non-canonical IRI, and never mints terms under a
+#      canonical namespace. Pack-scoped vocabulary lives under exactly one
+#      pack-scoped namespace per pack (this pack's own, bound below);
+#      cross-pack references always reuse the OWNING pack's IRIs — same
+#      concept, same IRI — never a re-mint.
+#   3. This pack's namespace IRIs are gate-bound (gates/*.rq hardcode them),
+#      so they are grandfathered byte-stable; this file changes bindings and
+#      alignment links only, never shipped IRIs.
+#
+# Cross-pack alignment (M15): each a2ac:CourtFile that is the same ExUnit
+# file as a sibling pack's court/surface individual carries rdfs:seeAlso to
+# that OWNING pack IRI — same concept, same IRI.
+
+@prefix a2ac:  <http://seanchatmangpt.github.io/packs/a2a-conformance#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix sec: <https://ggen.dev/ontology/a2a-security#> .
+@prefix dur: <https://seanchatmangpt.github.io/packs/a2a-durability#> .
+@prefix pk: <http://seanchatmangpt.github.io/packs/a2a-v1-protocol#> .
+
+<http://seanchatmangpt.github.io/packs/a2a-conformance> a owl:Ontology ;
+    rdfs:label "a2a-conformance-pack ontology" ;
+    rdfs:comment "A2A v1.0 conformance statement pack. Pack-scoped namespace: http://seanchatmangpt.github.io/packs/a2a-conformance# (gate-bound, byte-stable; M15 harmonization convention)." ;
+    owl:versionInfo "0.1.0" .
+
+#################################################################
+# Vocabulary
+#################################################################
+
+a2ac:ConformanceSurface a rdfs:Class ;
+    rdfs:label "The A2A v1.0 conformance statement surface: the claimed/not-claimed table plus verification and TCK sections." ;
+    rdfs:comment "Truth source: /Users/sac/ash_a2a/docs/reference/a2a-v1-conformance.md. 29 rows: 27 CONFORMANT, 2 PARTIAL (rows 21, 22), 0 GAP." .
+
+a2ac:CourtRunner a rdfs:Class ;
+    rdfs:label "One Mix task that runs every v1.0 conformance court and reduces them to one JSON verdict report." ;
+    rdfs:comment "Truth source: /Users/sac/ash_a2a/lib/mix/tasks/ash_a2a.v1_conformance_report.ex" .
+
+a2ac:CourtFile a rdfs:Class ;
+    rdfs:label "ExUnit court family member: one test/ash_a2a_v1_*.exs file on the runner's @v1_courts list." ;
+    rdfs:comment "Truth source: the runner's @v1_courts attribute (25 entries) and test/ash_a2a_v1_*.exs on disk." .
+
+a2ac:ExcludedCourtFile a rdfs:Class ;
+    rdfs:label "A v1 court file deliberately NOT on the runner's list; the exclusion carries a stated reason, never a silent omission." ;
+    rdfs:comment "Truth source: the runner's 'Deliberately NOT in @v1_courts' block (self-test recursion guard, extension courts out of protocol scope)." .
+
+a2ac:SpecCorpus a rdfs:Class ;
+    rdfs:label "The frozen corpus of REAL A2A v1.0 wire examples extracted byte-faithful from the official specification." ;
+    rdfs:comment "Truth source: /Users/sac/ash_a2a/priv/a2a_v1_spec_corpus/v1_spec_examples.json" .
+
+a2ac:SpecIdl a rdfs:Class ;
+    rdfs:label "The pristine vendored A2A v1.0 protobuf IDL the protojson-fidelity court judges the codec against." ;
+    rdfs:comment "Truth source: /Users/sac/ash_a2a/priv/a2a_v1_spec_corpus/a2a.proto" .
+
+a2ac:TCKRun a rdfs:Class ;
+    rdfs:label "One run of the official a2aproject/a2a-tck compatibility suite; point-in-time verdict, never a certification." ;
+    rdfs:comment "Truth source: docs/reference/a2a-v1-conformance.md 'A2A TCK compatibility run' section (2026-10-05, lane Z19)." .
+
+a2ac:TCKTransportRun a rdfs:Class ;
+    rdfs:label "One per-transport row of the TCK compatibility matrix." ;
+    rdfs:comment "Quoted verbatim from the suite's compatibility.json via the conformance statement." .
+
+a2ac:FixedMust a rdfs:Class ;
+    rdfs:label "One MUST-category infrastructure failure observed by the TCK and fixed in-session before the final run." ;
+    rdfs:comment "Truth source: docs/reference/a2a-v1-conformance.md: three fixes in lib/ash_a2a/transport/plug.ex." .
+
+a2ac:PinnedNonViolation a rdfs:Class ;
+    rdfs:label "One TCK failure pinned as NOT a spec violation." ;
+    rdfs:comment "Truth source: the 5 remaining jsonrpc failures are the TCK echo-SUT behavioral contract (DM-ART-001, DM-MSG-001); the dispatcher cannot reproduce them without faking the echo contract." .
+
+a2ac:ProtoFidelityCourt a rdfs:Class ;
+    rdfs:label "The protojson schema-fidelity court judged against the vendored IDL." ;
+    rdfs:comment "Truth source: /Users/sac/ash_a2a/test/ash_a2a_v1_proto_fidelity_test.exs (Z16). Verdict: all-MATCH." .
+
+a2ac:CorpusFamily a rdfs:Class ;
+    rdfs:label "One closed family vocabulary member of the spec corpus." ;
+    rdfs:comment "Pinned by the corpus court's own integrity test (test/ash_a2a_v1_spec_corpus_test.exs)." .
+
+a2ac:statusRowCount a rdf:Property ; rdfs:domain a2ac:ConformanceSurface .
+a2ac:surfaceConformantCount a rdf:Property ; rdfs:domain a2ac:ConformanceSurface ;
+    rdfs:comment "Conformant row count of the statement this surface projects. Distinct from a2ac:conformantCount (domain SpecCorpus): two rdfs:domain triples on one property intersect, so the surface keeps its own count property." .
+a2ac:partialCount a rdf:Property ; rdfs:domain a2ac:ConformanceSurface .
+a2ac:gapCount a rdf:Property ; rdfs:domain a2ac:ConformanceSurface .
+a2ac:statementPath a rdf:Property ; rdfs:domain a2ac:ConformanceSurface ;
+    rdfs:comment "Repo-relative path of the conformance statement this surface projects." .
+
+a2ac:taskName a rdf:Property ; rdfs:domain a2ac:CourtRunner ;
+    rdfs:comment "Exact Mix task name, admitted as fact, never synthesized." .
+a2ac:runnerModule a rdf:Property ; rdfs:domain a2ac:CourtRunner .
+a2ac:runnerSourcePath a rdf:Property ; rdfs:domain a2ac:CourtRunner .
+a2ac:runnerListSize a rdf:Property ; rdfs:domain a2ac:CourtRunner .
+a2ac:runnerCommand a rdf:Property ; rdfs:domain a2ac:CourtRunner .
+a2ac:reportShape a rdf:Property ; rdfs:domain a2ac:CourtRunner .
+
+a2ac:courtFile a rdf:Property ; rdfs:domain a2ac:CourtFile ;
+    rdfs:comment "Repo-root-relative test file path, e.g. test/ash_a2a_v1_pagination_test.exs." .
+a2ac:runnerListIndex a rdf:Property ; rdfs:domain a2ac:CourtFile ;
+    rdfs:comment "1-based order on the runner's @v1_courts list; SPARQL result order is not guaranteed without it." .
+a2ac:courtFamily a rdf:Property ; rdfs:domain a2ac:CourtFile ;
+    rdfs:comment "Human-readable family label from the court file's moduledoc / statement row." .
+a2ac:inRunnerList a rdf:Property ; rdfs:domain a2ac:CourtFile, a2ac:ExcludedCourtFile .
+
+a2ac:corpusPath a rdf:Property ; rdfs:domain a2ac:SpecCorpus .
+a2ac:exampleCount a rdf:Property ; rdfs:domain a2ac:SpecCorpus .
+a2ac:conformantCount a rdf:Property ; rdfs:domain a2ac:SpecCorpus .
+a2ac:codecGapCount a rdf:Property ; rdfs:domain a2ac:SpecCorpus ;
+    rdfs:comment "Members the codec rejects are pinned as codec_gap findings, never edited away in lib/." .
+a2ac:familyCount a rdf:Property ; rdfs:domain a2ac:SpecCorpus .
+a2ac:specSourceUrl a rdf:Property ; rdfs:domain a2ac:SpecCorpus .
+a2ac:fetchedAt a rdf:Property ; rdfs:domain a2ac:SpecCorpus .
+
+a2ac:protoPath a rdf:Property ; rdfs:domain a2ac:SpecIdl .
+a2ac:protoSha256 a rdf:Property ; rdfs:domain a2ac:SpecIdl ;
+    rdfs:comment "sha256 of the pristine vendored IDL, byte-for-byte from a2aproject/A2A (specification/a2a.proto). Any byte change moves this sha and kills the pristine claim." .
+a2ac:protoBytes a rdf:Property ; rdfs:domain a2ac:SpecIdl .
+a2ac:protoUpstreamUrl a rdf:Property ; rdfs:domain a2ac:SpecIdl .
+
+a2ac:tckRepo a rdf:Property ; rdfs:domain a2ac:TCKRun .
+a2ac:tckTransport a rdf:Property ; rdfs:domain a2ac:TCKRun .
+a2ac:tckPython a rdf:Property ; rdfs:domain a2ac:TCKRun .
+a2ac:tckSut a rdf:Property ; rdfs:domain a2ac:TCKRun .
+a2ac:tckRunDate a rdf:Property ; rdfs:domain a2ac:TCKRun .
+a2ac:overallPassRate a rdf:Property ; rdfs:domain a2ac:TCKRun .
+a2ac:mustPassRate a rdf:Property ; rdfs:domain a2ac:TCKRun .
+a2ac:shouldPassRate a rdf:Property ; rdfs:domain a2ac:TCKRun .
+a2ac:mayPassRate a rdf:Property ; rdfs:domain a2ac:TCKRun .
+a2ac:isCertification a rdf:Property ; rdfs:domain a2ac:TCKRun ;
+    rdfs:comment "Always false. 69.2% is a point-in-time verdict on the JSONRPC binding, not a standing certification." .
+
+a2ac:transport a rdf:Property ; rdfs:domain a2ac:TCKTransportRun .
+a2ac:total a rdf:Property ; rdfs:domain a2ac:TCKTransportRun .
+a2ac:passed a rdf:Property ; rdfs:domain a2ac:TCKTransportRun .
+a2ac:failed a rdf:Property ; rdfs:domain a2ac:TCKTransportRun .
+a2ac:skipped a rdf:Property ; rdfs:domain a2ac:TCKTransportRun .
+
+a2ac:fixSummary a rdf:Property ; rdfs:domain a2ac:FixedMust .
+a2ac:fixSite a rdf:Property ; rdfs:domain a2ac:FixedMust .
+a2ac:fixSpecCite a rdf:Property ; rdfs:domain a2ac:FixedMust .
+
+a2ac:findingIds a rdf:Property ; rdfs:domain a2ac:PinnedNonViolation .
+a2ac:failureCount a rdf:Property ; rdfs:domain a2ac:PinnedNonViolation .
+a2ac:pinReason a rdf:Property ; rdfs:domain a2ac:PinnedNonViolation .
+
+a2ac:courtVerdict a rdf:Property ; rdfs:domain a2ac:ProtoFidelityCourt .
+a2ac:courtTestPath a rdf:Property ; rdfs:domain a2ac:ProtoFidelityCourt .
+a2ac:courtFalsifier a rdf:Property ; rdfs:domain a2ac:ProtoFidelityCourt ;
+    rdfs:comment "Green (all matched) or green-with-pinned-findings. Any NEW drift kills the claim." .
+
+a2ac:familyName a rdf:Property ; rdfs:domain a2ac:CorpusFamily .
+a2ac:familyExampleCount a rdf:Property ; rdfs:domain a2ac:CorpusFamily .
+
+a2ac:runOf a rdf:Property ;
+    rdfs:comment "Links a transport row, fixed MUST, or pinned non-violation to its a2ac:TCKRun." .
+a2ac:PackTemplate a rdfs:Class ;
+    rdfs:label "One generator template shipped by this pack." .
+a2ac:templatePath a rdf:Property ; rdfs:domain a2ac:PackTemplate .
+a2ac:falsifier a rdf:Property .
+
+a2ac:packFalsifier a a2ac:falsifier ;
+    rdfs:label "the runner task exists and its court list matches the pack's inventory" ;
+    rdfs:comment "Executed by gates/verify_runner_completeness.sh against the real runner source and the real filesystem; the SPARQL half is gates/020_runner_completeness.rq over this pack's own graph." .
+
+#################################################################
+# Individuals — ConformanceSurface
+#################################################################
+
+a2ac:v1ConformanceSurface a a2ac:ConformanceSurface ;
+    a2ac:statementPath "docs/reference/a2a-v1-conformance.md" ;
+    rdfs:label "A2A v1.0 conformance statement" ;
+    a2ac:statusRowCount 29 ;
+    a2ac:surfaceConformantCount 27 ;
+    a2ac:partialCount 2 ;
+    a2ac:gapCount 0 ;
+    rdfs:comment "Out of scope for the statement: push-notification delivery, tasks/resubscribe replay (owned-transport features with their own transport tests), and the gRPC binding (landed after the courts ran; no TCK run over gRPC)." .
+
+#################################################################
+# Individuals — CourtRunner
+#################################################################
+
+a2ac:v1ConformanceReportTask a a2ac:CourtRunner ;
+    a2ac:taskName "ash_a2a.v1_conformance_report" ;
+    a2ac:runnerModule "Mix.Tasks.AshA2a.V1ConformanceReport" ;
+    a2ac:runnerSourcePath "lib/mix/tasks/ash_a2a.v1_conformance_report.ex" ;
+    a2ac:runnerListSize 25 ;
+    a2ac:runnerCommand "mix ash_a2a.v1_conformance_report --out receipts/v1-conformance.json" ;
+    a2ac:reportShape "%{generated_at, elixir_version, courts: [%{file, exit_code, summary_line, verdict: PASS|FAIL}], totals: %{pass, fail, total}}" ;
+    rdfs:comment "Report task, always exits 0; the gate is totals.fail == 0. --only SUBSTRING iterates on a subset; a zero-match substring is a well-formed empty report, not an error. Runtime filesystem check: a listed court missing on disk is a FAIL court-status entry, never a silent pass." .
+
+#################################################################
+# Individuals — 25 CourtFile rows (order = the runner's @v1_courts order)
+#################################################################
+
+a2ac:court_01 a a2ac:CourtFile ; a2ac:runnerListIndex 1 ;
+    a2ac:courtFile "test/ash_a2a_v1_architecture_test.exs" ;
+    a2ac:courtFamily "architecture invariants" ; a2ac:inRunnerList true .
+a2ac:court_02 a a2ac:CourtFile ; a2ac:runnerListIndex 2 ;
+    a2ac:courtFile "test/ash_a2a_v1_artifact_streaming_test.exs" ;
+    a2ac:courtFamily "artifact streaming and chunked-append fidelity" ; a2ac:inRunnerList true .
+a2ac:court_03 a a2ac:CourtFile ; a2ac:runnerListIndex 3 ;
+    a2ac:courtFile "test/ash_a2a_v1_auth_challenge_test.exs" ;
+    a2ac:courtFamily "auth challenge/response (RFC 7235)" ; a2ac:inRunnerList true ;
+    rdfs:seeAlso sec:court-auth-challenge .
+a2ac:court_04 a a2ac:CourtFile ; a2ac:runnerListIndex 4 ;
+    a2ac:courtFile "test/ash_a2a_v1_binding_mismatch_test.exs" ;
+    a2ac:courtFamily "interface/binding mismatch refusal" ; a2ac:inRunnerList true .
+a2ac:court_05 a a2ac:CourtFile ; a2ac:runnerListIndex 5 ;
+    a2ac:courtFile "test/ash_a2a_v1_cancellation_test.exs" ;
+    a2ac:courtFamily "cancellation lifecycle and idempotency" ; a2ac:inRunnerList true .
+a2ac:court_06 a a2ac:CourtFile ; a2ac:runnerListIndex 6 ;
+    a2ac:courtFile "test/ash_a2a_v1_conformance_test.exs" ;
+    a2ac:courtFamily "core codec and wire conformance (statement rows 1-5)" ; a2ac:inRunnerList true .
+a2ac:court_07 a a2ac:CourtFile ; a2ac:runnerListIndex 7 ;
+    a2ac:courtFile "test/ash_a2a_v1_context_continuity_test.exs" ;
+    a2ac:courtFamily "contextId continuity and conversation isolation" ; a2ac:inRunnerList true .
+a2ac:court_08 a a2ac:CourtFile ; a2ac:runnerListIndex 8 ;
+    a2ac:courtFile "test/ash_a2a_v1_error_registry_test.exs" ;
+    a2ac:courtFamily "typed error registry (-32001..-32004)" ; a2ac:inRunnerList true ;
+    rdfs:seeAlso pk:ErrorRegistry, pk:error_registry .
+a2ac:court_09 a a2ac:CourtFile ; a2ac:runnerListIndex 9 ;
+    a2ac:courtFile "test/ash_a2a_v1_extended_httpjson_test.exs" ;
+    a2ac:courtFamily "extended HTTP+JSON routes" ; a2ac:inRunnerList true .
+a2ac:court_10 a a2ac:CourtFile ; a2ac:runnerListIndex 10 ;
+    a2ac:courtFile "test/ash_a2a_v1_io_modes_test.exs" ;
+    a2ac:courtFamily "blocking/non-blocking execution modes" ; a2ac:inRunnerList true .
+a2ac:court_11 a a2ac:CourtFile ; a2ac:runnerListIndex 11 ;
+    a2ac:courtFile "test/ash_a2a_v1_list_decode_test.exs" ;
+    a2ac:courtFamily "list-typed member decode" ; a2ac:inRunnerList true .
+a2ac:court_12 a a2ac:CourtFile ; a2ac:runnerListIndex 12 ;
+    a2ac:courtFile "test/ash_a2a_v1_multinode_continuity_test.exs" ;
+    a2ac:courtFamily "multi-node task continuity" ; a2ac:inRunnerList true ;
+    rdfs:seeAlso dur:court-multinode-continuity .
+a2ac:court_13 a a2ac:CourtFile ; a2ac:runnerListIndex 13 ;
+    a2ac:courtFile "test/ash_a2a_v1_oban_delivery_test.exs" ;
+    a2ac:courtFamily "Oban push-notification delivery" ; a2ac:inRunnerList true .
+a2ac:court_14 a a2ac:CourtFile ; a2ac:runnerListIndex 14 ;
+    a2ac:courtFile "test/ash_a2a_v1_owner_scope_test.exs" ;
+    a2ac:courtFamily "agent-card owner scoping" ; a2ac:inRunnerList true ;
+    rdfs:seeAlso sec:court-owner-scope, sec:surface-owner-scoping, sec:surface-owner-scoping-principal .
+a2ac:court_15 a a2ac:CourtFile ; a2ac:runnerListIndex 15 ;
+    a2ac:courtFile "test/ash_a2a_v1_pagination_test.exs" ;
+    a2ac:courtFamily "tasks/list cursor pagination (statement rows 6-9, 22)" ; a2ac:inRunnerList true .
+a2ac:court_16 a a2ac:CourtFile ; a2ac:runnerListIndex 16 ;
+    a2ac:courtFile "test/ash_a2a_v1_proto_fidelity_test.exs" ;
+    a2ac:courtFamily "protojson schema fidelity vs the vendored IDL (Z16)" ; a2ac:inRunnerList true .
+a2ac:court_17 a a2ac:CourtFile ; a2ac:runnerListIndex 17 ;
+    a2ac:courtFile "test/ash_a2a_v1_push_httpjson_test.exs" ;
+    a2ac:courtFamily "HTTP+JSON push" ; a2ac:inRunnerList true ;
+    rdfs:seeAlso sec:court-push-httpjson, sec:surface-card-signing .
+a2ac:court_18 a a2ac:CourtFile ; a2ac:runnerListIndex 18 ;
+    a2ac:courtFile "test/ash_a2a_v1_rejected_state_test.exs" ;
+    a2ac:courtFamily "TASK_STATE_REJECTED reachability (statement row 26)" ; a2ac:inRunnerList true .
+a2ac:court_19 a a2ac:CourtFile ; a2ac:runnerListIndex 19 ;
+    a2ac:courtFile "test/ash_a2a_v1_security_requirements_test.exs" ;
+    a2ac:courtFamily "agent-card securityRequirements v1.0 fidelity (Z24)" ; a2ac:inRunnerList true .
+a2ac:court_20 a a2ac:CourtFile ; a2ac:runnerListIndex 20 ;
+    a2ac:courtFile "test/ash_a2a_v1_spec_corpus_test.exs" ;
+    a2ac:courtFamily "frozen spec-example wire corpus (X6)" ; a2ac:inRunnerList true .
+a2ac:court_21 a a2ac:CourtFile ; a2ac:runnerListIndex 21 ;
+    a2ac:courtFile "test/ash_a2a_v1_sse_replay_test.exs" ;
+    a2ac:courtFamily "tasks/resubscribe SSE replay" ; a2ac:inRunnerList true .
+a2ac:court_22 a a2ac:CourtFile ; a2ac:runnerListIndex 22 ;
+    a2ac:courtFile "test/ash_a2a_v1_state_properties_test.exs" ;
+    a2ac:courtFamily "task state properties" ; a2ac:inRunnerList true .
+a2ac:court_23 a a2ac:CourtFile ; a2ac:runnerListIndex 23 ;
+    a2ac:courtFile "test/ash_a2a_v1_taskstore_durability_test.exs" ;
+    a2ac:courtFamily "task-store durability" ; a2ac:inRunnerList true ;
+    rdfs:seeAlso dur:court-ekv-taskstore-durability, dur:EkvTaskStore .
+a2ac:court_24 a a2ac:CourtFile ; a2ac:runnerListIndex 24 ;
+    a2ac:courtFile "test/ash_a2a_v1_telemetry_test.exs" ;
+    a2ac:courtFamily "telemetry handlers (companion coverage)" ; a2ac:inRunnerList true .
+a2ac:court_25 a a2ac:CourtFile ; a2ac:runnerListIndex 25 ;
+    a2ac:courtFile "test/ash_a2a_v1_wire_properties_test.exs" ;
+    a2ac:courtFamily "wire round-trip properties" ; a2ac:inRunnerList true .
+
+#################################################################
+# Individuals — deliberately excluded court files (with reasons)
+#################################################################
+
+a2ac:conformance_report_self_test a a2ac:ExcludedCourtFile ;
+    a2ac:courtFile "test/ash_a2a_v1_conformance_report_test.exs" ;
+    a2ac:inRunnerList false ;
+    rdfs:comment "The runner's own self-test (invokes the task as a subprocess); not a v1.0 protocol conformance court, and listing it would make the report recurse." .
+
+a2ac:zach_courts a a2ac:ExcludedCourtFile ;
+    a2ac:courtFile "test/ash_a2a_zach_courts_test.exs" ;
+    a2ac:inRunnerList false ;
+    rdfs:comment "Adversarial extension courts over the DSL/executor surface; exercise v1.0 APIs but are extension courts, not v1.0 protocol conformance." .
+
+#################################################################
+# Individuals — SpecCorpus + SpecIdl
+#################################################################
+
+a2ac:v1SpecCorpus a a2ac:SpecCorpus ;
+    a2ac:corpusPath "priv/a2a_v1_spec_corpus/v1_spec_examples.json" ;
+    a2ac:exampleCount 36 ;
+    a2ac:conformantCount 30 ;
+    a2ac:codecGapCount 6 ;
+    a2ac:familyCount 9 ;
+    a2ac:specSourceUrl "https://a2a-protocol.org/latest/specification/" ;
+    a2ac:fetchedAt "2026-10-04" ;
+    rdfs:comment "Frozen, byte-faithful extraction. Members the codec rejects are pinned as codec_gap findings with the exact decode error; no lib/ code was edited to make them pass. Header contract: corpus == a2a_v1_spec_corpus, spec_source.url pinned, findings_summary non-empty, unique ids, >= 30 examples." .
+
+a2ac:v1SpecIdl a a2ac:SpecIdl ;
+    a2ac:protoPath "priv/a2a_v1_spec_corpus/a2a.proto" ;
+    a2ac:protoSha256 "945df6e34001b2bfd0fd62d9484b63094dfad9d78705e41e2873441c419ae2d1" ;
+    a2ac:protoBytes 35942 ;
+    a2ac:protoUpstreamUrl "https://raw.githubusercontent.com/a2aproject/A2A/main/specification/a2a.proto" ;
+    rdfs:comment "Vendored verbatim, byte-for-byte, no edits; syntax proto3, package lf.a2a.v1. Provenance and the last touching commit are recorded in the proto-fidelity court's moduledoc. The corpus-integrity gate re-hashes the file and refuses any drift from the pinned sha." .
+
+#################################################################
+# Individuals — 9 corpus families (counts from the frozen corpus)
+#################################################################
+
+a2ac:family_agent_card     a a2ac:CorpusFamily ; a2ac:familyName "agent_card" ;      a2ac:familyExampleCount 2 .
+a2ac:family_message        a a2ac:CorpusFamily ; a2ac:familyName "message" ;         a2ac:familyExampleCount 5 .
+a2ac:family_task           a a2ac:CorpusFamily ; a2ac:familyName "task" ;            a2ac:familyExampleCount 7 .
+a2ac:family_status         a a2ac:CorpusFamily ; a2ac:familyName "status" ;          a2ac:familyExampleCount 3 .
+a2ac:family_artifact       a a2ac:CorpusFamily ; a2ac:familyName "artifact" ;        a2ac:familyExampleCount 3 .
+a2ac:family_part           a a2ac:CorpusFamily ; a2ac:familyName "part" ;            a2ac:familyExampleCount 4 .
+a2ac:family_event          a a2ac:CorpusFamily ; a2ac:familyName "event" ;           a2ac:familyExampleCount 4 .
+a2ac:family_jsonrpc_request a a2ac:CorpusFamily ; a2ac:familyName "jsonrpc_request" ; a2ac:familyExampleCount 6 .
+a2ac:family_jsonrpc_error  a a2ac:CorpusFamily ; a2ac:familyName "jsonrpc_error" ;   a2ac:familyExampleCount 2 .
+
+#################################################################
+# Individuals — TCKRun 2026-10-05 (lane Z19) with per-transport matrix
+#################################################################
+
+a2ac:v1TckRun20261005 a a2ac:TCKRun ;
+    a2ac:tckRepo "a2aproject/a2a-tck @ main" ;
+    a2ac:tckTransport "jsonrpc" ;
+    a2ac:tckPython "Python 3.12 venv" ;
+    a2ac:tckSut "tck_sut.exs (in-repo SUT)" ;
+    a2ac:tckRunDate "2026-10-05" ;
+    a2ac:overallPassRate "69.2%" ;
+    a2ac:mustPassRate "70.4%" ;
+    a2ac:shouldPassRate "42.9%" ;
+    a2ac:mayPassRate "100%" ;
+    a2ac:isCertification false ;
+    rdfs:comment "Compatibility run via python run_tck.py --transport jsonrpc. grpc and http_json skipped because the served agent card declared the JSONRPC interface only at run time. Point-in-time verdict on the JSONRPC binding; not TCK certification, not a verdict on any other binding or release." .
+
+a2ac:tck_agent_card a a2ac:TCKTransportRun ;
+    a2ac:transport "agent_card" ; a2ac:total 10 ; a2ac:passed 10 ; a2ac:failed 0 ; a2ac:skipped 0 ;
+    a2ac:runOf a2ac:v1TckRun20261005 .
+
+a2ac:tck_jsonrpc a a2ac:TCKTransportRun ;
+    a2ac:transport "jsonrpc" ; a2ac:total 88 ; a2ac:passed 68 ; a2ac:failed 5 ; a2ac:skipped 15 ;
+    a2ac:runOf a2ac:v1TckRun20261005 .
+
+a2ac:tck_grpc a a2ac:TCKTransportRun ;
+    a2ac:transport "grpc" ; a2ac:total 72 ; a2ac:passed 0 ; a2ac:failed 0 ; a2ac:skipped 72 ;
+    a2ac:runOf a2ac:v1TckRun20261005 .
+
+a2ac:tck_http_json a a2ac:TCKTransportRun ;
+    a2ac:transport "http_json" ; a2ac:total 83 ; a2ac:passed 3 ; a2ac:failed 0 ; a2ac:skipped 80 ;
+    a2ac:runOf a2ac:v1TckRun20261005 .
+
+#################################################################
+# Individuals — 3 fixed MUSTs (all in lib/ash_a2a/transport/plug.ex)
+#################################################################
+
+a2ac:fixed_must_version_header a a2ac:FixedMust ;
+    a2ac:fixSummary "The A2A-Version header gate now answers the spec-mandated -32009" ;
+    a2ac:fixSite "lib/ash_a2a/transport/plug.ex" ;
+    a2ac:runOf a2ac:v1TckRun20261005 .
+
+a2ac:fixed_must_resubscribe_notfound a a2ac:FixedMust ;
+    a2ac:fixSummary "tasks/resubscribe on an unknown or foreign task answers -32001 TaskNotFound instead of -32004" ;
+    a2ac:fixSite "lib/ash_a2a/transport/plug.ex" ;
+    a2ac:fixSpecCite "spec section 3.16; TCK STREAM-SUB-004" ;
+    a2ac:runOf a2ac:v1TckRun20261005 .
+
+a2ac:fixed_must_card_caching a a2ac:FixedMust ;
+    a2ac:fixSummary "the agent card serves Cache-Control/ETag caching headers" ;
+    a2ac:fixSite "lib/ash_a2a/transport/plug.ex" ;
+    a2ac:fixSpecCite "spec section 8.6.1" ;
+    a2ac:runOf a2ac:v1TckRun20261005 .
+
+#################################################################
+# Individuals — pinned non-violations (the 5 remaining jsonrpc failures)
+#################################################################
+
+a2ac:echo_sut_pinned a a2ac:PinnedNonViolation ;
+    a2ac:findingIds "DM-ART-001, DM-MSG-001" ;
+    a2ac:failureCount 5 ;
+    a2ac:pinReason "TCK echo-SUT behavioral contract: prefix-keyed canned responses the reference Python SUT hand-implements. fetch_input/1 (lib/ash_a2a/dispatcher.ex) extracts data-part payloads only, so the prefix-keyed echo behavior lives in the SUT harness, not the protocol implementation; reproducing it would mean faking the contract." ;
+    a2ac:runOf a2ac:v1TckRun20261005 .
+
+#################################################################
+# Individuals — ProtoFidelityCourt (Z16, all-MATCH)
+#################################################################
+
+a2ac:protoFidelityCourt a a2ac:ProtoFidelityCourt ;
+    a2ac:courtTestPath "test/ash_a2a_v1_proto_fidelity_test.exs" ;
+    a2ac:courtVerdict "all-MATCH" ;
+    a2ac:courtFalsifier "Green (all matched) or green-with-pinned-findings. Any NEW drift -- an emitted key or enum value not in the vendored proto and not pinned -- kills the codec-fidelity claim." ;
+    rdfs:comment "A lightweight regex IDL parser (no protoc) parses the vendored a2a.proto at test time and compares every emitted protojson key and enum value against the REAL official mapping; divergences are pinned, never normalized away." .
+
+#################################################################
+# Individuals — pack templates
+#################################################################
+
+a2ac:courtSkeletonTemplate a a2ac:PackTemplate ;
+    a2ac:templatePath "templates/conformance_court_skeleton.exs.tmpl" ;
+    rdfs:label "Conformance-court skeleton for a NEW spec requirement: ExUnit + positive control + kill, the cited court family's house style." .
+
+a2ac:corpusEntryTemplate a a2ac:PackTemplate ;
+    a2ac:templatePath "templates/spec_corpus_entry.json.tmpl" ;
+    rdfs:label "Spec-corpus entry generator rendering exactly the frozen corpus's example key shape." .

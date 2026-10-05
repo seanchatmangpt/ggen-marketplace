@@ -1,0 +1,289 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aaif-swarm
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aaif-swarm-mesh-code
+  namespace: aaif-swarm
+data:
+  mesh.py: |
+    import json
+    import time
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    import urllib.request
+    import urllib.parse
+    import os
+
+    GCP_SIM_URL = os.environ.get("GCP_SIM_URL", "http://gcp-procurement-simulator.gcp-marketplace.svc.cluster.local:8443")
+    AGENT_ROLE = os.environ.get("AGENT_ROLE", "Coordinator")
+    PORT = int(os.environ.get("PORT", "8080"))
+
+    class SwarmHandler(BaseHTTPRequestHandler):
+        def _send_json(self, status, payload):
+            self.send_response(status)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(payload, indent=2).encode('utf-8'))
+
+        def do_GET(self):
+            parsed = urllib.parse.urlparse(self.path)
+            if parsed.path == '/healthz':
+                return self._send_json(200, {"status": "SERVING", "agentRole": AGENT_ROLE})
+            elif parsed.path == '/.well-known/agent.json':
+                # Return standard A2A Agent Card
+                return self._send_json(200, {
+                    "name": f"AAIF Swarm {AGENT_ROLE} Agent",
+                    "description": f"Production agent for role {AGENT_ROLE}",
+                    "supported_interfaces": ["http+json", "grpc", "jsonrpc"],
+                    "capabilities": {"streaming": True, "state_transitions": True},
+                    "skills": [{"id": f"{AGENT_ROLE.lower()}_execution", "description": "Execute swarm task"}],
+                    "security_schemes": {"oauth2": {"type": "oauth2"}}
+                })
+            elif parsed.path == '/status':
+                return self._send_json(200, {"role": AGENT_ROLE, "running": True})
+            self._send_json(404, {"error": "NOT_FOUND"})
+
+        def do_POST(self):
+            # Check Entitlement Header if simulating gateway ingress
+            auth_entitlement = self.headers.get('X-GCP-Entitlement-ID')
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length) if length > 0 else b'{}'
+            try:
+                payload = json.loads(body.decode('utf-8'))
+            except Exception:
+                payload = {}
+
+            # Gate: If X-GCP-Entitlement-ID is provided, verify active state against GCP Simulator
+            if auth_entitlement:
+                try:
+                    req = urllib.request.Request(f"{GCP_SIM_URL}/entitlements/{auth_entitlement}")
+                    with urllib.request.urlopen(req, timeout=3) as resp:
+                        ent_data = json.loads(resp.read().decode('utf-8'))
+                        if ent_data.get("state") != "ENTITLEMENT_ACTIVE":
+                            return self._send_json(403, {
+                                "error": "ENTITLEMENT_INACTIVE",
+                                "message": f"Entitlement {auth_entitlement} is {ent_data.get('state')}"
+                            })
+                except Exception as e:
+                    return self._send_json(403, {
+                        "error": "ENTITLEMENT_CHECK_FAILED",
+                        "message": str(e)
+                    })
+
+            # Handle A2A Task Execution:
+            method = payload.get("method", "tasks/send")
+            params = payload.get("params", {})
+            task_id = params.get("taskId", f"task-{int(time.time()*1000)}")
+
+            # Report metered usage back to GCP Service Control
+            metered_units = params.get("computeUnits", 10)
+            try:
+                report_body = json.dumps({
+                    "operations": [{
+                        "operationId": f"op-{task_id}",
+                        "operationName": "aaif.swarm.ExecuteTask",
+                        "consumerId": f"project:demo-client-gcp",
+                        "startTime": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                        "endTime": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                        "metricValueSets": [{
+                            "metricName": "aaif.marketplace.googleapis.com/agent_tokens",
+                            "metricValues": [{"int64Value": metered_units}]
+                        }]
+                    }]
+                }).encode('utf-8')
+                report_req = urllib.request.Request(
+                    f"{GCP_SIM_URL}/v1/services/aaif.marketplace.googleapis.com:report",
+                    data=report_body,
+                    headers={'Content-Type': 'application/json'},
+                    method='POST'
+                )
+                with urllib.request.urlopen(report_req, timeout=3) as report_resp:
+                    report_result = json.loads(report_resp.read().decode('utf-8'))
+            except Exception as e:
+                report_result = {"error": str(e)}
+
+            response = {
+                "jsonrpc": "2.0",
+                "id": payload.get("id", 1),
+                "result": {
+                    "taskId": task_id,
+                    "status": "COMPLETED",
+                    "roleExecuted": AGENT_ROLE,
+                    "computeUnitsMetered": metered_units,
+                    "serviceControlReceipt": report_result,
+                    "artifacts": [{
+                        "name": "result.json",
+                        "data": f"Execution completed cleanly across swarm for task {task_id}"
+                    }]
+                }
+            }
+            return self._send_json(200, response)
+
+    if __name__ == '__main__':
+        server = HTTPServer(('0.0.0.0', PORT), SwarmHandler)
+        print(f"Swarm Agent [{AGENT_ROLE}] listening on port {PORT}")
+        server.serve_forever()
+---
+# Coordinator Deployment & Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aaif-coordinator-agent
+  namespace: aaif-swarm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aaif-coordinator-agent
+  template:
+    metadata:
+      labels:
+        app: aaif-coordinator-agent
+    spec:
+      containers:
+      - name: agent
+        image: python:3.11-alpine
+        command: ["python", "-u", "/app/mesh.py"]
+        env:
+        - name: AGENT_ROLE
+          value: "Coordinator"
+        - name: PORT
+          value: "8080"
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: code
+          mountPath: /app
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 2
+          periodSeconds: 3
+      volumes:
+      - name: code
+        configMap:
+          name: aaif-swarm-mesh-code
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aaif-coordinator-agent
+  namespace: aaif-swarm
+spec:
+  type: NodePort
+  selector:
+    app: aaif-coordinator-agent
+  ports:
+  - port: 8080
+    targetPort: 8080
+    nodePort: 30080
+---
+# Qualification Agent Deployment & Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aaif-qualification-agent
+  namespace: aaif-swarm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aaif-qualification-agent
+  template:
+    metadata:
+      labels:
+        app: aaif-qualification-agent
+    spec:
+      containers:
+      - name: agent
+        image: python:3.11-alpine
+        command: ["python", "-u", "/app/mesh.py"]
+        env:
+        - name: AGENT_ROLE
+          value: "Qualification"
+        - name: PORT
+          value: "8081"
+        ports:
+        - containerPort: 8081
+        volumeMounts:
+        - name: code
+          mountPath: /app
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 2
+          periodSeconds: 3
+      volumes:
+      - name: code
+        configMap:
+          name: aaif-swarm-mesh-code
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aaif-qualification-agent
+  namespace: aaif-swarm
+spec:
+  selector:
+    app: aaif-qualification-agent
+  ports:
+  - port: 8081
+    targetPort: 8081
+---
+# Projection Agent Deployment & Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aaif-projection-agent
+  namespace: aaif-swarm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aaif-projection-agent
+  template:
+    metadata:
+      labels:
+        app: aaif-projection-agent
+    spec:
+      containers:
+      - name: agent
+        image: python:3.11-alpine
+        command: ["python", "-u", "/app/mesh.py"]
+        env:
+        - name: AGENT_ROLE
+          value: "Projection"
+        - name: PORT
+          value: "8082"
+        ports:
+        - containerPort: 8082
+        volumeMounts:
+        - name: code
+          mountPath: /app
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8082
+          initialDelaySeconds: 2
+          periodSeconds: 3
+      volumes:
+      - name: code
+        configMap:
+          name: aaif-swarm-mesh-code
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aaif-projection-agent
+  namespace: aaif-swarm
+spec:
+  selector:
+    app: aaif-projection-agent
+  ports:
+  - port: 8082
+    targetPort: 8082

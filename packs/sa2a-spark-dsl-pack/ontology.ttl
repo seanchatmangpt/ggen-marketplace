@@ -1,18 +1,53 @@
+# sa2a-spark-dsl-pack ontology.
+#
+# Namespace convention (M15 ontology harmonization - identical header in all
+# five a2a/sa2a ggen-marketplace pack ontologies):
+#   1. Canonical SA2A/A2A vocabulary terms are bound byte-identically to the
+#      canonical sources (ash_a2a lib/ash_a2a/semantic/vocabulary.ex,
+#      priv/sa2a/canonical/A2AProtocol_v2_1_0.ttl, priv/sa2a/AllSA2A.ttl):
+#      a2a: <https://a2a-protocol.org/ontology#>,
+#      sa2a-fnd:/sa2a-cap:/sa2a-bp:/sa2a-evi:
+#      <https://spec.seanchatmangpt.dev/sa2a/ontology/...>,
+#      a2a-urn: <urn:ash-a2a:vocab:>.
+#   2. Canonical prefix names are RESERVED: a pack never rebinds a canonical
+#      prefix name to a non-canonical IRI, and never mints terms under a
+#      canonical namespace. Pack-scoped vocabulary lives under exactly one
+#      pack-scoped namespace per pack (this pack's own, bound below);
+#      cross-pack references always reuse the OWNING pack's IRIs - same
+#      concept, same IRI - never a re-mint.
+#   3. This pack's namespace IRIs are gate-bound (gates/*.rq hardcode them),
+#      so they are grandfathered byte-stable; this file changes bindings and
+#      alignment links only, never shipped IRIs.
+#
+# Ground truth for every modeled individual (per-individual file citations
+# below; ash_a2a @ main):
+#   lib/ash_a2a.ex:23-28    - extension registration: sections from
+#                             AshA2A.Dsl.sections/0; transformers:
+#                             [AshA2A.Transformers.BuildCapabilityIndex];
+#                             verifiers: [AshA2A.Verify, AshA2A.Verifiers.VerifySkills]
+#   lib/ash_a2a/dsl.ex:221  - sections: [:a2a], [:authority], [:hooks]
+#   lib/ash_a2a/transformers/build_capability_index.ex
+#   lib/ash_a2a/verifiers/verify_skills.ex
+#   lib/ash_a2a/verify.ex
+#
+# Self-governed pack (the ggen-pack-spec-pack pattern): this graph describes
+# THIS pack (sa2a:ThisPack, bottom of file) and the gates in gates/ run
+# against this very graph - gate 020 is the pack.toml promise-vs-content
+# admission for the 0.2.0 promise tokens.
+
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 @prefix sh: <http://www.w3.org/ns/shacl#> .
-@prefix cmd: <urn:cmd:> .
 @prefix spark: <urn:spark:dsl:> .
 @prefix sa2a: <urn:sa2a:spark:> .
 
-<urn:sa2a:spark>
-    a owl:Ontology ;
+<urn:sa2a:spark> a owl:Ontology ;
     rdfs:label "SA2A Spark DSL Extension Ontology" ;
-    rdfs:comment "Declarative Spark DSL schema and entities for AshA2A extensions." .
+    rdfs:comment "Compile-time transformer/verifier surface of AshA2A (the landed ash_a2a source), modeled for codegen and admission gates. Pack-scoped namespace: urn:sa2a:spark: (gate-bound, byte-stable); canonical a2a:/sa2a-* names are reserved and never rebound (M15 harmonization convention)." .
 
-# --- Spark DSL Core Classes ---
+# --- Spark DSL Core Classes (pack-specific; no canonical equivalent) ---
 spark:Extension a rdfs:Class ;
     rdfs:label "Spark DSL Extension" ;
     rdfs:comment "A Spark.Dsl.Extension module exposing sections, transformers, and verifiers." .
@@ -31,43 +66,172 @@ spark:Transformer a rdfs:Class ;
 
 spark:Verifier a rdfs:Class ;
     rdfs:label "Compile-time Verifier" ;
-    rdfs:comment "A module verifying DSL invariants and failing closed on violations." .
+    rdfs:comment "A module verifying DSL invariants and failing closed with named refusal codes." .
 
-# --- SA2A Sections & Entities ---
+spark:CodegenTemplate a rdfs:Class ;
+    rdfs:label "Codegen Template" ;
+    rdfs:comment "A .tmpl file in templates/ that generates Elixir source from this graph." .
+
+# --- Vocabulary: file citations, persist keys, refusal codes ---
+
+spark:sourceFile a rdf:Property ;
+    rdfs:label "source file" ;
+    rdfs:comment "Relative path of the landed source file this individual is grounded in (citation, not reimplementation)." .
+
+spark:persistsKey a rdf:Property ;
+    rdfs:label "persists key" ;
+    rdfs:comment "A flat persist key this transformer writes via Spark.Dsl.Transformer.persist/2." .
+
+spark:hasRefusalCode a rdf:Property ;
+    rdfs:label "has refusal code" ;
+    rdfs:comment "A named compile-time refusal code this verifier/transformer raises as Spark.Error.DslError, so a refusal is an automation key, not prose." .
+
+spark:templateFor a rdf:Property ;
+    rdfs:label "template for" ;
+    rdfs:comment "Links a spark:CodegenTemplate to the spark:Transformer/spark:Verifier individuals it generates skeletons for." .
+
+spark:templateFile a rdf:Property ;
+    rdfs:label "template file" ;
+    rdfs:comment "Pack-relative path of the .tmpl file." .
+
+spark:hasSection a rdf:Property ;
+    rdfs:label "has section" ;
+    rdfs:comment "Links a spark:Extension to a spark:Section individual." .
+
+spark:hasEntity a rdf:Property ;
+    rdfs:label "has entity" ;
+    rdfs:comment "Links a spark:Section (or entity) to a spark:Entity individual." .
+
+spark:hasTransformer a rdf:Property ;
+    rdfs:label "has transformer" ;
+    rdfs:comment "Links a spark:Extension to a spark:Transformer individual." .
+
+spark:hasVerifier a rdf:Property ;
+    rdfs:label "has verifier" ;
+    rdfs:comment "Links a spark:Extension to a spark:Verifier individual." .
+
+# --- The landed AshA2A extension (lib/ash_a2a.ex:23-28) ---
+
 sa2a:A2AExtension a spark:Extension ;
     rdfs:label "AshA2A Extension" ;
-    spark:hasSection sa2a:A2ASection, sa2a:AuthoritySection, sa2a:HooksSection, sa2a:ReceiptSection ;
+    rdfs:comment "The real Spark extension registered at lib/ash_a2a.ex:23-28: sections from AshA2A.Dsl.sections/0, one transformer, two verifiers." ;
+    spark:hasSection sa2a:A2ASection, sa2a:AuthoritySection, sa2a:HooksSection ;
     spark:hasTransformer sa2a:BuildCapabilityIndex ;
-    spark:hasVerifier sa2a:VerifyTopology .
+    spark:hasVerifier sa2a:Verify, sa2a:VerifySkills .
+
+# --- Sections (real: lib/ash_a2a/dsl.ex:221 -- def sections, do: [@a2a, @authority, @hooks]) ---
 
 sa2a:A2ASection a spark:Section ;
     rdfs:label "a2a Section" ;
-    spark:entity sa2a:SkillEntity .
+    rdfs:comment "The a2a do ... end block; path [:a2a] on the consuming resource/domain." ;
+    spark:hasEntity sa2a:SkillEntity, sa2a:ArgumentEntity, sa2a:HddlOperatorEntity .
 
 sa2a:SkillEntity a spark:Entity ;
     rdfs:label "skill Entity" ;
-    rdfs:comment "Declares public action overrides, tags, and consequence classification." .
+    rdfs:comment "Declares A2A skill overrides (consequence classification, tags, argument_mapping, lease_required?); public Ash actions project with no declaration at all. Source: lib/ash_a2a/dsl.ex:148-157." ;
+    spark:sourceFile "lib/ash_a2a/dsl.ex" .
 
-sa2a:HooksSection a spark:Section ;
-    rdfs:label "hooks Section" ;
-    spark:entity sa2a:HookEntity .
+sa2a:ArgumentEntity a spark:Entity ;
+    rdfs:label "argument Entity" ;
+    rdfs:comment "Nested argument entity under skill (kept for source compatibility; declared arguments map A2A wire names to action arguments). Source: lib/ash_a2a/dsl.ex:103." ;
+    spark:sourceFile "lib/ash_a2a/dsl.ex" .
 
-sa2a:HookEntity a spark:Entity ;
-    rdfs:label "hook Entity" ;
-    rdfs:comment "Binds action lifecycle points to GraphLaw knowledge derivations." .
+sa2a:HddlOperatorEntity a spark:Entity ;
+    rdfs:label "hddl_operator Entity" ;
+    rdfs:comment "Declares this skill's HDDL :action operator (parameters/precondition/effect) for semantic compilation. Source: lib/ash_a2a/dsl.ex:138." ;
+    spark:sourceFile "lib/ash_a2a/dsl.ex" .
 
 sa2a:AuthoritySection a spark:Section ;
     rdfs:label "authority Section" ;
-    spark:entity sa2a:GateEntity .
+    rdfs:comment "The authority do ... end block (path [:authority]): gate mode (:two_port default), lease_duration_ms. Schema-only, no entities. Source: lib/ash_a2a/dsl.ex:187-202." ;
+    spark:sourceFile "lib/ash_a2a/dsl.ex" .
 
-sa2a:GateEntity a spark:Entity ;
-    rdfs:label "two_port_gate Entity" ;
-    rdfs:comment "Declares cryptographic pre-flight admission and lease requirements." .
+sa2a:HooksSection a spark:Section ;
+    rdfs:label "hooks Section" ;
+    rdfs:comment "The hooks do ... end block (path [:hooks]): pre_dispatch/post_dispatch hook identifiers. Schema-only, no entities. Source: lib/ash_a2a/dsl.ex:204-219." ;
+    spark:sourceFile "lib/ash_a2a/dsl.ex" .
 
-sa2a:ReceiptSection a spark:Section ;
-    rdfs:label "receipt Section" ;
-    spark:entity sa2a:EvidenceEntity .
+# --- The landed transformer (grounded) ---
 
-sa2a:EvidenceEntity a spark:Entity ;
-    rdfs:label "evidence Entity" ;
-    rdfs:comment "Declares exact-SHA hashing and replay verification requirements." .
+sa2a:BuildCapabilityIndex a spark:Transformer ;
+    rdfs:label "BuildCapabilityIndex" ;
+    rdfs:comment "Persists only residual A2A skill overrides and the subject kind; the real capability index is derived later from Ash.Resource.Info.public_actions/1 by AshA2A.CapabilityIndex.Compiler. Enforces the SEC-04 consequence floor at compile time: an override may RAISE a mutating action consequence (:change -> :external_do, or to fail-closed :unknown) but may never LOWER :create/:update/:destroy to consequence: :observe - that would skip Grant, CommandBus admission, receipts and the BRCE anchor. Source: lib/ash_a2a/transformers/build_capability_index.ex." ;
+    spark:sourceFile "lib/ash_a2a/transformers/build_capability_index.ex" ;
+    spark:persistsKey "ash_a2a_skill_overrides" ,
+        "ash_a2a_subject_kind" ,
+        "ash_a2a_semantic_requests_enabled" ,
+        "ash_a2a_authority_gate" ,
+        "ash_a2a_lease_duration_ms" ,
+        "ash_a2a_hooks" ;
+    spark:hasRefusalCode "observe_on_mutating_action" .
+
+# --- The landed verifiers (grounded) ---
+
+sa2a:Verify a spark:Verifier ;
+    rdfs:label "Verify" ;
+    rdfs:comment "Fail-closed verifier for residual A2A projection overrides: checks the transformer ran (persisted :ash_a2a_skill_overrides present) and each override points at a real public Ash action; also verifies consequence topology (external_do/change require an active authority gate) and warns on dead arguments. Source: lib/ash_a2a/verify.ex." ;
+    spark:sourceFile "lib/ash_a2a/verify.ex" ;
+    spark:hasRefusalCode "REFUSED_DUPLICATE_SKILL_NAME" ,
+        "REFUSED_ACTION_NOT_FOUND" ,
+        "REFUSED_ACTION_NOT_PUBLIC" .
+
+sa2a:VerifySkills a spark:Verifier ;
+    rdfs:label "VerifySkills" ;
+    rdfs:comment "Compile-time verification of a2a do skill ... end declarations so an invalid skill fails at compile time, never at runtime when a remote agent hits the endpoint. Reads the persisted :ash_a2a_skill_overrides and delegates action existence/publicity to AshA2A.CapabilityIndex.Validator.validate/1. Source: lib/ash_a2a/verifiers/verify_skills.ex." ;
+    spark:sourceFile "lib/ash_a2a/verifiers/verify_skills.ex" ;
+    spark:hasRefusalCode "refused_action_not_found" ,
+        "refused_action_not_public" ,
+        "refused_argument_mapping_target" ,
+        "refused_type_not_json_serializable" ,
+        "refused_lease_required_no_authorizer" .
+
+# --- The pack's own codegen templates (self-description; consumed by gate 010) ---
+
+sa2a:SparkVerifierSkeletonTemplate a spark:CodegenTemplate ;
+    rdfs:label "Spark Verifier Skeleton Template" ;
+    rdfs:comment "templates/spark_verifier_skeleton.ex.tmpl generates a Spark.Dsl.Verifier skeleton in the landed style (use Spark.Dsl.Verifier, Spark.Error.DslError with module:/path:, named refusal codes). Source: templates/spark_verifier_skeleton.ex.tmpl." ;
+    spark:templateFile "templates/spark_verifier_skeleton.ex.tmpl" ;
+    spark:templateFor sa2a:Verify, sa2a:VerifySkills .
+
+sa2a:SparkTransformerSkeletonTemplate a spark:CodegenTemplate ;
+    rdfs:label "Spark Transformer Skeleton Template" ;
+    rdfs:comment "templates/spark_transformer_skeleton.ex.tmpl generates a transformer skeleton with flat persist keys in the landed BuildCapabilityIndex style. Source: templates/spark_transformer_skeleton.ex.tmpl." ;
+    spark:templateFile "templates/spark_transformer_skeleton.ex.tmpl" ;
+    spark:templateFor sa2a:BuildCapabilityIndex .
+
+# --- Pack vocabulary + this pack, self-described (consumed by gate 020) ---
+
+sa2a:Pack a rdfs:Class ;
+    rdfs:label "Marketplace Pack" ;
+    rdfs:comment "A ggen-marketplace pack, self-described in its own ontology." .
+
+sa2a:packVersion a rdf:Property ;
+    rdfs:label "pack version" ;
+    rdfs:comment "The pack.toml [pack] version this self-description matches." .
+
+sa2a:promise a rdf:Property ;
+    rdfs:label "promise" ;
+    rdfs:comment "One token of the pack.toml description promise, closed to: entities | sections | transformers | verifiers. Gate 020 requires a modeled individual of the matching class to exist for each promised token (entities -> spark:Entity, sections -> spark:Section, transformers -> spark:Transformer, verifiers -> spark:Verifier)." .
+
+sa2a:ThisPack a sa2a:Pack ;
+    rdfs:label "sa2a-spark-dsl-pack 0.2.0" ;
+    sa2a:packVersion "0.2.0" ;
+    sa2a:promise "entities" , "sections" , "transformers" , "verifiers" .
+
+# --- Codegen projections (denormalized, single-literal forms for flat-row
+# --- codegen queries; ggen's SPARQL context does not support aggregation, so
+# --- templates read these literals instead of GROUP_CONCAT).
+
+spark:refusalCodeList a rdf:Property ;
+    rdfs:label "refusal code list" ;
+    rdfs:comment "Space-separated projection of spark:hasRefusalCode individuals for flat-row codegen; consistency is gated by gates/030." .
+
+spark:persistKeyList a rdf:Property ;
+    rdfs:label "persist key list" ;
+    rdfs:comment "Space-separated projection of spark:persistsKey individuals for flat-row codegen; consistency is gated by gates/030." .
+
+sa2a:Verify spark:refusalCodeList "REFUSED_DUPLICATE_SKILL_NAME REFUSED_ACTION_NOT_FOUND REFUSED_ACTION_NOT_PUBLIC" .
+
+sa2a:VerifySkills spark:refusalCodeList "refused_action_not_found refused_action_not_public refused_argument_mapping_target refused_type_not_json_serializable refused_lease_required_no_authorizer" .
+
+sa2a:BuildCapabilityIndex spark:persistKeyList "ash_a2a_skill_overrides ash_a2a_subject_kind ash_a2a_semantic_requests_enabled ash_a2a_authority_gate ash_a2a_lease_duration_ms ash_a2a_hooks" .

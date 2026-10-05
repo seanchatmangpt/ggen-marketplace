@@ -1,0 +1,63 @@
+# MESSAGE: corpus-integrity gate over the pack's own graph.
+# The vendored proto is pristine -- sha256 pinned HERE in this gate's header:
+#   945df6e34001b2bfd0fd62d9484b63094dfad9d78705e41e2873441c419ae2d1
+# (matches a2ac:v1SpecIdl a2ac:protoSha256 in ontology.ttl; the executable
+# half of this gate, gates/verify_corpus_integrity.sh, re-hashes the real
+# file and refuses any drift). Any row below = a corpus/IDL integrity
+# violation in the graph.
+PREFIX a2ac: <http://seanchatmangpt.github.io/packs/a2a-conformance#>
+
+SELECT ?s ?violation WHERE {
+  {
+    # every required corpus/IDL property must be present
+    VALUES (?type ?prop ?name) {
+      (a2ac:SpecCorpus a2ac:corpusPath "corpusPath")
+      (a2ac:SpecCorpus a2ac:exampleCount "exampleCount")
+      (a2ac:SpecCorpus a2ac:specSourceUrl "specSourceUrl")
+      (a2ac:SpecIdl a2ac:protoPath "protoPath")
+      (a2ac:SpecIdl a2ac:protoSha256 "protoSha256")
+      (a2ac:SpecIdl a2ac:protoBytes "protoBytes")
+      (a2ac:SpecIdl a2ac:protoUpstreamUrl "protoUpstreamUrl")
+    }
+    ?s a ?type .
+    FILTER NOT EXISTS { ?s ?prop ?any }
+    BIND(?name AS ?violation)
+  }
+  UNION {
+    # frozen counts are PINNED, not derived: 36 examples, 30 + 6 codec_gap
+    ?s a a2ac:SpecCorpus ;
+       a2ac:exampleCount ?n ;
+       a2ac:conformantCount ?c ;
+       a2ac:codecGapCount ?g .
+    FILTER (?n != 36 || ?c != 30 || ?g != 6 || ?c + ?g != ?n)
+    BIND("pinned corpus counts drifted (36 = 30 conformant + 6 codec_gap)" AS ?violation)
+  }
+  UNION {
+    # the vendored proto's sha is the pristine identity of the IDL
+    ?s a a2ac:SpecIdl ; a2ac:protoSha256 ?sha .
+    FILTER (?sha != "945df6e34001b2bfd0fd62d9484b63094dfad9d78705e41e2873441c419ae2d1")
+    BIND("protoSha256 does not match the pristine vendored a2a.proto" AS ?violation)
+  }
+  UNION {
+    # family closure: only the corpus's 9 real families, no invented ones
+    ?s a a2ac:CorpusFamily ; a2ac:familyName ?fam .
+    FILTER (?fam NOT IN ("agent_card", "message", "task", "status",
+                         "artifact", "part", "event",
+                         "jsonrpc_request", "jsonrpc_error"))
+    BIND(CONCAT("family outside the corpus's closed 9-family vocabulary: ", ?fam) AS ?violation)
+  }
+  UNION {
+    # family example counts must sum back to the corpus total
+    SELECT ?s ?violation WHERE {
+      ?s a a2ac:SpecCorpus ; a2ac:exampleCount ?n .
+      {
+        SELECT (SUM(?fc) AS ?sum) WHERE {
+          ?f a a2ac:CorpusFamily ; a2ac:familyExampleCount ?fc .
+        }
+      }
+      FILTER (?sum != ?n)
+      BIND("sum of CorpusFamily counts != SpecCorpus exampleCount" AS ?violation)
+    }
+  }
+}
+ORDER BY ?s ?violation

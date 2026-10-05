@@ -23,6 +23,21 @@ apg:exactSubject a rdf:Property .
 apg:sourceDigest a rdf:Property .
 apg:generatorVersion a rdf:Property .
 
+# A2A capability surface (grounded in the compiled capability index,
+# lib/ash_a2a/capability_index/compiler.ex: skill id "<Resource>.<action>",
+# consequence defaulted from Ash action type, authority gate persisted per
+# resource/domain by AshA2A.Transformers.BuildCapabilityIndex).
+apg:Skill a rdfs:Class .
+apg:SkillArgument a rdfs:Class .
+apg:skill a rdf:Property .
+apg:skillId a rdf:Property .
+apg:skillAction a rdf:Property .
+apg:consequence a rdf:Property .
+apg:authorityGate a rdf:Property .
+apg:argument a rdf:Property .
+apg:argumentName a rdf:Property .
+apg:argumentType a rdf:Property .
+
 apg:AtlassianProfile a apg:ProjectionProfile ;
   apg:namespace "AshAtlassian.Generated" ;
   apg:generatorVersion "v26.9.25" ;
@@ -33,7 +48,9 @@ apg:Issue a apg:Resource ;
   apg:moduleName "Issue" ;
   apg:domainIri <https://atlassian.com/ns/jira#Issue> ;
   apg:sourceDigest "fixture:issue:v1" ;
-  apg:attribute apg:IssueKey, apg:IssueSummary .
+  apg:authorityGate "two_port" ;
+  apg:attribute apg:IssueKey, apg:IssueSummary ;
+  apg:skill apg:IssueReadSkill, apg:IssueCreateSkill, apg:IssueUpdateSkill, apg:IssueDestroySkill .
 
 apg:IssueKey a apg:Attribute ;
   apg:attributeName "key" ;
@@ -46,3 +63,46 @@ apg:IssueSummary a apg:Attribute ;
   apg:ashType "string" ;
   apg:primaryKey false ;
   apg:semanticPredicate <https://atlassian.com/ns/jira#summary> .
+
+# Fixture capability surface, mirroring the compiler's defaults for a resource
+# with read/create/update/destroy public actions: consequence observe for read,
+# change for create/update/destroy (compiler.ex default_consequence/1), and
+# arguments derived from each action's declared arguments plus accepted
+# attributes (compiler.ex derive_arguments/2).
+apg:IssueReadSkill a apg:Skill ;
+  apg:skillId "Issue.read" ;
+  apg:skillAction "read" ;
+  apg:consequence "observe" .
+
+apg:IssueCreateSkill a apg:Skill ;
+  apg:skillId "Issue.create" ;
+  apg:skillAction "create" ;
+  apg:consequence "change" ;
+  apg:argument apg:IssueCreateKeyArgument, apg:IssueCreateSummaryArgument .
+
+apg:IssueCreateKeyArgument a apg:SkillArgument ;
+  apg:argumentName "key" ;
+  apg:argumentType "string" .
+
+apg:IssueCreateSummaryArgument a apg:SkillArgument ;
+  apg:argumentName "summary" ;
+  apg:argumentType "string" .
+
+apg:IssueUpdateSkill a apg:Skill ;
+  apg:skillId "Issue.update" ;
+  apg:skillAction "update" ;
+  apg:consequence "change" ;
+  apg:argument apg:IssueUpdateKeyArgument, apg:IssueUpdateSummaryArgument .
+
+apg:IssueUpdateKeyArgument a apg:SkillArgument ;
+  apg:argumentName "key" ;
+  apg:argumentType "string" .
+
+apg:IssueUpdateSummaryArgument a apg:SkillArgument ;
+  apg:argumentName "summary" ;
+  apg:argumentType "string" .
+
+apg:IssueDestroySkill a apg:Skill ;
+  apg:skillId "Issue.destroy" ;
+  apg:skillAction "destroy" ;
+  apg:consequence "change" .

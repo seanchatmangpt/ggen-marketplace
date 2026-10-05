@@ -1,0 +1,35 @@
+PREFIX dur: <https://seanchatmangpt.github.io/packs/a2a-durability#>
+
+# Surface-completeness gate (fail-closed: any row = a violation).
+#
+# Implements the pack's two stated completeness bars (dur:bar-surface-completeness):
+#   1. every dur:DurabilitySurface carries dur:kind, dur:truthModule and dur:truthPath;
+#   2. every store-kind surface additionally carries dur:wiringModule, dur:wiringDataDir
+#      and dur:wiringClusterSize (the wiring template's required bindings).
+# Companion: verify/010_surfaces.unbound.rq (its inverted form; zero rows = pass).
+#
+# Companion inventory (informational, not a gate): the positive surface inventory
+# query lives in README.md; this gate only refuses missing structure.
+
+SELECT ?surface ?violation WHERE {
+  {
+    ?surface a dur:DurabilitySurface .
+    FILTER NOT EXISTS {
+      ?surface dur:kind ?kind ;
+               dur:truthModule ?tm ;
+               dur:truthPath ?tp .
+    }
+    BIND("DurabilitySurface missing dur:kind/dur:truthModule/dur:truthPath" AS ?violation)
+  }
+  UNION
+  {
+    ?surface a dur:DurabilitySurface ; dur:kind "store" .
+    FILTER NOT EXISTS {
+      ?surface dur:wiringModule ?wm ;
+               dur:wiringDataDir ?wd ;
+               dur:wiringClusterSize ?wc .
+    }
+    BIND("store-kind surface missing dur:wiringModule/dur:wiringDataDir/dur:wiringClusterSize" AS ?violation)
+  }
+}
+ORDER BY ?surface ?violation

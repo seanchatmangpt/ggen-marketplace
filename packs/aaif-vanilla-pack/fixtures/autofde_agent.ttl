@@ -1,0 +1,78 @@
+@prefix aaif: <https://aaif.io/ontology#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# autofde-lab (scikit-decide decision fabric) as an AAIF Agent and Swarm Coordinator.
+aaif:AutofdeAgent a aaif:Agent ;
+    aaif:name "autofde-lab Decision Agent" ;
+    aaif:description "Formal decision planning agent: scikit-decide solver matching, bounded rollouts, typed refusals, OCEL audit." ;
+    aaif:url "http://127.0.0.1:8000" ;
+    aaif:version "1.0.0" ;
+    aaif:swarmRole "decision-coordinator" ;
+    aaif:hasSkill aaif:SkillFormalDecision ;
+    aaif:requiresMcpServer aaif:AutofdeDecisionTool ;
+    aaif:hasSecurityScheme aaif:AutofdeBearerAuth ;
+    aaif:enforcesOwnerScoping true ;
+    aaif:enforcesContextIsolation true ;
+    aaif:stripsInternalKeys true ;
+    aaif:jwsCardSigning true .
+
+aaif:AutofdeBearerAuth a aaif:BearerAuthScheme ;
+    aaif:schemeName "bearer_auth" ;
+    aaif:authType "Bearer" .
+
+# Swarm Specification (satisfies gates 040 and 050)
+aaif:AutofdeSwarm a aaif:Swarm ;
+    aaif:name "autofde-lab Decision Swarm" ;
+    aaif:swarmCoordinator aaif:AutofdeAgent ;
+    aaif:hasMemberAgent aaif:AutofdeAgent .
+
+# Formal Decision Skills
+aaif:SkillFormalDecision a aaif:Skill ;
+    aaif:skillId "formal_decision" ;
+    aaif:skillName "Formal Decision Planning" ;
+    aaif:skillDescription "Match scikit-decide solvers, compute bounded rollouts, and return verified execution receipts." ;
+    aaif:skillTag "decision-fabric" ;
+    aaif:skillAttestationDigest "sha256:d8f4e2c8a1b07289ef3c129e623c91" .
+
+# MCP Tools
+aaif:AutofdeDecisionTool a aaif:Tool ;
+    aaif:name "decision_solve" ;
+    aaif:description "Execute formal decision planning via scikit-decide." .
+
+aaif:AutofdeEnvelopeDefense a aaif:EnvelopeDefensePolicy ;
+    aaif:untrustedInputTagging true ;
+    aaif:promptInjectionInterception true ;
+    aaif:egressCredentialSanitization true .
+
+aaif:AutofdeGateway a aaif:Gateway ;
+    aaif:port 8080 ;
+    aaif:xdsAddress "http://127.0.0.1:9977" ;
+    aaif:authIssuer "https://auth.ggen.dev" ;
+    aaif:hasEnvelopeDefense aaif:AutofdeEnvelopeDefense .
+
+aaif:AutofdeRouter a aaif:Router ;
+    aaif:name "autofde-router" ;
+    aaif:primaryBackend "vertex-gemini" ;
+    aaif:fallbackBackend "anthropic-claude" .
+
+aaif:AutofdeGoose a aaif:GooseConfig ;
+    aaif:provider "anthropic" ;
+    aaif:model "claude-3-7-sonnet" ;
+    aaif:temperature 0.2 ;
+    aaif:maxTurns 200 .
+
+aaif:AutofdeGooseRecipe a aaif:GooseRecipe ;
+    aaif:recipeTitle "Formal Decision Solve Loop" ;
+    aaif:recipeDescription "Match a scikit-decide solver to a registered domain and run a bounded rollout via the autofde MCP tools." ;
+    aaif:recipeInstructions "Call decision_catalog, then decision_match, then decision_solve; report standing and receipt_sha256 for {{target_scope}}." ;
+    aaif:recipePrompt "Solve the requested decision domain and report the receipt." .
+
+aaif:AutofdeGooseContext a aaif:GooseContext ;
+    aaif:goosehints "Use decision_catalog/decision_match/decision_solve MCP tools. Never claim SOLVED without a receipt_sha256. Typed refusals are results, not errors." .
+
+aaif:AutofdeAgentsMd a aaif:AgentsMd ;
+    aaif:devEnvironment "Python 3.13, uv, scikit-decide, fastmcp, a2a-sdk." ;
+    aaif:testing "Run uv run pytest tests/fabric tests/aaif with real collaborators; no mocks." ;
+    aaif:codingConventions "Generated AAIF artifacts come from ggen-marketplace aaif-vanilla-pack; do not hand-edit." ;
+    aaif:commands "uv run pytest tests/aaif, python -m autofde_lab.aaif" ;
+    aaif:boundaries "Fail-closed admission, typed refusals, zero ambient execution authority." .

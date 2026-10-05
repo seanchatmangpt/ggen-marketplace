@@ -1,0 +1,177 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gcp-marketplace
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gcp-procurement-simulator-code
+  namespace: gcp-marketplace
+data:
+  server.py: |
+    import json
+    import time
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    import urllib.parse
+
+    ACCOUNTS = {}
+    ENTITLEMENTS = {}
+    USAGE_REPORTS = []
+    PRICING_PER_METRIC_UNIT = 0.05  # $0.05 per metric unit (token/invocation)
+
+    class GCPMarketplaceHandler(BaseHTTPRequestHandler):
+        def _send_json(self, status, payload):
+            self.send_response(status)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(payload, indent=2).encode('utf-8'))
+
+        def do_GET(self):
+            parsed = urllib.parse.urlparse(self.path)
+            if parsed.path == '/healthz':
+                return self._send_json(200, {"status": "SERVING", "service": "cloudcommerceprocurement.googleapis.com"})
+            elif parsed.path == '/v1/billing/summary':
+                total_units = sum(r.get('int64Value', 0) for r in USAGE_REPORTS)
+                total_revenue = total_units * PRICING_PER_METRIC_UNIT
+                return self._send_json(200, {
+                    "totalOperations": len(USAGE_REPORTS),
+                    "totalMeteredUnits": total_units,
+                    "unitPriceUsd": PRICING_PER_METRIC_UNIT,
+                    "totalRealizedRevenueUsd": round(total_revenue, 2),
+                    "accounts": ACCOUNTS,
+                    "entitlements": ENTITLEMENTS,
+                    "recentReports": USAGE_REPORTS[-10:]
+                })
+            elif '/entitlements' in parsed.path:
+                ent_id = parsed.path.split('/')[-1].split('?')[0]
+                ent = ENTITLEMENTS.get(ent_id)
+                if ent:
+                    return self._send_json(200, ent)
+                return self._send_json(404, {"error": "NOT_FOUND", "message": f"Entitlement {ent_id} not found"})
+            self._send_json(404, {"error": "NOT_FOUND"})
+
+        def do_POST(self):
+            parsed = urllib.parse.urlparse(self.path)
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length) if length > 0 else b'{}'
+            try:
+                data = json.loads(body.decode('utf-8'))
+            except Exception:
+                data = {}
+
+            # 1. Partner Procurement Signup & Account Approval
+            if '/accounts/' in parsed.path and parsed.path.endswith(':approve'):
+                parts = parsed.path.split('/')
+                account_id = parts[parts.index('accounts') + 1].split(':')[0]
+                ACCOUNTS[account_id] = {
+                    "name": f"providers/demo-provider/accounts/{account_id}",
+                    "state": "ACCOUNT_ACTIVE",
+                    "createTime": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    "approvalTime": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                }
+                return self._send_json(200, ACCOUNTS[account_id])
+
+            # 2. Entitlement Activation (ENTITLEMENT_ACTIVE)
+            elif '/entitlements/' in parsed.path and parsed.path.endswith(':approve'):
+                parts = parsed.path.split('/')
+                ent_id = parts[parts.index('entitlements') + 1].split(':')[0]
+                ENTITLEMENTS[ent_id] = {
+                    "name": f"providers/demo-provider/entitlements/{ent_id}",
+                    "account": data.get("account", "providers/demo-provider/accounts/acc-001"),
+                    "plan": data.get("plan", "enterprise-unlimited"),
+                    "state": "ENTITLEMENT_ACTIVE",
+                    "usageReportingId": f"usage-{ent_id}",
+                    "createTime": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    "updateTime": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                }
+                return self._send_json(200, ENTITLEMENTS[ent_id])
+
+            # 3. Google Service Control Report (Metering & Revenue Recognition)
+            elif ':report' in parsed.path:
+                operations = data.get("operations", [])
+                admitted_ops = []
+                for op in operations:
+                    op_id = op.get("operationId")
+                    consumer_id = op.get("consumerId")
+                    metric_value_sets = op.get("metricValueSets", [])
+                    units = 0
+                    for mvs in metric_value_sets:
+                        for mv in mvs.get("metricValues", []):
+                            units += mv.get("int64Value", 1)
+                    
+                    record = {
+                        "operationId": op_id,
+                        "consumerId": consumer_id,
+                        "int64Value": units,
+                        "recordedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                        "revenueEarnedUsd": round(units * PRICING_PER_METRIC_UNIT, 4)
+                    }
+                    USAGE_REPORTS.append(record)
+                    admitted_ops.append(record)
+
+                return self._send_json(200, {
+                    "serviceConfigId": "2026-10-04r1",
+                    "reportErrors": [],
+                    "serviceRolloutId": "rollout-aaif-001",
+                    "admittedCount": len(admitted_ops)
+                })
+
+            self._send_json(404, {"error": "UNKNOWN_ACTION", "path": parsed.path})
+
+    if __name__ == '__main__':
+        server = HTTPServer(('0.0.0.0', 8443), GCPMarketplaceHandler)
+        print("GCP Marketplace Procurement & Service Control Simulator running on :8443")
+        server.serve_forever()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gcp-procurement-simulator
+  namespace: gcp-marketplace
+  labels:
+    app: gcp-procurement-simulator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gcp-procurement-simulator
+  template:
+    metadata:
+      labels:
+        app: gcp-procurement-simulator
+    spec:
+      containers:
+      - name: simulator
+        image: python:3.11-alpine
+        command: ["sh", "-c", "pip install --quiet cryptography && python -u /app/server.py"]
+        ports:
+        - containerPort: 8443
+          name: api
+        volumeMounts:
+        - name: code
+          mountPath: /app
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8443
+          initialDelaySeconds: 2
+          periodSeconds: 3
+      volumes:
+      - name: code
+        configMap:
+          name: gcp-procurement-simulator-code
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gcp-procurement-simulator
+  namespace: gcp-marketplace
+spec:
+  type: NodePort
+  selector:
+    app: gcp-procurement-simulator
+  ports:
+  - port: 8443
+    targetPort: 8443
+    nodePort: 30443

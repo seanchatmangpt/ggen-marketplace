@@ -2,28 +2,59 @@
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
-@prefix sh: <http://www.w3.org/ns/shacl#> .
 @prefix chi: <urn:chicago:court:> .
 
 <urn:chicago:court>
     a owl:Ontology ;
     rdfs:label "Chicago Adversarial Court Ontology" ;
-    rdfs:comment "Formal structure for Chicago-style adversarial qualification courts." .
+    rdfs:comment """
+    Court corpus for the sa2a-chicago-court-pack, modeled on the REAL landed
+    court machinery in ash_a2a (read-only source of truth):
+    lib/ash_a2a/chicago/bench/b5_authority.ex (SA2A-B5 authority/BRCE dispatch
+    path), lib/ash_a2a/chicago/bench/b11_wire.ex (SA2A-B11 wire path), and
+    lib/ash_a2a/chicago/courts/authority_harness.ex plus
+    lib/ash_a2a/chicago/courts/postcondition.ex.
+    Wave-1 lesson, encoded structurally: templates never bake module names --
+    every collaborator module is a chi:SuiteConfig binding resolved by SPARQL,
+    and gates/000 refuses any hardcoded module name in templates/.
+    """ .
 
-# --- Classes ---
+# --- Classes ------------------------------------------------------------------
+
 chi:Court a rdfs:Class ;
     rdfs:label "Adversarial Court" ;
-    rdfs:comment "A qualification court verifying architectural invariants via falsification." .
+    rdfs:comment "A Chicago qualification court verifying an invariant by falsification over real collaborators." .
+
+chi:ChicagoCourt a rdfs:Class ;
+    rdfs:label "Chicago Court" ;
+    rdfs:comment "A court with scenario/invariant/event structure, citing the real module it mirrors." .
+
+chi:WireBench a rdfs:Class ;
+    rdfs:label "Wire Bench" ;
+    rdfs:comment "A wire-path benchmark (HTTP/SSE transport) whose scenarios a court may drive." .
+
+chi:Scenario a rdfs:Class ;
+    rdfs:label "Court Scenario" ;
+    rdfs:comment "One stimulus arrangement a court drives (arrange, actuate, independent read)." .
+
+chi:TelemetryEvent a rdfs:Class ;
+    rdfs:label "Telemetry Event" ;
+    rdfs:comment "A boundary telemetry event the SUT emits; courts observe it via OCEL activity mappings." .
 
 chi:Falsifier a rdfs:Class ;
     rdfs:label "Falsifier" ;
-    rdfs:comment "A specific attack vector attempting to break an invariant." .
+    rdfs:comment "A specific attack vector attempting to break a court invariant." .
 
-chi:Gate a rdfs:Class ;
-    rdfs:label "Crown Gate" ;
-    rdfs:comment "An RFC-SA2A-002 numbered gate verification boundary." .
+chi:SuiteConfig a rdfs:Class ;
+    rdfs:label "Suite Config" ;
+    rdfs:comment """
+    Consumer-supplied bindings: the target resource/skill names and every real
+    collaborator module. Templates render ONLY these bindings, never literal
+    module names.
+    """ .
 
-# --- Properties ---
+# --- Properties ----------------------------------------------------------------
+
 chi:courtId a rdf:Property ;
     rdfs:domain chi:Court ;
     rdfs:range xsd:string .
@@ -32,40 +63,384 @@ chi:courtTitle a rdf:Property ;
     rdfs:domain chi:Court ;
     rdfs:range xsd:string .
 
-chi:hasGate a rdf:Property ;
+chi:modulePath a rdf:Property ;
+    rdfs:comment "Path of the real landed module this individual mirrors (source of truth)." .
+
+chi:referenceModule a rdf:Property ;
+    rdfs:comment "Real module alias this individual mirrors." .
+
+chi:profile a rdf:Property ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Court profile: authority, postcondition, transport." .
+
+chi:hasScenario a rdf:Property ;
     rdfs:domain chi:Court ;
-    rdfs:range chi:Gate .
+    rdfs:range chi:Scenario .
+
+chi:scenarioName a rdf:Property ;
+    rdfs:domain chi:Scenario ;
+    rdfs:range xsd:string .
+
+chi:hasEvent a rdf:Property ;
+    rdfs:domain chi:Scenario ;
+    rdfs:range chi:TelemetryEvent .
+
+chi:eventName a rdf:Property ;
+    rdfs:domain chi:TelemetryEvent ;
+    rdfs:range xsd:string .
+
+chi:activity a rdf:Property ;
+    rdfs:domain chi:TelemetryEvent ;
+    rdfs:comment "OCEL activity the telemetry event maps to (authority.decision, brce.commit, ...)." .
 
 chi:hasFalsifier a rdf:Property ;
     rdfs:domain chi:Court ;
     rdfs:range chi:Falsifier .
 
+chi:falsifierId a rdf:Property ;
+    rdfs:domain chi:Falsifier ;
+    rdfs:range xsd:string .
+
 chi:falsifierKind a rdf:Property ;
     rdfs:domain chi:Falsifier ;
-    rdfs:range xsd:string . # "positive", "negative", "mutation"
+    rdfs:range xsd:string ;
+    rdfs:comment "positive_control, negative, mutation." .
 
 chi:targetInvariant a rdf:Property ;
     rdfs:domain chi:Falsifier ;
     rdfs:range xsd:string .
 
-# --- Concrete Court Instance (Full Deployment Pack Test) ---
-chi:CourtBRCE a chi:Court ;
-    chi:courtId "CHI-DEPLOY-BRCE" ;
-    chi:courtTitle "Pack-Deployed Full Chicago BRCE Actuation & Evidence Court" ;
-    chi:hasGate chi:Gate11 ;
-    chi:hasFalsifier chi:FalsifierPos, chi:FalsifierNeg, chi:FalsifierMut .
+chi:stimulus a rdf:Property ;
+    rdfs:domain chi:Falsifier ;
+    rdfs:range xsd:string .
 
-chi:Gate11 a chi:Gate ;
-    rdfs:label "Gate 11: Fresh-Consumer Proof and Consequence Boundary" .
+chi:usesConfig a rdf:Property ;
+    rdfs:domain chi:Falsifier ;
+    rdfs:range chi:SuiteConfig .
 
-chi:FalsifierPos a chi:Falsifier ;
-    chi:falsifierKind "positive" ;
-    chi:targetInvariant "Valid leased actuation produces exact-SHA receipt and OCEL event" .
+chi:hasBench a rdf:Property ;
+    rdfs:domain chi:Court ;
+    rdfs:range chi:WireBench .
 
-chi:FalsifierNeg a chi:Falsifier ;
+chi:suiteModule a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string .
+
+chi:targetResource a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Target Ash resource module alias (consumer binding)." .
+
+chi:targetCapability a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string .
+
+chi:targetSkillSelector a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Skill selector atom for the wire path; empty string for dispatch-path configs." .
+
+chi:principal a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string .
+
+chi:postStateAttribute a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Attribute the independent post-state reader checks." .
+
+chi:applicationName a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string ;
+    rdfs:comment "OTP app whose :authority_broker env the wire court swaps." .
+
+chi:agentModule a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string .
+
+chi:identityModule a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string .
+
+chi:infoModule a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string .
+
+chi:jsonModule a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string .
+
+chi:commandModule a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string .
+
+chi:commandBusModule a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string .
+
+chi:grantModule a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string .
+
+chi:brokerModule a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string .
+
+chi:receiptStoreModule a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string .
+
+chi:receiptModule a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string .
+
+chi:messageModule a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string .
+
+chi:partModule a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string .
+
+chi:plugModule a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string .
+
+chi:plugAuthModule a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string .
+
+chi:httpAuthSchemeModule a rdf:Property ;
+    rdfs:domain chi:SuiteConfig ;
+    rdfs:range xsd:string .
+
+# --- Telemetry events (b5_authority.ex / b11_wire.ex event sets) -----------------
+
+chi:EvAuthorityDecision a chi:TelemetryEvent ;
+    chi:eventName "[:ash_a2a, :authority, :decision]" ;
+    chi:activity "authority.decision" .
+
+chi:EvAuthorityGrantIssue a chi:TelemetryEvent ;
+    chi:eventName "[:ash_a2a, :authority, :grant, :issue]" ;
+    chi:activity "authority.grant.issue" .
+
+chi:EvAuthorityGrantRevoke a chi:TelemetryEvent ;
+    chi:eventName "[:ash_a2a, :authority, :grant, :revoke]" ;
+    chi:activity "authority.grant.revoke" .
+
+chi:EvBrceAdmission a chi:TelemetryEvent ;
+    chi:eventName "[:ash_a2a, :command_bus, :admission]" ;
+    chi:activity "brce.admission" .
+
+chi:EvBrceClaim a chi:TelemetryEvent ;
+    chi:eventName "[:ash_a2a, :command_bus, :claim]" ;
+    chi:activity "brce.claim" .
+
+chi:EvBrcePrepare a chi:TelemetryEvent ;
+    chi:eventName "[:ash_a2a, :command_bus, :prepare]" ;
+    chi:activity "brce.prepare" .
+
+chi:EvBrceActuateStart a chi:TelemetryEvent ;
+    chi:eventName "[:ash_a2a, :command_bus, :actuate, :start]" ;
+    chi:activity "brce.actuate.start" .
+
+chi:EvBrceActuateStop a chi:TelemetryEvent ;
+    chi:eventName "[:ash_a2a, :command_bus, :actuate, :stop]" ;
+    chi:activity "brce.actuate.stop" .
+
+chi:EvBrceCommit a chi:TelemetryEvent ;
+    chi:eventName "[:ash_a2a, :command_bus, :commit]" ;
+    chi:activity "brce.commit" .
+
+chi:EvBrcePostcondition a chi:TelemetryEvent ;
+    chi:eventName "[:ash_a2a, :command_bus, :postcondition]" ;
+    chi:activity "brce.postcondition" .
+
+# --- Wire bench (lib/ash_a2a/chicago/bench/b11_wire.ex) ---------------------------
+
+chi:B11WireBench a chi:WireBench ;
+    rdfs:label "SA2A-B11 wire-path bench" ;
+    chi:modulePath "lib/ash_a2a/chicago/bench/b11_wire.ex" ;
+    chi:referenceModule "AshA2A.Chicago.Bench.B11Wire" ;
+    chi:hasScenario chi:B11SendScenario, chi:B11StreamScenario .
+
+chi:B11SendScenario a chi:Scenario ;
+    chi:scenarioName "send" ;
+    rdfs:comment "Authenticated JSON-RPC message/send over loopback HTTP; change consequence through Grant, CommandBus, committed receipt; independent post-state read." ;
+    chi:hasEvent chi:EvAuthorityDecision, chi:EvBrceAdmission, chi:EvBrceClaim, chi:EvBrcePrepare, chi:EvBrceActuateStart, chi:EvBrceActuateStop, chi:EvBrceCommit .
+
+chi:B11StreamScenario a chi:Scenario ;
+    chi:scenarioName "stream" ;
+    rdfs:comment "Authenticated message/stream; SSE text/event-stream artifact frames; full drain of the real event-stream body." ;
+    chi:hasEvent chi:EvAuthorityDecision, chi:EvBrceAdmission, chi:EvBrceCommit .
+
+# --- SA2A-AUTH authority court (authority_non_implication.ex + B5 patterns) ---------
+
+chi:AuthorityCourt a chi:Court, chi:ChicagoCourt ;
+    rdfs:label "SA2A-AUTH authority court" ;
+    chi:courtId "SA2A-AUTH" ;
+    chi:courtTitle "Authority non-implication: transport identity never implies standing" ;
+    chi:modulePath "lib/ash_a2a/chicago/courts/authority_non_implication.ex" ;
+    chi:referenceModule "AshA2A.Chicago.Courts.AuthorityNonImplication" ;
+    chi:profile "authority" ;
+    chi:hasScenario chi:AuthAuthorized, chi:AuthRefused, chi:AuthExpired, chi:AuthRevoked, chi:AuthBrokerUnavailable ;
+    chi:hasFalsifier chi:FalsifierAuthPositive, chi:FalsifierAuthKill .
+
+chi:AuthAuthorized a chi:Scenario ;
+    chi:scenarioName "authorized" ;
+    rdfs:comment "Standing grant; authority decision granted; brce.admission admitted; prepared receipt precedes actuation; brce.commit committed; row visible to the independent reader." ;
+    chi:hasEvent chi:EvAuthorityDecision, chi:EvBrceAdmission, chi:EvBrceClaim, chi:EvBrcePrepare, chi:EvBrceActuateStart, chi:EvBrceActuateStop, chi:EvBrceCommit .
+
+chi:AuthRefused a chi:Scenario ;
+    chi:scenarioName "refused" ;
+    rdfs:comment "No grant: refused with :authority_required; no claim, prepare, or actuation; no row." ;
+    chi:hasEvent chi:EvAuthorityDecision, chi:EvBrceAdmission .
+
+chi:AuthExpired a chi:Scenario ;
+    chi:scenarioName "expired" ;
+    rdfs:comment "Grant whose expires_at has passed: refused; no row." ;
+    chi:hasEvent chi:EvAuthorityDecision, chi:EvBrceAdmission .
+
+chi:AuthRevoked a chi:Scenario ;
+    chi:scenarioName "revoked" ;
+    rdfs:comment "Grant issued then revoked through the broker: refused; no row." ;
+    chi:hasEvent chi:EvAuthorityDecision, chi:EvBrceAdmission .
+
+chi:AuthBrokerUnavailable a chi:Scenario ;
+    chi:scenarioName "broker_unavailable" ;
+    rdfs:comment "Real broker process stopped (environment fault injection, permitted by RFC-SA2A-002 section 10): refused; no row." ;
+    chi:hasEvent chi:EvAuthorityDecision, chi:EvBrceAdmission .
+
+chi:FalsifierAuthPositive a chi:Falsifier ;
+    chi:falsifierId "SA2A-AUTH-001" ;
+    chi:falsifierKind "positive_control" ;
+    chi:targetInvariant "A standing grant for the capability yields a granted authority decision, an admitted BRCE admission, a committed receipt, and a row visible to the independent reader" ;
+    chi:stimulus "Grant.grant for the target capability, then Grant.authorize and CommandBus.run over the real broker and receipt store" ;
+    chi:usesConfig chi:DispatchConfig .
+
+chi:FalsifierAuthKill a chi:Falsifier ;
+    chi:falsifierId "SA2A-AUTH-002" ;
     chi:falsifierKind "negative" ;
-    chi:targetInvariant "Unleased actuation is refused at Two-Port Gate without side effects" .
+    chi:targetInvariant "Without a grant the command is refused with :authority_required and leaves no row" ;
+    chi:stimulus "CommandBus.run with no grant at all" ;
+    chi:usesConfig chi:DispatchConfig .
 
-chi:FalsifierMut a chi:Falsifier ;
-    chi:falsifierKind "mutation" ;
-    chi:targetInvariant "Tampered receipt digest fails offline replay court verification" .
+# --- CHI-POST postcondition court (postcondition.ex) --------------------------------
+
+chi:PostconditionCourt a chi:Court, chi:ChicagoCourt ;
+    rdfs:label "CHI-POST independent postcondition court" ;
+    chi:courtId "CHI-POST" ;
+    chi:courtTitle "Independent postcondition observation: the actuator is never the sole attestor of its own success" ;
+    chi:modulePath "lib/ash_a2a/chicago/courts/postcondition.ex" ;
+    chi:referenceModule "AshA2A.Chicago.Courts.Postcondition" ;
+    chi:profile "postcondition" ;
+    chi:hasScenario chi:PostHonest, chi:PostLying, chi:PostDivergent ;
+    chi:hasFalsifier chi:FalsifierPostPositive, chi:FalsifierPostKill .
+
+chi:PostHonest a chi:Scenario ;
+    chi:scenarioName "honest_write" ;
+    rdfs:comment "Honest actuator (a real create) with an independent verifier: postcondition verified and independent, receipt completed, court reader finds the written value." ;
+    chi:hasEvent chi:EvBrceActuateStop, chi:EvBrcePostcondition, chi:EvBrceCommit .
+
+chi:PostLying a chi:Scenario ;
+    chi:scenarioName "lying_write" ;
+    rdfs:comment "Actuator reports success without changing state: never verified, never completed." ;
+    chi:hasEvent chi:EvBrceActuateStop, chi:EvBrcePostcondition .
+
+chi:PostDivergent a chi:Scenario ;
+    chi:scenarioName "divergent_write" ;
+    rdfs:comment "Actuator writes one state and reports another: never verified, never completed." ;
+    chi:hasEvent chi:EvBrceActuateStop, chi:EvBrcePostcondition .
+
+chi:FalsifierPostPositive a chi:Falsifier ;
+    chi:falsifierId "CHI-POST-005" ;
+    chi:falsifierKind "positive_control" ;
+    chi:targetInvariant "An honest actuator real state change is independently verified and keeps completed standing" ;
+    chi:stimulus "CommandBus.run of an honest create over the target resource; the suite own independent reader re-derives the post-state" ;
+    chi:usesConfig chi:DispatchConfig .
+
+chi:FalsifierPostKill a chi:Falsifier ;
+    chi:falsifierId "CHI-POST-006" ;
+    chi:falsifierKind "negative" ;
+    chi:targetInvariant "Positive-control standing cannot be earned without real standing: the kill withholds the grant and the forbidden outcome is verified-or-completed over an ungranted actuation" ;
+    chi:stimulus "The same stimulus with the standing grant deliberately withheld" ;
+    chi:usesConfig chi:DispatchConfig .
+
+# --- SA2A-WIRE wire court (b11_wire.ex) -----------------------------------------------
+
+chi:WireCourt a chi:Court, chi:ChicagoCourt ;
+    rdfs:label "SA2A-WIRE wire court" ;
+    chi:courtId "SA2A-WIRE" ;
+    chi:courtTitle "Wire path: authenticated JSON-RPC message/send through the real transport pipeline" ;
+    chi:modulePath "lib/ash_a2a/chicago/bench/b11_wire.ex" ;
+    chi:referenceModule "AshA2A.Chicago.Bench.B11Wire" ;
+    chi:profile "transport" ;
+    chi:hasBench chi:B11WireBench ;
+    chi:hasScenario chi:B11SendScenario, chi:B11StreamScenario ;
+    chi:hasFalsifier chi:FalsifierWirePositive, chi:FalsifierWireKill .
+
+chi:FalsifierWirePositive a chi:Falsifier ;
+    chi:falsifierId "SA2A-WIRE-001" ;
+    chi:falsifierKind "positive_control" ;
+    chi:targetInvariant "An authenticated message/send carrying a change consequence reaches TASK_STATE_COMPLETED and the created row is visible to the independent reader" ;
+    chi:stimulus "Bearer-authenticated message/send over the real transport pipeline into a real agent over the target resource, with a standing grant" ;
+    chi:usesConfig chi:WireConfig .
+
+chi:FalsifierWireKill a chi:Falsifier ;
+    chi:falsifierId "SA2A-WIRE-002" ;
+    chi:falsifierKind "negative" ;
+    chi:targetInvariant "Without a standing grant the wire task never completes and no row is created" ;
+    chi:stimulus "Bearer-authenticated message/send with no grant" ;
+    chi:usesConfig chi:WireConfig .
+
+# --- Suite configs (the anti-wave-1 bindings) -------------------------------------------
+
+chi:DispatchConfig a chi:SuiteConfig ;
+    rdfs:label "Dispatch-path suite config (SA2A-B5 pattern)" ;
+    chi:suiteModule "Chicago.Pack.CourtSuiteTest" ;
+    chi:targetResource "AshA2A.Chicago.Fixtures.BenchHarness.Ledger" ;
+    chi:targetCapability "AshA2A.Chicago.Fixtures.BenchHarness.Ledger.create" ;
+    chi:targetSkillSelector "" ;
+    chi:principal "chicago-pack-principal" ;
+    chi:postStateAttribute "label" ;
+    chi:applicationName "ash_a2a" ;
+    chi:agentModule "AshA2A.Agent" ;
+    chi:identityModule "AshA2A.Identity" ;
+    chi:infoModule "AshA2A.Info" ;
+    chi:jsonModule "AshA2A.Protocol.JSON" ;
+    chi:commandModule "AshA2A.Command" ;
+    chi:commandBusModule "AshA2A.CommandBus" ;
+    chi:grantModule "AshA2A.Authority.Grant" ;
+    chi:brokerModule "AshA2A.Authority.Broker.InMemory" ;
+    chi:receiptStoreModule "AshA2A.ReceiptStore.Memory" ;
+    chi:receiptModule "AshA2A.Receipt" ;
+    chi:messageModule "AshA2A.Protocol.Message" ;
+    chi:partModule "AshA2A.Protocol.Part.Data" ;
+    chi:plugModule "AshA2A.Protocol.Plug" ;
+    chi:plugAuthModule "AshA2A.Protocol.Plug.Auth" ;
+    chi:httpAuthSchemeModule "AshA2A.Protocol.SecurityScheme.HTTPAuth" .
+
+chi:WireConfig a chi:SuiteConfig ;
+    rdfs:label "Wire-path suite config (SA2A-B11 pattern)" ;
+    chi:suiteModule "Chicago.Pack.CourtSuiteTest" ;
+    chi:targetResource "AshA2A.Chicago.Bench.B11Wire.Widget" ;
+    chi:targetCapability "" ;
+    chi:targetSkillSelector "create_widget" ;
+    chi:principal "chicago-b11-principal" ;
+    chi:postStateAttribute "label" ;
+    chi:applicationName "ash_a2a" ;
+    chi:agentModule "AshA2A.Agent" ;
+    chi:identityModule "AshA2A.Identity" ;
+    chi:infoModule "AshA2A.Info" ;
+    chi:jsonModule "AshA2A.Protocol.JSON" ;
+    chi:commandModule "AshA2A.Command" ;
+    chi:commandBusModule "AshA2A.CommandBus" ;
+    chi:grantModule "AshA2A.Authority.Grant" ;
+    chi:brokerModule "AshA2A.Authority.Broker.InMemory" ;
+    chi:receiptStoreModule "AshA2A.ReceiptStore.Memory" ;
+    chi:receiptModule "AshA2A.Receipt" ;
+    chi:messageModule "AshA2A.Protocol.Message" ;
+    chi:partModule "AshA2A.Protocol.Part.Data" ;
+    chi:plugModule "AshA2A.Protocol.Plug" ;
+    chi:plugAuthModule "AshA2A.Protocol.Plug.Auth" ;
+    chi:httpAuthSchemeModule "AshA2A.Protocol.SecurityScheme.HTTPAuth" .

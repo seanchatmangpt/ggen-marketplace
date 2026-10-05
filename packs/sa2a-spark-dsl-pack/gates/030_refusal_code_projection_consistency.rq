@@ -1,0 +1,49 @@
+# GATE 030 -- projection consistency (the denormalized codegen projections
+# must not drift from the modeled individuals).
+#
+# MESSAGE: every spark:Verifier carrying spark:hasRefusalCode individuals must
+# also carry its spark:refusalCodeList codegen projection, and vice versa;
+# every spark:Transformer carrying spark:persistsKey individuals must also
+# carry its spark:persistKeyList projection, and vice versa. A missing
+# projection means templates render a verifier without its codes (or a
+# transformer without its keys); a missing individual means the projection
+# (and every generated skeleton) silently outlives the modeled content.
+#
+# SELECT gate semantics: Violation = RowCount > 0. Zero rows = gate pass.
+#
+# Anti-vacuity: delete sa2a:VerifySkills's spark:refusalCodeList triple (or
+# all of sa2a:Verify's spark:hasRefusalCode triples) from ontology.ttl and
+# this gate returns a row naming the drifted individual.
+PREFIX spark: <urn:spark:dsl:>
+PREFIX sa2a: <urn:sa2a:spark:>
+
+SELECT ?subject ?violation WHERE {
+  {
+    ?subject a spark:Verifier ;
+             spark:hasRefusalCode ?code .
+    FILTER NOT EXISTS { ?subject spark:refusalCodeList ?any }
+    BIND("SA2A-PACK-REFUSAL-CODE-LIST-PROJECTION-MISSING" AS ?violation)
+  }
+  UNION
+  {
+    ?subject a spark:Verifier ;
+             spark:refusalCodeList ?list .
+    FILTER NOT EXISTS { ?subject spark:hasRefusalCode ?any }
+    BIND("SA2A-PACK-REFUSAL-CODE-INDIVIDUALS-MISSING" AS ?violation)
+  }
+  UNION
+  {
+    ?subject a spark:Transformer ;
+             spark:persistsKey ?key .
+    FILTER NOT EXISTS { ?subject spark:persistKeyList ?any }
+    BIND("SA2A-PACK-PERSIST-KEY-LIST-PROJECTION-MISSING" AS ?violation)
+  }
+  UNION
+  {
+    ?subject a spark:Transformer ;
+             spark:persistKeyList ?list .
+    FILTER NOT EXISTS { ?subject spark:persistsKey ?any }
+    BIND("SA2A-PACK-PERSIST-KEY-INDIVIDUALS-MISSING" AS ?violation)
+  }
+}
+ORDER BY ?subject ?violation

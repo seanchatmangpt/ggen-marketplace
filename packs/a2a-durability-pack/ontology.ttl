@@ -1,0 +1,211 @@
+# a2a-durability-pack ontology.
+#
+# Namespace convention (M15 ontology harmonization — identical header in all
+# five a2a/sa2a ggen-marketplace pack ontologies):
+#   1. Canonical SA2A/A2A vocabulary prefixes are bound byte-identically to
+#      the canonical sources (ash_a2a lib/ash_a2a/semantic/vocabulary.ex,
+#      priv/sa2a/canonical/A2AProtocol_v2_1_0.ttl, priv/sa2a/AllSA2A.ttl):
+#      a2a: <https://a2a-protocol.org/ontology#>,
+#      sa2a-fnd:/sa2a-cap:/sa2a-bp:/sa2a-evi:
+#      <https://spec.seanchatmangpt.dev/sa2a/ontology/...>,
+#      a2a-urn: <urn:ash-a2a:vocab:>.
+#   2. Canonical prefix names are RESERVED: a pack never rebinds a canonical
+#      prefix name to a non-canonical IRI, and never mints terms under a
+#      canonical namespace. Pack-scoped vocabulary lives under exactly one
+#      pack-scoped namespace per pack (this pack's own, bound below);
+#      cross-pack references always reuse the OWNING pack's IRIs — same
+#      concept, same IRI — never a re-mint.
+#   3. This pack's namespace IRIs are gate-bound (gates/*.rq, verify/*.rq
+#      hardcode them), so they are grandfathered byte-stable; this file
+#      changes bindings and alignment links only, never shipped IRIs.
+
+@prefix dur: <https://seanchatmangpt.github.io/packs/a2a-durability#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix a2ac: <http://seanchatmangpt.github.io/packs/a2a-conformance#> .
+
+# Consumer-facing a2a-durability ontology.
+#
+# Packages the durability story of ash_a2a's A2A v1.0 surface as reusable
+# manufacturing capital. Every dur:DurabilitySurface individual grounds in a
+# REAL ash_a2a module (truth source: /Users/sac/ash_a2a, v1.0 drop) and cites
+# exactly the landed durability courts that witness it:
+#
+#   court-pplan-durability        -> test/ash_a2a_pplan_durability_test.exs
+#                                    (lane Y6: provider tier over the real
+#                                    ash_pplan DETS durable stack)
+#   court-ekv-taskstore-durability -> test/ash_a2a_v1_taskstore_durability_test.exs
+#                                    (lanes X9 court (b)/(c): EKV fidelity across
+#                                    a REAL store restart + at-rest redaction,
+#                                    raw on-disk bytes asserted)
+#   court-multinode-continuity    -> test/ash_a2a_v1_multinode_continuity_test.exs
+#                                    (lane Z8: 2-node EKV cluster over real
+#                                    :peer OS-process peers, agent-restart
+#                                    read-through, SSE resubscribe gap witness)
+#
+# Nothing here synthesizes durability semantics: the templates render
+# consumer-side wiring and configuration that delegate to the real modules,
+# and the gates check the pack's own graph for surface completeness and
+# court citations. The one honest gap (mid-flight streams are cancelable
+# but not resumable) is modeled as dur:StreamBoundary with its tracking
+# issue, not hidden.
+
+<https://seanchatmangpt.github.io/packs/a2a-durability> a owl:Ontology ;
+    dcterms:title "A2A task durability surfaces (PPlan provider, EKV task store, restart continuity, stream boundary)" ;
+    dcterms:source "/Users/sac/ash_a2a (v1.0 drop)" ;
+    owl:versionInfo "0.1.0" .
+
+# ---------------------------------------------------------------------------
+# Classes
+# ---------------------------------------------------------------------------
+
+dur:DurabilitySurface a rdfs:Class ; rdfs:label "Durability surface" ;
+    rdfs:comment "One aspect of A2A task durability, grounded in a real ash_a2a module (dur:truthModule at dur:truthPath) and witnessed by at least one landed durability court (dur:citesCourt)." .
+
+dur:Court a rdfs:Class ; rdfs:label "Landed durability court" ;
+    rdfs:comment "A real zero-mock ExUnit court in ash_a2a's test tree that witnesses durability surfaces. dur:courtPath names the file; dur:courtTier names the tier it proves." .
+
+dur:Capability a rdfs:Class ; rdfs:label "Provider capability" ;
+    rdfs:comment "One operation of a durable dispatch provider, with the A2A task states it can produce and its honest semantics." .
+
+dur:RedactionRule a rdfs:Class ; rdfs:label "At-rest redaction rule" ;
+    rdfs:comment "One metadata-key disposition applied by the durable store before bytes reach disk: dur:redactionDisposition is \"stripped\" or \"persisted\", with the reason." .
+
+# ---------------------------------------------------------------------------
+# Courts (the three landed durability courts — the only admissible witnesses)
+# ---------------------------------------------------------------------------
+
+dur:court-pplan-durability a dur:Court ;
+    dur:courtId "lane-Y6-pplan-durability" ;
+    dur:courtPath "test/ash_a2a_pplan_durability_test.exs" ;
+    dur:courtTier "provider" ;
+    rdfs:comment "AshA2A.Providers.PPlanDurabilityTest: end-to-end provider court over the REAL ash_pplan durable stack (Durable.Engine/Run/Status over a real DETS store on a tmp dir). Witnesses: idempotent start-or-adopt dispatch (no tape growth, no re-execution), Await park reporting :input_required with consume-once resume signals, second-resume moving nothing, typed :no_signal_waiter / :no_such_run / {:claim_held, id} refusals, unmapped-status typed error, and the hard-kill restart leg (Process.exit(:kill), reopen the same DETS file, parked run survives, replay executes no step twice)." .
+
+dur:court-ekv-taskstore-durability a dur:Court ;
+    dur:courtId "lane-X9-taskstore-durability" ;
+    dur:courtPath "test/ash_a2a_v1_taskstore_durability_test.exs" ;
+    dur:courtTier "store" ;
+    rdfs:seeAlso a2ac:court_23 ;
+    rdfs:comment "AshA2A.V1TaskStoreDurabilityTest: task persistence across the pluggable AshA2A.Protocol.TaskStore seam. Witnesses: ETS fidelity over real agent runs; EKV fidelity across a REAL store-process restart (stop the EKV child, whereis -> nil, restart at the same :data_dir, full-fidelity re-read); at-rest redaction proven against the raw on-disk files (the bearer token is absent from the persisted bytes, the owner key is deliberately retained); Filter.apply ETS/EKV parity; TaskStore behaviour contract (9 callbacks)." .
+
+dur:court-multinode-continuity a dur:Court ;
+    dur:courtId "lane-Z8-multinode-continuity" ;
+    dur:courtPath "test/ash_a2a_v1_multinode_continuity_test.exs" ;
+    dur:courtTier "continuity" ;
+    rdfs:seeAlso a2ac:court_12 ;
+    rdfs:comment "AshA2A.V1MultinodeContinuityTest: multi-node task continuity over real Bandit loopback listeners, real transport supervision trees, real agent GenServers, a real on-disk EKV store, and a real 2-node EKV cluster (one member on a genuinely separate OS-process :peer node). Witnesses: plug-created task replicates to the peer and a second agent continues it to a terminal state visible from the peer; fresh-agent read-through via State.get_task/2 with an empty in-memory map; the SSE/resubscribe tier where a mid-stream task is resubscribable on the fresh agent, continuation is refused typed (:task_in_progress), and the fresh agent's wire cancel publishes the terminal event that closes the stream. Also pins the transport-tier hole: owner-scoped tasks/list pages the IN-MEMORY map only." .
+
+# ---------------------------------------------------------------------------
+# Durability surfaces
+# ---------------------------------------------------------------------------
+
+# --- 1. PPlanProvider --------------------------------------------------------
+
+dur:PPlanProvider a dur:DurabilitySurface ;
+    dur:kind "provider" ;
+    dur:truthModule "AshA2A.Providers.PPlan" ;
+    dur:truthPath "lib/ash_a2a/providers/pplan.ex" ;
+    dur:configEntry "config :ash_a2a, :providers, [AshA2A.Providers.PPlan]" ;
+    dur:storeOpt "AshA2A.Providers.PPlan starts no processes: :store is a required host-owned AshPPlan.Reactor.Durable.Store (pid or registered name); every entry point fails closed with {:error, {:unsupported, :ash_pplan}} when :ash_pplan is absent" ;
+    dur:gapNote "input_required is parked status :waiting — a plan without an Await step never parks that way and finishes in one hop; run inputs are bound at start only (follow-up payloads reach the plan ONLY as a resume/3 signal); :auth_required and :rejected are never produced; rollback states (:unwinding/:cancelling/:unwind_blocked) surface as :working — read status/2's detail map" ;
+    dur:citesCourt dur:court-pplan-durability ;
+    rdfs:comment "ash_pplan-backed durability provider for async / multi-turn A2A skill dispatch: a durable plan-execution record keyed by the A2A task id, so a follow-up message with the same task id resumes the SAME run instead of starting a second one. ash_pplan run statuses map onto A2A task states via AshA2A.Providers.PPlan.to_state/1 (total over ash_pplan's closed 9-status set; unmapped -> {:error, {:unmapped_status, s}}, never a silent default)." .
+
+dur:cap-dispatch a dur:Capability ;
+    dur:capabilityName "dispatch" ;
+    dur:producesStates "submitted working input_required completed failed" ;
+    dur:capabilityDetail "start-or-adopt: Engine.start/3 is idempotent by run id, so re-dispatching the same task id adopts the existing run unchanged — never a duplicate execution; sealed checkpoints replay. Signature: dispatch(task_id, model, bindings, opts)" ;
+    rdfs:comment "Falsified if re-dispatch grows the checkpoint tape or re-executes any plan step (court: lane-Y6 idempotence leg)." .
+
+dur:cap-resume a dur:Capability ;
+    dur:capabilityName "resume" ;
+    dur:producesStates "working input_required completed failed" ;
+    dur:capabilityDetail "the multi-turn hop: delivers the follow-up payload as a consume-once signal to the run's parked signal waiter (signal name: the :signal opt, else the single parked waiter's name, else typed refusal :no_signal_waiter / {:ambiguous_waiters, names}) and attempts once. A second resume on a terminal run consumes nothing and moves nothing. Signature: resume(task_id, payload, opts)" ;
+    rdfs:comment "Falsified if the payload reaches the plan as anything other than the Await step's output, or a second resume still moves state (court: lane-Y6 park/resume legs)." .
+
+dur:cap-status a dur:Capability ;
+    dur:capabilityName "status" ;
+    dur:producesStates "submitted working input_required completed failed canceled" ;
+    dur:capabilityDetail "read-only current state without attempting: {:ok, state, %{run_status:, result:, error:, version:, waiters:}}. detail carries the underlying run status, so rollback states surfacing as :working stay distinguishable. Signature: status(task_id, opts)" ;
+    rdfs:comment "Falsified if a run parked on a deadline (:polling) is reported :input_required — that would make the provider lie about who must act next (court: lane-Y6 status legs)." .
+
+dur:cap-cancel a dur:Capability ;
+    dur:capabilityName "cancel" ;
+    dur:producesStates "canceled" ;
+    dur:capabilityDetail "cancels from :pending/:waiting/:polling via Engine.cancel/3 (claim-CAS against in-flight attempts): {:ok, :canceled, record}; on :not_cancellable the run's standing (terminal or rolling-back) state is returned instead of an error; a held migration claim refuses typed {:error, {:claim_held, task_id}} and the run does not move. Signature: cancel(task_id, opts)" ;
+    rdfs:comment "Falsified if a cancel wins against a held claim, or moves an ended run (court: lane-Y6 cancel legs)." .
+
+dur:PPlanProvider dur:hasCapability dur:cap-dispatch, dur:cap-resume, dur:cap-status, dur:cap-cancel .
+
+# --- 2. EkvTaskStore ---------------------------------------------------------
+
+dur:EkvTaskStore a dur:DurabilitySurface ;
+    dur:kind "store" ;
+    dur:truthModule "AshA2A.TaskStore.Ekv" ;
+    dur:truthPath "lib/ash_a2a/task_store/ekv.ex" ;
+    dur:wiringModule "MyApp.DurableTaskStore" ;
+    dur:wiringStoreName "my_app_durable_tasks" ;
+    dur:wiringDataDir "/var/lib/my_app/a2a_tasks" ;
+    dur:wiringClusterSize "1"^^xsd:integer ;
+    dur:failureSemantics "EKV errors and exits are NOT swallowed: put/2 and delete/2 raise AshA2A.TaskStore.Ekv.WriteError on any non-:ok result, so an agent can never acknowledge a task it never persisted; an unavailable EKV instance exits as EKV does" ;
+    dur:dataDirPolicy ":data_dir is required, fail closed — no tmp-dir default (a default under the OS tmp dir would silently not survive a host reboot on some platforms, which is the exact durability claim this store exists to make); :cluster_size defaults to 1" ;
+    dur:citesCourt dur:court-ekv-taskstore-durability ;
+    rdfs:comment "EKV-backed, on-disk AshA2A.Protocol.TaskStore for AshA2A.Agent agents: task state survives an agent process crash/restart (the store is a separate supervised EKV instance, not agent state) and a BEAM/node restart against the same :data_dir. Wiring: AshA2A.TaskStore.Ekv.child_spec(name:, data_dir:) in the supervision tree plus {AshA2A.TaskStore.Ekv, name} as the agent's :task_store opt." .
+
+dur:rule-strip-auth a dur:RedactionRule ;
+    dur:redactionKey "\"a2a.auth\"" ;
+    dur:redactionDisposition "stripped" ;
+    dur:redactionReason "the verified credential, which can carry a bearer token; the agent writes the task to the store while still :working/:input_required, so without this a killed agent would leave the caller's credential on disk indefinitely; a continuation rebinds auth from the CURRENT call" .
+
+dur:rule-strip-stream a dur:RedactionRule ;
+    dur:redactionKey ":stream" ;
+    dur:redactionDisposition "stripped" ;
+    dur:redactionReason "the node-local stream enumerable; it is not serializable across nodes or restarts (see dur:StreamBoundary for the honest gap)" .
+
+dur:rule-keep-owner a dur:RedactionRule ;
+    dur:redactionKey "\"ash_a2a.owner\"" ;
+    dur:redactionDisposition "persisted" ;
+    dur:redactionReason "ownership checks must still hold after a restart; spec-vs-reality: the lane contract phrase 'contains neither a2a.auth/owner keys' is NOT the implementation contract — these courts pin the implementation contract" .
+
+dur:EkvTaskStore dur:hasRedactionRule dur:rule-strip-auth, dur:rule-strip-stream, dur:rule-keep-owner .
+
+# --- 3. RestartContinuity -----------------------------------------------------
+
+dur:RestartContinuity a dur:DurabilitySurface ;
+    dur:kind "continuity" ;
+    dur:truthModule "AshA2A.Transport.Runtime.continue/6 + AshA2A.Protocol.Agent.State.get_task/2" ;
+    dur:truthPath "lib/ash_a2a/transport/runtime.ex" ;
+    dur:citesCourt dur:court-ekv-taskstore-durability, dur:court-multinode-continuity ;
+    dur:restartLeg "hard-kill store restart: stop the EKV child, Process.whereis(name) -> nil, restart at the same :data_dir, full-fidelity re-read (court: lane-X9 (b)); the pplan provider variant kills the DETS store with Process.exit(:kill) and reopens the same file, parked run intact, replay executes no step twice (court: lane-Y6 restart leg)" ;
+    dur:clusterLeg "two-node EKV cluster: cluster_size: 2 with one member on a real separate OS-process :peer node; a plug-created task on the primary replicates to the peer's own member, a second agent with a genuinely empty in-memory map continues it on the wire, and the terminal state is visible from the peer again (court: lane-Z8 (a))" ;
+    dur:readThroughLeg "read-through get: State.get_task/2 is a read-through cache — in-memory hit first, mod.get(ref, task_id) fallthrough on miss; Runtime.continue/6 and get_task_for/3 both go through it, so a FRESH agent whose in-memory task map is empty finds every task the store holds; tasks/get on the wire and the Protocol-path {:list_tasks, params} list are store-backed (court: lane-Z8 (b))" ;
+    dur:gapNote "owner-scoped transport tasks/list pages the IN-MEMORY map only (Runtime.list_tasks_for/3: an external store's list_all/2 cannot be owner-filtered before pagination), so a fresh agent answers the wire list with a valid EMPTY page even though the store holds the tasks — a real hole in the horizontal story, pinned as behavior, not hidden" ;
+    rdfs:comment "The proven continuity story: a task created through a real agent+plug on node A is visible and continuable after the in-memory agent is lost, when the durable store plus a second agent process read the same store." .
+
+# --- 4. StreamBoundary (the honest gap) ---------------------------------------
+
+dur:StreamBoundary a dur:DurabilitySurface ;
+    dur:kind "gap" ;
+    dur:truthModule "AshA2A.Transport.Runtime.continue/6 (:task_in_progress guard)" ;
+    dur:truthPath "lib/ash_a2a/transport/runtime.ex" ;
+    dur:githubIssue "8" ;
+    dur:gapStatement "mid-flight streams are cancelable, NOT resumable: a mid-flight stream is node-local (metadata[:stream] is redacted at rest by EKV and the enumerating process lived on the lost agent), so the persisted task is visible and resubscribable on a fresh agent, but continuing it is refused typed (:task_in_progress, the state != :working guard in Runtime.continue/6) and the stream never progresses by itself on the new agent" ;
+    dur:honestClose "the fresh agent can still cancel the task, and that wire cancel publishes the final TaskEvents event that terminates the resubscribed SSE stream with a terminal frame; the cancel itself is durable" ;
+    dur:trackingNote "the durable fix (DurableServer continuity) is tracked upstream: GitHub issue #8, named in dur:EkvTaskStore's moduledoc and in the multinode court's gap witness" ;
+    dur:citesCourt dur:court-multinode-continuity ;
+    rdfs:comment "Modeled as a gap, not a capability: nothing in this pack claims mid-flight stream resumability. If any template or rendered artifact suggests streams survive agent loss, the pack is falsified." .
+
+# ---------------------------------------------------------------------------
+# Gates' completeness bars (what the pack refuses to render without)
+# ---------------------------------------------------------------------------
+
+dur:completeness-bar a rdfs:Class ;
+    rdfs:comment "Declarative statement of what the fail-closed verify companions demand (verify/*.unbound.rq, zero rows is the pass condition)." .
+
+dur:bar-surface-completeness a dur:completeness-bar ;
+    dur:barStatement "every dur:DurabilitySurface carries dur:kind, dur:truthModule and dur:truthPath; every store-kind surface additionally carries dur:wiringModule" .
+
+dur:bar-court-citation a dur:completeness-bar ;
+    dur:barStatement "every dur:DurabilitySurface carries at least one dur:citesCourt edge resolving to a dur:Court with a dur:courtPath — each individual cites one of the three landed durability courts" .

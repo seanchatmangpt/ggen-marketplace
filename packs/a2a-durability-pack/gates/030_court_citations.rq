@@ -1,0 +1,21 @@
+PREFIX dur: <https://seanchatmangpt.github.io/packs/a2a-durability#>
+
+# Court-citation gate (fail-closed: any row = a violation).
+#
+# Implements dur:bar-court-citation: every dur:DurabilitySurface must cite at
+# least one resolving dur:Court (a dur:Court with dur:courtId and dur:courtPath).
+# Companion: verify/030_court_citations.unbound.rq (its inverted form; zero
+# rows = pass).
+
+SELECT ?surface ?violation WHERE {
+  ?surface a dur:DurabilitySurface .
+  FILTER NOT EXISTS {
+    ?surface dur:citesCourt ?court .
+    ?court a dur:Court ;
+           dur:courtId ?courtId ;
+           dur:courtPath ?courtPath .
+    FILTER (STRLEN(?courtId) > 0 && STRLEN(?courtPath) > 0)
+  }
+  BIND("DurabilitySurface without a resolving dur:citesCourt -> dur:Court(courtId, courtPath) citation" AS ?violation)
+}
+ORDER BY ?surface ?violation

@@ -1,6 +1,6 @@
 [pack]
 name = "elixir-mcp-a2a-pack"
-version = "0.1.0"
+version = "1.0.0"
 description = """
 Generates a real Elixir MCP router scope + A2A agent module + capability
 descriptor from one admitted ema:CapabilitySurface, so xaas/ex4pm/beam4pm (or
@@ -16,7 +16,7 @@ marketplace already has rmcp-pack/mcpp-pack/fastmcp-pack/gym-mcp-surface-pack
 (all Rust or Python-targeted) and beam4pm-contracts-pack (mcp family) (Erlang codec
 contracts, not a live Elixir MCP server) and certification-assist-pack's
 protocol/*.json.tmpl (static JSON contract shape, no generated code). None
-generate a real, running Elixir `AshAi.Mcp.Router` forward or `A2A.Agent`
+generate a real, running Elixir `AshAi.Mcp.Router` forward or A2A agent
 module. This pack fills exactly that gap.
 
 Golden specimen (2026-09-09): /Users/sac/xaas -- lib/xaas_web/router.ex:105-120
@@ -38,8 +38,9 @@ requirements-gathering pass (docs/ontology/vision-2030.ttl, xaas):
    pure functions (traces_from_events/2, dfg_from_traces/1, etc.) -- consuming
    this template from beam4pm turns that gap from target to current.
 2. The single-agent slice of v2030:A2ACognitionFabric -- templates/
-   a2a_agent.ex.tmpl generates one real A2A.Agent module per
-   CapabilitySurface, with its skill list generated from the SAME capability
+   a2a_agent.ex.tmpl generates one real AshA2A.Protocol.Agent module per
+   CapabilitySurface (see the v1.0 note below), with its skill list
+   generated from the SAME capability
    rows as the MCP tool list (mcp_router_scope.ex.tmpl), so the two protocol
    surfaces cannot drift apart the way two independently hand-maintained
    lists could.
@@ -90,6 +91,39 @@ the full xaas test suite at 467/467 (matching the session's known baseline
 exactly) after wiring `XaasWeb.A2A.NextReadUserAgent`'s real dispatch to
 reference the generated `NextReadUserAgentSkills.skills()` instead of a
 hardcoded literal.
+
+v1.0 update (2026-10-04, version 0.1.0 -> 1.0.0): the generated A2A agent
+was rewritten from the pre-v1.0 external protocol-library agent macro to
+the landed ash_a2a v1.0 surface, read file-by-file against
+/Users/sac/ash_a2a: (1) templates/a2a_agent.ex.tmpl now generates a real
+`use AshA2A.Protocol.Agent, name:, description:, version:, skills:,
+capabilities:, supported_interfaces:` GenServer whose `agent_card/0`
+advertises v1.0 both top-level (`AshA2A.Protocol.Version.protocol_version/0`,
+lib/ash_a2a/protocol/version.ex:12) and on every supported_interfaces entry
+(`protocol_binding: "JSONRPC"`, spec sections 4.4/8.2,
+lib/ash_a2a/protocol/agent_card.ex:9-26,63-64), with a fail-closed
+generated `handle_message/2` (typed `{:no_skill, _}` refusal,
+lib/ash_a2a/agent.ex:1350-1356) until the consumer hand-writes dispatch;
+(2) per-skill `input_modes`/`output_modes` ride card skills and the
+generated `skills_opts/0` map exactly in the codec's real override surface
+(`:skills_opts`, lib/ash_a2a/capability_index/agent_card_builder.ex:10-14,
+forwarded by `AshA2A.Info.agent_card/2`, lib/ash_a2a/info.ex:95-106) --
+nil inherits the card defaults, an empty list would wrongly override;
+(3) ema:consequence (the `AshA2A.Skill.consequence()` closed vocabulary,
+lib/ash_a2a/skill.ex:73) and ema:requiresAuthority project into generated
+`consequence/1` + `requires_authority?/1` governance lookups mirroring the
+v1.0 runtime truth: dispatch routes by consequence (:observe direct;
+:change/:external_do through CommandBus admission/authority/receipt,
+lib/ash_a2a/agent.ex:823-849) and authority fails closed for ungranted
+consequential capabilities (lib/ash_a2a/agent.ex:931-952); (4) wire-shape
+staleness is gated: gates/030_no_stale_wire_tokens.sh asserts templates/
+carry zero pre-v1.0 tokens (bare `A2A.<Module>` refs, the legacy per-frame
+discriminator key, the legacy per-frame finality boolean -- all replaced in
+lib/ash_a2a/protocol/event.ex:20-27, to_a2a_error.ex's ErrorInfo-wrapped
+errors), and gates/020_capability_completeness.rq asserts every
+ema:Capability row declares exposedVia + requiresAuthority (beam4pm's nine
+fixture rows silently matched no surface filter before this -- caught and
+fixed by the gate itself on its first run).
 
 Named follow-ups, NOT built in this version (disclosed, not silently dropped):
 - `mix ggen_igniter.sync`/`ggen sync run` output is not auto-formatted --

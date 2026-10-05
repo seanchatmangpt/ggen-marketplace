@@ -7,7 +7,8 @@ sparql:
 
     SELECT DISTINCT ?app_module ?otp_app ?mcp_mount_path ?mcp_protocol_version
                     ?mcp_audit_plug_module ?agent_module ?agent_name
-                    ?agent_description ?agent_mount_path ?skills_module WHERE {
+                    ?agent_description ?agent_mount_path ?skills_module
+                    ?agent_base_url ?agent_version WHERE {
       ?s a ema:CapabilitySurface ;
          ema:appModule ?app_module ; ema:otpApp ?otp_app ;
          ema:mcpMountPath ?mcp_mount_path ; ema:mcpProtocolVersion ?mcp_protocol_version ;
@@ -15,14 +16,24 @@ sparql:
          ema:agentDescription ?agent_description ; ema:agentMountPath ?agent_mount_path .
       OPTIONAL { ?s ema:mcpAuditPlugModule ?mcp_audit_plug_module }
       OPTIONAL { ?s ema:skillsModule ?skills_module }
+      OPTIONAL { ?s ema:agentBaseUrl ?agent_base_url }
+      OPTIONAL { ?s ema:agentVersion ?agent_version }
     }
   caps: |
     PREFIX ema: <http://seanchatmangpt.github.io/packs/elixir-mcp-a2a#>
 
+    # v1.0 (2026-10-04): multi-valued ema:capabilityTag / ema:inputModes /
+    # ema:outputModes are each aggregated over their own DISTINCT (capability,
+    # value) subselect, so no OPTIONAL join cross-multiplies another field's
+    # rendered list (a plain GROUP_CONCAT over a shared row set duplicated every
+    # multi-valued field by the product of the others' cardinality -- observed
+    # for real on the xaas fixture's checkout row before this rewrite).
     SELECT ?capability_id ?capability_name ?capability_description ?capability_ash_action
            ?observation_scope ?mutation_scope ?requires_authority ?is_reversible
-           ?cost_estimate ?receipt_semantics ?capability_order
-           (GROUP_CONCAT(?tag; separator=",") AS ?tags) WHERE {
+           ?cost_estimate ?receipt_semantics ?capability_order ?consequence
+           (GROUP_CONCAT(?tag; separator=",") AS ?tags)
+           (GROUP_CONCAT(?input_mode; separator=",") AS ?input_modes)
+           (GROUP_CONCAT(?output_mode; separator=",") AS ?output_modes) WHERE {
       ?c a ema:Capability ; ema:capabilityOf ?surface ; ema:exposedVia ?via .
       FILTER (?via = "a2a" || ?via = "both")
       ?c ema:capabilityId ?capability_id ; ema:capabilityName ?capability_name ;
@@ -32,51 +43,217 @@ sparql:
          ema:receiptSemantics ?receipt_semantics ; ema:capabilityOrder ?capability_order .
       OPTIONAL { ?c ema:capabilityAshAction ?capability_ash_action }
       OPTIONAL { ?c ema:costEstimate ?cost_estimate }
-      OPTIONAL { ?c ema:capabilityTag ?tag }
+      OPTIONAL { ?c ema:consequence ?consequence }
+      OPTIONAL {
+        SELECT ?c (GROUP_CONCAT(?t; separator=",") AS ?tag) WHERE {
+          SELECT DISTINCT ?c ?t WHERE { ?c a ema:Capability ; ema:capabilityTag ?t }
+        } GROUP BY ?c
+      }
+      OPTIONAL {
+        SELECT ?c (GROUP_CONCAT(?im; separator=",") AS ?input_mode) WHERE {
+          SELECT DISTINCT ?c ?im WHERE { ?c a ema:Capability ; ema:inputModes ?im }
+        } GROUP BY ?c
+      }
+      OPTIONAL {
+        SELECT ?c (GROUP_CONCAT(?om; separator=",") AS ?output_mode) WHERE {
+          SELECT DISTINCT ?c ?om WHERE { ?c a ema:Capability ; ema:outputModes ?om }
+        } GROUP BY ?c
+      }
     }
     GROUP BY ?capability_id ?capability_name ?capability_description ?capability_ash_action
              ?observation_scope ?mutation_scope ?requires_authority ?is_reversible
-             ?cost_estimate ?receipt_semantics ?capability_order
+             ?cost_estimate ?receipt_semantics ?capability_order ?consequence
     ORDER BY ?capability_order
 ---
-{# Real A2A.Agent module, mirroring xaas's own working
-   XaasWeb.A2A.NextReadUserAgent (lib/xaas_web/a2a/next_read_user_agent.ex)
-   -- one skill per ema:Capability row with ema:exposedVia "a2a"|"both" on
-   this surface. CORRECTED: an earlier version of this comment claimed the
-   A2A skill list and the MCP tool list are generated from the SAME rows --
-   checked against real xaas code and found false: router.ex's real /mcp
-   tools and next_read_user_agent.ex's real A2A skills are disjoint id sets
-   (e.g. "checkout" is a real consequential mutation, A2A-only, never an MCP
-   tool). This template renders only the a2a/both-scoped rows
-   (queries/a2a_capabilities.rq); mcp_router_scope.ex.tmpl renders only the
-   mcp/both-scoped rows (queries/mcp_capabilities.rq) -- a shared row (both)
-   is the only case where the two surfaces intentionally overlap. #}
+{# v1.0 update (2026-10-04). The generated module was rewritten from the
+   pre-v1.0 external protocol-library agent macro shape (`use <legacy>.Agent,
+   name:, description:, skills:`) to the landed ash_a2a v1.0 surface
+   (read against /Users/sac/ash_a2a):
+
+   - `use AshA2A.Protocol.Agent, name:, description:, version:, skills:,
+     capabilities:, supported_interfaces:` -- the v1.0 behaviour + GenServer
+     macro; its literal card opts generate the `agent_card/0` callback
+     (lib/ash_a2a/protocol/agent.ex, build_card_ast/1 and the moduledoc's
+     own usage block).
+   - Per-skill `input_modes`/`output_modes` -- v1.0 AgentSkill fields 6/7,
+     OPTIONAL override of the card defaults
+     (lib/ash_a2a/protocol/agent_card.ex:18-21), projected exactly in the
+     `AshA2A.Protocol.AgentCard.skill()` shape.
+   - `skills_opts/0` -- the codec's real per-skill override surface, keyed
+     by capability id, values carrying nil (inherit) or explicit lists
+     (lib/ash_a2a/capability_index/agent_card_builder.ex:10-14,152-176;
+     forwarded by `AshA2A.Info.agent_card/2`, lib/ash_a2a/info.ex:95-106).
+   - Governance lookups mapped from ema:consequence / ema:requiresAuthority:
+     the v1.0 dispatch truth is that AshA2A.Agent routes by
+     `AshA2A.Skill.consequence()` (:observe direct dispatch; :change/
+     :external_do through CommandBus admission/authority/receipt; unclassified
+     refused `:consequence_unclassified`, lib/ash_a2a/agent.ex:823-849) and
+     authority fails closed for ungranted consequential capabilities
+     (lib/ash_a2a/agent.ex:931-952).
+
+   CORRECTED history: an earlier version of this template generated the
+   external pre-v1.0 protocol library's agent macro, whose
+   status-update wire frames carried a legacy discriminator key and a
+   legacy finality boolean that the v1.0 codec no longer emits
+   (lib/ash_a2a/protocol/event.ex:20-27 -- v1.0 frames carry neither;
+   finality is carried by a terminal status state). #}
 defmodule {{ app_module }}Web.A2A.{{ agent_module }} do
   @moduledoc """
-  Generated A2A agent for `{{ app_module }}`: {{ agent_description }}
+  Generated A2A v1.0 agent for `{{ app_module }}`: {{ agent_description }}
 
-  Mount at `{{ agent_mount_path }}` in your router:
+  A real `AshA2A.Protocol.Agent` GenServer. Mount it in your router and
+  supervise it:
 
       forward "{{ agent_mount_path }}", {{ app_module }}Web.A2A.{{ agent_module }}
+      children = [{ {{ app_module }}Web.A2A.{{ agent_module }}, []}]
+
+  v1.0 surface (lib files cited from ash_a2a):
+
+  - `agent_card/0` is generated from the literal card opts below plus a
+    `protocol_version` override, so the card advertises v1.0 through BOTH
+    the top-level `:protocol_version` (single source of truth
+    `AshA2A.Protocol.Version.protocol_version/0`,
+    lib/ash_a2a/protocol/version.ex:12) AND every `supported_interfaces`
+    entry's `protocol_version` + `protocol_binding: "JSONRPC"`
+    (spec sections 4.4/8.2; lib/ash_a2a/protocol/agent_card.ex:9-26,63-64).
+  - Per-skill `input_modes`/`output_modes` ride each card skill only when
+    its ema:Capability row declares them (v1.0 AgentSkill fields 6/7,
+    lib/ash_a2a/protocol/agent_card.ex:18-21); an absent key means the
+    skill inherits the card-level defaults.
+  - `handle_message/2` receives an `AshA2A.Protocol.Message` (build one for
+    a real call with `AshA2A.Protocol.Message.new_user/1`,
+    lib/ash_a2a/protocol/message.ex:36-47) and returns a
+    `AshA2A.Protocol.Agent` reply tuple -- `{:reply, [part]} |
+    {:input_required, [part]} | {:stream, enum} | {:message, [part]} |
+    {:error, term}` (lib/ash_a2a/protocol/agent.ex:186-191;
+    `AshA2A.Dispatcher` maps every Ash outcome to the same shapes,
+    lib/ash_a2a/dispatcher.ex:89-93).
+  - A failed reply is a typed map (`%{code: _}`) agent-side; on the wire it
+    is serialized through `AshA2A.Protocol.JSONRPC.Error.to_map/1`, which
+    wraps A2A-specific codes in a `google.rpc.ErrorInfo` object with an
+    explicit reason (`AshA2A.ToA2AError`,
+    lib/ash_a2a/to_a2a_error.ex:19-40) -- never a bare error string.
+  - v1.0 streaming frames carry neither the legacy per-frame discriminator
+    key nor a per-frame finality boolean -- finality is a terminal status
+    state (`completed`, `canceled`, `failed`, `rejected`,
+    `input_required`, `auth_required`;
+    lib/ash_a2a/protocol/event.ex:20-27,
+    lib/ash_a2a/protocol/task.ex:29-31).
   """
 
-  use A2A.Agent,
+  use AshA2A.Protocol.Agent,
     name: "{{ agent_name }}",
     description: "{{ agent_description }}",
+    version: "{% if agent_version %}{{ agent_version }}{% else %}0.1.0{% endif %}",
     skills: [
 {% for c in caps %}      %{
         id: "{{ c.capability_id }}",
         name: "{{ c.capability_name }}",
         description: "{{ c.capability_description }}",
-        tags: ["generated", "{{ app_module | lower }}"]
+        tags: [{% if c.tags %}{% for t in c.tags | split(sep=",") %}"{{ t }}"{% if not loop.last %}, {% endif %}{% endfor %}{% else %}"generated", "{{ app_module | lower }}"{% endif %}]{% if c.input_modes %},
+        input_modes: [{% for m in c.input_modes | split(sep=",") %}"{{ m }}"{% if not loop.last %}, {% endif %}{% endfor %}]{% endif %}{% if c.output_modes %},
+        output_modes: [{% for m in c.output_modes | split(sep=",") %}"{{ m }}"{% if not loop.last %}, {% endif %}{% endfor %}]{% endif %}
       }{% if not loop.last %},
 {% endif %}
-{% endfor %}    ]
+{% endfor %}    ],
+    capabilities: %{
+      streaming: true,
+      push_notifications: false,
+      state_transition_history: false,
+      extended_agent_card: false
+    },
+    supported_interfaces: [
+      %{
+        url: "{% if agent_base_url %}{{ agent_base_url }}{% else %}http://localhost:4000{% endif %}{{ agent_mount_path }}",
+        protocol_binding: "JSONRPC",
+        protocol_version: AshA2A.Protocol.Version.protocol_version()
+      }
+    ]
+
+  # The `use`-generated `agent_card/0` (lib/ash_a2a/protocol/agent.ex
+  # build_card_ast/1) emits name/description/version/skills plus the extras
+  # above, but no top-level version-of-the-protocol key, so the override
+  # below adds it: the card itself advertises v1.0, not only its interface
+  # list. `defoverridable agent_card: 0` is set by the macro.
+  def agent_card do
+    super()
+    |> Map.put(:protocol_version, AshA2A.Protocol.Version.protocol_version())
+  end
 
   # Real dispatch is deliberately NOT generated here: each skill's actual
-  # handler must call this app's own real Ash action/context function
-  # (this pack does not invent a generic dispatch mechanism that could
-  # silently no-op a skill invocation). See {{ app_module }}Web.McpDescriptor
-  # for this same capability list's real ash_action bindings, where
-  # present, as the source of truth for wiring a skill handler.
+  # handler must call this app's own real Ash action/context function (this
+  # pack does not invent a generic dispatch mechanism that could silently
+  # no-op a skill invocation). Until the consumer hand-writes dispatch, this
+  # generated default fails closed with the dispatcher's own typed no-skill
+  # refusal shape (`{:error, {:no_skill, _}}`,
+  # lib/ash_a2a/agent.ex:1350-1356) -- never a silent success.
+  @impl AshA2A.Protocol.Agent
+  def handle_message(_message, _context) do
+    {:error, {:no_skill, __MODULE__}}
+  end
+
+  # Per-skill wire-mode override surface, keyed by capability id. This is
+  # the real codec surface: `AshA2A.CapabilityIndex.AgentCardBuilder`'s
+  # `:skills_opts` build option (lib/ash_a2a/capability_index/
+  # agent_card_builder.ex:10-14,152-176), also forwarded by
+  # `AshA2A.Info.agent_card/2` (lib/ash_a2a/info.ex:95-106) when this
+  # surface's capabilities are backed by real Ash actions. A nil value (or
+  # an omitted key) means the skill inherits the card-level defaults -- nil
+  # is explicitly handled by the builder, unlike an empty list, which would
+  # wrongly override the defaults.
+  @doc """
+  Per-skill `:input_modes`/`:output_modes` override for the card codec,
+  keyed by capability id. Forward as `skills_opts:` to
+  `AshA2A.Info.agent_card/2` / `AshA2A.CapabilityIndex.build_agent_card/2`.
+  """
+  @spec skills_opts() :: %{optional(String.t()) => keyword()}
+  def skills_opts do
+    %{
+{% for c in caps %}      "{{ c.capability_id }}" => [input_modes: {% if c.input_modes %}[{% for m in c.input_modes | split(sep=",") %}"{{ m }}"{% if not loop.last %}, {% endif %}{% endfor %}]{% else %}nil{% endif %}, output_modes: {% if c.output_modes %}[{% for m in c.output_modes | split(sep=",") %}"{{ m }}"{% if not loop.last %}, {% endif %}{% endfor %}]{% else %}nil{% endif %}]{% if not loop.last %},
+{% endif %}
+{% endfor %}    }
+  end
+
+  # v1.0 governance, straight from this surface's ema:Capability rows.
+  # `consequence` mirrors `AshA2A.Skill.consequence()`
+  # (lib/ash_a2a/skill.ex:73): :observe is never consequence-bearing;
+  # :change/:external_do route through CommandBus admission/authority/
+  # receipt (lib/ash_a2a/agent.ex:836-845); nil means UNCLASSIFIED -- the
+  # same fail-closed treatment AshA2A.Agent gives an unclassified skill
+  # (`:consequence_unclassified`, lib/ash_a2a/agent.ex:847-849,906-916),
+  # never a silent "treat as read".
+  @governance %{
+{% for c in caps %}      "{{ c.capability_id }}" => %{consequence: {% if c.consequence %}:{{ c.consequence }}{% else %}nil{% endif %}, requires_authority: {{ c.requires_authority }}}{% if not loop.last %},
+{% endif %}
+{% endfor %}  }
+
+  @doc """
+  The `AshA2A.Skill.consequence()` classification for one capability id, or
+  `nil` when the row is unclassified (fail closed -- see `AshA2A.Agent`'s
+  `:consequence_unclassified` refusal, lib/ash_a2a/agent.ex:847-849).
+  """
+  @spec consequence(String.t()) :: :observe | :change | :external_do | nil
+  def consequence(capability_id) do
+    case Map.fetch(@governance, capability_id) do
+      {:ok, %{consequence: consequence}} -> consequence
+      :error -> nil
+    end
+  end
+
+  @doc """
+  Real authority check per capability: does invoking it demand an explicit
+  authority context? Fails closed (`true`) for any unregistered id, the
+  same convention `{{ app_module }}Web.McpDescriptor.requires_authority?/1`
+  uses. This function does not itself GRANT authority -- v1.0 runtime truth
+  is that `AshA2A.Authority.Grant.authorize/3` mints authority only from a
+  real standing grant and `CommandBus.admit/2` refuses
+  `:authority_required` otherwise (lib/ash_a2a/agent.ex:931-952).
+  """
+  @spec requires_authority?(String.t()) :: boolean()
+  def requires_authority?(capability_id) do
+    case Map.fetch(@governance, capability_id) do
+      {:ok, %{requires_authority: requires_authority}} -> requires_authority
+      :error -> true
+    end
+  end
 end

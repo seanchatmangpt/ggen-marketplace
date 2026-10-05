@@ -1,0 +1,75 @@
+---
+to: ".well-known/agent.json"
+for_each: "agent"
+sparql:
+  agent: |
+    PREFIX aaif: <https://aaif.io/ontology#>
+    SELECT ?name ?description ?url ?version ?skillId ?skillName ?skillDescription WHERE {
+      ?s a aaif:Agent ;
+         aaif:name ?name ;
+         aaif:description ?description ;
+         aaif:url ?url ;
+         aaif:version ?version .
+      OPTIONAL {
+        ?s aaif:hasSkill ?sk .
+        ?sk aaif:skillId ?skillId ;
+            aaif:skillName ?skillName ;
+            aaif:skillDescription ?skillDescription .
+      }
+    }
+---
+{
+  "name": "{{ name }}",
+  "description": "{{ description }}",
+  "url": "{{ url }}",
+  "version": "{{ version }}",
+  "supported_interfaces": [
+    {
+      "url": "{{ url }}/a2a/v1",
+      "protocol_binding": "HTTP+JSON",
+      "protocol_version": "1.0"
+    },
+    {
+      "url": "{{ url }}/grpc",
+      "protocol_binding": "GRPC",
+      "protocol_version": "1.0"
+    }
+  ],
+  "capabilities": {
+    "streaming": true,
+    "push_notifications": true,
+    "extended_agent_card": true
+  },
+  "security_schemes": {
+    "bearer_auth": {
+      "http_auth_security_scheme": {
+        "scheme": "Bearer",
+        "bearer_format": "JWT",
+        "description": "Enterprise JWT Bearer Token"
+      }
+    },
+    "oauth2": {
+      "oauth2_security_scheme": {
+        "flows": {
+          "client_credentials": {
+            "token_url": "{{ url }}/oauth/token",
+            "scopes": {
+              "agent:execute": "Permission to invoke agent tasks",
+              "agent:read": "Permission to inspect task status"
+            }
+          }
+        }
+      }
+    }
+  },
+  "default_input_modes": ["text/plain", "application/json"],
+  "default_output_modes": ["text/plain", "application/json"],
+  "skills": [
+    {
+      "id": "{% if skillId %}{{ skillId }}{% else %}task_execution{% endif %}",
+      "name": "{% if skillName %}{{ skillName }}{% else %}Autonomous Task Execution{% endif %}",
+      "description": "{% if skillDescription %}{{ skillDescription }}{% else %}Handles enterprise workflows conforming to AAIF standards{% endif %}",
+      "tags": ["{% if skillId %}decision-fabric{% else %}automation{% endif %}", "{% if skillId %}formal-planning{% else %}orchestration{% endif %}", "{% if skillId %}scikit-decide{% else %}enterprise{% endif %}"]
+    }
+  ]
+}

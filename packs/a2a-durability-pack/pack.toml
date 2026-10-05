@@ -1,0 +1,60 @@
+[pack]
+name = "a2a-durability-pack"
+version = "0.1.0"
+description = """
+A2A task durability surfaces for ash_a2a: the ash_pplan-backed durable
+dispatch provider, the EKV-backed on-disk task store, the proven restart
+continuity story, and the one honest gap (mid-flight streams are
+cancelable, not resumable).
+
+The ontology grounds every dur:DurabilitySurface individual in a REAL
+ash_a2a module, cited by its lib/ path (truth source: /Users/sac/ash_a2a
+on the v1.0 drop this pack was minted against), and cites exactly the
+three landed durability courts that witness it — no court, no surface:
+
+  PPlanProvider     -> AshA2A.Providers.PPlan    lib/ash_a2a/providers/pplan.ex
+                       (dispatch start-or-adopt / resume via consume-once
+                       signals / read-only status / claim-CAS cancel)
+  EkvTaskStore      -> AshA2A.TaskStore.Ekv      lib/ash_a2a/task_store/ekv.ex
+                       (at-rest redaction: "a2a.auth" + :stream stripped,
+                       "ash_a2a.owner" deliberately persisted)
+  RestartContinuity -> Runtime.continue/6 via Agent.State.get_task/2
+                       lib/ash_a2a/transport/runtime.ex
+                       (hard-kill store restart, two-node EKV cluster,
+                       fresh-agent read-through get)
+  StreamBoundary    -> the honest gap, GitHub issue #8: a mid-flight stream
+                       is node-local; the persisted task is resubscribable
+                       and cancelable on a fresh agent, never resumable
+
+Witnessing courts (each surface cites one or more; the court-citation gate
+refuses the pack without a resolving citation):
+
+  test/ash_a2a_pplan_durability_test.exs        (lane Y6, provider tier)
+  test/ash_a2a_v1_taskstore_durability_test.exs (lane X9, store tier)
+  test/ash_a2a_v1_multinode_continuity_test.exs (lane Z8, continuity tier)
+
+Templates render consumer-side artifacts that delegate to the real modules:
+a supervised durable-task-store wiring module (Ekv child_spec + agent
+:task_store opt) and the pplan provider config snippet. Gates check the
+pack's own graph for surface completeness and court citations; the verify
+companions are the fail-closed inverted forms (zero rows is the pass
+condition).
+
+Falsifier: generated wiring boots a store that survives restart — the
+restart court's procedure (test/ash_a2a_v1_taskstore_durability_test.exs
+court (b)): boot the generated child_spec, write a task through the real
+store, stop the EKV child (whereis -> nil), restart at the same :data_dir,
+re-read at full fidelity. The procedure is embedded in the generated
+module's moduledoc and reproduced in README.md.
+"""
+
+# Relationship note (NOT a pack.toml [dependencies] entry): the durability
+# surfaces configure/dispatch through the protocol surface modeled in
+# packs/a2a-v1-protocol-pack (0.1.0), but ggen refuses a [dependencies] entry
+# unless the consumer lists that pack in its own ggen.toml [packs] table
+# (FM-PACK-014), and scripts/qualify_packs.py qualifies every pack in
+# isolation with a single-pack [packs] table -- so a declared dependency
+# could never resolve here. The relationship is documentation-only: nothing
+# in this pack's ontology or templates references a2a-v1-protocol vocabulary.
+# Same precedented remediation as packs/greene-licensing-case-pack
+# (FM-PACK-014).

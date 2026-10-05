@@ -1,0 +1,55 @@
+# GATE 010 -- template completeness ("every declared verifier/transformer has a
+# template that generates a skeleton for it").
+#
+# MESSAGE: every spark:Verifier or spark:Transformer individual modeled in
+# ontology.ttl must be the spark:templateFor target of at least one
+# spark:CodegenTemplate individual; and every template target must itself be a
+# modeled spark:Verifier/spark:Transformer. A declared verifier with no
+# template is pack content the pack.toml promise advertises but nothing can
+# generate -- the empty-husk defect this pack was revived to close. A template
+# targeting an unmodeled individual is a dangling promise.
+#
+# SELECT gate semantics: Violation = RowCount > 0. Zero rows = gate pass.
+#
+# Anti-vacuity: delete the sa2a:SparkTransformerSkeletonTemplate individual
+# (or its spark:templateFor triple) from ontology.ttl and this gate returns a
+# row for sa2a:BuildCapabilityIndex. Add a template targeting an individual
+# that does not exist and it returns that dangling target.
+PREFIX spark: <urn:spark:dsl:>
+PREFIX sa2a: <urn:sa2a:spark:>
+
+SELECT ?target ?violation WHERE {
+  {
+    ?target a spark:Verifier .
+    FILTER NOT EXISTS {
+      ?template a spark:CodegenTemplate ;
+                spark:templateFor ?target .
+    }
+    BIND("SA2A-PACK-TEMPLATE-MISSING-FOR-VERIFIER" AS ?violation)
+  }
+  UNION
+  {
+    ?target a spark:Transformer .
+    FILTER NOT EXISTS {
+      ?template a spark:CodegenTemplate ;
+                spark:templateFor ?target .
+    }
+    BIND("SA2A-PACK-TEMPLATE-MISSING-FOR-TRANSFORMER" AS ?violation)
+  }
+  UNION
+  {
+    ?template a spark:CodegenTemplate ;
+              spark:templateFor ?target .
+    FILTER NOT EXISTS {
+      { ?target a spark:Verifier } UNION { ?target a spark:Transformer }
+    }
+    BIND("SA2A-PACK-TEMPLATE-TARGETS-UNMODELED-INDIVIDUAL" AS ?violation)
+  }
+  UNION
+  {
+    ?template a spark:CodegenTemplate .
+    FILTER NOT EXISTS { ?template spark:templateFile ?file }
+    BIND("SA2A-PACK-TEMPLATE-MISSING-FILE" AS ?violation)
+  }
+}
+ORDER BY ?target ?violation

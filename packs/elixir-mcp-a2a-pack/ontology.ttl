@@ -14,7 +14,11 @@
 # AshAi.Mcp.Router, tools: [...])` scope, `:audit_mcp_tool_call` pipeline),
 # lib/xaas_web/plugs/audit_mcp_tool_call.ex (real non-blocking audit-log
 # plug wrapping the forward), lib/xaas_web/a2a/next_read_user_agent.ex
-# (real `use A2A.Agent, name:, description:, skills: [...]`).
+# (real at the time: `use A2A.Agent, name:, description:, skills: [...]`;
+# updated 2026-10-04 for the landed ash_a2a v1.0 surface -- the generated
+# agent is now a real `use AshA2A.Protocol.Agent, name:, description:,
+# skills:, supported_interfaces:` GenServer whose card advertises v1.0,
+# see the ema:agentModule comment below).
 #
 # Directly closes the two real cross-repo gaps named in this session's
 # vision-2030 requirements pass: v2030:MCPCapabilityDescriptor (per-
@@ -38,12 +42,17 @@ ema:mcpProtocolVersion a rdf:Property ; rdfs:domain ema:CapabilitySurface ; rdfs
 ema:mcpAuditPlugModule a rdf:Property ; rdfs:domain ema:CapabilitySurface ;
     rdfs:comment "0-1 rows -- fully-qualified plug module for a non-blocking per-request audit log, mirroring XaasWeb.Plugs.AuditMcpToolCall's real convention (audit the forward itself, not each tool; a failed audit write never halts the real request). Absent means no audit plug is generated -- disclosed gap, not a silent security claim." .
 
-ema:agentModule   a rdf:Property ; rdfs:domain ema:CapabilitySurface ; rdfs:comment "the A2A.Agent module name, e.g. XaasWeb.A2A.NextReadUserAgent." .
+ema:agentModule   a rdf:Property ; rdfs:domain ema:CapabilitySurface ; rdfs:comment "the generated AshA2A.Protocol.Agent module name, e.g. XaasWeb.A2A.NextReadUserAgent. v1.0 note (2026-10-04): the generated module is a real `use AshA2A.Protocol.Agent, name:, description:, version:, skills:, supported_interfaces:` GenServer (lib/ash_a2a/protocol/agent.ex -- the behaviour's own moduledoc usage block), not the pre-v1.0 external `A2A.Agent` macro; per-skill modes/consequence/authority come from this surface's own ema:Capability rows via the generated skills_opts/0 and governance lookups." .
 ema:skillsModule  a rdf:Property ; rdfs:domain ema:CapabilitySurface ;
     rdfs:comment "explicit, admitted module name for the GENERATED, pure-data skills-list module (e.g. \"XaasWeb.A2A.NextReadUserAgentSkills\"), safe to fully regenerate every ggen_igniter.sync run. Stated as fact here, not derived by string-appending \"Skills\" to ema:agentModule -- the same 'echo, don't synthesize' discipline ash-extension-core-pack's aex:taskModuleName property already documents (a real parity bug there: naive derivation from a dotted module name produces the wrong camelization). The real hand-written ema:agentModule module (real dispatch logic, never regenerated) references this module's `skills/0` function instead of hardcoding its skill list inline -- this is the seam: generated metadata + hand-written dispatch, tied by an explicit name, mirroring Ash's own Persist/Verify/Info module split. Absent means the agent template still generates skills: inline as before (back-compat), and no separate skills module is produced." .
-ema:agentName     a rdf:Property ; rdfs:domain ema:CapabilitySurface ; rdfs:comment "A2A.Agent `name:` field." .
+ema:agentName     a rdf:Property ; rdfs:domain ema:CapabilitySurface ; rdfs:comment "`AshA2A.Protocol.Agent` card `name:` opt." .
 ema:agentDescription a rdf:Property ; rdfs:domain ema:CapabilitySurface .
 ema:agentMountPath a rdf:Property ; rdfs:domain ema:CapabilitySurface ; rdfs:comment "e.g. \"/a2a\" (xaas's real convention)." .
+ema:agentBaseUrl  a rdf:Property ; rdfs:domain ema:CapabilitySurface ;
+    rdfs:comment "0-1 rows -- public base URL the generated card's `url` field and every supported_interfaces entry advertise, e.g. \"https://api.example.com\". Absent means the template defaults to \"http://localhost:4000\" -- a real, disclosed default, never a fabricated production URL." .
+ema:agentVersion  a rdf:Property ; rdfs:domain ema:CapabilitySurface ;
+    rdfs:comment "0-1 rows -- the generated card's agent `version` (the `use AshA2A.Protocol.Agent` :version card opt). Absent means the macro's own default \"0.1.0\" (lib/ash_a2a/protocol/agent.ex build_card_ast/1)." .
+
 ema:agentSwarmRole a rdf:Property ; rdfs:domain ema:CapabilitySurface ; rdfs:range v2030:SwarmRole ;
     rdfs:comment "0-1 rows -- links this generated A2A agent to a v2030:SwarmRole individual (Observer/Historian/Ontologist/...) when this surface is standing up one of the nine named Vision-2030 roles rather than a domain-specific agent like NextReadUserAgent. Optional: not every generated agent need be a swarm role." .
 
@@ -63,10 +72,20 @@ ema:capabilityAshAction a rdf:Property ; rdfs:domain ema:Capability ; rdfs:comme
 
 ema:observationScope    a rdf:Property ; rdfs:domain ema:Capability ; rdfs:comment "closed: \"none\" | \"read_only\" | \"read_write\" -- what this capability can observe." .
 ema:mutationScope       a rdf:Property ; rdfs:domain ema:Capability ; rdfs:comment "closed: \"none\" | \"idempotent\" | \"consequential\" -- \"consequential\" means this capability's real backing action must route through Xaas.Actuation.run/4 or ex4pm's BRCE.execute/5, per both repos' own doctrine that observation/projection never implies DO authority." .
-ema:requiresAuthority   a rdf:Property ; rdfs:domain ema:Capability ; rdfs:comment "boolean -- whether calling this capability requires an explicit authority context (mirrors ce:AgentRole/odrl:Permission's real shape in chatman-ecosystem.ttl, and xaas's own Consequential-DO doctrine in CLAUDE.md)." .
+ema:requiresAuthority   a rdf:Property ; rdfs:domain ema:Capability ; rdfs:comment "boolean -- whether calling this capability requires an explicit authority context. v1.0 runtime truth this row now mirrors: AshA2A.Authority.Grant.authorize/3 returns nil (and CommandBus.admit/2 refuses :authority_required) when no standing grant exists for a :change/:external_do capability, so authentication alone does NOT confer DO authority (lib/ash_a2a/agent.ex:931-952, lib/ash_a2a/authority/grant.ex)." .
 ema:isReversible        a rdf:Property ; rdfs:domain ema:Capability ; rdfs:comment "boolean -- whether a real compensating action exists for this capability's effect." .
 ema:costEstimate        a rdf:Property ; rdfs:domain ema:Capability ; rdfs:comment "optional free-text cost note, e.g. \"O(n) over active checkouts\" -- deliberately not a formal cost model; naming a real number here where known beats a fabricated unit elsewhere." .
 ema:receiptSemantics    a rdf:Property ; rdfs:domain ema:Capability ; rdfs:comment "closed: \"none\" | \"logged\" | \"sealed_receipt\" -- \"sealed_receipt\" means this capability's call produces a real Xaas.Actuation-style or ex4pm BRCE-style receipt, not just an audit log line." .
+
+# v1.0 fields (added 2026-10-04) -- the fields the landed ash_a2a v1.0 codec
+# and dispatch surface now support, mapped from ema:Capability rows:
+
+ema:inputModes          a rdf:Property ; rdfs:domain ema:Capability ;
+    rdfs:comment "0+ rows -- per-skill wire media types this capability accepts, e.g. \"text/plain\" | \"application/json\". The v1.0 AgentSkill fields 6/7 OPTIONAL override of the card-level defaults (lib/ash_a2a/protocol/agent_card.ex:18-21): projected onto the generated card skill (key omitted when absent -- absent means the skill inherits default_input_modes/default_output_modes) and onto the generated skills_opts/0 map, the real codec override surface (`AshA2A.CapabilityIndex.AgentCardBuilder`'s :skills_opts, lib/ash_a2a/capability_index/agent_card_builder.ex:10-14,152-176, forwarded by AshA2A.Info.agent_card/2, lib/ash_a2a/info.ex:95-106). Generator note, disclosed: the template queries aggregate this multi-valued property (and ema:capabilityTag) over their own DISTINCT (capability, value) subselect, so multi-valued tags and multi-valued modes never cross-multiply in the rendered output (a first draft's plain GROUP_CONCAT over the shared row set duplicated every field by the product of the others' cardinality -- observed for real on the xaas fixture's checkout row and fixed in queries/a2a_capabilities.rq before any template consumed it)." .
+ema:outputModes         a rdf:Property ; rdfs:domain ema:Capability ;
+    rdfs:comment "0+ rows -- per-skill wire media types this capability emits; same projection contract as ema:inputModes." .
+ema:consequence         a rdf:Property ; rdfs:domain ema:Capability ;
+    rdfs:comment "0-1 rows -- closed: \"observe\" | \"change\" | \"external_do\" | \"unknown\" -- the AshA2A.Skill.consequence() vocabulary (lib/ash_a2a/skill.ex:73). Real v1.0 capability truth: AshA2A.Agent routes dispatch by skill.consequence (:observe -> direct Dispatcher.dispatch_observe/5; :change/:external_do -> CommandBus.run/4 admission/authority/receipt; :unknown or unclassified -> typed :consequence_unclassified refusal, lib/ash_a2a/agent.ex:823-849,906-916), and AshA2A.Authority.Grant.authorize/3 fails closed when no standing grant exists for a :change/:external_do capability (lib/ash_a2a/agent.ex:931-952). Absent means unclassified -- the generated descriptor reports nil and never silently treats the capability as a read." .
 
 #################################################################
 # Named follow-ups, NOT built in this version (disclosed, not silently

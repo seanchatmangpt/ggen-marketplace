@@ -38,7 +38,7 @@ SEMVER = re.compile(
     r"(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
 )
 TEMPLATE_SUFFIXES = (".tmpl", ".tera", ".eex")
-GATE_SOURCE_SUFFIXES = frozenset({".rq", ".py"})
+GATE_SOURCE_SUFFIXES = frozenset({".rq", ".py", ".sh"})
 # Per-pack lifecycle (state + planned intent) lives in lifecycle.toml, not here and not in
 # pack.toml: the real ggen loader refuses unknown [pack] keys. Directories of retired/superseded
 # packs stay on disk for path-pinned consumers; only catalog-level treatment changes.
