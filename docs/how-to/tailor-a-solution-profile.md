@@ -22,6 +22,9 @@ Edit the `deployment` block. Enum-valued fields accept only values
 enumerated in `packs/aaif-profile-tailoring-pack/ontology.ttl` — a closed
 set; any other value projects `UNSUPPORTED`.
 
+Shortcut: `python3 scripts/run_solution_quickstart.py --profile team`
+exercises the alternate enum corner end-to-end without manual capsule work.
+
 ### 2. Admit the profile with a lock
 ```bash
 python3 scripts/profile_intake.py examples/profiles/acme.json \
@@ -48,7 +51,7 @@ python3 scripts/profile_intake.py solutions/<slug>-aaif/profile.json \
 Digests: `scripts/deploy_aaif_solution.py` validates them via
 `check_lock_digests` — profile digest plus per-pack content hashes must
 match the solution inputs or the deployer refuses with exit 9
-(`PROFILE_DIGEST_DRIFT`).
+(`REFUSED:PROFILE_DIGEST_DRIFT`).
 
 ### 4. Deploy to the kind rail
 ```bash
@@ -62,7 +65,7 @@ Tests exercise the same boundary via `tests/test_aaif_deployment_court.py`.
 
 ## Falsifiers
 - Edit a solution input after locking without re-locking -> exit 9
-  (`PROFILE_DIGEST_DRIFT`).
+  (`REFUSED:PROFILE_DIGEST_DRIFT`).
 - Enum value absent from `packs/aaif-profile-tailoring-pack/ontology.ttl`
   -> gate refusal (`UNSUPPORTED` projection, typed exit).
 
@@ -75,5 +78,8 @@ kind-rail receipts as GCP evidence.
 ## Rollback
 
 All artifacts are derived: delete `solutions/<slug>-aaif/`, `dist/<slug>`,
-and any `receipts/` entries minted by the run. `solutions/enterprise-aaif/`
+and any `receipts/` entries minted by the run. The quickstart
+(`scripts/run_solution_quickstart.py`) detects committed-lock drift
+(`REFUSED:LOCK_DRIFT`) and requires `--accept-drift` to regenerate
+the lock deliberately. `solutions/enterprise-aaif/`
 and `examples/profiles/` are never modified.
