@@ -1,0 +1,28 @@
+# agentgateway_config.rq — consumed by templates/agentgateway_config.json.tmpl (aaif-vanilla-pack)
+#
+# Single-row projection idiom (legacy renderer used first-row context).
+# Projected columns (MUST equal template's {{ }} vars):
+#   port        - aaif:port of the aaif:Gateway; the template renders it
+#                 UNQUOTED as a JSON number ("port": {{ port }}), so the
+#                 typed literal is passed through STR() to bind a plain
+#                 string that Tera displays without quotes
+#   xds_address - aaif:xdsAddress of the aaif:Gateway (backend host)
+#   auth_issuer - aaif:authIssuer of the aaif:Gateway (JWT issuer)
+#
+# All facts mandatory: a partial aaif:Gateway individual yields zero rows
+# and the engine refuses — defaults never render.
+
+PREFIX aaif: <https://aaif.io/ontology#>
+
+SELECT ?port ?xds_address ?auth_issuer
+WHERE {
+  ?s a aaif:Gateway ;
+     aaif:port ?port_raw ;
+     aaif:xdsAddress ?xds_address_raw ;
+     aaif:authIssuer ?auth_issuer_raw .
+  BIND(STR(?port_raw) AS ?port)
+  BIND(STR(?xds_address_raw) AS ?xds_address)
+  BIND(STR(?auth_issuer_raw) AS ?auth_issuer)
+}
+ORDER BY ?s
+LIMIT 1

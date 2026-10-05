@@ -1,0 +1,45 @@
+# a2a_agent_card.rq — consumed by templates/a2a_agent_card.json.tmpl (aaif-vanilla-pack)
+#
+# Single-row projection idiom (legacy renderer used first-row context).
+# Projected columns (MUST equal template's {{ }} vars):
+#   name              - aaif:name of the aaif:Agent
+#   description       - aaif:description of the aaif:Agent
+#   url               - aaif:url of the aaif:Agent
+#   version           - aaif:version of the aaif:Agent
+#   skillId           - aaif:skillId of the agent's aaif:hasSkill skill;
+#                       OPTIONAL-derived, COALESCE("" ) so Tera
+#                       {% if skillId %} sees empty-string -> falsy and
+#                       renders the "task_execution" default branch
+#   skillName         - as skillId (default branch: "Autonomous Task Execution")
+#   skillDescription  - as skillId (default branch: "Handles enterprise
+#                       workflows conforming to AAIF standards")
+#
+# Required agent facts are mandatory (no skill declared -> skill columns
+# project ""); a missing name/description/url/version yields zero rows and
+# the engine refuses — defaults never render.
+
+PREFIX aaif: <https://aaif.io/ontology#>
+
+SELECT ?name ?description ?url ?version ?skillId ?skillName ?skillDescription
+WHERE {
+  ?s a aaif:Agent ;
+     aaif:name ?name_raw ;
+     aaif:description ?description_raw ;
+     aaif:url ?url_raw ;
+     aaif:version ?version_raw .
+  OPTIONAL {
+    ?s aaif:hasSkill ?sk .
+    ?sk aaif:skillId ?skillId_raw ;
+        aaif:skillName ?skillName_raw ;
+        aaif:skillDescription ?skillDescription_raw .
+  }
+  BIND(STR(?name_raw) AS ?name)
+  BIND(STR(?description_raw) AS ?description)
+  BIND(STR(?url_raw) AS ?url)
+  BIND(STR(?version_raw) AS ?version)
+  BIND(COALESCE(STR(?skillId_raw), "") AS ?skillId)
+  BIND(COALESCE(STR(?skillName_raw), "") AS ?skillName)
+  BIND(COALESCE(STR(?skillDescription_raw), "") AS ?skillDescription)
+}
+ORDER BY ?s
+LIMIT 1

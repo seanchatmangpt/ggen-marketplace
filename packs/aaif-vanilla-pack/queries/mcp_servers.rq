@@ -1,0 +1,27 @@
+# mcp_servers.rq — consumed by templates/mcp_servers.json.tmpl (aaif-vanilla-pack)
+#
+# Single-row projection idiom (legacy renderer used first-row context).
+# Projected columns (MUST equal template's {{ }} vars):
+#   name      - aaif:name of the aaif:Agent
+#   mcpServer - aaif:requiresMcpServer of the aaif:Agent; OPTIONAL-derived,
+#               COALESCE("") so Tera {% if mcpServer %} sees empty-string ->
+#               falsy and omits the autofde_decision_fabric server block
+#
+# Agent name is mandatory; an agent with no aaif:requiresMcpServer triple
+# projects mcpServer = "" (block omitted). A missing name yields zero rows
+# and the engine refuses — defaults never render.
+
+PREFIX aaif: <https://aaif.io/ontology#>
+
+SELECT ?name ?mcpServer
+WHERE {
+  ?s a aaif:Agent ;
+     aaif:name ?name_raw .
+  OPTIONAL {
+    ?s aaif:requiresMcpServer ?mcpServer_raw .
+  }
+  BIND(STR(?name_raw) AS ?name)
+  BIND(COALESCE(STR(?mcpServer_raw), "") AS ?mcpServer)
+}
+ORDER BY ?s
+LIMIT 1

@@ -1,0 +1,49 @@
+# agents_md.rq — consumed by templates/AGENTS.md.tmpl (aaif-vanilla-pack)
+#
+# Single-row projection idiom (legacy renderer used first-row context).
+# Projected columns (MUST equal template's {{ }} vars):
+#   name               - aaif:name of the aaif:Agent
+#   description        - aaif:description of the aaif:Agent
+#   dev_environment    - aaif:devEnvironment of the aaif:AgentsMd individual;
+#                        OPTIONAL-derived, COALESCE("") so Tera
+#                        {% if dev_environment %} sees empty-string -> falsy
+#                        and renders the containerized-tools default branch
+#   testing            - aaif:testing of aaif:AgentsMd (same OPTIONAL/COALESCE
+#                        law; default: "Run all test suites before committing
+#                        changes. Ensure green CI.")
+#   coding_conventions - aaif:codingConventions of aaif:AgentsMd (default:
+#                        type-safety/doc-integrity branch)
+#   commands           - aaif:commands of aaif:AgentsMd (default:
+#                        "See repository task runners and build manifests.")
+#   boundaries         - aaif:boundaries of aaif:AgentsMd (default:
+#                        doc-integrity / no-secrets branch)
+#
+# Agent name/description are mandatory; a missing aaif:AgentsMd individual
+# projects "" into the six guidance columns so the defaults render. A missing
+# name/description yields zero rows and the engine refuses.
+
+PREFIX aaif: <https://aaif.io/ontology#>
+
+SELECT ?name ?description ?dev_environment ?testing ?coding_conventions ?commands ?boundaries
+WHERE {
+  ?s a aaif:Agent ;
+     aaif:name ?name_raw ;
+     aaif:description ?description_raw .
+  OPTIONAL {
+    ?agents_md a aaif:AgentsMd ;
+               aaif:devEnvironment ?dev_environment_raw ;
+        aaif:testing ?testing_raw ;
+        aaif:codingConventions ?coding_conventions_raw ;
+        aaif:commands ?commands_raw ;
+        aaif:boundaries ?boundaries_raw .
+  }
+  BIND(STR(?name_raw) AS ?name)
+  BIND(STR(?description_raw) AS ?description)
+  BIND(COALESCE(STR(?dev_environment_raw), "") AS ?dev_environment)
+  BIND(COALESCE(STR(?testing_raw), "") AS ?testing)
+  BIND(COALESCE(STR(?coding_conventions_raw), "") AS ?coding_conventions)
+  BIND(COALESCE(STR(?commands_raw), "") AS ?commands)
+  BIND(COALESCE(STR(?boundaries_raw), "") AS ?boundaries)
+}
+ORDER BY ?s
+LIMIT 1
