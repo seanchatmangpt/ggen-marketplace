@@ -78,7 +78,16 @@ ZOE Marketplace / Clients (running projections)
 
 ---
 
-## 6. Where Detailed Rules & Decisions Live
+## 6. Commerce Plane
+
+- **Registry**: root [`monetization.toml`](file:///Users/sac/ggen-marketplace/monetization.toml) — admitted+validated via `scripts/marketplace.py validate`; closed key set; `backend` is `sim|real`; exactly one billing authority.
+- **Intake**: `scripts/profile_intake.py` → `solutions/<slug>/` consumer scaffold (two-pack path pins, `solution.json` lock).
+- **Deploy**: `scripts/deploy_aaif_solution.py` — entitlement gate precedes manufacture; refusal ladder exits 2–13; paid-delivery receipt chain `paid-delivery-chain/v1`; `kind|gke` produce identical plan bytes.
+- **Standing fence**: sim/`kind` is `PARTIAL_ALIVE`; real GCP actuation is `BLOCKED:vendor-onboarding`; receipts carry no DO authority.
+
+---
+
+## 7. Where Detailed Rules & Decisions Live
 
 - **Calculus & Evidence**: [`.agents/rules/evidence.md`](file:///Users/sac/ggen-marketplace/.agents/rules/evidence.md) ($A = \mu(O^*)$, evidence states).
 - **Pack Manifest Contract**: [`.agents/rules/pack-contract.md`](file:///Users/sac/ggen-marketplace/.agents/rules/pack-contract.md) (`deny-unknown-fields`, profiles).
