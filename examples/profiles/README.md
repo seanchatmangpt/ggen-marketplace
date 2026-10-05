@@ -9,3 +9,7 @@ into `solutions/enterprise-aaif/` via its `solution.json` lock
 (`scripts/deploy_aaif_solution.py`) verifies the digest before manufacture and
 re-runs pack gates at deploy time — a tampered profile is refused before any
 dist is produced.
+
+`team.json` is a small-team profile exercising the alternate enum corner
+(EU residency lock, CMEK `NONE`, BASIC finops, CHRONICLE SIEM, ML-DSA-65,
+single replica) with two team members.
