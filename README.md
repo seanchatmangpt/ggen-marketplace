@@ -61,6 +61,21 @@ The marketplace also carries a monetization plane alongside the qualification pl
 
 Standing is per rail: the `sim` backend is `PARTIAL_ALIVE` for its own bounded boundary; the `real` GCP backend is `BLOCKED: vendor onboarding`. Receipts bind to the exact deployed subject; validation and receipts do not confer DO authority.
 
+## Solution quickstart
+
+Run the full commerce loop in one command, with no cluster required:
+
+```bash
+python3 scripts/run_solution_quickstart.py
+```
+
+This drives a real `sim` subprocess, seeds an entitlement, deploys a capsule,
+and verifies the paid-delivery receipt chain — proving pay-before-manufacture,
+real `ggen sync` manufacture, gate enforcement, and receipt-chained settlement.
+`--profile enterprise|team` selects the solution profile; a failed gate or
+unknown entitlement fails closed with a typed `REFUSED:*` and a nonzero exit.
+`--keep` retains the temporary capsule directory for inspection.
+
 ## Level 5
 
 Level 5 is **closure**, not a badge attached to a directory. The marketplace evaluates maturity across seven dimensions:

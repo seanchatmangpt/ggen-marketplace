@@ -88,6 +88,7 @@ kind delete cluster
 
 ## See also
 
+- For the scripted end-to-end loop without k8s, see `scripts/run_solution_quickstart.py`
 - `tutorials/deploy-an-aaif-solution.md`
 - `reference/aaif-deployer-contract.md`
 - `explanation/aaif-commerce-seams.md`
