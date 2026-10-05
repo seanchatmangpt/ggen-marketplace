@@ -39,7 +39,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -72,6 +71,8 @@ REFUSED_GGEN_NOT_FOUND = "REFUSED:GGEN_NOT_FOUND"
 REFUSED_GGEN_SYNC_FAILED = "REFUSED:GGEN_SYNC_FAILED"
 REFUSED_SOLUTION_GATE_VIOLATION = "REFUSED:SOLUTION_GATE_VIOLATION"
 REFUSED_MANIFEST_CLUSTER_SCOPED = "REFUSED:MANIFEST_CLUSTER_SCOPED"
+REFUSED_MANIFEST_UNPARSEABLE = "REFUSED:MANIFEST_UNPARSEABLE"
+REFUSED_YAML_PARSER_UNAVAILABLE = "REFUSED:YAML_PARSER_UNAVAILABLE"
 REFUSED_DATA_RESIDENCY_VIOLATION = "REFUSED:DATA_RESIDENCY_VIOLATION"
 REFUSED_GKE_TOOLING_MISSING = "REFUSED:GKE_TOOLING_MISSING"
 REFUSED_GCLOUD_PROJECT_MISMATCH = "REFUSED:GCLOUD_PROJECT_MISMATCH"
@@ -513,20 +514,44 @@ def solution_gates(solution_dir: Path, lock: dict[str, Any]) -> None:
 # Step 7: namespace-scope check over dist manifests
 # ---------------------------------------------------------------------------
 
-_KIND_RE = re.compile(r"^\s*kind:\s*([A-Za-z0-9.]+)\s*$", re.MULTILINE)
-
-
 def manifest_kinds(text: str) -> list[str]:
-    """Kinds found in a YAML (regex) or JSON manifest."""
-    stripped = text.lstrip()
-    if stripped.startswith("{") or stripped.startswith("["):
-        try:
-            parsed = json.loads(text)
-        except json.JSONDecodeError:
-            return _KIND_RE.findall(text)
-        items = parsed if isinstance(parsed, list) else [parsed]
-        return [str(item.get("kind", "")) for item in items if isinstance(item, dict)]
-    return _KIND_RE.findall(text)
+    """Kinds found in a YAML/JSON manifest, via a real parse (yaml.safe_load_all).
+
+    Fail-closed: any unparseable file or non-mapping document is a typed
+    refusal (REFUSED:MANIFEST_UNPARSEABLE, exit 8) -- kubectl parses YAML
+    broadly (quotes, aliases, flow maps, tags, trailing comments); a regex
+    prefilter lets cluster-scoped kinds evade the scope gate. No regex here.
+    """
+    try:
+        import yaml
+    except ImportError:
+        raise refused("YAML_PARSER_UNAVAILABLE", "pyyaml not importable", EXIT_GATE_SCOPE)
+    kinds: list[str] = []
+    try:
+        docs = list(yaml.safe_load_all(text))
+    except yaml.YAMLError as exc:
+        raise refused("MANIFEST_UNPARSEABLE", f"yaml parse error: {exc}", EXIT_GATE_SCOPE)
+    for doc in docs:
+        if doc is None:
+            continue  # empty document
+        if not isinstance(doc, dict):
+            raise refused(
+                "MANIFEST_UNPARSEABLE",
+                f"non-mapping document ({type(doc).__name__})",
+                EXIT_GATE_SCOPE,
+            )
+        kind = doc.get("kind")
+        if isinstance(kind, str) and kind:
+            kinds.append(kind)
+        elif "apiVersion" in doc:
+            # k8s-manifest-shaped but missing `kind` -> broken, not a plain config
+            raise refused(
+                "MANIFEST_UNPARSEABLE",
+                "manifest has apiVersion but no kind",
+                EXIT_GATE_SCOPE,
+            )
+        # no kind + no apiVersion: plain config, skip silently
+    return kinds
 
 
 def check_namespace_scope(out_dir: Path) -> None:
@@ -535,7 +560,16 @@ def check_namespace_scope(out_dir: Path) -> None:
         if not path.is_file() or path.suffix not in (".yaml", ".yml", ".json"):
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
-        for kind in manifest_kinds(text):
+        try:
+            kinds = manifest_kinds(text)
+        except Refused as exc:
+            raise Refused(
+                exc.message.replace("REFUSED:", f"REFUSED:{path.name}: ", 1)
+                if exc.message.startswith("REFUSED:")
+                else exc.message,
+                exc.exit_code,
+            )
+        for kind in kinds:
             if kind in FORBIDDEN_KINDS:
                 raise refused(
                     "MANIFEST_CLUSTER_SCOPED",
@@ -572,7 +606,16 @@ def consequence_digest(out_dir: Path) -> tuple[str, dict[str, str]]:
 
 
 def profile_residency_lock(solution_dir: Path) -> str | None:
-    """Read aaif:residencyRegionLock from profile.ttl; None = unrestricted."""
+    """Read aaif:residencyRegionLock from profile.ttl; None = unrestricted.
+
+    ALL subjects carrying the predicate are collected, not just the first
+    match: a decoy subject declaring a permissive region must not mask the
+    real agent's lock. Zero declarations -> None. Every declaration agreeing
+    -> that region (any single consistent declaration binds, regardless of
+    subject type). Distinct values across subjects -> typed refusal
+    REFUSED:RESIDENCY_CONFLICT (exit 8) naming the subjects -- disagreement
+    is itself an admission failure.
+    """
     profile_ttl = solution_dir / "profile.ttl"
     if not profile_ttl.is_file():
         return None
@@ -583,10 +626,23 @@ def profile_residency_lock(solution_dir: Path) -> str | None:
         graph.parse(str(profile_ttl), format="turtle")
     except Exception:
         return None
+    declared: list[tuple[str, str]] = []
     for subject, predicate, obj in graph:
         if str(predicate) == RESIDENCY_PREDICATE:
-            return str(obj)
-    return None
+            declared.append((str(subject), str(obj)))
+    if not declared:
+        return None
+    regions = {region for _, region in declared}
+    if len(regions) > 1:
+        named = ", ".join(
+            f"{subject}={region}" for subject, region in sorted(declared)
+        )
+        raise refused(
+            "RESIDENCY_CONFLICT",
+            f"conflicting aaif:residencyRegionLock declarations: {named}",
+            EXIT_GATE_SCOPE,
+        )
+    return regions.pop()
 
 
 def check_data_residency(solution_dir: Path, target: str, region: str | None) -> None:

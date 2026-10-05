@@ -702,3 +702,213 @@ class TestScopeGate:
             deploy.check_namespace_scope(dist)
         assert ei.value.exit_code == 8
         assert "MANIFEST_CLUSTER_SCOPED" in str(ei.value)
+
+
+# ---------------------------------------------------------------------------
+# Scope-gate evasion shapes (C10 finding 3): the old `kind:` regex missed
+# quoted kinds, trailing comments, YAML aliases, flow maps and tags that
+# kubectl accepts. The gate now parses (yaml.safe_load_all) and fails closed.
+# ---------------------------------------------------------------------------
+
+_CLUSTERROLE = (
+    "apiVersion: rbac.authorization.k8s.io/v1\n"
+    "kind: ClusterRole\n"
+    "metadata:\n  name: aaif-scope-probe\n"
+    "rules:\n- apiGroups: [\"*\"]\n  resources: [\"*\"]\n  verbs: [\"*\"]\n"
+)
+
+
+class TestScopeGateEvasion:
+    def _refused(self, deploy, tmp_path, text):
+        dist = tmp_path / "dist"
+        (dist / "k8s").mkdir(parents=True)
+        (dist / "k8s" / "evade.yaml").write_text(text, encoding="utf-8")
+        with pytest.raises(deploy.Refused) as ei:
+            deploy.check_namespace_scope(dist)
+        assert ei.value.exit_code == 8
+        return ei.value
+
+    def test_double_quoted_kind(self, tmp_path):
+        assert self._refused(_import_deploy(), tmp_path, 'kind: "ClusterRole"\n').exit_code == 8
+
+    def test_single_quoted_kind(self, tmp_path):
+        assert self._refused(_import_deploy(), tmp_path, "kind: 'ClusterRole'\n").exit_code == 8
+
+    def test_trailing_comment(self, tmp_path):
+        msg = self._refused(
+            _import_deploy(), tmp_path, "kind: ClusterRole  # scope escape\n"
+        )
+        assert "MANIFEST_CLUSTER_SCOPED" in str(msg)
+
+    def test_alias_via_anchor(self, tmp_path):
+        text = (
+            "kinds:\n"
+            "  crd: &cr ClusterRole\n"
+            "apiVersion: v1\n"
+            "kind: *cr\n"
+        )
+        assert self._refused(_import_deploy(), tmp_path, text).exit_code == 8
+
+    def test_flow_map_json(self, tmp_path):
+        text = (
+            '{"apiVersion": "rbac.authorization.k8s.io/v1",\n'
+            ' "kind": "ClusterRole",\n'
+            ' "metadata": {"name": "evade"}}\n'
+        )
+        msg = self._refused(_import_deploy(), tmp_path, text)
+        assert "MANIFEST_CLUSTER_SCOPED" in str(msg)
+
+    def test_str_tag(self, tmp_path):
+        assert (
+            self._refused(_import_deploy(), tmp_path, "kind: !!str ClusterRole\n").exit_code
+            == 8
+        )
+
+    def test_multidoc_clusterrole_caught(self, tmp_path):
+        text = _CLUSTERROLE + "---\n" + (
+            "apiVersion: v1\nkind: Namespace\nmetadata:\n  name: ok\n"
+        )
+        assert self._refused(_import_deploy(), tmp_path, text).exit_code == 8
+
+    def test_unparseable_file_refused(self, tmp_path):
+        msg = self._refused(
+            _import_deploy(), tmp_path, "kind: [ClusterRole\n  bad:\n  - :\n"
+        )
+        assert "MANIFEST_UNPARSEABLE" in str(msg)
+
+    def test_non_mapping_document_refused(self, tmp_path):
+        msg = self._refused(_import_deploy(), tmp_path, "- just\n- a\n- list\n")
+        assert "MANIFEST_UNPARSEABLE" in str(msg)
+
+    def test_manifest_missing_kind_with_apiversion_refused(self, tmp_path):
+        msg = self._refused(
+            _import_deploy(), tmp_path, "apiVersion: v1\nmetadata:\n  name: broken\n"
+        )
+        assert "MANIFEST_UNPARSEABLE" in str(msg)
+
+    def test_plain_config_without_kind_passes(self, tmp_path):
+        deploy = _import_deploy()
+        dist = tmp_path / "dist"
+        (dist / "k8s").mkdir(parents=True)
+        (dist / "k8s" / "values.yaml").write_text(
+            "replicas: 2\nimage: aaif:latest\n", encoding="utf-8"
+        )
+        deploy.check_namespace_scope(dist)  # no raise
+
+    def test_happy_path_namespace_passes(self, tmp_path):
+        deploy = _import_deploy()
+        dist = tmp_path / "dist"
+        dist.mkdir()
+        (dist / "namespace.yaml").write_text(
+            "apiVersion: v1\nkind: Namespace\nmetadata:\n  name: acme\n",
+            encoding="utf-8",
+        )
+        deploy.check_namespace_scope(dist)  # no raise
+
+
+# ---------------------------------------------------------------------------
+# Residency-lock consensus (C10 finding 2): the old first-match read let a
+# decoy subject carrying aaif:residencyRegionLock mask the real agent's
+# region. ALL declarations are now collected; agreement binds, disagreement
+# is itself an admission failure -> REFUSED:RESIDENCY_CONFLICT (exit 8).
+# ---------------------------------------------------------------------------
+
+
+def _write_profile_ttl(solution_dir: Path, ttl: str) -> None:
+    (solution_dir / "profile.ttl").write_text(ttl, encoding="utf-8")
+
+
+_DECOY_TTL = (
+    f"@prefix aaif: <{AAIF}> .\n"
+    "@prefix aa: <https://acme.example/id#> .\n"
+    "aa:decoy a aaif:DecoySubject ; aaif:residencyRegionLock \"us-central1\" .\n"
+    "aa:real a aaif:Agent ; aaif:residencyRegionLock \"eu-west1\" .\n"
+)
+
+
+class TestResidencyLockConsensus:
+    def test_missing_profile_ttl_returns_none(self, tmp_path):
+        deploy = _import_deploy()
+        assert deploy.profile_residency_lock(tmp_path) is None
+
+    def test_no_lock_triple_returns_none(self, tmp_path):
+        deploy = _import_deploy()
+        solution_dir = tmp_path / "solution"
+        solution_dir.mkdir()
+        _write_profile_ttl(solution_dir, f"@prefix aaif: <{AAIF}> .\naaif:x a aaif:Agent .\n")
+        assert deploy.profile_residency_lock(solution_dir) is None
+
+    def test_single_agent_subject_lock_honored(self, tmp_path):
+        deploy = _import_deploy()
+        solution_dir = tmp_path / "solution"
+        solution_dir.mkdir()
+        _write_profile_ttl(
+            solution_dir,
+            f"@prefix aaif: <{AAIF}> .\n"
+            "aaif:agent a aaif:Agent ; aaif:residencyRegionLock \"eu-west1\" .\n",
+        )
+        assert deploy.profile_residency_lock(solution_dir) == "eu-west1"
+
+    def test_lock_on_non_agent_subject_still_honored(self, tmp_path):
+        """Documented choice: any single consistent declaration binds, no
+        aaif:Agent type inference required."""
+        deploy = _import_deploy()
+        solution_dir = tmp_path / "solution"
+        solution_dir.mkdir()
+        _write_profile_ttl(
+            solution_dir,
+            f"@prefix aaif: <{AAIF}> .\n"
+            "aaif:deployment a aaif:Deployment ;\n"
+            "    aaif:residencyRegionLock \"us-central1\" .\n",
+        )
+        assert deploy.profile_residency_lock(solution_dir) == "us-central1"
+
+    def test_multiple_subjects_agreeing_bind(self, tmp_path):
+        deploy = _import_deploy()
+        solution_dir = tmp_path / "solution"
+        solution_dir.mkdir()
+        _write_profile_ttl(
+            solution_dir,
+            f"@prefix aaif: <{AAIF}> .\n"
+            "aaif:agent a aaif:Agent ; aaif:residencyRegionLock \"eu-west1\" .\n"
+            "aaif:aux a aaif:Deployment ; aaif:residencyRegionLock \"eu-west1\" .\n",
+        )
+        assert deploy.profile_residency_lock(solution_dir) == "eu-west1"
+
+    def test_decoy_conflict_refused_exit_8(self, tmp_path):
+        """C10 decoy scenario: decoy us-central1 + real eu-west1 -> refusal."""
+        deploy = _import_deploy()
+        solution_dir = tmp_path / "solution"
+        solution_dir.mkdir()
+        _write_profile_ttl(solution_dir, _DECOY_TTL)
+        with pytest.raises(deploy.Refused) as ei:
+            deploy.profile_residency_lock(solution_dir)
+        assert ei.value.exit_code == 8
+        assert "REFUSED:RESIDENCY_CONFLICT" in str(ei.value)
+        # both subjects are named in the refusal
+        assert "us-central1" in str(ei.value) and "eu-west1" in str(ei.value)
+
+    def test_conflict_surfaces_through_check_data_residency(self, tmp_path):
+        deploy = _import_deploy()
+        solution_dir = tmp_path / "solution"
+        solution_dir.mkdir()
+        _write_profile_ttl(solution_dir, _DECOY_TTL)
+        with pytest.raises(deploy.Refused) as ei:
+            deploy.check_data_residency(solution_dir, "gke", "eu-west1")
+        assert ei.value.exit_code == 8
+        assert "RESIDENCY_CONFLICT" in str(ei.value)
+
+    def test_single_lock_mismatch_still_data_residency_violation(self, tmp_path):
+        """Existing single-subject semantics unchanged: mismatch -> exit 8."""
+        deploy = _import_deploy()
+        solution_dir = tmp_path / "solution"
+        solution_dir.mkdir()
+        _write_profile_ttl(
+            solution_dir,
+            f"@prefix aaif: <{AAIF}> .\n"
+            "aaif:agent a aaif:Agent ; aaif:residencyRegionLock \"us-central1\" .\n",
+        )
+        with pytest.raises(deploy.Refused) as ei:
+            deploy.check_data_residency(solution_dir, "gke", "eu-west1")
+        assert ei.value.exit_code == 8
+        assert "DATA_RESIDENCY_VIOLATION" in str(ei.value)
