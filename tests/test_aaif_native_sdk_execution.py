@@ -20,6 +20,8 @@ from pathlib import Path
 
 import pytest
 import uvicorn
+
+pytest.importorskip("a2a", reason="optional dependency not installed")
 from starlette.testclient import TestClient
 
 from a2a.types import AgentCard

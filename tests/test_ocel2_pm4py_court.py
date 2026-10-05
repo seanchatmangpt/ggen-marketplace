@@ -15,8 +15,11 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-import pm4py
 import pytest
+
+pytest.importorskip("pm4py", reason="optional dependency not installed")
+
+import pm4py  # noqa: E402  (guarded above)
 
 from ggen_marketplace.mining.engine import ProcessMiningEngine
 from ggen_marketplace.ocel2 import OCEL2Emitter

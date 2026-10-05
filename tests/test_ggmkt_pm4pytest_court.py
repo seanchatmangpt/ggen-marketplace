@@ -24,6 +24,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+pytest.importorskip("pm4pytest", reason="optional dependency not installed")
+
 from ggen_marketplace.cli import app
 from pm4pytest import OCPQ, ConformanceSpec, PM4PySession, TemporalSLA
 from pm4pytest.ocel import ProcessTraceCollector

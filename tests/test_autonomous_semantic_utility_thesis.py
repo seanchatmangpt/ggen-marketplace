@@ -25,6 +25,8 @@ from typing import Any, Dict
 import jwt
 import pytest
 import uvicorn
+
+pytest.importorskip("a2a", reason="optional dependency not installed")
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from starlette.testclient import TestClient
