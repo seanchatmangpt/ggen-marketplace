@@ -415,6 +415,119 @@ class TestHappyPathKindRail:
 
 
 # ---------------------------------------------------------------------------
+# Idempotent redeploy
+# ---------------------------------------------------------------------------
+
+
+def _relock(solution_dir: Path) -> None:
+    """Recompute solution.json over the CURRENT inputs (after a profile edit)."""
+    pack_dir = solution_dir / "packs" / "tiny-pack"
+    pack_files = sorted(p for p in pack_dir.rglob("*") if p.is_file())
+    input_files = [
+        p for p in solution_dir.rglob("*")
+        if p.is_file() and p.name != "solution.json"
+        and "dist" not in p.relative_to(solution_dir).parts
+    ]
+    (solution_dir / "solution.json").write_text(
+        json.dumps({
+            "profile_sha256": _fingerprint(input_files, solution_dir),
+            "packs": [{
+                "name": "tiny-pack",
+                "path": "packs/tiny-pack",
+                "content_hash": _fingerprint(pack_files, pack_dir),
+            }],
+        }, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _clear_runtime_state(solution_dir: Path) -> None:
+    for state in (".ggen", ".ggen-v2", ".clap-noun-verb"):
+        shutil.rmtree(solution_dir / state, ignore_errors=True)
+
+
+def _chain_lines(receipts_dir: Path) -> list[dict]:
+    chain = receipts_dir / "receipts" / "paid-delivery" / "chain.jsonl"
+    return [json.loads(line) for line in chain.read_text(encoding="utf-8").splitlines()
+            if line.strip()]
+
+
+class TestIdempotentRedeploy:
+    def test_dist_exists_without_prior_receipt_refused_exit_2(self, tmp_path):
+        """No prior receipt => the original DIST_ALREADY_EXISTS refusal holds."""
+        deploy = _import_deploy()
+        solution_dir = _write_solution(tmp_path)
+        dist = solution_dir / "dist"
+        dist.mkdir()
+        (dist / "stale.txt").write_text("orphan", encoding="utf-8")
+        with pytest.raises(deploy.Refused) as ei:
+            deploy.entitlement_gate("ent-001", {}, dist, allow_existing=False)
+        assert ei.value.exit_code == 2
+        assert "DIST_ALREADY_EXISTS" in str(ei.value)
+
+    def test_redeploy_over_existing_dist_unchanged_inputs_exit_0_byte_identical(self, tmp_path):
+        """Second deploy with dist/ present + matching prior receipt => exit 0,
+        byte-identical dist, chain NOT forked (replay returns existing envelope)."""
+        if shutil.which("ggen") is None:
+            pytest.skip("ggen binary not on PATH")
+        solution_dir = _write_solution(tmp_path)
+        receipts_dir = tmp_path / "receipts-root"
+        with _Sim(tmp_path) as sim:
+            sim.seed()
+            env = {"AAIF_ENTITLEMENT_ENDPOINT": sim.endpoint}
+            reg = _write_registry(tmp_path, VALID_REGISTRY)
+            first = _deploy(tmp_path, solution_dir, receipts_dir, config=reg,
+                            env_extra=env, entitlement_id="ent-001")
+            assert first.returncode == 0, first.stdout + first.stderr
+            dist = solution_dir / "dist"
+            before = _snapshot(dist)
+            first_chain_hash = json.loads(first.stdout)["receipt_chain_hash"]
+
+            # Redeploy WITHOUT deleting dist/ -- but ggen drops runtime state
+            # into the solution dir, which would trip the lock digest check.
+            _clear_runtime_state(solution_dir)
+            second = _deploy(tmp_path, solution_dir, receipts_dir, config=reg,
+                             env_extra=env, entitlement_id="ent-001")
+            assert second.returncode == 0, second.stdout + second.stderr
+            assert _snapshot(dist) == before
+            assert json.loads(second.stdout)["receipt_chain_hash"] == first_chain_hash
+            # replay must not fork the chain
+            assert len(_chain_lines(receipts_dir)) == 1
+
+    def test_redeploy_changed_profile_exit_9_non_monotonic_grant(self, tmp_path):
+        """Changed inputs under an already-paid slug => NON_MONOTONIC_GRANT (exit 9)."""
+        if shutil.which("ggen") is None:
+            pytest.skip("ggen binary not on PATH")
+        solution_dir = _write_solution(tmp_path)
+        receipts_dir = tmp_path / "receipts-root"
+        with _Sim(tmp_path) as sim:
+            sim.seed()
+            env = {"AAIF_ENTITLEMENT_ENDPOINT": sim.endpoint}
+            reg = _write_registry(tmp_path, VALID_REGISTRY)
+            first = _deploy(tmp_path, solution_dir, receipts_dir, config=reg,
+                            env_extra=env, entitlement_id="ent-001")
+            assert first.returncode == 0, first.stdout + first.stderr
+
+            _clear_runtime_state(solution_dir)
+            # Change a real generation input: the manifest template (the
+            # namespace name flows into the manufactured dist, so the
+            # consequence digest changes). profile.json alone does not reach
+            # the dist under this solution's ggen.toml generation contract.
+            tmpl = solution_dir / "packs" / "tiny-pack" / "templates" / "namespace.yaml.tmpl"
+            tmpl.write_text(tmpl.read_text(encoding="utf-8").replace("acme", "acme-v2"),
+                            encoding="utf-8")
+            _relock(solution_dir)
+
+            second = _deploy(tmp_path, solution_dir, receipts_dir, config=reg,
+                             env_extra=env, entitlement_id="ent-001")
+            out = second.stdout + second.stderr
+            assert second.returncode == 9, out
+            assert "NON_MONOTONIC_GRANT" in out
+            # the chain still holds exactly the original grant
+            assert len(_chain_lines(receipts_dir)) == 1
+
+
+# ---------------------------------------------------------------------------
 # Namespace-scope gate
 # ---------------------------------------------------------------------------
 

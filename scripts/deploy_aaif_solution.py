@@ -284,15 +284,39 @@ def check_lock_digests(solution_dir: Path, lock: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 
 
-def entitlement_gate(entitlement_id: str, entry: dict[str, Any], out_dir: Path) -> dict[str, Any]:
+def prior_receipt(receipts_dir: Path, slug: str) -> dict[str, Any] | None:
+    """The already-appended paid-delivery receipt for this slug, or None.
+
+    Corrupt prior receipt -> exit 13 (RECEIPT_READ_FAILED), same as write_receipt.
+    """
+    import paid_delivery_receipt
+
+    path = receipts_dir / paid_delivery_receipt.SUBDIR / f"{slug}.json"
+    if not path.is_file():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise refused("RECEIPT_READ_FAILED", f"{path}: {exc}", EXIT_RECEIPT)
+
+
+def entitlement_gate(
+    entitlement_id: str,
+    entry: dict[str, Any],
+    out_dir: Path,
+    allow_existing: bool = False,
+) -> dict[str, Any]:
     """Run scripts/entitlement.py decide() BEFORE any manufacture.
 
-    dist/ must not exist yet. NOT_ACTIVE/NOT_FOUND -> exit 4; unreachable ->
-    exit 3; anything else BLOCKED -> exit 5.
+    dist/ must not exist -- unless allow_existing (idempotent redeploy: an
+    existing paid-delivery receipt for this slug already proves pay-before-
+    manufacture, and the entitlement gate must STILL pass). NOT_ACTIVE/
+    NOT_FOUND -> exit 4; unreachable -> exit 3; anything else BLOCKED ->
+    exit 5.
     """
     import entitlement
 
-    if out_dir.exists():
+    if out_dir.exists() and not allow_existing:
         raise refused("DIST_ALREADY_EXISTS", str(out_dir), EXIT_CONFIG)
     result = entitlement.decide(entitlement_id, entry)
     if result.get("standing") == "ALIVE":
@@ -674,7 +698,21 @@ def main(argv: list[str] | None = None) -> int:
         check_lock_digests(solution_dir, lock)
 
         # 4. entitlement gate BEFORE any manufacture; dist must not exist
-        decision = entitlement_gate(entitlement_id, entry, out_dir)
+        #    UNLESS idempotent redeploy: a prior paid-delivery receipt for
+        #    this slug proves the original pay-before-manufacture, so an
+        #    existing dist/ is replaced deterministically. Inputs drift is
+        #    still caught downstream by lock digests (exit 9) and by
+        #    write_receipt's NON_MONOTONIC_GRANT graph_hash comparison
+        #    (exit 9); a dist/ with NO prior receipt stays refused (exit 2).
+        prior = prior_receipt(args.receipts_dir, slug)
+        redeploy = out_dir.exists() and prior is not None
+        decision = entitlement_gate(entitlement_id, entry, out_dir, allow_existing=redeploy)
+        if redeploy:
+            # Deterministic replace: wipe the prior dist so ggen re-manufactures
+            # from scratch; identical inputs yield an identical graph_hash, and
+            # write_receipt then returns the EXISTING chain receipt (replay, no
+            # chain fork).
+            shutil.rmtree(out_dir)
 
         # 5. manufacture
         manufacture(solution_dir, timeout_seconds=args.timeout_seconds)
