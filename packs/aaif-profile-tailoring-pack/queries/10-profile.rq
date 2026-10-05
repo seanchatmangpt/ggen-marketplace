@@ -1,0 +1,24 @@
+# Projected columns -> template variables (k8s overlay):
+#   ?namespace -> profile.namespace, ?replicas -> profile.replicas,
+#   ?cmek -> profile.cmek, ?finops -> profile.finops, ?siem -> profile.siem,
+#   ?trust_domain -> profile.trust_domain, ?pqc -> profile.pqc
+PREFIX aaift: <https://aaif.io/profile-tailoring#>
+SELECT ?namespace ?replicas ?cmek ?finops ?siem ?trust_domain ?pqc WHERE {
+  ?profile a aaift:DeploymentProfile .
+  OPTIONAL { ?profile aaift:namespace ?ns }
+  OPTIONAL { ?profile aaift:replicas ?rep }
+  OPTIONAL { ?profile aaift:cmekProvider ?cm }
+  OPTIONAL { ?profile aaift:finopsTier ?ft }
+  OPTIONAL { ?profile aaift:siemMode ?sm }
+  OPTIONAL { ?profile aaift:spiffeTrustDomain ?std }
+  OPTIONAL { ?profile aaift:pqcSuite ?pq }
+  BIND(COALESCE(STR(?ns), "") AS ?namespace)
+  BIND(COALESCE(?rep, 0) AS ?replicas)
+  BIND(COALESCE(STRAFTER(STR(?cm), "#"), "") AS ?cmek)
+  BIND(COALESCE(STRAFTER(STR(?ft), "#"), "") AS ?finops)
+  BIND(COALESCE(STRAFTER(STR(?sm), "#"), "") AS ?siem)
+  BIND(COALESCE(STR(?std), "") AS ?trust_domain)
+  BIND(COALESCE(STRAFTER(STR(?pq), "#"), "") AS ?pqc)
+}
+ORDER BY ?namespace
+LIMIT 1

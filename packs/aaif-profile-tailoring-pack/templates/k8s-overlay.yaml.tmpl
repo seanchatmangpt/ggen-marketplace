@@ -1,0 +1,32 @@
+{% for r in results %}apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ r.namespace }}
+  labels:
+    app.kubernetes.io/part-of: aaif
+    aaif.io/finops-tier: {{ r.finops | default(value="UNSPECIFIED") }}
+    aaif.io/siem-mode: {{ r.siem | default(value="UNSPECIFIED") }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aaif-runtime
+  namespace: {{ r.namespace }}
+spec:
+  replicas: {{ r.replicas | default(value=0) }}
+  selector:
+    matchLabels:
+      app: aaif-runtime
+  template:
+    metadata:
+      labels:
+        app: aaif-runtime
+      annotations:
+        aaif.io/cmek-provider: "{{ r.cmek | default(value="NONE") }}"
+        aaif.io/pqc-suite: "{{ r.pqc | default(value="NONE") }}"
+        aaif.io/spiffe-trust-domain: "{{ r.trust_domain }}"
+    spec:
+      containers:
+        - name: aaif-runtime
+          image: aaif-runtime:latest
+{% endfor %}
