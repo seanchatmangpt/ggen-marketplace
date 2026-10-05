@@ -24,6 +24,7 @@ except ModuleNotFoundError as exc:  # pragma: no cover
 
 from marketplace_scope import select_packs
 import marketplace_lifecycle
+import marketplace_monetization
 import marketplace_tiers
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -374,6 +375,9 @@ def inspect_marketplace() -> tuple[list[Pack], list[str]]:
     registry, registry_problems = marketplace_lifecycle.load(PACKS.parent)
     issues.extend(refusal(*problem.split(":", 1)) for problem in registry_problems)
     issues.extend(marketplace_lifecycle.entry_issues(registry, manifests, PACKS.parent, refusal))
+    monetization, monetization_problems = marketplace_monetization.load(PACKS.parent)
+    issues.extend(monetization_problems)
+    issues.extend(marketplace_monetization.entry_issues(monetization, refuse=refusal))
 
     for relative in REQUIRED_DOCS:
         path = ROOT / relative
