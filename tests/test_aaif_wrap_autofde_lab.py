@@ -31,6 +31,15 @@ def test_projection_is_ggen_cli_output_byte_identical(tmp_path: Path) -> None:
     shutil.copy(proj / "ggen.toml", work / "ggen.toml")
     shutil.copy(FIXTURE, work / "autofde_agent.ttl")
     shutil.copytree(PACK / "templates", work / "templates")
+    # The consumer manifest pins pack queries via a repo-relative path; the
+    # capsule cannot use '..' (ggen path rule), so vendor queries locally and
+    # rewrite the pinned prefix to the vendored copy.
+    shutil.copytree(PACK / "queries", work / "queries")
+    manifest = (work / "ggen.toml").read_text()
+    manifest = manifest.replace(
+        "../../packs/aaif-vanilla-pack/queries/", "queries/"
+    )
+    (work / "ggen.toml").write_text(manifest)
     res = subprocess.run(["ggen", "sync", "run", "--format", "json"],
                          cwd=work, capture_output=True, text=True)
     assert res.returncode == 0, res.stderr
