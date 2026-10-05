@@ -12,6 +12,9 @@ GCP_SIMULATOR_URL = "http://localhost:8443"
 def run_cmd(cmd):
     return subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
+if run_cmd("kubectl get nodes").returncode != 0:
+    pytest.skip("no reachable kind cluster", allow_module_level=True)
+
 class TestK8sAAIFGCPMarketplaceSimulation:
     """
     Chicago-Style Real-Cluster Test Court:

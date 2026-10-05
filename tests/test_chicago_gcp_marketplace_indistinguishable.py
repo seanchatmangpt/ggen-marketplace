@@ -12,6 +12,19 @@ from cryptography.hazmat.primitives.asymmetric import padding
 GCP_SIM_URL = "http://localhost:8443"
 SWARM_INGRESS_URL = "http://localhost:8080"
 
+def _sim_endpoint_reachable(url):
+    try:
+        with urllib.request.urlopen(f"{url}/cloudcommerceprocurement/$discovery/rest?version=v1", timeout=2):
+            return True
+    except (urllib.error.URLError, OSError):
+        return False
+
+if not _sim_endpoint_reachable(GCP_SIM_URL):
+    pytest.skip(
+        f"live GCP-wire simulator not running at {GCP_SIM_URL}; start k8s/gcp-marketplace-sim/server.py",
+        allow_module_level=True,
+    )
+
 class TestWireIndistinguishableChicagoGCPMarketplace:
     """
     Chicago Adversarial Test Court:
