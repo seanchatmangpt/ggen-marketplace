@@ -12,6 +12,17 @@ canonical JSON (sorted keys, compact separators) of the embedded payload.
 
 No wall clock: ts_ns is always 0 (receipts are replayable, not timestamped).
 
+Chain anchor (tamper evidence, AE2 finding 2 partial): after every append the
+new head hash is also written to receipts/paid-delivery/HEAD (one line:
+chain_hash_hex). Tamper evidence requires comparing this HEAD file against an
+out-of-band copy of the head hash taken at grant time -- HEAD itself lives
+inside the same tree it anchors, so full external anchoring (publisher/oracle)
+is DEFERRED, not landed.
+
+Slug safety (AE2 finding 2b): a slug that is not a bare path component
+(contains "/", is "." or "..", etc.) is REFUSED_SLUG_UNSAFE at append and is
+flagged REFUSED_SLUG_UNSAFE by verify -- a slug names a file, never a path.
+
 Exit codes: 0 = ok, 2 = REFUSED / verification failure.
 """
 from __future__ import annotations
@@ -42,6 +53,15 @@ def _chain_path(receipts_dir: Path) -> Path:
     return receipts_dir / SUBDIR / "chain.jsonl"
 
 
+def slug_unsafe(slug: str) -> bool:
+    """True when `slug` is not a single safe path component (AE2 2b)."""
+    return slug != Path(slug).name or slug in {".", ".."} or slug == "" or "\x00" in slug
+
+
+def head_anchor_path(receipts_dir: Path) -> Path:
+    return receipts_dir / SUBDIR / "HEAD"
+
+
 def _read_chain(receipts_dir: Path) -> list[dict]:
     p = _chain_path(receipts_dir)
     if not p.is_file():
@@ -53,9 +73,19 @@ def _read_chain(receipts_dir: Path) -> list[dict]:
     return out
 
 
+class SlugUnsafe(ValueError):
+    """Typed refusal: slug is not a single safe path component (AE2 2b)."""
+
+
 def append(receipts_dir: Path, slug: str, payload: dict) -> dict:
-    """Append a paid-delivery receipt for `slug`. Returns the written envelope."""
+    """Append a paid-delivery receipt for `slug`. Returns the written envelope.
+
+    Unsafe slug -> SlugUnsafe("REFUSED_SLUG_UNSAFE:...") (CLI: exit 2).
+    Also rewrites the HEAD anchor file to the new chain head hash.
+    """
     receipts_dir = Path(receipts_dir)
+    if slug_unsafe(slug):
+        raise SlugUnsafe(f"REFUSED_SLUG_UNSAFE:{slug!r}")
     receipts_dir.mkdir(parents=True, exist_ok=True)
     chain = _read_chain(receipts_dir)
     prev = chain[-1]["chain_hash_hex"] if chain else GENESIS
@@ -76,6 +106,7 @@ def append(receipts_dir: Path, slug: str, payload: dict) -> dict:
     dest.write_text(json.dumps(envelope, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     with _chain_path(receipts_dir).open("a", encoding="utf-8") as f:
         f.write(canonical_json(envelope) + "\n")
+    head_anchor_path(receipts_dir).write_text(envelope["chain_hash_hex"] + "\n", encoding="utf-8")
     return envelope
 
 
@@ -90,6 +121,9 @@ def verify(receipts_dir: Path) -> tuple[bool, list[str]]:
     for i, env in enumerate(chain):
         where = f"chain[{i}]"
         slug = env.get("slug", "<missing>")
+        if isinstance(slug, str) and slug_unsafe(slug):
+            problems.append(f"{where}:<unsafe>:REFUSED_SLUG_UNSAFE:{slug}")
+            continue
         for field in ("schema", "payload_hash_hex", "prev_chain_hash_hex", "chain_hash_hex", "chain_rule", "payload"):
             if field not in env:
                 problems.append(f"{where}:{slug}:REFUSED_MISSING_FIELD:{field}")
@@ -113,6 +147,8 @@ def verify(receipts_dir: Path) -> tuple[bool, list[str]]:
     # per-slug files must match their chain lines exactly
     for i, env in enumerate(chain):
         slug = env.get("slug")
+        if not isinstance(slug, str) or slug_unsafe(slug):
+            continue  # already flagged above; never build a path from it
         f = receipts_dir / SUBDIR / f"{slug}.json"
         if not f.is_file():
             problems.append(f"chain[{i}]:{slug}:REFUSED_MISSING_SLUG_FILE")
@@ -138,8 +174,21 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     if args.cmd == "append":
         payload = json.loads(Path(args.payload).read_text(encoding="utf-8"))
-        env = append(Path(args.receipts_dir), args.slug, payload)
-        print(canonical_json({"chain_hash_hex": env["chain_hash_hex"], "slug": env["slug"]}))
+        try:
+            env = append(Path(args.receipts_dir), args.slug, payload)
+        except SlugUnsafe as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        head = head_anchor_path(Path(args.receipts_dir))
+        print(
+            canonical_json(
+                {
+                    "chain_hash_hex": env["chain_hash_hex"],
+                    "slug": env["slug"],
+                    "head_anchor": str(head),
+                }
+            )
+        )
         return 0
     ok, problems = verify(Path(args.receipts_dir))
     if ok:

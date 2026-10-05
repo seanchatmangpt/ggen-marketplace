@@ -29,7 +29,8 @@ Refusal -> exit-code table (house scheme):
     9  digest drift (profile/pack lock drift, non-monotonic grant)
    10  gcloud/kubectl actuation tooling or project mismatch
    12  ggen sync actuation failure
-   13  paid-delivery receipt write failure
+   13  paid-delivery receipt write failure / forged or unverifiable
+                            prior receipt (REFUSED:PRIOR_RECEIPT_INVALID)
 """
 
 from __future__ import annotations
@@ -285,9 +286,14 @@ def check_lock_digests(solution_dir: Path, lock: dict[str, Any]) -> None:
 
 
 def prior_receipt(receipts_dir: Path, slug: str) -> dict[str, Any] | None:
-    """The already-appended paid-delivery receipt for this slug, or None.
+    """The paid-delivery receipt for this slug, honored for redeploy ONLY if
+    (a) the slug file exists, (b) the FULL chain verifies (paid_delivery_receipt
+    verify -> (True, [])), and (c) the receipt's payload_hash_hex recomputes
+    from its embedded payload (AE2 finding 3).
 
-    Corrupt prior receipt -> exit 13 (RECEIPT_READ_FAILED), same as write_receipt.
+    Missing receipt -> None. Forged / corrupt / unverifiable prior receipt ->
+    typed refusal REFUSED_PRIOR_RECEIPT_INVALID (exit 13): redeploy is never
+    granted from an unverified receipt.
     """
     import paid_delivery_receipt
 
@@ -295,9 +301,28 @@ def prior_receipt(receipts_dir: Path, slug: str) -> dict[str, Any] | None:
     if not path.is_file():
         return None
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        env = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise refused("RECEIPT_READ_FAILED", f"{path}: {exc}", EXIT_RECEIPT)
+        raise refused("PRIOR_RECEIPT_INVALID", f"{path}: {exc}", EXIT_RECEIPT)
+    try:
+        ok, problems = paid_delivery_receipt.verify(receipts_dir)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise refused("PRIOR_RECEIPT_INVALID", f"chain unreadable: {exc}", EXIT_RECEIPT)
+    if not ok:
+        raise refused(
+            "PRIOR_RECEIPT_INVALID", ";".join(problems[:5]), EXIT_RECEIPT
+        )
+    recomputed = paid_delivery_receipt.sha256_hex(
+        paid_delivery_receipt.canonical_json(env.get("payload"))
+    )
+    if env.get("slug") != slug or env.get("payload_hash_hex") != recomputed:
+        raise refused(
+            "PRIOR_RECEIPT_INVALID",
+            f"{path}: slug/payload_hash mismatch (stored {env.get('payload_hash_hex', '<none>')[:12]},"
+            f" recomputed {recomputed[:12]})",
+            EXIT_RECEIPT,
+        )
+    return env
 
 
 def entitlement_gate(
@@ -655,6 +680,13 @@ def actuate_gke(project: str | None, plan: dict[str, Any]) -> None:
         print(" ".join(shlex_quote(a) for a in cmd["argv"]))
 
 
+def paid_delivery_receipt_head_anchor(receipts_dir: Path) -> Path:
+    """Path of the paid-delivery HEAD anchor file (chain head hash, one line)."""
+    import paid_delivery_receipt
+
+    return paid_delivery_receipt.head_anchor_path(receipts_dir)
+
+
 # ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
@@ -771,6 +803,9 @@ def main(argv: list[str] | None = None) -> int:
                     "target": args.target,
                     "graph_hash": graph_hash,
                     "receipt_chain_hash": receipt["chain_hash_hex"],
+                    "head_anchor": str(
+                        paid_delivery_receipt_head_anchor(args.receipts_dir)
+                    ),
                     "plan": str(plan_path),
                     "files": len(per_file),
                 },

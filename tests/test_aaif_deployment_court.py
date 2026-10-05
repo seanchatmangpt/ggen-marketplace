@@ -528,6 +528,101 @@ class TestIdempotentRedeploy:
 
 
 # ---------------------------------------------------------------------------
+# Forged prior receipt (AE2 finding 3): redeploy is never granted from an
+# unverified receipt; the dist/ must survive the refusal untouched.
+# ---------------------------------------------------------------------------
+
+
+def _forge_prior_receipt(receipts_dir: Path, slug: str, payload_hash: str) -> Path:
+    """A structurally valid JSON envelope with a WRONG payload_hash and no
+    chain line (or: appended to a tampered chain in the caller)."""
+    pdr = _import_paid_delivery_receipt()
+    sub = receipts_dir / pdr.SUBDIR
+    sub.mkdir(parents=True, exist_ok=True)
+    env = {
+        "schema": "ggen-receipt/v2",
+        "activity": "aaif.paid-delivery",
+        "slug": slug,
+        "ts_ns": 0,
+        "payload": {"schema": "https://ggen.dev/marketplace/paid-delivery/v1"},
+        "payload_hash_hex": payload_hash,
+        "prev_chain_hash_hex": pdr.GENESIS,
+        "chain_hash_hex": "e" * 64,
+        "chain_rule": "paid-delivery-chain/v1",
+    }
+    path = sub / f"{slug}.json"
+    path.write_text(json.dumps(env, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
+def _import_paid_delivery_receipt():
+    _scripts_on_path()
+    import paid_delivery_receipt
+    return paid_delivery_receipt
+
+
+class TestForgedPriorReceipt:
+    def test_prior_receipt_unit_forged_payload_hash_refused_exit_13(self, tmp_path):
+        deploy = _import_deploy()
+        receipts_dir = tmp_path / "receipts-root"
+        _forge_prior_receipt(receipts_dir, "solution-acme", "0" * 64)
+        with pytest.raises(deploy.Refused) as ei:
+            deploy.prior_receipt(receipts_dir, "solution-acme")
+        assert ei.value.exit_code == 13
+        assert "PRIOR_RECEIPT_INVALID" in str(ei.value)
+
+    def test_deploy_with_forged_prior_receipt_exit_13_dist_preserved(self, tmp_path):
+        """The attack: drop a forged 'paid' receipt next to an existing dist/
+        to trick the deployer into rmtree'ing the dist. Must refuse exit 13
+        BEFORE the rmtree, leaving the dist byte-for-byte intact."""
+        if shutil.which("ggen") is None:
+            pytest.skip("ggen binary not on PATH")  # noqa: unreachable guard keeps court uniform
+        solution_dir = _write_solution(tmp_path)
+        receipts_dir = tmp_path / "receipts-root"
+        dist = solution_dir / "dist"
+        dist.mkdir()
+        sentinel = dist / "sentinel.txt"
+        sentinel.write_text("do-not-delete", encoding="utf-8")
+        _forge_prior_receipt(receipts_dir, "solution-acme", "f" * 64)
+        result = _deploy(tmp_path, solution_dir, receipts_dir,
+                         config=_write_registry(tmp_path, VALID_REGISTRY))
+        out = result.stdout + result.stderr
+        assert result.returncode == 13, out
+        assert "PRIOR_RECEIPT_INVALID" in out
+        assert sentinel.is_file() and sentinel.read_text() == "do-not-delete"
+        assert not any(receipts_dir.rglob("HEAD"))
+
+    def test_deploy_with_tampered_chain_refused_exit_13(self, tmp_path):
+        """Honest chain, then tampered mid-payload: full-chain verify fails =>
+        redeploy refused even though the slug file itself looks clean."""
+        deploy = _import_deploy()
+        pdr = _import_paid_delivery_receipt()
+        receipts_dir = tmp_path / "receipts-root"
+        env = pdr.append(receipts_dir, "solution-acme", {"legit": True})
+        # tamper the slug file in place (payload no longer folds to payload_hash)
+        path = receipts_dir / pdr.SUBDIR / "solution-acme.json"
+        forged = json.loads(path.read_text(encoding="utf-8"))
+        forged["payload"]["injected"] = True
+        path.write_text(json.dumps(forged, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        with pytest.raises(deploy.Refused) as ei:
+            deploy.prior_receipt(receipts_dir, "solution-acme")
+        assert ei.value.exit_code == 13
+        assert "PRIOR_RECEIPT_INVALID" in str(ei.value)
+        assert env["chain_hash_hex"]  # sanity: chain existed before tamper
+
+    def test_honest_prior_receipt_still_honored(self, tmp_path):
+        """The precondition TestIdempotentRedeploy relies on: an honest chain +
+        matching payload hash => prior_receipt returns the envelope."""
+        deploy = _import_deploy()
+        pdr = _import_paid_delivery_receipt()
+        receipts_dir = tmp_path / "receipts-root"
+        env = pdr.append(receipts_dir, "solution-acme", {"legit": True})
+        got = deploy.prior_receipt(receipts_dir, "solution-acme")
+        assert got is not None
+        assert got["chain_hash_hex"] == env["chain_hash_hex"]
+
+
+# ---------------------------------------------------------------------------
 # Namespace-scope gate
 # ---------------------------------------------------------------------------
 

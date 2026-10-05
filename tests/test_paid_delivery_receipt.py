@@ -119,3 +119,68 @@ def test_long_chain_verify_ok(tmp_path: Path, n: int):
         pdr.append(tmp_path, f"d-{i}", payload(f"p{i}"))
     ok, problems = pdr.verify(tmp_path)
     assert ok, problems
+
+
+# ---------------------------------------------------------------------------
+# Slug safety (AE2 2b) + HEAD anchor (AE2 2 partial)
+# ---------------------------------------------------------------------------
+
+def test_traversal_slug_refused_at_append(tmp_path: Path):
+    for bad in ("../escape", "a/b", "..", ".", ""):
+        with pytest.raises(pdr.SlugUnsafe) as ei:
+            pdr.append(tmp_path, bad, payload("x"))
+        assert "REFUSED_SLUG_UNSAFE" in str(ei.value)
+    # nothing written outside the receipts root
+    assert not (tmp_path / "escape.json").exists()
+    assert not (tmp_path / "receipts").exists() or not any(
+        (tmp_path / "receipts").rglob("a.json")
+    )
+
+
+def test_cli_append_unsafe_slug_exit_2(tmp_path: Path):
+    payload_file = tmp_path / "payload.json"
+    payload_file.write_text(json.dumps(payload("cli")))
+    rc = pdr.main(["append", str(tmp_path), "../evil", "--payload", str(payload_file)])
+    assert rc == 2
+    assert not (tmp_path.parent / "evil.json").exists()
+
+
+def test_verify_flags_unsafe_slug_in_chain(tmp_path: Path):
+    chain = tmp_path / "receipts" / "paid-delivery" / "chain.jsonl"
+    chain.parent.mkdir(parents=True)
+    env = json.loads(json.dumps({
+        "schema": pdr.SCHEMA,
+        "activity": pdr.ACTIVITY,
+        "slug": "../evil",
+        "ts_ns": 0,
+        "payload": {},
+        "payload_hash_hex": pdr.sha256_hex(pdr.canonical_json({})),
+        "prev_chain_hash_hex": pdr.GENESIS,
+        "chain_hash_hex": pdr.sha256_hex((pdr.GENESIS + pdr.sha256_hex(pdr.canonical_json({})))),
+        "chain_rule": pdr.CHAIN_RULE,
+    }))
+    chain.write_text(pdr.canonical_json(env) + "\n", encoding="utf-8")
+    ok, problems = pdr.verify(tmp_path)
+    assert not ok
+    assert any("REFUSED_SLUG_UNSAFE" in p for p in problems)
+
+
+def test_head_anchor_written_and_updated(tmp_path: Path):
+    e1 = pdr.append(tmp_path, "d-0", payload("p0"))
+    head = tmp_path / "receipts" / "paid-delivery" / "HEAD"
+    assert head.is_file()
+    assert head.read_text().strip() == e1["chain_hash_hex"]
+    e2 = pdr.append(tmp_path, "d-1", payload("p1"))
+    assert head.read_text().strip() == e2["chain_hash_hex"]
+    assert e2["chain_hash_hex"] != e1["chain_hash_hex"]
+
+
+def test_cli_append_echoes_head_anchor(tmp_path: Path, capsys):
+    payload_file = tmp_path / "payload.json"
+    payload_file.write_text(json.dumps(payload("cli")))
+    rc = pdr.main(["append", str(tmp_path), "delivery-cli", "--payload", str(payload_file)])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out.strip())
+    assert out["head_anchor"] == str(
+        tmp_path / "receipts" / "paid-delivery" / "HEAD"
+    )
