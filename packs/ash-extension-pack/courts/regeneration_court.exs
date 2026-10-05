@@ -9,7 +9,7 @@
 #   R3. changing exactly one source semantic fact MUST change the output;
 #   R4. restoring the fact restores determinism byte-for-byte.
 #
-# Run:  elixir templates/regeneration_court.exs.tmpl
+# Run:  elixir courts/regeneration_court.exs
 # (or via fixture/regeneration/run_courts.exs; SPECIMEN_ROOT overrides the
 #  specimen location).
 

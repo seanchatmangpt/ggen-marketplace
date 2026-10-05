@@ -1,1 +1,18 @@
-{"subject":"{{ subject }}","consumer":"{{ consumer }}","adapter":"{{ adapter }}","target":"{{ targetPath }}","module":"{{ moduleName }}","package":"{{ packageName }}","digest":"{{ sourceDigest }}"}
+---
+to: "generated/{{ projectionKey }}/package-index.json"
+for_each: "binding"
+sparql:
+  binding: |
+    PREFIX pm: <https://ggen.dev/ontology/projection-matrix#>
+    SELECT ?projectionKey ?projection ?subject ?consumer ?adapter ?targetPath ?sourceSha ?sourceDigest ?moduleName ?packageName
+    WHERE {
+      ?projection a pm:Projection ;
+        pm:subject ?subject ; pm:consumer ?consumer ; pm:adapter ?adapter ; pm:targetPath ?targetPath .
+      ?subject pm:sourceSha ?sourceSha ; pm:sourceDigest ?sourceDigest .
+      OPTIONAL { ?projection pm:moduleName ?moduleName }
+      OPTIONAL { ?projection pm:packageName ?packageName }
+      BIND(REPLACE(STR(?projection), "[:/#]+", "_") AS ?projectionKey)
+    }
+    ORDER BY ?projectionKey
+---
+{"subject":"{{ subject }}","consumer":"{{ consumer }}","adapter":"{{ adapter }}","target":"{{ targetPath }}","module":"{{ moduleName | default(value="") }}","package":"{{ packageName | default(value="") }}","digest":"{{ sourceDigest }}"}

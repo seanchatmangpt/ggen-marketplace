@@ -13,7 +13,7 @@
 # dispatch probe, real installer idempotence probe, and a static side-effect
 # scan of the source AST (:persistent_term / :application mutation).
 #
-# Run:  elixir templates/drift_court.exs.tmpl
+# Run:  elixir courts/drift_court.exs
 
 defmodule DriftCourt do
   @specimen_root System.get_env("SPECIMEN_ROOT") ||

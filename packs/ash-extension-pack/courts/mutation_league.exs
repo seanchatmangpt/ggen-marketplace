@@ -14,7 +14,7 @@
 #                    the t0 digest of the pristine specimen (exports, declared
 #                    surfaces, getter/installer probes, side-effect scan).
 #
-# Run:  elixir templates/mutation_league.exs.tmpl
+# Run:  elixir courts/mutation_league.exs
 
 defmodule MutationLeague do
   @specimen_root System.get_env("SPECIMEN_ROOT") ||

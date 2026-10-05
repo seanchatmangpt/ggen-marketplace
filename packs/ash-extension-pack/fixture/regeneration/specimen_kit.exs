@@ -1,7 +1,7 @@
 # Shared court kit for the regeneration specimen (Lane C9).
 #
-# Loaded by all three courts (templates/regeneration_court.exs.tmpl,
-# drift_court.exs.tmpl, mutation_league.exs.tmpl) via Code.eval_file. Holds
+# Loaded by all three courts (courts/regeneration_court.exs,
+# drift_court.exs, mutation_league.exs) via Code.eval_file. Holds
 # only real machinery -- facts loading, the generator, compile + real
 # introspection snapshots, deterministic digests. No test doubles: the
 # specimen is compiled for real with Code.compile_string/1 and probed for
