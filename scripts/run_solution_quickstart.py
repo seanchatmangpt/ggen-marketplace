@@ -49,6 +49,12 @@ REPO_SOLUTION = ROOT / "solutions" / SOLUTION_NAME
 CONFIG = ROOT / "monetization.toml"
 PROFILE_SUBJECT = "EnterpriseAaifProfile"
 
+# ONE fold law: the quickstart's drift check and capsule-lock recompute call
+# the deployer's own input_folds (the same helper scripts/regen_solution_lock.py
+# uses), so deployer, regen tool and quickstart cannot drift.
+sys.path.insert(0, str(ROOT / "scripts"))
+from deploy_aaif_solution import input_folds  # noqa: E402
+
 # Per-profile DeploymentProfile tailoring, applied inside the capsule only.
 # Values must be individuals of the authoritative pack ontology
 # (packs/aaif-profile-tailoring-pack/ontology.ttl); the pack enum-closure gate
@@ -215,33 +221,17 @@ def retaylor_profile_json(body, tailoring):
     return json.dumps(data, indent=2, sort_keys=True) + "\n"
 
 
-def _visible(path, base):
-    """Same visibility law as marketplace.visible_files: no dot-dirs/dotfiles,
-    no __pycache__ (ggen runtime state must not enter any digest fold)."""
-    return not any(
-        part.startswith(".") or part == "__pycache__"
-        for part in path.relative_to(base).parts
-    )
+def _pack_fold(pack_path):
+    """Deployer's ONE fold law, applied to a single pack tree.
 
-
-def _pack_files(pack_path):
-    return sorted(
-        p
-        for p in pack_path.rglob("*")
-        if p.is_file() and not p.is_symlink() and _visible(p, pack_path)
-    )
-
-
-def _solution_input_files(solution_dir):
-    return [
-        p
-        for p in solution_dir.rglob("*")
-        if p.is_file()
-        and not p.is_symlink()
-        and p.name != "solution.json"
-        and "dist" not in p.relative_to(solution_dir).parts
-        and _visible(p, solution_dir)
-    ]
+    Calls deploy_aaif_solution.input_folds with an empty pack list so the
+    pack fold is exactly the profile fold of that subtree -- the same helper
+    the deployer's admission gate and scripts/regen_solution_lock.py use,
+    so the three tools cannot drift (pack-local dist/ and ggen runtime
+    state -- .ggen/.ggen-v2/.clap-noun-verb/__pycache__ -- never folded).
+    """
+    fold, _ = input_folds(pack_path, {"packs": []})
+    return fold
 
 
 def refuse_symlinks_in(*roots):
@@ -264,36 +254,28 @@ def check_repo_lock_drift(repo_root):
     Returns the list of drifted key names. Empty list == no drift. Always
     operates on repo paths -- never the (possibly tailored) capsule copy.
     """
-    sys.path.insert(0, str(ROOT / "scripts"))
-    import marketplace
-
     solution_dir = repo_root / "solutions" / SOLUTION_NAME
     committed = json.loads(
         (solution_dir / "solution.json").read_text(encoding="utf-8")
     )
 
-    computed = json.loads((solution_dir / "solution.json").read_text())
-    computed["profile_sha256"] = marketplace.fingerprint_paths(
-        _solution_input_files(solution_dir), solution_dir
-    )
-    for pack in computed["packs"]:
-        pack_path = (repo_root / "packs" / pack["name"]).resolve()
-        pack["content_hash"] = (
-            "sha256:"
-            + marketplace.fingerprint_paths(_pack_files(pack_path), pack_path)
-        )
+    profile_fold, pack_folds = input_folds(solution_dir, committed)
+    computed_hashes = {
+        pack["name"]: "sha256:" + fold
+        for pack, fold in zip(committed["packs"], pack_folds)
+    }
 
     diffs = []
-    if computed["profile_sha256"] != committed["profile_sha256"]:
+    if committed["profile_sha256"] != profile_fold:
         diffs.append("profile_sha256")
     committed_packs = {p["name"]: p for p in committed.get("packs", [])}
-    for pack in computed["packs"]:
-        c = committed_packs.get(pack["name"])
+    for name, content_hash in computed_hashes.items():
+        c = committed_packs.get(name)
         if c is None:
-            diffs.append(f"packs[{pack['name']}] (absent from committed lock)")
-        elif c.get("content_hash") != pack["content_hash"]:
-            diffs.append(f"packs[{pack['name']}].content_hash")
-    for name in sorted(set(committed_packs) - {p["name"] for p in computed["packs"]}):
+            diffs.append(f"packs[{name}] (absent from committed lock)")
+        elif c.get("content_hash") != content_hash:
+            diffs.append(f"packs[{name}].content_hash")
+    for name in sorted(set(committed_packs) - set(computed_hashes)):
         diffs.append(f"packs[{name}] (in committed lock, absent from repo tree)")
     return diffs
 
@@ -308,9 +290,6 @@ def recompute_lock(solution_dir, repo_root, accept_drift):
     explicit regeneration workflow: it prints the diff and proceeds, and the
     capsule recompute then runs only from that accepted basis.
     """
-    sys.path.insert(0, str(ROOT / "scripts"))
-    import marketplace
-
     diffs = check_repo_lock_drift(repo_root)
     if diffs:
         detail = ";".join(diffs)
@@ -328,13 +307,10 @@ def recompute_lock(solution_dir, repo_root, accept_drift):
         )
 
     lock = json.loads((solution_dir / "solution.json").read_text(encoding="utf-8"))
-    lock["profile_sha256"] = marketplace.fingerprint_paths(
-        _solution_input_files(solution_dir), solution_dir
-    )
-    for pack in lock["packs"]:
-        pack_path = (solution_dir / pack["path"]).resolve()
-        actual = marketplace.fingerprint_paths(_pack_files(pack_path), pack_path)
-        pack["content_hash"] = "sha256:" + actual
+    profile_fold, pack_folds = input_folds(solution_dir, lock)
+    lock["profile_sha256"] = profile_fold
+    for pack, fold in zip(lock["packs"], pack_folds):
+        pack["content_hash"] = "sha256:" + fold
     (solution_dir / "solution.json").write_text(
         json.dumps(lock, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )

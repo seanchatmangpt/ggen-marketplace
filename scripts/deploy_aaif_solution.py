@@ -247,8 +247,19 @@ def input_folds(solution_dir: Path, lock: dict[str, Any]) -> tuple[str, list[str
     solution dir except solution.json and any dist/ output (the lock covers
     the solution's INPUTS only). Pack folds are aligned with lock["packs"]
     and normalized (sha256: prefix stripped).
+
+    ONE exclusion law governs BOTH the solution tree and each pack tree:
+    runtime state -- solution.json, dist/, .ggen, .ggen-v2, .clap-noun-verb,
+    __pycache__ -- is never folded, at any depth, relative to the root being
+    folded. scripts/regen_solution_lock.py computes pack folds by calling
+    THIS function with an empty pack list (see its pack_folds docstring),
+    so the two tools cannot drift. Folding pack-local ggen runtime state
+    (.ggen/.clap-noun-verb left by `ggen sync` inside a pack) made the
+    lock drift on every manufacture -- the instability this law closes.
     """
-    GGEN_RUNTIME_STATE = frozenset({".ggen", ".ggen-v2", ".clap-noun-verb"})
+    GGEN_RUNTIME_STATE = frozenset(
+        {".ggen", ".ggen-v2", ".clap-noun-verb", "__pycache__"}
+    )
     input_files = [
         p
         for p in solution_dir.rglob("*")
@@ -261,8 +272,10 @@ def input_folds(solution_dir: Path, lock: dict[str, Any]) -> tuple[str, list[str
     pack_folds: list[str] = []
     for pack in lock["packs"]:
         pack_path = (solution_dir / pack["path"]).resolve()
-        pack_files = sorted(p for p in pack_path.rglob("*") if p.is_file())
-        pack_folds.append(fingerprint_paths(pack_files, pack_path) if pack_files else "")
+        # Same exclusion law for the pack tree: recurse with an empty pack
+        # list so the pack fold is exactly the profile fold of that subtree.
+        pack_fold, _ = input_folds(pack_path, {"packs": []})
+        pack_folds.append(pack_fold)
     return profile, pack_folds
 
 

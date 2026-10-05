@@ -912,3 +912,75 @@ class TestResidencyLockConsensus:
             deploy.check_data_residency(solution_dir, "gke", "eu-west1")
         assert ei.value.exit_code == 8
         assert "DATA_RESIDENCY_VIOLATION" in str(ei.value)
+
+
+# ---------------------------------------------------------------------------
+# Pack-path runtime-state exclusion (one law, shared with regen_solution_lock)
+# ---------------------------------------------------------------------------
+
+class TestPackRuntimeStateExclusion:
+    """Pack folds must exclude ggen runtime state under PACK paths too.
+
+    BX5: runtime artifacts (.ggen/.ggen-v2/.clap-noun-verb/dist/__pycache__)
+    left inside a pack tree by `ggen sync` made check_lock_digests refuse
+    again after any pack manufacture. The exclusion law lives in
+    deploy_aaif_solution.input_folds (scripts/regen_solution_lock.py calls
+    the same helper for pack folds), so deployer and regen cannot drift.
+    """
+
+    def _check(self, deploy, solution_dir):
+        import json as _json
+        lock = _json.loads((solution_dir / "solution.json").read_text())
+        deploy.check_lock_digests(solution_dir, lock)  # raises on drift
+
+    def test_pack_runtime_state_artifacts_excluded_check_passes(self, tmp_path):
+        deploy = _import_deploy()
+        solution_dir = _write_solution(tmp_path)
+        pack_dir = solution_dir / "packs" / "tiny-pack"
+        # Plant exactly what a real `ggen sync run` leaves in a pack tree.
+        (pack_dir / ".ggen" / "cache").mkdir(parents=True)
+        (pack_dir / ".ggen" / "cache" / "graph.json").write_text("{}")
+        (pack_dir / ".ggen-v2").mkdir()
+        (pack_dir / ".ggen-v2" / "state.bin").write_text("x")
+        (pack_dir / ".clap-noun-verb").mkdir()
+        (pack_dir / "dist").mkdir()
+        (pack_dir / "dist" / "generated.yaml").write_text("kind: Namespace\n")
+        (pack_dir / "__pycache__").mkdir()
+        (pack_dir / "__pycache__" / "render.cpython-312.pyc").write_bytes(b"\x00")
+        self._check(deploy, solution_dir)  # must NOT raise
+
+    def test_pack_real_source_change_still_refused_exit_9(self, tmp_path):
+        deploy = _import_deploy()
+        solution_dir = _write_solution(tmp_path)
+        pack_dir = solution_dir / "packs" / "tiny-pack"
+        # Runtime state alone must not mask a REAL source change.
+        (pack_dir / ".ggen").mkdir()
+        (pack_dir / "queries" / "namespace.rq").write_text(
+            "PREFIX aaif: <" + AAIF + ">\n"
+            "SELECT ?deployment WHERE { ?deployment a aaif:Deployment }\n"
+            "ORDER BY ?deployment\n"
+            "# tampered\n",
+            encoding="utf-8",
+        )
+        import json as _json
+        lock = _json.loads((solution_dir / "solution.json").read_text())
+        with pytest.raises(deploy.Refused) as ei:
+            deploy.check_lock_digests(solution_dir, lock)
+        assert ei.value.exit_code == 9
+        # The pack fold itself drifts (profile check fires first because the
+        # pack lives under the solution dir -- either refusal is exit 9).
+        _, deploy_folds = deploy.input_folds(solution_dir, lock)
+        assert deploy_folds[0] != lock["packs"][0]["content_hash"].split(":", 1)[-1]
+
+    def test_regen_tool_pack_folds_agree_with_deployer(self, tmp_path):
+        """regen_solution_lock.pack_folds == deployer input_folds pack folds."""
+        deploy = _import_deploy()
+        solution_dir = _write_solution(tmp_path)
+        (solution_dir / "packs" / "tiny-pack" / ".ggen").mkdir()
+        (solution_dir / "packs" / "tiny-pack" / ".ggen" / "x").write_text("x")
+        import json as _json
+        import regen_solution_lock as regen
+        lock = _json.loads((solution_dir / "solution.json").read_text())
+        regen_folds = regen.pack_folds(solution_dir, lock)
+        _, deploy_folds = deploy.input_folds(solution_dir, lock)
+        assert regen_folds == deploy_folds
