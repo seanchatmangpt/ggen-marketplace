@@ -11,8 +11,8 @@ generation run; a commit cannot contain its own hash, so it names the commit gen
 
 - Marketplace version: `v26.10.2`
 - Pack count: 305
-- Catalog fingerprint: `sha256:c659280f48078570bb79a282de5e4be70970675598cab6a5e8e63a06c0290e6b`
-- Head SHA: `3ddbfeb7e0b8824e1022f9edb043c65b5319f82e`
+- Catalog fingerprint: `sha256:9a48d406c675115fa05fe38e1605a62087f9966c90203b06f8b98527a53ddbfa`
+- Head SHA: `0b15034975c57606608d96e473218b43a54f80e8`
 
 ### Pack standing table
 
@@ -65,7 +65,7 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | beam4pm-process-model-pack | 0.1.23 | projection | native-gates, templates |
 | beam4pm-wasm-engine-pack | 26.9.1 | project | intent:review, native-gates, templates |
 | biblegym-pack | 26.8.12 | projection | native-gates, templates |
-| candidate-admission-portfolio-pack | 26.8.24 | projection | native-gates, templates |
+| candidate-admission-portfolio-pack | 26.8.24 | semantic | native-gates |
 | canonical-ash-projection-generator | 0.2.0 | projection | native-gates, templates |
 | capability-closure-pack | 26.9.30 | semantic | native-gates |
 | capability-ecology-pack | 26.9.0 | semantic | native-gates |
@@ -301,7 +301,7 @@ Tier signals are structural observations (gates, templates, class), not ALIVE cl
 | supply-chain-evidence-pack | 0.1.0 | projection | native-gates, templates |
 | swarmsh-autonomic-coordination-pack | 26.8.25 | project | templates |
 | swe-prometheus-governance-pack | 0.2.1 | projection | native-gates, templates |
-| tcps-consumer-fanout-factory-pack | 26.8.26 | projection | templates |
+| tcps-consumer-fanout-factory-pack | 26.8.26 | semantic | ontology-only |
 | tcps-pack | 26.9.0 | projection | native-gates, templates |
 | tcps-release-pack | 0.2.0 | projection | intent:review, native-gates, templates |
 | temporal-truth-observability-pack | 26.8.26 | semantic | ontology-only |
