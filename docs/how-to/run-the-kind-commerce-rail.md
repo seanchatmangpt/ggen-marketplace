@@ -38,7 +38,7 @@ kind create cluster --config k8s/kind-cluster-config.yaml
 ```bash
 kubectl apply -f k8s/gcp-marketplace-sim/gcp-procurement-simulator.yaml
 kubectl wait --for=condition=available \
-  deployment/gcp-marketplace-sim --timeout=90s
+  deployment/gcp-procurement-simulator --timeout=90s
 ```
 
 The in-cluster simulator serves on the NodePort mapped to host 8443. For
@@ -53,9 +53,11 @@ kubectl apply -f k8s/aaif-swarm/aaif-swarm-mesh.yaml
 
 ## 4. Seed an approval
 
-The simulator's entitlement check (`:check` / `:allocateQuota`, Service
-Control operation shape) refuses unknown or inactive entitlements with
-403 `ENTITLEMENT_INACTIVE`. Seed the simulator's approval store with the
+The simulator's usage-report gate (`:report`, Service Control operation
+shape) refuses a `consumerId` that does not resolve to an active
+entitlement with 403 `ENTITLEMENT_REQUIRED`. Seed the simulator's
+entitlement store (via `POST /v1/providers/demo-provider/entitlements/`
+...`:approve`, or `/accounts/...:approve` for account approval) with the
 entitlement id your deployer run will present. Consult
 `k8s/gcp-marketplace-sim/server.py` for the exact in-memory store shape —
 do not rely on a copied seed snippet here.
@@ -74,8 +76,8 @@ A successful run shows an admitted service-control receipt (admitted count
 and revenue fields) plus the paid-delivery receipt appended to
 `receipts/paid-delivery/chain.jsonl`.
 
-An unknown entitlement fails closed with 403 `ENTITLEMENT_INACTIVE` before
-any manufacture happens — pay-before-manufacture is the invariant, not an
+An unknown entitlement fails closed with 403 `ENTITLEMENT_REQUIRED` at
+`:report` before any manufacture happens — pay-before-manufacture is the invariant, not an
 optimization.
 
 ## 6. Tear down
