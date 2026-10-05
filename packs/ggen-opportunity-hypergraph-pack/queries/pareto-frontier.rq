@@ -1,17 +1,28 @@
 PREFIX ogh: <https://ggen.dev/ontology/opportunity-hypergraph#>
-SELECT ?ledger ?authority ?actuation
-       (COUNT(DISTINCT ?candidate) AS ?frontierCount)
-       (SUM(?delta) AS ?frontierCapabilitySpaceDelta)
-       (MAX(?reuse) AS ?maxExpectedReuse)
-       (GROUP_CONCAT(DISTINCT ?id; separator=",") AS ?frontierIds)
+SELECT ?ledger ?authority ?actuation ?frontierCount ?frontierCapabilitySpaceDelta ?maxExpectedReuse ?frontierIds
 WHERE {
-  ?ledger a ogh:OpportunityLedger ; ogh:authority ?authority ; ogh:actuationPerformed ?actuation .
-  ?candidate a ogh:CompositionCandidate ;
-    ogh:candidateId ?id ;
-    ogh:dominanceClass "pareto" ;
-    ogh:reversible true ;
-    ogh:expectedReuse ?reuse ;
-    ogh:expectedCapabilitySpaceDelta ?delta .
+  {
+    SELECT ?ledger ?authority ?actuation
+           (COUNT(DISTINCT ?candidate) AS ?frontierCount)
+           (SUM(?delta) AS ?frontierCapabilitySpaceDelta)
+           (MAX(?reuse) AS ?maxExpectedReuse)
+           (GROUP_CONCAT(DISTINCT ?id; separator=",") AS ?frontierIds)
+    WHERE {
+      {
+        SELECT ?candidate ?id ?reuse ?delta ?ledger ?authority ?actuation
+        WHERE {
+          ?ledger a ogh:OpportunityLedger ; ogh:authority ?authority ; ogh:actuationPerformed ?actuation .
+          ?candidate a ogh:CompositionCandidate ;
+            ogh:candidateId ?id ;
+            ogh:dominanceClass "pareto" ;
+            ogh:reversible true ;
+            ogh:expectedReuse ?reuse ;
+            ogh:expectedCapabilitySpaceDelta ?delta .
+        }
+        ORDER BY ?id
+      }
+    }
+    GROUP BY ?ledger ?authority ?actuation
+    HAVING (COUNT(DISTINCT ?candidate) >= 6)
+  }
 }
-GROUP BY ?ledger ?authority ?actuation
-HAVING (COUNT(DISTINCT ?candidate) >= 6)

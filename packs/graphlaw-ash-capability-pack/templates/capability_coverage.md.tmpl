@@ -5,19 +5,32 @@ sparql:
     PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
 
     # One row per coverage-ledger entry: kind, subject, status, artifacts, reason and note.
-    SELECT ?subject_kind ?subject ?status
-           (GROUP_CONCAT(DISTINCT ?artifact; separator=", ") AS ?artifacts)
-           ?reason ?note
+    # ?artifacts is fed by an ordered inner sub-SELECT (GROUP_CONCAT determinism law).
+    # NOTE: rows without a coverageArtifact still raise rdflib's DISTINCT-unbound
+    # NotBoundError, exactly as before this rewrite (pre-existing engine behavior,
+    # preserved deliberately).
+    SELECT ?subject_kind ?subject ?status ?artifacts ?reason ?note
     WHERE {
       ?row a gac:CapabilityCoverage ;
         gac:coverageSubject ?subject ;
         gac:coverageSubjectKind ?subject_kind ;
         gac:coverageStatus ?status .
-      OPTIONAL { ?row gac:coverageArtifact ?artifact }
       OPTIONAL { ?row gac:coverageReason ?reason }
       OPTIONAL { ?row gac:coverageNote ?note }
+      {
+        SELECT ?row (GROUP_CONCAT(DISTINCT ?artifact; separator=", ") AS ?artifacts)
+        WHERE {
+          ?row a gac:CapabilityCoverage .
+          OPTIONAL {
+            {
+              SELECT ?row ?artifact WHERE { ?row gac:coverageArtifact ?artifact }
+              ORDER BY ?artifact
+            }
+          }
+        }
+        GROUP BY ?row
+      }
     }
-    GROUP BY ?subject_kind ?subject ?status ?reason ?note
     ORDER BY ?subject_kind ?subject
 ---
 <!--

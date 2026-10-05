@@ -73,45 +73,10 @@ PACKS = ROOT / "packs"
 
 # relative path -> {occurrence index -> set of missing properties}
 # occurrence index = index of the GROUP_CONCAT( token in comment-stripped text.
-KNOWN_VIOLATORS: dict[str, dict[int, set[str]]] = {
-    "packs/affidavit-consumer-pack/queries/host.rq": {0: {"ordered_sub_select"}},
-    "packs/affidavit-consumer-pack/queries/vocab.rq": {
-        0: {"ordered_sub_select"},
-        1: {"ordered_sub_select"},
-    },
-    # keys.rq occurrence 0 (?algs) complies via its ordered sub-SELECT;
-    # occurrences 1 (?origins) and 2 (?providers) do not.
-    "packs/affidavit-trust-plane-pack/queries/keys.rq": {
-        1: {"ordered_sub_select"},
-        2: {"ordered_sub_select"},
-    },
-    "packs/ash-extension-pack/queries/reactor_steps.rq": {0: {"ordered_sub_select"}},
-    "packs/chicago-graphlaw-court-pack/queries/cases_fibo.rq": {0: {"ordered_sub_select"}},
-    "packs/chicago-graphlaw-court-pack/queries/cases_xauth.rq": {0: {"ordered_sub_select"}},
-    "packs/dfcm-pack/families/maximalist-court/queries/diagnostic-r8-09-output-collision-pressure.rq": {
-        0: {"ordered_sub_select"}
-    },
-    "packs/dspy-pack/queries/coverage_cross_reference.rq": {0: {"ordered_sub_select"}},
-    "packs/economic-isa-dfcm-pack/queries/01-registry.rq": {0: {"ordered_sub_select"}},
-    "packs/elixir-mcp-a2a-pack/queries/a2a_capabilities.rq": {
-        i: {"ordered_sub_select"} for i in range(6)
-    },
-    "packs/ggen-opportunity-hypergraph-pack/queries/opportunity-hypergraph.rq": {
-        0: {"ordered_sub_select"}
-    },
-    "packs/ggen-opportunity-hypergraph-pack/queries/pareto-frontier.rq": {
-        0: {"ordered_sub_select"}
-    },
-    "packs/ggen-project-boundary-pack/queries/r20-observability-sensor-factory.rq": {
-        0: {"ordered_sub_select"}
-    },
-    "packs/graphlaw-ash-capability-pack/queries/coverage.rq": {0: {"ordered_sub_select"}},
-    "packs/sa2a-spark-dsl-pack/queries/verifier_refusal_codes.rq": {
-        0: {"ordered_sub_select"}
-    },
-    # occurrence 0 (?ops in examples section) complies; occurrence 1 does not.
-    "packs/wasi-json-abi-pack/queries/abi_doc.rq": {1: {"ordered_sub_select"}},
-}
+# All 16 former violators repaired (v26.10.5): every GROUP_CONCAT now folds
+# over an ordered inner sub-SELECT. The list is kept as the empty-map schema
+# so new violators still surface via test_known_violator_list_is_current.
+KNOWN_VIOLATORS: dict[str, dict[int, set[str]]] = {}
 
 
 def strip_comments(text: str) -> str:

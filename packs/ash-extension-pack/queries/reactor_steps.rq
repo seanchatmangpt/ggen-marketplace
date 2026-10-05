@@ -4,8 +4,9 @@ PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
 # are OPTIONAL (0+ / boolean-with-default), matching aex:ReactorStep's own comment
 # that not every step declares them -- absent means "no dependency"/"no compensate",
 # never coerced to a false default silently at the query layer.
-SELECT ?package_name ?step_name ?step_module ?step_order ?max_retries ?has_compensate ?is_return
-       (GROUP_CONCAT(?wait_for_name; separator=",") AS ?wait_for_names)
+# wait_for_names is fed by an ordered inner sub-SELECT (GROUP_CONCAT determinism
+# law); a step with no wait_for keeps the bound "" it always projected.
+SELECT ?package_name ?step_name ?step_module ?step_order ?max_retries ?has_compensate ?is_return ?wait_for_names
 WHERE {
   ?step a aex:ReactorStep ; aex:stepOf ?spec ;
         aex:stepName ?step_name ; aex:stepModule ?step_module ;
@@ -14,7 +15,23 @@ WHERE {
   OPTIONAL { ?step aex:stepMaxRetries ?max_retries }
   OPTIONAL { ?step aex:stepHasCompensate ?has_compensate }
   OPTIONAL { ?step aex:stepIsReturn ?is_return }
-  OPTIONAL { ?step aex:stepWaitFor ?wait_for_step . ?wait_for_step aex:stepName ?wait_for_name }
+  OPTIONAL {
+    SELECT ?step (GROUP_CONCAT(?wait_for_name; separator=",") AS ?wait_for_names_raw)
+    WHERE {
+      ?step a aex:ReactorStep .
+      OPTIONAL {
+        {
+          SELECT ?step ?wait_for_name
+          WHERE {
+            ?step aex:stepWaitFor ?wait_for_step .
+            ?wait_for_step aex:stepName ?wait_for_name
+          }
+          ORDER BY ?wait_for_name
+        }
+      }
+    }
+    GROUP BY ?step
+  }
+  BIND(COALESCE(?wait_for_names_raw, "") AS ?wait_for_names)
 }
-GROUP BY ?package_name ?step_name ?step_module ?step_order ?max_retries ?has_compensate ?is_return
 ORDER BY ?package_name ?step_order

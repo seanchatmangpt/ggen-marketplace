@@ -6,12 +6,13 @@ PREFIX ema: <http://seanchatmangpt.github.io/packs/elixir-mcp-a2a#>
 # rendered list (a plain GROUP_CONCAT over a shared row set duplicated every
 # multi-valued field by the product of the others' cardinality -- observed
 # for real on the xaas fixture's checkout row before this rewrite).
+# All three aggregates are fed by ordered inner sub-SELECTs (GROUP_CONCAT
+# determinism law); a capability missing a field keeps the bound "" it
+# always projected via COALESCE.
 SELECT ?capability_id ?capability_name ?capability_description ?capability_ash_action
        ?observation_scope ?mutation_scope ?requires_authority ?is_reversible
        ?cost_estimate ?receipt_semantics ?capability_order ?consequence
-       (GROUP_CONCAT(?tag; separator=",") AS ?tags)
-       (GROUP_CONCAT(?input_mode; separator=",") AS ?input_modes)
-       (GROUP_CONCAT(?output_mode; separator=",") AS ?output_modes) WHERE {
+       ?tags ?input_modes ?output_modes WHERE {
   ?c a ema:Capability ; ema:capabilityOf ?surface ; ema:exposedVia ?via .
   FILTER (?via = "a2a" || ?via = "both")
   ?c ema:capabilityId ?capability_id ; ema:capabilityName ?capability_name ;
@@ -23,22 +24,43 @@ SELECT ?capability_id ?capability_name ?capability_description ?capability_ash_a
   OPTIONAL { ?c ema:costEstimate ?cost_estimate }
   OPTIONAL { ?c ema:consequence ?consequence }
   OPTIONAL {
-    SELECT ?c (GROUP_CONCAT(?t; separator=",") AS ?tag) WHERE {
-      SELECT DISTINCT ?c ?t WHERE { ?c a ema:Capability ; ema:capabilityTag ?t }
-    } GROUP BY ?c
+    SELECT ?c (GROUP_CONCAT(?t; separator=",") AS ?tags)
+    WHERE {
+      ?c a ema:Capability .
+      OPTIONAL {
+        {
+          SELECT DISTINCT ?c ?t WHERE { ?c a ema:Capability ; ema:capabilityTag ?t }
+          ORDER BY ?t
+        }
+      }
+    }
+    GROUP BY ?c
   }
   OPTIONAL {
-    SELECT ?c (GROUP_CONCAT(?im; separator=",") AS ?input_mode) WHERE {
-      SELECT DISTINCT ?c ?im WHERE { ?c a ema:Capability ; ema:inputModes ?im }
-    } GROUP BY ?c
+    SELECT ?c (GROUP_CONCAT(?im; separator=",") AS ?input_modes)
+    WHERE {
+      ?c a ema:Capability .
+      OPTIONAL {
+        {
+          SELECT DISTINCT ?c ?im WHERE { ?c a ema:Capability ; ema:inputModes ?im }
+          ORDER BY ?im
+        }
+      }
+    }
+    GROUP BY ?c
   }
   OPTIONAL {
-    SELECT ?c (GROUP_CONCAT(?om; separator=",") AS ?output_mode) WHERE {
-      SELECT DISTINCT ?c ?om WHERE { ?c a ema:Capability ; ema:outputModes ?om }
-    } GROUP BY ?c
+    SELECT ?c (GROUP_CONCAT(?om; separator=",") AS ?output_modes)
+    WHERE {
+      ?c a ema:Capability .
+      OPTIONAL {
+        {
+          SELECT DISTINCT ?c ?om WHERE { ?c a ema:Capability ; ema:outputModes ?om }
+          ORDER BY ?om
+        }
+      }
+    }
+    GROUP BY ?c
   }
 }
-GROUP BY ?capability_id ?capability_name ?capability_description ?capability_ash_action
-         ?observation_scope ?mutation_scope ?requires_authority ?is_reversible
-         ?cost_estimate ?receipt_semantics ?capability_order ?consequence
 ORDER BY ?capability_order

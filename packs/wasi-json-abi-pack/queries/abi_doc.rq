@@ -109,7 +109,9 @@ WHERE {
     WHERE {
       {
         SELECT ?m4 ?row WHERE {
-          ?m4 a wja:WasmModule ;
+          {
+            SELECT ?m4 ?row WHERE {
+              ?m4 a wja:WasmModule ;
               wja:exportPrefix ?ep4 .
           OPTIONAL { ?m4 wja:symbolSuffix ?ss4 }
           OPTIONAL { ?m4 wja:returnConvention ?rc4 }
@@ -133,12 +135,17 @@ WHERE {
           BIND(IF(?irv4 = "host-dealloc", CONCAT(?de4, "##core##(ptr: i32, len: i32)##-##-"), "") AS ?rowDealloc4)
           BIND(IF(?havv4 = "true", CONCAT(?ab4, "##core##()##i32##-"), "") AS ?rowAbi4)
           BIND(CONCAT(?rowAlloc4, "@@", ?rowCall4, "@@", ?rowDealloc4, "@@", ?rowAbi4) AS ?row)
+            }
+            ORDER BY ?row
+          }
         }
       }
       UNION
       {
         SELECT ?m4 ?row WHERE {
-          ?m4 wja:hasOp ?op4 ;
+          {
+            SELECT ?m4 ?row WHERE {
+              ?m4 wja:hasOp ?op4 ;
               wja:exportPrefix ?ep5 .
           ?op4 wja:opName ?on4 ;
                wja:opOrder ?oo4 .
@@ -155,12 +162,15 @@ WHERE {
           BIND(IF(?rcv5 = "out-len-pointer", CONCAT(?opsym5, "##request_response##(ptr: i32, len: i32, out_len: i32)##i32##", COALESCE(STR(?osf5), "-")), "") AS ?rowOp5)
           BIND(IF(?rcv5 = "out-len-pointer" && isLiteral(?hrc5) && STR(?hrc5) = "true", CONCAT(?rpsym5, "##replay##(ptr: i32, len: i32)##i32##", COALESCE(STR(?osf5), "-")), "") AS ?rowReplay5)
           BIND(IF(?rowOp5 != "", CONCAT(?rowOp5, "@@", ?rowReplay5), "") AS ?row)
+            }
+            ORDER BY ?oo4 ?row
+          }
         }
       }
     }
     GROUP BY ?m4
   }
-  FILTER(?m = ?m2 && ?m = ?m4)
+  FILTER(?m = ?m2 && ?m = ?m4 && ?m = ?m7)
 }
 ORDER BY ?crate_name
 LIMIT 1

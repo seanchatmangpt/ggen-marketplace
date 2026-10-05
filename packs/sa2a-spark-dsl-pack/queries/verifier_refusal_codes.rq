@@ -9,15 +9,28 @@
 # The codegen templates read the flat spark:refusalCodeList projection of
 # these same codes (ggen's template context does not support aggregation), so
 # gates/030 gates that projection against the individuals extracted here.
+# ?refusal_codes is fed by an ordered inner sub-SELECT (GROUP_CONCAT
+# determinism law); the COALESCE keeps a verifier with no codes bound to "".
 PREFIX spark: <urn:spark:dsl:>
 
-SELECT ?verifier ?name ?source_file
-       (GROUP_CONCAT(DISTINCT ?code; SEPARATOR="; ") AS ?refusal_codes)
+SELECT ?verifier ?name ?source_file ?refusal_codes
 WHERE {
   ?verifier a spark:Verifier ;
             spark:sourceFile ?source_file .
-  OPTIONAL { ?verifier spark:hasRefusalCode ?code }
   BIND(STRAFTER(STR(?verifier), "urn:sa2a:spark:") as ?name)
+  OPTIONAL {
+    SELECT ?verifier (GROUP_CONCAT(DISTINCT ?code; SEPARATOR="; ") AS ?refusal_codes_raw)
+    WHERE {
+      ?verifier a spark:Verifier .
+      OPTIONAL {
+        {
+          SELECT ?verifier ?code WHERE { ?verifier spark:hasRefusalCode ?code }
+          ORDER BY ?code
+        }
+      }
+    }
+    GROUP BY ?verifier
+  }
+  BIND(COALESCE(?refusal_codes_raw, "") AS ?refusal_codes)
 }
-GROUP BY ?verifier ?name ?source_file
 ORDER BY ?name

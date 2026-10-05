@@ -1,15 +1,25 @@
 # vocab.rq -- consumed by templates/affidavit_events.{ts,py}.tmpl and action.yml.tmpl.
-# One row. Columns: project_name, profile, receipt_path,
+# One row per Consumer. Columns: project_name, profile, receipt_path,
 #   events  - GROUP_CONCAT of event names joined by "@@" (template sorts)
 #   objects - GROUP_CONCAT of object type names joined by "@@"
+# Aggregates are fed by ordered inner sub-SELECTs (GROUP_CONCAT determinism law).
 PREFIX afc: <https://ggen.dev/ontology/affidavit-consumer#>
-SELECT ?project_name ?profile ?receipt_path
-       (GROUP_CONCAT(DISTINCT ?en; separator="@@") AS ?events)
-       (GROUP_CONCAT(DISTINCT ?on; separator="@@") AS ?objects)
+SELECT ?project_name ?profile ?receipt_path ?events ?objects
 WHERE {
-  ?c a afc:Consumer ; afc:projectName ?project_name ; afc:profile ?profile ; afc:receiptPath ?receipt_path ;
-     afc:emits ?e ; afc:usesObject ?o .
-  ?e afc:name ?en . ?o afc:name ?on .
+  ?c a afc:Consumer ; afc:projectName ?project_name ; afc:profile ?profile ; afc:receiptPath ?receipt_path .
+  {
+    SELECT ?c (GROUP_CONCAT(DISTINCT ?en; separator="@@") AS ?events)
+    WHERE {
+      { SELECT ?c ?en WHERE { ?c afc:emits ?e . ?e afc:name ?en } ORDER BY ?en }
+    }
+    GROUP BY ?c
+  }
+  {
+    SELECT ?c (GROUP_CONCAT(DISTINCT ?on; separator="@@") AS ?objects)
+    WHERE {
+      { SELECT ?c ?on WHERE { ?c afc:usesObject ?o . ?o afc:name ?on } ORDER BY ?on }
+    }
+    GROUP BY ?c
+  }
 }
-GROUP BY ?project_name ?profile ?receipt_path
 ORDER BY ?project_name
