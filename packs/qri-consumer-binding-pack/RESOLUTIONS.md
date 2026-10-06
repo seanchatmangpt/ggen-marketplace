@@ -93,7 +93,7 @@ nothing; `-e ontology.ttl` is optional (witnesses are explicitly typed).
 - `witnesses/extra/*.ttl` (4 files, `<gate>.<variant>.ttl`) are judged by
   `python3.11 runners/semantic_runner.py --extras`; they are outside the exact-stem court.
 - Witness literals: sample digests are synthetic except the pin byte size and wasm sha256 pattern
-  taken from the plan (pin sha256 5e721cc2...a7761f7, 284650 bytes).
+  taken from the plan (pin sha256 5cc37aea...1402, 660847 bytes).
 
 ## Repair addendum (audit defects, 2026-09-30)
 

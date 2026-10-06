@@ -56,7 +56,7 @@ of check):
 - **Witnessed:** fresh-pin pass on `graphlaw_wasm.wasm`
   (sha256 `8bfff66c…e71a8`, 6657549 bytes); one-byte mutation of a COPY
   refused (`digest_mismatch` + `name_mismatch`); real committed affidavit pin
-  `5e721cc2…61f7 / 284650` verified against the real `affidavit_wasm.wasm`;
+  `5cc37aea…1402 / 660847` verified against the real `affidavit_wasm.wasm`;
   enforcement refusals for missing artifact and for the placeholder-only
   skeleton pin in `generated/ARTIFACTS.sha256`; explicit skip without
   enforcement.
