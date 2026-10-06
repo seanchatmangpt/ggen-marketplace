@@ -2,64 +2,59 @@
 
 ## Summary
 
-Lands the AAIF commerce plane on the simulator backend: monetization registry
-(29be01fa3), entitlement seam + paid-delivery receipt chain (8dc60906f), one-script
-solution deployer with typed refusal ladder (3303a8ee3) and idempotent redeploy
-(d237f20d9), and a one-command quickstart with drift detection + symlink guard
-(7cf4dd9c3, d0986ff14). Registry/intake/solutions/deployer/receipt chain/quickstart
-form one dependency-closed plane; sim↔real flip is a registry line.
+Lands the AAIF commerce plane on the simulator backend plus the
+conference-commerce court suite: monetization registry (29be01fa3),
+entitlement seam + paid-delivery receipt chain (8dc60906f), one-script
+solution deployer with typed refusal ladder (3303a8ee3) and idempotent
+redeploy (d237f20d9), one-command quickstart with drift detection +
+symlink guard (7cf4dd9c3, d0986ff14). Sim↔real flip is a registry line.
 
-- Corpus repairs: structurally-refused packs 15 → 0 frozen-court refusals
-  (c4728863b, fdb8920e3, f9bcad835, de61c6186, 6968722d2, 6b86bdaa0, 122242cc3 …).
-- Security hardening from 3 adversarial rounds: JWT-vs-x509 metadata verify +
-  loopback pin (7d00e1ab9), issuer bound to backend trust anchor (5de6ed0ed),
-  forged-prior/traversal hardening (8d1d038e4), sim :report entitlement +
-  quota gate (53a0a483f), post-manufacture input re-verify (19f6913cc),
-  real-YAML scope gate + residency consensus (e7386f8df), out-of-band HEAD
-  anchor (3d8bcc8e7).
-- Scale: 24 commit waves, ~65 commits, 224 files (+10594/−1183) over base
-  3ddbfeb7 (measured `git diff --stat main...HEAD`).
+Scale vs main (measured `git log`/`git diff --stat main..HEAD` at head
+046e37467): 93 commits, 246 files changed, +14190/−1308.
 
-## Verification receipts
+## Highlights
 
-- Canonical ladder green twice-reproduced: `marketplace.py validate` →
-  `catalog` ×2 + `cmp` identical → `fingerprint` → frozen-court
-  `qualify-marketplace.sh` **exit 0: 295 ALIVE / 9 accepted-WARN / 1 honest
-  SKIPPED**; refusals 15→0. Standing fresh (907053ab1, 463e769d4, 7a4b04f72).
-- Court counts (per lane receipts, not this run): deployment 40; entitlement
-  26 passing / 1 skipped; receipt chain + deployer idempotency 21 passing;
-  quickstart 7; GROUP_CONCAT determinism 27 assertions / 16 query files;
-  ConfigMap drift court 2 (LOCK_DRIFT + sim Deployment restore, 84ffe476f);
-  coverage courts 163. pytest: ~1870 passed.
-- Solution lock verified by regen tool against deployer under the unified fold
-  law (2bc257ec9); LOCK_DRIFT witnessed firing on real drift (d0986ff14).
+- AAIF commerce plane: registry, intake scaffold, solutions, entitlement
+  seam — one dependency-closed plane, authority-fenced (SELECT→CONSTRUCT→DO).
+- Deployer + refusal ladder: typed exits {2..10,12,13}, idempotent redeploy
+  verified byte-identical (d237f20d9), LOCK_DRIFT witnessed on real drift
+  (d0986ff14, 84ffe476f).
+- Conference-commerce courts (CG1–CG11): registration (5a4d4aa12),
+  provisioning of 25 real sim customers (5fa821c83), metering over real
+  Service Control sim (ad3d557dd), billing rollup, isolation, signed-
+  credential courts over affidavit wasm verify (d252c63ec), MCP booth;
+  64/64 green twice (5e9ba0830), shared-sim hardening (fbe15ef9a).
+- Receipt chain: `chain.jsonl` (`paid-delivery-chain/v1`, sha256 fold),
+  append-only; replay = re-fold and compare heads.
+- Security hardening: JWT-vs-x509 + loopback pin (7d00e1ab9), issuer bound
+  to backend trust anchor (5de6ed0ed), forged-prior/traversal hardening
+  (8d1d038e4), sim quota gate (53a0a483f), post-manufacture re-verify
+  (19f6913cc), real-YAML scope gate (e7386f8df).
+- Docs: Diátaxis quadrants + nav for AAIF/commerce (2127c8c86, f3c05f773,
+  669b0e63a), deployer contract synced (fbec6c9eb), standing + receipt
+  docs (a772e71da, feda211d1, 046e37467), pin note (6929b53d7).
+- Pack repairs: structurally-refused packs 15 → 0 frozen-court refusals.
 
-## Docs inventory
+## Verification
 
-Diátaxis quadrants + nav for AAIF and commerce (2127c8c86, f3c05f773);
-sim API reference (1bf9286ec); security posture + fail-closed rationale
-(f8e37a808); deployer contract synced to final refusals (fbec6c9eb, 0576cf6da);
-solutions README + lock math (b6001f99b); tailor-a-solution-profile guide
-(526a7b49a, 18dd42b23); README commerce plane + quickstart (dcea82eee,
-42f9f7b7c); AGENTS/CLAUDE commerce + security landings (36f13e017,
-0b1503497); SUMMARY/book.toml regenerated per nav law (3a6e4eac0);
-manufacturing receipt (a19d75029).
+| Check | Result | Subject/SHA |
+|---|---|---|
+| Canonical ladder (validate→catalog×2+cmp→fingerprint→qualify) | exit 0, 305 packs, 295 ALIVE / 9 WARN / 1 SKIPPED | frozen court @ 046e37467 |
+| Conference-commerce suite (CG1–CG11) | 64/64 passed, 2 consecutive runs | 5e9ba0830 |
+| pytest (tests/ scripts/) | ~1870 passed | per lane receipts |
+| TCK (via ash_a2a surface) | 235/0 MUST, 79.0% compatibility | addendum 046e37467 |
+| Deployer idempotency / LOCK_DRIFT | byte-identical redeploy; drift refused | d237f20d9, d0986ff14 |
+| Upstream: ggen tag v26.10.5 | exists, falsifiers green | 03942743a |
+| Upstream: graphlaw | 414/0, tag v26.10.5 | 3fb0eef |
+
+Counts cite lane receipts, not this run, except the ladder and conference
+suite above. Replay: clean clone at head, re-run ladder; catalog must cmp
+identical; fingerprint reproduces only at its recorded head.
 
 ## Standing
 
-- ggen-marketplace: **PARTIAL_ALIVE** — sim-rail commerce plane admitted;
-  real GCP backend **BLOCKED:vendor-onboarding** (listing, EDP — external).
-- Upstream: ggen v26.10.5 tag PENDING at 1d5f73a31 → pin bump gated;
-  graphlaw tagged v26.10.5 (BLOCKED:crates_io_credentials for publish);
-  igniter MIX_GATE_ENV_ONLY; affidavit merge user-gated.
-
-## Falsifiers open
-
-- ggen `[ggen]` pin must not move before the upstream tag exists.
-- Group-concat court must fail on non-deterministic fold reversion (mutation
-  check owed at merged-head regen).
-- Coverage aggregate must tolerate artifact-less rows; reversion must fail the
-  163-court. Sim backend must refuse real tokens.
-
-Replay: checkout head in a clean clone, re-run the ladder; catalog must cmp
-identical; fingerprint reproduces only at its recorded head.
+- ggen-marketplace: **PARTIAL_ALIVE** — sim-rail commerce plane admitted.
+- Real GCP backend: **BLOCKED:vendor-onboarding** (listing, EDP — external);
+  receipts carry no DO authority.
+- Pushes/tags: user-gated (ggen pin bump BLOCKED:pin-bump-user-gated until
+  verified; graphlaw publish BLOCKED:crates_io_credentials).
