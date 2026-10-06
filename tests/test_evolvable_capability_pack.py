@@ -36,10 +36,17 @@ def _load(name: str):
     spec = importlib.util.spec_from_file_location(f"ecap_{name}", QUALIFICATION / f"{name}.py")
     module = importlib.util.module_from_spec(spec)
     sys.path.insert(0, str(QUALIFICATION))
+    # Sibling-import guard: bench.py does `import verify` internally. If another
+    # pack's verify.py is squatting in sys.modules under the bare name "verify"
+    # (e.g. a test file collected earlier), bench would silently bind the wrong
+    # pack's load_graph. Evict the squatter for the duration of the load.
+    squatter = sys.modules.pop("verify", None) if name == "bench" else None
     try:
         spec.loader.exec_module(module)
     finally:
         sys.path.remove(str(QUALIFICATION))
+        if squatter is not None:
+            sys.modules["verify"] = squatter
     return module
 
 

@@ -180,7 +180,8 @@ def search_packs(
 
     console.print(table)
     if len(matched) > limit:
-        rprint(f"[dim]... and {len(matched) - limit} more matches. Use --limit to expand.[/dim]")
+        omitted = ", ".join(rec["name"] for rec in matched[limit:])
+        rprint(f"[dim]... and {len(matched) - limit} more matches (use --limit to expand): {omitted}[/dim]")
 
     emit_cli_event(
         "OUTPUT_RENDERED",

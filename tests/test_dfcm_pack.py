@@ -5,19 +5,26 @@ witnessed (pass silent, fail fires), and a mutated pass witness must be refused
 (anti-vacuity, composition law C05: reverting/mutating the subject must make
 acceptance fail).
 """
+import importlib.util
 import sys
 import unittest
 from pathlib import Path
 
 PACK = Path(__file__).resolve().parents[1] / "packs" / "dfcm-pack"
-sys.path.insert(0, str(PACK / "qualification"))
 
-import verify  # noqa: E402
+# Load namespaced ("dfcm_verify"), NOT via `import verify`: a bare module name
+# here squats in sys.modules and any later `import verify` in the same pytest
+# process (e.g. evolvable-capability-pack's bench.py) would silently bind THIS
+# pack's module. One canonical name per module, no cross-pack squatting.
+_spec = importlib.util.spec_from_file_location("dfcm_verify", PACK / "qualification" / "verify.py")
+verify = importlib.util.module_from_spec(_spec)
+sys.modules["dfcm_verify"] = verify
+_spec.loader.exec_module(verify)
 
 
 class DfcmCourt(unittest.TestCase):
     def test_all_gates_witnessed_and_admitted(self):
-        self.assertEqual(verify.main.__module__, "verify")
+        self.assertEqual(verify.main.__module__, "dfcm_verify")
         for gate in verify.gates():
             pass_rows = verify.rows_for(verify.load_graph(verify.PASS / f"{gate.stem}.ttl"), gate)
             self.assertEqual(pass_rows, [], f"{gate.stem}: pass witness fired")

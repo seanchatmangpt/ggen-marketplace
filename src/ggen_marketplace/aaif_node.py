@@ -71,23 +71,30 @@ def build_mcp_server() -> MCPServer:
     server = MCPServer("ggen-marketplace-mcp")
 
     @server.tool(description="Search marketplace packs by keyword query.")
-    def search_packs(query: str) -> List[Dict[str, Any]]:
+    def search_packs(query: str) -> str:
+        """Return every match in ONE JSON payload.
+
+        A list return is split by MCPServer into one TextContent block per
+        item, so clients reading ``content[0]`` only ever saw the first match.
+        Serializing here guarantees the full result set (including
+        aaif-vanilla-pack) reaches the client in a single block.
+        """
+        import json
+
         if mp is None:
-            return []
+            return "[]"
         packs = [p.catalog_record() for p in mp.scoped_packs("all")]
         matches = [
-            p for p in packs
-            if query.lower() in p["name"].lower() or query.lower() in p.get("description", "").lower()
-        ]
-        return [
             {
                 "name": p["name"],
                 "version": p["version"],
                 "tier": p.get("tier", "unknown"),
                 "description": p.get("description", ""),
             }
-            for p in matches
+            for p in packs
+            if query.lower() in p["name"].lower() or query.lower() in p.get("description", "").lower()
         ]
+        return json.dumps(matches, indent=2, sort_keys=True)
 
     @server.tool(description="Retrieve comprehensive catalog summary across all packs.")
     def get_catalog_summary() -> Dict[str, Any]:
