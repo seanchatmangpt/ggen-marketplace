@@ -10,7 +10,7 @@ redeploy (d237f20d9), one-command quickstart with drift detection +
 symlink guard (7cf4dd9c3, d0986ff14). Sim↔real flip is a registry line.
 
 Scale vs main (measured `git log`/`git diff --stat main..HEAD` at head
-046e37467): 93 commits, 246 files changed, +14190/−1308.
+097e2018e): 105 commits, 297 files changed, +14897/−1450.
 
 ## Highlights
 
@@ -46,6 +46,12 @@ Scale vs main (measured `git log`/`git diff --stat main..HEAD` at head
 | Deployer idempotency / LOCK_DRIFT | byte-identical redeploy; drift refused | d237f20d9, d0986ff14 |
 | Upstream: ggen tag v26.10.5 | exists, falsifiers green | 03942743a |
 | Upstream: graphlaw | 414/0, tag v26.10.5 | 3fb0eef |
+| Ladder re-run (addendum 3) | green | 097e2018e |
+| TCK (ash_a2a tip, deflake 07180bd3) | green, 234/0 | 07180bd3 |
+| ggen_igniter quiesced | green | 7dbcdb3 |
+| xaas E2E | 16/16 | d1db2b03 |
+| xaas prod compile | clean | 02ce3776 |
+| Cross-repo pin-loop closure | addendum 2 | 36b2c93c7 |
 
 Counts cite lane receipts, not this run, except the ladder and conference
 suite above. Replay: clean clone at head, re-run ladder; catalog must cmp
