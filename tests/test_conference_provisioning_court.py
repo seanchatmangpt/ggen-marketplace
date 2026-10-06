@@ -64,7 +64,7 @@ def _build_solution(root: Path, cid: str) -> Path:
     server surface + AGENTS.md, all ggen-manufactured into dist/."""
     ns = cid.replace("-", "")
     solution_dir = root / f"solution-{cid}"
-    solution_dir.mkdir(exist_ok=True)
+    solution_dir.mkdir(parents=True, exist_ok=True)
     (solution_dir / "profile.json").write_text(json.dumps({
         "slug": cid,
         "namespace": ns,
@@ -128,11 +128,19 @@ def _build_solution(root: Path, cid: str) -> Path:
 
     # Lock: solution.json last, digests over the inputs.
     from marketplace import fingerprint_paths
-    pack_files = sorted(p for p in pack.rglob("*") if p.is_file())
+    pack_files = sorted(
+        p for p in pack.rglob("*") if p.is_file()
+        and not (set(p.relative_to(pack).parts)
+                 & {".ggen", ".ggen-v2", ".clap-noun-verb", "__pycache__"}))
     input_files = [
         p for p in solution_dir.rglob("*") if p.is_file()
         and p.name != "solution.json"
-        and "dist" not in p.relative_to(solution_dir).parts]
+        and "dist" not in p.relative_to(solution_dir).parts
+        # same runtime-state exclusion law as deploy_aaif_solution.input_folds:
+        # earlier deploys in this shared session leave .ggen/.clap-noun-verb/
+        # __pycache__ inside the solution dir; folding them drifted the lock
+        and not (set(p.relative_to(solution_dir).parts)
+                 & {".ggen", ".ggen-v2", ".clap-noun-verb", "__pycache__"})]
     (solution_dir / "solution.json").write_text(json.dumps({
         "profile_sha256": fingerprint_paths(input_files, solution_dir),
         "packs": [{"name": "tiny-pack",
@@ -198,7 +206,11 @@ def _wave() -> dict:
     try:
         for rec in customers:
             cid = rec["cid"]
-            solution_dir = _build_solution(fx.tmp_root, cid)
+            solution_dir = _build_solution(
+                # own root: isolation/metering fx.deploy() the same cids into
+                # tmp_root/solution-<cid> earlier in the session and leave
+                # dist/ behind (deployer refuses DIST_ALREADY_EXISTS)
+                fx.tmp_root / "provisioning", cid)
             proc, slug = _deploy(fx, solution_dir, receipts_dir)
             assert proc.returncode == 0, (
                 f"deploy {cid} refused rc={proc.returncode}\n"
@@ -232,7 +244,9 @@ def wave():
 
 
 def teardown_module(module):
-    fixture_singleton().teardown()
+    # defer: only the last conference module tears down the shared sim
+    from test_conference_commerce_fixture import release_fixture
+    release_fixture(module.__name__)
 
 
 # ---------------------------------------------------------------------------

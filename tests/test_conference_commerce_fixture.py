@@ -35,6 +35,14 @@ SCRIPTS = ROOT / "scripts"
 DEPLOYER = SCRIPTS / "deploy_aaif_solution.py"
 SIM = ROOT / "k8s" / "gcp-marketplace-sim" / "server.py"
 
+# ggen-on-PATH guard (lane CG11 fix): deploy_aaif_solution.py needs ggen.
+# If not on PATH, fall back to the repo's local Rust build before refusing,
+# so CI checkouts with target/debug populated still deploy; if neither is
+# present, deploy() raises its documented REFUSED:GGEN_NOT_FOUND.
+if shutil.which("ggen") is None and (ROOT / "target" / "debug" / "ggen").exists():
+    os.environ["PATH"] = (
+        str(ROOT / "target" / "debug") + os.pathsep + os.environ.get("PATH", ""))
+
 AAIF = "https://aaif.io/ontology#"
 
 # ---------------------------------------------------------------------------
@@ -363,4 +371,25 @@ def rec_of(cid: str) -> dict:
 
 
 def teardown_module(module):
-    fixture_singleton().teardown()
+    release_fixture(module.__name__)
+
+
+# ---------------------------------------------------------------------------
+# Shared-singleton teardown ordering (lane CG11 fix): several conference
+# modules define `teardown_module` that releases the shared sim + temp tree.
+# Only the LAST conference module to finish may actually tear it down;
+# earlier releases are recorded and deferred until every conference test
+# module has completed.
+# ---------------------------------------------------------------------------
+_RELEASED_MODULES: set[str] = set()
+
+
+def release_fixture(module_name: str) -> None:
+    _RELEASED_MODULES.add(module_name)
+    conference = {
+        name for name in sys.modules
+        if name.startswith("test_conference")
+        and hasattr(sys.modules[name], "teardown_module")
+    }
+    if conference and _RELEASED_MODULES >= conference:
+        fixture_singleton().teardown()

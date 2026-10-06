@@ -262,15 +262,17 @@ def test_operation_store_isolation() -> None:
     b_ops = [r for r in reports if r["consumerId"] == b.consumer_id]
     assert {r["operationId"] for r in a_ops} >= {"iso-op-a-1"}
     assert {r["operationId"] for r in b_ops} >= {"iso-op-b-1"}
-    # No operation submitted by A is attributed to B (or to any other tenant).
+    # No operation submitted by A is attributed to B (or to any other
+    # tenant). The window may also carry this tenant's earlier reports from
+    # other conference modules (shared sim), so the claim is per-operation:
+    # every record named iso-op-a-1 belongs to A and to nobody else.
+    all_ops = {r["operationId"]: r["consumerId"] for r in reports}
+    assert all_ops.get("iso-op-a-1") == a.consumer_id
+    assert all_ops.get("iso-op-b-1") == b.consumer_id
     for r in a_ops:
         assert r["consumerId"] == a.consumer_id
-        assert r["operationId"] == "iso-op-a-1"
     for r in b_ops:
         assert r["consumerId"] == b.consumer_id
-    all_ops = {r["operationId"]: r["consumerId"] for r in reports}
-    assert all_ops["iso-op-a-1"] == a.consumer_id
-    assert all_ops["iso-op-b-1"] == b.consumer_id
 
 
 # ---------------------------------------------------------------------------
@@ -354,9 +356,11 @@ def test_account_list_shows_all_detail_shows_only_own() -> None:
     accounts = view["accounts"]
     entitlements = view["entitlements"]
 
-    # The list view: all 10 accounts, all active.
-    assert set(accounts) == {rec["cid"] for rec in customers}
-    assert len(accounts) == N_CUSTOMERS
+    # The list view: our 10 accounts are all present and active. The sim is
+    # shared across conference modules (CG11 deferred teardown), so the
+    # provider view may also carry other modules' customers; the isolation
+    # claim is per-account and relative to this court's own floor.
+    assert {rec["cid"] for rec in customers} <= set(accounts)
     for rec in customers:
         assert accounts[rec["cid"]]["state"] == "ACCOUNT_ACTIVE"
 
@@ -375,4 +379,6 @@ def test_account_list_shows_all_detail_shows_only_own() -> None:
 
 
 def teardown_module(module):
-    fixture_singleton().teardown()
+    # defer: only the last conference module tears down the shared sim
+    from test_conference_commerce_fixture import release_fixture
+    release_fixture(module.__name__)

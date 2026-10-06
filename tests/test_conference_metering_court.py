@@ -207,44 +207,61 @@ def test_quota_exceeded_is_resource_exhausted_with_no_silent_drop() -> None:
     remaining = before["remainingQuota"]
     assert remaining >= 0
 
-    # A report larger than the whole remaining bucket must be refused.
-    status, body = _post_status("/v1/servicecontrol:report", {
-        "operations": [{
-            "operationId": f"{OP_PREFIX}-quota-blowout",
-            "consumerId": "entitlement:akamai",
-            "metricValueSets": [
-                {"metricValues": [{"int64Value": remaining + 1}]}],
-        }],
-    })
-    assert status == 200, (status, body)
-    errors = body["reportErrors"]
-    assert len(errors) == 1, body
-    assert errors[0]["code"] == "RESOURCE_EXHAUSTED", body
-    assert body["admittedCount"] == 0, body
+    # Shared-sim hygiene (CG11 deferred teardown): this court drains the
+    # quota bucket to exactly zero; whatever happens below, hand a full
+    # bucket back so the next conference module's usage reports are not
+    # silently refused RESOURCE_EXHAUSTED.
+    def _refill() -> None:
+        req = urllib.request.Request(
+            fixture_singleton().base + "/v1/admin/quotaReset", data=b"{}",
+            method="POST", headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            assert resp.status == 200
 
-    after = _billing()
-    # The refused report moved zero units and zero cents.
-    assert after["totalMeteredUnits"] == before["totalMeteredUnits"]
-    assert (after["totalRealizedRevenueUsd"]
-            == before["totalRealizedRevenueUsd"])
+    try:
+        # A report larger than the whole remaining bucket must be refused.
+        status, body = _post_status("/v1/servicecontrol:report", {
+            "operations": [{
+                "operationId": f"{OP_PREFIX}-quota-blowout",
+                "consumerId": "entitlement:akamai",
+                "metricValueSets": [
+                    {"metricValues": [{"int64Value": remaining + 1}]}],
+            }],
+        })
+        assert status == 200, (status, body)
+        errors = body["reportErrors"]
+        assert len(errors) == 1, body
+        assert errors[0]["code"] == "RESOURCE_EXHAUSTED", body
+        assert body["admittedCount"] == 0, body
 
-    # The boundary is honest: a report that fits the remaining bucket is
-    # admitted, and lands exactly at zero.
-    status, body = _post_status("/v1/servicecontrol:report", {
-        "operations": [{
-            "operationId": f"{OP_PREFIX}-quota-exact",
-            "consumerId": "entitlement:akamai",
-            "metricValueSets": [{"metricValues": [{"int64Value": remaining}]}],
-        }],
-    })
-    assert status == 200, (status, body)
-    assert body["reportErrors"] == [] and body["admittedCount"] == 1, body
-    drained = _billing()
-    assert drained["remainingQuota"] == 0
-    assert (drained["totalRealizedRevenueUsd"]
-            == round((before["totalMeteredUnits"] + remaining)
-                     * UNIT_PRICE_USD, 2))
+        after = _billing()
+        # The refused report moved zero units and zero cents.
+        assert after["totalMeteredUnits"] == before["totalMeteredUnits"]
+        assert (after["totalRealizedRevenueUsd"]
+                == before["totalRealizedRevenueUsd"])
+
+        # The boundary is honest: a report that fits the remaining bucket is
+        # admitted, and lands exactly at zero.
+        status, body = _post_status("/v1/servicecontrol:report", {
+            "operations": [{
+                "operationId": f"{OP_PREFIX}-quota-exact",
+                "consumerId": "entitlement:akamai",
+                "metricValueSets": [
+                    {"metricValues": [{"int64Value": remaining}]}],
+            }],
+        })
+        assert status == 200, (status, body)
+        assert body["reportErrors"] == [] and body["admittedCount"] == 1, body
+        drained = _billing()
+        assert drained["remainingQuota"] == 0
+        assert (drained["totalRealizedRevenueUsd"]
+                == round((before["totalMeteredUnits"] + remaining)
+                         * UNIT_PRICE_USD, 2))
+    finally:
+        _refill()
 
 
 def teardown_module(module):
-    fixture_singleton().teardown()
+    # defer: only the last conference module tears down the shared sim
+    from test_conference_commerce_fixture import release_fixture
+    release_fixture(module.__name__)
