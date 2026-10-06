@@ -6,14 +6,27 @@
 #                e.g. "affidavit.crypto-trust-plane.v1"
 #   algs       - GROUP_CONCAT of per-algorithm specs, one alg per "@@" group,
 #                fields within a group separated by "|":
-#                  rustVariant | algorithmName | publicKeyLength
-#                e.g. "Es256|ES256|65@@MlDsa65|ML-DSA-65|1952"
+#                  rustVariant | algorithmName | publicKeyLength | profile | baseline
+#                e.g. "Es256|ES256|65|Classical|1@@MlDsa65|ML-DSA-65|1952|Pqc|1"
 #                Ordered by ctp:algorithmName (ordered sub-SELECT feeding the
-#                aggregate). An algorithm with NO ctp:publicKeyLength triple
-#                projects as 0 (= variable/undeclared fixed length); the
-#                template renders Option<usize> = None for those. The length
-#                is OPTIONAL so an algorithm can never be silently pruned
-#                from the enum for omitting one optional fact.
+#                aggregate). Profile classification is GRAPH-DRIVEN, not
+#                name-pattern-driven:
+#                  composedOf present              -> Hybrid
+#                  else CLASSICAL in supportedIn   -> Classical
+#                  else                            -> Pqc
+#                ?baseline is "1" when the policy declares the algorithm via
+#                ctp:baselineAlgorithm (policy-v1 baseline set; unrolled test
+#                projections cover the baseline set only), else "0".
+#   decls      - GROUP_CONCAT of per-algorithm declaration specs (Rust enum
+#                DECLARATION order, NOT name order), one alg per "@@" group,
+#                fields within a group separated by "|":
+#                  rustVariant | variantDoc | publicKeyMaterial |
+#                  materialDoc | publicKeyLength | encodedLenKind
+#                Ordered by ctp:admittedOrder (admission order into the trust
+#                plane; 0-based dense). ?variantDoc falls back to the
+#                algorithm name; ?publicKeyLength falls back to 0 (= undeclared
+#                fixed length; template renders bytes.len()-style arms and
+#                vec![tag; 33] test fallbacks for those).
 #   origins    - GROUP_CONCAT of key-origin rustVariants ("@@"-separated):
 #                Generated | Imported | HardwareAttested
 #   providers  - GROUP_CONCAT of per-provider specs, "@@"-separated:
@@ -34,6 +47,7 @@ PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
 SELECT
   ?domain_tag
   ?algs
+  ?decls
   ?origins
   ?providers
 WHERE {
@@ -50,9 +64,40 @@ WHERE {
                ctp:rustVariant ?variant .
           OPTIONAL { ?alg ctp:publicKeyLength ?declaredLen . }
           BIND(COALESCE(STR(?declaredLen), "0") AS ?pklen)
-          BIND(CONCAT(STR(?variant), "|", STR(?name), "|", ?pklen) AS ?spec)
+          BIND(IF(EXISTS { ?alg ctp:composedOf ?comp },
+               "Hybrid",
+               IF(EXISTS { ?alg ctp:supportedIn ctp:profile-CLASSICAL },
+               "Classical",
+               "Pqc")) AS ?profile)
+          BIND(IF(EXISTS { ?pol ctp:baselineAlgorithm ?alg }, "1", "0") AS ?baseline)
+          BIND(CONCAT(STR(?variant), "|", STR(?name), "|", ?pklen, "|",
+                      ?profile, "|", ?baseline) AS ?spec)
         }
         ORDER BY ?name
+      }
+    }
+  }
+
+  {
+    SELECT (GROUP_CONCAT(?dspec ; separator="@@") AS ?decls)
+    WHERE {
+      {
+        SELECT ?dspec
+        WHERE {
+          ?dalg ctp:algorithmName ?dname ;
+                ctp:rustVariant ?dvariant ;
+                ctp:admittedOrder ?dorder ;
+                ctp:publicKeyMaterial ?matvariant ;
+                ctp:materialDoc ?matdoc ;
+                ctp:encodedLenKind ?lenkind .
+          OPTIONAL { ?dalg ctp:variantDoc ?vdocRaw . }
+          BIND(COALESCE(STR(?vdocRaw), STR(?dname)) AS ?vdoc)
+          OPTIONAL { ?dalg ctp:publicKeyLength ?dlenRaw . }
+          BIND(COALESCE(STR(?dlenRaw), "0") AS ?matlen)
+          BIND(CONCAT(STR(?dvariant), "|", ?vdoc, "|", STR(?matvariant), "|",
+                      STR(?matdoc), "|", ?matlen, "|", STR(?lenkind)) AS ?dspec)
+        }
+        ORDER BY ?dorder
       }
     }
   }
@@ -63,10 +108,11 @@ WHERE {
       {
         SELECT ?originVariant
         WHERE {
-          ?origin ctp:rustVariant ?originVariant .
+          ?origin ctp:rustVariant ?originVariant ;
+                  ctp:originOrder ?originOrder .
           FILTER(STR(?originVariant) IN ("Generated", "Imported", "HardwareAttested"))
         }
-        ORDER BY ?originVariant
+        ORDER BY ?originOrder
       }
     }
   }

@@ -130,16 +130,17 @@ fn fresh_sitting(record: &KeyRecord, now: u64) -> VerificationEngine {
 
 // ── per-algorithm admission: one test renders per graph algorithm ───────────
 
-{%- for variant in algs | split(pat="@@") %}
+{%- for spec in algs | split(pat="@@") %}
+{%- set parts = spec | split(pat="|") %}
 #[test]
-fn court_admits_{{ variant | lower }}_exactly_as_the_graph_declares() {
+fn court_admits_{{ parts[0] | lower }}_exactly_as_the_graph_declares() {
     // The graph admits this algorithm; the keys module renders the variant
     // and the court holds the rendered plane to it.
     let all = AlgorithmId::all();
-    let alg = AlgorithmId::{{ variant }};
+    let alg = AlgorithmId::{{ parts[0] }};
     assert!(
         all.contains(&alg),
-        "{{ variant }} must be admitted by the rendered plane"
+        "{{ parts[0] }} must be admitted by the rendered plane"
     );
     assert!(!alg.as_str().is_empty());
     // Wire form round-trips through the keys module's serde law.
@@ -147,13 +148,7 @@ fn court_admits_{{ variant | lower }}_exactly_as_the_graph_declares() {
     let back: AlgorithmId = serde_json::from_str(&json).expect("algorithm deserializes");
     assert_eq!(back, alg);
     // Assurance profile follows the pinned policy mapping.
-    {%- if variant == "Es256" %}
-    assert_eq!(alg.profile(), CryptoProfile::Classical);
-    {%- elif variant is starting_with("Hybrid") %}
-    assert_eq!(alg.profile(), CryptoProfile::Hybrid);
-    {%- else %}
-    assert_eq!(alg.profile(), CryptoProfile::Pqc);
-    {%- endif %}
+    assert_eq!(alg.profile(), CryptoProfile::{{ parts[1] }});
 }
 
 {%- endfor %}
@@ -408,8 +403,9 @@ fn court_pins_match_the_rendered_plane() {
 /// e2e.rq aggregate ({{ algs }}).
 fn rendered_algs() -> Vec<&'static str> {
     vec![
-        {%- for variant in algs | split(pat="@@") %}
-        AlgorithmId::{{ variant }}.as_str(),
+        {%- for spec in algs | split(pat="@@") %}
+        {%- set parts = spec | split(pat="|") %}
+        AlgorithmId::{{ parts[0] }}.as_str(),
         {%- endfor %}
     ]
 }

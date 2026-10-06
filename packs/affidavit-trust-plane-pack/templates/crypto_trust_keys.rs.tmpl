@@ -19,10 +19,10 @@ pub const DOMAIN_TAG: &str = "{{ domain_tag }}";
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum AlgorithmId {
-    {%- for spec in algs | split(pat="@@") %}
-    {%- set parts = spec | split(pat="|") %}
-    /// {{ parts[1] }}
-    {{ parts[0] }},
+    {%- for dspec in decls | split(pat="@@") %}
+    {%- set d = dspec | split(pat="|") %}
+    /// {{ d[1] }}
+    {{ d[0] }},
     {%- endfor %}
 }
 
@@ -60,13 +60,7 @@ impl AlgorithmId {
         match self {
             {%- for spec in algs | split(pat="@@") %}
             {%- set parts = spec | split(pat="|") %}
-            {%- if parts[0] == "Es256" %}
-            AlgorithmId::{{ parts[0] }} => CryptoProfile::Classical,
-            {%- elif parts[0] is starting_with("Hybrid") %}
-            AlgorithmId::{{ parts[0] }} => CryptoProfile::Hybrid,
-            {%- else %}
-            AlgorithmId::{{ parts[0] }} => CryptoProfile::Pqc,
-            {%- endif %}
+            AlgorithmId::{{ parts[0] }} => CryptoProfile::{{ parts[3] }},
             {%- endfor %}
         }
     }
@@ -201,20 +195,13 @@ pub enum KeyOrigin {
 /// family, rendered from the graph's algorithms.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PublicKeyMaterial {
-    {%- for spec in algs | split(pat="@@") %}
-    {%- set parts = spec | split(pat="|") %}
-    {%- if parts[0] == "Es256" %}
-    /// Variable-length SEC1 encoding (compressed or uncompressed point).
-    Es256Sec1(Vec<u8>),
-    {%- elif parts[0] == "MlDsa65" %}
-    /// Fixed-length ML-DSA-65 public key ({{ parts[2] }} bytes).
-    MlDsa65(Vec<u8>),
-    {%- elif parts[0] == "SlhDsa128s" %}
-    /// Fixed-length SLH-DSA-SHA2-128s public key ({{ parts[2] }} bytes).
-    SlhDsa128s(Vec<u8>),
-    {%- elif parts[0] is starting_with("Hybrid") %}
-    /// Composite classical + post-quantum key material.
-    Hybrid { es256: Vec<u8>, mldsa65: Vec<u8> },
+    {%- for dspec in decls | split(pat="@@") %}
+    {%- set d = dspec | split(pat="|") %}
+    /// {{ d[3] }}
+    {%- if d[5] == "hybrid" %}
+    {{ d[2] }} { es256: Vec<u8>, mldsa65: Vec<u8> },
+    {%- else %}
+    {{ d[2] }}(Vec<u8>),
     {%- endif %}
     {%- endfor %}
 }
@@ -223,16 +210,12 @@ impl PublicKeyMaterial {
     /// The algorithm this material serves.
     pub fn algorithm(&self) -> AlgorithmId {
         match self {
-            {%- for spec in algs | split(pat="@@") %}
-            {%- set parts = spec | split(pat="|") %}
-            {%- if parts[0] == "Es256" %}
-            PublicKeyMaterial::Es256Sec1(_) => AlgorithmId::Es256,
-            {%- elif parts[0] == "MlDsa65" %}
-            PublicKeyMaterial::MlDsa65(_) => AlgorithmId::MlDsa65,
-            {%- elif parts[0] == "SlhDsa128s" %}
-            PublicKeyMaterial::SlhDsa128s(_) => AlgorithmId::SlhDsa128s,
-            {%- elif parts[0] is starting_with("Hybrid") %}
-            PublicKeyMaterial::Hybrid { .. } => AlgorithmId::{{ parts[0] }},
+            {%- for dspec in decls | split(pat="@@") %}
+            {%- set d = dspec | split(pat="|") %}
+            {%- if d[5] == "hybrid" %}
+            PublicKeyMaterial::{{ d[2] }} { .. } => AlgorithmId::{{ d[0] }},
+            {%- else %}
+            PublicKeyMaterial::{{ d[2] }}(_) => AlgorithmId::{{ d[0] }},
             {%- endif %}
             {%- endfor %}
         }
@@ -244,28 +227,14 @@ impl PublicKeyMaterial {
     /// components).
     pub fn encoded_len(&self) -> usize {
         match self {
-            {%- for spec in algs | split(pat="@@") %}
-            {%- set parts = spec | split(pat="|") %}
-            {%- if parts[0] == "Es256" %}
-            {%- if parts[2] == "0" %}
-            PublicKeyMaterial::Es256Sec1(bytes) => bytes.len(),
+            {%- for dspec in decls | split(pat="@@") %}
+            {%- set d = dspec | split(pat="|") %}
+            {%- if d[5] == "hybrid" %}
+            PublicKeyMaterial::{{ d[2] }} { es256, mldsa65 } => es256.len() + mldsa65.len(),
+            {%- elif d[5] == "fixed" %}
+            PublicKeyMaterial::{{ d[2] }}(_) => {{ d[4] }},
             {%- else %}
-            PublicKeyMaterial::Es256Sec1(_) => {{ parts[2] }},
-            {%- endif %}
-            {%- elif parts[0] == "MlDsa65" %}
-            {%- if parts[2] == "0" %}
-            PublicKeyMaterial::MlDsa65(bytes) => bytes.len(),
-            {%- else %}
-            PublicKeyMaterial::MlDsa65(_) => {{ parts[2] }},
-            {%- endif %}
-            {%- elif parts[0] == "SlhDsa128s" %}
-            {%- if parts[2] == "0" %}
-            PublicKeyMaterial::SlhDsa128s(bytes) => bytes.len(),
-            {%- else %}
-            PublicKeyMaterial::SlhDsa128s(_) => {{ parts[2] }},
-            {%- endif %}
-            {%- elif parts[0] is starting_with("Hybrid") %}
-            PublicKeyMaterial::Hybrid { es256, mldsa65 } => es256.len() + mldsa65.len(),
+            PublicKeyMaterial::{{ d[2] }}(bytes) => bytes.len(),
             {%- endif %}
             {%- endfor %}
         }
@@ -275,21 +244,17 @@ impl PublicKeyMaterial {
     /// hybrid material concatenates classical-then-post-quantum.
     pub fn canonical_bytes(&self) -> Vec<u8> {
         match self {
-            {%- for spec in algs | split(pat="@@") %}
-            {%- set parts = spec | split(pat="|") %}
-            {%- if parts[0] == "Es256" %}
-            PublicKeyMaterial::Es256Sec1(bytes) => bytes.clone(),
-            {%- elif parts[0] == "MlDsa65" %}
-            PublicKeyMaterial::MlDsa65(bytes) => bytes.clone(),
-            {%- elif parts[0] == "SlhDsa128s" %}
-            PublicKeyMaterial::SlhDsa128s(bytes) => bytes.clone(),
-            {%- elif parts[0] is starting_with("Hybrid") %}
-            PublicKeyMaterial::Hybrid { es256, mldsa65 } => {
+            {%- for dspec in decls | split(pat="@@") %}
+            {%- set d = dspec | split(pat="|") %}
+            {%- if d[5] == "hybrid" %}
+            PublicKeyMaterial::{{ d[2] }} { es256, mldsa65 } => {
                 let mut out = Vec::with_capacity(es256.len() + mldsa65.len());
                 out.extend_from_slice(es256);
                 out.extend_from_slice(mldsa65);
                 out
             }
+            {%- else %}
+            PublicKeyMaterial::{{ d[2] }}(bytes) => bytes.clone(),
             {%- endif %}
             {%- endfor %}
         }
@@ -426,34 +391,20 @@ mod tests {
     /// so distinct test keys never share a fingerprint.
     fn material_for(alg: AlgorithmId, tag: u8) -> PublicKeyMaterial {
         match alg {
-            {%- for spec in algs | split(pat="@@") %}
-            {%- set parts = spec | split(pat="|") %}
-            {%- if parts[0] == "Es256" %}
-            {%- if parts[2] == "0" %}
-            AlgorithmId::Es256 => PublicKeyMaterial::Es256Sec1(vec![tag; 33]),
-            {%- else %}
-            AlgorithmId::Es256 => PublicKeyMaterial::Es256Sec1(vec![tag; {{ parts[2] }}]),
-            {%- endif %}
-            {%- elif parts[0] == "MlDsa65" %}
-            {%- if parts[2] == "0" %}
-            AlgorithmId::MlDsa65 => PublicKeyMaterial::MlDsa65(vec![tag; 33]),
-            {%- else %}
-            AlgorithmId::MlDsa65 => PublicKeyMaterial::MlDsa65(vec![tag; {{ parts[2] }}]),
-            {%- endif %}
-            {%- elif parts[0] == "SlhDsa128s" %}
-            {%- if parts[2] == "0" %}
-            AlgorithmId::SlhDsa128s => PublicKeyMaterial::SlhDsa128s(vec![tag; 33]),
-            {%- else %}
-            AlgorithmId::SlhDsa128s => PublicKeyMaterial::SlhDsa128s(vec![tag; {{ parts[2] }}]),
-            {%- endif %}
-            {%- elif parts[0] is starting_with("Hybrid") %}
-            AlgorithmId::{{ parts[0] }} => PublicKeyMaterial::Hybrid {
+            {%- for dspec in decls | split(pat="@@") %}
+            {%- set d = dspec | split(pat="|") %}
+            {%- if d[5] == "hybrid" %}
+            AlgorithmId::{{ d[0] }} => PublicKeyMaterial::{{ d[2] }} {
                 es256: vec![tag; AlgorithmId::Es256.public_key_len().unwrap_or(33)],
                 mldsa65: vec![
                     tag.wrapping_add(1);
                     AlgorithmId::MlDsa65.public_key_len().unwrap_or(1952)
                 ],
             },
+            {%- elif d[4] == "0" %}
+            AlgorithmId::{{ d[0] }} => PublicKeyMaterial::{{ d[2] }}(vec![tag; 33]),
+            {%- else %}
+            AlgorithmId::{{ d[0] }} => PublicKeyMaterial::{{ d[2] }}(vec![tag; {{ d[4] }}]),
             {%- endif %}
             {%- endfor %}
         }
@@ -513,15 +464,15 @@ mod tests {
     fn profiles_follow_the_pinned_policy() {
         {%- for spec in algs | split(pat="@@") %}
         {%- set parts = spec | split(pat="|") %}
-        {%- if parts[0] == "Es256" %}
-        assert_eq!(AlgorithmId::Es256.profile(), CryptoProfile::Classical);
-        {%- elif parts[0] is starting_with("Hybrid") %}
+        {%- if parts[4] == "1" %}
+        {%- if parts[3] == "Hybrid" %}
         assert_eq!(
             AlgorithmId::{{ parts[0] }}.profile(),
             CryptoProfile::Hybrid
         );
         {%- else %}
-        assert_eq!(AlgorithmId::{{ parts[0] }}.profile(), CryptoProfile::Pqc);
+        assert_eq!(AlgorithmId::{{ parts[0] }}.profile(), CryptoProfile::{{ parts[3] }});
+        {%- endif %}
         {%- endif %}
         {%- endfor %}
     }
@@ -544,10 +495,12 @@ mod tests {
     fn public_key_len_matches_the_graph() {
         {%- for spec in algs | split(pat="@@") %}
         {%- set parts = spec | split(pat="|") %}
+        {%- if parts[4] == "1" %}
         {%- if parts[2] == "0" %}
         assert_eq!(AlgorithmId::{{ parts[0] }}.public_key_len(), None);
         {%- else %}
         assert_eq!(AlgorithmId::{{ parts[0] }}.public_key_len(), Some({{ parts[2] }}));
+        {%- endif %}
         {%- endif %}
         {%- endfor %}
     }

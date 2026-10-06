@@ -118,6 +118,34 @@ ctp:parameterSet a rdf:Property ;
 ctp:publicKeyLength a rdf:Property ;
     rdfs:domain ctp:SignatureAlgorithm ; rdfs:range xsd:integer .
 
+ctp:admittedOrder a rdf:Property ;
+    rdfs:domain ctp:SignatureAlgorithm ; rdfs:range xsd:integer ;
+    rdfs:comment "Order of admission into the trust plane (0-based, dense): policy-v1 baseline core first, later capability lanes appended. Drives Rust enum declaration order; algorithmName-sorted order drives match arms." .
+
+ctp:variantDoc a rdf:Property ;
+    rdfs:domain ctp:SignatureAlgorithm ; rdfs:range xsd:string ;
+    rdfs:comment "Rustdoc line(s) for the AlgorithmId variant. May embed newlines as 'newline + four spaces + /// ' continuations for multi-line docs." .
+
+ctp:publicKeyMaterial a rdf:Property ;
+    rdfs:domain ctp:SignatureAlgorithm ; rdfs:range xsd:string ;
+    rdfs:comment "PublicKeyMaterial variant name for this algorithm's key material (e.g. 'Es256Sec1', 'Ed25519', 'Es256kSec1', 'Hybrid')." .
+
+ctp:materialDoc a rdf:Property ;
+    rdfs:domain ctp:SignatureAlgorithm ; rdfs:range xsd:string ;
+    rdfs:comment "Full single-line rustdoc for the PublicKeyMaterial variant." .
+
+ctp:encodedLenKind a rdf:Property ;
+    rdfs:domain ctp:SignatureAlgorithm ; rdfs:range xsd:string ;
+    rdfs:comment "How encoded_len() is computed for this material: 'fixed' (graph-declared constant, ctp:publicKeyLength), 'dynamic' (concrete buffer length), 'hybrid' (struct variant, sum of components)." .
+
+ctp:baselineAlgorithm a rdf:Property ;
+    rdfs:domain ctp:TrustPlanePolicy ; rdfs:range ctp:SignatureAlgorithm ;
+    rdfs:comment "Algorithms admitted in the policy-v1 baseline (the four core algorithms). Per-algorithm unrolled test projections cover the baseline set; later lane additions are exercised via the all()-driven loops." .
+
+ctp:originOrder a rdf:Property ;
+    rdfs:domain ctp:KeyOrigin ; rdfs:range xsd:integer ;
+    rdfs:comment "Declaration order for the KeyOrigin enum projection (dense, 0-based)." .
+
 ctp:signatureLength a rdf:Property ;
     rdfs:domain ctp:SignatureAlgorithm ; rdfs:range xsd:integer ;
     rdfs:comment "Fixed signature length in bytes; OMIT for variable-length encodings (ES256 DER) — use ctp:signatureLengthVariable instead." .
@@ -328,6 +356,11 @@ ctp:alg-ES256 a ctp:SignatureAlgorithm ;
     ctp:algorithmName "ES256" ;
     ctp:rustVariant "Es256" ;
     ctp:parameterSet ctp:param-P256-SHA256-RFC6979 ;
+    ctp:admittedOrder 0 ;
+    ctp:variantDoc "ES256" ;
+    ctp:publicKeyMaterial "Es256Sec1" ;
+    ctp:materialDoc "Variable-length SEC1 encoding (compressed or uncompressed point)." ;
+    ctp:encodedLenKind "fixed" ;
     ctp:publicKeyLength 65 ;
     ctp:signatureLengthVariable true ;
     ctp:deterministic true ;
@@ -337,6 +370,11 @@ ctp:alg-ED25519 a ctp:SignatureAlgorithm ;
     ctp:algorithmName "ED25519" ;
     ctp:rustVariant "Ed25519" ;
     ctp:parameterSet ctp:param-ED25519 ;
+    ctp:admittedOrder 4 ;
+    ctp:variantDoc "Ed25519 (AG1 capability lane: Ed25519 envelope signing parity)." ;
+    ctp:publicKeyMaterial "Ed25519" ;
+    ctp:materialDoc "Raw Ed25519 public key (32 bytes) — AG1 capability lane." ;
+    ctp:encodedLenKind "dynamic" ;
     ctp:publicKeyLength 32 ;
     ctp:signatureLength 64 ;
     ctp:seedLength 32 ;
@@ -347,6 +385,12 @@ ctp:alg-ES256K a ctp:SignatureAlgorithm ;
     ctp:algorithmName "ES256K" ;
     ctp:rustVariant "Es256k" ;
     ctp:parameterSet ctp:param-SECP256K1-SHA256-RFC6979 ;
+    ctp:admittedOrder 5 ;
+    ctp:variantDoc """ES256K — ECDSA P-256-K1/secp256k1, SHA-256 (RFC 8812 `ES256K`;
+    /// AG1 capability lane: secp256k1 envelope signing parity).""" ;
+    ctp:publicKeyMaterial "Es256kSec1" ;
+    ctp:materialDoc "Compressed SEC1 secp256k1 public key (33 bytes) — AG1 capability lane." ;
+    ctp:encodedLenKind "fixed" ;
     ctp:publicKeyLength 33 ;
     ctp:signatureLengthVariable true ;
     ctp:deterministic true ;
@@ -356,6 +400,11 @@ ctp:alg-ML-DSA-65 a ctp:SignatureAlgorithm ;
     ctp:algorithmName "ML-DSA-65" ;
     ctp:rustVariant "MlDsa65" ;
     ctp:parameterSet ctp:param-FIPS204-MLDSA65 ;
+    ctp:admittedOrder 2 ;
+    ctp:variantDoc "ML-DSA-65" ;
+    ctp:publicKeyMaterial "MlDsa65" ;
+    ctp:materialDoc "Fixed-length ML-DSA-65 public key (1952 bytes)." ;
+    ctp:encodedLenKind "fixed" ;
     ctp:publicKeyLength 1952 ;
     ctp:signatureLength 3309 ;
     ctp:seedLength 32 ;
@@ -366,6 +415,11 @@ ctp:alg-SLH-DSA-SHA2-128s a ctp:SignatureAlgorithm ;
     ctp:algorithmName "SLH-DSA-SHA2-128s" ;
     ctp:rustVariant "SlhDsa128s" ;
     ctp:parameterSet ctp:param-FIPS205-SLHDSA128S ;
+    ctp:admittedOrder 3 ;
+    ctp:variantDoc "SLH-DSA-SHA2-128s" ;
+    ctp:publicKeyMaterial "SlhDsa128s" ;
+    ctp:materialDoc "Fixed-length SLH-DSA-SHA2-128s public key (0 bytes)." ;
+    ctp:encodedLenKind "dynamic" ;
     ctp:seedLength 48 ;
     ctp:deterministic true ;
     ctp:supportedIn ctp:profile-PQC .
@@ -374,15 +428,20 @@ ctp:alg-HYBRID-ES256-MLDSA65 a ctp:SignatureAlgorithm ;
     ctp:algorithmName "ES256+ML-DSA-65" ;
     ctp:rustVariant "HybridEs256MlDsa65" ;
     ctp:parameterSet ctp:param-HYBRID-ES256-MLDSA65 ;
+    ctp:admittedOrder 1 ;
+    ctp:variantDoc "ES256+ML-DSA-65" ;
+    ctp:publicKeyMaterial "Hybrid" ;
+    ctp:materialDoc "Composite classical + post-quantum key material." ;
+    ctp:encodedLenKind "hybrid" ;
     ctp:deterministic true ;
     ctp:supportedIn ctp:profile-HYBRID, ctp:profile-PQC ;
     ctp:composedOf ctp:alg-ES256, ctp:alg-ML-DSA-65 .
 
 # ── Individuals: KeyOrigin ──────────────────────────────────────────────────
 
-ctp:origin-GENERATED a ctp:KeyOrigin ; ctp:rustVariant "Generated" .
-ctp:origin-IMPORTED a ctp:KeyOrigin ; ctp:rustVariant "Imported" .
-ctp:origin-HARDWARE-ATTESTED a ctp:KeyOrigin ; ctp:rustVariant "HardwareAttested" .
+ctp:origin-GENERATED a ctp:KeyOrigin ; ctp:rustVariant "Generated" ; ctp:originOrder 2 .
+ctp:origin-IMPORTED a ctp:KeyOrigin ; ctp:rustVariant "Imported" ; ctp:originOrder 1 .
+ctp:origin-HARDWARE-ATTESTED a ctp:KeyOrigin ; ctp:rustVariant "HardwareAttested" ; ctp:originOrder 0 .
 
 # ── Individuals: CryptographicStanding (closed, order 0..7) ─────────────────
 
@@ -448,7 +507,12 @@ ctp:policy-v1 a ctp:TrustPlanePolicy ;
     ctp:noncePolicy ctp:nonce-policy-v1 ;
     ctp:envelopeVersion "CTP-ENVELOPE-v1" ;
     ctp:domainTag "affidavit.crypto-trust-plane.v1" ;
-    ctp:defaultProfile ctp:profile-HYBRID .
+    ctp:defaultProfile ctp:profile-HYBRID ;
+    ctp:baselineAlgorithm
+        ctp:alg-ES256,
+        ctp:alg-HYBRID-ES256-MLDSA65,
+        ctp:alg-ML-DSA-65,
+        ctp:alg-SLH-DSA-SHA2-128s .
 
 # ── Individuals: SigningProvider ────────────────────────────────────────────
 

@@ -8,12 +8,17 @@
 #                      ctp:envelopeVersion) pinned by the court.
 #   domain_tag       - trust-plane policy domain tag (ctp:policy-v1
 #                      ctp:domainTag) pinned by the court.
-#   algs             - GROUP_CONCAT of algorithm rustVariants, one per "@@"
-#                      group, ordered by ctp:algorithmName (ordered sub-SELECT
+#   algs             - GROUP_CONCAT of per-algorithm specs, one per "@@" group,
+#                      fields within a group separated by "|":
+#                        rustVariant | profile
+#                      e.g. "Es256|Classical@@HybridEs256MlDsa65|Hybrid"
+#                      ordered by ctp:algorithmName (ordered sub-SELECT
 #                      feeding the aggregate) so the rendered test order is
 #                      the graph's order — the same order the keys module
-#                      renders AlgorithmId in.
-#                      e.g. "Es256@@HybridEs256MlDsa65@@MlDsa65@@SlhDsa128s"
+#                      renders match arms in. Profile classification is
+#                      graph-driven (composedOf -> Hybrid, CLASSICAL in
+#                      supportedIn -> Classical, else Pqc), identical to
+#                      keys.rq — never variant-name patterns.
 #
 # Any missing fact yields zero rows — the engine refuses, defaults never render.
 
@@ -26,13 +31,19 @@ WHERE {
       ctp:envelopeVersion  ?envelope_version .
 
   {
-    SELECT (GROUP_CONCAT(?variant ; separator="@@") AS ?algs)
+    SELECT (GROUP_CONCAT(?spec ; separator="@@") AS ?algs)
     WHERE {
       {
-        SELECT ?variant
+        SELECT ?spec
         WHERE {
           ?alg ctp:algorithmName ?name ;
                ctp:rustVariant  ?variant .
+          BIND(IF(EXISTS { ?alg ctp:composedOf ?comp },
+               "Hybrid",
+               IF(EXISTS { ?alg ctp:supportedIn ctp:profile-CLASSICAL },
+               "Classical",
+               "Pqc")) AS ?profile)
+          BIND(CONCAT(STR(?variant), "|", ?profile) AS ?spec)
         }
         ORDER BY ?name
       }
