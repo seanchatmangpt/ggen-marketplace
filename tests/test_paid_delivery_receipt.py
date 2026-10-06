@@ -3,15 +3,17 @@ refusal naming the slug, out-of-order append refusal, determinism. Real files in
 tmp_path; no mocks."""
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import paid_delivery_receipt as pdr
+import scripts.paid_delivery_receipt as pdr
 
 
 def payload(name: str) -> dict:
@@ -256,3 +258,294 @@ def test_cli_verify_anchor_mismatch_exit_2(tmp_path: Path, capsys):
     rc = pdr.main(["verify", str(tmp_path), "--anchor", e1["chain_hash_hex"]])
     assert rc == 2
     assert "REFUSED_ANCHOR_MISMATCH" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# Mutation-hardening courts (exact golden hashes, exact bytes, exact problems)
+# ---------------------------------------------------------------------------
+
+def _golden_payload_hash(payload: dict) -> str:
+    """Independently computed: sha256 over sorted-keys/compact-separator JSON."""
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def _golden_chain_hash(prev_hex: str, payload: dict) -> str:
+    ph = _golden_payload_hash(payload)
+    return hashlib.sha256((prev_hex + ph).encode("utf-8")).hexdigest()
+
+
+def test_append_nested_dir_golden_hashes_exact_bytes(tmp_path: Path):
+    # receipts_dir does not exist yet: parents must be created (mutants that
+    # drop parents=True fail with FileNotFoundError here)
+    receipts_dir = tmp_path / "deep" / "nested"
+    p0 = payload("g0")
+    env = pdr.append(receipts_dir, "d-g0", p0)
+    assert env["prev_chain_hash_hex"] == "0" * 64
+    assert env["payload_hash_hex"] == _golden_payload_hash(p0)
+    assert env["chain_hash_hex"] == _golden_chain_hash("0" * 64, p0)
+    # chain line is exact compact sorted JSON bytes with trailing newline
+    chain_file = receipts_dir / "receipts" / "paid-delivery" / "chain.jsonl"
+    line = chain_file.read_bytes().decode("utf-8")
+    assert line == pdr.canonical_json(env) + "\n"
+    # slug file is exact two-space-indent sorted JSON with trailing newline
+    slug_file = receipts_dir / "receipts" / "paid-delivery" / "d-g0.json"
+    assert slug_file.read_bytes().decode("utf-8") == (
+        json.dumps(env, indent=2, sort_keys=True) + "\n"
+    )
+    head = receipts_dir / "receipts" / "paid-delivery" / "HEAD"
+    assert head.read_bytes().decode("utf-8") == env["chain_hash_hex"] + "\n"
+
+
+def test_slug_unsafe_nul_byte_refused(tmp_path: Path):
+    with pytest.raises(pdr.SlugUnsafe) as ei:
+        pdr.append(tmp_path, "a\x00b", payload("nul"))
+    assert "REFUSED_SLUG_UNSAFE" in str(ei.value)
+
+
+def _bad_env_min() -> dict:
+    return {"schema": "other/v1", "chain_rule": "other", "ts_ns": 5}
+
+
+def test_verify_problem_strings_exact(tmp_path: Path):
+    chain = tmp_path / "receipts" / "paid-delivery" / "chain.jsonl"
+    chain.parent.mkdir(parents=True)
+    chain.write_text(pdr.canonical_json(_bad_env_min()) + "\n", encoding="utf-8")
+    ok, problems = pdr.verify(tmp_path)
+    assert not ok
+    assert problems == [
+        "chain[0]:<missing>:REFUSED_MISSING_FIELD:payload_hash_hex",
+        "chain[0]:<missing>:REFUSED_MISSING_FIELD:prev_chain_hash_hex",
+        "chain[0]:<missing>:REFUSED_MISSING_FIELD:chain_hash_hex",
+        "chain[0]:<missing>:REFUSED_MISSING_FIELD:payload",
+        "chain[0]:<missing>:REFUSED_BAD_SCHEMA:other/v1",
+        "chain[0]:<missing>:REFUSED_BAD_CHAIN_RULE:other",
+        "chain[0]:<missing>:REFUSED_NONZERO_TS_NS",
+        "chain[0]:<missing>:REFUSED_PREV_CHAIN_MISMATCH",
+    ]
+
+
+def test_verify_chain_fold_mismatch_exact_problems(tmp_path: Path):
+    pdr.append(tmp_path, "d-0", payload("f0"))
+    pdr.append(tmp_path, "d-1", payload("f1"))
+    chain_file = tmp_path / "receipts" / "paid-delivery" / "chain.jsonl"
+    lines = chain_file.read_text().splitlines()
+    env0 = json.loads(lines[0])
+    env0["chain_hash_hex"] = "e" * 64
+    lines[0] = pdr.canonical_json(env0)
+    chain_file.write_text("\n".join(lines) + "\n")
+    ok, problems = pdr.fold = pdr.verify(tmp_path)
+    assert not ok
+    assert problems == [
+        "chain[0]:d-0:REFUSED_CHAIN_FOLD_MISMATCH",
+        "chain[1]:d-1:REFUSED_PREV_CHAIN_MISMATCH",
+        "chain[0]:d-0:REFUSED_SLUG_FILE_DRIFT",
+    ]
+
+
+def test_verify_unsafe_slugs_continue_scanning(tmp_path: Path):
+    chain = tmp_path / "receipts" / "paid-delivery" / "chain.jsonl"
+    chain.parent.mkdir(parents=True)
+    bad1 = {"slug": "../e0"}
+    bad2 = {"slug": "../e1"}
+    chain.write_text(
+        pdr.canonical_json(bad1) + "\n" + pdr.canonical_json(b2 := bad2) + "\n",
+        encoding="utf-8",
+    )
+    ok, problems = pdr.verify(tmp_path)
+    assert not ok
+    assert problems == [
+        "chain[0]:<unsafe>:REFUSED_SLUG_UNSAFE:../e0",
+        "chain[1]:<unsafe>:REFUSED_SLUG_UNSAFE:../e1",
+    ]
+
+
+def test_verify_non_string_slug_valid_envelope_ok(tmp_path: Path):
+    # slug key present but not a string: never build a path from it
+    env = {
+        "schema": pdr.SCHEMA,
+        "activity": pdr.ACTIVITY,
+        "slug": 123,
+        "ts_ns": 0,
+        "payload": {"x": 1},
+        "payload_hash_hex": _golden_payload_hash({"x": 1}),
+        "prev_chain_hash_hex": pdr.GENESIS,
+        "chain_hash_hex": _golden_chain_hash(pdr.GENESIS, {"x": 1}),
+        "chain_rule": pdr.CHAIN_RULE,
+    }
+    chain = tmp_path / "receipts" / "paid-delivery" / "chain.jsonl"
+    chain.parent.mkdir(parents=True)
+    chain.write_text(pdr.canonical_json(env) + "\n", encoding="utf-8")
+    ok, problems = pdr.verify(tmp_path)
+    assert ok, problems
+    assert problems == []
+
+
+def test_verify_missing_slug_file_exact_problem(tmp_path: Path):
+    pdr.append(tmp_path, "d-0", payload("m0"))
+    pdr.append(tmp_path, "d-1", payload("m1"))
+    d = tmp_path / "receipts" / "paid-delivery"
+    (d / "d-0.json").unlink()
+    (d / "d-1.json").unlink()
+    ok, problems = pdr.verify(tmp_path)
+    assert not ok
+    assert problems == [
+        "chain[0]:d-0:REFUSED_MISSING_SLUG_FILE",
+        "chain[1]:d-1:REFUSED_MISSING_SLUG_FILE",
+    ]
+
+
+def test_verify_unsafe_then_safe_missing_file(tmp_path: Path):
+    pdr.append(tmp_path, "d-1", payload("u1"))
+    chain_file = tmp_path / "receipts" / "paid-delivery" / "chain.jsonl"
+    lines = chain_file.read_text().splitlines()
+    unsafe = {"slug": "../e0"}
+    chain_file.write_text(
+        pdr.canonical_json(unsafe) + "\n" + lines[0] + "\n", encoding="utf-8"
+    )
+    (tmp_path / "receipts" / "paid-delivery" / "d-1.json").unlink()
+    ok, problems = pdr.verify(tmp_path)
+    assert not ok
+    assert problems == [
+        "chain[0]:<unsafe>:REFUSED_SLUG_UNSAFE:../e0",
+        "chain[1]:d-1:REFUSED_MISSING_SLUG_FILE",
+    ]
+
+
+# ---------------------------------------------------------------------------
+# CLI mutation-hardening courts
+# ---------------------------------------------------------------------------
+
+def test_cli_help_texts_exact(tmp_path: Path, capsys):
+    with pytest.raises(SystemExit) as ei:
+        pdr.main(["--help"])
+    assert ei.value.code == 0
+    out = capsys.readouterr().out
+    assert re.search(r"Paid-delivery receipt chain \(append/verify\)\.(?!X)", out)
+    assert re.search(r"append a receipt from a JSON payload file(?!X)", out)
+    assert re.search(r"verify the whole chain(?!X)", out)
+    with pytest.raises(SystemExit) as ei:
+        pdr.main(["append", "--help"])
+    assert ei.value.code == 0
+    out = capsys.readouterr().out
+    assert re.search(r"path to payload JSON file(?!X)", out)
+    with pytest.raises(SystemExit) as ei:
+        pdr.main(["verify", "--help"])
+    assert ei.value.code == 0
+    out = capsys.readouterr().out
+    assert re.search(r"expected final chain hash: raw hex, or path to a HEAD file(?!X)", out)
+
+
+def test_cli_missing_arguments_exit_2(tmp_path: Path, capsys):
+    with pytest.raises(SystemExit) as ei:
+        pdr.main([])
+    assert ei.value.code == 2
+    capsys.readouterr()
+    with pytest.raises(SystemExit) as ei:
+        pdr.main(["append", str(tmp_path), "d-x"])  # no --payload
+    assert ei.value.code == 2
+    capsys.readouterr()
+
+
+def test_cli_append_output_exact(tmp_path: Path, capsys):
+    p = tmp_path / "payload.json"
+    p.write_text(json.dumps(payload("gold")))
+    rc = pdr.main(["append", str(tmp_path), "d-gold", "--payload", str(p)])
+    assert rc == 0
+    out = capsys.readouterr().out
+    got = json.loads(out.strip())
+    assert got == {
+        "chain_hash_hex": _golden_chain_hash("0" * 64, payload("gold")),
+        "slug": "d-gold",
+        "head_anchor": str(tmp_path / "receipts" / "paid-delivery" / "HEAD"),
+    }
+
+
+def test_cli_append_unsafe_slug_stderr_exact(tmp_path: Path, capsys):
+    p = tmp_path / "payload.json"
+    p.write_text(json.dumps(payload("x")))
+    rc = pdr.main(["append", str(tmp_path), "../evil", "--payload", str(p)])
+    assert rc == 2
+    captured = capsys.readouterr()
+    assert captured.err.strip() == "REFUSED_SLUG_UNSAFE:'../evil'"
+    assert captured.out == ""
+
+
+def test_cli_alive_line_exact(tmp_path: Path, capsys):
+    p = tmp_path / "payload.json"
+    p.write_text(json.dumps(payload("alive")))
+    pdr.main(["append", str(tmp_path), "d-alive", "--payload", str(p)])
+    capsys.readouterr()
+    rc = pdr.main(["verify", str(tmp_path)])
+    assert rc == 0
+    assert capsys.readouterr().out.strip() == "ALIVE: paid-delivery chain verified"
+
+
+def test_cli_verify_anchor_hex_literal_not_read_as_file(tmp_path: Path, capsys, monkeypatch):
+    p = tmp_path / "payload.json"
+    p.write_text(json.dumps(payload("anch")))
+    env = pdr.append(tmp_path, "d-anch", payload("anch"))
+    # a file whose NAME is a valid 64-hex literal must not be consulted when
+    # the anchor argument is itself valid hex
+    decoy_name = "A" * 64  # uppercase hex defeats a lowercase-only alphabet mutant
+    (tmp_path / decoy_name).write_text("b" * 64)
+    monkeypatch.chdir(tmp_path)
+    rc = pdr.main(["verify", str(tmp_path), "--anchor", decoy_name])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert f"expected={decoy_name.lower()}" in captured.err
+    assert "b" * 64 not in captured.err
+    assert env["chain_hash_hex"]  # keeps env used
+    # and the lowercase mirror: a lowercase hex anchor must also stay a
+    # literal even when a same-named decoy file exists (kills an
+    # uppercase-only hex-alphabet mutant)
+    lower_decoy = "a" * 64
+    (tmp_path / lower_decoy).write_text("c" * 64)
+    rc = pdr.main(["verify", str(tmp_path), "--anchor", lower_decoy])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert f"expected={lower_decoy}" in captured.err
+    assert "c" * 64 not in captured.err
+
+
+def test_cli_verify_anchor_short_hex_reads_named_file(tmp_path: Path, capsys, monkeypatch):
+    pdr.append(tmp_path, "d-s", payload("s"))
+    (tmp_path / "abc").write_text("b" * 64)
+    monkeypatch.chdir(tmp_path)
+    rc = pdr.main(["verify", str(tmp_path), "--anchor", "abc"])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert f"expected={'b' * 64}" in captured.err
+
+
+def test_cli_verify_anchor_x_name_reads_file(tmp_path: Path, capsys, monkeypatch):
+    pdr.append(tmp_path, "d-x", payload("x"))
+    (tmp_path / ("X" * 64)).write_text("b" * 64)
+    monkeypatch.chdir(tmp_path)
+    rc = pdr.main(["verify --anchor".split()[0], str(tmp_path), "--anchor", "X" * 64])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert f"expected={'b' * 64}" in captured.err
+
+
+def test_cli_verify_stale_head_file_anchor_refused(tmp_path: Path, capsys):
+    e1 = pdr.append(tmp_path, "d-c0", payload("c0"))
+    head = tmp_path / "receipts" / "paid-delivery" / "HEAD"
+    head.write_text("9" * 64 + "\n")
+    rc = pdr.main(["verify", str(tmp_path), "--anchor", str(head)])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "REFUSED_ANCHOR_MISMATCH" in captured.err
+    assert f"expected={'9' * 64}" in captured.err
+    assert e1["chain_hash_hex"]
+
+
+def test_cli_verify_anchor_stale_hex_mismatch_stderr(tmp_path: Path, capsys):
+    e1 = pdr.append(tmp_path, "d-m0", payload("m0"))
+    pdr.append(tmp_path, "d-m1", payload("m1"))
+    rc = pdr.main(["verify", str(tmp_path), "--anchor", e1["chain_hash_hex"]])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert f"expected={e1['chain_hash_hex']}" in captured.err
+    assert ",actual=" in captured.err
