@@ -80,6 +80,9 @@
 - [ADOPTION DOSSIER — graphlaw](rust-wasm-elixir/ADOPTION/graphlaw.md)
 - [ADOPTION DOSSIER — wasm4pm](rust-wasm-elixir/ADOPTION/wasm4pm.md)
 - [CONSOLIDATION_MAP.md — rust→wasm→elixir packs and usages](rust-wasm-elixir/CONSOLIDATION_MAP.md)
+- [Run the conference commerce sim](how-to/run-conference-commerce-sim.md)
+- [Conference commerce model (CG9)](reference/conference-commerce-model.md)
+- [Release v26.10.5 receipt](context/v26.10.5-receipt.md)
 
 # Explanation
 

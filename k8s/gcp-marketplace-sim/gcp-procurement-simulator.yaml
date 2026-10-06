@@ -22,18 +22,18 @@ data:
     from cryptography import x509
     from cryptography.x509.oid import NameOID
     import datetime
-    
+
     # 1. Cryptographic Identity Setup: Real RS256 CA and Keypair
     PRIVATE_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     PUBLIC_KEY = PRIVATE_KEY.public_key()
-    
+
     subject = issuer = x509.Name([
         x509.NameAttribute(NameOID.COUNTRY_NAME, "US"),
         x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "California"),
         x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Google LLC"),
         x509.NameAttribute(NameOID.COMMON_NAME, "cloud-commerce-partner@system.gserviceaccount.com"),
     ])
-    
+
     CERT = x509.CertificateBuilder().subject_name(
         subject
     ).issuer_name(
@@ -47,10 +47,10 @@ data:
     ).not_valid_after(
         datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=365)
     ).sign(PRIVATE_KEY, hashes.SHA256())
-    
+
     CERT_PEM = CERT.public_bytes(serialization.Encoding.PEM).decode('utf-8')
     KEY_ID = hashlib.sha1(CERT.public_bytes(serialization.Encoding.DER)).hexdigest()
-    
+
     ACCOUNTS = {}
     ENTITLEMENTS = {}
     # AE2 finding 6 fix: consumerId -> entitlementId correlation for :report gating.
@@ -74,13 +74,13 @@ data:
     }
     USAGE_REPORTS = []
     QUOTA_BUCKETS = {"default": 10000}  # 10,000 units
-    
+
     DISCOVERY_DIR = os.environ.get("AAIF_SIM_DISCOVERY_DIR", "/app")
     PRICING_PER_METRIC_UNIT = 0.05
-    
+
     def b64url_encode(data: bytes) -> str:
         return base64.urlsafe_b64encode(data).decode('utf-8').rstrip('=')
-    
+
     def create_google_jwt(claims: dict) -> str:
         header = {"alg": "RS256", "typ": "JWT", "kid": KEY_ID}
         header_b64 = b64url_encode(json.dumps(header).encode('utf-8'))
@@ -88,7 +88,7 @@ data:
         signing_input = f"{header_b64}.{claims_b64}".encode('utf-8')
         sig = PRIVATE_KEY.sign(signing_input, padding.PKCS1v15(), hashes.SHA256())
         return f"{header_b64}.{claims_b64}.{b64url_encode(sig)}"
-    
+
     class ProductionGradeGCPHandler(BaseHTTPRequestHandler):
         def _send_json(self, status, payload):
             self.send_response(status)
@@ -97,14 +97,14 @@ data:
             self.send_header('X-Content-Type-Options', 'nosniff')
             self.end_headers()
             self.wfile.write(json.dumps(payload, indent=2).encode('utf-8'))
-    
+
         def do_GET(self):
             parsed = urllib.parse.urlparse(self.path)
-    
+
             # 1. Official Google Robot x509 Key Metadata Endpoint
             if parsed.path.endswith('/robot/v1/metadata/x509/cloud-commerce-partner@system.gserviceaccount.com'):
                 return self._send_json(200, {KEY_ID: CERT_PEM})
-    
+
             # 2. Dynamic Discovery Documents
             elif 'cloudcommerceprocurement' in parsed.path and '$discovery/rest' in parsed.path:
                 with open(os.path.join(DISCOVERY_DIR, 'procurement_discovery.json')) as f:
@@ -112,10 +112,10 @@ data:
             elif 'servicecontrol' in parsed.path and '$discovery/rest' in parsed.path:
                 with open(os.path.join(DISCOVERY_DIR, 'servicecontrol_discovery.json')) as f:
                     return self._send_json(200, json.load(f))
-    
+
             elif parsed.path == '/healthz':
                 return self._send_json(200, {"status": "SERVING", "service": "cloudcommerceprocurement.googleapis.com"})
-    
+
             # Billing summary & receipts
             elif parsed.path == '/v1/billing/summary':
                 total_units = sum(r.get('int64Value', 0) for r in USAGE_REPORTS)
@@ -135,9 +135,9 @@ data:
                 if ent:
                     return self._send_json(200, ent)
                 return self._send_json(404, {"error": {"code": 404, "message": f"Entitlement {ent_id} not found"}})
-    
+
             self._send_json(404, {"error": {"code": 404, "message": "Method not found"}})
-    
+
         def do_POST(self):
             parsed = urllib.parse.urlparse(self.path)
             length = int(self.headers.get('Content-Length', 0))
@@ -146,7 +146,7 @@ data:
                 data = json.loads(body.decode('utf-8'))
             except Exception:
                 data = {}
-    
+
             # OAuth2 token exchange
             if parsed.path in ['/oauth2/v4/token', '/token']:
                 return self._send_json(200, {
@@ -154,7 +154,16 @@ data:
                     "expires_in": 3600,
                     "token_type": "Bearer"
                 })
-    
+
+            # Test-support admin: refill the shared quota bucket. Conference
+            # modules share one sim process (CG11 deferred teardown), so a module
+            # that drains the bucket (metering court) must leave it refilled for
+            # the next module; this endpoint is how it hands the bucket back.
+            elif parsed.path == '/v1/admin/quotaReset':
+                QUOTA_BUCKETS["default"] = 10000
+                return self._send_json(200, {
+                    "status": "RESET", "remainingQuota": QUOTA_BUCKETS["default"]})
+
             # Signup / Account Approval
             elif '/accounts/' in parsed.path and parsed.path.endswith(':approve'):
                 parts = parsed.path.split('/')
@@ -166,7 +175,7 @@ data:
                     "approvalTime": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                 }
                 return self._send_json(200, ACCOUNTS[acc_id])
-    
+
             # Entitlement Approval with Authentic Signed RS256 JWT & Pub/Sub payload
             elif '/entitlements/' in parsed.path and parsed.path.endswith(':approve'):
                 parts = parsed.path.split('/')
@@ -182,7 +191,7 @@ data:
                     "entitlement_id": ent_id,
                     "exp": int(time.time()) + 86400
                 })
-    
+
                 ent_record = {
                     "name": f"providers/demo-provider/entitlements/{ent_id}",
                     "account": data.get("account", "providers/demo-provider/accounts/acc-001"),
@@ -200,7 +209,7 @@ data:
                 consumer_ref = data.get("consumerId")
                 if consumer_ref and consumer_ref not in CONSUMER_ENTITLEMENTS:
                     CONSUMER_ENTITLEMENTS[consumer_ref] = ent_id
-    
+
                 # Emit wrapped Pub/Sub push notification envelope
                 pubsub_message = {
                     "eventId": f"event-{int(time.time()*1000)}",
@@ -218,7 +227,7 @@ data:
                     "subscription": "projects/demo-provider/subscriptions/gcp-marketplace-entitlements"
                 }
                 return self._send_json(200, ent_record)
-    
+
             # Service Control: check
             elif ':check' in parsed.path:
                 if QUOTA_BUCKETS.get("default", 0) <= 0:
@@ -227,7 +236,7 @@ data:
                         "serviceConfigId": "2026-10-04r1"
                     })
                 return self._send_json(200, {"checkErrors": [], "serviceConfigId": "2026-10-04r1"})
-    
+
             # Service Control: allocateQuota
             elif ':allocateQuota' in parsed.path:
                 requested = 1
@@ -248,7 +257,7 @@ data:
                     "serviceConfigId": "2026-10-04r1",
                     "operationId": op.get("operationId")
                 })
-    
+
             # Service Control: report
             elif ':report' in parsed.path:
                 operations = data.get("operations", [])
@@ -257,7 +266,7 @@ data:
                 for op in operations:
                     op_id = op.get("operationId")
                     consumer_id = op.get("consumerId")
-    
+
                     # AE2 finding 6: entitlement correlation gate. Usage only
                     # counts (revenue + report record) when the consumerId
                     # resolves to an ENTITLEMENT_ACTIVE record.
@@ -272,12 +281,12 @@ data:
                         return self._send_json(403, {
                             "error": {"code": 403, "message": "ENTITLEMENT_REQUIRED"}
                         })
-    
+
                     units = 0
                     for mvs in op.get("metricValueSets", []):
                         for mv in mvs.get("metricValues", []):
                             units += mv.get("int64Value", 1)
-    
+
                     # Correlate with :allocateQuota semantics: each reported
                     # unit consumes quota from the same shared bucket.
                     if QUOTA_BUCKETS.get("default", 0) < units:
@@ -287,7 +296,7 @@ data:
                         })
                         continue
                     QUOTA_BUCKETS["default"] -= units
-    
+
                     record = {
                         "operationId": op_id,
                         "consumerId": consumer_id,
@@ -297,16 +306,16 @@ data:
                     }
                     USAGE_REPORTS.append(record)
                     admitted_ops.append(record)
-    
+
                 return self._send_json(200, {
                     "serviceConfigId": "2026-10-04r1",
                     "reportErrors": report_errors,
                     "serviceRolloutId": "rollout-aaif-001",
                     "admittedCount": len(admitted_ops)
                 })
-    
+
             self._send_json(404, {"error": {"code": 404, "message": f"Path not found: {parsed.path}"}})
-    
+
     if __name__ == '__main__':
         PORT = int(os.environ.get("AAIF_SIM_PORT", "8443"))
         server = HTTPServer(('0.0.0.0', PORT), ProductionGradeGCPHandler)
