@@ -10,7 +10,7 @@ redeploy (d237f20d9), one-command quickstart with drift detection +
 symlink guard (7cf4dd9c3, d0986ff14). Sim↔real flip is a registry line.
 
 Scale vs main (measured `git log`/`git diff --stat main..HEAD` at head
-097e2018e): 105 commits, 297 files changed, +14897/−1450.
+5a8ddf0b8): 106 commits, 297 files changed, +14903/−1450.
 
 ## Highlights
 
