@@ -143,6 +143,15 @@ class ProductionGradeGCPHandler(BaseHTTPRequestHandler):
                 "token_type": "Bearer"
             })
 
+        # Test-support admin: refill the shared quota bucket. Conference
+        # modules share one sim process (CG11 deferred teardown), so a module
+        # that drains the bucket (metering court) must leave it refilled for
+        # the next module; this endpoint is how it hands the bucket back.
+        elif parsed.path == '/v1/admin/quotaReset':
+            QUOTA_BUCKETS["default"] = 10000
+            return self._send_json(200, {
+                "status": "RESET", "remainingQuota": QUOTA_BUCKETS["default"]})
+
         # Signup / Account Approval
         elif '/accounts/' in parsed.path and parsed.path.endswith(':approve'):
             parts = parsed.path.split('/')
