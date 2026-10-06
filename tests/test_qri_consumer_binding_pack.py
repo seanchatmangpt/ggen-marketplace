@@ -174,7 +174,7 @@ def test_c3_ggen_itself_refuses_ambiguous_binding_with_empty_generated(tmp_path)
 @needs_ggen
 def test_c3_declared_contract_digest_mismatch_refuses(tmp_path):
     text = mutate(BINDING.read_text(encoding="utf-8"),
-                  'qri:contractDigest "60dc0100b5d3a5', 'qri:contractDigest "70dc0100b5d3a5')
+                  'qri:contractDigest "f156c190c6c6', 'qri:contractDigest "a156c190c6c6')
     binding = tmp_path / "b.ttl"
     binding.write_text(text, encoding="utf-8")
     out = tmp_path / "out"
@@ -449,7 +449,7 @@ def test_ggen_sync_itself_refuses_node_binding_defects(name, mutator, code, tmp_
 
 @needs_ggen
 @pytest.mark.parametrize("name,mutator", [
-    ("bytes-zero", lambda s: mutate(s, 'dcat:byteSize "284650"', 'dcat:byteSize "0"')),
+    ("bytes-zero", lambda s: mutate(s, 'dcat:byteSize "660847"', 'dcat:byteSize "0"')),
     ("ceiling-token-datatype", lambda s: mutate(s, 'qcb:authorityCeiling "NONE" ;', 'qcb:authorityCeiling "NONE"^^xsd:token ;')),
 ])
 def test_shacl_only_defects_are_typed_refusals_not_untyped_reports(name, mutator, tmp_path):
@@ -715,10 +715,6 @@ def test_runner_side_codes_are_scheme_concepts_and_use_the_shared_shape(tmp_path
 
 # ---- pin schema identities
 
-@pytest.mark.xfail(reason="cross-repo pin drift: the local affidavit checkout's registry/artifact-pin.json "
-                          "has moved past the ConsumerBinding's vendored pin (affidavit-wasm rebuild); "
-                          "rebinding the pin is a cross-repo decision, not a pack-local repair. See "
-                          "packs/qri-consumer-binding-pack/RESOLUTIONS.md", strict=False)
 def test_producer_and_consumer_pin_records_have_distinct_schema_ids():
     consumer_pin = json.loads((PACK / "generated" / "artifact-pin.json").read_text(encoding="utf-8"))
     assert consumer_pin["schema"] == "qcb.artifact-pin/1"
@@ -767,7 +763,7 @@ def test_c10_qcb_node_host_and_afc_ts_host_agree_per_op_and_on_pin_refusal(tmp_p
     theirs = run("node", "--experimental-strip-types", "--no-warnings", PARITY_DRIVER, afc_host, WASM, EXAMPLES)
     assert theirs.returncode == 0, theirs.stderr
     qcb_responses, afc_responses = json.loads(qcb.stdout), json.loads(theirs.stdout)
-    assert len(qcb_responses) == 9, "positive control: all nine op examples"
+    assert len(qcb_responses) == 14, "positive control: all fourteen op examples"
     assert qcb_responses == afc_responses
 
     tampered = tmp_path / "tampered.wasm"

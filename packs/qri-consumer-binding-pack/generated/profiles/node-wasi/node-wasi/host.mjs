@@ -11,10 +11,10 @@ import { WASI } from 'node:wasi';
 
 export const AUTHORITY = "NONE";
 export const PIN = Object.freeze({
-  sha256: "5e721cc20d07193eee5d489077f4cb534f12c45f948e53247f79f38a5a7761f7",
-  bytes: 284650,
+  sha256: "5cc37aea8e59f7139e2ff5d43ab3c3c82931285b6400cf45f943c61d21a41402",
+  bytes: 660847,
   abiVersion: 1,
-  registrySha256: "ebac457843cd2322af575f02583a4a2a2a11a2488de6ee0eabef468861ebe61b",
+  registrySha256: "2fcaae611aaf069317123c0e1fe0c2978b2bd9c72aeadf2888aaee8be34d2ee5",
 });
 export const PREFIX = "af";
 export const PATH_ENV = "WASM_PATH";
@@ -31,6 +31,7 @@ export const ALLOWED_IMPORTS = Object.freeze([
   "wasi_snapshot_preview1::environ_sizes_get",
   "wasi_snapshot_preview1::fd_write",
   "wasi_snapshot_preview1::proc_exit",
+  "wasi_snapshot_preview1::random_get",
 ]);
 export const OPS = Object.freeze([
   "assemble",
@@ -39,8 +40,13 @@ export const OPS = Object.freeze([
   "certify_spiffe_evidence",
   "commit",
   "conform",
+  "derive_subject_digest",
+  "jcs_canonicalize",
   "mine",
+  "range_proof_verify",
+  "smt_absence_verify",
   "verify",
+  "verify_signature",
   "verify_signature_input",
 ]);
 
