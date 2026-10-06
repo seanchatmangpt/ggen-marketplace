@@ -12,7 +12,7 @@ real sim and real marketplace machinery.
 | Attendee badge | Signed credential | ES256 (P-256), verified only by the pinned affidavit WASM |
 | Session attendance | Usage metering | `:report` usage ops through the Service Control sim |
 | Sponsor tier | Plan level | `sponsor`/`platinum` -> `enterprise-aaif`; others -> `team-aaif` |
-| Exhibitor booth | Pack + qualification | `marketplace.py catalog`; demos run real `qualify_packs.py` |
+| Exhibitor booth | Pack + qualification | `marketplace.py catalog`; demos run `qualify_packs.py` |
 
 Machinery root: `k8s/gcp-marketplace-sim/server.py`.
 
@@ -23,41 +23,29 @@ All courts live in `tests/` over the CG1 fixture
 real deployer subprocess — no mocks).
 
 Registration — `test_conference_registration_court.py`:
-entitlement gate before manufacture. Purchase precedes any wire actuation;
-double-purchase is idempotent (one entitlement); expired card is refused
-before the wire.
-
+entitlement gate before manufacture; purchase precedes wire actuation;
+idempotent double-purchase; expired card refused pre-wire.
 Provisioning — `test_conference_provisioning_court.py`:
-pay-before-manufacture deploy via fail-closed `deploy_aaif_solution.py`;
-unique per-customer consequence digest; byte-identical redeploy; receipt
-chain grows by exactly one link per customer, no forks.
-
+pay-before-manufacture deploy (`deploy_aaif_solution.py`); unique
+per-customer digest; byte-identical redeploy; receipt chain +1, no forks.
 Metering — `test_conference_metering_court.py`:
-every usage report admitted; quota overflow refused with
-`RESOURCE_EXHAUSTED` and moves no units; per-tenant attribution.
-
+every report admitted; quota overflow refused (`RESOURCE_EXHAUSTED`),
+moves no units; per-tenant attribution.
 Billing — `test_conference_billing_court.py`:
-revenue conservation. The sim's billing summary is held against a sum
-computed independently in the test, never read back.
-
+revenue conservation; the sim summary is held against an independently
+computed sum, never read back.
 Isolation — `test_conference_isolation_court.py`:
-the multi-tenant boundary. Cross-customer fetch is 404 (the resource does
-not exist for the wrong caller, not a forbidden one); no manifest bleed; no
-cross-tenant actuation approval; usage never misattributed.
-
+multi-tenant boundary; cross-customer fetch is 404 (not 403); no manifest
+bleed; no cross-tenant actuation or misattributed usage.
 DoD cross-check — `test_conference_dod_crosscheck_court.py`:
-the definition-of-done court applied to sim evidence. Honest sim-mode
-payloads classify PARTIAL_ALIVE, never ALIVE; missing/dual billing
-authority and subject mismatch are typed refusals.
-
+the definition-of-done court on sim evidence; PARTIAL_ALIVE, never ALIVE;
+billing-authority cardinality and subject-mismatch typed refusals.
 Signed credential — `test_conference_signed_credential_court.py`:
-the estate's key-trust story. Host signs (ES256/DER, low-s normalized);
-the pinned affidavit WASM engine is the only verifier; domain-separated
-subject digest binds credential to subject.
-
+key-trust story; host signs (ES256/DER, low-s); pinned WASM sole verifier;
+domain-separated subject digest.
 MCP booth — `test_conference_mcp_booth_court.py`:
-a booth demo is a real `qualify_packs.py` qualification; a booth with an
-injected defect must FAIL; catalog determinism holds while the event runs.
+a demo is a real qualification; injected defect must FAIL; catalog
+determinism holds while the event runs.
 
 ## Honest scope
 
