@@ -174,7 +174,13 @@ def test_unreachable():
     assert result == {"standing": "BLOCKED", "refusal": "REFUSED_ENTITLEMENT_UNREACHABLE"}
 
 
-def test_real_backend_refused_without_permit():
+@pytest.fixture
+def _clean_real_rail_env(monkeypatch):
+    monkeypatch.delenv("AAIF_ENTITLEMENT_ENDPOINT", raising=False)
+    monkeypatch.delenv("AAIF_ENTITLEMENT_REAL_PERMIT", raising=False)
+
+
+def test_real_backend_refused_without_permit(_clean_real_rail_env):
     config = {"backend": "real", "billing_authorities": ["GOOGLE_CLOUD_MARKETPLACE"]}
     result = entitlement.decide("ent-1", config)
     assert result == {
