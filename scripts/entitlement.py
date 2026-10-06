@@ -157,8 +157,23 @@ def _b64url_decode(segment: str) -> bytes:
     return base64.urlsafe_b64decode(padded.encode("utf-8"))
 
 
+def _correlation_ok(claims: dict, record: dict, entitlement_id: str) -> bool:
+    """usageReportingId correlation (S3): the verified token's entitlement
+    identity must name the same entitlement record the usageReportingId binds.
+    A token minted for entitlement X can never authenticate a lookup for
+    entitlement Y — a self-consistent fake server must replicate the full
+    correlation, not just serve a signature it controls."""
+    expected_usage_id = "usage-{}".format(entitlement_id)
+    if record.get("usageReportingId") != expected_usage_id:
+        return False
+    token_identity = claims.get("entitlement_id")
+    if not isinstance(token_identity, str) or not token_identity:
+        token_identity = claims.get("sub")
+    return token_identity == entitlement_id
+
+
 def _verify_jwt(jwt_token: str, base_url: str, provider_id: str,
-                backend: str = "sim") -> tuple[bool, str]:
+                backend: str = "sim") -> tuple[bool, str, dict]:
     """Verify the record's RS256 JWT against the x509 metadata map served at
     {base_url}{METADATA_PATH}. Returns (ok, kid).
 
@@ -166,38 +181,40 @@ def _verify_jwt(jwt_token: str, base_url: str, provider_id: str,
       backend == "sim"  -> iss must equal the metadata URL actually fetched;
       backend == "real" -> iss must equal the canonical Google robot URL.
     Either way exactly one issuer value is accepted, so an endpoint serving the
-    x509 map can never mint tokens claiming the other identity."""
+    x509 map can never mint tokens claiming the other identity.
+
+    Returns (ok, kid, claims); claims is {} when verification fails."""
     try:
         from cryptography.exceptions import InvalidSignature
         from cryptography.hazmat.primitives import hashes
         from cryptography.hazmat.primitives.asymmetric import padding
         from cryptography import x509 as _x509
     except Exception:
-        return False, REFUSED_CRYPTO_UNAVAILABLE
+        return False, REFUSED_CRYPTO_UNAVAILABLE, {}
 
     parts = jwt_token.split(".") if isinstance(jwt_token, str) else []
     if len(parts) != 3:
-        return False, ""
+        return False, "", {}
     try:
         header = json.loads(_b64url_decode(parts[0]))
         claims = json.loads(_b64url_decode(parts[1]))
         signature = _b64url_decode(parts[2])
     except (ValueError, binascii.Error, UnicodeDecodeError):
-        return False, ""
+        return False, "", {}
 
     if not isinstance(header, dict) or header.get("alg") != "RS256":
-        return False, str(header.get("kid", "")) if isinstance(header, dict) else ""
+        return False, str(header.get("kid", "")) if isinstance(header, dict) else "", {}
     kid = header.get("kid")
     if not isinstance(kid, str) or not kid:
-        return False, ""
+        return False, "", {}
 
     metadata_url = base_url + METADATA_PATH
     status, keys = _fetch(metadata_url, strict=True)
     if status != 200 or not isinstance(keys, dict):
-        return False, kid
+        return False, kid, {}
     pem = keys.get(kid)
     if not isinstance(pem, str):
-        return False, kid
+        return False, kid, {}
     try:
         # Google's x509 metadata map is kid -> PEM certificate; the signing key
         # is the certificate's public key.
@@ -205,30 +222,31 @@ def _verify_jwt(jwt_token: str, base_url: str, provider_id: str,
         public_key.verify(signature, f"{parts[0]}.{parts[1]}".encode("utf-8"),
                           padding.PKCS1v15(), hashes.SHA256())
     except Exception:
-        return False, kid
+        return False, kid, {}
 
     if not isinstance(claims, dict):
-        return False, kid
+        return False, kid, {}
     # Exactly one issuer is accepted, scoped to the backend (see docstring).
     expected_iss = metadata_url if backend == "sim" else CANONICAL_ISSUER
-    return _claims_ok(claims, expected_iss, provider_id, kid)
+    ok, kid_out, claims_out = _claims_ok(claims, expected_iss, provider_id, kid)
+    return ok, kid_out, claims_out
 
 
 def _claims_ok(claims: dict, expected_iss: str, provider_id: str,
-               kid: str) -> tuple[bool, str]:
+               kid: str) -> tuple[bool, str, dict]:
     """Claim fence: exactly one accepted issuer, provider audience, future int
     exp (bool explicitly refused)."""
     if claims.get("iss") != expected_iss:
-        return False, kid
+        return False, kid, {}
     if claims.get("aud") != provider_id:
-        return False, kid
+        return False, kid, {}
     exp = claims.get("exp")
     now = int(time.time())
     # bool is an int subclass; a JSON true/false exp must not pass as a valid
     # expiry.
     if isinstance(exp, bool) or not isinstance(exp, int) or exp <= 0 or exp <= now:
-        return False, kid
-    return True, kid
+        return False, kid, {}
+    return True, kid, claims
 
 
 def decide(entitlement_id: str, config: dict) -> dict:
@@ -281,10 +299,12 @@ def decide(entitlement_id: str, config: dict) -> dict:
     if not isinstance(provider_id, str) or not provider_id:
         return _refused(REFUSED_REGISTRY_INVALID)
     jwt_token = record.get("jwt")
-    ok, kid = _verify_jwt(jwt_token, _base_url(), provider_id, backend="sim")
+    ok, kid, claims = _verify_jwt(jwt_token, _base_url(), provider_id, backend="sim")
     if not ok:
         if kid == REFUSED_CRYPTO_UNAVAILABLE:
             return _refused(REFUSED_CRYPTO_UNAVAILABLE)
+        return _refused(REFUSED_JWT_INVALID)
+    if not _correlation_ok(claims, record, entitlement_id):
         return _refused(REFUSED_JWT_INVALID)
 
     return {

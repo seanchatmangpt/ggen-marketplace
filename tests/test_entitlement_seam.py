@@ -461,17 +461,17 @@ def test_iss_fence_is_single_valued_per_backend():
         ("sim", sim_meta, entitlement.CANONICAL_ISSUER),
         ("real", entitlement.CANONICAL_ISSUER, sim_meta),
     ):
-        ok, _ = entitlement._claims_ok(dict(good, iss=accepted), accepted,
+        ok, _, _ = entitlement._claims_ok(dict(good, iss=accepted), accepted,
                                        "demo-provider", "k")
         assert ok is True, backend
-        bad, _ = entitlement._claims_ok(dict(good, iss=rejected), accepted,
+        bad, _, _ = entitlement._claims_ok(dict(good, iss=rejected), accepted,
                                         "demo-provider", "k")
         assert bad is False, backend
 
 
 def test_bool_exp_refused():
     for bad_exp in (True, False):
-        ok, _ = entitlement._claims_ok(
+        ok, _, _ = entitlement._claims_ok(
             {"iss": entitlement.CANONICAL_ISSUER, "aud": "demo-provider",
              "exp": bad_exp},
             entitlement.CANONICAL_ISSUER, "demo-provider", "k")
@@ -596,3 +596,81 @@ def test_is_googleapis_shapes():
                 "https://googleapis.com.evil.example.com",
                 "https://evil-googleapis.com", "not a url"):
         assert entitlement._is_googleapis(bad) is False, bad
+
+
+# ---------------------------------------------------------------------------
+# S3: usageReportingId correlation — token bound to the registry entry
+# ---------------------------------------------------------------------------
+
+def _real_keymap(sim):
+    path = "/robot/v1/metadata/x509/cloud-commerce-partner@system.gserviceaccount.com"
+    with urllib.request.urlopen(sim.url(path), timeout=5) as r:
+        return json.loads(r.read().decode())
+
+
+def test_cross_entitlement_token_refused(sim):
+    """Token minted for ent-A served on ent-B's record -> correlation failure,
+    never ALIVE."""
+    _seed(sim, "ent-a")
+    _seed(sim, "ent-b")
+    rec_a, _ = _real_record_and_keymap(sim, "ent-a")
+    keymap = _real_keymap(sim)
+    rec_b, _ = _real_record_and_keymap(sim, "ent-b")
+    served = dict(rec_b, jwt=rec_a["jwt"])  # ent-B's record, ent-A's token
+    fake = FakeServer({
+        "/entitlements/ent-b": served,
+        "/robot/v1/metadata/x509/cloud-commerce-partner@system.gserviceaccount.com": keymap,
+    })
+    try:
+        with _endpoint(fake):
+            result = entitlement.decide("ent-b", CONFIG)
+    finally:
+        fake.stop()
+    assert result == {"standing": "BLOCKED",
+                      "refusal": "REFUSED_ENTITLEMENT_JWT_INVALID"}
+
+
+def test_matching_pair_alive(sim):
+    """Both entitlements seeded; each token authenticates only its own record."""
+    _seed(sim, "ent-a")
+    _seed(sim, "ent-b")
+    with _endpoint(sim):
+        assert entitlement.decide("ent-a", CONFIG)["standing"] == "ALIVE"
+        assert entitlement.decide("ent-b", CONFIG)["standing"] == "ALIVE"
+
+
+def test_missing_usage_reporting_id_refused(sim):
+    """A cryptographically valid token on a record without the bound
+    usageReportingId is refused — the correlation is load-bearing."""
+    _seed(sim)
+    record, _ = _real_record_and_keymap(sim)
+    keymap = _real_keymap(sim)
+    record.pop("usageReportingId", None)
+    fake = FakeServer({
+        "/entitlements/ent-1": record,
+        "/robot/v1/metadata/x509/cloud-commerce-partner@system.gserviceaccount.com": keymap,
+    })
+    try:
+        with _endpoint(fake):
+            result = entitlement.decide("ent-1", CONFIG)
+    finally:
+        fake.stop()
+    assert result == {"standing": "BLOCKED",
+                      "refusal": "REFUSED_ENTITLEMENT_JWT_INVALID"}
+
+
+def test_correlation_unit_shapes():
+    ok_claims = {"entitlement_id": "ent-1", "iss": "i", "aud": "a", "exp": 1}
+    rec = {"usageReportingId": "usage-ent-1"}
+    assert entitlement._correlation_ok(ok_claims, rec, "ent-1") is True
+    # sub fallback resolves
+    assert entitlement._correlation_ok(
+        {"sub": "ent-1", "iss": "i", "aud": "a", "exp": 1}, rec, "ent-1") is True
+    # wrong entitlement in token
+    assert entitlement._correlation_ok(
+        {"entitlement_id": "ent-2", "iss": "i", "aud": "a", "exp": 1},
+        rec, "ent-1") is False
+    # missing / mismatched usageReportingId
+    assert entitlement._correlation_ok(ok_claims, {}, "ent-1") is False
+    assert entitlement._correlation_ok(
+        ok_claims, {"usageReportingId": "usage-ent-2"}, "ent-1") is False
