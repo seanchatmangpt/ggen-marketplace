@@ -7,6 +7,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v26.10.7] — 2026-10-07
+
+- convergence(marker): `[active].version` 26.9.12 → 26.10.7 in `marketplace.active.toml` (version field only; absorbs the W618-era uncommitted 26.10.6 bump and advances it); active pack set unchanged at 13 packs, front door unchanged (`ggen-platform-pack`)
+- closure(verify): `scripts/verify_msct_profile.py` exit 0 (MSCT profile invariants: ALIVE, active_packs=13) and `scripts/verify_enterprise_kudzu_profile.py` exit 0 (Enterprise Kudzu profile invariants: PARTIAL_ALIVE, active_packs=13) — verifiers key on the pack SET, not the version field (re-run at 26.10.7, see W650p receipt)
+- (W126 lane; ash-extension-pack edits uncommitted pending pack commit + pin advance, mirrored in the ggen git-pack cache)
+- closure(verify): `scripts/verify_msct_profile.py` exit 0 (MSCT profile invariants: ALIVE, active_packs=13) and `scripts/verify_enterprise_kudzu_profile.py` exit 0 (Enterprise Kudzu profile invariants: PARTIAL_ALIVE, active_packs=13) — verifiers key on the pack SET, not the version field
+- fix(ash-extension-pack): gate `120_spark_dead_surface.rq` scope FILTER fix — add `FILTER (STRSTARTS(STR(?s), ".../ash-extension-core#"))` before the VALUES allowlist so ash_surface's `surf:*` rdf:Property declarations are out of the gate's jurisdiction; anti-vacuity preserved (a dead `aex:*` term still refuses)
+- fix(ash-extension-pack): add `aex:fieldDoc` to `aex:AshA2aArgumentName` / `aex:AshA2aArgumentType` rows — template's `fields` SPARQL hard-requires it; without it rendered `@enforce_keys` defstructs were non-compiling
+- feat(ash-extension-pack): `section_one_of_values` SPARQL + `one_of` branch in the section-field renderer, with three `aex:FieldOneOfValue` rows (two_port/open/disabled) — bare `type: :one_of` broke Spark 2.7.3 docs generation
+- fix(ash-extension-pack): `aex:fixtureOnly true` on `aex:AshA2aSpec` — worked examples MUST NOT fan out consumer artifacts; stops `lib/ash_a2a/**` colliding with the real hex dep `ash_a2a`
+- (W126 lane; pack edits uncommitted pending pack commit + pin advance, mirrored in the ggen git-pack cache)
+
 ## [v26.10.1] — 2026-10-01
 
 - feat(pack): ash-ex4pm-evidence-pack — ProcessEvidence/Ex4pm adapter, realtime bridge, evidence court templates generalized from ash_pplan
