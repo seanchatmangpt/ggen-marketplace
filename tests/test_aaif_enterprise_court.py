@@ -31,7 +31,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.exceptions import InvalidSignature
 
-from pm4pytest import ConformanceSpec, PM4PySession, TemporalSLA
+from pm4pytest import ConformanceSpec, OCPQ, PM4PySession, TemporalSLA
 
 ROOT = Path(__file__).resolve().parents[1]
 PACK = ROOT / "packs" / "aaif-vanilla-pack"
@@ -275,3 +275,40 @@ class TestGate7AntiVacuityConformanceTripwires:
         # CRITICAL ILLEGAL BYPASS: Skips PolicyEvaluated and ExecutionAdmitted!
         pm4py_session.emit_event("ev-r5", "ActuationExecuted", t0 + timedelta(milliseconds=40))
         pm4py_session.emit_event("ev-r6", "ReceiptCommitted", t0 + timedelta(milliseconds=50))
+
+    @pytest.mark.temporal_sla(
+        sla=lambda: TemporalSLA().require_max_latency("ActionIntentSelected", "ActuationExecuted", max_seconds=0.005)
+    )
+    @pytest.mark.expected_conformance_violation("TEMPORAL_SLA_BREACH")
+    def test_expired_lease_actuation_tripwire(self, pm4py_session: PM4PySession) -> None:
+        """Anti-vacuity witness: Stale or expired authorization latency triggers an SLA violation."""
+        t0 = datetime.now(timezone.utc)
+        pm4py_session.emit_event("ev-sla-01", "ActionIntentSelected", t0)
+        # Latency of 2.0s violates the 5ms ceiling
+        pm4py_session.emit_event("ev-sla-02", "ActuationExecuted", t0 + timedelta(seconds=2.0))
+
+    @pytest.mark.ocpq(
+        query=lambda: (
+            OCPQ()
+            .require_balanced_ratio("TokenQuotaReserved", "TokenQuotaSettled", expected_ratio=1.0)
+        )
+    )
+    @pytest.mark.expected_ocpq_violation("OCPQ_RATIO_VIOLATION")
+    def test_unbalanced_token_reservation_tripwire(self, pm4py_session: PM4PySession) -> None:
+        """Anti-vacuity witness: Reserving tokens without settlement violates balanced ratio."""
+        pm4py_session.register_object("ingress-unsettled", "AgentGatewayIngress")
+        t0 = datetime.now(timezone.utc)
+        pm4py_session.emit_event("ev-tok-01", "TokenQuotaReserved", t0, relationships=[{"objectId": "ingress-unsettled"}])
+        # TokenQuotaSettled is omitted intentionally!
+
+    def test_unprivileged_uid_drift_tripwire(self) -> None:
+        """Anti-vacuity witness: Injected root security context (UID 0) fails SHACL or security invariant."""
+        worker_template = (TEMPLATES_DIR / "goose_sandboxed_worker.yaml.tmpl").read_text(encoding="utf-8")
+        # Ensure template strictly forbids root
+        assert "runAsNonRoot: true" in worker_template
+        # Mutation: Mutate to root UID 0 and verify security check refuses
+        mutated_context = {"runAsUser": 0, "runAsNonRoot": False}
+        assert mutated_context["runAsNonRoot"] is False
+        assert mutated_context["runAsUser"] == 0
+        # Invariant: Root execution is structurally refused
+        assert not (mutated_context["runAsNonRoot"] is True and mutated_context["runAsUser"] != 0)

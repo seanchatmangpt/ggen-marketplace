@@ -59,6 +59,12 @@ class ConformanceSpec:
         net, im, fm = pm4py.discover_petri_net_inductive(df)
         return cls(petri_net=net, initial_marking=im, final_marking=fm, min_fitness=min_fitness)
 
+    @classmethod
+    def from_pnml(cls, pnml_path: Path | str, min_fitness: float = 1.0) -> ConformanceSpec:
+        """Load a Petri net directly from a PNML XML file."""
+        net, im, fm = pm4py.read_pnml(str(pnml_path))
+        return cls(petri_net=net, initial_marking=im, final_marking=fm, min_fitness=min_fitness)
+
     def evaluate(self, events: List[Dict[str, Any]]) -> ConformanceResult:
         """Evaluate a test's sequential trace against the conformance model."""
         if not events:
