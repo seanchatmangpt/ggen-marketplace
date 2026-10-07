@@ -270,7 +270,12 @@ def inspect_marketplace() -> tuple[list[Pack], list[str]]:
         if path.is_symlink():
             issues.append(refusal("PACK_SYMLINK", path.relative_to(ROOT).as_posix()))
 
-    directories = sorted((path for path in PACKS.iterdir() if path.is_dir()), key=lambda path: path.name)
+    # Dot-dirs under packs/ are runtime cache (e.g. .clap-noun-verb, generated
+    # by the CLI at validate time), not packs; skip them.
+    directories = sorted(
+        (path for path in PACKS.iterdir() if path.is_dir() and not path.name.startswith(".")),
+        key=lambda path: path.name,
+    )
     if not directories:
         issues.append(refusal("EMPTY_MARKETPLACE", "packs"))
 
