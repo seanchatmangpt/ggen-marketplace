@@ -1,0 +1,101 @@
+# ffi.rq -- consumed by templates/abi/ffi.rs.tmpl (rust-wasi-wasmex-pack;
+# ported from deprecated precursor wasi-json-abi-pack queries/ffi.rq).
+#
+# Single-row projection; a module is a single-file FFI shell.
+# Projected columns (MUST equal wasm_ffi.rs.tmpl's {{ }} vars):
+#   crate_name        - wja:crateName of the module (documentation only).
+#   export_prefix     - wja:exportPrefix; the core exports are
+#                       <prefix>_abi_version / _alloc / _free / _call,
+#                       each followed by the symbol suffix.
+#   abi_version       - wja:abiVersion (documented in the shell header; the
+#                       value itself is rendered by abi_meta.rs).
+#   max_request_bytes - wja:maxRequestBytes (documented in the shell header;
+#                       enforced through abi_meta::MAX_REQUEST_BYTES).
+#   has_abi_version_export - wja:hasAbiVersionExport; "true" emits the
+#                       abi-version export named by abi_version_export_symbol.
+#                       Default "true" (the shell has always exported it).
+#   max_outstanding_bytes - wja:maxOutstandingBytes; non-empty enables outstanding-byte
+#                       accounting against abi_meta::MAX_OUTSTANDING_BYTES. Default "".
+#   buffer_style      - wja:bufferStyle, "boxed-slice" (default) or "vec".
+#   abi_path          - W641c parameter: module path of the hand-written safe core
+#                       (wja:abiModulePath, default "crate::abi"); every core hook
+#                       is called through this path.
+#   call_hook         - W641c parameter: name of the core entry hook inside abi_path
+#                       (wja:callHook, default "call"); the shell calls
+#                       <abi_path>::<call_hook>, so an in-tree core that names its
+#                       entry differently binds without template edits.
+#   empty_response_policy - W641c parameter: what the shell does when the core
+#                       returns an empty response (wja:emptyResponsePolicy). Only
+#                       "substitute-empty-object" is implemented; the template
+#                       compile_error!s on any other value (a zero-length response
+#                       cannot round-trip the boxed/vec free contract, so
+#                       passthrough is refused at compile time, not silently
+#                       mis-rendered). Default "substitute-empty-object".
+#   return_convention - wja:returnConvention, "packed-u64" (default; call returns
+#                       (out_ptr << 32) | out_len) or "out-len-pointer" (call takes
+#                       an out_len pointer and returns out_ptr).
+#   symbol_suffix     - wja:symbolSuffix (e.g. "_v1") appended to every export
+#                       symbol. Default "".
+#   input_release_policy - wja:inputReleasePolicy, "call-consumes" (default; the
+#                       call frees the request buffer) or "host-dealloc" (reading
+#                       never frees; <prefix>_dealloc releases request buffers,
+#                       <prefix>_free releases response buffers).
+#   abi_version_export_symbol - full symbol of the abi-version export:
+#                       wja:abiVersionExportName when declared, else
+#                       <prefix>_abi_version<suffix>.
+#
+# Strict mode: the four module facts are required; a module missing any of them
+# yields zero rows and the engine refuses. Every wire-convention column is
+# optional and defaults to the historical shell, so profiles that do not set
+# them render byte-identical output.
+
+PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
+
+SELECT
+  ?crate_name
+  ?export_prefix
+  ?abi_version
+  ?max_request_bytes
+  ?has_abi_version_export
+  ?max_outstanding_bytes
+  ?buffer_style
+  ?abi_path
+  ?return_convention
+  ?symbol_suffix
+  ?input_release_policy
+  ?abi_version_export_symbol
+  ?call_hook
+  ?empty_response_policy
+WHERE {
+  ?module a wja:WasmModule ;
+          wja:crateName       ?crateNameRaw ;
+          wja:exportPrefix    ?exportPrefixRaw ;
+          wja:abiVersion      ?abiVersionRaw ;
+          wja:maxRequestBytes ?maxRequestBytesRaw .
+  BIND(STR(?crateNameRaw) AS ?crate_name)
+  BIND(STR(?exportPrefixRaw) AS ?export_prefix)
+  BIND(STR(?abiVersionRaw) AS ?abi_version)
+  BIND(STR(?maxRequestBytesRaw) AS ?max_request_bytes)
+  OPTIONAL { ?module wja:hasAbiVersionExport ?havRaw }
+  OPTIONAL { ?module wja:maxOutstandingBytes ?moRaw }
+  OPTIONAL { ?module wja:bufferStyle ?bsRaw }
+  OPTIONAL { ?module wja:abiModulePath ?apRaw }
+  OPTIONAL { ?module wja:returnConvention ?rcRaw }
+  OPTIONAL { ?module wja:symbolSuffix ?ssRaw }
+  OPTIONAL { ?module wja:inputReleasePolicy ?irpRaw }
+  OPTIONAL { ?module wja:abiVersionExportName ?avenRaw }
+  OPTIONAL { ?module wja:callHook ?chRaw }
+  OPTIONAL { ?module wja:emptyResponsePolicy ?erpRaw }
+  BIND(COALESCE(STR(?havRaw), "true") AS ?has_abi_version_export)
+  BIND(COALESCE(STR(?moRaw), "") AS ?max_outstanding_bytes)
+  BIND(COALESCE(STR(?bsRaw), "boxed-slice") AS ?buffer_style)
+  BIND(COALESCE(STR(?apRaw), "crate::abi") AS ?abi_path)
+  BIND(COALESCE(STR(?rcRaw), "packed-u64") AS ?return_convention)
+  BIND(COALESCE(STR(?ssRaw), "") AS ?symbol_suffix)
+  BIND(COALESCE(STR(?irpRaw), "call-consumes") AS ?input_release_policy)
+  BIND(COALESCE(STR(?chRaw), "call") AS ?call_hook)
+  BIND(COALESCE(STR(?erpRaw), "substitute-empty-object") AS ?empty_response_policy)
+  BIND(COALESCE(STR(?avenRaw), CONCAT(STR(?export_prefix), "_abi_version", COALESCE(STR(?ssRaw), ""))) AS ?abi_version_export_symbol)
+}
+ORDER BY ?crate_name
+LIMIT 1

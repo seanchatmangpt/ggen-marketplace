@@ -1,0 +1,22 @@
+# cargo.rq — single-row binding for the cargo config, [profile.wasm] fragment
+# and ARTIFACTS.sha256 skeleton templates. Ported from deprecated precursor
+# wasi-json-abi-pack at pack unification.
+# Columns are consumed by ggen sync as plain Tera variables:
+#   {{ crate_name }} {{ export_prefix }} {{ abi_version }}
+#   {{ stack_size_bytes }} {{ imports_policy }}
+# A module missing any of these facts yields zero rows => refusal, never a
+# render with an empty stack size or crate name.
+
+PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
+
+SELECT ?crate_name ?export_prefix ?abi_version ?stack_size_bytes ?imports_policy
+WHERE {
+  ?module a wja:WasmModule ;
+      wja:crateName ?crate_name ;
+      wja:exportPrefix ?export_prefix ;
+      wja:abiVersion ?abi_version ;
+      wja:stackSizeBytes ?stack_size_bytes ;
+      wja:importsPolicy ?imports_policy .
+}
+ORDER BY ?crate_name ?export_prefix
+LIMIT 1

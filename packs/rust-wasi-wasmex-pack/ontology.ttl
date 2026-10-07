@@ -86,3 +86,148 @@ rww:hasHostModule a rdf:Property ;
     rww:domain rww:PipelineBinding ; rww:range rww:HostElixirModule ;
     rdfs:label "has host module" ;
     rdfs:comment "Links the pipeline binding to its host Elixir module configuration." .
+
+# ============================================================================
+# WASI JSON-ABI surface vocabulary (succession from deprecated precursor
+# wasi-json-abi-pack). The unified pack's abi/ render surfaces select these
+# facts FROM THE CONSUMER GRAPH — the pack defines the vocabulary (schema
+# layer) only and carries no instance facts; consumer modules assert them in
+# their own ontology (e.g. affidavit ontology/affi-wasm.ttl).
+# ============================================================================
+
+@prefix wja:  <https://ggen.dev/ontology/wasi-json-abi#> .
+
+# -- Classes --
+
+wja:WasmModule a rdfs:Class ;
+    rdfs:label "WASM JSON-ABI module" ;
+    rdfs:seeAlso rww:GuestRustCrate ;
+    rdfs:comment "A guest wasm module exposing the JSON-ABI export shell. Successor vocabulary of the deprecated wasi-json-abi-pack; aligned with rww:GuestRustCrate." .
+
+wja:Op a rdfs:Class ;
+    rdfs:label "ABI op" ;
+    rdfs:comment "One request/response op of a wja:WasmModule, ordered by wja:opOrder." .
+
+wja:ErrorCode a rdfs:Class ;
+    rdfs:label "ABI error code" ;
+    rdfs:comment "One typed error code of a wja:WasmModule, ordered by wja:codeOrder." .
+
+wja:WasiImport a rdfs:Class ;
+    rdfs:label "WASI import" ;
+    <http://www.w3.org/2000/01/rdf-schema#comment> "Observed WASI import of the pinned module (closure checked by gates)." .
+
+# -- Module facts (required by the abi/ queries; defaults documented there) --
+
+wja:crateName a rdf:Property ;
+    rdfs:seeAlso rww:crateName ;
+    rdfs:comment "Name of the crate hosting the wasm module. Aligned with rww:crateName." .
+
+wja:exportPrefix a rdf:Property ;
+    rdfs:seeAlso rww:packPrefix ;
+    rdfs:comment "Export symbol prefix. Aligned with rww:packPrefix." .
+
+wja:abiVersion a rdf:Property ;
+    rdfs:comment "ABI revision returned by <prefix>_abi_version." .
+
+wja:maxRequestBytes a rdf:Property ;
+    rdfs:seeAlso rww:maxRequestBytes ;
+    rdfs:comment "Upper bound on request size in bytes. Aligned with rww:maxRequestBytes." .
+
+wja:maxJsonDepth a rdf:Property ;
+    rdfs:comment "Upper bound on accepted JSON nesting depth." .
+
+wja:stackSizeBytes a rdf:Property ;
+    rdfs:comment "Linker stack size in bytes (-zstack-size); replaces the 4 MiB hardcode in guest/cargo_config.toml.tmpl when a consumer selects the abi/ cargo surface." .
+
+# -- Op surface --
+
+wja:hasOp a rdf:Property ;
+    rdfs:domain wja:WasmModule ; rdfs:range wja:Op ;
+    rdfs:comment "Links a module to its ops." .
+
+wja:opName a rdf:Property ; rdfs:domain wja:Op ; rdfs:range xsd:string ;
+    rdfs:comment "Op identifier rendered into the op table and registry." .
+
+wja:opOrder a rdf:Property ; rdfs:domain wja:Op ; rdfs:range xsd:integer ;
+    rdfs:comment "Zero-based stable order of the op (registry/examples/abi_meta sort key)." .
+
+wja:requestFields a rdf:Property ; rdfs:domain wja:Op ; rdfs:range xsd:string ;
+    rdfs:comment "Comma-separated request field identifiers." .
+
+wja:responseFields a rdf:Property ; rdfs:domain wja:Op ; rdfs:range xsd:string ;
+    rdfs:comment "Comma-separated response field identifiers." .
+
+wja:exampleRequest a rdf:Property ; rdfs:domain wja:Op ; rdfs:range xsd:string ;
+    rdfs:comment "Verbatim JSON example request (op-examples.json)." .
+
+# -- Error codes --
+
+wja:hasErrorCode a rdf:Property ; rdfs:domain wja:WasmModule ; rdfs:range wja:ErrorCode ;
+    rdfs:comment "Links a module to its typed error codes." .
+
+wja:codeName a rdf:Property ; rdfs:domain wja:ErrorCode ; rdfs:range xsd:string ;
+    rdfs:comment "Error code identifier." .
+
+wja:codeOrder a rdf:Property ; rdfs:domain wja:ErrorCode ; rdfs:range xsd:integer ;
+    rdfs:comment "Stable order of the error code (registry/abi_meta sort key)." .
+
+# -- Optional module facts (defaults in queries/ffi.rq) --
+
+wja:hasAbiVersionExport a rdf:Property ; rdfs:range xsd:boolean ;
+    rdfs:comment "Whether the shell emits <prefix>_abi_version. Default true." .
+
+wja:maxOutstandingBytes a rdf:Property ; rdfs:seeAlso rww:maxOutstandingBytes ;
+    rdfs:domain wja:WasmModule ; rdfs:range xsd:integer ;
+    rdfs:comment "Outstanding-byte cap. Aligned with rww:maxOutstandingBytes." .
+
+wja:bufferStyle a rdf:Property ;
+    rdfs:comment "Boundary buffer discipline: boxed-slice (default) or vec." .
+
+wja:abiModulePath a rdf:Property ; rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:comment "W641c parameter: module path of the hand-written safe core. Default crate::abi." .
+
+wja:returnConvention a rdf:Property ; rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:comment "packed-u64 (default) or out-len-pointer." .
+
+wja:symbolSuffix a rdf:Property ; rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:comment "Suffix appended to every export symbol. Default empty." .
+
+wja:inputReleasePolicy a rdf:Property ; rdfs:domain wja:WasmModule ;
+    rdfs:comment "call-consumes (default) or host-dealloc." .
+
+wja:importsPolicy a rdf:Property ; rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:comment "WASI imports policy string (e.g. wasi_snapshot_preview1)." .
+
+wja:abiVersionExportName a rdf:Property ; rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:comment "Explicit full symbol of the abi-version export when non-standard." .
+
+wja:callHook a rdf:Property ; rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    <http://www.w3.org/2000/01/rdf-schema#comment> "W641c parameter: core entry hook name inside abi_path. Default call." .
+
+wja:emptyResponsePolicy a rdf:Property ; rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:comment "Empty-response policy. Only substitute-empty-object is sound; template compile_error!s otherwise." .
+
+# -- Release pins --
+
+wja:wasmSha256 a rdf:Property ; rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:comment "sha256 of the built wasm (ARTIFACTS pin fact)." .
+
+wja:wasmBytes a rdf:Property ; rdfs:domain wja:WasmModule ; rdfs:range xsd:integer ;
+    rdfs:comment "Size in bytes of the built wasm (ARTIFACTS pin fact)." .
+
+wja:registrySha256 a rdf:Property ; rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:comment "sha256 of capability-registry.json (pin fact)." .
+
+wja:surfaceSha256 a rdf:Property ; rdfs:domain wja:WasmModule ; rdfs:range xsd:string ;
+    rdfs:comment "sha256 of the rendered surface digest (pin fact)." .
+
+# -- Observed WASI imports --
+
+wja:hasWasiImport a rdf:Property ; rdfs:domain wja:WasmModule ; rdfs:range wja:WasiImport ;
+    rdfs:comment "Links a module to its observed WASI imports (gate closure)." .
+
+wja:importModule a rdf:Property ; rdfs:domain wja:WasiImport ; rdfs:range xsd:string ;
+    rdfs:comment "WASI module name (e.g. wasi_snapshot_preview1)." .
+
+wja:importName a rdf:Property ; rdfs:domain wja:WasiImport ; rdfs:range xsd:string ;
+    rdfs:comment "Import function name." .

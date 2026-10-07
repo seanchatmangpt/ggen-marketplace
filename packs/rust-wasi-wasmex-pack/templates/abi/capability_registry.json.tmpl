@@ -1,0 +1,40 @@
+{%- set op_list = ops | split(pat="@@") | sort -%}
+{%- set code_list = codes | split(pat="@@") | sort -%}
+{
+  "abi_version": {{ abi_version }},
+  "crate": {{ crate_name | json_encode() | safe }},
+  "error_codes": [
+{%- for c in code_list %}
+{%- set p = c | split(pat="##") %}
+    {{ p[1] | json_encode() | safe }}{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ],
+  "exports": [
+{%- if has_abi_version_export == "true" %}
+    "{{ abi_version_export_symbol }}",
+{%- endif %}
+    "{{ alloc_symbol }}",
+    "{{ call_symbol }}",
+{%- if input_release_policy == "host-dealloc" %}
+    "{{ dealloc_symbol }}",
+{%- endif %}
+    "{{ free_symbol }}"
+  ],
+  "imports_policy": {{ imports_policy | json_encode() | safe }},
+  "limits": {
+    "max_json_depth": {{ max_json_depth }},
+    "max_request_bytes": {{ max_request_bytes }},
+    "stack_size_bytes": {{ stack_size_bytes }}
+  },
+  "ops": [
+{%- for o in op_list %}
+{%- set p = o | split(pat="##") %}
+    {
+      "name": {{ p[1] | json_encode() | safe }},
+      "request_fields": [{% for f in p[2] | split(pat=",") %}{% if f | trim != "" %}{% if not loop.first %}, {% endif %}{{ f | trim | json_encode() | safe }}{% endif %}{% endfor %}],
+      "response_fields": [{% for f in p[3] | split(pat=",") %}{% if f | trim != "" %}{% if not loop.first %}, {% endif %}{{ f | trim | json_encode() | safe }}{% endif %}{% endfor %}]
+    }{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ],
+  "schema": "wasi-json-abi.capability-registry/1"
+}
