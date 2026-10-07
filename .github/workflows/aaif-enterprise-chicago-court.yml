@@ -31,10 +31,47 @@ jobs:
         run: |
           ./k8s/harness/setup_kind_cluster.sh ephemeral-aaif-court
 
+      - name: Install pm4pytest and Conformance Tooling
+        run: |
+          /opt/court-venv/bin/pip install -e packages/pm4pytest
+          /opt/court-venv/bin/pip install rdflib pyshacl pyyaml cryptography
+
       - name: Run Enterprise Chicago Integration Court
         run: |
-          /opt/court-venv/bin/pip install pytest rdflib pyshacl pyyaml cryptography
-          /opt/court-venv/bin/pytest -c /dev/null tests/test_aaif_enterprise_court.py -v
+          /opt/court-venv/bin/pytest tests/test_aaif_enterprise_court.py -v
+
+      - name: Validate IEEE OCEL v2 Database Integrity
+        run: |
+          /opt/court-venv/bin/python -c "
+          import sqlite3
+          from pathlib import Path
+
+          db_path = Path('/tmp/aaif_chicago_trace.sqlite')
+          assert db_path.exists(), f'SQLite trace not found at {db_path}'
+          assert db_path.stat().st_size > 0, 'SQLite trace is empty (0 bytes)'
+
+          conn = sqlite3.connect(str(db_path))
+          cursor = conn.cursor()
+
+          # Verify IEEE OCEL v2 relational schema presence
+          cursor.execute(\"SELECT name FROM sqlite_master WHERE type='table';\")
+          tables = {row[0] for row in cursor.fetchall()}
+          print(f'Discovered SQLite tables: {sorted(tables)}')
+          required = {'event', 'object', 'event_object'}
+          assert required.issubset(tables), f'Missing required OCEL v2 tables: {required - tables}'
+
+          # Verify non-empty event-object relations
+          cursor.execute(\"SELECT count(*) FROM event_object;\")
+          rel_count = cursor.fetchone()[0]
+          assert rel_count > 0, 'Zero event-object relations recorded'
+
+          cursor.execute(\"SELECT count(*) FROM event;\")
+          ev_count = cursor.fetchone()[0]
+          cursor.execute(\"SELECT count(*) FROM object;\")
+          obj_count = cursor.fetchone()[0]
+          print(f'IEEE OCEL v2 Relational Verification: {ev_count} events, {obj_count} objects, {rel_count} relations validated.')
+          conn.close()
+          "
 
       - name: Teardown Cluster (Always Executed)
         if: always()
