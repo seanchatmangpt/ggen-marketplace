@@ -1,0 +1,38 @@
+name: AAIF Enterprise Chicago Integration Court
+
+on:
+  push:
+    branches: [main, feat/*]
+  pull_request:
+
+jobs:
+  chicago-kind-court:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Kind & Gateway API Tools
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+
+      - name: Spin up Ephemeral Kind Cluster
+        run: |
+          ./k8s/harness/setup_kind_cluster.sh ephemeral-aaif-court
+
+      - name: Run Enterprise Chicago Integration Court
+        run: |
+          python -m pip install pytest rdflib pyshacl pyyaml cryptography
+          pytest tests/test_aaif_enterprise_court.py -v
+
+      - name: Teardown Cluster (Always Executed)
+        if: always()
+        run: |
+          ./k8s/harness/teardown_kind_cluster.sh ephemeral-aaif-court

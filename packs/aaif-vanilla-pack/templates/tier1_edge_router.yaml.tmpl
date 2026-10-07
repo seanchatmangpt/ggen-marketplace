@@ -1,0 +1,48 @@
+# Generated Tier-1 Agent Router Virtualization Route (Envoy Gateway)
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ name }}-edge-gateway
+  namespace: {{ namespace | default(value="agent-system") }}
+spec:
+  gatewayClassName: agent-router
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ name }}-tls-cert
+---
+apiVersion: aigateway.envoyproxy.io/v1alpha1
+kind: AIGatewayRoute
+metadata:
+  name: {{ name }}-model-virtualization-route
+  namespace: {{ namespace | default(value="agent-system") }}
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ name }}-edge-gateway
+  rules:
+    - matches:
+        - headers:
+            - name: x-f5-department
+              value: global-markets
+      modelNameOverride: "{{ virtual_model | default(value="f5-general-large") }}"
+      backendRefs:
+        - name: {{ primary_backend | default(value="internal-inference-backend") }}
+          weight: 80
+        - name: {{ fallback_backend | default(value="azure-openai-failover-backend") }}
+          weight: 20
+---
+apiVersion: aigateway.envoyproxy.io/v1alpha1
+kind: QuotaPolicy
+metadata:
+  name: {{ name }}-department-quota
+  namespace: {{ namespace | default(value="agent-system") }}
+spec:
+  rules:
+    - limit: {{ quota_limit | default(value=1000000) }}
+      period: 1h

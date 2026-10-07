@@ -1,0 +1,52 @@
+# Generated Hardened Goose Worker Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ name }}-goose-worker
+  namespace: {{ namespace | default(value="agent-system") }}
+  labels:
+    app: goose-worker
+    tier: execution-sandbox
+spec:
+  replicas: {{ replicas | default(value=1) }}
+  selector:
+    matchLabels:
+      app: goose-worker
+  template:
+    metadata:
+      labels:
+        app: goose-worker
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: goose-engine
+          image: {{ image | default(value="ghcr.io/block/goose:latest") }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: scratch-space
+              mountPath: /tmp
+            - name: agent-workspace
+              mountPath: /workspace/.agent
+              readOnly: true
+          resources:
+            limits:
+              cpu: "2"
+              memory: 4Gi
+            requests:
+              cpu: "500m"
+              memory: 1Gi
+      volumes:
+        - name: scratch-space
+          emptyDir: {}
+        - name: agent-workspace
+          configMap:
+            name: {{ name }}-agent-workspace-cm

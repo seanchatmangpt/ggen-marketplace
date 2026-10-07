@@ -1,0 +1,37 @@
+# Generated Tier-2 agentgateway Mesh and PEP Governance
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: {{ name }}-internal-inference-backend
+  namespace: {{ namespace | default(value="agent-system") }}
+spec:
+  ai:
+    provider:
+      custom:
+        backendRef:
+          group: inference.networking.k8s.io
+          kind: InferencePool
+          name: {{ inference_pool | default(value="vllm-cluster-pool") }}
+        model: "{{ model_name | default(value="meta-llama/Llama-3.3-70B-Instruct") }}"
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: {{ name }}-tool-governance
+  namespace: {{ namespace | default(value="agent-system") }}
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: {{ name }}-agent-mesh-route
+  security:
+    mcp:
+      authorization:
+        - rule: "{{ cel_rule | default(value="request.auth.claims.role == 'LeadAnalyst' || target.tool != 'system_execute'") }}"
+  traffic:
+    rateLimit:
+      local:
+        - tokens: {{ rate_limit_tokens | default(value=500000) }}
+          unit: Hours
+    timeout:
+      request: "{{ max_latency_budget_ms | default(value=15) }}ms"

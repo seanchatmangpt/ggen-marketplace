@@ -1,0 +1,32 @@
+# Generated Structured .agent/ Workspace Governance ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ name }}-agent-workspace-cm
+  namespace: {{ namespace | default(value="agent-system") }}
+data:
+  rules.yaml: |
+    rules:
+      - id: rule_read_only_protection
+        description: "Deny modifications to protected system or root configuration paths"
+        enforce: strict
+      - id: rule_mcp_pep_routing
+        description: "All tool invocations must route through the Tier-2 agentgateway proxy"
+        enforce: strict
+
+  skills.json: |
+    {
+      "version": "1.0.0",
+      "skills": [
+        {
+          "name": "enterprise_query",
+          "endpoint": "http://{{ name }}-internal-agentgateway.{{ namespace | default(value="agent-system") }}.svc.cluster.local/mcp/query",
+          "role_required": "Analyst"
+        }
+      ]
+    }
+
+  boundaries.md: |
+    # Enterprise Agent Operational Boundaries
+    - Zero Ambient Authority: All mutating operations require explicit CEL policy clearance.
+    - Non-Repudiation: Every execution action generates an in-tree memory audit record.
