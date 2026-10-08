@@ -32,9 +32,17 @@ doc claim that matches a code fact scores ~1 and an invented one scores ~0.
 | `Phi_halluc` | <= 0.001 | share of doc claims with no matching code fact |
 | `Q_density` | >= 0.65 | verified facts per 100 words of rendered prose |
 
-Pass on all three -> `doc-hdit:certify` mints a BLAKE3 receipt (via
-affidavit) over the rendered docs plus the code-surface store fingerprint.
-Any gate failure -> REFUSED, no receipt.
+Pass on all three -> `doc-hdit:certify` mints an append-only BLAKE3 chained
+receipt over the exact inputs plus (with `--docs <dir>`) the rendered docs
+tree. The chain hash is `blake3("doc-hdit-certify/v1|<canonical receipt
+JSON>")` and each receipt's `parent` is the previous receipt's `hash`
+(osx-clnr receipt-chain pattern). Receipts append to
+`<docs>/doc-hdit.receipts.jsonl` (or a `--chain` path).
+Any gate failure -> typed `REFUSED:DOC_HDIT_CERTIFY*` exit 1, no receipt.
+
+**v1 disclosure**: receipts are BLAKE3 chain hashes only — no ed25519
+witness signature yet. Full affidavit-signature integration
+(`affidavit` `receipts_certified`) is v2 scope.
 
 ## Execution verbs
 
@@ -43,7 +51,7 @@ Any gate failure -> REFUSED, no receipt.
 | `doc-hdit:scaffold` | render Diataxis skeletons from code-surface facts (`queries/ast_extract.rq` -> `templates/*.md.tera`) |
 | `doc-hdit:vectorize` | compute `H_code` / `H_doc` hypervectors per item |
 | `doc-hdit:audit` | evaluate `S_coverage`, `Phi_halluc`, `Q_density` against the court thresholds |
-| `doc-hdit:certify` | on gate pass, mint the BLAKE3 receipt via affidavit |
+| `doc-hdit:certify` | on gate pass, append a BLAKE3 chained receipt (see v1 disclosure above) |
 
 ## Agent-role constraint
 
@@ -61,3 +69,14 @@ verified-snippet slot.
 - `templates/` — Diataxis skeletons (`reference`, `how_to`, `explanation`)
 - `courts/doc_quality.court` — documented gate thresholds (executable
   enforcement lands with the binary)
+
+## See Also
+
+- `scripts/rollout.sh` — fleet rollout runner: per-repo surface extraction
+  (with `/tmp/hdit/<repo>.inputs.json` reuse when newer than the last commit),
+  `vectorize` + `certify` against `courts/doc_quality.court`, failure ledger
+  and summary table (`--report-only` to skip the nonzero exit).
+- `/Users/sac/ggen-marketplace/scripts/gen_doc_surface.py` — deterministic
+  code/doc fact extractor backing the rollout surfaces.
+- `docs/sjira/v26.10.8/DOC-HDIT-PILOT.md` — pilot receipt and v1 gate
+  calibration disclosure.
