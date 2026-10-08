@@ -219,6 +219,25 @@ the hub does not normalize them away.**
   successor shape and ash_pplan's `v26.10.8-1` path are landings, not
   defects.
 
+## 7. No-op repos
+
+Repos that are neither card-served nor workgraph-only — each carries a
+documented no-op decision so the map is complete: every fleet repo is
+card-served (§2/§2.1), workgraph-only (§1), or documented-no-op here.
+
+| repo | reason (one line) | decision doc |
+|---|---|---|
+| frozen-duckdb | Rust/C library + CLI; nothing serves HTTP, no card surface exists | `docs/reference/a2a-no-op.md` (frozen-duckdb, `docs/doc-hdit-scaffold`) |
+| zcode-cli | consumer-only: MCP client + `.sa2a/manifest.json` consumer contract; serves no HTTP endpoint, a card would fabricate a server | `docs/sjira/v26.10.8/CARD-NO-OP.md` (zcode-cli, `fix/v26926-preview-publish-typed-skip`) |
+
+Refused classification: **autofde-lab was proposed as a no-op and refused** —
+it carries a real servable A2A v1.0 surface
+(`src/autofde_lab/fabric/a2a.py`: Starlette JSON-RPC + uvicorn `run()` +
+CLI wiring + `a2a-sdk[http-server]` pinned in `requirements-agentic.txt` +
+`.well-known/agent.json`); its decision doc `docs/a2a-no-op.md` records the
+refusal with evidence. Classified card-served pending a live serving
+witness.
+
 ## Replay
 
 ```bash

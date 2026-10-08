@@ -49,6 +49,11 @@ Usage
                                          # exact commits ({"<scope>": ["<sha>", ...], "_base": "<sha>"})
         [--seed-commits seeds.json]      # bind orders to the seed's exact commits
                                          # ({"<scope>": ["<sha>", ...], "_base": "<sha>"})
+    python3 scripts/gen_workgraph.py --repo /path/to/repo --version v26.10.8 \
+        --emit jsonl [--out candidates.jsonl]   # admission candidates (16-key
+                                         # SemanticJira.admit_work_order/1 shape;
+                                         # standing UNKNOWN, pinned objective IRI,
+                                         # 15-class projections, full SHAs)
     python3 scripts/gen_workgraph.py --selftest --repo R1 [--repo R2 ...]
 
 Exit codes: 0 ok; 2 usage; 3 repo/version unusable.
@@ -64,7 +69,14 @@ import subprocess
 import sys
 
 SJ_PREFIX = "https://ggen-igniter.dev/ontology/semantic-jira#"
+# Pinned objective authority: the admitted sj:StrategicObjective node of the
+# canonical semantic-jira-pack authority index
+# (ggen_igniter:lib/ggen_igniter/semantic_jira/authority.ex canonical index).
+ORIGIN_AUTHORITY = (
+    "https://ggen-igniter.dev/ontology/semantic-jira#objective-code-work-authority"
+)
 SHA_RE = re.compile(r"\b[0-9a-f]{7,40}\b")
+FULL_SHA_RE = re.compile(r"\A[0-9a-f]{40}\Z")
 
 # The 15-class projection vocabulary, canonical in
 # ggen_igniter:lib/ggen_igniter/semantic_jira.ex (@projection_types).
@@ -220,6 +232,10 @@ def parse_args(argv):
     p.add_argument("--repo", action="append", required=True, help="target repo path")
     p.add_argument("--version", default=None, help="campaign version, e.g. v26.10.8")
     p.add_argument("--out", default=None, help="output path (default stdout)")
+    p.add_argument(
+        "--emit", choices=("ttl", "jsonl"), default="ttl",
+        help="ttl: WORKGRAPH.ttl projection (default); jsonl: admission candidates",
+    )
     p.add_argument(
         "--seed-commits", default=None,
         help="JSON file binding orders to the seed's exact commits: "
@@ -410,8 +426,12 @@ _CHUNK_CACHE: dict = {}
 _COURT_PATH_CACHE: dict = {}
 
 
-def commit_files_map(repo, commits, rev_range: str = "") -> dict:
+def commit_files_map(repo, commits, rev_range: str | None = None) -> dict:
     """full sha -> sorted list of changed paths (deterministic).
+
+    ``rev_range`` is accepted as ``None`` (campaign_commits' fallthrough for
+    a tagless campaign whose candidate list is exhausted); it is carried for
+    signature symmetry with build_orders and does not filter the SHAs.
 
     Uses --no-walk over the exact commit SHAs: a pathspec would also filter
     the listed file paths, not just the selected commits.
@@ -558,6 +578,87 @@ def falsifier_for(repo: str, version: str) -> str:
     if "{version}" in cmd:
         return cmd.format(version=version)
     return f"{cmd}  # expect exit 0 at HEAD; a failure at the cited SHAs refutes"
+
+
+# The 16 keys `GgenIgniter.SemanticJira.admit_work_order/1` requires
+# (@required, ggen_igniter:lib/ggen_igniter/semantic_jira.ex). One of these
+# missing means the kernel refuses the line; the emitter is total over them.
+CANDIDATE_REQUIRED_KEYS = [
+    "identity", "title", "description", "subject", "repository", "base_sha",
+    "standing", "evidence_ceiling", "promotion_rule",
+    "replay_identity", "required_courts", "required_evidence", "acceptance",
+    "falsifiers", "projections", "origin_authority",
+]
+
+
+def candidate_for(order, repo: str, version: str, base: str, label: str, index: int) -> dict:
+    """One admission candidate per work axis, JSONL-kernel-shaped.
+
+    Standing is always UNKNOWN (candidates enter at UNKNOWN; standing is
+    kernel-derived from receipts, never a stored literal). Every SHA field
+    is a full 40-hex SHA. Per-order falsifier command (v3 item 5) carries
+    into the falsifiers list.
+    """
+    # Repo-qualified identity: a batch may feed candidates from several repos
+    # and the kernel refuses duplicate identities within one batch.
+    repo_tag = re.sub(r"[^A-Za-z0-9]+", "-", label).strip("-").upper()
+    oid = f"SJIRA-{version.lstrip('v').replace('.', '')}-{repo_tag}-{index:03d}"
+    return {
+        "identity": oid,
+        "title": truncate(f"{order.scope} work axis ({len(order.commits)} commit(s))", 120),
+        "description": truncate(
+            " ".join(filter(None, ((c.get("body") or "").strip() for c in order.commits)))
+            or f"Conventional-commit axis '{order.scope}': {len(order.commits)} commit(s).",
+            400,
+        ),
+        "subject": f"{label}:{order.scope}@{order.identity}",
+        "repository": f"seanchatmangpt/{label}" if "/" not in label else label,
+        "base_sha": base,
+        "standing": "UNKNOWN",
+        "evidence_ceiling": "CONSTRUCT",
+        "promotion_rule": "verified_by_required_courts_then_receipted",
+        "replay_identity": f"sjira-{version}-{oid}".lower(),
+        "required_courts": [f"urn:sjira:{label}:{version}:default-court"],
+        "required_evidence": order.receipt_paths or [
+            "git log --no-merges --pretty=format:%H %s "
+            f"{version}..HEAD -- docs/sjira/{version}/  # no receipt artifact on disk"
+        ],
+        "acceptance": [compress_acceptance(order.commits) or "; ".join(c["subject"] for c in order.commits)],
+        "falsifiers": [falsifier_for_order(repo, version, order)],
+        "projections": order.projections,
+        "origin_authority": ORIGIN_AUTHORITY,
+    }
+
+
+def build_candidates(repo: str, version: str) -> list:
+    """Deterministic candidate list for one repo; [] when the campaign has no commits."""
+    base, orders = build_orders(repo, version)
+    if not orders:
+        return []
+    base = base if FULL_SHA_RE.match(base or "") else run_git(repo, "rev-parse", "HEAD").strip()
+    label = repo_label(repo)
+    return [candidate_for(o, repo, version, base, label, i) for i, o in enumerate(orders, 1)]
+
+
+def emit_jsonl(repo: str, version: str) -> str:
+    """JSONL admission candidates: one JSON object per line, sort_keys deterministic."""
+    candidates = build_candidates(repo, version)
+    for c in candidates:
+        missing = [k for k in CANDIDATE_REQUIRED_KEYS if k not in c]
+        if missing:
+            raise ValueError(f"candidate {c.get('identity')} missing required keys: {missing}")
+        if c["standing"] != "UNKNOWN":
+            raise ValueError(f"candidate {c['identity']} standing must be UNKNOWN")
+        if not FULL_SHA_RE.match(c["base_sha"] or ""):
+            raise ValueError(f"candidate {c['identity']} base_sha must be a full 40-hex SHA")
+        bad = [p for p in c["projections"] if p not in PROJECTION_TYPES]
+        if bad:
+            raise ValueError(f"candidate {c['identity']} off-vocabulary projections: {bad}")
+        if not re.match(r"\A[A-Za-z][A-Za-z0-9+.-]*:\S+\Z", c["origin_authority"]):
+            raise ValueError(f"candidate {c['identity']} origin_authority must be an IRI")
+    return "".join(
+        json.dumps(c, sort_keys=True, ensure_ascii=False) + "\n" for c in candidates
+    )
 
 
 def repo_manifest(repo):
@@ -862,6 +963,12 @@ def selftest(repos, version):
         return 1
     print("[ok] v3 gap legs: per-order falsifier command, cross-repo note, "
           "seed-commits binding, full projection catalog, acceptance compression")
+    none_fail = none_rev_range_leg()
+    if none_fail:
+        print(f"[FAIL] none rev_range leg: {none_fail}")
+        return 1
+    print("[ok] none rev_range leg: tagless pathspec campaign + explicit "
+          "None into commit_files_map behave identically to the default")
     for repo in repos:
         version = version or detect_version(repo)
         if not version:
@@ -869,6 +976,12 @@ def selftest(repos, version):
             continue
         text1 = render(repo, version)
         text2 = render(repo, version)
+        j1 = emit_jsonl(repo, version)
+        j2 = emit_jsonl(repo, version)
+        if j1 != j2:
+            print(f"[FAIL] {repo}: jsonl double-run mismatch")
+            return 1
+        print(f"[ok] {repo}: jsonl double-run identical ({len(j1.splitlines())} candidates)")
         h1 = hashlib.sha256(text1.encode()).hexdigest()
         h2 = hashlib.sha256(text2.encode()).hexdigest()
         status = "IDENTICAL" if h1 == h2 else "MISMATCH"
@@ -1150,6 +1263,69 @@ def v3_gap_legs():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def none_rev_range_leg():
+    """Tagless campaign: rev_range falls to the pathspec candidate, never
+    poisons commit_files_map — including an explicit None (the v3a/v3b
+    integration drift pyright flagged: Unknown | None into a str param)."""
+    import shutil
+    import subprocess
+    import tempfile
+
+    tmp = tempfile.mkdtemp(prefix="gen_workgraph_none_rev_range_")
+    try:
+        def git(*args):
+            proc = subprocess.run(
+                ["git", "-C", tmp, *args], capture_output=True, text=True,
+                check=False,
+                env={**os.environ, "GIT_AUTHOR_DATE": "2026-10-01T00:00:00Z",
+                     "GIT_COMMITTER_DATE": "2026-10-01T00:00:00Z"},
+            )
+            if proc.returncode != 0:
+                raise RuntimeError(f"git {args[0]} failed: {proc.stderr.strip()}")
+            return proc.stdout.strip()
+
+        def write(path, content):
+            os.makedirs(os.path.dirname(os.path.join(tmp, path)), exist_ok=True)
+            with open(os.path.join(tmp, path), "w") as fh:
+                fh.write(content)
+
+        git("init", "-q")
+        git("config", "user.email", "court@ggen.dev")
+        git("config", "user.name", "Court")
+        git("config", "commit.gpgsign", "false")
+        # Tagless campaign: no vX tag exists, so campaign_commits' rev_range
+        # is the docs/sjira/<v> pathspec candidate, and an exhausted
+        # candidate list yields None. Both flow into commit_files_map.
+        write("docs/sjira/v26.10.8/journal.md", "campaign journal\n")
+        write("lib/thing.txt", "surface\n")
+        git("add", "-A")
+        git("commit", "-m", "feat(alpha): tagless base")
+        sha_a = git("rev-parse", "HEAD")
+
+        commits, rev_range = campaign_commits(tmp, "v26.10.8", want_range=True)
+        if not commits:
+            return "tagless campaign must still yield commits via pathspec"
+        if rev_range != "docs/sjira/v26.10.8":
+            return f"pathspec rev_range expected, got {rev_range!r}"
+        # The None branch: explicit None must behave like the default.
+        fmap_none = commit_files_map(tmp, commits, None)
+        fmap_default = commit_files_map(tmp, commits)
+        if fmap_none != fmap_default:
+            return "commit_files_map(None) diverged from default"
+        if sha_a not in fmap_none or fmap_none[sha_a] != ["docs/sjira/v26.10.8/journal.md", "lib/thing.txt"]:
+            return f"unexpected files map: {fmap_none}"
+        # Empty-commit + None combination (the early-return contract).
+        if commit_files_map(tmp, [], None) != {}:
+            return "empty commits + None must yield {}"
+        # End-to-end: build_orders on the tagless repo must not crash.
+        base, orders = build_orders(tmp, "v26.10.8")
+        if not orders:
+            return "tagless build_orders emitted no work orders"
+        return None
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def detect_version(repo):
     sj = os.path.join(repo, "docs/sjira")
     if os.path.isdir(sj):
@@ -1207,7 +1383,10 @@ def main(argv=None):
         if not isinstance(seed_commits, dict):
             print("error: --seed-commits must be a JSON object", file=sys.stderr)
             return 2
-    text = render(args.repo[0], args.version, seed_commits=seed_commits)
+    if args.emit == "jsonl":
+        text = emit_jsonl(args.repo[0], args.version)
+    else:
+        text = render(args.repo[0], args.version, seed_commits=seed_commits)
     if args.out:
         with open(args.out, "w", encoding="utf-8") as fh:
             fh.write(text)
