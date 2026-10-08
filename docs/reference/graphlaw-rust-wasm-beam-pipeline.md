@@ -77,3 +77,8 @@ exact-SHA run of the wasm module is evidenced here, and no BEAM consumer receipt
 - [How to represent a Rust ABI crate](../how-to/represent-a-rust-abi-crate.md)
 - [GraphLaw Ash capability pack](graphlaw-ash-capability-pack.md)
 - [QRI host profile](qri-host-profile.md)
+
+External sibling (`../graphlaw`, separate repo):
+
+- [ABI reference](../../graphlaw/docs/abi-reference.md)
+- [Artifact pins](../../graphlaw/registry/ARTIFACTS.sha256)
