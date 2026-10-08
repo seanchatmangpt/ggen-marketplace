@@ -2,8 +2,8 @@
 
 use doc_hdit::info_theory::entropy::{mutual_information, shannon};
 use doc_hdit::info_theory::{
-    code_token_set, phi_scoped, projection_residual, q_density_scoped, rank_phantoms, s_coverage,
-    ClaimStatus, CodeBasis,
+    code_token_set, is_prose_artifact, phi_scoped, projection_residual, q_density_scoped,
+    rank_phantoms, s_coverage_set_report, s_coverage, ClaimStatus, CodeBasis,
 };
 use doc_hdit::vsa::encode::{encode_code, encode_doc};
 use doc_hdit::{public_modules, Claim, CodeModule};
@@ -140,7 +140,12 @@ fn main() {
     let (_h_code_raw, codewords_raw) = encode_code(&inputs.modules);
     let code_basis_raw = CodeBasis::build(&codewords_raw);
     let h_doc = encode_doc(&inputs.claims);
-    let sc = s_coverage(&h_doc, &inputs.claims, &code_basis);
+    // P3: the GATED S_coverage is set coverage per the court's stated
+    // definition; the VSA projection cosine stays as a report-only
+    // semantic-similarity signal (s_coverage_vsa).
+    let cov = s_coverage_set_report(&inputs.modules, &inputs.claims);
+    let sc = cov.coverage;
+    let sc_vsa = s_coverage(&h_doc, &inputs.claims, &code_basis);
     let sc_raw = s_coverage(&h_doc, &inputs.claims, &code_basis_raw);
     // Deterministic exact-match phantom gate (primary); the VSA projection
     // residual stays as a secondary similarity signal (phi_vsa, report-only).
@@ -153,6 +158,11 @@ fn main() {
         .filter(|c| ClaimStatus::ExternalDocumented == doc_hdit::info_theory::claim_status(c, &tokens, external))
         .count();
     let phi_vsa = projection_residual(&h_doc, &inputs.claims, &code_basis);
+    let prose_artifacts = inputs
+        .claims
+        .iter()
+        .filter(|c| is_prose_artifact(&c.object))
+        .count();
     let ranked = rank_phantoms(&inputs.claims, &tokens, &code_basis);
     let h_bits = shannon(
         &inputs
@@ -249,6 +259,21 @@ fn main() {
             let mut out: BTreeMap<&str, serde_json::Value> = BTreeMap::new();
             out.insert("s_coverage", serde_json::json!(sc));
             out.insert("s_coverage_raw", serde_json::json!(sc_raw));
+            out.insert("s_coverage_vsa", serde_json::json!(sc_vsa));
+            out.insert(
+                "s_coverage_report",
+                serde_json::json!({
+                    "covered": cov.covered,
+                    "total": cov.total,
+                    "uncovered_modules_top10": cov
+                        .uncovered_modules
+                        .iter()
+                        .take(10)
+                        .map(|(name, miss)| serde_json::json!({"module": name, "uncovered_items": miss}))
+                        .collect::<Vec<_>>()
+                }),
+            );
+            out.insert("prose_artifacts", serde_json::json!(prose_artifacts));
             out.insert("phi", serde_json::json!(phi));
             out.insert("external_documented", serde_json::json!(external_documented));
             out.insert("phi_vsa", serde_json::json!(phi_vsa));
@@ -281,6 +306,14 @@ fn main() {
             // P2 landed: S_coverage gates over the public/documented surface;
             // the raw full-surface value stays report-only.
             println!("REPORT  coverage_raw value={:.4}", sc_raw);
+            println!(
+                "REPORT  coverage_vsa value={:.4} (VSA projection cosine, report-only)",
+                sc_vsa
+            );
+            println!(
+                "REPORT  prose_artifacts count={} (path/version/prose objects; excluded from Phi and Q)",
+                prose_artifacts
+            );
             println!(
                 "REPORT  external_documented count={} (documented-dep references, excluded from Phi)",
                 external_documented

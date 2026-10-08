@@ -417,3 +417,134 @@ fn p2_pre_p2_inputs_without_flags_load_full_surface() {
     assert_eq!(public.len(), 1);
     assert_eq!(public[0].items.len(), 1);
 }
+
+// ---------------------------------------------------- P3: set coverage ----
+
+use doc_hdit::info_theory::{
+    claim_token_set, is_prose_artifact, phi_scoped, q_density_scoped, s_coverage_set,
+    s_coverage_set_report, ClaimStatus,
+};
+
+fn item(kind: &str, ident: &str, is_public: bool) -> doc_hdit::CodeItem {
+    doc_hdit::CodeItem {
+        kind: kind.into(),
+        ident: ident.into(),
+        signature: String::new(),
+        is_public,
+    }
+}
+
+#[test]
+fn p3_set_coverage_exact_fractions() {
+    let modules = fixture_modules(); // 4 public items in 1 module
+    // No claims -> 0.0.
+    assert_eq!(s_coverage_set(&modules, &[]), 0.0);
+    // One claim covering `ignite` -> 1/4.
+    let claims = vec![claim("c0", "doc", "mentions", "ignite")];
+    assert!((s_coverage_set(&modules, &claims) - 0.25).abs() < 1e-12);
+    // Two claims covering `ignite` + `Piston` -> 2/4 = 0.5.
+    let claims = vec![
+        claim("c0", "doc", "mentions", "ignite"),
+        claim("c1", "doc", "mentions", "Piston"),
+    ];
+    assert!((s_coverage_set(&modules, &claims) - 0.5).abs() < 1e-12);
+    // Duplicate claims must not inflate: same item twice is still 1/4.
+    let claims = vec![
+        claim("c0", "doc", "mentions", "ignite"),
+        claim("c1", "doc", "mentions", "ignite/1"),
+    ];
+    assert!((s_coverage_set(&modules, &claims) - 0.25).abs() < 1e-12);
+    // Qualified form covers too.
+    let claims = vec![claim("c0", "doc", "mentions", "engine.ignite")];
+    assert!((s_coverage_set(&modules, &claims) - 0.25).abs() < 1e-12);
+}
+
+#[test]
+fn p3_prose_artifacts_classified_and_excluded() {
+    // The two witnessed examples from the P2 receipt.
+    assert!(is_prose_artifact("release/v26.8.23"));
+    assert!(is_prose_artifact("stream/metrics.ex"));
+    assert!(is_prose_artifact("1.2.3"));
+    assert!(is_prose_artifact("v26.8.23"));
+    assert!(is_prose_artifact("--mem-gb"));
+    assert!(is_prose_artifact("stage/{id}.jsonl"));
+    // Real symbols stay symbols.
+    assert!(!is_prose_artifact("verify/0"));
+    assert!(!is_prose_artifact("Ex4pm.OCEL.normalize/1"));
+    assert!(!is_prose_artifact("s_coverage_set"));
+    // Status classification.
+    let modules = fixture_modules();
+    let tokens = code_token_set(&modules);
+    let claims = vec![
+        claim("c0", "doc", "mentions", "release/v26.8.23"),
+        claim("c1", "doc", "mentions", "stream/metrics.ex"),
+        claim("c2", "doc", "mentions", "ignite"),
+        claim("c3", "doc", "mentions", "zzz_absent_symbol_zzz"),
+    ];
+    assert_eq!(
+        doc_hdit::info_theory::claim_status(&claims[0], &tokens, &[]),
+        ClaimStatus::ProseArtifact
+    );
+    assert_eq!(
+        doc_hdit::info_theory::claim_status(&claims[1], &tokens, &[]),
+        ClaimStatus::ProseArtifact
+    );
+    // Phi excludes prose artifacts from numerator AND denominator:
+    // 1 phantom / 2 scored claims = 0.5.
+    assert!((phi_scoped(&claims, &tokens, &[]) - 0.5).abs() < 1e-12);
+    // Q_density: 1 grounded / 2 scored = 0.5.
+    assert!((q_density_scoped(&claims, &tokens, &[]) - 0.5).abs() < 1e-12);
+}
+
+#[test]
+fn p3_coverage_monotone_in_claims() {
+    let modules = fixture_modules();
+    let c0 = vec![claim("c0", "doc", "mentions", "ignite")];
+    let base = s_coverage_set(&modules, &c0);
+    // Adding a claim covering a NEW public item strictly increases coverage.
+    let c1 = vec![
+        claim("c0", "doc", "mentions", "ignite"),
+        claim("c1", "doc", "mentions", "exhaust"),
+    ];
+    let more = s_coverage_set(&modules, &c1);
+    assert!(more > base, "coverage must strictly increase: {} !> {}", more, base);
+    // Adding a claim covering an ALREADY covered item leaves it unchanged.
+    let c2 = vec![
+        claim("c0", "doc", "mentions", "ignite"),
+        claim("c1", "doc", "mentions", "ignite/1"),
+    ];
+    assert_eq!(s_coverage_set(&modules, &c2), base);
+    // Phantom/prose claims never raise coverage.
+    let cj = vec![
+        claim("c0", "doc", "mentions", "ignite"),
+        claim("c1", "doc", "mentions", "zzz_absent_symbol_zzz"),
+        claim("c2", "doc", "mentions", "release/v26.8.23"),
+    ];
+    assert_eq!(s_coverage_set(&modules, &cj), base);
+}
+
+#[test]
+fn p3_public_scope_and_remediation_list() {
+    // Private items are not in the denominator.
+    let modules = vec![CodeModule {
+        name: "engine".into(),
+        is_public: true,
+        items: vec![
+            item("fn", "pub_thing", true),
+            item("fn", "secret_thing", false),
+        ],
+    }];
+    let claims = vec![claim("c0", "doc", "mentions", "pub_thing")];
+    assert!((s_coverage_set(&modules, &claims) - 1.0).abs() < 1e-12);
+    // Uncovered public items surface as the remediation list.
+    let rep = s_coverage_set_report(&fixture_modules(), &[]);
+    assert_eq!(rep.total, 4);
+    assert_eq!(rep.covered, 0);
+    assert_eq!(rep.coverage, 0.0);
+    assert_eq!(rep.uncovered_modules.len(), 1);
+    assert_eq!(rep.uncovered_modules[0], ("engine".to_string(), 4));
+    // A claim mentioning a prose artifact does not cover anything.
+    let claimed = claim_token_set(&vec![claim("c", "d", "m", "release/v26.8.23")]);
+    assert!(!claimed.contains("release"));
+    assert!(claimed.contains("release/v26.8.23"));
+}

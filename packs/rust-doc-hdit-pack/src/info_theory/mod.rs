@@ -3,7 +3,7 @@
 pub mod entropy;
 
 use crate::vsa::{cosine, encode::encode_claim, Hv};
-use crate::{Claim, CodeModule, DIM};
+use crate::{public_modules, Claim, CodeModule, DIM};
 
 /// Code subspace basis: orthonormalized code codewords (Gram-Schmidt).
 pub struct CodeBasis {
@@ -174,6 +174,75 @@ pub fn symbol_variants(sym: &str) -> Vec<String> {
         .collect()
 }
 
+/// P3 prose-artifact classifier (core-side defense; the extractor
+/// (`gen_doc_surface.py`) is the primary filter and stops emitting such claims
+/// at all). A claim object is a `prose_artifact` — not a symbol reference,
+/// excluded from Phi like `external_documented` but reported as a count — when
+/// it is a version string (`1.2.3`, `v26.8.23`), a path fragment
+/// (`release/v26.8.23`, `stream/metrics.ex`), a CLI flag (`--mem-gb`), or
+/// non-identifier prose (whitespace / punctuation outside the symbol charset).
+fn looks_like_version(seg: &str) -> bool {
+    let t = seg.trim_start_matches(['v', 'V']);
+    if t.is_empty() || !t.contains('.') {
+        return false;
+    }
+    t.split('.').all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
+}
+
+/// Source-file extensions that mark a slash-span as a path fragment, not a
+/// symbol (Elixir arity forms like `verify/0` do not match and stay symbols).
+pub const SOURCE_EXTS: &[&str] = &[
+    ".ex", ".exs", ".rs", ".py", ".ts", ".tsx", ".js", ".json", ".jsonl", ".toml", ".yaml",
+    ".yml", ".md", ".ttl", ".sql", ".sh", ".wasm",
+];
+
+/// Classify a claim object as a prose artifact (see module docs). Deterministic.
+pub fn is_prose_artifact(object: &str) -> bool {
+    let s = object.trim();
+    if s.is_empty() {
+        return true;
+    }
+    // CLI flags are extractor noise, never symbols.
+    if s.starts_with("--") {
+        return true;
+    }
+    // Bare version strings: `1.2.3`, `v26.8.23`.
+    if looks_like_version(s) {
+        return true;
+    }
+    if s.contains('/') {
+        let segs: Vec<&str> = s.split('/').collect();
+        // Version-tagged path fragments: `release/v26.8.23`.
+        if segs.iter().any(|seg| looks_like_version(seg)) {
+            return true;
+        }
+        // Source-file path fragments: `stream/metrics.ex`.
+        if segs.len() > 1 {
+            if let Some(last) = segs.last() {
+                let last = last.trim_end_matches("()");
+                if SOURCE_EXTS.iter().any(|e| last.ends_with(e)) {
+                    return true;
+                }
+            }
+        }
+    }
+    // Non-identifier prose: whitespace outside a signature form (signature
+    // quotes like `ignite(fuel: Fuel) -> Spark` are real symbol references),
+    // or prose punctuation outside the symbol charset.
+    let core = if s.contains('(') {
+        s.chars().filter(|c| !c.is_whitespace()).collect::<String>()
+    } else {
+        s.to_string()
+    };
+    if core.chars().any(|c| {
+        !(c.is_alphanumeric()
+            || matches!(c, '_' | '.' | '/' | ':' | '-' | '!' | '?' | '(' | ')' | '>' | '{' | '}' | ','))
+    }) {
+        return true;
+    }
+    false
+}
+
 /// Deterministic code-surface symbol set: module names (plus their file-stem
 /// and path-tail variants) and every item ident/signature. Exact membership
 /// over claim-object variants is the PRIMARY phantom gate; the VSA cosine is
@@ -233,6 +302,9 @@ pub enum ClaimStatus {
     Grounded,
     /// Object references a documented external dependency.
     ExternalDocumented,
+    /// Object is a version string, path fragment, or other non-identifier
+    /// prose (extractor over-extraction residue; P3 filter class).
+    ProseArtifact,
     /// Object matches neither — a phantom.
     Phantom,
 }
@@ -242,6 +314,9 @@ pub fn claim_status(
     tokens: &std::collections::HashSet<String>,
     external: &[String],
 ) -> ClaimStatus {
+    if is_prose_artifact(&claim.object) {
+        return ClaimStatus::ProseArtifact;
+    }
     if crate::info_theory::entropy::claim_grounded(claim, tokens) {
         return ClaimStatus::Grounded;
     }
@@ -251,37 +326,123 @@ pub fn claim_status(
     ClaimStatus::Phantom
 }
 
-/// Scoped Phi (P2): phantom_claims / total_claims. `external_documented`
-/// claims are excluded from the phantom count (reported separately).
+/// Scoped Phi (P2, P3): phantom_claims / scored_claims. `external_documented`
+/// claims are excluded from the phantom count (reported separately);
+/// `prose_artifact` claims are extractor noise carrying no bits — excluded
+/// from both numerator and denominator.
 pub fn phi_scoped(
     claims: &[Claim],
     tokens: &std::collections::HashSet<String>,
     external: &[String],
 ) -> f64 {
-    if claims.is_empty() {
+    let scored: Vec<&Claim> = claims
+        .iter()
+        .filter(|c| claim_status(c, tokens, external) != ClaimStatus::ProseArtifact)
+        .collect();
+    if scored.is_empty() {
         return 0.0;
     }
-    let phantoms = claims
+    let phantoms = scored
         .iter()
         .filter(|c| claim_status(c, tokens, external) == ClaimStatus::Phantom)
         .count();
-    phantoms as f64 / claims.len() as f64
+    phantoms as f64 / scored.len() as f64
 }
 
-/// Scoped Q_density (P2): (grounded + external_documented) / total. A claim
-/// referencing documented dep surface is verified information — it grounds
-/// against the dependency's own docs, so it counts as density, not residue.
+/// Scoped Q_density (P2, P3): (grounded + external_documented) / scored. A
+/// claim referencing documented dep surface is verified information — it
+/// grounds against the dependency's own docs, so it counts as density, not
+/// residue. Prose artifacts are excluded from both numerator and denominator.
 pub fn q_density_scoped(
     claims: &[Claim],
     tokens: &std::collections::HashSet<String>,
     external: &[String],
 ) -> f64 {
-    if claims.is_empty() {
+    let scored: Vec<&Claim> = claims
+        .iter()
+        .filter(|c| claim_status(c, tokens, external) != ClaimStatus::ProseArtifact)
+        .collect();
+    if scored.is_empty() {
         return 0.0;
     }
-    let ok = claims
+    let ok = scored
         .iter()
         .filter(|c| claim_status(c, tokens, external) != ClaimStatus::Phantom)
         .count();
-    ok as f64 / claims.len() as f64
+    ok as f64 / scored.len() as f64
+}
+
+// ------------------------------------------------------- set coverage (P3) ---
+
+/// Set-coverage result: the court-gated S_coverage per the court's stated
+/// definition (P3), plus the remediation surface.
+#[derive(Debug, Clone)]
+pub struct CoverageReport {
+    /// covered_public_items / total_public_items.
+    pub coverage: f64,
+    pub covered: usize,
+    pub total: usize,
+    /// (module_name, uncovered_public_item_count), descending by count.
+    pub uncovered_modules: Vec<(String, usize)>,
+}
+
+/// Claim-object variant token set (dual of `code_token_set`).
+pub fn claim_token_set(claims: &[Claim]) -> std::collections::HashSet<String> {
+    claims
+        .iter()
+        .flat_map(|c| symbol_variants(&c.object))
+        .collect()
+}
+
+/// An item is covered iff its ident — in bare, qualified (`Module.ident`),
+/// or arity (`ident/2`) form — appears in any claim object, or the claim
+/// quotes the item's full signature (the arity-form's stricter sibling).
+fn item_covered(
+    ident: &str,
+    signature: &str,
+    module_name: &str,
+    claimed: &std::collections::HashSet<String>,
+) -> bool {
+    let mut variants: Vec<String> = symbol_variants(ident).into_iter().collect();
+    if !signature.is_empty() {
+        variants.extend(symbol_variants(signature));
+    }
+    variants.push(format!("{}.{}", module_name, ident));
+    variants.push(format!("{}::{}", module_name, ident));
+    variants.iter().any(|v| claimed.contains(v))
+}
+
+/// S_coverage (set semantics, P3, the GATED metric): fraction of public items
+/// whose ident (or qualified name, or arity form) appears in any non-prose
+/// claim object. Replaces the VSA projection cosine, which is kept
+/// report-only as `s_coverage_vsa`.
+pub fn s_coverage_set(modules: &[CodeModule], claims: &[Claim]) -> f64 {
+    s_coverage_set_report(modules, claims).coverage
+}
+
+/// Full set-coverage report including the top uncovered public modules
+/// (remediation list: module name + count of uncovered public items).
+pub fn s_coverage_set_report(modules: &[CodeModule], claims: &[Claim]) -> CoverageReport {
+    let public = public_modules(modules);
+    let claimed = claim_token_set(claims);
+    let mut covered = 0usize;
+    let mut total = 0usize;
+    let mut uncovered: Vec<(String, usize)> = Vec::new();
+    for m in &public {
+        let mut miss = 0usize;
+        for it in m.items.iter().filter(|it| it.is_public) {
+            total += 1;
+            if item_covered(&it.ident, &it.signature, &m.name, &claimed) {
+                covered += 1;
+            } else {
+                miss += 1;
+            }
+        }
+        if miss > 0 {
+            uncovered.push((m.name.clone(), miss));
+        }
+    }
+    uncovered.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    let coverage = if total == 0 { 0.0 } else { covered as f64 / total as f64 };
+    CoverageReport { coverage, covered, total, uncovered_modules: uncovered }
 }

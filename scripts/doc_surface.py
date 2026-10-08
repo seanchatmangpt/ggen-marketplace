@@ -5,13 +5,14 @@
 binary, which renders the pack's Tera templates from a code-surface JSON
 (`gen_doc_surface.py code REPO`) into a docs directory with
 AGENT-FORBIDDEN-fenced reference tables and AGENT-COMMENTARY merge.
-`vectorize`/`audit` remain executable in the Rust binary too;
-`certify` is still REFUSED.
+`vectorize`/`audit`/`certify` all dispatch to the rust-doc-hdit-pack's
+`doc-hdit` binary. `certify` mints a BLAKE3 chained receipt (v1: chain
+hash only — ed25519 affidavit witness is v2, see the pack README).
 
 Verbs:
     doc-hdit:scaffold   --code <json> --templates <dir> --out <docsdir>
     doc-hdit:vectorize / :audit  <inputs.json> [court-file]
-    doc-hdit:certify    (REFUSED:DOC_HDIT_STUB)
+    doc-hdit:certify    <inputs.json> [court-file] [--docs <dir>] [--chain <receipts.jsonl>]
 """
 
 from __future__ import annotations
@@ -46,10 +47,26 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.verb == "certify":
-        print(
-            "REFUSED:DOC_HDIT_STUB:certify:certification lands with the rust-doc-hdit binary"
-        )
-        return 2
+        binary = find_binary()
+        if binary is None:
+            print(
+                "REFUSED:DOC_HDIT_STUB:"
+                f"certify:no doc-hdit binary found under {PACK_DIR}/target "
+                "(build with: cargo build --release -p doc-hdit)"
+            )
+            return 2
+        try:
+            proc = subprocess.run(
+                [binary, "certify", *args.rest],
+                capture_output=True,
+                text=True,
+            )
+        except OSError as exc:
+            print(f"REFUSED:DOC_HDIT_STUB:certify:{exc}")
+            return 2
+        sys.stdout.write(proc.stdout)
+        sys.stderr.write(proc.stderr)
+        return proc.returncode
 
     binary = find_binary()
     if binary is None:
