@@ -49,6 +49,11 @@ Usage
                                          # exact commits ({"<scope>": ["<sha>", ...], "_base": "<sha>"})
         [--seed-commits seeds.json]      # bind orders to the seed's exact commits
                                          # ({"<scope>": ["<sha>", ...], "_base": "<sha>"})
+    python3 scripts/gen_workgraph.py --repo /path/to/repo --version v26.10.8 \
+        --emit jsonl [--out candidates.jsonl]   # admission candidates (16-key
+                                         # SemanticJira.admit_work_order/1 shape;
+                                         # standing UNKNOWN, pinned objective IRI,
+                                         # 15-class projections, full SHAs)
     python3 scripts/gen_workgraph.py --selftest --repo R1 [--repo R2 ...]
 
 Exit codes: 0 ok; 2 usage; 3 repo/version unusable.
@@ -64,7 +69,14 @@ import subprocess
 import sys
 
 SJ_PREFIX = "https://ggen-igniter.dev/ontology/semantic-jira#"
+# Pinned objective authority: the admitted sj:StrategicObjective node of the
+# canonical semantic-jira-pack authority index
+# (ggen_igniter:lib/ggen_igniter/semantic_jira/authority.ex canonical index).
+ORIGIN_AUTHORITY = (
+    "https://ggen-igniter.dev/ontology/semantic-jira#objective-code-work-authority"
+)
 SHA_RE = re.compile(r"\b[0-9a-f]{7,40}\b")
+FULL_SHA_RE = re.compile(r"\A[0-9a-f]{40}\Z")
 
 # The 15-class projection vocabulary, canonical in
 # ggen_igniter:lib/ggen_igniter/semantic_jira.ex (@projection_types).
@@ -220,6 +232,10 @@ def parse_args(argv):
     p.add_argument("--repo", action="append", required=True, help="target repo path")
     p.add_argument("--version", default=None, help="campaign version, e.g. v26.10.8")
     p.add_argument("--out", default=None, help="output path (default stdout)")
+    p.add_argument(
+        "--emit", choices=("ttl", "jsonl"), default="ttl",
+        help="ttl: WORKGRAPH.ttl projection (default); jsonl: admission candidates",
+    )
     p.add_argument(
         "--seed-commits", default=None,
         help="JSON file binding orders to the seed's exact commits: "
@@ -560,6 +576,87 @@ def falsifier_for(repo: str, version: str) -> str:
     return f"{cmd}  # expect exit 0 at HEAD; a failure at the cited SHAs refutes"
 
 
+# The 16 keys `GgenIgniter.SemanticJira.admit_work_order/1` requires
+# (@required, ggen_igniter:lib/ggen_igniter/semantic_jira.ex). One of these
+# missing means the kernel refuses the line; the emitter is total over them.
+CANDIDATE_REQUIRED_KEYS = [
+    "identity", "title", "description", "subject", "repository", "base_sha",
+    "standing", "evidence_ceiling", "promotion_rule",
+    "replay_identity", "required_courts", "required_evidence", "acceptance",
+    "falsifiers", "projections", "origin_authority",
+]
+
+
+def candidate_for(order, repo: str, version: str, base: str, label: str, index: int) -> dict:
+    """One admission candidate per work axis, JSONL-kernel-shaped.
+
+    Standing is always UNKNOWN (candidates enter at UNKNOWN; standing is
+    kernel-derived from receipts, never a stored literal). Every SHA field
+    is a full 40-hex SHA. Per-order falsifier command (v3 item 5) carries
+    into the falsifiers list.
+    """
+    # Repo-qualified identity: a batch may feed candidates from several repos
+    # and the kernel refuses duplicate identities within one batch.
+    repo_tag = re.sub(r"[^A-Za-z0-9]+", "-", label).strip("-").upper()
+    oid = f"SJIRA-{version.lstrip('v').replace('.', '')}-{repo_tag}-{index:03d}"
+    return {
+        "identity": oid,
+        "title": truncate(f"{order.scope} work axis ({len(order.commits)} commit(s))", 120),
+        "description": truncate(
+            " ".join(filter(None, ((c.get("body") or "").strip() for c in order.commits)))
+            or f"Conventional-commit axis '{order.scope}': {len(order.commits)} commit(s).",
+            400,
+        ),
+        "subject": f"{label}:{order.scope}@{order.identity}",
+        "repository": f"seanchatmangpt/{label}" if "/" not in label else label,
+        "base_sha": base,
+        "standing": "UNKNOWN",
+        "evidence_ceiling": "CONSTRUCT",
+        "promotion_rule": "verified_by_required_courts_then_receipted",
+        "replay_identity": f"sjira-{version}-{oid}".lower(),
+        "required_courts": [f"urn:sjira:{label}:{version}:default-court"],
+        "required_evidence": order.receipt_paths or [
+            "git log --no-merges --pretty=format:%H %s "
+            f"{version}..HEAD -- docs/sjira/{version}/  # no receipt artifact on disk"
+        ],
+        "acceptance": [compress_acceptance(order.commits) or "; ".join(c["subject"] for c in order.commits)],
+        "falsifiers": [falsifier_for_order(repo, version, order)],
+        "projections": order.projections,
+        "origin_authority": ORIGIN_AUTHORITY,
+    }
+
+
+def build_candidates(repo: str, version: str) -> list:
+    """Deterministic candidate list for one repo; [] when the campaign has no commits."""
+    base, orders = build_orders(repo, version)
+    if not orders:
+        return []
+    base = base if FULL_SHA_RE.match(base or "") else run_git(repo, "rev-parse", "HEAD").strip()
+    label = repo_label(repo)
+    return [candidate_for(o, repo, version, base, label, i) for i, o in enumerate(orders, 1)]
+
+
+def emit_jsonl(repo: str, version: str) -> str:
+    """JSONL admission candidates: one JSON object per line, sort_keys deterministic."""
+    candidates = build_candidates(repo, version)
+    for c in candidates:
+        missing = [k for k in CANDIDATE_REQUIRED_KEYS if k not in c]
+        if missing:
+            raise ValueError(f"candidate {c.get('identity')} missing required keys: {missing}")
+        if c["standing"] != "UNKNOWN":
+            raise ValueError(f"candidate {c['identity']} standing must be UNKNOWN")
+        if not FULL_SHA_RE.match(c["base_sha"] or ""):
+            raise ValueError(f"candidate {c['identity']} base_sha must be a full 40-hex SHA")
+        bad = [p for p in c["projections"] if p not in PROJECTION_TYPES]
+        if bad:
+            raise ValueError(f"candidate {c['identity']} off-vocabulary projections: {bad}")
+        if not re.match(r"\A[A-Za-z][A-Za-z0-9+.-]*:\S+\Z", c["origin_authority"]):
+            raise ValueError(f"candidate {c['identity']} origin_authority must be an IRI")
+    return "".join(
+        json.dumps(c, sort_keys=True, ensure_ascii=False) + "\n" for c in candidates
+    )
+
+
 def repo_manifest(repo):
     """The repo's build manifest filename, first match in fixed order."""
     for marker in ("mix.exs", "Cargo.toml", "package.json", "justfile", "Makefile"):
@@ -869,6 +966,12 @@ def selftest(repos, version):
             continue
         text1 = render(repo, version)
         text2 = render(repo, version)
+        j1 = emit_jsonl(repo, version)
+        j2 = emit_jsonl(repo, version)
+        if j1 != j2:
+            print(f"[FAIL] {repo}: jsonl double-run mismatch")
+            return 1
+        print(f"[ok] {repo}: jsonl double-run identical ({len(j1.splitlines())} candidates)")
         h1 = hashlib.sha256(text1.encode()).hexdigest()
         h2 = hashlib.sha256(text2.encode()).hexdigest()
         status = "IDENTICAL" if h1 == h2 else "MISMATCH"
@@ -1207,7 +1310,10 @@ def main(argv=None):
         if not isinstance(seed_commits, dict):
             print("error: --seed-commits must be a JSON object", file=sys.stderr)
             return 2
-    text = render(args.repo[0], args.version, seed_commits=seed_commits)
+    if args.emit == "jsonl":
+        text = emit_jsonl(args.repo[0], args.version)
+    else:
+        text = render(args.repo[0], args.version, seed_commits=seed_commits)
     if args.out:
         with open(args.out, "w", encoding="utf-8") as fh:
             fh.write(text)
