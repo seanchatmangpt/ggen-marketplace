@@ -1,17 +1,43 @@
-# v26.10.8 Closure Receipt — DRAFT
+# v26.10.8 Closure Receipt — FINAL
 
-> **Status: DRAFT** — tags and pushes pending coordinator freeze. Written by lane
-> `mp-closure` (docs-only, pathspec `docs/sjira/v26.10.8/`), 2026-10-08. Every SHA
-> below verified via `git log` / `git rev-parse` in `/Users/sac/ggen-marketplace`
-> at this pass; HEAD re-confirmed `29c579082` immediately before commit.
+> **Status: FINAL** — branch merged to `main` and pushed; tag `v26.10.8` cut and
+> pushed. Written by lane `mp-closure` (docs-only, pathspec `docs/sjira/v26.10.8/`),
+> 2026-10-08; finalized by lane `mp-close2` 2026-10-08. Every in-repo SHA below
+> verified via `git log` / `git rev-parse` / `git ls-remote` in
+> `/Users/sac/ggen-marketplace` at finalization; HEAD re-confirmed `2ad88900b`
+> immediately before the final commit.
+
+## 0. Final closure state (2026-10-08)
+
+- **`main`** = `2ad88900b73708ddff6250bc64fe34e481fdc953` (`2ad88900b`) —
+  no-ff merge of `origin/main` `6e9344140` (beam4pm pack edit, W658b);
+  merge re-validated exit 0.
+- **Tag** `v26.10.8` = `e890a55ca47ba031d53028921c72d78125689624` (`e890a55ca`),
+  pushed (`git ls-remote origin` confirms both `main` and tag at these SHAs).
+- **`marketplace.toml`** at v26.10.8 (`0ba8cb01b`), landed.
+- **Drift cluster repaired**: `e2883e508` (book nav + projection regen),
+  `9b0b99d60` (aaif lock refresh), `43f41e9db` (CI SHA-pin + permissions),
+  `4122fa6b1` (autofde-lab aaif wrap projection), `61e8ac0a0` (corpus-count
+  projections 305→306). Full suite **2010 passed + 14 async green**;
+  mp-verifier baseline **14 failures → 0**.
+
+### Consumer freeze outcomes (coordinator-recorded; external repos, not resolvable from this history)
+
+| Consumer | Pinned at | Note |
+|---|---|---|
+| affidavit | `v26.10.8` @ `9da04a4` | re-gen frozen at tag |
+| ferroplan | `v26.10.8` @ `e0b847e` | re-gen frozen at tag |
+| graphlaw | `f2e6e02` (pin `fc23a292` reproducible) | pin re-derived |
+| xaas seam | deployed `26e3ced0`/`cfed243e`/`e00dc03e`; `main` ff @ `86752b3b` tagged | assess routes through `GraphlawPool`; courts 51+ green |
 
 ## 1. Subject
 
 - **Repo**: `/Users/sac/ggen-marketplace`
-- **Branch**: `feat/aaif-gcp-roadmap-v26.10.5` (12 commits ahead of `origin/feat/aaif-gcp-roadmap-v26.10.5` at this pass; push pending coordinator)
-- **HEAD**: `29c579082aefe57eda5695d13cd4edb76cb82b31` (`29c579082`, docs(sjira): v26.10.8 landing batch 3 receipt)
+- **Branch at landing**: `feat/aaif-gcp-roadmap-v26.10.5` — 12 commits (§2),
+  since merged into `main` (see §0)
+- **Landing HEAD**: `29c579082aefe57eda5695d13cd4edb76cb82b31` (`29c579082`, docs(sjira): v26.10.8 landing batch 3 receipt)
 - **Base**: `5ad150d1e1c085b01346a236f671c9b194c8f144` (`5ad150d1e`) —
-  `git log 5ad150d1e..HEAD` = exactly the 12 commits in §2, no more, no fewer.
+  `git log 5ad150d1e..29c579082` = exactly the 12 commits in §2, no more, no fewer.
 
 ## 2. Landing table (base `5ad150d1e` → HEAD `29c579082`, 12 commits, oldest first)
 
@@ -58,22 +84,20 @@ landing-batch receipts cited per row above.
 
 | Work order | Standing | Basis |
 |---|---|---|
-| **W801** (merge) | **PENDING coordinator** | Branch-local; 12 commits ahead of origin; merge + push is a coordinator transition |
+| **W801** (merge) | **ALIVE** | `main` = `2ad88900b` — no-ff merge of `origin/main` `6e9344140` (beam4pm pack edit, re-validated exit 0); branch + `main` + tag `v26.10.8` (`e890a55ca`) all pushed |
 | **W802** (deprecation closure: wasi-json-abi-pack, beam-wasmex-host-pack → rust-wasi-wasmex-pack) | **ALIVE** | Lifecycle registry `92233bdfd`, capability repoint `d5c7ea045`, banners/links `164843b68`, lifecycle court `68c351ed0` 3/3 |
 | **W803a** (affidavit consumer re-gen) | **ALIVE** | `ggen sync` byte-identical no-op; artifact pin `5cc37aea…` match; pin court 3/3; determinism `cmp` IDENTICAL (`LANDING-BATCH-1.md`) |
 | **W803b** (ferroplan consumer re-gen) | **ALIVE** | `just wasm-gen` byte-identical; `wasm-gen-check` OK; `abi_ontology_drift` 17 passed; `copy_drift` 8 passed (`LANDING-BATCH-1.md`) |
 | **W803c** (consumer re-gen) | **ALIVE** (coordinator-recorded) | Reported ALIVE with receipts in the coordinator dispatch; no receipt file located under `docs/sjira/v26.10.8/` at this pass — disclosed |
 | **W804** (seam) | **ALIVE 8/8 witnessed** (coordinator-recorded) | 8/8 witnessed per coordinator dispatch; no on-disk receipt under `docs/sjira/v26.10.8/` at this pass — disclosed |
-| **W805** (tags/lockfile) | **PENDING coordinator** | Tag minting + lockfile freeze is a coordinator transition (see §5 ggen identity plurality) |
+| **W805** (tags/lockfile) | **ALIVE** | `marketplace.toml` v26.10.8 landed (`0ba8cb01b`); tag `v26.10.8` cut (`e890a55ca`) and pushed; drift cluster repaired (`e2883e508`/`9b0b99d60`/`43f41e9db`/`4122fa6b1`/`61e8ac0a0`) — full suite 2010 passed + 14 async green, mp-verifier baseline 14 failures → 0; consumer freezes per §0 |
 
-## 5. Disclosed residues (coordinator queue)
+## 5. Open residues (non-blocking)
 
-1. **`.tool-versions` untracked** — present in the checkout, tracked by no commit.
-   Coordinator decision: land or drop. Present at this pass (`git status`).
-2. **Unreachable pin `e987f3717`** — `docs/sjira/v26.10.8/UNIFIED-WASM-PACK.md`
-   pins its receipt at `e987f3717fead9b2f503a049bb39b49ae88b02d3`, unreachable
-   from this branch's history (`git log` contains no such commit). Pin receipts
-   to follow.
+1. **RESOLVED at closure**: `.tool-versions` is now tracked
+   (`git ls-files` confirms; landed via the merge).
+2. **RESOLVED at closure**: pin `e987f3717` is now reachable from `main`
+   (`git merge-base --is-ancestor` confirms) — the branch merge brought it in.
 3. **ggen identity plurality**: CI pins ggen **26.9.12**; ambient ggen on PATH is
    **26.9.28**. C20 (generator-plurality court, double-compile identity
    agreement) is the standing falsifier for this skew; unresolved.
@@ -81,6 +105,13 @@ landing-batch receipts cited per row above.
    this history; carried as disclosed residue.
 5. **`b7664a5e` claim rejected** — the graphlaw `b7664a5e` digest claim was
    rejected as uncorroborated; pin re-derivation in flight (LANDING-BATCH-2.md).
-6. **Untracked `packs/semantic-fullstack-factory-pack/qualification/generated/`**
-   — present in no commit; validate passes with it present post-cleanup
-   (LANDING-BATCH-3.md). Coordinator: keep aside or land.
+6. **19 withheld ash_surface courts** — Spark 2.7.3 class; withheld from this
+   campaign's court set, deferred.
+7. **fixture/burn_in unlanded** — not landed at closure; carried.
+8. **xaas: `cleanup-plan.json` + `priv/semantic/generated`** — present in the
+   xaas tree, not landed; carried by the xaas lane.
+9. **Prior-campaign W984 lane build roots** — pending osx-clnr cleanup
+   (lane-build-root lease deletion law).
+10. **Untracked `packs/semantic-fullstack-factory-pack/qualification/generated/`**
+   — present in no commit at finalization (`git status`); validate passes with it
+   present post-cleanup (LANDING-BATCH-3.md). Coordinator: keep aside or land.
