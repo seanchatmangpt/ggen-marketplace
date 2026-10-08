@@ -828,6 +828,10 @@ def scan_elixir_ts(repo):
     return "".join(p.capitalize() for p in dep.split("_"))
 
 
+def camelize(dep):
+    return "".join(p.capitalize() for p in dep.split("_"))
+
+
 def known_external(repo):
     """Module prefixes of documented external dependencies (P2 allowlist).
 
