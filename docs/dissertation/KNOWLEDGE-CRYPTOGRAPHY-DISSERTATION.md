@@ -369,6 +369,16 @@ a court.
 
 ## Chapter 9 — Conclusion and Standing
 
+### 9.1 Hygiene-law artifact
+
+The DoD #9 metamodel-hygiene law (Chapter 6) is canonical at
+`packs/fortune5-enterprise-architecture-pack/shapes/00-metamodel-hygiene.shacl.ttl`
+— OWL disjointness fence plus the `f5ea:SolutionGroupShape` SHACL node shape
+— and is court-qualified by
+`packs/fortune5-enterprise-architecture-pack/tests/test_shapes_file.py`
+(pyshacl: conflation individual violates, clean group conforms). The inline
+copy in `ontology.ttl` is a pack-local duplicate.
+
 Knowledge Cryptography reduces enterprise architecture to four categorical
 disciplines: **identity by digest** (`ea:exactSubject` sha256 pins),
 **admission by refusal-shaped gate** (zero-rows-equals-pass, ASK

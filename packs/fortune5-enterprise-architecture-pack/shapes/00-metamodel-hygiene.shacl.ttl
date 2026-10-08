@@ -1,0 +1,57 @@
+# shapes/00-metamodel-hygiene.shacl.ttl — DoD #9 metamodel-hygiene law (SHACL form)
+#
+# CANONICAL SOURCE of the metamodel-hygiene law for this pack. Extracted from
+# the inline copy in ontology.ttl (which is kept as a pack-local duplicate;
+# packs may duplicate). Enforced by tests/test_shapes_file.py, which
+# pyshacl-validates fixtures against this exact file.
+#
+# Law (dissertation Ch.6, RFC §7, DoD #9): a SolutionGroup REFERENCES SBBs;
+# it is never itself an ABB, SBB, contract or authority boundary — and no
+# individual is typed as two of {SolutionGroup, ea:SolutionBuildingBlock,
+# ea:ArchitectureBuildingBlock, ea:ArchitectureContract}.
+
+@prefix f5ea: <https://ggen.io/ontology/fortune5-enterprise-architecture#> .
+@prefix ea:   <https://chatman.ai/ontology/enterprise-architecture#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# ---- Disjointness fence (OWL form) ---------------------------------
+[] a owl:AllDisjointClasses ;
+  owl:members ( f5ea:SolutionGroup
+                ea:SolutionBuildingBlock
+                ea:ArchitectureBuildingBlock
+                ea:ArchitectureContract ) .
+
+# ---- Conflation fence (SHACL form) ---------------------------------
+f5ea:SolutionGroupShape a sh:NodeShape ;
+  sh:targetClass f5ea:SolutionGroup ;
+  sh:closed true ;
+  sh:property [
+    sh:path f5ea:groupKey ;
+    sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ;
+  ] ;
+  sh:property [
+    sh:path f5ea:groupsSBB ;
+    sh:minCount 1 ;
+    sh:class ea:SolutionBuildingBlock ;
+    sh:severity sh:Violation ;
+  ] ;
+  sh:property [
+    sh:path f5ea:groupTargetsABB ;
+    sh:class ea:ArchitectureBuildingBlock ;
+    sh:severity sh:Violation ;
+    sh:message "groupTargetsABB is a read-only projection of members' ea:satisfiesABB; it confers no coverage." ;
+  ] ;
+  sh:property [
+    sh:path rdf:type ;
+    sh:qualifiedValueShape [ sh:in ( ea:SolutionBuildingBlock
+                                     ea:ArchitectureBuildingBlock
+                                     ea:ArchitectureContract
+                                     ea:AuthorityBoundary ) ] ;
+    sh:qualifiedMaxCount 0 ;
+    sh:severity sh:Violation ;
+    sh:message "DoD #9: a SolutionGroup references SBBs; it is never itself an ABB, SBB, contract or authority boundary." ;
+  ] ;
+  sh:severity sh:Violation .
