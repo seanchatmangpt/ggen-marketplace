@@ -196,3 +196,4 @@
 - [Composition solver contract](reference/composition-solver-contract.md)
 - [Why the composition solver is bounded](explanation/why-the-composition-solver-is-bounded.md)
 - [Reference: Fleet documentation map](reference/FLEET-DOC-MAP.md)
+- [Reference: Fleet semantic map](reference/FLEET-SEMANTIC-MAP.md)
