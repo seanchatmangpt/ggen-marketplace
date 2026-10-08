@@ -44,26 +44,31 @@ Path deltas, so consumers globbing the standard path do not miss them:
 
 | repo | card path | skills | generation law | authority statement |
 |---|---|---|---|---|
-| castle | `.well-known/agent-card.json` | 12 | hand-authored (no generator in repo — the one exception; see summary below) | v1.0 shape, authority NONE; the card exists and asserts no DO authority |
+| castle | `.well-known/agent-card.json` | 12 | generated from `#[verb]` registrations (post-conversion; §2.1) | v1.0 shape, authority NONE; the card exists and asserts no DO authority |
 | ash_graphlaw | `priv/graphlaw/cards/` | 14 | registry-generated (one card per `gac:Capability`; `scripts/import_registry.sh` regenerates in write mode, `--check` verifies, gated on the registry_sha256 digest check) — generation is part of the law, not a one-off | authority NONE; cards carry none, standing is receipt-derived |
 | ash_a2a | `priv/sa2a/self-agent-card.json` | 4 | capability-index (`mix ash_a2a.self_card` from the capability surface) | deterministic generation; CONSTRUCT-at-most |
 | ash_surface | `priv/generated/agent_card.json` | 2 | runtime-serialization (court test regenerates and byte-compares; a stale artifact fails closed) | authority NONE |
 | ferroplan | `crates/ferroplan-wasm/cards/` | 38 | registry-generated (one card per op from `crates/ferroplan-wasm/registry/capability-registry.json`, registry_sha256-digest-pinned, `MANIFEST.sha256` over the card set) | planner CONSTRUCT — candidate output, never actuation; returned plans are candidates for host-side admission; no DO authority (`authority_claim: NONE` in every card) |
 | ex4pm | `priv/cards/` | 9 clusters / 222 skills | module-docs (`scripts/gen_agent_cards.py` walks `lib/ex4pm`, each skill carries `source_file`/`source_module` provenance; `generatedFrom: lib/ex4pm`) | authority NONE; cards descriptive of the process-mining surface |
+| gymact | `priv/cards/` | 4 cards / 43 skills | generator-emitted (committed cards regenerated from the fixed generator; drift court green) | authority NONE |
 
-Skill counts re-counted at exact pushed SHAs 2026-10-08: castle 12,
-ash_graphlaw 14, ash_a2a 4 (@7d646598), ash_surface 2 (@8bc9b7509),
-ferroplan 38 cards @057ff803 (39 files minus `MANIFEST.sha256`), ex4pm 9
-cluster files / 222 skills @50071c47. All six surfaces carry authority
-NONE / CONSTRUCT-at-most; no card grants DO authority by existence.
+Skill counts re-counted at exact pushed SHAs 2026-10-08: castle 12
+(@6692936, card landed at `edaf206`), ash_graphlaw 14 (@bd75d96),
+ash_a2a 4 (@b40abf82), ash_surface 2 (@6bfd91d), ferroplan 38 cards
+@84a6289 (39 files minus `MANIFEST.sha256`), ex4pm 9 cluster files /
+222 skills @6758bd7, gymact 4 card files / 43 skills @6204b636, wasm4pm 6
+skills @070c5e96 on `docs/sa2a-actuator-agent-card-v2` (card branch).
+All eight surfaces carry authority NONE / CONSTRUCT-at-most; no card
+grants DO authority by existence.
 
-Generation-law summary: every card set landed in the ferroplan, ex4pm, and
-ash waves is generator-emitted from a real surface — registry digest
-(ferroplan, ash_graphlaw), capability index (ash_a2a), module-docs walk
-(ex4pm), or runtime serialization with byte-compare courts (ash_surface).
-Zero hand-authored cards in those waves. Castle's top-level card was the
-last hand-authored card in the fleet; it has since been converted
-(§2.1).
+Generation-law summary: every card set in the fleet is generator-emitted
+from a real surface — registry digest (ferroplan, ash_graphlaw),
+capability index (ash_a2a), module-docs walk (ex4pm), runtime
+serialization with byte-compare courts (ash_surface), fixed-generator
+regeneration with a drift court (gymact), `#[verb]` registration
+reflection (castle). Zero hand-authored cards remain: castle's top-level
+card was the last hand-authored card in the fleet and has since been
+converted (§2.1).
 
 ## 2.1 Final consolidation additions (2026-10-08)
 
