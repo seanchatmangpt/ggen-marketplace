@@ -84,6 +84,7 @@
 - [Conference commerce model (CG9)](reference/conference-commerce-model.md)
 - [Ontology maturity mapping — L4/L5 and the ggen bridge](reference/ONTOLOGY-MATURITY-L4-L5.md)
 - [Release v26.10.8](reference/release-v26.10.8.md)
+- [Conformance courts](reference/CONFORMANCE-COURTS.md)
 - [Release v26.10.5 receipt](context/v26.10.5-receipt.md)
 
 # Explanation
@@ -189,3 +190,4 @@
 - [Add a capability atom to the solver basis](how-to/add-a-capability-atom.md)
 - [Composition solver contract](reference/composition-solver-contract.md)
 - [Why the composition solver is bounded](explanation/why-the-composition-solver-is-bounded.md)
+- [Reference: Fleet documentation map](reference/FLEET-DOC-MAP.md)
