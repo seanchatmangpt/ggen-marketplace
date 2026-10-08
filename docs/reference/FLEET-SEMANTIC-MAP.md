@@ -61,10 +61,50 @@ Generation-law summary: every card set landed in the ferroplan, ex4pm, and
 ash waves is generator-emitted from a real surface — registry digest
 (ferroplan, ash_graphlaw), capability index (ash_a2a), module-docs walk
 (ex4pm), or runtime serialization with byte-compare courts (ash_surface).
-Zero hand-authored cards in those waves. The single remaining hand-authored
-card in the fleet is castle's top-level `.well-known/agent-card.json`
-(descriptive, authority NONE) — conversion to a generator law is the
-natural follow-up.
+Zero hand-authored cards in those waves. Castle's top-level card was the
+last hand-authored card in the fleet; it has since been converted
+(§2.1).
+
+## 2.1 Final consolidation additions (2026-10-08)
+
+Three late-wave landings, re-verified on the owning repos' pushed refs in
+this lane:
+
+| repo | surface | skills | generation law | SHA (branch, pushed) |
+|---|---|---|---|---|
+| castle | `docs/sjira/v26.10.8/castle-gates-skills.json` + `skills.ttl` | 14 | generator-emitted: `scripts/gen_skills_json.py` renders the fourteen v26.9.28 crown gates (CASTLE-28-0..13) as `gate_status` skills — byte-identical across runs, fail-closed on missing properties / non-exposed skills / missing law sentence / non-ALIVE generator; ceiling CONSTRUCT, law sentence "receipt-driven STOP; SELECT never implies DO" | `0244c82` (`main`) |
+| castle (card itself) | `.well-known/agent-card.json` | 12 | generated from `#[verb]` registrations — the fleet's last hand-authored card conversion | `edaf206` (`main`) |
+| wasm4pm | `.well-known/agent-card.json` (actuator surface) | 6 | hand-authored truthful v1.0 card: `execute`, `effect.digest`, `certificate.signing_message`, `verify`, `resource.admit`, `ledger` | `7146a53129681008e255375e338fe47bb11cd06f` (`docs/sa2a-actuator-agent-card-v2`) |
+
+Skill counts re-counted at the exact SHAs above; the wasm4pm card carries 6
+skills (measured; an earlier consolidation brief said 7 — 6 is the grounded
+count at that SHA). The wasm4pm actuator card is the one new hand-authored
+surface — its generation-law conversion is the natural follow-up, same as
+castle's was.
+
+Workgraph SHACL validation: the wg-shacl lane's validation report had **not
+landed** on any pushed ggen-marketplace ref as of this consolidation
+(2026-10-08, `git ls-remote` checked) — no SHACL results are citable in
+this map yet; they belong in §1 when the report lands.
+
+## 2.2 Seed → generator convergence
+
+From [`../sjira/v26.10.8/CONVERGENCE.md`](../sjira/v26.10.8/CONVERGENCE.md)
+(`gen_workgraph.py` regenerates each agent-authored seed from raw repo
+state, zero LLM, every delta dispositioned):
+
+| repo | shape convergence | order coverage |
+|---|---|---|
+| ggen-marketplace | 87.5% (14/16) | 83% (5/6) |
+| zcode-cli | 55% (11/20) | 20% (1/5) |
+| ash_affidavit | 71% (12/17) | 67% (4/6) |
+| **overall** | **69.8% (37/53)** | **~60% (10/17)** |
+
+Refusals the generator correctly will not copy: `authorityCeiling "DO"` on
+lane orders, receipt-less ALIVE / `EXECUTED_VERIFIED` standings, vague
+ceiling strings. Doctrine: the agent-authored workgraph is the seed; the
+generator is the successor format; regeneration without an LLM is the
+acceptance test.
 
 ## 3. The non-LLM chain
 
@@ -189,9 +229,11 @@ done
 
 # agent-card skill counts
 python3 -c "import json;print(len(json.load(open('/Users/sac/castle/.well-known/agent-card.json'))['skills']))"
+python3 -c "import json;d=json.load(open('/Users/sac/castle/docs/sjira/v26.10.8/castle-gates-skills.json'));print(len(d['skills']),d['authorityCeiling'])"
 ls /Users/sac/ash_graphlaw/priv/graphlaw/cards/ | wc -l
 python3 -c "import json;d=json.load(open('/Users/sac/ash_a2a/priv/sa2a/self-agent-card.json'));print(len(d['skills']))"
 python3 -c "import json;print(len(json.load(open('/Users/sac/ash_surface/priv/generated/agent_card.json'))['skills']))"
+git -C /Users/sac/wasm4pm show 7146a53129681008e255375e338fe47bb11cd06f:.well-known/agent-card.json | python3 -c "import json,sys;print(len(json.load(sys.stdin)['skills']))"
 
 # admission ledger recount
 python3 -c "import json;ls=[json.loads(l) for l in open('/Users/sac/ggen-marketplace/docs/sjira/v26.10.8/ADMISSION-LEDGER.jsonl')];print(len(ls),sum(x['admitted'] for x in ls),sum(not x['admitted'] for x in ls))"

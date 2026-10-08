@@ -167,6 +167,67 @@ the promotion evidence per the ladder:
 Not claimed: ALIVE. Exact-subject ALIVE still requires the canonical regen
 across every repo and the two open residues (§6.2, §5.3).
 
+## 7. Final consolidation addendum (2026-10-08, lane sem-map-final)
+
+### 7.1 C13 two-rung progress (ggen_igniter, `feat/adr-0010-gate-convention`)
+
+The C13 self-hosting fixed-point order (landed `e42dbab`) advanced two rungs
+after landing, each witnessed by a pushed commit:
+
+| rung | SHA | what |
+|---|---|---|
+| ADMISSION | `66aa197` | `c13-fixed-point` ADMITTED through the pack's own `admit_candidates` (`work_order_digest` sha256:b61fcf66…008d1, exit 0). Execute hop typed REFUSED `mu_on_O/base_drift`: HEAD `e42dbab` != pinned base `52c00b7c`; ledger byte-unchanged. |
+| RE-BIND | `8131c69` | `sj:baseSha` re-bound `52c00b7c`→`66aa197556b37297cff66acc4ff16c872c16ac2d` (order subject = pack state at the head that carries it); re-admitted, new `work_order_digest` sha256:fea00605…b2a821. Execute advanced past `base_drift` and now refuses at the **multi-template sync rung**: `Reconcile.run/1` raises "multiple templates found … pass :template explicitly" — `execute.ex:312` passes no `:template` and the pack has 11 templates. Typed REFUSED `sync_failed`. |
+
+Both rungs are typed: the admit leg of the fixed point is proven; the
+execute leg is refused at the named sync rung, which is the remaining work
+order (pass `:template` / single-template execute path). Both commits are
+pushed on `origin/feat/adr-0010-gate-convention`.
+
+### 7.2 Round-2 admission (restated)
+
+24 of the 26 round-1 refusals machine-admitted on conversion (§6); fleet
+total 47/49 admitted, 2 typed residuals (SJIRA-V8-004 cross-repo,
+castle-goal no-workgraph). The refusals are falsifier output; the gate
+demonstrably bites (one ceiling re-derived downward, not relaxed).
+
+### 7.3 Late-wave per-repo receipt landings
+
+| repo | SHA | branch (pushed) | what |
+|---|---|---|---|
+| castle | `313d67e` → `0244c82` | `main` | GoalCheckpoint workgraph `313d67e` (§2), then 14 crown gates (CASTLE-28-0..13) emitted as observable A2A skills (`castle-gates-skills.json`, 14 exposed, CONSTRUCT ceiling) at `0244c82`; card itself generated from `#[verb]` registrations at `edaf206` — the fleet's last hand-authored card converted |
+| wasm4pm | `7146a53129681008e255375e338fe47bb11cd06f` | `docs/sa2a-actuator-agent-card-v2` | truthful v1.0 actuator card, 6 skills (measured at SHA; a consolidation brief said 7 — 6 is grounded): `execute`, `effect.digest`, `certificate.signing_message`, `verify`, `resource.admit`, `ledger` |
+| ggen_igniter | `66aa197`, `8131c69` | `feat/adr-0010-gate-convention` | C13 two-rung progress (§7.1) |
+| ash_pplan | `e8f0fb5` | `fix/ggen-verify-header` | workgraph at `docs/sjira/v26.10.8-1/WORKGRAPH.ttl` (§2), 267 triples |
+
+Workgraph SHACL validation: the wg-shacl lane's report had not landed on any
+pushed hub ref as of this addendum — uncited; the map's §2.1 carries the
+same disclosure.
+
+### 7.4 Final standing and its evidence
+
+Standing: **PARTIAL_ALIVE (strengthened)** — unchanged from §6.3, on this
+final evidence:
+
+- The non-LLM chain is witnessed at every hop (generate `ff7392c9c`/
+  `87b984fac` → candidates `e21717421` → admit via the real kernel → ledger
+  with per-row `work_order_digest`) at **47/49 machine-admitted**.
+- Every fleet card surface is now generator-derived: castle's conversion
+  (`edaf206`) removed the last pre-wave hand-authored card; the only new
+  hand-authored surface is wasm4pm's actuator card (6 skills, authority
+  fence intact — the card asserts no DO authority).
+- C13 admit leg proven, execute leg typed-REFUSED at the named
+  multi-template sync rung (`8131c69`) — the fixed point is one
+  lawfully-scoped defect away, not UNKNOWN.
+- Convergence measured: 69.8% shape / ~60% order coverage overall
+  (CONVERGENCE.md), with the generator's conservatism documented as the
+  feature (refused DO ceilings, refused receipt-less ALIVE).
+
+Not claimed: ALIVE. Open: canonical regen across every repo, the wg-shacl
+report, the wasm4pm actuator-card generation-law conversion, the C13 sync
+rung, ex4pm certify git-object resolution, affidavit signing (crypto_trust
+unlanded).
+
 ## Replay
 
 ```
@@ -174,7 +235,9 @@ git -C /Users/sac/ggen-marketplace log --all --oneline | grep -E 'fe78477|bd75d9
 python3 -c "import json,sys;ls=[json.loads(l) for l in open('docs/sjira/v26.10.8/ADMISSION-LEDGER.jsonl')];print(sum(x['admitted'] for x in ls),sum(not x['admitted'] for x in ls))"
 ```
 
-Standing: PARTIAL_ALIVE (strengthened by the round-2 addendum, §6) — the
+Standing: PARTIAL_ALIVE (strengthened by the round-2 addendum, §6, and the
+final consolidation addendum, §7) — the
 non-LLM chain (generate → candidates → admit → ledger → certify) is witnessed
 end to end at 47/49 machine-admitted; canonical regen across every repo, the
-ex4pm certify git-object resolution, and affidavit signing remain open.
+wg-shacl report, the C13 sync rung, the ex4pm certify git-object resolution,
+and affidavit signing remain open.
