@@ -102,5 +102,37 @@ class P2ExtractorTest(unittest.TestCase):
         assert "serde_json::" in code["known_external"]
 
 
+class P3ProseFilterTest(unittest.TestCase):
+    """P3: path/version/prose spans are not emitted as symbol claims."""
+
+    def test_witnessed_path_and_version_spans_are_noise(self):
+        assert g.is_noise_span("release/v26.8.23")
+        assert g.is_noise_span("stream/metrics.ex")
+        assert g.is_noise_span("stage/{id}.jsonl")
+        assert g.is_noise_span("v26.8.23")
+        assert g.is_noise_span("1.2.3")
+
+    def test_symbol_arity_and_qualified_spans_survive(self):
+        assert not g.is_noise_span("verify/0")
+        assert not g.is_noise_span("Ex4pm.OCEL.normalize/1")
+        assert not g.is_noise_span("s_coverage_set")
+
+    def test_doc_mode_does_not_emit_prose_claims(self):
+        repo = mkrepo({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": "defmodule Demo.Engine do\n  def ignite(x), do: x\nend\n",
+            "docs/guide.md": (
+                "Run the release pipeline.\n\n"
+                "Use `Demo.Engine.ignite`, see `release/v26.8.23` and `stream/metrics.ex`.\n"
+            ),
+        })
+        surface = g.extract_code(repo)
+        claims = g.extract_doc(repo, surface)["claims"]
+        objs = [c["object"] for c in claims]
+        assert "release/v26.8.23" not in objs
+        assert "stream/metrics.ex" not in objs
+        assert "Demo.Engine.ignite" in objs
+
+
 if __name__ == "__main__":
     unittest.main()

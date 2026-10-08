@@ -417,9 +417,23 @@ def known_symbols(surface):
 
 # v2 over-extraction filter: backticked spans that are CLI flags, version
 # strings, boolean-ish single words, or too-short tokens are prose artifacts,
-# not code-surface symbol references (DOC-HDIT-PILOT P1).
+# not code-surface symbol references (DOC-HDIT-PILOT P1). P3 extends the
+# filter to path fragments and version-tagged paths (`release/v26.8.23`,
+# `stream/metrics.ex`, `stage/{id}.jsonl`) — the residual classes from the P2
+# receipt: these are not emitted as symbol claims at all.
 VERSION_RE = re.compile(r"^v?\d+(\.\d+)+")
+SOURCE_EXTS = (
+    ".ex", ".exs", ".rs", ".py", ".ts", ".tsx", ".js", ".json", ".jsonl",
+    ".toml", ".yaml", ".yml", ".md", ".ttl", ".sql", ".sh", ".wasm",
+)
 BOOLISH = {"true", "false", "yes", "no", "on", "off", "nil", "null", "ok", "valid", "enabled", "disabled"}
+
+
+def looks_like_version(seg):
+    t = seg.lstrip("vV")
+    if not t or "." not in t:
+        return False
+    return all(p.isdigit() for p in t.split("."))
 
 
 def is_noise_span(span):
@@ -432,6 +446,14 @@ def is_noise_span(span):
         return True
     if s.lower() in BOOLISH:                   # boolean-ish single words
         return True
+    if "/" in s:
+        segs = s.split("/")
+        # Version-tagged path fragments: `release/v26.8.23`.
+        if any(looks_like_version(seg) for seg in segs):
+            return True
+        # Source-file path fragments: `stream/metrics.ex`, `stage/{id}.jsonl`.
+        if len(segs) > 1 and segs[-1].rstrip(")").endswith(SOURCE_EXTS):
+            return True
     return False
 
 
