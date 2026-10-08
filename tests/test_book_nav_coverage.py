@@ -138,5 +138,88 @@ class BookNavigationCoverageTest(unittest.TestCase):
         )
 
 
+MD_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
+
+HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
+
+# Relative markdown links are validated only inside the Diataxis quadrants:
+# these are the reader-facing chapters of the published book. Other docs/
+# subtrees (working records, generated artifacts) are out of scope here, the
+# same way they are out of the nav-coverage surface.
+LINK_SCOPED_DIRS = frozenset({"tutorials", "how-to", "reference", "explanation"})
+
+
+def github_slug(text: str) -> str:
+    """GitHub-style anchor slug for a markdown heading."""
+    slug = text.strip().lower()
+    slug = re.sub(r"[^\w\s-]", "", slug)  # drop punctuation, keep word chars/space/hyphen
+    slug = re.sub(r"\s", "-", slug)
+    return slug
+
+
+def headings_of(path: Path) -> set[str]:
+    """Anchor slugs of every heading in a markdown file (ATX only)."""
+    slugs: set[str] = set()
+    in_fence = False
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        match = HEADING_RE.match(line)
+        if match:
+            slugs.add(github_slug(match.group(2)))
+    return slugs
+
+
+def resolve_relative(source: Path, target: str) -> Path | None:
+    """Resolve a relative link from a source file, or None if it escapes."""
+    resolved = (source.parent / target).resolve()
+    try:
+        resolved.relative_to(REPO_ROOT.resolve())
+    except ValueError:
+        return None
+    return resolved
+
+
+class RelativeLinkCourtTest(unittest.TestCase):
+    """Every relative markdown link in a Diataxis quadrant must resolve.
+
+    Chicago style: the collaborator is the real docs/ tree on disk. A link is
+    checked exactly the way a reader's renderer would check it -- resolve it
+    against the linking file's directory, confirm the target file exists, and
+    confirm any #fragment names a real heading (GitHub slug rules).
+    """
+
+    def test_every_relative_link_resolves_to_file_and_anchor(self) -> None:
+        broken: list[str] = []
+        for rel in sorted(markdown_files_on_disk()):
+            parts = Path(rel).parts
+            if not (len(parts) > 1 and parts[0] in LINK_SCOPED_DIRS):
+                continue
+            source = DOCS / rel
+            for match in MD_LINK_RE.finditer(source.read_text(encoding="utf-8")):
+                target = match.group(1)
+                if target.startswith(("http://", "https://", "file://", "mailto:", "#")):
+                    continue
+                resolved = resolve_relative(source, target.split("#")[0])
+                if resolved is None or not (resolved.is_file() or resolved.is_dir()):
+                    broken.append(f"{rel} -> {target}")
+                    continue
+                fragment = target.split("#", 1)[1] if "#" in target else None
+                if fragment:
+                    if resolved.suffix != ".md":
+                        broken.append(f"{rel} -> {target} (anchor in non-markdown)")
+                    elif fragment.lower() not in {s.lower() for s in headings_of(resolved)}:
+                        broken.append(f"{rel} -> {target} (missing anchor)")
+        self.assertEqual(
+            broken,
+            [],
+            "broken relative links found in docs quadrants (file or anchor "
+            "unresolvable): " + "; ".join(broken),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

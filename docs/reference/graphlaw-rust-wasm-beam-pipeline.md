@@ -1,7 +1,7 @@
 # Reference: graphlaw rust, wasm, beam/elixir pipeline
 
 > [!WARNING]
-> `wasi-json-abi-pack` is **DEPRECATED** (lifecycle state recorded in `lifecycle.toml`). Its capabilities are consolidated into [`packs/rust-wasi-wasmex-pack`](../../../packs/rust-wasi-wasmex-pack/) — migrate generator wiring there.
+> `wasi-json-abi-pack` is **DEPRECATED** (lifecycle state recorded in `lifecycle.toml`). Its capabilities are consolidated into [`packs/rust-wasi-wasmex-pack`](../../packs/rust-wasi-wasmex-pack/) — migrate generator wiring there.
 
 
 The marketplace represents `~/graphlaw` (release v26.9.29, pinned at

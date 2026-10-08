@@ -1,7 +1,7 @@
 # How to consume graphlaw through wasi-json-abi
 
 > [!WARNING]
-> `wasi-json-abi-pack` is **DEPRECATED** (lifecycle state recorded in `lifecycle.toml`). Its capabilities are consolidated into [`packs/rust-wasi-wasmex-pack`](../../../packs/rust-wasi-wasmex-pack/) — migrate generator wiring there.
+> `wasi-json-abi-pack` is **DEPRECATED** (lifecycle state recorded in `lifecycle.toml`). Its capabilities are consolidated into [`packs/rust-wasi-wasmex-pack`](../../packs/rust-wasi-wasmex-pack/) — migrate generator wiring there.
 
 
 Goal: regenerate graphlaw's wasm ABI projection after the graphlaw subject or its pins change.
