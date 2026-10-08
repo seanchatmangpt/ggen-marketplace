@@ -166,3 +166,149 @@ def test_cli_engine_flag_end_to_end(rust_repo):
     )
     assert proc.returncode == 0, proc.stderr
     assert '"repo"' in proc.stdout
+
+
+# ------------------------- v2 fidelity extras: Phoenix routes + Ash sections ---
+
+ROUTER_SRC = """\
+defmodule DemoWeb.Router do
+  use Phoenix.Router
+  scope "/api/v1", DemoWeb.Api do
+    pipe_through [:api]
+    get "/execution/runs", RunController, :index
+    post("/execution/runs", RunController, :create)
+  end
+  scope "/admin" do
+    get "/health", HealthController, :show
+  end
+end
+"""
+
+ASH_SRC = """\
+defmodule Demo.Accounts.User do
+  use Ash.Resource, data_layer: Ash.DataLayer.Ets
+
+  attributes do
+    uuid_primary_key :id
+    attribute :email, :string, allow_nil?: false
+    create_timestamp :inserted_at
+  end
+
+  actions do
+    defaults [:read]
+    read :by_email do
+      argument :email, :string, allow_nil?: false
+    end
+    create :register do
+      accept [:email]
+    end
+  end
+
+  calculations do
+    calculate :display_name, :string, expr(first_name <> " " <> last_name)
+  end
+end
+"""
+
+
+@pytest.fixture()
+def ash_router_repo(tmp_path):
+    (tmp_path / "mix.exs").write_text(
+        'defmodule Fixture.MixProject do\n  use Mix.Project\nend\n'
+    )
+    lib = tmp_path / "lib"
+    lib.mkdir()
+    (lib / "router.ex").write_text(ROUTER_SRC)
+    ash = lib / "accounts"
+    ash.mkdir()
+    (ash / "user.ex").write_text(ASH_SRC)
+    return tmp_path
+
+
+def _kinds(surface, kind):
+    """{(ident, signature): item} — idents may repeat across verbs/clauses."""
+    return {(it["ident"], it.get("signature", "")): it
+            for m in surface["modules"]
+            for it in m["items"] if it["kind"] == kind}
+
+
+def test_ts_phoenix_routes_scope_folded(ash_router_repo):
+    ts = gds.extract_code(ash_router_repo, engine="ts")
+    routes = _kinds(ts, "route")
+    # scope prefixes folded: /api/v1 + /execution/runs
+    assert ("api/v1/execution/runs", "get /execution/runs") in routes
+    assert ("api/v1/execution/runs", "post /execution/runs") in routes
+    assert ("admin/health", "get /health") in routes
+
+
+def test_ts_routes_richer_than_regex(ash_router_repo):
+    """TS >= regex on route idents (regex cannot fold scope prefixes)."""
+    regex = gds.extract_code(ash_router_repo, engine="regex")
+    ts = gds.extract_code(ash_router_repo, engine="ts")
+    r_routes = _kinds(regex, "route")
+    t_routes = _kinds(ts, "route")
+    r_sigs = {it["signature"] for it in r_routes.values()}
+    t_sigs = {it["signature"] for it in t_routes.values()}
+    assert r_sigs <= t_sigs
+    # every regex route verb/path appears on the TS surface with full prefix
+    for it in r_routes.values():
+        verb, path = it["signature"].split(" ", 1)
+        assert any(
+            it2["signature"] == it["signature"]
+            and it2["ident"].endswith(it["ident"])
+            for it2 in t_routes.values()
+        )
+
+
+def test_ts_ash_sections_match_regex_invariants(ash_router_repo):
+    regex = gds.extract_code(ash_router_repo, engine="regex")
+    ts = gds.extract_code(ash_router_repo, engine="ts")
+    r_ash = _kinds(regex, "ash_resource")
+    t_ash = _kinds(ts, "ash_resource")
+    assert set(r_ash) == set(t_ash) == {("Demo.Accounts.User", "")}
+    inv_r = r_ash[("Demo.Accounts.User", "")]["invariants"]
+    inv_t = t_ash[("Demo.Accounts.User", "")]["invariants"]
+    for kind in ("attributes", "actions"):
+        assert set(inv_r[kind]) <= set(inv_t[kind]), (kind, inv_r, inv_t)
+    assert inv_r["attributes"] == inv_t["attributes"] == \
+        [":id", ":email", ":inserted_at"]
+    # TS richer: non-greedy regex ASH_BLOCK stops at the first nested `end`,
+    # so `create :register` survives only on the tree-sitter path
+    assert "create:register" in inv_t["actions"]
+    assert "read:by_email" in inv_t["actions"]
+    # calculations are TS-only (regex ASH_BLOCK has no calculations section)
+    assert inv_t["calculations"] == [":display_name"]
+
+
+def test_ash_resource_without_sections_emits_empty_invariants(tmp_path):
+    (tmp_path / "mix.exs").write_text("x\n")
+    lib = tmp_path / "lib"
+    lib.mkdir()
+    (lib / "bare.ex").write_text(
+        "defmodule Demo.Bare do\n  use Ash.Resource, data_layer: Ash.DataLayer.Ets\n"
+        "  def only_fn, do: :ok\nend\n"
+    )
+    ts = gds.extract_code(tmp_path, engine="ts")
+    ash = _kinds(ts, "ash_resource")
+    assert ash[("Demo.Bare", "")]["invariants"] == {}
+    # regex path emits the same empty-invariants ash_resource item
+    regex = gds.extract_code(tmp_path, engine="regex")
+    assert _kinds(regex, "ash_resource")[("Demo.Bare", "")]["invariants"] == {}
+
+
+def test_non_ash_use_and_non_router_verbs_inert(tmp_path):
+    """`use Phoenix.Router`/plain verbs outside routers/Ash do not emit."""
+    (tmp_path / "mix.exs").write_text("x\n")
+    lib = tmp_path / "lib"
+    lib.mkdir()
+    (lib / "plain.ex").write_text(
+        "defmodule Demo.Plain do\n  use Phoenix.Template\n"
+        "  def get(x), do: x\nend\n"
+    )
+    (lib / "router.ex").write_text(
+        "defmodule DemoWeb.OtherRouter do\n  use Phoenix.Router\n"
+        "  forward \"/api\", ApiPlug\nend\n"
+    )
+    ts = gds.extract_code(tmp_path, engine="ts")
+    assert _kinds(ts, "ash_resource") == {}
+    assert _kinds(ts, "route") == {}

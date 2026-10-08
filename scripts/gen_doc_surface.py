@@ -502,9 +502,10 @@ def scan_rust(repo):
 
 # --------------------------------------------- optional tree-sitter scanner ---
 # v2 fidelity path (doc-hdit): same JSON schema as the regex scanners above,
-# richer signatures. Regex-path extras that depend on ad hoc heuristics
-# (Phoenix router verbs, Ash resource blocks) are regex-only and simply
-# absent from the TS elixir surface; ident parity holds for def/type/struct.
+# richer signatures. Phoenix router routes (scope prefixes folded) and Ash
+# resource sections (attributes/actions/calculations) are extracted on the TS
+# path too, mirroring the regex extractor's semantics — richer where the
+# regex heuristics were truncated by non-greedy block matching.
 #
 # tree-sitter node API (0.23+): node.type, node.text, node.children,
 # child_by_field_name, prev_sibling. Parsers are built lazily and cached.
@@ -589,7 +590,7 @@ def scan_rust_ts(repo):
                         continue
                     sname = node.child_by_field_name("name").text.decode()
                     body = node.child_by_field_name("body")
-                    sig = sname
+                    sig = "" if body is None else sname
                     if body is not None:
                         members = split_top(_clean(
                             body.text.decode().strip("{}()")))
@@ -664,6 +665,32 @@ def _ex_quoted(node):
     return ""
 
 
+def _ex_first_string(call):
+    """Text of the first string literal argument, or None."""
+    args = _ex_args(call)
+    if args is None:
+        return None
+    s = _first_child(args, "string")
+    if s is None:
+        return None
+    q = _first_child(s, "quoted_content")
+    return q.text.decode() if q is not None else ""
+
+
+def _ex_first_atom(call):
+    """Name of the first atom argument (colon stripped), or None."""
+    args = _ex_args(call)
+    if args is None:
+        return None
+    a = _first_child(args, "atom")
+    return a.text.decode().lstrip(":") if a is not None else None
+
+
+ASH_TS_BLOCK_KINDS = ("attributes", "actions", "calculations")
+ASH_TS_ACTION_KINDS = ("read", "create", "update", "destroy", "action")
+ROUTE_TS_VERBS = ("get", "post", "put", "patch", "delete", "live")
+
+
 def scan_elixir_ts(repo):
     modules = []
     versions = {}
@@ -681,8 +708,17 @@ def scan_elixir_ts(repo):
             "items": dedup_clauses(items),
         })
 
-    def collect(node, mod_name, rel, items):
-        """Recurse through do_block bodies tracking the innermost module."""
+    def collect(node, mod_name, rel, items, is_router=False, prefix="",
+                in_ash=None):
+        """Recurse through do_block bodies tracking the innermost module.
+
+        ``is_router``/``prefix`` drive Phoenix router route extraction with
+        scope prefixes folded; ``in_ash`` is a mutable one-element list flag
+        set by `use Ash.Resource` and read by the attributes/actions/
+        calculations block collector (mirrors the regex path's Ash section).
+        """
+        if in_ash is None:
+            in_ash = [False]
         for child in node.children:
             cur = child
             if cur.type == "unary_operator":
@@ -716,24 +752,118 @@ def scan_elixir_ts(repo):
                 items_out = []
                 if do is not None:
                     body = _first_child(do, "body") or do
-                    collect(body, sub, rel, items_out)
+                    collect(body, sub, rel, items_out, is_router)
                 if items_out:
                     pending.append((sub, items_out))
+                continue
+            # `use Ash.Resource, ...` arms Ash section extraction for the rest
+            # of this module scope (mirrors regex `use Ash.Resource` probe).
+            if target == "use" and (args := _ex_args(cur)) is not None \
+                    and args.text.decode().strip().startswith("Ash.Resource"):
+                in_ash[0] = True
+                ash_item = {
+                    "kind": "ash_resource",
+                    "ident": mod_name,
+                    "signature": "",
+                    "doc": "",
+                    "is_public": True,
+                    "invariants": {},
+                }
+                items.append(ash_item)
+                continue
+            # Ash section blocks: collect entries from direct call children.
+            if in_ash[0] and do is not None and target in ASH_TS_BLOCK_KINDS:
+                body = _first_child(do, "body") or do
+                entries = []
+                for sub in body.children:
+                    if sub.type != "call":
+                        continue
+                    a2 = _ex_args(sub)
+                    name = _ex_first_atom(sub)
+                    if a2 is None or name is None:
+                        continue
+                    t2 = _ex_target(sub)
+                    if target == "attributes":
+                        entries.append(":" + name)
+                    elif target == "calculations":
+                        entries.append(":" + name)
+                    else:
+                        if t2 in ASH_TS_ACTION_KINDS:
+                            entries.append(t2 + ":" + name)
+                ash_items = [it for it in items
+                             if it.get("kind") == "ash_resource"]
+                if ash_items:
+                    ash_items[-1]["invariants"][target] = \
+                        ash_items[-1]["invariants"].get(target, []) + entries
+                continue
+            # Phoenix router: fold scope prefixes; verbs emit route items.
+            if is_router and target == "scope" and do is not None:
+                spath = _ex_first_string(cur)
+                body = _first_child(do, "body") or do
+                collect(body, mod_name, rel, items, is_router,
+                        prefix + (spath or ""), in_ash)
+                continue
+            if is_router and do is None and target in ROUTE_TS_VERBS:
+                rpath = _ex_first_string(cur)
+                if rpath is not None:
+                    rpath = rpath.strip("/")
+                if rpath:
+                    full = (prefix.rstrip("/") + "/" + rpath).strip("/")
+                    items.append({
+                        "kind": "route",
+                        "ident": full,
+                        "signature": target + " /" + rpath,
+                        "doc": "",
+                        "is_public": True,
+                    })
                 continue
             if do is not None and target not in ("def", "defp", "defstruct"):
                 # a non-def call with its own do_block (e.g. `for ... do`)
                 # may contain nested defs; recurse, keep module scope
                 body = _first_child(do, "body") or do
-                collect(body, mod_name, rel, items)
+                collect(body, mod_name, rel, items, is_router, prefix, in_ash)
                 continue
             if target in ("def", "defp", "defmacrop", "defguardp", "defmacro"):
                 args = _ex_args(cur)
-                head = _first_child(args, "call")
+                head = _first_child(args, "call") if args is not None else None
+                if head is None and args is not None:
+                    # `def f(x) when guard, do:` — the head is wrapped in a
+                    # binary_operator (the `when` clause); descend to the call.
+                    bo = _first_child(args, "binary_operator")
+                    head = _first_child(bo, "call") if bo is not None else None
                 if head is None:
+                    # `def f` / `def f\n(a, b) do` — name and args are split
+                    # across two `arguments` nodes (or headless zero arity).
+                    arg_nodes = [c for c in cur.children
+                                 if c.type == "arguments"]
+                    if args is None:
+                        continue
+                    if len(arg_nodes) >= 2:
+                        hname = arg_nodes[0].text.decode().strip()
+                        hargs_text = arg_nodes[1].text.decode().strip("()")
+                    else:
+                        hname = args.text.decode().split(",")[0].strip()
+                        hargs_text = ""
+                        # degenerate multiline head: `def f\n(a, b) do`
+                        # parses as a call + a sibling ERROR node holding
+                        # the paren list; recover arity from its arguments
+                        nxt = cur.next_sibling
+                        if nxt is not None and nxt.type == "ERROR":
+                            for sub in _walk(nxt):
+                                if sub.type == "arguments":
+                                    hargs_text = sub.text.decode().strip("()")
+                                    break
+                    arity = count_args(hargs_text)
+                else:
+                    hname = head.children[0].text.decode()
+                    hargs = _ex_args(head)
+                    arity = count_args(
+                        hargs.text.decode().strip("()") if hargs else ""
+                    )
+                if not hname:
                     continue
-                hname = head.children[0].text.decode()
-                hargs = _ex_args(head)
-                arity = count_args(hargs.text.decode().strip("()")) if hargs else 0
+                if target != "def":
+                    continue
                 if target != "def":
                     continue
                 item = {
@@ -818,7 +948,7 @@ def scan_elixir_ts(repo):
         rel = str(path.relative_to(repo))
         pending = []
         tree = _ts_parser(_ts_elixir).parse(path.read_bytes())
-        collect(tree.root_node, None, rel, [])
+        collect(tree.root_node, None, rel, [], "router" in path.name.lower())
         for name, items in pending:
             emit(name, items, rel)
     return modules, versions
