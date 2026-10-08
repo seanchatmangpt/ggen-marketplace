@@ -147,3 +147,79 @@ Q 0.0096 — v1 metric bugs, see main receipt.)
 Standing: PARTIAL_ALIVE — P2 scope + allowlist are ALIVE end to end on real repos with real
 test evidence; court admission of either repo remains BLOCKED on (a) S_coverage set-coverage
 reimplementation and (b) extractor claim-shape filtering for path/version artifacts.
+
+## Addendum — P3 set-coverage S_coverage + prose-artifact filter (lane hdit-coverage, 2026-10-08)
+
+Landed after P2 (commits 20aadd175 [core, see collision note], 8effc8a5b [extractor]):
+
+1. **S_coverage set semantics (the gated metric)**: `s_coverage_set` now implements the court's
+   stated definition — fraction of public items whose ident (bare / qualified `Module.ident` /
+   arity `ident/2` form) or full signature appears in any claim object. The VSA projection
+   cosine stays as `s_coverage_vsa`, report-only. `vectorize` emits `s_coverage_report` with
+   covered/total and the top-10 uncovered public modules (the remediation list).
+2. **Prose-artifact class**: claim objects that are version strings (`v26.8.23`), path
+   fragments (`release/v26.8.23`, `stream/metrics.ex`, `stage/{id}.jsonl`), CLI flags, or
+   non-identifier prose classify as `ClaimStatus::ProseArtifact` — excluded from Phi and
+   Q_density numerator AND denominator, reported as a count. Primary filter is extractor-side
+   (`gen_doc_surface.py` no longer emits them as symbol claims); the core classifier is
+   defense in depth. Signature-quoted objects (`ignite(fuel: Fuel) -> Spark`) are real symbol
+   references and are not prose.
+3. **Collision note (same-checkout fan-out)**: the P3 core (pack src/tests) was swept into
+   another lane's broad commit 20aadd175 ("certify verb") — my lane's core changes landed
+   inside that commit, not a lane-owned commit. The extractor filter landed as 8effc8a5b with
+   an explicit pathspec.
+
+### Re-run (P3 inputs, re-extracted with the filter, real runs)
+
+```sh
+python3 scripts/gen_doc_surface.py code <repo> > /tmp/hdit/<repo>.code.p3.json
+python3 scripts/gen_doc_surface.py doc  <repo> --code-json /tmp/hdit/<repo>.code.p3.json > /tmp/hdit/<repo>.doc.p3.json
+# merged to inputs schema -> /tmp/hdit/<repo>.inputs.p3.json
+target/release/doc-hdit vectorize /tmp/hdit/<repo>.inputs.p3.json
+target/release/doc-hdit audit /tmp/hdit/<repo>.inputs.p3.json courts/doc_quality.court
+```
+
+| repo | claims | public items | S_coverage (set, gated) | S_coverage_vsa | Phi_halluc | prose_artifacts | Q_density | audit exit |
+|---|---|---|---|---|---|---|---|---|
+| ex4pm (Elixir, 596 modules) | 1032 | 1336 | **0.9693 PASS** | 0.1734 | 0.001976 FAIL | 20 | 0.9980 PASS | 1 (FAIL phantom) |
+| ferroplan (Rust, 224 modules) | 754 | 1693 | **0.2392 FAIL** | 0.2226 | 0.004016 FAIL | 7 | 0.9960 PASS | 1 (FAIL coverage, phantom) |
+
+Audit lines (ex4pm): `PASS coverage 0.9693/0.90`, `FAIL phantom 0.0020/0.0010
+offending_claims=[880, 981]`, `PASS density 0.9980/0.65`.
+Audit lines (ferroplan): `FAIL coverage 0.2392/0.90`, `FAIL phantom 0.0040/0.0010
+offending_claims=[599, 618, 617]`, `PASS density 0.9960/0.65`.
+
+### Findings
+
+- **Set coverage separates the repos the cosine could not.** ex4pm's docs cover 1295/1336
+  public items (0.9693, PASSES 0.90) while the VSA cosine read 0.17 — the cosine measured
+  subspace geometry, not coverage. ferroplan's docs cover 405/1693 (0.2392) — an honest FAIL.
+- **ferroplan remediation list (top uncovered public modules)**: `crucible-publish/compare.rs`
+  (59 uncovered items), `crucible/tui/app.rs` (45), `crucible-publish/promote.rs` (33),
+  `crucible/sweep.rs` (30), `crucible-core/db/read.rs` (27), `ferroplan-cli/harvest/model.rs`
+  (25), `ferroplan-sat/variables.rs` (25), `crucible-core/db/model.rs` (23),
+  `ferroplan-sat/prop/assignment.rs` (22), `crucible-publish/history.rs` (22). The uncovered
+  mass is concentrated in crucible/crucible-publish — docs cover ferroplan's own crates, not
+  the vendored crucible workspace.
+- **The extractor filter killed the P2 residual classes**: the witnessed `release/v26.8.23`
+  and `stream/metrics.ex` claims no longer exist; `prose_artifacts` counts are 20 (ex4pm) /
+  7 (ferroplan) from the core defense classifier — param-table cells dumped as whole
+  sentences and inline code expressions (`applied.len() == rp.len()`) — extractor residue,
+  not hallucination.
+- **Residual Phi (0.0020 / 0.0040) is param-table over-extraction**, not hallucination: the
+  offending claims are whole-sentence table cells captured by `has_param`. Next extractor fix
+  is param-cell shape filtering, not a court change. ex4pm's remaining phantoms ([880, 981])
+  are the same class.
+
+### Verdict per repo
+
+- ex4pm: **FAIL** — Phi 0.001976 > 0.001 (2 param-table artifacts); coverage and density PASS.
+- ferroplan: **FAIL** — coverage 0.2392 < 0.90 (honest: 1288 of 1693 public items
+  undocumented), Phi 0.004016 > 0.001; density PASS.
+
+Standing: PARTIAL_ALIVE — P3 set-coverage gating and the prose filter are ALIVE end to end on
+real repos with real test evidence (`cargo test` 9+0+2 passed / 0 failed at 20aadd175+;
+`pytest tests/test_gen_doc_surface.py` 8 passed at 8effc8a5b). Court admission remains BLOCKED
+on extractor param-cell shape filtering (the only remaining Phi residue) and, for ferroplan,
+on actually documenting 1288 uncovered public items — a documentation defect, not a metric
+artifact.
