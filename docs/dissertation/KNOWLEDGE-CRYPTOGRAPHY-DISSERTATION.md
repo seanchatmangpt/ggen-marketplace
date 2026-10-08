@@ -300,6 +300,15 @@ term's meaning after you consume it. Aliasing severs that chain of custody —
 it is, in the dissertation's terms, a attempt to forge knowledge that
 someone else must keep cryptographic.
 
+A scope note from the lattice-claims audit (v26.10.8 wave,
+`docs/sjira/v26.10.8/SEMANTIC-WAVE-RECEIPT.md`): the deterministic
+execution tiers — orchestration, sandbox, and the manufacture/admission
+kernels — are the surfaces this lattice governs. Fleet-adjacent tooling
+sits **outside** the lattice by design: gymact's Python court harness and
+zcode-cli's TypeScript client surface are verification/consumer tooling,
+not SBB execution surfaces, and their out-of-lattice status is audited
+(2 of 7 major repos), not hidden.
+
 ---
 
 ## Chapter 7 — Kernel Integration and the Admission Boundary
