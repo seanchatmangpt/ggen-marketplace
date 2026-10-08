@@ -50,7 +50,10 @@ pub fn bind(a: &Hv, b: &Hv) -> Hv {
         .collect()
 }
 
-/// Bundle: elementwise sum then sign-of-majority (ties resolve to +1).
+/// Bundle: elementwise sum then sign-of-majority. Ties (sum == 0) are broken
+/// deterministically and *unbiasedly* by dimension parity (popcount parity of
+/// the dimension index), so bundling an even number of near-orthogonal vectors
+/// stays symmetric — no fixed-sign bias toward +1.
 pub fn bundle(vs: &[Hv]) -> Hv {
     let mut acc = vec![0i64; DIM];
     for v in vs {
@@ -58,7 +61,20 @@ pub fn bundle(vs: &[Hv]) -> Hv {
             *a += x;
         }
     }
-    acc.iter().map(|&s| if s < 0 { -1 } else { 1 }).collect()
+    acc.iter()
+        .enumerate()
+        .map(|(j, &s)| match s.cmp(&0) {
+            std::cmp::Ordering::Less => -1,
+            std::cmp::Ordering::Greater => 1,
+            std::cmp::Ordering::Equal => {
+                if j.count_ones() & 1 == 0 {
+                    1
+                } else {
+                    -1
+                }
+            }
+        })
+        .collect()
 }
 
 /// Permute: cyclic rotation by k.

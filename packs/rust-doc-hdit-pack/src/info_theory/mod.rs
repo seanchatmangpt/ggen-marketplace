@@ -45,21 +45,60 @@ impl CodeBasis {
         }
         out
     }
+
+    /// Binarize a real-valued projection back to bipolar (ties by dim parity).
+    pub fn binarize(v: &[f64]) -> Hv {
+        v.iter()
+            .enumerate()
+            .map(|(j, &x)| match x.partial_cmp(&0.0) {
+                Some(std::cmp::Ordering::Less) => -1,
+                Some(std::cmp::Ordering::Greater) => 1,
+                _ => {
+                    if j.count_ones() & 1 == 0 {
+                        1
+                    } else {
+                        -1
+                    }
+                }
+            })
+            .collect()
+    }
 }
 
-/// S_coverage = cosine(H_doc, H_code).
-pub fn s_coverage(h_doc: &Hv, h_code: &Hv) -> f64 {
-    cosine(h_doc, h_code)
+/// S_coverage = cosine(H_doc, P_code(H_doc)): the fraction of the document
+/// vector reproducible from the code surface. A fully grounded document
+/// round-trips exactly (S = 1.0); phantom claims pull it toward 0.
+pub fn s_coverage(h_doc: &Hv, claims: &[Claim], code_basis: &CodeBasis) -> f64 {
+    let projected: Vec<Hv> = claims
+        .iter()
+        .map(|c| CodeBasis::binarize(&code_basis.project(&encode_claim(c))))
+        .collect();
+    let p_code = crate::vsa::bundle(&projected);
+    cosine(h_doc, &p_code)
 }
 
-/// Projection residual: R = H_doc - P_code(H_doc);
-/// Phi = ||R|| / ||H_doc|| (MAP L2 norms; ||H_doc|| = sqrt(D) for bipolar input).
-pub fn projection_residual(h_doc: &Hv, code_basis: &CodeBasis) -> f64 {
-    let p = code_basis.project(h_doc);
-    let mut res2 = 0.0;
-    let mut tot2 = 0.0;
+/// Projection residual through the encoder's bundling structure:
+/// P_code(H_doc) = bundle over claims of binarize(project(claim_i)).
+/// A claim already in the code subspace (grounded) round-trips exactly, so a
+/// fully grounded document has Phi = 0. R = H_doc - P_code(H_doc);
+/// Phi = ||R|| / ||H_doc|| (MAP L2 norms).
+pub fn projection_residual(
+    h_doc: &Hv,
+    claims: &[Claim],
+    code_basis: &CodeBasis,
+) -> f64 {
+    let projected: Vec<Hv> = claims
+        .iter()
+        .map(|c| {
+            let p = code_basis.project(&encode_claim(c));
+            CodeBasis::binarize(&p)
+        })
+        .collect();
+    let p_code = crate::vsa::bundle(&projected);
+    let mut res2 = 0.0f64;
+    let mut tot2 = 0.0f64;
     for i in 0..DIM {
-        let d = (h_doc[i] as f64) - p[i];
+        let d = (h_doc[i] as f64) - (p_code[i] as f64);
         res2 += d * d;
         tot2 += (h_doc[i] as f64) * (h_doc[i] as f64);
     }
@@ -80,10 +119,8 @@ pub fn rank_phantoms(claims: &[Claim], code_basis: &CodeBasis) -> Vec<(usize, f6
         .enumerate()
         .map(|(i, c)| {
             let v = encode_claim(c);
-            let p = code_basis.project(&v);
-            let pv = crate::vsa::norm(&p);
-            let nv = crate::vsa::norm(&v.iter().map(|&x| x as f64).collect::<Vec<f64>>());
-            let align = if nv > 0.0 { pv / nv } else { 0.0 };
+            let p = CodeBasis::binarize(&code_basis.project(&v));
+            let align = cosine(&v, &p);
             (i, align)
         })
         .collect();

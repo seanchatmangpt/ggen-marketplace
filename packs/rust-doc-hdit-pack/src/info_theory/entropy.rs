@@ -23,7 +23,7 @@ pub fn shannon(tokens: &[&str]) -> f64 {
 }
 
 /// A claim is grounded iff every EAV token appears in the code-surface token set.
-pub fn claim_grounded(claim: &Claim, modules: &[CodeModule], tokens: &std::collections::HashSet<String>) -> bool {
+pub fn claim_grounded(claim: &Claim, tokens: &std::collections::HashSet<String>) -> bool {
     tokens.contains(&claim.subject)
         && tokens.contains(&claim.predicate)
         && tokens.contains(&claim.object)
@@ -43,7 +43,7 @@ pub fn mutual_information(claims: &[Claim], modules: &[CodeModule]) -> f64 {
     let h_d = (n as f64).log2();
     let h_dc: f64 = claims
         .iter()
-        .map(|c| if claim_grounded(c, modules, &tokens) { 0.0 } else { 1.0 })
+        .map(|c| if claim_grounded(c, &tokens) { 0.0 } else { 1.0 })
         .sum::<f64>()
         / n as f64;
     h_d - h_dc
