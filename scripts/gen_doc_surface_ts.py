@@ -53,6 +53,15 @@ TS_EXPORT_ENUM = re.compile(
 TS_EXPORT_CONST = re.compile(
     r"^export\s+const\s+([A-Za-z_$][\w$]*)\s*(?::[^=]+)?=", re.M,
 )
+TS_INTERFACE_HEAD = re.compile(
+    r"^export\s+(?:declare\s+)?interface\s+([A-Z][\w$]*)[^{;]*(?=\{)", re.M,
+)
+TS_ENUM_HEAD = re.compile(
+    r"^export\s+(?:declare\s+)?(?:const\s+)?enum\s+([A-Z][\w$]*)[^{;]*(?=\{)", re.M,
+)
+TS_TYPE_ALIAS = re.compile(
+    r"^export\s+(?:declare\s+)?type\s+([A-Z][\w$]*)[^=\n]*=\s*", re.M,
+)
 TS_CLASS_DECL = re.compile(r"^\s*(?:export\s+)?(?:declare\s+)?(?:abstract\s+)?class\s+([A-Z][\w$]*)")
 TS_METHOD = re.compile(
     r"^\s+(?:public\s+|private\s+|protected\s+|readonly\s+|static\s+|"
@@ -172,11 +181,96 @@ def scan_file(path: Path, repo: Path):
             continue
     for m in TS_EXPORT_CONST.finditer(text):
         items.append({"kind": "const", "ident": m.group(1), "signature": m.group(1)})
+    # Populate struct/enum degenerate signatures (kind interface/type/enum).
+    for m in TS_INTERFACE_HEAD.finditer(text):
+        for it in items:
+            if it["kind"] == "interface" and it["ident"] == m.group(1):
+                it["signature"] = ts_members_signature(
+                    "interface", it["ident"], text, m.end()
+                )
+    for m in TS_ENUM_HEAD.finditer(text):
+        for it in items:
+            if it["kind"] == "enum" and it["ident"] == m.group(1):
+                it["signature"] = ts_members_signature(
+                    "enum", it["ident"], text, m.end()
+                )
+    for m in TS_TYPE_ALIAS.finditer(text):
+        for it in items:
+            if it["kind"] == "type" and it["ident"] == m.group(1):
+                it["signature"] = ts_members_signature(
+                    "type", it["ident"], text, m.end()
+                )
     for name, args in scan_class_methods(lines):
         if name not in {i["ident"] for i in items if i["kind"] != "method"}:
             items.append({"kind": "method", "ident": name,
                           "signature": name + args})
     return uniq_items(items), rel
+
+
+def brace_body(text, i):
+    """Balanced `{...}` body following index i, or None (refuses when a
+    `;` separates — bodiless declaration, next `{` belongs elsewhere)."""
+    j = text.find("{", i)
+    if j == -1 or ";" in text[i:j]:
+        return None
+    depth = 0
+    for k in range(j, len(text)):
+        ch = text[k]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[j + 1:k]
+    return None
+
+
+def split_members(body, sep):
+    """Split on top-level `sep` chars (depth-aware over <>(){}[])."""
+    parts, cur, depth = [], [], 0
+    for ch in body:
+        if ch in "<([{":
+            depth += 1
+            cur.append(ch)
+        elif ch in ">)]}":
+            depth = max(0, depth - 1)
+            cur.append(ch)
+        elif ch == sep and depth == 0:
+            parts.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    parts.append("".join(cur))
+    return [p.strip() for p in parts if p.strip()]
+
+
+def ts_members_signature(kind, ident, text, i):
+    """Populate interface/type/enum signatures with their members:
+    `Name { m: T, n?: U }` / `Name { A, B }` / `Name = "a" | "b"`."""
+    body = brace_body(text, i)
+    if body is not None:
+        members = split_members(body, ";" if kind == "interface" else ",")
+        if not members:
+            return ident
+        return ident + " { " + ", ".join(members) + " }"
+    if kind == "type":
+        # non-brace alias: union/primitive RHS up to end of statement
+        # (i is just past `=`); `| ...` continuation lines are folded in.
+        end = len(text)
+        for stop in (";", "\n"):
+            k = text.find(stop, i)
+            if k != -1:
+                end = min(end, k)
+        lines = [text[i:end].strip()]
+        while end < len(text) and text[end:].lstrip().startswith("|"):
+            nl = text.find("\n", end)
+            line = text[end:nl if nl != -1 else len(text)].strip()
+            lines.append(line)
+            end = nl + 1 if nl != -1 else len(text)
+        rhs = " ".join(" ".join(lines).split())
+        if rhs:
+            return ident + " = " + rhs
+    return ""
 
 
 def uniq_items(items):

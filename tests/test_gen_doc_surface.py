@@ -408,6 +408,28 @@ class StructSignatureTest(unittest.TestCase):
         items = self._items(g.extract_code(repo))
         assert items[("type", "mode")]["signature"] == "@type mode :: | :fast | :slow"
 
+    def test_elixir_type_continuation_stops_at_non_matching_row(self):
+        # Pyright reportOptionalMemberAccess at the continuation loop:
+        # ELIXIR_TYPE_CONT.match() returns None on a malformed/terminating
+        # row; the loop must break instead of calling .group() on None.
+        src = (
+            "defmodule Demo.T do\n"
+            "  @type color ::\n"
+            "    | :red\n"
+            "    | :green\n"
+            "    | malformed_row_without_group\n"
+            "  def go(), do: nil\n"
+            "end\n"
+        )
+        repo = mkrepo({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": src,
+        })
+        items = self._items(g.extract_code(repo))
+        assert items[("type", "color")]["signature"] == (
+            "@type color :: | :red | :green | malformed_row_without_group"
+        )
+
     def test_ts_interface_enum_type_signatures(self):
         import gen_doc_surface_ts as ts
         repo = mkrepo({

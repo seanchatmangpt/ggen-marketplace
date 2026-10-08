@@ -89,6 +89,9 @@ RUST_ITEM = re.compile(r"\bpub\s+(struct|enum|trait)\s+([A-Z][A-Za-z0-9_]*)")
 ELIXIR_DEFSTRUCT = re.compile(r"^\s*defstruct\s+(.+)$")
 ELIXIR_TYPE = re.compile(r"^\s*@(type|typep)\s+([a-z_][a-zA-Z0-9_]*)\s*::\s*(.*)$")
 ELIXIR_TYPE_CONT = re.compile(r"^\s*\|\s*(.+)$")
+ELIXIR_DEFSTRUCT = re.compile(r"^\s*defstruct\s+(.+)$")
+ELIXIR_TYPE = re.compile(r"^\s*@(type|typep)\s+([a-z_][a-zA-Z0-9_]*)\s*::\s*(.*)$")
+ELIXIR_TYPE_CONT = re.compile(r"^\s*\|\s*(.+)$")
 CARGO_PACKAGE = re.compile(r'\[package\][^\[]{0,600}?name\s*=\s*"([^"]+)"', re.S)
 CARGO_VERSION = re.compile(r'\[package\][^\[]{0,600}?version\s*=\s*"([^"]+)"', re.S)
 CARGO_WS_VERSION = re.compile(r'\[workspace\.package\][^\[]{0,600}?version\s*=\s*"([^"]+)"', re.S)
@@ -259,6 +262,48 @@ def scan_elixir(repo):
                         "is_public": True,
                     })
                 pending_doc = None
+            tm = ELIXIR_TYPE.match(line)
+            if tm and stack:
+                tname, tbody = tm.group(2), tm.group(3).strip()
+                # `@type t :: ...` unions often continue with `| ...` lines.
+                while i < len(lines):
+                    cm = ELIXIR_TYPE_CONT.match(lines[i])
+                    if cm is None:
+                        break
+                    tbody += " | " + cm.group(1).strip()
+                    i += 1
+                if not tbody.strip():
+                    continue
+                cur["items"].append({
+                    "kind": "type",
+                    "ident": tname,
+                    "signature": "@type " + tname + " :: " + " ".join(tbody.split()),
+                    "doc": "",
+                    "is_public": True,
+                })
+            dm = ELIXIR_DEFSTRUCT.match(line)
+            if dm and stack:
+                body = dm.group(1).strip()
+                if body.startswith("[") and "]" not in body:
+                    while i < len(lines) and "]" not in body:
+                        body += " " + lines[i].strip()
+                        i += 1
+                fields = []
+                for f in split_top(body.strip("[]")):
+                    f = f.strip()
+                    if f.startswith(":"):
+                        fields.append(f[1:])
+                    elif re.match(r"^[a-z_]", f):
+                        fields.append(f)
+                if fields:
+                    cur["items"].append({
+                        "kind": "struct",
+                        "ident": cur["name"],
+                        "signature": "defstruct " + ", ".join(fields),
+                        "doc": pending_doc or "",
+                        "is_public": True,
+                    })
+                pending_doc = None
             fm = ELIXIR_DEF.match(line)
             if fm:
                 args_inner, close_i = def_head_args(lines, i - 1)
@@ -317,6 +362,81 @@ def scan_elixir(repo):
 
 
 # ------------------------------------------------------------------ Rust ---
+
+
+def brace_body(text, i):
+    """Return the balanced `{...}` body following index i, or None.
+
+    Guards: if a `;` appears before the opening brace the construct was
+    bodiless (unit struct / trait method stub) and the next `{` belongs to
+    something else — refuse rather than over-capture.
+    """
+    j = text.find("{", i)
+    if j == -1 or ";" in text[i:j]:
+        return None
+    depth = 0
+    for k in range(j, len(text)):
+        ch = text[k]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[j + 1:k]
+    return None
+
+
+def paren_body(text, i):
+    """Return the balanced `(...)` body following index i, or None."""
+    j = text.find("(", i)
+    if j == -1 or ";" in text[i:j] or "{" in text[i:j]:
+        return None
+    depth = 0
+    for k in range(j, len(text)):
+        ch = text[k]
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                return text[j + 1:k]
+    return None
+
+
+def split_top(s):
+    """Split on top-level commas (depth-aware over <> () [])."""
+    parts, cur, depth = [], [], 0
+    for ch in s:
+        if ch in "<([":
+            depth += 1
+            cur.append(ch)
+        elif ch in ">)]":
+            depth = max(0, depth - 1)
+            cur.append(ch)
+        elif ch == "," and depth == 0:
+            parts.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    parts.append("".join(cur))
+    return [p.strip() for p in parts if p.strip()]
+
+
+def rust_type_signature(kind, ident, text, i):
+    """Populate struct/enum signatures: `Name { field: Type, ... }` /
+    `Name { Variant, ... }`. Returns "" when no body can be recovered.
+    Traits are out of scope (method bodies are not field signatures)."""
+    if kind not in ("struct", "enum"):
+        return ""
+    body = brace_body(text, i)
+    if body is None and kind == "struct":
+        body = paren_body(text, i)  # tuple struct: pub struct Foo(pub A, B);
+    if body is None:
+        return ""
+    members = split_top(body)
+    if not members:
+        return ident
+    return ident + " { " + ", ".join(" ".join(m.split()) for m in members) + " }"
 
 
 def brace_body(text, i):
