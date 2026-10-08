@@ -140,11 +140,38 @@ pub fn rank_phantoms(
 /// Strip a trailing arity suffix (`ident/2`), a trailing call pair
 /// (`ident()`), and any leading module/path qualification
 /// (`Foo.Bar::baz/1` -> `Foo.Bar::baz`, `baz`).
+///
+/// Call-wrapped forms (`plug(XaasWeb.Plugs.AuthenticateOrg)`,
+/// `Code.ensure_loaded?(Xaas.Chicago)`, an unclosed `Map.update(`) resolve to
+/// the wrapped expression's variants, and spec arrow forms
+/// (`change/2 -> changeset`) to the callee's variants — the wrapped/returned
+/// symbol is the code-surface referent. Trailing-slash directory refs
+/// (`receipts/engine_ops/`) gain the slash-stripped form, checked by the
+/// audit against the extractor's `directories` array (exact membership).
+/// Every variant is an exact string derived from the claim object — no
+/// fuzzy matching.
 pub fn symbol_variants(sym: &str) -> Vec<String> {
     let mut out = vec![sym.to_string()];
     let base = sym.trim_end_matches("()").trim_end_matches('/');
     let base = if base.is_empty() { sym } else { base };
     out.push(base.to_string());
+    // call-wrapped form: `plug(Mod.Sub)`, `Mod.run(Arg)` — unwrap to the
+    // argument expression; an unclosed `Mod.fn(` unwraps to the callee.
+    if let Some(open) = base.find('(') {
+        if base.ends_with(')') {
+            out.extend(symbol_variants(&base[open + 1..base.len() - 1]));
+        }
+        out.extend(symbol_variants(&base[..open]));
+    }
+    // spec arrow form: `change/2 -> changeset` — the callee is the referent.
+    if let Some(arrow) = base.find(" -> ") {
+        out.extend(symbol_variants(&base[..arrow]));
+    }
+    // trailing-slash directory ref: `receipts/engine_ops/` -> `engine_ops`
+    // directory path matched against the inputs `directories` array.
+    if let Some(dir) = base.strip_suffix('/') {
+        out.push(dir.to_string());
+    }
     // arity-stripped form: cut at the last '/' when what follows is digits
     if let Some(pos) = base.rfind('/') {
         let (head, tail) = base.split_at(pos);

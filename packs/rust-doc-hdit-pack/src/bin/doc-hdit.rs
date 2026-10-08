@@ -18,6 +18,11 @@ struct Inputs {
     /// Module prefixes of documented external dependencies (P2 allowlist).
     #[serde(default)]
     known_external: Vec<String>,
+    /// Repo directory paths from the extractor's code surface; a
+    /// trailing-slash doc reference (`receipts/engine_ops/`) grounds by exact
+    /// membership here — directory existence, never fuzzy.
+    #[serde(default)]
+    directories: Vec<String>,
 }
 
 /// Gate thresholds parsed from a court file
@@ -149,7 +154,17 @@ fn main() {
     let sc_raw = s_coverage(&h_doc, &inputs.claims, &code_basis_raw);
     // Deterministic exact-match phantom gate (primary); the VSA projection
     // residual stays as a secondary similarity signal (phi_vsa, report-only).
-    let tokens = code_token_set(&inputs.modules);
+    // Directory refs ground by exact membership against the extractor's
+    // `directories` array (both slash forms; symbol_variants strips the
+    // trailing slash on the claim side).
+    let mut tokens = code_token_set(&inputs.modules);
+    for d in &inputs.directories {
+        if d.is_empty() {
+            continue;
+        }
+        tokens.insert(d.clone());
+        tokens.insert(format!("{}/", d));
+    }
     let external = &inputs.known_external;
     let phi = phi_scoped(&inputs.claims, &tokens, external);
     let external_documented = inputs

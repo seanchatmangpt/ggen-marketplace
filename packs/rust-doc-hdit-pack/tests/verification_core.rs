@@ -548,3 +548,86 @@ fn p3_public_scope_and_remediation_list() {
     assert!(!claimed.contains("release"));
     assert!(claimed.contains("release/v26.8.23"));
 }
+
+// --------------------------------- claim-grounding granularity variants ---
+
+#[test]
+fn call_wrapped_forms_unwrap_to_the_referent() {
+    // Witnessed xaas offender: plug(XaasWeb.Plugs.AuthenticateOrg) — the
+    // wrapped module path is the code-surface identifier.
+    let v = doc_hdit::info_theory::symbol_variants("plug(XaasWeb.Plugs.AuthenticateOrg)");
+    assert!(v.iter().any(|s| s == "XaasWeb.Plugs.AuthenticateOrg"));
+    assert!(v.iter().any(|s| s == "AuthenticateOrg"));
+    assert!(v.iter().any(|s| s == "plug"));
+    // Nested call: Code.ensure_loaded?(Xaas.Chicago)
+    let v = doc_hdit::info_theory::symbol_variants("Code.ensure_loaded?(Xaas.Chicago)");
+    assert!(v.iter().any(|s| s == "Xaas.Chicago"));
+    assert!(v.iter().any(|s| s == "Chicago"));
+    // Unclosed call: Map.update(
+    let v = doc_hdit::info_theory::symbol_variants("Map.update(");
+    assert!(v.iter().any(|s| s == "Map.update"));
+    // Spec arrow form (witnessed offender class): change/2 -> changeset.
+    let v = doc_hdit::info_theory::symbol_variants("change/2 -> changeset");
+    assert!(v.iter().any(|s| s == "change/2"));
+    assert!(v.iter().any(|s| s == "change"));
+    // Grounding end-to-end: plug(...) grounds against the wrapped module.
+    let modules = vec![doc_hdit::CodeModule {
+        name: "XaasWeb.Plugs.AuthenticateOrg".into(),
+        is_public: true,
+        items: vec![item("function", "call", true)],
+    }];
+    let tokens = code_token_set(&modules);
+    let claims = vec![claim(
+        "c0",
+        "doc",
+        "mentions",
+        "plug(XaasWeb.Plugs.AuthenticateOrg)",
+    )];
+    assert_eq!(phi_scoped(&claims, &tokens, &[]), 0.0);
+}
+
+#[test]
+fn route_paths_ground_against_router_extracted_items() {
+    // Witnessed xaas offenders: execution/runs, execution/hooks/:event —
+    // exact path membership against router-extracted items (kind "route").
+    let router = doc_hdit::CodeModule {
+        name: "XaasWeb.Router".into(),
+        is_public: true,
+        items: vec![
+            item("route", "execution/runs", true),
+            item("route", "execution/hooks/:event", true),
+        ],
+    };
+    let tokens = code_token_set(&[router.clone()]);
+    assert!(tokens.contains("execution/runs"));
+    assert!(tokens.contains("execution/hooks/:event"));
+    let claims = vec![
+        claim("c0", "doc", "mentions", "execution/runs"),
+        claim("c1", "doc", "mentions", "execution/hooks/:event"),
+    ];
+    assert_eq!(phi_scoped(&claims, &tokens, &[]), 0.0);
+    assert!(!is_prose_artifact("execution/runs"));
+    assert!(!is_prose_artifact("execution/hooks/:event"));
+    // A route that was never extracted stays a phantom.
+    let claims = vec![claim("c2", "doc", "mentions", "execution/nope")];
+    assert_eq!(phi_scoped(&claims, &tokens, &[]), 1.0);
+}
+
+#[test]
+fn trailing_slash_directory_refs_ground_by_dir_membership() {
+    // Witnessed xaas offender class: receipts/engine_ops/ — grounds iff the
+    // directory exists in the extractor's `directories` array (exact
+    // membership; the CLI extends the token set with the dir list).
+    assert!(!is_prose_artifact("receipts/engine_ops/"));
+    // symbol_variants yields the slash-stripped directory path.
+    let v = doc_hdit::info_theory::symbol_variants("receipts/engine_ops/");
+    assert!(v.iter().any(|s| s == "receipts/engine_ops"));
+    let mut tokens = code_token_set(&[]);
+    tokens.insert("receipts/engine_ops".to_string());
+    tokens.insert("receipts/engine_ops/".to_string());
+    let grounded = vec![claim("c0", "doc", "mentions", "receipts/engine_ops/")];
+    assert_eq!(phi_scoped(&grounded, &tokens, &[]), 0.0);
+    // A directory that does not exist stays a phantom.
+    let claims = vec![claim("c1", "doc", "mentions", "fixture/burn_in/")];
+    assert_eq!(phi_scoped(&claims, &tokens, &[]), 1.0);
+}
