@@ -62,6 +62,59 @@ import sys
 SJ_PREFIX = "https://ggen-igniter.dev/ontology/semantic-jira#"
 SHA_RE = re.compile(r"\b[0-9a-f]{7,40}\b")
 
+# The 15-class projection vocabulary, canonical in
+# ggen_igniter:lib/ggen_igniter/semantic_jira.ex (@projection_types).
+PROJECTION_TYPES = [
+    "jira", "wbpr", "prd", "ard", "vision", "fond", "hddl", "sa2a",
+    "a2a_agent_card", "worker", "verification", "executive", "machine",
+    "receipt", "replay",
+]
+
+# Conventional-commit scope/type keyword -> projection type. First match per
+# scope string wins; unmatched scopes keep the default {jira, receipt} floor.
+SCOPE_ALIASES = [
+    ("verification", ("test", "court", "verify", "ci", "gate")),
+    ("hddl", ("hddl", "planning")),
+    ("fond", ("fond", "pddl")),
+    ("sa2a", ("sa2a",)),
+    ("a2a_agent_card", ("a2a",)),
+    ("worker", ("worker", "lane")),
+    ("executive", ("executive", "status")),
+    ("machine", ("machine", "telemetry", "ocel")),
+    ("replay", ("replay",)),
+    ("receipt", ("receipt", "ledger")),
+    ("wbpr", ("wbpr", "working-backwards")),
+    ("prd", ("prd", "requirements")),
+    ("ard", ("ard", "architecture")),
+    ("vision", ("vision",)),
+    ("jira", ("jira", "ticket", "sjira", "doc")),
+]
+
+PROJECTION_META = {
+    "jira": ("Jira/Markdown ticket", "Deterministic jira/markdown ticket projection; authority is NONE."),
+    "wbpr": ("Working-backwards plan", "Deterministic working-backwards plan projection; authority is NONE."),
+    "prd": ("Product requirements document", "Deterministic product requirements document projection; authority is NONE."),
+    "ard": ("Architecture requirements document", "Deterministic architecture requirements document projection; authority is NONE."),
+    "vision": ("Vision document", "Deterministic vision document projection; authority is NONE."),
+    "fond": ("FOND planning projection", "Deterministic fond planning projection; authority is NONE."),
+    "hddl": ("HDDL task/method projection", "Deterministic hddl task/method projection; authority is NONE."),
+    "sa2a": ("SA2A work/execution package", "Deterministic sa2a work/execution package projection; authority is NONE."),
+    "a2a_agent_card": ("A2A agent card", "Deterministic a2a agent card projection; authority is NONE."),
+    "worker": ("Bounded worker input envelope", "Deterministic bounded worker input envelope projection; authority is NONE."),
+    "verification": ("Verification plan", "Deterministic verification plan projection; authority is NONE."),
+    "executive": ("Executive status view", "Deterministic executive status view projection; authority is NONE."),
+    "machine": ("Machine status view", "Deterministic machine status view projection; authority is NONE."),
+    "receipt": ("Receipt requirement summary", "Deterministic receipt requirement summary projection; authority is NONE."),
+    "replay": ("Replay manifest", "Deterministic replay manifest projection; authority is NONE."),
+}
+
+EVIDENCE_FLOOR = [
+    ("source-evidence", "Source evidence", "Exact canonical-source identity evidence."),
+    ("local-execution-evidence", "Local execution evidence", "Observed repository-local exact-subject execution evidence."),
+    ("receipt-evidence", "Receipt evidence", "Durable receipt evidence for the exact subject and transition."),
+    ("replay-evidence", "Replay evidence", "Fresh replay over pack, dependency, graph, consequence, toolchain, and environment identities."),
+]
+
 
 def run_git(repo: str, *args: str) -> str:
     proc = subprocess.run(
@@ -94,6 +147,20 @@ class Order:
         self.identity = first["short"]
         self.title = first["subject"]
         self.base_sha = first["full"]
+        # Unfolded-emission extras (populated in build_orders).
+        self.court_files: list = []      # court artifacts witnessing this order
+        self.witnessed: list = []        # member SHAs cited by receipt artifacts
+        self.dependencies: list = []     # SHAs from Fixes:/Refs: trailers
+        self.projections: list = []      # projection types (15-class vocabulary)
+
+
+def truncate(text: str, limit: int = 400) -> str:
+    """Deterministic word-boundary truncation (never mid-token)."""
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    cut = text[:limit].rsplit(" ", 1)[0]
+    return cut + " ..."
 
 
 def parse_args(argv):
@@ -149,7 +216,7 @@ def campaign_commits(repo: str, version: str):
             repo,
             "log",
             "--no-merges",
-            "--pretty=format:%H%x1f%h%x1f%aI%x1f%s",
+            "--pretty=format:%x1e%H%x1f%h%x1f%aI%x1f%s%x1f%b",
             rev_range,
         )
         if commits.strip():
@@ -161,23 +228,28 @@ def campaign_commits(repo: str, version: str):
 
 
 def parse_commit_lines(text: str):
-    """Parse ``git log --pretty=format:%H%x1f%h%x1f%aI%x1f%s`` output.
+    """Parse ``git log --pretty=format:%x1e%H%x1f%h%x1f%aI%x1f%s%x1f%b`` output.
 
-    Lines with missing/extra fields are skipped (never crash), so a repo
+    Records are separated by \\x1e (so multi-line bodies survive); each record
+    must carry exactly 5 fields or it is skipped (never crash), so a repo
     whose log is empty or malformed yields ``[]``.
     """
     out = []
-    for line in text.splitlines():
-        parts = line.split("\x1f")
-        if len(parts) != 4:
+    for record in text.split("\x1e"):
+        record = record.lstrip("\n")
+        if not record.strip():
             continue
-        full, short, date, subject = parts
+        parts = record.split("\x1f")
+        if len(parts) != 5:
+            continue
+        full, short, date, subject, body = parts
         out.append(
             {
                 "full": full,
                 "short": short,
                 "date": date,
                 "subject": subject,
+                "body": body.strip(),
                 "scope": scope_of(subject),
             }
         )
@@ -201,8 +273,8 @@ def base_sha(repo: str, version: str) -> str:
     return shas[-1] if shas else run_git(repo, "rev-parse", "HEAD").strip()
 
 
-def receipt_text(repo: str, version: str) -> str:
-    """Concatenated text of campaign receipt artifacts (deterministic order)."""
+def receipt_chunks(repo: str, version: str):
+    """Campaign receipt artifacts as sorted (repo-relative path, text) pairs."""
     sjira_dir = os.path.join(repo, "docs/sjira", version)
     chunks = []
     for root, _dirs, files in os.walk(sjira_dir):
@@ -230,11 +302,55 @@ def receipt_text(repo: str, version: str) -> str:
                 except OSError:
                     continue
     chunks.sort(key=lambda c: c[0])
-    return "\n".join(text for _rel, text in chunks)
+    return chunks
+
+
+def receipt_text(repo: str, version: str) -> str:
+    """Concatenated text of campaign receipt artifacts (deterministic order)."""
+    return "\n".join(text for _rel, text in receipt_chunks(repo, version))
+
+
+def court_file_paths(chunks):
+    """Receipt chunks that are court artifacts (name says court, or *.r.json)."""
+    out = []
+    for rel, _text in chunks:
+        base = os.path.basename(rel)
+        if "court" in base.lower() or base.endswith(".r.json"):
+            out.append(rel)
+    return sorted(out)
 
 
 def witnessed_shas(receipts: str):
     return set(SHA_RE.findall(receipts))
+
+
+TRAILER_RE = re.compile(r"^(?:Fixes|Refs|Closes|Resolves):\s*(.+)$", re.MULTILINE)
+
+
+def dependency_shas(commits):
+    """SHAs cited by Fixes:/Refs:/Closes:/Resolves: trailers in commit bodies."""
+    out = set()
+    for c in commits:
+        for trailer in TRAILER_RE.findall(c.get("body") or ""):
+            for token in re.split(r"[,\s]+", trailer.strip()):
+                if SHA_RE.fullmatch(token):
+                    out.add(token)
+    return sorted(out)
+
+
+def projections_for(scope: str):
+    """Map a conventional-commit scope/type to the 15-class projection set.
+
+    Every order carries the {jira, receipt} floor; scope keywords widen it.
+    Output order follows PROJECTION_TYPES (vocabulary-canonical).
+    """
+    low = scope.lower()
+    extra = [
+        ptype for ptype, aliases in SCOPE_ALIASES
+        if any(a in low for a in aliases)
+    ]
+    chosen = {t for t in extra if t in PROJECTION_TYPES} | {"jira", "receipt"}
+    return [t for t in PROJECTION_TYPES if t in chosen]
 
 
 def build_orders(repo, version) -> tuple[str, list]:
@@ -243,6 +359,8 @@ def build_orders(repo, version) -> tuple[str, list]:
     if not commits:
         return "", []
     base = base_sha(repo, version)
+    chunks = receipt_chunks(repo, version)
+    courts = court_file_paths(chunks)
     witnesses = witnessed_shas(receipt_text(repo, version))
     groups: dict = {}
     for c in commits:
@@ -250,14 +368,32 @@ def build_orders(repo, version) -> tuple[str, list]:
     orders = []
     for scope in sorted(groups):
         members = groups[scope]
-        receipt_paths = []
-        standing = "UNKNOWN"
-        for m in members:
-            if m["short"] in witnesses or m["full"] in witnesses:
-                standing = "ALIVE"
-                break
-        orders.append(Order(scope, members, standing, receipt_paths))
+        # Receipt paths witnessing any member commit (deterministic, sorted).
+        order_receipt_paths = []
+        for rel, text in chunks:
+            hits = witnessed_shas(text)
+            if any(m["short"] in hits or m["full"] in hits for m in members):
+                order_receipt_paths.append(rel)
+        witnessed = [
+            m["full"] for m in members
+            if m["short"] in witnesses or m["full"] in witnesses
+        ]
+        order_courts = [rel for rel in courts if rel in order_receipt_paths]
+        deps = dependency_shas(members)
+        orders.append(
+            Order(scope, members, standing_for(witnessed), order_receipt_paths)
+        )
+        o = orders[-1]
+        o.court_files = order_courts
+        o.witnessed = witnessed
+        o.dependencies = deps
+        o.projections = projections_for(scope)
     return base, orders
+
+
+def standing_for(witnessed: list) -> str:
+    """Conservative standing rule (unchanged): ALIVE only on receipt witness."""
+    return "ALIVE" if witnessed else "UNKNOWN"
 
 
 def falsifier_for(repo: str, version: str) -> str:
@@ -312,13 +448,41 @@ def render(repo: str, version: str) -> str:
         w(f'  dcterms:title "{esc(o.scope)} work axis" ;')
         w(f'  sj:standing "{o.standing}" .')
         w("")
+    # EvidenceRequirement floor (unfolded shape, per the zcode seed).
+    for ident, lbl, desc in EVIDENCE_FLOOR:
+        w(f"sj:{ident} a sj:EvidenceRequirement ;")
+        w(f'  rdfs:label "{esc(lbl)}" ;')
+        w(f'  dcterms:description "{esc(desc)}" .')
+        w("")
+    # ProjectionSpec declarations for every projection type used by any order.
+    used_types = sorted({t for o in orders for t in o.projections})
+    for ptype in used_types:
+        plabel, pdesc = PROJECTION_META[ptype]
+        w(f"sj:projection-{ptype} a sj:ProjectionSpec ;")
+        w(f'  rdfs:label "{esc(plabel)}" ;')
+        w(f'  dcterms:description "{esc(pdesc)}" ;')
+        w(f'  sj:projectionType "{ptype}" ;')
+        w(f'  sj:generatorIdentity "gen_workgraph@{version}" ;')
+        w('  sj:authorityClaim "NONE" .')
+        w("")
     # WorkOrders.
     for i, o in enumerate(orders, start=1):
         ident = re.sub(r"[^A-Za-z0-9-]", "-", o.scope)
         oid = f"SJIRA-{version.lstrip('v').replace('.', '')}-{i:03d}"
         w(f"v8:{oid} a sj:WorkOrder ;")
+        w(f'  rdfs:label "{oid}: {esc(truncate(o.title, 120))}" ;')
         w(f'  dcterms:identifier "{oid}" ;')
         w(f'  dcterms:title "{esc(o.scope)} work axis ({len(o.commits)} commit(s))" ;')
+        body_digest = truncate(
+            " ".join(
+                filter(None, ((c.get("body") or "").strip() for c in o.commits))
+            )
+            or f"Conventional-commit axis '{o.scope}': {len(o.commits)} commit(s).",
+            400,
+        )
+        w(f'  dcterms:description "{esc(body_digest)}" ;')
+        w(f'  sj:subject "{esc(label)}:{esc(o.scope)}@{o.identity}" ;')
+        w(f'  sj:promotionRule "Standing may advance only from an independent exact-head court receipt binding this order member SHAs and a durable 5-field receipt." ;')
         w(f'  sj:standing "{o.standing}" ;')
         w(f'  sj:repository "{esc(label)}" ;')
         w(f'  sj:baseSha "{o.base_sha}" ;')
@@ -327,9 +491,43 @@ def render(repo: str, version: str) -> str:
         w(f'  sj:falsifier "{esc(falsifier_for(repo, version))}" ;')
         w('  sj:authorityCeiling "CONSTRUCT" ;')
         w('  sj:evidenceCeiling "Receipt artifacts under docs/sjira/' + version + '/ plus *.r.json court outputs; no runtime DO." ;')
+        # Unfolded emission: projections.
+        if o.projections:
+            w("  sj:projection")
+            w("    " + " ,\n    ".join(f"sj:projection-{t}" for t in o.projections) + " ;")
+        # Unfolded emission: court requirements (witnessed court files only).
+        if o.court_files:
+            court_ident = re.sub(r"[^A-Za-z0-9-]", "-", oid)
+            w(f"  sj:requiresCourt v8:Court-{court_ident} ;")
+        # Unfolded emission: receipt-path evidence requirements.
+        for rel in o.receipt_paths:
+            w(f'  sj:requiresEvidence "{esc(rel)}" ;')
+        # Unfolded emission: receipt SHA citations (witness heuristic).
+        for sha in o.witnessed:
+            w(f'  sj:receipt "{sha}" ;')
+        # Unfolded emission: dependency edges from trailers.
+        for sha in o.dependencies:
+            w(f'  sj:dependency "{esc(sha)}" ;')
         derived = [f"<{gh}/commit/{c['full']}>" for c in o.commits]
         w("  prov:wasDerivedFrom")
         w("    " + " ,\n    ".join(derived) + " .")
+        # Court individual (emitted after the order that requires it).
+        if o.court_files:
+            court_ident = re.sub(r"[^A-Za-z0-9-]", "-", oid)
+            w("")
+            w(f"v8:Court-{court_ident} a sj:Court ;")
+            w(f'  rdfs:label "{court_ident} receipt-witness court" ;')
+            w(f'  dcterms:description "{esc(truncate("Court artifacts witnessing this order: " + ", ".join(o.court_files), 400))}" ;')
+            w(f'  sj:repository "{esc(label)}" ;')
+            w(f'  sj:baseSha "{o.base_sha}" ;')
+            w(f'  sj:acceptance "{esc(subjects)}" ;')
+            w(f'  sj:falsifier "{esc(falsifier_for(repo, version))}" ;')
+            w('  sj:authorityCeiling "CONSTRUCT" ;')
+            w('  sj:evidenceCeiling "Receipt artifacts under docs/sjira/' + version + '/ plus *.r.json court outputs; no runtime DO." ;')
+            w("  prov:wasDerivedFrom")
+            w("    " + " ,\n    ".join(
+                f"<{gh}/blob/main/{rel}>" for rel in o.court_files
+            ) + " .")
         w("")
     return "\n".join(lines) + "\n"
 
@@ -401,13 +599,19 @@ def synthetic_empty_repo_check():
 
 
 def malformed_log_check():
-    """Missing-field log lines are dropped, well-formed ones parsed."""
-    good = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\x1faaaaaaa\x1f2026-10-01T00:00:00Z\x1ffeat(x): ok"
-    parsed = parse_commit_lines("garbage\n" + good + "\nshort\x1fline\n")
+    """Missing-field log records are dropped, well-formed ones parsed."""
+    good = (
+        "\x1eaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\x1faaaaaaa"
+        "\x1f2026-10-01T00:00:00Z\x1ffeat(x): ok\x1fFixes: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+        "Body prose.\n"
+    )
+    parsed = parse_commit_lines("garbage\n" + good + "\n\x1eshort\x1fline\n")
     if len(parsed) != 1:
         return f"expected 1 parsed commit, got {len(parsed)}"
     if parsed[0]["scope"] != "x" or parsed[0]["short"] != "aaaaaaa":
         return f"wrong fields parsed: {parsed}"
+    if dependency_shas(parsed) != ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]:
+        return "Fixes: trailer must yield the dependency SHA"
     if parse_commit_lines("") != []:
         return "empty log must parse to []"
     return None
@@ -446,7 +650,7 @@ def predicate_set(ttl: str):
     for line in ttl.splitlines():
         if line.lstrip().startswith("@") or line.lstrip().startswith("#"):
             continue
-        m = re.match(r"^\s+(?:sj|dcterms|prov|rdfs|rdf):([A-Za-z][A-Za-z0-9]*)\s", line)
+        m = re.match(r"^\s+(?:sj|dcterms|prov|rdfs|rdf):([A-Za-z][A-Za-z0-9]*)(?:\s|$)", line)
         if m:
             preds.add(m.group(0).strip())
     return preds
