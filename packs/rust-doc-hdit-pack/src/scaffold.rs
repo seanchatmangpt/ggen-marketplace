@@ -285,6 +285,34 @@ mod tests {
     }
 
     #[test]
+    fn reference_table_identifiers_are_backtick_wrapped() {
+        let dir = std::env::temp_dir().join(format!("doc-hdit-bt-test-{}", std::process::id()));
+        let tdir = dir.join("templates");
+        let odir = dir.join("docs");
+        std::fs::create_dir_all(&tdir).unwrap();
+        let templates =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("templates");
+        for f in ["reference.md.tera", "how_to.md.tera", "explanation.md.tera"] {
+            std::fs::copy(templates.join(f), tdir.join(f)).unwrap();
+        }
+        scaffold(&surface(), &tdir, &odir).unwrap();
+        let reference = std::fs::read_to_string(odir.join("reference.md")).unwrap();
+        // Identifier cells must be claim-visible (backtick spans) for the
+        // doc-claim scanner, including arity forms if the surface carries them.
+        assert!(reference.contains("| `go` |"), "missing backticked `go`");
+        assert!(reference.contains("| `hi` |"), "missing backticked `hi`");
+        assert!(reference.contains("| `S` |"), "missing backticked `S`");
+        // Every data-row item cell opens with a backtick (no bare identifiers).
+        for line in reference.lines() {
+            if !line.starts_with("| ") || line.starts_with("| Item") || line.starts_with("|--") {
+                continue;
+            }
+            assert!(line.starts_with("| `"), "bare identifier cell: {}", line);
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
     fn merge_keeps_fresh_when_no_existing_blocks() {
         assert_eq!(merge_commentary("A <!-- X --> B", "no markers"), "A <!-- X --> B");
     }
