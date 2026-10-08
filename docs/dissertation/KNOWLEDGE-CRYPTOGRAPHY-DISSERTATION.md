@@ -172,7 +172,7 @@ This is enforced three ways simultaneously (defense in depth, RFC §2
 Invariant 1): OWL `AllDisjointClasses` over
 {`f5ea:SolutionGroup`, `ea:SolutionBuildingBlock`,
 `ea:ArchitectureBuildingBlock`, `ea:ArchitectureContract`}
-(`ontology.ttl`); a SHACL `qualifiedMaxCount 0` on `rdf:type` against those
+(`packs/fortune5-enterprise-architecture-pack/ontology.ttl:60-97`); a SHACL `qualifiedMaxCount 0` on `rdf:type` against those
 classes (`f5ea:SolutionGroupShape`); and `references_only: const true` in
 the manifest schema. The digest pin `ea:exactSubject "sha256:<64hex>"` is
 the cryptographic anchor: standing attaches to an exact subject, never to a
