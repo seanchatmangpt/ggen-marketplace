@@ -110,3 +110,65 @@ each committed and ff-pushed on its checkout branch. No pack shapes change
 was required: every lexical law in `work-order.shacl.ttl` correctly refused
 the defective values; the remaining non-conformance is the documented
 doc-graph vs execution-order style mismatch.
+
+## Round-2 addendum (post-fix court, 2026-10-08)
+
+Re-run of the fleet-wide court after the 12 defect fixes landed in the four
+subject repos, via `scripts/validate_workgraphs.py` (same shapes file, same
+runner, pyshacl 0.31.0).
+
+### Per-repo verdict vs round 1
+
+| repo | conforms | violations | round-1 violations | delta |
+|---|---|---|---|---|
+| ash_a2a | false | 72 | 72 | 0 |
+| ash_affidavit | false | 112 | 112 | 0 |
+| ash_pplan | false | 15 | 15 | 0 |
+| ash_r2rml | false | 90 | 90 | 0 |
+| ash_surface | false | 94 | 94 | 0 |
+| beam4pm | false | 79 | 79 | 0 |
+| castle | false | 11 | 11 | 0 |
+| ex4pm | false | 81 | 81 | 0 |
+| ggen-ecosystem | false | 91 | 91 | 0 |
+| ggen-marketplace | false | 135 | 135 | 0 |
+| xaas | false | 131 | 131 | 0 |
+| zcode-cli | false | 25 | 25 | 0 |
+
+Every remaining violation is `style-mismatch` (doc-graph vs execution-order
+shape expectation): closed-shape extra doc properties, deliberately omitted
+court fields, literal-vs-IRI node kinds, and receipt-citing SPARQL constraints
+whose receipts live in code files, not the graph. Zero defect-class
+violations remain. The violation counts are unchanged from round 1 because
+the 12 fixes replaced lexically-defective values with lexically-valid ones —
+the fixed fields were never counted in the defect bucket in round 1 either
+(they passed SHACL lexically and were caught by git-ref/GitHub resolution,
+per "Defect classes the shapes cannot catch" above).
+
+### Fix retention check (all 12 on disk, verified 2026-10-08)
+
+| repo | subject | fix | on disk |
+|---|---|---|---|
+| ash_surface | WO-ASHSURF-26108-2 | full 40-hex baseSha `68f77041b885619dc65cc9b5fecd521f4667ad97` | yes |
+| ggen-marketplace | V8-002 | `20aadd1756d777ec3c8cf7729ad6f867366a855a` | yes |
+| ggen-marketplace | V8-003 | `ff9ff8284cae5aa84932e2684b577c3b637abb12` | yes |
+| ggen-marketplace | V8-004 | base `e987f3717fead9b2f503a049bb39b49ae88b02d3`; slug repository; prov re-pointed | yes |
+| ggen-marketplace | V8-005 | tag-object `e890a55ca47ba031d53028921c72d78125689624`; falsifier `v26.10.8` | yes |
+| ggen-marketplace | V8-006 | `2ad88900b73708ddff6250bc64fe34e481fdc953` | yes |
+| zcode-cli | zcode-26108-01 | `89265187b387047ef887603df6ba6010ccf9cd1f` (resolves: commit) | yes |
+| zcode-cli | zcode-26108-02 | `aa0d359ed54e01a703516b162314241db282309b` (resolves: commit) | yes |
+| zcode-cli | zcode-26108-01..05 | ceiling `CONSTRUCT` x5 (no `"DO"` string remains) | yes |
+| ggen-ecosystem | SJIRA-GGE-2601..2605 | standing `UNKNOWN` x5 (no `"CANDIDATE"` value remains; only the DISCLAIMER prose mentions it) | yes |
+
+The two previously fabricated SHAs (zero-padded zcode pair) and the
+previously nonexistent V8-004 base now resolve as real git objects
+(`git cat-file -t`: commit/commit; `v26.10.8^{commit}` =
+`2ad88900b73708ddff6250bc64fe34e481fdc953`). Residual grep hits for
+`5cc37aea` are disclosure prose in the V8-004 acceptance text and a trailing
+comment, not field values.
+
+### Classification of anything new
+
+Nothing new: delta = 0 violations in every repo, and no new violation class
+beyond the four documented doc-graph style buckets. Round-3 admission
+verdict: **ADMITTED** — all 12 graphs at doc-graph-style-only non-conformance,
+all 12 defect fixes retained, no regression introduced by the fix wave.
