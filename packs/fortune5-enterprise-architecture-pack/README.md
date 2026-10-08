@@ -67,11 +67,15 @@ queries/
   170       manifest -> f5ea:SolutionGroup CONSTRUCT lifting
 templates/
   aws-sbb.tf.tera  gcp-sbb.tf.tera  azure-sbb.tf.tera
+scripts/
+  gen_resource_graph.py
 tests/
   test_dod9_fences.py
   test_qualification_ladder.py
   test_provider_templates.py
   test_conformance_vectors.py
+  test_resource_graph.py
+  fixtures/{aws,gcp,azure}_sbb.rendered.tf
 ```
 
 ## Architecture: three pairwise-disjoint subcategories
@@ -190,6 +194,10 @@ python3 -m pytest packs/fortune5-enterprise-architecture-pack/tests/test_dod9_fe
 python3 -m pytest packs/fortune5-enterprise-architecture-pack/tests/test_qualification_ladder.py -v
 python3 -m pytest packs/fortune5-enterprise-architecture-pack/tests/test_provider_templates.py -v
 python3 -m pytest packs/fortune5-enterprise-architecture-pack/tests/test_conformance_vectors.py -v
+python3 -m pytest packs/fortune5-enterprise-architecture-pack/tests/test_resource_graph.py -v
+python3 packs/fortune5-enterprise-architecture-pack/scripts/gen_resource_graph.py \
+  --provider aws \
+  --input packs/fortune5-enterprise-architecture-pack/tests/fixtures/aws_sbb.rendered.tf
 ```
 
 Each command runs real gates against real files on disk (Chicago discipline:
