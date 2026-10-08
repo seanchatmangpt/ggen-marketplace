@@ -573,13 +573,6 @@ def court_node_id(oid: str, k: int) -> str:
     return f"v8:Court-{oid}-{k:02d}"
 
 
-def falsifier_for(repo: str, version: str) -> str:
-    cmd = detect_falsifier(repo)
-    if "{version}" in cmd:
-        return cmd.format(version=version)
-    return f"{cmd}  # expect exit 0 at HEAD; a failure at the cited SHAs refutes"
-
-
 # The 16 keys `GgenIgniter.SemanticJira.admit_work_order/1` requires
 # (@required, ggen_igniter:lib/ggen_igniter/semantic_jira.ex). One of these
 # missing means the kernel refuses the line; the emitter is total over them.
@@ -969,6 +962,12 @@ def selftest(repos, version):
         return 1
     print("[ok] none rev_range leg: tagless pathspec campaign + explicit "
           "None into commit_files_map behave identically to the default")
+    modes_fail = all_modes_leg()
+    if modes_fail:
+        print(f"[FAIL] all emission modes leg: {modes_fail}")
+        return 1
+    print("[ok] all emission modes leg: ttl + jsonl in one invocation, "
+          "cross-consistent subjects, 16-key candidates")
     for repo in repos:
         version = version or detect_version(repo)
         if not version:
@@ -1322,6 +1321,67 @@ def none_rev_range_leg():
         if not orders:
             return "tagless build_orders emitted no work orders"
         return None
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def all_modes_leg():
+    """Post-union integration leg: BOTH emission modes (ttl + jsonl) through
+    the real CLI dispatch (main()) in one selftest invocation, on one synthetic
+    campaign, asserted cross-consistent — the integrated whole, not each
+    emitter in isolation."""
+    import contextlib
+    import io
+    import shutil
+    import tempfile
+
+    tmp = tempfile.mkdtemp(prefix="gen_workgraph_all_modes_")
+    try:
+        make_synth_repo(tmp)
+        ver = "v26.10.8"
+        ttl_path = os.path.join(tmp, "_out.ttl")
+        jsonl_path = os.path.join(tmp, "_out.jsonl")
+
+        def run_main(extra):
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                rc = main(
+                    ["--repo", tmp, "--version", ver, *extra])
+            return rc, buf.getvalue()
+
+        rc_ttl, _ = run_main(["--emit", "ttl", "--out", ttl_path])
+        if rc_ttl != 0:
+            return f"ttl mode exited {rc_ttl}"
+        rc_jsonl, _ = run_main(["--emit", "jsonl", "--out", jsonl_path])
+        if rc_jsonl != 0:
+            return f"jsonl mode exited {rc_jsonl}"
+        with open(ttl_path, encoding="utf-8") as fh:
+            ttl = fh.read()
+        with open(jsonl_path, encoding="utf-8") as fh:
+            jsonl = fh.read()
+        if not ttl.strip() or not jsonl.strip():
+            return "an emission mode produced empty output"
+        if "a sj:WorkOrder" not in ttl:
+            return "ttl mode emitted no sj:WorkOrder"
+        # Cross-mode consistency: every jsonl identity appears in the ttl
+        # as the same sj:subject "<label>:<scope>@<identity>".
+        subjects = []
+        for line in jsonl.splitlines():
+            c = json.loads(line)
+            missing = [k for k in CANDIDATE_REQUIRED_KEYS if k not in c]
+            if missing:
+                return f"candidate {c.get('identity')} missing keys: {missing}"
+            if c["standing"] != "UNKNOWN":
+                return f"candidate {c['identity']} standing != UNKNOWN"
+            subjects.append(c["subject"])
+        if not subjects:
+            return "jsonl mode emitted no candidates"
+        for s in subjects:
+            if f'sj:subject "{s}"' not in ttl:
+                return f"jsonl subject {s} absent from ttl projection"
+        return None
+    except Exception as exc:  # noqa: BLE001 - selftest legs surface any failure
+        return f"unexpected failure: {exc}"
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
