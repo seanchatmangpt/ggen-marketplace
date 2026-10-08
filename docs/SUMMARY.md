@@ -129,6 +129,7 @@
 - [Defense dossier: claims, evidence, falsifiers, and proof debt](thesis/11-defense-dossier.md)
 - [Level-5 maturity, Diátaxis correspondence, and class closure](thesis/12-level5-maturity-and-class-closure.md)
 - [The Autonomous Semantic Utility: Commercial Realization, Zero-Drift Swarms, and the Industrialization of Enterprise AI on Google Cloud](thesis/AUTONOMOUS_SEMANTIC_UTILITY_THESIS.md)
+- [Categorical Foundations of Knowledge Cryptography (doctoral dissertation)](dissertation/KNOWLEDGE-CRYPTOGRAPHY-DISSERTATION.md)
 
 # Research appendices
 
@@ -197,3 +198,4 @@
 - [Why the composition solver is bounded](explanation/why-the-composition-solver-is-bounded.md)
 - [Reference: Fleet documentation map](reference/FLEET-DOC-MAP.md)
 - [Reference: Fleet semantic map](reference/FLEET-SEMANTIC-MAP.md)
+- [Reference: Fortune 5 EA-as-Code pack](reference/FORTUNE5-EA-PACK.md)
