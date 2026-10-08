@@ -241,3 +241,33 @@ python3 -c "import json;ls=[json.loads(l) for l in open('/Users/sac/ggen-marketp
 # ownership map
 grep -c 'ownsCapability' /Users/sac/castle/docs/sjira/v26.9.28/repos.ttl
 ```
+
+## Card Validation (2026-10-08)
+
+Fleet-wide validation via `scripts/validate_agent_cards.py` (read cards from
+each owning repo's canonical checkout; wasm4pm falls back to its card branch
+`docs/sa2a-actuator-agent-card-v2` when its land is not in the worktree).
+
+Contract: required `name`/`description`/`version`/`skills[]`
+(id/name/description/tags nonempty)/`supportedInterfaces[0].protocolVersion`;
+forbidden top-level `url`/`preferredTransport`; skill ids
+`<tool>.<cluster>.<verb>`-ish (>=2 dot segments, `[A-Za-z0-9_-]` + trailing
+`?`/`!` for Elixir predicates); authority statement required in description.
+
+Result: 69 cards, 0 violations, all 8 repos PASS. Violations found and fixed
+in the owning repos via their generators, then regenerated (no hand edits to
+generated output):
+
+| repo | cards | violations found | fix | commit |
+|---|---|---|---|---|
+| castle | 1 | 0 | none needed | 0244c82 (already compliant) |
+| graphlaw (ash_graphlaw) | 14 | 0 | none needed | — |
+| ex4pm | 9 | 27 | add version/supportedInterfaces/tags (gen_agent_cards.py) | 6758bd7 |
+| ferroplan | 38 | 114 | add version/supportedInterfaces/skills[] (gen_capability_cards.py) | 84a6289 |
+| ash_a2a | 1 | 1 | authority statement (mix ash_a2a.self_card) | b40abf82 |
+| ash_surface | 1 | 2 | drop top-level url, authority statement | 57c0100f0 |
+| gymact | 4 | landed by sibling lane | a113a939 + 6204b636 | — |
+| wasm4pm | 1 | 2 | drop url, add supportedInterfaces (card branch) | 070c5e96f |
+
+Re-run: `python3 scripts/validate_agent_cards.py` (exit 0 iff every repo PASS;
+ABSENT lands fail closed).
