@@ -25,10 +25,9 @@ from pyshacl import validate
 from rdflib import Graph, URIRef
 
 HOME = Path.home()
-SHAPES = (
-    HOME
-    / "ggen_igniter/priv/ggen/semantic-jira-pack/shapes/work-order.shacl.ttl"
-)
+PACK_SHAPES = HOME / "ggen_igniter/priv/ggen/semantic-jira-pack/shapes"
+SHAPES = PACK_SHAPES / "work-order.shacl.ttl"
+GC_SHAPES = PACK_SHAPES / "goal-checkpoint.shacl.ttl"
 
 TARGETS = [
     # (repo, graph path)
@@ -98,7 +97,14 @@ def run_one(repo: str, rel: str) -> dict:
     if not path.exists():
         return {"repo": repo, "path": str(path), "missing": True}
     data = load_graph(path)
-    shapes = load_graph(SHAPES)
+    # Goal-graph style detection: a graph whose subjects are (exclusively)
+    # sj:GoalCheckpoint nodes is a goal.ttl-style doc graph — validate it
+    # against the closed GoalCheckpoint shape, not the work-order shape.
+    rdf_type = URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
+    wo = set(data.subjects(rdf_type, URIRef(f"{SJ}WorkOrder")))
+    gc = set(data.subjects(rdf_type, URIRef(f"{SJ}GoalCheckpoint")))
+    shape_path = GC_SHAPES if (gc and not wo) else SHAPES
+    shapes = load_graph(shape_path)
     conforms, results_graph, results_text = validate(
         data_graph=data,
         shacl_graph=shapes,
@@ -122,12 +128,10 @@ def run_one(repo: str, rel: str) -> dict:
             violations.append((focus, path_, value, msg))
             focus = path_ = value = None
     counts = Counter(classify(msg) for *_, msg in violations)
-    rdf_type = URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
-    wo = set(data.subjects(rdf_type, URIRef(f"{SJ}WorkOrder")))
-    gc = set(data.subjects(rdf_type, URIRef(f"{SJ}GoalCheckpoint")))
     return {
         "repo": repo,
         "path": str(path),
+        "shapes": str(shape_path),
         "conforms": bool(conforms),
         "violations": violations,
         "class_counts": dict(counts),
