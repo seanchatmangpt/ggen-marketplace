@@ -518,7 +518,7 @@ def cell_candidates(cell):
 
 
 def table_claims(rel, header, cells, syms):
-    header_low = [c.lower() for c in header]
+    header_low = [c.lower() for c in header] if header else []
     fi = next((i for i, c in enumerate(header_low)
                if "function" in c or "signature" in c), None)
     pi = next((i for i, c in enumerate(header_low) if "param" in c), None)
@@ -609,18 +609,32 @@ def extract_doc(repo, surface, docs_dirs=None):
                         "object": hits[0],
                         "kind": "fenced:" + (lang or "text"),
                     })
-            header = None
-            for line in text.splitlines():
+            # markdown pipe tables: a header row is only a header when followed
+            # by a `|---|` separator row; headerless generated tables (one `|`
+            # row per blank-line-separated block) yield mentions from every
+            # data row with header=None.
+            table_block = []
+            for line in text.splitlines() + [""]:
                 if line.strip().startswith("|"):
-                    cells = [c.strip() for c in line.strip().strip("|").split("|")]
-                    if all(re.fullmatch(r":?-+:?", c) for c in cells if c):
-                        continue
-                    if header is None:
-                        header = cells
-                        continue
-                    claims.extend(table_claims(rel, header, cells, syms))
-                else:
+                    table_block.append(line)
+                    continue
+                if table_block:
+                    rows = []
+                    seps = set()
+                    for j, tl in enumerate(table_block):
+                        cells = [c.strip() for c in tl.strip().strip("|").split("|")]
+                        if all(re.fullmatch(r":?-+:?", c) for c in cells if c):
+                            seps.add(j)
+                            continue
+                        rows.append((j, cells))
                     header = None
+                    if (len(rows) >= 2 and rows[0][0] + 1 in seps
+                            and rows[1][0] == rows[0][0] + 2):
+                        header = rows.pop(0)[1]
+                    for _, cells in rows:
+                        claims.extend(table_claims(rel, header, cells, syms))
+                    table_block = []
+                # non-pipe line: block ended; header re-derived per block
     claims.sort(key=lambda c: (c["subject"], c["predicate"], json.dumps(c["object"], sort_keys=True)))
     return {"repo": repo.name, "doc_roots": [str(r) for r in roots], "claims": claims}
 
