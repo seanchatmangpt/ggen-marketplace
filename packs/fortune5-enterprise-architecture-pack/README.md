@@ -147,6 +147,28 @@ inherited.
 | `templates/gcp-sbb.tf.tera` | CMEK (KMS keys reference the key ring), no public IP, no-public-ingress org policy default | GKE Enterprise fleet, Shared VPC, PSC, CMEK, Org Policies | `queries/130-gcp-sbb-select.rq`, `queries/140-cmek-and-private-connectivity.rq` |
 | `templates/azure-sbb.tf.tera` | NIST SP 800-53 Rev 5: every resource carries `f5ea:controlMapping` covering AC-2, SC-28, CM-6 | Management Groups, Virtual WAN, Guest Configuration, Dedicated HSM, Confidential Computing | `queries/150-azure-nist-800-53-rev5.rq`, `queries/160-azure-sbb-select.rq` |
 
+## Resource-graph regeneration loop
+
+The gates (`120`/`140`/`150`) evaluate an `f5ea:` resource-description
+graph, and that graph is manufactured, not hand-maintained:
+`scripts/gen_resource_graph.py` parses the rendered `.tf` bodies (e.g.
+`tests/fixtures/*_sbb.rendered.tf`) and emits deterministic sorted Turtle:
+
+- `aws` → enumerated `f5ea:iamAction` values (no wildcards) plus air-gap
+  parity flags from VPC endpoints;
+- `gcp` → `f5ea:hasCmekKey` on storagelike resources and
+  `f5ea:ingressMode` (`psc`/`none`) on servicelike resources;
+- `azure` → `f5ea:controlMapping` AC-2 / SC-28 / CM-6 on every resource.
+
+```bash
+python3 packs/fortune5-enterprise-architecture-pack/scripts/gen_resource_graph.py \
+  --provider aws --input packs/fortune5-enterprise-architecture-pack/tests/fixtures/aws_sbb.rendered.tf
+```
+
+`tests/test_resource_graph.py` runs the full loop — fixture → generated
+graph → gate — for each provider, plus mutation checks proving each gate
+fails on an injected violation (non-vacuous, fail-closed).
+
 ## Test vectors (TV-01..TV-05)
 
 `tests/test_conformance_vectors.py` runs the pack's real SPARQL gates via
