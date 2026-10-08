@@ -1,0 +1,21 @@
+# ASK gate, fail-closed (true = PASS): every AWS realization qualifies —
+# no "*" iamAction anywhere in the graph, every resource has at least one
+# enumerated action, and both air-gap parity flags are true.
+PREFIX f5ea: <https://ggen.io/ontology/fortune5-enterprise-architecture#>
+ASK {
+  FILTER NOT EXISTS {
+    ?r a f5ea:Realization ;
+       f5ea:providerVariant "aws" .
+    FILTER NOT EXISTS {
+      ?r f5ea:airGapParityEgress true ;
+         f5ea:airGapParityAudit true .
+    }
+  }
+  FILTER NOT EXISTS {
+    ?res a f5ea:SbbResource ; f5ea:iamAction "*" .
+  }
+  FILTER EXISTS {
+    ?r2 a f5ea:Realization ; f5ea:providerVariant "aws" ; f5ea:hasResource ?res2 .
+    ?res2 f5ea:iamAction ?a . FILTER(?a != "*")
+  }
+}

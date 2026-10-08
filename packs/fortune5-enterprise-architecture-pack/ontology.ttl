@@ -1,0 +1,159 @@
+# fortune5-enterprise-architecture-pack — pack-local vocabulary (f5ea:)
+#
+# Hygiene law (docs/reference/industry-closure-contract.md:22): ZERO ea:/
+# togaf:/eap:/eom: terms are declared here. Every ea: IRI below appears only
+# as an rdfs:range / sh:class / owl:disjointWith target — consumption by IRI.
+# Semantic owner of ea: terms: seanchatmangpt/chatman-ecosystem#296
+# (precedent: packs/enterprise-architecture-pack/ontology.ttl:12-15).
+
+@prefix f5ea: <https://ggen.io/ontology/fortune5-enterprise-architecture#> .
+@prefix ea:   <https://chatman.ai/ontology/enterprise-architecture#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+f5ea: a owl:Ontology ;
+  dcterms:title "Fortune 5 enterprise architecture: heterogeneous SBB realization groups" ;
+  dcterms:license <https://opensource.org/licenses/UNLICENSED> ;
+  f5ea:authority "NONE" ;             # mirrors enterprise-architecture-pack/ontology.ttl:14
+  f5ea:authorityCeiling "SELECT" .    # mirrors enterprise-architecture-pack/ontology.ttl:15
+
+# =====================================================================
+# Solution groups — clustering of heterogeneous SBB realizations
+# =====================================================================
+
+f5ea:SolutionGroup a owl:Class ;
+  rdfs:subClassOf prov:Entity ;
+  rdfs:comment "A pack-local clustering of heterogeneous ea:SolutionBuildingBlock individuals (guest, host, network, verification domains). A group REFERENCES SBBs; it is never itself an ABB, SBB, contract or authority boundary (RFC DoD #9: 'Never make Pack == ABB or Pack == SBB')." .
+
+f5ea:GuestDomainGroup a owl:Class ; rdfs:subClassOf f5ea:SolutionGroup .
+f5ea:HostDomainGroup a owl:Class ; rdfs:subClassOf f5ea:SolutionGroup .
+f5ea:NetworkDomainGroup a owl:Class ; rdfs:subClassOf f5ea:SolutionGroup .
+f5ea:VerificationDomainGroup a owl:Class ; rdfs:subClassOf f5ea:SolutionGroup .
+
+# Primary membership link: group -> SBB individual. Pack-local property;
+# ea:SolutionBuildingBlock appears as an existing term consumed by IRI.
+f5ea:groupsSBB a owl:ObjectProperty ;
+  rdfs:domain f5ea:SolutionGroup ;
+  rdfs:range ea:SolutionBuildingBlock .
+
+# Read-only projection: computed from members' own ea:satisfiesABB links;
+# confers nothing by itself.
+f5ea:groupTargetsABB a owl:ObjectProperty ;
+  rdfs:domain f5ea:SolutionGroup ;
+  rdfs:range ea:ArchitectureBuildingBlock .
+
+f5ea:groupKey a owl:DatatypeProperty ;
+  rdfs:domain f5ea:SolutionGroup ;
+  rdfs:range xsd:string .
+
+f5ea:authority a owl:DatatypeProperty ;
+  rdfs:domain owl:Ontology ; rdfs:range xsd:string .
+
+f5ea:authorityCeiling a owl:DatatypeProperty ;
+  rdfs:domain owl:Ontology ; rdfs:range xsd:string .
+
+# ---- DoD #9 fence axioms (OWL form) --------------------------------
+[] a owl:AllDisjointClasses ;
+  owl:members ( f5ea:SolutionGroup
+                ea:SolutionBuildingBlock
+                ea:ArchitectureBuildingBlock
+                ea:ArchitectureContract ) .
+
+# ---- DoD #9 fence axioms (SHACL form) ------------------------------
+f5ea:SolutionGroupShape a sh:NodeShape ;
+  sh:targetClass f5ea:SolutionGroup ;
+  sh:closed true ;
+  sh:property [
+    sh:path f5ea:groupKey ;
+    sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ;
+  ] ;
+  sh:property [
+    sh:path f5ea:groupsSBB ;
+    sh:minCount 1 ;
+    sh:class ea:SolutionBuildingBlock ;
+    sh:severity sh:Violation ;
+  ] ;
+  sh:property [
+    sh:path f5ea:groupTargetsABB ;
+    sh:class ea:ArchitectureBuildingBlock ;
+    sh:severity sh:Violation ;
+    sh:message "groupTargetsABB is a read-only projection of members' ea:satisfiesABB; it confers no coverage." ;
+  ] ;
+  sh:property [
+    sh:path rdf:type ;
+    sh:qualifiedValueShape [ sh:in ( ea:SolutionBuildingBlock
+                                     ea:ArchitectureBuildingBlock
+                                     ea:ArchitectureContract
+                                     ea:AuthorityBoundary ) ] ;
+    sh:qualifiedMaxCount 0 ;
+    sh:severity sh:Violation ;
+    sh:message "DoD #9: a SolutionGroup references SBBs; it is never itself an ABB, SBB, contract or authority boundary." ;
+  ] ;
+  sh:severity sh:Violation .
+
+# =====================================================================
+# Realization / resource-description vocabulary
+# (consumed by templates/ frontmatter SPARQL and queries/ gates)
+# =====================================================================
+
+f5ea:Realization a rdfs:Class ;
+  rdfs:comment "One rendered SBB realization unit (per provider projection)." .
+
+f5ea:SbbResource a rdfs:Class ;
+  rdfs:comment "A rendered Terraform resource description attached to a realization." .
+
+f5ea:sbbId a rdf:Property ; rdfs:domain f5ea:Realization ; rdfs:range xsd:string .
+f5ea:sbbSlug a rdf:Property ; rdfs:domain f5ea:Realization ; rdfs:range xsd:string .
+f5ea:sbbDomain a rdf:Property ; rdfs:domain f5ea:Realization ; rdfs:range xsd:string .
+  # one of "guest" | "host" | "network" | "verification"
+f5ea:providerVariant a rdf:Property ; rdfs:domain f5ea:Realization ; rdfs:range xsd:string .
+  # closed universe: "aws" | "azure" | "gcp" (ggen-cli/src/cmds/bblock.rs:212)
+f5ea:exactSubject a rdf:Property ; rdfs:domain f5ea:Realization ; rdfs:range xsd:string .
+  # qualification pin "sha256:<64 lowercase hex>" — mirrors ea:exactSubject usage
+  # (packs/enterprise-architecture-pack/ontology.ttl:29,34); never re-declared as an ea: term.
+f5ea:region a rdf:Property ; rdfs:domain f5ea:Realization ; rdfs:range xsd:string .
+f5ea:managementGroupId a rdf:Property ; rdfs:domain f5ea:Realization ; rdfs:range xsd:string .
+f5ea:vwanId a rdf:Property ; rdfs:domain f5ea:Realization ; rdfs:range xsd:string .
+f5ea:fleetHostProject a rdf:Property ; rdfs:domain f5ea:Realization ; rdfs:range xsd:string .
+f5ea:serviceProject a rdf:Property ; rdfs:domain f5ea:Realization ; rdfs:range xsd:string .
+f5ea:orgId a rdf:Property ; rdfs:domain f5ea:Realization ; rdfs:range xsd:string .
+f5ea:keyringLocation a rdf:Property ; rdfs:domain f5ea:Realization ; rdfs:range xsd:string .
+f5ea:pscSubnet a rdf:Property ; rdfs:domain f5ea:Realization ; rdfs:range xsd:string .
+f5ea:subnetSelfLink a rdf:Property ; rdfs:domain f5ea:Realization ; rdfs:range xsd:string .
+
+f5ea:hasResource a rdf:Property ; rdfs:domain f5ea:Realization ; rdfs:range f5ea:SbbResource .
+f5ea:hasStanding a rdf:Property ; rdfs:domain f5ea:Realization ; rdfs:range rdfs:Resource .
+  # values are the canonical ea: standing individuals (ea:CANDIDATE, ea:QUALIFIED),
+  # consumed by IRI — the realization mirrors its qualifying SBB's standing;
+  # it never asserts standing on behalf of an ea: individual.
+f5ea:resourceClass a rdf:Property ; rdfs:domain f5ea:SbbResource ; rdfs:range xsd:string .
+  # "storagelike" | "servicelike" | "policylike"
+f5ea:resourceType a rdf:Property ; rdfs:domain f5ea:SbbResource ; rdfs:range xsd:string .
+f5ea:terraformType a rdf:Property ; rdfs:domain f5ea:SbbResource ; rdfs:range xsd:string .
+f5ea:terraformName a rdf:Property ; rdfs:domain f5ea:SbbResource ; rdfs:range xsd:string .
+f5ea:iamAction a rdf:Property ; rdfs:domain f5ea:SbbResource ; rdfs:range xsd:string .
+  # one ENUMERATED action per triple (e.g. "s3:GetObject"); "*" is forbidden
+  # (zero-wildcard IAM law, gates/030-zero-wildcard-iam.rq).
+f5ea:hasCmekKey a rdf:Property ; rdfs:domain f5ea:SbbResource .
+  # REQUIRED on storagelike resources.
+f5ea:ingressMode a rdf:Property ; rdfs:domain f5ea:SbbResource ; rdfs:range xsd:string .
+  # REQUIRED on servicelike: "psc" | "none"; "public" refused.
+f5ea:aaifDomain a rdf:Property ; rdfs:domain f5ea:SbbResource ; rdfs:range xsd:string .
+  # "host" | "network" | "guest" | "verification"
+f5ea:controlMapping a rdf:Property ; rdfs:domain f5ea:SbbResource ; rdfs:range xsd:string .
+  # NIST SP 800-53 Rev 5 control id (e.g. "AC-2", "SC-28", "CM-6");
+  # required on every f5ea:SbbResource (gates/030-nist-800-53-rev5-attributes.rq).
+f5ea:airGapParityEgress a rdf:Property ; rdfs:range xsd:boolean .
+f5ea:airGapParityAudit a rdf:Property ; rdfs:range xsd:boolean .
+f5ea:hasGuestConfigurationAssignment a rdf:Property ; rdfs:domain f5ea:Realization .
+f5ea:initiativeName a rdf:Property ; rdfs:range xsd:string .
+f5ea:assignmentName a rdf:Property ; rdfs:range xsd:string .
+f5ea:hasCmekKeyMember a rdf:Property ; rdfs:domain f5ea:Realization .
+f5ea:kmsOrder a rdf:Property ; rdfs:range xsd:integer .
+f5ea:keyName a rdf:Property ; rdfs:range xsd:string .
+f5ea:keyPurpose a rdf:Property ; rdfs:range xsd:string .

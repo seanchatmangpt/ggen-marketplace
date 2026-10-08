@@ -1,0 +1,30 @@
+# Stage 1 gate: ABB exists, contract PENDING_HUMAN_APPROVAL.
+# Zero rows = pass. Fixture precedent: stage1-abb-contract-pending.ttl:54-63.
+PREFIX ic: <https://seanchatmangpt.github.io/packs/industry-closure-ledger-pack#>
+PREFIX ea: <https://chatman.ai/ontology/enterprise-architecture#>
+SELECT ?abb ?reason WHERE {
+  ?abb a ea:ArchitectureBuildingBlock ;
+       ea:realizesCapability ?cap ;
+       ea:governedByContract ?k .
+  {
+    # unrecorded deficit: pending contract with no OPEN DEFICIT_CONTRACT residual
+    FILTER NOT EXISTS {
+      ?res a ic:Residual ; ic:deficitClass ic:DEFICIT_CONTRACT ; ic:status "OPEN" ;
+           ic:residualOf ?req .
+      ?req ic:requiresCapability ?cap ; ic:disposition ic:IN_SCOPE .
+    }
+    BIND("REFUSED:F5_STAGE1_CONTRACT_PENDING_UNREASONED" AS ?reason)
+  }
+  UNION
+  {
+    ?k ic:approvalStatus ic:PENDING_HUMAN_APPROVAL .
+    FILTER NOT EXISTS { ?k ic:authorityClaim "NONE" }
+    BIND("REFUSED:F5_STAGE1_AUTHORITY_CLAIM_NOT_NONE" AS ?reason)
+  }
+  UNION
+  {
+    ?k ic:approvalStatus ic:APPROVED .
+    FILTER NOT EXISTS { ?k ic:approvedBy ?who . ?k ic:approvalReceipt ?rc . }
+    BIND("REFUSED:F5_STAGE1_APPROVAL_PREMATURE" AS ?reason)
+  }
+} ORDER BY ?abb ?reason

@@ -1,0 +1,42 @@
+# Stage 4 gate: SBB QUALIFIED + pinned (exactSubject), no evidence yet.
+# Zero rows = pass. Fixture precedent: stage4-sbb-qualified-no-evidence.ttl:69-72.
+# Digest-shape idiom: industry-closure-ledger-pack gates/090_standing_evidence.rq:25
+# ("^sha256:[0-9a-f]{64}$"); ambiguous-pin idiom: gates/050:41-42.
+PREFIX ic: <https://seanchatmangpt.github.io/packs/industry-closure-ledger-pack#>
+PREFIX ea: <https://chatman.ai/ontology/enterprise-architecture#>
+SELECT ?sbb ?reason WHERE {
+  ?sbb a ea:SolutionBuildingBlock ;
+       ea:satisfiesABB ?abb ;
+       ea:hasStanding ea:QUALIFIED .
+  {
+    OPTIONAL { ?sbb ea:exactSubject ?d }
+    FILTER(!BOUND(?d) || !REGEX(STR(?d), "^sha256:[0-9a-f]{64}$"))
+    BIND("REFUSED:F5_STAGE4_PIN_MALFORMED" AS ?reason)
+  }
+  UNION
+  {
+    # two different exactSubjects for one SBB = ambiguous pin
+    ?sbb ea:exactSubject ?d1 .
+    ?sbb ea:exactSubject ?d2 .
+    FILTER(STR(?d1) != STR(?d2))
+    BIND("REFUSED:F5_STAGE4_PIN_AMBIGUOUS" AS ?reason)
+  }
+  UNION
+  {
+    # evidence exists while the ladder still stages this SBB at 4 -> 5
+    FILTER EXISTS {
+      ?ev a ic:ExecutionEvidence ; ic:evidenceFor ?sbb .
+    }
+    FILTER NOT EXISTS {
+      ?res a ic:Residual ; ic:deficitClass ic:DEFICIT_EVIDENCE ; ic:status "OPEN" .
+    }
+    BIND("REFUSED:F5_STAGE4_EVIDENCE_PREMATURE" AS ?reason)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS {
+      ?res2 a ic:Residual ; ic:deficitClass ic:DEFICIT_EVIDENCE ; ic:status "OPEN" .
+    }
+    BIND("REFUSED:F5_STAGE4_QUALIFIED_UNRECORDED" AS ?reason)
+  }
+} ORDER BY ?sbb ?reason

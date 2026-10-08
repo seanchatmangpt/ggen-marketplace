@@ -1,0 +1,28 @@
+# SELECT gate (falsifier shape): an AWS SBB realization is unqualified or
+# under-bound. Every awssbb-equivalent (f5ea:) realization with
+# providerVariant "aws" must carry a non-empty exactSubject digest,
+# groupName/slug, domain, region, and at least one renderedResource with an
+# enumerated iamAction. Idioms: fortune5-deployment-blocks-pack
+# gates/010_catalog_contract.rq (VALUES + FILTER NOT EXISTS completeness),
+# governed-runtime-adapter-pack gates/01-exact-subject.rq:2.
+PREFIX f5ea: <https://ggen.io/ontology/fortune5-enterprise-architecture#>
+SELECT ?realization ?missing WHERE {
+  ?realization a f5ea:Realization ;
+               f5ea:providerVariant "aws" .
+  {
+    VALUES ?property {
+      f5ea:sbbSlug f5ea:sbbDomain f5ea:region f5ea:exactSubject
+    }
+    FILTER NOT EXISTS { ?realization ?property ?v . FILTER(STRLEN(STR(?v)) > 0) }
+    BIND(STR(?property) AS ?missing)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS {
+      ?realization f5ea:hasResource ?res .
+      ?res f5ea:iamAction ?action .
+      FILTER(STRLEN(STR(?action)) > 0 && ?action != "*")
+    }
+    BIND("f5ea:hasResource/f5ea:iamAction" AS ?missing)
+  }
+} ORDER BY ?realization ?missing

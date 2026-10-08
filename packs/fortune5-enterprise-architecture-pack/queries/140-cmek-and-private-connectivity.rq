@@ -1,0 +1,34 @@
+# ASK gate, fail-closed (true = PASS): (a) every storagelike resource in
+# every GCP SBB realization carries a CMEK key; (b) every servicelike
+# resource is PSC-attached or declares no ingress; (c) no resource anywhere
+# declares public ingress.
+# Idioms: gcp-marketplace-saas-pack gates/020_entitlement_states.rq (UNION
+# violation families); consumer-realization-frontier-pack
+# gates/10-authority-separation.rq:2 (ASK { FILTER NOT EXISTS { ... } }).
+PREFIX f5ea: <https://ggen.io/ontology/fortune5-enterprise-architecture#>
+ASK {
+  FILTER NOT EXISTS {
+    {
+      ?realization a f5ea:Realization ;
+                   f5ea:providerVariant "gcp" ;
+                   f5ea:hasResource ?r .
+      ?r f5ea:resourceClass "storagelike" .
+      FILTER NOT EXISTS { ?r f5ea:hasCmekKey ?k . }
+    }
+    UNION
+    {
+      ?realization a f5ea:Realization ;
+                   f5ea:providerVariant "gcp" ;
+                   f5ea:hasResource ?r .
+      ?r f5ea:resourceClass "servicelike" .
+      FILTER NOT EXISTS { ?r f5ea:ingressMode ?m . FILTER(?m IN ("psc", "none")) }
+    }
+    UNION
+    {
+      ?realization a f5ea:Realization ;
+                   f5ea:providerVariant "gcp" ;
+                   f5ea:hasResource ?r .
+      ?r f5ea:ingressMode "public" .
+    }
+  }
+}

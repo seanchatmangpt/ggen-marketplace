@@ -1,0 +1,47 @@
+# RDF lifting: a validated f5ea.sbb-group-manifest.v1 (ingested as
+# GRAPH <manifest>) lifts into f5ea:SolutionGroup individuals that
+# REFERENCE — never assert — ea: SBBs.
+#
+# DoD #9 guards replicated at query level:
+#   - only manifests self-declaring references_only=true lift at all;
+#   - the group is never typed as an ea: element in EITHER graph;
+#   - digest mismatch drops the lift (stale/dangling reference, twin of
+#     ggen-abb-sbb Refusal::DanglingReference, src/lib.rs:457).
+PREFIX f5ea: <https://ggen.io/ontology/fortune5-enterprise-architecture#>
+PREFIX ea:   <https://chatman.ai/ontology/enterprise-architecture#>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+
+CONSTRUCT {
+  ?group a f5ea:SolutionGroup ;
+         f5ea:groupKey ?name ;
+         f5ea:groupsSBB ?sbb ;
+         f5ea:groupTargetsABB ?abb .
+
+  ?sbb ea:satisfiesABB ?abb .
+}
+WHERE {
+  GRAPH <manifest> {
+    ?group a f5ea:ManifestEntry ;
+           f5ea:groupKey ?name ;
+           f5ea:referencesOnly true .
+    ?group f5ea:groupsSBB ?sbb .
+    ?group f5ea:referenceDigest ?pinnedDigest .
+  }
+
+  # Resolve the reference against the AUTHORITATIVE EA graph, not the manifest:
+  # existence + type witness comes from the EA layer; the manifest cannot
+  # create ea: individuals.
+  ?sbb a ea:SolutionBuildingBlock ;
+       ea:exactSubject ?digest ;
+       ea:satisfiesABB ?abb .
+
+  # Digest pinning: refuse stale references (manifest pin must equal the
+  # authoritative ea:exactSubject at lift time).
+  FILTER(STR(?pinnedDigest) = STR(?digest))
+
+  # ---- DoD #9 class-assertion guards -----------------------------------
+  FILTER NOT EXISTS { GRAPH <manifest> { ?group a ea:ArchitectureBuildingBlock } }
+  FILTER NOT EXISTS { GRAPH <manifest> { ?group a ea:SolutionBuildingBlock } }
+  FILTER NOT EXISTS { ?group a ea:ArchitectureBuildingBlock }
+  FILTER NOT EXISTS { ?group a ea:SolutionBuildingBlock }
+}

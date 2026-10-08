@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ggen.io/schemas/f5ea.sbb-group-manifest.v1",
+  "title": "Fortune 5 EA-linked deployment group manifest",
+  "type": "object",
+  "required": ["schema", "version", "name", "domain", "references_only", "member_packs", "sbb_references"],
+  "properties": {
+    "schema": { "const": "f5ea.sbb-group-manifest.v1" },
+    "version": {
+      "type": "string",
+      "$comment": "SemVer, mirrors catalog version at fortune5-bblocks.json:3"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9-]+$",
+      "$comment": "Group id, e.g. 'encryption-kms'. MUST NOT equal any ea: element IRI local name (DoD #9 twin; enforce in CI, not schema)."
+    },
+    "domain": {
+      "enum": ["guest", "host", "network", "verification"],
+      "$comment": "Deployment-topology domain, orthogonal to the EA class hierarchy."
+    },
+    "description": { "type": "string" },
+    "directory": {
+      "type": "string",
+      "$comment": "Ontology-declared output directory (bb:outputDirectory idiom)."
+    },
+    "dependencies": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+      "$comment": "Edges to sibling f5ea:SolutionGroup individuals — never to SBBs."
+    },
+    "references_only": {
+      "const": true,
+      "$comment": "INVARIANT (hard, not advisory): members of this manifest are references to pre-existing ea: individuals. Any other value is a validation failure, not a configuration choice."
+    },
+    "rdf_type_must_not": {
+      "const": [
+        "https://chatman.ai/ontology/enterprise-architecture#ArchitectureBuildingBlock",
+        "https://chatman.ai/ontology/enterprise-architecture#SolutionBuildingBlock",
+        "https://chatman.ai/ontology/enterprise-architecture#ArchitectureContract",
+        "https://chatman.ai/ontology/enterprise-architecture#AuthorityBoundary"
+      ],
+      "$comment": "Class-assertion guard. If ANY member IRI carries rdf:type in this list — in this manifest OR in the merged EA graph — validation refuses with Refusal::PackConflation semantics (ggen-abb-sbb/src/lib.rs:155). Mirrors DoD #9 / falsifiers.rs:513."
+    },
+    "member_packs": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z0-9-]+-pack$" },
+      "$comment": "ggen pack identities (manufacturing contracts), never EA individuals."
+    },
+    "provider_variants": {
+      "type": "object",
+      "propertyNames": { "enum": ["aws", "azure", "gcp"] },
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string", "pattern": "^[a-z0-9-]+-pack$" }
+      },
+      "$comment": "Provider projection, identical law to provider_packs (fortune5-bblocks.json:17-21); closed provider universe per bblock.rs:212."
+    },
+    "sbb_references": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/sbbReference" },
+      "$comment": "The ONLY channel through which the deployment layer touches the EA layer."
+    }
+  },
+  "$defs": {
+    "sbbReference": {
+      "type": "object",
+      "required": ["iri", "digest", "role"],
+      "additionalProperties": false,
+      "properties": {
+        "iri": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "$comment": "Absolute IRI of an EXISTING ea:SolutionBuildingBlock individual."
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "$comment": "Content digest (ea:exactSubject pin) of the referenced SBB at reference time. Drift = dangling reference (Refusal::DanglingReference, ggen-abb-sbb/src/lib.rs:457)."
+        },
+        "role": {
+          "enum": ["realizes", "consumes", "verifies"],
+          "$comment": "Deployment-topology relation, NOT an EA classification. The group does not BECOME the SBB; it uses it."
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

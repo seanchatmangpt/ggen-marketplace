@@ -1,0 +1,64 @@
+# Stage 5 TERMINAL gate: SBB qualified WITH independent VERIFIED evidence,
+# tied to the head snapshot and LIVE coverage.
+# Zero rows = pass. Fixture precedent: stage5-verified-covered.ttl:74-81.
+# Field/independence/evidence-kind law: industry-closure-ledger-pack
+# gates/090_standing_evidence.rq:16-26,34-39 ("QUALIFIED is not ALIVE";
+# ALIVE requires ic:OBSERVED evidence-kind).
+PREFIX ic: <https://seanchatmangpt.github.io/packs/industry-closure-ledger-pack#>
+PREFIX ea: <https://chatman.ai/ontology/enterprise-architecture#>
+SELECT ?sbb ?reason WHERE {
+  ?sbb a ea:SolutionBuildingBlock ;
+       ea:satisfiesABB ?abb ;
+       ea:hasStanding ea:QUALIFIED ;
+       ea:exactSubject ?d .
+  {
+    ?ev a ic:ExecutionEvidence ;
+        ic:evidenceFor ?evTarget ;
+        ic:evidenceSubject ?evSubject ;
+        ic:outcome ic:VERIFIED ;
+        ic:receiptDigest ?r ;
+        ic:producedBy ?p ;
+        ic:verifiedBy ?v ;
+        ic:evidenceKind ?kind .
+    FILTER(?evTarget != ?sbb)
+    BIND("REFUSED:F5_STAGE5_EVIDENCE_FOREIGN" AS ?reason)
+  }
+  UNION
+  {
+    ?ev a ic:ExecutionEvidence ; ic:evidenceFor ?sbb ; ic:evidenceSubject ?evSubject .
+    FILTER(STR(?evSubject) != STR(?d))
+    BIND("REFUSED:F5_STAGE5_STALE_SUBJECT" AS ?reason)
+  }
+  UNION
+  {
+    ?ev a ic:ExecutionEvidence ; ic:evidenceFor ?sbb .
+    FILTER NOT EXISTS {
+      ?ev ic:outcome ic:VERIFIED ; ic:receiptDigest ?r ;
+          ic:producedBy ?p ; ic:verifiedBy ?v ; ic:evidenceKind ic:OBSERVED .
+    }
+    BIND("REFUSED:F5_STAGE5_EVIDENCE_MALFORMED" AS ?reason)
+  }
+  UNION
+  {
+    ?ev a ic:ExecutionEvidence ; ic:evidenceFor ?sbb ; ic:producedBy ?p ; ic:verifiedBy ?v .
+    FILTER(?p = ?v)
+    BIND("REFUSED:F5_STAGE5_EVIDENCE_NOT_INDEPENDENT" AS ?reason)
+  }
+  UNION
+  {
+    FILTER EXISTS {
+      ?head a ic:ClosureSnapshot ; ic:snapshotOf ?closure .
+      FILTER NOT EXISTS { ?nx a ic:ClosureSnapshot ; ic:supersedes ?head . }
+      FILTER NOT EXISTS {
+        ?cov a ic:Coverage ;
+             ic:inSnapshot ?head ;
+             ic:coversCapability ?cap ;
+             ic:byABB ?abb ;
+             ic:bySBB ?sbb ;
+             ic:coverageState ic:LIVE .
+      }
+      ?abb ea:realizesCapability ?cap .
+    }
+    BIND("REFUSED:F5_STAGE5_FRONTIER_UNRECORDED" AS ?reason)
+  }
+} ORDER BY ?sbb ?reason
