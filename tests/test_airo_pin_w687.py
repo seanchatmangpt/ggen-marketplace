@@ -52,4 +52,7 @@ def test_marketplace_validate_stays_green():
         timeout=300,
     )
     assert r.returncode == 0, r.stdout + r.stderr
-    assert "validated packs=305" in r.stdout and "ontologies=503" in r.stdout, r.stdout[-300:]
+    # Count projection updated for the v26.10.8 campaign: the 306th pack
+    # (semantic-fullstack-factory-pack) landed with its ontology, so the
+    # validate line moved packs=305->306 and ontologies=503->504.
+    assert "validated packs=306" in r.stdout and "ontologies=504" in r.stdout, r.stdout[-300:]

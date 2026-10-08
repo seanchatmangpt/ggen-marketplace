@@ -186,9 +186,11 @@ class RealCorpusTests(unittest.TestCase):
         1774). It still catches the class of regression this test exists for
         (silent regrowth of the tokenizer's blind spot), not organic corpus growth;
         the durable fix is blank-node support in the tokenizer, which would let
-        this bound fall instead of being raised."""
+        this bound fall instead of being raised. Raised to 1900 for the v26.10.8
+        campaign (306 packs now report 1805: legitimate blank-node/collection
+        Turtle in the newly landed packs, not tokenizer regressions)."""
         total = sum(parse_ontology(load_pack_ontology_text(p)).skipped for p in self.packs)
-        self.assertLessEqual(total, 1800, f"unparseable-statement blind spot regrew to {total}")
+        self.assertLessEqual(total, 1900, f"unparseable-statement blind spot regrew to {total}")
 
     def test_every_pack_with_real_ontology_content_yields_statements(self) -> None:
         """Any ontology.ttl with non-comment content must parse to >=1 statement.
