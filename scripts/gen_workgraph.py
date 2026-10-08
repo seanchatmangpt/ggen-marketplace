@@ -67,7 +67,8 @@ def run_git(repo: str, *args: str) -> str:
     proc = subprocess.run(
         ["git", "-C", repo, *args], capture_output=True, text=True, check=False
     )
-    return proc.stdout if proc.returncode == 0 else ""
+    # proc.stdout is Optional[str] even under text=True; never leak None.
+    return (proc.stdout or "") if proc.returncode == 0 else ""
 
 
 def esc(text: str) -> str:
@@ -96,7 +97,9 @@ class Order:
 
 
 def parse_args(argv):
-    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    p = argparse.ArgumentParser(
+        description=(__doc__ or "gen_workgraph").splitlines()[0]
+    )
     p.add_argument("--repo", action="append", required=True, help="target repo path")
     p.add_argument("--version", default=None, help="campaign version, e.g. v26.10.8")
     p.add_argument("--out", default=None, help="output path (default stdout)")
@@ -151,8 +154,20 @@ def campaign_commits(repo: str, version: str):
         )
         if commits.strip():
             break
+    out = parse_commit_lines(commits)
+    # Deterministic: by (commit date, full sha).
+    out.sort(key=lambda c: (c["date"], c["full"]))
+    return out
+
+
+def parse_commit_lines(text: str):
+    """Parse ``git log --pretty=format:%H%x1f%h%x1f%aI%x1f%s`` output.
+
+    Lines with missing/extra fields are skipped (never crash), so a repo
+    whose log is empty or malformed yields ``[]``.
+    """
     out = []
-    for line in commits.splitlines():
+    for line in text.splitlines():
         parts = line.split("\x1f")
         if len(parts) != 4:
             continue
@@ -166,8 +181,6 @@ def campaign_commits(repo: str, version: str):
                 "scope": scope_of(subject),
             }
         )
-    # Deterministic: by (commit date, full sha).
-    out.sort(key=lambda c: (c["date"], c["full"]))
     return out
 
 
@@ -224,10 +237,11 @@ def witnessed_shas(receipts: str):
     return set(SHA_RE.findall(receipts))
 
 
-def build_orders(repo, version):
+def build_orders(repo, version) -> tuple[str, list]:
+    """Return (base_sha, orders); base is "" when the campaign has no commits."""
     commits = campaign_commits(repo, version)
     if not commits:
-        return None, []
+        return "", []
     base = base_sha(repo, version)
     witnesses = witnessed_shas(receipt_text(repo, version))
     groups: dict = {}
@@ -255,6 +269,10 @@ def falsifier_for(repo: str, version: str) -> str:
 
 def render(repo: str, version: str) -> str:
     base, orders = build_orders(repo, version)
+    # Empty-log repo: no campaign base discoverable; use a deterministic
+    # placeholder so the graph still renders (zero work orders) without a
+    # None-subscript crash.
+    base = base or "0" * 40
     label = repo_label(repo)
     gh = f"https://github.com/{label}"
     v8 = f"urn:seanchatmangpt:sjira:{version}:"
@@ -320,6 +338,16 @@ def selftest(repos, version):
     import hashlib
 
     print("== gen_workgraph selftest ==")
+    empty_fail = synthetic_empty_repo_check()
+    if empty_fail:
+        print(f"[FAIL] synthetic empty-log repo: {empty_fail}")
+        return 1
+    print("[ok] synthetic empty-log repo: renders deterministically, 0 work orders")
+    malformed_fail = malformed_log_check()
+    if malformed_fail:
+        print(f"[FAIL] malformed log lines: {malformed_fail}")
+        return 1
+    print("[ok] malformed/missing-field log lines skipped without crash")
     for repo in repos:
         version = version or detect_version(repo)
         if not version:
@@ -342,6 +370,47 @@ def selftest(repos, version):
         else:
             print(f"  no agent-authored seed at {seed_path} (nothing to diff)")
     return 0
+
+
+def synthetic_empty_repo_check():
+    """Exercise the previously-crashing empty-log branches end to end."""
+    import hashlib
+    import shutil
+    import tempfile
+
+    tmp = tempfile.mkdtemp(prefix="gen_workgraph_empty_repo_")
+    try:
+        init = subprocess.run(
+            ["git", "init", "-q", tmp], capture_output=True, text=True, check=False
+        )
+        if init.returncode != 0:
+            return f"git init failed: {init.stderr.strip()}"
+        text1 = render(tmp, "v26.10.8")
+        text2 = render(tmp, "v26.10.8")
+        if text1 != text2:
+            return "double-run mismatch"
+        if "a sj:WorkOrder" in text1:
+            return "empty repo must not emit work orders"
+        if "0" * 40 not in text1:
+            return "empty repo must use the deterministic zero base sha"
+        h = hashlib.sha256(text1.encode()).hexdigest()
+        print(f"  empty-repo render sha256={h[:16]}")
+        return None
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def malformed_log_check():
+    """Missing-field log lines are dropped, well-formed ones parsed."""
+    good = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\x1faaaaaaa\x1f2026-10-01T00:00:00Z\x1ffeat(x): ok"
+    parsed = parse_commit_lines("garbage\n" + good + "\nshort\x1fline\n")
+    if len(parsed) != 1:
+        return f"expected 1 parsed commit, got {len(parsed)}"
+    if parsed[0]["scope"] != "x" or parsed[0]["short"] != "aaaaaaa":
+        return f"wrong fields parsed: {parsed}"
+    if parse_commit_lines("") != []:
+        return "empty log must parse to []"
+    return None
 
 
 def detect_version(repo):
