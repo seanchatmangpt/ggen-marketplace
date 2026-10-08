@@ -45,10 +45,11 @@ EXCLUDED_FILES = frozenset({"SUMMARY.md"})
 #
 # jira/ and sjira/ are per-release ticket and failure-analysis working records
 # (plans, PR review notes, milestone ledgers); context/ is the machine handoff
-# and exact-head standing scratch surface. They are operational records about
-# the repo's own development, not reader-facing chapters, and are deliberately
-# left out of the published book.
-EXCLUDED_DIRS = frozenset({"superpowers", "jira", "sjira", "context"})
+# and exact-head standing scratch surface. archive/ holds retired historical
+# records (e.g. docs/archive/sjira/ for closed releases). They are operational
+# records about the repo's own development, not reader-facing chapters, and are
+# deliberately left out of the published book.
+EXCLUDED_DIRS = frozenset({"superpowers", "jira", "sjira", "context", "archive"})
 
 MDP_PATH_RE = re.compile(r'mdp:path\s+"([^"]+)"')
 

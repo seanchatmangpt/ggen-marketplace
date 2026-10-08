@@ -68,7 +68,7 @@ Verified end-to-end state as of the v26.10.2 wave (2026-10-02). Source of record
 ggen_igniter `docs/jira/v26.10.2/RECEIPT.md` (per-hop standing, command ledger,
 falsifiers). This section is the one-page fact sheet; the hop-by-hop pack
 coverage table derived from it lives at
-[`docs/sjira/v26.10.2/LOOP-CLOSURE-COVERAGE.md`](sjira/v26.10.2/LOOP-CLOSURE-COVERAGE.md).
+[`docs/archive/sjira/v26.10.2/LOOP-CLOSURE-COVERAGE.md`](archive/sjira/v26.10.2/LOOP-CLOSURE-COVERAGE.md).
 
 ### Repo roles and loop edges
 
@@ -84,7 +84,7 @@ coverage table derived from it lives at
 | ggen-marketplace | pack projection-of-record | `packs/sa2a-bridge-pack`, `receipt-provenance-unification-pack`, `sjira-marketplace-feedback-pack` (ontologies spot-checked 2026-10-02) | generated modules downstream: `~/xaas/lib/xaas/generated/sa2a_bridge_edges.ex`, `sa2a_bridge_contract.ex` |
 
 Identity conserved on every edge (source:
-`docs/sjira/v26.9.21/ECOSYSTEM-CLOSURE.md:18-26`): `work_order_iri +
+`docs/archive/sjira/v26.9.21/ECOSYSTEM-CLOSURE.md:18-26`): `work_order_iri +
 checkpoint_iri + graph_digest + repository_identity + base_sha`.
 
 ### Deltas: the pattern-catalog loop vs what shipped
