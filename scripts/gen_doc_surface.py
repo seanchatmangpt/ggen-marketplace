@@ -21,7 +21,9 @@ from pathlib import Path
 SKIP_DIRS = {"deps", "_build", "node_modules", "target", ".git", ".venv", "priv"}
 
 ELIXIR_MODULE = re.compile(r"defmodule\s+([A-Z][A-Za-z0-9._]*)\s+do")
-ELIXIR_DEF = re.compile(r"^\s*def\s+([a-z_][a-zA-Z0-9_?!]*)(\([^)]*\))?", re.M)
+ELIXIR_DEF = re.compile(
+    r"^\s*def(p|macrop|guardp)?\s+([a-z_][a-zA-Z0-9_?!]*)(\([^)]*\))?", re.M
+)
 ELIXIR_SPEC = re.compile(r"^\s*@\s*spec\s+(.+)$")
 ELIXIR_VERSION = re.compile(r'@version\s+"([^"]+)"|@?\s*version\s*:\s*"([^"]+)"')
 ELIXIR_DOC_LINE = re.compile(r"@\s*doc\s+(false|true)?\s*$")
@@ -38,6 +40,10 @@ RUST_ITEM = re.compile(r"\bpub\s+(struct|enum|trait)\s+([A-Z][A-Za-z0-9_]*)")
 CARGO_PACKAGE = re.compile(r'\[package\][^\[]{0,600}?name\s*=\s*"([^"]+)"', re.S)
 CARGO_VERSION = re.compile(r'\[package\][^\[]{0,600}?version\s*=\s*"([^"]+)"', re.S)
 CARGO_WS_VERSION = re.compile(r'\[workspace\.package\][^\[]{0,600}?version\s*=\s*"([^"]+)"', re.S)
+CARGO_DEP = re.compile(r'\[dependencies\]([^\[]*)', re.S)
+CARGO_DEP_NAME = re.compile(r'^([a-zA-Z0-9_-]+)\s*=', re.M)
+MIX_DEP = re.compile(r'\{:\s*([a-z_][a-zA-Z0-9_]*)\s*,')
+MIX_DEP_BARE = re.compile(r'^\s*:([a-z_][a-zA-Z0-9_]*)\s*[,}]', re.M)
 
 
 def iter_files(root, pattern):
@@ -93,7 +99,12 @@ def scan_elixir(repo):
             depth += do_n - end_n
             while stack and depth < stack[-1][1]:
                 done = stack.pop()[0]
-                modules.append({"name": done["name"], "file": rel, "items": done["items"]})
+                modules.append({
+                    "name": done["name"],
+                    "file": rel,
+                    "is_public": True,
+                    "items": done["items"],
+                })
             if not stack:
                 pending_doc = pending_spec = None
                 continue
@@ -116,13 +127,17 @@ def scan_elixir(repo):
                 pending_spec = line.split(None, 1)[1].strip() if " " in line.strip() else ""
             fm = ELIXIR_DEF.match(line)
             if fm:
-                args = fm.group(2) or ""
+                args = fm.group(3) or ""
                 arity = count_args(args[1:-1] if args else "")
+                # P2 scope: an item is public iff it is not a private form
+                # (defp/defmacrop/defguardp) and not `@doc false`.
+                is_public = not fm.group(1) and pending_doc != "false"
                 item = {
                     "kind": "function",
-                    "ident": fm.group(1),
-                    "signature": fm.group(1) + "/" + str(arity),
+                    "ident": fm.group(2),
+                    "signature": fm.group(2) + "/" + str(arity),
                     "doc": pending_doc or "",
+                    "is_public": bool(is_public),
                 }
                 if pending_spec:
                     item["spec"] = pending_spec
@@ -145,11 +160,17 @@ def scan_elixir(repo):
                     "ident": cur["name"],
                     "signature": "",
                     "doc": "",
+                    "is_public": True,
                     "invariants": ash,
                 })
         while stack:
             done = stack.pop()[0]
-            modules.append({"name": done["name"], "file": rel, "items": done["items"]})
+            modules.append({
+                "name": done["name"],
+                "file": rel,
+                "is_public": True,
+                "items": done["items"],
+            })
     return modules, versions
 
 
@@ -198,9 +219,15 @@ def scan_rust(repo):
                     "kind": "function",
                     "ident": m.group(1),
                     "signature": m.group(1) + m.group(2),
+                    "is_public": True,
                 })
             for m in RUST_ITEM.finditer(text):
-                items.append({"kind": m.group(1).lower(), "ident": m.group(2), "signature": ""})
+                items.append({
+                    "kind": m.group(1).lower(),
+                    "ident": m.group(2),
+                    "signature": "",
+                    "is_public": True,
+                })
             seen = set()
             uniq = []
             for it in items:
@@ -209,8 +236,49 @@ def scan_rust(repo):
                     seen.add(key)
                     uniq.append(it)
             if uniq:
-                modules.append({"name": rel, "file": rel, "items": uniq})
+                # P2 scope: a Rust file module is public/documented iff it is
+                # part of the shipped crate surface — not tests, benches,
+                # examples, or binaries.
+                parts = path.parts
+                is_public = not any(
+                    p in ("tests", "benches", "examples", "bin") for p in parts
+                )
+                modules.append({
+                    "name": rel,
+                    "file": rel,
+                    "is_public": is_public,
+                    "items": uniq,
+                })
     return modules, versions
+
+
+# ------------------------------------------------------ external allowlist ---
+
+
+def camelize(dep):
+    return "".join(p.capitalize() for p in dep.split("_"))
+
+
+def known_external(repo):
+    """Module prefixes of documented external dependencies (P2 allowlist).
+
+    Elixir deps (`{:ash, ...}`) -> `Ash.`, Rust deps (`serde_json = ...`) ->
+    `serde_json::`. Claims referencing these prefixes resolve against the
+    dependency's own documentation, not the repo's code surface.
+    """
+    prefixes = set()
+    for path in iter_files(repo, "mix.exs"):
+        text = path.read_text(errors="replace")
+        for m in MIX_DEP.finditer(text):
+            prefixes.add(camelize(m.group(1)) + ".")
+        for m in MIX_DEP_BARE.finditer(text):
+            prefixes.add(camelize(m.group(1)) + ".")
+    for cargo in iter_files(repo, "Cargo.toml"):
+        text = cargo.read_text(errors="replace")
+        for sec in CARGO_DEP.finditer(text):
+            for m in CARGO_DEP_NAME.finditer(sec.group(1)):
+                prefixes.add(m.group(1) + "::")
+    return sorted(prefixes)
 
 
 # ------------------------------------------------------------ Node/Python ---
@@ -237,7 +305,12 @@ def scan_node(repo):
         if data.get("version"):
             versions[data.get("name", rel)] = data["version"]
         if items:
-            modules.append({"name": data.get("name", rel), "file": rel, "items": items})
+            modules.append({
+                "name": data.get("name", rel),
+                "file": rel,
+                "is_public": True,
+                "items": items,
+            })
     return modules, versions
 
 
@@ -252,7 +325,12 @@ def scan_python(repo):
         items = []
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef):
-                items.append({"kind": "class", "ident": node.name, "signature": "class " + node.name})
+                items.append({
+                    "kind": "class",
+                    "ident": node.name,
+                    "signature": "class " + node.name,
+                    "is_public": not node.name.startswith("_"),
+                })
             elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 if node.name.startswith("_") and not node.name.startswith("__"):
                     continue
@@ -260,9 +338,19 @@ def scan_python(repo):
                     sig = node.name + ast.unparse(node.args)
                 except Exception:
                     sig = node.name
-                items.append({"kind": "function", "ident": node.name, "signature": sig})
+                items.append({
+                    "kind": "function",
+                    "ident": node.name,
+                    "signature": sig,
+                    "is_public": not node.name.startswith("_"),
+                })
         if items:
-            modules.append({"name": rel, "file": rel, "items": uniq_items(items)})
+            modules.append({
+                "name": rel,
+                "file": rel,
+                "is_public": True,
+                "items": uniq_items(items),
+            })
     return modules, {}
 
 
@@ -301,7 +389,13 @@ def extract_code(repo):
         modules += m
         versions.update(v)
     modules.sort(key=lambda x: x["name"])
-    return {"repo": repo.name, "path": str(repo), "version": versions, "modules": modules}
+    return {
+        "repo": repo.name,
+        "path": str(repo),
+        "version": versions,
+        "known_external": known_external(repo),
+        "modules": modules,
+    }
 
 
 # --------------------------------------------------------------- doc mode ---

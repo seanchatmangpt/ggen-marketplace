@@ -1,0 +1,106 @@
+"""P2 scope + external-allowlist extractor tests (DOC-HDIT-PILOT P2)."""
+
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import gen_doc_surface as g  # noqa: E402
+
+
+def mkrepo(layout):
+    repo = Path(tempfile.mkdtemp())
+    for rel, text in layout.items():
+        p = repo / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text)
+    return repo
+
+
+class P2ExtractorTest(unittest.TestCase):
+    def test_elixir_defp_and_doc_false_are_internal(self):
+        src = (
+            "defmodule Demo do\n"
+            "  @doc false\n"
+            "  def hidden(x), do: x\n"
+            "  defp secret(y), do: y\n"
+            "  def visible(z), do: z\n"
+            "  def shown(w), do: w\n"
+            "end\n"
+        )
+        repo = mkrepo({"mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n", "lib/demo.ex": src})
+        code = g.extract_code(repo)
+        items = {
+            it["ident"]: it
+            for m in code["modules"]
+            for it in m["items"]
+            if it["kind"] == "function"
+        }
+        assert items["hidden"]["is_public"] is False
+        assert items["secret"]["is_public"] is False
+        assert items["visible"]["is_public"] is True
+        assert items["shown"]["is_public"] is True
+
+    def test_rust_internal_dirs_not_public(self):
+        repo = mkrepo({
+            "Cargo.toml": '[package]\nname = "demo"\nversion = "0.1.0"\n',
+            "src/lib.rs": "pub fn ignite() {}\n",
+            "tests/it.rs": "pub fn helper() {}\n",
+        })
+        code = g.extract_code(repo)
+        mods = {m["name"]: m for m in code["modules"]}
+        assert mods["src/lib.rs"]["is_public"] is True
+        assert mods["tests/it.rs"]["is_public"] is False
+
+    def test_rust_pub_items_flagged_public(self):
+        repo = mkrepo({
+            "Cargo.toml": '[package]\nname = "demo"\nversion = "0.1.0"\n',
+            "src/lib.rs": "pub fn ignite() {}\n",
+        })
+        code = g.extract_code(repo)
+        items = [it for m in code["modules"] for it in m["items"]]
+        assert items and all(it["is_public"] is True for it in items)
+
+    def test_known_external_elixir_and_rust_deps(self):
+        repo = mkrepo({
+            "mix.exs": (
+                "defmodule Demo.MixProject do\n"
+                "  def project do\n"
+                "    [app: :demo, deps: deps()]\n"
+                "  end\n"
+                "  defp deps do\n"
+                "    [\n"
+                "      {:ash, \"~> 3.0\"},\n"
+                "      {:ash_postgres, \"~> 2.0\"},\n"
+                "      {:wasmex, \"~> 0.9\"}\n"
+                "    ]\n"
+                "  end\n"
+                "end\n"
+            ),
+            "Cargo.toml": (
+                '[package]\nname = "demo"\nversion = "0.1.0"\n\n'
+                '[dependencies]\nserde_json = "1"\n'
+            ),
+        })
+        ext = g.known_external(repo)
+        assert "Ash." in ext
+        assert "AshPostgres." in ext
+        assert "Wasmex." in ext
+        assert "serde_json::" in ext
+
+    def test_extract_code_emits_known_external(self):
+        repo = mkrepo({
+            "Cargo.toml": (
+                '[package]\nname = "demo"\nversion = "0.0.1"\n\n'
+                '[dependencies]\nserde_json = "1"\n'
+            ),
+            "src/lib.rs": "pub fn ignite() {}\n",
+        })
+        code = g.extract_code(repo)
+        assert isinstance(code["known_external"], list)
+        assert "serde_json::" in code["known_external"]
+
+
+if __name__ == "__main__":
+    unittest.main()
