@@ -426,8 +426,12 @@ _CHUNK_CACHE: dict = {}
 _COURT_PATH_CACHE: dict = {}
 
 
-def commit_files_map(repo, commits, rev_range: str = "") -> dict:
+def commit_files_map(repo, commits, rev_range: str | None = None) -> dict:
     """full sha -> sorted list of changed paths (deterministic).
+
+    ``rev_range`` is accepted as ``None`` (campaign_commits' fallthrough for
+    a tagless campaign whose candidate list is exhausted); it is carried for
+    signature symmetry with build_orders and does not filter the SHAs.
 
     Uses --no-walk over the exact commit SHAs: a pathspec would also filter
     the listed file paths, not just the selected commits.
@@ -959,6 +963,12 @@ def selftest(repos, version):
         return 1
     print("[ok] v3 gap legs: per-order falsifier command, cross-repo note, "
           "seed-commits binding, full projection catalog, acceptance compression")
+    none_fail = none_rev_range_leg()
+    if none_fail:
+        print(f"[FAIL] none rev_range leg: {none_fail}")
+        return 1
+    print("[ok] none rev_range leg: tagless pathspec campaign + explicit "
+          "None into commit_files_map behave identically to the default")
     for repo in repos:
         version = version or detect_version(repo)
         if not version:
@@ -1248,6 +1258,69 @@ def v3_gap_legs():
         compressed = compress_acceptance(long_commits, 400)
         if len(compressed) > 400 or "(+" not in compressed:
             return "item 9: compression failed (len=%d)" % len(compressed)
+        return None
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def none_rev_range_leg():
+    """Tagless campaign: rev_range falls to the pathspec candidate, never
+    poisons commit_files_map — including an explicit None (the v3a/v3b
+    integration drift pyright flagged: Unknown | None into a str param)."""
+    import shutil
+    import subprocess
+    import tempfile
+
+    tmp = tempfile.mkdtemp(prefix="gen_workgraph_none_rev_range_")
+    try:
+        def git(*args):
+            proc = subprocess.run(
+                ["git", "-C", tmp, *args], capture_output=True, text=True,
+                check=False,
+                env={**os.environ, "GIT_AUTHOR_DATE": "2026-10-01T00:00:00Z",
+                     "GIT_COMMITTER_DATE": "2026-10-01T00:00:00Z"},
+            )
+            if proc.returncode != 0:
+                raise RuntimeError(f"git {args[0]} failed: {proc.stderr.strip()}")
+            return proc.stdout.strip()
+
+        def write(path, content):
+            os.makedirs(os.path.dirname(os.path.join(tmp, path)), exist_ok=True)
+            with open(os.path.join(tmp, path), "w") as fh:
+                fh.write(content)
+
+        git("init", "-q")
+        git("config", "user.email", "court@ggen.dev")
+        git("config", "user.name", "Court")
+        git("config", "commit.gpgsign", "false")
+        # Tagless campaign: no vX tag exists, so campaign_commits' rev_range
+        # is the docs/sjira/<v> pathspec candidate, and an exhausted
+        # candidate list yields None. Both flow into commit_files_map.
+        write("docs/sjira/v26.10.8/journal.md", "campaign journal\n")
+        write("lib/thing.txt", "surface\n")
+        git("add", "-A")
+        git("commit", "-m", "feat(alpha): tagless base")
+        sha_a = git("rev-parse", "HEAD")
+
+        commits, rev_range = campaign_commits(tmp, "v26.10.8", want_range=True)
+        if not commits:
+            return "tagless campaign must still yield commits via pathspec"
+        if rev_range != "docs/sjira/v26.10.8":
+            return f"pathspec rev_range expected, got {rev_range!r}"
+        # The None branch: explicit None must behave like the default.
+        fmap_none = commit_files_map(tmp, commits, None)
+        fmap_default = commit_files_map(tmp, commits)
+        if fmap_none != fmap_default:
+            return "commit_files_map(None) diverged from default"
+        if sha_a not in fmap_none or fmap_none[sha_a] != ["docs/sjira/v26.10.8/journal.md", "lib/thing.txt"]:
+            return f"unexpected files map: {fmap_none}"
+        # Empty-commit + None combination (the early-return contract).
+        if commit_files_map(tmp, [], None) != {}:
+            return "empty commits + None must yield {}"
+        # End-to-end: build_orders on the tagless repo must not crash.
+        base, orders = build_orders(tmp, "v26.10.8")
+        if not orders:
+            return "tagless build_orders emitted no work orders"
         return None
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
