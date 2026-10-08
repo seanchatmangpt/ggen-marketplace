@@ -6,8 +6,13 @@ tree-sitter/oxigraph is the v2 path; see scripts/doc_surface_conventions.md
 for scope and disclosed limits.
 
 Usage:
-  gen_doc_surface.py code REPO
+  gen_doc_surface.py code REPO [--engine auto|ts|regex]
   gen_doc_surface.py doc REPO [--code-json FILE] [--docs-dir DIR1,DIR2]
+
+Engines: `auto` (default) uses the optional tree-sitter path when the
+packages in scripts/requirements-doc-surface-ts.txt are importable and
+falls back to the stdlib regex scanner otherwise (zero behavior change
+without the dependency); `ts`/`regex` force one path explicitly.
 """
 
 from __future__ import annotations
@@ -17,6 +22,22 @@ import json
 import re
 import sys
 from pathlib import Path
+
+# ------------------------------------------------- optional tree-sitter v2 ---
+# OPTIONAL acceleration only: the regex scanner below is the default surface
+# when these imports fail. tree-sitter adds full-signature fidelity (return
+# types, struct fields, doc comments) the regex path cannot recover.
+try:
+    from tree_sitter import Language, Parser
+
+    import tree_sitter_elixir as _ts_elixir
+    import tree_sitter_rust as _ts_rust
+
+    TS_AVAILABLE = True
+    TS_IMPORT_ERROR = None
+except ImportError as _exc:  # pragma: no cover - exercised via engine=regex
+    TS_AVAILABLE = False
+    TS_IMPORT_ERROR = _exc
 
 SKIP_DIRS = {"deps", "_build", "node_modules", "target", ".git", ".venv", "priv"}
 
@@ -514,18 +535,19 @@ def rust_type_signature(kind, ident, text, i):
     return ident + " { " + ", ".join(" ".join(m.split()) for m in members) + " }"
 
 
-def scan_rust(repo):
-    modules = []
-    versions = {}
-    crate_roots = []
+def rust_crate_roots(repo):
+    """Yield (crate_dir, crate_name, version) for every rust crate in repo."""
     ws = repo / "Cargo.toml"
     is_ws = ws.exists() and "members" in ws.read_text(errors="replace")
     if is_ws:
-        for cargo in iter_files(repo, "Cargo.toml"):
-            if (cargo.parent / "src").is_dir():
-                crate_roots.append(cargo.parent)
+        crate_roots = [
+            cargo.parent for cargo in iter_files(repo, "Cargo.toml")
+            if (cargo.parent / "src").is_dir()
+        ]
     elif (repo / "src").is_dir():
-        crate_roots.append(repo)
+        crate_roots = [repo]
+    else:
+        crate_roots = []
     ws_ver = None
     if ws.exists():
         wmt = ws.read_text(errors="replace")
@@ -543,6 +565,13 @@ def scan_rust(repo):
                 name = pm.group(1)
             if vm:
                 ver = vm.group(1)
+        yield crate, name, ver
+
+
+def scan_rust(repo):
+    modules = []
+    versions = {}
+    for crate, name, ver in rust_crate_roots(repo):
         if name and ver:
             versions[name] = ver
         for path in iter_files(crate, "*.rs"):
@@ -591,10 +620,331 @@ def scan_rust(repo):
     return modules, versions
 
 
+# --------------------------------------------- optional tree-sitter scanner ---
+# v2 fidelity path (doc-hdit): same JSON schema as the regex scanners above,
+# richer signatures. Regex-path extras that depend on ad hoc heuristics
+# (Phoenix router verbs, Ash resource blocks) are regex-only and simply
+# absent from the TS elixir surface; ident parity holds for def/type/struct.
+#
+# tree-sitter node API (0.23+): node.type, node.text, node.children,
+# child_by_field_name, prev_sibling. Parsers are built lazily and cached.
+
+_TS_PARSERS = {}
+
+
+def _ts_parser(lang_mod):
+    key = lang_mod.__name__
+    if key not in _TS_PARSERS:
+        _TS_PARSERS[key] = Parser(Language(lang_mod.language()))
+    return _TS_PARSERS[key]
+
+
+def _walk(node):
+    yield node
+    for child in node.children:
+        yield from _walk(child)
+
+
+def _first_child(node, *types):
+    for child in node.children:
+        if child.type in types:
+            return child
+    return None
+
+
+def _clean(text):
+    """Whitespace-normalize and strip comments from a captured span."""
+    text = re.sub(r"//[^\n]*", "", text)
+    text = re.sub(r"#(?!\{)[^\n]*", "", text)  # elixir comments, not #{}
+    return " ".join(text.split())
+
+
+def _rust_pub(node):
+    vis = _first_child(node, "visibility_modifier")
+    only = vis is not None and vis.text == b"pub"
+    return only
+
+
+def _rust_doc(node):
+    """Concatenated `///` doc lines preceding an item ('' if none)."""
+    lines = []
+    prev = node.prev_sibling
+    while prev is not None and prev.type == "line_comment":
+        if not prev.text.startswith(b"///"):
+            break
+        lines.append(prev.text.decode().lstrip("/").strip())
+        prev = prev.prev_sibling
+    return "\n".join(reversed(lines))
+
+
+def scan_rust_ts(repo):
+    modules = []
+    versions = {}
+    for crate, name, ver in rust_crate_roots(repo):
+        if name and ver:
+            versions[name] = ver
+        for path in iter_files(crate, "*.rs"):
+            rel = str(path.relative_to(repo))
+            tree = _ts_parser(_ts_rust).parse(path.read_bytes())
+            items = []
+            for node in _walk(tree.root_node):
+                if node.type in ("function_item", "function_signature_item"):
+                    if not _rust_pub(node):
+                        continue
+                    fname = node.child_by_field_name("name").text.decode()
+                    params = node.child_by_field_name("parameters").text.decode()
+                    ret_node = node.child_by_field_name("return_type")
+                    sig = _clean(fname + params)
+                    if ret_node is not None:
+                        sig += " -> " + _clean(ret_node.text.decode())
+                    items.append({
+                        "kind": "function",
+                        "ident": fname,
+                        "signature": sig,
+                        "doc": _rust_doc(node),
+                        "is_public": True,
+                    })
+                elif node.type == "struct_item":
+                    if not _rust_pub(node):
+                        continue
+                    sname = node.child_by_field_name("name").text.decode()
+                    body = node.child_by_field_name("body")
+                    sig = sname
+                    if body is not None:
+                        members = split_top(_clean(
+                            body.text.decode().strip("{}()")))
+                        if members:
+                            sig = sname + " { " + ", ".join(members) + " }"
+                    items.append({
+                        "kind": "struct",
+                        "ident": sname,
+                        "signature": sig,
+                        "doc": _rust_doc(node),
+                        "is_public": True,
+                    })
+                elif node.type == "enum_item":
+                    if not _rust_pub(node):
+                        continue
+                    ename = node.child_by_field_name("name").text.decode()
+                    body = node.child_by_field_name("body")
+                    sig = ename
+                    if body is not None:
+                        variants = split_top(_clean(
+                            body.text.decode().strip("{}")))
+                        if variants:
+                            sig = ename + " { " + ", ".join(variants) + " }"
+                    items.append({
+                        "kind": "enum",
+                        "ident": ename,
+                        "signature": sig,
+                        "doc": _rust_doc(node),
+                        "is_public": True,
+                    })
+                elif node.type == "trait_item":
+                    if not _rust_pub(node):
+                        continue
+                    tname = node.child_by_field_name("name").text.decode()
+                    items.append({
+                        "kind": "trait",
+                        "ident": tname,
+                        "signature": "",
+                        "doc": _rust_doc(node),
+                        "is_public": True,
+                    })
+            if items:
+                parts = path.parts
+                is_public = not any(
+                    p in ("tests", "benches", "examples", "bin") for p in parts
+                )
+                modules.append({
+                    "name": rel,
+                    "file": rel,
+                    "is_public": is_public,
+                    "items": uniq_items(items),
+                })
+    return modules, versions
+
+
+def _ex_args(call):
+    return _first_child(call, "arguments")
+
+
+def _ex_target(call):
+    return call.children[0].text.decode()
+
+
+def _ex_quoted(node):
+    """First non-empty line of the first quoted_content under `node`."""
+    for sub in _walk(node):
+        if sub.type == "quoted_content":
+            for line in sub.text.decode().splitlines():
+                line = line.strip()
+                if line:
+                    return line
+    return ""
+
+
+def scan_elixir_ts(repo):
+    modules = []
+    versions = {}
+    for path in iter_files(repo, "mix.exs"):
+        vm = ELIXIR_VERSION.search(path.read_text(errors="replace"))
+        if vm:
+            val = vm.group(1) or vm.group(2)
+            versions[str(path.relative_to(repo))] = val
+
+    def emit(name, items, rel):
+        modules.append({
+            "name": name,
+            "file": rel,
+            "is_public": True,
+            "items": dedup_clauses(items),
+        })
+
+    def collect(node, mod_name, rel, items):
+        """Recurse through do_block bodies tracking the innermost module."""
+        for child in node.children:
+            cur = child
+            if cur.type == "unary_operator":
+                # `@type t :: ...` — attribute call in unary form
+                inner = cur.children[1] if len(cur.children) > 1 else None
+                if inner is not None and inner.type == "call" and \
+                        _ex_target(inner) in ("type", "typep"):
+                    targs = _ex_args(inner)
+                    if targs is None:
+                        continue
+                    text = " ".join(targs.text.decode().split())
+                    if "::" not in text:
+                        continue
+                    tname, tbody = text.split("::", 1)
+                    items.append({
+                        "kind": "type",
+                        "ident": tname.strip(),
+                        "signature": "@type " + tname.strip() + " :: " + tbody.strip(),
+                        "doc": "",
+                        "is_public": True,
+                    })
+                continue
+            if cur.type != "call":
+                continue
+            target = _ex_target(cur)
+            do = _first_child(cur, "do_block")
+            if target == "defmodule":
+                args = _ex_args(cur)
+                alias = _first_child(args, "alias")
+                sub = alias.text.decode() if alias is not None else cur.text.decode()
+                items_out = []
+                if do is not None:
+                    body = _first_child(do, "body") or do
+                    collect(body, sub, rel, items_out)
+                if items_out:
+                    pending.append((sub, items_out))
+                continue
+            if do is not None and target not in ("def", "defp", "defstruct"):
+                # a non-def call with its own do_block (e.g. `for ... do`)
+                # may contain nested defs; recurse, keep module scope
+                body = _first_child(do, "body") or do
+                collect(body, mod_name, rel, items)
+                continue
+            if target in ("def", "defp", "defmacrop", "defguardp", "defmacro"):
+                args = _ex_args(cur)
+                head = _first_child(args, "call")
+                if head is None:
+                    continue
+                hname = head.children[0].text.decode()
+                hargs = _ex_args(head)
+                arity = count_args(hargs.text.decode().strip("()")) if hargs else 0
+                if target != "def":
+                    continue
+                item = {
+                    "kind": "function",
+                    "ident": hname,
+                    "signature": hname + "/" + str(arity),
+                    "doc": "",
+                    "is_public": True,
+                }
+                attrs = _ex_prev_attrs(cur)
+                doc = attrs.get("doc")
+                if doc == "false":
+                    item["is_public"] = False
+                elif doc:
+                    item["doc"] = doc
+                if attrs.get("spec"):
+                    item["spec"] = attrs["spec"]
+                items.append(item)
+            elif target == "defstruct":
+                args = _ex_args(cur)
+                body = args.text.decode().strip("[]") if args is not None else ""
+                fields = []
+                for f in split_top(body):
+                    f = f.strip()
+                    if f.startswith(":"):
+                        fields.append(f[1:])
+                    elif re.match(r"^[a-z_]", f):
+                        fields.append(f)
+                if fields:
+                    items.append({
+                        "kind": "struct",
+                        "ident": mod_name,
+                        "signature": "defstruct " + ", ".join(fields),
+                        "doc": "",
+                        "is_public": True,
+                    })
+            elif target in ("type", "typep"):
+                args = _ex_args(cur)
+                if args is None:
+                    continue
+                text = " ".join(args.text.decode().split())
+                if "::" not in text:
+                    continue
+                tname, tbody = text.split("::", 1)
+                items.append({
+                    "kind": "type",
+                    "ident": tname.strip(),
+                    "signature": "@type " + tname.strip() + " :: " + tbody.strip(),
+                    "doc": "",
+                    "is_public": True,
+                })
+
+    def _ex_prev_attrs(call_node):
+        """{attr: text} for the `@attr ...` run immediately before a def."""
+        attrs = {}
+        prev = call_node.prev_sibling
+        while prev is not None and prev.type == "unary_operator":
+            inner = prev.children[1] if len(prev.children) > 1 else None
+            if inner is None or inner.type != "call":
+                break
+            attr = _ex_target(inner)
+            if attr not in ("doc", "spec"):
+                break
+            args = _ex_args(inner)
+            if args is None:
+                attrs[attr] = "true"
+            elif attr == "doc":
+                text = args.text.decode().strip()
+                attrs[attr] = (
+                    "false" if text == "false"
+                    else "true" if text == "true"
+                    else _ex_quoted(inner)
+                )
+            else:
+                attrs[attr] = _clean(args.text.decode())
+            prev = prev.prev_sibling
+        return attrs
+
+    for path in iter_files(repo, "*.ex"):
+        if path.name == "mix.exs":
+            continue
+        rel = str(path.relative_to(repo))
+        pending = []
+        tree = _ts_parser(_ts_elixir).parse(path.read_bytes())
+        collect(tree.root_node, None, rel, [])
+        for name, items in pending:
+            emit(name, items, rel)
+    return modules, versions
+
+
 # ------------------------------------------------------ external allowlist ---
-
-
-def camelize(dep):
     return "".join(p.capitalize() for p in dep.split("_"))
 
 
@@ -725,16 +1075,25 @@ def extract_directories(repo):
 # ------------------------------------------------------------- code mode ---
 
 
-def extract_code(repo):
+def extract_code(repo, engine="auto"):
     repo = Path(repo)
+    if engine == "auto":
+        engine = "ts" if TS_AVAILABLE else "regex"
+    if engine == "ts" and not TS_AVAILABLE:
+        raise RuntimeError(
+            "engine=ts requested but tree-sitter is not importable "
+            "(install scripts/requirements-doc-surface-ts.txt): "
+            + str(TS_IMPORT_ERROR)
+        )
+    use_ts = engine == "ts"
     modules = []
     versions = {}
     if (repo / "mix.exs").exists() or next(iter_files(repo, "mix.exs"), None):
-        m, v = scan_elixir(repo)
+        m, v = scan_elixir_ts(repo) if use_ts else scan_elixir(repo)
         modules += m
         versions.update(v)
     if (repo / "Cargo.toml").exists():
-        m, v = scan_rust(repo)
+        m, v = scan_rust_ts(repo) if use_ts else scan_rust(repo)
         modules += m
         versions.update(v)
     if next(iter_files(repo, "package.json"), None):
@@ -1009,7 +1368,19 @@ def main(argv):
         print("error: " + str(repo) + " is not a directory", file=sys.stderr)
         return 2
     if mode == "code":
-        json.dump(extract_code(repo), sys.stdout, indent=2, sort_keys=True)
+        engine = "auto"
+        args = argv[2:]
+        i = 0
+        while i < len(args):
+            if args[i] == "--engine" and i + 1 < len(args):
+                if args[i + 1] not in ("auto", "ts", "regex"):
+                    print("error: --engine must be auto|ts|regex", file=sys.stderr)
+                    return 2
+                engine = args[i + 1]
+                i += 2
+            else:
+                i += 1
+        json.dump(extract_code(repo, engine), sys.stdout, indent=2, sort_keys=True)
         print()
         return 0
     code_json = None
