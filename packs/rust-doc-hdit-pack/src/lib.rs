@@ -11,6 +11,7 @@
 //!   wasm32-wasip1 compatible).
 
 pub mod info_theory;
+pub mod scaffold;
 pub mod vsa;
 
 /// Dimensionality of all hypervectors.

@@ -1,4 +1,4 @@
-//! doc-hdit CLI: `vectorize` and `audit` subcommands.
+//! doc-hdit CLI: `scaffold`, `vectorize` and `audit` subcommands.
 
 use doc_hdit::info_theory::entropy::{mutual_information, q_density, shannon};
 use doc_hdit::info_theory::{projection_residual, rank_phantoms, s_coverage, CodeBasis};
@@ -64,10 +64,51 @@ fn parse_court(text: &str) -> Thresholds {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
-        eprintln!("usage: doc-hdit <vectorize|audit> <inputs.json> [court-file]");
+        eprintln!(
+            "usage: doc-hdit <vectorize|audit|scaffold> -- <inputs.json> [court-file]\n       doc-hdit scaffold --code <json> --templates <dir> --out <docsdir>"
+        );
         std::process::exit(2);
     }
     let cmd = args[1].as_str();
+    if cmd == "scaffold" {
+        let mut code = None;
+        let mut templates = None;
+        let mut out = None;
+        let mut i = 2;
+        while i < args.len() {
+            match args[i].as_str() {
+                "--code" => code = args.get(i + 1).cloned(),
+                "--templates" => templates = args.get(i + 1).cloned(),
+                "--out" => out = args.get(i + 1).cloned(),
+                _ => {}
+            }
+            i += 2;
+        }
+        let (code, templates, out) = match (code, templates, out) {
+            (Some(c), Some(t), Some(o)) => (c, t, o),
+            _ => {
+                eprintln!("usage: doc-hdit scaffold --code <json> --templates <dir> --out <docsdir>");
+                std::process::exit(2);
+            }
+        };
+        match doc_hdit::scaffold::scaffold_cli(&code, &templates, &out) {
+            Ok(written) => {
+                for w in &written {
+                    println!("scaffolded {}", w.display());
+                }
+                println!(
+                    "OK: scaffold rendered {} files into {}",
+                    written.len(),
+                    out
+                );
+            }
+            Err(e) => {
+                eprintln!("error: {}", e);
+                std::process::exit(2);
+            }
+        }
+        return;
+    }
     let input_path = args.get(2).map(String::as_str).unwrap_or("");
     let raw = match std::fs::read_to_string(input_path) {
         Ok(r) => r,
