@@ -1,5 +1,9 @@
 # Reference: wasi-json-abi-pack
 
+> [!WARNING]
+> `wasi-json-abi-pack` is **DEPRECATED** (lifecycle state recorded in `lifecycle.toml`). Its capabilities are consolidated into [`packs/rust-wasi-wasmex-pack`](../../../packs/rust-wasi-wasmex-pack/) — migrate generator wiring there.
+
+
 `packs/wasi-json-abi-pack` renders the host-facing shell of a WASI JSON-ABI module from an
 ontology of `wja:WasmModule`, `wja:Op`, `wja:ErrorCode` and `wja:WasiImport`. Namespace
 `https://ggen.dev/ontology/wasi-json-abi#`, prefix `wja:`. Authority NONE.

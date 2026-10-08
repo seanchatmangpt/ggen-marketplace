@@ -1,5 +1,9 @@
 # How to represent a Rust ABI crate end to end
 
+> [!WARNING]
+> `wasi-json-abi-pack` is **DEPRECATED** (lifecycle state recorded in `lifecycle.toml`). Its capabilities are consolidated into [`packs/rust-wasi-wasmex-pack`](../../../packs/rust-wasi-wasmex-pack/) — migrate generator wiring there.
+
+
 Goal: take a Rust crate exposing a JSON ABI over a WASI module and represent it through the
 marketplace packs, using graphlaw as the worked specimen.
 

@@ -1,5 +1,9 @@
 # Tutorial: graphlaw through rust, wasm and beam
 
+> [!WARNING]
+> `wasi-json-abi-pack` is **DEPRECATED** (lifecycle state recorded in `lifecycle.toml`). Its capabilities are consolidated into [`packs/rust-wasi-wasmex-pack`](../../../packs/rust-wasi-wasmex-pack/) — migrate generator wiring there.
+
+
 You will render graphlaw's wasm ABI projection from RDF, read what it carries, and watch a gate
 refuse a broken import. It stops before DO: nothing here runs the graphlaw module.
 
