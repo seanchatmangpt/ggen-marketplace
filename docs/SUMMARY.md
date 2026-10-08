@@ -85,6 +85,10 @@
 - [Ontology maturity mapping — L4/L5 and the ggen bridge](reference/ONTOLOGY-MATURITY-L4-L5.md)
 - [Release v26.10.8](reference/release-v26.10.8.md)
 - [Conformance courts](reference/CONFORMANCE-COURTS.md)
+- [Generated reference — code surface tables](reference/generated/reference.md)
+- [Generated how-to — code-surface verbs](reference/generated/how_to.md)
+- [Generated explanation — code-surface summary](reference/generated/explanation.md)
+- [Generated doc-hdit reference skeletons](reference/generated/README.md)
 - [Pack index](reference/PACK-INDEX.md)
 - [Release v26.10.5 receipt](context/v26.10.5-receipt.md)
 
