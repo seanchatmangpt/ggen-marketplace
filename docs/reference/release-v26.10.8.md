@@ -30,3 +30,4 @@ claims below are marked where they rest on runs not executed in this release.
 - [Pack lifecycle registry](pack-lifecycle-registry.md)
 - [Level 5 maturity contract](level5-maturity-contract.md)
 - [Conformance courts index](CONFORMANCE-COURTS.md)
+- [Pack index](PACK-INDEX.md)
