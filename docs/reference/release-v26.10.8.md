@@ -29,3 +29,4 @@ claims below are marked where they rest on runs not executed in this release.
 - [Release v26.9.30](release-v26.9.30.md)
 - [Pack lifecycle registry](pack-lifecycle-registry.md)
 - [Level 5 maturity contract](level5-maturity-contract.md)
+- [Conformance courts index](CONFORMANCE-COURTS.md)
