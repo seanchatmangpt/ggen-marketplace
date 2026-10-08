@@ -31,7 +31,7 @@
 - [Consolidate a pack family](how-to/consolidate-a-pack-family.md)
 - [Promote a pack to Level 5](how-to/promote-a-pack-to-level5.md)
 - [Query the R15 option hypergraph](how-to/query-option-hypergraph-r15.md)
-- [Consume graphlaw through wasi-json-abi](how-to/consume-graphlaw-through-wasi-json-abi.md)
+- [Consume graphlaw through wasi-json-abi (deprecated; see rust-wasi-wasmex-pack)](how-to/consume-graphlaw-through-wasi-json-abi.md)
 - [Represent a Rust ABI crate](how-to/represent-a-rust-abi-crate.md)
 - [Measure manufacture time across toolchain changes](how-to/measure-manufacture-time.md)
 - [Flag a pack's lifecycle](how-to/flag-a-pack-lifecycle.md)
@@ -62,7 +62,7 @@
 - [Enterprise Kudzu v26.9.13](reference/enterprise-kudzu-v26.9.13.md)
 - [GraphLaw Ash capability pack](reference/graphlaw-ash-capability-pack.md)
 - [GraphLaw rust, wasm, beam/elixir pipeline](reference/graphlaw-rust-wasm-beam-pipeline.md)
-- [wasi-json-abi-pack](reference/wasi-json-abi-pack.md)
+- [wasi-json-abi-pack (deprecated; see rust-wasi-wasmex-pack)](reference/wasi-json-abi-pack.md)
 - [New packs 2026-09](reference/new-packs-2026-09.md)
 - [Chicago work-equivalent court](reference/chicago-work-equivalent-court.md)
 - [Manufacture timing contract](reference/manufacture-timing-contract.md)
@@ -82,6 +82,8 @@
 - [CONSOLIDATION_MAP.md — rust→wasm→elixir packs and usages](rust-wasm-elixir/CONSOLIDATION_MAP.md)
 - [Run the conference commerce sim](how-to/run-conference-commerce-sim.md)
 - [Conference commerce model (CG9)](reference/conference-commerce-model.md)
+- [Ontology maturity mapping — L4/L5 and the ggen bridge](reference/ONTOLOGY-MATURITY-L4-L5.md)
+- [Release v26.10.8](reference/release-v26.10.8.md)
 - [Release v26.10.5 receipt](context/v26.10.5-receipt.md)
 
 # Explanation

@@ -20,9 +20,9 @@ under `dynamic_in_gates` in the allowlist; gates that fail to parse are also ref
 
 | metric | value |
 |---|---|
-| packs | 305 |
-| packs with Python scripts | 106 |
-| Python files scanned | 525 |
+| packs | 307 |
+| packs with Python scripts | 107 |
+| Python files scanned | 527 |
 | files failing to parse | 0 |
 
 ## Capability by role
@@ -65,13 +65,14 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 | state | packs |
 |---|---|
 | with LICENSE file | 2 |
-| lacking LICENSE file | 303 |
+| lacking LICENSE file | 305 |
 | with SPDX identifier | 6 |
-| lacking SPDX identifier | 299 |
-| lacking both | 297 |
+| lacking SPDX identifier | 301 |
+| lacking both | 299 |
 
 <details><summary>Packs lacking both</summary>
 
+- `.clap-noun-verb`
 - `a2a-conformance-pack`
 - `a2a-durability-pack`
 - `a2a-hex-migration-pack`
@@ -313,6 +314,7 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `run-protocol-observability-pack`
 - `runtime-evidence-authenticity-control-pack`
 - `runtime-evidence-authenticity-pack`
+- `rust-wasi-wasmex-pack`
 - `sa2a-bridge-pack`
 - `sa2a-chicago-court-pack`
 - `sa2a-fastapi-pack`

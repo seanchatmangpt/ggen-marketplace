@@ -13,12 +13,12 @@ The census is read-only over `.github/workflows/*.yml`.
 
 ## Family summary
 
-28 workflows. Family is the filename prefix; round is the `rNN` token.
+29 workflows. Family is the filename prefix; round is the `rNN` token.
 
 | family | files | pull_request | push | schedule | distinct job skeletons | largest identical group | largest shape group |
 |---|---|---|---|---|---|---|---|
 | develop | 2 | 2 | 1 | 0 | 2 | 1 | 1 |
-| other | 26 | 23 | 9 | 3 | 26 | 1 | 1 |
+| other | 27 | 24 | 10 | 3 | 27 | 1 | 1 |
 
 ## Consolidation candidates
 
@@ -43,6 +43,7 @@ Workflow files named inside `ci.yml`: none.
 
 | file | name | triggers | path filters | PR | push | sched | family | round | in ci.yml |
 |---|---|---|---|---|---|---|---|---|---|
+| `aaif-enterprise-chicago-court.yml` | Marketplace Chicago Multi-Pack Conformance Matrix | pull_request, push | - | yes | yes | no | other | - | no |
 | `chicago-work-equivalent.yml` | Chicago work-equivalent court | pull_request, workflow_dispatch | `pull_request:.github/workflows/chicago-work-equivalent.yml`<br>`pull_request:docs/reference/chicago-work-equivalent-court.md`<br>`pull_request:evidence/chicago/marketplace-work-equivalent.json`<br>+2 more | yes | no | no | other | - | no |
 | `ci.yml` | CI | pull_request, push, schedule, workflow_dispatch | - | yes | yes | yes | other | - | no |
 | `dd-ui-profile.yml` | DDUI ecosystem profile | pull_request, push | `pull_request:.github/workflows/dd-ui-profile.yml`<br>`pull_request:dd-ui/**`<br>`pull_request:packs/deterministic-dynamic-ui-pack/**`<br>+3 more | yes | yes | no | other | - | no |
