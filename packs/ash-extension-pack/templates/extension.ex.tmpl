@@ -69,6 +69,15 @@ sparql:
       ?entity aex:entityStruct ?entity_struct ; aex:nestedOf*/aex:entityOf/aex:sectionOf ?spec .
       ?spec aex:packageName ?package_name .
     } ORDER BY ?package_name ?entity_struct ?field_order
+  section_one_of_values: |
+    PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
+    SELECT ?package_name ?section_name ?section_field_name ?one_of_order ?one_of_name WHERE {
+      ?v a aex:FieldOneOfValue ; aex:oneOfValueOf ?field ; aex:oneOfValueOrder ?one_of_order ;
+         aex:oneOfValueName ?one_of_name .
+      ?field aex:sectionFieldName ?section_field_name ; aex:sectionFieldOf ?section .
+      ?section aex:sectionName ?section_name ; aex:sectionOf ?spec .
+      ?spec aex:packageName ?package_name .
+    } ORDER BY ?package_name ?section_name ?section_field_name ?one_of_order
   one_of_values: |
     PREFIX aex: <http://seanchatmangpt.github.io/packs/ash-extension-core#>
     SELECT ?package_name ?entity_struct ?field_name ?one_of_order ?one_of_name WHERE {
@@ -213,7 +222,7 @@ defmodule {{ module_name }} do
 {% endif %}
 {% if section_fields_here | length > 0 %}
     schema: [
-{% for sf in section_fields_here %}      {{ sf.section_field_name }}: [type: {% if sf.section_field_type == "or_string_list_string" %}{:or, [:string, {:list, :string}]}{% elif sf.section_field_type == "list_atom" %}{:list, :atom}{% elif sf.section_field_type == "list_string" %}{:list, :string}{% else %}:{{ sf.section_field_type }}{% endif %}{% if sf.section_field_default %}, default: {{ sf.section_field_default }}{% endif %}{% if sf.section_field_doc %}, doc: "{{ sf.section_field_doc }}"{% endif %}],
+{% for sf in section_fields_here %}      {{ sf.section_field_name }}: [type: {% if sf.section_field_type == "one_of" %}{:one_of, [{% set sov = section_one_of_values | filter(attribute="section_name", value=section.section_name) | filter(attribute="section_field_name", value=sf.section_field_name) %}{% for v in sov %}:{{ v.one_of_name }}{% if not loop.last %}, {% endif %}{% endfor %}]}{% elif sf.section_field_type == "or_string_list_string" %}{:or, [:string, {:list, :string}]}{% elif sf.section_field_type == "list_atom" %}{:list, :atom}{% elif sf.section_field_type == "list_string" %}{:list, :string}{% else %}:{{ sf.section_field_type }}{% endif %}{% if sf.section_field_default %}, default: {{ sf.section_field_default }}{% endif %}{% if sf.section_field_doc %}, doc: "{{ sf.section_field_doc }}"{% endif %}],
 {% endfor %}    ],
 {% endif %}
     entities: [

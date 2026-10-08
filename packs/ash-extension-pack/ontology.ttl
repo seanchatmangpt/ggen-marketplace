@@ -48,7 +48,12 @@ aex:sectionDescribe a rdf:Property ; rdfs:domain aex:DslSection ; rdfs:comment "
 aex:singletonEntityKey a rdf:Property ; rdfs:domain aex:DslSection ;
     rdfs:comment "0+ rows -- an entity name (atom) listed in this section's singleton_entity_keys:, mirroring ash_r2rml's :r2rml section (singleton_entity_keys: [:subject]). Replaces a per-entity boolean: singleton-ness is a SECTION-level list in real Spark, not an entity flag." .
 
+aex:SchemaField a rdfs:Class ;
+    rdfs:label "Common superclass of entity-level and section-level Spark schema fields." .
+aex:EntitySchemaField a rdfs:Class ;
+    rdfs:subClassOf aex:SchemaField .
 aex:SectionSchemaField a rdfs:Class ;
+    rdfs:subClassOf aex:SchemaField ;
     rdfs:label "One field of a DslSection's own top-level Spark schema (ash_r2rml's :r2rml section schema: table_name/sql_query/schema), distinct from a DslEntity's schema." .
 aex:sectionFieldOf   a rdf:Property ; rdfs:domain aex:SectionSchemaField ; rdfs:range aex:DslSection .
 aex:sectionFieldOrder a rdf:Property ; rdfs:domain aex:SectionSchemaField .
@@ -90,7 +95,7 @@ aex:fieldDefault a rdf:Property ; rdfs:domain aex:EntitySchemaField ;
 
 aex:FieldOneOfValue a rdfs:Class ;
     rdfs:label "One allowed atom value for a fieldType=\"one_of\" field, ordered (ash_r2rml's Subject.term_type: {:one_of, [:iri, :blank_node]})." .
-aex:oneOfValueOf   a rdf:Property ; rdfs:domain aex:FieldOneOfValue ; rdfs:range aex:EntitySchemaField .
+aex:oneOfValueOf   a rdf:Property ; rdfs:domain aex:FieldOneOfValue ; rdfs:range aex:SchemaField .
 aex:oneOfValueOrder a rdf:Property ; rdfs:domain aex:FieldOneOfValue .
 aex:oneOfValueName a rdf:Property ; rdfs:domain aex:FieldOneOfValue ; rdfs:comment "atom text without the leading colon, e.g. \"iri\"." .
 
@@ -268,6 +273,7 @@ aex:getterSourceSection a rdf:Property ; rdfs:domain aex:InfoGetter ; rdfs:range
 #################################################################
 
 aex:AuditTrailSpec a aex:AshExtensionSpec ;
+    aex:fixtureOnly true ;
     aex:packageName "audit_trail" ;
     aex:moduleName "AuditTrail.Resource" ;
     aex:extensionTarget "resource" ;
@@ -339,6 +345,7 @@ aex:AuditTrailJsonApiComposition a aex:CompositionTarget ;
 #################################################################
 
 aex:AshR2RMLSpec a aex:AshExtensionSpec ;
+    aex:fixtureOnly true ;
     aex:packageName "ash_r2rml" ;
     aex:moduleName "AshR2RML.Resource" ;
     aex:extensionTarget "resource" ;
@@ -551,6 +558,7 @@ aex:AshR2RMLSparqlQueryWhere a aex:EntitySchemaField ;
 #################################################################
 
 aex:NotificationExtensionSpec a aex:AshExtensionSpec ;
+    aex:fixtureOnly true ;
     aex:packageName "notification_extension" ;
     aex:moduleName "NotificationExtension.Resource" ;
     aex:extensionTarget "resource" ;
@@ -1584,6 +1592,7 @@ aex:dslCitation a rdf:Property ;
 # --- Worked instance: the real ash_a2a extension (the a2a-section fixture) ---
 
 aex:AshA2aSpec a aex:AshExtensionSpec ;
+    aex:fixtureOnly true ;
     aex:packageName "ash_a2a" ;
     aex:moduleName "AshA2A.Dsl" ;
     aex:extensionTarget "domain" ;
@@ -1720,10 +1729,12 @@ aex:AshA2aArgumentEntity a aex:NestedEntity ;
 aex:AshA2aArgumentName a aex:EntitySchemaField ;
     aex:fieldOf aex:AshA2aArgumentEntity ;
     aex:fieldOrder 1 ; aex:fieldName "name" ; aex:fieldType "atom" ; aex:fieldRequired true ;
+    aex:fieldDoc "Argument name (deprecated compatibility-only declaration; transcribed verbatim from lib/ash_a2a/dsl.ex:98)." ;
     aex:dslCitation "lib/ash_a2a/dsl.ex:98" .
 aex:AshA2aArgumentType a aex:EntitySchemaField ;
     aex:fieldOf aex:AshA2aArgumentEntity ;
     aex:fieldOrder 2 ; aex:fieldName "type" ; aex:fieldType "any" ; aex:fieldRequired true ;
+    aex:fieldDoc "Argument type (deprecated compatibility-only declaration; transcribed verbatim from lib/ash_a2a/dsl.ex:99)." ;
     aex:dslCitation "lib/ash_a2a/dsl.ex:99" .
 aex:AshA2aArgumentArgName a aex:EntityArg ;
     aex:argOf aex:AshA2aArgumentEntity ; aex:argOrder 1 ; aex:argName "name" .
@@ -1777,6 +1788,16 @@ aex:AshA2aAuthorityGate a aex:SectionSchemaField ;
     aex:sectionFieldDefault ":two_port" ;
     aex:sectionFieldDoc "Default admission gate applied to consequence-bearing actions. Closed values: :two_port | :open | :disabled (dsl.ex:192); aex:FieldOneOfValue binds to entity fields only, so the section-level enum is stated here. Compile-time coupling: an :external_do/:change consequence under gate :open/:disabled is a DslError (verify.ex:42-58)." ;
     aex:dslCitation "lib/ash_a2a/dsl.ex:191-194" .
+
+# Section-level enum values for the authority gate (closed set per dsl.ex:192;
+# the field's doc states the coupling -- these rows carry the values the
+# section-field renderer expands into {:one_of, [...]}).
+aex:AshA2aAuthorityGateTwoPort a aex:FieldOneOfValue ;
+    aex:oneOfValueOf aex:AshA2aAuthorityGate ; aex:oneOfValueOrder 1 ; aex:oneOfValueName "two_port" .
+aex:AshA2aAuthorityGateOpen a aex:FieldOneOfValue ;
+    aex:oneOfValueOf aex:AshA2aAuthorityGate ; aex:oneOfValueOrder 2 ; aex:oneOfValueName "open" .
+aex:AshA2aAuthorityGateDisabled a aex:FieldOneOfValue ;
+    aex:oneOfValueOf aex:AshA2aAuthorityGate ; aex:oneOfValueOrder 3 ; aex:oneOfValueName "disabled" .
 
 aex:AshA2aAuthorityLeaseDuration a aex:SectionSchemaField ;
     aex:sectionFieldOf aex:AshA2aAuthoritySection ;
