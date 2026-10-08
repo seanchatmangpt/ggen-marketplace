@@ -80,5 +80,5 @@ exact-SHA run of the wasm module is evidenced here, and no BEAM consumer receipt
 
 External sibling (`../graphlaw`, separate repo):
 
-- [ABI reference](../../graphlaw/docs/abi-reference.md)
-- [Artifact pins](../../graphlaw/registry/ARTIFACTS.sha256)
+- ABI reference: `~/graphlaw/docs/abi-reference.md`
+- Artifact pins: `~/graphlaw/registry/ARTIFACTS.sha256`
