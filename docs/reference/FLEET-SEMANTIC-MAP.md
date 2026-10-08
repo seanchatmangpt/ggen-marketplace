@@ -260,6 +260,19 @@ same branch) records `GET /.well-known/agent-card.json` → HTTP 200 served by
 `create_app()` (a2a-sdk 1.4.1, 1 skill `formal_decision`); replayed at this
 checkout 2026-10-08 with the identical result.
 
+Addendum (2026-10-08): **ash_kudzu** is a documented no-op — a workgraph-only
+candidate producer (§4, `LEGACY_EXTRACTION`) that serves nothing. It is a real
+ontology compiler (Ash introspection → Turtle → SHACL admission, PR #12,
+merged 2026-09-29) but no HTTP surface exists and none is claimed.
+`priv/sa2a/admission/*.rq` are decorative 3-line SPARQL stubs
+(`authority_none.rq`, `query_digest.rq`, `source_revision.rq`) referenced by
+no code — the real admission is pure Elixir in `lib/ash_kudzu/`
+(`shacl_admission.ex`, `sa2a_evidence_admission.ex`). Its own code states the
+role: the authority-free semantic envelope (`sa2a.semantic-evidence-envelope.v1`,
+authority `NONE`) that ash_a2a/SA2A consumes
+(`lib/ash_kudzu/sa2a_candidate.ex:6`). Inventory evidence at ash_kudzu HEAD
+`257589d`.
+
 ## Replay
 
 ```bash
