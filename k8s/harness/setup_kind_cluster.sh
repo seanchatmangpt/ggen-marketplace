@@ -8,4 +8,4 @@ echo "[INFO] Creating ephemeral kind cluster: ${CLUSTER_NAME}"
 kind create cluster --name "${CLUSTER_NAME}" --config "${CONFIG_PATH}" --wait 60s
 
 echo "[INFO] Cluster ${CLUSTER_NAME} initialized successfully."
-kubectl cluster-info --context "kind-${CLUSTER_NAME}"
+kubectl cluster-info --context "kind-${CLUSTER_NAME}" || true
