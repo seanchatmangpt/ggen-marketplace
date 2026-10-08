@@ -321,11 +321,31 @@ def known_symbols(surface):
     return syms
 
 
+# v2 over-extraction filter: backticked spans that are CLI flags, version
+# strings, boolean-ish single words, or too-short tokens are prose artifacts,
+# not code-surface symbol references (DOC-HDIT-PILOT P1).
+VERSION_RE = re.compile(r"^v?\d+(\.\d+)+")
+BOOLISH = {"true", "false", "yes", "no", "on", "off", "nil", "null", "ok", "valid", "enabled", "disabled"}
+
+
+def is_noise_span(span):
+    s = span.strip()
+    if s.startswith("--"):                     # CLI flags: --json, --mode <auto|ff>
+        return True
+    if len(s) < 3:                             # <3-char tokens
+        return True
+    if VERSION_RE.match(s) or re.fullmatch(r"[0-9][0-9._]*", s):
+        return True
+    if s.lower() in BOOLISH:                   # boolean-ish single words
+        return True
+    return False
+
+
 def match_span(span, syms):
     span = span.strip()
+    if is_noise_span(span):
+        return None
     if span in syms:
-        return span
-    if span.startswith("--"):
         return span
     base = span.split("/")[0]
     if base in syms:
