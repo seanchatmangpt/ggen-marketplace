@@ -118,7 +118,7 @@ re-counted on this branch 2026-10-08; the workgraph was last touched by
   validators (`f6bb82dfb`, `78e1481a1`) — real queries over real graphs,
   refusal as the primary output.
 
-Current standing: pack tests green (57 passed:
+Current standing: pack tests green (67 passed:
 `python3 -m pytest packs/fortune5-enterprise-architecture-pack/tests/ -q`),
 kernel integration PARTIAL_ALIVE (kernel not yet wired into
 ggen-cli/ggen-engine/sync; EA graph still a JSON projection in the kernel —
