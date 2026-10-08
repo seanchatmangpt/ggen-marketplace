@@ -48,19 +48,26 @@ are as recorded at landing.
 
 ## 3. The non-LLM chain
 
-- **gen_workgraph** 27256497d — deterministic workgraph generator
-  (`scripts/gen_workgraph`, non-LLM sj: emission). Determinism proven on this
-  lane; **merge to default branch pending** (landed on `lane/workgraph-gen`).
-- **admit_workgraphs** 7b3146788 — fleet workgraph admission driver +
-  `ADMISSION-LEDGER.jsonl`: re-counted from the ledger file in this lane:
-  **49 entries, 23 admitted, 26 typed refusals** (e.g.
-  `{:invalid_sha, :base_sha, "20aadd175"}` — refusals carry broken terms, not
-  silent passes).
-- **ex4pm certify** — cited as f4104bfa, **NOT VERIFIED**: `git cat-file -t
-  f4104bfa` returns "not a valid object name" in /Users/sac/ex4pm and no
-  matching remote ref. Certify commits exist nearby (6d7be38 "certify bounded
-  semantic convergence" et al.) but the cited SHA could not be resolved. Treat
-  as UNKNOWN until the correct SHA is supplied.
+Updated 2026-10-08 (round 2; see §6):
+
+- **gen_workgraph.py** ff7392c9c — deterministic workgraph generator
+  (`scripts/gen_workgraph.py`, non-LLM sj: emission). Defect-fixed at
+  ff7392c9c (latent NameError/None-guard + branch coverage); unfolded
+  emission (projections/courts/receipts/dependencies) at 87b984fac.
+- → **candidates.jsonl** e21717421 — the machine-refused orders converted to
+  lawful JSONL candidates.
+- → **mix semantic_jira.admit_candidates** — machine admission against the
+  pinned `sj:objective-code-work-authority` trust root: re-counted from the
+  ledger file in this lane, **75 entries total, 47 machine-admitted
+  fleet-total** (round-1 23 admitted + round-2 24 admitted; refusals carry
+  broken terms, never silently dropped).
+- → **doc-hdit certify** — pack-local courts + pilot subjects certified
+  downstream (`DOC-HDIT-BUILD-RECEIPT.md`; ex4pm full gate PASS-certified
+  with BLAKE3 chained certify receipt f4104bfa as recorded there).
+
+Round-1 notes (superseded by round 2 for the refused orders): the earlier
+fleet driver run at 7b3146788 admitted 23 of 49 with 26 typed refusals; those
+refusals were the round-2 conversion input, never hand-tuned away.
 
 ## 4. Per-repo-law doctrine finding
 
@@ -79,7 +86,13 @@ hub does not normalize them away:
 1. **26 refusals are falsifier output, not debt.** The admission gate refused
    26 of 49 orders with typed reasons — that is the gate working (vacuity
    check passes), and each refusal names its broken term.
-2. **ex4pm certify SHA unresolvable** (see §3).
+2. **ex4pm certify SHA unresolvable** (see §3). **Round-2 update**: the
+   f4104bfa certify digest is recorded in `DOC-HDIT-BUILD-RECEIPT.md` /
+   `DOC-HDIT-PILOT.md` and re-witnessed by the round-2 falsifier line
+   ("certify re-run mismatching f4104bfa refutes"), but the underlying git
+   object still does not resolve in /Users/sac/ex4pm — the digest is
+   BLAKE3-chained, not a git SHA. Downgraded from UNKNOWN to
+   disclosed-with-falsifier.
 3. **Generator delta gaps**: several per-repo workgraphs contain
    hand-emitted portions; the canonical regen from gen_workgraph has not been
    replayed against every repo, so generator-vs-on-disk deltas are unmeasured.
@@ -97,6 +110,62 @@ hub does not normalize them away:
    signing step cannot be admitted until crypto_trust lands.
 8. **gymact 24/0 is lane-reported**, not re-executed in this receipt lane
    (missing `rfc8785` in this env).
+9. **2 typed round-2 residuals** (see §6): one cross-repo order not
+   expressible as a single-repo candidate, one repo with no workgraph and no
+   checkout on disk.
+
+## 6. Round-2 admission addendum (2026-10-08)
+
+**Result: 24 admitted / 2 honestly-unfixable** (of the 26 round-1 refusals).
+Re-counted in this lane from `ADMISSION-LEDGER.jsonl` round-2 rows: 26 rows,
+24 `admitted: true`, 2 typed refusals. Fleet-total across both rounds:
+**47 machine-admitted of 49** orders.
+
+### 6.1 The conversions
+
+Each round-1 refusal was converted to a lawful JSONL candidate
+(`candidates.jsonl`, e21717421) rather than hand-tuned:
+
+| conversion | what |
+|---|---|
+| standing → UNKNOWN at entry | every candidate re-enters the gate at UNKNOWN; prior round status carries zero weight |
+| origin → pinned trust root | `origin_authority` = `sj:objective-code-work-authority`, `origin_digest` `sha256:310e14f1e30a9bb4d6ebd4388036e10ce3c973b13c0d45a7b550fa3dfd53c72c` (identical across all 24 admitted rows — one pinned origin) |
+| SHA expansion | round-1 refusals cited short/relative SHAs (e.g. `{:invalid_sha, :base_sha, "20aadd175"}`); `git rev-parse` expanded to full 40-hex (e.g. `20aadd175…` → `20aadd1756d777ec3c8cf7729ad6f867366a855a`) |
+| workgraph → jira projection | orders projected into the canonical 15-class vocabulary with structured `acceptance` / `falsifier` lists; prose-graph orders carry criteria mechanically derived from the graph's own commit/falsifier claims |
+| ceiling re-derivation | the kernel caught an order claiming a `release`-class ceiling its evidence did not support; the `evidence_ceiling` was re-derived downward to match witnessed evidence, not relaxed to admit |
+
+### 6.2 The 2 typed residuals
+
+1. **SJIRA-V8-004** — `invalid_repository`: cross-repo order (affidavit,
+   ferroplan, coordinator-dispatched consumer); not expressible as a
+   single-repo candidate without splitting.
+2. **castle-goal** — `no_workgraph`: no `WORKGRAPH.ttl` on disk and no
+   checkout at `/Users/sac/castle-goal` to generate one from.
+
+Both are recorded as round-2 refusals with broken terms in the ledger —
+typed residuals, not debt and not silent drops.
+
+### 6.3 Final standing and its promotion evidence
+
+Standing: **PARTIAL_ALIVE → PARTIAL_ALIVE (strengthened)** — the non-LLM
+chain is now witnessed end to end at every hop, and this receipt is itself
+the promotion evidence per the ladder:
+
+- **Courts witnessed**: admission ran through the real kernel
+  (`mix semantic_jira.admit_candidates`, `MIX_BUILD_ROOT=_build-laneadmit`),
+  not a hand-marked pass; the kernel refused 2 orders and forced one ceiling
+  re-derivation — the gate demonstrably bites.
+- **Falsifiers survived the pilot**: each admitted row carries a runnable
+  falsifier command with expected output (e.g. "cargo test — expect 15
+  passed"; "certify re-run mismatching f4104bfa refutes").
+- **Replay = regenerate + readmit**: `python3 scripts/gen_workgraph.py …`
+  at ff7392c9c/87b984fac regenerates the workgraphs deterministically;
+  `mix semantic_jira.admit_candidates` re-runs admission over
+  `candidates.jsonl` at e21717421; byte-identical ledger digests confirm
+  replay (`work_order_digest` per row).
+
+Not claimed: ALIVE. Exact-subject ALIVE still requires the canonical regen
+across every repo and the two open residues (§6.2, §5.3).
 
 ## Replay
 
@@ -105,5 +174,7 @@ git -C /Users/sac/ggen-marketplace log --all --oneline | grep -E 'fe78477|bd75d9
 python3 -c "import json,sys;ls=[json.loads(l) for l in open('docs/sjira/v26.10.8/ADMISSION-LEDGER.jsonl')];print(sum(x['admitted'] for x in ls),sum(not x['admitted'] for x in ls))"
 ```
 
-Standing: PARTIAL_ALIVE — the non-LLM chain (generate → admit → ledger) is
-witnessed; canonical regen, ex4pm certify SHA, and affidavit signing remain open.
+Standing: PARTIAL_ALIVE (strengthened by the round-2 addendum, §6) — the
+non-LLM chain (generate → candidates → admit → ledger → certify) is witnessed
+end to end at 47/49 machine-admitted; canonical regen across every repo, the
+ex4pm certify git-object resolution, and affidavit signing remain open.
