@@ -22,8 +22,54 @@ SKIP_DIRS = {"deps", "_build", "node_modules", "target", ".git", ".venv", "priv"
 
 ELIXIR_MODULE = re.compile(r"defmodule\s+([A-Z][A-Za-z0-9._]*)\s+do")
 ELIXIR_DEF = re.compile(
-    r"^\s*def(p|macrop|guardp)?\s+([a-z_][a-zA-Z0-9_?!]*)(\([^)]*\))?", re.M
+    r"^\s*def(p|macrop|guardp)?\s+([a-z_][a-zA-Z0-9_?!]*)\s*(\()?"
 )
+
+
+def def_head_args(lines, i):
+    """Balanced-paren capture of a def head argument list across newlines.
+
+    Joins lines from index ``i`` until the paren opened after the function
+    name closes, and returns ``(args_inner, next_i)`` where ``args_inner`` is
+    the text between the outer parens and ``next_i`` is the index of the line
+    holding the closing paren (scanning resumes there).
+    """
+    buf = lines[i]
+    open_idx = buf.find("(")
+    j = i
+    while open_idx == -1 and j + 1 < len(lines):
+        j += 1
+        buf += "\n" + lines[j]
+        open_idx = buf.find("(")
+    if open_idx == -1:
+        return None, i  # headless def (e.g. `def foo`) — zero arity
+    depth = 0
+    close_idx = -1
+    for k in range(open_idx, len(buf)):
+        ch = buf[k]
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+            if depth == 0:
+                close_idx = k
+                break
+    while close_idx == -1 and j + 1 < len(lines):
+        j += 1
+        prev_len = len(buf)
+        buf += "\n" + lines[j]
+        for k in range(prev_len + 1, len(buf)):
+            ch = buf[k]
+            if ch in "([{":
+                depth += 1
+            elif ch in ")]}":
+                depth -= 1
+                if depth == 0:
+                    close_idx = k
+                    break
+    if close_idx == -1:
+        return None, i
+    return buf[open_idx + 1:close_idx], j
 ELIXIR_SPEC = re.compile(r"^\s*@\s*spec\s+(.+)$")
 ELIXIR_VERSION = re.compile(r'@version\s+"([^"]+)"|@?\s*version\s*:\s*"([^"]+)"')
 ELIXIR_DOC_LINE = re.compile(r"@\s*doc\s+(false|true)?\s*$")
@@ -40,6 +86,9 @@ RUST_FN = re.compile(
     r"([a-zA-Z_][a-zA-Z0-9_]*)\s*(\([^)]*\))",
 )
 RUST_ITEM = re.compile(r"\bpub\s+(struct|enum|trait)\s+([A-Z][A-Za-z0-9_]*)")
+ELIXIR_DEFSTRUCT = re.compile(r"^\s*defstruct\s+(.+)$")
+ELIXIR_TYPE = re.compile(r"^\s*@(type|typep)\s+([a-z_][a-zA-Z0-9_]*)\s*::\s*(.*)$")
+ELIXIR_TYPE_CONT = re.compile(r"^\s*\|\s*(.+)$")
 CARGO_PACKAGE = re.compile(r'\[package\][^\[]{0,600}?name\s*=\s*"([^"]+)"', re.S)
 CARGO_VERSION = re.compile(r'\[package\][^\[]{0,600}?version\s*=\s*"([^"]+)"', re.S)
 CARGO_WS_VERSION = re.compile(r'\[workspace\.package\][^\[]{0,600}?version\s*=\s*"([^"]+)"', re.S)
@@ -72,6 +121,30 @@ def count_args(argstr):
     return n
 
 
+def dedup_clauses(items):
+    """One item per (kind, ident, signature) with the clause count noted.
+
+    Elixir heads may have many clauses (`from_map/2` x N); the surface emits
+    a single item carrying ``clauses: N`` instead of N duplicates.
+    """
+    counts = {}
+    order = []
+    for it in items:
+        key = (it["kind"], it["ident"], it.get("signature", ""))
+        if key not in counts:
+            counts[key] = 0
+            order.append(it)
+        counts[key] += 1
+    out = []
+    for it in order:
+        n = counts[(it["kind"], it["ident"], it.get("signature", ""))]
+        if n > 1:
+            it = dict(it)
+            it["clauses"] = n
+        out.append(it)
+    return out
+
+
 # ---------------------------------------------------------------- Elixir ---
 
 
@@ -94,7 +167,10 @@ def scan_elixir(repo):
         pending_doc = None
         pending_spec = None
         is_router = "router" in path.name.lower()
-        for line in lines:
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            i += 1
             mod = ELIXIR_MODULE.search(line)
             if mod:
                 stack.append(({"name": mod.group(1), "items": []}, depth))
@@ -107,7 +183,7 @@ def scan_elixir(repo):
                     "name": done["name"],
                     "file": rel,
                     "is_public": True,
-                    "items": done["items"],
+                    "items": dedup_clauses(done["items"]),
                 })
             if not stack:
                 pending_doc = pending_spec = None
@@ -141,13 +217,63 @@ def scan_elixir(repo):
                 continue
             if " @spec " in line or line.startswith("@spec"):
                 pending_spec = line.split(None, 1)[1].strip() if " " in line.strip() else ""
+            tm = ELIXIR_TYPE.match(line)
+            if tm and stack:
+                tname, tbody = tm.group(2), tm.group(3).strip()
+                # `@type t :: ...` unions often continue with `| ...` lines.
+                while i < len(lines):
+                    cm = ELIXIR_TYPE_CONT.match(lines[i])
+                    if cm is None:
+                        break
+                    tbody += " | " + cm.group(1).strip()
+                    i += 1
+                if not tbody.strip():
+                    continue
+                cur["items"].append({
+                    "kind": "type",
+                    "ident": tname,
+                    "signature": "@type " + tname + " :: " + " ".join(tbody.split()),
+                    "doc": "",
+                    "is_public": True,
+                })
+            dm = ELIXIR_DEFSTRUCT.match(line)
+            if dm and stack:
+                body = dm.group(1).strip()
+                if body.startswith("[") and "]" not in body:
+                    while i < len(lines) and "]" not in body:
+                        body += " " + lines[i].strip()
+                        i += 1
+                fields = []
+                for f in split_top(body.strip("[]")):
+                    f = f.strip()
+                    if f.startswith(":"):
+                        fields.append(f[1:])
+                    elif re.match(r"^[a-z_]", f):
+                        fields.append(f)
+                if fields:
+                    cur["items"].append({
+                        "kind": "struct",
+                        "ident": cur["name"],
+                        "signature": "defstruct " + ", ".join(fields),
+                        "doc": pending_doc or "",
+                        "is_public": True,
+                    })
+                pending_doc = None
             fm = ELIXIR_DEF.match(line)
             if fm:
-                args = fm.group(3) or ""
-                arity = count_args(args[1:-1] if args else "")
+                args_inner, close_i = def_head_args(lines, i - 1)
+                if close_i > i - 1:
+                    i = close_i + 1
+                arity = count_args(args_inner or "")
+                # Private forms (defp/defmacrop/defguardp) are internal
+                # implementation, never the public code surface: excluded
+                # from emission entirely, not merely flagged.
+                if fm.group(1):
+                    pending_doc = pending_spec = None
+                    continue
                 # P2 scope: an item is public iff it is not a private form
-                # (defp/defmacrop/defguardp) and not `@doc false`.
-                is_public = not fm.group(1) and pending_doc != "false"
+                # and not `@doc false`.
+                is_public = pending_doc != "false"
                 item = {
                     "kind": "function",
                     "ident": fm.group(2),
@@ -185,12 +311,87 @@ def scan_elixir(repo):
                 "name": done["name"],
                 "file": rel,
                 "is_public": True,
-                "items": done["items"],
+                "items": dedup_clauses(done["items"]),
             })
     return modules, versions
 
 
 # ------------------------------------------------------------------ Rust ---
+
+
+def brace_body(text, i):
+    """Return the balanced `{...}` body following index i, or None.
+
+    Guards: if a `;` appears before the opening brace the construct was
+    bodiless (unit struct / trait method stub) and the next `{` belongs to
+    something else — refuse rather than over-capture.
+    """
+    j = text.find("{", i)
+    if j == -1 or ";" in text[i:j]:
+        return None
+    depth = 0
+    for k in range(j, len(text)):
+        ch = text[k]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[j + 1:k]
+    return None
+
+
+def paren_body(text, i):
+    """Return the balanced `(...)` body following index i, or None."""
+    j = text.find("(", i)
+    if j == -1 or ";" in text[i:j] or "{" in text[i:j]:
+        return None
+    depth = 0
+    for k in range(j, len(text)):
+        ch = text[k]
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                return text[j + 1:k]
+    return None
+
+
+def split_top(s):
+    """Split on top-level commas (depth-aware over <> () [])."""
+    parts, cur, depth = [], [], 0
+    for ch in s:
+        if ch in "<([":
+            depth += 1
+            cur.append(ch)
+        elif ch in ">)]":
+            depth = max(0, depth - 1)
+            cur.append(ch)
+        elif ch == "," and depth == 0:
+            parts.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    parts.append("".join(cur))
+    return [p.strip() for p in parts if p.strip()]
+
+
+def rust_type_signature(kind, ident, text, i):
+    """Populate struct/enum signatures: `Name { field: Type, ... }` /
+    `Name { Variant, ... }`. Returns "" when no body can be recovered.
+    Traits are out of scope (method bodies are not field signatures)."""
+    if kind not in ("struct", "enum"):
+        return ""
+    body = brace_body(text, i)
+    if body is None and kind == "struct":
+        body = paren_body(text, i)  # tuple struct: pub struct Foo(pub A, B);
+    if body is None:
+        return ""
+    members = split_top(body)
+    if not members:
+        return ident
+    return ident + " { " + ", ".join(" ".join(m.split()) for m in members) + " }"
 
 
 def scan_rust(repo):
@@ -241,7 +442,9 @@ def scan_rust(repo):
                 items.append({
                     "kind": m.group(1).lower(),
                     "ident": m.group(2),
-                    "signature": "",
+                    "signature": rust_type_signature(
+                        m.group(1).lower(), m.group(2), text, m.end()
+                    ),
                     "is_public": True,
                 })
             seen = set()

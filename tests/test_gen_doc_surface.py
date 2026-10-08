@@ -37,10 +37,133 @@ class P2ExtractorTest(unittest.TestCase):
             for it in m["items"]
             if it["kind"] == "function"
         }
-        assert items["hidden"]["is_public"] is False
-        assert items["secret"]["is_public"] is False
+        assert items["hidden"]["is_public"] is False  # @doc false: emitted, flagged internal
+        assert "secret" not in items  # defp: excluded from the surface entirely
         assert items["visible"]["is_public"] is True
         assert items["shown"]["is_public"] is True
+
+    def test_multiline_def_head_captures_arity(self):
+        # Witnessed: beam4pm_deviation_admission.ex `def admit_deviation(`
+        # heads split across lines lost arity (extracted /0, actually /5).
+        src = (
+            "defmodule Demo do\n"
+            "  @ontology_path \"x.ttl\"\n"
+            "  def admit_deviation(\n"
+            "        result,\n"
+            "        reference_trace_id,\n"
+            "        candidate_trace_id,\n"
+            "        ontology_path \\\\ @ontology_path,\n"
+            "        opts \\\\ []\n"
+            "      ) do\n"
+            "    :ok\n"
+            "  end\n"
+            "\n"
+            "  def single_line(a, b), do: {a, b}\n"
+            "end\n"
+        )
+        repo = mkrepo({"mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n", "lib/demo.ex": src})
+        code = g.extract_code(repo)
+        items = {
+            it["ident"]: it
+            for m in code["modules"]
+            for it in m["items"]
+            if it["kind"] == "function"
+        }
+        assert items["admit_deviation"]["signature"] == "admit_deviation/5"
+        assert items["single_line"]["signature"] == "single_line/2"
+
+    def test_multiline_def_head_nested_parens_and_inline_default(self):
+        # Defaults with tuple/paren nesting must not terminate the head scan.
+        src = (
+            "defmodule Demo do\n"
+            "  def handle(\n"
+            "        %{a: 1},\n"
+            "        opts \\\\ [timeout: Application.fetch_env!(:app, :t)]\n"
+            "      ) do\n"
+            "    :ok\n"
+            "  end\n"
+            "end\n"
+        )
+        repo = mkrepo({"mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n", "lib/demo.ex": src})
+        code = g.extract_code(repo)
+        items = [
+            it
+            for m in code["modules"]
+            for it in m["items"]
+            if it["kind"] == "function"
+        ]
+        assert len(items) == 1
+        assert items[0]["signature"] == "handle/2"
+
+    def test_multiline_def_head_without_paren_on_first_line(self):
+        src = (
+            "defmodule Demo do\n"
+            "  def long_name\n"
+            "  (\n"
+            "        a, b\n"
+            "  ) do\n"
+            "  end\n"
+            "end\n"
+        )
+        repo = mkrepo({"mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n", "lib/demo.ex": src}
+        )
+        code = g.extract_code(repo)
+        items = [
+            it
+            for m in code["modules"]
+            for it in m["items"]
+            if it["kind"] == "function"
+        ]
+        assert len(items) == 1
+        assert items[0]["signature"] == "long_name/2"
+
+    def test_per_clause_duplicates_deduped_with_clause_count(self):
+        # Witnessed: beam4pm_codec.ex emits `from_map/2` once per clause
+        # (x693); the surface must carry one item per name/arity with the
+        # clause count noted.
+        src = (
+            "defmodule Demo do\n"
+            "  def from_map(:a, m) when is_map(m), do: m\n"
+            "  def from_map(:b, m), do: m\n"
+            "  def from_map(:c, m), do: m\n"
+            "  def from_map(other, m), do: {other, m}\n"
+            "  def to_map(x, m), do: {x, m}\n"
+            "end\n"
+        )
+        repo = mkrepo({"mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n", "lib/demo.ex": src})
+        code = g.extract_code(repo)
+        items = [
+            it
+            for m in code["modules"]
+            for it in m["items"]
+            if it["kind"] == "function"
+        ]
+        from_map = [it for it in items if it["ident"] == "from_map"]
+        assert len(from_map) == 1
+        assert from_map[0]["signature"] == "from_map/2"
+        assert from_map[0]["clauses"] == 4
+        to_map = [it for it in items if it["ident"] == "to_map"]
+        assert len(to_map) == 1 and "clauses" not in to_map[0]
+
+    def test_defp_excluded_from_public_surface(self):
+        # Witnessed: beam4pm_ocel_ingest.ex `defp handle_ingest(conn, "ocel_event")`
+        # clauses were emitted as a public-looking `handle_ingest/2` item.
+        src = (
+            "defmodule Demo do\n"
+            "  def public_fn(a), do: a\n"
+            "  defp handle_ingest(conn, \"ocel_event\"), do: conn\n"
+            "  defp handle_ingest(conn, \"ocel_object\"), do: conn\n"
+            "end\n"
+        )
+        repo = mkrepo({"mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n", "lib/demo.ex": src})
+        code = g.extract_code(repo)
+        items = [
+            it
+            for m in code["modules"]
+            for it in m["items"]
+            if it["kind"] == "function"
+        ]
+        assert [it["ident"] for it in items] == ["public_fn"]
 
     def test_rust_internal_dirs_not_public(self):
         repo = mkrepo({
@@ -208,6 +331,103 @@ class P4TableClaimsTest(unittest.TestCase):
         objs2 = [c["object"] for c in claims2]
         assert "execute/4,5" not in objs2, claims2
         assert "execute/4" in objs2, claims2
+
+
+class StructSignatureTest(unittest.TestCase):
+    """DOC-HDIT v2 struct/enum field extraction: the degenerate-signature
+    class (struct/enum/interface/type rows whose signature column is empty
+    or name-only) must be populated from real source members."""
+
+    def _items(self, code):
+        return {
+            (it["kind"], it["ident"]): it
+            for m in code["modules"]
+            for it in m["items"]
+        }
+
+    def test_rust_struct_and_enum_signatures(self):
+        repo = mkrepo({
+            "Cargo.toml": '[package]\nname = "demo"\nversion = "0.1.0"\n',
+            "src/lib.rs": (
+                "pub struct Config { pub name: String, retries: u32 }\n"
+                "pub struct Wrapped(pub u32);\n"
+                "pub enum Color { Red, Green, Mixed(u8, u8), Fancy { code: u16 } }\n"
+            ),
+        })
+        items = self._items(g.extract_code(repo))
+        assert items[("struct", "Config")]["signature"] == (
+            "Config { pub name: String, retries: u32 }"
+        )
+        assert items[("struct", "Wrapped")]["signature"] == "Wrapped { pub u32 }"
+        assert items[("enum", "Color")]["signature"] == (
+            "Color { Red, Green, Mixed(u8, u8), Fancy { code: u16 } }"
+        )
+
+    def test_rust_unit_struct_and_trait_stay_unpopulated(self):
+        repo = mkrepo({
+            "Cargo.toml": '[package]\nname = "demo"\nversion = "0.1.0"\n',
+            "src/lib.rs": "pub struct Marker;\npub trait Paint { fn paint(&self); }\n",
+        })
+        items = self._items(g.extract_code(repo))
+        assert items[("struct", "Marker")]["signature"] == ""
+        assert items[("trait", "Paint")]["signature"] == ""
+
+    def test_elixir_defstruct_and_atom_type(self):
+        src = (
+            "defmodule Demo.State do\n"
+            "  @type color :: :red | :green | :blue\n"
+            "  defstruct [:name, retries: 0]\n"
+            "  def new(), do: nil\n"
+            "end\n"
+        )
+        repo = mkrepo({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": src,
+        })
+        items = self._items(g.extract_code(repo))
+        assert items[("struct", "Demo.State")]["signature"] == (
+            "defstruct name, retries: 0"
+        )
+        assert items[("type", "color")]["signature"] == (
+            "@type color :: :red | :green | :blue"
+        )
+
+    def test_elixir_multiline_atom_type_folds_continuations(self):
+        src = (
+            "defmodule Demo.State do\n"
+            "  @type mode ::\n"
+            "    | :fast\n"
+            "    | :slow\n"
+            "  def go(), do: nil\n"
+            "end\n"
+        )
+        repo = mkrepo({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": src,
+        })
+        items = self._items(g.extract_code(repo))
+        assert items[("type", "mode")]["signature"] == "@type mode :: | :fast | :slow"
+
+    def test_ts_interface_enum_type_signatures(self):
+        import gen_doc_surface_ts as ts
+        repo = mkrepo({
+            "src/types.ts": (
+                'export interface Options { name: string; retries?: number; '
+                'cb: (a: number, b: string) => void; }\n'
+                'export enum Color { Red, Green = 2, Blue }\n'
+                'export type Mode = "fast" | "slow";\n'
+            ),
+        })
+        code = ts.extract_code(repo)
+        items = {
+            (it["kind"], it["ident"]): it for m in code["modules"] for it in m["items"]
+        }
+        assert items[("interface", "Options")]["signature"] == (
+            "Options { name: string, retries?: number, "
+            "cb: (a: number, b: string) => void }"
+        )
+        assert items[("enum", "Color")]["signature"] == "Color { Red, Green = 2, Blue }"
+        assert items[("type", "Mode")]["signature"] == 'Mode = "fast" | "slow"'
 
 
 if __name__ == "__main__":
