@@ -1,0 +1,51 @@
+@prefix dhs:   <https://ggen.dev/ontology/doc-hdit/code-surface#> .
+@prefix doc:   <https://ggen.dev/ontology/doc-hdit/doc#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# ---------------------------------------------------------------------------
+# Code-surface vocabulary (extracted from Rust sources by tree-sitter; loaded
+# into oxigraph; queried by queries/ast_extract.rq).
+# ---------------------------------------------------------------------------
+
+dhs:Module a rdfs:Class .
+dhs:Function a rdfs:Class .
+dhs:Struct a rdfs:Class .
+dhs:Enum a rdfs:Class .
+dhs:Resource a rdfs:Class ;
+  rdfs:comment "A lifetime-managed handle (file, connection, lock) whose doc must state acquire/release." .
+dhs:Action a rdfs:Class ;
+  rdfs:comment "A fallible, consequential operation: errors and invariants are mandatory doc facts." .
+dhs:Verb a rdfs:Class ;
+  rdfs:comment "A public entry point; every Verb must appear in a reference table row." .
+
+dhs:signature a rdfs:Property ;
+  rdfs:domain dhs:Function ; rdfs:comment "Full signature text." .
+dhs:params a rdfs:Property ;
+  rdfs:comment "Whitespace-separated list of `name:Type` pairs." .
+dhs:defaults a rdfs:Property ;
+  rdfs:comment "`name=default` tokens for parameters with defaults; absent means none." .
+dhs:errors a rdfs:Property ;
+  rdfs:comment "Error variants reachable from this item; mandatory for dhs:Action." .
+dhs:invariants a rdfs:Property ;
+  rdfs:comment "Predicates the code upholds across calls; mandatory for dhs:Resource and dhs:Action." .
+
+# ---------------------------------------------------------------------------
+# Documentation surface: EAV triple shape. Every prose claim in a generated
+# document is an EAV row keyed by the code-surface item it claims about, so
+# doc audit (S_coverage, Phi_halluc) can diff doc surface vs code surface.
+# ---------------------------------------------------------------------------
+
+doc:Section a rdfs:Class .
+doc:Claim a rdfs:Class .
+doc:EAV a rdfs:Class ;
+  rdfs:comment "One (Entity, Attribute, Value) row: entity = code item IRI, attribute = doc slot, value = claim text." .
+
+doc:about a rdfs:Property ;
+  rdfs:domain doc:EAV ; rdfs:range dhs:Verb .
+doc:attribute a rdfs:Property ;
+  rdfs:domain doc:EAV .
+doc:value a rdfs:Property ;
+  rdfs:domain doc:EAV .
+doc:sectionOf a rdfs:Property ;
+  rdfs:domain doc:Section ; rdfs:range doc:Claim .

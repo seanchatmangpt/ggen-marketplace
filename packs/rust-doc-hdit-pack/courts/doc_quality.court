@@ -1,0 +1,31 @@
+# doc_quality.court — documented gate thresholds for the doc-quality court.
+#
+# STATUS: DOCUMENTED THRESHOLDS ONLY. Executable enforcement lands with the
+# rust-doc-hdit binary (doc-hdit:audit / doc-hdit:certify); until then these
+# values are the admission contract every implementation must satisfy. Do not
+# relax a threshold here without a court receipt showing the old value failing.
+#
+# Gates (evaluated by doc-hdit:audit over the rendered doc surface vs the
+# code surface loaded from ontology.ttl):
+#
+#   S_coverage  >= 0.90   fraction of code-surface Verbs (queries/ast_extract.rq)
+#                         appearing in >= one doc:Claim (doc:about the item).
+#   Phi_halluc  <= 0.001  fraction of doc:Claim rows whose value mentions no
+#                         matching code-surface symbol (VSA cosine of the
+#                         claim's H_doc hypervector against H_code bundle).
+#   Q_density   >= 0.65   information density: distinct verified facts per
+#                         100 words of rendered prose (verified facts /
+#                         word count * 100).
+[gates]
+S_coverage_min = 0.90
+Phi_halluc_max = 0.001
+Q_density_min = 0.65
+
+# On pass of all three gates, doc-hdit:certify seals the document set with a
+# BLAKE3 receipt (via affidavit): digest of the rendered docs plus the exact
+# code-surface store fingerprint. On any gate failure, certification is
+# REFUSED and no receipt is minted.
+[certify]
+receipt = "BLAKE3"
+via = "affidavit"
+on_fail = "REFUSED"
