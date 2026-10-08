@@ -1,7 +1,9 @@
-//! doc-hdit CLI: `scaffold`, `vectorize` and `audit` subcommands.
+//! doc-hdit CLI: `scaffold`, `vectorize`, `audit` and `certify` subcommands.
 
 use doc_hdit::info_theory::entropy::{mutual_information, q_density, shannon};
-use doc_hdit::info_theory::{projection_residual, rank_phantoms, s_coverage, CodeBasis};
+use doc_hdit::info_theory::{
+    code_token_set, phi_exact, projection_residual, rank_phantoms, s_coverage, CodeBasis,
+};
 use doc_hdit::vsa::encode::{encode_code, encode_doc};
 use doc_hdit::{Claim, CodeModule};
 use std::collections::BTreeMap;
@@ -65,7 +67,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
         eprintln!(
-            "usage: doc-hdit <vectorize|audit|scaffold> -- <inputs.json> [court-file]\n       doc-hdit scaffold --code <json> --templates <dir> --out <docsdir>"
+            "usage: doc-hdit <vectorize|audit|certify> -- <inputs.json> [court-file]\n       doc-hdit scaffold --code <json> --templates <dir> --out <docsdir>\n       doc-hdit certify <inputs.json> [court-file] [--docs <dir>] [--chain <receipts.jsonl>]"
         );
         std::process::exit(2);
     }
@@ -129,8 +131,12 @@ fn main() {
     let h_doc = encode_doc(&inputs.claims);
     let code_basis = CodeBasis::build(&codewords);
     let sc = s_coverage(&h_doc, &inputs.claims, &code_basis);
-    let phi = projection_residual(&h_doc, &inputs.claims, &code_basis);
-    let ranked = rank_phantoms(&inputs.claims, &code_basis);
+    // Deterministic exact-match phantom gate (primary); the VSA projection
+    // residual stays as a secondary similarity signal (phi_vsa, report-only).
+    let tokens = code_token_set(&inputs.modules);
+    let phi = phi_exact(&inputs.claims, &tokens);
+    let phi_vsa = projection_residual(&h_doc, &inputs.claims, &code_basis);
+    let ranked = rank_phantoms(&inputs.claims, &tokens, &code_basis);
     let h_bits = shannon(
         &inputs
             .claims
@@ -142,10 +148,91 @@ fn main() {
     let q = q_density(&inputs.claims, &inputs.modules);
 
     match cmd {
+        "certify" => {
+            let court_path = args.get(3).cloned().unwrap_or_default();
+            let text = std::fs::read_to_string(&court_path).unwrap_or_default();
+            let t = parse_court(&text);
+            let gates = [
+                ("S_coverage", sc, t.s_coverage_min, sc >= t.s_coverage_min),
+                ("Phi_halluc", phi, t.phi_max, phi <= t.phi_max),
+                ("Q_density", q, t.q_density_min, q >= t.q_density_min),
+            ];
+            let failures: Vec<&(&str, f64, f64, bool)> =
+                gates.iter().filter(|g| !g.3).collect();
+            if !failures.is_empty() {
+                for (name, value, threshold, _) in failures {
+                    eprintln!(
+                        "REFUSED:DOC_HDIT_CERTIFY_GATE_FAIL:{} value={:.4} threshold={:.4}",
+                        name, value, threshold
+                    );
+                }
+                eprintln!("REFUSED:DOC_HDIT_CERTIFY:gate failure — no receipt minted");
+                std::process::exit(1);
+            }
+            // Flag parsing after the gate pass (cheap refusal first).
+            let mut docs_dir: Option<std::path::PathBuf> = None;
+            let mut chain_path: Option<std::path::PathBuf> = None;
+            let mut j = 2;
+            while j < args.len() {
+                match args[j].as_str() {
+                    "--docs" => docs_dir = args.get(j + 1).map(std::path::PathBuf::from),
+                    "--chain" => chain_path = args.get(j + 1).map(std::path::PathBuf::from),
+                    _ => {}
+                }
+                j += 1;
+            }
+            let inputs_bytes = std::fs::read(input_path).unwrap_or_default();
+            let subject = match doc_hdit::certify::subject_digest(&inputs_bytes, docs_dir.as_deref())
+            {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("REFUSED:DOC_HDIT_CERTIFY:subject digest failed: {}", e);
+                    std::process::exit(1);
+                }
+            };
+            let chain = chain_path.unwrap_or_else(|| {
+                docs_dir
+                    .clone()
+                    .map(|d| d.join("doc-hdit.receipts.jsonl"))
+                    .unwrap_or_else(|| std::path::PathBuf::from("doc-hdit.receipts.jsonl"))
+            });
+            let parent = doc_hdit::certify::last_chain_hash(&chain).unwrap_or_default();
+            let ts = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            let outcome = doc_hdit::certify::GateOutcome {
+                s_coverage: sc,
+                phi_halluc: phi,
+                q_density: q,
+            };
+            let thresholds = doc_hdit::certify::Thresholds {
+                s_coverage_min: t.s_coverage_min,
+                phi_max: t.phi_max,
+                q_density_min: t.q_density_min,
+            };
+            let receipt = doc_hdit::certify::mint_receipt(
+                &subject,
+                &parent,
+                &outcome,
+                &thresholds,
+                ts,
+            );
+            if let Err(e) = doc_hdit::certify::append_receipt(&chain, &receipt) {
+                eprintln!("REFUSED:DOC_HDIT_CERTIFY:cannot append to {}: {}", chain.display(), e);
+                std::process::exit(1);
+            }
+            println!(
+                "{}",
+                serde_json::to_string(&receipt).expect("serialize receipt")
+            );
+            println!("OK: certified — receipt appended to {}", chain.display());
+        }
         "vectorize" => {
             let mut out: BTreeMap<&str, serde_json::Value> = BTreeMap::new();
             out.insert("s_coverage", serde_json::json!(sc));
             out.insert("phi", serde_json::json!(phi));
+            out.insert("phi_vsa", serde_json::json!(phi_vsa));
             out.insert("entropy_bits", serde_json::json!(h_bits));
             out.insert("mutual_information_bits", serde_json::json!(mi));
             out.insert("q_density", serde_json::json!(q));
@@ -154,7 +241,11 @@ fn main() {
                 serde_json::json!(
                     ranked
                         .iter()
-                        .map(|(i, a)| serde_json::json!({ "claim_index": i, "alignment": a }))
+                        .map(|(i, a, g)| {
+                            serde_json::json!({
+                                "claim_index": i, "alignment": a, "grounded": g
+                            })
+                        })
                         .collect::<Vec<_>>()
                 ),
             );
@@ -168,8 +259,13 @@ fn main() {
             let text = std::fs::read_to_string(&court_path).unwrap_or_default();
             let t = parse_court(&text);
             let mut violations = 0;
-            let gates: [(&str, f64, f64, bool); 3] = [
-                ("coverage", sc, t.s_coverage_min, sc >= t.s_coverage_min),
+            // S_coverage is REPORT-ONLY until the P2 scope fix lands
+            // (public/documented-surface denominator); it does not gate.
+            println!(
+                "REPORT  coverage value={:.4} threshold={:.4} (report-only; P2 scope fix pending)",
+                sc, t.s_coverage_min
+            );
+            let gates: [(&str, f64, f64, bool); 2] = [
                 ("phantom", phi, t.phi_max, phi <= t.phi_max),
                 ("density", q, t.q_density_min, q >= t.q_density_min),
             ];
@@ -185,8 +281,9 @@ fn main() {
                         threshold,
                         ranked
                             .iter()
+                            .filter(|(_, _, grounded)| !*grounded)
                             .take(3)
-                            .map(|(i, _)| *i)
+                            .map(|(i, _, _)| *i)
                             .collect::<Vec<_>>()
                     );
                 }

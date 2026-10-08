@@ -1,7 +1,9 @@
 //! Chicago-style integration tests: real math, no mocks.
 
-use doc_hdit::info_theory::entropy::{mutual_information, q_density, shannon};
-use doc_hdit::info_theory::{projection_residual, rank_phantoms, s_coverage, CodeBasis};
+use doc_hdit::info_theory::entropy::{claim_grounded, mutual_information, q_density, shannon};
+use doc_hdit::info_theory::{
+    code_token_set, phi_exact, projection_residual, rank_phantoms, s_coverage, CodeBasis,
+};
 use doc_hdit::vsa::{basis, bind, bundle, cosine, permute, Hv};
 use doc_hdit::{Claim, CodeModule};
 
@@ -107,43 +109,94 @@ fn planted_phantom_yields_positive_phi_and_top1_ranking() {
     // phantom: symbol absent from the code surface
     claims.push(claim("c4", "fn", "teleport", "teleport(warp: Warp)"));
 
-    let (_h_code, codewords) = doc_hdit::vsa::encode::encode_code(&modules);
-    let h_doc = doc_hdit::vsa::encode::encode_doc(&claims);
+    let tokens = code_token_set(&modules);
+    let phi = phi_exact(&claims, &tokens);
+    assert!(
+        (phi - 0.2).abs() < 1e-12,
+        "expected Phi = 1/5 = 0.2 for planted phantom, got {}",
+        phi
+    );
+
+    let (_, codewords) = doc_hdit::vsa::encode::encode_code(&modules);
     let code_basis = CodeBasis::build(&codewords);
-
-    let phi = projection_residual(&h_doc, &claims, &code_basis);
-    assert!(phi > 0.0, "expected Phi > 0 for planted phantom, got {}", phi);
-
-    let ranked = rank_phantoms(&claims, &code_basis);
+    let ranked = rank_phantoms(&claims, &tokens, &code_basis);
     assert_eq!(
-        ranked[0].0,
-        4,
+        ranked[0].0, 4,
         "phantom claim index 4 must rank top-1; got {:?}",
         ranked
     );
+    assert!(!ranked[0].2, "top-ranked claim must be ungrounded");
+    assert!(ranked.last().map(|r| r.2).unwrap_or(false));
 
-    // and the grounded baseline is strictly cleaner
-    let phi_grounded = {
-        let gc = grounded_claims();
-        let hd = doc_hdit::vsa::encode::encode_doc(&gc);
-        projection_residual(&hd, &gc, &code_basis)
-    };
-    assert!(phi > phi_grounded);
+    // and the grounded baseline is exactly zero
+    assert_eq!(phi_exact(&grounded_claims(), &tokens), 0.0);
 }
 
 #[test]
-fn grounded_doc_yields_near_zero_phi() {
+fn grounded_doc_yields_exact_zero_phi_and_q_density_one() {
     let modules = fixture_modules();
     let claims = grounded_claims();
-    let (_, codewords) = doc_hdit::vsa::encode::encode_code(&modules);
-    let h_doc = doc_hdit::vsa::encode::encode_doc(&claims);
-    let code_basis = CodeBasis::build(&codewords);
-    let phi = projection_residual(&h_doc, &claims, &code_basis);
+    let tokens = code_token_set(&modules);
+    let phi = phi_exact(&claims, &tokens);
+    assert_eq!(phi, 0.0, "grounded doc must have Phi exactly 0");
+    let q = q_density(&claims, &modules);
     assert!(
-        phi < 1e-9,
-        "grounded doc should have Phi ~ 0, got {}",
-        phi
+        (q - 1.0).abs() < 1e-12,
+        "Q_density fully grounded = 1.0, got {}",
+        q
     );
+}
+
+#[test]
+fn phi_is_normalized_between_zero_and_one() {
+    let modules = fixture_modules();
+    let tokens = code_token_set(&modules);
+    let mut claims = grounded_claims();
+    for i in 0..10 {
+        claims.push(claim(
+            &format!("fake{}", i),
+            "fn",
+            "mentions",
+            "no_such_symbol_x",
+        ));
+    }
+    let phi = phi_exact(&claims, &tokens);
+    assert!((0.0..=1.0).contains(&phi), "Phi out of [0,1]: {}", phi);
+}
+
+#[test]
+fn claim_grounded_matches_object_not_subject() {
+    let modules = fixture_modules();
+    let tokens = code_token_set(&modules);
+    // subject is a doc path; object is the symbol — must ground on object alone
+    let c = claim("g0", "docs/engine.md#Usage", "mentions", "ignite");
+    assert!(
+        claim_grounded(&c, &tokens),
+        "grounding must match the object symbol, not the doc-path subject"
+    );
+    let fake = claim(
+        "g1",
+        "docs/engine.md#Usage",
+        "mentions",
+        "zzz_totally_fake_symbol_zzz",
+    );
+    assert!(!claim_grounded(&fake, &tokens));
+}
+
+#[test]
+fn qualified_and_aried_object_forms_ground() {
+    let modules = fixture_modules();
+    let tokens = code_token_set(&modules);
+    for obj in [
+        "ignite/1",        // arity form (Elixir)
+        "Engine.ignite",   // qualified module form
+        "Engine.ignite/1", // qualified + arity
+        "engine::ignite",  // Rust path form
+        "ignite()",        // call form
+    ] {
+        let c = claim("q", "docs/x.md#S", "mentions", obj);
+        assert!(claim_grounded(&c, &tokens), "form '{}' must ground", obj);
+    }
 }
 
 #[test]
@@ -186,8 +239,90 @@ fn mutual_information_drops_for_ungrounded_claims() {
     assert!((mi_phantom - (5f64.log2() - 0.2)).abs() < 1e-12);
 
     // density drops when the doc claims ungrounded symbols
+    // (Q_density = grounded-claim fraction: fully grounded doc = 1.0)
     let q_grounded = q_density(&grounded, &modules);
     let q_phantom = q_density(&phantom, &modules);
-    assert!((q_grounded - 0.5).abs() < 1e-12); // 2 bits / 4 claims
-    assert!(q_phantom < q_grounded);
+    assert!((q_grounded - 1.0).abs() < 1e-12);
+    assert!((q_phantom - 0.8).abs() < 1e-12); // 4 of 5 claims grounded
+}
+
+/// Real-corpus control (DOC-HDIT-PILOT replay): the planted-fake control
+/// INSIDE the real ex4pm corpus. Requires /tmp/hdit/ex4pm.inputs.json from
+/// the pilot replay; prints a SKIP note when the artifact is absent.
+#[test]
+fn real_corpus_fake_symbol_control() {
+    let path = std::path::Path::new("/tmp/hdit/ex4pm.inputs.json");
+    if !path.exists() {
+        eprintln!("SKIP: /tmp/hdit/ex4pm.inputs.json absent (pilot replay not run)");
+        return;
+    }
+    let raw = std::fs::read_to_string(path).expect("read ex4pm inputs");
+    #[derive(serde::Deserialize)]
+    struct Inputs {
+        #[serde(default)]
+        modules: Vec<CodeModule>,
+        #[serde(default)]
+        claims: Vec<Claim>,
+    }
+    let inputs: Inputs = serde_json::from_str(&raw).expect("parse ex4pm inputs");
+    let n = inputs.claims.len();
+    assert!(n > 100, "corpus too small: {}", n);
+    let tokens = code_token_set(&inputs.modules);
+    let baseline_phi = phi_exact(&inputs.claims, &tokens);
+
+    // Inject the fake-symbol claim: Phi must move by exactly 1/(n+1) and the
+    // fake must rank top-1 among ungrounded claims by the VSA near-miss signal.
+    let mut injected = inputs.claims.clone();
+    injected.push(claim(
+        "zzz-control",
+        "docs/x.md#Control",
+        "mentions",
+        "zzz_totally_fake_symbol_zzz",
+    ));
+    let phi_injected = phi_exact(&injected, &tokens);
+    let expected = (baseline_phi * n as f64 + 1.0) / (n as f64 + 1.0);
+    assert!(
+        (phi_injected - expected).abs() < 1e-9,
+        "Phi must move exactly one ungrounded claim under injection: {} -> {} (expected {})",
+        baseline_phi,
+        phi_injected,
+        expected
+    );
+
+    // Separation is by the deterministic exact-match gate (set-based
+    // formulation, DOC-HDIT-PILOT P0-2): the fake MUST land in the ungrounded
+    // class, which is exactly what moves Phi by one claim. The VSA alignment
+    // is a secondary near-miss ordering INSIDE the ungrounded class and
+    // carries no grounded/ungrounded separation (pilot measurement) — it is
+    // reported with the ranking, never gated on.
+    let (_, codewords) = doc_hdit::vsa::encode::encode_code(&inputs.modules);
+    let code_basis = CodeBasis::build(&codewords);
+    let ranked = rank_phantoms(&injected, &tokens, &code_basis);
+    let fake_entry = ranked.iter().find(|(i, _, _)| *i == n).expect("fake present");
+    assert!(
+        !fake_entry.2,
+        "injected fake must be classified ungrounded by the exact-match gate"
+    );
+    let fake_align = fake_entry.1;
+    let fake_rank = ranked
+        .iter()
+        .position(|(i, _, _)| *i == n)
+        .expect("fake present")
+        + 1;
+    let ungrounded_count = ranked.iter().filter(|(_, _, g)| !*g).count();
+    assert_eq!(
+        ungrounded_count,
+        (baseline_phi * n as f64).round() as usize + 1,
+        "ungrounded class must be exactly the baseline misses plus the fake"
+    );
+    eprintln!(
+        "control: n={} baseline_phi={:.4} phi_injected={:.4} ungrounded={} fake_rank={}/{} fake_align={:.4}",
+        n + 1,
+        baseline_phi,
+        phi_injected,
+        ungrounded_count,
+        fake_rank,
+        n + 1,
+        fake_align
+    );
 }

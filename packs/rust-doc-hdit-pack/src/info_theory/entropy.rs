@@ -22,18 +22,21 @@ pub fn shannon(tokens: &[&str]) -> f64 {
         .sum()
 }
 
-/// A claim is grounded iff every EAV token appears in the code-surface token set.
+/// A claim is grounded iff its OBJECT symbol appears in the code-surface token
+/// set. The subject is a doc file path (`docs/foo.md#Section`) and the
+/// predicate is a fixed relation — neither can be a code symbol, so neither
+/// participates in grounding (v1 matched on all three, which made grounding
+/// unsatisfiable and collapsed Q_density to (log2 n - 1)/n).
 pub fn claim_grounded(claim: &Claim, tokens: &std::collections::HashSet<String>) -> bool {
-    tokens.contains(&claim.subject)
-        && tokens.contains(&claim.predicate)
-        && tokens.contains(&claim.object)
+    crate::info_theory::symbol_variants(&claim.object)
+        .iter()
+        .any(|v| tokens.contains(v))
 }
 
 /// v1 discrete estimator (documented approximation):
 /// I(D;C) = H(D) - H(D|C) where H(D) = log2(n) (uniform over n claims) and
 /// H(D|C) = (1/n) * sum of per-claim surprisal in bits:
 /// grounded claim => 0 surprisal, ungrounded claim => log2(2) = 1 bit.
-/// This is a discrete, court-friendly lower bound, not a continuous MI estimate.
 pub fn mutual_information(claims: &[Claim], modules: &[CodeModule]) -> f64 {
     let n = claims.len();
     if n == 0 {
@@ -49,11 +52,19 @@ pub fn mutual_information(claims: &[Claim], modules: &[CodeModule]) -> f64 {
     h_d - h_dc
 }
 
-/// Q_density = I(D;C) / L where L = number of claims (v1: doc length in claims).
+/// Q_density = grounded-claim fraction = I(D;C) / log2(n). A fully grounded
+/// document scores 1.0; every ungrounded claim subtracts 1/n. (v1 divided raw
+/// MI by the claim count, which is bounded by log2(n)/n and can never reach a
+/// court threshold of 0.65.)
 pub fn q_density(claims: &[Claim], modules: &[CodeModule]) -> f64 {
-    let l = claims.len();
-    if l == 0 {
+    let n = claims.len();
+    if n == 0 {
         return 0.0;
     }
-    mutual_information(claims, modules) / l as f64
+    let tokens = code_token_set(modules);
+    let grounded = claims
+        .iter()
+        .filter(|c| claim_grounded(c, &tokens))
+        .count();
+    grounded as f64 / n as f64
 }

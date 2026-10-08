@@ -10,6 +10,8 @@
 //! - [`bin`]: `doc-hdit vectorize` and `doc-hdit audit` CLI (no std::process in lib;
 //!   wasm32-wasip1 compatible).
 
+#[cfg(feature = "blake3")]
+pub mod certify;
 pub mod info_theory;
 pub mod scaffold;
 pub mod vsa;

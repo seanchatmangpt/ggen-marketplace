@@ -110,34 +110,107 @@ pub fn projection_residual(
 }
 
 /// Residual unbinding: rank claim indices by individual residual contribution —
-/// per-claim cosine of the claim vector against the code subspace
-/// (low alignment = high residual contribution = phantom suspect).
-/// Returns indices sorted worst-alignment first, paired with alignment values.
-pub fn rank_phantoms(claims: &[Claim], code_basis: &CodeBasis) -> Vec<(usize, f64)> {
-    let mut ranked: Vec<(usize, f64)> = claims
+/// ungrounded claims (exact-match core, deterministic) first, and within each
+/// class by ascending VSA alignment against the code subspace (the secondary
+/// near-miss similarity signal; low alignment = high residual contribution).
+/// Returns (claim_index, vsa_alignment, grounded) sorted worst first.
+pub fn rank_phantoms(
+    claims: &[Claim],
+    tokens: &std::collections::HashSet<String>,
+    code_basis: &CodeBasis,
+) -> Vec<(usize, f64, bool)> {
+    let mut ranked: Vec<(usize, f64, bool)> = claims
         .iter()
         .enumerate()
         .map(|(i, c)| {
+            let grounded = crate::info_theory::entropy::claim_grounded(c, tokens);
             let v = encode_claim(c);
             let p = CodeBasis::binarize(&code_basis.project(&v));
             let align = cosine(&v, &p);
-            (i, align)
+            (i, align, grounded)
         })
         .collect();
-    ranked.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+    ranked.sort_by(|a, b| {
+        a.2.cmp(&b.2)
+            .then(a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+    });
     ranked
 }
 
-/// Evaluate a single claim against a set of code modules (used by entropy grounding).
+/// Strip a trailing arity suffix (`ident/2`), a trailing call pair
+/// (`ident()`), and any leading module/path qualification
+/// (`Foo.Bar::baz/1` -> `Foo.Bar::baz`, `baz`).
+pub fn symbol_variants(sym: &str) -> Vec<String> {
+    let mut out = vec![sym.to_string()];
+    let base = sym.trim_end_matches("()").trim_end_matches('/');
+    let base = if base.is_empty() { sym } else { base };
+    out.push(base.to_string());
+    // arity-stripped form: cut at the last '/' when what follows is digits
+    if let Some(pos) = base.rfind('/') {
+        let (head, tail) = base.split_at(pos);
+        if !tail.is_empty() && tail[1..].chars().all(|c| c.is_ascii_digit()) {
+            out.push(head.to_string());
+            let q = head;
+            out.push(q.rsplit('/').next().unwrap_or(q).to_string());
+            if let Some(seg) = q.split('.').last() {
+                out.push(seg.to_string());
+            }
+            if let Some(seg) = q.split("::").last() {
+                out.push(seg.to_string());
+            }
+        }
+    }
+    out.push(base.rsplit('/').next().unwrap_or(base).to_string());
+    if let Some(seg) = base.split('.').last() {
+        out.push(seg.to_string());
+    }
+    if let Some(seg) = base.split("::").last() {
+        out.push(seg.to_string());
+    }
+    out.into_iter()
+        .filter(|s| !s.is_empty())
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+/// Deterministic code-surface symbol set: module names (plus their file-stem
+/// and path-tail variants) and every item ident/signature. Exact membership
+/// over claim-object variants is the PRIMARY phantom gate; the VSA cosine is
+/// only a secondary near-miss similarity signal.
 pub fn code_token_set(modules: &[CodeModule]) -> std::collections::HashSet<String> {
     let mut set = std::collections::HashSet::new();
     for m in modules {
-        set.insert(m.name.clone());
+        set.extend(symbol_variants(&m.name));
+        // file-stem variant for path-named modules (ferroplan scanner shape)
+        let stem = m
+            .name
+            .rsplit('/')
+            .next()
+            .unwrap_or(&m.name)
+            .trim_end_matches(".rs")
+            .trim_end_matches(".ex")
+            .trim_end_matches(".exs");
+        set.extend(symbol_variants(stem));
         for it in &m.items {
-            set.insert(it.kind.clone());
-            set.insert(it.ident.clone());
-            set.insert(it.signature.clone());
+            set.extend(symbol_variants(&it.ident));
+            set.extend(symbol_variants(&it.signature));
         }
     }
     set
+}
+
+/// A claim is a phantom iff its OBJECT symbol is absent from the code surface
+/// (exact-match core, deterministic). Phi = ungrounded_claims / total_claims;
+/// bounded in [0, 1] by construction (v1's VSA projection residual could
+/// exceed 1 and carried no real/phantom separation).
+pub fn phi_exact(claims: &[Claim], tokens: &std::collections::HashSet<String>) -> f64 {
+    if claims.is_empty() {
+        return 0.0;
+    }
+    let ungrounded = claims
+        .iter()
+        .filter(|c| !crate::info_theory::entropy::claim_grounded(c, tokens))
+        .count();
+    ungrounded as f64 / claims.len() as f64
 }
