@@ -1,5 +1,8 @@
 # ADOPTION DOSSIER — affidavit (reference adoption)
 
+> **Historical receipt (2026-10-01 measurements).** Current consumer wiring: see
+> `affidavit` docs/WASM.md (`~/affidavit/docs/WASM.md` in the sibling checkout).
+
 Standing: **ALIVE** (reference pattern verified by file + CI inspection in this session; render re-execution not run in this session — gates below are the re-proof path).
 
 ## 1. Current state (evidence, all measured 2026-10-01)
