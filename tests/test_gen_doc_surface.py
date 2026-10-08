@@ -134,5 +134,81 @@ class P3ProseFilterTest(unittest.TestCase):
         assert "Demo.Engine.ignite" in objs
 
 
+class P4TableClaimsTest(unittest.TestCase):
+    """P4: markdown pipe-table rows emit symbol claims (scaffold tables count)."""
+
+    def _surface_and_claims(self, docs_md):
+        repo = mkrepo({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": (
+                "defmodule Demo.Engine do\n"
+                "  @doc false\n"
+                "  def ignite(x, opts \\\\ []), do: {x, opts}\n"
+                "  def execute(a, b, c, opts \\\\ []), do: {a, b, c, opts}\n"
+                "end\n"
+            ),
+            "docs/reference.md": docs_md,
+        })
+        surface = g.extract_code(repo)
+        return g.extract_doc(repo, surface)["claims"]
+
+    def test_table_rows_emit_symbol_claims(self):
+        md = (
+            "| Function | Signature | Params | Default |\n"
+            "|---|---|---|---|\n"
+            "| `Demo.Engine.ignite/2` | `ignite(x, opts \\\\ [])` | `opts` | `[]` |\n"
+            "| `Not.A.Real.symbol/9` | `bogus(a)` | `a` | `1` |\n"
+        )
+        claims = self._surface_and_claims(md)
+        mentions = {(c["object"], c["kind"]) for c in claims if c["predicate"] == "mentions"}
+        assert ("Demo.Engine.ignite/2", "table_row") in mentions, claims
+        # fake symbol in a Function column is still a doc claim — the audit
+        # gate must see it (phantom channel), extractor does not silently drop it
+        assert ("Not.A.Real.symbol/9", "table_row_scaffold") in mentions, claims
+
+    def test_table_has_param_claim_carries_identifier(self):
+        md = (
+            "| Function | Params | Default |\n"
+            "|---|---|---|\n"
+            "| `Demo.Engine.ignite/2` | `opts` | `[]` |\n"
+        )
+        claims = self._surface_and_claims(md)
+        hp = [c for c in claims if c["predicate"] == "has_param"]
+        assert len(hp) == 1, claims
+        # the object is the identifier itself — a groundable code-surface
+        # symbol string, not a whole-cell span and not a nested dict
+        assert hp[0]["object"] == "Demo.Engine.ignite/2"
+        assert hp[0]["kind"] == "param_table"
+
+    def test_prose_cells_do_not_become_claims(self):
+        md = (
+            "| Function | Notes |\n"
+            "|---|---|\n"
+            "| `Demo.Engine.ignite/2` | see `release/v26.8.23` and the runbook |\n"
+        )
+        claims = self._surface_and_claims(md)
+        objs = [c["object"] for c in claims if c["predicate"] == "mentions"]
+        assert "release/v26.8.23" not in objs
+        assert "runbook" not in objs
+        assert "Demo.Engine.ignite/2" in objs
+
+    def test_witnessed_ex4pm_offenders_resolved(self):
+        """The two witnessed ex4pm phantom rows (DOC-HDIT-PILOT P3 audit:
+        offending_claims=[880, 981]) must not re-appear as whole-span claims."""
+        md = (
+            "| Item | Purpose |\n"
+            "|---|---|\n"
+            "| `Demo.Engine.ignite/2` (`stream/ingest.ex:19`) | validated batch |\n"
+        )
+        claims = self._surface_and_claims(md)
+        objs = [c["object"] for c in claims]
+        assert "stream/ingest.ex:19" not in objs, claims
+        md2 = "resolved: `execute/4,5` and `admit/2` confirmed real\n"
+        claims2 = self._surface_and_claims(md2)
+        objs2 = [c["object"] for c in claims2]
+        assert "execute/4,5" not in objs2, claims2
+        assert "execute/4" in objs2, claims2
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -436,6 +436,11 @@ def looks_like_version(seg):
     return all(p.isdigit() for p in t.split("."))
 
 
+# `stream/ingest.ex:19`, `runtime.ex:64` — a source path plus a line number is
+# a location pointer, not a symbol reference (DOC-HDIT-PILOT P4).
+PATH_LINE_RE = re.compile(r"\.\w+:\d")
+
+
 def is_noise_span(span):
     s = span.strip()
     if s.startswith("--"):                     # CLI flags: --json, --mode <auto|ff>
@@ -443,6 +448,8 @@ def is_noise_span(span):
     if len(s) < 3:                             # <3-char tokens
         return True
     if VERSION_RE.match(s) or re.fullmatch(r"[0-9][0-9._]*", s):
+        return True
+    if PATH_LINE_RE.search(s):                 # path:line location pointers
         return True
     if s.lower() in BOOLISH:                   # boolean-ish single words
         return True
@@ -457,14 +464,29 @@ def is_noise_span(span):
     return False
 
 
+# `execute/4,5` — an arity list, not a single signature. The list form is
+# resolved to its head `execute/4` (a real signature form) when that grounds;
+# the raw comma-list span is never claimed as-is (DOC-HDIT-PILOT P4).
+ARITY_LIST_RE = re.compile(r"^([A-Za-z0-9_.?!]+/\d+),(?:\d+(?:,\d+)*)$")
+
+
 def match_span(span, syms):
     span = span.strip()
     if is_noise_span(span):
         return None
     if span in syms:
         return span
+    m = ARITY_LIST_RE.match(span)
+    if m and m.group(1) in syms:
+        return m.group(1)
     base = span.split("/")[0]
     if base in syms:
+        # Only return the whole span when it is identifier-shaped; a span
+        # like `name/4,5` (arity list) or `path/file.ex:19` (location
+        # pointer) is emitted as its matched identifier, never as raw
+        # whole-span sentence text.
+        if ARITY_LIST_RE.match(span) or PATH_LINE_RE.search(span):
+            return base
         return span
     last = span.split(".")[-1].split("::")[-1].strip("()")
     if last in syms:
@@ -475,6 +497,75 @@ def match_span(span, syms):
 HEADING = re.compile(r"^(#{1,6})\s+(.*)$", re.M)
 INLINE_SPAN = re.compile(r"`([^`\n]+)`")
 FENCE = re.compile(r"```(\w*)\n(.*?)```", re.S)
+
+# Scaffolded reference tables (markdown pipe tables of signatures) are claims
+# too: each row that names a code-surface symbol in identifier, qualified, or
+# arity form counts as a `mentions` claim (DOC-HDIT-PILOT P4). A symbol-shaped
+# cell under a Function/Signature header that matches nothing on the surface is
+# still a doc-level claim (`table_row_scaffold`) — the audit gate classifies it
+# as a phantom, which is exactly the channel that should catch fabricated rows.
+IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*(/[0-9]+)?")
+
+
+def cell_candidates(cell):
+    """Candidate symbol spans inside a table cell: backticked spans first,
+    else the whole cell stripped of backticks."""
+    spans = INLINE_SPAN.findall(cell)
+    if spans:
+        return spans
+    s = cell.replace("`", "").strip()
+    return [s] if s else []
+
+
+def table_claims(rel, header, cells, syms):
+    header_low = [c.lower() for c in header]
+    fi = next((i for i, c in enumerate(header_low)
+               if "function" in c or "signature" in c), None)
+    pi = next((i for i, c in enumerate(header_low) if "param" in c), None)
+    di = next((i for i, c in enumerate(header_low) if "default" in c), None)
+
+    out = []
+    row_symbol = None
+    scaffold_symbol = None
+    for i, cell in enumerate(cells):
+        in_sig_col = fi is not None and i == fi
+        for cand in cell_candidates(cell):
+            if not IDENT_RE.fullmatch(cand):
+                # table cells are structured: only identifier/qualified/arity
+                # forms are symbol claims (prose cells, paths, ranges excluded)
+                continue
+            hit = match_span(cand, syms)
+            if hit:
+                out.append({
+                    "subject": rel,
+                    "predicate": "mentions",
+                    "object": hit,
+                    "kind": "table_row",
+                })
+                if row_symbol is None:
+                    row_symbol = hit
+            elif in_sig_col and IDENT_RE.fullmatch(cand) and not is_noise_span(cand):
+                out.append({
+                    "subject": rel,
+                    "predicate": "mentions",
+                    "object": cand,
+                    "kind": "table_row_scaffold",
+                })
+                if scaffold_symbol is None:
+                    scaffold_symbol = cand
+    sym = row_symbol or scaffold_symbol
+    if sym is not None and pi is not None and pi < len(cells):
+        # P4: the has_param object is the identifier itself (a code-surface
+        # symbol string, groundable by the audit gate) — not a whole-cell
+        # span and not a nested dict; parameter/default cell prose stays
+        # unclaimed non-symbol text (DOC-HDIT-PILOT P4).
+        out.append({
+            "subject": rel,
+            "predicate": "has_param",
+            "object": sym,
+            "kind": "param_table",
+        })
+    return out
 
 
 def extract_doc(repo, surface, docs_dirs=None):
@@ -524,24 +615,10 @@ def extract_doc(repo, surface, docs_dirs=None):
                     cells = [c.strip() for c in line.strip().strip("|").split("|")]
                     if all(re.fullmatch(r":?-+:?", c) for c in cells if c):
                         continue
-                    low = [c.lower() for c in cells]
-                    if any("param" in c for c in low) and any("default" in c for c in low):
+                    if header is None:
                         header = cells
                         continue
-                    if header:
-                        try:
-                            pi = next(i for i, c in enumerate(header) if "param" in c.lower())
-                            di = next(i for i, c in enumerate(header) if "default" in c.lower())
-                        except StopIteration:
-                            header = None
-                            continue
-                        if pi < len(cells) and di < len(cells):
-                            claims.append({
-                                "subject": rel,
-                                "predicate": "has_param",
-                                "object": {"param": cells[pi], "default": cells[di]},
-                                "kind": "param_table",
-                            })
+                    claims.extend(table_claims(rel, header, cells, syms))
                 else:
                     header = None
     claims.sort(key=lambda c: (c["subject"], c["predicate"], json.dumps(c["object"], sort_keys=True)))
