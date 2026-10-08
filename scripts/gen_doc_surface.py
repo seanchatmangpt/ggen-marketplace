@@ -30,6 +30,9 @@ ELIXIR_DOC_LINE = re.compile(r"@\s*doc\s+(false|true)?\s*$")
 HEREDOC = re.compile(r'@\s*doc\s+"""(.*?)"""', re.S)
 ASH_BLOCK = re.compile(r"\b(attributes|actions)\s+do(.*?)\bend\b", re.S)
 ASH_ATTR = re.compile(r"^\s*\w+\s+:([a-z_][a-zA-Z0-9_]*)", re.M)
+# Phoenix router verb calls: `post("/execution/runs", ...)`, `get "/health"`.
+ROUTE = re.compile(r'\b(get|post|put|patch|delete|live)\s*\(\s*"(/[^"]*)"')
+ROUTE_BARE = re.compile(r'\b(get|post|put|patch|delete|live)\s+"(/[^"]*)"')
 ASH_ACTION = re.compile(r"^\s*(read|create|update|destroy|action)\s+:([a-z_][a-zA-Z0-9_]*)", re.M)
 
 RUST_FN = re.compile(
@@ -90,6 +93,7 @@ def scan_elixir(repo):
         stack = []  # (module_dict, depth_at_open)
         pending_doc = None
         pending_spec = None
+        is_router = "router" in path.name.lower()
         for line in lines:
             mod = ELIXIR_MODULE.search(line)
             if mod:
@@ -109,6 +113,18 @@ def scan_elixir(repo):
                 pending_doc = pending_spec = None
                 continue
             cur = stack[-1][0]
+            if is_router:
+                rm = ROUTE.search(line) or ROUTE_BARE.search(line)
+                if rm:
+                    rpath = rm.group(2).strip("/")
+                    if rpath:
+                        cur["items"].append({
+                            "kind": "route",
+                            "ident": rpath,
+                            "signature": rm.group(1) + " /" + rpath,
+                            "doc": "",
+                            "is_public": True,
+                        })
             docm = ELIXIR_DOC_LINE.search(line)
             if docm:
                 pending_doc = docm.group(1)
@@ -365,6 +381,24 @@ def uniq_items(items):
     return out
 
 
+def extract_directories(repo):
+    """All repo directories (relative paths, sorted) minus build/hidden dirs.
+
+    Emitted as a top-level `directories` array in code mode: the audit core
+    checks trailing-slash doc references (`receipts/engine_ops/`) against it
+    by exact membership — directory existence, never fuzzy matching.
+    """
+    dirs = set()
+    for p in Path(repo).rglob("*"):
+        if any(part in SKIP_DIRS for part in p.parts):
+            continue
+        if any(part.startswith(".") for part in p.parts):
+            continue
+        if p.is_dir():
+            dirs.add(str(p.relative_to(repo)))
+    return sorted(dirs)
+
+
 # ------------------------------------------------------------- code mode ---
 
 
@@ -394,6 +428,7 @@ def extract_code(repo):
         "path": str(repo),
         "version": versions,
         "known_external": known_external(repo),
+        "directories": extract_directories(repo),
         "modules": modules,
     }
 
