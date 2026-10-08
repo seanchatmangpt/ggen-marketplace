@@ -90,6 +90,16 @@ Spot-verified in source (grep, all present):
 `pub fn load` (crucible/crates/crucible-publish/src/compare.rs),
 `pub enum RefusalCode` (crates/ferroplan-cli/src/harvest/model.rs).
 
+## TypeScript/JavaScript (gen_doc_surface_ts.py)
+
+`gen_doc_surface_ts.py code REPO` emits the same JSON schema via a
+stdlib-only TS/JS scanner: `src/**/*.ts` exports (function/class/
+const/interface/type/enum + default), class methods (brace-depth),
+function signatures, and package.json `bin`/`scripts`. Same skip dirs
+plus test/tests/fixtures/__tests__/dist/coverage and `*.test.ts`/
+`*.spec.ts`/`*.d.ts`; shares the determinism contract and naive
+comment-strip limits above.
+
 ## Known v1 limits (disclosed)
 
 - No real parser: regex + do/end depth, not AST-accurate for Elixir/Rust.
