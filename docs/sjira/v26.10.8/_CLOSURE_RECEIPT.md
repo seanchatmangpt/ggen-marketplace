@@ -7,6 +7,15 @@
 > `/Users/sac/ggen-marketplace` at finalization; HEAD re-confirmed `2ad88900b`
 > immediately before the final commit.
 
+> **Round-3 addendum (2026-10-08, lane sjira-crossrepo):** the round-2 admission
+> residual SJIRA-V8-004 (`invalid_repository`, cross-repo) is closed by split:
+> candidates-v2.jsonl carries three per-repo candidates — SJIRA-V8-004A
+> (ggen-marketplace @ e987f3717f), SJIRA-V8-004B (ash_affidavit @ 3ecd4f7695),
+> SJIRA-V8-004C (ferroplan @ 84a6289f7) — sharing replay-identity suffix
+> `sjira-v26.10.8-SJIRA-V8-004`. Kernel run: 3 ADMITTED / 0 refused (digests
+> 1250af0c / a0ff5beb / f34e2be8). Ledger: 78 rows, 50 admitted / 28 refused;
+> ash_pplan's candidate set has no cross-repo orders (checked, no mirror split).
+
 ## 0. Final closure state (2026-10-08)
 
 - **`main`** = `2ad88900b73708ddff6250bc64fe34e481fdc953` (`2ad88900b`) —

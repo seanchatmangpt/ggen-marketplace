@@ -110,6 +110,20 @@ Refusal ledger (agent over-claims the generator correctly will not copy):
 9. Acceptance-text semantic compression (currently commit-title
    concatenation; body bullets are truncated).
 
+## Round-3 addendum: V8-004 cross-repo residual closed (2026-10-08)
+
+The v3 gap "Cross-repo work orders (V8-004 class)" (item 6) is addressed at
+the candidate layer, not by widening the kernel: SJIRA-V8-004 was split into
+three per-repo candidates — SJIRA-V8-004A (ggen-marketplace, base
+e987f3717f), SJIRA-V8-004B (ash_affidavit, base 3ecd4f7695), SJIRA-V8-004C
+(ferroplan, base 84a6289f7) — each with its own `sj:repository` slug, linked
+by the shared replay-identity suffix `sjira-v26.10.8-SJIRA-V8-004`. Admitted
+via `mix semantic_jira.admit_candidates` (candidates-v2.jsonl): 3 ADMITTED /
+0 refused (work-order digests 1250af0c / a0ff5beb / f34e2be8). Ledger rows
+appended as round 3 in ADMISSION-LEDGER.jsonl. The ash_pplan candidate set
+(docs/sjira/v26.10.8-1) was checked for the same class: all 5 orders are
+single-repo (seanchatmangpt/ash_pplan) — no mirroring split required.
+
 ## Doctrine statement
 
 Agent-authored workgraphs are the SEED: hand-authored instances of the
