@@ -214,3 +214,74 @@ pub fn phi_exact(claims: &[Claim], tokens: &std::collections::HashSet<String>) -
         .count();
     ungrounded as f64 / claims.len() as f64
 }
+
+/// P2 external-deps allowance: a claim's object resolves against a documented
+/// external dependency (`Ash.`, `Ecto.`, `serde_json::`, ...) rather than the
+/// repo's code surface. Such claims are `external_documented`, not phantoms —
+/// excluded from Phi and counted separately.
+pub fn is_external_documented(object: &str, external: &[String]) -> bool {
+    let obj = object.trim();
+    external
+        .iter()
+        .any(|p| !p.is_empty() && obj.starts_with(p.as_str()))
+}
+
+/// Per-claim grounding status under the P2 scope rules.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClaimStatus {
+    /// Object matches the repo's code surface.
+    Grounded,
+    /// Object references a documented external dependency.
+    ExternalDocumented,
+    /// Object matches neither — a phantom.
+    Phantom,
+}
+
+pub fn claim_status(
+    claim: &Claim,
+    tokens: &std::collections::HashSet<String>,
+    external: &[String],
+) -> ClaimStatus {
+    if crate::info_theory::entropy::claim_grounded(claim, tokens) {
+        return ClaimStatus::Grounded;
+    }
+    if is_external_documented(&claim.object, external) {
+        return ClaimStatus::ExternalDocumented;
+    }
+    ClaimStatus::Phantom
+}
+
+/// Scoped Phi (P2): phantom_claims / total_claims. `external_documented`
+/// claims are excluded from the phantom count (reported separately).
+pub fn phi_scoped(
+    claims: &[Claim],
+    tokens: &std::collections::HashSet<String>,
+    external: &[String],
+) -> f64 {
+    if claims.is_empty() {
+        return 0.0;
+    }
+    let phantoms = claims
+        .iter()
+        .filter(|c| claim_status(c, tokens, external) == ClaimStatus::Phantom)
+        .count();
+    phantoms as f64 / claims.len() as f64
+}
+
+/// Scoped Q_density (P2): (grounded + external_documented) / total. A claim
+/// referencing documented dep surface is verified information — it grounds
+/// against the dependency's own docs, so it counts as density, not residue.
+pub fn q_density_scoped(
+    claims: &[Claim],
+    tokens: &std::collections::HashSet<String>,
+    external: &[String],
+) -> f64 {
+    if claims.is_empty() {
+        return 0.0;
+    }
+    let ok = claims
+        .iter()
+        .filter(|c| claim_status(c, tokens, external) != ClaimStatus::Phantom)
+        .count();
+    ok as f64 / claims.len() as f64
+}

@@ -68,26 +68,31 @@ fn permute_preserves_norm() {
 fn fixture_modules() -> Vec<CodeModule> {
     vec![CodeModule {
         name: "engine".to_string(),
+        is_public: true,
         items: vec![
             doc_hdit::CodeItem {
                 kind: "fn".into(),
                 ident: "ignite".into(),
                 signature: "ignite(fuel: Fuel) -> Spark".into(),
+                is_public: true,
             },
             doc_hdit::CodeItem {
                 kind: "struct".into(),
                 ident: "Piston".into(),
                 signature: "Piston { bore: u32 }".into(),
+                is_public: true,
             },
             doc_hdit::CodeItem {
                 kind: "fn".into(),
                 ident: "exhaust".into(),
                 signature: "exhaust(gas: Gas)".into(),
+                is_public: true,
             },
             doc_hdit::CodeItem {
                 kind: "trait".into(),
                 ident: "Valved".into(),
                 signature: "Valved: Send".into(),
+                is_public: true,
             },
         ],
     }]
@@ -325,4 +330,90 @@ fn real_corpus_fake_symbol_control() {
         n + 1,
         fake_align
     );
+}
+
+// ------------------------------------------------- P2 scope + allowlist ---
+
+#[test]
+fn p2_public_scope_excludes_internal_items_from_public_surface() {
+    let modules = vec![CodeModule {
+        name: "engine".to_string(),
+        is_public: true,
+        items: vec![
+            doc_hdit::CodeItem {
+                kind: "fn".into(),
+                ident: "ignite".into(),
+                signature: "ignite(fuel: Fuel) -> Spark".into(),
+                is_public: true,
+            },
+            doc_hdit::CodeItem {
+                kind: "fn".into(),
+                ident: "internal_helper".into(),
+                signature: "internal_helper()".into(),
+                is_public: false,
+            },
+        ],
+    }];
+    let public = doc_hdit::public_modules(&modules);
+    assert_eq!(public.len(), 1);
+    assert_eq!(public[0].items.len(), 1, "only the public item survives");
+    assert_eq!(public[0].items[0].ident, "ignite");
+
+    let public_tokens = code_token_set(&public);
+    let internal_claim = claim(
+        "int0",
+        "docs/x.md#Internals",
+        "mentions",
+        "internal_helper",
+    );
+    assert!(
+        !claim_grounded(&internal_claim, &public_tokens),
+        "internal-only symbol must not ground against the public surface"
+    );
+    assert!(claim_grounded(&internal_claim, &code_token_set(&modules)));
+}
+
+#[test]
+fn p2_external_documented_claims_are_classified_not_phantom() {
+    let modules = fixture_modules();
+    let tokens = code_token_set(&modules);
+    let external = vec!["Ash.".to_string(), "Ecto.".to_string()];
+    let ext = claim("e0", "docs/x.md#Deps", "mentions", "Ash.Reactor");
+    let local = claim("g0", "docs/x.md#Deps", "mentions", "ignite");
+    let phantom = claim("p0", "docs/x.md#Deps", "mentions", "zzz_fake_symbol_zzz");
+    assert_eq!(
+        doc_hdit::info_theory::claim_status(&ext, &tokens, &external),
+        doc_hdit::info_theory::ClaimStatus::ExternalDocumented
+    );
+    assert_eq!(
+        doc_hdit::info_theory::claim_status(&local, &tokens, &external),
+        doc_hdit::info_theory::ClaimStatus::Grounded
+    );
+    assert_eq!(
+        doc_hdit::info_theory::claim_status(&phantom, &tokens, &external),
+        doc_hdit::info_theory::ClaimStatus::Phantom
+    );
+
+    let claims = vec![local, ext, phantom];
+    // Phi: phantom only -> 1/3; Q: grounded + external -> 2/3
+    assert!((doc_hdit::info_theory::phi_scoped(&claims, &tokens, &external) - 1.0 / 3.0).abs() < 1e-12);
+    assert!(
+        (doc_hdit::info_theory::q_density_scoped(&claims, &tokens, &external) - 2.0 / 3.0).abs() < 1e-12
+    );
+}
+
+#[test]
+fn p2_pre_p2_inputs_without_flags_load_full_surface() {
+    // Pre-P2 code-surface JSON carries no is_public/known_external fields;
+    // serde defaults must reconstruct the full public surface, not an empty one.
+    let raw = r#"{"modules":[{"name":"engine","items":[{"kind":"fn","ident":"ignite","signature":"ignite()"}]}]}"#;
+    let inputs: std::collections::BTreeMap<String, serde_json::Value> =
+        serde_json::from_str(raw).expect("parse legacy inputs");
+    let mods: Vec<CodeModule> =
+        serde_json::from_value(inputs["modules"].clone()).expect("decode legacy modules");
+    assert!(mods[0].is_public, "legacy module defaults to public");
+    assert!(mods[0].items[0].is_public, "legacy item defaults to public");
+    let public = doc_hdit::public_modules(&mods);
+    assert_eq!(public.len(), 1);
+    assert_eq!(public[0].items.len(), 1);
 }

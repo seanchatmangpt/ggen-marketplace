@@ -19,10 +19,18 @@ pub mod vsa;
 /// Dimensionality of all hypervectors.
 pub const DIM: usize = 10_000;
 
+/// Serde default for `is_public` so pre-P2 code-surface JSON (no flag) still
+/// loads as the full public surface — backward compatible, never silent-empty.
+fn default_public() -> bool {
+    true
+}
+
 /// A code-surface module with its items (functions, structs, traits, ...).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CodeModule {
     pub name: String,
+    #[serde(default = "default_public")]
+    pub is_public: bool,
     pub items: Vec<CodeItem>,
 }
 
@@ -32,6 +40,35 @@ pub struct CodeItem {
     pub kind: String,
     pub ident: String,
     pub signature: String,
+    #[serde(default = "default_public")]
+    pub is_public: bool,
+}
+
+/// P2 scope: restrict the code surface to the public/documented items.
+/// A module survives with only its public items; modules with no public items
+/// are dropped. The full surface stays available for S_coverage_raw.
+pub fn public_modules(modules: &[CodeModule]) -> Vec<CodeModule> {
+    modules
+        .iter()
+        .filter(|m| m.is_public)
+        .filter_map(|m| {
+            let items: Vec<CodeItem> = m
+                .items
+                .iter()
+                .filter(|it| it.is_public)
+                .cloned()
+                .collect();
+            if items.is_empty() {
+                None
+            } else {
+                Some(CodeModule {
+                    name: m.name.clone(),
+                    is_public: m.is_public,
+                    items,
+                })
+            }
+        })
+        .collect()
 }
 
 /// A documentation claim as an EAV triple.

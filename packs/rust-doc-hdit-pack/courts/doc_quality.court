@@ -8,18 +8,23 @@
 # Gates (evaluated by doc-hdit:audit over the rendered doc surface vs the
 # code surface loaded from ontology.ttl):
 #
-#   S_coverage  >= 0.90   REPORT-ONLY until the P2 scope fix lands (v1 scanner
-#                         counts every internal clause repo-wide while docs cover
-#                         the public surface — DOC-HDIT-PILOT finding 3). The
-#                         audit prints it as REPORT and does not gate on it.
-#                         fraction of code-surface Verbs (queries/ast_extract.rq)
-#                         appearing in >= one doc:Claim (doc:about the item).
+#   S_coverage  >= 0.90   fraction of the PUBLIC code surface covered by
+#                         documentation (P2 scope fix landed: extractor marks
+#                         items public vs internal — exported/pub/@doc'd/
+#                         delegated — and doc-hdit computes coverage over the
+#                         public surface only; the full-surface value is kept
+#                         as S_coverage_raw, report-only. DOC-HDIT-PILOT P2).
 #   Phi_halluc  <= 0.001  fraction of doc:Claim rows whose value mentions no
-#                         matching code-surface symbol (VSA cosine of the
-#                         claim's H_doc hypervector against H_code bundle).
-#   Q_density   >= 0.65   information density: distinct verified facts per
-#                         100 words of rendered prose (verified facts /
-#                         word count * 100).
+#                         matching code-surface symbol (exact-match over the
+#                         code-surface token set). References to documented
+#                         external dependencies (known_external prefixes from
+#                         mix.exs deps + Cargo.toml [dependencies], e.g. `Ash.`,
+#                         `serde_json::`) are classified external_documented,
+#                         excluded from Phi, and reported as a count — the
+#                         documented-deps allowance made explicit and
+#                         enforceable, not a threshold relaxation.
+#   Q_density   >= 0.65   grounded-claim fraction: (grounded +
+#                         external_documented) / total claims.
 [gates]
 S_coverage_min = 0.90
 Phi_halluc_max = 0.001

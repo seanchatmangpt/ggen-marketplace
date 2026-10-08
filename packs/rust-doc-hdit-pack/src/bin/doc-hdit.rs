@@ -1,11 +1,12 @@
 //! doc-hdit CLI: `scaffold`, `vectorize`, `audit` and `certify` subcommands.
 
-use doc_hdit::info_theory::entropy::{mutual_information, q_density, shannon};
+use doc_hdit::info_theory::entropy::{mutual_information, shannon};
 use doc_hdit::info_theory::{
-    code_token_set, phi_exact, projection_residual, rank_phantoms, s_coverage, CodeBasis,
+    code_token_set, phi_scoped, projection_residual, q_density_scoped, rank_phantoms, s_coverage,
+    ClaimStatus, CodeBasis,
 };
 use doc_hdit::vsa::encode::{encode_code, encode_doc};
-use doc_hdit::{Claim, CodeModule};
+use doc_hdit::{public_modules, Claim, CodeModule};
 use std::collections::BTreeMap;
 
 #[derive(serde::Deserialize)]
@@ -14,6 +15,9 @@ struct Inputs {
     modules: Vec<CodeModule>,
     #[serde(default)]
     claims: Vec<Claim>,
+    /// Module prefixes of documented external dependencies (P2 allowlist).
+    #[serde(default)]
+    known_external: Vec<String>,
 }
 
 /// Gate thresholds parsed from a court file
@@ -127,14 +131,27 @@ fn main() {
         }
     };
 
-    let (_h_code, codewords) = encode_code(&inputs.modules);
+    // P2 scope: S_coverage evaluates against the PUBLIC code surface only
+    // (exported/pub/@doc'd items); the raw full-surface value is kept as
+    // S_coverage_raw (report-only).
+    let public = public_modules(&inputs.modules);
+    let (_h_code_pub, codewords_pub) = encode_code(&public);
+    let code_basis = CodeBasis::build(&codewords_pub);
+    let (_h_code_raw, codewords_raw) = encode_code(&inputs.modules);
+    let code_basis_raw = CodeBasis::build(&codewords_raw);
     let h_doc = encode_doc(&inputs.claims);
-    let code_basis = CodeBasis::build(&codewords);
     let sc = s_coverage(&h_doc, &inputs.claims, &code_basis);
+    let sc_raw = s_coverage(&h_doc, &inputs.claims, &code_basis_raw);
     // Deterministic exact-match phantom gate (primary); the VSA projection
     // residual stays as a secondary similarity signal (phi_vsa, report-only).
     let tokens = code_token_set(&inputs.modules);
-    let phi = phi_exact(&inputs.claims, &tokens);
+    let external = &inputs.known_external;
+    let phi = phi_scoped(&inputs.claims, &tokens, external);
+    let external_documented = inputs
+        .claims
+        .iter()
+        .filter(|c| ClaimStatus::ExternalDocumented == doc_hdit::info_theory::claim_status(c, &tokens, external))
+        .count();
     let phi_vsa = projection_residual(&h_doc, &inputs.claims, &code_basis);
     let ranked = rank_phantoms(&inputs.claims, &tokens, &code_basis);
     let h_bits = shannon(
@@ -145,7 +162,7 @@ fn main() {
             .collect::<Vec<_>>(),
     );
     let mi = mutual_information(&inputs.claims, &inputs.modules);
-    let q = q_density(&inputs.claims, &inputs.modules);
+    let q = q_density_scoped(&inputs.claims, &tokens, external);
 
     match cmd {
         "certify" => {
@@ -231,7 +248,9 @@ fn main() {
         "vectorize" => {
             let mut out: BTreeMap<&str, serde_json::Value> = BTreeMap::new();
             out.insert("s_coverage", serde_json::json!(sc));
+            out.insert("s_coverage_raw", serde_json::json!(sc_raw));
             out.insert("phi", serde_json::json!(phi));
+            out.insert("external_documented", serde_json::json!(external_documented));
             out.insert("phi_vsa", serde_json::json!(phi_vsa));
             out.insert("entropy_bits", serde_json::json!(h_bits));
             out.insert("mutual_information_bits", serde_json::json!(mi));
@@ -259,13 +278,15 @@ fn main() {
             let text = std::fs::read_to_string(&court_path).unwrap_or_default();
             let t = parse_court(&text);
             let mut violations = 0;
-            // S_coverage is REPORT-ONLY until the P2 scope fix lands
-            // (public/documented-surface denominator); it does not gate.
+            // P2 landed: S_coverage gates over the public/documented surface;
+            // the raw full-surface value stays report-only.
+            println!("REPORT  coverage_raw value={:.4}", sc_raw);
             println!(
-                "REPORT  coverage value={:.4} threshold={:.4} (report-only; P2 scope fix pending)",
-                sc, t.s_coverage_min
+                "REPORT  external_documented count={} (documented-dep references, excluded from Phi)",
+                external_documented
             );
-            let gates: [(&str, f64, f64, bool); 2] = [
+            let gates: [(&str, f64, f64, bool); 3] = [
+                ("coverage", sc, t.s_coverage_min, sc >= t.s_coverage_min),
                 ("phantom", phi, t.phi_max, phi <= t.phi_max),
                 ("density", q, t.q_density_min, q >= t.q_density_min),
             ];
