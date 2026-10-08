@@ -80,12 +80,26 @@ this lane:
 | castle | `docs/sjira/v26.10.8/castle-gates-skills.json` + `skills.ttl` | 14 | generator-emitted: `scripts/gen_skills_json.py` renders the fourteen v26.9.28 crown gates (CASTLE-28-0..13) as `gate_status` skills — byte-identical across runs, fail-closed on missing properties / non-exposed skills / missing law sentence / non-ALIVE generator; ceiling CONSTRUCT, law sentence "receipt-driven STOP; SELECT never implies DO" | `0244c82` (`main`) |
 | castle (card itself) | `.well-known/agent-card.json` | 12 | generated from `#[verb]` registrations — the fleet's last hand-authored card conversion | `edaf206` (`main`) |
 | wasm4pm | `.well-known/agent-card.json` (actuator surface) | 6 | hand-authored truthful v1.0 card: `execute`, `effect.digest`, `certificate.signing_message`, `verify`, `resource.admit`, `ledger` | `7146a53129681008e255375e338fe47bb11cd06f` (`docs/sa2a-actuator-agent-card-v2`) |
+| autofde-lab | `.well-known/agent-card.json` (served live by `src/autofde_lab/fabric/a2a.py` `create_app()`; a2a-sdk 1.4.1 + uvicorn) | 1 | a2a-sdk-served v1.0 card (`formal_decision` — scikit-decide decision fabric); witnessed `agent-card.json` → 200 in `docs/a2a-serving-witness.md`, replayed 2026-10-08 | `fbd6eab4` (`lane/doc-hdit-scaffold`); no-op refusal at `c20fc918` (`docs/a2a-no-op.md`) |
 
 Skill counts re-counted at the exact SHAs above; the wasm4pm card carries 6
 skills (measured; an earlier consolidation brief said 7 — 6 is the grounded
 count at that SHA). The wasm4pm actuator card is the one new hand-authored
 surface — its generation-law conversion is the natural follow-up, same as
 castle's was.
+
+The fortune5 pack family landed after this table: the EA pack
+(`packs/fortune5-enterprise-architecture-pack/`) carries authority `NONE` /
+ceiling `SELECT` (projections are CONSTRUCT-only; `DO` out of grammar is
+refused), with the dissertation's conformance vectors TV-01..TV-05 mechanized
+as real tests in `tests/test_conformance_vectors.py` (67 passed across the
+pack's six suites: `python3 -m pytest
+packs/fortune5-enterprise-architecture-pack/tests/ -q`, measured 2026-10-08).
+Full treatment: [`FORTUNE5-EA-PACK.md`](FORTUNE5-EA-PACK.md); the knowledge-
+cryptography mechanization note lives in
+[`../dissertation/KNOWLEDGE-CRYPTOGRAPHY-DISSERTATION.md`](../dissertation/KNOWLEDGE-CRYPTOGRAPHY-DISSERTATION.md)
+(§9.1 hygiene-law artifact; the top-of-file mechanization note and Chapter 8
+carry the TV-01..TV-05 vector table).
 
 Workgraph SHACL validation: the wg-shacl lane's validation report had **not
 landed** on any pushed ggen-marketplace ref as of this consolidation
@@ -232,16 +246,19 @@ card-served (§2/§2.1), workgraph-only (§1), or documented-no-op here.
 
 | repo | reason (one line) | decision doc |
 |---|---|---|
-| frozen-duckdb | Rust/C library + CLI; nothing serves HTTP, no card surface exists | `docs/reference/a2a-no-op.md` (frozen-duckdb, `docs/doc-hdit-scaffold`) |
-| zcode-cli | consumer-only: MCP client + `.sa2a/manifest.json` consumer contract; serves no HTTP endpoint, a card would fabricate a server | `docs/sjira/v26.10.8/CARD-NO-OP.md` (zcode-cli, `fix/v26926-preview-publish-typed-skip`) |
+| frozen-duckdb | Rust/C library + CLI; nothing serves HTTP, no card surface exists | `docs/reference/a2a-no-op.md` (frozen-duckdb, `docs/doc-hdit-scaffold`, `d45739d`) |
+| zcode-cli | consumer-only: MCP client + `.sa2a/manifest.json` consumer contract; serves no HTTP endpoint, a card would fabricate a server | `docs/sjira/v26.10.8/CARD-NO-OP.md` (zcode-cli, `fix/v26926-preview-publish-typed-skip`, `2a108b7` — search-evidence receipt) |
 
 Refused classification: **autofde-lab was proposed as a no-op and refused** —
 it carries a real servable A2A v1.0 surface
 (`src/autofde_lab/fabric/a2a.py`: Starlette JSON-RPC + uvicorn `run()` +
 CLI wiring + `a2a-sdk[http-server]` pinned in `requirements-agentic.txt` +
-`.well-known/agent.json`); its decision doc `docs/a2a-no-op.md` records the
-refusal with evidence. Classified card-served pending a live serving
-witness.
+`.well-known/agent.json`); its decision doc `docs/a2a-no-op.md` (`c20fc918`,
+`lane/doc-hdit-scaffold`) records the refusal with evidence. Classified
+**card-served**, witnessed live: `docs/a2a-serving-witness.md` (`fbd6eab4`,
+same branch) records `GET /.well-known/agent-card.json` → HTTP 200 served by
+`create_app()` (a2a-sdk 1.4.1, 1 skill `formal_decision`); replayed at this
+checkout 2026-10-08 with the identical result.
 
 ## Replay
 
