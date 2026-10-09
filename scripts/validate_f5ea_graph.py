@@ -49,7 +49,7 @@ SHAPE_NODE = URIRef(F5 + "SolutionGroupShape")
 
 def _import_tv_module():
     sys.path.insert(0, TESTS.as_posix())
-    import test_conformance_vectors as tv
+    import test_conformance_vectors as tv  # type: ignore[reportMissingImports]  # noqa: E402
     return tv
 
 
@@ -79,13 +79,18 @@ def validate_graph(data: Graph, shapes: Graph):
         inference="none",
         advanced=True,
     )
+    if not isinstance(results_graph, Graph):
+        # pyshacl returns a ValidationFailure when the shapes/data graphs
+        # themselves are malformed -- surface it as a loud FAIL, never fall
+        # through as a silent pass.
+        raise RuntimeError(
+            f"SHACL validation engine failure (malformed shapes or data): "
+            f"{results_graph}")
     viols = []
     if not conforms:
         for t in results_graph.triples(
                 (None, SH.focusNode, None)):
             focus = t[0]
-            msgs = [str(m) for m in results_graph.objects(
-                focus, SH.resultMessage) if True]
             for m in results_graph.objects(focus, SH.resultMessage):
                 viols.append((focus, str(m)))
     return bool(conforms), viols
