@@ -675,3 +675,57 @@ ROOTED in this lane's re-court); zcode's blocker decomposed to extractor-seam
 work with zero true hallucinations; frozen-duckdb the only remaining typed
 BLOCKED. Not claimed: full ALIVE — the BLOCKED set and the dispatch-reported
 figures above are the exact boundary of this receipt.
+
+## 13. Round-7 final sync (2026-10-09, lane `semwave-final`)
+
+Docs-only lane on ggen-marketplace `hdit-v2-structs` @ `e31fbf8ed` (pulled
+`--ff-only`, no stash). Folds in everything landed since the round-6 final
+refresh `209346e0b`. Every SHA below re-verified this session in its owning
+canonical checkout via `git log --oneline -1` / `git cat-file -e` / tag
+dereference; figures not re-executed in this lane are marked
+dispatch-reported (as-of-date).
+
+### 13.1 Landings since `209346e0b`
+
+| landing | SHA (re-verified) | what |
+|---|---|---|
+| [150] extractor-pin + [151c] certify wiring | `bf5597333` (this repo) | Fleet law [150]: certify receipts natively bind extractor identity — receipts embed an `extractor` field (BLAKE3 hex over the extractor source bytes) bound by the chain hash, alongside the subject digest; replay verification refuses typed `REFUSED:EXTRACTOR_MISMATCH` — closes the ash_pplan head-wise re-certify extractor-drift refusal class witnessed at `bcd82bb`; the [151c] certify-pipeline wiring (pin honored on both certify and replay legs) is carried in the same commit |
+| [151a] TS-scanner seams A+B | `ba6f302c9` (this repo) | ground-truthed at zcode `925617a`: Seam A mid-line exports in minified single-line modules; Seam B generic-fn `<T>` name-lookahead capture; mask_strings nesting-state fix (intermediate, superseded by `e31fbf8ed`) |
+| [151b] template-literal masking | `e31fbf8ed` (this repo, HEAD) | nested/interleaved template-literal mis-pairing that blanked 31 real exports; supersedes the `ba6f302c9` masking machine in full; 3 regression tests; same-file coupling disclosed |
+| bcinr Variant 3 merged | `273fb703` (bcinr `main`, merge) | RDTSC tick tables + Variant 3 chain optimization (34% faster 1-frame chain) + methodology + negative results — 4 negatives carried; downward re-amendment `d8a77872` (chain budget re-amended to the measured envelope, not relaxed upward); later bench traffic (`8f6726df` third two-call negative, `3e5c392a` Variant-5 merge) disclosed as post-merge |
+| ferroplan tag | `v26.10.8-3` → `abc39500ff24` | tag dereferenced this session in `/Users/sac/ferroplan`; subject = the prose-drift re-close tip (`abc39500` "drift re-close (extraction-delta scaffold cells)") |
+| wasm4pm tag | `v26.10.8-3` → `2bb0c4ecf` (PR #672 merge) | tag dereferenced this session in `/Users/sac/wasm4pm`; **16→17 SHA-count correction witnessed**: distinct 40-hex SHAs in `docs/sjira/v26.10.8/WORKGRAPH.ttl` re-counted at the tag subject = **17** (0 unresolved per the §12.1 trust substance) |
+| ash_pplan round-6 note | `a1f332e` (ash_pplan `main`) | round-6 standing note (certify-landed, re-witnessed); supersedes-in-place the earlier head-wise REFUSED reading (`bcd82bb`) with the pinned-extractor reconcile (`8d42603`) |
+| ggen spec-integration | `6aa26c54c` (ggen, `spec-integration`) | cross-spec-reconciliation merged into `spec-integration` (delta-validation Rust `7533e2137` + WASM `9f8bd844f` hop specs); consolidation merge `573756c02` on top disclosed as post-merge |
+
+### 13.2 Final standings (round 7)
+
+- **12 certified** (roster per §11.2/§11.5, unchanged since round 6).
+- **zcode: typed-BLOCKED with falsifier** — TS-denominator decomposition per
+  §12.2 (FAIL-honest TS witness, G-class 165 / X-class 204 / TRUE
+  hallucinations 0); falsifier unchanged.
+- **frozen-duckdb: typed-BLOCKED with falsifier** — 0.8985, 4-item residual;
+  re-audit S < 0.90 or Phi > 0.001 refutes closure.
+- Extractor identity is now pinned in every certify receipt ([150]) — the
+  extractor-drift refusal class is structurally closed fleet-wide.
+
+### 13.3 Round-7 standing
+
+Standing: **PARTIAL_ALIVE (strengthened; final)** — unchanged from §12.3 on
+the final evidence: 12 certified, zcode + frozen-duckdb the only typed
+BLOCKED entries, each with a named falsifier; the certify plane now carries
+extractor identity natively. Not claimed: full ALIVE — the BLOCKED set and
+the dispatch-reported figures above are the exact boundary of this receipt.
+
+## Replay (round 7)
+
+```
+git -C /Users/sac/ggen-marketplace log --oneline -1 bf5597333 ba6f302c9 e31fbf8ed
+git -C /Users/sac/bcinr log --oneline -1 273fb703 d8a77872
+git -C /Users/sac/ferroplan rev-parse v26.10.8-3^{commit}   # abc39500ff24...
+git -C /Users/sac/wasm4pm rev-parse v26.10.8-3^{commit}     # 2bb0c4ecfa56...
+git -C /Users/sac/wasm4pm show v26.10.8-3:docs/sjira/v26.10.8/WORKGRAPH.ttl \
+  | grep -oE '\b[0-9a-f]{40}\b' | sort -u | wc -l            # expect 17
+git -C /Users/sac/ash_pplan log --oneline -1 a1f332e
+git -C /Users/sac/ggen log --oneline -1 6aa26c54c
+```
