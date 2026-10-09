@@ -162,16 +162,21 @@ via `git log --oneline -1 <sha>` in this lane): tag-advancement standing table
 persisted ash_surface re-audit witness (mixed-verdict honesty carried in
 `SEMANTIC-WAVE-RECEIPT.md` §10.5/§11.1).
 
-Final standings (full table in `SEMANTIC-WAVE-RECEIPT.md` §11.2): 11 repos
+Final standings (full table in `SEMANTIC-WAVE-RECEIPT.md` §11.2): 12 repos
 certified PASS on the ts extractor (xaas, ex4pm — certify-landed, ggen_igniter,
 gmp, castle, graphlaw, affidavit, ash_surface, ash_graphlaw, zcode pending the
 TS denominator [127], ash_pplan — certify-landed at `6c8c7ec` on ash_pplan
 `main`, ACCEPTED: S 0.98389 / Phi 0.00038 / Q 0.99962, chain hash
-`b791ca5ae851…`, residual AshPPlan.Dsl scanner gap disclosed); 2 typed
-BLOCKED-with-falsifier pending (ferroplan certify refusal at `47aa362` —
-[129]/[106-p2]/[120]; frozen-duckdb 0.8985 with a 4-item residual after the
-closed [107]). Audit figures for the BLOCKED set are wave-reported
-(as-of-date), not re-executed in this lane.
+`b791ca5ae851…`, residual AshPPlan.Dsl scanner gap disclosed; ferroplan —
+certify-landed (round 6) at `900e1e5` on ferroplan `main`, ACCEPTED: S 0.9783 /
+Phi 0.0005 / Q 0.9995, run twice both configs, chain at
+`docs/sjira/v26.10.8/ferroplan.chain.jsonl`, `CERTIFY-BLOCKED.md` superseded in
+place (`CERTIFY-ACCEPTED.md`), [120] denominator decision recorded, named
+residues: crates.md generated-phantoms (in-budget), [105] use-span residual,
+helper-routed env reads); roster 12 certified / 1 pending (zcode TS [127]);
+frozen-duckdb 0.8985 with a 4-item residual after the closed [107] remains
+typed BLOCKED-with-falsifier. Audit figures for the pending/BLOCKED entries are
+wave-reported (as-of-date), not re-executed in this lane.
 
 ### 8.1 Round-3 final verdict
 

@@ -532,16 +532,19 @@ disk in their owning repos this session are marked **wave-reported
   ash_pplan `main`; `CERTIFY-VERIFY.md` + `ash_pplan.chain.jsonl` on disk —
   re-verified in `/Users/sac/ash_pplan`); residual AshPPlan.Dsl scanner gap
   disclosed |
+| ferroplan | PASS (ts) — certify-landed (round 6): verdict ACCEPTED (S
+  0.9783 / Phi 0.0005 / Q 0.9995) at `900e1e5` on ferroplan `main`; certify
+  run twice, both configs; chain at
+  `docs/sjira/v26.10.8/ferroplan.chain.jsonl`; `CERTIFY-BLOCKED.md` superseded
+  in place (now `CERTIFY-ACCEPTED.md`); [120] denominator decision recorded;
+  named falsifiable residues: crates.md generated-phantoms (in-budget),
+  [105] use-span residual, helper-routed env reads — re-verified in
+  `/Users/sac/ferroplan` |
 
 **Typed BLOCKED with falsifier**:
 
 | repo | standing | falsifier / lane |
 |---|---|---|
-| ferroplan | BLOCKED-with-falsifier — doc-hdit certify refusal (typed
-`REFUSED:DOC_HDIT_CERTIFY_GATE_FAIL` at `47aa362`, `CERTIFY-BLOCKED.md` on
-disk); latest audit figures coverage 0.8637 / Phi 0.0210 wave-reported
-(as-of-date); [129]+[103] done, [106] done | re-run certify at HEAD once the
-phantom mass lands; ACCEPTED replaces BLOCKED |
 | zcode | BLOCKED-with-falsifier — TS denominator ([127]); re-audit witness
   landed at `/tmp/zcode-reaudit` (denominator set=37: coverage 0.6757 / Phi
   0.2195, `zcode.audit.txt`; post-merge extractor run Phi 0.8462,
@@ -559,11 +562,11 @@ residue seam-classified and falsified (gate doc §7.2/§7.3); see the gate doc
 
 ### 11.4 Round-5 final standing
 
-Standing: **PARTIAL_ALIVE (strengthened; final)** — 11 repos certified PASS on
-the ts extractor (ash_pplan certify-landed), the certify plane is exercised
-end to end (ex4pm and ash_pplan certify-landed; ferroplan typed BLOCKED with
-falsifier), the admission ledger is fully triaged, and the 78-record seal is
-verified. The remaining BLOCKED set (ferroplan, zcode TS denominator,
-frozen-duckdb) is typed, each with a named falsifier. Not claimed: full
+Standing: **PARTIAL_ALIVE (strengthened; final)** — 12 repos certified PASS on
+the ts extractor (ash_pplan and ferroplan certify-landed), the certify plane is
+exercised end to end (ex4pm, ash_pplan, ferroplan certify-landed), the
+admission ledger is fully triaged, and the 78-record seal is verified. Roster:
+12 certified / 1 pending (zcode TS denominator [127]); frozen-duckdb remains
+typed BLOCKED-with-falsifier outside the certify roster. Not claimed: full
 ALIVE — the BLOCKED set and the wave-reported (as-of-date) figures above are
 the exact boundary of this receipt.
