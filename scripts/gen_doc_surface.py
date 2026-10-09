@@ -1154,6 +1154,7 @@ def extract_code(repo, engine="auto"):
         "version": versions,
         "known_external": known_external(repo),
         "directories": extract_directories(repo),
+        "paths": sorted(path_surface(repo)[1]),
         "modules": modules,
     }
 
@@ -1286,18 +1287,18 @@ def is_path_span(span):
 
 def path_surface(repo):
     """Real file surface: (dirs, files) as relative-path sets, excluding
-    build/hidden dirs (same skip law as `extract_directories`)."""
+    build/hidden dirs (skip law applies to repo-relative parts only)."""
     dirs, files = set(), set()
-    for p in Path(repo).rglob("*"):
-        if any(part in SKIP_DIRS for part in p.parts):
+    root = Path(repo)
+    for p in root.rglob("*"):
+        rel = p.relative_to(root)
+        if any(part in SKIP_DIRS or part.startswith(".") for part in rel.parts):
             continue
-        if any(part.startswith(".") for part in p.parts):
-            continue
-        rel = str(p.relative_to(repo))
+        r = str(rel)
         if p.is_dir():
-            dirs.add(rel)
+            dirs.add(r)
         else:
-            files.add(rel)
+            files.add(r)
     return dirs, files
 
 
@@ -1492,7 +1493,17 @@ def extract_doc(repo, surface, docs_dirs=None, include_doc_strings=False):
                 if hm:
                     section = hm.group(2).strip()
                 for sm in INLINE_SPAN.finditer(line):
-                    hit = match_span(sm.group(1), syms)
+                    span = sm.group(1)
+                    if is_path_span(span):
+                        if resolves_path(psurface, span):
+                            claims.append({
+                                "subject": rel + "#" + section if section else rel,
+                                "predicate": "references_path",
+                                "object": span,
+                                "kind": "path_ref",
+                            })
+                        continue
+                    hit = match_span(span, syms)
                     if hit:
                         claims.append({
                             "subject": rel + "#" + section if section else rel,

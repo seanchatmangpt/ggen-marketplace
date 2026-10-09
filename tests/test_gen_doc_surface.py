@@ -257,6 +257,68 @@ class P3ProseFilterTest(unittest.TestCase):
         assert "Demo.Engine.ignite" in objs
 
 
+class P1PathClaimTest(unittest.TestCase):
+    """P1 [47]: filesystem-path spans are typed `path_ref`, grounded by
+    existence on the real file surface — never code-symbol claims."""
+
+    def test_path_span_classification(self):
+        assert g.is_path_span("planning/ash_pplan_control_plane.hddl")
+        assert g.is_path_span("test/support/courts/")
+        assert g.is_path_span("verify/100_task_props.unbound.rq")
+        # arity forms and versions stay in the symbol channel
+        assert not g.is_path_span("receipt/2")
+        assert not g.is_path_span("execute/4,5")
+        assert not g.is_path_span("release/v26.8.23")
+        assert not g.is_path_span("Demo.Engine.ignite")
+
+    def test_existing_path_grounds_as_path_ref(self):
+        repo = mkrepo({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": "defmodule Demo.Engine do\n  def ignite(x), do: x\nend\n",
+            "planning/plan.hddl": "{}\n",
+            "docs/guide.md": (
+                "See `planning/plan.hddl` and `test/support/courts/`.\n"
+            ),
+            "test/support/courts/.keep": "",
+        })
+        surface = g.extract_code(repo)
+        claims = g.extract_doc(repo, surface)["claims"]
+        refs = [c for c in claims if c["kind"] == "path_ref"]
+        assert {c["object"] for c in refs} == {
+            "planning/plan.hddl", "test/support/courts/"}
+        assert all(c["predicate"] == "references_path" for c in refs)
+
+    def test_nonexistent_path_span_is_never_a_claim(self):
+        repo = mkrepo({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": "defmodule Demo.Engine do\n  def ignite(x), do: x\nend\n",
+            # module/function named `hddl` — the segment-collision channel
+            "lib/hddl.ex": "defmodule Demo.Hddl do\n  def hddl, do: 1\nend\n",
+            "docs/guide.md": (
+                "Ships `planning/missing.hddl` and `docs/nope/`.\n"
+                "Drive it with `Demo.Hddl.hddl/0`.\n"
+            ),
+        })
+        surface = g.extract_code(repo)
+        claims = g.extract_doc(repo, surface)["claims"]
+        objs = [c["object"] for c in claims]
+        assert "planning/missing.hddl" not in objs
+        assert "docs/nope/" not in objs
+        # the collision symbol itself still claims normally
+        assert "Demo.Hddl.hddl/0" in objs
+
+    def test_code_mode_emits_paths_array(self):
+        repo = mkrepo({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": "defmodule Demo.Engine do\n  def ignite(x), do: x\nend\n",
+            "planning/plan.hddl": "{}\n",
+        })
+        surface = g.extract_code(repo)
+        assert "planning/plan.hddl" in surface["paths"]
+        assert "lib/demo.ex" in surface["paths"]
+        assert all(not p.endswith("/") for p in surface["paths"])
+
+
 class P4TableClaimsTest(unittest.TestCase):
     """P4: markdown pipe-table rows emit symbol claims (scaffold tables count)."""
 
