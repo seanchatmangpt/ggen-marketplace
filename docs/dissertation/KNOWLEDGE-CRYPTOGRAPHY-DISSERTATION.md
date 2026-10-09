@@ -8,6 +8,8 @@
 
 **DATE:** October 2026
 
+**COMPANION TREATISE:** [Hardening as Court-Governed Measurement Repair](HARDENING-AS-COURT-GOVERNED-MEASUREMENT-REPAIR.md) — operator manuscript, v26.10.8 fleet campaign.
+
 ---
 
 > **Mechanization note.** The conformance vectors TV-01..TV-05 described in
