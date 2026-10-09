@@ -618,3 +618,45 @@ corrected here, every cited SHA re-verified in its named checkout via
    (re-verified in `/Users/sac/castle`).
 
 Roster counts unchanged: 12 certified / 1 pending (zcode TS [127]).
+
+## 12. Round-6 final refresh (2026-10-09, lane `round6-final`)
+
+Docs-only lane on ggen-marketplace `hdit-v2-structs` @ `115f96bdc` (pulled
+`--ff-only`, no stash). Folds in the last witness landings since §11. Every
+SHA below re-verified this session via `git log --oneline -1 <sha>` /
+`git cat-file -e <sha>` in its canonical checkout; figures not found on disk
+in their owning repos are marked **dispatch-reported (as-of-date)**.
+
+### 12.1 Last witness landings
+
+| landing | SHA (re-verified) | what |
+|---|---|---|
+| ash_pplan round-6 post-merge witness | `9c6b676` on ash_pplan `main` | re-witness of the [125] cherry-pick certify at merged main `6c8c7ec`: **ACCEPTED**, S_coverage 0.97747 / Phi_halluc 0.000775 / Q_density 0.99923 — all three gates PASS; chain `184b851d83ee0c5a…de4cab41` (parent `""`, subject `0961ceaa…8ddf20`), chain + subject hashes recomputed on disk at landing, both MATCH; committed-subject `git archive` extraction is **deps-free versus the prior live-checkout run — stricter view, still ACCEPTED** |
+| xaas [60] repair + canonical gate [130] | `d10824331` (this repo, extractor "Elixir atom/string-key surface items") + `3ed88241` (xaas `main`, config-surface reference docs) | [60] repair reproduced at the repair-time extractor `5eb8076ab` (this repo) with the HEAD-extractor refusal witnessed on the same corpus (both-config bisection, §11.2 xaas row); [130] canonical gate landed; official witness pending [141] |
+| ex4pm workgraph fix merged | `d9422d3` = ex4pm `main` tip | P0-117 regen defect-class fix merged to main; trust court re-witnessed: this lane re-courted all 13 full-hex `sj:landedCommit` citations in ex4pm `WORKGRAPH.ttl` — **13 ROOTED / 0 UNROOTED** (`git cat-file -e` per citation); the 27-citation total (27 ROOTED / 0 UNROOTED) is dispatch-reported |
+| zcode [127] FAIL-honest TS witness | subject `925617a` (zcode-cli `origin/main`, re-verified); witness persisted at `/tmp/zcode-reaudit/WITNESS-TS-AUDIT.txt` | TS-basis audit executes and yields a real verdict — the degenerate 1-module/37-item regex denominator is REMOVED: **AUDIT FAIL, fail-honest** (persisted: S_coverage 0.1603 / Phi_halluc 0.2744 / Q_density 0.7256); phantom mass decomposed — G-class 165 (multi-line-signature extractor recall seam), X-class 204 (over-extraction seam, all claims verified present), **TRUE hallucinated symbols: 0**; residual doc-defect list after [74]+[98]: EMPTY; remediation = extractor + docs lanes [137]–[139] (dispatch-reported lane ids). Post-[144] re-extraction figures 0.1634 / 0.2220 are dispatch-reported, not persisted on disk this session; [144] balanced-paren multi-line signature capture landed `05bfa9c72` (this repo) — zcode re-extract recovers 43 previously-dropped openers, zero losses (commit-message-witnessed) |
+
+### 12.2 Final standings (round 6)
+
+- **12 certified** (roster per §11.2/§11.5, unchanged), with ash_pplan's
+  certify evidence now re-witnessed post-merge at `9c6b676` — ACCEPTED at
+  main under the stricter deps-free extraction.
+- **zcode: BLOCKED-with-falsifier, fully decomposed** — [127] is no longer a
+  denominator gap: the TS witness executes, FAILs honestly, and decomposes
+  the entire Phi mass into named extractor/metric seams (G-class 165,
+  X-class 204, TRUE hallucinations 0). No zcode doc content defect remains.
+  Falsifier: post-[137]–[139]+[144] TS-surface re-audit not reaching PASS
+  class after the extractor seam fixes would refute the decomposition.
+- **frozen-duckdb: typed BLOCKED (4-item residual)** — unchanged from §11.2
+  (0.8985; [107] closed via `66eaea182`; re-audit S < 0.90 or Phi > 0.001
+  refutes closure).
+
+### 12.3 Round-6 final standing
+
+Standing: **PARTIAL_ALIVE (strengthened; final)** — 12 certified; the certify
+plane witnessed end to end and re-witnessed post-merge (ash_pplan `9c6b676`);
+the ex4pm workgraph trust-rooted at main (`d9422d3`, 13/13 landedCommits
+ROOTED in this lane's re-court); zcode's blocker decomposed to extractor-seam
+work with zero true hallucinations; frozen-duckdb the only remaining typed
+BLOCKED. Not claimed: full ALIVE — the BLOCKED set and the dispatch-reported
+figures above are the exact boundary of this receipt.

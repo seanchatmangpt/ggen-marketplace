@@ -185,3 +185,40 @@ seam-classified (§7.2), lane-assigned, and carries its falsifier
 (`SEMANTIC-WAVE-RECEIPT.md` §10.5). Zero silent failures. Not claimed: full
 ALIVE (BLOCKED set open; per-repo audits wave-reported except where
 matrix-probe-witnessed).
+
+## 9. Round-6 final refresh (2026-10-09, lane `round6-final`)
+
+Docs-only lane on ggen-marketplace `hdit-v2-structs` @ `115f96bdc` (pulled
+`--ff-only`, no stash). Full detail in `SEMANTIC-WAVE-RECEIPT.md` §12; SHAs
+re-verified in canonical checkouts this session.
+
+### 9.1 Criterion deltas (round 6)
+
+| criterion | round-3 verdict | round-6 delta |
+|---|---|---|
+| Diataxis integrity | PASS | unchanged |
+| zero broken links | PASS | unchanged |
+| code-doc parity | PASS (strengthened r2/r3) | strengthened: ash_pplan certify re-witnessed post-merge (`9c6b676`, ACCEPTED 0.97747/0.000775/0.99923, deps-free stricter view); zcode [127] TS witness executes fail-honest with Phi mass fully decomposed (TRUE hallucinated symbols 0) |
+| parity guards | PASS (strengthened r3) | strengthened: ex4pm workgraph merged at `d9422d3` with trust court re-witnessed (this lane: 13/13 full-hex `sj:landedCommit` citations ROOTED, 0 UNROOTED); xaas [130] gate landed (`d10824331` + config docs `3ed88241`) |
+| clean tree | PASS WITH DISCLOSED EXCEPTIONS | unchanged |
+| receipts | PASS (strengthened r3) | strengthened: last witness landings folded in (§12.1); [144] balanced-paren TS-scanner capture landed (`05bfa9c72`, 69 tests green) |
+
+### 9.2 Final roster state (round 6)
+
+- **12 certified PASS** (roster per `SEMANTIC-WAVE-RECEIPT.md` §11.2/§11.5,
+  unchanged).
+- **zcode: BLOCKED-with-falsifier, fully decomposed** — [127] TS witness
+  (persisted `/tmp/zcode-reaudit/WITNESS-TS-AUDIT.txt` @ `925617a`): AUDIT
+  FAIL fail-honest, Phi mass = extractor/metric seam only, zero true
+  hallucinations; remediation lanes [137]–[139] (extractor + docs) plus the
+  landed [144] scanner fix.
+- **frozen-duckdb: typed BLOCKED, 4-item residual** — unchanged ([107]
+  closed via `66eaea182`; re-audit S < 0.90 or Phi > 0.001 refutes).
+
+### 9.3 Round-6 final verdict
+
+**GATE PASS WITH NAMED RESIDUES** — rounds 1–3 verdicts hold and strengthen;
+the residual set is exactly { zcode extractor-seam remediation
+[137]–[139]+[144], frozen-duckdb 4-item residual }. Zero silent failures;
+every remaining figure not re-executed in this lane is marked
+dispatch-reported (as-of-date). Not claimed: full ALIVE.
