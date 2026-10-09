@@ -93,7 +93,14 @@ build_inputs() {
 import json, sys
 code = json.load(open(sys.argv[1]))
 doc = json.load(open(sys.argv[2]))
-json.dump({"modules": code.get("modules", []), "claims": doc.get("claims", [])},
+# Carry the path surface through the merge: `directories` grounds
+# trailing-slash doc references (exact membership) and `paths` grounds
+# path_ref claims (P1 [47]). `.get` keeps pre-[47] extractors working
+# (backward-compatible optional fields).
+json.dump({"modules": code.get("modules", []),
+           "claims": doc.get("claims", []),
+           "directories": code.get("directories", []),
+           "paths": code.get("paths", [])},
           open(sys.argv[3], "w"), indent=2, sort_keys=True)
 PY
   printf '%s\n' "$inputs"
