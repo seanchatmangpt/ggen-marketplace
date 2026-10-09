@@ -5,6 +5,13 @@ gates 120/140/150 evaluated an f5ea: resource-description graph that
 nothing manufactured. These tests prove the loop
 template -> HCL (rendered fixture) -> gen_resource_graph.py -> RDF -> gate
 end to end, one gate per provider (120=aws, 140=gcp, 150=azure).
+
+The end-to-end leg (test_gate_passes_over_rendered_templates) closes the last
+static link: the .tf input is the ACTUAL render of templates/{p}-sbb.tf.tera
+over the provider-template fixture contexts (shared via conftest.py), so
+template -> HCL -> RDF -> gate runs with zero static intermediates. The
+static fixtures under tests/fixtures/ remain as the generator's own unit-test
+fallback (facts tests + non-vacuity mutations pin exact IRIs).
 """
 import pathlib
 import subprocess
@@ -12,6 +19,8 @@ import sys
 
 import rdflib
 import pytest
+
+import test_provider_templates as tpt
 
 HERE = pathlib.Path(__file__).resolve().parent
 PACK = HERE.parent
@@ -45,10 +54,52 @@ def run_gate(provider, g):
     return bool(res.askAnswer)
 
 
+def build_graph_from_rendered_template(provider):
+    """End-to-end: render the real .tera template -> HCL -> RDF -> gate.
+
+    Uses the same mini-Tera renderer and fixture contexts as
+    test_provider_templates (shared via conftest.py) -- no static .tf input.
+    """
+    template, ctx = RENDER_SOURCES[provider]
+    rendered = tpt.render(template.read_text(), dict(ctx))
+    hcl = HERE / "__pycache__" / ("rendered_%s.tf" % provider)
+    hcl.parent.mkdir(exist_ok=True)
+    hcl.write_text(rendered)
+    out = HERE / "__pycache__" / ("generated_from_template_%s.ttl" % provider)
+    proc = subprocess.run(
+        [sys.executable, str(SCRIPT), "--provider", provider,
+         "--input", str(hcl), "--out", str(out)],
+        capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr
+    g = rdflib.Graph()
+    g.parse(out, format="turtle")
+    return g, out
+
+
+RENDER_SOURCES = {"aws": (tpt.AWS, tpt.AWS_CTX),
+                  "gcp": (tpt.GCP, tpt.GCP_CTX),
+                  "azure": (tpt.AZURE, tpt.AZURE_CTX)}
+
+
 @pytest.mark.parametrize("provider,gate", sorted(PROVIDER_GATES.items()))
 def test_gate_passes_over_generated_graph(provider, gate):
     g, _ = build_graph(provider)
     assert run_gate(provider, g) is True, "%s gate %s must pass" % (provider, gate)
+
+
+@pytest.mark.parametrize("provider,gate", sorted(PROVIDER_GATES.items()))
+def test_gate_passes_over_rendered_templates(provider, gate):
+    """The closed loop: template render (real renderer, real context) ->
+    extracted HCL -> gen_resource_graph.py -> f5ea: graph -> gate ASK."""
+    g, _ = build_graph_from_rendered_template(provider)
+    assert run_gate(provider, g) is True, (
+        "%s gate %s must pass over the graph built from the live-rendered "
+        "template" % (provider, gate))
+    # the generated graph must carry a realization with at least one resource
+    reals = list(g.subjects(rdflib.RDF.type, F5EA.Realization))
+    assert len(reals) == 1
+    assert list(g.objects(reals[0], F5EA.hasResource)), (
+        "%s: rendered-template graph has no resources" % provider)
 
 
 def test_aws_graph_facts():
