@@ -141,7 +141,9 @@ def main():
                 "origin_actor": "coordinator:recorded",
                 "provider_execution_id": (row.get("admitted_via") or "admit_workgraphs") + "@" + ts,
                 "subject": entry["title"] if entry and entry["title"] else (order or "unscoped refusal row"),
-                "repo": repo,
+                # canonical repo label (castle-goal resolves under ~/castle);
+                # records must name a repo the sweep can check out.
+                "repo": ALT.get(repo, repo),
                 "subject_sha": subject_sha,
                 "base_sha": base,
                 "commits": [{"sha": c, "summary": summary(repo, c), "court_results": ["admit:ACCEPT" if admitted else "admit:REFUSED"]} for c in commits_full],
