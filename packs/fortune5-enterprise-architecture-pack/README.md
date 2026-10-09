@@ -195,6 +195,8 @@ python3 -m pytest packs/fortune5-enterprise-architecture-pack/tests/test_qualifi
 python3 -m pytest packs/fortune5-enterprise-architecture-pack/tests/test_provider_templates.py -v
 python3 -m pytest packs/fortune5-enterprise-architecture-pack/tests/test_conformance_vectors.py -v
 python3 -m pytest packs/fortune5-enterprise-architecture-pack/tests/test_resource_graph.py -v
+python3 -m pytest packs/fortune5-enterprise-architecture-pack/tests/test_shapes_file.py -v
+python3 -m pytest packs/fortune5-enterprise-architecture-pack/tests/test_shapes_10.py -v
 python3 packs/fortune5-enterprise-architecture-pack/scripts/gen_resource_graph.py \
   --provider aws \
   --input packs/fortune5-enterprise-architecture-pack/tests/fixtures/aws_sbb.rendered.tf
