@@ -341,3 +341,10 @@ table -- per-repo/per-court pass-fail and total violations, deterministic
 byte-identical output across runs. Exit 0 iff every court passes
 (style-only workgraph mismatches pass; UNRESOLVED trust SHAs fail).
 Re-run: `python3 scripts/run_fleet_courts.py`.
+
+**Local cadence**: this runner is a documented local command, not CI -- the
+courts read sibling checkouts under `~/` and cannot run in a single-repo CI
+job. Run `scripts/run_fleet_courts.sh` (thin wrapper, safe from any cwd)
+before any fleet-wide landing. Expected verdicts on the current fleet:
+workgraphs STYLE-ONLY pass, cards PASS, f5ea PASS, trust PASS with
+UNRESOLVED fail-closed; any exit != 0 blocks the landing.
