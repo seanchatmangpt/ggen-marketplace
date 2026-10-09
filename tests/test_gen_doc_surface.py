@@ -926,6 +926,8 @@ class GeneratedSurfacePolicyTest(unittest.TestCase):
         assert rc == 0
         code = _json.loads(buf.getvalue())
         assert any(self.GEN in p for p in code["paths"])
+
+
 class EnvKeySurfaceTest(unittest.TestCase):
     """Backlog [109]: env-var literals and string-key constants are real
     public configuration surface — `std::env::var("NAME")` reads emit
@@ -1009,3 +1011,69 @@ class EnvKeySurfaceTest(unittest.TestCase):
         assert by_file["src/lib.rs"]["is_public"] is True
 
 
+class UseListSpanTest(unittest.TestCase):
+    """Backlog [105]: multi-identifier use-re-export spans (`a::{B, C}`) are
+    split into per-ident grounding candidates at extraction — one `mentions`
+    claim per grounded member instead of one ungroundable whole-span claim."""
+
+    SYMS = {"CnfFormula", "Solver", "Clause", "Assignment", "solve", "parse"}
+
+    def test_members_each_ground(self):
+        assert g.match_span_claims(
+            "ferroplan::{CnfFormula, Solver}", self.SYMS,
+        ) == ["CnfFormula", "Solver"]
+
+    def test_only_grounded_members_claimed(self):
+        assert g.match_span_claims(
+            "api::{CnfFormula, Nonexistent}", self.SYMS,
+        ) == ["CnfFormula"]
+
+    def test_no_grounded_members_no_claim(self):
+        assert g.match_span_claims("api::{Ghost1, Ghost2}", self.SYMS) == []
+
+    def test_multiline_flattened_span_with_spaces(self):
+        # Generated reference.md spans flatten rustdoc `use` blocks:
+        # `api::{ decompose, parse, CnfFormula, }` with stray whitespace.
+        assert g.match_span_claims(
+            "api::{ CnfFormula, solve }", self.SYMS,
+        ) == ["CnfFormula", "solve"]
+
+    def test_use_list_span_splits_even_when_span_on_surface(self):
+        # Even when the raw span sits on the code surface as a `use` item
+        # (backlog [56]), the audited item surface does not admit it, so
+        # use-list spans always split into per-ident claims ([105]).
+        syms = {"api::{CnfFormula, Solver}"} | self.SYMS
+        assert g.match_span_claims(
+            "api::{CnfFormula, Solver}", syms,
+        ) == ["CnfFormula", "Solver"]
+
+    def test_non_list_span_unchanged(self):
+        assert g.match_span_claims("CnfFormula", self.SYMS) == ["CnfFormula"]
+        assert g.match_span_claims("no::such::ident", self.SYMS) == []
+
+    def test_extraction_emits_one_claim_per_member(self):
+        repo = mkrepo({
+            "Cargo.toml": '[package]\nname = "demo"\nversion = "0.1.0"\n',
+            "src/lib.rs": (
+                "pub struct CnfFormula;\n"
+                "pub struct Solver;\n"
+            ),
+            "docs/reference/generated/reference.md": (
+                "# Guide\n\n"
+                "See `demo::{CnfFormula, Solver}` for the SAT surface.\n"
+            ),
+        })
+        code = g.extract_code(repo)
+        doc = g.extract_doc(repo, code)
+        objs = [c["object"] for c in doc["claims"] if c["kind"] == "inline_span"]
+        assert objs == ["CnfFormula", "Solver"]
+
+    def test_long_plain_span_no_backtracking(self):
+        # Regression: the use-list matcher must stay linear on long
+        # non-list spans (nested \w+ quantifiers once caused exponential
+        # backtracking here).
+        import time
+        span = "a" * 4000
+        t0 = time.monotonic()
+        assert g.match_span_claims(span, self.SYMS) == []
+        assert time.monotonic() - t0 < 1.0

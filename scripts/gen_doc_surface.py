@@ -1602,6 +1602,47 @@ def match_span(span, syms, vendor_pfx=()):
     return None
 
 
+# Backlog [105]: multi-identifier use-re-export spans (`a::{B, C}`) fail
+# whole-span exact-match grounding even though every member exists on the
+# code surface (M7 witness: 54 generated-reference FPs in ferroplan). The
+# span is split into per-ident grounding candidates at extraction: each
+# member is grounded on its own and one `mentions` claim is emitted per
+# grounded member; the raw whole-span is never claimed as-is.
+USE_LIST_SPAN_RE = re.compile(r"^[A-Za-z_]\w*(?:::\w+)*::\{([^{}]*)\}$")
+
+
+def use_list_members(span):
+    """Members of a `prefix::{A, B}` use-re-export span, else None."""
+    s = span.strip()
+    m = USE_LIST_SPAN_RE.match(s)
+    if not m:
+        return None
+    return [t.strip() for t in m.group(1).split(",") if t.strip()]
+
+
+def match_span_claims(span, syms, vendor_pfx=()):
+    """All grounded claim objects for one backticked span: whole-span
+    exact match first; on miss, per-ident members of a multi-identifier
+    use-re-export span (backlog [105])."""
+    members = use_list_members(span)
+    if members is not None:
+        # A use-list span is always split: its members are claimed
+        # individually even when the raw span itself sits on the code
+        # surface as a `use` item — the per-ident claims are what ground
+        # against the audited item surface (backlog [105]).
+        return [h for member in members
+                if (h := match_span(member, syms, vendor_pfx))]
+    hit = match_span(span, syms, vendor_pfx)
+    if hit:
+        return [hit]
+    return []
+    for member in members:
+        h = match_span(member, syms, vendor_pfx)
+        if h:
+            hits.append(h)
+    return hits
+
+
 # P1 [47] path-claim typing: a backticked span that is a filesystem path
 # (`planning/ash_pplan_control_plane.hddl`, `test/support/courts/`) references
 # the repo's file surface, not a code symbol. Such spans ride on segment
@@ -1754,8 +1795,8 @@ def table_claims(rel, header, cells, syms, vendor_pfx=()):
                 # table cells are structured: only identifier/qualified/arity
                 # forms are symbol claims (prose cells, paths, ranges excluded)
                 continue
-            hit = match_span(cand, syms)
-            if hit:
+            hits = match_span_claims(cand, syms, vendor_pfx)
+            for hit in hits:
                 out.append({
                     "subject": rel,
                     "predicate": "mentions",
@@ -1764,7 +1805,7 @@ def table_claims(rel, header, cells, syms, vendor_pfx=()):
                 })
                 if row_symbol is None:
                     row_symbol = hit
-            elif backticked or (in_sig_col and not is_noise_span(cand)):
+            if not hits and (backticked or (in_sig_col and not is_noise_span(cand))):
                 # Backlog [75]: scaffold tables carry the symbol as a
                 # backticked identifier cell in any column (typically Item);
                 # unmatched identifier-shaped spans stay doc claims — the
@@ -1855,8 +1896,7 @@ def doc_string_claims(repo, surface, syms):
                             "kind": "path_ref",
                         })
                     continue
-                hit = match_span(span, syms)
-                if hit:
+                for hit in match_span_claims(span, syms):
                     claims.append({
                         "subject": rel_base,
                         "predicate": "mentions",
@@ -1915,8 +1955,7 @@ def extract_doc(repo, surface, docs_dirs=None, include_doc_strings=False,
                                 "kind": "path_ref",
                             })
                         continue
-                    hit = match_span(span, syms, vendor_pfx)
-                    if hit:
+                    for hit in match_span_claims(span, syms, vendor_pfx):
                         claims.append({
                             "subject": rel + "#" + section if section else rel,
                             "predicate": "mentions",
