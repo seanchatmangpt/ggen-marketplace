@@ -509,7 +509,8 @@ disk in their owning repos this session are marked **wave-reported
   witnessed on the same corpus (`/tmp/m8-xaas-final/audit.head.txt`, exit 1;
   bisection: `5eb` PASS / HEAD FAIL; extractor copies md5
   `422fe384…`/`7fd2a957…` on disk); standing: [60] repair ALIVE, canonical gate
-  pending [130] |
+  [130] landed (config-surface reference docs landed at `3ed88241` on xaas
+  `main`, re-verified in `/Users/sac/xaas`); official witness pending [141] |
 | ex4pm | PASS (ts); certify-landed (`CERTIFY-VERIFY.md` + `ex4pm.chain.jsonl` on disk; P0-117 regen fix `d9422d3` re-verified) |
 | ggen_igniter | PASS (ts) — M15 execute suite 16/0 |
 | gmp | PASS (ts) — wave-reported |
@@ -537,9 +538,13 @@ disk in their owning repos this session are marked **wave-reported
   run twice, both configs; chain at
   `docs/sjira/v26.10.8/ferroplan.chain.jsonl`; `CERTIFY-BLOCKED.md` superseded
   in place (now `CERTIFY-ACCEPTED.md`); [120] denominator decision recorded;
-  named falsifiable residues: crates.md generated-phantoms (in-budget),
-  [105] use-span residual, helper-routed env reads — re-verified in
-  `/Users/sac/ferroplan` |
+  twin-lane certification (post-[120]/[129]): certify receipt also minted at
+  subject `961d4e0c…` / hash `0e74b46d…` via lane `ferro-cov120`, receipt doc
+  `CERTIFY-ACCEPTED.md` landed on ferroplan `main` via `973ccbd` + `092773c`
+  (re-verified; tip), twin commit `900e1e5` disclosed as duplicate of the same
+  docs change (dedup, no second landing); named falsifiable residues:
+  crates.md generated-phantoms (in-budget), [105] use-span residual,
+  helper-routed env reads — re-verified in `/Users/sac/ferroplan` |
 
 **Typed BLOCKED with falsifier**:
 
