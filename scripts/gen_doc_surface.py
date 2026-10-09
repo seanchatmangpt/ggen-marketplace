@@ -38,6 +38,12 @@ try:
 except ImportError as _exc:  # pragma: no cover - exercised via engine=regex
     TS_AVAILABLE = False
     TS_IMPORT_ERROR = _exc
+    # Bind the fallbacks so the names are always defined; every use site
+    # guards on TS_AVAILABLE first (extract_code refuses engine=ts up front).
+    Language = None  # type: ignore[assignment,misc]
+    Parser = None  # type: ignore[assignment,misc]
+    _ts_elixir = None
+    _ts_rust = None
 
 SKIP_DIRS = {"deps", "_build", "node_modules", "target", ".git", ".venv", "priv"}
 
@@ -514,9 +520,16 @@ _TS_PARSERS = {}
 
 
 def _ts_parser(lang_mod):
+    # Local rebind: pyright cannot narrow module globals inside a function,
+    # so the None-checks below must narrow locals instead.
+    lang_cls, parser_cls = Language, Parser
+    if not TS_AVAILABLE or lang_cls is None or parser_cls is None:
+        raise RuntimeError(
+            "tree-sitter unavailable: " + str(TS_IMPORT_ERROR)
+        )
     key = lang_mod.__name__
     if key not in _TS_PARSERS:
-        _TS_PARSERS[key] = Parser(Language(lang_mod.language()))
+        _TS_PARSERS[key] = parser_cls(lang_cls(lang_mod.language()))
     return _TS_PARSERS[key]
 
 
@@ -955,7 +968,6 @@ def scan_elixir_ts(repo):
 
 
 # ------------------------------------------------------ external allowlist ---
-    return "".join(p.capitalize() for p in dep.split("_"))
 
 
 def camelize(dep):
