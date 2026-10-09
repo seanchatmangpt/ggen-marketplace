@@ -513,9 +513,21 @@ disk in their owning repos this session are marked **wave-reported
   `main`, re-verified in `/Users/sac/xaas`); official witness pending [141] |
 | ex4pm | PASS (ts); certify-landed (`CERTIFY-VERIFY.md` + `ex4pm.chain.jsonl` on disk; P0-117 regen fix `d9422d3` re-verified) |
 | ggen_igniter | PASS (ts) — M15 execute suite 16/0 |
-| gmp | PASS (ts) — wave-reported |
-| castle | PASS (ts) — M16 typed skip reproduced |
-| graphlaw | PASS (ts) — round-4 audit 0.9437 |
+| ggen-marketplace (hub self-audit; "gmp" row was this repo's own
+  TAG-STANDING order id, not a repo HEAD — no `~/gmp` checkout exists) | PASS
+  (ts) — hub self-audit witnessed at this repo @ `c331146b2` (TAG-STANDING
+  landing, §11.1; re-verified via `git cat-file -e` in
+  `/Users/sac/ggen-marketplace`) |
+| castle | PASS (ts) — M16 typed skip reproduced; subject `castle` @
+  `6692936f` = `origin/main` (re-verified in `/Users/sac/castle`; the
+  `925617a` SHA seen in roster notes is a zcode-cli SHA and does not resolve
+  in castle — never castle evidence) |
+| graphlaw | PASS (ts) — round-4 audit 0.9437; branch split disclosed:
+  `origin/main` = `1869a160` (post-merge certified state, resolvable via
+  `git ls-remote` / fetched `origin/main` in `/Users/sac/graphlaw`), local
+  `main` = `c4a257d` (7 ahead / 0 behind, fast-forward), docs lane
+  `docs/doc-hdit-scaffold-gl` = `e1059f14` (in-flight, synced with origin);
+  the earlier roster shorthand `d37efe6` resolves as no object — corrected |
 | affidavit | PASS (ts) — M11 clippy clean, sj_record 11/11 |
 | ash_surface | PASS (ts) — post-repair `620aa939`; [124] mixed-verdict honesty carried (regex path FAIL disclosed) |
 | ash_graphlaw | PASS (ts) — post-repair `32765fc`, scaffold=0 Phi 0.000000 |
@@ -529,10 +541,16 @@ disk in their owning repos this session are marked **wave-reported
   not a doc regression — TS-surface re-audit recommended before certification
   is final |
 | ash_pplan | PASS (ts) — certify-landed: verdict ACCEPTED (S 0.98389 / Phi
-  0.00038 / Q 0.99962, chain hash `b791ca5ae851…`, landed `6c8c7ec` on
-  ash_pplan `main`; `CERTIFY-VERIFY.md` + `ash_pplan.chain.jsonl` on disk —
-  re-verified in `/Users/sac/ash_pplan`); residual AshPPlan.Dsl scanner gap
-  disclosed |
+  0.00038 / Q 0.99962, chain hash `b791ca5ae851…`); the sealed round-2
+  sj-records bind subject_sha `4dd91f6` (still resolvable), which has since
+  advanced: re-witnessed at `6c8c7ec` = `origin/main` (re-verified via
+  `git cat-file -e` + `rev-parse` in `/Users/sac/ash_pplan`), 6 commits ahead
+  of the sealed SHA — `66a6894` fix(dsl-docs) spec cells un-backticked,
+  `e932e93`+`a8810b5` phantom-claim repairs, `4d5b07c` merge lane/dsl-gen-fix-98
+  ([98] DSL generator spec-cell fix), `cd2b3d3` merge repair-final-3-phantom-claims,
+  `6c8c7ec` certify receipt chain (ACCEPTED at `a8810b5`);
+  `CERTIFY-VERIFY.md` + `ash_pplan.chain.jsonl` on disk; residual
+  AshPPlan.Dsl scanner gap disclosed |
 | ferroplan | PASS (ts) — certify-landed (round 6): verdict ACCEPTED (S
   0.9783 / Phi 0.0005 / Q 0.9995) at `900e1e5` on ferroplan `main`; certify
   run twice, both configs; chain at
@@ -575,3 +593,28 @@ admission ledger is fully triaged, and the 78-record seal is verified. Roster:
 typed BLOCKED-with-falsifier outside the certify roster. Not claimed: full
 ALIVE — the BLOCKED set and the wave-reported (as-of-date) figures above are
 the exact boundary of this receipt.
+
+### 11.5 Round-7 roster corrections (2026-10-09, backlog [146], lane `roster-fix`)
+
+Docs-only drift check (lane `round7-prep`) found 4 roster errors in §11.2;
+corrected here, every cited SHA re-verified in its named checkout via
+`git cat-file -e` / `rev-parse` / `ls-remote`:
+
+1. **gmp row** — the "gmp" label is ggen-marketplace's own TAG-STANDING order
+   id, not a repo HEAD; no `~/gmp` checkout exists. The hub self-audit is real
+   but the repo label was wrong: row renamed `ggen-marketplace (hub
+   self-audit)` @ `c331146b2` (resolves in this repo).
+2. **graphlaw row** — roster shorthand `d37efe6` resolves as no object in
+   `/Users/sac/graphlaw`. Certified state is the post-merge main: `origin/main`
+   = `1869a160`, local `main` = `c4a257d` (7 ahead / 0 behind, fast-forward),
+   docs lane `docs/doc-hdit-scaffold-gl` = `e1059f14`; split disclosed in the
+   row, resolvable SHAs cited.
+3. **ash_pplan row** — sealed round-2 sj-records bind subject_sha `4dd91f6`
+   (still resolvable); main has advanced to `6c8c7ec` = `origin/main`, 6 ahead
+   commits enumerated in the row (certify chain + dsl-gen landed).
+4. **castle row** — the `925617a-era` secondary marker was bogus (`925617a`
+   is a zcode-cli SHA; `git cat-file -t` in `/Users/sac/castle` refuses it);
+   dropped. Castle subject cited at `6692936f` = `origin/main`
+   (re-verified in `/Users/sac/castle`).
+
+Roster counts unchanged: 12 certified / 1 pending (zcode TS [127]).
