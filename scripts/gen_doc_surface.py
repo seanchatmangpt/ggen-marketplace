@@ -340,7 +340,10 @@ def scan_elixir(repo):
             mod = ELIXIR_MODULE.search(line)
             if mod:
                 stack.append(({"name": mod.group(1), "items": []}, depth))
-            do_n = len(re.findall(r"\bdo\b", line))
+            # Block openers: `do` (def/if/case/...) and `fn` — every `fn`
+            # anonymous function is closed by exactly one `end`, so it must
+            # count as an opener too or each fn decrements module depth.
+            do_n = len(re.findall(r"\b(?:do|fn)\b", line))
             end_n = len(re.findall(r"\bend\b", line))
             depth += do_n - end_n
             while stack and depth < stack[-1][1]:

@@ -570,6 +570,36 @@ class StructSignatureTest(unittest.TestCase):
             "@type color :: | :red | :green | malformed_row_without_group"
         )
 
+    def test_elixir_anonymous_fn_does_not_close_module(self):
+        # Regression: the regex engine counted `end` against `do` only, so
+        # each anonymous `fn -> ... end` decremented module depth and items
+        # after the first fn were dropped. Public items interleaved with
+        # fns must all survive extraction.
+        src = (
+            "defmodule Demo.Fns do\n"
+            "  def before(x), do: x\n"
+            "  def wrapped(x) do\n"
+            "    f = fn y -> y + 1 end\n"
+            "    g = fn y -> y * 2 end\n"
+            "    f.(g.(x))\n"
+            "  end\n"
+            "  def after_fn(x) do\n"
+            "    case x do\n"
+            "      :ok -> fn z -> {:ok, z} end\n"
+            "      _ -> :error\n"
+            "    end\n"
+            "  end\n"
+            "  def last(), do: :done\n"
+            "end\n"
+        )
+        repo = mkrepo({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": src,
+        })
+        items = self._items(g.extract_code(repo))
+        for ident in ("before", "wrapped", "after_fn", "last"):
+            assert ("function", ident) in items, ident
+
     def test_ts_interface_enum_type_signatures(self):
         import gen_doc_surface_ts as ts
         repo = mkrepo({
