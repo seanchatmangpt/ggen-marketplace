@@ -1836,8 +1836,13 @@ FENCE = re.compile(r"```(\w*)\n(.*?)```", re.S)
 # too: each row that names a code-surface symbol in identifier, qualified, or
 # arity form counts as a `mentions` claim (DOC-HDIT-PILOT P4). A symbol-shaped
 # cell under a Function/Signature header that matches nothing on the surface is
-# still a doc-level claim (`table_row_scaffold`) — the audit gate classifies it
-# as a phantom, which is exactly the channel that should catch fabricated rows.
+# still a doc-level reference — but per backlog [152]/[95] it grounds ONLY
+# against verified code symbols (exact membership on the extracted surface,
+# the [109]/[130] str_key pattern: exact string membership, never fuzzy).
+# An unmatched scaffold cell is typed spec-tier (`scaffold_spec`) and stays
+# visible in the extractor output under `spec_tier` — the audit gate sees it,
+# but it is excluded from the Phi denominator (like `prose_artifacts`):
+# neither phantom nor grounded, spec prose carries no grounding bits.
 IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*(/[0-9]+)?")
 
 
@@ -1855,7 +1860,7 @@ def whole_cell_candidate(cell):
     return cell.replace("`", "").strip()
 
 
-def parse_table_block(rel, table_block, syms, vendor_pfx=()):
+def parse_table_block(rel, table_block, syms, vendor_pfx=(), spec_tier=None):
     """Split one buffered run of pipe rows into (header, cells) pairs.
 
     A row directly above a `|---|` separator is a header; its sub-table's
@@ -1885,11 +1890,13 @@ def parse_table_block(rel, table_block, syms, vendor_pfx=()):
         if j in hdr_rows:
             continue
         h = header if (cut is not None and j > cut) else None
-        out.extend(table_claims(rel, h, cells, syms, vendor_pfx))
+        out.extend(table_claims(rel, h, cells, syms, vendor_pfx,
+                                spec_tier))
     return out
 
 
-def table_claims(rel, header, cells, syms, vendor_pfx=()):
+def table_claims(rel, header, cells, syms, vendor_pfx=(), spec_tier=None):
+    spec = spec_tier if spec_tier is not None else []
     header_low = [c.lower() for c in header] if header else []
     fi = next((i for i, c in enumerate(header_low)
                if "function" in c or "signature" in c), None)
@@ -1917,15 +1924,20 @@ def table_claims(rel, header, cells, syms, vendor_pfx=()):
                 if row_symbol is None:
                     row_symbol = hit
             if not hits and (backticked or (in_sig_col and not is_noise_span(cand))):
-                # Backlog [75]: scaffold tables carry the symbol as a
-                # backticked identifier cell in any column (typically Item);
-                # unmatched identifier-shaped spans stay doc claims — the
-                # audit gate must see them (phantom channel), never dropped.
-                out.append({
+                # Backlog [75]/[152]: scaffold tables carry the symbol as a
+                # backticked identifier cell in any column (typically Item).
+                # Unmatched identifier-shaped spans stay visible to the audit
+                # gate — never dropped — but per [95] they are typed spec-tier
+                # (`scaffold_spec`) and excluded from the Phi denominator:
+                # not phantoms (they ground against nothing by construction),
+                # not grounded. Vendored cells keep `table_row_vendor` (the
+                # core's vendor-prefix check still classifies those
+                # `external_documented`).
+                spec.append({
                     "subject": rel,
                     "predicate": "mentions",
                     "object": cand,
-                    "kind": "table_row_scaffold" if not is_vendor_object(cand, vendor_pfx) else "table_row_vendor",
+                    "kind": "scaffold_spec",
                 })
                 if scaffold_symbol is None:
                     scaffold_symbol = cand
@@ -2027,6 +2039,7 @@ def extract_doc(repo, surface, docs_dirs=None, include_doc_strings=False,
             generated_prefixes(repo))
     module_names = {m["name"] for m in surface["modules"] if m["name"] and m["name"][0].isupper()}
     claims = []
+    spec_tier = []
     if docs_dirs:
         roots = [Path(d) for d in docs_dirs]
     else:
@@ -2100,25 +2113,29 @@ def extract_doc(repo, surface, docs_dirs=None, include_doc_strings=False,
                     continue
                 if table_block and line.strip():
                     claims.extend(parse_table_block(
-                        rel, table_block, syms, vendor_pfx))
+                        rel, table_block, syms, vendor_pfx, spec_tier))
                     table_block = []
             if table_block:
                 claims.extend(parse_table_block(
-                    rel, table_block, syms, vendor_pfx))
+                    rel, table_block, syms, vendor_pfx, spec_tier))
     if include_doc_strings:
         claims.extend(doc_string_claims(repo, surface, syms))
     # Mint deterministic ids before sorting: the counter is keyed by
     # (path, kind) in extraction order, which is itself deterministic
-    # (iter_files sorts; claims append in scan order).
+    # (iter_files sorts; claims append in scan order). Spec-tier entries get
+    # ids from the same scheme as claims (never a wall-clock or dict-order
+    # input).
     counters = {}
-    for c in claims:
+    for c in claims + spec_tier:
         path_part = c["subject"].split("#", 1)[0]
         key = (path_part, c["kind"])
         idx = counters.get(key, 0)
         counters[key] = idx + 1
         c["id"] = claim_id(repo.name, path_part, c["kind"], idx)
     claims.sort(key=lambda c: (c["subject"], c["predicate"], json.dumps(c["object"], sort_keys=True)))
-    return {"repo": repo.name, "doc_roots": [str(r) for r in roots], "claims": claims}
+    spec_tier.sort(key=lambda c: (c["subject"], json.dumps(c["object"], sort_keys=True)))
+    return {"repo": repo.name, "doc_roots": [str(r) for r in roots],
+            "claims": claims, "spec_tier": spec_tier}
 
 
 # ------------------------------------------------------------------- CLI ---
