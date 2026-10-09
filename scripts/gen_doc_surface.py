@@ -18,6 +18,7 @@ without the dependency); `ts`/`regex` force one path explicitly.
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import re
 import sys
@@ -1311,7 +1312,70 @@ def table_claims(rel, header, cells, syms):
     return out
 
 
-def extract_doc(repo, surface, docs_dirs=None):
+def claim_id(repo_name, rel, kind, index):
+    """Deterministic claim id: stable hash of (repo, path, kind, index).
+
+    doc-hdit's Claim struct (packs/rust-doc-hdit-pack/src/lib.rs) requires an
+    `id` field; ids must be byte-stable across double-runs, so they derive
+    only from extraction-deterministic inputs (never dict order or wall
+    clock). Index is the per-(path, kind) occurrence counter, so ids survive
+    upstream claim insertion/removal within the same path+kind class.
+    """
+    payload = "|".join((repo_name, rel, kind, str(index)))
+    return "c-" + hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+ELIXIR_DOC_HEREDOC = re.compile(r'@(?:module)?doc\s+"""(.*?)"""', re.S)
+RUST_DOC_LINE = re.compile(r"^\s*///(.*)$")
+
+
+def doc_string_claims(repo, surface, syms):
+    """P1 scope gap [30]: harvest inline doc strings as claims (opt-in).
+
+    Elixir @doc/@moduledoc heredocs and Rust /// rustdoc lines are part of
+    the documentation surface; thin-docs Elixir repos (ash_graphlaw: 9
+    claims vs 612 public items) document through @doc, not markdown. Claims
+    only when the span resolves against the known code surface — same
+    grounding discipline as inline_span/table_row claims.
+    """
+    claims = []
+    files = sorted({m["file"] for m in surface["modules"] if m.get("file")})
+    for rel in files:
+        path = repo / rel
+        if not path.is_file():
+            continue
+        text = path.read_text(errors="replace")
+        if rel.endswith((".ex", ".exs")):
+            blocks = ELIXIR_DOC_HEREDOC.findall(text)
+        elif rel.endswith(".rs"):
+            runs, cur = [], []
+            for line in text.splitlines():
+                dm = RUST_DOC_LINE.match(line)
+                if dm:
+                    cur.append(dm.group(1))
+                elif cur:
+                    runs.append(cur)
+                    cur = []
+            if cur:
+                runs.append(cur)
+            blocks = ["\n".join(run) for run in runs]
+        else:
+            continue
+        rel_base = rel
+        for block in blocks:
+            for sm in INLINE_SPAN.finditer(block):
+                hit = match_span(sm.group(1), syms)
+                if hit:
+                    claims.append({
+                        "subject": rel_base,
+                        "predicate": "mentions",
+                        "object": hit,
+                        "kind": "doc_string",
+                    })
+    return claims
+
+
+def extract_doc(repo, surface, docs_dirs=None, include_doc_strings=False):
     repo = Path(repo)
     syms = known_symbols(surface)
     module_names = {m["name"] for m in surface["modules"] if m["name"] and m["name"][0].isupper()}
@@ -1319,9 +1383,22 @@ def extract_doc(repo, surface, docs_dirs=None):
     if docs_dirs:
         roots = [Path(d) for d in docs_dirs]
     else:
-        roots = [d for d in [repo / "docs", repo / "book"] if d.is_dir()] or [repo]
+        # P1 scope gap [30]: README.md and documentation/ are part of the doc
+        # surface; thin-docs repos whose only prose is a README no longer
+        # structurally fail coverage. iter_files is recursive already, so
+        # documentation/ is scanned recursively like docs/ and book/.
+        roots = [d for d in [repo / "docs", repo / "book", repo / "documentation"]
+                 if d.is_dir()]
+        if (repo / "README.md").is_file():
+            roots.append(repo / "README.md")
+        roots = roots or [repo]
     for root in roots:
-        for path in iter_files(root, "*.md"):
+        # README.md is a file root; rglob on a file yields nothing, so file
+        # roots are handled directly.
+        md_files = [root] if root.is_file() else iter_files(root, "*.md")
+        for path in md_files:
+            if path.suffix != ".md":
+                continue
             text = path.read_text(errors="replace")
             rel = str(path.relative_to(repo))
             fences = [(m.group(1), m.group(2)) for m in FENCE.finditer(text)]
@@ -1378,6 +1455,18 @@ def extract_doc(repo, surface, docs_dirs=None):
                         claims.extend(table_claims(rel, header, cells, syms))
                     table_block = []
                 # non-pipe line: block ended; header re-derived per block
+    if include_doc_strings:
+        claims.extend(doc_string_claims(repo, surface, syms))
+    # Mint deterministic ids before sorting: the counter is keyed by
+    # (path, kind) in extraction order, which is itself deterministic
+    # (iter_files sorts; claims append in scan order).
+    counters = {}
+    for c in claims:
+        path_part = c["subject"].split("#", 1)[0]
+        key = (path_part, c["kind"])
+        idx = counters.get(key, 0)
+        counters[key] = idx + 1
+        c["id"] = claim_id(repo.name, path_part, c["kind"], idx)
     claims.sort(key=lambda c: (c["subject"], c["predicate"], json.dumps(c["object"], sort_keys=True)))
     return {"repo": repo.name, "doc_roots": [str(r) for r in roots], "claims": claims}
 
@@ -1411,6 +1500,7 @@ def main(argv):
         return 0
     code_json = None
     docs_dirs = None
+    include_doc_strings = False
     args = argv[2:]
     i = 0
     while i < len(args):
@@ -1420,10 +1510,14 @@ def main(argv):
         else:
             if args[i] == "--docs-dir":
                 docs_dirs = args[i + 1].split(",")
+            elif args[i] == "--include-doc-strings":
+                include_doc_strings = True
             i += 1
     if code_json is None:
         code_json = extract_code(repo)
-    json.dump(extract_doc(repo, code_json, docs_dirs), sys.stdout, indent=2, sort_keys=True)
+    json.dump(
+        extract_doc(repo, code_json, docs_dirs, include_doc_strings),
+        sys.stdout, indent=2, sort_keys=True)
     print()
     return 0
 

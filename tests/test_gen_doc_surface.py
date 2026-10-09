@@ -452,5 +452,170 @@ class StructSignatureTest(unittest.TestCase):
         assert items[("type", "Mode")]["signature"] == 'Mode = "fast" | "slow"'
 
 
+class ClaimIdTest(unittest.TestCase):
+    """[29] doc-hdit's Claim struct requires `id`; extractor must emit one,
+    byte-stable across double-runs."""
+
+    def _claims(self):
+        repo = mkrepo({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": (
+                "defmodule Demo do\n"
+                "  @doc \"\"\"Greets.\"\"\"\n"
+                "  def greet(name), do: name\n"
+                "end\n"
+            ),
+            "docs/guide.md": (
+                "# Guide\n\nSee `greet/1` and `Demo`.\n\n"
+                "| Function | Param | Default |\n"
+                "|---|---|---|\n"
+                "| `greet/1` | `name` | - |\n"
+            ),
+        })
+        surface = g.extract_code(repo)
+        return repo, g.extract_doc(repo, surface)["claims"]
+
+    def test_every_claim_has_id(self):
+        _, claims = self._claims()
+        assert claims
+        for c in claims:
+            assert c["id"] and isinstance(c["id"], str)
+
+    def test_ids_byte_stable_across_double_run(self):
+        import json
+        repo, first = self._claims()
+        second = g.extract_doc(repo, g.extract_code(repo))["claims"]
+        assert json.dumps(first, sort_keys=True) == json.dumps(second, sort_keys=True)
+
+    def test_ids_unique_per_path_and_kind(self):
+        _, claims = self._claims()
+        ids = [c["id"] for c in claims]
+        assert len(set(ids)) == len(ids)
+
+    def test_id_is_stable_hash_shape(self):
+        import re
+        _, claims = self._claims()
+        for c in claims:
+            assert re.fullmatch(r"c-[0-9a-f]{16}", c["id"])
+
+
+class P1DocRootsTest(unittest.TestCase):
+    """P1 scope gap [30]: default doc roots widen to README.md +
+    documentation/ (recursive); --include-doc-strings harvests @doc/
+    @moduledoc heredocs (Elixir) and /// rustdoc (Rust) as claims."""
+
+    def _surface(self, layout):
+        repo = mkrepo(layout)
+        return repo, g.extract_code(repo)
+
+    def test_readme_and_documentation_are_default_roots(self):
+        repo, surface = self._surface({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": "defmodule Demo.Engine do\n  def ignite(x), do: x\nend\n",
+            "README.md": "Use `Demo.Engine.ignite`.\n",
+            "documentation/guide.md": "Also `Demo.Engine.ignite`.\n",
+            "documentation/nested/deep.md": "Deep `Demo.Engine.recursive/3`.\n",
+            "lib/demo/engine.ex": (
+                "defmodule Demo.Engine.Sub do\n"
+                "  def recursive(a, b, c), do: {a, b, c}\n"
+            ),
+        })
+        out = g.extract_doc(repo, surface)
+        assert any(r.endswith("README.md") for r in out["doc_roots"]), out["doc_roots"]
+        assert any(r.endswith("documentation") for r in out["doc_roots"]), out["doc_roots"]
+        objs = {c["object"] for c in out["claims"]}
+        assert "Demo.Engine.ignite" in objs
+        assert "Demo.Engine.recursive/3" in objs
+
+    def test_readme_processed_even_when_docs_dir_exists(self):
+        repo, surface = self._surface({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": "defmodule Demo.Engine do\n  def ignite(x), do: x\nend\n",
+            "docs/guide.md": "See `Demo.Engine.ignite`.\n",
+            "README.md": "Root README mention of `Demo.Engine.ignite`.\n",
+        })
+        out = g.extract_doc(repo, surface)
+        subs = {c["subject"] for c in out["claims"]}
+        assert any(s == "README.md" for s in subs), subs
+
+    def test_no_readme_or_documentation_falls_back_to_docs(self):
+        repo, surface = self._surface({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": "defmodule Demo.Engine do\n  def ignite(x), do: x\nend\n",
+            "docs/guide.md": "See `Demo.Engine.ignite`.\n",
+        })
+        out = g.extract_doc(repo, surface)
+        assert any(r.endswith("docs") for r in out["doc_roots"]), out["doc_roots"]
+
+    def test_doc_strings_off_by_default(self):
+        repo, surface = self._surface({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": (
+                "defmodule Demo.Engine do\n"
+                "  @moduledoc \"\"\"\n"
+                "  Engine module. `Demo.Engine.ignite` does the work.\n"
+                "  \"\"\"\n"
+                "  @doc \"\"\"\n"
+                "  Fire it. See `Demo.Engine.ignite/1`.\n"
+                "  \"\"\"\n"
+                "  def ignite(x), do: x\n"
+                "end\n"
+            ),
+        })
+        objs = {c["object"] for c in g.extract_doc(repo, surface)["claims"]}
+        assert "Demo.Engine.ignite/1" not in objs
+
+    def test_doc_strings_harvested_when_opted_in(self):
+        repo, surface = self._surface({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": (
+                "defmodule Demo.Engine do\n"
+                "  @moduledoc \"\"\"\n"
+                "  Engine module. `Demo.Engine.ignite` does the work.\n"
+                "  \"\"\"\n"
+                "  @doc \"\"\"\n"
+                "  Fire it. See `Demo.Engine.ignite/1`.\n"
+                "  \"\"\"\n"
+                "  def ignite(x), do: x\n"
+                "end\n"
+            ),
+        })
+        claims = g.extract_doc(repo, surface, include_doc_strings=True)["claims"]
+        ds = {(c["object"], c["kind"], c["subject"])
+              for c in claims if c["kind"] == "doc_string"}
+        assert ("Demo.Engine.ignite", "doc_string", "lib/demo.ex") in ds, ds
+        assert ("Demo.Engine.ignite/1", "doc_string", "lib/demo.ex") in ds, ds
+        for c in claims:
+            assert c["id"]
+
+    def test_rust_rustdoc_harvested_when_opted_in(self):
+        repo, surface = self._surface({
+            "Cargo.toml": '[package]\nname = "demo"\nversion = "0.1.0"\n',
+            "src/lib.rs": (
+                "/// Ignites the engine. See `ignite`.\n"
+                "pub fn ignite(x: u32) -> u32 { x }\n"
+            ),
+        })
+        claims = g.extract_doc(repo, surface, include_doc_strings=True)["claims"]
+        ds = {(c["object"], c["kind"]) for c in claims if c["kind"] == "doc_string"}
+        assert ("ignite", "doc_string") in ds, ds
+
+    def test_doc_string_ids_byte_stable_across_double_run(self):
+        import json
+        layout = {
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": (
+                "defmodule Demo.Engine do\n"
+                "  @doc \"\"\"See `Demo.Engine.ignite/1`.\"\"\"\n"
+                "  def ignite(x), do: x\n"
+                "end\n"
+            ),
+        }
+        repo, _ = self._surface(layout)
+        first = g.extract_doc(repo, g.extract_code(repo), include_doc_strings=True)
+        second = g.extract_doc(repo, g.extract_code(repo), include_doc_strings=True)
+        assert json.dumps(first, sort_keys=True) == json.dumps(second, sort_keys=True)
+
+
 if __name__ == "__main__":
     unittest.main()
