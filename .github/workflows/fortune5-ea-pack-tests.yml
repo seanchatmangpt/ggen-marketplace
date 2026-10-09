@@ -1,0 +1,48 @@
+name: Fortune 5 EA pack tests
+
+# Minimal pytest battery for packs/fortune5-enterprise-architecture-pack/tests/
+# (96 tests; runs locally clean as of 2026-10-09). Follows the in-repo pattern
+# of chicago-work-equivalent.yml: exact-head checkout, python 3.12, pytest.
+
+on:
+  push:
+    branches: [hdit-v2-structs, main]
+    paths:
+      - "packs/fortune5-enterprise-architecture-pack/**"
+      - ".github/workflows/fortune5-ea-pack-tests.yml"
+  pull_request:
+    branches: [hdit-v2-structs, main]
+    paths:
+      - "packs/fortune5-enterprise-architecture-pack/**"
+      - ".github/workflows/fortune5-ea-pack-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fortune5-ea-pack-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    name: fortune5-enterprise-architecture-pack pytest battery
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Run pack test battery
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pytest packs/fortune5-enterprise-architecture-pack/tests/ -q
