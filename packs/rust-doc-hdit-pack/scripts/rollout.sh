@@ -2,7 +2,8 @@
 # rollout.sh — doc-hdit fleet rollout runner (rust-doc-hdit-pack).
 #
 # For each fleet repo: extract code+doc surfaces (reusing a precomputed inputs
-# JSON when it is newer than the repo's last commit), run doc-hdit vectorize +
+# JSON keyed by a content hash of the extractor script + repo HEAD SHA), run
+# doc-hdit vectorize +
 # certify against courts/doc_quality.court. PASS mints a chained receipt;
 # FAIL records {repo, gate, value, top offending claims} to a failure ledger
 # and the loop continues. Summary table at end; nonzero exit if any FAIL
@@ -60,7 +61,7 @@ frozen-duckdb ggen-marketplace graphlaw gymact wasm4pm xaas zcode-cli"
   done
 fi
 
-mkdir -p "$OUT" "$WORK" "$OUT/receipts"
+mkdir -p "$OUT" "$WORK" "$OUT/receipts" "$HDIT_CACHE"
 LEDGER="$OUT/failures.jsonl"
 : > "$LEDGER"
 SUMMARY="$OUT/summary.txt"
@@ -70,37 +71,38 @@ GEN="$PACK_DIR/../../scripts/gen_doc_surface.py"
 GEN="$(cd "$(dirname "$GEN")" && pwd)/$(basename "$GEN")"
 
 # build_inputs <repo_dir> <name> — emit the combined inputs JSON path on stdout.
-# Reuses $HDIT_CACHE/<name>.inputs.json when it exists and is newer than the
-# repo's last commit; otherwise extracts via gen_doc_surface.py into $WORK.
+# Cache key is a content hash (sha256 of the extractor script bytes+mtime and
+# the repo's HEAD SHA), not a cache-file mtime comparison: any extractor change
+# (edit or touch, e.g. new surface arrays) or repo head move forces a cache
+# miss, so stale pre-[51] inputs can never be replayed.
 build_inputs() {
   repo="$1" name="$2"
-  fresh_cache=""
-  if [ -f "$HDIT_CACHE/$name.inputs.json" ]; then
-    last_commit="$(git -C "$repo" log -1 --format=%ct 2>/dev/null || echo 0)"
-    cache_mtime="$(stat -f %m "$HDIT_CACHE/$name.inputs.json" 2>/dev/null || echo 0)"
-    if [ "$cache_mtime" -gt "$last_commit" ]; then
-      fresh_cache="$HDIT_CACHE/$name.inputs.json"
-    fi
-  fi
-  if [ -n "$fresh_cache" ]; then
-    printf '%s\n' "$fresh_cache"
+  gen_hash="$( { shasum -a 256 "$GEN"; stat -f %m "$GEN"; } | shasum -a 256 | awk '{print $1}')"
+  head_sha="$(git -C "$repo" rev-parse HEAD 2>/dev/null || echo no-vcs)"
+  cache_key="$(printf '%s\n%s' "$gen_hash" "$head_sha" | shasum -a 256 | awk '{print $1}')"
+  cache_file="$HDIT_CACHE/$name.$cache_key.inputs.json"
+  if [ -f "$cache_file" ]; then
+    printf '%s\n' "$cache_file"
     return 0
   fi
-  inputs="$WORK/$name.inputs.json"
+  inputs="$cache_file"
   python3 "$GEN" code "$repo" > "$WORK/$name.code.json"
   python3 "$GEN" doc "$repo" --code-json "$WORK/$name.code.json" > "$WORK/$name.doc.json"
   python3 - "$WORK/$name.code.json" "$WORK/$name.doc.json" "$inputs" <<'PY'
 import json, sys
 code = json.load(open(sys.argv[1]))
 doc = json.load(open(sys.argv[2]))
-# Carry the path surface through the merge: `directories` grounds
-# trailing-slash doc references (exact membership) and `paths` grounds
-# path_ref claims (P1 [47]). `.get` keeps pre-[47] extractors working
-# (backward-compatible optional fields).
+# Carry the code surface through the merge: `directories` grounds
+# trailing-slash doc references (exact membership), `paths` grounds
+# path_ref claims (P1 [47]), and `known_external` grounds
+# external_documented claims (P1 [80]; a dropped array scores every
+# external_documented claim as a phantom). `.get` keeps pre-[47]
+# extractors working (backward-compatible optional fields).
 json.dump({"modules": code.get("modules", []),
            "claims": doc.get("claims", []),
            "directories": code.get("directories", []),
-           "paths": code.get("paths", [])},
+           "paths": code.get("paths", []),
+           "known_external": code.get("known_external", [])},
           open(sys.argv[3], "w"), indent=2, sort_keys=True)
 PY
   printf '%s\n' "$inputs"
