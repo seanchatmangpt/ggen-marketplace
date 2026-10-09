@@ -135,7 +135,7 @@ AUTHORITY_LAW = (
 )
 
 
-def parse_exports() -> set:
+def parse_exports() -> set[str]:
     """Collect re-exported names from lib.rs pub use statements (incl. the
     wire.rs types re-exported there). Fail-closed surface = lib.rs exports."""
     text = LIB_RS.read_text(encoding="utf-8")
