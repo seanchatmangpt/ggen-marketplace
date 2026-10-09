@@ -81,7 +81,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
         eprintln!(
-            "usage: doc-hdit <vectorize|audit|certify> -- <inputs.json> [court-file]\n       doc-hdit scaffold --code <json> --templates <dir> --out <docsdir> [--force]\n       doc-hdit certify <inputs.json> [court-file] [--docs <dir>] [--chain <receipts.jsonl>]"
+            "usage: doc-hdit <vectorize|audit|certify> -- <inputs.json> [court-file]\n       doc-hdit scaffold --code <json> --templates <dir> --out <docsdir> [--force]\n       doc-hdit certify <inputs.json> [court-file] [--docs <dir>] [--chain <receipts.jsonl>] [--extractor <script>] [--force-rebaseline]"
         );
         std::process::exit(2);
     }
@@ -314,15 +314,38 @@ fn main() {
             // Flag parsing after the gate pass (cheap refusal first).
             let mut docs_dir: Option<std::path::PathBuf> = None;
             let mut chain_path: Option<std::path::PathBuf> = None;
+            let mut extractor_script: Option<std::path::PathBuf> = None;
+            let mut force_rebaseline = false;
             let mut j = 2;
             while j < args.len() {
                 match args[j].as_str() {
                     "--docs" => docs_dir = args.get(j + 1).map(std::path::PathBuf::from),
                     "--chain" => chain_path = args.get(j + 1).map(std::path::PathBuf::from),
+                    "--extractor" => extractor_script = args.get(j + 1).map(std::path::PathBuf::from),
+                    "--force-rebaseline" => {
+                        force_rebaseline = true;
+                        j += 1;
+                        continue;
+                    }
                     _ => {}
                 }
                 j += 1;
             }
+            // Fleet law [150]: the receipt natively binds extractor identity
+            // (BLAKE3 over the extractor source bytes). A replay whose
+            // current extractor identity differs from the recorded one is a
+            // typed refusal, not a silent verdict change.
+            let extractor_id = match &extractor_script {
+                Some(path) => match doc_hdit::certify::extractor_identity(path) {
+                    Ok(id) => id,
+                    Err(e) => {
+                        eprintln!("REFUSED:DOC_HDIT_CERTIFY:extractor unreadable ({}): {}", path.display(), e);
+                        std::process::exit(1);
+                    }
+                },
+                None => String::new(),
+            };
+            let inputs_bytes = std::fs::read(input_path).unwrap_or_default();
             let inputs_bytes = std::fs::read(input_path).unwrap_or_default();
             let subject = match doc_hdit::certify::subject_digest(&inputs_bytes, docs_dir.as_deref())
             {
@@ -339,6 +362,19 @@ fn main() {
                     .unwrap_or_else(|| std::path::PathBuf::from("doc-hdit.receipts.jsonl"))
             });
             let parent = doc_hdit::certify::last_chain_hash(&chain).unwrap_or_default();
+            // Replay verification: if the chain's last receipt carries a
+            // pinned extractor identity and the current one differs, refuse
+            // typed unless --force-rebaseline acknowledges the drift by
+            // minting a NEW receipt under the new identity. Receipts without
+            // an extractor field (pre-pin chains) are grandfathered.
+            let recorded = doc_hdit::certify::last_chain_extractor(&chain).unwrap_or_default();
+            if !force_rebaseline && !recorded.is_empty() && !extractor_id.is_empty() && recorded != extractor_id {
+                eprintln!(
+                    "REFUSED:EXTRACTOR_MISMATCH:recorded={} current={} (chain {}); pass --force-rebaseline to mint a new baseline receipt under the current extractor",
+                    recorded, extractor_id, chain.display()
+                );
+                std::process::exit(1);
+            }
             let ts = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs())
@@ -359,6 +395,7 @@ fn main() {
                 &outcome,
                 &thresholds,
                 ts,
+                &extractor_id,
             );
             if let Err(e) = doc_hdit::certify::append_receipt(&chain, &receipt) {
                 eprintln!("REFUSED:DOC_HDIT_CERTIFY:cannot append to {}: {}", chain.display(), e);
