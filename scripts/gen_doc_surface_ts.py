@@ -34,38 +34,49 @@ SKIP_DIRS = {
 }
 TEST_FILE = re.compile(r"\.(test|spec)\.[tj]sx?$")
 
+# Export anchors: mid-line exports in minified single-line modules must be
+# captured too ([148]), so `export` is matched at any line position with a
+# negative lookbehind rejecting identifier-ish prefixes. Export regexes run
+# against a string-masked copy of the source (mask_strings) so string
+# literals cannot fake exports.
+EXPORT_ANCHOR = r"(?<![\w$\"'`])export\s+"
+
+GENERIC_CLAUSE = r"(<(?:[^<>]|<[^<>]*>)*>)?"
+
 # Function/method signatures use a lookahead for `(` and a balanced-paren
 # window capture (paren_capture below), so multi-line parameter lists are
-# recovered instead of dropped ([144]).
+# recovered instead of dropped ([144]). Optional `<...>` generic clause
+# between name and paren is captured for the signature ([149]).
 TS_EXPORT_FN = re.compile(
-    r"^export\s+(?:declare\s+)?(?:default\s+)?(?:async\s+)?"
-    r"function\s*\*?\s*([A-Za-z_$][\w$]*)\s*(?=\()",
+    EXPORT_ANCHOR + r"(?:declare\s+)?(?:default\s+)?(?:async\s+)?"
+    r"function\s*\*?\s*([A-Za-z_$][\w$]*)\s*" + GENERIC_CLAUSE + r"\s*(?=\()",
     re.M,
 )
 TS_DEFAULT_FN = re.compile(
-    r"^export\s+default\s+(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)\s*(?=\()",
+    EXPORT_ANCHOR + r"default\s+(?:async\s+)?function\s*\*?\s*"
+    r"([A-Za-z_$][\w$]*)\s*" + GENERIC_CLAUSE + r"\s*(?=\()",
     re.M,
 )
 TS_EXPORT_CLASS = re.compile(
-    r"^export\s+(?:declare\s+)?(?:default\s+)?(?:abstract\s+)?class\s+([A-Z][\w$]*)",
+    EXPORT_ANCHOR + r"(?:declare\s+)?(?:default\s+)?(?:abstract\s+)?class\s+([A-Z][\w$]*)",
 )
-TS_DEFAULT_CLASS = re.compile(r"^export\s+default\s+(?:abstract\s+)?class\s+([A-Z][\w$]*)")
-TS_EXPORT_INTERFACE = re.compile(r"^export\s+(?:declare\s+)?interface\s+([A-Z][\w$]*)")
-TS_EXPORT_TYPE = re.compile(r"^export\s+(?:declare\s+)?type\s+([A-Z][\w$]*)")
+TS_DEFAULT_CLASS = re.compile(EXPORT_ANCHOR + r"default\s+(?:abstract\s+)?class\s+([A-Z][\w$]*)")
+TS_EXPORT_INTERFACE = re.compile(EXPORT_ANCHOR + r"(?:declare\s+)?interface\s+([A-Z][\w$]*)")
+TS_EXPORT_TYPE = re.compile(EXPORT_ANCHOR + r"(?:declare\s+)?type\s+([A-Z][\w$]*)")
 TS_EXPORT_ENUM = re.compile(
-    r"^export\s+(?:declare\s+)?(?:const\s+)?enum\s+([A-Z][\w$]*)",
+    EXPORT_ANCHOR + r"(?:declare\s+)?(?:const\s+)?enum\s+([A-Z][\w$]*)",
 )
 TS_EXPORT_CONST = re.compile(
-    r"^export\s+const\s+([A-Za-z_$][\w$]*)\s*(?::[^=]+)?=", re.M,
+    EXPORT_ANCHOR + r"const\s+([A-Za-z_$][\w$]*)\s*(?::[^=]+)?=", re.M,
 )
 TS_INTERFACE_HEAD = re.compile(
-    r"^export\s+(?:declare\s+)?interface\s+([A-Z][\w$]*)[^{;]*(?=\{)", re.M,
+    EXPORT_ANCHOR + r"(?:declare\s+)?interface\s+([A-Z][\w$]*)[^{;]*(?=\{)", re.M,
 )
 TS_ENUM_HEAD = re.compile(
-    r"^export\s+(?:declare\s+)?(?:const\s+)?enum\s+([A-Z][\w$]*)[^{;]*(?=\{)", re.M,
+    EXPORT_ANCHOR + r"(?:declare\s+)?(?:const\s+)?enum\s+([A-Z][\w$]*)[^{;]*(?=\{)", re.M,
 )
 TS_TYPE_ALIAS = re.compile(
-    r"^export\s+(?:declare\s+)?type\s+([A-Z][\w$]*)[^=\n]*=\s*", re.M,
+    EXPORT_ANCHOR + r"(?:declare\s+)?type\s+([A-Z][\w$]*)[^=\n]*=\s*", re.M,
 )
 TS_CLASS_DECL = re.compile(
     r"^[ \t]*(?:export\s+)?(?:declare\s+)?(?:abstract\s+)?class\s+([A-Z][\w$]*)", re.M,
@@ -146,14 +157,15 @@ def paren_capture(text, i):
 METHOD_TAIL = re.compile(r"\s*(?::[^{=]+)?\s*\{")
 
 
-def fmt_signature(name, raw):
+def fmt_signature(name, raw, gen=""):
     """Single-line captures pass through byte-identical; multi-line
-    parameter lists are whitespace-collapsed onto one line."""
+    parameter lists are whitespace-collapsed onto one line. `gen` is the
+    optional `<T>` generic clause captured between name and paren ([149])."""
     if "\n" in raw:
         flat = " ".join(raw.split())
         flat = flat.replace("( ", "(").replace(" )", ")")
-        return name + flat
-    return name + raw
+        return name + gen + flat
+    return name + gen + raw
 
 
 def scan_class_methods(text):
@@ -175,63 +187,179 @@ def scan_class_methods(text):
             yield mm.group(1), raw
 
 
+def mask_strings(text: str) -> str:
+    """Replace string/template literal *contents* with spaces (same length,
+    quotes kept) so export regexes cannot match inside string literals
+    ([148] negative case). Char indices stay aligned with the input.
+
+    A nesting-state machine ([151b]): a backtick template can contain
+    ``${ ... }`` substitutions that themselves hold strings or nested
+    templates, and quotes/backticks can appear inside regex literals
+    (e.g. ``/```/gu`` in sync-runtime.ts). The old flat scanner paired the
+    *next* quote character, so a nested backtick closed the outer template
+    early and the remainder of the file was blanked from the first mis-pair
+    onward. States: code / '...' / "..." / `...` with a stack for
+    ``${ ... }`` inside templates; backslashes escape within any string
+    state; regex literals are detected in code context with the standard
+    prev-token heuristic (a `/` after an atom ends a regex, after an
+    operator starts one)."""
+    out = []
+    i, n = 0, len(text)
+    stack = []  # quote/template/`${` nesting: '"', "'", '`', '${'
+    prev = ""  # last significant code char (regex-start heuristic)
+    while i < n:
+        ch = text[i]
+        nxt = text[i + 1] if i + 1 < n else ""
+        # No `//`/`/*` handling: comments were already stripped upstream
+        # (strip_comments), and post-strip `//`-shaped artifacts (created
+        # when strip_comments deletes `\x` escape pairs, e.g. `/\$/g` ->
+        # `//g`) must NOT be read as comments — doing so blanks to end of
+        # line inside `${...}` and leaves the template/substitution states
+        # open ([151b] wireOf regression).
+        if ch == "\\" and in_string(stack):
+            out.append("  ")
+            i += 2
+            continue
+        if ch == "/" and nxt == "/" and not in_string(stack):
+            # Post-strip `//` artifact: blank to end of line without
+            # touching quote state (state-safe, unlike comment semantics).
+            while i < n and text[i] != "\n":
+                out.append(" ")
+                i += 1
+            continue
+        if (
+            ch == "/"
+            and not in_string(stack)
+            and nxt != "/"
+            and nxt != "*"
+            and not (prev.isalnum() or prev in '_$)]}"\'`')
+        ):
+            # Division or regex literal? Standard heuristic: after an atom
+            # (identifier/number/`)`/`]`/`}`/quote) a `/` cannot start a
+            # regex; otherwise it does. Scan to the unescaped closing `/`
+            # (respecting `[...]` classes, no raw newlines).
+            j = i + 1
+            in_class = False
+            closed = False
+            while j < n:
+                cj = text[j]
+                if cj == "\\":
+                    j += 2
+                    continue
+                if cj == "\n":
+                    break  # regex literals cannot span lines: not a regex
+                if in_class:
+                    if cj == "]":
+                        in_class = False
+                elif cj == "[":
+                    in_class = True
+                elif cj == "/":
+                    closed = True
+                    break
+                j += 1
+            if closed and j < n and text[j] == "/":
+                out.append("/")
+                out.append(" " * (j - i - 1))
+                out.append("/")
+                prev = "/"
+                i = j + 1
+                continue
+            # Fall through: plain division `/`.
+            out.append(ch)
+            prev = "/"
+            i += 1
+            continue
+        if ch == "$" and nxt == "{" and stack and stack[-1] == "`":
+            out.append("${")
+            stack.append("${")
+            i += 2
+            continue
+        if ch in ('"', "'", "`") and not in_string(stack):
+            out.append(ch)
+            stack.append(ch)
+            prev = ch
+            i += 1
+            continue
+        if ch == "}" and stack and stack[-1] == "${":
+            out.append(ch)
+            stack.pop()
+            prev = "}"
+            i += 1
+            continue
+        if ch == quote_close(stack) and stack:
+            out.append(ch)
+            stack.pop()
+            prev = ch
+            i += 1
+            continue
+        if in_string(stack):
+            out.append("\n" if ch == "\n" else " ")
+            i += 1
+            continue
+        out.append(ch)
+        if not ch.isspace():
+            prev = ch
+        i += 1
+    return "".join(out)
+
+
+def quote_close(stack):
+    """Innermost open quote char, or None."""
+    for s in reversed(stack):
+        if s in ('"', "'", "`"):
+            return s
+    return None
+
+
+def in_string(stack):
+    """True when the innermost open context is a string/template literal."""
+    return bool(stack) and stack[-1] != "${"
+
+
 def scan_file(path: Path, repo: Path):
     rel = str(path.relative_to(repo))
     text = strip_comments(path.read_text(errors="replace"))
+    masked = mask_strings(text)
     items = []
-    for m in TS_EXPORT_FN.finditer(text):
+    for m in TS_EXPORT_FN.finditer(masked):
         raw = paren_capture(text, m.end())
         if raw:
             items.append({"kind": "function", "ident": m.group(1),
-                          "signature": fmt_signature(m.group(1), raw)})
+                          "signature": fmt_signature(m.group(1), raw,
+                                                     gen=m.group(2) or "")})
             continue
-    for m in TS_DEFAULT_FN.finditer(text):
+    for m in TS_DEFAULT_FN.finditer(masked):
         raw = paren_capture(text, m.end())
         if raw:
             items.append({"kind": "default_export", "ident": m.group(1),
-                          "signature": fmt_signature(m.group(1), raw)})
-    for ln in text.splitlines():
-        m = TS_DEFAULT_CLASS.search(ln)
-        if m:
-            items.append({"kind": "default_export", "ident": m.group(1),
-                          "signature": "class " + m.group(1)})
-            continue
-        m = TS_EXPORT_CLASS.search(ln)
-        if m:
-            items.append({"kind": "class", "ident": m.group(1),
-                          "signature": "class " + m.group(1)})
-            continue
-        m = TS_EXPORT_INTERFACE.search(ln)
-        if m:
-            items.append({"kind": "interface", "ident": m.group(1),
-                          "signature": "interface " + m.group(1)})
-            continue
-        m = TS_EXPORT_TYPE.search(ln)
-        if m:
-            items.append({"kind": "type", "ident": m.group(1),
-                          "signature": "type " + m.group(1)})
-            continue
-        m = TS_EXPORT_ENUM.search(ln)
-        if m:
-            items.append({"kind": "enum", "ident": m.group(1),
-                          "signature": "enum " + m.group(1)})
-            continue
-    for m in TS_EXPORT_CONST.finditer(text):
+                          "signature": fmt_signature(m.group(1), raw,
+                                                     gen=m.group(2) or "")})
+    for pattern, kind, label in (
+        (TS_DEFAULT_CLASS, "default_export", "class "),
+        (TS_EXPORT_CLASS, "class", "class "),
+        (TS_EXPORT_INTERFACE, "interface", "interface "),
+        (TS_EXPORT_TYPE, "type", "type "),
+        (TS_EXPORT_ENUM, "enum", "enum "),
+    ):
+        for m in pattern.finditer(masked):
+            items.append({"kind": kind, "ident": m.group(1),
+                          "signature": label + m.group(1)})
+    for m in TS_EXPORT_CONST.finditer(masked):
         items.append({"kind": "const", "ident": m.group(1), "signature": m.group(1)})
     # Populate struct/enum degenerate signatures (kind interface/type/enum).
-    for m in TS_INTERFACE_HEAD.finditer(text):
+    for m in TS_INTERFACE_HEAD.finditer(masked):
         for it in items:
             if it["kind"] == "interface" and it["ident"] == m.group(1):
                 it["signature"] = ts_members_signature(
                     "interface", it["ident"], text, m.end()
                 )
-    for m in TS_ENUM_HEAD.finditer(text):
+    for m in TS_ENUM_HEAD.finditer(masked):
         for it in items:
             if it["kind"] == "enum" and it["ident"] == m.group(1):
                 it["signature"] = ts_members_signature(
                     "enum", it["ident"], text, m.end()
                 )
-    for m in TS_TYPE_ALIAS.finditer(text):
+    for m in TS_TYPE_ALIAS.finditer(masked):
         for it in items:
             if it["kind"] == "type" and it["ident"] == m.group(1):
                 it["signature"] = ts_members_signature(

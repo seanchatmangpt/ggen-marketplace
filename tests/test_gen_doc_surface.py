@@ -583,6 +583,83 @@ class StructSignatureTest(unittest.TestCase):
         assert items[("enum", "Color")]["signature"] == "Color { Red, Green = 2, Blue }"
         assert items[("type", "Mode")]["signature"] == 'Mode = "fast" | "slow"'
 
+    def test_ts_midline_exports_in_minified_modules(self):
+        """[148] seam A: `^export` anchor missed mid-line exports in
+        minified single-line modules; exports must be captured at any
+        line position; leading-line behavior unchanged."""
+        import gen_doc_surface_ts as ts
+        repo = mkrepo({
+            "src/minified.ts": (
+                'const a=1;export function midLine(x: number): number {return x;}'
+                'export const midConst=2;const z=3;export class Mid extends Base{}'
+                'export interface MidI{m:string;}'
+            ),
+            "src/leading.ts": (
+                "export function topFn(a: string): boolean {\n"
+                "  return true;\n"
+                "}\n"
+            ),
+        })
+        code = ts.extract_code(repo)
+        items = {
+            (it["kind"], it["ident"]): it for m in code["modules"] for it in m["items"]
+        }
+        assert items[("function", "midLine")]["signature"] == "midLine(x: number)"
+        assert items[("const", "midConst")]["signature"] == "midConst"
+        assert items[("class", "Mid")]["signature"] == "class Mid"
+        assert items[("interface", "MidI")]["signature"] == "MidI { m:string }"
+        assert items[("function", "topFn")]["signature"] == "topFn(a: string)"
+
+    def test_ts_midline_no_false_positives_from_strings_or_idents(self):
+        """[148] seam A: string contents and identifiers containing
+        'export' must not become export items."""
+        import gen_doc_surface_ts as ts
+        repo = mkrepo({
+            "src/negatives.ts": (
+                'const s = "export function fake(a: string): void {}";\n'
+                "const myExportThing = 1;\n"
+                "export const realOne = 2;\n"
+            ),
+        })
+        code = ts.extract_code(repo)
+        items = {
+            (it["kind"], it["ident"]): it for m in code["modules"] for it in m["items"]
+        }
+        assert ("function", "fake") not in items
+        assert ("const", "myExportThing") not in items
+        assert items[("const", "realOne")]["signature"] == "realOne"
+
+    def test_ts_generic_function_signatures(self):
+        """[149] seam B: `<T>` generics between name and paren must not
+        break function capture; non-generic unchanged."""
+        import gen_doc_surface_ts as ts
+        repo = mkrepo({
+            "src/generics.ts": (
+                "export function callWithCapacityBackoff<T>(\n"
+                "  fn: (attempt: number) => Promise<T>,\n"
+                "  capacity: number,\n"
+                "): Promise<T> {\n"
+                "  return fn(capacity);\n"
+                "}\n"
+                "export function identity<A extends object, B>(a: A, b: B): A {\n"
+                "  void b;\n"
+                "  return a;\n"
+                "}\n"
+                "export function plainFn(x: string): string {\n"
+                "  return x;\n"
+                "}\n"
+            ),
+        })
+        code = ts.extract_code(repo)
+        items = {
+            (it["kind"], it["ident"]): it for m in code["modules"] for it in m["items"]
+        }
+        assert items[("function", "callWithCapacityBackoff")]["signature"] == (
+            "callWithCapacityBackoff<T>(fn: (attempt: number) => Promise<T>, capacity: number,)"
+        )
+        assert items[("function", "identity")]["signature"] == "identity<A extends object, B>(a: A, b: B)"
+        assert items[("function", "plainFn")]["signature"] == "plainFn(x: string)"
+
     def test_ts_multiline_signatures_recovered(self):
         """[144] multi-line signatures must be recovered via balanced-paren
         capture; single-line behavior stays byte-identical."""
