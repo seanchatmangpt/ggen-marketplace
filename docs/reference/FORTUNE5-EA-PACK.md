@@ -118,7 +118,17 @@ re-counted on this branch 2026-10-08; the workgraph was last touched by
   validators (`f6bb82dfb`, `78e1481a1`) — real queries over real graphs,
   refusal as the primary output.
 
-Current standing: pack tests green (67 passed:
+Validation surface (re-counted on this branch 2026-10-09): the f5ea
+validator (`scripts/validate_f5ea_graph.py` — SHACL sweep over f5ea
+SolutionGroup graphs, fixtures + TV-01 fiber modes) and the resource-graph
+generator (`packs/fortune5-enterprise-architecture-pack/scripts/gen_resource_graph.py`
+— renders `.tf` fixtures into f5ea resource graphs) back the conformance
+vectors (`tests/test_conformance_vectors.py`, incl. TV-06
+dangling-SBB SHACL violation). Pack suite:
+`python3 -m pytest packs/fortune5-enterprise-architecture-pack/tests/ -q`
+→ 96 passed, 0 failed (2026-10-09).
+
+Current standing: pack tests green (96 passed, 2026-10-09:
 `python3 -m pytest packs/fortune5-enterprise-architecture-pack/tests/ -q`),
 kernel integration PARTIAL_ALIVE (kernel not yet wired into
 ggen-cli/ggen-engine/sync; EA graph still a JSON projection in the kernel —
