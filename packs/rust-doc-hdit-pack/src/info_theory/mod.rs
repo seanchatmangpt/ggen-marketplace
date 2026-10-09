@@ -287,7 +287,8 @@ pub fn is_prose_artifact(object: &str) -> bool {
 }
 
 /// Deterministic code-surface symbol set: module names (plus their file-stem
-/// and path-tail variants) and every item ident/signature. Exact membership
+/// and path-tail variants), every item ident/signature, and — for `use` items
+/// (backlog [56]) — every re-export alias name. Exact membership
 /// over claim-object variants is the PRIMARY phantom gate; the VSA cosine is
 /// only a secondary near-miss similarity signal.
 pub fn code_token_set(modules: &[CodeModule]) -> std::collections::HashSet<String> {
@@ -305,8 +306,31 @@ pub fn code_token_set(modules: &[CodeModule]) -> std::collections::HashSet<Strin
             .trim_end_matches(".exs");
         set.extend(symbol_variants(stem));
         for it in &m.items {
-            set.extend(symbol_variants(&it.ident));
-            set.extend(symbol_variants(&it.signature));
+            if it.kind == "use" {
+                // Backlog [56]: re-export aliases. A `use` item's ident is the
+                // re-export spec (`a::B`, `a::{X, Y as Z}`, `a::*`). Index the
+                // alias tail of every listed name so a doc naming a
+                // re-exported alias (`PresentationAuthority`) grounds against
+                // the defining module; a glob (`a::*`) keeps its path
+                // variants, and module-qualified doc forms (`a::fn_name`)
+                // ground via the ::-split in symbol_variants. Exact strings
+                // only — no fuzzy matching.
+                let spec = it.ident.replace(['{', '}', ';'], " ");
+                for part in spec.split(',') {
+                    let part = part.trim();
+                    if part.is_empty() {
+                        continue;
+                    }
+                    let name = part.rsplit(" as ").next().unwrap_or(part).trim();
+                    if name.is_empty() || name.ends_with('*') {
+                        continue;
+                    }
+                    set.extend(symbol_variants(name));
+                }
+            } else {
+                set.extend(symbol_variants(&it.ident));
+                set.extend(symbol_variants(&it.signature));
+            }
         }
     }
     set

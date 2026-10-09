@@ -660,3 +660,85 @@ fn trailing_slash_directory_refs_ground_by_dir_membership() {
     let claims = vec![claim("c1", "doc", "mentions", "fixture/burn_in/")];
     assert_eq!(phi_scoped(&claims, &tokens, &[]), 1.0);
 }
+
+#[test]
+fn reexport_aliases_ground_against_submodule_definitions() {
+    // Backlog [56]: `pub use castle::*` at the crate root re-exports items
+    // defined in a submodule; the code-surface index must admit the
+    // re-exported alias names so a doc naming `castle::fn_name` (or a braced
+    // alias like `PresentationAuthority`) grounds against the fn defined in
+    // the submodule. Exact strings only — the alias universe comes from `use`
+    // items the extractor emits from `pub use` declarations.
+    let castle_fn = doc_hdit::CodeItem {
+        kind: "function".into(),
+        ident: "execute_powl_with_gym_act".into(),
+        signature: "execute_powl_with_gym_act(&PowlProcess) -> Result<ReceiptedOcelLog>".into(),
+        is_public: true,
+    };
+    let glob = doc_hdit::CodeItem {
+        kind: "use".into(),
+        ident: "castle::*".into(),
+        signature: "castle::*".into(),
+        is_public: true,
+    };
+    let braces = doc_hdit::CodeItem {
+        kind: "use".into(),
+        ident: "dd_ui::{DdUiRefusal, PresentationAuthority}".into(),
+        signature: "dd_ui::{DdUiRefusal, PresentationAuthority}".into(),
+        is_public: true,
+    };
+    let modules = vec![
+        doc_hdit::CodeModule {
+            name: "src/castle.rs".into(),
+            is_public: true,
+            items: vec![castle_fn],
+        },
+        doc_hdit::CodeModule {
+            name: "src/lib.rs".into(),
+            is_public: true,
+            items: vec![glob, braces],
+        },
+    ];
+    let tokens = code_token_set(&modules);
+    // Module-qualified doc reference to a submodule fn grounds.
+    let qualified = claim(
+        "c0",
+        "docs/payments/PAYMENTS.md#Lifecycle",
+        "mentions",
+        "castle::execute_powl_with_gym_act",
+    );
+    assert!(
+        claim_grounded(&qualified, &tokens),
+        "castle::fn_name must ground against the submodule fn"
+    );
+    // Braced re-export alias names ground.
+    let alias_claim = claim("c1", "docs/x.md", "mentions", "PresentationAuthority");
+    assert!(
+        claim_grounded(&alias_claim, &tokens),
+        "braced re-export alias must ground"
+    );
+    // A never-declared alias stays a phantom (no over-acceptance).
+    let phantom = claim("c2", "docs/x.md", "mentions", "NotAnAlias");
+    assert!(
+        !claim_grounded(&phantom, &tokens),
+        "undeclared alias must stay a phantom"
+    );
+    // A glob re-export adds no phantom-bearing tokens of its own: the glob
+    // tail `*` never becomes a groundable symbol.
+    let glob_only = vec![doc_hdit::CodeModule {
+        name: "src/lib.rs".into(),
+        is_public: true,
+        items: vec![doc_hdit::CodeItem {
+            kind: "use".into(),
+            ident: "castle::*".into(),
+            signature: "castle::*".into(),
+            is_public: true,
+        }],
+    }];
+    let glob_tokens = code_token_set(&glob_only);
+    let star = claim("c3", "docs/x.md", "mentions", "*");
+    assert!(
+        !claim_grounded(&star, &glob_tokens),
+        "glob tail must not become a groundable symbol"
+    );
+}
