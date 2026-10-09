@@ -59,16 +59,21 @@ pathspec).
 
 ## 4. Standing per repo (fleet rollout audit runs)
 
+Rows marked **as-of 2026-10-09** were refreshed against each repo's own certify receipt on
+disk in that repo. Rows marked **stale-as-of 2026-10-08** are unchanged from the original
+rollout audit and were not re-verified on 2026-10-09.
+
 | repo | standing | note |
 |---|---|---|
-| ex4pm | PASS-certified | full gate PASS; certify receipt f4104bfa |
-| ash_pplan | 0.99 | rollout audit coverage |
-| ash_ex4pm | 0.906 | local-script caveat: scored via a local ad hoc script, not the packaged runner |
-| ferroplan | FAIL-honest | coverage 0.2392/0.90 — 1288 of 1693 public items undocumented (crucible mass); remediation list in DOC-HDIT-PILOT.md |
-| zcode | FAIL-honest | below coverage gate; remediation list from rollout audit output |
-| graphlaw | FAIL-honest | below coverage gate; remediation list from rollout audit output |
-| frozen-duckdb | FAIL-honest | below coverage gate; remediation list from rollout audit output |
-| castle | FAIL-honest | below coverage gate; remediation list from rollout audit output |
+| ex4pm | PASS-certified (as-of 2026-10-09) | re-baselined ACCEPTED at ex4pm `cb400347` per ex4pm `docs/sjira/v26.10.8/CERTIFY-VERIFY.md`: canonical chain hash `14c65e67...ecd0`, S_coverage 0.9253 / Phi_halluc 0.0 / Q_density 1.0 (independent /tmp replay also ACCEPTED at 0.9214); supersedes the earlier f4104bfa receipt (still ACCEPTED, 0.9693) |
+| ash_pplan | 0.99 (stale-as-of 2026-10-08) | rollout audit coverage |
+| ash_ex4pm | 0.906 (stale-as-of 2026-10-08) | local-script caveat: scored via a local ad hoc script, not the packaged runner |
+| ferroplan | FAIL-honest (stale-as-of 2026-10-08) | coverage 0.2392/0.90 — 1288 of 1693 public items undocumented (crucible mass); remediation list in DOC-HDIT-PILOT.md; no on-disk certify receipt found in the repo as of 2026-10-09 |
+| zcode | FAIL-honest (stale-as-of 2026-10-08) | below coverage gate; remediation list from rollout audit output; no on-disk certify receipt found in the repo as of 2026-10-09 |
+| graphlaw | FAIL-honest (stale-as-of 2026-10-08) | below coverage gate; remediation list from rollout audit output; no on-disk certify receipt found in the repo as of 2026-10-09 |
+| frozen-duckdb | ACCEPTED-certified (as-of 2026-10-09) | supersedes the FAIL-honest rollout-audit row: certify ACCEPTED at frozen-duckdb `7063b9d` (`docs/sjira/v26.10.8/doc-hdit.receipts.jsonl`, chain hash `b19213a2...f520`), S_coverage 0.9082 / Phi_halluc 0.0 / Q_density 1.0 at pinned extractor `4c862576ab...` |
+| castle | ACCEPTED-certified (as-of 2026-10-09) | supersedes the FAIL-honest rollout-audit row: certify ACCEPTED at castle `d6f136c78` (`docs/sjira/v26.10.8/doc-hdit.receipts.jsonl`, chain hash `6935d9c9...8d9a`), S_coverage 0.9473 / Phi_halluc 0.0 / Q_density 1.0 at pinned extractor `4c862576ab...`; root cause of the earlier FAIL was stale generated `defp has_param` rows, fixed by regen |
+| ash_surface | ACCEPTED-certified (as-of 2026-10-09) | new row: certify ACCEPTED at ash_surface `757060450` (`docs/sjira/v26.10.8/doc-hdit.receipts.jsonl` + `doc-hdit-certify-meta.json`, chain hash `488a29bf...db9e`), S_coverage 0.9996 / Phi_halluc 0.0 / Q_density 1.0, repo head at certify `dc214d7b5`, extractor pin `4c862576ab...` |
 
 FAIL-honest rows carry per-module remediation lists from the rollout runner's top-uncovered
 output (`vectorize ... --report` / audit lines); they are documentation defects, not metric
