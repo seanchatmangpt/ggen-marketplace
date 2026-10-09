@@ -95,6 +95,11 @@ pub fn projection_residual(
         })
         .collect();
     let p_code = crate::vsa::bundle(&projected);
+    projection_residual_vectors(h_doc, &p_code)
+}
+
+/// Same residual over an already-bundled `P_code(H_doc)` (cache replay path).
+pub fn projection_residual_vectors(h_doc: &Hv, p_code: &Hv) -> f64 {
     let mut res2 = 0.0f64;
     let mut tot2 = 0.0f64;
     for i in 0..DIM {
@@ -107,6 +112,17 @@ pub fn projection_residual(
     } else {
         res2.sqrt() / tot2.sqrt()
     }
+}
+
+/// Bundle of binarized per-claim projections onto the code basis —
+/// `P_code(H_doc)` (cache store path; the report values derive from it via
+/// `cosine`/`projection_residual_vectors`).
+pub fn bundle_projections(claims: &[Claim], code_basis: &CodeBasis) -> Hv {
+    let projected: Vec<Hv> = claims
+        .iter()
+        .map(|c| CodeBasis::binarize(&code_basis.project(&encode_claim(c))))
+        .collect();
+    crate::vsa::bundle(&projected)
 }
 
 /// Residual unbinding: rank claim indices by individual residual contribution —

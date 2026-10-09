@@ -1,5 +1,7 @@
 //! Multiply–add–permute (MAP) hypervectors over {-1,+1}^D (i64 lanes).
 
+#[cfg(feature = "blake3")]
+pub mod cache;
 pub mod encode;
 
 use crate::DIM;
