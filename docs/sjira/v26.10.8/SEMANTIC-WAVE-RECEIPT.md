@@ -791,3 +791,52 @@ git -C /Users/sac/ggen log --oneline -1 main                  # fcfd6349d (PARKE
 PYTHONPATH=/Users/sac/gymact/src /Users/sac/gymact/.venv/bin/python \
   -m pytest /Users/sac/gymact/tests/test_agent_cards.py -q    # 7/7 pass
 ```
+
+## 15. Round-9 addendum: scaffold_spec witness pair (2026-10-09, lane R44)
+
+Witness for the `[152]` scaffold-cell grounding discipline (spec-tier typing)
+landed by lane [152] at extractor `2a7355419` (ggen-marketplace
+`hdit-v2-structs`). All figures below byte-read this session from the persisted
+audit artifacts under `/tmp/p0152/` (`*.audit.txt`, with `before/` variants) —
+no dispatch-reported numbers.
+
+### Measured pair (gate: phantom/Φ threshold 0.0010, coverage 0.9000)
+
+| repo | Φ before | Φ after | density before | density after | coverage before | coverage after | verdict |
+|---|---|---|---|---|---|---|---|
+| xaas | 0.1008 FAIL | 0.0001 PASS | 0.8992 | 0.9999 | 0.7066 FAIL | 0.7049 FAIL | Φ gate flips to PASS |
+| ex4pm | 0.0265 FAIL | 0.0000 PASS | 0.9735 | 1.0000 | 0.5038 FAIL | 0.5026 FAIL | Φ gate flips to PASS |
+
+**Monotonicity check witnessed**: Φ_after ≤ Φ_before holds on both subjects
+(xaas 0.1008→0.0001; ex4pm 0.0265→0.0000). Coverage FAIL is pre-existing on
+both sides and unchanged in kind (denominators identical:
+xaas set/raw 17705/17705 collapsed_delta=0; ex4pm 9302/9302 delta=0).
+
+### Disclosed caveat: before-run external_documented skew
+
+The before-run audit files carry an environment skew the after-runs do not:
+`before/xaas.audit.txt` reports `external_documented count=68` (documented-dep
+references, excluded from Φ), while the after-run reports `count=0`; ex4pm is
+0 on both sides. Additionally the before xaas run was served from witness cache
+(`cache: hit e21b9591…`) while the after run was a cold miss
+(`miss 4ec98f28…`, derived stored `1eaaaa1b…`). Coverage values are therefore
+directionally comparable (0.7066→0.7049) but not a controlled pair on the
+documented-dep channel; the load-bearing comparison — the Φ/phantom channel,
+which is the channel scaffold_spec typing removes from — is clean, and
+monotone in the claimed direction.
+
+### Cross-reference
+
+xaas's residual gate failure is now coverage-only: 0.7049 vs the 0.9000
+threshold (offending_claims 112/122/231; before 112/122/147). That is exactly
+the surface the R26/R52 grounding lanes address — not the phantom channel, which
+scaffold_spec has closed. Witness caches reusable for follow-on lanes:
+`/tmp/xaas-w141b/cache/` and `/tmp/p0152/`.
+
+### Replay
+
+```
+grep -E "FAIL|PASS|external_documented" /tmp/p0152/before/xaas.audit.txt /tmp/p0152/xaas.audit.txt \
+                                     /tmp/p0152/before/ex4pm.audit.txt /tmp/p0152/ex4pm.audit.txt
+git -C /Users/sac/ggen-marketplace log --oneline -1 2a7355419   # [152] scaffold_spec extractor landing
+```
