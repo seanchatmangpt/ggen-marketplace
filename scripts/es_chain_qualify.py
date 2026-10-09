@@ -44,6 +44,8 @@ sys.path.insert(0, str(REPO / "scripts"))
 import qualify_packs as q  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("literal_scan", PACK / "gates" / "050_literal_scan.py")
+if _spec is None or _spec.loader is None:
+    raise RuntimeError("cannot load gates/050_literal_scan.py: module spec unavailable")
 literal_scan = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(literal_scan)
 
@@ -178,9 +180,14 @@ def derive_entries():
     g = rdflib.Graph()
     g.parse(PACK / "ontology.ttl")
     g.parse(QUAL / "consumer.ttl")
-    fields = sorted(((int(g.value(f, es.fieldOrder)), str(g.value(f, es.fieldName)))
-                     for f in g.objects(es.CanonLinesV1, es.canonField)))
-    fields = [n for _, n in fields]
+    pairs = []
+    for f in g.objects(es.CanonLinesV1, es.canonField):
+        order = g.value(f, es.fieldOrder)
+        name = g.value(f, es.fieldName)
+        if order is None or name is None:
+            raise RuntimeError(f"canon field {f} missing fieldOrder/fieldName")
+        pairs.append((int(str(order)), str(name)))
+    fields = [n for _, n in sorted(pairs)]
     genesis = str(g.value(es.DefaultChainPolicy, es.genesisHash))
     alg = str(g.value(g.value(es.DefaultChainPolicy, es.hashAlgorithm), es.algorithmName))
     entries = {}
@@ -222,6 +229,8 @@ def regen_consumer(write: bool) -> bool:
     new = text
     for e in derive_entries().values():
         m = re.search(rf"es:{e['name']} a es:ChainEntry.*?\" \.\n", new, re.S)
+        if m is None:
+            raise RuntimeError(f"consumer.ttl: no ChainEntry block for es:{e['name']}")
         block = m.group(0)
         nb = re.sub(r'es:parentHash "[0-9a-f]+"', f'es:parentHash "{e["parent_hash"]}"', block)
         nb = re.sub(r'es:entryHash "[0-9a-f]+"', f'es:entryHash "{e["hash"]}"', nb)
@@ -284,7 +293,10 @@ def check_gates(rep):
         "unsupported-language": ('es:BadPolicy a es:ChainPolicy ; es:hashAlgorithm es:Blake2b256 ; es:targetLanguage es:LangRs ; '
                                  'es:policyPrecedence 5 ; es:genesisHash "0" ; es:canonicalization es:CanonLinesV1 .\n', False, "supported-set"),
     }
-    e3 = re.search(r'ToyChainE3 a es:ChainEntry.*?es:entryHash "([0-9a-f]+)"', base, re.S).group(1)
+    e3m = re.search(r'ToyChainE3 a es:ChainEntry.*?es:entryHash "([0-9a-f]+)"', base, re.S)
+    if e3m is None:
+        raise RuntimeError("base graph: no es:entryHash for ToyChainE3")
+    e3 = e3m.group(1)
     for name, (extra, should_pass, needle) in cases.items():
         extra = extra.replace("@E3HASH@", e3)
         with tempfile.TemporaryDirectory() as t:

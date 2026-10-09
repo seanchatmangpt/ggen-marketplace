@@ -280,7 +280,7 @@ def render_markdown(c: dict) -> str:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap = argparse.ArgumentParser(description=(__doc__ or "usage").splitlines()[0])
     ap.add_argument("--markdown", action="store_true")
     ap.add_argument("--workflows-dir", type=Path, default=WORKFLOWS)
     args = ap.parse_args(argv)

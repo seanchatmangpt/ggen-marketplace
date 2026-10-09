@@ -102,7 +102,7 @@ def diff_locks(old: dict[str, Any], new: dict[str, Any]) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "usage").splitlines()[0])
     parser.add_argument("--solution", required=True, type=Path)
     parser.add_argument(
         "--check",

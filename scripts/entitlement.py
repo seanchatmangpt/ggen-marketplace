@@ -187,7 +187,7 @@ def _verify_jwt(jwt_token: str, base_url: str, provider_id: str,
     try:
         from cryptography.exceptions import InvalidSignature
         from cryptography.hazmat.primitives import hashes
-        from cryptography.hazmat.primitives.asymmetric import padding
+        from cryptography.hazmat.primitives.asymmetric import padding, rsa
         from cryptography import x509 as _x509
     except Exception:
         return False, REFUSED_CRYPTO_UNAVAILABLE, {}
@@ -219,6 +219,8 @@ def _verify_jwt(jwt_token: str, base_url: str, provider_id: str,
         # Google's x509 metadata map is kid -> PEM certificate; the signing key
         # is the certificate's public key.
         public_key = _x509.load_pem_x509_certificate(pem.encode("utf-8")).public_key()
+        if not isinstance(public_key, rsa.RSAPublicKey):
+            return False, kid, {}
         public_key.verify(signature, f"{parts[0]}.{parts[1]}".encode("utf-8"),
                           padding.PKCS1v15(), hashes.SHA256())
     except Exception:
@@ -299,6 +301,8 @@ def decide(entitlement_id: str, config: dict) -> dict:
     if not isinstance(provider_id, str) or not provider_id:
         return _refused(REFUSED_REGISTRY_INVALID)
     jwt_token = record.get("jwt")
+    if not isinstance(jwt_token, str) or not jwt_token:
+        return _refused(REFUSED_JWT_INVALID)
     ok, kid, claims = _verify_jwt(jwt_token, _base_url(), provider_id, backend="sim")
     if not ok:
         if kid == REFUSED_CRYPTO_UNAVAILABLE:

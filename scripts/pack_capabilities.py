@@ -328,7 +328,7 @@ def render_markdown(report: dict) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap = argparse.ArgumentParser(description=(__doc__ or "usage").splitlines()[0])
     ap.add_argument("--check", action="store_true", help="fail on new network use in gates/")
     ap.add_argument("--markdown", action="store_true", help="emit the reference page body")
     ap.add_argument("--packs-dir", type=Path, default=PACKS)
