@@ -527,6 +527,11 @@ disk in their owning repos this session are marked **wave-reported
   wave-reported ~0.99 PASS (as-of-date); both values are denominator artifacts,
   not a doc regression — TS-surface re-audit recommended before certification
   is final |
+| ash_pplan | PASS (ts) — certify-landed: verdict ACCEPTED (S 0.98389 / Phi
+  0.00038 / Q 0.99962, chain hash `b791ca5ae851…`, landed `6c8c7ec` on
+  ash_pplan `main`; `CERTIFY-VERIFY.md` + `ash_pplan.chain.jsonl` on disk —
+  re-verified in `/Users/sac/ash_pplan`); residual AshPPlan.Dsl scanner gap
+  disclosed |
 
 **Typed BLOCKED with falsifier**:
 
@@ -537,9 +542,6 @@ disk in their owning repos this session are marked **wave-reported
 disk); latest audit figures coverage 0.8637 / Phi 0.0210 wave-reported
 (as-of-date); [129]+[103] done, [106] done | re-run certify at HEAD once the
 phantom mass lands; ACCEPTED replaces BLOCKED |
-| ash_pplan | BLOCKED-with-falsifier — audit 0.0034 FAIL-honest with 3 named
-claims, wave-reported (as-of-date; [125]) | re-audit at post-[125] HEAD drops
-Phi ≤ 0.001 |
 | zcode | BLOCKED-with-falsifier — TS denominator ([127]); re-audit witness
   landed at `/tmp/zcode-reaudit` (denominator set=37: coverage 0.6757 / Phi
   0.2195, `zcode.audit.txt`; post-merge extractor run Phi 0.8462,
@@ -557,11 +559,11 @@ residue seam-classified and falsified (gate doc §7.2/§7.3); see the gate doc
 
 ### 11.4 Round-5 final standing
 
-Standing: **PARTIAL_ALIVE (strengthened; final)** — 10 repos certified PASS on
-the ts extractor, the certify plane is exercised end to end (ex4pm
-certify-landed; ferroplan typed BLOCKED with falsifier), the admission ledger
-is fully triaged, and the 78-record seal is verified. The remaining BLOCKED set
-(ferroplan, ash_pplan, zcode TS denominator, frozen-duckdb) is typed, each with
-a named falsifier. Not claimed: full ALIVE — the BLOCKED set and the
-wave-reported (as-of-date) figures above are the exact boundary of this
-receipt.
+Standing: **PARTIAL_ALIVE (strengthened; final)** — 11 repos certified PASS on
+the ts extractor (ash_pplan certify-landed), the certify plane is exercised
+end to end (ex4pm and ash_pplan certify-landed; ferroplan typed BLOCKED with
+falsifier), the admission ledger is fully triaged, and the 78-record seal is
+verified. The remaining BLOCKED set (ferroplan, zcode TS denominator,
+frozen-duckdb) is typed, each with a named falsifier. Not claimed: full
+ALIVE — the BLOCKED set and the wave-reported (as-of-date) figures above are
+the exact boundary of this receipt.

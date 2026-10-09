@@ -162,14 +162,16 @@ via `git log --oneline -1 <sha>` in this lane): tag-advancement standing table
 persisted ash_surface re-audit witness (mixed-verdict honesty carried in
 `SEMANTIC-WAVE-RECEIPT.md` §10.5/§11.1).
 
-Final standings (full table in `SEMANTIC-WAVE-RECEIPT.md` §11.2): 10 repos
-certified PASS on the ts extractor (xaas, ex4pm — also certify-landed,
-ggen_igniter, gmp, castle, graphlaw, affidavit, ash_surface, ash_graphlaw,
-zcode pending the TS denominator [127]); 4 typed BLOCKED-with-falsifier
-(ferroplan certify refusal at `47aa362`, ash_pplan [125] FAIL-honest with 3
-claims, zcode TS denominator [127], frozen-duckdb 0.8985 with a 4-item
-residual after the closed [107]). Audit figures for the BLOCKED set are
-wave-reported (as-of-date), not re-executed in this lane.
+Final standings (full table in `SEMANTIC-WAVE-RECEIPT.md` §11.2): 11 repos
+certified PASS on the ts extractor (xaas, ex4pm — certify-landed, ggen_igniter,
+gmp, castle, graphlaw, affidavit, ash_surface, ash_graphlaw, zcode pending the
+TS denominator [127], ash_pplan — certify-landed at `6c8c7ec` on ash_pplan
+`main`, ACCEPTED: S 0.98389 / Phi 0.00038 / Q 0.99962, chain hash
+`b791ca5ae851…`, residual AshPPlan.Dsl scanner gap disclosed); 2 typed
+BLOCKED-with-falsifier pending (ferroplan certify refusal at `47aa362` —
+[129]/[106-p2]/[120]; frozen-duckdb 0.8985 with a 4-item residual after the
+closed [107]). Audit figures for the BLOCKED set are wave-reported
+(as-of-date), not re-executed in this lane.
 
 ### 8.1 Round-3 final verdict
 
