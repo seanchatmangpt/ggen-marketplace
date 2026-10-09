@@ -241,3 +241,57 @@ non-LLM chain (generate → candidates → admit → ledger → certify) is witn
 end to end at 47/49 machine-admitted; canonical regen across every repo, the
 wg-shacl report, the C13 sync rung, the ex4pm certify git-object resolution,
 and affidavit signing remain open.
+
+## 8. Round-3 addendum
+
+### 8.1 Cross-repo V8-004 split — 3/3 ADMITTED
+
+The round-2 `invalid_repository` refusal of the cross-repo order `SJIRA-V8-004`
+(§: affidavit + ferroplan + coordinator-dispatched consumer, not expressible as
+a single-repo candidate) is resolved by splitting into per-repo candidates
+linked by the shared `replay_identity` suffix
+`sjira-v26.10.8-SJIRA-V8-004`. All three admitted via
+`mix semantic_jira.admit_candidates` (`MIX_BUILD_ROOT=_build-laneadmit`,
+candidates-v2.jsonl), under origin authority
+`https://ggen-igniter.dev/ontology/semantic-jira#objective-code-work-authority`
+(origin digest `sha256:310e14f1e30a9bb4...53c72c`):
+
+| order | repo | work_order_digest |
+|---|---|---|
+| SJIRA-V8-004A | ggen-marketplace | `sha256:1250af0c945dd2d0fe09ab60a51943219523cfc2f7642b13759b7c86ffe789ae` |
+| SJIRA-V8-004B | ash_affidavit | `sha256:a0ff5beb3f9b7ced7b1f7d6f3def8a184536cf9cdb29dc4d43db29b7802a8c89` |
+| SJIRA-V8-004C | ferroplan | `sha256:f34e2be83ac7bfad5c798f367a1fcf61729d45dfc323e73e5b6eac7b1da4efdc` |
+
+### 8.2 Git-trust-root court landed (ad2ad844d)
+
+`GIT-TRUST-COURT.md` verdict across 54 citations: **41 RESOLVED-ROOTED /
+13 RESOLVED-UNROOTED (pending scaffold merges) / 0 UNRESOLVED**. Every
+citation resolves; 13 resolve to heads that exist only on scaffold branches
+awaiting merge — a transport residual, not an identity residual.
+
+### 8.3 GoalCheckpoint shape wired (11a1cf2a6 + ggen_igniter 43eba82)
+
+The `GoalCheckpoint` SHACL shape is wired in ggen-marketplace (`11a1cf2a6`)
+with the ggen_igniter generator side (`43eba82`): castle violations dropped
+**11 → 0**, and the workgraph now `conforms=True` under its own shape.
+
+### 8.4 Card validator CI-wired (6523dc716)
+
+The fleet-card validator runs in CI (`6523dc716`): **69 cards, 0 violations**.
+Every card surface is machine-checked, not hand-inspected.
+
+### 8.5 Actuator card conversion in flight
+
+wasm4pm's actuator card — the last hand-authored card surface (§7.4) — is in
+conversion to the generation law.
+
+### 8.6 Round-3 standing
+
+The wave's residual set is now exactly:
+
+1. the scaffold-branch merges (the 13 RESOLVED-UNROOTED citations' targets),
+2. the wasm4pm actuator-card conversion,
+3. the ex4pm coverage drift (**0.8736** post-cards).
+
+Standing: **PARTIAL_ALIVE (strengthened)** — the cross-repo admission residual
+is closed by the split; identity residuals are zero (0 UNRESOLVED citations).
