@@ -726,11 +726,15 @@ def repo_manifest(repo):
 
 
 def receipt_witness_class(rel: str) -> str:
-    """v3 backlog [22]: witness class of a receipt path. Deterministic:
-    court artifacts (court/*.r.json) vs the docs/sjira receipt journal class."""
+    """v3 backlog [22]/[117]: witness class of a receipt path, emitted as an
+    sj:requiresReceiptClass enum value (work-order SHACL pattern
+    ^(manufacture|projection|authority_preparation|actuation|verification|
+    postcondition|replay|publication|deployment)$). Deterministic:
+    court artifacts (court/*.r.json) -> 'verification'; the docs/sjira
+    receipt journal -> 'publication'."""
     if re.fullmatch(r"court/[^/]+\.r\.json", rel):
-        return "court/*.r.json"
-    return "docs/sjira/receipt"
+        return "verification"
+    return "publication"
 
 
 def py_alias_targets(repo, scope) -> list:
@@ -1135,9 +1139,10 @@ def render(repo: str, version: str, seed_commits: dict | None = None) -> str:
         # Unfolded emission: receipt-path evidence requirements.
         for rel in o.receipt_paths:
             w(f'  sj:requiresEvidence "{esc(rel)}" ;')
-        # Unfolded emission: receipt SHA citations (witness heuristic).
-        for sha in o.witnessed:
-            w(f'  sj:receipt "{sha}" ;')
+        # Receipt SHA citations (witness heuristic): backlogs [114]/[117].
+        # Witnessed member SHAs are carried exclusively by prov:wasDerivedFrom
+        # below; sj:receipt is maxCount-1 sh:IRI/class sj:Receipt in the pack
+        # shapes, so multi-literal emission here is a defect class (P0 [117]).
         # Unfolded emission: dependency SHAs from trailers (kept as literals).
         for sha in o.dependencies:
             w(f'  sj:dependency "{esc(sha)}" ;')
@@ -1402,10 +1407,14 @@ def v3_fixture_check():
             need("a sj:Checkpoint" in text1, "missing checkpoint individual"),
             need("sj:checkpointOf" in text1,
                  "missing checkpointOf back-link"),
-            need('sj:requiresReceiptClass "docs/sjira/receipt"' in text1,
-                 "missing requiresReceiptClass docs/sjira/receipt"),
-            need('sj:requiresReceiptClass "court/*.r.json"' in text1,
-                 "missing requiresReceiptClass court/*.r.json"),
+            need('sj:requiresReceiptClass "publication"' in text1,
+                 "missing requiresReceiptClass publication (journal receipts)"),
+            need('sj:requiresReceiptClass "verification"' in text1,
+                 "missing requiresReceiptClass verification (court artifacts)"),
+            # P0 [117]: sj:receipt is maxCount-1 sh:IRI in the pack shapes;
+            # the generator must never emit sj:receipt literals.
+            need('sj:receipt "' not in text1,
+                 "sj:receipt literal emitted (defect class: cardinality)"),
         ]
         fails = [f for f in fails if f]
         if fails:
