@@ -372,6 +372,24 @@ class StructSignatureTest(unittest.TestCase):
         assert items[("struct", "Marker")]["signature"] == ""
         assert items[("trait", "Paint")]["signature"] == ""
 
+    def test_rust_pub_const_and_static_are_public_surface(self):
+        repo = mkrepo({
+            "Cargo.toml": '[package]\nname = "demo"\nversion = "0.1.0"\n',
+            "src/lib.rs": (
+                'pub const MAX_RETRIES: u32 = 3;\n'
+                'pub static VERSION_LABEL: &str = "demo";\n'
+                'const INTERNAL_SALT: &str = "s3cr3t";\n'
+                'pub const fn limit(n: u32) -> u32 { n * MAX_RETRIES }\n'
+            ),
+        })
+        items = self._items(g.extract_code(repo))
+        assert items[("const", "MAX_RETRIES")]["signature"] == "MAX_RETRIES: u32"
+        assert items[("const", "VERSION_LABEL")]["signature"] == (
+            "VERSION_LABEL: &str"
+        )
+        assert ("const", "INTERNAL_SALT") not in items
+        assert ("function", "limit") in items
+
     def test_elixir_defstruct_and_atom_type(self):
         src = (
             "defmodule Demo.State do\n"

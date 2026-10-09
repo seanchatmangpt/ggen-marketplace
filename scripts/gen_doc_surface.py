@@ -113,7 +113,9 @@ RUST_FN = re.compile(
     r"\bpub\s+(?:const\s+)?(?:unsafe\s+)?(?:async\s+)?fn\s+"
     r"([a-zA-Z_][a-zA-Z0-9_]*)\s*(\([^)]*\))",
 )
-RUST_ITEM = re.compile(r"\bpub\s+(struct|enum|trait)\s+([A-Z][A-Za-z0-9_]*)")
+RUST_ITEM = re.compile(
+    r"\bpub\s+(const|static|struct|enum|trait)\s+([A-Z][A-Za-z0-9_]*)"
+)
 ELIXIR_DEFSTRUCT = re.compile(r"^\s*defstruct\s+(.+)$")
 ELIXIR_TYPE = re.compile(r"^\s*@(type|typep)\s+([a-z_][a-zA-Z0-9_]*)\s*::\s*(.*)$")
 ELIXIR_TYPE_CONT = re.compile(r"^\s*\|\s*(.+)$")
@@ -643,6 +645,20 @@ def scan_rust_ts(repo):
                         "kind": "trait",
                         "ident": tname,
                         "signature": "",
+                        "doc": _rust_doc(node),
+                        "is_public": True,
+                    })
+                elif node.type in ("const_item", "static_item"):
+                    if not _rust_pub(node):
+                        continue
+                    cname = node.child_by_field_name("name").text.decode()
+                    tnode = node.child_by_field_name("type")
+                    sig = cname if tnode is None else (
+                        cname + ": " + _clean(tnode.text.decode()))
+                    items.append({
+                        "kind": "const",
+                        "ident": cname,
+                        "signature": sig,
                         "doc": _rust_doc(node),
                         "is_public": True,
                     })
@@ -1238,6 +1254,61 @@ def match_span(span, syms):
     return None
 
 
+# P1 [47] path-claim typing: a backticked span that is a filesystem path
+# (`planning/ash_pplan_control_plane.hddl`, `test/support/courts/`) references
+# the repo's file surface, not a code symbol. Such spans ride on segment
+# collisions with real symbols (`hddl/0`, a module named `Test`) into
+# whole-span `mentions` claims that ground only against code symbols and all
+# too often count as phantoms. Path-shaped spans are typed as a distinct
+# `path_ref` kind and claimed only when the path exists on the real file
+# surface (path exists = grounded); non-existent path-shaped spans are prose,
+# never claims. The audit core grounds `path_ref` objects by exact membership
+# against the extractor's `paths`/`directories` arrays.
+PATH_SPAN_RE = re.compile(r"^[^\s/]+(/[^\s/]+)+/?$")
+
+
+def is_path_span(span):
+    """True when a span is filesystem-path-shaped: slash-separated, no
+    whitespace, not a version fragment, and not an Elixir arity form
+    (`receipt/2`, `execute/4,5` — last segment digits, symbol channel)."""
+    s = span.strip()
+    if "/" not in s or re.search(r"\s", s):
+        return False
+    if VERSION_RE.match(s) or ARITY_LIST_RE.match(s):
+        return False
+    last = s.rstrip("/").rsplit("/", 1)[-1]
+    if last.isdigit():
+        return False
+    if any(looks_like_version(seg) for seg in s.split("/")):
+        return False
+    return True
+
+
+def path_surface(repo):
+    """Real file surface: (dirs, files) as relative-path sets, excluding
+    build/hidden dirs (same skip law as `extract_directories`)."""
+    dirs, files = set(), set()
+    for p in Path(repo).rglob("*"):
+        if any(part in SKIP_DIRS for part in p.parts):
+            continue
+        if any(part.startswith(".") for part in p.parts):
+            continue
+        rel = str(p.relative_to(repo))
+        if p.is_dir():
+            dirs.add(rel)
+        else:
+            files.add(rel)
+    return dirs, files
+
+
+def resolves_path(surface, span):
+    """Path-existence grounding: exact membership on the real file surface,
+    trailing-slash directory refs included. Never fuzzy."""
+    dirs, files = surface
+    s = span.strip()
+    return s in files or s in dirs or (s.endswith("/") and s[:-1] in dirs)
+
+
 HEADING = re.compile(r"^(#{1,6})\s+(.*)$", re.M)
 INLINE_SPAN = re.compile(r"`([^`\n]+)`")
 FENCE = re.compile(r"```(\w*)\n(.*?)```", re.S)
@@ -1340,6 +1411,7 @@ def doc_string_claims(repo, surface, syms):
     """
     claims = []
     files = sorted({m["file"] for m in surface["modules"] if m.get("file")})
+    psurface = path_surface(repo)
     for rel in files:
         path = repo / rel
         if not path.is_file():
@@ -1364,7 +1436,17 @@ def doc_string_claims(repo, surface, syms):
         rel_base = rel
         for block in blocks:
             for sm in INLINE_SPAN.finditer(block):
-                hit = match_span(sm.group(1), syms)
+                span = sm.group(1)
+                if is_path_span(span):
+                    if resolves_path(psurface, span):
+                        claims.append({
+                            "subject": rel_base,
+                            "predicate": "references_path",
+                            "object": span,
+                            "kind": "path_ref",
+                        })
+                    continue
+                hit = match_span(span, syms)
                 if hit:
                     claims.append({
                         "subject": rel_base,
@@ -1378,6 +1460,7 @@ def doc_string_claims(repo, surface, syms):
 def extract_doc(repo, surface, docs_dirs=None, include_doc_strings=False):
     repo = Path(repo)
     syms = known_symbols(surface)
+    psurface = path_surface(repo)
     module_names = {m["name"] for m in surface["modules"] if m["name"] and m["name"][0].isupper()}
     claims = []
     if docs_dirs:
