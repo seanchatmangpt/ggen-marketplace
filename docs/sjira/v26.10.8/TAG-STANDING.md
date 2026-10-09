@@ -22,6 +22,8 @@ is a new annotated tag; `v26.10.8` and `v26.10.8-2` left untouched.
 | xaas | 8bb4a2f5c251289ddad00c1fb43464f73c583516 | 3ed88241bf6665790239fcf587d75ecbde4723a7 (advanced) | main HEAD `3ed88241` = receipted `[60]` repair `8bb4a2f5` (sealed XAAS-26108-1..5, ancestor) + `docs/reference/config-surface.md` + `scripts/gen_config_surface_ref.py` (generated config-surface reference, self-receipting in the same commit). `git diff 8bb4a2f5 3ed88241` = exactly the config-surface docs transition. |
 | ggen-marketplace | 0bf1be372e4caf479ca3a7d00d1765500bf254b4 | 3c8240c36 (advanced, branch `hdit-v2-structs`) | Round-6 receipts at tip `3c8240c36`: `SEMANTIC-WAVE-RECEIPT.md` round-6 final witness refresh (`209346e0b`) + §12 wasm4pm/zcode row sync (`3c8240c36`) + `DOCS-DOD-GATE.md`; TAG-STANDING update itself committed on top before tagging. |
 | ash_surface | dc214d7b5bea46e160afcb247e1af09d96525c27 | no move | main HEAD == `dc214d7b5` == `v26.10.8-2`; no post-tag receipts landed, gate not met. |
+| ferroplan | n/a (first -3 advance) | abc39500ff24e4eaf1773ab19e75b49fb1df70eb (advanced, `v26.10.8-3` @ `0701bdf7`) | certify ACCEPTED + drift re-close + community files at tag target `abc39500ff24`; tag verified on origin `seanchatmangpt/ferroplan` via `git ls-remote --tags` 2026-10-09. |
+| wasm4pm | n/a (first -3 advance) | 2bb0c4ecfa56b237e0db860616b9e71f87a01a14 (advanced, `v26.10.8-3` @ `aefb3fb8`) | PR #672 sha-completeness repair + trust-court closure at tag target `2bb0c4ecf`; tag verified on origin `seanchatmangpt/wasm4pm` via `git ls-remote --tags` 2026-10-09. |
 
 ## Post-tag hardening landed between `v26.10.8` and `v26.10.8-2`
 
