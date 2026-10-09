@@ -727,12 +727,59 @@ def cross_repo_refs(commit):
     return sorted(refs)
 
 
+def _norm_bullet(line: str) -> str:
+    """Normalized form of a bullet line: lowercase, collapsed whitespace,
+    list markers and trailing punctuation stripped."""
+    s = re.sub(r"\s+", " ", line.strip().lower())
+    s = re.sub(r"^[-*+]\s+|^\\d+[.)]\\s+", "", s)
+    return s.rstrip(".;:!?").strip()
+
+
+def compress_bullets(items: list, limit: int = 400, noun: str = "commit(s)"):
+    """Shared core of compress_acceptance / compress_body_bullets: dedupe
+    items (exact and near-duplicate via normalized prefix match), keep
+    first-occurrence order (deterministic), keep the longest fitting prefix
+    under ``limit`` and summarize the remainder as "(+N more <noun>)"."""
+    kept = []
+    seen_norms = []
+    for raw in items:
+        s = " ".join(str(raw).split())
+        if not s:
+            continue
+        norm = _norm_bullet(s)
+        if any(
+            norm == prev or norm.startswith(prev) or prev.startswith(norm)
+            for prev in seen_norms
+        ):
+            continue
+        seen_norms.append(norm)
+        kept.append(s)
+    text = "; ".join(kept)
+    if len(text) <= limit:
+        return text
+    out = []
+    used = 0
+    reserve = 32
+    for s in kept:
+        add = len(s) + (2 if out else 0)
+        if used + add > limit - reserve:
+            break
+        out.append(s)
+        used += add
+    remaining = len(kept) - len(out)
+    if not out:
+        return truncate(text, limit)
+    return "; ".join(out) + " (+" + str(remaining) + " more " + noun + ")"
+
+
 def compress_acceptance(commits, limit=400):
     """v3 item 9: deterministic bounded phrasing of acceptance text. Subjects
-    are '; '-joined; over the limit, the longest fitting subject prefix is kept
-    and the remainder summarized as "(+N more commit(s))"."""
+    are deduplicated (exact and near-duplicate via normalized prefix match),
+    '; '-joined in first-occurrence order; over the limit, the longest fitting
+    subject prefix is kept and the remainder summarized as
+    "(+N more commit(s))"."""
     subjects = [c["subject"] for c in commits]
-    text = "; ".join(subjects)
+    return compress_bullets(subjects, limit)
     if len(text) <= limit:
         return text
     reserve = 32
@@ -827,13 +874,18 @@ def render(repo: str, version: str, seed_commits: dict | None = None) -> str:
         w(f'  rdfs:label "{oid}: {esc(truncate(o.title, 120))}" ;')
         w(f'  dcterms:identifier "{oid}" ;')
         w(f'  dcterms:title "{esc(o.scope)} work axis ({len(o.commits)} commit(s))" ;')
-        body_digest = truncate(
-            " ".join(
-                filter(None, ((c.get("body") or "").strip() for c in o.commits))
+        # v3 backlog [24]: bullet compression for the description body —
+        # unique lines, near-duplicate prefix match, deterministic
+        # first-occurrence order, bounded length (never mid-bullet truncation
+        # while any bullet fits).
+        body_lines = []
+        for c in o.commits:
+            body_lines.extend(
+                ln.strip() for ln in (c.get("body") or "").splitlines() if ln.strip()
             )
-            or f"Conventional-commit axis '{o.scope}': {len(o.commits)} commit(s).",
-            400,
-        )
+        body_digest = compress_bullets(
+            body_lines, 400, noun="bullet(s)"
+        ) or f"Conventional-commit axis '{o.scope}': {len(o.commits)} commit(s)."
         w(f'  dcterms:description "{esc(body_digest)}" ;')
         w(f'  sj:subject "{esc(label)}:{esc(o.scope)}@{o.identity}" ;')
         w(f'  sj:promotionRule "Standing may advance only from an independent exact-head court receipt binding this order member SHAs and a durable 5-field receipt." ;')
@@ -1279,6 +1331,43 @@ def v3_gap_legs():
         compressed = compress_acceptance(long_commits, 400)
         if len(compressed) > 400 or "(+" not in compressed:
             return "item 9: compression failed (len=%d)" % len(compressed)
+        # Backlog [24]: body-bullet compression — dedupe (exact and
+        # near-duplicate prefix match), deterministic order, bounded length,
+        # no mid-bullet truncation while any bullet fits.
+        dup_commits = [
+            {"subject": "feat(x): same axis"},
+            {"subject": "feat(x): same axis"},
+            {"subject": "feat(y): distinct"},
+        ]
+        deduped = compress_acceptance(dup_commits, 400)
+        if deduped != "feat(x): same axis; feat(y): distinct":
+            return "item 9: subject dedupe failed (%r)" % deduped
+        bodies = [
+            "body",
+            "- add the thing and then a much longer tail of words",
+            "- Add the thing and then a much longer tail of words",
+            "* add the thing and then a much longer tail of words.",
+            "- unrelated bullet",
+        ]
+        bullets = compress_bullets(bodies, 400, noun="bullet(s)")
+        if bullets != (
+            "body; - add the thing and then a much longer tail of words; "
+            "- unrelated bullet"
+        ):
+            return "item 9: bullet dedupe failed (%r)" % bullets
+        bounded = compress_bullets(
+            ["- bullet number %d with padding %d" % (n, n) for n in range(40)],
+            400,
+            noun="bullet(s)",
+        )
+        if len(bounded) > 400 or "(+" not in bounded:
+            return "item 9: bullet bound failed (len=%d)" % len(bounded)
+        if bounded != compress_bullets(
+            ["- bullet number %d with padding %d" % (n, n) for n in range(40)],
+            400,
+            noun="bullet(s)",
+        ):
+            return "item 9: bullet compression not deterministic"
         return None
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
