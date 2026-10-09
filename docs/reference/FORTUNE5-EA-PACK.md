@@ -136,6 +136,13 @@ see the RFC's standing section). Rendered infrastructure remains
 BLOCKED:vendor-onboarding in the commerce plane; pack projections are
 CONSTRUCT-only.
 
+## Infrastructure note
+
+`/Users/sac/qlever-fortune5-test` is the local QLever server index directory
+for `fortune5.ttl` (built 2026-08-26; server logs through 2026-09-01). It is a
+data directory, NOT a repository checkout — future rosters and lanes must not
+treat it as one.
+
 ## See Also
 
 [`FLEET-SEMANTIC-MAP.md`](FLEET-SEMANTIC-MAP.md) ·
