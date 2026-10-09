@@ -16,6 +16,10 @@
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Pin-stability law gate (R62): fail fast before the semaphore/courts when
+# the extractor hash is not the ledger's current row (exit != 0 propagates).
+sh "$REPO_ROOT/scripts/check_pin_freshness.sh" || exit $?
+
 DOC_HDIT_SEM_DIR="${DOC_HDIT_SEM_DIR:-/tmp/doc-hdit-semaphore}"
 DOC_HDIT_MAX_CONC="${DOC_HDIT_MAX_CONC:-4}"
 DOC_HDIT_SEM_TIMEOUT="${DOC_HDIT_SEM_TIMEOUT:-1800}"  # seconds

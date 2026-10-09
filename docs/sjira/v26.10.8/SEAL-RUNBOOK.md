@@ -187,3 +187,16 @@ Rules:
 - The limiter only gates entry; court semantics are unchanged (exit 0 iff
   all courts pass). Synthetic self-check: `bash scripts/run_fleet_courts.sh
   --probe-limiter`.
+
+## Pin-stability law (R62)
+
+The extractor (`scripts/gen_doc_surface.py`) commit and its
+`PIN-ROTATION-LEDGER.md` current-row update are **atomic**: they land in
+the SAME commit. Enforced by `scripts/check_pin_freshness.sh` (POSIX sh,
+exit 0 iff the live extractor sha256 appears on the ledger's current row;
+exit 1 with the repair message otherwise), wired as a fail-fast pre-step
+in `scripts/run_fleet_courts.sh` before the semaphore/courts. The ledger
+is the single pin authority — sibling receipts use the stable ledger
+reference form, never an inline hash. Probe override: `PIN_LEDGER=<path>`.
+Witnessed 2026-10-09: exit 0 on the live ledger (b88297e6 = current);
+exit 1 via a doctored temp-copy ledger (real ledger untouched).
