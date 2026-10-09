@@ -23,7 +23,7 @@ Sealed 2026-10-08 by lane `seal-harness` per `SEAL-RUNBOOK.md` §2–§5
 2. Adapter: `python3 docs/sjira/v19.../seal/build_drafts.py` → 78 drafts,
    50 ALIVE / 28 REFUSED (matches ledger exactly).
 3. Harness: `cargo run --features crypto-trust --example seal_sj_record --
-   /tmp/seal2/records < /tmp/seal2/drafts.jsonl` → **sealed 78 records**; each
+   /tmp/seal4/records < /tmp/seal4/drafts.jsonl` → **sealed 78 records**; each
    record re-verified in-process via `SjRecord::from_json(&json).verify()` —
    78/78 OK, zero refusals.
 4. osx-clnr @78f3aea: temporary harness `examples/seal_campaign.rs` (untracked,
@@ -32,6 +32,8 @@ Sealed 2026-10-08 by lane `seal-harness` per `SEAL-RUNBOOK.md` §2–§5
 5. Independent verification output: per-record `OK` with chain head, e.g.
    final record SJIRA-V8-004C, campaign chain head
    `76305b343d47889cdc9e9eb2a5f4d36150c811dc0d3864034c8218c56b108fca`.
+   Determinism: a full second seal run was byte-identical
+   (`diff -r` over 78 records + CHAIN-HEAD.txt).
 
 ## Resolution law (adapter §2 mapping, disclosed per draft)
 
@@ -52,10 +54,10 @@ Sealed 2026-10-08 by lane `seal-harness` per `SEAL-RUNBOOK.md` §2–§5
 ## Disclosures
 
 - Round-2/3 rows repeat some order ids; later occurrences are row-unique as
-  `<ORDER>@roundN` in drafts and records.
-- The two `castle-goal` rows have `order: null`; drafted as
-  `UNSCOPE-castle-goal-<ts>` (repo resolved to `/Users/sac/castle` per
-  ADMISSION-CONTEXT.md), standing REFUSED, broken_term MuOnO.
+  `<ORDER>@roundN` in drafts and records. The two `order: null` rows draft as
+  `UNSCOPE-castle-goal-<ts>` / `UNSCOPE-castle-goal-<ts>@round2` (repo
+  resolved to `/Users/sac/castle` per ADMISSION-CONTEXT.md), standing
+  REFUSED, broken_term MuOnO.
 - replay exit codes are receipted values from the admission runs
   (SEMANTIC-WAVE-RECEIPT.md / CONVERGENCE.md), not re-executed in this lane.
 

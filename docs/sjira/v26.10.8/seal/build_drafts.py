@@ -132,9 +132,10 @@ def main():
             cmd = row.get("admitted_via") or "python3 scripts/admit_workgraphs.py"
             ts = row.get("ts", "")
             seen[order] = seen.get(order, 0) + 1
-            row_id = order if seen[order] == 1 else f"{order}@round{seen[order]}"
+            base_id = order or ("UNSCOPE-" + repo + "-" + ts[:19])
+            row_id = base_id if seen[order] == 1 else f"{base_id}@round{seen[order]}"
             draft = {
-                "work_order_id": row_id or ("UNSCOPE-" + repo + "-" + ts[:19]),
+                "work_order_id": row_id,
                 "origin_ceiling": entry["ceiling"] if entry and entry["ceiling"] else None,
                 "origin_grant": row.get("origin_authority") or "NONE",
                 "origin_actor": "coordinator:recorded",
