@@ -840,3 +840,63 @@ grep -E "FAIL|PASS|external_documented" /tmp/p0152/before/xaas.audit.txt /tmp/p0
                                      /tmp/p0152/before/ex4pm.audit.txt /tmp/p0152/ex4pm.audit.txt
 git -C /Users/sac/ggen-marketplace log --oneline -1 2a7355419   # [152] scaffold_spec extractor landing
 ```
+
+## 16. Round-9 addendum: extractor-maturation + landing wave (2026-10-09, lane R80)
+
+Landed on ggen-marketplace `hdit-v2-structs` since §15. Every SHA below
+resolved this session via `git log --oneline -1 <sha>` (or tag
+`^{commit}`) in its owning canonical checkout; per-commit figures read
+from the commit message / on-disk receipt / ledger it landed, not from
+dispatch. As-of 2026-10-09.
+
+### 16.1 Landed
+
+| row | subject (verified) | notes |
+|---|---|---|
+| R64 | `0f3d840ff` — module-level gated-coverage denominator (DENOMINATOR-SCOPE-DECISION.md) | module-level gate, 0.90 threshold untouched; per-function items report-only; falsifier witnessed (`Probe.Ghost` zero-grounding → gate FAIL, `/tmp/r64-probe`); xaas module-coverage **0.9911 PASS** witness; pin hop-3 `3d2abae1` landed atomically (PIN-ROTATION-LEDGER "Hop 3 (current)") |
+| R44 §15 | witness pair | already landed as §15 of this receipt — reference, not duplicated |
+| R62 | `4827e5d01` — pin-stability law gate (`check_pin_freshness.sh`) | fail-fast pre-step in `run_fleet_courts.sh`; **both exit paths witnessed** (exit 0 live `b88297e6` current; exit 1 doctored temp-copy ledger, real ledger untouched; probe-limiter rc=0/rc=1) |
+| R61 | `6b3f1d044` — two-hop extractor pin lineage (PIN-ROTATION-LEDGER) | hop-2 `f51d81ac`→`b88297e6` @ `2c81947e4`, re-verified at HEAD; 5 sibling stable-reference notes resolved in their own repos: ash_surface `d60fdb630`, ex4pm `5d05744`, ash_graphlaw `cf51041`, castle `2d72949`, frozen-duckdb `4eb7d85`; bcinr SKIP (no note landed) |
+| R70 | zcode-cli `9ceba84` (`docs(receipt): R70 as-of re-run note at pin b88297e6 — same standing`) | tag `v26.10.8-2` minted, dereferences → `9ceba840…` |
+| R60 | `02c8440da` — seal refresh | 5 R-wave ACCEPTED certify records appended (RCERT-EX4PM/RCERT-FROZEN-DUCKDB/RCERT-CASTLE/RCERT-ASHGRAPHLAW/RCERT-ASHSURF-26108); `seal/drafts.jsonl` + `CHAIN-HEAD.txt` re-counted on disk: **83 records**, head `d0265c9b` (RCERT-ASHSURF) |
+| R65 | memory consolidation | 5 laws persisted to auto-memory (`pin-stability-law`, `honest-fail-landing`, `tag-advance-citation-law`, `doc-hdit-seam-taxonomy`, `ref-validating-prepush-hook`) |
+| R73 | `a7701b042` — gmp untracked campaign state | landed in `docs/receipts/` (this repo) |
+| R59 | ggen-ecosystem `f72cef7e` (`docs(sjira): R59 — STALE note for ecosystem.lock.toml standing drift`) | stale-lock note only; lock not edited |
+| R74 | branch-census standing | **7 CERTIFIED / 3 FAIL-HONEST / 6 IN-FLIGHT** as of the R74 census run (not re-run this session; figures as-of that run) |
+| R34 | `b99942bdb` (`fix(doc-surface): count fn-openers in scan_elixir block depth`) | fn-depth fix; not previously receipted in a §-section (first appears as PIN-ROTATION-LEDGER hop-1 rotation) |
+| R49 | ex4pm `d52fb4d` (`docs(sjira): re-certify ACCEPTED at 17e2831 with post-fix extractor`) | ex4pm re-certify; not previously receipted in a §-section |
+
+### 16.2 In-flight (as-of 2026-10-09)
+
+| lane | tip (resolved this session) | state |
+|---|---|---|
+| R26 xaas grounding | xaas `26f9b75e` (R52 module surfaces) | IN-FLIGHT |
+| R17-r autofde | autofde-lab `fbd6eab4` (live card-served witness) | IN-FLIGHT |
+| R11-r / R23-r | — | IN-FLIGHT (no new tip witnessed this session) |
+| R29 bcinr closeout | bcinr `3f3ff18b` (493-item remainder inventory; tip is the R61-stable-reference sibling `5d05744`-adjacent head) | IN-FLIGHT — closeout pending |
+| R69 / R75 / R76 | — | watches, IN-FLIGHT |
+
+### 16.3 Standing
+
+Extended PARTIAL_ALIVE. Boundary: §16.2 in-flight set; R74 figures
+as-of-run (not re-witnessed); bcinr note SKIP is a disclosed gap in the
+otherwise-complete R61 sibling sweep.
+
+### Replay (round 9)
+
+```
+for spec in "ggen-marketplace:0f3d840ff" "ggen-marketplace:4827e5d01" \
+  "ggen-marketplace:6b3f1d044" "ggen-marketplace:02c8440da" \
+  "ggen-marketplace:a7701b042" "ggen-marketplace:b99942bdb" \
+  "zcode-cli:9ceba84" "ggen-ecosystem:f72cef7e" \
+  "ash_surface:d60fdb630" "ex4pm:5d05744" "ash_graphlaw:cf51041" \
+  "castle:2d72949" "frozen-duckdb:4eb7d85" "ex4pm:d52fb4d" \
+  "xaas:26f9b75e" "autofde-lab:fbd6eab4" "bcinr:3f3ff18b"; do
+  r=${spec%%:*}; s=${spec##*:}
+  git -C /Users/sac/$r log --oneline -1 $s
+done
+git -C /Users/sac/zcode-cli rev-parse v26.10.8-2^{commit}   # 9ceba840…
+wc -l /Users/sac/ggen-marketplace/docs/sjira/v26.10.8/seal/drafts.jsonl  # 83
+grep -c "Hop 3 (current)" /Users/sac/ggen-marketplace/docs/sjira/v26.10.8/PIN-ROTATION-LEDGER.md
+ls /Users/sac/.claude/projects/-Users-sac/memory/ | grep -E "pin-stability|honest-fail|tag-advance|seam-taxonomy|prepush"
+```
