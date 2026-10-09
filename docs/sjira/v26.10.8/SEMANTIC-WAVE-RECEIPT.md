@@ -963,3 +963,61 @@ git -C /Users/sac/bcinr show 349afd7b:docs/sjira/v26.10.8/DOC-HDIT-CERTIFY-RECEI
 wc -l /Users/sac/ggen-marketplace/docs/sjira/v26.10.8/seal/drafts.jsonl   # 83
 tail -1 /Users/sac/ggen-marketplace/docs/sjira/v26.10.8/seal/CHAIN-HEAD.txt  # RCERT-ASHSURF d0265c9b…
 ```
+
+## 18. Round-11 addendum: pre-close lands since §17 (2026-10-09, lane R115)
+
+Landed since §17. Every SHA below resolved this session via `git log
+--oneline -1 <sha>` in its owning canonical checkout; figures re-read
+from the landed receipt content at the resolved subject, not recalled.
+As-of 2026-10-09.
+
+### 18.1 Landed
+
+| row | subject (verified) | notes |
+|---|---|---|
+| R111 | bcinr `6d3439ad` (`docs(sjira): mint v26.10.8 standing receipt — CERTIFIED at 349afd7b (lane R111)`) | CERTIFIED, subject-bound at `349afd7b` (`bench/rdtsc-tick-tables` == main == origin/main, tree clean); lineage R10 REFUSED (S_coverage 0.3480) → R29 close-out (`f3e9c23f`, 0.9658) → R69 re-witness ACCEPTED (S_coverage 0.9658 / Φ 0.000182 / Q_density 0.9998, thresholds byte-identical to R10); falsifier disclosed in-receipt: re-run `rollout.sh --report-only` at `349afd7b` with the pinned extractor — certify REFUSE or S_coverage < 0.90 refutes |
+| R114 | bcinr `32cddb2b` (`docs(sjira): record branch-plane note in v26.10.8 standing receipt (lane R114)`) | branch-plane note (+6 lines to the R111 receipt); on-disk re-check this session: `main` == `bench/rdtsc-tick-tables` == `origin/main` == `origin/bench/rdtsc-tick-tables` all at `32cddb2b`; tag `v26.10.8` (annotated, object `e440420d`) dereferences to the `349afd7b` certify subject; note text records the note-time plane at `6d3439ad` |
+| R112 | ash_pplan `6f97a24` (`docs(sjira): v26.10.8 standing receipt — CERTIFIED subject-bound at a1f332e (R112)`) | CERTIFIED via reclose chain: witness `reclose/ash_pplan.reclose.chain.jsonl` ACCEPTED, subject `cb97bcdb…` (64-hex content digest, recomputed on disk per RECLOSE.md — not a git SHA), gates S_coverage 0.97747 / Φ 0.000775 / Q_density 0.99923 over clean `git archive` of main `a1f332e`, extractor pinned `feb12208`; drift delta disclosed: 10 commits `a8810b5`→`a833f1b`, two-file lib/test drift only (`ash_pplan.dsl_docs.ex` +180, `dsl_docs_test.exs` +48, via `cd2b3d3` merge), no `lib/ash_pplan/` runtime change; **R91 denominator citation PENDING, disclosed in-receipt** |
+| R108 | xaas `04e877fc` (`docs(sjira): v26.10.8 standing receipt for doc surface (lane R108)`) | FAIL-HONEST at policy scope, subject-bound at `0afd81ed`: module gate FAILS 1013 modules / **64 uncovered**; whole-docs denominator 1004/1013 = 0.9911 PASS vs 0.90 (R64 module-level decision); **Φ SOLVED: 0.0001** post `[152]` scaffold-cell grounding (0.1008→0.0001, gate PASS) — Φ standing independent of the coverage FAIL; concurrent R92 audit mid-flight noted as bound to stale `26f9b75e`, does not supersede |
+| R109 | ggen `10a17c2c6` (`docs(sjira): R109 — PR #795 merge receipt + same-checkout violation record`) | PR #795 state=MERGED, mergeCommit `16b99731a`, `origin/main` re-verified `16b99731a703f…`; violating actor's stash `2896f0588` contained only the pre-push.sh delta already landed byte-identical by R68 (`git diff 2896f0588 HEAD -- scripts/hooks/pre-push.sh` empty) — no residual diff; stash ref preserved; violation recorded with reflog evidence (11:44:49 stash → 11:44:58 checkout away → 11:50:39 back) |
+| R113 | ggen `c9613665a` (`docs(sjira/v26.10.8): Dependabot exposure triage — 52 open alerts, criticals classified`) | real `gh api dependabot/alerts` data 2026-10-09: **52 open (9 critical, 26 high, 16 medium, 1 low)**; 4 next criticals lockfile-bump fixable (next 15.5.21→15.5.24, same major); 5 vitest criticals need the 2→3 major (dev-only); proposal: one batch (next>=15.5.24 + vitest>=3.2.6 + lockfile regen) covers 52/52; no dependency changes made. NB: this commit lives in **ggen**, not ggen-marketplace as dispatch implied |
+| R104/R77 | ggen `origin/main` = `16b99731a` (re-read this session) | **RESOLVED** — PR #795 MERGED; the §17.2 R77 in-flight row ("ggen main push unadvanced at `d593a7f30`") and the long BLOCKED[LANE_CONTENTION] chain it headed close here; ggen main is current |
+
+### 18.2 In-flight (as-of 2026-10-09)
+
+| lane | tip | state |
+|---|---|---|
+| R26-r/R92 xaas certify | R92 bound to stale `26f9b75e` per R108 receipt | IN-FLIGHT |
+| R30-r ash_a2a certify | — | IN-FLIGHT |
+| R11-r beam4pm | — | IN-FLIGHT |
+| R23-r gymact | — | IN-FLIGHT |
+| R75-r/R107 wasm4pm | — | IN-FLIGHT |
+| R17-r autofde | — | IN-FLIGHT |
+| R71/R91 ash_pplan citation | R91 denominator citation PENDING, disclosed in the R112 receipt | IN-FLIGHT |
+| R90 standing-binding wave | — | IN-FLIGHT (carried from §17.2) |
+
+### 18.3 Standing
+
+Extended PARTIAL_ALIVE. Boundary: §18.2 in-flight set; R113 subject is
+in ggen (not this repo); R114 branch-plane note records note-time refs
+(`6d3439ad`), current refs one commit ahead at `32cddb2b`; R98 census
+correction still as-dispatched (unchanged since §17).
+
+### Replay (round 11)
+
+```
+for spec in "bcinr:6d3439ad" "bcinr:32cddb2b" "ash_pplan:6f97a24" \
+  "xaas:04e877fc" "ggen:10a17c2c6" "ggen:c9613665a" "ggen:16b99731a"; do
+  r=${spec%%:*}; s=${spec##*:}
+  git -C /Users/sac/$r log --oneline -1 $s
+done
+git -C /Users/sac/ggen rev-parse origin/main                            # 16b99731a703f…
+grep -c cb97bcdb /Users/sac/ash_pplan/docs/sjira/v26.10.8/reclose/ash_pplan.reclose.chain.jsonl
+grep -E "0.97747|0.000775|0.99923" /Users/sac/ash_pplan/docs/sjira/v26.10.8/STANDING-RECEIPT.md | head -2
+grep -E "^- Subject|64 uncovered|0.0001" /Users/sac/xaas/docs/sjira/v26.10.8/STANDING-RECEIPT.md | head -3
+grep -E "S_coverage 0.3480|0.9658|0.000182|0.9998" /Users/sac/bcinr/docs/sjira/v26.10.8/STANDING-RECEIPT.md | head -4
+for ref in main bench/rdtsc-tick-tables origin/main origin/bench/rdtsc-tick-tables; do git -C /Users/sac/bcinr rev-parse --short $ref; done  # 4x 32cddb2b
+git -C /Users/sac/bcinr rev-parse v26.10.8^{commit}                     # 349afd7b82c8…
+git -C /Users/sac/ggen show 10a17c2c6 -s --format=%B | head -8          # mergeCommit 16b99731a, stash 2896f0588
+git -C /Users/sac/ggen show c9613665a -s --format=%B | head -4          # 52 open, 9 critical
+```
