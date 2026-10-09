@@ -729,3 +729,65 @@ git -C /Users/sac/wasm4pm show v26.10.8-3:docs/sjira/v26.10.8/WORKGRAPH.ttl \
 git -C /Users/sac/ash_pplan log --oneline -1 a1f332e
 git -C /Users/sac/ggen log --oneline -1 6aa26c54c
 ```
+
+## 14. Round-8: certify-mint wave (2026-10-09, lane `semwave-r8`)
+
+Docs-only lane on ggen-marketplace `hdit-v2-structs` @ `a9b6a11a9`
+(`--ff-only` vs origin, no stash). The R-wave certify-mint round: doc-hdit
+certify receipts minted at pinned extractor `4c862576ab…` (BLAKE3 identity
+`a579e210…`) across the fleet. Every landed row below re-verified this
+session in its owning canonical checkout (`git cat-file -t` commit /
+`rev-parse tag^{commit}` / branch tip) and its metrics read from that repo's
+own on-disk certify receipt — no dispatch-reported figures in the landed
+table. As-of date 2026-10-09.
+
+### 14.1 Landed
+
+| row | subject (verified) | verdict | S / Φ / Q (from on-disk receipt) | notes |
+|---|---|---|---|---|
+| ash_surface | `757060450` (`docs: doc-hdit certify receipt + WO-2 standing ALIVE (v26.10.8)`) | ACCEPTED | 0.99959 / 0.0 / 1.0 (`doc-hdit-certify-meta.json`) | WO-2 UNKNOWN→ALIVE carried in the same landing; head-at-certify `dc214d7b5` |
+| frozen-duckdb | `7063b9d` (`docs: doc-hdit CERTIFY receipt v26.10.8 — ACCEPTED at pinned extractor`) | ACCEPTED | 0.9082 / 0.0 / 1.0 (`DOC-HDIT-CERTIFY-RECEIPT.md`) | tag `v26.10.8` dereferenced → `7063b9d4d726…`; **Andon-Yellow R4 ceiling: `promotionAllowed=false`** — certifies gates only, no promotion |
+| castle | `d6f136c78` (`docs: doc-hdit CERTIFY ACCEPTED + correct v26.10.8 tag standing (lane R5)`) | ACCEPTED | 0.9473 / 0.0 / 1.0 (`doc-hdit.receipts.jsonl` chain tip: S 0.9473222124670764) | chain root receipt, thresholds unmodified |
+| ash_graphlaw | `949eae9` (`docs(sjira): v26.10.8 doc-hdit CERTIFY ACCEPTED at tested HEAD (lane R4)`) | ACCEPTED | 0.9861 / 0.0 / 1.0 (`CERTIFY-VERIFY.md`: S 0.9861357980803412) | tag `v26.10.8` moved to certified commit → `949eae9a7780…` per zero-citation sweep (zero external receipts cited the old tag subject); disclosed 0.9865 coverage ceiling recorded, not worked around |
+| zcode-cli | `a649d43` (`docs(receipt): land FAIL-honest TS-witness audit (R13) + fix stale tag claim`) | FAIL-honest | 0.1800 / 0.0 / 1.0 (`TS-WITNESS-RECEIPT.md`: set-gate FAIL coverage=0.1800 threshold=0.3000, thresholds untouched) | stale tag claim fixed in the same landing; FAIL-honest is the lawful landing state |
+| ggen residual branches | `db713d444` (sel4), `9c9c4cea1` (law), `1f6baa689` (cross-spec), `a82fd95ea` (cdt) | closed | n/a | per `ggen/docs/sjira/v26.10.8/RESIDUAL-BRANCHES.md`: all four pushed (cdt 0/0); `main` `d593a7f30`→`fcfd6349d` = 38-commit fast-forward, PARKED `BLOCKED[HOOK_VALIDATES_CHECKED_OUT_TREE]` (push refused x2, origin main unchanged) |
+| gymact | `71374d4b` (`fix(test): repo-root sys.path for scripts import in determinism court; correct receipt base tag SHA`) | green | n/a | FF-merged to `main` (branch tip = `71374d4b`); determinism court re-witnessed green this session (`pytest tests/test_agent_cards.py -q` in repo venv: 7/7 pass) |
+| fleet-court cron wiring | `0252a3d05` (`docs(sjira): fleet-courts continuous wiring receipt (launchd 6h schedule, first-run verdicts)`) | landed | n/a | this repo |
+| fortune5 CI | `564d9563e` (`ci(fortune5): wire EA pack pytest battery into CI`) | landed | n/a | this repo |
+
+### 14.2 In-flight (as-of 2026-10-09, not certified this round)
+
+| lane | state |
+|---|---|
+| ex4pm | IN-FLIGHT — upstream-blocked (tip `e4963ba`, extractor-pin docs) |
+| xaas | IN-FLIGHT — certify lanes; round-6 standing note `dec2a9aa` (repair reproduced, re-audit pending) |
+| beam4pm | IN-FLIGHT — pending (tip `eb07f235`, WORKGRAPH regen fix) |
+| autofde-lab | IN-FLIGHT — pending (tip `fbd6eab4`, agent-card live witness) |
+| affidavit | IN-FLIGHT — pending (tip `6b2dd4c`, CDT local severance test) |
+| bcinr | IN-FLIGHT — pending post-`273fb703` certify mint (tip `01669d20`, streaming-fold negative bench) |
+
+### 14.3 Round-8 standing
+
+Standing: **PARTIAL_ALIVE (extended)** — the certify-mint wave landed 5 new
+ACCEPTED certify receipts (ash_surface, frozen-duckdb, castle, ash_graphlaw)
+plus the zcode FAIL-honest landing, on top of the §13.2 roster; the frozen-duckdb
+Andon-Yellow R4 promotion ceiling and zcode's FAIL-honest set-gate remain the
+exact typed boundary. Not claimed: full ALIVE — the §14.2 in-flight set and
+the ggen `main` push-block are the rest of this receipt's boundary.
+
+### Replay (round 8)
+
+```
+for spec in "ash_surface:757060450" "frozen-duckdb:7063b9d" "castle:d6f136c78" \
+  "ash_graphlaw:949eae9" "zcode-cli:a649d43" "gymact:71374d4b" \
+  "ggen:db713d444" "ggen:9c9c4cea1" "ggen:1f6baa689" "ggen:a82fd95ea" \
+  "ggen-marketplace:0252a3d05" "ggen-marketplace:564d9563e"; do
+  r=${spec%%:*}; s=${spec##*:}
+  git -C /Users/sac/$r log --oneline -1 $s
+done
+git -C /Users/sac/frozen-duckdb rev-parse v26.10.8^{commit}   # 7063b9d4d726…
+git -C /Users/sac/ash_graphlaw rev-parse v26.10.8^{commit}    # 949eae9a7780…
+git -C /Users/sac/ggen log --oneline -1 main                  # fcfd6349d (PARKED)
+PYTHONPATH=/Users/sac/gymact/src /Users/sac/gymact/.venv/bin/python \
+  -m pytest /Users/sac/gymact/tests/test_agent_cards.py -q    # 7/7 pass
+```
