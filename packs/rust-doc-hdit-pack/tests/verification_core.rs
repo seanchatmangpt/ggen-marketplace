@@ -549,6 +549,35 @@ fn p3_public_scope_and_remediation_list() {
     assert!(claimed.contains("release/v26.8.23"));
 }
 
+#[test]
+fn p3_denominator_reconciliation_raw_vs_set_emitted() {
+    // Backlog [59]: the audit previously emitted only the post-collapse set
+    // denominator, so the raw-vs-set discrepancy was invisible. Both
+    // denominators plus the collapsed delta must now be present.
+    let modules = vec![
+        CodeModule {
+            name: "engine".into(),
+            is_public: true,
+            items: vec![
+                item("fn", "ignite", true),
+                item("fn", "exhaust", true),
+            ],
+        },
+        // A non-public module whose public items survive in the raw
+        // denominator but are collapsed out of the set denominator.
+        CodeModule {
+            name: "engine_internal".into(),
+            is_public: false,
+            items: vec![item("fn", "hidden_thing", true)],
+        },
+    ];
+    let rep = s_coverage_set_report(&modules, &[]);
+    assert_eq!(rep.total, 2, "set denominator: public items in public modules");
+    assert_eq!(rep.total_raw, 3, "raw denominator: public items across ALL modules");
+    assert_eq!(rep.collapsed_delta, rep.total_raw - rep.total);
+    assert_eq!(rep.collapsed_delta, 1);
+}
+
 // --------------------------------- claim-grounding granularity variants ---
 
 #[test]

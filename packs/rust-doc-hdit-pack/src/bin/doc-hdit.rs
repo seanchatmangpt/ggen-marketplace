@@ -374,6 +374,8 @@ fn main() {
                 serde_json::json!({
                     "covered": cov.covered,
                     "total": cov.total,
+                    "total_raw": cov.total_raw,
+                    "collapsed_delta": cov.collapsed_delta,
                     "uncovered_modules_top10": cov
                         .uncovered_modules
                         .iter()
@@ -415,6 +417,10 @@ fn main() {
             // P2 landed: S_coverage gates over the public/documented surface;
             // the raw full-surface value stays report-only.
             println!("REPORT  coverage_raw value={:.4}", sc_raw);
+            println!(
+                "REPORT  coverage_denominators set={} raw={} collapsed_delta={} (set gates over the public-scope surface; raw counts public items before the scope/dedup collapse)",
+                cov.total, cov.total_raw, cov.collapsed_delta
+            );
             println!(
                 "REPORT  coverage_vsa value={:.4} (VSA projection cosine, report-only)",
                 sc_vsa

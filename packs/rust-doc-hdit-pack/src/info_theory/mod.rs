@@ -425,6 +425,13 @@ pub struct CoverageReport {
     pub coverage: f64,
     pub covered: usize,
     pub total: usize,
+    /// Raw public-item denominator: public items across ALL modules, before
+    /// the public-scope collapse that drops non-public modules' items
+    /// (backlog [59]: the 1719-vs-1758 denominator discrepancy was invisible
+    /// because only the post-collapse total was emitted).
+    pub total_raw: usize,
+    /// total_raw - total: items lost to the dedup/arity/module-scope collapse.
+    pub collapsed_delta: usize,
     /// (module_name, uncovered_public_item_count), descending by count.
     pub uncovered_modules: Vec<(String, usize)>,
 }
@@ -468,6 +475,10 @@ pub fn s_coverage_set(modules: &[CodeModule], claims: &[Claim]) -> f64 {
 pub fn s_coverage_set_report(modules: &[CodeModule], claims: &[Claim]) -> CoverageReport {
     let public = public_modules(modules);
     let claimed = claim_token_set(claims);
+    let total_raw: usize = modules
+        .iter()
+        .map(|m| m.items.iter().filter(|it| it.is_public).count())
+        .sum();
     let mut covered = 0usize;
     let mut total = 0usize;
     let mut uncovered: Vec<(String, usize)> = Vec::new();
@@ -487,5 +498,6 @@ pub fn s_coverage_set_report(modules: &[CodeModule], claims: &[Claim]) -> Covera
     }
     uncovered.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
     let coverage = if total == 0 { 0.0 } else { covered as f64 / total as f64 };
-    CoverageReport { coverage, covered, total, uncovered_modules: uncovered }
+    let collapsed_delta = total_raw.saturating_sub(total);
+    CoverageReport { coverage, covered, total, total_raw, collapsed_delta, uncovered_modules: uncovered }
 }
