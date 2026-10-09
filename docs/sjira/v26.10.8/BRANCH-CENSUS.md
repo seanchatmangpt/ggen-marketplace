@@ -211,3 +211,19 @@ park-with-receipt):
 - Unpushed-main findings: ggen main 38/0 (receipted BLOCKED, see ggen
   RESIDUAL-BRANCHES.md), autofde-lab master 19/0 (push), graphlaw main 7/0
   (push), ggen-marketplace main 0/126 behind (this branch is the carrier).
+
+## R45 execution (2026-10-09)
+
+Unpushed-main dispositions executed per census findings 8 and 9.
+
+- **autofde-lab master 19/0**: `origin/master..master` reviewed — 19 commits,
+  coherent campaign line (feat(aaif) AAIF runtime integration, doctrine-lab
+  court fixes with mutant-kill tests, docs(sjira) v26.10.8 CAMPAIGN-RECEIPT,
+  changelog/link-sweep/benchmark docs, lane-lease gitignore). No WIP/draft
+  markers; tip 7989bd2b (2026-10-08). FF-able (merge-base verified).
+  **Pushed FF**: `71de04a6..7989bd2b master -> master`.
+- **graphlaw main 7/0**: `origin/main..main` reviewed — 7 commits, coherent
+  campaign line (W647 WASM FFI shell, wasm re-pin to reproducible digest,
+  cross-reference docs, campaign receipt, registry-limits merge + ASSETS.sha256
+  regen). No WIP markers; tip c4a257d (2026-10-08). FF-able.
+  **Pushed FF**: `1869a16..c4a257d main -> main`.
