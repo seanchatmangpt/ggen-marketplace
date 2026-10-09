@@ -503,7 +503,13 @@ disk in their owning repos this session are marked **wave-reported
 
 | repo | verdict |
 |---|---|
-| xaas | PASS (ts) — matrix M8; post-repair witness landed |
+| xaas | PASS (ts) — matrix M8; [60] repair REPRODUCED at the repair-time
+  extractor `5eb8076ab` (coverage 0.9509 / Phi 0.0000 / density 1.0000, exit 0;
+  `/tmp/m8-xaas-final/audit.5eb.txt`) AND a HEAD-extractor refusal of 0.2333
+  witnessed on the same corpus (`/tmp/m8-xaas-final/audit.head.txt`, exit 1;
+  bisection: `5eb` PASS / HEAD FAIL; extractor copies md5
+  `422fe384…`/`7fd2a957…` on disk); standing: [60] repair ALIVE, canonical gate
+  pending [130] |
 | ex4pm | PASS (ts); certify-landed (`CERTIFY-VERIFY.md` + `ex4pm.chain.jsonl` on disk; P0-117 regen fix `d9422d3` re-verified) |
 | ggen_igniter | PASS (ts) — M15 execute suite 16/0 |
 | gmp | PASS (ts) — wave-reported |
@@ -512,7 +518,15 @@ disk in their owning repos this session are marked **wave-reported
 | affidavit | PASS (ts) — M11 clippy clean, sj_record 11/11 |
 | ash_surface | PASS (ts) — post-repair `620aa939`; [124] mixed-verdict honesty carried (regex path FAIL disclosed) |
 | ash_graphlaw | PASS (ts) — post-repair `32765fc`, scaffold=0 Phi 0.000000 |
-| zcode | PASS (ts) — pending TS-surface denominator ([127]); [91] closed, `f055645` on main via `925617a` (re-verified) |
+| zcode | PASS (ts) — certified-under-TS-denominator pending [127];
+  [74]+[98] merged, WORKGRAPH.ttl landed on zcode-cli `origin/main` via
+  `925617a` → `f055645` (re-verified), court-zcode present
+  (`test/workflow-toolchain-court-*.test.ts`); degenerate-denominator finding:
+  every re-audit run at `/tmp/zcode-reaudit` reports `coverage_denominators
+  set=37` — audit values Phi 0.2195 (ts extractor, `zcode.audit.txt`) vs
+  wave-reported ~0.99 PASS (as-of-date); both values are denominator artifacts,
+  not a doc regression — TS-surface re-audit recommended before certification
+  is final |
 
 **Typed BLOCKED with falsifier**:
 
@@ -526,7 +540,11 @@ phantom mass lands; ACCEPTED replaces BLOCKED |
 | ash_pplan | BLOCKED-with-falsifier — audit 0.0034 FAIL-honest with 3 named
 claims, wave-reported (as-of-date; [125]) | re-audit at post-[125] HEAD drops
 Phi ≤ 0.001 |
-| zcode | BLOCKED-with-falsifier — TS denominator ([127], wave-reported) |
+| zcode | BLOCKED-with-falsifier — TS denominator ([127]); re-audit witness
+  landed at `/tmp/zcode-reaudit` (denominator set=37: coverage 0.6757 / Phi
+  0.2195, `zcode.audit.txt`; post-merge extractor run Phi 0.8462,
+  `merged.audit.txt`) | TS-surface re-audit drops the degenerate denominator;
+  acceptance = audit over the TS public surface |
 | frozen-duckdb | BLOCKED-with-falsifier — 0.8985 ([107] closed via
 `66eaea182` (re-verified) but 4-item residual open) | re-audit S < 0.90 or
 Phi > 0.001 refutes closure |
