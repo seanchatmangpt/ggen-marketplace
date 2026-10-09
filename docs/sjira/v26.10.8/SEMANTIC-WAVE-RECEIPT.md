@@ -900,3 +900,66 @@ wc -l /Users/sac/ggen-marketplace/docs/sjira/v26.10.8/seal/drafts.jsonl  # 83
 grep -c "Hop 3 (current)" /Users/sac/ggen-marketplace/docs/sjira/v26.10.8/PIN-ROTATION-LEDGER.md
 ls /Users/sac/.claude/projects/-Users-sac/memory/ | grep -E "pin-stability|honest-fail|tag-advance|seam-taxonomy|prepush"
 ```
+
+## 17. Round-10 addendum: standing-receipt + denominator-citation wave (2026-10-09, lane R100)
+
+Landed since §16. Every SHA below resolved this session via `git log
+--oneline -1 <sha>` (or tag `^{commit}`) in its owning canonical
+checkout; per-commit figures read from the commit message / on-disk
+receipt content it landed, or marked as-dispatched where no landed
+artifact was witnessed. As-of 2026-10-09.
+
+### 17.1 Landed
+
+| row | subject (verified) | notes |
+|---|---|---|
+| R73 | (already landed §16.1) `a7701b042` — gmp untracked disposition | covered in §16.1; reference, not duplicated |
+| R81 | `c40667db6` (`feat(hooks): R81 commit-hook pin-freshness guard — install script + runbook law`) | this repo; both probe paths witnessed per lane report |
+| R85/R86 | fortune5 CI: `d3484b807` (BLOCKED triage — workflow missing pytest install) → `eac329ece` (GREEN witness — run 37972875539, 96 passed) | this repo; `eac329ece` is branch tip at write time; witness run cited from commit message |
+| R94 | ash_surface `bb15dfc88` (`docs(sjira): mint ash_surface standing receipt (lane R94)`) | digest-bound disclosure per lane report |
+| R96 | zcode-cli `5eb26973982f89b896caa3a36c23c32575620d81` (`docs(receipt): R96 standing receipt at 9ceba84 — FAIL-HONEST bound, drift corrected (2 commits, 0 ts)`) | subject-bound FAIL-HONEST (S_coverage 0.1800) at pin `9ceba84`; corrects the V19 STALE-by-13-commits claim on disk in `docs/sjira/v26.10.8/STANDING-RECEIPT.md` |
+| R69/R29/R82 | bcinr `349afd7b82c898e5ff5aa9e65760d536960cb695` (`docs(hdit): record R69 closeout standing row in the R10 certify receipt`) | certify **ACCEPTED** re-read from commit content: S_coverage 0.9658 / Φ_halluc 0.000182 / Q_density 0.9998 (thresholds identical to R10); R10 REFUSED closed; coordinator tag `v26.10.8` → `349afd7b82c8…` (zero-citation sweep per lane report) |
+| R89/R91 | denominator-scope law citations, 6 repos: ash_graphlaw `b18aa9d`, frozen-duckdb `c963899`, ex4pm `b442166`, ferroplan `042bc2e`, castle `69c78dc`+`ce780b0`, ash_surface `07f8d7154` (all `docs: cite denominator-scope law (R89)`) | every SHA resolved this session; ash_pplan: no denominator commit — R91 carried as SKIP (see in-flight) |
+| R98 | census correction — 6 confirmed / 3 corrected; V19 figures reproduce or reconcile | **as-dispatched, not yet witnessed on disk**: no R98 census-correction commit found in any local checkout this session; V18 baseline = `BRANCH-CENSUS.md` @ `3d8e0d85f` (R37) in this repo |
+| V18 chain | seal chain re-read on disk: **83 records**, head `d0265c9b` (RCERT-ASHSURF-26108) — `seal/drafts.jsonl` + `seal/CHAIN-HEAD.txt` both re-counted | 7/7 linkage-OK per coordinator wave; seal-linkage gap → **R88 queued** |
+
+### 17.2 In-flight (as-of 2026-10-09)
+
+| lane | tip (resolved this session) | state |
+|---|---|---|
+| R77 ggen main push | ggen `origin/main` = `d593a7f30` (re-read) — not yet advanced | IN-FLIGHT |
+| R26/R92 xaas | — | IN-FLIGHT |
+| R30-r/R93 ash_a2a | — | IN-FLIGHT |
+| R11-r/R79 beam4pm | — | IN-FLIGHT |
+| R23-r/R76 gymact | — | IN-FLIGHT |
+| R75-r wasm4pm certify | — | IN-FLIGHT |
+| R71/R91 ash_pplan | tip `a833f1b` (`docs(sjira): v26.10.8 reclose — ACCEPTED at main a1f332e, extractor pinned feb12208`) | witnessed tip; denominator citation (R91) not landed |
+| R17-r autofde | — | IN-FLIGHT |
+| R90 | standing-binding wave | IN-FLIGHT (pending) |
+
+### 17.3 Standing
+
+Extended PARTIAL_ALIVE. Boundary: §17.2 in-flight set; R77 ggen main
+push unadvanced; R98 census correction as-dispatched (no landed
+artifact); V18 7/7 linkage as-reported with seal counts re-verified
+locally; R88 queued behind the seal-linkage gap.
+
+### Replay (round 10)
+
+```
+for spec in "ggen-marketplace:c40667db6" "ggen-marketplace:d3484b807" \
+  "ggen-marketplace:eac329ece" "ash_surface:bb15dfc88" \
+  "zcode-cli:5eb2697" "bcinr:349afd7b" \
+  "ash_graphlaw:b18aa9d" "frozen-duckdb:c963899" "ex4pm:b442166" \
+  "ferroplan:042bc2e" "castle:69c78dc" "castle:ce780b0" \
+  "ash_surface:07f8d7154" "ash_pplan:a833f1b"; do
+  r=${spec%%:*}; s=${spec##*:}
+  git -C /Users/sac/$r log --oneline -1 $s
+done
+git -C /Users/sac/ggen rev-parse origin/main                       # d593a7f30 → R77 IN-FLIGHT
+git -C /Users/sac/bcinr rev-parse v26.10.8^{commit}                # 349afd7b82c8…
+git -C /Users/sac/zcode-cli show 5eb2697 --stat                    # STANDING-RECEIPT.md +88
+git -C /Users/sac/bcinr show 349afd7b:docs/sjira/v26.10.8/DOC-HDIT-CERTIFY-RECEIPT.md | grep -E "0.9658|0.000182|0.9998"
+wc -l /Users/sac/ggen-marketplace/docs/sjira/v26.10.8/seal/drafts.jsonl   # 83
+tail -1 /Users/sac/ggen-marketplace/docs/sjira/v26.10.8/seal/CHAIN-HEAD.txt  # RCERT-ASHSURF d0265c9b…
+```
