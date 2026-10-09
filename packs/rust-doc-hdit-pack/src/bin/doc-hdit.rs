@@ -81,7 +81,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
         eprintln!(
-            "usage: doc-hdit <vectorize|audit|certify> -- <inputs.json> [court-file]\n       doc-hdit scaffold --code <json> --templates <dir> --out <docsdir>\n       doc-hdit certify <inputs.json> [court-file] [--docs <dir>] [--chain <receipts.jsonl>]"
+            "usage: doc-hdit <vectorize|audit|certify> -- <inputs.json> [court-file]\n       doc-hdit scaffold --code <json> --templates <dir> --out <docsdir> [--force]\n       doc-hdit certify <inputs.json> [court-file] [--docs <dir>] [--chain <receipts.jsonl>]"
         );
         std::process::exit(2);
     }
@@ -90,12 +90,18 @@ fn main() {
         let mut code = None;
         let mut templates = None;
         let mut out = None;
+        let mut force = false;
         let mut i = 2;
         while i < args.len() {
             match args[i].as_str() {
                 "--code" => code = args.get(i + 1).cloned(),
                 "--templates" => templates = args.get(i + 1).cloned(),
                 "--out" => out = args.get(i + 1).cloned(),
+                "--force" => {
+                    force = true;
+                    i += 1;
+                    continue;
+                }
                 _ => {}
             }
             i += 2;
@@ -103,11 +109,11 @@ fn main() {
         let (code, templates, out) = match (code, templates, out) {
             (Some(c), Some(t), Some(o)) => (c, t, o),
             _ => {
-                eprintln!("usage: doc-hdit scaffold --code <json> --templates <dir> --out <docsdir>");
+                eprintln!("usage: doc-hdit scaffold --code <json> --templates <dir> --out <docsdir> [--force]");
                 std::process::exit(2);
             }
         };
-        match doc_hdit::scaffold::scaffold_cli(&code, &templates, &out) {
+        match doc_hdit::scaffold::scaffold_cli(&code, &templates, &out, force) {
             Ok(written) => {
                 for w in &written {
                     println!("scaffolded {}", w.display());

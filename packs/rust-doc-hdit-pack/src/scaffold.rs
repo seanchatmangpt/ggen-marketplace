@@ -16,6 +16,34 @@ pub const COMMENTARY_END: &str = "<!-- AGENT-COMMENTARY-END -->";
 /// Outputs produced by a scaffold run.
 pub const OUTPUTS: [&str; 3] = ["reference.md", "how_to.md", "explanation.md"];
 
+/// Typed scaffold failures. `MarkerMissing` is the refusal raised when an
+/// existing, non-empty output file carries no AGENT-COMMENTARY marker set —
+/// hand-written prose the merge cannot preserve (ex4pm incident, backlog [63]).
+#[derive(Debug)]
+pub enum ScaffoldError {
+    /// Existing file has content but no `COMMENTARY_BEGIN`; scaffold refused.
+    MarkerMissing { path: std::path::PathBuf },
+    /// Any other failure (I/O, template parse, render).
+    Other(String),
+}
+
+impl std::fmt::Display for ScaffoldError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ScaffoldError::MarkerMissing { path } => write!(
+                f,
+                "REFUSED:SCAFFOLD_MARKER_MISSING:{} exists but has no {} marker; \
+                 scaffolding would overwrite hand-written prose (use --force to overwrite)",
+                path.display(),
+                COMMENTARY_BEGIN
+            ),
+            ScaffoldError::Other(s) => write!(f, "{}", s),
+        }
+    }
+}
+
+impl std::error::Error for ScaffoldError {}
+
 /// Build the deterministic Tera context from a code-surface JSON value.
 ///
 /// The JSON shape follows `scripts/gen_doc_surface.py code`:
@@ -169,29 +197,61 @@ pub fn scaffold(
     surface: &Value,
     templates_dir: &Path,
     out_dir: &Path,
-) -> Result<Vec<std::path::PathBuf>, String> {
+    force: bool,
+) -> Result<Vec<std::path::PathBuf>, ScaffoldError> {
+    // Refuse before rendering/writing anything: any existing non-empty output
+    // file whose template carries an AGENT-COMMENTARY slot but whose current
+    // content has none is hand-written prose the marker merge would silently
+    // drop. Outputs whose template is fully rigid (no slot, e.g.
+    // reference.md) are deterministic overwrites by design and always pass
+    // the guard. All-or-nothing across OUTPUTS.
     let pattern = templates_dir.join("*.tera");
-    let pattern = pattern
-        .to_str()
-        .ok_or_else(|| "templates dir is not valid UTF-8".to_string())?;
-    let tera = tera::Tera::parse(&pattern).map_err(|e| format!("tera parse: {}", e))?;
-    let context =
-        tera::Context::from_serialize(build_context(surface)).map_err(|e| e.to_string())?;
+    let pattern = pattern.to_str().ok_or_else(|| {
+        ScaffoldError::Other("templates dir is not valid UTF-8".to_string())
+    })?;
+    let tera = tera::Tera::parse(&pattern)
+        .map_err(|e| ScaffoldError::Other(format!("tera parse: {}", e)))?;
+    let has_slot: Vec<(&str, bool)> = OUTPUTS
+        .iter()
+        .map(|name| {
+            let template = name.replace(".md", ".md.tera");
+            let body = std::fs::read_to_string(templates_dir.join(&template))
+                .unwrap_or_default();
+            (*name, body.contains(COMMENTARY_BEGIN))
+        })
+        .collect();
+    if !force {
+        for (name, slot) in &has_slot {
+            if !slot {
+                continue;
+            }
+            let out_path = out_dir.join(name);
+            if let Ok(existing) = std::fs::read_to_string(&out_path) {
+                if !existing.is_empty() && !existing.contains(COMMENTARY_BEGIN) {
+                    return Err(ScaffoldError::MarkerMissing { path: out_path });
+                }
+            }
+        }
+    }
+    let context = tera::Context::from_serialize(build_context(surface))
+        .map_err(|e| ScaffoldError::Other(e.to_string()))?;
 
-    std::fs::create_dir_all(out_dir).map_err(|e| format!("mkdir {}: {}", out_dir.display(), e))?;
+    std::fs::create_dir_all(out_dir)
+        .map_err(|e| ScaffoldError::Other(format!("mkdir {}: {}", out_dir.display(), e)))?;
     let mut written = Vec::new();
     for name in OUTPUTS {
         let template = name.replace(".md", ".md.tera");
         let rendered = tera
             .render(&template, &context)
-            .map_err(|e| format!("render {}: {}", template, e))?;
+            .map_err(|e| ScaffoldError::Other(format!("render {}: {}", template, e)))?;
         let out_path = out_dir.join(name);
         let merged = match std::fs::read_to_string(&out_path) {
             Ok(existing) => merge_commentary(&rendered, &existing),
             Err(_) => rendered,
         };
-        std::fs::write(&out_path, merged)
-            .map_err(|e| format!("write {}: {}", out_path.display(), e))?;
+        std::fs::write(&out_path, merged).map_err(|e| {
+            ScaffoldError::Other(format!("write {}: {}", out_path.display(), e))
+        })?;
         written.push(out_path);
     }
     Ok(written)
@@ -202,12 +262,14 @@ pub fn scaffold_cli(
     code_path: &str,
     templates: &str,
     out: &str,
-) -> Result<Vec<std::path::PathBuf>, String> {
-    let raw = std::fs::read_to_string(code_path)
-        .map_err(|e| format!("cannot read {}: {}", code_path, e))?;
-    let surface: Value =
-        serde_json::from_str(&raw).map_err(|e| format!("invalid JSON in {}: {}", code_path, e))?;
-    scaffold(&surface, Path::new(templates), Path::new(out))
+    force: bool,
+) -> Result<Vec<std::path::PathBuf>, ScaffoldError> {
+    let raw = std::fs::read_to_string(code_path).map_err(|e| {
+        ScaffoldError::Other(format!("cannot read {}: {}", code_path, e))
+    })?;
+    let surface: Value = serde_json::from_str(&raw)
+        .map_err(|e| ScaffoldError::Other(format!("invalid JSON in {}: {}", code_path, e)))?;
+    scaffold(&surface, Path::new(templates), Path::new(out), force)
 }
 
 /// Exposed for tests: run scaffold twice and assert byte-identical outputs.
@@ -250,7 +312,7 @@ mod tests {
         for f in ["reference.md.tera", "how_to.md.tera", "explanation.md.tera"] {
             std::fs::copy(templates.join(f), tdir.join(f)).unwrap();
         }
-        let run = || scaffold(&surface(), &tdir, &odir).unwrap();
+        let run = || scaffold(&surface(), &tdir, &odir, false).unwrap();
         run();
         let snap: Vec<_> = OUTPUTS
             .iter()
@@ -295,7 +357,7 @@ mod tests {
         for f in ["reference.md.tera", "how_to.md.tera", "explanation.md.tera"] {
             std::fs::copy(templates.join(f), tdir.join(f)).unwrap();
         }
-        scaffold(&surface(), &tdir, &odir).unwrap();
+        scaffold(&surface(), &tdir, &odir, false).unwrap();
         let reference = std::fs::read_to_string(odir.join("reference.md")).unwrap();
         // Identifier cells must be claim-visible (backtick spans) for the
         // doc-claim scanner, including arity forms if the surface carries them.
@@ -315,5 +377,67 @@ mod tests {
     #[test]
     fn merge_keeps_fresh_when_no_existing_blocks() {
         assert_eq!(merge_commentary("A <!-- X --> B", "no markers"), "A <!-- X --> B");
+    }
+
+    /// Incident corpus (backlog [63], ex4pm): an existing, marker-free,
+    /// hand-written prose file must be refused, not silently overwritten.
+    #[test]
+    fn scaffold_refuses_marker_free_existing_prose() {
+        let dir = std::env::temp_dir().join(format!("doc-hdit-missing-marker-{}", std::process::id()));
+        let tdir = dir.join("templates");
+        let odir = dir.join("docs");
+        std::fs::create_dir_all(&tdir).unwrap();
+        let templates =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("templates");
+        for f in ["reference.md.tera", "how_to.md.tera", "explanation.md.tera"] {
+            std::fs::copy(templates.join(f), tdir.join(f)).unwrap();
+        }
+        // Simulate the ex4pm incident shape: hand-written Diátaxis prose with
+        // no AGENT-COMMENTARY markers anywhere, in a slot-carrying output.
+        std::fs::create_dir_all(&odir).unwrap();
+        let prose = "# How-to\n\nHand-written prose, no commentary markers.\n";
+        std::fs::write(odir.join("how_to.md"), prose).unwrap();
+
+        let err = scaffold(&surface(), &tdir, &odir, false).unwrap_err();
+        match &err {
+            ScaffoldError::MarkerMissing { path } => {
+                assert_eq!(path.file_name().unwrap(), "how_to.md");
+            }
+            other => panic!("existing marker-free prose must be refused, got {:?}", other),
+        }
+        // Typed refusal message carries the stable error string.
+        assert!(err.to_string().contains("REFUSED:SCAFFOLD_MARKER_MISSING"));
+        // Refusal is all-or-nothing: the pre-existing prose is byte-identical.
+        assert_eq!(std::fs::read(odir.join("how_to.md")).unwrap(), prose.as_bytes());
+        assert!(!odir.join("reference.md").exists(), "partial write on refusal");
+
+        // --force escape hatch overwrites (reference.md is fully rigid — no
+        // slot — so the marker lives in how_to.md).
+        let written = scaffold(&surface(), &tdir, &odir, true).unwrap();
+        assert_eq!(written.len(), OUTPUTS.len());
+        assert!(std::fs::read_to_string(odir.join("how_to.md"))
+            .unwrap()
+            .contains(COMMENTARY_BEGIN));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn scaffold_empty_existing_file_is_treated_as_fresh() {
+        let dir = std::env::temp_dir().join(format!("doc-hdit-empty-existing-{}", std::process::id()));
+        let tdir = dir.join("templates");
+        let odir = dir.join("docs");
+        std::fs::create_dir_all(&tdir).unwrap();
+        let templates =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("templates");
+        for f in ["reference.md.tera", "how_to.md.tera", "explanation.md.tera"] {
+            std::fs::copy(templates.join(f), tdir.join(f)).unwrap();
+        }
+        std::fs::create_dir_all(&odir).unwrap();
+        std::fs::write(odir.join("how_to.md"), "").unwrap();
+        scaffold(&surface(), &tdir, &odir, false).unwrap();
+        assert!(std::fs::read_to_string(odir.join("how_to.md"))
+            .unwrap()
+            .contains(COMMENTARY_BEGIN));
+        std::fs::remove_dir_all(&dir).ok();
     }
 }
