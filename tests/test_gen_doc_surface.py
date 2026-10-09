@@ -1,5 +1,6 @@
 """P2 scope + external-allowlist extractor tests (DOC-HDIT-PILOT P2)."""
 
+import json
 import sys
 import tempfile
 import unittest
@@ -1009,6 +1010,94 @@ class EnvKeySurfaceTest(unittest.TestCase):
         }
         assert by_file["tests/it.rs"]["is_public"] is False
         assert by_file["src/lib.rs"]["is_public"] is True
+
+
+class ElixirStrKeySurfaceTest(unittest.TestCase):
+    """Backlog [130]: Elixir atom/string config & verdict keys in `lib/`
+    bodies are real public configuration surface. Keyword-pair keys,
+    `{:error, key}` verdict atoms (bare and nested-payload lead atoms),
+    `=>` string map keys, and `Map.get`/`Keyword.get`-family accessor
+    literals emit `str_key` items — ident = the key, signature = the
+    site, pub-gate bypassed like [109]."""
+
+    def _elixir_repo(self, src):
+        return mkrepo({
+            "mix.exs": 'defmodule D.MixProject do\n'
+                       '  def project, do: [app: :demo, version: "0.1.0"]\n'
+                       'end\n',
+            "lib/demo.ex": src,
+        })
+
+    def _items(self, code):
+        return {
+            (it["kind"], it["ident"]): it
+            for m in code["modules"]
+            for it in m["items"]
+        }
+
+    def test_keyword_pair_keys_emit_str_key(self):
+        repo = self._elixir_repo(
+            'defmodule Demo do\n'
+            '  @expected [alpha: 1, beta: 2]\n'
+            '  def f, do: [timeout: 5_000, schema: "v1"]\n'
+            'end\n'
+        )
+        items = self._items(g.extract_code(repo, engine="ts"))
+        assert items[("str_key", "alpha")]["signature"] == "alpha: 1"
+        assert items[("str_key", "beta")]["signature"] == "beta: 2"
+        assert items[("str_key", "timeout")]["signature"] == "timeout: 5_000"
+        assert items[("str_key", "timeout")]["is_public"] is True
+
+    def test_error_verdict_atoms_emit_str_key(self):
+        repo = self._elixir_repo(
+            'defmodule Demo do\n'
+            '  defp f(x) do\n'
+            '    {:error, {:unsupported_frontier_producers, x}}\n'
+            '    {:error, :frontier_fragments_must_be_list_or_map}\n'
+            '    {:ok, x}\n'
+            '  end\n'
+            'end\n'
+        )
+        items = self._items(g.extract_code(repo, engine="ts"))
+        assert items[("str_key", "unsupported_frontier_producers")][
+            "signature"] == "{:error, {:unsupported_frontier_producers, x}}"
+        assert ("str_key", "frontier_fragments_must_be_list_or_map") in items
+        assert ("str_key", "x") not in items        # non-atom payload
+        assert ("str_key", "ok") not in items       # :ok tuples not verdicts
+
+    def test_string_map_keys_and_accessors_emit_str_key(self):
+        repo = self._elixir_repo(
+            'defmodule Demo do\n'
+            '  def f(m) do\n'
+            '    case m do\n'
+            '      %{"schema" => s} -> Map.get(m, "schema")\n'
+            '      %{atom_key: v} -> Keyword.get(opts, :schema)\n'
+            '    end\n'
+            '  end\n'
+            'end\n'
+        )
+        items = self._items(g.extract_code(repo, engine="ts"))
+        assert items[("str_key", "atom_key")]["signature"] == "atom_key: v"
+        assert items[("str_key", "atom_key")]["is_public"] is True
+        str_sigs = {
+            i["signature"]
+            for m in g.extract_code(repo, engine="ts")["modules"]
+            for i in m["items"]
+            if i["kind"] == "str_key" and i["ident"] == "schema"
+        }
+        assert '"schema" => _' in str_sigs
+        assert 'Map.get("schema")' in str_sigs
+
+    def test_extraction_is_deterministic_across_runs(self):
+        repo = self._elixir_repo(
+            'defmodule Demo do\n'
+            '  defp f(x), do: {:error, {:dup_key, x}}\n'
+            '  defp g(x), do: {:error, {:dup_key, x}}\n'
+            'end\n'
+        )
+        a = g.extract_code(repo, engine="ts")
+        b = g.extract_code(repo, engine="ts")
+        assert json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
 
 
 class UseListSpanTest(unittest.TestCase):

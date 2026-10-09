@@ -968,6 +968,116 @@ def _ex_first_atom(call):
     return a.text.decode().lstrip(":") if a is not None else None
 
 
+def _ex_str_keys(root):
+    """Backlog [130]: atom/string configuration and verdict keys used in
+    Elixir `lib/` bodies are real public configuration surface — claims
+    naming them ground against them the same way [109] grounds string-key
+    tables in Rust. Harvested per module body:
+
+    - keyword-pair keys (`timeout: 5_000`) — atom config keys;
+    - verdict atoms in error tuples — `{:error, :key}` bare, or the lead
+      atom of the nested payload tuple in `{:error, {:key, extras}}`;
+    - string keys on the left of `=>` in map expressions
+      (`%{"schema" => ...}`), including the accessor form
+      (`Map.get(x, "schema")` / `Keyword.get(k, :key)` and friends).
+
+    ident = the key; signature = the site. Public gate bypassed like
+    [109] (the VALUE/key is what docs name, not the binding).
+    """
+    items = []
+    accessors = _EX_KEY_ACCESSORS
+    structural = _EX_STRUCTURAL_KEYWORDS
+    for n in _walk(root):
+        if n.type == "pair":
+            kw = n.children[0]
+            kwtext = kw.text.strip() if kw.type == "keyword" else b""
+            if kw.type == "keyword" and kwtext.endswith(b":"):
+                k = kwtext.decode()[:-1]
+                if k and k not in structural:
+                    items.append({
+                        "kind": "str_key",
+                        "ident": k,
+                        "signature": _clean(n.text.decode()),
+                        "doc": "",
+                        "is_public": True,
+                    })
+        elif n.type == "tuple":
+            els = [c for c in n.children
+                   if c.type not in ("{", "}", ",")]
+            if not els or els[0].type != "atom" \
+                    or els[0].text != b":error":
+                continue
+            payload = els[1] if len(els) > 1 else None
+            if payload is not None and payload.type == "tuple":
+                els2 = [c for c in payload.children
+                        if c.type not in ("{", "}", ",")]
+                payload = els2[0] if els2 and els2[0].type == "atom" \
+                    else None
+            if payload is not None and payload.type == "atom" \
+                    and payload.text != b":error":
+                k = payload.text.decode().lstrip(":")
+                items.append({
+                    "kind": "str_key",
+                    "ident": k,
+                    "signature": _clean(n.text.decode()),
+                    "doc": "",
+                    "is_public": True,
+                })
+        elif n.type == "binary_operator" and n.text.startswith(b'"') \
+                and b"=>" in n.text:
+            s = _first_child(n, "string")
+            q = _first_child(s, "quoted_content") if s is not None else None
+            if q is not None:
+                k = q.text.decode()
+                items.append({
+                    "kind": "str_key",
+                    "ident": k,
+                    "signature": '"' + k + '" => _',
+                    "doc": "",
+                    "is_public": True,
+                })
+        elif n.type == "call":
+            dot = _first_child(n, "dot")
+            if dot is None:
+                continue
+            ftxt = _clean(dot.text.decode())
+            if ftxt not in accessors:
+                continue
+            args = _ex_args(n)
+            if args is None:
+                continue
+            for sub in args.children:
+                k = None
+                if sub.type == "string":
+                    q = _first_child(sub, "quoted_content")
+                    k = q.text.decode() if q is not None else None
+                elif sub.type == "atom":
+                    k = sub.text.decode().lstrip(":")
+                if k:
+                    items.append({
+                        "kind": "str_key",
+                        "ident": k,
+                        "signature": ftxt + '("' + k + '")',
+                        "doc": "",
+                        "is_public": True,
+                    })
+                    break
+    return items
+
+
+_EX_KEY_ACCESSORS = (
+    "Map.get", "Map.fetch", "Map.fetch!", "Map.pop", "Map.pop!",
+    "Keyword.get", "Keyword.fetch", "Keyword.fetch!", "Keyword.pop",
+)
+
+# Language structural keywords are not config surface: the one-line forms
+# (`def f, do: ...`, `case x do ... else: ...`) turn do/else into keyword
+# pair keys that would flood lib/ with thousands of noise items.
+_EX_STRUCTURAL_KEYWORDS = frozenset((
+    "do", "else", "rescue", "catch", "after", "into", "when",
+))
+
+
 ASH_TS_BLOCK_KINDS = ("attributes", "actions", "calculations")
 ASH_TS_ACTION_KINDS = ("read", "create", "update", "destroy", "action")
 ROUTE_TS_VERBS = ("get", "post", "put", "patch", "delete", "live")
@@ -1035,6 +1145,7 @@ def scan_elixir_ts(repo):
                 if do is not None:
                     body = _first_child(do, "body") or do
                     collect(body, sub, rel, items_out, is_router)
+                    items_out.extend(_ex_str_keys(body))
                 if items_out:
                     pending.append((sub, items_out))
                 continue
