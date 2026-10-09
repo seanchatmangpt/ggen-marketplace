@@ -222,3 +222,43 @@ the residual set is exactly { zcode extractor-seam remediation
 [137]–[139]+[144], frozen-duckdb 4-item residual }. Zero silent failures;
 every remaining figure not re-executed in this lane is marked
 dispatch-reported (as-of-date). Not claimed: full ALIVE.
+
+## 10. Round-7 final refresh (2026-10-09, lane `semwave-final`)
+
+Docs-only lane on ggen-marketplace `hdit-v2-structs`. Full detail in
+`SEMANTIC-WAVE-RECEIPT.md` §13; every SHA below re-verified this session in
+its owning canonical checkout via `git cat-file -e` / `git log --oneline -1`
+/ tag dereference (`e31fbf8ed`, `ba6f302c9`, `bf5597333` here; `273fb703` +
+`d8a77872` on bcinr `main`; `v26.10.8-3` → `abc39500ff24` ferroplan,
+`v26.10.8-3` → `2bb0c4ecf` wasm4pm; `a1f332e` ash_pplan `main`).
+
+### 10.1 Criterion deltas (round 7)
+
+| criterion | round-6 verdict | round-7 delta |
+|---|---|---|
+| Diataxis integrity | PASS | unchanged |
+| zero broken links | PASS | unchanged |
+| code-doc parity | PASS (strengthened r2/r3) | strengthened: [151b] template-literal masking fix landed (`e31fbf8ed`, 3 regression tests, supersedes `ba6f302c9` masking machine); zcode TS witness fail-honest decomposition unchanged (TRUE hallucinated symbols 0) |
+| parity guards | PASS (strengthened r3) | strengthened: [150] extractor-pin + [151c] certify wiring landed (`bf5597333`) — certify receipts natively bind extractor identity (BLAKE3 over extractor source, chain-bound), replay refuses typed `REFUSED:EXTRACTOR_MISMATCH`; the extractor-drift refusal class witnessed at `bcd82bb` is structurally closed fleet-wide |
+| clean tree | PASS WITH DISCLOSED EXCEPTIONS | unchanged |
+| receipts | PASS (strengthened r3) | strengthened: round-7 final sync folded in (`SEMANTIC-WAVE-RECEIPT.md` §13.1): bcinr Variant 3 merge `273fb703` (downward re-amendment `d8a77872`), ferroplan `v26.10.8-3` → `abc39500ff24`, wasm4pm `v26.10.8-3` → `2bb0c4ecf` with 16→17 SHA-count correction witnessed, ash_pplan round-6 note `a1f332e`, ggen `6aa26c54c` on `spec-integration` |
+
+### 10.2 Final roster state (round 7)
+
+- **12 certified PASS** (roster per `SEMANTIC-WAVE-RECEIPT.md` §11.2/§11.5,
+  unchanged since round 6).
+- **zcode: typed BLOCKED with falsifier** — unchanged from §9.2 (TS
+  denominator decomposition: FAIL-honest witness, G-class 165 / X-class 204
+  / TRUE hallucinations 0; remediation [137]–[139]+[144]; falsifier
+  unchanged).
+- **frozen-duckdb: typed BLOCKED, 4-item residual** — unchanged (re-audit
+  S < 0.90 or Phi > 0.001 refutes).
+
+### 10.3 Round-7 final verdict
+
+**GATE PASS WITH NAMED RESIDUES** — rounds 1–3 verdicts hold and strengthen;
+round-7 standing is PARTIAL_ALIVE (strengthened; final) per
+`SEMANTIC-WAVE-RECEIPT.md` §13.3. The residual set is exactly { zcode
+extractor-seam remediation [137]–[139]+[144], frozen-duckdb 4-item residual
+}. Zero silent failures; every figure not re-executed in this lane is marked
+dispatch-reported (as-of-date). Not claimed: full ALIVE.
