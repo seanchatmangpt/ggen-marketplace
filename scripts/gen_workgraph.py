@@ -754,11 +754,12 @@ def py_alias_targets(repo, scope) -> list:
             if stem == scope or stem.startswith(scope + "_") \
                     or stem.startswith(scope + "-"):
                 targets.append(rel)
-    for d, prefix in (("scripts", "scripts/test_"), ("tests", "tests/test_")):
+    for d in ("scripts", "tests"):
         base = os.path.join(repo, d)
         if not os.path.isdir(base):
             continue
         for name in sorted(os.listdir(base)):
+            prefix = "test_"
             if not name.endswith(".py") or not name.startswith(prefix):
                 continue
             stem = name[len(prefix):]
@@ -818,6 +819,59 @@ def falsifier_for_order(repo, version, order) -> str:
     if cmd.startswith("git log"):
         return cmd.format(version=version)
     return cmd + "  # expect exit 0 at HEAD; a failure at the cited SHAs refutes"
+
+
+def falsifier_yield_leg():
+    """v3 item-5 residue (backlog 25) selftest leg: python-scope falsifiers
+    pick up test-path aliases (tests/test_<scope>*.py, scripts/test_<scope>*.py,
+    packs/<scope>/tests) and the scripts-level acceptance command, instead of
+    falling back to repo-wide pytest. Deterministic (sorted dir listings)."""
+    import shutil
+    import tempfile
+
+    tmp = tempfile.mkdtemp(prefix="gen_workgraph_falsifier_yield_")
+
+    def write(path, content):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(content)
+
+    try:
+        write(os.path.join(tmp, "pyproject.toml"), "[project]\nname='x'\n")
+        write(os.path.join(tmp, "tests", "test_marketplace.py"), "def test_x():\n    pass\n")
+        write(os.path.join(tmp, "tests", "test_marketplace_pack.py"), "def test_x():\n    pass\n")
+        write(os.path.join(tmp, "tests", "test_other.py"), "def test_x():\n    pass\n")
+        write(os.path.join(tmp, "scripts", "test_marketplace.py"), "def test_x():\n    pass\n")
+        write(os.path.join(tmp, "packs", "marketplace", "tests", "t.py"), "x=1\n")
+        write(os.path.join(tmp, "scripts", "qualify_packs.py"), "print('hi')\n")
+        order = type("O", (), {"scope": "marketplace"})()
+        cmd = falsifier_for_order(tmp, "v1", order)
+        for frag in (
+            "tests/test_marketplace.py",
+            "tests/test_marketplace_pack.py",
+            "scripts/test_marketplace.py",
+            "packs/marketplace/tests",
+        ):
+            if frag not in cmd:
+                return "alias target missing: " + frag
+        if "tests/test_other.py" in cmd:
+            return "non-alias target leaked: tests/test_other.py"
+        # Scripts-level acceptance command when no pytest alias exists.
+        order2 = type("O", (), {"scope": "qualify_packs"})()
+        cmd2 = falsifier_for_order(tmp, "v1", order2)
+        if not cmd2.startswith("python3 scripts/qualify_packs.py --help"):
+            return "scripts-level acceptance command not used: " + cmd2
+        # No alias at all -> repo-wide fallback preserved.
+        order3 = type("O", (), {"scope": "nope"})()
+        cmd3 = falsifier_for_order(tmp, "v1", order3)
+        if not cmd3.startswith("python3 -m pytest tests/ -q"):
+            return "repo-wide fallback changed: " + cmd3
+        # Double-run byte-identical.
+        if cmd != falsifier_for_order(tmp, "v1", order):
+            return "falsifier double-run mismatch"
+        return None
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 SIBLING_PATH_RE = re.compile(r"^vendor/([^/]+)/")
@@ -1160,6 +1214,12 @@ def selftest(repos, version):
         return 1
     print("[ok] v3 gap legs: per-order falsifier command, cross-repo note, "
           "seed-commits binding, full projection catalog, acceptance compression")
+    fy_fail = falsifier_yield_leg()
+    if fy_fail:
+        print(f"[FAIL] falsifier target yield leg: {fy_fail}")
+        return 1
+    print("[ok] falsifier target yield leg: pytest aliases (tests/scripts/"
+          "packs) + scripts acceptance command + repo-wide fallback")
     none_fail = none_rev_range_leg()
     if none_fail:
         print(f"[FAIL] none rev_range leg: {none_fail}")
