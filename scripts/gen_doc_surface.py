@@ -57,7 +57,7 @@ SKIP_DIRS = {"deps", "_build", "node_modules", "target", ".git", ".venv", "priv"
 # `external_documented` in the audit core (NOT phantom, NOT uncovered) via
 # the known-vendor prefixes merged into `known_external`. `--include-vendor`
 # opts back into the full surface for full-surface audits.
-VENDOR_DIRS = {"vendor", ".ggen-v2", "third_party"}
+VENDOR_DIRS = {"vendor", ".ggen-v2", "third_party", "crucible"}
 
 # Active vendor policy (module-level because the low-level walkers
 # (`iter_files`, `path_surface`, `extract_directories`) are called deep inside
