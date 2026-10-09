@@ -161,3 +161,29 @@ git push origin hdit-v2-structs:main
 
 R31 witness: check ran at branch tip f7a32faaf with
 `OK: origin/main == hdit-v2-structs (f7a32faaf)`, exit 0 — no repair due.
+
+## Machine-wide CPU-fairness limiter for long audits (R41)
+
+Witness/audit runs that spawn many doc-hdit processes must go through the
+machine-wide semaphore in `scripts/run_fleet_courts.sh` (mkdir slots under
+`/tmp/doc-hdit-semaphore`, default 4 concurrent, 5s poll, 30-minute
+acquisition timeout, exit 99 on timeout; tunable via `DOC_HDIT_MAX_CONC`,
+`DOC_HDIT_SEM_DIR`, `DOC_HDIT_SEM_TIMEOUT`). Witness probe (2026-10-09): 6
+background stubs through the limiter — first 4 start together, remaining 2
+start only after earlier slots release; max overlap 4.
+
+Rules:
+
+- Long audits (anything spawning doc-hdit fleets, e.g. witness/audit rounds)
+  must run **nohup-detached**, never inline in an interactive session — the
+  attempt-4 incident (2026-10-09) tied up the session for ~4.5h wall under
+  24-37 concurrent processes at 100% CPU.
+- Run long audits through the limiter entry point:
+
+  ```sh
+  nohup bash scripts/run_fleet_courts.sh > /tmp/fleet-courts.log 2>&1 &
+  ```
+
+- The limiter only gates entry; court semantics are unchanged (exit 0 iff
+  all courts pass). Synthetic self-check: `bash scripts/run_fleet_courts.sh
+  --probe-limiter`.
