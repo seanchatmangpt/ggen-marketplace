@@ -664,6 +664,14 @@ def repo_manifest(repo):
     return None
 
 
+def receipt_witness_class(rel: str) -> str:
+    """v3 backlog [22]: witness class of a receipt path. Deterministic:
+    court artifacts (court/*.r.json) vs the docs/sjira receipt journal class."""
+    if re.fullmatch(r"court/[^/]+\.r\.json", rel):
+        return "court/*.r.json"
+    return "docs/sjira/receipt"
+
+
 def falsifier_for_order(repo, version, order) -> str:
     """v3 item 5: per-order re-run command, scope-targeted when a real target
     exists on disk (mix test <file> / cargo test -p <crate> / pytest
@@ -853,6 +861,10 @@ def render(repo: str, version: str, seed_commits: dict | None = None) -> str:
         w(f'  sj:falsifier "{esc(falsifier_for_order(repo, version, o))}" ;')
         w('  sj:authorityCeiling "CONSTRUCT" ;')
         w('  sj:evidenceCeiling "Receipt artifacts under docs/sjira/' + version + '/ plus *.r.json court outputs; no runtime DO." ;')
+        # v3 backlog [22]: per-order witness receipt class (deterministic,
+        # sorted distinct classes derived from o.receipt_paths).
+        for rcls in sorted({receipt_witness_class(rel) for rel in o.receipt_paths}):
+            w(f'  sj:requiresReceiptClass "{rcls}" ;')
         # v3 item 4: pathScope (bounded, sorted, deterministic).
         if o.path_scope:
             w("  sj:pathScope")
@@ -1105,6 +1117,12 @@ def v3_fixture_check():
         write(journal, "campaign journal 4\n")
         git("add", "-A"); git("commit", "-m", "feat(gamma): gamma touch")
 
+        # Backlog [22]: court-class receipt artifact citing SHA_A so the
+        # alpha order witnesses both receipt classes.
+        write("court/alpha.r.json", f'{{"witness": "{sha_a}"}}\n')
+        write(journal, "campaign journal 5\n")
+        git("add", "-A"); git("commit", "-m", "chore(court): alpha court receipt")
+
         text1 = render(tmp, "v26.10.8")
         text2 = render(tmp, "v26.10.8")
         if text1 != text2:
@@ -1117,7 +1135,7 @@ def v3_fixture_check():
         fails = [
             need("a sj:AcceptanceCriterion" in text1, "missing acceptance criterion blank node"),
             need("a sj:Falsifier" in text1, "missing falsifier blank node"),
-            need(f"witnessed by tests/test_court_alpha.py" in text1,
+            need("witnessed by court/alpha.r.json" in text1,
                  "witnessed acceptance must cite the court artifact"),
             need("UNKNOWN: no on-disk receipt/court artifact" in text1,
                  "missing UNKNOWN-honest falsifier placeholder"),
@@ -1132,6 +1150,10 @@ def v3_fixture_check():
             need("a sj:Checkpoint" in text1, "missing checkpoint individual"),
             need("sj:checkpointOf" in text1,
                  "missing checkpointOf back-link"),
+            need('sj:requiresReceiptClass "docs/sjira/receipt"' in text1,
+                 "missing requiresReceiptClass docs/sjira/receipt"),
+            need('sj:requiresReceiptClass "court/*.r.json"' in text1,
+                 "missing requiresReceiptClass court/*.r.json"),
         ]
         fails = [f for f in fails if f]
         if fails:
