@@ -138,3 +138,26 @@ refuses with `EventClaimMismatch`/`ChainTamper`.
 BLOCKED-then-GO: the runbook is executable once §3's harness exists (~50
 lines) and §2's SHA resolver runs; neither requires new law — only
 `SjCampaignDraft` assembly from data already on disk.
+
+## 6. Hub main-sync (R31)
+
+Round-close rule: `origin/main` must be a strict ancestor of (or equal to)
+`hdit-v2-structs` at round close; main absorbs the branch by fast-forward
+only, per the v26.10.7 precedent (hand FFs a9b6a11a9, f7a32faaf). No merge
+commits, no rebase, no force-push.
+
+Check:
+
+```sh
+./scripts/check_main_sync.sh   # exit 0 = in sync; exit 1 = out of sync
+```
+
+Repair (fast-forward main to the branch tip, run only when the check
+reports the branch ahead):
+
+```sh
+git push origin hdit-v2-structs:main
+```
+
+R31 witness: check ran at branch tip f7a32faaf with
+`OK: origin/main == hdit-v2-structs (f7a32faaf)`, exit 0 — no repair due.
