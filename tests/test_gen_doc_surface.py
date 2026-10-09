@@ -699,3 +699,91 @@ class P1DocRootsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ------------------------------------------------- vendor-surface policy ---
+# Backlog [51]: vendored trees (vendor/, .ggen-v2/, third_party/) are excluded
+# from the public code-surface denominator by default; doc claims referencing
+# vendored symbols carry a known-vendor prefix on the claim object so the
+# audit core classifies them external_documented (NOT phantom, NOT
+# uncovered); --include-vendor opts back into the full surface.
+
+
+class VendorSurfacePolicyTest(unittest.TestCase):
+    def mk(self):
+        vend_mix = (
+            "defmodule VendPack do\n"
+            "  def kept(x), do: x\n"
+            "end\n"
+        )
+        layout = {
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": "defmodule Demo do\n  def run(x), do: x\nend\n",
+            "vendor/vend_pack/mix.exs": vend_mix,
+            "vendor/vend_pack/lib/vend.ex": vend_mix,
+            ".ggen-v2/receipt.json": "{}\n",
+            "third_party/tool/lib/t.rs": "pub struct T;\n",
+            "Cargo.toml": '[package]\nname = "demo"\n',
+            "docs/guide.md": "Uses `VendPack.kept/1` and `third_party/tool` vendored surface.\n",
+        }
+        return mkrepo(layout)
+
+    def test_vendor_dirs_skipped_from_code_surface(self):
+        repo = self.mk()
+        code = g.extract_code(repo)
+        assert all(not p.startswith(("vendor/", ".ggen-v2/", "third_party/"))
+                   for p in code["paths"])
+        assert all(not d.startswith(("vendor/", ".ggen-v2/", "third_party/"))
+                   for d in code["directories"])
+        names = [m["name"] for m in code["modules"]]
+        assert "VendPack" not in names and "T" not in str(names)
+
+    def test_vendor_prefixes_join_known_external(self):
+        repo = self.mk()
+        code = g.extract_code(repo)
+        assert "VendPack." in code["known_external"]
+        assert "demo::" not in code["known_external"]  # own crate, not vendor
+
+    def test_vendored_symbol_claim_classifies_external_documented(self):
+        repo = self.mk()
+        code = g.extract_code(repo)
+        doc = g.extract_doc(repo, code)
+        syms = set()
+        for m in code["modules"]:
+            syms.add(m["name"])
+            for it in m["items"]:
+                syms.add(it["ident"])
+        vendor_pfx = g.vendor_prefixes(repo)
+        vend_claims = [c for c in doc["claims"] if c["object"] == "VendPack.kept/1"]
+        assert vend_claims, "vendored-symbol span must be claimed, not dropped"
+        c = vend_claims[0]
+        assert c["object"] not in syms            # not grounded -> not "covered"
+        assert any(c["object"].startswith(p) for p in vendor_pfx)
+        # audit-core classification (is_external_documented semantics): prefix
+        # check on the claim object -> external_documented, NOT phantom.
+        assert g.is_vendor_object(c["object"], vendor_pfx)
+        assert not g.is_vendor_object("TotallyUnknown.sym", vendor_pfx)
+
+    def test_include_vendor_opt_out_restores_full_surface(self):
+        repo = self.mk()
+        code = g.extract_code(repo, include_vendor=True)
+        assert any(p.startswith("vendor/") for p in code["paths"])
+        assert any(d.startswith("vendor/") for d in code["directories"])
+        assert "VendPack" in [m["name"] for m in code["modules"]]
+        assert g.is_vendor_object("VendPack.x", g.vendor_prefixes(repo))
+
+    def test_cli_include_vendor_flag(self):
+        repo = self.mk()
+        import io, contextlib, json as _json
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = g.main(["code", str(repo), "--include-vendor"])
+        assert rc == 0
+        code = _json.loads(buf.getvalue())
+        assert any(p.startswith("vendor/") for p in code["paths"])
+        codejson = repo / "_code.json"
+        codejson.write_text(_json.dumps(code))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = g.main(["doc", str(repo), "--code-json", str(codejson)])
+        assert rc == 0
