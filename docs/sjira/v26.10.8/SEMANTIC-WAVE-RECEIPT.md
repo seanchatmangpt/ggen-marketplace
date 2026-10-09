@@ -413,7 +413,7 @@ matrix is the witness layer for everything in this section.
 |---|---|---|
 | ferroplan certify | residual Phi 0.0415 = 54 grounding-FP spans + 285 prose drift + env-var/string-key class [103]/[109] | [105] multi-ident grounding, [106] prose repair |
 | frozen-duckdb | S 0.7538 / Phi 0.0168; exclusion not active; branch unmerged | [107] (and `66eaea182` (re-verified) admits the .doc-surface.toml extractor mechanism) |
-| zcode | M1 residual (workgraph MISSING) until branch merge | [91] — LANDED `f055645` (re-verified) on `zcode-wg-workgraph-v26.10.8`, pending merge |
+| zcode | resolved [91]: `f055645` merged to main via `925617a` (re-verified, on origin/main) — no longer a residue | — |
 | gymact | M18: no agent-card route exists in the repo | [104] |
 | wasm4pm | resolved [100]: PR #670 merged `18ff6dfa4` (re-verified) — no longer a residue | — |
 
@@ -433,7 +433,9 @@ zero refusals; chain head
 `76305b343d47889cdc9e9eb2a5f4d36150c811dc0d3864034c8218c56b108fca`
 (re-verified this session by reading SEAL-RECEIPT.md at HEAD). The seal is
 scorecard-pending [101] on 3 castle-goal labels + 1 superseded record — a
-label-class residue, not an identity residue. affidavit `ee57f9d0`
+label-class residue, not an identity residue. Closed round-5: `99abb416b`
+(re-verified) fixed the castle repo labels, retired the superseded record to
+`seal/retired/`, and re-witnessed the 78/78 subject-SHA sweep. affidavit `ee57f9d0`
 (as-of-date, wave-reported; not re-verifiable in this lane — not a commit in
 ash_affidavit's local object store at check time).
 
@@ -449,8 +451,8 @@ Each residue is seam-classified, lane-assigned, and carries a falsifier.
 | [106]/[103] ferroplan prose + vendor phantoms | doc-content seam | [106]/[103] | post-[105]+[106] audit Phi > 0.001 or coverage < 1.0 |
 | [107] frozen-duckdb toml + merge | admission seam (.doc-surface.toml mechanism + branch merge) | [107] | re-audit S < 0.90 or Phi > 0.001 |
 | [109] env-var/string-key indexing | extractor seam | [109] | ferroplan re-audit Phi does not drop; pytest red |
-| [91] zcode workgraph unmerged | transport seam | [91] | WORKGRAPH.ttl absent from zcode-cli default branch |
-| [101] seal label class | seal-surface seam | [101] | castle-goal labels still wrong after repair |
+| [91] zcode workgraph unmerged | CLOSED `925617a` (re-verified) — `f055645` on zcode-cli main, WORKGRAPH.ttl present on origin/main | — | — |
+| [101] seal label class | CLOSED `99abb416b` (re-verified) — castle repo labels fixed, superseded record retired, 78/78 sweep re-witnessed | — | — |
 | [104] gymact card route | serving seam | [104] | GET /.well-known/agent-card.json ≠ 200 |
 | [102] fortune5 guard const | CLOSED `961fa54d5` (re-verified) | — | wrapper expected 96, battery 96/96 (witnessed) |
 | [100] wasm4pm card merge | CLOSED `18ff6dfa4` (re-verified) | — | GET card route 200, validator 69/0 (witnessed) |
@@ -460,6 +462,11 @@ production lock is real (20/20 probes reported, 78-record seal verified,
 10 repos certified PASS, 4 court verdicts in) while the named residues remain
 open with lanes and falsifiers. Not a clean pass and not a refusal: each
 residue is typed, lane-assigned, and falsifiable.
+
+Post-merge re-audit witnesses ([91]/[101] closures): in flight at this edit —
+zcode post-merge code surface extracted (`/tmp/zcode-reaudit/merged.code.json`,
+2026-10-08 22:24; doc extraction empty, no verdict txt on disk yet). No
+post-merge audit verdict is claimed.
 
 ## Replay (round 5)
 
