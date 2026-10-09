@@ -131,6 +131,8 @@
 - [Level-5 maturity, Diátaxis correspondence, and class closure](thesis/12-level5-maturity-and-class-closure.md)
 - [The Autonomous Semantic Utility: Commercial Realization, Zero-Drift Swarms, and the Industrialization of Enterprise AI on Google Cloud](thesis/AUTONOMOUS_SEMANTIC_UTILITY_THESIS.md)
 - [Categorical Foundations of Knowledge Cryptography (doctoral dissertation)](dissertation/KNOWLEDGE-CRYPTOGRAPHY-DISSERTATION.md)
+- [Hardening as Court-Governed Measurement Repair](dissertation/HARDENING-AS-COURT-GOVERNED-MEASUREMENT-REPAIR.md)
+- [Hardening as Radical Architectural Subtraction](dissertation/HARDENING-AS-RADICAL-ARCHITECTURAL-SUBTRACTION.md)
 
 # Research appendices
 
