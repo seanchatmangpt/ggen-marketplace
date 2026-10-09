@@ -660,6 +660,83 @@ class StructSignatureTest(unittest.TestCase):
         assert items[("function", "identity")]["signature"] == "identity<A extends object, B>(a: A, b: B)"
         assert items[("function", "plainFn")]["signature"] == "plainFn(x: string)"
 
+    def test_ts_nested_template_literals_masked(self):
+        """[151b] nested/interleaved template literals must pair correctly:
+        a nested backtick inside `${...}` (or a quote inside template text)
+        must not close the outer template early and blank the rest of the
+        file's exports."""
+        import gen_doc_surface_ts as ts
+        repo = mkrepo({
+            "src/nested.ts": (
+                "export const tpl = `outer ${ `inner ${q}` } tail`;\n"
+                "export function afterNested(a: string): boolean {\n"
+                "  return true;\n"
+                "}\n"
+                "const s = `text with 'apostrophe' and \"quotes\" ${f(\"x\")}`;\n"
+                "export const afterApostrophe = 1;\n"
+            ),
+        })
+        code = ts.extract_code(repo)
+        items = {
+            (it["kind"], it["ident"]): it for m in code["modules"] for it in m["items"]
+        }
+        assert items[("function", "afterNested")]["signature"] == (
+            "afterNested(a: string)"
+        )
+        assert items[("const", "afterApostrophe")]["signature"] == "afterApostrophe"
+
+    def test_ts_regex_literals_do_not_mispair_masking(self):
+        """[151b] regex literals containing quotes/backticks (witnessed:
+        ``/```/gu`` in zcode-cli sync-runtime.ts:142 and `/\$/g` artifacts
+        after comment stripping) must not open string states and blank
+        downstream exports."""
+        import gen_doc_surface_ts as ts
+        repo = mkrepo({
+            "src/regexes.ts": (
+                "const a = v.replace(/" + "`" * 3 + "/gu, "
+                + '"' + "'" * 3 + '"' + ");\n"
+                "export function afterTickRegex(x: number): number {\n"
+                "  return x;\n"
+                "}\n"
+                "const b = p.replace(/\\$/g, \"\");\n"
+                "export const afterDollarRegex = 2;\n"
+                "const c = s.match(/\"([A-Za-z.]+)\"/g);\n"
+                "export function afterQuoteRegex(y: string): void {}\n"
+            ),
+        })
+        code = ts.extract_code(repo)
+        items = {
+            (it["kind"], it["ident"]): it for m in code["modules"] for it in m["items"]
+        }
+        assert items[("function", "afterTickRegex")]["signature"] == (
+            "afterTickRegex(x: number)"
+        )
+        assert items[("const", "afterDollarRegex")]["signature"] == "afterDollarRegex"
+        assert items[("function", "afterQuoteRegex")]["signature"] == (
+            "afterQuoteRegex(y: string)"
+        )
+
+    def test_ts_string_with_interleaved_quotes_masked(self):
+        """[151b] a single-quoted string containing double quotes (witnessed:
+        'ZCODE_CLI_OAUTH_CALLBACK_STDIN===\"1\"' in sync-runtime.ts) and
+        minified patch strings must not blank downstream exports; string
+        contents must not match export regexes."""
+        import gen_doc_surface_ts as ts
+        repo = mkrepo({
+            "src/interleaved.ts": (
+                "if (v.includes('A===\"1\"')) return v;\n"
+                "const patch = 'x=>{a:\"z\"}', tail = '}';\n"
+                "export const afterInterleave = 3;\n"
+                "const s = \"export function fake(z: number): void {}\";\n"
+            ),
+        })
+        code = ts.extract_code(repo)
+        items = {
+            (it["kind"], it["ident"]): it for m in code["modules"] for it in m["items"]
+        }
+        assert items[("const", "afterInterleave")]["signature"] == "afterInterleave"
+        assert ("function", "fake") not in items
+
     def test_ts_multiline_signatures_recovered(self):
         """[144] multi-line signatures must be recovered via balanced-paren
         capture; single-line behavior stays byte-identical."""

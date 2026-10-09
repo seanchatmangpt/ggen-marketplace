@@ -102,41 +102,145 @@ def iter_ts_files(root: Path):
         yield p
 
 
-def strip_comments(text: str) -> str:
-    """Char-scan comment removal that respects string/template literals."""
-    out = []
+def scan_surfaces(text: str):
+    """One nesting-state scan ([151b]) producing BOTH surfaces:
+
+    - stripped: comments removed (blanked, length/line preserving);
+    - masked:   string/template/regex-literal *contents* blanked so export
+      regexes cannot match inside literals.
+
+    A single shared state machine is required: strip_comments alone
+    mispairs on regex literals containing quotes/backticks (e.g.
+    ``/```/gu``) and deletes `\\x` escape pairs, silently changing quote
+    pairing in its output before mask_strings ever runs (sync-runtime.ts
+    minified-patch strings). States: code / '...' / "..." / `...` with a
+    stack for ``${ ... }`` substitutions; regex literals detected in code
+    context via the standard prev-token heuristic (a `/` after an atom —
+    identifier, number, ``)`/`]`/`}`/closing quote — is division, else a
+    regex literal)."""
+    stripped = []
+    masked = []
     i, n = 0, len(text)
+    stack = []  # open contexts: '"', "'", '`', '${'
+    prev = ""  # last significant code char (regex-start heuristic)
+
+    def in_string():
+        return bool(stack) and stack[-1] != "${"
+
+    def quote_close():
+        for s in reversed(stack):
+            if s in ('"', "'", "`"):
+                return s
+        return None
+
     while i < n:
         ch = text[i]
         nxt = text[i + 1] if i + 1 < n else ""
-        if ch == "/" and nxt == "/":
+        if ch == "/" and nxt == "/" and not in_string():
             while i < n and text[i] != "\n":
+                stripped.append(" ")
+                masked.append(" ")
                 i += 1
-        elif ch == "/" and nxt == "*":
+            continue
+        if ch == "/" and nxt == "*" and not in_string():
+            stripped.append("  ")
+            masked.append("  ")
             i += 2
             while i + 1 < n and not (text[i] == "*" and text[i + 1] == "/"):
-                if text[i] == "\n":
-                    out.append("\n")  # keep line numbers stable
+                stripped.append("\n" if text[i] == "\n" else " ")
+                masked.append("\n" if text[i] == "\n" else " ")
                 i += 1
+            if i + 1 < n:
+                i += 2
+            continue
+        if ch == "\\" and in_string():
+            # Escape pair: verbatim in stripped (so quote pairing in the
+            # stripped text matches the raw source), blanked in masked.
+            stripped.append(text[i:i + 2])
+            masked.append("  ")
             i += 2
-        elif ch in ('"', "'", "`"):
-            quote = ch
-            out.append(ch)
-            i += 1
-            while i < n:
-                if text[i] == "\\":
-                    i += 2
+            continue
+        if ch == "/" and not in_string() and nxt not in "/*" and (
+            prev == "" or not (prev.isalnum() or prev in '_$)]}"\'`')
+        ):
+            # Regex literal: scan to the unescaped closing `/` (respecting
+            # `[...]` classes; regex literals cannot span raw newlines).
+            j = i + 1
+            in_class = False
+            closed = False
+            while j < n:
+                cj = text[j]
+                if cj == "\\":
+                    j += 2
                     continue
-                if text[i] == quote:
+                if cj == "\n":
                     break
-                out.append(text[i])
-                i += 1
-            out.append(quote)
+                if in_class:
+                    if cj == "]":
+                        in_class = False
+                elif cj == "[":
+                    in_class = True
+                elif cj == "/":
+                    closed = True
+                    break
+                j += 1
+            if closed and j < n and text[j] == "/":
+                stripped.append(text[i:j + 1])
+                masked.append("/")
+                masked.append(" " * (j - i - 1))
+                masked.append("/")
+                prev = "/"
+                i = j + 1
+                continue
+            stripped.append(ch)
+            masked.append(ch)
+            prev = "/"
             i += 1
-        else:
-            out.append(ch)
+            continue
+        if ch == "$" and nxt == "{" and stack and stack[-1] == "`":
+            stripped.append("${")
+            masked.append("${")
+            stack.append("${")
+            i += 2
+            continue
+        if ch in ('"', "'", "`") and not in_string():
+            stripped.append(ch)
+            masked.append(ch)
+            stack.append(ch)
+            prev = ch
             i += 1
-    return "".join(out)
+            continue
+        if ch == "}" and stack and stack[-1] == "${":
+            stripped.append(ch)
+            masked.append(ch)
+            stack.pop()
+            prev = "}"
+            i += 1
+            continue
+        if ch == quote_close() and stack:
+            stripped.append(ch)
+            masked.append(ch)
+            stack.pop()
+            prev = ch
+            i += 1
+            continue
+        if in_string():
+            stripped.append(ch)
+            masked.append("\n" if ch == "\n" else " ")
+            i += 1
+            continue
+        stripped.append(ch)
+        masked.append(ch)
+        if not ch.isspace():
+            prev = ch
+        i += 1
+    return "".join(stripped), "".join(masked)
+
+
+def strip_comments(text: str) -> str:
+    """Char-scan comment removal that respects string/template/regex
+    literals (shared nesting-state machine, see scan_surfaces)."""
+    return scan_surfaces(text)[0]
 
 
 def paren_capture(text, i):
@@ -188,138 +292,16 @@ def scan_class_methods(text):
 
 
 def mask_strings(text: str) -> str:
-    """Replace string/template literal *contents* with spaces (same length,
-    quotes kept) so export regexes cannot match inside string literals
-    ([148] negative case). Char indices stay aligned with the input.
-
-    A nesting-state machine ([151b]): a backtick template can contain
-    ``${ ... }`` substitutions that themselves hold strings or nested
-    templates, and quotes/backticks can appear inside regex literals
-    (e.g. ``/```/gu`` in sync-runtime.ts). The old flat scanner paired the
-    *next* quote character, so a nested backtick closed the outer template
-    early and the remainder of the file was blanked from the first mis-pair
-    onward. States: code / '...' / "..." / `...` with a stack for
-    ``${ ... }`` inside templates; backslashes escape within any string
-    state; regex literals are detected in code context with the standard
-    prev-token heuristic (a `/` after an atom ends a regex, after an
-    operator starts one)."""
-    out = []
-    i, n = 0, len(text)
-    stack = []  # quote/template/`${` nesting: '"', "'", '`', '${'
-    prev = ""  # last significant code char (regex-start heuristic)
-    while i < n:
-        ch = text[i]
-        nxt = text[i + 1] if i + 1 < n else ""
-        # No `//`/`/*` handling: comments were already stripped upstream
-        # (strip_comments), and post-strip `//`-shaped artifacts (created
-        # when strip_comments deletes `\x` escape pairs, e.g. `/\$/g` ->
-        # `//g`) must NOT be read as comments — doing so blanks to end of
-        # line inside `${...}` and leaves the template/substitution states
-        # open ([151b] wireOf regression).
-        if ch == "\\" and in_string(stack):
-            out.append("  ")
-            i += 2
-            continue
-        if ch == "/" and nxt == "/" and not in_string(stack):
-            # Post-strip `//` artifact: blank to end of line without
-            # touching quote state (state-safe, unlike comment semantics).
-            while i < n and text[i] != "\n":
-                out.append(" ")
-                i += 1
-            continue
-        if (
-            ch == "/"
-            and not in_string(stack)
-            and nxt != "/"
-            and nxt != "*"
-            and not (prev.isalnum() or prev in '_$)]}"\'`')
-        ):
-            # Division or regex literal? Standard heuristic: after an atom
-            # (identifier/number/`)`/`]`/`}`/quote) a `/` cannot start a
-            # regex; otherwise it does. Scan to the unescaped closing `/`
-            # (respecting `[...]` classes, no raw newlines).
-            j = i + 1
-            in_class = False
-            closed = False
-            while j < n:
-                cj = text[j]
-                if cj == "\\":
-                    j += 2
-                    continue
-                if cj == "\n":
-                    break  # regex literals cannot span lines: not a regex
-                if in_class:
-                    if cj == "]":
-                        in_class = False
-                elif cj == "[":
-                    in_class = True
-                elif cj == "/":
-                    closed = True
-                    break
-                j += 1
-            if closed and j < n and text[j] == "/":
-                out.append("/")
-                out.append(" " * (j - i - 1))
-                out.append("/")
-                prev = "/"
-                i = j + 1
-                continue
-            # Fall through: plain division `/`.
-            out.append(ch)
-            prev = "/"
-            i += 1
-            continue
-        if ch == "$" and nxt == "{" and stack and stack[-1] == "`":
-            out.append("${")
-            stack.append("${")
-            i += 2
-            continue
-        if ch in ('"', "'", "`") and not in_string(stack):
-            out.append(ch)
-            stack.append(ch)
-            prev = ch
-            i += 1
-            continue
-        if ch == "}" and stack and stack[-1] == "${":
-            out.append(ch)
-            stack.pop()
-            prev = "}"
-            i += 1
-            continue
-        if ch == quote_close(stack) and stack:
-            out.append(ch)
-            stack.pop()
-            prev = ch
-            i += 1
-            continue
-        if in_string(stack):
-            out.append("\n" if ch == "\n" else " ")
-            i += 1
-            continue
-        out.append(ch)
-        if not ch.isspace():
-            prev = ch
-        i += 1
-    return "".join(out)
-
-
-def quote_close(stack):
-    """Innermost open quote char, or None."""
-    for s in reversed(stack):
-        if s in ('"', "'", "`"):
-            return s
-    return None
-
-
-def in_string(stack):
-    """True when the innermost open context is a string/template literal."""
-    return bool(stack) and stack[-1] != "${"
+    """Replace string/template/regex-literal *contents* with spaces (same
+    length, delimiters kept) so export regexes cannot match inside
+    literals. Delegates to the shared nesting-state machine (see
+    scan_surfaces)."""
+    return scan_surfaces(text)[1]
 
 
 def scan_file(path: Path, repo: Path):
     rel = str(path.relative_to(repo))
-    text = strip_comments(path.read_text(errors="replace"))
-    masked = mask_strings(text)
+    text, masked = scan_surfaces(path.read_text(errors="replace"))
     items = []
     for m in TS_EXPORT_FN.finditer(masked):
         raw = paren_capture(text, m.end())
