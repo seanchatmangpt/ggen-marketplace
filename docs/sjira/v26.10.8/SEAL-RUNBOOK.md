@@ -200,3 +200,26 @@ is the single pin authority — sibling receipts use the stable ledger
 reference form, never an inline hash. Probe override: `PIN_LEDGER=<path>`.
 Witnessed 2026-10-09: exit 0 on the live ledger (b88297e6 = current);
 exit 1 via a doctored temp-copy ledger (real ledger untouched).
+
+### Commit-hook guard (R81)
+
+`bash scripts/install-pin-hook.sh` installs the same pin law as a pair of
+git hooks in `.git/hooks/` (idempotent marker-delimited block; existing
+hooks preserved, including the git-lfs post-commit). Because pre-commit
+cannot see its own commit's ledger row, the guard DEFERS verification:
+
+- `pre-commit`: staged diff touches `scripts/gen_doc_surface.py` → write
+  `.git/PIN-CHECK-PENDING`, loud warning, exit 0 (never blocks);
+- `post-commit`: if the marker exists, sha256 the COMMITTED extractor
+  bytes (`git show HEAD:` piped through an archived temp copy) and require
+  it on the committed ledger's current row. Pass → marker removed. Fail →
+  LOUD violation banner, exit 1 (post-commit cannot roll the commit back;
+  the exit makes the violation visible), marker KEPT until a follow-up
+  ledger commit repairs it.
+
+Hook law: an extractor commit may land, but a violation is unmissable and
+persists until the ledger is repaired in an immediate follow-up commit.
+Witnessed 2026-10-09 on `hdit-v2-structs` (scratch branches, real hooks):
+clean rotation → `pin-freshness: OK ... found in ledger current row`,
+marker removed; rotation-without-ledger → full PIN LAW VIOLATED banner,
+marker kept.
