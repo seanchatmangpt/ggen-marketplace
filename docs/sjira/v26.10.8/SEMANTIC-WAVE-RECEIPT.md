@@ -446,7 +446,7 @@ Each residue is seam-classified, lane-assigned, and carries a falsifier.
 | residue | seam class | lane | falsifier |
 |---|---|---|---|
 | [99] uncommitted extractor diff live | tooling seam (gen_doc_surface.py working-tree vs HEAD) | [99] | audit differs working-tree vs HEAD extractor on same corpus |
-| [93]/[94] repair branches unmerged | transport seam (branch→default) | [93]/[94] | branch tip not reachable from default branch |
+| [93]/[94] repair branches unmerged | transport seam (branch→default) | [93]/[94] | branch tip not reachable from default branch; ash_surface persisted witness 2026-10-08 `/tmp/asurf-witness/audit.txt` — re-audit at `dc214d7b5` with full 4-array inputs: ts extractor PASS (S 0.9500, Phi 0.0000, Q 1.0000), regex extractor FAIL (S 0.9387, Phi 0.0037, 3 scaffold-class phantom claims) |
 | [105] multi-ident span grounding | extractor seam | [105] | the 54 ferroplan reference.md FPs still fail grounding after span split |
 | [106]/[103] ferroplan prose + vendor phantoms | doc-content seam | [106]/[103] | post-[105]+[106] audit Phi > 0.001 or coverage < 1.0 |
 | [107] frozen-duckdb toml + merge | admission seam (.doc-surface.toml mechanism + branch merge) | [107] | re-audit S < 0.90 or Phi > 0.001 |
