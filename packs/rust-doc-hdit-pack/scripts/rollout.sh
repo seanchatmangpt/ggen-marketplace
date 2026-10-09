@@ -81,13 +81,32 @@ build_inputs() {
   head_sha="$(git -C "$repo" rev-parse HEAD 2>/dev/null || echo no-vcs)"
   cache_key="$(printf '%s\n%s' "$gen_hash" "$head_sha" | shasum -a 256 | awk '{print $1}')"
   cache_file="$HDIT_CACHE/$name.$cache_key.inputs.json"
-  if [ -f "$cache_file" ]; then
+  # A 0-byte output (e.g. reader-vs-editor race on the work file) must fail
+  # closed, not pass set -e silently into a corrupt merge (backlog [121]).
+  # Inline `if` + `return 1`: build_inputs runs in conditional context (the
+  # caller wraps it in `if !`), where errexit is suspended — a failing plain
+  # command or helper call would NOT abort the function.
+  if [ -s "$cache_file" ]; then
     printf '%s\n' "$cache_file"
     return 0
   fi
   inputs="$cache_file"
-  python3 "$GEN" code "$repo" > "$WORK/$name.code.json"
-  python3 "$GEN" doc "$repo" --code-json "$WORK/$name.code.json" > "$WORK/$name.doc.json"
+  if ! python3 "$GEN" code "$repo" > "$WORK/$name.code.json"; then
+    echo "rollout.sh: build_inputs($name): step 'code' extraction failed for $repo" >&2
+    return 1
+  fi
+  if [ ! -s "$WORK/$name.code.json" ]; then
+    echo "rollout.sh: build_inputs($name): step 'code' produced empty output: $WORK/$name.code.json (0 bytes; refusing to continue)" >&2
+    return 1
+  fi
+  if ! python3 "$GEN" doc "$repo" --code-json "$WORK/$name.code.json" > "$WORK/$name.doc.json"; then
+    echo "rollout.sh: build_inputs($name): step 'doc' extraction failed for $repo" >&2
+    return 1
+  fi
+  if [ ! -s "$WORK/$name.doc.json" ]; then
+    echo "rollout.sh: build_inputs($name): step 'doc' produced empty output: $WORK/$name.doc.json (0 bytes; refusing to continue)" >&2
+    return 1
+  fi
   python3 - "$WORK/$name.code.json" "$WORK/$name.doc.json" "$inputs" <<'PY'
 import json, sys
 code = json.load(open(sys.argv[1]))
@@ -105,6 +124,10 @@ json.dump({"modules": code.get("modules", []),
            "known_external": code.get("known_external", [])},
           open(sys.argv[3], "w"), indent=2, sort_keys=True)
 PY
+  if [ ! -s "$inputs" ]; then
+    echo "rollout.sh: build_inputs($name): step 'merge' produced empty output: $inputs (0 bytes; refusing to continue)" >&2
+    return 1
+  fi
   printf '%s\n' "$inputs"
 }
 
