@@ -20,6 +20,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import os
 import re
 import sys
 from contextlib import contextmanager
@@ -80,6 +81,104 @@ def vendor_policy(include_vendor):
 def vendor_part(part):
     """True when a path part names a vendored tree under the active policy."""
     return not _INCLUDE_VENDOR and part in VENDOR_DIRS
+
+# Backlog [107]/[64] generated-surface policy (spec:
+# frozen-duckdb docs/reference/generated/
+# extractor-generated-surface-config-proposal.md): a repo-level
+# `.doc-surface.toml` at repo root lists machine-generated files
+# (`[[generated]] paths = [...]`). Generated files are excluded from the
+# public code-surface denominator (modules, paths, directories) exactly as
+# VENDOR_DIRS entries are, symbols from generated files that docs reference
+# classify external_documented via the known-external prefix merge (NOT
+# phantom, NOT uncovered), and `--include-generated` opts back into the full
+# surface. Absent `.doc-surface.toml`, behavior is exactly today's.
+DOC_SURFACE_CONFIG = ".doc-surface.toml"
+
+_GENERATED_PATHS = set()
+_GENERATED_PATHS_ABS = set()
+_INCLUDE_GENERATED = False
+
+
+def load_generated_paths(repo):
+    """Repo-relative paths from `.doc-surface.toml` [[generated]] entries.
+
+    Returns an empty set when the config is absent, unreadable, or the
+    stdlib toml parser is unavailable (behavior identical to today).
+    """
+    path = Path(repo) / DOC_SURFACE_CONFIG
+    if not path.is_file():
+        return set()
+    try:
+        import tomllib
+    except ImportError:
+        return set()
+    try:
+        data = tomllib.loads(path.read_text(errors="replace"))
+    except Exception:
+        return set()
+    out = set()
+    for entry in data.get("generated", []):
+        if isinstance(entry, dict):
+            out.update(str(p) for p in entry.get("paths", []) if p)
+    return out
+
+
+@contextmanager
+def generated_policy(repo, include_generated=False):
+    global _GENERATED_PATHS, _GENERATED_PATHS_ABS, _INCLUDE_GENERATED
+    prev = (_GENERATED_PATHS, _GENERATED_PATHS_ABS, _INCLUDE_GENERATED)
+    rels = set() if include_generated else load_generated_paths(repo)
+    root = Path(repo).resolve()
+    _GENERATED_PATHS = rels
+    _GENERATED_PATHS_ABS = {str(root / rel) for rel in rels}
+    _INCLUDE_GENERATED = include_generated
+    try:
+        yield
+    finally:
+        (_GENERATED_PATHS, _GENERATED_PATHS_ABS, _INCLUDE_GENERATED) = prev
+
+
+def generated_rel(rel):
+    """True when a repo-relative path is a configured generated file."""
+    return not _INCLUDE_GENERATED and rel in _GENERATED_PATHS
+
+
+def generated_file(p):
+    """True when file ``p`` is a configured generated file under the policy."""
+    if _INCLUDE_GENERATED or not _GENERATED_PATHS:
+        return False
+    if os.path.normpath(str(p)) in _GENERATED_PATHS:
+        return True
+    return os.path.normpath(str(p.resolve())) in _GENERATED_PATHS_ABS
+
+
+def generated_prefixes(repo, paths=None):
+    """Symbol/path prefixes from configured generated files.
+
+    Mirrors `vendor_prefixes`: public identifiers defined in the generated
+    files, plus the file paths themselves, join the external allowlist so the
+    audit core's prefix check classifies doc claims referencing generated
+    symbols `external_documented` instead of phantom. ``paths`` defaults to
+    the active policy's set, or a fresh config load when no policy is active.
+    """
+    repo = Path(repo)
+    if paths is None:
+        paths = _GENERATED_PATHS or load_generated_paths(repo)
+    prefixes = set()
+    for rel in sorted(paths):
+        prefixes.add(rel)
+        prefixes.add(rel + "/")
+        f = repo / rel
+        if not f.is_file():
+            continue
+        text = f.read_text(errors="replace")
+        text = re.sub(r"//[^\n]*", "", text)
+        text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+        for m in RUST_FN.finditer(text):
+            prefixes.add(m.group(1))
+        for m in RUST_ITEM.finditer(text):
+            prefixes.add(m.group(2))
+    return prefixes
 
 ELIXIR_MODULE = re.compile(r"defmodule\s+([A-Z][A-Za-z0-9._]*)\s+do")
 ELIXIR_DEF = re.compile(
@@ -169,7 +268,7 @@ def iter_files(root, pattern):
     for p in sorted(Path(root).rglob(pattern)):
         if any(part in SKIP_DIRS or vendor_part(part) for part in p.parts):
             continue
-        if p.is_file():
+        if p.is_file() and not generated_file(p):
             yield p
 
 
@@ -606,6 +705,31 @@ def _rust_pub(node):
     return only
 
 
+_ENV_ACCESSORS = (
+    "std::env::var", "env::var", "var",
+    "std::env::var_os", "env::var_os", "var_os",
+)
+
+# lazy_static! `static ref NAME: T = ... "value" ...;` string tables
+# (first string literal in the initializer).
+_LAZY_STATIC_STR = re.compile(
+    r'static\s+ref\s+(\w+)\s*:[^;]*?=\s*[^;]*?"([^"]+)"')
+
+# Rust string literal body: `string_content` under `string_literal`
+# (tree-sitter-rust; `quoted_content` is the Elixir shape).
+_RUST_QUOTED = ("string_literal", "quoted_content")
+
+
+def _rust_first_string(node):
+    """First string literal value under `node` ('' if none)."""
+    for sub in _walk(node):
+        if sub.type in _RUST_QUOTED:
+            q = _first_child(sub, "string_content", "quoted_content")
+            if q is not None:
+                return q.text.decode()
+    return ""
+
+
 def _rust_doc(node):
     """Concatenated `///` doc lines preceding an item ('' if none)."""
     lines = []
@@ -693,9 +817,28 @@ def scan_rust_ts(repo):
                         "is_public": True,
                     })
                 elif node.type in ("const_item", "static_item"):
+                    cname_node = node.child_by_field_name("name")
+                    if cname_node is None:
+                        continue
+                    cname = cname_node.text.decode()
+                    # Backlog [109]: a string-valued const/static is a string
+                    # key table entry — real public configuration surface even
+                    # when the binding itself is private (the VALUE is what
+                    # docs name). ident = the literal value, signature carries
+                    # the accessor site (`NAME = "value"`).
+                    vnode = node.child_by_field_name("value")
+                    if vnode is not None:
+                        lit = _rust_first_string(vnode)
+                        if lit:
+                            items.append({
+                                "kind": "str_key",
+                                "ident": lit,
+                                "signature": cname + ' = "' + lit + '"',
+                                "doc": "",
+                                "is_public": True,
+                            })
                     if not _rust_pub(node):
                         continue
-                    cname = node.child_by_field_name("name").text.decode()
                     tnode = node.child_by_field_name("type")
                     sig = cname if tnode is None else (
                         cname + ": " + _clean(tnode.text.decode()))
@@ -706,6 +849,51 @@ def scan_rust_ts(repo):
                         "doc": _rust_doc(node),
                         "is_public": True,
                     })
+                elif node.type == "macro_invocation":
+                    # Backlog [109]: lazy_static!/once_cell-style string
+                    # tables (`static ref NAME: ... = "value";`) do not parse
+                    # as static_item nodes (macro token trees), so their
+                    # string keys are lifted from the token tree text.
+                    macro_node = node.child_by_field_name("macro")
+                    if macro_node is None:
+                        continue
+                    macro = macro_node.text.decode()
+                    if macro in ("lazy_static", "lazy_static!"):
+                        tok = node.child_by_field_name("token_tree")
+                        if tok is not None:
+                            for lm in _LAZY_STATIC_STR.finditer(
+                                    tok.text.decode()):
+                                items.append({
+                                    "kind": "str_key",
+                                    "ident": lm.group(2),
+                                    "signature": (
+                                        lm.group(1) + ' = "' + lm.group(2)
+                                        + '"'),
+                                    "doc": "",
+                                    "is_public": True,
+                                })
+                elif node.type == "call_expression":
+                    # Backlog [109]: `std::env::var("NAME")` /
+                    # `env::var_os("NAME")` reads are public configuration
+                    # surface wherever they occur (visibility of the enclosing
+                    # item is irrelevant). ident = the env var name,
+                    # signature = the accessor call.
+                    fn_node = node.child_by_field_name("function")
+                    if fn_node is None:
+                        continue
+                    ftxt = _clean(fn_node.text.decode())
+                    if ftxt in _ENV_ACCESSORS:
+                        args = _ex_args(node)
+                        name = _rust_first_string(args) if args is not None \
+                            else ""
+                        if name:
+                            items.append({
+                                "kind": "env_key",
+                                "ident": name,
+                                "signature": ftxt + '("' + name + '")',
+                                "doc": "",
+                                "is_public": True,
+                            })
                 elif node.type == "use_declaration":
                     # Backlog [56]: `pub use` re-exports (crate-root aliases)
                     # enter the code surface as `use` items so the grounding
@@ -1107,6 +1295,10 @@ def known_external(repo):
     # external allowlist, so audit-core claims referencing vendored symbols
     # classify `external_documented` (prefix check) instead of phantom.
     prefixes |= vendor_prefixes(repo)
+    # Backlog [107]: generated-file symbols/paths join the external allowlist
+    # (see generated_prefixes) so claims referencing generated symbols
+    # classify `external_documented` (NOT phantom, NOT uncovered).
+    prefixes |= generated_prefixes(repo)
     # Dir-form vendor references (`vendor`, `vendor/`, `third_party/...`)
     # ride the same starts_with channel: only UNgrounded objects can reach
     # the external class in the audit core (grounded is checked first), so a
@@ -1218,15 +1410,19 @@ def extract_directories(repo):
             continue
         if p.is_dir():
             dirs.add(str(rel))
+        elif generated_rel(str(rel)):
+            continue
     return sorted(dirs)
 
 
 # ------------------------------------------------------------- code mode ---
 
 
-def extract_code(repo, engine="auto", include_vendor=False):
+def extract_code(repo, engine="auto", include_vendor=False,
+                 include_generated=False):
     repo = Path(repo)
-    with vendor_policy(include_vendor):
+    with vendor_policy(include_vendor), \
+            generated_policy(repo, include_generated):
         if engine == "auto":
             engine = "ts" if TS_AVAILABLE else "regex"
         if engine == "ts" and not TS_AVAILABLE:
@@ -1464,7 +1660,7 @@ def path_surface(repo):
         r = str(rel)
         if p.is_dir():
             dirs.add(r)
-        else:
+        elif not generated_rel(r):
             files.add(r)
     return dirs, files
 
@@ -1491,13 +1687,51 @@ IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*(/[0-9]
 
 
 def cell_candidates(cell):
-    """Candidate symbol spans inside a table cell: backticked spans first,
-    else the whole cell stripped of backticks."""
+    """Candidate symbol spans inside a table cell as (span, backticked):
+    backticked spans first, else the whole cell stripped of backticks."""
     spans = INLINE_SPAN.findall(cell)
     if spans:
-        return spans
-    s = cell.replace("`", "").strip()
-    return [s] if s else []
+        return [(s, True) for s in spans]
+    s = whole_cell_candidate(cell)
+    return [(s, False)] if s else []
+
+
+def whole_cell_candidate(cell):
+    return cell.replace("`", "").strip()
+
+
+def parse_table_block(rel, table_block, syms, vendor_pfx=()):
+    """Split one buffered run of pipe rows into (header, cells) pairs.
+
+    A row directly above a `|---|` separator is a header; its sub-table's
+    data rows are the rows after the separator, excluding rows directly
+    above any later separator (header rows of subsequent sub-tables — the
+    blank-line tolerance can buffer adjacent tables in one block). Rows
+    with no separator above/below them are headerless data rows.
+    """
+    rows = []
+    seps = set()
+    for j, tl in enumerate(table_block):
+        cells = [c.strip() for c in tl.strip().strip("|").split("|")]
+        if cells and all(re.fullmatch(r":?-+:?", c) for c in cells if c):
+            seps.add(j)
+            continue
+        rows.append((j, cells))
+    header = None
+    cut = None
+    for j in sorted(seps):
+        if any(r[0] == j - 1 for r in rows):
+            header = next(r[1] for r in rows if r[0] == j - 1)
+            cut = j
+            break
+    hdr_rows = {j - 1 for j in seps if any(r[0] == j - 1 for r in rows)}
+    out = []
+    for j, cells in rows:
+        if j in hdr_rows:
+            continue
+        h = header if (cut is not None and j > cut) else None
+        out.extend(table_claims(rel, h, cells, syms, vendor_pfx))
+    return out
 
 
 def table_claims(rel, header, cells, syms, vendor_pfx=()):
@@ -1512,7 +1746,7 @@ def table_claims(rel, header, cells, syms, vendor_pfx=()):
     scaffold_symbol = None
     for i, cell in enumerate(cells):
         in_sig_col = fi is not None and i == fi
-        for cand in cell_candidates(cell):
+        for cand, backticked in cell_candidates(cell):
             if not IDENT_RE.fullmatch(cand):
                 # table cells are structured: only identifier/qualified/arity
                 # forms are symbol claims (prose cells, paths, ranges excluded)
@@ -1527,7 +1761,11 @@ def table_claims(rel, header, cells, syms, vendor_pfx=()):
                 })
                 if row_symbol is None:
                     row_symbol = hit
-            elif in_sig_col and IDENT_RE.fullmatch(cand) and not is_noise_span(cand):
+            elif backticked or (in_sig_col and not is_noise_span(cand)):
+                # Backlog [75]: scaffold tables carry the symbol as a
+                # backticked identifier cell in any column (typically Item);
+                # unmatched identifier-shaped spans stay doc claims — the
+                # audit gate must see them (phantom channel), never dropped.
                 out.append({
                     "subject": rel,
                     "predicate": "mentions",
@@ -1625,11 +1863,14 @@ def doc_string_claims(repo, surface, syms):
     return claims
 
 
-def extract_doc(repo, surface, docs_dirs=None, include_doc_strings=False):
+def extract_doc(repo, surface, docs_dirs=None, include_doc_strings=False,
+                include_generated=False):
     repo = Path(repo)
     syms = known_symbols(surface)
-    psurface = path_surface(repo)
-    vendor_pfx = vendor_prefixes(repo)
+    with generated_policy(repo, include_generated):
+        psurface = path_surface(repo)
+        vendor_pfx = tuple(vendor_prefixes(repo)) + tuple(
+            generated_prefixes(repo))
     module_names = {m["name"] for m in surface["modules"] if m["name"] and m["name"][0].isupper()}
     claims = []
     if docs_dirs:
@@ -1691,32 +1932,26 @@ def extract_doc(repo, surface, docs_dirs=None, include_doc_strings=False):
                         "object": hits[0],
                         "kind": "fenced:" + (lang or "text"),
                     })
-            # markdown pipe tables: a header row is only a header when followed
-            # by a `|---|` separator row; headerless generated tables (one `|`
-            # row per blank-line-separated block) yield mentions from every
-            # data row with header=None.
+            # markdown pipe tables: a header row is only a header when it sits
+            # directly above a `|---|` separator row. doc-hdit scaffold tables
+            # emit every row blank-line separated (backlog [75]), so blank
+            # lines do not end a table block — only non-pipe, non-blank lines
+            # do; the header is recovered from the row directly above the
+            # first separator, and a row directly above any later separator is
+            # that sub-table's header, never a data row. Headerless generated
+            # tables yield mentions from every data row with header=None.
             table_block = []
             for line in text.splitlines() + [""]:
                 if line.strip().startswith("|"):
                     table_block.append(line)
                     continue
-                if table_block:
-                    rows = []
-                    seps = set()
-                    for j, tl in enumerate(table_block):
-                        cells = [c.strip() for c in tl.strip().strip("|").split("|")]
-                        if all(re.fullmatch(r":?-+:?", c) for c in cells if c):
-                            seps.add(j)
-                            continue
-                        rows.append((j, cells))
-                    header = None
-                    if (len(rows) >= 2 and rows[0][0] + 1 in seps
-                            and rows[1][0] == rows[0][0] + 2):
-                        header = rows.pop(0)[1]
-                    for _, cells in rows:
-                        claims.extend(table_claims(rel, header, cells, syms, vendor_pfx))
+                if table_block and line.strip():
+                    claims.extend(parse_table_block(
+                        rel, table_block, syms, vendor_pfx))
                     table_block = []
-                # non-pipe line: block ended; header re-derived per block
+            if table_block:
+                claims.extend(parse_table_block(
+                    rel, table_block, syms, vendor_pfx))
     if include_doc_strings:
         claims.extend(doc_string_claims(repo, surface, syms))
     # Mint deterministic ids before sorting: the counter is keyed by
@@ -1745,6 +1980,7 @@ def main(argv):
         print("error: " + str(repo) + " is not a directory", file=sys.stderr)
         return 2
     include_vendor = False
+    include_generated = False
     if mode == "code":
         engine = "auto"
         args = argv[2:]
@@ -1759,11 +1995,15 @@ def main(argv):
             elif args[i] == "--include-vendor":
                 include_vendor = True
                 i += 1
+            elif args[i] == "--include-generated":
+                include_generated = True
+                i += 1
             else:
                 i += 1
         with vendor_policy(include_vendor):
             json.dump(
-                extract_code(repo, engine, include_vendor=include_vendor),
+                extract_code(repo, engine, include_vendor=include_vendor,
+                             include_generated=include_generated),
                 sys.stdout, indent=2, sort_keys=True)
         print()
         return 0
@@ -1783,9 +2023,12 @@ def main(argv):
                 include_doc_strings = True
             elif args[i] == "--include-vendor":
                 include_vendor = True
+            elif args[i] == "--include-generated":
+                include_generated = True
             i += 1
     if code_json is None:
-        code_json = extract_code(repo, include_vendor=include_vendor)
+        code_json = extract_code(repo, include_vendor=include_vendor,
+                                 include_generated=include_generated)
     json.dump(
         extract_doc(repo, code_json, docs_dirs, include_doc_strings),
         sys.stdout, indent=2, sort_keys=True)

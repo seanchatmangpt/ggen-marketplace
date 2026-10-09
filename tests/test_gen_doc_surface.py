@@ -377,6 +377,57 @@ class P4TableClaimsTest(unittest.TestCase):
         assert "runbook" not in objs
         assert "Demo.Engine.ignite/2" in objs
 
+    def test_scaffold_table_shape_blank_line_separated_rows(self):
+        """Backlog [75]: doc-hdit scaffold tables emit each row blank-line
+        separated (header, `|---|` separator, then rows with a blank line
+        between every row). The table parser must keep such a run in one
+        block, recover the header from the row directly above the separator,
+        and claim backticked identifier cells in any column — matched spans
+        as `table_row`, unmatched as `table_row_scaffold`."""
+        md = (
+            "| Item | Type | Signature | Params | Defaults | Errors | Invariants |\n"
+            "|------|------|-----------|--------|----------|--------|------------|\n"
+            "\n"
+            "| `Demo.Engine.ignite/2` | function | def ignite(x, opts \\\\ []) |  |  |  |  |\n"
+            "\n"
+            "| `Not.A.Real.symbol/9` | function | def bogus(a) |  |  |  |  |\n"
+        )
+        claims = self._surface_and_claims(md)
+        mentions = {(c["object"], c["kind"]) for c in claims if c["predicate"] == "mentions"}
+        assert ("Demo.Engine.ignite/2", "table_row") in mentions, claims
+        assert ("Not.A.Real.symbol/9", "table_row_scaffold") in mentions, claims
+        # headerless first table (scaffold "### file" listing) has the same
+        # blank-line row shape with no header at all — still claims
+        md2 = (
+            "### src/demo.ex\n"
+            "\n"
+            "| `Demo.Engine.execute/4` | function | def execute(a, b, c, opts \\\\ []) |  |  |  |  |\n"
+            "\n"
+            "| `Nope.Missing.thing/0` | function | def thing() |  |  |  |  |\n"
+        )
+        claims2 = self._surface_and_claims(md2)
+        mentions2 = {(c["object"], c["kind"]) for c in claims2 if c["predicate"] == "mentions"}
+        assert ("Demo.Engine.execute/4", "table_row") in mentions2, claims2
+        # unmatched identifier in the Item column is scaffold, not dropped
+        assert ("Nope.Missing.thing/0", "table_row_scaffold") in mentions2, claims2
+
+    def test_two_contiguous_tables_stay_separate(self):
+        """Blank-line tolerance must not fuse two adjacent normal tables: the
+        second table's header row must not become a data row of the first."""
+        md = (
+            "| Function | Signature |\n"
+            "|---|---|\n"
+            "| `Demo.Engine.ignite/2` | `ignite(x, opts \\\\ [])` |\n"
+            "\n"
+            "| Item | Purpose |\n"
+            "|---|---|\n"
+            "| `Demo.Engine.execute/4` | batch runner |\n"
+        )
+        claims = self._surface_and_claims(md)
+        mentions = {(c["object"], c["kind"]) for c in claims if c["predicate"] == "mentions"}
+        assert ("Demo.Engine.ignite/2", "table_row") in mentions, claims
+        assert ("Demo.Engine.execute/4", "table_row") in mentions, claims
+
     def test_witnessed_ex4pm_offenders_resolved(self):
         """The two witnessed ex4pm phantom rows (DOC-HDIT-PILOT P3 audit:
         offending_claims=[880, 981]) must not re-appear as whole-span claims."""
@@ -787,3 +838,91 @@ class VendorSurfacePolicyTest(unittest.TestCase):
         with contextlib.redirect_stdout(buf):
             rc = g.main(["doc", str(repo), "--code-json", str(codejson)])
         assert rc == 0
+
+
+# --------------------------------------------- generated-surface policy ---
+# Backlog [107]/[64]: a repo-level `.doc-surface.toml` lists machine-generated
+# files ([[generated]] paths); they are excluded from the public code-surface
+# denominator, their symbols classify external_documented via the
+# known-external prefix merge, and --include-generated opts back in. Absent
+# config, behavior is exactly the pre-config extractor's.
+
+
+class GeneratedSurfacePolicyTest(unittest.TestCase):
+    GEN = "crates/sys/src/bindgen_bundled_version.rs"
+
+    def mk(self, include_config=True):
+        bindgen = (
+            "pub fn duckdb_ext(a: *const u8) -> i32 { 0 }\n"
+            "pub struct DuckDBExt;\n"
+            "pub use internal::{A, B};\n"
+        )
+        layout = {
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": "defmodule Demo do\n  def run(x), do: x\nend\n",
+            "Cargo.toml": '[workspace]\nmembers = ["crates/sys"]\n',
+            "crates/sys/Cargo.toml": '[package]\nname = "sys"\nversion = "0.1.0"\n',
+            "crates/sys/src/lib.rs": "pub fn kept(x: u8) -> u8 { x }\n",
+            self.GEN: bindgen,
+            "docs/guide.md": (
+                "Uses `duckdb_ext` and `crates/sys/src/bindgen_bundled_version.rs`.\n"
+            ),
+        }
+        if include_config:
+            layout[".doc-surface.toml"] = (
+                '[[generated]]\npaths = ["%s"]\n'
+                'reason = "bindgen output"\n' % self.GEN
+            )
+        return mkrepo(layout)
+
+    def test_generated_path_excluded_from_code_surface(self):
+        code = g.extract_code(self.mk())
+        assert all(self.GEN not in p for p in code["paths"])
+        assert all(self.GEN not in d for d in code["directories"])
+        names = str([m["name"] for m in code["modules"]])
+        assert "bindgen_bundled_version" not in names
+
+    def test_generated_symbols_join_known_external(self):
+        code = g.extract_code(self.mk())
+        assert "duckdb_ext" in code["known_external"]
+        assert self.GEN in code["known_external"]
+        assert "kept" not in code["known_external"]  # hand-written stays in surface
+
+    def test_generated_symbol_claim_classifies_external_documented(self):
+        repo = self.mk()
+        code = g.extract_code(repo)
+        doc = g.extract_doc(repo, code)
+        syms = set()
+        for m in code["modules"]:
+            for it in m["items"]:
+                syms.add(it["ident"])
+        gen_claims = [c for c in doc["claims"] if c["object"] == "duckdb_ext"]
+        assert gen_claims, "generated-symbol span must be claimed, not dropped"
+        c = gen_claims[0]
+        assert c["object"] not in syms            # not grounded -> not "covered"
+        assert g.is_vendor_object("duckdb_ext", g.generated_prefixes(repo))
+        assert not g.is_vendor_object("TotallyUnknown.sym",
+                                      g.generated_prefixes(repo))
+
+    def test_include_generated_opt_out_restores_full_surface(self):
+        repo = self.mk()
+        code = g.extract_code(repo, include_generated=True)
+        assert any(self.GEN in p for p in code["paths"])
+        assert "bindgen_bundled_version" in str(
+            [m["name"] for m in code["modules"]])
+
+    def test_absent_config_is_baseline(self):
+        repo = self.mk(include_config=False)
+        code = g.extract_code(repo)
+        assert any(self.GEN in p for p in code["paths"])
+        assert "duckdb_ext" not in code["known_external"]
+
+    def test_cli_include_generated_flag(self):
+        repo = self.mk()
+        import io, contextlib, json as _json
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = g.main(["code", str(repo), "--include-generated"])
+        assert rc == 0
+        code = _json.loads(buf.getvalue())
+        assert any(self.GEN in p for p in code["paths"])
