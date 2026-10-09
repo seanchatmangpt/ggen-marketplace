@@ -32,6 +32,48 @@ GCP_SERVICELIKE_PSC = {
 }
 GCP_SERVICELIKE_NONE = {"google_compute_firewall"}
 
+# Terraform meta-arguments: routing, not resource semantics -- never emitted.
+META_ARGS = {"provider", "for_each", "count", "depends_on", "lifecycle"}
+
+_QUOTED = re.compile(r'^"((?:[^"\\]|\\.)*)"$')
+_VAR_REF = re.compile(r'^(?:var|local)\.[A-Za-z_][A-Za-z0-9_.]*$')
+_RESOURCE_REF = re.compile(
+    r'^([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+?)'
+    r'(?:\.(?:id|arn|name|instance_arn))?$')
+_NON_RESOURCE_PREFIXES = ("each.", "toset(", "merge(", "jsonencode(")
+
+
+def _strip_comment(line):
+    """Drop a trailing # comment, honoring # inside quoted strings."""
+    out, inq = [], False
+    for ch in line:
+        if ch == '"':
+            inq = not inq
+        if ch == "#" and not inq:
+            break
+        out.append(ch)
+    return "".join(out)
+
+
+def top_level_attrs(body):
+    """(name, raw value) pairs for scalar assignments at the body's top level.
+
+    Nested-block assignments (jsonencode policies, security_posture_config,
+    HSM network profiles) are skipped by depth tracking: they are either
+    consumed by dedicated extractors (e.g. extract_actions) or are not
+    resource-semantic scalars.
+    """
+    out, depth = [], 0
+    for raw in body.splitlines():
+        code = _strip_comment(raw)
+        if depth == 0:
+            m = re.match(r'\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(\S.*)$', code)
+            if m:
+                out.append((m.group(1), m.group(2).strip()))
+        depth += code.count("{") + code.count("[") \
+            - code.count("}") - code.count("]")
+    return out
+
 
 def parse_resources(hcl):
     """Extract balanced-brace resource blocks as (type, name, body) tuples."""
@@ -107,6 +149,26 @@ def emit(provider, resources, hcl_for_slug=None):
         add(r, "a", "<%sSbbResource>" % F5EA)
         add(r, "<%stfType>" % F5EA, '"%s"' % rtype)
         add(r, "<%stfName>" % F5EA, '"%s"' % rname)
+
+        # Real body for every resource kind: top-level HCL scalars,
+        # cross-resource references and configuration-variable references.
+        for key, val in top_level_attrs(body):
+            if key in META_ARGS:
+                continue
+            m = _QUOTED.match(val)
+            if m:
+                add(r, "<%shcl.%s>" % (F5EA, key),
+                    '"%s"' % ttl_escape(m.group(1)))
+                continue
+            if re.match(r'^\d+$', val) or val in ("true", "false"):
+                add(r, "<%shcl.%s>" % (F5EA, key), '"%s"' % val)
+                continue
+            if _VAR_REF.match(val):
+                add(r, "<%svarReference>" % F5EA, '"%s"' % val)
+                continue
+            m = _RESOURCE_REF.match(val)
+            if m and not val.startswith(_NON_RESOURCE_PREFIXES):
+                add(r, "<%sreferences>" % F5EA, '"%s"' % m.group(1))
 
         if provider == "aws":
             for a in sorted(set(extract_actions(body))):

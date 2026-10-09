@@ -144,6 +144,115 @@ def test_azure_graph_facts():
             assert (r, F5EA.controlMapping, rdflib.Literal(c)) in g
 
 
+# --- real bodies for every kind x provider -------------------------------
+# A body is "real" (non-stub) when the resource carries at least one
+# f5ea:hcl.* scalar, f5ea:references or f5ea:varReference triple derived
+# from its actual rendered HCL -- not just the structural tfType/tfName
+# (plus provider-wide) triples.
+
+BODY_PREDICATES = {F5EA["hcl"], F5EA.references, F5EA.varReference}
+# predicate namespace check: any IRI starting with ...#hcl.
+_HCL_NS = str(F5EA) + "hcl."
+
+
+def _has_real_body(g, r):
+    for p in set(g.predicates(r, None)):
+        ps = str(p)
+        if ps.startswith(_HCL_NS) or p in (F5EA.references, F5EA.varReference):
+            return True
+    return False
+
+
+@pytest.mark.parametrize("provider", ["aws", "gcp", "azure"])
+def test_every_kind_has_real_body(provider):
+    """No stub kinds: every resource from BOTH the static fixture and the
+    live-rendered template carries a real HCL-derived body."""
+    graphs = [build_graph(provider)[0],
+              build_graph_from_rendered_template(provider)[0]]
+    for g in graphs:
+        resources = set(g.subjects(rdflib.RDF.type, F5EA.SbbResource))
+        assert resources, "%s: no resources" % provider
+        stubs = [r for r in resources if not _has_real_body(g, r)]
+        assert not stubs, "%s stub-bodied resources: %s" % (provider, stubs)
+
+
+# Per-kind assertions: the emitted predicates must match the real rendered
+# attribute values, per provider. (pred, {expected objects}); rendered_only
+# entries exist in the .tera template but not in the static fixture.
+KIND_SPECS = [
+    # AWS
+    ("aws", "aws_ssoadmin_permission_set", F5EA["hcl.session_duration"],
+     {"PT1H"}, False),
+    ("aws", "aws_vpc_endpoint", F5EA["hcl.vpc_endpoint_type"],
+     {"Interface"}, False),
+    ("aws", "aws_vpc_endpoint", F5EA["hcl.private_dns_enabled"],
+     {"true"}, False),
+    ("aws", "aws_cloudtrail_event_data_store", F5EA["hcl.retention_period"],
+     {"3650"}, False),
+    ("aws", "aws_cloudtrail_event_data_store",
+     F5EA["hcl.termination_protection_enabled"], {"true"}, False),
+    ("aws", "aws_ec2_transit_gateway_vpc_attachment", F5EA.references,
+     {"aws_ec2_transit_gateway.sbb"}, False),
+    ("aws", "aws_ssoadmin_managed_policy_attachment", F5EA.references,
+     {"aws_ssoadmin_permission_set.sbb"}, False),
+    ("aws", "aws_ssoadmin_managed_policy_attachment", F5EA.varReference,
+     {"var.sso_managed_policy_arn"}, False),
+    # GCP
+    ("gcp", "google_compute_address", F5EA["hcl.address_type"],
+     {"INTERNAL"}, False),
+    ("gcp", "google_compute_forwarding_rule", F5EA.references,
+     {"google_compute_address.psc_endpoint_ip",
+      "google_compute_service_attachment.svc_att"}, False),
+    ("gcp", "google_compute_service_attachment",
+     F5EA["hcl.connection_preference"], {"ACCEPT_MANUAL"}, False),
+    ("gcp", "google_kms_crypto_key", F5EA["hcl.purpose"],
+     {"ENCRYPT_DECRYPT"}, False),
+    ("gcp", "google_kms_crypto_key", F5EA["hcl.rotation_period"],
+     {"7776000s"}, False),
+    ("gcp", "google_org_policy_policy", F5EA["hcl.parent"],
+     {"projects/proj-svc"}, True),
+    # Azure
+    ("azure", "azurerm_management_group", F5EA["hcl.display_name"],
+     {"finance-enclave-root", "finance-landing-zone", "finance-enclave"},
+     False),
+    ("azure", "azurerm_virtual_hub", F5EA.references,
+     {"azurerm_virtual_wan.this", "azurerm_resource_group.connectivity"},
+     False),
+    ("azure", "azurerm_dedicated_hardware_security_module",
+     F5EA.varReference, {"var.hsm_sku", "var.hsm_subnet_id"}, False),
+    ("azure", "azurerm_subscription_policy_assignment", F5EA["hcl.name"],
+     {"confidential-vm-dccv5-only"}, False),
+]
+
+
+@pytest.mark.parametrize(
+    "provider,tf_type,pred,expected,rendered_only",
+    [(s[0], s[1], s[2], s[3], s[4]) for s in KIND_SPECS])
+def test_kind_bodies_carry_real_values(provider, tf_type, pred, expected,
+                                       rendered_only):
+    g, _ = build_graph(provider)
+    resources = list(g.subjects(F5EA.tfType, rdflib.Literal(tf_type)))
+    if rendered_only and not resources:
+        pytest.skip("rendered-only kind absent from static fixture")
+    hits = set()
+    for r in resources:
+        hits |= {str(o) for o in g.objects(r, pred)}
+    assert hits == expected, (
+        "%s/%s: %s -> %s != %s" % (provider, tf_type, pred, hits, expected))
+
+
+def test_rendered_org_policy_bodies():
+    """org_policy_policy resources (live-render only) carry real parents."""
+    g, _ = build_graph_from_rendered_template("gcp")
+    policies = list(g.subjects(F5EA.tfType,
+                               rdflib.Literal("google_org_policy_policy")))
+    assert len(policies) == 3, policies
+    parents = set()
+    for p in policies:
+        parents |= {str(o) for o in g.objects(p, F5EA["hcl.parent"])}
+    assert parents == {"projects/proj-svc"}
+
+
 
 
 
