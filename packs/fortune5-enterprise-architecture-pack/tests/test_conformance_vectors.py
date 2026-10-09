@@ -15,11 +15,16 @@ Vectors:
 """
 from pathlib import Path
 
+from pathlib import Path
+
+from pyshacl import validate
 from rdflib import Dataset, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import OWL, RDF, RDFS
 
 ROOT = Path(__file__).resolve().parents[1]
 Q = ROOT / "queries"
+SHAPES_00 = ROOT / "shapes" / "00-metamodel-hygiene.shacl.ttl"
+SHAPES_10 = ROOT / "shapes" / "10-sbb-realization.shacl.ttl"
 
 EA = Namespace("https://chatman.ai/ontology/enterprise-architecture#")
 F5EA = Namespace("https://ggen.io/ontology/fortune5-enterprise-architecture#")
@@ -89,6 +94,20 @@ def admit_stage5(g):
         if run_gate(g, name) is not True:
             return False, f"{name}: ASK false"
     return True, "ALIVE"
+
+
+def shacl_conforms(g, shapes_file):
+    """Real pyshacl validation of graph/dataset g against a pack shape file.
+    Returns (conforms, report_text)."""
+    shapes = Graph().parse(shapes_file.as_posix(), format="turtle")
+    conforms, _, report = validate(
+        data_graph=g,
+        shacl_graph=shapes,
+        ont_graph=None,
+        inference="none",
+        advanced=True,
+    )
+    return conforms, report.decode() if isinstance(report, bytes) else str(report)
 
 
 def pin_ok(pin):
@@ -236,6 +255,12 @@ def test_tv01_synthesis_fiber_completeness_admitted_at_stage5():
     inv = run_gate(g, "160-azure-sbb-select.rq")
     assert len(inv) == 1 and str(inv[0].exactSubject) == DIGEST
 
+    # SHACL legs: the admitted fiber's graph is shape-clean, not just
+    # SPARQL-clean — both pack shapes must pass (real pyshacl).
+    for shapes in (SHAPES_00, SHAPES_10):
+        conforms, report = shacl_conforms(g, shapes)
+        assert conforms, f"{shapes.name}: admitted fiber violates shapes\n{report}"
+
 
 def test_tv01_falsifier_removing_the_pin_breaks_stage4():
     g = synthesis_fiber()
@@ -305,6 +330,13 @@ def test_tv02_conflation_injection_fail_closed():
         assert list(conflated.query(DOD9_COLLISION_COURT)), (
             "E_DOD9_COLLISION: collision court must fire on the injected graph"
         )
+        # SHACL leg: the same injection is an explicit violation of the
+        # metamodel-hygiene shape (not merely a zero-triple lift).
+        conforms, report = shacl_conforms(conflated, SHAPES_00)
+        assert not conforms, (
+            f"DoD9 collision via {cls} must violate 00-metamodel-hygiene"
+        )
+        assert "DoD #9" in report, report
 
     # Injection B: stale reference digest -> dangling reference, dropped.
     assert lift(manifest_dataset(digest="sha256:" + "c" * 64)) == []
@@ -411,3 +443,35 @@ def test_tv05_procedural_mutation_do_out_of_grammar():
     violations = list(do_graph.query(AUTHORITY_GRAMMAR_COURT))
     assert violations, "DO injection must be detected"
     assert all(str(v.v) == "DO" for v in violations)
+
+
+# ---------------------------------------------------------------- TV-06 ----
+def test_tv06_dangling_sbb_violates_sbb_realization_shape():
+    """TV-06: a dangling realization — ea:satisfiesABB pointing at a
+    nonexistent (untyped) ABB — violates shapes/10-sbb-realization.shacl.ttl
+    (rho(S) = A: the realization map must land in typed ABBs)."""
+
+    def dangling_fiber():
+        g = synthesis_fiber()
+        g.remove((EA["sbb-f5"], EA.satisfiesABB, None))
+        g.add((EA["sbb-f5"], EA.satisfiesABB, EA["abb-does-not-exist"]))
+        return g
+
+    conforms, report = shacl_conforms(dangling_fiber(), SHAPES_10)
+    assert not conforms, "dangling satisfiesABB must violate 10-sbb-realization"
+    assert "satisfiesABB" in report, report
+
+    # Minimal standalone fixture: the shape fires without the full fiber.
+    minimal = Graph()
+    minimal.parse(data="""
+    @prefix ea: <https://chatman.ai/ontology/enterprise-architecture#> .
+    ea:badSbb a ea:SolutionBuildingBlock ;
+      ea:satisfiesABB ea:noSuchAbb .
+    """, format="turtle")
+    conforms, report = shacl_conforms(minimal, SHAPES_10)
+    assert not conforms, "minimal dangling SBB must violate 10-sbb-realization"
+
+    # Falsifier (anti-vacuity): the unmutated fiber's realization is clean
+    # against the same shape (also exercised by the TV-01 legs).
+    conforms, _ = shacl_conforms(synthesis_fiber(), SHAPES_10)
+    assert conforms, "clean fiber must conform to 10-sbb-realization"
