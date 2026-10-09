@@ -336,7 +336,7 @@ class P4TableClaimsTest(unittest.TestCase):
             "docs/reference.md": docs_md,
         })
         surface = g.extract_code(repo)
-        return g.extract_doc(repo, surface)["claims"]
+        return g.extract_doc(repo, surface)
 
     def test_table_rows_emit_symbol_claims(self):
         md = (
@@ -345,12 +345,16 @@ class P4TableClaimsTest(unittest.TestCase):
             "| `Demo.Engine.ignite/2` | `ignite(x, opts \\\\ [])` | `opts` | `[]` |\n"
             "| `Not.A.Real.symbol/9` | `bogus(a)` | `a` | `1` |\n"
         )
-        claims = self._surface_and_claims(md)
+        claims = self._surface_and_claims(md)["claims"]
         mentions = {(c["object"], c["kind"]) for c in claims if c["predicate"] == "mentions"}
         assert ("Demo.Engine.ignite/2", "table_row") in mentions, claims
-        # fake symbol in a Function column is still a doc claim — the audit
-        # gate must see it (phantom channel), extractor does not silently drop it
-        assert ("Not.A.Real.symbol/9", "table_row_scaffold") in mentions, claims
+        # fake symbol in a Function column stays visible — typed spec-tier
+        # (`scaffold_spec`), excluded from the Phi denominator: neither
+        # phantom nor grounded ([95]/[152])
+        assert ("Not.A.Real.symbol/9", "table_row_scaffold") not in mentions, claims
+        spec = self._surface_and_claims(md)["spec_tier"]
+        assert ("Not.A.Real.symbol/9", "scaffold_spec") in {
+            (c["object"], c["kind"]) for c in spec}, spec
 
     def test_table_has_param_claim_carries_identifier(self):
         md = (
@@ -358,7 +362,7 @@ class P4TableClaimsTest(unittest.TestCase):
             "|---|---|---|\n"
             "| `Demo.Engine.ignite/2` | `opts` | `[]` |\n"
         )
-        claims = self._surface_and_claims(md)
+        claims = self._surface_and_claims(md)["claims"]
         hp = [c for c in claims if c["predicate"] == "has_param"]
         assert len(hp) == 1, claims
         # the object is the identifier itself — a groundable code-surface
@@ -372,7 +376,7 @@ class P4TableClaimsTest(unittest.TestCase):
             "|---|---|\n"
             "| `Demo.Engine.ignite/2` | see `release/v26.8.23` and the runbook |\n"
         )
-        claims = self._surface_and_claims(md)
+        claims = self._surface_and_claims(md)["claims"]
         objs = [c["object"] for c in claims if c["predicate"] == "mentions"]
         assert "release/v26.8.23" not in objs
         assert "runbook" not in objs
@@ -384,7 +388,8 @@ class P4TableClaimsTest(unittest.TestCase):
         between every row). The table parser must keep such a run in one
         block, recover the header from the row directly above the separator,
         and claim backticked identifier cells in any column — matched spans
-        as `table_row`, unmatched as `table_row_scaffold`."""
+        as `table_row`, unmatched typed spec-tier `scaffold_spec` in the
+        `spec_tier` array ([95]/[152])."""
         md = (
             "| Item | Type | Signature | Params | Defaults | Errors | Invariants |\n"
             "|------|------|-----------|--------|----------|--------|------------|\n"
@@ -393,10 +398,10 @@ class P4TableClaimsTest(unittest.TestCase):
             "\n"
             "| `Not.A.Real.symbol/9` | function | def bogus(a) |  |  |  |  |\n"
         )
-        claims = self._surface_and_claims(md)
+        claims = self._surface_and_claims(md)["claims"]
         mentions = {(c["object"], c["kind"]) for c in claims if c["predicate"] == "mentions"}
         assert ("Demo.Engine.ignite/2", "table_row") in mentions, claims
-        assert ("Not.A.Real.symbol/9", "table_row_scaffold") in mentions, claims
+        assert ("Not.A.Real.symbol/9", "table_row_scaffold") not in mentions, claims
         # headerless first table (scaffold "### file" listing) has the same
         # blank-line row shape with no header at all — still claims
         md2 = (
@@ -406,11 +411,14 @@ class P4TableClaimsTest(unittest.TestCase):
             "\n"
             "| `Nope.Missing.thing/0` | function | def thing() |  |  |  |  |\n"
         )
-        claims2 = self._surface_and_claims(md2)
+        claims2 = self._surface_and_claims(md2)["claims"]
         mentions2 = {(c["object"], c["kind"]) for c in claims2 if c["predicate"] == "mentions"}
         assert ("Demo.Engine.execute/4", "table_row") in mentions2, claims2
-        # unmatched identifier in the Item column is scaffold, not dropped
-        assert ("Nope.Missing.thing/0", "table_row_scaffold") in mentions2, claims2
+        # unmatched identifier in the Item column is spec-tier, not dropped
+        # and not a phantom ([95]/[152])
+        spec2 = self._surface_and_claims(md2)["spec_tier"]
+        assert ("Nope.Missing.thing/0", "scaffold_spec") in {
+            (c["object"], c["kind"]) for c in spec2}, spec2
 
     def test_two_contiguous_tables_stay_separate(self):
         """Blank-line tolerance must not fuse two adjacent normal tables: the
@@ -424,7 +432,7 @@ class P4TableClaimsTest(unittest.TestCase):
             "|---|---|\n"
             "| `Demo.Engine.execute/4` | batch runner |\n"
         )
-        claims = self._surface_and_claims(md)
+        claims = self._surface_and_claims(md)["claims"]
         mentions = {(c["object"], c["kind"]) for c in claims if c["predicate"] == "mentions"}
         assert ("Demo.Engine.ignite/2", "table_row") in mentions, claims
         assert ("Demo.Engine.execute/4", "table_row") in mentions, claims
@@ -437,11 +445,11 @@ class P4TableClaimsTest(unittest.TestCase):
             "|---|---|\n"
             "| `Demo.Engine.ignite/2` (`stream/ingest.ex:19`) | validated batch |\n"
         )
-        claims = self._surface_and_claims(md)
+        claims = self._surface_and_claims(md)["claims"]
         objs = [c["object"] for c in claims]
         assert "stream/ingest.ex:19" not in objs, claims
         md2 = "resolved: `execute/4,5` and `admit/2` confirmed real\n"
-        claims2 = self._surface_and_claims(md2)
+        claims2 = self._surface_and_claims(md2)["claims"]
         objs2 = [c["object"] for c in claims2]
         assert "execute/4,5" not in objs2, claims2
         assert "execute/4" in objs2, claims2
