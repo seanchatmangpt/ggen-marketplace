@@ -1394,3 +1394,80 @@ class UseListSpanTest(unittest.TestCase):
         t0 = time.monotonic()
         assert g.match_span_claims(span, self.SYMS) == []
         assert time.monotonic() - t0 < 1.0
+
+
+class R64ModuleCoverageTest(unittest.TestCase):
+    """R64 denominator-scope law: module-level gating, per-function
+    items report-only."""
+
+    def _mk(self):
+        src = (
+            "defmodule Demo.Documented do\n"
+            "  @moduledoc false\n"
+            "  def one(x), do: x\n"
+            "end\n"
+            "defmodule Demo.Silent do\n"
+            "  def two(x), do: x\n"
+            "end\n"
+        )
+        return mkrepo({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": src,
+            "README.md": "See `Demo.Documented` and `one/1` in action.\n",
+        })
+
+    def test_module_summary_emitted_and_gates(self):
+        repo = self._mk()
+        code = g.extract_code(repo)
+        doc = g.extract_doc(repo, code)
+        mc = doc["module_coverage"]
+        assert mc["modules_total"] == 2
+        by = {m["module"]: m for m in mc["modules"]}
+        # README mentions Demo.Documented and one/1 -> grounded
+        assert by["Demo.Documented"]["covered"] is True
+        assert by["Demo.Documented"]["grounded_claims"] >= 1
+        # Demo.Silent has zero grounding -> uncovered
+        assert by["Demo.Silent"]["covered"] is False
+        assert "Demo.Silent" in mc["uncovered"]
+        assert mc["modules_covered"] == 1
+        assert g.module_gate(doc) is False
+
+    def test_per_function_items_report_only(self):
+        # per-function items never enter the gated denominator: `two/1` is
+        # undocumented but the gate is module-level, so Silent fails on
+        # module grounding alone (items stay visible in the summary).
+        repo = self._mk()
+        code = g.extract_code(repo)
+        doc = g.extract_doc(repo, code)
+        by = {m["module"]: m for m in doc["module_coverage"]["modules"]}
+        assert by["Demo.Silent"]["items"] == 1
+        assert by["Demo.Silent"]["grounded_claims"] == 0
+
+    def test_full_coverage_passes_gate(self):
+        repo = self._mk()
+        (repo / "README.md").write_text(
+            "See `Demo.Documented`, `one/1`, `Demo.Silent` and `two/1`.\n")
+        code = g.extract_code(repo)
+        doc = g.extract_doc(repo, code)
+        assert doc["module_coverage"]["uncovered"] == []
+        assert g.module_gate(doc) is True
+
+    def test_falsifier_zero_grounding_module_fails_gate(self):
+        # Anti-vacuity probe: a module with ZERO grounding must FAIL the
+        # module-level gate (never silently pass).
+        repo = mkrepo({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/lonely.ex": (
+                "defmodule Demo.Lonely do\n"
+                "  def ghost(x), do: x\n"
+                "end\n"
+            ),
+            "README.md": "Nothing to see here.\n",
+        })
+        code = g.extract_code(repo)
+        doc = g.extract_doc(repo, code)
+        mc = doc["module_coverage"]
+        assert mc["modules_total"] == 1
+        assert mc["modules_covered"] == 0
+        assert mc["uncovered"] == ["Demo.Lonely"]
+        assert g.module_gate(doc) is False

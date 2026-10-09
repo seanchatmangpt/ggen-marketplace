@@ -1,8 +1,9 @@
 # PIN-ROTATION-LEDGER — fleet extractor pin rotation, v26.10.8
 
 Lane R43, 2026-10-09. Updated R61 (second rotation), 2026-10-09.
+Updated R64 (third rotation: module-level coverage denominator), 2026-10-09.
 
-## Lineage (two hops)
+## Lineage (three hops)
 
 - Hop 0 (original pin): `4c862576ab63595f9cd0417b35341af3ec1001f49450e79bf2e4c291a4a4246f`
   (`ggen-marketplace/scripts/gen_doc_surface.py`; BLAKE3 receipt identity
@@ -11,10 +12,18 @@ Lane R43, 2026-10-09. Updated R61 (second rotation), 2026-10-09.
 - Hop 1: → `f51d81ac4f7e4119dff950327237effee4968f4aa9aba52c7d62c5362f441fa9`
   @ gmp commit `b99942bdb` (fix(doc-surface): count fn-openers in scan_elixir
   block depth — R34 rotation). Verified by R49.
-- Hop 2 (current): → `b88297e62ad1367207d2da517aa1512c07b6f00b2e78cc5dd05de3f211369116`
+- Hop 2: → `b88297e62ad1367207d2da517aa1512c07b6f00b2e78cc5dd05de3f211369116`
   @ gmp commit `2c81947e4` (fix(extractor): R46 pyright hygiene on doc-surface
   extractor — dead-code removal rotation, R46). Witnessed by R52 sha256
   recompute; re-verified at current HEAD by R61 (`shasum -a 256`).
+- Hop 3 (current): → `3d2abae19dac9f529b8250a0f96a02b34dbf86348dad241fbdb003410dc35590`
+  (feat(extractor): R64 module-level coverage denominator — emits
+  `module_coverage` per-module grounded/uncovered summary +
+  `module_gate`; per-function items become report-only granularity.
+  Decision: DENOMINATOR-SCOPE-DECISION.md. Tests:
+  tests/test_gen_doc_surface.py R64ModuleCoverageTest (80 pass);
+  pyright clean; falsifier witnessed at /tmp/r64-probe (Probe.Ghost,
+  zero grounding → gate FAIL). 2026-10-09, lane R64.
 
 Sibling notes referencing `f51d81ac` per-hop are historical; the single
 stable fleet pin reference is this ledger.

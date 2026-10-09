@@ -1923,6 +1923,88 @@ def table_claims(rel, header, cells, syms, vendor_pfx=(), spec_tier=None):
     return out
 
 
+# --- R64 denominator-scope law (module-level gating) ----------------------
+
+
+def _module_symbols(mod):
+    short = (mod["name"] or "").split(".")[-1]
+    syms = {short}
+    for it in mod["items"]:
+        syms.add(it["ident"])
+        sig = it.get("signature", "")
+        if "/" in sig:
+            syms.add(sig)
+    return syms
+
+
+def module_coverage(surface, claims):
+    """Per-module grounded/uncovered summary — the module-level gate input.
+
+    R64 denominator-scope decision (docs/sjira/v26.10.8/
+    DENOMINATOR-SCOPE-DECISION.md): gated coverage is MODULE-level — each
+    public module must carry >= 1 grounded claim. Per-function items stay
+    in the emitted surface (report-only granularity); the residual between
+    the 2,871-item and 17,705-item denominators was extractor-scope
+    drift, not a doc regression, and a per-function denominator makes the
+    gate sensitive to extractor scope, not documentation health.
+
+    Grounding is claim-object token containment: a claim grounds module M
+    when any of M's symbols (module short name, item ident, arity
+    signature) appears word-bounded in the claim object. `scaffold_spec`
+    spec-tier entries and non-string objects never ground. Deterministic:
+    pure function of (surface, claims).
+    """
+    mods = []
+    by_name = {}
+    short_syms = {}
+    for mod in surface["modules"]:
+        name = mod["name"] or ""
+        if not name or not name[0].isupper():
+            continue
+        by_name[name] = {
+            "module": name,
+            "file": mod.get("file"),
+            "items": len(mod["items"]),
+            "grounded_claims": 0,
+            "covered": False,
+        }
+        mods.append(name)
+        short_syms[name] = _module_symbols(mod)
+    # symbol -> module names map: one pass over claims instead of
+    # O(claims*modules)
+    sym_to_names = {}
+    for name, syms in short_syms.items():
+        for s in syms:
+            sym_to_names.setdefault(s, set()).add(name)
+    for c in claims:
+        obj = c.get("object")
+        if not isinstance(obj, str) or c.get("kind") == "scaffold_spec":
+            continue
+        names = set()
+        for tok in re.findall(r"[A-Za-z_]\w*(?:/\d+)?", obj):
+            if tok in sym_to_names:
+                names |= sym_to_names[tok]
+            elif tok.count("/") == 1 and tok.split("/")[0] in sym_to_names:
+                names |= sym_to_names[tok.split("/")[0]]
+        if names:
+            for name in names:
+                by_name[name]["grounded_claims"] += 1
+                by_name[name]["covered"] = True
+    return [by_name[m] for m in sorted(mods)]
+
+
+def module_gate(doc, threshold=1.0):
+    """Module-level coverage gate: PASS iff every public module carries
+    >= 1 grounded claim. This is the R64 denominator-scope: per-function
+    items are report-only granularity and never enter the denominator."""
+    mc = doc.get("module_coverage") or {}
+    modules = mc.get("modules") or []
+    if not modules:
+        return True
+    covered = sum(1 for m in modules if m["covered"])
+    return covered / len(modules) >= threshold
+
+
 def claim_id(repo_name, rel, kind, index):
     """Deterministic claim id: stable hash of (repo, path, kind, index).
 
@@ -2087,6 +2169,16 @@ def extract_doc(repo, surface, docs_dirs=None, include_doc_strings=False,
                     rel, table_block, syms, vendor_pfx, spec_tier))
     if include_doc_strings:
         claims.extend(doc_string_claims(repo, surface, syms))
+    # R64 denominator-scope: emit the per-module grounded/uncovered summary
+    # the court gates on. Module-level gating (each public module >= 1
+    # grounded claim); per-function items are report-only granularity.
+    modcov = module_coverage(surface, claims)
+    module_coverage_summary = {
+        "modules_total": len(modcov),
+        "modules_covered": sum(1 for m in modcov if m["covered"]),
+        "uncovered": [m["module"] for m in modcov if not m["covered"]],
+        "modules": modcov,
+    }
     # Mint deterministic ids before sorting: the counter is keyed by
     # (path, kind) in extraction order, which is itself deterministic
     # (iter_files sorts; claims append in scan order). Spec-tier entries get
@@ -2102,7 +2194,8 @@ def extract_doc(repo, surface, docs_dirs=None, include_doc_strings=False,
     claims.sort(key=lambda c: (c["subject"], c["predicate"], json.dumps(c["object"], sort_keys=True)))
     spec_tier.sort(key=lambda c: (c["subject"], json.dumps(c["object"], sort_keys=True)))
     return {"repo": repo.name, "doc_roots": [str(r) for r in roots],
-            "claims": claims, "spec_tier": spec_tier}
+            "claims": claims, "spec_tier": spec_tier,
+            "module_coverage": module_coverage_summary}
 
 
 # ------------------------------------------------------------------- CLI ---
