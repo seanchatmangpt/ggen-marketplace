@@ -3,7 +3,7 @@
 
 `packs/fortune5-enterprise-architecture-pack/tests/` holds the pack's real
 suite -- 8 files (conformance vectors, DOD9 fences, provider templates,
-qualification ladder, resource graph, SHACL shapes x3), 75 tests, ~2.4s --
+qualification ladder, resource graph, SHACL shapes x3), 96 tests, ~5.5s --
 and it is fully pack-local: every module resolves its fixtures from
 `Path(__file__).resolve().parents[1]` (the pack dir), no sibling checkout
 is consulted. So unlike the card fleet validator (tests/test_agent_cards_ci.py),
@@ -15,7 +15,7 @@ What this wrapper does:
      pinned to the pack directory as cwd (`python3 -m pytest tests/ -q`)
      and asserts exit 0 -- auto-wired by the repo's existing
      `pytest tests/` CI job;
-  2. asserts the 75-test count from the pytest tail line, so a silently
+  2. asserts the 96-test count from the pytest tail line, so a silently
      skipped or lost suite file fails here rather than passing vacuously.
 
 Pack suite command (from the pack directory):
@@ -32,12 +32,12 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PACK = os.path.join(REPO_ROOT, "packs", "fortune5-enterprise-architecture-pack")
-EXPECTED_TESTS = 75
+EXPECTED_TESTS = 96
 
 
 class TestFortune5PackCI(unittest.TestCase):
     def test_pack_suite_battery_passes(self):
-        """The full pack battery (75 tests, 8 suites) exits 0, pack-local."""
+        """The full pack battery (96 tests, 8 suites) exits 0, pack-local."""
         self.assertTrue(
             os.path.isdir(PACK), f"pack directory missing: {PACK}"
         )
