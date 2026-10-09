@@ -1,16 +1,23 @@
 # PIN-ROTATION-LEDGER — fleet extractor pin rotation, v26.10.8
 
-Lane R43, 2026-10-09.
+Lane R43, 2026-10-09. Updated R61 (second rotation), 2026-10-09.
 
-## Lineage
+## Lineage (two hops)
 
-- OLD pin: `4c862576ab63595f9cd0417b35341af3ec1001f49450e79bf2e4c291a4a4246f`
+- Hop 0 (original pin): `4c862576ab63595f9cd0417b35341af3ec1001f49450e79bf2e4c291a4a4246f`
   (`ggen-marketplace/scripts/gen_doc_surface.py`; BLAKE3 receipt identity
-  `a579e2109941e1f27f2faf0403d6c91e3eebb7f234dcc191a814573001309616`)
-- NEW pin: `f51d81ac4f7e4119dff950327237effee4968f4aa9aba52c7d62c5362f441fa9`
-  (fn-depth edit, R34) @ ggen-marketplace `b99942bdb`; verified by R49.
-- Era: 4c862576ab pinned during the v26.10.8 doc-hdit campaign certify runs
-  (2026-10-09) → superseded by f51d81ac via R34 on the same date.
+  `a579e2109941e1f27f2faf0403d6c91e3eebb7f234dcc191a814573001309616`).
+  Pinned during the v26.10.8 doc-hdit campaign certify runs (2026-10-09).
+- Hop 1: → `f51d81ac4f7e4119dff950327237effee4968f4aa9aba52c7d62c5362f441fa9`
+  @ gmp commit `b99942bdb` (fix(doc-surface): count fn-openers in scan_elixir
+  block depth — R34 rotation). Verified by R49.
+- Hop 2 (current): → `b88297e62ad1367207d2da517aa1512c07b6f00b2e78cc5dd05de3f211369116`
+  @ gmp commit `2c81947e4` (fix(extractor): R46 pyright hygiene on doc-surface
+  extractor — dead-code removal rotation, R46). Witnessed by R52 sha256
+  recompute; re-verified at current HEAD by R61 (`shasum -a 256`).
+
+Sibling notes referencing `f51d81ac` per-hop are historical; the single
+stable fleet pin reference is this ledger.
 
 ## Sweep scope
 
