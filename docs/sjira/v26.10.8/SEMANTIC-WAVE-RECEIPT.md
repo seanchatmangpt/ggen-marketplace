@@ -477,3 +477,73 @@ for spec in "ash_surface 620aa939" "ash_graphlaw 32765fc" "ferroplan 44749c6" \
   git -C /Users/sac/${spec%% *} log --oneline -1 ${spec##* };
 done
 ```
+
+## 11. Round-5 final refresh (2026-10-08, lane `round5-final`)
+
+Docs-only lane on ggen-marketplace `hdit-v2-structs` @ `246b9aea1` (pulled
+`--ff-only`, no stash). Folds in everything landed since the round-5 receipt
+refresh `0bf1be372`. Landed-commit SHAs re-verified via
+`git log --oneline -1 <sha>` in this lane; per-repo audit numbers not found on
+disk in their owning repos this session are marked **wave-reported
+(as-of-date)** — not re-executed in this lane.
+
+### 11.1 Landed since `0bf1be372` (this repo, all re-verified)
+
+| SHA | what |
+|---|---|
+| `c331146b2` | TAG-STANDING (backlog [115]): `v26.10.8` → `v26.10.8-2` annotated tag advancement receipted for ggen-marketplace (`0bf1be372`), xaas (`8bb4a2f5`), ash_surface (`dc214d7b5`); no tag rewritten; post-tag hardening inventory landed |
+| `c4080fd21` | [117] P0: `gen_workgraph.py` emits SHACL-valid receipt fields; root-causes the 15 defect-class violations (beam4pm 9, ex4pm 6) introduced by the [114] regen; ex4pm regen landed (`d9422d3`) |
+| `2de3d52fe` | [105] multi-identifier span split (`a::{B, C}` use-re-export spans) for per-ident grounding — cache-compatible, no binary change; targets the 54 ferroplan reference.md grounding FPs |
+| `1d97bec55` | seL4 subtraction doctrine + TCB inventory landed (`TCB-INVENTORY.md`) |
+| `246b9aea1` | [124] ash_surface doc-hdit re-audit witness persisted in §10.5 (mixed-verdict honesty: ts extractor PASS S 0.9500/Phi 0.0000; regex extractor FAIL Phi 0.0037, 3 scaffold-class phantoms) at persisted path `/tmp/asurf-witness/audit.txt` |
+
+### 11.2 Final standings table
+
+**Certified PASS (ts extractor)**:
+
+| repo | verdict |
+|---|---|
+| xaas | PASS (ts) — matrix M8; post-repair witness landed |
+| ex4pm | PASS (ts); certify-landed (`CERTIFY-VERIFY.md` + `ex4pm.chain.jsonl` on disk; P0-117 regen fix `d9422d3` re-verified) |
+| ggen_igniter | PASS (ts) — M15 execute suite 16/0 |
+| gmp | PASS (ts) — wave-reported |
+| castle | PASS (ts) — M16 typed skip reproduced |
+| graphlaw | PASS (ts) — round-4 audit 0.9437 |
+| affidavit | PASS (ts) — M11 clippy clean, sj_record 11/11 |
+| ash_surface | PASS (ts) — post-repair `620aa939`; [124] mixed-verdict honesty carried (regex path FAIL disclosed) |
+| ash_graphlaw | PASS (ts) — post-repair `32765fc`, scaffold=0 Phi 0.000000 |
+| zcode | PASS (ts) — pending TS-surface denominator ([127]); [91] closed, `f055645` on main via `925617a` (re-verified) |
+
+**Typed BLOCKED with falsifier**:
+
+| repo | standing | falsifier / lane |
+|---|---|---|
+| ferroplan | BLOCKED-with-falsifier — doc-hdit certify refusal (typed
+`REFUSED:DOC_HDIT_CERTIFY_GATE_FAIL` at `47aa362`, `CERTIFY-BLOCKED.md` on
+disk); latest audit figures coverage 0.8637 / Phi 0.0210 wave-reported
+(as-of-date); [129]+[103] done, [106] done | re-run certify at HEAD once the
+phantom mass lands; ACCEPTED replaces BLOCKED |
+| ash_pplan | BLOCKED-with-falsifier — audit 0.0034 FAIL-honest with 3 named
+claims, wave-reported (as-of-date; [125]) | re-audit at post-[125] HEAD drops
+Phi ≤ 0.001 |
+| zcode | BLOCKED-with-falsifier — TS denominator ([127], wave-reported) |
+| frozen-duckdb | BLOCKED-with-falsifier — 0.8985 ([107] closed via
+`66eaea182` (re-verified) but 4-item residual open) | re-audit S < 0.90 or
+Phi > 0.001 refutes closure |
+
+### 11.3 Gate verdict (round 3, restated)
+
+DOCS-DOD-GATE round-3 verdict: **GATE PASS WITH NAMED RESIDUES** — every
+residue seam-classified and falsified (gate doc §7.2/§7.3); see the gate doc
+§8 for the criterion-level restatement.
+
+### 11.4 Round-5 final standing
+
+Standing: **PARTIAL_ALIVE (strengthened; final)** — 10 repos certified PASS on
+the ts extractor, the certify plane is exercised end to end (ex4pm
+certify-landed; ferroplan typed BLOCKED with falsifier), the admission ledger
+is fully triaged, and the 78-record seal is verified. The remaining BLOCKED set
+(ferroplan, ash_pplan, zcode TS denominator, frozen-duckdb) is typed, each with
+a named falsifier. Not claimed: full ALIVE — the BLOCKED set and the
+wave-reported (as-of-date) figures above are the exact boundary of this
+receipt.

@@ -150,3 +150,31 @@ Round-1 and round-2 verdicts hold and strengthen. Not claimed: full ALIVE
 ([99] extractor diff; per-repo audits wave-reported except where
 matrix-probe-witnessed). Standing: **GATE PASS WITH NAMED RESIDUES** — every
 residue typed, lane-assigned, falsifiable; zero silent failures.
+
+## 8. Round-3 final confirmation (2026-10-08, lane `round5-final`)
+
+Docs-only lane on ggen-marketplace `hdit-v2-structs` @ `246b9aea1` (pulled
+`--ff-only`, no stash). Folds in the landings since `0bf1be372` (re-verified
+via `git log --oneline -1 <sha>` in this lane): tag-advancement standing table
+[115] (`c331146b2`), [117] gen_workgraph SHACL-valid receipt fields
+(`c4080fd21`, ex4pm regen `d9422d3`), [105] multi-ident span split
+(`2de3d52fe`), seL4 subtraction doctrine + TCB inventory (`1d97bec55`), [124]
+persisted ash_surface re-audit witness (mixed-verdict honesty carried in
+`SEMANTIC-WAVE-RECEIPT.md` §10.5/§11.1).
+
+Final standings (full table in `SEMANTIC-WAVE-RECEIPT.md` §11.2): 10 repos
+certified PASS on the ts extractor (xaas, ex4pm — also certify-landed,
+ggen_igniter, gmp, castle, graphlaw, affidavit, ash_surface, ash_graphlaw,
+zcode pending the TS denominator [127]); 4 typed BLOCKED-with-falsifier
+(ferroplan certify refusal at `47aa362`, ash_pplan [125] FAIL-honest with 3
+claims, zcode TS denominator [127], frozen-duckdb 0.8985 with a 4-item
+residual after the closed [107]). Audit figures for the BLOCKED set are
+wave-reported (as-of-date), not re-executed in this lane.
+
+### 8.1 Round-3 final verdict
+
+**GATE PASS WITH NAMED RESIDUES** — rounds 1–3 hold; every residue is
+seam-classified (§7.2), lane-assigned, and carries its falsifier
+(`SEMANTIC-WAVE-RECEIPT.md` §10.5). Zero silent failures. Not claimed: full
+ALIVE (BLOCKED set open; per-repo audits wave-reported except where
+matrix-probe-witnessed).
