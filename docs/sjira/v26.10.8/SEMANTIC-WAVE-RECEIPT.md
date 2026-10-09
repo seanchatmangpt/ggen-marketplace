@@ -374,3 +374,99 @@ lane; [38]/[47]/[49]/[51]/[60] open).
 ```
 for s in 3cd982faf 00143791e 5328aab79 a53442fb7 ca60dcb7a 73340ad8e 9d5f1ceda e3db4ab3b 8995acdd9 dfb8010d0 a90eb9fc5; do git log --oneline -1 $s; done
 ```
+## 10. Round-5 addendum — production lock (2026-10-08, lane `round5-receipt`)
+
+Backlog [85]. Docs-only lane. Every SHA below re-verified this session in its
+canonical checkout via `git log --oneline -1 <sha>` unless explicitly marked
+as-of-date (wave-reported, not re-verified in this lane). Matrix standings are
+from the compiled fleet-wide v26.10.8 closure-verification matrix (20/20 probes
+reported).
+
+### 10.1 The 20/20 matrix as independent-witness layer
+
+The fleet-wide closure-verification matrix (M1–M20) is complete: all 20 probes
+reported, no leg in flight. Each probe is an independent execution — court
+aggregate, trust-root resolution, per-repo audit, admission ledger, seal,
+cards, endpoints, battery — not a restatement of wave-reported claims. The
+matrix is the witness layer for everything in this section.
+
+### 10.2 Final per-repo standings
+
+**Certified PASS** (wave-reported audits; matrix-witnessed where noted):
+
+| repo | verdict |
+|---|---|
+| xaas | PASS (M8: pre-repair sweep Phi 0.0002; post-repair witness landed) |
+| ex4pm | PASS (M9: chain hash recomputed exact match; replay ACCEPTED) |
+| ggen_igniter | PASS (M15 execute suite 16/0; 61 templates / 26 packs census) |
+| gmp | PASS (matrix M-series, wave-reported) |
+| castle | PASS (M16 castle typed skip reproduced; M3 lane-f5 fully in hdit-v2-structs) |
+| graphlaw | PASS (round-4 §9.1 audit 0.9437) |
+| ferroplan | coverage-1.0 PASS (M7: crucible exclusion surgical 170/234; [86] mass killed 1238→0 by regen `5a6f270`, re-verified) |
+| affidavit | PASS (M11: clippy -D warnings clean; sj_record 11/11) |
+| ash_surface | PASS post-repair (M5: REFUSED Phi 0.0929 → repaired `620aa939` (re-verified), double-receipt ACCEPTED Phi 0.0 both extractors) |
+| ash_graphlaw | PASS post-repair (M6: BLOCKED 559 cells → repaired `32765fc` (re-verified), scaffold=0 Phi 0.000000) |
+
+**Typed BLOCKED with named lane:**
+
+| repo | blocker | lane |
+|---|---|---|
+| ferroplan certify | residual Phi 0.0415 = 54 grounding-FP spans + 285 prose drift + env-var/string-key class [103]/[109] | [105] multi-ident grounding, [106] prose repair |
+| frozen-duckdb | S 0.7538 / Phi 0.0168; exclusion not active; branch unmerged | [107] (and `66eaea182` (re-verified) admits the .doc-surface.toml extractor mechanism) |
+| zcode | M1 residual (workgraph MISSING) until branch merge | [91] — LANDED `f055645` (re-verified) on `zcode-wg-workgraph-v26.10.8`, pending merge |
+| gymact | M18: no agent-card route exists in the repo | [104] |
+| wasm4pm | resolved [100]: PR #670 merged `18ff6dfa4` (re-verified) — no longer a residue | — |
+
+### 10.3 The 4 court verdicts
+
+| court | verdict |
+|---|---|
+| M1 court-agg | PASS exit 0 — cards 69/0, f5ea 6/6, trust 54/17/0 UNRESOLVED; residual zcode workgraph MISSING [91] |
+| M2 trust-roots | PASS — 70 SHAs: 53 rooted / 17 unrooted (all pushed-unmerged branches) / 0 unresolved |
+| M12 Chicago court | ALIVE — non-circular re-derivation confirmed in source |
+| M16 admission ledger | ALIVE (double-witnessed) — 27 admitted / 0 refused, 26/26 digests byte-match |
+
+### 10.4 The 78-record seal
+
+SEAL-RECEIPT.md (this repo): 78 drafts → 78 sealed sj_records, 78/78 seal OK,
+zero refusals; chain head
+`76305b343d47889cdc9e9eb2a5f4d36150c811dc0d3864034c8218c56b108fca`
+(re-verified this session by reading SEAL-RECEIPT.md at HEAD). The seal is
+scorecard-pending [101] on 3 castle-goal labels + 1 superseded record — a
+label-class residue, not an identity residue. affidavit `ee57f9d0`
+(as-of-date, wave-reported; not re-verifiable in this lane — not a commit in
+ash_affidavit's local object store at check time).
+
+### 10.5 Round-3 gate verdict: GATE PASS WITH NAMED RESIDUES
+
+Each residue is seam-classified, lane-assigned, and carries a falsifier.
+
+| residue | seam class | lane | falsifier |
+|---|---|---|---|
+| [99] uncommitted extractor diff live | tooling seam (gen_doc_surface.py working-tree vs HEAD) | [99] | audit differs working-tree vs HEAD extractor on same corpus |
+| [93]/[94] repair branches unmerged | transport seam (branch→default) | [93]/[94] | branch tip not reachable from default branch |
+| [105] multi-ident span grounding | extractor seam | [105] | the 54 ferroplan reference.md FPs still fail grounding after span split |
+| [106]/[103] ferroplan prose + vendor phantoms | doc-content seam | [106]/[103] | post-[105]+[106] audit Phi > 0.001 or coverage < 1.0 |
+| [107] frozen-duckdb toml + merge | admission seam (.doc-surface.toml mechanism + branch merge) | [107] | re-audit S < 0.90 or Phi > 0.001 |
+| [109] env-var/string-key indexing | extractor seam | [109] | ferroplan re-audit Phi does not drop; pytest red |
+| [91] zcode workgraph unmerged | transport seam | [91] | WORKGRAPH.ttl absent from zcode-cli default branch |
+| [101] seal label class | seal-surface seam | [101] | castle-goal labels still wrong after repair |
+| [104] gymact card route | serving seam | [104] | GET /.well-known/agent-card.json ≠ 200 |
+| [102] fortune5 guard const | CLOSED `961fa54d5` (re-verified) | — | wrapper expected 96, battery 96/96 (witnessed) |
+| [100] wasm4pm card merge | CLOSED `18ff6dfa4` (re-verified) | — | GET card route 200, validator 69/0 (witnessed) |
+
+Not claimed: full ALIVE. Standing: **GATE PASS WITH NAMED RESIDUES** — the
+production lock is real (20/20 probes reported, 78-record seal verified,
+10 repos certified PASS, 4 court verdicts in) while the named residues remain
+open with lanes and falsifiers. Not a clean pass and not a refusal: each
+residue is typed, lane-assigned, and falsifiable.
+
+## Replay (round 5)
+
+```
+git -C /Users/sac/ggen-marketplace log --oneline -1 961fa54d5 66eaea182
+for spec in "ash_surface 620aa939" "ash_graphlaw 32765fc" "ferroplan 44749c6" \
+  "ferroplan 5a6f270" "zcode-cli f055645" "wasm4pm 18ff6dfa4"; do
+  git -C /Users/sac/${spec%% *} log --oneline -1 ${spec##* };
+done
+```

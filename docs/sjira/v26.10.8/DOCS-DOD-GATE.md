@@ -118,3 +118,35 @@ ladder: BLOCKED entries carry the blocking term, not silent failures.
 the parity/receipts criteria strengthened. Open residues carried explicitly:
 [38], [47], [49], [51], [60] in flight; castle-goal `no_workgraph` typed
 BLOCKED; audits wave-reported, not re-executed in this lane.
+## 7. Round 3 (2026-10-08, lane `round5-receipt`)
+
+**Verdict: GATE PASS WITH NAMED RESIDUES.** Backlog [85]. Consolidates the
+fleet-wide v26.10.8 closure-verification matrix (M1–M20, all 20 probes
+reported) and the round-5 landings; full detail in
+`SEMANTIC-WAVE-RECEIPT.md` §10.
+
+### 7.1 Criterion deltas
+
+| criterion | round-2 verdict | round-3 delta |
+|---|---|---|
+| Diataxis integrity | PASS | unchanged |
+| zero broken links | PASS | unchanged |
+| code-doc parity | PASS (strengthened r2) | strengthened: 10 repos certified PASS including 2 post-repair (ash_surface `620aa939` double-receipt Phi 0.0; ash_graphlaw `32765fc` scaffold=0 Phi 0.000000 — both re-verified in this lane); ferroplan coverage 1.0 with [86] mass killed 1238→0 (`5a6f270`, re-verified) |
+| parity guards | PASS (strengthened r2) | strengthened: 20/20 matrix probes reported; 4 court verdicts in (M1 court-agg PASS, M2 trust-roots 70 SHAs 0 unresolved, M12 Chicago ALIVE, M16 ledger double-witnessed ALIVE) |
+| clean tree | PASS WITH DISCLOSED EXCEPTIONS | unchanged; [99] uncommitted extractor diff still live (tooling seam) |
+| receipts | PASS (strengthened r2) | strengthened: 78-record seal verified (chain head `76305b343d47…b108fca`, re-read from SEAL-RECEIPT.md at HEAD); round-5 production-lock receipt landed (this section + SEMANTIC-WAVE-RECEIPT.md §10) |
+
+### 7.2 Named residues (seam-classified, lane-assigned, falsified)
+
+[99] tooling / [93]+[94] transport / [105]+[109] extractor / [106]+[103]
+doc-content / [107] admission / [91] transport (landed `f055645`, re-verified,
+pending merge) / [101] seal-surface / [104] serving — each with its falsifier
+in `SEMANTIC-WAVE-RECEIPT.md` §10.5. [100] and [102] closed this session
+(`18ff6dfa4`, `961fa54d5` — both re-verified).
+
+### 7.3 Round-3 standing
+
+Round-1 and round-2 verdicts hold and strengthen. Not claimed: full ALIVE
+([99] extractor diff; per-repo audits wave-reported except where
+matrix-probe-witnessed). Standing: **GATE PASS WITH NAMED RESIDUES** — every
+residue typed, lane-assigned, falsifiable; zero silent failures.
