@@ -177,8 +177,9 @@ def test_every_kind_has_real_body(provider):
 
 
 # Per-kind assertions: the emitted predicates must match the real rendered
-# attribute values, per provider. (pred, {expected objects}); rendered_only
-# entries exist in the .tera template but not in the static fixture.
+# attribute values, per provider. (pred, {expected objects}); kinds present
+# only in the live-rendered template are covered by
+# test_rendered_org_policy_bodies below.
 KIND_SPECS = [
     # AWS
     ("aws", "aws_ssoadmin_permission_set", F5EA["hcl.session_duration"],
@@ -209,8 +210,6 @@ KIND_SPECS = [
      {"ENCRYPT_DECRYPT"}, False),
     ("gcp", "google_kms_crypto_key", F5EA["hcl.rotation_period"],
      {"7776000s"}, False),
-    ("gcp", "google_org_policy_policy", F5EA["hcl.parent"],
-     {"projects/proj-svc"}, True),
     # Azure
     ("azure", "azurerm_management_group", F5EA["hcl.display_name"],
      {"finance-enclave-root", "finance-landing-zone", "finance-enclave"},
@@ -226,14 +225,11 @@ KIND_SPECS = [
 
 
 @pytest.mark.parametrize(
-    "provider,tf_type,pred,expected,rendered_only",
-    [(s[0], s[1], s[2], s[3], s[4]) for s in KIND_SPECS])
-def test_kind_bodies_carry_real_values(provider, tf_type, pred, expected,
-                                       rendered_only):
+    "provider,tf_type,pred,expected",
+    [(s[0], s[1], s[2], s[3]) for s in KIND_SPECS])
+def test_kind_bodies_carry_real_values(provider, tf_type, pred, expected):
     g, _ = build_graph(provider)
     resources = list(g.subjects(F5EA.tfType, rdflib.Literal(tf_type)))
-    if rendered_only and not resources:
-        pytest.skip("rendered-only kind absent from static fixture")
     hits = set()
     for r in resources:
         hits |= {str(o) for o in g.objects(r, pred)}
@@ -259,7 +255,7 @@ def test_rendered_org_policy_bodies():
 
 def _violated(provider, extra_triples):
     """Build the good graph, inject violating triples, re-run the gate."""
-    g, out = build_graph(provider)
+    _, out = build_graph(provider)
     violated = out.with_name("violated_%s.ttl" % provider)
     violated.write_text(out.read_text() + extra_triples)
     bad = rdflib.Graph()
@@ -269,10 +265,9 @@ def _violated(provider, extra_triples):
 
 def _mutated(provider, transform):
     """Build the good graph, transform its serialization, re-run the gate."""
-    g, out = build_graph(provider)
-    ns = "https://ggen.io/ontology/fortune5-enterprise-architecture#"
+    _, out = build_graph(provider)
     violated = out.with_name("violated_%s.ttl" % provider)
-    violated.write_text(transform(out.read_text(), ns))
+    violated.write_text(transform(out.read_text()))
     bad = rdflib.Graph()
     bad.parse(violated, format="turtle")
     return run_gate(provider, bad)
@@ -289,7 +284,7 @@ def test_gates_are_not_vacuous():
     assert _violated("gcp", '%s <%singressMode> "public" .' % (svc, ns)) is False
     # azure: a resource carrying none of the three controls must fail gate 150
     rg = "<%sSbbResource/fin/azurerm_resource_group.connectivity>" % ns
-    def drop_controls(text, ns):
+    def drop_controls(text):
         kept = [ln for ln in text.splitlines()
                 if not (ln.startswith(rg + " ") and "controlMapping" in ln)]
         return "\n".join(kept) + "\n"
