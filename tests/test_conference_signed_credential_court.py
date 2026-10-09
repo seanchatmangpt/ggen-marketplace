@@ -13,6 +13,7 @@ import hashlib
 import json
 
 import pytest
+pytest.importorskip("wasmtime")
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import (

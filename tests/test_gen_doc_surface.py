@@ -257,6 +257,68 @@ class P3ProseFilterTest(unittest.TestCase):
         assert "Demo.Engine.ignite" in objs
 
 
+class P1PathClaimTest(unittest.TestCase):
+    """P1 [47]: filesystem-path spans are typed `path_ref`, grounded by
+    existence on the real file surface — never code-symbol claims."""
+
+    def test_path_span_classification(self):
+        assert g.is_path_span("planning/ash_pplan_control_plane.hddl")
+        assert g.is_path_span("test/support/courts/")
+        assert g.is_path_span("verify/100_task_props.unbound.rq")
+        # arity forms and versions stay in the symbol channel
+        assert not g.is_path_span("receipt/2")
+        assert not g.is_path_span("execute/4,5")
+        assert not g.is_path_span("release/v26.8.23")
+        assert not g.is_path_span("Demo.Engine.ignite")
+
+    def test_existing_path_grounds_as_path_ref(self):
+        repo = mkrepo({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": "defmodule Demo.Engine do\n  def ignite(x), do: x\nend\n",
+            "planning/plan.hddl": "{}\n",
+            "docs/guide.md": (
+                "See `planning/plan.hddl` and `test/support/courts/`.\n"
+            ),
+            "test/support/courts/.keep": "",
+        })
+        surface = g.extract_code(repo)
+        claims = g.extract_doc(repo, surface)["claims"]
+        refs = [c for c in claims if c["kind"] == "path_ref"]
+        assert {c["object"] for c in refs} == {
+            "planning/plan.hddl", "test/support/courts/"}
+        assert all(c["predicate"] == "references_path" for c in refs)
+
+    def test_nonexistent_path_span_is_never_a_claim(self):
+        repo = mkrepo({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": "defmodule Demo.Engine do\n  def ignite(x), do: x\nend\n",
+            # module/function named `hddl` — the segment-collision channel
+            "lib/hddl.ex": "defmodule Demo.Hddl do\n  def hddl, do: 1\nend\n",
+            "docs/guide.md": (
+                "Ships `planning/missing.hddl` and `docs/nope/`.\n"
+                "Drive it with `Demo.Hddl.hddl/0`.\n"
+            ),
+        })
+        surface = g.extract_code(repo)
+        claims = g.extract_doc(repo, surface)["claims"]
+        objs = [c["object"] for c in claims]
+        assert "planning/missing.hddl" not in objs
+        assert "docs/nope/" not in objs
+        # the collision symbol itself still claims normally
+        assert "Demo.Hddl.hddl/0" in objs
+
+    def test_code_mode_emits_paths_array(self):
+        repo = mkrepo({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": "defmodule Demo.Engine do\n  def ignite(x), do: x\nend\n",
+            "planning/plan.hddl": "{}\n",
+        })
+        surface = g.extract_code(repo)
+        assert "planning/plan.hddl" in surface["paths"]
+        assert "lib/demo.ex" in surface["paths"]
+        assert all(not p.endswith("/") for p in surface["paths"])
+
+
 class P4TableClaimsTest(unittest.TestCase):
     """P4: markdown pipe-table rows emit symbol claims (scaffold tables count)."""
 
@@ -372,6 +434,24 @@ class StructSignatureTest(unittest.TestCase):
         assert items[("struct", "Marker")]["signature"] == ""
         assert items[("trait", "Paint")]["signature"] == ""
 
+    def test_rust_pub_const_and_static_are_public_surface(self):
+        repo = mkrepo({
+            "Cargo.toml": '[package]\nname = "demo"\nversion = "0.1.0"\n',
+            "src/lib.rs": (
+                'pub const MAX_RETRIES: u32 = 3;\n'
+                'pub static VERSION_LABEL: &str = "demo";\n'
+                'const INTERNAL_SALT: &str = "s3cr3t";\n'
+                'pub const fn limit(n: u32) -> u32 { n * MAX_RETRIES }\n'
+            ),
+        })
+        items = self._items(g.extract_code(repo))
+        assert items[("const", "MAX_RETRIES")]["signature"] == "MAX_RETRIES: u32"
+        assert items[("const", "VERSION_LABEL")]["signature"] == (
+            "VERSION_LABEL: &str"
+        )
+        assert ("const", "INTERNAL_SALT") not in items
+        assert ("function", "limit") in items
+
     def test_elixir_defstruct_and_atom_type(self):
         src = (
             "defmodule Demo.State do\n"
@@ -452,5 +532,258 @@ class StructSignatureTest(unittest.TestCase):
         assert items[("type", "Mode")]["signature"] == 'Mode = "fast" | "slow"'
 
 
+class ClaimIdTest(unittest.TestCase):
+    """[29] doc-hdit's Claim struct requires `id`; extractor must emit one,
+    byte-stable across double-runs."""
+
+    def _claims(self):
+        repo = mkrepo({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": (
+                "defmodule Demo do\n"
+                "  @doc \"\"\"Greets.\"\"\"\n"
+                "  def greet(name), do: name\n"
+                "end\n"
+            ),
+            "docs/guide.md": (
+                "# Guide\n\nSee `greet/1` and `Demo`.\n\n"
+                "| Function | Param | Default |\n"
+                "|---|---|---|\n"
+                "| `greet/1` | `name` | - |\n"
+            ),
+        })
+        surface = g.extract_code(repo)
+        return repo, g.extract_doc(repo, surface)["claims"]
+
+    def test_every_claim_has_id(self):
+        _, claims = self._claims()
+        assert claims
+        for c in claims:
+            assert c["id"] and isinstance(c["id"], str)
+
+    def test_ids_byte_stable_across_double_run(self):
+        import json
+        repo, first = self._claims()
+        second = g.extract_doc(repo, g.extract_code(repo))["claims"]
+        assert json.dumps(first, sort_keys=True) == json.dumps(second, sort_keys=True)
+
+    def test_ids_unique_per_path_and_kind(self):
+        _, claims = self._claims()
+        ids = [c["id"] for c in claims]
+        assert len(set(ids)) == len(ids)
+
+    def test_id_is_stable_hash_shape(self):
+        import re
+        _, claims = self._claims()
+        for c in claims:
+            assert re.fullmatch(r"c-[0-9a-f]{16}", c["id"])
+
+
+class P1DocRootsTest(unittest.TestCase):
+    """P1 scope gap [30]: default doc roots widen to README.md +
+    documentation/ (recursive); --include-doc-strings harvests @doc/
+    @moduledoc heredocs (Elixir) and /// rustdoc (Rust) as claims."""
+
+    def _surface(self, layout):
+        repo = mkrepo(layout)
+        return repo, g.extract_code(repo)
+
+    def test_readme_and_documentation_are_default_roots(self):
+        repo, surface = self._surface({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": "defmodule Demo.Engine do\n  def ignite(x), do: x\nend\n",
+            "README.md": "Use `Demo.Engine.ignite`.\n",
+            "documentation/guide.md": "Also `Demo.Engine.ignite`.\n",
+            "documentation/nested/deep.md": "Deep `Demo.Engine.recursive/3`.\n",
+            "lib/demo/engine.ex": (
+                "defmodule Demo.Engine.Sub do\n"
+                "  def recursive(a, b, c), do: {a, b, c}\n"
+            ),
+        })
+        out = g.extract_doc(repo, surface)
+        assert any(r.endswith("README.md") for r in out["doc_roots"]), out["doc_roots"]
+        assert any(r.endswith("documentation") for r in out["doc_roots"]), out["doc_roots"]
+        objs = {c["object"] for c in out["claims"]}
+        assert "Demo.Engine.ignite" in objs
+        assert "Demo.Engine.recursive/3" in objs
+
+    def test_readme_processed_even_when_docs_dir_exists(self):
+        repo, surface = self._surface({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": "defmodule Demo.Engine do\n  def ignite(x), do: x\nend\n",
+            "docs/guide.md": "See `Demo.Engine.ignite`.\n",
+            "README.md": "Root README mention of `Demo.Engine.ignite`.\n",
+        })
+        out = g.extract_doc(repo, surface)
+        subs = {c["subject"] for c in out["claims"]}
+        assert any(s == "README.md" for s in subs), subs
+
+    def test_no_readme_or_documentation_falls_back_to_docs(self):
+        repo, surface = self._surface({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": "defmodule Demo.Engine do\n  def ignite(x), do: x\nend\n",
+            "docs/guide.md": "See `Demo.Engine.ignite`.\n",
+        })
+        out = g.extract_doc(repo, surface)
+        assert any(r.endswith("docs") for r in out["doc_roots"]), out["doc_roots"]
+
+    def test_doc_strings_off_by_default(self):
+        repo, surface = self._surface({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": (
+                "defmodule Demo.Engine do\n"
+                "  @moduledoc \"\"\"\n"
+                "  Engine module. `Demo.Engine.ignite` does the work.\n"
+                "  \"\"\"\n"
+                "  @doc \"\"\"\n"
+                "  Fire it. See `Demo.Engine.ignite/1`.\n"
+                "  \"\"\"\n"
+                "  def ignite(x), do: x\n"
+                "end\n"
+            ),
+        })
+        objs = {c["object"] for c in g.extract_doc(repo, surface)["claims"]}
+        assert "Demo.Engine.ignite/1" not in objs
+
+    def test_doc_strings_harvested_when_opted_in(self):
+        repo, surface = self._surface({
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": (
+                "defmodule Demo.Engine do\n"
+                "  @moduledoc \"\"\"\n"
+                "  Engine module. `Demo.Engine.ignite` does the work.\n"
+                "  \"\"\"\n"
+                "  @doc \"\"\"\n"
+                "  Fire it. See `Demo.Engine.ignite/1`.\n"
+                "  \"\"\"\n"
+                "  def ignite(x), do: x\n"
+                "end\n"
+            ),
+        })
+        claims = g.extract_doc(repo, surface, include_doc_strings=True)["claims"]
+        ds = {(c["object"], c["kind"], c["subject"])
+              for c in claims if c["kind"] == "doc_string"}
+        assert ("Demo.Engine.ignite", "doc_string", "lib/demo.ex") in ds, ds
+        assert ("Demo.Engine.ignite/1", "doc_string", "lib/demo.ex") in ds, ds
+        for c in claims:
+            assert c["id"]
+
+    def test_rust_rustdoc_harvested_when_opted_in(self):
+        repo, surface = self._surface({
+            "Cargo.toml": '[package]\nname = "demo"\nversion = "0.1.0"\n',
+            "src/lib.rs": (
+                "/// Ignites the engine. See `ignite`.\n"
+                "pub fn ignite(x: u32) -> u32 { x }\n"
+            ),
+        })
+        claims = g.extract_doc(repo, surface, include_doc_strings=True)["claims"]
+        ds = {(c["object"], c["kind"]) for c in claims if c["kind"] == "doc_string"}
+        assert ("ignite", "doc_string") in ds, ds
+
+    def test_doc_string_ids_byte_stable_across_double_run(self):
+        import json
+        layout = {
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": (
+                "defmodule Demo.Engine do\n"
+                "  @doc \"\"\"See `Demo.Engine.ignite/1`.\"\"\"\n"
+                "  def ignite(x), do: x\n"
+                "end\n"
+            ),
+        }
+        repo, _ = self._surface(layout)
+        first = g.extract_doc(repo, g.extract_code(repo), include_doc_strings=True)
+        second = g.extract_doc(repo, g.extract_code(repo), include_doc_strings=True)
+        assert json.dumps(first, sort_keys=True) == json.dumps(second, sort_keys=True)
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+# ------------------------------------------------- vendor-surface policy ---
+# Backlog [51]: vendored trees (vendor/, .ggen-v2/, third_party/) are excluded
+# from the public code-surface denominator by default; doc claims referencing
+# vendored symbols carry a known-vendor prefix on the claim object so the
+# audit core classifies them external_documented (NOT phantom, NOT
+# uncovered); --include-vendor opts back into the full surface.
+
+
+class VendorSurfacePolicyTest(unittest.TestCase):
+    def mk(self):
+        vend_mix = (
+            "defmodule VendPack do\n"
+            "  def kept(x), do: x\n"
+            "end\n"
+        )
+        layout = {
+            "mix.exs": "defmodule Demo.MixProject do\n  def project, do: []\nend\n",
+            "lib/demo.ex": "defmodule Demo do\n  def run(x), do: x\nend\n",
+            "vendor/vend_pack/mix.exs": vend_mix,
+            "vendor/vend_pack/lib/vend.ex": vend_mix,
+            ".ggen-v2/receipt.json": "{}\n",
+            "third_party/tool/lib/t.rs": "pub struct T;\n",
+            "Cargo.toml": '[package]\nname = "demo"\n',
+            "docs/guide.md": "Uses `VendPack.kept/1` and `third_party/tool` vendored surface.\n",
+        }
+        return mkrepo(layout)
+
+    def test_vendor_dirs_skipped_from_code_surface(self):
+        repo = self.mk()
+        code = g.extract_code(repo)
+        assert all(not p.startswith(("vendor/", ".ggen-v2/", "third_party/"))
+                   for p in code["paths"])
+        assert all(not d.startswith(("vendor/", ".ggen-v2/", "third_party/"))
+                   for d in code["directories"])
+        names = [m["name"] for m in code["modules"]]
+        assert "VendPack" not in names and "T" not in str(names)
+
+    def test_vendor_prefixes_join_known_external(self):
+        repo = self.mk()
+        code = g.extract_code(repo)
+        assert "VendPack." in code["known_external"]
+        assert "demo::" not in code["known_external"]  # own crate, not vendor
+
+    def test_vendored_symbol_claim_classifies_external_documented(self):
+        repo = self.mk()
+        code = g.extract_code(repo)
+        doc = g.extract_doc(repo, code)
+        syms = set()
+        for m in code["modules"]:
+            syms.add(m["name"])
+            for it in m["items"]:
+                syms.add(it["ident"])
+        vendor_pfx = g.vendor_prefixes(repo)
+        vend_claims = [c for c in doc["claims"] if c["object"] == "VendPack.kept/1"]
+        assert vend_claims, "vendored-symbol span must be claimed, not dropped"
+        c = vend_claims[0]
+        assert c["object"] not in syms            # not grounded -> not "covered"
+        assert any(c["object"].startswith(p) for p in vendor_pfx)
+        # audit-core classification (is_external_documented semantics): prefix
+        # check on the claim object -> external_documented, NOT phantom.
+        assert g.is_vendor_object(c["object"], vendor_pfx)
+        assert not g.is_vendor_object("TotallyUnknown.sym", vendor_pfx)
+
+    def test_include_vendor_opt_out_restores_full_surface(self):
+        repo = self.mk()
+        code = g.extract_code(repo, include_vendor=True)
+        assert any(p.startswith("vendor/") for p in code["paths"])
+        assert any(d.startswith("vendor/") for d in code["directories"])
+        assert "VendPack" in [m["name"] for m in code["modules"]]
+        assert g.is_vendor_object("VendPack.x", g.vendor_prefixes(repo))
+
+    def test_cli_include_vendor_flag(self):
+        repo = self.mk()
+        import io, contextlib, json as _json
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = g.main(["code", str(repo), "--include-vendor"])
+        assert rc == 0
+        code = _json.loads(buf.getvalue())
+        assert any(p.startswith("vendor/") for p in code["paths"])
+        codejson = repo / "_code.json"
+        codejson.write_text(_json.dumps(code))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = g.main(["doc", str(repo), "--code-json", str(codejson)])
+        assert rc == 0

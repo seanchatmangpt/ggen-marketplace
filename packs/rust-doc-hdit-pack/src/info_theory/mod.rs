@@ -95,6 +95,11 @@ pub fn projection_residual(
         })
         .collect();
     let p_code = crate::vsa::bundle(&projected);
+    projection_residual_vectors(h_doc, &p_code)
+}
+
+/// Same residual over an already-bundled `P_code(H_doc)` (cache replay path).
+pub fn projection_residual_vectors(h_doc: &Hv, p_code: &Hv) -> f64 {
     let mut res2 = 0.0f64;
     let mut tot2 = 0.0f64;
     for i in 0..DIM {
@@ -107,6 +112,17 @@ pub fn projection_residual(
     } else {
         res2.sqrt() / tot2.sqrt()
     }
+}
+
+/// Bundle of binarized per-claim projections onto the code basis —
+/// `P_code(H_doc)` (cache store path; the report values derive from it via
+/// `cosine`/`projection_residual_vectors`).
+pub fn bundle_projections(claims: &[Claim], code_basis: &CodeBasis) -> Hv {
+    let projected: Vec<Hv> = claims
+        .iter()
+        .map(|c| CodeBasis::binarize(&code_basis.project(&encode_claim(c))))
+        .collect();
+    crate::vsa::bundle(&projected)
 }
 
 /// Residual unbinding: rank claim indices by individual residual contribution —
@@ -271,7 +287,8 @@ pub fn is_prose_artifact(object: &str) -> bool {
 }
 
 /// Deterministic code-surface symbol set: module names (plus their file-stem
-/// and path-tail variants) and every item ident/signature. Exact membership
+/// and path-tail variants), every item ident/signature, and — for `use` items
+/// (backlog [56]) — every re-export alias name. Exact membership
 /// over claim-object variants is the PRIMARY phantom gate; the VSA cosine is
 /// only a secondary near-miss similarity signal.
 pub fn code_token_set(modules: &[CodeModule]) -> std::collections::HashSet<String> {
@@ -289,8 +306,31 @@ pub fn code_token_set(modules: &[CodeModule]) -> std::collections::HashSet<Strin
             .trim_end_matches(".exs");
         set.extend(symbol_variants(stem));
         for it in &m.items {
-            set.extend(symbol_variants(&it.ident));
-            set.extend(symbol_variants(&it.signature));
+            if it.kind == "use" {
+                // Backlog [56]: re-export aliases. A `use` item's ident is the
+                // re-export spec (`a::B`, `a::{X, Y as Z}`, `a::*`). Index the
+                // alias tail of every listed name so a doc naming a
+                // re-exported alias (`PresentationAuthority`) grounds against
+                // the defining module; a glob (`a::*`) keeps its path
+                // variants, and module-qualified doc forms (`a::fn_name`)
+                // ground via the ::-split in symbol_variants. Exact strings
+                // only — no fuzzy matching.
+                let spec = it.ident.replace(['{', '}', ';'], " ");
+                for part in spec.split(',') {
+                    let part = part.trim();
+                    if part.is_empty() {
+                        continue;
+                    }
+                    let name = part.rsplit(" as ").next().unwrap_or(part).trim();
+                    if name.is_empty() || name.ends_with('*') {
+                        continue;
+                    }
+                    set.extend(symbol_variants(name));
+                }
+            } else {
+                set.extend(symbol_variants(&it.ident));
+                set.extend(symbol_variants(&it.signature));
+            }
         }
     }
     set
@@ -409,6 +449,13 @@ pub struct CoverageReport {
     pub coverage: f64,
     pub covered: usize,
     pub total: usize,
+    /// Raw public-item denominator: public items across ALL modules, before
+    /// the public-scope collapse that drops non-public modules' items
+    /// (backlog [59]: the 1719-vs-1758 denominator discrepancy was invisible
+    /// because only the post-collapse total was emitted).
+    pub total_raw: usize,
+    /// total_raw - total: items lost to the dedup/arity/module-scope collapse.
+    pub collapsed_delta: usize,
     /// (module_name, uncovered_public_item_count), descending by count.
     pub uncovered_modules: Vec<(String, usize)>,
 }
@@ -452,6 +499,10 @@ pub fn s_coverage_set(modules: &[CodeModule], claims: &[Claim]) -> f64 {
 pub fn s_coverage_set_report(modules: &[CodeModule], claims: &[Claim]) -> CoverageReport {
     let public = public_modules(modules);
     let claimed = claim_token_set(claims);
+    let total_raw: usize = modules
+        .iter()
+        .map(|m| m.items.iter().filter(|it| it.is_public).count())
+        .sum();
     let mut covered = 0usize;
     let mut total = 0usize;
     let mut uncovered: Vec<(String, usize)> = Vec::new();
@@ -471,5 +522,6 @@ pub fn s_coverage_set_report(modules: &[CodeModule], claims: &[Claim]) -> Covera
     }
     uncovered.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
     let coverage = if total == 0 { 0.0 } else { covered as f64 / total as f64 };
-    CoverageReport { coverage, covered, total, uncovered_modules: uncovered }
+    let collapsed_delta = total_raw.saturating_sub(total);
+    CoverageReport { coverage, covered, total, total_raw, collapsed_delta, uncovered_modules: uncovered }
 }

@@ -24,6 +24,7 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import pytest
+pytest.importorskip("pm4pytest")
 import rdflib
 import yaml
 import pyshacl

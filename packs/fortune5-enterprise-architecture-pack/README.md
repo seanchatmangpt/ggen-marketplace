@@ -195,10 +195,20 @@ python3 -m pytest packs/fortune5-enterprise-architecture-pack/tests/test_qualifi
 python3 -m pytest packs/fortune5-enterprise-architecture-pack/tests/test_provider_templates.py -v
 python3 -m pytest packs/fortune5-enterprise-architecture-pack/tests/test_conformance_vectors.py -v
 python3 -m pytest packs/fortune5-enterprise-architecture-pack/tests/test_resource_graph.py -v
+python3 -m pytest packs/fortune5-enterprise-architecture-pack/tests/test_shapes_file.py -v
+python3 -m pytest packs/fortune5-enterprise-architecture-pack/tests/test_shapes_10.py -v
 python3 packs/fortune5-enterprise-architecture-pack/scripts/gen_resource_graph.py \
   --provider aws \
   --input packs/fortune5-enterprise-architecture-pack/tests/fixtures/aws_sbb.rendered.tf
+python3 scripts/validate_f5ea_graph.py
 ```
+
+The last command is the fleet SHACL sibling of
+`scripts/validate_workgraphs.py`: it pyshacl-validates f5ea graphs
+(fixture-generated resource graphs, the TV-01 conformance fiber, and any
+explicit `.ttl` files passed as arguments) against the pack's canonical
+`shapes/00-metamodel-hygiene.shacl.ttl` (the DoD #9 metamodel-hygiene law).
+Exit 0 = all graphs conform; exit 1 = at least one violation.
 
 Each command runs real gates against real files on disk (Chicago discipline:
 the SPARQL gates, the ontology, and the templates are the collaborators;

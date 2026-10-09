@@ -225,6 +225,67 @@ def truncate(text: str, limit: int = 400) -> str:
     return cut + " ..."
 
 
+def parse_seed_landings(path: str) -> dict:
+    """Turtle-lite scan of a seed WORKGRAPH.ttl: order -> landed commit SHAs.
+
+    Recognizes, per ``sj:WorkOrder`` block: ``dcterms:identifier`` (order id),
+    ``sj:subject "label:scope@identity"`` (scope key), ``sj:landedCommit`` /
+    ``sj:subjectSha`` literals, and ``prov:wasDerivedFrom .../commit/<sha>``
+    IRIs. Keys the result by BOTH order id and scope so either lookup form
+    binds. Returns {} when nothing binds.
+    """
+    landings: dict = {}
+    ident = None
+    scope = None
+    shas: list = []
+    subject_re = re.compile(r'^\s*sj:subject\s+"([^"]*)"')
+    landed_re = re.compile(r'^\s*sj:(?:landedCommit|subjectSha)\s+"([0-9a-f]{7,40})"')
+    derived_re = re.compile(r"/commit/([0-9a-f]{7,40})")
+    ident_re = re.compile(r'^\s*dcterms:identifier\s+"([^"]+)"')
+
+    def flush():
+        if ident or scope:
+            for key in filter(None, (ident, scope)):
+                landings.setdefault(key, [])
+                landings[key].extend(shas)
+
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            # A top-level subject line (no leading whitespace) starts a new
+            # block; predicate lines are indented.
+            if line[:1] not in ("", " ", "\t", "#", "\n"):
+                flush()
+                ident = None
+                scope = None
+                shas = []
+            if " a sj:WorkOrder" in line:
+                # This block is a WorkOrder: reset (flush above already stored
+                # any prior block) and start collecting for this one.
+                ident = None
+                scope = None
+                shas = []
+                continue
+            m = ident_re.match(line)
+            if m:
+                ident = m.group(1)
+                continue
+            m = subject_re.match(line)
+            if m:
+                # "label:scope@identity" -> scope between the last ':' and '@'.
+                tail = m.group(1).rsplit(":", 1)[-1]
+                scope = tail.rsplit("@", 1)[0] or None
+                continue
+            m = landed_re.match(line)
+            if m:
+                shas.append(m.group(1).lower())
+                continue
+            for sha in derived_re.findall(line):
+                shas.append(sha)
+    flush()
+    # Deduplicate per key, sorted, for deterministic renders.
+    return {k: sorted(set(v)) for k, v in landings.items()}
+
+
 def parse_args(argv):
     p = argparse.ArgumentParser(
         description=(__doc__ or "gen_workgraph").splitlines()[0]
@@ -664,11 +725,63 @@ def repo_manifest(repo):
     return None
 
 
+def receipt_witness_class(rel: str) -> str:
+    """v3 backlog [22]: witness class of a receipt path. Deterministic:
+    court artifacts (court/*.r.json) vs the docs/sjira receipt journal class."""
+    if re.fullmatch(r"court/[^/]+\.r\.json", rel):
+        return "court/*.r.json"
+    return "docs/sjira/receipt"
+
+
+def py_alias_targets(repo, scope) -> list:
+    """v3 item-5 residue (backlog 25): deterministic scope->test-path aliases
+    for python repos. Matches, in fixed order:
+      - tests/test_<scope>.py (exact);
+      - tests/test_<scope>-*.py / tests/test_<scope>_*.py (prefix match,
+        sorted);
+      - scripts/test_<scope>.py (exact, plus sorted scripts/test_<scope>-*/
+        test_<scope>_*.py prefix matches);
+      - packs/<scope>/tests (directory).
+    All entries are repo-relative; empty list when nothing matches."""
+    targets = []
+    tests_dir = os.path.join(repo, "tests")
+    if os.path.isdir(tests_dir):
+        for name in sorted(os.listdir(tests_dir)):
+            rel = "tests/" + name
+            if not name.endswith(".py") or not name.startswith("test_"):
+                continue
+            stem = name[len("test_"):-len(".py")]
+            if stem == scope or stem.startswith(scope + "_") \
+                    or stem.startswith(scope + "-"):
+                targets.append(rel)
+    for d in ("scripts", "tests"):
+        base = os.path.join(repo, d)
+        if not os.path.isdir(base):
+            continue
+        for name in sorted(os.listdir(base)):
+            prefix = "test_"
+            if not name.endswith(".py") or not name.startswith(prefix):
+                continue
+            stem = name[len(prefix):]
+            cut = stem[: -len(".py")] if name.endswith(".py") else stem
+            if cut == scope or cut.startswith(scope + "_") \
+                    or cut.startswith(scope + "-"):
+                rel = d + "/" + name
+                if rel not in targets:
+                    targets.append(rel)
+    if os.path.isdir(os.path.join(repo, "packs", scope, "tests")):
+        targets.append("packs/%s/tests" % scope)
+    return targets
+
+
 def falsifier_for_order(repo, version, order) -> str:
     """v3 item 5: per-order re-run command, scope-targeted when a real target
     exists on disk (mix test <file> / cargo test -p <crate> / pytest
     tests/<scope>), falling back to the repo-wide template. Deterministic:
-    target discovery is a fixed candidate list checked with os.path.exists."""
+    target discovery is a fixed candidate list checked with os.path.exists.
+    v3 item-5 residue (backlog 25): python scopes also match test-path aliases
+    (tests/test_<scope>*.py, scripts/test_<scope>*.py, packs/<scope>/tests)
+    and a scripts-level acceptance command (scripts/<scope>.py --help)."""
     scope = re.sub(r"[^A-Za-z0-9_-]", "-", order.scope.lower())
     def first_existing(*paths):
         for p in paths:
@@ -687,11 +800,18 @@ def falsifier_for_order(repo, version, order) -> str:
         )
         cmd = "cargo test -p %s" % order.scope if target else "cargo test"
     elif manifest == "pyproject.toml":
-        target = first_existing("tests/%s" % scope, "tests/%s.py" % scope)
-        cmd = (
-            "python3 -m pytest %s -q" % target if target
-            else "python3 -m pytest tests/ -q"
-        )
+        targets = first_existing("tests/%s" % scope, "tests/%s.py" % scope)
+        if targets:
+            targets = [targets]
+        else:
+            targets = py_alias_targets(repo, scope)
+        if targets:
+            cmd = "python3 -m pytest %s -q" % " ".join(targets)
+        elif os.path.exists(os.path.join(repo, "scripts", "%s.py" % scope)):
+            # Scripts-level acceptance command: exit-0 gate on the CLI itself.
+            cmd = "python3 scripts/%s.py --help" % scope
+        else:
+            cmd = "python3 -m pytest tests/ -q"
     else:
         cmd = detect_falsifier(repo)
     if "{version}" in cmd:
@@ -699,6 +819,59 @@ def falsifier_for_order(repo, version, order) -> str:
     if cmd.startswith("git log"):
         return cmd.format(version=version)
     return cmd + "  # expect exit 0 at HEAD; a failure at the cited SHAs refutes"
+
+
+def falsifier_yield_leg():
+    """v3 item-5 residue (backlog 25) selftest leg: python-scope falsifiers
+    pick up test-path aliases (tests/test_<scope>*.py, scripts/test_<scope>*.py,
+    packs/<scope>/tests) and the scripts-level acceptance command, instead of
+    falling back to repo-wide pytest. Deterministic (sorted dir listings)."""
+    import shutil
+    import tempfile
+
+    tmp = tempfile.mkdtemp(prefix="gen_workgraph_falsifier_yield_")
+
+    def write(path, content):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(content)
+
+    try:
+        write(os.path.join(tmp, "pyproject.toml"), "[project]\nname='x'\n")
+        write(os.path.join(tmp, "tests", "test_marketplace.py"), "def test_x():\n    pass\n")
+        write(os.path.join(tmp, "tests", "test_marketplace_pack.py"), "def test_x():\n    pass\n")
+        write(os.path.join(tmp, "tests", "test_other.py"), "def test_x():\n    pass\n")
+        write(os.path.join(tmp, "scripts", "test_marketplace.py"), "def test_x():\n    pass\n")
+        write(os.path.join(tmp, "packs", "marketplace", "tests", "t.py"), "x=1\n")
+        write(os.path.join(tmp, "scripts", "qualify_packs.py"), "print('hi')\n")
+        order = type("O", (), {"scope": "marketplace"})()
+        cmd = falsifier_for_order(tmp, "v1", order)
+        for frag in (
+            "tests/test_marketplace.py",
+            "tests/test_marketplace_pack.py",
+            "scripts/test_marketplace.py",
+            "packs/marketplace/tests",
+        ):
+            if frag not in cmd:
+                return "alias target missing: " + frag
+        if "tests/test_other.py" in cmd:
+            return "non-alias target leaked: tests/test_other.py"
+        # Scripts-level acceptance command when no pytest alias exists.
+        order2 = type("O", (), {"scope": "qualify_packs"})()
+        cmd2 = falsifier_for_order(tmp, "v1", order2)
+        if not cmd2.startswith("python3 scripts/qualify_packs.py --help"):
+            return "scripts-level acceptance command not used: " + cmd2
+        # No alias at all -> repo-wide fallback preserved.
+        order3 = type("O", (), {"scope": "nope"})()
+        cmd3 = falsifier_for_order(tmp, "v1", order3)
+        if not cmd3.startswith("python3 -m pytest tests/ -q"):
+            return "repo-wide fallback changed: " + cmd3
+        # Double-run byte-identical.
+        if cmd != falsifier_for_order(tmp, "v1", order):
+            return "falsifier double-run mismatch"
+        return None
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 SIBLING_PATH_RE = re.compile(r"^vendor/([^/]+)/")
@@ -719,12 +892,59 @@ def cross_repo_refs(commit):
     return sorted(refs)
 
 
+def _norm_bullet(line: str) -> str:
+    """Normalized form of a bullet line: lowercase, collapsed whitespace,
+    list markers and trailing punctuation stripped."""
+    s = re.sub(r"\s+", " ", line.strip().lower())
+    s = re.sub(r"^[-*+]\s+|^\\d+[.)]\\s+", "", s)
+    return s.rstrip(".;:!?").strip()
+
+
+def compress_bullets(items: list, limit: int = 400, noun: str = "commit(s)"):
+    """Shared core of compress_acceptance / compress_body_bullets: dedupe
+    items (exact and near-duplicate via normalized prefix match), keep
+    first-occurrence order (deterministic), keep the longest fitting prefix
+    under ``limit`` and summarize the remainder as "(+N more <noun>)"."""
+    kept = []
+    seen_norms = []
+    for raw in items:
+        s = " ".join(str(raw).split())
+        if not s:
+            continue
+        norm = _norm_bullet(s)
+        if any(
+            norm == prev or norm.startswith(prev) or prev.startswith(norm)
+            for prev in seen_norms
+        ):
+            continue
+        seen_norms.append(norm)
+        kept.append(s)
+    text = "; ".join(kept)
+    if len(text) <= limit:
+        return text
+    out = []
+    used = 0
+    reserve = 32
+    for s in kept:
+        add = len(s) + (2 if out else 0)
+        if used + add > limit - reserve:
+            break
+        out.append(s)
+        used += add
+    remaining = len(kept) - len(out)
+    if not out:
+        return truncate(text, limit)
+    return "; ".join(out) + " (+" + str(remaining) + " more " + noun + ")"
+
+
 def compress_acceptance(commits, limit=400):
     """v3 item 9: deterministic bounded phrasing of acceptance text. Subjects
-    are '; '-joined; over the limit, the longest fitting subject prefix is kept
-    and the remainder summarized as "(+N more commit(s))"."""
+    are deduplicated (exact and near-duplicate via normalized prefix match),
+    '; '-joined in first-occurrence order; over the limit, the longest fitting
+    subject prefix is kept and the remainder summarized as
+    "(+N more commit(s))"."""
     subjects = [c["subject"] for c in commits]
-    text = "; ".join(subjects)
+    return compress_bullets(subjects, limit)
     if len(text) <= limit:
         return text
     reserve = 32
@@ -812,6 +1032,26 @@ def render(repo: str, version: str, seed_commits: dict | None = None) -> str:
         w('  sj:authorityClaim "NONE" .')
         w("")
     # WorkOrders.
+    # v3 item 7 residue: index seed-cited SHAs so an order also binds when the
+    # seed block uses a different order-id convention (scope/oid match misses).
+    seed_sha_index: dict = {}
+    for key, vals in (seed_commits or {}).items():
+        if key == "_base" or not isinstance(vals, list):
+            continue
+        for s in vals:
+            if isinstance(s, str):
+                # Resolve short SHAs to full form via git so seed citations in
+                # either form can intersect member commit SHAs. Unresolvable
+                # strings are kept as-is (deterministic; git misses ignored).
+                full = s
+                if not FULL_SHA_RE.match(s):
+                    try:
+                        full = run_git(
+                            repo, "rev-parse", f"{s}^{{commit}}"
+                        ).strip()
+                    except Exception:
+                        full = s
+                seed_sha_index.setdefault(full, set()).add(key)
     for i, o in enumerate(orders, start=1):
         ident = re.sub(r"[^A-Za-z0-9-]", "-", o.scope)
         oid = f"SJIRA-{version.lstrip('v').replace('.', '')}-{i:03d}"
@@ -819,13 +1059,18 @@ def render(repo: str, version: str, seed_commits: dict | None = None) -> str:
         w(f'  rdfs:label "{oid}: {esc(truncate(o.title, 120))}" ;')
         w(f'  dcterms:identifier "{oid}" ;')
         w(f'  dcterms:title "{esc(o.scope)} work axis ({len(o.commits)} commit(s))" ;')
-        body_digest = truncate(
-            " ".join(
-                filter(None, ((c.get("body") or "").strip() for c in o.commits))
+        # v3 backlog [24]: bullet compression for the description body —
+        # unique lines, near-duplicate prefix match, deterministic
+        # first-occurrence order, bounded length (never mid-bullet truncation
+        # while any bullet fits).
+        body_lines = []
+        for c in o.commits:
+            body_lines.extend(
+                ln.strip() for ln in (c.get("body") or "").splitlines() if ln.strip()
             )
-            or f"Conventional-commit axis '{o.scope}': {len(o.commits)} commit(s).",
-            400,
-        )
+        body_digest = compress_bullets(
+            body_lines, 400, noun="bullet(s)"
+        ) or f"Conventional-commit axis '{o.scope}': {len(o.commits)} commit(s)."
         w(f'  dcterms:description "{esc(body_digest)}" ;')
         w(f'  sj:subject "{esc(label)}:{esc(o.scope)}@{o.identity}" ;')
         w(f'  sj:promotionRule "Standing may advance only from an independent exact-head court receipt binding this order member SHAs and a durable 5-field receipt." ;')
@@ -834,8 +1079,17 @@ def render(repo: str, version: str, seed_commits: dict | None = None) -> str:
         w(f'  sj:baseSha "{o.base_sha}" ;')
         # v3 item 7: seed-commits binding (landedCommit/subjectSha).
         landed = None
-        if seed_commits and o.scope in seed_commits:
-            raw = seed_commits[o.scope]
+        if seed_commits:
+            raw = seed_commits.get(o.scope) or seed_commits.get(oid)
+            if raw is None:
+                # Fallback: bind via member-commit SHAs cited anywhere in the
+                # seed (covers seed blocks whose order-id convention differs).
+                member_shas = {m["full"] for m in o.commits}
+                if member_shas & seed_sha_index.keys():
+                    landed = sorted(
+                        s for s in seed_sha_index
+                        if s in member_shas
+                    )
             if isinstance(raw, list):
                 landed = [
                     s for s in raw
@@ -853,6 +1107,10 @@ def render(repo: str, version: str, seed_commits: dict | None = None) -> str:
         w(f'  sj:falsifier "{esc(falsifier_for_order(repo, version, o))}" ;')
         w('  sj:authorityCeiling "CONSTRUCT" ;')
         w('  sj:evidenceCeiling "Receipt artifacts under docs/sjira/' + version + '/ plus *.r.json court outputs; no runtime DO." ;')
+        # v3 backlog [22]: per-order witness receipt class (deterministic,
+        # sorted distinct classes derived from o.receipt_paths).
+        for rcls in sorted({receipt_witness_class(rel) for rel in o.receipt_paths}):
+            w(f'  sj:requiresReceiptClass "{rcls}" ;')
         # v3 item 4: pathScope (bounded, sorted, deterministic).
         if o.path_scope:
             w("  sj:pathScope")
@@ -956,6 +1214,12 @@ def selftest(repos, version):
         return 1
     print("[ok] v3 gap legs: per-order falsifier command, cross-repo note, "
           "seed-commits binding, full projection catalog, acceptance compression")
+    fy_fail = falsifier_yield_leg()
+    if fy_fail:
+        print(f"[FAIL] falsifier target yield leg: {fy_fail}")
+        return 1
+    print("[ok] falsifier target yield leg: pytest aliases (tests/scripts/"
+          "packs) + scripts acceptance command + repo-wide fallback")
     none_fail = none_rev_range_leg()
     if none_fail:
         print(f"[FAIL] none rev_range leg: {none_fail}")
@@ -1105,6 +1369,12 @@ def v3_fixture_check():
         write(journal, "campaign journal 4\n")
         git("add", "-A"); git("commit", "-m", "feat(gamma): gamma touch")
 
+        # Backlog [22]: court-class receipt artifact citing SHA_A so the
+        # alpha order witnesses both receipt classes.
+        write("court/alpha.r.json", f'{{"witness": "{sha_a}"}}\n')
+        write(journal, "campaign journal 5\n")
+        git("add", "-A"); git("commit", "-m", "chore(court): alpha court receipt")
+
         text1 = render(tmp, "v26.10.8")
         text2 = render(tmp, "v26.10.8")
         if text1 != text2:
@@ -1117,7 +1387,7 @@ def v3_fixture_check():
         fails = [
             need("a sj:AcceptanceCriterion" in text1, "missing acceptance criterion blank node"),
             need("a sj:Falsifier" in text1, "missing falsifier blank node"),
-            need(f"witnessed by tests/test_court_alpha.py" in text1,
+            need("witnessed by court/alpha.r.json" in text1,
                  "witnessed acceptance must cite the court artifact"),
             need("UNKNOWN: no on-disk receipt/court artifact" in text1,
                  "missing UNKNOWN-honest falsifier placeholder"),
@@ -1132,6 +1402,10 @@ def v3_fixture_check():
             need("a sj:Checkpoint" in text1, "missing checkpoint individual"),
             need("sj:checkpointOf" in text1,
                  "missing checkpointOf back-link"),
+            need('sj:requiresReceiptClass "docs/sjira/receipt"' in text1,
+                 "missing requiresReceiptClass docs/sjira/receipt"),
+            need('sj:requiresReceiptClass "court/*.r.json"' in text1,
+                 "missing requiresReceiptClass court/*.r.json"),
         ]
         fails = [f for f in fails if f]
         if fails:
@@ -1245,6 +1519,42 @@ def v3_gap_legs():
             tmp, ver, seed_commits={"compress": ["b" * 40]}
         ):
             return "item 7: seeded double-run mismatch"
+        # Item 7 residue: main() seeds landedCommit from the seed WORKGRAPH.ttl
+        # by default (explicit --seed-commits still overrides).
+        import contextlib
+        import io
+        seed_dir = os.path.join(tmp, "docs", "sjira", ver)
+        seed_file = os.path.join(seed_dir, "WORKGRAPH.ttl")
+        os.makedirs(seed_dir, exist_ok=True)
+        with open(seed_file, "w", encoding="utf-8") as fh:
+            fh.write(
+                "@prefix sj: <https://ggen-igniter.dev/ontology/semantic-jira#> .\n"
+                "@prefix dcterms: <http://purl.org/dc/terms/> .\n"
+                "v8:SEED-1 a sj:WorkOrder ;\n"
+                '  dcterms:identifier "SJIRA-TEST-001" ;\n'
+                '  sj:subject "synth:compress@seed0" ;\n'
+                '  sj:landedCommit "' + "b" * 40 + '" ;\n'
+                '  sj:subjectSha "' + "b" * 40 + '" .\n'
+            )
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = main(["--repo", tmp, "--version", ver])
+        seeded_default = buf.getvalue()
+        if rc != 0:
+            return "item 7 residue: main() exited %d with seed file" % rc
+        if 'sj:landedCommit "' + "b" * 40 not in seeded_default:
+            return "item 7 residue: default seed wiring emitted no landedCommit"
+        if 'sj:subjectSha "' + "b" * 40 not in seeded_default:
+            return "item 7 residue: default seed wiring emitted no subjectSha"
+        # No seed file -> unchanged behavior (no landedCommit emission).
+        os.remove(seed_file)
+        buf2 = io.StringIO()
+        with contextlib.redirect_stdout(buf2):
+            rc2 = main(["--repo", tmp, "--version", ver])
+        if rc2 != 0:
+            return "item 7 residue: main() exited %d without seed file" % rc2
+        if ("b" * 40) in buf2.getvalue():
+            return "item 7 residue: landedCommit emitted without a seed file"
         # Item 8: full 15-class catalog declared regardless of use.
         for ptype in PROJECTION_TYPES:
             if "sj:projection-" + ptype + " a sj:ProjectionSpec" not in text:
@@ -1257,6 +1567,43 @@ def v3_gap_legs():
         compressed = compress_acceptance(long_commits, 400)
         if len(compressed) > 400 or "(+" not in compressed:
             return "item 9: compression failed (len=%d)" % len(compressed)
+        # Backlog [24]: body-bullet compression — dedupe (exact and
+        # near-duplicate prefix match), deterministic order, bounded length,
+        # no mid-bullet truncation while any bullet fits.
+        dup_commits = [
+            {"subject": "feat(x): same axis"},
+            {"subject": "feat(x): same axis"},
+            {"subject": "feat(y): distinct"},
+        ]
+        deduped = compress_acceptance(dup_commits, 400)
+        if deduped != "feat(x): same axis; feat(y): distinct":
+            return "item 9: subject dedupe failed (%r)" % deduped
+        bodies = [
+            "body",
+            "- add the thing and then a much longer tail of words",
+            "- Add the thing and then a much longer tail of words",
+            "* add the thing and then a much longer tail of words.",
+            "- unrelated bullet",
+        ]
+        bullets = compress_bullets(bodies, 400, noun="bullet(s)")
+        if bullets != (
+            "body; - add the thing and then a much longer tail of words; "
+            "- unrelated bullet"
+        ):
+            return "item 9: bullet dedupe failed (%r)" % bullets
+        bounded = compress_bullets(
+            ["- bullet number %d with padding %d" % (n, n) for n in range(40)],
+            400,
+            noun="bullet(s)",
+        )
+        if len(bounded) > 400 or "(+" not in bounded:
+            return "item 9: bullet bound failed (len=%d)" % len(bounded)
+        if bounded != compress_bullets(
+            ["- bullet number %d with padding %d" % (n, n) for n in range(40)],
+            400,
+            noun="bullet(s)",
+        ):
+            return "item 9: bullet compression not deterministic"
         return None
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -1443,6 +1790,20 @@ def main(argv=None):
         if not isinstance(seed_commits, dict):
             print("error: --seed-commits must be a JSON object", file=sys.stderr)
             return 2
+    else:
+        # Default seed wiring: parse the seed WORKGRAPH.ttl for the campaign
+        # version when no explicit --seed-commits JSON is given. Missing seed
+        # file = current behavior (no override).
+        seed_path = os.path.join(
+            args.repo[0], "docs", "sjira", args.version, "WORKGRAPH.ttl"
+        )
+        if os.path.exists(seed_path):
+            try:
+                seed_commits = parse_seed_landings(seed_path) or None
+            except OSError as exc:
+                print("error: seed WORKGRAPH.ttl unreadable: " + str(exc),
+                      file=sys.stderr)
+                return 2
     if args.emit == "jsonl":
         text = emit_jsonl(args.repo[0], args.version)
     else:

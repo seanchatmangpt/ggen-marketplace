@@ -20,6 +20,7 @@ import string
 from pathlib import Path
 
 import pytest
+pytest.importorskip("hypothesis")
 from hypothesis import HealthCheck, given, settings, strategies as st
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "paid_delivery_receipt.py"

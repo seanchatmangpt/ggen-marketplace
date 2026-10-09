@@ -19,6 +19,7 @@ _SPEC = importlib.util.spec_from_file_location(
     "gen_doc_surface",
     Path(__file__).parent / "gen_doc_surface.py",
 )
+assert _SPEC is not None and _SPEC.loader is not None
 gds = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(gds)
 
@@ -139,10 +140,10 @@ def test_elixir_same_idents_richer_signatures(elixir_repo):
 def test_auto_falls_back_to_regex_without_ts(rust_repo, monkeypatch_ok=True):
     saved = gds.TS_AVAILABLE
     try:
-        gds.TS_AVAILABLE = False
+        setattr(gds, "TS_AVAILABLE", False)
         surface = gds.extract_code(rust_repo, engine="auto")
     finally:
-        gds.TS_AVAILABLE = saved
+        setattr(gds, "TS_AVAILABLE", saved)
     regex = gds.extract_code(rust_repo, engine="regex")
     assert surface == regex
 
@@ -150,11 +151,11 @@ def test_auto_falls_back_to_regex_without_ts(rust_repo, monkeypatch_ok=True):
 def test_engine_ts_raises_without_dependency(rust_repo):
     saved = gds.TS_AVAILABLE
     try:
-        gds.TS_AVAILABLE = False
+        setattr(gds, "TS_AVAILABLE", False)
         with pytest.raises(RuntimeError, match="tree-sitter"):
             gds.extract_code(rust_repo, engine="ts")
     finally:
-        gds.TS_AVAILABLE = saved
+        setattr(gds, "TS_AVAILABLE", saved)
 
 
 def test_cli_engine_flag_end_to_end(rust_repo):

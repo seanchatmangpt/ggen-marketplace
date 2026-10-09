@@ -83,3 +83,38 @@ coordinator/osx-clnr deletion per the lane-build-root lease-deletion law). Trash
 - Commands/exits: `bash /tmp/dod-gate-sweep.sh` (status/rev-list/describe sweep); `pytest tests/test_book_nav_coverage.py -q` → 6 passed (0.12s); `mix test test/docs_nav_coverage_test.exs` (MIX_BUILD_ROOT=_build-lanedod, MIX_ENV=test, asdf shims, elixir 1.17.3-otp-27) → 4 passed, exit 0; `git rev-list --left-right --count @{upstream}...HEAD` → 0/0 for all 22.
 - Replay: re-run the three commands at the §1 SHAs; court outputs are deterministic.
 - Standing: **ALIVE** for the two executed courts at their exact subjects; SKIPPED (typed) for ash_surface/ash_a2a courts; audit standing **PASS WITH DISCLOSED EXCEPTIONS** overall.
+
+## 6. Round 2 (2026-10-08, lane `sem-wave-r4`)
+
+Docs-only round: consolidates the semantic wave's per-repo doc-hdit audit
+standings (wave-reported; not re-executed in this lane) and the landed
+extractor/generator fixes (SHAs re-verified via `git log --oneline -1 <sha>`
+in this repo; see `SEMANTIC-WAVE-RECEIPT.md` §9 for the full table).
+
+### 6.1 Audit standings update
+
+Round-1 §1 covered nav/doc-nav courts only. Round 2 adds the doc-hdit audit
+verdicts: 4 PASS (castle 0.9873, graphlaw 0.9437, ferroplan 0.9825,
+zcode ~0.99 honest), 1 coverage PASS post-remediation (ash_graphlaw 0.9722),
+5 BLOCKED with named in-flight remediations (xaas Phi-BLOCKED 0.0069,
+ash_pplan Phi-BLOCKED 0.0296, ex4pm 0.8880, frozen-duckdb 0.8789,
+ash_surface 0.8777 pre-remediation). Verdict vocabulary follows the standing
+ladder: BLOCKED entries carry the blocking term, not silent failures.
+
+### 6.2 Criterion deltas
+
+| criterion | round-1 verdict | round-2 delta |
+|---|---|---|
+| Diataxis integrity | PASS | unchanged |
+| zero broken links | PASS | unchanged |
+| code-doc parity | PASS (court-evidenced where courts exist) | strengthened: extractor fixes landed — deterministic claim ids (`3cd982faf`), widened doc roots (`00143791e`), const surface (`5328aab79`) — so parity courts now cover consts/doc-strings/README roots |
+| parity guards | PASS (courts landed; 2 skips) | strengthened: doc-hdit audits provide per-repo parity verdicts for repos with no standing nav court; vec cache (`a53442fb7`) makes re-runs cheap enough to widen the court set |
+| clean tree | PASS WITH DISCLOSED EXCEPTIONS | unchanged; gitignore anchoring (`ca60dcb7a`) removes one forced-`git add -f` class |
+| receipts | PASS | strengthened: refusal triage (`a90eb9fc5`) closes 26/28 ledger refusals replay-verified; generator v3 closures (`73340ad8e`, `9d5f1ceda`, `e3db4ab3b`, `8995acdd9`, seed enrich `dfb8010d0`) land |
+
+### 6.3 Round-2 verdict
+
+**GATE PASS WITH DISCLOSED EXCEPTIONS (round 2)** — round-1 verdict holds;
+the parity/receipts criteria strengthened. Open residues carried explicitly:
+[38], [47], [49], [51], [60] in flight; castle-goal `no_workgraph` typed
+BLOCKED; audits wave-reported, not re-executed in this lane.

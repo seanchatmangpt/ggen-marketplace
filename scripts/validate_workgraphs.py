@@ -150,8 +150,9 @@ def main() -> int:
     results = [run_one(repo, rel) for repo, rel in TARGETS]
 
     print(f"shapes: {SHAPES}")
+    print(f"goal-graph shapes: {GC_SHAPES}")
     print()
-    hdr = f"{'repo':<18} {'conforms':<9} {'WO':>4} {'GC':>4}  classes"
+    hdr = f"{'repo':<18} {'conforms':<9} {'WO':>4} {'GC':>4}  {'shape':<22} classes"
     print(hdr)
     print("-" * len(hdr))
     for r in results:
@@ -161,9 +162,10 @@ def main() -> int:
         classes = ", ".join(
             f"{k}={v}" for k, v in sorted(r["class_counts"].items())
         ) or "none"
+        shape_name = Path(r["shapes"]).name
         print(
             f"{r['repo']:<18} {str(r['conforms']):<9} "
-            f"{r['work_orders']:>4} {r['goal_checkpoints']:>4}  {classes}"
+            f"{r['work_orders']:>4} {r['goal_checkpoints']:>4}  {shape_name:<22} {classes}"
         )
 
     if args.json_out:

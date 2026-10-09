@@ -37,7 +37,7 @@ BUILD_ROOT = "_build-lanecourt"  # warm build root (reused, per lane contract)
 
 REPOS = [
     "ggen-marketplace", "xaas", "ash_a2a", "ash_pplan", "ex4pm", "beam4pm",
-    "zcode-cli", "castle-goal", "ash_surface", "ash_r2rml", "ash_affidavit",
+    "zcode-cli", "castle", "ash_surface", "ash_r2rml", "ash_affidavit",
 ]
 
 
@@ -204,6 +204,10 @@ def find_workgraph(repo: str):
         return None
     for cand in sorted(base.glob("docs/sjira/v26.10.8*/WORKGRAPH.ttl")):
         return cand
+    # goal.ttl-style checkpoint graph (validate_workgraphs.py precedent):
+    # routed, then typed-skipped in main() since it authors no WorkOrders
+    for cand in sorted(base.glob("docs/sjira/v26.10.8*/goal.ttl")):
+        return cand
     return None
 
 
@@ -251,11 +255,34 @@ def main() -> int:
                 })
 
         if not extracted:
-            ledger_rows.append({
-                "ts": now_iso(), "repo": repo, "order": None, "admitted": False,
-                "refusal_reason": "no_sj_WorkOrder_individuals",
-                "detail": str(workgraph),
-            })
+            # Typed skip (not a refusal, not silence): a graph with zero
+            # sj:WorkOrder individuals but authored sj:GoalCheckpoint nodes is
+            # a goal.ttl-style checkpoint graph (validate_workgraphs.py
+            # precedent). Its content routes through the GoalCheckpoint shape
+            # path, never WorkOrder admission — its own header law forbids
+            # authored WorkOrders.
+            checkpoints = sorted(
+                (str(one(g, gc, DCTERMS.identifier) or localname(gc)))
+                for gc in g.subjects(RDF.type, SJ.GoalCheckpoint)
+            )
+            if checkpoints:
+                ledger_rows.append({
+                    "ts": now_iso(), "repo": repo, "order": None,
+                    "admitted": None, "refusal_reason": "skipped_goal_checkpoint_graph",
+                    "detail": (
+                        "zero sj:WorkOrder individuals by graph law; "
+                        f"{len(checkpoints)} sj:GoalCheckpoint routed via "
+                        "GoalCheckpoint shape path (validate_workgraphs.py), "
+                        "not WorkOrder admission: " + ", ".join(checkpoints)
+                    ),
+                    "workgraph": str(workgraph),
+                })
+            else:
+                ledger_rows.append({
+                    "ts": now_iso(), "repo": repo, "order": None, "admitted": False,
+                    "refusal_reason": "no_sj_WorkOrder_individuals",
+                    "detail": str(workgraph),
+                })
             continue
 
         if args.dry_run:

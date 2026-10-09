@@ -53,6 +53,7 @@ def test_projection_is_ggen_cli_output_byte_identical(tmp_path: Path) -> None:
 
 
 def test_a2a_sdk_parses_rendered_agent_card() -> None:
+    pytest.importorskip("a2a")
     from a2a.types import AgentCard
     from google.protobuf.json_format import ParseDict
 

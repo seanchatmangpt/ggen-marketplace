@@ -12,6 +12,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import pytest
+pytest.importorskip("pm4pytest")
 
 from pm4pytest import ConformanceSpec, OCPQ, PM4PySession, TemporalSLA
 

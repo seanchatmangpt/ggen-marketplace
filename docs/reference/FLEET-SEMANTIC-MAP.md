@@ -325,3 +325,26 @@ generated output):
 
 Re-run: `python3 scripts/validate_agent_cards.py` (exit 0 iff every repo PASS;
 ABSENT lands fail closed).
+
+## Fleet-court runner (2026-10-08)
+
+`scripts/run_fleet_courts.py` aggregates the four standalone fleet courts
+into one machine-readable verdict report: `validate_workgraphs.py` (sj:
+WORKGRAPH/goal graphs vs the semantic-jira-pack SHACL shapes),
+`validate_agent_cards.py` (v1.0 member-contract validation of agent
+capability cards), `validate_f5ea_graph.py` (f5ea SolutionGroup graphs vs
+the fortune5-enterprise-architecture pack shapes), and `git_trust_court.py`
+(40-hex SHA resolution + ancestry against each owning repo's pushed trust
+root). Each court runs as a real subprocess over the real fleet state and
+the runner emits a JSON report (`--json` / `--json-out`) plus a summary
+table -- per-repo/per-court pass-fail and total violations, deterministic
+byte-identical output across runs. Exit 0 iff every court passes
+(style-only workgraph mismatches pass; UNRESOLVED trust SHAs fail).
+Re-run: `python3 scripts/run_fleet_courts.py`.
+
+**Local cadence**: this runner is a documented local command, not CI -- the
+courts read sibling checkouts under `~/` and cannot run in a single-repo CI
+job. Run `scripts/run_fleet_courts.sh` (thin wrapper, safe from any cwd)
+before any fleet-wide landing. Expected verdicts on the current fleet:
+workgraphs STYLE-ONLY pass, cards PASS, f5ea PASS, trust PASS with
+UNRESOLVED fail-closed; any exit != 0 blocks the landing.

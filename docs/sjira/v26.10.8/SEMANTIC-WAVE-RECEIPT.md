@@ -241,3 +241,136 @@ non-LLM chain (generate → candidates → admit → ledger → certify) is witn
 end to end at 47/49 machine-admitted; canonical regen across every repo, the
 wg-shacl report, the C13 sync rung, the ex4pm certify git-object resolution,
 and affidavit signing remain open.
+
+## 8. Round-3 addendum
+
+### 8.1 Cross-repo V8-004 split — 3/3 ADMITTED
+
+The round-2 `invalid_repository` refusal of the cross-repo order `SJIRA-V8-004`
+(§: affidavit + ferroplan + coordinator-dispatched consumer, not expressible as
+a single-repo candidate) is resolved by splitting into per-repo candidates
+linked by the shared `replay_identity` suffix
+`sjira-v26.10.8-SJIRA-V8-004`. All three admitted via
+`mix semantic_jira.admit_candidates` (`MIX_BUILD_ROOT=_build-laneadmit`,
+candidates-v2.jsonl), under origin authority
+`https://ggen-igniter.dev/ontology/semantic-jira#objective-code-work-authority`
+(origin digest `sha256:310e14f1e30a9bb4...53c72c`):
+
+| order | repo | work_order_digest |
+|---|---|---|
+| SJIRA-V8-004A | ggen-marketplace | `sha256:1250af0c945dd2d0fe09ab60a51943219523cfc2f7642b13759b7c86ffe789ae` |
+| SJIRA-V8-004B | ash_affidavit | `sha256:a0ff5beb3f9b7ced7b1f7d6f3def8a184536cf9cdb29dc4d43db29b7802a8c89` |
+| SJIRA-V8-004C | ferroplan | `sha256:f34e2be83ac7bfad5c798f367a1fcf61729d45dfc323e73e5b6eac7b1da4efdc` |
+
+### 8.2 Git-trust-root court landed (ad2ad844d)
+
+`GIT-TRUST-COURT.md` verdict across 54 citations: **41 RESOLVED-ROOTED /
+13 RESOLVED-UNROOTED (pending scaffold merges) / 0 UNRESOLVED**. Every
+citation resolves; 13 resolve to heads that exist only on scaffold branches
+awaiting merge — a transport residual, not an identity residual.
+
+### 8.3 GoalCheckpoint shape wired (11a1cf2a6 + ggen_igniter 43eba82)
+
+The `GoalCheckpoint` SHACL shape is wired in ggen-marketplace (`11a1cf2a6`)
+with the ggen_igniter generator side (`43eba82`): castle violations dropped
+**11 → 0**, and the workgraph now `conforms=True` under its own shape.
+
+### 8.4 Card validator CI-wired (6523dc716)
+
+The fleet-card validator runs in CI (`6523dc716`): **69 cards, 0 violations**.
+Every card surface is machine-checked, not hand-inspected.
+
+### 8.5 Actuator card conversion in flight
+
+wasm4pm's actuator card — the last hand-authored card surface (§7.4) — is in
+conversion to the generation law.
+
+### 8.6 Round-3 standing
+
+The wave's residual set is now exactly:
+
+1. the scaffold-branch merges (the 13 RESOLVED-UNROOTED citations' targets),
+2. the wasm4pm actuator-card conversion,
+3. the ex4pm coverage drift (**0.8736** post-cards).
+
+Standing: **PARTIAL_ALIVE (strengthened)** — the cross-repo admission residual
+is closed by the split; identity residuals are zero (0 UNRESOLVED citations).
+
+## 9. Round-4 addendum (2026-10-08, lane `sem-wave-r4`)
+
+Subject: ggen-marketplace `lane-f5-shapes-wire` @ `3cd982faf` (pulled ff, no
+stash). Every SHA in this section re-verified 2026-10-08 via
+`git log --oneline -1 <sha>` in this repo; audit standings are wave-reported
+per the per-repo doc-hdit audits (not re-executed in this docs lane).
+
+### 9.1 Per-repo doc-hdit audit standings (wave-reported)
+
+| repo | verdict | S_coverage | note |
+|---|---|---|---|
+| castle | PASS | 0.9873 | — |
+| graphlaw | PASS | 0.9437 | — |
+| ferroplan | PASS | 0.9825 | — |
+| zcode | PASS | ~0.99 | honest report |
+| xaas | Phi-BLOCKED | 0.0069 | doc-drift fix in flight |
+| ash_pplan | Phi-BLOCKED | 0.0296 | backlog [47] in flight |
+| ash_graphlaw | coverage PASS | 0.9722 | post-remediation |
+| ex4pm | BLOCKED | 0.8880 | scaffold lane in flight |
+| frozen-duckdb | BLOCKED | 0.8789 | backlog [38] |
+| ash_surface | BLOCKED | 0.8777 | pre-remediation |
+
+### 9.2 Extractor/pack fixes landed (this repo)
+
+| fix | SHA | what |
+|---|---|---|
+| deterministic claim ids | `3cd982faf` | `id = c-<sha256[:16]>` per claim; unblocks `doc-hdit vectorize` (`missing field id`); double-run over ash_graphlaw: 1730 claims byte-identical; negative witness reproduces rc=2 |
+| widened doc roots | `00143791e` | README.md + documentation/ default roots; opt-in `--include-doc-strings` (@doc/@moduledoc + /// rustdoc); fixes thin-docs S_coverage (ash_graphlaw 9 claims vs 612 public items) |
+| const items | `5328aab79` | pub const/static enter the Rust public surface (tree-sitter + regex paths); private consts excluded; 35 pytest green |
+| vec cache | `a53442fb7` | content-hash (BLAKE3) vectorize + derived-projection caches in `src/vsa/cache.rs`; kills per-run re-encoding of unchanged corpora |
+| gitignore anchoring | `ca60dcb7a` | unanchored `bin/` rule no longer matches `packs/*/src/bin/`; narrowed `ggen.lock` + marketplace-cli rules; 0 check-ignore matches post-fix |
+| stash-guard | (no SHA) | lane-process guard, not a repo commit: no `git stash` on the shared checkout (per same-checkout fan-out law); this lane used `--ff-only` pulls only |
+
+### 9.3 Generator v3 closures (gen_workgraph)
+
+| closure | SHA | what |
+|---|---|---|
+| `sj:requiresReceiptClass` | `73340ad8e` | deterministic per-order receipt class from witness paths; selftest asserts both classes render; byte-identical double-run on gmp + zcode-cli |
+| acceptance body compression | `9d5f1ceda` | dedupe + bounded bullets via shared `compress_bullets`; selftest leg for determinism |
+| seed landedCommit CLI | `e3db4ab3b` | `parse_seed_landings()` + default seed wiring from the repo's own WORKGRAPH.ttl; git rev-parse resolution |
+| falsifier target yield | `8995acdd9` | v3 item-5 residue |
+| seed enrichment | `dfb8010d0` | backlog [53]: 23/23 orders with `sj:landedCommit` bound (was 2/3 lines); SHACL zero defect-class violations before/after |
+| census + residuals | (see §9.4) | residual census carried by the refusal triage; open items listed there |
+
+### 9.4 Refusal triage (a90eb9fc5) — 26/28 closed
+
+`REFUSAL-TRIAGE.md` (landed at `a90eb9fc5`): 78 ledger rows, 50 admitted,
+28 refused. Replay-verified via 7 real admitter invocations (all exit 0, all
+22 candidate verdicts byte-match ledger `work_order_digest`):
+**26 of 28 refusal rows closed** by replay-verified re-admission or the
+V8-004A/B/C split; **2 remain BLOCKED** (castle-goal `no_workgraph` — no
+checkout on disk). Zero hand-edits; ledger append-consistent.
+
+### 9.5 Open residues (explicit, in flight)
+
+- **[38]** frozen-duckdb coverage BLOCKED — in flight.
+- **[47]** path-claim typing (`gen_doc_surface.py` P1 [47], `doc-hdit.rs`
+  path_ref grounding) — in flight.
+- **[49]** in flight (dispatch-open).
+- **[51]** vendor-surface policy (`gen_doc_surface.py` Backlog [51]) — in flight.
+- **[60]** in flight (dispatch-open).
+- Carried from §8.6: wasm4pm actuator-card conversion; castle-goal
+  `no_workgraph` (typed BLOCKED).
+
+### 9.6 Round-4 standing
+
+Standing: **PARTIAL_ALIVE (strengthened)** — the extractor/generator fix set
+is landed and each fix carries its own gate (selftest/pytest/negative
+witness); the admission ledger is fully triaged with only the typed
+castle-goal residual; per-repo audits are 4 PASS / 6 BLOCKED with named
+in-flight remediations. Not claimed: ALIVE (audits not re-executed in this
+lane; [38]/[47]/[49]/[51]/[60] open).
+
+## Replay (round 4)
+
+```
+for s in 3cd982faf 00143791e 5328aab79 a53442fb7 ca60dcb7a 73340ad8e 9d5f1ceda e3db4ab3b 8995acdd9 dfb8010d0 a90eb9fc5; do git log --oneline -1 $s; done
+```

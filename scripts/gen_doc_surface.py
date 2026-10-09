@@ -18,9 +18,11 @@ without the dependency); `ts`/`regex` force one path explicitly.
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import re
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 # ------------------------------------------------- optional tree-sitter v2 ---
@@ -38,8 +40,46 @@ try:
 except ImportError as _exc:  # pragma: no cover - exercised via engine=regex
     TS_AVAILABLE = False
     TS_IMPORT_ERROR = _exc
+    # Bind the fallbacks so the names are always defined; every use site
+    # guards on TS_AVAILABLE first (extract_code refuses engine=ts up front).
+    Language = None  # type: ignore[assignment,misc]
+    Parser = None  # type: ignore[assignment,misc]
+    _ts_elixir = None
+    _ts_rust = None
 
 SKIP_DIRS = {"deps", "_build", "node_modules", "target", ".git", ".venv", "priv"}
+
+# Backlog [51] vendor-surface policy (generalizes ash_surface .ggen-v2,
+# graphlaw vendor/, ferroplan crucible findings): vendored trees are not
+# maintained on the repo's public code surface, so they are excluded from the
+# public code-surface denominator (modules, paths, directories) by default.
+# Doc claims referencing vendored symbols still get extracted and classify
+# `external_documented` in the audit core (NOT phantom, NOT uncovered) via
+# the known-vendor prefixes merged into `known_external`. `--include-vendor`
+# opts back into the full surface for full-surface audits.
+VENDOR_DIRS = {"vendor", ".ggen-v2", "third_party"}
+
+# Active vendor policy (module-level because the low-level walkers
+# (`iter_files`, `path_surface`, `extract_directories`) are called deep inside
+# the language scanners without threading a parameter through every frame).
+# Only mutated inside `vendor_policy()`; always restored on exit.
+_INCLUDE_VENDOR = False
+
+
+@contextmanager
+def vendor_policy(include_vendor):
+    global _INCLUDE_VENDOR
+    prev = _INCLUDE_VENDOR
+    _INCLUDE_VENDOR = include_vendor
+    try:
+        yield
+    finally:
+        _INCLUDE_VENDOR = prev
+
+
+def vendor_part(part):
+    """True when a path part names a vendored tree under the active policy."""
+    return not _INCLUDE_VENDOR and part in VENDOR_DIRS
 
 ELIXIR_MODULE = re.compile(r"defmodule\s+([A-Z][A-Za-z0-9._]*)\s+do")
 ELIXIR_DEF = re.compile(
@@ -106,7 +146,13 @@ RUST_FN = re.compile(
     r"\bpub\s+(?:const\s+)?(?:unsafe\s+)?(?:async\s+)?fn\s+"
     r"([a-zA-Z_][a-zA-Z0-9_]*)\s*(\([^)]*\))",
 )
-RUST_ITEM = re.compile(r"\bpub\s+(struct|enum|trait)\s+([A-Z][A-Za-z0-9_]*)")
+RUST_ITEM = re.compile(
+    r"\bpub\s+(const|static|struct|enum|trait)\s+([A-Z][A-Za-z0-9_]*)"
+)
+# Backlog [56]: `pub use` re-exports (crate-root aliases) enter the code
+# surface as `use` items so the grounding index can admit re-exported alias
+# names. [^;]+ spans multi-line brace lists (`pub use generated::{\n A,\n B};`).
+RUST_USE = re.compile(r"\bpub\s+use\s+([^;]+);")
 ELIXIR_DEFSTRUCT = re.compile(r"^\s*defstruct\s+(.+)$")
 ELIXIR_TYPE = re.compile(r"^\s*@(type|typep)\s+([a-z_][a-zA-Z0-9_]*)\s*::\s*(.*)$")
 ELIXIR_TYPE_CONT = re.compile(r"^\s*\|\s*(.+)$")
@@ -121,7 +167,7 @@ MIX_DEP_BARE = re.compile(r'^\s*:([a-z_][a-zA-Z0-9_]*)\s*[,}]', re.M)
 
 def iter_files(root, pattern):
     for p in sorted(Path(root).rglob(pattern)):
-        if any(part in SKIP_DIRS for part in p.parts):
+        if any(part in SKIP_DIRS or vendor_part(part) for part in p.parts):
             continue
         if p.is_file():
             yield p
@@ -476,6 +522,13 @@ def scan_rust(repo):
                     ),
                     "is_public": True,
                 })
+            for m in RUST_USE.finditer(text):
+                items.append({
+                    "kind": "use",
+                    "ident": m.group(1).strip(),
+                    "signature": m.group(1).strip(),
+                    "is_public": True,
+                })
             seen = set()
             uniq = []
             for it in items:
@@ -514,9 +567,16 @@ _TS_PARSERS = {}
 
 
 def _ts_parser(lang_mod):
+    # Local rebind: pyright cannot narrow module globals inside a function,
+    # so the None-checks below must narrow locals instead.
+    lang_cls, parser_cls = Language, Parser
+    if not TS_AVAILABLE or lang_cls is None or parser_cls is None:
+        raise RuntimeError(
+            "tree-sitter unavailable: " + str(TS_IMPORT_ERROR)
+        )
     key = lang_mod.__name__
     if key not in _TS_PARSERS:
-        _TS_PARSERS[key] = Parser(Language(lang_mod.language()))
+        _TS_PARSERS[key] = parser_cls(lang_cls(lang_mod.language()))
     return _TS_PARSERS[key]
 
 
@@ -629,6 +689,37 @@ def scan_rust_ts(repo):
                         "kind": "trait",
                         "ident": tname,
                         "signature": "",
+                        "doc": _rust_doc(node),
+                        "is_public": True,
+                    })
+                elif node.type in ("const_item", "static_item"):
+                    if not _rust_pub(node):
+                        continue
+                    cname = node.child_by_field_name("name").text.decode()
+                    tnode = node.child_by_field_name("type")
+                    sig = cname if tnode is None else (
+                        cname + ": " + _clean(tnode.text.decode()))
+                    items.append({
+                        "kind": "const",
+                        "ident": cname,
+                        "signature": sig,
+                        "doc": _rust_doc(node),
+                        "is_public": True,
+                    })
+                elif node.type == "use_declaration":
+                    # Backlog [56]: `pub use` re-exports (crate-root aliases)
+                    # enter the code surface as `use` items so the grounding
+                    # index can admit re-exported alias names. Ident is the
+                    # whitespace-normalized spec (`a::B`, `a::{X, Y as Z}`,
+                    # `a::*`); the Rust core parses the alias tails.
+                    if not _rust_pub(node):
+                        continue
+                    spec = " ".join(node.text.decode().split())
+                    inner = spec.removeprefix("pub use ").removesuffix(";").strip()
+                    items.append({
+                        "kind": "use",
+                        "ident": inner,
+                        "signature": inner,
                         "doc": _rust_doc(node),
                         "is_public": True,
                     })
@@ -955,11 +1046,42 @@ def scan_elixir_ts(repo):
 
 
 # ------------------------------------------------------ external allowlist ---
-    return "".join(p.capitalize() for p in dep.split("_"))
 
 
 def camelize(dep):
     return "".join(p.capitalize() for p in dep.split("_"))
+
+
+def vendor_prefixes(repo):
+    """Known-vendor symbol prefixes from the vendored trees themselves.
+
+    Walks only the vendor dirs (VENDOR_DIRS) — under the default policy those
+    are excluded from the code surface, so the vendored projects' mix.exs /
+    Cargo.toml are read directly (a plain rglob, not iter_files, because
+    iter_files applies the vendor skip law to `vendor` parts). Elixir
+    `defmodule X.MixProject` -> `X.`, Cargo `[package] name` -> `name::`.
+    These join `known_external`, so the audit core's prefix check classifies
+    doc claims referencing vendored symbols `external_documented`.
+    """
+    repo = Path(repo)
+    prefixes = set()
+    for vdir in VENDOR_DIRS:
+        root = repo / vdir
+        if not root.is_dir():
+            continue
+        for mf in sorted(root.rglob("mix.exs")):
+            text = mf.read_text(errors="replace")
+            for m in ELIXIR_MODULE.finditer(text):
+                name = m.group(1)
+                if name.endswith(".MixProject"):
+                    name = name[: -len(".MixProject")]
+                prefixes.add(name + ".")
+        for ct in sorted(root.rglob("Cargo.toml")):
+            text = ct.read_text(errors="replace")
+            pm = CARGO_PACKAGE.search(text)
+            if pm:
+                prefixes.add(pm.group(1).replace("-", "_") + "::")
+    return prefixes
 
 
 def known_external(repo):
@@ -981,6 +1103,18 @@ def known_external(repo):
         for sec in CARGO_DEP.finditer(text):
             for m in CARGO_DEP_NAME.finditer(sec.group(1)):
                 prefixes.add(m.group(1) + "::")
+    # Backlog [51]: vendored projects' own module/crate prefixes join the
+    # external allowlist, so audit-core claims referencing vendored symbols
+    # classify `external_documented` (prefix check) instead of phantom.
+    prefixes |= vendor_prefixes(repo)
+    # Dir-form vendor references (`vendor`, `vendor/`, `third_party/...`)
+    # ride the same starts_with channel: only UNgrounded objects can reach
+    # the external class in the audit core (grounded is checked first), so a
+    # plain dir name as prefix misclassifies nothing grounded.
+    for vdir in VENDOR_DIRS:
+        if (Path(repo) / vdir).is_dir():
+            prefixes.add(vdir)
+            prefixes.add(vdir + "/")
     return sorted(prefixes)
 
 
@@ -1076,22 +1210,60 @@ def extract_directories(repo):
     by exact membership — directory existence, never fuzzy matching.
     """
     dirs = set()
-    for p in Path(repo).rglob("*"):
-        if any(part in SKIP_DIRS for part in p.parts):
-            continue
-        if any(part.startswith(".") for part in p.parts):
+    root = Path(repo)
+    for p in root.rglob("*"):
+        rel = p.relative_to(root)
+        if any(part in SKIP_DIRS or part.startswith(".") or vendor_part(part)
+               for part in rel.parts):
             continue
         if p.is_dir():
-            dirs.add(str(p.relative_to(repo)))
+            dirs.add(str(rel))
     return sorted(dirs)
 
 
 # ------------------------------------------------------------- code mode ---
 
 
-def extract_code(repo, engine="auto"):
+def extract_code(repo, engine="auto", include_vendor=False):
     repo = Path(repo)
-    if engine == "auto":
+    with vendor_policy(include_vendor):
+        if engine == "auto":
+            engine = "ts" if TS_AVAILABLE else "regex"
+        if engine == "ts" and not TS_AVAILABLE:
+            raise RuntimeError(
+                "engine=ts requested but tree-sitter is not importable "
+                "(install scripts/requirements-doc-surface-ts.txt): "
+                + str(TS_IMPORT_ERROR)
+            )
+        use_ts = engine == "ts"
+        modules = []
+        versions = {}
+        if (repo / "mix.exs").exists() or next(iter_files(repo, "mix.exs"), None):
+            m, v = scan_elixir_ts(repo) if use_ts else scan_elixir(repo)
+            modules += m
+            versions.update(v)
+        if (repo / "Cargo.toml").exists():
+            m, v = scan_rust_ts(repo) if use_ts else scan_rust(repo)
+            modules += m
+            versions.update(v)
+        if next(iter_files(repo, "package.json"), None):
+            m, v = scan_node(repo)
+            modules += m
+            versions.update(v)
+        if (repo / "pyproject.toml").exists() or (repo / "setup.py").exists():
+            m, v = scan_python(repo)
+            modules += m
+            versions.update(v)
+        modules.sort(key=lambda x: x["name"])
+        return {
+            "repo": repo.name,
+            "path": str(repo),
+            "version": versions,
+            "known_external": known_external(repo),
+            "directories": extract_directories(repo),
+            "paths": sorted(path_surface(repo)[1]),
+            "modules": modules,
+        }
         engine = "ts" if TS_AVAILABLE else "regex"
     if engine == "ts" and not TS_AVAILABLE:
         raise RuntimeError(
@@ -1125,6 +1297,7 @@ def extract_code(repo, engine="auto"):
         "version": versions,
         "known_external": known_external(repo),
         "directories": extract_directories(repo),
+        "paths": sorted(path_surface(repo)[1]),
         "modules": modules,
     }
 
@@ -1201,7 +1374,7 @@ def is_noise_span(span):
 ARITY_LIST_RE = re.compile(r"^([A-Za-z0-9_.?!]+/\d+),(?:\d+(?:,\d+)*)$")
 
 
-def match_span(span, syms):
+def match_span(span, syms, vendor_pfx=()):
     span = span.strip()
     if is_noise_span(span):
         return None
@@ -1222,7 +1395,86 @@ def match_span(span, syms):
     last = span.split(".")[-1].split("::")[-1].strip("()")
     if last in syms:
         return span
+    if is_vendor_object(span, vendor_pfx):
+        # Backlog [51]: vendored-symbol reference — claimed so the audit
+        # core's known-vendor prefix check classifies it
+        # `external_documented` (NOT phantom, NOT uncovered).
+        return span
     return None
+
+
+# P1 [47] path-claim typing: a backticked span that is a filesystem path
+# (`planning/ash_pplan_control_plane.hddl`, `test/support/courts/`) references
+# the repo's file surface, not a code symbol. Such spans ride on segment
+# collisions with real symbols (`hddl/0`, a module named `Test`) into
+# whole-span `mentions` claims that ground only against code symbols and all
+# too often count as phantoms. Path-shaped spans are typed as a distinct
+# `path_ref` kind and claimed only when the path exists on the real file
+# surface (path exists = grounded); non-existent path-shaped spans are prose,
+# never claims. The audit core grounds `path_ref` objects by exact membership
+# against the extractor's `paths`/`directories` arrays.
+PATH_SPAN_RE = re.compile(r"^[^\s/]+(/[^\s/]+)+/?$")
+
+
+def is_vendor_object(obj, vendor_pfx=()):
+    """Known-vendor-prefix check on a claim object (backlog [51]).
+
+    True when the object names vendored surface: it starts with a vendor
+    module/crate prefix (`GgenMarketplace.`, `mfw_planning_autonomic::`)
+    derived from the vendored trees, or its path segments route through a
+    vendor dir (`third_party/...`). Such claims classify
+    `external_documented` in the audit core — grounded against the vendored
+    project's own documentation, not phantom and not uncovered.
+    """
+    if not vendor_pfx:
+        return False
+    s = obj.strip()
+    if any(s.startswith(p) for p in vendor_pfx):
+        return True
+    return any(part in VENDOR_DIRS for part in s.split("/"))
+
+
+def is_path_span(span):
+    """True when a span is filesystem-path-shaped: slash-separated, no
+    whitespace, not a version fragment, and not an Elixir arity form
+    (`receipt/2`, `execute/4,5` — last segment digits, symbol channel)."""
+    s = span.strip()
+    if "/" not in s or re.search(r"\s", s):
+        return False
+    if VERSION_RE.match(s) or ARITY_LIST_RE.match(s):
+        return False
+    last = s.rstrip("/").rsplit("/", 1)[-1]
+    if last.isdigit():
+        return False
+    if any(looks_like_version(seg) for seg in s.split("/")):
+        return False
+    return True
+
+
+def path_surface(repo):
+    """Real file surface: (dirs, files) as relative-path sets, excluding
+    build/hidden dirs (skip law applies to repo-relative parts only)."""
+    dirs, files = set(), set()
+    root = Path(repo)
+    for p in root.rglob("*"):
+        rel = p.relative_to(root)
+        if any(part in SKIP_DIRS or part.startswith(".") or vendor_part(part)
+               for part in rel.parts):
+            continue
+        r = str(rel)
+        if p.is_dir():
+            dirs.add(r)
+        else:
+            files.add(r)
+    return dirs, files
+
+
+def resolves_path(surface, span):
+    """Path-existence grounding: exact membership on the real file surface,
+    trailing-slash directory refs included. Never fuzzy."""
+    dirs, files = surface
+    s = span.strip()
+    return s in files or s in dirs or (s.endswith("/") and s[:-1] in dirs)
 
 
 HEADING = re.compile(r"^(#{1,6})\s+(.*)$", re.M)
@@ -1248,7 +1500,7 @@ def cell_candidates(cell):
     return [s] if s else []
 
 
-def table_claims(rel, header, cells, syms):
+def table_claims(rel, header, cells, syms, vendor_pfx=()):
     header_low = [c.lower() for c in header] if header else []
     fi = next((i for i, c in enumerate(header_low)
                if "function" in c or "signature" in c), None)
@@ -1280,7 +1532,7 @@ def table_claims(rel, header, cells, syms):
                     "subject": rel,
                     "predicate": "mentions",
                     "object": cand,
-                    "kind": "table_row_scaffold",
+                    "kind": "table_row_scaffold" if not is_vendor_object(cand, vendor_pfx) else "table_row_vendor",
                 })
                 if scaffold_symbol is None:
                     scaffold_symbol = cand
@@ -1299,17 +1551,106 @@ def table_claims(rel, header, cells, syms):
     return out
 
 
-def extract_doc(repo, surface, docs_dirs=None):
+def claim_id(repo_name, rel, kind, index):
+    """Deterministic claim id: stable hash of (repo, path, kind, index).
+
+    doc-hdit's Claim struct (packs/rust-doc-hdit-pack/src/lib.rs) requires an
+    `id` field; ids must be byte-stable across double-runs, so they derive
+    only from extraction-deterministic inputs (never dict order or wall
+    clock). Index is the per-(path, kind) occurrence counter, so ids survive
+    upstream claim insertion/removal within the same path+kind class.
+    """
+    payload = "|".join((repo_name, rel, kind, str(index)))
+    return "c-" + hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+ELIXIR_DOC_HEREDOC = re.compile(r'@(?:module)?doc\s+"""(.*?)"""', re.S)
+RUST_DOC_LINE = re.compile(r"^\s*///(.*)$")
+
+
+def doc_string_claims(repo, surface, syms):
+    """P1 scope gap [30]: harvest inline doc strings as claims (opt-in).
+
+    Elixir @doc/@moduledoc heredocs and Rust /// rustdoc lines are part of
+    the documentation surface; thin-docs Elixir repos (ash_graphlaw: 9
+    claims vs 612 public items) document through @doc, not markdown. Claims
+    only when the span resolves against the known code surface — same
+    grounding discipline as inline_span/table_row claims.
+    """
+    claims = []
+    files = sorted({m["file"] for m in surface["modules"] if m.get("file")})
+    psurface = path_surface(repo)
+    for rel in files:
+        path = repo / rel
+        if not path.is_file():
+            continue
+        text = path.read_text(errors="replace")
+        if rel.endswith((".ex", ".exs")):
+            blocks = ELIXIR_DOC_HEREDOC.findall(text)
+        elif rel.endswith(".rs"):
+            runs, cur = [], []
+            for line in text.splitlines():
+                dm = RUST_DOC_LINE.match(line)
+                if dm:
+                    cur.append(dm.group(1))
+                elif cur:
+                    runs.append(cur)
+                    cur = []
+            if cur:
+                runs.append(cur)
+            blocks = ["\n".join(run) for run in runs]
+        else:
+            continue
+        rel_base = rel
+        for block in blocks:
+            for sm in INLINE_SPAN.finditer(block):
+                span = sm.group(1)
+                if is_path_span(span):
+                    if resolves_path(psurface, span):
+                        claims.append({
+                            "subject": rel_base,
+                            "predicate": "references_path",
+                            "object": span,
+                            "kind": "path_ref",
+                        })
+                    continue
+                hit = match_span(span, syms)
+                if hit:
+                    claims.append({
+                        "subject": rel_base,
+                        "predicate": "mentions",
+                        "object": hit,
+                        "kind": "doc_string",
+                    })
+    return claims
+
+
+def extract_doc(repo, surface, docs_dirs=None, include_doc_strings=False):
     repo = Path(repo)
     syms = known_symbols(surface)
+    psurface = path_surface(repo)
+    vendor_pfx = vendor_prefixes(repo)
     module_names = {m["name"] for m in surface["modules"] if m["name"] and m["name"][0].isupper()}
     claims = []
     if docs_dirs:
         roots = [Path(d) for d in docs_dirs]
     else:
-        roots = [d for d in [repo / "docs", repo / "book"] if d.is_dir()] or [repo]
+        # P1 scope gap [30]: README.md and documentation/ are part of the doc
+        # surface; thin-docs repos whose only prose is a README no longer
+        # structurally fail coverage. iter_files is recursive already, so
+        # documentation/ is scanned recursively like docs/ and book/.
+        roots = [d for d in [repo / "docs", repo / "book", repo / "documentation"]
+                 if d.is_dir()]
+        if (repo / "README.md").is_file():
+            roots.append(repo / "README.md")
+        roots = roots or [repo]
     for root in roots:
-        for path in iter_files(root, "*.md"):
+        # README.md is a file root; rglob on a file yields nothing, so file
+        # roots are handled directly.
+        md_files = [root] if root.is_file() else iter_files(root, "*.md")
+        for path in md_files:
+            if path.suffix != ".md":
+                continue
             text = path.read_text(errors="replace")
             rel = str(path.relative_to(repo))
             fences = [(m.group(1), m.group(2)) for m in FENCE.finditer(text)]
@@ -1320,7 +1661,17 @@ def extract_doc(repo, surface, docs_dirs=None):
                 if hm:
                     section = hm.group(2).strip()
                 for sm in INLINE_SPAN.finditer(line):
-                    hit = match_span(sm.group(1), syms)
+                    span = sm.group(1)
+                    if is_path_span(span):
+                        if resolves_path(psurface, span):
+                            claims.append({
+                                "subject": rel + "#" + section if section else rel,
+                                "predicate": "references_path",
+                                "object": span,
+                                "kind": "path_ref",
+                            })
+                        continue
+                    hit = match_span(span, syms, vendor_pfx)
                     if hit:
                         claims.append({
                             "subject": rel + "#" + section if section else rel,
@@ -1363,9 +1714,21 @@ def extract_doc(repo, surface, docs_dirs=None):
                             and rows[1][0] == rows[0][0] + 2):
                         header = rows.pop(0)[1]
                     for _, cells in rows:
-                        claims.extend(table_claims(rel, header, cells, syms))
+                        claims.extend(table_claims(rel, header, cells, syms, vendor_pfx))
                     table_block = []
                 # non-pipe line: block ended; header re-derived per block
+    if include_doc_strings:
+        claims.extend(doc_string_claims(repo, surface, syms))
+    # Mint deterministic ids before sorting: the counter is keyed by
+    # (path, kind) in extraction order, which is itself deterministic
+    # (iter_files sorts; claims append in scan order).
+    counters = {}
+    for c in claims:
+        path_part = c["subject"].split("#", 1)[0]
+        key = (path_part, c["kind"])
+        idx = counters.get(key, 0)
+        counters[key] = idx + 1
+        c["id"] = claim_id(repo.name, path_part, c["kind"], idx)
     claims.sort(key=lambda c: (c["subject"], c["predicate"], json.dumps(c["object"], sort_keys=True)))
     return {"repo": repo.name, "doc_roots": [str(r) for r in roots], "claims": claims}
 
@@ -1381,6 +1744,7 @@ def main(argv):
     if not repo.is_dir():
         print("error: " + str(repo) + " is not a directory", file=sys.stderr)
         return 2
+    include_vendor = False
     if mode == "code":
         engine = "auto"
         args = argv[2:]
@@ -1392,13 +1756,20 @@ def main(argv):
                     return 2
                 engine = args[i + 1]
                 i += 2
+            elif args[i] == "--include-vendor":
+                include_vendor = True
+                i += 1
             else:
                 i += 1
-        json.dump(extract_code(repo, engine), sys.stdout, indent=2, sort_keys=True)
+        with vendor_policy(include_vendor):
+            json.dump(
+                extract_code(repo, engine, include_vendor=include_vendor),
+                sys.stdout, indent=2, sort_keys=True)
         print()
         return 0
     code_json = None
     docs_dirs = None
+    include_doc_strings = False
     args = argv[2:]
     i = 0
     while i < len(args):
@@ -1408,10 +1779,16 @@ def main(argv):
         else:
             if args[i] == "--docs-dir":
                 docs_dirs = args[i + 1].split(",")
+            elif args[i] == "--include-doc-strings":
+                include_doc_strings = True
+            elif args[i] == "--include-vendor":
+                include_vendor = True
             i += 1
     if code_json is None:
-        code_json = extract_code(repo)
-    json.dump(extract_doc(repo, code_json, docs_dirs), sys.stdout, indent=2, sort_keys=True)
+        code_json = extract_code(repo, include_vendor=include_vendor)
+    json.dump(
+        extract_doc(repo, code_json, docs_dirs, include_doc_strings),
+        sys.stdout, indent=2, sort_keys=True)
     print()
     return 0
 
