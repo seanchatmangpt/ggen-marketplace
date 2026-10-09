@@ -52,7 +52,7 @@ def test_marketplace_validate_stays_green():
         timeout=300,
     )
     assert r.returncode == 0, r.stdout + r.stderr
-    # Count projection updated for the v26.10.8 campaign: the 306th pack
-    # (semantic-fullstack-factory-pack) landed with its ontology, so the
-    # validate line moved packs=305->306 and ontologies=503->504.
-    assert "validated packs=306" in r.stdout and "ontologies=504" in r.stdout, r.stdout[-300:]
+    # CANARY: these count pins must be bumped in the same commit as any new
+    # pack landing — they pin the exact validate line, not a lower bound.
+    # v26.10.8 campaign: two new packs moved packs=306->308, ontologies=504->506.
+    assert "validated packs=308" in r.stdout and "ontologies=506" in r.stdout, r.stdout[-300:]

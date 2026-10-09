@@ -20,9 +20,9 @@ under `dynamic_in_gates` in the allowlist; gates that fail to parse are also ref
 
 | metric | value |
 |---|---|
-| packs | 307 |
+| packs | 309 |
 | packs with Python scripts | 107 |
-| Python files scanned | 527 |
+| Python files scanned | 534 |
 | files failing to parse | 0 |
 
 ## Capability by role
@@ -34,15 +34,15 @@ Files using each capability, by inferred role (`gate` = under a `gates/` directo
 |---|---|---|---|---|---|
 | gate | 0 | 3 | 3 | 2 | 1 |
 | verifier | 0 | 4 | 14 | 0 | 3 |
-| other | 3 | 14 | 33 | 7 | 25 |
+| other | 3 | 15 | 35 | 7 | 25 |
 
 ## Packs using each capability
 
 | capability | packs |
 |---|---|
 | network | 3 |
-| exec | 16 |
-| fs-write | 29 |
+| exec | 17 |
+| fs-write | 30 |
 | env | 6 |
 | dynamic | 12 |
 
@@ -65,10 +65,10 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 | state | packs |
 |---|---|
 | with LICENSE file | 2 |
-| lacking LICENSE file | 305 |
+| lacking LICENSE file | 307 |
 | with SPDX identifier | 6 |
-| lacking SPDX identifier | 301 |
-| lacking both | 299 |
+| lacking SPDX identifier | 303 |
+| lacking both | 301 |
 
 <details><summary>Packs lacking both</summary>
 
@@ -206,6 +206,7 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `forced-top25-pack`
 - `fortune5-architecture-pack`
 - `fortune5-deployment-blocks-pack`
+- `fortune5-enterprise-architecture-pack`
 - `fortune5-testing-bblock-pack`
 - `frontier-derivative-pack`
 - `frontier-release-factory-pack`
@@ -314,6 +315,7 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `run-protocol-observability-pack`
 - `runtime-evidence-authenticity-control-pack`
 - `runtime-evidence-authenticity-pack`
+- `rust-doc-hdit-pack`
 - `rust-wasi-wasmex-pack`
 - `sa2a-bridge-pack`
 - `sa2a-chicago-court-pack`

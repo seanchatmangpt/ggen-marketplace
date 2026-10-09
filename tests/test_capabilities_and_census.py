@@ -125,6 +125,8 @@ def test_census_repo_deterministic_and_readonly():
 
 
 def test_generated_docs_match_scripts():
+    # CANARY: when a new pack lands, regenerate docs/reference/*.md via the
+    # scripts (--markdown) in the same commit — docs must track pack counts.
     for script, page in ((CAP, "pack-capabilities.md"), (CEN, "workflow-map.md")):
         assert (ROOT / "docs" / "reference" / page).read_text() == run(script, "--markdown").stdout
 
