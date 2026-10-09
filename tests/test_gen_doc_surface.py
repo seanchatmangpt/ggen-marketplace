@@ -724,7 +724,7 @@ class StructSignatureTest(unittest.TestCase):
         assert items[("const", "afterApostrophe")]["signature"] == "afterApostrophe"
 
     def test_ts_regex_literals_do_not_mispair_masking(self):
-        """[151b] regex literals containing quotes/backticks (witnessed:
+        r"""[151b] regex literals containing quotes/backticks (witnessed:
         ``/```/gu`` in zcode-cli sync-runtime.ts:142 and `/\$/g` artifacts
         after comment stripping) must not open string states and blank
         downstream exports."""

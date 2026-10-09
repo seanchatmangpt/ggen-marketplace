@@ -1577,42 +1577,6 @@ def extract_code(repo, engine="auto", include_vendor=False,
             "paths": sorted(path_surface(repo)[1]),
             "modules": modules,
         }
-        engine = "ts" if TS_AVAILABLE else "regex"
-    if engine == "ts" and not TS_AVAILABLE:
-        raise RuntimeError(
-            "engine=ts requested but tree-sitter is not importable "
-            "(install scripts/requirements-doc-surface-ts.txt): "
-            + str(TS_IMPORT_ERROR)
-        )
-    use_ts = engine == "ts"
-    modules = []
-    versions = {}
-    if (repo / "mix.exs").exists() or next(iter_files(repo, "mix.exs"), None):
-        m, v = scan_elixir_ts(repo) if use_ts else scan_elixir(repo)
-        modules += m
-        versions.update(v)
-    if (repo / "Cargo.toml").exists():
-        m, v = scan_rust_ts(repo) if use_ts else scan_rust(repo)
-        modules += m
-        versions.update(v)
-    if next(iter_files(repo, "package.json"), None):
-        m, v = scan_node(repo)
-        modules += m
-        versions.update(v)
-    if (repo / "pyproject.toml").exists() or (repo / "setup.py").exists():
-        m, v = scan_python(repo)
-        modules += m
-        versions.update(v)
-    modules.sort(key=lambda x: x["name"])
-    return {
-        "repo": repo.name,
-        "path": str(repo),
-        "version": versions,
-        "known_external": known_external(repo),
-        "directories": extract_directories(repo),
-        "paths": sorted(path_surface(repo)[1]),
-        "modules": modules,
-    }
 
 
 # --------------------------------------------------------------- doc mode ---
