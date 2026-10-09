@@ -34,12 +34,17 @@ SKIP_DIRS = {
 }
 TEST_FILE = re.compile(r"\.(test|spec)\.[tj]sx?$")
 
+# Function/method signatures use a lookahead for `(` and a balanced-paren
+# window capture (paren_capture below), so multi-line parameter lists are
+# recovered instead of dropped ([144]).
 TS_EXPORT_FN = re.compile(
     r"^export\s+(?:declare\s+)?(?:default\s+)?(?:async\s+)?"
-    r"function\s*\*?\s*([A-Za-z_$][\w$]*)\s*(\([^)]*\))",
+    r"function\s*\*?\s*([A-Za-z_$][\w$]*)\s*(?=\()",
+    re.M,
 )
 TS_DEFAULT_FN = re.compile(
-    r"^export\s+default\s+(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)\s*(\([^)]*\))",
+    r"^export\s+default\s+(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)\s*(?=\()",
+    re.M,
 )
 TS_EXPORT_CLASS = re.compile(
     r"^export\s+(?:declare\s+)?(?:default\s+)?(?:abstract\s+)?class\s+([A-Z][\w$]*)",
@@ -62,11 +67,14 @@ TS_ENUM_HEAD = re.compile(
 TS_TYPE_ALIAS = re.compile(
     r"^export\s+(?:declare\s+)?type\s+([A-Z][\w$]*)[^=\n]*=\s*", re.M,
 )
-TS_CLASS_DECL = re.compile(r"^\s*(?:export\s+)?(?:declare\s+)?(?:abstract\s+)?class\s+([A-Z][\w$]*)")
+TS_CLASS_DECL = re.compile(
+    r"^[ \t]*(?:export\s+)?(?:declare\s+)?(?:abstract\s+)?class\s+([A-Z][\w$]*)", re.M,
+)
 TS_METHOD = re.compile(
-    r"^\s+(?:public\s+|private\s+|protected\s+|readonly\s+|static\s+|"
+    r"^[ \t]+(?:public\s+|private\s+|protected\s+|readonly\s+|static\s+|"
     r"override\s+|async\s+|get\s+|set\s+)*"
-    r"([A-Za-z_$][\w$]*)\s*(\([^)]*\))\s*(?::[^{=]+)?\s*{",
+    r"([A-Za-z_$][\w$]*)\s*(?=\()",
+    re.M,
 )
 IDENT_BAD = {
     "if", "for", "while", "switch", "catch", "return", "function", "class",
@@ -120,40 +128,69 @@ def strip_comments(text: str) -> str:
     return "".join(out)
 
 
-def scan_class_methods(lines):
-    """Yield (name, args) for methods inside `class ... {` blocks by depth."""
+def paren_capture(text, i):
+    """Balanced `(...)` window starting at index i (which must hold `(`),
+    or None when unbalanced."""
     depth = 0
-    class_stack = []  # depth at which the class body opened
-    for line in lines:
-        cd = TS_CLASS_DECL.search(line)
-        open_delta = line.count("{") - line.count("}")
-        if cd and open_delta >= 0:
-            class_stack.append(depth + open_delta if open_delta else depth + (1 if "{" in line else 0))
-        depth += open_delta
-        while class_stack and depth < class_stack[-1]:
-            class_stack.pop()
-        if class_stack:
-            m = TS_METHOD.match(line)
-            if m and m.group(1) not in IDENT_BAD:
-                yield m.group(1), m.group(2)
+    for k in range(i, len(text)):
+        ch = text[k]
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                return text[i:k + 1]
+    return None
+
+
+METHOD_TAIL = re.compile(r"\s*(?::[^{=]+)?\s*\{")
+
+
+def fmt_signature(name, raw):
+    """Single-line captures pass through byte-identical; multi-line
+    parameter lists are whitespace-collapsed onto one line."""
+    if "\n" in raw:
+        flat = " ".join(raw.split())
+        flat = flat.replace("( ", "(").replace(" )", ")")
+        return name + flat
+    return name + raw
+
+
+def scan_class_methods(text):
+    """Yield (name, args) for methods inside `class ... {` bodies,
+    including multi-line signatures (balanced-paren capture)."""
+    for cd in TS_CLASS_DECL.finditer(text):
+        body = brace_body(text, cd.end())
+        if body is None:
+            continue
+        start = text.index(body, cd.end())
+        for mm in TS_METHOD.finditer(body):
+            if mm.group(1) in IDENT_BAD:
+                continue
+            raw = paren_capture(body, mm.end())
+            if raw is None:
+                continue
+            if not METHOD_TAIL.match(body, mm.end() + len(raw)):
+                continue
+            yield mm.group(1), raw
 
 
 def scan_file(path: Path, repo: Path):
     rel = str(path.relative_to(repo))
     text = strip_comments(path.read_text(errors="replace"))
-    lines = text.splitlines()
     items = []
-    for ln in lines:
-        m = TS_EXPORT_FN.search(ln)
-        if m:
+    for m in TS_EXPORT_FN.finditer(text):
+        raw = paren_capture(text, m.end())
+        if raw:
             items.append({"kind": "function", "ident": m.group(1),
-                          "signature": m.group(1) + m.group(2)})
+                          "signature": fmt_signature(m.group(1), raw)})
             continue
-        m = TS_DEFAULT_FN.search(ln)
-        if m:
+    for m in TS_DEFAULT_FN.finditer(text):
+        raw = paren_capture(text, m.end())
+        if raw:
             items.append({"kind": "default_export", "ident": m.group(1),
-                          "signature": m.group(1) + m.group(2)})
-            continue
+                          "signature": fmt_signature(m.group(1), raw)})
+    for ln in text.splitlines():
         m = TS_DEFAULT_CLASS.search(ln)
         if m:
             items.append({"kind": "default_export", "ident": m.group(1),
@@ -200,10 +237,10 @@ def scan_file(path: Path, repo: Path):
                 it["signature"] = ts_members_signature(
                     "type", it["ident"], text, m.end()
                 )
-    for name, args in scan_class_methods(lines):
+    for name, args in scan_class_methods(text):
         if name not in {i["ident"] for i in items if i["kind"] != "method"}:
             items.append({"kind": "method", "ident": name,
-                          "signature": name + args})
+                          "signature": fmt_signature(name, args)})
     return uniq_items(items), rel
 
 

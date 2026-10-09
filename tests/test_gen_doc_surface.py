@@ -583,6 +583,42 @@ class StructSignatureTest(unittest.TestCase):
         assert items[("enum", "Color")]["signature"] == "Color { Red, Green = 2, Blue }"
         assert items[("type", "Mode")]["signature"] == 'Mode = "fast" | "slow"'
 
+    def test_ts_multiline_signatures_recovered(self):
+        """[144] multi-line signatures must be recovered via balanced-paren
+        capture; single-line behavior stays byte-identical."""
+        import gen_doc_surface_ts as ts
+        repo = mkrepo({
+            "src/multi.ts": (
+                "export function wideFn(\n"
+                "  a: string,\n"
+                "  b: number,\n"
+                "): boolean {\n"
+                "  return true;\n"
+                "}\n"
+                "export class Svc {\n"
+                "  async run(\n"
+                "    opts: RunOptions,\n"
+                "  ): Promise<void> {\n"
+                "    void opts;\n"
+                "  }\n"
+                "}\n"
+            ),
+            "src/single.ts": (
+                "export function narrow(a: string): boolean {\n"
+                "  return true;\n"
+                "}\n"
+            ),
+        })
+        code = ts.extract_code(repo)
+        items = {
+            (it["kind"], it["ident"]): it for m in code["modules"] for it in m["items"]
+        }
+        assert items[("function", "wideFn")]["signature"] == (
+            "wideFn(a: string, b: number,)"
+        )
+        assert items[("method", "run")]["signature"] == "run(opts: RunOptions,)"
+        assert items[("function", "narrow")]["signature"] == "narrow(a: string)"
+
 
 class ClaimIdTest(unittest.TestCase):
     """[29] doc-hdit's Claim struct requires `id`; extractor must emit one,
