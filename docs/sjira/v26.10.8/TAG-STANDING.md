@@ -11,6 +11,18 @@ was rewritten — `v26.10.8-2` is a new annotated tag, `v26.10.8` left untouched
 | xaas | 86752b3bd0d2f36ae5405ce08a7e0be3affea240 | 8bb4a2f5c251289ddad00c1fb43464f73c583516 (advanced) | Sealed `docs/sjira/v26.10.8/seal/XAAS-26108-1..5.sj-record.json` (ggen-marketplace) binding `subject_sha` 8bb4a2f5, `admit:ACCEPT`, standing ALIVE; replay `python3 scripts/admit_workgraphs.py` exit 0 |
 | ash_surface | 061b1e9a6dfc83f3a3fdb0899cec898111ce9a3a | dc214d7b5bea46e160afcb247e1af09d96525c27 (advanced) | `SEMANTIC-WAVE-RECEIPT.md` M5 (repaired `620aa939` re-verified, Phi 0.0 both extractors); `DOCS-DOD-GATE.md` code-doc parity PASS; `dc214d7b5` verified tree-identical to receipted `620aa939` (`git diff 620aa939 dc214d7b5` empty) |
 
+## v26.10.8-3 advancement (2026-10-09)
+
+Decision rule: advance to `v26.10.8-3` (annotated) only where the post-`-2` HEAD
+carries in-repo receipts justifying the move. No tag was rewritten — `v26.10.8-3`
+is a new annotated tag; `v26.10.8` and `v26.10.8-2` left untouched.
+
+| repo | old tag (`v26.10.8-2`) | new tag (`v26.10.8-3`) | receipts cited |
+|---|---|---|---|
+| xaas | 8bb4a2f5c251289ddad00c1fb43464f73c583516 | 3ed88241bf6665790239fcf587d75ecbde4723a7 (advanced) | main HEAD `3ed88241` = receipted `[60]` repair `8bb4a2f5` (sealed XAAS-26108-1..5, ancestor) + `docs/reference/config-surface.md` + `scripts/gen_config_surface_ref.py` (generated config-surface reference, self-receipting in the same commit). `git diff 8bb4a2f5 3ed88241` = exactly the config-surface docs transition. |
+| ggen-marketplace | 0bf1be372e4caf479ca3a7d00d1765500bf254b4 | 3c8240c36 (advanced, branch `hdit-v2-structs`) | Round-6 receipts at tip `3c8240c36`: `SEMANTIC-WAVE-RECEIPT.md` round-6 final witness refresh (`209346e0b`) + §12 wasm4pm/zcode row sync (`3c8240c36`) + `DOCS-DOD-GATE.md`; TAG-STANDING update itself committed on top before tagging. |
+| ash_surface | dc214d7b5bea46e160afcb247e1af09d96525c27 | no move | main HEAD == `dc214d7b5` == `v26.10.8-2`; no post-tag receipts landed, gate not met. |
+
 ## Post-tag hardening landed between `v26.10.8` and `v26.10.8-2`
 
 ### ggen-marketplace (2ad88900b..0bf1be372, 137 commits, 226 files)
