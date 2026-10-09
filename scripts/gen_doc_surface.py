@@ -710,10 +710,11 @@ _ENV_ACCESSORS = (
     "std::env::var_os", "env::var_os", "var_os",
 )
 
-# lazy_static! `static ref NAME: T = ... "value" ...;` string tables
-# (first string literal in the initializer).
-_LAZY_STATIC_STR = re.compile(
-    r'static\s+ref\s+(\w+)\s*:[^;]*?=\s*[^;]*?"([^"]+)"')
+# lazy_static! `static ref NAME: T = ...;` string-table initializers:
+# NAME capture + the span up to the terminating `;` (string literals
+# extracted separately, so vec!["a", "b"] tables yield every key).
+_LAZY_STATIC_STR = re.compile(r'static\s+ref\s+(\w+)\s*:[^;]*?=\s*')
+_STR_LIT = re.compile(r'"([^"]+)"')
 
 # Rust string literal body: `string_content` under `string_literal`
 # (tree-sitter-rust; `quoted_content` is the Elixir shape).
@@ -859,16 +860,18 @@ def scan_rust_ts(repo):
                         continue
                     macro = macro_node.text.decode()
                     if macro in ("lazy_static", "lazy_static!"):
-                        tok = node.child_by_field_name("token_tree")
-                        if tok is not None:
-                            for lm in _LAZY_STATIC_STR.finditer(
-                                    tok.text.decode()):
+                        body = node.text.decode()
+                        for lm in _LAZY_STATIC_STR.finditer(body):
+                            tail = body[lm.end():]
+                            tail = tail[:tail.find(";")] if ";" in tail \
+                                else tail
+                            vals = _STR_LIT.findall(tail)
+                            for v in vals:
                                 items.append({
                                     "kind": "str_key",
-                                    "ident": lm.group(2),
+                                    "ident": v,
                                     "signature": (
-                                        lm.group(1) + ' = "' + lm.group(2)
-                                        + '"'),
+                                        lm.group(1) + ' = "' + v + '"'),
                                     "doc": "",
                                     "is_public": True,
                                 })

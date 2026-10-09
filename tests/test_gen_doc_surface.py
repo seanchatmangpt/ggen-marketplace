@@ -926,3 +926,86 @@ class GeneratedSurfacePolicyTest(unittest.TestCase):
         assert rc == 0
         code = _json.loads(buf.getvalue())
         assert any(self.GEN in p for p in code["paths"])
+class EnvKeySurfaceTest(unittest.TestCase):
+    """Backlog [109]: env-var literals and string-key constants are real
+    public configuration surface — `std::env::var("NAME")` reads emit
+    `env_key` items and string-valued consts/statics (incl. lazy_static!
+    tables) emit `str_key` items, name + accessor site."""
+
+    def _items(self, code):
+        return {
+            (it["kind"], it["ident"]): it
+            for m in code["modules"]
+            for it in m["items"]
+        }
+
+    def _rust_repo(self, src):
+        return mkrepo({
+            "Cargo.toml": '[package]\nname = "demo"\nversion = "0.1.0"\n',
+            "src/lib.rs": src,
+        })
+
+    def test_env_var_reads_emit_env_key_items(self):
+        repo = self._rust_repo(
+            'pub fn cfg() -> String {\n'
+            '    let t = std::env::var("FF_TIME_LIMIT").unwrap_or_default();\n'
+            '    let n = env::var_os("FF_NOVELTY").unwrap_or_default();\n'
+            '    format!("{}/{}", t, n)\n'
+            '}\n'
+        )
+        items = self._items(g.extract_code(repo, engine="ts"))
+        assert items[("env_key", "FF_TIME_LIMIT")]["signature"] == (
+            'std::env::var("FF_TIME_LIMIT")'
+        )
+        assert items[("env_key", "FF_NOVELTY")]["signature"] == (
+            'env::var_os("FF_NOVELTY")'
+        )
+        assert items[("env_key", "FF_TIME_LIMIT")]["is_public"] is True
+
+    def test_string_valued_consts_emit_str_key_with_value_ident(self):
+        repo = self._rust_repo(
+            'pub static VERDICT: &str = "NoPlan";\n'
+            'const INTERNAL_SALT: &str = "s3cr3t";\n'
+            'pub const MAX_RETRIES: u32 = 3;\n'
+        )
+        items = self._items(g.extract_code(repo, engine="ts"))
+        assert items[("str_key", "NoPlan")]["signature"] == (
+            'VERDICT = "NoPlan"'
+        )
+        # private binding, public VALUE: the string key is still surface
+        assert items[("str_key", "s3cr3t")]["signature"] == (
+            'INTERNAL_SALT = "s3cr3t"'
+        )
+        assert ("str_key", "3") not in items  # non-string consts excluded
+        assert ("const", "MAX_RETRIES") in items  # pub const still emitted
+
+    def test_lazy_static_string_tables_emit_all_keys(self):
+        repo = self._rust_repo(
+            'lazy_static! {\n'
+            '    static ref FOND_KEYWORDS: Vec<&\'static str> =\n'
+            '        vec!["FOND", "leaf"];\n'
+            '    static ref TIMEOUT_KEY: String = "TIMEOUT".to_string();\n'
+            '}\n'
+        )
+        items = self._items(g.extract_code(repo, engine="ts"))
+        assert ("str_key", "FOND") in items
+        assert ("str_key", "leaf") in items
+        assert ("str_key", "TIMEOUT") in items
+        assert items[("str_key", "TIMEOUT")]["signature"] == (
+            'TIMEOUT_KEY = "TIMEOUT"'
+        )
+
+    def test_env_reads_in_tests_dir_are_non_public_module(self):
+        repo = mkrepo({
+            "Cargo.toml": '[package]\nname = "demo"\nversion = "0.1.0"\n',
+            "src/lib.rs": 'pub fn f() { env::var("FF_RUNTIME"); }\n',
+            "tests/it.rs": 'fn t() { std::env::var("FF_TEST_ONLY"); }\n',
+        })
+        code = g.extract_code(repo, engine="ts")
+        by_file = {
+            m["file"]: m for m in code["modules"]
+        }
+        assert by_file["tests/it.rs"]["is_public"] is False
+        assert by_file["src/lib.rs"]["is_public"] is True
+
+
