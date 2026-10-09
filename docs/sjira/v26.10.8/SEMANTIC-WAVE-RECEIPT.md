@@ -549,8 +549,19 @@ disk in their owning repos this session are marked **wave-reported
   `e932e93`+`a8810b5` phantom-claim repairs, `4d5b07c` merge lane/dsl-gen-fix-98
   ([98] DSL generator spec-cell fix), `cd2b3d3` merge repair-final-3-phantom-claims,
   `6c8c7ec` certify receipt chain (ACCEPTED at `a8810b5`);
-  `CERTIFY-VERIFY.md` + `ash_pplan.chain.jsonl` on disk; residual
-  AshPPlan.Dsl scanner gap disclosed |
+  `CERTIFY-VERIFY.md` + `ash_pplan.chain.jsonl` on disk; round-6 post-merge
+  re-witness at `9c6b676` on ash_pplan `main` (both SHAs re-verified via
+  `git cat-file -e` + `rev-parse` in `/Users/sac/ash_pplan`): canonical audit
+  re-run at merged main `6c8c7ec` — **ACCEPTED**, S_coverage 0.97747 /
+  Phi_halluc 0.000775 / Q_density 0.99923 (all three gates PASS), chain
+  `184b851d83ee0c5a161809f1091d3e06685c05f46de914cdee42d187de4cab41`
+  (parent `""`, subject `0961ceaa7472031870dd29c58a5a0662653618adb1d4c0f45d599d84698ddf20`),
+  chain + subject hashes recomputed on disk at landing, both MATCH;
+  `rewitness/` receipt dir landed (`REWITNESS.md` +
+  `ash_pplan.rewitness.chain.jsonl`); both certify runs disclosed — the
+  a8810b5-era run extracted from the live checkout, the re-witness from the
+  `git archive`d committed subject (deps-free, a stricter view — extraction-basis
+  difference, not drift); residual AshPPlan.Dsl scanner gap disclosed |
 | ferroplan | PASS (ts) — certify-landed (round 6): verdict ACCEPTED (S
   0.9783 / Phi 0.0005 / Q 0.9995) at `900e1e5` on ferroplan `main`; certify
   run twice, both configs; chain at
