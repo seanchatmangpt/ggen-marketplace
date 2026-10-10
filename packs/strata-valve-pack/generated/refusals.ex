@@ -17,20 +17,19 @@ defmodule Strata.Valve.Refusals do
   @spec classes :: [module()]
   def classes do
     [
-      Strata.Valve.Refusals.CasMissing,
+      Strata.Valve.Refusals.ArenaFailure,
       Strata.Valve.Refusals.FuelExhausted,
-      Strata.Valve.Refusals.Parse,
-      Strata.Valve.Refusals.SegmentOverflow,
-      Strata.Valve.Refusals.Signature,
+      Strata.Valve.Refusals.MalformedFrame,
+      Strata.Valve.Refusals.ParentDiscontinuity,
     ]
   end
 end
 
-defmodule Strata.Valve.Refusals.CasMissing do
+defmodule Strata.Valve.Refusals.ArenaFailure do
   @moduledoc """
-  Refusal class `cas_missing_refusal`.
+  Refusal class `arena_failure`.
 
-  Parent receipt digest not present in the Git CAS.
+  Arena returned {:ok, _} without a 256-bit commit_hash status map, or propagated a non-atom error (valve.ex handle_call ingest clause).
 
   Emits an opaque fixed #{@receipt_len}-byte receipt; the wire carries zero
   diagnostics either way (constant-time, fail-closed).
@@ -46,27 +45,9 @@ end
 
 defmodule Strata.Valve.Refusals.FuelExhausted do
   @moduledoc """
-  Refusal class `fuel_exhausted_refusal`.
+  Refusal class `fuel_exhausted`.
 
-  Candidate exceeded its fuel lease (wasm32 fuel-bounded arena).
-
-  Emits an opaque fixed #{@receipt_len}-byte receipt; the wire carries zero
-  diagnostics either way (constant-time, fail-closed).
-  """
-
-  @spec refuse(term()) :: {:refuse, binary()}
-  def refuse(_reason_seed) do
-    # TODO(valve): derive via blake3 over the private reason seed held by the
-    # runtime; wire form must stay opaque and constant-size.
-    {:refuse, :erlang.list_to_binary(List.duplicate(0, @receipt_len))}
-  end
-end
-
-defmodule Strata.Valve.Refusals.Parse do
-  @moduledoc """
-  Refusal class `parse_refusal`.
-
-  Frame failed strict parse: bad magic/version, non-zero reserved bytes, permutation > PDU_PERMUTATION_MAX, or wrong length.
+  Header fuel lease is zero: fuel == 0 refused before arena handoff (valve.ex validate/2 cond clause).
 
   Emits an opaque fixed #{@receipt_len}-byte receipt; the wire carries zero
   diagnostics either way (constant-time, fail-closed).
@@ -80,11 +61,11 @@ defmodule Strata.Valve.Refusals.Parse do
   end
 end
 
-defmodule Strata.Valve.Refusals.SegmentOverflow do
+defmodule Strata.Valve.Refusals.MalformedFrame do
   @moduledoc """
-  Refusal class `segment_overflow_refusal`.
+  Refusal class `malformed_frame`.
 
-  Segment payload length N*32 + M*32 exceeded the declared arena bound.
+  Frame failed the strict 64-byte header pattern match: bad magic/version, non-zero reserved bytes, permutation > 5, or wrong total length (valve.ex validate/2 fall-through clause).
 
   Emits an opaque fixed #{@receipt_len}-byte receipt; the wire carries zero
   diagnostics either way (constant-time, fail-closed).
@@ -98,11 +79,11 @@ defmodule Strata.Valve.Refusals.SegmentOverflow do
   end
 end
 
-defmodule Strata.Valve.Refusals.Signature do
+defmodule Strata.Valve.Refusals.ParentDiscontinuity do
   @moduledoc """
-  Refusal class `signature_refusal`.
+  Refusal class `parent_discontinuity`.
 
-  ML-DSA-65 signature verification failed for the frame or its parent receipt chain.
+  Frame's parent digest does not equal the valve's active parent_digest register (valve.ex validate/2 cond clause).
 
   Emits an opaque fixed #{@receipt_len}-byte receipt; the wire carries zero
   diagnostics either way (constant-time, fail-closed).
