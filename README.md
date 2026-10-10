@@ -6,7 +6,7 @@ A pack is not merely a template directory. Its manifest establishes identity, RD
 
 ## Consolidation work
 
-The marketplace's own release version is `v26.9.30` (`marketplace.toml`). PR #438 introduced the v26.9.12-era 80/20 capability topology (point-in-time): existing packs remained in place while the repository measured coverage and mapped the legacy catalog to the smaller canonical set. Issue #439 tracks the inventory and classification work required before any legacy pack is retired. `marketplace.active.toml`'s `[active]` set is that frozen v26.9.12 candidate, not the current corpus (284 packs as of 2026-10-01).
+The marketplace's own release version is `v26.10.8` (`marketplace.toml`). PR #438 introduced the v26.9.12-era 80/20 capability topology (point-in-time): existing packs remained in place while the repository measured coverage and mapped the legacy catalog to the smaller canonical set. Issue #439 tracks the inventory and classification work required before any legacy pack is retired. `marketplace.active.toml`'s `[active]` set is that frozen v26.9.12 candidate, not the current corpus (314 packs as of 2026-10-10).
 
 The consolidation rule is `PackDirectory != PublicCapability`: versions, experiments, implementations, and compositions should normally be represented inside a durable capability family instead of creating a new top-level capability for every generation.
 
@@ -49,6 +49,63 @@ The marketplace preserves legitimate pack diversity instead of forcing every pac
 Every admitted profile still requires `pack.toml`, a SemVer identity, a non-empty description, and at least one Turtle source at the pack root or under `ontology/`. A profile describes packaging shape, not maturity or standing.
 
 The permanent catalog is the set of admitted manifests under `packs/`. `scripts/marketplace.py catalog` is a deterministic projection; this repository deliberately does not maintain a second hand-edited catalog.
+
+## Pack capabilities
+
+Every pack declares its capability surface in a `[capabilities]` table in `pack.toml`. As of 2026-10-10 all 314 packs under `packs/` carry one (measured: `grep -L '\[capabilities\]' packs/*/pack.toml | wc -l` = 0).
+
+```toml
+[capabilities]
+types    = []                                                  # optional capability-type names
+provides = ["urn:ggen:pack:strata-protocol-pack",
+            "urn:strata:protocol:clap-pdu-v1"]                 # capability URNs
+requires = ["urn:ggen:pack:standing-ladder-pack"]              # capability URNs depended on
+```
+
+Shape and semantics (engine-mirrored, `ggen-marketplace` `packs_registry::types::PackCapabilitiesFile`):
+
+- `provides`/`requires`/`types` deserialize into `BTreeSet<String>` — sorted, deduped; a duplicate URN collapses silently.
+- Unknown keys are refused (`deny_unknown_fields`): a typo'd key (`provide = [...]`) is a parse error, never a silent drop.
+- Self-IRI invariant (corpus court, `tests/capability_corpus_test.rs`): every pack's `provides` must contain `urn:ggen:pack:<pack-id>` exactly; no other pack may provide that URN. A pack may additionally provide domain URNs outside the `urn:ggen:pack:` namespace (e.g. `strata-protocol-pack`'s `urn:strata:protocol:*`); those are kept globally unique too but are not self-IRIs.
+
+Inspect a pack's surface:
+
+```console
+$ ggen pack capabilities strata-protocol-pack
+{
+  "name": "strata-protocol-pack",
+  "provides": [
+    "urn:ggen:pack:strata-protocol-pack",
+    "urn:strata:protocol:clap-pdu-v1",
+    "urn:strata:protocol:refusal-receipt"
+  ],
+  ...
+}
+```
+
+Compose a set into a deterministic plan (`--packs` accumulates across repeated flags):
+
+```console
+$ ggen pack compose --packs a2a-durability-pack --packs a2a-conformance-pack \
+    --packs standing-ladder-pack
+{
+  "order": ["a2a-conformance-pack", "a2a-durability-pack", "standing-ladder-pack"],
+  "pack_ids": [...],
+  "provides": { "urn:ggen:pack:a2a-conformance-pack": ["a2a-conformance-pack"], ... },
+  "self_satisfied": []
+}
+```
+
+Requirement binding is two-tier: a required URN binds if some pack in the set has that pack id (dependency closure) **or** some pack declares it in `provides` (urn declaration). Binding through a pack's own `provides` is legitimate union self-satisfaction and is reported in the plan's `self_satisfied`.
+
+Capability (`capabilities.requires`) edges are **order-only**: they contribute to topological order and never refuse. An edge that would close a cycle is dropped deterministically before the sort (a 2-cycle drops both edges); the kept set is provably acyclic. The example above composes fine even though `a2a-durability-pack` and `a2a-conformance-pack` require each other.
+
+Only the `dependencies` manifest edges carry refusal power. The composer has exactly four refusal classes (typed, non-panicking, non-zero exit on stderr):
+
+1. `DuplicateCapability` — two packs in the set provide the same URN;
+2. `UnboundRequirement` — a required pack id/URN bound by neither tier (`ggen pack compose --packs affidavit-pack` → `composition refused: unbound requirement: pack 'affidavit-pack' requires provider pack 'urn:ggen:pack:praxis-core-pack', which is not in the composed set`);
+3. `DuplicateArtifactPath` — two packs declare the same template output path;
+4. `CyclicDependencies` — a cycle in manifest `dependencies` (distinct from capability edges above).
 
 ## Commerce plane
 
