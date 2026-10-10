@@ -1,0 +1,49 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix valve: <urn:strata:valve#> .
+@prefix wire: <urn:strata:protocol:wire#> .
+
+# ---------------------------------------------------------------------------
+# Strata valve refusal taxonomy. Ground truth: ~/strata/strata_protocol/src/
+# refusal.rs — constant-time refusal, fixed 32-byte opaque RefusalReceipt,
+# no structure, no cause channel, no error entropy on the wire.
+# ---------------------------------------------------------------------------
+
+valve:Valve a rdfs:Class ;
+    rdfs:label "Valve" ;
+    rdfs:comment "Elixir-side admission valve: intercepts candidate execution and refuses by emitting an opaque RefusalReceipt." .
+
+valve:RefusalClass a rdfs:Class ;
+    rdfs:label "RefusalClass" ;
+    rdfs:comment "Internal (non-wire) refusal class. The wire carries only the opaque digest; classes exist solely for valve-local policy and telemetry." .
+
+valve:ParseRefusal a valve:RefusalClass ;
+    rdfs:label "parse_refusal" ;
+    valve:module "Strata.Valve.Refusals.Parse" ;
+    rdfs:comment "Frame failed strict parse: bad magic/version, non-zero reserved bytes, permutation > PDU_PERMUTATION_MAX, or wrong length." .
+
+valve:FuelExhaustedRefusal a valve:RefusalClass ;
+    rdfs:label "fuel_exhausted_refusal" ;
+    valve:module "Strata.Valve.Refusals.FuelExhausted" ;
+    rdfs:comment "Candidate exceeded its fuel lease (wasm32 fuel-bounded arena)." .
+
+valve:SegmentOverflowRefusal a valve:RefusalClass ;
+    rdfs:label "segment_overflow_refusal" ;
+    valve:module "Strata.Valve.Refusals.SegmentOverflow" ;
+    rdfs:comment "Segment payload length N*32 + M*32 exceeded the declared arena bound." .
+
+valve:SignatureRefusal a valve:RefusalClass ;
+    rdfs:label "signature_refusal" ;
+    valve:module "Strata.Valve.Refusals.Signature" ;
+    rdfs:comment "ML-DSA-65 signature verification failed for the frame or its parent receipt chain." .
+
+valve:CasMissingRefusal a valve:RefusalClass ;
+    rdfs:label "cas_missing_refusal" ;
+    valve:module "Strata.Valve.Refusals.CasMissing" ;
+    rdfs:comment "Parent receipt digest not present in the Git CAS." .
+
+valve:refusalReceiptLen a valve:WireFact ;
+    rdfs:label "refusal_receipt_len" ;
+    valve:length "32"^^xsd:integer ;
+    rdfs:comment "Wire length of the opaque refusal receipt (bytes); must match wire:RefusalReceipt fixedLen." .
