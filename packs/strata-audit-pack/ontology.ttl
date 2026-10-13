@@ -191,6 +191,13 @@ st:LedgerTokenSumNonConservation a st:KnownAttack ;
     st:targets st:ledger_apply_transition ;
     st:expectedRefusal "LedgerRefusal::Conservation on every unbalanced transition; supply invariant holds before/after every applied transition (Lean t02/t05 counterexamples stay refused)" .
 
+st:DuplicateInputAccountValueCreation a st:KnownAttack ;
+    rdfs:label "DuplicateInputAccountValueCreation" ;
+    rdfs:comment "STATUS: repelled (regression, L107). Attack class: conservation. Subject pin: strata-ledger-pack (L107 fix; Lean witness mfact procint/ProcInt/Petri/LedgerConservation.lean @ main). Duplicate-input shadow-overwrite attack: two input rows for one account ((acct0,5),(acct0,5)) each read the ORIGINAL balance and overwrite the same shadow slot, so only the last deduction lands while sum_in counts both rows — 5 units minted from nothing through a fully gate-passing tx. DETECTION COURT: strata-ledger-pack duplicate-input debit-accumulation law (per-account debit deltas applied once; lean_counterexample_duplicate_input_refused + conservation_property_500_txs_with_duplicate_inputs courts in generated/ledger_state.rs); the audit corpus court keeps the counterexample shape pinned." ;
+    st:attackClass "conservation" ;
+    st:targets st:ledger_apply_transition ;
+    st:expectedRefusal "the exact Lean counterexample (inputs [(acct0,5),(acct0,5)], outputs [(acct1,10)], balance 5) refuses LedgerRefusal::InsufficientFunds with the state bit-identical; same-account debit rows accumulate before the funds check" .
+
 st:VacuousEunitHarness a st:KnownAttack ;
     rdfs:label "VacuousEunitHarness" ;
     rdfs:comment "STATUS: cross-repo entry (erlmcp); no landed marketplace gate — detection is the audit-corpus manifest-closure test itself (corpus > 0, registered oracle per target, non-empty expectedRefusal per attack). Attack class: test-vacuity. Subject pin: erlmcp eunit suite (cross-repo, external). Vacuous-harness attack: a test module whose fixtures execute zero assertions — the harness reports green while verifying nothing (zero-information pass). DETECTION COURT: audit-corpus manifest closure (manifest_is_closed + corpus_runs_1000_clean_per_target refuse an empty corpus or an unregistered oracle); cross-repo instances are refused at the erlmcp boundary, not here." ;

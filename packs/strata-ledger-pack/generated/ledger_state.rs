@@ -410,13 +410,36 @@ impl LedgerState {
 
         // Gate 4: funds + capacity, checked against a shadow copy (masked:
         // nothing here mutates self).
-        let mut shadow: BTreeMap<AccountId, u128> = BTreeMap::new();
+        //
+        // DUPLICATE-INPUT DEBIT ACCUMULATION LAW: same-account input rows are
+        // ACCUMULATED into one per-account debit, applied once against the
+        // original balance. Reading the original balance per row and
+        // overwriting the shadow slot (the previous projection) silently
+        // dropped every deduction but the last: with inputs [(acct0,5),
+        // (acct0,5)] and outputs [(acct1,10)] all four gates passed while 5
+        // units were minted from nothing (Lean counterexample, mfact
+        // procint/ProcInt/Petri/LedgerConservation.lean @ main). Accumulating
+        // deltas makes Σ(conservation) hold unconditionally over every
+        // gate-passing tx, with no NoDupIds precondition on tx inputs.
+        let mut debits: BTreeMap<AccountId, u128> = BTreeMap::new();
         for &(id, amt) in tx.inputs.iter() {
-            let cur = self.balance(&id);
-            if cur < amt {
+            let cur_debit = match debits.get(&id) {
+                Some(d) => *d,
+                None => 0,
+            };
+            let total = match cur_debit.checked_add(amt) {
+                Some(v) => v,
+                None => return Err(LedgerRefusal::Overflow),
+            };
+            debits.insert(id, total);
+        }
+        let mut shadow: BTreeMap<AccountId, u128> = BTreeMap::new();
+        for (id, debit) in debits.iter() {
+            let cur = self.balance(id);
+            if cur < *debit {
                 return Err(LedgerRefusal::InsufficientFunds);
             }
-            shadow.insert(id, cur - amt);
+            shadow.insert(*id, cur - *debit);
         }
         for &(id, amt) in tx.outputs.iter() {
             let cur = match shadow.get(&id) {
@@ -536,6 +559,129 @@ mod tests {
             inputs: inputs,
             outputs: outputs,
             digest: digest,
+        }
+    }
+
+    #[test]
+    fn lean_counterexample_duplicate_input_refused() {
+        // Regression court (L107): the exact mfact Lean counterexample —
+        // inputs [(acct0,5),(acct0,5)], outputs [(acct1,10)] — previously
+        // passed all four gates and minted 5 units from nothing via the
+        // shadow-map row overwrite. It must now be refused (typed) with the
+        // state bit-identical, and the debit-accumulated form must admit with
+        // Σ conserved.
+        let a = id(1);
+        let b = id(2);
+        // Case 1: acct0 holds only 5 — the duplicate input must refuse.
+        let mut st = LedgerState::with_genesis(&[(a, 5u128)]);
+        let root_before = st.root();
+        let mut d = [0u8; 32];
+        d[0] = 21;
+        let mut inputs = Vec::new();
+        inputs.push((a, 5u128));
+        inputs.push((a, 5u128));
+        let mut outputs = Vec::new();
+        outputs.push((b, 10u128));
+        let tx = TxLike { nonce: 1, inputs: inputs, outputs: outputs, digest: d };
+        let r = st.apply_transition(&tx);
+        assert_eq!(r, Err(LedgerRefusal::InsufficientFunds));
+        assert_eq!(st.root(), root_before);
+        assert_eq!(st.balance(&a), 5);
+        assert_eq!(st.balance(&b), 0);
+        assert_eq!(st.events().len(), 0);
+        // Case 2: acct0 holds 10 — same shape now admits with exact
+        // accumulation (a=0 removed, b=10), Σ conserved, not a=5 leaked.
+        let mut st2 = LedgerState::with_genesis(&[(a, 10u128)]);
+        let root2_before = st2.root();
+        let mut d2 = [0u8; 32];
+        d2[0] = 22;
+        let mut inputs2 = Vec::new();
+        inputs2.push((a, 5u128));
+        inputs2.push((a, 5u128));
+        let mut outputs2 = Vec::new();
+        outputs2.push((b, 10u128));
+        let tx2 = TxLike { nonce: 1, inputs: inputs2, outputs: outputs2, digest: d2 };
+        let rc = st2.apply_transition(&tx2).ok().unwrap();
+        assert_eq!(rc.prev_root, root2_before);
+        assert_eq!(st2.balance(&a), 0);
+        assert_eq!(st2.balance(&b), 10);
+        assert_eq!(st2.events().len(), 1);
+    }
+
+    #[test]
+    fn conservation_property_500_txs_with_duplicate_inputs() {
+        // Property court (L107): 500 deterministic txs including same-account
+        // multi-input rows. For every admitted tx, post-apply Σ over all
+        // accounts == pre-apply Σ; every refused tx leaves the state root
+        // bit-identical.
+        let mut seed: u64 = 0x9E3779B97F4A7C15;
+        let a = id(1);
+        let b = id(2);
+        let c = id(3);
+        let mut st = LedgerState::with_genesis(&[
+            (a, 1_000_000u128),
+            (b, 400_000u128),
+            (c, 600_000u128),
+        ]);
+        let supply = 2_000_000u128;
+        let mut n = 0u64;
+        while n < 500 {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let amt: u128 = ((seed >> 40) % 300) as u128 + 1;
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let pick = (seed >> 33) % 3;
+            let src = match pick { 0 => a, 1 => b, _ => c };
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let dst = match ((seed >> 33) % 3) { 0 => a, 1 => b, _ => c };
+            // Split the debit into 1-3 duplicate rows on the same account.
+            let rows = (amt % 3) + 1;
+            let part = amt / rows;
+            let mut inputs = Vec::new();
+            let mut i: u128 = 0;
+            while i < rows {
+                inputs.push((src, part));
+                i = i + 1;
+            }
+            // Top the last row up so Σ(inputs) == amt exactly.
+            let used = part * rows;
+            if used < amt {
+                let last_idx = inputs.len() - 1;
+                let last = inputs[last_idx];
+                inputs[last_idx] = (last.0, last.1 + (amt - used));
+            }
+            let mut outputs = Vec::new();
+            outputs.push((dst, amt));
+            let mut d = [0u8; 32];
+            d[0] = 23;
+            let base: [u8; 8] = [
+                (n & 0xff) as u8,
+                ((n >> 8) & 0xff) as u8,
+                0, 0, 0, 0, 0, 0,
+            ];
+            let mut i = 0;
+            while i < 8 {
+                d[1 + i] = base[i];
+                i = i + 1;
+            }
+            let root_before = st.root();
+            let tx = TxLike {
+                nonce: 9000 + n,
+                inputs: inputs,
+                outputs: outputs,
+                digest: d,
+            };
+            let total_before = st.balance(&a) + st.balance(&b) + st.balance(&c);
+            match st.apply_transition(&tx) {
+                Ok(_) => {
+                    let total_after = st.balance(&a) + st.balance(&b) + st.balance(&c);
+                    assert_eq!(total_after, total_before);
+                    assert_eq!(total_after, supply);
+                }
+                Err(_) => {
+                    assert_eq!(st.root(), root_before);
+                }
+            }
+            n = n + 1;
         }
     }
 
@@ -828,5 +974,127 @@ mod tests {
         let rep3 = st2.verify_conformance();
         assert!(!rep3.aligned);
         assert_eq!(rep3.first_violation, Some(9));
+    }
+
+    /// Sabotage twin — mutate-before-check: the same gate sequence as
+    /// `apply_transition` except the conservation check runs AFTER the
+    /// shadow commit, so a conservation-violating tx debits the sender and
+    /// mints the receiver's balance before refusing.
+    fn apply_transition_mutate_first(
+        st: &mut LedgerState,
+        tx: &TxLike,
+    ) -> Result<StateTransitionReceipt, LedgerRefusal> {
+        // Gate 1: replay valve (kept).
+        if st.seen.contains(&tx.digest) {
+            return Err(LedgerRefusal::Replay);
+        }
+        // Gate 2: double-spend valve (kept).
+        for &(acct, _) in tx.inputs.iter() {
+            let last = match st.nonces.get(&acct) {
+                Some(n) => *n,
+                None => 0,
+            };
+            if tx.nonce == 0 || tx.nonce <= last {
+                return Err(LedgerRefusal::DoubleSpend);
+            }
+        }
+        // Gate 3: overflow sums (kept) — but NO conservation refusal here.
+        let mut sum_in: u128 = 0;
+        for &(_, amt) in tx.inputs.iter() {
+            sum_in = match sum_in.checked_add(amt) {
+                Some(s) => s,
+                None => return Err(LedgerRefusal::Overflow),
+            };
+        }
+        let mut sum_out: u128 = 0;
+        for &(_, amt) in tx.outputs.iter() {
+            sum_out = match sum_out.checked_add(amt) {
+                Some(s) => s,
+                None => return Err(LedgerRefusal::Overflow),
+            };
+        }
+        // SABOTAGE: the shadow commit below runs BEFORE the conservation
+        // check; the refusal (if any) fires on already-mutated state.
+        let mut debits: BTreeMap<AccountId, u128> = BTreeMap::new();
+        for &(acct, amt) in tx.inputs.iter() {
+            let cur_debit = match debits.get(&acct) {
+                Some(d) => *d,
+                None => 0,
+            };
+            debits.insert(acct, cur_debit + amt);
+        }
+        let mut shadow: BTreeMap<AccountId, u128> = BTreeMap::new();
+        for (acct, debit) in debits.iter() {
+            let cur = st.balance(acct);
+            if cur < *debit {
+                return Err(LedgerRefusal::InsufficientFunds);
+            }
+            shadow.insert(*acct, cur - *debit);
+        }
+        for &(acct, amt) in tx.outputs.iter() {
+            let cur = match shadow.get(&acct) {
+                Some(b) => *b,
+                None => st.balance(&acct),
+            };
+            shadow.insert(acct, cur + amt);
+        }
+        for (acct, bal) in shadow.into_iter() {
+            if bal == 0 && tx.outputs.iter().find(|&&(oid, _)| oid == acct).is_none() {
+                st.accounts.remove(&acct);
+            } else {
+                st.accounts.insert(acct, bal);
+            }
+        }
+        for &(acct, _) in tx.inputs.iter() {
+            st.nonces.insert(acct, tx.nonce);
+        }
+        st.seen.insert(tx.digest);
+        st.index = st.index + 1;
+        st.recompute_root();
+        // Refusal fires only now — on mutated state, with no rollback.
+        if sum_in != sum_out {
+            return Err(LedgerRefusal::Conservation);
+        }
+        Err(LedgerRefusal::Replay) // unreachable: sabotage stub never admits
+    }
+
+    /// COURT — all-or-nothing: a conservation-violating tx must be refused
+    /// with the state bit-identical to the input. The mutate-first twin is
+    /// CAUGHT because its refusal leaves the ledger changed (sender debited,
+    /// receiver minted).
+    #[test]
+    fn sabotage_twin_mutate_before_conservation_is_caught() {
+        let a = id(1);
+        let b = id(2);
+        let mut honest = LedgerState::with_genesis(&[(a, 100u128)]);
+        let mut sabotaged = LedgerState::with_genesis(&[(a, 100u128)]);
+        // sum_in = 50, sum_out = 60: conservation violation, gates pass.
+        let tx = mk_tx(1, [9u8; 32], &[(a, 50u128, 0), (a, 0, 50u128), (b, 0, 10u128)]);
+
+        // Honest: typed refusal, state bit-identical to input.
+        let before_root = honest.root();
+        assert_eq!(
+            honest.apply_transition(&tx),
+            Err(LedgerRefusal::Conservation)
+        );
+        assert_eq!(honest.balance(&a), 100);
+        assert_eq!(honest.balance(&b), 0);
+        assert_eq!(honest.root(), before_root);
+        assert_eq!(honest.index(), 0);
+
+        // Twin: returns the same typed refusal but the ledger MUTATED —
+        // caught by the all-or-nothing court.
+        assert_eq!(
+            apply_transition_mutate_first(&mut sabotaged, &tx),
+            Err(LedgerRefusal::Conservation)
+        );
+        assert_eq!(sabotaged.balance(&a), 100, "sender row was committed before the check");
+        assert_eq!(sabotaged.balance(&b), 10, "receiver was minted before the check");
+        assert_eq!(sabotaged.index(), 1, "index advanced before the check");
+        assert_ne!(
+            sabotaged.root(),
+            before_root,
+            "root changed before the check — all-or-nothing broken"
+        );
     }
 }

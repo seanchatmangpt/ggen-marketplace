@@ -103,6 +103,13 @@ pub const KNOWN_ATTACKS: &[AttackSpec] = &[
     },
 
     AttackSpec {
+        attack: "DuplicateInputAccountValueCreation",
+        attack_class: "conservation",
+        target: "ledger_apply_transition",
+        expected_refusal: "the exact Lean counterexample (inputs [(acct0,5),(acct0,5)], outputs [(acct1,10)], balance 5) refuses LedgerRefusal::InsufficientFunds with the state bit-identical; same-account debit rows accumulate before the funds check",
+    },
+
+    AttackSpec {
         attack: "LedgerOverflow",
         attack_class: "arithmetic",
         target: "ledger_apply_transition",
@@ -1107,12 +1114,12 @@ pub fn run_audit() -> AuditReport {
 mod tests {
     use super::*;
 
-    /// Manifest closure: 6 targets, 10 attacks, every attack resolves,
+    /// Manifest closure: 6 targets, 11 attacks, every attack resolves,
     /// every corpus is 1000 cases, every oracle is registered.
     #[test]
     fn manifest_is_closed() {
         assert_eq!(AUDIT_TARGETS.len(), 6, "6 S10 fuzz targets projected");
-        assert_eq!(KNOWN_ATTACKS.len(), 10, "10 known attacks projected (5 S10 + 5 refresh)");
+        assert_eq!(KNOWN_ATTACKS.len(), 11, "11 known attacks projected (5 S10 + 5 refresh + 1 L107 duplicate-input regression)");
         for t in AUDIT_TARGETS {
             assert_eq!(t.corpus_size, 1000, "target {} corpus", t.name);
             assert!(

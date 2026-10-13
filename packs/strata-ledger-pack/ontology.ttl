@@ -29,7 +29,7 @@ st:BalanceEntry a rdfs:Class ; rdfs:label "BalanceEntry" ;
     rdfs:comment "One (account id, balance) binding inside a LedgerState." .
 
 st:StateTransition a rdfs:Class ; rdfs:label "StateTransition" ;
-    rdfs:comment "One masked commit attempt over a TxLike: consumes the inputs, produces the outputs, all-or-nothing; receipts the prior state root." .
+    rdfs:comment "One masked commit attempt over a TxLike: consumes the inputs, produces the outputs, all-or-nothing; receipts the prior state root. TRANSITION LAW (duplicate-input debit accumulation, L107): same-account input rows are accumulated into one per-account debit applied once against the original balance — per-row shadow overwriting silently drops all but the last deduction and mints value from nothing (Lean counterexample, mfact procint/ProcInt/Petri/LedgerConservation.lean), so Σ conservation holds unconditionally over every gate-passing transition with no NoDupIds precondition." .
 
 st:TransitionReceipt a rdfs:Class ; rdfs:label "TransitionReceipt" ;
     rdfs:comment "Receipt of one applied transition: transition index, prev state root, next state root, applied tx digest — chained so each receipt's prev root equals the prior state's root." .
@@ -228,3 +228,40 @@ lg:ev-T1 a st:OcelEvent ;
 
 lg:tx-T0 st:hasOcelEvent lg:ev-T0 .
 lg:tx-T1 st:hasOcelEvent lg:ev-T1 .
+
+# ── Unibit kernel laws (deepening slice, lane L99) ────────────────────
+# LAW PROVENANCE (REUSE-ADAPTED via ONTOLOGY PROJECTION ONLY — no BUSL-1.1
+# code vendored): the three law classes below are extracted from
+# /Users/sac/unibit/crates/unibit-kernel/src/lib.rs @ 3bb4347f (kernel tests
+# green at 20 per L64/L69 receipts) and re-projected as strata RDF.
+
+st:SparseDelta a rdfs:Class ; rdfs:label "SparseDelta" ;
+    rdfs:comment "Sparse word-delta law: a delta records only the (index, XOR) pairs of words that actually changed (unibit UDelta, lib.rs:275-474 @ 3bb4347f — UDelta struct lib.rs:283-290, emit_delta lib.rs:390-412, apply_delta lib.rs:437-441, word_delta lib.rs:467-474). Applying a delta to a cell is ALL-OR-NOTHING (cf. commit_masked lib.rs:259-268 allow-mask: an empty/denied delta must be a no-op, never a partial write); applying twice is the XOR self-inverse identity." .
+
+st:BitfenwickSum a rdfs:Class ; rdfs:label "BitfenwickSum" ;
+    rdfs:comment "Carry-safe 8-lane Fenwick law: additions update exactly 3 tree points in constant time and prefix sums probe exactly 3 points, all with wrapping (lane-local) arithmetic so carries never borrow across lanes (unibit bitfenwick_add_8 lib.rs:796-817, update_element lib.rs:738-760, select_element lib.rs:769-788, bitfenwick_sum_8 lib.rs:825-843 @ 3bb4347f)." .
+
+st:MultiStepExecution a rdfs:Class ; rdfs:label "MultiStepExecution" ;
+    rdfs:comment "Multi-step work-accumulation law: work executes as N atomic steps over a tier-typed word plane (unibit Work<BITS> lib.rs:879-896, ActiveWord lib.rs:909-922, execute_step_multi lib.rs:992-1041 @ 3bb4347f); each step is globally atomic across the active word set (deny_acc lib.rs:1004-1012: any failing word suppresses every word), and admitted work accumulates monotonically — a denied step leaves both the plane and the work counter untouched." .
+
+# Carrier individual the kernel-laws rule projects (LEDGER_CONSTANTS pattern).
+lg:KernelLaw a rdfs:Class ; rdfs:label "KernelLaw" ;
+    rdfs:comment "Carrier class for the KERNEL_LAWS individual: projected as generated/kernel_laws.rs by the kernel-laws rule." .
+
+lg:KERNEL_LAWS a lg:KernelLaw ; rdfs:label "KERNEL_LAWS" ;
+    rdfs:comment "Unibit kernel-law manifest carrier (gate-visible label; the three law rows are separate individuals so the projection stays row-per-law)." .
+
+lg:law-sparse-delta a lg:KernelLaw ;
+    rdfs:label "KERNEL_LAWS" ;
+    lg:lawName "SPARSE_DELTA" ;
+    lg:lawBody "sparse word-delta: emit records only changed words (index, XOR); apply is no-op-on-empty and total-on-apply; all-or-nothing per cell; apply twice = identity" .
+
+lg:law-bitfenwick a lg:KernelLaw ;
+    rdfs:label "KERNEL_LAWS" ;
+    lg:lawName "BITFENWICK_SUM" ;
+    lg:lawBody "carry-safe 8-lane Fenwick: add updates exactly 3 points, prefix sum probes exactly 3 points, wrapping lane-local arithmetic; matches a naive prefix-sum reference over every (lane, delta) case" .
+
+lg:law-multistep a lg:KernelLaw ;
+    rdfs:label "KERNEL_LAWS" ;
+    lg:lawName "MULTI_STEP_EXECUTION" ;
+    lg:lawBody "work over N atomic steps: each step is globally atomic across the active word set; admitted steps accumulate work monotonically; denied steps mutate nothing" .
