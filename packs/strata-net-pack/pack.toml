@@ -1,0 +1,63 @@
+[pack]
+name = "strata-net-pack"
+version = "0.1.0"
+description = """
+Strata P2P wire + mempool (roadmap slice S7, docs/sjira/v26.10.8/STRATA-BLOCKCHAIN-ROADMAP.md):
+CLAP-PDU message framing for inv/getdata/tx/block/ping gossip (8-byte header: magic+kind+len),
+decode refusals (BadMagic/UnknownKind/LengthOverMax/Truncated), a deterministic BTreeSet-backed
+mempool with lowest-digest-first eviction, and a capped peer-admission table. Projects a
+self-contained serde-free Rust module with rustc-runnable tests.
+"""
+[capabilities]
+# requires is empty: scripts/qualify_packs.py qualifies every pack in isolation
+# (single-pack [packs] capsule), so a cross-pack require (the framing here follows the
+# CLAP-PDU wire conventions of packs/strata-protocol-pack 0.1.0, and mempool admission
+# policy conceptually rides packs/strata-valve-pack) can never resolve there
+# (FM-PACK-018). The derivation is documentation-only via the ontology comment that cites
+# those packs as ground truth — no owl:imports —
+# per docs/sjira/v26.10.8/STRATA-BLOCKCHAIN-ROADMAP.md slice S7.
+provides = ["urn:ggen:pack:strata-net-pack", "urn:strata:net:v1"]
+requires = []
+
+[project]
+name = "strata-net-pack"
+version = "0.1.0"
+description = "Strata P2P wire + mempool: CLAP-PDU message framing projected from RDF"
+authors = ["Chatman Ecosystem"]
+license = "MIT"
+
+[ontology]
+source = "ontology.ttl"
+base_iri = "https://strata.chatman.ai/ontology#"
+
+[ontology.prefixes]
+rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+rdfs = "http://www.w3.org/2000/01/rdf-schema#"
+xsd = "http://www.w3.org/2001/XMLSchema#"
+st = "https://strata.chatman.ai/ontology#"
+net = "https://strata.chatman.ai/ontology/net#"
+
+[validation]
+gates = [
+  "gates/010_net_layout.rq",
+  "gates/020_msg_closure.rq",
+]
+
+[generation]
+output_dir = "generated"
+
+[[generation.rules]]
+name = "net-consts"
+query = { file = "queries/net_constants.rq" }
+template = { file = "templates/net_consts.rs.tera" }
+output_file = "net_consts.rs"
+skip_empty = false
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "net-engine"
+query = { file = "queries/net_constants.rq" }
+template = { file = "templates/net_engine.rs.tera" }
+output_file = "net_engine.rs"
+skip_empty = false
+mode = "Overwrite"

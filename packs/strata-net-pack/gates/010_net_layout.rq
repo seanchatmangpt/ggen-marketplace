@@ -1,0 +1,134 @@
+# MESSAGE: Net header layout violated — the 8-byte header abutment chain
+# (MAGIC 0..4, KIND 4..5, LEN 5..8 as u24, ending at HEADER_LEN = 8)
+# must hold; MAGIC_OFFSET must be 0; HEADER_LEN must be 8; all _OFFSET values
+# must be pairwise distinct; all 5 kind codes must be pairwise distinct AND
+# within 0..=255; AND all 11 required NetWireConstant labels plus the
+# NET_CONSTANTS law (MAX_MSG_LEN 65536 / headerLen 8 / MAX_MEMPOOL 4096 /
+# MAX_PEERS 64) must be present (fail-closed presence arms).
+# Datatype + malformed-integer arms follow the V7 pattern (see
+# packs/strata-pn64-pack/gates/010_place_offset_bounds.rq): a cast error inside
+# a FILTER excludes the row, so a string-typed or malformed value would
+# otherwise silently pass the layout checks (engine-dependent fail-open).
+# Any row indicates a broken Net wire layout or kind-code table.
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX st:   <https://strata.chatman.ai/ontology#>
+PREFIX net:  <https://strata.chatman.ai/ontology/net#>
+
+SELECT DISTINCT (COALESCE(?f1,?f2,?f3,?f4,?f5,?f6,?f7,?f8,?f9,?f10,?f11,?f12,?f13,?f14,?f15,?f16,?f17,?f18,?f19) AS ?field)
+       (COALESCE(?p1,?p2,?p3,?p4,?p5,?p6,?p7,?p8,?p9,?p10,?p11,?p12,?p13,?p14,?p15,?p16,?p17,?p18,?p19) AS ?problem)
+       ?offA ?offB WHERE {
+  {
+    ?m net:rustType ?t ; rdfs:label "MAGIC_OFFSET" ; net:value ?magicOff .
+    FILTER(datatype(?magicOff) != xsd:integer)
+    BIND("MAGIC" AS ?f1) BIND("non_integer_offset" AS ?p1)
+    BIND(?magicOff AS ?offA) BIND("0" AS ?offB)
+  } UNION {
+    ?m rdfs:label "MAGIC_OFFSET" ; net:value ?magicOff .
+    FILTER(datatype(?magicOff) = xsd:integer && !REGEX(STR(?magicOff), "^-?[0-9]+$"))
+    BIND("MAGIC" AS ?f2) BIND("malformed_integer_offset" AS ?p2)
+    BIND(?magicOff AS ?offA) BIND(?magicOff AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?magicOff) != 0)
+    BIND("MAGIC" AS ?f3) BIND("MAGIC_OFFSET must be 0" AS ?p3)
+    ?m rdfs:label "MAGIC_OFFSET" ; net:value ?magicOff .
+    BIND(?magicOff AS ?offA) BIND("0" AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?magicOff) + xsd:integer(?magicLen) != xsd:integer(?kindOff))
+    BIND("MAGIC" AS ?f4) BIND("offset+length != next offset" AS ?p4)
+    ?m rdfs:label "MAGIC_OFFSET" ; net:value ?magicOff .
+    ?ml rdfs:label "MAGIC_LEN" ; net:value ?magicLen .
+    ?ko rdfs:label "KIND_OFFSET" ; net:value ?kindOff .
+    BIND(?magicOff AS ?offA) BIND(?kindOff AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?kindOff) + xsd:integer(?kindLen) != xsd:integer(?lenOff))
+    BIND("KIND" AS ?f5) BIND("offset+length != next offset" AS ?p5)
+    ?ko rdfs:label "KIND_OFFSET" ; net:value ?kindOff .
+    ?kl rdfs:label "KIND_LEN" ; net:value ?kindLen .
+    ?lo rdfs:label "LEN_OFFSET" ; net:value ?lenOff .
+    BIND(?kindOff AS ?offA) BIND(?lenOff AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?lenOff) + xsd:integer(?lenLen) != xsd:integer(?hdrLen))
+    BIND("LEN" AS ?f7) BIND("offset+length != HEADER_LEN" AS ?p7)
+    ?lo rdfs:label "LEN_OFFSET" ; net:value ?lenOff .
+    ?ll rdfs:label "LEN_LEN" ; net:value ?lenLen .
+    ?hd rdfs:label "HEADER_LEN" ; net:value ?hdrLen .
+    BIND(?lenOff AS ?offA) BIND(?hdrLen AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?hdrLen) != 8)
+    BIND("HEADER_LEN" AS ?f8) BIND("HEADER_LEN must be 8" AS ?p8)
+    ?hd rdfs:label "HEADER_LEN" ; net:value ?hdrLen .
+    BIND(?hdrLen AS ?offA) BIND("8" AS ?offB)
+  } UNION {
+    ?a net:rustType ?ta ; rdfs:label ?la ; net:value ?val .
+    ?b rdfs:label ?lb ; net:value ?val .
+    FILTER(STR(?la) != STR(?lb) && STRENDS(STR(?la), "_OFFSET") && STRENDS(STR(?lb), "_OFFSET"))
+    BIND("OFFSET-COLLISION" AS ?f9)
+    BIND(CONCAT(STR(?la), " collides with ", STR(?lb), " at byte ", STR(?val)) AS ?p9)
+    BIND(?val AS ?offA) BIND(?val AS ?offB)
+  } UNION {
+    VALUES ?reqLabel {
+      "NET_MAGIC" "HEADER_LEN" "MAX_MSG_LEN" "MAX_MEMPOOL" "MAX_PEERS"
+      "MAGIC_OFFSET" "MAGIC_LEN"
+      "KIND_OFFSET" "KIND_LEN"
+      "LEN_OFFSET" "LEN_LEN"
+    }
+    FILTER NOT EXISTS { ?anyConst a net:NetWireConstant ; rdfs:label ?reqLabel ; net:value ?anyVal }
+    BIND(CONCAT("CONSTANT-PRESENCE: ", STR(?reqLabel)) AS ?f10)
+    BIND(CONCAT("missing_constant: no NetWireConstant with rdfs:label ", STR(?reqLabel), " carrying net:value") AS ?p10)
+    BIND(STR(?reqLabel) AS ?offA) BIND("absent" AS ?offB)
+  } UNION {
+    FILTER NOT EXISTS { ?law rdfs:label "NET_CONSTANTS" ; net:maxMsgLen ?mml ;
+                        net:headerLen ?hl ; net:maxMempool ?mmp ; net:maxPeers ?mp }
+    BIND("NET_CONSTANTS" AS ?f11) BIND("missing_law_individual" AS ?p11)
+    BIND("absent" AS ?offA) BIND("absent" AS ?offB)
+  } UNION {
+    ?law rdfs:label "NET_CONSTANTS" ; net:maxMsgLen ?mml .
+    FILTER(datatype(?mml) != xsd:integer || xsd:integer(?mml) != 65536)
+    BIND("NET_CONSTANTS" AS ?f12) BIND("MAX_MSG_LEN must be 65536" AS ?p12)
+    BIND(?mml AS ?offA) BIND("65536" AS ?offB)
+  } UNION {
+    ?law rdfs:label "NET_CONSTANTS" ; net:headerLen ?hl .
+    FILTER(datatype(?hl) != xsd:integer || xsd:integer(?hl) != 8)
+    BIND("NET_CONSTANTS" AS ?f13) BIND("headerLen must be 8" AS ?p13)
+    BIND(?hl AS ?offA) BIND("8" AS ?offB)
+  } UNION {
+    ?law rdfs:label "NET_CONSTANTS" ; net:maxMempool ?mmp .
+    FILTER(datatype(?mmp) != xsd:integer || xsd:integer(?mmp) != 4096)
+    BIND("NET_CONSTANTS" AS ?f14) BIND("MAX_MEMPOOL must be 4096" AS ?p14)
+    BIND(?mmp AS ?offA) BIND("4096" AS ?offB)
+  } UNION {
+    ?law rdfs:label "NET_CONSTANTS" ; net:maxPeers ?mp .
+    FILTER(datatype(?mp) != xsd:integer || xsd:integer(?mp) != 64)
+    BIND("NET_CONSTANTS" AS ?f15) BIND("MAX_PEERS must be 64" AS ?p15)
+    BIND(?mp AS ?offA) BIND("64" AS ?offB)
+  } UNION {
+    # Kind codes pairwise unique (any collision fires).
+    ?k1 a st:MessageKind ; rdfs:label ?kl1 ; net:kindCode ?c1 .
+    ?k2 a st:MessageKind ; rdfs:label ?kl2 ; net:kindCode ?c2 .
+    FILTER(STR(?kl1) < STR(?kl2) && xsd:integer(?c1) = xsd:integer(?c2))
+    BIND("KIND-CODE-COLLISION" AS ?f16)
+    BIND(CONCAT(STR(?kl1), " and ", STR(?kl2), " share code ", STR(?c1)) AS ?p16)
+    BIND(?c1 AS ?offA) BIND(?c2 AS ?offB)
+  } UNION {
+    ?k a st:MessageKind ; rdfs:label ?kl ; net:kindCode ?c .
+    FILTER(datatype(?c) != xsd:integer || xsd:integer(?c) < 0 || xsd:integer(?c) > 255)
+    BIND(CONCAT("KIND-CODE-RANGE: ", STR(?kl)) AS ?f17)
+    BIND("kind_code_out_of_u8_range_or_non_integer" AS ?p17)
+    BIND(?c AS ?offA) BIND("0..255" AS ?offB)
+  } UNION {
+    VALUES ?reqKind { "INV" "GET_DATA" "TX" "BLOCK" "PING" }
+    FILTER NOT EXISTS { ?k a st:MessageKind ; rdfs:label ?reqKind ; net:kindCode ?kc }
+    BIND(CONCAT("KIND-PRESENCE: ", STR(?reqKind)) AS ?f18)
+    BIND("missing_message_kind" AS ?p18)
+    BIND(STR(?reqKind) AS ?offA) BIND("absent" AS ?offB)
+  } UNION {
+    ?c a net:NetWireConstant ; rdfs:label ?l ; net:value ?v .
+    FILTER((STRENDS(STR(?l), "_LEN") || STRENDS(STR(?l), "_OFFSET")) && ?l != "NET_MAGIC")
+    FILTER(datatype(?v) != xsd:integer || !REGEX(STR(?v), "^[0-9]+$"))
+    BIND(CONCAT("OFFSET-LEN: ", STR(?l)) AS ?f19)
+    BIND("malformed_decimal_integer" AS ?p19)
+    BIND(?v AS ?offA) BIND(?v AS ?offB)
+  }
+}
+ORDER BY ?field ?problem

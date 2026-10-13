@@ -1,0 +1,125 @@
+# strata-net-pack ontology — Strata P2P wire + mempool (roadmap slice S7).
+#
+# Wire-format ground truth: packs/strata-protocol-pack/ontology.ttl
+# (CLAP-PDU conventions: fixed-width big-endian fields, magic leading field,
+# offset/len abutment, reserved-must-be-zero). Mempool admission policy
+# conceptually rides packs/strata-valve-pack (valve-refusal semantics).
+# These are documentation-only citations — no owl:imports — per FM-PACK-018
+# house remediation (see pack.toml).
+
+@prefix st:   <https://strata.chatman.ai/ontology#> .
+@prefix net:  <https://strata.chatman.ai/ontology/net#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# ── Model classes ─────────────────────────────────────────────────────
+
+st:NetMessage a rdfs:Class ; rdfs:label "NetMessage" ;
+    rdfs:comment "One framed P2P message: 8-byte header (magic+kind+len) + payload." .
+
+st:MessageKind a rdfs:Class ; rdfs:label "MessageKind" ;
+    rdfs:comment "The exact set of P2P message kinds; each carries a unique 1-byte kind code." .
+
+st:PeerAdmission a rdfs:Class ; rdfs:label "PeerAdmission" ;
+    rdfs:comment "Admission of a peer into the capped peer table (MAX_PEERS)." .
+
+st:MempoolEntry a rdfs:Class ; rdfs:label "MempoolEntry" ;
+    rdfs:comment "One mempool admission candidate, identified by its 32-byte digest." .
+
+# ── Declared property surface (exact; see gate 020 closure) ──────────
+
+st:msgKind a rdf:Property ; rdfs:label "msgKind" ;
+    rdfs:comment "Message-kind discriminator of a NetMessage (1-byte kind code on the wire)." ;
+    rdfs:domain st:NetMessage ; rdfs:range st:MessageKind .
+
+st:payloadLen a rdf:Property ; rdfs:label "payloadLen" ;
+    rdfs:comment "Payload length in bytes carried in the frame header (u16 big-endian)." ;
+    rdfs:domain st:NetMessage ; rdfs:range xsd:integer .
+
+st:peerId a rdf:Property ; rdfs:label "peerId" ;
+    rdfs:comment "Stable peer identifier string admitted into the peer table." ;
+    rdfs:domain st:PeerAdmission ; rdfs:range xsd:string .
+
+st:admissionVerdict a rdf:Property ; rdfs:label "admissionVerdict" ;
+    rdfs:comment "Typed admission verdict for a peer or mempool entry (admit / typed refusal)." ;
+    rdfs:domain st:PeerAdmission ; rdfs:range xsd:string .
+
+st:NetWireLaw a rdfs:Class ; rdfs:label "NetWireLaw" ;
+    rdfs:comment "The single network law individual (NET_CONSTANTS): capacity + wire bounds." .
+
+# ── NET_CONSTANTS individual (network wire + capacity law) ───────────
+
+st:NET_CONSTANTS a st:NetWireLaw ; rdfs:label "NET_CONSTANTS" ;
+    net:maxMsgLen "65536"^^xsd:integer ;
+    net:headerLen "8"^^xsd:integer ;
+    net:maxMempool "4096"^^xsd:integer ;
+    net:maxPeers "64"^^xsd:integer ;
+    rdfs:comment "Network law: MAX_MSG_LEN 65536, 8-byte header (magic+kind+len), MAX_MEMPOOL 4096, MAX_PEERS 64." .
+
+# ── Wire constants (CLAP-PDU conventions; FrameConstant shape) ───────
+
+net:NetWireConstant a rdfs:Class ;
+    rdfs:label "NetWireConstant" ;
+    rdfs:comment "One generated wire constant of the Strata P2P framed header." .
+
+net:NET_MAGIC a net:NetWireConstant ;
+    rdfs:label "NET_MAGIC" ; net:rustType "u32" ; net:value "0x5354_4E54" ;
+    rdfs:comment "Magic bytes \"SNET\", big-endian; bytes 0..4 (CLAP-PDU magic convention)." .
+
+net:MAGIC_OFFSET a net:NetWireConstant ;
+    rdfs:label "MAGIC_OFFSET" ; net:rustType "usize" ; net:value "0"^^xsd:integer ;
+    rdfs:comment "Magic field offset; length 4." .
+net:MAGIC_LEN a net:NetWireConstant ;
+    rdfs:label "MAGIC_LEN" ; net:rustType "usize" ; net:value "4"^^xsd:integer ;
+    rdfs:comment "Magic field length." .
+net:KIND_OFFSET a net:NetWireConstant ;
+    rdfs:label "KIND_OFFSET" ; net:rustType "usize" ; net:value "4"^^xsd:integer ;
+    rdfs:comment "Kind field offset; length 1." .
+net:KIND_LEN a net:NetWireConstant ;
+    rdfs:label "KIND_LEN" ; net:rustType "usize" ; net:value "1"^^xsd:integer ;
+    rdfs:comment "Kind field length." .
+net:LEN_OFFSET a net:NetWireConstant ;
+    rdfs:label "LEN_OFFSET" ; net:rustType "usize" ; net:value "5"^^xsd:integer ;
+    rdfs:comment "Payload-length field offset (3-byte big-endian, u24); length 3." .
+net:LEN_LEN a net:NetWireConstant ;
+    rdfs:label "LEN_LEN" ; net:rustType "usize" ; net:value "3"^^xsd:integer ;
+    rdfs:comment "Payload-length field length (u24 big-endian; bounds MAX_MSG_LEN on the wire)." .
+net:HEADER_LEN a net:NetWireConstant ;
+    rdfs:label "HEADER_LEN" ; net:rustType "usize" ; net:value "8"^^xsd:integer ;
+    rdfs:comment "Fixed header length in bytes: magic(4)+kind(1)+len(3, u24 big-endian)." .
+net:MAX_MSG_LEN a net:NetWireConstant ;
+    rdfs:label "MAX_MSG_LEN" ; net:rustType "usize" ; net:value "65536"^^xsd:integer ;
+    rdfs:comment "Maximum payload length in bytes (u16 wire bound)." .
+net:MAX_MEMPOOL a net:NetWireConstant ;
+    rdfs:label "MAX_MEMPOOL" ; net:rustType "usize" ; net:value "4096"^^xsd:integer ;
+    rdfs:comment "Mempool capacity in entries; eviction order is lowest digest first." .
+net:MAX_PEERS a net:NetWireConstant ;
+    rdfs:label "MAX_PEERS" ; net:rustType "usize" ; net:value "64"^^xsd:integer ;
+    rdfs:comment "Peer-table capacity; admission beyond the cap is refused." .
+
+# ── MessageKind individuals (1-byte kind codes; exact set of 5) ──────
+
+net:INV a st:MessageKind ; rdfs:label "INV" ; net:kindCode "1"^^xsd:integer ;
+    rdfs:comment "Inventory advertisement; empty payload." .
+net:GET_DATA a st:MessageKind ; rdfs:label "GET_DATA" ; net:kindCode "2"^^xsd:integer ;
+    rdfs:comment "Request for a payload by digest." .
+net:TX a st:MessageKind ; rdfs:label "TX" ; net:kindCode "3"^^xsd:integer ;
+    rdfs:comment "Gossiped transaction payload; non-empty." .
+net:BLOCK a st:MessageKind ; rdfs:label "BLOCK" ; net:kindCode "4"^^xsd:integer ;
+    rdfs:comment "Gossiped block payload; non-empty." .
+net:PING a st:MessageKind ; rdfs:label "PING" ; net:kindCode "5"^^xsd:integer ;
+    rdfs:comment "Liveness probe; empty payload." .
+
+# ── Sample NetMessage individuals (gate 020 payload-length arms) ─────
+
+net:msg-inv a st:NetMessage ; st:msgKind net:INV ; st:payloadLen "0"^^xsd:integer ;
+    rdfs:comment "INV carries no payload." .
+net:msg-getdata a st:NetMessage ; st:msgKind net:GET_DATA ; st:payloadLen "32"^^xsd:integer ;
+    rdfs:comment "GET_DATA carries a 32-byte digest request." .
+net:msg-tx a st:NetMessage ; st:msgKind net:TX ; st:payloadLen "1"^^xsd:integer ;
+    rdfs:comment "TX carries a non-empty transaction payload." .
+net:msg-block a st:NetMessage ; st:msgKind net:BLOCK ; st:payloadLen "1"^^xsd:integer ;
+    rdfs:comment "BLOCK carries a non-empty block payload." .
+net:msg-ping a st:NetMessage ; st:msgKind net:PING ; st:payloadLen "0"^^xsd:integer ;
+    rdfs:comment "PING carries no payload." .

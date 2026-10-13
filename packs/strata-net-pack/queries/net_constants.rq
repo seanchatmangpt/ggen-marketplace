@@ -1,0 +1,29 @@
+# Projection query for strata-net-pack: every NetWireConstant plus one derived
+# const row per MessageKind (KIND_<LABEL> = kind code), so the generated Rust
+# module carries kind codes straight from the RDF (kind-code stability is then
+# a generated test, not a hand-maintained table).
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX st:   <https://strata.chatman.ai/ontology#>
+PREFIX net:  <https://strata.chatman.ai/ontology/net#>
+
+SELECT ?label ?rustType ?value ?comment
+WHERE {
+  {
+    ?c a net:NetWireConstant ;
+       rdfs:label ?label ;
+       net:rustType ?rustType ;
+       net:value ?value ;
+       rdfs:comment ?comment .
+  }
+  UNION
+  {
+    ?k a st:MessageKind ;
+       rdfs:label ?kLabel ;
+       net:kindCode ?code .
+    BIND(CONCAT("KIND_", UCASE(STR(?kLabel))) AS ?label)
+    BIND("u8" AS ?rustType)
+    BIND(STR(?code) AS ?value)
+    BIND(CONCAT("1-byte kind code for MessageKind ", STR(?kLabel)) AS ?comment)
+  }
+}
+ORDER BY ?label

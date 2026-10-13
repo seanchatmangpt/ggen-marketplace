@@ -1,0 +1,82 @@
+# MESSAGE: Net message-surface closure violated — the MessageKind set is
+# EXACTLY {INV, GET_DATA, TX, BLOCK, PING} (presence arms fire on rename or
+# deletion; a count arm fires when the set is anything other than exactly 5).
+# The four model classes (NetMessage, MessageKind, PeerAdmission, MempoolEntry)
+# and the four declared properties (msgKind, payloadLen, peerId,
+# admissionVerdict) must be present; any property claiming rdfs:domain
+# st:NetMessage outside {msgKind, payloadLen} is an undeclared field.
+# Payload-length law: every TX/BLOCK NetMessage must carry payloadLen > 0
+# (presence arm fires if a TX/BLOCK message is missing entirely); every
+# INV/PING NetMessage must carry payloadLen = 0.
+# Any row indicates the declared message surface is broken.
+PREFIX rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX st:   <https://strata.chatman.ai/ontology#>
+PREFIX net:  <https://strata.chatman.ai/ontology/net#>
+
+SELECT (COALESCE(?cls1,?cls2,?cls3,?cls4,?req1,?req2,?req3,?req4,?extraProp,?cnt,?m1,?m2,?m3,?m4) AS ?member)
+       (COALESCE(?p1,?p2,?p3,?p4,?p5,?p6,?p7,?p8,?p9,?p10,?p11,?p12,?p13,?p14) AS ?problem) WHERE {
+  {
+    FILTER NOT EXISTS { ?x a rdfs:Class ; rdfs:label "NetMessage" }
+    BIND("NetMessage" AS ?cls1) BIND("missing_class_declaration" AS ?p1)
+  } UNION {
+    FILTER NOT EXISTS { ?x a rdfs:Class ; rdfs:label "MessageKind" }
+    BIND("MessageKind" AS ?cls2) BIND("missing_class_declaration" AS ?p2)
+  } UNION {
+    FILTER NOT EXISTS { ?x a rdfs:Class ; rdfs:label "PeerAdmission" }
+    BIND("PeerAdmission" AS ?cls3) BIND("missing_class_declaration" AS ?p3)
+  } UNION {
+    FILTER NOT EXISTS { ?x a rdfs:Class ; rdfs:label "MempoolEntry" }
+    BIND("MempoolEntry" AS ?cls4) BIND("missing_class_declaration" AS ?p4)
+  } UNION {
+    FILTER NOT EXISTS { ?d rdfs:label "msgKind" ; rdfs:domain st:NetMessage }
+    BIND("msgKind" AS ?req1) BIND("missing_property_or_domain" AS ?p5)
+  } UNION {
+    FILTER NOT EXISTS { ?d rdfs:label "payloadLen" ; rdfs:domain st:NetMessage }
+    BIND("payloadLen" AS ?req2) BIND("missing_property_or_domain" AS ?p6)
+  } UNION {
+    FILTER NOT EXISTS { ?d rdfs:label "peerId" ; rdfs:domain st:PeerAdmission }
+    BIND("peerId" AS ?req3) BIND("missing_property_or_domain" AS ?p7)
+  } UNION {
+    FILTER NOT EXISTS { ?d rdfs:label "admissionVerdict" ; rdfs:domain st:PeerAdmission }
+    BIND("admissionVerdict" AS ?req4) BIND("missing_property_or_domain" AS ?p8)
+  } UNION {
+    # Closure: any property claiming rdfs:domain st:NetMessage outside the
+    # declared pair {msgKind, payloadLen} is an undeclared field.
+    ?q rdfs:domain st:NetMessage .
+    FILTER(?q != st:msgKind && ?q != st:payloadLen)
+    BIND(STRAFTER(STR(?q), "#") AS ?extraProp)
+    BIND("undeclared_NetMessage_property" AS ?p9)
+  } UNION {
+    # The MessageKind set is EXACTLY 5.
+    { SELECT (COUNT(DISTINCT ?k) AS ?n) WHERE { ?k a st:MessageKind } }
+    FILTER(xsd:integer(?n) != 5)
+    BIND("MessageKind" AS ?cnt) BIND(CONCAT("kind_set_must_be_exactly_5, got ", STR(?n)) AS ?p10)
+  } UNION {
+    # Per-kind NetMessage presence: TX, BLOCK, INV, PING must each have at
+    # least one NetMessage individual (GET_DATA is unconstrained sample-wise).
+    VALUES ?reqKind { "TX" "BLOCK" "INV" "PING" }
+    FILTER NOT EXISTS {
+      ?m a st:NetMessage ; st:msgKind ?mk .
+      ?mk rdfs:label ?reqKind .
+    }
+    BIND(CONCAT("MESSAGE-PRESENCE: ", STR(?reqKind)) AS ?m2)
+    BIND("missing_sample_message" AS ?p12)
+  } UNION {
+    # TX/BLOCK messages must carry payloadLen > 0.
+    ?m a st:NetMessage ; st:msgKind ?mk ; st:payloadLen ?pl .
+    ?mk rdfs:label ?kl ; net:kindCode ?kc .
+    FILTER(STR(?kl) = "TX" || STR(?kl) = "BLOCK")
+    FILTER(datatype(?pl) != xsd:integer || xsd:integer(?pl) <= 0)
+    BIND(CONCAT("payloadLen>0: ", STR(?kl)) AS ?m1) BIND("non_positive_payload" AS ?p11)
+  } UNION {
+    # INV/PING messages must exist and carry payloadLen = 0.
+    ?m a st:NetMessage ; st:msgKind ?mk ; st:payloadLen ?pl .
+    ?mk rdfs:label ?kl .
+    FILTER(STR(?kl) = "INV" || STR(?kl) = "PING")
+    FILTER(datatype(?pl) != xsd:integer || xsd:integer(?pl) != 0)
+    BIND(CONCAT("payloadLen=0: ", STR(?kl)) AS ?m3) BIND("nonzero_payload" AS ?p13)
+  }
+}
+ORDER BY ?member ?problem
