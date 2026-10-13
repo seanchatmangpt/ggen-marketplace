@@ -212,3 +212,27 @@ KILLED entries stay killed.
 56. **DEFECT WITNESSED (L72)** — ledger duplicate-input value creation
     proved in Lean (mfact `15fa5e91a7`); fix lane in flight;
     conservation theorem currently needs NoDupIds.
+
+## Integration wave 5 — 2026-10-13 (late night)
+
+57. **insa↔strata-tx (L130)** — polarity vocabulary REJECTED: three
+    registers (receipt-typestate vs refusal-valve vs decode-fail-closed)
+    share a class name but not semantics — one shared class would be
+    laundering. Rank-1 compile-fail courts pattern (insa trybuild with
+    exact .stderr pins; strata has zero today — lane in flight);
+    rank-2 boundary-replay deepening (verify_from semantics into the
+    ledger court).
+58. **ledger duplicate-input DEFECT FIXED (1d16f2472)** — debit
+    accumulation lands; the Lean counterexample now refuses; 500-tx
+    unconditional property; audit corpus entry. mfact witness
+    `15fa5e91a7` stands as the discovery receipt (#52/#56 resolved).
+59. **owner-scope committed receipts (fb66f364) + standing-receipt
+    chain (56e0eb84)** — L33 rank-1 and rank-2 both landed; falsifier
+    witnessed live: a valid fresh signature refused by the chain court.
+60. **valve crosswalk column (84bcb97f8 + ash_a2a pins 3bc2a5fc)** —
+    three-runtime refusal plane mechanically crosswalked
+    (erlmcp↔ash_a2a↔strata-valve); closure-style gates with 4 negative
+    witnesses (#53 R1 resolved).
+61. **fleet harness honesty** — erlmcp full eunit completes (376/237
+    honestly reported, L88); cre master merge `9c69220c`; sabotage
+    twins now 10/16 packs (5c932f000, coverage holes 10 → 6).
