@@ -16,12 +16,21 @@ set -e
 # --pack names is the lawful selection path. Do not "fix" to --scope active.
 python3 scripts/qualify_packs_r18.py \
   --ggen "$GGEN_BIN" \
+  --pack strata-audit-pack \
   --pack strata-cas-pack \
+  --pack strata-chain-pack \
+  --pack strata-consensus-pack \
+  --pack strata-governance-pack \
+  --pack strata-hash-pack \
+  --pack strata-ledger-pack \
+  --pack strata-net-pack \
   --pack strata-pn64-pack \
   --pack strata-protocol-pack \
   --pack strata-signer-pack \
+  --pack strata-store-pack \
   --pack strata-stratus-pack \
   --pack strata-temprun-pack \
+  --pack strata-tx-pack \
   --pack strata-valve-pack \
   --scope all \
   --timeout-seconds 15 \
