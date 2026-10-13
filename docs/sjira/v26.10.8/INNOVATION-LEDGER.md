@@ -42,3 +42,15 @@ are the kill conditions, not implementation plans.
 Next ticks: finish Tier-1 candidates in order (each is a bounded pack/lane
 per the established pattern), re-certify, merge. This ledger is the
 candidate pool; candidates die by their falsifiers, not by decree.
+
+## Tier 1 addendum — cross-cluster seams (Y6, verified file:line)
+28. **FM-CHAIN-009 shared fixture** — golden fixture hand-transcribed in affidavit AND graphlaw; no shared artifact, no pin. Glue: one committed fixture + cross-repo byte-exactness test with tamper falsifier. (Partially addressed by T10's port — pin the fixture itself remains.)
+29. **graphlaw RDFC-1.0 → wasm export** — ash_a2a's canonical_graph uses RDF.ex RDFC-1.0; graphlaw has the real RDFC-1.0 unwired (native/graphlaw_host unbuilt, test skips). Glue: wasm export + digest-equality court incl. blank-node relabelings.
+30. **affidavit wasm ABI contract test** — available?/0 checks only function_exported?; never consumes abi_meta inventory/ABI version. Glue: contract test pinning assemble→verify round trip.
+31. **strata↔affidavit receipt codec** — strata's 3381-byte ML-DSA-65 AttestationReceipt vs affidavit's 352-byte CTRT: unrelated formats, zero cross-refs. Glue: bidirectional codec + tamper falsifiers.
+32. **sa2a vocabulary unification** — sa2a triplicated across graphlaw bins, affidavit ontology falsifiers, ash_a2a courts/state machine. Glue: one committed sa2a TTL all three consume; falsifier: receipt-not-success fires against a real standing_receipt.json.
+
+**Cross-cutting pattern (Y6)**: every seam is a one-way hand-maintained
+reference — affidavit names graphlaw/strata; ash_a2a names graphlaw/
+affidavit; strata names nobody. Rigor exists within each repo, none
+between them. Seams 28–32 are the loop's next finishing targets.
