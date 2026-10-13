@@ -1,0 +1,58 @@
+# MESSAGE: window-capacity refusal closure (L86). Every WindowCapacityRefusal
+# individual must carry a refusal atom (verbatim from knhk's guard_violation
+# atoms), the capacity constant 8 (the Chatman constant k), and a source
+# module; only the two canonical knhk atoms are admitted, both canonical
+# atoms must be present, and the declared Chatman constant k must exist and
+# equal 8. Any row indicates a violation — fail closed on the window-capacity
+# closure (house V7 pattern).
+PREFIX valve: <https://strata.chatman.ai/ontology/valve#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?class ?atom ?violation WHERE {
+  {
+    ?class a valve:WindowCapacityRefusal .
+    BIND("missing_atom" AS ?violation)
+    FILTER NOT EXISTS { ?class valve:atom ?a }
+  } UNION {
+    ?class a valve:WindowCapacityRefusal .
+    BIND("missing_capacity" AS ?violation)
+    FILTER NOT EXISTS { ?class valve:capacityConstant ?c }
+  } UNION {
+    ?class a valve:WindowCapacityRefusal ;
+           valve:capacityConstant ?cap .
+    BIND("wrong_capacity" AS ?violation)
+    FILTER (?cap != 8)
+  } UNION {
+    ?class a valve:WindowCapacityRefusal .
+    BIND("missing_source_module" AS ?violation)
+    FILTER NOT EXISTS { ?class valve:sourceModule ?m }
+  } UNION {
+    ?class a valve:WindowCapacityRefusal ;
+           valve:atom ?atom .
+    BIND("off_enum_atom" AS ?violation)
+    FILTER (?atom NOT IN ("run.len > 8", "tau > 8"))
+  } UNION {
+    # Presence: each canonical knhk atom must be carried by an individual.
+    BIND(<https://strata.chatman.ai/ontology/valve#WindowCapacityRefusal> AS ?class)
+    BIND("absent_canonical_atom" AS ?violation)
+    VALUES ?atom { "run.len > 8" "tau > 8" }
+    FILTER NOT EXISTS {
+      ?c a valve:WindowCapacityRefusal ;
+         valve:atom ?atom .
+    }
+  } UNION {
+    # The Chatman constant k must be declared exactly once with value 8.
+    BIND(<https://strata.chatman.ai/ontology/valve#WindowCapacityRefusal> AS ?class)
+    BIND("chatman_k_undeclared" AS ?violation)
+    FILTER NOT EXISTS {
+      ?k a valve:CapacityConstant ;
+         valve:capacityConstant 8 .
+    }
+  } UNION {
+    ?k a valve:CapacityConstant ;
+       valve:capacityConstant ?kv .
+    BIND("chatman_k_off_value" AS ?violation)
+    FILTER (?kv != 8)
+  }
+}
+ORDER BY ?violation ?class ?atom
