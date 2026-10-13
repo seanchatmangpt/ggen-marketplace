@@ -195,7 +195,9 @@ def render_all(graph: Graph) -> dict[str, str]:
 
 def test_pack_manifest_is_minimal_and_matches_directory() -> None:
     payload = tomllib.loads((PACK / "pack.toml").read_text(encoding="utf-8"))
-    assert set(payload) == {"pack"}
+    # [capabilities] admitted top-level table (f52ed0e85, 324/326 packs, real ggen
+    # parser 03ebdaee4); scripts/marketplace.py validate refuses only "targets".
+    assert set(payload) == {"pack", "capabilities"}
     pack = payload["pack"]
     assert set(pack) == {"name", "version", "description"}
     assert pack["name"] == PACK.name == "industry-closure-ledger-pack"

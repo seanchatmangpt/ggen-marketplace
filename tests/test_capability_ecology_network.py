@@ -239,7 +239,9 @@ def test_verify_court_admits() -> None:
 
 def test_pack_manifest_conventions() -> None:
     manifest = tomllib.loads((PACK / "pack.toml").read_text(encoding="utf-8"))
-    assert set(manifest) == {"pack"}
+    # [capabilities] admitted top-level table: f52ed0e85 (2026-10-10), 324/326 packs,
+    # verified against real ggen parser (ggen 03ebdaee4); validate refuses only "targets".
+    assert set(manifest) == {"pack", "capabilities"}
     assert manifest["pack"]["name"] == "capability-ecology-pack"
     assert manifest["pack"]["version"] == "26.9.0"
     assert manifest["pack"]["description"].strip()

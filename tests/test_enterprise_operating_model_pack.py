@@ -280,7 +280,9 @@ def first_pattern(branch: str) -> str:
 class StructureTests(unittest.TestCase):
     def test_pack_toml_only_admitted_keys_and_identity(self) -> None:
         document = tomllib.loads((PACK / "pack.toml").read_text(encoding="utf-8"))
-        self.assertEqual(set(document), {"pack"})
+        # [capabilities] admitted top-level table (f52ed0e85, 324/326 packs, real
+        # ggen parser 03ebdaee4); [pack] itself admits only name/version/description.
+        self.assertEqual(set(document), {"pack", "capabilities"})
         self.assertEqual(set(document["pack"]), {"name", "version", "description"})
         self.assertEqual(document["pack"]["name"], PACK_NAME)
         self.assertRegex(document["pack"]["version"], r"^\d+\.\d+\.\d+$")

@@ -136,7 +136,9 @@ def test_gate_witness_court_exact_stem_pairing() -> None:
 
 def test_pack_manifest_conventions() -> None:
     manifest = tomllib.loads((PACK / "pack.toml").read_text(encoding="utf-8"))
-    assert set(manifest) == {"pack"}
+    # [capabilities] admitted top-level table (f52ed0e85, 324/326 packs, real ggen
+    # parser 03ebdaee4); scripts/marketplace.py validate refuses only "targets".
+    assert set(manifest) == {"pack", "capabilities"}
     assert manifest["pack"]["name"] == "graphlaw-ash-capability-pack"
     assert manifest["pack"]["version"] == PACK_VERSION
     assert manifest["pack"]["description"].strip()

@@ -70,7 +70,9 @@ def vendored_graph(path: Path) -> Graph:
 
 def test_manifest_is_minimal_semantic_and_symlink_free() -> None:
     data = tomllib.loads((PACK / "pack.toml").read_text(encoding="utf-8"))
-    assert set(data) == {"pack"}
+    # [capabilities] admitted top-level table (f52ed0e85, 324/326 packs, real ggen
+    # parser 03ebdaee4); scripts/marketplace.py validate refuses only "targets".
+    assert set(data) == {"pack", "capabilities"}
     assert set(data["pack"]) == {"name", "version", "description"}
     assert data["pack"]["name"] == PACK.name
     assert re.fullmatch(r"\d+\.\d+\.\d+", data["pack"]["version"])

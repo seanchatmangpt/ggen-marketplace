@@ -76,7 +76,7 @@ mod tests {
     
     // commit 2 (child of fd9fc6c86d8f666da7059851d9e6e45df1c288c3035f5d9475a1d871ec4ec33c)
     
-    // commit 3 (child of f0575860c272837d9f63e43c098b9e74638a24d8760feaafb9f58fcf0cca3386)
+    // commit 3 (genesis)
     
     /// Content-address law input set: (kind, digest, canonical payload).
     /// Commits carry their merkleRoot; wormholes carry their targetDigest.
@@ -92,7 +92,7 @@ mod tests {
     const LAW_CHAIN: [(&str, Option<&str>); 3] = [
         ("18d53c1eaa279405b194c9ae5983652e0d89f3bd50b62e87e1278a71a4af3037", Some("f0575860c272837d9f63e43c098b9e74638a24d8760feaafb9f58fcf0cca3386")),
         ("f0575860c272837d9f63e43c098b9e74638a24d8760feaafb9f58fcf0cca3386", Some("fd9fc6c86d8f666da7059851d9e6e45df1c288c3035f5d9475a1d871ec4ec33c")),
-        ("fd9fc6c86d8f666da7059851d9e6e45df1c288c3035f5d9475a1d871ec4ec33c", Some("f0575860c272837d9f63e43c098b9e74638a24d8760feaafb9f58fcf0cca3386")),
+        ("fd9fc6c86d8f666da7059851d9e6e45df1c288c3035f5d9475a1d871ec4ec33c", None),
         ];
 
     /// Digest-shape law: ^[0-9a-f]{64}$ for every declared digest.

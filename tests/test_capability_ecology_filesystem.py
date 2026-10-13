@@ -220,7 +220,11 @@ def test_verify_court_admits() -> None:
 
 def test_pack_manifest_conventions() -> None:
     manifest = tomllib.loads((PACK / "pack.toml").read_text(encoding="utf-8"))
-    assert set(manifest) == {"pack"}
+    # [capabilities] is an admitted top-level table: corpus-wide annotation landed
+    # in f52ed0e85 (2026-10-10) verified against the real ggen parser
+    # (pack_capabilities_parser_diff_test 5/0, ggen 03ebdaee4); 324/326 packs carry
+    # it and scripts/marketplace.py validate admits it (refuses only "targets").
+    assert set(manifest) == {"pack", "capabilities"}
     assert manifest["pack"]["name"] == "capability-ecology-pack"
     assert manifest["pack"]["version"] == "26.9.0"
     assert manifest["pack"]["description"].strip()

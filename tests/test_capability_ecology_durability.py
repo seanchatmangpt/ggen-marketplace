@@ -60,7 +60,9 @@ class GateCourtProcessTests(unittest.TestCase):
         # FM-PACK-003: the real ggen [pack] loader admits exactly these keys.
         import tomllib
         manifest = tomllib.loads((PACK / "pack.toml").read_text(encoding="utf-8"))
-        self.assertEqual(sorted(manifest), ["pack"])
+        # [capabilities] admitted top-level table (f52ed0e85, 324/326 packs, real
+        # ggen parser 03ebdaee4); [pack] itself admits only name/version/description.
+        self.assertEqual(sorted(manifest), ["capabilities", "pack"])
         self.assertEqual(sorted(manifest["pack"]), ["description", "name", "version"])
 
     def test_no_symlinks_under_pack(self) -> None:
