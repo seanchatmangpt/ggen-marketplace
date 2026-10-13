@@ -1,0 +1,23 @@
+# MESSAGE: every st:RonrTransition must have a non-zero precondition mask
+# (a transition with pre == "0x0000" is always enabled and consumes nothing
+# — not a lawful RONR transition), and all transition opcodes must be
+# distinct. Masks are hex STRINGS, so comparison is by string equality.
+# Any row returned is a violating transition.
+PREFIX st: <https://strata.chatman.ai/ontology#>
+
+SELECT ?t ?opcode ?violation WHERE {
+  {
+    ?t a st:RonrTransition ;
+       st:transitionOpcode ?opcode ;
+       st:transitionPre "0x0000" .
+    BIND("zero_pre_mask" AS ?violation)
+  } UNION {
+    ?t a st:RonrTransition ;
+       st:transitionOpcode ?opcode .
+    ?t2 a st:RonrTransition ;
+        st:transitionOpcode ?opcode .
+    FILTER (?t != ?t2)
+    BIND("duplicate_opcode" AS ?violation)
+  }
+}
+ORDER BY ?opcode ?violation

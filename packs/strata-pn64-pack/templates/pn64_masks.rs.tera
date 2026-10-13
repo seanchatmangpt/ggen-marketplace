@@ -43,6 +43,18 @@ pub const fn enabled(marking: u16, pre: u16) -> bool {
 }
 
 /// Fire: `m' = (m ^ W-) | W+`, matching pn64::fire on the marking field.
+///
+/// # Precondition (fire-law domain)
+///
+/// Callers must establish `enabled(marking, pre)` — i.e. `(m & pre) == pre`
+/// — before calling. On that enabled domain, the ungated XOR form equals the
+/// clear-then-set law `(m & !pre) | post` used by
+/// [`reachable_bitset`]: if every pre-bit already holds a token, XORing
+/// them out is exactly clearing them. Off the enabled domain they DIVERGE:
+/// XOR toggles pre-bits absent from the marking (sets them), while
+/// clear-then-set leaves them unset. See
+/// `fire_law_equivalence_on_enabled_domain` and its pinned divergence
+/// witnesses in the tests below.
 #[inline]
 pub const fn fire(marking: u16, pre: u16, post: u16) -> u16 {
     ((marking ^ pre) | post) & 0xFFFF
@@ -167,5 +179,32 @@ mod tests {
         let set = reachable_bitset(0x0002, &TRANSITIONS);
         assert_eq!(has_deadlock_excluding(&set, &TRANSITIONS, &[]), Some(0x0141));
         assert_eq!(has_deadlock_excluding(&set, &TRANSITIONS, &[0x0141]), None);
+    }
+
+    /// Court: on the enabled domain ((m & pre) == pre), the ungated XOR fire
+    /// law equals the clear-then-set law `(m & !pre) | post` used by
+    /// reachable_bitset. Exhaustive over the low marking byte x sampled
+    /// pre/post pairs.
+    #[test]
+    fn fire_law_equivalence_on_enabled_domain() {
+        for m in 0u16..=255 {
+            for pre in [0u16, 1, 2, 3, 0x0F, 0x33, 0x81, 0xFF] {
+                for post in [0u16, 1, 2, 0x0C, 0x82, 0xFF] {
+                    if (m & pre) == pre {
+                        assert_eq!(
+                            fire(m, pre, post),
+                            (m & !pre) | post,
+                            "fire law diverged on enabled domain: m={m:#04x} pre={pre:#04x} post={post:#04x}"
+                        );
+                    }
+                }
+            }
+        }
+        // Divergence witnesses OUTSIDE the enabled domain (m=0b0000 does not
+        // enable pre=0b0010): the ungated XOR toggles a pre-bit absent from
+        // the marking (sets it), while clear-then-set leaves it unset. This
+        // is exactly why callers must establish enabled(m, pre) first.
+        assert_eq!(fire(0b0000, 0b0010, 0b0000), 0b0010); // XOR law
+        assert_eq!((0b0000 & !0b0010) | 0b0000, 0b0000); // clear-then-set law
     }
 }
