@@ -236,3 +236,32 @@ KILLED entries stay killed.
 61. **fleet harness honesty** — erlmcp full eunit completes (376/237
     honestly reported, L88); cre master merge `9c69220c`; sabotage
     twins now 10/16 packs (5c932f000, coverage holes 10 → 6).
+
+## Integration wave 6 — 2026-10-13 (deep night)
+
+62. **graphlaw refusal-collapse FIXED (6c48b2c2, beam4pm bridge)** —
+    ok-flag multi-key envelopes were passed through as success:
+    admit_plan and both DeviationAdmission anti-vacuity gates
+    admitted malformed input. Typed refusal now propagates across
+    the bridge; 14/0.
+63. **conservation proof tracks the fix (mfact `aa3d793cf5`)** —
+    NoDupIds premise dropped, theorem unconditional; history kept
+    honest: the old counterexample theorem renamed with the fix
+    citation, plus an admits-and-conserves witness (#56 resolved).
+64. **boundary-replay law in ledger verify.py (e1ee25fa2)** —
+    mid-root pinned; a tamper below the boundary is caught ONLY by
+    the boundary law (non-vacuity witnessed); length-mismatch
+    input REFUSED.
+65. **sabotage twins 13/16 (e1ee25fa2)** — cas/chain/governance added;
+    the chain fold shares the KAT head `05ea1aa0`; 3 remaining
+    coverage holes documented with justification (#61 10/16 advanced).
+66. **compile-fail courts land (82033542d)** — trybuild with exact
+    E-codes: gate state and recompute_root are unconstructible;
+    tx-pack honestly UNSUPPORTED (no non-validating path exists to
+    force). (#57 rank-1 resolved.)
+67. **S3 closed mechanically (32af1f53a)** — signer digest-domain tag
+    binds tx payloads; cross-pack ML-DSA court: byte-flip refuses;
+    untagged twin caught in both directions.
+68. **audit corpus 14 attacks** — includes GgenUnionBindingLeak
+    OPEN-UPSTREAM and WasmNonReproducibleBuild OPEN (engine lanes
+    in flight; cf. #55).
