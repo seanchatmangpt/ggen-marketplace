@@ -74,6 +74,13 @@ PACK_CLASSES: dict[str, str] = {
     "industry-closure-ledger-pack": "KernelPack",
     "enterprise-operating-model-pack": "CapabilityPack",
     "industry-closure-retail-lending-profile-pack": "ProfilePack",
+    "strata-cas-pack": "CapabilityPack",
+    "strata-pn64-pack": "CapabilityPack",
+    "strata-protocol-pack": "KernelPack",
+    "strata-signer-pack": "CapabilityPack",
+    "strata-stratus-pack": "CapabilityPack",
+    "strata-temprun-pack": "CapabilityPack",
+    "strata-valve-pack": "CapabilityPack",
 }
 # The real ggen loader deserializes [pack] with deny-unknown-fields; anything else is
 # refused at pack-load time, so refuse it here first (see CLAUDE.md, "Pack profiles").
