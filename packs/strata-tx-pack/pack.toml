@@ -1,0 +1,62 @@
+[pack]
+name = "strata-tx-pack"
+version = "0.1.0"
+description = """
+Strata transaction model (roadmap slice S2, docs/sjira/v26.10.8/STRATA-BLOCKCHAIN-ROADMAP.md):
+Tx header framing over the CLAP-PDU conventions (fixed-width, big-endian), inputs/outputs,
+payload-digest placeholder (real digest lands in S3 via strata-signer/strata-hash), and an
+explicit replay-guard nonce. Projects a self-contained Rust module with manual binary
+encode/decode and serde-free round-trip tests.
+"""
+[capabilities]
+# requires is empty: scripts/qualify_packs.py qualifies every pack in isolation
+# (single-pack [packs] capsule), so a cross-pack require (the Tx header constants derive from
+# the CLAP-PDU wire format of packs/strata-protocol-pack 0.1.0) can never resolve there
+# (FM-PACK-018). The derivation is documentation-only via the ontology comment that cites
+# packs/strata-protocol-pack/ontology.ttl as wire-format ground truth — no owl:imports —
+# per docs/sjira/v26.10.8/STRATA-BLOCKCHAIN-ROADMAP.md slice S2.
+provides = ["urn:ggen:pack:strata-tx-pack", "urn:strata:tx:model-v1"]
+requires = []
+
+[project]
+name = "strata-tx-pack"
+version = "0.1.0"
+description = "Strata transaction model: Tx framing over CLAP-PDU conventions projected from RDF"
+authors = ["Chatman Ecosystem"]
+license = "MIT"
+
+[ontology]
+source = "ontology.ttl"
+base_iri = "https://strata.chatman.ai/ontology#"
+
+[ontology.prefixes]
+rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+rdfs = "http://www.w3.org/2000/01/rdf-schema#"
+xsd = "http://www.w3.org/2001/XMLSchema#"
+st = "https://strata.chatman.ai/ontology#"
+tx = "https://strata.chatman.ai/ontology/tx#"
+
+[validation]
+gates = [
+  "gates/010_tx_layout.rq",
+  "gates/020_tx_closure.rq",
+]
+
+[generation]
+output_dir = "generated"
+
+[[generation.rules]]
+name = "tx-consts"
+query = { file = "queries/tx_constants.rq" }
+template = { file = "templates/tx_consts.rs.tera" }
+output_file = "tx_consts.rs"
+skip_empty = false
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "tx-model"
+query = { file = "queries/tx_constants.rq" }
+template = { file = "templates/tx_model.rs.tera" }
+output_file = "tx_model.rs"
+skip_empty = false
+mode = "Overwrite"

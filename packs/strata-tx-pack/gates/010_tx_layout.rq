@@ -1,0 +1,124 @@
+# MESSAGE: Tx header offset abutment chain violated — each field's _OFFSET + _LEN
+# must equal the next field's _OFFSET; the last must end at TX_HEADER_LEN (56);
+# MAGIC_OFFSET must be 0; TX_HEADER_LEN must be 56; all _OFFSET values must be
+# pairwise distinct; AND all 17 required TxFrameConstant labels must be present
+# with a tx:value (fail-closed: omitting a label from ontology.ttl yields a
+# missing_constant violation, never a silently dropped branch/constant).
+# Datatype + malformed-integer arms follow the V7 pattern (see
+# packs/strata-pn64-pack/gates/010_place_offset_bounds.rq): a cast error inside
+# a FILTER excludes the row, so a string-typed or malformed value would
+# otherwise silently pass the layout checks (engine-dependent fail-open).
+# Any row indicates a broken Tx wire layout.
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX tx:   <https://strata.chatman.ai/ontology/tx#>
+
+SELECT DISTINCT (COALESCE(?f1,?f2,?f3,?f4,?f5,?f6,?f7,?f8,?f9,?f10,?f11,?f12,?f13,?f14,?f15) AS ?field)
+       (COALESCE(?p1,?p2,?p3,?p4,?p5,?p6,?p7,?p8,?p9,?p10,?p11,?p12,?p13,?p14,?p15) AS ?problem)
+       ?offA ?offB WHERE {
+  {
+    ?m a tx:TxFrameConstant ; rdfs:label "MAGIC_OFFSET" ; tx:value ?magicOff .
+    FILTER(datatype(?magicOff) != xsd:integer)
+    BIND("MAGIC" AS ?f1) BIND("non_integer_offset" AS ?p1)
+    BIND(?magicOff AS ?offA) BIND("0" AS ?offB)
+  } UNION {
+    ?m a tx:TxFrameConstant ; rdfs:label "MAGIC_OFFSET" ; tx:value ?magicOff .
+    FILTER(datatype(?magicOff) = xsd:integer && !REGEX(STR(?magicOff), "^-?[0-9]+$"))
+    BIND("MAGIC" AS ?f2) BIND("malformed_integer_offset" AS ?p2)
+    BIND(?magicOff AS ?offA) BIND(?magicOff AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?magicOff) != 0)
+    BIND("MAGIC" AS ?f3) BIND("MAGIC_OFFSET must be 0" AS ?p3)
+    ?m a tx:TxFrameConstant ; rdfs:label "MAGIC_OFFSET" ; tx:value ?magicOff .
+    BIND(?magicOff AS ?offA) BIND("0" AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?magicOff) + xsd:integer(?magicLen) != xsd:integer(?verOff))
+    BIND("MAGIC" AS ?f4) BIND("offset+length != next offset" AS ?p4)
+    ?m a tx:TxFrameConstant ; rdfs:label "MAGIC_OFFSET" ; tx:value ?magicOff .
+    ?ml a tx:TxFrameConstant ; rdfs:label "MAGIC_LEN" ; tx:value ?magicLen .
+    ?v a tx:TxFrameConstant ; rdfs:label "VERSION_OFFSET" ; tx:value ?verOff .
+    BIND(?magicOff AS ?offA) BIND(?verOff AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?verOff) + xsd:integer(?verLen) != xsd:integer(?resOff))
+    BIND("VERSION" AS ?f5) BIND("offset+length != next offset" AS ?p5)
+    ?v a tx:TxFrameConstant ; rdfs:label "VERSION_OFFSET" ; tx:value ?verOff .
+    ?vl a tx:TxFrameConstant ; rdfs:label "VERSION_LEN" ; tx:value ?verLen .
+    ?r a tx:TxFrameConstant ; rdfs:label "RESERVED_OFFSET" ; tx:value ?resOff .
+    BIND(?verOff AS ?offA) BIND(?resOff AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?resOff) + xsd:integer(?resLen) != xsd:integer(?nonceOff))
+    BIND("RESERVED" AS ?f6) BIND("offset+length != next offset" AS ?p6)
+    ?r a tx:TxFrameConstant ; rdfs:label "RESERVED_OFFSET" ; tx:value ?resOff .
+    ?rl a tx:TxFrameConstant ; rdfs:label "TX_RESERVED_LEN" ; tx:value ?resLen .
+    ?n a tx:TxFrameConstant ; rdfs:label "NONCE_OFFSET" ; tx:value ?nonceOff .
+    BIND(?resOff AS ?offA) BIND(?nonceOff AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?nonceOff) + xsd:integer(?nonceLen) != xsd:integer(?inOff))
+    BIND("NONCE" AS ?f7) BIND("offset+length != next offset" AS ?p7)
+    ?n a tx:TxFrameConstant ; rdfs:label "NONCE_OFFSET" ; tx:value ?nonceOff .
+    ?nl a tx:TxFrameConstant ; rdfs:label "NONCE_LEN" ; tx:value ?nonceLen .
+    ?ic a tx:TxFrameConstant ; rdfs:label "INPUT_COUNT_OFFSET" ; tx:value ?inOff .
+    BIND(?nonceOff AS ?offA) BIND(?inOff AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?inOff) + xsd:integer(?inLen) != xsd:integer(?outOff))
+    BIND("INPUT_COUNT" AS ?f8) BIND("offset+length != next offset" AS ?p8)
+    ?ic a tx:TxFrameConstant ; rdfs:label "INPUT_COUNT_OFFSET" ; tx:value ?inOff .
+    ?icl a tx:TxFrameConstant ; rdfs:label "INPUT_COUNT_LEN" ; tx:value ?inLen .
+    ?oc a tx:TxFrameConstant ; rdfs:label "OUTPUT_COUNT_OFFSET" ; tx:value ?outOff .
+    BIND(?inOff AS ?offA) BIND(?outOff AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?outOff) + xsd:integer(?outLen) != xsd:integer(?digOff))
+    BIND("OUTPUT_COUNT" AS ?f9) BIND("offset+length != next offset" AS ?p9)
+    ?oc a tx:TxFrameConstant ; rdfs:label "OUTPUT_COUNT_OFFSET" ; tx:value ?outOff .
+    ?ocl a tx:TxFrameConstant ; rdfs:label "OUTPUT_COUNT_LEN" ; tx:value ?outLen .
+    ?d a tx:TxFrameConstant ; rdfs:label "PAYLOAD_DIGEST_OFFSET" ; tx:value ?digOff .
+    BIND(?outOff AS ?offA) BIND(?digOff AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?digOff) + xsd:integer(?digLen) != xsd:integer(?hdrLen))
+    BIND("PAYLOAD_DIGEST" AS ?f10) BIND("offset+length != TX_HEADER_LEN" AS ?p10)
+    ?d a tx:TxFrameConstant ; rdfs:label "PAYLOAD_DIGEST_OFFSET" ; tx:value ?digOff .
+    ?dl a tx:TxFrameConstant ; rdfs:label "PAYLOAD_DIGEST_LEN" ; tx:value ?digLen .
+    ?hd a tx:TxFrameConstant ; rdfs:label "TX_HEADER_LEN" ; tx:value ?hdrLen .
+    BIND(?digOff AS ?offA) BIND(?hdrLen AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?hdrLen) != 56)
+    BIND("HEADER_LEN" AS ?f11) BIND("TX_HEADER_LEN must be 56" AS ?p11)
+    ?hd a tx:TxFrameConstant ; rdfs:label "TX_HEADER_LEN" ; tx:value ?hdrLen .
+    BIND(?hdrLen AS ?offA) BIND("56" AS ?offB)
+  } UNION {
+    ?a rdfs:label ?la ; tx:value ?val .
+    ?b rdfs:label ?lb ; tx:value ?val .
+    FILTER(STR(?la) != STR(?lb) && STRENDS(STR(?la), "_OFFSET") && STRENDS(STR(?lb), "_OFFSET"))
+    BIND("OFFSET-COLLISION" AS ?f12)
+    BIND(CONCAT(STR(?la), " collides with ", STR(?lb), " at byte ", STR(?val)) AS ?p12)
+    BIND(?val AS ?offA) BIND(?val AS ?offB)
+  } UNION {
+    VALUES ?reqLabel {
+      "TX_MAGIC" "TX_VERSION" "TX_RESERVED_LEN" "TX_HEADER_LEN"
+      "MAGIC_OFFSET" "MAGIC_LEN"
+      "VERSION_OFFSET" "VERSION_LEN"
+      "RESERVED_OFFSET"
+      "NONCE_OFFSET" "NONCE_LEN"
+      "INPUT_COUNT_OFFSET" "INPUT_COUNT_LEN"
+      "OUTPUT_COUNT_OFFSET" "OUTPUT_COUNT_LEN"
+      "PAYLOAD_DIGEST_OFFSET" "PAYLOAD_DIGEST_LEN"
+    }
+    FILTER NOT EXISTS { ?anyConst rdfs:label ?reqLabel ; tx:value ?anyVal }
+    BIND(CONCAT("CONSTANT-PRESENCE: ", STR(?reqLabel)) AS ?f13)
+    BIND(CONCAT("missing_constant: no TxFrameConstant with rdfs:label ", STR(?reqLabel), " carrying tx:value") AS ?p13)
+    BIND(STR(?reqLabel) AS ?offA) BIND("absent" AS ?offB)
+  } UNION {
+    ?c a tx:TxFrameConstant ; rdfs:label "TX_MAGIC" ; tx:value ?magic .
+    FILTER(datatype(?magic) = xsd:integer || !REGEX(STR(?magic), "^0x[0-9A-Fa-f_]+$"))
+    BIND("TX_MAGIC" AS ?f14) BIND("malformed_hex_magic" AS ?p14)
+    BIND(?magic AS ?offA) BIND(?magic AS ?offB)
+  } UNION {
+    ?c a tx:TxFrameConstant ; rdfs:label ?l ; tx:value ?v .
+    FILTER(STRENDS(STR(?l), "_LEN") || STRENDS(STR(?l), "_OFFSET"))
+    FILTER(datatype(?v) != xsd:integer || !REGEX(STR(?v), "^[0-9]+$"))
+    BIND(CONCAT("OFFSET-LEN: ", STR(?l)) AS ?f15)
+    BIND("malformed_decimal_integer" AS ?p15)
+    BIND(?v AS ?offA) BIND(?v AS ?offB)
+  }
+}
+ORDER BY ?field ?problem
