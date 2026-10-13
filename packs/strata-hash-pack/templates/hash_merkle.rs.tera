@@ -849,5 +849,55 @@ mod tests {
 
     /// The pinned receipt bytes (single line, exactly as emitted; sha256
     /// pinned in RECEIPT_SHA256 and re-verified in-court).
+    /// COURT — sabotage twin: a verifier that skips LEAF_TAG domain
+    /// separation (uses the raw leaf bytes as the level-0 node instead of
+    /// re-hashing under the leaf tag). Caught by the second-preimage court:
+    /// on the exact forged preimage (leaf = untagged node digest of (y, z),
+    /// empty proof) the twin ACCEPTS while the honest verifier REJECTS.
+    fn merkle_verify_untagged(
+        root: &[u8; DIGEST_LEN],
+        leaf: &[u8; DIGEST_LEN],
+        index: usize,
+        proof: &Proof,
+    ) -> bool {
+        let mut node = *leaf; // LEAF_TAG domain separation skipped
+        let mut idx = index;
+        for &sib in proof {
+            node = if idx % 2 == 0 { node_hash(&node, &sib) } else { node_hash(&sib, &node) };
+            idx /= 2;
+        }
+        &node == root
+    }
+
+    #[test]
+    fn sabotage_twin_leaf_tag_skip_is_caught() {
+        // The second-preimage court's forged preimage: leaf X = the 2-leaf
+        // root R = H_node(H_leaf(y), H_leaf(z)) itself. Honest merkle_verify
+        // refuses: the leaf level re-hashes under LEAF_TAG, so
+        // H_leaf(R) != R. The twin — leaf bytes used untagged — accepts
+        // X == R with an empty proof. Divergence on the exact adversarial
+        // instance is the discrimination.
+        let mut rng = SplitMix64(0xA7_7A);
+        for _ in 0..64 {
+            let y = rng.leaf();
+            let z = rng.leaf();
+            let r = merkle_root(&[y, z]).unwrap();
+            let empty_proof: Proof = Vec::new();
+
+            // Honest verifier refuses the forged preimage.
+            assert!(
+                !merkle_verify(&r, &r, 0, &empty_proof),
+                "honest verify must refuse the root-as-leaf preimage"
+            );
+            // The sabotaged verifier accepts it — caught.
+            assert!(
+                merkle_verify_untagged(&r, &r, 0, &empty_proof),
+                "sabotage twin must accept the forged preimage (that is the sabotage)"
+            );
+        }
+    }
+
+    /// The pinned receipt bytes (single line, exactly as emitted; sha256
+    /// pinned in RECEIPT_SHA256 and re-verified in-court).
     const RAW_RECEIPT_JSON: &[u8] = b"{\"record\":{\"version\":1,\"instruction_id\":0,\"activity_idx\":0,\"activity\":\"ggen.sync\",\"node_kind\":0,\"ts_ns\":0,\"payload_hash_hex\":\"d7f967424fb5ce4e16abd61dad455447ecc816337c338cef87c6104049900532\",\"prev_chain_hash_hex\":\"d8f10faf810424d04be7ff1410672185634be7f8d1dbd7e505cb08f78c1f3a00\",\"chain_hash_hex\":\"557364153d472e1c63ad284c039e9eb00cc3768659f646411d18cc35ff0069ba\",\"andon\":\"Green\",\"obligation_count\":0,\"object_ids\":[\"law:d7f967424fb5ce4e\"],\"signature_hex\":\"96fd8bd4f9880a77ad041d3de9f8c96ff38a47deb76b634a1a047ab9f460c6411ef60fc8b8ae8c77ff038b822cca21908ff546251747c9f5e98910c860e4f809\",\"schema\":\"ggen-receipt/v2\",\"v2\":{\"admission\":{\"Recorded\":[{\"evidence_id\":\"generated/ledger_consts.rs\",\"observed_outcome\":\"Pass\",\"decision\":\"Admitted\",\"reason\":\"skipped: unchanged: content identical\",\"obligations_discharged\":[],\"obligations_created\":[]},{\"evidence_id\":\"generated/ledger_state.rs\",\"observed_outcome\":\"Pass\",\"decision\":\"Admitted\",\"reason\":\"skipped: unchanged: content identical\",\"obligations_discharged\":[],\"obligations_created\":[]}]},\"standing_ceiling\":\"Green\",\"equivalence\":{\"source\":\"Equivalent\",\"compiled_binary\":\"Unknown\",\"docs\":\"Unknown\",\"tests\":\"Unknown\",\"receipts\":\"Unknown\",\"evidence\":\"Unknown\",\"gates\":\"Unknown\",\"config\":\"Equivalent\"},\"obligation_count\":{\"Tracked\":{\"required\":0,\"discharged\":0}},\"andon\":\"Green\",\"promotion_eligible\":true},\"chain_rule\":\"praxis-chain/v2-fold\"},\"payload\":{\"graph_hash\":\"88433da4f515e4207470b9ec03ba448fca44e8265bf976b3ab028dd82f9b5068\",\"outputs\":{\"generated/ledger_consts.rs\":\"d1d0a8e8568e8ea9585e1ecc88dd5674b66a8f3f7d2aa4bd655fa7f192008453\",\"generated/ledger_state.rs\":\"b5c47a54d36c468ec08e9a5d3a75588f4e3477b913b332fa2c2c1ab708528f44\"},\"packs\":{},\"decisions\":{\"generated/ledger_consts.rs\":\"skipped: unchanged: content identical\",\"generated/ledger_state.rs\":\"skipped: unchanged: content identical\"},\"closure\":{\"actuator\":\"ggen@26.10.11\",\"gates/010_ledger_layout.rq\":\"e1dacb178a516e841d132c621d39dbaec4e0005f8f9eff5960b115de2b350176\",\"gates/020_transition_law.rq\":\"0cc46c10827d09cbc2ed6df11248b6f2d1f97afe031c79647aa3a55e505d8a03\",\"gates/030_ocel_conformance.rq\":\"6af08d115ac4bcc756258a3380d9fcd0b67f6b127e26ad35d4dd50a7f2ec6590\",\"ontology.ttl\":\"abc83d2ea7205e89dc2c23a28aa32c721d99480bbd0176b6e2ce783b8b1b56f4\",\"queries/ledger_constants.rq\":\"cb7ba366e4d740fbe4efbb7e6293c80738634347732ccacec09cc0a75487418f\",\"templates/ledger_consts.rs.tera\":\"f388fc70b3b248bfc990fa6875df218a17d3a3b372b5c56e9d52928a4456951f\",\"templates/ledger_state.rs.tera\":\"5820f61e42f1d937b6356b03fdf46113ceaf97532d31d07b97931e44a2644f81\"},\"build_provenance\":\"d20d36cf5ff140526484d8e3eb721faa46b8fb56353e63bce1c3d33602cd3dac\"}}";
 }

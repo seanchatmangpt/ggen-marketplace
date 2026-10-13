@@ -43,5 +43,84 @@ impl ActuationArena {
         }
         Ok(FuelLease { holder: holder.into(), fuel })
     }
+
+    /// Fuel sieve: execute `steps` steps of a leased workload. Every step
+    /// decrements the lease's remaining fuel by exactly one (all-or-nothing
+    /// on the fuel ledger); on exhaustion the run FAILS and the lease is
+    /// left at zero fuel.
+    pub fn run(lease: &mut FuelLease, steps: u64) -> Verdict {
+        let mut step: u64 = 0;
+        while step < steps {
+            lease.fuel = match lease.fuel.checked_sub(1) {
+                Some(f) => f,
+                None => {
+                    return Verdict::Fail(format!(
+                        "fuel exhausted at step {} of {} (lease held by {})",
+                        step, steps, lease.holder
+                    ))
+                }
+            };
+            step = step + 1;
+        }
+        Verdict::Pass
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// COURT — exhaustion: a run longer than the lease's fuel must FAIL at
+    /// exactly the fuel boundary, with the lease drained to zero.
+    #[test]
+    fn run_exhausts_fuel_at_boundary() {
+        let mut lease = FuelLease { holder: "court".to_string(), fuel: 3 };
+        match ActuationArena::run(&mut lease, 10) {
+            Verdict::Fail(msg) => {
+                assert!(msg.contains("fuel exhausted at step 3 of 10"), "msg: {msg}");
+            }
+            Verdict::Pass => panic!("underfueled run must exhaust"),
+        }
+        assert_eq!(lease.fuel, 0, "exhaustion drains the lease to zero");
+    }
+
+    /// Sabotage twin — a sieve that skips the fuel decrement: the run
+    /// "passes" every step without ever touching the lease. Caught by the
+    /// exhaustion court: on the underfueled instance the twin PASSES while
+    /// the honest sieve FAILS and drains the lease.
+    fn run_untethered(lease: &mut FuelLease, steps: u64) -> Verdict {
+        let _ = steps;
+        let _ = lease; // fuel decrement skipped
+        Verdict::Pass
+    }
+
+    #[test]
+    fn sabotage_twin_fuel_decrement_skip_is_caught() {
+        let mut honest_lease = FuelLease { holder: "twin".to_string(), fuel: 3 };
+        let mut twin_lease = FuelLease { holder: "twin".to_string(), fuel: 3 };
+
+        // Honest sieve: exhausts, typed failure, lease drained.
+        match ActuationArena::run(&mut honest_lease, 10) {
+            Verdict::Fail(_) => {}
+            Verdict::Pass => panic!("honest sieve must exhaust"),
+        }
+        assert_eq!(honest_lease.fuel, 0);
+
+        // Twin: passes with fuel untouched — divergence on the same
+        // underfueled instance is the discrimination.
+        match run_untethered(&mut twin_lease, 10) {
+            Verdict::Pass => {}
+            Verdict::Fail(msg) => panic!("twin unexpectedly failed: {msg}"),
+        }
+        assert_eq!(twin_lease.fuel, 3, "twin never decremented the fuel");
+
+        // Equivalence half: with sufficient fuel both sieves agree.
+        let mut a = FuelLease { holder: "eq".to_string(), fuel: 10 };
+        let mut b = FuelLease { holder: "eq".to_string(), fuel: 10 };
+        assert_eq!(ActuationArena::run(&mut a, 5), Verdict::Pass);
+        assert_eq!(run_untethered(&mut b, 5), Verdict::Pass);
+        assert_eq!(a.fuel, 5);
+        assert_eq!(b.fuel, 10);
+    }
 }
 {% endif %}

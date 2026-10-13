@@ -207,4 +207,58 @@ mod tests {
         assert_eq!(fire(0b0000, 0b0010, 0b0000), 0b0010); // XOR law
         assert_eq!((0b0000 & !0b0010) | 0b0000, 0b0000); // clear-then-set law
     }
+
+    /// Sabotage twin — a fire law that omits the 0xFFFF mask, lifted to the
+    /// u64 wire-word domain: the unmasked XOR-OR result keeps any bits at
+    /// position >= 16 (post-mask noise above the marking field).
+    fn fire_unmasked(marking: u64, pre: u64, post: u64) -> u64 {
+        (marking ^ pre) | post
+    }
+
+    /// The honest fire law lifted to the same u64 domain (mask retained).
+    fn fire_masked(marking: u64, pre: u64, post: u64) -> u64 {
+        ((marking ^ pre) | post) & MASK16
+    }
+
+    /// COURT — equivalence: (a) on the 16-bit marking domain the twin
+    /// agrees with the honest law exactly (the mask is a no-op there, so
+    /// any "catch" must come from the mask itself); (b) on instances where
+    /// the XOR-OR result carries bits >= 16, the unmasked twin DIVERGES
+    /// from the masked honest law — the sabotage is caught.
+    #[test]
+    fn sabotage_twin_unmasked_fire_is_caught() {
+        // (a) 16-bit domain: twin == honest, exhaustively over a sampled
+        // grid (every marking byte x sampled pre/post).
+        for m in 0u64..=255 {
+            for pre in [0u64, 1, 2, 3, 0x0F, 0x33, 0x81, 0xFF] {
+                for post in [0u64, 1, 2, 0x0C, 0x82, 0xFF] {
+                    let honest = fire(m as u16, pre as u16, post as u16) as u64;
+                    assert_eq!(fire_unmasked(m, pre, post), honest);
+                    assert_eq!(fire_masked(m, pre, post), honest);
+                }
+            }
+        }
+        // (b) high-bit instances: every instance whose unmasked result has
+        // bits >= 16 separates the twin from the honest law.
+        let mut divergent = 0u32;
+        for m in 0u64..=255 {
+            for post in [0x1_0000u64, 0x1_0040, 0xF_FFFF, 0x1_0000_0000] {
+                let pre = 0u64;
+                if fire_unmasked(m, pre, post) & !MASK16 != 0 {
+                    divergent += 1;
+                    assert_ne!(
+                        fire_unmasked(m, pre, post),
+                        fire_masked(m, pre, post),
+                        "unmasked fire must diverge when result exceeds 16 bits"
+                    );
+                }
+            }
+        }
+        assert!(divergent >= 1020, "expected mass divergence, got {divergent}");
+        // Pinned witnesses: 0xFFFF mask drops exactly the bits >= 16.
+        assert_eq!(fire_masked(0, 0, 0x1_0000), 0x0000);
+        assert_eq!(fire_unmasked(0, 0, 0x1_0000), 0x1_0000);
+        assert_eq!(fire_masked(0, 0, 0xF_FFFF), 0xFFFF);
+        assert_eq!(fire_unmasked(0, 0, 0xF_FFFF), 0xF_FFFF);
+    }
 }

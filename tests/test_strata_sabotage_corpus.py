@@ -88,6 +88,26 @@ TWIN_INVENTORY: dict[str, tuple[str, str, tuple[str, ...]]] = {
             "tests::sabotage_twin_reserved_skip_is_caught",
         ),
     ),
+    "strata-hash-pack": (
+        "hash_merkle.rs",
+        "tests::sabotage_twin_leaf_tag_skip_is_caught",
+        ("tests::sabotage_twin_leaf_tag_skip_is_caught",),
+    ),
+    "strata-ledger-pack": (
+        "ledger_state.rs",
+        "tests::sabotage_twin_mutate_before_conservation_is_caught",
+        ("tests::sabotage_twin_mutate_before_conservation_is_caught",),
+    ),
+    "strata-pn64-pack": (
+        "pn64_masks.rs",
+        "tests::sabotage_twin_unmasked_fire_is_caught",
+        ("tests::sabotage_twin_unmasked_fire_is_caught",),
+    ),
+    "strata-temprun-pack": (
+        "arena.rs",
+        "tests::sabotage_twin_fuel_decrement_skip_is_caught",
+        ("tests::sabotage_twin_fuel_decrement_skip_is_caught",),
+    ),
 }
 
 # Packs with NO sabotage twin today (fail-closed: the gate below asserts
@@ -98,11 +118,7 @@ DOCUMENTED_COVERAGE_HOLES = frozenset({
     "strata-cas-pack",
     "strata-chain-pack",
     "strata-governance-pack",
-    "strata-hash-pack",
-    "strata-ledger-pack",
-    "strata-pn64-pack",
     "strata-stratus-pack",
-    "strata-temprun-pack",
     "strata-valve-pack",
 })
 
