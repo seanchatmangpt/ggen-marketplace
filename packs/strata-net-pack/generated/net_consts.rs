@@ -8,6 +8,10 @@
 /// Strata P2P framed-header constants (CLAP-PDU conventions).
 
 
+pub const BLACKLIST_SLOTS: usize = 16; // Slots a blacklisted peer stays refused before re-admission is reconsidered.
+
+pub const ECLIPSE_SUBNET_CAP: usize = 8; // Max concurrent peers per subnet (Eclipse guard); mirrors consensus-pack eclipseMaxPeersPerSubnet = 8.
+
 pub const HEADER_LEN: usize = 8; // Fixed header length in bytes: magic(4)+kind(1)+len(3, u24 big-endian).
 
 pub const KIND_BLOCK: u8 = 4; // 1-byte kind code for MessageKind BLOCK
@@ -33,6 +37,8 @@ pub const MAGIC_LEN: usize = 4; // Magic field length.
 pub const MAGIC_OFFSET: usize = 0; // Magic field offset; length 4.
 
 pub const MAX_MEMPOOL: usize = 4096; // Mempool capacity in entries; eviction order is lowest digest first.
+
+pub const MAX_MSGS_PER_SLOT: usize = 32; // Per-slot message budget (SpamFlood); the (budget+1)-th message in a slot is refused.
 
 pub const MAX_MSG_LEN: usize = 65536; // Maximum payload length in bytes (u16 wire bound).
 

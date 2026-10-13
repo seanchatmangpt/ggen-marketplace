@@ -151,6 +151,9 @@ pub enum MempoolRefusal {
     Duplicate,
     /// Empty payload carries no admissible content.
     Empty,
+    /// S9 InvalidBlockGossip: block payload failed validity re-check and
+    /// was dropped before admission (never inserted into the pool).
+    InvalidBlock,
 }
 
 fn entry_digest(payload: &[u8]) -> [u8; 32] {
@@ -211,6 +214,19 @@ impl Mempool {
 
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
+    }
+
+    /// S9 InvalidBlockGossip refusal path: gossip-block admission that
+    /// re-checks validity BEFORE any pool mutation. A block payload is
+    /// valid iff it is non-empty and carries the 0x01 BLOCK_EXTENSION
+    /// version tag in its leading byte (deterministic stand-in for the
+    /// consensus-pack's height/parent-hash/PoW re-check); every failure
+    /// is the typed `InvalidBlock` refusal and the pool is untouched.
+    pub fn admit_block(&mut self, payload: &[u8]) -> Result<[u8; 32], MempoolRefusal> {
+        if payload.is_empty() || payload[0] != 0x01 {
+            return Err(MempoolRefusal::InvalidBlock);
+        }
+        self.admit(payload)
     }
 
     /// Admit with eviction: when at capacity, evict the lowest digest first,
@@ -330,6 +346,199 @@ impl PeerTable {
 impl Default for PeerTable {
     fn default() -> PeerTable {
         PeerTable::new()
+    }
+}
+
+// ── S9 hardening: eclipse guard, blacklist, rate limiter ─────────────
+
+/// S9 peer-admission refusals extending the capacity-capped table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HardeningRefusal {
+    /// Eclipse guard: subnet already holds ECLIPSE_SUBNET_CAP (8) peers.
+    SubnetCapped,
+    /// Peer already present.
+    Duplicate,
+    /// Peer is blacklisted (blacklist slots > 0).
+    Blacklisted,
+    /// SpamFlood: slot message budget MAX_MSGS_PER_SLOT (32) exhausted.
+    SpamFlood,
+}
+
+impl std::fmt::Display for HardeningRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            HardeningRefusal::SubnetCapped => "SubnetCapped",
+            HardeningRefusal::Duplicate => "Duplicate",
+            HardeningRefusal::Blacklisted => "Blacklisted",
+            HardeningRefusal::SpamFlood => "SpamFlood",
+        };
+        f.write_str(s)
+    }
+}
+
+/// Blacklist ledger: peer id → remaining blacklist slots. A blacklisted
+/// peer is refused at admission until every slot has been ticked away.
+pub struct Blacklist {
+    slots: std::collections::HashMap<String, usize>,
+}
+
+impl Blacklist {
+    pub fn new() -> Blacklist {
+        Blacklist { slots: std::collections::HashMap::new() }
+    }
+
+    /// Blacklist a peer for BLACKLIST_SLOTS (16) slots.
+    pub fn blacklist(&mut self, peer_id: &str) {
+        self.slots.insert(peer_id.to_string(), BLACKLIST_SLOTS);
+    }
+
+    /// Remaining slots, or 0 for a non-blacklisted peer.
+    pub fn slots_left(&self, peer_id: &str) -> usize {
+        self.slots.get(peer_id).copied().unwrap_or(0)
+    }
+
+    pub fn is_blacklisted(&self, peer_id: &str) -> bool {
+        self.slots_left(peer_id) > 0
+    }
+
+    /// Tick one slot: every term decrements; peers reaching 0 are lifted.
+    pub fn tick(&mut self) {
+        for s in self.slots.values_mut() {
+            *s = s.saturating_sub(1);
+        }
+        self.slots.retain(|_, s| *s > 0);
+    }
+}
+
+impl Default for Blacklist {
+    fn default() -> Blacklist {
+        Blacklist::new()
+    }
+}
+
+/// Hardening admission valve: eclipse-guarded peer table + blacklist.
+pub struct HardenedPeerTable {
+    table: PeerTable,
+    subnets: std::collections::HashMap<String, String>,
+    blacklist: Blacklist,
+}
+
+impl HardenedPeerTable {
+    pub fn new() -> HardenedPeerTable {
+        HardenedPeerTable {
+            table: PeerTable::new(),
+            subnets: std::collections::HashMap::new(),
+            blacklist: Blacklist::new(),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.table.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.table.is_empty()
+    }
+
+    pub fn contains(&self, peer_id: &str) -> bool {
+        self.table.contains(peer_id)
+    }
+
+    /// Deterministic subnet label of an admitted peer (`None` if absent).
+    pub fn subnet_of(&self, peer_id: &str) -> Option<&str> {
+        self.subnets.get(peer_id).map(String::as_str)
+    }
+
+    /// Peers currently admitted from `peer_subnet` (the eclipse-guard count).
+    pub fn subnet_count(&self, peer_subnet: &str) -> usize {
+        self.subnets.values().filter(|s| s.as_str() == peer_subnet).count()
+    }
+
+    /// Admit a peer into `peer_subnet` through the full hardening ladder:
+    /// Blacklisted → Duplicate → TableFull/SubnetCapped, then admit.
+    pub fn admit(&mut self, peer_id: &str, peer_subnet: &str) -> Result<(), HardeningRefusal> {
+        if self.blacklist.is_blacklisted(peer_id) {
+            return Err(HardeningRefusal::Blacklisted);
+        }
+        if self.table.contains(peer_id) {
+            return Err(HardeningRefusal::Duplicate);
+        }
+        if self.subnet_count(peer_subnet) >= ECLIPSE_SUBNET_CAP {
+            return Err(HardeningRefusal::SubnetCapped);
+        }
+        self.table
+            .add(peer_id)
+            .map_err(|_| HardeningRefusal::SubnetCapped)?;
+        self.subnets.insert(peer_id.to_string(), peer_subnet.to_string());
+        Ok(())
+    }
+
+    /// Blacklist an admitted (or arbitrary) peer for BLACKLIST_SLOTS slots.
+    pub fn blacklist(&mut self, peer_id: &str) {
+        self.blacklist.blacklist(peer_id);
+    }
+
+    /// Tick one blacklist slot (all terms decrement; served peers lift).
+    pub fn blacklist_tick(&mut self) {
+        self.blacklist.tick();
+    }
+
+    /// Remaining blacklist slots for a peer (0 = not blacklisted).
+    pub fn blacklist_slots_left(&self, peer_id: &str) -> usize {
+        self.blacklist.slots_left(peer_id)
+    }
+
+    /// Remove a peer; its subnet count drops accordingly.
+    pub fn remove(&mut self, peer_id: &str) -> Result<(), HardeningRefusal> {
+        self.subnets.remove(peer_id);
+        self.table.remove(peer_id).map_err(|_| HardeningRefusal::Blacklisted)
+    }
+}
+
+impl Default for HardenedPeerTable {
+    fn default() -> HardenedPeerTable {
+        HardenedPeerTable::new()
+    }
+}
+
+/// Per-slot message rate limiter (SpamFlood guard): admits at most
+/// MAX_MSGS_PER_SLOT (32) messages per slot; the 33rd is refused.
+pub struct SlotRateLimiter {
+    budget: usize,
+    seen: usize,
+}
+
+impl SlotRateLimiter {
+    pub fn new() -> SlotRateLimiter {
+        SlotRateLimiter { budget: MAX_MSGS_PER_SLOT, seen: 0 }
+    }
+
+    pub fn new_with_budget(budget: usize) -> SlotRateLimiter {
+        SlotRateLimiter { budget, seen: 0 }
+    }
+
+    pub fn seen(&self) -> usize {
+        self.seen
+    }
+
+    /// Record one message; refuses SpamFlood once the slot budget is spent.
+    pub fn note_msg(&mut self) -> Result<(), HardeningRefusal> {
+        if self.seen >= self.budget {
+            return Err(HardeningRefusal::SpamFlood);
+        }
+        self.seen += 1;
+        Ok(())
+    }
+
+    /// Advance to the next slot (budget restored).
+    pub fn next_slot(&mut self) {
+        self.seen = 0;
+    }
+}
+
+impl Default for SlotRateLimiter {
+    fn default() -> SlotRateLimiter {
+        SlotRateLimiter::new()
     }
 }
 
@@ -499,5 +708,74 @@ mod tests {
         assert_eq!(MAX_MSG_LEN, 65536);
         assert_eq!(HEADER_LEN, 8);
         let _ = table;
+    }
+
+    // ── S9 hardening courts ──────────────────────────────────────────
+
+    #[test]
+    fn s9_eclipse_cap_fires_at_8_same_subnet_peers() {
+        let mut t = HardenedPeerTable::new();
+        for i in 0..8 {
+            t.admit(&format!("p{}", i), "10.0.0.0/16")
+                .unwrap_or_else(|e| panic!("peer {} must admit: {}", i, e));
+        }
+        assert_eq!(t.subnet_count("10.0.0.0/16"), 8);
+        // 9th peer from the same subnet: refused, table unchanged.
+        assert_eq!(t.admit("p8", "10.0.0.0/16"), Err(HardeningRefusal::SubnetCapped));
+        assert_eq!(t.len(), 8);
+        // A different subnet is not capped by the first subnet's fullness.
+        t.admit("q0", "10.1.0.0/16").expect("other subnet admits");
+        assert_eq!(t.subnet_count("10.1.0.0/16"), 1);
+    }
+
+    #[test]
+    fn s9_blacklist_refusal_and_slot_expiry() {
+        let mut t = HardenedPeerTable::new();
+        t.admit("bad", "10.0.0.0/16").expect("initial admit");
+        t.blacklist("bad");
+        assert_eq!(t.admit("bad", "10.0.0.0/16"), Err(HardeningRefusal::Blacklisted));
+        // Even the raw table path refuses a blacklisted peer.
+        let mut plain = HardenedPeerTable::new();
+        plain.blacklist("outsider");
+        assert_eq!(plain.admit("outsider", "10.2.0.0/16"), Err(HardeningRefusal::Blacklisted));
+        // Full 16-slot term: refused on every slot until the last tick lifts it.
+        for _ in 0..BLACKLIST_SLOTS - 1 {
+            plain.blacklist_tick();
+            assert_eq!(plain.admit("outsider", "10.2.0.0/16"), Err(HardeningRefusal::Blacklisted));
+        }
+        plain.blacklist_tick();
+        plain.admit("outsider", "10.2.0.0/16").expect("term served, re-admitted");
+        // Constants come from the ontology projection.
+        assert_eq!(BLACKLIST_SLOTS, 16);
+    }
+
+    #[test]
+    fn s9_spam_limiter_fires_at_33() {
+        let mut lim = SlotRateLimiter::new();
+        for i in 0..32 {
+            lim.note_msg()
+                .unwrap_or_else(|e| panic!("msg {} within budget must admit: {}", i + 1, e));
+        }
+        assert_eq!(lim.note_msg(), Err(HardeningRefusal::SpamFlood));
+        assert_eq!(lim.seen(), 32);
+        // New slot restores the budget; the law constant is 32.
+        lim.next_slot();
+        lim.note_msg().expect("fresh slot admits");
+        assert_eq!(MAX_MSGS_PER_SLOT, 32);
+    }
+
+    #[test]
+    fn s9_invalid_block_gossip_refused_and_not_admitted() {
+        let mut pool = Mempool::new_with_capacity(4);
+        // Empty gossip block.
+        assert_eq!(pool.admit_block(b""), Err(MempoolRefusal::InvalidBlock));
+        // Non-empty but missing the BLOCK_EXTENSION tag byte.
+        assert_eq!(pool.admit_block(b"\x02block-body"), Err(MempoolRefusal::InvalidBlock));
+        assert_eq!(pool.len(), 0);
+        // A valid gossip block admits (leading 0x01 tag).
+        let d = pool.admit_block(b"\x01block-body").expect("valid block admits");
+        assert_eq!(pool.len(), 1);
+        assert!(pool.remove(&d));
+        assert!(pool.is_empty());
     }
 }

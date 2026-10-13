@@ -1,0 +1,49 @@
+# MESSAGE: Valve S9 adversarial mirror violated — every consensus-pack
+# AdversarialCase IRI must be mirrored onto a valve RefusalClass via
+# valve:adversarialMirror (comment-level citation, IRIs bound by literal
+# per the greene precedent). Cited IRIs:
+#   SelfishMining / Eclipse / SpamFlood / InvalidBlockGossip, IRIs
+#   https://strata.chatman.ai/ontology#<Case>
+# Presence arms fire when any of the four is absent; a typed arm fires when
+# a mirror value is present but not a string literal; a closure arm fires
+# when a mirror is not one of the four case IRIs. Any row indicates a
+# broken adversarial mirror.
+PREFIX xsd:    <http://www.w3.org/2001/XMLSchema#>
+PREFIX valve:  <https://strata.chatman.ai/ontology/valve#>
+
+SELECT (COALESCE(?f1,?f2,?f3,?f4,?f5,?f6) AS ?field)
+       (COALESCE(?p1,?p2,?p3,?p4,?p5,?p6) AS ?problem) WHERE {
+  {
+    FILTER NOT EXISTS {
+      ?c valve:adversarialMirror "https://strata.chatman.ai/ontology#SelfishMining" .
+    }
+    BIND("SelfishMining" AS ?f1) BIND("missing_adversarial_mirror" AS ?p1)
+  } UNION {
+    FILTER NOT EXISTS {
+      ?c valve:adversarialMirror "https://strata.chatman.ai/ontology#Eclipse" .
+    }
+    BIND("Eclipse" AS ?f2) BIND("missing_adversarial_mirror" AS ?p2)
+  } UNION {
+    FILTER NOT EXISTS {
+      ?c valve:adversarialMirror "https://strata.chatman.ai/ontology#SpamFlood" .
+    }
+    BIND("SpamFlood" AS ?f3) BIND("missing_adversarial_mirror" AS ?p3)
+  } UNION {
+    FILTER NOT EXISTS {
+      ?c valve:adversarialMirror "https://strata.chatman.ai/ontology#InvalidBlockGossip" .
+    }
+    BIND("InvalidBlockGossip" AS ?f4) BIND("missing_adversarial_mirror" AS ?p4)
+  } UNION {
+    ?c valve:adversarialMirror ?m .
+    FILTER(datatype(?m) != xsd:string)
+    BIND(STRAFTER(STR(?c), "#") AS ?f5) BIND("non_string_mirror_literal" AS ?p5)
+  } UNION {
+    ?c valve:adversarialMirror ?m .
+    FILTER(?m != "https://strata.chatman.ai/ontology#SelfishMining" &&
+           ?m != "https://strata.chatman.ai/ontology#Eclipse" &&
+           ?m != "https://strata.chatman.ai/ontology#SpamFlood" &&
+           ?m != "https://strata.chatman.ai/ontology#InvalidBlockGossip")
+    BIND(STRAFTER(STR(?c), "#") AS ?f6) BIND("mirror_not_a_consensus_case_iri" AS ?p6)
+  }
+}
+ORDER BY ?field ?problem

@@ -27,6 +27,30 @@ st:PeerAdmission a rdfs:Class ; rdfs:label "PeerAdmission" ;
 st:MempoolEntry a rdfs:Class ; rdfs:label "MempoolEntry" ;
     rdfs:comment "One mempool admission candidate, identified by its 32-byte digest." .
 
+# ── S9 hardening: peer-admission refusal-path surface ─────────────────
+# Adversarial ground truth (comment-level citation, no owl:imports):
+# packs/strata-consensus-pack/ontology.ttl AdversarialCase individuals
+# Eclipse / SpamFlood / InvalidBlockGossip and their st:refusalPath values.
+# Eclipse: per-subnet peer cap 8 (ECLIPSE_MAX_PEERS_PER_SUBNET); SpamFlood:
+# per-slot rate limit 32; InvalidBlockGossip: typed refusal, block dropped
+# before mempool admission.
+
+st:subnetClass a rdf:Property ; rdfs:label "subnetClass" ;
+    rdfs:comment "Subnet class (deterministic string label) of a peer admission candidate; eclipse guard counts peers per subnetClass." ;
+    rdfs:domain st:PeerAdmission ; rdfs:range xsd:string .
+
+st:msgsThisSlot a rdf:Property ; rdfs:label "msgsThisSlot" ;
+    rdfs:comment "Messages this peer contributed in the current slot (rate-limit input)." ;
+    rdfs:domain st:PeerAdmission ; rdfs:range xsd:integer .
+
+st:blacklisted a rdf:Property ; rdfs:label "blacklisted" ;
+    rdfs:comment "Whether the peer is currently blacklisted (blacklist slots > 0)." ;
+    rdfs:domain st:PeerAdmission ; rdfs:range xsd:boolean .
+
+st:blacklistSlots a rdf:Property ; rdfs:label "blacklistSlots" ;
+    rdfs:comment "Remaining blacklist slots for a blacklisted peer; must be > 0 whenever blacklisted is true (gate 030)." ;
+    rdfs:domain st:PeerAdmission ; rdfs:range xsd:integer .
+
 # ── Declared property surface (exact; see gate 020 closure) ──────────
 
 st:msgKind a rdf:Property ; rdfs:label "msgKind" ;
@@ -98,6 +122,21 @@ net:MAX_PEERS a net:NetWireConstant ;
     rdfs:label "MAX_PEERS" ; net:rustType "usize" ; net:value "64"^^xsd:integer ;
     rdfs:comment "Peer-table capacity; admission beyond the cap is refused." .
 
+# ── S9 hardening constants (generated into net_consts.rs/engine) ─────
+# ECLIPSE_SUBNET_CAP mirrors st:eclipseMaxPeersPerSubnet "8" in
+# packs/strata-consensus-pack/ontology.ttl (cross-pack law parity; see
+# gate 030 value arm).
+
+net:ECLIPSE_SUBNET_CAP a net:NetWireConstant ;
+    rdfs:label "ECLIPSE_SUBNET_CAP" ; net:rustType "usize" ; net:value "8"^^xsd:integer ;
+    rdfs:comment "Max concurrent peers per subnet (Eclipse guard); mirrors consensus-pack eclipseMaxPeersPerSubnet = 8." .
+net:BLACKLIST_SLOTS a net:NetWireConstant ;
+    rdfs:label "BLACKLIST_SLOTS" ; net:rustType "usize" ; net:value "16"^^xsd:integer ;
+    rdfs:comment "Slots a blacklisted peer stays refused before re-admission is reconsidered." .
+net:MAX_MSGS_PER_SLOT a net:NetWireConstant ;
+    rdfs:label "MAX_MSGS_PER_SLOT" ; net:rustType "usize" ; net:value "32"^^xsd:integer ;
+    rdfs:comment "Per-slot message budget (SpamFlood); the (budget+1)-th message in a slot is refused." .
+
 # ── MessageKind individuals (1-byte kind codes; exact set of 5) ──────
 
 net:INV a st:MessageKind ; rdfs:label "INV" ; net:kindCode "1"^^xsd:integer ;
@@ -123,3 +162,21 @@ net:msg-block a st:NetMessage ; st:msgKind net:BLOCK ; st:payloadLen "1"^^xsd:in
     rdfs:comment "BLOCK carries a non-empty block payload." .
 net:msg-ping a st:NetMessage ; st:msgKind net:PING ; st:payloadLen "0"^^xsd:integer ;
     rdfs:comment "PING carries no payload." .
+
+# ── S9 hardening: sample PeerAdmission individuals (gate 030 corpus) ──
+
+net:peer-alpha a st:PeerAdmission ; rdfs:label "peer-alpha" ;
+    st:peerId "peer-alpha" ; st:admissionVerdict "admit" ;
+    st:subnetClass "10.0.0.0/16" ; st:msgsThisSlot "5"^^xsd:integer ;
+    st:blacklisted false ;
+    rdfs:comment "Admitted peer under the eclipse cap, under the slot budget." .
+net:peer-beta a st:PeerAdmission ; rdfs:label "peer-beta" ;
+    st:peerId "peer-beta" ; st:admissionVerdict "admit" ;
+    st:subnetClass "10.0.0.0/16" ; st:msgsThisSlot "7"^^xsd:integer ;
+    st:blacklisted false ;
+    rdfs:comment "Second peer in the same subnet (cap 8 not yet reached)." .
+net:peer-gamma a st:PeerAdmission ; rdfs:label "peer-gamma" ;
+    st:peerId "peer-gamma" ; st:admissionVerdict "refuse:blacklisted" ;
+    st:subnetClass "10.9.9.0/24" ; st:msgsThisSlot "0"^^xsd:integer ;
+    st:blacklisted true ; st:blacklistSlots "16"^^xsd:integer ;
+    rdfs:comment "Blacklisted peer carrying a full 16-slot term; gate 030 requires slots > 0." .

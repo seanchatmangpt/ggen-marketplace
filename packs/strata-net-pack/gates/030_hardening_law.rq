@@ -1,0 +1,109 @@
+# MESSAGE: Net S9 hardening law violated — the peer-admission refusal
+# surface must carry its adversarial-corpus ground truth.
+# (1) Every blacklisted peer (st:blacklisted true) must carry a positive
+#     integer blacklist term (st:blacklistSlots > 0), with V7 typed /
+#     malformed-integer arms on the numeric surface (a cast error inside a
+#     FILTER excludes the row, so a string-typed or malformed value would
+#     otherwise silently pass — see packs/strata-pn64-pack/gates/
+#     010_place_offset_bounds.rq and net gate 010's V7 arms).
+# (2) ECLIPSE_SUBNET_CAP must be present AND equal 8 — the cross-pack law
+#     parity value of consensus-pack's st:eclipseMaxPeersPerSubnet "8"
+#     (packs/strata-consensus-pack/ontology.ttl, AdversarialCase Eclipse;
+#     cited by comment per FM-PACK-018 — no owl:imports).
+# (3) BLACKLIST_SLOTS must be present AND equal 16.
+# (4) MAX_MSGS_PER_SLOT must be present AND equal 32 (SpamFlood budget).
+# (5) The hardening corpus must not be vacuous: at least one blacklisted
+#     PeerAdmission individual and at least one subnet-classed admitted
+#     PeerAdmission individual must exist.
+# Any row indicates a broken S9 hardening law.
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX st:   <https://strata.chatman.ai/ontology#>
+PREFIX net:  <https://strata.chatman.ai/ontology/net#>
+
+SELECT (COALESCE(?f1,?f2,?f3,?f4,?f5,?f6,?f7,?f8,?f9,?f10,?f11,?f12,?f13) AS ?field)
+       (COALESCE(?p1,?p2,?p3,?p4,?p5,?p6,?p7,?p8,?p9,?p10,?p11,?p12,?p13) AS ?problem) WHERE {
+  {
+    # Blacklisted peer missing a positive blacklist term.
+    ?peer a st:PeerAdmission ; st:blacklisted true .
+    OPTIONAL { ?peer st:blacklistSlots ?slots }
+    FILTER(!BOUND(?slots) || datatype(?slots) != xsd:integer || xsd:integer(?slots) <= 0)
+    BIND(STRAFTER(STR(?peer), "#") AS ?f1)
+    BIND(CONCAT("blacklisted_peer_without_positive_blacklistSlots (got ",
+                IF(BOUND(?slots), STR(?slots), "absent"), ")") AS ?p1)
+  } UNION {
+    # V7 typed arm: blacklistSlots present but not xsd:integer.
+    ?peer a st:PeerAdmission ; st:blacklistSlots ?slots .
+    FILTER(datatype(?slots) != xsd:integer)
+    BIND(STRAFTER(STR(?peer), "#") AS ?f2) BIND("non_integer_blacklistSlots" AS ?p2)
+  } UNION {
+    # V7 malformed arm: integer-typed but not a decimal-integer lexical form.
+    ?peer a st:PeerAdmission ; st:blacklistSlots ?slots .
+    FILTER(datatype(?slots) = xsd:integer && !REGEX(STR(?slots), "^-?[0-9]+$"))
+    BIND(STRAFTER(STR(?peer), "#") AS ?f3) BIND("malformed_blacklistSlots" AS ?p3)
+  } UNION {
+    # V7 typed/malformed arm: msgsThisSlot must be a well-formed integer ≥ 0.
+    ?peer a st:PeerAdmission ; st:msgsThisSlot ?m .
+    FILTER(datatype(?m) != xsd:integer || !REGEX(STR(?m), "^-?[0-9]+$")
+           || xsd:integer(?m) < 0)
+    BIND(STRAFTER(STR(?peer), "#") AS ?f4)
+    BIND("non_integer_or_negative_msgsThisSlot" AS ?p4)
+  } UNION {
+    # ECLIPSE_SUBNET_CAP presence (fail-closed).
+    FILTER NOT EXISTS {
+      ?c a net:NetWireConstant ; rdfs:label "ECLIPSE_SUBNET_CAP" ; net:value ?v .
+    }
+    BIND("ECLIPSE_SUBNET_CAP" AS ?f5) BIND("missing_hardening_constant" AS ?p5)
+  } UNION {
+    # ECLIPSE_SUBNET_CAP value arm: must equal 8 (consensus-pack parity:
+    # packs/strata-consensus-pack/ontology.ttl eclipseMaxPeersPerSubnet 8,
+    # AdversarialCase Eclipse — comment-level citation, no owl:imports).
+    ?c a net:NetWireConstant ; rdfs:label "ECLIPSE_SUBNET_CAP" ; net:value ?v .
+    FILTER(datatype(?v) != xsd:integer || xsd:integer(?v) != 8)
+    BIND("ECLIPSE_SUBNET_CAP" AS ?f6)
+    BIND(CONCAT("eclipse_subnet_cap_must_be_8_consensus_parity, got ", STR(?v)) AS ?p6)
+  } UNION {
+    # BLACKLIST_SLOTS presence.
+    FILTER NOT EXISTS {
+      ?c a net:NetWireConstant ; rdfs:label "BLACKLIST_SLOTS" ; net:value ?v2 .
+    }
+    BIND("BLACKLIST_SLOTS" AS ?f7) BIND("missing_hardening_constant" AS ?p7)
+  } UNION {
+    ?c a net:NetWireConstant ; rdfs:label "BLACKLIST_SLOTS" ; net:value ?v2 .
+    FILTER(datatype(?v2) != xsd:integer || xsd:integer(?v2) != 16)
+    BIND("BLACKLIST_SLOTS" AS ?f8)
+    BIND(CONCAT("blacklist_slots_must_be_16, got ", STR(?v2)) AS ?p8)
+  } UNION {
+    # MAX_MSGS_PER_SLOT (rate-limit constant) presence.
+    FILTER NOT EXISTS {
+      ?c a net:NetWireConstant ; rdfs:label "MAX_MSGS_PER_SLOT" ; net:value ?v3 .
+    }
+    BIND("MAX_MSGS_PER_SLOT" AS ?f9) BIND("missing_hardening_constant" AS ?p9)
+  } UNION {
+    ?c a net:NetWireConstant ; rdfs:label "MAX_MSGS_PER_SLOT" ; net:value ?v3 .
+    FILTER(datatype(?v3) != xsd:integer || xsd:integer(?v3) != 32)
+    BIND("MAX_MSGS_PER_SLOT" AS ?f10)
+    BIND(CONCAT("max_msgs_per_slot_must_be_32, got ", STR(?v3)) AS ?p10)
+  } UNION {
+    # Non-vacuity: the hardening corpus must contain a blacklisted peer.
+    FILTER NOT EXISTS {
+      ?p a st:PeerAdmission ; st:blacklisted true ; st:blacklistSlots ?s .
+      FILTER(datatype(?s) = xsd:integer && xsd:integer(?s) > 0)
+    }
+    BIND("hardening-corpus" AS ?f11) BIND("no_blacklisted_peer_individual" AS ?p11)
+  } UNION {
+    # Non-vacuity: at least one subnet-classed admitted peer exists
+    # (the eclipse-guard input surface must be populated).
+    FILTER NOT EXISTS {
+      ?p a st:PeerAdmission ; st:subnetClass ?sc .
+      FILTER(STR(?sc) != "")
+    }
+    BIND("hardening-corpus" AS ?f12) BIND("no_subnet_classed_peer_individual" AS ?p12)
+  } UNION {
+    # V7 typed arm: subnetClass must be a string-typed value.
+    ?peer a st:PeerAdmission ; st:subnetClass ?sc .
+    FILTER(datatype(?sc) != xsd:string)
+    BIND(STRAFTER(STR(?peer), "#") AS ?f13) BIND("non_string_subnetClass" AS ?p13)
+  }
+}
+ORDER BY ?field ?problem

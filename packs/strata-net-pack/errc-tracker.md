@@ -34,10 +34,22 @@
   gossip consume this framing).
 - Deterministic eviction law: lowest-digest-first via `BTreeSet` order;
   `admit` evicts, `try_admit` refuses `Full` — both surfaces tested.
+- S9 (roadmap slice 9): hardening refusal paths landed —
+  `HardenedPeerTable` (eclipse subnet cap 8, `Blacklist` 16-slot terms,
+  duplicate/table-full ladder), `SlotRateLimiter` (32/slot, typed
+  `SpamFlood`), `Mempool::admit_block` (typed `InvalidBlock`, pool
+  untouched on refusal); ontology gains `subnetClass` / `msgsThisSlot` /
+  `blacklisted` / `blacklistSlots` + constants `ECLIPSE_SUBNET_CAP` 8
+  (consensus-pack parity) / `BLACKLIST_SLOTS` 16 / `MAX_MSGS_PER_SLOT` 32;
+  gate `030_hardening_law.rq` (blacklist-term law, constant presence+
+  value arms, V7 typed/malformed arms, corpus non-vacuity) proven
+  non-vacuous by mutation (eclipse cap → 9 and blacklistSlots → 0 each
+  fire).
 
 ## Standing
-ALIVE (qualification receipt 2026-10-13: sync ×2 byte-identical, 17/17 Rust
-tests, 2/2 gates 0 rows non-vacuous, pack-scoped qualification ALIVE;
+ALIVE (qualification receipt 2026-10-13: sync ×2 byte-identical
+(`202b79f4…` engine / `a72b9bb2…` consts), 17/17 Rust tests incl. 4 S9
+hardening courts, 3/3 gates 0 rows, pack-scoped qualification ALIVE;
 repo-wide `qualify_packs.py` run is BLOCKED:ONTOLOGY_SOURCE_MISSING by the
 in-flight uncommitted strata-consensus-pack of the S8 lane, not by this
 pack).

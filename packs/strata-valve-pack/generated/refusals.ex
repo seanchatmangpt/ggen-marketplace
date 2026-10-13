@@ -31,7 +31,7 @@ defmodule Strata.Valve.Refusals.ArenaFailure do
   @moduledoc """
   Refusal class `arena_failure`.
 
-  Arena returned {:ok, _} without a 256-bit commit_hash status map, or propagated a non-atom error (valve.ex handle_call ingest clause).
+  Arena returned {:ok, _} without a 256-bit commit_hash status map, or propagated a non-atom error (valve.ex handle_call ingest clause). S9 adversarial mirror: InvalidBlockGossip — a gossip block failing validity re-check surfaces as an arena result without a 256-bit commit_hash status map.
 
   Emits an opaque fixed #{@receipt_len}-byte receipt; the wire carries zero
   diagnostics either way (constant-time, fail-closed).
@@ -51,7 +51,7 @@ defmodule Strata.Valve.Refusals.FuelExhausted do
   @moduledoc """
   Refusal class `fuel_exhausted`.
 
-  Header fuel lease is zero: fuel == 0 refused before arena handoff (valve.ex validate/2 cond clause).
+  Header fuel lease is zero: fuel == 0 refused before arena handoff (valve.ex validate/2 cond clause). S9 adversarial mirror: SpamFlood — a slot-budget-flooding peer exhausts the frame's fuel lease.
 
   Emits an opaque fixed #{@receipt_len}-byte receipt; the wire carries zero
   diagnostics either way (constant-time, fail-closed).
@@ -71,7 +71,7 @@ defmodule Strata.Valve.Refusals.MalformedFrame do
   @moduledoc """
   Refusal class `malformed_frame`.
 
-  Frame failed the strict 64-byte header pattern match: bad magic/version, non-zero reserved bytes, permutation > 5, or wrong total length (valve.ex validate/2 fall-through clause).
+  Frame failed the strict 64-byte header pattern match: bad magic/version, non-zero reserved bytes, permutation > 5, or wrong total length (valve.ex validate/2 fall-through clause). S9 adversarial mirror: Eclipse — a subnet-capped/eclipsed topology surfaces valve-side as frames failing the strict header pattern match.
 
   Emits an opaque fixed #{@receipt_len}-byte receipt; the wire carries zero
   diagnostics either way (constant-time, fail-closed).
@@ -91,7 +91,7 @@ defmodule Strata.Valve.Refusals.ParentDiscontinuity do
   @moduledoc """
   Refusal class `parent_discontinuity`.
 
-  Frame's parent digest does not equal the valve's active parent_digest register (valve.ex validate/2 cond clause).
+  Frame's parent digest does not equal the valve's active parent_digest register (valve.ex validate/2 cond clause). S9 adversarial mirror: SelfishMining — a withheld-suffix parent surfaces as a frame whose parent digest misses the active register.
 
   Emits an opaque fixed #{@receipt_len}-byte receipt; the wire carries zero
   diagnostics either way (constant-time, fail-closed).

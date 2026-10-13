@@ -30,27 +30,46 @@ valve:MalformedFrameRefusal a valve:RefusalClass ;
     rdfs:label "malformed_frame" ;
     valve:atom "malformed_frame" ;
     valve:module "Strata.Valve.Refusals.MalformedFrame" ;
-    rdfs:comment "Frame failed the strict 64-byte header pattern match: bad magic/version, non-zero reserved bytes, permutation > 5, or wrong total length (valve.ex validate/2 fall-through clause)." .
+    rdfs:comment "Frame failed the strict 64-byte header pattern match: bad magic/version, non-zero reserved bytes, permutation > 5, or wrong total length (valve.ex validate/2 fall-through clause). S9 adversarial mirror: Eclipse — a subnet-capped/eclipsed topology surfaces valve-side as frames failing the strict header pattern match." .
 
 valve:FuelExhaustedRefusal a valve:RefusalClass ;
     rdfs:label "fuel_exhausted" ;
     valve:atom "fuel_exhausted" ;
     valve:module "Strata.Valve.Refusals.FuelExhausted" ;
-    rdfs:comment "Header fuel lease is zero: fuel == 0 refused before arena handoff (valve.ex validate/2 cond clause)." .
+    rdfs:comment "Header fuel lease is zero: fuel == 0 refused before arena handoff (valve.ex validate/2 cond clause). S9 adversarial mirror: SpamFlood — a slot-budget-flooding peer exhausts the frame's fuel lease." .
 
 valve:ParentDiscontinuityRefusal a valve:RefusalClass ;
     rdfs:label "parent_discontinuity" ;
     valve:atom "parent_discontinuity" ;
     valve:module "Strata.Valve.Refusals.ParentDiscontinuity" ;
-    rdfs:comment "Frame's parent digest does not equal the valve's active parent_digest register (valve.ex validate/2 cond clause)." .
+    rdfs:comment "Frame's parent digest does not equal the valve's active parent_digest register (valve.ex validate/2 cond clause). S9 adversarial mirror: SelfishMining — a withheld-suffix parent surfaces as a frame whose parent digest misses the active register." .
 
 valve:ArenaFailureRefusal a valve:RefusalClass ;
     rdfs:label "arena_failure" ;
     valve:atom "arena_failure" ;
     valve:module "Strata.Valve.Refusals.ArenaFailure" ;
-    rdfs:comment "Arena returned {:ok, _} without a 256-bit commit_hash status map, or propagated a non-atom error (valve.ex handle_call ingest clause)." .
+    rdfs:comment "Arena returned {:ok, _} without a 256-bit commit_hash status map, or propagated a non-atom error (valve.ex handle_call ingest clause). S9 adversarial mirror: InvalidBlockGossip — a gossip block failing validity re-check surfaces as an arena result without a 256-bit commit_hash status map." .
 
 valve:refusalReceiptLen a valve:WireFact ;
     rdfs:label "refusal_receipt_len" ;
     valve:length "32"^^xsd:integer ;
     rdfs:comment "Wire length of the opaque refusal receipt (bytes); must match wire:RefusalReceipt fixedLen." .
+
+# ---------------------------------------------------------------------------
+# S9 adversarial mirror (comment-level, per docs/sjira/v26.10.8/
+# STRATA-BLOCKCHAIN-ROADMAP.md S9): each internal valve refusal class cites
+# the consensus-pack AdversarialCase it would surface as, by IRI literal.
+# Citation only — no owl:imports, no wire/behavior change; the wire still
+# carries only the opaque 32-byte RefusalReceipt (FM-PACK-018 house rule).
+# Gate 030_adversarial_mirror.rq fails closed unless all four consensus
+# IRIs are mirrored.
+# ---------------------------------------------------------------------------
+
+valve:adversarialMirror a rdf:Property ;
+    rdfs:label "adversarialMirror" ;
+    rdfs:comment "Comment-level citation binding a valve RefusalClass to the consensus-pack AdversarialCase IRI (string literal) whose adversarial strategy this refusal is the valve-side surface of." .
+
+valve:MalformedFrameRefusal valve:adversarialMirror "https://strata.chatman.ai/ontology#Eclipse" .
+valve:FuelExhaustedRefusal valve:adversarialMirror "https://strata.chatman.ai/ontology#SpamFlood" .
+valve:ParentDiscontinuityRefusal valve:adversarialMirror "https://strata.chatman.ai/ontology#SelfishMining" .
+valve:ArenaFailureRefusal valve:adversarialMirror "https://strata.chatman.ai/ontology#InvalidBlockGossip" .

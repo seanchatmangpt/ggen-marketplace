@@ -66,3 +66,26 @@ pack's `ontology.ttl` and the protocol pack's wire graph and asserts
 documents but cannot execute in-pack (the `wire:` class is not declared
 in-pack; see the gate's own header note). Planned as a cross-graph court
 in a later wave.
+
+## Create — S9 adversarial mirror (roadmap slice 9, 2026-10-13)
+
+MINIMAL, zero-risk additive surface (comment-level citation only — no wire,
+template, or behavior change; the wire still carries only the opaque
+32-byte RefusalReceipt):
+
+- New property `valve:adversarialMirror` (comment-level IRI-literal citation
+  binding each `valve:RefusalClass` to the consensus-pack AdversarialCase
+  it surfaces: MalformedFrame→Eclipse, FuelExhausted→SpamFlood,
+  ParentDiscontinuity→SelfishMining, ArenaFailure→InvalidBlockGossip; no
+  owl:imports per FM-PACK-018).
+- New gate `gates/030_adversarial_mirror.rq` — fails closed unless all four
+  consensus AdversarialCase IRIs are mirrored (presence arms, IRIs bound by
+  string literal per the greene precedent), plus typed arm (mirror must be
+  a string literal) and closure arm (mirror must be one of the four case
+  IRIs). Registered in `ggen.toml [validation] gates`.
+- Non-vacuous by mutation: deleting the SpamFlood mirror fires exactly 1
+  row (`missing_adversarial_mirror`); clean graph 0 rows.
+- Witnessed: `witness.ttl` gains `sw:gate-030_adversarial_mirror`;
+  `python3 verify.py` → 3/3 gates 0 rows, exit 0; `qualify_packs.py --pack
+  strata-valve-pack` → ALIVE; `ggen sync run` ×2 byte-identical
+  (`6acb0d4d…` refusals.ex).
