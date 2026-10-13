@@ -27,7 +27,7 @@ st:ConsensusRule a rdfs:Class ; rdfs:label "ConsensusRule" ;
     rdfs:comment "A network-level selection or admission law over the chain layer's block lattice: work accounting, tip selection, valid-extension admission, or adversarial guarding." .
 
 st:ForkChoice a rdfs:Class ; rdfs:label "ForkChoice" ;
-    rdfs:comment "The heaviest-chain fork-choice rule: total chain work = sum over blocks of 2^(PoW digest leading zero bits); the candidate with the greatest total work wins; equal-work ties resolve to the LOWER tip nonce. Formalized as the lattice maximum of the PN64-style transition lattice." .
+    rdfs:comment "The heaviest-chain fork-choice rule: total chain work = sum over blocks of 2^(PoW digest leading zero bits), accumulated in u128 (WORK_ACCUMULATOR = u128 — a total order, no saturation tie); the candidate with the greatest total work wins; equal-work ties resolve to the LOWER tip nonce. Formalized as the lattice maximum of the PN64-style transition lattice." .
 
 st:AdversarialCase a rdfs:Class ; rdfs:label "AdversarialCase" ;
     rdfs:comment "A named adversarial strategy against consensus, each of which MUST carry a documented refusal path (gate 020 is the adversarial-corpus manifest and fails closed on any missing case or empty refusal path)." .
@@ -35,7 +35,7 @@ st:AdversarialCase a rdfs:Class ; rdfs:label "AdversarialCase" ;
 # ── Consensus properties ──────────────────────────────────────────────
 
 st:chainWork a rdf:Property ; rdfs:label "chainWork" ;
-    rdfs:comment "Total accumulated work of a chain under the ForkChoice law: per-block work = 2^(leading zero bits of the PoW digest SHA-256(header || nonce)), summed over all blocks (WORK_UNIT = sha256-double-tick)." ;
+    rdfs:comment "Total accumulated work of a chain under the ForkChoice law: per-block work = 2^(leading zero bits of the PoW digest SHA-256(header || nonce)), summed over all blocks (WORK_UNIT = sha256-double-tick). WORK_ACCUMULATOR = u128: per-block work saturates at 2^127, and the u128 sum cannot saturate for any chain of physically minable length, so the heaviest-work order stays TOTAL — no saturation tie, and the lower-nonce tie-break is reachable only by genuinely equal work, never by chain-length gaming. (The retired u64 accumulator saturated both competing chains to u64::MAX and degenerated the law.) Work is internal accounting only; the wire block ABI is unchanged." ;
     rdfs:domain st:ForkChoice ; rdfs:range xsd:integer .
 
 st:tipTieBreak a rdf:Property ; rdfs:label "tipTieBreak" ;

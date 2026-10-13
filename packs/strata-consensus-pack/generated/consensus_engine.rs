@@ -205,16 +205,22 @@ pub fn leading_zero_bits(h: &Hash) -> u32 {
 /// bits. Computed from the TARGET (not the found digest's actual zero
 /// count) so work is a function of the block's declared difficulty alone:
 /// equal-difficulty chains are exactly tied and the tie-break law is
-/// reachable. Saturating at 2^63 so absurd targets cannot overflow.
-pub fn block_work(b: &Block) -> u64 {
-    let exp = b.difficulty_target.min(63);
-    1u64 << exp
+/// reachable. Accumulated in u128 (WORK_ACCUMULATOR = "u128"): per-block
+/// work saturates at 2^127 so absurd targets cannot overflow, and a u128
+/// sum cannot saturate for any chain of physically minable length — the
+/// heaviest-chain order stays TOTAL (no saturation tie, no degeneracy to
+/// the nonce tie-break by chain-length gaming).
+pub fn block_work(b: &Block) -> u128 {
+    let exp = b.difficulty_target.min(127);
+    1u128 << exp
 }
 
 /// Total accumulated chain work: the sum of per-block work over the whole
-/// chain (the PN64-style transition lattice's accumulated weight).
-pub fn chain_work(chain: &[Block]) -> u64 {
-    chain.iter().map(block_work).fold(0u64, u64::saturating_add)
+/// chain (the PN64-style transition lattice's accumulated weight). u128
+/// accumulator: reaching u128::MAX would need 2^64 blocks at difficulty
+/// 63 — unreachable, so the order is total in practice.
+pub fn chain_work(chain: &[Block]) -> u128 {
+    chain.iter().map(block_work).fold(0u128, u128::saturating_add)
 }
 
 // ── Valid-extension law (chain-pack validate shape, 3 arms) ──────────
@@ -264,7 +270,7 @@ pub fn select_tip(candidates: &[Vec<Block>]) -> Option<usize> {
     if candidates.is_empty() {
         return None;
     }
-    let work: Vec<u64> = candidates.iter().map(|c| chain_work(c)).collect();
+    let work: Vec<u128> = candidates.iter().map(|c| chain_work(c)).collect();
     let mut best = 0usize;
     for i in 1..candidates.len() {
         let a = work[i];
@@ -427,7 +433,7 @@ mod tests {
         let chain = chain_of(5);
         assert_eq!(chain.len(), 6); // genesis + 5
         // Every block meets difficulty 8, so every block contributes 2^8.
-        assert_eq!(chain_work(&chain), 6 * (1u64 << TEST_DIFFICULTY));
+        assert_eq!(chain_work(&chain), 6u128 * (1u128 << TEST_DIFFICULTY));
         // Work is strictly monotone under extension.
         assert!(chain_work(&chain) > chain_work(&chain[..5]));
     }
@@ -797,5 +803,124 @@ mod tests {
         let (honest, fork) = withheld_fork_sim(40, 20, 10, 0xDEAD_BEEF);
         let cands2 = [honest, fork];
         assert_eq!(select_tip(&cands2), select_tip_sabotaged(&cands2));
+    }
+
+    #[test]
+    fn saturation_tie_selects_genuinely_heavier_chain() {
+        // L34 flag #3 court (u128 WORK_ACCUMULATOR): two chains built at
+        // difficulty 63 — short (2 blocks, true work 2*2^63) vs long
+        // (4 blocks, true work 4*2^63, genuinely 2x heavier). The LONG
+        // chain's tip nonce is HIGHER, so under the retired u64
+        // saturating accumulator both chains collapsed to u64::MAX, the
+        // work order degenerated to a tie, and the lower-nonce tie-break
+        // handed the win to the LIGHTER chain — reachable purely by
+        // chain-length gaming. Under the u128 accumulator the work order
+        // is total and the genuinely heavier chain wins.
+        fn blk(height: u64, parent: Hash, nonce: u64, slot: u64) -> Block {
+            Block {
+                height,
+                parent_hash: parent,
+                difficulty_target: 63,
+                nonce,
+                timestamp_slot: slot,
+            }
+        }
+        let g = blk(0, [0u8; DIGEST_LEN], 0, 0);
+        let gp = sha256(&g.header_bytes());
+        // Short: genesis + 1 child, tip nonce 1 (the LOWER one).
+        let short = vec![g.clone(), blk(1, gp, 1, 1)];
+        // Long: genesis + 3 children, tip nonce 9 (the HIGHER one).
+        let l1 = blk(1, gp, 3, 1);
+        let l2 = blk(2, sha256(&l1.header_bytes()), 5, 2);
+        let l2p = sha256(&l2.header_bytes());
+        let long = vec![g, l1, l2, blk(3, l2p, 9, 3)];
+
+        assert_eq!(chain_work(&short), 2u128 * (1u128 << 63));
+        assert_eq!(chain_work(&long), 4u128 * (1u128 << 63));
+        assert!(chain_work(&long) > chain_work(&short));
+        let cands = [short, long];
+        assert_eq!(
+            select_tip(&cands),
+            Some(1),
+            "the genuinely heavier chain must win even above the old u64 saturation point"
+        );
+    }
+
+    #[test]
+    fn sabotage_u64_saturating_work_is_caught() {
+        // Sabotage twin (L34 flag #3 discrimination court): the RETIRED
+        // u64-saturating accumulator (block_work capped at 2^63, folded
+        // with u64::saturating_add). On the difficulty-63 saturation
+        // corpus both chains sum to u64::MAX, so the twin degenerates to
+        // the nonce tie-break and picks the LIGHTER chain while the u128
+        // law picks the heavier one — that disagreement is the witness.
+        fn block_work_u64(b: &Block) -> u64 {
+            1u64 << b.difficulty_target.min(63)
+        }
+        fn chain_work_u64(chain: &[Block]) -> u64 {
+            chain.iter().map(block_work_u64).fold(0u64, u64::saturating_add)
+        }
+        fn select_tip_u64(candidates: &[Vec<Block>]) -> Option<usize> {
+            let work: Vec<u64> = candidates.iter().map(|c| chain_work_u64(c)).collect();
+            let mut best = 0usize;
+            for i in 1..candidates.len() {
+                let a = work[i];
+                let b = work[best];
+                let wins = a > b
+                    || (a == b
+                        && match (candidates[i].last(), candidates[best].last()) {
+                            (Some(x), Some(y)) => x.nonce < y.nonce,
+                            _ => false,
+                        });
+                if wins {
+                    best = i;
+                }
+            }
+            Some(best)
+        }
+
+        let g = Block {
+            height: 0,
+            parent_hash: [0u8; DIGEST_LEN],
+            difficulty_target: 63,
+            nonce: 0,
+            timestamp_slot: 0,
+        };
+        let gp = sha256(&g.header_bytes());
+        let short = vec![
+            g.clone(),
+            Block { height: 1, parent_hash: gp, difficulty_target: 63, nonce: 1, timestamp_slot: 1 },
+        ];
+        let l1 = Block { height: 1, parent_hash: gp, difficulty_target: 63, nonce: 3, timestamp_slot: 1 };
+        let l2 = Block {
+            height: 2,
+            parent_hash: sha256(&l1.header_bytes()),
+            difficulty_target: 63,
+            nonce: 5,
+            timestamp_slot: 2,
+        };
+        let l2p = sha256(&l2.header_bytes());
+        let long = vec![
+            g,
+            l1,
+            l2,
+            Block {
+                height: 3,
+                parent_hash: l2p,
+                difficulty_target: 63,
+                nonce: 9,
+                timestamp_slot: 3,
+            },
+        ];
+        // The twin saturates both chains and mispicks via the tie-break.
+        assert_eq!(chain_work_u64(&short), u64::MAX);
+        assert_eq!(chain_work_u64(&long), u64::MAX);
+        let cands = [short, long];
+        assert_eq!(select_tip_u64(&cands), Some(0), "twin must mispick the lighter chain");
+        assert_eq!(
+            select_tip(&cands),
+            Some(1),
+            "the u128 law must pick the genuinely heavier chain"
+        );
     }
 }
