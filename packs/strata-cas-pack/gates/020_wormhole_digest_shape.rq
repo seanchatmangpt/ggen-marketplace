@@ -1,0 +1,26 @@
+# MESSAGE: every st:KnowledgeWormhole must have st:sourceDigest and st:targetDigest matching a 64-char lowercase hex SHA-256; every st:MerkleCommit must have an st:merkleRoot.
+# Any row returned indicates an invalid content-addressed object failing closed.
+PREFIX st: <https://strata.chatman.ai/ontology#>
+
+SELECT ?subject ?violation WHERE {
+  {
+    ?subject a st:KnowledgeWormhole .
+    BIND("missing-or-malformed st:sourceDigest (expected ^[0-9a-f]{64}$)" AS ?violation)
+    FILTER NOT EXISTS {
+      ?subject st:sourceDigest ?src .
+      FILTER(REGEX(STR(?src), "^[0-9a-f]{64}$"))
+    }
+  } UNION {
+    ?subject a st:KnowledgeWormhole .
+    BIND("missing-or-malformed st:targetDigest (expected ^[0-9a-f]{64}$)" AS ?violation)
+    FILTER NOT EXISTS {
+      ?subject st:targetDigest ?tgt .
+      FILTER(REGEX(STR(?tgt), "^[0-9a-f]{64}$"))
+    }
+  } UNION {
+    ?subject a st:MerkleCommit .
+    BIND("missing st:merkleRoot" AS ?violation)
+    FILTER NOT EXISTS { ?subject st:merkleRoot ?root }
+  }
+}
+ORDER BY ?subject ?violation
