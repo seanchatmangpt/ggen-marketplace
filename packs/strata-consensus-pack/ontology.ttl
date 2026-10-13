@@ -1,0 +1,112 @@
+# strata-consensus-pack ontology — Strata consensus kernel (roadmap slice S8).
+#
+# LAW PROVENANCE (S8 GREENFIELD, per docs/sjira/v26.10.8/STRATA-BLOCKCHAIN-
+# ROADMAP.md "S5/S8 precondition outcome": no nonce, difficulty, or
+# fork-choice code exists anywhere to reuse; `unibit-l1` "TruthBlock" is a
+# memory region, not a blockchain block). Fork choice is formalized
+# CONCEPTUALLY as the PN64-style transition lattice: each mined block is a
+# transition, chain work accumulates over the lattice, and the selected tip
+# is the lattice maximum under the heaviest-work order with the deterministic
+# lower-nonce tie-break. The block/validate/fork TYPES the engine manipulates
+# are provenance-copied from strata-chain-pack (S5) as PATTERN ONLY — the
+# generated module is fully self-contained (FM-PACK-018: requires = [], no
+# owl:imports, no code vendoring from the BUSL-1.1 unibit tree).
+#
+# The AdversarialCase individuals below ARE the adversarial-corpus manifest:
+# gate 020 fails closed unless all four cases exist AND each carries a
+# non-empty refusal-path (the S9 hardening bar, pre-committed here at S8).
+
+@prefix st:  <https://strata.chatman.ai/ontology#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# ── Consensus model classes ───────────────────────────────────────────
+
+st:ConsensusRule a rdfs:Class ; rdfs:label "ConsensusRule" ;
+    rdfs:comment "A network-level selection or admission law over the chain layer's block lattice: work accounting, tip selection, valid-extension admission, or adversarial guarding." .
+
+st:ForkChoice a rdfs:Class ; rdfs:label "ForkChoice" ;
+    rdfs:comment "The heaviest-chain fork-choice rule: total chain work = sum over blocks of 2^(PoW digest leading zero bits); the candidate with the greatest total work wins; equal-work ties resolve to the LOWER tip nonce. Formalized as the lattice maximum of the PN64-style transition lattice." .
+
+st:AdversarialCase a rdfs:Class ; rdfs:label "AdversarialCase" ;
+    rdfs:comment "A named adversarial strategy against consensus, each of which MUST carry a documented refusal path (gate 020 is the adversarial-corpus manifest and fails closed on any missing case or empty refusal path)." .
+
+# ── Consensus properties ──────────────────────────────────────────────
+
+st:chainWork a rdf:Property ; rdfs:label "chainWork" ;
+    rdfs:comment "Total accumulated work of a chain under the ForkChoice law: per-block work = 2^(leading zero bits of the PoW digest SHA-256(header || nonce)), summed over all blocks (WORK_UNIT = sha256-double-tick)." ;
+    rdfs:domain st:ForkChoice ; rdfs:range xsd:integer .
+
+st:tipTieBreak a rdf:Property ; rdfs:label "tipTieBreak" ;
+    rdfs:comment "Deterministic tie-break for equal-work tips: the LOWER tip nonce wins (no wall-clock, no RNG, no node identity)." ;
+    rdfs:domain st:ForkChoice ; rdfs:range xsd:string .
+
+st:eclipseGuard a rdf:Property ; rdfs:label "eclipseGuard" ;
+    rdfs:comment "Eclipse-attack guard law: at most ECLIPSE_MAX_PEERS_PER_SUBNET (8) concurrent peers from any one subnet in a node's peer table; excess peers are refused by subnet cap." ;
+    rdfs:domain st:AdversarialCase ; rdfs:range xsd:string .
+
+st:spamRateLimit a rdf:Property ; rdfs:label "spamRateLimit" ;
+    rdfs:comment "Gossip spam law: at most SPAM_LIMIT (32) messages admitted per slot; messages beyond the limit in one slot are refused." ;
+    rdfs:domain st:AdversarialCase ; rdfs:range xsd:string .
+
+# ── Consensus constants (CONSENSUS_CONSTANTS individual) ──────────────
+
+st:ConsensusConstant a rdfs:Class ; rdfs:label "ConsensusConstant" ;
+    rdfs:comment "Carrier class for the CONSENSUS_CONSTANTS individual: projected as Rust constants by the consensus-consts rule." .
+
+st:CONSENSUS_CONSTANTS a st:ConsensusConstant ;
+    rdfs:label "CONSENSUS_CONSTANTS" ;
+    rdfs:comment "Consensus constants projected into generated/consensus_consts.rs. Types match the generated Rust constants exactly (fail-closed: gate 010 fires on missing or malformed values).";
+    st:workUnit "sha256-double-tick" ;
+    st:tieBreak "lower-nonce" ;
+    st:eclipseMaxPeersPerSubnet "8"^^xsd:integer ;
+    st:spamLimit "32"^^xsd:integer .
+
+st:workUnit a rdf:Property ; rdfs:label "workUnit" ;
+    rdfs:comment "WORK_UNIT: the unit of work per block — sha256-double-tick, i.e. one PoW evaluation SHA-256(SHA-256-input schedule over header||nonce) meeting the difficulty target; block work is 2^(leading zero bits of the digest)." ;
+    rdfs:domain st:ConsensusConstant ; rdfs:range xsd:string .
+
+st:tieBreak a rdf:Property ; rdfs:label "tieBreak" ;
+    rdfs:comment "TIE_BREAK: equal-total-work tip resolution — lower-nonce." ;
+    rdfs:domain st:ConsensusConstant ; rdfs:range xsd:string .
+
+st:eclipseMaxPeersPerSubnet a rdf:Property ; rdfs:label "eclipseMaxPeersPerSubnet" ;
+    rdfs:comment "ECLIPSE_MAX_PEERS_PER_SUBNET: hard cap on concurrent peers admitted from any single subnet (8)." ;
+    rdfs:domain st:ConsensusConstant ; rdfs:range xsd:integer .
+
+st:spamLimit a rdf:Property ; rdfs:label "spamLimit" ;
+    rdfs:comment "SPAM_LIMIT: hard cap on gossip messages admitted per slot (32)." ;
+    rdfs:domain st:ConsensusConstant ; rdfs:range xsd:integer .
+
+# ── ForkChoice individual (carries the selection law over REAL rows) ──
+
+st:HEAVIEST_CHAIN a st:ForkChoice ;
+    rdfs:label "HEAVIEST_CHAIN" ;
+    rdfs:comment "The single network-level fork-choice rule: heaviest total chain work wins, equal-work ties resolve to the lower tip nonce. Gate 010 asserts presence of its law properties non-vacuously." ;
+    st:chainWork "2^(leading-zero-bits)" ;
+    st:tipTieBreak "lower-nonce" .
+
+# ── Adversarial cases (the corpus manifest; gate 020 fails closed) ────
+
+st:SelfishMining a st:AdversarialCase ;
+    rdfs:label "SelfishMining" ;
+    rdfs:comment "Withhold-then-release attack: a miner privately extends a fork and releases a withheld suffix to overtake the public tip. Detection law: a Released event preceded by a run of >= 2 Withheld events is a selfish-mining report pattern." ;
+    st:refusalPath "selfish_mining_detected(report_pattern) flags the pattern; the node keeps the public heaviest tip and refuses the late-released suffix unless it is genuinely heavier under chain_work — detection is advisory evidence for peer scoring, the tip law itself stays deterministic." .
+
+st:Eclipse a st:AdversarialCase ;
+    rdfs:label "Eclipse" ;
+    rdfs:comment "Subnet-concentration attack: an adversary floods a victim's peer table from one subnet to isolate it from honest tips." ;
+    st:eclipseGuard "per-subnet peer cap: at most ECLIPSE_MAX_PEERS_PER_SUBNET (8) concurrent peers from any one subnet; eclipse_guard(peer_table) refuses the excess deterministically" ;
+    st:refusalPath "eclipse_guard(peer_table) returns every peer beyond the 8-per-subnet cap as refused; the admission path must drop refused peers before any gossip is accepted." .
+
+st:SpamFlood a st:AdversarialCase ;
+    rdfs:label "SpamFlood" ;
+    rdfs:comment "Message-rate attack: an adversary floods gossip messages within a single slot to crowd out valid traffic." ;
+    st:spamRateLimit "SPAM_LIMIT (32) messages per slot; messages beyond the limit in one slot are refused" ;
+    st:refusalPath "spam_limit(slot_count) fires (returns true) the moment a slot's message count exceeds 32; the admission valve must refuse all further messages in that slot." .
+
+st:InvalidBlockGossip a st:AdversarialCase ;
+    rdfs:label "InvalidBlockGossip" ;
+    rdfs:comment "Validation-bypass attack: an adversary gossips blocks that fail the chain law (wrong height, unbound parent hash, or unmet PoW target) hoping they are attached without re-validation." ;
+    st:refusalPath "is_valid_extension(parent, candidate) re-checks height continuity, parent-hash binding, and the PoW target before any gossip block is attached; every failure is a named ConsensusRefusal variant and the block is dropped." .

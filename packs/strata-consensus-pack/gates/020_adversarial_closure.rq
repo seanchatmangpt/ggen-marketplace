@@ -1,0 +1,49 @@
+# MESSAGE: adversarial corpus not closed — the gate IS the adversarial-
+# corpus manifest. Exactly four st:AdversarialCase individuals must exist
+# (SelfishMining, Eclipse, SpamFlood, InvalidBlockGossip) and EACH must
+# carry a non-empty st:refusalPath; the Eclipse and SpamFlood cases must
+# additionally carry their guard laws (st:eclipseGuard, st:spamRateLimit).
+# Fail-closed: a missing case, an empty refusal path, or a missing guard
+# fires a violation row instead of passing vacuously (S9 hardening bar
+# pre-committed at S8). Any row indicates an open adversarial corpus.
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX st:   <https://strata.chatman.ai/ontology#>
+
+SELECT DISTINCT ?case (COALESCE(?p1,?p2,?p3,?p4,?p5,?p6,?p7,?p8) AS ?violation)
+WHERE {
+  {
+    BIND("SelfishMining" AS ?case)
+    FILTER NOT EXISTS { ?c a st:AdversarialCase ; rdfs:label "SelfishMining" }
+    BIND("missing_case: no SelfishMining individual" AS ?p1)
+  } UNION {
+    BIND("Eclipse" AS ?case)
+    FILTER NOT EXISTS { ?c a st:AdversarialCase ; rdfs:label "Eclipse" }
+    BIND("missing_case: no Eclipse individual" AS ?p2)
+  } UNION {
+    BIND("SpamFlood" AS ?case)
+    FILTER NOT EXISTS { ?c a st:AdversarialCase ; rdfs:label "SpamFlood" }
+    BIND("missing_case: no SpamFlood individual" AS ?p3)
+  } UNION {
+    BIND("InvalidBlockGossip" AS ?case)
+    FILTER NOT EXISTS { ?c a st:AdversarialCase ; rdfs:label "InvalidBlockGossip" }
+    BIND("missing_case: no InvalidBlockGossip individual" AS ?p4)
+  } UNION {
+    ?case a st:AdversarialCase .
+    FILTER NOT EXISTS { ?case st:refusalPath ?anyR }
+    BIND("missing_refusal_path: no st:refusalPath" AS ?p1)
+  } UNION {
+    ?case a st:AdversarialCase ; st:refusalPath ?rp .
+    FILTER(STRLEN(STR(?rp)) = 0)
+    BIND("empty_refusal_path: st:refusalPath is the empty string" AS ?p2)
+  } UNION {
+    ?case a st:AdversarialCase ; rdfs:label "Eclipse" .
+    FILTER NOT EXISTS { ?case st:eclipseGuard ?anyG }
+    BIND("missing_guard: Eclipse case has no st:eclipseGuard law" AS ?p3)
+  } UNION {
+    ?case a st:AdversarialCase ; rdfs:label "SpamFlood" .
+    FILTER NOT EXISTS { ?case st:spamRateLimit ?anyL }
+    BIND("missing_guard: SpamFlood case has no st:spamRateLimit law" AS ?p4)
+  }
+}
+ORDER BY ?case ?violation
