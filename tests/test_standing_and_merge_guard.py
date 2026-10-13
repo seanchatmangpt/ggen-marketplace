@@ -41,9 +41,10 @@ def edit(repo: Path, changes: dict[int, str]) -> None:
 
 def test_standing_check_fresh_and_detects_staleness(tmp_path):
     # Isolated: operate on temp copies so other lanes changing the pack tree cannot flake this.
+    # Check the COMMITTED copy only — no write-mode regeneration here, which would
+    # make the check tautological (rewriting the file then checking it).
     copy = tmp_path / "standing.md"
     copy.write_text((ROOT / "docs/context/standing.md").read_text())
-    assert run(sys.executable, str(STANDING), "--target", str(copy)).returncode == 0
     assert run(sys.executable, str(STANDING), "--target", str(copy), "--check").returncode == 0
     text = copy.read_text()
     assert "<!-- GENERATED:standing -->" in text and "Pack count:" in text

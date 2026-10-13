@@ -9,6 +9,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - hardening(strata): strata hardening wave — 7 strata packs (protocol, signer, cas, pn64, valve, temprun, stratus) qualified ALIVE via per-pack `verify.py` courts with `witness.ttl` receipts; 12 gates hardened (incl. `strata-pn64-pack/gates/020_transition_pre_nonzero.rq`, `strata-protocol-pack/gates/010_header_layout.rq`); namespace unification across packs; docs/README + errc-tracker quadrants updated per pack; audit-wave test/court repairs; CI strata-packs-court (`--scope all`) justification; readiness verified
 
+## [v26.10.8] — 2026-10-13
+
+- feat(strata): strata activation — all 7 deferred packs ALIVE; active pack set 13→20 (575beb029); MSCT invariants ALIVE
+- feat(airo): AIRo de-orphaned (8a8cd062c) — 46-class projection, fail-closed gate
+- feat(strata): five cross-pack composition laws with fail-closed gates + negative witnesses + gate-surgery sabotage twins — temprun↔valve (8b888e884), net↔protocol (27ebb78c4), stratus↔valve (455de53e9), cas↔chain (b47853fe5), store↔cas (fb123a452)
+- feat(crosswalk): 5-column refusal vocabulary (erlmcp/ash_a2a/valve/wire/ash_graphlaw); ash_graphlaw column 40/40 mapped with G7 totality gate; erlmcp column courted from both sides; ERR_REFUSED_* collision resolved (renumbered 1101-1110, disjointness courted on both repos)
+- feat(canary): count canary (4273adf24) — tamper-evident validate-counts manifest, same-commit update law
+- feat(temprun): ABI-v1 derivation pin (5432e27fc) with kg-42 merge tripwire
+- ci(courts): strata-packs-court covers all 16 packs (a1d85e842); fleet-courts + git-trust-court wired (ddf601cfa); refusal-vocab union court (fad4671a1)
+- docs: insa-law-vows reference page; graphlaw wasm freeze ledger (praxis v26.7.5 frozen at pin, C14 named as resolution) (8e7ef0ace)
+
 ## [v26.10.7] — 2026-10-07
 
 - convergence(marker): `[active].version` 26.9.12 → 26.10.7 in `marketplace.active.toml` (version field only; absorbs the W618-era uncommitted 26.10.6 bump and advances it); active pack set unchanged at 13 packs, front door unchanged (`ggen-platform-pack`)

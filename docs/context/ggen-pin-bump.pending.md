@@ -1,4 +1,12 @@
-# ggen pin bump — PENDING v26.10.5 release artifacts
+# ggen pin bump — SUPERSEDED
+
+> **SUPERSEDED 2026-10-13.** This note targeted a v26.10.5 pin bump that never
+> landed. The marketplace repo has since released v26.10.8 while the upstream
+> `[ggen]` pin remains `v26.8.11` (see `marketplace.toml`). A future pin bump
+> must be re-derived from the current `marketplace.toml` and actual v26.10.x
+> release artifacts — do not execute the stale v26.10.5 steps below.
+
+# Historical: ggen pin bump — PENDING v26.10.5 release artifacts
 
 Status: BLOCKED. Execute when the v26.10.5 release lands. ~10 min.
 
