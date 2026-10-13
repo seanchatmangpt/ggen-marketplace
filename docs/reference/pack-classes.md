@@ -126,7 +126,7 @@ are the ones seeded in `PACK_CLASSES`:
   architecture-method capability that depends on `industry-closure-ledger-pack`, never the reverse.
 - `industry-closure-retail-lending-profile-pack` — `ProfilePack`. ABox-only industry scope,
   knowledge sources and requirements bound to the closure kernel.
-- `strata-protocol-pack` — `KernelPack`. Owns the canonical `urn:strata:protocol:` PDU/wire
+- `strata-protocol-pack` — `KernelPack`. Owns the canonical `https://strata.chatman.ai/ontology#` PDU/wire
   vocabulary; sibling strata packs reference its constants by IRI cross-pack rather than
   restating them.
 - `strata-pn64-pack` — `CapabilityPack`. One orthogonal PN64 PDU capability.

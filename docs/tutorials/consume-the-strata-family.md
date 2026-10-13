@@ -5,9 +5,10 @@ family: observe the wire contract, compose a consumer, generate the projections,
 and verify the result. It stops before actuation — the generated artifacts are
 frame constants and refusal skeletons, not a running network.
 
-All seven Strata packs are status **alpha**: the contracts are grounded in real
-source (`~/strata`), but the surface may still move. Do not build production
-dependencies on them yet.
+Two packs declare `status = "alpha"` in `pack.toml` (`strata-protocol-pack`,
+`strata-valve-pack`); the other five carry no status field and are version
+0.1.0. The contracts are grounded in real source (`~/strata`), but the surface
+may still move. Do not build production dependencies on them yet.
 
 ## The family in one paragraph
 
@@ -20,8 +21,11 @@ mechanical parts from it:
   knowledge wormholes, snapshots).
 - `strata-pn64-pack` — PN64 Petri-net masks: one transition per u64 word.
 - `strata-signer-pack` — ML-DSA-65 (FIPS 204) detached-signature constants.
-- `strata-stratus-pack` — witness valves gating state registers.
-- `strata-temprun-pack` — fuel-leased actuation arena vocabulary.
+- `strata-temprun-pack` — fuel-leased actuation arena vocabulary; generate
+  before stratus.
+- `strata-stratus-pack` — witness valves gating state registers; composes the
+  temprun arena (relationship documented in its `pack.toml`, not a
+  `[dependencies]` entry).
 - `strata-valve-pack` — the Elixir refusal taxonomy (constant-time, fail-closed).
 
 Exact contracts live in

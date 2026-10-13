@@ -1,6 +1,6 @@
 # strata-stratus-pack
 
-Class: CapabilityPack. Profile: projection. Authority: SELECT/CONSTRUCT only, no DO.
+Class: CapabilityPack. Profile: project. Authority: SELECT/CONSTRUCT only, no DO.
 
 ## Identity
 

@@ -1,10 +1,10 @@
 # strata-signer-pack
 
-Class: CapabilityPack. Profile: projection. Authority: SELECT/CONSTRUCT only, no DO.
+Class: CapabilityPack. Profile: project. Authority: SELECT/CONSTRUCT only, no DO.
 
 ## Identity
 
-Detached-signature attestation for Strata: attestation keys and detached signatures (ML-DSA-65, 3309-byte public key / 1952-byte signature) over receipts and frames carried by the CLAP-PDU protocol types from strata-protocol-pack.
+Detached-signature attestation for Strata: attestation keys and detached signatures (ML-DSA-65, 1952-byte public key / 3309-byte signature) over receipts and frames carried by the CLAP-PDU protocol types from strata-protocol-pack.
 
 ## Capability surface
 

@@ -37,14 +37,14 @@ changes the output, the pipeline is non-deterministic and that is a defect.
 Generate in this order when several packs changed:
 
 1. `strata-protocol-pack` — the wire kernel; others' wire vocabulary
-   (`urn:strata:protocol:wire#`) agrees with it.
+   (`https://strata.chatman.ai/ontology/wire#`) agrees with it.
 2. `strata-cas-pack`, `strata-pn64-pack`, `strata-signer-pack` — independent
    consumers of the wire/kernel vocabulary.
-3. `strata-stratus-pack`, `strata-temprun-pack` — runtime-side vocabularies.
+3. `strata-temprun-pack`, then `strata-stratus-pack` — runtime-side vocabularies (stratus composes the temprun arena per its relationship note in `packs/strata-stratus-pack/pack.toml`).
 4. `strata-valve-pack` — the Elixir refusal taxonomy, which cross-checks the
    protocol pack's wire classes (32-byte `RefusalReceipt`).
 
-The valve pack's gates literally query the protocol wire vocabulary, so if the
+The valve pack's gates reference (by IRI and comment) the protocol wire vocabulary, so if the
 header or refusal-receipt contract changed, regenerate protocol first and let
 the valve gates confirm agreement.
 

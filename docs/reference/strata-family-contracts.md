@@ -1,7 +1,9 @@
 # Reference: Strata family contracts
 
-Exact contracts for the seven Strata packs (all status **alpha**). Every value
-below is projected from the pack ontology; the ontology is canonical. See
+Exact contracts for the seven Strata packs. Two packs declare `status = "alpha"`
+in `pack.toml` (`strata-protocol-pack`, `strata-valve-pack`); the other five
+carry no status field (version 0.1.0). Values below are projected from the pack
+ontologies except where noted as comment-level; the ontology is canonical. See
 [../explanation/strata-family-design.md](../explanation/strata-family-design.md)
 for rationale and
 [../explanation/level5-diataxis.md](../explanation/level5-diataxis.md) for the
@@ -11,25 +13,25 @@ shared Diátaxis maturity doctrine this family's docs follow.
 
 | Pack | Status | Output language | Projected artifacts |
 |---|---|---|---|
-| `strata-protocol-pack` | alpha | Rust | PDU frame constants (`pdu-constants` rule) |
-| `strata-cas-pack` | alpha | Rust | Merkle commit / wormhole / snapshot frame types |
-| `strata-pn64-pack` | alpha | Rust | PN64 mask tables (`pn64_masks`) |
-| `strata-signer-pack` | alpha | Rust | ML-DSA-65 attestation constants |
-| `strata-stratus-pack` | alpha | Rust | Witness valves + state registers |
-| `strata-temprun-pack` | alpha | Rust | Fuel-lease arena table (`arena.rs`) |
+| `strata-protocol-pack` | alpha | Rust | PDU frame constants (`pdu-constants` rule) and wire classes (`wire-constants` rule → `generated/wire_constants.rs`) |
+| `strata-cas-pack` | — | Rust | Merkle commit / wormhole / snapshot frame types |
+| `strata-pn64-pack` | — | Rust | PN64 mask tables (`pn64_masks`) |
+| `strata-signer-pack` | — | Rust | ML-DSA-65 attestation constants |
+| `strata-stratus-pack` | — | Rust | Witness valves + state registers |
+| `strata-temprun-pack` | — | Rust | Fuel-lease arena table (`arena.rs`) |
 | `strata-valve-pack` | alpha | Elixir | Refusal skeletons (`generated/refusals.ex`) |
 
 ## Ontology URNs and base IRIs
 
 | Pack | Ontology source | Base IRI |
 |---|---|---|
-| protocol | `ontology.ttl` | `urn:strata:protocol:` (prefixes `pdu:`/`wire:` = `urn:strata:protocol:pdu#` / `...:wire#`) |
+| protocol | `ontology.ttl` | `https://strata.chatman.ai/ontology#` (prefixes `pdu:`/`wire:` = `https://strata.chatman.ai/ontology/pdu#` / `.../wire#`) |
 | cas | `ontology.ttl` | `https://strata.chatman.ai/ontology#` |
 | pn64 | `ontology.ttl` | `https://strata.chatman.ai/ontology#` |
 | signer | `ontology.ttl` | `https://strata.chatman.ai/ontology#` |
 | stratus | `ontology.ttl` | `https://strata.chatman.ai/ontology#` |
 | temprun | `ontology.ttl` | `https://strata.chatman.ai/ontology#` |
-| valve | `ontology.ttl` | `urn:strata:valve:` (prefix `valve: urn:strata:valve#`) |
+| valve | `ontology.ttl` | `https://strata.chatman.ai/ontology#` (prefix `valve: https://strata.chatman.ai/ontology/valve#`) |
 
 ## CLAP/1.0 PDU header layout (big-endian, 64 bytes)
 
@@ -60,8 +62,8 @@ Bytes 64 onward carry the N history quads then M candidate quads.
 |---|---|
 | detached signature | 3309 bytes |
 | encoded public key | 1952 bytes |
-| seed | 32 bytes |
-| attested payload | 72 bytes |
+| seed | 32 bytes *(comment-level, not projected)* |
+| attested payload | 72 bytes *(comment-level, not projected)* |
 
 Default key: `st:DefaultKey`, key id `strata-default`, algorithm `ML-DSA-65`.
 

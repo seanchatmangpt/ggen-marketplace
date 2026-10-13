@@ -50,17 +50,19 @@ Each pack owns one semantic responsibility, matching the pack-classes
 doctrine (see [../explanation/level5-diataxis.md](../explanation/level5-diataxis.md)
 and [../reference/pack-classes.md](../reference/pack-classes.md)):
 
-- protocol = the wire kernel (CapabilityPack-shaped: one capability, exact
-  constants);
-- cas / pn64 / signer = orthogonal capability packs over the same vocabulary;
-- stratus / temprun = runtime-side state and fuel vocabularies;
-- valve = a compatibility/evidence pack: it cross-checks the protocol wire
-  classes and projects a different language (Elixir), proving the pipeline is
-  language-neutral.
+- protocol = `KernelPack`: it owns the canonical wire vocabulary other packs
+  reference by IRI (it projects more than one artifact — PDU constants and wire
+  classes — not a single capability);
+- cas / pn64 / signer / stratus / temprun = `CapabilityPack`s, each one
+  orthogonal capability over the same vocabulary;
+- valve = `CapabilityPack` (the Elixir refusal taxonomy): it cross-checks the
+  protocol wire classes and projects a different language (Elixir), proving
+  the pipeline is language-neutral.
 
 ## What is deliberately not here
 
 - No actuation: nothing in the family sends frames; actuation authority is a
   separate, separately admitted boundary.
-- No Level-5 crown: all packs are alpha. Diátaxis closure (this page, the
+- No Level-5 crown: two packs declare status alpha, the rest are unpackaged
+  status at 0.1.0. Diátaxis closure (this page, the
   tutorial, the how-to, the reference) is the documentation dimension only.
