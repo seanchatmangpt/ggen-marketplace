@@ -89,3 +89,61 @@ st:snap-001 a st:Snapshot ;
     st:snapshotCommit st:commit-002 ;
     st:abutmentStrict true ;
     st:snapshotTakenAt "2026-10-13T00:00:00Z"^^xsd:dateTime .
+
+# ── cas ↔ chain composition law (L-wave, 2026-10-13) ─────────────────
+# DERIVED INVARIANT (from both packs' committed truth, not invented):
+# the chain pack's shared-head KAT (witness.ttl sw:shared-kat, recomputed
+# by chain verify.py and generated/chain_engine.rs) folds four witnessed
+# (pn, ocel) entries with h_0 = 32 zero bytes and
+# h_{i+1} = BLAKE3(h_i || pn_be || ocel_be || tick_be64) to the pinned
+# 32-byte head 05ea1aa0... . A fold chain with a 32-byte zero genesis and
+# per-step 32-byte digest is structurally a CAS MerkleCommit chain:
+# genesis + child_of links of depth 4 whose tip root is the pinned head.
+# Both surfaces are therefore instances of ONE 32-byte chained-digest
+# discipline (chain DIGEST_LEN = 32; CAS digest-shape law
+# ^[0-9a-f]{64}$), and this pack admits the chain KAT head as a CAS
+# commit-chain witness. Pinned by IRI/literal (no owl:imports, house
+# style); gated fail-closed by gates/030_cas_chain_composition.rq;
+# projected into generated/cas_chain.rs.
+
+st:CasChainWitness a rdfs:Class ; rdfs:label "CasChainWitness" ;
+    rdfs:comment "The chain pack's shared-head KAT head admitted as a CAS commit-chain witness: a 32-byte chained-digest head over a zero genesis, valid under MerkleCommit::genesis/child_of/depth law." .
+
+st:KatEntry a rdfs:Class ; rdfs:label "KatEntry" ;
+    rdfs:comment "One witnessed (pn, ocel) fold entry, mirrored by literal from strata-chain-pack witness.ttl sw:kat-entry-*." .
+
+st:chainKatHead a rdf:Property ; rdfs:label "chain KAT head" ;
+    rdfs:comment "Pinned cross-repo KAT head: 64-char lowercase hex (32 bytes), mirrored from strata-chain-pack sw:sharedKatHead. Must equal the recomputed BLAKE3 fold of the witnessed entries." ;
+    rdfs:domain st:CasChainWitness ; rdfs:range xsd:string .
+
+st:chainKatDepth a rdf:Property ; rdfs:label "chain KAT depth" ;
+    rdfs:comment "Commit-chain depth of the KAT head: exactly the number of witnessed fold entries (4); asserted by MerkleCommit::depth law in the generated court." ;
+    rdfs:domain st:CasChainWitness ; rdfs:range xsd:integer .
+
+st:chainDigestLen a rdf:Property ; rdfs:label "chain digest length" ;
+    rdfs:comment "Shared digest length in bytes: 32, equal to the chain pack's DIGEST_LEN and to the CAS 64-hex digest-shape law." ;
+    rdfs:domain st:CasChainWitness ; rdfs:range xsd:integer .
+
+st:katPn a rdf:Property ; rdfs:label "KAT pn" ;
+    rdfs:comment "pn word of one fold entry (0x-prefixed hex literal)." ;
+    rdfs:domain st:KatEntry ; rdfs:range xsd:string .
+
+st:katOcel a rdf:Property ; rdfs:label "KAT ocel" ;
+    rdfs:comment "ocel word of one fold entry (0x-prefixed hex literal)." ;
+    rdfs:domain st:KatEntry ; rdfs:range xsd:string .
+
+st:CHAIN_KAT_HEAD a st:CasChainWitness ;
+    rdfs:label "CHAIN_KAT_HEAD" ;
+    st:chainKatHead "05ea1aa096f45968aacb2c996d2b541e4b9fdef24f006e0204e1fa88d33f68a5" ;
+    st:chainKatDepth "4"^^xsd:integer ;
+    st:chainDigestLen "32"^^xsd:integer ;
+    rdfs:comment "The strata-chain-pack shared-head KAT head, admitted by this pack as a valid CAS commit-chain head (genesis = 32 zero bytes, depth 4)." .
+
+st:kat-entry-1 a st:KatEntry ;
+    st:katPn "0x0001000000000001" ; st:katOcel "0x0A00000000000001" .
+st:kat-entry-2 a st:KatEntry ;
+    st:katPn "0x0002000000000002" ; st:katOcel "0x0B00000000000002" .
+st:kat-entry-3 a st:KatEntry ;
+    st:katPn "0x0003000000000003" ; st:katOcel "0x0C00000000000003" .
+st:kat-entry-4 a st:KatEntry ;
+    st:katPn "0x0004000000000004" ; st:katOcel "0x0D00000000000004" .

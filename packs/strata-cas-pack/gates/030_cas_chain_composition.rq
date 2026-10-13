@@ -1,0 +1,80 @@
+# MESSAGE: cas ↔ chain composition gate — the pinned chain KAT head must be
+# a valid CAS commit-chain witness: present, 64-char lowercase hex (32
+# bytes — the shared digest-length law), equal to the exact cross-repo
+# pinned literal 05ea1aa0..., depth exactly the witnessed entry count (4),
+# digest length exactly 32, all four witnessed (pn, ocel) entries present,
+# and no duplicate entries. The chain pack's graph is NOT unioned here (no
+# owl:imports, house style): the head and entries are mirrored by literal
+# from strata-chain-pack witness.ttl (sw:shared-kat, sw:kat-entry-*), the
+# same literals chain verify.py and generated/chain_engine.rs recompute.
+# Any row indicates a corrupted or vacuous composition witness.
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX st:   <https://strata.chatman.ai/ontology#>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?witness ?problem WHERE {
+  {
+    # Fail-closed presence: the composition witness must exist.
+    ?witness a st:CasChainWitness .
+    BIND("missing_witness (no st:CasChainWitness individual)" AS ?problem)
+    FILTER NOT EXISTS {
+      ?w a st:CasChainWitness ; rdfs:label "CHAIN_KAT_HEAD" .
+    }
+  } UNION {
+    # Digest-length/domain law: the head must be well-formed 64-char
+    # lowercase hex (32 bytes).
+    ?witness a st:CasChainWitness ; st:chainKatHead ?head .
+    BIND("malformed_head (expected ^[0-9a-f]{64}$)" AS ?problem)
+    FILTER(!REGEX(STR(?head), "^[0-9a-f]{64}$"))
+  } UNION {
+    # Exact pin: the head must equal the cross-repo KAT literal.
+    ?witness a st:CasChainWitness ; st:chainKatHead ?head .
+    BIND("wrong_head (pinned KAT head must be 05ea1aa096f45968aacb2c996d2b541e4b9fdef24f006e0204e1fa88d33f68a5)" AS ?problem)
+    FILTER(STR(?head) != "05ea1aa096f45968aacb2c996d2b541e4b9fdef24f006e0204e1fa88d33f68a5")
+  } UNION {
+    # Depth law: depth must be exactly 4 (the witnessed entry count).
+    ?witness a st:CasChainWitness ; st:chainKatDepth ?depth .
+    BIND("wrong_depth (pinned KAT chain depth must be 4)" AS ?problem)
+    FILTER(xsd:integer(?depth) != 4)
+  } UNION {
+    # Shared digest-length law: 32 bytes, matching chain DIGEST_LEN.
+    ?witness a st:CasChainWitness ; st:chainDigestLen ?len .
+    BIND("wrong_digest_len (shared digest length must be 32)" AS ?problem)
+    FILTER(xsd:integer(?len) != 32)
+  } UNION {
+    # Witnessed entry pin 1.
+    ?witness a st:CasChainWitness .
+    BIND("missing_kat_entry_1" AS ?problem)
+    FILTER NOT EXISTS {
+      ?e a st:KatEntry ; st:katPn "0x0001000000000001" ; st:katOcel "0x0A00000000000001" .
+    }
+  } UNION {
+    # Witnessed entry pin 2.
+    ?witness a st:CasChainWitness .
+    BIND("missing_kat_entry_2" AS ?problem)
+    FILTER NOT EXISTS {
+      ?e a st:KatEntry ; st:katPn "0x0002000000000002" ; st:katOcel "0x0B00000000000002" .
+    }
+  } UNION {
+    # Witnessed entry pins 3.
+    ?witness a st:CasChainWitness .
+    BIND("missing_kat_entry_3" AS ?problem)
+    FILTER NOT EXISTS {
+      ?e a st:KatEntry ; st:katPn "0x0003000000000003" ; st:katOcel "0x0C00000000000003" .
+    }
+  } UNION {
+    # Witnessed entry pin 4.
+    ?witness a st:CasChainWitness .
+    BIND("missing_kat_entry_4" AS ?problem)
+    FILTER NOT EXISTS {
+      ?e a st:KatEntry ; st:katPn "0x0004000000000004" ; st:katOcel "0x0D00000000000004" .
+    }
+  } UNION {
+    # Distinctness: two distinct entries carrying the same pn are refused.
+    ?e1 a st:KatEntry ; st:katPn ?pn .
+    ?e2 a st:KatEntry ; st:katPn ?pn2 .
+    FILTER(?e1 != ?e2 && STR(?pn) = STR(?pn2))
+    BIND("duplicate_kat_entry" AS ?problem)
+  }
+}
+ORDER BY ?witness ?problem
