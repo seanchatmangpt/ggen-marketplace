@@ -197,6 +197,63 @@ existence are not execution; each ALIVE claim carries its court reference.
 3. **C20 arbiter** (generator-plurality court) — design only; no
    implementation or falsifier run.
 
+## 5. Standing drift — evening fleet state (2026-10-13, L102 ledger)
+
+Source: L102 read-only fleet push ledger (`/tmp/fleet-push-ledger.md`);
+SHAs re-read from `git log` at write time. Supersedes per-repo standing
+above where it moved after L75 wrote this receipt.
+
+### 5.1 Per-repo push classification (L102)
+
+| repo | classification | push ff? |
+|---|---|---|
+| ggen-marketplace | AHEAD-1 (dirty: strata packs) | yes |
+| graphlaw | SYNCED (dirty) | n/a |
+| ash_a2a | SYNCED (dirty) | n/a |
+| beam4pm | SYNCED (dirty: 615 files) | n/a |
+| castle | AHEAD-4 | yes |
+| mfact | SYNCED (dirty: 140, mostly `.agents/`) | n/a |
+| affidavit | AHEAD-BRANCH `fix/freeze-genesis-seed`, unpushed | yes |
+| insa | NO-REMOTE | n/a |
+| erlmcp | AHEAD-BRANCH `otp27/ssl-followups`, unpushed | yes |
+| cre | AHEAD-BRANCH `otp27/ssl-hardening`, unpushed | yes |
+| chicago-tdd-tools | SYNCED (dirty) | n/a |
+| mcp-mqtt-erl | BLOCKED (403, no push rights to emqx fork) | no |
+| ggen-ecosystem | SYNCED | n/a |
+| knhk | DIVERGED (431 ahead / 585 behind) | no |
+
+### 5.2 Integration debt (L102) — current standing
+
+1. **knhk** — 4,823+ dirty files plus 431/585 divergence. Still
+   user-blocked: merge awaits user direction; not committable cleanly
+   until a rebase-or-merge decision is made.
+2. **beam4pm** — 615 dirty files (610 receipts/engine_ops). RESOLVED:
+   bulk-committed and pushed as `a6f3a212`
+   ("chore(receipts): commit engine_ops evidence trail from the
+   2026-10-13 wave (L102 debt #2)"). `origin/main` == `a6f3a212`,
+   ahead 0 / behind 0 at write time.
+3. **ggen-marketplace (this repo)** — strata pack edits + insa-law-pack
+   + RECEIPT-INDEX. RESOLVED: committed in `52feb96f1` (insa-law-pack),
+   `0c7c9e594` (sabotage corpus + consensus u128), `8f98a4c49` (valve
+   WindowCapacityRefusal), `eb697b8a2` (receipt-index). Residual:
+   strata-cas/ledger generated files still dirty; push not executed
+   by this lane.
+
+### 5.3 Standing table updates (SHA re-read from git log)
+
+| item | old standing | new standing |
+|---|---|---|
+| beam4pm engine_ops receipt corpus | uncommitted (debt #2) | committed + pushed `a6f3a212` |
+| consensus u128 work accumulator | open lane | ALIVE `0c7c9e594` |
+| sabotage-corpus totality court | open lane | ALIVE `0c7c9e594` |
+| valve WindowCapacityRefusal family | open lane | ALIVE `8f98a4c49` (L86) |
+| insa-law-pack eight-vow typestate | untracked | ALIVE `52feb96f1` (L84) |
+| receipt-index row for this receipt | missing | landed `eb697b8a2` (L98) |
+| strata ledger GALL projection | unpushed commit | still `457c3b338` (now tip-adjacent) |
+
+Standing is as-of 2026-10-13 evening; re-verify before citing as
+current.
+
 ---
 
 **Receipt identity**: written 2026-10-13 by lane L75 (docs) from read-only
