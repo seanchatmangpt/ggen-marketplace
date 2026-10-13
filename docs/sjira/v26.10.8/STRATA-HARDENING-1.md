@@ -26,7 +26,7 @@
 | P15 | Sync schedule all 7 + `ggen receipt history/verify` per pack | 3 | chains valid, double-sync identical |
 | P12 | `tests/test_strata_family_pack.py` 5 courts + sabotage twins | 3 | twins prove courts can fail |
 | P13 | CI `strata-packs-court` (`qualify_packs_r18.py --pack` + courts.json + court sh) | 3 | ci_plan dry-run selects it |
-| P10 | lifecycle.toml ×7 corrected `intent="review"` entries | 4 | validate + lifecycle listing |
+| P10 | lifecycle.toml review entries ×7 (post-review: 6 deleted per §5 in dd953e5ab, cas retained) | 4 | validate + lifecycle listing |
 | P11 | README 314→315 + 7 thin READMEs + index regen (after P10) | 4 | thin 112→105, links clean |
 | P3 | Diátaxis ×4 + book.ttl nav:216-219 + SUMMARY regen | 4 | nav coverage + doc links tests |
 | P4 | PACK_CLASSES ×7 (protocol KernelPack, rest CapabilityPack) + pack-classes.md wording | 4 | catalog pack_class populated |
