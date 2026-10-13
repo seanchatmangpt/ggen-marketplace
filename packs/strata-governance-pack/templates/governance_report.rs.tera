@@ -139,6 +139,36 @@ mod tests {
         }
     }
 
+    /// SABOTAGE TWIN (L124) — unframed seal digest: SHA-256 over the
+    /// non-canonical concatenation `sealed || constant` (wrong order, no
+    /// `NAME=` framing). The seal-rederive court pins the canonical
+    /// preimage `"NAME=value"`; this twin never reproduces it.
+    fn twin_unframed_seal_digest(constant: &str, sealed: &str) -> String {
+        sha256_hex(format!("{}{}", sealed, constant).as_bytes())
+    }
+
+    /// Court (sabotage twin, L124): the twin digest differs from every
+    /// sealed digest — the seal-rederive law catches it on ALL rows, and
+    /// on the honest rows the canonical re-derivation still matches.
+    #[test]
+    fn sabotage_twin_unframed_seal_digest_is_caught() {
+        for row in DIFF_TABLE {
+            let canonical = format!("{}={}", row.constant, row.sealed);
+            assert_eq!(
+                sha256_hex(canonical.as_bytes()),
+                row.sealed_digest.to_lowercase(),
+                "canonical seal digest must re-derive for {}",
+                row.constant
+            );
+            assert_ne!(
+                twin_unframed_seal_digest(row.constant, row.sealed),
+                row.sealed_digest.to_lowercase(),
+                "unframed twin digest collided with the sealed digest for {} — twin not caught",
+                row.constant
+            );
+        }
+    }
+
     // ── Minimal SHA-256 (FIPS 180-4) for the digest re-derivation ──
 
     const K: [u32; 64] = [

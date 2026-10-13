@@ -108,16 +108,42 @@ TWIN_INVENTORY: dict[str, tuple[str, str, tuple[str, ...]]] = {
         "tests::sabotage_twin_fuel_decrement_skip_is_caught",
         ("tests::sabotage_twin_fuel_decrement_skip_is_caught",),
     ),
+    "strata-cas-pack": (
+        "cas.rs",
+        "tests::sabotage_twin_digest_copying_verify_is_caught",
+        ("tests::sabotage_twin_digest_copying_verify_is_caught",),
+    ),
+    "strata-chain-pack": (
+        "chain_engine.rs",
+        "tests::sabotage_twin_chain_fold_skip_prev_is_caught",
+        (
+            "tests::shared_kat_chain_fold_head_pinned",
+            "tests::sabotage_twin_chain_fold_skip_prev_is_caught",
+        ),
+    ),
+    "strata-governance-pack": (
+        "governance_report.rs",
+        "tests::sabotage_twin_unframed_seal_digest_is_caught",
+        ("tests::sabotage_twin_unframed_seal_digest_is_caught",),
+    ),
 }
 
 # Packs with NO sabotage twin today (fail-closed: the gate below asserts
 # this set exactly; adding or removing a twin flips the gate and forces
 # this documentation to be updated in the same dependency-closed change).
+#
+# Justifications (evaluated L124 2026-10-13):
+# - strata-audit-pack: N/A — its generated audit_corpus.rs IS the
+#   twin-holder surface (falsifier corpus + merkle helpers); a twin inside
+#   the twin-holder court would be circular.
+# - strata-stratus-pack: no real twin surface — generated/registers.rs
+#   (31 lines) and generated/valves.rs (24 lines) are pure const-table
+#   projections with no verifying function to twin.
+# - strata-valve-pack: generated/refusals.ex is Elixir (the corpus court
+#   is rustc-based; an ExUnit twin needs an Elixir court wired first —
+#   BLOCKED:no-elixir-court); window_capacity.rs is a const table.
 DOCUMENTED_COVERAGE_HOLES = frozenset({
     "strata-audit-pack",
-    "strata-cas-pack",
-    "strata-chain-pack",
-    "strata-governance-pack",
     "strata-stratus-pack",
     "strata-valve-pack",
 })

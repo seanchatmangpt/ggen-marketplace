@@ -639,4 +639,235 @@ mod tests {
         assert_eq!(MAX_BLOCK_TXS, 256);
         assert!(INITIAL_DIFFICULTY_TARGET > 0);
     }
+
+    // ── Shared-head KAT court (L124) + chain_fold sabotage twin ────────
+    //
+    // Law (witness.ttl shared-head KAT, lane L9): the same four witnessed
+    // entries folded by insa-proof's sync replay law and strata-protocol's
+    // logchain law —
+    //   h_0     = 32 bytes of 0x00
+    //   h_{i+1} = BLAKE3(h_i || pn_be || ocel_be || tick_be64)
+    //   tick    = top byte of the OCEL word, widened to u64 big-endian
+    // fold the witnessed fixture to the pinned cross-repo head
+    // 05ea1aa0... (verify.py pins the same literal).
+    //
+    // The in-test BLAKE3 below is the single-chunk core, PROVENANCE-COPIED
+    // PATTERN from strata-hash-pack (same reuse discipline as this
+    // module's FIPS 180-4 SHA-256); every fold input here is 56 bytes.
+    // BLAKE3 (O'Connor et al., 2020) single-chunk core.
+
+    fn blake3_compress(
+        cv: [u32; 8],
+        block_words: [u32; 16],
+        block_len: u32,
+        flags: u32,
+    ) -> [u32; 16] {
+        const IV: [u32; 8] = [
+            0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A, 0x510E527F, 0x9B05688C, 0x1F83D9AB,
+            0x5BE0CD19,
+        ];
+        const MSG_PERMUTATION: [usize; 16] = [2, 6, 3, 10, 7, 0, 4, 13, 1, 11, 12, 5, 9, 14, 15, 8];
+        let mut state = [
+            cv[0], cv[1], cv[2], cv[3], cv[4], cv[5], cv[6], cv[7], IV[0], IV[1], IV[2], IV[3],
+            0, 0, block_len, flags,
+        ];
+        let mut m = block_words;
+        fn g(s: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize, mx: u32, my: u32) {
+            s[a] = s[a].wrapping_add(s[b]).wrapping_add(mx);
+            s[d] = (s[d] ^ s[a]).rotate_right(16);
+            s[c] = s[c].wrapping_add(s[d]);
+            s[b] = (s[b] ^ s[c]).rotate_right(12);
+            s[a] = s[a].wrapping_add(s[b]).wrapping_add(my);
+            s[d] = (s[d] ^ s[a]).rotate_right(8);
+            s[c] = s[c].wrapping_add(s[d]);
+            s[b] = (s[b] ^ s[c]).rotate_right(7);
+        }
+        fn round(s: &mut [u32; 16], m: &[u32; 16]) {
+            g(s, 0, 4, 8, 12, m[0], m[1]);
+            g(s, 1, 5, 9, 13, m[2], m[3]);
+            g(s, 2, 6, 10, 14, m[4], m[5]);
+            g(s, 3, 7, 11, 15, m[6], m[7]);
+            g(s, 0, 5, 10, 15, m[8], m[9]);
+            g(s, 1, 6, 11, 12, m[10], m[11]);
+            g(s, 2, 7, 8, 13, m[12], m[13]);
+            g(s, 3, 4, 9, 14, m[14], m[15]);
+        }
+        for _ in 0..7 {
+            round(&mut state, &m);
+            m = {
+                let mut next = [0u32; 16];
+                for i in 0..16 {
+                    next[i] = m[MSG_PERMUTATION[i]];
+                }
+                next
+            };
+        }
+        for i in 0..8 {
+            state[i] ^= state[i + 8];
+            state[i + 8] ^= cv[i];
+        }
+        state
+    }
+
+    fn to_words(block: &[u8; 64]) -> [u32; 16] {
+        let mut m = [0u32; 16];
+        for (i, w) in m.iter_mut().enumerate() {
+            *w = u32::from_le_bytes([
+                block[i * 4],
+                block[i * 4 + 1],
+                block[i * 4 + 2],
+                block[i * 4 + 3],
+            ]);
+        }
+        m
+    }
+
+    fn hex32(bytes: &[u8]) -> String {
+        bytes.iter().map(|b| format!("{b:02x}")).collect()
+    }
+
+    /// BLAKE3 over a single-chunk (< 1024 byte) input; multi-chunk inputs
+    /// are outside this court's domain and refuse loudly.
+    fn blake3_single_chunk(input: &[u8]) -> [u8; DIGEST_LEN] {
+        const CHUNK_START: u32 = 1 << 0;
+        const CHUNK_END: u32 = 1 << 1;
+        const ROOT: u32 = 1 << 3;
+        assert!(
+            input.len() < 1024,
+            "shared-KAT court domain: single-chunk BLAKE3 only (input < 1024 bytes, got {})",
+            input.len()
+        );
+        let mut cv = [
+            0x6A09E667u32, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A, 0x510E527F, 0x9B05688C, 0x1F83D9AB,
+            0x5BE0CD19,
+        ];
+        let mut block = [0u8; 64];
+        let mut block_len = 0usize;
+        let mut flags = CHUNK_START;
+        let mut pos = 0usize;
+        while pos < input.len() {
+            if block_len == 64 {
+                let out = blake3_compress(cv, to_words(&block), block_len as u32, flags);
+                cv = [out[0], out[1], out[2], out[3], out[4], out[5], out[6], out[7]];
+                block = [0u8; 64];
+                block_len = 0;
+                flags = 0;
+            }
+            let take = (64 - block_len).min(input.len() - pos);
+            block[block_len..block_len + take].copy_from_slice(&input[pos..pos + take]);
+            block_len += take;
+            pos += take;
+            if pos == input.len() {
+                flags |= CHUNK_END | ROOT;
+            } else if block_len == 0 {
+                flags |= CHUNK_START;
+            }
+        }
+        if input.is_empty() {
+            flags |= CHUNK_END | ROOT;
+        }
+        let out = blake3_compress(cv, to_words(&block), block_len as u32, flags);
+        let mut digest = [0u8; DIGEST_LEN];
+        for (i, w) in out[..8].iter().enumerate() {
+            digest[i * 4..i * 4 + 4].copy_from_slice(&w.to_le_bytes());
+        }
+        digest
+    }
+
+    /// One witnessed KAT fixture entry: (pn, ocel). Mirrors the
+    /// sw:kat-entry-* witnesses in witness.ttl.
+    const KAT_ENTRIES: [(u64, u64); 4] = [
+        (0x0001000000000001, 0x0A00000000000001),
+        (0x0002000000000002, 0x0B00000000000002),
+        (0x0003000000000003, 0x0C00000000000003),
+        (0x0004000000000004, 0x0D00000000000004),
+    ];
+
+    /// The pinned cross-repo KAT head (verify.py pins the same literal).
+    const KAT_HEAD: &str = "05ea1aa096f45968aacb2c996d2b541e4b9fdef24f006e0204e1fa88d33f68a5";
+
+    /// One honest fold step: h' = BLAKE3(h || pn_be || ocel_be || tick_be64).
+    fn chain_fold_step(h: [u8; DIGEST_LEN], pn: u64, ocel: u64) -> [u8; DIGEST_LEN] {
+        let tick = ocel >> 56;
+        let mut buf = Vec::with_capacity(DIGEST_LEN + 24);
+        buf.extend_from_slice(&h);
+        buf.extend_from_slice(&pn.to_be_bytes());
+        buf.extend_from_slice(&ocel.to_be_bytes());
+        buf.extend_from_slice(&tick.to_be_bytes());
+        blake3_single_chunk(&buf)
+    }
+
+    /// Honest chain fold over `entries` (prev-hash chaining).
+    fn chain_fold(entries: &[(u64, u64)]) -> [u8; DIGEST_LEN] {
+        let mut h = [0u8; DIGEST_LEN];
+        for &(pn, ocel) in entries {
+            h = chain_fold_step(h, pn, ocel);
+        }
+        h
+    }
+
+    /// SABOTAGE TWIN (L124) — a chain_fold that SKIPS the prev-hash input:
+    /// h' = BLAKE3(pn_be || ocel_be || tick_be64), no chaining. Each step
+    /// depends only on its own entry, so the head ignores the chain prefix.
+    fn chain_fold_skip_prev(entries: &[(u64, u64)]) -> [u8; DIGEST_LEN] {
+        let mut h = [0u8; DIGEST_LEN];
+        for &(pn, ocel) in entries {
+            let tick = ocel >> 56;
+            let mut buf = Vec::with_capacity(24);
+            buf.extend_from_slice(&pn.to_be_bytes());
+            buf.extend_from_slice(&ocel.to_be_bytes());
+            buf.extend_from_slice(&tick.to_be_bytes());
+            h = blake3_single_chunk(&buf);
+        }
+        h
+    }
+
+    /// Shared-head KAT: the honest fold over the four witnessed entries
+    /// reproduces the pinned cross-repo head exactly (BLAKE3("") self-check
+    /// included — published specification vector).
+    #[test]
+    fn shared_kat_chain_fold_head_pinned() {
+        assert_eq!(
+            hex32(&blake3_single_chunk(b"")),
+            "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
+        );
+        assert_eq!(hex32(&chain_fold(&KAT_ENTRIES)), KAT_HEAD);
+    }
+
+    /// Court: the skip-prev twin (a) produces a DIFFERENT head on the full
+    /// witnessed fixture — the shared-KAT court refuses it — and (b) is
+    /// exposed by truncation: the honest head changes when the entry list
+    /// is truncated while the twin's head is invariant (it never saw the
+    /// prefix), so the twin cannot even detect chain truncation.
+    #[test]
+    fn sabotage_twin_chain_fold_skip_prev_is_caught() {
+        // (a) twin head != pinned honest head.
+        let twin_head = chain_fold_skip_prev(&KAT_ENTRIES);
+        assert_ne!(
+            hex32(&twin_head),
+            KAT_HEAD,
+            "skip-prev twin reproduced the pinned KAT head — twin not caught"
+        );
+        assert_eq!(
+            hex32(&twin_head),
+            "be56d2d58a0a2bf65d8b38482b70309ccbd06cd0a0e73763f04238671c63afdd"
+        );
+        // (b) truncation: truncate the witnessed chain down to ONLY the
+        // last entry. The honest head changes (it saw the prefix)...
+        let honest_full = chain_fold(&KAT_ENTRIES);
+        let honest_last_only = chain_fold(&KAT_ENTRIES[3..]);
+        assert_ne!(
+            hex32(&honest_full),
+            hex32(&honest_last_only),
+            "honest fold must be prefix-sensitive"
+        );
+        // ...while the twin's head is INVARIANT: it only ever hashed the
+        // last entry, so it cannot detect that the first three witnessed
+        // entries were truncated away.
+        assert_eq!(
+            hex32(&chain_fold_skip_prev(&KAT_ENTRIES[3..])),
+            hex32(&twin_head),
+            "twin head unexpectedly prefix-sensitive"
+        );
+    }
 }

@@ -76,7 +76,7 @@ mod tests {
     
     // commit 2 (child of fd9fc6c86d8f666da7059851d9e6e45df1c288c3035f5d9475a1d871ec4ec33c)
     
-    // commit 3 (genesis)
+    // commit 3 (child of f0575860c272837d9f63e43c098b9e74638a24d8760feaafb9f58fcf0cca3386)
     
     /// Content-address law input set: (kind, digest, canonical payload).
     /// Commits carry their merkleRoot; wormholes carry their targetDigest.
@@ -92,7 +92,7 @@ mod tests {
     const LAW_CHAIN: [(&str, Option<&str>); 3] = [
         ("18d53c1eaa279405b194c9ae5983652e0d89f3bd50b62e87e1278a71a4af3037", Some("f0575860c272837d9f63e43c098b9e74638a24d8760feaafb9f58fcf0cca3386")),
         ("f0575860c272837d9f63e43c098b9e74638a24d8760feaafb9f58fcf0cca3386", Some("fd9fc6c86d8f666da7059851d9e6e45df1c288c3035f5d9475a1d871ec4ec33c")),
-        ("fd9fc6c86d8f666da7059851d9e6e45df1c288c3035f5d9475a1d871ec4ec33c", None),
+        ("fd9fc6c86d8f666da7059851d9e6e45df1c288c3035f5d9475a1d871ec4ec33c", Some("f0575860c272837d9f63e43c098b9e74638a24d8760feaafb9f58fcf0cca3386")),
         ];
 
     /// Digest-shape law: ^[0-9a-f]{64}$ for every declared digest.
@@ -295,6 +295,22 @@ mod tests {
         }
     }
 
+    /// Honest content-address verifier: recomputes SHA-256 over the
+    /// canonical payload and compares against the declared digest.
+    fn verify_content_address(kind: &str, digest: &str, payload: &str) -> bool {
+        let _ = kind;
+        sha256_hex(payload.as_bytes()) == digest
+    }
+
+    /// SABOTAGE TWIN (L124) — digest-copying verifier: trusts the stored
+    /// digest without ever recomputing it. On the honest witness set it is
+    /// indistinguishable from `verify_content_address`; the flipped-payload
+    /// court (below) is the only input class that separates them.
+    fn verify_digest_copying(kind: &str, digest: &str, _payload: &str) -> bool {
+        let _ = kind;
+        !digest.is_empty()
+    }
+
     /// Court (d): sabotage twin — a digest-copying verifier (one that
     /// trusts the declared digest without recomputing) is indistinguishable
     /// from a correct one on the honest set, so court (c) must also refuse
@@ -315,5 +331,37 @@ mod tests {
             sha256_hex(payload.as_bytes()), recomputed,
             "recomputation is not payload-sensitive: court (c) would admit a copying verifier"
         );
+    }
+
+    /// Court (d2, L124): twin discrimination — on the flipped-payload
+    /// adversarial input the honest verifier REFUSES while the digest-
+    /// copying twin ACCEPTS (it never looks at the payload). Divergence on
+    /// the exact adversarial instance is the discrimination; on the honest
+    /// witness set both agree (asserted for every row).
+    #[test]
+    fn sabotage_twin_digest_copying_verify_is_caught() {
+        for (kind, digest, payload) in LAW_DIGESTS {
+            // Honest and twin agree on the honest set...
+            assert!(
+                verify_content_address(kind, digest, payload),
+                "honest verifier must admit the honest witness {kind}"
+            );
+            assert!(
+                verify_digest_copying(kind, digest, payload),
+                "twin also admits the honest witness (indistinguishable here)"
+            );
+            // ...but diverge on the flipped payload.
+            let mut flipped = payload.to_string();
+            let first = flipped.as_bytes()[0];
+            flipped.replace_range(0..1, &char::from(first ^ 0x01).to_string());
+            assert!(
+                !verify_content_address(kind, digest, &flipped),
+                "honest verifier must refuse the flipped payload for {kind}"
+            );
+            assert!(
+                verify_digest_copying(kind, digest, &flipped),
+                "digest-copying twin accepted a sabotaged payload — twin not caught"
+            );
+        }
     }
 }

@@ -1,32 +1,12 @@
-# L93 (2026-10-13): enumerates the witnessed individuals driving both the
-# projection body and the runtime courts in templates/cas.rs.tera:
-# commit rows (root/parent/payload) and wormhole rows (endpoint digests
-# + canonical payloads). Fail-closed: an individual missing its canonical
-# payload property is not returned, so the courts' LAW_* counts drop and
-# the count assertions trip.
-# Parent binding is total: COALESCE maps "no parent" to the empty-string
-# sentinel, because an unbound OPTIONAL renders nondeterministically under
-# the ggen row serializer (binding leakage across rows observed 2026-10-13).
 PREFIX st: <https://strata.chatman.ai/ontology#>
-
 SELECT ?kind ?root ?parent ?payload ?payload2
 WHERE {
-  {
-    ?c a st:MerkleCommit ;
-       st:merkleRoot ?root ;
-       st:canonicalPayload ?payload .
-    OPTIONAL {
-      ?c st:commitParent ?p .
-      ?p st:merkleRoot ?proot .
-    }
-    BIND(COALESCE(STR(?proot), "") AS ?parent)
+  { ?c a st:MerkleCommit ; st:merkleRoot ?root ; st:canonicalPayload ?payload .
+    OPTIONAL { ?c st:commitParent ?p . ?p st:merkleRoot ?parent . }
     BIND("commit" AS ?kind)
   } UNION {
-    ?w a st:KnowledgeWormhole ;
-       st:sourceDigest ?src ;
-       st:targetDigest ?root ;
-       st:canonicalSourcePayload ?payload ;
-       st:canonicalTargetPayload ?payload2 .
+    ?w a st:KnowledgeWormhole ; st:sourceDigest ?src ; st:targetDigest ?root ;
+       st:canonicalSourcePayload ?payload ; st:canonicalTargetPayload ?payload2 .
     BIND("wormhole" AS ?kind)
   }
 }

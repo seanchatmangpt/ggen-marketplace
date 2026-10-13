@@ -142,63 +142,78 @@ def main() -> int:
         return 1
 
     tamper = "--tamper" in sys.argv
+    tamper_boundary = "--tamper-boundary" in sys.argv
+    short_replay = "--short-replay" in sys.argv
     if tamper:
         # Tamper negative: perturb one witnessed input amount by +1 so that
         # sum(inputs) != sum(outputs) — the conservation valve must refuse.
         n, ins, outs, d = txs[0]
         txs[0] = (n, [(a, v + 1) for a, v in ins], outs, d)
 
-    balances = dict(accounts)
-    nonces: dict = {}
-    seen: set = set()
-    index = 0
-    prev_root = _root(balances, 0)
+    def _apply_law(balances: dict, seq: list, start_index: int) -> tuple:
+        """Faithful port of the generated transition law (the one verdict
+        function). Returns (final_balances, final_index, final_root); prints
+        and raises SystemExit on any valve refusal."""
+        nonces: dict = {}
+        seen: set = set()
+        index = start_index
+        bal = dict(balances)
+        for nonce, ins, outs, dg in seq:
+            # Gate 1: replay valve (seen digest).
+            if dg in seen:
+                print(f"REFUSED: replay of digest {dg.hex()} at index {index + 1}")
+                raise SystemExit(1)
+            # Gate 2: double-spend valve (strictly advancing nonces).
+            for aid, _ in ins:
+                if nonce == 0 or nonce <= nonces.get(aid, 0):
+                    print(
+                        f"REFUSED: double-spend (nonce {nonce}) at index {index + 1}"
+                    )
+                    raise SystemExit(1)
+            # Gate 3: conservation.
+            sum_in = sum(v for _, v in ins)
+            sum_out = sum(v for _, v in outs)
+            if sum_in != sum_out:
+                print(
+                    f"REFUSED: conservation divergence at index {index + 1} "
+                    f"(in={sum_in} out={sum_out})"
+                )
+                raise SystemExit(1)
+            # Gate 4: masked funds check + commit.
+            shadow = dict(bal)
+            for aid, amt in ins:
+                if shadow.get(aid, 0) < amt:
+                    print(f"REFUSED: insufficient funds at index {index + 1}")
+                    raise SystemExit(1)
+                shadow[aid] = shadow.get(aid, 0) - amt
+            for aid, amt in outs:
+                shadow[aid] = shadow.get(aid, bal.get(aid, 0)) + amt
+            for aid, v in shadow.items():
+                if v == 0 and not any(oa == aid for oa, _ in outs):
+                    bal.pop(aid, None)
+                else:
+                    bal[aid] = v
+            for aid, _ in ins:
+                nonces[aid] = nonce
+            seen.add(dg)
+            index += 1
+        return bal, index, _root(bal, index)
+
+    # --- Full replay from genesis (verify_suffix semantics) ---------------
+    prev_root = _root(accounts, 0)
     if prev_root.hex() != GENESIS_ROOT:
         print(
             f"REFUSED: genesis divergence (computed={prev_root.hex()} "
             f"pinned={GENESIS_ROOT})"
         )
         return 1
-    for nonce, ins, outs, dg in txs:
-        # Gate 1: replay valve (seen digest).
-        if dg in seen:
-            print(f"REFUSED: replay of digest {dg.hex()} at index {index + 1}")
-            return 1
-        # Gate 2: double-spend valve (strictly advancing nonces).
-        for aid, _ in ins:
-            if nonce == 0 or nonce <= nonces.get(aid, 0):
-                print(f"REFUSED: double-spend (nonce {nonce}) at index {index + 1}")
-                return 1
-        # Gate 3: conservation.
-        sum_in = sum(v for _, v in ins)
-        sum_out = sum(v for _, v in outs)
-        if sum_in != sum_out:
-            print(
-                f"REFUSED: conservation divergence at index {index + 1} "
-                f"(in={sum_in} out={sum_out})"
-            )
-            return 1
-        # Gate 4: masked funds check + commit.
-        shadow = dict(balances)
-        for aid, amt in ins:
-            if shadow.get(aid, 0) < amt:
-                print(f"REFUSED: insufficient funds at index {index + 1}")
-                return 1
-            shadow[aid] = shadow.get(aid, 0) - amt
-        for aid, amt in outs:
-            shadow[aid] = shadow.get(aid, balances.get(aid, 0)) + amt
-        for aid, bal in shadow.items():
-            if bal == 0 and not any(oa == aid for oa, _ in outs):
-                balances.pop(aid, None)
-            else:
-                balances[aid] = bal
-        for aid, _ in ins:
-            nonces[aid] = nonce
-        seen.add(dg)
-        index += 1
-        prev_root = _root(balances, index)
+    _, _, prev_root = _apply_law(accounts, txs, 0)
 
-    if prev_root.hex() != LEDGER_HEAD:
+    if prev_root.hex() != LEDGER_HEAD and not tamper_boundary:
+        # In --tamper-boundary mode the genesis head assertion is deliberately
+        # bypassed: the tamper sits below the boundary and must be caught by
+        # the boundary anchor, not by genesis (else the boundary law is
+        # untested/vacuous).
         if tamper:
             print(
                 "TAMPER NEGATIVE CONFIRMED: mutated witnessed amount refused "
@@ -219,6 +234,67 @@ def main() -> int:
     print(
         f"PASS witnessed-ledger-replay: recomputed head {prev_root.hex()} == pinned "
         f"over {len(txs)} transitions, genesis {GENESIS_ROOT[:16]}..., conservation exact"
+    )
+
+    # --- Boundary replay (lane L137, insa verify_from semantics) ----------
+    # verify_from(boundary, entries, expected_head): replay the suffix from
+    # the intermediate anchor root (mid-state after transition 1) and assert
+    # the same final head, plus a SyncFailure::LengthMismatch-style refusal
+    # when the supplied suffix is shorter than the witnessed count.
+    boundary_root_w = next(
+        (str(o) for s, p, o in witness if str(p).endswith("#boundaryRoot")), None
+    )
+    if boundary_root_w is None:
+        print("REFUSED: witnessed-ledger-replay boundary anchor missing")
+        return 1
+    if tamper_boundary:
+        # Tamper BELOW the boundary: perturb transition 1 by +1 on both an
+        # input and an output (conservation preserved) so only the anchor
+        # root can catch it — proving the boundary is not a blind spot.
+        n, ins, outs, d = txs[0]
+        txs[0] = (
+            n,
+            [(a, v + 1) for a, v in ins],
+            [(a, v + 1) for a, v in outs],
+            d,
+        )
+    # Anchor derivation: recompute the mid-state through the same law, then
+    # check it against the witnessed pinned boundary root.
+    mid_balances, mid_index, mid_root = _apply_law(accounts, txs[:1], 0)
+    if mid_root.hex() != boundary_root_w.lower():
+        print(
+            f"REFUSED: boundary-anchor divergence (computed={mid_root.hex()} "
+            f"pinned={boundary_root_w}) — boundary replay refuses"
+        )
+        return 1
+    suffix = txs[1:]
+    expected = len(txs) - 1
+    if short_replay:
+        suffix = suffix[:-1]
+    actual = len(suffix)
+    if actual < expected:
+        print(
+            f"REFUSED: length mismatch (witnessed={expected} supplied={actual}) — "
+            f"short replay from boundary refused"
+        )
+        return 1
+    _, _, boundary_head = _apply_law(mid_balances, suffix, mid_index)
+    if boundary_head.hex() != LEDGER_HEAD:
+        print(
+            f"REFUSED: boundary-replay head divergence (computed={boundary_head.hex()} "
+            f"pinned={LEDGER_HEAD})"
+        )
+        return 1
+    if short_replay or tamper_boundary:
+        print(
+            "REFUSED: tamper run reached the pinned head from the boundary — "
+            "boundary law failed to detect the perturbation (vacuous court)"
+        )
+        return 1
+    print(
+        f"PASS boundary-replay: anchor {boundary_root_w[:16]}... -> head "
+        f"{boundary_head.hex()[:16]}... == pinned over {len(suffix)} suffix "
+        f"transitions, length law exact ({expected} witnessed)"
     )
 
     violations = 0
