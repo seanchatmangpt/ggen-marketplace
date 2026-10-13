@@ -2,8 +2,10 @@
 
 Corpus-level proof that every strata pack carrying a sabotage twin stays
 caught: for ONE representative twin per pack, the generated module is
-compiled standalone (``rustc --test``) in a tmp dir and the twin-catching
-test is executed for real (Chicago: real rustc, real binary, no mocks).
+compiled standalone (``rustc --test`` for the Rust packs; a real
+``elixirc`` compile + real ``elixir`` KEY=VALUE harness for the one Elixir
+pack, strata-valve-pack) in a tmp dir and the twin-catching test is
+executed for real (Chicago: real compiler, real subprocess, no mocks).
 
 Also a fail-closed inventory gate: every pack in the strata family must
 have >= 1 sabotage twin OR be in the documented coverage-hole set. A pack
@@ -126,6 +128,17 @@ TWIN_INVENTORY: dict[str, tuple[str, str, tuple[str, ...]]] = {
         "tests::sabotage_twin_unframed_seal_digest_is_caught",
         ("tests::sabotage_twin_unframed_seal_digest_is_caught",),
     ),
+    # The one Elixir pack. Exec-shape difference (honest, not mocked): the
+    # valve twin is a test-only module inside generated/refusals.ex, exercised
+    # by a real elixirc compile + real elixir harness subprocess (the KEY=VALUE
+    # court in tests/test_strata_valve_runtime.py), NOT by rustc --test. The
+    # corpus court below dispatches valve through that elixir path and the
+    # rust packs through rustc --test.
+    "strata-valve-pack": (
+        "refusals.ex",
+        "Strata.Valve.Refusals.SabotageTwinSkipClassLabel",
+        ("Strata.Valve.Refusals.SabotageTwinSkipClassLabel",),
+    ),
 }
 
 # Packs with NO sabotage twin today (fail-closed: the gate below asserts
@@ -139,13 +152,13 @@ TWIN_INVENTORY: dict[str, tuple[str, str, tuple[str, ...]]] = {
 # - strata-stratus-pack: no real twin surface — generated/registers.rs
 #   (31 lines) and generated/valves.rs (24 lines) are pure const-table
 #   projections with no verifying function to twin.
-# - strata-valve-pack: generated/refusals.ex is Elixir (the corpus court
-#   is rustc-based; an ExUnit twin needs an Elixir court wired first —
-#   BLOCKED:no-elixir-court); window_capacity.rs is a const table.
+# - strata-valve-pack: HAS a twin since L155 — the class-label-skipping
+#   sabotage twin in generated/refusals.ex, caught by the cross-class-
+#   distinctness leg of the elixirc/elixir runtime court
+#   (tests/test_strata_valve_runtime.py::...sabotage_twin_skipping_class_label_is_caught).
 DOCUMENTED_COVERAGE_HOLES = frozenset({
     "strata-audit-pack",
     "strata-stratus-pack",
-    "strata-valve-pack",
 })
 
 RUSTC_TIMEOUT = 90  # per-module compile; each module self-contained
@@ -153,6 +166,37 @@ RUSTC_TIMEOUT = 90  # per-module compile; each module self-contained
 
 def _rustc_available() -> bool:
     return shutil.which("rustc") is not None
+
+
+def _run_valve_elixir_twin_court() -> None:
+    """Real elixirc + real elixir subprocess court for the one Elixir pack.
+
+    Reuses the runtime court in tests/test_strata_valve_runtime.py (no mocks,
+    no reimplementation): compiles generated/refusals.ex and proves the
+    twin-discrimination leg — the class-label-skipping twin must produce
+    IDENTICAL receipts across the four refusal classes (caught by the
+    cross-class-distinctness court) while the honest derivation produces
+    4 distinct.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "valve_runtime_court",
+        ROOT / "tests" / "test_strata_valve_runtime.py",
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    if not mod.have("elixir", "elixirc"):
+        pytest.skip("BLOCKED: elixir/elixirc not installed")
+    obs = mod.run_court(mod.SOURCE)
+    assert obs.get("TWIN_DISTINCT") == "false", (
+        "valve twin NOT caught: TWIN_DISTINCT=%r (twin receipts were "
+        "distinct across classes — discrimination leg vacuous)"
+        % obs.get("TWIN_DISTINCT")
+    )
+    assert obs.get("REFUSE_DISTINCT") == "true", obs.get("REFUSE_DISTINCT")
+    bad = mod.violations(obs)
+    assert not any("TWIN_DISTINCT" in v for v in bad), bad
 
 
 def _compile_module(pack: str, outdir: Path) -> Path:
@@ -193,12 +237,18 @@ def test_inventory_gate_fail_closed() -> None:
 
 
 def test_inventory_names_are_real_and_unique() -> None:
-    """Every documented twin test name exists in the compiled module."""
+    """Every documented twin test name exists in the compiled module
+    (rust packs) / compiled Elixir surface (valve pack)."""
     if not _rustc_available():
         pytest.skip("BLOCKED: rustc not on PATH")
     outdir = Path("/tmp/l92-corpus") / "inventory"
     outdir.mkdir(parents=True, exist_ok=True)
     for pack in sorted(TWIN_INVENTORY):
+        if pack == "strata-valve-pack":
+            # Exec-shape difference: Elixir pack — the elixirc/elixir court
+            # exercises the twin module by name, proving it is real.
+            _run_valve_elixir_twin_court()
+            continue
         exe = _compile_module(pack, outdir)
         listing = subprocess.run(
             [str(exe), "--list"], capture_output=True, text=True, timeout=60
@@ -215,12 +265,16 @@ def test_inventory_names_are_real_and_unique() -> None:
 
 
 def test_each_pack_representative_twin_is_caught() -> None:
-    """Re-run ONE representative twin per pack (real rustc + real binary)."""
+    """Re-run ONE representative twin per pack (real rustc + real binary for
+    Rust packs; real elixirc + real elixir for the valve pack)."""
     if not _rustc_available():
         pytest.skip("BLOCKED: rustc not on PATH")
     outdir = Path("/tmp/l92-corpus") / "twins"
     outdir.mkdir(parents=True, exist_ok=True)
     for pack in sorted(TWIN_INVENTORY):
+        if pack == "strata-valve-pack":
+            _run_valve_elixir_twin_court()
+            continue
         exe = _compile_module(pack, outdir)
         rep = TWIN_INVENTORY[pack][1]
         proc = subprocess.run(

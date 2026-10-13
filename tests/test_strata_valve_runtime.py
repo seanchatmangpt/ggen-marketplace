@@ -72,6 +72,16 @@ end
 IO.puts("TAMPER_SEED_CHANGES=" <> to_string(base != other_seed))
 IO.puts("TAMPER_CLASS_CHANGES=" <> to_string(base != other_class))
 IO.puts("SEED_DET=" <> to_string(base == elem(Strata.Valve.Refusals.MalformedFrame.refuse("seam-29-l26"), 1)))
+# Sabotage-twin discrimination leg: the twin skips the class label (hashes only
+# the seed) so its receipts are IDENTICAL across the four classes; the honest
+# derivation produces 4 distinct. The court must catch the twin.
+twin_digs =
+  for mod <- Strata.Valve.Refusals.classes() do
+    {:refuse, b} = Strata.Valve.Refusals.SabotageTwinSkipClassLabel.refuse(mod, :x)
+    b
+  end
+IO.puts("TWIN_DISTINCT=" <> to_string(length(Enum.uniq(twin_digs)) == length(twin_digs)))
+IO.puts("TWIN_LEN=" <> to_string(byte_size(hd(twin_digs))))
 """
 
 
@@ -128,6 +138,15 @@ def violations(obs: dict[str, str]) -> list[str]:
     for k in ("TAMPER_SEED_CHANGES", "TAMPER_CLASS_CHANGES", "SEED_DET"):
         if obs.get(k) != "true":
             bad.append(f"{k}={obs.get(k)!r} != 'true'")
+    if obs.get("TWIN_DISTINCT") != "false":
+        bad.append(
+            f"TWIN_DISTINCT={obs.get('TWIN_DISTINCT')!r} != 'false' — the "
+            "class-label-skipping sabotage twin was NOT caught by the "
+            "cross-class-distinctness court (twin must produce identical "
+            "receipts across classes; honest derivation produces 4 distinct)"
+        )
+    if obs.get("TWIN_LEN") != "32":
+        bad.append(f"TWIN_LEN={obs.get('TWIN_LEN')!r} != '32'")
     return bad
 
 
@@ -146,6 +165,37 @@ class ValveRefusalRuntime(unittest.TestCase):
         bad = violations(obs)
         self.assertNotEqual(bad, [], "court passed a sabotaged 31-byte receipt — court is vacuous")
         self.assertTrue(any("31" in v for v in bad), bad)
+
+    def test_sabotage_twin_skipping_class_label_is_caught(self) -> None:
+        """Twin catches: seed-only derivation yields identical receipts across
+        classes (cross-class-distinctness court fires) while the honest
+        derivation yields 4 distinct receipts on the same seed."""
+        obs = run_court(SOURCE)
+        self.assertEqual(obs["REFUSE_DISTINCT"], "true")
+        self.assertEqual(obs["TWIN_DISTINCT"], "false")
+        # Vacuity check on the twin leg: if the twin were "fixed" to mix the
+        # class label back in (no longer a twin), TWIN_DISTINCT flips to true
+        # and the court REFUSES — proving the twin-discrimination assertion
+        # is load-bearing, not tautological.
+        tmp = tempfile.TemporaryDirectory()
+        fixed = Path(tmp.name) / "refusals_fixed_twin.ex"
+        text = SOURCE.read_text(encoding="utf-8")
+        self.assertIn(
+            ':crypto.hash(:sha256, :erlang.term_to_binary(reason_seed))', text
+        )
+        fixed.write_text(
+            text.replace(
+                '''def refuse(_class, reason_seed) do
+    {:refuse, :crypto.hash(:sha256, :erlang.term_to_binary(reason_seed))}''',
+                '''def refuse(class, reason_seed) do
+    {:refuse, :crypto.hash(:sha256, (class |> Module.split() |> List.last()) <> <<0>> <> :erlang.term_to_binary(reason_seed))}''',
+            ),
+            encoding="utf-8",
+        )
+        obs_fixed = run_court(fixed)
+        self.assertEqual(obs_fixed["TWIN_DISTINCT"], "true")
+        bad = violations(obs_fixed)
+        self.assertTrue(any("TWIN_DISTINCT" in v for v in bad), bad)
 
 
 if __name__ == "__main__":

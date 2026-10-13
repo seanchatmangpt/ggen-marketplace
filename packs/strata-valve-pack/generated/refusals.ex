@@ -25,6 +25,25 @@ defmodule Strata.Valve.Refusals do
   end
 end
 
+defmodule Strata.Valve.Refusals.SabotageTwinSkipClassLabel do
+  @moduledoc """
+  SABOTAGE TWIN (test-only) — derivation skipping the class label: hashes only
+  the seed. The cross-class-distinctness court must catch it: the twin produces
+  IDENTICAL receipts across all four refusal classes while the honest
+  derivation produces 4 distinct receipts.
+  """
+
+  @doc """
+  Sabotaged derivation: `:crypto.hash(:sha256, :erlang.term_to_binary(seed))`
+  — the class is accepted but never mixed into the digest, so every class
+  yields the same receipt for the same seed.
+  """
+  @spec refuse(module(), term()) :: {:refuse, binary()}
+  def refuse(_class, reason_seed) do
+    {:refuse, :crypto.hash(:sha256, :erlang.term_to_binary(reason_seed))}
+  end
+end
+
 defmodule Strata.Valve.Refusals.ArenaFailure do
   @receipt_len 32
 
