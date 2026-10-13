@@ -9,6 +9,43 @@ error law of `lib/ash_a2a/protocol/jsonrpc/error.ex`.
 Class: **EvidencePack**. Authority: SELECT/CONSTRUCT — nothing here grants
 runtime actuation authority; consequential DO stays behind BRCE admission.
 
+## The ash_graphlaw column (fifth column)
+
+ash_graphlaw's own closed refusal table
+(`lib/ash_graphlaw/refusal.ex`, generated `class_of/1` + `broken_term_of/1`,
+**40 codes**) previously had zero crosswalk presence. It is now the fifth
+column: parallel `rv:GraphlawMapping` individuals keyed by the literal code
+atom (`rv:ashGraphlawCode`), mirroring the `rv:A2aWireMapping` shape. These
+are not erlmcp codes, so G4's macro bijection deliberately does not reach
+this column. Each mapping carries the code's own closed-table row as
+provenance (`rv:graphlawClass`, `rv:brokenTerm`) and exactly one declared S42
+target (`rv:ashA2aClass`).
+
+**Class law**: the graphlaw class determines the S42 target —
+`refused_admission` → `refused_rule`, `refused_authority` →
+`refused_authority`, `blocked_resource` → `blocked_resource`,
+`refused_structure` → `refused_structure`, `refused_identity` →
+`refused_identity`, `unsupported` → `unsupported_profile` — with six pinned
+per-code refinements: `plan_refused` → `refused_plan`,
+`receipt_required` → `refused_receipt`,
+`engine_unclassified` → `blocked_unknown` (an unknown engine variant is an
+unclassified situation, not an unsupported profile),
+`duplicate_admission` → `refused_identity`,
+`missing_law_module` → `refused_meta_rigor` (a vacuous admission is a
+failed rigor claim), `unknown_capability` → `refused_capability`.
+
+**Fail-closed disposition**: all 40 live codes map to exactly one honest S42
+class (40/40); the unmapped set is pinned EMPTY in
+[`tests/test_refusal_vocab_graphlaw_column.py`](../../tests/test_refusal_vocab_graphlaw_column.py)
+(`KNOWN_UNMAPPED = set()`). A future code with no honest class must carry
+`rv:unmappedDisposition` and NO `rv:ashA2aClass` — never a forced mapping
+(G7 enforces the mutual exclusion; see below). Adjudication notes pinned in
+the ontology: `call_timeout` stays `blocked_resource` (host fuel consumed
+DURING execution; matches ash_a2a's native `:timeout` placement — the erlmcp
+1069 `refused_bounds` deviation does not propagate), and `fuel_exhausted`
+stays `blocked_resource` (unlike the valve's `fuel_exhausted`, which is a
+lease refused BEFORE handoff → `refused_bounds`).
+
 ## Mapping table shape
 
 The mapping surface is RDF in
@@ -76,7 +113,17 @@ hardcodes a literal count:
 Earlier gates: `010_exactly_one_class.rq` (G1: every code maps to exactly one
 class), `020_class_coverage.rq` (G2: every class targeted ≥1), and
 `030_jsonrpc_law.rq` (G3: any claimed JSON-RPC code must be lawfully present
-in the JSON-RPC error law).
+in the JSON-RPC error law). The graphlaw column adds
+`gates/070_graphlaw_totality.rq` (G7): every `rv:GraphlawMapping` is complete
+(code atom, `rv:graphlawClass`, `rv:brokenTerm` present), targets exactly one
+declared `rv:RefusalClass`, declares its code atom exactly once, and honors
+the fail-closed disposition law (`rv:ashA2aClass` and
+`rv:unmappedDisposition` mutually exclusive; neither present refuses — no
+silent gaps). The court
+[`tests/test_refusal_vocab_graphlaw_column.py`](../../tests/test_refusal_vocab_graphlaw_column.py)
+pins the column against the LIVE `refusal.ex` (definition-site check,
+class/brokenTerm drift, class-law conformance, drift meta-test, sabotage
+twin; `BLOCKED:`-skip when the ash_graphlaw sibling is absent).
 
 ## How to add a mapping
 
