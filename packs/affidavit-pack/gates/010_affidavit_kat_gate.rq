@@ -1,0 +1,49 @@
+# MESSAGE: the affidavit chain-law KAT constants must be present and
+# well-formed: exactly one afd:KatSeed carrying a non-empty seed string and
+# 32-byte-hex seed-hex + genesis head, and every afd:KatVector carrying an
+# order, a non-empty even-length hex input, and a 32-byte-hex expected head.
+# Any returned row is a malformed or missing KAT constant -- fail closed.
+PREFIX afd: <http://seanchatmangpt.github.io/packs/affidavit#>
+
+SELECT ?subject ?problem WHERE {
+  {
+    ?seed1 a afd:KatSeed .
+    ?seed2 a afd:KatSeed .
+    FILTER(STR(?seed1) < STR(?seed2))
+    BIND(STR(?seed1) AS ?subject)
+    BIND("more than one afd:KatSeed individual" AS ?problem)
+  }
+  UNION
+  {
+    ?any a afd:KatVector .
+    FILTER NOT EXISTS {
+      ?seed a afd:KatSeed .
+      ?seed afd:katSeedStr ?sstr .
+      ?seed afd:katSeedHex ?shex .
+      ?seed afd:katGenesisHead ?shead .
+      FILTER(REGEX(STR(?sstr), ".+"))
+      # heads are 32-byte hashes: 64 lowercase hex chars; seedHex is the raw
+      # seed bytes as even-length hex (the seed is a variable-length string).
+      FILTER(STRLEN(STR(?shead)) = 64)
+      FILTER(REGEX(STR(?shead), "^[0-9a-f]+$"))
+      FILTER(REGEX(STR(?shex), "^([0-9a-f][0-9a-f])+$"))
+    }
+    BIND(STR(?any) AS ?subject)
+    BIND("missing/malformed afd:KatSeed constants (need one seed with non-empty string + 32-byte-hex seedHex and genesisHead)" AS ?problem)
+  }
+  UNION
+  {
+    ?vec a afd:KatVector .
+    FILTER NOT EXISTS {
+      ?vec afd:katOrder ?ord .
+      ?vec afd:katInputHex ?in .
+      ?vec afd:katExpectedHead ?head .
+      FILTER(STRLEN(STR(?head)) = 64)
+      FILTER(REGEX(STR(?head), "^[0-9a-f]+$"))
+      FILTER(REGEX(STR(?in), "^([0-9a-f][0-9a-f])+$"))
+    }
+    BIND(STR(?vec) AS ?subject)
+    BIND("missing/malformed afd:KatVector constants (need order, non-empty even-length hex input, 32-byte-hex expected head)" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem
