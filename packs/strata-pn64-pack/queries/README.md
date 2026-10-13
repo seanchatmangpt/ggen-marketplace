@@ -46,8 +46,7 @@ a `// REFUSED: empty ontology projection` comment instead of a table.
 - `places.rq` — all `st:Place` individuals + `st:bitOffset`, LSB-first.
   Lowers the marking-bit vocabulary (RONR noun space) that the mask
   literals are unions of.
-- `dao_verbs.rq` — `DaoVerb` individuals + `pn:value` (`pn:` is bound to
-  the same strata namespace as `st:`, so `pn:value` = `st:value`) +
+- `dao_verbs.rq` — `DaoVerb` individuals + `st:value` +
   opcode, ordered by value. Human/wire verb names for the six opcodes.
 - `deadlock_candidates.rq` — structural siphon PRE-FILTER as a query.
   Exact semantics, the arithmetic (hex-string) bit test, and its known
