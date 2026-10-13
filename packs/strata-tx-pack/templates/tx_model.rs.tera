@@ -591,6 +591,57 @@ mod tests {
         assert_eq!(blake3_hash(&zeros_1025), expected_1025);
     }
 
+    fn hex_of(bytes: &[u8]) -> String {
+        bytes.iter().map(|b| format!("{b:02x}")).collect()
+    }
+
+    // ── Cross-pack BLAKE3 equality KATs (L167 consolidation) ────────────
+    //
+    // Canonical owner: strata-hash-pack (KernelPack-adjacent) owns the
+    // family BLAKE3 calculus. Its generated/hash_merkle.rs now carries
+    // this full multi-chunk port (provenance-copied there verbatim except
+    // for the compress-fn rename) and is the family authority; this pack
+    // pins the canonical module by sha256 and carries the differential
+    // cross-pack KATs over the shared vectors. Cross-pack RDF reference:
+    // st:blake3CanonicalImpl in this pack's ontology.ttl.
+    //
+    // Canonical module pin (sha256 of
+    // packs/strata-hash-pack/generated/hash_merkle.rs):
+    // 6fd03d49a01174dd769f97175a3cb32d3e2ce72986f70a0c562a640cfa632b1e
+    const XPACK_CANONICAL_BLAKE3_SHA256: &str =
+        "6fd03d49a01174dd769f97175a3cb32d3e2ce72986f70a0c562a640cfa632b1e";
+
+    /// Differential KAT 1 — family-shared single-chunk vector: 512 bytes,
+    /// b[i] = (i*7 + 13) mod 256. Digest pinned by the AUTHORITY copy in
+    /// strata-hash-pack (independent Python `blake3` reference); this
+    /// pack's full port must reproduce it byte-for-byte.
+    #[test]
+    fn blake3_xpack_vector_kat() {
+        let v: Vec<u8> =
+            (0..512usize).map(|i| ((i * 7 + 13) & 0xFF) as u8).collect();
+        assert_eq!(
+            hex_of(&blake3_hash(&v)),
+            "1dd56407cbe69764f3663dbe9e78734fa6241ef443d82ccb240a1c661cd1e0a6"
+        );
+        assert_eq!(
+            XPACK_CANONICAL_BLAKE3_SHA256,
+            "6fd03d49a01174dd769f97175a3cb32d3e2ce72986f70a0c562a640cfa632b1e"
+        );
+    }
+
+    /// Differential KAT 2 — family-shared multi-chunk vector: 2000 bytes,
+    /// b[i] = (i*11 + 5) mod 256 (exercises chunk boundary + parent
+    /// chaining). Same authority pin in strata-hash-pack.
+    #[test]
+    fn blake3_xpack_multichunk_vector_kat() {
+        let v: Vec<u8> =
+            (0..2000usize).map(|i| ((i * 11 + 5) & 0xFF) as u8).collect();
+        assert_eq!(
+            hex_of(&blake3_hash(&v)),
+            "6a34306d1a0a3a515931f5698471048489431bbd80eb3459e7d10379465d12b7"
+        );
+    }
+
     /// KAT 3 — pinned digest over a pinned canonical frame: a fully
     /// deterministic Tx (fixed nonce/inputs/outputs/payload), encoded with the
     /// digest slot zeroed, must hash to this exact BLAKE3-256 digest. This is

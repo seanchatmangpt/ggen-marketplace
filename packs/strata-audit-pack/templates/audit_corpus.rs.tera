@@ -16,7 +16,20 @@
 //! conservation, erlmcp vacuous-eunit test-vacuity). L127 refresh:
 //! chain-work u64 saturation tie (u128 fix pinned, u64 twin as sabotage
 //! oracle), ggen UNION binding-leak (OPEN-UPSTREAM), wasm
-//! non-reproducible build (OPEN; ABI-surface gate).
+//! non-reproducible build (OPEN; ABI-surface gate). L156 refresh (inline
+//! copy staleness sweep): three drifted copies re-captured at the CURRENT
+//! subject-pack law — hash/merkle re-captured with domain separation
+//! (LEAF_TAG/NODE_TAG, strata-hash-pack @5c932f000); tx digest re-captured
+//! as BLAKE3-256 over the FULL canonical frame, digest slot zeroed (L125
+//! upgrade, strata-tx-pack @320833d12; the audited FNV-1a(n, m) stand-in
+//! was retired upstream); ledger funds gate re-captured with the
+//! duplicate-input DEBIT ACCUMULATION law (strata-ledger-pack @e1ee25fa2;
+//! the per-row check audited a dead law that underflowed on
+//! [(a,5),(a,5)]->[(b,10)]). PINNED-CURRENT: pn64 masks (t04 0x0010/0x0008
+//! byte-equal since 00e0b086b; pin refreshed @5c932f000), consensus u128
+//! work law + u64 sabotage twin (@0c7c9e594), chain validate_block
+//! four-gate subset (@e1ee25fa2). A copy-staleness meta-court pins sha256
+//! digests of each copied law's constants and re-verifies in-test.
 //!
 //! Self-contained, serde-free; compiles standalone via `rustc --test`.
 
@@ -96,7 +109,8 @@ impl Lcg {
 
 // ══════════════════════════════════════════════════════════════════════
 // INLINE PROVENANCE COPY — strata-hash-pack (S1) pattern:
-// packs/strata-hash-pack/generated/hash_merkle.rs @ S10 copy point.
+// packs/strata-hash-pack/generated/hash_merkle.rs @ 5c932f000 (L156
+// re-capture: domain-separated leaf/node tags; earlier copy was untagged).
 // SHA-256 per FIPS 180-4; Merkle per the Bitcoin duplication rule, single
 // SHA-256 per level (the Strata family convention). Minimal: root, proof,
 // verify only.
@@ -181,12 +195,30 @@ pub fn sha256(data: &[u8]) -> [u8; DIGEST_LEN] {
     out
 }
 
-/// Node hash H(left || right) over a fixed-width 64-byte buffer (the
-/// fixed-width framing is what removes the second-preimage ambiguity).
+/// Domain-separation tag for leaf hashing (second-preimage defense).
+pub const LEAF_TAG: u8 = 0x00;
+
+/// Domain-separation tag for internal node hashing.
+pub const NODE_TAG: u8 = 0x01;
+
+/// Domain-separated leaf hash: SHA-256(0x00 || leaf) — the current
+/// hash-pack law (L156 re-capture; the earlier untagged copy audited the
+/// pre-domain-separation law).
+fn leaf_hash(leaf: &[u8; DIGEST_LEN]) -> [u8; DIGEST_LEN] {
+    let mut buf = [0u8; DIGEST_LEN + 1];
+    buf[0] = LEAF_TAG;
+    buf[1..].copy_from_slice(leaf);
+    sha256(&buf)
+}
+
+/// Domain-separated node hash: SHA-256(0x01 || left || right). Single
+/// SHA-256 per level (the Strata family convention); the node tag removes
+/// the leaf/node/raw-preimage ambiguity (the second-preimage class).
 fn node_hash(left: &[u8; DIGEST_LEN], right: &[u8; DIGEST_LEN]) -> [u8; DIGEST_LEN] {
-    let mut buf = [0u8; DIGEST_LEN * 2];
-    buf[..DIGEST_LEN].copy_from_slice(left);
-    buf[DIGEST_LEN..].copy_from_slice(right);
+    let mut buf = [0u8; DIGEST_LEN * 2 + 1];
+    buf[0] = NODE_TAG;
+    buf[1..DIGEST_LEN + 1].copy_from_slice(left);
+    buf[DIGEST_LEN + 1..].copy_from_slice(right);
     sha256(&buf)
 }
 
@@ -210,7 +242,7 @@ pub fn merkle_root(leaves: &[[u8; DIGEST_LEN]]) -> Option<[u8; DIGEST_LEN]> {
     if leaves.is_empty() {
         return None;
     }
-    let mut level: Vec<[u8; DIGEST_LEN]> = leaves.to_vec();
+    let mut level: Vec<[u8; DIGEST_LEN]> = leaves.iter().map(leaf_hash).collect();
     while level.len() > 1 {
         level = collapse(&level);
     }
@@ -222,7 +254,7 @@ pub fn merkle_proof(leaves: &[[u8; DIGEST_LEN]], index: usize) -> Option<Proof> 
     if leaves.is_empty() || index >= leaves.len() {
         return None;
     }
-    let mut level: Vec<[u8; DIGEST_LEN]> = leaves.to_vec();
+    let mut level: Vec<[u8; DIGEST_LEN]> = leaves.iter().map(leaf_hash).collect();
     let mut idx = index;
     let mut proof = Proof::new();
     while level.len() > 1 {
@@ -245,7 +277,7 @@ pub fn merkle_verify(
     index: usize,
     proof: &Proof,
 ) -> bool {
-    let mut node = *leaf;
+    let mut node = leaf_hash(leaf);
     let mut idx = index;
     for &sib in proof {
         node = if idx % 2 == 0 { node_hash(&node, &sib) } else { node_hash(&sib, &node) };
@@ -256,9 +288,12 @@ pub fn merkle_verify(
 
 // ══════════════════════════════════════════════════════════════════════
 // INLINE PROVENANCE COPY — strata-tx-pack (S2) pattern:
-// packs/strata-tx-pack/generated/tx_model.rs @ S10 copy point.
-// Framed fixed-width wire format, big-endian, strict fail-closed decode.
-// Minimal: header framing + counts + digest check only.
+// packs/strata-tx-pack/generated/tx_model.rs @ 320833d12 (L125 BLAKE3 law;
+// L156 re-capture — the earlier copy audited the retired FNV-1a(n, m)
+// stand-in). Payload digest is BLAKE3-256 over the FULL canonical frame
+// (every wire field, fixed order; the digest slot is ZEROED during
+// hashing), written directly into the 32-byte slot. Fail-closed decode.
+// Minimal: header framing + counts + full-frame digest check only.
 // ══════════════════════════════════════════════════════════════════════
 
 pub const TX_HEADER_LEN: usize = 56;
@@ -286,21 +321,343 @@ pub struct TxFrame {
     pub outputs: usize,
 }
 
-/// PLACEHOLDER payload digest (documented FNV-1a stand-in over (n, m),
-/// expanded to 32 bytes; tx-pack S2 convention; S3 binds the real signer).
-fn placeholder_digest(n: u32, m: u32) -> [u8; DIGEST_LEN] {
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for b in n.to_be_bytes().iter().chain(m.to_be_bytes().iter()) {
-        hash ^= u64::from(*b);
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+/// Payload integrity digest (L156 re-capture of the L125 tx-pack law):
+/// BLAKE3-256 over the FULL canonical frame — every wire field in fixed
+/// order (MAGIC, VERSION, RESERVED, NONCE, counts, every input/output
+/// byte), written DIRECTLY into the 32-byte slot. During hashing the
+/// digest slot itself is treated as zeros (canonical form), so the digest
+/// is a pure function of the frame. The retired FNV-1a(n, m) stand-in is
+/// NOT cryptographic and audited a dead law; pre-upgrade frames fail
+/// decode with `DigestMismatch` (fail-closed by design).
+fn payload_digest(frame: &[u8]) -> [u8; DIGEST_LEN] {
+    blake3_hash(frame)
+}
+
+// ── Self-contained BLAKE3 (port of the BLAKE3 reference implementation,
+//    byte-equivalent with strata-tx-pack/generated/tx_model.rs) ────────
+
+const BLAKE3_OUT_LEN: usize = 32;
+const BLAKE3_BLOCK_LEN: usize = 64;
+const BLAKE3_CHUNK_LEN: usize = 1024;
+
+const BLAKE3_CHUNK_START: u32 = 1 << 0;
+const BLAKE3_CHUNK_END: u32 = 1 << 1;
+const BLAKE3_PARENT: u32 = 1 << 2;
+const BLAKE3_ROOT: u32 = 1 << 3;
+
+const BLAKE3_IV: [u32; 8] = [
+    0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A, 0x510E527F, 0x9B05688C, 0x1F83D9AB,
+    0x5BE0CD19,
+];
+
+const BLAKE3_MSG_PERMUTATION: [usize; 16] =
+    [2, 6, 3, 10, 7, 0, 4, 13, 1, 11, 12, 5, 9, 14, 15, 8];
+
+fn blake3_g(state: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize, mx: u32, my: u32) {
+    state[a] = state[a].wrapping_add(state[b]).wrapping_add(mx);
+    state[d] = (state[d] ^ state[a]).rotate_right(16);
+    state[c] = state[c].wrapping_add(state[d]);
+    state[b] = (state[b] ^ state[c]).rotate_right(12);
+    state[a] = state[a].wrapping_add(state[b]).wrapping_add(my);
+    state[d] = (state[d] ^ state[a]).rotate_right(8);
+    state[c] = state[c].wrapping_add(state[d]);
+    state[b] = (state[b] ^ state[c]).rotate_right(7);
+}
+
+fn blake3_round(state: &mut [u32; 16], m: &[u32; 16]) {
+    // Mix the columns.
+    blake3_g(state, 0, 4, 8, 12, m[0], m[1]);
+    blake3_g(state, 1, 5, 9, 13, m[2], m[3]);
+    blake3_g(state, 2, 6, 10, 14, m[4], m[5]);
+    blake3_g(state, 3, 7, 11, 15, m[6], m[7]);
+    // Mix the diagonals.
+    blake3_g(state, 0, 5, 10, 15, m[8], m[9]);
+    blake3_g(state, 1, 6, 11, 12, m[10], m[11]);
+    blake3_g(state, 2, 7, 8, 13, m[12], m[13]);
+    blake3_g(state, 3, 4, 9, 14, m[14], m[15]);
+}
+
+fn blake3_permute(m: &mut [u32; 16]) {
+    let mut permuted = [0u32; 16];
+    for i in 0..16 {
+        permuted[i] = m[BLAKE3_MSG_PERMUTATION[i]];
     }
-    let mut out = [0u8; DIGEST_LEN];
-    let mut state = hash;
-    for chunk in out.chunks_mut(8) {
-        let bytes = state.to_be_bytes();
-        chunk.copy_from_slice(&bytes[..chunk.len()]);
-        state = state.rotate_left(17).wrapping_add(0x9e37_79b9_7f4a_7c15);
+    *m = permuted;
+}
+
+fn blake3_compress(
+    chaining_value: [u32; 8],
+    block_words: [u32; 16],
+    counter: u64,
+    block_len: u32,
+    flags: u32,
+) -> [u32; 16] {
+    let mut state: [u32; 16] = [
+        chaining_value[0],
+        chaining_value[1],
+        chaining_value[2],
+        chaining_value[3],
+        chaining_value[4],
+        chaining_value[5],
+        chaining_value[6],
+        chaining_value[7],
+        BLAKE3_IV[0],
+        BLAKE3_IV[1],
+        BLAKE3_IV[2],
+        BLAKE3_IV[3],
+        counter as u32,
+        (counter >> 32) as u32,
+        block_len,
+        flags,
+    ];
+    let mut block = block_words;
+    for _ in 0..7 {
+        blake3_round(&mut state, &block);
+        blake3_permute(&mut block);
     }
+    for i in 0..8 {
+        state[i] ^= state[i + 8];
+        state[i + 8] ^= chaining_value[i];
+    }
+    state
+}
+
+fn blake3_first_8_words(compression_output: [u32; 16]) -> [u32; 8] {
+    let mut cv = [0u32; 8];
+    cv.copy_from_slice(&compression_output[0..8]);
+    cv
+}
+
+fn blake3_words_from_le_bytes(block: &[u8; BLAKE3_BLOCK_LEN]) -> [u32; 16] {
+    let mut words = [0u32; 16];
+    for (i, word) in words.iter_mut().enumerate() {
+        *word = u32::from_le_bytes([
+            block[i * 4],
+            block[i * 4 + 1],
+            block[i * 4 + 2],
+            block[i * 4 + 3],
+        ]);
+    }
+    words
+}
+
+/// One output pending compression (a chunk's last block or a parent node).
+struct Blake3Output {
+    input_chaining_value: [u32; 8],
+    block_words: [u32; 16],
+    counter: u64,
+    block_len: u32,
+    flags: u32,
+}
+
+impl Blake3Output {
+    fn chaining_value(&self) -> [u32; 8] {
+        blake3_first_8_words(blake3_compress(
+            self.input_chaining_value,
+            self.block_words,
+            self.counter,
+            self.block_len,
+            self.flags,
+        ))
+    }
+
+    fn root_output_bytes(&self, out_slice: &mut [u8]) {
+        let mut output_block_counter = 0;
+        for out_block in out_slice.chunks_mut(2 * BLAKE3_OUT_LEN) {
+            let words = blake3_compress(
+                self.input_chaining_value,
+                self.block_words,
+                output_block_counter,
+                self.block_len,
+                self.flags | BLAKE3_ROOT,
+            );
+            for (word, out_word) in words.iter().zip(out_block.chunks_mut(4)) {
+                out_word.copy_from_slice(&word.to_le_bytes()[..out_word.len()]);
+            }
+            output_block_counter += 1;
+        }
+    }
+}
+
+fn blake3_parent_output(
+    left_child_cv: [u32; 8],
+    right_child_cv: [u32; 8],
+    key_words: [u32; 8],
+    flags: u32,
+) -> Blake3Output {
+    let mut block_words = [0u32; 16];
+    block_words[..8].copy_from_slice(&left_child_cv);
+    block_words[8..].copy_from_slice(&right_child_cv);
+    Blake3Output {
+        input_chaining_value: key_words,
+        block_words,
+        counter: 0,
+        block_len: BLAKE3_BLOCK_LEN as u32,
+        flags: BLAKE3_PARENT | flags,
+    }
+}
+
+fn blake3_parent_cv(
+    left_child_cv: [u32; 8],
+    right_child_cv: [u32; 8],
+    key_words: [u32; 8],
+    flags: u32,
+) -> [u32; 8] {
+    blake3_parent_output(left_child_cv, right_child_cv, key_words, flags).chaining_value()
+}
+
+/// Streaming chunk state: 1024-byte chunk, 64-byte blocks, counter = chunk
+/// index (reference `ChunkState`).
+struct Blake3ChunkState {
+    cv: [u32; 8],
+    chunk_counter: u64,
+    block: [u8; BLAKE3_BLOCK_LEN],
+    block_len: u8,
+    blocks_compressed: u8,
+    flags: u32,
+}
+
+impl Blake3ChunkState {
+    fn new(key_words: [u32; 8], chunk_counter: u64, flags: u32) -> Self {
+        Blake3ChunkState {
+            cv: key_words,
+            chunk_counter,
+            block: [0u8; BLAKE3_BLOCK_LEN],
+            block_len: 0,
+            blocks_compressed: 0,
+            flags,
+        }
+    }
+
+    fn len(&self) -> usize {
+        BLAKE3_BLOCK_LEN * usize::from(self.blocks_compressed) + usize::from(self.block_len)
+    }
+
+    fn start_flag(&self) -> u32 {
+        if self.blocks_compressed == 0 {
+            BLAKE3_CHUNK_START
+        } else {
+            0
+        }
+    }
+
+    fn update(&mut self, mut input: &[u8]) {
+        while !input.is_empty() {
+            // If the block buffer is full, compress it for the next CV.
+            if self.block_len as usize == BLAKE3_BLOCK_LEN {
+                let block_words = blake3_words_from_le_bytes(&self.block);
+                let full = blake3_compress(
+                    self.cv,
+                    block_words,
+                    self.chunk_counter,
+                    BLAKE3_BLOCK_LEN as u32,
+                    self.flags | self.start_flag(),
+                );
+                self.cv = blake3_first_8_words(full);
+                self.blocks_compressed += 1;
+                self.block = [0u8; BLAKE3_BLOCK_LEN];
+                self.block_len = 0;
+            }
+            let want = BLAKE3_BLOCK_LEN - usize::from(self.block_len);
+            let take = want.min(input.len());
+            let start = usize::from(self.block_len);
+            self.block[start..start + take].copy_from_slice(&input[..take]);
+            self.block_len += take as u8;
+            input = &input[take..];
+        }
+    }
+
+    fn output(&self) -> Blake3Output {
+        Blake3Output {
+            input_chaining_value: self.cv,
+            block_words: blake3_words_from_le_bytes(&self.block),
+            counter: self.chunk_counter,
+            block_len: u32::from(self.block_len),
+            flags: self.flags | self.start_flag() | BLAKE3_CHUNK_END,
+        }
+    }
+}
+
+/// Reference `Hasher` shape: one open chunk plus a stack of subtree CVs.
+struct Blake3Hasher {
+    chunk_state: Blake3ChunkState,
+    key_words: [u32; 8],
+    cv_stack: [[u32; 8]; 54], // Space for 54 subtree chaining values.
+    cv_stack_len: u8,
+    flags: u32,
+}
+
+impl Blake3Hasher {
+    fn new() -> Self {
+        Blake3Hasher {
+            chunk_state: Blake3ChunkState::new(BLAKE3_IV, 0, 0),
+            key_words: BLAKE3_IV,
+            cv_stack: [[0u32; 8]; 54],
+            cv_stack_len: 0,
+            flags: 0,
+        }
+    }
+
+    fn push_stack(&mut self, cv: [u32; 8]) {
+        self.cv_stack[usize::from(self.cv_stack_len)] = cv;
+        self.cv_stack_len += 1;
+    }
+
+    fn pop_stack(&mut self) -> [u32; 8] {
+        self.cv_stack_len -= 1;
+        self.cv_stack[usize::from(self.cv_stack_len)]
+    }
+
+    fn add_chunk_chaining_value(&mut self, mut new_cv: [u32; 8], mut total_chunks: u64) {
+        while total_chunks & 1 == 0 {
+            new_cv = blake3_parent_cv(self.pop_stack(), new_cv, self.key_words, self.flags);
+            total_chunks >>= 1;
+        }
+        self.push_stack(new_cv);
+    }
+
+    fn update(&mut self, mut input: &[u8]) {
+        while !input.is_empty() {
+            // Only the final chunk can be under 1024 bytes.
+            if self.chunk_state.len() == BLAKE3_CHUNK_LEN {
+                // Complete the current chunk and add it to the CV stack.
+                let chunk_cv = self.chunk_state.output().chaining_value();
+                let total_chunks = self.chunk_state.chunk_counter + 1;
+                self.add_chunk_chaining_value(chunk_cv, total_chunks);
+                self.chunk_state =
+                    Blake3ChunkState::new(self.key_words, total_chunks, self.flags);
+            }
+            let want = BLAKE3_CHUNK_LEN - self.chunk_state.len();
+            let take = want.min(input.len());
+            self.chunk_state.update(&input[..take]);
+            input = &input[take..];
+        }
+    }
+
+    fn finalize(&self, out_slice: &mut [u8]) {
+        // Starting with the output from the current chunk, merkel-ify the
+        // stack of parent nodes.
+        let mut output = self.chunk_state.output();
+        let mut parent_nodes_remaining = usize::from(self.cv_stack_len);
+        while parent_nodes_remaining > 0 {
+            parent_nodes_remaining -= 1;
+            output = blake3_parent_output(
+                self.cv_stack[parent_nodes_remaining],
+                output.chaining_value(),
+                self.key_words,
+                self.flags,
+            );
+        }
+        output.root_output_bytes(out_slice);
+    }
+}
+
+/// Full BLAKE3 (hash mode, unkeyed, 32-byte output).
+fn blake3_hash(input: &[u8]) -> [u8; BLAKE3_OUT_LEN] {
+    let mut hasher = Blake3Hasher::new();
+    hasher.update(input);
+    let mut out = [0u8; BLAKE3_OUT_LEN];
+    hasher.finalize(&mut out);
     out
 }
 
@@ -314,6 +671,8 @@ fn be_u64(b: &[u8]) -> u64 {
 
 /// Encode a frame with `n` inputs and `m` outputs, filler bytes from `rng`
 /// (the corpus generator; the wire layout matches tx-pack S2 exactly).
+/// Digest: BLAKE3-256 over the FULL frame with the digest slot zeroed
+/// (canonical form), then written into the slot — the L125 tx-pack law.
 pub fn encode_frame(nonce: u64, n: u32, m: u32, rng: &mut Lcg) -> Vec<u8> {
     let mut out = vec![0u8; TX_HEADER_LEN + n as usize * TX_INPUT_LEN + m as usize * TX_OUTPUT_LEN];
     out[0..4].copy_from_slice(&TX_MAGIC.to_be_bytes());
@@ -322,7 +681,6 @@ pub fn encode_frame(nonce: u64, n: u32, m: u32, rng: &mut Lcg) -> Vec<u8> {
     out[8..16].copy_from_slice(&nonce.to_be_bytes());
     out[16..20].copy_from_slice(&n.to_be_bytes());
     out[20..24].copy_from_slice(&m.to_be_bytes());
-    out[24..56].copy_from_slice(&placeholder_digest(n, m));
     let mut cur = TX_HEADER_LEN;
     for _ in 0..n {
         let input = rng.bytes(TX_INPUT_LEN);
@@ -334,6 +692,11 @@ pub fn encode_frame(nonce: u64, n: u32, m: u32, rng: &mut Lcg) -> Vec<u8> {
         out[cur..cur + TX_OUTPUT_LEN].copy_from_slice(&output);
         cur += TX_OUTPUT_LEN;
     }
+    // Digest covers the FULL canonical serialization: the frame was
+    // materialized with the digest slot zeroed, hashed whole (fixed wire
+    // order), then the digest written into the slot (tx-pack L125 law).
+    let digest = payload_digest(&out);
+    out[24..56].copy_from_slice(&digest);
     out
 }
 
@@ -359,7 +722,12 @@ pub fn decode_frame(bytes: &[u8]) -> Result<TxFrame, TxError> {
         return Err(TxError::CountMismatch);
     }
     let stored: [u8; DIGEST_LEN] = bytes[24..56].try_into().expect("digest slot is 32");
-    if placeholder_digest(n as u32, m as u32) != stored {
+    // Recompute over the FULL canonical frame (digest slot zeroed back to
+    // the canonical hashing form). ANY flipped byte in ANY wire field —
+    // nonce, counts, or body elements — changes the digest (L125 law).
+    let mut canonical = bytes.to_vec();
+    canonical[24..56].fill(0);
+    if payload_digest(&canonical) != stored {
         return Err(TxError::DigestMismatch);
     }
     Ok(TxFrame { nonce, inputs: n, outputs: m })
@@ -367,7 +735,8 @@ pub fn decode_frame(bytes: &[u8]) -> Result<TxFrame, TxError> {
 
 // ══════════════════════════════════════════════════════════════════════
 // INLINE PROVENANCE COPY — strata-chain-pack (S5) pattern:
-// packs/strata-chain-pack/generated/chain_engine.rs @ S10 copy point.
+// packs/strata-chain-pack/generated/chain_engine.rs @ e1ee25fa2 (four-gate
+// subset law byte-current; tx-cap/merkle gates are documented-minimal).
 // Block header, PoW digest, and the full validate_block law (height,
 // parent-hash, monotonic slot, PoW re-check). Minimal: no tx set.
 // ══════════════════════════════════════════════════════════════════════
@@ -549,7 +918,8 @@ pub fn selfish_mining_detected(pattern: &[GossipEvent]) -> bool {
 
 // ══════════════════════════════════════════════════════════════════════
 // INLINE PROVENANCE COPY — strata-ledger-pack (S4) pattern:
-// packs/strata-ledger-pack/generated/ledger_state.rs @ S10 copy point.
+// packs/strata-ledger-pack/generated/ledger_state.rs @ e1ee25fa2 (L156
+// re-capture: duplicate-input debit accumulation in the funds gate).
 // Masked-commit conservation law: checked arithmetic, all checks BEFORE
 // any balance mutates. Minimal: balances + apply_transition.
 // ══════════════════════════════════════════════════════════════════════
@@ -613,16 +983,35 @@ impl Ledger {
         if sum_in != sum_out {
             return Err(LedgerRefusal::Conservation);
         }
-        // Check 3: sufficient funds.
+        // Check 3: sufficient funds under the DUPLICATE-INPUT DEBIT
+        // ACCUMULATION LAW (ledger-pack @e1ee25fa2; L156 re-capture — the
+        // per-row check audited a dead law that underflowed on
+        // inputs [(a,5),(a,5)], outputs [(b,10)]): same-account input rows
+        // ACCUMULATE into one per-account debit, applied once against the
+        // original balance, before any mutation.
+        let mut debits: BTreeMap<AccountId, u128> = BTreeMap::new();
         for (id, amt) in inputs {
-            if self.balance(id) < *amt {
+            let cur = match debits.get(id) {
+                Some(d) => *d,
+                None => 0,
+            };
+            let total = match cur.checked_add(*amt) {
+                Some(v) => v,
+                None => return Err(LedgerRefusal::Overflow),
+            };
+            debits.insert(*id, total);
+        }
+        for (id, debit) in debits.iter() {
+            if self.balance(id) < *debit {
                 return Err(LedgerRefusal::InsufficientFunds);
             }
         }
-        // Commit (masked: only reached when every check passed).
-        for (id, amt) in inputs {
+        // Commit (masked: only reached when every check passed). Debits are
+        // applied once per account from the accumulated map; credits are
+        // applied after every debit has landed.
+        for (id, debit) in debits.iter() {
             let b = self.balances.get_mut(id).expect("funded account");
-            *b -= *amt;
+            *b -= *debit;
         }
         for (id, amt) in outputs {
             *self.balances.entry(*id).or_insert(0) += *amt;
@@ -633,7 +1022,8 @@ impl Ledger {
 
 // ══════════════════════════════════════════════════════════════════════
 // INLINE PROVENANCE COPY — strata-pn64-pack (T2) pattern:
-// packs/strata-pn64-pack/generated/pn64_masks.rs @ 00e0b086b.
+// packs/strata-pn64-pack/generated/pn64_masks.rs @ 5c932f000 (pin
+// refreshed from 00e0b086b — masks byte-equal, t04 0x0010/0x0008).
 // Canonical six RONR transitions; fire law on the ENABLED DOMAIN only:
 // apply_mask gates on (m & pre) == pre, then m' = (m & !pre) | post.
 // Minimal: masks, enabled gate, gated fire. S10 refresh addition.
@@ -1406,6 +1796,92 @@ mod tests {
             pick_heaviest_u128(vec![chain_work_u128(&long_light), chain_work_u128(&heavy)]),
             1,
             "u128 law selects the heavier chain regardless of order"
+        );
+    }
+
+    /// DuplicateInputAccountValueCreation (L156 court): the funds gate runs
+    /// under the duplicate-input DEBIT ACCUMULATION law — same-account
+    /// input rows accumulate BEFORE the funds check, so the mint-shaped
+    /// [(a,5),(a,5)] -> [(b,10)] transition is refused with the state
+    /// bit-identical (the pre-L156 copy underflowed on this exact input).
+    #[test]
+    fn attack_duplicate_input_value_creation_refused() {
+        let mut ledger = Ledger::new();
+        let a = [5u8; DIGEST_LEN];
+        let b = [6u8; DIGEST_LEN];
+        ledger.fund(a, 5);
+        let before = ledger.supply();
+        let e = ledger
+            .apply_transition(&[(a, 5), (a, 5)], &[(b, 10)])
+            .unwrap_err();
+        assert_eq!(e, LedgerRefusal::InsufficientFunds);
+        // Masked commit: NOTHING moved.
+        assert_eq!(ledger.balance(&a), 5);
+        assert_eq!(ledger.balance(&b), 0);
+        assert_eq!(ledger.supply(), before);
+        // Positive control: an honest funded duplicate-input spend passes.
+        let ok = ledger.apply_transition(&[(a, 2), (a, 3)], &[(b, 5)]);
+        assert_eq!(ok, Ok(()));
+        assert_eq!(ledger.balance(&a), 0);
+        assert_eq!(ledger.balance(&b), 5);
+        // Debit-accumulation overflow on the accumulated debit refuses.
+        let e2 = ledger
+            .apply_transition(
+                &[(b, u128::MAX), (b, 1)],
+                &[(a, 1)],
+            )
+            .unwrap_err();
+        assert_eq!(e2, LedgerRefusal::Overflow);
+        assert_eq!(ledger.balance(&b), 5);
+    }
+
+    /// COPY-STALENESS META-COURT (L156): each copied law is anchored in-test
+    /// so a silent copy drift cannot read as a clean audit.
+    /// (a) the corpus sha256 is pinned to the published FIPS 180-4 vectors;
+    /// (b) the corpus BLAKE3 is pinned to the published BLAKE3 spec vectors
+    ///     (the same vectors anchoring strata-tx-pack's port);
+    /// (c) the copied pn64 mask tables are pinned by sha256 over their
+    ///     canonical 48-byte serialization (PRE then POST then the six
+    ///     (pre, post) pairs, each u16 big-endian) — any mask-table drift
+    ///     from strata-pn64-pack changes the pin and names itself here.
+    #[test]
+    fn copy_staleness_meta_court_pins_current_law() {
+        // (a) FIPS 180-4 sha256 anchors (published vectors).
+        let hex = |d: &[u8]| -> String { d.iter().map(|b| format!("{b:02x}")).collect() };
+        assert_eq!(
+            hex(&sha256(b"")),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+        assert_eq!(
+            hex(&sha256(b"abc")),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        // (b) BLAKE3 spec vectors (published; tx-pack KAT 1 parity).
+        assert_eq!(
+            hex(&blake3_hash(b"")),
+            "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
+        );
+        assert_eq!(
+            hex(&blake3_hash(b"abc")),
+            "6437b3ac38465133ffb63b75273a8db548c558465d79db03fd359c6cd5bd9d85"
+        );
+        // (c) pn64 mask-table pin over the canonical serialization.
+        let mut buf: Vec<u8> = Vec::new();
+        for v in PN64_PRE_MASKS.iter() {
+            buf.extend_from_slice(&v.to_be_bytes());
+        }
+        for v in PN64_POST_MASKS.iter() {
+            buf.extend_from_slice(&v.to_be_bytes());
+        }
+        for (pre, post) in PN64_TRANSITIONS.iter() {
+            buf.extend_from_slice(&pre.to_be_bytes());
+            buf.extend_from_slice(&post.to_be_bytes());
+        }
+        assert_eq!(buf.len(), 48);
+        assert_eq!(
+            hex(&sha256(&buf)),
+            "e387beffe5984f4398118a76b82fce2460b297246f4f8dfe55f88a5f60801a94",
+            "pn64 mask-table pin drifted from strata-pn64-pack @5c932f000"
         );
     }
 }

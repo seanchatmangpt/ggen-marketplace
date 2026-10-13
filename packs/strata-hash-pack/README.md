@@ -37,3 +37,15 @@ rustc --test generated/hash_consts.rs -o /tmp/consts && /tmp/consts
 3. Gates zero-rows via rdflib (010 digest-length, 020 algorithm-closure).
 4. `python3 scripts/marketplace.py validate` — 317 packs validated, exit 0.
 5. `scripts/qualify_packs.py` — `strata-hash-pack` status ALIVE.
+
+## Family-canonical BLAKE3 ownership (L167 consolidation)
+
+`generated/hash_merkle.rs` is the family-canonical full BLAKE3 port
+(hash mode, unkeyed, 32-byte output; multi-chunk streaming via the
+reference Hasher/cv_stack shape), provenance-copied from
+strata-tx-pack's tx_model.rs. strata-chain-pack and strata-tx-pack pin
+this module by sha256 and carry differential cross-pack KATs over the
+shared vectors (512B `b[i]=(i*7+13) mod 256` -> `1dd56407...e0a6`;
+2000B `b[i]=(i*11+5) mod 256` -> `6a34306d...12b7`), each pinned
+against the independent Python `blake3` reference. One calculus, one
+canonical implementation.

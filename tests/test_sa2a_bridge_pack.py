@@ -48,7 +48,12 @@ RDF_TYPE = URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
 # The receipt this court was cut against: pinned ggen v26.8.11,
 # scripts/qualify_packs_r18.py --scope all (shard 3 of 4), subject head
 # recorded in receipts/v26.9.22/GGMKT-26922-03.json.
-RECEIPTED_SOURCE_SHA256 = "635819b628af28be5f401a949fa7dec11288e1cb980c82242663a73b1d8f0b94"
+# Re-pin L159 (2026-10-13): tree drifted by exactly the corpus-wide
+# [capabilities] annotation commit f52ed0e85 (+3 lines pack.toml) --
+# verified: fingerprint at f52ed0e85^ == the prior pin 635819b6...b94.
+# The v26.9.22 receipt binds the OLD subject; a re-qualification under the
+# pinned v26.8.11 ggen is OWED for the new subject.
+RECEIPTED_SOURCE_SHA256 = "0e5c45d01efdef7e269da0c5b3d39ab11646e5728df23eebc147ec1c442a58f8"
 RECEIPTED_GGEN_VERSION = "26.8.11"
 
 # Autofde-lab commit that added the sa2a_* BEAM-port ops (the pack's own

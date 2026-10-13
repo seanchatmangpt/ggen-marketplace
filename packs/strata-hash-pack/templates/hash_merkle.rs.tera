@@ -665,6 +665,353 @@ mod tests {
         m
     }
 
+    // ── Family-canonical full BLAKE3 (L167 consolidation) ───────────────
+    //
+    // strata-hash-pack is the family-canonical BLAKE3 owner: this is the
+    // full multi-chunk port (hash mode, unkeyed, 32-byte output),
+    // PROVENANCE-COPIED from strata-tx-pack's tx_model.rs.tera. The other
+    // family packs (strata-chain-pack, strata-tx-pack) pin this pack's
+    // generated module by sha256 and carry a differential cross-pack KAT
+    // over the shared vector below; they do not re-implement the full
+    // algorithm (one calculus, one canonical implementation — the C14
+    // O(N^2) drift fence). The legacy single-chunk core above is retained
+    // for the v2-fold court's single-chunk domain; a KAT below proves
+    // byte-equality between the two on every shared overlap input.
+    //
+    // Only textual deviation from the tx-pack original: the port's
+    // compression function is renamed `blake3_compress_full` to avoid
+    // collision with the single-chunk core's `blake3_compress` above.
+
+    const BLAKE3_OUT_LEN: usize = 32;
+    const BLAKE3_BLOCK_LEN: usize = 64;
+    const BLAKE3_CHUNK_LEN: usize = 1024;
+
+    const BLAKE3_CHUNK_START: u32 = 1 << 0;
+    const BLAKE3_CHUNK_END: u32 = 1 << 1;
+    const BLAKE3_PARENT: u32 = 1 << 2;
+    const BLAKE3_ROOT: u32 = 1 << 3;
+
+    const BLAKE3_IV: [u32; 8] = [
+        0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A, 0x510E527F, 0x9B05688C, 0x1F83D9AB,
+        0x5BE0CD19,
+    ];
+
+    const BLAKE3_MSG_PERMUTATION: [usize; 16] =
+        [2, 6, 3, 10, 7, 0, 4, 13, 1, 11, 12, 5, 9, 14, 15, 8];
+
+    fn blake3_g(state: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize, mx: u32, my: u32) {
+        state[a] = state[a].wrapping_add(state[b]).wrapping_add(mx);
+        state[d] = (state[d] ^ state[a]).rotate_right(16);
+        state[c] = state[c].wrapping_add(state[d]);
+        state[b] = (state[b] ^ state[c]).rotate_right(12);
+        state[a] = state[a].wrapping_add(state[b]).wrapping_add(my);
+        state[d] = (state[d] ^ state[a]).rotate_right(8);
+        state[c] = state[c].wrapping_add(state[d]);
+        state[b] = (state[b] ^ state[c]).rotate_right(7);
+    }
+
+    fn blake3_round(state: &mut [u32; 16], m: &[u32; 16]) {
+        // Mix the columns.
+        blake3_g(state, 0, 4, 8, 12, m[0], m[1]);
+        blake3_g(state, 1, 5, 9, 13, m[2], m[3]);
+        blake3_g(state, 2, 6, 10, 14, m[4], m[5]);
+        blake3_g(state, 3, 7, 11, 15, m[6], m[7]);
+        // Mix the diagonals.
+        blake3_g(state, 0, 5, 10, 15, m[8], m[9]);
+        blake3_g(state, 1, 6, 11, 12, m[10], m[11]);
+        blake3_g(state, 2, 7, 8, 13, m[12], m[13]);
+        blake3_g(state, 3, 4, 9, 14, m[14], m[15]);
+    }
+
+    fn blake3_permute(m: &mut [u32; 16]) {
+        let mut permuted = [0u32; 16];
+        for i in 0..16 {
+            permuted[i] = m[BLAKE3_MSG_PERMUTATION[i]];
+        }
+        *m = permuted;
+    }
+
+    /// Full-port compression function (renamed from `blake3_compress` —
+    /// see the consolidation comment above; the single-chunk core keeps
+    /// the short name in this module).
+    #[allow(clippy::too_many_arguments)]
+    fn blake3_compress_full(
+        chaining_value: [u32; 8],
+        block_words: [u32; 16],
+        counter: u64,
+        block_len: u32,
+        flags: u32,
+    ) -> [u32; 16] {
+        let mut state: [u32; 16] = [
+            chaining_value[0],
+            chaining_value[1],
+            chaining_value[2],
+            chaining_value[3],
+            chaining_value[4],
+            chaining_value[5],
+            chaining_value[6],
+            chaining_value[7],
+            BLAKE3_IV[0],
+            BLAKE3_IV[1],
+            BLAKE3_IV[2],
+            BLAKE3_IV[3],
+            counter as u32,
+            (counter >> 32) as u32,
+            block_len,
+            flags,
+        ];
+        let mut block = block_words;
+        for _ in 0..7 {
+            blake3_round(&mut state, &block);
+            blake3_permute(&mut block);
+        }
+        for i in 0..8 {
+            state[i] ^= state[i + 8];
+            state[i + 8] ^= chaining_value[i];
+        }
+        state
+    }
+
+    fn blake3_first_8_words(compression_output: [u32; 16]) -> [u32; 8] {
+        let mut cv = [0u32; 8];
+        cv.copy_from_slice(&compression_output[0..8]);
+        cv
+    }
+
+    fn blake3_words_from_le_bytes(block: &[u8; BLAKE3_BLOCK_LEN]) -> [u32; 16] {
+        let mut words = [0u32; 16];
+        for (i, word) in words.iter_mut().enumerate() {
+            *word = u32::from_le_bytes([
+                block[i * 4],
+                block[i * 4 + 1],
+                block[i * 4 + 2],
+                block[i * 4 + 3],
+            ]);
+        }
+        words
+    }
+
+    /// One output pending compression (a chunk's last block or a parent node).
+    struct Blake3Output {
+        input_chaining_value: [u32; 8],
+        block_words: [u32; 16],
+        counter: u64,
+        block_len: u32,
+        flags: u32,
+    }
+
+    impl Blake3Output {
+        fn chaining_value(&self) -> [u32; 8] {
+            blake3_first_8_words(blake3_compress_full(
+                self.input_chaining_value,
+                self.block_words,
+                self.counter,
+                self.block_len,
+                self.flags,
+            ))
+        }
+
+        fn root_output_bytes(&self, out_slice: &mut [u8]) {
+            let mut output_block_counter = 0;
+            for out_block in out_slice.chunks_mut(2 * BLAKE3_OUT_LEN) {
+                let words = blake3_compress_full(
+                    self.input_chaining_value,
+                    self.block_words,
+                    output_block_counter,
+                    self.block_len,
+                    self.flags | BLAKE3_ROOT,
+                );
+                for (word, out_word) in words.iter().zip(out_block.chunks_mut(4)) {
+                    out_word.copy_from_slice(&word.to_le_bytes()[..out_word.len()]);
+                }
+                output_block_counter += 1;
+            }
+        }
+    }
+
+    fn blake3_parent_output(
+        left_child_cv: [u32; 8],
+        right_child_cv: [u32; 8],
+        key_words: [u32; 8],
+        flags: u32,
+    ) -> Blake3Output {
+        let mut block_words = [0u32; 16];
+        block_words[..8].copy_from_slice(&left_child_cv);
+        block_words[8..].copy_from_slice(&right_child_cv);
+        Blake3Output {
+            input_chaining_value: key_words,
+            block_words,
+            counter: 0,
+            block_len: BLAKE3_BLOCK_LEN as u32,
+            flags: BLAKE3_PARENT | flags,
+        }
+    }
+
+    fn blake3_parent_cv(
+        left_child_cv: [u32; 8],
+        right_child_cv: [u32; 8],
+        key_words: [u32; 8],
+        flags: u32,
+    ) -> [u32; 8] {
+        blake3_parent_output(left_child_cv, right_child_cv, key_words, flags).chaining_value()
+    }
+
+    /// Streaming chunk state: 1024-byte chunk, 64-byte blocks, counter = chunk
+    /// index (reference `ChunkState`).
+    struct Blake3ChunkState {
+        cv: [u32; 8],
+        chunk_counter: u64,
+        block: [u8; BLAKE3_BLOCK_LEN],
+        block_len: u8,
+        blocks_compressed: u8,
+        flags: u32,
+    }
+
+    impl Blake3ChunkState {
+        fn new(key_words: [u32; 8], chunk_counter: u64, flags: u32) -> Self {
+            Blake3ChunkState {
+                cv: key_words,
+                chunk_counter,
+                block: [0u8; BLAKE3_BLOCK_LEN],
+                block_len: 0,
+                blocks_compressed: 0,
+                flags,
+            }
+        }
+
+        fn len(&self) -> usize {
+            BLAKE3_BLOCK_LEN * usize::from(self.blocks_compressed) + usize::from(self.block_len)
+        }
+
+        fn start_flag(&self) -> u32 {
+            if self.blocks_compressed == 0 {
+                BLAKE3_CHUNK_START
+            } else {
+                0
+            }
+        }
+
+        fn update(&mut self, mut input: &[u8]) {
+            while !input.is_empty() {
+                // If the block buffer is full, compress it for the next CV.
+                if self.block_len as usize == BLAKE3_BLOCK_LEN {
+                    let block_words = blake3_words_from_le_bytes(&self.block);
+                    let full = blake3_compress_full(
+                        self.cv,
+                        block_words,
+                        self.chunk_counter,
+                        BLAKE3_BLOCK_LEN as u32,
+                        self.flags | self.start_flag(),
+                    );
+                    self.cv = blake3_first_8_words(full);
+                    self.blocks_compressed += 1;
+                    self.block = [0u8; BLAKE3_BLOCK_LEN];
+                    self.block_len = 0;
+                }
+                let want = BLAKE3_BLOCK_LEN - usize::from(self.block_len);
+                let take = want.min(input.len());
+                let start = usize::from(self.block_len);
+                self.block[start..start + take].copy_from_slice(&input[..take]);
+                self.block_len += take as u8;
+                input = &input[take..];
+            }
+        }
+
+        fn output(&self) -> Blake3Output {
+            Blake3Output {
+                input_chaining_value: self.cv,
+                block_words: blake3_words_from_le_bytes(&self.block),
+                counter: self.chunk_counter,
+                block_len: u32::from(self.block_len),
+                flags: self.flags | self.start_flag() | BLAKE3_CHUNK_END,
+            }
+        }
+    }
+
+    /// Reference `Hasher` shape: one open chunk plus a stack of subtree CVs.
+    struct Blake3Hasher {
+        chunk_state: Blake3ChunkState,
+        key_words: [u32; 8],
+        cv_stack: [[u32; 8]; 54], // Space for 54 subtree chaining values.
+        cv_stack_len: u8,
+        flags: u32,
+    }
+
+    impl Blake3Hasher {
+        fn new() -> Self {
+            Blake3Hasher {
+                chunk_state: Blake3ChunkState::new(BLAKE3_IV, 0, 0),
+                key_words: BLAKE3_IV,
+                cv_stack: [[0u32; 8]; 54],
+                cv_stack_len: 0,
+                flags: 0,
+            }
+        }
+
+        fn push_stack(&mut self, cv: [u32; 8]) {
+            self.cv_stack[usize::from(self.cv_stack_len)] = cv;
+            self.cv_stack_len += 1;
+        }
+
+        fn pop_stack(&mut self) -> [u32; 8] {
+            self.cv_stack_len -= 1;
+            self.cv_stack[usize::from(self.cv_stack_len)]
+        }
+
+        fn add_chunk_chaining_value(&mut self, mut new_cv: [u32; 8], mut total_chunks: u64) {
+            while total_chunks & 1 == 0 {
+                new_cv = blake3_parent_cv(self.pop_stack(), new_cv, self.key_words, self.flags);
+                total_chunks >>= 1;
+            }
+            self.push_stack(new_cv);
+        }
+
+        fn update(&mut self, mut input: &[u8]) {
+            while !input.is_empty() {
+                // Only the final chunk can be under 1024 bytes.
+                if self.chunk_state.len() == BLAKE3_CHUNK_LEN {
+                    // Complete the current chunk and add it to the CV stack.
+                    let chunk_cv = self.chunk_state.output().chaining_value();
+                    let total_chunks = self.chunk_state.chunk_counter + 1;
+                    self.add_chunk_chaining_value(chunk_cv, total_chunks);
+                    self.chunk_state =
+                        Blake3ChunkState::new(self.key_words, total_chunks, self.flags);
+                }
+                let want = BLAKE3_CHUNK_LEN - self.chunk_state.len();
+                let take = want.min(input.len());
+                self.chunk_state.update(&input[..take]);
+                input = &input[take..];
+            }
+        }
+
+        fn finalize(&self, out_slice: &mut [u8]) {
+            // Starting with the output from the current chunk, merkel-ify the
+            // stack of parent nodes.
+            let mut output = self.chunk_state.output();
+            let mut parent_nodes_remaining = usize::from(self.cv_stack_len);
+            while parent_nodes_remaining > 0 {
+                parent_nodes_remaining -= 1;
+                output = blake3_parent_output(
+                    self.cv_stack[parent_nodes_remaining],
+                    output.chaining_value(),
+                    self.key_words,
+                    self.flags,
+                );
+            }
+            output.root_output_bytes(out_slice);
+        }
+    }
+
+    /// Full BLAKE3 (hash mode, unkeyed, 32-byte output) — the family
+    /// canonical entry point (strata-hash-pack, L167 consolidation).
+    fn blake3_hash(input: &[u8]) -> [u8; BLAKE3_OUT_LEN] {
+        let mut hasher = Blake3Hasher::new();
+        hasher.update(input);
+        let mut out = [0u8; BLAKE3_OUT_LEN];
+        hasher.finalize(&mut out);
+        out
+    }
+
     fn hex32(bytes: &[u8]) -> String {
         bytes.iter().map(|b| format!("{b:02x}")).collect()
     }
@@ -696,6 +1043,88 @@ mod tests {
         assert_eq!(
             hex32(&blake3_single_chunk(b"")),
             "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
+        );
+    }
+
+    // ── Cross-pack BLAKE3 equality KATs (L167 consolidation) ────────────
+    //
+    // Shared vector: 512 bytes, b[i] = (i*7 + 13) mod 256. This pack is
+    // the KAT AUTHORITY: the pinned digest below is computed from the
+    // independent Python `blake3` reference and the same vector + digest
+    // are pinned verbatim in strata-chain-pack (chain_engine.rs.tera) and
+    // strata-tx-pack (tx_model.rs.tera). A drift in ANY family BLAKE3
+    // implementation fails this court in the pack that drifted.
+    const XPACK_VECTOR_LEN: usize = 512;
+    const XPACK_VECTOR_HEX: &str =
+        "1dd56407cbe69764f3663dbe9e78734fa6241ef443d82ccb240a1c661cd1e0a6";
+
+    fn xpack_vector() -> Vec<u8> {
+        (0..XPACK_VECTOR_LEN).map(|i: usize| ((i * 7 + 13) & 0xFF) as u8).collect()
+    }
+
+    /// Cross-pack KAT (authority copy): BLAKE3 over the shared 512-byte
+    /// vector must reproduce the independently pinned digest.
+    #[test]
+    fn blake3_xpack_vector_kat() {
+        assert_eq!(hex32(&blake3_hash(&xpack_vector())), XPACK_VECTOR_HEX);
+    }
+
+    /// Cross-impl differential KAT: the legacy single-chunk core and the
+    /// family-canonical full port must agree byte-for-byte on every input
+    /// in the single-chunk domain (empty, sub-block, exact-block, and
+    /// multi-block single-chunk inputs — all < 1024 bytes).
+    #[test]
+    fn blake3_xpack_single_chunk_matches_full_port() {
+        let cases: Vec<Vec<u8>> = vec![
+            Vec::new(),
+            b"abc".to_vec(),
+            vec![0u8; 63],
+            vec![0u8; 64],
+            vec![0u8; 65],
+            vec![0xABu8; 1023],
+            xpack_vector(),
+        ];
+        for case in &cases {
+            assert_eq!(
+                blake3_single_chunk(case),
+                blake3_hash(case),
+                "single-chunk core diverged from full port at {} bytes",
+                case.len()
+            );
+        }
+    }
+
+    /// Multi-chunk spec vectors (chunk boundary + parent chaining):
+    /// 1024 and 1025 zero bytes — BLAKE3 specification test vectors,
+    /// byte-identical to the ones pinned in strata-tx-pack.
+    #[test]
+    fn blake3_full_kat_chunk_boundaries() {
+        let expected_1024: [u8; 32] = [
+            0xd6, 0xfd, 0x9d, 0xe5, 0xbc, 0xcf, 0x22, 0x3f, 0x52, 0x3b, 0x31, 0x6c, 0x9c, 0xd1,
+            0xcf, 0x9a, 0x9d, 0x87, 0xea, 0x42, 0x47, 0x3d, 0x68, 0xe0, 0x11, 0xda, 0xd1, 0x3f,
+            0x09, 0xbf, 0x89, 0x17,
+        ];
+        assert_eq!(blake3_hash(&[0u8; 1024]), expected_1024);
+        let expected_1025: [u8; 32] = [
+            0xd2, 0xbe, 0xb4, 0x9d, 0x87, 0xe5, 0x9d, 0xb1, 0x74, 0xcb, 0x3f, 0xf1, 0x44, 0x0f,
+            0x18, 0x99, 0x42, 0x29, 0x68, 0xdf, 0x67, 0x0d, 0x06, 0x0f, 0xd7, 0xce, 0x75, 0x9e,
+            0x8c, 0xc1, 0x60, 0xe7,
+        ];
+        assert_eq!(blake3_hash(&[0u8; 1025]), expected_1025);
+    }
+
+    /// Multi-chunk cross-pack shared vector (2000 bytes, b[i] =
+    /// (i*11 + 5) mod 256): pinned against the independent Python
+    /// `blake3` reference; the same vector + digest are pinned verbatim
+    /// in strata-tx-pack (the single-chunk-only chain-pack court cannot
+    /// take multi-chunk inputs by domain, so this vector is hash/tx).
+    #[test]
+    fn blake3_xpack_multichunk_vector_kat() {
+        let v: Vec<u8> =
+            (0..2000usize).map(|i| ((i * 11 + 5) & 0xFF) as u8).collect();
+        assert_eq!(
+            hex32(&blake3_hash(&v)),
+            "6a34306d1a0a3a515931f5698471048489431bbd80eb3459e7d10379465d12b7"
         );
     }
 

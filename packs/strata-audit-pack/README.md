@@ -75,6 +75,29 @@ Receipt: 6/6 targets 1000/1000 clean, 13/13 tests pass (manifest closure —
 6 targets / 14 attacks —, corpus court, 11 attack regressions), gates 0
 rows, byte-identical ×2, qualification ALIVE.
 
+L156 refresh (2026-10-13, ggen 26.10.11) — inline-copy staleness sweep.
+Three copies were PINNED-STALE (auditing dead laws) and were re-captured
+at the current subject-pack law: (1) hash/merkle — domain-separated
+leaf/node tags (strata-hash-pack @ 5c932f000; the copy predated the
+domain-separation court); (2) tx digest — BLAKE3-256 over the FULL
+canonical frame, digest slot zeroed (strata-tx-pack @ 320833d12; the
+FNV-1a(n, m) stand-in was retired upstream in L125); (3) ledger funds
+gate — duplicate-input DEBIT ACCUMULATION law (strata-ledger-pack
+@ e1ee25fa2; the per-row check underflowed on the exact
+[(a,5),(a,5)]->[(b,10)] Lean counterexample the corpus's own
+DuplicateInputAccountValueCreation row names — now refused, state
+bit-identical, with a dedicated regression test). PINNED-CURRENT: pn64
+masks (t04 0x0010/0x0008 byte-equal since 00e0b086b; pin refreshed to
+@ 5c932f000), consensus u128 work law + u64 sabotage twin (@ 0c7c9e594),
+chain validate_block four-gate subset (@ e1ee25fa2). Added the
+copy-staleness meta-court (FIPS 180-4 + BLAKE3 spec KATs anchoring the
+copied hash primitives; sha256 pin over the canonical 48-byte pn64
+mask-table serialization) and the duplicate-input attack regression.
+Receipt: 6/6 targets 1000/1000 clean (6000 cases), 15/15 tests pass
+(manifest closure — 6 targets / 14 attacks —, corpus court, 12 attack
+regressions), gates 0 rows, byte-identical ×2, 0 rustc warnings,
+qualification ALIVE.
+
 ## Standing
 
 `ALIVE` (qualification 2026-10-13, ggen 26.10.11). The pack projects a
