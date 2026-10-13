@@ -26,26 +26,42 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKS_DIR = ROOT / "packs"
 
 EXPECTED_STRATA_GENERATION_PACKS = frozenset({
+    "strata-audit-pack",
     "strata-cas-pack",
+    "strata-chain-pack",
+    "strata-consensus-pack",
+    "strata-hash-pack",
+    "strata-ledger-pack",
+    "strata-net-pack",
     "strata-pn64-pack",
     "strata-protocol-pack",
     "strata-signer-pack",
+    "strata-store-pack",
     "strata-stratus-pack",
     "strata-temprun-pack",
+    "strata-tx-pack",
     "strata-valve-pack",
 })
 
 # Packs with committed generated/ files guarded against drift (court 3).
 # Every strata pack now commits its rendered generated/ tree, so the drift
-# guard covers all seven: the fresh render must be byte-identical to the
+# guard covers all fifteen: the fresh render must be byte-identical to the
 # committed outputs in the real repo, not just to a second fresh render.
 DRIFT_GUARDED: dict[str, tuple[str, ...]] = {
+    "strata-audit-pack": ("audit_corpus.rs",),
     "strata-cas-pack": ("cas.rs",),
+    "strata-chain-pack": ("chain_consts.rs", "chain_engine.rs"),
+    "strata-consensus-pack": ("consensus_consts.rs", "consensus_engine.rs"),
+    "strata-hash-pack": ("hash_consts.rs", "hash_merkle.rs"),
+    "strata-ledger-pack": ("ledger_consts.rs", "ledger_state.rs"),
+    "strata-net-pack": ("net_consts.rs", "net_engine.rs"),
     "strata-pn64-pack": ("pn64_masks.rs",),
     "strata-protocol-pack": ("pdu_constants.rs", "wire_constants.rs"),
-    "strata-signer-pack": ("signer.rs",),
+    "strata-signer-pack": ("signer.rs", "signing.rs"),
+    "strata-store-pack": ("store_consts.rs", "store_engine.rs"),
     "strata-stratus-pack": ("registers.rs", "valves.rs"),
     "strata-temprun-pack": ("arena.rs",),
+    "strata-tx-pack": ("tx_consts.rs", "tx_model.rs"),
     "strata-valve-pack": ("refusals.ex",),
 }
 
@@ -133,8 +149,25 @@ def _content_court(pack: str, rel: str, text: str) -> None:
         assert "ARENA_DEFAULT_MAX_FUEL: u64 = 1000000" in text
         return
     if pack == "strata-signer-pack":
-        assert "SIGNATURE_LEN: usize = 3309" in text
-        assert "PUBLIC_KEY_LEN: usize = 1952" in text
+        # Per-file expectations (like the protocol pack's pdu/wire split):
+        # signer.rs owns the detached-signature constants; signing.rs is the
+        # payload/tx signing surface with its own ground truth.
+        if rel.endswith("signer.rs"):
+            assert "SIGNATURE_LEN: usize = 3309" in text
+            assert "PUBLIC_KEY_LEN: usize = 1952" in text
+        elif rel.endswith("signing.rs"):
+            assert "PAYLOAD_SIGNATURE_LEN: usize = 3309" in text
+            assert "pub trait PayloadSigner" in text, (
+                "signing.rs must define the PayloadSigner trait")
+            assert "pub fn bind_tx_digest" in text, (
+                "signing.rs must define TxSigner::bind_tx_digest (SHA-256 "
+                "digest binding)")
+            assert "FIPS 180-4" in text and "vectors" in text, (
+                "signing.rs must carry the SHA-256 FIPS 180-4 test-vector "
+                "provenance note")
+        else:
+            raise AssertionError(
+                f"unexpected generated file for signer pack: {rel}")
         return
     if pack == "strata-stratus-pack":
         # VALVE_DEFAULT lives in valves.rs, MAIN_NAME in registers.rs.
@@ -148,6 +181,89 @@ def _content_court(pack: str, rel: str, text: str) -> None:
         decls = _stratus_decl_lines(text)
         dupes = sorted({d for d in decls if decls.count(d) > 1})
         assert not dupes, "stratus declarations defined more than once: %r" % dupes
+        return
+    if pack == "strata-audit-pack":
+        if rel.endswith("audit_corpus.rs"):
+            assert "AUDIT_TARGETS" in text
+            assert "DIGEST_LEN: usize = 32" in text
+        else:
+            raise AssertionError(
+                f"unexpected generated file for audit pack: {rel}")
+        return
+    if pack == "strata-chain-pack":
+        if rel.endswith("chain_consts.rs"):
+            assert "GENESIS_HEIGHT: u64 = 0" in text
+            assert "MAX_BLOCK_TXS: u64 = 256" in text
+        elif rel.endswith("chain_engine.rs"):
+            assert "pub fn tx_merkle_root_for" in text
+            assert "pub struct Block" in text
+        else:
+            raise AssertionError(
+                f"unexpected generated file for chain pack: {rel}")
+        return
+    if pack == "strata-consensus-pack":
+        if rel.endswith("consensus_consts.rs"):
+            assert 'TIE_BREAK: &str = "lower-nonce"' in text
+            assert 'WORK_UNIT: &str = "sha256-double-tick"' in text
+        elif rel.endswith("consensus_engine.rs"):
+            assert "pub struct Block" in text
+            assert "pub fn header_bytes" in text
+        else:
+            raise AssertionError(
+                f"unexpected generated file for consensus pack: {rel}")
+        return
+    if pack == "strata-hash-pack":
+        if rel.endswith("hash_consts.rs"):
+            assert "HASH_ALGO_COUNT: usize = 2" in text
+        elif rel.endswith("hash_merkle.rs"):
+            assert "pub fn merkle_root" in text
+            assert "pub fn merkle_verify" in text
+        else:
+            raise AssertionError(
+                f"unexpected generated file for hash pack: {rel}")
+        return
+    if pack == "strata-ledger-pack":
+        if rel.endswith("ledger_consts.rs"):
+            assert "MAX_ACCOUNTS: usize = 65536" in text
+            assert "STATE_ROOT_LEN: usize = 32" in text
+        elif rel.endswith("ledger_state.rs"):
+            assert "pub enum LedgerRefusal" in text
+            assert "pub struct StateTransitionReceipt" in text
+        else:
+            raise AssertionError(
+                f"unexpected generated file for ledger pack: {rel}")
+        return
+    if pack == "strata-net-pack":
+        if rel.endswith("net_consts.rs"):
+            assert "HEADER_LEN: usize = 8" in text
+            assert "MAX_MSG_LEN: usize = 65536" in text
+        elif rel.endswith("net_engine.rs"):
+            assert "pub fn encode" in text
+            assert "pub fn decode" in text
+        else:
+            raise AssertionError(
+                f"unexpected generated file for net pack: {rel}")
+        return
+    if pack == "strata-store-pack":
+        if rel.endswith("store_consts.rs"):
+            assert "DEFAULT_CAPACITY: usize = 1048576" in text
+            assert "KEY_LEN: usize = 32" in text
+        elif rel.endswith("store_engine.rs"):
+            assert "pub enum StoreRefusal" in text
+            assert "pub struct StoreMarker" in text
+        else:
+            raise AssertionError(
+                f"unexpected generated file for store pack: {rel}")
+        return
+    if pack == "strata-tx-pack":
+        if rel.endswith("tx_consts.rs"):
+            assert "TX_MAGIC: u32 = 0x5354_5831" in text
+            assert "TX_HEADER_LEN: usize = 56" in text
+        elif rel.endswith("tx_model.rs"):
+            assert "pub struct" in text
+        else:
+            raise AssertionError(
+                f"unexpected generated file for tx pack: {rel}")
         return
     pytest.fail("no content court defined for %s/%s" % (pack, rel))
 

@@ -20,7 +20,9 @@ Five guards over the real packs/strata-*-pack tree -- no mocks, pure
    lives in a foreign/standard namespace (rdf:/rdfs:/xsd:/owl: or
    ``https://strata.chatman.ai/ontology# (wire:/pdu: sub-namespaces)`` for valve's wire: references). Protocol,
    valve and pn64 were just fixed for this failure class; this pins it.
-5. set-guard: exactly seven ``packs/strata-*-pack`` directories.
+5. set-guard: at least the seven original ``packs/strata-*-pack``
+   directories (floor of 15; growth allowed, removal of a named original
+   fails).
 
 Guard 4 is a pure function with a sabotage twin (injected fake triple
 set) proving it can actually fire -- a guard that cannot fail is vacuous.
@@ -52,6 +54,23 @@ CONSUMER_PACKS = (
     "strata-stratus-pack",
     "strata-pn64-pack",
 )
+
+# The seven original strata packs: removal of any of these names fails the
+# set-guard even though the corpus has grown past them.
+ORIGINAL_STRATA_PACKS = (
+    "strata-cas-pack",
+    "strata-pn64-pack",
+    "strata-protocol-pack",
+    "strata-signer-pack",
+    "strata-stratus-pack",
+    "strata-temprun-pack",
+    "strata-valve-pack",
+)
+
+# Recorded floor: the corpus reached 15 packs at wave-3 pre-cert. Growth is
+# allowed (the total is asserted dynamically against glob), shrinkage below
+# this floor fails.
+STRATA_PACK_COUNT_FLOOR = 15
 
 # Namespaces whose class IRIs are foreign to the ontology file and exempt
 # from the intra-pack declaration requirement (standard vocabularies plus
@@ -152,8 +171,14 @@ def load_graph(path: Path) -> rdflib.Graph:
 
 class TestStrataCorpusCourts:
     def test_exactly_seven_strata_packs(self) -> None:
-        # Set-guard: exactly 7 packs/strata-*-pack directories.
-        assert len(STRATA_PACKS) == 7, [p.name for p in STRATA_PACKS]
+        # Set-guard: every named original pack still present, total count
+        # asserted dynamically against the real tree with a recorded floor.
+        names = {p.name for p in STRATA_PACKS}
+        missing = [n for n in ORIGINAL_STRATA_PACKS if n not in names]
+        assert not missing, "original strata packs removed: %r" % missing
+        assert len(STRATA_PACKS) >= STRATA_PACK_COUNT_FLOOR, [
+            p.name for p in STRATA_PACKS
+        ]
 
     def test_every_pack_toml_parses_and_has_capabilities(self) -> None:
         for pack_dir in STRATA_PACKS:
