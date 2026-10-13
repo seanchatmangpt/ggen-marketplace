@@ -292,3 +292,31 @@ KILLED entries stay killed.
 75. **beam4pm receipt chain verified (31f75a51)** — 79/79 tips
     exact, 8/8 chains full-verify, 70 gap-incomplete honestly
     classified.
+
+## Integration wave 8 — 2026-10-14
+
+76. **witnessed KATs complete the L27 pattern fleet-wide
+    (25307ca8b + 1a7741b2a)** — store content-address root
+    (a8378cfa...), consensus u128 work-sum (total
+    9223372041149808896), hash BLAKE3 KAT, temprun fuel
+    sequence, airo pin in-pack witness (4d50748d7) — every
+    major law now has a witness-surface KAT.
+77. **constitution 17 constants (1a7741b2a)** — A2aWireLaw
+    4 seals; drift negative fires.
+78. **BLAKE3 triplication consolidated (8404cdd3d)** —
+    hash-pack canonical owner, consumers sha-pinned, shared
+    KAT vectors vs b3sum.
+79. **lock repairs (8404cdd3d)** — aaif/qri/sa2a stale pins
+    after f52ed0e85; sa2a receipt re-cut OWED (user-gated
+    pin bump).
+80. **audit staleness sweep (8404cdd3d)** — 3 inline copies
+    were auditing retired laws — re-captured + meta-court.
+81. **insa witness pipeline E2E (insa producer L182 +
+    castle family-aware gate L196)** — honest rust-compiled
+    marker family admitted as Replayed #rust; refused-witness
+    typed path; the gate previously rewarded axiom
+    fabrication — fixed.
+82. **lean.witness OCEL order law (L188, mfact+beam4pm)** —
+    fitness 1.0 under the law, 0.775 :DRIFT on swap;
+    order-free baseline admits everything — the law IS the
+    discrimination.
