@@ -1,0 +1,200 @@
+@prefix insa: <urn:insa-law:> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Canonical projection of insa's eight-vow typestate law as RDF so that the
+# graphlaw N3/LawState layer can check vow ordering.
+#
+# Sources (canonical, with provenance):
+#   insa-replaw/src/eight_vow.rs
+#     - VowEngine<S> typestate, L172-321: linear chain
+#       Source -> Pattern -> Field -> Motion -> Receiver -> Fruit -> Receipt -> Rest
+#     - sealed VowState markers, L48-92
+#   insa-replaw/src/eight_vow_bridge.rs
+#     - edge fns L129-544 (edge_source_to_pattern .. edge_rest_seal)
+#     - BridgeError variants L44-48 (mirrored below as typed refusals)
+#
+# Law (gates/): exactly 8 transitions; from/to closure forms the linear chain
+# Source..Rest with no gaps or duplicates; every BridgeError variant is
+# exercised by >= 1 transition. Fail-closed: any drift is a violation row.
+# Classification/projection vocabulary only: nothing here grants runtime
+# actuation authority -- consequential DO stays behind BRCE admission.
+
+insa:pack a insa:OrderLaw ;
+    dct:title "insa-law-pack" ;
+    dct:description "Eight-vow typestate order law projected from insa-replaw for graphlaw N3/LawState vow-ordering checks." .
+
+# ---------------------------------------------------------------------------
+# OrderLaw — the linear chain (eight_vow.rs L8-10 module doc)
+# ---------------------------------------------------------------------------
+
+insa:OrderLaw a rdfs:Class ;
+    rdfs:label "OrderLaw" ;
+    dct:description "Linear chain order law: no skips, no reordering, no extra states." .
+
+insa:pack insa:chainLength 8 .
+
+# ---------------------------------------------------------------------------
+# VowState — the 8 sealed typestate markers (eight_vow.rs L48-92)
+# ---------------------------------------------------------------------------
+
+insa:VowState a rdfs:Class ;
+    rdfs:label "VowState" ;
+    dct:description "Sealed zero-size typestate marker of the 8-vow closure sequence." .
+
+insa:state-source a insa:VowState ;
+    rdfs:label "Source" ; insa:ordinal 1 ;
+    dct:description "The work originates from the Source." .
+
+insa:state-pattern a insa:VowState ;
+    rdfs:label "Pattern" ; insa:ordinal 2 ;
+    dct:description "The pattern is preserved." .
+
+insa:state-field a insa:VowState ;
+    rdfs:label "Field" ; insa:ordinal 3 ;
+    dct:description "The field is open and multiplying." .
+
+insa:state-motion a insa:VowState ;
+    rdfs:label "Motion" ; insa:ordinal 4 ;
+    dct:description "Motion is executing under the admitted route." .
+
+insa:state-receiver a insa:VowState ;
+    rdfs:label "Receiver" ; insa:ordinal 5 ;
+    dct:description "The receiver at the edge has been identified and bound." .
+
+insa:state-fruit a insa:VowState ;
+    rdfs:label "Fruit" ; insa:ordinal 6 ;
+    dct:description "Fruit has been actuated." .
+
+insa:state-receipt a insa:VowState ;
+    rdfs:label "Receipt" ; insa:ordinal 7 ;
+    dct:description "A cryptographic receipt has been issued." .
+
+insa:state-rest a insa:VowState ;
+    rdfs:label "Rest" ; insa:ordinal 8 ;
+    dct:description "Rest. Closure is complete. Nothing else is owed." .
+
+# ---------------------------------------------------------------------------
+# BridgeError — typed refusal individuals mirroring the real variants
+# (eight_vow_bridge.rs L44-48)
+# ---------------------------------------------------------------------------
+
+insa:BridgeError a rdfs:Class ;
+    rdfs:label "BridgeError" ;
+    dct:description "Typed refusal surfaced by a vow edge function in insa-replaw/src/eight_vow_bridge.rs." .
+
+insa:err-source-route-rejected a insa:BridgeError ;
+    rdfs:label "SourceRouteRejected" ;
+    insa:rustVariant "SourceRouteRejected" ;
+    dct:description "[Source] Route rejected: motion_route failed Workflow<Provision>::compile()." .
+
+insa:err-admission-refused a insa:BridgeError ;
+    rdfs:label "AdmissionRefused" ;
+    insa:rustVariant "AdmissionRefused" ;
+    dct:description "[Pattern] Admission refused: GeospatialBoundary telemetry outside stewardship zone." .
+
+insa:err-field-registration-failed a insa:BridgeError ;
+    rdfs:label "FieldRegistrationFailed" ;
+    insa:rustVariant "FieldRegistrationFailed" ;
+    dct:description "[Field] Registration failed: FlowToFruitLedger rejected the field." .
+
+insa:err-epoch-execution-failed a insa:BridgeError ;
+    rdfs:label "EpochExecutionFailed" ;
+    insa:rustVariant "EpochExecutionFailed" ;
+    dct:description "[Motion] Epoch failed: conservation or execution error." .
+
+insa:err-receiver-obligation-failed a insa:BridgeError ;
+    rdfs:label "ReceiverObligationFailed" ;
+    insa:rustVariant "ReceiverObligationFailed" ;
+    dct:description "[Receiver] Obligation failed: cryptographic or balance failure." .
+
+insa:err-fruit-routing-failed a insa:BridgeError ;
+    rdfs:label "FruitRoutingFailed" ;
+    insa:rustVariant "FruitRoutingFailed" ;
+    dct:description "[Fruit] Routing failed: fruit-to-receipt epoch failure." .
+
+insa:err-lineage-commit-failed a insa:BridgeError ;
+    rdfs:label "LineageCommitFailed" ;
+    insa:rustVariant "LineageCommitFailed" ;
+    dct:description "[Receipt] Lineage failed: replay registry rejected the receipt." .
+
+insa:err-seal-mismatch a insa:BridgeError ;
+    rdfs:label "SealMismatch" ;
+    insa:rustVariant "SealMismatch" ;
+    dct:description "[Rest] Seal mismatch: ledger state root is all-zero at Rest." .
+
+# ---------------------------------------------------------------------------
+# VowTransition — the 8 edges (eight_vow_bridge.rs L129-544).
+# fromState/toState mirror the VowEngine<S> typestate returns;
+# edgeFn names the real bridge fn; receiptBinding names the VowRecord
+# field whose closure condition gates the edge (eight_vow.rs L116-133).
+# ---------------------------------------------------------------------------
+
+insa:VowTransition a rdfs:Class ;
+    rdfs:label "VowTransition" ;
+    dct:description "One lawful forward edge of the eight-vow typestate machine." .
+
+insa:tx-source-pattern a insa:VowTransition ;
+    insa:ordinal 1 ;
+    insa:fromState insa:state-source ; insa:toState insa:state-pattern ;
+    insa:edgeFn "edge_source_to_pattern" ;
+    insa:receiptBinding "pattern_hash" ;
+    insa:onRefusal insa:err-source-route-rejected ;
+    rdfs:comment "eight_vow.rs L198-205 confirm_source; bridge edge_source_to_pattern L129." .
+
+insa:tx-pattern-field a insa:VowTransition ;
+    insa:ordinal 2 ;
+    insa:fromState insa:state-pattern ; insa:toState insa:state-field ;
+    insa:edgeFn "edge_pattern_to_field" ;
+    insa:receiptBinding "field_id" ;
+    insa:onRefusal insa:err-admission-refused ;
+    rdfs:comment "eight_vow.rs L216-223 verify_pattern; bridge edge_pattern_to_field L169." .
+
+insa:tx-field-motion a insa:VowTransition ;
+    insa:ordinal 3 ;
+    insa:fromState insa:state-field ; insa:toState insa:state-motion ;
+    insa:edgeFn "edge_field_to_motion" ;
+    insa:receiptBinding "motion_route" ;
+    insa:onRefusal insa:err-field-registration-failed ;
+    rdfs:comment "eight_vow.rs L234-241 open_field; bridge edge_field_to_motion L210." .
+
+insa:tx-motion-receiver a insa:VowTransition ;
+    insa:ordinal 4 ;
+    insa:fromState insa:state-motion ; insa:toState insa:state-receiver ;
+    insa:edgeFn "edge_motion_to_receiver" ;
+    insa:receiptBinding "receiver_id" ;
+    insa:onRefusal insa:err-epoch-execution-failed ;
+    rdfs:comment "eight_vow.rs L252-259 admit_motion; bridge edge_motion_to_receiver L262." .
+
+insa:tx-receiver-fruit a insa:VowTransition ;
+    insa:ordinal 5 ;
+    insa:fromState insa:state-receiver ; insa:toState insa:state-fruit ;
+    insa:edgeFn "edge_receiver_to_fruit" ;
+    insa:receiptBinding "fruit_quantity" ;
+    insa:onRefusal insa:err-receiver-obligation-failed ;
+    rdfs:comment "eight_vow.rs L270-277 bind_receiver; bridge edge_receiver_to_fruit L324." .
+
+insa:tx-fruit-receipt a insa:VowTransition ;
+    insa:ordinal 6 ;
+    insa:fromState insa:state-fruit ; insa:toState insa:state-receipt ;
+    insa:edgeFn "edge_fruit_to_receipt" ;
+    insa:receiptBinding "receipt_digest" ;
+    insa:onRefusal insa:err-fruit-routing-failed ;
+    rdfs:comment "eight_vow.rs L288-295 actuate_fruit; bridge edge_fruit_to_receipt L376." .
+
+insa:tx-receipt-rest a insa:VowTransition ;
+    insa:ordinal 7 ;
+    insa:fromState insa:state-receipt ; insa:toState insa:state-rest ;
+    insa:edgeFn "edge_receipt_to_rest" ;
+    insa:receiptBinding "replay_seq" ;
+    insa:onRefusal insa:err-lineage-commit-failed ;
+    rdfs:comment "eight_vow.rs L306-313 issue_receipt; bridge edge_receipt_to_rest L444." .
+
+insa:tx-rest-seal a insa:VowTransition ;
+    insa:ordinal 8 ;
+    insa:fromState insa:state-rest ; insa:toState insa:state-rest ;
+    insa:edgeFn "edge_rest_seal" ;
+    insa:receiptBinding "replay_seq" ;
+    insa:onRefusal insa:err-seal-mismatch ;
+    rdfs:comment "eight_vow.rs L321-329 seal (Rest is terminal, self-edge = closure); bridge edge_rest_seal L532." .

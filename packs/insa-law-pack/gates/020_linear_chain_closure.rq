@@ -1,0 +1,60 @@
+# MESSAGE: any returned row refuses manufacture. G2: the from/to closure forms
+# the linear chain Source..Rest with no gaps or duplicates:
+#   - ordinals are exactly 1..8, each used once;
+#   - the ordinal-1 edge starts at Source;
+#   - toState of ordinal n equals fromState of ordinal n+1 for n = 1..7;
+#   - only the terminal (ordinal-8) edge may be a self-edge (Rest closure);
+#   - no skip edges (every state is touched by the chain walk).
+PREFIX insa: <urn:insa-law:>
+SELECT ?s ?problem WHERE {
+  {
+    ?tx a insa:VowTransition ;
+        insa:ordinal ?o ;
+        insa:fromState ?f ; insa:toState ?t .
+    FILTER (?o < 1 || ?o > 8)
+    BIND("ordinal-out-of-range" AS ?problem)
+    BIND(STR(?tx) AS ?s)
+  }
+  UNION
+  {
+    SELECT ?s (COALESCE(?p1, ?p2) AS ?problem) WHERE {
+      {
+        SELECT ?o (COUNT(DISTINCT ?tx) AS ?k) WHERE {
+          ?tx a insa:VowTransition ; insa:ordinal ?o .
+        } GROUP BY ?o
+      }
+      FILTER (?k > 1)
+      BIND("duplicate-ordinal" AS ?p1)
+      BIND(STR(?o) AS ?s)
+    }
+  }
+  UNION
+  {
+    ?tx a insa:VowTransition ; insa:ordinal 1 ; insa:fromState ?f .
+    FILTER (?f != insa:state-source)
+    BIND("chain-does-not-start-at-source" AS ?problem)
+    BIND(STR(?tx) AS ?s)
+  }
+  UNION
+  {
+    ?a a insa:VowTransition ; insa:ordinal ?o ; insa:toState ?t .
+    ?b a insa:VowTransition ; insa:ordinal ?o2 ; insa:fromState ?f2 .
+    FILTER (?o2 = ?o + 1 && ?o < 8 && ?t != ?f2)
+    BIND("chain-gap-or-reorder" AS ?problem)
+    BIND(CONCAT(STR(?o), "->", STR(?o2)) AS ?s)
+  }
+  UNION
+  {
+    ?tx a insa:VowTransition ; insa:ordinal ?o ; insa:fromState ?f ; insa:toState ?t .
+    FILTER (?f = ?t && ?o != 8)
+    BIND("non-terminal-self-edge" AS ?problem)
+    BIND(STR(?tx) AS ?s)
+  }
+  UNION
+  {
+    ?tx a insa:VowTransition ; insa:ordinal 8 ; insa:fromState ?f .
+    FILTER (?f != insa:state-rest)
+    BIND("chain-does-not-end-at-rest" AS ?problem)
+    BIND(STR(?tx) AS ?s)
+  }
+}
