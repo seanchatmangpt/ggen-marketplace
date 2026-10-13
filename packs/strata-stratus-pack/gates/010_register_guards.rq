@@ -1,27 +1,40 @@
 # MESSAGE: every st:StateRegister must have exactly one st:guardedBy pointing at a st:WitnessValve.
 # Any row returned indicates an invalid register specification failing closed.
+#
+# SPARQL scoping note (this is what made the old b2 branch fail open): a
+# FILTER — including FILTER NOT EXISTS — inside a UNION branch sees only that
+# branch's group. The old gate relied on the outer `?register a
+# st:StateRegister` binding while the NOT EXISTS lived in a bare
+# `{ FILTER NOT EXISTS { ?register ... } }` branch, so ?register was unbound
+# in the filter's scope (NOT EXISTS then matched any guardedBy edge and the
+# branch emptied). Additionally, a COUNT subquery inside UNION fails open
+# under rdflib 7.6 (sibling NOT EXISTS rows are dropped), and a leading BIND
+# before the branch's graph patterns does the same under rdflib 7.6. Every
+# branch below is therefore self-contained (re-asserts
+# `?register a st:StateRegister`), uses a self-join pair arm for the
+# exactly-one requirement instead of a COUNT subquery, and BINDs its
+# constant after its graph patterns.
 PREFIX st: <https://strata.chatman.ai/ontology#>
 
 SELECT ?register ?problem WHERE {
-  ?register a st:StateRegister .
   {
-    # zero guardedBy edges
-    BIND("no st:guardedBy" AS ?problem)
+    # zero guardedBy edges (self-contained: filter must see ?register)
+    ?register a st:StateRegister .
     FILTER NOT EXISTS { ?register st:guardedBy ?any }
+    BIND("no st:guardedBy" AS ?problem)
   } UNION {
-    # more than one guardedBy edge (exactly-one requirement)
+    # more than one guardedBy edge (exactly-one requirement):
+    # self-join pair pattern, two DISTINCT guardedBy edges on one register
+    ?register a st:StateRegister ;
+              st:guardedBy ?g1 , ?g2 .
+    FILTER(?g1 != ?g2)
     BIND("more than one st:guardedBy" AS ?problem)
-    {
-      SELECT ?register (COUNT(?g) AS ?guard_count) WHERE {
-        ?register a st:StateRegister ; st:guardedBy ?g .
-      } GROUP BY ?register
-    }
-    FILTER(?guard_count > 1)
   } UNION {
     # guardedBy pointing at something that is not a WitnessValve
-    BIND("guardedBy target is not a st:WitnessValve" AS ?problem)
-    ?register st:guardedBy ?target .
+    ?register a st:StateRegister ;
+              st:guardedBy ?target .
     FILTER NOT EXISTS { ?target a st:WitnessValve }
+    BIND("guardedBy target is not a st:WitnessValve" AS ?problem)
   }
 }
 ORDER BY ?register ?problem
