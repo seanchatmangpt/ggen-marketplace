@@ -1,0 +1,118 @@
+# MESSAGE: header offset abutment chain violated — each field's _OFFSET + _LEN
+# must equal the next field's _OFFSET; the last must end at PDU_HEADER_LEN (64);
+# MAGIC_OFFSET must be 0; PDU_HEADER_LEN must be 64; all _OFFSET values must be
+# pairwise distinct; AND all 23 required FrameConstant labels must be present
+# with a pdu:value (fail-closed: omitting a label from ontology.ttl yields a
+# missing_constant violation, never a silently dropped branch/constant).
+# Any row indicates a broken wire layout.
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX pdu:  <https://strata.chatman.ai/ontology/pdu#>
+
+SELECT DISTINCT (COALESCE(?f1,?f2,?f3,?f4,?f5,?f6,?f7,?f8,?f9,?f10,?f11,?f12,?f13) AS ?field)
+       (COALESCE(?p1,?p2,?p3,?p4,?p5,?p6,?p7,?p8,?p9,?p10,?p11,?p12,?p13) AS ?problem)
+       ?offA ?offB WHERE {
+  {
+    FILTER(xsd:integer(?magicOff) != 0)
+    BIND("MAGIC" AS ?f1) BIND("MAGIC_OFFSET must be 0" AS ?p1)
+    ?m rdfs:label "MAGIC_OFFSET" ; pdu:value ?magicOff .
+    BIND(?magicOff AS ?offA) BIND("0" AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?magicOff) + xsd:integer(?magicLen) != xsd:integer(?verOff))
+    BIND("MAGIC" AS ?f2) BIND("offset+length != next offset" AS ?p2)
+    ?m rdfs:label "MAGIC_OFFSET" ; pdu:value ?magicOff .
+    ?ml rdfs:label "MAGIC_LEN" ; pdu:value ?magicLen .
+    ?v rdfs:label "VERSION_OFFSET" ; pdu:value ?verOff .
+    BIND(?magicOff AS ?offA) BIND(?verOff AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?verOff) + xsd:integer(?verLen) != xsd:integer(?permOff))
+    BIND("VERSION" AS ?f3) BIND("offset+length != next offset" AS ?p3)
+    ?v rdfs:label "VERSION_OFFSET" ; pdu:value ?verOff .
+    ?vl rdfs:label "VERSION_LEN" ; pdu:value ?verLen .
+    ?p rdfs:label "PERMUTATION_OFFSET" ; pdu:value ?permOff .
+    BIND(?verOff AS ?offA) BIND(?permOff AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?permOff) + xsd:integer(?permLen) != xsd:integer(?resOff))
+    BIND("PERMUTATION" AS ?f4) BIND("offset+length != next offset" AS ?p4)
+    ?p rdfs:label "PERMUTATION_OFFSET" ; pdu:value ?permOff .
+    ?pl rdfs:label "PERMUTATION_LEN" ; pdu:value ?permLen .
+    ?r rdfs:label "RESERVED_OFFSET" ; pdu:value ?resOff .
+    BIND(?permOff AS ?offA) BIND(?resOff AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?resOff) + xsd:integer(?resLen) != xsd:integer(?epochOff))
+    BIND("RESERVED" AS ?f5) BIND("offset+length != next offset" AS ?p5)
+    ?r rdfs:label "RESERVED_OFFSET" ; pdu:value ?resOff .
+    ?rl rdfs:label "RESERVED_LEN" ; pdu:value ?resLen .
+    ?e rdfs:label "EPOCH_NONCE_OFFSET" ; pdu:value ?epochOff .
+    BIND(?resOff AS ?offA) BIND(?epochOff AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?epochOff) + xsd:integer(?epochLen) != xsd:integer(?fuelOff))
+    BIND("EPOCH_NONCE" AS ?f6) BIND("offset+length != next offset" AS ?p6)
+    ?el rdfs:label "EPOCH_NONCE_LEN" ; pdu:value ?epochLen .
+    ?e rdfs:label "EPOCH_NONCE_OFFSET" ; pdu:value ?epochOff .
+    ?f rdfs:label "FUEL_LEASE_OFFSET" ; pdu:value ?fuelOff .
+    BIND(?epochOff AS ?offA) BIND(?fuelOff AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?fuelOff) + xsd:integer(?fuelLen) != xsd:integer(?parentOff))
+    BIND("FUEL_LEASE" AS ?f7) BIND("offset+length != next offset" AS ?p7)
+    ?f rdfs:label "FUEL_LEASE_OFFSET" ; pdu:value ?fuelOff .
+    ?fl rdfs:label "FUEL_LEASE_LEN" ; pdu:value ?fuelLen .
+    ?pa rdfs:label "PARENT_RECEIPT_DIGEST_OFFSET" ; pdu:value ?parentOff .
+    BIND(?fuelOff AS ?offA) BIND(?parentOff AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?parentOff) + xsd:integer(?parentLen) != xsd:integer(?histOff))
+    BIND("PARENT_RECEIPT_DIGEST" AS ?f8) BIND("offset+length != next offset" AS ?p8)
+    ?pa rdfs:label "PARENT_RECEIPT_DIGEST_OFFSET" ; pdu:value ?parentOff .
+    ?pal rdfs:label "PARENT_RECEIPT_DIGEST_LEN" ; pdu:value ?parentLen .
+    ?h rdfs:label "HISTORY_QUAD_COUNT_OFFSET" ; pdu:value ?histOff .
+    BIND(?parentOff AS ?offA) BIND(?histOff AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?histOff) + xsd:integer(?histLen) != xsd:integer(?candOff))
+    BIND("HISTORY_QUAD_COUNT" AS ?f9) BIND("offset+length != next offset" AS ?p9)
+    ?h rdfs:label "HISTORY_QUAD_COUNT_OFFSET" ; pdu:value ?histOff .
+    ?hl rdfs:label "HISTORY_QUAD_COUNT_LEN" ; pdu:value ?histLen .
+    ?c rdfs:label "CANDIDATE_QUAD_COUNT_OFFSET" ; pdu:value ?candOff .
+    BIND(?histOff AS ?offA) BIND(?candOff AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?candOff) + xsd:integer(?candLen) != xsd:integer(?hdrLen))
+    BIND("CANDIDATE_QUAD_COUNT" AS ?f10) BIND("offset+length != PDU_HEADER_LEN" AS ?p10)
+    ?c rdfs:label "CANDIDATE_QUAD_COUNT_OFFSET" ; pdu:value ?candOff .
+    ?cl rdfs:label "CANDIDATE_QUAD_COUNT_LEN" ; pdu:value ?candLen .
+    ?hd rdfs:label "PDU_HEADER_LEN" ; pdu:value ?hdrLen .
+    BIND(?candOff AS ?offA) BIND(?hdrLen AS ?offB)
+  } UNION {
+    FILTER(xsd:integer(?hdrLen) != 64)
+    BIND("HEADER_LEN" AS ?f11) BIND("PDU_HEADER_LEN must be 64" AS ?p11)
+    ?hd rdfs:label "PDU_HEADER_LEN" ; pdu:value ?hdrLen .
+    BIND(?hdrLen AS ?offA) BIND("64" AS ?offB)
+  } UNION {
+    ?a rdfs:label ?la ; pdu:value ?val .
+    ?b rdfs:label ?lb ; pdu:value ?val .
+    FILTER(STR(?la) != STR(?lb) && STRENDS(STR(?la), "_OFFSET") && STRENDS(STR(?lb), "_OFFSET"))
+    BIND("OFFSET-COLLISION" AS ?f12)
+    BIND(CONCAT(STR(?la), " collides with ", STR(?lb), " at byte ", STR(?val)) AS ?p12)
+    BIND(?val AS ?offA) BIND(?val AS ?offB)
+  } UNION {
+    # Fail-closed presence check: every required FrameConstant label must exist
+    # in the graph with a pdu:value. If a label is deleted from ontology.ttl,
+    # this branch fires for it instead of the layout logic silently skipping it.
+    VALUES ?reqLabel {
+      "PDU_MAGIC" "PDU_VERSION" "PDU_HEADER_LEN" "PDU_PERMUTATION_MAX"
+      "MAGIC_OFFSET" "MAGIC_LEN"
+      "VERSION_OFFSET" "VERSION_LEN"
+      "PERMUTATION_OFFSET" "PERMUTATION_LEN"
+      "RESERVED_OFFSET" "RESERVED_LEN"
+      "EPOCH_NONCE_OFFSET" "EPOCH_NONCE_LEN"
+      "FUEL_LEASE_OFFSET" "FUEL_LEASE_LEN"
+      "PARENT_RECEIPT_DIGEST_OFFSET" "PARENT_RECEIPT_DIGEST_LEN"
+      "HISTORY_QUAD_COUNT_OFFSET" "HISTORY_QUAD_COUNT_LEN"
+      "CANDIDATE_QUAD_COUNT_OFFSET" "CANDIDATE_QUAD_COUNT_LEN"
+      "REFUSAL_RECEIPT_LEN"
+    }
+    FILTER NOT EXISTS { ?anyConst rdfs:label ?reqLabel ; pdu:value ?anyVal }
+    BIND(CONCAT("CONSTANT-PRESENCE: ", STR(?reqLabel)) AS ?f13)
+    BIND(CONCAT("missing_constant: no FrameConstant with rdfs:label ", STR(?reqLabel), " carrying pdu:value") AS ?p13)
+    BIND(STR(?reqLabel) AS ?offA) BIND("absent" AS ?offB)
+  }
+}
+ORDER BY ?field ?problem

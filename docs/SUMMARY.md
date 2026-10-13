@@ -17,6 +17,7 @@
 - [Plan an engagement as a standing ledger](tutorials/standing-ledger-for-an-engagement.md)
 - [Flag a pack for consolidation and deprecation](tutorials/flag-a-pack.md)
 - [Deploy an AAIF solution on kind](tutorials/deploy-an-aaif-solution.md)
+- [Consume the Strata family](tutorials/consume-the-strata-family.md)
 
 # How-to guides
 
@@ -38,6 +39,7 @@
 - [Ingest a profile into the AAIF pipeline](how-to/ingest-a-profile.md)
 - [Tailor a solution from a deployment profile](how-to/tailor-a-solution-profile.md)
 - [Run the local kind commerce rail](how-to/run-the-kind-commerce-rail.md)
+- [Generate from Strata ontologies](how-to/generate-from-strata-ontologies.md)
 
 # Reference
 
@@ -59,6 +61,7 @@
 - [Pack classes reference](reference/pack-classes.md)
 - [Reference: ash_* Ecosystem Mapping](reference/ash-ecosystem-mapping.md)
 - [Kudzu Case Studies](reference/kudzu-case-studies.md)
+- [Strata family contracts](reference/strata-family-contracts.md)
 - [Enterprise Kudzu v26.9.13](reference/enterprise-kudzu-v26.9.13.md)
 - [GraphLaw Ash capability pack](reference/graphlaw-ash-capability-pack.md)
 - [GraphLaw rust, wasm, beam/elixir pipeline](reference/graphlaw-rust-wasm-beam-pipeline.md)
@@ -113,6 +116,7 @@
 - [Pack replaceability survey across owner repositories](explanation/pack-replaceability-survey.md)
 - [AAIF commerce seams](explanation/aaif-commerce-seams.md)
 - [Executive Summary: GCP Marketplace Strategy & Enterprise Commercial Moat](strategy/gcp-marketplace-executive-summary.md)
+- [Strata family design](explanation/strata-family-design.md)
 
 # Research monograph
 

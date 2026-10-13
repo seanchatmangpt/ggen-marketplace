@@ -1,0 +1,57 @@
+# MESSAGE: every st:RonrTransition must have a non-zero precondition mask
+# (a transition with pre == "0x0000" is always enabled and consumes nothing
+# — not a lawful RONR transition), and all transition opcodes must be
+# distinct, and every st:RonrTransition must CARRY st:transitionPre,
+# st:transitionPost, and st:transitionOpcode at all (presence law), and
+# every transition/verb mask and opcode literal must be fixed-width hex:
+# masks ^0x[0-9A-F]{4}$, opcodes/verbOpcodes ^0x[0-9A-F]{2}$ (the ontology's
+# literal case exactly — "0x0" or "0x81" must never evade the zero arm by
+# spelling). Any row returned is a zero-mask, bad-width, duplicated-opcode,
+# or missing pre/post/opcode transition.
+PREFIX st: <https://strata.chatman.ai/ontology#>
+
+SELECT ?t ?opcode ?violation WHERE {
+  {
+    ?t a st:RonrTransition ;
+       st:transitionOpcode ?opcode ;
+       st:transitionPre ?pre .
+    FILTER (?pre IN ("0x0000", "0X0000"))
+    BIND("zero_pre_mask" AS ?violation)
+  } UNION {
+    ?t a st:RonrTransition ;
+       st:transitionOpcode ?opcode .
+    ?t2 a st:RonrTransition ;
+        st:transitionOpcode ?opcode .
+    FILTER (?t != ?t2)
+    BIND("duplicate_opcode" AS ?violation)
+  } UNION {
+    ?t a st:RonrTransition .
+    FILTER NOT EXISTS { ?t st:transitionPre ?anyPre }
+    BIND("missing_transitionPre" AS ?violation)
+  } UNION {
+    ?t a st:RonrTransition .
+    FILTER NOT EXISTS { ?t st:transitionPost ?anyPost }
+    BIND("missing_transitionPost" AS ?violation)
+  } UNION {
+    ?t a st:RonrTransition .
+    FILTER NOT EXISTS { ?t st:transitionOpcode ?anyOpcode }
+    BIND("missing_transitionOpcode" AS ?violation)
+  } UNION {
+    ?t st:transitionPre ?w .
+    FILTER (!REGEX(?w, "^0x[0-9A-F]{4}$"))
+    BIND("bad_pre_mask_width" AS ?violation)
+  } UNION {
+    ?t st:transitionPost ?w .
+    FILTER (!REGEX(?w, "^0x[0-9A-F]{4}$"))
+    BIND("bad_post_mask_width" AS ?violation)
+  } UNION {
+    ?t st:transitionOpcode ?w .
+    FILTER (!REGEX(?w, "^0x[0-9A-F]{2}$"))
+    BIND("bad_transitionOpcode_width" AS ?violation)
+  } UNION {
+    ?t st:verbOpcode ?w .
+    FILTER (!REGEX(?w, "^0x[0-9A-F]{2}$"))
+    BIND("bad_verbOpcode_width" AS ?violation)
+  }
+}
+ORDER BY ?opcode ?violation

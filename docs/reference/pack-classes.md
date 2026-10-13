@@ -103,9 +103,9 @@ deliberately unclassified (`null`) rather than guess-classified.
 
 ## Worked examples
 
-These are the only packs whose file contents were actually checked as of this milestone
-(`docs/jira/v26.8.19/00-PACK-PORTFOLIO-MATURITY-AUDIT.md`), so they are the only ones seeded
-in `PACK_CLASSES`:
+These are the packs whose file contents have been audited so far (starting with the
+v26.8.19 milestone audit, `docs/jira/v26.8.19/00-PACK-PORTFOLIO-MATURITY-AUDIT.md`), so they
+are the ones seeded in `PACK_CLASSES`:
 
 - `clap-noun-verb-pack` — `CompatibilityPack`. Retired from normal discovery per
   `docs/jira/v26.8.19/01-TICKET-retire-clap-noun-verb-legacy.md`; kept on disk only so
@@ -126,6 +126,16 @@ in `PACK_CLASSES`:
   architecture-method capability that depends on `industry-closure-ledger-pack`, never the reverse.
 - `industry-closure-retail-lending-profile-pack` — `ProfilePack`. ABox-only industry scope,
   knowledge sources and requirements bound to the closure kernel.
+- `strata-protocol-pack` — `KernelPack`. Owns the canonical `https://strata.chatman.ai/ontology#` PDU/wire
+  vocabulary; sibling strata packs reference its constants by IRI cross-pack rather than
+  restating them.
+- `strata-pn64-pack` — `CapabilityPack`. One orthogonal PN64 PDU capability.
+- `strata-cas-pack` — `CapabilityPack`. One orthogonal compare-and-swap capability.
+- `strata-signer-pack` — `CapabilityPack`. One orthogonal signing capability.
+- `strata-stratus-pack` — `CapabilityPack`. One orthogonal register/valve surface capability.
+- `strata-temprun-pack` — `CapabilityPack`. One orthogonal temporal-run/arena capability.
+- `strata-valve-pack` — `CapabilityPack`. One orthogonal valve-refusal capability; references
+  `strata-protocol-pack`'s `wire:` prefix by IRI literal, never the reverse.
 
 `togaf-adm-pack`, `enterprise-architecture-pack` and `chatman-togaf-closure-pack` are consumed
 by this family but are not reclassified here.

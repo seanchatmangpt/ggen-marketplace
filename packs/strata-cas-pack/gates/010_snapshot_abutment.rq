@@ -1,0 +1,18 @@
+# MESSAGE: every st:Snapshot must have st:abutmentStrict true and an st:snapshotCommit pointing at a st:MerkleCommit.
+# Any row returned indicates an invalid snapshot failing closed.
+PREFIX st: <https://strata.chatman.ai/ontology#>
+
+SELECT ?snapshot ?violation WHERE {
+  ?snapshot a st:Snapshot .
+  {
+    BIND("missing-or-non-boolean st:abutmentStrict" AS ?violation)
+    FILTER NOT EXISTS { ?snapshot st:abutmentStrict true }
+  } UNION {
+    BIND("missing-or-non-commit st:snapshotCommit" AS ?violation)
+    FILTER NOT EXISTS {
+      ?snapshot st:snapshotCommit ?commit .
+      ?commit a st:MerkleCommit .
+    }
+  }
+}
+ORDER BY ?snapshot ?violation

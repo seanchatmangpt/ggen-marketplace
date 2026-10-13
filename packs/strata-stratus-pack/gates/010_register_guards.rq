@@ -1,0 +1,27 @@
+# MESSAGE: every st:StateRegister must have exactly one st:guardedBy pointing at a st:WitnessValve.
+# Any row returned indicates an invalid register specification failing closed.
+PREFIX st: <https://strata.chatman.ai/ontology#>
+
+SELECT ?register ?problem WHERE {
+  ?register a st:StateRegister .
+  {
+    # zero guardedBy edges
+    BIND("no st:guardedBy" AS ?problem)
+    FILTER NOT EXISTS { ?register st:guardedBy ?any }
+  } UNION {
+    # more than one guardedBy edge (exactly-one requirement)
+    BIND("more than one st:guardedBy" AS ?problem)
+    {
+      SELECT ?register (COUNT(?g) AS ?guard_count) WHERE {
+        ?register a st:StateRegister ; st:guardedBy ?g .
+      } GROUP BY ?register
+    }
+    FILTER(?guard_count > 1)
+  } UNION {
+    # guardedBy pointing at something that is not a WitnessValve
+    BIND("guardedBy target is not a st:WitnessValve" AS ?problem)
+    ?register st:guardedBy ?target .
+    FILTER NOT EXISTS { ?target a st:WitnessValve }
+  }
+}
+ORDER BY ?register ?problem

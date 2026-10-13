@@ -46,15 +46,17 @@ a `// REFUSED: empty ontology projection` comment instead of a table.
 - `places.rq` — all `st:Place` individuals + `st:bitOffset`, LSB-first.
   Lowers the marking-bit vocabulary (RONR noun space) that the mask
   literals are unions of.
-- `dao_verbs.rq` — `DaoVerb` individuals + `pn:value` (`pn:` is bound to
-  the same strata namespace as `st:`, so `pn:value` = `st:value`) +
+- `dao_verbs.rq` — `DaoVerb` individuals + `st:value` +
   opcode, ordered by value. Human/wire verb names for the six opcodes.
 - `deadlock_candidates.rq` — structural siphon PRE-FILTER as a query.
   Exact semantics, the arithmetic (hex-string) bit test, and its known
   imprecision are documented in the query header. Expected hits on the
   canonical six: opcodes `0x05` and `0x06` (the deliberately terminal
   states); hits are exempted from the deadlock gate via `TERMINALS`, not
-  silent.
+  silent. Literal width is enforced upstream by
+  `../gates/020_transition_pre_nonzero.rq` (4-hex mask / 2-hex opcode
+  regex arms, landed 2026-10-13); this query's SUBSTR arithmetic assumes
+  that enforced width and under-fires silently without it.
 
 ## Validation status
 

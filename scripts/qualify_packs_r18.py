@@ -28,6 +28,8 @@ def main() -> int:
     parser.add_argument("--shard-index", type=int, default=None)
     parser.add_argument("--shard-count", type=int, default=None)
     parser.add_argument("--scope", choices=("active", "all"), default="active")
+    parser.add_argument("--pack", action="append", default=None, metavar="NAME",
+                        help="qualify only the named pack; repeatable")
     args = parser.parse_args()
 
     if (args.shard_index is None) != (args.shard_count is None):
@@ -47,6 +49,13 @@ def main() -> int:
         packs = select_packs(require_admitted(), args.scope)
     except ValueError as error:
         print(str(error), file=sys.stderr); return 2
+    if args.pack:
+        by_name = {pack.name: pack for pack in packs}
+        missing = sorted(set(args.pack) - set(by_name))
+        if missing:
+            print(f"REFUSED:GGEN_PACK_NAME:{','.join(missing)}", file=sys.stderr); return 2
+        wanted = set(args.pack)
+        packs = [by_name[name] for name in sorted(wanted)]
     if args.shard_index is not None:
         try:
             packs = q.shard(packs, args.shard_index, args.shard_count)

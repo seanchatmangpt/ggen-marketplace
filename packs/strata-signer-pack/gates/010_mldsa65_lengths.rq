@@ -1,0 +1,39 @@
+# MESSAGE: every AttestationKey must carry keyId/algorithm/signatureLen/publicKeyLen
+# and be the ML-DSA-65 triple (algorithm "ML-DSA-65", signatureLen 3309, publicKeyLen 1952).
+# Any row returned indicates an invalid key spec, failing closed.
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX st:  <https://strata.chatman.ai/ontology#>
+
+SELECT ?k ?violation WHERE {
+  ?k a st:AttestationKey .
+  {
+    ?k a st:AttestationKey .
+    FILTER NOT EXISTS { ?k st:keyId ?any }
+    BIND("missing keyId" AS ?violation)
+  } UNION {
+    ?k a st:AttestationKey .
+    FILTER NOT EXISTS { ?k st:algorithm ?any }
+    BIND("missing algorithm" AS ?violation)
+  } UNION {
+    ?k a st:AttestationKey .
+    FILTER NOT EXISTS { ?k st:signatureLen ?any }
+    BIND("missing signatureLen" AS ?violation)
+  } UNION {
+    ?k a st:AttestationKey .
+    FILTER NOT EXISTS { ?k st:publicKeyLen ?any }
+    BIND("missing publicKeyLen" AS ?violation)
+  } UNION {
+    ?k st:algorithm ?alg .
+    FILTER(?alg != "ML-DSA-65")
+    BIND(CONCAT("algorithm not ML-DSA-65: ", STR(?alg)) AS ?violation)
+  } UNION {
+    ?k st:signatureLen ?slen .
+    FILTER(?slen != 3309)
+    BIND(CONCAT("signatureLen not 3309: ", STR(?slen)) AS ?violation)
+  } UNION {
+    ?k st:publicKeyLen ?plen .
+    FILTER(?plen != 1952)
+    BIND(CONCAT("publicKeyLen not 1952: ", STR(?plen)) AS ?violation)
+  }
+}
+ORDER BY ?k ?violation

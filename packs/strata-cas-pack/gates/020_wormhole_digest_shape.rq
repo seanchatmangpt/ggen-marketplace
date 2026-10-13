@@ -1,0 +1,42 @@
+# MESSAGE: every st:KnowledgeWormhole must have st:sourceDigest and st:targetDigest matching a 64-char lowercase hex SHA-256; every st:MerkleCommit must have an st:merkleRoot.
+# Any row returned indicates an invalid content-addressed object failing closed.
+PREFIX st: <https://strata.chatman.ai/ontology#>
+
+SELECT ?subject ?violation WHERE {
+  {
+    ?subject a st:KnowledgeWormhole .
+    BIND("missing-or-malformed st:sourceDigest (expected ^[0-9a-f]{64}$)" AS ?violation)
+    FILTER NOT EXISTS {
+      ?subject st:sourceDigest ?src .
+      FILTER(REGEX(STR(?src), "^[0-9a-f]{64}$"))
+    }
+  } UNION {
+    ?subject a st:KnowledgeWormhole .
+    BIND("missing-or-malformed st:targetDigest (expected ^[0-9a-f]{64}$)" AS ?violation)
+    FILTER NOT EXISTS {
+      ?subject st:targetDigest ?tgt .
+      FILTER(REGEX(STR(?tgt), "^[0-9a-f]{64}$"))
+    }
+  } UNION {
+    ?subject a st:MerkleCommit .
+    BIND("missing st:merkleRoot" AS ?violation)
+    FILTER NOT EXISTS { ?subject st:merkleRoot ?root }
+  } UNION {
+    # Distinctness: two distinct KnowledgeWormholes carrying identical
+    # st:sourceDigest values are refused at the data layer, closing the
+    # ORDER BY-tie nondeterminism class (duplicate keys would otherwise
+    # render document-order-dependent output downstream).
+    ?subject a st:KnowledgeWormhole ; st:sourceDigest ?d1 .
+    ?w2 a st:KnowledgeWormhole ; st:sourceDigest ?d2 .
+    FILTER (?subject != ?w2 && STR(?d1) = STR(?d2))
+    BIND("duplicate_sourceDigest" AS ?violation)
+  } UNION {
+    # Distinctness: two distinct MerkleCommits carrying identical
+    # st:merkleRoot values are refused (same tie class).
+    ?subject a st:MerkleCommit ; st:merkleRoot ?r1 .
+    ?m2 a st:MerkleCommit ; st:merkleRoot ?r2 .
+    FILTER (?subject != ?m2 && STR(?r1) = STR(?r2))
+    BIND("duplicate_merkleRoot" AS ?violation)
+  }
+}
+ORDER BY ?subject ?violation

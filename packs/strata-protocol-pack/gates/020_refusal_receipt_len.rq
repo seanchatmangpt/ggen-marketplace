@@ -1,0 +1,24 @@
+# MESSAGE: refusal receipt length triangle broken — pdu:REFUSAL_RECEIPT_LEN
+# must equal wire:RefusalReceipt's wire:fixedLen, and both must be 32.
+# Any row indicates an in-pack inconsistency failing closed.
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX pdu:  <https://strata.chatman.ai/ontology/pdu#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX wire: <https://strata.chatman.ai/ontology/wire#>
+
+SELECT ?subject ?value WHERE {
+  {
+    ?c rdfs:label "REFUSAL_RECEIPT_LEN" ; pdu:value ?v .
+    FILTER(xsd:integer(?v) != 32)
+    BIND(CONCAT(STR(?c), " pdu:value ", STR(?v)) AS ?subject)
+    BIND(?v AS ?value)
+  } UNION {
+    ?c rdfs:label "REFUSAL_RECEIPT_LEN" ; pdu:value ?v .
+    BIND(wire:RefusalReceipt AS ?rr)
+    ?rr wire:fixedLen ?flen .
+    FILTER(xsd:integer(?v) != xsd:integer(?flen))
+    BIND(CONCAT(STR(?c), " != RefusalReceipt fixedLen ", STR(?flen)) AS ?subject)
+    BIND(?flen AS ?value)
+  }
+}
+ORDER BY ?subject

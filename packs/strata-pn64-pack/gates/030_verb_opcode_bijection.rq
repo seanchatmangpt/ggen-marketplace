@@ -1,0 +1,37 @@
+# MESSAGE: the st:DaoVerb -> st:RonrTransition opcode binding must be a
+# bijection (6-6): every DaoVerb st:verbOpcode matches exactly one
+# RonrTransition st:transitionOpcode, and every transition opcode has
+# exactly one verb. Hex opcodes are compared as STRINGS. Any row returned
+# is an unmatched or duplicated verb/opcode.
+PREFIX st: <https://strata.chatman.ai/ontology#>
+
+SELECT ?thing ?opcode ?violation WHERE {
+  {
+    # A verb whose opcode binds no transition.
+    ?thing a st:DaoVerb ;
+           st:verbOpcode ?opcode .
+    FILTER NOT EXISTS {
+      ?t a st:RonrTransition ;
+         st:transitionOpcode ?opcode .
+    }
+    BIND("verb_without_transition" AS ?violation)
+  } UNION {
+    # Two verbs claiming the same opcode.
+    ?v1 a st:DaoVerb ;
+        st:verbOpcode ?opcode .
+    ?v2 a st:DaoVerb ;
+        st:verbOpcode ?opcode .
+    FILTER (STR(?v1) != STR(?v2))
+    BIND("duplicate_verb_opcode" AS ?violation)
+  } UNION {
+    # A transition opcode bound by no verb.
+    ?t a st:RonrTransition ;
+       st:transitionOpcode ?opcode .
+    FILTER NOT EXISTS {
+      ?v a st:DaoVerb ;
+         st:verbOpcode ?opcode .
+    }
+    BIND("transition_without_verb" AS ?violation)
+  }
+}
+ORDER BY ?opcode ?violation

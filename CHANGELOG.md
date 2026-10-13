@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- hardening(strata): strata hardening wave — 7 strata packs (protocol, signer, cas, pn64, valve, temprun, stratus) qualified ALIVE via per-pack `verify.py` courts with `witness.ttl` receipts; 12 gates hardened (incl. `strata-pn64-pack/gates/020_transition_pre_nonzero.rq`, `strata-protocol-pack/gates/010_header_layout.rq`); namespace unification across packs; docs/README + errc-tracker quadrants updated per pack; audit-wave test/court repairs; CI strata-packs-court (`--scope all`) justification; readiness verified
+
 ## [v26.10.7] — 2026-10-07
 
 - convergence(marker): `[active].version` 26.9.12 → 26.10.7 in `marketplace.active.toml` (version field only; absorbs the W618-era uncommitted 26.10.6 bump and advances it); active pack set unchanged at 13 packs, front door unchanged (`ggen-platform-pack`)
