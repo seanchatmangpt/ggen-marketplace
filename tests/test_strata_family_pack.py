@@ -99,8 +99,7 @@ def _stratus_decl_lines(text: str) -> list[str]:
 def _content_court(pack: str, rel: str, text: str) -> None:
     """Pure content check for one generated file (sync-court expectations)."""
     if pack == "strata-pn64-pack":
-        assert "VERB_COUNT: usize = 6" in text, (
-            "pn64_masks.rs must contain VERB_COUNT: usize = 6")
+        _pn64_verb_count_check(text)
         assert "// REFUSED" not in text, "pn64_masks.rs must not contain '// REFUSED'"
         return
     if pack == "strata-valve-pack":
@@ -133,8 +132,11 @@ def _content_court(pack: str, rel: str, text: str) -> None:
         # VALVE_DEFAULT lives in valves.rs, MAIN_NAME in registers.rs.
         if rel.endswith("valves.rs"):
             assert "VALVE_DEFAULT" in text, "valves.rs must contain VALVE_DEFAULT"
-        if rel.endswith("registers.rs"):
+        elif rel.endswith("registers.rs"):
             assert "MAIN_NAME" in text, "registers.rs must contain MAIN_NAME"
+        else:
+            raise AssertionError(
+                f"unexpected generated file for stratus pack: {rel}")
         decls = _stratus_decl_lines(text)
         dupes = sorted({d for d in decls if decls.count(d) > 1})
         assert not dupes, "stratus declarations defined more than once: %r" % dupes
@@ -177,6 +179,11 @@ def test_real_ggen_sync_determinism_content_and_drift(
 ) -> None:
     pack_dir = _copy_pack(name, tmp_path)
 
+    # Cold-render hardening: strip any committed generated/ copy so the first
+    # sync provably renders from scratch (also strengthens the drift guard:
+    # state1 is unambiguously a fresh render, not a leftover).
+    shutil.rmtree(pack_dir / "generated", ignore_errors=True)
+
     first = _run_sync(pack_dir)
     assert first.returncode == 0, (first.stdout + first.stderr)[-1500:]
     state1 = _generated_state(pack_dir)
@@ -208,6 +215,12 @@ def test_real_ggen_sync_determinism_content_and_drift(
 # Court 4: sabotage twins — pure string-level helpers, no ggen rerun
 # ---------------------------------------------------------------------------
 
+def _pn64_verb_count_check(text: str) -> None:
+    """The pn64 VERB_COUNT expectation as a pure function."""
+    assert "VERB_COUNT: usize = 6" in text, (
+        "pn64_masks.rs must contain VERB_COUNT: usize = 6")
+
+
 def _valve_receipt_len_check(text: str) -> None:
     """The valve receipt-length expectation as a pure function."""
     assert "REFUSAL_RECEIPT_LEN: usize = 32" in text
@@ -222,9 +235,10 @@ def test_sabotage_twin_receipt_len_check_detects_mutation() -> None:
 
 def test_sabotage_twin_pn64_verb_count_check_detects_mutation() -> None:
     good = "pub const VERB_COUNT: usize = 6;\n"
-    assert "VERB_COUNT: usize = 6" in good
+    _pn64_verb_count_check(good)
     bad = good.replace("= 6", "= 5")
-    assert "VERB_COUNT: usize = 6" not in bad
+    with pytest.raises(AssertionError, match="VERB_COUNT: usize = 6"):
+        _pn64_verb_count_check(bad)
 
 
 if __name__ == "__main__":  # pragma: no cover

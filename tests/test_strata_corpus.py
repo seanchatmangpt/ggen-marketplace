@@ -18,7 +18,7 @@ Five guards over the real packs/strata-*-pack tree -- no mocks, pure
    the object of ``a`` (``rdf:type``) within a strata ontology.ttl is
    either declared ``a rdfs:Class`` / ``owl:Class`` in the same file or
    lives in a foreign/standard namespace (rdf:/rdfs:/xsd:/owl: or
-   ``urn:strata:protocol:`` for valve's wire: references). Protocol,
+   ``https://strata.chatman.ai/ontology# (wire:/pdu: sub-namespaces)`` for valve's wire: references). Protocol,
    valve and pn64 were just fixed for this failure class; this pins it.
 5. set-guard: exactly seven ``packs/strata-*-pack`` directories.
 
@@ -61,7 +61,7 @@ FOREIGN_CLASS_NAMESPACES = (
     str(RDFS),
     "http://www.w3.org/2001/XMLSchema#",
     str(OWL),
-    "urn:strata:protocol:",
+    "https://strata.chatman.ai/ontology/wire#",  # protocol-owned wire: vocabulary, referenced cross-pack by valve
 )
 
 CLASS_DECLARATIONS = (RDFS.Class, OWL.Class)
@@ -158,9 +158,11 @@ class TestStrataCorpusCourts:
     def test_every_pack_toml_parses_and_has_capabilities(self) -> None:
         for pack_dir in STRATA_PACKS:
             manifest, _ = load_manifest(pack_dir)
-            caps = manifest.get("capabilities")
-            assert isinstance(caps, dict), pack_dir.name
-            assert "provides" in caps, pack_dir.name
+            # Reuse the self-IRI guard: it already fails when the
+            # capabilities table is missing or provides is malformed.
+            assert self_iri_violations(manifest, pack_dir.name) == [], (
+                pack_dir.name
+            )
 
     def test_every_pack_provides_exactly_its_self_urn(self) -> None:
         for pack_dir in STRATA_PACKS:
@@ -184,7 +186,8 @@ class TestStrataCorpusCourts:
     def test_every_strata_ontology_declares_its_used_classes(self) -> None:
         for pack_dir in STRATA_PACKS:
             graph = load_graph(pack_dir / "ontology.ttl")
-            assert undeclared_class_violations(graph) == [], pack_dir.name
+            violations = undeclared_class_violations(graph)
+            assert violations == [], (pack_dir.name, violations)
 
 
 # ---------------------------------------------------------------------------
@@ -229,9 +232,96 @@ class TestClassDeclarationGuardCanFire:
             data=(
                 "@prefix ex: <https://example.org/strata-sabotage#> .\n"
                 "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n"
-                "@prefix wire: <urn:strata:protocol:wire#> .\n"
+                "@prefix wire: <https://strata.chatman.ai/ontology/wire#> .\n"
                 "ex:Individual a rdfs:Class, wire:ForeignRef .\n"
             ),
             format="turtle",
         )
         assert undeclared_class_violations(graph) == []
+
+
+# ---------------------------------------------------------------------------
+# Sabotage twins: the self-IRI / requires / relationship-note guards must
+# FIRE on synthetic broken fixtures and stay SILENT on the good case.
+# ---------------------------------------------------------------------------
+
+
+class TestSelfIriGuardCanFire:
+    def test_self_iri_guard_fires_on_missing_self_urn(self) -> None:
+        manifest = tomllib.loads(
+            """
+            [pack]
+            name = "strata-sabotage-pack"
+
+            [capabilities]
+            provides = ["urn:ggen:pack:some-other-pack"]
+            """
+        )
+        violations = self_iri_violations(manifest, "strata-sabotage-pack")
+        assert violations == [
+            "SELF_IRI_MISSING:strata-sabotage-pack:"
+            "['urn:ggen:pack:some-other-pack']"
+        ], violations
+
+    def test_self_iri_guard_stays_silent_on_good_case(self) -> None:
+        manifest = tomllib.loads(
+            """
+            [pack]
+            name = "strata-sabotage-pack"
+
+            [capabilities]
+            provides = ["urn:ggen:pack:strata-sabotage-pack"]
+            """
+        )
+        assert self_iri_violations(manifest, "strata-sabotage-pack") == []
+
+
+class TestRequiresGuardCanFire:
+    def test_requires_guard_fires_on_cross_pack_require(self) -> None:
+        manifest = tomllib.loads(
+            """
+            [pack]
+            name = "strata-sabotage-pack"
+
+            [capabilities]
+            provides = ["urn:ggen:pack:strata-sabotage-pack"]
+            requires = ["strata-protocol-pack"]
+            """
+        )
+        violations = requires_violations(manifest, "strata-sabotage-pack")
+        assert violations == [
+            "REQUIRES_NOT_EMPTY:strata-sabotage-pack:"
+            "['strata-protocol-pack']"
+        ], violations
+
+    def test_requires_guard_stays_silent_on_empty_requires(self) -> None:
+        manifest = tomllib.loads(
+            """
+            [pack]
+            name = "strata-sabotage-pack"
+
+            [capabilities]
+            provides = ["urn:ggen:pack:strata-sabotage-pack"]
+            """
+        )
+        assert requires_violations(manifest, "strata-sabotage-pack") == []
+
+
+class TestRelationshipNoteGuardCanFire:
+    def test_relationship_note_guard_fires_on_missing_note(self) -> None:
+        text = "# strata-sabotage-pack: no relationship documented\n"
+        violations = relationship_note_violations(text, "strata-sabotage-pack")
+        assert violations == [
+            "RELATIONSHIP_NOTE_MISSING:strata-sabotage-pack"
+        ], violations
+
+    def test_relationship_note_guard_fires_on_note_omitting_protocol(self) -> None:
+        text = "# Relationship note: relates to strata-some-other-pack\n"
+        violations = relationship_note_violations(text, "strata-sabotage-pack")
+        assert violations == [
+            "RELATIONSHIP_NOTE_OMITS_PROTOCOL_PACK:strata-sabotage-pack"
+        ], violations
+
+    def test_relationship_note_guard_stays_silent_on_good_case(self) -> None:
+        text = "# Relationship note: consumes strata-protocol-pack wire types.\n"
+        assert relationship_note_violations(text, "strata-sabotage-pack") == []
