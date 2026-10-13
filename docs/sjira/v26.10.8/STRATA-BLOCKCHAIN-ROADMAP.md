@@ -1,4 +1,8 @@
-# STRATA Blockchain Capability Roadmap — Work Order (OPEN)
+# STRATA Blockchain Capability Roadmap — Work Order (CLOSED 2026-10-13)
+
+All ten slices S1–S10 landed; closure receipt:
+`docs/sjira/v26.10.8/STRATA-BLOCKCHAIN-CLOSE.md`. Slice table retained below
+as the original dependency-ordered work order.
 
 - **Directive** (operator, 2026-10-13): loop cron drives incremental feature
   slices toward full blockchain capability. Each slice: new pack(s) or pack

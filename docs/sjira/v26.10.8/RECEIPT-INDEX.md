@@ -4,10 +4,11 @@ Lane R102, 2026-10-09. One-table index of every campaign artifact in
 `docs/sjira/v26.10.8/`. Complements R99. Every row corresponds to an on-disk
 entry; table rows == directory contents (count verified at write time).
 
-Counts: 45 top-level files (40 `*.md` + 5 data files: `ADMISSION-LEDGER.jsonl`, `candidates.jsonl`,
-`candidates-v2.jsonl`, `WORKGRAPH.ttl`) + 1 `seal/` directory (94 entries: 88 `*.sj-record.json`
+Counts (re-verified 2026-10-13, lane L22): 46 top-level files (42 `*.md` + 4 data files:
+`ADMISSION-LEDGER.jsonl`, `candidates.jsonl`, `candidates-v2.jsonl`, `WORKGRAPH.ttl`) + 1 `seal/`
+directory (94 entries: 88 `*.sj-record.json`
 artifacts plus `drafts.jsonl`, `standing-table.tsv`, `CHAIN-HEAD.txt`, `OSXCLNR-SEAL-HEADS.txt`,
-`build_drafts.py`, and the `retired/` subdir) = 46 directory entries total.
+`build_drafts.py`, and the `retired/` subdir) = 47 directory entries total.
 
 ## Index
 
@@ -30,6 +31,8 @@ artifacts plus `drafts.jsonl`, `standing-table.tsv`, `CHAIN-HEAD.txt`, `OSXCLNR-
 | `FORTUNE5-EA-PACK-CI-WIRING.md` | Fortune-5 EA pack 96-test pytest battery wired into CI (lane R21) | CI/cron wiring |
 | `GEN-JSONL-CLOSURE.md` | `gen_workgraph.py --emit jsonl` → `SemanticJira.admit_work_order/1` 16-key closure | proof/court |
 | `GIT-TRUST-COURT.md` | Court resolving every 40-hex SHA citation in fleet `WORKGRAPH.ttl` against owning repos' git object stores | proof/court |
+| `INNOVATION-LEDGER.md` | Innovation seams Y6/Y8/Y10/T3/T4/T11 + landed-wave receipts (2026-10-13, coordinator-verified SHAs) | ledger |
+
 | `LANDING-BATCH-1.md` | Landing batch 1 receipt (3 commits) | landing receipt |
 | `LANDING-BATCH-2.md` | Landing batch 2 receipt (6 commits: ontology maturity doctrine + wasmex-pack deprecation closure) | landing receipt |
 | `LANDING-BATCH-3.md` | Landing batch 3 receipt (2 commits + browser-court evidence + symlink-residue cleanup) | landing receipt |
@@ -48,6 +51,7 @@ artifacts plus `drafts.jsonl`, `standing-table.tsv`, `CHAIN-HEAD.txt`, `OSXCLNR-
 | `WORKGRAPH.ttl` | ggen-marketplace v26.10.8 workgraph seed graph (RDF) | graph |
 | `STRATA-AUDIT-1-CLOSE.md` | Post-landing adversarial audit closure for STRATA-HARDENING-1 — 20-lane wave (A1–A20) attacking the hardened gates, generated consumers, docs, and receipts | strata audit closure |
 | `STRATA-BATCH-1-CLOSE.md` | Batch-1 closure receipt for STRATA-HARDENING-1 items P1/P7/P18 (commits 513a1a64c + 11c749278; strata family 3/7 → 7/7 ALIVE) | strata closure receipt |
+| `STRATA-BLOCKCHAIN-CLOSE.md` | Blockchain roadmap S1–S10 closure receipt (per-slice commits verified in git 2026-10-13, lane L22; standing: reference implementation, UNSUPPORTED:production-network) | strata closure receipt |
 | `STRATA-RECEIPT-TEMPLATES.md` | Fill-in templates for STRATA-BATCH-<n>-CLOSE.md and STRATA-<n>-CLOSE.md receipts (PACK_FEEDBACK-425 shape) | template |
 | `seal/` | 94-entry seal surface: 88 `*.sj-record.json` (AA/ASHSURF/G1-G4/R2RML/RCERT/SJIRA-V8/XAAS/ZCODE/wo-* orders + `@round2+` reseals, incl. `UNSCOPE-*` refusal records), plus `drafts.jsonl`, `standing-table.tsv`, `CHAIN-HEAD.txt`, `OSXCLNR-SEAL-HEADS.txt`, `build_drafts.py`, and the `retired/` subdir | seal |
 | _STRATA_LANES.md | lanes map | LANDED |
@@ -57,7 +61,7 @@ artifacts plus `drafts.jsonl`, `standing-table.tsv`, `CHAIN-HEAD.txt`, `OSXCLNR-
 | STRATA-DRIFT-NOTES.md | drift flags | LANDED — standing.md / PACK-INDEX stale pins flagged |
 | SYNC-WAVE-RECEIPT.md | wave receipt | FILLED + BLOCKED — results filled 2026-10-13 (77 records); canonical court BLOCKED:ggen-pin-26.8.11 |
 | HOME-SURVEY.md | home survey receipt | 2026-10-13 — 162 ~/ repos profiled (HS1-HS14) |
-| STRATA-BLOCKCHAIN-ROADMAP.md | work order | OPEN — S1-S10 slices toward full blockchain capability |
+| STRATA-BLOCKCHAIN-ROADMAP.md | work order | CLOSED — S1-S10 landed, see STRATA-BLOCKCHAIN-CLOSE.md |
 
 ## Big four cross-links
 

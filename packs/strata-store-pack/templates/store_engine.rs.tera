@@ -201,6 +201,26 @@ struct RecoveryEntry {
     target_len: usize,
 }
 
+/// Crash-fault placement (crash-corpus surface): WHERE in the undo sequence
+/// the simulated process death occurs. The corpus samples all three phases
+/// plus the fsync boundary, so recovery must hold at every placement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CrashFault {
+    /// Death DURING the recovery-record write: the record is lost before any
+    /// deletion — write-ahead ordering means the store is still in the
+    /// consistent pre-undo state.
+    MidJournalWrite,
+    /// Death after `position` deletion steps (0 = immediately after the
+    /// recovery record is journaled; this is the mid-restore of the fork
+    /// state).
+    MidDelete(usize),
+    /// Death BETWEEN the entry write and the journal append's
+    /// fsync-equivalent: the last post-fork journal record is torn away while
+    /// its entry data is durable. Recovery must re-derive the torn record
+    /// from the content address.
+    TornAppend,
+}
+
 /// Content-addressed store surface. Keys are content-derived (SHA-256 of the
 /// value), so identical values dedup: `put` of an existing value is a no-op
 /// returning the same key.
@@ -317,6 +337,21 @@ impl InMemoryStore {
     /// `journal.len() == target_len`.
     fn complete_pending_undo(&mut self) -> StoreReceipt {
         let rec = self.recovery.expect("caller ensures a pending recovery");
+        // Torn-append repair (CrashFault::TornAppend): a durable entry whose
+        // journal record was lost re-derives its record — keys are content
+        // addresses (key == SHA-256(value)), so the journal is
+        // reconstructible from the surviving entries. Without this repair
+        // the torn entry would orphan past the fork point and survive every
+        // future rollback invisibly.
+        let missing: Vec<[u8; 32]> = self
+            .entries
+            .keys()
+            .filter(|k| !self.journal.contains(k))
+            .copied()
+            .collect();
+        for key in missing {
+            self.journal.push(key);
+        }
         let mut undone = 0usize;
         while self.journal.len() > rec.target_len {
             let key = self.journal.pop().expect("journal length checked above");
@@ -378,6 +413,100 @@ impl InMemoryStore {
             None => Ok(None),
             Some(_) => Ok(Some(self.complete_pending_undo())),
         }
+    }
+
+    /// CRASH-CORPUS SURFACE (fault-placement diversity): like
+    /// [`InMemoryStore::undo_to_fork_interruptible`] but the crash point is
+    /// placed by [`CrashFault`] anywhere in the undo sequence — including the
+    /// recovery-record write itself and the journal fsync boundary.
+    pub fn undo_crash_at(
+        &mut self,
+        marker: StoreMarker,
+        fault: CrashFault,
+    ) -> Result<Option<StoreReceipt>, StoreRefusal> {
+        // Same pre-mutation validation as the atomic primitive.
+        if let Some(rec) = self.recovery {
+            return Err(StoreRefusal::UndoInterruptedPending { target_len: rec.target_len });
+        }
+        if marker.journal_len > self.journal.len() {
+            return Err(StoreRefusal::RollbackPastGenesis {
+                journal_len: self.journal.len(),
+                marker: marker.journal_len,
+            });
+        }
+        let target = marker.journal_len;
+        match fault {
+            CrashFault::MidJournalWrite => {
+                // Death DURING the recovery-record write: the record is lost,
+                // and because the record is written BEFORE any deletion
+                // (write-ahead ordering), no deletion can have begun — the
+                // store is still in the consistent pre-undo state. Recovery
+                // is a no-op; a re-invoked undo completes normally.
+                Ok(None)
+            }
+            CrashFault::MidDelete(position) => {
+                // Recovery record first, then death after `position`
+                // deletion steps (mid-restore of the fork state).
+                self.recovery = Some(RecoveryEntry { target_len: target });
+                let mut deleted = 0usize;
+                while self.journal.len() > target && deleted < position {
+                    let key = self.journal.pop().expect("journal length checked above");
+                    self.entries.remove(&key);
+                    deleted += 1;
+                }
+                if self.journal.len() > target {
+                    return Ok(None); // crashed mid-undo: pending recovery
+                }
+                Ok(Some(self.complete_pending_undo()))
+            }
+            CrashFault::TornAppend => {
+                // Death BETWEEN the entry write and the journal append's
+                // fsync-equivalent: the LAST post-fork journal record is torn
+                // away while its entry data is durable. The pending undo is
+                // armed; recovery re-derives the torn record from the
+                // content address and replays to completion.
+                self.recovery = Some(RecoveryEntry { target_len: target });
+                if self.journal.len() > target {
+                    // journal record lost, entry durable (entries keeps it).
+                    let _torn = self.journal.pop().expect("checked above");
+                }
+                if self.journal.len() > target {
+                    return Ok(None);
+                }
+                Ok(Some(self.complete_pending_undo()))
+            }
+        }
+    }
+
+    /// SABOTAGE TWIN (discrimination surface): a "recovery" that silently
+    /// skips the pending undo's remaining tail — models a torn write that
+    /// truncates the journal tail while a naive recovery treats the
+    /// truncation as completion. Returns a FORGED receipt
+    /// (`entries_undone: 0`) and clears the recovery record without doing
+    /// the work. Every court over the post-sabotage state must catch it.
+    pub fn sabotaged_recovery_skip_tail(&mut self) -> StoreReceipt {
+        let rec = self.recovery.expect("sabotage requires a pending recovery");
+        self.recovery = None;
+        StoreReceipt {
+            operation: "undo_to_fork".to_string(),
+            fork_marker: StoreMarker { journal_len: rec.target_len },
+            entries_undone: 0,
+            post_root: self.root_digest(),
+        }
+    }
+
+    /// Crash-corpus invariant (a): every live journal key re-derives from its
+    /// stored value (key == SHA-256(value)) and every journal key is present.
+    pub fn verify_content_addresses(&self) -> bool {
+        self.journal
+            .iter()
+            .all(|k| self.entries.get(k).map_or(false, |v| sha256(v) == *k))
+    }
+
+    /// Crash-corpus invariant (b): no entry exists without a journal record
+    /// (an orphan would survive every future rollback invisibly).
+    pub fn has_orphaned_entries(&self) -> bool {
+        self.entries.keys().any(|k| !self.journal.contains(k))
     }
 }
 
@@ -808,5 +937,197 @@ mod tests {
                 0xf2, 0x00, 0x15, 0xad
             ]
         );
+    }
+
+    /// LCG for deterministic-but-irregular crash-point sampling (avoids
+    /// sampling only the residue-class positions a modulo cycle would hit).
+    fn lcg(state: &mut u64) -> u64 {
+        *state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        *state >> 33
+    }
+
+    /// Crash-corpus invariant assertion shared by the ×1000 court: (a) all
+    /// live entries re-derive their content addresses, (b) no orphaned
+    /// entries, (c) undo_to_fork re-invocation is idempotent (0 further
+    /// entries undone, root unchanged) and recovery re-invocation is a
+    /// typed no-op.
+    fn assert_post_recovery_invariants(
+        store: &mut InMemoryStore,
+        fork: StoreMarker,
+        fork_root: [u8; 32],
+        context: &str,
+    ) {
+        // (a) content-address re-derivation over live entries.
+        assert!(store.verify_content_addresses(), "{}: keys re-derive", context);
+        // (b) no orphaned entries past the fork.
+        assert!(!store.has_orphaned_entries(), "{}: no orphans", context);
+        assert_eq!(store.root_digest(), fork_root, "{}: root = fork root", context);
+        assert_eq!(store.mark(), fork, "{}: journal back at fork", context);
+        // (c) idempotency: a re-invoked undo undoes nothing and keeps the
+        // root; a re-invoked recovery is a typed no-op.
+        let again = store.undo_to_fork(fork).expect("idempotent re-undo");
+        assert_eq!(again.entries_undone, 0, "{}: re-undo removes nothing", context);
+        assert_eq!(again.post_root, fork_root, "{}: re-undo keeps root", context);
+        assert!(
+            !store.has_interrupted_undo(),
+            "{}: no recovery record after idempotent re-undo",
+            context
+        );
+        assert_eq!(
+            store.recover_interrupted_undo().expect("re-recovery ok"),
+            None,
+            "{}: re-recovery is a no-op",
+            context
+        );
+    }
+
+    /// Court (×1000, fault-diverse): crashes sampled across the WHOLE undo
+    /// sequence — mid-recovery-record-write, mid-delete/mid-restore at
+    /// irregular positions, and between the entry write and the journal
+    /// fsync-equivalent (torn append, last journal record lost). EVERY crash
+    /// point recovers to the consistent fork state with the invariants of
+    /// [`assert_post_recovery_invariants`] holding.
+    #[test]
+    fn undo_crash_corpus_1000_fault_diverse() {
+        let n_blocks = 10usize;
+        let post_entries = n_blocks * 10; // 100
+        let mut rng: u64 = 0x5EED_5702_5C0A_1717;
+        for iteration in 0..1000u64 {
+            let tag = format!("i{}", iteration);
+            let mut store = InMemoryStore::new();
+            for i in 0..10 {
+                store.put(format!("g-{}-{}", tag, i).as_bytes());
+            }
+            let fork = store.mark();
+            let fork_root = store.root_digest();
+
+            for b in 0..n_blocks {
+                for i in 0..10 {
+                    store.put(format!("p-{}-{}-{}", tag, b, i).as_bytes());
+                }
+            }
+            assert_eq!(store.len(), 10 + post_entries);
+
+            let phase = iteration % 4;
+            match phase {
+                0 => {
+                    // Mid-recovery-record-write: record lost, no deletion
+                    // began — pre-undo state is consistent; the re-invoked
+                    // undo completes atomically.
+                    let crashed = store
+                        .undo_crash_at(fork, CrashFault::MidJournalWrite)
+                        .expect("validation ok");
+                    assert!(crashed.is_none());
+                    assert!(
+                        !store.has_interrupted_undo(),
+                        "lost record = no pending undo"
+                    );
+                    assert_eq!(store.len(), 10 + post_entries, "pre-undo state intact");
+                    let receipt = store.undo_to_fork(fork).expect("clean re-undo");
+                    assert_eq!(receipt.entries_undone, post_entries);
+                }
+                1 | 3 => {
+                    // Mid-delete / mid-restore at an irregular crash point
+                    // (0..post_entries: strictly mid-undo, so a crash always
+                    // occurs; the completed-undo case is the phase-0 court).
+                    let position = (lcg(&mut rng) as usize) % post_entries;
+                    let crashed = store
+                        .undo_crash_at(fork, CrashFault::MidDelete(position))
+                        .expect("validation ok");
+                    assert!(crashed.is_none(), "crash at {} leaves no receipt", position);
+                    assert!(store.has_interrupted_undo());
+                    let receipt = store
+                        .recover_interrupted_undo()
+                        .expect("recovery ok")
+                        .expect("pending yields receipt");
+                    assert_eq!(receipt.fork_marker, fork);
+                    assert_eq!(
+                        receipt.entries_undone,
+                        post_entries - position.min(post_entries)
+                    );
+                }
+                _ => {
+                    // Between entry write and journal fsync: the last
+                    // post-fork journal record is torn away; recovery must
+                    // re-derive it from the content address and still undo
+                    // ALL post-fork entries.
+                    let crashed = store
+                        .undo_crash_at(fork, CrashFault::TornAppend)
+                        .expect("validation ok");
+                    assert!(crashed.is_none());
+                    assert!(store.has_interrupted_undo());
+                    let receipt = store
+                        .recover_interrupted_undo()
+                        .expect("recovery ok")
+                        .expect("pending yields receipt");
+                    assert_eq!(receipt.entries_undone, post_entries);
+                }
+            }
+
+            assert_post_recovery_invariants(&mut store, fork, fork_root, &tag);
+
+            // Membership spot-check: a genesis key survives, a post-fork key
+            // (including the torn-append one) is gone.
+            assert!(store.contains(&sha256(format!("g-{}-0", tag).as_bytes())));
+            assert!(!store.contains(&sha256(
+                format!("p-{}-{}-{}", tag, n_blocks - 1, 9).as_bytes()
+            )));
+        }
+    }
+
+    /// Discrimination court (sabotage twin): a recovery that skips the
+    /// journal tail (torn write silently truncating the pending undo) must
+    /// be CAUGHT. The forged receipt claims `entries_undone: 0`, but the
+    /// post-sabotage root differs from the fork root and a true re-invoked
+    /// undo still removes the surviving tail — the forgery is detectable
+    /// from state alone, at every tail length.
+    #[test]
+    fn sabotaged_tail_skip_recovery_is_caught() {
+        let n_blocks = 10usize;
+        let post_entries = n_blocks * 10;
+        for position in [0usize, 1, 25, 50, 75, 99] {
+            let tag = format!("sab-{}", position);
+            let mut store = InMemoryStore::new();
+            for i in 0..10 {
+                store.put(format!("g-{}-{}", tag, i).as_bytes());
+            }
+            let fork = store.mark();
+            let fork_root = store.root_digest();
+            for b in 0..n_blocks {
+                for i in 0..10 {
+                    store.put(format!("p-{}-{}-{}", tag, b, i).as_bytes());
+                }
+            }
+
+            // Crash mid-delete, then run the SABOTAGED recovery.
+            store
+                .undo_crash_at(fork, CrashFault::MidDelete(position))
+                .expect("crash armed");
+            let forged = store.sabotaged_recovery_skip_tail();
+            assert_eq!(forged.entries_undone, 0, "forgery claims nothing undone");
+            assert_eq!(forged.fork_marker, fork, "forgery cites the true fork");
+
+            // CAUGHT (1): the forged receipt's root is NOT the fork root.
+            assert_ne!(
+                forged.post_root, fork_root,
+                "position {}: forged root must differ from fork root",
+                position
+            );
+            // CAUGHT (2): post-fork entries survive the fake completion —
+            // the store is measurably NOT at the fork state.
+            let surviving_tail = post_entries - position.min(post_entries);
+            assert_eq!(store.len(), 10 + surviving_tail, "position {}", position);
+            // CAUGHT (3): a true undo re-invocation removes the surviving
+            // tail, contradicting the forged `entries_undone: 0`.
+            let truth = store.undo_to_fork(fork).expect("true undo after sabotage");
+            assert_eq!(
+                truth.entries_undone, surviving_tail,
+                "position {}: tail survives the forgery",
+                position
+            );
+            assert_eq!(truth.post_root, fork_root);
+            // The corrected state satisfies every crash-corpus invariant.
+            assert_post_recovery_invariants(&mut store, fork, fork_root, &tag);
+        }
     }
 }

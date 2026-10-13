@@ -51,16 +51,22 @@ admit-config → validate → catalog cmp (branch vs main) → fingerprint delta
 
 Per-item `STRATA-<n>-CLOSE.md` per `PACK_FEEDBACK-425-CLOSE.md` shape (Item / Status / Fixing commit / Fix shape / Witnesses / Consumer consequence); `RECEIPT-INDEX.md` rows kept equal to dir contents.
 
-## Final Status (T19 closeout, 2026-10-12)
+## Final Status (T19 closeout, 2026-10-12; refreshed 2026-10-13 @ main `a70c578ea`, lane L22)
 
-- **Branch**: `strata-hardening-wave`, 33 commits ahead of `main`
-  (`git log --oneline main..HEAD | wc -l`); final HEAD
-  `e5c3a4a99 (branch final; figures pinned as of fdd4df201)`.
-- **Validate**: 315/315 packs, 315 manifests, 520 ontologies, 1852 templates,
-  1880 native_gates, 21 verifier_gates; profiles project=108, projection=161,
-  semantic=46; diataxis=20 — current as of `fdd4df201`.
-- **Fingerprint**: `sha256:9fd0bc06468404eb474c8fe01e1eb9f7abe0aa33a3ada0d617d7a6ad8fcf3703`
-  (15760 files) — current as of `fdd4df201`.
+- **Branch**: `strata-hardening-wave` — **merged to main** (as of 2026-10-13
+  the branch is 0 commits ahead; merge commit `7feb59128`). Final HEAD
+  `e5c3a4a99 (branch final; figures below pinned as of fdd4df201)`. The
+  "33 commits ahead" count was true at closeout, not now.
+- **Validate** (as of `fdd4df201`): 315/315 packs, 315 manifests, 520
+  ontologies, 1852 templates, 1880 native_gates, 21 verifier_gates; profiles
+  project=108, projection=161, semantic=46; diataxis=20.
+  **Refreshed 2026-10-13 @ main `a70c578ea`** (`python3 scripts/marketplace.py
+  validate`): packs=324, manifests=324, ontologies=538, templates=1869,
+  native_gates=1902, verifier_gates=21; profiles project=117, projection=161,
+  semantic=46; diataxis=20.
+- **Fingerprint** (as of `fdd4df201`, NOT refreshed — as-of-date only):
+  `sha256:9fd0bc06468404eb474c8fe01e1eb9f7abe0aa33a3ada0d617d7a6ad8fcf3703`
+  (15760 files).
 - **Court**: final court 7/7 strata ALIVE at `fdd4df201`
   (`/tmp/z1.json` not present at closeout; receipt retained via
   `/tmp/wave-p5-qual.json` citation above).
