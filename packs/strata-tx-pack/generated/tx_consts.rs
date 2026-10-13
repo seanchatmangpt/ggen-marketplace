@@ -24,9 +24,9 @@ pub const OUTPUT_COUNT_LEN: usize = 4; // u32 output count length.
 
 pub const OUTPUT_COUNT_OFFSET: usize = 20; // u32 output count offset.
 
-pub const PAYLOAD_DIGEST_LEN: usize = 32; // 32B payload digest placeholder length.
+pub const PAYLOAD_DIGEST_LEN: usize = 32; // 32B payload digest length (exactly the BLAKE3-256 output, written directly into the slot).
 
-pub const PAYLOAD_DIGEST_OFFSET: usize = 24; // 32B payload digest offset (digest covers the full canonical serialization; S3 upgrades to the real signer digest).
+pub const PAYLOAD_DIGEST_OFFSET: usize = 24; // 32B BLAKE3-256 payload digest offset (BLAKE3 over the FULL canonical serialization, digest slot zeroed; L125 upgrade from FNV-1a).
 
 pub const RESERVED_OFFSET: usize = 5; // Reserved bytes offset; must be zero.
 

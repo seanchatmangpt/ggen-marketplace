@@ -50,11 +50,13 @@ EXPECTED_STRATA_GENERATION_PACKS = frozenset({
 # committed outputs in the real repo, not just to a second fresh render.
 DRIFT_GUARDED: dict[str, tuple[str, ...]] = {
     "strata-audit-pack": ("audit_corpus.rs",),
+    "strata-governance-pack": ("governance_report.rs",),
     "strata-cas-pack": ("cas.rs",),
     "strata-chain-pack": ("chain_consts.rs", "chain_engine.rs"),
     "strata-consensus-pack": ("consensus_consts.rs", "consensus_engine.rs"),
     "strata-hash-pack": ("hash_consts.rs", "hash_merkle.rs"),
-    "strata-ledger-pack": ("ledger_consts.rs", "ledger_state.rs"),
+    "strata-ledger-pack": ("ledger_consts.rs", "ledger_state.rs",
+                           "kernel_laws.rs"),
     "strata-net-pack": ("net_consts.rs", "net_engine.rs"),
     "strata-pn64-pack": ("pn64_masks.rs",),
     "strata-protocol-pack": ("pdu_constants.rs", "wire_constants.rs"),
@@ -63,7 +65,7 @@ DRIFT_GUARDED: dict[str, tuple[str, ...]] = {
     "strata-stratus-pack": ("registers.rs", "valves.rs"),
     "strata-temprun-pack": ("arena.rs",),
     "strata-tx-pack": ("tx_consts.rs", "tx_model.rs"),
-    "strata-valve-pack": ("refusals.ex",),
+    "strata-valve-pack": ("refusals.ex", "window_capacity.rs"),
 }
 
 
@@ -128,8 +130,19 @@ def _content_court(pack: str, rel: str, text: str) -> None:
         assert "// REFUSED" not in text, "pn64_masks.rs must not contain '// REFUSED'"
         return
     if pack == "strata-valve-pack":
-        missing = [m for m in VALVE_CHILD_MODULES if m not in text]
-        assert not missing, "refusals.ex missing child modules: %r" % missing
+        # Per-file dispatch: refusals.ex keeps the child-module court; the
+        # window-capacity table (L86, knhk guard atoms) is a second output.
+        if rel.endswith("refusals.ex"):
+            missing = [m for m in VALVE_CHILD_MODULES if m not in text]
+            assert not missing, "refusals.ex missing child modules: %r" % missing
+        elif rel.endswith("window_capacity.rs"):
+            assert "CHATMAN_K: u32 = 8" in text
+            assert "pub struct WindowCapacityRefusal" in text
+            assert "pub fn window_capacity_closure" in text
+            assert "WINDOW_CAPACITY_REFUSALS" in text
+        else:
+            raise AssertionError(
+                f"unexpected generated file for valve pack: {rel}")
         return
     if pack == "strata-protocol-pack":
         # Per-file expectations: pdu side and wire side are separate outputs
@@ -144,7 +157,22 @@ def _content_court(pack: str, rel: str, text: str) -> None:
             raise AssertionError(f"unexpected generated file for protocol pack: {rel}")
         return
     if pack == "strata-cas-pack":
-        assert "// REFUSED: empty ontology projection" in text
+        # Per-file expectations. The old "// REFUSED: empty ontology
+        # projection" marker was legitimately removed when the cas ontology
+        # gained real content (sibling lane L93's witnessed-removal; twins
+        # landed in e1ee25fa2 "twins for cas/chain/governance"). The court
+        # now tracks the current real projection, not the old empty marker.
+        if rel.endswith("cas.rs"):
+            assert "pub struct MerkleCommit" in text
+            assert "pub struct KnowledgeWormhole" in text
+            assert "pub struct Snapshot" in text
+            assert "pub fn genesis" in text
+            assert "pub fn child_of" in text
+            assert "pub fn depth" in text
+            assert "// REFUSED" not in text, (
+                "cas.rs renders real content; must not carry REFUSED markers")
+        else:
+            raise AssertionError(f"unexpected generated file for cas pack: {rel}")
         return
     if pack == "strata-temprun-pack":
         assert "ARENA_DEFAULT_MAX_FUEL: u64 = 1000000" in text
@@ -230,6 +258,17 @@ def _content_court(pack: str, rel: str, text: str) -> None:
         elif rel.endswith("ledger_state.rs"):
             assert "pub enum LedgerRefusal" in text
             assert "pub struct StateTransitionReceipt" in text
+        elif rel.endswith("kernel_laws.rs"):
+            # Kernel-law projection (ledger ontology lg:KERNEL_LAWS);
+            # invariants reuse-adapted from unibit-kernel @ 3bb4347f
+            # (compile-fail courts 82033542d, ledger boundary-replay L137).
+            assert 'LAW_SPARSE_DELTA: &str = "SPARSE_DELTA"' in text
+            assert 'LAW_BITFENWICK_SUM: &str = "BITFENWICK_SUM"' in text
+            assert 'LAW_MULTI_STEP_EXECUTION: &str = "MULTI_STEP_EXECUTION"' in text
+            assert "pub fn sparse_delta_emit" in text
+            assert "pub fn sparse_delta_apply" in text
+            assert "pub struct Bitfenwick8" in text
+            assert "pub struct MultiStepWork" in text
         else:
             raise AssertionError(
                 f"unexpected generated file for ledger pack: {rel}")
@@ -255,6 +294,19 @@ def _content_court(pack: str, rel: str, text: str) -> None:
         else:
             raise AssertionError(
                 f"unexpected generated file for store pack: {rel}")
+        return
+    if pack == "strata-governance-pack":
+        # Constitutional-diff projection (constants vs sealed commitments;
+        # lane T11/X5 candidate 1, twins in e1ee25fa2). Any projected value
+        # drifting from its sealed commitment is a ConstitutionalDrift.
+        if rel.endswith("governance_report.rs"):
+            assert "pub struct ConstantDiffRow" in text
+            assert "pub struct ConstitutionalDrift" in text
+            assert "pub const DIFF_TABLE" in text
+            assert "pub fn verify_constitution" in text
+        else:
+            raise AssertionError(
+                f"unexpected generated file for governance pack: {rel}")
         return
     if pack == "strata-tx-pack":
         if rel.endswith("tx_consts.rs"):
