@@ -180,3 +180,35 @@ KILLED entries stay killed.
 50. **v2-fold KAT MATCH (L66)** — independent in-test BLAKE3 reproduces
     the real ledger receipt chain hash (commit `c2cc4b62b`) — strata is
     now a verified spec substrate for praxis-chain/v2-fold.
+
+## X-lane wave 4 — 2026-10-13 (night)
+
+51. **castle↔beam4pm (L90)** — rank-1 live-feed adapter LANDED (castle
+    `beam4pm_feed.rs`, live 201 court); rank-2 fleet-drift Art72 court
+    (lane in flight); rank-3 castle vocab module LANDED
+    (`BeamPM.CastleOcel`, non-overlap proven — court caught a real
+    `receipt_sealed` name collision).
+52. **mfact↔castle (L111)** — rank-1 Lean witness → Replayed
+    EvidenceInput (axiom-sweep ⊆ standard trio is the load-bearing
+    gate; digest = source sha + toolchain); rank-2 `lean-witness/v1`
+    chained JSONL via strata-ingest pattern; rank-3 NEGATIVE-EVIDENCE
+    GAP: castle has no standing-downgrade channel — defect witness
+    (LedgerConservation `duplicate_input_creates_value`) expressible
+    only as control inversion.
+53. **ash_a2a↔strata (L101)** — R1 valve third crosswalk column (gates
+    must generalize 51/18 literals → closure-style; lane in flight);
+    R2 owner-scope committed receipts (parity-proven codec; wire rides
+    data/detail not the code); R3 fuel-vs-rate-limit needs -32000 law
+    reconciliation first.
+54. **strata↔knhk (L82)** — rank-1 valve WindowCapacityRefusal LANDED
+    (`8f98a4c49`, RDF-only, BLOCKED:merge-open boundary declared);
+    rank-2 hot-ops as PN64 7th family (external ABI dep on ~/strata
+    `pn64.rs`); rank-3 custody→store capacity semantics (cas excluded
+    — analogy not equivalence).
+55. **ENGINE HAZARD ESCALATED (L93)** — ggen SPARQL serializer leaks
+    unbound OPTIONAL bindings across rows (rdflib-correct, ggen
+    materializes); workaround COALESCE genesis sentinel in cas
+    `commits.rq`; engine lane in flight.
+56. **DEFECT WITNESSED (L72)** — ledger duplicate-input value creation
+    proved in Lean (mfact `15fa5e91a7`); fix lane in flight;
+    conservation theorem currently needs NoDupIds.
