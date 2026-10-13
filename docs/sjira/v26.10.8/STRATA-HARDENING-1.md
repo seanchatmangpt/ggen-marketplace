@@ -1,4 +1,4 @@
-# STRATA Family Hardening Wave — Work Order (OPEN)
+# STRATA Family Hardening Wave — Work Order (LANDED)
 
 - **Wave**: strata family hardening, 7 packs (protocol, pn64, valve, cas, signer, temprun, stratus), post-landing hardening of `eec4782d7` / `62f547b7e` / `3792e4ba6` (no sjira receipts at landing).
 - **Planning evidence**: 20 Explore lanes + 20 Plan lanes (2026-10-12/13); baseline court `/tmp/wave-baseline-qual.json`: 3 ALIVE (protocol, pn64, valve) / 4 REFUSED (FM-PACK-014 class, `GGEN_PACK_SYNC_FAILED`).
