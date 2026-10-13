@@ -1,0 +1,81 @@
+# MESSAGE: net ↔ protocol composition gate — every pinned CLAP-PDU wire
+# constant must ride inside the net framed envelope without overflow.
+# The strata-protocol-pack graph is NOT unioned here (no owl:imports, house
+# style): the pdu:PDU_HEADER_LEN (64) and pdu:REFUSAL_RECEIPT_LEN (32) IRIs
+# are pinned by literal, mirrored from strata-protocol-pack ontology.ttl.
+# Each st:PduEnvelopeBinding must (a) pin an exact allowed protocol
+# constant IRI, (b) carry the exact pinned value for that IRI, and (c)
+# satisfy the envelope law: pinnedLen <= st:NET_CONSTANTS net:maxMsgLen
+# (65536). The law individual and both emission edges must exist. Any row
+# indicates a corrupted or vacuous composition binding.
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX st:   <https://strata.chatman.ai/ontology#>
+PREFIX net:  <https://strata.chatman.ai/ontology/net#>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?binding ?problem WHERE {
+  {
+    # Fail-closed presence: both pinned bindings must exist.
+    ?binding a st:PduEnvelopeBinding .
+    BIND("missing_binding (need both CLAP_PDU_ENVELOPE and REFUSAL_RECEIPT_ENVELOPE)" AS ?problem)
+    FILTER NOT EXISTS {
+      ?b1 a st:PduEnvelopeBinding ; rdfs:label "CLAP_PDU_ENVELOPE" .
+      ?b2 a st:PduEnvelopeBinding ; rdfs:label "REFUSAL_RECEIPT_ENVELOPE" .
+    }
+  } UNION {
+    # Each binding must pin a pdu-namespace constant IRI.
+    ?binding a st:PduEnvelopeBinding .
+    BIND("missing/invalid st:pduConstantIri (must be a pdu-namespace IRI literal)" AS ?problem)
+    FILTER NOT EXISTS {
+      ?binding st:pduConstantIri ?iri .
+      FILTER(REGEX(STR(?iri), "^https://strata\\.chatman\\.ai/ontology/pdu#[A-Za-z][A-Za-z0-9_]*$"))
+    }
+  } UNION {
+    # Wrong constant: only the two pinned protocol constants may ride the
+    # net envelope.
+    ?binding a st:PduEnvelopeBinding ;
+             st:pduConstantIri ?iri .
+    BIND("wrong_pdu_constant (must pin PDU_HEADER_LEN or REFUSAL_RECEIPT_LEN)" AS ?problem)
+    FILTER(?iri != "https://strata.chatman.ai/ontology/pdu#PDU_HEADER_LEN"
+           && ?iri != "https://strata.chatman.ai/ontology/pdu#REFUSAL_RECEIPT_LEN")
+  } UNION {
+    # Per-IRI value pin: header len must be exactly 64.
+    ?binding a st:PduEnvelopeBinding ;
+             st:pduConstantIri "https://strata.chatman.ai/ontology/pdu#PDU_HEADER_LEN" ;
+             st:pduConstantLen ?len .
+    BIND("wrong_pdu_header_len (pinned PDU_HEADER_LEN value must be 64)" AS ?problem)
+    FILTER(xsd:integer(?len) != 64)
+  } UNION {
+    # Per-IRI value pin: refusal receipt len must be exactly 32.
+    ?binding a st:PduEnvelopeBinding ;
+             st:pduConstantIri "https://strata.chatman.ai/ontology/pdu#REFUSAL_RECEIPT_LEN" ;
+             st:pduConstantLen ?len .
+    BIND("wrong_refusal_receipt_len (pinned REFUSAL_RECEIPT_LEN value must be 32)" AS ?problem)
+    FILTER(xsd:integer(?len) != 32)
+  } UNION {
+    # Envelope law: the pinned length must fit the net MAX_MSG_LEN bound.
+    ?binding a st:PduEnvelopeBinding ;
+             st:pduConstantIri ?iri ;
+             st:pduConstantLen ?len .
+    ?law a st:NetWireLaw ;
+         net:maxMsgLen ?maxMsgLen .
+    BIND("envelope_overflow (pinned PDU constant exceeds net MAX_MSG_LEN)" AS ?problem)
+    FILTER(xsd:integer(?len) > xsd:integer(?maxMsgLen))
+  } UNION {
+    # Fail-closed envelope source: NET_CONSTANTS must carry the bound.
+    ?binding a st:PduEnvelopeBinding .
+    BIND("missing_envelope_bound (st:NET_CONSTANTS net:maxMsgLen absent)" AS ?problem)
+    FILTER NOT EXISTS {
+      ?law a st:NetWireLaw ; net:maxMsgLen ?m .
+    }
+  } UNION {
+    # Emission edge: NET_CONSTANTS must envelope each pinned constant.
+    ?binding a st:PduEnvelopeBinding ;
+             st:pduConstantIri ?iri .
+    BIND("unenveloped_binding (net wire law does not envelope the pinned constant)" AS ?problem)
+    FILTER NOT EXISTS {
+      ?law a st:NetWireLaw ; st:envelopesPduConstant ?iri .
+    }
+  }
+}
+ORDER BY ?binding ?problem

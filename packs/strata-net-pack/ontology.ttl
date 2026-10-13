@@ -197,6 +197,48 @@ st:MEMPOOL_LEDGER_ADMISSION a st:CompositionLaw ;
     st:completingGate "packs/strata-ledger-pack/templates/ledger_state.rs.tera:403" ;
     rdfs:comment "Provenance: mfact procint/ProcInt/Petri/NetLaws.lean inflation_passes_mempool_shadow (NetLaws.lean:319)." .
 
+# ── net ↔ protocol composition law: PDU wire units ride the net envelope ──
+# The strata-protocol-pack projects the CLAP/1.0 PDU surface; its fixed-size
+# wire units must ride inside the net framed envelope without overflow:
+#   pdu:PDU_HEADER_LEN (64) <= net MAX_MSG_LEN (65536)
+#   pdu:REFUSAL_RECEIPT_LEN (32) <= net MAX_MSG_LEN (65536)
+# Constants pinned by IRI literal + value literal (no owl:imports, house
+# style); gated fail-closed by gates/050_pdu_envelope_law.rq; projected into
+# generated/pdu_envelope.rs.
+
+st:PduEnvelopeBinding a rdfs:Class ; rdfs:label "PduEnvelopeBinding" ;
+    rdfs:comment "Pinned binding from the net framed envelope to the strata-protocol-pack CLAP-PDU wire constants that ride inside it: each pinned PDU constant must fit the net MAX_MSG_LEN envelope bound." .
+
+st:pduConstantIri a rdf:Property ; rdfs:label "pduConstantIri" ;
+    rdfs:comment "Pinned constant: IRI of a strata-protocol-pack pdu:FrameConstant riding the net envelope. Pinned by literal (no owl:imports); gated structurally." ;
+    rdfs:domain st:PduEnvelopeBinding ; rdfs:range xsd:string .
+
+st:pduConstantLen a rdf:Property ; rdfs:label "pduConstantLen" ;
+    rdfs:comment "Pinned constant: byte length of the pinned PDU wire constant; must equal the protocol pack's pdu:value and satisfy <= net maxMsgLen." ;
+    rdfs:domain st:PduEnvelopeBinding ; rdfs:range xsd:integer .
+
+st:envelopesPduConstant a rdf:Property ; rdfs:label "envelopesPduConstant" ;
+    rdfs:comment "Links the net wire-law individual to the pinned PDU constant IRI it envelopes (emission-edge analogue of the temprun composition)." ;
+    rdfs:domain st:NetWireLaw ; rdfs:range xsd:string .
+
+st:CLAP_PDU_ENVELOPE a st:PduEnvelopeBinding ;
+    rdfs:label "CLAP_PDU_ENVELOPE" ;
+    # PINNED PROTOCOL CONSTANTS (mirrored from strata-protocol-pack
+    # ontology.ttl pdu:FrameConstant individuals).
+    st:pduConstantIri "https://strata.chatman.ai/ontology/pdu#PDU_HEADER_LEN" ;
+    st:pduConstantLen 64 ;
+    rdfs:comment "The CLAP/1.0 PDU header rides the net envelope: 64 <= 65536." .
+
+st:REFUSAL_RECEIPT_ENVELOPE a st:PduEnvelopeBinding ;
+    rdfs:label "REFUSAL_RECEIPT_ENVELOPE" ;
+    st:pduConstantIri "https://strata.chatman.ai/ontology/pdu#REFUSAL_RECEIPT_LEN" ;
+    st:pduConstantLen 32 ;
+    rdfs:comment "The opaque refusal receipt rides the net envelope: 32 <= 65536." .
+
+st:NET_CONSTANTS
+    st:envelopesPduConstant "https://strata.chatman.ai/ontology/pdu#PDU_HEADER_LEN" ,
+                            "https://strata.chatman.ai/ontology/pdu#REFUSAL_RECEIPT_LEN" .
+
 net:peer-gamma a st:PeerAdmission ; rdfs:label "peer-gamma" ;
     st:peerId "peer-gamma" ; st:admissionVerdict "refuse:blacklisted" ;
     st:subnetClass "10.9.9.0/24" ; st:msgsThisSlot "0"^^xsd:integer ;

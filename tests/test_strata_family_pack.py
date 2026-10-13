@@ -57,7 +57,7 @@ DRIFT_GUARDED: dict[str, tuple[str, ...]] = {
     "strata-hash-pack": ("hash_consts.rs", "hash_merkle.rs"),
     "strata-ledger-pack": ("ledger_consts.rs", "ledger_state.rs",
                            "kernel_laws.rs"),
-    "strata-net-pack": ("net_consts.rs", "net_engine.rs"),
+    "strata-net-pack": ("net_consts.rs", "net_engine.rs", "pdu_envelope.rs"),
     "strata-pn64-pack": ("pn64_masks.rs",),
     "strata-protocol-pack": ("pdu_constants.rs", "wire_constants.rs"),
     "strata-signer-pack": ("signer.rs", "signing.rs"),
@@ -293,6 +293,10 @@ def _content_court(pack: str, rel: str, text: str) -> None:
         elif rel.endswith("net_engine.rs"):
             assert "pub fn encode" in text
             assert "pub fn decode" in text
+        elif rel.endswith("pdu_envelope.rs"):
+            assert "pub const NET_MAX_MSG_LEN: usize = 65536" in text
+            assert "pub const PDU_HEADER_LEN: usize = 64" in text
+            assert "pub const REFUSAL_RECEIPT_LEN: usize = 32" in text
         else:
             raise AssertionError(
                 f"unexpected generated file for net pack: {rel}")
