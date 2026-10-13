@@ -30,6 +30,7 @@ EXPECTED_STRATA_GENERATION_PACKS = frozenset({
     "strata-cas-pack",
     "strata-chain-pack",
     "strata-consensus-pack",
+    "strata-governance-pack",
     "strata-hash-pack",
     "strata-ledger-pack",
     "strata-net-pack",
