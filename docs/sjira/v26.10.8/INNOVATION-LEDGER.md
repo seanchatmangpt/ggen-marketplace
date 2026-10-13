@@ -139,4 +139,12 @@ discipline: candidates die by their falsifiers, not by decree.
     already admitted in the GALL vocab
     (`beam4pm/lib/beam4pm_gall_ocel.ex:35,52`). B1+A1 recommended,
     ~2 file edits.
-44. **erlmcp×ash_a2a (L35)** — re-running; in-flight, no receipt yet.
+44. **erlmcp×ash_a2a (L35)** — completed, 3 candidates ranked. Rank 1:
+    conformance-report runner port (pattern Y, effort M; falsifier: a
+    MUST violation not FAILing, or a deleted court still PASSing;
+    construction lane in flight). Rank 2: shared refusal vocabulary
+    crosswalk, ~40 erlmcp codes → ash_a2a classes (effort S-M; unlocks
+    C14; pack lane in flight). Rank 3: TaskStore erlmcp adapter
+    (effort L; premise correction verified on disk: `erlmcp_priority.erl`
+    is in-memory OTP-28 priority aliases, NOT durable — the durable
+    candidate is `erlmcp_a2a_task_manager.erl` ETS + a DETS layer).
