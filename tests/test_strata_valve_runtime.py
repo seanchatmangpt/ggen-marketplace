@@ -25,15 +25,23 @@ receipt_len = Strata.Valve.Refusals.receipt_len()
 IO.puts("RECEIPT_LEN=" <> to_string(receipt_len))
 for mod <- Strata.Valve.Refusals.classes() do
   {:refuse, bin} = apply(mod, :refuse, [:x])
+  {:refuse, bin2} = apply(mod, :refuse, [:x])
   name = mod |> Module.split() |> List.last() |> String.upcase()
   IO.puts("REFUSE_#{name}_SIZE=" <> to_string(byte_size(bin)))
+  IO.puts("REFUSE_#{name}_HEX=0x" <> Base.encode16(bin, case: :lower))
+  IO.puts("REFUSE_#{name}_NONZERO=" <> to_string(bin != :binary.copy(<<0>>, 32)))
+  IO.puts("REFUSE_#{name}_DET=" <> to_string(bin == bin2))
 end
+seed = {:frame, <<1, 2, 3>>}
+digests = for mod <- Strata.Valve.Refusals.classes(), {:refuse, b} = apply(mod, :refuse, [seed]), do: b
+IO.puts("REFUSE_DISTINCT=" <> to_string(length(Enum.uniq(digests)) == length(digests)))
 doc =
   case Code.fetch_docs(Strata.Valve.Refusals.MalformedFrame) do
     {:docs_v1, _, _, _, %{"en" => d}, _, _} -> d
     _ -> ""
   end
 IO.puts("MODULEDOC_HAS_32BYTE=" <> to_string(String.contains?(doc, "32-byte receipt")))
+IO.puts("MODULEDOC_HAS_SHA256=" <> to_string(String.contains?(doc, "SHA-256")))
 """
 
 
@@ -71,8 +79,18 @@ def violations(obs: dict[str, str]) -> list[str]:
         key = f"REFUSE_{cls.upper()}_SIZE"
         if obs.get(key) != "32":
             bad.append(f"{key}={obs.get(key)!r} != '32'")
+        for prop in ("NONZERO", "DET"):
+            k = f"REFUSE_{cls.upper()}_{prop}"
+            if obs.get(k) != "true":
+                bad.append(f"{k}={obs.get(k)!r} != 'true'")
+        if obs.get(f"REFUSE_{cls.upper()}_HEX", "").startswith("0x00"):
+            bad.append(f"REFUSE_{cls.upper()}_HEX begins with 00 — zero receipt")
+    if obs.get("REFUSE_DISTINCT") != "true":
+        bad.append(f"REFUSE_DISTINCT={obs.get('REFUSE_DISTINCT')!r} != 'true'")
     if obs.get("MODULEDOC_HAS_32BYTE") != "true":
         bad.append(f"MODULEDOC_HAS_32BYTE={obs.get('MODULEDOC_HAS_32BYTE')!r} != 'true'")
+    if obs.get("MODULEDOC_HAS_SHA256") != "true":
+        bad.append(f"MODULEDOC_HAS_SHA256={obs.get('MODULEDOC_HAS_SHA256')!r} != 'true'")
     return bad
 
 

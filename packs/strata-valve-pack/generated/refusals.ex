@@ -35,13 +35,26 @@ defmodule Strata.Valve.Refusals.ArenaFailure do
 
   Emits an opaque fixed #{@receipt_len}-byte receipt; the wire carries zero
   diagnostics either way (constant-time, fail-closed).
+
+  Receipt algorithm: SHA-256 (`:crypto.hash(:sha256, ...)`) over the class
+  label, a zero separator byte, and `:erlang.term_to_binary/1` of the private
+  reason seed. No blake3 Elixir dependency exists in this project, so SHA-256
+  is the actual derivation; the digest length already matches the fixed
+  #{@receipt_len}-byte wire form (no truncation or padding).
   """
 
+  @doc """
+  Receipt derivation (the actual algorithm, documented as required by the
+  court): `:crypto.hash(:sha256, class <> 0x00 <> :erlang.term_to_binary(seed))`
+  where `class` is this refusal class's label as a UTF-8 binary. SHA-256 was
+  chosen because no blake3 Elixir dependency exists in this project; the
+  256-bit digest length already matches the fixed #{@receipt_len}-byte wire
+  form, so no truncation or padding is applied.
+  """
   @spec refuse(term()) :: {:refuse, binary()}
-  def refuse(_reason_seed) do
-    # TODO(valve): derive via blake3 over the private reason seed held by the
-    # runtime; wire form must stay opaque and constant-size.
-    {:refuse, :erlang.list_to_binary(List.duplicate(0, @receipt_len))}
+  def refuse(reason_seed) do
+    receipt = :crypto.hash(:sha256, "arena_failure" <> <<0>> <> :erlang.term_to_binary(reason_seed))
+    {:refuse, receipt}
   end
 end
 
@@ -55,13 +68,26 @@ defmodule Strata.Valve.Refusals.FuelExhausted do
 
   Emits an opaque fixed #{@receipt_len}-byte receipt; the wire carries zero
   diagnostics either way (constant-time, fail-closed).
+
+  Receipt algorithm: SHA-256 (`:crypto.hash(:sha256, ...)`) over the class
+  label, a zero separator byte, and `:erlang.term_to_binary/1` of the private
+  reason seed. No blake3 Elixir dependency exists in this project, so SHA-256
+  is the actual derivation; the digest length already matches the fixed
+  #{@receipt_len}-byte wire form (no truncation or padding).
   """
 
+  @doc """
+  Receipt derivation (the actual algorithm, documented as required by the
+  court): `:crypto.hash(:sha256, class <> 0x00 <> :erlang.term_to_binary(seed))`
+  where `class` is this refusal class's label as a UTF-8 binary. SHA-256 was
+  chosen because no blake3 Elixir dependency exists in this project; the
+  256-bit digest length already matches the fixed #{@receipt_len}-byte wire
+  form, so no truncation or padding is applied.
+  """
   @spec refuse(term()) :: {:refuse, binary()}
-  def refuse(_reason_seed) do
-    # TODO(valve): derive via blake3 over the private reason seed held by the
-    # runtime; wire form must stay opaque and constant-size.
-    {:refuse, :erlang.list_to_binary(List.duplicate(0, @receipt_len))}
+  def refuse(reason_seed) do
+    receipt = :crypto.hash(:sha256, "fuel_exhausted" <> <<0>> <> :erlang.term_to_binary(reason_seed))
+    {:refuse, receipt}
   end
 end
 
@@ -75,13 +101,26 @@ defmodule Strata.Valve.Refusals.MalformedFrame do
 
   Emits an opaque fixed #{@receipt_len}-byte receipt; the wire carries zero
   diagnostics either way (constant-time, fail-closed).
+
+  Receipt algorithm: SHA-256 (`:crypto.hash(:sha256, ...)`) over the class
+  label, a zero separator byte, and `:erlang.term_to_binary/1` of the private
+  reason seed. No blake3 Elixir dependency exists in this project, so SHA-256
+  is the actual derivation; the digest length already matches the fixed
+  #{@receipt_len}-byte wire form (no truncation or padding).
   """
 
+  @doc """
+  Receipt derivation (the actual algorithm, documented as required by the
+  court): `:crypto.hash(:sha256, class <> 0x00 <> :erlang.term_to_binary(seed))`
+  where `class` is this refusal class's label as a UTF-8 binary. SHA-256 was
+  chosen because no blake3 Elixir dependency exists in this project; the
+  256-bit digest length already matches the fixed #{@receipt_len}-byte wire
+  form, so no truncation or padding is applied.
+  """
   @spec refuse(term()) :: {:refuse, binary()}
-  def refuse(_reason_seed) do
-    # TODO(valve): derive via blake3 over the private reason seed held by the
-    # runtime; wire form must stay opaque and constant-size.
-    {:refuse, :erlang.list_to_binary(List.duplicate(0, @receipt_len))}
+  def refuse(reason_seed) do
+    receipt = :crypto.hash(:sha256, "malformed_frame" <> <<0>> <> :erlang.term_to_binary(reason_seed))
+    {:refuse, receipt}
   end
 end
 
@@ -95,13 +134,26 @@ defmodule Strata.Valve.Refusals.ParentDiscontinuity do
 
   Emits an opaque fixed #{@receipt_len}-byte receipt; the wire carries zero
   diagnostics either way (constant-time, fail-closed).
+
+  Receipt algorithm: SHA-256 (`:crypto.hash(:sha256, ...)`) over the class
+  label, a zero separator byte, and `:erlang.term_to_binary/1` of the private
+  reason seed. No blake3 Elixir dependency exists in this project, so SHA-256
+  is the actual derivation; the digest length already matches the fixed
+  #{@receipt_len}-byte wire form (no truncation or padding).
   """
 
+  @doc """
+  Receipt derivation (the actual algorithm, documented as required by the
+  court): `:crypto.hash(:sha256, class <> 0x00 <> :erlang.term_to_binary(seed))`
+  where `class` is this refusal class's label as a UTF-8 binary. SHA-256 was
+  chosen because no blake3 Elixir dependency exists in this project; the
+  256-bit digest length already matches the fixed #{@receipt_len}-byte wire
+  form, so no truncation or padding is applied.
+  """
   @spec refuse(term()) :: {:refuse, binary()}
-  def refuse(_reason_seed) do
-    # TODO(valve): derive via blake3 over the private reason seed held by the
-    # runtime; wire form must stay opaque and constant-size.
-    {:refuse, :erlang.list_to_binary(List.duplicate(0, @receipt_len))}
+  def refuse(reason_seed) do
+    receipt = :crypto.hash(:sha256, "parent_discontinuity" <> <<0>> <> :erlang.term_to_binary(reason_seed))
+    {:refuse, receipt}
   end
 end
 
