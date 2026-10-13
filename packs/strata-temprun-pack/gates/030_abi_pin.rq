@@ -1,0 +1,37 @@
+# MESSAGE: exactly one st:AbiPin must exist, fully shaped — 40-hex subject
+# SHA, non-empty branch, integer ABI version, >= 1 semantic anchor. Any row
+# returned indicates a missing or malformed ABI pin failing closed.
+# Tripwire context: strata 59ed80c (fix/kg-42-status-code) is the ABI-v2
+# rebase (352B receipt-wire deleted, CTTG New payload, errno 11). This pack
+# encodes only the ABI-independent fuel model; the pin names the derivation
+# subject so the merge forces an explicit re-pin decision.
+PREFIX st: <https://strata.chatman.ai/ontology#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?pin ?problem WHERE {
+  {
+    # fail-closed: no pin at all
+    BIND("no_st:AbiPin_individual" AS ?problem)
+    FILTER NOT EXISTS { ?pin a st:AbiPin }
+  } UNION {
+    ?pin a st:AbiPin .
+    FILTER NOT EXISTS { ?pin st:pinSubjectSha ?sha . FILTER(REGEX(STR(?sha), "^[0-9a-f]{40}$")) }
+    BIND("missing_or_malformed_st:pinSubjectSha (40-hex required)" AS ?problem)
+  } UNION {
+    ?pin a st:AbiPin .
+    FILTER NOT EXISTS { ?pin st:pinBranch ?br . FILTER(STRLEN(STR(?br)) > 0) }
+    BIND("missing_or_empty_st:pinBranch" AS ?problem)
+  } UNION {
+    ?pin a st:AbiPin .
+    FILTER NOT EXISTS { ?pin st:pinAbiVersion ?v . FILTER(xsd:integer(?v) >= 0) }
+    BIND("missing_or_invalid_st:pinAbiVersion" AS ?problem)
+  } UNION {
+    ?pin a st:AbiPin .
+    FILTER NOT EXISTS {
+      ?pin st:pinSemanticAnchor ?a .
+      FILTER(STRLEN(STR(?a)) > 0)
+    }
+    BIND("missing_st:pinSemanticAnchor (at least one required)" AS ?problem)
+  }
+}
+ORDER BY ?pin ?problem
