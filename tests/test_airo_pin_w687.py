@@ -54,5 +54,6 @@ def test_marketplace_validate_stays_green():
     assert r.returncode == 0, r.stdout + r.stderr
     # CANARY: these count pins must be bumped in the same commit as any new
     # pack landing — they pin the exact validate line, not a lower bound.
-    # v26.10.8 campaign: two new packs moved packs=306->308, ontologies=504->506.
-    assert "validated packs=308" in r.stdout and "ontologies=506" in r.stdout, r.stdout[-300:]
+    # 2026-10-13 wave: 18 packs landed (strata S1-S10 family completion,
+    # insa-law-pack, refusal-vocabulary-pack), packs=308->326, ontologies=506->540.
+    assert "validated packs=326" in r.stdout and "ontologies=540" in r.stdout, r.stdout[-300:]
