@@ -54,3 +54,17 @@ candidate pool; candidates die by their falsifiers, not by decree.
 reference — affidavit names graphlaw/strata; ash_a2a names graphlaw/
 affidavit; strata names nobody. Rigor exists within each repo, none
 between them. Seams 28–32 are the loop's next finishing targets.
+
+## Tier 1 addendum 2 — cross-cluster seams deep-dive (Y6 relaunches ×2, file:line verified)
+33. **affidavit ↔ strata: STRATA context split** — affidavit's deontic.rs FR-PQC-06 uses b"STRATA:" context + refs/notes/strata-dossier + 352B WireCtrt; strata_protocol's signer uses disjoint b"strata-clap-attest-v1"; no producer/consumer of the CTRT or dossier ref exists in strata. Glue: CTRT-decoding note consumer + unified context.
+34. **ash_a2a vendored wasm stale vs affidavit 26.10.6** — deps/ash_affidavit is 26.10.1, predating 352B CTRT / machine codes 0xE001–0xE402; ash_a2a receipts are plain core/v1 chains, not sovereign CTRT envelopes. Glue: re-vendor version-matched wasm.
+35. **graphlaw wasm ABI duplication** — ash_a2a pins praxis_graphlaw.wasm v26.7.5 (string ABI, built from /Users/sac/praxis) while graphlaw/wasm is an unbuilt JSON-over-linear-memory ABI "for hosts such as Elixir" — two divergent ABIs, one unbuilt. Glue: build + pin + one cross-runtime parity court.
+36. **Conformance vector corpora unpinned** — graphlaw/conformance/sa2a/ and ash_a2a/priv/sa2a_conformance_vectors/ are independent corpora, no shared pin or cross-runtime parity test.
+37. **bcinr golden fixture hand-copied** (supersedes #28's half-done state — T10 ported the RULE; the fixture hex remains hand-copied both sides). Glue: shared committed fixture + fixture-hash meta tests both sides.
+38. **strata temprun ↔ graphlaw receipt framing** — temprun Cargo.toml cites "../graphlaw precedent"; receipt_chain.rs is a verbatim bcinr-powl-receipt 26.7.28 port; temprun receipts never chained into graphlaw's framing despite shared ancestry.
+39. **graphlaw ABI ↔ ggen-marketplace rust-wasi-wasmex-pack** — docs link into the pack, pack mentions graphlaw artifacts, no pinned-ABI conformance test between src/abi.rs and the rendered FFI.
+
+**Meta-pattern (both Y6 passes)**: spec-bearing repos publish pinned
+surfaces; consumers cite them in comments/manifests but link stale or
+parallel artifacts. One digest-pinned artifact + one cross-language
+parity court per pair closes the class.
