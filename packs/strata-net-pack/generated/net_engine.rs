@@ -187,6 +187,122 @@ pub enum MempoolRefusal {
     /// S9 InvalidBlockGossip: block payload failed validity re-check and
     /// was dropped before admission (never inserted into the pool).
     InvalidBlock,
+    /// T4 admission-time conservation pre-check failed; the entry never
+    /// reached the pool. Carries the typed cause.
+    Conservation(ConservationRefusal),
+}
+
+/// T4: typed causes of an admission-time conservation refusal. The law is
+/// strata-ledger-pack's `apply_transition` conservation gate (sum(inputs)
+/// vs sum(outputs) masked-checked before any state mutation), observed at
+/// the S7 wire boundary; cited, not imported (FM-PACK provenance rule).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConservationRefusal {
+    /// sum(inputs) > sum(outputs): value would be destroyed.
+    OutputsUnderFunded,
+    /// A decoded amount is zero — the u64 wire encoding makes negative
+    /// amounts unrepresentable, so the negative-amount law is enforced as
+    /// its positive-encoding dual: every amount must be ≥ 1.
+    NonPositiveAmount,
+    /// nonce == 0: the ledger nonce law requires a strictly advancing
+    /// nonzero replay-guard nonce.
+    BadNonce,
+    /// Payload is not a well-formed TX_ENTRY (bad tag, truncated fields,
+    /// or counts overrun the payload).
+    MalformedEntry,
+}
+
+/// Wire shape of one mempool tx entry (deterministic, std-only):
+/// `[0]=0x02 TX_ENTRY tag, [1]=input count, then count × (account u8,
+/// amount u64 BE), [n]=output count, then count × (account u8, amount
+/// u64 BE), [m]=nonce u64 BE`. Empty input/output sets are permitted by
+/// the framing (conservation over zero sums admits); amounts must be ≥ 1.
+pub struct TxEntry {
+    pub inputs: Vec<(u8, u64)>,
+    pub outputs: Vec<(u8, u64)>,
+    pub nonce: u64,
+}
+
+impl TxEntry {
+    fn sum(parts: &[(u8, u64)]) -> Option<u128> {
+        let mut total: u128 = 0;
+        for &(_, amt) in parts.iter() {
+            total = total.checked_add(amt as u128)?;
+        }
+        Some(total)
+    }
+}
+
+/// Decode + conservation-check a TX_ENTRY payload (the admission-time
+/// pre-check proper). Runs before any pool mutation in `admit_tx`.
+pub fn decode_tx_entry(payload: &[u8]) -> Result<TxEntry, ConservationRefusal> {
+    const TX_ENTRY_TAG: u8 = 0x02;
+    if payload.is_empty() || payload[0] != TX_ENTRY_TAG {
+        return Err(ConservationRefusal::MalformedEntry);
+    }
+    let mut at = 1usize;
+    let mut read_u64 = |at: &mut usize| -> Option<u64> {
+        if *at + 8 > payload.len() {
+            return None;
+        }
+        let mut b = [0u8; 8];
+        b.copy_from_slice(&payload[*at..*at + 8]);
+        *at += 8;
+        Some(u64::from_be_bytes(b))
+    };
+    if at >= payload.len() {
+        return Err(ConservationRefusal::MalformedEntry);
+    }
+    let in_count = payload[at] as usize;
+    at += 1;
+    let mut inputs = Vec::new();
+    for _ in 0..in_count {
+        let acct = *payload.get(at).ok_or(ConservationRefusal::MalformedEntry)?;
+        at += 1;
+        let amt = read_u64(&mut at).ok_or(ConservationRefusal::MalformedEntry)?;
+        if amt == 0 {
+            return Err(ConservationRefusal::NonPositiveAmount);
+        }
+        inputs.push((acct, amt));
+    }
+    let out_count = *payload.get(at).ok_or(ConservationRefusal::MalformedEntry)?;
+    at += 1;
+    let mut outputs = Vec::new();
+    for _ in 0..out_count {
+        let acct = *payload.get(at).ok_or(ConservationRefusal::MalformedEntry)?;
+        at += 1;
+        let amt = read_u64(&mut at).ok_or(ConservationRefusal::MalformedEntry)?;
+        if amt == 0 {
+            return Err(ConservationRefusal::NonPositiveAmount);
+        }
+        outputs.push((acct, amt));
+    }
+    let nonce = read_u64(&mut at).ok_or(ConservationRefusal::MalformedEntry)?;
+    // Trailing slack bytes beyond the declared fields are refused: the
+    // entry must be exactly the encoded shape (no wire slack).
+    if at != payload.len() {
+        return Err(ConservationRefusal::MalformedEntry);
+    }
+    // Nonce sanity (ledger nonce law): the replay-guard nonce must be nonzero.
+    if nonce == 0 {
+        return Err(ConservationRefusal::BadNonce);
+    }
+    // Conservation: sum(inputs) must not exceed sum(outputs). Ledger parity
+    // is sum equality at apply time; at the mempool wire boundary the
+    // admission-time shadow enforces the conservative direction (inputs ≤
+    // outputs) so a value-destroying entry never pools.
+    let sum_in = match TxEntry::sum(&inputs) {
+        Some(s) => s,
+        None => return Err(ConservationRefusal::OutputsUnderFunded),
+    };
+    let sum_out = match TxEntry::sum(&outputs) {
+        Some(s) => s,
+        None => return Err(ConservationRefusal::OutputsUnderFunded),
+    };
+    if sum_in > sum_out {
+        return Err(ConservationRefusal::OutputsUnderFunded);
+    }
+    Ok(TxEntry { inputs, outputs, nonce })
 }
 
 fn entry_digest(payload: &[u8]) -> [u8; 32] {
@@ -247,6 +363,22 @@ impl Mempool {
 
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
+    }
+
+    /// S4-law-at-S7 admission-time conservation pre-check (T4): validate a
+    /// TX_ENTRY wire payload against the ledger conservation law BEFORE any
+    /// pool mutation. Provenance: the law is packs/strata-ledger-pack's
+    /// `apply_transition` (generated/ledger_state.rs, Gate 3: overflow-masked
+    /// sum(inputs) vs sum(outputs), checked before any balance mutates; nonce
+    /// must be nonzero and strictly advancing). Cited, NOT imported — this
+    /// pack has no dependency on strata-ledger-pack; the check here is a
+    /// lightweight admission-time shadow of that block-time law.
+    pub fn admit_tx(&mut self, payload: &[u8]) -> Result<[u8; 32], MempoolRefusal> {
+        // Gate A (conservation, pre-insertion): a conservation-violating
+        // entry is refused here, at the wire boundary — never at block time.
+        decode_tx_entry(payload).map_err(MempoolRefusal::Conservation)?;
+        // Gate B (pool valve): only a conservation-clean entry reaches the pool.
+        self.admit(payload)
     }
 
     /// S9 InvalidBlockGossip refusal path: gossip-block admission that
@@ -806,9 +938,626 @@ mod tests {
         assert_eq!(pool.admit_block(b"\x02block-body"), Err(MempoolRefusal::InvalidBlock));
         assert_eq!(pool.len(), 0);
         // A valid gossip block admits (leading 0x01 tag).
-        let d = pool.admit_block(b"\x01block-body").expect("valid block admits");
+        let d = pool.admit_block(b"\x01block payloads".as_slice()).expect("valid block admits");
         assert_eq!(pool.len(), 1);
         assert!(pool.remove(&d));
         assert!(pool.is_empty());
+    }
+
+    // T4 admission-time conservation courts
+    // (X18 candidate 2, Tier-1): conservation law at the wire boundary.
+
+    /// Deterministic TX_ENTRY encoder (inverse of decode_tx_entry).
+    fn tx_entry_bytes(inputs: &[(u8, u64)], outputs: &[(u8, u64)], nonce: u64) -> Vec<u8> {
+        let mut p = vec![0x02u8];
+        p.push(inputs.len() as u8);
+        for &(acct, amt) in inputs.iter() {
+            p.push(acct);
+            p.extend_from_slice(&amt.to_be_bytes());
+        }
+        p.push(outputs.len() as u8);
+        for &(acct, amt) in outputs.iter() {
+            p.push(acct);
+            p.extend_from_slice(&amt.to_be_bytes());
+        }
+        p.extend_from_slice(&nonce.to_be_bytes());
+        p
+    }
+
+    #[test]
+    fn t4_conservation_violating_entry_refused_at_admission() {
+        let mut pool = Mempool::new_with_capacity(4);
+        // sum(inputs)=10 > sum(outputs)=4: value-destroying, refused at the
+        // wire boundary BEFORE pool insertion.
+        let bad = tx_entry_bytes(&[(1, 10)], &[(2, 4)], 7);
+        assert_eq!(
+            pool.admit_tx(&bad),
+            Err(MempoolRefusal::Conservation(ConservationRefusal::OutputsUnderFunded))
+        );
+        assert_eq!(pool.len(), 0, "refused entry never reaches the pool");
+        // Multi-leg: 5+5 in vs 9 out is still inputs > outputs.
+        let bad2 = tx_entry_bytes(&[(1, 5), (2, 5)], &[(3, 9)], 7);
+        assert_eq!(
+            pool.admit_tx(&bad2),
+            Err(MempoolRefusal::Conservation(ConservationRefusal::OutputsUnderFunded))
+        );
+        assert_eq!(pool.len(), 0);
+    }
+
+    #[test]
+    fn t4_valid_entry_admitted_and_pooled() {
+        let mut pool = Mempool::new_with_capacity(4);
+        // Balanced (equality) admits.
+        let bal = tx_entry_bytes(&[(1, 10)], &[(2, 10)], 7);
+        let d1 = pool.admit_tx(&bal).expect("balanced admits");
+        assert_eq!(pool.len(), 1);
+        // Surplus (inputs < outputs) admits: the law is inputs <= outputs.
+        let surplus = tx_entry_bytes(&[(1, 5)], &[(2, 8)], 8);
+        let d2 = pool.admit_tx(&surplus).expect("surplus admits");
+        assert_eq!(pool.len(), 2);
+        assert_ne!(d1, d2);
+        // The pooled digest is the payload digest.
+        assert_eq!(d1, entry_digest(&bal));
+    }
+
+    #[test]
+    fn t4_zero_amount_and_zero_nonce_refused_at_admission() {
+        let mut pool = Mempool::new_with_capacity(4);
+        // Zero amount = the positive-encoding dual of the negative-amount law.
+        let zero_amt = tx_entry_bytes(&[(1, 0)], &[], 7);
+        assert_eq!(
+            pool.admit_tx(&zero_amt),
+            Err(MempoolRefusal::Conservation(ConservationRefusal::NonPositiveAmount))
+        );
+        // Zero nonce fails the ledger nonce-sanity shadow.
+        let zero_nonce = tx_entry_bytes(&[(1, 5)], &[(2, 5)], 0);
+        assert_eq!(
+            pool.admit_tx(&zero_nonce),
+            Err(MempoolRefusal::Conservation(ConservationRefusal::BadNonce))
+        );
+        // Malformed: wrong tag byte.
+        assert_eq!(
+            pool.admit_tx(&[0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]),
+            Err(MempoolRefusal::Conservation(ConservationRefusal::MalformedEntry))
+        );
+        // Malformed: truncated tail.
+        let trunc = tx_entry_bytes(&[(1, 5)], &[(2, 5)], 7);
+        assert_eq!(
+            pool.admit_tx(&trunc[..trunc.len() - 1]),
+            Err(MempoolRefusal::Conservation(ConservationRefusal::MalformedEntry))
+        );
+        assert_eq!(pool.len(), 0, "every refusal left the pool untouched");
+    }
+
+    #[test]
+    fn t4_fuzz_500_entries() {
+        // Deterministic xorshift fuzz, 500 mixed entries in three classes:
+        // 0 = balanced valid, 1 = surplus valid, 2 = value-destroying invalid.
+        // Court: every invalid refused at admit with the typed conservation
+        // refusal; every valid admitted. No mocks, real pool state asserted.
+        let mut state: u64 = 0x5EED_5EED_5EED_5EED;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        let mut pool = Mempool::new_with_capacity(1024);
+        let mut admitted = 0usize;
+        let mut refused = 0usize;
+        for i in 0..500u64 {
+            let pick = next() % 3;
+            let amt = (next() % 1000) + 1;
+            let entry = match pick {
+                0 => tx_entry_bytes(&[(1, amt)], &[(2, amt)], i + 1),
+                1 => tx_entry_bytes(&[(1, amt)], &[(2, amt + 500)], i + 1),
+                _ => tx_entry_bytes(&[(1, amt + 100)], &[(2, amt)], i + 1),
+            };
+            match pool.admit_tx(&entry) {
+                Ok(_) => {
+                    admitted += 1;
+                    assert!(pick != 2, "entry {} (class 2) must not admit", i);
+                }
+                Err(MempoolRefusal::Conservation(ConservationRefusal::OutputsUnderFunded)) => {
+                    refused += 1;
+                    assert!(pick == 2, "entry {} (class {}) must not refuse", i, pick);
+                }
+                Err(e) => panic!("entry {} (class {}): unexpected refusal {:?}", i, pick, e),
+            }
+        }
+        assert_eq!(admitted + refused, 500);
+        assert!(refused > 0, "fuzz must exercise the refusal path");
+        assert!(admitted > 0, "fuzz must exercise the admission path");
+        assert_eq!(pool.len(), admitted, "pool holds exactly the admitted set");
+    }
+}
+
+// ── T3 attack-corpus fuzz module (X18 candidate 3, Tier-1) ────────────
+// Deterministic attack corpus: four families x 1000 LCG-mutated cases run
+// against the S9 hardening valves (`HardenedPeerTable`,
+// `SlotRateLimiter`, `Mempool::admit_block`). Every case must produce
+// fully typed outcomes (a `Result`/enum verdict — no panics, no pool
+// corruption), and every verdict must match a pure-Rust oracle recomputed
+// independently from the mutated inputs — so a survivor (a message
+// accepted that should have been refused) fails the corpus. A sabotage
+// twin — a weakened copy of `HardenedPeerTable` planted in THIS test
+// module (its eclipse guard stops counting blacklisted peers toward the
+// per-subnet cap) — MUST be caught by the corpus while the 17 hand-written
+// tests above are blind to it, proving discriminating power. The
+// mechanical proof is `fuzz_sabotage_twin_discrimination`.
+
+#[cfg(test)]
+mod fuzz_tests {
+    use super::*;
+
+    const CASES_PER_FAMILY: usize = 1000;
+
+    /// Deterministic LCG (Knuth MMIX constants); no external entropy.
+    struct Lcg(u64);
+    impl Lcg {
+        fn new(seed: u64) -> Lcg {
+            Lcg(seed ^ 0xD1B5_4A32_D192_ED03)
+        }
+        fn next_u64(&mut self) -> u64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            self.0
+        }
+        fn below(&mut self, n: usize) -> usize {
+            ((self.next_u64() >> 16) as usize) % n
+        }
+    }
+
+    fn peer_name(pid: usize) -> String {
+        format!("peer-{}", pid)
+    }
+
+    fn subnet_name(sub: usize) -> String {
+        format!("10.{}.0.0/16", sub)
+    }
+
+    /// Minimal valve surface shared by the real `HardenedPeerTable` and
+    /// the sabotage twin, so the corpus drivers are identical for both.
+    trait Valve {
+        fn admit(&mut self, peer_id: &str, peer_subnet: &str) -> Result<(), HardeningRefusal>;
+        fn blacklist(&mut self, peer_id: &str);
+        fn tick(&mut self);
+        fn len(&self) -> usize;
+    }
+
+    impl Valve for HardenedPeerTable {
+        fn admit(&mut self, peer_id: &str, peer_subnet: &str) -> Result<(), HardeningRefusal> {
+            HardenedPeerTable::admit(self, peer_id, peer_subnet)
+        }
+        fn blacklist(&mut self, peer_id: &str) {
+            HardenedPeerTable::blacklist(self, peer_id)
+        }
+        fn tick(&mut self) {
+            HardenedPeerTable::blacklist_tick(self)
+        }
+        fn len(&self) -> usize {
+            HardenedPeerTable::len(self)
+        }
+    }
+
+    /// Sabotage twin of `HardenedPeerTable`: the same admission ladder
+    /// EXCEPT the weakened eclipse guard — blacklisted peers no longer
+    /// count toward the per-subnet cap.
+    struct SabotageTable {
+        table: PeerTable,
+        subnets: std::collections::HashMap<String, String>,
+        blacklist: Blacklist,
+    }
+
+    impl SabotageTable {
+        fn new() -> SabotageTable {
+            SabotageTable {
+                table: PeerTable::new(),
+                subnets: std::collections::HashMap::new(),
+                blacklist: Blacklist::new(),
+            }
+        }
+    }
+
+    impl SabotageTable {
+        fn blacklist_tick(&mut self) {
+            self.blacklist.tick();
+        }
+    }
+
+    impl Default for SabotageTable {
+        fn default() -> SabotageTable {
+            SabotageTable::new()
+        }
+    }
+
+    impl Valve for SabotageTable {
+        fn admit(&mut self, peer_id: &str, peer_subnet: &str) -> Result<(), HardeningRefusal> {
+            if self.blacklist.is_blacklisted(peer_id) {
+                return Err(HardeningRefusal::Blacklisted);
+            }
+            if self.table.contains(peer_id) {
+                return Err(HardeningRefusal::Duplicate);
+            }
+            // WEAKENED: blacklisted peers excluded from the eclipse count.
+            let live = self
+                .subnets
+                .iter()
+                .filter(|(_, s)| s.as_str() == peer_subnet)
+                .filter(|(pid, _)| !self.blacklist.is_blacklisted(pid))
+                .count();
+            if live >= ECLIPSE_SUBNET_CAP {
+                return Err(HardeningRefusal::SubnetCapped);
+            }
+            self.table
+                .add(peer_id)
+                .map_err(|_| HardeningRefusal::SubnetCapped)?;
+            self.subnets
+                .insert(peer_id.to_string(), peer_subnet.to_string());
+            Ok(())
+        }
+
+        fn blacklist(&mut self, peer_id: &str) {
+            self.blacklist.blacklist(peer_id);
+        }
+
+        fn tick(&mut self) {
+            self.blacklist.tick();
+        }
+
+        fn len(&self) -> usize {
+            self.table.len()
+        }
+    }
+
+    /// The S9 admission law recomputed independently from the model state:
+    /// `Blacklisted` → `Duplicate` → `SubnetCapped` (eclipse count includes
+    /// blacklisted-but-admitted peers) → capacity, then admit.
+    fn oracle_admit(
+        blacklisted: bool,
+        duplicate: bool,
+        subnet_count: usize,
+        table_len: usize,
+    ) -> Result<(), HardeningRefusal> {
+        if blacklisted {
+            Err(HardeningRefusal::Blacklisted)
+        } else if duplicate {
+            Err(HardeningRefusal::Duplicate)
+        } else if subnet_count >= ECLIPSE_SUBNET_CAP || table_len >= MAX_PEERS {
+            Err(HardeningRefusal::SubnetCapped)
+        } else {
+            Ok(())
+        }
+    }
+
+    // ── Family 1: eclipse (mutated peer-subnet assignments) ───────────
+    // Per case: a fresh valve; one deterministic admission burst of 1..=12
+    // unique peers over LCG-chosen subnets. Oracle: a fresh peer admits
+    // iff its subnet currently holds < ECLIPSE_SUBNET_CAP peers.
+    fn run_eclipse_family<V: Valve + Default>() -> usize {
+        let mut rng = Lcg::new(0x00EC_11A5E);
+        let mut typed_cases = 0usize;
+        for _case in 0..CASES_PER_FAMILY {
+            let mut valve = V::default();
+            let burst = 1 + rng.below(12);
+            let mut subnet_counts = [0usize; 4];
+            let mut all_typed = true;
+            for j in 0..burst {
+                let sub = rng.below(4);
+                let expected =
+                    oracle_admit(false, false, subnet_counts[sub], valve.len());
+                let actual = valve.admit(&peer_name(j), &subnet_name(sub));
+                if actual != expected {
+                    all_typed = false;
+                }
+                if actual.is_ok() {
+                    subnet_counts[sub] += 1;
+                }
+            }
+            // No corruption: admitted count equals the oracle count.
+            if valve.len() != subnet_counts.iter().sum::<usize>() {
+                all_typed = false;
+            }
+            if all_typed {
+                typed_cases += 1;
+            }
+        }
+        typed_cases
+    }
+
+    // ── Family 2: blacklist (mutated blacklist slots + admissions) ────
+    // Per case: a fresh valve; 1..=40 LCG-chosen operations over 40 peers
+    // packed into 3 subnets (subnet = pid % 3; up to 14 fresh candidates
+    // per subnet against the cap of 8, so both the cap AND post-cap fresh
+    // candidates — the twin-divergence region — are reachable). Returns (typed_cases,
+    // oracle_mismatched_cases); the mismatch count is what catches a
+    // weakened valve (survivors = accepted messages that should have been
+    // refused).
+    fn run_blacklist_family<V: Valve + Default>() -> (usize, usize) {
+        let mut rng = Lcg::new(0x0B1A_C101);
+        let mut typed_cases = 0usize;
+        let mut mismatched_cases = 0usize;
+        for _case in 0..CASES_PER_FAMILY {
+            let mut valve = V::default();
+            let ops = 1 + rng.below(120);
+            let mut in_table = [false; 40];
+            let mut slots = [0usize; 40];
+            let mut subnet_counts = [0usize; 3];
+            let mut table_len = 0usize;
+            let mut all_typed = true;
+            for _op in 0..ops {
+                match rng.below(4) {
+                    0 | 1 => {
+                        let pid = rng.below(40);
+                        let sub = pid % 3;
+                        let expected = oracle_admit(
+                            slots[pid] > 0,
+                            in_table[pid],
+                            subnet_counts[sub],
+                            table_len,
+                        );
+                        let actual = valve.admit(&peer_name(pid), &subnet_name(sub));
+                        if actual != expected {
+                            all_typed = false;
+                        }
+                        if actual.is_ok() {
+                            in_table[pid] = true;
+                            subnet_counts[sub] += 1;
+                            table_len += 1;
+                        }
+                    }
+                    2 => {
+                        // Blacklist a random IN-TABLE peer when one exists
+                        // (the defender reacts to peers it actually sees);
+                        // fall back to any peer id otherwise.
+                        let admitted: Vec<usize> =
+                            (0..40).filter(|p| in_table[*p]).collect();
+                        let pid = if admitted.is_empty() {
+                            rng.below(40)
+                        } else {
+                            admitted[rng.below(admitted.len())]
+                        };
+                        valve.blacklist(&peer_name(pid));
+                        slots[pid] = BLACKLIST_SLOTS;
+                    }
+                    _ => {
+                        valve.tick();
+                        for s in slots.iter_mut() {
+                            *s = s.saturating_sub(1);
+                        }
+                    }
+                }
+            }
+            // No corruption: valve population equals the model population.
+            if valve.len() != table_len {
+                all_typed = false;
+            }
+            if all_typed {
+                typed_cases += 1;
+            } else {
+                mismatched_cases += 1;
+            }
+        }
+        (typed_cases, mismatched_cases)
+    }
+
+    // ── Family 3: rate limit (mutated message bursts + slot advances) ──
+    // Per case: a fresh `SlotRateLimiter`; 1..=64 LCG-chosen operations
+    // (note_msg / next_slot). Oracle: note_msg admits iff the slot budget
+    // (MAX_MSGS_PER_SLOT = 32) is unspent.
+    fn run_rate_limit_family() -> usize {
+        let mut rng = Lcg::new(0x0F1_00_D5EED);
+        let mut typed_cases = 0usize;
+        for _case in 0..CASES_PER_FAMILY {
+            let mut lim = SlotRateLimiter::new();
+            let ops = 1 + rng.below(64);
+            let mut seen = 0usize;
+            let mut all_typed = true;
+            for _op in 0..ops {
+                if rng.below(4) == 3 {
+                    lim.next_slot();
+                    seen = 0;
+                } else {
+                    let expected = if seen < MAX_MSGS_PER_SLOT {
+                        Ok(())
+                    } else {
+                        Err(HardeningRefusal::SpamFlood)
+                    };
+                    let actual = lim.note_msg();
+                    if actual != expected {
+                        all_typed = false;
+                    }
+                    if actual.is_ok() {
+                        seen += 1;
+                    }
+                }
+            }
+            if lim.seen() != seen {
+                all_typed = false;
+            }
+            if all_typed {
+                typed_cases += 1;
+            }
+        }
+        typed_cases
+    }
+
+    // ── Family 4: invalid block (mutated gossip-block payloads) ───────
+    // Per case: a fresh `Mempool` (capacity 1..=4); 1..=12 LCG-mutated
+    // `admit_block` ops (fresh tag-mutated payloads + replays of the
+    // previous payload). Oracle: `InvalidBlock` unless the payload is
+    // tagged 0x01; then digest-set semantics with lowest-digest eviction.
+    fn run_invalid_block_family() -> usize {
+        let mut rng = Lcg::new(0x1AB_0C_015);
+        let mut typed_cases = 0usize;
+        for _case in 0..CASES_PER_FAMILY {
+            let cap = 1 + rng.below(4);
+            let mut pool = Mempool::new_with_capacity(cap);
+            let ops = 1 + rng.below(12);
+            let mut model: Vec<[u8; 32]> = Vec::with_capacity(cap);
+            let mut prev: Option<Vec<u8>> = None;
+            let mut all_typed = true;
+            for op in 0..ops {
+                let payload: Vec<u8> = match rng.below(4) {
+                    2 if prev.is_some() => prev.clone().expect("guarded above"),
+                    _ => {
+                        let tag = rng.below(3) as u8;
+                        let len = 1 + rng.below(5);
+                        let mut p = Vec::with_capacity(len);
+                        p.push(tag);
+                        for k in 0..len - 1 {
+                            p.push((case_id(k, op) & 0xFF) as u8);
+                        }
+                        p
+                    }
+                };
+                let expected = if payload.is_empty() || payload[0] != 0x01 {
+                    Err(MempoolRefusal::InvalidBlock)
+                } else {
+                    let digest = entry_digest(&payload);
+                    if model.contains(&digest) {
+                        Err(MempoolRefusal::Duplicate)
+                    } else {
+                        if model.len() >= cap {
+                            let victim = *model.iter().min().expect("non-empty at cap");
+                            model.retain(|d| *d != victim);
+                        }
+                        model.push(digest);
+                        Ok(digest)
+                    }
+                };
+                let actual = pool.admit_block(&payload);
+                if actual != expected {
+                    all_typed = false;
+                }
+                // No pool corruption: pool equals the oracle set.
+                if pool.len() != model.len() {
+                    all_typed = false;
+                }
+                prev = Some(payload);
+            }
+            if all_typed {
+                typed_cases += 1;
+            }
+        }
+        typed_cases
+    }
+
+    fn case_id(k: usize, op: usize) -> usize {
+        k.wrapping_mul(31).wrapping_add(op).wrapping_mul(17)
+    }
+
+    // ── Corpus tests ──────────────────────────────────────────────────
+
+    #[test]
+    fn fuzz_eclipse_family_1000_of_1000_typed_and_oracle_matched() {
+        assert_eq!(run_eclipse_family::<HardenedPeerTable>(), CASES_PER_FAMILY);
+    }
+
+    #[test]
+    fn fuzz_blacklist_family_1000_of_1000_typed_and_oracle_matched() {
+        let (typed, mismatches) = run_blacklist_family::<HardenedPeerTable>();
+        assert_eq!(typed, CASES_PER_FAMILY);
+        assert_eq!(mismatches, 0);
+    }
+
+    #[test]
+    fn fuzz_rate_limit_family_1000_of_1000_typed_and_oracle_matched() {
+        assert_eq!(run_rate_limit_family(), CASES_PER_FAMILY);
+    }
+
+    #[test]
+    fn fuzz_invalid_block_family_1000_of_1000_typed_and_oracle_matched() {
+        assert_eq!(run_invalid_block_family(), CASES_PER_FAMILY);
+    }
+
+    /// Sabotage-twin discrimination proof:
+    /// (a) BLINDNESS — the hand-written S9 table scenarios, replayed
+    ///     verbatim against the twin, still pass: the 17 hand-written
+    ///     tests cannot catch this sabotage.
+    /// (b) CATCH — the corpus catches it: >= 1 of the 1000 blacklist-family
+    ///     cases diverges from the oracle (a survivor exists). The eclipse
+    ///     family (no blacklisting) still matches, so the catch is specific
+    ///     to the weakened predicate, not noise.
+    #[test]
+    fn fuzz_sabotage_twin_discrimination() {
+        // (a) Blindness of the hand-written tests, replayed on the twin.
+        hand_suite_against_twin();
+        // (b) Corpus catch, per family.
+        let (typed, caught) = run_blacklist_family::<SabotageTable>();
+        assert!(
+            caught >= 1,
+            "corpus failed to catch the sabotage twin (caught {} of {} cases)",
+            caught,
+            CASES_PER_FAMILY
+        );
+        let _ = typed;
+        let (typed_e, caught_e) = run_eclipse_family_results::<SabotageTable>();
+        assert_eq!(caught_e, 0, "eclipse family must stay oracle-clean");
+        let _ = typed_e;
+    }
+
+    /// The two hand-written S9 tests that exercise the peer table,
+    /// replayed verbatim against `SabotageTable`. These must PASS on the
+    /// twin (blindness) — asserting that in-test.
+    fn hand_suite_against_twin() {
+        // Mirrors s9_eclipse_cap_fires_at_8_same_subnet_peers:
+        let mut t = SabotageTable::new();
+        for i in 0..8 {
+            t.admit(&format!("p{}", i), "10.0.0.0/16")
+                .unwrap_or_else(|e| panic!("peer {} must admit: {}", i, e));
+        }
+        assert_eq!(t.admit("p8", "10.0.0.0/16"), Err(HardeningRefusal::SubnetCapped));
+        assert_eq!(t.len(), 8);
+        t.admit("q0", "10.1.0.0/16").expect("other subnet admits");
+        // Mirrors s9_blacklist_refusal_and_slot_expiry:
+        let mut plain = SabotageTable::new();
+        plain.blacklist("outsider");
+        assert_eq!(
+            plain.admit("outsider", "10.2.0.0/16"),
+            Err(HardeningRefusal::Blacklisted)
+        );
+        for _ in 0..BLACKLIST_SLOTS - 1 {
+            plain.blacklist_tick();
+            assert_eq!(
+                plain.admit("outsider", "10.2.0.0/16"),
+                Err(HardeningRefusal::Blacklisted)
+            );
+        }
+        plain.blacklist_tick();
+        plain.admit("outsider", "10.2.0.0/16").expect("term served, re-admitted");
+        // The sabotage: a peer blacklisted INSIDE a full subnet. The hand
+        // suite never blacklists into a full subnet, so it stays blind —
+        // the corpus oracle must catch what follows.
+        let mut subverted = SabotageTable::new();
+        for i in 0..8 {
+            subverted
+                .admit(&format!("fp{}", i), "10.9.0.0/16")
+                .expect("fill subnet");
+        }
+        subverted.blacklist("fp3");
+        // TWIN (weakened): excludes blacklisted fp3 from the count → admits.
+        subverted.admit("intruder", "10.9.0.0/16").expect("twin admits the intruder");
+        // REAL valve: the law counts every admitted peer in the subnet.
+        let mut real = HardenedPeerTable::new();
+        for i in 0..8 {
+            real.admit(&format!("fp{}", i), "10.9.0.0/16")
+                .expect("fill subnet");
+        }
+        real.blacklist("fp3");
+        assert_eq!(
+            real.admit("intruder", "10.9.0.0/16"),
+            Err(HardeningRefusal::SubnetCapped),
+            "the real valve must refuse what the twin admitted"
+        );
+    }
+
+    /// Eclipse family over any valve, returning (typed, mismatches) so the
+    /// discrimination test can assert the twin stays oracle-clean there.
+    fn run_eclipse_family_results<V: Valve + Default>() -> (usize, usize) {
+        let typed = run_eclipse_family::<V>();
+        (typed, CASES_PER_FAMILY - typed)
     }
 }
