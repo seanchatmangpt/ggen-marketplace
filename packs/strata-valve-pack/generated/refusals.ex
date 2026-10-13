@@ -25,6 +25,8 @@ defmodule Strata.Valve.Refusals do
   end
 end
 
+# SABOTAGE TWIN (test-only, rendered from source template): a derivation
+# skipping the class label. The cross-class-distinctness court must catch it.
 defmodule Strata.Valve.Refusals.SabotageTwinSkipClassLabel do
   @moduledoc """
   SABOTAGE TWIN (test-only) — derivation skipping the class label: hashes only
