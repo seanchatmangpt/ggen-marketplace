@@ -148,3 +148,35 @@ discipline: candidates die by their falsifiers, not by decree.
     (effort L; premise correction verified on disk: `erlmcp_priority.erl`
     is in-memory OTP-28 priority aliases, NOT durable — the durable
     candidate is `erlmcp_a2a_task_manager.erl` ETS + a DETS layer).
+
+## X-lane wave 3 + construction receipts — 2026-10-13 (evening)
+
+Construction-lane results from wave 2's in-flight lanes plus three new
+X-lane Explore receipts. Same discipline: SHAs exact, falsifiers cited,
+KILLED entries stay killed.
+
+45. **ggen-ecosystem×strata (L68)** — rank 1: `ecosystem.lock.toml` maps
+    mechanically onto strata-store `ContentStore` (C18: pin →
+    `StoredEntry`, ecosystem root → single commitment). Rank 2: crown CAS
+    fast-forward as chain entries. CORRECTION to C17's premise:
+    anti-windup is already implemented in `github_macro_governor.py`
+    (subject-keyed demands + recovery-close verified on disk) — the open
+    work is formalization, not invention.
+46. **graphlaw×insa (L76)** — rank 1: differential chain court (insa
+    3-input step vs graphlaw 99-byte frame fold; falsifier: legal-entry
+    head divergence or truncation asymmetry). Rank 2: insa-law N3 pack —
+    insa has zero RDF surface today. Rank 3: attest-over-anchors rejected
+    as near-zero information gain.
+47. **hash-unification KILLED (L41)** — wave 2 entry 39's construction
+    lane could not unify: castle BLAKE3-no-frame-term vs graphlaw
+    SHA-256-over-RDFC-1.0; 0/3 corpus match. Four layers decomposed
+    (algorithm, framing, datatype, bnode labels); divergence pinned as a
+    4-court file at graphlaw `tests/castle_hash_unification.rs`
+    (commit `0731cbd`).
+48. **valve↔affidavit parity IDENTICAL (L70)** — ETF `binary_ext`
+    representation stable; 4 receipt hexes byte-equal Elixir/Rust.
+49. **TCK re-run (L18)** — 79.0% compatibility unchanged; MUST failures
+    87/0 after the pagination fixes (docs commit `2028e771`).
+50. **v2-fold KAT MATCH (L66)** — independent in-test BLAKE3 reproduces
+    the real ledger receipt chain hash (commit `c2cc4b62b`) — strata is
+    now a verified spec substrate for praxis-chain/v2-fold.
