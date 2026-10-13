@@ -29,6 +29,16 @@ compiles standalone via `rustc --test`:
   (append-only store, tombstone-free rollback). Deduped puts do not journal,
   so a rollback never removes a pre-marker original. Rollback past genesis
   is a typed `StoreRefusal::RollbackPastGenesis`.
+- **Atomic reorg undo (`undo_to_fork`)** — undoes ALL post-fork entries in
+  ONE operation and returns a single `StoreReceipt` (operation, fork
+  marker, entries undone, post root digest). Crash-safe by write-ahead
+  recovery: the RECOVERY record is written BEFORE any deletion, so an undo
+  interrupted mid-deletion replays to completion via
+  `recover_interrupted_undo()` — the store is never left in an admissible
+  partial state. A new undo while one is pending recovery refuses typed
+  (`StoreRefusal::UndoInterruptedPending`). Courts: deep reorg (100
+  entries) with mid-undo crash at every crash point ×100 iterations,
+  each recovering exactly to the fork-point root digest.
 - **Capacity valve** — `try_put` returns
   `StoreRefusal::CapacityExhausted` at the bound
   (`DEFAULT_CAPACITY` = 1_048_576, projected from `so:STORE_CONSTANTS`);

@@ -11,6 +11,14 @@
 //! blockchain roadmap: append-only store, tombstone-free rollback — a re-org
 //! rewinds the tip; it does not leave tombstones behind).
 //!
+//! Reorg undo (first-class atomic primitive): `undo_to_fork(marker)` undoes
+//! ALL post-fork entries in ONE operation returning a single `StoreReceipt`.
+//! Crash-recovery: a RECOVERY journal entry (the pending-undo record) is
+//! written BEFORE any deletion, so an undo interrupted mid-deletion replays
+//! to completion via `recover_interrupted_undo()` — the store is never left
+//! in an admissible partial state: either the undo completed (recovery
+//! cleared) or the recovery record deterministically completes it.
+//!
 //! Self-contained, serde-free; compiles standalone via `rustc --test`.
 
 
@@ -130,6 +138,9 @@ pub enum StoreRefusal {
     CapacityExhausted { capacity: usize },
     /// A marker from a longer (or foreign) journal cannot be rolled back to.
     RollbackPastGenesis { journal_len: usize, marker: usize },
+    /// An undo is already interrupted and pending recovery; a NEW undo (or
+    /// rollback) must not interleave with an unfinished one.
+    UndoInterruptedPending { target_len: usize },
 }
 
 impl std::fmt::Display for StoreRefusal {
@@ -145,6 +156,14 @@ impl std::fmt::Display for StoreRefusal {
                     marker, journal_len
                 )
             }
+            StoreRefusal::UndoInterruptedPending { target_len } => {
+                write!(
+                    f,
+                    "undo interrupted and pending recovery (fork journal length {}); \
+                     recover_interrupted_undo() must complete first",
+                    target_len
+                )
+            }
         }
     }
 }
@@ -156,6 +175,31 @@ impl std::error::Error for StoreRefusal {}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct StoreMarker {
     journal_len: usize,
+}
+
+/// Receipt of one atomic store operation (st:StoreReceipt): the operation
+/// performed, the fork point, the number of entries undone, and the post
+/// operation root digest — the replay/verification surface.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoreReceipt {
+    /// Which atomic operation produced this receipt ("undo_to_fork").
+    pub operation: String,
+    /// The fork-point marker the operation undid to.
+    pub fork_marker: StoreMarker,
+    /// Number of entries removed by the operation.
+    pub entries_undone: usize,
+    /// Store root digest AFTER the operation completed.
+    pub post_root: [u8; 32],
+}
+
+/// RECOVERY journal entry (write-ahead record): written BEFORE any deletion
+/// of an undo begins, so an undo interrupted at ANY point replays to
+/// completion. Cleared only after the undo fully completes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct RecoveryEntry {
+    /// Journal length of the fork point — undo replays until
+    /// `journal.len() == target_len`.
+    target_len: usize,
 }
 
 /// Content-addressed store surface. Keys are content-derived (SHA-256 of the
@@ -179,6 +223,12 @@ pub trait ContentStore {
     /// Remove every entry inserted after `marker` (re-org rollback).
     /// Appends since the marker are undone; the marker's state is restored.
     fn rollback_to(&mut self, marker: StoreMarker) -> Result<(), StoreRefusal>;
+    /// ATOMIC reorg undo: remove every entry inserted after the fork
+    /// `marker` in ONE operation, returning a single [`StoreReceipt`].
+    /// Crash-safe: the recovery record is written before any deletion, so an
+    /// interrupted undo replays to completion via
+    /// [`InMemoryStore::recover_interrupted_undo`].
+    fn undo_to_fork(&mut self, marker: StoreMarker) -> Result<StoreReceipt, StoreRefusal>;
     /// Store root digest: SHA-256 over the concatenated in-order keys
     /// (st:rootDigest — the crash-consistency court surface, roadmap S6).
     fn root_digest(&self) -> [u8; 32];
@@ -196,6 +246,11 @@ pub struct InMemoryStore {
     /// added after the marker.
     journal: Vec<[u8; 32]>,
     capacity: usize,
+    /// Write-ahead recovery record: `Some` from the moment an undo's
+    /// recovery entry is written (BEFORE the first deletion) until the undo
+    /// fully completes. `Some` after a crash = an interrupted undo that MUST
+    /// be replayed via [`InMemoryStore::recover_interrupted_undo`].
+    recovery: Option<RecoveryEntry>,
 }
 
 impl InMemoryStore {
@@ -213,12 +268,117 @@ impl InMemoryStore {
             entries: BTreeMap::new(),
             journal: Vec::new(),
             capacity,
+            recovery: None,
         }
     }
 
     /// The capacity bound.
     pub fn capacity(&self) -> usize {
         self.capacity
+    }
+
+    /// Whether an undo is interrupted and pending recovery.
+    pub fn has_interrupted_undo(&self) -> bool {
+        self.recovery.is_some()
+    }
+
+    /// The fork journal length of a pending interrupted undo, if any.
+    pub fn pending_undo_target(&self) -> Option<usize> {
+        self.recovery.map(|r| r.target_len)
+    }
+
+    /// ATOMIC reorg undo (the first-class primitive): writes the recovery
+    /// record BEFORE any deletion, removes every post-fork entry, clears the
+    /// recovery record only after full completion, and returns ONE
+    /// [`StoreReceipt`]. Refuses (typed, before any mutation) if `marker` is
+    /// past genesis or another undo is already pending recovery.
+    pub fn undo_to_fork_impl(&mut self, marker: StoreMarker) -> Result<StoreReceipt, StoreRefusal> {
+        // 1. Validate BEFORE any mutation (typed refusal, no state change).
+        if let Some(rec) = self.recovery {
+            return Err(StoreRefusal::UndoInterruptedPending { target_len: rec.target_len });
+        }
+        if marker.journal_len > self.journal.len() {
+            return Err(StoreRefusal::RollbackPastGenesis {
+                journal_len: self.journal.len(),
+                marker: marker.journal_len,
+            });
+        }
+        // 2. Write the RECOVERY journal entry BEFORE any deletion.
+        let target = marker.journal_len;
+        self.recovery = Some(RecoveryEntry { target_len: target });
+        // 3. Perform the undo (uninterruptible in this impl: the entry
+        //    population is in-memory; the recovery record guarantees a
+        //    crashed process replays to the same completion).
+        let receipt = self.complete_pending_undo();
+        Ok(receipt)
+    }
+
+    /// Drive the pending undo to completion and clear the recovery record.
+    /// Idempotent over the recovery record: replays exactly until
+    /// `journal.len() == target_len`.
+    fn complete_pending_undo(&mut self) -> StoreReceipt {
+        let rec = self.recovery.expect("caller ensures a pending recovery");
+        let mut undone = 0usize;
+        while self.journal.len() > rec.target_len {
+            let key = self.journal.pop().expect("journal length checked above");
+            self.entries.remove(&key);
+            undone += 1;
+        }
+        self.recovery = None;
+        StoreReceipt {
+            operation: "undo_to_fork".to_string(),
+            fork_marker: StoreMarker { journal_len: rec.target_len },
+            entries_undone: undone,
+            post_root: self.root_digest(),
+        }
+    }
+
+    /// CRASH SIMULATION SURFACE (the recovery path under test): behaves like
+    /// [`InMemoryStore::undo_to_fork_impl`] but "crashes" after exactly
+    /// `crash_after` deletions — the recovery record stays written, the undo
+    /// is left unfinished, and no receipt is produced. `Ok(None)` models the
+    /// interrupted process; [`InMemoryStore::recover_interrupted_undo`]
+    /// replays to the fork-point state.
+    pub fn undo_to_fork_interruptible(
+        &mut self,
+        marker: StoreMarker,
+        crash_after: usize,
+    ) -> Result<Option<StoreReceipt>, StoreRefusal> {
+        // Same pre-mutation validation as the atomic primitive.
+        if let Some(rec) = self.recovery {
+            return Err(StoreRefusal::UndoInterruptedPending { target_len: rec.target_len });
+        }
+        if marker.journal_len > self.journal.len() {
+            return Err(StoreRefusal::RollbackPastGenesis {
+                journal_len: self.journal.len(),
+                marker: marker.journal_len,
+            });
+        }
+        let target = marker.journal_len;
+        // RECOVERY ENTRY FIRST — before any deletion.
+        self.recovery = Some(RecoveryEntry { target_len: target });
+        let mut deleted = 0usize;
+        while self.journal.len() > target && deleted < crash_after {
+            let key = self.journal.pop().expect("journal length checked above");
+            self.entries.remove(&key);
+            deleted += 1;
+        }
+        if self.journal.len() > target {
+            // Simulated crash mid-undo: recovery record persists, no receipt.
+            return Ok(None);
+        }
+        Ok(Some(self.complete_pending_undo()))
+    }
+
+    /// Recovery path: replay an interrupted undo to completion. Returns
+    /// `Ok(None)` when no undo is pending (recovery is a no-op, not an
+    /// error); `Ok(Some(receipt))` with the SAME receipt a non-interrupted
+    /// undo would have produced when one was pending.
+    pub fn recover_interrupted_undo(&mut self) -> Result<Option<StoreReceipt>, StoreRefusal> {
+        match self.recovery {
+            None => Ok(None),
+            Some(_) => Ok(Some(self.complete_pending_undo())),
+        }
     }
 }
 
@@ -274,6 +434,10 @@ impl ContentStore for InMemoryStore {
             self.entries.remove(&key);
         }
         Ok(())
+    }
+
+    fn undo_to_fork(&mut self, marker: StoreMarker) -> Result<StoreReceipt, StoreRefusal> {
+        self.undo_to_fork_impl(marker)
     }
 
     fn root_digest(&self) -> [u8; 32] {
@@ -365,6 +529,183 @@ mod tests {
             err,
             StoreRefusal::RollbackPastGenesis { journal_len: 1, marker: 99 }
         );
+    }
+
+    /// Court: atomic undo to a fork marker — 10-block deep reorg in ONE
+    /// operation, ONE receipt, state restored exactly to the fork point.
+    #[test]
+    fn undo_to_fork_deep_reorg_atomic() {
+        let mut store = InMemoryStore::new();
+        let genesis_keys: Vec<[u8; 32]> = (0..10)
+            .map(|i| store.put(format!("genesis-block-{}", i).as_bytes()))
+            .collect();
+        let fork = store.mark();
+        let fork_root = store.root_digest();
+
+        // Deep reorg: 10 post-fork blocks of entries.
+        let mut post_keys = Vec::new();
+        for b in 0..10 {
+            for i in 0..10 {
+                post_keys.push(store.put(format!("fork-block-{}-entry-{}", b, i).as_bytes()));
+            }
+        }
+        assert_eq!(store.len(), 110);
+
+        let receipt = store.undo_to_fork(fork).expect("atomic undo");
+        assert_eq!(receipt.operation, "undo_to_fork");
+        assert_eq!(receipt.fork_marker, fork);
+        assert_eq!(receipt.entries_undone, 100);
+        assert_eq!(receipt.post_root, fork_root, "receipt root = fork-point root");
+        assert_eq!(store.root_digest(), fork_root, "store restored to fork point");
+        assert_eq!(store.len(), 10);
+        for key in &genesis_keys {
+            assert!(store.contains(key), "genesis entry survives");
+        }
+        for key in &post_keys {
+            assert!(!store.contains(key), "post-fork entry undone");
+        }
+        assert!(
+            !store.has_interrupted_undo(),
+            "completed undo must clear the recovery record"
+        );
+    }
+
+    /// Court: undo to a foreign (past-genesis) marker refuses typed, BEFORE
+    /// any mutation — no recovery record is written and no entry is removed.
+    #[test]
+    fn undo_past_genesis_refuses_before_mutation() {
+        let mut store = InMemoryStore::new();
+        store.put(b"solo");
+        let err = store
+            .undo_to_fork(StoreMarker { journal_len: 99 })
+            .expect_err("past-genesis undo must refuse");
+        assert_eq!(
+            err,
+            StoreRefusal::RollbackPastGenesis { journal_len: 1, marker: 99 }
+        );
+        assert_eq!(store.len(), 1, "refused undo must not mutate");
+        assert!(!store.has_interrupted_undo(), "no recovery record on refusal");
+    }
+
+    /// Court: a NEW undo while one is pending recovery refuses typed —
+    /// undos never interleave.
+    #[test]
+    fn undo_while_pending_refuses() {
+        let mut store = InMemoryStore::new();
+        store.put(b"g");
+        let fork = store.mark();
+        store.put(b"post");
+        store
+            .undo_to_fork_interruptible(fork, 0)
+            .expect("crash before first deletion");
+        assert!(store.has_interrupted_undo());
+        let err = store
+            .undo_to_fork(fork)
+            .expect_err("interleaved undo must refuse");
+        assert_eq!(err, StoreRefusal::UndoInterruptedPending { target_len: fork_len(&fork) });
+        assert_eq!(store.len(), 2, "refused undo must not mutate");
+        // Helper-free close: target_len asserted via pending_undo_target.
+        assert_eq!(store.pending_undo_target(), Some(fork_len(&fork)));
+    }
+
+    /// Court (×100): deep reorg (10 blocks) with a mid-undo crash at EVERY
+    /// crash point recovers EXACTLY to the fork-point state — same root
+    /// digest, same length, same membership — as the non-interrupted undo.
+    #[test]
+    fn undo_crash_recovery_100_iterations() {
+        let n_blocks = 10;
+        for iteration in 0..100 {
+            let mut store = InMemoryStore::new();
+            for i in 0..10 {
+                store.put(format!("g-{}-{}", iteration, i).as_bytes());
+            }
+            let fork = store.mark();
+            let fork_root = store.root_digest();
+            let fork_len = store.len();
+
+            for b in 0..n_blocks {
+                for i in 0..10 {
+                    store.put(format!("p-{}-{}-{}", iteration, b, i).as_bytes());
+                }
+            }
+            assert_eq!(store.len(), fork_len + 100);
+
+            // Mid-undo crash: crash point cycles through every deletion
+            // position, including 0 (before the first deletion).
+            let crash_after = iteration % (n_blocks * 10);
+            let crashed = store
+                .undo_to_fork_interruptible(fork, crash_after)
+                .expect("interruptible undo validates");
+            assert!(crashed.is_none(), "crash at {} must produce no receipt", crash_after);
+            assert!(store.has_interrupted_undo(), "recovery record persists past crash");
+
+            // Recovery path replays to completion.
+            let receipt = store
+                .recover_interrupted_undo()
+                .expect("recovery succeeds")
+                .expect("a pending undo yields a receipt");
+            assert_eq!(receipt.entries_undone, 100 - crash_after.min(100));
+            assert_eq!(receipt.fork_marker, fork);
+            assert_eq!(receipt.post_root, fork_root);
+            assert_eq!(store.root_digest(), fork_root, "iteration {}", iteration);
+            assert_eq!(store.len(), fork_len, "iteration {}", iteration);
+            assert!(!store.has_interrupted_undo(), "recovery clears the record");
+
+            // Membership: every genesis key present, every post-fork key gone.
+            for i in 0..10 {
+                assert!(
+                    store.contains(&sha256(format!("g-{}-{}", iteration, i).as_bytes())),
+                    "iteration {} genesis {}",
+                    iteration,
+                    i
+                );
+            }
+            for b in 0..n_blocks {
+                for i in 0..10 {
+                    assert!(
+                        !store.contains(&sha256(format!("p-{}-{}-{}", iteration, b, i).as_bytes())),
+                        "iteration {} post {}-{}",
+                        iteration,
+                        b,
+                        i
+                    );
+                }
+            }
+        }
+    }
+
+    /// Court: recovery with no pending undo is a typed no-op (Ok(None)), and
+    /// the receipt from recovery equals the receipt a clean undo returns.
+    #[test]
+    fn recovery_noop_and_receipt_parity() {
+        let mut clean = InMemoryStore::new();
+        clean.put(b"genesis");
+        let fork = clean.mark();
+        clean.put(b"post");
+        let clean_receipt = clean.undo_to_fork(fork).expect("clean undo");
+
+        let mut crashed = InMemoryStore::new();
+        assert_eq!(
+            crashed.recover_interrupted_undo().expect("no pending"),
+            None,
+            "recovery without a pending undo is a no-op"
+        );
+        crashed.put(b"genesis");
+        crashed.put(b"post");
+        crashed
+            .undo_to_fork_interruptible(fork, 0)
+            .expect("crash");
+        let recovered = crashed
+            .recover_interrupted_undo()
+            .expect("recovery")
+            .expect("pending yields receipt");
+        assert_eq!(recovered, clean_receipt, "recovered receipt = clean receipt");
+        assert_eq!(crashed.len(), clean.len());
+    }
+
+    /// Journal length of a marker (test-local accessor).
+    fn fork_len(m: &StoreMarker) -> usize {
+        m.journal_len
     }
 
     /// Court: capacity bound refuses at the limit (typed valve surface).
