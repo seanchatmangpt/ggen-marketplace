@@ -33,3 +33,21 @@ Authority: SELECT/CONSTRUCT fence — packs project code, never grant DO.
 S1–S8 landed + S9 adversarial-clean + S10 audit receipt: a node that
 validates, stores, and gossips blocks with PoW consensus — still a
 reference implementation, explicitly not a production network.
+
+## S5/S8 precondition outcome — unibit/universe-chain reuse evaluation (2026-10-13)
+
+Evaluated `/Users/sac/unibit` (30-crate BUSL-1.1 workspace, no_std kernel,
+50 tests — genuine admission/commit/receipt-chaining LAW, but bit-level
+primitives, not blockchain) and `/Users/sac/universe-chain` (198-line
+uncommitted sketch with a vacuous admission gate — do not build on it).
+
+Verdicts: **S2/S4 REUSE-ADAPTED via ontology projection only** — extract the
+invariants (zero-denial-admitted polarity, masked commit law, receipt
+chaining) into strata RDF and regenerate; BUSL-1.1 + `publish = false`
+forbids code vendoring. **S5 REUSE-ADAPTED for the gate law, greenfield for
+header/chain logic. S6, S8 GREENFIELD** (no storage, nonce, difficulty, or
+fork-choice code exists anywhere; `unibit-l1` "TruthBlock" is a memory
+region, not a blockchain block — name-collision hazard to document).
+
+Integration story: fresh ontology projection FROM unibit's small `Copy`
+types; path-dep code reuse only as an unlicensed dev-reference if at all.
