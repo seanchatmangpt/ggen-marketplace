@@ -26,4 +26,12 @@ MainRegister) refused FM-LAW-018. Boolean rendering verified bare
 
 Two-rule `ggen.toml`, `queries/{valves,registers}.rq`, two `.tera`
 templates, two generated outputs — new this wave; double-sync
-byte-identical.
+byte-identical. S21 repair: `templates/registers.rs.tera` now emits
+`use super::valves::WitnessValve;` (sibling-module import, one-line
+family comment). Witness receipt: `ggen sync run` x2 byte-identical
+(sha256 `3144bb4d7d224ce9bb8369cb30cfe54a77129ca743b97f20166606a15f33f6bc`);
+joint-crate rustc --edition 2021 compile of generated
+`valves.rs`+`registers.rs` as sibling modules passes and the admit()
+witness binary prints `ADMIT_OK register=main values=["t0"]`
+(valve `VALVE_DEFAULT`, register const `MAIN_NAME`). S16 audit defect
+(standalone rustc `cannot find type WitnessValve`) closed.
