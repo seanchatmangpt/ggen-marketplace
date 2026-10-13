@@ -55,7 +55,7 @@ artifacts plus `drafts.jsonl`, `standing-table.tsv`, `CHAIN-HEAD.txt`, `OSXCLNR-
 | STRATA-NAMESPACE-MAP.md | migration prep | LANDED | old→new IRI map, lockstep checklist |
 | `STRATA-HARDENING-1.md` | Work order + wave receipt, strata hardening wave spine (items P1/P7/P18 landed; status LANDED, 2026-10-13) | strata work order |
 | STRATA-DRIFT-NOTES.md | drift flags | LANDED | standing.md / PACK-INDEX stale pins flagged |
-| SYNC-WAVE-RECEIPT.md | wave receipt | PARTIAL | sync table filled at wave close |
+| SYNC-WAVE-RECEIPT.md | wave receipt | FILLED + BLOCKED | results filled 2026-10-13 (77 records); canonical court BLOCKED:ggen-pin-26.8.11 |
 
 ## Big four cross-links
 

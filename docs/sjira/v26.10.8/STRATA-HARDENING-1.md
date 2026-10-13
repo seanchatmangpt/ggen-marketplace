@@ -55,7 +55,7 @@ Per-item `STRATA-<n>-CLOSE.md` per `PACK_FEEDBACK-425-CLOSE.md` shape (Item / St
 
 - **Branch**: `strata-hardening-wave`, 33 commits ahead of `main`
   (`git log --oneline main..HEAD | wc -l`); final HEAD
-  `fdd4df201542ad3c3eaa1c022c9117cd8c115372`.
+  `e5c3a4a99 (branch final; figures pinned as of fdd4df201)`.
 - **Validate**: 315/315 packs, 315 manifests, 520 ontologies, 1852 templates,
   1880 native_gates, 21 verifier_gates; profiles project=108, projection=161,
   semantic=46; diataxis=20 — current as of `fdd4df201`.
