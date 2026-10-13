@@ -108,6 +108,42 @@ Each of the 7 strata packs ships a committed `witness.ttl` and `verify.py`:
 - The frozen-court qualification boundary (`BLOCKED:ggen-pin-26.8.11`) is
   documented in `docs/sjira/v26.10.8/SYNC-WAVE-RECEIPT.md`.
 
+## Blockchain capability family (S1-S8)
+
+Landed 2026-10-13, roadmap slices S1-S8 of
+[../sjira/v26.10.8/STRATA-BLOCKCHAIN-ROADMAP.md](../sjira/v26.10.8/STRATA-BLOCKCHAIN-ROADMAP.md):
+
+- `strata-hash-pack` (S1) — SHA-256 (FIPS 180-4, vector-verified) + Merkle
+  tree (root + inclusion proofs) over 32-byte digests, property-tested;
+  projects hash constants and a self-contained Rust implementation.
+- `strata-tx-pack` (S2) — framed wire transaction model over CLAP-PDU
+  conventions with replay guard; tx digest is an FNV-1a stand-in until the S3
+  hash binding.
+- `strata-chain-pack` (S5) — block header with parent-hash chaining over tx
+  Merkle commits, chain-validity law (height continuity, parent-hash binding,
+  tx cap, duplicate-tx refusal, monotonic timestamp slot, deterministic PoW),
+  and deterministic fork choice; gate law REUSE-ADAPTED from unibit-kernel via
+  ontology projection only.
+- `strata-ledger-pack` (S4) — account-based conservation state machine
+  (credit/debit conservation, double-spend refusal valve, overflow refusal,
+  receipt chaining); REUSE-ADAPTED from unibit-kernel via ontology projection
+  only; ships `witness.ttl` + `verify.py`.
+- `strata-store-pack` (S6) — content-addressed storage (`ContentStore` trait)
+  keyed by inline SHA-256 with marker journal rollback and typed
+  capacity/rollback refusals; greenfield; ships `witness.ttl` + `verify.py`.
+- `strata-net-pack` (S7) — CLAP-PDU message framing + mempool over the tx
+  layer; mid-flight at wave close (gates/queries/templates landed, readiness
+  witness pending).
+- `strata-consensus-pack` (S8) — heaviest-chain fork choice over the chain
+  layer's block shapes as the PN64-style transition lattice with consensus
+  constants; mid-flight at wave close (only `pack.toml` landed).
+
+Authority fence: all seven packs are observation/projection surface ONLY —
+they manufacture constants, models, and self-contained Rust reference
+implementations from RDF; none of them validates a live network, reaches
+consensus, or holds value. Signing, key custody, and any actuation over a
+real chain remain out of scope and with the consumer.
+
 ## Regeneration
 
 Regenerate with `ggen sync run` from each pack directory; see
