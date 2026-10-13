@@ -265,3 +265,30 @@ KILLED entries stay killed.
 68. **audit corpus 14 attacks** — includes GgenUnionBindingLeak
     OPEN-UPSTREAM and WasmNonReproducibleBuild OPEN (engine lanes
     in flight; cf. #55).
+
+## Integration wave 7 — 2026-10-14
+
+69. **mempool admission composition law (b3c8360cd)** — NECESSARY
+    NOT SUFFICIENT for ledger admission, encoded as RDF with both
+    gate citations + Lean provenance; fail-closed gate with
+    mutation non-vacuity.
+70. **BLAKE3 tx digest (320833d12)** — full multi-chunk port;
+    pinned frame KAT `54ee6f3c...` vs b3sum; family determinism
+    courts strengthened (20/20, +3 DRIFT_GUARDED).
+71. **fleet gates all green (L140)** — 11/11 scope packs ALIVE;
+    fresh fingerprint `88b64511...`; standing.md regenerated
+    (326 packs); airo canary 326/540 (df8f8cb50).
+72. **erlmcp honesty (L88, L121, L131)** — harness triage:
+    export fix 206→201; ~250 tests target an API never
+    implemented — build-out not repair, classified; 202 .broken
+    files untracked (ERR-C); main-tree delta FLAT 256 failures,
+    F18 zero regressions.
+73. **graphlaw stable toolchain (05cfa6a) + pin re-sweep
+    (003f73d)** — gate-engine differential court landed (3/3);
+    tx fixture refresh in flight.
+74. **Lean witness pipeline E2E (cece0148fd + castle 25ee42e)** —
+    5 theorems → lean-witness/v1 JSONL → Replayed EvidenceInput;
+    axiom footprints from `#print axioms`, never hardcoded.
+75. **beam4pm receipt chain verified (31f75a51)** — 79/79 tips
+    exact, 8/8 chains full-verify, 70 gap-incomplete honestly
+    classified.
