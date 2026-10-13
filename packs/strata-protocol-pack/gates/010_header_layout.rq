@@ -1,13 +1,16 @@
 # MESSAGE: header offset abutment chain violated — each field's _OFFSET + _LEN
 # must equal the next field's _OFFSET; the last must end at PDU_HEADER_LEN (64);
 # MAGIC_OFFSET must be 0; PDU_HEADER_LEN must be 64; all _OFFSET values must be
-# pairwise distinct. Any row indicates a broken wire layout.
+# pairwise distinct; AND all 23 required FrameConstant labels must be present
+# with a pdu:value (fail-closed: omitting a label from ontology.ttl yields a
+# missing_constant violation, never a silently dropped branch/constant).
+# Any row indicates a broken wire layout.
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX pdu:  <https://strata.chatman.ai/ontology/pdu#>
 
-SELECT DISTINCT (COALESCE(?f1,?f2,?f3,?f4,?f5,?f6,?f7,?f8,?f9,?f10,?f11,?f12) AS ?field)
-       (COALESCE(?p1,?p2,?p3,?p4,?p5,?p6,?p7,?p8,?p9,?p10,?p11,?p12) AS ?problem)
+SELECT DISTINCT (COALESCE(?f1,?f2,?f3,?f4,?f5,?f6,?f7,?f8,?f9,?f10,?f11,?f12,?f13) AS ?field)
+       (COALESCE(?p1,?p2,?p3,?p4,?p5,?p6,?p7,?p8,?p9,?p10,?p11,?p12,?p13) AS ?problem)
        ?offA ?offB WHERE {
   {
     FILTER(xsd:integer(?magicOff) != 0)
@@ -89,6 +92,27 @@ SELECT DISTINCT (COALESCE(?f1,?f2,?f3,?f4,?f5,?f6,?f7,?f8,?f9,?f10,?f11,?f12) AS
     BIND("OFFSET-COLLISION" AS ?f12)
     BIND(CONCAT(STR(?la), " collides with ", STR(?lb), " at byte ", STR(?val)) AS ?p12)
     BIND(?val AS ?offA) BIND(?val AS ?offB)
+  } UNION {
+    # Fail-closed presence check: every required FrameConstant label must exist
+    # in the graph with a pdu:value. If a label is deleted from ontology.ttl,
+    # this branch fires for it instead of the layout logic silently skipping it.
+    VALUES ?reqLabel {
+      "PDU_MAGIC" "PDU_VERSION" "PDU_HEADER_LEN" "PDU_PERMUTATION_MAX"
+      "MAGIC_OFFSET" "MAGIC_LEN"
+      "VERSION_OFFSET" "VERSION_LEN"
+      "PERMUTATION_OFFSET" "PERMUTATION_LEN"
+      "RESERVED_OFFSET" "RESERVED_LEN"
+      "EPOCH_NONCE_OFFSET" "EPOCH_NONCE_LEN"
+      "FUEL_LEASE_OFFSET" "FUEL_LEASE_LEN"
+      "PARENT_RECEIPT_DIGEST_OFFSET" "PARENT_RECEIPT_DIGEST_LEN"
+      "HISTORY_QUAD_COUNT_OFFSET" "HISTORY_QUAD_COUNT_LEN"
+      "CANDIDATE_QUAD_COUNT_OFFSET" "CANDIDATE_QUAD_COUNT_LEN"
+      "REFUSAL_RECEIPT_LEN"
+    }
+    FILTER NOT EXISTS { ?anyConst rdfs:label ?reqLabel ; pdu:value ?anyVal }
+    BIND(CONCAT("CONSTANT-PRESENCE: ", STR(?reqLabel)) AS ?f13)
+    BIND(CONCAT("missing_constant: no FrameConstant with rdfs:label ", STR(?reqLabel), " carrying pdu:value") AS ?p13)
+    BIND(STR(?reqLabel) AS ?offA) BIND("absent" AS ?offB)
   }
 }
 ORDER BY ?field ?problem

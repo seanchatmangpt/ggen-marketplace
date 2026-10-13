@@ -53,7 +53,10 @@ a `// REFUSED: empty ontology projection` comment instead of a table.
   imprecision are documented in the query header. Expected hits on the
   canonical six: opcodes `0x05` and `0x06` (the deliberately terminal
   states); hits are exempted from the deadlock gate via `TERMINALS`, not
-  silent.
+  silent. Literal width is enforced upstream by
+  `../gates/020_transition_pre_nonzero.rq` (4-hex mask / 2-hex opcode
+  regex arms, landed 2026-10-13); this query's SUBSTR arithmetic assumes
+  that enforced width and under-fires silently without it.
 
 ## Validation status
 

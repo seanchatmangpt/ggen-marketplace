@@ -9,7 +9,7 @@ PN64/OCEL64 dual-word ABI for Strata: one Petri-net transition per 64-bit word (
 ## Capability surface
 
 ```bash
-$ ggen pack capabilities strata-pn64-pack
+$ sed -n '/[capabilities]/,/\[/p' packs/strata-pn64-pack/pack.toml
 ```
 
 ## Evidence boundary

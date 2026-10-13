@@ -15,14 +15,14 @@
 | # | Item | Batch | Key falsifier |
 |---|---|---|---|
 | P1 | FM-PACK-014: delete `[dependencies]` ×5, a2a-durability comment | 1 | REFUSED→ALIVE flip |
-| P7 | Delete dead `clap_frame.rs.tmpl` | 1 | templates 1852→1851 |
+| P7 | Delete dead `clap_frame.rs.tmpl` | 1 | templates 1852→1851 (at deletion time; later in-wave template additions returned the count to 1852) |
 | P18 | Ontology hygiene ×3 packs (declare classes, delete dead vocab, verbOpcode, drop pn: alias) | 1 | sync output byte-identical |
 | P9 | v1→v2 manifest migration ×4 packs (temprun→signer→stratus→cas) | 2 | first sync mints output, court ALIVE |
 | P6 | Valve `@receipt_len` runtime fix (template + regenerate) | 2 | elixirc 0 warnings, refuse/1 32 bytes |
 | P8 | pn64 fire-law equivalence court + ontology.ttl:100 comment | 2 | new test passes, 5 existing pass |
 | P14 | pn64 first sync + commit `generated/pn64_masks.rs` (after P8) | 2 | mint-once, double-sync identical |
 | P16 | wire projection rule + valve 32-byte cross-graph gate (Python union-graph court) | 2 | positive/negative witnesses |
-| P2 | 13 violation-row gates across 7 packs (after P9; temprun needs `st:admissionFuel 3`) | 3 | sync exit 0; mutated-copy refusal |
+| P2 | 12 violation-row gates across 7 packs (after P9; temprun needs `st:admissionFuel 3`) | 3 | sync exit 0; mutated-copy refusal |
 | P15 | Sync schedule all 7 + `ggen receipt history/verify` per pack | 3 | chains valid, double-sync identical |
 | P12 | `tests/test_strata_family_pack.py` 5 courts + sabotage twins | 3 | twins prove courts can fail |
 | P13 | CI `strata-packs-court` (`qualify_packs_r18.py --pack` + courts.json + court sh) | 3 | ci_plan dry-run selects it |
@@ -50,3 +50,18 @@ admit-config → validate → catalog cmp (branch vs main) → fingerprint delta
 ## Closure format
 
 Per-item `STRATA-<n>-CLOSE.md` per `PACK_FEEDBACK-425-CLOSE.md` shape (Item / Status / Fixing commit / Fix shape / Witnesses / Consumer consequence); `RECEIPT-INDEX.md` rows kept equal to dir contents.
+
+## Final Status (T19 closeout, 2026-10-12)
+
+- **Branch**: `strata-hardening-wave`, 19 commits ahead of `main`
+  (`git log --oneline main..HEAD | wc -l`).
+- **Validate**: 315/315 packs, 315 manifests, 520 ontologies, 1852 templates,
+  1880 native_gates, 21 verifier_gates; profiles project=108, projection=161,
+  semantic=46; diataxis=20.
+- **Fingerprint**: `sha256:9fd0bc06468404eb474c8fe01e1eb9f7abe0aa33a3ada0d617d7a6ad8fcf3703`
+  (15760 files).
+- **Court**: final court 7/7 strata ALIVE — see closeout
+  (`/tmp/t9-final.json` not present at closeout; receipt retained via
+  `/tmp/wave-p5-qual.json` citation above).
+- **Saturation**: pending T-wave (not yet reached; full-wave zero-defect pass
+  required per [[entropic-annealing-doctrine]] §3).

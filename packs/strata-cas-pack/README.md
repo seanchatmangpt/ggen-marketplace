@@ -9,7 +9,7 @@ Content-addressed storage for Strata: Merkle commits, knowledge wormholes (addre
 ## Capability surface
 
 ```bash
-$ ggen pack capabilities strata-cas-pack
+$ sed -n '/[capabilities]/,/\[/p' packs/strata-cas-pack/pack.toml
 ```
 
 ## Evidence boundary

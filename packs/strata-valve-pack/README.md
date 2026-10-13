@@ -9,7 +9,7 @@ Strata valve refusal taxonomy (constant-time, opaque, fail-closed) projected fro
 ## Capability surface
 
 ```bash
-$ ggen pack capabilities strata-valve-pack
+$ sed -n '/[capabilities]/,/\[/p' packs/strata-valve-pack/pack.toml
 ```
 
 ## Evidence boundary

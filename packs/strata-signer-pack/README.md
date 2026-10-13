@@ -9,7 +9,7 @@ Detached-signature attestation for Strata: attestation keys and detached signatu
 ## Capability surface
 
 ```bash
-$ ggen pack capabilities strata-signer-pack
+$ sed -n '/[capabilities]/,/\[/p' packs/strata-signer-pack/pack.toml
 ```
 
 ## Evidence boundary

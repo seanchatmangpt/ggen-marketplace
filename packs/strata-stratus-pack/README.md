@@ -9,7 +9,7 @@ Stratus witnessing layer for Strata: witness valves that gate state-register tra
 ## Capability surface
 
 ```bash
-$ ggen pack capabilities strata-stratus-pack
+$ sed -n '/[capabilities]/,/\[/p' packs/strata-stratus-pack/pack.toml
 ```
 
 ## Evidence boundary
