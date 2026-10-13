@@ -15,8 +15,8 @@ ERRC pass over the X5 candidate 1 construction (2026-10-13 session).
 
 ## Reduce
 
-- **One ontology, one rule, one artifact**: 4 sealed constants x 4
-  projections reduce to 4 diff rows; the law reduces to string equality
+- **One ontology, one rule, one artifact**: 13 sealed constants x 13
+  projections reduce to 13 diff rows; the law reduces to string equality
   over the sealed/projected lexical forms plus bidirectional coverage.
 - **Gate 020 reuses the family V7 pattern** (presence + malformed arms)
   instead of a new gate shape.

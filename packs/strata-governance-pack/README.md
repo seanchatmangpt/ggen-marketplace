@@ -51,11 +51,14 @@ python3 verify.py
 ## Verification ladder (receipted this session)
 
 1. `ggen sync run` x2 -> byte-identical `generated/governance_report.rs`
-   (sha256 `255ac82f…`).
-2. `rustc --test` — 3/3 tests pass: `constitution_holds` (9 rows, all
+   (sha256 `ffd012b4…`).
+2. `rustc --test` — 5/5 tests pass: `constitution_holds` (13 rows, all
    MATCH, `verify_constitution() == Ok(())`), `seal_digests_rederive`
-   (all nine SHA-256 seals re-derive under the module's own FIPS 180-4
-   SHA-256), and `out_of_constitution_edit_refused` (the falsifier).
+   (all thirteen SHA-256 seals re-derive under the module's own FIPS 180-4
+   SHA-256), `out_of_constitution_edit_refused` (the original falsifier),
+   `law_surface_drift_refused` (L166: downgrading the sealed
+   MEMPOOL_LEDGER_ADMISSION law is refused citing `MempoolLedgerAdmission`),
+   and `sabotage_twin_unframed_seal_digest_is_caught` (L124).
 3. Gates zero-rows via rdflib (`verify.py`):
    010 constitutional-diff 0 rows; 020 commitment closure 0 rows.
 4. FALSIFIER (mutation witness, rdflib): changing the projected
@@ -72,6 +75,6 @@ python3 verify.py
 ## Standing
 
 ALIVE at this subject (sync receipt `.ggen-v2/receipt.json`,
-graph_hash `037c0812…`), witnessed in `witness.ttl`. The seal digest is
+graph_hash `8e39a656…`), witnessed in `witness.ttl`. The seal digest is
 tamper-evident: any edit to a sealed value breaks its SHA-256 re-derivation
 in the generated test as well as the gate diff.

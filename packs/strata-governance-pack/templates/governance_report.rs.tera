@@ -85,7 +85,7 @@ mod tests {
     /// constitution, zero drift rows.
     #[test]
     fn constitution_holds() {
-        assert_eq!(DIFF_TABLE.len(), 9, "nine sealed constants expected");
+        assert_eq!(DIFF_TABLE.len(), 13, "thirteen sealed constants expected");
         assert!(DIFF_TABLE.iter().all(|r| r.status == "MATCH"));
         assert_eq!(verify_constitution(), Ok(()));
     }
@@ -124,6 +124,32 @@ mod tests {
         assert_eq!(err.constant, "INITIAL_DIFFICULTY_TARGET");
         assert_eq!(err.sealed, "12");
         assert_eq!(err.projected, "13");
+    }
+
+    /// DRIFT NEGATIVE on a NEW surface (L166): mutating a sealed LAW —
+    /// the MEMPOOL_LEDGER_ADMISSION composition law downgraded from
+    /// NECESSARY_NOT_SUFFICIENT to a bare-sufficient claim — must be
+    /// REFUSED with a drift citing the MempoolLedgerAdmission commitment.
+    #[test]
+    fn law_surface_drift_refused() {
+        let idx = DIFF_TABLE
+            .iter()
+            .position(|r| r.constant == "MEMPOOL_LEDGER_ADMISSION")
+            .expect("MEMPOOL_LEDGER_ADMISSION must be in the sealed table");
+        assert_eq!(DIFF_TABLE[idx].sealed, "NECESSARY_NOT_SUFFICIENT");
+        let drifted = ConstantDiffRow {
+            projected: "SUFFICIENT", // mutation: law downgraded to sufficient
+            status: "DRIFT",
+            ..DIFF_TABLE[idx].clone()
+        };
+        let err = verify_row(&drifted).expect_err("law-surface drift must be refused");
+        assert_eq!(
+            err.commitment, "MempoolLedgerAdmission",
+            "violation must cite the law commitment"
+        );
+        assert_eq!(err.constant, "MEMPOOL_LEDGER_ADMISSION");
+        assert_eq!(err.sealed, "NECESSARY_NOT_SUFFICIENT");
+        assert_eq!(err.projected, "SUFFICIENT");
     }
 
     fn verify_row(row: &ConstantDiffRow) -> Result<(), ConstitutionalDrift> {

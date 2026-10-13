@@ -120,6 +120,16 @@ pub const DIFF_TABLE: &[ConstantDiffRow] = &[
     },
 
     ConstantDiffRow {
+        commitment: "MempoolLedgerAdmission",
+        constant: "MEMPOOL_LEDGER_ADMISSION",
+        sealed: "NECESSARY_NOT_SUFFICIENT",
+        projected: "NECESSARY_NOT_SUFFICIENT",
+        status: "MATCH",
+        sealed_digest: "bca396caab471ea435fe14c61a54e2ed8c17d5a5a49f2759e8e5f557d8b64864",
+        subject: "strata-net-pack CompositionLaw MEMPOOL_LEDGER_ADMISSION (admissibility class)",
+    },
+
+    ConstantDiffRow {
         commitment: "NetRateLimits",
         constant: "ECLIPSE_SUBNET_CAP",
         sealed: "8",
@@ -137,6 +147,36 @@ pub const DIFF_TABLE: &[ConstantDiffRow] = &[
         status: "MATCH",
         sealed_digest: "5feb70397e7dc776db6e01eebeb371ccc4b6793c5c7ea33821aabe4ec19cf05e",
         subject: "strata-net-pack NET_CONSTANTS (rate limits)",
+    },
+
+    ConstantDiffRow {
+        commitment: "SharedKatHead",
+        constant: "SHARED_KAT_HEAD",
+        sealed: "05ea1aa096f45968aacb2c996d2b541e4b9fdef24f006e0204e1fa88d33f68a5",
+        projected: "05ea1aa096f45968aacb2c996d2b541e4b9fdef24f006e0204e1fa88d33f68a5",
+        status: "MATCH",
+        sealed_digest: "af30eeba40e34af97af948633764be961997becaf29356bd18b4c19462ff3c69",
+        subject: "strata-chain-pack witness sharedKatHead (cross-repo KAT pin)",
+    },
+
+    ConstantDiffRow {
+        commitment: "TxDigestLaw",
+        constant: "PAYLOAD_DIGEST_ALG",
+        sealed: "BLAKE3-256",
+        projected: "BLAKE3-256",
+        status: "MATCH",
+        sealed_digest: "296456125acf49aaabb8a72c8d160c37918472e734a23720c1f4f0cebb3452c2",
+        subject: "strata-tx-pack TX_FRAME_CONSTANTS (payload digest law)",
+    },
+
+    ConstantDiffRow {
+        commitment: "TxDigestLaw",
+        constant: "PAYLOAD_DIGEST_OFFSET",
+        sealed: "24",
+        projected: "24",
+        status: "MATCH",
+        sealed_digest: "f41bf9f68f342bee774f090579464f24bd8f16b9e8aac7828308b8f6f09a2cc4",
+        subject: "strata-tx-pack TX_FRAME_CONSTANTS (payload digest law)",
     },
 
 ];
@@ -165,7 +205,7 @@ mod tests {
     /// constitution, zero drift rows.
     #[test]
     fn constitution_holds() {
-        assert_eq!(DIFF_TABLE.len(), 9, "nine sealed constants expected");
+        assert_eq!(DIFF_TABLE.len(), 13, "thirteen sealed constants expected");
         assert!(DIFF_TABLE.iter().all(|r| r.status == "MATCH"));
         assert_eq!(verify_constitution(), Ok(()));
     }
@@ -204,6 +244,32 @@ mod tests {
         assert_eq!(err.constant, "INITIAL_DIFFICULTY_TARGET");
         assert_eq!(err.sealed, "12");
         assert_eq!(err.projected, "13");
+    }
+
+    /// DRIFT NEGATIVE on a NEW surface (L166): mutating a sealed LAW —
+    /// the MEMPOOL_LEDGER_ADMISSION composition law downgraded from
+    /// NECESSARY_NOT_SUFFICIENT to a bare-sufficient claim — must be
+    /// REFUSED with a drift citing the MempoolLedgerAdmission commitment.
+    #[test]
+    fn law_surface_drift_refused() {
+        let idx = DIFF_TABLE
+            .iter()
+            .position(|r| r.constant == "MEMPOOL_LEDGER_ADMISSION")
+            .expect("MEMPOOL_LEDGER_ADMISSION must be in the sealed table");
+        assert_eq!(DIFF_TABLE[idx].sealed, "NECESSARY_NOT_SUFFICIENT");
+        let drifted = ConstantDiffRow {
+            projected: "SUFFICIENT", // mutation: law downgraded to sufficient
+            status: "DRIFT",
+            ..DIFF_TABLE[idx].clone()
+        };
+        let err = verify_row(&drifted).expect_err("law-surface drift must be refused");
+        assert_eq!(
+            err.commitment, "MempoolLedgerAdmission",
+            "violation must cite the law commitment"
+        );
+        assert_eq!(err.constant, "MEMPOOL_LEDGER_ADMISSION");
+        assert_eq!(err.sealed, "NECESSARY_NOT_SUFFICIENT");
+        assert_eq!(err.projected, "SUFFICIENT");
     }
 
     fn verify_row(row: &ConstantDiffRow) -> Result<(), ConstitutionalDrift> {
