@@ -34,4 +34,106 @@ mod tests {
     fn refusal_receipt_is_32_bytes() {
         assert_eq!(REFUSAL_RECEIPT_LEN, 32);
     }
+
+    // ── S2 hardening courts (L77) ────────────────────────────────────
+
+    /// Field layout law: the 8 header fields, as (name, offset, length).
+    /// Fail-closed enumeration: each entry names a generated constant, so
+    /// deleting the field's OFFSET or LEN from the ontology breaks this
+    /// file's compilation instead of silently shrinking the layout.
+    const LAW_FIELDS: [(&str, usize, usize); 9] = [
+        ("MAGIC", MAGIC_OFFSET, MAGIC_LEN),
+        ("VERSION", VERSION_OFFSET, VERSION_LEN),
+        ("PERMUTATION", PERMUTATION_OFFSET, PERMUTATION_LEN),
+        ("RESERVED", RESERVED_OFFSET, RESERVED_LEN),
+        ("EPOCH_NONCE", EPOCH_NONCE_OFFSET, EPOCH_NONCE_LEN),
+        ("FUEL_LEASE", FUEL_LEASE_OFFSET, FUEL_LEASE_LEN),
+        (
+            "PARENT_RECEIPT_DIGEST",
+            PARENT_RECEIPT_DIGEST_OFFSET,
+            PARENT_RECEIPT_DIGEST_LEN,
+        ),
+        ("HISTORY_QUAD_COUNT", HISTORY_QUAD_COUNT_OFFSET, HISTORY_QUAD_COUNT_LEN),
+        ("CANDIDATE_QUAD_COUNT", CANDIDATE_QUAD_COUNT_OFFSET, CANDIDATE_QUAD_COUNT_LEN),
+    ];
+
+    /// Abutment checker over (offset, length) intervals: sorted walk over
+    /// the tiling of [0, header_len). Returns human-readable violations.
+    fn abutment_violations(fields: &[(usize, usize)], header_len: usize) -> Vec<String> {
+        let mut sorted: Vec<(usize, usize)> = fields.to_vec();
+        sorted.sort_unstable();
+        let mut v = Vec::new();
+        let mut cursor = 0usize;
+        for (i, (off, len)) in sorted.iter().enumerate() {
+            if *off != cursor {
+                v.push(format!(
+                    "field {}: [{}, {}) {} [{}..{})",
+                    i, off, off + len,
+                    if *off > cursor { "GAP before" } else { "OVERLAP with" },
+                    cursor, off
+                ));
+            }
+            cursor = off + len;
+        }
+        if cursor != header_len {
+            v.push(format!(
+                "END: fields tile [0, {}) but PDU_HEADER_LEN = {}",
+                cursor, header_len
+            ));
+        }
+        v
+    }
+
+    /// Abutment property: every declared field's [offset, offset+len)
+    /// tiles [0, 64) with no gaps and no overlaps, asserted from the
+    /// ontology-derived constants. Fail-closed enumeration: the law list
+    /// above must name all 9 declared (OFFSET, LEN) constant pairs — a
+    /// dropped field cannot compile past this point.
+    #[test]
+    fn frame_constant_abutment_tiles_header() {
+        assert_eq!(
+            LAW_FIELDS.len(),
+            9,
+            "field-constant enumeration drifted from the ontology law"
+        );
+        let intervals: Vec<(usize, usize)> =
+            LAW_FIELDS.iter().map(|(_, o, l)| (*o, *l)).collect();
+        let v = abutment_violations(&intervals, PDU_HEADER_LEN);
+        assert!(v.is_empty(), "layout law violated: {:?}", v);
+    }
+
+    /// Sabotage twin: the same checker must trip on a mutated constant —
+    /// a widened RESERVED_LEN (2 -> 3) — as well as on synthetic gap and
+    /// overlap layouts. Guards against a vacuous (always-pass) court.
+    #[test]
+    fn sabotage_mutated_constant_trips_abutment() {
+        // Mutated twin of the real layout: RESERVED_LEN 2 -> 3.
+        let mutated: Vec<(usize, usize)> = LAW_FIELDS
+            .iter()
+            .map(|(name, o, l)| {
+                if *name == "RESERVED" {
+                    (*o, l + 1)
+                } else {
+                    (*o, *l)
+                }
+            })
+            .collect();
+        assert!(
+            !abutment_violations(&mutated, PDU_HEADER_LEN).is_empty(),
+            "sabotage twin: widened RESERVED_LEN must trip the abutment checker"
+        );
+        // Gap: drop a field entirely.
+        let gap: Vec<(usize, usize)> = LAW_FIELDS
+            .iter()
+            .filter(|(name, _, _)| *name != "EPOCH_NONCE")
+            .map(|(_, o, l)| (*o, *l))
+            .collect();
+        assert!(!abutment_violations(&gap, PDU_HEADER_LEN).is_empty());
+        // Overlap: shift PARENT_RECEIPT_DIGEST one byte early.
+        let overlap: Vec<(usize, usize)> = LAW_FIELDS
+            .iter()
+            .map(|(name, o, l)| (*o - if *name == "PARENT_RECEIPT_DIGEST" { 1 } else { 0 }, *l))
+            .collect();
+        assert!(!abutment_violations(&overlap, PDU_HEADER_LEN).is_empty());
+    }
 }

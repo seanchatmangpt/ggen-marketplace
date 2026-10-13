@@ -25,4 +25,69 @@ mod tests {
             assert_eq!(len, 32, "{label} must be a 32-byte wire class");
         }
     }
+
+    // ── S2 hardening courts (L77) ────────────────────────────────────
+
+    /// Exhaustive wire-class enum: exactly these two classes, both 32
+    /// bytes. A third class in the ontology fails here (the loop above
+    /// would also fail on any non-32 length).
+    #[test]
+    fn wire_classes_exhaustive_two() {
+        assert_eq!(WIRE_CLASS_LENS.len(), 2, "wire-class enum must stay exhaustive");
+        assert!(
+            WIRE_CLASS_LENS.contains(&("ReceiptDigest", 32)),
+            "ReceiptDigest must be pinned at 32"
+        );
+        assert!(
+            WIRE_CLASS_LENS.contains(&("RefusalReceipt", 32)),
+            "RefusalReceipt must be pinned at 32"
+        );
+    }
+
+    /// The 4-atom refusal taxonomy enum, exhaustive per gates/
+    /// 030_refusal_taxonomy_closure.rq. Fail-closed: removing an atom
+    /// from the ontology fires the gate, and this list is the Rust-side
+    /// mirror asserted against the pinned valve projection.
+    const LAW_REFUSAL_CLASSES: [&str; 4] = [
+        "ArenaFailure",
+        "FuelExhausted",
+        "MalformedFrame",
+        "ParentDiscontinuity",
+    ];
+
+    /// sha256 of the pinned body (bytes after the header lines) of
+    /// pinned/strata-valve-refusals.ex, i.e. sha256 of the exact
+    /// packs/strata-valve-pack/generated/refusals.ex this pack pins.
+    /// Recomputed and enforced by verify.py; enforced here as a
+    /// presence-in-header pin.
+    const VALVE_REFUSALS_SHA256: &str =
+        "de7bd39b05b4cc78a6356cc84286301fc1b424c7bb592582ebbc3ca792740335";
+
+    /// Wire-class court + refusal-taxonomy closure against the pinned
+    /// valve projection: the pinned copy's header must carry the sha256
+    /// pin, the pinned Elixir must set @receipt_len 32, and all four
+    /// taxonomy atoms must appear as valve refusal modules. This pins
+    /// the value every consumer pack depends on: wire:fixedLen 32 on
+    /// ReceiptDigest/RefusalReceipt is the same 32 the valve enforces.
+    #[test]
+    fn refusal_taxonomy_closure_and_valve_pin() {
+        let pinned = include_str!("../pinned/strata-valve-refusals.ex");
+        assert!(
+            pinned.contains(&format!("sha256={VALVE_REFUSALS_SHA256}")),
+            "pinned valve copy header must carry the sha256 pin"
+        );
+        assert!(pinned.contains("@receipt_len 32"),
+            "pinned valve projection must enforce the 32-byte receipt law");
+        assert!(pinned.contains("def receipt_len, do: @receipt_len"),
+            "pinned valve projection must expose the receipt length law");
+        for class in LAW_REFUSAL_CLASSES {
+            assert!(
+                pinned.contains(&format!("Strata.Valve.Refusals.{class}")),
+                "pinned valve taxonomy must contain atom {}", class
+            );
+        }
+        // Cross-check: the value every consumer pins (32) is the only
+        // receipt length the valve wire form admits.
+        assert_eq!(WIRE_CLASS_LENS.iter().filter(|(l, _)| *l == "RefusalReceipt").map(|(_, n)| n).copied().collect::<Vec<_>>(), [32]);
+    }
 }

@@ -120,6 +120,10 @@ pub struct StateTransitionReceipt {
 // ── PN64 normative model (ontology individuals lg:PN64_MODEL et al.) ────
 /// The only event type the PN64 model admits as a synchronous move.
 pub const OCEL_EVENT_TYPE_APPLY: &str = "apply_transition";
+/// GALL-lifecycle projection of the apply event (st:gallEventType): the
+/// beam4pm GallOcel vocabulary name this event admits into, without renaming
+/// the model transition (`OCEL_EVENT_TYPE_APPLY` is unchanged).
+pub const GALL_EVENT_TYPE_APPLY: &str = "candidate_committed";
 /// Model transitions (single-transition normative model).
 pub const PN64_TRANSITIONS: &[&str] = &["apply_transition"];
 /// Model places.
@@ -141,6 +145,8 @@ pub const PN64_INITIAL_MARKING: &[(&str, u32)] = &[("p_ready", 1)];
 pub struct OcelEvent {
     /// OCEL-v2 event type = the emitting transition's name.
     pub event_type: String,
+    /// GALL-lifecycle projection (st:gallEventType): GALL_EVENT_TYPE_APPLY.
+    pub gall_event_type: String,
     /// OCEL-v2 timestamp = the emitting transition's index.
     pub timestamp: u64,
     /// Accounts touched (inputs ∪ outputs, deduplicated, sorted).
@@ -461,6 +467,7 @@ impl LedgerState {
         objects.sort();
         self.events.push(OcelEvent {
             event_type: OCEL_EVENT_TYPE_APPLY.to_string(),
+            gall_event_type: GALL_EVENT_TYPE_APPLY.to_string(),
             timestamp: self.index,
             objects: objects,
         });
@@ -794,6 +801,7 @@ mod tests {
         // not know. It must surface as a log move — a refusal, not a pass.
         st.inject_event(OcelEvent {
             event_type: "fabricated_transition".to_string(),
+            gall_event_type: "fabricated_transition".to_string(),
             timestamp: 3,
             objects: vec![a],
         });
@@ -809,6 +817,7 @@ mod tests {
         st2.apply_transition(&mk_tx(1, d, &[(a, 100u128, 0), (b, 0, 100u128)])).ok().unwrap();
         st2.inject_event(OcelEvent {
             event_type: "apply_transition".to_string(),
+            gall_event_type: GALL_EVENT_TYPE_APPLY.to_string(),
             timestamp: 9,
             objects: vec![a],
         });

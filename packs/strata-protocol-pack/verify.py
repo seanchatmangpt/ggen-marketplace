@@ -75,6 +75,39 @@ def main() -> int:
     if violations:
         print(f"FAIL: {violations} violation row(s)")
         return 1
+
+    # Pinned cross-pack court: the pinned copy of the valve projection
+    # (pinned/strata-valve-refusals.ex) must carry a sha256 header pin,
+    # its body (bytes after the header) must hash to that pin, and the
+    # live valve projection must hash to the same pin when present.
+    import hashlib
+    import re
+
+    pin_path = PACK_DIR / "pinned" / "strata-valve-refusals.ex"
+    if not pin_path.exists():
+        print("REFUSED: pinned valve copy missing (pinned/strata-valve-refusals.ex)")
+        return 1
+    raw = pin_path.read_bytes()
+    m = re.search(rb"sha256=([0-9a-f]{64})", raw)
+    if not m:
+        print("REFUSED: pinned valve copy has no sha256 header pin")
+        return 1
+    pin = m.group(1).decode()
+    body = raw.split(b"\n", 2)[2]
+    body_hash = hashlib.sha256(body).hexdigest()
+    if body_hash != pin:
+        print(f"REFUSED: pinned valve body hash {body_hash} != header pin {pin}")
+        return 1
+    live = PACK_DIR.parent / "strata-valve-pack" / "generated" / "refusals.ex"
+    if live.exists():
+        live_hash = hashlib.sha256(live.read_bytes()).hexdigest()
+        if live_hash != pin:
+            print(f"REFUSED: live valve refusals.ex hash {live_hash} != pin {pin}")
+            return 1
+        print(f"PASS pinned-valve-copy: sha256 pin {pin} matches body and live valve projection")
+    else:
+        print(f"NOTE: live valve projection absent; pinned body verified against pin {pin}")
+
     print("OK: all gates zero-rows")
     return 0
 

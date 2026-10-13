@@ -1,0 +1,44 @@
+# MESSAGE: refusal taxonomy closure violated — the 4-atom enum is exhaustive:
+# MalformedFrame, FuelExhausted, ParentDiscontinuity, ArenaFailure; each atom
+# must carry wire:receiptLen 32; every atom's receiptLen must equal
+# wire:RefusalReceipt's wire:fixedLen; RefusalReceipt's fixedLen itself must
+# be 32; any taxonomy atom OUTSIDE the 4-atom enum is a violation (fail-closed:
+# removing an atom fires the presence branch, adding a fifth fires the
+# exhaustiveness branch). Any row indicates a broken taxonomy.
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX wire: <https://strata.chatman.ai/ontology/wire#>
+
+SELECT ?atom ?problem WHERE {
+  {
+    # Every atom of the enum must exist with receiptLen exactly 32.
+    VALUES ?reqLabel { "MalformedFrame" "FuelExhausted" "ParentDiscontinuity" "ArenaFailure" }
+    FILTER NOT EXISTS {
+      ?req a wire:RefusalTaxonomy ;
+           rdfs:label ?reqLabel ;
+           wire:receiptLen "32"^^xsd:integer .
+    }
+    BIND(CONCAT("MISSING-ATOM: no wire:RefusalTaxonomy atom labeled ", STR(?reqLabel), " with wire:receiptLen 32") AS ?problem)
+    BIND(STR(?reqLabel) AS ?atom)
+  } UNION {
+    # Exhaustiveness: any taxonomy atom outside the 4 labels is a violation.
+    ?extra a wire:RefusalTaxonomy ; rdfs:label ?lbl .
+    FILTER(?lbl NOT IN ("MalformedFrame", "FuelExhausted", "ParentDiscontinuity", "ArenaFailure"))
+    BIND(CONCAT("NOT-EXHAUSTIVE: fifth-atom taxonomy member ", STR(?lbl)) AS ?problem)
+    BIND(STR(?lbl) AS ?atom)
+  } UNION {
+    # Per-atom receipt length law: atom receiptLen must equal RefusalReceipt fixedLen.
+    ?a a wire:RefusalTaxonomy ; rdfs:label ?lbl ; wire:receiptLen ?rlen .
+    wire:RefusalReceipt wire:fixedLen ?flen .
+    FILTER(xsd:integer(?rlen) != xsd:integer(?flen))
+    BIND(CONCAT(STR(?lbl), ": receiptLen ", STR(?rlen), " != RefusalReceipt fixedLen ", STR(?flen)) AS ?problem)
+    BIND(STR(?lbl) AS ?atom)
+  } UNION {
+    # RefusalReceipt's own fixedLen must be the pinned 32.
+    wire:RefusalReceipt wire:fixedLen ?flen .
+    FILTER(xsd:integer(?flen) != 32)
+    BIND(CONCAT("REFUSAL-RECEIPT-LEN: RefusalReceipt fixedLen ", STR(?flen), " != 32") AS ?problem)
+    BIND("RefusalReceipt" AS ?atom)
+  }
+}
+ORDER BY ?problem
