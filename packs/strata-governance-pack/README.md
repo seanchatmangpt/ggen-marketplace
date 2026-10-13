@@ -11,14 +11,18 @@ with violation rows citing the commitment.
 One RDF ontology (`https://strata.chatman.ai/ontology#`), no code
 generation beyond the report:
 
-- `GovernanceCommitment` — a sealed constitution. Four individuals:
+- `GovernanceCommitment` — a sealed constitution. Five individuals:
   `Commitment-GenesisLayout` (GENESIS_HEIGHT, GENESIS_PREV,
   INITIAL_DIFFICULTY_TARGET) and `Commitment-BlockBudget` (MAX_BLOCK_TXS),
   both subject `strata-chain-pack GENESIS_CONSTANTS`;
   `Commitment-NetRateLimits` (ECLIPSE_SUBNET_CAP=8, MAX_MSGS_PER_SLOT=32),
   subject `strata-net-pack NET_CONSTANTS (rate limits)`;
   `Commitment-LedgerConstants` (MAX_ACCOUNTS=65536, TRANSITION_GAS=0,
-  STATE_ROOT_LEN=32), subject `strata-ledger-pack LEDGER_CONSTANTS`.
+  STATE_ROOT_LEN=32), subject `strata-ledger-pack LEDGER_CONSTANTS`;
+  `Commitment-A2aWireLaw` (A2A_WIRE_CODE=-32000,
+  A2A_WIRE_RANGE=server-error-implementation, A2A_RATE_LIMITED_CLASS=
+  refused_bounds, A2A_SERVER_BUSY_CLASS=blocked_resource), subject
+  `refusal-vocabulary-pack A2aWireMapping (A2A wire law)`.
 - `SealedConstant` — authority side: name, value, and a SHA-256 seal digest
   over `NAME=value`. Sealed values match `strata-chain-pack`'s
   `GENESIS_CONSTANTS` exactly (read from
@@ -51,14 +55,16 @@ python3 verify.py
 ## Verification ladder (receipted this session)
 
 1. `ggen sync run` x2 -> byte-identical `generated/governance_report.rs`
-   (sha256 `ffd012b4…`).
-2. `rustc --test` — 5/5 tests pass: `constitution_holds` (13 rows, all
+   (sha256 `48f3cbd3…`).
+2. `rustc --test` — 6/6 tests pass: `constitution_holds` (17 rows, all
    MATCH, `verify_constitution() == Ok(())`), `seal_digests_rederive`
-   (all thirteen SHA-256 seals re-derive under the module's own FIPS 180-4
+   (all seventeen SHA-256 seals re-derive under the module's own FIPS 180-4
    SHA-256), `out_of_constitution_edit_refused` (the original falsifier),
    `law_surface_drift_refused` (L166: downgrading the sealed
    MEMPOOL_LEDGER_ADMISSION law is refused citing `MempoolLedgerAdmission`),
-   and `sabotage_twin_unframed_seal_digest_is_caught` (L124).
+   `a2a_wire_law_drift_refused` (L192: projecting a different wire code,
+   -32000 -> -32001, is refused citing `A2aWireLaw`), and
+   `sabotage_twin_unframed_seal_digest_is_caught` (L124).
 3. Gates zero-rows via rdflib (`verify.py`):
    010 constitutional-diff 0 rows; 020 commitment closure 0 rows.
 4. FALSIFIER (mutation witness, rdflib): changing the projected
@@ -75,6 +81,6 @@ python3 verify.py
 ## Standing
 
 ALIVE at this subject (sync receipt `.ggen-v2/receipt.json`,
-graph_hash `8e39a656…`), witnessed in `witness.ttl`. The seal digest is
+graph_hash `14525cba…`), witnessed in `witness.ttl`. The seal digest is
 tamper-evident: any edit to a sealed value breaks its SHA-256 re-derivation
 in the generated test as well as the gate diff.

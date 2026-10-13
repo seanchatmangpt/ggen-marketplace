@@ -50,6 +50,46 @@ impl std::error::Error for ConstitutionalDrift {}
 pub const DIFF_TABLE: &[ConstantDiffRow] = &[
 
     ConstantDiffRow {
+        commitment: "A2aWireLaw",
+        constant: "A2A_RATE_LIMITED_CLASS",
+        sealed: "refused_bounds",
+        projected: "refused_bounds",
+        status: "MATCH",
+        sealed_digest: "dc314be999dd4341bfdf37a48dbb8bc82ddc13b79cc2f86e3734613c4b1b27e6",
+        subject: "refusal-vocabulary-pack A2aWireMapping (A2A wire law)",
+    },
+
+    ConstantDiffRow {
+        commitment: "A2aWireLaw",
+        constant: "A2A_SERVER_BUSY_CLASS",
+        sealed: "blocked_resource",
+        projected: "blocked_resource",
+        status: "MATCH",
+        sealed_digest: "60bde19ad29199b49ccd9569c46ac2ea0396188b406368beb02ea859513576f9",
+        subject: "refusal-vocabulary-pack A2aWireMapping (A2A wire law)",
+    },
+
+    ConstantDiffRow {
+        commitment: "A2aWireLaw",
+        constant: "A2A_WIRE_CODE",
+        sealed: "-32000",
+        projected: "-32000",
+        status: "MATCH",
+        sealed_digest: "e06e6adab8947579a09aa0ffffc958d99dc6f945106ecb5ebd97199947c5d105",
+        subject: "refusal-vocabulary-pack A2aWireMapping (A2A wire law)",
+    },
+
+    ConstantDiffRow {
+        commitment: "A2aWireLaw",
+        constant: "A2A_WIRE_RANGE",
+        sealed: "server-error-implementation",
+        projected: "server-error-implementation",
+        status: "MATCH",
+        sealed_digest: "cc785a6540f7ad00c0119d5ed2825e323db7d8df1f9f929d382c680e16ebd721",
+        subject: "refusal-vocabulary-pack A2aWireMapping (A2A wire law)",
+    },
+
+    ConstantDiffRow {
         commitment: "BlockBudget",
         constant: "MAX_BLOCK_TXS",
         sealed: "256",
@@ -205,7 +245,7 @@ mod tests {
     /// constitution, zero drift rows.
     #[test]
     fn constitution_holds() {
-        assert_eq!(DIFF_TABLE.len(), 13, "thirteen sealed constants expected");
+        assert_eq!(DIFF_TABLE.len(), 17, "seventeen sealed constants expected");
         assert!(DIFF_TABLE.iter().all(|r| r.status == "MATCH"));
         assert_eq!(verify_constitution(), Ok(()));
     }
@@ -270,6 +310,33 @@ mod tests {
         assert_eq!(err.constant, "MEMPOOL_LEDGER_ADMISSION");
         assert_eq!(err.sealed, "NECESSARY_NOT_SUFFICIENT");
         assert_eq!(err.projected, "SUFFICIENT");
+    }
+
+    /// DRIFT NEGATIVE on the NEWEST surface (L192): mutating the sealed
+    /// A2A wire law — projecting a DIFFERENT wire code for
+    /// A2A_WIRE_CODE (-32000 -> -32001, outside the designated server-error
+    /// range code) — must be REFUSED with a drift citing the A2aWireLaw
+    /// commitment.
+    #[test]
+    fn a2a_wire_law_drift_refused() {
+        let idx = DIFF_TABLE
+            .iter()
+            .position(|r| r.constant == "A2A_WIRE_CODE")
+            .expect("A2A_WIRE_CODE must be in the sealed table");
+        assert_eq!(DIFF_TABLE[idx].sealed, "-32000");
+        let drifted = ConstantDiffRow {
+            projected: "-32001", // mutation: a different wire code
+            status: "DRIFT",
+            ..DIFF_TABLE[idx].clone()
+        };
+        let err = verify_row(&drifted).expect_err("A2A wire-code drift must be refused");
+        assert_eq!(
+            err.commitment, "A2aWireLaw",
+            "violation must cite the law commitment"
+        );
+        assert_eq!(err.constant, "A2A_WIRE_CODE");
+        assert_eq!(err.sealed, "-32000");
+        assert_eq!(err.projected, "-32001");
     }
 
     fn verify_row(row: &ConstantDiffRow) -> Result<(), ConstitutionalDrift> {
