@@ -17,8 +17,11 @@ SELECT ?place ?offset ?conflict WHERE {
     FILTER (datatype(?offset) != xsd:integer)
     BIND("non_integer_offset" AS ?conflict)
   } UNION {
-    ?place a st:Place ;
-           st:bitOffset ?offset .
+    ?place a st:Place ; st:bitOffset ?offset .
+    FILTER (datatype(?offset) = xsd:integer && !REGEX(STR(?offset), "^-?[0-9]+$"))
+    BIND("malformed_integer_offset" AS ?conflict)
+  } UNION {
+    ?place a st:Place ; st:bitOffset ?offset .
     FILTER (xsd:integer(?offset) < 0 || xsd:integer(?offset) > 15)
     BIND("out_of_bounds" AS ?conflict)
   } UNION {
