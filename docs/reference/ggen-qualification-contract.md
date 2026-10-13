@@ -12,6 +12,10 @@ Operational docs and wrappers must not duplicate a particular ggen version. The 
 
 Supported platforms are whatever complete asset matrix is admitted by `marketplace.toml` and the installer contract. Unsupported platform/runtime combinations refuse rather than selecting an unverified fallback.
 
+### Engine-behavior fixes vs the ambient pin
+
+A fix landing on ggen `main` is not evidence of behavior at the pinned ambient SHA in `marketplace.toml` `[ggen]`. Behavior-dependent workarounds (COALESCE sentinels, default filters) are non-removable until the pin advances past the fix **and** affected-pack qualification plus sync byte-compare re-run. Witnessed case: ledger #83a — ambient 26.10.11 leaks, fixed by upstream 01c8d5fb0.
+
 ## Configuration admission
 
 Before qualification:
