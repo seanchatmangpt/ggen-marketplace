@@ -32,3 +32,13 @@
   the receipt chain; S8 consensus formalizes on the PN64 transition lattice).
 - Receipt-chain verification API (`verify_receipt_chain`) projected as the
   abutment surface S5's chain-validity gate will consume.
+- OCEL-v2 emission + PN64 conformance surface (X4 / innovation Tier-1, lane
+  T2): every apply_transition emits one OcelEvent (type = transition name,
+  timestamp = index, objects = touched accounts); `verify_conformance` replays
+  the log against the PN64 normative model with wasm4pm-style alignment moves
+  (sync=0, log/model=1; PROVENANCE ONLY from /Users/sac/wasm4pm — no code
+  vendored). `inject_event` is the court-injection surface proving the checker
+  non-vacuous. Gate 030 mirrors the law over the witness graph; all 4 arms
+  fire under mutation (dropped link, drifted timestamp, dangling object,
+  stripped type). Emit-then-verify round-trip: 200 transitions → 200 events,
+  cost-0 alignment; a fabricated transition is refused as a log move.

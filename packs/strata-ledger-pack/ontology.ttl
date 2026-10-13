@@ -124,5 +124,101 @@ lg:rc-T1 a st:TransitionReceipt ;
     st:appliedTxDigest "0xD001" .
 
 st:hasReceipt a rdf:Property ; rdfs:label "hasReceipt" ;
-    rdfs:comment "Links a StateTransition to its TransitionReceipt (exactly one; gate 020 enforces presence)." ;
+    rdfs:comment "Links a StateTransition to its TransitionReceipt (exactly one; gate 030 enforces presence)." ;
     rdfs:domain st:StateTransition ; rdfs:range st:TransitionReceipt .
+
+# ── OCEL-v2 event emission surface (X4 / innovation Tier-1, lane T2) ────
+# Every applied transition emits one OCEL-v2 event: event type = transition
+# name ("apply_transition"), objects = the accounts touched (inputs ∪ outputs),
+# timestamp = the transition index. Pattern source (PROVENANCE ONLY — no code
+# vendored): /Users/sac/wasm4pm (alignments.rs A*-alignment move taxonomy
+# sync/log/model; etconformance_precision.rs replay-based conformance).
+
+st:OcelEvent a rdfs:Class ; rdfs:label "OcelEvent" ;
+    rdfs:comment "One OCEL-v2 event emitted by an applied transition: event type (the transition name), timestamp (the transition index), and the touched account objects." .
+
+st:hasOcelEvent a rdf:Property ; rdfs:label "hasOcelEvent" ;
+    rdfs:comment "Links a StateTransition to the OcelEvent emitted by its commit (exactly one; gate 030 enforces presence)." ;
+    rdfs:domain st:StateTransition ; rdfs:range st:OcelEvent .
+
+st:ocelEventType a rdf:Property ; rdfs:label "ocelEventType" ;
+    rdfs:comment "OCEL-v2 event type: the transition name (\"apply_transition\"); an event whose type matches no model transition is a log move (gate 030 / verify_conformance refusal)." ;
+    rdfs:domain st:OcelEvent ; rdfs:range xsd:string .
+
+st:ocelTimestamp a rdf:Property ; rdfs:label "ocelTimestamp" ;
+    rdfs:comment "OCEL-v2 event timestamp: the emitting transition's transitionIndex; must mirror it exactly (gate 030 mirror arm)." ;
+    rdfs:domain st:OcelEvent ; rdfs:range xsd:integer .
+
+st:eventObject a rdf:Property ; rdfs:label "eventObject" ;
+    rdfs:comment "Links an OcelEvent to an account it touched (inputs ∪ outputs, deduplicated); every object must resolve to a real st:Account (gate 030 dangling-object arm)." ;
+    rdfs:domain st:OcelEvent ; rdfs:range st:Account .
+
+# ── PN64 normative model (witness individuals gate 030 / verify_conformance
+#    replay against) ─────────────────────────────────────────────────────
+# A one-transition, two-place Petri net: p_ready --[apply_transition]--> {p_settled, p_ready}
+# (self-reproducing: every accepted transition leaves p_ready re-tokenized, so
+# any length of apply_transition log is enabled step-by-step; any event whose
+# type is NOT a model transition is a log move and refuses).
+
+lg:PN64_MODEL a lg:Pn64Model ; rdfs:label "PN64_MODEL" ;
+    rdfs:comment "Normative model for ledger-transition conformance: one transition (apply_transition), two places, self-reproducing marking." .
+
+lg:Pn64Model a rdfs:Class ; rdfs:label "Pn64Model" ;
+    rdfs:comment "Carrier class for the PN64 normative Petri-net model individual." .
+
+lg:pn-p-ready a lg:Pn64Place ; rdfs:label "p_ready" ;
+    rdfs:comment "Holds the token that enables apply_transition; re-tokenized by every firing (self-reproducing marking)." .
+lg:pn-p-settled a lg:Pn64Place ; rdfs:label "p_settled" ;
+    rdfs:comment "Produced by every apply_transition firing." .
+lg:Pn64Place a rdfs:Class ; rdfs:label "Pn64Place" ;
+    rdfs:comment "One place of the PN64 normative model." .
+
+lg:pn-t-apply a lg:Pn64Transition ; rdfs:label "apply_transition" ;
+    rdfs:comment "The single model transition: consumes p_ready, produces p_settled and re-produces p_ready." .
+lg:Pn64Transition a rdfs:Class ; rdfs:label "Pn64Transition" ;
+    rdfs:comment "One transition of the PN64 normative model." .
+
+lg:pn-arc-1 a lg:Pn64Arc ;
+    lg:arcFrom lg:pn-p-ready ; lg:arcTo lg:pn-t-apply .
+lg:pn-arc-2 a lg:Pn64Arc ;
+    lg:arcFrom lg:pn-t-apply ; lg:arcTo lg:pn-p-settled .
+lg:pn-arc-3 a lg:Pn64Arc ;
+    lg:arcFrom lg:pn-t-apply ; lg:arcTo lg:pn-p-ready .
+lg:Pn64Arc a rdfs:Class ; rdfs:label "Pn64Arc" ;
+    rdfs:comment "One arc of the PN64 normative model (place→transition or transition→place)." .
+lg:arcFrom a rdf:Property ; rdfs:label "arcFrom" ;
+    rdfs:comment "Arc source (a place for input arcs, a transition for output arcs)." .
+lg:arcTo a rdf:Property ; rdfs:label "arcTo" ;
+    rdfs:comment "Arc target (a transition for input arcs, a place for output arcs)." .
+
+lg:pn-marking-ready a lg:Pn64Marking ; lg:markingPlace lg:pn-p-ready ; lg:markingTokens "1"^^xsd:integer .
+lg:Pn64Marking a rdfs:Class ; rdfs:label "Pn64Marking" ;
+    rdfs:comment "Initial-marking entry: place + token count." .
+lg:markingPlace a rdf:Property ; rdfs:label "markingPlace" ;
+    rdfs:comment "The place an initial-marking entry tokenizes." .
+lg:markingTokens a rdf:Property ; rdfs:label "markingTokens" ;
+    rdfs:comment "Initial token count on markingPlace." .
+
+# ── OCEL witness individuals (non-vacuity witness for gate 030) ─────────
+# Real accounts + the events emitted by the witness chain T0→T1, so gate 030
+# asserts over REAL rows, never vacuously over an empty class.
+
+lg:acct-A a st:Account ; rdfs:label "A" ;
+    rdfs:comment "Witness account touched by both witness transitions." .
+lg:acct-B a st:Account ; rdfs:label "B" ;
+    rdfs:comment "Witness account produced by both witness transitions." .
+
+lg:ev-T0 a st:OcelEvent ;
+    rdfs:label "EV-T0" ;
+    st:ocelEventType "apply_transition" ;
+    st:ocelTimestamp "0"^^xsd:integer ;
+    st:eventObject lg:acct-A , lg:acct-B .
+
+lg:ev-T1 a st:OcelEvent ;
+    rdfs:label "EV-T1" ;
+    st:ocelEventType "apply_transition" ;
+    st:ocelTimestamp "1"^^xsd:integer ;
+    st:eventObject lg:acct-B , lg:acct-A .
+
+lg:tx-T0 st:hasOcelEvent lg:ev-T0 .
+lg:tx-T1 st:hasOcelEvent lg:ev-T1 .

@@ -47,7 +47,25 @@ gates (all run before any mutation — masked commit):
 commit: debits → credits → nonce advance → digest seen-set insert
         → index += 1 → root recompute (FNV-1a placeholder mixing until S1
         binds the real hash) → receipt(prev_root, next_root, tx_digest)
+        → OCEL event(event_type="apply_transition", timestamp=index,
+          objects=accounts touched, sorted-deduplicated)
 ```
+
+## OCEL-v2 event emission + PN64 conformance (X4 / innovation Tier-1)
+
+Every applied transition emits one OCEL-v2 event onto `LedgerState::events()`;
+`verify_conformance()` replays the log against the PN64 normative model
+(one transition `apply_transition`, places `p_ready`/`p_settled`,
+self-reproducing marking) with wasm4pm-style alignment moves: synchronous
+move cost 0 (type names a model transition the marking enables), log move
+cost 1 (event type matches no model transition — a fabricated event),
+model move cost 1 (type exists, marking dry). `aligned` iff total cost 0
+and every event's timestamp mirrors its transition index. Pattern source
+(PROVENANCE ONLY — no code vendored): `/Users/sac/wasm4pm`
+(`wasm4pm/src/alignments.rs` move taxonomy, `etconformance_precision.rs`
+replay conformance). `inject_event` is the court-injection surface that
+proves the checker non-vacuous (fabricated events must be injectable to
+witness the refusal).
 
 `TxLike` is a local minimal tx shape (nonce, inputs, outputs, digest), S2-shaped
 after `packs/strata-tx-pack`'s Tx by documentation-only provenance comment — no
@@ -63,14 +81,23 @@ cross-pack dependency.
   0 rows = pass. Mutation witnesses (each fires): dropped constant, untyped
   constant, malformed integer, dropped receipt link, duplicate index, broken
   chain, receipt drift.
+- `gates/030_ocel_conformance.rq` — the OCEL-v2 emission law over the witness
+  graph: every StateTransition emitted an OcelEvent (st:hasOcelEvent), every
+  event carries type + timestamp + ≥1 object, every eventObject resolves to a
+  real st:Account, every event timestamp mirrors its transition's
+  transitionIndex. 0 rows = pass. Mutation witnesses (each fires, verified
+  live): dropped hasOcelEvent, drifted timestamp, dangling eventObject,
+  stripped eventType.
 
 ## Verification receipts
 
 ```bash
 ggen sync run ×2 → byte-identical (sha256 recorded in errc-tracker.md)
-rustc --test generated/ledger_state.rs → 6 passed; 0 failed
-python3 scripts/marketplace.py validate → packs=319, 0 errors
+rustc --test generated/ledger_state.rs → 8 passed; 0 failed
+python3 verify.py → PASS 010/020/030, 0 rows; gate-set + hash witness match
+python3 scripts/marketplace.py validate → packs=324, 0 errors
 python3 scripts/qualify_packs.py --pack strata-ledger-pack → ALIVE
+  (/tmp/ledger-qual-t2.json, status ALIVE, ggen 26.10.11)
 ```
 
 ## Standing

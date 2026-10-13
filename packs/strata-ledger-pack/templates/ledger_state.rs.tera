@@ -16,6 +16,16 @@
 //!     verify_receipt_chain).
 //!
 //! Self-contained, serde-free; compiles standalone via `rustc --test`.
+//!
+//! OCEL-v2 EVENT EMISSION + PN64 CONFORMANCE (X4 / innovation Tier-1, lane
+//! T2): every apply_transition emits one OCEL-v2 event (event type =
+//! transition name, objects = accounts touched, timestamp = transition
+//! index), and `verify_conformance` replays the event log against the PN64
+//! normative model with wasm4pm-style alignment moves. Pattern source
+//! (PROVENANCE ONLY — no code vendored): /Users/sac/wasm4pm
+//! (wasm4pm/src/alignments.rs A*-alignment move taxonomy — synchronous move
+//! cost 0, log move cost 1, model move cost 1; etconformance_precision.rs
+//! replay-based conformance).
 
 // ── Projected ledger constants (from lg:LEDGER_CONSTANTS) ────────────
 {% if results | length == 0 %}
@@ -107,6 +117,55 @@ pub struct StateTransitionReceipt {
     pub applied_tx_digest: [u8; 32],
 }
 
+// ── PN64 normative model (ontology individuals lg:PN64_MODEL et al.) ────
+/// The only event type the PN64 model admits as a synchronous move.
+pub const OCEL_EVENT_TYPE_APPLY: &str = "apply_transition";
+/// Model transitions (single-transition normative model).
+pub const PN64_TRANSITIONS: &[&str] = &["apply_transition"];
+/// Model places.
+pub const PN64_PLACES: &[&str] = &["p_ready", "p_settled"];
+/// Input arcs (place, transition).
+pub const PN64_INPUT_ARCS: &[(&str, &str)] = &[("p_ready", "apply_transition")];
+/// Output arcs (transition, place) — self-reproducing: every firing
+/// re-tokenizes p_ready, so any length of apply_transition log stays enabled.
+pub const PN64_OUTPUT_ARCS: &[(&str, &str)] = &[
+    ("apply_transition", "p_settled"),
+    ("apply_transition", "p_ready"),
+];
+/// Initial marking (place, tokens).
+pub const PN64_INITIAL_MARKING: &[(&str, u32)] = &[("p_ready", 1)];
+
+/// One OCEL-v2 event emitted by an applied transition (ontology class
+/// st:OcelEvent).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OcelEvent {
+    /// OCEL-v2 event type = the emitting transition's name.
+    pub event_type: String,
+    /// OCEL-v2 timestamp = the emitting transition's index.
+    pub timestamp: u64,
+    /// Accounts touched (inputs ∪ outputs, deduplicated, sorted).
+    pub objects: Vec<AccountId>,
+}
+
+/// Conformance report from `verify_conformance` (wasm4pm-style alignment
+/// move counts; aligned iff total cost is 0).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConformanceReport {
+    /// True iff every event was a synchronous move (total alignment cost 0).
+    pub aligned: bool,
+    /// Total alignment cost: sync = 0, log/model move = 1 each.
+    pub total_cost: u64,
+    /// Synchronous moves (event type matched a model transition, enabled).
+    pub sync_moves: usize,
+    /// Log moves (event type matches no model transition — a fabricated
+    /// event).
+    pub log_moves: usize,
+    /// Model moves (event type exists but the marking did not enable it).
+    pub model_moves: usize,
+    /// Timestamp of the first non-synchronous move, if any.
+    pub first_violation: Option<u64>,
+}
+
 /// Account-based ledger state (ontology class st:LedgerState).
 #[derive(Debug, Clone, Default)]
 pub struct LedgerState {
@@ -115,6 +174,8 @@ pub struct LedgerState {
     nonces: BTreeMap<AccountId, u64>,
     /// Applied tx digests (replay court).
     seen: BTreeSet<[u8; 32]>,
+    /// OCEL-v2 event log: one event per applied transition (emission law).
+    events: Vec<OcelEvent>,
     root: Root,
     index: u64,
 }
@@ -125,6 +186,7 @@ impl LedgerState {
             accounts: BTreeMap::new(),
             nonces: BTreeMap::new(),
             seen: BTreeSet::new(),
+            events: Vec::new(),
             root: [0u8; STATE_ROOT_LEN as usize],
             index: 0,
         }
@@ -160,6 +222,98 @@ impl LedgerState {
 
     pub fn index(&self) -> u64 {
         self.index
+    }
+
+    /// The OCEL-v2 event log (one event per applied transition).
+    pub fn events(&self) -> &[OcelEvent] {
+        &self.events
+    }
+
+    /// Court injection surface: record an externally supplied event so the
+    /// conformance checker can be proven non-vacuous (a fabricated event must
+    /// be injectable to witness the refusal). Production logs never call this.
+    pub fn inject_event(&mut self, ev: OcelEvent) {
+        self.events.push(ev);
+    }
+
+    /// wasm4pm-style alignment conformance (PROVENANCE ONLY — no code
+    /// vendored; /Users/sac/wasm4pm/wasm4pm/src/alignments.rs): replay the
+    /// OCEL event log against the PN64 normative model. Each event is a
+    /// synchronous move (cost 0) iff its type names a model transition that
+    /// the current marking enables; an event type matching no model
+    /// transition is a log move (cost 1, fabricated event); an enabled-type
+    /// event with a dry marking is a model move (cost 1). The log conforms
+    /// iff total cost is 0. Emission law is checked alongside: each event's
+    /// timestamp must equal its position (timestamp = transition index).
+    pub fn verify_conformance(&self) -> ConformanceReport {
+        // Initial marking.
+        let mut marking: Vec<u32> = PN64_PLACES
+            .iter()
+            .map(|p| {
+                PN64_INITIAL_MARKING
+                    .iter()
+                    .find(|mp| mp.0 == *p)
+                    .map(|mp| mp.1)
+                    .unwrap_or(0)
+            })
+            .collect();
+        let mut report = ConformanceReport {
+            aligned: true,
+            total_cost: 0,
+            sync_moves: 0,
+            log_moves: 0,
+            model_moves: 0,
+            first_violation: None,
+        };
+        for (pos, ev) in self.events.iter().enumerate() {
+            // Emission law: timestamp = transition index = position + 1
+            // (indices are 1-based; the first applied transition is index 1).
+            if ev.timestamp != (pos as u64) + 1 && report.first_violation.is_none() {
+                report.first_violation = Some(ev.timestamp);
+            }
+            let t_idx = PN64_TRANSITIONS.iter().position(|t| *t == ev.event_type);
+            match t_idx {
+                None => {
+                    // Log move: fabricated event type.
+                    report.log_moves = report.log_moves + 1;
+                }
+                Some(ti) => {
+                    let name = PN64_TRANSITIONS[ti];
+                    let enabled = PN64_INPUT_ARCS.iter().all(|&(place, t)| {
+                        if t != name {
+                            return true;
+                        }
+                        let pi = PN64_PLACES.iter().position(|p| *p == place).unwrap();
+                        marking[pi] >= 1
+                    });
+                    if enabled {
+                        // Synchronous move: consume inputs, produce outputs.
+                        for &(place, t) in PN64_INPUT_ARCS.iter() {
+                            if t == name {
+                                let pi = PN64_PLACES.iter().position(|p| *p == place).unwrap();
+                                marking[pi] = marking[pi] - 1;
+                            }
+                        }
+                        for &(t, place) in PN64_OUTPUT_ARCS.iter() {
+                            if t == name {
+                                let pi = PN64_PLACES.iter().position(|p| *p == place).unwrap();
+                                marking[pi] = marking[pi] + 1;
+                            }
+                        }
+                        report.sync_moves = report.sync_moves + 1;
+                    } else {
+                        // Model move: type exists, marking dry.
+                        report.model_moves = report.model_moves + 1;
+                    }
+                }
+            }
+            if report.log_moves + report.model_moves > 0 && report.first_violation.is_none() {
+                report.first_violation = Some(ev.timestamp);
+            }
+        }
+        report.total_cost = (report.log_moves + report.model_moves) as u64;
+        report.aligned = report.total_cost == 0 && report.first_violation.is_none();
+        report
     }
 
     /// Deterministic placeholder state root (FNV-1a mixing over the sorted
@@ -289,6 +443,27 @@ impl LedgerState {
         self.seen.insert(tx.digest);
         self.index = self.index + 1;
         self.recompute_root();
+
+        // OCEL-v2 emission (one event per applied transition): event type =
+        // transition name, timestamp = transition index, objects = accounts
+        // touched (inputs ∪ outputs, deduplicated, sorted).
+        let mut objects: Vec<AccountId> = Vec::new();
+        for &(id, _) in tx.inputs.iter() {
+            if !objects.contains(&id) {
+                objects.push(id);
+            }
+        }
+        for &(id, _) in tx.outputs.iter() {
+            if !objects.contains(&id) {
+                objects.push(id);
+            }
+        }
+        objects.sort();
+        self.events.push(OcelEvent {
+            event_type: OCEL_EVENT_TYPE_APPLY.to_string(),
+            timestamp: self.index,
+            objects: objects,
+        });
 
         Ok(StateTransitionReceipt {
             index: self.index,
@@ -513,5 +688,132 @@ mod tests {
             (b, 0, 1_000),
         ])).ok().unwrap();
         assert_eq!(ok.prev_root, root_before);
+    }
+
+    #[test]
+    fn ocel_emit_then_verify_round_trip_200() {
+        // 200 transitions: after every commit exactly one OCEL event exists,
+        // with type = transition name, timestamp = transition index, and
+        // objects = the accounts that transition actually touched. Then the
+        // full log must conform (cost 0, all synchronous moves).
+        let mut seed: u64 = 0x243F6A8885A308D3;
+        let a = id(1);
+        let b = id(2);
+        let c = id(3);
+        let mut st = LedgerState::with_genesis(&[
+            (a, 1_000_000u128),
+            (b, 400_000u128),
+            (c, 600_000u128),
+        ]);
+        let mut n = 0;
+        while n < 200 {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let from = match (seed >> 33) % 3 {
+                0 => a,
+                1 => b,
+                _ => c,
+            };
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let to = match (seed >> 33) % 3 {
+                0 => a,
+                1 => b,
+                _ => c,
+            };
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let amt: u128 = (((seed >> 20) % 5_000) + 1) as u128;
+            if from == to {
+                continue;
+            }
+            if st.balance(&from) < amt {
+                continue;
+            }
+            let mut d = [0u8; 32];
+            d[0] = 11;
+            let base: [u8; 8] = [
+                (n & 0xff) as u8,
+                ((n >> 8) & 0xff) as u8,
+                0, 0, 0, 0, 0, 0,
+            ];
+            let mut i = 0;
+            while i < 8 {
+                d[1 + i] = base[i];
+                i = i + 1;
+            }
+            let expect_touched: BTreeSet<AccountId> = {
+                let mut s = BTreeSet::new();
+                s.insert(from);
+                s.insert(to);
+                s
+            };
+            let rc = st.apply_transition(&mk_tx(
+                7000 + n as u64,
+                d,
+                &[(from, amt, 0), (to, 0, amt)],
+            )).ok().unwrap();
+            // Emission law: exactly one event per applied transition.
+            assert_eq!(st.events().len(), rc.index as usize);
+            let ev = &st.events()[rc.index as usize - 1];
+            assert_eq!(ev.event_type, "apply_transition");
+            assert_eq!(ev.timestamp, rc.index);
+            let got: BTreeSet<AccountId> = ev.objects.iter().cloned().collect();
+            assert_eq!(got, expect_touched);
+            n = n + 1;
+        }
+        assert_eq!(st.events().len(), 200);
+        let rep = st.verify_conformance();
+        assert!(rep.aligned);
+        assert_eq!(rep.total_cost, 0);
+        assert_eq!(rep.sync_moves, 200);
+        assert_eq!(rep.log_moves, 0);
+        assert_eq!(rep.model_moves, 0);
+        assert_eq!(rep.first_violation, None);
+    }
+
+    #[test]
+    fn conformance_refuses_fabricated_transition() {
+        let mut st = LedgerState::with_genesis(&[(id(1), 1_000u128)]);
+        let a = id(1);
+        let b = id(2);
+        let mut n = 0u64;
+        while n < 3 {
+            let mut d = [0u8; 32];
+            d[0] = 12;
+            d[1] = n as u8;
+            st.apply_transition(&mk_tx(
+                n + 1,
+                d,
+                &[(a, 100u128, 0), (b, 0, 100u128)],
+            )).ok().unwrap();
+            n = n + 1;
+        }
+        // Positive control: the genuine log conforms.
+        let rep = st.verify_conformance();
+        assert!(rep.aligned);
+        assert_eq!(rep.sync_moves, 3);
+        // Inject a fabricated event: a transition name the PN64 model does
+        // not know. It must surface as a log move — a refusal, not a pass.
+        st.inject_event(OcelEvent {
+            event_type: "fabricated_transition".to_string(),
+            timestamp: 3,
+            objects: vec![a],
+        });
+        let rep2 = st.verify_conformance();
+        assert!(!rep2.aligned);
+        assert_eq!(rep2.log_moves, 1);
+        assert_eq!(rep2.total_cost, 1);
+        assert_eq!(rep2.first_violation, Some(3));
+        // A desynchronized timestamp (emission-law violation) also refuses.
+        let mut st2 = LedgerState::with_genesis(&[(id(1), 1_000u128)]);
+        let mut d = [0u8; 32];
+        d[0] = 13;
+        st2.apply_transition(&mk_tx(1, d, &[(a, 100u128, 0), (b, 0, 100u128)])).ok().unwrap();
+        st2.inject_event(OcelEvent {
+            event_type: "apply_transition".to_string(),
+            timestamp: 9,
+            objects: vec![a],
+        });
+        let rep3 = st2.verify_conformance();
+        assert!(!rep3.aligned);
+        assert_eq!(rep3.first_violation, Some(9));
     }
 }

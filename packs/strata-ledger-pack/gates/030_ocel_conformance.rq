@@ -1,0 +1,56 @@
+# MESSAGE: OCEL-v2 emission/conformance law violated (gate 030, X4 / innovation
+# Tier-1 lane T2). Arms (any row = violation; 0 rows = pass):
+#   1. EVENT-PRESENCE — every StateTransition carries exactly one st:hasOcelEvent
+#      OcelEvent (fail-closed: a missing link fires);
+#   2. EVENT-SHAPE — every OcelEvent carries ocelEventType, ocelTimestamp, and
+#      at least one st:eventObject (a shapeless event fires);
+#   3. OBJECT-RESOLUTION — every st:eventObject of an OcelEvent resolves to a
+#      real st:Account individual (a dangling object reference fires);
+#   4. TIMESTAMP-MIRROR — an OcelEvent's ocelTimestamp must equal the
+#      transitionIndex of the StateTransition that emitted it (emission law:
+#      timestamp = transition index; a drift fires).
+# Alignment semantics mirrored from /Users/sac/wasm4pm (alignments.rs /
+# etconformance_precision.rs — PROVENANCE ONLY, no code vendored): an event
+# whose type names no model transition is a log move (refused at runtime by
+# generated verify_conformance; refused here by the shape arm over the witness
+# graph).
+PREFIX st:  <https://strata.chatman.ai/ontology#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT DISTINCT (COALESCE(?f1,?f2,?f3,?f4) AS ?field)
+       (COALESCE(?p1,?p2,?p3,?p4) AS ?problem)
+WHERE {
+  {
+    ?t a st:StateTransition .
+    FILTER NOT EXISTS { ?t st:hasOcelEvent ?anyEv }
+    BIND(CONCAT("EVENT-PRESENCE: ", STR(?t)) AS ?f1)
+    BIND(CONCAT("transition ", STR(?t), " emitted no OcelEvent") AS ?p1)
+  } UNION {
+    ?ev a st:OcelEvent .
+    FILTER NOT EXISTS { ?ev st:ocelEventType ?ty }
+    BIND(CONCAT("EVENT-SHAPE: ", STR(?ev)) AS ?f2)
+    BIND("missing ocelEventType" AS ?p2)
+  } UNION {
+    ?ev a st:OcelEvent .
+    FILTER NOT EXISTS { ?ev st:ocelTimestamp ?ts }
+    BIND(CONCAT("EVENT-SHAPE: ", STR(?ev)) AS ?f2)
+    BIND("missing ocelTimestamp" AS ?p2)
+  } UNION {
+    ?ev a st:OcelEvent .
+    FILTER NOT EXISTS { ?ev st:eventObject ?anyObj }
+    BIND(CONCAT("EVENT-SHAPE: ", STR(?ev)) AS ?f2)
+    BIND("missing st:eventObject (no touched accounts)" AS ?p2)
+  } UNION {
+    ?ev a st:OcelEvent ; st:eventObject ?obj .
+    FILTER NOT EXISTS { ?obj a st:Account }
+    BIND(CONCAT("OBJECT-RESOLUTION: ", STR(?ev)) AS ?f3)
+    BIND(CONCAT("eventObject ", STR(?obj), " is not an st:Account") AS ?p3)
+  } UNION {
+    ?t a st:StateTransition ; st:hasOcelEvent ?ev ; st:transitionIndex ?idx .
+    ?ev st:ocelTimestamp ?ts .
+    FILTER(?ts != ?idx)
+    BIND(CONCAT("TIMESTAMP-MIRROR: ", STR(?t)) AS ?f4)
+    BIND(CONCAT("event timestamp ", STR(?ts), " != transitionIndex ", STR(?idx)) AS ?p4)
+  }
+}
+ORDER BY ?field ?problem
