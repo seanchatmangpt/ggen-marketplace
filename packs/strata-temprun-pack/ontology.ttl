@@ -50,3 +50,38 @@ st:DefaultArena a st:ActuationArena ;
     st:maxFuel 1000000 ;
     # temprun run/2 sieve admitted iff fuel >= 3 (st:admissionFuel).
     st:admissionFuel 3 .
+
+# ── Fuel ↔ valve refusal composition ─────────────────────────────────
+# Composition law: arena fuel exhaustion emits a valve-taxonomy refusal.
+# The refusal class is declared in the strata-valve-pack ontology —
+# valve:FuelExhaustedRefusal (atom "fuel_exhausted", module
+# "Strata.Valve.Refusals.FuelExhausted"). House style cites by IRI literal,
+# no owl:imports: the union graph of both packs is not evaluable in a
+# single ggen sync, so the valve IRI is PINNED here as a constant and the
+# gate (gates/020_fuel_refusal_binding.rq) enforces its structural shape
+# plus the valve wire constant (32-byte refusal receipt) locally.
+# ──────────────────────────────────────────────────────────────────────
+
+st:FuelRefusalBinding a rdfs:Class ; rdfs:label "FuelRefusalBinding" ;
+    rdfs:comment "Pinned binding from temprun arena fuel exhaustion to the valve-pack refusal class that surfaces it on the wire." .
+
+st:valveRefusalIri a rdf:Property ; rdfs:label "valve refusal IRI" ;
+    rdfs:comment "Pinned constant: IRI of the valve-pack refusal class emitted on arena fuel exhaustion. Pinned by literal (no owl:imports); gated structurally." ;
+    rdfs:domain st:FuelRefusalBinding ; rdfs:range xsd:string .
+
+st:refusalReceiptLen a rdf:Property ; rdfs:label "refusal receipt length" ;
+    rdfs:comment "Wire length in bytes of the valve's opaque RefusalReceipt; must equal the valve pack's valve:refusalReceiptLen (32)." ;
+    rdfs:domain st:FuelRefusalBinding ; rdfs:range xsd:integer .
+
+st:emitsValveRefusal a rdf:Property ; rdfs:label "emits valve refusal" ;
+    rdfs:comment "Links an arena to the pinned valve refusal IRI it emits when fuel exhausts." ;
+    rdfs:domain st:ActuationArena ; rdfs:range xsd:string .
+
+st:FuelExhaustedBinding a st:FuelRefusalBinding ;
+    rdfs:label "fuel_exhausted_binding" ;
+    # PINNED VALVE IRI (constant, mirrored from strata-valve-pack
+    # ontology.ttl valve:FuelExhaustedRefusal — a valve:RefusalClass).
+    st:valveRefusalIri "https://strata.chatman.ai/ontology/valve#FuelExhaustedRefusal" ;
+    st:refusalReceiptLen 32 .
+
+st:DefaultArena st:emitsValveRefusal "https://strata.chatman.ai/ontology/valve#FuelExhaustedRefusal" .

@@ -1,0 +1,49 @@
+# MESSAGE: the fuel ↔ valve composition must stay closed. Every
+# st:FuelRefusalBinding must pin a structurally valid valve refusal IRI
+# (exact valve namespace + local name shape), a 32-byte refusal receipt
+# length (the valve pack's wire constant), and at least one arena must
+# emit the pinned IRI. The valve graph itself is NOT unioned here (no
+# owl:imports, house style) — the IRI is a pinned constant mirrored from
+# strata-valve-pack ontology.ttl valve:FuelExhaustedRefusal; this gate
+# enforces the local structural half and fails closed on any drift.
+# Any row indicates an invalid composition binding.
+PREFIX st: <https://strata.chatman.ai/ontology#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?binding ?problem WHERE {
+  {
+    ?binding a st:FuelRefusalBinding .
+    BIND("missing/invalid st:valveRefusalIri (must be a valve-namespace IRI literal)" AS ?problem)
+    FILTER NOT EXISTS {
+      ?binding st:valveRefusalIri ?iri .
+      FILTER(REGEX(STR(?iri), "^https://strata\\.chatman\\.ai/ontology/valve#[A-Za-z][A-Za-z0-9_]*$"))
+    }
+  } UNION {
+    # The binding must pin exactly the valve FuelExhausted refusal class.
+    ?binding a st:FuelRefusalBinding ;
+             st:valveRefusalIri ?iri .
+    BIND("wrong_refusal_class (must pin valve#FuelExhaustedRefusal)" AS ?problem)
+    FILTER (?iri != "https://strata.chatman.ai/ontology/valve#FuelExhaustedRefusal")
+  } UNION {
+    ?binding a st:FuelRefusalBinding .
+    BIND("missing/invalid st:refusalReceiptLen (must be 32)" AS ?problem)
+    FILTER NOT EXISTS {
+      ?binding st:refusalReceiptLen ?len .
+      FILTER(xsd:integer(?len) = 32)
+    }
+  } UNION {
+    ?binding a st:FuelRefusalBinding .
+    BIND("unemitted_binding (no arena emits the pinned refusal IRI)" AS ?problem)
+    FILTER NOT EXISTS {
+      ?arena st:emitsValveRefusal ?iri .
+      ?binding st:valveRefusalIri ?iri .
+    }
+  } UNION {
+    # Every arena must emit the pinned refusal (composition is total over
+    # arenas, not optional per-arena).
+    ?arena a st:ActuationArena .
+    BIND("arena_missing_emission" AS ?problem)
+    FILTER NOT EXISTS { ?arena st:emitsValveRefusal ?iri }
+  }
+}
+ORDER BY ?binding ?problem

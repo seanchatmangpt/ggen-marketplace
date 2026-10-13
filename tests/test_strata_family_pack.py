@@ -63,7 +63,7 @@ DRIFT_GUARDED: dict[str, tuple[str, ...]] = {
     "strata-signer-pack": ("signer.rs", "signing.rs"),
     "strata-store-pack": ("store_consts.rs", "store_engine.rs"),
     "strata-stratus-pack": ("registers.rs", "valves.rs"),
-    "strata-temprun-pack": ("arena.rs",),
+    "strata-temprun-pack": ("arena.rs", "fuel_refusal_binding.rs"),
     "strata-tx-pack": ("tx_consts.rs", "tx_model.rs"),
     "strata-valve-pack": ("refusals.ex", "window_capacity.rs"),
 }
@@ -175,7 +175,20 @@ def _content_court(pack: str, rel: str, text: str) -> None:
             raise AssertionError(f"unexpected generated file for cas pack: {rel}")
         return
     if pack == "strata-temprun-pack":
-        assert "ARENA_DEFAULT_MAX_FUEL: u64 = 1000000" in text
+        # Per-file dispatch (mirrors the protocol/valve/signer packs):
+        # arena.rs keeps the fuel-table court; the fuel-refusal binding
+        # module (temprun<->valve composition) is a second output.
+        if rel.endswith("arena.rs"):
+            assert "ARENA_DEFAULT_MAX_FUEL: u64 = 1000000" in text
+        elif rel.endswith("fuel_refusal_binding.rs"):
+            assert (
+                'FUEL_EXHAUSTED_REFUSAL_IRI: &str = '
+                '"https://strata.chatman.ai/ontology/valve#FuelExhaustedRefusal"'
+            ) in text
+            assert "REFUSAL_RECEIPT_LEN: usize = 32" in text
+        else:
+            raise AssertionError(
+                f"unexpected generated file for temprun pack: {rel}")
         return
     if pack == "strata-signer-pack":
         # Per-file expectations (like the protocol pack's pdu/wire split):
