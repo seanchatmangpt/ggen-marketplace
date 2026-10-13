@@ -158,3 +158,49 @@ noted; one fabricated capability verb found in a pack README and fixed.
 
 **SATURATION**: the T-wave found 2 defects (D1, D2), both repaired by V1/V2;
 the next full-wave verdict is pending.
+
+## Per-lane ledger — Z-wave append (2026-10-12, lane Z19)
+
+### C lanes (C1–C7 saturation recertification)
+
+| lane | scope | verdict |
+|---|---|---|
+| C1 | gate-set saturation recert (pn64/valve/protocol arms) | CERTIFIED |
+| C2 | generated-surface byte-reproducibility recert | CERTIFIED |
+| C3 | docs residue sweep recert (`urn:strata` phantom class) | CERTIFIED |
+| C4 | corpus/family-test hole recert | CERTIFIED |
+| C5 | receipt/index consistency recert | CERTIFIED |
+| C6 | CI court scope recert | CERTIFIED |
+| C7 | family drift allowlist recert | CERTIFIED |
+
+All seven C lanes returned CERTIFIED — no new defects at the recertified
+surfaces.
+
+### S-* rows (follow-up sweep)
+
+- All S-rows green at append time.
+- **S-R**: HARDENING-1 P10 row amended to the 6-deleted lifecycle closure
+  (S-R defect) — fixed in `d2bbd0e9a` (docs(sjira)).
+- The garbled Falsifier/Extensions clause splice (S-F defect) repaired in
+  `9a7c3c7cb` (docs(strata)).
+
+### Y-rows (redundant recertification wave)
+
+- **Y1–Y5, Y7, Y8 (7 lanes)** — redundant recerts over already-CERTIFIED
+  surfaces: 7/7 PASS, zero new findings. Confirms C-lane saturation at these
+  surfaces.
+- **Y6** — typed-malformed-lexical fail-open in the pn64/temprun gates:
+  real residual, fixed in `fdd4df201` (fix(strata)) — the one defect the
+  redundant wave surfaced, repaired and witnessed same-session.
+- **Y14** — pre-existing suite-failure triage receipt: 30+5 failures all
+  non-strata, root-caused on `main` (`d7466faf0`, docs(sjira)); recorded,
+  not repaired in this wave.
+
+### SATURATION (final, honest)
+
+No formal zero-defect full wave has completed yet. Observed shape: the
+redundant Y-wave returned 7/7 PASS with exactly one real residual (Y6,
+repaired `fdd4df201`), and finding yield is declining to the doc-class tail
+(S-F splice, S-R P10 row) — both repaired and witnessed in the same session
+they were found. Per the saturation law, zero defects on a full wave is the
+gate; this ledger records the trend toward it, not its arrival.

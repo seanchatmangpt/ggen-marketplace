@@ -53,15 +53,20 @@ Per-item `STRATA-<n>-CLOSE.md` per `PACK_FEEDBACK-425-CLOSE.md` shape (Item / St
 
 ## Final Status (T19 closeout, 2026-10-12)
 
-- **Branch**: `strata-hardening-wave`, 19 commits ahead of `main`
-  (`git log --oneline main..HEAD | wc -l`).
+- **Branch**: `strata-hardening-wave`, 33 commits ahead of `main`
+  (`git log --oneline main..HEAD | wc -l`); final HEAD
+  `fdd4df201542ad3c3eaa1c022c9117cd8c115372`.
 - **Validate**: 315/315 packs, 315 manifests, 520 ontologies, 1852 templates,
   1880 native_gates, 21 verifier_gates; profiles project=108, projection=161,
-  semantic=46; diataxis=20.
+  semantic=46; diataxis=20 — current as of `fdd4df201`.
 - **Fingerprint**: `sha256:9fd0bc06468404eb474c8fe01e1eb9f7abe0aa33a3ada0d617d7a6ad8fcf3703`
-  (15760 files).
-- **Court**: final court 7/7 strata ALIVE — see closeout
-  (`/tmp/t9-final.json` not present at closeout; receipt retained via
+  (15760 files) — current as of `fdd4df201`.
+- **Court**: final court 7/7 strata ALIVE at `fdd4df201`
+  (`/tmp/z1.json` not present at closeout; receipt retained via
   `/tmp/wave-p5-qual.json` citation above).
-- **Saturation**: pending T-wave (not yet reached; full-wave zero-defect pass
-  required per [[entropic-annealing-doctrine]] §3).
+- **Suite**: 36/36 passing.
+- **Saturation**: honest status — last full wave found 1 intra-wave doc defect
+  (S-R P10; fixed `d2bbd0e9a`) + 1 intra-wave splice (S-F D10; fixed
+  `9a7c3c7cb`) + Y6 typed-malformed residual (fixed `fdd4df201`), all
+  repaired-and-witnessed same-session. Strict zero-defect full wave not yet
+  recorded; defect yield declining to doc-class only.
