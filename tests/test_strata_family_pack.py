@@ -108,8 +108,16 @@ def _content_court(pack: str, rel: str, text: str) -> None:
         assert not missing, "refusals.ex missing child modules: %r" % missing
         return
     if pack == "strata-protocol-pack":
-        assert "REFUSAL_RECEIPT_LEN: usize = 32" in text
-        assert "PDU_MAGIC" in text
+        # Per-file expectations: pdu side and wire side are separate outputs
+        # (wire_constants.rs landed via the wire-constants rule).
+        if rel.endswith("pdu_constants.rs"):
+            assert "REFUSAL_RECEIPT_LEN: usize = 32" in text
+            assert "PDU_MAGIC" in text
+        elif rel.endswith("wire_constants.rs"):
+            assert "pub mod wire" in text
+            assert "32" in text
+        else:
+            raise AssertionError(f"unexpected generated file for protocol pack: {rel}")
         return
     if pack == "strata-cas-pack":
         assert "// REFUSED: empty ontology projection" in text
