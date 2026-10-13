@@ -1,0 +1,71 @@
+# MESSAGE: Net composition-law gate (L150) — the one-way law made
+# compositional. The mempool shadow admits sum_out >= sum_in (inflation
+# passes; templates/net_engine.rs.tera:269) while the ledger's Gate 3
+# requires strict equality (strata-ledger-pack templates/
+# ledger_state.rs.tera:403), so mempool admission is NECESSARY NOT
+# SUFFICIENT for ledger admission. This gate is fail-closed: the
+# composition-law triple must exist and cite BOTH packs, else a row.
+# (1) Exactly the st:CompositionLaw individual must exist with a non-empty
+#     st:lawBody carrying the necessary-not-sufficient statement.
+# (2) st:necessaryGate must be present and cite the net pack shadow
+#     (net_engine.rs.tera).
+# (3) st:completingGate must be present and cite the ledger pack valve
+#     (ledger_state.rs.tera).
+# (4) The provenance citation (mfact NetLaws.lean
+#     inflation_passes_mempool_shadow) must be present.
+# Any row indicates the composition law has drifted or is absent.
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX st:   <https://strata.chatman.ai/ontology#>
+
+SELECT (COALESCE(?f1,?f2,?f3,?f4,?f5,?f6) AS ?field)
+       (COALESCE(?p1,?p2,?p3,?p4,?p5,?p6) AS ?problem) WHERE {
+  {
+    # Fail-closed presence: the composition-law individual must exist.
+    FILTER NOT EXISTS {
+      ?law a st:CompositionLaw ; rdfs:label "MEMPOOL_LEDGER_ADMISSION" .
+    }
+    BIND("composition-law" AS ?f1)
+    BIND("missing_MPoolLedgerCompositionLaw_individual" AS ?p1)
+  } UNION {
+    # lawBody must be present, non-empty, and state the one-way law.
+    ?law a st:CompositionLaw ; rdfs:label "MEMPOOL_LEDGER_ADMISSION" .
+    OPTIONAL { ?law st:lawBody ?body }
+    FILTER(!BOUND(?body) || STRLEN(STR(?body)) = 0
+           || !CONTAINS(STR(?body), "NECESSARY NOT SUFFICIENT"))
+    BIND("lawBody" AS ?f2)
+    BIND("lawBody_missing_empty_or_missing_necessary_not_sufficient_statement" AS ?p2)
+  } UNION {
+    # necessaryGate must cite the net pack's mempool shadow site.
+    ?law a st:CompositionLaw ; rdfs:label "MEMPOOL_LEDGER_ADMISSION" .
+    OPTIONAL { ?law st:necessaryGate ?ng }
+    FILTER(!BOUND(?ng)
+           || !CONTAINS(STR(?ng), "strata-net-pack")
+           || !CONTAINS(STR(?ng), "net_engine.rs.tera"))
+    BIND("necessaryGate" AS ?f3)
+    BIND("necessaryGate_missing_or_not_citing_net_pack_shadow" AS ?p3)
+  } UNION {
+    # completingGate must cite the ledger pack's conservation valve site.
+    ?law a st:CompositionLaw ; rdfs:label "MEMPOOL_LEDGER_ADMISSION" ;
+         st:completingGate ?cg .
+    FILTER(!CONTAINS(STR(?cg), "strata-ledger-pack")
+           || !CONTAINS(STR(?cg), "ledger_state.rs.tera"))
+    BIND("completingGate" AS ?f4)
+    BIND("completingGate_missing_or_not_citing_ledger_pack_valve" AS ?p4)
+  } UNION {
+    # Fail-closed presence arm for completingGate (distinct from the value
+    # arm above so absence itself yields a row).
+    ?law a st:CompositionLaw ; rdfs:label "MEMPOOL_LEDGER_ADMISSION" .
+    FILTER NOT EXISTS { ?law st:completingGate ?cg2 . }
+    BIND("completingGate" AS ?f5)
+    BIND("completingGate_missing" AS ?p5)
+  } UNION {
+    # Provenance: the Lean witness must be cited on the individual.
+    ?law a st:CompositionLaw ; rdfs:label "MEMPOOL_LEDGER_ADMISSION" .
+    OPTIONAL { ?law rdfs:comment ?prov }
+    FILTER(!BOUND(?prov)
+           || !CONTAINS(STR(?prov), "inflation_passes_mempool_shadow"))
+    BIND("provenance" AS ?f6)
+    BIND("missing_mfact_NetLaws_inflation_passes_mempool_shadow_citation" AS ?p6)
+  }
+}
+ORDER BY ?field ?problem

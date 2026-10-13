@@ -47,9 +47,19 @@
   fire).
 
 ## Standing
-ALIVE (qualification receipt 2026-10-13: sync ×2 byte-identical
-(`202b79f4…` engine / `a72b9bb2…` consts), 17/17 Rust tests incl. 4 S9
-hardening courts, 3/3 gates 0 rows, pack-scoped qualification ALIVE;
-repo-wide `qualify_packs.py` run is BLOCKED:ONTOLOGY_SOURCE_MISSING by the
-in-flight uncommitted strata-consensus-pack of the S8 lane, not by this
-pack).
+ALIVE (qualification receipt 2026-10-13, L150: sync ×2 byte-identical
+(`68f16935…` engine / `8871be7e…` consts), 26/26 Rust tests via
+`rustc --test` incl. S9 hardening courts, 4/4 gates 0 rows
+(010/020/030/040), pack-scoped qualification ALIVE (qualify_packs.py
+--pack strata-net-pack → ALIVE, consequence_sha256 `0435e62c…`);
+L150 composition law landed — gate `040_composition_law.rq` makes the
+L34 #4 one-way law explicit: mempool admission (`sum_out >= sum_in`
+shadow, net_engine.rs.tera:269) is NECESSARY NOT SUFFICIENT for ledger
+admission (strict equality valve, strata-ledger-pack
+ledger_state.rs.tera:403); ontology `st:CompositionLaw` /
+`st:MEMPOOL_LEDGER_ADMISSION` with provenance mfact
+`procint/ProcInt/Petri/NetLaws.lean:319 inflation_passes_mempool_shadow`;
+gate proven non-vacuous by mutation (drop-individual and
+bad-completingGate each fire 1 row). verify.py witness set 040 matches
+receipt closure hash `29890c6e…`. No repo-wide qualify attempt from this
+lane; S8-lane caveat above no longer re-verified by this lane.

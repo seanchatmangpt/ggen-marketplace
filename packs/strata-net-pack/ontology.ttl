@@ -175,6 +175,28 @@ net:peer-beta a st:PeerAdmission ; rdfs:label "peer-beta" ;
     st:subnetClass "10.0.0.0/16" ; st:msgsThisSlot "7"^^xsd:integer ;
     st:blacklisted false ;
     rdfs:comment "Second peer in the same subnet (cap 8 not yet reached)." .
+# ── L150 composition law: mempool admission ⊂ ledger admission ────────
+# The mempool shadow admits sum_out >= sum_in — inflation passes the
+# shadow (the refusal is only `sum_in > sum_out`:
+# packs/strata-net-pack/templates/net_engine.rs.tera:269) — while the
+# ledger's Gate 3 requires strict equality (`sum_in != sum_out` →
+# Conservation refusal: packs/strata-ledger-pack/templates/
+# ledger_state.rs.tera:403). Mempool admission is therefore NECESSARY
+# NOT SUFFICIENT for ledger admission; the ledger conservation valve
+# completes the law.
+# Provenance: mfact procint/ProcInt/Petri/NetLaws.lean:319
+# inflation_passes_mempool_shadow.
+
+st:CompositionLaw a rdfs:Class ; rdfs:label "CompositionLaw" ;
+    rdfs:comment "A cross-pack composition law: a condition admitted by one pack's gate is necessary-not-sufficient for a downstream pack's stricter valve; the stricter valve completes the law." .
+
+st:MEMPOOL_LEDGER_ADMISSION a st:CompositionLaw ;
+    rdfs:label "MEMPOOL_LEDGER_ADMISSION" ;
+    st:lawBody "Mempool admission (net shadow, sum_out >= sum_in) is a NECESSARY NOT SUFFICIENT condition for ledger admission; the ledger conservation gate (strict sum equality, Gate 3) is the completing valve that refuses inflation." ;
+    st:necessaryGate "packs/strata-net-pack/templates/net_engine.rs.tera:269" ;
+    st:completingGate "packs/strata-ledger-pack/templates/ledger_state.rs.tera:403" ;
+    rdfs:comment "Provenance: mfact procint/ProcInt/Petri/NetLaws.lean inflation_passes_mempool_shadow (NetLaws.lean:319)." .
+
 net:peer-gamma a st:PeerAdmission ; rdfs:label "peer-gamma" ;
     st:peerId "peer-gamma" ; st:admissionVerdict "refuse:blacklisted" ;
     st:subnetClass "10.9.9.0/24" ; st:msgsThisSlot "0"^^xsd:integer ;
