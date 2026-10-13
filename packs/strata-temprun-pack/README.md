@@ -9,7 +9,7 @@ Temprun actuation arena for Strata: fuel-leased actuation runs and conformance r
 ## Capability surface
 
 ```bash
-$ sed -n '/[capabilities]/,/\[/p' packs/strata-temprun-pack/pack.toml
+$ ggen pack capabilities strata-temprun-pack
 ```
 
 ## Evidence boundary

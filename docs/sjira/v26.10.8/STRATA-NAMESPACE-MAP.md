@@ -1,5 +1,7 @@
 # STRATA Namespace Unification Map
 
+> **STATUS: LANDED 2026-10-13 (commit bc54e0869). This document records the PRE-migration state and the old→new mapping. All rows below describe the state BEFORE the migration; current disk state uses the Target column values everywhere (verified by audit lane A10: zero `urn:strata:` IRIs remain in pack data surfaces; capability tokens unchanged by design).**
+
 Authoritative old→new IRI mapping for the strata namespace unification (v26.10.8). Verified against the working tree of `strata-hardening-wave` (pre-migration state), 2026-10-12. Execution of the migration is the coordinator's, after this document lands.
 
 ## Migration targets
@@ -95,3 +97,9 @@ For protocol and valve packs, in this order, per pack:
 ## Rollback
 
 Single revert of the migration commit restores all old IRIs; the old→new table above is retained here as the receipt.
+
+## Post-migration verification
+
+- Row-count guard: 79/28/108 SELECT row counts identical pre/post migration (no query silently returned 0 rows).
+- Generated provenance headers (`generated/pdu_constants.rs`, `generated/refusals.ex`) now cite the `https://strata.chatman.ai/ontology*` IRIs.
+- 7/7 strata courts ALIVE after migration.

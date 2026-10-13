@@ -4,8 +4,10 @@ Lane R102, 2026-10-09. One-table index of every campaign artifact in
 `docs/sjira/v26.10.8/`. Complements R99. Every row corresponds to an on-disk
 entry; table rows == directory contents (count verified at write time).
 
-Counts: 31 top-level files (30 pre-existing + this index) + 1 `seal/` directory (89 entries: 88 sj-record
-JSON / txt / py / tsv artifacts plus `retired/` subdir).
+Counts: 42 top-level files (38 `*.md` + 4 data files: `ADMISSION-LEDGER.jsonl`, `candidates.jsonl`,
+`candidates-v2.jsonl`, `WORKGRAPH.ttl`) + 1 `seal/` directory (94 entries: 88 `*.sj-record.json`
+artifacts plus `drafts.jsonl`, `standing-table.tsv`, `CHAIN-HEAD.txt`, `OSXCLNR-SEAL-HEADS.txt`,
+`build_drafts.py`, and the `retired/` subdir) = 43 directory entries total.
 
 ## Index
 
@@ -16,6 +18,7 @@ JSON / txt / py / tsv artifacts plus `retired/` subdir).
 | `ADMISSION-CONTEXT.md` | Resolution context for backlog [43]: two ledger refusal rows cite a nonexistent repo path; ledger untouched (append-only) | census/corrections |
 | `ADMISSION-LEDGER.jsonl` | 78-row admission ledger (50 admitted / 28 refused, 12 repos), append-only | ledger |
 | `BRANCH-CENSUS.md` | Lane R37 branch-line union census across all 20 campaign repos (ahead/behind, unmerged lines) | census/corrections |
+| `CENSUS-V19-CORRECTIONS.md` | Lane R101 corrections doc for the V19 staleness census figures (6 confirmed / 3 corrected per R98, zcode per R96); every row carries replay commands | census/corrections |
 | `candidates.jsonl` | Round-1 admission candidates (SJIRA-V8-002..006 shape) | candidates |
 | `candidates-v2.jsonl` | Round-2 candidates — per-repo split of SJIRA-V8-004 (004A/004B/004C) | candidates |
 | `CONVERGENCE.md` | Seed→generator convergence proof: regenerated seed graphs vs agent-authored, diffs classified | proof/court |
@@ -30,6 +33,7 @@ JSON / txt / py / tsv artifacts plus `retired/` subdir).
 | `LANDING-BATCH-1.md` | Landing batch 1 receipt (3 commits) | landing receipt |
 | `LANDING-BATCH-2.md` | Landing batch 2 receipt (6 commits: ontology maturity doctrine + wasmex-pack deprecation closure) | landing receipt |
 | `LANDING-BATCH-3.md` | Landing batch 3 receipt (2 commits + browser-court evidence + symlink-residue cleanup) | landing receipt |
+| `PACK_FEEDBACK-425-CLOSE.md` | CLOSE receipt for PACK_FEEDBACK item 425 (frozen-duckdb v26.9.21): dead `[Playground]` link emitted unconditionally by `readme-diataxis-pack` `index.md.tmpl:53` in generated consumer files | pack feedback close |
 | `PIN-ROTATION-LEDGER.md` | Fleet extractor pin rotation ledger — three rotations (R43→R61→R64 lineage) | decision/law doc |
 | `REFUSAL-TRIAGE.md` | Triage of all 28 refused ledger rows by typed refusal, with re-admissions | census/corrections |
 | `RECEIPT-INDEX.md` | This index (lane R102, self-referential row so rows == dir contents) | index |
@@ -42,19 +46,16 @@ JSON / txt / py / tsv artifacts plus `retired/` subdir).
 | `WORKGRAPH-REGEN-PROOF.md` | 6-repo workgraph regeneration convergence proof (generator v3 items 1–9) | proof/court |
 | `WORKGRAPH-SHACL-REPORT.md` | SHACL admission validation of 12 campaign workgraphs vs `work-order.shacl.ttl`; defect classification + fixes | proof/court |
 | `WORKGRAPH.ttl` | ggen-marketplace v26.10.8 workgraph seed graph (RDF) | graph |
+| `STRATA-AUDIT-1-CLOSE.md` | Post-landing adversarial audit closure for STRATA-HARDENING-1 — 20-lane wave (A1–A20) attacking the hardened gates, generated consumers, docs, and receipts | strata audit closure |
 | `STRATA-BATCH-1-CLOSE.md` | Batch-1 closure receipt for STRATA-HARDENING-1 items P1/P7/P18 (commits 513a1a64c + 11c749278; strata family 3/7 → 7/7 ALIVE) | strata closure receipt |
 | `STRATA-RECEIPT-TEMPLATES.md` | Fill-in templates for STRATA-BATCH-<n>-CLOSE.md and STRATA-<n>-CLOSE.md receipts (PACK_FEEDBACK-425 shape) | template |
-| `seal/` | 89-entry seal surface: 88 `*.sj-record.json` (AA/ASHSURF/G1-G4/R2RML/RCERT/SJIRA-V8/XAAS/ZCODE/wo-* orders + `@round2+` reseals), `drafts.jsonl`, `standing-table.tsv`, `CHAIN-HEAD.txt`, `OSXCLNR-SEAL-HEADS.txt`, `build_drafts.py`, `UNSCOPE-*` refusal records, plus `retired/` subdir | seal |
-| STRATA-HARDENING-1.md | work order | OPEN→items landing | strata hardening wave spine |
-| _STRATA_LANES.md | lanes map | IN-FLIGHT | same-checkout lane partition L0-L19 |
-| STRATA-BATCH-1-CLOSE.md | batch closure | CLOSED 2026-10-13 | P1/P7/P18 — FM-PACK fix + hygiene |
+| `seal/` | 94-entry seal surface: 88 `*.sj-record.json` (AA/ASHSURF/G1-G4/R2RML/RCERT/SJIRA-V8/XAAS/ZCODE/wo-* orders + `@round2+` reseals, incl. `UNSCOPE-*` refusal records), plus `drafts.jsonl`, `standing-table.tsv`, `CHAIN-HEAD.txt`, `OSXCLNR-SEAL-HEADS.txt`, `build_drafts.py`, and the `retired/` subdir | seal |
+| _STRATA_LANES.md | lanes map | LANDED | same-checkout lane partition L0-L19 |
 | STRATA-ACTIVATION-DEFERRAL.md | decision record | LANDED | activation deferred, checklist retained |
 | STRATA-NAMESPACE-MAP.md | migration prep | LANDED | old→new IRI map, lockstep checklist |
+| `STRATA-HARDENING-1.md` | Work order + wave receipt, strata hardening wave spine (items P1/P7/P18 landed; status LANDED, 2026-10-13) | strata work order |
 | STRATA-DRIFT-NOTES.md | drift flags | LANDED | standing.md / PACK-INDEX stale pins flagged |
 | SYNC-WAVE-RECEIPT.md | wave receipt | PARTIAL | sync table filled at wave close |
-| STRATA-RECEIPT-TEMPLATES.md | templates | LANDED | closure receipt fill-in shapes |
-| STRATA-HARDENING-1.md | wave receipt | 2026-10-13 | strata hardening wave |
-| STRATA-BATCH-1-CLOSE.md | wave receipt | 2026-10-13 | strata hardening wave |
 
 ## Big four cross-links
 

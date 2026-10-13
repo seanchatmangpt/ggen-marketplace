@@ -15,7 +15,9 @@
   2. `11c749278` — `refactor(strata packs): ontology hygiene + delete dead
      clap_frame template`. Deletes the dead `clap_frame.rs.tmpl`; declares
      `pdu:FrameConstant` + `valve:WireFact` in the ontologies; pn64
-     `verbOpcode` dead-vocab removal and `pn:` alias drop. Output-neutral
+     `st:verbOpcode` vocabulary ADDED (declared + used); the dead
+     vocabulary REMOVED was `st:mask16`..`st:flagsBits`, plus the `pn:`
+     alias drop. Output-neutral
      sync proven: generated template byte count 1852 → 1851 with no
      consumer-output change.
 - **Fix shape**: remediation at the pack contract level (ggen.toml

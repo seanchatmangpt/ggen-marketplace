@@ -27,3 +27,37 @@ figure 1851 carried from the wave census (post-deletion); this lane's raw
 `find packs -name '*.tera'` count (227 `.tera` at root + nested layout) is
 not the same denominator as the census figure, so the census number is cited
 as-of-date rather than re-measured under a mismatched method.
+
+## Addendum 2026-10-13 (post-wave)
+
+Repair lane R18, same day as the flag-only pass above. Live numbers re-run this
+session: `python3 scripts/marketplace.py validate` → `packs=315 manifests=315
+ontologies=513 templates=1852 native_gates=1880 verifier_gates=21 profiles=
+{"project":108,"projection":161,"semantic":46} diataxis=20`;
+`python3 scripts/marketplace.py fingerprint` →
+`sha256:0c3f12e1a9ce709e6862ece7541e7b85f3e2d0173f878bd0f4fe5cd9d2118ebe files=15746`.
+
+### Still-open drift (flag-only this wave, unfixed BY DESIGN)
+
+- Finding #1 — `docs/context/standing.md:346` (re-verified: the validation-matrix
+  "Pack & Diátaxis Schema" row) still pins `templates=1800`. Current live value:
+  **templates=1852**. Next standing-doc refresh should write 1852 (as-of 2026-10-13).
+- Finding #2 — `docs/context/standing.md:348` (re-verified: the "Corpus Fingerprint"
+  row) still pins `sha256:1e9a8aad51f9f383f9d6b04bdde2aa696b191e6154fd3b34f33bf626ffae339b`.
+  Current live fingerprint: **`sha256:0c3f12e1a9ce709e6862ece7541e7b85f3e2d0173f878bd0f4fe5cd9d2118ebe`
+  (files=15746)**. Next standing-doc refresh should write this value (as-of 2026-10-13).
+- `docs/context/standing.md:14` — line re-verified: still reads `- Pack count: 305`
+  under "Repository facts". Current live value: **packs=315** (validate output above
+  and `ls packs | wc -l` = 315 from the original census). Next standing-doc refresh
+  should write 315 (as-of 2026-10-13).
+
+### RESOLVED this wave
+
+- Finding #3 — `docs/reference/PACK-INDEX.md` **RESOLVED**. Line 6 re-verified this
+  session: now reads "315 packs: 309 active, 6 deprecated"; file carries the
+  GENERATED-by-`scripts/gen_pack_index.py` header; lifecycle entries landed in-wave
+  (309 active + 6 deprecated = 315). No longer drift.
+- `docs/reference/pack-catalog.md` **RESOLVED**. Regenerated in-wave
+  (`python3 scripts/marketplace.py browse`); header tier counts re-verified this
+  session: verified (147) + documented (56) + thin (112) = **315**, consistent with
+  the live pack count. No stale 306 figure present. No longer drift.

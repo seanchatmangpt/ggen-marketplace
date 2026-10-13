@@ -9,7 +9,7 @@ CLAP/1.0 PDU frame constants, receipt and refusal wire classes for the Strata so
 ## Capability surface
 
 ```bash
-$ sed -n '/[capabilities]/,/\[/p' packs/strata-protocol-pack/pack.toml
+$ ggen pack capabilities strata-protocol-pack
 ```
 
 ## Evidence boundary

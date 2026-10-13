@@ -28,6 +28,7 @@ and the wire vocabulary (`wire:` terms, e.g. `wire:RefusalReceipt`) is
 referenced in the ontology's prose (`ontology.ttl:12`, `ontology.ttl:56`)
 without being declared in-pack. Splitting document-IRI from term-namespace
 and re-homing `wire:` to the protocol pack is recorded as a pending wave.
+RESOLVED 2026-10-13: namespace unification landed (commit bc54e0869) — valve: and the borrowed wire: prefix now on https://strata.chatman.ai/ontology/{valve,wire}#; entry retained as history.
 
 ## Raise
 

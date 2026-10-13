@@ -26,4 +26,4 @@ Negative witness: algorithm→ed25519 refused FM-LAW-018.
 ## Create
 
 `ggen.toml`, `queries/keys.rq`, `templates/signer.rs.tera`,
-`generated/signer.rs` (sha256 5875b83a…), gate — new this wave.
+`generated/signer.rs` (sha256 5875b83a… at write time; superseded by 2a0fd535… after banner regen), gate — new this wave.
