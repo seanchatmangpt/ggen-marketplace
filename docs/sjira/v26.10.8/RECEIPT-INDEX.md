@@ -4,10 +4,10 @@ Lane R102, 2026-10-09. One-table index of every campaign artifact in
 `docs/sjira/v26.10.8/`. Complements R99. Every row corresponds to an on-disk
 entry; table rows == directory contents (count verified at write time).
 
-Counts: 42 top-level files (38 `*.md` + 4 data files: `ADMISSION-LEDGER.jsonl`, `candidates.jsonl`,
+Counts: 45 top-level files (40 `*.md` + 5 data files: `ADMISSION-LEDGER.jsonl`, `candidates.jsonl`,
 `candidates-v2.jsonl`, `WORKGRAPH.ttl`) + 1 `seal/` directory (94 entries: 88 `*.sj-record.json`
 artifacts plus `drafts.jsonl`, `standing-table.tsv`, `CHAIN-HEAD.txt`, `OSXCLNR-SEAL-HEADS.txt`,
-`build_drafts.py`, and the `retired/` subdir) = 43 directory entries total.
+`build_drafts.py`, and the `retired/` subdir) = 46 directory entries total.
 
 ## Index
 
@@ -50,12 +50,14 @@ artifacts plus `drafts.jsonl`, `standing-table.tsv`, `CHAIN-HEAD.txt`, `OSXCLNR-
 | `STRATA-BATCH-1-CLOSE.md` | Batch-1 closure receipt for STRATA-HARDENING-1 items P1/P7/P18 (commits 513a1a64c + 11c749278; strata family 3/7 → 7/7 ALIVE) | strata closure receipt |
 | `STRATA-RECEIPT-TEMPLATES.md` | Fill-in templates for STRATA-BATCH-<n>-CLOSE.md and STRATA-<n>-CLOSE.md receipts (PACK_FEEDBACK-425 shape) | template |
 | `seal/` | 94-entry seal surface: 88 `*.sj-record.json` (AA/ASHSURF/G1-G4/R2RML/RCERT/SJIRA-V8/XAAS/ZCODE/wo-* orders + `@round2+` reseals, incl. `UNSCOPE-*` refusal records), plus `drafts.jsonl`, `standing-table.tsv`, `CHAIN-HEAD.txt`, `OSXCLNR-SEAL-HEADS.txt`, `build_drafts.py`, and the `retired/` subdir | seal |
-| _STRATA_LANES.md | lanes map | LANDED | same-checkout lane partition L0-L19 |
-| STRATA-ACTIVATION-DEFERRAL.md | decision record | LANDED | activation deferred, checklist retained |
-| STRATA-NAMESPACE-MAP.md | migration prep | LANDED | old→new IRI map, lockstep checklist |
+| _STRATA_LANES.md | lanes map | LANDED |
+| STRATA-ACTIVATION-DEFERRAL.md | decision record | LANDED — activation deferred, checklist retained |
+| STRATA-NAMESPACE-MAP.md | migration prep | LANDED — old→new IRI map, lockstep checklist |
 | `STRATA-HARDENING-1.md` | Work order + wave receipt, strata hardening wave spine (items P1/P7/P18 landed; status LANDED, 2026-10-13) | strata work order |
-| STRATA-DRIFT-NOTES.md | drift flags | LANDED | standing.md / PACK-INDEX stale pins flagged |
-| SYNC-WAVE-RECEIPT.md | wave receipt | FILLED + BLOCKED | results filled 2026-10-13 (77 records); canonical court BLOCKED:ggen-pin-26.8.11 |
+| STRATA-DRIFT-NOTES.md | drift flags | LANDED — standing.md / PACK-INDEX stale pins flagged |
+| SYNC-WAVE-RECEIPT.md | wave receipt | FILLED + BLOCKED — results filled 2026-10-13 (77 records); canonical court BLOCKED:ggen-pin-26.8.11 |
+| HOME-SURVEY.md | home survey receipt | 2026-10-13 — 162 ~/ repos profiled (HS1-HS14) |
+| STRATA-BLOCKCHAIN-ROADMAP.md | work order | OPEN — S1-S10 slices toward full blockchain capability |
 
 ## Big four cross-links
 
