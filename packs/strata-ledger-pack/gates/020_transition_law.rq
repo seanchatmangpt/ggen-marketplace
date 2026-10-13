@@ -1,0 +1,65 @@
+# MESSAGE: State-transition law violated (the PROJECTED LAW, gate-enforced).
+# Law provenance: REUSE-ADAPTED via ONTOLOGY PROJECTION ONLY from
+# /Users/sac/unibit/crates/unibit-kernel/src/lib.rs — receipt chaining
+# (UReceipt/verify_receipt_chain: each receipt records the prior root) and the
+# masked-commit all-or-nothing shape, extracted as RDF invariants (BUSL-1.1
+# forbids code vendoring; roadmap S5/S8 precondition outcome, slice S4).
+# Arms (any row = violation):
+#   1. presence — every StateTransition carries prevStateRoot, stateRoot,
+#      appliedTxDigest, and exactly one st:hasReceipt TransitionReceipt
+#      (fail-closed: a missing arm fires, never silently passes);
+#   2. index uniqueness — two transitions sharing a transitionIndex fire;
+#   3. chaining — the witness chain must be linear: each transition's
+#      prevStateRoot equals the prior transition's stateRoot, and each
+#      receipt must mirror its transition (same index, prev root, next root,
+#      applied tx digest). A break anywhere fires.
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX st:   <https://strata.chatman.ai/ontology#>
+PREFIX lg:   <https://strata.chatman.ai/ontology/ledger#>
+
+SELECT DISTINCT (COALESCE(?f1,?f2,?f3,?f4,?f5,?f6,?f7) AS ?field)
+       (COALESCE(?p1,?p2,?p3,?p4,?p5,?p6,?p7) AS ?problem)
+WHERE {
+  {
+    ?t a st:StateTransition .
+    FILTER NOT EXISTS { ?t st:prevStateRoot ?anyPrev }
+    BIND(CONCAT("PRESENCE: ", STR(?t)) AS ?f1)
+    BIND("missing prevStateRoot" AS ?p1)
+  } UNION {
+    ?t a st:StateTransition .
+    FILTER NOT EXISTS { ?t st:stateRoot ?anyNext }
+    BIND(CONCAT("PRESENCE: ", STR(?t)) AS ?f2)
+    BIND("missing stateRoot (next root)" AS ?p2)
+  } UNION {
+    ?t a st:StateTransition .
+    FILTER NOT EXISTS { ?t st:appliedTxDigest ?anyDig }
+    BIND(CONCAT("PRESENCE: ", STR(?t)) AS ?f3)
+    BIND("missing appliedTxDigest" AS ?p3)
+  } UNION {
+    ?t a st:StateTransition .
+    FILTER NOT EXISTS { ?t st:hasReceipt ?anyRc }
+    BIND(CONCAT("PRESENCE: ", STR(?t)) AS ?f4)
+    BIND("missing TransitionReceipt (st:hasReceipt)" AS ?p4)
+  } UNION {
+    ?t a st:StateTransition ; st:transitionIndex ?idx .
+    ?u a st:StateTransition ; st:transitionIndex ?idx .
+    FILTER(STR(?t) < STR(?u))
+    BIND(CONCAT("INDEX-UNIQUENESS: ", STR(?idx)) AS ?f5)
+    BIND(CONCAT(STR(?t), " and ", STR(?u), " share transitionIndex") AS ?p5)
+  } UNION {
+    ?t a st:StateTransition ; st:transitionIndex ?i ; st:prevStateRoot ?pv ; st:stateRoot ?nx ; st:appliedTxDigest ?dig .
+    ?t st:hasReceipt ?rc .
+    ?rc a st:TransitionReceipt ; st:transitionIndex ?ri ; st:prevStateRoot ?rpv ; st:stateRoot ?rnx ; st:appliedTxDigest ?rdig .
+    FILTER(?ri != ?i || ?rpv != ?pv || ?rnx != ?nx || ?rdig != ?dig)
+    BIND(CONCAT("RECEIPT-MIRROR: ", STR(?t)) AS ?f6)
+    BIND(CONCAT("receipt of ", STR(?t), " does not mirror index/prevRoot/nextRoot/txDigest") AS ?p6)
+  } UNION {
+    ?t a st:StateTransition ; st:prevStateRoot ?pv .
+    FILTER(?pv != "0x0000")
+    FILTER NOT EXISTS { ?u a st:StateTransition ; st:stateRoot ?pv . FILTER(STR(?u) != STR(?t)) }
+    BIND(CONCAT("CHAIN-LINEARITY: ", STR(?t)) AS ?f7)
+    BIND(CONCAT("prevStateRoot of ", STR(?t), " matches no prior transition's stateRoot (chain break)") AS ?p7)
+  }
+}
+ORDER BY ?field ?problem

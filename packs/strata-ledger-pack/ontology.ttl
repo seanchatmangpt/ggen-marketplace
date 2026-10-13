@@ -1,0 +1,128 @@
+# strata-ledger-pack ontology — Strata ledger state machine (roadmap slice S4).
+#
+# LAW PROVENANCE (REUSE-ADAPTED via ONTOLOGY PROJECTION ONLY):
+# The invariants projected below — zero-denial-admitted polarity (a refusal is a
+# typed, non-zero value; admission is the zero case), masked commit (a transition
+# is all-or-nothing over the whole input/output set), and receipt chaining (every
+# applied transition receipts the prior state root so the chain is replayable) —
+# are extracted from /Users/sac/unibit/crates/unibit-kernel/src/lib.rs
+# (UDenial zero=admitted polarity, commit_masked, UReceipt/verify_receipt_chain).
+# No BUSL-1.1 code is vendored; the law is re-projected as strata RDF and
+# regenerated per docs/sjira/v26.10.8/STRATA-BLOCKCHAIN-ROADMAP.md (S5/S8
+# precondition outcome, slices S2/S4 REUSE-ADAPTED).
+
+@prefix st:  <https://strata.chatman.ai/ontology#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix lg:   <https://strata.chatman.ai/ontology/ledger#> .
+
+# ── Ledger model classes ──────────────────────────────────────────────
+
+st:LedgerState a rdfs:Class ; rdfs:label "LedgerState" ;
+    rdfs:comment "Total account-based state: map from 32-byte account id to u128 balance, plus per-account replay-guard nonces and the current state root." .
+
+st:Account a rdfs:Class ; rdfs:label "Account" ;
+    rdfs:comment "One account: 32-byte id + u128 balance." .
+
+st:BalanceEntry a rdfs:Class ; rdfs:label "BalanceEntry" ;
+    rdfs:comment "One (account id, balance) binding inside a LedgerState." .
+
+st:StateTransition a rdfs:Class ; rdfs:label "StateTransition" ;
+    rdfs:comment "One masked commit attempt over a TxLike: consumes the inputs, produces the outputs, all-or-nothing; receipts the prior state root." .
+
+st:TransitionReceipt a rdfs:Class ; rdfs:label "TransitionReceipt" ;
+    rdfs:comment "Receipt of one applied transition: transition index, prev state root, next state root, applied tx digest — chained so each receipt's prev root equals the prior state's root." .
+
+# ── Ledger properties ─────────────────────────────────────────────────
+
+st:stateRoot a rdf:Property ; rdfs:label "stateRoot" ;
+    rdfs:comment "32-byte deterministic state root (placeholder mixing digest until S1 binds the real hash); STATE_ROOT_LEN bytes." ;
+    rdfs:domain st:LedgerState ; rdfs:range xsd:string .
+
+st:accountCount a rdf:Property ; rdfs:label "accountCount" ;
+    rdfs:comment "Number of accounts currently present in the state; must not exceed MAX_ACCOUNTS." ;
+    rdfs:domain st:LedgerState ; rdfs:range xsd:integer .
+
+st:transitionIndex a rdf:Property ; rdfs:label "transitionIndex" ;
+    rdfs:comment "Monotonically increasing index of an applied transition; two applied transitions with the same index are a violation (gate 020)." ;
+    rdfs:domain st:StateTransition ; rdfs:range xsd:integer .
+
+st:appliedTxDigest a rdf:Property ; rdfs:label "appliedTxDigest" ;
+    rdfs:comment "32-byte digest of the TxLike committed by a StateTransition; recorded on its TransitionReceipt." ;
+    rdfs:domain st:StateTransition ; rdfs:range xsd:string .
+
+st:prevStateRoot a rdf:Property ; rdfs:label "prevStateRoot" ;
+    rdfs:comment "State root immediately before the transition was applied; a TransitionReceipt's prevStateRoot must equal the prior state's stateRoot (chain law)." ;
+    rdfs:domain st:StateTransition ; rdfs:range xsd:string .
+
+# ── Ledger constants (LEDGER_CONSTANTS individual) ────────────────────
+
+lg:LEDGER_CONSTANTS a lg:LedgerConstant ;
+    rdfs:label "LEDGER_CONSTANTS" ;
+    rdfs:comment "Ledger layout constants projected into generated/ledger_consts.rs. Types match the generated Rust constants exactly (fail-closed: gate 010 fires on non-integer or malformed values).";
+    lg:rustType "usize" ;
+    lg:maxAccounts "65536"^^xsd:integer ;
+    lg:transitionGas "0"^^xsd:integer ;
+    lg:stateRootLen "32"^^xsd:integer .
+
+lg:LedgerConstant a rdfs:Class ; rdfs:label "LedgerConstant" ;
+    rdfs:comment "Carrier class for the LEDGER_CONSTANTS individual: projected as Rust constants by the ledger-consts rule." .
+
+lg:maxAccounts a rdf:Property ; rdfs:label "maxAccounts" ;
+    rdfs:comment "MAX_ACCOUNTS: hard cap on account count in one LedgerState (65536)." ;
+    rdfs:domain lg:LEDGER_CONSTANTS ; rdfs:range xsd:integer .
+
+lg:transitionGas a rdf:Property ; rdfs:label "transitionGas" ;
+    rdfs:comment "TRANSITION_GAS: per-transition gas placeholder (0 until a gas schedule is admitted; counted but never charged)." ;
+    rdfs:domain lg:LEDGER_CONSTANTS ; rdfs:range xsd:integer .
+
+lg:stateRootLen a rdf:Property ; rdfs:label "stateRootLen" ;
+    rdfs:comment "STATE_ROOT_LEN: state root width in bytes (32)." ;
+    rdfs:domain lg:LEDGER_CONSTANTS ; rdfs:range xsd:integer .
+
+# ── Witness transition chain (sample individuals the law gate exercises) ──
+# Two chained transitions with receipts: the gate 020 law (presence, index
+# uniqueness, prev→next chaining) is asserted over REAL rows, never vacuously
+# over an empty class. Roots/hex values are illustrative 4-hex stand-ins for
+# the 32-byte placeholder roots the generated module computes.
+
+lg:LEDGER_WITNESS_CHAIN a rdfs:Class ; rdfs:label "LedgerWitnessChain" ;
+    rdfs:comment "Marker class for the sample transition chain that gate 020 exercises (non-vacuity witness)." .
+
+lg:witness-chain a lg:LedgerWitnessChain ; rdfs:label "witness-chain" ;
+    rdfs:comment "Genesis → T0 → T1 chain: roots chain prev→next; each transition carries its receipt." .
+
+lg:tx-T0 a st:StateTransition ;
+    rdfs:label "T0" ;
+    st:transitionIndex "0"^^xsd:integer ;
+    st:prevStateRoot "0x0000" ;
+    st:stateRoot "0xA0A0" ;
+    st:appliedTxDigest "0xD000" ;
+    st:hasReceipt lg:rc-T0 .
+
+lg:tx-T1 a st:StateTransition ;
+    rdfs:label "T1" ;
+    st:transitionIndex "1"^^xsd:integer ;
+    st:prevStateRoot "0xA0A0" ;
+    st:stateRoot "0xA1A1" ;
+    st:appliedTxDigest "0xD001" ;
+    st:hasReceipt lg:rc-T1 .
+
+lg:rc-T0 a st:TransitionReceipt ;
+    rdfs:label "RC-T0" ;
+    st:transitionIndex "0"^^xsd:integer ;
+    st:prevStateRoot "0x0000" ;
+    st:stateRoot "0xA0A0" ;
+    st:appliedTxDigest "0xD000" .
+
+lg:rc-T1 a st:TransitionReceipt ;
+    rdfs:label "RC-T1" ;
+    st:transitionIndex "1"^^xsd:integer ;
+    st:prevStateRoot "0xA0A0" ;
+    st:stateRoot "0xA1A1" ;
+    st:appliedTxDigest "0xD001" .
+
+st:hasReceipt a rdf:Property ; rdfs:label "hasReceipt" ;
+    rdfs:comment "Links a StateTransition to its TransitionReceipt (exactly one; gate 020 enforces presence)." ;
+    rdfs:domain st:StateTransition ; rdfs:range st:TransitionReceipt .
