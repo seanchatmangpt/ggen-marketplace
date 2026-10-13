@@ -1,0 +1,65 @@
+# MESSAGE: constitutional drift — a projected consensus constant disagrees
+# with the sealed governance commitment (X5 candidate 1). The
+# constitutional-diff law: every SealedConstant must join to a
+# ProjectedConstant of the same st:sealedName/st:projectedName whose value
+# EQUALS the sealed value; every ProjectedConstant must be covered by a seal.
+# Any missing join or value drift fires a violation row CITING THE
+# COMMITMENT (the seal's st:sealedIn commitment label). Fail-closed: an
+# out-of-constitution edit cannot pass by deleting rows — coverage is
+# asserted in both directions. Zero rows = projection agrees with the
+# constitution.
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX st:   <https://strata.chatman.ai/ontology#>
+
+SELECT DISTINCT ?commitment ?constant ?sealedValue ?projectedValue ?violation
+WHERE {
+  {
+    # Drift: sealed and projected both exist, values disagree.
+    ?seal a st:SealedConstant ;
+          st:sealedIn ?c ;
+          st:sealedName ?name ;
+          st:sealedValue ?sealedValue .
+    ?c rdfs:label ?commitment .
+    ?proj a st:ProjectedConstant ;
+          st:projectedName ?name ;
+          st:projectedValue ?projectedValue .
+    FILTER(STR(?sealedValue) != STR(?projectedValue))
+    BIND(CONCAT("constitutional_drift: ", ?name,
+                " sealed in commitment ", ?commitment,
+                " as ", STR(?sealedValue),
+                " but projection manufactures ", STR(?projectedValue))
+         AS ?violation)
+    BIND(?name AS ?constant)
+  } UNION {
+    # Unprojected: a sealed constant with no projection-side twin at all.
+    ?seal a st:SealedConstant ;
+          st:sealedIn ?c ;
+          st:sealedName ?name ;
+          st:sealedValue ?sealedValue .
+    ?c rdfs:label ?commitment .
+    FILTER NOT EXISTS {
+      ?proj a st:ProjectedConstant ; st:projectedName ?name .
+    }
+    BIND(CONCAT("unprojected_constant: ", ?name,
+                " sealed in commitment ", ?commitment,
+                " has no projected counterpart")
+         AS ?violation)
+    BIND(?name AS ?constant)
+  } UNION {
+    # Uncommitted: a projected constant no commitment seals — an
+    # out-of-constitution constant cannot enter silently.
+    ?proj a st:ProjectedConstant ;
+          st:projectedName ?name ;
+          st:projectedValue ?projectedValue .
+    FILTER NOT EXISTS {
+      ?seal a st:SealedConstant ; st:sealedName ?name .
+    }
+    BIND(CONCAT("uncommitted_constant: projected ", ?name,
+                " is not covered by any sealed commitment")
+         AS ?violation)
+    BIND("(none)" AS ?commitment)
+    BIND("(none)" AS ?sealedValue)
+  }
+}
+ORDER BY ?commitment ?constant

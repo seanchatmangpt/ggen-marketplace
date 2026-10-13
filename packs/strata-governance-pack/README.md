@@ -1,0 +1,73 @@
+# strata-governance-pack
+
+X5 candidate 1, construction lane T11: the Strata governance layer as an
+ontology-backed ggen pack. The constitutional-diff law: consensus constants
+are SEALED in `GovernanceCommitment` individuals (the constitution); any
+sync whose projected constants drift from the sealed commitment is REFUSED
+with violation rows citing the commitment.
+
+## What it models
+
+One RDF ontology (`https://strata.chatman.ai/ontology#`), no code
+generation beyond the report:
+
+- `GovernanceCommitment` — a sealed constitution. Two individuals:
+  `Commitment-GenesisLayout` (GENESIS_HEIGHT, GENESIS_PREV,
+  INITIAL_DIFFICULTY_TARGET) and `Commitment-BlockBudget` (MAX_BLOCK_TXS),
+  both subject `strata-chain-pack GENESIS_CONSTANTS`.
+- `SealedConstant` — authority side: name, value, and a SHA-256 seal digest
+  over `NAME=value`. Sealed values match `strata-chain-pack`'s
+  `GENESIS_CONSTANTS` exactly (read from
+  `packs/strata-chain-pack/ontology.ttl` at pack-authoring time:
+  GENESIS_HEIGHT=0, GENESIS_PREV=0x000…0, INITIAL_DIFFICULTY_TARGET=12,
+  MAX_BLOCK_TXS=256).
+- `ProjectedConstant` — projection side: what the family projection
+  manufactures. The gate compares every projection against its seal.
+- `ConstantDiff` — one diff-table row, derived by the report rule.
+
+## Gates
+
+- `gates/010_constitutional_diff.rq` — the law: drift (sealed vs projected
+  value mismatch), unprojected constants, and uncommitted projections all
+  fire violation rows citing the commitment. Zero rows = projection
+  agrees with the constitution.
+- `gates/020_commitment_closure.rq` — fail-closed V7 arms: no empty
+  commitments, no orphan seals, no missing names/values/digests, malformed
+  integers refused, GENESIS_PREV must be 0x + 64 hex chars.
+
+## Build
+
+```bash
+cd packs/strata-governance-pack
+ggen sync run    # regenerates generated/governance_report.rs from ontology.ttl
+rustc --test -O generated/governance_report.rs -o /tmp/gov_report && /tmp/gov_report
+python3 verify.py
+```
+
+## Verification ladder (receipted this session)
+
+1. `ggen sync run` x2 -> byte-identical `generated/governance_report.rs`
+   (sha256 `255ac82f…`).
+2. `rustc --test` — 3/3 tests pass: `constitution_holds` (4 rows, all
+   MATCH, `verify_constitution() == Ok(())`), `seal_digests_rederive`
+   (all four SHA-256 seals re-derive under the module's own FIPS 180-4
+   SHA-256), and `out_of_constitution_edit_refused` (the falsifier).
+3. Gates zero-rows via rdflib (`verify.py`):
+   010 constitutional-diff 0 rows; 020 commitment closure 0 rows.
+4. FALSIFIER (mutation witness, rdflib): changing the projected
+   INITIAL_DIFFICULTY_TARGET 12 -> 13 yields 1 violation row citing
+   `GenesisLayout`:
+   `constitutional_drift: INITIAL_DIFFICULTY_TARGET sealed in commitment
+   GenesisLayout as 12 but projection manufactures 13`. Refusal is
+   fail-closed in both directions (unprojected seals and uncommitted
+   projections also refuse).
+5. `python3 scripts/marketplace.py validate` — 324/324 packs validated.
+6. `python3 scripts/qualify_packs.py` — strata-governance-pack
+   **ALIVE** (isolated single-pack capsule, requires = []).
+
+## Standing
+
+ALIVE at this subject (sync receipt `.ggen-v2/receipt.json`,
+graph_hash `7cc269e3…`), witnessed in `witness.ttl`. The seal digest is
+tamper-evident: any edit to a sealed value breaks its SHA-256 re-derivation
+in the generated test as well as the gate diff.

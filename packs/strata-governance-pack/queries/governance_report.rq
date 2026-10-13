@@ -1,0 +1,20 @@
+# Diff-table rule: one row per sealed constant with its projection twin —
+# (commitment, constant, sealed, projected, match). Drives the
+# governance_report.rs diff table and the verify_constitution() projection.
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX st:   <https://strata.chatman.ai/ontology#>
+
+SELECT ?commitment ?name ?sealed ?projected ?match ?digest ?subject
+WHERE {
+  ?seal a st:SealedConstant ;
+        st:sealedIn ?c ;
+        st:sealedName ?name ;
+        st:sealedValue ?sealed ;
+        st:sealedDigest ?digest .
+  ?c rdfs:label ?commitment ; st:commitmentSubject ?subject .
+  ?proj a st:ProjectedConstant ;
+        st:projectedName ?name ;
+        st:projectedValue ?projected .
+  BIND(IF(STR(?sealed) = STR(?projected), "MATCH", "DRIFT") AS ?match)
+}
+ORDER BY ?commitment ?name
