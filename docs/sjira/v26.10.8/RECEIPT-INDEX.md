@@ -69,3 +69,5 @@ artifacts plus `drafts.jsonl`, `standing-table.tsv`, `CHAIN-HEAD.txt`, `OSXCLNR-
 1. `_INTEGRATION_RUNBOOK.md` (campaign shape) → 2. `ADMISSION-LEDGER.jsonl` +
 `REFUSAL-TRIAGE.md` (what was admitted/refused) → 3. big four above →
 4. `seal/standing-table.tsv` for per-order standing.
+
+Lifecycle closure (W1, commit dd953e5ab): 6 resolved review entries deleted per flag-a-pack-lifecycle §5; strata-cas-pack retained.

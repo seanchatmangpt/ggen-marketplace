@@ -3,14 +3,23 @@
 # marking word), and every st:Place must CARRY st:bitOffset at all (presence
 # law: a Place with no st:bitOffset is a violation even though no value
 # exists to bound-check). Any row returned is an out-of-bounds, duplicated,
-# or missing offset.
+# or missing offset. Numeric comparisons are wrapped in xsd:integer() casts
+# and an explicit datatype arm fails CLOSED on non-integer offsets: a cast
+# error inside a FILTER excludes the row, so a string-typed offset would
+# otherwise silently pass the bounds check (engine-dependent fail-open).
 PREFIX st: <https://strata.chatman.ai/ontology#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 
 SELECT ?place ?offset ?conflict WHERE {
   {
     ?place a st:Place ;
            st:bitOffset ?offset .
-    FILTER (?offset < 0 || ?offset > 15)
+    FILTER (datatype(?offset) != xsd:integer)
+    BIND("non_integer_offset" AS ?conflict)
+  } UNION {
+    ?place a st:Place ;
+           st:bitOffset ?offset .
+    FILTER (xsd:integer(?offset) < 0 || xsd:integer(?offset) > 15)
     BIND("out_of_bounds" AS ?conflict)
   } UNION {
     ?place a st:Place ;

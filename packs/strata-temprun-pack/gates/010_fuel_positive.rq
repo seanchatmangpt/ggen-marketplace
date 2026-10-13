@@ -1,17 +1,23 @@
 # MESSAGE: every st:ActuationArena must have st:maxFuel > 0 and st:admissionFuel >= 3
 # (temprun run/2 sieve charges 1 unit each for clock, coordinates, conformance).
 # Any row returned indicates an invalid arena specification failing closed.
+# Numeric checks are wrapped in xsd:integer() casts so a string-typed fuel
+# value makes the inner FILTER error -> NOT EXISTS holds -> violation row with
+# the accurate "missing/invalid" label (a bare ?mf > 0 type error would also
+# exclude the inner row, but the cast makes the fail-closed path explicit and
+# engine-independent).
 PREFIX st: <https://strata.chatman.ai/ontology#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 
 SELECT ?arena ?problem WHERE {
   {
     ?arena a st:ActuationArena .
     BIND("missing/invalid st:maxFuel (must be > 0)" AS ?problem)
-    FILTER NOT EXISTS { ?arena st:maxFuel ?mf . FILTER(?mf > 0) }
+    FILTER NOT EXISTS { ?arena st:maxFuel ?mf . FILTER(xsd:integer(?mf) > 0) }
   } UNION {
     ?arena a st:ActuationArena .
     BIND("missing/invalid st:admissionFuel (must be >= 3)" AS ?problem)
-    FILTER NOT EXISTS { ?arena st:admissionFuel ?af . FILTER(?af >= 3) }
+    FILTER NOT EXISTS { ?arena st:admissionFuel ?af . FILTER(xsd:integer(?af) >= 3) }
   }
 }
 ORDER BY ?arena ?problem

@@ -5,6 +5,7 @@
 # (exclusivity), and no RefusalClass may carry any other atom (off-enum).
 # Any row indicates a violation — fail closed on the refusal taxonomy closure.
 PREFIX valve: <https://strata.chatman.ai/ontology/valve#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?class ?atom ?violation WHERE {
   {
@@ -31,6 +32,15 @@ SELECT ?class ?atom ?violation WHERE {
     ?c2 a valve:RefusalClass ; valve:atom ?atom .
     BIND("duplicate_atom" AS ?violation)
     FILTER (STR(?c1) < STR(?c2))
+  } UNION {
+    # Distinctness: two distinct RefusalClass individuals with the same
+    # rdfs:label are refused, closing the ORDER BY ?label tie class in
+    # refusals.rq (duplicate labels would render document-order-dependent
+    # output).
+    ?class a valve:RefusalClass ; rdfs:label ?lab .
+    ?l2 a valve:RefusalClass ; rdfs:label ?lab .
+    BIND("duplicate_label" AS ?violation)
+    FILTER (STR(?class) < STR(?l2))
   }
 }
 ORDER BY ?violation ?class ?atom
