@@ -58,6 +58,65 @@ def main() -> int:
             )
             return 1
 
+    # Shared-head KAT court (lane L9): recompute the logchain head from the
+    # pack's own witnessed fixture entries and assert equality with the
+    # pinned cross-repo KAT literal — the same chain head insa-proof's sync
+    # replay law and strata-protocol's logchain law both fold to
+    # (h = blake3(h_prev || pn_be || ocel_be || tick_be64), GENESIS = 32*0x00,
+    # tick = top byte of the OCEL word widened to u64 big-endian).
+    import blake3
+
+    KAT_HEAD = "05ea1aa096f45968aacb2c996d2b541e4b9fdef24f006e0204e1fa88d33f68a5"
+
+    def _step(h: bytes, pn: int, ocel: int) -> bytes:
+        tick = ocel >> 56
+        return blake3.blake3(
+            h + pn.to_bytes(8, "big") + ocel.to_bytes(8, "big") + tick.to_bytes(8, "big")
+        ).digest()
+
+    kat_entries: list = []
+    pn_map: dict = {}
+    ocel_map: dict = {}
+    for s, p, o in witness:
+        pred = str(p)
+        if pred.endswith("#pn"):
+            pn_map[s] = int(str(o), 16)
+        elif pred.endswith("#ocel"):
+            ocel_map[s] = int(str(o), 16)
+    for s, pn in pn_map.items():
+        if s in ocel_map:
+            kat_entries.append((pn, ocel_map[s]))
+    kat_entries.sort()
+
+    kat_head_witnessed = next(
+        (
+            str(o)
+            for s, p, o in witness
+            if str(p).endswith("#sharedKatHead")
+        ),
+        None,
+    )
+
+    if not kat_entries or kat_head_witnessed is None:
+        print("REFUSED: shared-head KAT witnesses missing (entries or pinned head)")
+        return 1
+    if kat_head_witnessed.lower() != KAT_HEAD:
+        print(
+            f"REFUSED: witnessed KAT head drift (witness={kat_head_witnessed} "
+            f"court={KAT_HEAD})"
+        )
+        return 1
+    computed = bytes.fromhex("00" * 32)
+    for pn, ocel in kat_entries:
+        computed = _step(computed, pn, ocel)
+    if computed.hex() != KAT_HEAD:
+        print(
+            f"REFUSED: shared-head KAT divergence (computed={computed.hex()} "
+            f"pinned={KAT_HEAD})"
+        )
+        return 1
+    print(f"PASS shared-head-kat: recomputed head {computed.hex()} == pinned KAT over {len(kat_entries)} entries")
+
     violations = 0
     for gate in sorted((PACK_DIR / "gates").glob("*.rq")):
         query = gate.read_text(encoding="utf-8")

@@ -89,6 +89,56 @@ pub const DIFF_TABLE: &[ConstantDiffRow] = &[
         subject: "strata-chain-pack GENESIS_CONSTANTS (genesis layout)",
     },
 
+    ConstantDiffRow {
+        commitment: "LedgerConstants",
+        constant: "MAX_ACCOUNTS",
+        sealed: "65536",
+        projected: "65536",
+        status: "MATCH",
+        sealed_digest: "d12e4580ae7e7f8efff5a9ba5e34395f1a36cca23be8f04c9647d871108e565f",
+        subject: "strata-ledger-pack LEDGER_CONSTANTS (ledger layout)",
+    },
+
+    ConstantDiffRow {
+        commitment: "LedgerConstants",
+        constant: "STATE_ROOT_LEN",
+        sealed: "32",
+        projected: "32",
+        status: "MATCH",
+        sealed_digest: "e7d83e3850980c47e04abdb213393077096e080db6198275f36477ecf16f7f53",
+        subject: "strata-ledger-pack LEDGER_CONSTANTS (ledger layout)",
+    },
+
+    ConstantDiffRow {
+        commitment: "LedgerConstants",
+        constant: "TRANSITION_GAS",
+        sealed: "0",
+        projected: "0",
+        status: "MATCH",
+        sealed_digest: "91343636186a30724931390a2fe987b4bfcdaf0adeaf4ab3502225b535e40722",
+        subject: "strata-ledger-pack LEDGER_CONSTANTS (ledger layout)",
+    },
+
+    ConstantDiffRow {
+        commitment: "NetRateLimits",
+        constant: "ECLIPSE_SUBNET_CAP",
+        sealed: "8",
+        projected: "8",
+        status: "MATCH",
+        sealed_digest: "9ad4678244864dde3f527ce5c33313ece456dae84d96514e3d582ca991c980a3",
+        subject: "strata-net-pack NET_CONSTANTS (rate limits)",
+    },
+
+    ConstantDiffRow {
+        commitment: "NetRateLimits",
+        constant: "MAX_MSGS_PER_SLOT",
+        sealed: "32",
+        projected: "32",
+        status: "MATCH",
+        sealed_digest: "5feb70397e7dc776db6e01eebeb371ccc4b6793c5c7ea33821aabe4ec19cf05e",
+        subject: "strata-net-pack NET_CONSTANTS (rate limits)",
+    },
+
 ];
 
 /// Constitutional-diff law, executable: OK(()) iff every row matches its
@@ -115,7 +165,7 @@ mod tests {
     /// constitution, zero drift rows.
     #[test]
     fn constitution_holds() {
-        assert_eq!(DIFF_TABLE.len(), 4, "four sealed constants expected");
+        assert_eq!(DIFF_TABLE.len(), 9, "nine sealed constants expected");
         assert!(DIFF_TABLE.iter().all(|r| r.status == "MATCH"));
         assert_eq!(verify_constitution(), Ok(()));
     }
