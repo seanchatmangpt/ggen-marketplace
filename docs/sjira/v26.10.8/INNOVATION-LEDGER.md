@@ -347,3 +347,12 @@ KILLED entries stay killed.
     (4d50748d7); R2 typed-refusal surface gated on first making
     AIRo non-orphaned; R3 UNSUPPORTED (no rollout-window
     referent).
+
+83a. **AMBIENT PIN VERDICT (L200)** — ambient ggen 26.10.11 (promoted at
+    fcd4df210, one commit BEFORE fix 01c8d5fb0) LEAKS: witnessed via
+    scratch cas-pack without the COALESCE workaround — genesis row
+    rendered Some(first-row parent), creating a parent-cycle the pack's
+    own court would catch. All COALESCE/UNION sentinels are
+    NON-REMOVABLE at the pinned ambient SHA; removable only after the
+    pin advances past 01c8d5fb0 AND affected-pack qualification +
+    sync byte-compare re-run against the new binary.
