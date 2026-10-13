@@ -9,8 +9,9 @@
 - `requires = []` with the FM-PACK-018 documentation-only relationship note
   (same remediation as `strata-pn64-pack`): the CLAP-PDU derivation is cited
   by ontology comment, never an unresolvable cross-pack dependency.
-- Payload digest reduced to a documented deterministic placeholder over
-  (n, m) so the tamper court has a real check without faking S3's signer.
+- Payload digest reduced to a documented deterministic FNV-1a over the FULL
+  canonical serialization (every wire field in fixed order) so every frame
+  byte is integrity-guarded without faking S3's signer.
 
 ## Raise
 - Gates carry fail-closed datatype + malformed-integer arms (V7 pattern from

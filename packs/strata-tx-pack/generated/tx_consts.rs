@@ -26,7 +26,7 @@ pub const OUTPUT_COUNT_OFFSET: usize = 20; // u32 output count offset.
 
 pub const PAYLOAD_DIGEST_LEN: usize = 32; // 32B payload digest placeholder length.
 
-pub const PAYLOAD_DIGEST_OFFSET: usize = 24; // 32B payload digest placeholder offset (S3 binds the real signer digest).
+pub const PAYLOAD_DIGEST_OFFSET: usize = 24; // 32B payload digest offset (digest covers the full canonical serialization; S3 upgrades to the real signer digest).
 
 pub const RESERVED_OFFSET: usize = 5; // Reserved bytes offset; must be zero.
 

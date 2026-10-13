@@ -5,8 +5,10 @@
 //! conventions (ground truth: packs/strata-protocol-pack/ontology.ttl).
 //! Frame layout (big-endian):
 //!   header (TX_HEADER_LEN = 56 bytes) | n * TxInput (36) | m * TxOutput (9)
-//! The payload digest is a PLACEHOLDER (documented FNV-1a stand-in); S3 binds
-//! the real signer digest (roadmap docs/sjira/v26.10.8/STRATA-BLOCKCHAIN-ROADMAP.md).
+//! The payload digest is a deterministic integrity digest over the FULL
+//! canonical serialization (every wire field, fixed order). It is FNV-1a(64),
+//! documented as NOT cryptographic — adversarial hardening (keyed/real hash)
+//! is the separate S3 work item (roadmap docs/sjira/v26.10.8/STRATA-BLOCKCHAIN-ROADMAP.md).
 
 // Edition-agnostic imports (module compiles standalone under `rustc --test`).
 use std::convert::TryFrom;
@@ -33,7 +35,7 @@ pub const OUTPUT_COUNT_OFFSET: usize = 20; // u32 output count offset.
 
 pub const PAYLOAD_DIGEST_LEN: usize = 32; // 32B payload digest placeholder length.
 
-pub const PAYLOAD_DIGEST_OFFSET: usize = 24; // 32B payload digest placeholder offset (S3 binds the real signer digest).
+pub const PAYLOAD_DIGEST_OFFSET: usize = 24; // 32B payload digest offset (digest covers the full canonical serialization; S3 upgrades to the real signer digest).
 
 pub const RESERVED_OFFSET: usize = 5; // Reserved bytes offset; must be zero.
 
@@ -98,13 +100,20 @@ pub struct Tx {
     pub payload: Vec<u8>,
 }
 
-/// PLACEHOLDER payload digest: documented FNV-1a(64) stand-in expanded to the
-/// 32-byte PAYLOAD_DIGEST_LEN slot. NOT cryptographic; S3 replaces this with
-/// the real signer digest. Kept deterministic so the tamper court below has a
-/// real check to trip.
-fn placeholder_digest(payload: &[u8]) -> [u8; PAYLOAD_DIGEST_LEN] {
+/// Payload integrity digest: FNV-1a(64) over the FULL canonical byte
+/// serialization of the transaction — every wire field in fixed order
+/// (MAGIC, VERSION, RESERVED, NONCE, counts, every input prev_txid/
+/// prev_index, every output value/unit_tag) — expanded to the 32-byte
+/// PAYLOAD_DIGEST_LEN slot. During hashing the digest slot itself is treated
+/// as zeros (canonical form), so the digest is a pure function of the frame.
+///
+/// DOCUMENTED LIMITATION: FNV-1a is NOT cryptographic (no collision or
+/// preimage resistance). It is a plain deterministic integrity checksum;
+/// adversarial hardening (keyed MAC or real hash) is tracked separately as
+/// the S3 signer-digest work item. Kept dependency-free by design.
+fn payload_digest(frame: &[u8]) -> [u8; PAYLOAD_DIGEST_LEN] {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for &b in payload {
+    for &b in frame {
         hash ^= u64::from(b);
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
@@ -152,14 +161,6 @@ impl Tx {
             .copy_from_slice(&n.to_be_bytes());
         out[OUTPUT_COUNT_OFFSET..OUTPUT_COUNT_OFFSET + OUTPUT_COUNT_LEN]
             .copy_from_slice(&m.to_be_bytes());
-        // PLACEHOLDER digest covers (n, m): the payload is an in-memory-only
-        // placeholder field, not serialized. S3 replaces this with the real
-        // signer digest over the full canonical serialization.
-        let mut digest_input = Vec::with_capacity(8);
-        digest_input.extend_from_slice(&n.to_be_bytes());
-        digest_input.extend_from_slice(&m.to_be_bytes());
-        out[PAYLOAD_DIGEST_OFFSET..PAYLOAD_DIGEST_OFFSET + PAYLOAD_DIGEST_LEN]
-            .copy_from_slice(&placeholder_digest(&digest_input));
         let mut cur = TX_HEADER_LEN;
         for input in &self.inputs {
             out[cur..cur + 32].copy_from_slice(&input.prev_txid);
@@ -171,6 +172,13 @@ impl Tx {
             out[cur + 8] = output.unit;
             cur += TX_OUTPUT_LEN;
         }
+        // Digest covers the FULL canonical serialization: the frame was just
+        // materialized with the digest slot zeroed, then hashed whole (fixed
+        // wire order: MAGIC, VERSION, RESERVED, NONCE, counts, body). S3 may
+        // replace the digest function, not its coverage.
+        let digest = payload_digest(&out);
+        out[PAYLOAD_DIGEST_OFFSET..PAYLOAD_DIGEST_OFFSET + PAYLOAD_DIGEST_LEN]
+            .copy_from_slice(&digest);
         out
     }
 
@@ -195,13 +203,17 @@ impl Tx {
         if bytes.len() != expect {
             return Err(TxError::CountMismatch);
         }
-        let mut digest_input = Vec::with_capacity(8);
-        digest_input.extend_from_slice(&u32::try_from(n).expect("n fits u32").to_be_bytes());
-        digest_input.extend_from_slice(&u32::try_from(m).expect("m fits u32").to_be_bytes());
         let stored_digest: [u8; PAYLOAD_DIGEST_LEN] = bytes
             [PAYLOAD_DIGEST_OFFSET..PAYLOAD_DIGEST_OFFSET + PAYLOAD_DIGEST_LEN]
             .try_into()
             .expect("digest slot is PAYLOAD_DIGEST_LEN");
+        // Recompute over the FULL canonical frame (digest slot zeroed back to
+        // the canonical hashing form). ANY flipped byte in ANY wire field —
+        // nonce, counts, or body elements — now changes the digest.
+        let mut canonical = bytes.to_vec();
+        canonical[PAYLOAD_DIGEST_OFFSET..PAYLOAD_DIGEST_OFFSET + PAYLOAD_DIGEST_LEN]
+            .fill(0);
+        let recomputed = payload_digest(&canonical);
         let mut cur = TX_HEADER_LEN;
         let mut inputs = Vec::with_capacity(n);
         for _ in 0..n {
@@ -218,18 +230,11 @@ impl Tx {
             outputs.push(TxOutput { value, unit });
             cur += TX_OUTPUT_LEN;
         }
-        // decoded payload is empty by construction; the digest covers counts
-        // + payload, so a tampered header digest is detected when it differs
-        // from the recomputed digest of (n, m, payload).
-        let payload = Vec::new();
-        let mut check = Vec::with_capacity(8);
-        check.extend_from_slice(&(n as u32).to_be_bytes());
-        check.extend_from_slice(&(m as u32).to_be_bytes());
-        check.extend_from_slice(&payload);
-        if placeholder_digest(&check) != stored_digest {
+        // Digest check AFTER body parse: covers header + every body element.
+        if recomputed != stored_digest {
             return Err(TxError::DigestMismatch);
         }
-        Ok(Tx { nonce, inputs, outputs, payload })
+        Ok(Tx { nonce, inputs, outputs, payload: Vec::new() })
     }
 
     /// Replay guard: reject the same nonce replayed over the same input set.
@@ -435,10 +440,8 @@ mod tests {
     /// COURT 2 — mutation negative courts: every declared wire field is
     /// enumerated from the ontology-derived constants; each byte of each
     /// guarded field is flipped and decode must refuse with a typed error.
-    ///
-    /// Fail-closed finding (NOT papered over): the PLACEHOLDER digest covers
-    /// only (n, m) — NOT the nonce and NOT the body elements. `mutation_audit_unguarded_fields`
-    /// below pins that real behavior as the honest finding for this slice.
+    /// Coverage is TOTAL: since the digest now covers the full canonical
+    /// serialization, NONCE and every body element are guarded too.
     fn assert_refuses(bytes: &[u8], field: &str, off: usize) {
         match Tx::decode(bytes) {
             Err(_) => {} // typed refusal (TxError), never a panic — decode returns Result
@@ -462,9 +465,28 @@ mod tests {
             ("MAGIC", MAGIC_OFFSET, MAGIC_LEN),
             ("VERSION", VERSION_OFFSET, VERSION_LEN),
             ("RESERVED", RESERVED_OFFSET, TX_RESERVED_LEN),
+            ("NONCE", NONCE_OFFSET, NONCE_LEN),
             ("INPUT_COUNT", INPUT_COUNT_OFFSET, INPUT_COUNT_LEN),
             ("OUTPUT_COUNT", OUTPUT_COUNT_OFFSET, OUTPUT_COUNT_LEN),
             ("PAYLOAD_DIGEST", PAYLOAD_DIGEST_OFFSET, PAYLOAD_DIGEST_LEN),
+            // Body: input 0 and input 1 in full (prev_txid + prev_index).
+            ("INPUT0_PREV_TXID", TX_HEADER_LEN, 32),
+            ("INPUT0_PREV_INDEX", TX_HEADER_LEN + 32, 4),
+            ("INPUT1_PREV_TXID", TX_HEADER_LEN + TX_INPUT_LEN, 32),
+            ("INPUT1_PREV_INDEX", TX_HEADER_LEN + TX_INPUT_LEN + 32, 4),
+            // Body: output 0 and output 1 in full (value + unit tag).
+            ("OUTPUT0_VALUE", TX_HEADER_LEN + 2 * TX_INPUT_LEN, 8),
+            ("OUTPUT0_UNIT", TX_HEADER_LEN + 2 * TX_INPUT_LEN + 8, 1),
+            (
+                "OUTPUT1_VALUE",
+                TX_HEADER_LEN + 2 * TX_INPUT_LEN + TX_OUTPUT_LEN,
+                8,
+            ),
+            (
+                "OUTPUT1_UNIT",
+                TX_HEADER_LEN + 2 * TX_INPUT_LEN + TX_OUTPUT_LEN + 8,
+                1,
+            ),
         ];
         for (field, off, len) in guarded {
             for i in 0..*len {
@@ -473,44 +495,82 @@ mod tests {
                 assert_refuses(&b, field, off + i);
             }
         }
-        // NONCE is declared as the replay-guard field but currently carries no
-        // integrity coverage; its expected behavior is pinned (as a finding) in
-        // mutation_audit_unguarded_fields, not asserted refused here.
     }
 
-    /// REAL FINDING (pinned honestly, not papered over): the PLACEHOLDER
-    /// payload digest covers only (input_count, output_count). Flipped bytes in
-    /// NONCE and in body elements (prev_txid, prev_index, value, unit) decode
-    /// successfully. This court asserts that actual behavior so any future
-    /// digest-coverage change is a visible diff; the guard extension (digest
-    /// over the full canonical serialization) is S3 work per the roadmap.
+    /// ZERO-UNGUARDED-FIELDS AUDIT (was the L44 pinned finding): the digest
+    /// covers the full canonical serialization, so EVERY byte of the frame
+    /// (excluding the digest slot itself, which has its own tamper court)
+    /// must cause a typed refusal when flipped. The audit walks the ENTIRE
+    /// frame byte range minus the digest slot and asserts each flip refuses.
     #[test]
     fn mutation_audit_unguarded_fields() {
-        let tx = sample_tx(0x4C45, 1, 1);
+        let tx = sample_tx(0x4C45, 2, 2);
         let base = tx.encode();
+        let total = base.len();
+        let digest_range =
+            PAYLOAD_DIGEST_OFFSET..PAYLOAD_DIGEST_OFFSET + PAYLOAD_DIGEST_LEN;
+        let mut guarded_bytes = 0usize;
+        for off in 0..total {
+            if digest_range.contains(&off) {
+                continue; // digest slot covered by tampered_byte_detected
+            }
+            let mut b = base.clone();
+            b[off] ^= 0x01;
+            match Tx::decode(&b) {
+                Err(_) => guarded_bytes += 1,
+                Ok(tx2) => panic!(
+                    "UNGUARDED FIELD BYTE at offset {off}: flip silently accepted \
+                     (nonce={} n={} m={})",
+                    tx2.nonce,
+                    tx2.inputs.len(),
+                    tx2.outputs.len()
+                ),
+            }
+        }
+        // Every non-digest byte accounted for as guarded.
+        assert_eq!(
+            guarded_bytes,
+            total - PAYLOAD_DIGEST_LEN,
+            "digest must bind every non-digest frame byte"
+        );
+    }
 
-        // NONCE byte flip: accepted, nonce differs.
-        let mut b = base.clone();
-        b[NONCE_OFFSET] ^= 0x01;
-        let back = Tx::decode(&b).expect("finding: nonce flip currently decodes");
-        assert_ne!(back.nonce, tx.nonce, "finding: nonce flip altered the nonce");
+    /// DIGEST-BINDING COURT: the same transaction encodes to the same digest;
+    /// any single-byte change anywhere in a wire field changes the digest.
+    #[test]
+    fn digest_binding_deterministic_and_total() {
+        let tx = sample_tx(0x4C48, 2, 1);
 
-        // Body element flips: accepted.
-        let mut b = base.clone();
-        b[TX_HEADER_LEN] ^= 0x01; // first prev_txid byte
-        assert!(Tx::decode(&b).is_ok(), "finding: prev_txid flip currently decodes");
+        // Determinism: same tx -> same digest.
+        let d1 = tx.encode();
+        let d2 = tx.encode();
+        assert_eq!(
+            d1[PAYLOAD_DIGEST_OFFSET..PAYLOAD_DIGEST_OFFSET + PAYLOAD_DIGEST_LEN],
+            d2[PAYLOAD_DIGEST_OFFSET..PAYLOAD_DIGEST_OFFSET + PAYLOAD_DIGEST_LEN],
+            "same tx must produce identical digest"
+        );
 
-        let mut b = base.clone();
-        b[TX_HEADER_LEN + 32] ^= 0x01; // first prev_index byte
-        assert!(Tx::decode(&b).is_ok(), "finding: prev_index flip currently decodes");
-
-        let mut b = base.clone();
-        b[TX_HEADER_LEN + TX_INPUT_LEN] ^= 0x01; // first output value byte
-        assert!(Tx::decode(&b).is_ok(), "finding: output value flip currently decodes");
-
-        let mut b = base.clone();
-        b[TX_HEADER_LEN + TX_INPUT_LEN + 8] ^= 0x01; // unit tag byte
-        assert!(Tx::decode(&b).is_ok(), "finding: unit tag flip currently decodes");
+        // Totality: every single-byte flip in ANY wire field changes the
+        // digest value (stronger than decode-refusal: binds encode itself).
+        let base = tx.encode();
+        let digest_range =
+            PAYLOAD_DIGEST_OFFSET..PAYLOAD_DIGEST_OFFSET + PAYLOAD_DIGEST_LEN;
+        for off in 0..base.len() {
+            if digest_range.contains(&off) {
+                continue;
+            }
+            let mut b = base.clone();
+            b[off] ^= 0x01;
+            // Recompute the digest over the tampered frame (canonical zeroed
+            // slot) and require it to differ from the original digest.
+            b[PAYLOAD_DIGEST_OFFSET..PAYLOAD_DIGEST_OFFSET + PAYLOAD_DIGEST_LEN].fill(0);
+            let mutated = payload_digest(&b);
+            assert_ne!(
+                mutated,
+                base[PAYLOAD_DIGEST_OFFSET..PAYLOAD_DIGEST_OFFSET + PAYLOAD_DIGEST_LEN],
+                "flipped byte {off} did NOT change the digest — digest does not bind it"
+            );
+        }
     }
 
     /// COURT 3 — replay-guard court: two txs identical except nonce are both
