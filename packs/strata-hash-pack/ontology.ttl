@@ -1,0 +1,71 @@
+# strata-hash-pack ontology — Strata S1 crypto primitives: hash algorithms,
+# digests, and Merkle vocabulary on the family kernel namespace.
+
+@prefix st:  <https://strata.chatman.ai/ontology#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# ── Classes ──────────────────────────────────────────────────────────
+
+st:HashAlgorithm a rdfs:Class ; rdfs:label "HashAlgorithm" ;
+    rdfs:comment "A concrete cryptographic hash function (e.g. BLAKE3, SHA-256) with a fixed digest output length." .
+
+st:Digest a rdfs:Class ; rdfs:label "Digest" ;
+    rdfs:comment "The fixed-length output of a HashAlgorithm; every digest this family uses is 32 bytes." .
+
+st:MerkleNode a rdfs:Class ; rdfs:label "MerkleNode" ;
+    rdfs:comment "A node in a Merkle tree: a leaf (hash of a data chunk) or an internal node (hash of child concat, odd child duplicated per the Bitcoin duplication rule)." .
+
+st:MerkleTree a rdfs:Class ; rdfs:label "MerkleTree" ;
+    rdfs:comment "A binary hash tree over an ordered leaf vector; carries a 32-byte root and per-leaf inclusion proofs." .
+
+# ── Properties ───────────────────────────────────────────────────────
+
+st:algorithmName a rdf:Property ; rdfs:label "algorithm name" ;
+    rdfs:comment "Rust identifier of the algorithm (const/projection name)." ;
+    rdfs:domain st:HashAlgorithm ; rdfs:range xsd:string .
+
+st:digestLength a rdf:Property ; rdfs:label "digest length" ;
+    rdfs:comment "Digest output length in bytes." ;
+    rdfs:domain st:Digest ; rdfs:range xsd:integer .
+
+st:merkleRule a rdf:Property ; rdfs:label "merkle rule" ;
+    rdfs:comment "Internal-node rule for MerkleNode. Fixed to 'duplicate-last' (odd child hashed with itself, the Bitcoin duplication rule): H(a,b) = H(a || a) when a == last at odd level width." ;
+    rdfs:domain st:MerkleNode ; rdfs:range xsd:string .
+
+st:merkleRoot a rdf:Property ; rdfs:label "merkle root" ;
+    rdfs:comment "The 32-byte root digest of a MerkleTree." ;
+    rdfs:domain st:MerkleTree ; rdfs:range xsd:hexBinary .
+
+# ── Individuals ──────────────────────────────────────────────────────
+# Ground truth for output lengths: BLAKE3 is defined with a 256-bit (32-byte)
+# default output per the BLAKE3 paper (O'Connor, Aumasson, Neves, Wilcox-O
+# Hearn, "BLAKE3: one function, fast everywhere", 2020); SHA-256 produces a
+# 256-bit digest per FIPS 180-4 section 6.2. No fabricated citations beyond
+# these primary specs.
+
+st:BLAKE3 a st:HashAlgorithm ;
+    rdfs:label "BLAKE3" ;
+    rdfs:seeAlso <https://github.com/BLAKE3-team/BLAKE3-specs> ;
+    st:algorithmName "BLAKE3" ;
+    st:digestLength 32 .
+
+st:SHA_256 a st:HashAlgorithm ;
+    rdfs:label "SHA-256" ;
+    rdfs:seeAlso <https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf> ;
+    st:algorithmName "SHA_256" ;
+    st:digestLength 32 .
+
+# The 32-byte digest both algorithms share (the family digest width).
+st:digest32 a st:Digest ;
+    rdfs:label "Digest32" ;
+    st:digestLength 32 ;
+    rdfs:comment "The family digest width: both supported algorithms output 32 bytes (BLAKE3 default 256-bit output; FIPS 180-4 §6.2 SHA-256)." .
+
+# ── Merkle vocabulary (naming only; implementation lives in the generated
+#    module) ───────────────────────────────────────────────────────────
+
+st:merkle_rule_duplicate_last a st:MerkleNode ;
+    st:merkleRule "duplicate-last" ;
+    rdfs:comment "Odd-width level: the last node is hashed with itself, matching the Bitcoin duplication rule." .
