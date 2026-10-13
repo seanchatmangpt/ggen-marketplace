@@ -32,10 +32,12 @@ SPARQL select → template project → generated consequence, with gates between
    re-run `ggen sync run` and the output must be byte-identical (idempotence
    falsifies non-determinism); gates refuse when a constraint is violated
    (a gate that can never fail is vacuous).
-6. **Falsifier failures branch, they do not stop**
-6b. **Extensions: reuse→compose→extend before invent** — the family adds packs only where no existing pack owns the semantics (protocol kernel first; capability packs compose it; nothing re-implements a sibling's vocabulary).: a refused sync names the
+6. **Falsifier failures branch, they do not stop** — a refused sync names the
    violated constraint; the repair lands in ontology/query/template, and the
    next sync re-admits.
+6b. **Extensions: reuse→compose→extend before invent** — the family adds packs
+   only where no existing pack owns the semantics (protocol kernel first;
+   capability packs compose it; nothing re-implements a sibling's vocabulary).
 7. **Operationalization** — the recurring operation (regenerate after ontology
    edit) is fixed as a documented procedure in
    [../how-to/generate-from-strata-ontologies.md](../how-to/generate-from-strata-ontologies.md);
