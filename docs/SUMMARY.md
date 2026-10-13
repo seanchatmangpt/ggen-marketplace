@@ -66,6 +66,7 @@
 - [Enterprise Kudzu v26.9.13](reference/enterprise-kudzu-v26.9.13.md)
 - [GraphLaw Ash capability pack](reference/graphlaw-ash-capability-pack.md)
 - [GraphLaw rust, wasm, beam/elixir pipeline](reference/graphlaw-rust-wasm-beam-pipeline.md)
+- [GraphLaw wasm pin freeze ledger](reference/graphlaw-wasm-pin-freeze-ledger.md)
 - [wasi-json-abi-pack (deprecated; see rust-wasi-wasmex-pack)](reference/wasi-json-abi-pack.md)
 - [New packs 2026-09](reference/new-packs-2026-09.md)
 - [Chicago work-equivalent court](reference/chicago-work-equivalent-court.md)
