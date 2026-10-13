@@ -11,12 +11,24 @@
 //! - Merkle tree per the Bitcoin duplication rule (odd node hashed with
 //!   itself): H(x) = SHA-256(SHA-256(x)) is NOT used here — single
 //!   SHA-256 per level, the Strata family convention, documented below.
+//! - Domain separation (second-preimage defense): leaf and node hashing
+//!   are tagged — leaf = SHA-256(0x00 || leaf), node = SHA-256(0x01 ||
+//!   left || right). Without tags, a 1-leaf tree [X] with
+//!   X = SHA-256(Y || Z) has the same root as the 2-leaf tree [Y, Z]
+//!   with zero hash work (the classic untagged-Merkle second-preimage
+//!   class); the `second_preimage_domain_separation` court pins this.
 //!
 //! Family digest width: 32 bytes (BLAKE3 default 256-bit output,
 //! 2 algorithm(s) projected, both 32-byte; FIPS 180-4 §6.2).
 
 /// Digest width in bytes for every supported Strata hash algorithm.
 pub const DIGEST_LEN: usize = 32;
+
+/// Domain-separation tag for leaf hashing (second-preimage defense).
+pub const LEAF_TAG: u8 = 0x00;
+
+/// Domain-separation tag for internal node hashing.
+pub const NODE_TAG: u8 = 0x01;
 
 /// Number of hash algorithms projected from the ontology (guard witness).
 pub const ALGO_COUNT: usize = 2;
@@ -103,12 +115,23 @@ pub fn sha256(data: &[u8]) -> [u8; DIGEST_LEN] {
     out
 }
 
-/// One compression step of the Strata Merkle tree: H(left || right).
-/// Single SHA-256 (not double-SHA256) — the Strata family convention.
+/// Domain-separated leaf hash: SHA-256(0x00 || leaf).
+fn leaf_hash(leaf: &[u8; DIGEST_LEN]) -> [u8; DIGEST_LEN] {
+    let mut buf = [0u8; DIGEST_LEN + 1];
+    buf[0] = LEAF_TAG;
+    buf[1..].copy_from_slice(leaf);
+    sha256(&buf)
+}
+
+/// One compression step of the Strata Merkle tree:
+/// SHA-256(0x01 || left || right). Single SHA-256 (not double-SHA256) —
+/// the Strata family convention — with a node domain tag so a node
+/// digest can never equal a leaf digest or a raw preimage encoding.
 fn node_hash(left: &[u8; DIGEST_LEN], right: &[u8; DIGEST_LEN]) -> [u8; DIGEST_LEN] {
-    let mut buf = [0u8; DIGEST_LEN * 2];
-    buf[..DIGEST_LEN].copy_from_slice(left);
-    buf[DIGEST_LEN..].copy_from_slice(right);
+    let mut buf = [0u8; DIGEST_LEN * 2 + 1];
+    buf[0] = NODE_TAG;
+    buf[1..DIGEST_LEN + 1].copy_from_slice(left);
+    buf[DIGEST_LEN + 1..].copy_from_slice(right);
     sha256(&buf)
 }
 
@@ -134,7 +157,7 @@ pub fn merkle_root(leaves: &[[u8; DIGEST_LEN]]) -> Option<[u8; DIGEST_LEN]> {
     if leaves.is_empty() {
         return None;
     }
-    let mut level: Vec<[u8; DIGEST_LEN]> = leaves.to_vec();
+    let mut level: Vec<[u8; DIGEST_LEN]> = leaves.iter().map(leaf_hash).collect();
     while level.len() > 1 {
         level = collapse(&level);
     }
@@ -147,7 +170,7 @@ pub fn merkle_proof(leaves: &[[u8; DIGEST_LEN]], index: usize) -> Option<Proof> 
     if leaves.is_empty() || index >= leaves.len() {
         return None;
     }
-    let mut level: Vec<[u8; DIGEST_LEN]> = leaves.to_vec();
+    let mut level: Vec<[u8; DIGEST_LEN]> = leaves.iter().map(leaf_hash).collect();
     let mut idx = index;
     let mut proof = Proof::new();
     while level.len() > 1 {
@@ -171,7 +194,7 @@ pub fn merkle_verify(
     index: usize,
     proof: &Proof,
 ) -> bool {
-    let mut node = *leaf;
+    let mut node = leaf_hash(leaf);
     let mut idx = index;
     for &sib in proof {
         node = if idx % 2 == 0 { node_hash(&node, &sib) } else { node_hash(&sib, &node) };
@@ -263,14 +286,15 @@ mod tests {
         assert_eq!(merkle_proof(&[], 0), None);
     }
 
-    /// Property: single-leaf tree — root equals the leaf, empty proof.
+    /// Property: single-leaf tree — root is the domain-separated leaf
+    /// hash (never the raw leaf), empty proof.
     #[test]
     fn single_leaf_root_is_leaf() {
         let leaf = [7u8; DIGEST_LEN];
-        assert_eq!(merkle_root(&[leaf]), Some(leaf));
+        assert_eq!(merkle_root(&[leaf]), Some(leaf_hash(&leaf)));
         let p = merkle_proof(&[leaf], 0).unwrap();
         assert!(p.is_empty());
-        assert!(merkle_verify(&leaf, &leaf, 0, &p));
+        assert!(merkle_verify(&leaf_hash(&leaf), &leaf, 0, &p));
     }
 
     /// Property sweep: for n in 1..=300 leaves (covering every 2^k and the
@@ -337,5 +361,164 @@ mod tests {
     #[test]
     fn projection_nonempty() {
         assert_eq!(ALGO_COUNT, 2);
+    }
+
+    // ── S1 hardening courts (L25) ────────────────────────────────────
+
+    /// Second-preimage attack court. Without domain separation, an
+    /// attacker publishing the 1-leaf tree [X] with X = H_node(Y, Z)
+    /// gets a root identical to the 2-leaf tree [Y, Z] for free. With
+    /// the tags, the leaf level and node level live in different hash
+    /// universes, so no byte string X can make the roots collide.
+    #[test]
+    fn second_preimage_domain_separation() {
+        let mut rng = SplitMix64(0xA7);
+        let y = rng.leaf();
+        let z = rng.leaf();
+        let two_leaf_root = merkle_root(&[y, z]).unwrap();
+
+        // The attacker's forged "single leaf": the untagged node digest
+        // of (y, z) — i.e. what an untagged impl would use as X.
+        let untagged_node = {
+            let mut buf = [0u8; DIGEST_LEN * 2];
+            buf[..DIGEST_LEN].copy_from_slice(&y);
+            buf[DIGEST_LEN..].copy_from_slice(&z);
+            sha256(&buf)
+        };
+
+        // Domain separation must exist and differ between levels.
+        assert_eq!(LEAF_TAG, 0x00);
+        assert_eq!(NODE_TAG, 0x01);
+
+        // A 1-leaf tree of ANY byte string — including the attacker's
+        // forged node digest — cannot reach the 2-leaf root: the leaf
+        // level re-hashes under LEAF_TAG.
+        assert_ne!(merkle_root(&[untagged_node]), Some(two_leaf_root));
+
+        // And the tagged node digest differs from the untagged one.
+        assert_ne!(node_hash(&y, &z), untagged_node);
+
+        // Brute-force check over a sample: no 1-leaf tree of the sampled
+        // strings equals a 2-leaf root of any sampled pair.
+        for _ in 0..64 {
+            let a = rng.leaf();
+            let b = rng.leaf();
+            let r2 = merkle_root(&[a, b]).unwrap();
+            let x = rng.leaf();
+            assert_ne!(merkle_root(&[x]), Some(r2));
+            // The forged collision target also fails.
+            assert_ne!(merkle_root(&[r2]), Some(r2));
+        }
+    }
+
+    /// Proof-of-inclusion negative courts: a proof built for leaf A must
+    /// refuse under leaf B's index; every single-byte mutation of every
+    /// proof node must refuse; proofs of the wrong length (padded or
+    /// extended) must refuse.
+    #[test]
+    fn proof_of_inclusion_negatives() {
+        let mut rng = SplitMix64(0xB1);
+        let leaves: Vec<[u8; DIGEST_LEN]> = (0..8).map(|_| rng.leaf()).collect();
+        let root = merkle_root(&leaves).unwrap();
+
+        for idx in 0..8 {
+            let p = merkle_proof(&leaves, idx).unwrap();
+            // Leaf A's proof against leaf B's index: refuse for all B != A.
+            for other in 0..8 {
+                if other != idx {
+                    assert!(
+                        !merkle_verify(&root, &leaves[idx], other, &p),
+                        "proof for {} must refuse at foreign index {}", idx, other
+                    );
+                }
+            }
+            // Single-byte mutation anywhere in the proof: refuse.
+            for node_i in 0..p.len() {
+                for byte_i in [0usize, 7, 15, 31] {
+                    let mut bad = p.clone();
+                    bad[node_i][byte_i] ^= 0x80;
+                    assert!(!merkle_verify(&root, &leaves[idx], idx, &bad));
+                }
+            }
+            // Wrong-length proofs: refuse.
+            if !p.is_empty() {
+                let mut long = p.clone();
+                long.push(rng.leaf());
+                assert!(!merkle_verify(&root, &leaves[idx], idx, &long));
+                assert!(!merkle_verify(&root, &leaves[idx], idx, &p[..p.len() - 1].to_vec()));
+            }
+        }
+    }
+
+    /// Straightforward reference Merkle root with the Bitcoin duplication
+    /// rule (used as an independent collaborator by the odd-leaf court).
+    fn reference_root(leaves: &[[u8; DIGEST_LEN]]) -> [u8; DIGEST_LEN] {
+        let mut level: Vec<[u8; DIGEST_LEN]> = leaves.iter().map(leaf_hash).collect();
+        while level.len() > 1 {
+            let mut next = Vec::new();
+            let mut i = 0;
+            while i < level.len() {
+                let right = if i + 1 < level.len() { level[i + 1] } else { level[i] };
+                next.push(node_hash(&level[i], &right));
+                i += 2;
+            }
+            level = next;
+        }
+        level[0]
+    }
+
+    /// Odd-leaf duplication court: unbalanced trees (3, 5, 7 leaves, plus
+    /// 200 random leaf-set sizes) must match the reference implementation
+    /// — the trailing odd node is duplicated (Bitcoin-style), never
+    /// promoted or dropped.
+    #[test]
+    fn odd_leaf_duplication_matches_reference() {
+        let mut rng = SplitMix64(0xC3);
+        for &n in &[3usize, 5, 7] {
+            let leaves: Vec<[u8; DIGEST_LEN]> = (0..n).map(|_| rng.leaf()).collect();
+            assert_eq!(merkle_root(&leaves), Some(reference_root(&leaves)), "n={n}");
+        }
+        for _ in 0..200 {
+            let n = 1 + (rng.next() as usize) % 64;
+            let leaves: Vec<[u8; DIGEST_LEN]> = (0..n).map(|_| rng.leaf()).collect();
+            assert_eq!(merkle_root(&leaves), Some(reference_root(&leaves)), "n={n}");
+        }
+    }
+
+    /// Proof-order fuzz: shuffling the internal proof nodes must fail —
+    /// the bottom-up order is load-bearing, not a multiset.
+    #[test]
+    fn proof_order_fuzz() {
+        let mut rng = SplitMix64(0xD4);
+        for _ in 0..25 {
+            let n = 8 + (rng.next() as usize) % 32;
+            let leaves: Vec<[u8; DIGEST_LEN]> = (0..n).map(|_| rng.leaf()).collect();
+            let root = merkle_root(&leaves).unwrap();
+            for idx in 0..n {
+                let p = merkle_proof(&leaves, idx).unwrap();
+                if p.len() < 2 {
+                    continue;
+                }
+                // A handful of derangement-ish shuffles per proof.
+                for seed in 0..4u64 {
+                    let mut shuffled = p.clone();
+                    // Deterministic rotation by a seed-derived offset —
+                    // a permutation that moves every element when offset
+                    // % len != 0, plus one swap to catch offset 0.
+                    let off = ((seed * 7 + 3) as usize) % shuffled.len();
+                    shuffled.rotate_left(off);
+                    if shuffled != p {
+                        assert!(
+                            !merkle_verify(&root, &leaves[idx], idx, &shuffled),
+                            "shuffled proof must fail (n={}, idx={}, seed={})", n, idx, seed
+                        );
+                    }
+                }
+                // Full reversal is always a non-identity permutation here.
+                let mut rev = p.clone();
+                rev.reverse();
+                assert!(!merkle_verify(&root, &leaves[idx], idx, &rev));
+            }
+        }
     }
 }

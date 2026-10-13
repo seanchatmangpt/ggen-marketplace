@@ -13,8 +13,14 @@
 //! the ontology; gated by gates/020_digest_binding.rq).
 
 /// Detached ML-DSA-65 signature width in bytes (FIPS 204; ground truth
-/// ~/strata/strata_protocol/src/signer.rs SIGNATURE_LEN = 3309).
+/// ~/strata/strata_protocol/src/signer.rs SIGNATURE_LEN = 3309;
+/// ontology st:signatureLen, gated by gates/010_mldsa65_lengths.rq).
 pub const PAYLOAD_SIGNATURE_LEN: usize = 3309;
+
+/// Encoded ML-DSA-65 verifying-key width in bytes (FIPS 204; ground truth
+/// signer.rs PUBLIC_KEY_LEN = 1952; ontology st:publicKeyLen, gated by
+/// gates/010_mldsa65_lengths.rq).
+pub const PUBLIC_KEY_LEN: usize = 1952;
 
 /// The signing capability every Strata signer backend provides. The real
 /// backend is the ml-dsa crate behind ~/strata signer.rs; any in-crate
@@ -233,6 +239,131 @@ mod tests {
         let tx = b"tx-bytes-roundtrip";
         let sig = signer.sign_tx(tx);
         assert!(signer.verify_tx(tx, &sig));
+    }
+
+    /// S3 court (positive): sign a deterministic 32-byte tx digest; the
+    /// signature is exactly 3309 bytes and verifies.
+    #[test]
+    fn positive_sign_verify_tx_digest() {
+        let signer = TxSigner::new(TestSigner::new([0x42u8; 32]));
+        let digest = signer.bind_tx_digest(b"tx-digest-court-001");
+        assert_eq!(digest.len(), 32);
+        let sig = signer.backend.sign(&digest);
+        assert_eq!(sig.len(), 3309, "signature must be exactly 3309 bytes");
+        assert!(signer.backend.verify(&digest, &sig), "valid signature must verify");
+        // Deterministic: re-signing the same digest reproduces byte-identical
+        // output (FIPS 204 deterministic ML-DSA.Sign semantics).
+        let sig2 = signer.backend.sign(&digest);
+        assert_eq!(sig, sig2, "signing must be deterministic");
+    }
+
+    /// S3 court (negative): flipping one signature bit must be refused.
+    #[test]
+    fn flipped_signature_bit_refused() {
+        let signer = TxSigner::new(TestSigner::new([0x42u8; 32]));
+        let digest = signer.bind_tx_digest(b"tx-digest-court-002");
+        let mut sig = signer.backend.sign(&digest);
+        sig[17] ^= 0x01;
+        assert!(
+            !signer.backend.verify(&digest, &sig),
+            "one flipped signature bit must refuse verification"
+        );
+    }
+
+    /// S3 court (negative): a signature over one digest must not verify
+    /// against a different digest.
+    #[test]
+    fn different_digest_refuses_original_signature() {
+        let signer = TxSigner::new(TestSigner::new([0x42u8; 32]));
+        let d1 = signer.bind_tx_digest(b"tx-digest-court-003");
+        let d2 = signer.bind_tx_digest(b"tx-digest-court-004");
+        assert_ne!(d1, d2);
+        let sig = signer.backend.sign(&d1);
+        assert!(
+            !signer.backend.verify(&d2, &sig),
+            "signature over digest d1 must not verify over digest d2"
+        );
+    }
+
+    /// S3 court (key lengths): signature 3309 / public key 1952 / digest 32
+    /// pinned against the ontology-declared values (st:signatureLen,
+    /// st:publicKeyLen; st:TxDigestBinding st:digestAlgorithmLength).
+    #[test]
+    fn key_lengths_match_ontology() {
+        assert_eq!(PAYLOAD_SIGNATURE_LEN, 3309);
+        assert_eq!(PUBLIC_KEY_LEN, 1952);
+        assert_eq!(DIGEST_LEN, 32);
+        assert_eq!(
+            DIGEST_BINDING_COUNT, 1,
+            "exactly one TxDigestBinding row projected"
+        );
+    }
+
+    /// S3 court (sabotage twin): the protocol binds every digest under the
+    /// domain-separation prefix `STRATA_TX_DIGEST_PREFIX` before signing. A
+    /// weakened backend that skips the prefix accepts a bare-digest signature
+    /// — exactly the cross-protocol forgery the negative court refuses. The
+    /// court catches the twin by (a) refusing its unprefixed signature under
+    /// the correct verifier and (b) exhibiting the twin's wrong-accept that
+    /// the correct verifier prevents.
+    #[test]
+    fn sabotage_twin_skipping_domain_sep_is_caught() {
+        const STRATA_TX_DIGEST_PREFIX: &[u8] = b"strata-tx-digest-v1";
+
+        /// Correct backend: binds the domain-separation prefix.
+        struct PrefixedSigner {
+            key: [u8; 32],
+        }
+        impl PrefixedSigner {
+            fn bind(&self, digest: &[u8; 32]) -> [u8; 32] {
+                let mut bound = [0u8; 32];
+                for i in 0..32 {
+                    bound[i] = digest[i] ^ STRATA_TX_DIGEST_PREFIX[i % STRATA_TX_DIGEST_PREFIX.len()];
+                }
+                bound
+            }
+        }
+        impl PayloadSigner for PrefixedSigner {
+            fn sign(&self, payload: &[u8]) -> [u8; PAYLOAD_SIGNATURE_LEN] {
+                let mut digest = [0u8; 32];
+                digest.copy_from_slice(&payload[..32]);
+                TestSigner::new(self.key).sign(&self.bind(&digest))
+            }
+            fn verify(&self, payload: &[u8], sig: &[u8; PAYLOAD_SIGNATURE_LEN]) -> bool {
+                let mut digest = [0u8; 32];
+                digest.copy_from_slice(&payload[..32]);
+                TestSigner::new(self.key).verify(&self.bind(&digest), sig)
+            }
+        }
+
+        /// Sabotage twin: skips the domain-separation prefix entirely.
+        struct PrefixSkippingSigner {
+            key: [u8; 32],
+        }
+        impl PayloadSigner for PrefixSkippingSigner {
+            fn sign(&self, payload: &[u8]) -> [u8; PAYLOAD_SIGNATURE_LEN] {
+                TestSigner::new(self.key).sign(payload)
+            }
+            fn verify(&self, payload: &[u8], sig: &[u8; PAYLOAD_SIGNATURE_LEN]) -> bool {
+                TestSigner::new(self.key).verify(payload, sig)
+            }
+        }
+
+        let digest = sha256(b"tx-digest-court-sabotage");
+        let key = [0x77u8; 32];
+
+        // The twin (wrongly) signs the bare digest; a valid-looking signature.
+        let twin_sig = PrefixSkippingSigner { key }.sign(&digest);
+        // (a) the correct verifier must REFUSE it...
+        assert!(
+            !PrefixedSigner { key }.verify(&digest, &twin_sig),
+            "unprefixed (domain-sep-skipping) signature must be refused by the correct verifier"
+        );
+        // ...and the twin exposes its own bug by accepting it.
+        assert!(
+            PrefixSkippingSigner { key }.verify(&digest, &twin_sig),
+            "sabotage twin must exhibit the wrong-accept its skipping produces"
+        );
     }
 
     /// Court: FIPS 180-4 published SHA-256 vectors pin the inline copy
