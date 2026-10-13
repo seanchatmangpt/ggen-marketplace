@@ -40,6 +40,7 @@
 - [Tailor a solution from a deployment profile](how-to/tailor-a-solution-profile.md)
 - [Run the local kind commerce rail](how-to/run-the-kind-commerce-rail.md)
 - [Generate from Strata ontologies](how-to/generate-from-strata-ontologies.md)
+- [Share a cross-repo fixture court](how-to/share-a-cross-repo-fixture-court.md)
 
 # Reference
 
