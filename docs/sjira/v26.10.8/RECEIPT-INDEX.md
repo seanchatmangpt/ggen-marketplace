@@ -4,11 +4,11 @@ Lane R102, 2026-10-09. One-table index of every campaign artifact in
 `docs/sjira/v26.10.8/`. Complements R99. Every row corresponds to an on-disk
 entry; table rows == directory contents (count verified at write time).
 
-Counts (re-verified 2026-10-13, lane L98): 48 top-level files (43 `*.md` + 4 data files:
+Counts (re-verified 2026-10-13, lane L151): 47 top-level files (43 `*.md` + 4 data files:
 `ADMISSION-LEDGER.jsonl`, `candidates.jsonl`, `candidates-v2.jsonl`, `WORKGRAPH.ttl`) + 1 `seal/`
 directory (94 entries: 88 `*.sj-record.json`
 artifacts plus `drafts.jsonl`, `standing-table.tsv`, `CHAIN-HEAD.txt`, `OSXCLNR-SEAL-HEADS.txt`,
-`build_drafts.py`, and the `retired/` subdir) = 49 directory entries total.
+`build_drafts.py`, and the `retired/` subdir) = 48 directory entries total.
 
 ## Index
 
