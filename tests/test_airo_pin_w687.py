@@ -15,20 +15,34 @@ import pytest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AIRO = os.path.join(REPO_ROOT, "packs", "ggen-platform-pack", "ontology", "airo.ttl")
-EXPECTED_SHA256 = "6274d2d8711e046cf38f1b5b2980188094d4aa87b5af79804005a06468fd8469"
+WITNESS = os.path.join(REPO_ROOT, "packs", "ggen-platform-pack", "witness.ttl")
 EXPECTED_TRIPLES = 558
 
 rdflib = pytest.importorskip("rdflib")
+
+
+def _witnessed_sha256():
+    """The one hash source: the pack-local witness.ttl (sw:syncedGraphHash)."""
+    g = rdflib.Graph()
+    g.parse(WITNESS, format="turtle")
+    hashes = {
+        str(o)
+        for _, p, o in g
+        if str(p).endswith("#syncedGraphHash")
+    }
+    assert len(hashes) == 1, sorted(hashes)
+    return next(iter(hashes))
 
 
 def test_airo_file_exists():
     assert os.path.isfile(AIRO), AIRO
 
 
-def test_airo_byte_hash_pin():
+def test_airo_byte_hash_matches_witness_pin():
+    """Cross-check: on-disk airo.ttl sha256 == witnessed sw:syncedGraphHash."""
     with open(AIRO, "rb") as f:
         digest = hashlib.sha256(f.read()).hexdigest()
-    assert digest == EXPECTED_SHA256, digest
+    assert digest == _witnessed_sha256(), digest
 
 
 def test_airo_rdflib_parse_and_triple_count_pin():
@@ -56,4 +70,5 @@ def test_marketplace_validate_stays_green():
     # pack landing — they pin the exact validate line, not a lower bound.
     # 2026-10-13 wave: 18 packs landed (strata S1-S10 family completion,
     # insa-law-pack, refusal-vocabulary-pack), packs=308->326, ontologies=506->540.
-    assert "validated packs=326" in r.stdout and "ontologies=540" in r.stdout, r.stdout[-300:]
+    # L186: ggen-platform-pack witness.ttl landed in this commit — ontologies=540->541.
+    assert "validated packs=326" in r.stdout and "ontologies=541" in r.stdout, r.stdout[-300:]
