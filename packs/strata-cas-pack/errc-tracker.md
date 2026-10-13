@@ -42,3 +42,46 @@ Repair lane S4 (R15 defects, 2026-10-13):
 this repair (byte-identical, `cmp` clean). Grounding intact:
 `~/strata/strata_protocol/src/cas.rs:279` `CasSnapshotLedger` (push at
 :293) — ontology comment resolves to real source.
+
+## Raise — L93 runtime courts (2026-10-13, lane L93)
+
+Zero-individuals verdict: the earlier REFUSED-by-design stance is superseded.
+The pack now carries real semantics worth witnessing (canonicalization law +
+content-addressed individuals), so a minimal witnessed set was added instead
+of keeping the vacuous gates: 3 `st:MerkleCommit` (one parent chain,
+genesis→002→003), 1 `st:KnowledgeWormhole` (wh-001, both endpoint digests),
+1 `st:Snapshot` (snap-001 → commit-002, abutmentStrict true). All digests are
+real SHA-256 of the declared canonical payloads (documented as the
+canonicalization law on `st:merkleRoot`/`st:sourceDigest`/`st:targetDigest`
+— previously undocumented, now stated in the ontology itself).
+
+New ontology properties: `st:canonicalPayload`, `st:canonicalSourcePayload`,
+`st:canonicalTargetPayload`. `queries/commits.rq` extended to a UNION over
+commit + wormhole rows; parent binding made total via `COALESCE(STR(?p),"")`
+after observing binding leakage of unbound OPTIONALs across rows in the ggen
+row serializer (rdflib returned the correct unbound rows; the ggen engine
+did not) — sentinel `""` = genesis in `LAW_CHAIN`.
+
+Runtime courts (template test module, 5 tests, `rustc --test -D warnings`,
+all green):
+
+1. `witnessed_chain_constructs_through_frame_types` — chain rebuilds through
+   generated `MerkleCommit::genesis/child_of`, `depth()` walks end-to-end;
+   wormhole frame carries both digests.
+2. `every_declared_digest_is_64_hex` — court (a), enumerated fail-closed
+   (`LAW_DIGESTS` count assertions).
+3. `abutment_chain_tiles_without_gaps_or_overlaps` — court (b), the 010
+   gate law as a runtime court: no gaps (parents exist), no overlaps
+   (in-degree ≤ 1), one genesis, connected.
+4. `content_address_matches_recomputed_sha256` — court (c), embedded
+   SHA-256 recomputation (no digest copying).
+5. `sabotage_flipped_payload_byte_is_refused` — court (d), the digest-copy
+   twin: flipped payload byte must change the digest.
+
+Non-vacuity receipts: mutation of one digest hex char in a copy of
+`generated/cas.rs` fails court (c) (4 passed / 1 FAILED as expected);
+`abutmentStrict=false` → gate 010 returns 1 row; malformed `sourceDigest`
+→ gate 020 returns 1 row. `ggen sync run` ×2 byte-identical (`cmp` clean);
+witness pack-level `sw:syncedGraphHash` refreshed to the new receipt
+graph_hash; `python3 verify.py` OK (all gates zero-rows);
+`scripts/qualify_packs.py --pack strata-cas-pack` → **ALIVE** (project).

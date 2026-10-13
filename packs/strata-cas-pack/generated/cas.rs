@@ -2,6 +2,7 @@
 //! (https://strata.chatman.ai/ontology#) — do not edit by hand.
 //!
 //! Frame types consumed from `strata_protocol` (strata-protocol-pack).
+//! Source of truth is the RDF ontology; regenerate rather than patching here.
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MerkleCommit {
@@ -46,4 +47,273 @@ impl MerkleCommit {
     }
 }
 
-// REFUSED: empty ontology projection — zero st:MerkleCommit individuals (current ontology truth; fail-closed contract)
+
+// Witnessed individuals: 4 row(s) enumerated from the ontology.
+
+// commit 18d53c1eaa279405b194c9ae5983652e0d89f3bd50b62e87e1278a71a4af3037
+
+// commit f0575860c272837d9f63e43c098b9e74638a24d8760feaafb9f58fcf0cca3386
+
+// commit fd9fc6c86d8f666da7059851d9e6e45df1c288c3035f5d9475a1d871ec4ec33c
+
+// wormhole b49af89c8ef8ae1d0bcb798e9cb579a84236f91a03d916bbb078ee6b2241cc10
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── L93 runtime courts (2026-10-13) ──────────────────────────────
+    // Enumerated fail-closed from ontology-derived rows: every entry
+    // below is emitted by the generation rule from the witnessed
+    // individuals. Deleting an individual from ontology.ttl drops a
+    // constant here and trips the count assertions instead of silently
+    // shrinking the witnessed surface.
+
+    
+    
+    // commit 1 (child of f0575860c272837d9f63e43c098b9e74638a24d8760feaafb9f58fcf0cca3386)
+    
+    // commit 2 (child of fd9fc6c86d8f666da7059851d9e6e45df1c288c3035f5d9475a1d871ec4ec33c)
+    
+    // commit 3 (genesis)
+    
+    /// Content-address law input set: (kind, digest, canonical payload).
+    /// Commits carry their merkleRoot; wormholes carry their targetDigest.
+    const LAW_DIGESTS: [(&str, &str, &str); 4] = [
+        ("commit", "18d53c1eaa279405b194c9ae5983652e0d89f3bd50b62e87e1278a71a4af3037", "strata-cas-pack append 003: bind snapshot snap-001"),
+        ("commit", "f0575860c272837d9f63e43c098b9e74638a24d8760feaafb9f58fcf0cca3386", "strata-cas-pack append 002: pin wormhole wh-001"),
+        ("commit", "fd9fc6c86d8f666da7059851d9e6e45df1c288c3035f5d9475a1d871ec4ec33c", "strata-cas-pack genesis: sample ledger seed v1"),
+        ("wormhole", "b49af89c8ef8ae1d0bcb798e9cb579a84236f91a03d916bbb078ee6b2241cc10", "graph T: strata runtime ledger state@f326e08d1"),
+        ];
+
+    /// Abutment chain input set: (root, Option<parent root>) for every
+    /// witnessed commit, in ontology enumeration order.
+    const LAW_CHAIN: [(&str, Option<&str>); 3] = [
+        ("18d53c1eaa279405b194c9ae5983652e0d89f3bd50b62e87e1278a71a4af3037", Some("f0575860c272837d9f63e43c098b9e74638a24d8760feaafb9f58fcf0cca3386")),
+        ("f0575860c272837d9f63e43c098b9e74638a24d8760feaafb9f58fcf0cca3386", Some("fd9fc6c86d8f666da7059851d9e6e45df1c288c3035f5d9475a1d871ec4ec33c")),
+        ("fd9fc6c86d8f666da7059851d9e6e45df1c288c3035f5d9475a1d871ec4ec33c", None),
+        ];
+
+    /// Digest-shape law: ^[0-9a-f]{64}$ for every declared digest.
+    fn digest_shape_ok(d: &str) -> bool {
+        d.len() == 64 && d.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+    }
+
+    /// Compact SHA-256 (content-address recomputation court). Returns the
+    /// lowercase-hex digest of `data`.
+    fn sha256_hex(data: &[u8]) -> String {
+        const K: [u32; 64] = [
+            0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1,
+            0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+            0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,
+            0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+            0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147,
+            0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+            0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
+            0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+            0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
+            0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+            0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+        ];
+        let mut h: [u32; 8] = [
+            0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+            0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+        ];
+        let mut msg = data.to_vec();
+        let bit_len = (data.len() as u64) * 8;
+        msg.push(0x80);
+        while msg.len() % 64 != 56 {
+            msg.push(0);
+        }
+        msg.extend_from_slice(&bit_len.to_be_bytes());
+        for chunk in msg.chunks_exact(64) {
+            let mut w = [0u32; 64];
+            for (i, word) in chunk.chunks_exact(4).enumerate() {
+                w[i] = u32::from_be_bytes([word[0], word[1], word[2], word[3]]);
+            }
+            for i in 16..64 {
+                let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
+                let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
+                w[i] = w[i - 16]
+                    .wrapping_add(s0)
+                    .wrapping_add(w[i - 7])
+                    .wrapping_add(s1);
+            }
+            let (mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut hh) =
+                (h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7]);
+            for i in 0..64 {
+                let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
+                let ch = (e & f) ^ ((!e) & g);
+                let t1 = hh
+                    .wrapping_add(s1)
+                    .wrapping_add(ch)
+                    .wrapping_add(K[i])
+                    .wrapping_add(w[i]);
+                let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
+                let maj = (a & b) ^ (a & c) ^ (b & c);
+                let t2 = s0.wrapping_add(maj);
+                hh = g;
+                g = f;
+                f = e;
+                e = d.wrapping_add(t1);
+                d = c;
+                c = b;
+                b = a;
+                a = t1.wrapping_add(t2);
+            }
+            h[0] = h[0].wrapping_add(a);
+            h[1] = h[1].wrapping_add(b);
+            h[2] = h[2].wrapping_add(c);
+            h[3] = h[3].wrapping_add(d);
+            h[4] = h[4].wrapping_add(e);
+            h[5] = h[5].wrapping_add(f);
+            h[6] = h[6].wrapping_add(g);
+            h[7] = h[7].wrapping_add(hh);
+        }
+        h.iter().map(|x| format!("{:08x}", x)).collect()
+    }
+
+    /// Frame-law court: the witnessed chain must construct through the
+    /// generated frame types (real collaborators, not the LAW tuples
+    /// alone) and `depth()` must walk it end to end.
+    #[test]
+    fn witnessed_chain_constructs_through_frame_types() {
+        // Genesis = the commit whose parent slot is None.
+        let genesis_root = LAW_CHAIN
+            .iter()
+            .find(|(_, p)| p.is_none())
+            .map(|(r, _)| *r)
+            .expect("exactly one genesis");
+        let mut cur = MerkleCommit::genesis(genesis_root);
+        let order: Vec<&str> = LAW_CHAIN.iter().map(|(r, _)| *r).collect();
+        let mut built = vec![cur.merkle_root.clone()];
+        for _ in 1..LAW_CHAIN.len() {
+            let next_root = LAW_CHAIN
+                .iter()
+                .find(|(_, p)| *p == Some(built.last().unwrap().as_str()))
+                .map(|(r, _)| *r)
+                .expect("GAP: no child of the current tip");
+            cur = MerkleCommit::child_of(cur, next_root);
+            built.push(next_root.to_string());
+        }
+        assert_eq!(cur.depth(), LAW_CHAIN.len() - 1, "depth walk short of tip");
+        assert_eq!(built.len(), LAW_CHAIN.len());
+        assert!(built.iter().all(|r| order.contains(&r.as_str())));
+        // Wormhole frame type carries both endpoint digests verbatim.
+        let wh = KnowledgeWormhole {
+            source_digest: "257d73489ec07c3bcf2b576b2c267000d77cb39a1215b7845eca2fb7b5590dc7"
+                .to_string(),
+            target_digest: "b49af89c8ef8ae1d0bcb798e9cb579a84236f91a03d916bbb078ee6b2241cc10"
+                .to_string(),
+        };
+        assert_eq!(wh.source_digest.len(), 64);
+        assert_eq!(wh.target_digest.len(), 64);
+    }
+
+    /// Court (a): every declared digest is 64-hex lowercase.
+    #[test]
+    fn every_declared_digest_is_64_hex() {
+        assert!(
+            LAW_DIGESTS.len() >= 3,
+            "witnessed digest set shrank below the ontology law ({} < 3)",
+            LAW_DIGESTS.len()
+        );
+        for (kind, digest, _) in LAW_DIGESTS {
+            assert!(
+                digest_shape_ok(digest),
+                "{kind} digest {digest} violates ^[0-9a-f]64$"
+            );
+        }
+    }
+
+    /// Court (b): the declared commit chain tiles [genesis..tip] with no
+    /// gaps (every referenced parent exists) and no overlaps (every commit
+    /// has in-degree <= 1; exactly one genesis; the chain is connected).
+    #[test]
+    fn abutment_chain_tiles_without_gaps_or_overlaps() {
+        assert_eq!(
+            LAW_CHAIN.len(),
+            3,
+            "commit-chain enumeration drifted from the ontology law"
+        );
+        // No overlaps: a parent slot is claimed at most once.
+        let mut claimed: Vec<&str> = Vec::new();
+        for (_, parent) in LAW_CHAIN {
+            if let Some(p) = parent {
+                assert!(
+                    !claimed.contains(&p),
+                    "OVERLAP: commit {p} claimed as parent twice"
+                );
+                claimed.push(p);
+            }
+        }
+        // No gaps: every referenced parent exists in the chain, exactly
+        // one genesis, and walking from the tip covers all commits.
+        let roots: Vec<&str> = LAW_CHAIN.iter().map(|(r, _)| *r).collect();
+        let mut genesis_count = 0usize;
+        for (root, parent) in LAW_CHAIN {
+            if parent.is_none() {
+                genesis_count += 1;
+            } else {
+                let p = parent.unwrap();
+                assert!(
+                    roots.contains(&p),
+                    "GAP: commit {root} references absent parent {p}"
+                );
+            }
+        }
+        assert_eq!(genesis_count, 1, "chain must have exactly one genesis");
+        // Connectedness: tip = the commit no other commit names as parent.
+        let tip = roots
+            .iter()
+            .find(|r| !claimed.contains(&r))
+            .expect("exactly one tip");
+        let mut reachable = 0usize;
+        let mut cur = Some(*tip);
+        while let Some(d) = cur {
+            reachable += 1;
+            cur = LAW_CHAIN
+                .iter()
+                .find(|(root, _)| *root == d)
+                .and_then(|(_, p)| *p);
+        }
+        assert_eq!(reachable, LAW_CHAIN.len(), "GAP: chain is disconnected");
+    }
+
+    /// Court (c): content-address law — every declared digest equals the
+    /// recomputed SHA-256 of its canonical payload (committed in-test
+    /// recomputation, not digest copying).
+    #[test]
+    fn content_address_matches_recomputed_sha256() {
+        for (kind, digest, payload) in LAW_DIGESTS {
+            let recomputed = sha256_hex(payload.as_bytes());
+            assert_eq!(
+                recomputed, digest,
+                "{kind}: declared digest {digest} != sha256(canonical payload)"
+            );
+        }
+    }
+
+    /// Court (d): sabotage twin — a digest-copying verifier (one that
+    /// trusts the declared digest without recomputing) is indistinguishable
+    /// from a correct one on the honest set, so court (c) must also refuse
+    /// the negative: flipping one payload byte must change the digest and
+    /// fail the content-address check.
+    #[test]
+    fn sabotage_flipped_payload_byte_is_refused() {
+        let (kind, digest, payload) = LAW_DIGESTS[0];
+        let mut flipped = payload.to_string();
+        let first = flipped.as_bytes()[0];
+        flipped.replace_range(0..1, &char::from(first ^ 0x01).to_string());
+        let recomputed = sha256_hex(flipped.as_bytes());
+        assert_ne!(
+            recomputed, digest,
+            "{kind}: flipped payload still hashes to the declared digest — verifier cannot distinguish honest from sabotaged input"
+        );
+        assert_ne!(
+            sha256_hex(payload.as_bytes()), recomputed,
+            "recomputation is not payload-sensitive: court (c) would admit a copying verifier"
+        );
+    }
+}

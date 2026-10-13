@@ -39,3 +39,53 @@ st:abutmentStrict a rdf:Property ; rdfs:label "strict abutment" ;
 
 st:snapshotTakenAt a rdf:Property ; rdfs:label "snapshot taken at" ;
     rdfs:domain st:Snapshot ; rdfs:range xsd:dateTime .
+
+# ── Canonicalization law ─────────────────────────────────────────────
+# Content-address law (L93, 2026-10-13): every content address in this
+# pack is the lowercase-hex SHA-256 of the UTF-8 bytes of its canonical
+# payload property. st:merkleRoot = SHA-256(st:canonicalPayload);
+# st:sourceDigest = SHA-256(st:canonicalSourcePayload);
+# st:targetDigest = SHA-256(st:canonicalTargetPayload).
+
+st:canonicalPayload a rdf:Property ; rdfs:label "canonical payload" ;
+    rdfs:comment "Byte-exact canonical payload of a MerkleCommit. Content-address law: st:merkleRoot = lowercase-hex SHA-256 of this value's UTF-8 bytes." ;
+    rdfs:domain st:MerkleCommit ; rdfs:range xsd:string .
+
+st:canonicalSourcePayload a rdf:Property ; rdfs:label "canonical source payload" ;
+    rdfs:comment "Byte-exact canonical payload of the source graph coordinate. Content-address law: st:sourceDigest = lowercase-hex SHA-256 of this value's UTF-8 bytes." ;
+    rdfs:domain st:KnowledgeWormhole ; rdfs:range xsd:string .
+
+st:canonicalTargetPayload a rdf:Property ; rdfs:label "canonical target payload" ;
+    rdfs:comment "Byte-exact canonical payload of the target graph coordinate. Content-address law: st:targetDigest = lowercase-hex SHA-256 of this value's UTF-8 bytes." ;
+    rdfs:domain st:KnowledgeWormhole ; rdfs:range xsd:string .
+
+# ── Witnessed sample individuals (minimal set) ───────────────────────
+# Three commits forming one parent chain, one cross-graph wormhole, one
+# snapshot bound to commit-002. Digests below are real SHA-256 values of
+# the canonical payloads (computed 2026-10-13, L93 lane); gates 010/020
+# and the generated runtime courts are non-vacuous against this set.
+
+st:commit-001 a st:MerkleCommit ;
+    st:merkleRoot "fd9fc6c86d8f666da7059851d9e6e45df1c288c3035f5d9475a1d871ec4ec33c" ;
+    st:canonicalPayload "strata-cas-pack genesis: sample ledger seed v1" .
+
+st:commit-002 a st:MerkleCommit ;
+    st:merkleRoot "f0575860c272837d9f63e43c098b9e74638a24d8760feaafb9f58fcf0cca3386" ;
+    st:commitParent st:commit-001 ;
+    st:canonicalPayload "strata-cas-pack append 002: pin wormhole wh-001" .
+
+st:commit-003 a st:MerkleCommit ;
+    st:merkleRoot "18d53c1eaa279405b194c9ae5983652e0d89f3bd50b62e87e1278a71a4af3037" ;
+    st:commitParent st:commit-002 ;
+    st:canonicalPayload "strata-cas-pack append 003: bind snapshot snap-001" .
+
+st:wh-001 a st:KnowledgeWormhole ;
+    st:sourceDigest "257d73489ec07c3bcf2b576b2c267000d77cb39a1215b7845eca2fb7b5590dc7" ;
+    st:targetDigest "b49af89c8ef8ae1d0bcb798e9cb579a84236f91a03d916bbb078ee6b2241cc10" ;
+    st:canonicalSourcePayload "graph S: strata protocol ontology@f326e08d1" ;
+    st:canonicalTargetPayload "graph T: strata runtime ledger state@f326e08d1" .
+
+st:snap-001 a st:Snapshot ;
+    st:snapshotCommit st:commit-002 ;
+    st:abutmentStrict true ;
+    st:snapshotTakenAt "2026-10-13T00:00:00Z"^^xsd:dateTime .
