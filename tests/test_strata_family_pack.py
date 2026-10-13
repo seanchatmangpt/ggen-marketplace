@@ -51,7 +51,7 @@ EXPECTED_STRATA_GENERATION_PACKS = frozenset({
 DRIFT_GUARDED: dict[str, tuple[str, ...]] = {
     "strata-audit-pack": ("audit_corpus.rs",),
     "strata-governance-pack": ("governance_report.rs",),
-    "strata-cas-pack": ("cas.rs",),
+    "strata-cas-pack": ("cas.rs", "cas_chain.rs"),
     "strata-chain-pack": ("chain_consts.rs", "chain_engine.rs"),
     "strata-consensus-pack": ("consensus_consts.rs", "consensus_engine.rs"),
     "strata-hash-pack": ("hash_consts.rs", "hash_merkle.rs"),
@@ -62,7 +62,7 @@ DRIFT_GUARDED: dict[str, tuple[str, ...]] = {
     "strata-protocol-pack": ("pdu_constants.rs", "wire_constants.rs"),
     "strata-signer-pack": ("signer.rs", "signing.rs"),
     "strata-store-pack": ("store_consts.rs", "store_engine.rs"),
-    "strata-stratus-pack": ("registers.rs", "valves.rs"),
+    "strata-stratus-pack": ("registers.rs", "valves.rs", "valve_taxonomy.rs"),
     "strata-temprun-pack": ("arena.rs", "fuel_refusal_binding.rs"),
     "strata-tx-pack": ("tx_consts.rs", "tx_model.rs"),
     "strata-valve-pack": ("refusals.ex", "window_capacity.rs"),
@@ -171,6 +171,15 @@ def _content_court(pack: str, rel: str, text: str) -> None:
             assert "pub fn depth" in text
             assert "// REFUSED" not in text, (
                 "cas.rs renders real content; must not carry REFUSED markers")
+        elif rel.endswith("cas_chain.rs"):
+            assert (
+                'CHAIN_KAT_HEAD: &str = '
+                '"05ea1aa096f45968aacb2c996d2b541e4b9fdef24f006e0204e1fa88d33f68a5"'
+            ) in text
+            assert "CHAIN_DIGEST_LEN: usize = 32" in text
+            assert "CHAIN_KAT_DEPTH: usize = 4" in text
+            assert "pub fn cas_chain_closure" in text
+            assert "// REFUSED" not in text
         else:
             raise AssertionError(f"unexpected generated file for cas pack: {rel}")
         return
@@ -217,6 +226,14 @@ def _content_court(pack: str, rel: str, text: str) -> None:
             assert "VALVE_DEFAULT" in text, "valves.rs must contain VALVE_DEFAULT"
         elif rel.endswith("registers.rs"):
             assert "MAIN_NAME" in text, "registers.rs must contain MAIN_NAME"
+        elif rel.endswith("valve_taxonomy.rs"):
+            assert (
+                'FUEL_EXHAUSTED_IRI: &str = '
+                '"https://strata.chatman.ai/ontology/valve#FuelExhaustedRefusal"'
+            ) in text
+            assert "FUEL_EXHAUSTED_MODULE: &str = " in text
+            assert 'DEFAULT_VALVE_REFUSAL_IRI: &str = ' in text
+            assert "pub fn valve_taxonomy_closure" in text
         else:
             raise AssertionError(
                 f"unexpected generated file for stratus pack: {rel}")

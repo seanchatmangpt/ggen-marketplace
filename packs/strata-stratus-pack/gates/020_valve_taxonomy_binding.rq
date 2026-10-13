@@ -1,0 +1,100 @@
+# MESSAGE: stratus <-> valve composition gate — every stratus witness-valve
+# declaration must reference a valve-taxonomy refusal class IRI, and
+# register/valve pairing must be closed (every st:guardedBy edge resolves to
+# a declared valve carrying a refusal emission edge). The strata-valve-pack
+# graph is NOT unioned here (no owl:imports, house style): the four
+# Strata.Valve.Refusals child-module atoms are pinned by literal, mirrored
+# from strata-valve-pack ontology.ttl. Each st:ValveRefusalBinding must (a)
+# pin an exact valve-taxonomy refusal class IRI, (b) carry the exact atom
+# and child module for that IRI, and st:DefaultValve must emit exactly the
+# fuel-exhausted refusal class. Any row indicates a corrupted or vacuous
+# composition binding.
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX st:   <https://strata.chatman.ai/ontology#>
+
+SELECT ?binding ?problem WHERE {
+  {
+    # Fail-closed presence: all four pinned bindings must exist.
+    ?binding a st:ValveRefusalBinding .
+    BIND("missing_binding (need all four valve-taxonomy bindings)" AS ?problem)
+    FILTER NOT EXISTS {
+      ?b1 a st:ValveRefusalBinding ; rdfs:label "MALFORMED_FRAME" .
+      ?b2 a st:ValveRefusalBinding ; rdfs:label "FUEL_EXHAUSTED" .
+      ?b3 a st:ValveRefusalBinding ; rdfs:label "PARENT_DISCONTINUITY" .
+      ?b4 a st:ValveRefusalBinding ; rdfs:label "ARENA_FAILURE" .
+    }
+  } UNION {
+    # Each binding must pin a valve-namespace refusal class IRI.
+    ?binding a st:ValveRefusalBinding .
+    BIND("missing/invalid st:valveRefusalIri (must be a valve-namespace IRI literal)" AS ?problem)
+    FILTER NOT EXISTS {
+      ?binding st:valveRefusalIri ?iri .
+      FILTER(REGEX(STR(?iri), "^https://strata\\.chatman\\.ai/ontology/valve#[A-Za-z][A-Za-z0-9_]*$"))
+    }
+  } UNION {
+    # Wrong class: only the four pinned refusal classes may be bound.
+    ?binding a st:ValveRefusalBinding ;
+             st:valveRefusalIri ?iri .
+    BIND("wrong_refusal_class (must pin one of the four Strata.Valve.Refusals classes)" AS ?problem)
+    FILTER(?iri != "https://strata.chatman.ai/ontology/valve#MalformedFrameRefusal"
+        && ?iri != "https://strata.chatman.ai/ontology/valve#FuelExhaustedRefusal"
+        && ?iri != "https://strata.chatman.ai/ontology/valve#ParentDiscontinuityRefusal"
+        && ?iri != "https://strata.chatman.ai/ontology/valve#ArenaFailureRefusal")
+  } UNION {
+    # Per-IRI atom+module pin: malformed_frame.
+    ?binding a st:ValveRefusalBinding ;
+             st:valveRefusalIri "https://strata.chatman.ai/ontology/valve#MalformedFrameRefusal" ;
+             st:valveRefusalAtom ?atom ; st:valveRefusalModule ?module .
+    BIND("wrong_malformed_frame_pin (atom must be malformed_frame, module Strata.Valve.Refusals.MalformedFrame)" AS ?problem)
+    FILTER(?atom != "malformed_frame" || ?module != "Strata.Valve.Refusals.MalformedFrame")
+  } UNION {
+    # Per-IRI atom+module pin: fuel_exhausted.
+    ?binding a st:ValveRefusalBinding ;
+             st:valveRefusalIri "https://strata.chatman.ai/ontology/valve#FuelExhaustedRefusal" ;
+             st:valveRefusalAtom ?atom ; st:valveRefusalModule ?module .
+    BIND("wrong_fuel_exhausted_pin (atom must be fuel_exhausted, module Strata.Valve.Refusals.FuelExhausted)" AS ?problem)
+    FILTER(?atom != "fuel_exhausted" || ?module != "Strata.Valve.Refusals.FuelExhausted")
+  } UNION {
+    # Per-IRI atom+module pin: parent_discontinuity.
+    ?binding a st:ValveRefusalBinding ;
+             st:valveRefusalIri "https://strata.chatman.ai/ontology/valve#ParentDiscontinuityRefusal" ;
+             st:valveRefusalAtom ?atom ; st:valveRefusalModule ?module .
+    BIND("wrong_parent_discontinuity_pin (atom must be parent_discontinuity, module Strata.Valve.Refusals.ParentDiscontinuity)" AS ?problem)
+    FILTER(?atom != "parent_discontinuity" || ?module != "Strata.Valve.Refusals.ParentDiscontinuity")
+  } UNION {
+    # Per-IRI atom+module pin: arena_failure.
+    ?binding a st:ValveRefusalBinding ;
+             st:valveRefusalIri "https://strata.chatman.ai/ontology/valve#ArenaFailureRefusal" ;
+             st:valveRefusalAtom ?atom ; st:valveRefusalModule ?module .
+    BIND("wrong_arena_failure_pin (atom must be arena_failure, module Strata.Valve.Refusals.ArenaFailure)" AS ?problem)
+    FILTER(?atom != "arena_failure" || ?module != "Strata.Valve.Refusals.ArenaFailure")
+  } UNION {
+    # Fail-closed presence: DefaultValve must carry a refusal emission edge.
+    ?binding a st:ValveRefusalBinding .
+    BIND("missing_emission (st:DefaultValve must carry st:emitsRefusalClass)" AS ?problem)
+    FILTER NOT EXISTS {
+      ?valve a st:WitnessValve ;
+             st:valveName "default" ;
+             st:emitsRefusalClass ?any .
+    }
+  } UNION {
+    # Wrong emission: the closed stratus valve must emit exactly the
+    # fuel-exhausted refusal class.
+    ?binding a st:ValveRefusalBinding ;
+             st:valveRefusalIri ?iri .
+    ?valve a st:WitnessValve ;
+           st:valveName "default" ;
+           st:emitsRefusalClass ?emitted .
+    BIND("wrong_emission (default valve must emit the FuelExhaustedRefusal class)" AS ?problem)
+    FILTER(?emitted != "https://strata.chatman.ai/ontology/valve#FuelExhaustedRefusal")
+  } UNION {
+    # Register/valve closure: a guarded register's valve must carry a
+    # refusal emission edge (resolution to a declared WitnessValve is gate
+    # 010's exactly-one/not-a-valve arms).
+    ?register a st:StateRegister ;
+              st:guardedBy ?valve .
+    BIND("unclosed_pairing (guarded valve lacks a refusal emission edge)" AS ?problem)
+    FILTER NOT EXISTS { ?valve st:emitsRefusalClass ?e2 . }
+  }
+}
+ORDER BY ?binding ?problem
