@@ -1,0 +1,47 @@
+# MESSAGE: GENESIS_CONSTANTS layout violated — fail-closed presence + typed/
+# malformed-integer arms (V7 pattern, packs/strata-pn64-pack/gates/
+# 010_place_offset_bounds.rq; reused by S2/S4 packs): every required constant
+# property must be present on the GENESIS_CONSTANTS individual with the right
+# datatype and lexical form; any missing, wrong-typed, or malformed value
+# fires a violation row instead of silently passing (engine-dependent
+# fail-open; cast errors exclude rows). A string-typed genesisPrevHash must
+# also be present and well-formed 32-byte hex. Any row indicates a broken
+# GENESIS_CONSTANTS layout.
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX st:   <https://strata.chatman.ai/ontology#>
+
+SELECT DISTINCT (COALESCE(?f1,?f2,?f3,?f4,?f5,?f6,?f7) AS ?field)
+       (COALESCE(?p1,?p2,?p3,?p4,?p5,?p6,?p7) AS ?problem)
+WHERE {
+  {
+    ?c a st:ChainConstant ; rdfs:label "GENESIS_CONSTANTS" .
+    FILTER NOT EXISTS { ?c st:genesisHeight ?anyH }
+    BIND("GENESIS_HEIGHT" AS ?f1) BIND("missing_constant: no st:genesisHeight on GENESIS_CONSTANTS" AS ?p1)
+  } UNION {
+    ?c a st:ChainConstant ; rdfs:label "GENESIS_CONSTANTS" .
+    FILTER NOT EXISTS { ?c st:genesisPrevHash ?anyP }
+    BIND("GENESIS_PREV" AS ?f2) BIND("missing_constant: no st:genesisPrevHash on GENESIS_CONSTANTS" AS ?p2)
+  } UNION {
+    ?c a st:ChainConstant ; rdfs:label "GENESIS_CONSTANTS" .
+    FILTER NOT EXISTS { ?c st:initialDifficultyTarget ?anyD }
+    BIND("INITIAL_DIFFICULTY_TARGET" AS ?f3) BIND("missing_constant: no st:initialDifficultyTarget on GENESIS_CONSTANTS" AS ?p3)
+  } UNION {
+    ?c a st:ChainConstant ; rdfs:label "GENESIS_CONSTANTS" .
+    FILTER NOT EXISTS { ?c st:maxBlockTxs ?anyM }
+    BIND("MAX_BLOCK_TXS" AS ?f4) BIND("missing_constant: no st:maxBlockTxs on GENESIS_CONSTANTS" AS ?p4)
+  } UNION {
+    ?c a st:ChainConstant ; rdfs:label "GENESIS_CONSTANTS" ; st:genesisHeight ?v .
+    FILTER(datatype(?v) != xsd:integer || !REGEX(STR(?v), "^[0-9]+$"))
+    BIND("GENESIS_HEIGHT" AS ?f5) BIND("malformed_integer" AS ?p5)
+  } UNION {
+    ?c a st:ChainConstant ; rdfs:label "GENESIS_CONSTANTS" ; st:initialDifficultyTarget ?v .
+    FILTER(datatype(?v) != xsd:integer || !REGEX(STR(?v), "^[0-9]+$"))
+    BIND("INITIAL_DIFFICULTY_TARGET" AS ?f6) BIND("malformed_integer" AS ?p6)
+  } UNION {
+    ?c a st:ChainConstant ; rdfs:label "GENESIS_CONSTANTS" ; st:maxBlockTxs ?v .
+    FILTER(datatype(?v) != xsd:integer || !REGEX(STR(?v), "^[0-9]+$"))
+    BIND("MAX_BLOCK_TXS" AS ?f7) BIND("malformed_integer" AS ?p7)
+  }
+}
+ORDER BY ?field ?problem

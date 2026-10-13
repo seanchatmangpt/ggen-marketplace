@@ -1,0 +1,154 @@
+# strata-chain-pack ontology — Strata block + chain layer (roadmap slice S5).
+#
+# LAW PROVENANCE (S5 REUSE-ADAPTED for the gate law, greenfield for
+# header/chain logic, per docs/sjira/v26.10.8/STRATA-BLOCKCHAIN-ROADMAP.md
+# S5/S8 precondition outcome): the chain-validity law below — height
+# continuity (a child block is exactly one above its parent), parent-hash
+# binding (a block's parent hash is the digest of the parent header
+# encoding), tx Merkle root commitment, tx-cap and duplicate-tx refusals,
+# monotonic timestamp slot, deterministic PoW, and deterministic fork
+# choice (longest valid chain wins, equal-height tie → lower tip nonce) —
+# is greenfield strata law; the gate FAIL-CLOSED presence + typed/
+# malformed arms follow the strata family V7 gate pattern (pn64/temprun
+# fail-open remediation, reused by S2/S4). The Merkle commitment reuses
+# the strata-hash-pack convention (single SHA-256 per level, duplicate-last
+# odd rule) as DOCUMENTATION ONLY — no owl:imports, no code vendoring
+# (FM-PACK-018 note in pack.toml).
+
+@prefix st:  <https://strata.chatman.ai/ontology#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# ── Chain model classes ───────────────────────────────────────────────
+
+st:Block a rdfs:Class ; rdfs:label "Block" ;
+    rdfs:comment "One chain element: a BlockHeader plus the ordered tx digests it commits; links to its parent by the SHA-256 of the parent's header encoding." .
+
+st:BlockHeader a rdfs:Class ; rdfs:label "BlockHeader" ;
+    rdfs:comment "Header fields projected as the canonical byte encoding: blockHeight (u64 BE), parentHash (32B), txMerkleRoot (32B), stateRoot (32B), difficultyTarget (u32 BE), timestampSlot (u64 BE); the PoW digest is SHA-256(header || nonce u64 BE)." .
+
+st:ChainTip a rdfs:Class ; rdfs:label "ChainTip" ;
+    rdfs:comment "The currently-selected heaviest tip: identified by (height, tip nonce) under the deterministic fork-choice law — longest valid chain wins; equal-height ties resolve to the LOWER tip nonce." .
+
+st:ChainConstant a rdfs:Class ; rdfs:label "ChainConstant" ;
+    rdfs:comment "Carrier class for the GENESIS_CONSTANTS individual: projected as Rust constants by the chain-consts rule." .
+
+# ── Chain properties ──────────────────────────────────────────────────
+
+st:blockHeight a rdf:Property ; rdfs:label "blockHeight" ;
+    rdfs:comment "Monotonically increasing block height; a child is exactly parent.height + 1 (gate 020 law)." ;
+    rdfs:domain st:Block ; rdfs:range xsd:integer .
+
+st:parentHash a rdf:Property ; rdfs:label "parentHash" ;
+    rdfs:comment "32-byte SHA-256 of the parent block's header encoding; genesis carries the 32-byte all-zero value." ;
+    rdfs:domain st:Block ; rdfs:range xsd:string .
+
+st:txMerkleRoot a rdf:Property ; rdfs:label "txMerkleRoot" ;
+    rdfs:comment "32-byte Merkle commitment over the block's ordered tx digests (strata-hash-pack convention: single SHA-256 per level, duplicate-last odd rule; empty tx set commits to SHA-256 of the empty byte string)." ;
+    rdfs:domain st:Block ; rdfs:range xsd:string .
+
+st:stateRoot a rdf:Property ; rdfs:label "stateRoot" ;
+    rdfs:comment "32-byte post-block state root placeholder (S4 ledger owns the transition function; the chain layer commits the root opaquely)." ;
+    rdfs:domain st:Block ; rdfs:range xsd:string .
+
+st:difficultyTarget a rdf:Property ; rdfs:label "difficultyTarget" ;
+    rdfs:comment "Required count of leading zero bits in the PoW digest SHA-256(header || nonce) — the deterministic test form of 'digest < target'; a mined block must meet it and validation re-checks it." ;
+    rdfs:domain st:Block ; rdfs:range xsd:integer .
+
+st:nonce a rdf:Property ; rdfs:label "nonce" ;
+    rdfs:comment "PoW nonce: the u64 searched by mine_tick so that SHA-256(header || nonce) meets difficultyTarget; also the deterministic fork-choice tiebreaker (lower tip nonce wins)." ;
+    rdfs:domain st:Block ; rdfs:range xsd:integer .
+
+st:timestampSlot a rdf:Property ; rdfs:label "timestampSlot" ;
+    rdfs:comment "Monotonic logical slot (NOT wall-clock — determinism law): a child's slot must be >= its parent's slot." ;
+    rdfs:domain st:Block ; rdfs:range xsd:integer .
+
+st:parent a rdf:Property ; rdfs:label "parent" ;
+    rdfs:comment "RDF-level parent link (block → block) over which the gate 020 height/duplicate laws are asserted; the wire-level binding is st:parentHash." ;
+    rdfs:domain st:Block ; rdfs:range st:Block .
+
+# ── Genesis constants (GENESIS_CONSTANTS individual) ───────────────────
+
+st:GENESIS_CONSTANTS a st:ChainConstant ;
+    rdfs:label "GENESIS_CONSTANTS" ;
+    rdfs:comment "Genesis/chain layout constants projected into generated/chain_consts.rs. Types match the generated Rust constants exactly (fail-closed: gate 010 fires on non-integer or malformed values).";
+    st:rustType "u64" ;
+    st:genesisHeight "0"^^xsd:integer ;
+    st:genesisPrevHash "0x0000000000000000000000000000000000000000000000000000000000000000" ;
+    st:initialDifficultyTarget "12"^^xsd:integer ;
+    st:maxBlockTxs "256"^^xsd:integer .
+
+st:genesisHeight a rdf:Property ; rdfs:label "genesisHeight" ;
+    rdfs:comment "GENESIS_HEIGHT: height of the genesis block (0)." ;
+    rdfs:domain st:ChainConstant ; rdfs:range xsd:integer .
+
+st:genesisPrevHash a rdf:Property ; rdfs:label "genesisPrevHash" ;
+    rdfs:comment "GENESIS_PREV: 32-byte all-zero parent hash carried by the genesis block." ;
+    rdfs:domain st:ChainConstant ; rdfs:range xsd:string .
+
+st:initialDifficultyTarget a rdf:Property ; rdfs:label "initialDifficultyTarget" ;
+    rdfs:comment "INITIAL_DIFFICULTY_TARGET: initial required leading-zero-bit count for the PoW digest (12 ⇒ ~4096 expected hashes, fast and deterministic in tests)." ;
+    rdfs:domain st:ChainConstant ; rdfs:range xsd:integer .
+
+st:maxBlockTxs a rdf:Property ; rdfs:label "maxBlockTxs" ;
+    rdfs:comment "MAX_BLOCK_TXS: hard cap on tx digests per block (256)." ;
+    rdfs:domain st:ChainConstant ; rdfs:range xsd:integer .
+
+# ── Witness chain (sample individuals the law gate exercises) ──────────
+# Three linked blocks (genesis → B1 → B2) so gate 020's height-continuity,
+# parent, and duplicate-height laws are asserted over REAL rows, never
+# vacuously over an empty class. Hash/root hex values are illustrative
+# stand-ins for the 32-byte digests the generated module computes.
+
+st:block-genesis a st:Block ;
+    rdfs:label "block-genesis" ;
+    rdfs:comment "Genesis witness: height 0, all-zero parent hash, no parent link." ;
+    st:blockHeight "0"^^xsd:integer ;
+    st:parentHash "0x0000000000000000000000000000000000000000000000000000000000000000" ;
+    st:txMerkleRoot "0xG000" ;
+    st:stateRoot "0xS000" ;
+    st:difficultyTarget "12"^^xsd:integer ;
+    st:nonce "0"^^xsd:integer ;
+    st:timestampSlot "0"^^xsd:integer .
+
+st:block-b1 a st:Block ;
+    rdfs:label "block-b1" ;
+    rdfs:comment "Height-1 witness child of genesis: continuity and presence arms hold." ;
+    st:parent st:block-genesis ;
+    st:blockHeight "1"^^xsd:integer ;
+    st:parentHash "0xB100" ;
+    st:txMerkleRoot "0xG001" ;
+    st:stateRoot "0xS001" ;
+    st:difficultyTarget "12"^^xsd:integer ;
+    st:nonce "7"^^xsd:integer ;
+    st:timestampSlot "1"^^xsd:integer .
+
+st:block-b2 a st:Block ;
+    rdfs:label "block-b2" ;
+    rdfs:comment "Height-2 witness child of B1." ;
+    st:parent st:block-b1 ;
+    st:blockHeight "2"^^xsd:integer ;
+    st:parentHash "0xB201" ;
+    st:txMerkleRoot "0xG002" ;
+    st:stateRoot "0xS002" ;
+    st:difficultyTarget "12"^^xsd:integer ;
+    st:nonce "3"^^xsd:integer ;
+    st:timestampSlot "2"^^xsd:integer .
+
+# A height-2 fork sibling with a HIGHER nonce (4) documents the fork-choice
+# tiebreaker law (lower tip nonce wins). It carries the WIRE-level parent
+# binding (st:parentHash) but deliberately NO st:parent link: a duplicate
+# (parent, height) pair over st:parent is a gate-020 violation by
+# definition, so the sibling may not claim one; the tiebreak law itself is
+# exercised non-vacuously by the generated fork_tie_lower_nonce_wins test.
+st:block-b2-alt a st:Block ;
+    rdfs:label "block-b2-alt" ;
+    rdfs:comment "Height-2 fork sibling of B2 (same wire-level parent B1 via parentHash, same height, higher nonce — loses the tie; no st:parent link, see above)." ;
+    st:blockHeight "2"^^xsd:integer ;
+    st:parentHash "0xB201" ;
+    st:txMerkleRoot "0xG003" ;
+    st:stateRoot "0xS003" ;
+    st:difficultyTarget "12"^^xsd:integer ;
+    st:nonce "4"^^xsd:integer ;
+    st:timestampSlot "2"^^xsd:integer .

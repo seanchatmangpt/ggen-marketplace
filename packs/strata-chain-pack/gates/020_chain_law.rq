@@ -1,0 +1,47 @@
+# MESSAGE: chain law violated — every st:Block individual must carry the
+# required header properties (parentHash, blockHeight, txMerkleRoot,
+# stateRoot, difficultyTarget), a child's blockHeight must strictly exceed
+# its parent's, and two blocks sharing a parent and height are a fork
+# violation (duplicate height at the same parent). Fail-closed presence
+# arms over the REAL witness chain (genesis → B1 → B2 + fork sibling), so
+# an empty or stripped ontology fires rows instead of passing vacuously.
+# Any row indicates a broken chain law.
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX st:   <https://strata.chatman.ai/ontology#>
+
+SELECT DISTINCT ?block (COALESCE(?p1,?p2,?p3,?p4,?p5,?p6,?p7) AS ?violation)
+WHERE {
+  {
+    ?block a st:Block .
+    FILTER NOT EXISTS { ?block st:parentHash ?anyPH }
+    BIND("missing_property: no st:parentHash" AS ?p1)
+  } UNION {
+    ?block a st:Block .
+    FILTER NOT EXISTS { ?block st:blockHeight ?anyBH }
+    BIND("missing_property: no st:blockHeight" AS ?p2)
+  } UNION {
+    ?block a st:Block .
+    FILTER NOT EXISTS { ?block st:txMerkleRoot ?anyMR }
+    BIND("missing_property: no st:txMerkleRoot" AS ?p3)
+  } UNION {
+    ?block a st:Block .
+    FILTER NOT EXISTS { ?block st:stateRoot ?anySR }
+    BIND("missing_property: no st:stateRoot" AS ?p4)
+  } UNION {
+    ?block a st:Block .
+    FILTER NOT EXISTS { ?block st:difficultyTarget ?anyDT }
+    BIND("missing_property: no st:difficultyTarget" AS ?p5)
+  } UNION {
+    ?block a st:Block ; st:parent ?parent ; st:blockHeight ?h .
+    ?parent st:blockHeight ?ph .
+    FILTER(?h <= ?ph)
+    BIND("height_law: child height does not exceed parent height" AS ?p6)
+  } UNION {
+    ?block a st:Block ; st:parent ?parent ; st:blockHeight ?h .
+    ?sibling a st:Block ; st:parent ?parent ; st:blockHeight ?h .
+    FILTER(?sibling != ?block)
+    BIND("fork_law: duplicate height at the same parent" AS ?p7)
+  }
+}
+ORDER BY ?block ?violation
