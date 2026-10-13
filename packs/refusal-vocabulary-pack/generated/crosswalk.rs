@@ -4,12 +4,15 @@
 //! Canonical FAIL-CLOSED crosswalk between erlmcp's integer refusal codes
 //! (apps/erlmcp_core/include/erlmcp_refusal.hrl v1.4.0) and ash_a2a's
 //! RFC-SA2A-001 S42 refusal classes (lib/ash_a2a/semantic/refusal.ex) with
-//! the JSON-RPC error law of lib/ash_a2a/protocol/jsonrpc/error.ex.
+//! the JSON-RPC error law of lib/ash_a2a/protocol/jsonrpc/error.ex, plus the
+//! strata-valve third column (rv:ValveMapping: valve refusal atoms ->
+//! ash_a2a classes).
 //!
 //! Gate suite (run with `rustc --test`): every code appears exactly once,
-//! every one of the 18 ash_a2a classes is targeted >= 1, and every declared
-//! jsonRpcCode stays inside the A2A/JSON-RPC law set. Classification only:
-//! nothing here grants runtime actuation authority.
+//! every one of the declared ash_a2a classes is targeted >= 1, every declared
+//! jsonRpcCode stays inside the A2A/JSON-RPC law set, and valve totality
+//! holds both directions. Classification only: nothing here grants runtime
+//! actuation authority.
 
 /// One erlmcp refusal code mapped to exactly one ash_a2a class.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,26 +29,42 @@ pub struct CrosswalkEntry {
     pub severity: &'static str,
 }
 
-/// The 18 ash_a2a refusal classes (refused_classes/0 ++ blocked ++
-/// unsupported). Classification vocabulary; never a DO authority.
+/// One strata-valve refusal class mapped to one ash_a2a class (third column:
+/// rv:ValveMapping).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ValveEntry {
+    /// strata valve refusal atom (valve.ex) or WindowCapacityRefusal guard.
+    pub valve_name: &'static str,
+    /// Source module whose guard produced the atom (provenance).
+    pub valve_module: &'static str,
+    /// Literal guard atom where one exists (e.g. "run.len > 8").
+    pub valve_atom: Option<&'static str>,
+    /// ash_a2a class atom (AshA2A.Semantic.Refusal).
+    pub ash_a2a_class: &'static str,
+}
+
+
+/// The declared ash_a2a refusal classes (refused ++ blocked ++
+/// unsupported), projected from the ontology. Classification vocabulary;
+/// never a DO authority.
 pub const ASH_A2A_CLASSES: [&str; 18] = [
-    "refused_identity",
-    "refused_namespace",
-    "refused_structure",
-    "refused_shacl",
-    "refused_rule",
-    "refused_falsifier",
-    "refused_provenance",
-    "refused_profile",
-    "refused_plan",
-    "refused_capability",
-    "refused_authority",
-    "refused_consequence",
-    "refused_receipt",
-    "refused_bounds",
-    "refused_meta_rigor",
-    "blocked_unknown",
     "blocked_resource",
+    "blocked_unknown",
+    "refused_authority",
+    "refused_bounds",
+    "refused_capability",
+    "refused_consequence",
+    "refused_falsifier",
+    "refused_identity",
+    "refused_meta_rigor",
+    "refused_namespace",
+    "refused_plan",
+    "refused_profile",
+    "refused_provenance",
+    "refused_receipt",
+    "refused_rule",
+    "refused_shacl",
+    "refused_structure",
     "unsupported_profile",
 ];
 
@@ -55,9 +74,8 @@ pub const JSON_RPC_LAW_CODES: [i32; 14] = [
     -32005, -32006, -32007, -32008, -32009,
 ];
 
-/// Total crosswalk table: one row per erlmcp code (51 rows).
+/// Total crosswalk table: one row per erlmcp code.
 pub const CROSSWALK: [CrosswalkEntry; 51] = [
-
     CrosswalkEntry {
         erlmcp_code: 1001,
         ash_a2a_class: "refused_bounds",
@@ -65,7 +83,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 429,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1002,
         ash_a2a_class: "refused_bounds",
@@ -73,7 +90,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 429,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1003,
         ash_a2a_class: "refused_bounds",
@@ -81,7 +97,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 429,
         severity: "critical",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1004,
         ash_a2a_class: "blocked_resource",
@@ -89,7 +104,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 503,
         severity: "critical",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1005,
         ash_a2a_class: "blocked_resource",
@@ -97,7 +111,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 503,
         severity: "warn",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1011,
         ash_a2a_class: "refused_authority",
@@ -105,7 +118,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 401,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1012,
         ash_a2a_class: "refused_receipt",
@@ -113,7 +125,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 401,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1013,
         ash_a2a_class: "refused_authority",
@@ -121,7 +132,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 401,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1014,
         ash_a2a_class: "refused_authority",
@@ -129,7 +139,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 403,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1015,
         ash_a2a_class: "refused_authority",
@@ -137,7 +146,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 401,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1016,
         ash_a2a_class: "refused_identity",
@@ -145,7 +153,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 401,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1021,
         ash_a2a_class: "refused_structure",
@@ -153,7 +160,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 400,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1022,
         ash_a2a_class: "refused_shacl",
@@ -161,7 +167,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 400,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1023,
         ash_a2a_class: "refused_provenance",
@@ -169,7 +174,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 400,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1024,
         ash_a2a_class: "unsupported_profile",
@@ -177,7 +181,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 415,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1025,
         ash_a2a_class: "refused_profile",
@@ -185,7 +188,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 400,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1026,
         ash_a2a_class: "refused_structure",
@@ -193,7 +195,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 400,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1027,
         ash_a2a_class: "unsupported_profile",
@@ -201,7 +202,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 400,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1028,
         ash_a2a_class: "refused_structure",
@@ -209,7 +209,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 400,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1029,
         ash_a2a_class: "refused_structure",
@@ -217,7 +216,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 400,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1036,
         ash_a2a_class: "refused_rule",
@@ -225,7 +223,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 400,
         severity: "critical",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1037,
         ash_a2a_class: "refused_structure",
@@ -233,7 +230,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 400,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1038,
         ash_a2a_class: "refused_rule",
@@ -241,7 +237,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 400,
         severity: "critical",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1039,
         ash_a2a_class: "refused_namespace",
@@ -249,7 +244,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 400,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1040,
         ash_a2a_class: "refused_meta_rigor",
@@ -257,7 +251,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 400,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1046,
         ash_a2a_class: "refused_capability",
@@ -265,7 +258,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 404,
         severity: "warn",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1047,
         ash_a2a_class: "refused_identity",
@@ -273,7 +265,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 409,
         severity: "warn",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1048,
         ash_a2a_class: "refused_capability",
@@ -281,7 +272,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 404,
         severity: "warn",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1049,
         ash_a2a_class: "refused_consequence",
@@ -289,7 +279,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 409,
         severity: "warn",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1050,
         ash_a2a_class: "refused_capability",
@@ -297,7 +286,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 404,
         severity: "warn",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1051,
         ash_a2a_class: "refused_consequence",
@@ -305,7 +293,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 409,
         severity: "warn",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1052,
         ash_a2a_class: "refused_identity",
@@ -313,7 +300,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 409,
         severity: "warn",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1056,
         ash_a2a_class: "refused_bounds",
@@ -321,7 +307,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 429,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1057,
         ash_a2a_class: "refused_bounds",
@@ -329,7 +314,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 429,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1058,
         ash_a2a_class: "refused_bounds",
@@ -337,7 +321,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 429,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1059,
         ash_a2a_class: "refused_bounds",
@@ -345,7 +328,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 429,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1060,
         ash_a2a_class: "refused_consequence",
@@ -353,7 +335,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 429,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1066,
         ash_a2a_class: "refused_structure",
@@ -361,7 +342,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 400,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1067,
         ash_a2a_class: "blocked_resource",
@@ -369,7 +349,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 503,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1068,
         ash_a2a_class: "refused_bounds",
@@ -377,7 +356,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 413,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1069,
         ash_a2a_class: "refused_bounds",
@@ -385,7 +363,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 503,
         severity: "warn",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1070,
         ash_a2a_class: "unsupported_profile",
@@ -393,7 +370,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 415,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1076,
         ash_a2a_class: "blocked_resource",
@@ -401,7 +377,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 503,
         severity: "error",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1077,
         ash_a2a_class: "refused_plan",
@@ -409,7 +384,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 503,
         severity: "warn",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1078,
         ash_a2a_class: "blocked_resource",
@@ -417,7 +391,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 503,
         severity: "warn",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1079,
         ash_a2a_class: "blocked_unknown",
@@ -425,7 +398,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 503,
         severity: "critical",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1080,
         ash_a2a_class: "blocked_resource",
@@ -433,7 +405,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 503,
         severity: "warn",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1086,
         ash_a2a_class: "blocked_resource",
@@ -441,7 +412,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 503,
         severity: "warn",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1087,
         ash_a2a_class: "refused_falsifier",
@@ -449,7 +419,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 503,
         severity: "warn",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1088,
         ash_a2a_class: "blocked_resource",
@@ -457,7 +426,6 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 503,
         severity: "warn",
     },
-
     CrosswalkEntry {
         erlmcp_code: 1089,
         ash_a2a_class: "blocked_resource",
@@ -465,7 +433,47 @@ pub const CROSSWALK: [CrosswalkEntry; 51] = [
         http_status: 503,
         severity: "critical",
     },
+];
 
+/// Valve crosswalk table (third column): one row per declared strata-valve
+/// refusal class, each mapped to exactly one ash_a2a class.
+pub const VALVE_CROSSWALK: [ValveEntry; 6] = [
+    ValveEntry {
+        valve_name: "malformed_frame",
+        valve_module: "Strata.Valve.Refusals.MalformedFrame",
+        valve_atom: None,
+        ash_a2a_class: "refused_structure",
+    },
+    ValveEntry {
+        valve_name: "fuel_exhausted",
+        valve_module: "Strata.Valve.Refusals.FuelExhausted",
+        valve_atom: None,
+        ash_a2a_class: "refused_bounds",
+    },
+    ValveEntry {
+        valve_name: "parent_discontinuity",
+        valve_module: "Strata.Valve.Refusals.ParentDiscontinuity",
+        valve_atom: None,
+        ash_a2a_class: "refused_receipt",
+    },
+    ValveEntry {
+        valve_name: "arena_failure",
+        valve_module: "Strata.Valve.Refusals.ArenaFailure",
+        valve_atom: None,
+        ash_a2a_class: "refused_consequence",
+    },
+    ValveEntry {
+        valve_name: "window_run_capacity",
+        valve_module: "knhk_hooks.erl",
+        valve_atom: Some("run.len > 8"),
+        ash_a2a_class: "refused_bounds",
+    },
+    ValveEntry {
+        valve_name: "window_tau_capacity",
+        valve_module: "knhk_epoch.erl",
+        valve_atom: Some("tau > 8"),
+        ash_a2a_class: "refused_bounds",
+    },
 ];
 
 /// Look up the ash_a2a class for an erlmcp code. Fail-closed: an unknown
@@ -477,22 +485,30 @@ pub fn class_for(erlmcp_code: u16) -> Option<&'static str> {
         .map(|e| e.ash_a2a_class)
 }
 
+/// Look up the ash_a2a class for a strata valve refusal atom. Fail-closed:
+/// an unknown atom returns None — the caller must refuse, never guess.
+pub fn valve_class_for(valve_name: &str) -> Option<&'static str> {
+    VALVE_CROSSWALK
+        .iter()
+        .find(|e| e.valve_name == valve_name)
+        .map(|e| e.ash_a2a_class)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     /// G1: every erlmcp code appears EXACTLY once (no duplicates, no gaps
-    /// against the declared totality of 51).
+    /// against the declared count of 51).
     #[test]
     fn every_code_mapped_exactly_once() {
         let mut codes: Vec<u16> = CROSSWALK.iter().map(|e| e.erlmcp_code).collect();
         codes.sort_unstable();
         codes.dedup();
         assert_eq!(codes.len(), CROSSWALK.len(), "duplicate erlmcp code");
-        assert_eq!(CROSSWALK.len(), 51);
     }
 
-    /// G2: every ash_a2a class is targeted by >= 1 erlmcp code.
+    /// G2: every declared ash_a2a class is targeted by >= 1 erlmcp code.
     #[test]
     fn every_class_targeted_at_least_once() {
         for class in ASH_A2A_CLASSES.iter() {
@@ -516,7 +532,7 @@ mod tests {
         }
     }
 
-    /// Every mapped class is one of the declared 18 (no invented classes).
+    /// Every mapped class is one of the declared classes (no invented classes).
     #[test]
     fn no_invented_classes() {
         for e in CROSSWALK {
@@ -528,11 +544,42 @@ mod tests {
         }
     }
 
-    /// Fail-closed lookup: known codes resolve; unknown codes return None.
+    /// G5 (valve totality, direction 1): every declared valve class appears
+    /// exactly once in VALVE_CROSSWALK — count-of-declared, no literals.
     #[test]
-    fn lookup_is_fail_closed() {
+    fn every_valve_class_mapped_exactly_once() {
+        let mut names: Vec<&str> = VALVE_CROSSWALK.iter().map(|e| e.valve_name).collect();
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(names.len(), VALVE_CROSSWALK.len(), "duplicate valve class");
+    }
+
+    /// G5 (valve totality, direction 2): every valve mapping targets a
+    /// declared ash_a2a class, and every declared class is valve-targeted
+    /// or code-targeted (the union covers the vocabulary).
+    #[test]
+    fn valve_targets_are_declared_classes() {
+        for e in VALVE_CROSSWALK {
+            assert!(
+                ASH_A2A_CLASSES.contains(&e.ash_a2a_class),
+                "valve mapping to undeclared class {}",
+                e.ash_a2a_class
+            );
+        }
+    }
+
+    /// Fail-closed lookups: known keys resolve; unknown keys return None.
+    #[test]
+    fn lookups_are_fail_closed() {
         assert_eq!(class_for(1021), Some("refused_structure"));
         assert_eq!(class_for(1014), Some("refused_authority"));
         assert_eq!(class_for(9999), None);
+        assert_eq!(valve_class_for("malformed_frame"), Some("refused_structure"));
+        assert_eq!(valve_class_for("fuel_exhausted"), Some("refused_bounds"));
+        assert_eq!(valve_class_for("parent_discontinuity"), Some("refused_receipt"));
+        assert_eq!(valve_class_for("arena_failure"), Some("refused_consequence"));
+        assert_eq!(valve_class_for("window_run_capacity"), Some("refused_bounds"));
+        assert_eq!(valve_class_for("window_tau_capacity"), Some("refused_bounds"));
+        assert_eq!(valve_class_for("nonexistent_valve"), None);
     }
 }
