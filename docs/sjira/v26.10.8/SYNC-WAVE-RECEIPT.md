@@ -45,3 +45,15 @@ receipt, not debt hidden in a result column:
 4. **CI-05 compilation evidence not run** — no compilation court was executed
    in this wave; generated-code compile claims carry zero bits until CI-05
    runs.
+
+## Results (filled 2026-10-13)
+
+| pack | sync class | records | chains valid | idempotency | gates |
+|---|---|---|---|---|---|
+| strata-protocol-pack | append (genesis pre-wave) | 12 | true (ggen receipt history) | double-sync byte-identical | 2 wired, negative-witnessed |
+| strata-pn64-pack | first sync this wave | 5 | true | double-sync byte-identical | 3 wired, negative-witnessed |
+| strata-valve-pack | append | 15 | true | double-sync byte-identical | 2 wired, mutation-witnessed |
+| strata-temprun-pack | first sync this wave | 4 | true | double-sync byte-identical | 1 wired, negative-witnessed |
+| strata-signer-pack | first sync this wave | 4 | true | double-sync byte-identical | 1 wired, negative-witnessed |
+| strata-stratus-pack | first sync at wave (lane L3) | 4 | true | double-sync byte-identical | 1 wired, negative-witnessed |
+| strata-cas-pack | first sync at wave (lane L4) | 4 | true | double-sync byte-identical | 2 wired (vacuous-pass disclosed: zero individuals) |
