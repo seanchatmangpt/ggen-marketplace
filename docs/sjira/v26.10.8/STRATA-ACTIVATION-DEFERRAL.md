@@ -1,5 +1,10 @@
 # STRATA-ACTIVATION-DEFERRAL
 
+**EXECUTED 2026-10-13** — all 7 packs `marketplace.py check` ALIVE; activation
+landed (marketplace.active.toml 13→20 + both verify scripts in lockstep,
+including the undocumented literal `13` cardinality guards each script also
+carries). MSCT invariants ALIVE, Kudzu PARTIAL_ALIVE (pre-existing standing).
+
 Wave: v26.10.8 (strata-hardening) · Lane L17 · 2026-10-12
 
 ## Decision

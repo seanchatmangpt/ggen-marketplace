@@ -23,6 +23,13 @@ EXPECTED_ACTIVE_PACKS = {
     "repository-lifecycle-pack",
     "semantic-projection-pack",
     "state-transition-pack",
+  "strata-cas-pack",
+  "strata-pn64-pack",
+  "strata-protocol-pack",
+  "strata-signer-pack",
+  "strata-stratus-pack",
+  "strata-temprun-pack",
+  "strata-valve-pack",
 }
 
 REQUIRED_PROCESS_MARKERS = (
@@ -213,7 +220,7 @@ def main() -> None:
 
     if active["front_door"] != "ggen-platform-pack":
         refuse(f"unexpected front door: {active['front_door']!r}")
-    if len(active["packs"]) != 13:
+    if len(active["packs"]) != 20:
         refuse(f"active pack cardinality changed: {len(active['packs'])}")
     if packs != EXPECTED_ACTIVE_PACKS:
         refuse(
@@ -262,7 +269,7 @@ def main() -> None:
     check_real_dependency_adapter_convention()
 
     print("Enterprise Kudzu profile invariants: PARTIAL_ALIVE")
-    print("active_packs=13 front_door=ggen-platform-pack")
+    print("active_packs=20 front_door=ggen-platform-pack")
     print("closed_loop_observation=true")
     print("dfcm_order=reuse>compose>extend>invent")
     print("human_twin=identity_state_only")
