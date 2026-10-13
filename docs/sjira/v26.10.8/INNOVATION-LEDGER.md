@@ -44,10 +44,10 @@ per the established pattern), re-certify, merge. This ledger is the
 candidate pool; candidates die by their falsifiers, not by decree.
 
 ## Tier 1 addendum — cross-cluster seams (Y6, verified file:line)
-28. **FM-CHAIN-009 shared fixture** — golden fixture hand-transcribed in affidavit AND graphlaw; no shared artifact, no pin. Glue: one committed fixture + cross-repo byte-exactness test with tamper falsifier. (Partially addressed by T10's port — pin the fixture itself remains.)
+28. **FM-CHAIN-009 shared fixture** — ~~golden fixture hand-transcribed in affidavit AND graphlaw; no shared artifact, no pin.~~ **LANDED (Y6 close-out)**: shared golden fixture committed at graphlaw `tests/fixtures/fm_chain_009.json` (sha256 `b5eccba4…`) with the affidavit pin copy matching byte-exact; cross-repo drift meta tests run in both repos (graphlaw 5 passed, affidavit 6 passed). Supersedes #37's hand-copied state.
 29. **graphlaw RDFC-1.0 → wasm export** — ash_a2a's canonical_graph uses RDF.ex RDFC-1.0; graphlaw has the real RDFC-1.0 unwired (native/graphlaw_host unbuilt, test skips). Glue: wasm export + digest-equality court incl. blank-node relabelings.
 30. **affidavit wasm ABI contract test** — available?/0 checks only function_exported?; never consumes abi_meta inventory/ABI version. Glue: contract test pinning assemble→verify round trip.
-31. **strata↔affidavit receipt codec** — strata's 3381-byte ML-DSA-65 AttestationReceipt vs affidavit's 352-byte CTRT: unrelated formats, zero cross-refs. Glue: bidirectional codec + tamper falsifiers.
+31. **strata↔affidavit receipt codec** — ~~strata's 3381-byte ML-DSA-65 AttestationReceipt vs affidavit's 352-byte CTRT: unrelated formats, zero cross-refs.~~ **LANDED (Seam 29 close-out)**: hash-then-commit codec landed in affidavit-core `tests/strata_refusal_seam.rs`; raw passthrough structurally refused (`ZeroCommitment`); 5 passed.
 32. **sa2a vocabulary unification** — sa2a triplicated across graphlaw bins, affidavit ontology falsifiers, ash_a2a courts/state machine. Glue: one committed sa2a TTL all three consume; falsifier: receipt-not-success fires against a real standing_receipt.json.
 
 **Cross-cutting pattern (Y6)**: every seam is a one-way hand-maintained
@@ -68,3 +68,37 @@ between them. Seams 28–32 are the loop's next finishing targets.
 surfaces; consumers cite them in comments/manifests but link stale or
 parallel artifacts. One digest-pinned artifact + one cross-language
 parity court per pair closes the class.
+
+## Landed wave receipts — 2026-10-13 (coordinator-verified SHAs)
+
+- **Seam 28 — FM-CHAIN-009 shared fixture: LANDED.** Shared golden fixture at
+  graphlaw `tests/fixtures/fm_chain_009.json` (sha256 `b5eccba4…`) + affidavit
+  pin copy; cross-repo drift meta tests both repos (graphlaw 5 passed,
+  affidavit 6 passed). Closes #28/#37.
+- **Seam 29 — strata↔affidavit refusal-receipt codec: LANDED.**
+  `affidavit-core/tests/strata_refusal_seam.rs`; hash-then-commit codec, raw
+  passthrough structurally refused (`ZeroCommitment`); 5 passed. Closes #31.
+- **Y8/genesis freeze: LANDED.** Affidavit seed frozen to
+  `affidavit-v26.9.28-genesis`; version-independence proven by temp version
+  bump. Merge `f2c9f84`.
+- **T3/T4 strata-net (Tier-1 #4, #5): LANDED.** Commit `0b8c7de64` —
+  admission conservation gate (typed `ConservationRefusal`, admit-time;
+  4 courts + 500-entry fuzz) + 4×1000 attack-corpus fuzz, sabotage twin
+  caught 498/1000.
+- **T11 castle gate (Tier-2 #6): LANDED.** Commit `c5e0cf876` —
+  constitutional-diff gate over consensus constants (X5).
+- **Y10 ash_a2a pagination: LANDED.** ash_a2a main `13622178` — echo-of-request
+  `page_size`; `historyLength` honored on `tasks/get` only. Adjacent same-class
+  fix in `plug.ex` `authorize_task_list`.
+- **L5 audit correction (catalog): sa2a U/V/W "empty husk" claims STALE.** All
+  three packs revived to ALIVE — spark-dsl 0.2.0, chicago-court 0.2.0,
+  governed-process semantic-by-design. `composition-space.ttl` refresh in
+  flight (projection pending).
+- **Castle integration design: PARTIAL_ALIVE by design.** Strata receipts
+  ingest as O* evidence via `OcelEvent` lift; native `ReceiptV2`/
+  `DurableEvidenceRecord` path BLOCKED by TrustStore + BRCE-completeness
+  invariants. Implementation lane in flight.
+
+Standing vocabulary unchanged: LANDED entries carry exact SHAs above; the
+composition-space refresh and castle implementation lane are IN FLIGHT, not
+admitted.
