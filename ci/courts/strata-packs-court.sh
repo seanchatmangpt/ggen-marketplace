@@ -10,6 +10,10 @@ cd "$(git rev-parse --show-toplevel)"
 echo "::group::strata-packs-court: qualify strata packs"
 (
 set -e
+# --scope all is REQUIRED: strata packs are deliberately outside
+# marketplace.active.toml (E19 deferral, see docs/sjira/v26.10.8/STRATA-ACTIVATION-DEFERRAL.md);
+# default --scope active would refuse ACTIVE_SCOPE_PACK_MISSING. --scope all + explicit
+# --pack names is the lawful selection path. Do not "fix" to --scope active.
 python3 scripts/qualify_packs_r18.py \
   --ggen "$GGEN_BIN" \
   --pack strata-cas-pack \
