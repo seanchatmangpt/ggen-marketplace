@@ -32,6 +32,30 @@ def main() -> int:
             print(f"  on-disk-but-unwitnessed: {extra}")
         return 1
 
+    # Witness-hash assertion: the committed pack-level sw:syncedGraphHash must
+    # match the local runtime receipt's payload.graph_hash when one exists.
+    pack_level = {
+        str(o)
+        for s, p, o in witness
+        if str(p).endswith("#syncedGraphHash")
+        if any(str(q).endswith("#pack") for _, q, _ in witness.triples((s, None, None)))
+    }
+    receipt_path = PACK_DIR / ".ggen-v2" / "receipt.json"
+    if not receipt_path.exists():
+        print("NOTE: no local receipt; witness hashes not re-verified")
+    else:
+        import json
+
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt_hash = receipt.get("payload", {}).get("graph_hash")
+        if len(pack_level) != 1 or not receipt_hash or pack_level != {receipt_hash}:
+            witness_hash = next(iter(pack_level), None)
+            print(
+                f"REFUSED: witness hash drift (witness={witness_hash} "
+                f"receipt={receipt_hash})"
+            )
+            return 1
+
     violations = 0
     for gate in sorted((PACK_DIR / "gates").glob("*.rq")):
         query = gate.read_text(encoding="utf-8")

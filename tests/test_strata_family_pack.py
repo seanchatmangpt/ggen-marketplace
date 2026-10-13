@@ -36,8 +36,16 @@ EXPECTED_STRATA_GENERATION_PACKS = frozenset({
 })
 
 # Packs with committed generated/ files guarded against drift (court 3).
+# Every strata pack now commits its rendered generated/ tree, so the drift
+# guard covers all seven: the fresh render must be byte-identical to the
+# committed outputs in the real repo, not just to a second fresh render.
 DRIFT_GUARDED: dict[str, tuple[str, ...]] = {
-    "strata-protocol-pack": ("pdu_constants.rs",),
+    "strata-cas-pack": ("cas.rs",),
+    "strata-pn64-pack": ("pn64_masks.rs",),
+    "strata-protocol-pack": ("pdu_constants.rs", "wire_constants.rs"),
+    "strata-signer-pack": ("signer.rs",),
+    "strata-stratus-pack": ("registers.rs", "valves.rs"),
+    "strata-temprun-pack": ("arena.rs",),
     "strata-valve-pack": ("refusals.ex",),
 }
 
@@ -202,13 +210,11 @@ def test_real_ggen_sync_determinism_content_and_drift(
     for rel, data in state1.items():
         _content_court(name, rel, data.decode("utf-8"))
 
-    # Court 3: drift guard — committed generated/ bytes == fresh render bytes.
+    # Court 3: drift guard — committed generated/ bytes == fresh render bytes,
+    # for every committed output of every pack (not just protocol+valve).
     for rel in DRIFT_GUARDED.get(name, ()):
         committed = (PACKS_DIR / name / "generated" / rel).read_bytes()
-        assert committed == state1["generated/" + rel], (
-            "%s: committed generated/%s has drifted from a fresh `ggen sync run`"
-            % (name, rel)
-        )
+        _drift_check(name, rel, state1["generated/" + rel], committed)
 
 
 # ---------------------------------------------------------------------------
@@ -226,6 +232,15 @@ def _valve_receipt_len_check(text: str) -> None:
     assert "REFUSAL_RECEIPT_LEN: usize = 32" in text
 
 
+def _drift_check(pack: str, rel: str, fresh_render: bytes,
+                 committed_bytes: bytes) -> None:
+    """One drift-guard comparison as a pure function (court 3 + twin)."""
+    assert committed_bytes == fresh_render, (
+        "%s: committed generated/%s has drifted from a fresh `ggen sync run`"
+        % (pack, rel)
+    )
+
+
 def test_sabotage_twin_receipt_len_check_detects_mutation() -> None:
     good = "pub const REFUSAL_RECEIPT_LEN: usize = 32;\n"
     _valve_receipt_len_check(good)
@@ -239,6 +254,33 @@ def test_sabotage_twin_pn64_verb_count_check_detects_mutation() -> None:
     bad = good.replace("= 6", "= 5")
     with pytest.raises(AssertionError, match="VERB_COUNT: usize = 6"):
         _pn64_verb_count_check(bad)
+
+
+def test_sabotage_twin_extended_drift_guard_detects_committed_mutation(
+    tmp_path: Path,
+) -> None:
+    """The extended drift guard must fire on a mutated committed byte.
+
+    Copy a real pack with committed generated/ output into tmp, flip one
+    committed byte, and prove the guard detects the drift against the
+    (unmutated) fresh render.
+    """
+    name = "strata-signer-pack"
+    rel = "signer.rs"
+    pack_dir = _copy_pack(name, tmp_path)
+    committed = pack_dir / "generated" / rel
+    original = committed.read_bytes()
+
+    # Guard passes on the pristine copy (bytes identical to themselves).
+    _drift_check(name, rel, original, original)
+
+    # Sabotage: mutate one committed byte in the tmp copy.
+    mutated = original.replace(b"SIGNATURE_LEN", b"SIGNATURE_LENXX", 1)
+    assert mutated != original
+    committed.write_bytes(mutated)
+
+    with pytest.raises(AssertionError, match="has drifted from a fresh"):
+        _drift_check(name, rel, original, committed.read_bytes())
 
 
 if __name__ == "__main__":  # pragma: no cover
