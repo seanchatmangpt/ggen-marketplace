@@ -11,6 +11,9 @@
 #[path = "../../generated/signing.rs"]
 pub mod signing;
 
+/// Cross-pack court (lane L135): signature binds the tx-pack canonical frame.
+pub mod tx_binding;
+
 use ml_dsa::{Keypair, MlDsa65, Signature, SigningKey, VerifyingKey};
 use signing::{PayloadSigner, PUBLIC_KEY_LEN, DIGEST_LEN, PAYLOAD_SIGNATURE_LEN};
 

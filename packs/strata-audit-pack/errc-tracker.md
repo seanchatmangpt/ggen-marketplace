@@ -39,7 +39,7 @@ verified against the working tree at edit time.
   breaking one mapping yields exactly the typed row).
 - **The corpus court is a test, not prose**: `corpus_runs_1000_clean_per_target`
   asserts 1000/1000 clean on all 6 targets and prints the named mismatches
-  on failure; `manifest_is_closed` pins 6 targets / 10 attacks / registered
+  on failure; `manifest_is_closed` pins 6 targets / 14 attacks / registered
   oracles / resolved attack targets.
 - **Honest boundary raised to a contract**: the README and the generated
   module header both state that inline copies audit the LAW AS CAPTURED at
@@ -53,7 +53,7 @@ verified against the working tree at edit time.
 ## Falsifiers (what would refute the standing claim)
 
 - `ggen sync run` twice producing non-byte-identical `audit_corpus.rs`.
-- Any of the 12 tests failing, or any corpus case reporting a MISMATCH.
+- Any of the 13 tests failing, or any corpus case reporting a MISMATCH.
 - Any gate returning a violation row, or `verify.py` reporting a
   witness-hash drift.
 - Qualification returning anything but ALIVE.

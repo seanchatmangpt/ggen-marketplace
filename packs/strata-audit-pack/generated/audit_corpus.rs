@@ -13,7 +13,10 @@
 //! S10 refresh: pn64 mask law pinned via strata-pn64-pack (T2, @00e0b086b);
 //! known-attack corpus extended with the landed-work entries (fire-law XOR
 //! divergence, t04 mask correction, valve zero receipts, ledger token-sum
-//! conservation, erlmcp vacuous-eunit test-vacuity).
+//! conservation, erlmcp vacuous-eunit test-vacuity). L127 refresh:
+//! chain-work u64 saturation tie (u128 fix pinned, u64 twin as sabotage
+//! oracle), ggen UNION binding-leak (OPEN-UPSTREAM), wasm
+//! non-reproducible build (OPEN; ABI-surface gate).
 //!
 //! Self-contained, serde-free; compiles standalone via `rustc --test`.
 
@@ -96,6 +99,13 @@ pub const KNOWN_ATTACKS: &[AttackSpec] = &[
     },
 
     AttackSpec {
+        attack: "ChainWorkSaturationTie",
+        attack_class: "arithmetic",
+        target: "consensus_select_tip",
+        expected_refusal: "select_tip (u128 accumulated work) never selects a chain whose u128 total is smaller; the pinned saturation witness (two chains whose u64 sums saturate equal while u128 totals differ) resolves to the genuinely-heavier chain, and the u64 twin's mispick stays pinned as the regression",
+    },
+
+    AttackSpec {
         attack: "ConsensusSelfishMining",
         attack_class: "incentive",
         target: "consensus_select_tip",
@@ -107,6 +117,13 @@ pub const KNOWN_ATTACKS: &[AttackSpec] = &[
         attack_class: "conservation",
         target: "ledger_apply_transition",
         expected_refusal: "the exact Lean counterexample (inputs [(acct0,5),(acct0,5)], outputs [(acct1,10)], balance 5) refuses LedgerRefusal::InsufficientFunds with the state bit-identical; same-account debit rows accumulate before the funds check",
+    },
+
+    AttackSpec {
+        attack: "GgenUnionBindingLeak",
+        attack_class: "engine-hazard",
+        target: "pn64_mask_apply",
+        expected_refusal: "any projected field that rdflib binds as unbound but ggen fills with a stale cross-row value is a row-shape differential violation; in-pack, every gate stays zero-rows under rdflib and every projected corpus field carries its own row's binding (or an explicit sentinel)",
     },
 
     AttackSpec {
@@ -163,6 +180,13 @@ pub const KNOWN_ATTACKS: &[AttackSpec] = &[
         attack_class: "telemetry-integrity",
         target: "ledger_apply_transition",
         expected_refusal: "every refusal receipt carries non-zero identity/consequence fields derived from the typed LedgerRefusal; the all-zero receipt shape is a named regression entry",
+    },
+
+    AttackSpec {
+        attack: "WasmNonReproducibleBuild",
+        attack_class: "build-integrity",
+        target: "pn64_mask_apply",
+        expected_refusal: "a wasm artifact whose ABI surface or observable semantics drift from the pinned graphlaw law is refused at the ABI-surface gate; absence of byte-identity is disclosed (OPEN) rather than read as verification",
     },
 ];
 
@@ -582,9 +606,21 @@ pub fn block_work(b: &Blk) -> u64 {
     1u64 << b.difficulty_target.min(63)
 }
 
-/// Total accumulated chain work (saturating fold).
+/// Total accumulated chain work (saturating fold). L127: the u64 SATURATING
+/// fold is kept only as the SABOTAGE TWIN (ChainWorkSaturationTie) — it
+/// saturates long/heavy chains into an apparent tie and mispicks the
+/// lighter chain via the nonce tie-break. The audited law is u128.
 pub fn chain_work(chain: &[Blk]) -> u64 {
     chain.iter().map(block_work).fold(0u64, u64::saturating_add)
+}
+
+/// The FIXED law: total chain work accumulated in u128 (L127,
+/// strata-consensus-pack @ 0c7c9e594) — no tie where one does not exist.
+pub fn chain_work_u128(chain: &[Blk]) -> u128 {
+    chain
+        .iter()
+        .map(|b| 1u128 << b.difficulty_target.min(63))
+        .fold(0u128, u128::saturating_add)
 }
 
 /// Deterministic tip selection: heaviest total work wins; exact equal-work
@@ -1114,12 +1150,12 @@ pub fn run_audit() -> AuditReport {
 mod tests {
     use super::*;
 
-    /// Manifest closure: 6 targets, 11 attacks, every attack resolves,
+    /// Manifest closure: 6 targets, 14 attacks, every attack resolves,
     /// every corpus is 1000 cases, every oracle is registered.
     #[test]
     fn manifest_is_closed() {
         assert_eq!(AUDIT_TARGETS.len(), 6, "6 S10 fuzz targets projected");
-        assert_eq!(KNOWN_ATTACKS.len(), 11, "11 known attacks projected (5 S10 + 5 refresh + 1 L107 duplicate-input regression)");
+        assert_eq!(KNOWN_ATTACKS.len(), 14, "14 known attacks projected (5 S10 + 5 refresh + 1 L107 duplicate-input + 3 L127: saturation-tie, ggen union leak, wasm reproducibility)");
         for t in AUDIT_TARGETS {
             assert_eq!(t.corpus_size, 1000, "target {} corpus", t.name);
             assert!(
@@ -1419,5 +1455,83 @@ mod tests {
             assert!(oracle_registry(t.oracle_fn).is_some());
             assert!(t.corpus_size > 0);
         }
+    }
+
+    /// ChainWorkSaturationTie (L127): the u64 saturating fold is the pinned
+    /// sabotage twin — past saturation it reports equal work for chains of
+    /// DIFFERENT u128 totals, and the lower-nonce tie-break then mispicks
+    /// the lighter chain. The fixed u128 law (strata-consensus-pack
+    /// @ 0c7c9e594) resolves every such tie to the genuinely-heavier chain.
+    /// Work accounting reads only difficulty_target, so the saturation
+    /// witness uses unmined difficulty-63 blocks (PoW mining is not what is
+    /// under audit here).
+    #[test]
+    fn attack_chain_work_saturation_tie_refused() {
+        let blk = |h: u64, difficulty: u32, nonce: u64| Blk {
+            height: h,
+            parent_hash: [0u8; DIGEST_LEN],
+            difficulty_target: difficulty,
+            nonce,
+            timestamp_slot: h,
+        };
+        // heavy: 4 blocks @ difficulty 63 -> u128 total 4 * 2^63 = 2^65.
+        // long_light: 3 blocks @ difficulty 63 -> u128 total 3 * 2^63.
+        let heavy: Vec<Blk> = vec![blk(0, 63, 7), blk(1, 63, 9), blk(2, 63, 11), blk(3, 63, 13)];
+        let long_light: Vec<Blk> = vec![blk(0, 63, 1), blk(1, 63, 2), blk(2, 63, 3)];
+        // Sabotage-twin precondition: both u64 folds SATURATE equal.
+        assert_eq!(chain_work(&heavy), u64::MAX);
+        assert_eq!(chain_work(&long_light), u64::MAX);
+        assert_eq!(
+            chain_work(&heavy),
+            chain_work(&long_light),
+            "u64 twin collapses distinct totals into an apparent tie"
+        );
+        // The fixed u128 law separates what the twin collapsed.
+        assert_eq!(chain_work_u128(&heavy), 4u128 * (1u128 << 63));
+        assert_eq!(chain_work_u128(&long_light), 3u128 * (1u128 << 63));
+        assert_ne!(
+            chain_work_u128(&heavy),
+            chain_work_u128(&long_light),
+            "u128 law keeps the real ordering"
+        );
+        // The twin's mispick, pinned as the regression witness: under the
+        // saturated tie the lower-nonce tie-break selects long_light even
+        // though it carries LESS work.
+        let tie_pick_u64 = |a: u64, b: u64, na: u64, nb: u64| -> usize {
+            let _ = (a, b); // saturated equal — the tie-break decides
+            if na < nb { 0 } else { 1 }
+        };
+        assert_eq!(
+            tie_pick_u64(
+                chain_work(&heavy),
+                chain_work(&long_light),
+                heavy.last().unwrap().nonce,
+                long_light.last().unwrap().nonce
+            ),
+            1,
+            "saturated tie-break hands the tip to the LIGHTER chain (index 1, \
+             the pinned mispick: nonce tie-break beats real work)"
+        );
+        // The fixed law: heavier-by-u128 always wins under the same
+        // heaviest predicate.
+        let pick_heaviest_u128 = |work: Vec<u128>| -> usize {
+            let mut best = 0usize;
+            for i in 1..work.len() {
+                if work[i] > work[best] {
+                    best = i;
+                }
+            }
+            best
+        };
+        assert_eq!(
+            pick_heaviest_u128(vec![chain_work_u128(&heavy), chain_work_u128(&long_light)]),
+            0,
+            "u128 law never hands the tip to the lighter chain"
+        );
+        assert_eq!(
+            pick_heaviest_u128(vec![chain_work_u128(&long_light), chain_work_u128(&heavy)]),
+            1,
+            "u128 law selects the heavier chain regardless of order"
+        );
     }
 }

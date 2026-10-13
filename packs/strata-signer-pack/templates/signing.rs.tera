@@ -10,7 +10,11 @@
 //!
 //! Digest binding: `TxSigner::bind_tx_digest` maps raw transaction bytes to
 //! the 32-byte SHA-256 digest that ML-DSA-65 attests (st:TxDigestBinding in
-//! the ontology; gated by gates/020_digest_binding.rq).
+//! the ontology; gated by gates/020_digest_binding.rq). The pre-hash string
+//! is domain-separated: TX_DIGEST_DOMAIN_TAG || tx_bytes (st:digestDomainTag,
+//! "strata-tx-payload-digest-v1") — the tx-pack digest domain, so a digest
+//! signed here can never be replayed as a digest of the same bytes computed
+//! in any other domain.
 
 /// Detached ML-DSA-65 signature width in bytes (FIPS 204; ground truth
 /// ~/strata/strata_protocol/src/signer.rs SIGNATURE_LEN = 3309;
@@ -125,10 +129,17 @@ pub fn sha256(data: &[u8]) -> [u8; DIGEST_LEN] {
 
 // ── TxSigner adapter ─────────────────────────────────────────────────
 
+/// Digest-domain tag for tx payloads (ontology st:digestDomainTag on
+/// st:TxDigestBinding): the tx-pack digest domain. Prepended to the raw tx
+/// bytes before hashing — SHA-256(TX_DIGEST_DOMAIN_TAG || tx_bytes) — so the
+/// attested digest is bound to THIS domain and cannot be confused with a
+/// bare SHA-256 of the same bytes in any other domain.
+pub const TX_DIGEST_DOMAIN_TAG: &[u8] = b"strata-tx-payload-digest-v1";
+
 /// Adapter binding raw transaction bytes to the attestation plane: hashes the
-/// tx bytes to a 32-byte SHA-256 digest (`bind_tx_digest`) and signs/verifies
-/// through any `PayloadSigner` backend (the real one being ML-DSA-65 in
-/// ~/strata signer.rs).
+/// tx bytes to a 32-byte domain-separated SHA-256 digest (`bind_tx_digest`)
+/// and signs/verifies through any `PayloadSigner` backend (the real one being
+/// ML-DSA-65 in ~/strata signer.rs).
 pub struct TxSigner<S: PayloadSigner> {
     backend: S,
 }
@@ -138,10 +149,14 @@ impl<S: PayloadSigner> TxSigner<S> {
         Self { backend }
     }
 
-    /// Digest of raw transaction bytes: SHA-256(tx_bytes), 32 bytes — the
-    /// digest ML-DSA-65 attests (st:TxDigestBinding).
+    /// Domain-separated digest of raw transaction bytes:
+    /// SHA-256(TX_DIGEST_DOMAIN_TAG || tx_bytes), 32 bytes — the digest
+    /// ML-DSA-65 attests (st:TxDigestBinding + st:digestDomainTag).
     pub fn bind_tx_digest(&self, tx_bytes: &[u8]) -> [u8; DIGEST_LEN] {
-        sha256(tx_bytes)
+        let mut preimage = Vec::with_capacity(TX_DIGEST_DOMAIN_TAG.len() + tx_bytes.len());
+        preimage.extend_from_slice(TX_DIGEST_DOMAIN_TAG);
+        preimage.extend_from_slice(tx_bytes);
+        sha256(&preimage)
     }
 
     /// Detached signature over the tx digest (3309 bytes).
@@ -388,6 +403,27 @@ mod tests {
                 0xf2, 0x00, 0x15, 0xad
             ]
         );
+    }
+
+    /// Court (tx digest domain separation): the domain-tagged digest must
+    /// differ from the bare SHA-256 of the same tx bytes — binding to the
+    /// tx-pack digest domain is observable, not vacuous.
+    #[test]
+    fn tx_digest_domain_tag_binds() {
+        let signer = TxSigner::new(TestSigner::new([0x31u8; 32]));
+        let tx = b"domain-sep-court-001";
+        let tagged = signer.bind_tx_digest(tx);
+        let bare = sha256(tx);
+        assert_ne!(tagged, bare, "tagged digest must differ from bare digest");
+        // Re-deriving the preimage form matches: SHA-256(tag || tx).
+        let mut preimage = TX_DIGEST_DOMAIN_TAG.to_vec();
+        preimage.extend_from_slice(tx);
+        assert_eq!(tagged, sha256(&preimage));
+        // Tag flip changes the digest (the tag is inside the hash input).
+        let flipped: &[u8] = b"strata-tx-payload-digest-v2";
+        let mut other = flipped.to_vec();
+        other.extend_from_slice(tx);
+        assert_ne!(tagged, sha256(&other));
     }
 
     /// Court: digest width constant matches the ontology binding (32) and the

@@ -64,6 +64,17 @@ qualification ALIVE. S10 refresh added the pn64_mask_apply fuzz target
 (Pn64FireLawXorDivergence, Pn64T04MaskCorrection, ValveZeroRefusalReceipt,
 LedgerTokenSumNonConservation, VacuousEunitHarness).
 
+L127 refresh (2026-10-13, ggen 26.10.11): 3 more real findings as additive
+corpus entries — ChainWorkSaturationTie (strata-consensus-pack @ 0c7c9e594;
+u64 saturating fold pinned as the sabotage twin, u128 fix `chain_work_u128`
+in the audit copy, consensus tie-court regression),
+GgenUnionBindingLeak (cross-repo ggen SPARQL OPTIONAL/UNION binding leak,
+OPEN-UPSTREAM; rdflib row-shape differential court), and
+WasmNonReproducibleBuild (graphlaw @ b473313, OPEN; ABI-surface gate).
+Receipt: 6/6 targets 1000/1000 clean, 13/13 tests pass (manifest closure —
+6 targets / 14 attacks —, corpus court, 11 attack regressions), gates 0
+rows, byte-identical ×2, qualification ALIVE.
+
 ## Standing
 
 `ALIVE` (qualification 2026-10-13, ggen 26.10.11). The pack projects a

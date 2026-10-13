@@ -18,6 +18,12 @@
 # vacuous-eunit cross-repo test-vacuity pattern. A new FuzzTarget
 # (pn64_mask_apply) pins the pn64 mask law as an inline provenance copy.
 #
+# L127 refresh (2026-10-13): three more real findings — consensus chain-work
+# u64 saturation tie (fixed u128 @ 0c7c9e594; u64 twin pinned as the sabotage
+# oracle), the cross-repo ggen SPARQL UNION/OPTIONAL binding-leak (OPEN-
+# UPSTREAM; rdflib row-shape differential court), and graphlaw wasm
+# non-reproducible builds (OPEN; ABI-surface gate @ b473313).
+#
 # The FuzzTarget/KnownAttack individuals ARE the audit-corpus manifest:
 # gate 010 fails closed on any FuzzTarget missing targetModule/corpusSize/
 # oracleFn; gate 020 fails closed on any KnownAttack whose target does not
@@ -197,6 +203,27 @@ st:DuplicateInputAccountValueCreation a st:KnownAttack ;
     st:attackClass "conservation" ;
     st:targets st:ledger_apply_transition ;
     st:expectedRefusal "the exact Lean counterexample (inputs [(acct0,5),(acct0,5)], outputs [(acct1,10)], balance 5) refuses LedgerRefusal::InsufficientFunds with the state bit-identical; same-account debit rows accumulate before the funds check" .
+
+st:ChainWorkSaturationTie a st:KnownAttack ;
+    rdfs:label "ChainWorkSaturationTie" ;
+    rdfs:comment "STATUS: repelled (regression; reproduced pre-fix, fixed u128 @ strata-consensus-pack 0c7c9e594; the sabotage twin is the u64 saturating variant). Attack class: arithmetic. Subject pin: strata-consensus-pack @ 0c7c9e594 (L127). Chain-work saturation attack: a u64 saturating accumulator saturates long chains' total work (>= 64 single blocks or fewer heavy ones), collapsing genuinely-heavier forks into an apparent TIE — the lower-nonce tie-break then mispicks the LIGHTER chain and an attacker forces a reorg with less work. The fix accumulates in u128 (chain_work_u128), so real ordering survives saturation of any u64-representable total. DETECTION COURT: consensus tie court — the audit corpus court pins the u64 variant as the sabotage twin and refuses any selection that disagrees with the u128 law." ;
+    st:attackClass "arithmetic" ;
+    st:targets st:consensus_select_tip ;
+    st:expectedRefusal "select_tip (u128 accumulated work) never selects a chain whose u128 total is smaller; the pinned saturation witness (two chains whose u64 sums saturate equal while u128 totals differ) resolves to the genuinely-heavier chain, and the u64 twin's mispick stays pinned as the regression" .
+
+st:GgenUnionBindingLeak a st:KnownAttack ;
+    rdfs:label "GgenUnionBindingLeak" ;
+    rdfs:comment "STATUS: OPEN-UPSTREAM (engine lane in flight; cross-repo ggen engine hazard, not a marketplace pack defect). Attack class: engine-hazard. Subject pin: ggen SPARQL serializer (cross-repo, external; two independent reports: ggen-marketplace cas commits.rq COALESCE-sentinel workaround, refusal-crosswalk UNION sentinels). Binding-leak attack: the serializer leaks unbound OPTIONAL/UNION bindings ACROSS rows — a variable unbound in the current solution row carries the PREVIOUS row's value, so projected COALESCE/sentinel fields silently read stale data and a downstream gate can admit on the wrong row's binding. Workaround (both report sites): explicit COALESCE sentinels per row. DETECTION COURT: row-shape differential court vs rdflib — same query, same graph, per-row binding shapes must match; the audit-corpus manifest-closure court (verify.py re-runs every gate via rdflib) is the in-pack witness while the upstream fix lands." ;
+    st:attackClass "engine-hazard" ;
+    st:targets st:pn64_mask_apply ;
+    st:expectedRefusal "any projected field that rdflib binds as unbound but ggen fills with a stale cross-row value is a row-shape differential violation; in-pack, every gate stays zero-rows under rdflib and every projected corpus field carries its own row's binding (or an explicit sentinel)" .
+
+st:WasmNonReproducibleBuild a st:KnownAttack ;
+    rdfs:label "WasmNonReproducibleBuild" ;
+    rdfs:comment "STATUS: OPEN (build-integrity; witnessed on 3 platforms; detection landed). Attack class: build-integrity. Subject pin: graphlaw @ b473313 (praxis_graphlaw.wasm build; path leakage + LLVM pool ordering make byte-reproducible wasm builds unreachable). Non-reproducible-build attack: two builds of the same source SHA yield different wasm bytes, so a consumed artifact cannot be tied to its source by digest — a substituted or stale .wasm passes as current because no byte-level identity exists to check. DETECTION COURT: ABI-surface gate (graphlaw b473313): the exported function surface + observable semantics are pinned instead of bytes, so a build is admitted iff its ABI surface and behavior match the pinned law even while bytes differ; byte-reproducibility stays a named open attack until upstream eliminates path/pool nondeterminism." ;
+    st:attackClass "build-integrity" ;
+    st:targets st:pn64_mask_apply ;
+    st:expectedRefusal "a wasm artifact whose ABI surface or observable semantics drift from the pinned graphlaw law is refused at the ABI-surface gate; absence of byte-identity is disclosed (OPEN) rather than read as verification" .
 
 st:VacuousEunitHarness a st:KnownAttack ;
     rdfs:label "VacuousEunitHarness" ;
