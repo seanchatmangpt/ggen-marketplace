@@ -26,6 +26,8 @@ defmodule Strata.Valve.Refusals do
 end
 
 defmodule Strata.Valve.Refusals.ArenaFailure do
+  @receipt_len 32
+
   @moduledoc """
   Refusal class `arena_failure`.
 
@@ -44,6 +46,8 @@ defmodule Strata.Valve.Refusals.ArenaFailure do
 end
 
 defmodule Strata.Valve.Refusals.FuelExhausted do
+  @receipt_len 32
+
   @moduledoc """
   Refusal class `fuel_exhausted`.
 
@@ -62,6 +66,8 @@ defmodule Strata.Valve.Refusals.FuelExhausted do
 end
 
 defmodule Strata.Valve.Refusals.MalformedFrame do
+  @receipt_len 32
+
   @moduledoc """
   Refusal class `malformed_frame`.
 
@@ -80,6 +86,8 @@ defmodule Strata.Valve.Refusals.MalformedFrame do
 end
 
 defmodule Strata.Valve.Refusals.ParentDiscontinuity do
+  @receipt_len 32
+
   @moduledoc """
   Refusal class `parent_discontinuity`.
 
