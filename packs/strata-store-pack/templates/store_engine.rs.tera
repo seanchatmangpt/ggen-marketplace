@@ -242,6 +242,10 @@ pub trait ContentStore {
     /// Remove every entry inserted after `marker` (re-org rollback).
     /// Appends since the marker are undone; the marker's state is restored.
     fn rollback_to(&mut self, marker: StoreMarker) -> Result<(), StoreRefusal>;
+    // NOTE (rollback/undo interleave): `rollback_to` REFUSES with
+    // [`StoreRefusal::UndoInterruptedPending`] while an undo is pending
+    // recovery, mirroring the undo primitives — the recovery record must
+    // never observe a journal mutated underneath it.
     /// ATOMIC reorg undo: remove every entry inserted after the fork
     /// `marker` in ONE operation, returning a single [`StoreReceipt`].
     /// Crash-safe: the recovery record is written before any deletion, so an
@@ -495,6 +499,26 @@ impl InMemoryStore {
         }
     }
 
+    /// SABOTAGE TWIN (rollback guard): the UNGUARDED rollback — exactly the
+    /// pre-fix `rollback_to` body, no `recovery.is_some()` check — kept as a
+    /// discrimination surface: the interleave court must catch the
+    /// divergence this twin produces (journal truncated UNDER a pending
+    /// recovery record; recovery then forges `entries_undone: 0` over the
+    /// permanent loss).
+    pub fn sabotaged_rollback_unguarded(&mut self, marker: StoreMarker) -> Result<(), StoreRefusal> {
+        if marker.journal_len > self.journal.len() {
+            return Err(StoreRefusal::RollbackPastGenesis {
+                journal_len: self.journal.len(),
+                marker: marker.journal_len,
+            });
+        }
+        while self.journal.len() > marker.journal_len {
+            let key = self.journal.pop().expect("journal length checked above");
+            self.entries.remove(&key);
+        }
+        Ok(())
+    }
+
     /// Crash-corpus invariant (a): every live journal key re-derives from its
     /// stored value (key == SHA-256(value)) and every journal key is present.
     pub fn verify_content_addresses(&self) -> bool {
@@ -551,6 +575,16 @@ impl ContentStore for InMemoryStore {
     }
 
     fn rollback_to(&mut self, marker: StoreMarker) -> Result<(), StoreRefusal> {
+        // Undos never interleave with other journal-truncating operations:
+        // a rollback while an undo is pending recovery would mutate the
+        // journal underneath the recovery record — a rollback to a marker
+        // BELOW the pending target permanently deletes entries the recovery
+        // still owes (verified: journal 8→2 with pending target 4, then
+        // recovery forges `entries_undone: 0` over the loss). Refuse typed,
+        // before any mutation, mirroring `undo_to_fork_impl`.
+        if let Some(rec) = self.recovery {
+            return Err(StoreRefusal::UndoInterruptedPending { target_len: rec.target_len });
+        }
         if marker.journal_len > self.journal.len() {
             return Err(StoreRefusal::RollbackPastGenesis {
                 journal_len: self.journal.len(),
@@ -1129,5 +1163,167 @@ mod tests {
             // The corrected state satisfies every crash-corpus invariant.
             assert_post_recovery_invariants(&mut store, fork, fork_root, &tag);
         }
+    }
+
+    /// Court (rollback/undo interleave, typed refusal): `rollback_to` while
+    /// an undo is pending recovery refuses `UndoInterruptedPending` BEFORE
+    /// any mutation — journal, entries, and the recovery record itself all
+    /// untouched — and the pending undo still recovers exactly to the fork
+    /// root afterward.
+    #[test]
+    fn rollback_while_pending_refuses_before_mutation() {
+        let mut store = InMemoryStore::new();
+        for i in 0..10 {
+            store.put(format!("g-{}", i).as_bytes());
+        }
+        let fork = store.mark();
+        let fork_root = store.root_digest();
+        for b in 0..5 {
+            for i in 0..10 {
+                store.put(format!("p-{}-{}", b, i).as_bytes());
+            }
+        }
+        store
+            .undo_to_fork_interruptible(fork, 20)
+            .expect("crash mid-undo");
+        assert!(store.has_interrupted_undo());
+        let journal_before = store.mark();
+
+        // Interleaved rollback refuses typed, mutates nothing.
+        let err = store
+            .rollback_to(fork)
+            .expect_err("interleaved rollback must refuse");
+        assert_eq!(err, StoreRefusal::UndoInterruptedPending { target_len: 10 });
+        assert_eq!(store.mark(), journal_before, "refused rollback must not mutate");
+        assert!(store.has_interrupted_undo(), "recovery record untouched");
+        assert!(!store.has_orphaned_entries());
+        assert!(store.verify_content_addresses());
+
+        // The pending undo still recovers exactly to the fork point.
+        let receipt = store
+            .recover_interrupted_undo()
+            .expect("recovery ok")
+            .expect("pending yields receipt");
+        assert_eq!(receipt.fork_marker, fork);
+        assert_eq!(receipt.post_root, fork_root);
+        assert_eq!(store.root_digest(), fork_root);
+    }
+
+    /// L34 candidate-2 property (×1000-position deterministic corpus): for
+    /// ANY crash position k in the undo sequence,
+    /// `recover(undo_interruptible(m, k)) == undo(m)` — identical fork
+    /// marker, identical post root, and identical final state (root, marker,
+    /// length, content-address and orphan invariants) as the non-interrupted
+    /// atomic undo. The entries_undone SPLIT is part of the property: the
+    /// crashed attempt deletes `k`, recovery carries exactly the remaining
+    /// tail (`post_entries - k`).
+    #[test]
+    fn recover_equals_undo_1000_positions() {
+        let post_entries = 100usize;
+        for iteration in 0..1000u64 {
+            let tag = format!("eq-{}", iteration);
+            // Reference: the atomic (non-interrupted) undo.
+            let mut reference = InMemoryStore::new();
+            for i in 0..10 {
+                reference.put(format!("g-{}-{}", tag, i).as_bytes());
+            }
+            let fork = reference.mark();
+            let fork_root = reference.root_digest();
+            for b in 0..10 {
+                for i in 0..10 {
+                    reference.put(format!("p-{}-{}-{}", tag, b, i).as_bytes());
+                }
+            }
+            let clean_receipt = reference.undo_to_fork(fork).expect("atomic undo");
+
+            // Subject: crash at EVERY deletion position (deterministic sweep
+            // 0..=99 across 100 iterations; the corpus cycles ×10 so the
+            // sweep covers all positions at 10 distinct genesis tags).
+            // Strictly mid-undo crash positions: 0..post_entries, swept
+            // deterministically (100 positions × 10 tag cycles = 1000).
+            let crash_after = (iteration as usize) % post_entries;
+            let mut store = InMemoryStore::new();
+            for i in 0..10 {
+                store.put(format!("g-{}-{}", tag, i).as_bytes());
+            }
+            // The post-fork tail the crash lands inside (10 blocks × 10).
+            for b in 0..10 {
+                for i in 0..10 {
+                    store.put(format!("p-{}-{}-{}", tag, b, i).as_bytes());
+                }
+            }
+            let crashed = store
+                .undo_to_fork_interruptible(fork, crash_after)
+                .expect("interruptible undo validates");
+            {
+                assert!(crashed.is_none(), "iteration {}", iteration);
+                assert!(store.has_interrupted_undo());
+                let receipt = store
+                    .recover_interrupted_undo()
+                    .expect("recovery ok")
+                    .expect("pending yields receipt");
+                // THE PROPERTY: recover == undo — same fork marker, same
+                // post root, same final state. (entries_undone is split
+                // between the crashed attempt and recovery: the recovery
+                // receipt carries exactly the tail, 100 - crash_after.)
+                assert_eq!(receipt.fork_marker, clean_receipt.fork_marker, "iteration {}", iteration);
+                assert_eq!(receipt.post_root, clean_receipt.post_root, "iteration {}", iteration);
+                assert_eq!(
+                    receipt.entries_undone,
+                    post_entries - crash_after,
+                    "iteration {}: recovery carries exactly the tail",
+                    iteration
+                );
+            }
+            // And the recovered state is byte-for-byte the undone state.
+            assert_eq!(store.root_digest(), fork_root, "iteration {}", iteration);
+            assert_eq!(store.mark(), fork, "iteration {}", iteration);
+            assert_eq!(store.len(), reference.len(), "iteration {}", iteration);
+            assert!(!store.has_orphaned_entries());
+            assert!(store.verify_content_addresses());
+        }
+    }
+
+    /// Discrimination court (rollback-guard sabotage twin): the UNGUARDED
+    /// rollback MUST be caught — interleaving it with a pending recovery
+    /// diverges from take-target (journal truncated below the pending
+    /// target; recovery then forges `entries_undone: 0` over the permanent
+    /// loss). Without the guard the L47 experiment reproduces exactly this.
+    #[test]
+    fn sabotaged_unguarded_rollback_is_caught() {
+        let mut store = InMemoryStore::new();
+        for i in 0..4 {
+            store.put(format!("g-{}", i).as_bytes());
+        }
+        let fork = StoreMarker { journal_len: 4 };
+        let fork_root = store.root_digest();
+        for i in 0..6 {
+            store.put(format!("p-{}", i).as_bytes());
+        }
+        store
+            .undo_to_fork_interruptible(fork, 2)
+            .expect("crash mid-undo, journal at 8");
+        assert!(store.has_interrupted_undo());
+
+        // UNGUARDED rollback below the pending target succeeds…
+        store
+            .sabotaged_rollback_unguarded(StoreMarker { journal_len: 2 })
+            .expect("unguarded twin mutates under the recovery record");
+        assert_eq!(store.mark(), StoreMarker { journal_len: 2 });
+
+        // …and recovery then forges completion over the loss.
+        let forged = store
+            .recover_interrupted_undo()
+            .expect("recovery ok")
+            .expect("pending");
+        assert_eq!(forged.fork_marker, fork, "forgery cites the true fork");
+        assert_eq!(forged.entries_undone, 0, "forgery claims nothing undone");
+        assert_ne!(
+            forged.post_root, fork_root,
+            "CAUGHT: forged root differs from the take-target root"
+        );
+        assert_eq!(store.mark(), StoreMarker { journal_len: 2 });
+        assert_ne!(store.root_digest(), fork_root);
+        assert_eq!(store.len(), 2, "entries 4..=5 permanently lost");
     }
 }

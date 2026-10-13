@@ -36,9 +36,15 @@ compiles standalone via `rustc --test`:
   interrupted mid-deletion replays to completion via
   `recover_interrupted_undo()` — the store is never left in an admissible
   partial state. A new undo while one is pending recovery refuses typed
-  (`StoreRefusal::UndoInterruptedPending`). Courts: deep reorg (100
-  entries) with mid-undo crash at every crash point ×100 iterations,
-  each recovering exactly to the fork-point root digest.
+  (`StoreRefusal::UndoInterruptedPending`), and `rollback_to` refuses the
+  same way while an undo is pending recovery — a rollback interleaved with
+  an interrupted undo would mutate the journal underneath the recovery
+  record (a rollback below the pending target permanently deletes entries
+  the recovery still owes). Courts: deep reorg (100 entries) with mid-undo
+  crash at every crash point ×100 iterations, each recovering exactly to
+  the fork-point root digest; a ×1000-position deterministic corpus pinning
+  `recover(undo_interruptible(m, k)) == undo(m)` for every crash position
+  k; and a sabotage twin whose unguarded rollback is caught interleaved.
 - **Capacity valve** — `try_put` returns
   `StoreRefusal::CapacityExhausted` at the bound
   (`DEFAULT_CAPACITY` = 1_048_576, projected from `so:STORE_CONSTANTS`);
