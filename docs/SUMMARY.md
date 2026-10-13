@@ -95,6 +95,7 @@
 - [Generated doc-hdit reference skeletons](reference/generated/README.md)
 - [Pack index](reference/PACK-INDEX.md)
 - [Reference: semantic-jira-pack (discovery reference)](reference/SEMANTIC-JIRA-PACK.md)
+- [Reference: refusal crosswalk](reference/refusal-crosswalk.md)
 - [Release v26.10.5 receipt](context/v26.10.5-receipt.md)
 
 # Explanation
