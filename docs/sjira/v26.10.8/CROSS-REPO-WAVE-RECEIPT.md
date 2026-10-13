@@ -259,3 +259,76 @@ current.
 **Receipt identity**: written 2026-10-13 by lane L75 (docs) from read-only
 `git log` across 10 repos. SHAs re-read at write time. Standing is
 as-of this receipt; re-verify before citing as current.
+
+## 6. Closing state — 2026-10-14 (post-wave-9)
+
+Written read-only by lane L202 from `git branch -vv` / `git status -sb`
+per repo, re-derived 2026-10-14. SHAs as observed at write time.
+
+### 6.1 Final fleet push-state
+
+| repo | branch | local vs origin | head |
+|---|---|---|---|
+| castle | main | ahead 12 (push not landed) | `f8f94f7` |
+| mfact | main | synced | `0e4c1cb68b` |
+| graphlaw | main | synced | `7bfe411` |
+| ash_a2a | main | synced | `f71b4d0e` |
+| beam4pm | main | synced (engine_ops corpus pushed `a6f3a212`) | `5fe8daa2` |
+| affidavit | fix/freeze-genesis-seed | unpushed branch (main synced `eed7c40`) | `50879a8` |
+| erlmcp | main | synced `e4d00431`; work on `otp27/ssl-followups` | `070f744d` |
+| erlmcp | otp27/ssl-followups | unpushed branch | `070f744d` |
+| cre | master | synced `9c69220c`; work on `otp27/ssl-hardening` | `fe3db7b6` |
+| cre | otp27/ssl-hardening | unpushed branch | `fe3db7b6` |
+| chicago-tdd-tools | main | synced | `f455b1b` |
+| ggen-ecosystem | main | synced | `1c67bf0b` |
+| insa | main | NO-REMOTE (local-only) | `6986dd6` |
+| mcp-mqtt-erl | main | ahead 5; push 403 (patches exported) | `62c0ce3` |
+| knhk | main | DIVERGED 431 ahead / 585 behind | `30745c8e` |
+| wasm4pm | main | ahead 72; push BLOCKED (transport) | `57fcd9bd` |
+| ggen | main | ahead 1 (Tera fix `01c8d5fb` still local) | `01c8d5fb` |
+| ggen-marketplace | main | synced `618bb415` | `618bb415` |
+
+### 6.2 Final counts (re-run / re-read at write time)
+
+- marketplace validate: `packs=326 manifests=326 ontologies=541
+  templates=1873 native_gates=1914 verifier_gates=21` (exit 0).
+- 326 packs confirmed; both wave packs indexed (PACK-INDEX `d026b64e4`).
+- Witnessed KATs: every major law carries a known-answer test —
+  store (content-address), consensus (u128 work-sum), hash/temprun
+  + constitution 17 constants (`1a7741b2a`).
+- Sabotage twins: ledger last receipted 13/16 (`e1ee25fa2`); brief's
+  14/16 not re-derived — re-verify before citing.
+- Lean witnesses: 6 (mfact theorem corpus incl. MerkleCompleteness
+  `0e4c1cb68b`).
+- Cross-runtime crosswalks: erlmcp <-> ash_a2a <-> strata-valve with
+  A2A wire column (L142/L152 differential court, graphlaw `7bfe411`).
+- Standing fleet KATs landed across strata/insa/valve packs
+  (waves 8-9, `1a7741b2a`, `618bb415`).
+
+### 6.3 Structural additions this session
+
+- **insa-law-pack** — eight-vow typestate (`52feb96f1`).
+- **refusal-vocabulary-pack** — 3 crosswalk columns.
+- **fork-choice arbiter** — divergent-head selection.
+- **lean-witness pipeline** — producer -> castle Replayed.
+- **DETS task store** — erlmcp durable task surface.
+- **conformance runner** — one command -> verdict report.
+- **gate-engine differential court** — two engines must agree
+  (graphlaw `7bfe411`).
+
+### 6.4 Still-open ledger
+
+1. knhk merge — user-blocked (431/585 divergence unchanged).
+2. castle / wasm4pm pushes — transport-blocked.
+3. sa2a receipt re-cut — pin bump pending.
+4. AIRo de-orphaning — R2 open.
+5. temprun fuel <-> rate-limit composition — design.
+6. castle negative-evidence channel — design.
+7. erlmcp ~250 never-implemented API tests — build-out.
+8. TCK baseline — unchanged at 79%.
+
+---
+
+**Receipt identity (section 6)**: lane L202 (docs), 2026-10-14,
+read-only re-derivation. Re-verify push-state before citing as
+current.
