@@ -23,7 +23,13 @@ DESCRIPTION_LIMIT = 80
 def _files(directory: Path) -> list[Path]:
     if not directory.is_dir():
         return []
-    return sorted(p for p in directory.rglob("*") if p.is_file() and not p.name.startswith("."))
+    return sorted(
+        p
+        for p in directory.rglob("*")
+        if p.is_file()
+        and not p.name.startswith(".")
+        and not any(part.startswith(".") for part in p.relative_to(directory).parts[:-1])
+    )
 
 
 def signals(pack_dir: Path) -> dict[str, bool]:
