@@ -4,6 +4,8 @@ Exit 0 iff every gate returns zero rows (violation-free); else print and exit 1.
 import sys
 from pathlib import Path
 
+from typing import Iterable, cast
+
 from rdflib import Graph
 
 PACK_DIR = Path(__file__).resolve().parent
@@ -59,7 +61,9 @@ def main() -> int:
     violations = 0
     for gate in sorted((PACK_DIR / "gates").glob("*.rq")):
         query = gate.read_text(encoding="utf-8")
-        rows = list(graph.query(query))
+        # rdflib types Result.__iter__ as Iterator[Union[_TripleType, bool,
+        # ResultRow]]; SELECT rows are always iterable tuples, so narrow via cast.
+        rows = list(cast(Iterable[tuple], graph.query(query)))
         if rows:
             violations += len(rows)
             print(f"VIOLATION {gate.name}: {len(rows)} row(s)")
