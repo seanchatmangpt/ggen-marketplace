@@ -1,0 +1,20 @@
+# Projection rows for the store ↔ cas composition: one row per witnessed
+# content-address KAT entry, with the witness root, digest length, and the
+# store KEY_LEN repeated. The generated module recomputes each entry's
+# content address with its in-test FIPS 180-4 SHA-256 core, folds the root
+# exactly as InMemoryStore::root_digest does (SHA-256 over the concatenated
+# keys in lexicographic byte order), and asserts equality with the pinned
+# root.
+PREFIX st: <https://strata.chatman.ai/ontology#>
+PREFIX so: <https://strata.chatman.ai/ontology/store#>
+
+SELECT ?root ?digest_len ?key_len ?payload ?digest WHERE {
+  ?w a st:StoreCasWitness ;
+     st:storeKatRoot ?root ;
+     st:storeDigestLen ?digest_len .
+  ?c a so:StoreConstant ; so:keyLen ?key_len .
+  ?e a st:StoreKatEntry ;
+     st:katPayload ?payload ;
+     st:katDigest ?digest .
+}
+ORDER BY ?payload

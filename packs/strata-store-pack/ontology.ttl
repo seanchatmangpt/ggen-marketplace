@@ -89,3 +89,58 @@ so:entry-b a st:StoredEntry ; rdfs:label "entry-b" ;
 so:receipt-witness a st:StoreReceipt ; rdfs:label "receipt-witness" ;
     rdfs:comment "Receipt mirroring store-witness's root (gate 020 receipt-mirror arm)." ;
     st:receiptRootDigest "0xfd90c85198a1882bda36aca2194c0e01732b0f18340dd31a047501196faa3481" .
+
+# ── store ↔ cas composition law (L-wave, 2026-10-13) ─────────────────
+# DERIVED INVARIANT (from both packs' committed truth, not invented):
+# the store's content-address law is key = SHA-256(value) at KEY_LEN = 32
+# bytes (so:STORE_CONSTANTS so:keyLen 32), and the pack's content-address
+# KAT (witness.ttl sw:store-kat, recomputed by verify.py) folds three
+# witnessed payloads under InMemoryStore::root_digest — SHA-256 over the
+# concatenated 32-byte keys in BTreeMap lexicographic byte order — to the
+# pinned root a8378cfa4e6e508f54c0287eac99f6e6b07f2fc8b9123bab1f7b2be494f0ef08.
+# A root over concatenated 32-byte digests is structurally a CAS
+# MerkleCommit root (st:merkleRoot = SHA-256(st:canonicalPayload), where
+# the concatenated keys ARE the canonical payload), so every store key is
+# a valid CAS content address under the shared digest-shape law
+# ^[0-9a-f]{64}$, and this pack admits its own KAT root as a CAS
+# content-address witness. Both surfaces are instances of ONE 32-byte
+# SHA-256 content-address discipline. Pinned by IRI/literal (no
+# owl:imports, house style); gated fail-closed by
+# gates/030_store_cas_composition.rq; projected into generated/store_cas.rs.
+
+st:StoreCasWitness a rdfs:Class ; rdfs:label "StoreCasWitness" ;
+    rdfs:comment "The store's content-address KAT root admitted as a CAS content-address witness: a 64-lowercase-hex SHA-256 over concatenated 32-byte keys, valid under MerkleCommit root law." .
+
+st:StoreKatEntry a rdfs:Class ; rdfs:label "StoreKatEntry" ;
+    rdfs:comment "One witnessed (payload, digest) content-address entry, mirrored by literal from this pack's witness.ttl sw:store-kat-entry-*." .
+
+st:storeKatRoot a rdf:Property ; rdfs:label "store KAT root" ;
+    rdfs:comment "Pinned content-address KAT root: 64-char lowercase hex SHA-256 over the concatenated witnessed keys in lexicographic byte order, mirrored from witness.ttl sw:storeKatRoot. verify.py recomputes it." ;
+    rdfs:domain st:StoreCasWitness ; rdfs:range xsd:string .
+
+st:storeDigestLen a rdf:Property ; rdfs:label "store digest length" ;
+    rdfs:comment "Shared digest length in bytes: 32, equal to KEY_LEN (so:STORE_CONSTANTS so:keyLen) and to the CAS 64-hex digest-shape law." ;
+    rdfs:domain st:StoreCasWitness ; rdfs:range xsd:integer .
+
+st:katPayload a rdf:Property ; rdfs:label "KAT payload" ;
+    rdfs:comment "UTF-8 payload of one content-address KAT entry; the entry digest IS SHA-256 of these bytes." ;
+    rdfs:domain st:StoreKatEntry ; rdfs:range xsd:string .
+
+st:katDigest a rdf:Property ; rdfs:label "KAT digest" ;
+    rdfs:comment "Content address of one KAT entry: 64-char lowercase hex SHA-256 of the payload (the store law key == SHA-256(value))." ;
+    rdfs:domain st:StoreKatEntry ; rdfs:range xsd:string .
+
+st:STORE_CAS_WITNESS a st:StoreCasWitness ; rdfs:label "STORE_CAS_WITNESS" ;
+    st:storeKatRoot "a8378cfa4e6e508f54c0287eac99f6e6b07f2fc8b9123bab1f7b2be494f0ef08" ;
+    st:storeDigestLen "32"^^xsd:integer ;
+    rdfs:comment "The content-address KAT root admitted by this pack as a valid CAS content address (MerkleCommit root over the concatenated witnessed keys)." .
+
+st:store-kat-entry-1 a st:StoreKatEntry ;
+    st:katPayload "strata-store-kat-payload-1" ;
+    st:katDigest "91b739023c976350dacc820d9d8fa02c5617a10f551d89dde3bf4419a54cb367" .
+st:store-kat-entry-2 a st:StoreKatEntry ;
+    st:katPayload "strata-store-kat-payload-2" ;
+    st:katDigest "17dcbd0e84f8a571e7f736b176a3d7160d8cb88d28ef59ce0a51482d5e4ba909" .
+st:store-kat-entry-3 a st:StoreKatEntry ;
+    st:katPayload "strata-store-kat-payload-3" ;
+    st:katDigest "d8de3bf89d034493f711537b87dcf45f0649802194d59bba5db92ca1ee651c28" .

@@ -61,7 +61,8 @@ DRIFT_GUARDED: dict[str, tuple[str, ...]] = {
     "strata-pn64-pack": ("pn64_masks.rs",),
     "strata-protocol-pack": ("pdu_constants.rs", "wire_constants.rs"),
     "strata-signer-pack": ("signer.rs", "signing.rs"),
-    "strata-store-pack": ("store_consts.rs", "store_engine.rs"),
+    "strata-store-pack": ("store_consts.rs", "store_engine.rs",
+                           "store_cas.rs"),
     "strata-stratus-pack": ("registers.rs", "valves.rs", "valve_taxonomy.rs"),
     "strata-temprun-pack": ("arena.rs", "fuel_refusal_binding.rs"),
     "strata-tx-pack": ("tx_consts.rs", "tx_model.rs"),
@@ -325,6 +326,10 @@ def _content_court(pack: str, rel: str, text: str) -> None:
         elif rel.endswith("store_engine.rs"):
             assert "pub enum StoreRefusal" in text
             assert "pub struct StoreMarker" in text
+        elif rel.endswith("store_cas.rs"):
+            assert f'pub const STORE_KAT_ROOT: &str = "a8378cfa4e6e508f54c0287eac99f6e6b07f2fc8b9123bab1f7b2be494f0ef08"' in text
+            assert "pub const STORE_DIGEST_LEN: usize = 32" in text
+            assert "pub fn store_cas_closure" in text
         else:
             raise AssertionError(
                 f"unexpected generated file for store pack: {rel}")

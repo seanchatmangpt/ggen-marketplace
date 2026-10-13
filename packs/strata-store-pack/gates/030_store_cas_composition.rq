@@ -1,0 +1,89 @@
+# MESSAGE: store ↔ cas composition gate — the pinned content-address KAT
+# root must be a valid CAS content-address witness: present, 64-char
+# lowercase hex (32 bytes — the shared digest-shape law ^[0-9a-f]{64}$),
+# equal to the exact pinned literal a8378cfa..., digest length exactly 32,
+# KEY_LEN exactly 32 (the store half of the discipline), all three
+# witnessed (payload, digest) entries present with well-formed digests,
+# and no duplicate payloads. The strata-cas-pack graph is NOT unioned here
+# (no owl:imports, house style): the composition is pinned by literal —
+# the same literals verify.py recomputes and generated/store_cas.rs folds.
+# Any row indicates a corrupted or vacuous composition witness.
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX st:   <https://strata.chatman.ai/ontology#>
+PREFIX so:   <https://strata.chatman.ai/ontology/store#>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?witness ?problem WHERE {
+  {
+    # Fail-closed presence: the composition witness must exist.
+    ?witness a st:StoreCasWitness .
+    BIND("missing_witness (no st:StoreCasWitness individual)" AS ?problem)
+    FILTER NOT EXISTS {
+      ?w a st:StoreCasWitness ; rdfs:label "STORE_CAS_WITNESS" .
+    }
+  } UNION {
+    # Digest-shape law: the root must be well-formed 64-char lowercase hex
+    # (32 bytes) — the CAS content-address shape.
+    ?witness a st:StoreCasWitness ; st:storeKatRoot ?root .
+    BIND("malformed_root (expected ^[0-9a-f]{64}$)" AS ?problem)
+    FILTER(!REGEX(STR(?root), "^[0-9a-f]{64}$"))
+  } UNION {
+    # Exact pin: the root must equal the witnessed KAT root literal.
+    ?witness a st:StoreCasWitness ; st:storeKatRoot ?root .
+    BIND("wrong_root (pinned KAT root must be a8378cfa4e6e508f54c0287eac99f6e6b07f2fc8b9123bab1f7b2be494f0ef08)" AS ?problem)
+    FILTER(STR(?root) != "a8378cfa4e6e508f54c0287eac99f6e6b07f2fc8b9123bab1f7b2be494f0ef08")
+  } UNION {
+    # Shared digest-length law: 32 bytes, the store KEY_LEN and the CAS
+    # digest shape in bytes.
+    ?witness a st:StoreCasWitness ; st:storeDigestLen ?len .
+    BIND("wrong_digest_len (shared digest length must be 32)" AS ?problem)
+    FILTER(xsd:integer(?len) != 32)
+  } UNION {
+    # KEY_LEN law: the store key width must stay 32 — the composition
+    # witness is valid only under the projected layout constant.
+    ?c a so:StoreConstant ; so:keyLen ?keylen .
+    BIND("wrong_key_len (so:keyLen must be 32)" AS ?problem)
+    FILTER(xsd:integer(?keylen) != 32)
+  } UNION {
+    # Witnessed entry pin 1.
+    ?witness a st:StoreCasWitness .
+    BIND("missing_kat_entry_1" AS ?problem)
+    FILTER NOT EXISTS {
+      ?e a st:StoreKatEntry ;
+         st:katPayload "strata-store-kat-payload-1" ;
+         st:katDigest "91b739023c976350dacc820d9d8fa02c5617a10f551d89dde3bf4419a54cb367" .
+    }
+  } UNION {
+    # Witnessed entry pin 2.
+    ?witness a st:StoreCasWitness .
+    BIND("missing_kat_entry_2" AS ?problem)
+    FILTER NOT EXISTS {
+      ?e a st:StoreKatEntry ;
+         st:katPayload "strata-store-kat-payload-2" ;
+         st:katDigest "17dcbd0e84f8a571e7f736b176a3d7160d8cb88d28ef59ce0a51482d5e4ba909" .
+    }
+  } UNION {
+    # Witnessed entry pin 3.
+    ?witness a st:StoreCasWitness .
+    BIND("missing_kat_entry_3" AS ?problem)
+    FILTER NOT EXISTS {
+      ?e a st:StoreKatEntry ;
+         st:katPayload "strata-store-kat-payload-3" ;
+         st:katDigest "d8de3bf89d034493f711537b87dcf45f0649802194d59bba5db92ca1ee651c28" .
+    }
+  } UNION {
+    # Entry digest-shape law: every witnessed entry digest must be
+    # well-formed 64-char lowercase hex (the CAS content-address shape).
+    ?e a st:StoreKatEntry ; st:katDigest ?d .
+    BIND("malformed_entry_digest (expected ^[0-9a-f]{64}$)" AS ?problem)
+    FILTER(!REGEX(STR(?d), "^[0-9a-f]{64}$"))
+  } UNION {
+    # Distinctness: two distinct entries carrying the same payload are
+    # refused.
+    ?e1 a st:StoreKatEntry ; st:katPayload ?p .
+    ?e2 a st:StoreKatEntry ; st:katPayload ?p2 .
+    FILTER(?e1 != ?e2 && STR(?p) = STR(?p2))
+    BIND("duplicate_kat_entry" AS ?problem)
+  }
+}
+ORDER BY ?witness ?problem

@@ -105,8 +105,9 @@ KNOWN_MISSING_JSONRPC = (KNOWN_MISSING_JSONRPC_STANDARD
 # names erlmcp_refusal.hrl explicitly), so the collision is out of the
 # crosswalk's control but is recorded here as a live ambiguity in the
 # erlmcp emission surface. If this set changes, re-adjudicate the crosswalk.
-KNOWN_ERR_REFUSED_COLLISION = {1001, 1002, 1003, 1004, 1005, 1006, 1007,
-                               1008, 1009, 1010}
+KNOWN_ERR_REFUSED_COLLISION = set(range(1101, 1111))  # renumbered 2026-10-13
+# (was 1001-1010, colliding with the crosswalked band; resolved by the
+# disjointness renumbering + erlmcp_refusal_disjoint_tests court)
 
 # ---------------------------------------------------------------------------
 # Parsers (real file reads; fail-closed on absence).
@@ -294,9 +295,11 @@ class TestEmittedButUnmapped:
         assert wide == KNOWN_EXTRA_CODES
 
     def test_err_refused_collision_is_the_pinned_real_finding(self):
-        """REAL FINDING, allowlisted: erlmcp.hrl re-defines 1001-1010 as
-        ERR_REFUSED_* with DIFFERENT semantics than erlmcp_refusal.hrl's
-        1001-1005. Pinned exactly so any widening re-fires the court."""
+        """RESOLVED 2026-10-13 (was a pinned real finding): erlmcp.hrl's
+        ERR_REFUSED_* taxonomy collided with erlmcp_refusal.hrl's 1001-1005;
+        renumbered out of the 1001-1089 crosswalked band (1101+). The court
+        now asserts the RESOLUTION holds: disjointness is permanent.
+        Re-adjudicate the crosswalk only if a collision re-appears."""
         mappings, _ = parse_crosswalk()
         hrl_text = open(os.path.join(ERLMCP_ROOT,
                                      "apps/erlmcp_core/include/erlmcp.hrl"),
@@ -306,11 +309,16 @@ class TestEmittedButUnmapped:
                                    r"(\d{4})\)", hrl_text)
                        if m.group(1) not in ["ERR_REFUSED_MIN",
                                              "ERR_REFUSED_MAX"]}
-        assert set(err_refused) == KNOWN_ERR_REFUSED_COLLISION
-        overlap = set(err_refused) & set(mappings)
-        assert overlap == {1001, 1002, 1003, 1004, 1005}
-        # The collided crosswalk codes are the queue/backpressure block;
-        # the colliding macro names must differ (no shared identifier).
+        # Resolution: no ERR_REFUSED_* integer may fall inside the
+        # crosswalked 1001-1089 band.
+        assert not (set(err_refused) & set(mappings)), (
+            "ERR_REFUSED_* collision REAPPEARED in the crosswalked band: "
+            f"{sorted(set(err_refused) & set(mappings))}")
+        # And the known fix used the 1101+ band (pinned so a silent revert
+        # to the colliding range re-fires).
+        assert set(err_refused) == KNOWN_ERR_REFUSED_COLLISION, (
+            "ERR_REFUSED_* band changed: re-adjudicate the crosswalk")
+        # The colliding macro names must differ (no shared identifier).
         refusal_macros = set(mappings.values())
         assert not (set(err_refused.values()) & refusal_macros)
         hrl_text = open(os.path.join(ERLMCP_ROOT,
