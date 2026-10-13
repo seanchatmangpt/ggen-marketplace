@@ -102,3 +102,41 @@ parity court per pair closes the class.
 Standing vocabulary unchanged: LANDED entries carry exact SHAs above; the
 composition-space refresh and castle implementation lane are IN FLIGHT, not
 admitted.
+
+## X-lane cross-cluster seam designs — 2026-10-13 wave 2
+
+Five completed X-lane Explore receipts (read-only, file:line verified at
+time of design; construction lanes noted per entry). Same ranking
+discipline: candidates die by their falsifiers, not by decree.
+
+39. **graphlaw×castle: canonical-hash unification (L30)** — rank 1. Unify
+    castle-ggen-rdf `state_hash` with graphlaw `LawState::id` so both
+    projects hash the same canonical form of the same TTL graph. Effort S.
+    Falsifier: the same TTL input yields different hex on the two sides.
+    Construction lane L41 in flight.
+40. **insa×castle: SyncTrace → EvidenceInput (L32)** — rank 1: insa's
+    `SyncTrace` lifts into castle `EvidenceInput` as a Replayed-class event
+    (insa board.rs L164/L396, ~100 LOC). Rank 2: shared-KAT head as a
+    castle admission gate. Falsifier: a replayed trace admitted without its
+    KAT head.
+41. **affidavit×ash_a2a: standing-receipt chain-hash event-link (L33)** —
+    rank 1: chain head attested, not doc bytes; falsifier: an edited doc +
+    fresh valid signature must be refused. MEASURED GAP:
+    `iri.ex` `check_receipt` (`lib/ash_a2a/semantic/iri.ex:684`, called at
+    :313/:404) is a presence-check only — a forged fingerprint passes
+    today. Precondition: SHA-256 `ChainHasher` (Fnv256 is non-crypto).
+    Construction lane L42 in flight.
+42. **mfact×strata: Lean core candidates (L34)** — 5 candidates ranked.
+    STRONGEST FLAG: tx round-trip FALSE for non-empty payload — decode
+    drops payload and digest covers only counts; corroborated + pinned by
+    the L44 byte-mutation court (strata-tx-pack, commit `bfe64efd8`); fix
+    lane L46 in flight. Second: `rollback_to` interleave hole in the store
+    (fix lane L47 in flight). Also flagged: `chain_work` u64 saturation tie;
+    mempool inflation-passes-shadow (one-way law).
+43. **strata×beam4pm: fitness-cap + event projection (L31)** — B1
+    court-side final marking (closes the 5/6 fitness cap, zero model
+    change) + A1 `st:gallEventType` projection — `candidate_committed`
+    already admitted in the GALL vocab
+    (`beam4pm/lib/beam4pm_gall_ocel.ex:35,52`). B1+A1 recommended,
+    ~2 file edits.
+44. **erlmcp×ash_a2a (L35)** — re-running; in-flight, no receipt yet.
