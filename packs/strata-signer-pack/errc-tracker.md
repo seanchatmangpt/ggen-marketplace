@@ -23,6 +23,17 @@ ground truth cross-verified against the real sources 2026-10-12:
 and affidavit-trust-plane-pack `ontology.ttl:399` `ctp:alg-ML-DSA-65`.
 Negative witness: algorithm→ed25519 refused FM-LAW-018.
 
+S3 (2026-10-13): digest-binding layer raised from constants-only —
+`st:DigestBinding` class + `st:TxDigestBinding` individual
+(SHA-256/32 → ML-DSA-65/3309), `queries/digest_bindings.rq`,
+`templates/signing.rs.tera` → `generated/signing.rs`
+(`PayloadSigner` trait + `TxSigner::bind_tx_digest`), second gate
+`gates/020_digest_binding.rq` (presence+value arms, fail-closed, V7
+pattern). Receipts: ggen sync ×2 byte-identical
+(graph_hash `1134b20c…`), rustc --test 7/7 pass, `verify.py` exit 0
+(gate set witnessed in `witness.ttl`), `qualify_packs.py --pack
+strata-signer-pack` ALIVE.
+
 ## Create
 
 `ggen.toml`, `queries/keys.rq`, `templates/signer.rs.tera`,

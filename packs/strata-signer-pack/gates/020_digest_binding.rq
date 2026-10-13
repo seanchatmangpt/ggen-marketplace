@@ -1,0 +1,44 @@
+# MESSAGE: every DigestBinding must carry digestAlgorithm/digestAlgorithmLength/
+# bindingSignatureAlgorithm/bindingSignatureLength and be exactly the
+# SHA-256(32) -> ML-DSA-65(3309) binding. Presence + value arms, fail-closed:
+# any row returned is a violation.
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX st:  <https://strata.chatman.ai/ontology#>
+
+SELECT ?b ?violation WHERE {
+  ?b a st:DigestBinding .
+  {
+    ?b a st:DigestBinding .
+    FILTER NOT EXISTS { ?b st:digestAlgorithm ?any }
+    BIND("missing digestAlgorithm" AS ?violation)
+  } UNION {
+    ?b a st:DigestBinding .
+    FILTER NOT EXISTS { ?b st:digestAlgorithmLength ?any }
+    BIND("missing digestAlgorithmLength" AS ?violation)
+  } UNION {
+    ?b a st:DigestBinding .
+    FILTER NOT EXISTS { ?b st:bindingSignatureAlgorithm ?any }
+    BIND("missing bindingSignatureAlgorithm" AS ?violation)
+  } UNION {
+    ?b a st:DigestBinding .
+    FILTER NOT EXISTS { ?b st:bindingSignatureLength ?any }
+    BIND("missing bindingSignatureLength" AS ?violation)
+  } UNION {
+    ?b st:digestAlgorithm ?d .
+    FILTER(?d != "SHA-256")
+    BIND(CONCAT("digestAlgorithm not SHA-256: ", STR(?d)) AS ?violation)
+  } UNION {
+    ?b st:digestAlgorithmLength ?dl .
+    FILTER(?dl != 32)
+    BIND(CONCAT("digestAlgorithmLength not 32: ", STR(?dl)) AS ?violation)
+  } UNION {
+    ?b st:bindingSignatureAlgorithm ?s .
+    FILTER(?s != "ML-DSA-65")
+    BIND(CONCAT("bindingSignatureAlgorithm not ML-DSA-65: ", STR(?s)) AS ?violation)
+  } UNION {
+    ?b st:bindingSignatureLength ?sl .
+    FILTER(?sl != 3309)
+    BIND(CONCAT("bindingSignatureLength not 3309: ", STR(?sl)) AS ?violation)
+  }
+}
+ORDER BY ?b ?violation
