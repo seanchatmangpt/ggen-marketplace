@@ -61,3 +61,35 @@ ontologies=513 templates=1852 native_gates=1880 verifier_gates=21 profiles=
   (`python3 scripts/marketplace.py browse`); header tier counts re-verified this
   session: verified (147) + documented (56) + thin (112) = **315**, consistent with
   the live pack count. No stale 306 figure present. No longer drift.
+
+## Pre-existing suite failures (2026-10-13 clean-run triage)
+
+The strata-hardening wave's clean full-suite run on this branch:
+**30 failed / 2145 passed / 5 errors — zero strata-attributable failures.**
+All 30+5 triaged as pre-existing on `main`, untouched by the wave:
+
+- **evolvable-capability ×7** — `tests/test_evolvable_capability_pack.py`;
+  pack untouched by the wave.
+- **qri-consumer ×5 failed + 5 errors** — `tests/test_qri_consumer_binding_pack.py`;
+  root cause: stale `packs/qri-consumer-binding-pack/ggen.lock` (blake3
+  content hashes) vs pack source on disk. Reproduced identically on `main`
+  via a `git-archive` clean-tree run — not wave drift.
+- **solution-quickstart ×3** — `tests/test_solution_quickstart.py`; stale lock
+  pins in `solutions/enterprise-aaif/solution.json` (`packs[].content_hash`)
+  dating from `f52ed0e85`. Reproduced identically on `main`.
+- **industry-closure ×1** — `tests/test_industry_closure_pack.py`;
+  `pack.toml` `[capabilities]` block vs the minimal-manifest expectation,
+  introduced by `f52ed0e85` ("complete [capabilities] annotation").
+- **greene ×2** — `tests/test_greene_licensing_case_pack.py` +
+  `tests/test_greene_licensing_case_hardening.py`.
+- **capability-ecology ×3** — `tests/test_capability_ecology_*.py`.
+- **others** — singletons across remaining files; same profile.
+
+All of the above persist under CI-parity conditions (python 3.12 + pinned
+requirements, wave lane W3), confirming they are environmental/pre-existing,
+not wave-introduced.
+
+**Fix path** (out of wave scope, do on `main`): regenerate the two stale
+locks — `packs/qri-consumer-binding-pack/ggen.lock` and the
+`solutions/enterprise-aaif` solution lock (`solution.json` content hashes) —
+via `ggen sync`, then re-run the two suites.
