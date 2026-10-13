@@ -42,7 +42,19 @@ JSON / txt / py / tsv artifacts plus `retired/` subdir).
 | `WORKGRAPH-REGEN-PROOF.md` | 6-repo workgraph regeneration convergence proof (generator v3 items 1–9) | proof/court |
 | `WORKGRAPH-SHACL-REPORT.md` | SHACL admission validation of 12 campaign workgraphs vs `work-order.shacl.ttl`; defect classification + fixes | proof/court |
 | `WORKGRAPH.ttl` | ggen-marketplace v26.10.8 workgraph seed graph (RDF) | graph |
+| `STRATA-BATCH-1-CLOSE.md` | Batch-1 closure receipt for STRATA-HARDENING-1 items P1/P7/P18 (commits 513a1a64c + 11c749278; strata family 3/7 → 7/7 ALIVE) | strata closure receipt |
+| `STRATA-RECEIPT-TEMPLATES.md` | Fill-in templates for STRATA-BATCH-<n>-CLOSE.md and STRATA-<n>-CLOSE.md receipts (PACK_FEEDBACK-425 shape) | template |
 | `seal/` | 89-entry seal surface: 88 `*.sj-record.json` (AA/ASHSURF/G1-G4/R2RML/RCERT/SJIRA-V8/XAAS/ZCODE/wo-* orders + `@round2+` reseals), `drafts.jsonl`, `standing-table.tsv`, `CHAIN-HEAD.txt`, `OSXCLNR-SEAL-HEADS.txt`, `build_drafts.py`, `UNSCOPE-*` refusal records, plus `retired/` subdir | seal |
+| STRATA-HARDENING-1.md | work order | OPEN→items landing | strata hardening wave spine |
+| _STRATA_LANES.md | lanes map | IN-FLIGHT | same-checkout lane partition L0-L19 |
+| STRATA-BATCH-1-CLOSE.md | batch closure | CLOSED 2026-10-13 | P1/P7/P18 — FM-PACK fix + hygiene |
+| STRATA-ACTIVATION-DEFERRAL.md | decision record | LANDED | activation deferred, checklist retained |
+| STRATA-NAMESPACE-MAP.md | migration prep | LANDED | old→new IRI map, lockstep checklist |
+| STRATA-DRIFT-NOTES.md | drift flags | LANDED | standing.md / PACK-INDEX stale pins flagged |
+| SYNC-WAVE-RECEIPT.md | wave receipt | PARTIAL | sync table filled at wave close |
+| STRATA-RECEIPT-TEMPLATES.md | templates | LANDED | closure receipt fill-in shapes |
+| STRATA-HARDENING-1.md | wave receipt | 2026-10-13 | strata hardening wave |
+| STRATA-BATCH-1-CLOSE.md | wave receipt | 2026-10-13 | strata hardening wave |
 
 ## Big four cross-links
 
