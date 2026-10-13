@@ -1,0 +1,144 @@
+# strata-audit-pack ontology — Strata external audit surface (roadmap slice S10).
+#
+# LAW PROVENANCE (S10, per docs/sjira/v26.10.8/STRATA-BLOCKCHAIN-ROADMAP.md):
+# this pack is the AUDIT MANIFEST, not an engine. It does not modify the
+# landed S1-S8 packs; it names each engine's audit target and the known
+# attacks the landed refusals must repel. The generated runner executes
+# inline provenance COPIES of the target functions — so the audit's standing
+# is exactly the standing of the copy: it audits the LAW AS CAPTURED at the
+# copy point; re-run after any engine edit (README honest boundary).
+#
+# strata-net-pack (S9 hardening) is CORPUS-PENDING: no FuzzTarget cites it.
+#
+# The FuzzTarget/KnownAttack individuals ARE the audit-corpus manifest:
+# gate 010 fails closed on any FuzzTarget missing targetModule/corpusSize/
+# oracleFn; gate 020 fails closed on any KnownAttack whose target does not
+# resolve to a known FuzzTarget (dangling-attack refusal) or whose expected
+# refusal path is empty.
+
+@prefix st:  <https://strata.chatman.ai/ontology#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# ── Audit classes ─────────────────────────────────────────────────────
+
+st:FuzzTarget a rdfs:Class ; rdfs:label "FuzzTarget" ;
+    rdfs:comment "A named fuzz surface over one landed strata engine function. Every FuzzTarget MUST carry st:targetModule (provenance pack + function), st:corpusSize (deterministic LCG cases per run), and st:oracleFn (the runner oracle dispatched by name) — gate 010 fails closed otherwise." .
+
+st:KnownAttack a rdfs:Class ; rdfs:label "KnownAttack" ;
+    rdfs:comment "A named known attack against the strata engine family, mapped (st:targets) to the FuzzTarget whose engine must repel it, carrying st:attackClass and the typed st:expectedRefusal. Gate 020 is the dangling-attack refusal: an attack naming a target absent from the manifest is a violation row." .
+
+st:AuditCase a rdfs:Class ; rdfs:label "AuditCase" ;
+    rdfs:comment "The audit run record carrier: AUDIT_PLAN carries the last-clean-corpus-run date (st:lastCleanRun) — the receipt hook the corpus court refreshes." .
+
+# ── Audit properties ──────────────────────────────────────────────────
+
+st:targetModule a rdf:Property ; rdfs:label "targetModule" ;
+    rdfs:comment "Provenance of the audited function: the source pack and function path (e.g. strata-hash-pack::merkle_root). Documentation-only cross-pack citation — no owl:imports (FM-PACK-018)." ;
+    rdfs:domain st:FuzzTarget ; rdfs:range xsd:string .
+
+st:corpusSize a rdf:Property ; rdfs:label "corpusSize" ;
+    rdfs:comment "Deterministic LCG cases per audit run for this target (1000)." ;
+    rdfs:domain st:FuzzTarget ; rdfs:range xsd:integer .
+
+st:oracleFn a rdf:Property ; rdfs:label "oracleFn" ;
+    rdfs:comment "Name of the runner oracle dispatched for this target (must match the generated dispatcher's registry)." ;
+    rdfs:domain st:FuzzTarget ; rdfs:range xsd:string .
+
+st:attackClass a rdf:Property ; rdfs:label "attackClass" ;
+    rdfs:comment "Attack taxonomy class of a KnownAttack (e.g. collision / framing-confusion / reorg / incentive / arithmetic)." ;
+    rdfs:domain st:KnownAttack ; rdfs:range xsd:string .
+
+st:lastCleanRun a rdf:Property ; rdfs:label "lastCleanRun" ;
+    rdfs:comment "Date of the last fully-clean corpus run (1000/1000 per target, all attack regressions green) — refreshed by the corpus court." ;
+    rdfs:domain st:AuditCase ; rdfs:range xsd:string .
+
+st:targets a rdf:Property ; rdfs:label "targets" ;
+    rdfs:comment "Attack-to-target mapping: the FuzzTarget whose engine must repel this KnownAttack. Dangling values are refused by gate 020." ;
+    rdfs:domain st:KnownAttack ; rdfs:range st:FuzzTarget .
+
+st:expectedRefusal a rdf:Property ; rdfs:label "expectedRefusal" ;
+    rdfs:comment "The typed refusal the engine must produce when repelling this attack (e.g. TxError::CountMismatch). Gate 020 requires it non-empty." ;
+    rdfs:domain st:KnownAttack ; rdfs:range xsd:string .
+
+# ── AUDIT_PLAN individual (the AuditCase carrier) ─────────────────────
+
+st:AUDIT_PLAN a st:AuditCase ;
+    rdfs:label "AUDIT_PLAN" ;
+    rdfs:comment "The S10 audit plan record: corpus manifest below; lastCleanRun refreshed on every clean court run." ;
+    st:lastCleanRun "2026-10-13" .
+
+# ── FuzzTargets (the corpus manifest; gate 010 fails closed) ──────────
+
+st:merkle_root_over_leaves a st:FuzzTarget ;
+    rdfs:label "merkle_root_over_leaves" ;
+    rdfs:comment "Fuzz surface: Merkle root + inclusion proofs over random leaf sets. Provenance pack: strata-hash-pack (S1) — generated/audit_corpus.rs carries the inline provenance copy." ;
+    st:targetModule "strata-hash-pack::merkle_root" ;
+    st:corpusSize "1000"^^xsd:integer ;
+    st:oracleFn "oracle_merkle" .
+
+st:tx_decode_framed a st:FuzzTarget ;
+    rdfs:label "tx_decode_framed" ;
+    rdfs:comment "Fuzz surface: encode/decode round-trip over the framed fixed-width tx wire format. Provenance pack: strata-tx-pack (S2)." ;
+    st:targetModule "strata-tx-pack::Tx::decode" ;
+    st:corpusSize "1000"^^xsd:integer ;
+    st:oracleFn "oracle_tx" .
+
+st:chain_validate_block a st:FuzzTarget ;
+    rdfs:label "chain_validate_block" ;
+    rdfs:comment "Fuzz surface: parent/child block validation (height continuity, parent-hash binding, PoW target, monotonic slot). Provenance pack: strata-chain-pack (S5)." ;
+    st:targetModule "strata-chain-pack::validate_block" ;
+    st:corpusSize "1000"^^xsd:integer ;
+    st:oracleFn "oracle_chain" .
+
+st:consensus_select_tip a st:FuzzTarget ;
+    rdfs:label "consensus_select_tip" ;
+    rdfs:comment "Fuzz surface: heaviest-chain tip selection with the deterministic lower-nonce tie-break. Provenance pack: strata-consensus-pack (S8)." ;
+    st:targetModule "strata-consensus-pack::select_tip" ;
+    st:corpusSize "1000"^^xsd:integer ;
+    st:oracleFn "oracle_consensus" .
+
+st:ledger_apply_transition a st:FuzzTarget ;
+    rdfs:label "ledger_apply_transition" ;
+    rdfs:comment "Fuzz surface: conservation law over applied transitions (masked commit, checked arithmetic). Provenance pack: strata-ledger-pack (S4)." ;
+    st:targetModule "strata-ledger-pack::apply_transition" ;
+    st:corpusSize "1000"^^xsd:integer ;
+    st:oracleFn "oracle_ledger" .
+
+# ── KnownAttacks (attack→target→typed refusal; gate 020 fails closed) ─
+
+st:MerkleSecondPreimage a st:KnownAttack ;
+    rdfs:label "MerkleSecondPreimage" ;
+    rdfs:comment "Second-preimage / proof-substitution attack: an attacker substitutes a different leaf into a valid inclusion proof (exploiting width ambiguity in unframed concatenation). The fixed-width leaf law (DIGEST_LEN leaves, fixed-width node buffers) removes the concatenation ambiguity the classic attack needs." ;
+    st:attackClass "collision" ;
+    st:targets st:merkle_root_over_leaves ;
+    st:expectedRefusal "merkle_verify returns false for any substituted leaf under an honest proof" .
+
+st:TxLengthConfusion a st:KnownAttack ;
+    rdfs:label "TxLengthConfusion" ;
+    rdfs:comment "Framing-confusion attack: truncated or overlong frames crafted so a lenient decoder reads attacker-chosen counts as payload. The exact-length law (bytes.len() != header + n*36 + m*9 refused) closes it." ;
+    st:attackClass "framing" ;
+    st:targets st:tx_decode_framed ;
+    st:expectedRefusal "TxError::Truncated or TxError::CountMismatch on every truncated/overlong frame" .
+
+st:ChainReorgWithheld a st:KnownAttack ;
+    rdfs:label "ChainReorgWithheld" ;
+    rdfs:comment "Withheld-block reorg attack: a miner privately extends a fork and releases only when favorable. The heaviest-work law with the deterministic lower-nonce tie-break admits a released fork only when it is genuinely heavier; a single released withheld block never overtakes an honest heavier tip." ;
+    st:attackClass "reorg" ;
+    st:targets st:consensus_select_tip ;
+    st:expectedRefusal "select_tip keeps the honest heaviest tip; the withheld single-block fork is not selected" .
+
+st:ConsensusSelfishMining a st:KnownAttack ;
+    rdfs:label "ConsensusSelfishMining" ;
+    rdfs:comment "Selfish-mining incentive attack (withhold-then-release report pattern): a Released gossip event preceded by a run of >= 2 Withheld events is flagged as the selfish-mining pattern; benign traffic is not flagged." ;
+    st:attackClass "incentive" ;
+    st:targets st:consensus_select_tip ;
+    st:expectedRefusal "selfish_mining_detected fires on the withhold-then-release pattern and stays silent on benign sequences" .
+
+st:LedgerOverflow a st:KnownAttack ;
+    rdfs:label "LedgerOverflow" ;
+    rdfs:comment "Arithmetic-overflow attack: a transition whose output-side amounts exceed u128 in sum (or any checked add overflows) must be refused before any balance mutates (masked commit)." ;
+    st:attackClass "arithmetic" ;
+    st:targets st:ledger_apply_transition ;
+    st:expectedRefusal "LedgerRefusal::Overflow refused before any balance mutation" .

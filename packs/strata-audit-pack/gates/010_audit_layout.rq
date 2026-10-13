@@ -1,0 +1,44 @@
+# MESSAGE: audit layout violated — fail-closed presence + typed/malformed
+# arms (V7 pattern, reused by the S2/S4/S5/S8 strata packs). Every
+# FuzzTarget must carry targetModule + corpusSize + oracleFn with correct
+# datatypes; AUDIT_PLAN must carry lastCleanRun. Any row indicates a broken
+# audit layout.
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX st:   <https://strata.chatman.ai/ontology#>
+
+SELECT DISTINCT (COALESCE(?f1,?f2,?f3,?f4,?f5,?f6) AS ?field)
+       (COALESCE(?p1,?p2,?p3,?p4,?p5,?p6) AS ?problem)
+WHERE {
+  {
+    FILTER NOT EXISTS { ?t a st:FuzzTarget }
+    BIND("CORPUS_MANIFEST" AS ?f1)
+    BIND("missing_manifest: no st:FuzzTarget individual in the graph" AS ?p1)
+  } UNION {
+    ?t a st:FuzzTarget .
+    FILTER NOT EXISTS { ?t st:targetModule ?anyM }
+    BIND("TARGET_MODULE" AS ?f2)
+    BIND(CONCAT("missing_property: no st:targetModule on ", STR(?t)) AS ?p2)
+  } UNION {
+    ?t a st:FuzzTarget .
+    FILTER NOT EXISTS { ?t st:corpusSize ?anyC }
+    BIND("CORPUS_SIZE" AS ?f3)
+    BIND(CONCAT("missing_property: no st:corpusSize on ", STR(?t)) AS ?p3)
+  } UNION {
+    ?t a st:FuzzTarget .
+    FILTER NOT EXISTS { ?t st:oracleFn ?anyO }
+    BIND("ORACLE_FN" AS ?f4)
+    BIND(CONCAT("missing_property: no st:oracleFn on ", STR(?t)) AS ?p4)
+  } UNION {
+    ?t a st:FuzzTarget ; st:corpusSize ?v .
+    FILTER(datatype(?v) != xsd:integer || !REGEX(STR(?v), "^[1-9][0-9]*$"))
+    BIND("CORPUS_SIZE" AS ?f5)
+    BIND(CONCAT("malformed_integer: st:corpusSize on ", STR(?t)) AS ?p5)
+  } UNION {
+    ?c a st:AuditCase ; rdfs:label "AUDIT_PLAN" .
+    FILTER NOT EXISTS { ?c st:lastCleanRun ?anyL }
+    BIND("LAST_CLEAN_RUN" AS ?f6)
+    BIND("missing_property: no st:lastCleanRun on AUDIT_PLAN" AS ?p6)
+  }
+}
+ORDER BY ?field ?problem

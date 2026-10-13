@@ -1,0 +1,40 @@
+# MESSAGE: attack-closure violated — the dangling-attack refusal. Every
+# KnownAttack must (a) map via st:targets to an individual that IS a known
+# FuzzTarget (gate 020 refuses dangling attacks), (b) carry a non-empty
+# st:attackClass, and (c) carry a non-empty st:expectedRefusal. Also
+# fail-closed on an empty attack manifest. Any row indicates a broken
+# attack corpus. (V7 pattern.)
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX st:   <https://strata.chatman.ai/ontology#>
+
+SELECT DISTINCT (COALESCE(?f1,?f2,?f3,?f4,?f5) AS ?field)
+       (COALESCE(?p1,?p2,?p3,?p4,?p5) AS ?problem)
+WHERE {
+  {
+    FILTER NOT EXISTS { ?a a st:KnownAttack }
+    BIND("ATTACK_MANIFEST" AS ?f1)
+    BIND("missing_manifest: no st:KnownAttack individual in the graph" AS ?p1)
+  } UNION {
+    ?a a st:KnownAttack .
+    FILTER NOT EXISTS { ?a st:targets ?anyT }
+    BIND("ATTACK_TARGET" AS ?f2)
+    BIND(CONCAT("dangling_attack: no st:targets on ", STR(?a)) AS ?p2)
+  } UNION {
+    ?a a st:KnownAttack ; st:targets ?t .
+    FILTER NOT EXISTS { ?t a st:FuzzTarget }
+    BIND("ATTACK_TARGET" AS ?f3)
+    BIND(CONCAT("dangling_attack: st:targets value of ", STR(?a), " is not a known FuzzTarget") AS ?p3)
+  } UNION {
+    ?a a st:KnownAttack .
+    FILTER NOT EXISTS { ?a st:attackClass ?anyA }
+    BIND("ATTACK_CLASS" AS ?f4)
+    BIND(CONCAT("missing_property: no st:attackClass on ", STR(?a)) AS ?p4)
+  } UNION {
+    ?a a st:KnownAttack .
+    FILTER NOT EXISTS { ?a st:expectedRefusal ?anyR }
+    BIND("EXPECTED_REFUSAL" AS ?f5)
+    BIND(CONCAT("missing_property: no st:expectedRefusal on ", STR(?a)) AS ?p5)
+  }
+}
+ORDER BY ?field ?problem

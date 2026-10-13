@@ -1,0 +1,33 @@
+# Corpus-manifest projection query — one query, two row kinds:
+#   kind = "target" → TargetSpec rows (name, module, corpus, oracle)
+#   kind = "attack" → AttackSpec rows (attack, class, target label, refusal)
+# Ordered so the generated table is deterministic (byte-identical syncs).
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX st:   <https://strata.chatman.ai/ontology#>
+
+SELECT ?kind ?name ?module ?corpus ?oracle ?aclass ?target ?refusal
+WHERE {
+  {
+    ?t a st:FuzzTarget ;
+       rdfs:label ?name ;
+       st:targetModule ?module ;
+       st:corpusSize ?corpus ;
+       st:oracleFn ?oracle .
+    BIND("target" AS ?kind)
+    BIND("" AS ?aclass)
+    BIND("" AS ?target)
+    BIND("" AS ?refusal)
+  } UNION {
+    ?a a st:KnownAttack ;
+       rdfs:label ?name ;
+       st:attackClass ?aclass ;
+       st:targets ?t .
+    ?t rdfs:label ?target .
+    ?a st:expectedRefusal ?refusal .
+    BIND("attack" AS ?kind)
+    BIND("" AS ?module)
+    BIND("" AS ?corpus)
+    BIND("" AS ?oracle)
+  }
+}
+ORDER BY ?kind ?name
