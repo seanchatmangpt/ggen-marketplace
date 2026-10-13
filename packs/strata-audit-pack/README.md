@@ -56,9 +56,13 @@ python3 verify.py                       # gates zero-rows + witness-hash court
 python3 scripts/qualify_packs.py --pack strata-audit-pack
 ```
 
-Corpus receipt (2026-10-13, ggen 26.10.11): 5/5 targets 1000/1000 clean
-(5000 corpus cases), 7/7 tests pass (manifest closure, corpus court, 5
-attack regressions), gates 0 rows, qualification ALIVE.
+Corpus receipt (2026-10-13 refresh, ggen 26.10.11): 6/6 targets 1000/1000
+clean (6000 corpus cases), 12/12 tests pass (manifest closure — 6 targets /
+10 attacks —, corpus court, 10 attack regressions), gates 0 rows,
+qualification ALIVE. S10 refresh added the pn64_mask_apply fuzz target
+(strata-pn64-pack @ 00e0b086b) and 5 landed-work attack entries
+(Pn64FireLawXorDivergence, Pn64T04MaskCorrection, ValveZeroRefusalReceipt,
+LedgerTokenSumNonConservation, VacuousEunitHarness).
 
 ## Standing
 

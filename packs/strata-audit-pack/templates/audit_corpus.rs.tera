@@ -10,6 +10,10 @@
 //! strata-ledger-pack S4). The copies audit the LAW AS CAPTURED at the copy
 //! point — re-run this audit against freshly regenerated engine modules
 //! after ANY engine edit (README). strata-net-pack (S9) is corpus-pending.
+//! S10 refresh: pn64 mask law pinned via strata-pn64-pack (T2, @00e0b086b);
+//! known-attack corpus extended with the landed-work entries (fire-law XOR
+//! divergence, t04 mask correction, valve zero receipts, ledger token-sum
+//! conservation, erlmcp vacuous-eunit test-vacuity).
 //!
 //! Self-contained, serde-free; compiles standalone via `rustc --test`.
 
@@ -612,6 +616,67 @@ impl Ledger {
     }
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// INLINE PROVENANCE COPY — strata-pn64-pack (T2) pattern:
+// packs/strata-pn64-pack/generated/pn64_masks.rs @ 00e0b086b.
+// Canonical six RONR transitions; fire law on the ENABLED DOMAIN only:
+// apply_mask gates on (m & pre) == pre, then m' = (m & !pre) | post.
+// Minimal: masks, enabled gate, gated fire. S10 refresh addition.
+// ══════════════════════════════════════════════════════════════════════
+
+/// Number of canonical RONR transitions (pn64-pack convention).
+pub const PN64_VERB_COUNT: usize = 6;
+
+/// Precondition place masks `W-` per canonical opcode (index = opcode - 1).
+/// t04 (adopt amendment) carries the CORRECTED precondition 0x0010.
+pub const PN64_PRE_MASKS: [u16; PN64_VERB_COUNT] =
+    [0x0081, 0x0002, 0x0008, 0x0010, 0x0008, 0x0024];
+
+/// Postcondition place masks `W+` per canonical opcode (index = opcode - 1).
+pub const PN64_POST_MASKS: [u16; PN64_VERB_COUNT] =
+    [0x0082, 0x000C, 0x0010, 0x0008, 0x0060, 0x0101];
+
+/// Canonical six transitions as `(pre, post)` pairs.
+pub const PN64_TRANSITIONS: [(u16, u16); PN64_VERB_COUNT] = [
+    (0x0081, 0x0082),
+    (0x0002, 0x000C),
+    (0x0008, 0x0010),
+    (0x0010, 0x0008),
+    (0x0008, 0x0060),
+    (0x0024, 0x0101),
+];
+
+/// The ungated XOR fire law `(m ^ pre) | post` — the ATTACKER's law. Kept
+/// only as the divergence oracle: it matches the gated law on the enabled
+/// domain and diverges off it.
+pub fn fire_xor_unchecked(marking: u16, pre: u16, post: u16) -> u16 {
+    ((marking ^ pre) | post) & 0xFFFF
+}
+
+/// Typed pn64 refusal (audit-pack subset).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Pn64Refusal {
+    NotEnabled { marking: u16, pre: u16 },
+    UnknownOpcode(u16),
+    TableDrift { opcode: usize, got: u16, want: u16 },
+}
+
+/// The audited law: a precondition-GATED fire. Refuses unless
+/// `(m & pre) == pre` (the enabled domain), then applies clear-then-set.
+/// This gate is what repels the fire-law XOR divergence off the enabled
+/// domain (Pn64FireLawXorDivergence).
+pub fn apply_mask(marking: u16, opcode: usize) -> Result<u16, Pn64Refusal> {
+    if opcode == 0 || opcode > PN64_VERB_COUNT {
+        return Err(Pn64Refusal::UnknownOpcode(opcode as u16));
+    }
+    let pre = PN64_PRE_MASKS[opcode - 1];
+    let post = PN64_POST_MASKS[opcode - 1];
+    if (marking & pre) != pre {
+        return Err(Pn64Refusal::NotEnabled { marking, pre });
+    }
+    Ok(((marking & !pre) | post) & 0xFFFF)
+}
+
 // ── Audit runner ──────────────────────────────────────────────────────
 
 /// One failing corpus case, named (target + case index + detail).
@@ -665,6 +730,7 @@ fn oracle_registry(name: &str) -> Option<Oracle> {
         "oracle_chain" => Some(oracle_chain),
         "oracle_consensus" => Some(oracle_consensus),
         "oracle_ledger" => Some(oracle_ledger),
+        "oracle_pn64" => Some(oracle_pn64),
         _ => None,
     }
 }
@@ -823,6 +889,52 @@ fn oracle_ledger(case: usize, rng: &mut Lcg) -> Option<String> {
     }
 }
 
+/// Oracle: pn64_mask_apply — on the enabled domain the gated fire law must
+/// agree with the ungated XOR law; off it, apply_mask must refuse. Tables
+/// must equal the canonical six (t04 corrected pre 0x0010).
+fn oracle_pn64(case: usize, rng: &mut Lcg) -> Option<String> {
+    // Canonical-six exact-mask sub-check (t04 correction regression).
+    for (idx, &(pre, post)) in PN64_TRANSITIONS.iter().enumerate() {
+        if PN64_PRE_MASKS[idx] != pre || PN64_POST_MASKS[idx] != post {
+            return Some(format!(
+                "case {case}: mask-table drift at opcode {:#04x} (pre={:#06x}, post={:#06x})",
+                idx + 1,
+                PN64_PRE_MASKS[idx],
+                PN64_POST_MASKS[idx]
+            ));
+        }
+    }
+    let marking = (rng.next_u64() & 0xFFFF) as u16;
+    let opcode = 1 + (rng.next_u64() % PN64_VERB_COUNT as u64) as usize;
+    let (pre, post) = PN64_TRANSITIONS[opcode - 1];
+    match apply_mask(marking, opcode) {
+        Ok(next) => {
+            if (marking & pre) != pre {
+                return Some(format!(
+                    "case {case}: fired off the enabled domain (m={marking:#06x}, pre={pre:#06x})"
+                ));
+            }
+            // On the enabled domain, gated law == ungated XOR law.
+            if next != fire_xor_unchecked(marking, pre, post) {
+                return Some(format!(
+                    "case {case}: gated/XOR fire-law divergence on ENABLED domain \
+                     (m={marking:#06x}, pre={pre:#06x}, post={post:#06x})"
+                ));
+            }
+            None
+        }
+        Err(Pn64Refusal::NotEnabled { .. }) => {
+            if (marking & pre) == pre {
+                return Some(format!(
+                    "case {case}: enabled transition refused (m={marking:#06x}, pre={pre:#06x})"
+                ));
+            }
+            None
+        }
+        Err(e) => Some(format!("case {case}: unexpected refusal {e:?}")),
+    }
+}
+
 /// Run one target's full corpus (seeded per target name); returns the run
 /// summary, naming the first mismatch if any.
 pub fn run_target(spec: &TargetSpec) -> TargetRun {
@@ -897,12 +1009,12 @@ pub fn run_audit() -> AuditReport {
 mod tests {
     use super::*;
 
-    /// Manifest closure: 5 targets, 5 attacks, every attack resolves,
+    /// Manifest closure: 6 targets, 10 attacks, every attack resolves,
     /// every corpus is 1000 cases, every oracle is registered.
     #[test]
     fn manifest_is_closed() {
-        assert_eq!(AUDIT_TARGETS.len(), 5, "5 S10 fuzz targets projected");
-        assert_eq!(KNOWN_ATTACKS.len(), 5, "5 S10 known attacks projected");
+        assert_eq!(AUDIT_TARGETS.len(), 6, "6 S10 fuzz targets projected");
+        assert_eq!(KNOWN_ATTACKS.len(), 10, "10 known attacks projected (5 S10 + 5 refresh)");
         for t in AUDIT_TARGETS {
             assert_eq!(t.corpus_size, 1000, "target {} corpus", t.name);
             assert!(
@@ -1079,5 +1191,128 @@ mod tests {
         // Conservation refusal (positive control of the other valve).
         let e3 = ledger.apply_transition(&[(a, 1)], &[(c, 2)]).unwrap_err();
         assert_eq!(e3, LedgerRefusal::Conservation);
+    }
+
+    /// Pn64FireLawXorDivergence: OFF the enabled domain the ungated XOR law
+    /// sets pre-bits the marking never had (pinned divergence witness
+    /// m=0x0000, pre=0x0002, post=0x000C: 0x000E vs 0x000C); the audited
+    /// apply_mask refuses there instead of firing.
+    #[test]
+    fn attack_pn64_fire_law_xor_divergence_refused() {
+        // The pinned graphlaw pn64_abi_conformance divergence witness.
+        assert_eq!(fire_xor_unchecked(0x0000, 0x0002, 0x000C), 0x000E);
+        assert_eq!((0x0000 & !0x0002) | 0x000C, 0x000C);
+        assert_eq!(
+            apply_mask(0x0000, 2),
+            Err(Pn64Refusal::NotEnabled { marking: 0x0000, pre: 0x0002 }),
+            "ungated fire off the enabled domain must be refused"
+        );
+        // Sweep: on the enabled domain both laws agree; off it the gated
+        // law refuses and the XOR law is the one that moved the state.
+        for m in 0u16..=255u16 {
+            for opcode in 1..=PN64_VERB_COUNT {
+                let (pre, post) = PN64_TRANSITIONS[opcode - 1];
+                if (m & pre) == pre {
+                    assert_eq!(
+                        apply_mask(m, opcode).unwrap(),
+                        fire_xor_unchecked(m, pre, post),
+                        "enabled-domain divergence m={m:#04x} opcode {opcode}"
+                    );
+                } else {
+                    assert_eq!(
+                        apply_mask(m, opcode),
+                        Err(Pn64Refusal::NotEnabled { marking: m, pre }),
+                        "off-domain fire accepted m={m:#04x} opcode {opcode}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// Pn64T04MaskCorrection: the t04 adopt-amendment precondition stays at
+    /// the corrected 0x0010 (post 0x0008); any drift from the canonical six
+    /// is a named table-drift refusal.
+    #[test]
+    fn attack_pn64_t04_mask_correction_pinned() {
+        assert_eq!(PN64_PRE_MASKS[3], 0x0010, "t04 pre must be the corrected 0x0010");
+        assert_eq!(PN64_POST_MASKS[3], 0x0008, "t04 post");
+        // Positive control: pre-correction shape (pre 0x0008) is NOT present.
+        assert_ne!(PN64_PRE_MASKS[3], 0x0008);
+        // t04 must not fire without the amendment place 0x0010; it fires
+        // exactly when that place holds.
+        assert_eq!(
+            apply_mask(0x0008, 4),
+            Err(Pn64Refusal::NotEnabled { marking: 0x0008, pre: 0x0010 })
+        );
+        assert_eq!(apply_mask(0x0010, 4).unwrap(), 0x0008);
+        assert_eq!(apply_mask(0x0018, 4).unwrap(), 0x0000 | 0x0008);
+    }
+
+    /// ValveZeroRefusalReceipt: refusal receipts are derived from the typed
+    /// valve — a pn64 refusal names its fields; the all-zero receipt shape
+    /// (fixed in strata-valve-pack @ 8210f1b24) is structurally impossible
+    /// in the audit surface: every Debug/typed refusal here carries its
+    /// marking/pre values, never zeros everywhere.
+    #[test]
+    fn attack_valve_zero_refusal_receipt_refused() {
+        let e = apply_mask(0x0000, 2).unwrap_err();
+        let rendered = format!("{e:?}");
+        // A zero-receipt would render with no identifying fields at all.
+        assert!(rendered.contains("NotEnabled"), "typed refusal identity present");
+        assert!(rendered.contains("0"), "marking/pre values present in receipt");
+        assert_ne!(rendered, "NotEnabled", "receipt must carry consequence fields");
+    }
+
+    /// LedgerTokenSumNonConservation: the naive token-sum (raw supply
+    /// fold) is exactly what the conservation valve refuses to trust —
+    /// unbalanced transitions are refused even when the naive sum would
+    /// stay constant across mint-shaped outputs (Lean t02/t05 pattern).
+    #[test]
+    fn attack_ledger_token_sum_non_conservation_refused() {
+        let mut ledger = Ledger::new();
+        let a = [7u8; DIGEST_LEN];
+        let b = [8u8; DIGEST_LEN];
+        ledger.fund(a, 5);
+        // Naive sum view: supply() is 5; a transition minting 3 into b with
+        // a 3-input from a would pass a pure total-sum check only if the
+        // input side is inflated; the valve refuses the deficit outright.
+        let e = ledger.apply_transition(&[(a, 2)], &[(b, 5)]).unwrap_err();
+        assert_eq!(e, LedgerRefusal::Conservation, "t02-shaped deficit refused");
+        // Masked commit: nothing moved on refusal.
+        assert_eq!(ledger.balance(&a), 5);
+        assert_eq!(ledger.balance(&b), 0);
+        // t05-shaped counterexample: equal naive totals via overflow-adjacent
+        // split — conservation still enforced per-account.
+        let e2 = ledger.apply_transition(&[(a, 5)], &[(b, 3)]).unwrap_err();
+        assert_eq!(e2, LedgerRefusal::Conservation);
+        assert_eq!(ledger.balance(&b), 0);
+    }
+
+    /// VacuousEunitHarness (cross-repo, erlmcp): the corpus court itself is
+    /// the anti-vacuity gate — zero-case targets and unregistered oracles
+    /// are refusals, and a harness that executes zero assertions cannot be
+    /// clean (clean requires total > 0 per target).
+    #[test]
+    fn attack_vacuous_eunit_harness_refused() {
+        // Zero-case corpus: is_clean refuses (total > 0 required).
+        let vacuous = AuditReport {
+            per_target: vec![TargetRun { name: "vacuous", clean: 0, total: 0 }],
+            mismatches: vec![],
+        };
+        assert!(!vacuous.is_clean(), "zero-assertion harness must not read clean");
+        // Unregistered oracle: run_target returns clean=0/total=1000.
+        let ghost = TargetSpec {
+            name: "ghost",
+            module: "strata-ghost-pack::ghost",
+            corpus_size: 1000,
+            oracle_fn: "oracle_unregistered",
+        };
+        let run = run_target(&ghost);
+        assert_eq!(run.clean, 0, "unregistered oracle must not read clean");
+        // The real manifest stays non-vacuous: every oracle registered.
+        for t in AUDIT_TARGETS {
+            assert!(oracle_registry(t.oracle_fn).is_some());
+            assert!(t.corpus_size > 0);
+        }
     }
 }

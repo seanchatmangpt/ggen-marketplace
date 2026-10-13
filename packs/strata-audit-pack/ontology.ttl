@@ -10,6 +10,14 @@
 #
 # strata-net-pack (S9 hardening) is CORPUS-PENDING: no FuzzTarget cites it.
 #
+# S10 external-audit refresh (lane L28, 2026-10-13): the known-attack corpus
+# was extended with this session's real findings — pn64 fire-law XOR
+# divergence (graphlaw pn64_abi_conformance), pn64 t04 mask correction,
+# valve all-zero refusal receipts (strata-valve-pack @ 8210f1b24), ledger
+# naive token-sum non-conservation (Lean witness t02/t05), and the erlmcp
+# vacuous-eunit cross-repo test-vacuity pattern. A new FuzzTarget
+# (pn64_mask_apply) pins the pn64 mask law as an inline provenance copy.
+#
 # The FuzzTarget/KnownAttack individuals ARE the audit-corpus manifest:
 # gate 010 fails closed on any FuzzTarget missing targetModule/corpusSize/
 # oracleFn; gate 020 fails closed on any KnownAttack whose target does not
@@ -142,3 +150,50 @@ st:LedgerOverflow a st:KnownAttack ;
     st:attackClass "arithmetic" ;
     st:targets st:ledger_apply_transition ;
     st:expectedRefusal "LedgerRefusal::Overflow refused before any balance mutation" .
+
+# ── S10 external-audit refresh: landed-work attack entries (2026-10-13) ─
+#
+# Subject pins (pack + commit) and detection courts live in the rdfs:comment
+# of each entry: attack class, subject pin, detection court, status.
+
+st:pn64_mask_apply a st:FuzzTarget ;
+    rdfs:label "pn64_mask_apply" ;
+    rdfs:comment "Fuzz surface: pn64 fire law (precondition-gated mask transition m' = (m & !pre) | post over canonical six RONR transitions). Provenance pack: strata-pn64-pack @ 00e0b086b (T2) — generated/pn64_masks.rs carries the law; the audit copy is inline." ;
+    st:targetModule "strata-pn64-pack::apply_mask" ;
+    st:corpusSize "1000"^^xsd:integer ;
+    st:oracleFn "oracle_pn64" .
+
+st:Pn64FireLawXorDivergence a st:KnownAttack ;
+    rdfs:label "Pn64FireLawXorDivergence" ;
+    rdfs:comment "STATUS: repelled (regression). Attack class: arithmetic-abi. Subject pin: strata-pn64-pack @ 00e0b086b; graphlaw pn64_abi_conformance witness. The ungated XOR fire law (m ^ W-) | W+ diverges from the clear-then-set law (m & !pre) | post OFF the enabled domain: divergence witness m=0x0000, pre=0x0002, post=0x000C — XOR yields 0x000E (sets an absent pre-bit), clear-then-set yields 0x000C. Callers must establish enabled(m, pre) = (m & pre) == pre before firing. DETECTION COURT: strata-pn64-pack fire_law_equivalence_on_enabled_domain court + graphlaw pn64_abi_conformance; the audit corpus court pins the divergence witness as a regression." ;
+    st:attackClass "arithmetic-abi" ;
+    st:targets st:pn64_mask_apply ;
+    st:expectedRefusal "firing without enabled(m, pre) is refused: the audited apply_mask gates on (m & pre) == pre, and the divergence witness (m=0x0000, pre=0x0002, post=0x000C -> 0x000E vs 0x000C) stays pinned in the corpus" .
+
+st:Pn64T04MaskCorrection a st:KnownAttack ;
+    rdfs:label "Pn64T04MaskCorrection" ;
+    rdfs:comment "STATUS: repelled (regression). Attack class: arithmetic. Subject pin: strata-pn64-pack @ 00e0b086b. Mask-correction attack: a stale or transposed precondition mask lets a transition fire without its required place — the t04 adopt-amendment precondition was corrected 0x0008 -> 0x0010 (adopt-amendment requires the amendment place, not the motion place). DETECTION COURT: strata-pn64-pack canonical_six_exact_masks court (generated tables vs canonical six in ronr.rs); the audit corpus court re-asserts the corrected table every run." ;
+    st:attackClass "arithmetic" ;
+    st:targets st:pn64_mask_apply ;
+    st:expectedRefusal "PRE_MASKS[t04] == 0x0010 and POST_MASKS[t04] == 0x0008 (canonical six exact-mask court); any drift from the corrected table is a corpus mismatch naming the opcode" .
+
+st:ValveZeroRefusalReceipt a st:KnownAttack ;
+    rdfs:label "ValveZeroRefusalReceipt" ;
+    rdfs:comment "STATUS: fixed in strata-valve-pack @ 8210f1b24 (L13, seam-29 closure); kept as regression. Attack class: telemetry-integrity. Subject pin: strata-valve-pack @ 8210f1b24. Telemetry attack: refusal receipts emitted with all-zero fields (no identity, no consequence) — a valve that reports a refusal nobody can replay. The fix derives every receipt field from the typed refusal valve. DETECTION COURT: strata-valve-pack refusal-receipt derivation court; the audit corpus keeps the entry so the zero-receipt pattern stays a named attack class." ;
+    st:attackClass "telemetry-integrity" ;
+    st:targets st:ledger_apply_transition ;
+    st:expectedRefusal "every refusal receipt carries non-zero identity/consequence fields derived from the typed LedgerRefusal; the all-zero receipt shape is a named regression entry" .
+
+st:LedgerTokenSumNonConservation a st:KnownAttack ;
+    rdfs:label "LedgerTokenSumNonConservation" ;
+    rdfs:comment "STATUS: repelled (regression). Attack class: conservation. Subject pin: strata-ledger-pack @ 00e0b086b (S4 law, T2 OCEL surface); Lean witness t02/t05 counterexamples. Naive token-sum attack: summing balances without the masked-commit conservation valve lets mint/burn slip through an unbalanced transition — the Lean witnesses t02/t05 exhibit concrete input/output multisets where the naive sum preserves the total but loses per-account conservation. DETECTION COURT: strata-ledger-pack conservation valve (LedgerRefusal::Conservation, checked before commit) + Lean witness court; the audit corpus court runs conservation over 1000 funded transitions per run." ;
+    st:attackClass "conservation" ;
+    st:targets st:ledger_apply_transition ;
+    st:expectedRefusal "LedgerRefusal::Conservation on every unbalanced transition; supply invariant holds before/after every applied transition (Lean t02/t05 counterexamples stay refused)" .
+
+st:VacuousEunitHarness a st:KnownAttack ;
+    rdfs:label "VacuousEunitHarness" ;
+    rdfs:comment "STATUS: cross-repo entry (erlmcp); no landed marketplace gate — detection is the audit-corpus manifest-closure test itself (corpus > 0, registered oracle per target, non-empty expectedRefusal per attack). Attack class: test-vacuity. Subject pin: erlmcp eunit suite (cross-repo, external). Vacuous-harness attack: a test module whose fixtures execute zero assertions — the harness reports green while verifying nothing (zero-information pass). DETECTION COURT: audit-corpus manifest closure (manifest_is_closed + corpus_runs_1000_clean_per_target refuse an empty corpus or an unregistered oracle); cross-repo instances are refused at the erlmcp boundary, not here." ;
+    st:attackClass "test-vacuity" ;
+    st:targets st:pn64_mask_apply ;
+    st:expectedRefusal "a corpus target with zero cases or an unregistered oracle is a manifest-closure violation; every attack row must carry a non-empty expectedRefusal (gate 020)" .

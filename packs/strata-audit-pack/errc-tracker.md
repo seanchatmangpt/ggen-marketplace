@@ -38,22 +38,22 @@ verified against the working tree at edit time.
   a known FuzzTarget is a violation row (negative-controlled this session:
   breaking one mapping yields exactly the typed row).
 - **The corpus court is a test, not prose**: `corpus_runs_1000_clean_per_target`
-  asserts 1000/1000 clean on all 5 targets and prints the named mismatches
-  on failure; `manifest_is_closed` pins 5 targets / 5 attacks / registered
+  asserts 1000/1000 clean on all 6 targets and prints the named mismatches
+  on failure; `manifest_is_closed` pins 6 targets / 10 attacks / registered
   oracles / resolved attack targets.
 - **Honest boundary raised to a contract**: the README and the generated
   module header both state that inline copies audit the LAW AS CAPTURED at
   the S10 copy point and must be refreshed after any engine edit — the
   audit's standing is the copy's standing.
 - **Witness + verifier court**: `witness.ttl` pins the sync graph hash
-  (d18c2d4d…); `verify.py` (provenance-copied strata-consensus-pack S8
+  (de6fc889…); `verify.py` (provenance-copied strata-consensus-pack S8
   pattern) re-runs both gates and cross-checks the witness hash against
   the runtime receipt. Zero rows on this session's tree.
 
 ## Falsifiers (what would refute the standing claim)
 
 - `ggen sync run` twice producing non-byte-identical `audit_corpus.rs`.
-- Any of the 7 tests failing, or any corpus case reporting a MISMATCH.
+- Any of the 12 tests failing, or any corpus case reporting a MISMATCH.
 - Any gate returning a violation row, or `verify.py` reporting a
   witness-hash drift.
 - Qualification returning anything but ALIVE.
