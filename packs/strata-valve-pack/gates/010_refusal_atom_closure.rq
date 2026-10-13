@@ -1,6 +1,9 @@
-# MESSAGE: valve refusal atoms are exactly {malformed_frame, fuel_exhausted, parent_discontinuity, arena_failure}.
-# Any row returned indicates a valve:RefusalClass whose valve:atom is off-enum
-# or missing — fail closed on the refusal taxonomy closure.
+# MESSAGE: valve refusal taxonomy is exactly the 4 canonical atoms
+# {malformed_frame, fuel_exhausted, parent_discontinuity, arena_failure} —
+# each atom MUST be carried by at least one valve:RefusalClass individual
+# (presence), no atom may be carried by two distinct individuals
+# (exclusivity), and no RefusalClass may carry any other atom (off-enum).
+# Any row indicates a violation — fail closed on the refusal taxonomy closure.
 PREFIX valve: <https://strata.chatman.ai/ontology/valve#>
 
 SELECT ?class ?atom ?violation WHERE {
@@ -13,6 +16,21 @@ SELECT ?class ?atom ?violation WHERE {
            valve:atom ?atom .
     BIND("off_enum_atom" AS ?violation)
     FILTER (?atom NOT IN ("malformed_frame", "fuel_exhausted", "parent_discontinuity", "arena_failure"))
+  } UNION {
+    # Presence: each canonical atom must be carried by at least one individual.
+    BIND(<https://strata.chatman.ai/ontology/valve#RefusalClass> AS ?class)
+    BIND("absent_canonical_atom" AS ?violation)
+    VALUES ?atom { "malformed_frame" "fuel_exhausted" "parent_discontinuity" "arena_failure" }
+    FILTER NOT EXISTS {
+      ?c a valve:RefusalClass ;
+         valve:atom ?atom .
+    }
+  } UNION {
+    # Exclusivity: two distinct individuals carrying the same atom.
+    ?c1 a valve:RefusalClass ; valve:atom ?atom .
+    ?c2 a valve:RefusalClass ; valve:atom ?atom .
+    BIND("duplicate_atom" AS ?violation)
+    FILTER (STR(?c1) < STR(?c2))
   }
 }
-ORDER BY ?class ?violation
+ORDER BY ?violation ?class ?atom

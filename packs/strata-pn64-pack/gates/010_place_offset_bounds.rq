@@ -1,6 +1,9 @@
 # MESSAGE: every st:Place must carry a st:bitOffset in [0, 15], and all
 # place bit offsets must be distinct (one bit per place in the 16-bit
-# marking word). Any row returned is an out-of-bounds or duplicated offset.
+# marking word), and every st:Place must CARRY st:bitOffset at all (presence
+# law: a Place with no st:bitOffset is a violation even though no value
+# exists to bound-check). Any row returned is an out-of-bounds, duplicated,
+# or missing offset.
 PREFIX st: <https://strata.chatman.ai/ontology#>
 
 SELECT ?place ?offset ?conflict WHERE {
@@ -16,6 +19,10 @@ SELECT ?place ?offset ?conflict WHERE {
            st:bitOffset ?offset .
     FILTER (?place != ?other)
     BIND("duplicate_offset" AS ?conflict)
+  } UNION {
+    ?place a st:Place .
+    FILTER NOT EXISTS { ?place st:bitOffset ?anyOffset }
+    BIND("missing_bitOffset" AS ?conflict)
   }
 }
 ORDER BY ?place ?conflict
