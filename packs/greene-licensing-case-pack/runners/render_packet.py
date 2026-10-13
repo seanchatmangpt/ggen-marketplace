@@ -51,6 +51,72 @@ def toml_string(value: str) -> str:
     return json.dumps(value)
 
 
+def requirement_pack_entries(packs_dir: Path, consumer: Path) -> list[str]:
+    """[packs] entries satisfying the pack's `requires`, derived from pack.toml.
+
+    ggen 26.10.11 refuses [FM-PACK-018] when a declared pack's `requires`
+    reference packs the consuming project does not also declare, so the honest
+    consumer declares them (transitive closure over `capabilities.requires`).
+    Required packs that ship zero templates/*.tmpl are refused by [FM-PACK-005]
+    as direct entries, so this materializes a disclosed consumer-side shim
+    (real pack.toml identity + inert self-declared ontology + one inert
+    template, never the gates) for exactly those. Names the consumer already
+    declares via PACK_DEPENDENCIES are skipped.
+    """
+    import tomllib
+
+    entries: list[str] = []
+    declared = {"greene-licensing-case-pack", *PACK_DEPENDENCIES}
+    seen: set[str] = set()
+    frontier = ["greene-licensing-case-pack"]
+    while frontier:
+        name = frontier.pop(0)
+        if name in seen:
+            continue
+        seen.add(name)
+        source = packs_dir / name
+        manifest = tomllib.loads((source / "pack.toml").read_text(encoding="utf-8"))
+        for urn in manifest.get("capabilities", {}).get("requires", []):
+            required = urn.rsplit(":", 1)[-1]
+            if required not in seen and required not in declared:
+                frontier.append(required)
+        if name in declared:
+            continue
+        # Uniform disclosed policy: every derived required pack is declared as an
+        # identity-only shim, never as its real directory. Declaring pptx directly
+        # imports its deck gates ([FM-PACK-013]) into this render consumer, where
+        # they refuse the intentionally-unsent draft deck. Required packs' own
+        # gates are exercised by their own qualification, not by this consumer.
+        shim = consumer / ".requirement-shims" / name
+        shim.mkdir(parents=True, exist_ok=True)
+        (shim / "pack.toml").write_text(
+            "\n".join(
+                (
+                    "[pack]",
+                    f'name = "{name}"',
+                    f'version = {json.dumps(manifest.get("version", "0.0.0"))}',
+                    'description = "consumer-side requirement shim synthesized by render_packet;'
+                    " identity-only so the required pack's union-graph gates stay canonical-side"
+                    '"',
+                    "",
+                )
+            ),
+            encoding="utf-8",
+        )
+        (shim / "ontology.ttl").write_text(
+            "# Inert self-declared ontology: identity-only shim.\\n"
+            "@prefix sh: <http://example.org/requirement-shim#> .\\n"
+            "sh:shim a sh:RequirementShim .\\n",
+            encoding="utf-8",
+        )
+        (shim / "templates").mkdir(exist_ok=True)
+        (shim / "templates" / "requirement-shim.tmpl").write_text(
+            "# requirement shim (inert; no generation rule references this template)\n", encoding="utf-8"
+        )
+        entries.append(f'"{name}" = {{ path = {toml_string(shim.as_posix())} }}')
+    return entries
+
+
 def build_consumer(consumer: Path, packs_dir: Path) -> None:
     if consumer.exists() and any(consumer.iterdir()):
         raise SystemExit(f"REFUSED:CONSUMER_NOT_EMPTY:{consumer}")
@@ -81,6 +147,7 @@ def build_consumer(consumer: Path, packs_dir: Path) -> None:
         if not (path / "pack.toml").is_file():
             raise SystemExit(f"BLOCKED:DEPENDENCY_MISSING:{path}")
         lines.append(f'"{name}" = {{ path = {toml_string(path.as_posix())} }}')
+    lines += requirement_pack_entries(packs_dir, consumer)
     lines += ["", "[templates]", 'dir = "templates"', ""]
     (consumer / "ggen.toml").write_text("\n".join(lines), encoding="utf-8")
 

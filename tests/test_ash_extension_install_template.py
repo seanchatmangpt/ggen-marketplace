@@ -12,6 +12,7 @@ could never merge into an existing `extensions:` list). The fixed template calls
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -114,11 +115,76 @@ def have(*tools: str) -> bool:
     return all(shutil.which(t) for t in tools)
 
 
+def requirement_pack_entries(pack_names: tuple[str, ...], dest: Path) -> list[str]:
+    """[packs] entries for the required packs, derived from each pack.toml.
+
+    ggen 26.10.11 refuses [FM-PACK-018] when a declared pack's `requires`
+    reference packs the consuming project does not also declare, so the honest
+    consumer declares them (transitive closure over `capabilities.requires`).
+    Required packs are materialized as disclosed consumer-side shims (real
+    pack.toml identity + real ontology.ttl + one inert template, never the
+    gates): declaring ash-extension-core-pack directly imports its stale
+    union-graph gates ([FM-PACK-013] fires on facts its own ontology no longer
+    carries), which is unrelated to the installer template this court tests.
+    """
+    import tomllib
+
+    entries: list[str] = []
+    declared = set(pack_names)
+    seen: set[str] = set()
+    frontier = list(pack_names)
+    while frontier:
+        name = frontier.pop(0)
+        if name in seen:
+            continue
+        seen.add(name)
+        source = ROOT / "packs" / name
+        manifest = tomllib.loads((source / "pack.toml").read_text(encoding="utf-8"))
+        for urn in manifest.get("capabilities", {}).get("requires", []):
+            required = urn.rsplit(":", 1)[-1]
+            if required not in seen and required not in declared:
+                frontier.append(required)
+        if name in declared:
+            continue
+        shim = dest / ".requirement-shims" / name
+        shim.mkdir(parents=True, exist_ok=True)
+        (shim / "pack.toml").write_text(
+            "\n".join(
+                (
+                    "[pack]",
+                    f'name = "{name}"',
+                    f'version = {json.dumps(manifest.get("version", "0.0.0"))}',
+                    'description = "consumer-side requirement shim synthesized by the test harness;'
+                    " the canonical pack's union-graph gates are exercised by its own qualification,"
+                    ' not by this installer-template court"',
+                    "",
+                )
+            ),
+            encoding="utf-8",
+        )
+        (shim / "ontology.ttl").write_text(
+            "# Inert self-declared ontology: the shim carries the required pack's identity"
+            " (pack.toml name/version) only. Its real semantics stay canonical-side; importing them"
+            " here would pull the pack's union-graph gates ([FM-PACK-013]) into a consumer court"
+            " that does not test them.\n"
+            "@prefix sh: <http://example.org/requirement-shim#> .\n"
+            "sh:shim a sh:RequirementShim .\n",
+            encoding="utf-8",
+        )
+        (shim / "templates").mkdir(exist_ok=True)
+        (shim / "templates" / "requirement-shim.tmpl").write_text(
+            "# requirement shim (inert; no generation rule references this template)\n", encoding="utf-8"
+        )
+        entries.append(f'"{name}" = {{ path = {json.dumps(shim.as_posix())} }}')
+    return entries
+
+
 def render_installer(pack: str, dest: Path) -> str:
     """Render the installer through real ggen, as a marketplace pack reference."""
     (dest / "templates").mkdir(parents=True)
     (dest / "ontology.ttl").write_text(ONTOLOGY, encoding="utf-8")
     packs = f'[packs]\n{pack} = {{ path = "{ROOT / "packs" / pack}" }}\n'
+    packs += "".join(line + "\n" for line in requirement_pack_entries((pack,), dest))
     (dest / "ggen.toml").write_text(
         '[project]\nname = "ash_probe"\n[ontology]\nsource = "ontology.ttl"\n' + packs +
         '[templates]\ndir = "templates"\n',

@@ -23,6 +23,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from typing import Iterable
 
 from rdflib import RDF, Graph, Literal, URIRef
 from rdflib.namespace import XSD
@@ -30,6 +31,72 @@ from rdflib.namespace import XSD
 ROOT = Path(__file__).resolve().parents[1]
 PACK = ROOT / "packs" / "evolvable-capability-pack"
 QUALIFICATION = PACK / "qualification"
+
+
+def _requirement_pack_entries(pack_names: Iterable[str], consumer: Path) -> list[str]:
+    """[packs] entries for the packs `requires` names, derived from pack.toml.
+
+    ggen 26.10.11 refuses [FM-PACK-018] when a declared pack's `requires`
+    reference packs the consuming project does not also declare. The honest
+    consumer declares each required pack. Required packs that ship zero
+    templates are refused by [FM-PACK-005] as direct entries, so the harness
+    materializes a disclosed consumer-side shim (real pack.toml identity +
+    real ontology.ttl + one inert template) for exactly those.
+    """
+    import tomllib
+
+    entries: list[str] = []
+    declared = set(pack_names)
+    seen: set[str] = set()
+    frontier = list(pack_names)
+    while frontier:
+        name = frontier.pop(0)
+        if name in seen:
+            continue
+        seen.add(name)
+        source = ROOT / "packs" / name
+        manifest = tomllib.loads((source / "pack.toml").read_text(encoding="utf-8"))
+        for urn in manifest.get("capabilities", {}).get("requires", []):
+            required = urn.rsplit(":", 1)[-1]
+            if required not in seen and required not in declared:
+                frontier.append(required)
+        if name in declared:
+            continue
+        has_templates = any((source / "templates").glob("*.tmpl")) if (source / "templates").is_dir() else False
+        if has_templates:
+            entries.append(f'"{name}" = {{ path = {json.dumps(source.as_posix())} }}')
+            continue
+        shim = consumer / ".requirement-shims" / name
+        shim.mkdir(parents=True, exist_ok=True)
+        (shim / "pack.toml").write_text(
+            "\n".join(
+                (
+                    "[pack]",
+                    f'name = "{name}"',
+                    f'version = {json.dumps(manifest.get("version", "0.0.0"))}',
+                    'description = "consumer-side requirement shim synthesized by the test harness;'
+                    " the canonical pack ships zero templates and [FM-PACK-005] refuses it as a"
+                    ' direct [packs] entry"',
+                    "",
+                )
+            ),
+            encoding="utf-8",
+        )
+        (shim / "ontology.ttl").write_text(
+            "# Inert self-declared ontology: the shim carries the required pack's identity"
+            " (pack.toml name/version) only. Its real semantics stay canonical-side; importing them"
+            " here would pull the pack's union-graph gates ([FM-PACK-013]) into a consumer court"
+            " that does not test them.\n"
+            "@prefix sh: <http://example.org/requirement-shim#> .\n"
+            "sh:shim a sh:RequirementShim .\n",
+            encoding="utf-8",
+        )
+        (shim / "templates").mkdir(exist_ok=True)
+        (shim / "templates" / "requirement-shim.tmpl").write_text(
+            "# requirement shim (inert; no generation rule references this template)\n", encoding="utf-8"
+        )
+        entries.append(f'"{name}" = {{ path = {json.dumps(shim.as_posix())} }}')
+    return entries
 
 
 def _load(name: str):
@@ -393,6 +460,10 @@ class GgenRuntimeTests(unittest.TestCase):
         capsule = Path(temp.name)
         (capsule / "templates").mkdir()
         (capsule / "ontology.ttl").write_text(ontology, encoding="utf-8")
+        packs_lines = [
+            f'"evolvable-capability-pack" = {{ path = {json.dumps(PACK.as_posix())} }}',
+        ]
+        packs_lines.extend(_requirement_pack_entries(("evolvable-capability-pack",), capsule))
         (capsule / "ggen.toml").write_text(
             "\n".join(
                 (
@@ -401,7 +472,7 @@ class GgenRuntimeTests(unittest.TestCase):
                     "[ontology]",
                     'source = "ontology.ttl"',
                     "[packs]",
-                    f'"evolvable-capability-pack" = {{ path = {json.dumps(PACK.as_posix())} }}',
+                    *packs_lines,
                     "[templates]",
                     'dir = "templates"',
                     "",

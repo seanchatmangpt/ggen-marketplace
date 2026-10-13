@@ -13,12 +13,12 @@ The census is read-only over `.github/workflows/*.yml`.
 
 ## Family summary
 
-29 workflows. Family is the filename prefix; round is the `rNN` token.
+30 workflows. Family is the filename prefix; round is the `rNN` token.
 
 | family | files | pull_request | push | schedule | distinct job skeletons | largest identical group | largest shape group |
 |---|---|---|---|---|---|---|---|
 | develop | 2 | 2 | 1 | 0 | 2 | 1 | 1 |
-| other | 27 | 24 | 10 | 3 | 27 | 1 | 1 |
+| other | 28 | 25 | 11 | 3 | 28 | 1 | 1 |
 
 ## Consolidation candidates
 
@@ -53,6 +53,7 @@ Workflow files named inside `ci.yml`: none.
 | `dsrust-compiler.yml` | DsRust compiler qualification | pull_request, workflow_dispatch | `pull_request:.github/workflows/dsrust-compiler.yml`<br>`pull_request:marketplace.toml`<br>`pull_request:packs/dsrust-pack/**`<br>+3 more | yes | no | no | other | - | no |
 | `enterprise-connection-crown.yml` | Enterprise Connection Public Preflight | pull_request, workflow_dispatch | `pull_request:.github/workflows/enterprise-connection-crown.yml`<br>`pull_request:packs/enterprise-architecture-connection-pack/**` | yes | no | no | other | - | no |
 | `federated-capability-owner.yml` | Federated Capability Owner | pull_request, workflow_dispatch | `pull_request:.github/workflows/federated-capability-owner.yml`<br>`pull_request:ecosystem/capability-owner.toml` | yes | no | no | other | - | no |
+| `fortune5-ea-pack-tests.yml` | Fortune 5 EA pack tests | pull_request, push, workflow_dispatch | `pull_request:.github/workflows/fortune5-ea-pack-tests.yml`<br>`pull_request:packs/fortune5-enterprise-architecture-pack/**`<br>`push:.github/workflows/fortune5-ea-pack-tests.yml`<br>+1 more | yes | yes | no | other | - | no |
 | `fortune5-testing-bblock-execution.yml` | Fortune 5 Testing BBlock Execution | pull_request | `pull_request:.github/workflows/fortune5-testing-bblock-execution.yml`<br>`pull_request:packs/fortune5-testing-bblock-pack/**`<br>`pull_request:scripts/fortune5_testing_bblock_assert_root.py`<br>+1 more | yes | no | no | other | - | no |
 | `gate-witness-courts.yml` | Gate Witness Courts | pull_request, workflow_dispatch | - | yes | no | no | other | - | no |
 | `otel-weaver-ocel-pack.yml` | OTEL Weaver OCEL pack court | pull_request, workflow_dispatch | `pull_request:.github/workflows/otel-weaver-ocel-pack.yml`<br>`pull_request:packs/otel-weaver-ocel-pack/**` | yes | no | no | other | - | no |

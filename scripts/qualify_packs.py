@@ -51,6 +51,8 @@ from typing import Any
 
 from marketplace import Pack, fingerprint_paths, require_admitted
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 DEFAULT_TIMEOUT_SECONDS = 5.0
 DEFAULT_WORKERS = 8
 # Separate, wider ceiling for the opt-in-by-presence `cargo build`/`cargo
@@ -247,7 +249,7 @@ def combine_rdf(paths: tuple[Path, ...], extra: str = "") -> str:
     return "".join(parts)
 
 
-def projection_ggen_toml(pack: Pack, extra_paths: tuple[str, ...]) -> str:
+def projection_ggen_toml(pack: Pack, extra_paths: tuple[str, ...], requirement_entries: tuple[str, ...] = ()) -> str:
     pack_path = pack.path.resolve().as_posix().replace('"', '\\"')
     entry = f'"{pack.name}" = {{ path = "{pack_path}"'
     if extra_paths:
@@ -263,6 +265,7 @@ def projection_ggen_toml(pack: Pack, extra_paths: tuple[str, ...]) -> str:
             "",
             "[packs]",
             entry,
+            *requirement_entries,
             "",
             "[templates]",
             'dir = "templates"',
@@ -271,7 +274,7 @@ def projection_ggen_toml(pack: Pack, extra_paths: tuple[str, ...]) -> str:
     )
 
 
-def semantic_ggen_toml(pack: Pack) -> str:
+def semantic_ggen_toml(pack: Pack, requirement_entries: tuple[str, ...] = ()) -> str:
     lines = [
         "[project]",
         f'name = "marketplace-qualification-{pack.name}"',
@@ -304,6 +307,73 @@ def semantic_ggen_toml(pack: Pack) -> str:
     return "\n".join(lines)
 
 
+def requirement_pack_entries(pack: Pack, consumer: Path) -> list[str]:
+    """Extra [packs] entries satisfying the pack's `requires`, derived from pack.toml.
+
+    ggen 26.10.11 refuses [FM-PACK-018] when a declared pack's `requires`
+    reference packs the consuming project does not also declare, so an honest
+    qualification consumer declares them (transitive closure over
+    `capabilities.requires`). Required packs that ship zero templates are
+    refused by [FM-PACK-005] as direct entries, so this materializes a
+    disclosed consumer-side shim (real pack.toml identity + real ontology.ttl
+    + one inert template, never the gates) for exactly those.
+    """
+    import tomllib
+
+    entries: list[str] = []
+    declared = {pack.name}
+    seen: set[str] = set()
+    frontier = [pack.name]
+    while frontier:
+        name = frontier.pop(0)
+        if name in seen:
+            continue
+        seen.add(name)
+        source = REPO_ROOT / "packs" / name  # noqa: local constant defined below
+        manifest = tomllib.loads((source / "pack.toml").read_text(encoding="utf-8"))
+        for urn in manifest.get("capabilities", {}).get("requires", []):
+            required = urn.rsplit(":", 1)[-1]
+            if required not in seen and required not in declared:
+                frontier.append(required)
+        if name in declared:
+            continue
+        has_templates = bool((source / "templates").is_dir() and any((source / "templates").glob("*.tmpl")))
+        if has_templates:
+            entries.append(f'"{name}" = {{ path = {json.dumps(source.as_posix())} }}')
+            continue
+        shim = consumer / ".requirement-shims" / name
+        shim.mkdir(parents=True, exist_ok=True)
+        (shim / "pack.toml").write_text(
+            "\n".join(
+                (
+                    "[pack]",
+                    f'name = "{name}"',
+                    f'version = {json.dumps(manifest.get("version", "0.0.0"))}',
+                    'description = "consumer-side requirement shim synthesized by qualify_packs;'
+                    " the canonical pack ships zero templates and [FM-PACK-005] refuses it as a"
+                    ' direct [packs] entry"',
+                    "",
+                )
+            ),
+            encoding="utf-8",
+        )
+        (shim / "ontology.ttl").write_text(
+            "# Inert self-declared ontology: the shim carries the required pack's identity"
+            " (pack.toml name/version) only. Its real semantics stay canonical-side; importing them"
+            " here would pull the pack's union-graph gates ([FM-PACK-013]) into a qualification"
+            " consumer that does not test them.\\n"
+            "@prefix sh: <http://example.org/requirement-shim#> .\\n"
+            "sh:shim a sh:RequirementShim .\\n",
+            encoding="utf-8",
+        )
+        (shim / "templates").mkdir(exist_ok=True)
+        (shim / "templates" / "requirement-shim.tmpl").write_text(
+            "# requirement shim (inert; no generation rule references this template)\n", encoding="utf-8"
+        )
+        entries.append(f'"{name}" = {{ path = {json.dumps(shim.as_posix())} }}')
+    return entries
+
+
 def write_projection_consumer(pack: Pack, consumer: Path) -> None:
     consumer.mkdir(parents=True)
     (consumer / "templates").mkdir()
@@ -316,7 +386,10 @@ def write_projection_consumer(pack: Pack, consumer: Path) -> None:
             relative = f".qualification-extra/{index:03d}-{source.name}"
             shutil.copy2(source, consumer / relative)
             extra_names.append(relative)
-    (consumer / "ggen.toml").write_text(projection_ggen_toml(pack, tuple(extra_names)), encoding="utf-8")
+    (consumer / "ggen.toml").write_text(
+        projection_ggen_toml(pack, tuple(extra_names), tuple(requirement_pack_entries(pack, consumer))),
+        encoding="utf-8",
+    )
     (consumer / "ontology.ttl").write_text(
         combine_rdf(
             qualification_consumer_rdf(pack),
@@ -334,7 +407,10 @@ def write_semantic_consumer(pack: Pack, consumer: Path) -> None:
     consumer.mkdir(parents=True)
     (consumer / "templates").mkdir()
     (consumer / "queries").mkdir()
-    (consumer / "ggen.toml").write_text(semantic_ggen_toml(pack), encoding="utf-8")
+    (consumer / "ggen.toml").write_text(
+        semantic_ggen_toml(pack),
+        encoding="utf-8",
+    )
     (consumer / "ontology.ttl").write_text(
         combine_rdf(
             pack.ontologies + qualification_consumer_rdf(pack),

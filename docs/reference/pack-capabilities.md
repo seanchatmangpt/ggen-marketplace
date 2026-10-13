@@ -20,9 +20,9 @@ under `dynamic_in_gates` in the allowlist; gates that fail to parse are also ref
 
 | metric | value |
 |---|---|
-| packs | 309 |
-| packs with Python scripts | 107 |
-| Python files scanned | 534 |
+| packs | 327 |
+| packs with Python scripts | 126 |
+| Python files scanned | 553 |
 | files failing to parse | 0 |
 
 ## Capability by role
@@ -33,7 +33,7 @@ Files using each capability, by inferred role (`gate` = under a `gates/` directo
 | role | network | exec | fs-write | env | dynamic |
 |---|---|---|---|---|---|
 | gate | 0 | 3 | 3 | 2 | 1 |
-| verifier | 0 | 4 | 14 | 0 | 3 |
+| verifier | 0 | 7 | 17 | 0 | 3 |
 | other | 3 | 15 | 35 | 7 | 25 |
 
 ## Packs using each capability
@@ -41,8 +41,8 @@ Files using each capability, by inferred role (`gate` = under a `gates/` directo
 | capability | packs |
 |---|---|
 | network | 3 |
-| exec | 17 |
-| fs-write | 30 |
+| exec | 20 |
+| fs-write | 33 |
 | env | 6 |
 | dynamic | 12 |
 
@@ -65,10 +65,10 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 | state | packs |
 |---|---|
 | with LICENSE file | 2 |
-| lacking LICENSE file | 307 |
+| lacking LICENSE file | 325 |
 | with SPDX identifier | 6 |
-| lacking SPDX identifier | 303 |
-| lacking both | 301 |
+| lacking SPDX identifier | 321 |
+| lacking both | 319 |
 
 <details><summary>Packs lacking both</summary>
 
@@ -238,6 +238,7 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `gym-upper-ontology-pack`
 - `industry-closure-ledger-pack`
 - `industry-closure-retail-lending-profile-pack`
+- `insa-law-pack`
 - `interchangeable-parts-qualification-pack`
 - `invariant-gate-pack`
 - `jotp-benchmark-site-shadcn-pack`
@@ -301,6 +302,7 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `qualified-capability-ecology-pack`
 - `readme-diataxis-pack`
 - `receipt-provenance-unification-pack`
+- `refusal-vocabulary-pack`
 - `replication-epistemic-observability-pack`
 - `repo-as-found-pack`
 - `repo-intervention-pack`
@@ -344,6 +346,22 @@ A pack is counted as licensed if any file in its tree is named `LICENSE*`,
 - `standing-ladder-pack`
 - `star-toml-pack`
 - `state-transition-pack`
+- `strata-audit-pack`
+- `strata-cas-pack`
+- `strata-chain-pack`
+- `strata-consensus-pack`
+- `strata-governance-pack`
+- `strata-hash-pack`
+- `strata-ledger-pack`
+- `strata-net-pack`
+- `strata-pn64-pack`
+- `strata-protocol-pack`
+- `strata-signer-pack`
+- `strata-store-pack`
+- `strata-stratus-pack`
+- `strata-temprun-pack`
+- `strata-tx-pack`
+- `strata-valve-pack`
 - `strategic-doctrine-compiler-pack`
 - `strategic-doctrine-pack`
 - `supabase-pack`
