@@ -3,7 +3,12 @@
 - **Wave**: strata family hardening, 7 packs (protocol, pn64, valve, cas, signer, temprun, stratus), post-landing hardening of `eec4782d7` / `62f547b7e` / `3792e4ba6` (no sjira receipts at landing).
 - **Planning evidence**: 20 Explore lanes + 20 Plan lanes (2026-10-12/13); baseline court `/tmp/wave-baseline-qual.json`: 3 ALIVE (protocol, pn64, valve) / 4 REFUSED (FM-PACK-014 class, `GGEN_PACK_SYNC_FAILED`).
 - **Branch**: `strata-hardening-wave` from `main` @ `6a27a31ae`. Fix-forward, explicit pathspec adds, batch-ordered merges.
-- **Status**: OPEN 2026-10-13 (coordinator lane L0).
+- **Status**: LANDED 2026-10-13 (coordinator lane L0). All 19 items executed on
+  branch `strata-hardening-wave`; court 7/7 strata ALIVE
+  (/tmp/wave-p5-qual.json); strata pytest 28 passed + 229,382 subtests;
+  validate 315/315; catalog deterministic. Namespace unification landed as
+  commit bc54e0869 (deferred from Batch 1 to a single post-fix lockstep —
+  documented deviation). Final fleet full-suite run: see SYNC-WAVE-RECEIPT.
 
 ## Items (P1–P19; titles from the planning-wave record)
 
