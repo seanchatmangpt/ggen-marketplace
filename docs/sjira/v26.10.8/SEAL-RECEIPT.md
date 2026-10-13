@@ -7,10 +7,12 @@ Sealed 2026-10-08 by lane `seal-harness` per `SEAL-RUNBOOK.md` §2–§5
 **R60 refresh (2026-10-09)**: 5 records appended for the R-wave ACCEPTED
 doc-hdit certify lands (RCERT-EX4PM-26108, RCERT-FROZEN-DUCKDB-26108,
 RCERT-CASTLE-26108, RCERT-ASHGRAPHLAW-26108, RCERT-ASHSURF-26108) — see
-"R60 seal refresh" below. Records: **83**. Campaign chain head:
-`d0265c9bbdc141ac8cad21cd736c96ecf1c9d351721f133f239de250d6137508`
-(prior head `76305b343d47889cdc9e9eb2a5f4d36150c811dc0d3864034c8218c56b108fca`
-preserved as the SJIRA-V8-004C record head).
+"R60 seal refresh" below; 5 linkage-addendum records appended for the same
+five RCERTs per the V18 review — see "R88 chain-head linkage addendum" below.
+Records: **88**. Campaign chain head:
+`fe05e4a3bec2930ccb730f1e98549c2e0f9bec7fea6208058cf1bfc0d506f4f3`
+(prior head `d0265c9bbdc141ac8cad21cd736c96ecf1c9d351721f133f239de250d6137508`
+preserved as the RCERT-ASHSURF-26108 record head).
 
 ## Artifacts (this directory + seal/)
 
@@ -129,3 +131,35 @@ Parent of the refresh = prior campaign chain head
 append-only, 78 → 83 lines; new campaign chain head
 `d0265c9bbdc141ac8cad21cd736c96ecf1c9d351721f133f239de250d6137508`
 (RCERT-ASHSURF-26108).
+
+## R88 chain-head linkage addendum (2026-10-09, lane R88)
+
+V18 review found 0/5 RCERT records carry the owning repos' doc-hdit BLAKE3
+chain heads. The runbook specifies no amendment record type, so this refresh
+follows the R60 pattern: 5 `@chainlink` records appended to `seal/drafts.jsonl`,
+sealed via `cargo run --features crypto-trust --example seal_sj_record`
+(affidavit) — **sealed 5 records, 5/5 from_json().verify() OK, zero refusals**;
+heads appended to `seal/CHAIN-HEAD.txt` and `seal/standing-table.tsv`
+(append-only; prior 83 rows byte-unchanged). osx-clnr extension seal: `-`
+(UNSUPPORTED(osx-clnr-extension-harness-removed), same as R60).
+
+Each row adds `repo_chain_head` + `repo_chain_file`, verified this session by
+python3 JSONL re-parse of the owning repo's chain file (real hashes, verdict
+ACCEPTED; replay command executed exit 0 per row):
+
+| record | repo | repo_chain_file | repo_chain_head | sealed record head |
+|---|---|---|---|---|
+| RCERT-EX4PM-26108@chainlink | ex4pm | `docs/sjira/v26.10.8/ex4pm.chain.jsonl` (secondary `ex4pm.chain.17e2831.jsonl`: `29e4c748dff0577753a3c7a03787fb17e49ef855fb1f1667f25e1593d3980bab`) | `0f44312119cf7dab27119687e6767b5370d8e7775850cf8e111298d0f63396c8` | `e4afa872f965b8290c07cede04afbff76dcb402ac29cc147e6a7188a425d05f3` |
+| RCERT-FROZEN-DUCKDB-26108@chainlink | frozen-duckdb | `docs/sjira/v26.10.8/doc-hdit.receipts.jsonl` (durable doc `DOC-HDIT-CERTIFY-RECEIPT.md`) | `b19213a2e05b6e427a041c78b5068bddead9dee1efb1db7a47aeb2d394f55c20` | `15c6ffeb55df57dcf54b0157398ce6445238825032c5f505f5b462a9f431e5e1` |
+| RCERT-CASTLE-26108@chainlink | castle | `docs/sjira/v26.10.8/doc-hdit.receipts.jsonl` | `6935d9c9cefdab9c88f24c08d37314270eefa48d8c5de23351215a2baee37d9a` | `b4acffb7e637c9ee7f7909434d68748079b716862db0e6dd105661f5fc8e12b7` |
+| RCERT-ASHGRAPHLAW-26108@chainlink | ash_graphlaw | `docs/sjira/v26.10.8/ash_graphlaw.chain.jsonl` | `e95eb2f067812557a8281cf240b6649a99317c96d80f5d41ff7a56bf1ccec0bc` | `85ffd423cb0eb0ac8334dee4c2853e31ae35a279012ca3494a1733ff00fe5b1c` |
+| RCERT-ASHSURF-26108@chainlink | ash_surface | `docs/sjira/v26.10.8/doc-hdit.receipts.jsonl` | `488a29bf638068d7b0bbb9a2b9336c82d1ba013f4ccb75b6c2279fcff3d5db9e` | `fe05e4a3bec2930ccb730f1e98549c2e0f9bec7fea6208058cf1bfc0d506f4f3` |
+
+Subject/base SHAs per row are the owning-repo commit that last touched the
+chain file and its parent, resolved by `git log`/`git rev-parse` in the owning
+canonical checkout. Chain continuity: parent of the addendum = R60 head
+`d0265c9bbdc141ac8cad21cd736c96ecf1c9d351721f133f239de250d6137508`; records
+appended in campaign order (EX4PM → FROZEN-DUCKDB → CASTLE → ASHGRAPHLAW →
+ASHSURF); CHAIN-HEAD.txt 83 → 88 lines; new campaign chain head
+`fe05e4a3bec2930ccb730f1e98549c2e0f9bec7fea6208058cf1bfc0d506f4f3`
+(RCERT-ASHSURF-26108@chainlink).

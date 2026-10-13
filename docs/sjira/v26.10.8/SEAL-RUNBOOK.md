@@ -188,6 +188,37 @@ Rules:
   all courts pass). Synthetic self-check: `bash scripts/run_fleet_courts.sh
   --probe-limiter`.
 
+## Doc link validation (R152)
+
+`scripts/check_doc_links.py` is the canonical Markdown link checker
+(consolidates the throwaway R148a/b/c `/tmp` checkers). It walks a tree,
+extracts inline/angle/reference-style links and images, skips external
+schemes (`http(s)`, `mailto:`, `file:`, data, pure-anchor), and verifies
+relative targets (`.md` elision, dir→`index.md`, existing dir without
+anchor accepted) plus heading anchors (GitHub slug rules) and image file
+existence. Links inside fenced/inline code are ignored.
+
+```sh
+python3 scripts/check_doc_links.py --root docs/reference
+```
+
+JSON schema: `{"root", "files": int, "links": int,
+"broken": [{"file", "target", "reason"}]}`; exit 0 iff `broken` empty,
+1 otherwise, 2 on usage/root errors.
+
+Witnessed 2026-10-09: `docs/reference` → 57 files, 459 links, 0 broken,
+exit 0; injected `[Fake pack](../packs/does-not-exist-pack/)` and
+`[bad anchor](PACK-INDEX.md#no-such-anchor-here)` into a `/tmp` copy of
+the tree → both reported (file-not-found and anchor-not-found), exit 1.
+Note: run against a real checkout root — a `/tmp` copy of a subtree
+correctly flags links escaping the copied root.
+
+Fleet-court integration (optional step): add
+`python3 scripts/check_doc_links.py --root docs/reference` as a fail-fast
+pre-step in `scripts/run_fleet_courts.sh` alongside the pin check; the
+JSON report is court-readable and exit-code compatible with the other
+courts.
+
 ## Pin-stability law (R62)
 
 The extractor (`scripts/gen_doc_surface.py`) commit and its

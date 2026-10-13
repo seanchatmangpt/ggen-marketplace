@@ -1,0 +1,51 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix valve: <urn:strata:valve#> .
+@prefix wire: <urn:strata:protocol:wire#> .
+
+# ---------------------------------------------------------------------------
+# Strata valve refusal taxonomy. Ground truth: ~/strata/stratus/lib/stratus/
+# valve.ex — the valve's actual atom refusals (:malformed_frame,
+# :fuel_exhausted, :parent_discontinuity, :arena_failure), plus
+# ~/strata/strata_protocol/src/refusal.rs for the wire form: constant-time
+# refusal, fixed 32-byte opaque RefusalReceipt, no structure, no cause
+# channel, no error entropy on the wire.
+# ---------------------------------------------------------------------------
+
+valve:Valve a rdfs:Class ;
+    rdfs:label "Valve" ;
+    rdfs:comment "Elixir-side admission valve: intercepts candidate execution and refuses by emitting an opaque RefusalReceipt." .
+
+valve:RefusalClass a rdfs:Class ;
+    rdfs:label "RefusalClass" ;
+    rdfs:comment "Internal (non-wire) refusal class. The wire carries only the opaque digest; classes exist solely for valve-local policy and telemetry." .
+
+valve:MalformedFrameRefusal a valve:RefusalClass ;
+    rdfs:label "malformed_frame" ;
+    valve:atom "malformed_frame" ;
+    valve:module "Strata.Valve.Refusals.MalformedFrame" ;
+    rdfs:comment "Frame failed the strict 64-byte header pattern match: bad magic/version, non-zero reserved bytes, permutation > 5, or wrong total length (valve.ex validate/2 fall-through clause)." .
+
+valve:FuelExhaustedRefusal a valve:RefusalClass ;
+    rdfs:label "fuel_exhausted" ;
+    valve:atom "fuel_exhausted" ;
+    valve:module "Strata.Valve.Refusals.FuelExhausted" ;
+    rdfs:comment "Header fuel lease is zero: fuel == 0 refused before arena handoff (valve.ex validate/2 cond clause)." .
+
+valve:ParentDiscontinuityRefusal a valve:RefusalClass ;
+    rdfs:label "parent_discontinuity" ;
+    valve:atom "parent_discontinuity" ;
+    valve:module "Strata.Valve.Refusals.ParentDiscontinuity" ;
+    rdfs:comment "Frame's parent digest does not equal the valve's active parent_digest register (valve.ex validate/2 cond clause)." .
+
+valve:ArenaFailureRefusal a valve:RefusalClass ;
+    rdfs:label "arena_failure" ;
+    valve:atom "arena_failure" ;
+    valve:module "Strata.Valve.Refusals.ArenaFailure" ;
+    rdfs:comment "Arena returned {:ok, _} without a 256-bit commit_hash status map, or propagated a non-atom error (valve.ex handle_call ingest clause)." .
+
+valve:refusalReceiptLen a valve:WireFact ;
+    rdfs:label "refusal_receipt_len" ;
+    valve:length "32"^^xsd:integer ;
+    rdfs:comment "Wire length of the opaque refusal receipt (bytes); must match wire:RefusalReceipt fixedLen." .

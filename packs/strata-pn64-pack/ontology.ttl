@@ -1,0 +1,174 @@
+# strata-pn64-pack ontology — PN64 dual-word ABI + six canonical RONR transitions.
+
+@prefix st:  <https://strata.chatman.ai/ontology#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# ── PN64 bit layout (one transition per u64 word) ────────────────────
+# Ground truth: ~/strata/strata_protocol/src/pn64.rs (lane L01).
+
+st:Pn64Word a rdfs:Class ; rdfs:label "Pn64Word" ;
+    rdfs:comment "One Petri-net transition encoded in a single 64-bit word." .
+
+st:mask16 a rdf:Property ; rdfs:label "16-bit field mask" ;
+    rdfs:comment "MASK16 = 0xFFFF, applied to each 16-bit field." ;
+    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+
+st:markingBits a rdf:Property ; rdfs:label "marking bits" ;
+    rdfs:comment "bits [15:0]: marking m (token presence per place, one bit per place)." ;
+    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+
+st:preBits a rdf:Property ; rdfs:label "precondition bits" ;
+    rdfs:comment "bits [31:16]: precondition mask W- (places this transition consumes)." ;
+    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+
+st:postBits a rdf:Property ; rdfs:label "postcondition bits" ;
+    rdfs:comment "bits [47:32]: postcondition mask W+ (places this transition produces)." ;
+    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+
+st:tidBits a rdf:Property ; rdfs:label "transition id bits" ;
+    rdfs:comment "bits [55:48]: transition id." ;
+    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+
+st:flagsBits a rdf:Property ; rdfs:label "flags bits" ;
+    rdfs:comment "bits [63:56]: flags / invariant byte." ;
+    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+
+# ── Place bits (RONR noun space, 16-bit state word) ──────────────────
+# Ground truth: ~/strata/strata_protocol/src/ronr.rs (lane L07).
+
+st:N_MAIN_MOTION a rdf:Property ; rdfs:label "N_MAIN_MOTION" ;
+    rdfs:comment "class flag: a main motion is the subject" ;
+    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+
+st:N_STATED a rdf:Property ; rdfs:label "N_STATED" ;
+    rdfs:comment "chair has stated the pending question" ;
+    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+
+st:N_SECONDED a rdf:Property ; rdfs:label "N_SECONDED" ;
+    rdfs:comment "motion has been seconded" ;
+    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+
+st:N_DEBATABLE a rdf:Property ; rdfs:label "N_DEBATABLE" ;
+    rdfs:comment "floor is open for debate" ;
+    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+
+st:N_AMENDMENT_PENDING a rdf:Property ; rdfs:label "N_AMENDMENT_PENDING" ;
+    rdfs:comment "a primary amendment is the immediately pending question" ;
+    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+
+st:N_PREV_QUESTION_MOVED a rdf:Property ; rdfs:label "N_PREV_QUESTION_MOVED" ;
+    rdfs:comment "previous question (call for the question) moved" ;
+    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+
+st:N_PREV_QUESTION_ORDERED a rdf:Property ; rdfs:label "N_PREV_QUESTION_ORDERED" ;
+    rdfs:comment "previous question ordered (debate cut off)" ;
+    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+
+st:N_FLOOR a rdf:Property ; rdfs:label "N_FLOOR" ;
+    rdfs:comment "member recognized by the chair" ;
+    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+
+st:N_ADOPTED a rdf:Property ; rdfs:label "N_ADOPTED" ;
+    rdfs:comment "motion adopted by vote" ;
+    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+
+# ── Six canonical RONR transitions (opcodes 0x01-0x06) ───────────────
+
+st:RonrTransition a rdfs:Class ; rdfs:label "RonrTransition" ;
+    rdfs:comment "One procedural verb as opcode + 16-bit pre/post place mask pair." .
+
+st:transitionOpcode a rdf:Property ; rdfs:label "opcode" ;
+    rdfs:domain st:RonrTransition ; rdfs:range xsd:string .
+
+st:transitionPre a rdf:Property ; rdfs:label "pre mask" ;
+    rdfs:comment "precondition place mask; enabled iff (m & pre) == pre." ;
+    rdfs:domain st:RonrTransition ; rdfs:range xsd:string .
+
+st:transitionPost a rdf:Property ; rdfs:label "post mask" ;
+    rdfs:comment "postcondition place mask; fire computes m' = (m ^ pre) | post." ;
+    rdfs:domain st:RonrTransition ; rdfs:range xsd:string .
+
+st:transitionLabel a rdf:Property ; rdfs:label "transition label" ;
+    rdfs:domain st:RonrTransition ; rdfs:range xsd:string .
+
+# t01 — Member rises, is recognized, moves a main motion; chair states it.
+st:t01 a st:RonrTransition ;
+    st:transitionOpcode "0x01" ;
+    st:transitionPre  "0x0081" ;   # N_MAIN_MOTION | N_FLOOR
+    st:transitionPost "0x0082" ;   # N_MAIN_MOTION | N_STATED
+    st:transitionLabel "move and state main motion" .
+
+# t02 — Second: the stated motion becomes seconded and open for debate.
+st:t02 a st:RonrTransition ;
+    st:transitionOpcode "0x02" ;
+    st:transitionPre  "0x0002" ;   # N_STATED
+    st:transitionPost "0x000C" ;   # N_SECONDED | N_DEBATABLE
+    st:transitionLabel "second motion" .
+
+# t03 — Amend: while debate is open, an amendment becomes pending.
+st:t03 a st:RonrTransition ;
+    st:transitionOpcode "0x03" ;
+    st:transitionPre  "0x0008" ;   # N_DEBATABLE
+    st:transitionPost "0x0010" ;   # N_AMENDMENT_PENDING
+    st:transitionLabel "amend" .
+
+# t04 — Adopt the amendment: the amendment resolves back into open debate.
+st:t04 a st:RonrTransition ;
+    st:transitionOpcode "0x04" ;
+    st:transitionPre  "0x0010" ;   # N_AMENDMENT_PENDING
+    st:transitionPost "0x0008" ;   # N_DEBATABLE
+    st:transitionLabel "adopt amendment" .
+
+# t05 — Call the previous question: debate closes into the question-order state.
+st:t05 a st:RonrTransition ;
+    st:transitionOpcode "0x05" ;
+    st:transitionPre  "0x0008" ;   # N_DEBATABLE
+    st:transitionPost "0x0060" ;   # N_PREV_QUESTION_MOVED | N_PREV_QUESTION_ORDERED
+    st:transitionLabel "previous question" .
+
+# t06 — Vote to adopt the main motion (after previous question ordered + second).
+st:t06 a st:RonrTransition ;
+    st:transitionOpcode "0x06" ;
+    st:transitionPre  "0x0024" ;   # N_SECONDED | N_PREV_QUESTION_MOVED
+    st:transitionPost "0x0101" ;   # N_MAIN_MOTION | N_ADOPTED
+    st:transitionLabel "adopt main motion" .
+
+# ── Named individuals — L56 additive section ─────────────────────────
+# Lane L56 ONLY. Purely additive: new named individuals (plus the two
+# minimal class declarations they require). No existing individual,
+# property, or mask literal above is modified.
+
+st:Place a rdfs:Class ; rdfs:label "Place" ;
+    rdfs:comment "A named place (RONR noun) with an explicit bit offset in the 16-bit state word." .
+
+st:DaoVerb a rdfs:Class ; rdfs:label "DaoVerb" ;
+    rdfs:comment "A named procedural verb binding a human-readable value to a transition opcode." .
+
+st:bitOffset a rdf:Property ; rdfs:label "bit offset" ;
+    rdfs:comment "Zero-based bit index of this place in the 16-bit marking word." ;
+    rdfs:domain st:Place ; rdfs:range xsd:integer .
+
+st:value a rdf:Property ; rdfs:label "verb value" ;
+    rdfs:comment "Canonical wire value of a DaoVerb (pn:value alias — same namespace)." ;
+    rdfs:domain st:DaoVerb ; rdfs:range xsd:string .
+
+# Places: one individual per RONR noun, offset matching st:mask above.
+st:p_main_motion        a st:Place ; rdfs:label "N_MAIN_MOTION"        ; st:bitOffset 0 .
+st:p_stated             a st:Place ; rdfs:label "N_STATED"             ; st:bitOffset 1 .
+st:p_seconded           a st:Place ; rdfs:label "N_SECONDED"           ; st:bitOffset 2 .
+st:p_debatable          a st:Place ; rdfs:label "N_DEBATABLE"          ; st:bitOffset 3 .
+st:p_amendment_pending  a st:Place ; rdfs:label "N_AMENDMENT_PENDING"  ; st:bitOffset 4 .
+st:p_prev_question_moved    a st:Place ; rdfs:label "N_PREV_QUESTION_MOVED"   ; st:bitOffset 5 .
+st:p_prev_question_ordered  a st:Place ; rdfs:label "N_PREV_QUESTION_ORDERED" ; st:bitOffset 6 .
+st:p_floor              a st:Place ; rdfs:label "N_FLOOR"              ; st:bitOffset 7 .
+st:p_adopted            a st:Place ; rdfs:label "N_ADOPTED"            ; st:bitOffset 8 .
+
+# DaoVerbs: one per canonical transition opcode (0x01-0x06).
+st:dv_move              a st:DaoVerb ; st:value "move"              ; st:transitionOpcode "0x01" .
+st:dv_second            a st:DaoVerb ; st:value "second"            ; st:transitionOpcode "0x02" .
+st:dv_amend             a st:DaoVerb ; st:value "amend"             ; st:transitionOpcode "0x03" .
+st:dv_adopt_amendment   a st:DaoVerb ; st:value "adopt_amendment"   ; st:transitionOpcode "0x04" .
+st:dv_previous_question a st:DaoVerb ; st:value "previous_question" ; st:transitionOpcode "0x05" .
+st:dv_adopt             a st:DaoVerb ; st:value "adopt"             ; st:transitionOpcode "0x06" .
