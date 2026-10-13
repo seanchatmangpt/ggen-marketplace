@@ -4,11 +4,11 @@ Lane R102, 2026-10-09. One-table index of every campaign artifact in
 `docs/sjira/v26.10.8/`. Complements R99. Every row corresponds to an on-disk
 entry; table rows == directory contents (count verified at write time).
 
-Counts (re-verified 2026-10-13, lane L22): 46 top-level files (42 `*.md` + 4 data files:
+Counts (re-verified 2026-10-13, lane L98): 48 top-level files (43 `*.md` + 4 data files:
 `ADMISSION-LEDGER.jsonl`, `candidates.jsonl`, `candidates-v2.jsonl`, `WORKGRAPH.ttl`) + 1 `seal/`
 directory (94 entries: 88 `*.sj-record.json`
 artifacts plus `drafts.jsonl`, `standing-table.tsv`, `CHAIN-HEAD.txt`, `OSXCLNR-SEAL-HEADS.txt`,
-`build_drafts.py`, and the `retired/` subdir) = 47 directory entries total.
+`build_drafts.py`, and the `retired/` subdir) = 49 directory entries total.
 
 ## Index
 
@@ -22,6 +22,7 @@ artifacts plus `drafts.jsonl`, `standing-table.tsv`, `CHAIN-HEAD.txt`, `OSXCLNR-
 | `CENSUS-V19-CORRECTIONS.md` | Lane R101 corrections doc for the V19 staleness census figures (6 confirmed / 3 corrected per R98, zcode per R96); every row carries replay commands | census/corrections |
 | `candidates.jsonl` | Round-1 admission candidates (SJIRA-V8-002..006 shape) | candidates |
 | `candidates-v2.jsonl` | Round-2 candidates — per-repo split of SJIRA-V8-004 (004A/004B/004C) | candidates |
+| `CROSS-REPO-WAVE-RECEIPT.md` | Cross-repo high-assurance wave receipt (2026-10-13): 41 landed items across 10 repos, 10 findings, 25 ALIVE rows; subject 50a458f60 | certify receipt (big four) |
 | `CONVERGENCE.md` | Seed→generator convergence proof: regenerated seed graphs vs agent-authored, diffs classified | proof/court |
 | `DENOMINATOR-SCOPE-DECISION.md` | Lane R64 decision: gated doc-hdit coverage denominator is **module-level** | decision/law doc |
 | `DOC-HDIT-BUILD-RECEIPT.md` | Manufacturing receipt for `packs/rust-doc-hdit-pack/` + `scripts/gen_doc_surface.py` | certify receipt |
