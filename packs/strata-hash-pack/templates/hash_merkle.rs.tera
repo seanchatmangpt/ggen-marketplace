@@ -521,4 +521,333 @@ mod tests {
             }
         }
     }
+
+    // ── praxis-chain/v2-fold KAT court (L51 seam 1, rank 1) ────────────
+    //
+    // Law (spec provenance: graphlaw/src/receipt_chain.rs —
+    // build_admission_frame, OcelCausalFrame::to_hash_bytes,
+    // OcelCausalReceipt::chain, fold_in_v2_epoch):
+    //   mixed  = BLAKE3(payload_hash || meta_json)
+    //            meta_json = compact serde_json of (andon, object_ids,
+    //            obligation_count), e.g. ["Green",["law:<hex16>"],0]
+    //   obj_refs[i] = u32 LE word i of mixed (8 slots, full 256-bit hash)
+    //   frame  = 99 bytes: instruction_id:u64le | fired_mask:u64le |
+    //            denial:u64le | 8x obj_ref:u32le | ts_ns:u64le |
+    //            activity_idx:u16le | node_kind:u8 | prior_hash:32
+    //   base   = BLAKE3(prev_chain_hash || frame99)
+    //   fold   = BLAKE3(base || schema || epoch_bytes)   (v2 present)
+    // The in-test BLAKE3 below implements the single-chunk (input < 1024
+    // bytes) core of the BLAKE3 spec (O'Connor et al., 2020); every fold
+    // input in this court is under the 1024-byte chunk bound (asserted).
+    // Multi-chunk inputs are outside the court's domain and refuse loudly.
+
+    /// Minimal BLAKE3 single-chunk compression (port of the BLAKE3 spec's
+    /// reference compress; 7 rounds, 16-byte blocks, message permutation).
+    fn blake3_compress(
+        cv: [u32; 8],
+        block_words: [u32; 16],
+        block_len: u32,
+        flags: u32,
+    ) -> [u32; 16] {
+        const IV: [u32; 8] = [
+            0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A, 0x510E527F, 0x9B05688C, 0x1F83D9AB,
+            0x5BE0CD19,
+        ];
+        const MSG_PERMUTATION: [usize; 16] = [2, 6, 3, 10, 7, 0, 4, 13, 1, 11, 12, 5, 9, 14, 15, 8];
+        let mut state = [
+            cv[0], cv[1], cv[2], cv[3], cv[4], cv[5], cv[6], cv[7], IV[0], IV[1], IV[2], IV[3],
+            0, // counter lo (fixed 0: single chunk)
+            0, // counter hi
+            block_len,
+            flags,
+        ];
+        let mut m = block_words;
+        fn g(s: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize, mx: u32, my: u32) {
+            s[a] = s[a].wrapping_add(s[b]).wrapping_add(mx);
+            s[d] = (s[d] ^ s[a]).rotate_right(16);
+            s[c] = s[c].wrapping_add(s[d]);
+            s[b] = (s[b] ^ s[c]).rotate_right(12);
+            s[a] = s[a].wrapping_add(s[b]).wrapping_add(my);
+            s[d] = (s[d] ^ s[a]).rotate_right(8);
+            s[c] = s[c].wrapping_add(s[d]);
+            s[b] = (s[b] ^ s[c]).rotate_right(7);
+        }
+        fn round(s: &mut [u32; 16], m: &[u32; 16]) {
+            g(s, 0, 4, 8, 12, m[0], m[1]);
+            g(s, 1, 5, 9, 13, m[2], m[3]);
+            g(s, 2, 6, 10, 14, m[4], m[5]);
+            g(s, 3, 7, 11, 15, m[6], m[7]);
+            g(s, 0, 5, 10, 15, m[8], m[9]);
+            g(s, 1, 6, 11, 12, m[10], m[11]);
+            g(s, 2, 7, 8, 13, m[12], m[13]);
+            g(s, 3, 4, 9, 14, m[14], m[15]);
+        }
+        for _ in 0..7 {
+            round(&mut state, &m);
+            m = {
+                let mut next = [0u32; 16];
+                for i in 0..16 {
+                    next[i] = m[MSG_PERMUTATION[i]];
+                }
+                next
+            };
+        }
+        for i in 0..8 {
+            state[i] ^= state[i + 8];
+            state[i + 8] ^= cv[i];
+        }
+        state
+    }
+
+    /// BLAKE3 over a single-chunk (< 1024 byte) input. Refuses (panics)
+    /// on multi-chunk inputs — outside this court's domain.
+    fn blake3_single_chunk(input: &[u8]) -> [u8; DIGEST_LEN] {
+        const CHUNK_START: u32 = 1 << 0;
+        const CHUNK_END: u32 = 1 << 1;
+        const ROOT: u32 = 1 << 3;
+        assert!(
+            input.len() < 1024,
+            "v2-fold court domain: single-chunk BLAKE3 only (input < 1024 bytes, got {})",
+            input.len()
+        );
+        let mut cv = [
+            0x6A09E667u32, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A, 0x510E527F, 0x9B05688C, 0x1F83D9AB,
+            0x5BE0CD19,
+        ];
+        let mut block = [0u8; 64];
+        let mut block_len = 0usize;
+        let mut flags = CHUNK_START;
+        let mut pos = 0usize;
+        while pos < input.len() {
+            if block_len == 64 {
+                let out = blake3_compress(cv, to_words(&block), block_len as u32, flags);
+                cv = [
+                    out[0], out[1], out[2], out[3], out[4], out[5], out[6], out[7],
+                ];
+                block = [0u8; 64];
+                block_len = 0;
+                flags = 0;
+            }
+            let take = (64 - block_len).min(input.len() - pos);
+            block[block_len..block_len + take].copy_from_slice(&input[pos..pos + take]);
+            block_len += take;
+            pos += take;
+            if pos == input.len() {
+                flags |= CHUNK_END | ROOT;
+            } else if block_len == 0 {
+                flags |= CHUNK_START;
+            }
+        }
+        // Empty input: the loop body never runs, so the end-of-chunk
+        // flags must be set here (BLAKE3 hashes the empty chunk as
+        // CHUNK_START | CHUNK_END | ROOT).
+        if input.is_empty() {
+            flags |= CHUNK_END | ROOT;
+        }
+        let out = blake3_compress(cv, to_words(&block), block_len as u32, flags);
+        let mut digest = [0u8; 32];
+        for (i, w) in out[..8].iter().enumerate() {
+            digest[i * 4..i * 4 + 4].copy_from_slice(&w.to_le_bytes());
+        }
+        digest
+    }
+
+    fn to_words(block: &[u8; 64]) -> [u32; 16] {
+        let mut m = [0u32; 16];
+        for (i, w) in m.iter_mut().enumerate() {
+            *w = u32::from_le_bytes([
+                block[i * 4],
+                block[i * 4 + 1],
+                block[i * 4 + 2],
+                block[i * 4 + 3],
+            ]);
+        }
+        m
+    }
+
+    fn hex32(bytes: &[u8]) -> String {
+        bytes.iter().map(|b| format!("{b:02x}")).collect()
+    }
+
+    /// Build the 99-byte admission frame body (see law comment above).
+    fn frame99(mixed: [u8; 32], prev: [u8; 32], ts_ns: u64) -> [u8; 99] {
+        let mut buf = [0u8; 99];
+        for (i, w) in mixed.chunks_exact(4).enumerate() {
+            buf[24 + i * 4..28 + i * 4].copy_from_slice(w); // obj_refs u32 LE
+        }
+        buf[56..64].copy_from_slice(&ts_ns.to_le_bytes());
+        buf[67..99].copy_from_slice(&prev);
+        buf
+    }
+
+    /// The documented fold: BLAKE3(base || schema || epoch_bytes).
+    fn fold_v2(base: [u8; 32], schema: &[u8], epoch: &[u8]) -> [u8; DIGEST_LEN] {
+        let mut combined = Vec::with_capacity(32 + schema.len() + epoch.len());
+        combined.extend_from_slice(&base);
+        combined.extend_from_slice(schema);
+        combined.extend_from_slice(epoch);
+        blake3_single_chunk(&combined)
+    }
+
+    /// KAT 1: BLAKE3("") self-check of the in-test single-chunk core
+    /// (published BLAKE3 specification vector).
+    #[test]
+    fn blake3_kat_empty() {
+        assert_eq!(
+            hex32(&blake3_single_chunk(b"")),
+            "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
+        );
+    }
+
+    // Pinned fold-law KAT inputs. seed = bytes 0x00..0x1f,
+    // prev = bytes 0x20..0x3f, meta_json = compact serde_json tuple
+    // (andon, object_ids, obligation_count), epoch = the exact 730-byte
+    // serde_json serialization of strata-ledger-pack's v2 payload
+    // (extracted verbatim from the pinned receipt below). Expected
+    // digests computed independently (Python `blake3` + `b3sum`-family
+    // reference) and pinned here.
+    const KAT_SEED: [u8; 32] = [
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+        0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
+        0x1e, 0x1f,
+    ];
+    const KAT_PREV: [u8; 32] = [
+        0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e,
+        0x2f, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d,
+        0x3e, 0x3f,
+    ];
+    const KAT_META_JSON: &[u8] = b"[\"Green\",[\"law:d7f967424fb5ce4e\"],0]";
+    const KAT_SCHEMA: &[u8] = b"ggen-receipt/v2";
+
+    /// KAT 2: full v2-fold pipeline over pinned inputs — mixed, base,
+    /// fold — each stage pinned against the independent reference.
+    #[test]
+    fn v2_fold_kat_pipeline() {
+        // mixed = BLAKE3(seed || meta_json)
+        let mut m_in = Vec::new();
+        m_in.extend_from_slice(&KAT_SEED);
+        m_in.extend_from_slice(KAT_META_JSON);
+        let mixed = blake3_single_chunk(&m_in);
+        assert_eq!(
+            hex32(&mixed),
+            "7acf0ea040c60948aa2be33f88924821b5186d9592fa5ca9b1958761a5df04cc"
+        );
+        // base = BLAKE3(prev || frame99)
+        let mut b = KAT_PREV.to_vec();
+        b.extend_from_slice(&frame99(mixed, KAT_PREV, 0));
+        let base = blake3_single_chunk(&b);
+        assert_eq!(
+            hex32(&base),
+            "792fec79d57384956f166425cadbc1b51ee657df64a7793878e311d1afce40b2"
+        );
+        // fold = BLAKE3(base || schema || epoch)
+        let folded = fold_v2(base, KAT_SCHEMA, V2_EPOCH_BYTES);
+        assert_eq!(
+            hex32(&folded),
+            "de25b7dde31606b39b5232dcd5fd517461fc3acd8dfae58b9bc316ecf716da9a"
+        );
+    }
+
+    // ── Real cross-check subject: pinned copy of
+    // packs/strata-ledger-pack/.ggen-v2/receipt.json (a real emitted
+    // ggen sync receipt, chain_rule = "praxis-chain/v2-fold"). Provenance:
+    // sha256(receipt bytes) = d442823a21b912fbcd43665433f220655d43c41462732ce7c434214ee760661d,
+    // verified in-court via the module's FIPS 180-4 sha256 before use.
+    const RECEIPT_SHA256: &str =
+        "d442823a21b912fbcd43665433f220655d43c41462732ce7c434214ee760661d";
+
+    /// The exact v2 epoch serde_json bytes, verbatim from the pinned
+    /// receipt (730 bytes, compact, struct order preserved).
+    const V2_EPOCH_BYTES: &[u8] = b"{\"admission\":{\"Recorded\":[{\"evidence_id\":\"generated/ledger_consts.rs\",\"observed_outcome\":\"Pass\",\"decision\":\"Admitted\",\"reason\":\"skipped: unchanged: content identical\",\"obligations_discharged\":[],\"obligations_created\":[]},{\"evidence_id\":\"generated/ledger_state.rs\",\"observed_outcome\":\"Pass\",\"decision\":\"Admitted\",\"reason\":\"skipped: unchanged: content identical\",\"obligations_discharged\":[],\"obligations_created\":[]}]},\"standing_ceiling\":\"Green\",\"equivalence\":{\"source\":\"Equivalent\",\"compiled_binary\":\"Unknown\",\"docs\":\"Unknown\",\"tests\":\"Unknown\",\"receipts\":\"Unknown\",\"evidence\":\"Unknown\",\"gates\":\"Unknown\",\"config\":\"Equivalent\"},\"obligation_count\":{\"Tracked\":{\"required\":0,\"discharged\":0}},\"andon\":\"Green\",\"promotion_eligible\":true}";
+
+    /// The pinned receipt record fields needed to recompute its chain hash.
+    const RECEIPT_PAYLOAD_HASH_HEX: &str =
+        "d7f967424fb5ce4e16abd61dad455447ecc816337c338cef87c6104049900532";
+    const RECEIPT_PREV_CHAIN_HASH_HEX: &str =
+        "d8f10faf810424d04be7ff1410672185634be7f8d1dbd7e505cb08f78c1f3a00";
+    const RECEIPT_CHAIN_HASH_HEX: &str =
+        "557364153d472e1c63ad284c039e9eb00cc3768659f646411d18cc35ff0069ba";
+    const RECEIPT_OBJECT_IDS_JSON: &[u8] = b"[\"law:d7f967424fb5ce4e\"]";
+    const RECEIPT_TS_NS: u64 = 0;
+
+    /// KAT 3 (REAL cross-check): recompute the pinned real receipt's
+    /// chain hash with the in-test implementation of the documented
+    /// v2-fold law and assert byte equality against the stored
+    /// chain_hash_hex.
+    #[test]
+    fn real_receipt_chain_hash_recompute() {
+        let raw = RAW_RECEIPT_JSON;
+
+        // Provenance gate: pinned copy must match the recorded sha256.
+        assert_eq!(
+            hex32(&sha256(raw)),
+            RECEIPT_SHA256,
+            "pinned receipt provenance mismatch"
+        );
+
+        // Parse the exact v2 epoch bytes out of the pinned JSON by
+        // balanced-brace extraction after `"v2":` — the same bytes serde
+        // passes to fold_in_v2_epoch — and assert they match the pinned
+        // epoch constant (double bind: pin and parse must agree).
+        let marker = b"\"v2\":";
+        let start = raw
+            .windows(marker.len())
+            .position(|w| w == marker)
+            .expect("v2 marker") + marker.len();
+        assert_eq!(raw[start], b'{');
+        let mut depth = 0usize;
+        let mut end = start;
+        for (off, &c) in raw[start..].iter().enumerate() {
+            match c {
+                b'{' => depth += 1,
+                b'}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = start + off + 1;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(&raw[start..end], V2_EPOCH_BYTES, "parsed v2 bytes drifted from pinned epoch constant");
+
+        // Recompute per the documented law.
+        let payload = decode32(RECEIPT_PAYLOAD_HASH_HEX);
+        let prev = decode32(RECEIPT_PREV_CHAIN_HASH_HEX);
+        let mut meta = Vec::new();
+        meta.extend_from_slice(b"[\"Green\",");
+        meta.extend_from_slice(RECEIPT_OBJECT_IDS_JSON);
+        meta.extend_from_slice(b",0]");
+        let mut m_in = Vec::new();
+        m_in.extend_from_slice(&payload);
+        m_in.extend_from_slice(&meta);
+        let mixed = blake3_single_chunk(&m_in);
+        let mut fb = prev.to_vec();
+        fb.extend_from_slice(&frame99(mixed, prev, RECEIPT_TS_NS));
+        let base = blake3_single_chunk(&fb);
+        let recomputed = fold_v2(base, KAT_SCHEMA, &raw[start..end]);
+
+        assert_eq!(
+            hex32(&recomputed),
+            RECEIPT_CHAIN_HASH_HEX,
+            "REAL RECEIPT MISMATCH: independent v2-fold recomputation disagrees with the emitted chain_hash_hex — spec gap"
+        );
+    }
+
+    fn decode32(hex: &str) -> [u8; 32] {
+        let b = hex.as_bytes();
+        assert_eq!(b.len(), 64);
+        let mut out = [0u8; 32];
+        for i in 0..32 {
+            let hi = (b[2 * i] as char).to_digit(16).unwrap() as u8;
+            let lo = (b[2 * i + 1] as char).to_digit(16).unwrap() as u8;
+            out[i] = (hi << 4) | lo;
+        }
+        out
+    }
+
+    /// The pinned receipt bytes (single line, exactly as emitted; sha256
+    /// pinned in RECEIPT_SHA256 and re-verified in-court).
+    const RAW_RECEIPT_JSON: &[u8] = b"{\"record\":{\"version\":1,\"instruction_id\":0,\"activity_idx\":0,\"activity\":\"ggen.sync\",\"node_kind\":0,\"ts_ns\":0,\"payload_hash_hex\":\"d7f967424fb5ce4e16abd61dad455447ecc816337c338cef87c6104049900532\",\"prev_chain_hash_hex\":\"d8f10faf810424d04be7ff1410672185634be7f8d1dbd7e505cb08f78c1f3a00\",\"chain_hash_hex\":\"557364153d472e1c63ad284c039e9eb00cc3768659f646411d18cc35ff0069ba\",\"andon\":\"Green\",\"obligation_count\":0,\"object_ids\":[\"law:d7f967424fb5ce4e\"],\"signature_hex\":\"96fd8bd4f9880a77ad041d3de9f8c96ff38a47deb76b634a1a047ab9f460c6411ef60fc8b8ae8c77ff038b822cca21908ff546251747c9f5e98910c860e4f809\",\"schema\":\"ggen-receipt/v2\",\"v2\":{\"admission\":{\"Recorded\":[{\"evidence_id\":\"generated/ledger_consts.rs\",\"observed_outcome\":\"Pass\",\"decision\":\"Admitted\",\"reason\":\"skipped: unchanged: content identical\",\"obligations_discharged\":[],\"obligations_created\":[]},{\"evidence_id\":\"generated/ledger_state.rs\",\"observed_outcome\":\"Pass\",\"decision\":\"Admitted\",\"reason\":\"skipped: unchanged: content identical\",\"obligations_discharged\":[],\"obligations_created\":[]}]},\"standing_ceiling\":\"Green\",\"equivalence\":{\"source\":\"Equivalent\",\"compiled_binary\":\"Unknown\",\"docs\":\"Unknown\",\"tests\":\"Unknown\",\"receipts\":\"Unknown\",\"evidence\":\"Unknown\",\"gates\":\"Unknown\",\"config\":\"Equivalent\"},\"obligation_count\":{\"Tracked\":{\"required\":0,\"discharged\":0}},\"andon\":\"Green\",\"promotion_eligible\":true},\"chain_rule\":\"praxis-chain/v2-fold\"},\"payload\":{\"graph_hash\":\"88433da4f515e4207470b9ec03ba448fca44e8265bf976b3ab028dd82f9b5068\",\"outputs\":{\"generated/ledger_consts.rs\":\"d1d0a8e8568e8ea9585e1ecc88dd5674b66a8f3f7d2aa4bd655fa7f192008453\",\"generated/ledger_state.rs\":\"b5c47a54d36c468ec08e9a5d3a75588f4e3477b913b332fa2c2c1ab708528f44\"},\"packs\":{},\"decisions\":{\"generated/ledger_consts.rs\":\"skipped: unchanged: content identical\",\"generated/ledger_state.rs\":\"skipped: unchanged: content identical\"},\"closure\":{\"actuator\":\"ggen@26.10.11\",\"gates/010_ledger_layout.rq\":\"e1dacb178a516e841d132c621d39dbaec4e0005f8f9eff5960b115de2b350176\",\"gates/020_transition_law.rq\":\"0cc46c10827d09cbc2ed6df11248b6f2d1f97afe031c79647aa3a55e505d8a03\",\"gates/030_ocel_conformance.rq\":\"6af08d115ac4bcc756258a3380d9fcd0b67f6b127e26ad35d4dd50a7f2ec6590\",\"ontology.ttl\":\"abc83d2ea7205e89dc2c23a28aa32c721d99480bbd0176b6e2ce783b8b1b56f4\",\"queries/ledger_constants.rq\":\"cb7ba366e4d740fbe4efbb7e6293c80738634347732ccacec09cc0a75487418f\",\"templates/ledger_consts.rs.tera\":\"f388fc70b3b248bfc990fa6875df218a17d3a3b372b5c56e9d52928a4456951f\",\"templates/ledger_state.rs.tera\":\"5820f61e42f1d937b6356b03fdf46113ceaf97532d31d07b97931e44a2644f81\"},\"build_provenance\":\"d20d36cf5ff140526484d8e3eb721faa46b8fb56353e63bce1c3d33602cd3dac\"}}";
 }

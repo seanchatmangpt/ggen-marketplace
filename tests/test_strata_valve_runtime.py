@@ -44,6 +44,36 @@ IO.puts("MODULEDOC_HAS_32BYTE=" <> to_string(String.contains?(doc, "32-byte rece
 IO.puts("MODULEDOC_HAS_SHA256=" <> to_string(String.contains?(doc, "SHA-256")))
 """
 
+# Cross-language parity fixture: the SAME 32-byte hexes pinned by the Rust
+# in-test port in affidavit-core/tests/strata_refusal_seam.rs (seed
+# "seam-29-l26"). Both implementations derive
+# sha256(class_label <> 0x00 <> term_to_binary(seed)); this court proves the
+# real Elixir modules produce byte-identical receipts.
+PARITY_SEED = "seam-29-l26"
+PARITY_SEED_LABEL = "PARITYSEED"  # printed via String.upcase in the harness
+PARITY_HEXES = {
+    "ARENAFAILURE": "68384c704cf1b757df5ef4a59c831460bd275b2b78b772089a49f5cad0d60b01",
+    "FUELEXHAUSTED": "cbc0de1a5255cc1000333422ef2ac613fec4a601627c07b1afa4aa22e548e23a",
+    "MALFORMEDFRAME": "91d5817e6a7e8753e62b815b4caa54939bfa876bc48c251974665969438faf18",
+    "PARENTDISCONTINUITY": "48368e7b176a54cd8213caada897754e2d1b2ee536eed1b36c7355230477984a",
+}
+
+HARNESS += r"""
+# Cross-language parity leg: same seed as affidavit-core/tests/strata_refusal_seam.rs.
+for mod <- Strata.Valve.Refusals.classes() do
+  {:refuse, bin} = apply(mod, :refuse, ["seam-29-l26"])
+  name = mod |> Module.split() |> List.last() |> String.upcase()
+  IO.puts("#{name}_SEAM29_L26=" <> Base.encode16(bin, case: :upper))
+end
+# Tamper negatives: changed seed and changed class must both change the receipt.
+{:refuse, base} = Strata.Valve.Refusals.MalformedFrame.refuse("seam-29-l26")
+{:refuse, other_seed} = Strata.Valve.Refusals.MalformedFrame.refuse("seam-29-l27")
+{:refuse, other_class} = Strata.Valve.Refusals.FuelExhausted.refuse("seam-29-l26")
+IO.puts("TAMPER_SEED_CHANGES=" <> to_string(base != other_seed))
+IO.puts("TAMPER_CLASS_CHANGES=" <> to_string(base != other_class))
+IO.puts("SEED_DET=" <> to_string(base == elem(Strata.Valve.Refusals.MalformedFrame.refuse("seam-29-l26"), 1)))
+"""
+
 
 def have(*tools: str) -> bool:
     return all(shutil.which(t) for t in tools)
@@ -91,6 +121,13 @@ def violations(obs: dict[str, str]) -> list[str]:
         bad.append(f"MODULEDOC_HAS_32BYTE={obs.get('MODULEDOC_HAS_32BYTE')!r} != 'true'")
     if obs.get("MODULEDOC_HAS_SHA256") != "true":
         bad.append(f"MODULEDOC_HAS_SHA256={obs.get('MODULEDOC_HAS_SHA256')!r} != 'true'")
+    for cls, hex_ in PARITY_HEXES.items():
+        k = f"{cls}_SEAM29_L26"
+        if (obs.get(k) or "").lower() != hex_.lower():
+            bad.append(f"PARITY {k}={obs.get(k, '')!r} != pinned {hex_} (Elixir vs Rust divergence)")
+    for k in ("TAMPER_SEED_CHANGES", "TAMPER_CLASS_CHANGES", "SEED_DET"):
+        if obs.get(k) != "true":
+            bad.append(f"{k}={obs.get(k)!r} != 'true'")
     return bad
 
 
