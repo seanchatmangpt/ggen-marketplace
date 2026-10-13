@@ -320,3 +320,30 @@ KILLED entries stay killed.
     fitness 1.0 under the law, 0.775 :DRIFT on swap;
     order-free baseline admits everything — the law IS the
     discrimination.
+
+## Integration wave 9 — 2026-10-14
+
+83. **ENGINE VERDICT CORRECTED (L114)** — the SPARQL engine never
+    leaked: oxigraph per-row solutions proven correct; the leak
+    was the generation_rules.rs static-render branch's Tera
+    top-level row alias (loop-row fallback silently inherited a
+    sibling row's OPTIONAL binding). Fix: cross-row key
+    intersection only; heterogeneous rows fail loud FM-GEN-008;
+    COALESCE workarounds remain necessary. ggen fix committed
+    (coordinator).
+84. **three-repo golden lifecycle (L189)** — strata valve
+    derivation -> affidavit ChainBuilder<Sha256> -> sealed
+    Receipt; mint reproduces 4 pinned hexes; systematic tamper
+    REJECT (affidavit eed7c40).
+85. **castle insa gate family-aware (L196)** — rust-compiled
+    marker admits as Replayed #rust; refused-witness typed path
+    (previously would launder a refusal into success evidence);
+    the gate previously rewarded axiom fabrication —
+    adjudication documented with its residual (producer trust).
+86. **lean.witness OCEL order law (L188)** — the law IS the
+    discrimination (order-free baseline 1.0; law 0.775 :DRIFT).
+87. **AIRo finding (L185)** — airo.ttl was orphaned in its own
+    pack (zero in-pack consumers); pin moved in-pack
+    (4d50748d7); R2 typed-refusal surface gated on first making
+    AIRo non-orphaned; R3 UNSUPPORTED (no rollout-window
+    referent).
