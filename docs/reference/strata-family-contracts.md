@@ -93,6 +93,21 @@ opaque 32-byte receipt.
 | `parent_discontinuity` | parent receipt digest discontinuity |
 | `arena_failure` | arena-side failure during run |
 
+## Readiness witnesses (2026-10-13)
+
+Each of the 7 strata packs ships a committed `witness.ttl` and `verify.py`:
+
+- `witness.ttl` uses the `sw:` vocabulary (`sw:GateRun`); it records the
+  `sw:syncedGraphHash` copied from the ggen v2 sync receipt at witness time
+  (graph-level plus one per gate). These hashes are ggen BLAKE3-chain values,
+  NOT plain sha256 of file bytes.
+- `verify.py` re-runs every `gates/*.rq` SELECT against `ontology.ttl` via
+  rdflib; exit 0 iff zero rows AND the on-disk gate set matches the witnessed
+  set (else `REFUSED: gate-set mismatch`).
+- Catalog tier flips to `verified` on these files' presence.
+- The frozen-court qualification boundary (`BLOCKED:ggen-pin-26.8.11`) is
+  documented in `docs/sjira/v26.10.8/SYNC-WAVE-RECEIPT.md`.
+
 ## Regeneration
 
 Regenerate with `ggen sync run` from each pack directory; see

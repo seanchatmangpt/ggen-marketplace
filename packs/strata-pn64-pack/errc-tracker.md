@@ -9,7 +9,7 @@ numbers are from the on-disk files.
 - **Dead legacy twin `templates/pn64_masks.rs.tmpl`** — still present
   (verified on disk), old pre-ggen header format (`to: src/pn64_masks.rs`
   / `sparql:`); the `ggen.toml` generation rule names only
-  `templates/pn64_masks.rs.tera`, so the `.tmpl` is dead weight. Recorded
+  `templates/pn64_masks.rs.tera`, so the `.tmpl` is dead weight. Recorded — RESOLVED 2026-10-13: deleted at wave integration; templates/ now holds only the .tera. History retained.
   for deletion in a later transition; not deleted in this pass.
 
 ## Reduce
@@ -43,6 +43,15 @@ numbers are from the on-disk files.
   (`[FM-LAW-018] SPARQL gate gates/010_place_offset_bounds.rq refused the
   sync: ... SELECT returned 2 row(s); first row: { ?conflict =
   duplicate_offset, ?offset = 3, ?place = ...#p_debatable }`).
+
+- **V-wave (T20 exploit repair) — mask-width evasion closed by V2 regex
+  width arms**: T20 confirmed that mask literals like `"0x0"` / `"0x81"`
+  evade both the exact-string expectation and SUBSTR-based arithmetic
+  checks — wrong-width values slipped through gates that only matched
+  exact strings or did substring arithmetic. Closed by V2: regex width
+  arms requiring `^0x[0-9A-F]{4}$` on masks and `{2}$` on opcodes, so any
+  non-4-hex-digit mask or non-2-digit opcode produces a gate row.
+  Negative witnesses re-run on the repaired gate (2026-10-12).
 
 ## Create
 

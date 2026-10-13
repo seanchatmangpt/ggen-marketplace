@@ -24,7 +24,7 @@ re-read at write time.
   refusing sync with FM-LAW-018 on mutated
   ontology copies (negative witnesses run 2026-10-12, see /tmp receipts above —
   copies deleted after capture). Positive path: `ggen sync run` exit 0, twice,
-  `generated/pdu_constants.rs` byte-identical (sha256 7bf79283…) before and
+  `generated/pdu_constants.rs` byte-identical (sha256 7bf79283… at write time; superseded by ed8c2600… after the namespace-migration banner regen) before and
   after.
 - **Wire-class projection raised from untyped classes to a fixed-length
   vocabulary**: `ontology.ttl:103-115` now declares `wire:WireClass` and types
@@ -33,6 +33,16 @@ re-read at write time.
   comment, ontology.ttl:110). `queries/wire_classes.rq` + `templates/wire_constants.rs.tera`
   project them into `generated/wire_constants.rs` inside `pub mod wire` — no
   clash with the flat `pdu_constants.rs` namespace.
+
+- **V-wave (T20 exploit repair) — label-omission closed by V1 VALUES
+  presence branch**: T20 confirmed that deleting the
+  `HISTORY_QUAD_COUNT_LEN` label from the ontology let gate
+  `010_header_layout.rq` silently pass (the deleted label simply matched no
+  row) while the generated constant was silently dropped from
+  `generated/pdu_constants.rs` — gate green, artifact wrong. Closed by V1:
+  a VALUES-driven branch enumerating all 23 required labels and asserting
+  each is present, so any omission yields a gate row instead of silence.
+  Negative witnesses re-run on the repaired gate (2026-10-12).
 
 ## Create
 
