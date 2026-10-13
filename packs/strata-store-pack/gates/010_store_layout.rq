@@ -1,0 +1,50 @@
+# MESSAGE: STORE_CONSTANTS / ContentStore layout violated — fail-closed
+# presence + typed/malformed-integer arms (V7 pattern,
+# packs/strata-pn64-pack/gates/010_place_offset_bounds.rq): every required
+# constant property must be present on STORE_CONSTANTS with an xsd:integer,
+# decimal-digit value; every ContentStore witness must carry a positive
+# storeCapacity. Any missing, string-typed, malformed, or non-positive value
+# fires a violation row instead of silently passing (engine-dependent
+# fail-open; cast errors exclude rows). Any row indicates a broken layout.
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX st:   <https://strata.chatman.ai/ontology#>
+PREFIX so:   <https://strata.chatman.ai/ontology/store#>
+
+SELECT DISTINCT (COALESCE(?f1,?f2,?f3,?f4,?f5,?f6,?f7) AS ?field)
+       (COALESCE(?p1,?p2,?p3,?p4,?p5,?p6,?p7) AS ?problem)
+WHERE {
+  {
+    ?c a so:StoreConstant ; rdfs:label "STORE_CONSTANTS" .
+    FILTER NOT EXISTS { ?c so:defaultCapacity ?anyCap }
+    BIND("DEFAULT_CAPACITY" AS ?f1) BIND("missing_constant: no so:defaultCapacity on STORE_CONSTANTS" AS ?p1)
+  } UNION {
+    ?c a so:StoreConstant ; rdfs:label "STORE_CONSTANTS" .
+    FILTER NOT EXISTS { ?c so:keyLen ?anyKey }
+    BIND("KEY_LEN" AS ?f2) BIND("missing_constant: no so:keyLen on STORE_CONSTANTS" AS ?p2)
+  } UNION {
+    ?c a so:StoreConstant ; rdfs:label "STORE_CONSTANTS" ; so:defaultCapacity ?v .
+    FILTER(datatype(?v) != xsd:integer || !REGEX(STR(?v), "^[0-9]+$"))
+    BIND("DEFAULT_CAPACITY" AS ?f3) BIND("malformed_integer" AS ?p3)
+  } UNION {
+    ?c a so:StoreConstant ; rdfs:label "STORE_CONSTANTS" ; so:keyLen ?v .
+    FILTER(datatype(?v) != xsd:integer || !REGEX(STR(?v), "^[0-9]+$"))
+    BIND("KEY_LEN" AS ?f4) BIND("malformed_integer" AS ?p4)
+  } UNION {
+    ?s a st:ContentStore .
+    FILTER NOT EXISTS { ?s st:storeCapacity ?anySc }
+    BIND(CONCAT("PRESENCE: ", STR(?s)) AS ?f5)
+    BIND("missing storeCapacity" AS ?p5)
+  } UNION {
+    ?s a st:ContentStore ; st:storeCapacity ?cap .
+    FILTER(?cap <= 0)
+    BIND(CONCAT("BOUNDS: ", STR(?s)) AS ?f6)
+    BIND(CONCAT("storeCapacity must be > 0, got ", STR(?cap)) AS ?p6)
+  } UNION {
+    ?s a st:ContentStore ; st:storeCapacity ?cap .
+    FILTER(datatype(?cap) != xsd:integer || !REGEX(STR(?cap), "^[0-9]+$"))
+    BIND(CONCAT("BOUNDS: ", STR(?s)) AS ?f7)
+    BIND("malformed_integer storeCapacity" AS ?p7)
+  }
+}
+ORDER BY ?field ?problem

@@ -1,0 +1,91 @@
+# strata-store-pack ontology — content-addressed storage (roadmap slice S6).
+#
+# LAW PROVENANCE (GREENFIELD): docs/sjira/v26.10.8/STRATA-BLOCKCHAIN-ROADMAP.md
+# slice S6 — the storage layer is GREENFIELD (no prior storage code to reuse;
+# unibit law enters via ontology projection only, S5/S8 precondition outcome).
+# The model below: a ContentStore maps SHA-256 keys to stored bytes; entries
+# are content-addressed (the key IS the digest of the value); a StoreReceipt
+# records the store root; rollback rewinds the store to a marker (re-org
+# rollback for the blockchain roadmap). The generated module
+# (generated/store_engine.rs) is self-contained: the SHA-256 primitive is an
+# inline provenance copy of packs/strata-hash-pack's generated primitive,
+# exactly the remediation strata-signer-pack used in S3.
+
+@prefix st:  <https://strata.chatman.ai/ontology#> .
+@prefix rdf:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix so:   <https://strata.chatman.ai/ontology/store#> .
+
+# ── Classes ──────────────────────────────────────────────────────────
+
+st:ContentStore a rdfs:Class ; rdfs:label "ContentStore" ;
+    rdfs:comment "Content-addressed store: map from 32-byte SHA-256 keys to stored values; capacity-bounded; supports marker rollback (re-org rollback per roadmap S6)." .
+
+st:StoredEntry a rdfs:Class ; rdfs:label "StoredEntry" ;
+    rdfs:comment "One content-addressed entry: the key is the SHA-256 digest of the value." .
+
+st:StoreReceipt a rdfs:Class ; rdfs:label "StoreReceipt" ;
+    rdfs:comment "Receipt of one store state: records the store root digest so a state is replayable/verifiable." .
+
+# ── Properties ───────────────────────────────────────────────────────
+
+st:storeCapacity a rdf:Property ; rdfs:label "storeCapacity" ;
+    rdfs:comment "Hard cap on distinct entries in one ContentStore; a put past the cap is a typed refusal (gate 010 fires on capacity <= 0)." ;
+    rdfs:domain st:ContentStore ; rdfs:range xsd:integer .
+
+st:entryCount a rdf:Property ; rdfs:label "entryCount" ;
+    rdfs:comment "Number of distinct entries currently present in the store; must not exceed storeCapacity." ;
+    rdfs:domain st:ContentStore ; rdfs:range xsd:integer .
+
+st:rootDigest a rdf:Property ; rdfs:label "rootDigest" ;
+    rdfs:comment "Store root digest: SHA-256 over the concatenated in-order keys of the store; recorded by a StoreReceipt (crash-consistency court surface, roadmap S6)." ;
+    rdfs:domain st:ContentStore ; rdfs:range xsd:string .
+
+st:entryDigest a rdf:Property ; rdfs:label "entryDigest" ;
+    rdfs:comment "32-byte SHA-256 key of one StoredEntry (hex); the key IS the digest of the stored value." ;
+    rdfs:domain st:StoredEntry ; rdfs:range xsd:string .
+
+st:receiptRootDigest a rdf:Property ; rdfs:label "receiptRootDigest" ;
+    rdfs:comment "Store root recorded by a StoreReceipt; must equal the store's rootDigest at receipt time." ;
+    rdfs:domain st:StoreReceipt ; rdfs:range xsd:string .
+
+# ── Store constants (STORE_CONSTANTS individual) ─────────────────────
+
+so:StoreConstant a rdfs:Class ; rdfs:label "StoreConstant" ;
+    rdfs:comment "Carrier class for the STORE_CONSTANTS individual: projected as Rust constants by the store-consts rule." .
+
+so:STORE_CONSTANTS a so:StoreConstant ;
+    rdfs:label "STORE_CONSTANTS" ;
+    rdfs:comment "Store layout constants projected into generated/store_consts.rs and generated/store_engine.rs. Types match the generated Rust constants exactly (fail-closed: gate 010 fires on non-integer or malformed values).";
+    so:rustType "usize" ;
+    so:defaultCapacity "1048576"^^xsd:integer ;
+    so:keyLen "32"^^xsd:integer .
+
+so:defaultCapacity a rdf:Property ; rdfs:label "defaultCapacity" ;
+    rdfs:comment "DEFAULT_CAPACITY: hard cap on distinct entries in one store (1048576 = 2^20)." ;
+    rdfs:domain so:STORE_CONSTANTS ; rdfs:range xsd:integer .
+
+so:keyLen a rdf:Property ; rdfs:label "keyLen" ;
+    rdfs:comment "KEY_LEN: store key width in bytes (32, SHA-256)." ;
+    rdfs:domain so:STORE_CONSTANTS ; rdfs:range xsd:integer .
+
+# ── Witness individuals (gate 020 exercises REAL rows, never vacuously) ──
+
+so:store-witness a st:ContentStore ; rdfs:label "store-witness" ;
+    rdfs:comment "Witness store: two entries, root over their concatenated digests; the receipt mirrors the root (gate 020 receipt-mirror arm)." ;
+    st:storeCapacity "1048576"^^xsd:integer ;
+    st:entryCount "2"^^xsd:integer ;
+    st:rootDigest "0xfd90c85198a1882bda36aca2194c0e01732b0f18340dd31a047501196faa3481" .
+
+so:entry-a a st:StoredEntry ; rdfs:label "entry-a" ;
+    rdfs:comment "Content-addressed entry for value 'entry-a'." ;
+    st:entryDigest "0xfd23070f84710335f632c753de8271c419c4b34d11c185d76f5ca15b35cdbeca" .
+
+so:entry-b a st:StoredEntry ; rdfs:label "entry-b" ;
+    rdfs:comment "Content-addressed entry for value 'entry-b'." ;
+ st:entryDigest "0x52098ad5aace4b029a97f1f6d0d9c5065cb99a9badc353df6631bf73194032d7" .
+
+so:receipt-witness a st:StoreReceipt ; rdfs:label "receipt-witness" ;
+    rdfs:comment "Receipt mirroring store-witness's root (gate 020 receipt-mirror arm)." ;
+    st:receiptRootDigest "0xfd90c85198a1882bda36aca2194c0e01732b0f18340dd31a047501196faa3481" .

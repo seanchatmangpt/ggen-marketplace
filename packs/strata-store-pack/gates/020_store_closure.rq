@@ -1,0 +1,73 @@
+# MESSAGE: Store model closure violated (the PROJECTED LAW, gate-enforced).
+# Arms (any row = violation):
+#   1. presence — every ContentStore carries storeCapacity, entryCount, and
+#      rootDigest; every StoredEntry carries entryDigest; every StoreReceipt
+#      carries receiptRootDigest (fail-closed: a missing arm fires, never
+#      silently passes);
+#   2. property closure — no predicate on a store-model subject outside the
+#      declared set {storeCapacity, entryCount, rootDigest, entryDigest,
+#      receiptRootDigest, rdfs:label, rdfs:comment, rdf:type}; an unknown
+#      property is drift, not extension;
+#   3. receipt mirror — a StoreReceipt's receiptRootDigest must equal some
+#      ContentStore's rootDigest with the receipt's entry count, so a receipt
+#      for a state that was never observed fires.
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX st:   <https://strata.chatman.ai/ontology#>
+
+SELECT DISTINCT (COALESCE(?f1,?f2,?f3,?f4,?f5,?f6) AS ?field)
+       (COALESCE(?p1,?p2,?p3,?p4,?p5,?p6) AS ?problem)
+WHERE {
+  {
+    ?s a st:ContentStore .
+    FILTER NOT EXISTS { ?s st:storeCapacity ?any }
+    BIND(CONCAT("PRESENCE: ", STR(?s)) AS ?f1)
+    BIND("missing storeCapacity" AS ?p1)
+  } UNION {
+    ?s a st:ContentStore .
+    FILTER NOT EXISTS { ?s st:entryCount ?any }
+    BIND(CONCAT("PRESENCE: ", STR(?s)) AS ?f2)
+    BIND("missing entryCount" AS ?p2)
+  } UNION {
+    ?s a st:ContentStore .
+    FILTER NOT EXISTS { ?s st:rootDigest ?any }
+    BIND(CONCAT("PRESENCE: ", STR(?s)) AS ?f3)
+    BIND("missing rootDigest" AS ?p3)
+  } UNION {
+    ?e a st:StoredEntry .
+    FILTER NOT EXISTS { ?e st:entryDigest ?any }
+    BIND(CONCAT("PRESENCE: ", STR(?e)) AS ?f4)
+    BIND("missing entryDigest" AS ?p4)
+  } UNION {
+    ?r a st:StoreReceipt .
+    FILTER NOT EXISTS { ?r st:receiptRootDigest ?any }
+    BIND(CONCAT("PRESENCE: ", STR(?r)) AS ?f5)
+    BIND("missing receiptRootDigest" AS ?p5)
+  } UNION {
+    # property closure: any predicate outside the declared set on a
+    # store-model subject fires (unknown property = drift).
+    {
+      ?s a st:ContentStore ; ?p ?o .
+    } UNION {
+      ?s a st:StoredEntry ; ?p ?o .
+    } UNION {
+      ?s a st:StoreReceipt ; ?p ?o .
+    }
+    FILTER(?p NOT IN (rdf:type, rdfs:label, rdfs:comment,
+                      st:storeCapacity, st:entryCount, st:rootDigest,
+                      st:entryDigest, st:receiptRootDigest))
+    BIND(CONCAT("CLOSURE: ", STR(?s)) AS ?f6)
+    BIND(CONCAT("unknown property ", STR(?p)) AS ?p6)
+  } UNION {
+    # receipt mirror: a receipt whose root matches no store root fires.
+    ?r a st:StoreReceipt ; st:receiptRootDigest ?rr .
+    FILTER NOT EXISTS {
+      ?s a st:ContentStore ; st:rootDigest ?sr .
+      FILTER(STR(?sr) = STR(?rr))
+    }
+    BIND(CONCAT("RECEIPT-MIRROR: ", STR(?r)) AS ?f6)
+    BIND(CONCAT("receipt root matches no ContentStore rootDigest") AS ?p6)
+  }
+}
+ORDER BY ?field ?problem
