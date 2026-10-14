@@ -66,9 +66,9 @@ pub const fn fire(marking: u16, pre: u16, post: u16) -> u16 {
 /// 0x0001 | 0x0400). Exemption is exact membership, per invariants.rs.
 pub const TERMINALS: &[u16] = &[0x0101, 0x0401];
 
-/// Canonical six transitions as `(pre, post)` pairs (mirror of PRE_MASKS /
+/// Canonical transitions as `(pre, post)` pairs (mirror of PRE_MASKS /
 /// POST_MASKS for the structural invariants).
-pub const TRANSITIONS: [(u16, u16); 6] = [
+pub const TRANSITIONS: [(u16, u16); {{ results | length }}] = [
 {% for row in results %}
     ({{ row.pre }}, {{ row.post }}),
 {% endfor %}];
@@ -136,7 +136,7 @@ mod tests {
             (0x0008, 0x0060, 0x0005),
             (0x0024, 0x0101, 0x0006),
         ];
-        assert_eq!(VERB_COUNT, 6);
+        assert_eq!(VERB_COUNT, {{ results | length }});
         for (pre, post, idx) in want {
             assert_eq!(PRE_MASKS[idx - 1], pre, "pre mismatch at opcode {idx:#04x}");
             assert_eq!(POST_MASKS[idx - 1], post, "post mismatch at opcode {idx:#04x}");
@@ -162,23 +162,44 @@ mod tests {
         assert_eq!(has_deadlock_excluding(&set, &TRANSITIONS, &[]), None);
     }
 
-    /// The adopted terminal (post of opcode 0x06) enables nothing by design:
-    /// reported as a deadlock without the exemption, clean under TERMINALS.
+    /// The exemption mechanism, courted directly on an explicit table rather
+    /// than via TRANSITIONS: the widened ontology's deliberately ungated
+    /// pn:DivisionOfAssembly (opcode 12, pre=0) is enabled everywhere, so no
+    /// real net marking is ever dead and a TRANSITIONS-based deadlock fixture
+    /// would be vacuous. A local six-net table restores the canonical
+    /// deadlock topology (gate 020 exempts opcode 12 by exact membership,
+    /// same pattern).
     #[test]
     fn adopted_terminal_is_exempt() {
-        let set = reachable_bitset(0x0101, &TRANSITIONS);
-        assert_eq!(has_deadlock_excluding(&set, &TRANSITIONS, &[]), Some(0x0101));
-        assert_eq!(has_deadlock_excluding(&set, &TRANSITIONS, TERMINALS), None);
+        let six: [(u16, u16); 6] = [
+            (0x0081, 0x0082),
+            (0x0002, 0x000C),
+            (0x0008, 0x0010),
+            (0x0010, 0x0008),
+            (0x0008, 0x0060),
+            (0x0024, 0x0101),
+        ];
+        let set = reachable_bitset(0x0101, &six);
+        assert_eq!(has_deadlock_excluding(&set, &six, &[]), Some(0x0101));
+        assert_eq!(has_deadlock_excluding(&set, &six, TERMINALS), None);
     }
 
-    /// Deliberately starved start (STATED only): the net dead-ends at
-    /// 0x0141; the exemption is exact membership, so only exempting that
-    /// marking clears the gate.
+    /// Exact-membership exemption courted on an explicit starved-start table:
+    /// from STATED (0x0002) the canonical six-net dead-ends at 0x0141, and
+    /// only exempting that exact marking clears the gate.
     #[test]
     fn deadlocked_net_reported_and_exempt() {
-        let set = reachable_bitset(0x0002, &TRANSITIONS);
-        assert_eq!(has_deadlock_excluding(&set, &TRANSITIONS, &[]), Some(0x0141));
-        assert_eq!(has_deadlock_excluding(&set, &TRANSITIONS, &[0x0141]), None);
+        let six: [(u16, u16); 6] = [
+            (0x0081, 0x0082),
+            (0x0002, 0x000C),
+            (0x0008, 0x0010),
+            (0x0010, 0x0008),
+            (0x0008, 0x0060),
+            (0x0024, 0x0101),
+        ];
+        let set = reachable_bitset(0x0002, &six);
+        assert_eq!(has_deadlock_excluding(&set, &six, &[]), Some(0x0141));
+        assert_eq!(has_deadlock_excluding(&set, &six, &[0x0141]), None);
     }
 
     /// Court: on the enabled domain ((m & pre) == pre), the ungated XOR fire
