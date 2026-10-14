@@ -14,23 +14,61 @@
 pub const MASK16: u64 = 0xFFFF;
 
 /// Number of canonical RONR transitions projected from the ontology.
-pub const VERB_COUNT: usize = 6;
+pub const VERB_COUNT: usize = 25;
 
 /// Precondition place masks `W-` per canonical opcode (index = opcode - 1).
 pub const PRE_MASKS: [u16; VERB_COUNT] = [
 
 
-    0x0081, // opcode 0x01 move and state main motion
+    129, // opcode 1 
 
-    0x0002, // opcode 0x02 second motion
+    2, // opcode 2 
 
-    0x0008, // opcode 0x03 amend
+    8, // opcode 3 
 
-    0x0010, // opcode 0x04 adopt amendment
+    16, // opcode 4 
 
-    0x0008, // opcode 0x05 previous question
+    8, // opcode 5 
 
-    0x0024, // opcode 0x06 adopt main motion
+    36, // opcode 6 
+
+    12, // opcode 7 
+
+    12, // opcode 8 
+
+    8, // opcode 9 
+
+    8, // opcode 10 
+
+    8, // opcode 11 
+
+    0, // opcode 12 
+
+    12, // opcode 13 
+
+    12, // opcode 14 
+
+    12, // opcode 15 
+
+    2, // opcode 16 
+
+    2, // opcode 17 
+
+    8192, // opcode 18 
+
+    8, // opcode 19 
+
+    8, // opcode 20 
+
+    12, // opcode 21 
+
+    512, // opcode 22 
+
+    256, // opcode 23 
+
+    256, // opcode 24 
+
+    8, // opcode 25 
 
 ];
 
@@ -38,17 +76,55 @@ pub const PRE_MASKS: [u16; VERB_COUNT] = [
 pub const POST_MASKS: [u16; VERB_COUNT] = [
 
 
-    0x0082, // opcode 0x01 move and state main motion
+    130, // opcode 1 
 
-    0x000C, // opcode 0x02 second motion
+    12, // opcode 2 
 
-    0x0010, // opcode 0x03 amend
+    16, // opcode 3 
 
-    0x0008, // opcode 0x04 adopt amendment
+    8, // opcode 4 
 
-    0x0060, // opcode 0x05 previous question
+    96, // opcode 5 
 
-    0x0101, // opcode 0x06 adopt main motion
+    257, // opcode 6 
+
+    512, // opcode 7 
+
+    1024, // opcode 8 
+
+    2048, // opcode 9 
+
+    4096, // opcode 10 
+
+    8192, // opcode 11 
+
+    16384, // opcode 12 
+
+    32768, // opcode 13 
+
+    6, // opcode 14 
+
+    8, // opcode 15 
+
+    1024, // opcode 16 
+
+    16, // opcode 17 
+
+    12, // opcode 18 
+
+    128, // opcode 19 
+
+    128, // opcode 20 
+
+    128, // opcode 21 
+
+    12, // opcode 22 
+
+    1024, // opcode 23 
+
+    12, // opcode 24 
+
+    16, // opcode 25 
 
 ];
 
@@ -86,17 +162,55 @@ pub const TERMINALS: &[u16] = &[0x0101, 0x0401];
 /// POST_MASKS for the structural invariants).
 pub const TRANSITIONS: [(u16, u16); 6] = [
 
-    (0x0081, 0x0082),
+    (129, 130),
 
-    (0x0002, 0x000C),
+    (2, 12),
 
-    (0x0008, 0x0010),
+    (8, 16),
 
-    (0x0010, 0x0008),
+    (16, 8),
 
-    (0x0008, 0x0060),
+    (8, 96),
 
-    (0x0024, 0x0101),
+    (36, 257),
+
+    (12, 512),
+
+    (12, 1024),
+
+    (8, 2048),
+
+    (8, 4096),
+
+    (8, 8192),
+
+    (0, 16384),
+
+    (12, 32768),
+
+    (12, 6),
+
+    (12, 8),
+
+    (2, 1024),
+
+    (2, 16),
+
+    (8192, 12),
+
+    (8, 128),
+
+    (8, 128),
+
+    (12, 128),
+
+    (512, 12),
+
+    (256, 1024),
+
+    (256, 12),
+
+    (8, 16),
 ];
 
 /// BFS over the marking graph (≤65536 markings) from `m0`; 1-safe boolean

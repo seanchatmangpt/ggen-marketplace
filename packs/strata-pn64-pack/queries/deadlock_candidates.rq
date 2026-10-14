@@ -1,6 +1,6 @@
 # deadlock_candidates.rq — structural siphon PRE-FILTER as a pure SPARQL 1.1 query.
 #
-# EXACT SEMANTICS
+# EXACT SEMANTICS (unchanged from the original st:-schema query)
 # ---------------
 # A transition t is returned when SOME place emitted by t's post mask is
 # consumed by NO transition's pre mask (including t itself):
@@ -13,20 +13,17 @@
 # reading, "NO emitted place is consumed anywhere", is vacuous on this
 # net: every canonical transition re-consumes something.)
 #
-# BIT ARITHMETIC (no bitwise ops in SPARQL 1.1)
+# BIT ARITHMETIC (no bitwise ops, no exponentiation in SPARQL 1.1)
 # ---------------------------------------------
-# Mask literals are hex STRINGS ("0x0082"); SPARQL 1.1 has no hex->int
-# cast, no bitwise AND, and no modulo. bitSet(mask, b) is computed
-# arithmetically: hex digit j (0 = least significant) sits at 1-based
-# character position 6-j of "0xWWWW"; its value is decoded by nested IF;
-# the bit is FLOOR(d/w) mod 2, written as FLOOR(d/w) - 2*FLOOR(d/(2*w)),
-# where w = 2^(b mod 4) and b mod 4 = b - 4*FLOOR(b/4). Digits are
-# LCASEd before the IF chain (mask literals use uppercase hex:
-# xsd:integer("C") is a type error, and rdflib evaluates errors as
-# false).
+# Masks are xsd:integer literals in the ground-truth ontology
+# (~/strata/ontology.ttl). bitSet(mask, b) = FLOOR(mask/2^b) mod 2, written
+# as FLOOR(m/w) - 2*FLOOR(m/(2w)) with w = 2^b supplied by a 16-way nested
+# IF chain inlined at each use (no POW function in SPARQL 1.1; rdflib
+# evaluates filter errors as false, so a type error would silently drop
+# rows). ?b is bounded to 0..15 by gates/010_place_offset_bounds.rq.
 #
-# NOTE FOR ALTERNATE ENGINES: rdflib 7.6.0 does NOT substitute outer
-# query variables inside BIND within FILTER NOT EXISTS (silent empty
+# ENGINE NOTE (carried over): rdflib does NOT substitute outer query
+# variables inside BIND within FILTER EXISTS/NOT EXISTS (silent empty
 # match), so the bit tests are fully inlined FILTER expressions instead
 # of BIND steps. Oxigraph/Jena substitute correctly; ggen's SPARQL
 # engine must be checked before reuse there.
@@ -35,33 +32,39 @@
 # -----------------------------------------------------------------
 # 1. Ignores the marking: a hit may be merely permanently disabled, not
 #    structurally deadlocked.
-# 2. Ignores the fire rule m' = (m ^ pre) | post, under which places not
+# 2. Ignores the fire law m' = (m & !pre) | post, under which places not
 #    in pre are preserved rather than consumed — per-place unconsumed-
 #    output over-approximates token loss.
 # 3. Siphons are place-SET properties; this per-transition, per-place
 #    filter has false positives AND false negatives. Confirm any hit
 #    with a real reachability/liveness analysis (Rust kernel courts).
 #
-# Expected hits on the six canonical transitions: 0x05 and 0x06 (the
-# deliberately terminal states N_PREV_QUESTION_ORDERED / N_ADOPTED),
-# exempted from the deadlock gate via the template's TERMINALS table.
-PREFIX st: <https://strata.chatman.ai/ontology#>
+# Measured candidates under the 25-transition RONR table against
+# ~/strata/ontology.ttl (rdflib execution): 8 rows, opcodes 5, 8, 9, 10,
+# 12, 13, 16, 23 — the transitions emitting an unconsumed place bit
+# (unconsumed RONR place bits: {6, 10, 11, 12, 14, 15}). Terminal states
+# (N_PREV_QUESTION_ORDERED, N_ADOPTED, N_COMMITTED, ...) are exempted from
+# the deadlock gate via the template's TERMINALS table.
+PREFIX pn: <https://strata.chatman.ai/ontology/pn64#>
 
 SELECT ?t ?opcode ?label
 WHERE {
-  ?t a st:RonrTransition ;
-     st:transitionOpcode ?opcode ;
-     st:transitionPost   ?post ;
-     st:transitionLabel  ?label .
+  ?t a pn:Transition ;
+     pn:opcode ?opcode ;
+     pn:postMask ?post .
+  FILTER (?opcode <= 25)
+  OPTIONAL { ?t rdfs:label ?label }
 
   FILTER EXISTS {
-    ?p a st:Place ;
-       st:bitOffset ?b .
-    FILTER ( FLOOR(IF(LCASE(SUBSTR(?post, 6 - FLOOR(?b / 4), 1)) = "f", 15, IF(LCASE(SUBSTR(?post, 6 - FLOOR(?b / 4), 1)) = "e", 14, IF(LCASE(SUBSTR(?post, 6 - FLOOR(?b / 4), 1)) = "d", 13, IF(LCASE(SUBSTR(?post, 6 - FLOOR(?b / 4), 1)) = "c", 12, IF(LCASE(SUBSTR(?post, 6 - FLOOR(?b / 4), 1)) = "b", 11, IF(LCASE(SUBSTR(?post, 6 - FLOOR(?b / 4), 1)) = "a", 10, xsd:integer(LCASE(SUBSTR(?post, 6 - FLOOR(?b / 4), 1))))))))) / IF(?b - 4 * FLOOR(?b / 4) = 0, 1, IF(?b - 4 * FLOOR(?b / 4) = 1, 2, IF(?b - 4 * FLOOR(?b / 4) = 2, 4, 8)))) - 2 * FLOOR(IF(LCASE(SUBSTR(?post, 6 - FLOOR(?b / 4), 1)) = "f", 15, IF(LCASE(SUBSTR(?post, 6 - FLOOR(?b / 4), 1)) = "e", 14, IF(LCASE(SUBSTR(?post, 6 - FLOOR(?b / 4), 1)) = "d", 13, IF(LCASE(SUBSTR(?post, 6 - FLOOR(?b / 4), 1)) = "c", 12, IF(LCASE(SUBSTR(?post, 6 - FLOOR(?b / 4), 1)) = "b", 11, IF(LCASE(SUBSTR(?post, 6 - FLOOR(?b / 4), 1)) = "a", 10, xsd:integer(LCASE(SUBSTR(?post, 6 - FLOOR(?b / 4), 1))))))))) / (2 * IF(?b - 4 * FLOOR(?b / 4) = 0, 1, IF(?b - 4 * FLOOR(?b / 4) = 1, 2, IF(?b - 4 * FLOOR(?b / 4) = 2, 4, 8))))) = 1 )
+    ?p a pn:Place ;
+       pn:bitOffset ?b .
+    FILTER ( FLOOR(?post/IF(?b=0,1,IF(?b=1,2,IF(?b=2,4,IF(?b=3,8,IF(?b=4,16,IF(?b=5,32,IF(?b=6,64,IF(?b=7,128,IF(?b=8,256,IF(?b=9,512,IF(?b=10,1024,IF(?b=11,2048,IF(?b=12,4096,IF(?b=13,8192,IF(?b=14,16384,IF(?b=15,32768,32768))))))))))))))))) - 2*FLOOR(?post/(2*IF(?b=0,1,IF(?b=1,2,IF(?b=2,4,IF(?b=3,8,IF(?b=4,16,IF(?b=5,32,IF(?b=6,64,IF(?b=7,128,IF(?b=8,256,IF(?b=9,512,IF(?b=10,1024,IF(?b=11,2048,IF(?b=12,4096,IF(?b=13,8192,IF(?b=14,16384,IF(?b=15,32768,32768)))))))))))))))))) = 1 )
     FILTER NOT EXISTS {
-      ?t2 a st:RonrTransition ;
-          st:transitionPre ?pre .
-      FILTER ( FLOOR(IF(LCASE(SUBSTR(?pre, 6 - FLOOR(?b / 4), 1)) = "f", 15, IF(LCASE(SUBSTR(?pre, 6 - FLOOR(?b / 4), 1)) = "e", 14, IF(LCASE(SUBSTR(?pre, 6 - FLOOR(?b / 4), 1)) = "d", 13, IF(LCASE(SUBSTR(?pre, 6 - FLOOR(?b / 4), 1)) = "c", 12, IF(LCASE(SUBSTR(?pre, 6 - FLOOR(?b / 4), 1)) = "b", 11, IF(LCASE(SUBSTR(?pre, 6 - FLOOR(?b / 4), 1)) = "a", 10, xsd:integer(LCASE(SUBSTR(?pre, 6 - FLOOR(?b / 4), 1))))))))) / IF(?b - 4 * FLOOR(?b / 4) = 0, 1, IF(?b - 4 * FLOOR(?b / 4) = 1, 2, IF(?b - 4 * FLOOR(?b / 4) = 2, 4, 8)))) - 2 * FLOOR(IF(LCASE(SUBSTR(?pre, 6 - FLOOR(?b / 4), 1)) = "f", 15, IF(LCASE(SUBSTR(?pre, 6 - FLOOR(?b / 4), 1)) = "e", 14, IF(LCASE(SUBSTR(?pre, 6 - FLOOR(?b / 4), 1)) = "d", 13, IF(LCASE(SUBSTR(?pre, 6 - FLOOR(?b / 4), 1)) = "c", 12, IF(LCASE(SUBSTR(?pre, 6 - FLOOR(?b / 4), 1)) = "b", 11, IF(LCASE(SUBSTR(?pre, 6 - FLOOR(?b / 4), 1)) = "a", 10, xsd:integer(LCASE(SUBSTR(?pre, 6 - FLOOR(?b / 4), 1))))))))) / (2 * IF(?b - 4 * FLOOR(?b / 4) = 0, 1, IF(?b - 4 * FLOOR(?b / 4) = 1, 2, IF(?b - 4 * FLOOR(?b / 4) = 2, 4, 8))))) = 1 )
+      ?t2 a pn:Transition ;
+          pn:opcode ?o2 ;
+          pn:preMask ?pre .
+      FILTER (?o2 <= 25)
+      FILTER ( FLOOR(?pre/IF(?b=0,1,IF(?b=1,2,IF(?b=2,4,IF(?b=3,8,IF(?b=4,16,IF(?b=5,32,IF(?b=6,64,IF(?b=7,128,IF(?b=8,256,IF(?b=9,512,IF(?b=10,1024,IF(?b=11,2048,IF(?b=12,4096,IF(?b=13,8192,IF(?b=14,16384,IF(?b=15,32768,32768))))))))))))))))) - 2*FLOOR(?pre/(2*IF(?b=0,1,IF(?b=1,2,IF(?b=2,4,IF(?b=3,8,IF(?b=4,16,IF(?b=5,32,IF(?b=6,64,IF(?b=7,128,IF(?b=8,256,IF(?b=9,512,IF(?b=10,1024,IF(?b=11,2048,IF(?b=12,4096,IF(?b=13,8192,IF(?b=14,16384,IF(?b=15,32768,32768)))))))))))))))))) = 1 )
     }
   }
 }

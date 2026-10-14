@@ -1,154 +1,209 @@
-# strata-pn64-pack ontology — PN64 dual-word ABI + six canonical RONR transitions.
-
+# strata-pn64-pack ontology — PN64/OCEL64 vocabulary + RONR/DAO transitions.
+# Reconciled 2026-10-13 with the tree source of truth ~/strata/ontology.ttl
+# (pn64 section ported verbatim; the legacy st: RonrTransition schema —
+# 6 hex-string transitions, N_* properties — is superseded).
 @prefix st:  <https://strata.chatman.ai/ontology#> .
 @prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
 @prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix pn:   <https://strata.chatman.ai/ontology/pn64#> .
 
-# ── PN64 bit layout (one transition per u64 word) ────────────────────
-# Ground truth: ~/strata/strata_protocol/src/pn64.rs (lane L01).
+# ── PN64 / OCEL64 vocabulary ─────────────────────────────────────────
+# 16 place slots packed into a u16 status word; transitions are RONR
+# opcode individuals with pre/post masks over that word. Integer values
+# below are the hex constants of the PN64 ABI in decimal (e.g. 0x0081=129).
 
-st:Pn64Word a rdfs:Class ; rdfs:label "Pn64Word" ;
-    rdfs:comment "One Petri-net transition encoded in a single 64-bit word." .
+pn:Place a rdfs:Class ; rdfs:label "Place" ;
+    rdfs:comment "One of 16 PN64 place slots packed into the u16 status word." .
 
-# ── Place bits (RONR noun space, 16-bit state word) ──────────────────
-# Ground truth: ~/strata/strata_protocol/src/ronr.rs (lane L07).
+pn:Transition a rdfs:Class ; rdfs:label "Transition" ;
+    rdfs:comment "A PN64 transition with opcode and pre/post masks over the status word." .
 
-st:N_MAIN_MOTION a rdf:Property ; rdfs:label "N_MAIN_MOTION" ;
-    rdfs:comment "class flag: a main motion is the subject" ;
-    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+pn:DaoVerb a rdfs:Class ; rdfs:label "DaoVerb" ;
+    rdfs:comment "DAO action verb sector (high nibble sector class)." .
 
-st:N_STATED a rdf:Property ; rdfs:label "N_STATED" ;
-    rdfs:comment "chair has stated the pending question" ;
-    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+pn:DaoNoun a rdfs:Class ; rdfs:label "DaoNoun" ;
+    rdfs:comment "DAO action noun sector (object class)." .
 
-st:N_SECONDED a rdf:Property ; rdfs:label "N_SECONDED" ;
-    rdfs:comment "motion has been seconded" ;
-    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+pn:bitOffset a rdf:Property ; rdfs:label "bit offset" ;
+    rdfs:domain pn:Place ; rdfs:range xsd:integer ;
+    rdfs:comment "Bit offset of a place slot within the u16 status word." .
 
-st:N_DEBATABLE a rdf:Property ; rdfs:label "N_DEBATABLE" ;
-    rdfs:comment "floor is open for debate" ;
-    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+pn:opcode a rdf:Property ; rdfs:label "opcode" ;
+    rdfs:domain pn:Transition ; rdfs:range xsd:integer .
 
-st:N_AMENDMENT_PENDING a rdf:Property ; rdfs:label "N_AMENDMENT_PENDING" ;
-    rdfs:comment "a primary amendment is the immediately pending question" ;
-    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+pn:preMask a rdf:Property ; rdfs:label "pre mask" ;
+    rdfs:domain pn:Transition ; rdfs:range xsd:integer ;
+    rdfs:comment "Required status-word bits before firing." .
 
-st:N_PREV_QUESTION_MOVED a rdf:Property ; rdfs:label "N_PREV_QUESTION_MOVED" ;
-    rdfs:comment "previous question (call for the question) moved" ;
-    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+pn:postMask a rdf:Property ; rdfs:label "post mask" ;
+    rdfs:domain pn:Transition ; rdfs:range xsd:integer ;
+    rdfs:comment "Status-word bits set after firing." .
 
-st:N_PREV_QUESTION_ORDERED a rdf:Property ; rdfs:label "N_PREV_QUESTION_ORDERED" ;
-    rdfs:comment "previous question ordered (debate cut off)" ;
-    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+pn:value a rdf:Property ; rdfs:label "value" ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Named-constant byte value of a DAO verb or noun." .
 
-st:N_FLOOR a rdf:Property ; rdfs:label "N_FLOOR" ;
-    rdfs:comment "member recognized by the chair" ;
-    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+# Place slots 0..14 (pn:slot0 = bit 0 ... pn:slot14 = bit 14). Bit 15 is
+# named pn:Committed (semantic name; Rust side ronr_full.rs N_COMMITTED) --
+# the duplicate pn:slot15 individual was removed by lane L97.
+pn:slot0 a pn:Place ; pn:bitOffset 0 .
+pn:slot1 a pn:Place ; pn:bitOffset 1 .
+pn:slot2 a pn:Place ; pn:bitOffset 2 .
+pn:slot3 a pn:Place ; pn:bitOffset 3 .
+pn:slot4 a pn:Place ; pn:bitOffset 4 .
+pn:slot5 a pn:Place ; pn:bitOffset 5 .
+pn:slot6 a pn:Place ; pn:bitOffset 6 .
+pn:slot7 a pn:Place ; pn:bitOffset 7 .
+pn:slot8 a pn:Place ; pn:bitOffset 8 .
+pn:slot9 a pn:Place ; pn:bitOffset 9 .
+pn:slot10 a pn:Place ; pn:bitOffset 10 .
+pn:slot11 a pn:Place ; pn:bitOffset 11 .
+pn:slot12 a pn:Place ; pn:bitOffset 12 .
+pn:slot13 a pn:Place ; pn:bitOffset 13 .
+pn:slot14 a pn:Place ; pn:bitOffset 14 .
 
-st:N_ADOPTED a rdf:Property ; rdfs:label "N_ADOPTED" ;
-    rdfs:comment "motion adopted by vote" ;
-    rdfs:domain st:Pn64Word ; rdfs:range xsd:string .
+# RONR canonical six transitions (0x01..0x06)
+pn:MoveMainMotion a pn:Transition ;
+    pn:opcode 1 ; pn:preMask 129 ; pn:postMask 130 .
 
-# ── Six canonical RONR transitions (opcodes 0x01-0x06) ───────────────
+pn:SecondMotion a pn:Transition ;
+    pn:opcode 2 ; pn:preMask 2 ; pn:postMask 12 .
 
-st:RonrTransition a rdfs:Class ; rdfs:label "RonrTransition" ;
-    rdfs:comment "One procedural verb as opcode + 16-bit pre/post place mask pair." .
+pn:MoveToAmend a pn:Transition ;
+    pn:opcode 3 ; pn:preMask 8 ; pn:postMask 16 .
 
-st:transitionOpcode a rdf:Property ; rdfs:label "opcode" ;
-    rdfs:domain st:RonrTransition ; rdfs:range xsd:string .
+pn:AdoptAmendment a pn:Transition ;
+    pn:opcode 4 ; pn:preMask 16 ; pn:postMask 8 .
 
-st:transitionPre a rdf:Property ; rdfs:label "pre mask" ;
-    rdfs:comment "precondition place mask; enabled iff (m & pre) == pre." ;
-    rdfs:domain st:RonrTransition ; rdfs:range xsd:string .
+pn:CallPreviousQuestion a pn:Transition ;
+    pn:opcode 5 ; pn:preMask 8 ; pn:postMask 96 .
 
-st:transitionPost a rdf:Property ; rdfs:label "post mask" ;
-    rdfs:comment "postcondition place mask; fire computes m' = (m & !pre) | post on the enabled domain ((m & pre) == pre); the XOR form (m ^ pre) | post is equivalent ONLY there and must not be used ungated." ;
-    rdfs:domain st:RonrTransition ; rdfs:range xsd:string .
+pn:VoteAdoptMainMotion a pn:Transition ;
+    pn:opcode 6 ; pn:preMask 36 ; pn:postMask 257 .
 
-st:transitionLabel a rdf:Property ; rdfs:label "transition label" ;
-    rdfs:domain st:RonrTransition ; rdfs:range xsd:string .
+# RONR extension transitions (0x07..0x0C), mirroring src/ronr.rs TRANSITIONS
+pn:LayOnTable a pn:Transition ;            # 0x07 pre=N_SECONDED|N_DEBATABLE post=N_TABLED
+    pn:opcode 7 ; pn:preMask 12 ; pn:postMask 512 .
 
-# t01 — Member rises, is recognized, moves a main motion; chair states it.
-st:t01 a st:RonrTransition ;
-    st:transitionOpcode "0x01" ;
-    st:transitionPre  "0x0081" ;   # N_MAIN_MOTION | N_FLOOR
-    st:transitionPost "0x0082" ;   # N_FLOOR | N_STATED
-    st:transitionLabel "move and state main motion" .
+pn:PostponeIndefinitely a pn:Transition ;  # 0x08 pre=N_SECONDED|N_DEBATABLE post=N_POSTPONED_INDEF
+    pn:opcode 8 ; pn:preMask 12 ; pn:postMask 1024 .
 
-# t02 — Second: the stated motion becomes seconded and open for debate.
-st:t02 a st:RonrTransition ;
-    st:transitionOpcode "0x02" ;
-    st:transitionPre  "0x0002" ;   # N_STATED
-    st:transitionPost "0x000C" ;   # N_SECONDED | N_DEBATABLE
-    st:transitionLabel "second motion" .
+pn:Recess a pn:Transition ;                # 0x09 pre=N_DEBATABLE post=N_RECESS_PENDING
+    pn:opcode 9 ; pn:preMask 8 ; pn:postMask 2048 .
 
-# t03 — Amend: while debate is open, an amendment becomes pending.
-st:t03 a st:RonrTransition ;
-    st:transitionOpcode "0x03" ;
-    st:transitionPre  "0x0008" ;   # N_DEBATABLE
-    st:transitionPost "0x0010" ;   # N_AMENDMENT_PENDING
-    st:transitionLabel "amend" .
+pn:Adjourn a pn:Transition ;               # 0x0A pre=N_DEBATABLE post=N_ADJOURNED
+    pn:opcode 10 ; pn:preMask 8 ; pn:postMask 4096 .
 
-# t04 — Adopt the amendment: the amendment resolves back into open debate.
-st:t04 a st:RonrTransition ;
-    st:transitionOpcode "0x04" ;
-    st:transitionPre  "0x0010" ;   # N_AMENDMENT_PENDING
-    st:transitionPost "0x0008" ;   # N_DEBATABLE
-    st:transitionLabel "adopt amendment" .
+pn:PointOfOrder a pn:Transition ;          # 0x0B pre=N_DEBATABLE post=N_POINT_OF_ORDER_RAISED
+    pn:opcode 11 ; pn:preMask 8 ; pn:postMask 8192 .
 
-# t05 — Call the previous question: debate closes into the question-order state.
-st:t05 a st:RonrTransition ;
-    st:transitionOpcode "0x05" ;
-    st:transitionPre  "0x0008" ;   # N_DEBATABLE
-    st:transitionPost "0x0060" ;   # N_PREV_QUESTION_MOVED | N_PREV_QUESTION_ORDERED
-    st:transitionLabel "previous question" .
+pn:DivisionOfAssembly a pn:Transition ;    # 0x0C pre=0 post=N_DIVISION_DEMANDED
+    pn:opcode 12 ; pn:preMask 0 ; pn:postMask 16384 .
 
-# t06 — Vote to adopt the main motion (after previous question ordered + second).
-st:t06 a st:RonrTransition ;
-    st:transitionOpcode "0x06" ;
-    st:transitionPre  "0x0024" ;   # N_SECONDED | N_PREV_QUESTION_MOVED
-    st:transitionPost "0x0101" ;   # N_MAIN_MOTION | N_ADOPTED
-    st:transitionLabel "adopt main motion" .
+# DAO verbs (Propose 0x01 .. AcquireLease 0x94)
+pn:Propose a pn:DaoVerb ; pn:value 1 .
+# NOTE: value 2 here collides with RONR transition opcode 2 (pn:SecondMotion).
+# DELIBERATE-PENDING-DECISION (coordinator-logged namespace issue; do not fix).
+pn:Second a pn:DaoVerb ; pn:value 2 .
+pn:Amend a pn:DaoVerb ; pn:value 3 .
+pn:ExecuteTransaction a pn:DaoVerb ; pn:value 11 .
+pn:Ragequit a pn:DaoVerb ; pn:value 116 .
+pn:Delegate a pn:DaoVerb ; pn:value 144 .
+pn:AcquireLease a pn:DaoVerb ; pn:value 148 .
 
-# ── Named individuals — L56 additive section ─────────────────────────
-# Lane L56 ONLY. Purely additive: new named individuals (plus the two
-# minimal class declarations they require). No existing individual,
-# property, or mask literal above is modified.
+# DAO nouns (MainProposal 0x01 .. ReceiptRoot 0x92)
+pn:MainProposal a pn:DaoNoun ; pn:value 1 .
+pn:ExecutiveSpell a pn:DaoNoun ; pn:value 2 .
+pn:TreasuryVault a pn:DaoNoun ; pn:value 96 .
+pn:EscrowContract a pn:DaoNoun ; pn:value 98 .
+pn:ExecutionLease a pn:DaoNoun ; pn:value 145 .
+pn:ReceiptRoot a pn:DaoNoun ; pn:value 146 .
 
-st:Place a rdfs:Class ; rdfs:label "Place" ;
-    rdfs:comment "A named place (RONR noun) with an explicit bit offset in the 16-bit state word." .
+# ---------------------------------------------------------------------------
+# Wave 2 (lane L93) — new RONR verbs, N_COMMITTED place, DAO transitions/nouns
+# ---------------------------------------------------------------------------
 
-st:DaoVerb a rdfs:Class ; rdfs:label "DaoVerb" ;
-    rdfs:comment "A named procedural verb binding a human-readable value to a transition opcode." .
+# New place: N_COMMITTED 0x8000 (ronr_full.rs) = bit 15.
+# Sole owner of bitOffset 15 (pn:slot15 duplicate removed by lane L97).
+pn:Committed a pn:Place ; pn:bitOffset 15 .
 
-st:bitOffset a rdf:Property ; rdfs:label "bit offset" ;
-    rdfs:comment "Zero-based bit index of this place in the 16-bit marking word." ;
-    rdfs:domain st:Place ; rdfs:range xsd:integer .
+# RONR full verbs (ronr_full.rs opcodes 0x0D..0x19). Masks are ORs of the
+# ronr.rs noun bits: MAIN_MOTION=1, STATED=2, SECONDED=4, DEBATABLE=8,
+# AMENDMENT_PENDING=16, PREV_QUESTION_MOVED=32, PREV_QUESTION_ORDERED=64,
+# FLOOR=128, ADOPTED=256, TABLED=512, POSTPONED_INDEF=1024, RECESS_PENDING=2048,
+# ADJOURNED=4096, POINT_OF_ORDER_RAISED=8192, DIVISION_DEMANDED=16384,
+# COMMITTED=32768.
+pn:ReferToCommittee a pn:Transition ;     # 0x0D pre=N_SECONDED|N_DEBATABLE post=N_COMMITTED
+    pn:opcode 13 ; pn:preMask 12 ; pn:postMask 32768 .
+pn:PostponeToCertainTime a pn:Transition ; # 0x0E pre=N_SECONDED|N_DEBATABLE post=N_STATED|N_SECONDED
+    pn:opcode 14 ; pn:preMask 12 ; pn:postMask 6 .
+pn:LimitExtendDebate a pn:Transition ;     # 0x0F pre=N_SECONDED|N_DEBATABLE post=N_DEBATABLE
+    pn:opcode 15 ; pn:preMask 12 ; pn:postMask 8 .
+pn:ObjectToConsideration a pn:Transition ; # 0x10 pre=N_STATED post=N_POSTPONED_INDEF
+    pn:opcode 16 ; pn:preMask 2 ; pn:postMask 1024 .
+pn:DivisionOfTheQuestion a pn:Transition ; # 0x11 pre=N_STATED post=N_AMENDMENT_PENDING
+    pn:opcode 17 ; pn:preMask 2 ; pn:postMask 16 .
+pn:AppealChairDecision a pn:Transition ;   # 0x12 pre=N_POINT_OF_ORDER_RAISED post=N_SECONDED|N_DEBATABLE
+    pn:opcode 18 ; pn:preMask 8192 ; pn:postMask 12 .
+pn:PointOfInformation a pn:Transition ;    # 0x13 pre=N_DEBATABLE post=N_FLOOR
+    pn:opcode 19 ; pn:preMask 8 ; pn:postMask 128 .
+pn:ParliamentaryInquiry a pn:Transition ;  # 0x14 pre=N_DEBATABLE post=N_FLOOR
+    pn:opcode 20 ; pn:preMask 8 ; pn:postMask 128 .
+pn:WithdrawMotion a pn:Transition ;        # 0x15 pre=N_SECONDED|N_DEBATABLE post=N_FLOOR
+    pn:opcode 21 ; pn:preMask 12 ; pn:postMask 128 .
+pn:TakeFromTable a pn:Transition ;         # 0x16 pre=N_TABLED post=N_SECONDED|N_DEBATABLE
+    pn:opcode 22 ; pn:preMask 512 ; pn:postMask 12 .
+pn:RescindRepeal a pn:Transition ;         # 0x17 pre=N_ADOPTED post=N_POSTPONED_INDEF
+    pn:opcode 23 ; pn:preMask 256 ; pn:postMask 1024 .
+pn:Reconsider a pn:Transition ;            # 0x18 pre=N_ADOPTED post=N_SECONDED|N_DEBATABLE
+    pn:opcode 24 ; pn:preMask 256 ; pn:postMask 12 .
+pn:ConsiderationByParagraph a pn:Transition ; # 0x19 pre=N_DEBATABLE post=N_AMENDMENT_PENDING
+    pn:opcode 25 ; pn:preMask 8 ; pn:postMask 16 .
 
-st:value a rdf:Property ; rdfs:label "verb value" ;
-    rdfs:comment "Canonical wire value of a DaoVerb." ;
-    rdfs:domain st:DaoVerb ; rdfs:range xsd:string .
+# DAO transitions (dao_transitions.rs DAO table, 13 verbs; opcode = dao_vocab
+# verb value). Masks are ORs of the dao_transitions.rs P_* bits:
+# COLLATERAL_STAKED=1, STREAM_OPEN=2, ESCROW_LOCKED=4, DELEGATED=8,
+# LEASE_HELD=16, MEMBER_ACTIVE=32, TREASURY_SOLVENT=256, ESCROW_RELEASED=1024,
+# DELEGATION_PENDING=2048, COLLATERAL_WITHDRAWN=4096, STREAM_HALTED=8192,
+# MEMBER_EXPELLED=16384.
+pn:DaoDepositCollateral a pn:Transition ;  # 0x70 pre=0 post=COLLATERAL_STAKED|TREASURY_SOLVENT
+    pn:opcode 112 ; pn:preMask 0 ; pn:postMask 257 .
+pn:DaoWithdrawCollateral a pn:Transition ; # 0x71 pre=COLLATERAL_STAKED post=COLLATERAL_WITHDRAWN
+    pn:opcode 113 ; pn:preMask 1 ; pn:postMask 4096 .
+pn:DaoStream a pn:Transition ;             # 0x72 pre=COLLATERAL_STAKED|TREASURY_SOLVENT post=STREAM_OPEN|COLLATERAL_STAKED|TREASURY_SOLVENT
+    pn:opcode 114 ; pn:preMask 257 ; pn:postMask 259 .
+pn:DaoHaltStream a pn:Transition ;         # 0x73 pre=STREAM_OPEN post=STREAM_HALTED
+    pn:opcode 115 ; pn:preMask 2 ; pn:postMask 8192 .
+pn:DaoRagequit a pn:Transition ;           # 0x74 pre=MEMBER_ACTIVE|COLLATERAL_STAKED post=COLLATERAL_WITHDRAWN
+    pn:opcode 116 ; pn:preMask 33 ; pn:postMask 4096 .
+pn:DaoLockEscrow a pn:Transition ;         # 0x77 pre=MEMBER_ACTIVE post=MEMBER_ACTIVE|ESCROW_LOCKED
+    pn:opcode 119 ; pn:preMask 32 ; pn:postMask 36 .
+pn:DaoReleaseEscrow a pn:Transition ;      # 0x78 pre=ESCROW_LOCKED post=MEMBER_ACTIVE
+    pn:opcode 120 ; pn:preMask 4 ; pn:postMask 32 .
+pn:DaoDelegate a pn:Transition ;           # 0x90 pre=MEMBER_ACTIVE post=MEMBER_ACTIVE|DELEGATED
+    pn:opcode 144 ; pn:preMask 32 ; pn:postMask 40 .
+pn:DaoUndelegate a pn:Transition ;         # 0x91 pre=DELEGATED post=MEMBER_ACTIVE
+    pn:opcode 145 ; pn:preMask 8 ; pn:postMask 32 .
+pn:DaoAcquireLease a pn:Transition ;       # 0x94 pre=MEMBER_ACTIVE post=MEMBER_ACTIVE|LEASE_HELD
+    pn:opcode 148 ; pn:preMask 32 ; pn:postMask 48 .
+pn:DaoExpireLease a pn:Transition ;        # 0x95 pre=LEASE_HELD post=MEMBER_ACTIVE
+    pn:opcode 149 ; pn:preMask 16 ; pn:postMask 32 .
+pn:DaoAdmitMember a pn:Transition ;        # 0x96 pre=0 post=MEMBER_ACTIVE
+    pn:opcode 150 ; pn:preMask 0 ; pn:postMask 32 .
+pn:DaoExpelMember a pn:Transition ;        # 0x97 pre=MEMBER_ACTIVE post=MEMBER_EXPELLED
+    pn:opcode 151 ; pn:preMask 32 ; pn:postMask 16384 .
 
-st:verbOpcode a rdf:Property ; rdfs:label "verb opcode" ;
-    rdfs:comment "Transition opcode of a DaoVerb (domain DaoVerb; do not reuse st:transitionOpcode, domain RonrTransition)." ;
-    rdfs:domain st:DaoVerb ; rdfs:range xsd:string .
-
-# Places: one individual per RONR noun, offset matching st:mask above.
-st:p_main_motion        a st:Place ; rdfs:label "N_MAIN_MOTION"        ; st:bitOffset 0 .
-st:p_stated             a st:Place ; rdfs:label "N_STATED"             ; st:bitOffset 1 .
-st:p_seconded           a st:Place ; rdfs:label "N_SECONDED"           ; st:bitOffset 2 .
-st:p_debatable          a st:Place ; rdfs:label "N_DEBATABLE"          ; st:bitOffset 3 .
-st:p_amendment_pending  a st:Place ; rdfs:label "N_AMENDMENT_PENDING"  ; st:bitOffset 4 .
-st:p_prev_question_moved    a st:Place ; rdfs:label "N_PREV_QUESTION_MOVED"   ; st:bitOffset 5 .
-st:p_prev_question_ordered  a st:Place ; rdfs:label "N_PREV_QUESTION_ORDERED" ; st:bitOffset 6 .
-st:p_floor              a st:Place ; rdfs:label "N_FLOOR"              ; st:bitOffset 7 .
-st:p_adopted            a st:Place ; rdfs:label "N_ADOPTED"            ; st:bitOffset 8 .
-
-# DaoVerbs: one per canonical transition opcode (0x01-0x06).
-st:dv_move              a st:DaoVerb ; st:value "move" ; st:verbOpcode "0x01" .
-st:dv_second            a st:DaoVerb ; st:value "second" ; st:verbOpcode "0x02" .
-st:dv_amend             a st:DaoVerb ; st:value "amend" ; st:verbOpcode "0x03" .
-st:dv_adopt_amendment   a st:DaoVerb ; st:value "adopt_amendment" ; st:verbOpcode "0x04" .
-st:dv_previous_question a st:DaoVerb ; st:value "previous_question" ; st:verbOpcode "0x05" .
-st:dv_adopt             a st:DaoVerb ; st:value "adopt" ; st:verbOpcode "0x06" .
+# DAO nouns added in wave 2 (dao_vocab.rs constants missing from wave 1;
+# completes the documented 16-noun set).
+pn:TimelockQueue a pn:DaoNoun ; pn:value 4 .        # NOUN_TIMELOCK_QUEUE 0x04
+pn:BallotSheet a pn:DaoNoun ; pn:value 5 .          # NOUN_BALLOT_SHEET 0x05
+pn:GeneralAssembly a pn:DaoNoun ; pn:value 48 .     # NOUN_GENERAL_ASSEMBLY 0x30
+pn:ThresholdMultisig a pn:DaoNoun ; pn:value 50 .   # NOUN_THRESHOLD_MULTISIG 0x32
+pn:MemberAccount a pn:DaoNoun ; pn:value 52 .       # NOUN_MEMBER_ACCOUNT 0x34
+pn:CollateralPool a pn:DaoNoun ; pn:value 97 .      # NOUN_COLLATERAL_POOL 0x61
+pn:PaymentStream a pn:DaoNoun ; pn:value 99 .       # NOUN_PAYMENT_STREAM 0x63
+pn:StakingVault a pn:DaoNoun ; pn:value 101 .       # NOUN_STAKING_VAULT 0x65
+pn:StateDelta a pn:DaoNoun ; pn:value 144 .         # NOUN_STATE_DELTA 0x90
+pn:PetriNetMarking a pn:DaoNoun ; pn:value 147 .    # NOUN_PETRI_NET_MARKING 0x93
