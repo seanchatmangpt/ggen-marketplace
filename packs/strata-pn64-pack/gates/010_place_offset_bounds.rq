@@ -1,39 +1,44 @@
-# MESSAGE: every st:Place must carry a st:bitOffset in [0, 15], and all
+# MESSAGE: every pn:Place must carry a pn:bitOffset in [0, 15], and all
 # place bit offsets must be distinct (one bit per place in the 16-bit
-# marking word), and every st:Place must CARRY st:bitOffset at all (presence
-# law: a Place with no st:bitOffset is a violation even though no value
+# marking word), and every pn:Place must CARRY pn:bitOffset at all (presence
+# law: a Place with no pn:bitOffset is a violation even though no value
 # exists to bound-check). Any row returned is an out-of-bounds, duplicated,
 # or missing offset. Numeric comparisons are wrapped in xsd:integer() casts
 # and an explicit datatype arm fails CLOSED on non-integer offsets: a cast
 # error inside a FILTER excludes the row, so a string-typed offset would
 # otherwise silently pass the bounds check (engine-dependent fail-open).
-PREFIX st: <https://strata.chatman.ai/ontology#>
+# REBASED 2026-10-13 from the retired st: schema to the reconciled pn:
+# ontology (pn64 namespace): st:Place -> pn:Place, st:bitOffset ->
+# pn:bitOffset. The pack-local ontology.ttl carries the pn64 individuals
+# (16 places: pn:slot0..slot14 + pn:Committed at bitOffset 15). Gates are
+# violation queries by design: 0 rows = clean, any row = refusal.
+PREFIX pn: <https://strata.chatman.ai/ontology/pn64#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 
 SELECT ?place ?offset ?conflict WHERE {
   {
-    ?place a st:Place ;
-           st:bitOffset ?offset .
+    ?place a pn:Place ;
+           pn:bitOffset ?offset .
     FILTER (datatype(?offset) != xsd:integer)
     BIND("non_integer_offset" AS ?conflict)
   } UNION {
-    ?place a st:Place ; st:bitOffset ?offset .
+    ?place a pn:Place ; pn:bitOffset ?offset .
     FILTER (datatype(?offset) = xsd:integer && !REGEX(STR(?offset), "^-?[0-9]+$"))
     BIND("malformed_integer_offset" AS ?conflict)
   } UNION {
-    ?place a st:Place ; st:bitOffset ?offset .
+    ?place a pn:Place ; pn:bitOffset ?offset .
     FILTER (xsd:integer(?offset) < 0 || xsd:integer(?offset) > 15)
     BIND("out_of_bounds" AS ?conflict)
   } UNION {
-    ?place a st:Place ;
-           st:bitOffset ?offset .
-    ?other a st:Place ;
-           st:bitOffset ?offset .
+    ?place a pn:Place ;
+           pn:bitOffset ?offset .
+    ?other a pn:Place ;
+           pn:bitOffset ?offset .
     FILTER (?place != ?other)
     BIND("duplicate_offset" AS ?conflict)
   } UNION {
-    ?place a st:Place .
-    FILTER NOT EXISTS { ?place st:bitOffset ?anyOffset }
+    ?place a pn:Place .
+    FILTER NOT EXISTS { ?place pn:bitOffset ?anyOffset }
     BIND("missing_bitOffset" AS ?conflict)
   }
 }

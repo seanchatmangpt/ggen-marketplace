@@ -1,57 +1,86 @@
-# MESSAGE: every st:RonrTransition must have a non-zero precondition mask
-# (a transition with pre == "0x0000" is always enabled and consumes nothing
-# — not a lawful RONR transition), and all transition opcodes must be
-# distinct, and every st:RonrTransition must CARRY st:transitionPre,
-# st:transitionPost, and st:transitionOpcode at all (presence law), and
-# every transition/verb mask and opcode literal must be fixed-width hex:
-# masks ^0x[0-9A-F]{4}$, opcodes/verbOpcodes ^0x[0-9A-F]{2}$ (the ontology's
-# literal case exactly — "0x0" or "0x81" must never evade the zero arm by
-# spelling). Any row returned is a zero-mask, bad-width, duplicated-opcode,
-# or missing pre/post/opcode transition.
-PREFIX st: <https://strata.chatman.ai/ontology#>
+# MESSAGE: every RONR transition (pn:Transition with pn:opcode 1-25) must
+# have a non-zero precondition mask — a transition with pre == 0 is always
+# enabled and consumes nothing, not a lawful RONR Transition — and all RONR
+# opcodes must be distinct, and every RONR-scope transition must CARRY
+# pn:preMask, pn:postMask, and pn:opcode at all (presence law), and every
+# mask/opcode literal must be a genuine xsd:integer (fail-closed datatype
+# law: the integer analog of the former hex-width regex — a string-typed
+# or malformed mask must produce a row, not silently drop out of the
+# FILTER). Any row returned is a zero-mask, non-integer-mask,
+# duplicated-opcode, or missing pre/post/opcode transition.
+#
+# REBASED 2026-10-13 from the retired st: schema to the reconciled pn:
+# ontology. Contract changes forced by the reconciliation (not silent):
+# - st:RonrTransition scope -> pn:Transition + `FILTER (?opcode <= 25)`
+#   (the same RONR/DAO opcode bound queries/transitions.rq uses; pn:Transition
+#   also carries the DAO table, opcodes 112-151).
+# - Masks/opcodes are xsd:integer literals now, so the V2 hex-width regex
+#   arms (^0x[0-9A-F]{4}$ etc.) are replaced by fail-closed non-integer
+#   datatype arms (same anti-evasion intent).
+# - The st:verbOpcode arm is DROPPED: no pn:verbOpcode predicate exists in
+#   the reconciled ontology (verbs carry pn:value; see queries/dao_verbs.rq).
+# - DELIBERATE EXEMPTION: pn:DivisionOfAssembly (opcode 12) carries
+#   pn:preMask 0 by design — it mirrors src/ronr.rs TRANSITIONS where the
+#   division is deliberately ungated ("0x0C pre=0" per ontology.ttl). It is
+#   exempted by exact membership, same pattern as the template's TERMINALS
+#   table; any OTHER zero-pre RONR transition still fires zero_pre_mask.
+# Gates are violation queries by design: 0 rows = clean, any row = refusal.
+#
+# All arms verified live by mutation probe (verify_gates.py): each arm's
+# violation class is injected into an in-memory copy of ontology.ttl and
+# must fire exactly its injected rows.
+PREFIX pn: <https://strata.chatman.ai/ontology/pn64#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 
 SELECT ?t ?opcode ?violation WHERE {
   {
-    ?t a st:RonrTransition ;
-       st:transitionOpcode ?opcode ;
-       st:transitionPre ?pre .
-    FILTER (?pre IN ("0x0000", "0X0000"))
+    ?t a pn:Transition ;
+       pn:opcode ?opcode ;
+       pn:preMask ?pre .
+    FILTER (?opcode <= 25)
+    FILTER (?pre = 0)
+    FILTER (?t != pn:DivisionOfAssembly)
     BIND("zero_pre_mask" AS ?violation)
   } UNION {
-    ?t a st:RonrTransition ;
-       st:transitionOpcode ?opcode .
-    ?t2 a st:RonrTransition ;
-        st:transitionOpcode ?opcode .
+    ?t a pn:Transition ;
+       pn:opcode ?opcode ;
+       pn:preMask ?pre .
+    FILTER (datatype(?pre) != xsd:integer)
+    BIND("non_integer_pre_mask" AS ?violation)
+  } UNION {
+    ?t a pn:Transition ;
+       pn:opcode ?opcode ;
+       pn:postMask ?post .
+    FILTER (datatype(?post) != xsd:integer)
+    BIND("non_integer_post_mask" AS ?violation)
+  } UNION {
+    ?t a pn:Transition ;
+       pn:opcode ?opcode .
+    FILTER (datatype(?opcode) != xsd:integer)
+    BIND("non_integer_opcode" AS ?violation)
+  } UNION {
+    ?t a pn:Transition ;
+       pn:opcode ?opcode .
+    ?t2 a pn:Transition ;
+        pn:opcode ?opcode .
     FILTER (?t != ?t2)
+    FILTER (?opcode <= 25)
     BIND("duplicate_opcode" AS ?violation)
   } UNION {
-    ?t a st:RonrTransition .
-    FILTER NOT EXISTS { ?t st:transitionPre ?anyPre }
-    BIND("missing_transitionPre" AS ?violation)
+    ?t a pn:Transition .
+    FILTER EXISTS { ?t pn:opcode ?o FILTER(?o <= 25) }
+    FILTER NOT EXISTS { ?t pn:preMask ?anyPre }
+    BIND("missing_preMask" AS ?violation)
   } UNION {
-    ?t a st:RonrTransition .
-    FILTER NOT EXISTS { ?t st:transitionPost ?anyPost }
-    BIND("missing_transitionPost" AS ?violation)
+    ?t a pn:Transition .
+    FILTER EXISTS { ?t pn:opcode ?o FILTER(?o <= 25) }
+    FILTER NOT EXISTS { ?t pn:postMask ?anyPost }
+    BIND("missing_postMask" AS ?violation)
   } UNION {
-    ?t a st:RonrTransition .
-    FILTER NOT EXISTS { ?t st:transitionOpcode ?anyOpcode }
-    BIND("missing_transitionOpcode" AS ?violation)
-  } UNION {
-    ?t st:transitionPre ?w .
-    FILTER (!REGEX(?w, "^0x[0-9A-F]{4}$"))
-    BIND("bad_pre_mask_width" AS ?violation)
-  } UNION {
-    ?t st:transitionPost ?w .
-    FILTER (!REGEX(?w, "^0x[0-9A-F]{4}$"))
-    BIND("bad_post_mask_width" AS ?violation)
-  } UNION {
-    ?t st:transitionOpcode ?w .
-    FILTER (!REGEX(?w, "^0x[0-9A-F]{2}$"))
-    BIND("bad_transitionOpcode_width" AS ?violation)
-  } UNION {
-    ?t st:verbOpcode ?w .
-    FILTER (!REGEX(?w, "^0x[0-9A-F]{2}$"))
-    BIND("bad_verbOpcode_width" AS ?violation)
+    ?t a pn:Transition .
+    FILTER EXISTS { ?t pn:opcode ?o FILTER(?o <= 25) }
+    FILTER NOT EXISTS { ?t pn:opcode ?anyOpcode }
+    BIND("missing_opcode" AS ?violation)
   }
 }
 ORDER BY ?opcode ?violation

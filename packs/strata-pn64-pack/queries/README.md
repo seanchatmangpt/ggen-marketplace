@@ -17,19 +17,21 @@ never patch it by hand — change `ontology.ttl` and regenerate.
 
 ## Row -> Rust lowering
 
-`transitions.rq` yields one row per `st:RonrTransition` individual with
+`transitions.rq` yields one row per `pn:Transition` individual with a RONR
+opcode (1-25; DAO transitions, opcodes 112-151, are excluded by the query's
+opcode bound) with
 bindings `?opcode ?pre ?post ?label` (ordered by opcode). The template
 iterates `results` and lowers each row as:
 
 | ontology binding | Rust artifact | encoding |
 |---|---|---|
-| `?pre` (hex string, e.g. `"0x0081"`) | `PRE_MASKS[opcode - 1]` | `u16` literal `0x0081` — bits [15:0] of the u64 word's `W-` field |
+| `?pre` (xsd:integer place mask, e.g. `129`) | `PRE_MASKS[opcode - 1]` | `u16` literal (decimal, e.g. `129`) — bits [15:0] of the u64 word's `W-` field |
 | `?post` | `POST_MASKS[opcode - 1]` | `u16` literal — bits [47:32] field `W+` |
-| `?opcode` | array index (`opcode - 1`) and `// opcode 0xNN` comment | `0x01`-`0x06` |
+| `?opcode` | array index (`opcode - 1`) and trailing comment | decimal `1`-`25` |
 | `?label` | trailing line comment | prose only |
 
 The template additionally emits the ABI constants and semantics that the
-mask tables presuppose (they come from the `st:Pn64Word` vocabulary rows,
+mask tables presuppose (they come from the ontology's vocabulary rows,
 not from the query result): `MASK16 = 0xFFFF`, `enabled(m, pre) =
 (m & pre) == pre`, `fire(m, pre, post) = ((m ^ pre) | post) & 0xFFFF`,
 `TERMINALS` (exact-membership exemptions for the deliberately terminal
@@ -43,20 +45,23 @@ a `// REFUSED: empty ontology projection` comment instead of a table.
 
 - `transitions.rq` — one row per canonical transition; drives the
   `pn64-masks` generation rule.
-- `places.rq` — all `st:Place` individuals + `st:bitOffset`, LSB-first.
+- `places.rq` — all `pn:Place` individuals + `pn:bitOffset`, LSB-first.
   Lowers the marking-bit vocabulary (RONR noun space) that the mask
   literals are unions of.
-- `dao_verbs.rq` — `DaoVerb` individuals + `st:value` +
-  opcode, ordered by value. Human/wire verb names for the six opcodes.
+- `dao_verbs.rq` — `DaoVerb` individuals + `pn:value`, ordered by value.
+  Human/wire verb names for the seven verbs (values 1, 2, 3, 11, 116,
+  144, 148).
 - `deadlock_candidates.rq` — structural siphon PRE-FILTER as a query.
   Exact semantics, the arithmetic (hex-string) bit test, and its known
   imprecision are documented in the query header. Expected hits on the
   canonical six: opcodes `0x05` and `0x06` (the deliberately terminal
   states); hits are exempted from the deadlock gate via `TERMINALS`, not
-  silent. Literal width is enforced upstream by
-  `../gates/020_transition_pre_nonzero.rq` (4-hex mask / 2-hex opcode
-  regex arms, landed 2026-10-13); this query's SUBSTR arithmetic assumes
-  that enforced width and under-fires silently without it.
+  silent. Mask/opcode well-formedness is enforced upstream by
+  `../gates/020_transition_pre_nonzero.rq` (fail-closed non-integer
+  datatype arms over the xsd:integer literals, rebased 2026-10-13);
+  this query's bit arithmetic assumes genuine integer literals and
+  under-fires silently without it (rdflib treats filter type errors
+  as false).
 
 ## Validation status
 

@@ -1,37 +1,56 @@
-# MESSAGE: the st:DaoVerb -> st:RonrTransition opcode binding must be a
-# bijection (6-6): every DaoVerb st:verbOpcode matches exactly one
-# RonrTransition st:transitionOpcode, and every transition opcode has
-# exactly one verb. Hex opcodes are compared as STRINGS. Any row returned
-# is an unmatched or duplicated verb/opcode.
-PREFIX st: <https://strata.chatman.ai/ontology#>
+# MESSAGE: the pn:DaoVerb -> pn:Transition opcode binding must be a partial
+# bijection: (1) verb pn:value must be unique among verbs, (2) a verb value
+# that matches a transition pn:opcode must match exactly one transition, and
+# (3) a transition opcode claimed by a verb must be claimed by exactly one
+# verb. Hex opcodes are gone — both sides are xsd:integer now, compared as
+# integers. Any row returned is a duplicated or ambiguous verb/opcode
+# binding.
+#
+# REBASED 2026-10-13 from the retired st: schema. The old contract (6-6
+# TOTAL bijection between st:DaoVerb st:verbOpcode and
+# st:RonrTransition st:transitionOpcode) is NOT expressible against the
+# reconciled ontology: verbs carry pn:value, transitions carry pn:opcode,
+# and the two spaces overlap only partially — 4 of 7 verbs (values 1, 2, 3,
+# 11) are RONR-sector verbs whose values coincide with RONR transition
+# opcodes, 3 (116, 144, 148) bind the DAO transition of the same value, and
+# 10 DAO transitions have no verb. A total-bijection gate would fire on
+# lawful data, so the surviving law is the partial-bijection/uniqueness
+# contract above.
+#
+# NOTE (DELIBERATE-PENDING-DECISION, do not resolve here, same note as
+# queries/dao_verbs.rq): pn:Second's value 2 collides with pn:SecondMotion's
+# RONR transition opcode 2 — a cross-sector reading, not a duplicate in
+# either namespace; this gate treats each namespace's uniqueness separately
+# and never joins verb value to RONR opcode as a violation.
+#
+# Gates are violation queries by design: 0 rows = clean, any row = refusal.
+PREFIX pn: <https://strata.chatman.ai/ontology/pn64#>
 
 SELECT ?thing ?opcode ?violation WHERE {
   {
-    # A verb whose opcode binds no transition.
-    ?thing a st:DaoVerb ;
-           st:verbOpcode ?opcode .
-    FILTER NOT EXISTS {
-      ?t a st:RonrTransition ;
-         st:transitionOpcode ?opcode .
-    }
-    BIND("verb_without_transition" AS ?violation)
+    # A verb whose value is claimed by another verb too.
+    ?thing a pn:DaoVerb ;
+           pn:value ?opcode .
+    ?v2 a pn:DaoVerb ;
+        pn:value ?opcode .
+    FILTER (STR(?thing) != STR(?v2))
+    BIND("duplicate_verb_value" AS ?violation)
   } UNION {
-    # Two verbs claiming the same opcode.
-    ?v1 a st:DaoVerb ;
-        st:verbOpcode ?opcode .
-    ?v2 a st:DaoVerb ;
-        st:verbOpcode ?opcode .
+    # A verb value matching two or more transition opcodes (ambiguous bind).
+    ?thing a pn:DaoVerb ;
+           pn:value ?opcode .
+    ?t1 a pn:Transition ; pn:opcode ?opcode .
+    ?t2 a pn:Transition ; pn:opcode ?opcode .
+    FILTER (STR(?t1) != STR(?t2))
+    BIND("verb_value_ambiguous_transition" AS ?violation)
+  } UNION {
+    # A transition opcode claimed by two or more verbs.
+    ?t a pn:Transition ;
+       pn:opcode ?opcode .
+    ?v1 a pn:DaoVerb ; pn:value ?opcode .
+    ?v2 a pn:DaoVerb ; pn:value ?opcode .
     FILTER (STR(?v1) != STR(?v2))
-    BIND("duplicate_verb_opcode" AS ?violation)
-  } UNION {
-    # A transition opcode bound by no verb.
-    ?t a st:RonrTransition ;
-       st:transitionOpcode ?opcode .
-    FILTER NOT EXISTS {
-      ?v a st:DaoVerb ;
-         st:verbOpcode ?opcode .
-    }
-    BIND("transition_without_verb" AS ?violation)
+    BIND("transition_claimed_by_two_verbs" AS ?violation)
   }
 }
 ORDER BY ?opcode ?violation
