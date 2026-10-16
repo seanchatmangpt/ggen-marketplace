@@ -1,0 +1,44 @@
+# Substrate Registry
+# Auto-projected from smalt-substrate-pack ontology via ggen_igniter.sync.
+# DO NOT EDIT — regenerate with `mix smalt.gen`.
+# Ports: 9443 (ARM REST), 8443 (Cosmos/KeyVault), 5672 (AMQP SB), 5673 (Event Hubs)
+defmodule Smalt.Registry do
+  @moduledoc """
+  Machine-generated registry of admitted resource types, per-type shapes,
+  and supported api-versions. Source of truth:
+  ggen-marketplace/packs/smalt-substrate-pack/ontology.ttl
+  """
+
+  # Canonical ordering: rows are sorted by resourceType at render time so the
+  # artifact is independent of SPARQL engine row order (the `sparql` hex
+  # engine does not honor ORDER BY — see GgenIgniter.Query's moduledoc).
+  # Replay identity is fenced by test/smalt_registry_replay_identity_test.exs.
+  <% cp = Enum.sort_by(control_plane, & &1["resourceType"]) %>
+  <% pr = Enum.sort_by(payload_rules, & &1["resourceType"]) %>
+  @admitted_resource_types [
+<%= for row <- cp do %>    "<%= row["resourceType"] %>"<%= if row != List.last(cp), do: "," %>
+<% end %>  ]
+
+  @type_shapes %{
+<%= for row <- pr do %>    "<%= row["resourceType"] %>" => "<%= String.split(row["shape"], "#") |> List.last %>"<%= if row != List.last(pr), do: "," %>
+<% end %>  }
+
+  @api_versions %{
+<%= for row <- pr do %>    "<%= row["resourceType"] %>" => "<%= row["apiVersion"] %>"<%= if row != List.last(pr), do: "," %>
+<% end %>  }
+
+  def admitted_resource_types, do: @admitted_resource_types
+  def type_shapes, do: @type_shapes
+  def api_versions, do: @api_versions
+  def shape_for(type), do: Map.get(@type_shapes, type)
+  def latest_version(type), do: Map.get(@api_versions, type)
+  def admitted?(type), do: type in @admitted_resource_types
+  def control_plane_port, do: 9443
+  def data_plane_port, do: 8443
+  def amqp_port, do: Application.get_env(:smalt, :amqp_port, 5672)
+  def event_hubs_port, do: Application.get_env(:smalt, :event_hubs_port, 5673)
+  # Canonical defaults for env-independent documents (docs/capabilities.json):
+  # the capability surface is the substrate contract, not the runtime override.
+  def amqp_port_default, do: 5672
+  def event_hubs_port_default, do: 5673
+end

@@ -1,0 +1,259 @@
+@prefix smalt: <https://ggen.io/ontology/smalt#> .
+@prefix aztf:  <https://ggen.io/ontology/azure-terraform#> .
+@prefix sh:    <http://www.w3.org/ns/shacl#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+#################################################################
+# smalt-substrate-pack ontology
+# Grounded in SMALT-PRD-ARD-CORE-v26.10.14
+# Emulated hyperscaler service surface (wire-parity strings only).
+#################################################################
+
+smalt:Substrate a rdfs:Class ;
+    rdfs:label "Sovereign Cloud Substrate" .
+
+smalt:ControlPlane a rdfs:Class ;
+    rdfs:label "ARM-style Control Plane REST Mux (Port 9443)" .
+
+smalt:DataPlane a rdfs:Class ;
+    rdfs:label "Data Plane Router (Port 8443)" .
+
+smalt:MessagingBroker a rdfs:Class ;
+    rdfs:label "AMQP 1.0 Broker (Port 5672)" .
+
+# Tier 1: Cryptographic Trust, Key Custody & Consensus
+smalt:KeyVaultManagedHsm   a rdfs:Class ; rdfs:subClassOf smalt:DataPlane .
+smalt:ConfidentialLedger   a rdfs:Class ; rdfs:subClassOf smalt:DataPlane .
+smalt:ManagedCcf           a rdfs:Class ; rdfs:subClassOf smalt:DataPlane .
+smalt:AzureAttestation     a rdfs:Class ; rdfs:subClassOf smalt:DataPlane .
+
+# Tier 2: Isolated Compute, Enclaves & Runtimes
+smalt:ConfidentialVm       a rdfs:Class ; rdfs:subClassOf smalt:ControlPlane .
+smalt:ConfidentialGpuVm    a rdfs:Class ; rdfs:subClassOf smalt:ControlPlane .
+smalt:ContainerAppWasi     a rdfs:Class ; rdfs:subClassOf smalt:ControlPlane .
+smalt:AksEnclavePool       a rdfs:Class ; rdfs:subClassOf smalt:ControlPlane .
+
+# Tier 3: Data Custody, Storage & Transaction Graph
+smalt:ImmutableBlobStorage a rdfs:Class ; rdfs:subClassOf smalt:DataPlane .
+smalt:CosmosNoSqlGraph     a rdfs:Class ; rdfs:subClassOf smalt:DataPlane .
+smalt:PurviewGovernance    a rdfs:Class ; rdfs:subClassOf smalt:ControlPlane .
+
+# Tier 4: Networking, Messaging & Governance
+smalt:VNetPrivateDns       a rdfs:Class ; rdfs:subClassOf smalt:ControlPlane .
+smalt:ServiceBusMessaging  a rdfs:Class ; rdfs:subClassOf smalt:MessagingBroker .
+smalt:EventGridEventHubs   a rdfs:Class ; rdfs:subClassOf smalt:DataPlane .
+smalt:SentinelLogAnalytics a rdfs:Class ; rdfs:subClassOf smalt:DataPlane .
+
+# Properties
+smalt:port a rdf:Property .
+smalt:resourceType a rdf:Property .
+smalt:apiVersion a rdf:Property .
+smalt:shape a rdf:Property .
+smalt:location a rdf:Property .
+smalt:vmSize a rdf:Property .
+smalt:skuName a rdf:Property .
+smalt:attestationHeader a rdf:Property .
+smalt:optimisticLockHeader a rdf:Property .
+smalt:immutableRetentionDays a rdf:Property .
+
+# Admitted ARM Resource Types (18 emulated service types)
+smalt:ArmControlPlane a smalt:ControlPlane ;
+    smalt:port 9443 ;
+    smalt:resourceType "Microsoft.KeyVault/managedHSMs" ;
+    smalt:resourceType "Microsoft.KeyVault/vaults" ;
+    smalt:resourceType "Microsoft.ConfidentialLedger/ledgers" ;
+    smalt:resourceType "Microsoft.ConfidentialLedger/managedCCFs" ;
+    smalt:resourceType "Microsoft.Attestation/attestationProviders" ;
+    smalt:resourceType "Microsoft.Compute/virtualMachines" ;
+    smalt:resourceType "Microsoft.App/containerApps" ;
+    smalt:resourceType "Microsoft.ContainerService/managedClusters" ;
+    smalt:resourceType "Microsoft.Storage/storageAccounts" ;
+    smalt:resourceType "Microsoft.DocumentDB/databaseAccounts" ;
+    smalt:resourceType "Microsoft.Purview/accounts" ;
+    smalt:resourceType "Microsoft.Network/virtualNetworks" ;
+    smalt:resourceType "Microsoft.Network/privateDnsZones" ;
+    smalt:resourceType "Microsoft.ServiceBus/namespaces" ;
+    smalt:resourceType "Microsoft.EventGrid/topics" ;
+    smalt:resourceType "Microsoft.EventHub/namespaces" ;
+    smalt:resourceType "Microsoft.OperationalInsights/workspaces" ;
+    smalt:resourceType "Microsoft.SecurityInsights/onboardingStates" ;
+    smalt:resourceType "Microsoft.Resources/resourceGroups" .
+
+# Terraform-route child/action types (azurerm 4.54.0 / azapi 2.4.0 surface)
+smalt:armChildControlPlane a smalt:ControlPlane ;
+    smalt:port 9443 ;
+    smalt:resourceType "Microsoft.Network/subnets" ;
+    smalt:resourceType "Microsoft.Network/networkSecurityGroups" ;
+    smalt:resourceType "Microsoft.Network/networkInterfaces" ;
+    smalt:resourceType "Microsoft.Network/privateEndpoints" ;
+    smalt:resourceType "Microsoft.Network/privateDnsZones/virtualNetworkLinks" ;
+    smalt:resourceType "Microsoft.Compute/disks" ;
+    smalt:resourceType "Microsoft.Compute/diskEncryptionSets" ;
+    smalt:resourceType "Microsoft.KeyVault/vaults/keys" ;
+    smalt:resourceType "Microsoft.Storage/storageAccounts/blobServices" ;
+    smalt:resourceType "Microsoft.Storage/storageAccounts/blobServices/containers" ;
+    smalt:resourceType "Microsoft.Storage/storageAccounts/blobServices/containers/immutabilityPolicies" ;
+    smalt:resourceType "Microsoft.Authorization/roleAssignments" ;
+    smalt:resourceType "Microsoft.Insights/diagnosticSettings" ;
+    smalt:resourceType "Microsoft.DevTestLab/schedules" ;
+    smalt:resourceType "Microsoft.ServiceBus/namespaces/queues" ;
+    smalt:resourceType "Microsoft.ServiceBus/namespaces/topics" ;
+    smalt:resourceType "Microsoft.ServiceBus/namespaces/topics/subscriptions" ;
+    smalt:resourceType "Microsoft.EventHub/namespaces/eventhubs" ;
+    smalt:resourceType "Microsoft.EventHub/namespaces/eventhubs/consumergroups" .
+
+# Per-type bindings: api-version + shape (consumed by payload_rules.rq)
+smalt:tb-rg a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.Resources/resourceGroups" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:ResourceGroupShape .
+smalt:tb-vnet a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.Network/virtualNetworks" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:VNetShape .
+smalt:tb-subnet a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.Network/subnets" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:SubnetShape .
+smalt:tb-nsg a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.Network/networkSecurityGroups" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:NsgShape .
+smalt:tb-nic a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.Network/networkInterfaces" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-pep a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.Network/privateEndpoints" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-pdz a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.Network/privateDnsZones" ;
+    smalt:apiVersion "2018-09-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-pdzl a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.Network/privateDnsZones/virtualNetworkLinks" ;
+    smalt:apiVersion "2018-09-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-vm a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.Compute/virtualMachines" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:VirtualMachineShape .
+smalt:tb-disk a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.Compute/disks" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-des a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.Compute/diskEncryptionSets" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-kv a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.KeyVault/vaults" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:KeyVaultShape .
+smalt:tb-kvk a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.KeyVault/vaults/keys" ;
+    smalt:apiVersion "2023-07-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-mhsm a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.KeyVault/managedHSMs" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:ManagedHsmShape .
+smalt:tb-sa a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.Storage/storageAccounts" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:StorageAccountShape .
+smalt:tb-blobsvc a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.Storage/storageAccounts/blobServices" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-container a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.Storage/storageAccounts/blobServices/containers" ;
+    smalt:apiVersion "2023-05-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-immo a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.Storage/storageAccounts/blobServices/containers/immutabilityPolicies" ;
+    smalt:apiVersion "2023-05-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-cosmos a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.DocumentDB/databaseAccounts" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:CosmosAccountShape .
+smalt:tb-sb a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.ServiceBus/namespaces" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:ServiceBusNamespaceShape .
+smalt:tb-eg a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.EventGrid/topics" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-eh a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.EventHub/namespaces" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-oi a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.OperationalInsights/workspaces" ;
+    smalt:apiVersion "2020-08-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-si a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.SecurityInsights/onboardingStates" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-cl a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.ConfidentialLedger/ledgers" ;
+    smalt:apiVersion "2020-12-01-preview" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-ccf a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.ConfidentialLedger/managedCCFs" ;
+    smalt:apiVersion "2023-06-27-preview" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-att a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.Attestation/attestationProviders" ;
+    smalt:apiVersion "2020-10-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-purview a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.Purview/accounts" ;
+    smalt:apiVersion "2021-05-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-ca a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.App/containerApps" ;
+    smalt:apiVersion "2023-05-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-aks a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.ContainerService/managedClusters" ;
+    smalt:apiVersion "2023-02-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-ra a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.Authorization/roleAssignments" ;
+    smalt:apiVersion "2022-04-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-ds a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.Insights/diagnosticSettings" ;
+    smalt:apiVersion "2021-05-01-preview" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-dtl a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.DevTestLab/schedules" ;
+    smalt:apiVersion "2018-09-15" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-sbq a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.ServiceBus/namespaces/queues" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-sbt a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.ServiceBus/namespaces/topics" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-sbs a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.ServiceBus/namespaces/topics/subscriptions" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-ehh a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.EventHub/namespaces/eventhubs" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-ehc a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.EventHub/namespaces/eventhubs/consumergroups" ;
+    smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:DefaultShape .
