@@ -1,0 +1,63 @@
+# Cascade sweep plan — GENERATED from smalt-substrate-pack ontology via
+# ggen_igniter.sync (engine sparql). DO NOT EDIT — regenerate with the
+# mix ggen_igniter.sync invocation in the pack README.
+#
+# Source of truth: packs/smalt-substrate-pack/ontology.ttl
+#   smalt:contains walk + smalt:dataPlaneTable / smalt:keyStyle /
+#   smalt:dataPlaneKeyPrefix annotations (queries/cascade_sweep_rows.rq).
+# PROTOTYPE artifact (cascade-projection lane, 2026-10-16): NOT wired into
+# smalt lib/. A later lane replaces the hand-written per-service drop_*
+# dispatch (router.ex cascade_sweep/2 + BlobStorage.drop_account_data/1 +
+# Cosmos/SB/EH/Ledger sweeps) with this graph walk.
+defmodule Smalt.CascadeSweep do
+  @moduledoc """
+  Graph-walk cascade teardown plan projected from the ontology.
+  """
+
+  rows = [
+<%= for row <- cascade do %>    %{root: "<%= row["rootType"] %>", table: :"<%= row["table"] %>", style: :<%= String.replace(row["style"] || "arm-id-prefix", "-", "_") %>, prefix: <%= inspect(row["prefix"]) %>},
+<% end %>  ]
+  @rows rows
+
+  @doc "Sweep entries for a root ARM type (nil if not cascade-covered)."
+  def plan(root_type) do
+    case Enum.filter(@rows, &(&1.root == root_type)) do
+      [] ->
+        nil
+
+      entries ->
+        entries
+        |> Enum.map(&Map.delete(&1, :root))
+        |> Enum.uniq()
+    end
+  end
+
+
+  @doc "Types with a cascade plan (walk roots), sorted."
+  def covered_types do
+    @rows |> Enum.map(& &1.root) |> Enum.uniq() |> Enum.sort()
+  end
+
+  # Key-style dispatch. Binary-prefix styles sweep via Store.prefix_keys/2.
+  # Tuple styles need :ets.select patterns over the entity name — generated
+  # here as a SELECT-the-owner stub; the concrete match specs remain the
+  # hand-written residue (see prototype verdict).
+  @binary_styles [:arm_id_prefix, :acct_container, :db_coll_doc, :ns_hub, :ledger_tx, :topic_stream]
+  @tuple_styles [:sb_queue_tuple, :vault_name_tuple]
+
+  def sweep(root_type, ids) when is_map(ids) do
+    for %{table: t, style: s, prefix: p} <- plan(root_type) || [] do
+      cond do
+        s in @binary_styles and is_binary(p) ->
+          base = p |> String.replace("<acct>", ids.account) |> String.replace("<container>", ids.container) |> String.replace("<db>", ids.db) |> String.replace("<coll>", ids.coll) |> String.replace("<ns>", ids.ns) |> String.replace("<hub>", ids.hub) |> String.replace("<ledger>", ids.ledger) |> String.downcase()
+          {:prefix_sweep, t, base}
+
+        s in @tuple_styles ->
+          {:select_owner, t, s, Map.get(ids, :entity)}
+
+        true ->
+          {:singleton_delete, t}
+      end
+    end
+  end
+end

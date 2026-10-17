@@ -53,10 +53,72 @@ smalt:apiVersion a rdf:Property .
 smalt:shape a rdf:Property .
 smalt:location a rdf:Property .
 smalt:vmSize a rdf:Property .
+smalt:value a rdf:Property .
 smalt:skuName a rdf:Property .
 smalt:attestationHeader a rdf:Property .
 smalt:optimisticLockHeader a rdf:Property .
 smalt:immutableRetentionDays a rdf:Property .
+
+# KD-78 api-version admission lattice (monotonic <= latest).
+# Each smalt:TypeBinding's smalt:apiVersion is the lattice TOP for its type.
+# Admission is the derived predicate smalt:admitsVersion: version V is admitted
+# for type T iff base(V) as xsd:date <= T's smalt:apiVersion as xsd:date
+# (base strips an optional "-preview" suffix). The lattice is therefore the
+# half-open interval (-inf, latest] — no per-version enumeration is needed and
+# none may be fabricated. smalt:admittedVersion rows (multi-valued, ordered by
+# xsd:date) are OPTIONAL grounded witness points for historical versions; the
+# admission rule never reads them.
+smalt:admittedVersion a rdf:Property ;
+    rdfs:comment "Ordered historical api-version witness for a TypeBinding (informational; admission is monotonic <= apiVersion)." .
+
+smalt:admitsVersion a rdfs:Datatype ;
+    rdfs:comment "Derived predicate, projected to Registry.admitted_version?/2: admitsVersion(T, V) iff versionBase(V) as xsd:date <= apiVersion(T) as xsd:date. Refusal class: InvalidApiVersionParameter naming T's latest." .
+
+# Provider-listing projection properties (SHIM-COURT-adjacent: provider
+# matrix is ontology-projected, never hand-supplemented). SHIM-COURT
+smalt:providerNamespace a rdf:Property .
+smalt:inventoryType a rdf:Property .
+smalt:registrationState a rdf:Property .
+
+# Provider-listing carrier: locations + registration state as ontology data.
+smalt:ProviderInventory a rdfs:Class ;
+    rdfs:label "azurerm provider-listing inventory (NOT Registry-admitted surface)" .
+
+smalt:providerListing a smalt:ProviderInventory ;
+    smalt:location "eastus" ;
+    smalt:location "local" ;
+    smalt:location "westus2" ;
+    smalt:registrationState "Registered" .
+
+# Inventory-only types azurerm probes on an empty subscription. Deliberately
+# NOT typed smalt:ControlPlane: control_plane.rq must never admit them into
+# Smalt.Registry. SHIM-COURT
+smalt:providerInventory a smalt:ProviderInventory ;
+    smalt:resourceType "Microsoft.Resources/subscriptions" ;
+    smalt:resourceType "Microsoft.Resources/tenants" ;
+    smalt:resourceType "Microsoft.Resources/locations" ;
+    smalt:resourceType "Microsoft.ManagedIdentity/userAssignedIdentities" .
+
+smalt:inv-sub a smalt:TypeBinding ;
+    smalt:providerNamespace "Microsoft.Resources" ;
+    smalt:resourceType "Microsoft.Resources/subscriptions" ;
+    smalt:apiVersion "2022-12-01" ;
+    smalt:inventoryType true .
+smalt:inv-ten a smalt:TypeBinding ;
+    smalt:providerNamespace "Microsoft.Resources" ;
+    smalt:resourceType "Microsoft.Resources/tenants" ;
+    smalt:apiVersion "2022-12-01" ;
+    smalt:inventoryType true .
+smalt:inv-loc a smalt:TypeBinding ;
+    smalt:providerNamespace "Microsoft.Resources" ;
+    smalt:resourceType "Microsoft.Resources/locations" ;
+    smalt:apiVersion "2022-12-01" ;
+    smalt:inventoryType true .
+smalt:inv-uai a smalt:TypeBinding ;
+    smalt:providerNamespace "Microsoft.ManagedIdentity" ;
+    smalt:resourceType "Microsoft.ManagedIdentity/userAssignedIdentities" ;
+    smalt:apiVersion "2023-01-31" ;
+    smalt:inventoryType true .
 
 # Admitted ARM Resource Types (18 emulated service types)
 smalt:ArmControlPlane a smalt:ControlPlane ;
@@ -102,12 +164,17 @@ smalt:armChildControlPlane a smalt:ControlPlane ;
     smalt:resourceType "Microsoft.ServiceBus/namespaces/topics" ;
     smalt:resourceType "Microsoft.ServiceBus/namespaces/topics/subscriptions" ;
     smalt:resourceType "Microsoft.EventHub/namespaces/eventhubs" ;
-    smalt:resourceType "Microsoft.EventHub/namespaces/eventhubs/consumergroups" .
+    smalt:resourceType "Microsoft.EventHub/namespaces/eventhubs/consumergroups" ;
+    smalt:resourceType "Microsoft.KeyVault/vaults/secrets" ;
+    smalt:resourceType "Microsoft.DocumentDB/databaseAccounts/sqlDatabases" ;
+    smalt:resourceType "Microsoft.DocumentDB/databaseAccounts/sqlContainers" .
 
 # Per-type bindings: api-version + shape (consumed by payload_rules.rq)
 smalt:tb-rg a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.Resources/resourceGroups" ;
-    smalt:apiVersion "2021-04-01" ;
+    smalt:apiVersion "2023-07-01" ;
+    smalt:admittedVersion "2022-09-01" ;   # real prior azurerm resourceGroups version (witness row; admission rule never reads it)
+    smalt:admittedVersion "2021-04-01" ;
     smalt:shape smalt:ResourceGroupShape .
 smalt:tb-vnet a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.Network/virtualNetworks" ;
@@ -151,23 +218,40 @@ smalt:tb-des a smalt:TypeBinding ;
     smalt:shape smalt:DefaultShape .
 smalt:tb-kv a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.KeyVault/vaults" ;
-    smalt:apiVersion "2021-04-01" ;
+    smalt:apiVersion "2023-02-01" ;
     smalt:shape smalt:KeyVaultShape .
 smalt:tb-kvk a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.KeyVault/vaults/keys" ;
     smalt:apiVersion "2023-07-01" ;
     smalt:shape smalt:DefaultShape .
+smalt:tb-kvs a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.KeyVault/vaults/secrets" ;
+    smalt:apiVersion "2023-07-01" ;
+    smalt:shape smalt:KeyVaultSecretShape .
+smalt:tb-sqldb a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.DocumentDB/databaseAccounts/sqlDatabases" ;
+    smalt:apiVersion "2023-05-01" ;
+    smalt:shape smalt:SqlDatabaseShape .
+smalt:tb-sqlc a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.DocumentDB/databaseAccounts/sqlContainers" ;
+    smalt:apiVersion "2023-05-01" ;
+    smalt:shape smalt:SqlContainerShape .
 smalt:tb-mhsm a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.KeyVault/managedHSMs" ;
     smalt:apiVersion "2021-04-01" ;
     smalt:shape smalt:ManagedHsmShape .
 smalt:tb-sa a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.Storage/storageAccounts" ;
-    smalt:apiVersion "2021-04-01" ;
+    smalt:apiVersion "2023-05-01" ;
     smalt:shape smalt:StorageAccountShape .
 smalt:tb-blobsvc a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.Storage/storageAccounts/blobServices" ;
-    smalt:apiVersion "2021-04-01" ;
+    # KD-83: azurerm 4.54.0 (witnessed /tmp/tf-cleanroom.fe6rSw/tf-apply.log;
+    # id corrected from the earlier "KD-79" label — KD-79 is the taken
+    # vaultUri-loopback row; see smalt KNOWN_DIVERGENCES.md)
+    # issues blobServices ARM calls with api-version 2023-05-01; lattice top
+    # advanced to admit it (monotonic <= law in Registry.admitted_version?/2).
+    smalt:apiVersion "2023-05-01" ;
     smalt:shape smalt:DefaultShape .
 smalt:tb-container a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.Storage/storageAccounts/blobServices/containers" ;
@@ -179,11 +263,11 @@ smalt:tb-immo a smalt:TypeBinding ;
     smalt:shape smalt:DefaultShape .
 smalt:tb-cosmos a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.DocumentDB/databaseAccounts" ;
-    smalt:apiVersion "2021-04-01" ;
+    smalt:apiVersion "2024-08-15" ;
     smalt:shape smalt:CosmosAccountShape .
 smalt:tb-sb a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.ServiceBus/namespaces" ;
-    smalt:apiVersion "2021-04-01" ;
+    smalt:apiVersion "2024-01-01" ;
     smalt:shape smalt:ServiceBusNamespaceShape .
 smalt:tb-eg a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.EventGrid/topics" ;
@@ -191,7 +275,7 @@ smalt:tb-eg a smalt:TypeBinding ;
     smalt:shape smalt:DefaultShape .
 smalt:tb-eh a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.EventHub/namespaces" ;
-    smalt:apiVersion "2021-04-01" ;
+    smalt:apiVersion "2024-01-01" ;
     smalt:shape smalt:DefaultShape .
 smalt:tb-oi a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.OperationalInsights/workspaces" ;
@@ -239,7 +323,9 @@ smalt:tb-dtl a smalt:TypeBinding ;
     smalt:shape smalt:DefaultShape .
 smalt:tb-sbq a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.ServiceBus/namespaces/queues" ;
-    smalt:apiVersion "2021-04-01" ;
+    # KD-78 monotonic pattern: azurerm 4.54 child PUT witnessed at 2024-01-01
+    # (tf-cleanroom apply + tf-plan probe); lattice top advanced to admit it.
+    smalt:apiVersion "2024-01-01" ;
     smalt:shape smalt:DefaultShape .
 smalt:tb-sbt a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.ServiceBus/namespaces/topics" ;
@@ -251,9 +337,690 @@ smalt:tb-sbs a smalt:TypeBinding ;
     smalt:shape smalt:DefaultShape .
 smalt:tb-ehh a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.EventHub/namespaces/eventhubs" ;
-    smalt:apiVersion "2021-04-01" ;
+    # KD-78 monotonic pattern: azurerm 4.54 child PUT witnessed at 2024-01-01
+    # (tf-cleanroom apply + tf-plan probe); lattice top advanced to admit it.
+    smalt:apiVersion "2024-01-01" ;
     smalt:shape smalt:DefaultShape .
 smalt:tb-ehc a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.EventHub/namespaces/eventhubs/consumergroups" ;
     smalt:apiVersion "2021-04-01" ;
     smalt:shape smalt:DefaultShape .
+
+#################################################################
+# Cascade teardown vocabulary (SMALT-PRD cascade-walk work order).
+# Grounded census (FR-6 / D127 verification, smalt lib 2026-10-16):
+#   - control plane: lowercased ARM id prefix in :smalt_resources /
+#     :smalt_resource_groups ("arm-id-prefix")
+#   - blob trio + blocks/snapshots: "acct/..." and "acct/container/..."
+#     ("acct-container") — BlobStorage.drop_account_data/1
+#   - cosmos: "db/coll/doc" docs, "db/coll" pk-meta, plus lsn/ru counters
+#     ("db-coll-doc") — Smalt.Cosmos doc_key/3, container_key/2
+#   - service bus: {queue, seq} / {queue, sid} TUPLES, queue row = binary
+#     name, counter {queue, :seq} ("sb-queue-tuple") — QueueStore
+#   - event hubs: "ns/hub/partition" and checkpoint rows under "ns/hub/"
+#     ("ns-hub") — Smalt.Messaging.EventHubs
+#   - ledger: "ledger/tx_id" transactions + {:latest|:seq|:dup, ledger}
+#     tuple meta ("ledger-tx") — LedgerWriter
+#   - vault: name binaries + {name, version} tuples + deleted-soft rows
+#     ("vault-name-tuple") — KeyVaultActions
+#   - everything else: control-plane row only ("arm-id-prefix")
+# smalt:contains is the graph edge the sweep walks (recursive), replacing
+# the hand-written per-service drop_* dispatch.
+#################################################################
+
+smalt:contains a rdf:Property ;
+    rdfs:label "ARM containment (parent TypeBinding contains child)" ;
+    rdfs:comment "Recursive walk edge: a teardown of the parent must sweep every transitive child's data-plane rows." .
+
+smalt:dataPlaneTable a rdf:Property ;
+    rdfs:label "ETS table holding this type's data-plane rows" ;
+    rdfs:comment "Repeatable: a type may fan rows across several tables." .
+
+smalt:dataPlaneKeyPrefix a rdf:Property ;
+    rdfs:label "Binary key prefix scoping this type's rows" ;
+    rdfs:comment "Only meaningful for binary-keyed tables; tuple-keyed tables declare keyStyle instead." .
+
+smalt:keyStyle a rdf:Property ;
+    rdfs:label "Key convention class" ;
+    rdfs:comment "One of: arm-id-prefix | acct-container | db-coll-doc | sb-queue-tuple | ns-hub | ledger-tx | vault-name-tuple | topic-stream | singleton." .
+
+# --- containment edges (ARM resource model, parent -> child) -------------
+smalt:tb-rg       smalt:contains smalt:tb-vnet, smalt:tb-nsg, smalt:tb-nic,
+    smalt:tb-pep, smalt:tb-pdz, smalt:tb-pdzl, smalt:tb-vm, smalt:tb-disk,
+    smalt:tb-des, smalt:tb-kv, smalt:tb-mhsm, smalt:tb-sa, smalt:tb-cosmos,
+    smalt:tb-sb, smalt:tb-eg, smalt:tb-eh, smalt:tb-oi, smalt:tb-si,
+    smalt:tb-cl, smalt:tb-ccf, smalt:tb-att, smalt:tb-purview, smalt:tb-ca,
+    smalt:tb-aks, smalt:tb-ra, smalt:tb-ds, smalt:tb-dtl .
+smalt:tb-vnet     smalt:contains smalt:tb-subnet .
+smalt:tb-kv       smalt:contains smalt:tb-kvk, smalt:tb-kvs .
+smalt:tb-sa       smalt:contains smalt:tb-blobsvc .
+smalt:tb-blobsvc  smalt:contains smalt:tb-container .
+smalt:tb-container smalt:contains smalt:tb-immo .
+smalt:tb-cosmos   smalt:contains smalt:tb-sqldb .
+smalt:tb-sqldb    smalt:contains smalt:tb-sqlc .
+smalt:tb-sb       smalt:contains smalt:tb-sbq, smalt:tb-sbt .
+smalt:tb-sbt      smalt:contains smalt:tb-sbs .
+smalt:tb-eh       smalt:contains smalt:tb-ehh .
+smalt:tb-ehh      smalt:contains smalt:tb-ehc .
+
+
+# --- per-type data-plane table + key annotations (sweep-group nodes; RDF
+# statements are flat, so style/prefix must co-locate with their tables on a
+# group node or OPTIONAL joins cross-multiply styles across tables)
+smalt:tb-rg smalt:sweepGroup [ smalt:dataPlaneTable "smalt_resource_groups" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-vnet smalt:sweepGroup [ smalt:dataPlaneTable "smalt_resources" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-subnet smalt:sweepGroup [ smalt:dataPlaneTable "smalt_resources" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-nsg smalt:sweepGroup [ smalt:dataPlaneTable "smalt_resources" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-nic smalt:sweepGroup [ smalt:dataPlaneTable "smalt_resources" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-pep smalt:sweepGroup [ smalt:dataPlaneTable "smalt_resources" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-pdz smalt:sweepGroup [ smalt:dataPlaneTable "smalt_resources" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-pdzl smalt:sweepGroup [ smalt:dataPlaneTable "smalt_resources" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-vm smalt:sweepGroup [ smalt:dataPlaneTable "smalt_resources" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-disk smalt:sweepGroup [ smalt:dataPlaneTable "smalt_resources" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-des smalt:sweepGroup [ smalt:dataPlaneTable "smalt_resources" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-mhsm smalt:sweepGroup [ smalt:dataPlaneTable "smalt_resources" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-ca smalt:sweepGroup [ smalt:dataPlaneTable "smalt_resources" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-aks smalt:sweepGroup [ smalt:dataPlaneTable "smalt_resources" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-ra smalt:sweepGroup [ smalt:dataPlaneTable "smalt_resources" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-ds smalt:sweepGroup [ smalt:dataPlaneTable "smalt_resources" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-dtl smalt:sweepGroup [ smalt:dataPlaneTable "smalt_resources" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-att smalt:sweepGroup [ smalt:dataPlaneTable "smalt_attestation_baseline" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-oi smalt:sweepGroup [ smalt:dataPlaneTable "smalt_sentinel_streams", "smalt_sentinel_rows" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-si smalt:sweepGroup [ smalt:dataPlaneTable "smalt_sentinel_streams", "smalt_sentinel_rows" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-purview smalt:sweepGroup [ smalt:dataPlaneTable "smalt_purview_entities", "smalt_purview_edges" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-sa smalt:sweepGroup [ smalt:dataPlaneTable "smalt_resources" ; smalt:keyStyle "arm-id-prefix" ] .
+smalt:tb-sa smalt:sweepGroup [ smalt:dataPlaneTable "smalt_blob_containers", "smalt_blobs", "smalt_blob_policy", "smalt_blob_blocks", "smalt_blob_snapshots" ; smalt:keyStyle "acct-container" ; smalt:dataPlaneKeyPrefix "<acct>/" ] .
+smalt:tb-blobsvc smalt:sweepGroup [ smalt:dataPlaneTable "smalt_blob_containers", "smalt_blobs", "smalt_blob_policy", "smalt_blob_blocks", "smalt_blob_snapshots" ; smalt:keyStyle "acct-container" ; smalt:dataPlaneKeyPrefix "<acct>/" ] .
+smalt:tb-container smalt:sweepGroup [ smalt:dataPlaneTable "smalt_blob_containers", "smalt_blobs", "smalt_blob_policy", "smalt_blob_blocks", "smalt_blob_snapshots" ; smalt:keyStyle "acct-container" ; smalt:dataPlaneKeyPrefix "<acct>/<container>/" ] .
+smalt:tb-immo smalt:sweepGroup [ smalt:dataPlaneTable "smalt_blob_policy" ; smalt:keyStyle "acct-container" ; smalt:dataPlaneKeyPrefix "<acct>/<container>/" ] .
+smalt:tb-cosmos smalt:sweepGroup [ smalt:dataPlaneTable "smalt_cosmos_docs", "smalt_cosmos_lsn", "smalt_cosmos_pk_meta", "smalt_cosmos_ru" ; smalt:keyStyle "db-coll-doc" ; smalt:dataPlaneKeyPrefix "<db>/" ] .
+smalt:tb-sqldb smalt:sweepGroup [ smalt:dataPlaneTable "smalt_cosmos_docs", "smalt_cosmos_lsn", "smalt_cosmos_pk_meta", "smalt_cosmos_ru" ; smalt:keyStyle "db-coll-doc" ; smalt:dataPlaneKeyPrefix "<db>/" ] .
+smalt:tb-sqlc smalt:sweepGroup [ smalt:dataPlaneTable "smalt_cosmos_docs", "smalt_cosmos_pk_meta", "smalt_cosmos_lsn", "smalt_cosmos_ru" ; smalt:keyStyle "db-coll-doc" ; smalt:dataPlaneKeyPrefix "<db>/<coll>/" ] .
+smalt:tb-sb smalt:sweepGroup [ smalt:dataPlaneTable "smalt_sb_queues", "smalt_sb_messages", "smalt_sb_locks", "smalt_sb_sessions", "smalt_sb_tokens" ; smalt:keyStyle "sb-queue-tuple" ] .
+smalt:tb-sbq smalt:sweepGroup [ smalt:dataPlaneTable "smalt_sb_queues", "smalt_sb_messages", "smalt_sb_locks", "smalt_sb_sessions", "smalt_sb_tokens" ; smalt:keyStyle "sb-queue-tuple" ] .
+smalt:tb-sbt smalt:sweepGroup [ smalt:dataPlaneTable "smalt_sb_queues", "smalt_sb_messages", "smalt_sb_locks", "smalt_sb_sessions", "smalt_sb_tokens" ; smalt:keyStyle "sb-queue-tuple" ] .
+smalt:tb-sbs smalt:sweepGroup [ smalt:dataPlaneTable "smalt_sb_queues", "smalt_sb_messages", "smalt_sb_locks", "smalt_sb_sessions", "smalt_sb_tokens" ; smalt:keyStyle "sb-queue-tuple" ] .
+smalt:tb-eh smalt:sweepGroup [ smalt:dataPlaneTable "smalt_eh_partitions", "smalt_eh_checkpoints", "smalt_event_messages" ; smalt:keyStyle "ns-hub" ; smalt:dataPlaneKeyPrefix "<ns>/<hub>/" ] .
+smalt:tb-ehh smalt:sweepGroup [ smalt:dataPlaneTable "smalt_eh_partitions", "smalt_eh_checkpoints", "smalt_event_messages" ; smalt:keyStyle "ns-hub" ; smalt:dataPlaneKeyPrefix "<ns>/<hub>/" ] .
+smalt:tb-ehc smalt:sweepGroup [ smalt:dataPlaneTable "smalt_eh_checkpoints" ; smalt:keyStyle "ns-hub" ] .
+smalt:tb-cl smalt:sweepGroup [ smalt:dataPlaneTable "smalt_ledger_transactions", "smalt_ledger_meta" ; smalt:keyStyle "ledger-tx" ; smalt:dataPlaneKeyPrefix "<ledger>/" ] .
+smalt:tb-ccf smalt:sweepGroup [ smalt:dataPlaneTable "smalt_ledger_transactions", "smalt_ledger_meta" ; smalt:keyStyle "ledger-tx" ] .
+smalt:tb-kv smalt:sweepGroup [ smalt:dataPlaneTable "smalt_vault_keys", "smalt_vault_secrets", "smalt_vault_deleted_keys" ; smalt:keyStyle "vault-name-tuple" ] .
+smalt:tb-kvk smalt:sweepGroup [ smalt:dataPlaneTable "smalt_vault_keys", "smalt_vault_deleted_keys" ; smalt:keyStyle "vault-name-tuple" ] .
+smalt:tb-kvs smalt:sweepGroup [ smalt:dataPlaneTable "smalt_vault_secrets", "smalt_vault_deleted_keys" ; smalt:keyStyle "vault-name-tuple" ] .
+smalt:tb-eg smalt:sweepGroup [ smalt:dataPlaneTable "smalt_event_messages" ; smalt:keyStyle "topic-stream" ] .
+
+# -- OCEL closed event-type vocabulary (lane 431) --
+# Projected to lib/smalt/ocel/event_registry.ex via queries/event_types.rq +
+# templates/event_registry.ex.eex (`mix smalt.gen`). spc.drift covers the
+# SPC 1-sigma drift emitter (scripts/spc_gate.py verdicts -> CloudEvents row
+# in :smalt_event_messages via Smalt.Spc.Drift).
+smalt:et-arm a smalt:OcelEventType ; smalt:name "arm.resource.transition" .
+smalt:et-cosmos a smalt:OcelEventType ; smalt:name "cosmos.doc.crud" .
+smalt:et-blob a smalt:OcelEventType ; smalt:name "blob.custody.transition" .
+smalt:et-amqp a smalt:OcelEventType ; smalt:name "amqp.delivery.settled" .
+smalt:et-skr a smalt:OcelEventType ; smalt:name "skr.release" .
+smalt:et-ledger a smalt:OcelEventType ; smalt:name "ledger.append" .
+smalt:et-spc a smalt:OcelEventType ; smalt:name "spc.drift" .
+
+#################################################################
+# OCEL 2.0 event vocabulary (closed) — the projection source for
+# lib/smalt/ocel/event_registry.ex via `mix smalt.gen`. Adding a row
+# here is the ONLY lawful way to add an event type; the registry gate
+# (log-and-drop) refuses everything not projected from this graph.
+#################################################################
+
+smalt:OcelEventType a rdfs:Class ;
+    rdfs:label "Closed OCEL 2.0 event type" .
+
+smalt:OcelObjectType a rdfs:Class ;
+    rdfs:label "Closed OCEL 2.0 object type" .
+
+smalt:et-enclave-stage a smalt:OcelEventType ;
+    smalt:name "enclave.lifecycle.stage" .
+smalt:et-doctor-receipt a smalt:OcelEventType ;
+    smalt:name "doctor.receipt" .
+smalt:et-court-run a smalt:OcelEventType ;
+    smalt:name "court.run" .
+smalt:et-affidavit-seal a smalt:OcelEventType ;
+    smalt:name "affidavit.seal" .
+
+smalt:ocel-ot-resource a smalt:OcelObjectType ; smalt:name "resource" .
+smalt:ocel-ot-partition a smalt:OcelObjectType ; smalt:name "partition" .
+smalt:ocel-ot-document a smalt:OcelObjectType ; smalt:name "document" .
+smalt:ocel-ot-blob a smalt:OcelObjectType ; smalt:name "blob" .
+smalt:ocel-ot-queue a smalt:OcelObjectType ; smalt:name "queue" .
+smalt:ocel-ot-session a smalt:OcelObjectType ; smalt:name "session" .
+smalt:ocel-ot-message a smalt:OcelObjectType ; smalt:name "message" .
+smalt:ocel-ot-skr a smalt:OcelObjectType ; smalt:name "skr" .
+smalt:ocel-ot-spc a smalt:OcelObjectType ; smalt:name "spc-metric" .
+smalt:ocel-ot-ledger a smalt:OcelObjectType ; smalt:name "ledger" .
+smalt:ocel-ot-enclave a smalt:OcelObjectType ; smalt:name "enclave" .
+smalt:ocel-ot-fixture a smalt:OcelObjectType ; smalt:name "fixture" .
+
+#################################################################
+# Store table registry (W1b, recipe step 1): every ETS table atom the
+# substrate references, owned or shadow. OWNED rows = the 33 tables
+# Smalt.Store creates in init/1 (mirrors the pre-projection @tables).
+# SHADOW rows = :smalt_* atoms referenced in lib/ but created lazily by
+# their owner modules (sweepStrategy=none); typing them here closes the
+# swept-but-unowned bug class (:smalt_blob_blocks, E2 census).
+# Projection: queries/store_tables.rq -> templates/store_tables.ex.eex
+# -> lib/smalt/store_tables.ex. Fence: verify/store-shadow-tables.unbound.rq
+# + test/store_tables_replay_identity_test.exs (lib/ grep coverage).
+#################################################################
+
+smalt:StoreTable a rdfs:Class ;
+    rdfs:label "Store ETS table" ;
+    rdfs:comment "One row per ETS table atom referenced anywhere in lib/. Owned rows are created by Smalt.Store init/1; shadow rows are lazily created by their ownerModule." .
+
+smalt:tableName a rdf:Property .
+smalt:keyShape a rdf:Property ;
+    rdfs:comment "armId | binaryPrefix | tuple | atom | integer (doc-level key contract)." .
+smalt:ownerModule a rdf:Property .
+smalt:sweepStrategy a rdf:Property ;
+    rdfs:comment "cascade (cascade teardown sweep) | retention (sweeper passes) | metadata (survives destroy residue check) | none (shadow, owner-managed)." .
+smalt:metadataOnly a rdf:Property ;
+    rdfs:comment "true = in Smalt.Enclave.State @metadata_tables (survives destroy residue check)." .
+smalt:persisted a rdf:Property ;
+    rdfs:comment "true = in Smalt.Store.DetsMirror @default_tables (survives restart)." .
+smalt:orderedSet a rdf:Property .
+
+# ---- OWNED: the 33 Smalt.Store tables --------------------------------------
+smalt:st-smalt_subscriptions a smalt:StoreTable ; smalt:tableName "smalt_subscriptions" ; smalt:keyShape "armId" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "metadata" ; smalt:metadataOnly true ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_resource_groups a smalt:StoreTable ; smalt:tableName "smalt_resource_groups" ; smalt:keyShape "armId" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "cascade" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_resources a smalt:StoreTable ; smalt:tableName "smalt_resources" ; smalt:keyShape "armId" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "cascade" ; smalt:metadataOnly false ; smalt:persisted true ; smalt:orderedSet true .
+smalt:st-smalt_operations a smalt:StoreTable ; smalt:tableName "smalt_operations" ; smalt:keyShape "armId" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "metadata" ; smalt:metadataOnly true ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_cosmos_docs a smalt:StoreTable ; smalt:tableName "smalt_cosmos_docs" ; smalt:keyShape "tuple" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "cascade" ; smalt:metadataOnly false ; smalt:persisted true ; smalt:orderedSet true .
+smalt:st-smalt_cosmos_lsn a smalt:StoreTable ; smalt:tableName "smalt_cosmos_lsn" ; smalt:keyShape "tuple" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "metadata" ; smalt:metadataOnly true ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_cosmos_pk_meta a smalt:StoreTable ; smalt:tableName "smalt_cosmos_pk_meta" ; smalt:keyShape "tuple" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "retention" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_vault_keys a smalt:StoreTable ; smalt:tableName "smalt_vault_keys" ; smalt:keyShape "tuple" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "cascade" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_vault_secrets a smalt:StoreTable ; smalt:tableName "smalt_vault_secrets" ; smalt:keyShape "tuple" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "cascade" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_appconfig a smalt:StoreTable ; smalt:tableName "smalt_appconfig" ; smalt:keyShape "tuple" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "retention" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_blobs a smalt:StoreTable ; smalt:tableName "smalt_blobs" ; smalt:keyShape "binaryPrefix" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "retention" ; smalt:metadataOnly false ; smalt:persisted true ; smalt:orderedSet true .
+smalt:st-smalt_blob_containers a smalt:StoreTable ; smalt:tableName "smalt_blob_containers" ; smalt:keyShape "armId" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "cascade" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_blob_snapshots a smalt:StoreTable ; smalt:tableName "smalt_blob_snapshots" ; smalt:keyShape "armId" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "retention" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_blob_policy a smalt:StoreTable ; smalt:tableName "smalt_blob_policy" ; smalt:keyShape "armId" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "cascade" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_ledger_transactions a smalt:StoreTable ; smalt:tableName "smalt_ledger_transactions" ; smalt:keyShape "binaryPrefix" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "cascade" ; smalt:metadataOnly false ; smalt:persisted true ; smalt:orderedSet true .
+smalt:st-smalt_ledger_meta a smalt:StoreTable ; smalt:tableName "smalt_ledger_meta" ; smalt:keyShape "tuple" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "metadata" ; smalt:metadataOnly true ; smalt:persisted true ; smalt:orderedSet true .
+smalt:st-smalt_event_messages a smalt:StoreTable ; smalt:tableName "smalt_event_messages" ; smalt:keyShape "binaryPrefix" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "cascade" ; smalt:metadataOnly false ; smalt:persisted true ; smalt:orderedSet true .
+smalt:st-smalt_eg_topics a smalt:StoreTable ; smalt:tableName "smalt_eg_topics" ; smalt:keyShape "tuple" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "retention" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_sb_queues a smalt:StoreTable ; smalt:tableName "smalt_sb_queues" ; smalt:keyShape "binaryPrefix" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "cascade" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_sb_messages a smalt:StoreTable ; smalt:tableName "smalt_sb_messages" ; smalt:keyShape "tuple" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "retention" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_sb_locks a smalt:StoreTable ; smalt:tableName "smalt_sb_locks" ; smalt:keyShape "binaryPrefix" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "metadata" ; smalt:metadataOnly true ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_sb_sessions a smalt:StoreTable ; smalt:tableName "smalt_sb_sessions" ; smalt:keyShape "tuple" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "metadata" ; smalt:metadataOnly true ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_sb_tokens a smalt:StoreTable ; smalt:tableName "smalt_sb_tokens" ; smalt:keyShape "binaryPrefix" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "metadata" ; smalt:metadataOnly true ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_sb_rules a smalt:StoreTable ; smalt:tableName "smalt_sb_rules" ; smalt:keyShape "armId" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "retention" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_eh_partitions a smalt:StoreTable ; smalt:tableName "smalt_eh_partitions" ; smalt:keyShape "binaryPrefix" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "cascade" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_eh_checkpoints a smalt:StoreTable ; smalt:tableName "smalt_eh_checkpoints" ; smalt:keyShape "tuple" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "cascade" ; smalt:metadataOnly true ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_sentinel_streams a smalt:StoreTable ; smalt:tableName "smalt_sentinel_streams" ; smalt:keyShape "tuple" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "cascade" ; smalt:metadataOnly true ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_sentinel_rows a smalt:StoreTable ; smalt:tableName "smalt_sentinel_rows" ; smalt:keyShape "binaryPrefix" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "retention" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_purview_entities a smalt:StoreTable ; smalt:tableName "smalt_purview_entities" ; smalt:keyShape "binaryPrefix" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "cascade" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_purview_edges a smalt:StoreTable ; smalt:tableName "smalt_purview_edges" ; smalt:keyShape "binaryPrefix" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "cascade" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_resource_graph_tokens a smalt:StoreTable ; smalt:tableName "smalt_resource_graph_tokens" ; smalt:keyShape "binaryPrefix" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "metadata" ; smalt:metadataOnly true ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_attestation_baseline a smalt:StoreTable ; smalt:tableName "smalt_attestation_baseline" ; smalt:keyShape "binaryPrefix" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "metadata" ; smalt:metadataOnly true ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_metrics a smalt:StoreTable ; smalt:tableName "smalt_metrics" ; smalt:keyShape "binaryPrefix" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "retention" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet true .
+
+# ---- SHADOW: referenced in lib/, lazily created by owner modules ------------
+smalt:st-smalt_policy a smalt:StoreTable ; smalt:tableName "smalt_policy" ; smalt:keyShape "binaryPrefix" ; smalt:ownerModule "Smalt.Policy" ; smalt:sweepStrategy "none" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet false .
+smalt:st-smalt_rbac a smalt:StoreTable ; smalt:tableName "smalt_rbac" ; smalt:keyShape "binaryPrefix" ; smalt:ownerModule "Smalt.Policy" ; smalt:sweepStrategy "none" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet false .
+smalt:st-smalt_eh_epochs a smalt:StoreTable ; smalt:tableName "smalt_eh_epochs" ; smalt:keyShape "tuple" ; smalt:ownerModule "Smalt.Messaging.AMQP.Connection" ; smalt:sweepStrategy "none" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet false .
+smalt:st-smalt_rolling_counters a smalt:StoreTable ; smalt:tableName "smalt_rolling_counters" ; smalt:keyShape "tuple" ; smalt:ownerModule "Smalt.Telemetry" ; smalt:sweepStrategy "none" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet false .
+smalt:st-smalt_arm_rate a smalt:StoreTable ; smalt:tableName "smalt_arm_rate" ; smalt:keyShape "tuple" ; smalt:ownerModule "Smalt.ArmGateway.Router" ; smalt:sweepStrategy "none" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet false .
+smalt:st-smalt_raw_body a smalt:StoreTable ; smalt:tableName "smalt_raw_body" ; smalt:keyShape "binaryPrefix" ; smalt:ownerModule "Smalt.ArmGateway.Router" ; smalt:sweepStrategy "none" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet false .
+smalt:st-smalt_compiled a smalt:StoreTable ; smalt:tableName "smalt_compiled" ; smalt:keyShape "atom" ; smalt:ownerModule "Smalt.AshExtension.GeneratedPersist" ; smalt:sweepStrategy "none" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet false .
+smalt:st-smalt_store_read a smalt:StoreTable ; smalt:tableName "smalt_store_read" ; smalt:keyShape "atom" ; smalt:ownerModule "Smalt.AshExtension.GeneratedPersist" ; smalt:sweepStrategy "none" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet false .
+smalt:st-smalt_event a smalt:StoreTable ; smalt:tableName "smalt_event" ; smalt:keyShape "atom" ; smalt:ownerModule "Smalt.Projection.Admission" ; smalt:sweepStrategy "none" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet false .
+smalt:st-smalt_pplan_tasks a smalt:StoreTable ; smalt:tableName "smalt_pplan_tasks" ; smalt:keyShape "binaryPrefix" ; smalt:ownerModule "Smalt.Pplan.Task" ; smalt:sweepStrategy "none" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet false .
+smalt:st-smalt_cosmos_ru a smalt:StoreTable ; smalt:tableName "smalt_cosmos_ru" ; smalt:keyShape "tuple" ; smalt:ownerModule "Smalt.DataPlane.Cosmos" ; smalt:sweepStrategy "none" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet false .
+smalt:st-smalt_blob_blocks a smalt:StoreTable ; smalt:tableName "smalt_blob_blocks" ; smalt:keyShape "tuple" ; smalt:ownerModule "Smalt.DataPlane.BlobStorage" ; smalt:sweepStrategy "none" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet false .
+smalt:st-smalt_sentinel_forensic a smalt:StoreTable ; smalt:tableName "smalt_sentinel_forensic" ; smalt:keyShape "integer" ; smalt:ownerModule "Smalt.Store" ; smalt:sweepStrategy "none" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet false .
+smalt:st-smalt_sas_permissions a smalt:StoreTable ; smalt:tableName "smalt_sas_permissions" ; smalt:keyShape "tuple" ; smalt:ownerModule "Smalt.Auth.SAS" ; smalt:sweepStrategy "none" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet false .
+smalt:st-smalt_cbs_claims a smalt:StoreTable ; smalt:tableName "smalt_cbs_claims" ; smalt:keyShape "tuple" ; smalt:ownerModule "Smalt.Messaging.AMQP.CBSRouter" ; smalt:sweepStrategy "none" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet false .
+smalt:st-smalt_sb_sweeper_lock_tombstones a smalt:StoreTable ; smalt:tableName "smalt_sb_sweeper_lock_tombstones" ; smalt:keyShape "tuple" ; smalt:ownerModule "Smalt.Messaging.AMQP.Sweeper" ; smalt:sweepStrategy "none" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet true .
+smalt:st-smalt_vault_deleted_keys a smalt:StoreTable ; smalt:tableName "smalt_vault_deleted_keys" ; smalt:keyShape "binaryPrefix" ; smalt:ownerModule "Smalt.DataPlane.KeyVaultActions" ; smalt:sweepStrategy "none" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet false .
+smalt:st-smalt_affidavit_witnesses a smalt:StoreTable ; smalt:tableName "smalt_affidavit_witnesses" ; smalt:keyShape "binaryPrefix" ; smalt:ownerModule "Smalt.ArmGateway.Router" ; smalt:sweepStrategy "none" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet false .
+smalt:st-smalt_admission_matrix a smalt:StoreTable ; smalt:tableName "smalt_admission_matrix" ; smalt:keyShape "atom" ; smalt:ownerModule "Smalt.Projection.Admission" ; smalt:sweepStrategy "none" ; smalt:metadataOnly false ; smalt:persisted false ; smalt:orderedSet false .
+
+#################################################################
+# ConfigKey census (W1a, 2026-10-17). Grounded by grep census of
+# Application.get_env(:smalt, ...) across smalt lib/ (88 call sites,
+# 46 distinct keys). Each smalt:ConfigKey row is the ONLY copy of a
+# key's in-code default going forward: the template projects one
+# zero-arity accessor per key into lib/smalt/config.ex (Smalt.Config)
+# mirroring the call site's override semantics exactly via
+# smalt:override (none | env-first | app-env-first). secret=true keys
+# are read RAW by their accessors; call sites keep their existing
+# case/wrap form (e.g. sas.ex account_key/0 returns {:ok, key}); the
+# accessor mirrors the site, it does not re-wrap.
+# Bijection gate: verify/config-bijection-full.unbound.rq (zero rows
+# to pass). Coverage gate: gates/config_coverage.rq (>=1 row).
+#################################################################
+
+smalt:ConfigKey a rdfs:Class ;
+    rdfs:label "Application env key (closed census)" .
+
+smalt:name a rdf:Property .
+smalt:secret a rdf:Property .
+smalt:surface a rdf:Property .
+smalt:envVarName a rdf:Property .
+smalt:override a rdf:Property .
+smalt:docsText a rdf:Property .
+smalt:default a rdf:Property .
+smalt:type a rdf:Property .
+
+smalt:ck-affidavit-wasm-path a smalt:ConfigKey ;
+    smalt:name "affidavit_wasm_path" ;
+    smalt:type "path" ;
+    smalt:default "priv/wasm/affidavit_wasm.wasm" ;
+    smalt:secret false ;
+    smalt:surface "affidavit" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Affidavit WASM module path served to enclave doctors." .
+smalt:ck-affidavit-wasm-pin-path a smalt:ConfigKey ;
+    smalt:name "affidavit_wasm_pin_path" ;
+    smalt:type "path" ;
+    smalt:default "priv/wasm/affidavit.sha256" ;
+    smalt:secret false ;
+    smalt:surface "affidavit" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "sha256 pin file for the affidavit WASM module." .
+smalt:ck-amqp-port a smalt:ConfigKey ;
+    smalt:name "amqp_port" ;
+    smalt:type "integer" ;
+    smalt:default "5672" ;
+    smalt:secret false ;
+    smalt:surface "messaging" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "AMQP Service Bus listener port (mode :sb)." .
+smalt:ck-amqp-sweeper-lock-grace-ms a smalt:ConfigKey ;
+    smalt:name "amqp_sweeper_lock_grace_ms" ;
+    smalt:type "integer" ;
+    smalt:default "30_000" ;
+    smalt:secret false ;
+    smalt:surface "messaging" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Grace window before a lock tombstone is dropped by the AMQP sweeper." .
+smalt:ck-amqp-sweeper-tick-ms a smalt:ConfigKey ;
+    smalt:name "amqp_sweeper_tick_ms" ;
+    smalt:type "integer" ;
+    smalt:default "250" ;
+    smalt:secret false ;
+    smalt:surface "messaging" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "AMQP sweeper tick period in milliseconds." .
+smalt:ck-arm-port a smalt:ConfigKey ;
+    smalt:name "arm_port" ;
+    smalt:type "integer" ;
+    smalt:default "9443" ;
+    smalt:secret false ;
+    smalt:surface "control_plane" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "ARM-style control plane REST port." .
+smalt:ck-arm-rate-limit a smalt:ConfigKey ;
+    smalt:name "arm_rate_limit" ;
+    smalt:type "atom" ;
+    smalt:default ":infinity" ;
+    smalt:secret false ;
+    smalt:surface "control_plane" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "ARM gateway rate limit (:infinity disables the limiter)." .
+smalt:ck-arm-tls-port a smalt:ConfigKey ;
+    smalt:name "arm_tls_port" ;
+    smalt:type "integer" ;
+    smalt:default "9444" ;
+    smalt:secret false ;
+    smalt:surface "tls" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "TLS twin port for SDK legs that refuse Bearer over http." .
+smalt:ck-auth-mode a smalt:ConfigKey ;
+    smalt:name "auth_mode" ;
+    smalt:type "atom" ;
+    smalt:default ":enforce" ;
+    smalt:secret false ;
+    smalt:surface "auth" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Bearer auth mode: :enforce default, :anonymous test only." .
+smalt:ck-bind-ip a smalt:ConfigKey ;
+    smalt:name "bind_ip" ;
+    smalt:type "string" ;
+    smalt:default "nil" ;
+    smalt:secret false ;
+    smalt:surface "control_plane" ;
+    smalt:envVarName "SMALT_BIND_IP" ;
+    smalt:override "env-first" ;
+    smalt:docsText "Listener bind IP; SMALT_BIND_IP overrides the app env." .
+smalt:ck-blob-account-key a smalt:ConfigKey ;
+    smalt:name "blob_account_key" ;
+    smalt:type "string" ;
+    smalt:default "nil" ;
+    smalt:secret true ;
+    smalt:surface "data_plane" ;
+    smalt:envVarName "SMALT_BLOB_ACCOUNT_KEY" ;
+    smalt:override "app-env-first" ;
+    smalt:docsText "Blob SAS verification key; app env wins over SMALT_BLOB_ACCOUNT_KEY." .
+smalt:ck-blob-catch-all-hosts a smalt:ConfigKey ;
+    smalt:name "blob_catch_all_hosts" ;
+    smalt:type "list" ;
+    smalt:default "[]" ;
+    smalt:secret false ;
+    smalt:surface "data_plane" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Extra hosts routed to the blob catch-all egress rule." .
+smalt:ck-cosmos-master-key a smalt:ConfigKey ;
+    smalt:name "cosmos_master_key" ;
+    smalt:type "string" ;
+    smalt:default "nil" ;
+    smalt:secret true ;
+    smalt:surface "data_plane" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Cosmos emulator master key for enforce-mode authorization." .
+smalt:ck-cosmos-ru-limit a smalt:ConfigKey ;
+    smalt:name "cosmos_ru_limit" ;
+    smalt:type "atom" ;
+    smalt:default ":infinity" ;
+    smalt:secret false ;
+    smalt:surface "data_plane" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Cosmos request-unit budget per query (:infinity disables budgeting)." .
+smalt:ck-doctor-supervisor a smalt:ConfigKey ;
+    smalt:name "doctor_supervisor" ;
+    smalt:type "module" ;
+    smalt:default "Smalt.Supervisor" ;
+    smalt:secret false ;
+    smalt:surface "mcp" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Supervisor module the MCP doctor surface boots into." .
+smalt:ck-egress-cors-origins a smalt:ConfigKey ;
+    smalt:name "egress_cors_origins" ;
+    smalt:type "list" ;
+    smalt:default "[\"*\"]" ;
+    smalt:secret false ;
+    smalt:surface "data_plane" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "CORS allow-list for egress router responses." .
+smalt:ck-egress-port a smalt:ConfigKey ;
+    smalt:name "egress_port" ;
+    smalt:type "integer" ;
+    smalt:default "8443" ;
+    smalt:secret false ;
+    smalt:surface "data_plane" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Data plane router port." .
+smalt:ck-event-hubs-port a smalt:ConfigKey ;
+    smalt:name "event_hubs_port" ;
+    smalt:type "integer" ;
+    smalt:default "5673" ;
+    smalt:secret false ;
+    smalt:surface "messaging" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Event Hubs listener port (mode :eh)." .
+smalt:ck-event-stream-dedup-ids a smalt:ConfigKey ;
+    smalt:name "event_stream_dedup_ids" ;
+    smalt:type "boolean" ;
+    smalt:default "false" ;
+    smalt:secret false ;
+    smalt:surface "messaging" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Emit dedup-id metadata on event stream rows." .
+smalt:ck-eventgrid-response-mode a smalt:ConfigKey ;
+    smalt:name "eventgrid_response_mode" ;
+    smalt:type "string" ;
+    smalt:default "real" ;
+    smalt:secret false ;
+    smalt:surface "data_plane" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Event Grid subscription response mode (real vs synthetic)." .
+smalt:ck-ex4pm-dir a smalt:ConfigKey ;
+    smalt:name "ex4pm_dir" ;
+    smalt:type "path" ;
+    smalt:default "Path.expand(../ex4pm/ex4pm, File.cwd!())" ;
+    smalt:secret false ;
+    smalt:surface "ocel" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "ex4pm reverse bridge project dir." .
+smalt:ck-graphlaw-engine a smalt:ConfigKey ;
+    smalt:name "graphlaw_engine" ;
+    smalt:type "atom" ;
+    smalt:default "nil" ;
+    smalt:secret false ;
+    smalt:surface "graphlaw" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "WASM fast-path selector; :ash_graphlaw enables the ash_graphlaw validator." .
+smalt:ck-kv-master-secret a smalt:ConfigKey ;
+    smalt:name "kv_master_secret" ;
+    smalt:type "string" ;
+    smalt:default "nil" ;
+    smalt:secret true ;
+    smalt:surface "data_plane" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "KeyVault emulator master secret." .
+smalt:ck-ledger-enforce-existence a smalt:ConfigKey ;
+    smalt:name "ledger_enforce_existence" ;
+    smalt:type "boolean" ;
+    smalt:default "false" ;
+    smalt:secret false ;
+    smalt:surface "data_plane" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Refuse ledger appends referencing nonexistent ledger rows." .
+smalt:ck-lro-delay-ms a smalt:ConfigKey ;
+    smalt:name "lro_delay_ms" ;
+    smalt:type "integer" ;
+    smalt:default "0" ;
+    smalt:secret false ;
+    smalt:surface "control_plane" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Artificial completion delay injected into LRO operations." .
+smalt:ck-lro-retention-ms a smalt:ConfigKey ;
+    smalt:name "lro_retention_ms" ;
+    smalt:type "atom" ;
+    smalt:default ":infinity" ;
+    smalt:secret false ;
+    smalt:surface "control_plane" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "LRO operation retention window; :infinity keeps operations forever." .
+smalt:ck-lro-sweep-interval-ms a smalt:ConfigKey ;
+    smalt:name "lro_sweep_interval_ms" ;
+    smalt:type "integer" ;
+    smalt:default "30_000" ;
+    smalt:secret false ;
+    smalt:surface "control_plane" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "LRO sweeper tick period in milliseconds." .
+smalt:ck-maa-measurement-baseline a smalt:ConfigKey ;
+    smalt:name "maa_measurement_baseline" ;
+    smalt:type "string" ;
+    smalt:default "nil" ;
+    smalt:secret false ;
+    smalt:surface "security" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Expected MAA measurement baseline (hex) for attestation admission." .
+smalt:ck-mcp-port a smalt:ConfigKey ;
+    smalt:name "mcp_port" ;
+    smalt:type "integer" ;
+    smalt:default "9545" ;
+    smalt:secret false ;
+    smalt:surface "mcp" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "MCP tool surface port." .
+smalt:ck-ocel-dir a smalt:ConfigKey ;
+    smalt:name "ocel_dir" ;
+    smalt:type "path" ;
+    smalt:default "Path.join(\"tmp\", \"ocel\")" ;
+    smalt:secret false ;
+    smalt:surface "ocel" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "OCEL NDJSON telemetry directory." .
+smalt:ck-primitive-codec a smalt:ConfigKey ;
+    smalt:name "primitive_codec" ;
+    smalt:type "module" ;
+    smalt:default "Smalt.Amqp.PrimitiveCodec" ;
+    smalt:secret false ;
+    smalt:surface "messaging" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "AMQP primitive codec module dispatched by the frame codec." .
+smalt:ck-prod a smalt:ConfigKey ;
+    smalt:name "prod" ;
+    smalt:type "boolean" ;
+    smalt:default "false" ;
+    smalt:secret false ;
+    smalt:surface "control_plane" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Prod guard: refuse unconfigured :sts_signing_secret at boot." .
+smalt:ck-receipt-signing-key a smalt:ConfigKey ;
+    smalt:name "receipt_signing_key" ;
+    smalt:type "string" ;
+    smalt:default "nil" ;
+    smalt:secret true ;
+    smalt:surface "security" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "PEM RSA key material for court receipt signing." .
+smalt:ck-rg-token-preserve-options a smalt:ConfigKey ;
+    smalt:name "rg_token_preserve_options" ;
+    smalt:type "boolean" ;
+    smalt:default "false" ;
+    smalt:secret false ;
+    smalt:surface "control_plane" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Preserve unknown expand options in resource-group tokens." .
+smalt:ck-sb-endpoint a smalt:ConfigKey ;
+    smalt:name "sb_endpoint" ;
+    smalt:type "string" ;
+    smalt:default "sb://127.0.0.1:5672" ;
+    smalt:secret false ;
+    smalt:surface "messaging" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Service Bus endpoint scheme://host:port used by SAS verification." .
+smalt:ck-sb-shared-key a smalt:ConfigKey ;
+    smalt:name "sb_shared_key" ;
+    smalt:type "string" ;
+    smalt:default "nil" ;
+    smalt:secret true ;
+    smalt:surface "messaging" ;
+    smalt:envVarName "SMALT_SB_SHARED_KEY" ;
+    smalt:override "none" ;
+    smalt:docsText "Broker SAS shared key; SMALT_SB_SHARED_KEY pins it via the CBS router." .
+smalt:ck-sentinel-dcr-strict a smalt:ConfigKey ;
+    smalt:name "sentinel_dcr_strict" ;
+    smalt:type "boolean" ;
+    smalt:default "false" ;
+    smalt:secret false ;
+    smalt:surface "observability" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Refuse sentinel rows whose DCR stream is not declared." .
+smalt:ck-sentinel-forensic a smalt:ConfigKey ;
+    smalt:name "sentinel_forensic" ;
+    smalt:type "boolean" ;
+    smalt:default "false" ;
+    smalt:secret false ;
+    smalt:surface "observability" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Mirror every sentinel row seq to forensic evidence lines." .
+smalt:ck-skr-allow-legacy-header a smalt:ConfigKey ;
+    smalt:name "skr_allow_legacy_header" ;
+    smalt:type "boolean" ;
+    smalt:default "false" ;
+    smalt:secret false ;
+    smalt:surface "data_plane" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Accept the legacy SKR release header variant." .
+smalt:ck-sts-authority-url a smalt:ConfigKey ;
+    smalt:name "sts_authority_url" ;
+    smalt:type "string" ;
+    smalt:default "nil" ;
+    smalt:secret false ;
+    smalt:surface "auth" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Explicit STS authority URL overriding the loopback organizations default." .
+smalt:ck-sts-signing-secret a smalt:ConfigKey ;
+    smalt:name "sts_signing_secret" ;
+    smalt:type "string" ;
+    smalt:default "nil" ;
+    smalt:secret true ;
+    smalt:surface "auth" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "HS256 STS signing secret; mandatory when :prod is set." .
+smalt:ck-tls a smalt:ConfigKey ;
+    smalt:name "tls" ;
+    smalt:type "atom" ;
+    smalt:default ":auto" ;
+    smalt:secret false ;
+    smalt:surface "tls" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "TLS mode: :auto derives from certs presence; :on or :off force it." .
+smalt:ck-tls-certfile a smalt:ConfigKey ;
+    smalt:name "tls_certfile" ;
+    smalt:type "path" ;
+    smalt:default "nil" ;
+    smalt:secret false ;
+    smalt:surface "tls" ;
+    smalt:envVarName "SMALT_TLS_CERTFILE" ;
+    smalt:override "none" ;
+    smalt:docsText "TLS leaf certificate PEM path; env read stays call-site residue." .
+smalt:ck-tls-keyfile a smalt:ConfigKey ;
+    smalt:name "tls_keyfile" ;
+    smalt:type "path" ;
+    smalt:default "nil" ;
+    smalt:secret false ;
+    smalt:surface "tls" ;
+    smalt:envVarName "SMALT_TLS_KEYFILE" ;
+    smalt:override "none" ;
+    smalt:docsText "TLS private key PEM path." .
+smalt:ck-token-audiences a smalt:ConfigKey ;
+    smalt:name "token_audiences" ;
+    smalt:type "list" ;
+    smalt:default "[\"https://management.azure.com\"]" ;
+    smalt:secret false ;
+    smalt:surface "auth" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Accepted aud claims for Bearer tokens." .
+smalt:ck-trusted-proxies a smalt:ConfigKey ;
+    smalt:name "trusted_proxies" ;
+    smalt:type "list" ;
+    smalt:default "[]" ;
+    smalt:secret false ;
+    smalt:surface "auth" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Exact proxy IPs trusted for x-forwarded-for extraction." .
+

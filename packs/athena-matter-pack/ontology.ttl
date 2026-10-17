@@ -1,0 +1,108 @@
+@prefix am:   <https://ggen.io/ontology/athena-matter#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+#################################################################
+# athena-matter-pack ontology
+#
+# Security-control domain vocabulary for athena's private matter
+# surface. Grounded in athena's existing contract style: zod
+# .strict() modules with uppercase REFUSED-class error tokens
+# (acceptance-tier.ts), server-side custody derivation (CaseSpace),
+# and the sentinel-audit hash chain.
+#
+# Every projected zod contract line lives here as an am:Field row.
+# Templates project rows verbatim; verify/*.unbound.rq gates refuse
+# orphan fields, broken audit-chain field sets, and custody-binding
+# drift (zero-rows law).
+#
+# Contracts:
+# - AccessGrant  : J7 identity-admission contract. A grant MUST
+#                  expire (expiresAt mandatory); no permanent grants.
+# - EncryptedRecord : W2-2 sealed envelope. AEAD scheme + wrapped
+#                  DEK + iv + ciphertext; keys never co-located
+#                  with plaintext.
+# - RegionPin    : allowedRegions membership set admission.
+# - AuditEvent   : sentinel-audit chain — prevHash links each
+#                  event to its predecessor.
+# - CaseSpace    : per-case isolated custody surface (tenantId,
+#                  firmId, caseId); container derived server-side,
+#                  never caller-chosen.
+#################################################################
+
+am:AccessGrant a rdfs:Class ;
+    rdfs:label "Access Grant" ;
+    dct:description "Principal-to-matter authorization with mandatory expiry (J7 identity-admission contract: a grant without expiry is refused)." .
+
+am:EncryptedRecord a rdfs:Class ;
+    rdfs:label "Encrypted Record" ;
+    dct:description "AEAD sealed envelope: scheme, keyVersion, wrappedDek, iv, ciphertext (W2-2). The DEK never appears unwrapped." .
+
+am:RegionPin a rdfs:Class ;
+    rdfs:label "Region Pin" ;
+    dct:description "Regional admission surface: allowedRegions is a closed membership set; outside the set is refused." .
+
+am:AuditEvent a rdfs:Class ;
+    rdfs:label "Audit Event" ;
+    dct:description "Sentinel-audit chain link: actor, action, target, outcome, prevHash. Each event carries the hash of its predecessor." .
+
+am:CaseSpace a rdfs:Class ;
+    rdfs:label "Case Space" ;
+    dct:description "Per-case isolated custody surface: (tenantId, firmId, caseId) triple; container derived server-side, never caller-chosen." .
+
+# ---------------------------------------------------------------------------
+# Fields (one am:Field row per projected zod line; am:zodExpr verbatim)
+# ---------------------------------------------------------------------------
+
+# --- AccessGrant (J7) ---
+am:f-ag-principal a am:Field ; am:belongsTo am:AccessGrant ; am:fieldName "principalId" ;
+    am:zodExpr "z.string().min(1).max(256)" .
+am:f-ag-roles a am:Field ; am:belongsTo am:AccessGrant ; am:fieldName "roles" ;
+    am:zodExpr "z.array(z.enum([\"reader\", \"editor\", \"approver\", \"admin\"])).min(1)" .
+am:f-ag-matters a am:Field ; am:belongsTo am:AccessGrant ; am:fieldName "matterIds" ;
+    am:zodExpr "z.array(z.string().min(1).max(128)).min(1)" .
+am:f-ag-expires a am:Field ; am:belongsTo am:AccessGrant ; am:fieldName "expiresAt" ;
+    am:zodExpr "z.string().datetime()" .
+
+# --- EncryptedRecord (W2-2) ---
+am:f-er-scheme a am:Field ; am:belongsTo am:EncryptedRecord ; am:fieldName "scheme" ;
+    am:zodExpr "z.enum([\"AES-256-GCM\", \"CHACHA20-POLY1305\"])" .
+am:f-er-keyver a am:Field ; am:belongsTo am:EncryptedRecord ; am:fieldName "keyVersion" ;
+    am:zodExpr "z.number().int().positive()" .
+am:f-er-dek a am:Field ; am:belongsTo am:EncryptedRecord ; am:fieldName "wrappedDek" ;
+    am:zodExpr "z.string().regex(/^[A-Za-z0-9+/]+={0,2}$/)" .
+am:f-er-iv a am:Field ; am:belongsTo am:EncryptedRecord ; am:fieldName "iv" ;
+    am:zodExpr "z.string().regex(/^[A-Za-z0-9+/]{16}==$/)" .
+am:f-er-ct a am:Field ; am:belongsTo am:EncryptedRecord ; am:fieldName "ciphertext" ;
+    am:zodExpr "z.string().min(1)" .
+
+# --- RegionPin ---
+am:f-rp-regions a am:Field ; am:belongsTo am:RegionPin ; am:fieldName "allowedRegions" ;
+    am:zodExpr "z.array(z.enum([\"us-east\", \"us-west\", \"eu-west\", \"eu-central\"])).min(1)" .
+am:f-rp-principal a am:Field ; am:belongsTo am:RegionPin ; am:fieldName "principalId" ;
+    am:zodExpr "z.string().min(1).max(256)" .
+
+# --- AuditEvent (sentinel-audit chain) ---
+am:f-ae-actor a am:Field ; am:belongsTo am:AuditEvent ; am:fieldName "actor" ;
+    am:zodExpr "z.string().min(1).max(256)" .
+am:f-ae-action a am:Field ; am:belongsTo am:AuditEvent ; am:fieldName "action" ;
+    am:zodExpr "z.enum([\"grant.create\", \"grant.revoke\", \"record.seal\", \"record.unseal\", \"case.create\", \"case.close\"])" .
+am:f-ae-target a am:Field ; am:belongsTo am:AuditEvent ; am:fieldName "target" ;
+    am:zodExpr "z.string().min(1).max(256)" .
+am:f-ae-outcome a am:Field ; am:belongsTo am:AuditEvent ; am:fieldName "outcome" ;
+    am:zodExpr "z.enum([\"admitted\", \"refused\"])" .
+am:f-ae-prevhash a am:Field ; am:belongsTo am:AuditEvent ; am:fieldName "prevHash" ;
+    am:zodExpr "z.string().regex(/^[a-f0-9]{64}$/)" .
+
+# --- CaseSpace ---
+am:f-csp-tenant a am:Field ; am:belongsTo am:CaseSpace ; am:fieldName "tenantId" ;
+    am:zodExpr "z.string().min(1).max(128)" .
+am:f-csp-firm a am:Field ; am:belongsTo am:CaseSpace ; am:fieldName "firmId" ;
+    am:zodExpr "z.string().min(1).max(128)" .
+am:f-csp-case a am:Field ; am:belongsTo am:CaseSpace ; am:fieldName "caseId" ;
+    am:zodExpr "z.string().min(1).max(128)" .
+
+# Custody binding (server-side derivation, mirrors legal-matter-pack C8/G1)
+am:CaseSpace am:custodyBinding "server-side deriveCaseContainer(tenantId, caseId); caller-chosen container is refused (C8/G1)" .

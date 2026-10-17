@@ -1,0 +1,133 @@
+@prefix nma: <https://ggen.dev/packs/nextjs-mcp-a2a#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Classes
+nma:McpServer a rdfs:Class ;
+    rdfs:label "MCP Server Configuration" ;
+    rdfs:comment "Declares a local loopback Model Context Protocol server endpoint and its available tool set." .
+
+nma:McpTool a rdfs:Class ;
+    rdfs:label "MCP Tool" ;
+    rdfs:comment "A tool exposed via MCP with strict authority bounds (READ_ONLY or PROPOSAL)." .
+
+nma:A2AAgent a rdfs:Class ;
+    rdfs:label "A2A Agent Persona" ;
+    rdfs:comment "Autonomous agent participating in Agent-to-Agent message exchange with declared persona and capabilities." .
+
+nma:SelfPlayProtocol a rdfs:Class ;
+    rdfs:label "Autonomous Self-Play Protocol" ;
+    rdfs:comment "Defines a multi-turn adversarial or collaborative self-play simulation between agents." .
+
+# Properties
+nma:serverName a rdf:Property ; rdfs:domain nma:McpServer ; rdfs:range xsd:string .
+nma:endpoint a rdf:Property ; rdfs:domain nma:McpServer ; rdfs:range xsd:string .
+nma:hasTool a rdf:Property ; rdfs:domain nma:McpServer ; rdfs:range nma:McpTool .
+
+nma:toolName a rdf:Property ; rdfs:domain nma:McpTool ; rdfs:range xsd:string .
+nma:toolDescription a rdf:Property ; rdfs:domain nma:McpTool ; rdfs:range xsd:string .
+nma:authority a rdf:Property ; rdfs:domain nma:McpTool ; rdfs:range xsd:string . # READ_ONLY | PROPOSAL
+nma:inputSchemaJson a rdf:Property ; rdfs:domain nma:McpTool ; rdfs:range xsd:string .
+
+nma:agentId a rdf:Property ; rdfs:domain nma:A2AAgent ; rdfs:range xsd:string .
+nma:agentName a rdf:Property ; rdfs:domain nma:A2AAgent ; rdfs:range xsd:string .
+nma:role a rdf:Property ; rdfs:domain nma:A2AAgent ; rdfs:range xsd:string .
+nma:personaPrompt a rdf:Property ; rdfs:domain nma:A2AAgent ; rdfs:range xsd:string .
+nma:defaultModel a rdf:Property ; rdfs:domain nma:A2AAgent ; rdfs:range xsd:string .
+nma:capability a rdf:Property ; rdfs:domain nma:A2AAgent ; rdfs:range xsd:string .
+
+nma:protocolId a rdf:Property ; rdfs:domain nma:SelfPlayProtocol ; rdfs:range xsd:string .
+nma:maxTurns a rdf:Property ; rdfs:domain nma:SelfPlayProtocol ; rdfs:range xsd:integer .
+nma:participant a rdf:Property ; rdfs:domain nma:SelfPlayProtocol ; rdfs:range nma:A2AAgent .
+nma:arbitrator a rdf:Property ; rdfs:domain nma:SelfPlayProtocol ; rdfs:range nma:A2AAgent .
+
+# Seeded Individuals: Standard Local MCP Server
+nma:default-mcp-server a nma:McpServer ;
+    nma:serverName "sovereign-mcp-server" ;
+    nma:endpoint "http://127.0.0.1:9545/mcp" ;
+    nma:hasTool nma:tool-case-evidence ;
+    nma:hasTool nma:tool-bench-profile ;
+    nma:hasTool nma:tool-jury-demographics ;
+    nma:hasTool nma:tool-export-ocel2-trace .
+
+nma:tool-case-evidence a nma:McpTool ;
+    nma:toolName "explore_case_evidence" ;
+    nma:toolDescription "Per-case isolated evidence inspection with hash-bound digests." ;
+    nma:authority "READ_ONLY" ;
+    nma:inputSchemaJson "{\"type\":\"object\",\"properties\":{\"caseId\":{\"type\":\"string\"}},\"required\":[\"caseId\"]}" .
+
+nma:tool-bench-profile a nma:McpTool ;
+    nma:toolName "judge_bench_profile" ;
+    nma:toolDescription "Historical Daubert Rule 702 strictness and MSJ dismissal rates for assigned bench." ;
+    nma:authority "READ_ONLY" ;
+    nma:inputSchemaJson "{\"type\":\"object\",\"properties\":{\"judgeSlug\":{\"type\":\"string\"}},\"required\":[\"judgeSlug\"]}" .
+
+nma:tool-jury-demographics a nma:McpTool ;
+    nma:toolName "jury_panel_demographics" ;
+    nma:toolDescription "12-member venue-matched simulated juror demographic distribution and prior leanings." ;
+    nma:authority "READ_ONLY" ;
+    nma:inputSchemaJson "{\"type\":\"object\",\"properties\":{\"venueDistrict\":{\"type\":\"string\"}},\"required\":[\"venueDistrict\"]}" .
+
+nma:tool-export-ocel2-trace a nma:McpTool ;
+    nma:toolName "export_ocel2_trace" ;
+    nma:toolDescription "Object-Centric Event Log (OCEL v2) trace of multi-agent deliberations and task receipts." ;
+    nma:authority "READ_ONLY" ;
+    nma:inputSchemaJson "{\"type\":\"object\",\"properties\":{\"caseId\":{\"type\":\"string\"}},\"required\":[\"caseId\"]}" .
+
+# Seeded Individuals: A2A Self-Play Fleet (Azure AI Foundry / OpenAI / Z.ai Bounded)
+nma:agent-defense-strategist a nma:A2AAgent ;
+    nma:agentId "defense-strategist" ;
+    nma:agentName "Defense Litigation Counsel" ;
+    nma:role "Defense Counsel" ;
+    nma:defaultModel "azure::gpt-5.2-chat" ;
+    nma:personaPrompt "CONSTRUCT: You are lead defense trial counsel. CONSTRAINTS: Cross-examine rigorously, challenge causation under Daubert Rule 702, make appropriate objections, and deliver persuasive opening/closing statements in formal courtroom style." ;
+    nma:capability "daubert_challenge" ;
+    nma:capability "cross_examination" ;
+    nma:capability "settlement_arbitrage" .
+
+nma:agent-plaintiff-advocate a nma:A2AAgent ;
+    nma:agentId "plaintiff-advocate" ;
+    nma:agentName "Plaintiff Trial Advocate" ;
+    nma:role "Plaintiff Counsel" ;
+    nma:defaultModel "azure::gpt-5.2-chat" ;
+    nma:personaPrompt "CONSTRUCT: You are lead counsel for plaintiff claimants. CONSTRAINTS: Establish corporate liability, breach of warranty, severe compensatory damages, and conduct direct examination with authentic trial advocacy." ;
+    nma:capability "causation_advocacy" ;
+    nma:capability "direct_examination" ;
+    nma:capability "damage_modeling" .
+
+nma:agent-bench-arbitrator a nma:A2AAgent ;
+    nma:agentId "bench-arbitrator" ;
+    nma:agentName "The Honorable Presiding Judge" ;
+    nma:role "Presiding Judge" ;
+    nma:defaultModel "azure::gpt-5.2-chat" ;
+    nma:personaPrompt "CONSTRUCT: You are the presiding federal district judge. CONSTRAINTS: Rule on objections (Sustained/Overruled), maintain courtroom order, instruct the jury, and issue binding legal orders in standard judicial form." ;
+    nma:capability "ruling_on_objections" ;
+    nma:capability "verdict_forecasting" ;
+    nma:capability "jury_charge" .
+
+nma:agent-expert-witness a nma:A2AAgent ;
+    nma:agentId "expert-witness" ;
+    nma:agentName "Dr. Aris Thorne (Biomaterials Expert)" ;
+    nma:role "Key Expert Witness" ;
+    nma:defaultModel "azure::gpt-5.2-chat" ;
+    nma:personaPrompt "CONSTRUCT: You are Dr. Thorne, sworn expert witness testifying under oath. CONSTRAINTS: Answer counsel questions directly, defend empirical laboratory methodology, and explain mechanical degradation." ;
+    nma:capability "expert_testimony" .
+
+nma:agent-jury-foreperson a nma:A2AAgent ;
+    nma:agentId "jury-foreperson" ;
+    nma:agentName "Juror No. 1 (Foreperson)" ;
+    nma:role "Jury Foreperson" ;
+    nma:defaultModel "azure::gpt-5.2-chat" ;
+    nma:personaPrompt "CONSTRUCT: You are the foreperson of the 12-member jury. CONSTRAINTS: Deliver the jury's final verdict on liability, proximate causation, and damages following deliberation." ;
+    nma:capability "verdict_delivery" .
+
+# Seeded Individuals: Self-Play Protocol
+nma:protocol-trial-deliberation a nma:SelfPlayProtocol ;
+    nma:protocolId "trial-deliberation-v1" ;
+    nma:maxTurns 8 ;
+    nma:participant nma:agent-defense-strategist ;
+    nma:participant nma:agent-plaintiff-advocate ;
+    nma:participant nma:agent-expert-witness ;
+    nma:arbitrator nma:agent-bench-arbitrator .
+

@@ -1,0 +1,22 @@
+PREFIX smalt: <https://ggen.io/ontology/smalt#>
+
+# KD-78 monotonic admission non-vacuity probe (verify tier).
+# Row-emitting form: returns one row per SHAPED TypeBinding (the Registry
+# surface; inventory-only inv-* bindings are excluded) when the lattice law
+# holds over REAL ontology rows; any clause negated -> 0 rows.
+#   clause 1: version 2018-09-01 (the lattice's earliest top) is admitted
+#             against every top (monotonic <= latest);
+#   clause 2: version 2026-01-01 (beyond every top) is refused everywhere
+#             (refusal side of the half-open interval).
+# Non-vacuity contract: negating either FILTER drops the row count to 0.
+
+SELECT ?resourceType
+WHERE {
+  ?b a smalt:TypeBinding ;
+      smalt:resourceType ?resourceType ;
+      smalt:shape ?shape ;
+      smalt:apiVersion ?top .
+  FILTER(xsd:date("2018-09-01") <= xsd:date(IF(CONTAINS(?top, "-preview"), STRBEFORE(?top, "-preview"), ?top)))
+  FILTER(xsd:date("2026-01-01") > xsd:date(IF(CONTAINS(?top, "-preview"), STRBEFORE(?top, "-preview"), ?top)))
+}
+ORDER BY ?resourceType

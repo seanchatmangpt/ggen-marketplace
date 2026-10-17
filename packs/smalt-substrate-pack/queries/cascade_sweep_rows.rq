@@ -1,0 +1,47 @@
+# cascade_sweep_rows.rq — render-input projection for the cascade sweep.
+# Same unrolled contains-walk as cascade_sweep.rq (CONSTRUCT twin); emits one
+# flat row per (root type, swept table) so the EEx template can group by
+# root type. Engine note: sparql hex 0.3.12 parses property paths but
+# returns ZERO rows for them, so the recursion is unrolled to depth 4 —
+# the current max containment depth (rg -> sa -> blobsvc -> container ->
+# immo). The depth-4 guard lives in gates/shapes-coverage.rq; a deeper
+# chain must fail the gate, not silently under-sweep.
+PREFIX smalt: <https://ggen.io/ontology/smalt#>
+
+SELECT DISTINCT ?rootType ?table ?style ?prefix
+WHERE {
+  {
+    ?root smalt:contains ?dep .
+  }
+  UNION
+  {
+    ?root smalt:contains ?m1 .
+    ?m1 smalt:contains ?dep .
+  }
+  UNION
+  {
+    ?root smalt:contains ?m1 .
+    ?m1 smalt:contains ?m2 .
+    ?m2 smalt:contains ?dep .
+  }
+  UNION
+  {
+    ?root smalt:contains ?m1 .
+    ?m1 smalt:contains ?m2 .
+    ?m2 smalt:contains ?m3 .
+    ?m3 smalt:contains ?dep .
+  }
+  UNION
+  # zero-hop: the root's own rows
+  {
+    ?root smalt:sweepGroup ?g0 .
+    ?root smalt:resourceType ?rootType .
+    BIND(?root AS ?dep)
+  }
+  ?root smalt:resourceType ?rootType .
+  ?dep smalt:sweepGroup ?g .
+  ?g smalt:dataPlaneTable ?table ;
+     smalt:keyStyle ?style .
+  OPTIONAL { ?g smalt:dataPlaneKeyPrefix ?prefix }
+}
+ORDER BY ?rootType ?table ?prefix

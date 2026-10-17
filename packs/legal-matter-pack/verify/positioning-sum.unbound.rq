@@ -1,0 +1,45 @@
+# Inverted verify gate: MUST return zero rows.
+# A row = the sum-to-100 positioning law is missing from the ontology:
+# either lm:Positioning declares no lm:sumConstraint "100" while share
+# fields exist, or a declared constraint has a missing share field
+# (projection would be vacuous).
+PREFIX lm: <https://ggen.io/ontology/legal-matter#>
+
+SELECT ?kind WHERE {
+  {
+    ?f a lm:Field ; lm:belongsTo lm:Positioning ; lm:fieldName ?fn .
+    OPTIONAL { lm:Positioning lm:sumConstraint ?sc }
+    FILTER (!bound(?sc))
+    BIND("missing-sum-constraint" AS ?kind)
+  }
+  UNION
+  {
+    lm:Positioning lm:sumConstraint ?sc .
+    OPTIONAL {
+      ?f2 a lm:Field ; lm:belongsTo lm:Positioning ; lm:fieldName "plaintiff" .
+      BIND(1 AS ?p)
+    }
+    FILTER (!bound(?p))
+    BIND("missing-plaintiff-share" AS ?kind)
+  }
+  UNION
+  {
+    lm:Positioning lm:sumConstraint ?sc .
+    OPTIONAL {
+      ?f3 a lm:Field ; lm:belongsTo lm:Positioning ; lm:fieldName "neutral" .
+      BIND(1 AS ?n)
+    }
+    FILTER (!bound(?n))
+    BIND("missing-neutral-share" AS ?kind)
+  }
+  UNION
+  {
+    lm:Positioning lm:sumConstraint ?sc .
+    OPTIONAL {
+      ?f4 a lm:Field ; lm:belongsTo lm:Positioning ; lm:fieldName "defendant" .
+      BIND(1 AS ?d)
+    }
+    FILTER (!bound(?d))
+    BIND("missing-defendant-share" AS ?kind)
+  }
+}

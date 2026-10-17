@@ -1,0 +1,48 @@
+# ARM provider/resource-type matrix — FULLY ontology-projected (SHIM-COURT
+# prototype). Source of truth: smalt-substrate-pack/ontology.ttl via
+# queries/provider_listing.rq (CONSTRUCT). No @extra_types/@namespaces
+# supplement: inventory types are smalt:inventoryType ontology data.
+# SHIM-COURT
+defmodule Smalt.ArmGateway.ProviderMatrix do
+  @moduledoc """
+  azurerm-compatible provider/resourceType matrix, 100% projected from the
+  smalt-substrate-pack ontology. Admitted Registry rows and inventory-only
+  types (smalt:inventoryType) both come from the graph.
+  """
+
+  @registration_state "<%= @registration_state %>"
+  @default_locations <%= inspect(@locations) %>
+
+  @matrix <%= inspect(@matrix, limit: :infinity, pretty: false) %>
+
+  @typedoc "Azure provider namespace, e.g. `\"Microsoft.Network\"`."
+  @type namespace :: String.t()
+
+  @doc "Namespaces in the provider listing (ontology-derived)."
+  @spec registry_namespaces() :: [namespace(), ...]
+  def registry_namespaces do
+    @matrix |> Map.keys() |> Enum.sort()
+  end
+
+  @doc "Provider object for `ns`, or nil when unknown."
+  @spec provider(namespace() | String.t()) :: map() | nil
+  def provider(ns) do
+    case Map.get(@matrix, ns) do
+      nil -> nil
+      rts -> %{
+               "namespace" => ns,
+               "resourceTypes" => rts,
+               "registrationState" => @registration_state
+             }
+    end
+  end
+
+  @doc "Full azurerm-style provider listing: {\"value\" => [provider, ...]}."
+  @spec provider_listing(map()) :: map()
+  def provider_listing(_opts \\ %{}) do
+    %{"value" => Enum.map(registry_namespaces(), &provider/1)}
+  end
+
+  @doc "Default Azure locations advertised in the matrix."
+  def default_locations, do: @default_locations
+end

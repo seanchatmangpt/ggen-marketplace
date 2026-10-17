@@ -1,0 +1,50 @@
+# cascade_sweep.rq — cascade teardown projection (CONSTRUCT)
+#
+# Given every root TypeBinding, emit the full dependent-table sweep plan:
+# one smalt:sweeps edge per transitive dependent (contains-walk), and one
+# smalt:sweepTable per ETS table in the closure's data-plane footprint.
+#
+# ENGINE CONSTRAINT (measured, sparql hex 0.3.12): property paths
+# (smalt:contains+) PARSE but return zero rows silently in this engine
+# version. The recursive walk is therefore UNROLLED to depth 4, which is
+# the current maximum containment depth (rg -> sa -> blobsvc -> container
+# -> immo). Fail-closed guard: the shapes-coverage gate asserts no
+# contains-chain is deeper than 4; a deeper chain fails the gate instead
+# of silently under-sweeping.
+PREFIX smalt: <https://ggen.io/ontology/smalt#>
+
+CONSTRUCT {
+  ?root smalt:sweeps ?dep .
+  ?root smalt:sweepTable ?t .
+}
+WHERE {
+  {
+    ?root smalt:contains ?dep .
+  }
+  UNION
+  {
+    ?root smalt:contains ?m1 .
+    ?m1 smalt:contains ?dep .
+  }
+  UNION
+  {
+    ?root smalt:contains ?m1 .
+    ?m1 smalt:contains ?m2 .
+    ?m2 smalt:contains ?dep .
+  }
+  UNION
+  {
+    ?root smalt:contains ?m1 .
+    ?m1 smalt:contains ?m2 .
+    ?m2 smalt:contains ?m3 .
+    ?m3 smalt:contains ?dep .
+  }
+  # zero-hop: the root's own rows
+  UNION
+  {
+    ?root smalt:sweepGroup ?g0 .
+    BIND(?root AS ?dep)
+  }
+  ?dep smalt:sweepGroup ?g .
+  ?g smalt:dataPlaneTable ?t .
+}

@@ -1,0 +1,51 @@
+# Inverted verify gate: MUST return zero rows.
+# A row = the CaseSpace custody law is missing: fields exist but no
+# lm:custodyBinding, the binding exists but a custody-triple field is
+# missing (deletion detector), or a field outside the custody triple
+# (tenantId, firmId, caseId).
+PREFIX lm: <https://ggen.io/ontology/legal-matter#>
+
+SELECT ?kind ?field WHERE {
+  {
+    ?f a lm:Field ; lm:belongsTo lm:CaseSpace ; lm:fieldName ?field .
+    OPTIONAL { lm:CaseSpace lm:custodyBinding ?cb }
+    FILTER (!bound(?cb))
+    BIND("missing-custody-binding" AS ?kind)
+  }
+  UNION
+  {
+    lm:CaseSpace lm:custodyBinding ?cb .
+    OPTIONAL {
+      ?f a lm:Field ; lm:belongsTo lm:CaseSpace ; lm:fieldName "tenantId" .
+      BIND(1 AS ?t)
+    }
+    FILTER (!bound(?t))
+    BIND("missing-tenantId-field" AS ?kind) BIND("" AS ?field)
+  }
+  UNION
+  {
+    lm:CaseSpace lm:custodyBinding ?cb .
+    OPTIONAL {
+      ?f a lm:Field ; lm:belongsTo lm:CaseSpace ; lm:fieldName "firmId" .
+      BIND(1 AS ?t)
+    }
+    FILTER (!bound(?t))
+    BIND("missing-firmId-field" AS ?kind) BIND("" AS ?field)
+  }
+  UNION
+  {
+    lm:CaseSpace lm:custodyBinding ?cb .
+    OPTIONAL {
+      ?f a lm:Field ; lm:belongsTo lm:CaseSpace ; lm:fieldName "caseId" .
+      BIND(1 AS ?t)
+    }
+    FILTER (!bound(?t))
+    BIND("missing-caseId-field" AS ?kind) BIND("" AS ?field)
+  }
+  UNION
+  {
+    ?f a lm:Field ; lm:belongsTo lm:CaseSpace ; lm:fieldName ?field .
+    FILTER (?field NOT IN ("tenantId", "firmId", "caseId"))
+    BIND("non-custody-field" AS ?kind)
+  }
+}

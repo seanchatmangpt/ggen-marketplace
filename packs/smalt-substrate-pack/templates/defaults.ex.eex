@@ -1,0 +1,35 @@
+<%
+# Build the nested @table from flat dotted-path rows, canonically sorted.
+table =
+  defaults
+  |> Enum.group_by(& &1["resourceType"])
+  |> Enum.map(fn {type, rows} ->
+    {type,
+     Enum.reduce(Enum.sort_by(rows, & &1["jsonPath"]), %{}, fn row, acc ->
+       value =
+         case row["type"] do
+           "boolean" -> row["value"] == "true"
+           "integer" -> String.to_integer(row["value"])
+           _ -> row["value"]
+         end
+
+       path = Enum.map(String.split(row["jsonPath"], "."), &Access.key(&1, %{}))
+       put_in(acc, path, value)
+     end)}
+  end)
+  |> Map.new()
+%># Substrate Defaults (PROTOTYPE artifact, NOT WIRED into the router).
+# Auto-projected from smalt-substrate-pack shapes/smalt-shapes.ttl via
+# queries/defaults.rq through ggen_igniter.sync. DO NOT HAND-EDIT.
+defmodule Smalt.ArmGateway.Defaults.Projected do
+  @moduledoc """
+  Projected defaults table — the ggen projection of the
+  smalt-substrate-pack shape annotations (queries/defaults.rq). The
+  bijection contract: equal to `Smalt.ArmGateway.Defaults.table()` —
+  drift here means the hand-written table moved off the ontology.
+  """
+
+  @table <%= inspect(table, pretty: true, width: 96) %>
+
+  def table, do: @table
+end

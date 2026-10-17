@@ -1,0 +1,65 @@
+<%
+# One zero-arity accessor per ConfigKey row, canonically sorted by name.
+# override classes (mirror call sites exactly):
+#   none          -> Application.get_env(:smalt, :k, <default>)
+#   env-first     -> System.get_env(ENV) || Application.get_env(:smalt, :k)
+#   app-env-first -> Application.get_env(:smalt, :k) || System.get_env(ENV)
+# default "nil" = nilable (no default argument at any real code call site).
+rows = Enum.sort_by(config_keys, & &1["name"])
+
+accessors =
+  for row <- rows do
+    name = row["name"]
+    env = row["envVarName"]
+
+    default_expr = row["default"]
+
+    census_default =
+      if row["type"] in ["string", "path"], do: inspect(default_expr), else: default_expr
+
+    body =
+      cond do
+        row["override"] == "env-first" ->
+          "System.get_env(" <> inspect(env) <> ") || Application.get_env(:smalt, :" <> name <> ")"
+
+        row["override"] == "app-env-first" ->
+          "Application.get_env(:smalt, :" <> name <> ") || System.get_env(" <> inspect(env) <> ")"
+
+        default_expr == "nil" ->
+          "Application.get_env(:smalt, :" <> name <> ")"
+
+        true ->
+          "Application.get_env(:smalt, :" <> name <> ", " <> census_default <> ")"
+      end
+
+    {name, String.replace(row["docsText"], "\"", "'"), body, row, census_default}
+  end
+%>
+defmodule Smalt.Config do
+  @moduledoc """
+  Application-env configuration accessors (W1a projection).
+
+  Auto-projected from smalt-substrate-pack ontology.ttl (smalt:ConfigKey
+  census, 46 keys / 88 call sites) via queries/config_keys.rq through
+  templates/config.ex.eex. DO NOT HAND-EDIT; regenerate with `mix smalt.gen`.
+  Replay identity is fenced by test/config_replay_identity_test.exs.
+
+  Each accessor mirrors its call sites override semantics exactly
+  (ontology smalt:override class); the ontology default is the ONLY copy
+  of the in-code default going forward. Secret keys are read raw; call
+  sites keep their existing case/wrap form.
+  """
+
+  @doc "ConfigKey census rows (name/type/default/secret/surface/envVarName)."
+  def census do
+    [
+<%= for {_n, _d, _b, row, census_default} <- accessors do %>      %{name: :<%= row["name"] %>, type: <%= inspect(row["type"]) %>, default: <%= census_default %>, secret: <%= row["secret"] %>, surface: <%= inspect(row["surface"]) %>, env_var: <%= if row["envVarName"] == "-", do: "nil", else: inspect(row["envVarName"]) %>, override: <%= inspect(row["override"]) %>}<%= if row != List.last(rows), do: "," %>
+<% end %>
+    ]
+  end
+
+
+<%= for {name, doc, body, _row, _cd} <- accessors do %>  @doc "<%= doc %>"
+  def <%= name %>, do: <%= body %>
+<% end %>
+end

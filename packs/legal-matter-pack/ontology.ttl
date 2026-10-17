@@ -1,0 +1,312 @@
+@prefix lm:   <https://ggen.io/ontology/legal-matter#> .
+@prefix rv:   <urn:refusal-vocabulary:> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+#################################################################
+# legal-matter-pack ontology
+#
+# Decision-simulation domain vocabulary for athena's private matter
+# surface. Grounded in existing public legal-information structure:
+# FRBR-style work identity informs the LegalMatter/Ruling distinction;
+# court-register (EU-JUST-style) court/jurisdiction fields inform
+# JudgeProfile/CaseSpec. The lean axis is athena's own simulation
+# vocabulary, declared locally, not borrowed.
+#
+# Every projected zod contract line lives here as an lm:Field /
+# lm:Enum row. Templates project rows verbatim; verify/*.unbound.rq
+# gates refuse orphan fields, unresolved enum refs, a missing sum
+# constraint, and malformed refusal rows (zero-rows law).
+#################################################################
+
+lm:LegalMatter a rdfs:Class ;
+    rdfs:label "Legal Matter" ;
+    dct:description "A client matter under legal work (FRBR-Work-like identity)." .
+
+lm:JurorPersona a rdfs:Class ;
+    rdfs:label "Juror Persona" ;
+    dct:description "Deterministic seeded panel member (no LLM for structure)." .
+
+lm:JudgeProfile a rdfs:Class ;
+    rdfs:label "Judge Profile" ;
+    dct:description "Deterministic profile of the bench: court, jurisdiction, lean, strictness, style traits, known rulings." .
+
+lm:CaseSpec a rdfs:Class ;
+    rdfs:label "Case Spec" ;
+    dct:description "Posture + venue seed for profile derivation." .
+
+lm:Ruling a rdfs:Class ;
+    rdfs:label "Ruling" ;
+    dct:description "A known ruling cited in a JudgeProfile (caseName, holding, year)." .
+
+lm:JurorLeanS a rdfs:Class ;
+    rdfs:label "Juror Lean (simulation)" ;
+    dct:description "Scalar juror lean on the [-1,1] axis with confidence weight." .
+
+lm:ExtraFactor a rdfs:Class ;
+    rdfs:label "Extra Case-Strength Factor" ;
+    dct:description "Optional named directional factor, each clamped to [-1,1]." .
+
+lm:JurorPositioning a rdfs:Class ;
+    rdfs:label "Juror Positioning" ;
+    dct:description "Per-juror positioning: Positioning shares + identity + effective lean." .
+
+lm:AggregateBreakdown a rdfs:Class ;
+    rdfs:label "Aggregate Breakdown" ;
+    dct:description "Positioning shares + confidence-weighted monte-carlo aggregates." .
+
+lm:Motion a rdfs:Class ;
+    rdfs:label "Motion" ;
+    dct:description "A filed motion with its legal basis." .
+
+lm:JudgeRuling a rdfs:Class ;
+    rdfs:label "Judge Ruling" ;
+    dct:description "Model-backed ruling with sha256 digest receipt and standing." .
+
+lm:Positioning a rdfs:Class ;
+    rdfs:label "Positioning" ;
+    dct:description "Plaintiff/neutral/defendant shares; integers in [0,100] summing EXACTLY to 100 (largest-remainder at the boundary)." .
+
+lm:CaseStrength a rdfs:Class ;
+    rdfs:label "Case Strength" ;
+    dct:description "Directional case-strength factors, each in [-1,1]." .
+
+lm:SimulationResult a rdfs:Class ;
+    rdfs:label "Simulation Result" ;
+    dct:description "Closed-form monte-carlo decision simulation output." .
+
+lm:CaseSpace a rdfs:Class ;
+    rdfs:label "Case Space" ;
+    dct:description "Per-case isolated custody surface: (tenantId, firmId, caseId) triple; container derived server-side, never caller-chosen." .
+
+# ---------------------------------------------------------------------------
+# Enums (projected as z.enum with typed const names)
+# ---------------------------------------------------------------------------
+
+lm:enum-juror-lean a lm:Enum ;
+    lm:constName "JurorLeanEnumSchema" ;
+    lm:tsName "JurorLean" ;
+    lm:members "plaintiff|neutral|defendant" ;
+    dct:description "Juror lean axis (lowercase, per personas.ts)." .
+
+lm:enum-judge-lean a lm:Enum ;
+    lm:constName "JudgeLeanEnumSchema" ;
+    lm:tsName "JudgeLean" ;
+    lm:members "Plaintiff|Defendant|Neutral" ;
+    dct:description "Judge lean axis (capitalized, per profile.ts)." .
+
+lm:enum-position a lm:Enum ;
+    lm:constName "PositionEnumSchema" ;
+    lm:tsName "Position" ;
+    lm:members "Plaintiff|Neutral|Defendant" ;
+    dct:description "Positioning label axis (per engine.ts)." .
+
+lm:enum-ruling-standing a lm:Enum ;
+    lm:constName "RulingStandingEnumSchema" ;
+    lm:tsName "RulingStanding" ;
+    lm:members "ALIVE|REFUSED" ;
+    dct:description "Ruling standing receipt axis." .
+
+# ---------------------------------------------------------------------------
+# Fields (one lm:Field row per projected zod line; lm:zodExpr verbatim)
+# ---------------------------------------------------------------------------
+
+# --- JurorPersona ---
+lm:f-juror-number a lm:Field ; lm:belongsTo lm:JurorPersona ; lm:fieldName "jurorNumber" ;
+    lm:zodExpr "z.number().int().positive().safe()" .
+lm:f-juror-age a lm:Field ; lm:belongsTo lm:JurorPersona ; lm:fieldName "age" ;
+    lm:zodExpr "z.number().int().min(18).max(95).safe()" .
+lm:f-juror-location a lm:Field ; lm:belongsTo lm:JurorPersona ; lm:fieldName "location" ;
+    lm:zodExpr "z.string().min(1).max(120)" .
+lm:f-juror-occupation a lm:Field ; lm:belongsTo lm:JurorPersona ; lm:fieldName "occupation" ;
+    lm:zodExpr "z.string().min(1).max(120)" .
+lm:f-juror-background a lm:Field ; lm:belongsTo lm:JurorPersona ; lm:fieldName "background" ;
+    lm:zodExpr "z.string().min(1).max(2000)" .
+lm:f-juror-disposition-seed a lm:Field ; lm:belongsTo lm:JurorPersona ; lm:fieldName "dispositionSeed" ;
+    lm:zodExpr "z.number().int().nonnegative().safe()" .
+lm:f-juror-lean a lm:Field ; lm:belongsTo lm:JurorPersona ; lm:fieldName "lean" ;
+    lm:zodExpr "JurorLeanEnumSchema" ; lm:enumRef lm:enum-juror-lean .
+lm:f-juror-confidence a lm:Field ; lm:belongsTo lm:JurorPersona ; lm:fieldName "confidence" ;
+    lm:zodExpr "z.number().min(0).max(1)" .
+
+# --- Ruling (element of JudgeProfile.knownRulings) ---
+lm:f-ruling-name a lm:Field ; lm:belongsTo lm:Ruling ; lm:fieldName "caseName" ;
+    lm:zodExpr "z.string().min(1)" .
+lm:f-ruling-holding a lm:Field ; lm:belongsTo lm:Ruling ; lm:fieldName "holding" ;
+    lm:zodExpr "z.string().min(1)" .
+lm:f-ruling-year a lm:Field ; lm:belongsTo lm:Ruling ; lm:fieldName "year" ;
+    lm:zodExpr "z.number().int().min(1900).max(2200)" .
+
+# --- JudgeProfile ---
+lm:f-jp-court a lm:Field ; lm:belongsTo lm:JudgeProfile ; lm:fieldName "court" ;
+    lm:zodExpr "z.string().min(1)" .
+lm:f-jp-jurisdiction a lm:Field ; lm:belongsTo lm:JudgeProfile ; lm:fieldName "jurisdiction" ;
+    lm:zodExpr "z.string().min(1)" .
+lm:f-jp-known-rulings a lm:Field ; lm:belongsTo lm:JudgeProfile ; lm:fieldName "knownRulings" ;
+    lm:zodExpr "z.array(RulingSchema).max(50)" ; lm:classRef lm:Ruling .
+lm:f-jp-style-traits a lm:Field ; lm:belongsTo lm:JudgeProfile ; lm:fieldName "styleTraits" ;
+    lm:zodExpr "z.array(z.string().min(1)).max(20)" .
+lm:f-jp-lean a lm:Field ; lm:belongsTo lm:JudgeProfile ; lm:fieldName "lean" ;
+    lm:zodExpr "JudgeLeanEnumSchema" ; lm:enumRef lm:enum-judge-lean .
+lm:f-jp-strictness a lm:Field ; lm:belongsTo lm:JudgeProfile ; lm:fieldName "strictness" ;
+    lm:zodExpr "z.number().min(0).max(1)" .
+
+# --- CaseSpec ---
+lm:f-cs-case-name a lm:Field ; lm:belongsTo lm:CaseSpec ; lm:fieldName "caseName" ;
+    lm:zodExpr "z.string().min(1)" .
+lm:f-cs-court a lm:Field ; lm:belongsTo lm:CaseSpec ; lm:fieldName "court" ;
+    lm:zodExpr "z.string().min(1)" .
+lm:f-cs-jurisdiction a lm:Field ; lm:belongsTo lm:CaseSpec ; lm:fieldName "jurisdiction" ;
+    lm:zodExpr "z.string().min(1)" .
+lm:f-cs-case-type a lm:Field ; lm:belongsTo lm:CaseSpec ; lm:fieldName "caseType" ;
+    lm:zodExpr "z.string().min(1)" .
+lm:f-cs-posture a lm:Field ; lm:belongsTo lm:CaseSpec ; lm:fieldName "posture" ;
+    lm:zodExpr "z.string().max(4000).default(\"\")" .
+lm:f-cs-docket-seed a lm:Field ; lm:belongsTo lm:CaseSpec ; lm:fieldName "docketSeed" ;
+    lm:zodExpr "z.string().min(1)" .
+
+# --- Motion ---
+lm:f-mo-kind a lm:Field ; lm:belongsTo lm:Motion ; lm:fieldName "kind" ;
+    lm:zodExpr "z.string().min(1)" .
+lm:f-mo-title a lm:Field ; lm:belongsTo lm:Motion ; lm:fieldName "title" ;
+    lm:zodExpr "z.string().min(1)" .
+lm:f-mo-basis a lm:Field ; lm:belongsTo lm:Motion ; lm:fieldName "basis" ;
+    lm:zodExpr "z.string().max(2000)" .
+
+# --- JudgeRuling ---
+lm:f-jr-granted a lm:Field ; lm:belongsTo lm:JudgeRuling ; lm:fieldName "granted" ;
+    lm:zodExpr "z.boolean()" .
+lm:f-jr-ruling a lm:Field ; lm:belongsTo lm:JudgeRuling ; lm:fieldName "ruling" ;
+    lm:zodExpr "z.string().min(1)" .
+lm:f-jr-digest a lm:Field ; lm:belongsTo lm:JudgeRuling ; lm:fieldName "digest" ;
+    lm:zodExpr "z.string().length(64)" .
+lm:f-jr-standing a lm:Field ; lm:belongsTo lm:JudgeRuling ; lm:fieldName "standing" ;
+    lm:zodExpr "RulingStandingEnumSchema" ; lm:enumRef lm:enum-ruling-standing .
+
+# --- JurorLean (simulation axis) ---
+lm:f-sl-id a lm:Field ; lm:belongsTo lm:JurorLeanS ; lm:fieldName "id" ;
+    lm:zodExpr "z.string().min(1)" .
+lm:f-sl-lean a lm:Field ; lm:belongsTo lm:JurorLeanS ; lm:fieldName "lean" ;
+    lm:zodExpr "z.number().min(-1).max(1)" .
+lm:f-sl-confidence a lm:Field ; lm:belongsTo lm:JurorLeanS ; lm:fieldName "confidence" ;
+    lm:zodExpr "z.number().min(0).max(1)" .
+
+# --- CaseStrength ---
+lm:f-st-liability a lm:Field ; lm:belongsTo lm:CaseStrength ; lm:fieldName "liability" ;
+    lm:zodExpr "z.number().min(-1).max(1)" .
+lm:f-st-damages a lm:Field ; lm:belongsTo lm:CaseStrength ; lm:fieldName "damages" ;
+    lm:zodExpr "z.number().min(-1).max(1)" .
+lm:f-st-credibility a lm:Field ; lm:belongsTo lm:CaseStrength ; lm:fieldName "credibility" ;
+    lm:zodExpr "z.number().min(-1).max(1)" .
+lm:f-st-extra a lm:Field ; lm:belongsTo lm:CaseStrength ; lm:fieldName "extra" ;
+    lm:zodExpr "z.array(ExtraFactorSchema).optional()" ; lm:classRef lm:ExtraFactor .
+
+# --- ExtraFactor ---
+lm:f-xf-name a lm:Field ; lm:belongsTo lm:ExtraFactor ; lm:fieldName "name" ;
+    lm:zodExpr "z.string().min(1)" .
+lm:f-xf-weight a lm:Field ; lm:belongsTo lm:ExtraFactor ; lm:fieldName "weight" ;
+    lm:zodExpr "z.number().min(-1).max(1)" .
+lm:f-xf-value a lm:Field ; lm:belongsTo lm:ExtraFactor ; lm:fieldName "value" ;
+    lm:zodExpr "z.number().min(-1).max(1)" .
+
+# --- Positioning (sum-to-100 constraint declared, not hardcoded) ---
+lm:f-po-plaintiff a lm:Field ; lm:belongsTo lm:Positioning ; lm:fieldName "plaintiff" ;
+    lm:zodExpr "z.number().int().min(0).max(100)" .
+lm:f-po-neutral a lm:Field ; lm:belongsTo lm:Positioning ; lm:fieldName "neutral" ;
+    lm:zodExpr "z.number().int().min(0).max(100)" .
+lm:f-po-defendant a lm:Field ; lm:belongsTo lm:Positioning ; lm:fieldName "defendant" ;
+    lm:zodExpr "z.number().int().min(0).max(100)" .
+lm:Positioning lm:sumConstraint "100" .
+
+# --- JurorPositioning = Positioning + identity + effective lean ---
+lm:f-jpo-plaintiff a lm:Field ; lm:belongsTo lm:JurorPositioning ; lm:fieldName "plaintiff" ;
+    lm:zodExpr "z.number().int().min(0).max(100)" .
+lm:f-jpo-neutral a lm:Field ; lm:belongsTo lm:JurorPositioning ; lm:fieldName "neutral" ;
+    lm:zodExpr "z.number().int().min(0).max(100)" .
+lm:f-jpo-defendant a lm:Field ; lm:belongsTo lm:JurorPositioning ; lm:fieldName "defendant" ;
+    lm:zodExpr "z.number().int().min(0).max(100)" .
+lm:f-jpo-id a lm:Field ; lm:belongsTo lm:JurorPositioning ; lm:fieldName "id" ;
+    lm:zodExpr "z.string().min(1)" .
+lm:f-jpo-effective-lean a lm:Field ; lm:belongsTo lm:JurorPositioning ; lm:fieldName "effectiveLean" ;
+    lm:zodExpr "z.number().min(-1).max(1)" .
+
+# --- AggregateBreakdown = Positioning + monte-carlo aggregates ---
+lm:f-ab-plaintiff a lm:Field ; lm:belongsTo lm:AggregateBreakdown ; lm:fieldName "plaintiff" ;
+    lm:zodExpr "z.number().int().min(0).max(100)" .
+lm:f-ab-neutral a lm:Field ; lm:belongsTo lm:AggregateBreakdown ; lm:fieldName "neutral" ;
+    lm:zodExpr "z.number().int().min(0).max(100)" .
+lm:f-ab-defendant a lm:Field ; lm:belongsTo lm:AggregateBreakdown ; lm:fieldName "defendant" ;
+    lm:zodExpr "z.number().int().min(0).max(100)" .
+lm:f-ab-mean-lean a lm:Field ; lm:belongsTo lm:AggregateBreakdown ; lm:fieldName "meanLean" ;
+    lm:zodExpr "z.number().min(-1).max(1)" .
+lm:f-ab-defense-win a lm:Field ; lm:belongsTo lm:AggregateBreakdown ; lm:fieldName "defenseWinProbability" ;
+    lm:zodExpr "z.number().min(0).max(1)" .
+lm:f-ab-plaintiff-win a lm:Field ; lm:belongsTo lm:AggregateBreakdown ; lm:fieldName "plaintiffWinProbability" ;
+    lm:zodExpr "z.number().min(0).max(1)" .
+lm:f-ab-hung a lm:Field ; lm:belongsTo lm:AggregateBreakdown ; lm:fieldName "hungProbability" ;
+    lm:zodExpr "z.number().min(0).max(1)" .
+
+# --- SimulationResult ---
+lm:f-sr-matter-id a lm:Field ; lm:belongsTo lm:SimulationResult ; lm:fieldName "matterId" ;
+    lm:zodExpr "z.string().min(1)" .
+lm:f-sr-case-name a lm:Field ; lm:belongsTo lm:SimulationResult ; lm:fieldName "caseName" ;
+    lm:zodExpr "z.string().min(1)" .
+lm:f-sr-per-juror a lm:Field ; lm:belongsTo lm:SimulationResult ; lm:fieldName "perJuror" ;
+    lm:zodExpr "z.array(JurorPositioningSchema)" ; lm:classRef lm:JurorPositioning .
+lm:f-sr-aggregate a lm:Field ; lm:belongsTo lm:SimulationResult ; lm:fieldName "aggregate" ;
+    lm:zodExpr "AggregateBreakdownSchema" ; lm:classRef lm:AggregateBreakdown .
+lm:f-sr-trials a lm:Field ; lm:belongsTo lm:SimulationResult ; lm:fieldName "trials" ;
+    lm:zodExpr "z.number().int().positive()" .
+lm:f-sr-seed a lm:Field ; lm:belongsTo lm:SimulationResult ; lm:fieldName "seed" ;
+    lm:zodExpr "z.number().int().nonnegative()" .
+
+# --- CaseSpace custody triple ---
+lm:f-csp-tenant a lm:Field ; lm:belongsTo lm:CaseSpace ; lm:fieldName "tenantId" ;
+    lm:zodExpr "z.string().min(1).max(128)" .
+lm:f-csp-firm a lm:Field ; lm:belongsTo lm:CaseSpace ; lm:fieldName "firmId" ;
+    lm:zodExpr "z.string().min(1).max(128)" .
+lm:f-csp-case a lm:Field ; lm:belongsTo lm:CaseSpace ; lm:fieldName "caseId" ;
+    lm:zodExpr "z.string().min(1).max(128)" .
+lm:CaseSpace lm:custodyBinding "server-side deriveCaseContainer(tenantId, caseId); caller-chosen container is refused (C8/G1)" .
+
+# ---------------------------------------------------------------------------
+# Typed refusal vocabulary (rv: pattern, per refusal-vocabulary-pack)
+# ---------------------------------------------------------------------------
+
+lm:ref-invalid-case-spec a rv:RefusalClass ;
+    rv:className "INVALID_CASE_SPEC" ; rv:classKind "refused" ;
+    dct:description "caseSpec failed schema validation; no profile derived." .
+
+lm:ref-invalid-input a rv:RefusalClass ;
+    rv:className "INVALID_INPUT" ; rv:classKind "refused" ;
+    dct:description "profile or motion failed schema validation; nothing sent to any model." .
+
+lm:ref-provider-unconfigured a rv:RefusalClass ;
+    rv:className "PROVIDER_UNCONFIGURED" ; rv:classKind "refused" ;
+    dct:description "No AI provider configured; nothing leaves the process." .
+
+lm:ref-ai-provider-unconfigured a rv:RefusalClass ;
+    rv:className "AI_PROVIDER_UNCONFIGURED" ; rv:classKind "refused" ;
+    dct:description "No AI provider configured for juror Q&A; typed 503-class refusal." .
+
+lm:ref-case-scope-mismatch a rv:RefusalClass ;
+    rv:className "CASE_SCOPE_MISMATCH" ; rv:classKind "refused" ;
+    dct:description "Transcript excerpt keyed to a different caseId; refused, never mixed." .
+
+lm:ref-provider-error a rv:RefusalClass ;
+    rv:className "PROVIDER_ERROR" ; rv:classKind "refused" ;
+    dct:description "Upstream provider failure; typed 502-class refusal, never a faked success." .
+
+lm:ref-case-space-identity-refused a rv:RefusalClass ;
+    rv:className "CASE_SPACE_IDENTITY_REFUSED" ; rv:classKind "refused" ;
+    dct:description "CaseSpace identity triple malformed." .
+
+lm:ref-caller-container-refused a rv:RefusalClass ;
+    rv:className "CALLER_CONTAINER_REFUSED" ; rv:classKind "refused" ;
+    dct:description "A caller-named container is refused even at construction (C8/G1)." .
+
+lm:ref-case-space-audience-refused a rv:RefusalClass ;
+    rv:className "CASE_SPACE_AUDIENCE_REFUSED" ; rv:classKind "refused" ;
+    dct:description "Audience missing or malformed; refused." .

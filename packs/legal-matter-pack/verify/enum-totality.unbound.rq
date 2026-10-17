@@ -1,0 +1,29 @@
+# Inverted verify gate: MUST return zero rows.
+# A row = (a) an lm:Field carrying lm:enumRef whose enum has no members,
+# (b) a declared lm:Enum with no members, or (c) an lm:Field whose zodExpr
+# names an enum const but declares no lm:enumRef.
+PREFIX lm: <https://ggen.io/ontology/legal-matter#>
+
+SELECT ?kind ?subject WHERE {
+  {
+    ?f a lm:Field ; lm:enumRef ?e ; lm:fieldName ?subject .
+    OPTIONAL { ?e lm:members ?m }
+    FILTER (!bound(?m))
+    BIND("unresolved-enum-ref" AS ?kind)
+  }
+  UNION
+  {
+    ?e a lm:Enum ; lm:constName ?cn .
+    OPTIONAL { ?e lm:members ?m2 }
+    FILTER (!bound(?m2))
+    BIND("memberless-enum" AS ?kind)
+    BIND(STR(?cn) AS ?subject)
+  }
+  UNION
+  {
+    ?f a lm:Field ; lm:zodExpr "JurorLeanEnumSchema" ; lm:fieldName ?subject .
+    OPTIONAL { ?f lm:enumRef ?r }
+    FILTER (!bound(?r))
+    BIND("enum-const-without-ref" AS ?kind)
+  }
+}

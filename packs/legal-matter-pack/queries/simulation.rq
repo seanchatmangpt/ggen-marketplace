@@ -1,0 +1,21 @@
+PREFIX lm: <https://ggen.io/ontology/legal-matter#>
+SELECT ?kind ?cls ?field ?zod ?members ?constName ?tsName ?sum
+WHERE {
+  {
+    ?e a lm:Enum ; lm:constName ?constName ; lm:tsName ?tsName ; lm:members ?members .
+    FILTER(?constName = "PositionEnumSchema")
+    BIND("enum" AS ?kind) BIND("" AS ?cls) BIND("" AS ?field)
+    BIND("" AS ?zod) BIND("" AS ?sum)
+  }
+  UNION
+  {
+    ?f a lm:Field ; lm:belongsTo ?clsIri ; lm:fieldName ?field ; lm:zodExpr ?zod .
+    FILTER(?clsIri IN (lm:JurorLeanS, lm:ExtraFactor, lm:CaseStrength, lm:Positioning, lm:JurorPositioning, lm:AggregateBreakdown, lm:SimulationResult))
+    OPTIONAL { ?clsIri lm:sumConstraint ?sc }
+    BIND(COALESCE(?sc, "") AS ?sum)
+    BIND("field" AS ?kind)
+    BIND(REPLACE(STR(?clsIri), "^.*[#/]", "") AS ?cls)
+    BIND("" AS ?members) BIND("" AS ?constName) BIND("" AS ?tsName)
+  }
+}
+ORDER BY ?kind ?cls ?field

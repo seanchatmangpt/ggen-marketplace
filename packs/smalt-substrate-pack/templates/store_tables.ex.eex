@@ -1,0 +1,95 @@
+# Store Table Registry
+# Auto-projected from smalt-substrate-pack ontology via ggen_igniter.sync.
+# DO NOT EDIT — regenerate with `mix smalt.gen`.
+# Source of truth: ../ggen-marketplace/packs/smalt-substrate-pack/ontology.ttl
+# (smalt:StoreTable individuals; queries/store_tables.rq).
+#
+# This module is the REGISTRY of tables, not accessors: call sites keep
+# Store.get(:table, key) — the registry fences coverage, not behavior.
+defmodule Smalt.StoreTables do
+  @moduledoc """
+  Machine-generated registry of every ETS table atom the substrate
+  references. Source of truth:
+  ggen-marketplace/packs/smalt-substrate-pack/ontology.ttl (smalt:StoreTable).
+
+  Lists:
+
+    * `table_names/0` — the 33 Store-created tables (sweepStrategy != "none"),
+      consumed by Smalt.Store as `@tables`
+    * `shadow_tables/0` — referenced in lib/, lazily created by owner modules
+      (sweepStrategy = "none"; closes the swept-but-unowned bug class,
+      :smalt_blob_blocks)
+    * `metadata_tables/0` — metadataOnly = true (Smalt.Enclave.State
+      destroy-residue exclusions)
+    * `persisted_tables/0` — persisted = true (Smalt.Store.DetsMirror
+      @default_tables, survives restart)
+
+  Replay identity is fenced by test/store_tables_replay_identity_test.exs;
+  coverage of every :smalt_ atom referenced in lib/ is fenced by the same
+  test (verify/store-shadow-tables.unbound.rq encodes the ontology side).
+  """
+
+  # Canonical ordering: rows are sorted by tableName at render time so the
+  # artifact is independent of SPARQL engine row order. Replay identity is
+  # fenced by the store-tables replay test.
+  <% rows = Enum.sort_by(store_tables, & &1["tableName"]) %>
+  <% owned = Enum.filter(rows, &(&1["sweepStrategy"] != "none")) %>
+  <% shadow = Enum.filter(rows, &(&1["sweepStrategy"] == "none")) %>
+  <% meta = Enum.filter(rows, &(&1["metadataOnly"] in [true, "true"]) and &1["sweepStrategy"] != "none") %>
+  <% pers = Enum.filter(rows, &(&1["persisted"] in [true, "true"])) %>
+
+  @tables [
+<%= for row <- owned do %>    # <%= row["keyShape"] %> | <%= row["ownerModule"] %> | sweep=<%= row["sweepStrategy"] %>
+    :<%= row["tableName"] %><%= if row != List.last(owned), do: "," %>
+
+<% end %>  ]
+
+  @shadow_tables [
+<%= for row <- shadow do %>    # <%= row["keyShape"] %> | <%= row["ownerModule"] %> | shadow (owner-managed, never swept)
+    :<%= row["tableName"] %><%= if row != List.last(shadow), do: "," %>
+
+<% end %>  ]
+
+  @metadata_tables [
+<%= for row <- meta do %>    :<%= row["tableName"] %><%= if row != List.last(meta), do: "," %>
+
+<% end %>  ]
+
+  @persisted_tables [
+<%= for row <- pers do %>    :<%= row["tableName"] %><%= if row != List.last(pers), do: "," %>
+
+<% end %>  ]
+
+  @doc """
+  Single source of truth for the Store ETS table names. Consumed by
+  Smalt.Store (@tables), fenced by the replay-identity test.
+  """
+  def table_names, do: @tables
+
+  @doc "Referenced in lib/ but created lazily by their owner modules."
+  def shadow_tables, do: @shadow_tables
+
+  @doc "Metadata bookkeeping tables (survive the destroy residue check)."
+  def metadata_tables, do: @metadata_tables
+
+  @doc "Tables mirrored to :dets by Smalt.Store.DetsMirror (survive restart)."
+  def persisted_tables, do: @persisted_tables
+
+  @doc "Owned + shadow: every table atom the substrate references."
+  def all_tables, do: table_names() ++ shadow_tables()
+
+  @doc "Per-table registry row: keyShape/owner/sweep/flags."
+  def specs do
+    %{
+<%= for row <- rows do %>      :<%= row["tableName"] %> => %{
+        key_shape: "<%= row["keyShape"] %>",
+        owner_module: "<%= row["ownerModule"] %>",
+        sweep_strategy: "<%= row["sweepStrategy"] %>",
+        metadata_only: <%= String.downcase(to_string(row["metadataOnly"])) %>,
+        persisted: <%= String.downcase(to_string(row["persisted"])) %>,
+        ordered_set: <%= String.downcase(to_string(row["orderedSet"])) %>
+      }<%= if row != List.last(rows), do: "," %>
+
+<% end %>    }
+  end
+end

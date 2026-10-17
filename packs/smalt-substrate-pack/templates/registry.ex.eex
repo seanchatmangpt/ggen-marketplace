@@ -12,7 +12,8 @@ defmodule Smalt.Registry do
   # Canonical ordering: rows are sorted by resourceType at render time so the
   # artifact is independent of SPARQL engine row order (the `sparql` hex
   # engine does not honor ORDER BY — see GgenIgniter.Query's moduledoc).
-  # Replay identity is fenced by test/smalt_registry_replay_identity_test.exs.
+  # Replay identity is fenced by the Smalt.Registry.ReplayIdentity module
+  # (SHIM-COURT-clean template; replay must be byte-identical).
   <% cp = Enum.sort_by(control_plane, & &1["resourceType"]) %>
   <% pr = Enum.sort_by(payload_rules, & &1["resourceType"]) %>
   @admitted_resource_types [
@@ -27,12 +28,40 @@ defmodule Smalt.Registry do
 <%= for row <- pr do %>    "<%= row["resourceType"] %>" => "<%= row["apiVersion"] %>"<%= if row != List.last(pr), do: "," %>
 <% end %>  }
 
+  # KD-78 admission lattice: the per-type ordered api-version lattice lives in
+  # the ontology (smalt:apiVersion = lattice top, smalt:admittedVersion =
+  # ordered witness rows). Informational only — the admission RULE is the
+  # monotonic comparison in admitted_version?/2 below, against the top.
   def admitted_resource_types, do: @admitted_resource_types
   def type_shapes, do: @type_shapes
   def api_versions, do: @api_versions
   def shape_for(type), do: Map.get(@type_shapes, type)
   def latest_version(type), do: Map.get(@api_versions, type)
   def admitted?(type), do: type in @admitted_resource_types
+
+  # Monotonic api-version admission (KD-78): base(V) as date <= latest as date.
+  # Lattice = half-open interval (-inf, latest]. Malformed versions are never
+  # admitted. This is the projection of the ontology's smalt:admitsVersion
+  # derived predicate — check_version/3 must call THIS, never hand-compare.
+  def admitted_version?(type, version) when is_binary(type) and is_binary(version) do
+    case latest_version(type) do
+      nil ->
+        false
+
+      latest when is_binary(latest) ->
+        with {:ok, v} <- version |> version_base() |> Date.from_iso8601(),
+             {:ok, l} <- Date.from_iso8601(latest) do
+          Date.compare(v, l) in [:lt, :eq]
+        else
+          _ -> false
+        end
+    end
+  end
+
+  def admitted_version?(_type, _version), do: false
+
+  defp version_base(version), do: hd(String.split(version, "-preview"))
+
   def control_plane_port, do: 9443
   def data_plane_port, do: 8443
   def amqp_port, do: Application.get_env(:smalt, :amqp_port, 5672)

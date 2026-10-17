@@ -1,0 +1,54 @@
+# Provider-listing projection (SHIM-COURT prototype).
+# CONSTRUCT: emits one smalt:ProviderEntry row per (namespace, leaf type),
+# grouping Registry-admitted types (namespace derived by prefix-split) with
+# the inventory-only types annotated smalt:inventoryType in the ontology,
+# plus locations + registrationState as ontology data.
+PREFIX smalt: <https://ggen.io/ontology/smalt#>
+
+CONSTRUCT {
+  ?entry a smalt:ProviderEntry ;
+         smalt:providerNamespace ?ns ;
+         smalt:resourceType ?leaf ;
+         smalt:apiVersion ?apiVersion ;
+         smalt:inventoryType ?inv ;
+         smalt:location ?loc ;
+         smalt:registrationState ?reg .
+}
+WHERE {
+  # Admitted Registry types: any ControlPlane subject with a resourceType.
+  {
+    ?cp a smalt:ControlPlane ;
+        smalt:resourceType ?type .
+    ?b a smalt:TypeBinding ;
+       smalt:resourceType ?type ;
+       smalt:apiVersion ?apiVersion .
+    BIND(STRAFTER(?type, "/") AS ?leaf0)
+    BIND(STRBEFORE(?type, "/") AS ?ns)
+    # Full relative leaf: everything after "<namespace>/".
+    BIND(IF(CONTAINS(?leaf0, "/"), ?leaf0, ?leaf0) AS ?leafFull)
+    BIND(?leafFull AS ?leaf)
+    BIND(false AS ?inv)
+    BIND(BNODE() AS ?entry)
+  }
+  UNION
+  # Inventory-only types: explicit providerNamespace annotation (the
+  # hand-written @extra_types supplement, now ontology data).
+  {
+    ?tb a smalt:TypeBinding ;
+        smalt:providerNamespace ?ns ;
+        smalt:resourceType ?type ;
+        smalt:apiVersion ?apiVersion ;
+        smalt:inventoryType true .
+    BIND(STRAFTER(?type, "/") AS ?leaf)
+    BIND(true AS ?inv)
+    BIND(BNODE() AS ?entry)
+  }
+  UNION
+  {
+    ?pl a smalt:ProviderInventory ;
+        smalt:location ?loc ;
+        smalt:registrationState ?reg .
+    BIND(BNODE() AS ?entry)
+  }
+  BIND(IF(BOUND(?apiVersion), ?apiVersion, "") AS ?apiVersion)
+}

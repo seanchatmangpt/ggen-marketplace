@@ -1,19 +1,41 @@
+# G2 FIX (2026-10-17, lane G2 / PUBLISH_RECORD B2): the AshR2RML.Resource
+# extension may be a dev-only dep in consumer apps; the emitted resources
+# now guard it at compile time so MIX_ENV=prod compiles without ash_r2rml.
+# When ash_r2rml IS loaded, expansion is identical to the previous
+# unconditional form (receipt: docs receipt lane G2).
+defmodule AshR2RMLCompat.Guard do
+  @moduledoc "Compile-time guard: drops the `r2rml` section WITHOUT expansion when ash_r2rml is not a loaded compile-time dep; extensions option stays a compile-time LITERAL (Spark derives section imports from it)."
+  defmacro if_r2rml(do: block) do
+    if Code.ensure_loaded?(AshR2RML.Resource) do
+      # raw AST splice, no quote/hygiene context
+      block
+    else
+      :ok
+    end
+  end
+end
+
+require AshR2RMLCompat.Guard
+import AshR2RMLCompat.Guard, only: [if_r2rml: 1]
+
 {% for row in results %}
 {% if row.kind == "service" %}
 defmodule {{ row.module }} do
   @moduledoc "Generated platform-service resource grounded in schema:SoftwareApplication."
   use Ash.Resource, domain: {{ row.domainModule }}, data_layer: Ash.DataLayer.Ets, extensions: [AshR2RML.Resource]
 
-  r2rml do
-    table_name "{{ row.tableName }}"
-    class "{{ row.classIri }}"
-    subject do
-      template "{{ row.subjectTemplate }}"
-      term_type :iri
+  if_r2rml do
+    r2rml do
+      table_name "{{ row.tableName }}"
+      class "{{ row.classIri }}"
+      subject do
+        template "{{ row.subjectTemplate }}"
+        term_type :iri
+      end
+      property :name, "https://schema.org/name"
+      property :description, "https://schema.org/description"
+      property :version, "https://schema.org/softwareVersion"
     end
-    property :name, "https://schema.org/name"
-    property :description, "https://schema.org/description"
-    property :version, "https://schema.org/softwareVersion"
   end
 
   attributes do
@@ -37,17 +59,19 @@ defmodule {{ row.module }} do
   @moduledoc "Generated deployment-intent resource grounded in prov:Plan."
   use Ash.Resource, domain: {{ row.domainModule }}, data_layer: Ash.DataLayer.Ets, extensions: [AshR2RML.Resource]
 
-  r2rml do
-    table_name "{{ row.tableName }}"
-    class "{{ row.classIri }}"
-    subject do
-      template "{{ row.subjectTemplate }}"
-      term_type :iri
+  if_r2rml do
+    r2rml do
+      table_name "{{ row.tableName }}"
+      class "{{ row.classIri }}"
+      subject do
+        template "{{ row.subjectTemplate }}"
+        term_type :iri
+      end
+      property :service_ref, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#serviceRef"
+      property :target, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#target"
+      property :requested_by, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#requestedBy"
+      property :status, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#status"
     end
-    property :service_ref, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#serviceRef"
-    property :target, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#target"
-    property :requested_by, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#requestedBy"
-    property :status, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#status"
   end
 
   attributes do
@@ -84,17 +108,19 @@ defmodule {{ row.module }} do
   @moduledoc "Generated authority-policy resource grounded in odrl:Policy."
   use Ash.Resource, domain: {{ row.domainModule }}, data_layer: Ash.DataLayer.Ets, extensions: [AshR2RML.Resource]
 
-  r2rml do
-    table_name "{{ row.tableName }}"
-    class "{{ row.classIri }}"
-    subject do
-      template "{{ row.subjectTemplate }}"
-      term_type :iri
+  if_r2rml do
+    r2rml do
+      table_name "{{ row.tableName }}"
+      class "{{ row.classIri }}"
+      subject do
+        template "{{ row.subjectTemplate }}"
+        term_type :iri
+      end
+      property :actor, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#actor"
+      property :action, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#action"
+      property :target, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#target"
+      property :decision, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#decision"
     end
-    property :actor, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#actor"
-    property :action, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#action"
-    property :target, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#target"
-    property :decision, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#decision"
   end
 
   attributes do
@@ -119,18 +145,20 @@ defmodule {{ row.module }} do
   @moduledoc "Generated execution-receipt resource grounded in prov:Entity."
   use Ash.Resource, domain: {{ row.domainModule }}, data_layer: Ash.DataLayer.Ets, extensions: [AshR2RML.Resource]
 
-  r2rml do
-    table_name "{{ row.tableName }}"
-    class "{{ row.classIri }}"
-    subject do
-      template "{{ row.subjectTemplate }}"
-      term_type :iri
+  if_r2rml do
+    r2rml do
+      table_name "{{ row.tableName }}"
+      class "{{ row.classIri }}"
+      subject do
+        template "{{ row.subjectTemplate }}"
+        term_type :iri
+      end
+      property :intent_ref, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#intentRef"
+      property :status, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#status"
+      property :semantic_hash, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#semanticHash"
+      property :artifact_hash, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#artifactHash"
+      property :result, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#result"
     end
-    property :intent_ref, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#intentRef"
-    property :status, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#status"
-    property :semantic_hash, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#semanticHash"
-    property :artifact_hash, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#artifactHash"
-    property :result, "https://ggen.dev/ontology/ash-r2rml-reactor-paas#result"
   end
 
   attributes do
