@@ -1,14 +1,18 @@
 # Inverted gate: MUST return zero rows. Any declared smalt:resourceType
-# lacking a TypeBinding with apiVersion + shape fails admission coverage.
-# (OPTIONAL/!BOUND form: the sparql-hex engine does not support FILTER NOT EXISTS.)
+# lacking a TypeBinding with apiVersion AND (shape OR inventoryType) fails
+# admission coverage. Inventory-only types (smalt:inventoryType true —
+# subscriptions, tenants, locations, managed identity) legitimately carry no
+# SHACL shape; demanding one refused every inventory type since the engine
+# law moved to fixed graphlaw (b514bf5; the old OPTIONAL/!bound form was
+# written for the retired sparql-hex engine, which does not support
+# FILTER NOT EXISTS — graphlaw does).
 PREFIX smalt: <https://ggen.io/ontology/smalt#>
-SELECT ?resourceType WHERE {
+SELECT DISTINCT ?resourceType WHERE {
   ?cp smalt:resourceType ?resourceType .
-  OPTIONAL {
+  FILTER NOT EXISTS {
     ?b a smalt:TypeBinding ;
        smalt:resourceType ?resourceType ;
-       smalt:apiVersion ?av ;
-       smalt:shape ?shape .
+       smalt:apiVersion ?av .
+    { ?b smalt:shape ?shape } UNION { ?b smalt:inventoryType true }
   }
-  FILTER (!bound(?b))
 }
