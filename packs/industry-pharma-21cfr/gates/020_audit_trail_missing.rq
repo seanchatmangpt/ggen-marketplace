@@ -1,0 +1,28 @@
+# MESSAGE: audit trail missing or incomplete (21 CFR 11.10(e)).
+# Every p11:ElectronicRecord must have a p11:AuditTrail carrying who/what/when/why
+# and a PROV-O end time. A row is a refusal.
+PREFIX p11:  <https://seanchatmangpt.github.io/packs/industry-pharma-21cfr#>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?record ?field WHERE {
+  {
+    ?record a/rdfs:subClassOf* p11:ElectronicRecord .
+    BIND("trail" AS ?field)
+    FILTER NOT EXISTS { ?record p11:hasAuditTrail ?t . }
+  }
+  UNION
+  {
+    ?record a/rdfs:subClassOf* p11:ElectronicRecord ;
+            p11:hasAuditTrail ?trail .
+    VALUES ?field { p11:who p11:what p11:when p11:why }
+    FILTER NOT EXISTS { ?trail ?field ?v . }
+  }
+  UNION
+  {
+    ?record a/rdfs:subClassOf* p11:ElectronicRecord ;
+            p11:hasAuditTrail ?trail .
+    BIND("endedAtTime" AS ?field)
+    FILTER NOT EXISTS { ?trail prov:endedAtTime ?ts . }
+  }
+}
+ORDER BY ?record ?field
