@@ -141,3 +141,101 @@ Disjunctive-law note: gate 030 does not fire on the mutation above because strip
 - GENERATED-ARTIFACT: generated/2026-Q-0001/* in the consumer are
   generated consequences — edit the ontology, never the outputs.
 - NO COMMIT: nothing committed to either repo per lane contract.
+
+## 6. Pillar-gate deepening (IND-1, 2026-10-22) — P1/P2/P3/P5 as gates
+
+Standing: ALIVE (14/14 witness-court legs, marketplace check/validate, consumer
+sync deterministic ×2). Worked from the operator pillar spec in the lane
+prompt; `smalt/docs/jira/v26.10.22/pillar-audit-legal.md` never landed during
+the lane (polled 3× — BK-134 spec file still absent).
+
+New ontology terms (`ontology.ttl`): `lex:MatterStore`, `lex:journalPath`,
+`lex:custodyStoredIn`, `lex:SealedRecord`, `lex:attestationFingerprint`,
+`lex:AIAnnotation`, `lex:JudgeActivity`, `lex:retentionPolicy`.
+New gates: `gates/040_matter_isolation.rq` (P1), `gates/050_skr_attestation.rq`
+(P2 SKR, AZ-2 shape), `gates/060_proposer_judge.rq` (P3 proposer-judge),
+`gates/070_retention_policy.rq` (P5). Existing witnesses + qualification
+fixture gained `lex:retentionPolicy` on every Matter (P5 must stay silent on
+lawful graphs). `gate-court.toml` unchanged — already wired to
+`runners/semantic_runner.py` (dflss-exemplar runner ported into this pack).
+
+### 6.1 Witness court (runner, 14/14)
+```
+$ for gate in gates/*.rq; do for side in pass fail; do
+    python3 runners/semantic_runner.py --gate "$gate" \
+      --witness "witnesses/$side/$(basename "${gate%.rq}").ttl" --expectation "$side"
+  done; done
+010_evidence_bates pass exit=0 {"observed":"pass",...,"rows":0}
+010_evidence_bates fail exit=0 {"observed":"fail",...,"rows":1}
+020_custodian_required pass/fail exit=0
+030_ethical_wall   pass/fail exit=0
+040_matter_isolation pass exit=0 rows=0 / fail exit=0 rows=1
+050_skr_attestation pass exit=0 rows=0 / fail exit=0 rows=1
+060_proposer_judge  pass exit=0 rows=0 / fail exit=0 rows=1
+070_retention_policy pass exit=0 rows=0 / fail exit=0 rows=1
+[14/14 exit=0; each fail witness fires EXACTLY its own gate, zero others]
+```
+
+### 6.2 Marketplace check + validate
+```
+$ python3 scripts/marketplace.py check industry-legal-ediscovery
+check ok packs=1 turtle=ok qualify=ok
+[exit=0]  (first run REFUSED:GGEN_PACK_SYNC_FAILED — qualification fixture
+matters lacked lex:retentionPolicy, gate 070 correctly fired on the union
+graph; fixture fixed, refusal cleared. The gate refusing was the proof.)
+$ python3 scripts/marketplace.py validate
+validated packs=339 manifests=339 ontologies=557 templates=1925 native_gates=1958 verifier_gates=21 profiles={"project":126,"projection":167,"semantic":46} diataxis=20
+[exit=0]
+```
+
+### 6.3 Court-structure check (isolated: fleet run blocked by a PRE-EXISTING
+failure in another pack)
+```
+$ python3 scripts/check_gate_witness_courts.py --packs packs
+REFUSED:GATE_WITNESS_COURT:industry-semantic-cad-bim: case correspondence failure:
+  missing_fail/missing_pass: 040_design_isolation, 050_attestation,
+  060_proposer_judge, 070_seal   [exit=2 — PRE-EXISTING, another lane's pack,
+  untouched by this lane]
+$ cp -R packs/industry-legal-ediscovery /tmp/lexpacks/ && \
+  python3 scripts/check_gate_witness_courts.py --packs /tmp/lexpacks
+{"configured_pack_count":1,"courts":[{"case_count":7,"pack":"industry-legal-ediscovery",
+ "require_fail":true,"require_pass":true,"schema":"ggen.semantic-gate-witness-court/1",
+ "standing":"ALIVE"}],"standing":"ALIVE"}
+[exit=0]
+```
+
+### 6.4 Consumer sync determinism (ggen 26.10.11, run twice)
+```
+$ cd ~/ggen/examples/industry/legal-ediscovery && ggen sync run   (x2)
+graph_hash_hex: e1891b37929996cb35562040cfce368ea26cdff131c6ae4fe6858f953b7a081f  (both passes)
+decisions: both generated files "skipped: unchanged: content identical" (both passes)
+generated sha256: custody-walkthrough.md fc1e9c2ade847a36…, evidence-shapes.ttl 4b17ba92cdf78461…
+[exit=0 both passes, byte-identical]
+```
+Consumer fixture (`ontology.ttl`) also gained retention policies so the
+consumer union graph is lawful (as-is: zero gates fire).
+
+### 6.5 Consumer union-graph negative controls (rdflib)
+```
+consumer graph (as-is): firing=none
++cross-matter custody path: firing=['010_evidence_bates','020_custodian_required','040_matter_isolation']
++unattested sealed record: firing=['050_skr_attestation']
++unadjudicated AI annotation: firing=['060_proposer_judge']
++matter without retention policy: firing=['070_retention_policy']
+```
+(each mutation flips its own gate; the 010/020 co-fire on the injected doc is
+the disclosed join — the injected doc also lacks bates/custodian.)
+
+### Limitations (typed)
+- PILLAR-SPEC-ABSENT: `smalt/docs/jira/v26.10.22/pillar-audit-legal.md` (BK-134)
+  did not exist during this lane; gates were authored from the operator pillar
+  spec text in the lane contract (sovereignty=matter isolation, BYOK/SKR,
+  no-model-training=proposer-judge, Entra/ACP walls, Merkle
+  self-authentication). If the landed spec diverges, re-derive the gates.
+- MERKLE-SEQUENCE-UNGATED: Merkle self-authentication is carried by the
+  existing seal chain (kvSealThumbprint over ETag-CAS'd custody records), not
+  a new hash-chain gate in this lane.
+- FLEET-COURT-PREEXISTING-REFUSED: `industry-semantic-cad-bim` fails
+  `check_gate_witness_courts.py` fleet-wide (missing 040–070 witnesses);
+  pre-existing, not this lane's diff. Verified this pack in isolation.
+- NO COMMIT: nothing committed to either repo per lane contract.

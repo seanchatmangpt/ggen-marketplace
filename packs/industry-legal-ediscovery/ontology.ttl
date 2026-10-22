@@ -87,6 +87,49 @@ lex:cosmosCustodyDocId a rdf:Property ;
     rdfs:domain lex:EvidenceDocument ;
     rdfs:range xsd:string .
 
+lex:MatterStore a rdfs:Class ;
+    rdfs:label "MatterStore" ;
+    rdfs:comment "Per-matter isolated journal/store. P1 matter-isolation: every EvidenceDocument custody path must land in a MatterStore whose journalPath matches ^/data/smalt/journal/matter_[^/]+/ (gate 040); a cross-matter path is a refusal. Face: smalt append-only journal layout, docs/NO_SLEEP_DOCTRINE.md sibling storage laws." .
+
+lex:SealedRecord a rdfs:Class ;
+    rdfs:label "SealedRecord" ;
+    rdfs:comment "A decrypted/sealed record released under SKR. P2 BYOK/SKR: it must carry prov:wasGeneratedBy an activity bound to a valid attestation measurement fingerprint (gate 050). Face: smalt lib/smalt/attestation/maa.ex secure_key_release/3 - token measurement_digest must equal expected fingerprint (AZ-2, BK-128/KD-168)." ;
+    rdfs:subClassOf prov:Entity .
+
+lex:AIAnnotation a rdfs:Class ;
+    rdfs:label "AIAnnotation" ;
+    rdfs:comment "An AI-derived annotation on evidence. P3 no-model-training / proposer-judge: every AIAnnotation must carry prov:wasGeneratedBy a lex:JudgeActivity (human- or sieve-adjudicated); unadjudicated AI proposals refuse (gate 060)." ;
+    rdfs:subClassOf prov:Entity .
+
+lex:JudgeActivity a rdfs:Class ;
+    rdfs:label "JudgeActivity" ;
+    rdfs:comment "A human- or sieve-adjudicated judging activity; the only lawful generator of AI-derived annotations (proposer-judge law)." ;
+    rdfs:subClassOf prov:Activity .
+
+lex:journalPath a rdf:Property ;
+    rdfs:label "journalPath" ;
+    rdfs:comment "Filesystem path of a MatterStore's append-only journal. Must match ^/data/smalt/journal/matter_[^/]+/ (gate 040)." ;
+    rdfs:domain lex:MatterStore ;
+    rdfs:range xsd:string .
+
+lex:custodyStoredIn a rdf:Property ;
+    rdfs:label "custodyStoredIn" ;
+    rdfs:comment "The MatterStore holding an EvidenceDocument's custody record. Required for custody-path provenance (gate 040)." ;
+    rdfs:domain lex:EvidenceDocument ;
+    rdfs:range lex:MatterStore .
+
+lex:attestationFingerprint a rdf:Property ;
+    rdfs:label "attestationFingerprint" ;
+    rdfs:comment "The MAA measurement fingerprint an activity was attested under (SKR shape: token measurement_digest == expected fingerprint). Required on the generating activity of every SealedRecord (gate 050). Face: smalt lib/smalt/attestation/maa.ex." ;
+    rdfs:domain prov:Activity ;
+    rdfs:range xsd:string .
+
+lex:retentionPolicy a rdf:Property ;
+    rdfs:label "retentionPolicy" ;
+    rdfs:comment "Retention/deletion policy individual for a matter. Every lex:Matter must carry one (gate 070, P5 retention)." ;
+    rdfs:domain lex:Matter ;
+    rdfs:range xsd:string .
+
 lex:kvSealThumbprint a rdf:Property ;
     rdfs:label "kvSealThumbprint" ;
     rdfs:comment "Thumbprint of the KV key (PS256 / RSA-PSS, KD-105/KD-119) that sealed the custody event. Face: smalt lib/smalt/data_plane/kv_pss.ex." ;
