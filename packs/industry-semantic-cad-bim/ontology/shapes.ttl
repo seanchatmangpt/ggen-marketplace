@@ -51,3 +51,79 @@ cad:G3-OrphanGeometryShape a sh:NodeShape ;
         sh:class bot:Element ;
         sh:message "orphan geometry: attachable to no element" ;
     ] .
+
+# G4 (P1): every DesignArtifact MUST be storedIn a ProjectStore; the store's
+# journalPath must match the per-project journal-path law.
+cad:G4-DesignIsolationArtifactShape a sh:NodeShape ;
+    sh:targetClass cad:DesignArtifact ;
+    sh:property [
+        sh:path cad:storedIn ;
+        sh:qualifiedValueShape [ sh:class cad:ProjectStore ] ;
+        sh:qualifiedMinCount 1 ;
+        sh:message "design artifact without a cad:ProjectStore (cad:storedIn)" ;
+    ] .
+
+cad:G4-ProjectStoreJournalPathShape a sh:NodeShape ;
+    sh:targetClass cad:ProjectStore ;
+    sh:property [
+        sh:path cad:journalPath ;
+        sh:minCount 1 ;
+        sh:pattern "^/data/smalt/journal/project_[^/]+/" ;
+        sh:message "project store journalPath outside ^/data/smalt/journal/project_[^/]+/" ;
+    ] .
+
+# G5 (P2): every DesignRevision MUST be wasGeneratedBy an activity carrying an
+# attestation fingerprint (qualified: at least one attested generator).
+cad:G5-AttestationShape a sh:NodeShape ;
+    sh:targetClass cad:DesignRevision ;
+    sh:property [
+        sh:path prov:wasGeneratedBy ;
+        sh:qualifiedValueShape [
+            sh:path cad:attestationFingerprint ;
+            sh:minCount 1 ;
+        ] ;
+        sh:qualifiedMinCount 1 ;
+        sh:message "design revision without an attested generator activity (cad:attestationFingerprint)" ;
+    ] .
+
+# G6 (P3): an AIContribution that mutates an element MUST be adjudicated by a
+# JudgeActivity (SPARQLTarget: only mutating contributions are targeted).
+cad:G6-ProposerJudgeShape a sh:NodeShape ;
+    sh:target [
+        a sh:SPARQLTarget ;
+        sh:select """
+            PREFIX cad: <https://seanchatmangpt.github.io/packs/industry-semantic-cad-bim#>
+            SELECT ?this WHERE {
+              ?this a cad:AIContribution .
+              FILTER EXISTS { ?this cad:mutatesElement ?e . }
+            }""" ;
+    ] ;
+    sh:property [
+        sh:path cad:adjudicatedBy ;
+        sh:qualifiedValueShape [ sh:class cad:JudgeActivity ] ;
+        sh:qualifiedMinCount 1 ;
+        sh:message "AI contribution mutating an element without cad:adjudicatedBy a cad:JudgeActivity" ;
+    ] .
+
+# G7 (P5): every RootRevision MUST reference a sealed Merkle root carrying the
+# 320-byte (640 hex) receipt digest.
+cad:G7-SealShape a sh:NodeShape ;
+    sh:targetClass cad:RootRevision ;
+    sh:property [
+        sh:path cad:sealedRoot ;
+        sh:qualifiedValueShape [
+            sh:path cad:receiptDigest ;
+            sh:minCount 1 ;
+        ] ;
+        sh:qualifiedMinCount 1 ;
+        sh:message "root revision without a cad:sealedRoot cad:MerkleSeal" ;
+    ] .
+
+cad:G7-MerkleSealDigestShape a sh:NodeShape ;
+    sh:targetClass cad:MerkleSeal ;
+    sh:property [
+        sh:path cad:receiptDigest ;
+        sh:minCount 1 ;
+        sh:pattern "^[0-9a-f]{640}$" ;
+        sh:message "Merkle seal receiptDigest outside ^[0-9a-f]{640}$ (320-byte digest, hex)" ;
+    ] .
