@@ -113,3 +113,121 @@ guard).
 - OCEL 2.0 usage (dflss) matches what `Smalt.Telemetry.OcelNdjson` writes
   (`ocel:events/objects/eventTypes/objectTypes` keys confirmed in
   lib/smalt/telemetry/ocel_ndjson.ex:46).
+
+---
+
+# EXPL2R — REPAIR lane receipt (2026-10-22)
+
+Repairs EXPL2 F1-F6. Original findings preserved above, untouched.
+Verification gate: the strict exact-stem runner
+(`runners/semantic_runner.py`, dflss exemplar ported to all four packs)
+executed over every (gate x witness x expectation) cell, plus
+`python3 scripts/marketplace.py validate` (exit 0, packs=338 validated),
+plus a non-vacuity mutation probe (below). No commits.
+
+## F1/F2 — cross-fire eliminated (before/after)
+
+Observed cross-gate interference matrix (SELECT rows per gate-witness cell;
+ontology mixed in; `.` = zero rows, X = rows fired):
+
+| cell (witness x gate) | before | after |
+|---|---|---|
+| aero pass/020 x 010 | **2 (PASS DIRTY)** | . |
+| aero fail/020 x 010 | **2 (CROSS-FIRE)** | . |
+| cad-bim pass/030 x 010 | **2 (PASS DIRTY)** | . |
+| cad-bim fail/030 x 010 | **1 (CROSS-FIRE)** | . |
+| all other 56 cells (5 packs) | . | . |
+
+After state, executed matrix (5 packs x 3 gates x pass+fail = 30 cells, all exit 0):
+
+- industry-aero-defense ALL-CELLS-GREEN
+- industry-semantic-cad-bim ALL-CELLS-GREEN
+- industry-financial-ledger ALL-CELLS-GREEN
+- industry-legal-ediscovery ASK-tolerant runner ALL-CELLS-GREEN (confirms EXPL2's cleanliness finding)
+- industry-manufacturing-dflss ALL-CELLS-GREEN (runner untouched; F6 docstring only)
+
+Witness fixes:
+- aero `witnesses/{pass,fail}/020_cross_level_flow.ttl`: both artifacts now
+  carry `ad:needToKnowPrincipal` + an `ad:Principal` individual with
+  `ad:clearanceLevel` (pass witness now satisfies law 010; fail witness breaks
+  ONLY the cross-level law). SHACL-clean under shapes.ttl (ClassConstraint on
+  ad:Secret/TopSecret resolves via merged ontology graph).
+- cad-bim `witnesses/pass/030`: elements given storey membership;
+  `witnesses/fail/030`: wall1 given storey membership -- the orphan-geometry
+  law is the ONLY law broken. (Fixture texts also converted to the F3 property
+  fix, below.)
+
+Exactly-one-law enforcement now live in aero/cad-bim/financial/legal runners:
+- `REFUSED_MORE_THAN_ONE_GATE_FIRED` (fail witness trips a second gate -> exit 2)
+- `REFUSED_GATE_ROWS_ON_PASS` (pass witness fires any gate -> exit 2)
+- `REFUSED_EXPECTED_GATE_DID_NOT_FIRE` (fail witness silent on its own gate -> exit 2)
+- cross-pack stem guard (`REFUSED_STRUCTURAL`, gate outside gates/)
+- aero + cad-bim `qualification/verify.py` rewritten as strict full-matrix
+  aggregators over the runner (old own-gate-only verify.py retired; exit 0).
+- Non-vacuity probe (real mutation, real restore): appending an artifact with
+  classification-but-no-caveat to aero fail/020 (breaks a second law) ->
+  `{"refusal":"REFUSED_MORE_THAN_ONE_GATE_FIRED","others":{"010...": [["...extra","caveat"]]}}`, exit 2; restored witness -> exit 0. A court that cannot flip was the EXPL2 failure mode; this one flips.
+
+## F3 — bot:containedIn -> bot:hasElement (real spec defect)
+
+BOT 0.3.2 fetched live (w3c-lbd-cg/bot master bot.ttl): `bot:containedIn` does
+not exist; element membership is storey->element via `bot:hasElement`
+(`bot:containsElement`/`adjacentElement`/`intersectingElement` subproperties).
+Replaced throughout cad-bim pack + consumer:
+
+- gates/010 (FILTER NOT EXISTS { ?storey a bot:Storey ; bot:hasElement ?element })
+- queries/10-design-surface.rq
+- ontology.ttl law comment, README.md, pack.toml description
+- templates/cad-shacl.ttl.tera G1 shape -> `sh:path [ sh:inversePath bot:hasElement ]`
+  with `sh:qualifiedValueShape [ sh:class bot:Storey ] ; sh:qualifiedMinCount 1`
+  (building-level hasElement edges lawful; a first-cut inversePath+sh:class
+  draft penalized them -- caught by the court itself, fixed to qualified)
+- templates/walkthrough.md.tera
+- new pack-local `ontology/shapes.ttl` (static SHACL for the runner SHACL leg;
+  G2 root-exemption reworked to a sh:SPARQLTarget -- the prior sh:not pattern
+  fired on roots under subclass closure, caught by the court, fixed)
+- witnesses pass/fail 010 + 030 rewritten in the hasElement direction
+- consumer `~/ggen/examples/industry/semantic-cad-bim`: ontology.ttl triples
+  flipped to storey->element, `ggen sync run` regenerated
+  generated/cad-bim/{shapes.ttl,walkthrough.md}; 5 consecutive re-syncs
+  byte-identical (sha1 bc2cdbd2..., walkthrough cab83878...).
+- Zero `bot:containedIn` triples remain anywhere (only honest prose notes that
+  BOT 0.3.x defines no such term).
+
+## F4 — financial-ledger executable court built
+
+- witnesses split from combined pass.ttl/fail.ttl into per-gate exact-stem
+  witnesses/pass|fail/{010,020,030}.ttl; each fail witness breaks EXACTLY one
+  law (010: 250!=240 balanced-otherwise; 020: dangling+missing account on
+  otherwise-balanced, unique ids; 030: dup id on otherwise-balanced, declared
+  accounts). Combined fixtures deleted.
+- runners/semantic_runner.py ported + gate-court.toml (dflss contract,
+  REFUSED_MORE_THAN_ONE_GATE_FIRED enforced). All 6 cells exit 0.
+- SHACL leg reports `shacl: not-configured` loudly (pack ships no shapes) --
+  a skip is loud, not a fake pass.
+
+Legal-ediscovery gates are ASK-shaped: runner teaches `result.type == "ASK"`
+-> `askAnswer` maps True -> one refusal row. Three repair iterations visible
+in-session: merged-ontology graph (aero levelOrder visibility), qualified
+value shape (cad-bim G1), SPARQLTarget (cad-bim G2) -- the court found each
+first-draft defect, not the skeptic.
+
+## F5 — wiring
+
+- aero gate-court.toml created (runner key + dirs + require_pass/fail)
+- legal-ediscovery gate-court.toml `runner` key added (was config-only)
+- cad-bim gate-court.toml runner key repointed from legacy verify.py to the
+  strict runner
+
+## F6 — dflss runner docstring corrected (strategic-doctrine-pack -> industry-manufacturing-dflss).
+
+## Verification summary
+
+- 30/30 witness-court cells green across 5 packs (exit 0 each)
+- aero + cad-bim qualification/verify.py (strict aggregator) exit 0
+- `python3 scripts/marketplace.py validate` exit 0 (packs=338)
+- `marketplace.py check`: 8 REFUSED rows, ALL pre-existing in unrelated packs
+  (chicago-tdd-tools, cnv-any-manifest, fortune5-, greene-, pack-bootstrap,
+  rust-doc-hdit, smalt-semconv, smalt-substrate); zero industry-* refusals
+- cad-bim consumer: `ggen sync run` x5 byte-identical outputs
+- no commits made

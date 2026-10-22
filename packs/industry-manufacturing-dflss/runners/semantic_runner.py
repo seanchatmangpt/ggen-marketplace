@@ -5,8 +5,8 @@ Adapted from packs/semantic-case-study-pack/runners/semantic_runner.py (the
 first concrete runner instance in the marketplace); the contract, exit codes
 and refusal vocabulary are unchanged. Only the pack root differs: gates,
 shapes and ontology are resolved relative to this file, so this runner
-judges strategic-doctrine-pack witnesses against strategic-doctrine-pack
-gates.
+judges industry-manufacturing-dflss witnesses against
+industry-manufacturing-dflss gates (EXPL2 F6 docstring repair).
 
 Contract (argv tokens {gate} {witness} {expectation} are formatted by the
 court):

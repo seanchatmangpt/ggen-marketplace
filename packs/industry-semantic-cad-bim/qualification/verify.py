@@ -1,79 +1,46 @@
 #!/usr/bin/env python3
-"""Semantic gate-witness court for industry-semantic-cad-bim.
+"""Witness-court aggregator for this pack (EXPL2R strict contract).
 
-For each gate (.rq) in gates/, run the SPARQL SELECT against
-ontology.ttl + witnesses/pass/<stem>.ttl  -> expect ZERO rows (admit)
-and against ontology.ttl + witnesses/fail/<stem>.ttl -> expect >= 1 row (refuse).
-
-Fail-closed: any parse error, missing case, or wrong row count exits nonzero.
-Chicago discipline: real rdflib engine, real graph state — no mocks.
+Runs the exact-stem runner (runners/semantic_runner.py) over EVERY
+(gate x witness) cell -- pass witnesses must be silent under all gates,
+fail witnesses must fire EXACTLY their own gate and no other. Exit 0 only
+when every cell is green; any REFUSED_MORE_THAN_ONE_GATE_FIRED /
+REFUSED_GATE_ROWS_ON_PASS fails the court. Chicago discipline: real rdflib
+engine, real graphs, no mocks.
 """
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
-from rdflib import Graph
-
-PACK = Path(__file__).resolve().parent.parent
-
-
-def load(path: Path) -> Graph:
-    graph = Graph()
-    graph.parse(path.as_posix(), format="turtle")
-    return graph
-
-
-def run_gate(gate_text: str, data: Graph) -> list[dict]:
-    rows = data.query(gate_text)
-    return [dict(row.asdict()) for row in rows]
-
+ROOT = Path(__file__).resolve().parents[1]
+RUNNER = ROOT / "runners" / "semantic_runner.py"
+GATES = sorted((ROOT / "gates").glob("*.rq"))
 
 def main() -> int:
-    gates_dir = PACK / "gates"
-    pass_dir = PACK / "witnesses/pass"
-    fail_dir = PACK / "witnesses/fail"
-    ontology = load(PACK / "ontology.ttl")
-
-    gate_paths = sorted(gates_dir.glob("*.rq"))
-    if not gate_paths:
-        print("REFUSED:COURT:no gates found", file=sys.stderr)
-        return 2
-
-    results = []
+    cells = []
     failures = []
-    for gate_path in gate_paths:
-        stem = gate_path.stem
-        pass_path = pass_dir / f"{stem}.ttl"
-        fail_path = fail_dir / f"{stem}.ttl"
-        if not pass_path.exists() or not fail_path.exists():
-            failures.append(f"{stem}: missing witness pair")
-            continue
-        gate_text = gate_path.read_text(encoding="utf-8")
-
-        pass_graph = load(pass_path) + ontology
-        pass_rows = run_gate(gate_text, pass_graph)
-        fail_graph = load(fail_path) + ontology
-        fail_rows = run_gate(gate_text, fail_graph)
-
-        ok = (len(pass_rows) == 0) and (len(fail_rows) >= 1)
-        results.append({
-            "case": stem,
-            "pass_rows": len(pass_rows),
-            "fail_rows": len(fail_rows),
-            "verdict": "PASS" if ok else "REFUSED",
-        })
-        if not ok:
-            failures.append(
-                f"{stem}: pass_rows={len(pass_rows)} (expect 0), "
-                f"fail_rows={len(fail_rows)} (expect >=1)"
-            )
-
+    for gate in GATES:
+        stem = gate.stem
+        for expectation, witness in (("pass", ROOT / "witnesses" / "pass" / f"{stem}.ttl"),
+                                     ("fail", ROOT / "witnesses" / "fail" / f"{stem}.ttl")):
+            if not witness.is_file():
+                failures.append(f"{stem}/{expectation}: missing witness")
+                continue
+            proc = subprocess.run(
+                [sys.executable, str(RUNNER), "--gate", str(gate),
+                 "--witness", str(witness), "--expectation", expectation],
+                capture_output=True, text=True)
+            verdict = "PASS" if proc.returncode == 0 else "REFUSED"
+            cells.append({"case": stem, "expectation": expectation, "verdict": verdict})
+            if proc.returncode != 0:
+                failures.append(f"{stem}/{expectation}: {proc.stderr.strip()}")
     report = {
         "schema": "ggen.semantic-gate-witness-court/1",
-        "pack": PACK.name,
-        "cases": results,
+        "pack": ROOT.name,
+        "cells": cells,
         "standing": "REFUSED" if failures else "ALIVE",
     }
     print(json.dumps(report, indent=2))
@@ -82,7 +49,6 @@ def main() -> int:
             print(f"REFUSED:GATE_WITNESS_COURT:{failure}", file=sys.stderr)
         return 2
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

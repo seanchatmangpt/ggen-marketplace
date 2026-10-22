@@ -50,8 +50,15 @@ def load_graph(path: Path) -> Graph:
 
 
 def gate_rows(gate_path: Path, data: Graph) -> list:
+    """Rows for a gate. SELECT -> row list; ASK -> [True] when the law is
+    violated (legal-ediscovery gates are ASK-shaped), [] when silent."""
     query = gate_path.read_text(encoding="utf-8")
-    return list(data.query(query))
+    result = data.query(query)
+    if getattr(result, "type", None) == "ASK":
+        # ASK-shaped gate (legal-ediscovery): the answer IS the verdict —
+        # True = law violated = one refusal row; False = silent.
+        return [True] if result.askAnswer else []
+    return list(result)
 
 
 def main() -> int:
@@ -73,7 +80,11 @@ def main() -> int:
             raise FileNotFoundError(f"no gates in {GATES_DIR}")
         if gate_path not in {candidate.resolve() for candidate in gates}:
             raise FileNotFoundError(f"gate is not one of this pack's gates: {args.gate}")
+        # Witness + pack ontology merged: gates and SHACL both see the
+        # ontology's class/individual definitions (e.g. ad:levelOrder tiers).
         data = load_graph(witness_path)
+        if ONTOLOGY.is_file():
+            data += load_graph(ONTOLOGY)
     except OSError as error:
         print(json.dumps({"refusal": "REFUSED_STRUCTURAL", "error": str(error)}),
               file=sys.stderr)
@@ -86,11 +97,10 @@ def main() -> int:
     if args.expectation == "pass":
         if SHAPES is not None:
             from pyshacl import validate as shacl_validate
-            ont_graph = str(ONTOLOGY) if ONTOLOGY.is_file() else None
             conforms, _, _ = shacl_validate(
                 data_graph=data,
                 shacl_graph=str(SHAPES),
-                ont_graph=ont_graph,
+                ont_graph=None,
                 inference="none",
                 advanced=True,
             )
