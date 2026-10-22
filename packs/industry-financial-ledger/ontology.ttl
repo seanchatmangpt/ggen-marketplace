@@ -1,0 +1,128 @@
+@prefix fin:   <https://ggen.io/ontology/financial-ledger#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+#################################################################
+# industry-financial-ledger ontology
+#
+# FINREC-style double-entry ledger vocabulary, authored locally
+# (FIBO's full credit-index structure is not minimally expressible
+# here without importing its finance-specific upper structure, so
+# the pack authors a minimal double-entry vocabulary instead, in
+# the FINREC bookkeeping spirit: entries, balanced legs, accounts).
+#
+# Grounded in the smalt emulator faces (docs/jira/v26.10.22/
+# azure-industry-matrix.md, row 2):
+#   - Cosmos = CAS ledgers: lib/smalt/data_plane/cosmos.ex:133
+#     (ETag CAS); lib/smalt/egress/CosmosRoutes.ex:18
+#     (POST /app/transactions batch)
+#   - SB = settlement workflow queues: lib/smalt/messaging/amqp
+#     (Service Bus 5672, SQL filter rules)
+#   - EH = audit telemetry: lib/smalt/messaging/event_hubs/listener.ex:3
+#     (5673), consumer groups event_hubs.ex:847-917
+#   - KV = keys/sign: KvRoutes.ex:28, kv_pss.ex (PS256)
+#
+# Concurrency law: a JournalEntry commits ONLY via Cosmos ETag CAS
+# (If-Match on the account document's _etag). The ontology models
+# the etag as a required per-entry property; the gates refuse
+# entries that violate double-entry or referential integrity.
+#################################################################
+
+### ---------- Core classes ----------
+
+fin:Account a rdfs:Class ;
+    rdfs:label "Ledger Account" ;
+    dct:description "A double-entry ledger account (the Cosmos document holding the running balance; its _etag is the CAS token)." .
+
+fin:JournalEntry a rdfs:Class ;
+    rdfs:label "Journal Entry" ;
+    dct:description "A double-entry transaction: a set of debit/credit Posting legs that must balance (sum debits == sum credits)." .
+
+fin:Posting a rdfs:Class ;
+    rdfs:label "Posting (leg)" ;
+    dct:description "One debit or credit leg of a JournalEntry against one Account." .
+
+fin:SettlementStage a rdfs:Class ;
+    rdfs:label "Settlement Stage" ;
+    dct:description "A stage of the settlement workflow, bound to one Service Bus queue." .
+
+### ---------- Properties ----------
+
+fin:entryId a rdf:Property ;
+    rdfs:label "entry id" ;
+    dct:description "Client-supplied idempotency key for the entry (unique across the ledger; duplicates refuse)." .
+
+fin:hasPosting a rdf:Property ;
+    rdfs:label "has posting" ;
+    dct:description "Links a JournalEntry to its Posting legs. At least two legs per entry." .
+
+fin:account a rdf:Property ;
+    rdfs:label "account" ;
+    dct:description "Links a Posting to its Account. Required; dangling refs refuse." .
+
+fin:debitAmount a rdf:Property ;
+    rdfs:label "debit amount" ;
+    dct:description "Debit leg amount (xsd:decimal). Exactly one of debit/credit per posting." .
+
+fin:creditAmount a rdf:Property ;
+    rdfs:label "credit amount" ;
+    dct:description "Credit leg amount (xsd:decimal). Exactly one of debit/credit per posting." .
+
+fin:accountNumber a rdf:Property ;
+    rdfs:label "account number" ;
+    dct:description "Human-readable account number (unique per Account; the Cosmos document id)." .
+
+fin:postedAt a rdf:Property ;
+    rdfs:label "posted at" ;
+    dct:description "Commit timestamp (xsd:dateTime)." .
+
+fin:casEtag a rdf:Property ;
+    rdfs:label "CAS etag" ;
+    dct:description "The Cosmos document _etag the entry CAS'd on (If-Match). Required on every committed entry." .
+
+fin:stageIndex a rdf:Property ;
+    rdfs:label "stage index" ;
+    dct:description "Ordering index of a SettlementStage in the workflow." .
+
+fin:queueName a rdf:Property ;
+    rdfs:label "queue name" ;
+    dct:description "Service Bus queue bound to a SettlementStage (SB 5672)." .
+
+fin:auditTopic a rdf:Property ;
+    rdfs:label "audit topic" ;
+    dct:description "Event Hubs topic carrying the stage's audit telemetry (EH 5673)." .
+
+### ---------- Individuals: settlement workflow ----------
+
+fin:Capture a fin:SettlementStage ;
+    rdfs:label "Capture" ;
+    fin:stageIndex 1 ;
+    fin:queueName "settle-capture" ;
+    fin:auditTopic "eh-audit-ledger" .
+
+fin:Enrich a fin:SettlementStage ;
+    rdfs:label "Enrich" ;
+    fin:stageIndex 2 ;
+    fin:queueName "settle-enrich" ;
+    fin:auditTopic "eh-audit-ledger" .
+
+fin:Enrich2 a fin:SettlementStage ;
+    rdfs:label "Enrich2" ;
+    fin:stageIndex 3 ;
+    fin:queueName "settle-enrich2" ;
+    fin:auditTopic "eh-audit-ledger" .
+
+fin:Settle a fin:SettlementStage ;
+    rdfs:label "Settle" ;
+    fin:stageIndex 4 ;
+    fin:queueName "settle-settle" ;
+    fin:auditTopic "eh-audit-ledger" .
+
+fin:Audit a fin:SettlementStage ;
+    rdfs:label "Audit" ;
+    fin:stageIndex 5 ;
+    fin:queueName "settle-audit" ;
+    fin:auditTopic "eh-audit-ledger" .
