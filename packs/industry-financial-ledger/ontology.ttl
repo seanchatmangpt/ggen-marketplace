@@ -1,4 +1,5 @@
 @prefix fin:   <https://ggen.io/ontology/financial-ledger#> .
+@prefix prov:  <http://www.w3.org/ns/prov#> .
 @prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix owl:   <http://www.w3.org/2002/07/owl#> .
@@ -126,3 +127,65 @@ fin:Audit a fin:SettlementStage ;
     fin:stageIndex 5 ;
     fin:queueName "settle-audit" ;
     fin:auditTopic "eh-audit-ledger" .
+
+### ---------- Pillar vocabulary (IND-2, 5-pillar spec) ----------
+#
+# P1 isolation, P2 BYOK/SKR, P3 proposer-judge, P5 Merkle self-auth.
+# Shapes follow the pack-family precedents: AZ-2 attestation shape
+# (industry-legal-ediscovery gate 050, smalt lib/smalt/attestation/maa.ex
+# secure_key_release/3: token measurement_digest == expected fingerprint)
+# and the Merkle-seal shape (industry-pharma-21cfr gate 080).
+
+fin:LedgerStore a rdfs:Class ;
+    rdfs:label "Ledger Store" ;
+    dct:description "An isolated ledger store holding one account's journal (per-account journal path law). Face: Cosmos per-account document containers, lib/smalt/data_plane/cosmos.ex." .
+
+fin:SettlementCompletion a rdfs:Class ;
+    rdfs:subClassOf prov:Activity ;
+    rdfs:label "Settlement Completion" ;
+    dct:description "A prov:Activity completing one SettlementStage; settlement-stage completions must bind an attestation fingerprint (P2, AZ-2 shape)." .
+
+fin:JudgeActivity a rdfs:Class ;
+    rdfs:subClassOf prov:Activity ;
+    rdfs:label "Judge Activity" ;
+    dct:description "A prov:Activity adjudicating an AI-proposed categorization before the entry commits (P3 proposer-judge)." .
+
+fin:SettledBatch a rdfs:Class ;
+    rdfs:label "Settled Batch" ;
+    dct:description "A batch of settled entries; every settled batch must reference a sealed Merkle root (P5)." .
+
+fin:MerkleSeal a rdfs:Class ;
+    rdfs:label "Merkle Seal" ;
+    dct:description "Sealed Merkle root + receipt digest over a SettledBatch (P5 Merkle self-auth)." .
+
+fin:isolatedStore a rdf:Property ;
+    rdfs:label "isolated store" ;
+    dct:description "Links a JournalEntry to the isolated LedgerStore holding its per-account journal. Required on every committed entry (P1, gate 040)." .
+
+fin:journalPath a rdf:Property ;
+    rdfs:label "journal path" ;
+    dct:description "Per-account journal path of a LedgerStore. Required on every LedgerStore (P1, gate 040)." .
+
+fin:completesStage a rdf:Property ;
+    rdfs:label "completes stage" ;
+    dct:description "Links a SettlementCompletion to the SettlementStage it completes." .
+
+fin:attestationFingerprint a rdf:Property ;
+    rdfs:label "attestation fingerprint" ;
+    dct:description "The MAA measurement fingerprint a settlement completion was attested under (AZ-2 shape: token measurement_digest == expected fingerprint). Required on every SettlementCompletion (P2, gate 050). Face: smalt lib/smalt/attestation/maa.ex." .
+
+fin:aiCategory a rdf:Property ;
+    rdfs:label "AI category" ;
+    dct:description "An AI-proposed categorization on a JournalEntry; entries carrying one must be wasGeneratedBy a JudgeActivity before commit (P3, gate 060)." .
+
+fin:hasMerkleSeal a rdf:Property ;
+    rdfs:label "has Merkle seal" ;
+    dct:description "Links a SettledBatch to its MerkleSeal (P5, gate 070)." .
+
+fin:sealedRoot a rdf:Property ;
+    rdfs:label "sealed root" ;
+    dct:description "Sealed Merkle root (sha256:...) carried by a MerkleSeal (P5, gate 070)." .
+
+fin:receiptDigest a rdf:Property ;
+    rdfs:label "receipt digest" ;
+    dct:description "320-byte receipt digest carried by a MerkleSeal (P5, gate 070)." .

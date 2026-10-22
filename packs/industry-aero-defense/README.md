@@ -20,19 +20,25 @@ vocabulary (`ad:` namespace):
 
 ## Gates (the air-gap IS the gate)
 
-| Gate | Law | Refusal |
-|---|---|---|
-| `010_artifact_classification_complete` | artifact MUST carry classification + caveat + cleared principal | row = refusal |
-| `020_cross_level_flow` | flow target more restrictive than source | row = refusal |
-| `030_nonloopback_endpoint` | any non-loopback `ad:endpoint` | row = refusal |
+| Gate | Pillar | Law | Refusal |
+|---|---|---|---|
+| `010_artifact_classification_complete` | — | artifact MUST carry classification + caveat + cleared principal | row = refusal |
+| `020_cross_level_flow` | — | flow target more restrictive than source | row = refusal |
+| `030_nonloopback_endpoint` | — | any non-loopback `ad:endpoint` | row = refusal |
+| `040_storage_segregation` | P1 | artifacts of different classifications MUST sit in distinct `ad:Store` individuals | row = refusal |
+| `050_execution_attestation` | P2 | `ad:VerifiableExecutionProof` MUST bind `ad:measurementFingerprint` (AZ-2 shape) | ASK true = refusal |
+| `060_merkle_seal_missing` | P5 | every artifact MUST reference an `ad:Seal` with a sha256 `ad:sealedRoot` | row = refusal |
 
 Negative witnesses live in `witnesses/fail/`; the exact-stem court is
 `qualification/verify.py`:
 
 ```bash
 python3 qualification/verify.py
-# {"failures": [], "gate_count": 3, "standing": "ALIVE", ...}
+# {"failures": [], "gate_count": 6, "standing": "ALIVE", ...}
 ```
+
+Pillar mapping receipt (gate -> pillar -> consumer): `PILLARS.md` in the
+consumer (`ggen examples/industry/aero-defense`).
 
 ## Templates
 

@@ -37,12 +37,27 @@ settle-audit`, all auditing to `eh-audit-ledger`.
 
 ## Gates (SPARQL refusal gates; any row = refusal)
 
-- `gates/010_unbalanced_entry.rq` — sum(debit) != sum(credit)
-- `gates/020_missing_account_ref.rq` — missing/dangling account ref, <2 legs
-- `gates/030_duplicate_entry_id.rq` — duplicate `fin:entryId`
+| Gate | Pillar | Law |
+|---|---|---|
+| `010_unbalanced_entry` | — | sum(debit) != sum(credit) |
+| `020_missing_account_ref` | — | missing/dangling account ref, <2 legs |
+| `030_duplicate_entry_id` | — | duplicate `fin:entryId` |
+| `040_ledger_isolation` | P1 | every JournalEntry MUST reference an isolated `fin:LedgerStore` with a per-account `fin:journalPath` |
+| `050_skr_attestation` | P2 | settlement-stage completions MUST bind `fin:attestationFingerprint` (AZ-2 shape) |
+| `060_proposer_judge` | P3 | AI-categorized entries MUST be `fin:JudgeActivity`-adjudicated before commit |
+| `070_merkle_seal_missing` | P5 | every settled batch MUST reference a sealed sha256 Merkle root |
 
-Negative-witness fixtures: `witnesses/pass.ttl` (all gates silent) and
-`witnesses/fail.ttl` (each gate fires).
+Negative-witness fixtures: `witnesses/pass/` (all gates silent) and
+`witnesses/fail/` (exactly the named gate fires); the exact-stem court is
+`qualification/verify.py`:
+
+```bash
+python3 qualification/verify.py
+# {"cells": [...14 cells...], "standing": "ALIVE"}
+```
+
+Pillar mapping receipt (gate -> pillar -> consumer): `PILLARS.md` in the
+consumer (`ggen examples/industry/financial-ledger`).
 
 ## Qualification
 
