@@ -18,7 +18,7 @@ designs, built on REAL vocabularies.
 ## Gates (SPARQL SELECT; each row is a refusal)
 
 1. `gates/010_element_storey_containment.rq` — every `bot:Element` MUST have
-   `bot:containedIn` a `bot:Storey`.
+   `bot:hasElement` from a `bot:Storey`.
 2. `gates/020_revision_predecessor.rq` — every `cad:DesignRevision` MUST have
    `prov:wasRevisionOf`, EXCEPT `cad:RootRevision`.
 3. `gates/030_orphan_geometry.rq` — every `cad:Geometry` MUST be the
