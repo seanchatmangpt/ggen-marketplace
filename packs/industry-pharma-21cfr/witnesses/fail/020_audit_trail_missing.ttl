@@ -1,20 +1,30 @@
-# FAIL witness for 020_audit_trail_missing: signed record whose trail lacks "why",
-# plus a record with no trail at all.
+# FAIL witness for 020_audit_trail_missing: signed, attested, journal-scoped records
+# whose trail lacks "why", plus a record with no trail at all.
+# The single flipped law is 020; every other gate stays silent.
 @prefix p11:  <https://seanchatmangpt.github.io/packs/industry-pharma-21cfr#> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
 @prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
 
 p11:qa7 a prov:Agent .
-p11:esig a p11:ESignature ; prov:agent p11:qa7 ; p11:signatureValue "PS256:ok" .
+p11:esig a p11:ESignature ;
+    prov:agent p11:qa7 ;
+    p11:signatureValue "PS256:ok" ;
+    p11:attestationFingerprint "sha256:aa11" .
 p11:trail-partial a p11:AuditTrail ;
     p11:who "qa7" ; p11:what "create" ;
     p11:when "2026-10-21T10:00:00Z"^^xsd:dateTime .
 # missing p11:why and prov:endedAtTime
+p11:scope-a a p11:IsolatedStorageScope ;
+    p11:journalPath "journals/batch-partial/journal.ndjson" .
+p11:scope-b a p11:IsolatedStorageScope ;
+    p11:journalPath "journals/batch-notrail/journal.ndjson" .
 p11:batch-partial a p11:ElectronicRecord, p11:BatchRecord ;
     prov:wasAttributedTo p11:qa7 ;
     p11:eSignature p11:esig ;
-    p11:hasAuditTrail p11:trail-partial .
+    p11:hasAuditTrail p11:trail-partial ;
+    p11:hasJournalScope p11:scope-a .
 p11:batch-notrail a p11:ElectronicRecord, p11:BatchRecord ;
     prov:wasAttributedTo p11:qa7 ;
-    p11:eSignature p11:esig .
+    p11:eSignature p11:esig ;
+    p11:hasJournalScope p11:scope-b .
 # no p11:hasAuditTrail -> gate 020 must refuse both

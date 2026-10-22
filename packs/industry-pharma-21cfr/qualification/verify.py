@@ -3,9 +3,10 @@
 
 1. Pack graph: every gate/*.rq must return ZERO rows over ontology.ttl
    (the ontology carries a fully compliant individual chain).
-2. Non-vacuity court: for each gate stem, the PASS witness must produce
-   ZERO rows and the FAIL witness must produce >= 1 row ON THAT GATE —
-   a fail witness that only flips some other gate does not count.
+2. Non-vacuity court (exactly-one-law): for each gate stem, the PASS witness
+   must produce ZERO rows from EVERY gate, and the FAIL witness must produce
+   >= 1 row ON ITS OWN GATE and ZERO rows from every OTHER gate — a fail
+   witness that flips a second law is a cross-contaminated court, not a pass.
 Exit 0 iff all of the above hold; else print the failing legs and exit 1.
 """
 import sys
@@ -46,22 +47,30 @@ def main() -> int:
                 continue
             wg = Graph()
             wg.parse(witness, format="turtle")
-            found = rows(wg, gate)
-            if expect_violation and not found:
-                failures.append(f"{gate.stem}: FAIL witness did not flip its gate (VACUOUS)")
-            elif not expect_violation and found:
-                failures.append(f"{gate.stem}: PASS witness has {len(found)} violation row(s)")
-            elif expect_violation:
-                print(f"PASS court {gate.stem}: fail witness flips gate ({len(found)} row(s))")
+            per_gate = {g.stem: len(rows(wg, g)) for g in gates}
+            if expect_violation:
+                if per_gate[gate.stem] == 0:
+                    failures.append(f"{gate.stem}: FAIL witness did not flip its gate (VACUOUS)")
+                elif any(n for s, n in per_gate.items() if s != gate.stem):
+                    flipped = sorted(s for s, n in per_gate.items() if n and s != gate.stem)
+                    failures.append(f"{gate.stem}: FAIL witness flips other gates {flipped} (NOT exactly-one-law)")
+                else:
+                    print(f"PASS court {gate.stem}: fail witness flips ONLY its gate "
+                          f"({per_gate[gate.stem]} row(s))")
             else:
-                print(f"PASS court {gate.stem}: pass witness clean")
+                if any(per_gate.values()):
+                    flipped = sorted(s for s, n in per_gate.items() if n)
+                    failures.append(f"{gate.stem}: PASS witness flips {flipped}")
+                else:
+                    print(f"PASS court {gate.stem}: pass witness clean across all {len(gates)} gates")
 
     if failures:
         for line in failures:
             print(f"VIOLATION {line}")
         print(f"FAIL: {len(failures)} court leg(s)")
         return 1
-    print("OK: 4 gates, 8 witness legs, all zero-rows/flips as contracted")
+    print(f"OK: {len(gates)} gates, {2 * len(gates)} witness legs, "
+          "zero-rows/flips-as-contracted, exactly-one-law enforced")
     return 0
 
 

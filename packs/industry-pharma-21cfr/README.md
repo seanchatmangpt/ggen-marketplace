@@ -24,13 +24,19 @@ deviation/CAPA quality loop, and WORM immutability.
   for the signing host (`POST /attest/:type`, `AttestRoutes.ex:17`), the
   AppConfig quality-policy gate (`appconfig_features.ex:100`), and KV PS256
   e-signatures (`kv_pss.ex:1-8`).
-- `gates/` — four refusal gates, each witnessed both ways:
+- `gates/` — eight refusal gates, each witnessed both ways (the four 21 CFR Part
+  11 gates plus the IND-3 pillar gates 050/060/070/080 — see `RECEIPT.md` and
+  the consumer's `PILLARS.md`):
   | gate | refusal |
   |---|---|
   | `010_signature_missing.rq` | record without an e-signature bound to a `prov:Agent` |
   | `020_audit_trail_missing.rq` | record without a trail, trail missing who/what/when/why, or trail missing `prov:endedAtTime` |
   | `030_capa_missing.rq` | deviation without a linked CAPA with an action |
   | `040_mutation_non_worm.rq` | record mutation written through a non-WORM store |
+  | `050_journal_scope_missing.rq` (P1) | batch record without an isolated per-batch storage scope / `journalPath` |
+  | `060_esig_attestation_missing.rq` (P2) | e-signature without a `sha256:` SKR attestation measurement fingerprint |
+  | `070_ai_annotation_unadjudicated.rq` (P3) | AI-derived quality annotation mutating a record with no `JudgeActivity` verdict |
+  | `080_merkle_seal_missing.rq` (P5) | completed batch record without a `MerkleSeal` (sealed `sha256:` root + 320-byte receipt digest) |
 
 ## Qualification
 
@@ -40,9 +46,11 @@ python3 packs/industry-pharma-21cfr/qualification/verify.py
 ```
 
 `qualification/verify.py` is a Chicago verifier: real rdflib, real gates,
-asserts final state — pack graph clean, every PASS witness clean, every FAIL
-witness flips exactly its matching gate (a court that cannot flip is the
-failure).
+asserts final state — pack graph clean, every PASS witness clean across all
+gates, every FAIL witness flips exactly its own gate and zero others
+(exactly-one-law; a court that cannot flip is the failure). The
+`gate-court.toml` runner is the dflss-exemplar semantic runner
+(`runners/semantic_runner.py`, exit 0 observed / 2 REFUSED / 3 structural).
 
 ## Consumer
 
