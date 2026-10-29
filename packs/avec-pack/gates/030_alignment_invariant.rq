@@ -1,0 +1,14 @@
+# MESSAGE: buffer slot alignment must be exactly 64 bytes.
+# Every buffer slot (any subject carrying av:slotIndex) must carry
+# av:alignmentBytes exactly 64 — the AVX-512 / NEON SWAR invariant.
+# A row = refusal. Anti-vacuity: set any slot's alignmentBytes to 32 or drop
+# the triple — the gate must fire (see witnesses/fail).
+PREFIX av: <urn:avec:>
+SELECT ?slot ?problem WHERE {
+  ?slot av:slotIndex ?idx .
+  OPTIONAL { ?slot av:alignmentBytes ?a }
+  FILTER(!BOUND(?a) || ?a != 64)
+  BIND(IF(BOUND(?a), CONCAT("alignment-must-be-64, got ", STR(?a)),
+                     "alignment-missing") AS ?problem)
+}
+ORDER BY ?slot

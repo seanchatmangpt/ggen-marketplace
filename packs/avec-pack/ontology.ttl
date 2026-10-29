@@ -1,0 +1,377 @@
+# avec-pack ontology — canonical graph for the AVEC columnar substrate.
+#
+# Models the Apache Arrow columnar format surface (physical layouts, buffer
+# slots, C Data Interface ABI structs, schema flags) that the `avec` repo
+# manufactures from. Per-individual citations ground every modeled type to the
+# Arrow Columnar Format spec:
+#   https://arrow.apache.org/docs/format/Columnar.html
+#
+# Generated consequences (include/avec.h, include/avec_format_codes.h,
+# crates/avec-core/src/layout_gen.rs) are projections of THIS graph. Never
+# hand-edit generated output; change the graph and re-run `ggen sync`.
+
+@prefix av:      <urn:avec:> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix p:       <https://seanchatmangpt.github.io/packs/avec-pack#> .
+
+#################################################################
+# 1. VOCABULARY
+#################################################################
+
+av:PhysicalLayout a rdfs:Class ;
+    rdfs:label "Physical Memory Layout" ;
+    rdfs:comment "A distinct physical buffer arrangement defined by the Arrow columnar spec." .
+
+av:NullLayout           rdfs:subClassOf av:PhysicalLayout .
+av:PrimitiveLayout      rdfs:subClassOf av:PhysicalLayout .
+av:TemporalLayout       rdfs:subClassOf av:PrimitiveLayout .
+av:DecimalLayout        rdfs:subClassOf av:PrimitiveLayout .
+av:VariableBinaryLayout rdfs:subClassOf av:PhysicalLayout .
+av:BinaryViewLayout     rdfs:subClassOf av:PhysicalLayout .
+av:NestedLayout         rdfs:subClassOf av:PhysicalLayout .
+av:RunEndEncodedLayout  rdfs:subClassOf av:PhysicalLayout .
+av:DictionaryLayout     rdfs:subClassOf av:PhysicalLayout .
+
+av:BufferRole a rdfs:Class ;
+    rdfs:label "Buffer Semantic Role" .
+
+av:ValidityBitmap     a av:BufferRole ; rdfs:label "1-bit LSB-first validity bitmap" .
+av:DataBuffer         a av:BufferRole ; rdfs:label "Contiguous value/element payload" .
+av:OffsetBuffer       a av:BufferRole ; rdfs:label "Relative index offset array (32/64-bit)" .
+av:VariadicDataBuffer a av:BufferRole ; rdfs:label "Variadic data blocks behind string/binary views" .
+av:SizeBuffer         a av:BufferRole ; rdfs:label "List-view element sizes array" .
+av:TypeBuffer         a av:BufferRole ; rdfs:label "Union 8-bit type discriminator ids" .
+
+av:BufferSlot a rdfs:Class ;
+    rdfs:label "Explicit Buffer Slot Descriptor" .
+
+av:slotIndex       a rdf:Property ; rdfs:domain av:BufferSlot ; rdfs:range xsd:integer .
+av:bufferRole      a rdf:Property ; rdfs:domain av:BufferSlot ; rdfs:range av:BufferRole .
+av:elementBitWidth a rdf:Property ; rdfs:domain av:BufferSlot ; rdfs:range xsd:integer .
+av:alignmentBytes  a rdf:Property ; rdfs:domain av:BufferSlot ; rdfs:range xsd:integer .
+av:hasBufferSlot   a rdf:Property ; rdfs:domain av:PhysicalLayout ; rdfs:range av:BufferSlot .
+
+av:formatCode   a rdf:Property ; rdfs:range xsd:string .
+av:formatPrefix a rdf:Property ; rdfs:range xsd:string .
+av:bufferCount  a rdf:Property ; rdfs:range xsd:integer .
+av:childCount   a rdf:Property ; rdfs:range xsd:integer .
+av:sourceText   a rdf:Property ; rdfs:range xsd:string .
+
+#################################################################
+# 2. C DATA INTERFACE ABI STRUCTS + FLAGS
+#################################################################
+
+av:CAbiStruct a rdfs:Class ;
+    rdfs:label "Arrow C Data Interface ABI Struct" .
+
+av:SchemaFlag a rdfs:Class ;
+    rdfs:label "ArrowSchema.flags Bitmask" .
+
+av:cFlagValue a rdf:Property ; rdfs:range xsd:integer .
+
+av:FlagDictionaryOrdered a av:SchemaFlag ; av:cFlagValue 1 ; rdfs:label "ARROW_FLAG_DICTIONARY_ORDERED" .
+av:FlagNullable          a av:SchemaFlag ; av:cFlagValue 2 ; rdfs:label "ARROW_FLAG_NULLABLE" .
+av:FlagMapKeysSorted     a av:SchemaFlag ; av:cFlagValue 4 ; rdfs:label "ARROW_FLAG_MAP_KEYS_SORTED" .
+
+# Exact spec definitions (C Data Interface, Buffer.html / C_DataInterface.html).
+av:ArrowSchema a av:CAbiStruct ;
+    rdfs:label "struct ArrowSchema" ;
+    av:sourceText """struct ArrowSchema {
+  const char* format;
+  const char* name;
+  const char* metadata;
+  int64_t flags;
+  int64_t n_children;
+  struct ArrowSchema** children;
+  struct ArrowSchema* dictionary;
+  void (*release)(struct ArrowSchema*);
+  void* private_data;
+};""" .
+
+av:ArrowArray a av:CAbiStruct ;
+    rdfs:label "struct ArrowArray" ;
+    av:sourceText """struct ArrowArray {
+  int64_t length;
+  int64_t null_count;
+  int64_t offset;
+  int64_t n_buffers;
+  int64_t n_children;
+  const void** buffers;
+  struct ArrowArray** children;
+  struct ArrowArray* dictionary;
+  void (*release)(struct ArrowArray*);
+  void* private_data;
+};""" .
+
+#################################################################
+# 3. TYPE INDIVIDUALS (format codes + buffer slots)
+#################################################################
+
+# --- Null (spec: Columnar.html#null) ---
+av:Null a av:NullLayout ;
+    rdfs:label "Null" ;
+    av:formatCode "n" ;
+    av:bufferCount 0 .
+
+# --- Boolean (spec: Columnar.html#boolean) ---
+av:Boolean a av:PrimitiveLayout ;
+    rdfs:label "Boolean" ;
+    av:formatCode "b" ;
+    av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] .
+
+# --- Primitive integers (spec: Columnar.html#integer) ---
+av:Int8   a av:PrimitiveLayout ; rdfs:label "Int8"   ; av:formatCode "c" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 8  ; av:alignmentBytes 64 ] .
+
+av:UInt8  a av:PrimitiveLayout ; rdfs:label "UInt8"  ; av:formatCode "C" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 8  ; av:alignmentBytes 64 ] .
+
+av:Int16  a av:PrimitiveLayout ; rdfs:label "Int16"  ; av:formatCode "s" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 16 ; av:alignmentBytes 64 ] .
+
+av:UInt16 a av:PrimitiveLayout ; rdfs:label "UInt16" ; av:formatCode "S" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 16 ; av:alignmentBytes 64 ] .
+
+av:Int32  a av:PrimitiveLayout ; rdfs:label "Int32"  ; av:formatCode "i" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 32 ; av:alignmentBytes 64 ] .
+
+av:UInt32 a av:PrimitiveLayout ; rdfs:label "UInt32" ; av:formatCode "I" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 32 ; av:alignmentBytes 64 ] .
+
+av:Int64  a av:PrimitiveLayout ; rdfs:label "Int64"  ; av:formatCode "l" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 64 ; av:alignmentBytes 64 ] .
+
+av:UInt64 a av:PrimitiveLayout ; rdfs:label "UInt64" ; av:formatCode "L" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 64 ; av:alignmentBytes 64 ] .
+
+# --- Floating point (spec: Columnar.html#floating-point) ---
+av:Float16 a av:PrimitiveLayout ; rdfs:label "Float16" ; av:formatCode "e" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 16 ; av:alignmentBytes 64 ] .
+
+av:Float32 a av:PrimitiveLayout ; rdfs:label "Float32" ; av:formatCode "f" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 32 ; av:alignmentBytes 64 ] .
+
+av:Float64 a av:PrimitiveLayout ; rdfs:label "Float64" ; av:formatCode "g" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 64 ; av:alignmentBytes 64 ] .
+
+# --- Decimals (spec: Columnar.html#decimal) ---
+av:Decimal128 a av:DecimalLayout ; rdfs:label "Decimal128" ; av:formatPrefix "d:" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1   ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 128 ; av:alignmentBytes 64 ] .
+
+av:Decimal256 a av:DecimalLayout ; rdfs:label "Decimal256" ; av:formatPrefix "d:" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1   ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 256 ; av:alignmentBytes 64 ] .
+
+# --- Temporal (spec: Columnar.html#temporal) ---
+av:Date32 a av:TemporalLayout ; rdfs:label "Date32" ; av:formatCode "tdD" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 32 ; av:alignmentBytes 64 ] .
+
+av:Date64 a av:TemporalLayout ; rdfs:label "Date64" ; av:formatCode "tdm" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 64 ; av:alignmentBytes 64 ] .
+
+av:Time32Sec a av:TemporalLayout ; rdfs:label "Time32Sec" ; av:formatCode "tts" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 32 ; av:alignmentBytes 64 ] .
+
+av:Time32Milli a av:TemporalLayout ; rdfs:label "Time32Milli" ; av:formatCode "ttm" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 32 ; av:alignmentBytes 64 ] .
+
+av:Time64Micro a av:TemporalLayout ; rdfs:label "Time64Micro" ; av:formatCode "ttu" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 64 ; av:alignmentBytes 64 ] .
+
+av:Time64Nano a av:TemporalLayout ; rdfs:label "Time64Nano" ; av:formatCode "ttn" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 64 ; av:alignmentBytes 64 ] .
+
+# Timestamps: timezone-scoped, exact form is prefix + tz string, e.g. tss:UTC.
+av:TimestampSec a av:TemporalLayout ; rdfs:label "TimestampSec" ; av:formatPrefix "tss:" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 64 ; av:alignmentBytes 64 ] .
+
+av:TimestampMilli a av:TemporalLayout ; rdfs:label "TimestampMilli" ; av:formatPrefix "tsm:" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 64 ; av:alignmentBytes 64 ] .
+
+av:TimestampMicro a av:TemporalLayout ; rdfs:label "TimestampMicro" ; av:formatPrefix "tsu:" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 64 ; av:alignmentBytes 64 ] .
+
+av:TimestampNano a av:TemporalLayout ; rdfs:label "TimestampNano" ; av:formatPrefix "tsn:" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 64 ; av:alignmentBytes 64 ] .
+
+av:DurationSec a av:TemporalLayout ; rdfs:label "DurationSec" ; av:formatCode "tDs" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 64 ; av:alignmentBytes 64 ] .
+
+av:DurationMilli a av:TemporalLayout ; rdfs:label "DurationMilli" ; av:formatCode "tDm" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 64 ; av:alignmentBytes 64 ] .
+
+av:DurationMicro a av:TemporalLayout ; rdfs:label "DurationMicro" ; av:formatCode "tDu" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 64 ; av:alignmentBytes 64 ] .
+
+av:DurationNano a av:TemporalLayout ; rdfs:label "DurationNano" ; av:formatCode "tDn" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 64 ; av:alignmentBytes 64 ] .
+
+av:IntervalYearMonth a av:TemporalLayout ; rdfs:label "IntervalYearMonth" ; av:formatCode "tiM" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 32 ; av:alignmentBytes 64 ] .
+
+av:IntervalDayTime a av:TemporalLayout ; rdfs:label "IntervalDayTime" ; av:formatCode "tiD" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer ; av:elementBitWidth 64 ; av:alignmentBytes 64 ] .
+
+av:IntervalMonthDayNano a av:TemporalLayout ; rdfs:label "IntervalMonthDayNano" ; av:formatCode "tiI" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer ; av:elementBitWidth 128 ; av:alignmentBytes 64 ] .
+
+# --- Variable binary / string (spec: Columnar.html#variable-size-binary) ---
+av:Utf8String a av:VariableBinaryLayout ; rdfs:label "Utf8" ; av:formatCode "u" ; av:bufferCount 3 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:OffsetBuffer   ; av:elementBitWidth 32 ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 2 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 8  ; av:alignmentBytes 64 ] .
+
+av:LargeUtf8String a av:VariableBinaryLayout ; rdfs:label "LargeUtf8" ; av:formatCode "U" ; av:bufferCount 3 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:OffsetBuffer   ; av:elementBitWidth 64 ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 2 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 8  ; av:alignmentBytes 64 ] .
+
+av:Binary a av:VariableBinaryLayout ; rdfs:label "Binary" ; av:formatCode "z" ; av:bufferCount 3 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:OffsetBuffer   ; av:elementBitWidth 32 ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 2 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 8  ; av:alignmentBytes 64 ] .
+
+av:LargeBinary a av:VariableBinaryLayout ; rdfs:label "LargeBinary" ; av:formatCode "Z" ; av:bufferCount 3 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:OffsetBuffer   ; av:elementBitWidth 64 ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 2 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 8  ; av:alignmentBytes 64 ] .
+
+av:FixedSizeBinary a av:PrimitiveLayout ; rdfs:label "FixedSizeBinary" ; av:formatPrefix "w:" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1 ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer     ; av:elementBitWidth 8 ; av:alignmentBytes 64 ] .
+
+# --- String/Binary views (spec: Columnar.html#string-view-binary-view) ---
+# Slot 1 holds 16-byte inline view descriptors; slots 2..n hold variadic data
+# blocks (one or more data buffers referenced by long-form views).
+av:Utf8View a av:BinaryViewLayout ; rdfs:label "Utf8View" ; av:formatCode "vu" ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap     ; av:elementBitWidth 1   ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer         ; av:elementBitWidth 128 ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 2 ; av:bufferRole av:VariadicDataBuffer ; av:elementBitWidth 8   ; av:alignmentBytes 64 ] .
+
+av:BinaryView a av:BinaryViewLayout ; rdfs:label "BinaryView" ; av:formatCode "vz" ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap     ; av:elementBitWidth 1   ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:DataBuffer         ; av:elementBitWidth 128 ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 2 ; av:bufferRole av:VariadicDataBuffer ; av:elementBitWidth 8   ; av:alignmentBytes 64 ] .
+
+# --- Nested (spec: Columnar.html#nested) ---
+av:Struct_ a av:NestedLayout ; rdfs:label "Struct" ; av:formatCode "+s" ; av:bufferCount 1 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1 ; av:alignmentBytes 64 ] .
+
+av:List a av:NestedLayout ; rdfs:label "List" ; av:formatCode "+l" ; av:bufferCount 2 ; av:childCount 1 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:OffsetBuffer   ; av:elementBitWidth 32 ; av:alignmentBytes 64 ] .
+
+av:LargeList a av:NestedLayout ; rdfs:label "LargeList" ; av:formatCode "+L" ; av:bufferCount 2 ; av:childCount 1 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:OffsetBuffer   ; av:elementBitWidth 64 ; av:alignmentBytes 64 ] .
+
+# Fixed-size list: exact form is "+fl:{fixed_size}" (e.g. +fl:4096).
+av:FixedSizeList a av:NestedLayout ; rdfs:label "FixedSizeList" ; av:formatPrefix "+fl:" ; av:bufferCount 1 ; av:childCount 1 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1 ; av:alignmentBytes 64 ] .
+
+av:ListView a av:NestedLayout ; rdfs:label "ListView" ; av:formatCode "+vl" ; av:bufferCount 3 ; av:childCount 1 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:OffsetBuffer   ; av:elementBitWidth 32 ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 2 ; av:bufferRole av:SizeBuffer     ; av:elementBitWidth 32 ; av:alignmentBytes 64 ] .
+
+av:LargeListView a av:NestedLayout ; rdfs:label "LargeListView" ; av:formatCode "+vL" ; av:bufferCount 3 ; av:childCount 1 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:OffsetBuffer   ; av:elementBitWidth 64 ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 2 ; av:bufferRole av:SizeBuffer     ; av:elementBitWidth 64 ; av:alignmentBytes 64 ] .
+
+# Unions carry type ids only — no validity bitmap (spec: unions are always valid).
+av:DenseUnion a av:NestedLayout ; rdfs:label "DenseUnion" ; av:formatPrefix "+ud:" ; av:bufferCount 2 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:TypeBuffer   ; av:elementBitWidth 8  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:OffsetBuffer ; av:elementBitWidth 32 ; av:alignmentBytes 64 ] .
+
+av:SparseUnion a av:NestedLayout ; rdfs:label "SparseUnion" ; av:formatPrefix "+us:" ; av:bufferCount 1 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:TypeBuffer ; av:elementBitWidth 8 ; av:alignmentBytes 64 ] .
+
+# Map: list-like of struct<entries>; child 0 is the entries struct (keys, values).
+av:Map a av:NestedLayout ; rdfs:label "Map" ; av:formatCode "+m" ; av:bufferCount 2 ; av:childCount 1 ;
+    av:hasBufferSlot [ av:slotIndex 0 ; av:bufferRole av:ValidityBitmap ; av:elementBitWidth 1  ; av:alignmentBytes 64 ] ;
+    av:hasBufferSlot [ av:slotIndex 1 ; av:bufferRole av:OffsetBuffer   ; av:elementBitWidth 32 ; av:alignmentBytes 64 ] .
+
+# Run-end encoded: logical container; run_ends + values live in two children.
+av:RunEndEncoded a av:RunEndEncodedLayout ; rdfs:label "RunEndEncoded" ; av:formatCode "+r" ;
+    av:bufferCount 0 ; av:childCount 2 .
+
+# Dictionary encoding: parent format string equals the index type's native
+# format code; decoded values live in the C-ABI `dictionary` child.
+av:Dictionary a av:DictionaryLayout ; rdfs:label "Dictionary" ; av:bufferCount 0 ; av:childCount 2 ;
+    rdfs:comment "Format string equals the index type's native format code; values in dictionary child." .
+
+#################################################################
+# 4. PROMISES (gate 020 promise-vs-content backing)
+#################################################################
+
+av:Promise a rdfs:Class ;
+    rdfs:label "Pack Promise" ;
+    rdfs:comment "A claim the pack makes about its admitted surface; each must be backed by modeled individuals." .
+
+av:promise_alignment a av:Promise ;
+    rdfs:label "Every modeled buffer slot is aligned to exactly 64 bytes" ;
+    p:backedBy av:AlignmentGate , av:Boolean , av:Int64 , av:Utf8String .
+
+av:promise_c_abi_parity a av:Promise ;
+    rdfs:label "C Data Interface parity: ArrowSchema + ArrowArray modeled and projected to include/avec.h" ;
+    p:backedBy av:ArrowSchema , av:ArrowArray , av:FlagNullable .
+
+av:promise_format_coverage a av:Promise ;
+    rdfs:label "Every Arrow type family has a modeled layout with formatCode or formatPrefix" ;
+    p:backedBy av:Null , av:Boolean , av:Date32 , av:Utf8String , av:Struct_ , av:RunEndEncoded , av:Dictionary .
+
+#################################################################
+# 5. SHACL-CLASS GATES (modeled; SPARQL forms live in gates/*.rq)
+#################################################################
+
+av:AlignmentGate a rdfs:Class ;
+    rdfs:label "Hardware Alignment Gate" ;
+    rdfs:comment "Every BufferSlot must carry alignmentBytes exactly 64 (AVX-512 / NEON invariant)." .
+
+av:FormatCompletenessGate a rdfs:Class ;
+    rdfs:label "Format Code Completeness Gate" ;
+    rdfs:comment "Every PhysicalLayout (except DictionaryLayout, whose format string is its index type's) must carry formatCode or formatPrefix." .
+
+av:SlotContinuityGate a rdfs:Class ;
+    rdfs:label "Slot Index Continuity Gate" ;
+    rdfs:comment "Buffer slots per layout must be densely indexed from 0 (max+1 == count)." .
+
+# Pack-level subjects (gate 010 compatibility individuals)
+p:example a p:Subject ;
+    p:subjectId "urn:avec-pack:example" .
+p:avec a p:Subject ;
+    p:subjectId "urn:avec-pack:avec" .

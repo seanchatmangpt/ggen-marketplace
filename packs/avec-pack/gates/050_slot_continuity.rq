@@ -1,0 +1,19 @@
+# MESSAGE: buffer slot indices must be dense from 0.
+# For every layout with slots: COUNT(DISTINCT slotIndex) == MAX(slotIndex)+1.
+# Counting distinct index VALUES (not slot nodes) keeps the gate independent
+# of blank-node identity handling differences across SPARQL engines.
+# A row = refusal. Anti-vacuity: delete slot index 1 from a 3-slot layout —
+# the gate must fire (see witnesses/fail).
+PREFIX av: <urn:avec:>
+SELECT ?layout ?count ?expected WHERE {
+  {
+    SELECT ?layout (COUNT(DISTINCT ?i) AS ?count) (MAX(?i) + 1 AS ?expected)
+    WHERE {
+      ?layout av:hasBufferSlot ?s .
+      ?s av:slotIndex ?i .
+    }
+    GROUP BY ?layout
+  }
+  FILTER(?count != ?expected)
+}
+ORDER BY ?layout
