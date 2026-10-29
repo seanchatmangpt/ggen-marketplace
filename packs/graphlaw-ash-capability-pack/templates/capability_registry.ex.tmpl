@@ -5,18 +5,18 @@ sparql:
     PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
 
     # One row: the registry identity the projection is stamped with.
-    SELECT ?schema_id ?graphlaw_version ?abi_version ?surface_sha256 ?registry_sha256 ?op_count ?dialect_count
+    SELECT ?schema_id ?graphlaw_version ?abi_version ?surface_blake3 ?registry_blake3 ?op_count ?dialect_count
     WHERE {
       ?registry a gac:Registry ;
         gac:schemaId ?schema_id ;
         gac:graphlawVersion ?graphlaw_version ;
         gac:abiVersion ?abi_version ;
-        gac:surfaceSha256 ?surface_sha256 ;
-        gac:registrySha256 ?registry_sha256 ;
+        gac:surfaceBlake3 ?surface_blake3 ;
+        gac:registryBlake3 ?registry_blake3 ;
         gac:opCount ?op_count ;
         gac:dialectCount ?dialect_count .
     }
-    ORDER BY ?registry_sha256
+    ORDER BY ?registry_blake3
   ops: |
     PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
 
@@ -267,7 +267,7 @@ defmodule AshGraphLaw.Capability.Registry do
   The GraphLaw capability registry as compile-time literals.
 
   Generated from the registry `{{ registry[0].schema_id }}` (GraphLaw `{{ registry[0].graphlaw_version }}`, ABI
-  `{{ registry[0].abi_version }}`). `digest/0` is the registry's own `registry_sha256`; `surface_digest/0` is the
+  `{{ registry[0].abi_version }}`). `digest/0` is the registry's own `registry_blake3`; `surface_digest/0` is the
   SHA-256 over the canonical surface document (ABI version, op names, dialect names) that a live
   engine's `capabilities` response can be compared against.
 
@@ -330,8 +330,8 @@ defmodule AshGraphLaw.Capability.Registry do
   @schema {{ registry[0].schema_id | json_encode }}
   @graphlaw_version {{ registry[0].graphlaw_version | json_encode }}
   @abi_version {{ registry[0].abi_version }}
-  @digest {{ registry[0].registry_sha256 | json_encode }}
-  @surface_digest {{ registry[0].surface_sha256 | json_encode }}
+  @digest {{ registry[0].registry_blake3 | json_encode }}
+  @surface_digest {{ registry[0].surface_blake3 | json_encode }}
 
   @names [
 {%- for o in ops %}
@@ -475,11 +475,11 @@ defmodule AshGraphLaw.Capability.Registry do
   @spec abi_version() :: pos_integer()
   def abi_version, do: @abi_version
 
-  @doc "The registry digest literal (`\"sha256:<hex>\"`), the registry's own `registry_sha256`."
+  @doc "The registry digest literal (`\"blake3:<hex>\"`), the registry's own `registry_blake3`."
   @spec digest() :: String.t()
   def digest, do: @digest
 
-  @doc "The surface digest literal (`\"sha256:<hex>\"`) over ABI version, op names and dialect names."
+  @doc "The surface digest literal (`\"blake3:<hex>\"`) over ABI version, op names and dialect names."
   @spec surface_digest() :: String.t()
   def surface_digest, do: @surface_digest
 

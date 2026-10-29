@@ -496,8 +496,8 @@ if match?({:ok, _}, compile_result) do
   end
 
   check.("Registry.names/0 length == gac:opCount", length(Registry.names()) == fixture_op_count)
-  check.("Registry.digest/0 == gac:registrySha256", Registry.digest() == registry_row["registry_sha256"])
-  check.("Registry.surface_digest/0 == gac:surfaceSha256", Registry.surface_digest() == registry_row["surface_sha256"])
+  check.("Registry.digest/0 == gac:registryBlake3", Registry.digest() == registry_row["registry_blake3"])
+  check.("Registry.surface_digest/0 == gac:surfaceBlake3", Registry.surface_digest() == registry_row["surface_blake3"])
   check.("Registry.abi_version/0 == gac:abiVersion", Registry.abi_version() == (registry_row["abi_version"] |> to_string() |> String.to_integer()))
 
   {:ok, sparql} = Registry.op("sparql")
@@ -552,7 +552,7 @@ if match?({:ok, _}, compile_result) do
 
   wire = %{
     "lease" => %{"id" => "l1", "holder" => "h", "ceiling" => "select", "scope" => ["shacl"], "expires_unix" => 9, "issued_unix" => 0},
-    "attestation" => %{"payload_sha256" => "aa", "key_id" => "k", "signature" => "ss", "future" => 1},
+    "attestation" => %{"payload_blake3" => "aa", "key_id" => "k", "signature" => "ss", "future" => 1},
     "future_top" => [1, 2]
   }
 

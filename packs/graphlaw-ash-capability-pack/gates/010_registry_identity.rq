@@ -1,8 +1,9 @@
 # MESSAGE: every gac:Registry must exist and carry schemaId (exactly
 # "graphlaw.capability-registry/1"), graphlawVersion, abiVersion (xsd:integer >= 1),
-# opCount, dialectCount, and both surfaceSha256 and registrySha256 matching
-# ^sha256:[0-9a-f]{64}$. A missing registry, a missing property, a wrong schema id, a
-# non-integer ABI version, or a malformed digest is one row.
+# opCount, dialectCount, and both surface and registry digests (gac:surfaceBlake3 or
+# legacy gac:surfaceSha256; gac:registryBlake3 or legacy gac:registrySha256) matching
+# ^(blake3|sha256):[0-9a-f]{64}$. A missing registry, a missing property, a wrong schema
+# id, a non-integer ABI version, or a malformed digest is one row.
 PREFIX gac: <http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 
@@ -14,11 +15,20 @@ SELECT ?s ?missing WHERE {
   }
   UNION {
     VALUES ?missing {
-      gac:schemaId gac:graphlawVersion gac:abiVersion gac:surfaceSha256
-      gac:registrySha256 gac:opCount gac:dialectCount
+      gac:schemaId gac:graphlawVersion gac:abiVersion gac:opCount gac:dialectCount
     }
     ?s a gac:Registry .
     FILTER NOT EXISTS { ?s ?missing ?any }
+  }
+  UNION {
+    ?s a gac:Registry .
+    FILTER NOT EXISTS { ?s gac:surfaceBlake3|gac:surfaceSha256 ?any }
+    BIND(gac:surfaceBlake3 AS ?missing)
+  }
+  UNION {
+    ?s a gac:Registry .
+    FILTER NOT EXISTS { ?s gac:registryBlake3|gac:registrySha256 ?any }
+    BIND(gac:registryBlake3 AS ?missing)
   }
   UNION {
     ?s a gac:Registry ; gac:schemaId ?v .
@@ -36,9 +46,9 @@ SELECT ?s ?missing WHERE {
     BIND(gac:abiVersion AS ?missing)
   }
   UNION {
-    VALUES ?missing { gac:surfaceSha256 gac:registrySha256 }
+    VALUES ?missing { gac:surfaceBlake3 gac:surfaceSha256 gac:registryBlake3 gac:registrySha256 }
     ?s a gac:Registry ; ?missing ?v .
-    FILTER (!isLiteral(?v) || !regex(str(?v), "^sha256:[0-9a-f]{64}$"))
+    FILTER (!isLiteral(?v) || !regex(str(?v), "^(blake3|sha256):[0-9a-f]{64}$"))
   }
 }
 ORDER BY ?s ?missing
