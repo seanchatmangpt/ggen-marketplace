@@ -7,7 +7,7 @@ SHACL, ShEx, N3, Datalog, entailment or planning semantics.
 ## Identity
 
 - Semantic source: `ontology.ttl` (namespace `http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#`, prefix `gac:`).
-- Registry schema consumed: `graphlaw.capability-registry/1` (GraphLaw 26.9.29, ABI version 1; pack version 26.9.30).
+- Registry schema consumed: `graphlaw.capability-registry/1` (identity block vendored from GraphLaw 26.10.28 @ graphlaw `095ce07`, ABI version 1; pack version 26.9.30).
 - Digest keys: dual — `gac:surfaceBlake3`/`gac:registryBlake3` (graphlaw ≥ v26.10.28) and legacy `gac:surfaceSha256`/`gac:registrySha256`, each matching `^(blake3|sha256):[0-9a-f]{64}$` (`535f33570`, gate `gates/010_registry_identity.rq`).
 - Target language: `ex` (`targets.toml`).
 
@@ -32,9 +32,15 @@ lease/receipt contract follows the same migration: Receipt `plan_blake3` /
 `subject_blake3` (optional), Attestation `payload_blake3` (required) — gate
 `gates/150_lease_receipt_required_fields_contract.rq`.
 
-The vocabulary in this pack's `ontology.ttl` carries no sample individuals. A reduced
-three-operation positive consumer lives in `qualification/consumer.ttl`; its digests are
-fixture strings, not real registry digests.
+The vocabulary in this pack's `ontology.ttl` carries exactly one individual: the real
+registry's identity block (`<https://graphlaw.dev/registry#registry>`, vendored verbatim
+from `graphlaw registry/capability-registry.ttl`, marked `gac:registryIdentityOnly true`)
+so dependent packs inherit the registry identity through the union graph. Count- and
+coverage-completeness gates are scoped to populated registries (`gates/020`,
+`gates/180`), so an identity-only declaration never fakes a population. A reduced
+three-operation positive consumer lives in `qualification/consumer.ttl` (fixture registry
+at `https://graphlaw.dev/registry-fixture#registry`); its digests are fixture strings, not
+real registry digests.
 
 ## Outputs
 
