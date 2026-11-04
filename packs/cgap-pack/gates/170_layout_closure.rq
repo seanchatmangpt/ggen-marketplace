@@ -1,21 +1,22 @@
 # MESSAGE: ArrayKind layout spec with non-positive bufferCount or non-power-of-2 alignment.
 # Every p:ArrayKind individual (the ArrayKindSpec surface the import module
 # renders) must carry av:bufferCount > 0 and p:kindAlignment that is a power
-# of 2 (a & (a-1) == 0, a > 0) — the Arrow buffer-geometry law.
+# of 2 (closed enumeration 1..65536; this engine has no bitwise operators);
+# a missing bufferCount/alignment fact is also a violation — the Arrow
+# buffer-geometry law.
 # A row = refusal. Anti-vacuity: zero a kind's bufferCount or set its
 # alignment to 48 — the gate must fire.
 PREFIX av: <https://cgap.chatmangpt.com/>
 PREFIX p: <https://seanchatmangpt.github.io/packs/cgap-pack#>
-SELECT ?kind ?problem WHERE {
+SELECT ?kind WHERE {
   ?kind a p:ArrayKind ; p:kindLabel ?label .
   OPTIONAL { ?kind av:bufferCount ?b }
   OPTIONAL { ?kind p:kindAlignment ?a }
-  BIND(COALESCE(?b, -1) AS ?bufs)
-  BIND(COALESCE(?a, -1) AS ?align)
   FILTER(
-    ?bufs <= 0 ||
-    ?align <= 0 ||
-    ((?align & (?align - 1)) != 0)
+    !BOUND(?b) ||
+    !BOUND(?a) ||
+    ?b <= 0 ||
+    ?a <= 0 ||
+    (?a NOT IN (1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536))
   )
-  BIND(CONCAT(STR(?label), ": bufferCount=", STR(?bufs), " alignment=", STR(?align)) AS ?problem)
-} ORDER BY ?problem
+} ORDER BY ?kind
