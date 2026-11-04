@@ -5,8 +5,13 @@ Versions follow CalVer: `vYY.MM.P` tags on this repo. Individual packs version p
 All notable changes to the marketplace repository are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [v26.11.3] — 2026-11-04
 
+- feat(packs): aoq-pack — AOQ (Async Ordered Queue) wire-law pack: 64-byte AOQ1 frame header field table, status constants in the frozen band 0x4347_A001..A008, KEM hand-law seam fence, closed Epoch/StreamType enums, projected into deterministic Rust kind-enums and status maps; 9 sync-time closure gates with pass/fail witnesses and an executable court (37dc9febc, d22285bcc)
+- feat(packs): cscb-pack — Chicago Bare-Metal Qualification Standard v1 (CBMQS, AF-13) modeled as RDF: 7 CscbGate individuals with AF-2-corrected thresholds, 11 stress-receipt lanes, 6 TARGET-UNMEASURED rows as a standing work queue; 4 sync-time gates + witness court; projected into deployment matrix and open-targets queue (d22285bcc)
+- feat(packs): tort-pack — p99 Torture Matrix pack (GA-12): five sovereign torture injections modeled as RDF individuals with measured sovereign ceilings and TARGET-UNMEASURED cloud blowout individuals; 4 sync-time gates with pass/fail witnesses, executable court, and tracked in the qualification baseline (72f5c019c, 608242384)
+- feat(cgap-pack): avec-pack renamed to cgap-pack, namespace cgap.chatmangpt.com (110030ca2); grown to 19 gates with pass/fail witnesses including skill-conformance gates SA-5/SA-15 (a58f6e9a5)
+- fix(baseline): qualification/baseline.json counts recomputed from the packs tally — 313 packs total (ALIVE 295 / WARN 9 / REFUSED 8 / SKIPPED 1), ALIVE 292→295 after aoq/cscb/tort admission (9ba2496b4)
 - hardening(strata): strata hardening wave — 7 strata packs (protocol, signer, cas, pn64, valve, temprun, stratus) qualified ALIVE via per-pack `verify.py` courts with `witness.ttl` receipts; 12 gates hardened (incl. `strata-pn64-pack/gates/020_transition_pre_nonzero.rq`, `strata-protocol-pack/gates/010_header_layout.rq`); namespace unification across packs; docs/README + errc-tracker quadrants updated per pack; audit-wave test/court repairs; CI strata-packs-court (`--scope all`) justification; readiness verified
 
 ## [v26.10.8] — 2026-10-13
