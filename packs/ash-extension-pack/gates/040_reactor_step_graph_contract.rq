@@ -26,14 +26,17 @@ SELECT ?s ?missing WHERE {
     }
   }
   UNION {
-    # a spec with more than one aex:stepIsReturn="true" row among its own ReactorSteps
+    # a spec with more than one aex:stepIsReturn="true" row among its own ReactorSteps.
+    # No GROUP BY: neither rdflib nor ggen's SPARQL engine binds ?s through this
+    # GROUP BY projection shape (it projects an unbound ?s row -- a phantom refusal
+    # row on a clean graph); the pairwise form below is engine-evaluable and keeps
+    # the same violation semantics (any pair of distinct return-steps = a row).
     SELECT ?s (aex:stepIsReturn AS ?missing) WHERE {
       ?s a aex:AshExtensionSpec .
       ?step2 a aex:ReactorStep ; aex:stepOf ?s ; aex:stepIsReturn true .
       ?step3 a aex:ReactorStep ; aex:stepOf ?s ; aex:stepIsReturn true .
       FILTER (?step2 != ?step3)
     }
-    GROUP BY ?s
   }
 }
 ORDER BY ?s ?missing

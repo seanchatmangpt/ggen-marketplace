@@ -1,19 +1,32 @@
 @prefix cnv: <https://clap-noun-verb.dev/ontology#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
 # Positive marketplace qualification specimen. This is consumer input, not
 # pack authority and not evidence that any external CLI has executed.
 # cnv-any-manifest-pack's projection reads only cnv:Cli/cnv:Noun/cnv:Command/
-# cnv:Argument (never cnv:hasBehavior) since the manifest it emits describes
-# a foreign, non-clap-noun-verb executable -- this specimen omits behavior
-# facts on purpose to exercise exactly that admitted shape.
+# cnv:Argument (never cnv:hasBehavior -- the manifest it emits describes a
+# foreign, non-clap-noun-verb executable), so the emitted manifest is
+# unaffected by behavior facts. COMPLETENESS FIX (zd-28): the original
+# specimen omitted crate/version/edition/rustVersion/hasNoun/hasBehavior/
+# name/testValue/about on purpose under the pre-26.10.11 schema contract;
+# clap-noun-verb-schema-pack's fail-closed gate 010_required.rq now requires
+# them on every node class, so the specimen carries a complete, valid
+# StaticJsonBehavior surface while still exercising the manifest's
+# behavior-agnostic projection.
 cnv:QualificationAnyCli
     a cnv:Cli ;
     cnv:binaryName "cnv-any-qualification" ;
-    cnv:about "Bounded marketplace qualification specimen for cnv-any-manifest-pack." .
+    cnv:crateName "cnv-any-qualification" ;
+    cnv:version "0.1.0" ;
+    cnv:edition "2024" ;
+    cnv:rustVersion "1.85" ;
+    cnv:about "Bounded marketplace qualification specimen for cnv-any-manifest-pack." ;
+    cnv:hasNoun cnv:QualificationAnySystemNoun .
 
 cnv:QualificationAnySystemNoun
     a cnv:Noun ;
     cnv:name "system" ;
+    cnv:about "Exercise schema closure for the manifest specimen." ;
     cnv:hasCommand cnv:QualificationAnyPing .
 
 cnv:QualificationAnyPing
@@ -21,14 +34,20 @@ cnv:QualificationAnyPing
     cnv:name "ping" ;
     cnv:about "Return a deterministic qualification value." ;
     cnv:belongsToNoun cnv:QualificationAnySystemNoun ;
+    cnv:hasBehavior cnv:QualificationAnyPingBehavior ;
     cnv:hasArgument cnv:QualificationAnyVerboseArg .
+
+cnv:QualificationAnyPingBehavior
+    a cnv:StaticJsonBehavior ;
+    cnv:jsonValue "{\"status\":\"alive\",\"source\":\"cnv-any-manifest qualification\"}" .
 
 cnv:QualificationAnyVerboseArg
     a cnv:Argument ;
+    cnv:name "verbose" ;
     cnv:fieldName "verbose" ;
     cnv:valueKind "bool" ;
-    cnv:required "false" ;
-    cnv:position "1" ;
+    cnv:required false ;
+    cnv:position 0 ;
     cnv:longFlag "verbose" ;
-    cnv:shortFlag "v" ;
-    cnv:action "set_true" .
+    cnv:testValue "true" ;
+    cnv:about "Verbose flag" .

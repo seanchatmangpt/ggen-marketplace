@@ -1,14 +1,23 @@
+# MESSAGE: every pres:Slide's pres:order values must be distinct within one
+# pres:Presentation, and every pres:Slide must reference a declared pres:Presentation
+# via pres:slideOf. Any row = an ordering or reference violation. (zd-28 repair: was an
+# inventory SELECT that refused every composed consumer deck.)
 PREFIX pres: <https://ggen.dev/ns/presentation#>
-SELECT ?slide_id ?order ?layout ?audience ?kicker ?title ?subtitle ?footer ?notes
-WHERE {
-  ?slide a pres:Slide ;
-         pres:id ?slide_id ;
-         pres:order ?order ;
-         pres:layout ?layout ;
-         pres:title ?title .
-  OPTIONAL { ?slide pres:audience ?audience . }
-  OPTIONAL { ?slide pres:kicker ?kicker . }
-  OPTIONAL { ?slide pres:subtitle ?subtitle . }
-  OPTIONAL { ?slide pres:footer ?footer . }
-  OPTIONAL { ?slide pres:notes ?notes . }
+SELECT DISTINCT ?deck ?violation ?detail WHERE {
+  {
+    ?deck a pres:Presentation .
+    ?s1 a pres:Slide ; pres:slideOf ?deck ; pres:order ?o1 .
+    ?s2 a pres:Slide ; pres:slideOf ?deck ; pres:order ?o2 .
+    FILTER(?s1 != ?s2 && ?o1 = ?o2)
+    BIND("duplicate-slide-order" AS ?violation)
+    BIND(STR(?o1) AS ?detail)
+  }
+  UNION
+  {
+    ?slide a pres:Slide ; pres:slideOf ?deck .
+    FILTER NOT EXISTS { ?deck a pres:Presentation }
+    BIND(?deck AS ?violation)
+    BIND(STR(?slide) as ?detail)
+  }
 }
+ORDER BY ?deck ?violation ?detail

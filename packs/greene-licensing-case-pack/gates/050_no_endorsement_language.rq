@@ -38,6 +38,13 @@ SELECT DISTINCT ?subject ?predicate ?reason WHERE {
   {
     ?subject ?predicate ?literal .
     FILTER(isLiteral(?literal))
+    # zd-28 scoping repair (mirrors clap-noun-verb gate 010's documented pattern):
+    # the packet's own namespaces only. Sibling packs sharing the union graph
+    # (e.g. strategic-doctrine's own vocabulary comments, which necessarily name
+    # the endorsement non-claim they encode) are not this packet's literals and
+    # were never what "the packet asserts no ... in any literal" meant.
+    FILTER(STRSTARTS(STR(?subject), "https://ggen.dev/ontology/greene-licensing-case")
+        || STRSTARTS(STR(?subject), "urn:xaas:case-study:"))
     BIND(REPLACE(REPLACE(STR(?literal), "[­​-‏⁠-⁤﻿]", ""),
                  "[-‐‑][ \t]*\r?\n[ \t]*", "") AS ?norm)
     FILTER(REGEX(?norm,

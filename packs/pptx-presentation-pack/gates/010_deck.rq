@@ -1,11 +1,28 @@
+# MESSAGE: every pres:Presentation must carry pres:id and pres:title, and every pres:Slide
+# must reference a declared pres:Presentation via pres:slideOf, and carry
+# pres:id/pres:order/pres:layout/pres:title. Any row = a deck or slide violating the
+# deck contract. (zd-28 repair: these gates previously SELECTed the deck inventory and
+# therefore refused EVERY composed consumer graph that declared any deck -- a court
+# that cannot pass on any valid input. The violation-check form below keeps the same
+# required-field contract but is empty on valid graphs.)
 PREFIX pres: <https://ggen.dev/ns/presentation#>
-SELECT ?deck_id ?title ?author ?company ?subject ?footer
-WHERE {
-  ?deck a pres:Presentation ;
-        pres:id ?deck_id ;
-        pres:title ?title .
-  OPTIONAL { ?deck pres:author ?author . }
-  OPTIONAL { ?deck pres:company ?company . }
-  OPTIONAL { ?deck pres:subject ?subject . }
-  OPTIONAL { ?deck pres:footer ?footer . }
+SELECT ?s ?missing WHERE {
+  {
+    ?s a pres:Presentation .
+    VALUES ?missing { pres:id pres:title }
+    FILTER NOT EXISTS { ?s ?missing ?any }
+  }
+  UNION
+  {
+    ?s a pres:Slide .
+    VALUES ?missing { pres:id pres:order pres:layout pres:title }
+    FILTER NOT EXISTS { ?s ?missing ?any }
+  }
+  UNION
+  {
+    ?s a pres:Slide ; pres:slideOf ?deck .
+    FILTER NOT EXISTS { ?deck a pres:Presentation }
+    BIND(pres:slideOf AS ?missing)
+  }
 }
+ORDER BY ?s ?missing

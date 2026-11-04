@@ -1,12 +1,18 @@
+# MESSAGE: every pres:Block must reference a declared pres:Slide via pres:blockOf and
+# carry pres:order and pres:role. Any row = a block contract violation. (zd-28 repair:
+# was an inventory SELECT that refused every composed consumer deck.)
 PREFIX pres: <https://ggen.dev/ns/presentation#>
-SELECT ?slide_id ?order ?role ?title ?body ?tone
-WHERE {
-  ?block a pres:Block ;
-         pres:blockOf ?slide ;
-         pres:order ?order ;
-         pres:role ?role .
-  ?slide pres:id ?slide_id .
-  OPTIONAL { ?block pres:title ?title . }
-  OPTIONAL { ?block pres:body ?body . }
-  OPTIONAL { ?block pres:tone ?tone . }
+SELECT ?s ?missing WHERE {
+  {
+    ?s a pres:Block .
+    VALUES ?missing { pres:order pres:role }
+    FILTER NOT EXISTS { ?s ?missing ?any }
+  }
+  UNION
+  {
+    ?s a pres:Block ; pres:blockOf ?slide .
+    FILTER NOT EXISTS { ?slide a pres:Slide }
+    BIND(pres:blockOf AS ?missing)
+  }
 }
+ORDER BY ?s ?missing

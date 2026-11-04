@@ -22,7 +22,9 @@
 #   - two or more catalog entries sharing one ordinal (entries are the only
 #     closure roots, so their number is bounded by the 1..33 ordinal range the
 #     SHACL shape enforces plus this uniqueness row);
-#   - WHOLE-GRAPH residual budgets, so text split across any number of nodes
+#   - WHOLE-GRAPH residual budgets (scoped to this doctrine graph's own namespace;
+#     composed consumers' own namespaces are their packets' business, not this
+#     catalog's text channel -- zd-28 scoping repair), so text split across any number of nodes
 #     linked by any other predicate (rdfs:seeAlso, sd:counteredBy, blank-node
 #     chains, orphan nodes, minted predicates) is bounded in total: prose
 #     outside every catalog-entry closure may not exceed 5100 characters, and
@@ -186,6 +188,11 @@ SELECT DISTINCT ?subject ?predicate ?reason WHERE {
         FILTER(isLiteral(?proseLit) && !(STRLEN(STR(?proseLit)) <= 40 && (REGEX(STR(?proseLit), "^[+-]?[0-9]*[.]?[0-9]+([eE][+-]?[0-9]+)?$")
                                    || REGEX(STR(?proseLit), "^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})?)?$")
                                    || STR(?proseLit) IN ("true", "false"))))
+        # zd-28 scoping repair (mirrors clap-noun-verb gate 010's documented pattern):
+        # this budget bounds THIS doctrine graph's residual prose; without the scope it
+        # measures the whole composed union and refuses every substantial consumer
+        # packet's own prose. Catalog closures stay measured graph-wide below.
+        FILTER(STRSTARTS(STR(?anyS), "https://ggen.dev/ontology/strategic-doctrine#"))
         BIND(STRLEN(STR(?proseLit)) + STRLEN(LANG(?proseLit)) AS ?allWeight)
       }
     }
@@ -215,7 +222,7 @@ SELECT DISTINCT ?subject ?predicate ?reason WHERE {
         {
           SELECT DISTINCT ?graphIri WHERE {
             { ?graphIri ?gp1 ?go1 } UNION { ?gs2 ?graphIri ?go2 } UNION { ?gs3 ?gp3 ?graphIri }
-            FILTER(isIRI(?graphIri))
+            FILTER(isIRI(?graphIri) && STRSTARTS(STR(?graphIri), "https://ggen.dev/ontology/strategic-doctrine#"))
           }
         }
       }
