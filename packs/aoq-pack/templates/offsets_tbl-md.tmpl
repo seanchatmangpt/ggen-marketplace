@@ -32,6 +32,28 @@ sparql:
          rdfs:label ?label ;
          rdfs:comment ?doc .
     } ORDER BY ?id
+  statuses: >
+    PREFIX aoq: <urn:aoq:>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT ?id ?hex ?label ?doc WHERE {
+      ?c a aoq:StatusConstant ;
+         aoq:constantId ?id ;
+         aoq:value ?hex ;
+         aoq:docBand "status" ;
+         rdfs:label ?label ;
+         rdfs:comment ?doc .
+    } ORDER BY ?id
+  refusals: >
+    PREFIX aoq: <urn:aoq:>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT ?id ?hex ?label ?doc WHERE {
+      ?c a aoq:StatusConstant ;
+         aoq:constantId ?id ;
+         aoq:value ?hex ;
+         aoq:docBand "refusal" ;
+         rdfs:label ?label ;
+         rdfs:comment ?doc .
+    } ORDER BY ?id
   epochs: >
     PREFIX aoq: <urn:aoq:>
     PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
@@ -41,6 +63,14 @@ sparql:
          rdfs:label ?label ;
          rdfs:comment ?doc .
     } ORDER BY ?v
+  seamNotes: >
+    PREFIX aoq: <urn:aoq:>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT ?id ?doc WHERE {
+      ?n a aoq:SeamNote ;
+         aoq:noteId ?id ;
+         rdfs:comment ?doc .
+    } ORDER BY ?id
   streams: >
     PREFIX aoq: <urn:aoq:>
     PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
@@ -78,10 +108,33 @@ ignored-but-digest-covered on read (IPC1 zero-tail discipline).
 The band is closed — gate 020 refuses any value outside it, and the retired
 band `0x4347_000x` is refused by construction.
 
+XC-5r rec #4 taxonomy split: the band is two disjoint classes, not one.
+
+### Success/lifecycle statuses (FM-AOQ-001..003)
+
+These are *statuses*, not refusals: they report frame lifecycle state and
+never deny a read or write.
+
 | Constant id | Wire value | Label | Meaning |
 |-------------|-----------|-------|---------|
-{%- for c in constants %}
+{%- for c in statuses %}
 | {{ c.id }} | {{ c.hex }} | `{{ c.label }}` | {{ c.doc }} |
+{%- endfor %}
+
+### Refusals (FM-AOQ-004..008)
+
+These deny the operation with a typed cause.
+
+| Constant id | Wire value | Label | Meaning |
+|-------------|-----------|-------|---------|
+{%- for c in refusals %}
+| {{ c.id }} | {{ c.hex }} | `{{ c.label }}` | {{ c.doc }} |
+{%- endfor %}
+
+### Seams-placeholder kernel refusals (XC-5r census)
+
+{%- for n in seamNotes %}
+{{ n.doc }}
 {%- endfor %}
 
 ## Epoch enum (closed, u16)
