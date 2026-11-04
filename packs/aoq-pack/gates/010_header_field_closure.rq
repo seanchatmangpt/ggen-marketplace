@@ -1,0 +1,16 @@
+# MESSAGE: header field missing a TX-5 name property (cName / rustName / goName).
+# Every aoq:HeaderField must carry all three language name properties (TX-5
+# closure): each is one code-gen target's identifier. A row is a field that
+# would render into one language but not the others.
+# Anti-vacuity: witnesses/fail/010_header_field_closure.ttl drops goName from
+# the first header field; this gate must return >=1 row on it (shim-court flip).
+PREFIX aoq: <urn:aoq:>
+SELECT ?field ?missing WHERE {
+  ?field a aoq:HeaderField .
+  { ?field aoq:cName ?c . FILTER NOT EXISTS { ?field aoq:rustName ?r . } BIND("rustName" AS ?missing) }
+  UNION
+  { ?field aoq:cName ?c . FILTER NOT EXISTS { ?field aoq:goName ?g . } BIND("goName" AS ?missing) }
+  UNION
+  { FILTER NOT EXISTS { ?field aoq:cName ?c2 . } BIND("cName" AS ?missing) }
+}
+ORDER BY ?field ?missing

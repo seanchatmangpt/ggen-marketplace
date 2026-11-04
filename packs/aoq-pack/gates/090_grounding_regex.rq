@@ -1,0 +1,38 @@
+# MESSAGE: AOQ1 grounding law violated — the header is exactly 64 bytes
+# (R-1 ruling; AOQ-01's superseded 24-byte form is NOT wire law), the magic
+# field carries 0x414F5131, and the version field carries 2.
+# Anti-vacuity: witnesses/fail/090_grounding_regex.ttl mutates the header
+# sizeBytes 64 -> 24 (the R-1 flip); >=1 row must result.
+PREFIX aoq: <urn:aoq:>
+SELECT ?subject ?problem WHERE {
+  ?subject a aoq:Header .
+  {
+    ?subject aoq:sizeBytes ?sz .
+    FILTER(STR(?sz) != "64")
+    BIND(CONCAT("header sizeBytes must be 64 (R-1), got ", STR(?sz)) AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?subject aoq:sizeBytes ?s . }
+    BIND("header missing sizeBytes" AS ?problem)
+  }
+  UNION
+  {
+    ?magic a aoq:HeaderField ; aoq:cName "magic" .
+    FILTER NOT EXISTS {
+      ?magic aoq:value ?mv . FILTER REGEX(STR(?mv), "^0x414F5131$")
+    }
+    BIND("magic field value must match ^0x414F5131$" AS ?problem)
+    BIND(?magic AS ?subject)
+  }
+  UNION
+  {
+    ?version a aoq:HeaderField ; aoq:cName "version" .
+    FILTER NOT EXISTS {
+      ?version aoq:value ?vv . FILTER(STR(?vv) = "2")
+    }
+    BIND("version field value must be 2" AS ?problem)
+    BIND(?version AS ?subject)
+  }
+}
+ORDER BY ?subject ?problem

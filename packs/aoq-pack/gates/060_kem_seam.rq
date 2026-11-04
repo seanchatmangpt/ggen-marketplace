@@ -1,0 +1,27 @@
+# MESSAGE: KemParam missing its hand-law seam, BLOCKED standing, or
+# provenance — the KEM seam is hand-law: KemParam facts are BLOCKED-class
+# provenance only and are NEVER projected. A KemParam without
+# aoq:seam "hand-law" + aoq:status "blocked" + prov:wasDerivedFrom breaks the
+# authority fence that keeps it out of every template.
+# Anti-vacuity: witnesses/fail/060_kem_seam.ttl strips the aoq:seam triple;
+# >=1 row must result.
+PREFIX aoq: <urn:aoq:>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+SELECT ?param ?problem WHERE {
+  ?param a aoq:KemParam .
+  {
+    FILTER NOT EXISTS { ?param aoq:seam ?s . FILTER(STR(?s) = "hand-law") }
+    BIND("missing-seam-hand-law" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?param aoq:status ?st . FILTER(STR(?st) = "blocked") }
+    BIND("missing-status-blocked" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?param prov:wasDerivedFrom ?src . }
+    BIND("missing-prov-wasDerivedFrom" AS ?problem)
+  }
+}
+ORDER BY ?param ?problem

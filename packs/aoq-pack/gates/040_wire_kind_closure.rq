@@ -1,0 +1,26 @@
+# MESSAGE: header field wireKind outside the closed set
+# {u16, u32, u64, reserved-zero, fnv1a32}, or cName not a lowercase
+# snake_case C identifier.
+# Anti-vacuity: witnesses/fail/040_wire_kind_closure.ttl sets a field's
+# wireKind to "u96" (outside the closed set); >=1 row must result.
+PREFIX aoq: <urn:aoq:>
+SELECT ?field ?problem WHERE {
+  ?field a aoq:HeaderField .
+  {
+    ?field aoq:wireKind ?k .
+    FILTER(?k NOT IN ("u16", "u32", "u64", "reserved-zero", "fnv1a32"))
+    BIND(CONCAT("wireKind not in closed set: ", STR(?k)) AS ?problem)
+  }
+  UNION
+  {
+    ?field aoq:cName ?c .
+    FILTER NOT EXISTS { ?field aoq:cName ?c2 . FILTER REGEX(STR(?c2), "^[a-z][a-z0-9_]*$") }
+    BIND("cName not a snake_case C identifier" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?field aoq:wireKind ?any . }
+    BIND("missing wireKind" AS ?problem)
+  }
+}
+ORDER BY ?field ?problem

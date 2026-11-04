@@ -1,0 +1,20 @@
+# MESSAGE: Epoch or StreamType enum member missing its label or wire value —
+# the enums are closed and labeled; an unlabeled or unvalued member would
+# render an unnamed enum variant (or silently drop it from the projection).
+# Anti-vacuity: witnesses/fail/050_epoch_stream_closure.ttl adds an Epoch
+# member with a value but no rdfs:label; >=1 row must result.
+PREFIX aoq: <urn:aoq:>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?member ?problem WHERE {
+  { ?member a aoq:Epoch . } UNION { ?member a aoq:StreamType . }
+  {
+    FILTER NOT EXISTS { ?member rdfs:label ?l . }
+    BIND("missing-rdfs-label" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?member aoq:value ?v . }
+    BIND("missing-aoq-value" AS ?problem)
+  }
+}
+ORDER BY ?member ?problem

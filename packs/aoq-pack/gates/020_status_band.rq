@@ -1,0 +1,27 @@
+# MESSAGE: status constant outside the frozen band 0x4347_A001..A008, or
+# missing aoq:value / prov:wasDerivedFrom.
+# The FROZEN band is closed: a StatusConstant whose wire value is not
+# 0x4347A001..A008, or that lacks its wire value or provenance, is a refusal.
+# Anti-vacuity: witnesses/fail/020_status_band.ttl adds an out-of-band
+# constant 0x4347A009; this gate must return >=1 row on it (shim-court flip).
+PREFIX aoq: <urn:aoq:>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+SELECT ?constant ?problem WHERE {
+  ?constant a aoq:StatusConstant .
+  {
+    ?constant aoq:value ?v .
+    FILTER NOT EXISTS { ?constant aoq:value ?v2 . FILTER REGEX(STR(?v2), "^0x4347A00[1-8]$") }
+    BIND("value-out-of-frozen-band" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?constant aoq:value ?any . }
+    BIND("missing-value" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?constant prov:wasDerivedFrom ?src . }
+    BIND("missing-prov-wasDerivedFrom" AS ?problem)
+  }
+}
+ORDER BY ?constant ?problem

@@ -1,0 +1,277 @@
+@prefix aoq: <urn:aoq:> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+
+# Canonical AOQ graph (pack aoq-pack). R-1 ruling: the AOQ1 frame header is
+# 64 bytes, prefix-compatible with the cgap-arrow IPC1 MetaHeader, with
+# magic 0x414F_5131, version 2, and an FNV-1a32 digest over bytes
+# [0x00,0x3C) stored at 0x3C. AOQ-01's superseded 24-byte form is NOT wire
+# law and is recorded only as a superseded source entity. Ground truth:
+# AOQ-02 field table (R-1 ruling), arcus-pack ontology IPC1 law
+# (file:///Users/sac/arcus/packs/arcus-pack/ontology.ttl).
+# StatusConstant band 0x4347_A001..A008 is FROZEN — gate 070 refuses any
+# other value in this band.
+
+<urn:aoq:> a owl:Ontology ;
+    owl:versionInfo "26.11.3" ;
+    rdfs:label "AOQ canonical ontology" ;
+    rdfs:comment "Async Ordered Queue (AOQ) wire law: frame envelope, 64-byte AOQ1 header field table, status constants in the frozen band 0x4347_A001..A008, KEM parameter seam, closed Epoch and StreamType enums." ;
+    dcterms:source <https://internal/aoq/jira/v26.11.3> .
+
+# ---------------------------------------------------------------- classes
+
+aoq:Frame a rdfs:Class ;
+    rdfs:label "AOQ frame" ;
+    rdfs:comment "One wire frame: 64-byte AOQ1 header followed by the frame payload; carries a StreamType, an Epoch, and exactly one StatusConstant." .
+
+aoq:Header a rdfs:Class ;
+    rdfs:label "AOQ1 header" ;
+    rdfs:comment "The 64-byte AOQ1 header envelope; its byte law is enumerated by HeaderField individuals linked with aoq:fieldOf." .
+
+aoq:HeaderField a rdfs:Class ;
+    rdfs:label "Header field" ;
+    rdfs:comment "One field of the AOQ1 header: offset, sizeBytes, wireKind (u32|u16|u64|reserved-zero|fnv1a32), cName, rustName, goName, aoq:nextOffset contiguity chain (first field offset 0, last field end == 64), aoq:fieldOf." .
+
+aoq:StatusConstant a rdfs:Class ;
+    rdfs:label "Status constant" ;
+    rdfs:comment "One wire status word in the frozen band 0x4347_A001..A008; constantId FM-AOQ-001..008. The retired band 0x4347_0001..0006 is refused (gate 070)." .
+
+aoq:KemParam a rdfs:Class ;
+    rdfs:label "KEM parameter" ;
+    rdfs:comment "One key-encapsulation parameter of the frame epoch. Seam is hand-law: KemParam facts are BLOCKED-class provenance only and are NEVER projected by any ggen rule or template." .
+
+aoq:Epoch a rdfs:Class ;
+    rdfs:label "Key epoch" ;
+    rdfs:comment "Closed labeled enum of key epochs; the header epoch field carries one of these values, never an out-of-enum value." .
+
+aoq:StreamType a rdfs:Class ;
+    rdfs:label "Stream type" ;
+    rdfs:comment "Closed labeled enum of stream kinds; the frame's aoq:streamType carries one of these values." .
+
+# ------------------------------------------------------------ properties
+
+aoq:offset a owl:DatatypeProperty ; rdfs:label "byte offset in the 64-byte header" .
+aoq:sizeBytes a owl:DatatypeProperty ; rdfs:label "field width in bytes" .
+aoq:wireKind a owl:DatatypeProperty ; rdfs:label "field wire kind: u32 | u16 | u64 | reserved-zero | fnv1a32" .
+aoq:cName a owl:DatatypeProperty ; rdfs:label "C identifier" .
+aoq:rustName a owl:DatatypeProperty ; rdfs:label "Rust identifier" .
+aoq:goName a owl:DatatypeProperty ; rdfs:label "Go identifier" .
+aoq:nextOffset a owl:ObjectProperty ; rdfs:label "next header field in the contiguity chain" .
+aoq:fieldOf a owl:ObjectProperty ; rdfs:label "the AOQ1 header this field belongs to" .
+aoq:constantId a owl:DatatypeProperty ; rdfs:label "FM-AOQ-nnn constant identifier" .
+aoq:value a owl:DatatypeProperty ; rdfs:label "wire value of a constant or enum member" .
+aoq:seam a owl:DatatypeProperty ; rdfs:label "projection seam: generated | hand-law | proposed" .
+aoq:status a owl:DatatypeProperty ; rdfs:label "standing: implemented | blocked | superseded" .
+aoq:streamType a owl:ObjectProperty ; rdfs:label "stream kind of a frame" .
+aoq:epoch a owl:ObjectProperty ; rdfs:label "key epoch of a frame" .
+aoq:header a owl:ObjectProperty ; rdfs:label "AOQ1 header of a frame" .
+aoq:statusWord a owl:DatatypeProperty ; rdfs:label "status constant carried by a frame" .
+
+# ---------------------------------------------------------------- sources
+
+aoq:src-aoq-02 a prov:Entity ;
+    dcterms:title "AOQ-02 field table (R-1 ruling: 64-byte AOQ1, IPC1-prefix-compatible)" ;
+    dcterms:source <https://internal/aoq/jira/v26.11.3/aoq-02> .
+
+aoq:src-ipc1 a prov:Entity ;
+    dcterms:title "cgap-arrow ipc.rs MetaHeader (64B IPC1 prefix-compatibility reference)" ;
+    dcterms:source <file:///Users/sac/cgap/crates/cgap-arrow/src/ipc.rs> .
+
+aoq:src-aoq-01 a prov:Entity ;
+    dcterms:title "AOQ-01 semantic spec (24-byte form, SUPERSEDED by AOQ-02 per R-1)" ;
+    dcterms:source <https://internal/aoq/jira/v26.11.3/aoq-01> ;
+    aoq:status "superseded" .
+
+# ------------------------------------------------------------------ frame
+
+aoq:frame-default a aoq:Frame ;
+    rdfs:label "AOQ default frame" ;
+    aoq:header aoq:header-aq1 ;
+    aoq:streamType aoq:stream-data ;
+    aoq:epoch aoq:epoch-genesis ;
+    aoq:statusWord "0x4347A001" ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+# ----------------------------------------------------------------- header
+
+aoq:header-aq1 a aoq:Header ;
+    rdfs:label "AOQ1 header (64 bytes)" ;
+    aoq:sizeBytes 64 ;
+    aoq:goName "Aoq1Header" ;
+    aoq:rustName "Aoq1Header" ;
+    aoq:cName "aoq1_header_t" ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+# ---------------------------------------------------------- header fields
+# Contiguity chain: field(0x00) -> 0x04 -> 0x06 -> 0x08 -> 0x10 -> 0x14
+# -> 0x18 -> 0x3C -> end 0x40.
+
+aoq:hf-magic a aoq:HeaderField ;
+    rdfs:label "magic" ;
+    aoq:offset 0 ; aoq:sizeBytes 4 ; aoq:wireKind "u32" ;
+    aoq:cName "magic" ; aoq:rustName "MAGIC" ; aoq:goName "Magic" ;
+    aoq:value "0x414F5131" ;
+    aoq:nextOffset aoq:hf-version ;
+    aoq:fieldOf aoq:header-aq1 ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:hf-version a aoq:HeaderField ;
+    rdfs:label "version" ;
+    aoq:offset 4 ; aoq:sizeBytes 2 ; aoq:wireKind "u16" ;
+    aoq:cName "version" ; aoq:rustName "VERSION" ; aoq:goName "Version" ;
+    aoq:value 2 ;
+    aoq:nextOffset aoq:hf-epoch ;
+    aoq:fieldOf aoq:header-aq1 ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:hf-epoch a aoq:HeaderField ;
+    rdfs:label "epoch" ;
+    aoq:offset 6 ; aoq:sizeBytes 2 ; aoq:wireKind "u16" ;
+    aoq:cName "epoch" ; aoq:rustName "EPOCH" ; aoq:goName "Epoch" ;
+    aoq:nextOffset aoq:hf-key-id ;
+    aoq:fieldOf aoq:header-aq1 ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:hf-key-id a aoq:HeaderField ;
+    rdfs:label "key_id" ;
+    aoq:offset 8 ; aoq:sizeBytes 8 ; aoq:wireKind "u64" ;
+    aoq:cName "key_id" ; aoq:rustName "KEY_ID" ; aoq:goName "KeyID" ;
+    aoq:nextOffset aoq:hf-frame-ordinal ;
+    aoq:fieldOf aoq:header-aq1 ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:hf-frame-ordinal a aoq:HeaderField ;
+    rdfs:label "frame_ordinal" ;
+    aoq:offset 16 ; aoq:sizeBytes 4 ; aoq:wireKind "u32" ;
+    aoq:cName "frame_ordinal" ; aoq:rustName "FRAME_ORDINAL" ; aoq:goName "FrameOrdinal" ;
+    aoq:nextOffset aoq:hf-seq ;
+    aoq:fieldOf aoq:header-aq1 ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:hf-seq a aoq:HeaderField ;
+    rdfs:label "seq" ;
+    aoq:offset 20 ; aoq:sizeBytes 4 ; aoq:wireKind "u32" ;
+    aoq:cName "seq" ; aoq:rustName "SEQ" ; aoq:goName "Seq" ;
+    aoq:nextOffset aoq:hf-reserved ;
+    aoq:fieldOf aoq:header-aq1 ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:hf-reserved a aoq:HeaderField ;
+    rdfs:label "reserved" ;
+    rdfs:comment "Zero-filled region [0x18,0x3C): must be zero on write, ignored-but-digest-covered on read (IPC1 zero-tail discipline)." ;
+    aoq:offset 24 ; aoq:sizeBytes 36 ; aoq:wireKind "reserved-zero" ;
+    aoq:cName "reserved" ; aoq:rustName "RESERVED" ; aoq:goName "Reserved" ;
+    aoq:nextOffset aoq:hf-header-digest ;
+    aoq:fieldOf aoq:header-aq1 ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:hf-header-digest a aoq:HeaderField ;
+    rdfs:label "header_digest" ;
+    rdfs:comment "FNV-1a32 over header bytes [0x00,0x3C), stored at 0x3C; the last field ends exactly at byte 64." ;
+    aoq:offset 60 ; aoq:sizeBytes 4 ; aoq:wireKind "fnv1a32" ;
+    aoq:cName "header_digest" ; aoq:rustName "HEADER_DIGEST" ; aoq:goName "HeaderDigest" ;
+    aoq:fieldOf aoq:header-aq1 ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+# ------------------------------------------------------- status constants
+# FROZEN band 0x4347_A001..A008 (gate 070). NEVER 0x4347_0001..0006.
+
+aoq:st-fm-aoq-001 a aoq:StatusConstant ; aoq:constantId "FM-AOQ-001" ;
+    aoq:value "0x4347A001" ; rdfs:label "OK" ;
+    rdfs:comment "Frame complete, digest verified." ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:st-fm-aoq-002 a aoq:StatusConstant ; aoq:constantId "FM-AOQ-002" ;
+    aoq:value "0x4347A002" ; rdfs:label "PENDING" ;
+    rdfs:comment "Frame enqueued, not yet committed." ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:st-fm-aoq-003 a aoq:StatusConstant ; aoq:constantId "FM-AOQ-003" ;
+    aoq:value "0x4347A003" ; rdfs:label "BUSY" ;
+    rdfs:comment "Frame is being processed by a consumer." ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:st-fm-aoq-004 a aoq:StatusConstant ; aoq:constantId "FM-AOQ-004" ;
+    aoq:value "0x4347A004" ; rdfs:label "INCOMPLETE_FRAME" ;
+    rdfs:comment "Header present, payload truncated." ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:st-fm-aoq-005 a aoq:StatusConstant ; aoq:constantId "FM-AOQ-005" ;
+    aoq:value "0x4347A005" ; rdfs:label "DIGEST_MISMATCH" ;
+    rdfs:comment "Recomputed FNV-1a32 over [0x00,0x3C) does not match header_digest." ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:st-fm-aoq-006 a aoq:StatusConstant ; aoq:constantId "FM-AOQ-006" ;
+    aoq:value "0x4347A006" ; rdfs:label "EPOCH_MISMATCH" ;
+    rdfs:comment "Header epoch is retired or not the active epoch." ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:st-fm-aoq-007 a aoq:StatusConstant ; aoq:constantId "FM-AOQ-007" ;
+    aoq:value "0x4347A007" ; rdfs:label "KEY_UNKNOWN" ;
+    rdfs:comment "key_id has no entry in the active KEM key table." ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:st-fm-aoq-008 a aoq:StatusConstant ; aoq:constantId "FM-AOQ-008" ;
+    aoq:value "0x4347A008" ; rdfs:label "EPOCH_RETIRED" ;
+    rdfs:comment "Header epoch is retired; frame readable but not writable." ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+# ------------------------------------------------------------ KEM seam
+# BLOCKED-class: hand-law only, NEVER projected.
+
+aoq:src-kem-param a prov:Entity ;
+    dcterms:title "AOQ KEM parameter catalog (hand-law seam)" ;
+    dcterms:source <https://internal/aoq/jira/v26.11.3/kem-params> .
+
+aoq:kem-x25519 a aoq:KemParam ;
+    rdfs:label "X25519 KEM parameter set" ;
+    aoq:seam "hand-law" ; aoq:status "blocked" ;
+    rdfs:comment "BLOCKED-class: hand-law provenance only; no ggen rule or template may project KemParam individuals." ;
+    prov:wasDerivedFrom aoq:src-kem-param .
+
+aoq:kem-ml-kem-768 a aoq:KemParam ;
+    rdfs:label "ML-KEM-768 parameter set" ;
+    aoq:seam "hand-law" ; aoq:status "blocked" ;
+    rdfs:comment "BLOCKED-class: hand-law provenance only; no ggen rule or template may project KemParam individuals." ;
+    prov:wasDerivedFrom aoq:src-kem-param .
+
+# ------------------------------------------------------------- enum: epoch
+
+aoq:epoch-genesis a aoq:Epoch ;
+    aoq:value 0 ; rdfs:label "GENESIS" ;
+    rdfs:comment "First epoch; key_id 0 is valid only inside the genesis epoch." ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:epoch-rotated-1 a aoq:Epoch ;
+    aoq:value 1 ; rdfs:label "ROTATED_1" ;
+    rdfs:comment "First key-rotation epoch." ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:epoch-rotated-2 a aoq:Epoch ;
+    aoq:value 2 ; rdfs:label "ROTATED_2" ;
+    rdfs:comment "Second key-rotation epoch." ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:epoch-retired a aoq:Epoch ;
+    aoq:value 65535 ; rdfs:label "RETIRED" ;
+    rdfs:comment "Reserved retirement sentinel (u16 max); frames in this epoch are read-only." ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+# -------------------------------------------------------- enum: stream type
+
+aoq:stream-data a aoq:StreamType ;
+    aoq:value 0 ; rdfs:label "DATA" ;
+    rdfs:comment "Payload-bearing stream." ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:stream-control a aoq:StreamType ;
+    aoq:value 1 ; rdfs:label "CONTROL" ;
+    rdfs:comment "Control-plane stream (epoch rotation, key announcements)." ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:stream-eos a aoq:StreamType ;
+    aoq:value 2 ; rdfs:label "EOS" ;
+    rdfs:comment "End-of-stream marker frame; no payload." ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .

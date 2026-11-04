@@ -1,0 +1,56 @@
+# MESSAGE: AOQ1 header contiguity chain broken — exactly one field starts at
+# offset 0, exactly one terminal field ends at byte 64, every aoq:nextOffset
+# successor begins exactly where its predecessor ends (offset+sizeBytes), and
+# every field carries offset+sizeBytes.
+# Anti-vacuity: witnesses/fail/030_offset_contiguity.ttl moves one field's
+# offset off the chain (4 -> 5); this gate must return >=1 row on it.
+PREFIX aoq: <urn:aoq:>
+SELECT ?problem ?detail WHERE {
+  {
+    SELECT ?problem ?detail WHERE {
+      { SELECT (COUNT(?f0) AS ?starts) (COUNT(?ft) AS ?terms) WHERE {
+          ?f0 a aoq:HeaderField ; aoq:offset 0 .
+      } }
+      FILTER(?starts != 1)
+      BIND("chain must have exactly one offset-0 field" AS ?problem)
+      BIND(STR(?starts) AS ?detail)
+      BIND(?terms AS ?unused)
+    }
+  }
+  UNION
+  {
+    SELECT ?problem ?detail WHERE {
+      { SELECT (COUNT(?ft) AS ?terms) WHERE {
+          ?ft a aoq:HeaderField .
+          FILTER NOT EXISTS { ?ft aoq:nextOffset ?n . }
+      } }
+      FILTER(?terms != 1)
+      BIND("chain must have exactly one terminal field" AS ?problem)
+      BIND(STR(?terms) AS ?detail)
+    }
+  }
+  UNION
+  {
+    ?f a aoq:HeaderField .
+    FILTER(NOT EXISTS { ?f aoq:offset ?o . } || NOT EXISTS { ?f aoq:sizeBytes ?s . })
+    BIND("header field missing offset/sizeBytes" AS ?problem)
+    BIND(STR(?f) AS ?detail)
+  }
+  UNION
+  {
+    ?f a aoq:HeaderField ; aoq:nextOffset ?n ; aoq:offset ?o ; aoq:sizeBytes ?s .
+    OPTIONAL { ?n aoq:offset ?no . }
+    FILTER(!BOUND(?no) || ?no != ?o + ?s)
+    BIND("chain link gap/overlap or successor missing offset" AS ?problem)
+    BIND(CONCAT(STR(?f), " end=", STR(?o + ?s), " next=", IF(BOUND(?no), STR(?no), "none"), " at ", STR(?n)) AS ?detail)
+  }
+  UNION
+  {
+    ?f a aoq:HeaderField ; aoq:offset ?o ; aoq:sizeBytes ?s .
+    FILTER NOT EXISTS { ?f aoq:nextOffset ?n . }
+    FILTER(?o + ?s != 64)
+    BIND("terminal field must end exactly at byte 64" AS ?problem)
+    BIND(CONCAT(STR(?f), " end=", STR(?o + ?s)) AS ?detail)
+  }
+}
+ORDER BY ?problem ?detail
