@@ -5,6 +5,12 @@ Versions follow CalVer: `vYY.MM.P` tags on this repo. Individual packs version p
 All notable changes to the marketplace repository are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [v26.11.4-wave] — 2026-11-04
+
+- feat(strata-ledger-pack): template snapshot-and-pin hand-law baseline (2d0064d50) — BASELINE.md pins templates as-of `5842ccb5be92bb767c308efb196d12fde7dba78a` with post-baseline edits without a refreshed freeze witness declared unauthorized drift (`packs/strata-ledger-pack/BASELINE.md:1-12`); `templates/*.tera` gain `freeze_policy: checksum` + `freeze_slots_dir: .ggen/freeze/strata-ledger-pack` frontmatter (kernel_laws.rs.tera:4-5); blake3 freeze witnesses minted by a real `ggen sync run --skip-ea-admission` (pack as its own consumer) at `.ggen/freeze/strata-ledger-pack/packs/strata-ledger-pack/generated/*.blake3` (3 files: kernel_laws, ledger_consts, ledger_state); tamper→frozen-refusal court, byte-exact restore→clean; root `ggen.toml` mounts the pack
+- docs(affidavit-pack): DEPRECATION.md supersession record (5842ccb5b) — `packs/affidavit-consumer-pack` declared successor in `pack.toml` lifecycle metadata, DEPRECATION.md gains freeze-retention note (declarations retained, no post-deprecation witness refresh), pack.toml description cross-references DEPRECATION.md (pack.toml:8)
+- feat(aoq-pack): P7 status_band_rs.tmpl STATUS_BAND projection for cgap-arrow (7f5b31431); header version field bumped 2→3 — `packs/aoq-pack/templates/header_h.tmpl:51` `#define CGAP_AOQ1_VERSION 3` and `packs/aoq-pack/templates/frame_rs.tmpl:42` `pub const AOQ1_VERSION: u16 = 3;` with encode/decode/assert at frame_rs.tmpl:85/93/111
+
 ## [v26.11.3] — 2026-11-04
 
 - feat(packs): aoq-pack — AOQ (Async Ordered Queue) wire-law pack: 64-byte AOQ1 frame header field table, status constants in the frozen band 0x4347_A001..A008, KEM hand-law seam fence, closed Epoch/StreamType enums, projected into deterministic Rust kind-enums and status maps; 9 sync-time closure gates with pass/fail witnesses and an executable court (37dc9febc, d22285bcc)
