@@ -1,8 +1,30 @@
-# Coverage gate: MUST return >= 1 row. Zero rows = the ConfigKey census
-# vanished from the graph (fail-closed coverage, never a silent pass).
+# Violation gate (FM-PACK-013): ZERO rows is the pass condition. Any row
+# refuses the sync. Formerly positive-style ("MUST return >= 1 row"), which
+# FM-PACK-013 scores inverted — 60 healthy ConfigKey rows refused the sync
+# (ZD-49 falsifier outcome; ZD-65 repair).
+#
+# Degenerate conditions asserted (coverage intent preserved):
+# 1. the ConfigKey census vanished from the graph entirely;
+# 2. a ConfigKey individual missing smalt:name (cannot render in the
+#    store-table registry);
+# 3. the ConfigKey/ConfigDefault bijection broken (a key with a default that
+#    has no key, or a default with no key row) — only if declared.
+# Healthy graph: 60 named ConfigKey individuals -> zero rows. Non-vacuity:
+# fires on a mutated /tmp pack copy (witness in
+# docs/jira/v26.11.3/receipts/zd-65-smalt-gates.md).
 PREFIX smalt: <https://ggen.io/ontology/smalt#>
 
-SELECT ?name WHERE {
-  ?k a smalt:ConfigKey ;
-     smalt:name ?name .
+SELECT ?subject ?problem WHERE {
+  {
+    VALUES ?subject { smalt:config-key-census }
+    FILTER NOT EXISTS { ?k a smalt:ConfigKey }
+    BIND("config-key-census-empty" AS ?problem)
+  }
+  UNION
+  {
+    ?subject a smalt:ConfigKey .
+    FILTER NOT EXISTS { ?subject smalt:name ?n }
+    BIND("config-key-missing-name" AS ?problem)
+  }
 }
+ORDER BY ?subject ?problem

@@ -1,8 +1,48 @@
-# Coverage gate: MUST return >= 1 row. Zero rows = the SemConvEvent census
-# vanished from the graph (fail-closed coverage, never a silent pass).
+# Violation gate (FM-PACK-013): ZERO rows is the pass condition. Any row
+# refuses the sync. Formerly positive-style ("MUST return >= 1 row"), which
+# FM-PACK-013 scores inverted — every positive row refused a healthy sync
+# (ZD-49 falsifier outcome; ZD-65 repair).
+#
+# Degenerate conditions asserted (coverage intent preserved):
+# 1. the SemConvEvent census vanished from the graph entirely;
+# 2. a SemConvEvent individual is missing a render-required property
+#    (name/kind/stability/brief/order);
+# 3. a SemConvAttribute allowlist row points at a name with no
+#    SemConvEvent individual.
+# Healthy graph: 7 SemConvEvent individuals, all complete, all attributes
+# bound -> zero rows. Non-vacuity: fires on a mutated /tmp pack copy
+# (witness in docs/jira/v26.11.3/receipts/zd-65-smalt-gates.md).
 PREFIX smaltv: <https://ggen.io/ontology/smalt-semconv#>
 
-SELECT ?name WHERE {
-  ?e a smaltv:SemConvEvent ;
-     smaltv:name ?name .
+SELECT ?subject ?problem WHERE {
+  {
+    VALUES ?subject { smaltv:semconv-census }
+    FILTER NOT EXISTS { ?e a smaltv:SemConvEvent }
+    BIND("semconv-census-empty" AS ?problem)
+  }
+  UNION
+  {
+    ?subject a smaltv:SemConvEvent ;
+             smaltv:name ?name .
+    FILTER NOT EXISTS {
+      ?subject smaltv:kind ?k ; smaltv:stability ?s ; smaltv:brief ?b ; smaltv:order ?o .
+    }
+    BIND("semconv-event-missing-required-property" AS ?problem)
+  }
+  UNION
+  {
+    ?subject a smaltv:SemConvEvent .
+    FILTER NOT EXISTS { ?subject smaltv:name ?name2 }
+    BIND("semconv-event-missing-name" AS ?problem)
+  }
+  UNION
+  {
+    ?subject a smaltv:SemConvAttribute ;
+             smaltv:forName ?forName .
+    FILTER NOT EXISTS {
+      ?e a smaltv:SemConvEvent ; smaltv:name ?forName .
+    }
+    BIND("semconv-attribute-orphaned-name" AS ?problem)
+  }
 }
+ORDER BY ?subject ?problem

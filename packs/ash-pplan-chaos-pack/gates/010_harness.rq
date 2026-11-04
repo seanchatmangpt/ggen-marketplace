@@ -1,20 +1,34 @@
-# Positive driver gate: one row per COMPLETE acp:Harness row. This row drives
-# the qualification probe's inline sparql and (flattened namespace) supplies
-# the harness facts the invariant/kill-phase suites interpolate.
-# Completeness is witnessed by verify/010_harness.unbound.rq (zero rows there
-# is the pass condition) and the refusal-shaped companion
-# verify/010_harness.violation.rq (moved from this file's pre-W984ic
-# violation-gate form; offender-shaped queries belong in verify/ -- a
-# violation query in gates/ scores inverted and renders 0 driver rows).
+# Violation gate (FM-PACK-013): ZERO rows is the pass condition. Any row
+# refuses the sync. Formerly a positive "driver" query ("one row per
+# COMPLETE acp:Harness row"), which FM-PACK-013 scores inverted — the single
+# healthy Harness row refused every sync (ZD-65 repair; its pre-W984ic
+# violation form survives in verify/010_harness.violation.rq).
+#
+# Degenerate conditions asserted:
+# 1. no complete acp:Harness row exists at all (census empty);
+# 2. a Harness row missing ANY required chaos-harness fact (fail closed).
+# Healthy graph: exactly 1 complete Harness row -> zero rows. Non-vacuity:
+# fires on a mutated /tmp pack copy (witness in
+# docs/jira/v26.11.3/receipts/zd-65-smalt-gates.md).
 PREFIX acp: <https://seanchatmangpt.github.io/packs/ash-pplan-chaos#>
-SELECT DISTINCT ?harness ?testNamespace ?generatorsModule ?harnessModule ?invariantsModule ?sabotageModule ?runsEnv
-WHERE {
-  ?harness a acp:Harness ;
-           acp:testNamespace ?testNamespace ;
-           acp:generatorsModule ?generatorsModule ;
-           acp:harnessModule ?harnessModule ;
-           acp:invariantsModule ?invariantsModule ;
-           acp:sabotageModule ?sabotageModule ;
-           acp:runsEnv ?runsEnv .
+SELECT DISTINCT ?subject ?problem WHERE {
+  {
+    VALUES ?subject { acp:harness-census }
+    FILTER NOT EXISTS {
+      ?h a acp:Harness ;
+         acp:testNamespace ?ns ; acp:generatorsModule ?gm ; acp:harnessModule ?hm ;
+         acp:invariantsModule ?im ; acp:sabotageModule ?sm ; acp:runsEnv ?re .
+    }
+    BIND("harness-census-empty" AS ?problem)
+  }
+  UNION
+  {
+    ?subject a acp:Harness .
+    FILTER NOT EXISTS {
+      ?subject acp:testNamespace ?ns2 ; acp:generatorsModule ?gm2 ; acp:harnessModule ?hm2 ;
+               acp:invariantsModule ?im2 ; acp:sabotageModule ?sm2 ; acp:runsEnv ?re2 .
+    }
+    BIND("harness-row-missing-required-facts" AS ?problem)
+  }
 }
-ORDER BY ?testNamespace
+ORDER BY ?subject ?problem

@@ -1,18 +1,40 @@
-# Positive driver gate: one row per COMPLETE acp:Invariant row, joined with
-# the harness facts the rendered suite interpolates. Completeness is witnessed
-# by verify/020_invariants.unbound.rq (zero rows there is the pass condition)
-# and verify/020_invariants.violation.rq (the pre-W984ic violation-gate form
-# of this gate, relocated intact).
+# Violation gate (FM-PACK-013): ZERO rows is the pass condition. Any row
+# refuses the sync. Formerly a positive "driver" query ("one row per
+# COMPLETE acp:Invariant row"), which FM-PACK-013 scores inverted — the 6
+# healthy Invariant rows refused every sync (ZD-65 repair; the pre-W984ic
+# violation form survives in verify/020_invariants.violation.rq).
+#
+# Degenerate conditions asserted:
+# 1. no complete acp:Invariant row exists at all (census empty);
+# 2. an Invariant row missing ANY of invariantId/title/seed/order, or not
+#    joinable to a complete Harness row (the suite cannot render).
+# Healthy graph: 6 complete Invariants + 1 complete Harness -> zero rows.
 PREFIX acp: <https://seanchatmangpt.github.io/packs/ash-pplan-chaos#>
-SELECT ?invariantId ?title ?seed ?order ?testNamespace ?runsEnv
-WHERE {
-  ?i a acp:Invariant ;
-     acp:invariantId ?invariantId ;
-     acp:title ?title ;
-     acp:seed ?seed ;
-     acp:order ?order .
-  ?h a acp:Harness ;
-     acp:testNamespace ?testNamespace ;
-     acp:runsEnv ?runsEnv .
+SELECT DISTINCT ?subject ?problem WHERE {
+  {
+    VALUES ?subject { acp:invariants-census }
+    FILTER NOT EXISTS {
+      ?i a acp:Invariant ; acp:invariantId ?id ; acp:title ?t ; acp:seed ?s ; acp:order ?o .
+    }
+    BIND("invariants-census-empty" AS ?problem)
+  }
+  UNION
+  {
+    ?subject a acp:Invariant .
+    FILTER NOT EXISTS {
+      ?subject acp:invariantId ?id2 ; acp:title ?t2 ; acp:seed ?s2 ; acp:order ?o2 .
+    }
+    BIND("invariant-row-missing-required-facts" AS ?problem)
+  }
+  UNION
+  {
+    ?subject a acp:Invariant .
+    FILTER NOT EXISTS {
+      ?h a acp:Harness ;
+         acp:testNamespace ?ns ; acp:generatorsModule ?gm ; acp:harnessModule ?hm ;
+         acp:invariantsModule ?im ; acp:sabotageModule ?sm ; acp:runsEnv ?re .
+    }
+    BIND("invariant-has-no-complete-harness" AS ?problem)
+  }
 }
-ORDER BY ?order
+ORDER BY ?subject ?problem

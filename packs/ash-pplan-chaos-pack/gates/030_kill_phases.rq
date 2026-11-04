@@ -1,17 +1,40 @@
-# Positive driver gate: one row per COMPLETE acp:KillPhase row, joined with
-# the harness facts the rendered suites interpolate. Completeness is witnessed
-# by verify/030_kill_phases.unbound.rq (zero rows there is the pass condition)
-# and verify/030_kill_phases.violation.rq (the pre-W984ic violation-gate form
-# of this gate, relocated intact).
+# Violation gate (FM-PACK-013): ZERO rows is the pass condition. Any row
+# refuses the sync. Formerly a positive "driver" query ("one row per
+# COMPLETE acp:KillPhase row") — which FM-PACK-013 scores inverted — the 4
+# healthy KillPhase rows refused every sync (ZD-65 repair; the pre-W984ic
+# violation form survives in verify/030_kill_phases.violation.rq).
+#
+# Degenerate conditions asserted:
+# 1. no complete acp:KillPhase row exists at all (census-empty branch);
+# 2. a KillPhase row missing ANY of phaseId/nth/seed;
+# 3. a KillPhase row not joinable to a complete Harness row.
+# Healthy graph: 4 complete KillPhases + 1 complete Harness -> zero rows.
+# Non-vacuity: fires on a mutated /tmp pack copy (witness in
+# docs/jira/v26.11.3/receipts/zd-65-smalt-gates.md).
 PREFIX acp: <https://seanchatmangpt.github.io/packs/ash-pplan-chaos#>
-SELECT ?phaseId ?nth ?seed ?testNamespace ?runsEnv
-WHERE {
-  ?p a acp:KillPhase ;
-     acp:phaseId ?phaseId ;
-     acp:nth ?nth ;
-     acp:seed ?seed .
-  ?h a acp:Harness ;
-     acp:testNamespace ?testNamespace ;
-     acp:runsEnv ?runsEnv .
+SELECT DISTINCT ?subject ?problem WHERE {
+  {
+    VALUES ?subject { acp:kill-phases-census }
+    FILTER NOT EXISTS {
+      ?p a acp:KillPhase ; acp:phaseId ?pid ; acp:nth ?n ; acp:seed ?s .
+    }
+    BIND("kill-phases-census-empty" AS ?problem)
+  }
+  UNION
+  {
+    ?subject a acp:KillPhase .
+    FILTER NOT EXISTS { ?subject acp:phaseId ?pid2 ; acp:nth ?n2 ; acp:seed ?s2 . }
+    BIND("kill-phase-row-missing-required-facts" AS ?problem)
+  }
+  UNION
+  {
+    ?subject a acp:KillPhase .
+    FILTER NOT EXISTS {
+      ?h a acp:Harness ;
+         acp:testNamespace ?ns ; acp:generatorsModule ?gm ; acp:harnessModule ?hm ;
+         acp:invariantsModule ?im ; acp:sabotageModule ?sm ; acp:runsEnv ?re .
+    }
+    BIND("kill-phase-has-no-complete-harness" AS ?problem)
+  }
 }
-ORDER BY ?nth ?phaseId
+ORDER BY ?subject ?problem
