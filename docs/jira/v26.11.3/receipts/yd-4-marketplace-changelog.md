@@ -29,6 +29,5 @@ All exits 0.
 
 ## Commit
 
-Pending at time of receipt write; commit + push executed immediately after with `-F` message file.
-
-- Standing: ALIVE (edit verified on disk via git diff --stat: 6 insertions, 1 deletion)
+- Commit: `9378fd833` on `main` (`git commit -F /tmp/yd4-commit-msg.txt`, exit 0), pushed `origin/main` 9ba2496b4..9378fd833, exit 0; tree clean after push.
+- Standing: ALIVE (edit verified on disk via git diff --stat: 6 insertions, 1 deletion to CHANGELOG.md; 40 insertions total in commit)
