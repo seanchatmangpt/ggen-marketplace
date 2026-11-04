@@ -1,0 +1,22 @@
+# 140_bench_file_exists — registry-consistency gate for p:Bench individuals.
+# Violation (a row is a refusal): p:Bench lacking p:benchFile matching
+# ^crates/bench/benches/[a-z0-9-]+\.rs$  OR  lacking BOTH the p:benchLever
+# edge and the p:benchSeedLaw note.
+# Anti-vacuity: drop p:benchFile from a p:Bench individual — gate must fire.
+PREFIX p: <https://seanchatmangpt.github.io/packs/cgap-pack#>
+SELECT ?bench WHERE {
+  {
+    ?bench a p:Bench ; p:benchTarget ?target .
+    FILTER NOT EXISTS {
+      ?bench p:benchFile ?f .
+      FILTER (REGEX(STR(?f), "^crates/bench/benches/[a-z0-9-]+\\.rs$"))
+    }
+  }
+  UNION
+  {
+    ?bench a p:Bench ; p:benchTarget ?target .
+    FILTER NOT EXISTS { ?bench p:benchLever ?lever }
+    FILTER NOT EXISTS { ?bench p:benchSeedLaw ?law }
+  }
+}
+ORDER BY ?bench

@@ -1,0 +1,18 @@
+# MESSAGE: workspace dependency re-pinned with a version literal.
+# A crate's rust:dependsOn edge may not carry rust:versionLiteral when the
+# target is a rust:Workspace rust:workspaceDependency member — workspace
+# inheritance is the single version source (R2, PRD workspace-inheritance
+# surface). A row = refusal.
+# Anti-vacuity: add rust:versionLiteral to any dependsOn edge targeting a
+# workspace dependency — the gate must fire (see witnesses/fail).
+PREFIX rust: <urn:ggen:rust:#>
+SELECT ?crate ?dep ?problem WHERE {
+  ?crate rust:dependsOn ?dep .
+  ?dep a rust:Dependency ;
+       rust:versionLiteral ?version .
+  ?workspace a rust:Workspace ;
+             rust:workspaceDependency ?dep .
+  BIND(CONCAT("workspace-dependency-must-not-carry-versionLiteral, got ",
+              STR(?version)) AS ?problem)
+}
+ORDER BY ?crate ?dep

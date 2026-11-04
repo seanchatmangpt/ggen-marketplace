@@ -1,0 +1,27 @@
+<%
+# METATEMPLATE: emits the text of a generated pack's
+# templates/registry.ex.eex. Same [[OPEN]]/[[CLOSE]] placeholder law as
+# template_ontology.eex -- a literal "%>" never appears inside this
+# script marker, so the emitted markers are TEXT, never executed at
+# bootstrap render time. The emitted template binds ONLY the named
+# query rows (capabilities) so a second-level render needs no meta.
+o = "<%" <> "="
+c = "%" <> ">"
+out =
+  ~S"""[[OPEN]] "# registry.ex -- generated capability registry (pack-bootstrap-pack)" [[CLOSE]]
+defmodule CapabilityRegistry do
+  @moduledoc false
+
+  @capabilities [
+[[OPEN]] capabilities
+           |> Enum.sort_by(& &1["capabilityId"])
+           |> Enum.map(& String.replace(&1["capabilityId"], ~r/[^A-Za-z0-9_]/, "_"))
+           |> Enum.map(& "    :#{&1}")
+           |> Enum.join(",\n") [[CLOSE]]
+  ]
+
+  def capabilities, do: @capabilities
+end"""
+  |> String.replace("[[OPEN]]", o)
+  |> String.replace("[[CLOSE]]", c)
+%><%= out %>

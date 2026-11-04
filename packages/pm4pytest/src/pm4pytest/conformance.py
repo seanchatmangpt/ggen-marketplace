@@ -21,6 +21,7 @@ class ConformanceResult:
     """Evaluation result for Petri net or FSM conformance."""
     success: bool
     fitness: float
+    precision: float = 1.0
     violations: List[str] = field(default_factory=list)
     diagnostics: Dict[str, Any] = field(default_factory=dict)
 
@@ -34,16 +35,23 @@ class ConformanceSpec:
         initial_marking: Optional[Marking] = None,
         final_marking: Optional[Marking] = None,
         min_fitness: float = 1.0,
+        min_precision: Optional[float] = None,
         allowed_transitions: Optional[Dict[str, List[str]]] = None,
     ) -> None:
         self.net = petri_net
         self.im = initial_marking
         self.fm = final_marking
         self.min_fitness = min_fitness
+        self.min_precision = min_precision
         self.allowed_transitions = allowed_transitions or {}
 
     @classmethod
-    def from_fsm(cls, valid_paths: List[List[str]], min_fitness: float = 1.0) -> ConformanceSpec:
+    def from_fsm(
+        cls,
+        valid_paths: List[List[str]],
+        min_fitness: float = 1.0,
+        min_precision: Optional[float] = None,
+    ) -> ConformanceSpec:
         """Automatically construct a Petri net from valid trace paths."""
         df_rows = []
         for idx, path in enumerate(valid_paths):
@@ -57,18 +65,37 @@ class ConformanceSpec:
         df["time:timestamp"] = pd.to_datetime(df["time:timestamp"])
 
         net, im, fm = pm4py.discover_petri_net_inductive(df)
-        return cls(petri_net=net, initial_marking=im, final_marking=fm, min_fitness=min_fitness)
+        return cls(
+            petri_net=net,
+            initial_marking=im,
+            final_marking=fm,
+            min_fitness=min_fitness,
+            min_precision=min_precision,
+        )
 
     @classmethod
-    def from_pnml(cls, pnml_path: Path | str, min_fitness: float = 1.0) -> ConformanceSpec:
+    def from_pnml(
+        cls, pnml_path: Path | str, min_fitness: float = 1.0, min_precision: Optional[float] = None
+    ) -> ConformanceSpec:
         """Load a Petri net directly from a PNML XML file."""
         net, im, fm = pm4py.read_pnml(str(pnml_path))
-        return cls(petri_net=net, initial_marking=im, final_marking=fm, min_fitness=min_fitness)
+        return cls(
+            petri_net=net,
+            initial_marking=im,
+            final_marking=fm,
+            min_fitness=min_fitness,
+            min_precision=min_precision,
+        )
 
     def evaluate(self, events: List[Dict[str, Any]]) -> ConformanceResult:
         """Evaluate a test's sequential trace against the conformance model."""
         if not events:
-            return ConformanceResult(success=False, fitness=0.0, violations=["CONFORMANCE_ERROR: Empty event trace."])
+            return ConformanceResult(
+                success=False,
+                fitness=0.0,
+                precision=0.0,
+                violations=["CONFORMANCE_ERROR: Empty event trace."],
+            )
 
         # Build pandas event log
         df = pd.DataFrame(events)
@@ -82,8 +109,9 @@ class ConformanceSpec:
         violations: List[str] = []
         diagnostics: Dict[str, Any] = {}
         actual_fitness = 1.0
+        actual_precision = 1.0
 
-        # 1. Petri net token-based replay fitness
+        # 1. Petri net token-based replay fitness + precision (same net path)
         if self.net and self.im and self.fm:
             tbr = pm4py.fitness_token_based_replay(df, self.net, self.im, self.fm)
             actual_fitness = float(tbr.get("log_fitness", 0.0))
@@ -96,6 +124,17 @@ class ConformanceSpec:
                 violations.append(
                     f"PETRI_NET_FITNESS_VIOLATION: Log fitness {actual_fitness:.4f} is below minimum {self.min_fitness:.4f}."
                 )
+
+            if self.min_precision is not None:
+                actual_precision = float(
+                    pm4py.precision_token_based_replay(df, self.net, self.im, self.fm)
+                )
+                diagnostics["tbr_precision"] = actual_precision
+
+                if actual_precision < self.min_precision:
+                    violations.append(
+                        f"PETRI_NET_PRECISION_VIOLATION: Log precision {actual_precision:.4f} below minimum {self.min_precision:.4f}"
+                    )
 
         # 2. Strict transition checks
         if self.allowed_transitions:
@@ -110,4 +149,10 @@ class ConformanceSpec:
                     )
 
         success = len(violations) == 0
-        return ConformanceResult(success=success, fitness=actual_fitness, violations=violations, diagnostics=diagnostics)
+        return ConformanceResult(
+            success=success,
+            fitness=actual_fitness,
+            precision=actual_precision,
+            violations=violations,
+            diagnostics=diagnostics,
+        )

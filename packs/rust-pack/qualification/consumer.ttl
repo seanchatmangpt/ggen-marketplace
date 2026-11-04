@@ -1,0 +1,65 @@
+# rust-pack qualification specimen — bounded positive consumer graph.
+#
+# One minimal consumer workspace (one crate, edition, msrv, one unsafe fn with
+# safetyProof, one SIMD BufferSlot, one FfiExport, one dependsOn inheritance
+# edge) that all five gates in gates/*.rq run against with 0 violation rows.
+# Negative coverage lives in witnesses/fail/*.ttl, never here.
+
+@prefix rust:    <urn:ggen:rust:#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix p:       <https://seanchatmangpt.github.io/packs/rust-pack#> .
+
+rust:consumerWorkspace a rust:Workspace ;
+    rdfs:comment "Consumer specimen workspace. PRD.md:47, ARD.md:29-35." ;
+    rust:resolverVersion "2" ;
+    rust:memberCrate rust:consumerKernel ;
+    rust:workspaceDependency rust:consumerDepAnyhow .
+
+rust:consumerDepAnyhow a rust:Dependency ;
+    rdfs:comment "Inherited from [workspace.dependencies]; no member-local versionLiteral (gate 050)." .
+
+rust:consumerKernel a rust:Crate ;
+    rdfs:comment "no_std + alloc lib kernel (PRD.md:84-90)." ;
+    rust:crateName "consumer-kernel" ;
+    rust:crateType "lib" ;
+    rust:isNoStd true ;
+    rust:hasAlloc true ;
+    rust:msrv "1.82.0" ;
+    rust:edition "2021" ;
+    rust:dependsOn rust:consumerDepAnyhow ;
+    rust:defines rust:consumerStruct , rust:consumerInitFn , rust:consumerModule ,
+        rust:consumerFfiVersion ;
+    rust:crateModule rust:consumerModule .
+
+rust:consumerModule a rust:Module ;
+    rdfs:label "kernel" ;
+    rust:itemName "kernel" .
+
+rust:consumerStruct a rust:Struct ;
+    rdfs:label "ConsumerBuffer" ;
+    rdfs:comment "UpperCamelCase (gate 010); 64-byte aligned SIMD surface (gate 030)." ;
+    rust:itemName "ConsumerBuffer" ;
+    rust:repr "align(64)" .
+
+rust:consumerSlot a rust:BufferSlot ;
+    rdfs:comment "SIMD-profile slot aligned exactly 64 (gate 030)." ;
+    rust:simdProfile "SIMD" ;
+    rust:byteAlignment 64 .
+
+rust:consumerInitFn a rust:Function ;
+    rdfs:comment "Unsafe init with provenance safetyProof (gate 020; UCG)." ;
+    rust:itemName "buffer_init" ;
+    rust:visibility "pub" ;
+    rust:isUnsafe true ;
+    rust:safetyProof "Buffer is 64-byte aligned by repr(align(64)); write stays within the single live allocation (UCG Provenance + Alignment, ARD.md:71-73)." ;
+    rust:returnType "i32" .
+
+rust:consumerFfiVersion a rust:FfiExport ;
+    rdfs:comment "extern \"C\" export with unwind guard (gate 040; ARD.md:78-84)." ;
+    rust:symbolName "consumer_version" ;
+    rust:unwindProtection "AbortOnPanic" .
+
+p:consumerSpecimen a p:Subject ;
+    p:subjectId "urn:ggen:pack:rust-pack:consumer-specimen" .

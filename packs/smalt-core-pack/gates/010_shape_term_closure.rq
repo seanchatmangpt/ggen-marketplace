@@ -1,0 +1,27 @@
+# MESSAGE: every term referenced by an admission shape (sh:path, sh:targetClass,
+# sh:class) must resolve to a declared term (rdfs:Class, owl:Class,
+# rdf:Property, owl:ObjectProperty, owl:DatatypeProperty) in the union graph.
+# Any row = a dangling shape reference: the shape constrains an IRI the
+# composed ontology never declares (namespace drift / missing vendored term).
+# Pattern note: this is the pack's ONE exemplar term-closure gate. The same
+# SELECT-violations shape extends to any closure law this pack gains — the
+# 14 sh:closed-false claim in the SA-15 contract was stale: this pack's 4
+# shapes are all sh:closed true, so SPARQL closure gates (not sh:closed
+# repair) are the gap this gate closes.
+PREFIX sh: <http://www.w3.org/ns/shacl#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+
+SELECT ?term ?role WHERE {
+  { ?shape sh:targetClass ?term BIND("targetClass" AS ?role) }
+  UNION
+  { ?shape sh:path ?term BIND("path" AS ?role) }
+  UNION
+  { ?s sh:class ?term BIND("class" AS ?role) }
+  FILTER NOT EXISTS {
+    ?term a ?t .
+    FILTER(?t IN (rdfs:Class, owl:Class, rdf:Property, owl:ObjectProperty, owl:DatatypeProperty))
+  }
+}
+ORDER BY ?role ?term

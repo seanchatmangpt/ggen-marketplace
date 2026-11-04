@@ -1,0 +1,42 @@
+# MESSAGE: refuses structural defects raw property-presence checks miss.
+# (1) ddx:quadrant values outside {tutorial,how-to,reference,explanation}
+# fall into no template {% if %} branch -- a silent-wrong-output risk
+# (page silently vanishes from SUMMARY), not a crash. (2) Duplicate
+# ddx:relPath = two pages writing one output path (write collision).
+# (3) Duplicate ddx:position within one quadrant makes ORDER BY a tie ->
+# replay order becomes SPARQL-engine-dependent. (4) relPath not ending
+# ".md" produces a non-markdown page file. (5) More than one ddx:Book
+# breaks the singleton the index/SUMMARY templates assume. Any row below is a
+# real violation; the violation class is identified by the matched branch
+# (documented above). Engine note: ggen FM-GRAPH-013 requires each BIND
+# target to be fresh project-wide and rejects projected BIND targets, so
+# each branch binds a distinct unprojected reason variable and the
+# projection carries only the subject.
+PREFIX ddx: <https://seanchatmangpt.github.io/ggen-marketplace/docs-diataxis#>
+SELECT ?s WHERE {
+  {
+    ?s a ddx:Page ; ddx:quadrant ?q .
+    FILTER(?q NOT IN ("tutorial", "how-to", "reference", "explanation"))
+    BIND("ddx:quadrant outside {tutorial,how-to,reference,explanation}" AS ?r1)
+  } UNION {
+    ?s a ddx:Page ; ddx:relPath ?path .
+    ?other a ddx:Page ; ddx:relPath ?path .
+    FILTER(?s != ?other)
+    BIND("duplicate ddx:relPath across Pages (write collision)" AS ?r2)
+  } UNION {
+    ?s a ddx:Page ; ddx:quadrant ?q ; ddx:position ?pos .
+    ?other a ddx:Page ; ddx:quadrant ?q ; ddx:position ?pos .
+    FILTER(?s != ?other)
+    BIND("duplicate ddx:position within same ddx:quadrant (ordering tie)" AS ?r3)
+  } UNION {
+    ?s a ddx:Page ; ddx:relPath ?path .
+    FILTER(!REGEX(STR(?path), "[.]md$"))
+    BIND("ddx:relPath does not end in .md" AS ?r4)
+  } UNION {
+    ?b1 a ddx:Book .
+    ?b2 a ddx:Book .
+    FILTER(?b1 != ?b2)
+    BIND("more than one ddx:Book (singleton violated)" AS ?r5)
+  }
+}
+ORDER BY ?s

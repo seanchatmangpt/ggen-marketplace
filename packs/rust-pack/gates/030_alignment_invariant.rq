@@ -1,0 +1,17 @@
+# MESSAGE: SIMD buffer slot alignment must be exactly 64 bytes.
+# Every rust:BufferSlot with rust:simdProfile != "None" must carry
+# rust:byteAlignment exactly 64 — the UCG Alignment Invariant for the
+# SIMD/Arrow memory model (R3, ARD §2.2). A row = refusal.
+# Anti-vacuity: set any SIMD slot's byteAlignment to 32 or drop the triple —
+# the gate must fire (see witnesses/fail).
+PREFIX rust: <urn:ggen:rust:#>
+SELECT ?slot ?problem WHERE {
+  ?slot a rust:BufferSlot ;
+        rust:simdProfile ?profile .
+  FILTER(?profile != "None")
+  OPTIONAL { ?slot rust:byteAlignment ?a }
+  FILTER(!BOUND(?a) || ?a != 64)
+  BIND(IF(BOUND(?a), CONCAT("alignment-must-be-64, got ", STR(?a)),
+                     "alignment-missing") AS ?problem)
+}
+ORDER BY ?slot

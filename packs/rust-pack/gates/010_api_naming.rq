@@ -1,0 +1,41 @@
+# MESSAGE: rust:itemName missing or violating RFC 430 case rules for its class.
+# Every rust:Struct / rust:Enum must carry an UpperCamelCase itemName;
+# every rust:Function / rust:Module must carry a snake_case itemName
+# (R1: RFC 430 naming, ARD §2.1). A row = refusal.
+# Anti-vacuity: set a Struct's itemName to "my_struct" or drop the triple —
+# the gate must fire (see witnesses/fail).
+PREFIX rust: <urn:ggen:rust:#>
+SELECT ?item ?problem WHERE {
+  {
+    ?item a rust:Struct .
+    OPTIONAL { ?item rust:itemName ?n }
+    FILTER(!BOUND(?n) || !REGEX(STR(?n), "^[A-Z][A-Za-z0-9]*$"))
+    BIND(IF(BOUND(?n), CONCAT("UpperCamelCase-required, got ", STR(?n)),
+                       "itemName-missing") AS ?problem)
+  }
+  UNION
+  {
+    ?item a rust:Enum .
+    OPTIONAL { ?item rust:itemName ?n }
+    FILTER(!BOUND(?n) || !REGEX(STR(?n), "^[A-Z][A-Za-z0-9]*$"))
+    BIND(IF(BOUND(?n), CONCAT("UpperCamelCase-required, got ", STR(?n)),
+                       "itemName-missing") AS ?problem)
+  }
+  UNION
+  {
+    ?item a rust:Function .
+    OPTIONAL { ?item rust:itemName ?n }
+    FILTER(!BOUND(?n) || !REGEX(STR(?n), "^[a-z][a-z0-9_]*$"))
+    BIND(IF(BOUND(?n), CONCAT("snake_case-required, got ", STR(?n)),
+                       "itemName-missing") AS ?problem)
+  }
+  UNION
+  {
+    ?item a rust:Module .
+    OPTIONAL { ?item rust:itemName ?n }
+    FILTER(!BOUND(?n) || !REGEX(STR(?n), "^[a-z][a-z0-9_]*$"))
+    BIND(IF(BOUND(?n), CONCAT("snake_case-required, got ", STR(?n)),
+                       "itemName-missing") AS ?problem)
+  }
+}
+ORDER BY ?item

@@ -1,0 +1,147 @@
+# cimi.ttl — minimal CIMI mini-ontology for the smalt core pack
+#
+# PROVENANCE
+#   This file is a DERIVED WORK authored for the smalt-core-pack. It is NOT an
+#   official DMTF artifact. DMTF CIMI (DSP0263 "Cloud Infrastructure Management
+#   Interface" and DSP2027 "CIMI REST HTTP Protocol") publishes no official RDF
+#   encoding; this vocabulary is derived from the normative text of DSP0263,
+#   restricted to the surface the smalt core actually uses (Volume and its
+#   lifecycle state vocabulary). Term IRIs are minted in the DMTF CIMI v2
+#   namespace (http://schemas.dmtf.org/cimi/2/) per DSP0263 resource-addressing
+#   rules; class/property names follow the CIMI JSON field names.
+#   Derivation date: 2026-10-30. Maintainer: smalt-core-pack lane V-CIMI.
+
+@prefix cimi:  <http://schemas.dmtf.org/cimi/2/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+<http://schemas.dmtf.org/cimi/2/>
+  rdf:type owl:Ontology ;
+  dcterms:title "CIMI (DSP0263) minimal vocabulary for smalt core" ;
+  dcterms:license "Derived from DMTF DSP0263 text; the cimi: schema namespace is DMTF's, but this RDF encoding is not published or endorsed by DMTF" ;
+  owl:versionInfo "0.1.0 (smalt-core-pack derivation, 2026-10-30)" .
+
+### ------------------------------------------------------------------
+### Core resource classes
+### ------------------------------------------------------------------
+
+cimi:Resource
+  rdf:type owl:Class ;
+  rdfs:label "Resource" ;
+  rdfs:comment "Carrier of the CIMI common attributes (id, name, description, created, updated, state) present on every managed resource in DSP0263." .
+
+cimi:Volume
+  rdf:type owl:Class ;
+  rdfs:subClassOf cimi:Resource ;
+  rdfs:label "Volume" ;
+  rdfs:comment "A block storage volume (DSP0263 Volume resource): an addressable, stateful block device exposed to a Machine." .
+
+cimi:VolumeConfiguration
+  rdf:type owl:Class ;
+  rdfs:subClassOf cimi:Resource ;
+  rdfs:label "VolumeConfiguration" ;
+  rdfs:comment "Static description of a Volume's characteristics (capacity, format, snapshot support) per DSP0263 Volume resources." .
+
+cimi:VolumeImage
+  rdf:type owl:Class ;
+  rdfs:subClassOf cimi:Resource ;
+  rdfs:label "VolumeImage" ;
+  rdfs:comment "A Volume together with its VolumeConfiguration, captured as a stored image from which new Volumes are created (DSP0263 Volume resources)." .
+
+cimi:VolumeTemplate
+  rdf:type owl:Class ;
+  rdfs:subClassOf cimi:Resource ;
+  rdfs:label "VolumeTemplate" ;
+  rdfs:comment "Template holding a volumeConfig reference and/or a volumeImage reference from which a Volume is created (DSP0263 Volume resources)." .
+
+cimi:Machine
+  rdf:type owl:Class ;
+  rdfs:subClassOf cimi:Resource ;
+  rdfs:label "Machine" ;
+  rdfs:comment "A compute machine (DSP0263 Machine resource) that consumes Volume storage via attach operations; included because the Volume lifecycle is driven from the Machine surface." .
+
+### ------------------------------------------------------------------
+### Lifecycle state vocabulary (DSP0263 common `state` attribute)
+### ------------------------------------------------------------------
+
+cimi:State
+  rdf:type owl:Class ;
+  rdfs:label "State" ;
+  rdfs:comment "Lifecycle state of a CIMI resource; the individuals below enumerate the DSP0263 state-attribute values used by smalt." .
+
+cimi:CREATING
+  rdf:type cimi:State ;
+  rdfs:label "CREATING" ;
+  rdfs:comment "Resource is in the process of being created (DSP0263 state attribute)." .
+
+cimi:AVAILABLE
+  rdf:type cimi:State ;
+  rdfs:label "AVAILABLE" ;
+  rdfs:comment "Resource is ready to use (DSP0263 state attribute)." .
+
+cimi:STARTING
+  rdf:type cimi:State ;
+  rdfs:label "STARTING" ;
+  rdfs:comment "Resource is starting; transient state (DSP0263 state attribute)." .
+
+cimi:STOPPED
+  rdf:type cimi:State ;
+  rdfs:label "STOPPED" ;
+  rdfs:comment "Resource is stopped (DSP0263 state attribute)." .
+
+cimi:STOPPING
+  rdf:type cimi:State ;
+  rdfs:label "STOPPING" ;
+  rdfs:comment "Resource is stopping; transient state (DSP0263 state attribute)." .
+
+cimi:DELETING
+  rdf:type cimi:State ;
+  rdfs:label "DELETING" ;
+  rdfs:comment "Resource is in the process of being deleted (DSP0263 state attribute)." .
+
+cimi:ERROR
+  rdf:type cimi:State ;
+  rdfs:label "ERROR" ;
+  rdfs:comment "A resource operation failed (DSP0263 state attribute)." .
+
+### ------------------------------------------------------------------
+### Common attributes (properties on Resource)
+### ------------------------------------------------------------------
+
+cimi:id
+  rdf:type owl:DatatypeProperty ;
+  rdfs:domain cimi:Resource ;
+  rdfs:range xsd:string ;
+  rdfs:label "id" ;
+  rdfs:comment "Resource URI (DSP0263 `id` common attribute)." .
+
+cimi:name
+  rdf:type owl:DatatypeProperty ;
+  rdfs:domain cimi:Resource ;
+  rdfs:range xsd:string ;
+  rdfs:label "name" ;
+  rdfs:comment "Human-readable name common attribute (DSP0263)." .
+
+cimi:state
+  rdf:type owl:ObjectProperty ;
+  rdfs:domain cimi:Resource ;
+  rdfs:range cimi:State ;
+  rdfs:label "state" ;
+  rdfs:comment "Lifecycle state common attribute (DSP0263); values are cimi:State individuals." .
+
+cimi:volumeConfig
+  rdf:type owl:ObjectProperty ;
+  rdfs:domain cimi:VolumeTemplate ;
+  rdfs:range cimi:VolumeConfiguration ;
+  rdfs:label "volumeConfig" ;
+  rdfs:comment "Reference from a VolumeTemplate to its VolumeConfiguration (DSP0263 Volume resources)." .
+
+cimi:volumeImage
+  rdf:type owl:ObjectProperty ;
+  rdfs:domain cimi:VolumeTemplate ;
+  rdfs:range cimi:VolumeImage ;
+  rdfs:label "volumeImage" ;
+  rdfs:comment "Reference from a VolumeTemplate to a VolumeImage (DSP0263 Volume resources)." .

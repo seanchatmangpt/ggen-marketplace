@@ -1,0 +1,188 @@
+# Telemetry semconv registry - GENERATED from model/smalt.yaml via
+# ggen_igniter.sync (smalt-semconv-pack). DO NOT EDIT - regenerate with
+# mix smalt.gen. Fences: test/semconv_test.exs,
+# test/semconv_replay_identity_test.exs.
+<%
+# Canonical ordering: every list is re-sorted at render time so the artifact
+# is independent of SPARQL engine row order (replay fence:
+# test/semconv_replay_identity_test.exs).
+ord = fn row -> String.to_integer(to_string(row["order"])) end
+
+rows = Enum.sort_by(semconv_events, ord)
+spans = Enum.filter(rows, &(&1["kind"] == "span"))
+events = Enum.filter(rows, &(&1["kind"] == "event"))
+
+name_order = Map.new(rows, fn r -> {r["name"], ord.(r)} end)
+
+bindings = Enum.sort_by(semconv_bindings, & &1["name"])
+event_bindings =
+  bindings
+  |> Enum.filter(&(&1["kind"] == "event"))
+  |> Enum.sort_by(&Map.get(name_order, &1["name"], 999))
+span_bindings = Enum.filter(bindings, &(&1["kind"] == "span"))
+
+attrs_by_name = Enum.group_by(semconv_attributes, & &1["forName"])
+attribute_groups =
+  rows
+  |> Enum.map(fn e ->
+    attrs = attrs_by_name |> Map.get(e["name"], []) |> Enum.sort_by(ord)
+    {e["name"], attrs}
+  end)
+  |> Enum.sort_by(fn {name, _} -> Map.get(name_order, name, 999) end)
+
+rules = Enum.sort_by(semconv_mapping_rules, ord)
+%>
+defmodule Smalt.Telemetry.SemConv.Registry do
+  @moduledoc """
+  Closed semantic-convention registry for smalt telemetry, projected from
+  `lib/smalt/telemetry/semconv/model/smalt.yaml` (weaver `definition/2`
+  style, adapted from ggen-marketplace's otel-weaver-pack `model/` template).
+
+  # GENERATED PROJECTION — sealed against the model YAML. Drift is fenced
+  # by test/semconv_test.exs (model fence + grep fence).
+
+  Two laws, mirroring `Smalt.Ocel.EventRegistry`:
+
+    * Closed names: every emitted telemetry event/span maps to exactly one
+      semconv name in this registry. Nothing outside the model is emitted.
+    * Closed attributes (allowlist gate): an attribute runtime key not
+      registered for the event's semconv name is DROPPED and COUNTED, never
+      emitted and never raised — the same log-and-drop discipline as the
+      OCEL registry.
+
+  Also carries the otel-weaver-ocel-pack's OTEL→OCEL field-mapping table
+  projected onto smalt's emitter surface (see `otel_to_ocel_rules/0` and
+  `docs/PACK_INTEGRATION/otel-weaver.md`).
+  """
+
+  @typedoc "A semconv name (span or event)."
+  @type name :: String.t()
+
+  @typedoc "Runtime metadata/measurement key (atom) behind a semconv attribute."
+  @type runtime_key :: atom()
+
+  # -- closed name vocabulary (from model/smalt.yaml) ----------------------------
+
+  @span_names ~w(<%= Enum.map_join(spans, " ", & &1["name"]) %>)
+
+  @event_names ~w(
+<%= for e <- events do %>    <%= e["name"] %>
+<% end %>  )
+
+  # -- telemetry-triple → semconv name maps ---------------------------------------
+  # One canonical mapping per emitted `:telemetry` triple. Bandit's
+  # `[:bandit, :request, :stop]` span is the source of the
+  # `smalt.cosmos.request` span — the same mapping `Smalt.Telemetry.OcelEmitter`
+  # already applies when it logs bandit stops as `cosmos.doc.crud` OCEL events.
+
+  @event_name_map %{
+<%= for e <- event_bindings do %>    <%= e["telemetryTriple"] %> => "<%= e["name"] %>"<%= if e != List.last(event_bindings), do: "," %>
+
+<% end %>  }
+
+  @span_name_map %{
+<%= for e <- span_bindings do %>    <%= e["telemetryTriple"] %> => "<%= e["name"] %>"<%= if e != List.last(span_bindings), do: "," %>
+
+<% end %>  }
+
+  # -- attribute allowlist (from model/smalt.yaml) ---------------------------------
+  # semconv attribute key ↔ runtime metadata/measurement key, per name.
+
+  @attribute_registry %{
+<%= for {{name, attrs}, gi} <- Enum.with_index(attribute_groups) do %>    <%= inspect(name) %> => [
+<%= for {a, ai} <- Enum.with_index(attrs) do %>      %{key: <%= inspect(a["key"]) %>, type: :<%= a["type"] %>, runtime: :<%= a["runtime"] %>}<%= if ai < length(attrs) - 1, do: "," %>
+<% end %>    ]<%= if gi < length(attribute_groups) - 1, do: "," %>
+
+<% end %>  }
+
+  @doc """
+  Full attribute registry: `%{semconv_name => [attribute maps]}`. The model
+  fence in test/semconv_test.exs checks this against the model YAML.
+  """
+  @spec attribute_registry() :: map()
+  def attribute_registry, do: @attribute_registry
+
+  @doc "Closed vocabulary of semconv span vocabulary (sorted)."
+  @spec span_names() :: [name()]
+  def span_names, do: Enum.sort(@span_names)
+
+  @doc "Closed vocabulary of semconv event names (sorted)."
+  @spec event_names() :: [name()]
+  def event_names, do: Enum.sort(@event_names)
+
+  @doc "Closed vocabulary of all semconv names (spans + events, sorted)."
+  @spec names() :: [name()]
+  def names, do: Enum.sort(Enum.uniq(@span_names ++ @event_names))
+
+  @doc """
+  Gate: is `name` an admissible semconv name? Pure, total, never raises.
+  """
+  @spec name?(term()) :: boolean()
+  def name?(name) when is_binary(name), do: name in names()
+  def name?(_), do: false
+
+  @doc """
+  The semconv name for a smalt-native `:telemetry` event triple, e.g.
+  `[:smalt, :admit]` → `"smalt.arm.admit"`. Unknown → `nil`.
+  """
+  @spec resolve([atom()]) :: name() | nil
+  def resolve(triple) when is_list(triple), do: Map.get(@event_name_map, triple)
+  def resolve(_), do: nil
+
+  @doc """
+  The semconv span name for an adopted (non-smalt) `:telemetry` triple, e.g.
+  `[:bandit, :request, :stop]` → `"smalt.cosmos.request"`. Unknown → `nil`.
+  """
+  @spec resolve_span([atom()]) :: name() | nil
+  def resolve_span(triple) when is_list(triple), do: Map.get(@span_name_map, triple)
+  def resolve_span(_), do: nil
+
+  @doc """
+  Registered attribute maps for `name` — empty list for unknown names
+  (fail-closed: an unknown name admits no attributes).
+  """
+  @spec attributes(name()) :: [map()]
+  def attributes(name), do: Map.get(@attribute_registry, name, [])
+
+  @doc """
+  Allowlist gate: is runtime key `runtime_key` registered for semconv name
+  `name`? Pure, total, never raises. Fail-closed.
+  """
+  @spec attribute_allowed?(term(), term()) :: boolean()
+  def attribute_allowed?(name, runtime_key) when is_binary(name) and is_atom(runtime_key) do
+    name
+    |> attributes()
+    |> Enum.any?(&(&1.runtime == runtime_key))
+  end
+
+  def attribute_allowed?(_, _), do: false
+
+  # -- OTEL→OCEL field mapping (otel-weaver-ocel-pack, projected onto smalt) -------
+
+  @typedoc "One OTEL→OCEL mapping rule (the pack's MappingRule shape, Elixir-ized)."
+  @type mapping_rule :: %{
+          required(:order) => pos_integer(),
+          required(:identifier) => String.t(),
+          required(:source_field) => String.t(),
+          required(:target_field) => String.t(),
+          required(:derivation) => String.t()
+        }
+
+  @otel_to_ocel_rules [
+<%= for {r, ri} <- Enum.with_index(rules) do %>    %{
+      order: <%= r["order"] %>,
+      identifier: <%= inspect(r["identifier"]) %>,
+      source_field: <%= inspect(r["sourceField"]) %>,
+      target_field: <%= inspect(r["targetField"]) %>,
+      derivation: <%= inspect(r["derivation"]) %>
+    }<%= if ri < length(rules) - 1, do: "," %>
+<% end %>  ]
+
+  @doc """
+  The otel-weaver-ocel-pack's OTEL→OCEL field-mapping rules projected onto
+  smalt's `Smalt.Telemetry.OcelEmitter` surface. Conformance notes:
+  `docs/PACK_INTEGRATION/otel-weaver.md`.
+  """
+  @spec otel_to_ocel_rules() :: [mapping_rule()]
+  def otel_to_ocel_rules, do: @otel_to_ocel_rules
+end

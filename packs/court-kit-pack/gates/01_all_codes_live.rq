@@ -1,0 +1,19 @@
+# MESSAGE: KAT gate — register totality vs observed triggers.
+# Any row returned = a registered refusal code with NO witnessed firing:
+# the row exists in the register graph but carries no ck:observedTrigger
+# receipt. Fail-closed: an unproven code may not ship in the rendered enum
+# or the twin-court KATs.
+#
+# This is the pack's one-command value proposition, executable half of
+# `ggen sync run && cargo test`: cargo test passes only if every registered
+# code was observed firing, because the generated KAT for an unobserved row
+# cannot be discharged against a real trigger.
+PREFIX ck: <urn:court-kit:>
+
+SELECT ?code ?token ?violation WHERE {
+  ?code a ck:RefusalCode ;
+        ck:token ?token .
+  OPTIONAL { ?code ck:observedTrigger ?obs }
+  FILTER(!BOUND(?obs))
+  BIND("registered refusal code without a witnessed firing (no ck:observedTrigger) — KAT cannot be discharged" AS ?violation)
+}

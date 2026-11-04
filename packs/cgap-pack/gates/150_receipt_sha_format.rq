@@ -1,0 +1,18 @@
+# 150_receipt_sha_format — format gate for p:Receipt individuals.
+# Violation (a row is a refusal): p:receiptSha256 that does not match
+# ^[0-9a-f]{64}$  OR  a p:Receipt lacking any of the four required properties
+# (receiptFile, receiptSha256, receiptStanding, receiptLane).
+# Anti-vacuity mutation: shorten any p:receiptSha256 to 63 chars — gate must
+# fire. Flip witnessed by witnesses/fail/150_receipt_sha_format.ttl.
+PREFIX p: <https://seanchatmangpt.github.io/packs/cgap-pack#>
+SELECT ?r WHERE {
+  ?r a p:Receipt .
+  FILTER NOT EXISTS {
+    ?r p:receiptFile ?f ;
+       p:receiptSha256 ?sha ;
+       p:receiptStanding ?s ;
+       p:receiptLane ?l .
+    FILTER (REGEX(STR(?sha), "^[0-9a-f]{64}$"))
+  }
+}
+ORDER BY ?r

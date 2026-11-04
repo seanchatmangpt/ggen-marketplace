@@ -1,0 +1,32 @@
+# semconv-coverage.unbound.rq — inverted coverage gate: MUST return zero
+# rows on the live ontology. A row = a malformed/rowless name (a
+# smaltv:SemConvEvent missing name/kind/stability/brief/order — an
+# individual that cannot render), OR an attribute row bound to a name with
+# no SemConvEvent individual (the "every YAML event has a row" left
+# direction: every allowlist entry's event exists in the graph).
+#
+# Non-vacuity contract: dropping any of the three clauses drops its
+# contribution to 0 rows; the gate FIRES on a mutated pack copy (drop a
+# required property or orphan an attribute) — a gate that cannot fire is
+# the failure, not a pass. Fenced by test/semconv_replay_identity_test.exs.
+PREFIX smaltv: <https://ggen.io/ontology/smalt-semconv#>
+
+SELECT ?subject WHERE {
+  {
+    ?subject a smaltv:SemConvEvent .
+    FILTER NOT EXISTS { ?subject smaltv:name ?n }
+  }
+  UNION
+  {
+    ?subject a smaltv:SemConvEvent .
+    FILTER NOT EXISTS { ?subject smaltv:stability ?s }
+  }
+  UNION
+  {
+    ?subject a smaltv:SemConvAttribute ;
+             smaltv:forName ?forName .
+    FILTER NOT EXISTS {
+      ?e a smaltv:SemConvEvent ; smaltv:name ?forName .
+    }
+  }
+}

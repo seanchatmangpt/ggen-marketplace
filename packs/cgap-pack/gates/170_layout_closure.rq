@@ -1,0 +1,21 @@
+# MESSAGE: ArrayKind layout spec with non-positive bufferCount or non-power-of-2 alignment.
+# Every p:ArrayKind individual (the ArrayKindSpec surface the import module
+# renders) must carry av:bufferCount > 0 and p:kindAlignment that is a power
+# of 2 (a & (a-1) == 0, a > 0) — the Arrow buffer-geometry law.
+# A row = refusal. Anti-vacuity: zero a kind's bufferCount or set its
+# alignment to 48 — the gate must fire.
+PREFIX av: <https://cgap.chatmangpt.com/>
+PREFIX p: <https://seanchatmangpt.github.io/packs/cgap-pack#>
+SELECT ?kind ?problem WHERE {
+  ?kind a p:ArrayKind ; p:kindLabel ?label .
+  OPTIONAL { ?kind av:bufferCount ?b }
+  OPTIONAL { ?kind p:kindAlignment ?a }
+  BIND(COALESCE(?b, -1) AS ?bufs)
+  BIND(COALESCE(?a, -1) AS ?align)
+  FILTER(
+    ?bufs <= 0 ||
+    ?align <= 0 ||
+    ((?align & (?align - 1)) != 0)
+  )
+  BIND(CONCAT(STR(?label), ": bufferCount=", STR(?bufs), " alignment=", STR(?align)) AS ?problem)
+} ORDER BY ?problem

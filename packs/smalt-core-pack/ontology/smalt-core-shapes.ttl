@@ -1,0 +1,185 @@
+# shapes/smalt-core-shapes.ttl — admission-shape vendoring lane.
+#
+# Source of truth: /Users/sac/smalt/priv/ontologies/public-cloud-core.ttl
+# (operator's four SHACL admission shapes), carried here VERBATIM except ONE
+# reconciliation directed by the coordinator 2026-10-30 under the
+# zero-custom-namespace law:
+#   org:organizationalUnit -> dcterms:isPartOf   (that property does not exist
+#   in W3C ORG; renamed to the cleanest ratified tenancy-containment term,
+#   never minted). Full ledger: PACK-NOTES.md. sec:digest is a historical term
+#   of the w3id security vocabulary, dropped from its current publication; it
+#   is declared with provenance in ontology/security.ttl (marked LOCAL
+#   EXTENSION block; ../vendor/security-terms.ttl cited here previously does
+#   not exist — SA-15 correction 2026-11-03).
+# SA-15 2026-11-03: tosca: prefix rebound from http://docs.oasis-open.org/
+# tosca/ns/simple/yaml/1.3/ to the SODALITE base https://www.sodalite.eu/
+# ontologies/tosca/ — the vendored ontology declares classes/properties at the
+# SODALITE base; the OASIS-prefix IRIs (tosca:tosca.nodes.Root,
+# tosca:artifacts, ...) resolved to NOTHING (term-closure gate caught all 5).
+# OASIS publishes no RDF, so the docs.oasis-open.org namespace has no
+# declarations to point at.
+@prefix tosca:   <https://www.sodalite.eu/ontologies/tosca/> .
+@prefix kmip:    <http://docs.oasis-open.org/kmip/ns/v1.4#> .
+@prefix acl:     <http://www.w3.org/ns/auth/acl#> .
+@prefix rbac:    <http://csrc.nist.gov/ns/rbac#> .
+@prefix sec:     <https://w3id.org/security#> .
+@prefix org:     <http://www.w3.org/ns/org#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix sh:      <http://www.w3.org/ns/shacl#> .
+
+# =============================================================================
+# NORMATIVE SHACL ADMISSION SHAPES (CLOSED-WORLD ENFORCEMENT)
+# =============================================================================
+
+# 1. Containerized Workload Admission Gate
+# Grounded in OASIS TOSCA Container.Application & W3ID Security Receipts
+tosca:ContainerApplicationShape
+    a sh:NodeShape ;
+    sh:targetClass tosca:tosca.nodes.Container.Application ;
+    sh:closed true ;
+    sh:ignoredProperties ( rdf:type ) ;
+    sh:property [
+        sh:path dcterms:identifier ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+    ] ;
+    sh:property [
+        sh:path dcterms:isPartOf ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:pattern "^[a-z0-9\\-]+$" ;
+    ] ;
+    sh:property [
+        sh:path tosca:artifacts ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+    ] ;
+    sh:property [
+        sh:path tosca:requirements ;
+        sh:class tosca:tosca.nodes.Root ;
+    ] ;
+    sh:property [
+        sh:path sec:digest ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:minLength 64 ;
+        sh:maxLength 64 ;
+    ] .
+
+# 2. Object Storage Container / Bucket Admission Gate
+# Grounded in TOSCA Storage.ObjectStorage, CIMI Volumes, and Dublin Core
+tosca:ObjectStorageShape
+    a sh:NodeShape ;
+    sh:targetClass tosca:tosca.nodes.Storage.ObjectStorage ;
+    sh:closed true ;
+    sh:ignoredProperties ( rdf:type ) ;
+    sh:property [
+        sh:path dcterms:identifier ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+    ] ;
+    sh:property [
+        sh:path dcterms:isPartOf ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+    ] ;
+    sh:property [
+        sh:path dcterms:temporal ;
+        sh:datatype xsd:integer ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:minInclusive 1 ;
+        sh:maxInclusive 3650 ;
+    ] ;
+    sh:property [
+        sh:path sec:digest ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:minLength 64 ;
+        sh:maxLength 64 ;
+    ] .
+
+# 3. Cryptographic Key & Secret Boundary Gate
+# Grounded in OASIS KMIP ManagedObject & SecretData
+kmip:ManagedSecretShape
+    a sh:NodeShape ;
+    sh:targetClass kmip:SecretData ;
+    sh:closed true ;
+    sh:ignoredProperties ( rdf:type ) ;
+    sh:property [
+        sh:path dcterms:identifier ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+    ] ;
+    sh:property [
+        sh:path dcterms:isPartOf ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+    ] ;
+    sh:property [
+        sh:path kmip:state ;
+        sh:datatype xsd:string ;
+        sh:in ( "Active" "PreActive" "Deactivated" "Destroyed" ) ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+    ] ;
+    sh:property [
+        sh:path sec:digest ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:minLength 64 ;
+        sh:maxLength 64 ;
+    ] .
+
+# 4. Access Authorization & Role Binding Gate
+# Grounded in W3C WebAccessControl and NIST RBAC
+acl:AuthorizationShape
+    a sh:NodeShape ;
+    sh:targetClass acl:Authorization ;
+    sh:closed true ;
+    sh:ignoredProperties ( rdf:type ) ;
+    sh:property [
+        sh:path acl:agent ;
+        sh:class rbac:Subject ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+    ] ;
+    sh:property [
+        sh:path rbac:role ;
+        sh:class rbac:Role ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+    ] ;
+    sh:property [
+        sh:path acl:accessTo ;
+        sh:class tosca:tosca.nodes.Root ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+    ] ;
+    sh:property [
+        sh:path acl:mode ;
+        sh:class acl:Mode ;
+        sh:minCount 1 ;
+    ] ;
+    sh:property [
+        sh:path sec:digest ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:minLength 64 ;
+        sh:maxLength 64 ;
+    ] .

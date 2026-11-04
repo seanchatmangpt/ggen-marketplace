@@ -1,0 +1,23 @@
+# Verify 020 (offender-reporting: ZERO rows PASS, >= 1 row FAIL).
+# Inverted companion for gates/020_capability_surface.rq: names every
+# source class whose capabilityId projection is unusable — a census
+# class whose IRI ends in the delimiter, so REPLACE("^.*/", "") derives
+# an EMPTY local name and the generated sj:capabilityId would be ""
+# (regex updated to the shared "^.*[#/]" local-name derivation).
+PREFIX rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX owl:  <http://www.w3.org/2002/07/owl#>
+
+SELECT ?subject WHERE {
+  { ?subject a rdfs:Class } UNION { ?subject a owl:Class }
+  FILTER(
+    !STRSTARTS(STR(?subject), "http://www.w3.org/1999/02/22-rdf-syntax-ns#") &&
+    !STRSTARTS(STR(?subject), "http://www.w3.org/2000/01/rdf-schema#") &&
+    !STRSTARTS(STR(?subject), "http://www.w3.org/2002/07/owl#") &&
+    !STRSTARTS(STR(?subject), "http://www.w3.org/2001/XMLSchema#") &&
+    !STRSTARTS(STR(?subject), "http://www.w3.org/ns/shacl#") &&
+    !STRSTARTS(STR(?subject), "https://ggen.dev/ontology/pack-bootstrap#")
+  )
+  FILTER(STRLEN(REPLACE(STR(?subject), "^.*[#/]", "")) = 0)
+}
+ORDER BY ?subject

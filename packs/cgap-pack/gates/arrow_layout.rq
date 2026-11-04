@@ -1,0 +1,26 @@
+# MESSAGE: import primitive missing its signature or error-mapping facts.
+# Every p:ImportFn must carry p:fnSignature AND p:fnErrorMapping; every
+# p:ArrayKind must carry format code, buffer count, slot widths, and
+# alignment; every p:BitTestLaw must carry its expression. A row = refusal.
+# Anti-vacuity: strip p:fnErrorMapping from any import fn — the gate must fire.
+PREFIX av: <https://cgap.chatmangpt.com/>
+PREFIX p: <https://seanchatmangpt.github.io/packs/cgap-pack#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+SELECT ?name WHERE {
+  {
+    ?fn rdf:type p:ImportFn .
+    BIND(STR(?fn) AS ?name)
+    FILTER NOT EXISTS { ?fn p:fnSignature ?sig ; p:fnErrorMapping ?errs }
+  } UNION {
+    ?k rdf:type p:ArrayKind .
+    BIND(STR(?k) AS ?name)
+    FILTER NOT EXISTS {
+      ?k av:formatCode ?f ; av:bufferCount ?b ; p:kindSlotWidths ?w ; p:kindAlignment ?a .
+    }
+  } UNION {
+    ?law rdf:type p:BitTestLaw .
+    BIND(STR(?law) AS ?name)
+    FILTER NOT EXISTS { ?law p:lawExpression ?e }
+  }
+}
+ORDER BY ?name

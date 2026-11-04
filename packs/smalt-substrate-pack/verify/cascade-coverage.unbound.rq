@@ -1,0 +1,40 @@
+# cascade-coverage.unbound.rq — cascade fence (W2a): MUST return zero rows.
+#
+# Arm A (referential integrity): a smalt:CascadeEdge whose childTable
+# does NOT resolve to a smalt:StoreTable individual (no smalt:tableName)
+# — a typo'd or dangling sweep target.
+#
+# Arm B (coverage): a StoreTable declared sweepStrategy="cascade" that
+# NO CascadeEdge references — a cascade-owned table with no declared
+# teardown edge. (ENGINE CONSTRAINT, measured: FILTER NOT EXISTS parses
+# but matches every row silently in this graphlaw build — same class as
+# the property-path constraint in queries/cascade_sweep.rq — so arm B
+# uses OPTIONAL + !bound, proven by the mutated-ontology leg of
+# test/cascade_replay_identity_test.exs.)
+#
+# The lib/-side complement (every table the hand-written paths sweep has
+# an edge row) is fenced by test/cascade_replay_identity_test.exs.
+# Non-vacuity: dropping a CascadeEdge individual fires arm B (>= 1 row);
+# renaming a childTable IRI fires arm A.
+PREFIX smalt: <https://ggen.io/ontology/smalt#>
+
+SELECT ?table WHERE {
+  {
+    ?ce a smalt:CascadeEdge ;
+        smalt:childTable ?ct .
+    OPTIONAL {
+      ?ct smalt:tableName ?tn .
+    }
+    FILTER (!bound(?tn))
+  }
+  UNION
+  {
+    ?table a smalt:StoreTable ;
+           smalt:sweepStrategy "cascade" .
+    OPTIONAL {
+      ?ce2 a smalt:CascadeEdge ;
+           smalt:childTable ?table .
+    }
+    FILTER (!bound(?ce2))
+  }
+}

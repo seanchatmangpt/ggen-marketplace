@@ -9,6 +9,18 @@
 // Rendered by ggen (rust-wasi-wasmex-pack) from the wja: graph.
 // Edit the ontology and re-render; never edit this file by hand.
 //
+// SIDE-TABLE CONTRACT (pack law): the guest never supplies layout facts. Every
+// buffer this module hands the host is registered in `LIVE` at publish time —
+// key = raw pointer, value = (real `capacity()`, initialized `length`,
+// host-visible `declared` length, byte `budget`). Every guest `(ptr, len)` is
+// looked up by handle before any reconstruction; a buffer is rebuilt only from
+// the recorded capacity, and only when the host length equals the declared
+// length. Unknown pointers, mismatched lengths, and a second free never
+// rebuild a `Vec`: they yield typed error responses (or no-ops), never UB.
+// A re-render must keep this table; `Vec::from_raw_parts(ptr, len, len.max(1))`
+// — trusting the host length as capacity — is undefined behavior and is
+// banned from the generated output.
+//
 // Protocol (ABI version {{ abi_version }}, request limit {{ max_request_bytes }} bytes; all
 // integers are wasm `i32`/`i64`):
 // 1. `{{ export_prefix }}_alloc{{ symbol_suffix }}(len) -> ptr`: host reserves `len` bytes and writes a UTF-8
@@ -21,24 +33,18 @@
 //    `{{ export_prefix }}_free{{ symbol_suffix }}(out_ptr, out_len)`{% if input_release_policy == "host-dealloc" %}, and releases the request buffer with
 //    `{{ export_prefix }}_dealloc{{ symbol_suffix }}(ptr, len)` (same `len` as alloc){% endif %}.
 //
-// A null request pointer or an oversize length never traps: the call returns a
-// typed error response built by the safe core.
+// A null request pointer, an unknown pointer, a length that is not the one
+// this module handed out, or an oversize length never traps: the call returns
+// a typed error response built by the safe core. A second free is a no-op.
 //
 // Contract with the hand-written safe core (`{{ abi_path }}`):
 //   pub fn {{ call_hook }}(request: &[u8]) -> Vec<u8>
 //   pub fn limit_response(name: &str, observed: usize, max: usize) -> Vec<u8>
 //   pub fn missing_buffer_response() -> Vec<u8>
+//   pub fn unknown_buffer_response() -> Vec<u8>
 // and with the generated `crate::abi_meta`: {% if has_abi_version_export == "true" %}`ABI_VERSION: u32`,
 // {% endif %}`MAX_REQUEST_BYTES: usize`{% if max_outstanding_bytes != "" %}, `MAX_OUTSTANDING_BYTES: usize`{% endif %}.
 //
-{%- if buffer_style == "vec" %}
-// Allocation discipline: every buffer crossing the boundary is a `Vec<u8>` of capacity
-// `len.max(1)` (responses are shrunk to capacity == length), so `_free` / `_call`
-// reconstruct the exact allocation with `Vec::from_raw_parts`.
-{%- else %}
-// Allocation discipline: every buffer crossing the boundary is a `Box<[u8]>` of
-// length `len.max(1)`, so `_free` / `_call` reconstruct the exact allocation.
-{%- endif %}
 {%- if max_outstanding_bytes != "" %}
 // Outstanding-byte cap: bytes handed to the host (`_alloc` buffers and `_call` responses)
 // and not yet freed are counted; `_alloc` returns null once a reservation would exceed
@@ -60,7 +66,12 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 
 /// Bytes handed to the host (`_alloc` buffers and `_call` responses) and not yet freed.
 static OUTSTANDING: AtomicUsize = AtomicUsize::new(0);
+{%- endif %}
 
+use std::collections::BTreeMap;
+use std::sync::Mutex;
+
+{% if max_outstanding_bytes != "" -%}
 /// Reserve `bytes` against the outstanding cap; false when the cap would be exceeded.
 fn reserve(bytes: usize) -> bool {
     OUTSTANDING
@@ -76,95 +87,158 @@ fn release(bytes: usize) {
         Some(n.saturating_sub(bytes))
     });
 }
-{%- endif %}
-{%- if buffer_style == "vec" %}
+{%- else %}
+/// No outstanding-byte cap is configured; reservations always succeed.
+fn reserve(_bytes: usize) -> bool {
+    true
+}
 
-/// Leak a vec buffer to the host as a raw pointer.
-fn into_raw(mut buf: Vec<u8>) -> *mut u8 {
+/// No outstanding-byte cap is configured; releases are no-ops.
+fn release(_bytes: usize) {}
+{%- endif %}
+
+/// Live host-owned buffers: the bounds-checked side table. The key is the
+/// leaked buffer pointer.
+/// Absent on purpose from the ABI: the host only round-trips `(ptr, len)`.
+static LIVE: Mutex<BTreeMap<usize, Slot>> = Mutex::new(BTreeMap::new());
+
+/// One buffer this module handed the host.
+struct Slot {
+    /// `Vec::capacity()` at [`publish`]. This is the only layout any
+    /// reconstruction may use.
+    capacity: usize,
+    /// Initialized prefix. Allocations are zero-filled, so this is at least 1.
+    length: usize,
+    /// Length the host must pass back (`_alloc`'s argument, or the response length).
+    declared: u32,
+    /// Bytes reserved against the outstanding cap.
+    budget: usize,
+}
+
+fn live() -> std::sync::MutexGuard<'static, BTreeMap<usize, Slot>> {
+    LIVE.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// Record `buf` in the side table and leak it to the host.
+/// `buf` must be non-empty and initialized.
+fn publish(mut buf: Vec<u8>, declared: u32, budget: usize) -> *mut u8 {
+    let length = buf.len();
+    let capacity = buf.capacity();
+    debug_assert!(length > 0 && capacity >= length);
     let ptr = buf.as_mut_ptr();
     core::mem::forget(buf);
+    live().insert(
+        ptr as usize,
+        Slot {
+            capacity,
+            length,
+            declared,
+            budget,
+        },
+    );
     ptr
 }
 
-/// Reclaim a buffer previously produced by [`into_raw`].
-///
-/// # Safety
-/// `ptr` must come from this module and `len` must be the length that was
-/// requested / returned for it; each pair may be reclaimed exactly once.
-unsafe fn from_raw(ptr: *mut u8, len: u32) -> Vec<u8> {
-    let n = (len as usize).max(1);
-    // SAFETY: caller guarantees ptr/len describe a live allocation of capacity `n`.
-    unsafe { Vec::from_raw_parts(ptr, len as usize, n) }
+/// Why a guest `(ptr, len)` was rejected by the side table.
+enum Reject {
+    /// Null pointer. The caller answers with [`{{ abi_path }}::missing_buffer_response`].
+    Missing,
+    /// Not a pointer this module currently owns (forged, or already reclaimed).
+    Unknown,
+    /// The pointer is live, but `len` is not the declared length. Left in the table.
+    Len,
 }
 
-/// Reserve a buffer of capacity `len.max(1)`; null when `len` exceeds the request limit
+struct Taken {
+    buf: Vec<u8>,
+    budget: usize,
+}
+
+/// Take a live buffer back through the side table. A length mismatch or an
+/// unknown pointer leaves the allocation exactly where it is.
+fn reclaim(ptr: *mut u8, len: u32) -> Result<Taken, Reject> {
+    if ptr.is_null() {
+        return Err(Reject::Missing);
+    }
+    let mut map = live();
+    let key = ptr as usize;
+    let Some(slot) = map.get(&key) else {
+        return Err(Reject::Unknown);
+    };
+    if slot.declared != len {
+        return Err(Reject::Len);
+    }
+    let slot = map.remove(&key).expect("key was just present");
+    // SAFETY: `ptr`, `length`, and `capacity` were recorded by `publish` from
+    // this exact `Vec`; `length` bytes were initialized before the leak
+    // (zero-filled `_alloc` buffers, or a response `Vec` built in safe code).
+    // The map entry is gone, so a second reclaim cannot rebuild the same
+    // allocation.
+    let buf = unsafe { Vec::from_raw_parts(ptr, slot.length, slot.capacity) };
+    Ok(Taken {
+        buf,
+        budget: slot.budget,
+    })
+}
+
+{%- if buffer_style == "vec" %}
+/// Reserve a zero-filled buffer of length `len.max(1)`.
+/// Null when `len` exceeds the request limit
 {%- if max_outstanding_bytes != "" %} or the reservation would exceed the outstanding cap{% endif %}.
 pub fn alloc_buf(len: u32) -> *mut u8 {
     if len as usize > MAX_REQUEST_BYTES {
         return core::ptr::null_mut();
     }
-{%- if max_outstanding_bytes != "" %}
-    // A host that allocates and never frees must not be able to fill linear memory.
-    if !reserve((len as usize).max(1)) {
+    let n = (len as usize).max(1);
+    if !reserve(n) {
         return core::ptr::null_mut();
     }
-{%- endif %}
-    into_raw(Vec::with_capacity((len as usize).max(1)))
+    // Zero-fill so the bytes are initialized even if the host never writes.
+    // `capacity()` may exceed `n`; `publish` records the real value.
+    publish(vec![0u8; n], len, n)
 }
 {%- else %}
-
-/// Leak a boxed buffer to the host as a raw pointer.
-fn into_raw(buf: Box<[u8]>) -> *mut u8 {
-    Box::into_raw(buf) as *mut u8
-}
-
-/// Reclaim a buffer previously produced by [`into_raw`].
-///
-/// # Safety
-/// `ptr` must come from this module and `len` must be the length that was
-/// requested / returned for it; each pair may be reclaimed exactly once.
-unsafe fn from_raw(ptr: *mut u8, len: u32) -> Box<[u8]> {
-    let n = (len as usize).max(1);
-    // SAFETY: caller guarantees ptr/len describe a live allocation of `n` bytes.
-    unsafe { Box::from_raw(core::ptr::slice_from_raw_parts_mut(ptr, n)) }
-}
-
-/// Reserve `len` zeroed bytes; null when `len` exceeds the request limit
+/// Reserve a zero-filled buffer of length `len.max(1)` with capacity exactly
+/// `len.max(1)`. Null when `len` exceeds the request limit
 {%- if max_outstanding_bytes != "" %} or the reservation would exceed the outstanding cap{% endif %}.
-pub fn alloc_buf(len: u32) -> *mut u8 {
-    if len as usize > MAX_REQUEST_BYTES {
+pub fn alloc_buf(alloc_len: u32) -> *mut u8 {
+    if alloc_len as usize > MAX_REQUEST_BYTES {
         return core::ptr::null_mut();
     }
-{%- if max_outstanding_bytes != "" %}
-    // A host that allocates and never frees must not be able to fill linear memory.
-    if !reserve((len as usize).max(1)) {
+    let n = (alloc_len as usize).max(1);
+    if !reserve(n) {
         return core::ptr::null_mut();
     }
-{%- endif %}
-    into_raw(vec![0u8; (len as usize).max(1)].into_boxed_slice())
+    // Zero-fill so the bytes are initialized even if the host never writes.
+    let mut buf = vec![0u8; n];
+    // Capacity must equal length so the slot's recorded layout is exact.
+    buf.shrink_to_fit();
+    publish(buf, alloc_len, n)
 }
 {%- endif %}
 
 /// Release a buffer {% if input_release_policy == "call-consumes" %}obtained from [`alloc_buf`] or returned by [`call_buf`].{% else %}pair handed out by this module (a request buffer from [`alloc_buf`] or a response buffer from a call).{% endif %}
 ///
+/// Unknown pointers and mismatched lengths do not rebuild a `Vec`.
+///
 /// # Safety
-/// `ptr`/`len` must be exactly a pair previously handed out by this module.
+/// Safe against a hostile `(ptr, len)`. A correct host passes a pair this
+/// module handed out, once.
 pub unsafe fn free_buf(ptr: *mut u8, len: u32) {
-    if !ptr.is_null() {
-{%- if max_outstanding_bytes != "" %}
-        release((len as usize).max(1));
-{%- endif %}
-        // SAFETY: forwarded caller contract.
-        drop(unsafe { from_raw(ptr, len) });
+    if let Ok(taken) = reclaim(ptr, len) {
+        release(taken.budget);
+        drop(taken.buf);
     }
 }
 
-{% if input_release_policy == "call-consumes" %}/// Run one request buffer and return the JSON response bytes. Null pointers and
-/// oversize lengths yield typed error responses; the request buffer is consumed
-/// only when it is a buffer this module could have handed out.
+{% if input_release_policy == "call-consumes" %}/// Run one request buffer and return the JSON response bytes.
+///
+/// Null, unknown, mismatched, and oversize inputs yield typed error responses.
+/// The request buffer is consumed only when it is a live allocation whose
+/// declared length is `len`.
 ///
 /// # Safety
-/// `ptr`/`len` must describe a buffer from [`alloc_buf`] filled by the host.
+/// Safe against a hostile `(ptr, len)`. See [`free_buf`].
 pub unsafe fn call_buf(ptr: *mut u8, len: u32) -> Vec<u8> {
     let response = if ptr.is_null() {
         {{ abi_path }}::missing_buffer_response()
@@ -172,64 +246,79 @@ pub unsafe fn call_buf(ptr: *mut u8, len: u32) -> Vec<u8> {
         // Not a buffer this module could have handed out; do not reconstruct it.
         {{ abi_path }}::limit_response("request_bytes", len as usize, MAX_REQUEST_BYTES)
     } else {
-        // SAFETY: forwarded caller contract; len <= MAX_REQUEST_BYTES.
-        let request = unsafe { from_raw(ptr, len) };
-{%- if buffer_style == "vec" %}
-        let response = {{ abi_path }}::{{ call_hook }}(&request);
-{%- else %}
-        let response = {{ abi_path }}::call(&request[..len as usize]);
-{%- endif %}
-        drop(request);
-{%- if max_outstanding_bytes != "" %}
-        release((len as usize).max(1));
-{%- endif %}
-        response
+        match reclaim(ptr, len) {
+            Ok(taken) => {
+                let usable = (len as usize).min(taken.buf.len());
+                let response = {{ abi_path }}::{{ call_hook }}(&taken.buf[..usable]);
+                drop(taken.buf);
+                release(taken.budget);
+                response
+            }
+            Err(Reject::Missing) => {{ abi_path }}::missing_buffer_response(),
+            Err(Reject::Unknown | Reject::Len) => {{ abi_path }}::unknown_buffer_response(),
+        }
     };
     if response.is_empty() {
 {%- if empty_response_policy == "substitute-empty-object" %}
         // Keep len >= 1 so the host's free reclaims the exact allocation.
-        return b"{}".to_vec();
+        b"{}".to_vec()
+    } else {
+        response
     }
-    response
 {%- else %}
         // The `{{ empty_response_policy }}` empty-response policy is not implemented
-        // by this shell: a zero-length response cannot round-trip the boxed/vec free
-        // contract (capacity>=1 reconstruction from a len-0 response is UB), so the
-        // generated crate refuses to compile rather than silently substitute.
-        compile_error!("unsupported empty_response_policy: only substitute-empty-object is sound under the boxed/vec free contract");
+        // by this shell: a zero-length response cannot round-trip the side-table
+        // free contract (a zero-length response cannot be handed out and freed
+        // through the declared-length table), so the generated crate refuses to
+        // compile rather than silently substitute.
+        compile_error!("unsupported empty_response_policy: only substitute-empty-object is sound under the side-table contract");
     }
     response
 {%- endif %}
 }
 {% else %}/// Run one borrowed request buffer and return the JSON response bytes. The
-/// host owns the input buffer, so this only reads through `ptr` and never
-/// reconstructs or frees it. Null pointers and oversize lengths yield typed
-/// error responses; releasing the input stays the host's job.
+/// host owns the input buffer, so this validates `(ptr, len)` against the side
+/// table, reads only the recorded initialized length, and never reconstructs
+/// or frees it. Null, unknown, and oversize inputs yield typed error
+/// responses; releasing the input stays the host's job.
 ///
 /// # Safety
-/// `ptr`/`len` must describe a host-owned readable buffer of `len` bytes.
+/// Safe against a hostile `(ptr, len)`. See [`free_buf`].
 pub unsafe fn call_borrowed(ptr: *const u8, len: u32) -> Vec<u8> {
     let response = if ptr.is_null() {
         {{ abi_path }}::missing_buffer_response()
     } else if len as usize > MAX_REQUEST_BYTES {
         {{ abi_path }}::limit_response("request_bytes", len as usize, MAX_REQUEST_BYTES)
     } else {
-        // SAFETY: caller guarantees `len` readable bytes behind `ptr`.
-        let request = unsafe { core::slice::from_raw_parts(ptr, len as usize) };
-        {{ abi_path }}::call(request)
+        // Validate against the side table without removing the entry: the host
+        // still owns the buffer under `host-dealloc`.
+        let borrow = live()
+            .get(&(ptr as usize))
+            .filter(|slot| slot.declared == len)
+            .map(|slot| slot.length);
+        match borrow {
+            Some(length) => {
+                // SAFETY: `ptr` is a live side-table allocation whose first
+                // `length` bytes are initialized; the entry stays in the table.
+                let request = unsafe { core::slice::from_raw_parts(ptr, length) };
+                {{ abi_path }}::{{ call_hook }}(request)
+            }
+            None => {{ abi_path }}::unknown_buffer_response(),
+        }
     };
     if response.is_empty() {
 {%- if empty_response_policy == "substitute-empty-object" %}
         // Keep len >= 1 so the host's free reclaims the exact allocation.
-        return b"{}".to_vec();
+        b"{}".to_vec()
+    } else {
+        response
     }
-    response
 {%- else %}
         // The `{{ empty_response_policy }}` empty-response policy is not implemented
-        // by this shell: a zero-length response cannot round-trip the boxed/vec free
-        // contract (capacity>=1 reconstruction from a len-0 response is UB), so the
-        // generated crate refuses to compile rather than silently substitute.
-        compile_error!("unsupported empty_response_policy: only substitute-empty-object is sound under the boxed/vec free contract");
+        // by this shell: a zero-length response cannot round-trip the side-table
+        // free contract, so the generated crate refuses to compile rather than
+        // silently substitute.
+        compile_error!("unsupported empty_response_policy: only substitute-empty-object is sound under the side-table contract");
     }
     response
 {%- endif %}
@@ -237,38 +326,77 @@ pub unsafe fn call_borrowed(ptr: *const u8, len: u32) -> Vec<u8> {
 {% endif %}
 {% if return_convention == "packed-u64" %}/// Hand a response to the host; returns `(out_ptr << 32) | out_len`.
 fn pack_response(response: Vec<u8>) -> u64 {
-    let out_len = response.len() as u64;
-{%- if max_outstanding_bytes != "" %}
-    // The response is now host-owned until `_free`; count it (never zero-sized here).
-    OUTSTANDING.fetch_add(response.len().max(1), Ordering::Relaxed);
-{%- endif %}
-{%- if buffer_style == "vec" %}
-    let mut response = response;
-    // Capacity must equal length so `_free` can reconstruct the allocation.
-    response.shrink_to_fit();
-    let out_ptr = into_raw(response) as usize as u64;
+    let response = if response.is_empty() {
+{%- if empty_response_policy == "substitute-empty-object" %}
+        b"{}".to_vec()
 {%- else %}
-    let out_ptr = into_raw(response.into_boxed_slice()) as usize as u64;
+        compile_error!("unsupported empty_response_policy: only substitute-empty-object is sound under the side-table contract");
 {%- endif %}
-    (out_ptr << 32) | out_len
+    } else {
+        response
+    };
+    let budget = response.len().max(1);
+    if reserve(budget) {
+        return publish_response(response, budget);
+    }
+    // The response itself would exceed the outstanding cap. Hand back a small
+    // typed limit error, counted when it fits.
+    let err = {{ abi_path }}::limit_response(
+        "outstanding_bytes",
+        budget,
+        MAX_OUTSTANDING_BYTES,
+    );
+    let err_budget = err.len().max(1);
+    if reserve(err_budget) {
+        return publish_response(err, err_budget);
+    }
+    // The cap is already saturated. Track the error buffer with a zero budget
+    // so `_free` is still defined, without wrapping the counter.
+    publish_response(err, 0)
+}
+
+fn publish_response(response: Vec<u8>, budget: usize) -> u64 {
+    let declared = u32::try_from(response.len()).unwrap_or(u32::MAX);
+    let ptr = publish(response, declared, budget);
+    ((ptr as usize as u64) << 32) | u64::from(declared)
 }
 {%- endif %}{% if return_convention == "out-len-pointer" %}/// Hand a response to the host through the out-len pointer: the response
 /// length is written through `out_len` and the response buffer pointer is
 /// returned directly.
 fn hand_response(response: Vec<u8>, out_len: *mut usize) -> *mut u8 {
+    let response = if response.is_empty() {
+{%- if empty_response_policy == "substitute-empty-object" %}
+        b"{}".to_vec()
+{%- else %}
+        compile_error!("unsupported empty_response_policy: only substitute-empty-object is sound under the side-table contract");
+{%- endif %}
+    } else {
+        response
+    };
+    let budget = response.len().max(1);
+    let ptr = if reserve(budget) {
+        publish(response, declared_len(budget), budget)
+    } else {
+        let err = {{ abi_path }}::limit_response("outstanding_bytes", budget, MAX_OUTSTANDING_BYTES);
+        let err_budget = err.len().max(1);
+        if reserve(err_budget) {
+            publish(err, declared_len(err_budget), err_budget)
+        } else {
+            publish(err, declared_len(err_budget), 0)
+        }
+    };
     if !out_len.is_null() {
         // SAFETY: `out_len` is the host-supplied response-length pointer
         // required by the ABI contract.
-        unsafe { *out_len = response.len() };
+        unsafe { *out_len = live().get(&(ptr as usize)).map(|s| s.length).unwrap_or(0) };
     }
-{%- if buffer_style == "vec" %}
-    let mut response = response;
-    // Capacity must equal length so `_free` can reconstruct the allocation.
-    response.shrink_to_fit();
-    into_raw(response)
-{%- else %}
-    into_raw(response.into_boxed_slice())
-{%- endif %}
+    ptr
+}
+
+/// `declared` is always the allocation's real length: the side table rejects
+/// any other host length.
+fn declared_len(len: usize) -> u32 {
+    u32::try_from(len).unwrap_or(u32::MAX)
 }
 {%- endif %}
 
@@ -296,7 +424,8 @@ pub extern "C" fn {{ export_prefix }}_alloc{{ symbol_suffix }}(len: u32) -> *mut
 /// Reading an input never frees it: releasing request buffers is the host's job.
 ///
 /// # Safety
-/// `ptr`/`len` must be exactly a pair previously handed out by this module.
+/// Safe against a hostile `(ptr, len)`. A correct host passes a pair this
+/// module handed out, once.
 #[cfg(target_arch = "wasm32")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn {{ export_prefix }}_dealloc{{ symbol_suffix }}(ptr: *mut u8, len: u32) {
@@ -307,7 +436,7 @@ pub unsafe extern "C" fn {{ export_prefix }}_dealloc{{ symbol_suffix }}(ptr: *mu
 /// Release a response buffer returned by `{{ export_prefix }}_call{{ symbol_suffix }}`.
 ///
 /// # Safety
-/// `ptr`/`len` must be exactly a pair previously handed out by this module.
+/// Safe against a hostile `(ptr, len)`. See [`free_buf`].
 #[cfg(target_arch = "wasm32")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn {{ export_prefix }}_free{{ symbol_suffix }}(ptr: *mut u8, len: u32) {
@@ -318,8 +447,12 @@ pub unsafe extern "C" fn {{ export_prefix }}_free{{ symbol_suffix }}(ptr: *mut u
 
 /// Release a buffer obtained from `{{ export_prefix }}_alloc{{ symbol_suffix }}` or returned by `{{ export_prefix }}_call{{ symbol_suffix }}`.
 ///
+/// A pointer this module does not own, or a length that is not the declared
+/// one, is ignored. That includes a second free.
+///
 /// # Safety
-/// `ptr`/`len` must be exactly a pair previously handed out by this module.
+/// Safe against a hostile `(ptr, len)`. A correct host passes a pair this
+/// module handed out, once.
 #[cfg(target_arch = "wasm32")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn {{ export_prefix }}_free{{ symbol_suffix }}(ptr: *mut u8, len: u32) {
@@ -330,23 +463,20 @@ pub unsafe extern "C" fn {{ export_prefix }}_free{{ symbol_suffix }}(ptr: *mut u
 {% if return_convention == "packed-u64" %}/// Execute one JSON request; returns `(out_ptr << 32) | out_len`.
 ///
 /// # Safety
-/// `ptr`/`len` must describe a buffer from `{{ export_prefix }}_alloc{{ symbol_suffix }}` filled by the host.
+/// Safe against a hostile `(ptr, len)`. A correct host passes a buffer from
+/// `{{ export_prefix }}_alloc{{ symbol_suffix }}` filled with the request, once. `{{ export_prefix }}_call{{ symbol_suffix }}` consumes that buffer.
 #[cfg(target_arch = "wasm32")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn {{ export_prefix }}_call{{ symbol_suffix }}(ptr: *mut u8, len: u32) -> u64 {
     // SAFETY: forwarded caller contract.
-{%- if input_release_policy == "call-consumes" %}
     pack_response(unsafe { call_buf(ptr, len) })
-{%- else %}
-    pack_response(unsafe { call_borrowed(ptr, len) })
-{%- endif %}
 }
-{% else %}/// Execute one JSON request; the response length is written through `out_len`
+{%- else %}/// Execute one JSON request; the response length is written through `out_len`
 /// and the response buffer pointer is returned.
 ///
 /// # Safety
-/// `ptr`/`len` must describe a buffer from `{{ export_prefix }}_alloc{{ symbol_suffix }}` filled by the host;
-/// `out_len` must be a writable `usize`.
+/// Safe against a hostile `(ptr, len)`. A correct host passes a buffer from
+/// `{{ export_prefix }}_alloc{{ symbol_suffix }}` filled with the request, once.
 #[cfg(target_arch = "wasm32")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn {{ export_prefix }}_call{{ symbol_suffix }}(ptr: *mut u8, len: u32, out_len: *mut usize) -> *mut u8 {
@@ -358,6 +488,11 @@ pub unsafe extern "C" fn {{ export_prefix }}_call{{ symbol_suffix }}(ptr: *mut u
 {%- endif %}
 }
 {% endif %}
+#[cfg(test)]
+fn is_live(ptr: *mut u8) -> bool {
+    live().contains_key(&(ptr as usize))
+}
+
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
@@ -372,7 +507,9 @@ mod tests {
         for len in [0u32, 1, 17] {
             let p = alloc_buf(len);
             assert!(!p.is_null());
+            assert!(is_live(p));
             unsafe { free_buf(p, len) };
+            assert!(!is_live(p));
         }
     }
 
@@ -380,22 +517,75 @@ mod tests {
     fn null_and_oversize_call_are_typed_not_traps() {
 {%- if input_release_policy == "call-consumes" %}
         let a = unsafe { call_buf(core::ptr::null_mut(), 0) };
-        assert!(!a.is_empty());
-        let b = unsafe { call_buf(core::ptr::dangling_mut::<u8>(), (MAX_REQUEST_BYTES as u32).saturating_add(1)) };
-        assert!(!b.is_empty());
+        assert_eq!(a, {{ abi_path }}::missing_buffer_response());
+        let oversized_len = (MAX_REQUEST_BYTES as u32).saturating_add(1);
+        let b = unsafe { call_buf(core::ptr::dangling_mut::<u8>(), oversized_len) };
+        assert_eq!(
+            b,
+            {{ abi_path }}::limit_response(
+                "request_bytes",
+                oversized_len as usize,
+                MAX_REQUEST_BYTES
+            )
+        );
 {%- else %}
         let a = unsafe { call_borrowed(core::ptr::null(), 0) };
-        assert!(!a.is_empty());
-        let b = unsafe { call_borrowed(core::ptr::dangling::<u8>(), (MAX_REQUEST_BYTES as u32).saturating_add(1)) };
-        assert!(!b.is_empty());
+        assert_eq!(a, {{ abi_path }}::missing_buffer_response());
+        let oversized_len = (MAX_REQUEST_BYTES as u32).saturating_add(1);
+        let b = unsafe { call_borrowed(core::ptr::dangling::<u8>(), oversized_len) };
+        assert_eq!(
+            b,
+            {{ abi_path }}::limit_response(
+                "request_bytes",
+                oversized_len as usize,
+                MAX_REQUEST_BYTES
+            )
+        );
 {%- endif %}
     }
-
-{%- if has_abi_version_export == "true" %}
 
     #[test]
-    fn abi_version_is_nonzero() {
-        const { assert!(ABI_VERSION >= 1) };
+    fn unknown_pointer_and_double_free_are_not_rebuilt() {
+        let dangling = core::ptr::dangling_mut::<u8>();
+        {%- if input_release_policy == "call-consumes" %}
+        let unknown = unsafe { call_buf(dangling, 4) };
+        {%- else %}
+        let unknown = unsafe { call_borrowed(dangling, 4) };
+        {%- endif %}
+        assert_eq!(unknown, {{ abi_path }}::unknown_buffer_response());
+        unsafe { free_buf(dangling, 4) };
+
+        let p = alloc_buf(8);
+        assert!(is_live(p));
+        // Wrong length must not drop the allocation.
+        unsafe { free_buf(p, 7) };
+        assert!(is_live(p), "mismatched len left the buffer live");
+        unsafe { free_buf(p, 8) };
+        assert!(!is_live(p));
+        // Second free is a no-op, not a double-free.
+        unsafe { free_buf(p, 8) };
+        assert!(!is_live(p));
     }
-{%- endif %}
+
+    #[test]
+    fn call_consumes_the_request_once() {
+        let p = alloc_buf(2);
+        unsafe {
+            p.write(b'{');
+            p.add(1).write(b'}');
+            {%- if input_release_policy == "call-consumes" %}
+            let response = call_buf(p, 2);
+            assert!(!is_live(p), "call consumes the request");
+            free_buf(p, 2);
+            assert!(!is_live(p));
+            {%- else %}
+            let response = call_borrowed(p, 2);
+            assert!(is_live(p), "borrowed call leaves the request live");
+            free_buf(p, 2);
+            assert!(!is_live(p));
+            {%- endif %}
+            let text = String::from_utf8(response).expect("json");
+            assert!(text.contains("\"ok\""), "{text}");
+        }
+    }
 }

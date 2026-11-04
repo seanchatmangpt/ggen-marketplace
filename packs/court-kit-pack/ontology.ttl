@@ -1,0 +1,76 @@
+@prefix ck:   <urn:court-kit:> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# Court-kit ontology: refusal codes as DATA, never as behavior.
+# Method-not-domain: this pack defines the admission vocabulary; the codes
+# below are 5 samples transcribed from
+# /Users/sac/graphlaw/docs/refusals.md (SQL AST section, REFUSAL-01..05),
+# pinned to sourceVersion 26.10.22.
+#
+# APPEND-ONLY LAW (consumer-extensible): consumers append new
+# ck:RefusalCode individuals; never renumber, never retext an existing
+# code's trigger. An edit that renumbers or retracts a row is a refused
+# transition.
+
+<urn:court-kit:pack> a rdfs:Class ;
+    dct:title "court-kit-pack" ;
+    dct:description "Anti-vacuity court kit: refusal register -> typed enum + twin-court KATs." .
+
+ck:RefusalCode a rdfs:Class ;
+    rdfs:label "RefusalCode" ;
+    dct:description "One stable, append-only typed refusal code. Required: ck:token, ck:name, ck:trigger, ck:recovery, ck:sourceVersion, ck:observedTrigger. Append-only: never renumber." .
+
+ck:observedTrigger a rdf:Property ;
+    dct:description "Witness receipt binding: the probe/court output row where this code was seen firing for real. Absent = an unproven row = the KAT gate fails closed." .
+
+# ---------------------------------------------------------------------------
+# Sample register (5 codes, transcribed from graphlaw docs/refusals.md,
+# SQL AST section, pinned at sourceVersion 26.10.22).
+# ---------------------------------------------------------------------------
+
+ck:code-REFUSAL-01 a ck:RefusalCode ;
+    ck:token "REFUSAL-01" ;
+    ck:name "MalformedAstRefusal" ;
+    ck:trigger "Graph AST fails strict closed-world SHACL shape validation before admission (missing/non-integer sql:statementIndex, empty sql:from, malformed RDF list, token outside the operator enum, recursion-limit breach, non-sql:Scope individual)." ;
+    ck:recovery "Fix the AST to satisfy the shapes (ontologies/sql-ast.ttl); re-admit." ;
+    ck:sourceVersion "26.10.22" ;
+    ck:observedTrigger "graphlaw refusal_probe: 12/12 exit-class MATCH, exit 0, re-observed 2026-10-22 (lane R10)" ;
+    dct:source "docs/refusals.md#sql-ast-refusals" .
+
+ck:code-REFUSAL-02 a ck:RefusalCode ;
+    ck:token "REFUSAL-02" ;
+    ck:name "UnimplementedStatementRefusal" ;
+    ck:trigger "Dialect statement kind parsed from the grammar is recognized but has no evaluation path in this DuckDB build (currently ConnectStatement, DisconnectStatement)." ;
+    ck:recovery "Rewrite the query using admitted statement kinds, or implement the evaluation path behind a receipted ticket." ;
+    ck:sourceVersion "26.10.22" ;
+    ck:observedTrigger "graphlaw refusal_probe: 12/12 exit-class MATCH, exit 0, re-observed 2026-10-22 (lane R10)" ;
+    dct:source "docs/refusals.md#sql-ast-refusals" .
+
+ck:code-REFUSAL-03 a ck:RefusalCode ;
+    ck:token "REFUSAL-03" ;
+    ck:name "ScopeIntegrityRefusal" ;
+    ck:trigger "Scope discrimination boundary violated: aggregate in a WHERE/JOIN/GROUP BY position, sql:ProcessScope column in the projection, sql:ViewScope column inside a predicate (incl. HAVING), scope annotation laundering beneath a predicate-rooted aggregate, or MERGE ON with no target-qualified column." ;
+    ck:recovery "Move aggregates to SELECT/HAVING; keep scope columns out of forbidden positions; drop laundering annotations; qualify MERGE ON to a target column." ;
+    ck:sourceVersion "26.10.22" ;
+    ck:observedTrigger "graphlaw refusal_probe: 12/12 exit-class MATCH, exit 0, re-observed 2026-10-22 (lane R10)" ;
+    dct:source "docs/refusals.md#sql-ast-refusals" .
+
+ck:code-REFUSAL-04 a ck:RefusalCode ;
+    ck:token "REFUSAL-04" ;
+    ck:name "CapabilityRefusal" ;
+    ck:trigger "Builtin SQL eval was given a reader that is not document-backed." ;
+    ck:recovery "Supply the admitted Turtle document (query_document_turtle) and compile with compile_turtle." ;
+    ck:sourceVersion "26.10.22" ;
+    ck:observedTrigger "graphlaw refusal_probe: 12/12 exit-class MATCH, exit 0, re-observed 2026-10-22 (lane R10)" ;
+    dct:source "docs/refusals.md#sql-ast-refusals" .
+
+ck:code-REFUSAL-05 a ck:RefusalCode ;
+    ck:token "REFUSAL-05" ;
+    ck:name "UnboundedMutationRefusal" ;
+    ck:trigger "UPDATE/DELETE statement node with neither sql:whereColumn nor sql:whereValue -- refused at compile, zero engine contact. Appended 2026-10-23, append-only per convention." ;
+    ck:recovery "Add a WHERE clause (sql:whereColumn / sql:whereValue) bounding the mutation." ;
+    ck:sourceVersion "26.10.22" ;
+    ck:observedTrigger "graphlaw refusal_probe: 12/12 exit-class MATCH, exit 0, re-observed 2026-10-22 (lane R10)" ;
+    dct:source "docs/refusals.md#sql-ast-refusals" .

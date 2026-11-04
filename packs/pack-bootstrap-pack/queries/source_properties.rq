@@ -1,0 +1,23 @@
+# Source-property census: every rdf:Property / owl:ObjectProperty /
+# owl:DatatypeProperty in the input graph outside the system namespaces
+# and the bp: meta-vocabulary. rdfs:domain is OPTIONAL (a property with
+# no declared domain still counts). Deterministically ordered by IRI.
+PREFIX rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX owl:  <http://www.w3.org/2002/07/owl#>
+
+SELECT ?propertyIri ?classIri WHERE {
+  { ?p a rdf:Property } UNION { ?p a owl:ObjectProperty } UNION { ?p a owl:DatatypeProperty }
+  FILTER(
+    !STRSTARTS(STR(?p), "http://www.w3.org/1999/02/22-rdf-syntax-ns#") &&
+    !STRSTARTS(STR(?p), "http://www.w3.org/2000/01/rdf-schema#") &&
+    !STRSTARTS(STR(?p), "http://www.w3.org/2002/07/owl#") &&
+    !STRSTARTS(STR(?p), "http://www.w3.org/2001/XMLSchema#") &&
+    !STRSTARTS(STR(?p), "http://www.w3.org/ns/shacl#") &&
+    !STRSTARTS(STR(?p), "https://ggen.dev/ontology/pack-bootstrap#")
+  )
+  OPTIONAL { ?p rdfs:domain ?d . FILTER(!STRSTARTS(STR(?d), "https://ggen.dev/ontology/pack-bootstrap#")) }
+  BIND(STR(?p) AS ?propertyIri)
+  BIND(IF(BOUND(?d), STR(?d), "") AS ?classIri)
+}
+ORDER BY ?propertyIri ?classIri

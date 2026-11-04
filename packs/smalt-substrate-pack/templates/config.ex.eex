@@ -4,8 +4,20 @@
 #   none          -> Application.get_env(:smalt, :k, <default>)
 #   env-first     -> System.get_env(ENV) || Application.get_env(:smalt, :k)
 #   app-env-first -> Application.get_env(:smalt, :k) || System.get_env(ENV)
+#   env-first-int -> int_env(System.get_env(ENV), :k, <default>) — parses the
+#                    env value as an integer; unparseable falls back to app
+#                    env, else the census default. For integer-typed knobs
+#                    whose call sites compare counts (rate/RU limiters).
+#   profile-first -> throttle_profile() — SMALT_PROFILE env var → app env
+#                    :profile → :unbounded; unknown names REFUSE (ArgumentError
+#                    naming the known set). Emits the throttle-profile helpers
+#                    when any row carries this class (KD-110 closure).
+#   profile-throttled -> profile_throttled(System.get_env(ENV), :k, :pk, <default>) —
+#                    explicit env int > profile default > app env > census default.
 # default "nil" = nilable (no default argument at any real code call site).
 rows = Enum.sort_by(config_keys, & &1["name"])
+
+has_profiles? = Enum.any?(config_keys, & &1["override"] in ["profile-first", "profile-throttled"])
 
 accessors =
   for row <- rows do
@@ -20,10 +32,20 @@ accessors =
     body =
       cond do
         row["override"] == "env-first" ->
-          "System.get_env(" <> inspect(env) <> ") || Application.get_env(:smalt, :" <> name <> ")"
+          "neutral_env(" <> inspect(env) <> ") || Application.get_env(:smalt, :" <> name <> ")"
 
         row["override"] == "app-env-first" ->
-          "Application.get_env(:smalt, :" <> name <> ") || System.get_env(" <> inspect(env) <> ")"
+          "Application.get_env(:smalt, :" <> name <> ") || neutral_env(" <> inspect(env) <> ")"
+
+        row["override"] == "env-first-int" ->
+          "int_env(neutral_env(" <> inspect(env) <> "), :" <> name <> ", " <> census_default <> ")"
+
+        row["override"] == "profile-first" ->
+          "throttle_profile()"
+
+        row["override"] == "profile-throttled" ->
+          "profile_throttled(neutral_env(" <> inspect(env) <> "), :" <> name <> ", :" <>
+            row["profileKey"] <> ", " <> census_default <> ")"
 
         default_expr == "nil" ->
           "Application.get_env(:smalt, :" <> name <> ")"
@@ -40,7 +62,7 @@ defmodule Smalt.Config do
   Application-env configuration accessors (W1a projection).
 
   Auto-projected from smalt-substrate-pack ontology.ttl (smalt:ConfigKey
-  census, 46 keys / 88 call sites) via queries/config_keys.rq through
+  closed census) via queries/config_keys.rq through
   templates/config.ex.eex. DO NOT HAND-EDIT; regenerate with `mix smalt.gen`.
   Replay identity is fenced by test/config_replay_identity_test.exs.
 
@@ -58,8 +80,83 @@ defmodule Smalt.Config do
     ]
   end
 
+  # Env alias law, INVERTED (v26.10.31 WO-06: SMALT_* is the PRIMARY prefix;
+  # AZURE_* is the dialect-provided alias — mirrors preflight-court env.ts /
+  # sovereign-backend ConfigMap): every AZURE_* alias read resolves the
+  # primary SMALT_* name FIRST, dialect fallback second, identical defaults
+  # when neither is set. Keys carry the DIALECT prefix, values the PRIMARY.
+  @neutral_aliases %{
+    "AZURE_ARM_RATE_LIMIT" => "SMALT_ARM_RATE_LIMIT",
+    "AZURE_BIND_IP" => "SMALT_BIND_IP",
+    "AZURE_BLOB_ACCOUNT_KEY" => "SMALT_BLOB_ACCOUNT_KEY",
+    "AZURE_COSMOS_RU_LIMIT" => "SMALT_COSMOS_RU_LIMIT",
+    "AZURE_PLANES" => "SMALT_PLANES",
+    "AZURE_PROFILE" => "SMALT_PROFILE",
+    "AZURE_SB_SHARED_KEY" => "SMALT_SB_SHARED_KEY",
+    "AZURE_TLS_CERTFILE" => "SMALT_TLS_CERTFILE",
+    "AZURE_TLS_KEYFILE" => "SMALT_TLS_KEYFILE"
+  }
+
+  @doc "Primary-first alias table: dialect AZURE_* alias => primary SMALT_* name."
+  def neutral_aliases, do: @neutral_aliases
+
+  @doc "Resolve an env var primary-first: SMALT_* wins, dialect AZURE_* fallback, nil when neither set."
+  def neutral_env(dialect_alias) when is_binary(dialect_alias) do
+    System.get_env(Map.fetch!(@neutral_aliases, dialect_alias)) || System.get_env(dialect_alias)
+  end
 
 <%= for {name, doc, body, _row, _cd} <- accessors do %>  @doc "<%= doc %>"
   def <%= name %>, do: <%= body %>
+<% end %>
+<%= if Enum.any?(config_keys, & &1["override"] == "env-first-int") do %>  defp int_env(nil, key, default), do: Application.get_env(:smalt, key, default)
+
+  defp int_env(raw, key, default) do
+    case Integer.parse(raw) do
+      {i, ""} -> i
+      _ -> Application.get_env(:smalt, key, default)
+    end
+  end
+<% end %>
+<%= if has_profiles? do %>  @doc """
+  Named throttle profiles (KD-110 closure). Default profile choice is
+  deployment policy; bounded profiles are first-class.
+  """
+  def throttle_profiles do
+    %{
+      unbounded: %{arm: :infinity, cosmos: :infinity},
+      azure_parity: %{arm: 20, cosmos: 25},
+      strict: %{arm: 5, cosmos: 5}
+    }
+  end
+
+  @doc "Resolve the active throttle profile: SMALT_PROFILE env var > app env :profile > :unbounded. Unknown names REFUSE with ArgumentError naming the known set."
+  def throttle_profile do
+    case neutral_env("AZURE_PROFILE") || Application.get_env(:smalt, :profile) do
+      nil -> :unbounded
+      "unbounded" -> :unbounded
+      "azure_parity" -> :azure_parity
+      "strict" -> :strict
+      other -> raise ArgumentError, "unknown SMALT_PROFILE/AZURE_PROFILE #{inspect(other)}; known profiles: unbounded | azure_parity | strict"
+    end
+  end
+
+  # Resolution order (KD-110): explicit env int > active profile default >
+  # app env > census default. Unparseable env values fall through the chain.
+  defp profile_throttled(raw, key, pk, default) do
+    case Integer.parse(raw || "") do
+      {i, ""} ->
+        i
+
+      _ ->
+        profile = throttle_profile()
+        limits = Map.fetch!(throttle_profiles(), profile)
+        limit = Map.fetch!(limits, pk)
+
+        case limit do
+          :infinity -> Application.get_env(:smalt, key, default)
+          limit when is_integer(limit) -> limit
+        end
+    end
+  end
 <% end %>
 end

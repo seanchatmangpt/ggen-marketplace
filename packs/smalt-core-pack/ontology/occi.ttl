@@ -1,0 +1,170 @@
+# PROVENANCE
+# ----------
+# Vendor rendering of the OGF OCCI core model (GFD.183/GFD.185) plus
+# infrastructure kinds (GFD.181), hand-vendored as OWL 2 / Turtle.
+#
+# No official fetchable RDF/OWL rendering exists: occiware/occi-schemas is
+# XML Schema only, occiware/occi-wg is LaTeX, schemas.ogf.org serves no OWL.
+# Modeled from the OCCI 1.2 spec text and the mOSAIC/OCCIware OWL treatments
+# (Metzger et al., OCCIware MARTE/OWL work).
+#
+# URI policy: OCCI's canonical category schemes are preserved verbatim
+# (http://schemas.ogf.org/occi/core# and .../occi/infrastructure#).
+
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix core:  <http://schemas.ogf.org/occi/core#> .
+@prefix infra: <http://schemas.ogf.org/occi/infrastructure#> .
+
+<http://schemas.ogf.org/occi/core#> a owl:Ontology ;
+    dcterms:title "OCCI Core Model (GFD.183), v1.2"@en ;
+    dcterms:license <https://creativecommons.org/licenses/by/3.0/> ;
+    rdfs:seeAlso <https://www.ogf.org/documents/GFD.183.pdf> ;
+    owl:versionInfo "1.2-vendored-2026-10-30" .
+
+<http://schemas.ogf.org/occi/infrastructure#> a owl:Ontology ;
+    dcterms:title "OCCI Infrastructure (GFD.181), v1.2"@en ;
+    dcterms:license <https://creativecommons.org/licenses/by/3.0/> ;
+    rdfs:seeAlso <https://www.ogf.org/documents/GFD.181.pdf> ;
+    owl:versionInfo "1.2-vendored-2026-10-30" .
+
+# ---- Core model (GFD.183 s3) ----
+
+core:Entity a owl:Class ;
+    rdfs:label "Entity" ;
+    rdfs:comment "Root of the OCCI type system; base of Resource and Link (GFD.183 s3.4)." .
+
+core:Resource a owl:Class ;
+    rdfs:subClassOf core:Entity ;
+    rdfs:label "Resource" ;
+    rdfs:comment "A computable resource in the cloud (GFD.183 s3.5)." .
+
+core:Link a owl:Class ;
+    rdfs:subClassOf core:Entity ;
+    rdfs:label "Link" ;
+    rdfs:comment "A directed association between two resources (GFD.183 s3.6)." .
+
+core:Category a owl:Class ;
+    rdfs:label "Category" ;
+    rdfs:comment "Classificatory descriptor identified by a (scheme, term) pair (GFD.183 s3.1)." .
+
+core:Kind a owl:Class ;
+    rdfs:subClassOf core:Category ;
+    rdfs:label "Kind" ;
+    rdfs:comment "Class-level category; entity instances are classified by a kind (GFD.183 s3.3)." .
+
+core:Mixin a owl:Class ;
+    rdfs:subClassOf core:Category ;
+    rdfs:label "Mixin" ;
+    rdfs:comment "Capability mixed into kinds or instances without subsumption (GFD.183 s3.7)." .
+
+core:Action a owl:Class ;
+    rdfs:subClassOf core:Category ;
+    rdfs:label "Action" ;
+    rdfs:comment "An invocable operation on entity instances (GFD.183 s3.8)." .
+
+core:Attribute a owl:Class ;
+    rdfs:label "Attribute" ;
+    rdfs:comment "A named, typed property definition attached to categories (GFD.183 s3.2)." .
+
+core:title a owl:DatatypeProperty ;
+    rdfs:domain core:Entity ; rdfs:range xsd:string ;
+    rdfs:label "title" .
+
+core:summary a owl:DatatypeProperty ;
+    rdfs:domain core:Resource ; rdfs:range xsd:string ;
+    rdfs:label "summary" .
+
+core:attributes a owl:ObjectProperty ;
+    rdfs:domain core:Category ; rdfs:range core:Attribute ;
+    rdfs:label "attributes" .
+
+core:applies a owl:ObjectProperty ;
+    rdfs:domain core:Mixin ; rdfs:range core:Kind ;
+    rdfs:label "applies" ;
+    rdfs:comment "Mixins declare the kinds they apply to (GFD.183 s3.7)." .
+
+core:depends a owl:ObjectProperty ;
+    rdfs:domain core:Category ; rdfs:range core:Category ;
+    rdfs:label "depends" ;
+    rdfs:comment "Acyclic category dependency (GFD.183 s3.3)." .
+
+core:source a owl:ObjectProperty ;
+    rdfs:domain core:Link ; rdfs:range core:Resource ;
+    rdfs:label "source" .
+
+core:target a owl:ObjectProperty ;
+    rdfs:domain core:Link ; rdfs:range core:Resource ;
+    rdfs:label "target" .
+
+# ---- Infrastructure (GFD.181) ----
+
+infra:compute a owl:Class ;
+    rdfs:subClassOf core:Resource ;
+    rdfs:label "Compute" ;
+    rdfs:comment "A virtual machine or compute resource (GFD.181 s4.1)." .
+
+infra:storage a owl:Class ;
+    rdfs:subClassOf core:Resource ;
+    rdfs:label "Storage" ;
+    rdfs:comment "A storage volume, online or offline (GFD.181 s4.2)." .
+
+infra:network a owl:Class ;
+    rdfs:subClassOf core:Resource ;
+    rdfs:label "Network" ;
+    rdfs:comment "A layer-2 network segment (GFD.181 s4.3)." .
+
+infra:storagelink a owl:Class ;
+    rdfs:subClassOf core:Link ;
+    rdfs:label "StorageLink" ;
+    rdfs:comment "Links storage into a compute resource (GFD.181 s4.5)." .
+
+infra:networkinterface a owl:Class ;
+    rdfs:subClassOf core:Link ;
+    rdfs:label "NetworkInterface" ;
+    rdfs:comment "Links a compute resource into a network (GFD.181 s4.6)." .
+
+infra:compute core:attributes ( infra:compute.architecture infra:compute.cores infra:compute.speed infra:compute.memory ) .
+
+infra:compute.architecture a core:Attribute ; rdfs:label "occi.compute.architecture" ;
+    rdfs:comment "CPU architecture, e.g. x86 or x64." .
+infra:compute.cores a core:Attribute ; rdfs:label "occi.compute.cores" ;
+    rdfs:comment "Number of virtual cores." .
+infra:compute.speed a core:Attribute ; rdfs:label "occi.compute.speed" ;
+    rdfs:comment "CPU speed (float)." .
+infra:compute.memory a core:Attribute ; rdfs:label "occi.compute.memory" ;
+    rdfs:comment "RAM size (float)." .
+
+infra:storage core:attributes ( infra:storage.size infra:storage.state ) .
+infra:storage.size a core:Attribute ; rdfs:label "occi.storage.size" ;
+    rdfs:comment "Storage size (float)." .
+infra:storage.state a core:Attribute ; rdfs:label "occi.storage.state" ;
+    rdfs:comment "Lifecycle state: online, offline, backup, degraded." .
+
+infra:network core:attributes ( infra:network.vlan infra:network.label infra:network.address infra:network.allocation ) .
+infra:network.vlan a core:Attribute ; rdfs:label "occi.network.vlan" .
+infra:network.label a core:Attribute ; rdfs:label "occi.network.label" .
+infra:network.address a core:Attribute ; rdfs:label "occi.network.address" .
+infra:network.allocation a core:Attribute ; rdfs:label "occi.network.allocation" ;
+    rdfs:comment "Allocation regime: basic or dhcp." .
+
+# ---- Actions ----
+
+infra:start a core:Action ; rdfs:label "start" ;
+    rdfs:comment "Start a compute instance (GFD.181 s4.1)." .
+infra:stop a core:Action ; rdfs:label "stop" ;
+    rdfs:comment "Stop a compute instance (GFD.181 s4.1)." .
+infra:restart a core:Action ; rdfs:label "restart" ;
+    rdfs:comment "Restart a compute instance (GFD.181 s4.1)." .
+infra:online a core:Action ; rdfs:label "online" ;
+    rdfs:comment "NetworkInterface action: bring the NIC online (GFD.181 s4.6)." .
+infra:offline a core:Action ; rdfs:label "offline" ;
+    rdfs:comment "NetworkInterface action: take the NIC offline (GFD.181 s4.6)." .
+infra:up a core:Action ; rdfs:label "up" ;
+    rdfs:comment "Network action: bring the network up (GFD.181 s4.3)." .
+infra:down a core:Action ; rdfs:label "down" ;
+    rdfs:comment "Network action: take the network down (GFD.181 s4.3)." .
+infra:link a core:Action ; rdfs:label "link" ;
+    rdfs:comment "StorageLink action: attach the storage volume (GFD.181 s4.5)." .

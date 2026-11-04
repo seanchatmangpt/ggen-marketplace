@@ -1,0 +1,30 @@
+# MESSAGE: status-code closure violated (duplicate code, out-of-vocabulary token, or unmapped variant).
+# TX-7/CG-1 status-closure law as SPARQL over the p:StatusConstant family:
+#   (a) CG-1 distinctness — no two StatusConstants share a statusCode;
+#   (b) TX-7 referential closure — every p:fnErrorMapping value is a
+#       comma-separated list drawn ONLY from the closed ForeignError
+#       vocabulary; and
+#   (c) coverage — every error StatusConstant (variant != OK) is named by at
+#       least one ImportFn's fnErrorMapping.
+# A row = refusal. Anti-vacuity: duplicate a statusCode, add an unknown token
+# to a fnErrorMapping, or drop a variant from a fnErrorMapping — the gate must fire.
+PREFIX p: <https://seanchatmangpt.github.io/packs/cgap-pack#>
+SELECT ?problem WHERE {
+  {
+    ?c1 a p:StatusConstant ; p:statusCode ?code .
+    ?c2 a p:StatusConstant ; p:statusCode ?code .
+    FILTER(?c1 != ?c2)
+    BIND(CONCAT("duplicate statusCode ", STR(?code)) AS ?problem)
+  } UNION {
+    ?fn a p:ImportFn ; p:fnErrorMapping ?m .
+    FILTER(!REGEX(?m, "^(InvalidFormat|FormatMismatch|MissingBuffer|BufferTooShort|Misaligned|NegativeLength)(,(InvalidFormat|FormatMismatch|MissingBuffer|BufferTooShort|Misaligned|NegativeLength))*$"))
+    BIND(CONCAT("fnErrorMapping token outside ForeignError vocabulary: ", ?m) AS ?problem)
+  } UNION {
+    ?sc a p:StatusConstant ; p:statusVariant ?v .
+    FILTER(?v != "OK" && NOT EXISTS {
+      ?fn2 a p:ImportFn ; p:fnErrorMapping ?m2 .
+      FILTER(CONTAINS(?m2, ?v))
+    })
+    BIND(CONCAT("status constant with no ImportFn mapping fact: ", ?v) AS ?problem)
+  }
+} ORDER BY ?problem

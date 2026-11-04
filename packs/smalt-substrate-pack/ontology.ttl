@@ -130,6 +130,12 @@ smalt:ArmControlPlane a smalt:ControlPlane ;
     smalt:resourceType "Microsoft.Attestation/attestationProviders" ;
     smalt:resourceType "Microsoft.Compute/virtualMachines" ;
     smalt:resourceType "Microsoft.App/containerApps" ;
+    # GAP2-A1 lane C4: served faces (generic face for publicIPAddresses;
+    # dedicated ContainerAppsRouter for managedEnvironments) — previously
+    # absent from the control-plane individual, so GraphLaw control-plane
+    # admission refused the types the wire face serves.
+    smalt:resourceType "Microsoft.App/managedEnvironments" ;
+    smalt:resourceType "Microsoft.Network/publicIPAddresses" ;
     smalt:resourceType "Microsoft.ContainerService/managedClusters" ;
     smalt:resourceType "Microsoft.Storage/storageAccounts" ;
     smalt:resourceType "Microsoft.DocumentDB/databaseAccounts" ;
@@ -180,7 +186,18 @@ smalt:armChildControlPlane a smalt:ControlPlane ;
     # routes router.ex:4511-4760; dataCollectionRules routes router.ex:5592-5670).
     smalt:resourceType "Microsoft.EventGrid/systemTopics" ;
     smalt:resourceType "Microsoft.EventGrid/systemTopics/eventSubscriptions" ;
-    smalt:resourceType "Microsoft.Insights/dataCollectionRules" .
+    smalt:resourceType "Microsoft.Insights/dataCollectionRules" ;
+    # arm-face-gap lane (2026-10-30): consumer repo (terraform-provider-smalt
+    # dev env) PUTs these families; witnessed live 400 GraphLaw refusals
+    # (docs/arm_face_gap_report.md). AcrRouter (arm_gateway/providers/
+    # acr_router.ex) serves the registries family wire-side.
+    smalt:resourceType "Microsoft.ContainerRegistry/registries" ;
+    smalt:resourceType "Microsoft.ContainerRegistry/registries/webhooks" ;
+    smalt:resourceType "Microsoft.ManagedIdentity/userAssignedIdentities" ;
+    smalt:resourceType "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials" ;
+    # consumer shape (terraform-provider-smalt federated_identity_credential.ex):
+    # flat RG-scope Microsoft.ManagedIdentity/federatedIdentityCredentials/{name}
+    smalt:resourceType "Microsoft.ManagedIdentity/federatedIdentityCredentials" .
 
 # Per-type bindings: api-version + shape (consumed by payload_rules.rq)
 smalt:tb-rg a smalt:TypeBinding ;
@@ -191,19 +208,19 @@ smalt:tb-rg a smalt:TypeBinding ;
     smalt:shape smalt:ResourceGroupShape .
 smalt:tb-vnet a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.Network/virtualNetworks" ;
-    smalt:apiVersion "2021-04-01" ;
+    smalt:apiVersion "2023-05-01" ;
     smalt:shape smalt:VNetShape .
 smalt:tb-subnet a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.Network/subnets" ;
-    smalt:apiVersion "2021-04-01" ;
+    smalt:apiVersion "2023-05-01" ;
     smalt:shape smalt:SubnetShape .
 smalt:tb-nsg a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.Network/networkSecurityGroups" ;
-    smalt:apiVersion "2021-04-01" ;
+    smalt:apiVersion "2023-05-01" ;
     smalt:shape smalt:NsgShape .
 smalt:tb-nic a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.Network/networkInterfaces" ;
-    smalt:apiVersion "2021-04-01" ;
+    smalt:apiVersion "2023-05-01" ;
     smalt:shape smalt:DefaultShape .
 smalt:tb-pep a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.Network/privateEndpoints" ;
@@ -231,7 +248,7 @@ smalt:tb-des a smalt:TypeBinding ;
     smalt:shape smalt:DefaultShape .
 smalt:tb-kv a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.KeyVault/vaults" ;
-    smalt:apiVersion "2023-02-01" ;
+    smalt:apiVersion "2023-07-01" ;
     smalt:shape smalt:KeyVaultShape .
 smalt:tb-kvk a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.KeyVault/vaults/keys" ;
@@ -292,7 +309,7 @@ smalt:tb-eh a smalt:TypeBinding ;
     smalt:shape smalt:DefaultShape .
 smalt:tb-oi a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.OperationalInsights/workspaces" ;
-    smalt:apiVersion "2020-08-01" ;
+    smalt:apiVersion "2022-10-01" ;
     smalt:shape smalt:DefaultShape .
 smalt:tb-si a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.SecurityInsights/onboardingStates" ;
@@ -320,7 +337,12 @@ smalt:tb-ca a smalt:TypeBinding ;
     smalt:shape smalt:DefaultShape .
 smalt:tb-aks a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.ContainerService/managedClusters" ;
-    smalt:apiVersion "2023-02-01" ;
+    # GAP2-A1 gap-close lane C4 (2026-10-30): azurerm ~5.x pins
+    # managedClusters at 2024-02-01. Serving face verified: the generic
+    # 3-segment provider face (ResourceProviders PUT/GET/DELETE) serves
+    # registry-admitted managedClusters — no dedicated AKS router needed;
+    # top raised under the KD-78 monotonic <= law.
+    smalt:apiVersion "2024-02-01" ;
     smalt:shape smalt:DefaultShape .
 smalt:tb-ra a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.Authorization/roleAssignments" ;
@@ -389,6 +411,38 @@ smalt:tb-dcr a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.Insights/dataCollectionRules" ;
     smalt:apiVersion "2022-06-01" ;
     smalt:shape smalt:DefaultShape .
+# arm-face-gap lane (2026-10-30): tops = what the wire face gates / consumer
+# repo sends. registries: AcrRouter gates 2023-06-preview; the Registry top is
+# written as the ISO base "2023-06-01" because the generated admitted_version?/2
+# law parses the TOP with Date.from_iso8601 WITHOUT stripping a -preview
+# suffix — a literal "2023-06-preview" top refuses every version (witnessed:
+# PUT 2023-06-preview answered 400 InvalidApiVersionParameter naming the
+# unparseable top). The wire version "2023-06-preview" strips to 2023-06-01 via
+# version_base/1 and is admitted under the monotonic <= law. Same class as
+# wire-served "2023-06-27-preview" (managedCCFs). Dedicated per-family routes
+# never consult this law; the generic provider face does. userAssignedIdentities
+# GA top advanced to 2023-04-01 (KD-78 monotonic law admits the prior
+# inventory witness 2023-01-31); federatedIdentityCredentials GA 2023-01-31.
+smalt:tb-acr a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.ContainerRegistry/registries" ;
+    smalt:apiVersion "2023-06-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-acrwh a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.ContainerRegistry/registries/webhooks" ;
+    smalt:apiVersion "2023-06-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-uai a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.ManagedIdentity/userAssignedIdentities" ;
+    smalt:apiVersion "2023-04-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-fic a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials" ;
+    smalt:apiVersion "2023-08-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-ficflat a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.ManagedIdentity/federatedIdentityCredentials" ;
+    smalt:apiVersion "2023-08-01" ;
+    smalt:shape smalt:DefaultShape .
 smalt:tb-ehh a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.EventHub/namespaces/eventhubs" ;
     # KD-78 monotonic pattern: azurerm 4.54 child PUT witnessed at 2024-01-01
@@ -398,6 +452,20 @@ smalt:tb-ehh a smalt:TypeBinding ;
 smalt:tb-ehc a smalt:TypeBinding ;
     smalt:resourceType "Microsoft.EventHub/namespaces/eventhubs/consumergroups" ;
     smalt:apiVersion "2021-04-01" ;
+    smalt:shape smalt:DefaultShape .
+# GAP2-A1 gap-close lane C4 (2026-10-30): azurerm ~5.x pins below prior tops.
+# publicIPAddresses: served by the generic 3-segment provider face; the row
+# was previously absent so strict_version_validation refused the type the
+# face serves. managedEnvironments: served by the dedicated
+# ContainerAppsRouter face (ladder 2022-03-01/2023-05-01); registry row was
+# absent, same strict-refusal class.
+smalt:tb-publicip a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.Network/publicIPAddresses" ;
+    smalt:apiVersion "2023-05-01" ;
+    smalt:shape smalt:DefaultShape .
+smalt:tb-caenv a smalt:TypeBinding ;
+    smalt:resourceType "Microsoft.App/managedEnvironments" ;
+    smalt:apiVersion "2023-05-01" ;
     smalt:shape smalt:DefaultShape .
 
 #################################################################
@@ -814,7 +882,7 @@ smalt:ck-arm-rate-limit a smalt:ConfigKey ;
     smalt:default ":infinity" ;
     smalt:secret false ;
     smalt:surface "control_plane" ;
-    smalt:envVarName "SMALT_ARM_RATE_LIMIT" ;
+    smalt:envVarName "AZURE_ARM_RATE_LIMIT" ;
     smalt:override "profile-throttled" ;
     smalt:profileKey "arm" ;
     smalt:docsText "ARM gateway rate limit (:infinity disables the limiter). SMALT_ARM_RATE_LIMIT overrides BOTH the named throttle profile and the app env, parsed as an integer; otherwise profile defaults apply: :unbounded (default) :infinity, :azure_parity 20 req/s, :strict 5 req/s (SMALT_PROFILE)." .
@@ -842,7 +910,7 @@ smalt:ck-bind-ip a smalt:ConfigKey ;
     smalt:default "nil" ;
     smalt:secret false ;
     smalt:surface "control_plane" ;
-    smalt:envVarName "SMALT_BIND_IP" ;
+    smalt:envVarName "AZURE_BIND_IP" ;
     smalt:override "env-first" ;
     smalt:docsText "Listener bind IP; SMALT_BIND_IP overrides the app env." .
 # ---- plane selection + plane profiles (AZB-04, lane planes) ----
@@ -855,7 +923,7 @@ smalt:ck-planes a smalt:ConfigKey ;
     smalt:default ":all" ;
     smalt:secret false ;
     smalt:surface "planes" ;
-    smalt:envVarName "SMALT_PLANES" ;
+    smalt:envVarName "AZURE_PLANES" ;
     smalt:override "none" ;
     smalt:docsText "Plane selection: :all or list of :control/:data/:integration/:identity. SMALT_PLANES (comma list) is parsed + validated at runtime-config time (config/runtime.exs, Smalt.Planes); unknown name refuses boot with {:invalid_plane, name}. With :all no config/env profile is imported." .
 smalt:ck-arm-gateway a smalt:ConfigKey ;
@@ -936,7 +1004,7 @@ smalt:ck-blob-account-key a smalt:ConfigKey ;
     smalt:default "nil" ;
     smalt:secret true ;
     smalt:surface "data_plane" ;
-    smalt:envVarName "SMALT_BLOB_ACCOUNT_KEY" ;
+    smalt:envVarName "AZURE_BLOB_ACCOUNT_KEY" ;
     smalt:override "app-env-first" ;
     smalt:docsText "Blob SAS verification key; app env wins over SMALT_BLOB_ACCOUNT_KEY." .
 smalt:ck-blob-catch-all-hosts a smalt:ConfigKey ;
@@ -963,7 +1031,7 @@ smalt:ck-cosmos-ru-limit a smalt:ConfigKey ;
     smalt:default ":infinity" ;
     smalt:secret false ;
     smalt:surface "data_plane" ;
-    smalt:envVarName "SMALT_COSMOS_RU_LIMIT" ;
+    smalt:envVarName "AZURE_COSMOS_RU_LIMIT" ;
     smalt:override "profile-throttled" ;
     smalt:profileKey "cosmos" ;
     smalt:docsText "Cosmos request-unit budget per query (:infinity disables budgeting). SMALT_COSMOS_RU_LIMIT overrides BOTH the named throttle profile and the app env, parsed as an integer; otherwise profile defaults apply: :unbounded (default) :infinity, :azure_parity 25 RU/s, :strict 5 RU/s (SMALT_PROFILE)." .
@@ -1012,6 +1080,21 @@ smalt:ck-event-hubs-port a smalt:ConfigKey ;
     smalt:envVarName "-" ;
     smalt:override "none" ;
     smalt:docsText "Event Hubs listener port (mode :eh)." .
+smalt:ck-redis-port a smalt:ConfigKey ;
+    smalt:name "redis_port" ;
+    smalt:type "integer" ;
+    smalt:default "6380" ;
+    smalt:secret false ;
+    smalt:surface "data_plane" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    # GGEN-CACHE lane r11: the v26.10.29 RESP2/RESP3 wire listener over
+    # AzureCache (Smalt.DataPlane.RedisWire). Call sites:
+    # lib/smalt/data_plane/redis_wire.ex configured_port/0. Honesty rows ride
+    # Smalt.DataPlane.RedisWire.honesty_rows/0 at runtime; the canonical
+    # capability document carries the env-independent default (R83).
+    smalt:docsText "Redis RESP2/RESP3 wire listener port (AzureCache wire facade, Smalt.DataPlane.RedisWire)." .
+
 smalt:ck-event-stream-dedup-ids a smalt:ConfigKey ;
     smalt:name "event_stream_dedup_ids" ;
     smalt:type "boolean" ;
@@ -1135,7 +1218,7 @@ smalt:ck-profile a smalt:ConfigKey ;
     smalt:default ":unbounded" ;
     smalt:secret false ;
     smalt:surface "profile" ;
-    smalt:envVarName "SMALT_PROFILE" ;
+    smalt:envVarName "AZURE_PROFILE" ;
     smalt:override "profile-first" ;
     smalt:docsText "Named throttle profile: :unbounded (default; both limits :infinity, byte-identical to the pre-KD-110 default), :azure_parity (ARM 20 req/s, cosmos 25 RU/s - the witnessed Azure-comparable budgets), :strict (ARM 5, cosmos 5). Resolved env-first: SMALT_PROFILE overrides app env :profile; unknown names refuse with ArgumentError. Explicit SMALT_ARM_RATE_LIMIT / SMALT_COSMOS_RU_LIMIT beat profile defaults." .
 smalt:ck-prod a smalt:ConfigKey ;
@@ -1180,7 +1263,7 @@ smalt:ck-sb-shared-key a smalt:ConfigKey ;
     smalt:default "nil" ;
     smalt:secret true ;
     smalt:surface "messaging" ;
-    smalt:envVarName "SMALT_SB_SHARED_KEY" ;
+    smalt:envVarName "AZURE_SB_SHARED_KEY" ;
     smalt:override "none" ;
     smalt:docsText "Broker SAS shared key; SMALT_SB_SHARED_KEY pins it via the CBS router." .
 smalt:ck-sentinel-dcr-strict a smalt:ConfigKey ;
@@ -1243,7 +1326,7 @@ smalt:ck-tls-certfile a smalt:ConfigKey ;
     smalt:default "nil" ;
     smalt:secret false ;
     smalt:surface "tls" ;
-    smalt:envVarName "SMALT_TLS_CERTFILE" ;
+    smalt:envVarName "AZURE_TLS_CERTFILE" ;
     smalt:override "none" ;
     smalt:docsText "TLS leaf certificate PEM path; env read stays call-site residue." .
 smalt:ck-tls-keyfile a smalt:ConfigKey ;
@@ -1252,7 +1335,7 @@ smalt:ck-tls-keyfile a smalt:ConfigKey ;
     smalt:default "nil" ;
     smalt:secret false ;
     smalt:surface "tls" ;
-    smalt:envVarName "SMALT_TLS_KEYFILE" ;
+    smalt:envVarName "AZURE_TLS_KEYFILE" ;
     smalt:override "none" ;
     smalt:docsText "TLS private key PEM path." .
 smalt:ck-token-audiences a smalt:ConfigKey ;
@@ -1274,3 +1357,77 @@ smalt:ck-trusted-proxies a smalt:ConfigKey ;
     smalt:override "none" ;
     smalt:docsText "Exact proxy IPs trusted for x-forwarded-for extraction." .
 
+
+# -- Identity plane (GGEN-IDP lane, v26.10.29 r12; additive only) ------------
+# T02 SAML IdP face is LIVE (Smalt.Identity.SamlIdp observed running under
+# Smalt.Plane.IdentitySupervisor, :saml_idp_port default 9445). SLO (T04) and
+# OIDC (T05) are QUEUED roadmap surface: modelled with ticket pointers, never
+# claimed live. Standing vocabulary: smalt:standing "live" | "queued".
+smalt:IdentityPlane a rdfs:Class ;
+    rdfs:label "Identity Plane (Port 9445)" .
+
+smalt:IdentityFace a rdfs:Class .
+
+smalt:standing a rdf:Property .
+smalt:ticket a rdf:Property .
+smalt:endpoint a rdf:Property .
+smalt:entityId a rdf:Property .
+smalt:protocol a rdf:Property .
+smalt:module a rdf:Property .
+
+smalt:face-saml-idp a smalt:IdentityFace ;
+    smalt:protocol "saml2-idp" ;
+    smalt:standing "live" ;
+    smalt:module "Smalt.Identity.SamlIdp" ;
+    smalt:port 9445 ;
+    smalt:entityId "urn:smalt:identity:saml" ;
+    smalt:endpoint "/metadata" ;
+    smalt:endpoint "/sso" ;
+    smalt:configKey "saml_idp_port" ;
+    rdfs:label "SAML 2.0 IdP face (metadata + SSO)" .
+
+smalt:face-saml-slo a smalt:IdentityFace ;
+    smalt:protocol "saml2-slo" ;
+    smalt:standing "queued" ;
+    smalt:ticket "docs/jira/v26.10.29/tickets/T04-saml-slo.md" ;
+    smalt:module "Smalt.Identity.SamlIdp" ;
+    smalt:port 9445 ;
+    smalt:entityId "urn:smalt:identity:saml" ;
+    smalt:endpoint "/slo" ;
+    rdfs:label "SAML 2.0 Single Logout face (queued)" .
+
+smalt:face-oidc-idp a smalt:IdentityFace ;
+    smalt:protocol "oidc" ;
+    smalt:standing "queued" ;
+    smalt:ticket "docs/jira/v26.10.29/tickets/T05-oidc-idp.md" ;
+    smalt:module "Smalt.Identity.SamlIdp" ;
+    smalt:port 9445 ;
+    smalt:endpoint "/authorize" ;
+    smalt:endpoint "/userinfo" ;
+    smalt:endpoint "/.well-known/openid-configuration" ;
+    smalt:endpoint "/jwks.json" ;
+    rdfs:label "OIDC IdP face: discovery, /authorize PKCE, RS256 ID tokens, /userinfo, JWKS (queued)" .
+
+smalt:ck-saml-idp-port a smalt:ConfigKey ;
+    smalt:name "saml_idp_port" ;
+    smalt:type "integer" ;
+    smalt:default "9445" ;
+    smalt:secret false ;
+    smalt:surface "identity_plane" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Identity plane SAML IdP listener port (T02). Mirrors Smalt.Identity.SamlIdp call site: Application.get_env(:smalt, :saml_idp_port, 9445)." .
+
+# R9 restoration (GGEN-IDP lane, v26.10.29 r12): the issuer_host ConfigKey was
+# lost from the pack working tree while smalt's committed config.ex still
+# carries it (HEAD accessor + arm_gateway/router.ex call site). Restored
+# verbatim from HEAD's generated census row.
+smalt:ck-issuer-host a smalt:ConfigKey ;
+    smalt:name "issuer_host" ;
+    smalt:type "string" ;
+    smalt:default "nil" ;
+    smalt:secret false ;
+    smalt:surface "auth" ;
+    smalt:envVarName "-" ;
+    smalt:override "none" ;
+    smalt:docsText "Configurable issuer HOST/authority for STS-minted tokens (lane R9). When set, the tenant-token iss (and the OIDC discovery issuer) use https://<issuer_host> as the authority instead of the request-derived loopback authority. nil (default) = request-derived authority, byte-identical to the legacy mint." .

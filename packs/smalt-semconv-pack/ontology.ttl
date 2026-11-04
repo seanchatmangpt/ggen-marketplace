@@ -1,0 +1,219 @@
+# smalt-semconv-pack ontology — semantic-convention model as ontology rows.
+#
+# Source of truth (graph) for lib/smalt/telemetry/semconv/registry.ex,
+# projected via queries/semconv_*.rq plus templates/registry.ex.eex.
+# Encodes the full smalt.yaml model (weaver definition/2 style) as ontology
+# rows: one smaltv:SemConvEvent individual per span/event name,
+# smaltv:SemConvAttribute rows for the
+# attribute allowlist with runtime-key bindings, and smaltv:OcelMappingRule
+# rows for the otel-weaver-ocel OTEL→OCEL mapping table. The YAML remains
+# the mirrored human-readable model; drift is fenced by test/semconv_test.exs
+# (model fence, YAML↔registry) and test/semconv_replay_identity_test.exs
+# (byte-identical replay + YAML↔graph census + verify-gate non-vacuity).
+@prefix smaltv: <https://ggen.io/ontology/smalt-semconv#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# -- names (spans + events) ---------------------------------------------------
+
+smaltv:name-smalt-cosmos-request a smaltv:SemConvEvent ;
+    smaltv:name "smalt.cosmos.request" ;
+    smaltv:kind "span" ;
+    smaltv:stability "development" ;
+    smaltv:brief "Inbound HTTP request normalized from [:bandit, :request, :stop]." ;
+    smaltv:order 40 ;
+    smaltv:telemetryTriple "[:bandit, :request, :stop]" .
+
+smaltv:name-smalt-arm-admit a smaltv:SemConvEvent ;
+    smaltv:name "smalt.arm.admit" ;
+    smaltv:kind "event" ;
+    smaltv:stability "development" ;
+    smaltv:brief "A shape admission verdict from the ARM gateway." ;
+    smaltv:order 10 ;
+    smaltv:telemetryTriple "[:smalt, :admit]" .
+
+smaltv:name-smalt-arm-refuse a smaltv:SemConvEvent ;
+    smaltv:name "smalt.arm.refuse" ;
+    smaltv:kind "event" ;
+    smaltv:stability "development" ;
+    smaltv:brief "A typed refusal from the ARM gateway or egress router." ;
+    smaltv:order 20 ;
+    smaltv:telemetryTriple "[:smalt, :refuse]" .
+
+smaltv:name-smalt-amqp-delivery a smaltv:SemConvEvent ;
+    smaltv:name "smalt.amqp.delivery" ;
+    smaltv:kind "event" ;
+    smaltv:stability "development" ;
+    smaltv:brief "An AMQP service-bus delivery lifecycle event." ;
+    smaltv:order 30 ;
+    smaltv:telemetryTriple "[:smalt, :sb_delivery]" .
+
+smaltv:name-smalt-blob-custody a smaltv:SemConvEvent ;
+    smaltv:name "smalt.blob.custody" ;
+    smaltv:kind "event" ;
+    smaltv:stability "development" ;
+    smaltv:brief "Blob custody transition (reserved — closed vocabulary, not yet emitted)." ;
+    smaltv:order 50 .
+
+smaltv:name-smalt-skr-release a smaltv:SemConvEvent ;
+    smaltv:name "smalt.skr.release" ;
+    smaltv:kind "event" ;
+    smaltv:stability "development" ;
+    smaltv:brief "SKR release event (reserved — closed vocabulary, not yet emitted)." ;
+    smaltv:order 60 .
+
+smaltv:name-smalt-auth-challenge a smaltv:SemConvEvent ;
+    smaltv:name "smalt.auth.challenge" ;
+    smaltv:kind "event" ;
+    smaltv:stability "development" ;
+    smaltv:brief "Auth challenge event (reserved — closed vocabulary, not yet emitted)." ;
+    smaltv:order 70 .
+
+# -- attribute allowlist (runtime-key bindings) ---------------------------------
+# One row per (semconv name, attribute key). `runtime` is the runtime
+# metadata/measurement key behind the semconv key; `requirement` is the
+# YAML requirement_level (`required: true` folds to "required").
+
+smaltv:attr-arm-admit-verdict a smaltv:SemConvAttribute ;
+    smaltv:forName "smalt.arm.admit" ; smaltv:key "smalt.arm.verdict" ;
+    smaltv:type "string" ; smaltv:runtime "event" ; smaltv:requirement "required" ;
+    smaltv:order 1 .
+
+smaltv:attr-arm-admit-route a smaltv:SemConvAttribute ;
+    smaltv:forName "smalt.arm.admit" ; smaltv:key "smalt.route" ;
+    smaltv:type "string" ; smaltv:runtime "route" ; smaltv:requirement "recommended" ;
+    smaltv:order 2 .
+
+smaltv:attr-arm-refuse-code a smaltv:SemConvAttribute ;
+    smaltv:forName "smalt.arm.refuse" ; smaltv:key "smalt.arm.code" ;
+    smaltv:type "string" ; smaltv:runtime "event" ; smaltv:requirement "required" ;
+    smaltv:order 1 .
+
+smaltv:attr-arm-refuse-refusal-code a smaltv:SemConvAttribute ;
+    smaltv:forName "smalt.arm.refuse" ; smaltv:key "smalt.arm.refusal_code" ;
+    smaltv:type "string" ; smaltv:runtime "code" ; smaltv:requirement "recommended" ;
+    smaltv:order 2 .
+
+smaltv:attr-arm-refuse-route a smaltv:SemConvAttribute ;
+    smaltv:forName "smalt.arm.refuse" ; smaltv:key "smalt.route" ;
+    smaltv:type "string" ; smaltv:runtime "route" ; smaltv:requirement "recommended" ;
+    smaltv:order 3 .
+
+smaltv:attr-amqp-delivery-event a smaltv:SemConvAttribute ;
+    smaltv:forName "smalt.amqp.delivery" ; smaltv:key "smalt.amqp.delivery_event" ;
+    smaltv:type "string" ; smaltv:runtime "event" ; smaltv:requirement "required" ;
+    smaltv:order 1 .
+
+smaltv:attr-amqp-delivery-route a smaltv:SemConvAttribute ;
+    smaltv:forName "smalt.amqp.delivery" ; smaltv:key "smalt.route" ;
+    smaltv:type "string" ; smaltv:runtime "route" ; smaltv:requirement "recommended" ;
+    smaltv:order 2 .
+
+smaltv:attr-cosmos-route a smaltv:SemConvAttribute ;
+    smaltv:forName "smalt.cosmos.request" ; smaltv:key "smalt.route" ;
+    smaltv:type "string" ; smaltv:runtime "route" ; smaltv:requirement "required" ;
+    smaltv:order 1 .
+
+smaltv:attr-cosmos-status a smaltv:SemConvAttribute ;
+    smaltv:forName "smalt.cosmos.request" ; smaltv:key "smalt.status" ;
+    smaltv:type "int" ; smaltv:runtime "status" ; smaltv:requirement "required" ;
+    smaltv:order 2 .
+
+smaltv:attr-cosmos-duration a smaltv:SemConvAttribute ;
+    smaltv:forName "smalt.cosmos.request" ; smaltv:key "smalt.duration_ms" ;
+    smaltv:type "int" ; smaltv:runtime "duration" ; smaltv:requirement "required" ;
+    smaltv:order 3 .
+
+smaltv:attr-cosmos-method a smaltv:SemConvAttribute ;
+    smaltv:forName "smalt.cosmos.request" ; smaltv:key "smalt.cosmos.method" ;
+    smaltv:type "string" ; smaltv:runtime "method" ; smaltv:requirement "recommended" ;
+    smaltv:order 4 .
+
+smaltv:attr-blob-custody-event a smaltv:SemConvAttribute ;
+    smaltv:forName "smalt.blob.custody" ; smaltv:key "smalt.blob.event" ;
+    smaltv:type "string" ; smaltv:runtime "event" ; smaltv:requirement "required" ;
+    smaltv:order 1 .
+
+smaltv:attr-skr-release-event a smaltv:SemConvAttribute ;
+    smaltv:forName "smalt.skr.release" ; smaltv:key "smalt.skr.event" ;
+    smaltv:type "string" ; smaltv:runtime "event" ; smaltv:requirement "required" ;
+    smaltv:order 1 .
+
+smaltv:attr-auth-challenge-event a smaltv:SemConvAttribute ;
+    smaltv:forName "smalt.auth.challenge" ; smaltv:key "smalt.auth.event" ;
+    smaltv:type "string" ; smaltv:runtime "event" ; smaltv:requirement "required" ;
+    smaltv:order 1 .
+
+# -- otel-weaver-ocel OTEL→OCEL field-mapping rows ------------------------------
+# The mapping table exactly as projected onto smalt's emitter surface
+# (conformance notes: docs/PACK_INTEGRATION/otel-weaver.md). The `derivation`
+# strings carry the smalt deviations verbatim.
+
+smaltv:rule-event-id a smaltv:OcelMappingRule ;
+    smaltv:order 10 ;
+    smaltv:identifier "EventId" ;
+    smaltv:sourceField "OTLP span.trace_id + span.span_id" ;
+    smaltv:targetField "OCEL event.id" ;
+    smaltv:derivation "\"{trace_id}:{span_id}\"; smalt mints a UUIDv7 per event (bandit stops carry no OTLP trace/span ids)" .
+
+smaltv:rule-event-type a smaltv:OcelMappingRule ;
+    smaltv:order 20 ;
+    smaltv:identifier "EventType" ;
+    smaltv:sourceField "OTLP span.name" ;
+    smaltv:targetField "OCEL event.type (activity label)" ;
+    smaltv:derivation "pack requires a non-empty span.name; smalt maps [:bandit, :request, :stop] → \"cosmos.doc.crud\" via Smalt.Ocel.EventRegistry" .
+
+smaltv:rule-event-time a smaltv:OcelMappingRule ;
+    smaltv:order 30 ;
+    smaltv:identifier "EventTime" ;
+    smaltv:sourceField "OTLP span.start_time_unix_nano" ;
+    smaltv:targetField "OCEL event.time (ISO8601)" ;
+    smaltv:derivation "span start time in the pack; smalt uses emit-time DateTime.utc_now/0" .
+
+smaltv:rule-event-attributes a smaltv:OcelMappingRule ;
+    smaltv:order 40 ;
+    smaltv:identifier "EventAttributes" ;
+    smaltv:sourceField "OTLP span.attributes" ;
+    smaltv:targetField "OCEL event.attributes" ;
+    smaltv:derivation "pack redacts (key denylist + high-entropy + length cap); smalt drops nil values and gates keys through the semconv attribute allowlist" .
+
+smaltv:rule-event-activity-capability a smaltv:OcelMappingRule ;
+    smaltv:order 45 ;
+    smaltv:identifier "EventActivityCapability" ;
+    smaltv:sourceField "span.attributes[\"beam4pm.capability.id\"]" ;
+    smaltv:targetField "OCEL event.type override" ;
+    smaltv:derivation "pack prefers it over bare span.name; no smalt emitter currently sets it (reserved)" .
+
+smaltv:rule-object-from-service-name a smaltv:OcelMappingRule ;
+    smaltv:order 50 ;
+    smaltv:identifier "ObjectFromServiceName" ;
+    smaltv:sourceField "resource.attributes[\"service.name\"]" ;
+    smaltv:targetField "OCEL object {id: \"service:<name>\", type: \"service\"}" ;
+    smaltv:derivation "pack REFUSES without it; smalt derives the resource object from conn.request_path instead (documented deviation)" .
+
+smaltv:rule-object-from-trace-id a smaltv:OcelMappingRule ;
+    smaltv:order 60 ;
+    smaltv:identifier "ObjectFromTraceId" ;
+    smaltv:sourceField "OTLP span.trace_id" ;
+    smaltv:targetField "OCEL object {id: \"trace:<id>\", type: \"trace\"}" ;
+    smaltv:derivation "pack derives a trace object; smalt has no OTLP trace context (documented deviation)" .
+
+smaltv:rule-relationship-performed-by a smaltv:OcelMappingRule ;
+    smaltv:order 70 ;
+    smaltv:identifier "RelationshipPerformedBy" ;
+    smaltv:sourceField "service object" ;
+    smaltv:targetField "OCEL event.relationships (performed_by)" ;
+    smaltv:derivation "smalt equivalent: relationships = objects mapped to {\"objectId\": id, \"qualifier\": object type}" .
+
+smaltv:rule-relationship-part-of-trace a smaltv:OcelMappingRule ;
+    smaltv:order 80 ;
+    smaltv:identifier "RelationshipPartOfTrace" ;
+    smaltv:sourceField "trace object" ;
+    smaltv:targetField "OCEL event.relationships (part_of_trace)" ;
+    smaltv:derivation "not emitted by smalt (no trace context); covered by the emitter's object relationships" .
+
+smaltv:rule-relationship-child-of-parent-span a smaltv:OcelMappingRule ;
+    smaltv:order 90 ;
+    smaltv:identifier "RelationshipChildOfParentSpan" ;
+    smaltv:sourceField "OTLP span.parent_span_id" ;
+    smaltv:targetField "OCEL event.relationships (child_of_span)" ;
+    smaltv:derivation "not emitted by smalt (no OTLP parent span); reserved" .

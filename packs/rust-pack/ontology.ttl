@@ -1,0 +1,303 @@
+# rust-pack ontology — canonical graph for ontology-driven Rust systems manufacturing.
+#
+# Models the Rust workspace surface (multi-crate Cargo workspaces, no_std/alloc
+# kernels, module trees, FFI shells) that consumer projects manufacture from.
+# Per-individual citations ground every modeled type to its authority:
+#   ARD:  packs/rust-pack/docs/ARD.md (vocabulary §2, UCG invariants §3)
+#   PRD:  packs/rust-pack/docs/PRD.md
+#   UCG:  https://doc.rust-lang.org/nomicon/uninitialized.html (safety proofs)
+#   RFC 430: https://datatracker.ietf.org/doc/html/rfc430 (identifier conventions)
+#
+# Generated consequences (Cargo.toml, crates/*/src/lib.rs, inc/<crate>.h,
+# crates/*/tests/*_court.rs) are projections of THIS graph. Never hand-edit
+# generated output; change the graph and re-run `ggen sync`.
+#
+# Shape discipline: per RESOLUTIONS R4, invariants are carried by rdfs:domain /
+# rdfs:range here and enforced by the fail-closed SPARQL gates in gates/*.rq
+# (ARD.md:12 "Fail-closed SPARQL refusal gates (010..050)").
+
+@prefix rust:    <urn:ggen:rust:#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix p:       <https://seanchatmangpt.github.io/packs/rust-pack#> .
+
+#################################################################
+# 1. VOCABULARY — classes (ARD.md §2)
+#################################################################
+
+rust:Workspace a rdfs:Class ;
+    rdfs:label "Cargo Workspace" ;
+    rdfs:comment "A multi-crate Cargo workspace with a fixed resolver. ARD.md:29-35." .
+
+rust:Crate a rdfs:Class ;
+    rdfs:label "Crate" ;
+    rdfs:comment "A member crate of a workspace: lib kernel, bin, or proc-macro. ARD.md:36-43." .
+
+rust:Module a rdfs:Class ;
+    rdfs:label "Module" ;
+    rdfs:comment "A node in a crate's module tree; nested via rust:crateModule. ARD.md:43." .
+
+rust:Struct a rdfs:Class ;
+    rdfs:label "Struct" ;
+    rdfs:comment "A struct definition with repr, derives, and fields. ARD.md:45-49." .
+
+rust:Enum a rdfs:Class ;
+    rdfs:label "Enum" ;
+    rdfs:comment "An enum definition with repr and variants. ARD.md:50-53." .
+
+rust:Variant a rdfs:Class ;
+    rdfs:label "Enum Variant" .
+
+rust:Field a rdfs:Class ;
+    rdfs:label "Struct Field" .
+
+rust:Parameter a rdfs:Class ;
+    rdfs:label "Function Parameter" .
+
+rust:Trait a rdfs:Class ;
+    rdfs:label "Trait" ;
+    rdfs:comment "A trait referenced by rust:derives." .
+
+rust:Function a rdfs:Class ;
+    rdfs:label "Function" ;
+    rdfs:comment "A function with visibility, constness, and (if unsafe) a mandatory safety proof. ARD.md:62-70." .
+
+rust:FfiExport a rdfs:Class ;
+    rdfs:label "FFI Export" ;
+    rdfs:comment "An extern \"C\" export; must carry unwind protection (UCG FFI Panic Invariant, ARD.md:78-84)." .
+
+rust:MemoryModel a rdfs:Class ;
+    rdfs:label "Memory Model" ;
+    rdfs:comment "Alignment + allocation policy of a kernel surface. ARD.md:54-61." .
+
+rust:BufferSlot a rdfs:Class ;
+    rdfs:label "Buffer Slot" ;
+    rdfs:comment "A SIMD/Arrow buffer slot; SIMD-profile slots are aligned to exactly 64 bytes (UCG Alignment Invariant, ARD.md:73)." .
+
+rust:Dependency a rdfs:Class ;
+    rdfs:label "Dependency" ;
+    rdfs:comment "A crate dependency, either crate-local (rust:dependsOn) or inherited from [workspace.dependencies] (rust:workspaceDependency). RESOLUTIONS R2, PRD.md:58-60." .
+
+#################################################################
+# 2. VOCABULARY — properties (ARD.md §2 + RESOLUTIONS R1/R2/R3/R8)
+#################################################################
+
+# --- Workspace (ARD.md:30-34) ---
+rust:resolverVersion      a rdf:Property ; rdfs:domain rust:Workspace ; rdfs:range xsd:string ;
+    rdfs:comment "Fixed \"2\" per PRD.md:47 (RESOLUTIONS R14)." .
+rust:memberCrate          a rdf:Property ; rdfs:domain rust:Workspace ; rdfs:range rust:Crate .
+rust:workspaceDependency  a rdf:Property ; rdfs:domain rust:Workspace ; rdfs:range rust:Dependency .
+
+# --- Crate (ARD.md:37-43) ---
+rust:crateName   a rdf:Property ; rdfs:domain rust:Crate ; rdfs:range xsd:string .
+rust:crateType   a rdf:Property ; rdfs:domain rust:Crate ; rdfs:range xsd:string ;
+    rdfs:comment "\"lib\" | \"bin\" | \"proc-macro\". no_std obligation binds only \"lib\" (RESOLUTIONS R13)." .
+rust:isNoStd     a rdf:Property ; rdfs:domain rust:Crate ; rdfs:range xsd:boolean .
+rust:hasAlloc    a rdf:Property ; rdfs:domain rust:Crate ; rdfs:range xsd:boolean .
+rust:msrv        a rdf:Property ; rdfs:domain rust:Crate ; rdfs:range xsd:string .
+rust:edition     a rdf:Property ; rdfs:domain rust:Crate ; rdfs:range xsd:string ;
+    rdfs:comment "Default \"2021\", \"2024\" permitted (RESOLUTIONS R14)." .
+rust:crateModule a rdf:Property ; rdfs:domain rust:Crate ; rdfs:range rust:Module .
+rust:defines     a rdf:Property ; rdfs:domain rust:Crate ;
+    rdfs:comment "Links a crate to every Struct/Enum/Function/Module it owns; projects per-crate file fan-out (RESOLUTIONS R8)." .
+
+# --- Struct / Enum (ARD.md:46-53) ---
+rust:repr           a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "\"C\" | \"transparent\" | \"align(64)\" on Struct; \"u8\" | \"u16\" | \"u32\" | \"C\" on Enum." .
+rust:derives        a rdf:Property ; rdfs:domain rust:Struct ; rdfs:range rust:Trait .
+rust:hasField       a rdf:Property ; rdfs:domain rust:Struct ; rdfs:range rust:Field .
+rust:isNonExhaustive a rdf:Property ; rdfs:domain rust:Enum ; rdfs:range xsd:boolean .
+rust:hasVariant     a rdf:Property ; rdfs:domain rust:Enum ; rdfs:range rust:Variant .
+
+# --- MemoryModel / BufferSlot (ARD.md:55-61 + RESOLUTIONS R3) ---
+rust:byteAlignment    a rdf:Property ; rdfs:range xsd:integer ;
+    rdfs:comment "Default 64 for SIMD/Arrow slots (UCG Alignment Invariant, ARD.md:73)." .
+rust:allocationPolicy a rdf:Property ; rdfs:domain rust:MemoryModel ; rdfs:range xsd:string ;
+    rdfs:comment "\"ZeroAllocationArena\" | \"CallerProvided\" | \"HeapAlloc\"." .
+rust:simdProfile      a rdf:Property ; rdfs:domain rust:BufferSlot ; rdfs:range xsd:string ;
+    rdfs:comment "\"Arrow\" | \"SIMD\" | \"None\" (RESOLUTIONS R3)." .
+
+# --- Function (ARD.md:63-70) ---
+rust:visibility     a rdf:Property ; rdfs:domain rust:Function ; rdfs:range xsd:string ;
+    rdfs:comment "\"pub\" | \"pub(crate)\" | \"private\"." .
+rust:isConst        a rdf:Property ; rdfs:domain rust:Function ; rdfs:range xsd:boolean .
+rust:isUnsafe       a rdf:Property ; rdfs:domain rust:Function ; rdfs:range xsd:boolean .
+rust:isInline       a rdf:Property ; rdfs:domain rust:Function ; rdfs:range xsd:boolean .
+rust:safetyProof    a rdf:Property ; rdfs:domain rust:Function ; rdfs:range xsd:string ;
+    rdfs:comment "Mandatory when isUnsafe = true (gate 020; UCG, ARD.md:67)." .
+rust:hasParameter   a rdf:Property ; rdfs:domain rust:Function ; rdfs:range rust:Parameter .
+rust:returnType     a rdf:Property ; rdfs:domain rust:Function ; rdfs:range xsd:string .
+
+# --- FfiExport (ARD.md:71-74) ---
+rust:symbolName        a rdf:Property ; rdfs:domain rust:FfiExport ; rdfs:range xsd:string .
+rust:unwindProtection  a rdf:Property ; rdfs:domain rust:FfiExport ; rdfs:range xsd:string ;
+    rdfs:comment "\"CatchUnwind\" | \"AbortOnPanic\"; mandatory (gate 040, UCG FFI Panic Invariant)." .
+
+# --- Item naming (RESOLUTIONS R1, gate 010; RFC 430 conventions) ---
+rust:itemName a rdf:Property ; rdfs:range xsd:string ;
+    rdfs:comment "Carried by every Struct/Enum/Function/Module. Struct/Enum -> UpperCamelCase; Function/Module -> snake_case (ARD.md:131)." .
+
+# --- Crate-local dependency (RESOLUTIONS R2, gate 050) ---
+rust:dependsOn     a rdf:Property ; rdfs:domain rust:Crate ; rdfs:range rust:Dependency .
+rust:versionLiteral a rdf:Property ; rdfs:domain rust:Dependency ; rdfs:range xsd:string ;
+    rdfs:comment "A member-crate-local version literal on a workspace-inherited dependency is a gate-050 violation." .
+
+#################################################################
+# 3. INDIVIDUALS — one worked specimen kernel per resolved vocabulary
+#################################################################
+
+# --- Workspace + workspace-level dependencies ---
+rust:specWorkspace a rust:Workspace ;
+    rdfs:label "Specimen Workspace" ;
+    rdfs:comment "Worked example grounding the workspace vocabulary. ARD.md:29-35; PRD.md:47." ;
+    rust:resolverVersion "2" ;
+    rust:memberCrate rust:specKernel , rust:specIntegration ;
+    rust:workspaceDependency rust:depSerde .
+
+rust:depSerde a rust:Dependency ;
+    rdfs:label "serde (workspace-inherited)" ;
+    rdfs:comment "Declared once in [workspace.dependencies]; member crates must NOT carry their own versionLiteral (gate 050)." .
+
+# --- no_std/alloc kernel crate (PRD.md:84-90; RESOLUTIONS R12/R13) ---
+rust:specKernel a rust:Crate ;
+    rdfs:label "specimen-kernel (no_std + alloc)" ;
+    rdfs:comment "no_std lib kernel with alloc; manual error enums, no thiserror (RESOLUTIONS R12)." ;
+    rust:crateName "specimen-kernel" ;
+    rust:crateType "lib" ;
+    rust:isNoStd true ;
+    rust:hasAlloc true ;
+    rust:msrv "1.82.0" ;
+    rust:edition "2021" ;
+    rust:dependsOn rust:depSerde ;
+    rust:defines rust:specBuffer , rust:specErrorEnum , rust:specKernelModule ,
+        rust:specAllocFn , rust:specFfiBufferData ;
+    rust:crateModule rust:specKernelModule .
+
+rust:specKernelModule a rust:Module ;
+    rdfs:label "buffer" ;
+    rust:itemName "buffer" ;
+    rdfs:comment "snake_case module name (gate 010). ARD.md:131." .
+
+rust:specIntegration a rust:Crate ;
+    rdfs:label "specimen-integration (std IO shell)" ;
+    rdfs:comment "std integration crate: bin tier may set isNoStd = false (RESOLUTIONS R13)." ;
+    rust:crateName "specimen-integration" ;
+    rust:crateType "bin" ;
+    rust:isNoStd false ;
+    rust:hasAlloc true ;
+    rust:msrv "1.82.0" ;
+    rust:edition "2021" ;
+    rust:dependsOn rust:depSerde .
+
+# --- Struct with align(64) repr + buffer slots (UCG Alignment Invariant) ---
+rust:specBuffer a rust:Struct ;
+    rdfs:label "SpecBuffer" ;
+    rdfs:comment "UpperCamelCase struct name (gate 010); repr align(64) mirrors ARD.md:73." ;
+    rust:itemName "SpecBuffer" ;
+    rust:repr "align(64)" ;
+    rust:derives rust:traitClone ;
+    rust:hasField rust:specFieldData .
+
+rust:traitClone a rust:Trait ;
+    rdfs:label "Clone" .
+
+rust:specFieldData a rust:Field ;
+    rdfs:label "data" .
+
+rust:specBufferModel a rust:MemoryModel ;
+    rdfs:label "SpecBuffer memory model" ;
+    rdfs:comment "Zero-allocation arena kernel surface. ARD.md:54-61." ;
+    rust:byteAlignment 64 ;
+    rust:allocationPolicy "ZeroAllocationArena" .
+
+rust:specSlotData a rust:BufferSlot ;
+    rdfs:label "SpecBuffer data slot" ;
+    rdfs:comment "SIMD-profile slot: byteAlignment must be exactly 64 (gate 030; ARD.md:133)." ;
+    rust:simdProfile "SIMD" ;
+    rust:byteAlignment 64 .
+
+rust:specSlotPlain a rust:BufferSlot ;
+    rdfs:label "Untyped scalar slot" ;
+    rdfs:comment "simdProfile \"None\": outside the gate-030 alignment obligation." ;
+    rust:simdProfile "None" ;
+    rust:byteAlignment 8 .
+
+# --- Enum with manual (non-thiserror) error shape (RESOLUTIONS R12) ---
+rust:specErrorEnum a rust:Enum ;
+    rdfs:label "KernelError" ;
+    rdfs:comment "Manual error enum for the no_std kernel (thiserror is std-only, RESOLUTIONS R12). UpperCamelCase (gate 010)." ;
+    rust:itemName "KernelError" ;
+    rust:isNonExhaustive false ;
+    rust:repr "u8" ;
+    rust:hasVariant rust:specVariantAlloc .
+
+rust:specVariantAlloc a rust:Variant ;
+    rdfs:label "Alloc" .
+
+# --- Function with a real safety proof (gate 020; UCG) ---
+rust:specAllocFn a rust:Function ;
+    rdfs:label "alloc_aligned" ;
+    rdfs:comment "snake_case fn name (gate 010); unsafe fn carries a pointer-provenance safety proof (UCG, ARD.md:70-72)." ;
+    rust:itemName "alloc_aligned" ;
+    rust:visibility "pub" ;
+    rust:isConst false ;
+    rust:isUnsafe true ;
+    rust:isInline false ;
+    rust:safetyProof "Layout produces addr % 64 == 0 from a valid, live allocation; pointer arithmetic never crosses the allocation boundary (UCG Provenance + Alignment invariants, ARD.md:71-73)." ;
+    rust:returnType "*mut u8" ;
+    rust:hasParameter rust:specParamLayout .
+
+rust:specParamLayout a rust:Parameter ;
+    rdfs:label "layout" .
+
+# --- FFI shell export (gate 040; UCG FFI Panic Invariant, ARD.md:78-84) ---
+rust:specFfiBufferData a rust:FfiExport ;
+    rdfs:label "specimen_buffer_data" ;
+    rdfs:comment "extern \"C\" export with catch_unwind unwind protection; symbol is valid C identifier. ARD.md:78-84." ;
+    rust:symbolName "specimen_buffer_data" ;
+    rust:unwindProtection "CatchUnwind" .
+
+#################################################################
+# 4. PROMISES (gate-court-facing pair: p:Subject + p:backedBy)
+#################################################################
+
+p:Subject a rdfs:Class ;
+    rdfs:label "Pack Subject" ;
+    rdfs:comment "Court-facing pack subject individual carrier (avec-pack convention, L1 §7)." .
+
+p:subjectId a rdf:Property ; rdfs:domain p:Subject ; rdfs:range xsd:string .
+
+p:Promise a rdfs:Class ;
+    rdfs:label "Pack Promise" ;
+    rdfs:comment "A claim the pack makes about its admitted surface; each must be backed by modeled individuals." .
+
+p:backedBy a rdf:Property ; rdfs:domain p:Promise .
+
+p:rustPack a p:Subject ;
+    p:subjectId "urn:ggen:pack:rust-pack" .
+
+p:promise_naming a p:Promise ;
+    rdfs:label "Every modeled item carries rust:itemName in RFC 430 convention for its class" ;
+    rdfs:comment "Struct/Enum UpperCamelCase, Function/Module snake_case (gate 010). https://datatracker.ietf.org/doc/html/rfc430" ;
+    p:backedBy rust:specBuffer , rust:specErrorEnum , rust:specAllocFn , rust:specKernelModule .
+
+p:promise_safety a p:Promise ;
+    rdfs:label "Every unsafe modeled function carries an explicit safetyProof" ;
+    rdfs:comment "UCG provenance/alignment discipline (gate 020). https://doc.rust-lang.org/nomicon/uninitialized.html" ;
+    p:backedBy rust:specAllocFn .
+
+p:promise_alignment a p:Promise ;
+    rdfs:label "Every SIMD/Arrow-profile buffer slot is aligned to exactly 64 bytes" ;
+    rdfs:comment "UCG Alignment Invariant / avec parity (gate 030). ARD.md:73." ;
+    p:backedBy rust:specSlotData , rust:specBufferModel .
+
+p:promise_ffi_guard a p:Promise ;
+    rdfs:label "Every modeled extern \"C\" export carries unwind protection" ;
+    rdfs:comment "No panic unwinds across the FFI boundary (gate 040). ARD.md:78-84." ;
+    p:backedBy rust:specFfiBufferData .
+
+p:promise_workspace_inheritance a p:Promise ;
+    rdfs:label "Workspace-inherited dependencies are versioned once, at the workspace root" ;
+    rdfs:comment "Member crates must not re-version inherited deps (gate 050). PRD.md:58-60." ;
+    p:backedBy rust:specWorkspace , rust:depSerde , rust:specKernel .

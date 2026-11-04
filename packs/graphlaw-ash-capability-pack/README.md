@@ -8,6 +8,7 @@ SHACL, ShEx, N3, Datalog, entailment or planning semantics.
 
 - Semantic source: `ontology.ttl` (namespace `http://seanchatmangpt.github.io/packs/graphlaw-ash-capability#`, prefix `gac:`).
 - Registry schema consumed: `graphlaw.capability-registry/1` (GraphLaw 26.9.29, ABI version 1; pack version 26.9.30).
+- Digest keys: dual — `gac:surfaceBlake3`/`gac:registryBlake3` (graphlaw ≥ v26.10.28) and legacy `gac:surfaceSha256`/`gac:registrySha256`, each matching `^(blake3|sha256):[0-9a-f]{64}$` (`535f33570`, gate `gates/010_registry_identity.rq`).
 - Target language: `ex` (`targets.toml`).
 
 ## Inputs
@@ -21,6 +22,15 @@ The consumer's `ontology.ttl` supplies, as RDF individuals under `https://graphl
    `gac:ModelEnumValue`).
 2. Consumer-supplied `gac:OpBinding` individuals (`gac:bindingOp`, optional
    `gac:bindingResultModule`, `gac:bindingLegacy`).
+
+Digest-key contract (dual, since graphlaw v26.10.28): a `gac:Registry` must carry
+surface + registry digests in either key family — `gac:surfaceBlake3` /
+`gac:registryBlake3` (preferred, emitted by graphlaw ≥ v26.10.28) or legacy
+`gac:surfaceSha256` / `gac:registrySha256` — both matching
+`^(blake3|sha256):[0-9a-f]{64}$`; queries order by `?registry_blake3`. The
+lease/receipt contract follows the same migration: Receipt `plan_blake3` /
+`subject_blake3` (optional), Attestation `payload_blake3` (required) — gate
+`gates/150_lease_receipt_required_fields_contract.rq`.
 
 The vocabulary in this pack's `ontology.ttl` carries no sample individuals. A reduced
 three-operation positive consumer lives in `qualification/consumer.ttl`; its digests are

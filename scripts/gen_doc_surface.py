@@ -266,7 +266,7 @@ MIX_DEP_BARE = re.compile(r'^\s*:([a-z_][a-zA-Z0-9_]*)\s*[,}]', re.M)
 
 def iter_files(root, pattern):
     for p in sorted(Path(root).rglob(pattern)):
-        if any(part in SKIP_DIRS or vendor_part(part) for part in p.parts):
+        if any(part in SKIP_DIRS or part.startswith("target") or vendor_part(part) for part in p.parts):
             continue
         if p.is_file() and not generated_file(p):
             yield p
@@ -1522,7 +1522,7 @@ def extract_directories(repo):
     root = Path(repo)
     for p in root.rglob("*"):
         rel = p.relative_to(root)
-        if any(part in SKIP_DIRS or part.startswith(".") or vendor_part(part)
+        if any(part in SKIP_DIRS or part.startswith(".") or part.startswith("target") or vendor_part(part)
                for part in rel.parts):
             continue
         if p.is_dir():
@@ -1776,7 +1776,7 @@ def path_surface(repo):
     root = Path(repo)
     for p in root.rglob("*"):
         rel = p.relative_to(root)
-        if any(part in SKIP_DIRS or part.startswith(".") or vendor_part(part)
+        if any(part in SKIP_DIRS or part.startswith(".") or part.startswith("target") or vendor_part(part)
                for part in rel.parts):
             continue
         r = str(rel)

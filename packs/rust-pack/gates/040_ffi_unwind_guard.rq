@@ -1,0 +1,15 @@
+# MESSAGE: FFI export without an unwind-protection guard.
+# Every rust:FfiExport must carry rust:unwindProtection — a `extern "C"`
+# boundary must not let a Rust panic unwind into foreign code (UB per the
+# UCG unwind rules, ARD §2.3). A row = refusal.
+# Anti-vacuity: add an FfiExport without unwindProtection or drop the
+# triple from one — the gate must fire (see witnesses/fail).
+PREFIX rust: <urn:ggen:rust:#>
+SELECT ?export ?problem WHERE {
+  ?export a rust:FfiExport .
+  OPTIONAL { ?export rust:unwindProtection ?guard }
+  FILTER(!BOUND(?guard) || STR(?guard) = "")
+  BIND(IF(BOUND(?guard), "unwindProtection-empty",
+                         "unwindProtection-missing") AS ?problem)
+}
+ORDER BY ?export

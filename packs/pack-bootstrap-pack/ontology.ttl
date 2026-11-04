@@ -1,0 +1,62 @@
+@prefix bp:   <https://ggen.dev/ontology/pack-bootstrap#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+#################################################################
+# pack-bootstrap-pack ontology: the bp: meta-vocabulary.
+#
+# A bootstrap INPUT ontology (the --ontology a sync run loads) declares
+# exactly one bp:BootstrapTarget individual carrying bp:packName,
+# bp:packVersion, bp:nsBase, and bp:targetDir; the census queries then
+# read the same graph's source classes/properties/capabilities.
+# This file is the vocabulary contract for those terms; it is loaded as
+# the pack's default ontology, but a bootstrap run always passes an
+# explicit --ontology (the input graph), which wins.
+#################################################################
+
+bp:BootstrapTarget a rdfs:Class ;
+    rdfs:label "Bootstrap Target" ;
+    rdfs:comment "Declares the pack under manufacture: name, version, namespace base, and output directory. Exactly one per bootstrap input graph; the output directory must not be the bootstrap pack's own directory (gates/030_output_target.rq refuses by lexical comparison)." .
+
+bp:packName a rdf:Property ;
+    rdfs:label "pack name" ;
+    rdfs:comment "Name of the pack under manufacture (e.g. \"my-domain-pack\")." ;
+    rdfs:domain bp:BootstrapTarget ;
+    rdfs:range xsd:string .
+
+bp:packVersion a rdf:Property ;
+    rdfs:label "pack version" ;
+    rdfs:comment "Version string for the generated pack.toml (CalVer recommended)." ;
+    rdfs:domain bp:BootstrapTarget ;
+    rdfs:range xsd:string .
+
+bp:nsBase a rdf:Property ;
+    rdfs:label "namespace base" ;
+    rdfs:comment "Base IRI for the generated pack's ontology namespace, e.g. https://ggen.dev/ontology/my-domain# ." ;
+    rdfs:domain bp:BootstrapTarget ;
+    rdfs:range xsd:string .
+
+bp:targetDir a rdf:Property ;
+    rdfs:label "target directory" ;
+    rdfs:comment "Directory the generated pack files are written into (relative to the consumer repo root). Must not resolve to the bootstrap pack's own directory." ;
+    rdfs:domain bp:BootstrapTarget ;
+    rdfs:range xsd:string .
+
+#################################################################
+# Census terms
+#################################################################
+
+bp:SourceClass a rdfs:Class ;
+    rdfs:label "Source Class" ;
+    rdfs:comment "Census marker for a class in the input ontology counted as a source class by queries/source_classes.rq (rdfs:Class or owl:Class, outside the rdf:/rdfs:/owl:/xsd:/sh: and bp: system namespaces)." .
+
+bp:SourceProperty a rdfs:Class ;
+    rdfs:label "Source Property" ;
+    rdfs:comment "Census marker for a property in the input ontology counted by queries/source_properties.rq (rdf:Property, owl:ObjectProperty, or owl:DatatypeProperty, outside the system and bp: namespaces)." .
+
+bp:capabilityId a rdf:Property ;
+    rdfs:label "capability id" ;
+    rdfs:comment "Capability identifier derived per source class by queries/capability_rows.rq (the class's local name) and emitted as sj:capabilityId in the generated ontology." ;
+    rdfs:domain bp:SourceClass ;
+    rdfs:range xsd:string .
