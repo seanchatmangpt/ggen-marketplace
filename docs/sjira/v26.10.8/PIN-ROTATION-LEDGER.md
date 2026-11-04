@@ -71,3 +71,15 @@ standing on `4c862576ab`. R-items minted: **0**.
 | disposition | current (no cert receipts re-minted; wave commit carried no certify claims) |
 
 Current-row pin line (gate format): extractor `scripts/gen_doc_surface.py` is current at sha256 `a96cfd25a7ae8fafc50b5bfceded66e058573101581c832116be95f71040faaf` (landed 4a93a81cc; v26.11.3 wave).
+
+## Current row (2026-11-04) — S11 scripts-audit hardening rotation
+
+| field | value |
+|---|---|
+| extractor | `scripts/gen_doc_surface.py` |
+| sha256 | `e63ad16e8360840691afdcbf8a1a836776536114326d9b9a153f568ed3ac5b5e` |
+| landed in | `de5678164` (fix(scripts): injection/containment/timeout/typed-refusal hardening — S11 audit top-10; extractor staged alongside scripts hardening) |
+| ledger row | THIS entry — atomicity per check_pin_freshness.sh marker (R62/R81 law); behavior-only edit (argv guard at main()), extraction logic unchanged |
+| disposition | current (no cert receipts re-minted; extraction output unchanged — usage-gate-only diff) |
+
+Current-row pin line (gate format): extractor `scripts/gen_doc_surface.py` is current at sha256 `e63ad16e8360840691afdcbf8a1a836776536114326d9b9a153f568ed3ac5b5e` (landed de5678164; S11 scripts-audit hardening).
