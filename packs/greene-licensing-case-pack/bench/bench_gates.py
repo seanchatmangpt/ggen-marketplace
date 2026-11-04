@@ -81,7 +81,7 @@ def measure(repeats: int, subject: str | None = None) -> dict:
         start = time.perf_counter()
         result = subprocess.run([sys.executable, "runners/semantic_runner.py", "--gate", str(GATES[0]),
                                  "--witness", str(PACK / "witnesses" / "pass" / f"{GATES[0].stem}.ttl"),
-                                 "--expectation", "pass"], cwd=PACK, capture_output=True, text=True)
+                                 "--expectation", "pass"], cwd=PACK, capture_output=True, text=True, timeout=300)
         runner.append(time.perf_counter() - start)
         if result.returncode != 0:
             raise SystemExit(f"runner failed: {result.stderr}")

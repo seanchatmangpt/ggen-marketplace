@@ -134,7 +134,7 @@ EVIDENCE_FLOOR = [
 
 def run_git(repo: str, *args: str) -> str:
     proc = subprocess.run(
-        ["git", "-C", repo, *args], capture_output=True, text=True, check=False
+        ["git", "-C", repo, *args], capture_output=True, text=True, check=False, timeout=300
     )
     # proc.stdout is Optional[str] even under text=True; never leak None.
     return (proc.stdout or "") if proc.returncode == 0 else ""
@@ -1276,7 +1276,7 @@ def synthetic_empty_repo_check():
     tmp = tempfile.mkdtemp(prefix="gen_workgraph_empty_repo_")
     try:
         init = subprocess.run(
-            ["git", "init", "-q", tmp], capture_output=True, text=True, check=False
+            ["git", "init", "-q", tmp], capture_output=True, text=True, check=False, timeout=300
         )
         if init.returncode != 0:
             return f"git init failed: {init.stderr.strip()}"
@@ -1332,6 +1332,7 @@ def v3_fixture_check():
                 ["git", "-C", tmp, *args], capture_output=True, text=True,
                 check=False, env={**os.environ, "GIT_AUTHOR_DATE": "2026-10-01T00:00:00Z",
                                   "GIT_COMMITTER_DATE": "2026-10-01T00:00:00Z"},
+                timeout=300,
             )
             if proc.returncode != 0:
                 raise RuntimeError(f"git {args[0]} failed: {proc.stderr.strip()}")
@@ -1444,6 +1445,7 @@ def make_synth_repo(tmp: str) -> None:
             argv += ["-m", body]
         proc = subprocess.run(
             argv, capture_output=True, text=True, env=e, check=False,
+            timeout=300,
         )
         if proc.returncode != 0:
             raise RuntimeError(f"git {args}: {proc.stderr.strip()}")
@@ -1634,6 +1636,7 @@ def none_rev_range_leg():
                 check=False,
                 env={**os.environ, "GIT_AUTHOR_DATE": "2026-10-01T00:00:00Z",
                      "GIT_COMMITTER_DATE": "2026-10-01T00:00:00Z"},
+                timeout=300,
             )
             if proc.returncode != 0:
                 raise RuntimeError(f"git {args[0]} failed: {proc.stderr.strip()}")

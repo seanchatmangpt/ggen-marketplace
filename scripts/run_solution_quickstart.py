@@ -124,7 +124,7 @@ class CommerceSim:
                 ) as r:
                     if r.status == 200:
                         return self
-            except Exception:
+            except (OSError, ConnectionError):
                 time.sleep(0.1)
         self.stop()
         raise refused("SIM_NOT_READY", "sim not healthy within 30s", 3)

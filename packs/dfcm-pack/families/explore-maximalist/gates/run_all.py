@@ -7,5 +7,5 @@ gates=[p for p in sorted(root.glob('check_*.py')) if p.name != Path(__file__).na
 if not gates:
     raise SystemExit('REFUSED:NO_GATES')
 for gate in gates:
-    subprocess.run([sys.executable, str(gate), str(target)], check=True)
+    subprocess.run([sys.executable, str(gate), str(target)], check=True, timeout=300)
 print(f'ADMITTED:{len(gates)}')

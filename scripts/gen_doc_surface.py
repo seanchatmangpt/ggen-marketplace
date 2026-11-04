@@ -2202,7 +2202,10 @@ def extract_doc(repo, surface, docs_dirs=None, include_doc_strings=False,
 
 
 def main(argv):
-    if len(argv) < 2 or argv[0] not in ("code", "doc"):
+    if len(argv) < 2:
+        print("usage: gen_doc_surface.py <code|doc> <repo>", file=sys.stderr)
+        return 3
+    if argv[0] not in ("code", "doc"):
         print(__doc__, file=sys.stderr)
         return 2
     mode, repo = argv[0], Path(argv[1])

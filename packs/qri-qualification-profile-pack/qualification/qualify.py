@@ -79,13 +79,13 @@ def wasm_imports(data: bytes) -> list[str]:
 
 
 def run_native(native: str, reqs: list[bytes]) -> list[str]:
-    out = subprocess.run([native], input="".join(r.hex() + "\n" for r in reqs), capture_output=True, text=True, check=True)
+    out = subprocess.run([native], input="".join(r.hex() + "\n" for r in reqs), capture_output=True, text=True, check=True, timeout=300)
     return out.stdout.splitlines()
 
 
 def run_wasm(mix_dir: str, wasm: str, sha: str, reqs: list[bytes]) -> tuple[list[dict], dict]:
     cmd = ["mix", "run", str(PACK / "qualification" / "host_probe.exs"), wasm, sha]
-    out = subprocess.run(cmd, cwd=mix_dir, input="".join(r.hex() + "\n" for r in reqs), capture_output=True, text=True)
+    out = subprocess.run(cmd, cwd=mix_dir, input="".join(r.hex() + "\n" for r in reqs), capture_output=True, text=True, timeout=300)
     if out.returncode != 0:
         raise SystemExit(f"BLOCKED:host_probe exit {out.returncode}: {(out.stdout + out.stderr)[-400:]}")
     rows = [json.loads(line) for line in out.stdout.splitlines() if line.startswith("{")]

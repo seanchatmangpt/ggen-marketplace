@@ -2,7 +2,7 @@
 # check_main_sync.sh — hub main-sync guard (R31)
 # Verifies origin/main is a strict ancestor of hdit-v2-structs.
 # Repair (fast-forward only): git push origin hdit-v2-structs:main
-set -u
+set -euo pipefail
 
 BRANCH=hdit-v2-structs
 

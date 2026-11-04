@@ -113,7 +113,7 @@ def run_gates(pack: Path, graph: Graph):
 
 
 def ggen_version(ggen: str) -> str:
-    out = subprocess.run([ggen, "--version"], capture_output=True, text=True, check=True).stdout
+    out = subprocess.run([ggen, "--version"], capture_output=True, text=True, check=True, timeout=300).stdout
     return out.split()[1] if out.startswith("ggen ") else out.strip().splitlines()[0]
 
 
@@ -128,7 +128,7 @@ def build_capsule(pack: Path, capsule: Path, target: dict, composes) -> Path:
 
 
 def ggen_sync(ggen: str, consumer: Path):
-    return subprocess.run([ggen, "sync", "run"], cwd=consumer, capture_output=True, text=True)
+    return subprocess.run([ggen, "sync", "run"], cwd=consumer, capture_output=True, text=True, timeout=300)
 
 
 def snapshot(generated: Path):

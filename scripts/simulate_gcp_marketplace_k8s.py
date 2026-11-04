@@ -7,6 +7,7 @@ Executes the end-to-end commercial realization loop on a live Kind Kubernetes cl
 import argparse
 import json
 import os
+import shlex
 import subprocess
 import sys
 import time
@@ -19,7 +20,7 @@ GCP_SIMULATOR_URL = "http://localhost:8443"
 
 def run_cmd(cmd, check=True):
     print(f"[*] Executing: {cmd}")
-    res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    res = subprocess.run(shlex.split(cmd), shell=False, timeout=300, capture_output=True, text=True)
     if check and res.returncode != 0:
         print(f"[!] Command failed: {cmd}\nStderr: {res.stderr}\nStdout: {res.stdout}")
         sys.exit(res.returncode)

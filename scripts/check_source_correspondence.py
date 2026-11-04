@@ -9,7 +9,7 @@ def read_toml(path: Path):
     with path.open('rb') as f: return tomllib.load(f)
 
 def git_head(root: Path) -> str:
-    p=subprocess.run(['git','-C',str(root),'rev-parse','HEAD'],text=True,capture_output=True)
+    p=subprocess.run(['git','-C',str(root),'rev-parse','HEAD'],text=True,capture_output=True, timeout=300)
     if p.returncode: raise AuditError(f'cannot resolve source HEAD: {p.stderr.strip()}')
     return p.stdout.strip()
 

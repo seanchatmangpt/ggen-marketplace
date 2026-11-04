@@ -46,7 +46,7 @@ DEFAULT_BRANCH_CACHE: dict[str, str] = {}
 
 
 def run(args: list[str], cwd: str | None = None) -> tuple[int, str]:
-    p = subprocess.run(args, cwd=cwd, capture_output=True, text=True)
+    p = subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=300)
     return p.returncode, (p.stdout + p.stderr).strip()
 
 

@@ -300,6 +300,7 @@ def _git_ref_files(ref: str) -> Iterator[tuple[str, bytes]]:
         check=False,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+    timeout=300,
     )
     if proc.returncode:
         detail = proc.stderr.decode("utf-8", "replace").strip()
@@ -338,6 +339,7 @@ def _remote_refs() -> list[str]:
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+    timeout=300,
     )
     if proc.returncode:
         raise SystemExit(f"REFUSED:VACUITY_AUDIT_REF_ENUMERATION:{proc.stderr.strip()}")
@@ -354,6 +356,7 @@ def _git_tree_entries(ref: str) -> tuple[tuple[str, str], ...]:
         check=False,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        timeout=300,
     )
     if proc.returncode:
         detail = proc.stderr.decode("utf-8", "replace").strip()

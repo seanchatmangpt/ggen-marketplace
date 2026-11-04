@@ -26,6 +26,7 @@ WRITE_VERBS = {
 out = subprocess.run(
     ["/Users/sac/.local/bin/ggen", "graph", "--introspect"],
     capture_output=True, text=True, check=True,
+    timeout=300,
 )
 tools = json.loads(out.stdout)
 

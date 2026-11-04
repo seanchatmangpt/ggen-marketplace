@@ -53,4 +53,7 @@ def main(path: str) -> int:
 
 
 if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("usage: validate_court_contract.py <contract>")
+        sys.exit(3)
     raise SystemExit(main(sys.argv[1]))

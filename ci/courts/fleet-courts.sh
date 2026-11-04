@@ -23,7 +23,7 @@
 # scripts/run_fleet_courts.py has no skip flag, so none is passed -- the
 # degraded handling lives entirely in this wrapper. No mocks: real subprocesses
 # over real fleet state.
-set -uo pipefail
+set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 TMP="${RUNNER_TEMP:-/tmp}/fleet-courts-ci.$$"

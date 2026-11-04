@@ -72,11 +72,12 @@ def changed_files(base: str | None, head: str) -> list[str] | None:
         return None
     # Prefer the merge base (what the PR changed); a shallow clone may not reach
     # it, in which case the two-dot diff only over-selects, never under-selects.
-    mb = subprocess.run(["git", "merge-base", base, head], cwd=ROOT, capture_output=True, text=True)
+    mb = subprocess.run(["git", "merge-base", base, head], cwd=ROOT, capture_output=True, text=True, timeout=300)
     anchor = mb.stdout.strip() if mb.returncode == 0 and mb.stdout.strip() else base
     proc = subprocess.run(
         ["git", "diff", "--name-only", "--no-renames", anchor, head],
         cwd=ROOT, capture_output=True, text=True,
+        timeout=300,
     )
     if proc.returncode != 0:
         return None
@@ -122,7 +123,7 @@ def _run_court(court: dict, tmp_root: Path) -> dict:
 
 def _porcelain() -> str:
     return subprocess.run(["git", "status", "--porcelain", "--untracked-files=all"],
-                          cwd=ROOT, capture_output=True, text=True).stdout
+                          cwd=ROOT, capture_output=True, text=True, timeout=300).stdout
 
 
 def run(names: list[str], jobs: int, receipt: Path | None) -> int:

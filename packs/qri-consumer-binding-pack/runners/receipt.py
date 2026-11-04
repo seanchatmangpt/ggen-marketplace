@@ -15,6 +15,7 @@ Digests (all sha256 lowercase hex):
 from __future__ import annotations
 
 import hashlib
+import pathlib
 import sys
 from pathlib import Path
 
@@ -141,7 +142,19 @@ def binding_node(graph: Graph) -> URIRef:
 
 
 if __name__ == "__main__":
-    graph = Graph().parse(sys.argv[1])
+    if len(sys.argv) < 2:
+        print("usage: receipt.py <binding.ttl>")
+        sys.exit(3)
+    p = pathlib.Path(sys.argv[1])
+    if not p.is_file():
+        print("REFUSED:receipt-file-missing")
+        sys.exit(3)
+    graph = Graph()
+    try:
+        graph.parse(str(p))
+    except Exception as exc:
+        print(f"REFUSED_STRUCTURAL:{exc}")
+        sys.exit(3)
     node = binding_node(graph)
     contract = next(graph.objects(node, URIRef(QCB + "contract")))
     print(contract_digest(graph, contract))

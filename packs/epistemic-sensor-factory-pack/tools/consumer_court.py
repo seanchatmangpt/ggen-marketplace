@@ -35,7 +35,7 @@ def main() -> int:
     if actual != a.candidate_sha:
         return refuse("EXACT_SUBJECT", f"HEAD={actual} candidate={a.candidate_sha}")
     base = c.get("admitted_target_base", "")
-    if subprocess.run(["git", "merge-base", "--is-ancestor", base, actual], cwd=root).returncode != 0:
+    if subprocess.run(["git", "merge-base", "--is-ancestor", base, actual], cwd=root, timeout=300).returncode != 0:
         return refuse("LINEAGE", "candidate does not descend from admitted target base")
     fixture = fixture_path.read_bytes()
     fixture_text = fixture.decode()

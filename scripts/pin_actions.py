@@ -47,6 +47,7 @@ def resolve(target: str, ref: str) -> str | None:
     r = subprocess.run(
         ["gh", "api", f"repos/{owner}/{repo}/commits/{ref}", "--jq", ".sha"],
         capture_output=True, text=True,
+        timeout=300,
     )
     sha = r.stdout.strip()
     return sha if r.returncode == 0 and SHA_RE.match(sha) else None

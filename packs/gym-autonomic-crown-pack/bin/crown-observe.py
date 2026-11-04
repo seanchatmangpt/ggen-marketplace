@@ -32,7 +32,7 @@ BOUNDARY = "gitlinks+lock-only"
 
 def run(*args: str, cwd: Path, check: bool = True) -> str:
     cp = subprocess.run(args, cwd=cwd, text=True,
-                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300)
     if check and cp.returncode:
         raise SystemExit(f"CROWN_OBSERVE_BLOCKED[{cp.returncode}]: {' '.join(args)}\n{cp.stderr}")
     return cp.stdout

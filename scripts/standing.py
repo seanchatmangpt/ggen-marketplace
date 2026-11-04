@@ -28,7 +28,7 @@ SHA_LINE = re.compile(r"^- Head SHA: .*$", re.M)
 
 
 def run(*cmd: str) -> str:
-    result = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, check=False)
+    result = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, check=False, timeout=300)
     if result.returncode != 0:
         raise SystemExit(f"REFUSED:STANDING_COMMAND_FAILED {' '.join(cmd)}: {result.stderr.strip()}")
     return result.stdout.strip()

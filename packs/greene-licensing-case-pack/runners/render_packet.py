@@ -160,7 +160,7 @@ def main() -> int:
     args = parser.parse_args()
     consumer = args.consumer.resolve()
     build_consumer(consumer, args.packs_dir.resolve())
-    result = subprocess.run([args.ggen, "sync", "run"], cwd=consumer, text=True, capture_output=True)
+    result = subprocess.run([args.ggen, "sync", "run"], cwd=consumer, text=True, capture_output=True, timeout=300)
     (consumer / "ggen-sync.log").write_text(result.stdout + result.stderr, encoding="utf-8")
     outputs = {}
     for name in PACKET_OUTPUTS:

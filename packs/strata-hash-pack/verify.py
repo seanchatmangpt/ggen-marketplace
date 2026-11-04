@@ -74,7 +74,7 @@ def main() -> int:
         return 1
 
     def _b3sum(data: bytes) -> str:
-        res = subprocess.run([B3SUM], input=data, capture_output=True)
+        res = subprocess.run([B3SUM], input=data, capture_output=True, timeout=300)
         if res.returncode != 0:
             print(f"REFUSED: b3sum failed: {res.stderr.decode(errors='replace')}")
             return ""

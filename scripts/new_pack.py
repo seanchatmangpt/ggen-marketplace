@@ -31,7 +31,9 @@ def scaffold(name: str, profile: str, packs_dir: Path) -> Path:
         raise SystemExit(refusal("PACK_NAME_INVALID", f"{name!r} must be kebab-case [a-z][a-z0-9-]*"))
     if profile not in PROFILES:
         raise SystemExit(refusal("PROFILE_INVALID", profile))
-    target = packs_dir / name
+    target = (packs_dir / name).resolve()
+    if not target.is_relative_to(packs_dir.resolve()):
+        raise SystemExit(refusal("PACK_SLUG_ESCAPES_PACKS_DIR", target.as_posix()))
     if target.exists() or target.is_symlink():
         raise SystemExit(refusal("PACK_EXISTS", target.as_posix()))
     values = {"__NAME__": name, "__PROFILE__": profile, "__IRI__": f"{IRI_BASE}{name}"}
@@ -51,7 +53,7 @@ def scaffold(name: str, profile: str, packs_dir: Path) -> Path:
                     text = text.replace(key, value)
                 destination.write_text(text, encoding="utf-8")
     except BaseException:
-        shutil.rmtree(target, ignore_errors=True)
+        shutil.rmtree(target)
         raise
     return target
 

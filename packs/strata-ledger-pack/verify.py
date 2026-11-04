@@ -113,13 +113,25 @@ def main() -> int:
         for ss, pp, o in witness.triples((s, None, None)):
             pred = str(pp)
             if pred.endswith("#input"):
-                acct_hex, amt = str(o).split(":")
-                inputs.append((bytes.fromhex(acct_hex[2:]), int(amt)))
+                try:
+                    acct_hex, amt = str(o).split(":")
+                    inputs.append((bytes.fromhex(acct_hex[2:]), int(amt)))
+                except ValueError:
+                    print("REFUSED: malformed witness literal")
+                    sys.exit(1)
             elif pred.endswith("#output"):
-                acct_hex, amt = str(o).split(":")
-                outputs.append((bytes.fromhex(acct_hex[2:]), int(amt)))
+                try:
+                    acct_hex, amt = str(o).split(":")
+                    outputs.append((bytes.fromhex(acct_hex[2:]), int(amt)))
+                except ValueError:
+                    print("REFUSED: malformed witness literal")
+                    sys.exit(1)
             elif pred.endswith("#digest"):
-                digest = bytes.fromhex(str(o)[2:])
+                try:
+                    digest = bytes.fromhex(str(o)[2:])
+                except ValueError:
+                    print("REFUSED: malformed witness literal")
+                    sys.exit(1)
         if digest is not None:
             txs.append((nonce, inputs, outputs, digest))
     txs.sort(key=lambda t: t[0])

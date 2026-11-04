@@ -14,16 +14,16 @@ echo "::endgroup::"
 echo "::group::gym-pack-contract: Manufacture receipt twice"
 (
 set -e
-python3 scripts/verify-gym-packs.py --receipt ${RUNNER_TEMP}/gym-receipt-a.json
-python3 scripts/verify-gym-packs.py --receipt ${RUNNER_TEMP}/gym-receipt-b.json
-cmp ${RUNNER_TEMP}/gym-receipt-a.json ${RUNNER_TEMP}/gym-receipt-b.json
+python3 scripts/verify-gym-packs.py --receipt "${RUNNER_TEMP}"/gym-receipt-a.json
+python3 scripts/verify-gym-packs.py --receipt "${RUNNER_TEMP}"/gym-receipt-b.json
+cmp "${RUNNER_TEMP}"/gym-receipt-a.json "${RUNNER_TEMP}"/gym-receipt-b.json
 )
 echo "::endgroup::"
 # --- Replay exact receipt
 echo "::group::gym-pack-contract: Replay exact receipt"
 (
 set -e
-python3 scripts/verify-gym-packs.py --replay ${RUNNER_TEMP}/gym-receipt-a.json
+python3 scripts/verify-gym-packs.py --replay "${RUNNER_TEMP}"/gym-receipt-a.json
 )
 echo "::endgroup::"
 # --- Execute mutation falsifiers

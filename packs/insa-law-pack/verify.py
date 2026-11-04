@@ -87,13 +87,14 @@ def run_rust_suite() -> bool:
         compile_result = subprocess.run(
             [rustc, "--test", str(generated), "-o", str(bin_path)],
             capture_output=True, text=True,
+            timeout=300,
         )
         if compile_result.returncode != 0:
             print("VIOLATION rust-compile: generated/vow_order.rs failed to compile")
             print(compile_result.stderr)
             return False
         test_result = subprocess.run(
-            [str(bin_path)], capture_output=True, text=True
+            [str(bin_path)], capture_output=True, text=True, timeout=300
         )
         if test_result.returncode != 0:
             print("VIOLATION rust-test: gate suite failed")

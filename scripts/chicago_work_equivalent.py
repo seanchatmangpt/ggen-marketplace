@@ -54,6 +54,7 @@ def exact_head(root: Path) -> str:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+    timeout=300,
     )
     if proc.returncode != 0:
         raise CourtRefusal(f"EXACT_HEAD_UNAVAILABLE:{proc.stderr.strip()}")

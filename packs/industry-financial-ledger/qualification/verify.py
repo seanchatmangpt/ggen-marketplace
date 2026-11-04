@@ -32,7 +32,7 @@ def main() -> int:
             proc = subprocess.run(
                 [sys.executable, str(RUNNER), "--gate", str(gate),
                  "--witness", str(witness), "--expectation", expectation],
-                capture_output=True, text=True)
+                capture_output=True, text=True, timeout=300)
             verdict = "PASS" if proc.returncode == 0 else "REFUSED"
             cells.append({"case": stem, "expectation": expectation, "verdict": verdict})
             if proc.returncode != 0:

@@ -60,6 +60,7 @@ def main() -> int:
                 [binary, "certify", *args.rest],
                 capture_output=True,
                 text=True,
+            timeout=300,
             )
         except OSError as exc:
             print(f"REFUSED:DOC_HDIT_STUB:certify:{exc}")
@@ -82,6 +83,7 @@ def main() -> int:
             [binary, args.verb, *args.rest],
             capture_output=True,
             text=True,
+        timeout=300,
         )
     except OSError as exc:
         print(f"REFUSED:DOC_HDIT_STUB:{args.verb}:{exc}")

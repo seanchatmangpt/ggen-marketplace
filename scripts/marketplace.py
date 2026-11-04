@@ -514,7 +514,7 @@ def version() -> int:
 
 
 def git(*args: str) -> str:
-    result = subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=False)
+    result = subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=False, timeout=300)
     if result.returncode != 0:
         raise SystemExit(refusal("GIT_FAILED", f"git {' '.join(args)}: {result.stderr.strip()}"))
     return result.stdout
@@ -536,7 +536,7 @@ def diff_since(base_tag: str) -> dict[str, list[str]]:
         return {line.split("\t", 1)[1].removeprefix("packs/"): line.split()[2] for line in out.splitlines() if " tree " in line}
 
     def pack_version(ref: str, name: str) -> str | None:
-        show = subprocess.run(["git", "show", f"{ref}:packs/{name}/pack.toml"], cwd=ROOT, capture_output=True, text=True, check=False)
+        show = subprocess.run(["git", "show", f"{ref}:packs/{name}/pack.toml"], cwd=ROOT, capture_output=True, text=True, check=False, timeout=300)
         if show.returncode != 0:
             return None
         try:

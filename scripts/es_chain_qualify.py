@@ -418,7 +418,7 @@ def check_mutation(rep):
 
 
 def b3(data: str) -> str:
-    return subprocess.run(["b3sum", "--no-names"], input=data.encode(), capture_output=True).stdout.decode().strip()
+    return subprocess.run(["b3sum", "--no-names"], input=data.encode(), capture_output=True, timeout=300).stdout.decode().strip()
 
 
 def check_affidavit(rep):

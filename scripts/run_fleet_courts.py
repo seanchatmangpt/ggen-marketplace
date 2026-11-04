@@ -62,7 +62,7 @@ FLEET_WORKGRAPHS = [
 
 
 def run(cmd: list[str], cwd: str | None = None) -> tuple[int, str, str]:
-    p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+    p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=300)
     return p.returncode, p.stdout, p.stderr
 
 

@@ -107,6 +107,7 @@ def fixture_graphs():
             [sys.executable, gen.as_posix(), "--provider", provider,
              "--input", tf.as_posix()],
             capture_output=True, text=True, check=True,
+            timeout=300,
         )
         g = Graph().parse(data=proc.stdout, format="turtle")
         out.append((f"fixture:{tf.name} -> resource graph", g))

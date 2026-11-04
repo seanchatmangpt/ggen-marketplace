@@ -14,7 +14,7 @@
 #      owning repo, which IS present, does not contain) is a real failure.
 # Local launchd remains the primary execution home; CI is supplemental
 # read-only evidence.
-set -uo pipefail
+set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 TMP="${RUNNER_TEMP:-/tmp}/git-trust-court-ci.$$"

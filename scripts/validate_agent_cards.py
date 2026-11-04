@@ -140,13 +140,13 @@ def read_cards(key: str, root: str, land: str, ref=None):
         else:
             ls = subprocess.run(
                 ["git", "-C", str(root_path), "ls-tree", "-r", "--name-only", ref, land],
-                capture_output=True, text=True, check=True)
+                capture_output=True, text=True, check=True, timeout=300)
             names = [n for n in ls.stdout.splitlines() if n.endswith(".json")]
         cards = []
         for n in sorted(names):
             show = subprocess.run(
                 ["git", "-C", str(root_path), "show", f"{ref}:{n}"],
-                capture_output=True, text=True, check=True)
+                capture_output=True, text=True, check=True, timeout=300)
             cards.append((f"{root}/{n}@{ref}", show.stdout))
         return cards
 

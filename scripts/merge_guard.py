@@ -25,6 +25,7 @@ def git(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProce
     result = subprocess.run(
         ["git", "-c", "core.quotepath=false", *args],
         cwd=repo, capture_output=True, text=True, check=False,
+    timeout=300,
     )
     if check and result.returncode != 0:
         raise SystemExit(f"REFUSED:GIT_FAILED git {' '.join(args)}: {result.stderr.strip()}")
