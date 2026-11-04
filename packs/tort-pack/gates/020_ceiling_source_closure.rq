@@ -1,0 +1,48 @@
+# MESSAGE: ceiling source-or-TARGET closure — every TortInjection carries
+# a ceiling in exact form PLUS its source receipt lane (MEASURED), or
+# TARGET standing with the named bench (TARGET-UNMEASURED). A MEASURED
+# ceiling without a ceilingSource edge, without ceilingExact, or without
+# the typed unit value is a fabrication; a TARGET ceiling without
+# namedBench is a dead target. Any ceilingStanding outside
+# {MEASURED, TARGET-UNMEASURED} is a refusal.
+# Anti-vacuity: witnesses/fail/020_ceiling_source_closure.ttl adds a
+# TortInjection with ceilingStanding "MEASURED" and no ceilingSource /
+# ceilingExact, plus one with standing "MEASURED-BY-RUMOR"; >=1 row must
+# result (shim-court flip).
+PREFIX tort: <urn:tort:>
+SELECT ?injection ?problem WHERE {
+  ?injection a tort:TortInjection .
+  {
+    ?injection tort:ceilingStanding ?cs .
+    FILTER(?cs NOT IN ("MEASURED", "TARGET-UNMEASURED"))
+    BIND("ceilingStanding-outside-MEASURED-TARGET" AS ?problem)
+  }
+  UNION
+  {
+    ?injection tort:ceilingStanding "MEASURED" .
+    FILTER NOT EXISTS { ?injection tort:ceilingSource ?lane . }
+    BIND("measured-ceiling-without-ceilingSource-lane" AS ?problem)
+  }
+  UNION
+  {
+    ?injection tort:ceilingStanding "MEASURED" .
+    FILTER NOT EXISTS { ?injection tort:ceilingExact ?exact . }
+    BIND("measured-ceiling-without-ceilingExact" AS ?problem)
+  }
+  UNION
+  {
+    ?injection tort:ceilingStanding "MEASURED" .
+    FILTER NOT EXISTS {
+      { ?injection tort:sovereignCeilingNs ?v1 . } UNION
+      { ?injection tort:sovereignCeilingUs ?v2 . }
+    }
+    BIND("measured-ceiling-without-typed-unit-value" AS ?problem)
+  }
+  UNION
+  {
+    ?injection tort:ceilingStanding "TARGET-UNMEASURED" .
+    FILTER NOT EXISTS { ?injection tort:namedBench ?bench . }
+    BIND("target-ceiling-without-namedBench" AS ?problem)
+  }
+}
+ORDER BY ?injection ?problem

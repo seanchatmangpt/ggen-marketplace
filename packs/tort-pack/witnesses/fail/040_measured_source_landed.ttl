@@ -1,0 +1,111 @@
+@prefix tort: <urn:tort:> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix w: <urn:tort:witness:pass/> .
+
+# Clean seed graph (pass witness, shared shape across all 4 gates):
+# 5 in-band injections with standing-correct ceilings, 3 lanes
+# (ab-10/ab-17 LANDED, ab-18 POLLED-NOT-LANDED), 6 TARGET blowouts.
+# Every gate must return 0 rows against this graph.
+
+w:src a prov:Entity ;
+    dcterms:source "urn:tort:witness:pass/source" .
+
+w:lane-ab-10 a tort:TortLane ;
+    tort:laneId "ab-10" ;
+    tort:receiptPath "docs/jira/v26.11.3/receipts/ab-10-writerv-stress.md" ;
+    tort:standing "ALIVE" ;
+    tort:measuredValue "113,132 frames/sec stall-injection soak" .
+
+w:lane-ab-17 a tort:TortLane ;
+    tort:laneId "ab-17" ;
+    tort:receiptPath "file:///Users/sac/lsp-max/docs/jira/v26.11.3/receipts/ab-17-churn-stress.md" ;
+    tort:standing "ALIVE" ;
+    tort:measuredValue "200-cycle spawn/kill churn, 0 leak" .
+
+w:lane-ab-18 a tort:TortLane ;
+    tort:laneId "ab-18" ;
+    tort:standing "POLLED-NOT-LANDED" .
+
+w:tort-1 a tort:TortInjection ;
+    tort:injectionId "tort-1" ;
+    tort:injectionDesc "bimodal-heap" ;
+    tort:ceilingStanding "TARGET-UNMEASURED" ;
+    tort:sovereignCeilingNs 850 ;
+    tort:namedBench "AF-37's injection bench" .
+
+w:tort-2 a tort:TortInjection ;
+    tort:injectionId "tort-2" ;
+    tort:injectionDesc "stall-walk" ;
+    tort:ceilingStanding "MEASURED" ;
+    tort:sovereignCeilingUs 12 ;
+    tort:ceilingExact "<12 us per frame under sustained stall" ;
+    tort:ceilingSource w:lane-ab-10 .
+
+w:tort-3 a tort:TortInjection ;
+    tort:injectionId "tort-3" ;
+    tort:injectionDesc "cache-stride" ;
+    tort:ceilingStanding "TARGET-UNMEASURED" ;
+    tort:sovereignCeilingNs 450 ;
+    tort:namedBench "AF-37's injection bench" .
+
+w:tort-4 a tort:TortInjection ;
+    tort:injectionId "tort-4" ;
+    tort:injectionDesc "tamper-inundation" ;
+    tort:ceilingStanding "TARGET-UNMEASURED" ;
+    tort:sovereignCeilingNs 1500 ;
+    tort:namedBench "AF-37's injection bench" .
+
+w:tort-5 a tort:TortInjection ;
+    tort:injectionId "tort-5" ;
+    tort:injectionDesc "supervisor-churn" ;
+    tort:ceilingStanding "MEASURED" ;
+    tort:sovereignCeilingUs 5800 ;
+    tort:ceilingExact "5.8-7.4 ms per supervisor churn cycle" ;
+    tort:ceilingSource w:lane-ab-17 , w:lane-ab-18 .
+
+w:blowout-grpc a tort:CloudBlowout ;
+    tort:blowoutId "blowout-grpc" ;
+    tort:blowoutRange "4M ns gRPC end-to-end" ;
+    tort:blowoutBench "AF-30's Contender B scope" ;
+    tort:standing "TARGET-UNMEASURED" .
+
+w:blowout-jvm a tort:CloudBlowout ;
+    tort:blowoutId "blowout-jvm" ;
+    tort:blowoutRange "50k/sec JVM ring/queue" ;
+    tort:blowoutBench "AF-30's Contender B scope" ;
+    tort:standing "TARGET-UNMEASURED" .
+
+w:blowout-go a tort:CloudBlowout ;
+    tort:blowoutId "blowout-go" ;
+    tort:blowoutRange "12.4 MB/s Go alloc-heavy encode" ;
+    tort:blowoutBench "AF-18's Go encoding/json bench" ;
+    tort:standing "TARGET-UNMEASURED" .
+
+w:blowout-json a tort:CloudBlowout ;
+    tort:blowoutId "blowout-json" ;
+    tort:blowoutRange "45k ns JSON encode/decode" ;
+    tort:blowoutBench "AF-30's Contender B scope" ;
+    tort:standing "TARGET-UNMEASURED" .
+
+w:blowout-node a tort:CloudBlowout ;
+    tort:blowoutId "blowout-node" ;
+    tort:blowoutRange "180 MB/s Node stream throughput" ;
+    tort:blowoutBench "AF-30's Contender B scope" ;
+    tort:standing "TARGET-UNMEASURED" .
+
+w:blowout-tcp a tort:CloudBlowout ;
+    tort:blowoutId "blowout-tcp" ;
+    tort:blowoutRange "8.5k fps TCP writer/reader" ;
+    tort:blowoutBench "AF-30's Contender B scope" ;
+    tort:standing "TARGET-UNMEASURED" .
+
+# FAIL MUTATION: MEASURED ceiling anchored ONLY on an unlanded lane.
+w:tort-9 a tort:TortInjection ;
+    tort:injectionId "tort-4" ;
+    tort:injectionDesc "unanchored tamper" ;
+    tort:ceilingStanding "MEASURED" ;
+    tort:sovereignCeilingUs 1 ;
+    tort:ceilingExact "<1 us (unreceipted)" ;
+    tort:ceilingSource w:lane-ab-18 .

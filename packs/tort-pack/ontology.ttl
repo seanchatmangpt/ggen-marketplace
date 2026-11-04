@@ -1,0 +1,201 @@
+@prefix tort: <urn:tort:> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Canonical p99 Torture Matrix graph (pack tort-pack, GA-12). The five
+# sovereign torture injections modeled as queryable individuals. Standing
+# discipline (AF-2 vocabulary, arcus
+# docs/jira/v26.11.3/dflss-aoq-claims-audit.md):
+#   - A ceiling is MEASURED only where an AF-2-SUPPORTED receipt backs it:
+#       tort-2 <12 us  <- ab-10 (cgap docs/jira/v26.11.3/receipts/
+#             ab-10-writerv-stress.md: 113,132 frames/sec over a live UDS
+#             pair with the stalled-sink Ok(0) injection = 8.84 us/frame
+#             under injection; ceiling fence <12 us).
+#       tort-5 5.8-7.4 ms <- ab-17 (lsp-max
+#             docs/jira/v26.11.3/receipts/ab-17-churn-stress.md: 200-cycle
+#             spawn/kill churn, bounded poll on exit flag + pid reaped,
+#             0 fd/RSS/process leak) + ab-18.
+#         ab-18 DISCLOSURE (2026-11-03 poll, cgap/arcus/ggen/lsp-max
+#         receipts): no ab-18 receipt found on disk. ab-18 is modeled
+#         POLLED-NOT-LANDED and fences nothing; tort-5's landed anchor is
+#         ab-17 (gate 040 requires >=1 LANDED source lane, satisfied by
+#         ab-17). When ab-18 lands it supersedes.
+#   - tort-1 <850 ns, tort-3 <450 ns, tort-4 <1.5 us are TARGET-UNMEASURED
+#     pending AF-37's injection bench (no AF-37 receipt on disk, same
+#     census discipline as AF-18/AF-30/AF-35 in the transit ledger). They
+#     are targets with a named bench, never presented as measured.
+#   - CloudBlowout individuals are the legacy cloud p99 contrast rows
+#     (arcus bare-metal-transit-ledger.md contrast table); EVERY row there
+#     is TARGET-UNMEASURED per AF-18's census. Any CloudBlowout without
+#     TARGET standing is a fabrication and refuses the sync
+#     (gate 030, FM-PACK-013).
+
+<urn:tort:> a owl:Ontology ;
+    owl:versionInfo "26.11.3" ;
+    rdfs:label "p99 Torture Matrix ontology" ;
+    rdfs:comment "Five torture injections (TortInjection) with sovereign ceilings in exact standing form, the receipt lanes that back them (TortLane), and the legacy cloud blowouts (CloudBlowout) as a TARGET-UNMEASURED contrast queue, provenanced to the torture matrix source and the AF-18 census." ;
+    dcterms:source <file:///Users/sac/arcus/docs/jira/v26.11.3/bare-metal-transit-ledger.md> .
+
+# ---------------------------------------------------------------- classes
+
+tort:TortInjection a rdfs:Class ;
+    rdfs:label "torture injection" ;
+    rdfs:comment "One sovereign p99 torture injection (tort-1..tort-5, closed band, gate 010). Carries injectionId, injectionDesc, ceilingStanding (MEASURED | TARGET-UNMEASURED), the sovereign ceiling in its exact unit property (sovereignCeilingNs / sovereignCeilingUs) where MEASURED, ceilingSource edges to the TortLane individuals whose receipts derive the ceiling, and namedBench where TARGET-UNMEASURED." .
+
+tort:TortLane a rdfs:Class ;
+    rdfs:label "torture receipt lane" ;
+    rdfs:comment "One bench/stress receipt lane backing torture ceilings (ab-10, ab-17, ab-18) with receiptPath (absent when not landed), standing, and measuredValue where receipted." .
+
+tort:CloudBlowout a rdfs:Class ;
+    rdfs:label "legacy cloud blowout row" ;
+    rdfs:comment "One legacy cloud p99 contrast figure (the transit ledger's contrast table). Every CloudBlowout carries standing TARGET-UNMEASURED per AF-18's census — never stated as measured; any other standing is a fabrication refusing the sync (gate 030, FM-PACK-013). A CloudBlowout may never be a ceilingSource." .
+
+# ------------------------------------------------------------ properties
+
+tort:injectionId a owl:DatatypeProperty ; rdfs:label "closed injection id tort-1..tort-5" .
+tort:injectionDesc a owl:DatatypeProperty ; rdfs:label "what the injection does to the p99 tail" .
+tort:ceilingStanding a owl:DatatypeProperty ; rdfs:label "MEASURED | TARGET-UNMEASURED — a MEASURED ceiling requires ceilingSource lanes (gate 020); a TARGET ceiling requires namedBench" .
+tort:sovereignCeilingNs a owl:DatatypeProperty ; rdfs:label "sovereign ceiling in nanoseconds (typed xsd:decimal); present only where ceilingStanding MEASURED or as the target number under TARGET-UNMEASURED with namedBench" .
+tort:sovereignCeilingUs a owl:DatatypeProperty ; rdfs:label "sovereign ceiling in microseconds (typed xsd:decimal)" .
+tort:ceilingExact a owl:DatatypeProperty ; rdfs:label "ceiling in its exact receipted form (range or bound, never rounded); required on MEASURED ceilings (gate 020)" .
+tort:ceilingSource a owl:ObjectProperty ; rdfs:label "courtLane edge to the TortLane whose receipt derives this ceiling" .
+tort:namedBench a owl:DatatypeProperty ; rdfs:label "the named bench that would measure a TARGET-UNMEASURED ceiling (AF-37's injection bench)" .
+tort:laneId a owl:DatatypeProperty ; rdfs:label "lane id ab-N" .
+tort:receiptPath a owl:DatatypeProperty ; rdfs:label "receipt path on disk (absent when not landed)" .
+tort:standing a owl:DatatypeProperty ; rdfs:label "lane standing: ALIVE | POLLED-NOT-LANDED" .
+tort:measuredValue a owl:DatatypeProperty ; rdfs:label "receipted measured value, exact form from the receipt" .
+tort:blowoutId a owl:DatatypeProperty ; rdfs:label "cloud blowout row id" .
+tort:blowoutRange a owl:DatatypeProperty ; rdfs:label "the legacy cloud p99 range, verbatim from the ledger contrast table" .
+tort:blowoutBench a owl:DatatypeProperty ; rdfs:label "the named bench that would measure the contrast row" .
+
+# ------------------------------------------------------------------ audit
+
+tort:torture-matrix-source a prov:Entity ;
+    dcterms:title "p99 Torture Matrix source (bare-metal transit ledger, contrast table + measured rows)" ;
+    dcterms:source <file:///Users/sac/arcus/docs/jira/v26.11.3/bare-metal-transit-ledger.md> ;
+    rdfs:comment "Measured rows are receipt-cited; the contrast table is entirely TARGET-UNMEASURED per AF-18's census (AF-18 has no receipt on disk). Never round up." .
+
+# ------------------------------------------------------------------ lanes
+
+tort:lane-ab-10 a tort:TortLane ;
+    tort:laneId "ab-10" ;
+    tort:receiptPath "docs/jira/v26.11.3/receipts/ab-10-writerv-stress.md" ;
+    tort:standing "ALIVE" ;
+    tort:measuredValue "113,132 frames/sec, 55.4 MB/s, 50k-frame UDS soak with stalled-sink Ok(0) injection every 4th call (1,333 = 1,000 + 333 arithmetic court); 1,000 teardowns lsof delta 0" ;
+    prov:wasDerivedFrom tort:torture-matrix-source .
+
+# ab-17 landed in the lsp-max tree (cscb-wave-index AB-17 row; canonical
+# citation is lsp-max, not cgap).
+tort:lane-ab-17 a tort:TortLane ;
+    tort:laneId "ab-17" ;
+    tort:receiptPath "file:///Users/sac/lsp-max/docs/jira/v26.11.3/receipts/ab-17-churn-stress.md" ;
+    tort:standing "ALIVE" ;
+    tort:measuredValue "200-cycle spawn/kill churn (bounded poll, exact pid reaped): fd table 34->10 plateau, RSS plateaus 13088 KiB from cycle 100, 0 leak; 8x500 fanout soak 4000/4000; NO-RESPAWN law court" ;
+    prov:wasDerivedFrom tort:torture-matrix-source .
+
+# ab-18: POLLED-NOT-LANDED (searched cgap/arcus/ggen/lsp-max receipts,
+# 2026-11-03). No receiptPath, no measuredValue — fences nothing; tort-5's
+# landed anchor is ab-17 (gate 040). When ab-18 lands it supersedes.
+tort:lane-ab-18 a tort:TortLane ;
+    tort:laneId "ab-18" ;
+    tort:standing "POLLED-NOT-LANDED" .
+
+# ------------------------------------------------------------- injections
+
+tort:tort-1 a tort:TortInjection ;
+    tort:injectionId "tort-1" ;
+    tort:injectionDesc "bimodal-heap: alternate allocation size classes across the p99 window so the allocator's slow path lands inside the tail, not the mean" ;
+    tort:ceilingStanding "TARGET-UNMEASURED" ;
+    tort:sovereignCeilingNs 850 ;
+    tort:namedBench "AF-37's injection bench (per-injection p99 cell, release profile, min-of-N; no AF-37 receipt on disk as of 2026-11-03)" ;
+    prov:wasDerivedFrom tort:torture-matrix-source .
+
+tort:tort-2 a tort:TortInjection ;
+    tort:injectionId "tort-2" ;
+    tort:injectionDesc "stall-walk: walk a stalled sink through the stream (periodic Ok(0) zero-progress returns) and fence the per-frame p99 under sustained stall" ;
+    tort:ceilingStanding "MEASURED" ;
+    tort:sovereignCeilingUs 12 ;
+    tort:ceilingExact "<12 us per frame under sustained stall (ab-10's receipted 113,132 fps = 8.84 us/frame mean under the Ok(0) injection + headroom)" ;
+    tort:ceilingSource tort:lane-ab-10 ;
+    prov:wasDerivedFrom tort:torture-matrix-source .
+
+# tort-2 derivation note: ab-10's receipted 113,132 frames/sec over the
+# 50k-frame soak WITH the Ok(0) stall injection = 8.84 us/frame mean under
+# injection; the sovereign ceiling fence is <12 us (headroom above the
+# receipted 8.84, exact form disclosed, never rounded down to a claim).
+
+tort:tort-3 a tort:TortInjection ;
+    tort:injectionId "tort-3" ;
+    tort:injectionDesc "cache-stride: stride accesses across cache-line and page boundaries so eviction/TLB misses land inside the tail" ;
+    tort:ceilingStanding "TARGET-UNMEASURED" ;
+    tort:sovereignCeilingNs 450 ;
+    tort:namedBench "AF-37's injection bench (per-injection p99 cell, release profile, min-of-N; no AF-37 receipt on disk as of 2026-11-03)" ;
+    prov:wasDerivedFrom tort:torture-matrix-source .
+
+tort:tort-4 a tort:TortInjection ;
+    tort:injectionId "tort-4" ;
+    tort:injectionDesc "tamper-inundation: flood the window with single-bit/byte tampered frames so the typed-refusal path becomes the tail" ;
+    tort:ceilingStanding "TARGET-UNMEASURED" ;
+    tort:sovereignCeilingNs 1500 ;
+    tort:namedBench "AF-37's injection bench (per-injection p99 cell, release profile, min-of-N; no AF-37 receipt on disk as of 2026-11-03)" ;
+    prov:wasDerivedFrom tort:torture-matrix-source .
+
+tort:tort-5 a tort:TortInjection ;
+    tort:injectionId "tort-5" ;
+    tort:injectionDesc "supervisor-churn: cycle supervisor kill/respawn through the p99 window (SIGKILL mid-flight, bounded poll on exit flag + exact pid reaped, evict + respawn) and fence the per-cycle restart p99" ;
+    tort:ceilingStanding "MEASURED" ;
+    tort:sovereignCeilingUs 5800 ;
+    tort:ceilingExact "5.8-7.4 ms per supervisor churn cycle (range; landed anchor ab-17's 200-cycle churn receipt, ab-18 POLLED-NOT-LANDED)" ;
+    tort:ceilingSource tort:lane-ab-17 , tort:lane-ab-18 ;
+    prov:wasDerivedFrom tort:torture-matrix-source .
+
+# ---------------------------------------------------------- cloud blowout
+# The transit ledger's contrast table, verbatim, every row TARGET-UNMEASURED
+# per AF-18's census. These are comparison figures with zero measurements
+# behind them; each names the bench that would measure it. None may be used
+# in a commercial argument, and none may be a ceilingSource (gate 030).
+
+tort:blowout-grpc a tort:CloudBlowout ;
+    tort:blowoutId "blowout-grpc" ;
+    tort:blowoutRange "4M ns gRPC end-to-end" ;
+    tort:blowoutBench "AF-30's Contender B scope (no AF-30 receipt on disk)" ;
+    tort:standing "TARGET-UNMEASURED" ;
+    prov:wasDerivedFrom tort:torture-matrix-source .
+
+tort:blowout-jvm a tort:CloudBlowout ;
+    tort:blowoutId "blowout-jvm" ;
+    tort:blowoutRange "50k/sec JVM ring/queue" ;
+    tort:blowoutBench "AF-30's Contender B scope" ;
+    tort:standing "TARGET-UNMEASURED" ;
+    prov:wasDerivedFrom tort:torture-matrix-source .
+
+tort:blowout-go a tort:CloudBlowout ;
+    tort:blowoutId "blowout-go" ;
+    tort:blowoutRange "12.4 MB/s Go alloc-heavy encode" ;
+    tort:blowoutBench "AF-18's Go encoding/json bench (bench itself un-landed; AF-18 has no receipt on disk)" ;
+    tort:standing "TARGET-UNMEASURED" ;
+    prov:wasDerivedFrom tort:torture-matrix-source .
+
+tort:blowout-json a tort:CloudBlowout ;
+    tort:blowoutId "blowout-json" ;
+    tort:blowoutRange "45k ns JSON encode/decode" ;
+    tort:blowoutBench "AF-30's Contender B scope" ;
+    tort:standing "TARGET-UNMEASURED" ;
+    prov:wasDerivedFrom tort:torture-matrix-source .
+
+tort:blowout-node a tort:CloudBlowout ;
+    tort:blowoutId "blowout-node" ;
+    tort:blowoutRange "180 MB/s Node stream throughput" ;
+    tort:blowoutBench "AF-30's Contender B scope" ;
+    tort:standing "TARGET-UNMEASURED" ;
+    prov:wasDerivedFrom tort:torture-matrix-source .
+
+tort:blowout-tcp a tort:CloudBlowout ;
+    tort:blowoutId "blowout-tcp" ;
+    tort:blowoutRange "8.5k fps TCP writer/reader" ;
+    tort:blowoutBench "AF-30's Contender B scope" ;
+    tort:standing "TARGET-UNMEASURED" ;
+    prov:wasDerivedFrom tort:torture-matrix-source .

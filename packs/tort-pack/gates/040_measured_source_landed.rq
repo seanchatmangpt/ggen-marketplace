@@ -1,0 +1,33 @@
+# MESSAGE: measured-ceiling landed-receipt closure — a MEASURED ceiling is
+# only as good as its landed receipt. Every TortInjection with
+# ceilingStanding "MEASURED" must cite at least one ceilingSource TortLane
+# that is LANDED (carries a receiptPath and standing != POLLED-NOT-LANDED).
+# Citing ONLY unlanded lanes as the anchor of a measured ceiling is a
+# refusal. (tort-5 cites ab-17 LANDED + ab-18 POLLED-NOT-LANDED; the
+# landed anchor ab-17 satisfies this gate — ab-18's unlanded status is
+# disclosed in the graph, never hidden.)
+# Anti-vacuity: witnesses/fail/040_measured_source_landed.ttl adds a
+# TortInjection with ceilingStanding "MEASURED" whose only ceilingSource
+# is a POLLED-NOT-LANDED lane with no receiptPath; >=1 row must result
+# (shim-court flip).
+PREFIX tort: <urn:tort:>
+SELECT ?injection ?problem WHERE {
+  ?injection tort:ceilingStanding "MEASURED" ;
+             a tort:TortInjection .
+  {
+    FILTER NOT EXISTS { ?injection tort:ceilingSource ?anyLane . }
+    BIND("measured-ceiling-without-any-source-lane" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS {
+      ?injection tort:ceilingSource ?lane .
+      ?lane a tort:TortLane ;
+            tort:receiptPath ?rp ;
+            tort:standing ?lst .
+      FILTER(?lst != "POLLED-NOT-LANDED")
+    }
+    BIND("measured-ceiling-without-LANDED-source-lane" AS ?problem)
+  }
+}
+ORDER BY ?injection ?problem

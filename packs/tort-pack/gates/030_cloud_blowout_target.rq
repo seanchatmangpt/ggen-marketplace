@@ -1,0 +1,41 @@
+# MESSAGE: cloud-blowout anti-fabrication — every CloudBlowout individual
+# must carry standing "TARGET-UNMEASURED" (the legacy cloud p99 ranges are
+# unmeasured comparison figures per AF-18's census; AF-18 has no receipt on
+# disk). A CloudBlowout with any other standing — in particular MEASURED,
+# ALIVE, or any measured value — is a fabricated measurement and refuses
+# the sync with [FM-PACK-013]. A CloudBlowout also may not be referenced
+# as a ceiling source for any injection ceiling, and must name the bench
+# that would measure it.
+# Anti-vacuity: witnesses/fail/030_cloud_blowout_target.ttl adds a
+# CloudBlowout with standing "MEASURED" and a measuredValue; >=1 row must
+# result (shim-court flip).
+PREFIX tort: <urn:tort:>
+SELECT ?blowout ?problem WHERE {
+  ?blowout a tort:CloudBlowout .
+  {
+    FILTER NOT EXISTS { ?blowout tort:standing ?st . }
+    BIND("missing-standing" AS ?problem)
+  }
+  UNION
+  {
+    ?blowout tort:standing ?s .
+    FILTER(?s != "TARGET-UNMEASURED")
+    BIND("FM-PACK-013-cloud-blowout-without-TARGET-standing" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?blowout tort:blowoutRange ?r . }
+    BIND("missing-blowoutRange" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?blowout tort:blowoutBench ?b . }
+    BIND("missing-blowoutBench" AS ?problem)
+  }
+  UNION
+  {
+    ?inj tort:ceilingSource ?blowout .
+    BIND("cloud-blowout-used-as-ceilingSource" AS ?problem)
+  }
+}
+ORDER BY ?blowout ?problem

@@ -1,0 +1,33 @@
+# MESSAGE: torture injection band closure — a TortInjection whose
+# injectionId is outside the closed band tort-1..tort-5, or that lacks
+# injectionId / injectionDesc / ceilingStanding, is a refusal. The
+# injection set is closed: exactly tort-1..tort-5 exist (the p99 Torture
+# Matrix is a 5-injection matrix).
+# Anti-vacuity: witnesses/fail/010_injection_band_closure.ttl adds a
+# TortInjection with injectionId "tort-6" and missing required properties;
+# >=1 row must result (shim-court flip).
+PREFIX tort: <urn:tort:>
+SELECT ?injection ?problem WHERE {
+  ?injection a tort:TortInjection .
+  {
+    ?injection tort:injectionId ?iid .
+    FILTER(?iid NOT IN ("tort-1", "tort-2", "tort-3", "tort-4", "tort-5"))
+    BIND("injectionId-outside-closed-band-tort-1-tort-5" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?injection tort:injectionId ?anyId . }
+    BIND("missing-injectionId" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?injection tort:injectionDesc ?d . }
+    BIND("missing-injectionDesc" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?injection tort:ceilingStanding ?cs . }
+    BIND("missing-ceilingStanding" AS ?problem)
+  }
+}
+ORDER BY ?injection ?problem
