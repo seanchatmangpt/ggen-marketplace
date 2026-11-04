@@ -69,3 +69,5 @@ standing on `4c862576ab`. R-items minted: **0**.
 | landed in | `4a93a81cc` (v26.11.3 wave commit; extractor staged alongside pack-conformance fixes) |
 | ledger row | THIS entry — atomicity repair per check_pin_freshness.sh marker (R62/R81 law) |
 | disposition | current (no cert receipts re-minted; wave commit carried no certify claims) |
+
+Current-row pin line (gate format): extractor `scripts/gen_doc_surface.py` is current at sha256 `a96cfd25a7ae8fafc50b5bfceded66e058573101581c832116be95f71040faaf` (landed 4a93a81cc; v26.11.3 wave).
