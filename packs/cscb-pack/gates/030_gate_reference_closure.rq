@@ -1,0 +1,42 @@
+# MESSAGE: gate reference-receipt closure — every CscbGate must carry a
+# referenceReceipt whose path resolves to a RECEIPTED lane's receiptPath or
+# the AF-2 audit source (a fence derives from a receipt on disk, never from
+# a POLLED-NOT-LANDED lane), plus a prov:wasDerivedFrom edge to the lane
+# whose receipt derives the fence. A referenceReceipt pointing at a
+# POLLED-NOT-LANDED lane's path is a refusal (ab-17/af-7 fence nothing).
+# Anti-vacuity: witnesses/fail/030_gate_reference_closure.ttl adds a gate
+# with referenceReceipt "docs/jira/v26.11.3/receipts/ab-17-churn.md" (the
+# not-landed lane's path); >=1 row must result (flip).
+PREFIX cscb: <urn:cscb:>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+SELECT ?gate ?problem WHERE {
+  ?gate a cscb:CscbGate .
+  {
+    FILTER NOT EXISTS { ?gate cscb:referenceReceipt ?r . }
+    BIND("missing-referenceReceipt" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?gate prov:wasDerivedFrom ?lane . }
+    BIND("missing-prov-wasDerivedFrom-to-lane" AS ?problem)
+  }
+  UNION
+  {
+    ?gate cscb:referenceReceipt ?ref .
+    FILTER NOT EXISTS {
+      ?lane2 a cscb:CscbLane ;
+             cscb:receiptPath ?rp ;
+             cscb:standing ?lst .
+      FILTER(?lst != "POLLED-NOT-LANDED")
+      FILTER(STR(?rp) = STR(?ref))
+    }
+    FILTER NOT EXISTS {
+      ?audit a prov:Entity ;
+             dcterms:source ?src .
+      FILTER(STR(?ref) = STR(?src))
+    }
+    BIND("referenceReceipt-not-a-receipted-lane-or-audit" AS ?problem)
+  }
+}
+ORDER BY ?gate ?problem

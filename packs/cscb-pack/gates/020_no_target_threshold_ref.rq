@@ -1,0 +1,50 @@
+# MESSAGE: no TARGET standing on a gate's threshold reference, and target
+# completeness — a CscbTarget may never be referenced by a CscbGate
+# (TARGET-UNMEASURED rows are a work queue, never threshold evidence; the
+# G7 correction: AF-2 row 1 is UNSUPPORTED and fences nothing). A
+# CscbTarget must also carry standing exactly "TARGET-UNMEASURED", an
+# af2Row, and a namedBench ("a named bench, not a badge").
+# Anti-vacuity: witnesses/fail/020_no_target_threshold_ref.ttl adds a gate
+# whose referenceReceipt is a CscbTarget; >=1 row must result (flip).
+PREFIX cscb: <urn:cscb:>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+SELECT ?subject ?problem WHERE {
+  {
+    ?gate a cscb:CscbGate .
+    ?gate cscb:referenceReceipt ?ref .
+    ?target a cscb:CscbTarget .
+    FILTER(STR(?ref) = STR(?target))
+    BIND("gate-references-a-TARGET-UNMEASURED-row" AS ?problem)
+    BIND(?target AS ?subject)
+  }
+  UNION
+  {
+    ?t a cscb:CscbTarget .
+    ?t cscb:standing ?st .
+    FILTER(?st != "TARGET-UNMEASURED")
+    BIND("target-standing-not-TARGET-UNMEASURED" AS ?problem)
+    BIND(?t AS ?subject)
+  }
+  UNION
+  {
+    ?t a cscb:CscbTarget .
+    FILTER NOT EXISTS { ?t cscb:namedBench ?b . }
+    BIND("target-missing-namedBench" AS ?problem)
+    BIND(?t AS ?subject)
+  }
+  UNION
+  {
+    ?t a cscb:CscbTarget .
+    FILTER NOT EXISTS { ?t cscb:af2Row ?row . }
+    BIND("target-missing-af2Row" AS ?problem)
+    BIND(?t AS ?subject)
+  }
+  UNION
+  {
+    ?t a cscb:CscbTarget .
+    FILTER NOT EXISTS { ?t prov:wasDerivedFrom ?src . }
+    BIND("target-missing-prov-wasDerivedFrom" AS ?problem)
+    BIND(?t AS ?subject)
+  }
+}
+ORDER BY ?subject ?problem

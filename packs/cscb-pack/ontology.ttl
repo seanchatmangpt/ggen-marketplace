@@ -1,0 +1,267 @@
+@prefix cscb: <urn:cscb:> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Canonical CBMQS graph (pack cscb-pack). The CBMQS 7-gate standard
+# (arcus docs/jira/v26.11.3/cbmqs-standard.md, PROPOSED v1, AF-13) modeled
+# as RDF: gate thresholds and reference receipts are queryable, and the
+# CSCB prompt library's tactical deployment matrix is a SELECT, not prose.
+# Values are the AF-2-corrected ones
+# (arcus docs/jira/v26.11.3/dflss-aoq-claims-audit.md): gate fence G1 =
+# AB-19's receipted 100k ops/s floor; G7 is structural-no-ceiling per AF-2
+# row 1 UNSUPPORTED — the refuted 18.1 ns is never encoded as a threshold
+# (gate 040 refuses the literal).
+# Receipts physically live in cgap
+# docs/jira/v26.11.3/receipts/ (AF-2 path-drift correction; cbmqs-standard
+# See Also note) unless marked arcus.
+
+<urn:cscb:> a owl:Ontology ;
+    owl:versionInfo "26.11.3" ;
+    rdfs:label "CBMQS qualification ontology" ;
+    rdfs:comment "Chicago Bare-Metal Qualification Standard v1: 7 gates (CscbGate), the stress-receipt lanes that reference them (CscbLane), and the TARGET-UNMEASURED work queue (CscbTarget) with named benches, provenanced to the AF-2 honesty audit." ;
+    dcterms:source <file:///Users/sac/arcus/docs/jira/v26.11.3/cbmqs-standard.md> .
+
+# ---------------------------------------------------------------- classes
+
+cscb:CscbGate a rdfs:Class ;
+    rdfs:label "CBMQS gate" ;
+    rdfs:comment "One of the seven CBMQS gates g1..g7 (closed band, gate 010). Carries gateId, gateName, threshold (exact receipted form; G7 structural), referenceReceipt (disk path of the receipt the fence derives from), measurementMethod, disqualificationCondition, and prov:wasDerivedFrom edges to the CscbLane individuals whose receipts derive the fence." .
+
+cscb:CscbLane a rdfs:Class ;
+    rdfs:label "CBMQS reference lane" ;
+    rdfs:comment "One stress/bench receipt lane (ab-2/3/6/9/10/11/12/16/17/19 + af-7) with its receiptPath (absent when not landed), standing, and measuredValue where receipted." .
+
+cscb:CscbTarget a rdfs:Class ;
+    rdfs:label "TARGET-UNMEASURED row" ;
+    rdfs:label "TARGET-UNMEASURED row" ;
+    rdfs:comment "One UNSUPPORTED number from the AF-2 claims audit (rows 1, 5, 13, 14, 15, 16), never presented as measured, carried as a standing work queue with the named bench that would measure it. A CscbTarget may NEVER be a gate's threshold reference (gate 020)." .
+
+# ------------------------------------------------------------ properties
+
+cscb:gateId a owl:DatatypeProperty ; rdfs:label "closed gate id g1..g7" .
+cscb:gateName a owl:DatatypeProperty ; rdfs:label "gate name" .
+cscb:threshold a owl:DatatypeProperty ; rdfs:label "threshold in exact receipted form; G7 is structural (no numeric ceiling)" .
+cscb:referenceReceipt a owl:DatatypeProperty ; rdfs:label "disk path of the receipt the gate fence derives from" .
+cscb:measurementMethod a owl:DatatypeProperty ; rdfs:label "receipted measurement method" .
+cscb:disqualificationCondition a owl:DatatypeProperty ; rdfs:label "typed disqualification condition" .
+cscb:laneId a owl:DatatypeProperty ; rdfs:label "lane id ab-N / af-N" .
+cscb:receiptPath a owl:DatatypeProperty ; rdfs:label "receipt path on disk (absent when not landed)" .
+cscb:standing a owl:DatatypeProperty ; rdfs:label "standing: ALIVE | PARTIAL_ALIVE | POLLED-NOT-LANDED" .
+cscb:measuredValue a owl:DatatypeProperty ; rdfs:label "receipted measured value, exact form from the receipt" .
+cscb:targetId a owl:DatatypeProperty ; rdfs:label "target id" .
+cscb:claim a owl:DatatypeProperty ; rdfs:label "the UNSUPPORTED claim, verbatim from the audit" .
+cscb:namedBench a owl:DatatypeProperty ; rdfs:label "the named bench that would measure the claim (TARGET rows get a named bench, not a badge)" .
+cscb:af2Row a owl:DatatypeProperty ; rdfs:label "AF-2 audit row number" .
+
+# ------------------------------------------------------------------ audit
+
+cscb:af2-audit a prov:Entity ;
+    dcterms:title "AF-2 DFLSS AoQ claims audit (honesty gate; binding on this standard)" ;
+    dcterms:source <file:///Users/sac/arcus/docs/jira/v26.11.3/dflss-aoq-claims-audit.md> ;
+    rdfs:comment "9/16 SUPPORTED-with-qualifiers, 6 UNSUPPORTED never rounded up, 1 MISATTRIBUTED. Landing conditions 1-5 binding." .
+
+# ------------------------------------------------------------------ lanes
+
+cscb:lane-ab-2 a cscb:CscbLane ;
+    cscb:laneId "ab-2" ;
+    cscb:receiptPath "docs/jira/v26.11.3/receipts/ab-2-fips202.md" ;
+    cscb:standing "ALIVE" ;
+    cscb:measuredValue "SHAKE-128 4.301 ns/B @1 MB (release; receipted baseline fence)" ;
+    prov:wasDerivedFrom cscb:af2-audit .
+
+cscb:lane-ab-3 a cscb:CscbLane ;
+    cscb:laneId "ab-3" ;
+    cscb:receiptPath "docs/jira/v26.11.3/receipts/ab-3-chacha.md" ;
+    cscb:standing "ALIVE" ;
+    cscb:measuredValue "ChaCha20 616.3 MB/s @1 MB, 367.7 MB/s @64 B (min-of-8, release)" ;
+    prov:wasDerivedFrom cscb:af2-audit .
+
+cscb:lane-ab-6 a cscb:CscbLane ;
+    cscb:laneId "ab-6" ;
+    cscb:receiptPath "docs/jira/v26.11.3/receipts/ab-6-header.md" ;
+    cscb:standing "ALIVE" ;
+    cscb:measuredValue "encode 44.5 ns + decode 41.5 ns per header (min-of-7x100k, release; debug 418.4/312.4 disclosed)" ;
+    prov:wasDerivedFrom cscb:af2-audit .
+
+cscb:lane-ab-9 a cscb:CscbLane ;
+    cscb:laneId "ab-9" ;
+    cscb:receiptPath "docs/jira/v26.11.3/receipts/ab-9-ipc-stress.md" ;
+    cscb:standing "ALIVE" ;
+    cscb:measuredValue "0 allocs/window, min-of-400 single-cycle trials (counting GlobalAlloc; polluted aggregates disclosed)" ;
+    prov:wasDerivedFrom cscb:af2-audit .
+
+cscb:lane-ab-10 a cscb:CscbLane ;
+    cscb:laneId "ab-10" ;
+    cscb:receiptPath "docs/jira/v26.11.3/receipts/ab-10-writerv-stress.md" ;
+    cscb:standing "ALIVE" ;
+    cscb:measuredValue "113,132 frames/sec, 55.4 MB/s, 50k-frame UDS soak (printed, never fenced); 1,000 teardowns lsof delta 0" ;
+    prov:wasDerivedFrom cscb:af2-audit .
+
+cscb:lane-ab-11 a cscb:CscbLane ;
+    cscb:laneId "ab-11" ;
+    cscb:receiptPath "docs/jira/v26.11.3/receipts/ab-11-ring-stress.md" ;
+    cscb:standing "ALIVE" ;
+    cscb:measuredValue "100k write+read ring cycles, wrap x3, 4080 B MAX_PAYLOAD typed FrameTooLarge refusal (4 KB/64 KB loud skip)" ;
+    prov:wasDerivedFrom cscb:af2-audit .
+
+cscb:lane-ab-12 a cscb:CscbLane ;
+    cscb:laneId "ab-12" ;
+    cscb:receiptPath "docs/jira/v26.11.3/receipts/ab-12-blake3-stress.md" ;
+    cscb:standing "ALIVE" ;
+    cscb:measuredValue "BLAKE3 scalar 1768.8 MiB/s @64 KiB (min-of-3; degrades ~430 MiB/s @1 MiB+; per-call latency NOT receipted)" ;
+    prov:wasDerivedFrom cscb:af2-audit .
+
+cscb:lane-ab-16 a cscb:CscbLane ;
+    cscb:laneId "ab-16" ;
+    cscb:receiptPath "docs/jira/v26.11.3/receipts/ab-16-sync-scale.md" ;
+    cscb:standing "ALIVE" ;
+    cscb:measuredValue "ggen sync scale: 0.23 s warm at x300 (1800 ops), 2.3x of 0.10 s baseline — inside BM-1's 2.5x fence" ;
+    prov:wasDerivedFrom cscb:af2-audit .
+
+# ab-17: searched (cgap/arcus/ggen receipts) and NOT LANDED (cbmqs-standard
+# G6 disclosure, 2026-11-03). No receiptPath, no measuredValue — a gate may
+# not reference it as its threshold receipt (gate 030).
+cscb:lane-ab-17 a cscb:CscbLane ;
+    cscb:laneId "ab-17" ;
+    cscb:standing "POLLED-NOT-LANDED" .
+
+# af-7: named in AF-10's G7 composition (AB-14/AF-7 machinery) but no af-7
+# receipt found on disk (cgap/arcus receipts, 2026-11-04 poll). No
+# receiptPath, no measuredValue.
+cscb:lane-af-7 a cscb:CscbLane ;
+    cscb:laneId "af-7" ;
+    cscb:standing "POLLED-NOT-LANDED" .
+
+cscb:lane-ab-19 a cscb:CscbLane ;
+    cscb:laneId "ab-19" ;
+    cscb:receiptPath "docs/jira/v26.11.3/receipts/ab-19-slab-stress.md" ;
+    cscb:standing "ALIVE" ;
+    cscb:measuredValue "12,204,201 pushes/s (min-of-3: 18.78M/12.20M/20.64M, debug); receipted floor fence 100k ops/s" ;
+    prov:wasDerivedFrom cscb:af2-audit .
+
+# ------------------------------------------------------------------ gates
+
+cscb:g1 a cscb:CscbGate ;
+    cscb:gateId "g1" ;
+    cscb:gateName "Zero-alloc hot path" ;
+    cscb:threshold "0 allocations per window on emit+read (counting GlobalAlloc, min-of-400); throughput floor fence 100000 ops/s (AB-19's receipted floor)" ;
+    cscb:referenceReceipt "docs/jira/v26.11.3/receipts/ab-19-slab-stress.md" ;
+    cscb:measurementMethod "counting GlobalAlloc over min-of-400 single-cycle trials; independent throughput leg min-of-3 with 100k/s floor assert (AB-19 method)" ;
+    cscb:disqualificationCondition "any nonzero allocation in the min-of-400 window count, or throughput under the 100k/s floor assert" ;
+    prov:wasDerivedFrom cscb:lane-ab-9 , cscb:lane-ab-19 .
+
+cscb:g2 a cscb:CscbGate ;
+    cscb:gateId "g2" ;
+    cscb:gateName "Framing ceiling <100 ns combined" ;
+    cscb:threshold "<100 ns combined per-header encode+decode, release profile" ;
+    cscb:referenceReceipt "docs/jira/v26.11.3/receipts/ab-6-header.md" ;
+    cscb:measurementMethod "release-profile bench, min-of-7x100k, black_box-guarded sink, ns-per-header (AB-6 method)" ;
+    cscb:disqualificationCondition "combined >=100 ns on release profile, or a debug-profile number presented as release" ;
+    prov:wasDerivedFrom cscb:lane-ab-6 .
+
+cscb:g3 a cscb:CscbGate ;
+    cscb:gateId "g3" ;
+    cscb:gateName "Spec-drift compile court" ;
+    cscb:threshold "100% of wire-constant drift caught by a compile/bench court wired to generated constants; zero silent drift classes" ;
+    cscb:referenceReceipt "docs/jira/v26.11.3/receipts/ab-6-header.md" ;
+    cscb:measurementMethod "inject a constant drift into generated constants (shim-court: baseline-before-shim-after, byte-exact restore); the court must refuse typed; vacuous court = FAIL (GA-4 pattern, 9/9 FLIP)" ;
+    cscb:disqualificationCondition "a court that does not refuse an injected drift, or a court that cannot flip under mutation" ;
+    prov:wasDerivedFrom cscb:lane-ab-6 .
+
+cscb:g4 a cscb:CscbGate ;
+    cscb:gateId "g4" ;
+    cscb:gateName "KAT + AEAD throughput + absorption + flip rejection" ;
+    cscb:threshold "KAT vectors green; AEAD >=500 MB/s @1 MB release; absorption <5 ns/B @1 MB release; every flip refuses typed" ;
+    cscb:referenceReceipt "docs/jira/v26.11.3/receipts/ab-3-chacha.md" ;
+    cscb:measurementMethod "KAT from union graph; AEAD bench min-of-8 release @1 MB; absorption bench release @1 MB; >=10k-seeded single-bit/byte mutation sweep, typed-refusal assert" ;
+    cscb:disqualificationCondition "any KAT failure; AEAD <500 MB/s @1 MB release; absorption >=5 ns/B @1 MB release; any silent accept or panic instead of typed refusal" ;
+    prov:wasDerivedFrom cscb:lane-ab-3 , cscb:lane-ab-2 .
+
+cscb:g5 a cscb:CscbGate ;
+    cscb:gateId "g5" ;
+    cscb:gateName "Storm soak 50k frames" ;
+    cscb:threshold "50,000-frame soak, per-frame byte-identity green, zero leaked fds, every oversize payload refused typed FrameTooLarge" ;
+    cscb:referenceReceipt "docs/jira/v26.11.3/receipts/ab-10-writerv-stress.md" ;
+    cscb:measurementMethod "single live UDS pair soak with per-frame byte identity; lsof fd-delta witness across >=1,000 teardowns; oversize court at MAX_PAYLOAD+1 (4080 B law, AB-11)" ;
+    cscb:disqualificationCondition "any byte-identity mismatch, any fd leak, any oversize frame crashing/accepting/silently truncating, or any fabricated poison-frame throughput number" ;
+    prov:wasDerivedFrom cscb:lane-ab-10 , cscb:lane-ab-11 .
+
+cscb:g6 a cscb:CscbGate ;
+    cscb:gateId "g6" ;
+    cscb:gateName "Churn endurance" ;
+    cscb:threshold ">=200 connect/disconnect/reallocate churn cycles (structural floor; prompt-derived fence, disclosed as such) with byte+CRC identity, typed backpressure, zero fd leaks, RSS bounded" ;
+    cscb:referenceReceipt "docs/jira/v26.11.3/receipts/ab-11-ring-stress.md" ;
+    cscb:measurementMethod "cyclic churn run with per-cycle byte+CRC+ordinal asserts, ordinal-wrap walk, typed backpressure court, lsof fd-delta witness, RSS sampled start/end" ;
+    cscb:disqualificationCondition "any identity mismatch, untyped backpressure (panic/silent drop), fd leak, or monotonic RSS growth" ;
+    prov:wasDerivedFrom cscb:lane-ab-11 .
+
+# G7 CORRECTION (cbmqs-standard ruling, AF-2 row 1 UNSUPPORTED): the
+# prompt's <25 ns / 18.1 ns per-link cost is not adopted. The gate is
+# structural: chained receipt per admitted frame + full-chain verify green +
+# measured per-link cost recorded and disclosed. NO numeric ceiling. Gate
+# 040 refuses the refuted 18.1 ns literal anywhere in the union graph.
+cscb:g7 a cscb:CscbGate ;
+    cscb:gateId "g7" ;
+    cscb:gateName "Receipt chain" ;
+    cscb:threshold "structural: chained receipt per admitted frame + full-chain verify green + measured per-link cost recorded and disclosed; no numeric ceiling" ;
+    cscb:referenceReceipt "file:///Users/sac/arcus/docs/jira/v26.11.3/dflss-aoq-claims-audit.md" ;
+    cscb:measurementMethod "per-frame chained receipt emit; full-chain verify at soak end; per-link cost measured and printed (disclosed, never fenced)" ;
+    cscb:disqualificationCondition "any admitted frame lacking a chain link, full-chain verify failing, or a per-link cost claimed without a printed measurement" ;
+    prov:wasDerivedFrom cscb:af2-audit .
+
+# ---------------------------------------------------------------- targets
+# The 6 UNSUPPORTED rows from the AF-2 audit (rows 1, 5, 13, 14, 15, 16),
+# standing TARGET-UNMEASURED, each with the named bench that would measure
+# it. Never presented as measured; a target may never be a gate threshold
+# reference (gate 020).
+
+cscb:tgt-af2-row1 a cscb:CscbTarget ;
+    cscb:targetId "tgt-af2-row1" ;
+    cscb:af2Row 1 ;
+    cscb:claim "18.1 ns per-call receipt latency" ;
+    cscb:namedBench "ab-12 court-1 per-call latency cell (64 B-1 KiB, release, min-of-3)" ;
+    cscb:standing "TARGET-UNMEASURED" ;
+    prov:wasDerivedFrom cscb:af2-audit .
+
+cscb:tgt-af2-row5 a cscb:CscbTarget ;
+    cscb:targetId "tgt-af2-row5" ;
+    cscb:af2Row 5 ;
+    cscb:claim "174.1 ns header inspection" ;
+    cscb:namedBench "ab-6-method per-header inspection cell (release, min-of-7x100k, black_box-guarded sink)" ;
+    cscb:standing "TARGET-UNMEASURED" ;
+    prov:wasDerivedFrom cscb:af2-audit .
+
+cscb:tgt-af2-row13 a cscb:CscbTarget ;
+    cscb:targetId "tgt-af2-row13" ;
+    cscb:af2Row 13 ;
+    cscb:claim "<10 ns per-frame gate latency (USL validated)" ;
+    cscb:namedBench "per-frame gate-latency bench (release) against the 41 ns timer-resolution floor witness (cgap AX-5); a sub-41 ns result is a measurement defect, not a pass" ;
+    cscb:standing "TARGET-UNMEASURED" ;
+    prov:wasDerivedFrom cscb:af2-audit .
+
+cscb:tgt-af2-row14 a cscb:CscbTarget ;
+    cscb:targetId "tgt-af2-row14" ;
+    cscb:af2Row 14 ;
+    cscb:claim "Cpk >= 3.48 / <0.001 DPMO" ;
+    cscb:namedBench "committed DFLSS process-capability baseline study (dx/17 law: capability block present:false until a committed baseline exists)" ;
+    cscb:standing "TARGET-UNMEASURED" ;
+    prov:wasDerivedFrom cscb:af2-audit .
+
+cscb:tgt-af2-row15 a cscb:CscbTarget ;
+    cscb:targetId "tgt-af2-row15" ;
+    cscb:af2Row 15 ;
+    cscb:claim "12M rows/sec" ;
+    cscb:namedBench "p04-ingress rows/sec cell (release, min-of-3)" ;
+    cscb:standing "TARGET-UNMEASURED" ;
+    prov:wasDerivedFrom cscb:af2-audit .
+
+cscb:tgt-af2-row16 a cscb:CscbTarget ;
+    cscb:targetId "tgt-af2-row16" ;
+    cscb:af2Row 16 ;
+    cscb:claim "70-90% fleet collapse" ;
+    cscb:namedBench "fleet before/after census bench (fleet census receipted on disk)" ;
+    cscb:standing "TARGET-UNMEASURED" ;
+    prov:wasDerivedFrom cscb:af2-audit .

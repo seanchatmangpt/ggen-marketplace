@@ -1,0 +1,135 @@
+@prefix cscb: <urn:cscb:> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix w: <urn:cscb:witness:pass/> .
+
+# Clean seed graph: 7 in-band gates, receipted lanes, 6 conforming targets.
+# Every gate must return 0 rows against this graph.
+
+w:audit a prov:Entity ;
+    dcterms:source "urn:cscb:witness:pass/audit" .
+
+w:lane-ab-6 a cscb:CscbLane ;
+    cscb:laneId "ab-6" ;
+    cscb:receiptPath "docs/jira/v26.11.3/receipts/ab-6-header.md" ;
+    cscb:standing "ALIVE" ;
+    cscb:measuredValue "encode 44.5 ns + decode 41.5 ns per header" .
+
+w:lane-ab-19 a cscb:CscbLane ;
+    cscb:laneId "ab-19" ;
+    cscb:receiptPath "docs/jira/v26.11.3/receipts/ab-19-slab-stress.md" ;
+    cscb:standing "ALIVE" ;
+    cscb:measuredValue "12,204,201 pushes/s; floor fence 100k ops/s" .
+
+w:lane-ab-3 a cscb:CscbLane ;
+    cscb:laneId "ab-3" ;
+    cscb:receiptPath "docs/jira/v26.11.3/receipts/ab-3-chacha.md" ;
+    cscb:standing "ALIVE" ;
+    cscb:measuredValue "616.3 MB/s @1 MB" .
+
+w:lane-ab-2 a cscb:CscbLane ;
+    cscb:laneId "ab-2" ;
+    cscb:receiptPath "docs/jira/v26.11.3/receipts/ab-2-fips202.md" ;
+    cscb:standing "ALIVE" ;
+    cscb:measuredValue "SHAKE-128 4.301 ns/B @1 MB" .
+
+w:lane-ab-10 a cscb:CscbLane ;
+    cscb:laneId "ab-10" ;
+    cscb:receiptPath "docs/jira/v26.11.3/receipts/ab-10-writerv-stress.md" ;
+    cscb:standing "ALIVE" ;
+    cscb:measuredValue "113,132 frames/sec, 55.4 MB/s" .
+
+w:lane-ab-11 a cscb:CscbLane ;
+    cscb:laneId "ab-11" ;
+    cscb:receiptPath "docs/jira/v26.11.3/receipts/ab-11-ring-stress.md" ;
+    cscb:standing "ALIVE" ;
+    cscb:measuredValue "100k ring cycles; 4080 B typed refusal" .
+
+w:g1 a cscb:CscbGate ; cscb:gateId "g1" ; cscb:gateName "Zero-alloc hot path" ;
+    cscb:threshold "0 allocs/window min-of-400; floor 100000 ops/s" ;
+    cscb:referenceReceipt "docs/jira/v26.11.3/receipts/ab-19-slab-stress.md" ;
+    cscb:measurementMethod "counting GlobalAlloc min-of-400; throughput min-of-3" ;
+    cscb:disqualificationCondition "any nonzero alloc or sub-floor throughput" ;
+    prov:wasDerivedFrom w:lane-ab-19 .
+
+w:g2 a cscb:CscbGate ; cscb:gateId "g2" ; cscb:gateName "Framing ceiling" ;
+    cscb:threshold "<100 ns combined encode+decode release" ;
+    cscb:referenceReceipt "docs/jira/v26.11.3/receipts/ab-6-header.md" ;
+    cscb:measurementMethod "min-of-7x100k black_box ns/header release" ;
+    cscb:disqualificationCondition "combined >=100 ns release" ;
+    prov:wasDerivedFrom w:lane-ab-6 .
+
+w:g3 a cscb:CscbGate ; cscb:gateId "g3" ; cscb:gateName "Spec-drift court" ;
+    cscb:threshold "100% drift caught; vacuous court = FAIL" ;
+    cscb:referenceReceipt "docs/jira/v26.11.3/receipts/ab-6-header.md" ;
+    cscb:measurementMethod "shim-court drift injection, typed refusal" ;
+    cscb:disqualificationCondition "court cannot flip" ;
+    prov:wasDerivedFrom w:lane-ab-6 .
+
+w:g4 a cscb:CscbGate ; cscb:gateId "g4" ; cscb:gateName "KAT+AEAD+absorption+flip" ;
+    cscb:threshold "KAT green; >=500 MB/s @1 MB; <5 ns/B @1 MB" ;
+    cscb:referenceReceipt "docs/jira/v26.11.3/receipts/ab-3-chacha.md" ;
+    cscb:measurementMethod "min-of-8 release @1 MB; >=10k mutation sweep" ;
+    cscb:disqualificationCondition "KAT fail; sub-500 MB/s; >=5 ns/B; silent accept" ;
+    prov:wasDerivedFrom w:lane-ab-3 , w:lane-ab-2 .
+
+w:g5 a cscb:CscbGate ; cscb:gateId "g5" ; cscb:gateName "Storm soak 50k" ;
+    cscb:threshold "50k frames byte-identity; zero fd leaks; typed FrameTooLarge" ;
+    cscb:referenceReceipt "docs/jira/v26.11.3/receipts/ab-10-writerv-stress.md" ;
+    cscb:measurementMethod "live UDS soak; lsof delta; oversize court MAX_PAYLOAD+1" ;
+    cscb:disqualificationCondition "identity mismatch; fd leak; fabricated poison numbers" ;
+    prov:wasDerivedFrom w:lane-ab-10 , w:lane-ab-11 .
+
+w:g6 a cscb:CscbGate ; cscb:gateId "g6" ; cscb:gateName "Churn endurance" ;
+    cscb:threshold ">=200 cycles; byte+CRC identity; RSS bounded" ;
+    cscb:referenceReceipt "docs/jira/v26.11.3/receipts/ab-11-ring-stress.md" ;
+    cscb:measurementMethod "cyclic churn, wrap walk, typed backpressure, lsof, RSS" ;
+    cscb:disqualificationCondition "identity mismatch; untyped backpressure; RSS growth" ;
+    prov:wasDerivedFrom w:lane-ab-11 .
+
+w:g7 a cscb:CscbGate ; cscb:gateId "g7" ; cscb:gateName "Receipt chain" ;
+    cscb:threshold "structural: chained receipt + verify green + measured cost disclosed; no numeric ceiling" ;
+    cscb:referenceReceipt "urn:cscb:witness:pass/audit" ;
+    cscb:measurementMethod "per-frame receipt; chain verify at soak end; cost printed" ;
+    cscb:disqualificationCondition "missing chain link; verify fail; unprinted cost claim" ;
+    prov:wasDerivedFrom w:audit .
+
+w:t1 a cscb:CscbTarget ; cscb:targetId "tgt-af2-row1" ; cscb:af2Row 1 ;
+    cscb:claim "18.1 ns per-call receipt latency" ;
+    cscb:namedBench "ab-12 court-1 per-call latency cell" ;
+    cscb:standing "TARGET-UNMEASURED" ;
+    prov:wasDerivedFrom w:audit .
+
+w:t2 a cscb:CscbTarget ; cscb:targetId "tgt-af2-row5" ; cscb:af2Row 5 ;
+    cscb:claim "174.1 ns header inspection" ;
+    cscb:namedBench "ab-6-method per-header inspection cell" ;
+    cscb:standing "TARGET-UNMEASURED" ;
+    prov:wasDerivedFrom w:audit .
+
+w:t3 a cscb:CscbTarget ; cscb:targetId "tgt-af2-row13" ; cscb:af2Row 13 ;
+    cscb:claim "<10 ns per-frame gate latency" ;
+    cscb:namedBench "gate-latency bench vs 41 ns timer floor" ;
+    cscb:standing "TARGET-UNMEASURED" ;
+    prov:wasDerivedFrom w:audit .
+
+w:t4 a cscb:CscbTarget ; cscb:targetId "tgt-af2-row14" ; cscb:af2Row 14 ;
+    cscb:claim "Cpk >= 3.48" ;
+    cscb:namedBench "committed capability baseline study" ;
+    cscb:standing "TARGET-UNMEASURED" ;
+    prov:wasDerivedFrom w:audit .
+
+w:t5 a cscb:CscbTarget ; cscb:targetId "tgt-af2-row15" ; cscb:af2Row 15 ;
+    cscb:claim "12M rows/sec" ;
+    cscb:namedBench "p04-ingress rows/sec cell" ;
+    cscb:standing "TARGET-UNMEASURED" ;
+    prov:wasDerivedFrom w:audit .
+
+w:t6 a cscb:CscbTarget ; cscb:targetId "tgt-af2-row16" ; cscb:af2Row 16 ;
+    cscb:claim "70-90% fleet collapse" ;
+    cscb:namedBench "fleet before/after census bench" ;
+    cscb:standing "TARGET-UNMEASURED" ;
+    prov:wasDerivedFrom w:audit .
+
+# MUTATION (shim-court fail witness): out-of-band gate id + missing props.
+w:g8bad a cscb:CscbGate ; cscb:gateId "g8" .

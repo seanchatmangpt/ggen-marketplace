@@ -1,0 +1,47 @@
+# MESSAGE: CBMQS gate band closure — a CscbGate whose gateId is outside the
+# closed band g1..g7, or that lacks gateName / threshold / referenceReceipt /
+# measurementMethod / disqualificationCondition, is a refusal. The gate set
+# is closed: exactly g1..g7 exist (CBMQS v1 is a 7-gate standard).
+# Anti-vacuity: witnesses/fail/010_gate_band_closure.ttl adds a CscbGate
+# with gateId "g8" and missing required properties; >=1 row must result
+# (shim-court flip).
+PREFIX cscb: <urn:cscb:>
+SELECT ?gate ?problem WHERE {
+  ?gate a cscb:CscbGate .
+  {
+    ?gate cscb:gateId ?gid .
+    FILTER(?gid NOT IN ("g1", "g2", "g3", "g4", "g5", "g6", "g7"))
+    BIND("gateId-outside-closed-band-g1-g7" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?gate cscb:gateId ?anyId . }
+    BIND("missing-gateId" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?gate cscb:gateName ?n . }
+    BIND("missing-gateName" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?gate cscb:threshold ?t . }
+    BIND("missing-threshold" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?gate cscb:referenceReceipt ?r . }
+    BIND("missing-referenceReceipt" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?gate cscb:measurementMethod ?m . }
+    BIND("missing-measurementMethod" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?gate cscb:disqualificationCondition ?d . }
+    BIND("missing-disqualificationCondition" AS ?problem)
+  }
+}
+ORDER BY ?gate ?problem
