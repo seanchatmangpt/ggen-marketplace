@@ -10,6 +10,14 @@ sparql:
       ?h a aoq:Header ;
          aoq:sizeBytes ?sizeBytes .
     } ORDER BY ?sizeBytes
+  constants: >
+    PREFIX aoq: <urn:aoq:>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT ?hex ?label WHERE {
+      ?c a aoq:StatusConstant ;
+         aoq:value ?hex ;
+         rdfs:label ?label .
+    } ORDER BY ?hex
   fields: >
     PREFIX aoq: <urn:aoq:>
     SELECT ?off ?size ?kind ?c ?rust WHERE {
@@ -40,12 +48,19 @@ extern "C" {
 
 #define CGAP_AOQ1_HEADER_SIZE {{ header.0.sizeBytes }}
 #define CGAP_AOQ1_MAGIC 0x414F5131u
-#define CGAP_AOQ1_VERSION 2
+#define CGAP_AOQ1_VERSION 3
 
 /* Field offset/size defines — one per aoq:HeaderField, ORDER BY aoq:offset. */
 {%- for f in fields %}
 #define CGAP_AOQ1_{{ f.rust }}_OFFSET {{ f.off }}
 #define CGAP_AOQ1_{{ f.rust }}_SIZE {{ f.size }} /* {{ f.kind }}, C: {{ f.c }} */
+{%- endfor %}
+
+/* AOQ1 frozen status band — gate 020/070 law. One define per
+ * aoq:StatusConstant individual, projected from the same individuals as
+ * status_maps.rs; the retired band 0x4347_000x is not named here. */
+{%- for c in constants %}
+#define CGAP_AOQ_STATUS_{{ c.label }} {{ c.hex }}u
 {%- endfor %}
 
 /*
