@@ -6,29 +6,28 @@ from typing import Optional
 
 import typer
 
-{%- for row in results %}{% if row.kind == "app" %}
+{%- set apps = results | group_by(attribute="appName") %}
+{%- for appname, rows in apps %}
+{%- set r = rows.0 %}
 
-{{ row.appName }}_app = typer.Typer(help="az {{ row.resourceType }} sub-app (api {{ row.apiVersion }}), generated from bicep-types-az")
-app = {{ row.appName }}_app
-{%- endif %}{% endfor %}
+{{ appname }}_app = typer.Typer(help="az {{ r.resourceType }} sub-app (api {{ r.apiVersion }}), generated from bicep-types-az")
+app = {{ appname }}_app
 
-{%- for row in results %}{% if row.kind == "app" %}
-
-@{{ row.appName }}_app.command("create")
+@{{ appname }}_app.command("create")
 def create(
-{%- for orow in results %}{% if orow.kind == "option" %}
+{%- for orow in rows %}
 {%- if orow.required == "true" %}
     {{ orow.pyname }}: {{ orow.pytype }} = typer.Option(..., "{{ orow.flag }}", help="{{ orow.help }}"),
 {%- else %}
     {{ orow.pyname }}: Optional[{{ orow.pytype }}] = typer.Option(None, "{{ orow.flag }}", help="{{ orow.help }}"),
 {%- endif %}
-{%- endif %}{% endfor %}
+{%- endfor %}
 ) -> None:
-    """Create {{ row.resourceType }}."""
+    """Create {{ r.resourceType }}."""
     payload = {
-{%- for vrow in results %}{% if vrow.kind == "option" %}
+{%- for vrow in rows %}
         "{{ vrow.pyname }}": {{ vrow.pyname }},
-{%- endif %}{% endfor %}
+{%- endfor %}
     }
     typer.echo(json.dumps(payload, default=str))
-{%- endif %}{% endfor %}
+{%- endfor %}
