@@ -21,6 +21,15 @@ actually compiled. Gated purely on artifact presence, never on pack name or
 identity: a pack that generates no Rust crate is completely unaffected, and
 gains no new subprocess, no new timeout exposure, and no new failure mode.
 
+EA-admission opt-out (MKT-01, adopted corpus-wide with ambient ggen
+26.11.3): both `sync run` invocations below pass `--skip-ea-admission`.
+Marketplace packs are content packs, not SBB manufacturers -- their real
+architecture admission lives in ggen's own pack graph, not in this court.
+This is the lawful opt-out ggen itself provides (ggen sync.rs:346-351);
+the ZB-10 census showed 6/6 sampled packs refusing under 26.11.3 without
+it. Ambient ggen 26.11.3 is therefore the court identity; the script has
+no caller-side version pin and always defaults to the ambient binary.
+
 Pack-specific positive qualification data stays with the pack:
 
 * ``qualification/consumer.ttl`` / ``qualification/consumer/*.ttl`` add
@@ -310,7 +319,8 @@ def semantic_ggen_toml(pack: Pack, requirement_entries: tuple[str, ...] = ()) ->
 def requirement_pack_entries(pack: Pack, consumer: Path) -> list[str]:
     """Extra [packs] entries satisfying the pack's `requires`, derived from pack.toml.
 
-    ggen 26.10.11 refuses [FM-PACK-018] when a declared pack's `requires`
+    ambient ggen (26.10.11 through current 26.11.3) refuses [FM-PACK-018] when a declared
+    pack's `requires`
     reference packs the consuming project does not also declare, so an honest
     qualification consumer declares them (transitive closure over
     `capabilities.requires`). Required packs that ship zero templates are
@@ -678,7 +688,7 @@ def qualify_pack(pack: Pack, ggen_bin: str, timeout_seconds: float) -> dict[str,
     try:
         with tempfile.TemporaryDirectory(prefix=f"ggen-marketplace-{pack.name}-") as raw:
             consumer = prepare_consumer(pack, Path(raw))
-            first = run_bounded([ggen_bin, "sync", "run"], consumer, timeout_seconds)
+            first = run_bounded([ggen_bin, "sync", "run", "--skip-ea-admission"], consumer, timeout_seconds)
             if first.timed_out:
                 record = refusal(pack, "REFUSED:GGEN_PACK_TIMEOUT", f"pass=1 timeout_seconds={timeout_seconds:g}")
             elif first.returncode != 0:
@@ -693,7 +703,9 @@ def qualify_pack(pack: Pack, ggen_bin: str, timeout_seconds: float) -> dict[str,
                 if pack.profile != "project" and (not probe.is_file() or not probe.read_text(encoding="utf-8").strip()):
                     record = refusal(pack, "REFUSED:GGEN_PACK_PROBE_MISSING", probe.as_posix())
                 else:
-                    second = run_bounded([ggen_bin, "sync", "run"], consumer, timeout_seconds)
+                    second = run_bounded(
+                        [ggen_bin, "sync", "run", "--skip-ea-admission"], consumer, timeout_seconds
+                    )
                     if second.timed_out:
                         record = refusal(pack, "REFUSED:GGEN_PACK_TIMEOUT", f"pass=2 timeout_seconds={timeout_seconds:g}")
                     elif second.returncode != 0:
