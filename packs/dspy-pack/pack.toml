@@ -1,6 +1,6 @@
 [pack]
 name = "dspy-pack"
-version = "0.5.1"
+version = "0.6.0"
 description = """
 Universal DSPy generation vocabulary, verified against the real installed dspy 3.1.3 source tree
 (not docs prose) via inspect.signature() on every admitted constructor and compile() method, and
@@ -74,3 +74,22 @@ rendered source text).
 
 [capabilities]
 provides = ["urn:ggen:pack:dspy-pack"]
+
+[consumer_contract]
+# Deps pulled by the pack's PROJECTED code (not by the pack itself).
+# Derived mechanically from template imports (grep over templates/*.tmpl):
+#   dspy_shacl_signature.py.tmpl -> import dspy
+#   dspy_optimize.py.tmpl        -> import dspy
+#   dspy_program.py.tmpl         -> import pydantic, import dspy, from mcp import ...
+# dspy 3.x pins pydantic v2 and `mcp` itself as transitive deps; they are listed
+# explicitly because the templates import them by name.
+runtime = ["dspy>=3.0", "pydantic>=2.0", "mcp"]
+# Module/Optimizer individuals are minted by the consumer's own ontology; the pack
+# ships zero individuals (law-only vocabulary).
+peer_context = """
+consumer supplies its own dspy:Signature/InputField/OutputField/Module/Optimizer
+individuals over this pack's law-only vocabulary in its own .ttl; metric/reward/reduce
+function bodies, tool bodies, and trainset/valset/devset/eval_kwargs contents are
+consumer-owned (ggen scaffolds NotImplementedError stubs); MCP consumers additionally
+supply dspy:MCPServerConnection individuals with real server commands
+"""
