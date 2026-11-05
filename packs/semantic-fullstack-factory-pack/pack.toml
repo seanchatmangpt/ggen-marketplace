@@ -1,7 +1,45 @@
 [pack]
 name = "semantic-fullstack-factory-pack"
-version = "0.1.0"
+version = "0.2.0"
 description = "Deterministic RDF-to-FastAPI-and-Next.js application projection for admitted semantic scenarios. The pack grants no DO authority, requires runtimeIntelligence NONE and manufactureMode DETERMINISTIC, and manufactures consumer code plus its browser qualification court without application-specific handwritten source."
 
 [capabilities]
 provides = ["urn:ggen:pack:semantic-fullstack-factory-pack"]
+
+[consumer_contract]
+# Multi-target pack: two independent target families, each with its own
+# runtime. Deps derived mechanically per family from templates/*.tmpl
+# imports (non-relative, non-stdlib), per docs/pack-consumer-contract.md
+# (F4) and the v26.11.5 wave-2 house pattern. Per-family scoping uses the
+# [consumer_contract.<family>] sub-table convention.
+#
+# Invariants unchanged since 0.1.0: runtimeIntelligence NONE,
+# manufactureMode DETERMINISTIC, every scenario SELECT_CONSTRUCT_ONLY,
+# consequential disposition ENGINEER_DISPOSITION_REQUIRED.
+
+[consumer_contract.backend]
+# fastapi_app.py.tmpl: `from fastapi import FastAPI, HTTPException, Query`
+# + `from fastapi.middleware.cors import CORSMiddleware`; everything else
+# is stdlib (json, pathlib, typing). Not imported: uvicorn is the run
+# process (requirements.txt pins it), never an import.
+runtime = ["fastapi"]
+optional_runtime = ["uvicorn[standard]"]
+# backend_test.py.tmpl: `from fastapi.testclient import TestClient`
+# (TestClient needs httpx); pytest is the runner named by requirements.
+test = ["pytest", "httpx"]
+peer_context = "FastAPI app instance via projected generated/backend/app.py"
+
+[consumer_contract.frontend]
+# frontend_page.js.tmpl bare imports: react, zod. next/react-dom provide
+# the app shell (page/layout/next.config projections run under Next).
+runtime = ["next", "react", "react-dom", "zod"]
+# frontend_e2e.spec.cjs.tmpl + frontend_playwright.config.cjs.tmpl:
+# @playwright/test; frontend_package.json.tmpl also pins it as devDep.
+test = ["@playwright/test"]
+# Type-tier (tsc checkJs court, G06): page.js reads
+# process.env.NEXT_PUBLIC_API_URL -> @types/node; layout/page JSX ->
+# @types/react + @types/react-dom. Witnessed: without @types/node the
+# checkJs baseline exits 2 on TS2580 Cannot find name 'process'.
+types = ["@types/node", "@types/react", "@types/react-dom"]
+peer_context = "Next.js app-router shell via projected generated/frontend/app/{layout,page}.js"
+projected_helpers = []
