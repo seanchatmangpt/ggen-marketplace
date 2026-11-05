@@ -1,6 +1,6 @@
 [pack]
 name = "shacl-to-zod-pack"
-version = "0.2.0"
+version = "0.3.0"
 description = """
 Projects admitted SHACL NodeShapes into JavaScript Zod schemas while reusing
 shacl-projection-pack law.
@@ -10,9 +10,26 @@ becomes .nullable(); sp:collection true becomes z.array(...). sh:node uses the n
 explicit sp:projectionName through z.lazy so declaration order does not create a second
 semantic constraint.
 
-The pack ships no admission gate and zero domain individuals. Consumers must explicitly
-compose shacl-projection-pack with this pack.
+Output paths are template-authored. This pack renders exactly src/shacl_zod_schemas.js (the
+`to:` line in templates/shacl_to_zod.js.tmpl); a consumer cannot retarget it from ggen.toml.
+Witnessed: a consumer desiring src/shacl_zod_schemas.ts still received the .js path. When no
+sp:ZodSchema individuals exist in the merged graph the template still renders a stub file
+containing only the zod import — zero schemas is a silent stub, not a refusal.
+
+The pack ships no admission gate over domain facts and zero domain individuals. Consumers must
+explicitly compose shacl-projection-pack with this pack.
 """
 
 [capabilities]
 provides = ["urn:ggen:pack:shacl-to-zod-pack"]
+
+[consumer_contract]
+# Deps pulled by the pack's PROJECTED code (not by the pack itself).
+# src/shacl_zod_schemas.js is the only importing artifact; verified by grep over templates/.
+runtime = ["zod"]
+# sp:ZodSchema individuals are minted by the consumer's own ontology; the pack ships zero.
+peer_context = """
+consumer supplies sp:ZodSchema individuals (sp:schemaName, sp:derivedFromShape) over its own
+sh:NodeShape facts; nested fields require sp:projectionName on the nested shape; composes
+shacl-projection-pack for shape validity law
+"""
