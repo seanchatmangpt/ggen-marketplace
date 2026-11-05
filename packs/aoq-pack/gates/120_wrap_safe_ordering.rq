@@ -1,0 +1,49 @@
+# MESSAGE: Ordering/wrap-safety law violation — every OrderingLaw and every
+# compare-bearing cursor slot must pin the wrap-safe subtraction compare
+# ((a - b) mod 2^64 < 2^63); a direct `a < b` compare inverts every ordering
+# after the u64 wraps at 2^64 frames. OrderingLaw individuals must also pin
+# their scope to the closed vocabulary (per-partition-total |
+# cross-partition-unconstrained) — an unpinned or mis-scoped law lets an
+# implementation invent cross-partition ordering the contract never granted.
+# Anti-vacuity: witnesses/fail/120_wrap_safe_ordering.ttl adds a law with
+# compareLaw "direct-lt"; >=1 row must result.
+PREFIX aoq: <urn:aoq:>
+SELECT ?subject ?problem WHERE {
+  { ?subject a aoq:OrderingLaw . }
+  UNION
+  { ?subject a aoq:CursorSlot ; aoq:compareLaw ?cl . }
+  {
+    FILTER EXISTS { ?subject aoq:compareLaw ?bad . FILTER(?bad = "direct-lt") }
+    BIND("compare-law-direct-lt-refused" AS ?problem)
+  }
+  UNION
+  {
+    FILTER EXISTS { ?subject aoq:compareLaw ?x . FILTER(?x != "subtraction-mod-half" && ?x != "direct-lt") }
+    BIND("compare-law-outside-closed-set" AS ?problem)
+  }
+  UNION
+  {
+    # Only a total-order law compares seqs; the cross-partition law
+    # (order unconstrained) carries no compare by design.
+    FILTER(
+      EXISTS { ?subject a aoq:OrderingLaw ; aoq:orderScope "per-partition-total" } &&
+      NOT EXISTS { ?subject aoq:compareLaw ?c . }
+    )
+    BIND("ordering-law-missing-compare-law" AS ?problem)
+  }
+  UNION
+  {
+    FILTER(
+      EXISTS { ?subject a aoq:OrderingLaw } &&
+      NOT EXISTS { ?subject aoq:orderScope ?os . }
+    )
+    BIND("ordering-law-missing-orderScope" AS ?problem)
+  }
+  UNION
+  {
+    ?subject a aoq:OrderingLaw ; aoq:orderScope ?os .
+    FILTER(?os NOT IN ("per-partition-total", "cross-partition-unconstrained"))
+    BIND("orderScope-outside-closed-set" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem

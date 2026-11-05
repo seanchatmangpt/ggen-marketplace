@@ -14,6 +14,8 @@ EXPECTED_ACTIVE_PACKS = {
     "evidence-standing-pack",
     "experience-projection-pack",
     "ggen-platform-pack",
+  "kafka-wire-pack",
+    "kafka-wire-pack",
     "marketplace-governance-pack",
     "planning-policy-pack",
     "process-intelligence-pack",
@@ -89,7 +91,7 @@ def main() -> None:
 
     if active["front_door"] != "ggen-platform-pack":
         refuse(f"unexpected front door: {active['front_door']!r}")
-    if len(active["packs"]) != 20:
+    if len(active["packs"]) != 21:
         refuse(f"active pack cardinality changed: {len(active['packs'])}")
     if packs != EXPECTED_ACTIVE_PACKS:
         missing = sorted(EXPECTED_ACTIVE_PACKS - packs)

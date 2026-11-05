@@ -11,13 +11,14 @@
 # law and is recorded only as a superseded source entity. Ground truth:
 # AOQ-02 field table (R-1 ruling), arcus-pack ontology IPC1 law
 # (file:///Users/sac/arcus/packs/arcus-pack/ontology.ttl).
-# StatusConstant band 0x4347_A001..A008 is FROZEN — gate 070 refuses any
+# StatusConstant band 0x4347_A001..A009 is FROZEN (A009 = UNSUPPORTED_VERSION,
+# minted by the KD-1 band extension at the v3 wire bump) — gate 070 refuses any
 # other value in this band.
 
 <urn:aoq:> a owl:Ontology ;
     owl:versionInfo "26.11.3" ;
     rdfs:label "AOQ canonical ontology" ;
-    rdfs:comment "Async Ordered Queue (AOQ) wire law: frame envelope, 64-byte AOQ1 header field table, status constants in the frozen band 0x4347_A001..A008, KEM parameter seam, closed Epoch and StreamType enums." ;
+    rdfs:comment "Async Ordered Queue (AOQ) wire law: frame envelope, 64-byte AOQ1 header field table, status constants in the frozen band 0x4347_A001..A009, KEM parameter seam, closed Epoch and StreamType enums." ;
     dcterms:source <https://internal/aoq/jira/v26.11.3> .
 
 # ---------------------------------------------------------------- classes
@@ -36,7 +37,7 @@ aoq:HeaderField a rdfs:Class ;
 
 aoq:StatusConstant a rdfs:Class ;
     rdfs:label "Status constant" ;
-    rdfs:comment "One wire status word in the frozen band 0x4347_A001..A008; constantId FM-AOQ-001..008. The retired band 0x4347_0001..0006 is refused (gate 070)." .
+    rdfs:comment "One wire status word in the frozen band 0x4347_A001..A009; constantId FM-AOQ-001..009. The retired band 0x4347_0001..0006 is refused (gate 070)." .
 
 aoq:KemParam a rdfs:Class ;
     rdfs:label "KEM parameter" ;
@@ -180,7 +181,7 @@ aoq:hf-header-digest a aoq:HeaderField ;
     prov:wasDerivedFrom aoq:src-aoq-02 .
 
 # ------------------------------------------------------- status constants
-# FROZEN band 0x4347_A001..A008 (gate 070). NEVER 0x4347_0001..0006.
+# FROZEN band 0x4347_A001..A009 (gate 020/070). NEVER 0x4347_0001..0006.
 
 aoq:st-fm-aoq-001 a aoq:StatusConstant ; aoq:constantId "FM-AOQ-001" ; aoq:docBand "status" ;
     aoq:value "0x4347A001" ; rdfs:label "OK" ;
@@ -221,6 +222,15 @@ aoq:st-fm-aoq-008 a aoq:StatusConstant ; aoq:constantId "FM-AOQ-008" ; aoq:docBa
     aoq:value "0x4347A008" ; rdfs:label "EPOCH_RETIRED" ;
     rdfs:comment "Header epoch is retired; frame readable but not writable." ;
     prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:st-fm-aoq-009 a aoq:StatusConstant ; aoq:constantId "FM-AOQ-009" ; aoq:docBand "refusal" ;
+    aoq:value "0x4347A009" ; rdfs:label "UNSUPPORTED_VERSION" ;
+    rdfs:comment "Header version is not the admitted AOQ1_VERSION; refusal fires at the codec version gate before digest evaluation (KD-1 close)." ;
+    prov:wasDerivedFrom aoq:src-kd1-band-ext .
+
+aoq:src-kd1-band-ext a prov:Entity ;
+    dcterms:title "KD-1 band extension (v26.11.5): UNSUPPORTED_VERSION minted outside the retired 8-word band at the v3 wire-version bump" ;
+    dcterms:source <file:///Users/sac/cgap/docs/jira/v26.11.4/KNOWN_DIVERGENCES.md> .
 
 # ------------------------------------------------- seam note (XC-5r census)
 # Graph-carried prose: the seams-placeholder kernel refusals. Lifting this
@@ -286,3 +296,120 @@ aoq:stream-eos a aoq:StreamType ;
     aoq:value 2 ; rdfs:label "EOS" ;
     rdfs:comment "End-of-stream marker frame; no payload." ;
     prov:wasDerivedFrom aoq:src-aoq-02 .
+
+# ============================================================ PARTITION <-> STREAM MAPPING LAW (WAVE B)
+# The contract both the smalt runtime and the cgap engine implement:
+#   (topic, partition) -> exactly one QUIC bidirectional stream (phase-2,
+#   per-connection) and exactly one ring (one :atomics cursor array).
+# Ordering law: per-partition total order via the wrapping u64 `seq` slot,
+# compared wrap-safe ((a - b) mod 2^64 < 2^63) — never `a < b`. Frames on
+# DIFFERENT partitions are order-unconstrained (no cross-partition law).
+# Cursor slot layout is the spec §6 / Cursor moduledoc table, 0-based.
+# Ground truth: smalt lib/smalt/aoq/cursor.ex, aq-architecture-spec.md §6.
+
+aoq:src-smalt-cursor a prov:Entity ;
+    dcterms:title "Smalt.Aoq.Cursor — per-ring :atomics slot layout (6 u64 slots, 0-based) + single-writer + wrap-safe compare law" ;
+    dcterms:source <file:///Users/sac/smalt/lib/smalt/aoq/cursor.ex> .
+
+aoq:src-aq-arch-spec a prov:Entity ;
+    dcterms:title "AOQ architecture spec §6: :atomics lease/cursor/seq layout" ;
+    dcterms:source <file:///Users/sac/smalt/docs/jira/v26.11.5/aq-architecture-spec.md> .
+
+aoq:src-quic-decision a prov:Entity ;
+    dcterms:title "QUIC decision record: phase-2 = per-connection bidirectional streams" ;
+    dcterms:source <https://internal/aoq/jira/v26.11.5/quic-decision> .
+
+# ------------------------------------------------------- mapping classes
+
+aoq:PartitionStream a rdfs:Class ;
+    rdfs:label "Partition-to-stream binding" ;
+    rdfs:comment "Maps one (topic, partition-index) pair to EXACTLY ONE ring and EXACTLY ONE stream-id. This 1:1:1 closure is the mapping law both implementations share; no partition may map to zero or multiple rings/streams." .
+
+aoq:Ring a rdfs:Class ;
+    rdfs:label "Ring buffer" ;
+    rdfs:comment "One ring = one :atomics cursor array with the fixed 6-slot layout (CursorSlot individuals below). Rings are per-partition." .
+
+aoq:WireStream a rdfs:Class ;
+    rdfs:label "Wire stream" ;
+    rdfs:comment "One QUIC bidirectional stream (phase-2 decision: per-connection bidirectional). Carries exactly one stream-type and one stream-id." .
+
+aoq:CursorSlot a rdfs:Class ;
+    rdfs:label "Cursor slot" ;
+    rdfs:comment "One u64 slot of the per-ring :atomics array; fixed 0-based index, fixed name, exactly one writer-side op class (single-writer-per-index law)." .
+
+aoq:OrderingLaw a rdfs:Class ;
+    rdfs:label "Ordering law" ;
+    rdfs:comment "Scope-of-order statement: per-partition total order enforced by the wrapping seq; cross-partition order is unconstrained by design." .
+
+# --------------------------------------------------- mapping properties
+
+aoq:topic a owl:DatatypeProperty ; rdfs:label "topic name of a partition binding" .
+aoq:partitionIndex a owl:DatatypeProperty ; rdfs:label "partition index (non-negative integer)" .
+aoq:ringOf a owl:ObjectProperty ; rdfs:label "the single ring backing a partition binding" .
+aoq:streamOf a owl:ObjectProperty ; rdfs:label "the single wire stream carrying a partition binding" .
+aoq:streamId a owl:DatatypeProperty ; rdfs:label "wire stream identifier" .
+aoq:slotIndex a owl:DatatypeProperty ; rdfs:label "0-based fixed index of a cursor slot" .
+aoq:slotName a owl:DatatypeProperty ; rdfs:label "slot name: ring_head | ring_tail | lease_ctr | lease_gen | seq | drop_ctr" .
+aoq:writerOp a owl:DatatypeProperty ; rdfs:label "the ONE writer-side op class for a slot: add_get (single-writer-per-index law)" .
+aoq:compareLaw a owl:DatatypeProperty ; rdfs:label "ordering compare law: subtraction-mod-half (wrap-safe) | direct-lt (REFUSED)" .
+aoq:orderScope a owl:DatatypeProperty ; rdfs:label "scope of an ordering law: per-partition-total | cross-partition-unconstrained" .
+aoq:lawOf a owl:ObjectProperty ; rdfs:label "the ordering law governing a partition binding" .
+
+# ------------------------------------------------------ cursor slots (fixed layout)
+
+aoq:slot-0-ring-head a aoq:CursorSlot ; aoq:slotIndex 0 ; aoq:slotName "ring_head" ;
+    aoq:writerOp "add_get" ; aoq:compareLaw "subtraction-mod-half" ;
+    rdfs:comment "Write cursor: next slot a producer claims (add_get(head, +1))." ;
+    prov:wasDerivedFrom aoq:src-smalt-cursor .
+aoq:slot-1-ring-tail a aoq:CursorSlot ; aoq:slotIndex 1 ; aoq:slotName "ring_tail" ;
+    aoq:writerOp "add_get" ; aoq:compareLaw "subtraction-mod-half" ;
+    rdfs:comment "Read cursor: next slot a consumer releases (add_get(tail, +1))." ;
+    prov:wasDerivedFrom aoq:src-smalt-cursor .
+aoq:slot-2-lease-ctr a aoq:CursorSlot ; aoq:slotIndex 2 ; aoq:slotName "lease_ctr" ;
+    aoq:writerOp "add_get" ;
+    rdfs:comment "Monotone lease counter; add-only." ;
+    prov:wasDerivedFrom aoq:src-smalt-cursor .
+aoq:slot-3-lease-gen a aoq:CursorSlot ; aoq:slotIndex 3 ; aoq:slotName "lease_gen" ;
+    aoq:writerOp "add_get" ;
+    rdfs:comment "Lease generation, bumped only by ring reset; gen bump invalidates outstanding leases without resetting ctr." ;
+    prov:wasDerivedFrom aoq:src-smalt-cursor .
+aoq:slot-4-seq a aoq:CursorSlot ; aoq:slotIndex 4 ; aoq:slotName "seq" ;
+    aoq:writerOp "add_get" ; aoq:compareLaw "subtraction-mod-half" ;
+    rdfs:comment "Wrapping u64 sequence for per-partition frame ordering; comparisons are (a - b) mod 2^64 < 2^63, never a < b." ;
+    prov:wasDerivedFrom aoq:src-smalt-cursor .
+aoq:slot-5-drop-ctr a aoq:CursorSlot ; aoq:slotIndex 5 ; aoq:slotName "drop_ctr" ;
+    aoq:writerOp "add_get" ;
+    rdfs:comment "Cumulative drops, add-only, off the GenServer hot path." ;
+    prov:wasDerivedFrom aoq:src-smalt-cursor .
+
+# ------------------------------------------------------------- ordering law
+
+aoq:law-per-partition-total-order a aoq:OrderingLaw ;
+    rdfs:label "Per-partition total order" ;
+    aoq:orderScope "per-partition-total" ;
+    aoq:compareLaw "subtraction-mod-half" ;
+    rdfs:comment "Frames within one partition are totally ordered by the wrapping seq slot (wrap-safe subtraction compare). Frames on different partitions have NO order constraint (cross-partition unconstrained); no gate or implementation may invent one." ;
+    prov:wasDerivedFrom aoq:src-aq-arch-spec .
+
+aoq:law-cross-partition-unconstrained a aoq:OrderingLaw ;
+    rdfs:label "Cross-partition unconstrained" ;
+    aoq:orderScope "cross-partition-unconstrained" ;
+    rdfs:comment "Companion negative law: no cross-partition ordering exists; a consumer observing seq from two partitions cannot and must not derive a global order." ;
+    prov:wasDerivedFrom aoq:src-aq-arch-spec .
+
+# -------------------------------------------------- mapping individuals (seeds)
+
+aoq:ps-default-p0 a aoq:PartitionStream ;
+    rdfs:label "default topic partition 0" ;
+    aoq:topic "aoq-default" ; aoq:partitionIndex 0 ;
+    aoq:ringOf aoq:ring-0 ; aoq:streamOf aoq:wire-stream-0 ;
+    aoq:lawOf aoq:law-per-partition-total-order ;
+    prov:wasDerivedFrom aoq:src-aq-arch-spec .
+
+aoq:ring-0 a aoq:Ring ; rdfs:label "ring 0 (one :atomics array, 6-slot layout)" ;
+    aoq:streamId "ring:0" ;
+    prov:wasDerivedFrom aoq:src-smalt-cursor .
+
+aoq:wire-stream-0 a aoq:WireStream ; rdfs:label "wire stream 0 (phase-2 bidirectional)" ;
+    aoq:streamType aoq:stream-data ; aoq:streamId "stream:0" ;
+    prov:wasDerivedFrom aoq:src-quic-decision .

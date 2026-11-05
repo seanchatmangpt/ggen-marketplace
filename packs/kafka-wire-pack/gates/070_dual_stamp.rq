@@ -1,0 +1,29 @@
+# MESSAGE: KD-174F dual-stamp precision violated — the encoder must stamp
+# BOTH slots: stampsWrapperOffset AND stampsInnerBaseOffset both true.
+# A single-stamp encoder is a defect (the KD-174 court proves the roundtrip).
+# Anti-vacuity: witnesses/fail/070_dual_stamp.ttl sets
+# stampsInnerBaseOffset false; >=1 row must result.
+PREFIX kafka: <urn:kafka-wire:>
+SELECT ?law ?problem WHERE {
+  ?law a kafka:Law ; kafka:kdId "KD-174F" .
+  {
+    ?law kafka:stampsWrapperOffset ?w . FILTER(?w != true)
+    BIND("stampsWrapperOffset is not true" AS ?problem)
+  }
+  UNION
+  {
+    ?law kafka:stampsInnerBaseOffset ?i . FILTER(?i != true)
+    BIND("stampsInnerBaseOffset is not true" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?law kafka:stampsWrapperOffset ?w2 . }
+    BIND("stampsWrapperOffset missing" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?law kafka:stampsInnerBaseOffset ?i2 . }
+    BIND("stampsInnerBaseOffset missing" AS ?problem)
+  }
+}
+ORDER BY ?law ?problem

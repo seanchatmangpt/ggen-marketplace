@@ -1,0 +1,660 @@
+@prefix kafka: <urn:kafka-wire:> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+
+<urn:kafka-wire:> a owl:Ontology ;
+    owl:versionInfo "0.1.0" ;
+    rdfs:label "Kafka consumer-group wire law" ;
+    rdfs:comment "Consumer-group family API keys, version ranges, and broker error codes, grounded in the vendored kafka-python client in smalt tmp/kafkalib (read from source 2026-11-04). API key numbering is load-bearing: FindCoordinator is 10, never 9." ;
+    dcterms:source <file:///Users/sac/smalt/tmp/kafkalib/kafka/protocol/__init__.py> ,
+        <file:///Users/sac/smalt/tmp/kafkalib/kafka/protocol/commit.py> ,
+        <file:///Users/sac/smalt/tmp/kafkalib/kafka/protocol/group.py> ,
+        <file:///Users/sac/smalt/tmp/kafkalib/kafka/protocol/admin.py> ,
+        <file:///Users/sac/smalt/tmp/kafkalib/kafka/errors.py> .
+
+kafka:GroupApi a rdfs:Class ;
+    rdfs:label "Consumer group API" ;
+    rdfs:comment "One Kafka protocol API in the consumer-group family: apiKey number (load-bearing wire fact), camelCase name, snake_case atom, min/max version, flexible threshold, and the broker error codes its responses carry." .
+
+kafka:ErrorCode a rdfs:Class ;
+    rdfs:label "Kafka broker error code" ;
+    rdfs:comment "One Kafka protocol error code: numeric code, protocol-guide name (rdfs:label), vendored-client message (kafka:message), description, retriable flag." .
+
+kafka:apiKey a owl:DatatypeProperty ;
+    rdfs:label "API key number" ;
+    rdfs:comment "int16 on the wire. Load-bearing: FindCoordinator is 10 per the vendored API_KEYS table and GroupCoordinatorRequest_v0/v1 (API_KEY = 10 in protocol/commit.py) - not 9, not any shifted plan table." .
+
+kafka:name a owl:DatatypeProperty ; rdfs:label "Protocol name" .
+kafka:atom a owl:DatatypeProperty ; rdfs:label "Elixir atom" .
+kafka:minVersion a owl:DatatypeProperty ; rdfs:label "Minimum supported version" .
+kafka:maxVersion a owl:DatatypeProperty ; rdfs:label "Maximum supported version" .
+kafka:flexibleFrom a owl:DatatypeProperty ; rdfs:label "First flexible version" .
+kafka:errorCodeRef a owl:ObjectProperty ; rdfs:label "Error code carried by this API's responses" .
+kafka:code a owl:DatatypeProperty ; rdfs:label "Numeric error code" .
+kafka:message a owl:DatatypeProperty ; rdfs:label "Vendored client message" .
+kafka:description a owl:DatatypeProperty ; rdfs:label "Error description" .
+kafka:retriable a owl:DatatypeProperty ; rdfs:label "Retriable flag" .
+
+# GroupApi individuals - API keys verified from the vendored client:
+# protocol/__init__.py API_KEYS + per-class API_KEY constants in
+# protocol/commit.py, protocol/group.py, protocol/admin.py.
+
+kafka:api-offset-commit a kafka:GroupApi ; kafka:apiKey 8 ;
+    kafka:name "OffsetCommit" ; kafka:atom "offset_commit" ;
+    kafka:minVersion 0 ; kafka:maxVersion 3 ; kafka:flexibleFrom -1 .
+
+kafka:api-offset-fetch a kafka:GroupApi ; kafka:apiKey 9 ;
+    kafka:name "OffsetFetch" ; kafka:atom "offset_fetch" ;
+    kafka:minVersion 0 ; kafka:maxVersion 3 ; kafka:flexibleFrom -1 .
+
+kafka:api-find-coordinator a kafka:GroupApi ; kafka:apiKey 10 ;
+    kafka:name "FindCoordinator" ; kafka:atom "find_coordinator" ;
+    kafka:minVersion 0 ; kafka:maxVersion 1 ; kafka:flexibleFrom -1 .
+
+kafka:api-join-group a kafka:GroupApi ; kafka:apiKey 11 ;
+    kafka:name "JoinGroup" ; kafka:atom "join_group" ;
+    kafka:minVersion 0 ; kafka:maxVersion 5 ; kafka:flexibleFrom -1 .
+
+kafka:api-heartbeat a kafka:GroupApi ; kafka:apiKey 12 ;
+    kafka:name "Heartbeat" ; kafka:atom "heartbeat" ;
+    kafka:minVersion 0 ; kafka:maxVersion 2 ; kafka:flexibleFrom -1 .
+
+kafka:api-leave-group a kafka:GroupApi ; kafka:apiKey 13 ;
+    kafka:name "LeaveGroup" ; kafka:atom "leave_group" ;
+    kafka:minVersion 0 ; kafka:maxVersion 3 ; kafka:flexibleFrom -1 .
+
+kafka:api-sync-group a kafka:GroupApi ; kafka:apiKey 14 ;
+    kafka:name "SyncGroup" ; kafka:atom "sync_group" ;
+    kafka:minVersion 0 ; kafka:maxVersion 3 ; kafka:flexibleFrom -1 .
+
+kafka:api-describe-groups a kafka:GroupApi ; kafka:apiKey 15 ;
+    kafka:name "DescribeGroups" ; kafka:atom "describe_groups" ;
+    kafka:minVersion 0 ; kafka:maxVersion 3 ; kafka:flexibleFrom -1 .
+
+kafka:api-list-groups a kafka:GroupApi ; kafka:apiKey 16 ;
+    kafka:name "ListGroups" ; kafka:atom "list_groups" ;
+    kafka:minVersion 0 ; kafka:maxVersion 2 ; kafka:flexibleFrom -1 .
+
+# ErrorCode individuals - errno/message/description/retriable read verbatim
+# from kafka/errors.py BrokerResponseError subclasses via ast; no hand transcription.
+
+kafka:err-unknown a kafka:ErrorCode ;
+    kafka:code -1 ;
+    kafka:description "An unexpected server error." ;
+    kafka:message "UNKNOWN" ;
+    kafka:retriable false .
+
+kafka:err-no-error a kafka:ErrorCode ;
+    kafka:code 0 ;
+    kafka:description "No error--it worked!" ;
+    kafka:message "NO_ERROR" ;
+    kafka:retriable false .
+
+kafka:err-offset-out-of-range a kafka:ErrorCode ;
+    kafka:code 1 ;
+    kafka:description "The requested offset is outside the range of offsets maintained by the server for the given topic/partition." ;
+    kafka:message "OFFSET_OUT_OF_RANGE" ;
+    kafka:retriable false .
+
+kafka:err-corrupt-message a kafka:ErrorCode ;
+    kafka:code 2 ;
+    kafka:description "This message has failed its CRC checksum, exceeds the valid size, or is otherwise corrupt." ;
+    kafka:message "CORRUPT_MESSAGE" ;
+    kafka:retriable false .
+
+kafka:err-unknown-topic-or-partition a kafka:ErrorCode ;
+    kafka:code 3 ;
+    kafka:description "This request is for a topic or partition that does not exist on this broker." ;
+    kafka:message "UNKNOWN_TOPIC_OR_PARTITION" ;
+    kafka:retriable true .
+
+kafka:err-invalid-fetch-size a kafka:ErrorCode ;
+    kafka:code 4 ;
+    kafka:description "The message has a negative size." ;
+    kafka:message "INVALID_FETCH_SIZE" ;
+    kafka:retriable false .
+
+kafka:err-leader-not-available a kafka:ErrorCode ;
+    kafka:code 5 ;
+    kafka:description "This error is thrown if we are in the middle of a leadership election and there is currently no leader for this partition and hence it is unavailable for writes." ;
+    kafka:message "LEADER_NOT_AVAILABLE" ;
+    kafka:retriable true .
+
+kafka:err-not-leader-for-partition a kafka:ErrorCode ;
+    kafka:code 6 ;
+    kafka:description "This error is thrown if the client attempts to send messages to a replica that is not the leader for some partition. It indicates that the clients metadata is out of date." ;
+    kafka:message "NOT_LEADER_FOR_PARTITION" ;
+    kafka:retriable true .
+
+kafka:err-request-timed-out a kafka:ErrorCode ;
+    kafka:code 7 ;
+    kafka:description "This error is thrown if the request exceeds the user-specified time limit in the request." ;
+    kafka:message "REQUEST_TIMED_OUT" ;
+    kafka:retriable true .
+
+kafka:err-broker-not-available a kafka:ErrorCode ;
+    kafka:code 8 ;
+    kafka:description "This is not a client facing error and is used mostly by tools when a broker is not alive." ;
+    kafka:message "BROKER_NOT_AVAILABLE" ;
+    kafka:retriable false .
+
+kafka:err-replica-not-available a kafka:ErrorCode ;
+    kafka:code 9 ;
+    kafka:description "If replica is expected on a broker, but is not (this can be safely ignored)." ;
+    kafka:message "REPLICA_NOT_AVAILABLE" ;
+    kafka:retriable false .
+
+kafka:err-message-size-too-large a kafka:ErrorCode ;
+    kafka:code 10 ;
+    kafka:description "The server has a configurable maximum message size to avoid unbounded memory allocation. This error is thrown if the client attempt to produce a message larger than this maximum." ;
+    kafka:message "MESSAGE_SIZE_TOO_LARGE" ;
+    kafka:retriable false .
+
+kafka:err-stale-controller-epoch a kafka:ErrorCode ;
+    kafka:code 11 ;
+    kafka:description "Internal error code for broker-to-broker communication." ;
+    kafka:message "STALE_CONTROLLER_EPOCH" ;
+    kafka:retriable false .
+
+kafka:err-offset-metadata-too-large a kafka:ErrorCode ;
+    kafka:code 12 ;
+    kafka:description "If you specify a string larger than configured maximum for offset metadata." ;
+    kafka:message "OFFSET_METADATA_TOO_LARGE" ;
+    kafka:retriable false .
+
+kafka:err-stale-leader-epoch-code a kafka:ErrorCode ;
+    kafka:code 13 ;
+    kafka:message "STALE_LEADER_EPOCH_CODE" ;
+    kafka:retriable false .
+
+kafka:err-offsets-load-in-progress a kafka:ErrorCode ;
+    kafka:code 14 ;
+    kafka:description "The broker returns this error code for an offset fetch request if it is still loading offsets (after a leader change for that offsets topic partition), or in response to group membership requests (such as heartbeats) when group metadata is being loaded by the coordinator." ;
+    kafka:message "OFFSETS_LOAD_IN_PROGRESS" ;
+    rdfs:label "GROUP_LOAD_IN_PROGRESS" ;
+    kafka:groupFamily true ;
+    kafka:retriable true .
+
+kafka:err-consumer-coordinator-not-available a kafka:ErrorCode ;
+    kafka:code 15 ;
+    kafka:description "The broker returns this error code for group coordinator requests, offset commits, and most group management requests if the offsets topic has not yet been created, or if the group coordinator is not active." ;
+    kafka:message "CONSUMER_COORDINATOR_NOT_AVAILABLE" ;
+    rdfs:label "COORDINATOR_NOT_AVAILABLE" ;
+    kafka:groupFamily true ;
+    kafka:retriable true .
+
+kafka:err-not-coordinator-for-consumer a kafka:ErrorCode ;
+    kafka:code 16 ;
+    kafka:description "The broker returns this error code if it receives an offset fetch or commit request for a group that it is not a coordinator for." ;
+    kafka:message "NOT_COORDINATOR_FOR_CONSUMER" ;
+    rdfs:label "NOT_COORDINATOR" ;
+    kafka:groupFamily true ;
+    kafka:retriable true .
+
+kafka:err-invalid-topic a kafka:ErrorCode ;
+    kafka:code 17 ;
+    kafka:description "For a request which attempts to access an invalid topic (e.g. one which has an illegal name), or if an attempt is made to write to an internal topic (such as the consumer offsets topic)." ;
+    kafka:message "INVALID_TOPIC" ;
+    kafka:retriable false .
+
+kafka:err-record-list-too-large a kafka:ErrorCode ;
+    kafka:code 18 ;
+    kafka:description "If a message batch in a produce request exceeds the maximum configured segment size." ;
+    kafka:message "RECORD_LIST_TOO_LARGE" ;
+    kafka:retriable false .
+
+kafka:err-not-enough-replicas a kafka:ErrorCode ;
+    kafka:code 19 ;
+    kafka:description "Returned from a produce request when the number of in-sync replicas is lower than the configured minimum and requiredAcks is -1." ;
+    kafka:message "NOT_ENOUGH_REPLICAS" ;
+    kafka:retriable true .
+
+kafka:err-not-enough-replicas-after-append a kafka:ErrorCode ;
+    kafka:code 20 ;
+    kafka:description "Returned from a produce request when the message was written to the log, but with fewer in-sync replicas than required." ;
+    kafka:message "NOT_ENOUGH_REPLICAS_AFTER_APPEND" ;
+    kafka:retriable true .
+
+kafka:err-invalid-required-acks a kafka:ErrorCode ;
+    kafka:code 21 ;
+    kafka:description "Returned from a produce request if the requested requiredAcks is invalid (anything other than -1, 1, or 0)." ;
+    kafka:message "INVALID_REQUIRED_ACKS" ;
+    kafka:retriable false .
+
+kafka:err-illegal-generation a kafka:ErrorCode ;
+    kafka:code 22 ;
+    kafka:description "Returned from group membership requests (such as heartbeats) when the generation id provided in the request is not the current generation." ;
+    kafka:message "ILLEGAL_GENERATION" ;
+    kafka:groupFamily true ;
+    kafka:retriable false .
+
+kafka:err-inconsistent-group-protocol a kafka:ErrorCode ;
+    kafka:code 23 ;
+    kafka:description "Returned in join group when the member provides a protocol type or set of protocols which is not compatible with the current group." ;
+    kafka:message "INCONSISTENT_GROUP_PROTOCOL" ;
+    kafka:groupFamily true ;
+    kafka:retriable false .
+
+kafka:err-invalid-group-id a kafka:ErrorCode ;
+    kafka:code 24 ;
+    kafka:description "Returned in join group when the groupId is empty or null." ;
+    kafka:message "INVALID_GROUP_ID" ;
+    kafka:groupFamily true ;
+    kafka:retriable false .
+
+kafka:err-unknown-member-id a kafka:ErrorCode ;
+    kafka:code 25 ;
+    kafka:description "Returned from group requests (offset commits/fetches, heartbeats, etc) when the memberId is not in the current generation." ;
+    kafka:message "UNKNOWN_MEMBER_ID" ;
+    kafka:groupFamily true ;
+    kafka:retriable false .
+
+kafka:err-invalid-session-timeout a kafka:ErrorCode ;
+    kafka:code 26 ;
+    kafka:description "Return in join group when the requested session timeout is outside of the allowed range on the broker" ;
+    kafka:message "INVALID_SESSION_TIMEOUT" ;
+    kafka:groupFamily true ;
+    kafka:retriable false .
+
+kafka:err-rebalance-in-progress a kafka:ErrorCode ;
+    kafka:code 27 ;
+    kafka:description "Returned in heartbeat requests when the coordinator has begun rebalancing the group. This indicates to the client that it should rejoin the group." ;
+    kafka:message "REBALANCE_IN_PROGRESS" ;
+    kafka:groupFamily true ;
+    kafka:retriable false .
+
+kafka:err-invalid-commit-offset-size a kafka:ErrorCode ;
+    kafka:code 28 ;
+    kafka:description "This error indicates that an offset commit was rejected because of oversize metadata." ;
+    kafka:message "INVALID_COMMIT_OFFSET_SIZE" ;
+    kafka:groupFamily true ;
+    kafka:retriable false .
+
+kafka:err-topic-authorization-failed a kafka:ErrorCode ;
+    kafka:code 29 ;
+    kafka:description "Returned by the broker when the client is not authorized to access the requested topic." ;
+    kafka:message "TOPIC_AUTHORIZATION_FAILED" ;
+    kafka:retriable false .
+
+kafka:err-group-authorization-failed a kafka:ErrorCode ;
+    kafka:code 30 ;
+    kafka:description "Returned by the broker when the client is not authorized to access a particular groupId." ;
+    kafka:message "GROUP_AUTHORIZATION_FAILED" ;
+    kafka:groupFamily true ;
+    kafka:retriable false .
+
+kafka:err-cluster-authorization-failed a kafka:ErrorCode ;
+    kafka:code 31 ;
+    kafka:description "Returned by the broker when the client is not authorized to use an inter-broker or administrative API." ;
+    kafka:message "CLUSTER_AUTHORIZATION_FAILED" ;
+    kafka:retriable false .
+
+kafka:err-invalid-timestamp a kafka:ErrorCode ;
+    kafka:code 32 ;
+    kafka:description "The timestamp of the message is out of acceptable range." ;
+    kafka:message "INVALID_TIMESTAMP" ;
+    kafka:retriable false .
+
+kafka:err-unsupported-sasl-mechanism a kafka:ErrorCode ;
+    kafka:code 33 ;
+    kafka:description "The broker does not support the requested SASL mechanism." ;
+    kafka:message "UNSUPPORTED_SASL_MECHANISM" ;
+    kafka:retriable false .
+
+kafka:err-illegal-sasl-state a kafka:ErrorCode ;
+    kafka:code 34 ;
+    kafka:description "Request is not valid given the current SASL state." ;
+    kafka:message "ILLEGAL_SASL_STATE" ;
+    kafka:retriable false .
+
+kafka:err-unsupported-version a kafka:ErrorCode ;
+    kafka:code 35 ;
+    kafka:description "The version of API is not supported." ;
+    kafka:message "UNSUPPORTED_VERSION" ;
+    kafka:retriable false .
+
+kafka:err-topic-already-exists a kafka:ErrorCode ;
+    kafka:code 36 ;
+    kafka:description "Topic with this name already exists." ;
+    kafka:message "TOPIC_ALREADY_EXISTS" ;
+    kafka:retriable false .
+
+kafka:err-invalid-partitions a kafka:ErrorCode ;
+    kafka:code 37 ;
+    kafka:description "Number of partitions is invalid." ;
+    kafka:message "INVALID_PARTITIONS" ;
+    kafka:retriable false .
+
+kafka:err-invalid-replication-factor a kafka:ErrorCode ;
+    kafka:code 38 ;
+    kafka:description "Replication-factor is invalid." ;
+    kafka:message "INVALID_REPLICATION_FACTOR" ;
+    kafka:retriable false .
+
+kafka:err-invalid-replication-assignment a kafka:ErrorCode ;
+    kafka:code 39 ;
+    kafka:description "Replication assignment is invalid." ;
+    kafka:message "INVALID_REPLICATION_ASSIGNMENT" ;
+    kafka:retriable false .
+
+kafka:err-invalid-config a kafka:ErrorCode ;
+    kafka:code 40 ;
+    kafka:description "Configuration is invalid." ;
+    kafka:message "INVALID_CONFIG" ;
+    kafka:retriable false .
+
+kafka:err-not-controller a kafka:ErrorCode ;
+    kafka:code 41 ;
+    kafka:description "This is not the correct controller for this cluster." ;
+    kafka:message "NOT_CONTROLLER" ;
+    kafka:retriable true .
+
+kafka:err-invalid-request a kafka:ErrorCode ;
+    kafka:code 42 ;
+    kafka:description "This most likely occurs because of a request being malformed by the client library or the message was sent to an incompatible broker. See the broker logs for more details." ;
+    kafka:message "INVALID_REQUEST" ;
+    kafka:retriable false .
+
+kafka:err-unsupported-for-message-format a kafka:ErrorCode ;
+    kafka:code 43 ;
+    kafka:description "The message format version on the broker does not support this request." ;
+    kafka:message "UNSUPPORTED_FOR_MESSAGE_FORMAT" ;
+    kafka:retriable false .
+
+kafka:err-policy-violation a kafka:ErrorCode ;
+    kafka:code 44 ;
+    kafka:description "Request parameters do not satisfy the configured policy." ;
+    kafka:message "POLICY_VIOLATION" ;
+    kafka:retriable false .
+
+kafka:err-security-disabled a kafka:ErrorCode ;
+    kafka:code 54 ;
+    kafka:description "Security features are disabled." ;
+    kafka:message "SECURITY_DISABLED" ;
+    kafka:retriable false .
+
+kafka:err-non-empty-group a kafka:ErrorCode ;
+    kafka:code 68 ;
+    kafka:description "The group is not empty." ;
+    kafka:message "NON_EMPTY_GROUP" ;
+    kafka:groupFamily true ;
+    kafka:retriable false .
+
+kafka:err-group-id-not-found a kafka:ErrorCode ;
+    kafka:code 69 ;
+    kafka:description "The group id does not exist." ;
+    kafka:message "GROUP_ID_NOT_FOUND" ;
+    kafka:groupFamily true ;
+    kafka:retriable false .
+
+# ---------------------------------------------------------------------------
+# RecordBatch field table — built from the REAL parse clauses in
+# smalt lib/smalt/messaging/kafka/records.ex (read 2026-11-04), not prose.
+# 61-byte magic-2 header: byte offsets are the parse's binary positions.
+# NOTE: the plan's offset table was shifted (it claimed magic at 20,
+# firstTimestamp 32..39 = 7 bytes); records.ex is ground truth:
+# magic at 16, crc at 17..21, attributes at 21, recordsCount at 57..61.
+
+kafka:BatchField a rdfs:Class ;
+    rdfs:label "RecordBatch header field" ;
+    rdfs:comment "One field of the 61-byte magic-2 RecordBatch header: byte offset, byte width, wire kind, signedness, and the next field in the layout chain." .
+
+kafka:byteOffset a owl:DatatypeProperty ; rdfs:label "Byte offset in the batch" .
+kafka:sizeBytes a owl:DatatypeProperty ; rdfs:label "Field width in bytes" .
+kafka:wireKind a owl:DatatypeProperty ; rdfs:label "Wire kind (i64/i32/i16/i8/u32)" .
+kafka:nextField a owl:ObjectProperty ; rdfs:label "Next field in the layout chain" .
+kafka:fieldOfBatch a owl:ObjectProperty ; rdfs:label "Batch this field belongs to" .
+
+kafka:RecordBatch a rdfs:Class ;
+    rdfs:label "Kafka RecordBatch" ;
+    rdfs:comment "The magic-2 record batch: a fixed 61-byte header followed by a varint-framed records region." .
+
+kafka:batch-magic2 a kafka:RecordBatch ;
+    rdfs:label "magic-2 RecordBatch (61-byte header)" ;
+    kafka:headerSizeBytes 61 ;
+    kafka:magicValue 2 .
+
+kafka:headerSizeBytes a owl:DatatypeProperty ; rdfs:label "Header size in bytes" .
+kafka:magicValue a owl:DatatypeProperty ; rdfs:label "Magic byte value" .
+
+kafka:f-baseOffset a kafka:BatchField ; kafka:byteOffset 0 ; kafka:sizeBytes 8 ;
+    kafka:wireKind "i64" ; kafka:nextField kafka:f-batchLength ; kafka:fieldOfBatch kafka:batch-magic2 ;
+    rdfs:label "baseOffset" ; rdfs:comment "Assigned by the BROKER at produce time (records.ex parse clause: _offset::signed-integer-size(64))." .
+
+kafka:f-batchLength a kafka:BatchField ; kafka:byteOffset 8 ; kafka:sizeBytes 4 ;
+    kafka:wireKind "i32" ; kafka:nextField kafka:f-partitionLeaderEpoch ; kafka:fieldOfBatch kafka:batch-magic2 ;
+    rdfs:label "batchLength" ; rdfs:comment "Bytes from partitionLeaderEpoch to batch end (= records region + 49)." .
+
+kafka:f-partitionLeaderEpoch a kafka:BatchField ; kafka:byteOffset 12 ; kafka:sizeBytes 4 ;
+    kafka:wireKind "i32" ; kafka:nextField kafka:f-magic ; kafka:fieldOfBatch kafka:batch-magic2 ;
+    rdfs:label "partitionLeaderEpoch" ; rdfs:comment "Stamped -1 by the client encoder (KD-174F dual-stamp face)." .
+
+kafka:f-magic a kafka:BatchField ; kafka:byteOffset 16 ; kafka:sizeBytes 1 ;
+    kafka:wireKind "i8" ; kafka:nextField kafka:f-crc ; kafka:fieldOfBatch kafka:batch-magic2 ;
+    rdfs:label "magic" ; rdfs:comment "Byte 16 of the batch. Magic-first dispatch law KD-180: dispatch on this byte before reading any other field." .
+
+kafka:f-crc a kafka:BatchField ; kafka:byteOffset 17 ; kafka:sizeBytes 4 ;
+    kafka:wireKind "u32" ; kafka:nextField kafka:f-attributes ; kafka:fieldOfBatch kafka:batch-magic2 ;
+    rdfs:label "crc" ; rdfs:comment "CRC over the domain chosen by magic (KD-180 dispatch)." .
+
+kafka:f-attributes a kafka:BatchField ; kafka:byteOffset 21 ; kafka:sizeBytes 2 ;
+    kafka:wireKind "i16" ; kafka:nextField kafka:f-lastOffsetDelta ; kafka:fieldOfBatch kafka:batch-magic2 ;
+    rdfs:label "attributes" ; rdfs:comment "Byte 21. CRC32C coverage start for magic 2: bytes from attributes to batch end." .
+
+kafka:f-lastOffsetDelta a kafka:BatchField ; kafka:byteOffset 23 ; kafka:sizeBytes 4 ;
+    kafka:wireKind "i32" ; kafka:nextField kafka:f-firstTimestamp ; kafka:fieldOfBatch kafka:batch-magic2 ;
+    rdfs:comment "lastOffsetDelta = recordsCount - 1 on the encoder face (records.ex encode_batch)." .
+
+kafka:f-firstTimestamp a kafka:BatchField ; kafka:byteOffset 27 ; kafka:sizeBytes 8 ;
+    kafka:wireKind "i64" ; kafka:nextField kafka:f-maxTimestamp ; kafka:fieldOfBatch kafka:batch-magic2 ;
+    rdfs:label "firstTimestamp" ; rdfs:comment "records.ex names it baseTimestamp; protocol-guide alias firstTimestamp. Milliseconds." .
+
+kafka:f-maxTimestamp a kafka:BatchField ; kafka:byteOffset 35 ; kafka:sizeBytes 8 ;
+    kafka:wireKind "i64" ; kafka:nextField kafka:f-producerId ; kafka:fieldOfBatch kafka:batch-magic2 ;
+    rdfs:label "maxTimestamp" ; rdfs:comment "Milliseconds; encoder stamps firstTimestamp into both timestamp slots." .
+
+kafka:f-producerId a kafka:BatchField ; kafka:byteOffset 43 ; kafka:sizeBytes 8 ;
+    kafka:wireKind "i64" ; kafka:nextField kafka:f-producerEpoch ; kafka:fieldOfBatch kafka:batch-magic2 ;
+    rdfs:label "producerId" ; rdfs:comment "-1 for the legacy idempotent-less producer face." .
+
+kafka:f-producerEpoch a kafka:BatchField ; kafka:byteOffset 51 ; kafka:sizeBytes 2 ;
+    kafka:wireKind "i16" ; kafka:nextField kafka:f-baseSequence ; kafka:fieldOfBatch kafka:batch-magic2 ;
+    rdfs:label "producerEpoch" ; rdfs:comment "-1 for the legacy idempotent-less producer face." .
+
+kafka:f-baseSequence a kafka:BatchField ; kafka:byteOffset 53 ; kafka:sizeBytes 4 ;
+    kafka:wireKind "i32" ; kafka:nextField kafka:f-recordsCount ; kafka:fieldOfBatch kafka:batch-magic2 ;
+    rdfs:label "baseSequence" ; rdfs:comment "-1 for the legacy idempotent-less producer face." .
+
+kafka:f-recordsCount a kafka:BatchField ; kafka:byteOffset 57 ; kafka:sizeBytes 4 ;
+    kafka:wireKind "u32" ; kafka:fieldOfBatch kafka:batch-magic2 ;
+    rdfs:label "recordsCount" ; rdfs:comment "Byte 57. Declared count; cross-checked against the parsed record list (EXPL-4 F3 fail-closed)." .
+
+# ---------------------------------------------------------------------------
+# CrcDomain — the CRC law, dispatched on magic (records.ex verify_batch/1).
+
+kafka:CrcDomain a rdfs:Class ;
+    rdfs:label "CRC domain" ;
+    rdfs:comment "One CRC verification domain: the magic values it covers, the algorithm, the reflected polynomial, and the byte where coverage starts." .
+
+kafka:coversMagic a owl:DatatypeProperty ; rdfs:label "Magic value this domain covers" .
+kafka:coversFromByte a owl:DatatypeProperty ; rdfs:label "First covered byte" .
+kafka:algorithm a owl:DatatypeProperty ; rdfs:label "CRC algorithm name" .
+kafka:polyReflected a owl:DatatypeProperty ; rdfs:label "Reflected polynomial constant" .
+
+kafka:crc-magic2 a kafka:CrcDomain ;
+    rdfs:label "CRC32C (Castagnoli) — magic 2" ;
+    kafka:algorithm "crc32c-castagnoli" ;
+    kafka:polyReflected "0x82F63B78" ;
+    kafka:coversMagic 2 ;
+    kafka:coversFromByte 21 ;
+    rdfs:comment "Wire.crc32c/1, table-driven poly 0x1EDC6F41 reflected = 0x82F63B78, over bytes from attributes (21) to batch end." .
+
+kafka:crc-legacy a kafka:CrcDomain ;
+    rdfs:label "CRC32 IEEE — legacy magic 0/1" ;
+    kafka:algorithm "crc32-ieee" ;
+    kafka:coversMagic 0 , 1 ;
+    kafka:coversFromByte 4 ;
+    rdfs:comment ":erlang.crc32/1 over everything after the CRC field (legacy frame: crc u32 | magic | attrs[|ts]|keyLen...)." .
+
+# ---------------------------------------------------------------------------
+# ZigzagCase — canonical signed-varint (zigzag LEB128) encodings, recomputed
+# SPARQL-side by gate 020: u = 2n for n>=0, u = -2n - 1 for n<0.
+
+kafka:ZigzagCase a rdfs:Class ;
+    rdfs:label "Zigzag encoding case" ;
+    rdfs:comment "One signed value n and its canonical unsigned zigzag encoding u; record format v2 record lengths/deltas." .
+
+kafka:n a owl:DatatypeProperty ; rdfs:label "Signed value" .
+kafka:u a owl:DatatypeProperty ; rdfs:label "Canonical zigzag encoding" .
+
+kafka:zz-n0 a kafka:ZigzagCase ; kafka:n 0 ; kafka:u 0 .
+kafka:zz-n1 a kafka:ZigzagCase ; kafka:n -1 ; kafka:u 1 .
+kafka:zz-p1 a kafka:ZigzagCase ; kafka:n 1 ; kafka:u 2 .
+kafka:zz-n2 a kafka:ZigzagCase ; kafka:n -2 ; kafka:u 3 .
+kafka:zz-p2 a kafka:ZigzagCase ; kafka:n 2 ; kafka:u 4 .
+kafka:zz-n63 a kafka:ZigzagCase ; kafka:n -63 ; kafka:u 125 .
+kafka:zz-p63 a kafka:ZigzagCase ; kafka:n 63 ; kafka:u 126 .
+kafka:zz-n64 a kafka:ZigzagCase ; kafka:n -64 ; kafka:u 127 .
+kafka:zz-p64 a kafka:ZigzagCase ; kafka:n 64 ; kafka:u 128 .
+
+# ---------------------------------------------------------------------------
+# VersionRow — served matrix + vendored-client max, dual-sourced honestly.
+# servedMax from smalt wire.ex version_matrix/0 (2026-11-04 read); clientMax
+# from AST extraction of the vendored kafka-python-ng protocol module
+# (tmp/kafkalib/kafka/protocol/*.py API_KEY/API_VERSION class pairs).
+# Closure law (gate 050): servedMax < flexibleFrom for every row.
+
+kafka:VersionRow a rdfs:Class ;
+    rdfs:label "API version row" ;
+    rdfs:comment "One Kafka API: wire key, served {min,max} range, vendored-client max, and the KIP-482 flexible threshold. servedMax is the broker face this pack models; clientMax is what the vendored client can send." .
+
+kafka:key a owl:DatatypeProperty ; rdfs:label "API key number" .
+kafka:servedMax a owl:DatatypeProperty ; rdfs:label "Served max version" .
+kafka:clientMax a owl:DatatypeProperty ; rdfs:label "Vendored-client max version" .
+
+kafka:vr-produce a kafka:VersionRow ; kafka:key 0 ; kafka:name "Produce" ; kafka:atom "produce" ;
+    kafka:minVersion 0 ; kafka:servedMax 3 ; kafka:clientMax 8 ; kafka:flexibleFrom 9 .
+
+kafka:vr-fetch a kafka:VersionRow ; kafka:key 1 ; kafka:name "Fetch" ; kafka:atom "fetch" ;
+    kafka:minVersion 0 ; kafka:servedMax 2 ; kafka:clientMax 11 ; kafka:flexibleFrom 12 .
+
+kafka:vr-list-offsets a kafka:VersionRow ; kafka:key 2 ; kafka:name "ListOffsets" ; kafka:atom "list_offsets" ;
+    kafka:minVersion 0 ; kafka:servedMax 1 ; kafka:clientMax 5 ; kafka:flexibleFrom 7 .
+
+kafka:vr-metadata a kafka:VersionRow ; kafka:key 3 ; kafka:name "Metadata" ; kafka:atom "metadata" ;
+    kafka:minVersion 0 ; kafka:servedMax 4 ; kafka:clientMax 5 ; kafka:flexibleFrom 9 .
+
+kafka:vr-api-versions a kafka:VersionRow ; kafka:key 18 ; kafka:name "ApiVersions" ; kafka:atom "api_versions" ;
+    kafka:minVersion 0 ; kafka:servedMax 0 ; kafka:clientMax 2 ; kafka:flexibleFrom 3 .
+
+kafka:vr-offset-commit a kafka:VersionRow ; kafka:key 8 ; kafka:name "OffsetCommit" ; kafka:atom "offset_commit" ;
+    kafka:minVersion 0 ; kafka:servedMax 3 ; kafka:clientMax 3 ; kafka:flexibleFrom 8 .
+
+kafka:vr-offset-fetch a kafka:VersionRow ; kafka:key 9 ; kafka:name "OffsetFetch" ; kafka:atom "offset_fetch" ;
+    kafka:minVersion 0 ; kafka:servedMax 1 ; kafka:clientMax 3 ; kafka:flexibleFrom 8 .
+
+kafka:vr-find-coordinator a kafka:VersionRow ; kafka:key 10 ; kafka:name "FindCoordinator" ; kafka:atom "find_coordinator" ;
+    kafka:minVersion 0 ; kafka:servedMax 1 ; kafka:clientMax 1 ; kafka:flexibleFrom 3 .
+
+kafka:vr-join-group a kafka:VersionRow ; kafka:key 11 ; kafka:name "JoinGroup" ; kafka:atom "join_group" ;
+    kafka:minVersion 0 ; kafka:servedMax 2 ; kafka:clientMax 5 ; kafka:flexibleFrom 5 .
+
+kafka:vr-heartbeat a kafka:VersionRow ; kafka:key 12 ; kafka:atom "heartbeat" ; kafka:name "Heartbeat" ;
+    kafka:minVersion 0 ; kafka:servedMax 1 ; kafka:clientMax 2 ; kafka:flexibleFrom 4 .
+
+kafka:vr-leave-group a kafka:VersionRow ; kafka:key 13 ; kafka:name "LeaveGroup" ; kafka:atom "leave_group" ;
+    kafka:minVersion 0 ; kafka:servedMax 1 ; kafka:clientMax 3 ; kafka:flexibleFrom 5 ;
+    rdfs:comment "Served range 0..1 per smalt wire.ex version_matrix/0 (vendored protocol module has no LeaveGroup v2; class list jumps v1 -> v3). The plan's {0,2} was corrected to ground truth." .
+
+kafka:vr-sync-group a kafka:VersionRow ; kafka:key 14 ; kafka:name "SyncGroup" ; kafka:atom "sync_group" ;
+    kafka:minVersion 0 ; kafka:servedMax 1 ; kafka:clientMax 3 ; kafka:flexibleFrom 3 .
+
+kafka:vr-sasl-handshake a kafka:VersionRow ; kafka:key 17 ; kafka:name "SaslHandshake" ; kafka:atom "sasl_handshake" ;
+    kafka:minVersion 0 ; kafka:servedMax 0 ; kafka:clientMax 1 ; kafka:flexibleFrom 1 ;
+    rdfs:comment "SASL face per the plan contract; smalt wire.ex currently crash-only on SASL — dual-sourced, disclosed." .
+
+kafka:vr-sasl-authenticate a kafka:VersionRow ; kafka:key 36 ; kafka:name "SaslAuthenticate" ; kafka:atom "sasl_authenticate" ;
+    kafka:minVersion 0 ; kafka:servedMax 1 ; kafka:clientMax 1 ; kafka:flexibleFrom 2 ;
+    rdfs:comment "SASL face per the plan contract; smalt wire.ex currently crash-only on SASL — dual-sourced, disclosed." .
+
+# ---------------------------------------------------------------------------
+# Law individuals (KD register). kdId matches ^KD-[0-9]+[A-Z]?$ (gate 090).
+
+kafka:Law a rdfs:Class ;
+    rdfs:label "Wire law" ;
+    rdfs:comment "One grounded wire law: KD id (closed regex), standing in a closed vocabulary, dcterms:source grounding, and at least one named falsifier." .
+
+kafka:kdId a owl:DatatypeProperty ; rdfs:label "KD register id" .
+kafka:kdStatus a owl:DatatypeProperty ; rdfs:label "Law standing" .
+kafka:falsifier a owl:DatatypeProperty ; rdfs:label "Named falsifier" .
+kafka:stampsWrapperOffset a owl:DatatypeProperty ; rdfs:label "Encoder stamps the wrapper offset slot" .
+kafka:stampsInnerBaseOffset a owl:DatatypeProperty ; rdfs:label "Encoder stamps the inner baseOffset slot" .
+kafka:resumabilityHook a owl:ObjectProperty ; rdfs:comment "URI hook to an external durability pack, referenced never absorbed." .
+
+kafka:law-KD-174 a kafka:Law ;
+    kafka:kdId "KD-174" ;
+    kafka:kdStatus "PARTIAL_ALIVE" ;
+    dcterms:source <file:///Users/sac/smalt/lib/smalt/messaging/kafka/records.ex> ;
+    kafka:falsifier "encode_batch/1 output must pass verify_batch/1 and parse back to the same records; a CRC-splice offset error flips verify to :crc_mismatch" ;
+    rdfs:label "Record format v2 read+encode face" ;
+    rdfs:comment "Magic-2 codec: varint lengths, timestamp/offset deltas, headers, CRC32C; the roundtrip court proves byte-exact re-serving of broker-stamped batches." .
+
+kafka:law-KD-174F a kafka:Law ;
+    kafka:kdId "KD-174F" ;
+    kafka:kdStatus "PARTIAL_ALIVE" ;
+    dcterms:source <file:///Users/sac/smalt/lib/smalt/messaging/kafka/records.ex> ;
+    kafka:stampsWrapperOffset true ;
+    kafka:stampsInnerBaseOffset true ;
+    kafka:falsifier "exactly-one-stamp mutation: zeroing either slot while leaving the other stamped must fail the KD-174 court" ;
+    rdfs:label "Dual-stamp precision" ;
+    rdfs:comment "The encoder stamps BOTH the wrapper offset slot (bytes 0..8, broker-owned face) and the inner baseOffset/stamp slot (partitionLeaderEpoch 12..16 stamped -1); a single-stamp encoder is a defect." .
+
+kafka:law-KD-180 a kafka:Law ;
+    kafka:kdId "KD-180" ;
+    kafka:kdStatus "ALIVE" ;
+    dcterms:source <file:///Users/sac/smalt/lib/smalt/messaging/kafka/records.ex> ;
+    kafka:falsifier "a legacy magic-0/1 frame >= 61B must count exactly 1 record, never payload bytes (witnessed 0x42424242 jump hwm 0 -> 1_116_385_94x); a raw-TCP Produce v9 probe must be disconnected, never parse-guessed" ;
+    rdfs:label "Magic-first dispatch law" ;
+    rdfs:comment "count/verify/parse dispatch on the magic byte (16) BEFORE any version- or offset-sensitive read; records.ex count/1 clause order is the mechanism." .
+
+kafka:law-KD-181 a kafka:Law ;
+    kafka:kdId "KD-181" ;
+    kafka:kdStatus "UNVERIFIED" ;
+    dcterms:source <file:///Users/sac/ggen-marketplace/packs/a2a-durability-pack/ontology.ttl> ;
+    kafka:resumabilityHook <urn:ggen:pack:a2a-durability:StreamBoundary> ;
+    kafka:falsifier "an absorb (copy) of durability semantics into this pack must be refused; only the URI reference is lawful" ;
+    rdfs:label "Resumability seam" ;
+    rdfs:comment "Stream resumability delegates to a2a-durability-pack via the dur:StreamBoundary URI hook — referenced, never absorbed." .
+
+kafka:err-sasl-authentication-failed a kafka:ErrorCode ;
+    kafka:code 58 ;
+    kafka:description "The broker failed to authenticate the SASL handshake, or the client supplied invalid credentials." ;
+    kafka:message "SASL_AUTHENTICATION_FAILED" ;
+    kafka:retriable false .
+
+# ---------------------------------------------------------------------------
+# LanguageTarget — one projection language per template family.
+
+kafka:LanguageTarget a rdfs:Class ;
+    rdfs:label "Projection language target" ;
+    rdfs:comment "One language the pack projects into; template families hang off these individuals." .
+
+kafka:ext a owl:DatatypeProperty ; rdfs:label "File extension" .
+kafka:templateRef a owl:ObjectProperty ; rdfs:label "Template family reference" .
+
+kafka:lang-elixir a kafka:LanguageTarget ; rdfs:label "Elixir" ; kafka:ext ".ex" ;
+    kafka:templateRef <urn:ggen:kafka-wire-pack:records_ex.tmpl> ,
+        <urn:ggen:kafka-wire-pack:wire_ex.tmpl> ,
+        <urn:ggen:kafka-wire-pack:kafka_group_api_keys.ex.tmpl> ,
+        <urn:ggen:kafka-wire-pack:kafka_error_codes.ex.tmpl> .
+
+kafka:lang-go a kafka:LanguageTarget ; rdfs:label "Go" ; kafka:ext ".go" ;
+    kafka:templateRef <urn:ggen:kafka-wire-pack:records_go.tmpl> .
+
+kafka:lang-rust a kafka:LanguageTarget ; rdfs:label "Rust" ; kafka:ext ".rs" ;
+    kafka:templateRef <urn:ggen:kafka-wire-pack:status_rs.tmpl> ,
+        <urn:ggen:kafka-wire-pack:kafka_api_keys_rs.tmpl> .
+
+kafka:lang-markdown a kafka:LanguageTarget ; rdfs:label "Markdown" ; kafka:ext ".md" ;
+    kafka:templateRef <urn:ggen:kafka-wire-pack:version_matrix_md.tmpl> .

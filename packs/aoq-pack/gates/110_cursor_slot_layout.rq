@@ -1,0 +1,41 @@
+# MESSAGE: Cursor slot layout law violation — every cursor slot of the
+# per-ring :atomics array must carry a fixed 0-based slotIndex, a slotName
+# from the closed 6-slot table (ring_head | ring_tail | lease_ctr | lease_gen
+# | seq | drop_ctr), and exactly one writer-side op class expressing the
+# single-writer-per-index law. A slot without a writer op would invite a
+# compare-exchange loop or a second mutating writer on an index the layout
+# assigns to exactly one op class.
+# Anti-vacuity: witnesses/fail/110_cursor_slot_layout.ttl adds a slot with an
+# index but no aoq:writerOp; >=1 row must result.
+PREFIX aoq: <urn:aoq:>
+SELECT ?slot ?problem WHERE {
+  ?slot a aoq:CursorSlot .
+  {
+    FILTER NOT EXISTS { ?slot aoq:slotIndex ?i . }
+    BIND("missing-slotIndex" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?slot aoq:slotName ?n . }
+    BIND("missing-slotName" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?slot aoq:writerOp ?op . }
+    BIND("missing-writer-op-single-writer-law" AS ?problem)
+  }
+  UNION
+  {
+    # Single-writer law: the only lawful writer op class is add_get.
+    ?slot aoq:writerOp ?op . FILTER(?op != "add_get")
+    BIND("writer-op-not-add-get" AS ?problem)
+  }
+  UNION
+  {
+    # The slot-name set is closed.
+    ?slot aoq:slotName ?n .
+    FILTER(?n NOT IN ("ring_head", "ring_tail", "lease_ctr", "lease_gen", "seq", "drop_ctr"))
+    BIND("slotName-outside-closed-set" AS ?problem)
+  }
+}
+ORDER BY ?slot ?problem

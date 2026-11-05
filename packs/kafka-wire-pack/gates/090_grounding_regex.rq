@@ -1,0 +1,29 @@
+# MESSAGE: law grounding violated — every kafka:Law must carry a kdId
+# matching ^KD-[0-9]+[A-Z]?$, a dcterms:source, and a kdStatus in the closed
+# standing vocabulary (ALIVE | PARTIAL_ALIVE | UNVERIFIED | BLOCKED | REFUSED).
+# Anti-vacuity: witnesses/fail/090_grounding_regex.ttl mutates the KD-180
+# kdId to lowercase "kd-180"; >=1 row must result.
+PREFIX kafka: <urn:kafka-wire:>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?law ?problem WHERE {
+  {
+    ?law a kafka:Law ; kafka:kdId ?id ; kafka:kdStatus ?st .
+    FILTER(!REGEX(STR(?id), "^KD-[0-9]+[A-Z]?$"))
+    BIND(CONCAT("kdId not grounded: ", STR(?id)) AS ?problem)
+  }
+  UNION
+  {
+    ?law2 a kafka:Law ; kafka:kdId ?id2 .
+    FILTER NOT EXISTS { ?law2 dcterms:source ?src . }
+    BIND(CONCAT("law missing dcterms:source: ", STR(?id2)) AS ?problem)
+    BIND(?law2 AS ?law)
+  }
+  UNION
+  {
+    ?law3 a kafka:Law ; kafka:kdId ?id3 ; kafka:kdStatus ?st3 .
+    FILTER(?st3 NOT IN ("ALIVE", "PARTIAL_ALIVE", "UNVERIFIED", "BLOCKED", "REFUSED"))
+    BIND(CONCAT("kdStatus out of vocabulary: ", STR(?st3)) AS ?problem)
+    BIND(?law3 AS ?law)
+  }
+}
+ORDER BY ?law ?problem

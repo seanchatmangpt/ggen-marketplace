@@ -1,0 +1,108 @@
+@prefix kafka: <urn:kafka-wire:> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix w: <urn:kafka-wire:witness:pass/> .
+
+# Clean seed graph: the full real 13-field 61-byte magic-2 chain, two lawful
+# CRC domains, correct zigzag cases, closed version rows, grounded laws.
+# Every gate must return 0 rows against this graph.
+
+w:batch a kafka:RecordBatch ;
+    rdfs:label "magic-2 RecordBatch" ;
+    kafka:headerSizeBytes 61 ;
+    kafka:magicValue 2 .
+
+w:f0 a kafka:BatchField ; rdfs:label "baseOffset" ;
+    kafka:byteOffset 0 ; kafka:sizeBytes 8 ; kafka:wireKind "i64" ;
+    kafka:nextField w:f1 ; kafka:fieldOfBatch w:batch .
+
+w:f1 a kafka:BatchField ; rdfs:label "batchLength" ;
+    kafka:byteOffset 8 ; kafka:sizeBytes 4 ; kafka:wireKind "i32" ;
+    kafka:nextField w:f2 ; kafka:fieldOfBatch w:batch .
+
+w:f2 a kafka:BatchField ; rdfs:label "partitionLeaderEpoch" ;
+    kafka:byteOffset 12 ; kafka:sizeBytes 4 ; kafka:wireKind "i32" ;
+    kafka:nextField w:f3 ; kafka:fieldOfBatch w:batch .
+
+w:f3 a kafka:BatchField ; rdfs:label "magic" ;
+    kafka:byteOffset 16 ; kafka:sizeBytes 1 ; kafka:wireKind "i8" ;
+    kafka:nextField w:f4 ; kafka:fieldOfBatch w:batch .
+
+w:f4 a kafka:BatchField ; rdfs:label "crc" ;
+    kafka:byteOffset 17 ; kafka:sizeBytes 4 ; kafka:wireKind "u32" ;
+    kafka:nextField w:f5 ; kafka:fieldOfBatch w:batch .
+
+w:f5 a kafka:BatchField ; rdfs:label "attributes" ;
+    kafka:byteOffset 21 ; kafka:sizeBytes 2 ; kafka:wireKind "i16" ;
+    kafka:nextField w:f6 ; kafka:fieldOfBatch w:batch .
+
+w:f6 a kafka:BatchField ; rdfs:label "lastOffsetDelta" ;
+    kafka:byteOffset 23 ; kafka:sizeBytes 4 ; kafka:wireKind "i32" ;
+    kafka:nextField w:f7 ; kafka:fieldOfBatch w:batch .
+
+w:f7 a kafka:BatchField ; rdfs:label "firstTimestamp" ;
+    kafka:byteOffset 27 ; kafka:sizeBytes 8 ; kafka:wireKind "i64" ;
+    kafka:nextField w:f8 ; kafka:fieldOfBatch w:batch .
+
+w:f8 a kafka:BatchField ; rdfs:label "maxTimestamp" ;
+    kafka:byteOffset 35 ; kafka:sizeBytes 8 ; kafka:wireKind "i64" ;
+    kafka:nextField w:f9 ; kafka:fieldOfBatch w:batch .
+
+w:f9 a kafka:BatchField ; rdfs:label "producerId" ;
+    kafka:byteOffset 43 ; kafka:sizeBytes 8 ; kafka:wireKind "i64" ;
+    kafka:nextField w:f10 ; kafka:fieldOfBatch w:batch .
+
+w:f10 a kafka:BatchField ; rdfs:label "producerEpoch" ;
+    kafka:byteOffset 51 ; kafka:sizeBytes 2 ; kafka:wireKind "i16" ;
+    kafka:nextField w:f11 ; kafka:fieldOfBatch w:batch .
+
+w:f11 a kafka:BatchField ; rdfs:label "baseSequence" ;
+    kafka:byteOffset 53 ; kafka:sizeBytes 4 ; kafka:wireKind "i32" ;
+    kafka:nextField w:f12 ; kafka:fieldOfBatch w:batch .
+
+w:f12 a kafka:BatchField ; rdfs:label "recordsCount" ;
+    kafka:byteOffset 57 ; kafka:sizeBytes 4 ; kafka:wireKind "u32" ;
+    kafka:fieldOfBatch w:batch .
+
+w:crc2 a kafka:CrcDomain ; rdfs:label "CRC32C magic 2" ;
+    kafka:algorithm "crc32c-castagnoli" ; kafka:polyReflected "0x82F63B78" ;
+    kafka:coversMagic 2 ; kafka:coversFromByte 21 .
+
+w:crcLegacy a kafka:CrcDomain ; rdfs:label "CRC32 IEEE legacy" ;
+    kafka:algorithm "crc32-ieee" ;
+    kafka:coversMagic 0 , 1 ; kafka:coversFromByte 4 .
+
+w:zz0 a kafka:ZigzagCase ; kafka:n 0 ; kafka:u 0 .
+w:zzn1 a kafka:ZigzagCase ; kafka:n -1 ; kafka:u 1 .
+w:zzp2 a kafka:ZigzagCase ; kafka:n 2 ; kafka:u 4 .
+
+w:vr0 a kafka:VersionRow ; kafka:key 0 ; kafka:name "Produce" ; kafka:atom "produce" ;
+    kafka:minVersion 0 ; kafka:servedMax 9 ; kafka:clientMax 8 ; kafka:flexibleFrom 9 .
+
+w:vr1 a kafka:VersionRow ; kafka:key 1 ; kafka:name "Fetch" ; kafka:atom "fetch" ;
+    kafka:minVersion 0 ; kafka:servedMax 2 ; kafka:clientMax 11 ; kafka:flexibleFrom 12 .
+
+w:api a kafka:GroupApi ; kafka:apiKey 10 ; kafka:name "FindCoordinator" ;
+    kafka:atom "find_coordinator" ; kafka:minVersion 0 ; kafka:maxVersion 1 ; kafka:flexibleFrom -1 .
+
+w:err a kafka:ErrorCode ; kafka:code 15 ; kafka:message "COORDINATOR_NOT_AVAILABLE" ; kafka:retriable true .
+
+w:lang a kafka:LanguageTarget ; rdfs:label "Elixir" ; kafka:ext ".ex" .
+
+w:kd180 a kafka:Law ; kafka:kdId "KD-180" ; kafka:kdStatus "ALIVE" ;
+    dcterms:source <file:///Users/sac/smalt/lib/smalt/messaging/kafka/records.ex> ;
+    kafka:falsifier "legacy magic-0/1 frame >= 61B counts 1, never payload bytes" .
+
+w:kd174 a kafka:Law ; kafka:kdId "KD-174" ; kafka:kdStatus "PARTIAL_ALIVE" ;
+    dcterms:source <file:///Users/sac/smalt/lib/smalt/messaging/kafka/records.ex> ;
+    kafka:falsifier "encode->verify roundtrip must be byte-exact" .
+
+w:kd174f a kafka:Law ; kafka:kdId "KD-174F" ; kafka:kdStatus "PARTIAL_ALIVE" ;
+    dcterms:source <file:///Users/sac/smalt/lib/smalt/messaging/kafka/records.ex> ;
+    kafka:falsifier "single-stamp mutation must fail the KD-174 court" ;
+    kafka:stampsWrapperOffset true ; kafka:stampsInnerBaseOffset true .
+
+w:kd181 a kafka:Law ; kafka:kdId "KD-181" ; kafka:kdStatus "UNVERIFIED" ;
+    dcterms:source <file:///Users/sac/ggen-marketplace/packs/a2a-durability-pack/ontology.ttl> ;
+    kafka:falsifier "an absorb of durability semantics must be refused" ;
+    kafka:resumabilityHook <urn:ggen:pack:a2a-durability:StreamBoundary> .

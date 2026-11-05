@@ -1,0 +1,25 @@
+# MESSAGE: CRC domain exclusivity violated — each magic value must be covered
+# by exactly one CRC domain, and a CRC32C (Castagnoli) domain must carry its
+# reflected polynomial. Two domains claiming the same magic would make
+# verify_batch/1 ambiguous at dispatch time.
+# Anti-vacuity: witnesses/fail/030_crc_domain_exclusivity.ttl adds a second
+# domain also claiming magic 2; >=1 row must result.
+PREFIX kafka: <urn:kafka-wire:>
+SELECT ?magic ?problem WHERE {
+  {
+    {
+      SELECT ?magic (COUNT(DISTINCT ?domain) AS ?n) WHERE {
+        ?domain a kafka:CrcDomain ; kafka:coversMagic ?magic .
+      } GROUP BY ?magic HAVING (COUNT(DISTINCT ?domain) > 1)
+    }
+    BIND(CONCAT("magic ", STR(?magic), " covered by ", STR(?n), " CRC domains") AS ?problem)
+  }
+  UNION
+  {
+    ?d a kafka:CrcDomain ; kafka:algorithm "crc32c-castagnoli" .
+    FILTER NOT EXISTS { ?d kafka:polyReflected ?poly . }
+    BIND("crc32c-castagnoli domain missing polyReflected" AS ?problem)
+    BIND(2 AS ?magic)
+  }
+}
+ORDER BY ?magic

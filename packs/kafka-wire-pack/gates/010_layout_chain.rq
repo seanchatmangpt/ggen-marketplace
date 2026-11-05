@@ -1,0 +1,30 @@
+# MESSAGE: RecordBatch layout chain broken — for every linked pair of header
+# fields, byteOffset + sizeBytes must equal the next field's byteOffset, and
+# the terminal field must end exactly at the header size (61). Moving any
+# field (e.g. recordsCount) breaks the chain and renders every consumer of
+# the field table wrong.
+# Anti-vacuity: witnesses/fail/010_layout_chain.ttl moves recordsCount
+# 57 -> 56; this gate must return >=1 row on it (shim-court flip).
+PREFIX kafka: <urn:kafka-wire:>
+SELECT ?field ?problem WHERE {
+  ?batch a kafka:RecordBatch ; kafka:headerSizeBytes 61 .
+  {
+    ?field kafka:nextField ?next ;
+           kafka:byteOffset ?off ;
+           kafka:sizeBytes ?sz ;
+           kafka:fieldOfBatch ?batch .
+    ?next kafka:byteOffset ?nextOff .
+    FILTER(?off + ?sz != ?nextOff)
+    BIND(CONCAT("chain break at ", STR(?field), ": ", STR(?off), "+", STR(?sz), " != ", STR(?nextOff)) AS ?problem)
+  }
+  UNION
+  {
+    ?field kafka:byteOffset ?off2 ;
+           kafka:sizeBytes ?sz2 ;
+           kafka:fieldOfBatch ?batch .
+    FILTER NOT EXISTS { ?field kafka:nextField ?n2 . }
+    FILTER(?off2 + ?sz2 != 61)
+    BIND(CONCAT("terminal field does not end at 61: ", STR(?off2 + ?sz2)) AS ?problem)
+  }
+}
+ORDER BY ?field

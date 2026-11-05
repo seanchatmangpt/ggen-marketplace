@@ -1,0 +1,53 @@
+# MESSAGE: PartitionStream binding law violation — the mapping law is 1:1:1:
+# every (topic, partition-index) binding carries exactly one topic, one
+# partition index, exactly one ring, and exactly one wire stream, and cites
+# its governing ordering law. A binding with a missing or duplicated
+# ring/stream edge would let two consumers claim one partition's order
+# (or drop its frames entirely) — both are cross-implementation contract
+# breaks between the smalt runtime and the cgap engine.
+# Anti-vacuity: witnesses/fail/100_partition_stream_binding.ttl adds a
+# binding with TWO aoq:ringOf edges; >=1 row must result.
+PREFIX aoq: <urn:aoq:>
+SELECT ?ps ?problem WHERE {
+  ?ps a aoq:PartitionStream .
+  {
+    FILTER NOT EXISTS { ?ps aoq:topic ?t . }
+    BIND("missing-aoq-topic" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?ps aoq:partitionIndex ?p . }
+    BIND("missing-aoq-partitionIndex" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?ps aoq:lawOf ?law . }
+    BIND("missing-ordering-law" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?ps aoq:ringOf ?r . }
+    BIND("missing-ring" AS ?problem)
+  }
+  UNION
+  {
+    FILTER NOT EXISTS { ?ps aoq:streamOf ?s . }
+    BIND("missing-stream" AS ?problem)
+  }
+  UNION
+  {
+    # 1:1 law: a second ring or stream edge on the same binding breaks it.
+    FILTER EXISTS {
+      ?ps aoq:ringOf ?r1, ?r2 . FILTER(STR(?r1) < STR(?r2))
+    }
+    BIND("multiple-rings" AS ?problem)
+  }
+  UNION
+  {
+    FILTER EXISTS {
+      ?ps aoq:streamOf ?s1, ?s2 . FILTER(STR(?s1) < STR(?s2))
+    }
+    BIND("multiple-streams" AS ?problem)
+  }
+}
+ORDER BY ?ps ?problem
