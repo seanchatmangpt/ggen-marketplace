@@ -1,6 +1,6 @@
 [pack]
 name = "shacl-to-pydantic-pack"
-version = "0.2.0"
+version = "0.3.0"
 description = """
 Projects admitted SHACL NodeShapes into pydantic.BaseModel classes while reusing
 shacl-projection-pack law.
@@ -11,10 +11,27 @@ to list[T]. sh:node projects to the target shape's explicit sp:projectionName; n
 fields project to list[NestedType]. Future annotations plus a final model_rebuild pass permit
 declaration-order-independent nested references.
 
-The pack ships no admission gate and zero domain individuals. Consumers must explicitly
-compose shacl-projection-pack with this pack.
+Output paths are template-authored. This pack renders exactly src/shacl_pydantic_models.py
+(the `to:` line in templates/shacl_to_pydantic.py.tmpl); a consumer cannot retarget it from
+ggen.toml. When no sp:PydanticModel individuals exist in the merged graph the template still
+renders a file containing only the imports — zero models is a silent stub, not a refusal.
+
+The pack ships no admission gate over domain facts and zero domain individuals. Consumers
+must explicitly compose shacl-projection-pack with this pack.
 """
 
 [capabilities]
 provides = ["urn:ggen:pack:shacl-to-pydantic-pack"]
 requires = ["urn:ggen:pack:shacl-projection-pack"]
+
+[consumer_contract]
+# Deps pulled by the pack's PROJECTED code (not by the pack itself).
+# src/shacl_pydantic_models.py is the only importing artifact; verified by grep over
+# templates/ — third-party imports there are exactly `typing` (stdlib) and `pydantic`.
+runtime = ["pydantic"]
+# sp:PydanticModel individuals are minted by the consumer's own ontology; the pack ships zero.
+peer_context = """
+consumer supplies sp:PydanticModel individuals (sp:className, sp:derivedFromShape) over its
+own sh:NodeShape facts; nested fields require sp:projectionName on the nested shape; composes
+shacl-projection-pack for shape validity law
+"""
