@@ -71,6 +71,44 @@ default templates.
 Verification practice: run `ggen sync run --dry-run` twice; the second run must report zero
 pending writes.
 
+## Consumer Contract
+
+npm deps a consumer MUST install before projecting this pack, for the generated
+`lib/supabase/*.ts` to typecheck under strict tsc:
+
+- `@supabase/supabase-js` — imported by both client and server templates (default).
+- `@types/node` — every template reads `process.env` at module load; without node types the
+  strict check fails with TS2591 `Cannot find name 'process'` (witnessed on the scratch
+  consumer below).
+
+Opt-in only: `@supabase/ssr`, required INSTEAD of `@supabase/supabase-js` when any `sb:Client`
+declares `package = "@supabase/ssr"`. The server template in that mode additionally imports
+`next/headers`, so `@supabase/ssr` consumers are Next.js App Router projects.
+
+Runtime env vars: `SUPABASE_URL` / `SUPABASE_ANON_KEY` / (when any client sets
+`usesServiceRole = true`) `SUPABASE_SERVICE_ROLE_KEY`, each prefixed by `sb:Project.envPrefix`
+(`""` | `"EXPO_PUBLIC_"` | `"NEXT_PUBLIC_"`). The projected `.env.example` is the record of
+the exact names; the client templates throw at module load when URL or anon key is missing.
+
+## Verification Court
+
+Scratch consumer at `/tmp/f3-consumer` (npm init; consumer `ggen.toml` binding this pack by
+path; combined `ontology.ttl` = pack ontology + one `sb:Project` + one browser
+`@supabase/supabase-js` `sb:Client`; empty `local-templates/` dir to avoid FM-WRITE-008
+double-render). Full command + exit log: `docs/jira/v26.11.5/receipts/F3.md`.
+
+- ggen 26.11.3 `sync run --skip-ea-admission` → exit 0, 5 files written
+  (`lib/supabase/client.ts`, `lib/supabase/server.ts`, `.env.example`,
+  `supabase/config.toml`, `supabase/migrations/..._rls.sql`).
+- `typescript@5.9.3` `tsc -p tsconfig.json` (`strict: true`) over the projected
+  `lib/` → exit 0 after installing `@supabase/supabase-js` + `@types/node`.
+- Anti-vacuity flip: point the client import at a nonexistent package → exit 2,
+  TS2307 `Cannot find module '@supabase/missing-pkg'`. The dependency is
+  load-bearing; a court that cannot flip would have been vacuous.
+- Gate 010 flip proven separately via rdflib against `/tmp/f3-court`: fully-admitted
+  witness graph → 0 rows; graph with `sb:package` stripped from the `sb:Client` → 1 row
+  naming the missing `sb:package`. `rapper -q -i turtle ontology.ttl` → exit 0.
+
 ## Self-hosted Supabase (out of scope, noted for future extension)
 
 A self-hosted Supabase stack (Postgres + GoTrue + PostgREST + Realtime + Storage + Studio via

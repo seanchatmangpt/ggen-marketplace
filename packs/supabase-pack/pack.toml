@@ -1,6 +1,6 @@
 [pack]
 name = "supabase-pack"
-version = "0.1.0"
+version = "0.2.0"
 description = """Projects the standard Supabase client/config wiring for any Node.js project
 (Next.js, Nuxt, Expo, plain Node backend) from admitted RDF facts about a Supabase project,
 its client runtimes, its tables, and its auth providers.
@@ -32,7 +32,31 @@ gate `030_rls_requires_policy.rq` mirrors that discipline: any `sb:Table` with `
 and zero declared `sb:Policy` is refused.
 
 Verification practice: run `ggen sync run --dry-run` twice; the second run must report zero
-pending writes."""
+pending writes.
+
+This pack projects lib/supabase/*.ts that read process.env at module load and import
+@supabase/supabase-js (or @supabase/ssr when opted in). The projected files typecheck only in
+a consumer that already satisfies [consumer_contract] below -- a fresh repo without
+@supabase/supabase-js and @types/node installed fails with TS2307/TS2591 errors (witnessed on
+a scratch consumer this session, receipt F3)."""
 
 [capabilities]
 provides = ["urn:ggen:pack:supabase-pack"]
+
+[consumer_contract]
+# What a consumer MUST provide before projecting this pack, for the projected
+# lib/supabase/*.ts to compile under strict tsc.
+runtime = [
+  "@supabase/supabase-js",
+  "@types/node",
+]
+# Opt-in only: required INSTEAD of @supabase/supabase-js when any sb:Client
+# declares package = "@supabase/ssr" (the server template additionally imports
+# next/headers, so @supabase/ssr consumers are Next.js App Router projects).
+opt_in_runtime = [
+  "@supabase/ssr",
+]
+# Templates read process.env at module load: SUPABASE_URL / SUPABASE_ANON_KEY /
+# (optionally) SUPABASE_SERVICE_ROLE_KEY, each prefixed by sb:Project.envPrefix
+# ("" | "EXPO_PUBLIC_" | "NEXT_PUBLIC_"). .env.example is projected as the record.
+peer_context = "process.env vars per .env.example; consumer tsconfig must resolve DOM+node types"
