@@ -1,0 +1,46 @@
+# Pre-reboot inventory Thu Nov  5 15:39:31 PST 2026 — killed lanes F6,G01,G09,G11,G13,G14,G16,G17 (user-ordered shutdown before restart)
+# Resume law: commit-or-discard per R11 after post-restart receipt check; kafka-wire-pack = other session's work, never ours.
+ M packs/ash-pplan-igniter-pack/pack.toml
+ M packs/cargo-cicd-pack/pack.toml
+ M packs/fastmcp-pack/pack.toml
+ M packs/github-actions-pack/README.md
+ M packs/github-actions-pack/pack.toml
+ M packs/github-actions-pack/templates/composite_action.yml.tmpl
+ M packs/github-actions-pack/templates/workflow.yml.tmpl
+ M packs/nextjs-ai-sdk-pack/README.md
+ M packs/nextjs-ai-sdk-pack/pack.toml
+ M packs/qri-consumer-binding-pack/ggen.lock
+ M packs/rmcp-pack/pack.toml
+ M packs/sa2a-fastapi-pack/pack.toml
+ M packs/shadcn-ui-primitives-pack/README.md
+ M packs/shadcn-ui-primitives-pack/ontology.ttl
+ M packs/shadcn-ui-primitives-pack/pack.toml
+ M packs/shadcn-ui-primitives-pack/templates/060_lib_utils_ts.tmpl
+ M packs/smalt-substrate-pack/ontology.ttl
+ M packs/typer-azure-pack/ggen.toml
+ M packs/typer-azure-pack/pack.toml
+ M qualification/baseline.json
+?? docs/jira/v26.11.4/
+?? docs/jira/v26.11.5/receipts/G13.md
+?? packs/ash-pplan-igniter-pack/README.md
+?? packs/ash-pplan-igniter-pack/ggen.toml
+?? packs/ash-pplan-igniter-pack/lib/
+?? packs/cargo-cicd-pack/README.md
+?? packs/fastmcp-pack/README.md
+?? packs/rmcp-pack/README.md
+?? packs/sa2a-fastapi-pack/README.md
+?? packs/shadcn-ui-primitives-pack/gates/020_requires_dep_declared.rq
+?? packs/shadcn-ui-primitives-pack/templates/field.tsx.tmpl
+?? packs/shadcn-ui-primitives-pack/templates/use-form-hook.ts.tmpl
+?? packs/typer-azure-pack/README.md
+?? packs/typer-azure-pack/consumer_contract.md
+?? packs/typer-azure-pack/gates/
+ M packs/kafka-wire-pack/ontology.ttl
+ M packs/kafka-wire-pack/templates/kafka_api_keys_rs.tmpl
+ M packs/kafka-wire-pack/templates/kafka_error_codes.ex.tmpl
+ M packs/kafka-wire-pack/templates/kafka_group_api_keys.ex.tmpl
+ M packs/kafka-wire-pack/templates/records_go.tmpl
+ M packs/kafka-wire-pack/templates/status_rs.tmpl
+ M packs/kafka-wire-pack/templates/wire_ex.tmpl
+ M packs/kafka-wire-pack/witnesses/fail/050_version_matrix_closure.ttl
+ M packs/kafka-wire-pack/witnesses/pass/050_version_matrix_closure.ttl
