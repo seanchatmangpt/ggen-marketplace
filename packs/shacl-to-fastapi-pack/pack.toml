@@ -1,7 +1,25 @@
 [pack]
 name = "shacl-to-fastapi-pack"
-version = "0.1.0"
+version = "0.2.0"
 description = "Projects admitted SHACL/Pydantic contracts into deterministic FastAPI route modules: real routing tables and typed request/response models whose handler bodies deliberately raise NotImplementedError until an application service supplies execution semantics. Reuses shacl-projection-pack's sp:derivedFromShape vocabulary by IRI; domain semantics remain sovereign in the source shape and generated HTTP artifacts never gain standing or DO authority."
 
 [capabilities]
 provides = ["urn:ggen:pack:shacl-to-fastapi-pack"]
+
+[consumer_contract]
+# Deps pulled by the pack's PROJECTED code (not by the pack itself).
+# src/wd_fa_api.py is the only importing artifact; verified by grep over templates/.
+# fastapi is the only direct third-party import. pydantic is the declared transitive
+# requirement: response_model=/payload annotations must be pydantic BaseModels, supplied
+# by shacl-to-pydantic-pack's projection (imported here as shacl_pydantic_models).
+runtime = ["fastapi", "pydantic"]
+# shacl_pydantic_models is NOT a pip package — it is the consumer's own projected module
+# (shacl-to-pydantic-pack output, module name from its sfa/shp projection contract).
+peer_context = """
+consumer supplies sfa:FastAPIProjection individuals (sp:derivedFromShape, sfa:moduleName,
+sfa:routerVar, sfa:routePath, sfa:httpMethod, sfa:operationId, sfa:requestModelName,
+sfa:responseModelName, sfa:consequential, sfa:requiresAuthority) over its own sh:NodeShape
+facts; request/response models must exist in a consumer-projected module named
+shacl_pydantic_models (shacl-to-pydantic-pack output); composes shacl-projection-pack for
+shape validity law and shacl-to-pydantic-pack for the model module
+"""
