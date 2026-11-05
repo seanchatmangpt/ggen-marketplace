@@ -1,6 +1,6 @@
 [pack]
 name = "shacl-projection-pack"
-version = "0.2.0"
+version = "0.3.0"
 description = """
 Shared, target-agnostic law for SHACL-shape-driven projection.
 
@@ -17,6 +17,13 @@ identifiers, duplicate field names, malformed boolean metadata, empty/unsafe str
 unresolved nested shapes, and projections with no real output field. Names are admitted
 source facts and are echoed, never synthesized.
 
+This is a LAW pack: it ships zero domain individuals. Composing it cannot inject any shape,
+projection, or field into a consumer's output -- the consumer supplies its own
+sh:NodeShape / shp:SchemaModel individuals. Its templates render importable TypeScript
+(src/shacl_zod_schemas.ts, which imports "zod") and JSON Schema
+(schemas/shacl_projection.schema.json), so a TS consumer needs zod + typescript
+to type-check the projection (see [consumer_contract]).
+
 ggen packs cannot declare pack-to-pack dependencies in pack.toml. Consumers must explicitly
 compose this law pack together with a target pack such as shacl-to-pydantic-pack or
 shacl-to-zod-pack so the shared gate runs over the merged graph.
@@ -26,3 +33,14 @@ Ships zero domain individuals.
 
 [capabilities]
 provides = ["urn:ggen:pack:shacl-projection-pack"]
+
+[consumer_contract]
+# Deps pulled by the pack's PROJECTED code (not by the pack itself).
+# src/shacl_zod_schemas.ts is the only importing artifact; verified by grep over templates/.
+runtime = ["zod", "typescript"]
+# Rendered into the consumer's graph by the consumer's own ontology file.
+peer_context = """
+consumer supplies its own sh:NodeShape + shp:SchemaModel individuals;
+the pack ships zero individuals and the shared gates (010/020) run over
+the merged graph
+"""
