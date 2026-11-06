@@ -44,11 +44,30 @@ Beyond npm deps, the consumer must:
 - supply `sp:nullable` / `sp:collection` as boolean literals (`"false"` string forms are
   the COALESCE default, so absent = false).
 
-Vocabulary note: this pack's SPARQL selects `sp:ZodSchema` / `sp:schemaName`, while
-shacl-projection-pack's own qualification individuals use `shp:SchemaModel` /
-`shp:className`. Same namespace, different properties — a consumer supplying only
-`shp:SchemaModel` individuals gets the stub. This is registered as a known interop gap
-(receipt F2.md), not silently papered over.
+Vocabulary note (updated — closes the F2 interop gap): both packs draw from the same
+namespace IRI (`http://seanchatmangpt.github.io/packs/shacl-projection#`); the two
+"vocabularies" differ only in local names. This pack's SPARQL now UNIONs both spellings
+(`sp:ZodSchema`/`sp:SchemaModel`, `sp:schemaName`/`sp:className`,
+`sp:projectionName`/`sp:className`), so a consumer supplying EITHER family of
+individuals projects real schemas. `sp:derivedFromShape` and the nullable flag are the
+identical IRI in both packs, so they need no UNION. Verified with rdflib against three
+graphs (shp-only, sp-only, neither; see receipt F2.md). A consumer supplying NEITHER
+still gets the silent stub.
+
+What consumers must still supply (at least one family required):
+
+| consumer supplies | pack projects |
+|---|---|
+| `shp:SchemaModel` + `shp:className` individuals | real schemas (F2 gap closed) |
+| `sp:ZodSchema` + `sp:schemaName` individuals | real schemas |
+| neither | silent stub — file contains only the `zod` import |
+| `shp:nullable` / `sp:nullable` boolean literal per property | `.nullable()` (absent = false) |
+| `sp:collection` boolean literal per property | `z.array(...)` (absent = false; sp-only) |
+| `sp:projectionName` or `shp:className` on a nested shape | `z.lazy(() => <name>)` |
+| `sh:in` list on the property shape | `z.enum([...])` |
+
+Legend: `sp:`/`shp:` above are prefix spellings only — both expand to the same namespace
+IRI, so a graph minted with either prefix satisfies every row.
 
 ## Output Paths Are Template-Authored (truth-telling)
 
