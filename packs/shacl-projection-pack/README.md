@@ -24,7 +24,15 @@ the projected file.
 Beyond npm deps, the consumer must:
 
 - supply its own `sh:NodeShape` + `shp:SchemaModel` individuals in its ontology (the pack
-  ships zero individuals — the shared gates 010/020 run over the merged graph);
+  ships zero individuals — the shared gates 010/020 run over the merged graph), bound to
+  the vocabulary namespace
+  `http://seanchatmangpt.github.io/packs/shacl-projection#` — gates are IRI-exact, so any
+  prefix works. Prefix duality: the same IRI is bound to `sp:` in
+  `gates/010_shape_validity.rq` and to `shp:` in gate 020, the templates, and
+  `ontology.ttl`; both resolve to identical IRIs;
+- declare `shp:className` + `shp:derivedFromShape` per `shp:SchemaModel` (gate 020), and
+  `sp:projectionName` on nested `sh:node` targets plus boolean `sp:collection`/`sp:nullable`
+  where used (gate 010);
 - compose a target pack (e.g. `shacl-to-zod-pack`, `shacl-to-pydantic-pack`) when it wants
   that target's templates — pack-to-pack dependencies are not declarable in pack.toml.
 

@@ -38,9 +38,32 @@ provides = ["urn:ggen:pack:shacl-projection-pack"]
 # Deps pulled by the pack's PROJECTED code (not by the pack itself).
 # src/shacl_zod_schemas.ts is the only importing artifact; verified by grep over templates/.
 runtime = ["zod", "typescript"]
+# No optional runtime deps: the projected schemas use zod + tsc only.
+optional_runtime = []
 # Rendered into the consumer's graph by the consumer's own ontology file.
 peer_context = """
-consumer supplies its own sh:NodeShape + shp:SchemaModel individuals;
-the pack ships zero individuals and the shared gates (010/020) run over
-the merged graph
+Consumer supplies its own sh:NodeShape + shp:SchemaModel individuals in its
+own RDF graph — the pack ships zero individuals and the shared gates (010/020)
+run over the merged graph.
+
+Vocabulary namespace (bind to your own prefix; gates are IRI-exact, the
+prefix string is irrelevant):
+http://seanchatmangpt.github.io/packs/shacl-projection#
+
+Terms declared in the pack's ontology.ttl: shp:SchemaModel (rdfs:Class),
+shp:className, shp:derivedFromShape, shp:isPrimaryOutput, shp:nullable.
+Additionally asserted by consumers and checked by gates/010: projectionName
+(required on nested sh:node targets) and collection (xsd:boolean repetition
+flag).
+
+Prefix duality: the same namespace IRI is bound to `sp:` in
+gates/010_shape_validity.rq and to `shp:` in gates/020_schema_model_named.rq,
+templates/, and ontology.ttl. Both resolve to the identical IRIs; either
+prefix is lawful at the consumer.
+
+Required per shp:SchemaModel: exactly one valid shp:className identifier and
+an shp:derivedFromShape link to a real sh:NodeShape (enforced by gate 020).
 """
+# All projected output goes to the consumer-declared [templates] target dirs;
+# no standalone helper files are projected outside the schema module.
+projected_helpers = []

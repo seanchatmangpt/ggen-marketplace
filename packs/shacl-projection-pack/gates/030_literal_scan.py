@@ -7,7 +7,11 @@ BANNED = ("zcode", "xaas", "ggen", "autofde", "ggen-marketplace", "praxis", "was
 
 def scan(root: pathlib.Path) -> list[str]:
     hits = []
-    for path in sorted((root / "templates").rglob("*")):
+    templates = root / "templates"
+    if not templates.is_dir():
+        # fail-loud: a missing templates/ tree would otherwise vacuously pass as "no hits".
+        return ["REFUSED[TEMPLATES_MISSING]: templates/ does not exist -- nothing to scan, refusing"]
+    for path in sorted(templates.rglob("*")):
         if not path.is_file():
             continue
         for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
