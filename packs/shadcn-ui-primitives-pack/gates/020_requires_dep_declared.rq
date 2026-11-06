@@ -1,0 +1,16 @@
+# MESSAGE: any sc:ComponentPrimitive with an sc:requiresDep fact must have that
+# dependency declared as an sc:DeclaredDep individual in the pack graph
+# (pack.toml [consumer_contract] runtime + optional_runtime). Any returned row
+# is refused: a primitive whose npm dependency the contract does not name would
+# project into consumers that fail tsc with TS2307. Fail-closed: the gate
+# refuses whenever a required dep is missing from the declared individuals.
+PREFIX sc: <urn:ggen-marketplace:shadcn-ui-primitives-pack:>
+SELECT ?subject ?dep WHERE {
+  ?subject a sc:ComponentPrimitive ;
+           sc:requiresDep ?dep .
+  FILTER NOT EXISTS {
+    ?declared a sc:DeclaredDep ;
+              sc:packageName ?dep .
+  }
+}
+ORDER BY ?subject ?dep

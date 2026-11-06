@@ -1,35 +1,49 @@
 [pack]
 name = "shadcn-ui-primitives-pack"
-version = "0.2.0"
+version = "0.3.0"
 description = """
 Real shadcn/ui primitive components confirmed absent from every other pack in
 this marketplace (verified by grepping every *-shadcn-pack's templates/ for
 `to: components/ui/*.tsx`): Card family, Badge, Label, Skeleton, Separator,
-Tabs, Table family. Matches the cva/cn conventions used by the existing
-button.tsx primitive (nextjs-ai-sdk-pack) so consumers can mix primitives from
-both packs without style drift.
+Tabs, Table family, plus the Field form family (Field, FieldSet, FieldGroup,
+FieldLegend, FieldLabel, FieldDescription, FieldError, FieldContent) that
+replaced the legacy Form/FormField wrapper in current shadcn docs.
 
-This pack projects ONLY components/ui/*.tsx: it installs no npm dependencies
-and no lib/utils glue. The projected files compile only in a consumer that
-already satisfies [consumer_contract] below — a fresh repo without
-clsx/tailwind-merge/class-variance-authority/@radix-ui/react-tabs installed
-and without @/lib/utils fails with TS2307 unresolvable-import errors
-(witnessed on a fresh Next.js repo this session).
+lib/utils.ts is projected with the cn-package body (`export { cn } from
+"cn"`), per the September 2026 shadcn changelog. Consumers pinning pack
+versions < 0.3.0 keep the clsx+tailwind-merge body and must keep clsx and
+tailwind-merge installed; v0.3.0+ consumers install `cn` instead.
 """
 
 [capabilities]
 provides = ["urn:ggen:pack:shadcn-ui-primitives-pack"]
+requires = []
 
 [consumer_contract]
-# What a consumer MUST provide before projecting this pack, for the
-# projected components/ui/*.tsx to compile.
+# Derived mechanically from templates/*.tmpl non-relative, non-react bare
+# imports. The Field family and every primitive import { cn } from
+# "@/lib/utils", which re-exports from the `cn` npm package (v0.3.0+).
 runtime = [
-  "clsx",
-  "tailwind-merge",
+  "cn",
   "class-variance-authority",
   "@radix-ui/react-tabs",
 ]
-# cn helper: every template imports { cn } from "@/lib/utils".
-# The consumer needs either the shadcn/ui lib/utils.ts (clsx + twMerge)
-# or an equivalent export named `cn` at that path.
-peer_context = "@/lib/utils via projected lib/utils.ts"
+# Optional form-family deps: only needed by the consumer-side example
+# docs/examples/use-form-hook.tsx, not by any components/ui/* primitive.
+optional_runtime = [
+  "react-hook-form",
+  "@hookform/resolvers",
+  "zod",
+]
+# cn helper: primitives import { cn } from "@/lib/utils"; the pack projects
+# lib/utils.ts re-exporting from the `cn` package. React (19) is a consumer
+# peer: templates/*.tsx import from "react" directly; JSX/React 19 types come
+# from the consumer's own react + @types/react installs, not this pack.
+peer_context = """
+Consumer supplies the `@/lib/utils` path alias — the pack projects
+lib/utils.ts (re-exporting `cn` from the `cn` npm package, v0.3.0+), but the
+consumer's tsconfig must resolve `@/*` to its source root. React 19 is a
+peer runtime: templates/*.tsx import from "react" directly, and JSX types
+come from the consumer's react + @types/react installs, not this pack.
+"""
+projected_helpers = ["lib/utils.ts"]

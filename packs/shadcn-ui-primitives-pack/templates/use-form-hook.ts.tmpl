@@ -1,0 +1,42 @@
+---
+to: "docs/examples/use-form-hook.tsx"
+---
+{% raw %}
+// CONSUMER-SIDE EXAMPLE — NOT a primitive; nothing in components/ui/* imports it.
+// Shows the current shadcn form story: library-agnostic Field family + RHF
+// <Controller /> + zodResolver. The legacy Form/FormField wrapper is gone from
+// current shadcn docs (ui.shadcn.com discussion #9505).
+// Optional form-family deps: react-hook-form, @hookform/resolvers, zod.
+"use client";
+
+import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Field, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field";
+
+const formSchema = z.object({ name: z.string().min(1) });
+
+export function useFormHookExample() {
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: { name: "" },
+  });
+
+  return (
+    <form onSubmit={form.handleSubmit(() => {})} noValidate>
+      <Controller
+        control={form.control}
+        name="name"
+        render={({ field, fieldState }) => (
+          <Field data-invalid={fieldState.invalid || undefined}>
+            <FieldLabel htmlFor={field.name}>Name</FieldLabel>
+            <input id={field.name} {...field} aria-invalid={fieldState.invalid || undefined} />
+            <FieldDescription>Shown on your profile.</FieldDescription>
+            {fieldState.error && <FieldError>{fieldState.error.message}</FieldError>}
+          </Field>
+        )}
+      />
+    </form>
+  );
+}
+{% endraw %}
