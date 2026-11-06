@@ -21,21 +21,45 @@ export function createClient() {
 }
 {% else -%}
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.{{ c.envPrefix }}SUPABASE_URL!;
+/**
+ * Behavior contract: this module is IMPORT-SAFE. Missing env vars no longer throw
+ * at module load -- refusal is deferred to first CALL of `getSupabase()` (or first
+ * property access on the lazy `supabase` proxy), so importing this file (or a barrel
+ * that re-exports it) never crashes a build or a test run without env configured.
+ */
+
+const supabaseUrl = process.env.{{ c.envPrefix }}SUPABASE_URL;
 const supabaseAnonKey = process.env.{{ c.envPrefix }}SUPABASE_ANON_KEY!;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    "{{ c.envPrefix }}SUPABASE_URL and {{ c.envPrefix }}SUPABASE_ANON_KEY are required"
-  );
+let cached: SupabaseClient | null = null;
+
+/** Memoized Supabase client accessor. Throws on first call if env is unset. */
+export function getSupabase(): SupabaseClient {
+  if (!cached) {
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error(
+        "{{ c.envPrefix }}SUPABASE_URL and {{ c.envPrefix }}SUPABASE_ANON_KEY are required"
+      );
+    }
+    cached = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+      },
+    });
+  }
+  return cached;
 }
 
-/** Singleton Supabase client, anon key -- safe for browser/client use. */
-export const supabase = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
+/**
+ * Backward-compatible lazy proxy over `getSupabase()`. Safe to import without env;
+ * throws at first property access if env is unset.
+ */
+export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
+  get(_target, prop, receiver) {
+    return Reflect.get(getSupabase(), prop, receiver);
   },
 });
 {% endif %}{% endfor -%}

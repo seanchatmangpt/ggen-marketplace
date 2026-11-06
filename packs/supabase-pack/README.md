@@ -88,7 +88,16 @@ declares `package = "@supabase/ssr"`. The server template in that mode additiona
 Runtime env vars: `SUPABASE_URL` / `SUPABASE_ANON_KEY` / (when any client sets
 `usesServiceRole = true`) `SUPABASE_SERVICE_ROLE_KEY`, each prefixed by `sb:Project.envPrefix`
 (`""` | `"EXPO_PUBLIC_"` | `"NEXT_PUBLIC_"`). The projected `.env.example` is the record of
-the exact names; the client templates throw at module load when URL or anon key is missing.
+the exact names. Env-missing behavior differs by template, matching the generated code:
+
+- `lib/supabase/client.ts` (default supabase-js path) requires the env vars **at first
+  import** — the module-level guard throws when URL or anon key is empty/missing.
+- `lib/supabase/client.ts` (`@supabase/ssr` path) and `lib/supabase/server.ts`
+  (`@supabase/ssr` path) use non-null assertions and do **not** throw; `createServerClient`
+  fails at request time when the vars are absent.
+- `lib/supabase/server.ts` (default supabase-js path) checks lazily: the guard lives inside
+  `createServerSupabaseClient()`, so a missing URL or key throws at **first call**, not at
+  import.
 
 ## Verification Court
 

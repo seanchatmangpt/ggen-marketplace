@@ -16,8 +16,9 @@ Node backends). Two findings from that mining shaped the pack's default:
    `@supabase/auth-helpers-nextjs` had zero real usage anywhere scanned. This pack therefore
    defaults `sb:Client.package` to "@supabase/supabase-js" and generates a plain singleton
    client; `@supabase/ssr` dual client/server generation is available opt-in per `sb:Client`
-   when `runtime` is set to "server" or "edge" alongside `package = "@supabase/ssr"`, for
-   projects that do want Next.js App Router SSR auth.
+   when `runtime` is set to "browser" (cookie-aware `createBrowserClient`) or "server"
+   (cookie-aware `createServerClient` plus `next/headers`) alongside `package = "@supabase/ssr"`,
+   for projects that do want Next.js App Router SSR auth.
 
 2. Real environment variable names split by target: Node/backend projects overwhelmingly use
    bare `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY`; Expo/React Native
@@ -53,10 +54,22 @@ runtime = [
 # Opt-in only: required INSTEAD of @supabase/supabase-js when any sb:Client
 # declares package = "@supabase/ssr" (the server template additionally imports
 # next/headers, so @supabase/ssr consumers are Next.js App Router projects).
-opt_in_runtime = [
+optional_runtime = [
   "@supabase/ssr",
 ]
 # Templates read process.env at module load: SUPABASE_URL / SUPABASE_ANON_KEY /
 # (optionally) SUPABASE_SERVICE_ROLE_KEY, each prefixed by sb:Project.envPrefix
 # ("" | "EXPO_PUBLIC_" | "NEXT_PUBLIC_"). .env.example is projected as the record.
-peer_context = "process.env vars per .env.example; consumer tsconfig must resolve DOM+node types"
+peer_context = """
+Consumer supplies the runtime env vars the projected lib/supabase/*.ts read:
+SUPABASE_URL and SUPABASE_ANON_KEY (each prefixed by sb:Project.envPrefix),
+plus SUPABASE_SERVICE_ROLE_KEY when any sb:Client declares usesServiceRole =
+true. Missing URL/anon key makes the plain supabase-js client template throw
+at import; the server template throws at first createServerSupabaseClient()
+call. Postgres numeric columns (int4/int8/numeric) wire as strings through
+PostgREST — consumer code must parse them (or configure the client cast) rather
+than assuming number. Consumer tsconfig must resolve DOM + node types.
+.env.example is projected as the record of the exact names."""
+# No standalone helper files: everything is projected into lib/supabase/*.ts
+# plus the .env.example record (covered by peer_context).
+projected_helpers = []

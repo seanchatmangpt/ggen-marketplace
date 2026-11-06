@@ -14,7 +14,15 @@ sparql:
         ?provider a sb:AuthProvider ; sb:providerKind ?providerKind ; sb:providerEnabled ?providerEnabled .
       }
 ---
-{% for p in projects -%}
+{% if projects | length == 0 -%}
+# EMPTY-BINDINGS GUARD: the SPARQL query above returned zero sb:Project rows.
+# This file is a placeholder; ggen sync will overwrite it once your ontology
+# declares an sb:Project with sb:projectId (required) and sb:apiPort/sb:dbPort
+# (optional, defaults 54321/54322).
+[api]
+enabled = false
+
+{% else %}{% for p in projects -%}
 # For detailed configuration reference documentation, visit:
 # https://supabase.com/docs/guides/local-development/cli/config
 project_id = "{{ p.projectId }}"
@@ -45,10 +53,12 @@ enable_confirmations = false
 {% if a.providerKind != "email" -%}
 [auth.external.{{ a.providerKind | replace(from="oauth-", to="") }}]
 enabled = {{ a.providerEnabled }}
+# PLACEHOLDER — required before `supabase start` with this provider enabled:
 client_id = ""
 # DO NOT commit your OAuth provider secret to git. Use environment variable substitution instead:
 secret = "env(SUPABASE_AUTH_EXTERNAL_{{ a.providerKind | replace(from="oauth-", to="") | upper }}_SECRET)"
 
 {% endif -%}
 {% endfor -%}
-{% endfor -%}
+{% endfor %}
+{% endif %}
