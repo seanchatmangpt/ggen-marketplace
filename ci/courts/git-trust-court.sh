@@ -13,7 +13,9 @@
 #      is absence-class (degraded skip in CI); any other UNRESOLVED (a SHA the
 #      owning repo, which IS present, does not contain) is a real failure.
 # Local launchd remains the primary execution home; CI is supplemental
-# read-only evidence.
+# read-only evidence. Runners with no fleet checkout may set
+# GGEN_FLEET_SKIP_OK=1 to turn the zero-siblings hard failure into a
+# disclosed SKIP (exit 0, "[SKIP] ..." line); local fleet runs keep the gate.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
@@ -50,8 +52,13 @@ for rel in "${FLEET_WORKGRAPHS[@]}"; do
 done
 echo "census: $present present / $absent absent"
 if [ "$present" -eq 0 ]; then
+  if [ "${GGEN_FLEET_SKIP_OK:-0}" = "1" ]; then
+    echo "[SKIP] no workgraphs present — court requires local fleet"
+    exit 0
+  fi
   echo "GIT_TRUST_NO_SIBLINGS: zero fleet workgraphs present under \$HOME;"
   echo "the trust court has no subject to observe. Failing."
+  echo "(set GGEN_FLEET_SKIP_OK=1 for runner environments with no fleet checkout)"
   exit 1
 fi
 echo "::endgroup::"

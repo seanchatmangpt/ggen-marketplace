@@ -18,8 +18,11 @@ is local simulation.
 ## Rail anatomy
 
 - `k8s/gcp-marketplace-sim/` — the commerce simulator: `server.py` (stdlib
-  HTTP, port 8443, zero environment variables), plus the manifest and
-  discovery documents it serves from `/app/*_discovery.json`.
+  HTTP, port 8443; honors optional `AAIF_SIM_PORT` /
+  `AAIF_SIM_DISCOVERY_DIR` overrides, no required environment variables),
+  plus the manifest and discovery documents it serves from
+  `/app/*_discovery.json` (delivered via the `gcp-procurement-simulator-code`
+  ConfigMap).
 - `k8s/aaif-swarm/aaif-swarm-mesh.yaml` — the AAIF mesh manifests.
 - `k8s/kind-cluster-config.yaml` — the kind cluster shape. Port maps host
   8080 to NodePort 30080 and host 8443 to NodePort 30443.
@@ -27,11 +30,23 @@ is local simulation.
 All objects are namespaced. There are no cluster-scoped objects other than
 the Namespace objects themselves.
 
+## Network egress required at pod start
+
+There is no Dockerfile under `k8s/`, so the simulator container is
+`python:3.11-alpine` plus a startup command that runs
+`pip install --quiet cryptography` at pod start. The pod **cannot** reach
+readiness without outbound network access to PyPI; on an air-gapped or
+egress-filtered cluster the Deployment will CrashLoop until egress exists.
+
 ## 1. Create the cluster
 
 ```bash
-kind create cluster --config k8s/kind-cluster-config.yaml
+./k8s/harness/setup_kind_cluster.sh aaif-marketplace-cluster
 ```
+
+The script's `--name` argument is authoritative: `kind-cluster-config.yaml`
+intentionally carries no `name:` so the two can never disagree. Use the same
+name with `k8s/harness/teardown_kind_cluster.sh` afterwards.
 
 ## 2. Apply the simulator
 

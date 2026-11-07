@@ -1,4 +1,6 @@
 # GGEN-MARKETPLACE AUDIT & ANTI-DUPLICATION RECEIPT
+Standing: UNVERIFIED
+> Scope note (M15, 2026-11-07): materially stale — inventory was taken at commit `42b031cfa75d027bd2bef5ab6c963f73c0f9d023`; current HEAD is `ca16a013f` (main). Counts and pack lists below are as-of the pinned commit, not current HEAD.
 
 - **Root Path:** ~/ggen-marketplace
 - **Commit HEAD:** `42b031cfa75d027bd2bef5ab6c963f73c0f9d023`

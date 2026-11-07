@@ -1,6 +1,6 @@
 [pack]
 name = "nextjs-ai-sdk-pack"
-version = "26.7.24"
+version = "26.11.5"
 description = """Projects an admitted Next.js 16 + AI SDK 7 application with AI Elements, shadcn/ui, Better Auth, Neon/PostgreSQL, Drizzle, approval-gated tools, OpenTelemetry, and BLAKE3 receipts into canonical source paths. Gates (gates/*.rq) and ontology.ttl are auto-discovered by the engine. Verification practice: run `ggen sync run --dry-run` twice; the second run must report zero pending writes.
 
 AUTH STRATEGY UPDATE (2026-08-17): nai:authStrategy now admits a third value, "keycloak", composing Better Auth's built-in keycloak() genericOAuth provider against a consumer-supplied nai:keycloakIssuer fact (gate 035_keycloak_requires_issuer.rq refuses "keycloak" without it) -- the realm issuer is never hardcoded in this pack's templates. Verified with three real ggen sync run passes: the existing "better-auth" consumer regenerates byte-identical (no regression); a new "keycloak" consumer with a real issuer fact renders correct genericOAuth/keycloak() wiring in lib/auth.ts and the matching KEYCLOAK_* vars in .env.example; a "keycloak" consumer missing nai:keycloakIssuer is correctly refused by the new gate.
@@ -9,3 +9,47 @@ MARKETPLACE MATURITY NOTE (2026-08-10): imported into ggen-marketplace and compo
 
 [capabilities]
 provides = ["urn:ggen:pack:nextjs-ai-sdk-pack"]
+
+[consumer_contract]
+# Derived mechanically from templates/*.tmpl bare, non-relative, non-"@/" imports
+# (`grep -rhoE 'from "([^"]+)"' templates/`), mapped from subpath to package.
+# The projected package.json (template 010_package_json.tmpl) declares pinned
+# versions for this exact set plus dev tooling; install from it after sync.
+runtime = [
+  "ai",
+  "@ai-sdk/gateway",
+  "@ai-sdk/react",
+  "@neondatabase/serverless",
+  "@noble/hashes",
+  "@opentelemetry/api",
+  "@vercel/otel",
+  "better-auth",
+  "class-variance-authority",
+  "clsx",
+  "drizzle-orm",
+  "lucide-react",
+  "next",
+  "react",
+  "sonner",
+  "tailwind-merge",
+  "ws",
+  "zod",
+]
+dev_tooling = ["typescript", "vitest", "@playwright/test", "drizzle-kit"]
+# "@/lib/utils", "@/lib/db", "@/lib/auth", "@/lib/ai/*", "@/components/*" are
+# projected by this pack itself, not npm packages.
+peer_context = "Consumer supplies DATABASE_URL (Neon/PostgreSQL) and BETTER_AUTH_SECRET at runtime; projected code refuses at the boundary without them (DatabaseConfigurationRefusedError / auth boundary). React 19 types come from the projected devDependencies (@types/react, @types/react-dom)."
+projected_helpers = [
+  "lib/utils.ts",
+  "lib/db/index.ts",
+  "lib/db/schema.ts",
+  "lib/auth.ts",
+  "lib/ai/models.ts",
+  "lib/ai/tool-contracts.ts",
+  "lib/ai/tool-handlers.ts",
+  "lib/ai/tool-broker.ts",
+  "lib/ai/tools.ts",
+  "lib/ai/agent.ts",
+  "lib/ai/types.ts",
+  "lib/receipts/blake3.ts",
+]

@@ -1,0 +1,41 @@
+# GATE 010 -- estimator witness honesty (anti-tautology).
+#
+# MESSAGE: the median/MAD witness constants in ontology.ttl are pinned to the
+# actual arithmetic of the declared demonstration window (median 105, MAD 7,
+# computed at manufacture time and re-verified by the Elixir spot check).
+# Any drift between a witness value and the pinned constant returns a row.
+# Violation = RowCount > 0; zero rows = gate pass.
+#
+# Anti-vacuity: edit a witness value in ontology.ttl away from 105/7 and this
+# gate returns a row; the rendered module's spot check (README) must also fail
+# on the same drift.
+PREFIX lhr: <urn:latency-hazard-radar:>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?witness ?violation WHERE {
+  {
+    ?m a lhr:Estimator ; lhr:medianMillis ?witness .
+    FILTER(?witness != 105)
+    BIND("LHR-MEDIAN-WITNESS-DISAGREEMENT" AS ?violation)
+  } UNION {
+    ?d a lhr:Estimator ; lhr:madMillis ?witness .
+    FILTER(?witness != 7)
+    BIND("LHR-MAD-WITNESS-DISAGREEMENT" AS ?violation)
+  } UNION {
+    FILTER NOT EXISTS { ?me a lhr:Estimator ; lhr:medianMillis ?any1 . }
+    BIND(<urn:latency-hazard-radar:median-estimator> AS ?witness)
+    BIND("LHR-MEDIAN-ESTIMATOR-ABSENT" AS ?violation)
+  } UNION {
+    FILTER NOT EXISTS { ?md a lhr:Estimator ; lhr:madMillis ?any2 . }
+    BIND(<urn:latency-hazard-radar:mad-estimator> AS ?witness)
+    BIND("LHR-MAD-ESTIMATOR-ABSENT" AS ?violation)
+  } UNION {
+    FILTER NOT EXISTS {
+      ?fw a lhr:ObservationWindow ;
+          lhr:elapsedMillis "50"^^xsd:integer, "50"^^xsd:integer, "50"^^xsd:integer .
+    }
+    BIND(<urn:latency-hazard-radar:flat-window> AS ?witness)
+    BIND("LHR-FLAT-WINDOW-ABSENT" AS ?violation)
+  }
+}
+ORDER BY ?violation ?witness

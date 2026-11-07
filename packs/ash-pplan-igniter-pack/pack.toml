@@ -1,7 +1,41 @@
 [pack]
 name = "ash-pplan-igniter-pack"
-version = "26.10.3"
-description = "Manufactures the `mix ash_pplan.gen.workflow` Igniter task for ash_pplan: scaffolds workflow modules (Model literal + provider selection) and semantically modifies existing workflow files (--add-provider) via Sourceror AST; composes ash.gen.resource through Igniter.compose_task/4 when --with-resource is given."
+version = "26.10.4"
+description = """
+Manufactures the `mix ash_pplan.gen.workflow` Igniter task for ash_pplan:
+scaffolds P-PLAN workflow modules (an AshPPlan.Workflow.Model literal plus a
+provider selection map) and semantically modifies existing workflow files
+(--add-provider) via Sourceror AST rewriting -- never string append. With
+--with-resource it composes the existing `ash.gen.resource` task through
+Igniter.compose_task/4. Ships one ig:Task individual + four ig:Option
+individuals in the canonical ggen_igniter `igniter-task` vocabulary; the
+Elixir source is derived entirely from those facts by
+templates/gen_workflow_task.ex.eex. The projected task's Mix deps are
+declared in [consumer_contract] (igniter + sourceror; ash/ash_pplan are
+peer context in the host app).
+"""
+
 [capabilities]
 provides = ["urn:ggen:pack:ash-pplan-igniter-pack"]
 requires = []
+
+[consumer_contract]
+# Derived mechanically from the projected template's bare module usage:
+#   use Igniter.Mix.Task + Igniter.* API calls   -> igniter
+#   Sourceror.parse_string!/Sourceror.to_string  -> sourceror
+#   Rewrite.Source.get/update                    -> rewrite (sourceror dep)
+# grep census over templates/gen_workflow_task.ex.eex (the only .ex surface):
+#   Igniter. x31, Sourceror. x2, Rewrite.Source x2, zero other external
+#   module references.
+runtime = ["igniter", "sourceror"]
+# Composition peer deps: the scaffolded workflow body references
+# AshPPlan.Workflow.Model and --with-resource composes the `ash.gen.resource`
+# task (an ash dep), so the host app is expected to be an Ash app. The
+# qualification probe renders to qualification/igniter-fact-probe.txt.
+peer_context = """
+host app must provide ash + ash_pplan (the scaffolded module aliases
+AshPPlan.Workflow.Model; --with-resource composes ash.gen.resource).
+Consumer binds the pack via ggen.toml [packs] { path = ... } and supplies
+its own ggen.toml [ontology]/[templates] (relative paths required).
+"""
+projected_helpers = []

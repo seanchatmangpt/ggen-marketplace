@@ -14,7 +14,6 @@ EXPECTED_ACTIVE_PACKS = {
     "evidence-standing-pack",
     "experience-projection-pack",
     "ggen-platform-pack",
-  "kafka-wire-pack",
     "kafka-wire-pack",
     "marketplace-governance-pack",
     "planning-policy-pack",

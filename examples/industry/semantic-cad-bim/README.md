@@ -21,7 +21,7 @@ cat output/pillar-gates.md
 The consumer ontology is silent under all seven pack gates (G1 storey
 containment, G2 revision predecessor, G3 orphan geometry, G4/P1 design
 isolation, G5/P2 attestation, G6/P3 proposer-judge, G7/P5 Merkle seal) and
-SHACL-conforms against `ontology/shapes.ttl` — the graph IS the pass witness
+SHACL-conforms against `packs/industry-semantic-cad-bim/ontology/shapes.ttl` — the graph IS the pass witness
 for the pillar laws. Sync is byte-identical across runs
 (sha256 `992ec6d1f5509fca…`).
 

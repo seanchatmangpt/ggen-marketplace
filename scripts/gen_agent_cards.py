@@ -25,11 +25,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
-WASM4PM = Path("/Users/sac/wasm4pm")
+# wasm4pm checkout: env override first, warned default fallback.
+_WASM4PM = os.environ.get("GGEN_WASM4PM_ROOT") or os.environ.get("GGEN_FLEET_ROOT", "/Users/sac") + "/wasm4pm"
+if not (os.environ.get("GGEN_WASM4PM_ROOT") or os.environ.get("GGEN_FLEET_ROOT")):
+    print(f"WARNING: GGEN_WASM4PM_ROOT/GGEN_FLEET_ROOT not set; falling back to default {_WASM4PM}",
+          file=sys.stderr)
+WASM4PM = Path(_WASM4PM)
 
 LIB_RS = WASM4PM / "crates/wasm4pm-sa2a-actuator/src/lib.rs"
 WORKSPACE_CARGO = WASM4PM / "Cargo.toml"

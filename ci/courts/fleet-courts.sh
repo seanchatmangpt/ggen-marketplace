@@ -21,8 +21,10 @@
 #   f5ea-graph  fully in-repo; runner verdict propagated as-is.
 #
 # scripts/run_fleet_courts.py has no skip flag, so none is passed -- the
-# degraded handling lives entirely in this wrapper. No mocks: real subprocesses
-# over real fleet state.
+# degraded handling lives entirely in this wrapper. Runners with no fleet
+# checkout may set GGEN_FLEET_SKIP_OK=1 to turn the zero-siblings hard
+# failure into a disclosed SKIP (exit 0, "[SKIP] ..." line); local fleet
+# runs keep the gate. No mocks: real subprocesses over real fleet state.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
@@ -61,8 +63,13 @@ for rel in "${FLEET_WORKGRAPHS[@]}"; do
 done
 echo "census: $present present / $absent absent"
 if [ "$present" -eq 0 ]; then
+  if [ "${GGEN_FLEET_SKIP_OK:-0}" = "1" ]; then
+    echo "[SKIP] no workgraphs present — court requires local fleet"
+    exit 0
+  fi
   echo "FLEET_COURTS_NO_SIBLINGS: zero fleet workgraphs present under \$HOME;"
   echo "the fleet courts have no subject to observe. Failing."
+  echo "(set GGEN_FLEET_SKIP_OK=1 for runner environments with no fleet checkout)"
   exit 1
 fi
 echo "::endgroup::"

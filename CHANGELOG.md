@@ -7,6 +7,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [v26.11.4-wave] — 2026-11-04
 
+- docs: marketplace recount + doc-drift closure (M8/M17, 2026-11-07) — corpus recounted
+  347→352 from disk (`ls -d packs/*/ | wc -l`); docs/reference/PACK-INDEX.md regenerated via
+  `python3 scripts/gen_pack_index.py` (352 packs: 346 active, 6 deprecated); README count and
+  capability-coverage claim updated to measured current truth (1 of 352 lacking
+  `[capabilities]`: packs/kafka-wire-pack/pack.toml); active-set description corrected from a
+  stale frozen-v26.9.12 framing to marketplace.active.toml's own 21-pack CANDIDATE set at
+  version 26.10.7; README version-authority line names the actual tagged release `v26.10.8-3`
+  (no tag minted, no version bumped); examples-survey.md pack count 332→352;
+  docs/reference/pack-contract.md template suffixes aligned with scripts/marketplace.py
+  TEMPLATE_SUFFIXES (+.eex) and GATE_SOURCE_SUFFIXES (+.sh); AGENTS.md ADR range corrected to
+  ADR-0001 through ADR-0006.
 - feat(strata-ledger-pack): template snapshot-and-pin hand-law baseline (2d0064d50) — BASELINE.md pins templates as-of `5842ccb5be92bb767c308efb196d12fde7dba78a` with post-baseline edits without a refreshed freeze witness declared unauthorized drift (`packs/strata-ledger-pack/BASELINE.md:1-12`); `templates/*.tera` gain `freeze_policy: checksum` + `freeze_slots_dir: .ggen/freeze/strata-ledger-pack` frontmatter (kernel_laws.rs.tera:4-5); blake3 freeze witnesses minted by a real `ggen sync run --skip-ea-admission` (pack as its own consumer) at `.ggen/freeze/strata-ledger-pack/packs/strata-ledger-pack/generated/*.blake3` (3 files: kernel_laws, ledger_consts, ledger_state); tamper→frozen-refusal court, byte-exact restore→clean; root `ggen.toml` mounts the pack
 - docs(affidavit-pack): DEPRECATION.md supersession record (5842ccb5b) — `packs/affidavit-consumer-pack` declared successor in `pack.toml` lifecycle metadata, DEPRECATION.md gains freeze-retention note (declarations retained, no post-deprecation witness refresh), pack.toml description cross-references DEPRECATION.md (pack.toml:8)
 - feat(aoq-pack): P7 status_band_rs.tmpl STATUS_BAND projection for cgap-arrow (7f5b31431); header version field bumped 2→3 — `packs/aoq-pack/templates/header_h.tmpl:51` `#define CGAP_AOQ1_VERSION 3` and `packs/aoq-pack/templates/frame_rs.tmpl:42` `pub const AOQ1_VERSION: u16 = 3;` with encode/decode/assert at frame_rs.tmpl:85/93/111

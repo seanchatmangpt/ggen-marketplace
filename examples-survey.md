@@ -4,7 +4,7 @@ Survey of `/Users/sac/ggen-marketplace` (read-only survey; this file is the only
 
 ## 1. Pack inventory
 
-`packs/` holds **332 packs**. Structure varies by packaging profile (derived, not declared):
+`packs/` holds **352 packs**. Structure varies by packaging profile (derived, not declared):
 `project` (has `ggen.toml`) > `projection` (has `templates/`) > `semantic` (TTL only).
 
 **sa2a family (the pattern exemplars):**

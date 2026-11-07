@@ -22,7 +22,7 @@ RDF carries admitted semantic facts. A README, generated artifact, catalog proje
 
 ## Templates
 
-Templates are optional at the marketplace level because semantic/catalog/gate packs can be useful without projecting files. When present under `templates/`, non-scaffolding files must end in `.tmpl` or `.tera`.
+Templates are optional at the marketplace level because semantic/catalog/gate packs can be useful without projecting files. When present under `templates/`, non-scaffolding files must end in `.tmpl`, `.tera`, or `.eex`.
 
 Templates are projection logic, not a second domain ontology.
 
@@ -32,6 +32,7 @@ Templates are projection logic, not a second domain ontology.
 
 - `*.rq` — native SPARQL refusal gates;
 - `*.py` — pack-owned bounded verifier gates for checks outside native SPARQL.
+- `*.sh` — pack-owned shell gate sources (`GATE_SOURCE_SUFFIXES` in `scripts/marketplace.py`).
 
 Dotfiles such as `.gitkeep` are scaffolding and are not cataloged as executable sources. Additional executable gate forms require an explicit contract change.
 

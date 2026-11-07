@@ -2,6 +2,7 @@
 
 Standing: **ALIVE** — observed renders + green runs, this session.
 Ticket: `docs/jira/v26.9.18/g3-port-bridge-pack.md`
+> Citation note (M9/G2, 2026-11-07): UNRESOLVABLE — this path never existed in ggen-marketplace (no `docs/` tree), and no `g3-port-bridge-pack` ticket file exists by name or content in the sibling canonical checkout `~/ggen/docs/jira/v26.9.18/` (which contains only the GALL-001 ARD/PRD pair). Treat the ticket as a session-context reference whose file was never materialized in any repo.
 
 ## Repo / base / tree
 

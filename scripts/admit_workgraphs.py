@@ -30,8 +30,18 @@ from rdflib.term import Literal
 SJ = Namespace("https://ggen-igniter.dev/ontology/semantic-jira#")
 DCTERMS = Namespace("http://purl.org/dc/terms/")
 
-GGEN_IGNITER = Path("/Users/sac/ggen_igniter")
-MARKETPLACE = Path("/Users/sac/ggen-marketplace")
+def _root(env_var: str, default: str) -> Path:
+    """Resolve a fleet checkout root: env override first, warned default fallback."""
+    v = os.environ.get(env_var)
+    if v:
+        return Path(v)
+    print(f"WARNING: {env_var} not set; falling back to default {default}", file=sys.stderr)
+    return Path(default)
+
+
+GGEN_IGNITER = _root("GGEN_IGNITER_ROOT", "/Users/sac/ggen_igniter")
+MARKETPLACE = _root("GGEN_MARKETPLACE_ROOT", "/Users/sac/ggen-marketplace")
+FLEET_ROOT = _root("GGEN_FLEET_ROOT", "/Users/sac")
 LEDGER = MARKETPLACE / "docs/sjira/v26.10.8/ADMISSION-LEDGER.jsonl"
 BUILD_ROOT = "_build-lanecourt"  # warm build root (reused, per lane contract)
 
@@ -199,7 +209,7 @@ def extract_order(g: Graph, wo, repo: str, campaign_dir: str) -> dict:
 
 
 def find_workgraph(repo: str):
-    base = Path("/Users/sac") / repo
+    base = FLEET_ROOT / repo
     if not base.is_dir():
         return None
     for cand in sorted(base.glob("docs/sjira/v26.10.8*/WORKGRAPH.ttl")):
@@ -226,7 +236,7 @@ def main() -> int:
             ledger_rows.append({
                 "ts": now_iso(), "repo": repo, "order": None, "admitted": False,
                 "refusal_reason": "no_workgraph",
-                "detail": f"no docs/sjira/v26.10.8*/WORKGRAPH.ttl under /Users/sac/{repo}",
+                "detail": f"no docs/sjira/v26.10.8*/WORKGRAPH.ttl under {FLEET_ROOT}/{repo}",
             })
             continue
 

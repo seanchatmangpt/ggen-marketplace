@@ -4,7 +4,7 @@ Read-only audit, lane D3, 2026-10-01. Repo `~/ggen-marketplace` @ spark-closure-
 (9709b8c), consumer repo `~/ash_pplan`. No git commands run; `packs/` untouched.
 
 Headline: **low leverage in both directions.** ash_pplan ships 6 ggen packs under
-`priv/ggen/ash-pplan-*` that exist nowhere in the marketplace (284 packs, zero
+`priv/ggen/ash-pplan-*` that exist nowhere in the marketplace (284 packs at pinned HEAD `9709b8c`, zero
 pplan entries), and capability-closure-pack's index (`index/declared.ttl`) contains
 **0** references to ash_pplan. Meanwhile ash_pplan consumes nothing from the
 marketplace either: no pack reference in `ggen.toml`, `mix.exs`, `config/`, or
@@ -29,7 +29,7 @@ consumption.
 
 ## 2. ash_pplan capabilities that should be generalized INTO marketplace packs
 
-Verified with grep across all 284 packs: no pack covers these. The six
+Verified with grep across all 284 packs (count at pinned HEAD `9709b8c`): no pack covers these. The six
 `priv/ggen/ash-pplan-*` packs exist only in ash_pplan's tree.
 
 | # | Local capability | Evidence | Proposed pack | Extend instead of fork |

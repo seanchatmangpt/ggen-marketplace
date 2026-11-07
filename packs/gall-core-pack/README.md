@@ -17,12 +17,12 @@ checkpoint evidence, standing ledger, and crown report.
 |---|---|---|
 | Gall vocabulary | `ontology.ttl` | Programs, capabilities, checkpoints, APS work items, automation profiles, obligations, evidence, exclusions, standings, archetypes, and crowns |
 | Constitutional gates | `gates/*.rq` | 35 fail-closed gates covering contracts, cardinality, DAGs, proof order, lifecycle values, automation type and ownership, path safety, crowns, replay, freshness, and evidence |
-| Roadmap | `docs/GALL_CHECKPOINT_ROADMAP.md` | Total checkpoint, ticket, and automation program |
-| Checkpoint DAG | `docs/GALL_CHECKPOINT_DAG.dot` | Proof dependency graph |
-| Work-item DAG | `docs/GALL_WORK_ITEM_DAG.dot` | Executable ticket dependency graph |
-| Jira import | `jira/GALL_JIRA_WORK_ITEMS.csv` | Deterministic ticket import surface |
-| Jira catalog | `docs/GALL_JIRA_TICKET_CATALOG.md` | Human-reviewable ticket bodies |
-| Agent work orders | `docs/GALL_AGENT_WORK_ORDERS.md` | Normative `MUST`, `MUST NOT`, path, verification, evidence, and stop-condition contracts |
+| Roadmap (not landed in this pack checkout) | `docs/GALL_CHECKPOINT_ROADMAP.md` | Total checkpoint, ticket, and automation program |
+| Checkpoint DAG (not landed) | `docs/GALL_CHECKPOINT_DAG.dot` | Proof dependency graph |
+| Work-item DAG (not landed) | `docs/GALL_WORK_ITEM_DAG.dot` | Executable ticket dependency graph |
+| Jira import (not landed) | `jira/GALL_JIRA_WORK_ITEMS.csv` | Deterministic ticket import surface |
+| Jira catalog (not landed) | `docs/GALL_JIRA_TICKET_CATALOG.md` | Human-reviewable ticket bodies |
+| Agent work orders (not landed) | `docs/GALL_AGENT_WORK_ORDERS.md` | Normative `MUST`, `MUST NOT`, path, verification, evidence, and stop-condition contracts |
 | Automation manifest | `automation/GALL_AUTOMATION_WORK_ITEMS.csv` | Complete machine input for scheduling and actuation |
 | Receipt schema | `automation/schemas/gall-automation-receipt.schema.json` | Receipt envelope contract |
 | Operator CLI | `scripts/gall/gall` | Noun-verb entry point for the complete lifecycle |
@@ -33,9 +33,14 @@ checkpoint evidence, standing ledger, and crown report.
 | Receipt verifier | `scripts/gall/verify_automation_receipts.py` | Independent digest-chain, exact-revision, evidence-drift, and manifest-freshness verification |
 | Checkpoint runner | `scripts/gall/run-checkpoints.sh` | Real actuation, witness, falsifier, receipt verification, and detached-worktree replay |
 | Automation workflow | `.github/workflows/gall-control-plane.yml` | Pull-request planning plus protected manual advancement, tracker, agent, and crown jobs |
-| Automation runbook | `docs/GALL_AUTOMATION_RUNBOOK.md` | Generated operator and secret configuration guide |
-| Standing ledger | `docs/GALL_STATUS_LEDGER.md` | Derived `UNKNOWN`, `PARTIAL_ALIVE`, or `ALIVE` |
-| Crown report | `docs/GALL_CROWN_REPORT.md` | Release closure after hard gates pass |
+| Automation runbook (not landed) | `docs/GALL_AUTOMATION_RUNBOOK.md` | Generated operator and secret configuration guide |
+| Standing ledger (not landed) | `docs/GALL_STATUS_LEDGER.md` | Derived `UNKNOWN`, `PARTIAL_ALIVE`, or `ALIVE` |
+| Crown report (not landed) | `docs/GALL_CROWN_REPORT.md` | Release closure after hard gates pass |
+
+Note: rows marked (not landed) — `docs/GALL_*`, `jira/GALL_*`, and `automation/GALL_*` — are
+generated-at-deployment surfaces; none of them is present in this pack checkout as of
+2026-11-07 (verified by direct `ls` of every path). The shipped vocabulary, gates, and
+scripts rows above are the landed surfaces.
 
 ## APS as executable work-package law
 

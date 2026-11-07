@@ -96,4 +96,4 @@ ZOE Marketplace / Clients (running projections)
 - **Git & Concurrency**: [`.agents/rules/git-integration.md`](file:///Users/sac/ggen-marketplace/.agents/rules/git-integration.md) (branch discovery, locking).
 - **Security & Secrets**: [`.agents/rules/security.md`](file:///Users/sac/ggen-marketplace/.agents/rules/security.md) (token hygiene, path traversal).
 - **Role Instructions**: [`.agents/agents/`](file:///Users/sac/ggen-marketplace/.agents/agents/) (`pack-developer`, `pack-integrator`, `verifier`, etc.).
-- **Architectural Decisions**: [`docs/adr/`](file:///Users/sac/ggen-marketplace/docs/adr/) (`ADR-0001` through `ADR-0003`).
+- **Architectural Decisions**: [`docs/adr/`](file:///Users/sac/ggen-marketplace/docs/adr/) (`ADR-0001` through `ADR-0006`).

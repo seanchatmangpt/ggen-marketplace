@@ -28,22 +28,30 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
 MARKETPLACE = Path(__file__).resolve().parent.parent
 
-# (repo key, checkout root, card land path(s) relative to root)
+# Fleet checkout root: env override first, warned default fallback.
+_FLEET_ROOT = os.environ.get("GGEN_FLEET_ROOT") or "/Users/sac"
+if not os.environ.get("GGEN_FLEET_ROOT"):
+    print(f"WARNING: GGEN_FLEET_ROOT not set; falling back to default {_FLEET_ROOT}",
+          file=sys.stderr)
+FLEET_ROOT = Path(_FLEET_ROOT)
+
+# (repo key, checkout dir relative to fleet root, card land path(s) relative to checkout)
 CARD_LANDS = [
-    ("castle", "/Users/sac/castle", ".well-known/agent-card.json"),
-    ("graphlaw", "/Users/sac/ash_graphlaw", "priv/graphlaw/cards"),
-    ("ex4pm", "/Users/sac/ex4pm", "priv/cards"),
-    ("ferroplan", "/Users/sac/ferroplan", "crates/ferroplan-wasm/cards"),
-    ("ash_a2a", "/Users/sac/ash_a2a", "priv/sa2a/self-agent-card.json"),
-    ("ash_surface", "/Users/sac/ash_surface", "priv/generated/agent_card.json"),
-    ("gymact", "/Users/sac/gymact", "priv/cards"),
-    ("wasm4pm", "/Users/sac/wasm4pm", ".well-known/agent-card.json",
+    ("castle", FLEET_ROOT / "castle", ".well-known/agent-card.json"),
+    ("graphlaw", FLEET_ROOT / "ash_graphlaw", "priv/graphlaw/cards"),
+    ("ex4pm", FLEET_ROOT / "ex4pm", "priv/cards"),
+    ("ferroplan", FLEET_ROOT / "ferroplan", "crates/ferroplan-wasm/cards"),
+    ("ash_a2a", FLEET_ROOT / "ash_a2a", "priv/sa2a/self-agent-card.json"),
+    ("ash_surface", FLEET_ROOT / "ash_surface", "priv/generated/agent_card.json"),
+    ("gymact", FLEET_ROOT / "gymact", "priv/cards"),
+    ("wasm4pm", FLEET_ROOT / "wasm4pm", ".well-known/agent-card.json",
      "docs/sa2a-actuator-agent-card-v2"),
 ]
 

@@ -1,0 +1,30 @@
+# GATE 020 -- MAD=0 must be a TYPED refusal, never a division.
+#
+# MESSAGE: the hazard policy must carry refusalAtom exactly "insufficient_dispersion"
+# (the sole lawful MAD=0 outcome) and must NOT model any numeric division
+# result for the flat window. A policy that drops the typed atom, renames it,
+# or adds a second refusal atom is a violation. Zero rows = gate pass.
+#
+# Anti-vacuity (shim-court): change lhr:refusalAtom in ontology.ttl to
+# "insufficient_dispersion_x" and this gate returns a row; the rendered
+# module's zscore/2 must likewise return {:error, :insufficient_dispersion}
+# on the flat window [50, 50, 50] -- a spot check that returns anything else
+# fails the court.
+PREFIX lhr: <urn:latency-hazard-radar:>
+
+SELECT ?policy ?atom ?violation WHERE {
+  ?policy a lhr:HazardPolicy .
+  {
+    ?policy lhr:refusalAtom ?atom .
+    FILTER(?atom != "insufficient_dispersion")
+    BIND("LHR-REFUSAL-ATOM-NOT-TYPED" AS ?violation)
+  } UNION {
+    FILTER NOT EXISTS { ?p2 a lhr:HazardPolicy ; lhr:refusalAtom ?a2 . }
+    BIND("LHR-REFUSAL-ATOM-ABSENT" AS ?violation)
+  } UNION {
+    ?policy lhr:refusalAtom ?atom .
+    ?other a lhr:HazardPolicy ; lhr:refusalAtom ?atom .
+    FILTER(STR(?policy) < STR(?other))
+    BIND("LHR-DUPLICATE-POLICY-ATOM" AS ?violation)
+  }
+}

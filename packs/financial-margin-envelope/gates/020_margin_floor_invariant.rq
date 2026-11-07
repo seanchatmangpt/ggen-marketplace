@@ -1,0 +1,22 @@
+# Any row = violation. Floor must be in [0,1]; quote must not exceed the NTE.
+PREFIX fme: <urn:fin:margin-envelope:>
+SELECT ?env ?why
+WHERE {
+  {
+    ?env a fme:MarginEnvelope ;
+         fme:hasInvariant ?inv .
+    ?inv fme:floor ?floor .
+    FILTER(?floor < 0.0 || ?floor > 1.0)
+    BIND(CONCAT("floor out of range: ", STR(?floor)) AS ?why)
+  }
+  UNION
+  {
+    ?env a fme:MarginEnvelope ;
+         fme:nte ?nte ;
+         fme:hasQuote ?q .
+    ?nte fme:hasAmount/fme:decimalValue ?nteAmt .
+    ?q fme:hasAmount/fme:decimalValue ?qAmt .
+    FILTER(?qAmt > ?nteAmt)
+    BIND("quote exceeds NTE" AS ?why)
+  }
+}

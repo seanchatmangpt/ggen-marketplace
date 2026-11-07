@@ -92,6 +92,34 @@ consumer who wants to migrate incrementally rather than fully modeling a
 workflow's Jobs/Steps before generating anything — but composing real
 `gha:Job`/`gha:Step` facts is the intended path, not the exception.
 
+## Consumer contract (v0.4.0)
+
+- `runtime = []` — the projected outputs are workflow/composite-action YAML,
+  a JSON manifest, and a bash dispatcher. None import third-party packages;
+  there are no projected-code package dependencies to install.
+- `tools = ["bash", "git", "sha256sum"]` — required by the rendered
+  `bin/ggen-actions-local` dispatcher on every route.
+- `optional_tools = ["docker", "go"]` — required only for the optional
+  local act bootstrap route (building pinned act from source; container
+  execution). Absent tools degrade to `BLOCKED[...]:` typed refusals in the
+  dispatcher, never silent fallbacks.
+- Peer context: the pack ships **zero** individuals. The consumer authors
+  their own `gha:*` instance data in their own repo; refusal gates run over
+  the union graph at `ggen sync` time.
+
+## Qualification court (v0.4.0)
+
+A real `ggen sync run --skip-ea-admission` in a scratch `/tmp` consumer
+wired to this pack's own `qualification/consumer.ttl` facts exits 0 and
+writes 2 workflows + the local runtime manifest + the dispatcher; every
+rendered YAML file parses under `yaml.safe_load`, the manifest parses as
+JSON, and `bash -n` passes on the dispatcher. Anti-vacuity: deleting a
+required `gha:purpose` triple from the consumer's facts flips the sync to
+exit 1 with `[FM-PACK-013]` gate `010_required.rq` naming the exact
+subject. v0.4.0 also quotes the rendered `name:`/`description:` values
+(workflow + composite action + step names) — a `gha:purpose` containing
+`": "` previously rendered invalid YAML (real court finding, fixed).
+
 ## Layout
 
 - `pack.toml` — pack identity, schema-only contract stated in the description
@@ -99,7 +127,8 @@ workflow's Jobs/Steps before generating anything — but composing real
   CompositeAction classes and properties. Zero individuals of the
   project-specific classes.
 - `gates/*.rq` — refusal gates, UNION + FILTER NOT EXISTS, namespace-scoped
-- `templates/*.tmpl` — `workflow.yml.tmpl`, `composite_action.yml.tmpl`
+- `templates/*.tmpl` — `workflow.yml.tmpl`, `composite_action.yml.tmpl`,
+  `local_runtime_manifest.json.tmpl`, `local_dispatch.sh.tmpl`
 
 ## Not ported in this revision
 

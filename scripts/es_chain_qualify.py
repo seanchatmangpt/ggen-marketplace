@@ -244,10 +244,13 @@ def regen_consumer(write: bool) -> bool:
 class Report:
     def __init__(self):
         self.failed = False
+        self.unverified = []
 
     def line(self, status, name, detail=""):
         if status in ("REFUSED", "FAILED"):
             self.failed = True
+        if status == "UNVERIFIED":
+            self.unverified.append(name)
         print(f"{status:10} {name}" + (f": {detail}" if detail else ""))
 
 
@@ -475,6 +478,9 @@ def main():
     ap.add_argument("--regen", action="store_true", help="rewrite consumer.ttl chain hashes")
     ap.add_argument("--freeze", action="store_true", help="rewrite golden.expected from the reference model")
     ap.add_argument("--only", choices=("consumer", "literal", "gates", "golden", "blake2b", "mutation", "affidavit"))
+    ap.add_argument("--allow-unverified", action="store_true",
+                    help="exit 0 when checks are UNVERIFIED solely because a verifier tool is absent "
+                         "(b3sum/bun/cargo/elixir); a loud UNVERIFIED-GATE-OPEN line is still printed")
     a = ap.parse_args()
     rep = Report()
     steps = {"consumer": lambda: check_consumer(rep, a.regen), "literal": lambda: check_literal(rep),
@@ -484,7 +490,15 @@ def main():
     for name, fn in steps.items():
         if a.only in (None, name):
             fn()
-    return 1 if rep.failed else 0
+    if rep.failed:
+        return 1
+    if rep.unverified and not a.allow_unverified:
+        print("FAIL: verifier tool absence left checks UNVERIFIED: " + ", ".join(rep.unverified))
+        print("      install the missing tools, or pass --allow-unverified to run degraded (NOT in CI)")
+        return 2
+    if rep.unverified:
+        print("UNVERIFIED-GATE-OPEN: degraded run admitted missing-verifier checks: " + ", ".join(rep.unverified))
+    return 0
 
 
 if __name__ == "__main__":

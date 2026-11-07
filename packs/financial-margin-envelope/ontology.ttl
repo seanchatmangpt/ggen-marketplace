@@ -1,0 +1,128 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix fme: <urn:fin:margin-envelope:> .
+
+<urn:fin:margin-envelope> a owl:Ontology ;
+    rdfs:label "Financial Margin Envelope Ontology" ;
+    rdfs:comment """
+    Margin-envelope capability: NTE (not-to-exceed), subcontractor quote,
+    gross-margin invariant floor (default 0.22), breach events, and a typed
+    refusal vocabulary minted as individuals. FIBO alignment is by rdfs:seeAlso
+    to the FIBO FND Amount-of-Money concept area; no full FIBO import.
+    """ .
+
+# --- FIBO-aligned monetary concepts -------------------------------------------
+
+fme:MonetaryAmount a rdfs:Class ;
+    rdfs:label "Monetary Amount" ;
+    rdfs:seeAlso <https://spec.edmcouncil.org/fibo/ontology/FND/QuantitiesAndMeasurementsEnglishCommunity/MetadataFND/QuantitiesAndMeasurements> ;
+    rdfs:comment "A monetary amount (FIBO-aligned): decimal value + ISO 4217 currency code." .
+
+fme:currency a rdf:Property ;
+    rdfs:domain fme:MonetaryAmount ;
+    rdfs:range xsd:string .
+
+fme:decimalValue a rdf:Property ;
+    rdfs:domain fme:MonetaryAmount ;
+    rdfs:range xsd:decimal .
+
+# --- Envelope classes -----------------------------------------------------------
+
+fme:MarginEnvelope a rdfs:Class ;
+    rdfs:label "Margin Envelope" ;
+    rdfs:comment "A bounded commitment surface: NTE ceiling, subcontractor quote, margin floor." .
+
+fme:NotToExceed a rdfs:Class ;
+    rdfs:label "Not-To-Exceed" ;
+    rdfs:comment "A monetary ceiling on the envelope's total committed amount." .
+
+fme:SubcontractorQuote a rdfs:Class ;
+    rdfs:label "Subcontractor Quote" ;
+    rdfs:comment "A subcontractor's quoted amount feeding the margin computation." .
+
+fme:GrossMarginInvariant a rdfs:Class ;
+    rdfs:comment "floor default 0.22; law: (NTE - quote) / NTE >= floor." .
+
+fme:BreachEvent a rdfs:Class ;
+    rdfs:label "Breach Event" ;
+    rdfs:comment "A computed margin below the floor, or an amount above the NTE." .
+
+fme:Refusal a rdfs:Class ;
+    rdfs:label "Typed Refusal" ;
+    rdfs:comment "Closed refusal vocabulary, minted as individuals below." .
+
+# --- Properties -----------------------------------------------------------------
+
+fme:envelopeId a rdf:Property ;
+    rdfs:domain fme:MarginEnvelope ;
+    rdfs:range xsd:string .
+
+fme:nte a rdf:Property ;
+    rdfs:domain fme:MarginEnvelope ;
+    rdfs:range fme:NotToExceed .
+
+fme:hasQuote a rdf:Property ;
+    rdfs:domain fme:MarginEnvelope ;
+    rdfs:range fme:SubcontractorQuote .
+
+fme:hasAmount a rdf:Property ;
+    rdfs:comment "Links NotToExceed or SubcontractorQuote to its MonetaryAmount." .
+
+fme:floor a rdf:Property ;
+    rdfs:domain fme:GrossMarginInvariant ;
+    rdfs:range xsd:decimal .
+
+fme:hasInvariant a rdf:Property ;
+    rdfs:domain fme:MarginEnvelope ;
+    rdfs:range fme:GrossMarginInvariant .
+
+fme:breachedEnvelope a rdf:Property ;
+    rdfs:domain fme:BreachEvent ;
+    rdfs:range fme:MarginEnvelope .
+
+fme:breachKind a rdf:Property ;
+    rdfs:domain fme:BreachEvent ;
+    rdfs:range xsd:string .
+
+# --- Typed refusal vocabulary (closed set of individuals) -----------------------
+
+fme:REFUSED_BELOW_FLOOR a fme:Refusal ;
+    rdfs:label "Refused below floor" .
+
+fme:REFUSED_NTE_EXCEEDED a fme:Refusal ;
+    rdfs:label "Refused NTE exceeded" .
+
+fme:REFUSED_MISSING_BINDING a fme:Refusal ;
+    rdfs:label "Refused missing binding (fail-closed)" .
+
+fme:ESCALATE_MULTISIG a fme:Refusal ;
+    rdfs:label "Escalate to multi-sig approval" .
+
+# --- One positive-control envelope individual -----------------------------------
+
+fme:env-001 a fme:MarginEnvelope ;
+    fme:envelopeId "ENV-001" ;
+    fme:nte fme:env-001-nte ;
+    fme:hasQuote fme:env-001-quote ;
+    fme:hasInvariant fme:env-001-inv .
+
+fme:env-001-nte a fme:NotToExceed ;
+    fme:hasAmount fme:env-001-amount .
+
+fme:env-001-quote a fme:SubcontractorQuote ;
+    fme:hasAmount fme:env-001-qamt .
+
+fme:env-001-amount a fme:MonetaryAmount ;
+    fme:decimalValue "250000.00"^^xsd:decimal ;
+    fme:currency "USD" .
+
+fme:env-001-qamt a fme:MonetaryAmount ;
+    fme:decimalValue "180000.00"^^xsd:decimal ;
+    fme:currency "USD" .
+
+fme:env-001-inv a fme:GrossMarginInvariant ;
+    fme:floor "0.22"^^xsd:decimal .
+
+# Computed margin (250000-180000)/250000 = 0.28 >= 0.22 : admits, no breach.

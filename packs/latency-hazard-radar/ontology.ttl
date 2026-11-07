@@ -1,0 +1,115 @@
+# latency-hazard-radar ontology.
+#
+# Pack-scoped vocabulary lives under exactly one pack namespace:
+#   lhr: <urn:latency-hazard-radar:>
+# No canonical prefix names are rebound (M15 harmonization convention).
+#
+# Domain: response-latency hazard radar. An agent/runtime observes response
+# latencies over a sliding observation window; robust dispersion is estimated
+# with median (tilde-mu) and MAD (median absolute deviation); a hazard Z-score
+# Z = (t_elapsed - median) / MAD flags a response for triage when Z exceeds a
+# hazard threshold (default 2.5). MAD = 0 (a degenerate, zero-dispersion
+# window) is a typed outcome (:insufficient_dispersion), never division by
+# zero, never a silent pass.
+
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix lhr: <urn:latency-hazard-radar:> .
+
+<urn:latency-hazard-radar> a owl:Ontology ;
+    rdfs:label "Latency Hazard Radar Ontology" ;
+    rdfs:comment "Response-latency observation, robust median/MAD estimation, hazard Z-score triage. Pack namespace: urn:latency-hazard-radar: (gate-bound)." .
+
+# --- Core classes ---
+
+lhr:ObservationWindow a rdfs:Class ;
+    rdfs:label "Observation Window" ;
+    rdfs:comment "A bounded window of observed response latencies (milliseconds) over which robust statistics are estimated." .
+
+lhr:LatencyObservation a rdfs:Class ;
+    rdfs:label "Latency Observation" ;
+    rdfs:comment "One observed response latency, in milliseconds, with the operation that produced it." .
+
+lhr:HazardPolicy a rdfs:Class ;
+    rdfs:label "Hazard Policy" ;
+    rdfs:comment "The triage policy binding a hazard threshold and the named MAD=0 refusal outcome." .
+
+lhr:Estimator a rdfs:Class ;
+    rdfs:label "Estimator" ;
+    rdfs:comment "A robust statistic estimated from an observation window (median, MAD)." .
+
+lhr:CodegenTemplate a rdfs:Class ;
+    rdfs:label "Codegen Template" ;
+    rdfs:comment "A .tmpl file in templates/ that generates Elixir source from this graph." .
+
+# --- Properties ---
+
+lhr:elapsedMillis a rdf:Property ;
+    rdfs:label "elapsed millis" ;
+    rdfs:comment "Observed response latency in milliseconds." .
+
+lhr:operation a rdf:Property ;
+    rdfs:label "operation" ;
+    rdfs:comment "Name of the operation the latency was observed for." .
+
+lhr:medianMillis a rdf:Property ;
+    rdfs:label "median millis (tilde-mu)" ;
+    rdfs:comment "Robust location estimate: the median of the window's latencies." .
+
+lhr:madMillis a rdf:Property ;
+    rdfs:label "MAD millis" ;
+    rdfs:comment "Robust dispersion estimate: median absolute deviation of the window's latencies." .
+
+lhr:hazardThreshold a rdf:Property ;
+    rdfs:label "hazard threshold" ;
+    rdfs:comment "Z-score above which a response trips hazard triage (default 2.5)." .
+
+lhr:refusalAtom a rdf:Property ;
+    rdfs:label "refusal atom" ;
+    rdfs:comment "Typed atom returned when MAD = 0 (zero dispersion): :insufficient_dispersion." .
+
+lhr:triagePrompt a rdf:Property ;
+    rdfs:label "triage prompt" ;
+    rdfs:comment "Event text emitted with a triage-prompt when hazard trips." .
+
+lhr:sourceFile a rdf:Property ;
+    rdfs:label "source file" ;
+    rdfs:comment "Relative path of the template this individual is grounded in." .
+
+# --- Individuals ---
+
+lhr:default-window a lhr:ObservationWindow ;
+    rdfs:label "Default Observation Window" ;
+    lhr:elapsedMillis "120"^^xsd:integer, "95"^^xsd:integer, "110"^^xsd:integer,
+        "105"^^xsd:integer, "400"^^xsd:integer, "100"^^xsd:integer, "98"^^xsd:integer ;
+    rdfs:comment "Demonstration window with a hazard outlier: median 105, MAD 7 (sorted: 95,98,100,105,110,120,400)." .
+
+lhr:median-estimator a lhr:Estimator ;
+    rdfs:label "Median Estimator (tilde-mu)" ;
+    lhr:medianMillis "105"^^xsd:decimal ;
+    rdfs:comment "Median of lhr:default-window: 4th of sorted (95,98,100,105,110,120,400)." .
+
+lhr:mad-estimator a lhr:Estimator ;
+    rdfs:label "MAD Estimator" ;
+    lhr:madMillis "7"^^xsd:decimal ;
+    rdfs:comment "Median |x - median| of lhr:default-window: |devs| from 105 = (10,7,5,0,5,15,295) sorted (0,5,5,7,10,15,295) -> 7." .
+
+lhr:flat-window a lhr:ObservationWindow ;
+    rdfs:label "Flat (Zero-Dispersion) Window" ;
+    lhr:elapsedMillis "50"^^xsd:integer, "50"^^xsd:integer, "50"^^xsd:integer ;
+    rdfs:comment "Degenerate window: every latency identical -> MAD = 0 -> :insufficient_dispersion." .
+
+lhr:default-policy a lhr:HazardPolicy ;
+    rdfs:label "Default Hazard Policy" ;
+    lhr:hazardThreshold "2.5"^^xsd:decimal ;
+    lhr:refusalAtom "insufficient_dispersion" ;
+    lhr:triagePrompt "HAZARD: response latency exceeded robust hazard threshold; triage required" ;
+    rdfs:comment "Ships the 2.5 default threshold and the typed MAD=0 refusal atom." .
+
+lhr:hazard-radar-template a lhr:CodegenTemplate ;
+    rdfs:label "HazardRadar Template" ;
+    lhr:sourceFile "templates/hazard_radar.ex.tera" ;
+    rdfs:comment "Renders lib-style HazardRadar module: observe/3, zscore/2, trip?/2, median/1, mad/1." .

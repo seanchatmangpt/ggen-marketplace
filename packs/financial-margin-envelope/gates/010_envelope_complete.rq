@@ -1,0 +1,31 @@
+# ASK-as-SELECT: any row = violation (gate refuses).
+# Every envelope binds exactly one NTE, at least one quote, and one invariant
+# with a floor; every NTE/quote binds a MonetaryAmount with a decimal value.
+PREFIX fme: <urn:fin:margin-envelope:>
+SELECT ?env ?gap
+WHERE {
+  ?env a fme:MarginEnvelope .
+  {
+    VALUES ?p { fme:nte fme:hasQuote fme:hasInvariant fme:envelopeId }
+    FILTER NOT EXISTS { ?env ?p ?v }
+    BIND(CONCAT("missing ", STR(?p)) AS ?gap)
+  }
+  UNION
+  {
+    ?env fme:nte ?nte .
+    FILTER NOT EXISTS { ?nte fme:hasAmount/fme:decimalValue ?v }
+    BIND("nte amount unbound" AS ?gap)
+  }
+  UNION
+  {
+    ?env fme:hasQuote ?q .
+    FILTER NOT EXISTS { ?q fme:hasAmount/fme:decimalValue ?v }
+    BIND("quote amount unbound" AS ?gap)
+  }
+  UNION
+  {
+    ?env fme:hasInvariant ?inv .
+    FILTER NOT EXISTS { ?inv fme:floor ?f }
+    BIND("floor unbound" AS ?gap)
+  }
+}

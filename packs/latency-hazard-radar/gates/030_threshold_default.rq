@@ -1,0 +1,32 @@
+# GATE 030 -- hazard threshold and triage-prompt presence (anti-vacuity).
+#
+# MESSAGE: exactly one lhr:HazardPolicy must exist, carrying hazardThreshold
+# 2.5 (the shipped default) and a non-empty triagePrompt. A template rendering
+# with no threshold row would silently emit a module compiled against an
+# undefined @hazard_threshold; this gate refuses that graph before codegen.
+# Zero rows = gate pass.
+#
+# Anti-vacuity: delete the lhr:hazardThreshold triple and gate 030 returns a
+# row; delete the whole default-policy individual and gates 020+030 both do.
+PREFIX lhr: <urn:latency-hazard-radar:>
+
+SELECT ?policy ?violation WHERE {
+  ?policy a lhr:HazardPolicy .
+  {
+    ?policy lhr:hazardThreshold ?t .
+    FILTER(?t != 2.5)
+    BIND("LHR-THRESHOLD-NOT-DEFAULT-2.5" AS ?violation)
+  } UNION {
+    FILTER NOT EXISTS { ?p1 a lhr:HazardPolicy ; lhr:hazardThreshold ?t1 . }
+    BIND("LHR-THRESHOLD-ABSENT" AS ?violation)
+  } UNION {
+    OPTIONAL { ?policy lhr:triagePrompt ?prompt }
+    FILTER NOT EXISTS { ?p2 a lhr:HazardPolicy ; lhr:triagePrompt ?t2 . }
+    BIND("LHR-TRIAGE-PROMPT-ABSENT" AS ?violation)
+  } UNION {
+    ?p3 a lhr:HazardPolicy .
+    ?p4 a lhr:HazardPolicy .
+    FILTER(STR(?p3) < STR(?p4))
+    BIND("LHR-MULTIPLE-POLICIES" AS ?violation)
+  }
+}

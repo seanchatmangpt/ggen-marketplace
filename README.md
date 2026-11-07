@@ -6,7 +6,15 @@ A pack is not merely a template directory. Its manifest establishes identity, RD
 
 ## Consolidation work
 
-As of 2026-11-04 the corpus is 347 packs (`ls -d packs/*/ | wc -l`); the marketplace release version is whatever `marketplace.toml` declares (do not read it from this README). PR #438 introduced the v26.9.12-era 80/20 capability topology (point-in-time): existing packs remained in place while the repository measured coverage and mapped the legacy catalog to the smaller canonical set. Issue #439 tracks the inventory and classification work required before any legacy pack is retired. `marketplace.active.toml`'s `[active]` set is that frozen v26.9.12 candidate, not the current corpus.
+As of 2026-11-07 the corpus is 352 packs (`ls -d packs/*/ | wc -l`). The most recent tagged
+release is `v26.10.8-3`; the working head is documented in `CHANGELOG.md` (do not read a
+release version from this README). PR #438 introduced the v26.9.12-era 80/20 capability
+topology (point-in-time): existing packs remained in place while the repository measured
+coverage and mapped the legacy catalog to the smaller canonical set. Issue #439 tracks the
+inventory and classification work required before any legacy pack is retired.
+`marketplace.active.toml`'s `[active]` set is a 21-pack qualification CANDIDATE set
+(version `26.10.7`), distinct from the full 352-pack corpus.
+
 
 The consolidation rule is `PackDirectory != PublicCapability`: versions, experiments, implementations, and compositions should normally be represented inside a durable capability family instead of creating a new top-level capability for every generation.
 
@@ -52,7 +60,8 @@ The permanent catalog is the set of admitted manifests under `packs/`. `scripts/
 
 ## Pack capabilities
 
-Every pack declares its capability surface in a `[capabilities]` table in `pack.toml`. Measured: `grep -L '\[capabilities\]' packs/*/pack.toml | wc -l` = 0 over 315 directories as of 2026-10-12.
+Every pack declares its capability surface in a `[capabilities]` table in `pack.toml`. Measured: `grep -L '\[capabilities\]' packs/*/pack.toml | wc -l` = 1 over 352 directories
+as of 2026-11-07 (`packs/kafka-wire-pack/pack.toml`, qualification in progress).
 
 ```toml
 [capabilities]
