@@ -1,0 +1,116 @@
+{
+  "machine_label": "Provider Onboarding",
+  "machine_name": "ProviderOnboarding",
+  "machine_id": "providerOnboarding",
+  "machine_module": "provider_onboarding",
+  "transition_count": 6,
+  "api_seam_note": "api/providerOnboarding.ts exposes startOnboarding(payload) — real axios, never mocked in smoke",
+  "context_fields": [
+    { "name": "status", "type_expr": "string", "doc": "current onboarding leg", "initial": "\"idle\"" },
+    { "name": "attempts", "type_expr": "number", "doc": "submit attempts", "initial": "0" }
+  ],
+  "stash_fields": [
+    { "name": "pendingSubmit", "type_expr": "{ form: Record<string, string> }", "purpose": "submit" }
+  ],
+  "events": [
+    { "name": "SUBMIT", "payload": "payload: { form: Record<string, string> }", "doc": "form submit" },
+    { "name": "RETRY", "payload": "", "doc": "retry after failure" },
+    { "name": "RESET", "payload": "", "doc": "" }
+  ],
+  "guards": [
+    { "name": "hasAttempts", "uses_context": true, "uses_event": false, "body": "context.attempts > 0" },
+    { "name": "formValid", "uses_context": false, "uses_event": true, "body": "Object.keys(event.payload.form).length > 0" }
+  ],
+  "actions": [
+    { "name": "stashSubmit", "uses_event": true, "uses_context": false, "body": "return { pendingSubmit: event.payload };" },
+    { "name": "bumpAttempts", "uses_event": false, "uses_context": true, "body": "return { attempts: context.attempts + 1 };" }
+  ],
+  "actors": [
+    {
+      "name": "submitActor",
+      "input_type": "{ form: Record<string, string> }",
+      "todo_arm": false,
+      "purpose": "submit",
+      "body": "const res = await api.startOnboarding(input.form); return res.data;"
+    },
+    {
+      "name": "auditActor",
+      "input_type": "unknown",
+      "todo_arm": true,
+      "purpose": "audit payload",
+      "body": "console.log('audit', input);"
+    }
+  ],
+  "initial_state": "editing",
+  "parallel": false,
+  "states": [
+    {
+      "name": "editing",
+      "invoke": null,
+      "transitions": [
+        {
+          "event": "SUBMIT",
+          "arms": [
+            { "target": "#providerOnboarding.submitting", "guard": "formValid", "actions": "{ stashSubmit: \"stashSubmit\", bumpAttempts: \"bumpAttempts\" }" },
+            { "target": "#providerOnboarding.editing", "guard": "", "actions": "undefined" }
+          ]
+        },
+        { "event": "RESET", "arms": [ { "target": "#providerOnboarding.editing", "guard": "", "actions": "undefined" } ] }
+      ],
+      "excluded": [
+        { "source": "R171", "reason": "no compilable target for legacy DRAFT_SAVE edge — disclosed, absent from body" }
+      ],
+      "children": null,
+      "initial_child": ""
+    },
+    {
+      "name": "submitting",
+      "invoke": { "actor": "submitActor", "stash": "pendingSubmit", "on_done": "#providerOnboarding.done", "on_error": "#providerOnboarding.failed" },
+      "transitions": [],
+      "excluded": [],
+      "children": null,
+      "initial_child": ""
+    },
+    {
+      "name": "done",
+      "invoke": null,
+      "transitions": [ { "event": "RESET", "arms": [ { "target": "#providerOnboarding.editing", "guard": "", "actions": "undefined" } ] } ],
+      "excluded": [],
+      "children": null,
+      "initial_child": ""
+    },
+    {
+      "name": "failed",
+      "invoke": null,
+      "transitions": [
+        { "event": "RETRY", "arms": [ { "target": "#providerOnboarding.submitting", "guard": "hasAttempts", "actions": "{ stashSubmit: \"stashSubmit\" }" } ] }
+      ],
+      "excluded": [],
+      "children": null,
+      "initial_child": ""
+    }
+  ],
+  "machine_input_type": "{ seed: number }",
+  "machine_input_fixture": "{ seed: 42 }",
+  "initial_value_fixture": "\"editing\"",
+  "scenarios": [
+    {
+      "description": "submit with valid form reaches done",
+      "provide_actors": [
+        { "name": "submitActor", "result_expr": "({ ok: true })" }
+      ],
+      "send_steps": [ "{ type: \"SUBMIT\", payload: { form: { name: \"a\" } } }" ],
+      "expected_value": "\"done\""
+    },
+    {
+      "description": "todo audit arm no-ops without stashed payload",
+      "provide_actors": [
+        { "name": "auditActor", "result_expr": "(undefined)" }
+      ],
+      "send_steps": [ "{ type: \"RESET\" }" ],
+      "expected_value": "\"editing\""
+    }
+  ],
+  "error_arm_event": "{ type: \"SUBMIT\", payload: { form: {} } }",
+  "error_arm_expected": "\"failed\""
+}

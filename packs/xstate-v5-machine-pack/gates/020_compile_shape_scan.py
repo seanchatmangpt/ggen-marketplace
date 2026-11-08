@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""020_compile_shape_scan.py — machine-checkable SHAPES.md rows.
+r"""020_compile_shape_scan.py — machine-checkable SHAPES.md rows.
 
 Compiles the SHAPES.md law list (srve docs/diagrams/state/xstate/SHAPES.md)
 into a config-driven banned-token / required-seam scanner. Laws encoded by
@@ -27,6 +27,31 @@ Config (TOML, default shapes.toml next to this script):
     # excluded = [regex, ...]        extra must-be-absent patterns
     # required = [[name, regex], ...] extra must-be-present patterns
 
+JSON MODE: a subject whose path ends .json is scanned semantically, not
+by TS tokens (S5 seal finding 2: the TS `setup\s*\(` seam regex is not
+discriminating on JSON fixtures — the divergent rejection rode the same
+arm as a comment string). The machine object is walked and these laws
+are enforced on the object graph (each cites its planted V-DIV row):
+
+- json-no-parallel         — machine.createMachine.type == 'parallel'
+                             banned (flat-machine law; V-DIV-1)
+- json-missing-initial     — 'initial' absent while 'states' present
+                             (V-DIV-2; initial required at every level)
+- json-as-const-ref        — any '$ref' shared-config key anywhere in the
+                             machine object (inline-setup law; V-DIV-5)
+- json-relative-target     — any 'target' string containing '../'
+                             (targets must be state-local or
+                             root-absolute '#id.state'; V-DIV-3)
+- json-stray-comment       — '/*' or '*/' inside any machine string value
+                             (balanced-token law; V-DIV-4)
+- json-setup-seam          — a 'setup' key required at machine root
+                             (JSON analogue of the TS setup-seam)
+
+The subject's ledger/metadata (e.g. a top-level 'violations' array in a
+divergent fixture) is NOT scanned — only the machine object — so the
+fixture's own description of its violations can never be the rejection
+arm. Per-subject `banned` overrides apply to TS mode only.
+
 Non-vacuity: an empty [[subjects]] set or an empty effective banned list
 is a CONFIG-ERROR (exit 2) — a court that cannot flip is FAIL (R106 /
 shim-court non-vacuity law).
@@ -35,6 +60,7 @@ Exit codes: 0 = all subjects clean; 1 = any violation; 2 = config error.
 """
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -82,9 +108,74 @@ def effective_rules(subject, defaults):
     return override if override is not None else defaults
 
 
+def _walk(obj, path="$"):
+    """Yield (jsonpath, value) for every node in the machine object."""
+    yield path, obj
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            yield from _walk(v, f"{path}.{k}")
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            yield from _walk(v, f"{path}[{i}]")
+
+
+def scan_json_subject(full):
+    """Semantic scan of a .json machine fixture's machine object.
+    Laws are hardcoded here (each cites its divergent-notes V-DIV row);
+    a violation is reported with its jsonpath so the rejection arm is
+    named, never a regex artifact on ledger prose."""
+    violations = []
+    try:
+        with open(full, "r", encoding="utf-8") as fh:
+            doc = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        return [(full, 0, "json-unreadable", str(exc)[:120])]
+    machine = doc.get("machine")
+    if not isinstance(machine, dict):
+        return [(full, 0, "json-no-machine", "no 'machine' object in fixture")]
+    cm = machine.get("createMachine")
+    if not isinstance(cm, dict):
+        return [(full, 0, "json-no-createMachine",
+                 "no machine.createMachine object in fixture")]
+
+    # json-no-parallel (V-DIV-1)
+    if cm.get("type") == "parallel":
+        violations.append((full, 0, "json-no-parallel",
+                           "machine.createMachine.type == 'parallel' "
+                           "(flat-machine law; V-DIV-1)"))
+    # json-missing-initial (V-DIV-2)
+    if "states" in cm and "initial" not in cm:
+        violations.append((full, 0, "json-missing-initial",
+                           "machine.createMachine has 'states' but no "
+                           "'initial' (V-DIV-2)"))
+    # json-setup-seam (JSON analogue of the TS setup seam)
+    if "setup" not in machine:
+        violations.append((full, 0, "json-setup-seam",
+                           "no 'setup' key at machine root (inline-setup law)"))
+    # json-as-const-ref / json-relative-target / json-stray-comment
+    for jp, val in _walk(machine):
+        if isinstance(val, dict):
+            if "$ref" in val:
+                violations.append((full, 0, "json-as-const-ref",
+                                   f"shared-config '$ref' at {jp} "
+                                   "(inline-setup law; V-DIV-5)"))
+        elif isinstance(val, str):
+            if "../" in val and jp.endswith(".target"):
+                violations.append((full, 0, "json-relative-target",
+                                   f"relative cross-level target {val!r} at "
+                                   f"{jp} (V-DIV-3)"))
+            if "/*" in val or "*/" in val:
+                violations.append((full, 0, "json-stray-comment",
+                                   f"comment token in string at {jp} "
+                                   "(balanced-token law; V-DIV-4)"))
+    return violations
+
+
 def scan_subject(subject, banned, required, root):
     path = subject["path"]
     full = path if os.path.isabs(path) else os.path.join(root, path)
+    if full.endswith(".json"):
+        return scan_json_subject(full)
     violations = []
     if not os.path.isfile(full):
         return [(full, 0, "missing-file", "subject file not found")]
@@ -127,7 +218,8 @@ def main():
     n = len(cfg["subjects"])
     if rc == 0:
         print(f"SHAPE-COURT: PASS — {n} subject(s), 0 violations "
-              f"({len(DEFAULT_BANNED)} banned-token laws + setup-seam)")
+              f"(TS: {len(DEFAULT_BANNED)} banned-token laws + setup-seam; "
+              f"JSON: 6 semantic laws)")
     else:
         print(f"SHAPE-COURT: FAIL — {n} subject(s), see violations above")
     return rc

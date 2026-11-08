@@ -15,18 +15,19 @@
  * - no-sleep: fixed sleeps are banned. Waits are expect.poll with a bounded
  *   timeout — the test asserts convergence WITHIN budget, not before it.
  */
-import { createActor } from "xstate";
+import { createActor, fromPromise } from "xstate";
 import { expect, it } from "vitest";
-import { fromPromise } from "xstate";
 import { {{ machine_name }}Machine } from "./{{ machine_module }}.machine";
 
 const POLL_TIMEOUT_MS = 2000;
 const POLL_INTERVAL_MS = 25;
 
 it("constructs: createActor().start() reaches the initial state", () => {
-  const actor = createActor({{ machine_name }}Machine{% if machine_input_type %}, {
+  const actor = createActor({{ machine_name }}Machine, {
+    {%- if machine_input_type %}
     input: {{ machine_input_fixture }},
-  }{% endif %});
+    {%- endif %}
+  });
   actor.start();
 
   expect(actor.getSnapshot().value).toEqual({{ initial_value_fixture }});
@@ -36,15 +37,18 @@ it("constructs: createActor().start() reaches the initial state", () => {
 {%- for scenario in scenarios %}
 
 it("{{ scenario.description }}", () => {
-  const actor = createActor({{ machine_name }}Machine{% if machine_input_type %}, {
+  const actor = createActor({{ machine_name }}Machine, {
+    {%- if machine_input_type %}
     input: {{ machine_input_fixture }},
-  }{% endif %}{% if scenario.provide_actors %}, {
+    {%- endif %}
+    {%- if scenario.provide_actors %}
     actors: {
       {%- for a in scenario.provide_actors %}
       {{ a.name }}: fromPromise(async () => {{ a.result_expr }}),
       {%- endfor %}
     },
-  }{% endif %});
+    {%- endif %}
+  });
   actor.start();
   expect(actor.getSnapshot().value).toEqual({{ initial_value_fixture }});
 
