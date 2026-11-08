@@ -63,6 +63,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   frozen court pin `marketplace.toml` `[ggen].version = "v26.8.11"`; re-locking
   would mint lock entries from an unpinned identity
   (notes/fm-pack-008-relock-blocked.md)
+- feat(cscb): RunnerProfile minted (runner-001→arc-001); verify 18 PASS; sync byte-identical
 
 ## [v26.11.4-wave] — 2026-11-04
 
