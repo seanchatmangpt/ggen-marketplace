@@ -1,0 +1,24 @@
+# One row per claim type: all bindings the template renders. No claim data is
+# hardcoded in the template - claim types, telemetry lists, priors, ambient
+# trip curves, and cost baselines come from the graph. The generated module
+# splits the space-joined telemetry list at runtime.
+PREFIX el: <urn:trade:reticle:electrical:>
+SELECT ?claimType ?reqList ?demand ?lifetimeYears ?ambientCurve ?costMin ?costMax
+WHERE {
+  ?claim a el:DiagnosticTree ;
+      el:claimType ?claimType ;
+      el:requiredTelemetryList ?reqList .
+  FILTER NOT EXISTS { ?claim el:providedTelemetry ?anyProvided }
+  OPTIONAL { ?claim el:counterPunchDemand ?demand }
+  OPTIONAL {
+    ?claim el:hasEquipmentPrior ?p .
+    ?p el:typicalLifetimeYears ?lifetimeYears .
+    OPTIONAL { ?p el:ambientTripCurve ?ambientCurve }
+  }
+  OPTIONAL {
+    ?claim el:hasCostBaseline ?cb .
+    ?cb el:costMinUsd ?costMin ;
+        el:costMaxUsd ?costMax .
+  }
+}
+ORDER BY ?claimType

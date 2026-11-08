@@ -1,0 +1,181 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix el: <urn:trade:reticle:electrical:> .
+
+<urn:trade:reticle:electrical> a owl:Ontology ;
+    rdfs:label "Trade Reticle Electrical Ontology" ;
+    rdfs:comment """
+    High-voltage electrical & switchgear reticle pack (multi-trade expansion,
+    lane Z14): formalizes Vince's trade skepticism for commercial electrical
+    claims. Each DiagnosticTree claim type carries required telemetry, physical
+    priors (equipment lifetimes, ambient-temperature trip curves as textual
+    ranges, USD part-cost baselines), and counter-punch evidence demands - what
+    the tech must produce BEFORE any authorization. Closed refusal vocabulary
+    is minted as individuals.
+    """ .
+
+# --- Claim classes -------------------------------------------------------------
+
+el:DiagnosticTree a rdfs:Class ;
+    rdfs:label "Diagnostic Tree" ;
+    rdfs:comment "A trade claim type with required telemetry, physical priors, and counter-punch demands." .
+
+el:MechanicalPrior a rdfs:Class ;
+    rdfs:label "Mechanical Prior" ;
+    rdfs:comment "The interrogation table for one claim type: telemetry requirements, priors, counter-punch demands." .
+
+el:EquipmentPrior a rdfs:Class ;
+    rdfs:label "Equipment Prior" ;
+    rdfs:comment "Typical service lifetimes, ambient-temperature trip curves (textual ranges), and failure modes by equipment class." .
+
+# --- Properties ----------------------------------------------------------------
+
+el:claimType a rdf:Property ;
+    rdfs:label "claim type name" ;
+    rdfs:range xsd:string .
+
+el:requiredTelemetryList a rdf:Property ;
+    rdfs:label "space-joined required telemetry field list" ;
+    rdfs:comment "Scalar rendering of requiredTelemetry for template binding; the generated module splits on spaces." .
+
+el:requiredTelemetry a rdf:Property ;
+    rdfs:label "required telemetry field" ;
+    rdfs:comment "A telemetry field the tech must provide before authorization." .
+
+el:providedTelemetry a rdf:Property ;
+    rdfs:label "provided telemetry field" ;
+    rdfs:comment "A telemetry field actually supplied on a claim instance." .
+
+el:counterPunchDemand a rdf:Property ;
+    rdfs:label "counter-punch demand" ;
+    rdfs:comment "Evidence the tech must produce on demand before authorization proceeds." .
+
+el:equipmentClass a rdf:Property ;
+    rdfs:label "equipment class name" ;
+    rdfs:range xsd:string .
+
+el:typicalLifetimeYears a rdf:Property ;
+    rdfs:label "typical lifetime years" ;
+    rdfs:range xsd:decimal .
+
+el:ambientTripCurve a rdf:Property ;
+    rdfs:label "ambient-temperature trip curve (textual range)" ;
+    rdfs:comment "Textual derate range, e.g. thermal-magnetic trip derates 3 percent per degC above 40degC (valid 20-75degC ambient)." .
+
+el:failureMode a rdf:Property ;
+    rdfs:label "typical failure mode" .
+
+el:costMinUsd a rdf:Property ;
+    rdfs:label "part-cost min USD" ;
+    rdfs:range xsd:decimal .
+
+el:costMaxUsd a rdf:Property ;
+    rdfs:label "part-cost max USD" ;
+    rdfs:range xsd:decimal .
+
+el:hasEquipmentPrior a rdf:Property ;
+    rdfs:label "links claim to equipment prior" .
+
+el:hasCostBaseline a rdf:Property ;
+    rdfs:label "links claim to part-cost baseline" .
+
+# --- Refusal vocabulary (closed set, minted as individuals) ----------------------
+
+el:Refusal a rdfs:Class ;
+    rdfs:label "Typed Refusal" .
+
+el:REFUSED_UNKNOWN_CLAIM_TYPE a el:Refusal ;
+    rdfs:label "Refused unknown claim type" .
+
+el:REFUSED_MISSING_TELEMETRY a el:Refusal ;
+    rdfs:label "Refused missing telemetry (fail-closed)" .
+
+el:REFUSED_NO_PRIOR a el:Refusal ;
+    rdfs:label "Refused no mechanical prior bound (fail-closed)" .
+
+# --- Claim-type tables -----------------------------------------------------------
+# Each claim type requires the full 4-field telemetry set. Counter-punch demands
+# follow the Vince diagnostic counter-punch pattern: demand the decisive
+# evidence BEFORE authorization, not after.
+
+el:claim-mb a el:DiagnosticTree ;
+    el:claimType "main_breaker_replacement" ;
+    el:requiredTelemetryList "resistance_readings_log voltage_log thermal_image_id breaker_serial_photo" ;
+    el:requiredTelemetry "resistance_readings_log", "voltage_log", "thermal_image_id", "breaker_serial_photo" ;
+    el:counterPunchDemand "voltage log and resistance readings BEFORE authorization" ;
+    el:hasEquipmentPrior el:equip-main-breaker ;
+    el:hasCostBaseline el:cost-mb .
+
+el:equip-main-breaker a el:EquipmentPrior ;
+    el:equipmentClass "molded_case_main_breaker" ;
+    el:typicalLifetimeYears "30"^^xsd:decimal ;
+    el:ambientTripCurve "thermal-magnetic trip derates ~3%/degC above 40degC (valid 20-75degC ambient)" ;
+    el:failureMode "nuisance trip at elevated ambient", "welded contacts", "contact erosion" .
+
+el:cost-mb a el:CostBaseline ;
+    el:costMinUsd "400.00"^^xsd:decimal ;
+    el:costMaxUsd "2200.00"^^xsd:decimal .
+
+# Positive control: complete 4-field telemetry -> admits (A12 minCount lesson:
+# every required field is supplied on the instance).
+el:claim-mb-001 a el:DiagnosticTree ;
+    el:claimType "main_breaker_replacement" ;
+    el:requiredTelemetry "resistance_readings_log", "voltage_log", "thermal_image_id", "breaker_serial_photo" ;
+    el:providedTelemetry "resistance_readings_log", "voltage_log", "thermal_image_id", "breaker_serial_photo" ;
+    rdfs:comment "Positive control: complete 4-field telemetry -> admits." .
+
+el:claim-sw a el:DiagnosticTree ;
+    el:claimType "switchgear_trip_investigation" ;
+    el:requiredTelemetryList "resistance_readings_log voltage_log thermal_image_id breaker_serial_photo" ;
+    el:requiredTelemetry "resistance_readings_log", "voltage_log", "thermal_image_id", "breaker_serial_photo" ;
+    el:counterPunchDemand "thermal image of the trip-affected bus section and the trip-event log" ;
+    el:hasEquipmentPrior el:equip-switchgear ;
+    el:hasCostBaseline el:cost-sw .
+
+el:equip-switchgear a el:EquipmentPrior ;
+    el:equipmentClass "low_voltage_switchgear" ;
+    el:typicalLifetimeYears "35"^^xsd:decimal ;
+    el:ambientTripCurve "trip units derate ~1.5%/degC above 40degC (valid 10-55degC ambient)" ;
+    el:failureMode "loose bus connection heating", "insulation breakdown", "trip-unit drift" .
+
+el:cost-sw a el:CostBaseline ;
+    el:costMinUsd "2500.00"^^xsd:decimal ;
+    el:costMaxUsd "25000.00"^^xsd:decimal .
+
+el:claim-tx a el:DiagnosticTree ;
+    el:claimType "transformer_failure" ;
+    el:requiredTelemetryList "resistance_readings_log voltage_log thermal_image_id breaker_serial_photo" ;
+    el:requiredTelemetry "resistance_readings_log", "voltage_log", "thermal_image_id", "breaker_serial_photo" ;
+    el:counterPunchDemand "thermal image of the transformer core/case and a dielectric oil sample analysis" ;
+    el:hasEquipmentPrior el:equip-transformer ;
+    el:hasCostBaseline el:cost-tx .
+
+el:equip-transformer a el:EquipmentPrior ;
+    el:equipmentClass "dry_type_transformer" ;
+    el:typicalLifetimeYears "25"^^xsd:decimal ;
+    el:ambientTripCurve "insulation life halves per +10degC above the 40degC rise rating (valid 20-60degC ambient)" ;
+    el:failureMode "winding insulation breakdown", "core heating", "tap-changer wear" .
+
+el:cost-tx a el:CostBaseline ;
+    el:costMinUsd "12000.00"^^xsd:decimal ;
+    el:costMaxUsd "85000.00"^^xsd:decimal .
+
+el:claim-mo a el:DiagnosticTree ;
+    el:claimType "motor_circuit_fault" ;
+    el:requiredTelemetryList "resistance_readings_log voltage_log thermal_image_id breaker_serial_photo" ;
+    el:requiredTelemetry "resistance_readings_log", "voltage_log", "thermal_image_id", "breaker_serial_photo" ;
+    el:counterPunchDemand "motor-failure claim at high ambient (above 40degC): capacitor bank check evidence FIRST, then voltage and resistance logs" ;
+    el:hasEquipmentPrior el:equip-motor ;
+    el:hasCostBaseline el:cost-mo .
+
+el:equip-motor a el:EquipmentPrior ;
+    el:equipmentClass "three_phase_motor_circuit" ;
+    el:typicalLifetimeYears "15"^^xsd:decimal ;
+    el:ambientTripCurve "overload relay trip current falls ~2%/degC above 40degC (valid 0-60degC ambient)" ;
+    el:failureMode "capacitor degradation at high ambient", "contactor pitting", "winding shorts" .
+
+el:cost-mo a el:CostBaseline ;
+    el:costMinUsd "350.00"^^xsd:decimal ;
+    el:costMaxUsd "5000.00"^^xsd:decimal .

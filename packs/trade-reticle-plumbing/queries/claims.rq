@@ -1,0 +1,22 @@
+# One row per claim type: all bindings the template renders. No claim data is
+# hardcoded in the template — claim types, telemetry lists, priors, and cost
+# baselines come from the graph. The generated module splits the space-joined
+# telemetry list at runtime.
+PREFIX tr: <urn:trade:reticle:plumbing:>
+SELECT ?claimType ?reqList ?demand ?lifetimeYears ?costMin ?costMax
+WHERE {
+  ?claim a tr:DiagnosticTree ;
+      tr:claimType ?claimType ;
+      tr:requiredTelemetryList ?reqList .
+  OPTIONAL { ?claim tr:counterPunchDemand ?demand }
+  OPTIONAL {
+    ?claim tr:hasPipeMaterialPrior ?p .
+    ?p tr:typicalLifetimeYears ?lifetimeYears .
+  }
+  OPTIONAL {
+    ?claim tr:hasCostBaseline ?cb .
+    ?cb tr:costMinUsd ?costMin ;
+        tr:costMaxUsd ?costMax .
+  }
+}
+ORDER BY ?claimType

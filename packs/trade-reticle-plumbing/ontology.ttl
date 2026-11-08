@@ -1,0 +1,177 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix tr: <urn:trade:reticle:plumbing:> .
+
+<urn:trade:reticle:plumbing> a owl:Ontology ;
+    rdfs:label "Trade Reticle Plumbing Ontology" ;
+    rdfs:comment """
+    First Mechanical Prior trade reticle pack (Capability-2): formalizes
+    Vince's trade skepticism for commercial plumbing. Each DiagnosticTree
+    claim type carries required telemetry, physical priors (pipe-material
+    lifetimes, failure modes, USD part-cost baselines), and counter-punch
+    evidence demands — what the tech must produce BEFORE any authorization.
+    Closed refusal vocabulary is minted as individuals.
+    """ .
+
+# --- Claim types ---------------------------------------------------------------
+
+tr:DiagnosticTree a rdfs:Class ;
+    rdfs:label "Diagnostic Tree" ;
+    rdfs:comment "A trade claim type with required telemetry, physical priors, and counter-punch demands." .
+
+tr:MechanicalPrior a rdfs:Class ;
+    rdfs:label "Mechanical Prior" ;
+    rdfs:comment "The interrogation table for one claim type: telemetry requirements, priors, counter-punch demands." .
+
+# --- Physical prior concepts -----------------------------------------------------
+
+tr:PipeMaterialPrior a rdfs:Class ;
+    rdfs:label "Pipe Material Prior" ;
+    rdfs:comment "Typical service lifetimes and failure modes by pipe material." .
+
+tr:CostBaseline a rdfs:Class ;
+    rdfs:label "Part-Cost Baseline" ;
+    rdfs:comment "USD part-cost range (min/max) for a claim type." .
+
+# --- Properties: claim surface ---------------------------------------------------
+
+tr:claimType a rdf:Property ;
+    rdfs:label "claim type name" ;
+    rdfs:range xsd:string .
+
+tr:requiredTelemetryList a rdf:Property ;
+    rdfs:label "space-joined required telemetry field list" ;
+    rdfs:comment "Scalar rendering of requiredTelemetry for template binding; the generated module splits on spaces." .
+
+tr:requiredTelemetry a rdf:Property ;
+    rdfs:label "required telemetry field" ;
+    rdfs:comment "A telemetry field the tech must provide before authorization." .
+
+tr:providedTelemetry a rdf:Property ;
+    rdfs:label "provided telemetry field" ;
+    rdfs:comment "A telemetry field actually supplied on a claim instance." .
+
+tr:counterPunchDemand a rdf:Property ;
+    rdfs:label "counter-punch demand" ;
+    rdfs:comment "Evidence the tech must produce on demand before authorization proceeds." .
+
+# --- Properties: physical priors --------------------------------------------------
+
+tr:pipeMaterial a rdf:Property ;
+    rdfs:label "pipe material name" ;
+    rdfs:range xsd:string .
+
+tr:typicalLifetimeYears a rdf:Property ;
+    rdfs:label "typical lifetime years" ;
+    rdfs:range xsd:decimal .
+
+tr:failureMode a rdf:Property ;
+    rdfs:label "typical failure mode" .
+
+tr:costMinUsd a rdf:Property ;
+    rdfs:label "part-cost min USD" ;
+    rdfs:range xsd:decimal .
+
+tr:costMaxUsd  a rdf:Property ;
+    rdfs:label "part-cost max USD" ;
+    rdfs:range xsd:decimal .
+
+tr:hasPipeMaterialPrior a rdf:Property ;
+    rdfs:label "links claim to pipe-material prior" .
+
+tr:hasCostBaseline a rdf:Property ;
+    rdfs:label "links claim to part-cost baseline" .
+
+# --- Refusal vocabulary (closed set, minted as individuals) ----------------------
+
+tr:Refusal a rdfs:Class ;
+    rdfs:label "Typed Refusal" .
+
+tr:REFUSED_UNKNOWN_CLAIM_TYPE a tr:Refusal ;
+    rdfs:label "Refused unknown claim type" .
+
+tr:REFUSED_MISSING_TELEMETRY a tr:Refusal ;
+    rdfs:label "Refused missing telemetry (fail-closed)" .
+
+tr:REFUSED_NO_PRIOR a tr:Refusal ;
+    rdfs:label "Refused no mechanical prior bound (fail-closed)" .
+
+# --- Positive controls ------------------------------------------------------------
+
+# drain_line_replacement: full interrogation table, and the positive-control
+# claim instance supplies every required telemetry field -> admits.
+tr:claim-drain a tr:DiagnosticTree ;
+    tr:claimType "drain_line_replacement" ;
+    tr:requiredTelemetryList "camera_inspection_footage_id pipe_diameter_reading depth_reading" ;
+    tr:requiredTelemetry "camera_inspection_footage_id", "pipe_diameter_reading", "depth_reading" ;
+    tr:counterPunchDemand "camera footage showing the failing segment" ;
+    tr:hasPipeMaterialPrior tr:pipe-cast-iron ;
+    tr:hasCostBaseline tr:cost-drain .
+
+tr:pipe-cast-iron a tr:PipeMaterialPrior ;
+    tr:pipeMaterial "cast_iron" ;
+    tr:typicalLifetimeYears "50"^^xsd:decimal ;
+    tr:failureMode "channel rot", "longitudinal crack" .
+
+tr:cost-drain a tr:CostBaseline ;
+    tr:costMinUsd "4500.00"^^xsd:decimal ;
+    tr:costMaxUsd "15000.00"^^xsd:decimal .
+
+tr:claim-drain-001 a tr:DiagnosticTree ;
+    tr:claimType "drain_line_replacement" ;
+    tr:requiredTelemetry "camera_inspection_footage_id", "pipe_diameter_reading", "depth_reading" ;
+    tr:providedTelemetry "camera_inspection_footage_id", "pipe_diameter_reading", "depth_reading" ;
+    rdfs:comment "Positive control: complete telemetry -> admits." .
+
+tr:claim-wh a tr:DiagnosticTree ;
+    tr:claimType "water_heater_failure" ;
+    tr:requiredTelemetryList "unit_age_years thermostat_fault_code leak_location_photo_id" ;
+    tr:requiredTelemetry "unit_age_years", "thermostat_fault_code", "leak_location_photo_id" ;
+    tr:counterPunchDemand "photo of the rating plate and the leak" ;
+    tr:hasPipeMaterialPrior tr:pipe-copper ;
+    tr:hasCostBaseline tr:cost-wh .
+
+tr:pipe-copper a tr:PipeMaterialPrior ;
+    tr:pipeMaterial "copper" ;
+    tr:typicalLifetimeYears "40"^^xsd:decimal ;
+    tr:failureMode "pinhole leak", "seized union" .
+
+tr:cost-wh a tr:CostBaseline ;
+    tr:costMinUsd "1800.00"^^xsd:decimal ;
+    tr:costMaxUsd "6500.00"^^xsd:decimal .
+
+tr:claim-sm a tr:DiagnosticTree ;
+    tr:claimType "sewer_main_backup" ;
+    tr:requiredTelemetryList "camera_inspection_footage_id cleanout_access_point root_intrusion_extent" ;
+    tr:requiredTelemetry "camera_inspection_footage_id", "cleanout_access_point", "root_intrusion_extent" ;
+    tr:counterPunchDemand "camera footage of the root intrusion point" ;
+    tr:hasPipeMaterialPrior tr:pipe-clay ;
+    tr:hasCostBaseline tr:cost-sm .
+
+tr:pipe-clay a tr:PipeMaterialPrior ;
+    tr:pipeMaterial "vitrified_clay" ;
+    tr:typicalLifetimeYears "60"^^xsd:decimal ;
+    tr:failureMode "root intrusion at joints", "offset joint" .
+
+tr:cost-sm a tr:CostBaseline ;
+    tr:costMinUsd "3500.00"^^xsd:decimal ;
+    tr:costMaxUsd "20000.00"^^xsd:decimal .
+
+tr:claim-gt a tr:DiagnosticTree ;
+    tr:claimType "grease_trap_overflow" ;
+    tr:requiredTelemetryList "trap_capacity_gallons last_pump_out_date effluent_photo_id" ;
+    tr:requiredTelemetry "trap_capacity_gallons", "last_pump_out_date", "effluent_photo_id" ;
+    tr:counterPunchDemand "pump-out manifest within 90 days" ;
+    tr:hasPipeMaterialPrior tr:pipe-steel ;
+    tr:hasCostBaseline tr:cost-gt .
+
+tr:pipe-steel a tr:PipeMaterialPrior ;
+    tr:pipeMaterial "galvanized_steel" ;
+    tr:typicalLifetimeYears "35"^^xsd:decimal ;
+    tr:failureMode "corrosion at threads", "scale buildup" .
+
+tr:cost-gt a tr:CostBaseline ;
+    tr:costMinUsd "900.00"^^xsd:decimal ;
+    tr:costMaxUsd "4200.00"^^xsd:decimal .

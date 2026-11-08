@@ -1,0 +1,26 @@
+# ASK-as-SELECT: any row = violation (gate refuses).
+# Every claim-type table binds exactly one claimType name and at least one
+# required telemetry field; every bound prior/cost node carries its values.
+PREFIX tr: <urn:trade:reticle:plumbing:>
+SELECT ?claim ?gap
+WHERE {
+  ?claim a tr:DiagnosticTree ;
+         tr:claimType ?claimType ;
+         tr:requiredTelemetry ?anyRequired .
+  {
+    FILTER NOT EXISTS { ?claim tr:requiredTelemetry ?t }
+    BIND(CONCAT("missing requiredTelemetry on ", STR(?claimType)) AS ?gap)
+  }
+  UNION
+  {
+    ?claim tr:hasPipeMaterialPrior ?p .
+    FILTER NOT EXISTS { ?p tr:typicalLifetimeYears ?y }
+    BIND("pipe prior lifetime unbound" AS ?gap)
+  }
+  UNION
+  {
+    ?claim tr:hasCostBaseline ?cb .
+    FILTER NOT EXISTS { ?cb tr:costMinUsd ?lo . ?cb tr:costMaxUsd ?hi }
+    BIND("cost baseline min/max unbound" AS ?gap)
+  }
+}
