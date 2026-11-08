@@ -1,0 +1,72 @@
+{
+  "$comment": "Positive fixture: minimal lawful XState v5 machine. Setup inline, static src, flat guarded, initial present, ledger block. Qualifies every gate (010/020/030/040/construct_gate).",
+  "ledger": {
+    "subject": "XSTATE-V5-POSITIVE-001",
+    "pack": "xstate-v5-machine-pack",
+    "fixture_role": "positive",
+    "fixture_version": 1,
+    "law": "definition uses the setup( form inline; static src; flat guarded transitions (cond by name); initial present at every level; no parallel regions; no shared frozen-config references; no cross-level targets; no stray comment tokens"
+  },
+  "machine": {
+    "setup": {
+      "types": {
+        "context": "{ count: number; attempts: number }",
+        "events": "{ type: 'INC' } | { type: 'RESET' } | { type: 'SUBMIT' }"
+      },
+      "guards": {
+        "canSubmit": "{ count > 0 && attempts < 3 }"
+      },
+      "actions": {
+        "increment": "assign({ count: context.count + 1 })",
+        "bumpAttempts": "assign({ attempts: context.attempts + 1 })",
+        "resetAll": "assign({ count: 0, attempts: 0 })"
+      }
+    },
+    "src": "static",
+    "createMachine": {
+      "id": "counter",
+      "initial": "idle",
+      "context": { "count": 0, "attempts": 0 },
+      "states": {
+        "idle": {
+          "initial": "idle",
+          "states": {
+            "idle": {
+              "on": {
+                "SUBMIT": {
+                  "target": "counting",
+                  "guard": "canSubmit",
+                  "actions": "bumpAttempts"
+                }
+              }
+            }
+          },
+          "on": {
+            "RESET": { "target": "idle" }
+          }
+        },
+        "counting": {
+          "on": {
+            "INC": {
+              "target": "counting",
+              "actions": "increment"
+            },
+            "RESET": { "target": "#counter.idle" }
+            }
+        }
+      }
+    }
+  },
+  "expected_gates": {
+    "010_ttl_triple_counts": "PASS",
+    "020_compile_shape_scan": "PASS",
+    "030_conformance": "PASS",
+    "040_smoke_run": "PASS",
+    "construct_gate": "PASS"
+  },
+  "expected_ttl_triples": {
+    "note": "Gate 010 counts triples emitted by the pack's machine-to-TTL projection; counts must match exactly for the positive subject.",
+    "exact_count": 24,
+    "count_basis": "1 machine + 2 states + 4 transitions + 3 actions + 1 guard + 3 context fields + ledger bindings (24 total)"
+  }
+}

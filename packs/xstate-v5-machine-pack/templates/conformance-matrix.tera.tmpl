@@ -1,0 +1,49 @@
+{#- Conformance matrix for one XState v5 machine.
+    Renders the per-machine valid-path case table consumed by
+    pm4playwright's replayTokenBased: VALID_CANONICAL_PATHS (list of
+    activity-sequence paths) and DISALLOWED_TRANSITIONS (forbidden
+    transition pairs used for anti-vacuity refuteConformance).
+    Context shape (all keys optional-empty safe):
+      machine_name: str
+      initial_state: str (rendered form of the constructed initial value)
+      construct_ok: bool
+      valid_paths: [[str]]         — each path is an ordered activity sequence
+      disallowed_transitions: [[str, str]] — forbidden (from, to) activity pairs
+      notes: str (optional) -#}
+# Conformance Matrix — {{ machine_name }}
+
+- Construct: {% if construct_ok %}OK (initial = `{{ initial_state }}`){% else %}FAIL{% endif %}
+
+## Valid paths (`VALID_CANONICAL_PATHS`)
+
+Replayed by `replayTokenBased(trace, validPaths)`; each path is an ordered
+activity sequence. `{% raw %}__end__{% endraw %}` place token is implicit
+(final consumption when the path completes).
+
+| # | Path (activities in order) | Length |
+|---|----------------------------|--------|
+{%- for path in valid_paths %}
+| {{ loop.index }} | {{ path | join(sep=" → ") }} | {{ path | length }} |
+{%- endfor %}
+
+## Disallowed transitions (`DISALLOWED_TRANSITIONS`)
+
+Injecting any of these pairs into a trace must drop fitness below 1.0
+(`refuteConformance` anti-vacuity court).
+
+| # | From activity | To activity |
+|---|---------------|-------------|
+{%- for t in disallowed_transitions %}
+| {{ loop.index }} | {{ t[0] }} | {{ t[1] }} |
+{%- endfor %}
+
+## Case table
+
+| Case | Trace | Expected fitness |
+|------|-------|------------------|
+{%- for path in valid_paths %}
+| V{{ loop.index }} | `{{ path | join(sep=", ") }}` | 1.0 |
+{%- endfor %}
+{%- for t in disallowed_transitions %}
+| D{{ loop.index }} | `{{ t[0] }}`, `{{ t[1] }}` (prefix valid path + injected pair) | < 1.0 |
+{%- endfor %}

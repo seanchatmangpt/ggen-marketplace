@@ -1,0 +1,107 @@
+{
+  "$comment": "Divergent fixture: the same lawful machine as positive-machine.json with 5 planted violations. Every gate that must REJECT this subject is mapped in divergent-notes.md.",
+  "ledger": {
+    "subject": "XSTATE-V5-DIVERGENT-999",
+    "pack": "xstate-v5-machine-pack",
+    "fixture_role": "divergent",
+    "fixture_version": 1,
+    "law": "definition uses the setup( form inline; violations planted so each gate (010/020/030/040/construct_gate) has at least one reason to REJECT"
+  },
+  "machine": {
+    "setup": {
+      "types": {
+        "context": "{ count: number; attempts: number }",
+        "events": "{ type: 'INC' | 'RESET' | 'SUBMIT' }"
+      },
+      "guards": {
+        "canSubmit": "{ count > 0 && attempts < 3 }"
+      },
+      "actions": {
+        "increment": "assign({ count: context.count + 1 })",
+        "bumpAttempts": "assign({ attempts: context.attempts + 1 })",
+        "resetAll": "assign({ count: 0, attempts: 0 })"
+      },
+      "shared_config": {
+        "$ref": "./common.states.json",
+        "$kind": "as-const",
+        "$comment": "V-DIV-5: unlawful as-const shared config reference (positive fixture inlines everything)"
+      }
+    },
+    "createMachine": {
+      "id": "counter",
+      "type": "parallel",
+      "context": { "count": 0, "regions": [] },
+      "states": {
+        "idle": {
+          "states": {
+            "idle": {
+              "on": {
+                "SUBMIT": {
+                  "target": "../counting",
+                  "guard": "canSubmit",
+                  "actions": "bumpAttempts"
+                }
+              }
+            }
+          }
+        },
+        "counting": {
+          "on": {
+            "INC": { "target": "counting", "actions": "increment" },
+            "RESET": { "target": "#counter.idle" }
+          }
+        }
+      }
+    },
+    "comment_field": "state entry comment: /* the idle state */"
+  },
+  "violations": [
+    {
+      "id": "V-DIV-1",
+      "kind": "unlawful parallel",
+      "where": "machine.createMachine.type",
+      "planted": "type set to 'parallel' where the pack law requires a flat guarded machine",
+      "gates_that_must_reject": ["030_conformance", "construct_gate"]
+    },
+    {
+      "id": "V-DIV-2",
+      "kind": "missing initial",
+      "where": "machine.createMachine.initial",
+      "planted": "root-level 'initial' key absent (its positive counterpart is 'initial': 'idle'); the parallel placement masks the omission",
+      "gates_that_must_reject": ["030_conformance", "040_smoke_run"]
+    },
+    {
+      "id": "V-DIV-3",
+      "kind": "relative cross-level target",
+      "where": "machine.createMachine.states.idle.states.idle.on.SUBMIT.target",
+      "planted": "'../counting' where the law requires state-local ('counting') or root-absolute ('#counter.idle') targets",
+      "gates_that_must_reject": ["030_conformance", "040_smoke_run"]
+    },
+    {
+      "id": "V-DIV-4",
+      "kind": "stray comment terminator",
+      "where": "machine.comment_field",
+      "planted": "a stray '*/' token inside the comment body breaks the compile-shape scan's balanced-token law",
+      "gates_that_must_reject": ["020_compile_shape_scan"]
+    },
+    {
+      "id": "V-DIV-5",
+      "kind": "as-const shared config",
+      "where": "machine.setup.shared_config.$ref",
+      "planted": "an as-const shared config reference ('./common.states.json', kind as-const) where setup must be inline; the dangling ref also shifts TTL triple counts (dangling binding triples) so gate 010 cannot match the expected count",
+      "gates_that_must_reject": [
+        "010_ttl_triple_counts",
+        "020_compile_shape_scan",
+        "030_conformance",
+        "construct_gate"
+      ]
+    }
+  ],
+  "expected_gates": {
+    "010_ttl_triple_counts": "REJECT",
+    "020_compile_shape_scan": "REJECT",
+    "030_conformance": "REJECT",
+    "040_smoke_run": "REJECT",
+    "construct_gate": "REJECT"
+  }
+}
