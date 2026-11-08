@@ -9,26 +9,33 @@ ROOT = Path(__file__).resolve().parents[1]
 
 EXPECTED_ACTIVE_PACKS = {
     "aaif-vanilla-pack",
+    "challenger-sales-cscb",
     "decision-optionality-pack",
     "enterprise-governance-pack",
     "evidence-standing-pack",
     "experience-projection-pack",
+    "financial-margin-envelope",
+    "forensic-audit-dossier-pack",
     "ggen-platform-pack",
     "kafka-wire-pack",
+    "latency-hazard-radar",
     "marketplace-governance-pack",
+    "pack-scaffold-generator",
     "planning-policy-pack",
     "process-intelligence-pack",
     "protocol-integration-pack",
     "repository-lifecycle-pack",
     "semantic-projection-pack",
     "state-transition-pack",
-  "strata-cas-pack",
-  "strata-pn64-pack",
-  "strata-protocol-pack",
-  "strata-signer-pack",
-  "strata-stratus-pack",
-  "strata-temprun-pack",
-  "strata-valve-pack",
+    "strata-cas-pack",
+    "strata-pn64-pack",
+    "strata-protocol-pack",
+    "strata-signer-pack",
+    "strata-stratus-pack",
+    "strata-temprun-pack",
+    "strata-valve-pack",
+    "trade-reticle-plumbing",
+    "trade-reticle-electrical",
 }
 
 REQUIRED_MARKERS = {
@@ -90,7 +97,7 @@ def main() -> None:
 
     if active["front_door"] != "ggen-platform-pack":
         refuse(f"unexpected front door: {active['front_door']!r}")
-    if len(active["packs"]) != 21:
+    if len(active["packs"]) != 28:
         refuse(f"active pack cardinality changed: {len(active['packs'])}")
     if packs != EXPECTED_ACTIVE_PACKS:
         missing = sorted(EXPECTED_ACTIVE_PACKS - packs)
@@ -127,7 +134,7 @@ def main() -> None:
         cursor = order_pos
 
     print("MSCT/MX profile invariants: ALIVE")
-    print("active_packs=20 front_door=ggen-platform-pack")
+    print("active_packs=28 front_door=ggen-platform-pack")
     print("minimum_novelty=reuse>compose>extend>invent")
     print("human_implementation_required=false grants_do_authority=false")
 

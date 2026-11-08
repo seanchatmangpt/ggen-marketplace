@@ -5,6 +5,65 @@ Versions follow CalVer: `vYY.MM.P` tags on this repo. Individual packs version p
 All notable changes to the marketplace repository are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [v26.11.5-wave] — 2026-11-07
+
+- feat(cscb): challenger-sales-cscb pack landed and qualified — full module set on
+  disk under `packs/challenger-sales-cscb/lib/` (11 modules): `CscbArc` (six-stage
+  fixed-order FSM), `CscbEconomics`, `CscbHardware`, `CscbAttest`, `CscbHarness`,
+  `CscbMetricAdmission`, `CscbReceipt`, `CscbStatusQuo`, `CscbTerminal`,
+  `CscbVerdict`, `CscbDemoSubjects` (R11 ingress-and-settlement demo subjects);
+  plus `ontology.ttl`, `shapes.ttl`, `gates/`, `generated/`, `queries/`,
+  `templates/` (incl. `templates/rust/` runner emission templates),
+  `qualification/` (courts + fixtures + `rust_emission_note.md`), `verify.py`,
+  `emitted_rust/`. Active-set registration 27→28 in `marketplace.active.toml`
+  (lane R14, 2026-11-07) — 28th active candidate; both profile verifiers'
+  EXPECTED_ACTIVE_PACKS + cardinality pins + display prints updated in the same
+  dependency-closed transition (`verify_msct_profile.py`,
+  `verify_enterprise_kudzu_profile.py`, both exit 0 at active_packs=28).
+  Pack qualification gate now on disk and green: `python3
+  packs/challenger-sales-cscb/verify.py` → exit 0 (3 SPARQL gates pass,
+  SHACL conforms, anti-vacuity gate 030 flips under mutation, generated
+  module spot-checks pass) — resolves R14's BLOCKED-for-pack-verify flip
+  condition. End-to-end pipeline receipt: `docs/how-to/run-a-cscb-benchmark.md`
+  (invocations copied from a script that ran green 2026-11-07, Elixir 1.19.5 /
+  OTP 28; metric admission court 11/11). Measured run receipt:
+  `receipts/cscb-ingress-run-2026-11-07.md` (lane R11 — attest-stamped
+  side-by-side, pack/status-quo throughput 20.3x nominal / 23.5x burst, p99
+  11.7x better, measured on this machine only). Honest notes: demo pack
+  workload reconciled low-alloc→zero-alloc — the retired `<<>>`-encode +
+  ring-put_elem form allocated per-op heap binaries; current `pack_subject/1`
+  is a `:binary.at/2` byte-walk that builds no per-op heap terms
+  (`lib/cscb_demo_subjects.ex`); Rust runner Apple Silicon CNTVCT_EL0
+  counter-resolution limitation disclosed with remediation path ticketed to
+  the runner owner lane (`qualification/rust_emission_note.md`); receipt PDF
+  rendering deferred (`CscbReceipt.render_markdown/1` is the landed output path)
+
+- feat(packs): 6 new packs admitted — financial-margin-envelope (margin-envelope law
+  pack, 3 sync-time gates), latency-hazard-radar (latency hazard detection, 3 gates),
+  forensic-audit-dossier-pack (forensic audit dossier projection, 4 gates),
+  pack-scaffold-generator (pack scaffolding generator, 2 gates), trade-reticle-plumbing
+  (trade reticle plumbing domain, 3 gates), trade-reticle-electrical (trade reticle
+  electrical domain, 3 gates); gate counts read from `packs/<name>/gates/` on disk
+- feat(active-set): candidate expansion 21→27 in `marketplace.active.toml` —
+  registration of financial-margin-envelope, latency-hazard-radar,
+  forensic-audit-dossier-pack, pack-scaffold-generator, trade-reticle-plumbing, and
+  trade-reticle-electrical (2026-11-07 lane Z13 comment block, lines 55-56)
+- docs(PACK-INDEX): regenerated via `scripts/gen_pack_index.py` — header now counts
+  354 packs (348 active, 6 deprecated); per-pack rows cite disk-derived profile and
+  lifecycle state
+- docs(receipts): receipt Standing discipline (4 root receipts + 37 JSON remappings
+  per wave report; verified representative: `docs/jira/v26.11.5/receipts/G04.md`,
+  `G05.md`, `G15.md` carry `Standing:` lines)
+- fix(packs): 8 unparseable TTLs repaired; eng prefix split; ~30 stale pack
+  cross-references corrected; sa2a-governed-process-pack stale pins refreshed;
+  k8s ConfigMap/kind-name fixes; es_chain_qualify made fail-closed; hardcoded-path
+  removals (counts per wave report; es_chain_qualify referenced in
+  `docs/reference/aaif-deployer-contract.md`)
+- chore(blocked): ggen.lock re-lock BLOCKED — installed binary `ggen 26.11.4` vs
+  frozen court pin `marketplace.toml` `[ggen].version = "v26.8.11"`; re-locking
+  would mint lock entries from an unpinned identity
+  (notes/fm-pack-008-relock-blocked.md)
+
 ## [v26.11.4-wave] — 2026-11-04
 
 - docs: marketplace recount + doc-drift closure (M8/M17, 2026-11-07) — corpus recounted
