@@ -199,6 +199,65 @@ def orphan_stage_court() -> bool:
     return True
 
 
+RUNNER_PROFILE_QUERY = """
+PREFIX cscb: <urn:cscb:>
+SELECT ?profile ?crate_name ?stage_id WHERE {
+    ?profile a cscb:RunnerProfile ;
+             cscb:profileOf ?arc ;
+             cscb:crateName ?crate_name ;
+             cscb:iterations ?iterations ;
+             cscb:warmupIterations ?warmup_iterations ;
+             cscb:outputBasename ?output_basename .
+    ?arc cscb:hasStage ?stage .
+    ?stage a/rdfs:subClassOf* cscb:ArcStage ; cscb:stageIndex ?stage_id .
+}
+"""
+
+
+def runner_profile_court() -> bool:
+    """T20 mint check (Chicago: real graph, real query): exactly one
+    RunnerProfile individual must exist, carry all emitted-crate scalars, and
+    be bound via cscb:profileOf to an arc that has stages. Anti-vacuity: the
+    caller proves this check flips when the profile is dropped."""
+    graph = Graph()
+    graph.parse(ONT, format="turtle")
+    rows = list(cast(Iterable[tuple], graph.query(RUNNER_PROFILE_QUERY)))
+    if not rows:
+        print("VIOLATION runner-profile: no RunnerProfile individual bound to "
+              "an arc with stages")
+        return False
+    profiles = {str(row[0]) for row in rows}
+    if profiles != {"urn:cscb:runner-001"}:
+        print(f"VIOLATION runner-profile: unexpected profile set {profiles}")
+        return False
+    n_stages = len(rows)
+    if n_stages != 6:
+        print(f"VIOLATION runner-profile: expected 6 stage rows, got {n_stages}")
+        return False
+    print(f"PASS runner-profile: cscb:runner-001 bound to arc-001, "
+          f"{n_stages} stage rows, scalars present")
+    return True
+
+
+def runner_profile_anti_vacuity_court() -> bool:
+    """T20 anti-vacuity: mutate a COPY of the graph by dropping the
+    cscb:runner-001 RunnerProfile typing triple and PROVE runner_profile_court
+    logic flips to refusal. A check that cannot flip fails as VACUOUS GATE."""
+    graph = Graph()
+    graph.parse(ONT, format="turtle")
+    graph.remove((URIRef("urn:cscb:runner-001"),
+                  URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
+                  URIRef("urn:cscb:RunnerProfile")))
+    rows = list(cast(Iterable[tuple], graph.query(RUNNER_PROFILE_QUERY)))
+    if rows:
+        print("VACUOUS GATE: runner-profile check did not flip when the "
+              "RunnerProfile typing triple was dropped")
+        return False
+    print("PASS runner-profile anti-vacuity: check flips to refusal when the "
+          "profile is dropped")
+    return True
+
+
 def main() -> int:
     graph = Graph()
     graph.parse(ONT, format="turtle")
@@ -217,6 +276,10 @@ def main() -> int:
     if not orphan_stage_court():
         return 1
     if not spot_check_emitted_rust_labels():
+        return 1
+    if not runner_profile_court():
+        return 1
+    if not runner_profile_anti_vacuity_court():
         return 1
     print("PASS: gates clean, SHACL conforms (if available), anti-vacuity flips, "
           "generated module verified, label-injection court flips, "
