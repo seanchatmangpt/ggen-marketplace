@@ -1,0 +1,233 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix cscb: <urn:cscb:> .
+
+<urn:cscb> a owl:Ontology ;
+    rdfs:label "Challenger Sales CSCB Ontology" ;
+    rdfs:comment """
+    Challenger Sales capability (RFC-2026-0042 Phase 1): BenchmarkArc with six
+    sequenced stages (S1 Warmer .. S6 Solution), RationalDrowningStage requiring
+    >= 3 metric assertions that map to loss, economic impact quantification,
+    hardware profiles, and a closed verdict vocabulary
+    (STATUS_QUO_REFUSED | ADOPTED | INCONCLUSIVE).
+    """ .
+
+# --- Classes -------------------------------------------------------------------
+
+cscb:BenchmarkArc a rdfs:Class ;
+    rdfs:label "Benchmark Arc" ;
+    rdfs:comment "A challenger-sales benchmark arc: exactly six sequenced stages." .
+
+cscb:ArcStage a rdfs:Class ;
+    rdfs:label "Arc Stage" ;
+    rdfs:comment "One stage of a benchmark arc, indexed 1-6." .
+
+cscb:RationalDrowningStage a rdfs:Class ;
+    rdfs:subClassOf cscb:ArcStage ;
+    rdfs:label "Rational Drowning Stage" ;
+    rdfs:comment "Stage 3: requires >= 3 metric assertions that map to loss." .
+
+cscb:ArcStageSequence a rdfs:Class ;
+    rdfs:label "Arc Stage Sequence" .
+
+cscb:MetricAssertion a rdfs:Class ;
+    rdfs:label "Metric Assertion" ;
+    rdfs:comment "A measured performance claim with a p99 ceiling and allocation bound." .
+
+cscb:EconomicImpact a rdfs:Class ;
+    rdfs:label "Economic Impact" ;
+    rdfs:comment "Quantified annual dollar loss implied by the mapped losses." .
+
+cscb:HardwareProfile a rdfs:Class ;
+    rdfs:label "Hardware Profile" ;
+    rdfs:comment "The hardware subject on which metric assertions were measured." .
+
+cscb:TargetProfile a rdfs:Class ;
+    rdfs:label "Target Profile" ;
+    rdfs:comment """Closed set of execution targets a metric assertion or hardware
+    profile is measured against. The RFC invariants (p99 <= 100us, alloc == 0)
+    govern the no_std Rust runner target; BEAM comparator subjects are scored
+    against their own honest bounds. Closed vocabulary: rust_no_std | beam_hot_path.""" .
+
+cscb:rust_no_std a cscb:TargetProfile ;
+    rdfs:label "Rust no_std runner target" ;
+    rdfs:comment """Keeps the RFC invariants: p99 <= 100us, zero allocation. The
+    100us/0-alloc proof requires a measured receipt from the Rust runner.""" .
+
+cscb:beam_hot_path a cscb:TargetProfile ;
+    rdfs:label "BEAM hot-path comparator target" ;
+    rdfs:comment """Honest comparator bounds for BEAM-measured subjects:
+    p99 <= 10000us (10ms; BEAM per-op binary encode + worker-side sampling
+    allocate by construction, so the no_std law is unreachable there — G11
+    measured 33.8ms tail / 106,880B per op), alloc_per_op <= 512 bytes
+    (one small binary + result tuple per op, ~2 orders under the measured
+    G11 baseline). These bounds admit honest BEAM comparators; they do not
+    certify the RFC no_std claim.""" .
+
+cscb:CSCTRun a rdfs:Class ;
+    rdfs:subClassOf cscb:Run ;
+    rdfs:label "CSCT Run" ;
+    rdfs:comment "A Challenger Sales Capability Test run over a benchmark arc." .
+
+cscb:CSCBRun a rdfs:Class ;
+    rdfs:subClassOf cscb:Run ;
+    rdfs:label "CSCB Run" ;
+    rdfs:comment "A Challenger Sales Combined Benchmark run over a benchmark arc." .
+
+cscb:Metric a rdfs:Class ;
+    rdfs:label "Metric" ;
+    rdfs:comment "Open vocabulary of measurable metrics." .
+
+cscb:Run a rdfs:Class ;
+    rdfs:label "Run" ;
+    rdfs:comment "A CSCT or CSCB run adjudicating a benchmark arc." .
+
+cscb:Verdict a rdfs:Class ;
+    rdfs:label "Verdict" ;
+    rdfs:comment "Closed verdict vocabulary class." .
+
+# --- Predicates ------------------------------------------------------------------
+
+cscb:hasStage a rdf:Property ;
+    rdfs:domain cscb:BenchmarkArc ;
+    rdfs:range cscb:ArcStage ;
+    rdfs:comment "Links an arc to one of its six stages." .
+
+cscb:stageIndex a rdf:Property ;
+    rdfs:domain cscb:ArcStage ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "1-based position of the stage in the arc sequence." .
+
+cscb:evaluatesMetric a rdf:Property ;
+    rdfs:domain cscb:MetricAssertion ;
+    rdfs:range cscb:Metric ;
+    rdfs:comment "The metric an assertion evaluates." .
+
+cscb:mapsToLoss a rdf:Property ;
+    rdfs:domain cscb:MetricAssertion ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Annual dollar loss (USD/year) implied by failing this metric." .
+
+cscb:p99MaxMicros a rdf:Property ;
+    rdfs:domain cscb:MetricAssertion ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment """Hard p99 latency ceiling in microseconds; the lawful ceiling
+    is per target profile: 100.0 for rust_no_std, 10000.0 for beam_hot_path.""" .
+
+cscb:maxAllocationBytes a rdf:Property ;
+    rdfs:domain cscb:MetricAssertion ;
+    rdfs:range xsd:integer ;
+    rdfs:comment """Allocation ceiling in bytes; the lawful value is exactly 0 on
+    rust_no_std, <= 512 on beam_hot_path.""" .
+
+cscb:annualDollarHemorrhage a rdf:Property ;
+    rdfs:domain cscb:EconomicImpact ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "Total annual USD loss across all mapped metric losses." .
+
+cscb:hasVerdict a rdf:Property ;
+    rdfs:domain cscb:Run ;
+    rdfs:range cscb:Verdict ;
+    rdfs:comment "Verdict of a run, from the closed vocabulary." .
+
+cscb:verdictOn a rdf:Property ;
+    rdfs:domain cscb:Run ;
+    rdfs:range cscb:BenchmarkArc ;
+    rdfs:comment "The arc a run adjudicates." .
+
+cscb:runsOnHardware a rdf:Property ;
+    rdfs:domain cscb:MetricAssertion ;
+    rdfs:range cscb:HardwareProfile ;
+    rdfs:comment "Hardware profile the assertion was measured on." .
+
+cscb:targetProfile a rdf:Property ;
+    rdfs:label "target profile" ;
+    rdfs:domain [
+        a owl:Class ;
+        owl:unionOf ( cscb:MetricAssertion cscb:HardwareProfile )
+    ] ;
+    rdfs:range cscb:TargetProfile ;
+    rdfs:comment """Execution target the invariant set applies to. Closed set:
+    cscb:rust_no_std | cscb:beam_hot_path. rust_no_std keeps the RFC invariants
+    (p99 <= 100us, alloc == 0); beam_hot_path carries honest comparator bounds
+    (p99 <= 10000us, alloc_per_op <= 512B). A rust_no_std claim is provable
+    only by a measured Rust-runner receipt.""" .
+
+cscb:assertedInStage a rdf:Property ;
+    rdfs:domain cscb:MetricAssertion ;
+    rdfs:range cscb:ArcStage ;
+    rdfs:comment "Stage that raised the assertion." .
+
+# --- Metric individuals (open set) -----------------------------------------------
+
+cscb:P99Latency a cscb:Metric ;
+    rdfs:label "p99 latency" .
+
+cscb:AllocationBytes a cscb:Metric ;
+    rdfs:label "allocation bytes" .
+
+cscb:AnnualLossUSD a cscb:Metric ;
+    rdfs:label "annual dollar loss" .
+
+# --- Six stage individuals, sequenced 1-6 ----------------------------------------
+
+cscb:S1 a cscb:ArcStage ; rdfs:label "Warmer" ; cscb:stageIndex 1 .
+cscb:S2 a cscb:ArcStage ; rdfs:label "Reframe" ; cscb:stageIndex 2 .
+cscb:S3 a cscb:RationalDrowningStage ; rdfs:label "Rational Drowning" ; cscb:stageIndex 3 .
+cscb:S4 a cscb:ArcStage ; rdfs:label "Emotional Impact" ; cscb:stageIndex 4 .
+cscb:S5 a cscb:ArcStage ; rdfs:label "Inception" ; cscb:stageIndex 5 .
+cscb:S6 a cscb:ArcStage ; rdfs:label "Solution" ; cscb:stageIndex 6 .
+
+# --- Closed verdict vocabulary ----------------------------------------------------
+
+cscb:STATUS_QUO_REFUSED a cscb:Verdict ; rdfs:label "Status quo refused" .
+cscb:ADOPTED a cscb:Verdict ; rdfs:label "Adopted" .
+cscb:INCONCLUSIVE a cscb:Verdict ; rdfs:label "Inconclusive" .
+
+# --- Positive-control arc instance (arc-001) --------------------------------------
+
+cscb:arc-001 a cscb:BenchmarkArc ;
+    rdfs:label "Positive control arc" ;
+    cscb:hasStage cscb:S1, cscb:S2, cscb:S3, cscb:S4, cscb:S5, cscb:S6 .
+
+cscb:hw-001 a cscb:HardwareProfile ;
+    rdfs:label "Reference laptop, Apple M-series" ;
+    cscb:targetProfile cscb:beam_hot_path .
+
+cscb:ma-001 a cscb:MetricAssertion ;
+    cscb:evaluatesMetric cscb:P99Latency ;
+    cscb:p99MaxMicros "85.0"^^xsd:decimal ;
+    cscb:maxAllocationBytes 0 ;
+    cscb:mapsToLoss "120000.00"^^xsd:decimal ;
+    cscb:runsOnHardware cscb:hw-001 ;
+    cscb:assertedInStage cscb:S3 ;
+    cscb:targetProfile cscb:beam_hot_path .
+
+cscb:ma-002 a cscb:MetricAssertion ;
+    cscb:evaluatesMetric cscb:AllocationBytes ;
+    cscb:p99MaxMicros "90.0"^^xsd:decimal ;
+    cscb:maxAllocationBytes 0 ;
+    cscb:mapsToLoss "45000.00"^^xsd:decimal ;
+    cscb:runsOnHardware cscb:hw-001 ;
+    cscb:assertedInStage cscb:S3 ;
+    cscb:targetProfile cscb:beam_hot_path .
+
+cscb:ma-003 a cscb:MetricAssertion ;
+    cscb:evaluatesMetric cscb:AnnualLossUSD ;
+    cscb:p99MaxMicros "95.0"^^xsd:decimal ;
+    cscb:maxAllocationBytes 0 ;
+    cscb:mapsToLoss "30000.00"^^xsd:decimal ;
+    cscb:runsOnHardware cscb:hw-001 ;
+    cscb:assertedInStage cscb:S3 ;
+    cscb:targetProfile cscb:beam_hot_path .
+
+cscb:econ-001 a cscb:EconomicImpact ;
+    rdfs:label "Annual dollar hemorrhage, arc-001" ;
+    cscb:annualDollarHemorrhage "195000.00"^^xsd:decimal .
+
+cscb:run-001 a cscb:CSCBRun ;
+    rdfs:label "Positive control CSCB run" ;
+    cscb:verdictOn cscb:arc-001 ;
+    cscb:hasVerdict cscb:ADOPTED .

@@ -1,0 +1,17 @@
+# Any row = violation. AR6 P1 closure (R15): every ArcStage instance must be
+# bound to exactly one BenchmarkArc (cscb:hasStage). A rogue stage that exists
+# in the graph but is never arc-bound is invisible to the scoped runner query
+# (queries/runner_profile.rq) yet still a graph-tamper signal — refuse it at
+# sync, not just omit it from emission. Fires pre-write (FM-LAW-018).
+PREFIX cscb: <urn:cscb:>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?stage ?why
+WHERE {
+  ?stage a/rdfs:subClassOf* cscb:ArcStage .
+  FILTER NOT EXISTS {
+    ?arc a cscb:BenchmarkArc ;
+         cscb:hasStage ?stage .
+  }
+  BIND("orphan ArcStage: typed ArcStage but never bound via cscb:hasStage"
+       AS ?why)
+}

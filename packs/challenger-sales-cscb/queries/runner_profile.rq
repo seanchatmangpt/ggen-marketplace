@@ -1,0 +1,45 @@
+# One row per CSCB arc stage, with runner-profile scalars repeated on every row
+# (ggen's static-rule law flattens only cross-row COMMON keys to the top-level
+# Tera context, so scalars must be present on every row to be usable as
+# {{ crate_name }} etc.; the stage rows drive the template's stage list).
+#
+# cscb:RunnerProfile does not yet exist in ontology.ttl (proposed binding per
+# templates/rust/BINDING_CONTRACT.md §binding-contract) — the BIND defaults
+# below are the contract's emitted defaults and are the single place to change
+# when R1/R14 mint the RunnerProfile individual.
+PREFIX cscb: <urn:cscb:>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?crate_name ?description ?rust_edition ?iterations ?warmup_iterations
+       ?output_basename ?n_stages ?stage_loop_var ?stage_name_rust ?stage_id
+WHERE {
+  {
+    SELECT (COUNT(DISTINCT ?st) AS ?n_stages)
+    WHERE {
+      ?arc2 a cscb:BenchmarkArc ;
+            cscb:hasStage ?st .
+      ?st a/rdfs:subClassOf* cscb:ArcStage .
+    }
+  }
+  ?arc a cscb:BenchmarkArc ;
+       cscb:hasStage ?stage .
+  ?stage a/rdfs:subClassOf* cscb:ArcStage ;
+         rdfs:label ?label ;
+         cscb:stageIndex ?stage_id .
+  # R15 defense-in-depth (AR6 P0): stage_name_rust is the label with backslash,
+  # double-quote, and control characters Rust-string-escaped at the QUERY layer,
+  # so the template can never interpolate raw label bytes into a Rust string
+  # literal even if the label gate is bypassed. With the lawful charset
+  # (^[A-Za-z0-9 _-]{1,64}$) escaped == raw; the escape is depth-2 insurance.
+  BIND(REPLACE(REPLACE(REPLACE(REPLACE(STR(?label), "\\\\", "\\\\\\\\"),
+       "\"", "\\\\\\\""),
+       "[\\u0000-\\u001F]", ""),
+       "[\\u007F]", "") AS ?stage_name_rust)
+  BIND("cscb-runner" AS ?crate_name)
+  BIND("Challenger-sales CSCB runner (emitted from challenger-sales-cscb ontology)" AS ?description)
+  BIND("2021" AS ?rust_edition)
+  BIND(10000 AS ?iterations)
+  BIND(1000 AS ?warmup_iterations)
+  BIND("cscb_results" AS ?output_basename)
+  BIND("s" AS ?stage_loop_var)
+}
+ORDER BY ?stage_id

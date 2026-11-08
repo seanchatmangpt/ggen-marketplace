@@ -1,0 +1,68 @@
+# Pack-local manifest: self-verification only (writes under generated/, never
+# into a consumer). Consumers copy this manifest into their own project, point
+# cscb:BenchmarkArc at their own arc data, and sync.
+
+[project]
+name = "challenger-sales-cscb"
+version = "0.1.0"
+description = "Challenger-sales arc verdict generator (pack-local self-verification)"
+authors = ["Sean Chatman"]
+license = "MIT"
+
+[ontology]
+source = "ontology.ttl"
+base_iri = "urn:cscb:"
+imports = []
+
+[ontology.prefixes]
+cscb = "urn:cscb:"
+xsd = "http://www.w3.org/2001/XMLSchema#"
+
+[generation]
+output_dir = "."
+
+[[generation.rules]]
+name = "arc-verdict"
+query = { file = "queries/arc_runs.rq" }
+template = { file = "templates/arc_verdict.ex.tmpl" }
+output_file = "generated/arc_verdict.ex"
+skip_empty = false
+mode = "Overwrite"
+
+# Rust emission (RFC-2026-0042 §4.1): contract is templates/rust/BINDING_CONTRACT.md.
+[[generation.rules]]
+name = "rust-runner-manifest"
+query = { file = "queries/runner_profile.rq" }
+template = { file = "templates/rust/Cargo.toml.tmpl" }
+output_file = "emitted_rust/Cargo.toml"
+skip_empty = false
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "rust-runner-cycle-counter"
+query = { file = "queries/runner_profile.rq" }
+template = { file = "templates/rust/cycle_counter.rs.tmpl" }
+output_file = "emitted_rust/src/cycle_counter.rs"
+skip_empty = false
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "rust-runner-main"
+query = { file = "queries/runner_profile.rq" }
+template = { file = "templates/rust/main.rs.tmpl" }
+output_file = "emitted_rust/src/main.rs"
+skip_empty = false
+mode = "Overwrite"
+
+[validation]
+gates = [
+  "gates/010_arc_integrity.rq",
+  "gates/020_rational_drowning.rq",
+  "gates/030_anti_vacuity_mapsToLoss.rq",
+  # R15 (AR6 P0 closure): label-safety gate — refuses any ArcStage rdfs:label
+  # outside ^[A-Za-z0-9 _-]{1,64}$ before any emit (FM-LAW-018 pre-write).
+  "gates/040_label_safety.rq",
+  # R15 (AR6 P1 closure): rogue/orphan stage gate — refuses any typed
+  # ArcStage never bound to a BenchmarkArc via cscb:hasStage.
+  "gates/050_orphan_stage.rq",
+]

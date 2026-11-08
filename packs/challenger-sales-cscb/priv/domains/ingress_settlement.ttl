@@ -1,0 +1,49 @@
+# RFC-2026-0042 section 5 example domain: Ingress-and-Settlement.
+# Domain INDIVIDUALS over the CSCB vocabulary (lane R1's ontology at
+# packs/challenger-sales-cscb/ontology.ttl, prefix cscb: <urn:cscb:> -
+# coordinated by reuse, not redefinition).
+# Lane R11, 2026-11-07.
+
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix cscb: <urn:cscb:> .
+@prefix isd:  <urn:cscb:domain:ingress-settlement:> .
+
+# Nominal-day individual: 200k work orders/day nominal, SLA targets.
+
+isd:NominalDay a cscb:CSCTRun ;
+    rdfs:label "Ingress-and-Settlement nominal day: 200k work orders" ;
+    isd:workOrdersPerDay 200000 ;
+    isd:burstFactor 1.5 ;
+    cscb:p99MaxMicros 100 ;
+    rdfs:comment "SLA: p99 ingest+settle adds <= 100 microseconds latency per work order." .
+
+isd:BurstDay a cscb:CSCTRun ;
+    rdfs:label "Ingress-and-Settlement burst day: 1.5x nominal" ;
+    isd:workOrdersPerDay 300000 ;
+    isd:burstFactor 1.5 ;
+    cscb:p99MaxMicros 100 ;
+    rdfs:comment "1.5x burst: 300k work orders, same p99 SLA budget." .
+
+# Settlement economics individual over R1 vocabulary.
+
+isd:StatusQuoEconomics a cscb:EconomicImpact ;
+    rdfs:label "Status-quo ingress path economics" ;
+    cscb:mapsToLoss <urn:cscb:metric:ingress-latency> ;
+    cscb:mapsToLoss <urn:cscb:metric:settlement-churn-gc> ;
+    rdfs:comment "Per-op map rebuild + queue-list append + decimal currency churn drive GC pressure that maps to annual dollar loss per the CSCB arc." .
+
+isd:PackEconomics a cscb:EconomicImpact ;
+    rdfs:label "Pack ingress path economics" ;
+    cscb:mapsToLoss <urn:cscb:metric:ingress-latency> ;
+    cscb:mapsToLoss <urn:cscb:metric:settlement-churn-gc> ;
+    rdfs:comment "Flat-binary ticket encode + ring-buffer-indexed counters keep the same per-op contract with a fraction of the GC delta." .
+
+isd:IngressLatencyMetric a cscb:MetricAssertion ;
+    cscb:evaluatesMetric <urn:cscb:metric:ingress-latency> ;
+    cscb:p99MaxMicros 100 .
+
+isd:SettlementChurnMetric a cscb:MetricAssertion ;
+    cscb:evaluatesMetric <urn:cscb:metric:settlement-churn-gc> ;
+    cscb:maxAllocationBytes 0 .

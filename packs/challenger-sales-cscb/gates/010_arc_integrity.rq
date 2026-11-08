@@ -1,0 +1,37 @@
+# Any row = violation. Every arc binds exactly six stages whose indices are
+# exactly the contiguous set 1..6 (no gaps, no duplicates, no extras).
+PREFIX cscb: <urn:cscb:>
+SELECT ?arc ?why
+WHERE {
+  {
+    ?arc a cscb:BenchmarkArc .
+    {
+      SELECT ?arc (COUNT(DISTINCT ?st) AS ?n)
+      WHERE { ?arc cscb:hasStage ?st }
+      GROUP BY ?arc
+    }
+    FILTER(?n != 6)
+    BIND(CONCAT("stage count not 6: ", STR(?n)) AS ?why)
+  }
+  UNION
+  {
+    ?arc a cscb:BenchmarkArc .
+    FILTER EXISTS {
+      ?arc cscb:hasStage ?st .
+      ?st cscb:stageIndex ?i .
+      FILTER(?i < 1 || ?i > 6)
+    }
+    BIND("stage index out of 1..6" AS ?why)
+  }
+  UNION
+  {
+    ?arc a cscb:BenchmarkArc .
+    FILTER NOT EXISTS {
+      ?arc cscb:hasStage ?s1, ?s2, ?s3, ?s4, ?s5, ?s6 .
+      ?s1 cscb:stageIndex 1 . ?s2 cscb:stageIndex 2 .
+      ?s3 cscb:stageIndex 3 . ?s4 cscb:stageIndex 4 .
+      ?s5 cscb:stageIndex 5 . ?s6 cscb:stageIndex 6 .
+    }
+    BIND("indices not exactly contiguous 1..6" AS ?why)
+  }
+}

@@ -1,0 +1,24 @@
+# Any row = violation. RationalDrowningStage requires >= 3 distinct metric
+# assertions asserted in that stage, and at least one of them maps to loss.
+PREFIX cscb: <urn:cscb:>
+SELECT ?stage ?why
+WHERE {
+  {
+    ?stage a cscb:RationalDrowningStage .
+    {
+      SELECT ?stage (COUNT(DISTINCT ?ma) AS ?n)
+      WHERE { ?ma cscb:assertedInStage ?stage }
+      GROUP BY ?stage
+    }
+    FILTER(?n < 3)
+    BIND(CONCAT("fewer than 3 metric assertions: ", STR(?n)) AS ?why)
+  }
+  UNION
+  {
+    ?stage a cscb:RationalDrowningStage .
+    FILTER NOT EXISTS {
+      ?ma cscb:assertedInStage ?stage ; cscb:mapsToLoss ?loss .
+    }
+    BIND("no assertion mapsToLoss in rational-drowning stage" AS ?why)
+  }
+}

@@ -1,0 +1,188 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix cscb: <urn:cscb:> .
+
+# SHACL shapes over the arc corpus, complementing the SPARQL gates.
+# Gates refuse (rows = violation); shapes declare the structural contract.
+
+cscb:BenchmarkArcShape a sh:NodeShape ;
+    sh:targetClass cscb:BenchmarkArc ;
+    sh:property [
+        sh:path cscb:hasStage ;
+        sh:minCount 6 ;
+        sh:maxCount 6 ;
+        sh:class cscb:ArcStage ;
+    ] ;
+    sh:property [
+        sh:path cscb:hasVerdict ;
+        sh:maxCount 0 ;
+    ] .
+
+cscb:ArcStageShape a sh:NodeShape ;
+    sh:targetClass cscb:ArcStage ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:maxLength 64 ;
+        sh:pattern "^[A-Za-z0-9 _-]{1,64}$" ;
+        sh:message """ArcStage rdfs:label must match ^[A-Za-z0-9 _-]{1,64}$.
+            Labels are interpolated into emitted Rust string literals, so an
+            out-of-charset label is a code-injection channel (AR6 P0, closed
+            by lane R15).""" ;
+    ] ;
+    sh:property [
+        sh:path cscb:stageIndex ;
+        sh:datatype xsd:integer ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( 1 2 3 4 5 6 ) ;
+    ] .
+
+cscb:RationalDrowningShape a sh:NodeShape ;
+    sh:targetClass cscb:RationalDrowningStage ;
+    sh:property [
+        sh:path [ sh:inversePath cscb:assertedInStage ] ;
+        sh:minCount 3 ;
+        sh:class cscb:MetricAssertion ;
+    ] ;
+    sh:property [
+        sh:path [ sh:inversePath cscb:assertedInStage ] ;
+        sh:qualifiedValueShape [ sh:path cscb:mapsToLoss ] ;
+        sh:qualifiedMinCount 1 ;
+    ] ;
+    sh:property [
+        sh:path cscb:stageIndex ;
+        sh:hasValue 3 ;
+    ] .
+
+cscb:MetricAssertionShape a sh:NodeShape ;
+    sh:targetClass cscb:MetricAssertion ;
+    # Structural contract is target-neutral: the ceiling VALUES live in the
+    # per-target invariant shapes below.
+    sh:property [
+        sh:path cscb:p99MaxMicros ;
+        sh:datatype xsd:decimal ;
+        sh:minCount 1 ;
+    ] ;
+    sh:property [
+        sh:path cscb:maxAllocationBytes ;
+        sh:datatype xsd:integer ;
+        sh:minCount 1 ;
+    ] ;
+    sh:property [
+        sh:path cscb:evaluatesMetric ;
+        sh:minCount 1 ;
+    ] ;
+    sh:property [
+        sh:path cscb:runsOnHardware ;
+        sh:minCount 1 ;
+    ] ;
+    sh:property [
+        sh:path cscb:targetProfile ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( cscb:rust_no_std cscb:beam_hot_path ) ;
+        sh:message """Every metric assertion declares exactly one target profile
+            from the closed set (rust_no_std | beam_hot_path).""" ;
+    ] .
+
+cscb:HardwareProfileShape a sh:NodeShape ;
+    sh:targetClass cscb:HardwareProfile ;
+    sh:property [
+        sh:path cscb:targetProfile ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( cscb:rust_no_std cscb:beam_hot_path ) ;
+        sh:message """Hardware profiles declare exactly one target profile from
+            the closed set (rust_no_std | beam_hot_path).""" ;
+    ] .
+
+# --- Per-target invariant classes --------------------------------------------
+# rust_no_std keeps the RFC invariants: p99 <= 100us, alloc == 0. The
+# 100us/0-alloc proof requires a measured Rust-runner receipt.
+cscb:RustNoStdInvariantsShape a sh:NodeShape ;
+    sh:target [
+        a sh:SPARQLTarget ;
+        sh:select """
+            PREFIX cscb: <urn:cscb:>
+            SELECT ?this WHERE {
+                ?this cscb:targetProfile cscb:rust_no_std .
+            }
+        """ ;
+    ] ;
+    sh:property [
+        sh:path cscb:p99MaxMicros ;
+        sh:maxInclusive "100.0"^^xsd:decimal ;
+        sh:message """rust_no_std invariant: p99 must be <= 100.0us. This is the
+            RFC's no_std runner law; it is provable only by a measured
+            Rust-runner receipt, never a BEAM comparator.""" ;
+    ] ;
+    sh:property [
+        sh:path cscb:maxAllocationBytes ;
+        sh:hasValue 0 ;
+        sh:message """rust_no_std invariant: allocation must be exactly 0 bytes
+            (no_std runner law).""" ;
+    ] .
+
+# beam_hot_path carries honest comparator bounds for BEAM-measured subjects.
+# Rationale: BEAM per-op binary encode and worker-side duration sampling
+# allocate by construction (G11 measured 33.8ms tail / 106,880B per op), so
+# the no_std law is unreachable there. Defaults: p99 <= 10_000us (10ms, two
+# orders under the measured G11 baseline); alloc_per_op <= 512 bytes (one
+# small binary + result tuple per op, ~2 orders under the G11 baseline).
+# These bounds admit honest BEAM comparators; they do NOT certify the RFC
+# no_std claim.
+cscb:BeamHotPathInvariantsShape a sh:NodeShape ;
+    sh:target [
+        a sh:SPARQLTarget ;
+        sh:select """
+            PREFIX cscb: <urn:cscb:>
+            SELECT ?this WHERE {
+                ?this cscb:targetProfile cscb:beam_hot_path .
+            }
+        """ ;
+    ] ;
+    sh:property [
+        sh:path cscb:p99MaxMicros ;
+        sh:maxInclusive "10000.0"^^xsd:decimal ;
+        sh:message """beam_hot_path invariant: p99 must be <= 10000us (10ms).
+            BEAM comparator bound, not the RFC no_std law — a BEAM number
+            under this ceiling is still not a 100us/0-alloc proof.""" ;
+    ] ;
+    sh:property [
+        sh:path cscb:maxAllocationBytes ;
+        sh:minInclusive 0 ;
+        sh:maxInclusive 512 ;
+        sh:message """beam_hot_path invariant: allocation per op must be
+            <= 512 bytes. BEAM comparator bound (one small binary + result
+            tuple per op), not the RFC zero-alloc law.""" ;
+    ] .
+
+cscb:EconomicImpactShape a sh:NodeShape ;
+    sh:targetClass cscb:EconomicImpact ;
+    sh:property [
+        sh:path cscb:annualDollarHemorrhage ;
+        sh:datatype xsd:decimal ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:minInclusive "0.0"^^xsd:decimal ;
+    ] .
+
+cscb:RunShape a sh:NodeShape ;
+    sh:targetClass cscb:Run ;
+    sh:property [
+        sh:path cscb:verdictOn ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class cscb:BenchmarkArc ;
+    ] ;
+    sh:property [
+        sh:path cscb:hasVerdict ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( cscb:STATUS_QUO_REFUSED cscb:ADOPTED cscb:INCONCLUSIVE ) ;
+    ] .
+

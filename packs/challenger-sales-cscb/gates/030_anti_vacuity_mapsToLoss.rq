@@ -1,0 +1,22 @@
+# THE LAW: every metric assertion's mapsToLoss must be reflected in the arc's
+# EconomicImpact: annualDollarHemorrhage >= SUM(mapsToLoss) for assertions in
+# stage 3 of each arc. Any row = violation. Vacuity falsifier: verify.py drops
+# one mapsToLoss triple and PROVES this gate flips (the loss sum drops below
+# the declared hemorrhage, so the conservation law breaks). A gate that cannot
+# flip is vacuous and the verifier fails.
+PREFIX cscb: <urn:cscb:>
+SELECT ?arc ?hemorrhage ?lossSum
+WHERE {
+  {
+    SELECT ?arc (SUM(?loss) AS ?lossSum)
+    WHERE {
+      ?arc cscb:hasStage ?stage .
+      ?stage cscb:stageIndex 3 .
+      ?ma cscb:assertedInStage ?stage ;
+          cscb:mapsToLoss ?loss .
+    }
+    GROUP BY ?arc
+  }
+  ?econ cscb:annualDollarHemorrhage ?hemorrhage .
+  FILTER(?hemorrhage != ?lossSum)
+}

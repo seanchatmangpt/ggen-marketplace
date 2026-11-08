@@ -1,0 +1,204 @@
+// main.rs.tmpl — CSCB runner benchmark harness (RFC-2026-0042 §4.1)
+// Binding contract: templates/rust/BINDING_CONTRACT.md
+// Variables consumed: crate_name, metric_names, stages, percentile_points,
+//                     iterations, warmup_iterations, output_basename.
+// SCOPE NOTE: this harness measures RUST subjects on no_std/edge targets per
+// RFC-2026-0042 §4.1. BEAM-subject comparison lives in the BEAM harness
+// (lane R5). This is NOT a BEAM comparator.
+
+use std::env;
+use std::fmt::Write as _;
+use std::fs;
+use std::process::exit;
+
+mod cycle_counter;
+use cycle_counter::read_cycles_serializing;
+
+/// One measured stage: a named slice of the CSCB arc (S1 Warmer .. S6 Solution).
+struct Stage {
+    name: &'static str,
+    /// Per-iteration cycle counts for this stage's worker loop body.
+    samples: Vec<u64>,
+}
+
+impl Stage {
+    fn new(name: &'static str, capacity: usize) -> Self {
+        Stage { name, samples: Vec::with_capacity(capacity) }
+    }
+}
+
+/// Percentile computation over cycle samples (nearest-rank method).
+fn percentile(sorted: &[u64], p: f64) -> u64 {
+    assert!(!sorted.is_empty(), "percentile of empty sample set");
+    assert!((0.0..=100.0).contains(&p), "percentile out of range: {p}");
+    let n = sorted.len();
+    let rank = ((p / 100.0) * n as f64).ceil() as usize;
+    let idx = rank.saturating_sub(1).min(n - 1);
+    sorted[idx]
+}
+
+/// Sort ascending in place (insertion sort — no_std-friendly, tiny N).
+fn sort_asc(v: &mut [u64]) {
+    for i in 1..v.len() {
+        let key = v[i];
+        let mut j = i;
+        while j > 0 && v[j - 1] > key {
+            v[j] = v[j - 1];
+            j -= 1;
+        }
+        v[j] = key;
+    }
+}
+
+/// CRC32 (IEEE, reflected, poly 0xEDB88320) over the emitted result bytes.
+fn crc32(data: &[u8]) -> u32 {
+    let mut table = [0u32; 256];
+    for (i, entry) in table.iter_mut().enumerate() {
+        let mut c = i as u32;
+        for _ in 0..8 {
+            c = if c & 1 != 0 { 0xEDB8_8320 ^ (c >> 1) } else { c >> 1 };
+        }
+        *entry = c;
+    }
+    let mut crc = 0xFFFF_FFFFu32;
+    for &b in data {
+        crc = table[((crc ^ b as u32) & 0xFF) as usize] ^ (crc >> 8);
+    }
+    crc ^ 0xFFFF_FFFF
+}
+
+/// Core-pinned worker loop skeleton. On Linux targets with sched affinity we
+/// pin to core 0 to reduce migration noise; other targets run unpinned
+/// (documented limitation, never silently claimed as pinned).
+#[cfg(target_os = "linux")]
+fn pin_to_core(core: usize) -> bool {
+    unsafe {
+        let mut set: libc::cpu_set_t = std::mem::zeroed();
+        libc::CPU_SET(core, &mut set);
+        libc::sched_setaffinity(0, std::mem::size_of::<libc::cpu_set_t>(), &set) == 0
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn pin_to_core(_core: usize) -> bool {
+    false // honestly report unpinned
+}
+
+/// The measured body for a stage. Stage structure is ontology-bound
+/// ({{ stage_loop_var }} over `stages`); the loop body is the same fixed-point
+/// arithmetic kernel for every stage — the stage NAME is the only variable,
+/// which keeps measurements comparable across the arc.
+fn stage_body(iteration: u64, salt: u64) -> u64 {
+    let mut acc = iteration ^ salt;
+    for _ in 0..64 {
+        acc = acc.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    }
+    acc
+}
+
+fn run_stage(stage: &Stage) -> Stage {
+    let warmup = {{ warmup_iterations }}u64;
+    let iters = {{ iterations }}u64;
+    let salt = crc32(stage.name.as_bytes()) as u64;
+    let mut out = Stage::new(stage.name, iters as usize);
+    for i in 0..warmup {
+        let _ = stage_body(i, salt);
+    }
+    for i in 0..iters {
+        let before = read_cycles_serializing();
+        let result = stage_body(i, salt);
+        let after = read_cycles_serializing();
+        let _ = result;
+        out.samples.push(after.wrapping_sub(before));
+    }
+    out
+}
+
+fn emit_results(stages: &[Stage], out_dir: &str) -> std::io::Result<()> {
+    fs::create_dir_all(out_dir)?;
+
+    // ---- CSV ----
+    let mut csv = String::from("stage,iterations,p50,p90,p99,min,max,mean_cycles\n");
+    for s in stages {
+        let mut sorted = s.samples.clone();
+        sort_asc(&mut sorted);
+        let n = sorted.len();
+        let sum: u64 = sorted.iter().sum();
+        let mean = if n > 0 { sum / n as u64 } else { 0 };
+        let _ = write!(
+            csv,
+            "{},{},{},{},{},{},{},{}\n",
+            s.name,
+            n,
+            percentile(&sorted, 50.0),
+            percentile(&sorted, 90.0),
+            percentile(&sorted, 99.0),
+            sorted.first().copied().unwrap_or(0),
+            sorted.last().copied().unwrap_or(0),
+            mean,
+        );
+    }
+    fs::write(format!("{}/{{ output_basename }}.csv", out_dir), &csv)?;
+
+    // ---- JSON ----
+    let mut json = String::from("{\"stages\":[");
+    for (i, s) in stages.iter().enumerate() {
+        let mut sorted = s.samples.clone();
+        sort_asc(&mut sorted);
+        if i > 0 {
+            json.push(',');
+        }
+        let _ = write!(
+            json,
+            {% raw %}"{{\"stage\":\"{}\",\"n\":{},\"p50\":{},\"p90\":{},\"p99\":{}}}",{% endraw %}
+            s.name,
+            sorted.len(),
+            percentile(&sorted, 50.0),
+            percentile(&sorted, 90.0),
+            percentile(&sorted, 99.0),
+        );
+    }
+    // CRC32 over the CSV bytes ties the two emissions together.
+    let _ = write!(json, "],\"crc32_of_csv\":{}}}", crc32(csv.as_bytes()));
+    fs::write(format!("{}/{{ output_basename }}.json", out_dir), &json)?;
+    Ok(())
+}
+
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    let out_dir = args.get(1).map(String::as_str).unwrap_or("./results");
+
+    if !pin_to_core(0) {
+        eprintln!("WARN: core pinning unavailable on this platform; results are unpinned");
+    }
+
+    // Stage structure is ontology-bound: one row per CSCB arc stage in
+    // `results` (S1 Warmer .. S6 Solution; queries/runner_profile.rq).
+    let stage_specs: [(&'static str, u64); {{ n_stages }}] = [
+        {%- for s in results %}
+        ("{{ s.stage_name_rust }}", {{ s.stage_id }}),
+        {%- endfor %}
+    ];
+
+    let mut stages: Vec<Stage> = Vec::with_capacity(stage_specs.len());
+    for (name, _id) in stage_specs {
+        stages.push(run_stage(&Stage::new(name, {{ iterations }} as usize)));
+    }
+
+    if let Err(e) = emit_results(&stages, out_dir) {
+        eprintln!("FAIL: results emission: {e}");
+        exit(1);
+    }
+
+    for s in &stages {
+        let mut sorted = s.samples.clone();
+        sort_asc(&mut sorted);
+        println!(
+            "{:14} p50={:>8} p99={:>8} n={}",
+            s.name,
+            percentile(&sorted, 50.0),
+            percentile(&sorted, 99.0),
+            sorted.len(),
+        );
+    }
+}

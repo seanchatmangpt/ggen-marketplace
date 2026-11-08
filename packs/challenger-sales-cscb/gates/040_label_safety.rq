@@ -1,0 +1,23 @@
+# Any row = violation. AR6 P0 closure (R15): every ArcStage rdfs:label must
+# match ^[A-Za-z0-9 _-]{1,64}$ — the gate-form of the ArcStage label shape in
+# shapes.ttl. Labels are interpolated into emitted Rust string literals
+# (emitted_rust/src/main.rs), so an unfiltered label is a code-injection
+# channel: a `"` or `\` or newline in a label breaks out of the literal and
+# into compiled Rust. This gate fires pre-write in `ggen sync` ([validation]
+# gates run before any emit; FM-LAW-018), refusing the sync with exit != 0
+# and leaving emitted files untouched.
+#
+# Charset law: ^[A-Za-z0-9 _-]{1,64}$ — same law as the SHACL shape
+# (sh:pattern + sh:maxLength 64) and the template-level escape. Three layers,
+# one law.
+PREFIX cscb: <urn:cscb:>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?stage ?why
+WHERE {
+  ?stage a/rdfs:subClassOf* cscb:ArcStage ;
+         rdfs:label ?label .
+  FILTER(!ISNUMERIC(?label))
+  FILTER(!REGEX(?label, "^[A-Za-z0-9 _-]{1,64}$"))
+  BIND(CONCAT("ArcStage label outside lawful charset ^[A-Za-z0-9 _-]{1,64}$: ",
+              STR(?label)) AS ?why)
+}

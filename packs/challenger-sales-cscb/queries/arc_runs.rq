@@ -1,0 +1,19 @@
+# Select each CSCB run with its arc's stage indices, loss sum, hemorrhage, and verdict.
+PREFIX cscb: <urn:cscb:>
+SELECT ?run ?verdict ?lossSum ?hemorrhage
+WHERE {
+  ?run a cscb:CSCBRun ;
+       cscb:verdictOn ?arc ;
+       cscb:hasVerdict ?verdict .
+  {
+    SELECT ?arc (SUM(?loss) AS ?lossSum)
+    WHERE {
+      ?arc cscb:hasStage ?stage .
+      ?stage cscb:stageIndex 3 .
+      ?ma cscb:assertedInStage ?stage ; cscb:mapsToLoss ?loss .
+    }
+    GROUP BY ?arc
+  }
+  ?econ cscb:annualDollarHemorrhage ?hemorrhage .
+}
+ORDER BY ?run
