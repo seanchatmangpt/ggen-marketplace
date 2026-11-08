@@ -1,0 +1,269 @@
+# xstate-v5-machine-pack architecture: ABB/SBB formalization.
+#
+# Conventions (M15 ontology harmonization, same as this pack's ontology.ttl):
+#   1. Pack-scoped vocabulary lives under xs5:
+#      <http://seanchatmangpt.github.io/packs/xstate-v5-machine#>; canonical
+#      prefix names are never rebound, and no terms are minted under a
+#      canonical namespace.
+#   2. Cross-pack alignment: every term that is the same concept as an owning
+#      term elsewhere carries rdfs:seeAlso to the OWNER's IRI -- same concept,
+#      same IRI, never a re-mint.
+#   3. The ABB/SBB framework vocabulary is the ggen house pattern: the ggen:
+#      prefix is bound to the canonical ggen integration namespace
+#      <https://ggen.io/onto/ggen/> (as in ontologies/open-ontologies/
+#      ggen-integration-law.ttl), with rdfs:seeAlso alignment to the
+#      enterprise-architecture pack's ea: terms for the same concept.
+#
+# Truth surfaces: docs/SHAPES.md (21 compile shapes, 11 wiring laws,
+# 10 defect classes); gates/010..040 + construct_gate; templates/*; fixtures/.
+# Standing: PARTIAL_ALIVE (inherited from the pack receipt and SHAPES.md).
+
+@prefix xs5: <http://seanchatmangpt.github.io/packs/xstate-v5-machine#> .
+@prefix ggen: <https://ggen.io/onto/ggen/> .
+@prefix ea: <https://chatman.ai/ontology/enterprise-architecture#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+
+<http://seanchatmangpt.github.io/packs/xstate-v5-machine> owl:versionInfo "0.2.0" .
+
+#################################################################
+# Framework vocabulary consumed from the ggen house pattern.
+# Declared here (first-class) with seeAlso alignment to the ea: terms
+# for the same concept; consumers of either IRI resolve to one concept.
+#################################################################
+
+ggen:ArchitectureBuildingBlock a rdfs:Class ;
+    rdfs:label "Semantic capability contract: ports + invariants, no implementation." ;
+    rdfs:seeAlso ea:ArchitectureBuildingBlock ;
+    rdfs:comment "Aligned to ea:ArchitectureBuildingBlock: same concept, same IRI." .
+
+ggen:SolutionBuildingBlock a rdfs:Class ;
+    rdfs:label "Concrete realization binding: realizes >=1 ABB, emits artifacts." ;
+    rdfs:seeAlso ea:SolutionBuildingBlock ;
+    rdfs:comment "Aligned to ea:SolutionBuildingBlock: same concept, same IRI." .
+
+ggen:Port a rdfs:Class ;
+    rdfs:label "Typed capability boundary an ABB exposes (in or out)." .
+
+ggen:realizesABB a rdf:Property ;
+    rdfs:domain ggen:SolutionBuildingBlock ;
+    rdfs:range ggen:ArchitectureBuildingBlock ;
+    rdfs:label "Links an SBB realization to the capability contract it realizes." .
+
+ggen:emitsArtifact a rdf:Property ;
+    rdfs:domain ggen:SolutionBuildingBlock ;
+    rdfs:range xsd:string ;
+    rdfs:label "Names a concrete artifact (file/template path) the SBB emits." .
+
+ggen:satisfiesPort a rdf:Property ;
+    rdfs:domain ggen:SolutionBuildingBlock ;
+    rdfs:range ggen:Port ;
+    rdfs:label "Binds the SBB to one port of the ABB(s) it realizes." .
+
+ggen:hasInvariant a rdf:Property ;
+    rdfs:domain ggen:ArchitectureBuildingBlock ;
+    rdfs:range xsd:string ;
+    rdfs:label "Law any realization must satisfy; fail-closed wording." .
+
+ggen:hasPort a rdf:Property ;
+    rdfs:domain ggen:ArchitectureBuildingBlock ;
+    rdfs:range ggen:Port ;
+    rdfs:label "Declares a port on the capability contract." .
+
+#################################################################
+# Ports (typed capability boundaries)
+#################################################################
+
+xs5:MachineSourceIn a ggen:Port ;
+    rdfs:label "Machine source subject: TS machine file or JSON fixture under the pack schema." ;
+    rdfs:seeAlso xs5:Machine .
+
+xs5:ViolationReportOut a ggen:Port ;
+    rdfs:label "Fail-closed violation report: per-law rows citing SHAPES.md receipts." ;
+    rdfs:seeAlso xs5:CompileShape .
+
+xs5:MatrixIn a ggen:Port ;
+    rdfs:label "Conformance matrix: declared event-sequence cases over guarded transitions." ;
+    rdfs:seeAlso xs5:ConformanceCase .
+
+xs5:FitnessVerdictOut a ggen:Port ;
+    rdfs:label "Fitness verdict: per-case CONFORMANT/REFUSED with exit-code semantics." ;
+    rdfs:seeAlso xs5:ConformanceCase .
+
+xs5:BundledMachineIn a ggen:Port ;
+    rdfs:label "Bundled machine artifact ready for construction proof." ;
+    rdfs:seeAlso xs5:Machine .
+
+xs5:InitialSnapshotOut a ggen:Port ;
+    rdfs:label "Initial actor snapshot from createActor().start(); absent snapshot = REFUSED." ;
+    rdfs:seeAlso xs5:SmokeTest .
+
+xs5:OntologyGraphIn a ggen:Port ;
+    rdfs:label "TTL projection graph offered for baseline comparison." ;
+    rdfs:seeAlso xs5:TtlBaseline .
+
+xs5:DriftReportOut a ggen:Port ;
+    rdfs:label "Drift report: triple-count deltas + required-term presence vs baseline." ;
+    rdfs:seeAlso xs5:TtlBaseline .
+
+#################################################################
+# ABBs: capability contracts (no implementation)
+#################################################################
+
+xs5:CompileLawABB a ggen:ArchitectureBuildingBlock ;
+    rdfs:label "Compile-law capability: any XState v5 machine satisfies the 21 compile shapes." ;
+    dcterms:source <https://github.com/seanchatmangpt/srve/docs/diagrams/state/xstate/SHAPES.md> ;
+    ggen:hasPort xs5:MachineSourceIn, xs5:ViolationReportOut ;
+    ggen:hasInvariant
+        "Fail-closed scan: an unscannable subject is a violation, never a pass." ;
+    ggen:hasInvariant
+        "Flat guarded states: type 'parallel' banned (sibling-region pattern instead)." ;
+    ggen:hasInvariant
+        "Shared frozen configs banned ('as const'); phantom brand props cause TS2322." ;
+    ggen:hasInvariant
+        "No dual context/event param annotations; explicit widening breaks variance." ;
+    ggen:hasInvariant
+        "setup( seam required; initial present at every level with states." ;
+    rdfs:comment "Full 21-shape register in docs/SHAPES.md; this contract names the class." .
+
+xs5:ConformanceGateABB a ggen:ArchitectureBuildingBlock ;
+    rdfs:label "Conformance capability: 48-style case coverage with fitness semantics." ;
+    ggen:hasPort xs5:MatrixIn, xs5:FitnessVerdictOut ;
+    ggen:hasInvariant
+        "Every declared transition is exercised by at least one named case." ;
+    ggen:hasInvariant
+        "Fitness is asserted on real final-state shape; a skipped case is REFUSED." ;
+    rdfs:comment "Fitness: real collaborators, final-state assertions (Chicago)." .
+
+xs5:ConstructionProofABB a ggen:ArchitectureBuildingBlock ;
+    rdfs:label "Construction capability: createActor().start() or throw." ;
+    ggen:hasPort xs5:BundledMachineIn, xs5:InitialSnapshotOut ;
+    ggen:hasInvariant
+        "Proof = a real actor construction returning a snapshot; anything else throws." ;
+    ggen:hasInvariant
+        "No mocking of the actor runtime; the collaborator is real or the gate exits 1." ;
+    rdfs:comment "Chicago-school: assert on the real initial snapshot, never on call counts." .
+
+xs5:TtlBaselineCourtABB a ggen:ArchitectureBuildingBlock ;
+    rdfs:label "TTL baseline capability: triple counts + required terms vs frozen baseline." ;
+    ggen:hasPort xs5:OntologyGraphIn, xs5:DriftReportOut ;
+    ggen:hasInvariant
+        "Deterministic serializer required for the diff to be meaningful." ;
+    ggen:hasInvariant
+        "Required xs5: terms present; count delta vs baselines.toml is a REFUSED." ;
+    rdfs:comment "Guards the ontology surface this pack's projections are admitted from." .
+
+#################################################################
+# SBBs: gate realizations
+#################################################################
+
+xs5:Gate010 a ggen:SolutionBuildingBlock ;
+    rdfs:label "010_ttl_triple_counts.py: TTL baseline court gate." ;
+    ggen:realizesABB xs5:TtlBaselineCourtABB ;
+    ggen:satisfiesPort xs5:OntologyGraphIn, xs5:DriftReportOut ;
+    ggen:emitsArtifact "gates/010_ttl_triple_counts.py" .
+
+xs5:Gate020 a ggen:SolutionBuildingBlock ;
+    rdfs:label "020_compile_shape_scan.py: fail-closed compile-shape scanner." ;
+    ggen:realizesABB xs5:CompileLawABB ;
+    ggen:satisfiesPort xs5:MachineSourceIn, xs5:ViolationReportOut ;
+    ggen:emitsArtifact "gates/020_compile_shape_scan.py" .
+
+xs5:Gate030 a ggen:SolutionBuildingBlock ;
+    rdfs:label "030_conformance.py: conformance fitness court." ;
+    ggen:realizesABB xs5:ConformanceGateABB ;
+    ggen:satisfiesPort xs5:MatrixIn, xs5:FitnessVerdictOut ;
+    ggen:emitsArtifact "gates/030_conformance.py" .
+
+xs5:Gate040 a ggen:SolutionBuildingBlock ;
+    rdfs:label "040_smoke_run.sh: smoke exit gate (real happy-path run or exit 1)." ;
+    ggen:realizesABB xs5:ConformanceGateABB, xs5:ConstructionProofABB ;
+    ggen:satisfiesPort xs5:FitnessVerdictOut, xs5:InitialSnapshotOut ;
+    ggen:emitsArtifact "gates/040_smoke_run.sh" .
+
+xs5:ConstructGate a ggen:SolutionBuildingBlock ;
+    rdfs:label "construct_gate: construction proof before any admission." ;
+    ggen:realizesABB xs5:ConstructionProofABB ;
+    ggen:satisfiesPort xs5:BundledMachineIn, xs5:InitialSnapshotOut ;
+    ggen:emitsArtifact "construct_gate" .
+
+#################################################################
+# SBBs: template artifact emitters (realizing CompileLawABB)
+#################################################################
+
+xs5:MachineTemplate a ggen:SolutionBuildingBlock ;
+    rdfs:label "machine.tera.tmpl: emits machines that satisfy the compile law by construction." ;
+    ggen:realizesABB xs5:CompileLawABB ;
+    ggen:satisfiesPort xs5:MachineSourceIn ;
+    ggen:emitsArtifact "templates/machine.tera.tmpl" .
+
+xs5:SmokeTemplate a ggen:SolutionBuildingBlock ;
+    rdfs:label "smoke.tera.tmpl: emits smoke probes with real final-state assertions." ;
+    ggen:realizesABB xs5:CompileLawABB, xs5:ConformanceGateABB ;
+    ggen:satisfiesPort xs5:MachineSourceIn, xs5:FitnessVerdictOut ;
+    ggen:emitsArtifact "templates/smoke.tera.tmpl" .
+
+xs5:ConformanceMatrixTemplate a ggen:SolutionBuildingBlock ;
+    rdfs:label "conformance-matrix.tera.tmpl: emits the named-case conformance matrix." ;
+    ggen:realizesABB xs5:CompileLawABB, xs5:ConformanceGateABB ;
+    ggen:satisfiesPort xs5:MatrixIn ;
+    ggen:emitsArtifact "templates/conformance-matrix.tera.tmpl" .
+
+#################################################################
+# SBB: the law register document
+#################################################################
+
+xs5:ShapesLawRegister a ggen:SolutionBuildingBlock ;
+    rdfs:label "docs/SHAPES.md: law register (21 shapes, 11 wiring laws, 10 defects)." ;
+    ggen:realizesABB xs5:CompileLawABB ;
+    ggen:emitsArtifact "docs/SHAPES.md" ;
+    rdfs:comment "Register doc, not a gate: the invariant corpus Gate020 compiles." .
+
+#################################################################
+# Port SHACL shapes
+#################################################################
+
+xs5:MachineSourceShape a sh:NodeShape ;
+    rdfs:label "Schema for the JSON machine-source fixture (MachineSourceIn port)." ;
+    sh:targetClass xs5:Machine ;
+    sh:property [
+        sh:path xs5:machineName ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path xs5:initial ;
+        sh:minCount 1 ;
+        rdfs:comment "Initial present at every level with states (V-DIV-2)." ;
+    ] ;
+    sh:property [
+        sh:path xs5:hasStateNode ;
+        sh:minCount 1 ;
+        rdfs:comment "At least one state node; flat law bans parallel regions." ;
+    ] ;
+    sh:closed false .
+
+xs5:ViolationReportShape a sh:NodeShape ;
+    rdfs:label "Schema for the fail-closed violation report (ViolationReportOut port)." ;
+    sh:property [
+        sh:path xs5:targetLanguage ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path xs5:baselineHash ;
+        rdfs:comment "Report rows carry the law register row they cite." ;
+    ] ;
+    sh:closed false .
+
+#################################################################
+# seeAlso alignment back to the pack ontology (same concept, same IRI)
+#################################################################
+
+xs5:CompileLawABB rdfs:seeAlso xs5:CompileShape .
+xs5:ConformanceGateABB rdfs:seeAlso xs5:ConformanceCase .
+xs5:ConstructionProofABB rdfs:seeAlso xs5:SmokeTest .
+xs5:TtlBaselineCourtABB rdfs:seeAlso xs5:TtlBaseline .
