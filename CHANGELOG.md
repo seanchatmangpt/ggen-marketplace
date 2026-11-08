@@ -38,6 +38,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the runner owner lane (`qualification/rust_emission_note.md`); receipt PDF
   rendering deferred (`CscbReceipt.render_markdown/1` is the landed output path)
 
+- feat(pack): xstate-v5-machine-pack registered in the active set — 26 tracked
+  files on disk under `packs/xstate-v5-machine-pack/` (`ontology.ttl`, `pack.toml`,
+  docs/fixtures/gates/qualification/templates/tools, qualification receipt
+  `_XSTATE_V5_MACHINE_PACK_RECEIPT.md`); active-set registration 28→29 in
+  `marketplace.active.toml` (lane M9, 2026-11-07) — 29th active candidate; both
+  profile verifiers' EXPECTED_ACTIVE_PACKS + cardinality pins + display prints
+  updated in the same dependency-closed transition (`verify_msct_profile.py`,
+  `verify_enterprise_kudzu_profile.py`, both exit 0 at active_packs=29);
+  PACK-INDEX regenerated via `scripts/gen_pack_index.py` (356 packs: 350 active,
+  6 deprecated)
+
 - feat(packs): 6 new packs admitted — financial-margin-envelope (margin-envelope law
   pack, 3 sync-time gates), latency-hazard-radar (latency hazard detection, 3 gates),
   forensic-audit-dossier-pack (forensic audit dossier projection, 4 gates),

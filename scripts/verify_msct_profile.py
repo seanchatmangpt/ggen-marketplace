@@ -36,6 +36,7 @@ EXPECTED_ACTIVE_PACKS = {
     "strata-valve-pack",
     "trade-reticle-plumbing",
     "trade-reticle-electrical",
+    "xstate-v5-machine-pack",
 }
 
 REQUIRED_MARKERS = {
@@ -97,7 +98,7 @@ def main() -> None:
 
     if active["front_door"] != "ggen-platform-pack":
         refuse(f"unexpected front door: {active['front_door']!r}")
-    if len(active["packs"]) != 28:
+    if len(active["packs"]) != 29:
         refuse(f"active pack cardinality changed: {len(active['packs'])}")
     if packs != EXPECTED_ACTIVE_PACKS:
         missing = sorted(EXPECTED_ACTIVE_PACKS - packs)
@@ -134,7 +135,7 @@ def main() -> None:
         cursor = order_pos
 
     print("MSCT/MX profile invariants: ALIVE")
-    print("active_packs=28 front_door=ggen-platform-pack")
+    print("active_packs=29 front_door=ggen-platform-pack")
     print("minimum_novelty=reuse>compose>extend>invent")
     print("human_implementation_required=false grants_do_authority=false")
 
