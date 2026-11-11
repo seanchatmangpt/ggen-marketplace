@@ -1,0 +1,25 @@
+# MESSAGE: any returned row refuses manufacture. This pack manufactures contract
+# tests (evidence) only. A hook may not claim a GymAct consequence class (DO
+# authority), and every hook must be fully addressed (module+class+name).
+PREFIX hc:  <urn:autofde-lab:hook-contract:>
+PREFIX dct: <http://purl.org/dc/terms/>
+SELECT ?subject ?problem WHERE {
+  {
+    ?subject dct:type ?c .
+    FILTER (STRSTARTS(STR(?c), "urn:gymact:consequence:"))
+    BIND("actuation-consequence-refused" AS ?problem)
+  }
+  UNION
+  {
+    ?subject a hc:Hook .
+    FILTER NOT EXISTS { ?subject hc:module ?m . ?subject hc:className ?c2 . ?subject hc:hookName ?h }
+    BIND("hook-not-fully-addressed-refused" AS ?problem)
+  }
+  UNION
+  {
+    ?subject a hc:Hook ; hc:hookName ?h .
+    FILTER (!STRSTARTS(?h, "_"))
+    BIND("public-method-is-not-an-abstract-hook-refused" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem

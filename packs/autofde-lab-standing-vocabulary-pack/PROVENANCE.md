@@ -19,10 +19,11 @@ branch `main` at the time of authoring):
 
 ## What this pack manufactures
 
-`src/autofde_lab/generated/standing_vocabulary.py` (raisable hierarchy) and
-`src/autofde_lab/generated/standing_registry.json` (machine-readable registry).
-Both land under a `generated/` path so they cannot collide with the existing
-hand-written `src/autofde_lab/standing.py`; adoption is a separate, deliberate act.
+`src/autofde_lab/standing_vocab/vocabulary.py` (raisable hierarchy) and
+`src/autofde_lab/standing_vocab/registry.json` (machine-readable registry),
+rendered by declarative rules in the consumer `ggen.toml` from a vendored copy of
+`ontology.ttl`. They land beside, not over, the hand-written
+`src/autofde_lab/standing.py`; adoption is a separate, deliberate act.
 
 ## Vocabularies reused
 

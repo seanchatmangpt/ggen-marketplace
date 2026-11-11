@@ -1,0 +1,61 @@
+"""ggen-produced from autofde-lab-hook-contracts-pack. Edit the ontology, not this file.
+
+Chicago-style contract court for the abstract hooks autofde-lab hand-writes.
+Real classes only: per hook a concrete subclass must satisfy the hook and
+a bare subclass must raise the typed error. Classes that cannot be instantiated
+generically fail loudly (UNINSTANTIABLE), never skip silently.
+Evidence only: authority NONE.
+"""
+
+from __future__ import annotations
+
+import importlib
+
+import pytest
+
+from autofde_lab.core import HookNotImplementedError
+
+SENTINEL = object()
+
+
+def _cls(module: str, name: str) -> type:
+    return getattr(importlib.import_module(module), name)
+
+
+def _args(n: int) -> tuple:
+    return (None,) * n
+
+
+def _kwargs(names: str) -> dict:
+    return {k: None for k in names.split(",") if k}
+
+{% for row in results %}
+# {{ row["module"] }}.{{ row["class_name"] }}.{{ row["hook"] }}  [{{ row["raises"] }}]  {{ row["contract"] }}
+{% if row["skip"] != "" %}
+def test_{{ loop.index }}_uninstantiable_{{ row["class_name"] }}_{{ row["hook"] }}() -> None:
+    pytest.fail("UNINSTANTIABLE {{ row["module"] }}.{{ row["class_name"] }}: {{ row["skip"] }}")
+{% else %}
+def test_{{ loop.index }}_bare_{{ row["class_name"] }}_{{ row["hook"] }}_raises() -> None:
+    owner = _cls("{{ row["module"] }}", "{{ row["class_name"] }}")
+    bare = type("Bare{{ row["class_name"] }}", (owner,), {})()
+{% if row["raises"] == "typed" %}
+    with pytest.raises(HookNotImplementedError) as info:
+        getattr(bare, "{{ row["hook"] }}")(*_args({{ row["n_req"] }}), **_kwargs("{{ row["kwreq"] }}"))
+    assert info.value.hook.endswith("{{ row["hook"] }}")
+    assert info.value.owner == "Bare{{ row["class_name"] }}"
+{% else %}
+    with pytest.raises(NotImplementedError):
+        getattr(bare, "{{ row["hook"] }}")(*_args({{ row["n_req"] }}), **_kwargs("{{ row["kwreq"] }}"))
+{% endif %}
+
+def test_{{ loop.index }}_concrete_{{ row["class_name"] }}_{{ row["hook"] }}_satisfies() -> None:
+    owner = _cls("{{ row["module"] }}", "{{ row["class_name"] }}")
+    impl = type(
+        "Impl{{ row["class_name"] }}",
+        (owner,),
+        {"{{ row["hook"] }}": lambda self, *a, **k: SENTINEL},
+    )()
+    assert getattr(type(impl), "{{ row["hook"] }}") is not getattr(owner, "{{ row["hook"] }}")
+    assert getattr(impl, "{{ row["hook"] }}")(*_args({{ row["n_req"] }}), **_kwargs("{{ row["kwreq"] }}")) is SENTINEL
+{% endif %}
+{% endfor %}
