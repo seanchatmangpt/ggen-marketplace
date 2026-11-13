@@ -1,0 +1,20 @@
+# Gate L15_010: dependency cycles. Any row = violation.
+# Edge s -> t when s binds result/element(t) through any binding role, or s wait_for t
+# (reactor/lib/reactor/dsl/wait_for.ex:31 desugars wait_for to result(step)).
+# A reactor composing itself (directly or through other reactors) is also a cycle (compose.ex:80).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT DISTINCT ?reactor ?subject ?problem WHERE {
+  {
+    ?reactor aap:reactorStep ?subject .
+    ?subject ((aap:stepArg|aap:stepInputs|aap:stepInitial|aap:stepActor|aap:stepTenant|aap:stepOn|aap:stepSource)/aap:argStep | aap:stepWaitFor)+ ?subject .
+    BIND("step participates in a dependency cycle" AS ?problem)
+  }
+  UNION
+  {
+    ?reactor a aap:Reactor .
+    ?reactor (aap:reactorStep/aap:stepReactorRef)+ ?reactor .
+    BIND(?reactor AS ?subject)
+    BIND("reactor composes itself through a compose cycle" AS ?problem)
+  }
+}
+ORDER BY ?reactor ?subject

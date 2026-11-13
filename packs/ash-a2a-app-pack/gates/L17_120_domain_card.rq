@@ -1,0 +1,21 @@
+# L17 gate (mirrors verify_config.ex:32-45 require_agent_name, and the projection precondition):
+# a Domain carrying any L17 domain facts must be flagged aap:a2aConfigured "true" (else the fragment is
+# never emitted and the facts are silently dropped), and a configured Domain must name its agent.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?subject ?reason WHERE {
+  {
+    ?subject a aap:Domain ; ?p ?o .
+    FILTER ( ?p IN (aap:cardName, aap:cardDescription, aap:cardVersion, aap:cardUrl, aap:securityScheme,
+                    aap:requirement, aap:requirementScope, aap:mount, aap:agentExtension, aap:baseUrl,
+                    aap:defaultMount, aap:extendedAgentCard, aap:userArtifacts, aap:streamingEnabled,
+                    aap:pushNotifications, aap:pushAllowedHost) )
+    FILTER NOT EXISTS { ?subject aap:a2aConfigured "true" }
+    BIND ("l17_domain_facts_without_a2aConfigured" AS ?reason)
+  }
+  UNION
+  {
+    ?subject a aap:Domain ; aap:a2aConfigured "true" .
+    FILTER NOT EXISTS { ?subject aap:cardName ?n }
+    BIND ("required_option_agent_name_not_set" AS ?reason)
+  }
+}

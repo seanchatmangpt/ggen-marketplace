@@ -1,0 +1,65 @@
+# X_100 (cross-lane): L08 multitenancy attribute strategy vs every lane that defines fields.
+#   missing   : tenantAttribute is declared by NO lane (attribute, L01 attrSpec, L12 typedAttribute,
+#               L02 belongs_to FK incl. default "<name>_id", L08 relSourceAttribute). L08_010 only
+#               knows aap:attribute + relSourceAttribute and false-fires on L01/L02 declarations.
+#   clash     : tenantAttribute name is claimed by >1 field claim (two attribute definitions, or an
+#               attribute plus a calculation/aggregate/relationship name).
+#   duplicate : more than one aap:multitenancy section on a resource.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?tenant_attr ?reason WHERE {
+  {
+    ?resource a aap:Resource ; aap:multitenancy ?m .
+    ?m aap:tenantStrategy "attribute" ; aap:tenantAttribute ?ta0 .
+    BIND (STR(?ta0) AS ?tenant_attr)
+    FILTER NOT EXISTS { ?resource aap:attribute ?x . ?x aap:name ?n . FILTER (STR(?n) = ?tenant_attr) }
+    FILTER NOT EXISTS { ?resource aap:attrSpec ?x . ?x aap:name ?n . FILTER (STR(?n) = ?tenant_attr) }
+    FILTER NOT EXISTS { ?resource aap:typedAttribute ?x . ?x aap:name ?n . FILTER (STR(?n) = ?tenant_attr) }
+    FILTER NOT EXISTS { ?resource aap:relationship ?x . ?x aap:relSourceAttribute ?n . FILTER (STR(?n) = ?tenant_attr) }
+    FILTER NOT EXISTS {
+      ?resource aap:relationship ?x . ?x aap:relKind "belongs_to" ; aap:name ?rn .
+      OPTIONAL { ?x aap:sourceAttribute ?sa }
+      OPTIONAL { ?x aap:defineAttribute ?da }
+      FILTER (!BOUND(?da) || STR(?da) != "false")
+      FILTER (COALESCE(STR(?sa), CONCAT(STR(?rn), "_id")) = ?tenant_attr)
+    }
+    BIND (CONCAT("tenant attribute '", ?tenant_attr, "' is declared by no lane (attribute, attrSpec, typedAttribute, L02/L08 belongs_to foreign key)") AS ?reason)
+  } UNION {
+    {
+      SELECT ?resource ?tenant_attr
+             (COUNT(DISTINCT ?claim) AS ?n)
+             (GROUP_CONCAT(DISTINCT ?claim; separator=" ; ") AS ?claimants)
+      WHERE {
+        ?resource a aap:Resource ; aap:multitenancy ?m .
+        ?m aap:tenantStrategy "attribute" ; aap:tenantAttribute ?ta0 .
+        BIND (STR(?ta0) AS ?tenant_attr)
+        { ?resource aap:attribute ?node . ?node aap:name ?nm0 . BIND ("attribute" AS ?role) }
+        UNION { ?resource aap:attrSpec ?node . ?node aap:name ?nm0 . BIND ("L01 attrSpec" AS ?role) }
+        UNION { ?resource aap:typedAttribute ?node . ?node aap:name ?nm0 . BIND ("L12 typedAttribute" AS ?role) }
+        UNION { ?resource aap:relationship ?node . ?node aap:name ?nm0 . BIND ("L02 relationship name" AS ?role) }
+        UNION { ?resource aap:relationship ?node . ?node aap:relName ?nm0 . BIND ("L08 relationship name" AS ?role) }
+        UNION {
+          ?resource aap:relationship ?node . ?node aap:relKind "belongs_to" ; aap:name ?rn .
+          OPTIONAL { ?node aap:sourceAttribute ?sa }
+          OPTIONAL { ?node aap:defineAttribute ?da }
+          FILTER (!BOUND(?da) || STR(?da) != "false")
+          BIND (COALESCE(STR(?sa), CONCAT(STR(?rn), "_id")) AS ?nm0)
+          BIND ("L02 belongs_to foreign key" AS ?role)
+        }
+        UNION { ?resource aap:relationship ?node . ?node aap:relSourceAttribute ?nm0 . BIND ("L08 foreign key" AS ?role) }
+        UNION { ?resource aap:calculation ?node . ?node aap:name ?nm0 . BIND ("L03 calculation" AS ?role) }
+        UNION { ?resource aap:aggregate ?node . ?node aap:name ?nm0 . BIND ("L04 aggregate" AS ?role) }
+        FILTER (STR(?nm0) = ?tenant_attr)
+        BIND (CONCAT(?role, " ", STR(?node)) AS ?claim)
+      }
+      GROUP BY ?resource ?tenant_attr
+      HAVING (COUNT(DISTINCT ?claim) > 1)
+    }
+    BIND (CONCAT("tenant attribute '", ?tenant_attr, "' is claimed ", STR(?n), " times: ", ?claimants) AS ?reason)
+  } UNION {
+    ?resource a aap:Resource ; aap:multitenancy ?m1 , ?m2 .
+    FILTER (STR(?m1) < STR(?m2))
+    BIND ("" AS ?tenant_attr)
+    BIND (CONCAT("resource declares two multitenancy sections: ", STR(?m1), " and ", STR(?m2)) AS ?reason)
+  }
+}
+ORDER BY ?resource ?tenant_attr

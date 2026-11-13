@@ -1,0 +1,36 @@
+# Gate L10-030: domain config, mounts and multi-domain membership (rows = violations).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?subject ?reason WHERE {
+  {
+    ?subject a aap:Domain ; aap:authorize ?v .
+    FILTER(STR(?v) NOT IN ("always","by_default","when_requested"))
+    BIND("authorize must be always|by_default|when_requested" AS ?reason)
+  } UNION {
+    ?subject a aap:Domain ; aap:requireActor ?v . FILTER(STR(?v) NOT IN ("true","false"))
+    BIND("require_actor? must be true|false" AS ?reason)
+  } UNION {
+    ?subject a aap:Domain ; aap:domainTimeout ?v .
+    FILTER(STR(?v) != "infinity" && !REGEX(STR(?v), "^[0-9]+$"))
+    BIND("timeout must be a non-negative integer or infinity" AS ?reason)
+  } UNION {
+    ?subject a aap:Domain ; aap:validateConfigInclusion ?v . FILTER(STR(?v) NOT IN ("true","false"))
+    BIND("validate_config_inclusion? must be true|false" AS ?reason)
+  } UNION {
+    ?subject a aap:Resource ; aap:inDomain ?d1, ?d2 . FILTER(?d1 != ?d2)
+    BIND("resource listed in more than one domain" AS ?reason)
+  } UNION {
+    ?subject a aap:Mount ; aap:mountBinding ?v . FILTER(STR(?v) NOT IN ("jsonrpc","rest","grpc"))
+    BIND("mount binding must be jsonrpc|rest|grpc" AS ?reason)
+  } UNION {
+    ?subject a aap:Mount ; aap:mountOf ?d ; aap:mountPath ?p .
+    ?other a aap:Mount ; aap:mountOf ?d ; aap:mountPath ?p . FILTER(?subject != ?other)
+    BIND("duplicate mount path within domain" AS ?reason)
+  } UNION {
+    ?subject a aap:Mount ; aap:mountOf ?d ; aap:mountAgent ?a .
+    FILTER NOT EXISTS { ?a a aap:Agent ; aap:forDomain ?d }
+    BIND("mount agent is not an aap:Agent for this domain" AS ?reason)
+  } UNION {
+    ?subject a aap:Mount . FILTER NOT EXISTS { ?subject aap:mountOf ?d }
+    BIND("mount without aap:mountOf" AS ?reason)
+  }
+}

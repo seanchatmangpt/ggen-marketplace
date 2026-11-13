@@ -1,0 +1,16 @@
+# L17 gate (mirrors verify_config.ex:164-216): absolute http(s) URLs with a host; default_mount starts with "/".
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?subject ?property ?value ?reason WHERE {
+  {
+    ?subject ?property ?value .
+    FILTER ( ?property IN (aap:baseUrl, aap:cardUrl, aap:cardDocumentationUrl, aap:cardIconUrl) )
+    FILTER ( !REGEX(STR(?value), "^https?://[^/?#\\s]+") )
+    BIND ("not_a_valid_absolute_http_url" AS ?reason)
+  }
+  UNION
+  {
+    ?subject aap:defaultMount ?value . BIND (aap:defaultMount AS ?property)
+    FILTER ( !STRSTARTS(STR(?value), "/") )
+    BIND ("default_mount_must_start_with_slash" AS ?reason)
+  }
+}

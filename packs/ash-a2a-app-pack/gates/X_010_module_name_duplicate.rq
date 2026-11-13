@@ -1,0 +1,65 @@
+# X_010 (cross-lane): one Elixir module name must be defined by exactly one emitted module.
+# Claims are gathered from every lane that mints a module name (aap:moduleName on any subject,
+# aap:calcModule, aap:actionImplModule, aap:serverModule, aap:taskStoreModule, aap:structModule,
+# aap:endpointModule, aap:reactorFragment), plus the DERIVED modules each lane's template appends
+# to a resource/domain/agent/extension/reactor module (".Relationships", ".L06", ".Steps.<impl>"...).
+# A single-lane gate cannot see a hook module that equals "<Resource>.L06", or an enum that shares a
+# resource's module name. Rows = one per colliding module name.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?module ?claimants ?reason WHERE {
+  {
+    SELECT ?module
+           (COUNT(DISTINCT ?claim) AS ?n)
+           (GROUP_CONCAT(DISTINCT ?claim; separator=" ; ") AS ?claimants)
+    WHERE {
+      {
+        VALUES ?p { aap:moduleName aap:calcModule aap:actionImplModule aap:serverModule
+                    aap:taskStoreModule aap:structModule aap:endpointModule aap:reactorFragment }
+        ?s ?p ?m .
+        BIND (STR(?m) AS ?module)
+        BIND (CONCAT(STR(?s), " via ", STRAFTER(STR(?p), "#")) AS ?claim)
+      }
+      UNION
+      {
+        ?s aap:moduleName ?base .
+        VALUES (?q ?sfx) {
+          (aap:relationship ".Relationships") (aap:manage ".Relationships")
+          (aap:attrSpec ".L01Attributes")
+          (aap:calculation ".CalculationsL03")
+          (aap:aggregate "Aggregates")
+          (aap:identity ".L05") (aap:validation ".L05")
+          (aap:l06Action ".L06")
+          (aap:policy ".L07Policies") (aap:policyGroup ".L07Policies") (aap:fieldPolicy ".L07Policies")
+          (aap:multitenancy ".TenancyL08")
+          (aap:dataLayer ".DataLayer")
+          (aap:pubSub ".L11PubSub")
+          (aap:typedAttribute ".TypesL12")
+          (aap:stateMachine ".StateMachine")
+          (aap:obTrigger ".L14Oban") (aap:obSchedule ".L14Oban")
+          (aap:sparkExtension ".SparkL18")
+          (aap:skillSpec ".A2aL17") (aap:authorizer ".A2aL17") (aap:hookRef ".A2aL17")
+          (aap:ppControlPlane ".ControlPlaneL16")
+          (aap:mount ".MountsL08")
+          (aap:a2aConfigured ".A2aL17")
+          (aap:agentConfigured ".Configured")
+          (aap:endpointModule ".Router")
+          (aap:extFile ".Persist") (aap:extFile ".Info") (aap:extFile ".Verify")
+        }
+        ?s ?q ?x .
+        BIND (CONCAT(STR(?base), ?sfx) AS ?module)
+        BIND (CONCAT(STR(?s), " derived ", ?sfx) AS ?claim)
+      }
+      UNION
+      {
+        ?rx aap:moduleName ?rm ; aap:reactorStep ?st .
+        ?st aap:stepGenerate "true" ; aap:stepImplName ?in .
+        BIND (CONCAT(STR(?rm), ".Steps.", STR(?in)) AS ?module)
+        BIND (CONCAT(STR(?st), " generated step impl") AS ?claim)
+      }
+    }
+    GROUP BY ?module
+    HAVING (COUNT(DISTINCT ?claim) > 1)
+  }
+  BIND (CONCAT("module ", ?module, " is defined by ", STR(?n), " claims: ", ?claimants) AS ?reason)
+}
+ORDER BY ?module

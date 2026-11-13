@@ -1,0 +1,154 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix aap:  <https://ggen.dev/ash-a2a-app#> .
+
+# L17: complete AshA2A DSL vocabulary. Grammar sources (all under /Users/sac/ash_a2a/lib/ash_a2a):
+#   dsl.ex            resource/domain `a2a`, `authority`, `hooks` sections + skill/hddl_operator entities
+#   domain.ex         `agent`, `security`, `transport` sections, mount/extension/security_scheme entities
+#   agent.ex          `use AshA2A.Agent` options (dispatch opts :97-102, execution opts)
+#   verifiers/*       compile-time rules mirrored by gates/L17_*.rq
+
+# ---------------------------------------------------------------- classes
+aap:SkillSpec        a owl:Class ; rdfs:comment "Full-option a2a skill override (dsl.ex:188 @skill). Distinct from aap:Skill: a name may not appear on both (duplicate Spark identifier :name, dsl.ex:195)." .
+aap:ArgMapping       a owl:Class ; rdfs:comment "One argument_mapping entry wire-name => action argument (dsl.ex:73)." .
+aap:ActionArgument   a owl:Class ; rdfs:comment "Declared Ash action argument; needed so argument_mapping targets and JSON-serializability are checkable (verify_skills.ex:373,413)." .
+aap:HddlOperator     a owl:Class ; rdfs:comment "Skill HDDL operator (dsl.ex:178)." .
+aap:HddlFact         a owl:Class ; rdfs:comment "{predicate, args} tuple (dsl.ex:153)." .
+aap:SecurityRequirement a owl:Class ; rdfs:comment "One AgentSkill securityRequirements map entry scheme => scopes (dsl.ex:119)." .
+aap:HookRef          a owl:Class ; rdfs:comment "Binding of a dispatch hook id to a lifecycle phase (dsl.ex:253 hooks section)." .
+aap:DispatchHook     a owl:Class ; rdfs:comment "config :ash_a2a, :dispatch_hooks entry id => {Module, :fun} (dsl.ex:261-264)." .
+aap:SecurityScheme   a owl:Class ; rdfs:comment "Domain security_scheme entity (domain.ex:153)." .
+aap:RequirementScope a owl:Class ; rdfs:comment "Domain security requirement_scopes entry (domain.ex:232)." .
+aap:Mount            a owl:Class ; rdfs:comment "Domain transport mount entity (domain.ex:243)." .
+aap:AgentExtension   a owl:Class ; rdfs:comment "Domain transport extension entity (domain.ex:293)." .
+aap:Endpoint         a owl:Class ; rdfs:comment "Bandit + Plug.Router + AgentSupervisor supervision subtree serving a domain's mounts (AshA2A.Domain.Router, domain/router.ex:5)." .
+
+# ------------------------------------------------------- resource: a2a section
+aap:skillSpec        a owl:ObjectProperty ; rdfs:comment "Resource -> aap:SkillSpec." .
+aap:semanticRequests a owl:DatatypeProperty ; rdfs:comment "true|false; a2a.semantic_requests (dsl.ex:205). Resource or Domain subject." .
+aap:specName         a owl:DatatypeProperty ; rdfs:comment "skill name atom (dsl.ex:20)." .
+aap:specAction       a owl:DatatypeProperty ; rdfs:comment "public action name atom (dsl.ex:30)." .
+aap:tag              a owl:DatatypeProperty ; rdfs:comment "multi-valued; skill tags (dsl.ex:40). Sorted on emit." .
+aap:expose           a owl:DatatypeProperty ; rdfs:comment "true|false -> expose? (dsl.ex:45). Default true." .
+aap:onCancel         a owl:DatatypeProperty ; rdfs:comment "Elixir text: Module or {Module, :fun, [extra]} (dsl.ex:61; verify_skills.ex:267)." .
+aap:argMapping       a owl:ObjectProperty ; rdfs:comment "SkillSpec -> aap:ArgMapping." .
+aap:wireName         a owl:DatatypeProperty ; rdfs:comment "inbound wire (string) argument name (dsl.ex:73)." .
+aap:targetArg        a owl:DatatypeProperty ; rdfs:comment "action argument / accepted attribute atom name." .
+aap:getRead          a owl:DatatypeProperty ; rdfs:comment "true|false -> get? (dsl.ex:82); read skills only." .
+aap:streaming        a owl:DatatypeProperty ; rdfs:comment "true|false -> streaming? (dsl.ex:128); read skills only." .
+aap:example          a owl:DatatypeProperty ; rdfs:comment "multi-valued; AgentSkill examples (dsl.ex:99). Sorted on emit." .
+aap:inputMode        a owl:DatatypeProperty ; rdfs:comment "multi-valued MIME; per-skill input_modes (dsl.ex:104; MIME-shaped, verify_skills.ex:200). Also Domain default_input_modes via aap:cardInputMode." .
+aap:outputMode       a owl:DatatypeProperty ; rdfs:comment "multi-valued MIME; per-skill output_modes (dsl.ex:112)." .
+aap:secRequirement   a owl:ObjectProperty ; rdfs:comment "SkillSpec -> aap:SecurityRequirement (dsl.ex:119)." .
+aap:secGroup         a owl:DatatypeProperty ; rdfs:comment "string key grouping entries into one map (AND within a group, OR across groups)." .
+aap:secScheme        a owl:DatatypeProperty ; rdfs:comment "declared security_scheme name (verify_skills.ex:233)." .
+aap:secScopes        a owl:DatatypeProperty ; rdfs:comment "comma-separated scopes; empty = []." .
+aap:actionArgument   a owl:ObjectProperty ; rdfs:comment "Action -> aap:ActionArgument." .
+aap:argName          a owl:DatatypeProperty .
+aap:argType          a owl:DatatypeProperty ; rdfs:comment "Ash type atom name, e.g. string, term." .
+aap:actionPrivate    a owl:DatatypeProperty ; rdfs:comment "true -> action is `public? false`; skills may not target it (verify_skills.ex:351)." .
+
+# --------------------------------------------------------------- hddl operator
+aap:hddlOperator a owl:ObjectProperty ; rdfs:comment "SkillSpec -> aap:HddlOperator (at most one, verify_hddl_operators.ex:27)." .
+aap:hddlParams   a owl:DatatypeProperty ; rdfs:comment "ordered comma-separated parameter atoms (dsl.ex:157)." .
+aap:hddlPre      a owl:ObjectProperty ; rdfs:comment "HddlOperator -> aap:HddlFact precondition (dsl.ex:161)." .
+aap:hddlAdd      a owl:ObjectProperty ; rdfs:comment "HddlOperator -> aap:HddlFact add effect (dsl.ex:166)." .
+aap:hddlDel      a owl:ObjectProperty ; rdfs:comment "HddlOperator -> aap:HddlFact delete effect (dsl.ex:171)." .
+aap:predicate    a owl:DatatypeProperty ; rdfs:comment "fact predicate atom." .
+aap:factArgs     a owl:DatatypeProperty ; rdfs:comment "ordered comma-separated args; each must be a declared parameter (verify_hddl_operators.ex:51)." .
+
+# ------------------------------------------ resource/domain: authority + hooks
+aap:authGate         a owl:DatatypeProperty ; rdfs:comment "two_port|open|disabled (dsl.ex:232)." .
+aap:leaseDurationMs  a owl:DatatypeProperty ; rdfs:comment "positive integer ms (dsl.ex:242). Declared-only: flagged inert by AshA2A.Verify." .
+aap:authorizer       a owl:DatatypeProperty ; rdfs:comment "comma-separated authorizer modules for the resource fragment `authorizers:` (required by lease_required?, verify_skills.ex:487)." .
+aap:hookRef          a owl:ObjectProperty ; rdfs:comment "Resource -> aap:HookRef." .
+aap:hookId           a owl:DatatypeProperty ; rdfs:comment "hook id atom." .
+aap:hookPhase        a owl:DatatypeProperty ; rdfs:comment "pre|post." .
+aap:hookOrder        a owl:DatatypeProperty ; rdfs:comment "integer evaluation order within phase." .
+aap:dispatchHook     a owl:ObjectProperty ; rdfs:comment "Project -> aap:DispatchHook." .
+aap:hookModule       a owl:DatatypeProperty .
+aap:hookFun          a owl:DatatypeProperty .
+
+# ----------------------------------------------------------- domain: agent card
+aap:a2aConfigured    a owl:DatatypeProperty ; rdfs:comment "true on a Domain that gets the AshA2A.Domain fragment." .
+aap:cardName         a owl:DatatypeProperty ; rdfs:comment "agent.name; REQUIRED (verify_config.ex:33)." .
+aap:cardDescription  a owl:DatatypeProperty .
+aap:cardVersion      a owl:DatatypeProperty .
+aap:cardUrl          a owl:DatatypeProperty .
+aap:cardProvider     a owl:DatatypeProperty .
+aap:cardDocumentationUrl a owl:DatatypeProperty .
+aap:cardIconUrl      a owl:DatatypeProperty .
+aap:cardInputMode    a owl:DatatypeProperty ; rdfs:comment "multi-valued MIME -> agent.default_input_modes (domain.ex:121)." .
+aap:cardOutputMode   a owl:DatatypeProperty ; rdfs:comment "multi-valued MIME -> agent.default_output_modes (domain.ex:128)." .
+aap:signCard         a owl:DatatypeProperty ; rdfs:comment "agent.sign_card key reference (domain.ex:135). Atom text when it starts with ':'; else string." .
+
+# --------------------------------------------------------------- domain: security
+aap:securityScheme   a owl:ObjectProperty ; rdfs:comment "Domain -> aap:SecurityScheme." .
+aap:schemeName       a owl:DatatypeProperty .
+aap:schemeKind       a owl:DatatypeProperty ; rdfs:comment "bearer|api_key|none|http|oauth2|openid_connect|mtls (domain.ex:151)." .
+aap:schemeLocation   a owl:DatatypeProperty ; rdfs:comment "header|query|cookie (api_key only, domain.ex:177)." .
+aap:paramName        a owl:DatatypeProperty .
+aap:httpScheme       a owl:DatatypeProperty ; rdfs:comment "required for kind http (verify_config.ex:119)." .
+aap:bearerFormat     a owl:DatatypeProperty .
+aap:oauthFlows       a owl:DatatypeProperty ; rdfs:comment "Elixir map literal text, string-keyed; required for kind oauth2 (domain.ex:197)." .
+aap:schemeScopes     a owl:DatatypeProperty ; rdfs:comment "comma-separated documentation scopes (domain.ex:207)." .
+aap:openidUrl        a owl:DatatypeProperty ; rdfs:comment "required for kind openid_connect." .
+aap:requirement      a owl:DatatypeProperty ; rdfs:comment "multi-valued declared scheme name -> security.requirements (domain.ex:225)." .
+aap:requirementScope a owl:ObjectProperty ; rdfs:comment "Domain -> aap:RequirementScope." .
+aap:reqName          a owl:DatatypeProperty .
+aap:reqScopes        a owl:DatatypeProperty ; rdfs:comment "comma-separated scopes." .
+
+# ------------------------------------------------------------ domain: transport
+aap:extendedAgentCard a owl:DatatypeProperty ; rdfs:comment "true|false (domain.ex:321)." .
+aap:userArtifacts    a owl:DatatypeProperty ; rdfs:comment "true|false (domain.ex:328)." .
+aap:pushAllowedHost  a owl:DatatypeProperty ; rdfs:comment "multi-valued host (domain.ex:335)." .
+aap:pushRetryMaxAttempts a owl:DatatypeProperty ; rdfs:comment "positive integer (domain.ex:346)." .
+aap:pushRetryBackoffMs a owl:DatatypeProperty ; rdfs:comment "positive integer (domain.ex:347)." .
+aap:baseUrl          a owl:DatatypeProperty ; rdfs:comment "absolute http(s) URL (domain.ex:351; verify_config.ex:164)." .
+aap:defaultMount     a owl:DatatypeProperty ; rdfs:comment "path starting with / (domain.ex:359)." .
+aap:streamingEnabled a owl:DatatypeProperty ; rdfs:comment "true|false (domain.ex:369)." .
+aap:pushNotifications a owl:DatatypeProperty ; rdfs:comment "true|false (domain.ex:374)." .
+aap:mount            a owl:ObjectProperty ; rdfs:comment "Domain -> aap:Mount." .
+aap:mountAgent       a owl:ObjectProperty ; rdfs:comment "Mount -> aap:Agent (must not be an agent of the mounting domain: compile-order deadlock, see L17-NOTES)." .
+aap:mountPath        a owl:DatatypeProperty .
+aap:mountBinding     a owl:DatatypeProperty ; rdfs:comment "jsonrpc|rest|grpc (mount.ex:44). Default jsonrpc." .
+aap:mountTenant      a owl:DatatypeProperty .
+aap:mountProtocolVersion a owl:DatatypeProperty .
+aap:agentExtension   a owl:ObjectProperty ; rdfs:comment "Domain -> aap:AgentExtension." .
+aap:extUri           a owl:DatatypeProperty ; rdfs:comment "unique per domain (verify_extensions.ex:18)." .
+aap:extDescription   a owl:DatatypeProperty .
+aap:extRequired      a owl:DatatypeProperty ; rdfs:comment "true|false." .
+aap:extParams        a owl:DatatypeProperty ; rdfs:comment "Elixir map literal text %{...} (domain.ex:308)." .
+
+# ------------------------------------------------------ agent: AshA2A.Agent opts
+aap:agentConfigured  a owl:DatatypeProperty ; rdfs:comment "true -> emit <Agent>.Configured with full option set." .
+aap:agentDescription a owl:DatatypeProperty .
+aap:agentVersion     a owl:DatatypeProperty .
+aap:requireAuthenticatedCaller a owl:DatatypeProperty ; rdfs:comment "true|false (agent.ex:97). Default true is fail-closed." .
+aap:publicSkill      a owl:DatatypeProperty ; rdfs:comment "multi-valued skill name (agent.ex:99)." .
+aap:observeGenericAction a owl:DatatypeProperty ; rdfs:comment "multi-valued skill name (agent.ex:92-96)." .
+aap:strictObserveGenericActions a owl:DatatypeProperty ; rdfs:comment "true|false (agent.ex:101)." .
+aap:execMode         a owl:DatatypeProperty ; rdfs:comment "async|inline (runtime.ex:81)." .
+aap:execMaxInFlight  a owl:DatatypeProperty ; rdfs:comment "positive integer (runtime.ex:523)." .
+aap:execRateCount    a owl:DatatypeProperty ; rdfs:comment "positive integer; with execRatePerMs -> rate_limit {count, per_ms} (runtime.ex:531)." .
+aap:execRatePerMs    a owl:DatatypeProperty .
+aap:execCancelInFlight a owl:DatatypeProperty ; rdfs:comment "refuse|interrupt|default (verify_execution.ex:26)." .
+aap:execEventsTransport a owl:DatatypeProperty ; rdfs:comment "registered-name atom/module text; booleans refused (verify_execution.ex:73)." .
+aap:execValidateInputModes a owl:DatatypeProperty ; rdfs:comment "true|false (verify_execution.ex:100)." .
+aap:execUserArtifacts a owl:DatatypeProperty ; rdfs:comment "true|false." .
+aap:execAdapter      a owl:DatatypeProperty ; rdfs:comment "local|pplan (runtime.ex:217)." .
+aap:execOrphanSweepIntervalMs a owl:DatatypeProperty ; rdfs:comment "positive integer (runtime.ex:721)." .
+aap:execOrphanLeaseMs a owl:DatatypeProperty ; rdfs:comment "positive integer (runtime.ex:730)." .
+
+# ------------------------------------------------- Plug / Bandit supervision
+aap:endpoint         a owl:ObjectProperty ; rdfs:comment "Project -> aap:Endpoint." .
+aap:endpointModule   a owl:DatatypeProperty ; rdfs:comment "Supervisor module; Router is <module>.Router." .
+aap:endpointFile     a owl:DatatypeProperty ; rdfs:comment "lib/<appPath of served domain>/<file>.ex." .
+aap:endpointDomain   a owl:ObjectProperty ; rdfs:comment "Endpoint -> served aap:Domain." .
+aap:endpointPort     a owl:DatatypeProperty ; rdfs:comment "1..65535 (Bandit :port)." .
+aap:endpointIp       a owl:DatatypeProperty ; rdfs:comment "loopback|any (Bandit :ip). Default loopback (fail-closed)." .
+aap:endpointForwardPath a owl:DatatypeProperty ; rdfs:comment "Plug.Router forward prefix; default /." .
+aap:endpointPushNotifications a owl:DatatypeProperty ; rdfs:comment "true|false forwarded to every delegate (router.ex:46)." .
+aap:endpointExtendedCard a owl:DatatypeProperty ; rdfs:comment "Elixir capture text e.g. &MyApp.Cards.extended/2 (router.ex:46)." .
+aap:endpointAgent    a owl:ObjectProperty ; rdfs:comment "Endpoint -> aap:Agent started under AshA2A.Protocol.AgentSupervisor (agent_supervisor.ex:22)." .

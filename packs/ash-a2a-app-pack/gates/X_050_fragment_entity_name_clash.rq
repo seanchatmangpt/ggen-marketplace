@@ -1,0 +1,46 @@
+# X_050 (cross-lane): named fragment entities that live in one per-resource namespace must be unique.
+#   identity/validation : L05 emits both from one fragment (identities + validations share names)
+#   policy              : L07 policy / policy_group / field_policy; the template joins checks to
+#                         policies BY NAME, so a duplicate name silently merges check lists
+#   oban                : L14 trigger / schedule (worker + queue naming derives from the name)
+#   skill               : aap:skill (base), aap:skillSpec (L17, aap:specName), L15 reactorSkill
+#                         (Spark identifier :name on the a2a section)
+# Rows = one per (resource, namespace, name).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?namespace ?entity ?claimants ?reason WHERE {
+  {
+    SELECT ?resource ?namespace ?entity
+           (COUNT(DISTINCT ?claim) AS ?n)
+           (GROUP_CONCAT(DISTINCT ?claim; separator=" ; ") AS ?claimants)
+    WHERE {
+      ?resource a aap:Resource .
+      {
+        VALUES (?namespace ?pred ?npred) {
+          ("identity/validation" aap:identity aap:name)
+          ("identity/validation" aap:validation aap:name)
+          ("policy" aap:policy aap:name)
+          ("policy" aap:policyGroup aap:name)
+          ("policy" aap:fieldPolicy aap:name)
+          ("oban" aap:obTrigger aap:name)
+          ("oban" aap:obSchedule aap:name)
+          ("skill" aap:skill aap:name)
+          ("skill" aap:skillSpec aap:specName)
+        }
+        ?resource ?pred ?node . ?node ?npred ?nm0 .
+        BIND (CONCAT(STRAFTER(STR(?pred), "#"), " ", STR(?node)) AS ?claim)
+      }
+      UNION
+      {
+        ?resource aap:reactorAction ?ra . ?ra aap:reactorSkill ?node . ?node aap:name ?nm0 .
+        BIND ("skill" AS ?namespace)
+        BIND (CONCAT("reactorSkill ", STR(?node)) AS ?claim)
+      }
+      BIND (STR(?nm0) AS ?entity)
+    }
+    GROUP BY ?resource ?namespace ?entity
+    HAVING (COUNT(DISTINCT ?claim) > 1)
+  }
+  BIND (CONCAT(?namespace, " name '", ?entity, "' on ", STR(?resource), " is used ", STR(?n),
+               " times: ", ?claimants) AS ?reason)
+}
+ORDER BY ?resource ?namespace ?entity

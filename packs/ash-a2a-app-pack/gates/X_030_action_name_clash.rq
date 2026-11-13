@@ -1,0 +1,24 @@
+# X_030 (cross-lane): an action name must be declared once per resource across ALL action-minting
+# lanes: aap:action (resource.ex.tmpl), aap:manage (L02 manage_relationship), aap:l06Action (L06),
+# aap:reactorAction (L15). Each lane lands in a different fragment module, so the duplicate only
+# surfaces as an Ash compile error after merge. Rows = one per (resource, action name).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?action ?claimants ?reason WHERE {
+  {
+    SELECT ?resource ?action
+           (COUNT(DISTINCT ?claim) AS ?n)
+           (GROUP_CONCAT(DISTINCT ?claim; separator=" ; ") AS ?claimants)
+    WHERE {
+      VALUES ?lane { aap:action aap:manage aap:l06Action aap:reactorAction }
+      ?resource a aap:Resource ; ?lane ?a .
+      ?a aap:name ?nm .
+      BIND (STR(?nm) AS ?action)
+      BIND (CONCAT(STRAFTER(STR(?lane), "#"), " ", STR(?a)) AS ?claim)
+    }
+    GROUP BY ?resource ?action
+    HAVING (COUNT(DISTINCT ?claim) > 1)
+  }
+  BIND (CONCAT("action :", ?action, " on ", STR(?resource), " is declared ", STR(?n),
+               " times: ", ?claimants) AS ?reason)
+}
+ORDER BY ?resource ?action

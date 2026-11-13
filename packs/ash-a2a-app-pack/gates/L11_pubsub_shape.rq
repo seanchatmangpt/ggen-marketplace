@@ -1,0 +1,38 @@
+# Gate L11: every aap:Publication needs exactly one of pubAction / pubType, and a topic;
+# pubType must be create|update|destroy; broadcastType must be a legal value;
+# pubReturns requires a transform. Rows = violations.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?node ?why WHERE {
+  {
+    ?node a aap:Publication .
+    FILTER NOT EXISTS { ?node aap:pubAction ?x } FILTER NOT EXISTS { ?node aap:pubType ?y }
+    BIND("publication has neither pubAction nor pubType" AS ?why)
+  } UNION {
+    ?node a aap:Publication ; aap:pubAction ?a ; aap:pubType ?t .
+    BIND("publication has both pubAction and pubType" AS ?why)
+  } UNION {
+    ?node a aap:Publication .
+    FILTER NOT EXISTS { ?node aap:pubTopic ?x } FILTER NOT EXISTS { ?node aap:pubTopicTerm ?y }
+    BIND("publication has no topic" AS ?why)
+  } UNION {
+    ?node a aap:Publication ; aap:pubType ?t .
+    FILTER(?t NOT IN ("create","update","destroy"))
+    BIND("pubType not create|update|destroy" AS ?why)
+  } UNION {
+    ?node a aap:Publication ; aap:pubReturns ?r .
+    FILTER NOT EXISTS { ?node aap:pubTransformFn ?f }
+    BIND("pubReturns requires pubTransformFn" AS ?why)
+  } UNION {
+    ?node a aap:PubSub ; aap:broadcastType ?bt .
+    FILTER(?bt NOT IN ("notification","phoenix_broadcast","broadcast"))
+    BIND("illegal broadcastType" AS ?why)
+  } UNION {
+    ?node a aap:PubSub .
+    FILTER NOT EXISTS { ?node aap:pubSubModule ?m }
+    BIND("pub_sub missing module" AS ?why)
+  } UNION {
+    ?r aap:pubSub ?node ; aap:pubSub ?other .
+    FILTER(?node != ?other)
+    BIND("resource has more than one pub_sub" AS ?why)
+  }
+}

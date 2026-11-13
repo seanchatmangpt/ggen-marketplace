@@ -1,0 +1,708 @@
+@prefix aap: <https://ggen.dev/ash-a2a-app#> .
+@prefix ex:  <https://example.com/helpdesk#> .
+
+# FULL-app: one coherent consumer graph exercising lanes L01..L20 (ETS data layer, no database).
+# Cross-lane naming rules (gates/X_010..X_100) are satisfied by construction:
+#  - every aap:moduleName is unique; derived fragment suffix modules cannot collide.
+#  - every output stem is unique per appPath "helpdesk".
+#  - action / field / policy / skill names are unique per resource across all lanes.
+#  - the Ticket tenant foreign key is declared ONCE, via the L08 properties only
+#    (relName / relSourceAttribute), so L02 and L08 never double-claim "org" / "org_id".
+#  - Mount seam: the single aap:Mount node has aap:mountOf ex:Helpdesk (L10_030) and hangs
+#    on ex:Gateway (aap:mount), while the agent is forDomain ex:Helpdesk (L17_124).
+
+# ---------------------------------------------------------------------------------------------
+# Project, task store, hooks, EA, Oban config
+# ---------------------------------------------------------------------------------------------
+<urn:helpdesk:project> a aap:Project ;
+  aap:appName "helpdesk" ; aap:appModule "Helpdesk" ;
+  aap:ashA2aDep """path: "/Users/sac/ash_a2a" """ ;
+  aap:ashPPlanDep """path: "/Users/sac/ash_pplan" """ ;
+  aap:setupAppPath "helpdesk" ;
+  aap:eaDeclare "true" ;
+  aap:taskStore ex:TenantStore ;
+  aap:dispatchHook ex:Hook_audit_pre, ex:Hook_audit_post .
+
+ex:TenantStore a aap:TenantTaskStore ; aap:taskStoreModule "Helpdesk.TenantTaskStore" ;
+  aap:taskStoreFile "tenant_task_store" ; aap:taskStoreAppPath "helpdesk" ;
+  aap:taskStoreNamespace "helpdesk_tasks" .
+
+ex:Hook_audit_pre a aap:DispatchHook ; aap:hookId "audit_pre" ;
+  aap:hookModule "Helpdesk.Hooks" ; aap:hookFun "audit_pre" .
+ex:Hook_audit_post a aap:DispatchHook ; aap:hookId "audit_post" ;
+  aap:hookModule "Helpdesk.Hooks" ; aap:hookFun "audit_post" .
+
+# ---------------------------------------------------------------------------------------------
+# Domains (L10 config, L17 card) and gateway
+# ---------------------------------------------------------------------------------------------
+ex:Helpdesk a aap:Domain ; aap:moduleName "Helpdesk.Support" ; aap:appPath "helpdesk" ;
+  aap:domainFile "support" ;
+  aap:domainDescription "Helpdesk tickets" ;
+  aap:domainTimeout "30000" ; aap:traceName "support" ;
+  aap:requireActor "false" ; aap:authorize "by_default" ;
+  aap:a2aConfigured "true" ; aap:cardName "helpdesk-agent" ;
+  aap:cardDescription "Helpdesk ticket operations" ;
+  aap:cardVersion "1.0.0" ; aap:cardProvider "Example Org" ;
+  aap:baseUrl "https://helpdesk.example.com" ;
+  aap:cardInputMode "text/plain", "application/json" ; aap:cardOutputMode "application/json" ;
+  aap:securityScheme ex:Helpdesk_token ;
+  aap:requirement "token" ; aap:requirementScope ex:Helpdesk_tokenScopes ;
+  aap:semanticRequests "false" ; aap:streamingEnabled "true" ; aap:pushNotifications "false" ;
+  aap:reactor ex:R_Triage ;
+  aap:ppWorkflow ex:TriageFlow ; aap:ppProvider ex:ObserveProvider, ex:DurableProvider ;
+  aap:ppPack ex:SupportPack ; aap:ppTarget ex:TgtCatalog ;
+  aap:ppGeneratedDir "lib/helpdesk/pplan", "test/helpdesk/pplan" ;
+  aap:ppReusesPack "ash-pplan-igniter-pack", "ash-pplan-protocol-court-pack",
+                   "ash-pplan-store-conformance-pack", "ash-pplan-chaos-pack" .
+ex:Helpdesk_token a aap:SecurityScheme ; aap:schemeName "token" ; aap:schemeKind "bearer" ;
+  aap:bearerFormat "JWT" .
+ex:Helpdesk_tokenScopes a aap:RequirementScope ; aap:reqName "token" ; aap:reqScopes "tickets.read" .
+
+ex:Gateway a aap:Domain ; aap:moduleName "Helpdesk.Gateway" ; aap:appPath "helpdesk" ;
+  aap:domainFile "gateway" ;
+  aap:a2aConfigured "true" ; aap:cardName "helpdesk-gateway" ;
+  aap:baseUrl "https://gw.helpdesk.example.com" ; aap:defaultMount "/a2a" ;
+  aap:extendedAgentCard "false" ; aap:userArtifacts "false" ;
+  aap:mount ex:Gateway_mount .
+
+ex:Gateway_mount a aap:Mount ; aap:mountOf ex:Helpdesk ; aap:mountAgent ex:HelpdeskAgent ;
+  aap:mountPath "/helpdesk" ; aap:mountBinding "jsonrpc" ;
+  aap:mountTenant "11111111-1111-1111-1111-111111111111" ;
+  aap:mountsTenantFor ex:Ticket .
+
+ex:HelpdeskAgent a aap:Agent ; aap:moduleName "Helpdesk.SupportAgent" ;
+  aap:agentName "helpdesk_agent" ; aap:forDomain ex:Helpdesk ; aap:agentFile "support_agent" ;
+  aap:agentConfigured "true" ; aap:agentDescription "Helpdesk agent" ; aap:agentVersion "1.0.0" ;
+  aap:requireAuthenticatedCaller "true" ; aap:publicSkill "list_tickets" ;
+  aap:execMode "async" ; aap:execMaxInFlight "64" ; aap:execRateCount "30" ;
+  aap:execRatePerMs "60000" ; aap:execCancelInFlight "interrupt" ; aap:execAdapter "local" .
+
+ex:Edge a aap:Endpoint ; aap:endpointModule "Helpdesk.Edge" ; aap:endpointFile "edge" ;
+  aap:endpointDomain ex:Gateway ; aap:endpointPort "4041" ; aap:endpointIp "loopback" ;
+  aap:endpointForwardPath "/" ; aap:endpointPushNotifications "false" ;
+  aap:endpointAgent ex:HelpdeskAgent .
+
+# ---------------------------------------------------------------------------------------------
+# L01 enum + L12 custom types
+# ---------------------------------------------------------------------------------------------
+ex:TicketStatus a aap:EnumType ; aap:moduleName "Helpdesk.Support.TicketStatus" ;
+  aap:inDomain ex:Helpdesk ; aap:enumFile "ticket_status" ;
+  aap:enumValue ex:TS_open, ex:TS_escalated, ex:TS_closed .
+ex:TS_open a aap:EnumValue ; aap:name "open" ; aap:description "An open ticket" ; aap:order 1 .
+ex:TS_escalated a aap:EnumValue ; aap:name "escalated" ; aap:label "Escalated" ; aap:order 2 .
+ex:TS_closed a aap:EnumValue ; aap:name "closed" ; aap:label "Closed" ; aap:order 3 .
+
+ex:ResolutionCode a aap:CustomType ; aap:moduleName "Helpdesk.Support.Types.ResolutionCode" ;
+  aap:typeKind "enum" ; aap:inDomain ex:Helpdesk ; aap:typeFile "resolution_code" ;
+  aap:enumValue "fixed", "wontfix", "duplicate" .
+ex:Email a aap:CustomType ; aap:moduleName "Helpdesk.Support.Types.Email" ;
+  aap:typeKind "newtype" ; aap:inDomain ex:Helpdesk ; aap:typeFile "email" ;
+  aap:subtypeOf "string" ; aap:typeConstraints "[match: ~r/@/, max_length: 254]" .
+ex:Requester a aap:CustomType ; aap:moduleName "Helpdesk.Support.Types.Requester" ;
+  aap:typeKind "typed_struct" ; aap:inDomain ex:Helpdesk ; aap:typeFile "requester" ;
+  aap:typeField [ aap:name "name" ; aap:ashType "string" ; aap:allowNil "false" ] ,
+                [ aap:name "email" ; aap:typeRef ex:Email ] .
+ex:Resolution a aap:CustomType ; aap:moduleName "Helpdesk.Support.Types.Resolution" ;
+  aap:typeKind "embedded" ; aap:inDomain ex:Helpdesk ; aap:typeFile "resolution" ;
+  aap:typeField [ aap:name "summary" ; aap:ashType "string" ; aap:allowNil "false" ] ,
+                [ aap:name "code" ; aap:typeRef ex:ResolutionCode ; aap:defaultValue ":fixed" ] .
+
+# ---------------------------------------------------------------------------------------------
+# Ticket (multi-lane hub)
+# ---------------------------------------------------------------------------------------------
+ex:Ticket a aap:Resource ; aap:moduleName "Helpdesk.Support.Ticket" ; aap:inDomain ex:Helpdesk ;
+  aap:resourceFile "ticket" ;
+  # legacy core
+  aap:attribute ex:Ticket_id, ex:Ticket_title, ex:Ticket_priority, ex:Ticket_views, ex:Ticket_task_ref ;
+  aap:action ex:Ticket_read, ex:Ticket_open, ex:Ticket_escalate ;
+  aap:skill ex:Ticket_skill_open, ex:Ticket_skill_close ;
+  # L01
+  aap:attrSpec ex:T_status, ex:T_labels, ex:T_ins, ex:T_upd, ex:T_closed_at, ex:T_secret ;
+  # L02 (org is declared with L08 properties only; see Ticket_org)
+  aap:relationship ex:Ticket_notes, ex:Ticket_ticket_tags, ex:Ticket_tags, ex:Ticket_ticket_watchers,
+                   ex:Ticket_watchers, ex:Ticket_tasks, ex:Ticket_org ;
+  aap:manage ex:Ticket_tag_it ;
+  # L03 / L04
+  aap:calculation ex:Ticket_display ;
+  aap:aggregate ex:Agg_note_count, ex:Agg_has_notes, ex:Agg_latest_note, ex:Agg_tag_labels ;
+  # L05
+  aap:identity ex:Ticket_unique_title ;
+  aap:validation ex:Ticket_v_title_present, ex:Ticket_v_title_len, ex:Ticket_v_title_match,
+                 ex:Ticket_v_priority_range ;
+  # L06
+  aap:l06Action ex:L06_close, ex:L06_touch, ex:L06_recent, ex:L06_count, ex:L06_stamp, ex:L06_assign ;
+  # L07
+  aap:authorizer "Ash.Policy.Authorizer" ;
+  aap:defaultAccessType "filter" ; aap:fieldPrivateFields "show" ;
+  aap:policyGroup ex:gActor ;
+  aap:policy ex:pAdmin, ex:pRead, ex:pOpen, ex:pUpdate, ex:pGeneric ;
+  aap:fieldPolicy ex:fpToken, ex:fpRest ;
+  # L08 / L09
+  aap:multitenancy ex:Ticket_mt ;
+  aap:dataLayer "ets" ; aap:tableName "helpdesk_tickets" ; aap:etsPrivate "false" ;
+  # L10
+  # L11
+  aap:pubSub ex:Ticket_ps ; aap:notifier ex:Ticket_notifier ;
+  # L12
+  aap:typedAttribute [ aap:name "requester" ; aap:typeRef ex:Requester ] ,
+                     [ aap:name "resolution" ; aap:typeRef ex:Resolution ] ;
+  # L15
+  aap:reactorFragment "Helpdesk.Support.TicketReactorActions" ;
+  aap:reactorFragmentFile "ticket_reactor_actions" ;
+  aap:reactorAction ex:Ticket_triage ;
+  # L16
+  aap:ppControlPlane ex:Ticket_cp ;
+  # L17
+  aap:authGate "two_port" ; aap:leaseDurationMs "120000" ;
+  aap:skillSpec ex:Ticket_escalateSpec, ex:Ticket_getSpec ;
+  # L18
+  aap:sparkExtension ex:AuditExt ; aap:sparkInstance ex:Ticket_inst1 .
+
+ex:Ticket_id a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:Ticket_title a aap:Attribute ; aap:name "title" ; aap:ashType "string" ; aap:primaryKey "false" .
+ex:Ticket_priority a aap:Attribute ; aap:name "priority" ; aap:ashType "integer" ; aap:primaryKey "false" .
+ex:Ticket_views a aap:Attribute ; aap:name "views" ; aap:ashType "integer" ; aap:primaryKey "false" .
+ex:Ticket_task_ref a aap:Attribute ; aap:name "task_ref" ; aap:ashType "string" ; aap:primaryKey "false" .
+
+ex:Ticket_read a aap:Action ; aap:name "read" ; aap:actionType "read" .
+ex:Ticket_open a aap:Action ; aap:name "open" ; aap:actionType "create" ;
+  aap:accept "title,priority,task_ref,org_id" .
+ex:Ticket_escalate a aap:Action ; aap:name "escalate" ; aap:actionType "update" ; aap:accept "priority" .
+
+ex:Ticket_skill_list a aap:Skill ; aap:name "list_tickets" ; aap:ofAction "read" ;
+  aap:description "List helpdesk tickets" ; aap:consequence "observe" ;
+  aap:dispatchText "list" ; aap:dispatchExpect "typed" .
+ex:Ticket_skill_open a aap:Skill ; aap:name "open_ticket" ; aap:ofAction "open" ;
+  aap:description "Open a helpdesk ticket" ; aap:consequence "change" ; aap:leaseRequired "true" .
+ex:Ticket_skill_close a aap:Skill ; aap:name "close_ticket" ; aap:ofAction "close" ;
+  aap:description "Close a helpdesk ticket" ; aap:consequence "change" ; aap:leaseRequired "true" .
+
+# ---- L01 attribute specs (names disjoint from the legacy edge) ----
+ex:T_status a aap:AttributeSpec ; aap:name "status" ; aap:ashTypeEnum ex:TicketStatus ;
+  aap:allowNil "false" ; aap:defaultExpr ":open" ; aap:attrOrder 1 .
+ex:T_labels a aap:AttributeSpec ; aap:name "labels" ; aap:arrayOf "string" ;
+  aap:constraints "items: [max_length: 24, min_length: 1], nil_items?: false" ; aap:attrOrder 2 .
+ex:T_ins a aap:AttributeSpec ; aap:name "inserted_at" ; aap:attrKind "create_timestamp" ; aap:attrOrder 3 .
+ex:T_upd a aap:AttributeSpec ; aap:name "updated_at" ; aap:attrKind "update_timestamp" ; aap:attrOrder 4 .
+ex:T_closed_at a aap:AttributeSpec ; aap:name "closed_at" ; aap:ashTypeModule "Ash.Type.UtcDatetimeUsec" ;
+  aap:writable "false" ; aap:attrOrder 5 .
+ex:T_secret a aap:AttributeSpec ; aap:name "api_token" ; aap:ashType "string" ;
+  aap:sensitive "true" ; aap:public "true" ; aap:filterable "false" ; aap:attrOrder 6 .
+
+# ---- L02 relationships ----
+ex:Ticket_notes a aap:Relationship ; aap:name "notes" ; aap:relKind "has_many" ;
+  aap:destination ex:Note ; aap:destinationAttribute "ticket_id" ;
+  aap:description "Notes attached to the ticket" ; aap:inverse ex:Note_ticket .
+ex:Ticket_ticket_tags a aap:Relationship ; aap:name "ticket_tags" ; aap:relKind "has_many" ;
+  aap:destination ex:TicketTag ; aap:destinationAttribute "ticket_id" ; aap:noInverse "true" .
+ex:Ticket_tags a aap:Relationship ; aap:name "tags" ; aap:relKind "many_to_many" ;
+  aap:destination ex:Tag ; aap:through ex:TicketTag ;
+  aap:sourceAttributeOnJoin "ticket_id" ; aap:destinationAttributeOnJoin "tag_id" ;
+  aap:joinRelationship "ticket_tags" .
+ex:Ticket_ticket_watchers a aap:Relationship ; aap:name "ticket_watchers" ; aap:relKind "has_many" ;
+  aap:destination ex:TicketWatcher ; aap:destinationAttribute "ticket_id" ; aap:noInverse "true" .
+ex:Ticket_watchers a aap:Relationship ; aap:name "watchers" ; aap:relKind "many_to_many" ;
+  aap:destination ex:Person ; aap:through ex:TicketWatcher ;
+  aap:sourceAttributeOnJoin "ticket_id" ; aap:destinationAttributeOnJoin "person_id" ;
+  aap:joinRelationship "ticket_watchers" ; aap:noInverse "true" .
+ex:Ticket_tasks a aap:Relationship ; aap:name "tasks" ; aap:relKind "has_many" ;
+  aap:destination ex:TicketTask ; aap:destinationAttribute "ticket_id" ;
+  aap:inverse ex:TicketTask_ticket .
+ex:Ticket_tag_it a aap:RelManage ; aap:name "tag_ticket" ; aap:actionType "update" ;
+  aap:ofRelationship ex:Ticket_tags ; aap:argumentName "tag_ids" ;
+  aap:argumentType "{:array, :uuid}" ; aap:manageType "append_and_remove" ;
+  aap:useIdentities "[:_primary_key]" .
+
+# ---- L08 tenant owner (L08 properties only: no aap:name / aap:relKind here) ----
+ex:Ticket_org a aap:Relationship ; aap:relName "org" ; aap:relDestination "Helpdesk.Support.Org" ;
+  aap:relSourceAttribute "org_id" ; aap:relAttributeType "uuid" ;
+  aap:relAllowNil "false" ; aap:relPublic "true" .
+ex:Ticket_mt a aap:Multitenancy ; aap:tenantStrategy "attribute" ;
+  aap:tenantAttribute "org_id" ; aap:tenantGlobal "true" .
+
+# ---- L03 calculation ----
+ex:Ticket_display a aap:Calculation ; aap:name "display" ; aap:ashType "string" ; aap:calcKind "concat" ;
+  aap:calcKeys "title,id" ; aap:separator " #" ; aap:public "true" ; aap:sortable "true" ;
+  aap:constraints "max_length: 200" .
+
+# ---- L04 aggregates ----
+ex:Agg_note_count a aap:Aggregate ; aap:name "note_count" ; aap:aggKind "count" ; aap:aggPath "notes" ;
+  aap:aggPublic "true" ; aap:aggDescription "Number of notes" .
+ex:Agg_has_notes a aap:Aggregate ; aap:name "has_notes" ; aap:aggKind "exists" ; aap:aggPath "notes" .
+ex:Agg_latest_note a aap:Aggregate ; aap:name "latest_note" ; aap:aggKind "first" ; aap:aggPath "notes" ;
+  aap:aggField "body" ; aap:aggSort "[id: :desc]" ; aap:aggIncludeNil "false" .
+ex:Agg_tag_labels a aap:Aggregate ; aap:name "tag_labels" ; aap:aggKind "list" ; aap:aggPath "tags" ;
+  aap:aggField "label" ; aap:aggUniq "true" ; aap:aggIncludeNil "false" .
+
+# ---- L05 identity + validations (targets are legacy attributes) ----
+ex:Ticket_unique_title a aap:Identity ; aap:name "unique_title" ; aap:identityKey "title" ;
+  aap:eagerCheck "true" ; aap:preCheckWith "Helpdesk.Support" ;
+  aap:message "title is already taken" ; aap:description "Titles are unique" .
+ex:Ticket_v_title_present a aap:Validation ; aap:name "010_title_present" ;
+  aap:validationKind "present" ; aap:vAttribute "title" ; aap:on "create" .
+ex:Ticket_v_title_len a aap:Validation ; aap:name "020_title_len" ;
+  aap:validationKind "string_length" ; aap:vAttribute "title" ; aap:vOpts "min: 3, max: 120" ;
+  aap:forAction "open" ; aap:message "title must be 3 to 120 characters" .
+ex:Ticket_v_title_match a aap:Validation ; aap:name "030_title_match" ;
+  aap:validationKind "match" ; aap:vAttribute "title" ; aap:vValue """~r/^\\S/""" ;
+  aap:message "title must not start with whitespace" .
+ex:Ticket_v_priority_range a aap:Validation ; aap:name "040_priority_range" ;
+  aap:validationKind "compare" ; aap:vAttribute "priority" ;
+  aap:vOpts "greater_than_or_equal_to: 1, less_than_or_equal_to: 5" ;
+  aap:where "present(:priority)" ; aap:onlyWhenValid "true" .
+
+# ---- L06 actions (names disjoint from legacy / manage / reactor actions) ----
+ex:L06_close a aap:L06Action ; aap:name "close" ; aap:actionType "update" ;
+  aap:accept "" ; aap:l06RequireAtomic "false" ;
+  aap:l06Description "Close a ticket" ;
+  aap:l06Argument ex:L06_close_reason ; aap:l06Step ex:L06_close_s1, ex:L06_close_s2, ex:L06_close_s3 .
+ex:L06_close_reason a aap:L06Argument ; aap:name "reason" ; aap:ashType "string" ; aap:l06ArgAllowNil "false" .
+ex:L06_close_s1 a aap:L06Step ; aap:l06Order 1 ; aap:l06Kind "change" ; aap:l06Op "set_attribute" ;
+  aap:l06Attr "status" ; aap:l06Value ":closed" .
+ex:L06_close_s2 a aap:L06Step ; aap:l06Order 2 ; aap:l06Kind "change" ; aap:l06Op "set_attribute" ;
+  aap:l06Attr "closed_at" ; aap:l06Value "&DateTime.utc_now/0" .
+ex:L06_close_s3 a aap:L06Step ; aap:l06Order 3 ; aap:l06Kind "change" ; aap:l06Op "module" ;
+  aap:l06Module "Helpdesk.Support.Changes.AuditClose" .
+ex:L06_touch a aap:L06Action ; aap:name "touch" ; aap:actionType "update" ;
+  aap:accept "" ; aap:l06RequireAtomic "true" ; aap:l06Step ex:L06_touch_s1 .
+ex:L06_touch_s1 a aap:L06Step ; aap:l06Order 1 ; aap:l06Kind "change" ; aap:l06Op "atomic_update" ;
+  aap:l06Attr "views" ; aap:l06Value "coalesce(views, 0) + 1" .
+ex:L06_recent a aap:L06Action ; aap:name "recent" ; aap:actionType "read" ; aap:l06Primary "false" ;
+  aap:l06Argument ex:L06_recent_n ; aap:l06Step ex:L06_recent_s1, ex:L06_recent_s2, ex:L06_recent_s3 .
+ex:L06_recent_n a aap:L06Argument ; aap:name "n" ; aap:ashType "integer" ; aap:l06ArgDefault "10" .
+ex:L06_recent_s1 a aap:L06Step ; aap:l06Order 1 ; aap:l06Kind "prepare" ; aap:l06Op "filter" ;
+  aap:l06Value "status == :open" .
+ex:L06_recent_s2 a aap:L06Step ; aap:l06Order 2 ; aap:l06Kind "prepare" ; aap:l06Op "sort" ;
+  aap:l06Value "[views: :desc]" .
+ex:L06_recent_s3 a aap:L06Step ; aap:l06Order 3 ; aap:l06Kind "prepare" ; aap:l06Op "limit" ;
+  aap:l06Value "10" .
+ex:L06_count a aap:L06Action ; aap:name "count_open" ; aap:actionType "action" ;
+  aap:l06Returns "integer" ; aap:l06RunModule "Helpdesk.Support.Runs.CountOpen" .
+ex:L06_countRun a aap:L06Run ; aap:moduleName "Helpdesk.Support.Runs.CountOpen" ;
+  aap:l06RunResource ex:Ticket ; aap:l06RunFile "runs/count_open" ;
+  aap:l06RunBody "{:ok, Ash.count!(Helpdesk.Support.Ticket, authorize?: false, tenant: context.tenant)}" .
+ex:L06_stamp a aap:L06Action ; aap:name "stamp" ; aap:actionType "create" ; aap:accept "title" ;
+  aap:l06Step ex:L06_stamp_s1 .
+ex:L06_stamp_s1 a aap:L06Step ; aap:l06Order 1 ; aap:l06Kind "change" ; aap:l06Op "set_new_attribute" ;
+  aap:l06Attr "priority" ; aap:l06Value "3" .
+ex:L06_assign a aap:L06Action ; aap:name "assign" ; aap:actionType "update" ; aap:accept "" ;
+  aap:l06RequireAtomic "false" ; aap:l06Argument ex:L06_assign_w ; aap:l06Step ex:L06_assign_s1 .
+ex:L06_assign_w a aap:L06Argument ; aap:name "watchers" ; aap:ashType "{:array, :uuid}" .
+ex:L06_assign_s1 a aap:L06Step ; aap:l06Order 1 ; aap:l06Kind "change" ; aap:l06Op "manage_relationship" ;
+  aap:l06Attr "watchers" ; aap:l06Opts "type: :append_and_remove" .
+ex:L06_auditClose a aap:L06Hook ; aap:moduleName "Helpdesk.Support.Changes.AuditClose" ;
+  aap:l06HookResource ex:Ticket ; aap:l06HookKind "after_action" ;
+  aap:l06HookFile "changes/audit_close" ; aap:l06HookBody "{:ok, record}" .
+
+# ---- L07 policies ----
+ex:gActor a aap:PolicyGroup ; aap:name "has_actor" ; aap:condKind "actor_present" .
+ex:pAdmin a aap:Policy ; aap:name "admin_bypass" ; aap:policyOrder 1 ; aap:bypass "true" ;
+  aap:condKind "actor_attribute_equals" ; aap:condArg "role" ; aap:condArg2 ":admin" ;
+  aap:check [ aap:checkType "authorize_if" ; aap:checkKind "always" ; aap:checkOrder 1 ] .
+ex:pRead a aap:Policy ; aap:name "read_open" ; aap:policyOrder 2 ;
+  aap:condKind "action_type" ; aap:condArg "read" ;
+  aap:check [ aap:checkType "authorize_if" ; aap:checkKind "always" ; aap:checkOrder 1 ] .
+ex:pOpen a aap:Policy ; aap:name "open_gated" ; aap:policyOrder 3 ; aap:inGroup "has_actor" ;
+  aap:condKind "action" ; aap:condArg "open" ; aap:errorMessage "lease required to open tickets" ;
+  aap:check [ aap:checkType "forbid_unless" ; aap:checkKind "actor_present" ; aap:checkOrder 1 ],
+            [ aap:checkType "authorize_if" ; aap:checkKind "expr" ;
+              aap:checkArg "^actor(:lease_active) == true" ; aap:checkOrder 2 ] .
+ex:pUpdate a aap:Policy ; aap:name "update_gated" ; aap:policyOrder 4 ;
+  aap:condKind "action_type" ; aap:condArg "update" ;
+  aap:check [ aap:checkType "forbid_unless" ; aap:checkKind "actor_present" ; aap:checkOrder 1 ],
+            [ aap:checkType "authorize_if" ; aap:checkKind "actor_attribute_equals" ;
+              aap:checkArg "role" ; aap:checkArg2 ":agent" ; aap:checkOrder 2 ] .
+ex:pGeneric a aap:Policy ; aap:name "generic_actor" ; aap:policyOrder 5 ;
+  aap:condKind "action_type" ; aap:condArg "action" ;
+  aap:check [ aap:checkType "authorize_if" ; aap:checkKind "actor_present" ; aap:checkOrder 1 ] .
+ex:fpToken a aap:FieldPolicy ; aap:name "token_admin" ; aap:policyOrder 1 ; aap:fields "api_token" ;
+  aap:check [ aap:checkType "authorize_if" ; aap:checkKind "actor_attribute_equals" ;
+              aap:checkArg "role" ; aap:checkArg2 ":admin" ; aap:checkOrder 1 ] .
+ex:fpRest a aap:FieldPolicy ; aap:name "rest_open" ; aap:policyOrder 2 ; aap:fields "*" ;
+  aap:check [ aap:checkType "authorize_if" ; aap:checkKind "always" ; aap:checkOrder 1 ] .
+
+# ---- L10 interfaces ----
+ex:ciOpen a aap:CodeInterface ; aap:interfaceOf ex:Ticket ; aap:name "create_ticket" ;
+  aap:ofAction "open" ; aap:interfaceArgs "?title" .
+ex:ciGet a aap:CodeInterface ; aap:interfaceOf ex:Ticket ; aap:name "fetch_ticket" ;
+  aap:ofAction "read" ; aap:getBy "id" ; aap:notFoundError "false" .
+ex:ciDisplay a aap:CalculationInterface ; aap:interfaceOf ex:Ticket ; aap:name "display_name" ;
+  aap:calculation "display" .
+ex:diAddNote a aap:CodeInterface ; aap:interfaceOfDomain ex:Helpdesk ; aap:forResource ex:Note ;
+  aap:name "add_note" ; aap:ofAction "add" .
+
+# ---- L11 pubsub + notifier (no create publication, no Delegate) ----
+ex:Ticket_ps a aap:PubSub ; aap:pubSubModule "Phoenix.PubSub" ; aap:pubSubName "Helpdesk.PubSub" ;
+  aap:pubSubPrefix "ticket" ; aap:broadcastType "notification" ;
+  aap:publication ex:Pub_close, ex:Pub_escalate, ex:Pub_destroy .
+ex:Pub_close a aap:Publication ; aap:pubAction "close" ; aap:pubTopic "closed,:_pkey" ;
+  aap:pubEvent "ticket_closed" ; aap:previousValues "true" .
+ex:Pub_escalate a aap:Publication ; aap:pubAction "escalate" ; aap:pubTopic "escalated" ;
+  aap:pubEvent "ticket_escalated" .
+ex:Pub_destroy a aap:Publication ; aap:pubType "destroy" ; aap:pubTopic "destroyed" .
+ex:PubSubSrv a aap:PubSubServer ; aap:serverModule "Helpdesk.PubSubServer" ;
+  aap:serverName "Helpdesk.PubSub" ; aap:serverFile "pubsub_server" ; aap:inDomain ex:Helpdesk .
+ex:Ticket_notifier a aap:Notifier ; aap:moduleName "Helpdesk.Support.TicketNotifier" ;
+  aap:notifierFile "ticket_notifier" ; aap:bridge ex:Ticket_bridge .
+ex:Ticket_bridge a aap:A2ABridge ; aap:bridgeAction "escalate" ; aap:bridgeKind "status-update" ;
+  aap:bridgeTaskIdField "task_ref" ; aap:bridgeFinal "false" .
+
+# ---- L15 reactor action ----
+ex:Ticket_triage a aap:ReactorAction ; aap:name "triage" ; aap:actionReturns "map" ;
+  aap:description "Normalize, open and audit a ticket" ;
+  aap:runsReactor ex:R_Triage ; aap:actionImplModule "Helpdesk.Support.Ticket.TriageRun" ;
+  aap:actionImplFile "ticket_triage_run" ; aap:passActor "true" ; aap:passTenant "true" ;
+  aap:runTimeout "5000" ;
+  aap:actionArg ex:Ticket_triage_title ; aap:reactorSkill ex:Ticket_triageSkill .
+ex:Ticket_triage_title a aap:ReactorActionArg ; aap:name "title" ; aap:actionArgType "string" ;
+  aap:actionArgAllowNil "false" .
+ex:Ticket_triageSkill a aap:Skill ; aap:name "triage_ticket" ;
+  aap:description "Triage a ticket via reactor" ; aap:consequence "change" ; aap:leaseRequired "true" .
+
+# ---- L16 control plane on Ticket ----
+ex:Ticket_cp a aap:PPlanControlPlane .
+
+# ---- L17 skill specs (names disjoint from aap:Skill and reactorSkill names) ----
+ex:Ticket_escalateSpec a aap:SkillSpec ; aap:specName "escalate_ticket" ; aap:specAction "escalate" ;
+  aap:description "Escalate a ticket" ; aap:consequence "change" ; aap:leaseRequired "true" ;
+  aap:tag "tickets" ; aap:expose "true" ;
+  aap:argMapping ex:Ticket_escMap ; aap:hddlOperator ex:Ticket_escOp .
+ex:Ticket_escMap a aap:ArgMapping ; aap:wireName "urgency" ; aap:targetArg "priority" .
+ex:Ticket_escOp a aap:HddlOperator ; aap:hddlParams "ticket,agent" ;
+  aap:hddlPre ex:Ticket_pre1 ; aap:hddlAdd ex:Ticket_add1 ; aap:hddlDel ex:Ticket_del1 .
+ex:Ticket_pre1 a aap:HddlFact ; aap:predicate "ticket_open" ; aap:factArgs "ticket" .
+ex:Ticket_add1 a aap:HddlFact ; aap:predicate "ticket_escalated" ; aap:factArgs "ticket,agent" .
+ex:Ticket_del1 a aap:HddlFact ; aap:predicate "ticket_calm" ; aap:factArgs "ticket" .
+ex:Ticket_getSpec a aap:SkillSpec ; aap:specName "get_ticket" ; aap:specAction "read" ;
+  aap:description "Fetch tickets" ; aap:consequence "observe" ; aap:getRead "true" ;
+  aap:streaming "false" ; aap:tag "tickets", "read" ;
+  aap:inputMode "text/plain" ; aap:outputMode "application/json" ;
+  aap:secRequirement ex:Ticket_getSec .
+ex:Ticket_getSec a aap:SecurityRequirement ; aap:secGroup "1" ; aap:secScheme "token" ;
+  aap:secScopes "tickets.read" .
+
+# ---- L18 spark extension + instance ----
+ex:AuditExt a aap:SparkExtension ; aap:moduleName "Helpdesk.Audit" ; aap:appPath "helpdesk" ;
+  aap:extFile "audit" ; aap:extPersistKey "helpdesk_audit_summary" ; aap:sparkSection ex:AuditSec .
+ex:AuditSec a aap:SparkSection ; aap:name "audit" ; aap:description "Audit watches." ;
+  aap:sparkOrder 1 ; aap:minEntities 1 ; aap:sparkField ex:AuditSecLevel ; aap:sparkEntity ex:AuditWatch .
+ex:AuditSecLevel a aap:SparkField ; aap:name "default_level" ; aap:sparkType ":atom" ;
+  aap:fieldDefault ":info" ; aap:doc "Default audit level." .
+ex:AuditWatch a aap:SparkEntity ; aap:name "watch" ; aap:structModule "Helpdesk.Audit.Watch" ;
+  aap:identifier "attribute" ; aap:uniqueField "attribute" ; aap:description "Watch an attribute." ;
+  aap:sparkField ex:AuditFAttr, ex:AuditFLevel .
+ex:AuditFAttr a aap:SparkField ; aap:name "attribute" ; aap:sparkType ":atom" ; aap:required "true" ;
+  aap:argPosition 1 ; aap:fieldOrder 1 ; aap:doc "Attribute to watch." .
+ex:AuditFLevel a aap:SparkField ; aap:name "level" ; aap:sparkType "{:one_of, [:info, :warn]}" ;
+  aap:fieldDefault ":info" ; aap:fieldOrder 2 ; aap:doc "Severity." .
+ex:Ticket_inst1 a aap:SparkInstance ; aap:ofEntity ex:AuditWatch ; aap:sparkValue ex:Ticket_v1, ex:Ticket_v2 .
+ex:Ticket_v1 a aap:SparkValue ; aap:forField ex:AuditFAttr ; aap:valueText ":priority" .
+ex:Ticket_v2 a aap:SparkValue ; aap:forField ex:AuditFLevel ; aap:valueText ":warn" .
+
+# ---------------------------------------------------------------------------------------------
+# Note
+# ---------------------------------------------------------------------------------------------
+ex:Note a aap:Resource ; aap:moduleName "Helpdesk.Support.Note" ; aap:inDomain ex:Helpdesk ;
+  aap:resourceFile "note" ;
+  aap:attribute ex:Note_id, ex:Note_body ;
+  aap:action ex:Note_read, ex:Note_add ;
+  aap:skill ex:Note_skill_list ;
+  aap:relationship ex:Note_ticket ;
+  aap:calculation ex:Note_shout, ex:Note_label ;
+  aap:dataLayer "ets" ; aap:tableName "helpdesk_notes" ; aap:etsPrivate "false" .
+ex:Note_id a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:Note_body a aap:Attribute ; aap:name "body" ; aap:ashType "string" ; aap:primaryKey "false" .
+ex:Note_read a aap:Action ; aap:name "read" ; aap:actionType "read" .
+ex:Note_add a aap:Action ; aap:name "add" ; aap:actionType "create" ; aap:accept "body,ticket_id" .
+ex:Note_skill_list a aap:Skill ; aap:name "list_notes" ; aap:ofAction "read" ;
+  aap:description "List ticket notes" ; aap:consequence "observe" .
+ex:Note_ticket a aap:Relationship ; aap:name "ticket" ; aap:relKind "belongs_to" ;
+  aap:destination ex:Ticket ; aap:inverse ex:Ticket_notes .
+ex:Note_shout a aap:Calculation ; aap:name "shout" ; aap:ashType "string" ; aap:calcKind "expr" ;
+  aap:expression "string_upcase(body) <> ^arg(:suffix)" ; aap:load "body" ; aap:public "true" ;
+  aap:description "Body upcased with suffix" ; aap:filterable "false" ;
+  aap:calcArgument ex:Note_shout_suffix .
+ex:Note_shout_suffix a aap:CalculationArgument ; aap:name "suffix" ; aap:ashType "string" ;
+  aap:default "\"!\"" ; aap:allowNil "false" ; aap:constraints "max_length: 8" ; aap:argOrder 1 .
+ex:Note_label a aap:Calculation ; aap:name "label" ; aap:ashType "string" ; aap:calcKind "module" ;
+  aap:calcModule "Helpdesk.Support.Calculations.NoteLabel" ; aap:calcFile "note_label" ;
+  aap:calcKeys "body,id" ; aap:public "true" ; aap:allowNil "true" .
+
+# ---------------------------------------------------------------------------------------------
+# Tag, TicketTag, Person, TicketWatcher, Org
+# ---------------------------------------------------------------------------------------------
+ex:Tag a aap:Resource ; aap:moduleName "Helpdesk.Support.Tag" ; aap:inDomain ex:Helpdesk ;
+  aap:resourceFile "tag" ;
+  aap:attribute ex:Tag_id, ex:Tag_label ; aap:action ex:Tag_read, ex:Tag_define ;
+  aap:identity ex:Tag_unique_label ;
+  aap:relationship ex:Tag_tickets, ex:Tag_tag_ticket_tags ;
+  aap:dataLayer "ets" ; aap:tableName "helpdesk_tags" ; aap:etsPrivate "false" .
+ex:Tag_id a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:Tag_label a aap:Attribute ; aap:name "label" ; aap:ashType "string" ; aap:primaryKey "false" .
+ex:Tag_read a aap:Action ; aap:name "read" ; aap:actionType "read" .
+ex:Tag_define a aap:Action ; aap:name "define" ; aap:actionType "create" ; aap:accept "label" .
+ex:Tag_unique_label a aap:Identity ; aap:name "unique_label" ; aap:identityKey "label" ; aap:preCheckWith "Helpdesk.Support" ;
+  aap:message "label is already taken" .
+ex:Tag_tickets a aap:Relationship ; aap:name "tickets" ; aap:relKind "many_to_many" ;
+  aap:destination ex:Ticket ; aap:through ex:TicketTag ;
+  aap:sourceAttributeOnJoin "tag_id" ; aap:destinationAttributeOnJoin "ticket_id" ;
+  aap:joinRelationship "tag_ticket_tags" ; aap:noInverse "true" .
+ex:Tag_tag_ticket_tags a aap:Relationship ; aap:name "tag_ticket_tags" ; aap:relKind "has_many" ;
+  aap:destination ex:TicketTag ; aap:destinationAttribute "tag_id" ; aap:noInverse "true" .
+
+ex:TicketTag a aap:Resource ; aap:moduleName "Helpdesk.Support.TicketTag" ; aap:inDomain ex:Helpdesk ;
+  aap:resourceFile "ticket_tag" ;
+  aap:attribute ex:TicketTag_id ; aap:action ex:TicketTag_read, ex:TicketTag_link, ex:TicketTag_destroy ;
+  aap:relationship ex:TicketTag_ticket, ex:TicketTag_tag ;
+  aap:dataLayer "ets" ; aap:tableName "helpdesk_ticket_tags" ; aap:etsPrivate "false" .
+ex:TicketTag_id a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:TicketTag_read a aap:Action ; aap:name "read" ; aap:actionType "read" .
+ex:TicketTag_destroy a aap:Action ; aap:name "destroy" ; aap:actionType "destroy" .
+ex:TicketTag_link a aap:Action ; aap:name "link" ; aap:actionType "create" ; aap:accept "ticket_id,tag_id" .
+ex:TicketTag_ticket a aap:Relationship ; aap:name "ticket" ; aap:relKind "belongs_to" ;
+  aap:destination ex:Ticket ; aap:allowNil "false" ; aap:noInverse "true" .
+ex:TicketTag_tag a aap:Relationship ; aap:name "tag" ; aap:relKind "belongs_to" ;
+  aap:destination ex:Tag ; aap:allowNil "false" ; aap:noInverse "true" .
+
+ex:Person a aap:Resource ; aap:moduleName "Helpdesk.Support.Person" ; aap:inDomain ex:Helpdesk ;
+  aap:resourceFile "person" ;
+  aap:attribute ex:Person_id, ex:Person_name, ex:Person_email ;
+  aap:action ex:Person_read, ex:Person_register ;
+  aap:dataLayer "ets" ; aap:tableName "helpdesk_people" ; aap:etsPrivate "false" .
+ex:Person_id a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:Person_name a aap:Attribute ; aap:name "name" ; aap:ashType "string" ; aap:primaryKey "false" .
+ex:Person_email a aap:Attribute ; aap:name "email" ; aap:ashType "string" ; aap:primaryKey "false" .
+ex:Person_read a aap:Action ; aap:name "read" ; aap:actionType "read" .
+ex:Person_register a aap:Action ; aap:name "register" ; aap:actionType "create" ; aap:accept "name,email" .
+
+ex:TicketWatcher a aap:Resource ; aap:moduleName "Helpdesk.Support.TicketWatcher" ;
+  aap:inDomain ex:Helpdesk ; aap:resourceFile "ticket_watcher" ;
+  aap:attribute ex:TicketWatcher_id ; aap:action ex:TicketWatcher_read, ex:TicketWatcher_watch, ex:TicketWatcher_destroy ;
+  aap:relationship ex:TicketWatcher_ticket, ex:TicketWatcher_person ;
+  aap:dataLayer "ets" ; aap:tableName "helpdesk_ticket_watchers" ; aap:etsPrivate "false" .
+ex:TicketWatcher_id a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:TicketWatcher_destroy a aap:Action ; aap:name "destroy" ; aap:actionType "destroy" .
+ex:TicketWatcher_read a aap:Action ; aap:name "read" ; aap:actionType "read" .
+ex:TicketWatcher_watch a aap:Action ; aap:name "watch" ; aap:actionType "create" ;
+  aap:accept "ticket_id,person_id" .
+ex:TicketWatcher_ticket a aap:Relationship ; aap:name "ticket" ; aap:relKind "belongs_to" ;
+  aap:destination ex:Ticket ; aap:allowNil "false" ; aap:noInverse "true" .
+ex:TicketWatcher_person a aap:Relationship ; aap:name "person" ; aap:relKind "belongs_to" ;
+  aap:destination ex:Person ; aap:allowNil "false" ; aap:noInverse "true" .
+
+ex:Org a aap:Resource ; aap:moduleName "Helpdesk.Support.Org" ; aap:inDomain ex:Helpdesk ;
+  aap:resourceFile "org" ;
+  aap:attribute ex:Org_id ; aap:action ex:Org_read ;
+  aap:relationship ex:Org_tickets ;
+  aap:dataLayer "ets" ; aap:tableName "helpdesk_orgs" ; aap:etsPrivate "false" .
+ex:Org_id a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:Org_read a aap:Action ; aap:name "read" ; aap:actionType "read" .
+ex:Org_tickets a aap:Relationship ; aap:name "tickets" ; aap:relKind "has_many" ;
+  aap:destination ex:Ticket ; aap:destinationAttribute "org_id" ; aap:noInverse "true" .
+
+# ---------------------------------------------------------------------------------------------
+# TicketTask: L13 state machine, L14 oban, L16 control plane, L17 hooks
+# (no state attribute is declared anywhere; AshStateMachine adds :state)
+# ---------------------------------------------------------------------------------------------
+ex:TicketTask a aap:Resource ; aap:moduleName "Helpdesk.Support.TicketTask" ; aap:inDomain ex:Helpdesk ;
+  aap:resourceFile "ticket_task" ;
+  aap:attribute ex:TT_id ;
+  aap:action ex:TT_read, ex:TT_submit, ex:TT_start, ex:TT_input, ex:TT_auth, ex:TT_resume,
+             ex:TT_complete, ex:TT_fail, ex:TT_cancel, ex:TT_reject ;
+  aap:relationship ex:TicketTask_ticket ;
+  aap:stateMachine ex:TT_Sm ;
+  aap:obTrigger ex:TT_TrigStart ; aap:obSchedule ex:TT_SchedNightly ;
+  aap:ppControlPlane ex:TT_cp ;
+  aap:hookRef ex:TT_hookPre, ex:TT_hookPost ;
+  aap:dataLayer "ets" ; aap:tableName "helpdesk_ticket_tasks" ; aap:etsPrivate "false" .
+ex:TT_id a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:TT_read a aap:Action ; aap:name "read" ; aap:actionType "read" .
+ex:TT_submit a aap:Action ; aap:name "submit" ; aap:actionType "create" .
+ex:TT_start a aap:Action ; aap:name "start" ; aap:actionType "update" .
+ex:TT_input a aap:Action ; aap:name "request_input" ; aap:actionType "update" .
+ex:TT_auth a aap:Action ; aap:name "require_auth" ; aap:actionType "update" .
+ex:TT_resume a aap:Action ; aap:name "resume" ; aap:actionType "update" .
+ex:TT_complete a aap:Action ; aap:name "complete" ; aap:actionType "update" .
+ex:TT_fail a aap:Action ; aap:name "fail" ; aap:actionType "update" .
+ex:TT_cancel a aap:Action ; aap:name "cancel" ; aap:actionType "update" .
+ex:TT_reject a aap:Action ; aap:name "reject" ; aap:actionType "update" .
+ex:TicketTask_ticket a aap:Relationship ; aap:name "ticket" ; aap:relKind "belongs_to" ;
+  aap:destination ex:Ticket ; aap:allowNil "true" ; aap:inverse ex:Ticket_tasks .
+
+ex:TT_Sm a aap:StateMachine ;
+  aap:a2aLifecycle true ;
+  aap:stateAttribute "state" ;
+  aap:smState ex:sSubmitted, ex:sWorking, ex:sInput, ex:sAuth,
+              ex:sCompleted, ex:sFailed, ex:sCanceled, ex:sRejected ;
+  aap:initialState ex:sSubmitted ;
+  aap:defaultInitialState ex:sSubmitted ;
+  aap:terminalState ex:sCompleted, ex:sFailed, ex:sCanceled, ex:sRejected ;
+  aap:smTransition ex:t1, ex:t2, ex:t3, ex:t4, ex:t5, ex:t6, ex:t7, ex:t8 .
+ex:sSubmitted a aap:State ; aap:name "submitted" .
+ex:sWorking a aap:State ; aap:name "working" .
+ex:sInput a aap:State ; aap:name "input_required" .
+ex:sAuth a aap:State ; aap:name "auth_required" .
+ex:sCompleted a aap:State ; aap:name "completed" .
+ex:sFailed a aap:State ; aap:name "failed" .
+ex:sCanceled a aap:State ; aap:name "canceled" .
+ex:sRejected a aap:State ; aap:name "rejected" .
+ex:t1 a aap:Transition ; aap:viaAction "start" ; aap:fromState ex:sSubmitted ;
+  aap:toState ex:sWorking ; aap:transitionTarget ex:sWorking .
+ex:t2 a aap:Transition ; aap:viaAction "request_input" ; aap:fromState ex:sWorking ;
+  aap:toState ex:sInput ; aap:transitionTarget ex:sInput .
+ex:t3 a aap:Transition ; aap:viaAction "require_auth" ;
+  aap:fromState ex:sSubmitted, ex:sWorking ;
+  aap:toState ex:sAuth ; aap:transitionTarget ex:sAuth .
+ex:t4 a aap:Transition ; aap:viaAction "resume" ; aap:fromState ex:sInput, ex:sAuth ;
+  aap:toState ex:sWorking ; aap:transitionTarget ex:sWorking .
+ex:t5 a aap:Transition ; aap:viaAction "complete" ; aap:fromState ex:sWorking ;
+  aap:toState ex:sCompleted ; aap:transitionTarget ex:sCompleted .
+ex:t6 a aap:Transition ; aap:viaAction "fail" ; aap:fromState ex:sWorking ;
+  aap:toState ex:sFailed ; aap:transitionTarget ex:sFailed .
+ex:t7 a aap:Transition ; aap:viaAction "cancel" ;
+  aap:fromState ex:sSubmitted, ex:sWorking, ex:sInput, ex:sAuth ;
+  aap:toState ex:sCanceled ; aap:transitionTarget ex:sCanceled .
+ex:t8 a aap:Transition ; aap:viaAction "reject" ; aap:fromState ex:sSubmitted ;
+  aap:toState ex:sRejected ; aap:transitionTarget ex:sRejected .
+
+# ---- L14 oban ----
+ex:TT_TrigStart a aap:ObanTrigger ; aap:name "start_submitted" ; aap:obAction "start" ;
+  aap:obWhere "state == :submitted" ; aap:obReadAction "read" ;
+  aap:obQueue "task_start" ; aap:obWorkerModuleName "Helpdesk.Support.TicketTask.Oban.Start.Worker" ;
+  aap:obSchedulerModuleName "Helpdesk.Support.TicketTask.Oban.Start.Scheduler" ;
+  aap:obSchedulerCron "*/5 * * * *" ; aap:obMaxAttempts "3" ;
+  aap:obStreamWith "full_read" ; aap:obLockForUpdate "false" ; aap:obWorkerPriority "1" .
+ex:TT_SchedNightly a aap:ObanSchedule ; aap:name "nightly_triage" ; aap:obCron "0 3 * * *" ;
+  aap:obAction "submit" ; aap:obQueue "task_nightly" ;
+  aap:obWorkerModuleName "Helpdesk.Support.TicketTask.Oban.Nightly.Worker" ;
+  aap:obMaxAttempts "2" ; aap:obPriority "3" ; aap:obActionInput "%{}" .
+ex:QStart a aap:ObanQueue ; aap:obQueueName "task_start" ; aap:obQueueLimit "10" ;
+  aap:obQueueOf <urn:helpdesk:project> .
+ex:QNightly a aap:ObanQueue ; aap:obQueueName "task_nightly" ; aap:obQueueLimit "2" ;
+  aap:obQueueOf <urn:helpdesk:project> .
+ex:QDeliver a aap:ObanQueue ; aap:obQueueName "a2a_delivery" ; aap:obQueueLimit "5" ;
+  aap:obQueueOf <urn:helpdesk:project> .
+ex:ObanCfg a aap:ObanConfig ; aap:obConfigOf <urn:helpdesk:project> ;
+  aap:obRepo "Helpdesk.Repo" ; aap:obTestingMode "manual" .
+ex:DeliveryWorker a aap:ObanDeliveryWorker ; aap:moduleName "Helpdesk.Support.DeliveryWorker" ;
+  aap:inDomain ex:Helpdesk ; aap:obWorkerFile "delivery_worker" ;
+  aap:obHandlerModule "Helpdesk.Support.CommandHandler" ; aap:obQueue "a2a_delivery" ;
+  aap:obMaxAttempts "5" ; aap:obSnoozeSeconds "30" .
+
+# ---- L16 control plane + L17 hook refs on TicketTask ----
+ex:TT_cp a aap:PPlanControlPlane ; aap:ppExpectStateMachine "true" ; aap:ppExpectOban "true" .
+ex:TT_hookPre a aap:HookRef ; aap:hookId "audit_pre" ; aap:hookPhase "pre" ; aap:hookOrder "0" .
+ex:TT_hookPost a aap:HookRef ; aap:hookId "audit_post" ; aap:hookPhase "post" ; aap:hookOrder "0" .
+
+# ---------------------------------------------------------------------------------------------
+# L15 reactor
+# ---------------------------------------------------------------------------------------------
+ex:R_Triage a aap:Reactor ; aap:moduleName "Helpdesk.Reactors.TriageTicket" ;
+  aap:reactorFile "triage_ticket" ; aap:reactorAsh "true" ;
+  aap:reactorDescription "Normalize, open and audit a ticket" ;
+  aap:reactorInput ex:R_in_title, ex:R_in_actor, ex:R_in_tenant ;
+  aap:reactorReturn ex:R_audit ;
+  aap:reactorStep ex:R_normalize, ex:R_open, ex:R_audit .
+ex:R_in_title a aap:ReactorInput ; aap:name "title" .
+ex:R_in_actor a aap:ReactorInput ; aap:name "actor" .
+ex:R_in_tenant a aap:ReactorInput ; aap:name "tenant" .
+
+ex:R_normalize a aap:ReactorStep ; aap:name "normalize" ; aap:stepKind "step" ; aap:stepOrder 1 ;
+  aap:stepGenerate "true" ; aap:stepImplName "Normalize" ; aap:stepMaxRetries "0" ;
+  aap:stepRunBody "{:ok, arguments.title |> String.trim()}" ;
+  aap:stepArg ex:R_normalize_a1 .
+ex:R_normalize_a1 a aap:ReactorBinding ; aap:argName "title" ; aap:argKind "input" ;
+  aap:argInput ex:R_in_title .
+
+ex:R_open a aap:ReactorStep ; aap:name "open" ; aap:stepKind "create" ;
+  aap:stepOrder 2 ; aap:stepWaitFor ex:R_normalize ; aap:compensationWaiver "ETS data layer has no transactions" ;
+  aap:stepResource "Helpdesk.Support.Ticket" ; aap:stepAction "open" ;
+  aap:stepInputs ex:R_open_i1 ; aap:stepActor ex:R_open_actor ; aap:stepTenant ex:R_open_tenant .
+ex:R_open_i1 a aap:ReactorBinding ; aap:argName "title" ; aap:argKind "result" ; aap:argStep ex:R_normalize .
+ex:R_open_actor a aap:ReactorBinding ; aap:argKind "input" ; aap:argInput ex:R_in_actor .
+ex:R_open_tenant a aap:ReactorBinding ; aap:argKind "input" ; aap:argInput ex:R_in_tenant .
+
+ex:R_audit a aap:ReactorStep ; aap:name "audit" ; aap:stepKind "step" ; aap:stepOrder 3 ;
+  aap:stepGenerate "true" ; aap:stepImplName "Audit" ; aap:stepEffectful "true" ;
+  aap:stepHasCompensate "true" ; aap:stepHasUndo "true" ; aap:stepDescription "Write audit trail" ;
+  aap:stepWaitFor ex:R_open ;
+  aap:stepArg ex:R_audit_a1 .
+ex:R_audit_a1 a aap:ReactorBinding ; aap:argName "ticket" ; aap:argKind "result" ;
+  aap:argStep ex:R_open ; aap:argPath "id" .
+
+# ---------------------------------------------------------------------------------------------
+# L16 pplan
+# ---------------------------------------------------------------------------------------------
+ex:TriageFlow a aap:PPlanWorkflow ; aap:moduleName "Helpdesk.Support.Plan.Triage" ; aap:ppFile "triage" ;
+  aap:ppName "triage" ; aap:ppGoal "ticket triaged" ; aap:ppVersion 1 ;
+  aap:ppTask ex:PT_observe, ex:PT_checkpoint, ex:PT_review ;
+  aap:ppMethod ex:PM_triage ; aap:ppObligation ex:PO_durable ;
+  aap:ppUsesProvider ex:ObserveProvider, ex:DurableProvider .
+ex:PT_observe a aap:PPlanTask ; aap:name "observe" ; aap:ppCapability "Observation.Read" ;
+  aap:ppOutcome "ok", "empty" ; aap:ppAuthority "observe" .
+ex:PT_checkpoint a aap:PPlanTask ; aap:name "checkpoint" ; aap:ppCapability "Durability.Checkpoint" ;
+  aap:ppAfter ex:PT_observe ; aap:ppProperty "durable", "resumable" ; aap:ppEvidenceKind "continuation" .
+ex:PT_review a aap:PPlanTask ; aap:name "review" ; aap:ppCapability "Observation.Read" ;
+  aap:ppAfter ex:PT_checkpoint ; aap:ppAuthority "select" .
+ex:PM_triage a aap:PPlanMethod ; aap:name "triage_m" ; aap:ppRefines ex:PT_review ;
+  aap:ppStepOf ex:PS1, ex:PS2 .
+ex:PS1 a aap:PPlanStep ; aap:ppStep 1 ; aap:ppStepTask ex:PT_observe .
+ex:PS2 a aap:PPlanStep ; aap:ppStep 2 ; aap:ppStepTask ex:PT_checkpoint .
+ex:PO_durable a aap:PPlanObligation ; aap:name "survives_restart" ;
+  aap:ppCapability "Durability.Checkpoint" ;
+  aap:ppRequiresProperty "durable" ; aap:ppRequiresEvidence "continuation" .
+ex:ObserveProvider a aap:PPlanProvider ; aap:moduleName "Helpdesk.Support.Plan.ObserveProvider" ;
+  aap:ppFile "observe_provider" ; aap:ppProviderId "observe" ; aap:ppCost 1 ;
+  aap:ppProvidesEvidence "observation" ; aap:ppBinding ex:PB_observe .
+ex:PB_observe a aap:PPlanBinding ; aap:ppCapability "Observation.Read" ; aap:ppAdapter "local" ;
+  aap:ppOp "observation_read" .
+ex:DurableProvider a aap:PPlanProvider ; aap:moduleName "Helpdesk.Support.Plan.DurableProvider" ;
+  aap:ppFile "durable_provider" ; aap:ppProviderId "durable" ; aap:ppCost 2 ;
+  aap:ppProvidesProperty "checkpointed", "durable", "resumable" ; aap:ppProvidesEvidence "continuation" ;
+  aap:ppBinding ex:PB_checkpoint .
+ex:PB_checkpoint a aap:PPlanBinding ; aap:ppCapability "Durability.Checkpoint" ; aap:ppAdapter "local" ;
+  aap:ppOp "durability_checkpoint" .
+ex:SupportPack a aap:PPlanCapabilityPack ; aap:moduleName "Helpdesk.Support.Plan.SupportPack" ;
+  aap:ppFile "support_pack" ; aap:ppPackId "support" ; aap:ppPackVersion "0.1.0" ;
+  aap:ppPackCapability "Observation.Read", "Durability.Checkpoint" ;
+  aap:ppPackProperty "durable", "resumable" ; aap:ppPackEvidence "continuation", "observation" .
+ex:TgtCatalog a aap:PPlanManufactureTarget ; aap:ppTemplate "plan_catalog" ;
+  aap:ppOut "lib/helpdesk/pplan/plan_catalog.ex" ; aap:ppTargetModule "Helpdesk.Support.Plan.Catalog" .
+
+# ---------------------------------------------------------------------------------------------
+# L20 courts
+# ---------------------------------------------------------------------------------------------
+ex:Court_identity a aap:CourtIdentity ; aap:courtResource ex:Ticket ;
+  aap:identityName "unique_title" ; aap:identityKeys "title" ;
+  aap:seedAction "open" ;
+  aap:seedInput "%{title: \"dup\", priority: 3, org_id: \"11111111-1111-1111-1111-111111111111\"}" .
+
+ex:Court_anon_open a aap:PolicyCase ; aap:courtResource ex:Ticket ; aap:caseName "anon_cannot_open" ;
+  aap:caseAction "open" ; aap:caseExpect "deny" .
+ex:Court_admin_open a aap:PolicyCase ; aap:courtResource ex:Ticket ; aap:caseName "admin_can_open" ;
+  aap:caseAction "open" ; aap:caseActor "%{role: :admin}" ; aap:caseExpect "allow" .
+ex:Court_agent_escalate a aap:PolicyCase ; aap:courtResource ex:Ticket ;
+  aap:caseName "agent_can_escalate" ; aap:caseAction "escalate" ;
+  aap:caseActor "%{role: :agent}" ; aap:caseExpect "allow" .
+ex:Court_anon_escalate a aap:PolicyCase ; aap:courtResource ex:Ticket ;
+  aap:caseName "anon_cannot_escalate" ; aap:caseAction "escalate" ; aap:caseExpect "deny" .
+
+ex:Court_task_start a aap:TransitionCase ; aap:courtResource ex:TicketTask ;
+  aap:caseName "submitted_to_working" ; aap:caseAction "start" ; aap:stateAttr "state" ;
+  aap:fromState ":submitted" ; aap:toState ":working" ; aap:caseExpect "ok" ;
+  aap:seedAction "submit" ; aap:seedInput "%{}" .
+
+ex:Court_reactor a aap:ReactorCase ; aap:caseName "triage opens a ticket" ; aap:caseFile "triage_reactor" ;
+  aap:reactorModule "Helpdesk.Reactors.TriageTicket" ;
+  aap:reactorInputs "%{title: \"r1\", actor: %{role: :admin}, tenant: \"11111111-1111-1111-1111-111111111111\"}" ;
+  aap:reactorExpect "%{}" ;
+  aap:failInputs "%{title: nil, actor: %{role: :admin}, tenant: \"11111111-1111-1111-1111-111111111111\"}" .
+
+ex:Court_plan a aap:PlanCase ; aap:caseName "triage plan reaches done" ; aap:caseFile "triage_plan" ;
+  aap:planTransitions "%{pending: %{attempt: [:pending, :done]}, done: %{}}" ;
+  aap:planGoals "[:done]" ; aap:planInitial ":pending" ; aap:planMode "strong_cyclic" ;
+  aap:caseExpect "satisfiable" .
+
+ex:Court_shim a aap:ShimCourt ; aap:shimName "ticket_court_action_type" ;
+  aap:shimTarget "lib/helpdesk/ticket.ex" ; aap:shimBefore "update :escalate do" ;
+  aap:shimAfter "create :escalate do" ; aap:shimTest "test/courts/ticket_court_test.exs" .

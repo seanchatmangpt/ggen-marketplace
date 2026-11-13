@@ -1,0 +1,51 @@
+@prefix aap: <https://ggen.dev/ash-a2a-app#> .
+@prefix ex:  <https://example.org/l04#> .
+
+ex:Domain a aap:Domain ; aap:moduleName "Helpdesk.Support" ; aap:appPath "helpdesk" ;
+  aap:domainFile "support" .
+
+ex:Ticket a aap:Resource ; aap:moduleName "Helpdesk.Support.Ticket" ; aap:inDomain ex:Domain ;
+  aap:resourceFile "ticket" ;
+  aap:attribute ex:TicketId, ex:TicketSeverity ;
+  aap:relationship ex:TicketComments ;
+  aap:aggregate ex:AggCount, ex:AggExists, ex:AggFirst, ex:AggSum, ex:AggMin, ex:AggMax,
+                ex:AggAvg, ex:AggList, ex:AggCustom, ex:AggResource, ex:AggTwoHop .
+
+ex:Comment a aap:Resource ; aap:moduleName "Helpdesk.Support.Comment" ; aap:inDomain ex:Domain ;
+  aap:resourceFile "comment" ;
+  aap:attribute ex:CommentId, ex:CommentBody, ex:CommentScore ;
+  aap:relationship ex:CommentTicket .
+
+ex:TicketId a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:TicketSeverity a aap:Attribute ; aap:name "severity" ; aap:ashType "integer" ; aap:primaryKey "false" .
+ex:CommentId a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:CommentBody a aap:Attribute ; aap:name "body" ; aap:ashType "string" ; aap:primaryKey "false" .
+ex:CommentScore a aap:Attribute ; aap:name "score" ; aap:ashType "integer" ; aap:primaryKey "false" .
+
+ex:TicketComments aap:name "comments" ; aap:destination ex:Comment .
+ex:CommentTicket aap:name "ticket" ; aap:destination ex:Ticket .
+
+ex:AggCount aap:name "comment_count" ; aap:aggKind "count" ; aap:aggPath "comments" ;
+  aap:aggFilter "expr(score > 0)" ; aap:aggUniq "true" ; aap:aggPublic "true" ;
+  aap:aggDescription "Positive comments" .
+ex:AggExists aap:name "has_comments" ; aap:aggKind "exists" ; aap:aggPath "comments" .
+ex:AggFirst aap:name "first_comment_body" ; aap:aggKind "first" ; aap:aggPath "comments" ;
+  aap:aggField "body" ; aap:aggSort "[score: :desc]" ; aap:aggIncludeNil "false" .
+ex:AggSum aap:name "score_total" ; aap:aggKind "sum" ; aap:aggPath "comments" ;
+  aap:aggField "score" ; aap:aggDefault "0" .
+ex:AggMin aap:name "score_min" ; aap:aggKind "min" ; aap:aggPath "comments" ; aap:aggField "score" .
+ex:AggMax aap:name "score_max" ; aap:aggKind "max" ; aap:aggPath "comments" ; aap:aggField "score" ;
+  aap:aggFilterable "simple_equality" .
+ex:AggAvg aap:name "score_avg" ; aap:aggKind "avg" ; aap:aggPath "comments" ; aap:aggField "score" ;
+  aap:aggSensitive "false" .
+ex:AggList aap:name "comment_bodies" ; aap:aggKind "list" ; aap:aggPath "comments" ;
+  aap:aggField "body" ; aap:aggUniq "true" ; aap:aggIncludeNil "false" ;
+  aap:aggSort "[body: :asc]" ; aap:aggJoinFilter ex:JF1 .
+ex:AggCustom aap:name "comment_authors" ; aap:aggKind "custom" ; aap:aggPath "comments" ;
+  aap:aggField "body" ; aap:aggType ":string" ;
+  aap:aggImplementation "{Helpdesk.StringAgg, delimiter: \",\"}" .
+ex:AggResource aap:name "similar_tickets" ; aap:aggKind "count" ;
+  aap:aggResource "Helpdesk.Support.Ticket" ; aap:aggFilter "expr(severity == parent(severity))" .
+ex:AggTwoHop aap:name "sibling_comment_count" ; aap:aggKind "count" ; aap:aggPath "comments,ticket" .
+
+ex:JF1 aap:aggPath "comments" ; aap:aggFilter "expr(score >= 0)" .

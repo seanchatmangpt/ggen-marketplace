@@ -1,0 +1,18 @@
+# L17 gate (mirrors dsl.ex:50-60 consequence enum + SEC-04 observe_on_mutating_action).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?subject ?consequence ?reason WHERE {
+  {
+    ?r a aap:Resource ; aap:skill|aap:skillSpec ?subject .
+    ?subject aap:consequence ?consequence .
+    FILTER ( !(STR(?consequence) IN ("observe", "change", "external_do", "unknown")) )
+    BIND ("consequence_not_in_enum" AS ?reason)
+  }
+  UNION
+  {
+    ?r a aap:Resource ; aap:skill|aap:skillSpec ?subject ; aap:action ?a .
+    ?subject aap:consequence ?consequence ; aap:specAction|aap:ofAction ?an .
+    ?a aap:name ?an ; aap:actionType ?t .
+    FILTER ( STR(?consequence) = "observe" && STR(?t) IN ("create", "update", "destroy") )
+    BIND ("observe_on_mutating_action" AS ?reason)
+  }
+}

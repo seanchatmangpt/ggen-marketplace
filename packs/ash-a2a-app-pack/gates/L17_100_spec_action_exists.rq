@@ -1,0 +1,18 @@
+# L17 gate (mirrors verify_skills.ex:324-364 refused_action_not_found / refused_action_not_public).
+# A skill spec must name an action declared on the same resource, and that action must be public.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?subject ?reason WHERE {
+  {
+    ?r a aap:Resource ; aap:skillSpec ?subject .
+    ?subject aap:specAction ?an .
+    FILTER NOT EXISTS { ?r aap:action ?a . ?a aap:name ?an }
+    BIND ("refused_action_not_found" AS ?reason)
+  }
+  UNION
+  {
+    ?r a aap:Resource ; aap:skillSpec ?subject ; aap:action ?a .
+    ?subject aap:specAction ?an .
+    ?a aap:name ?an ; aap:actionPrivate "true" .
+    BIND ("refused_action_not_public" AS ?reason)
+  }
+}

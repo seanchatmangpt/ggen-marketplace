@@ -1,0 +1,35 @@
+# Gate L07-020: policy/check vocabulary closed; every policy has >=1 check; names unique per
+# resource. Check types: authorizer.ex:72-138. Kinds: built_in_checks.ex + expr (authorizer.ex:58).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?policy ?why WHERE {
+  {
+    ?resource aap:policy ?policy . ?policy aap:check ?c . ?c aap:checkType ?t .
+    FILTER (?t NOT IN ("authorize_if", "forbid_if", "authorize_unless", "forbid_unless"))
+    BIND("bad checkType" AS ?why)
+  } UNION {
+    ?resource aap:policy ?policy . { ?policy aap:condKind ?k } UNION { ?policy aap:check ?c . ?c aap:checkKind ?k }
+    FILTER (?k NOT IN ("always", "actor_present", "action_type", "action", "actor_attribute_equals",
+                       "accessing_from", "relates_to_actor_via", "expr"))
+    BIND("bad condKind/checkKind" AS ?why)
+  } UNION {
+    ?resource aap:policy ?policy .
+    FILTER NOT EXISTS { ?policy aap:check ?c }
+    BIND("policy without checks" AS ?why)
+  } UNION {
+    ?resource aap:policy ?policy . ?policy aap:inGroup ?g .
+    FILTER NOT EXISTS { ?resource aap:policyGroup ?pg . ?pg aap:name ?g }
+    BIND("inGroup names no policy_group on resource" AS ?why)
+  } UNION {
+    ?resource aap:policy ?policy . ?policy aap:accessType ?x .
+    FILTER (?x NOT IN ("strict", "filter", "runtime"))
+    BIND("bad accessType" AS ?why)
+  } UNION {
+    ?resource aap:defaultAccessType ?x . BIND(?resource AS ?policy)
+    FILTER (?x NOT IN ("strict", "filter", "runtime"))
+    BIND("bad defaultAccessType" AS ?why)
+  } UNION {
+    ?resource aap:policy ?policy, ?other . ?policy aap:name ?n . ?other aap:name ?n .
+    FILTER (?policy != ?other)
+    BIND("duplicate policy name" AS ?why)
+  }
+}

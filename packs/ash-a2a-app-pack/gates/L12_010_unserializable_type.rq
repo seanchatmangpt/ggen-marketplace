@@ -1,0 +1,13 @@
+# Gate: a typed attribute / type field / union member / newtype must not use a type that
+# ash_a2a verify_skills @known_unserializable rejects (verify_skills.ex:47-59), unless it
+# opts out with aap:a2aExposed "false". Note Ash.Type.Struct is serializable (line 534);
+# the bare :struct atom is not.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?subject ?bad_type WHERE {
+  { ?subject aap:ashType ?bad_type } UNION { ?subject aap:subtypeOf ?bad_type }
+  FILTER(?bad_type IN ("term","struct","function","mfa","module","mapset","tuple","range",
+                       "regex","pid","reference","Ash.Type.Term"))
+  FILTER NOT EXISTS { ?subject aap:a2aExposed "false" }
+  FILTER EXISTS { ?owner (aap:typeField|aap:unionMember|aap:typedAttribute)* ?subject .
+                  FILTER(?owner != ?subject) }
+}

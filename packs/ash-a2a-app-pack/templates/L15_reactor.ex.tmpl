@@ -1,0 +1,225 @@
+---
+to: "lib/{{ app_path }}/reactors/{{ reactor_file }}.ex"
+force: true
+for_each: "reactors"
+sparql:
+  reactors: |
+    PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+    SELECT ?module_name ?app_path ?reactor_file ?ash ?description WHERE {
+      ?d aap:reactor ?r ; aap:appPath ?app_path .
+      ?r a aap:Reactor ; aap:moduleName ?module_name ; aap:reactorFile ?reactor_file .
+      OPTIONAL { ?r aap:reactorAsh ?ash }
+      OPTIONAL { ?r aap:reactorDescription ?description }
+    } ORDER BY ?module_name
+  rinputs: |
+    PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+    SELECT ?module_name ?input_name ?input_transform WHERE {
+      ?r a aap:Reactor ; aap:moduleName ?module_name ; aap:reactorInput ?i .
+      ?i aap:name ?input_name .
+      OPTIONAL { ?i aap:inputTransform ?input_transform }
+    } ORDER BY ?module_name ?input_name
+  middlewares: |
+    PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+    SELECT ?module_name ?mw WHERE {
+      ?r a aap:Reactor ; aap:moduleName ?module_name ; aap:reactorMiddleware ?mw .
+    } ORDER BY ?module_name ?mw
+  returns_top: |
+    PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+    SELECT ?module_name ?ret_name WHERE {
+      ?r a aap:Reactor ; aap:moduleName ?module_name ; aap:reactorReturn ?t .
+      ?t aap:name ?ret_name .
+    } ORDER BY ?module_name
+  steps: |
+    PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+    SELECT ?module_name ?step_key ?parent_key ?step_name ?step_kind ?step_order
+           ?impl ?resource ?resources ?action ?compose_module ?message WHERE {
+      ?r a aap:Reactor ; aap:moduleName ?module_name ; aap:reactorStep ?s .
+      ?s aap:name ?step_name ; aap:stepKind ?step_kind ; aap:stepOrder ?step_order .
+      OPTIONAL { ?s aap:stepParent ?p }
+      OPTIONAL { ?s aap:stepImpl ?impl_raw }
+      OPTIONAL { ?s aap:stepGenerate ?gen }
+      OPTIONAL { ?s aap:stepImplName ?impl_name }
+      OPTIONAL { ?s aap:stepResource ?resource }
+      OPTIONAL { ?s aap:stepResources ?resources }
+      OPTIONAL { ?s aap:stepAction ?action }
+      OPTIONAL { ?s aap:stepReactorRef ?cr . ?cr aap:moduleName ?compose_module }
+      OPTIONAL { ?s aap:stepMessage ?message }
+      BIND(STR(?s) AS ?step_key)
+      BIND(COALESCE(STR(?p), "") AS ?parent_key)
+      BIND(COALESCE(?impl_raw, IF(BOUND(?gen) && STR(?gen) = "true", CONCAT(?module_name, ".Steps.", STR(?impl_name)), "")) AS ?impl)
+    } ORDER BY ?module_name ?step_order ?step_name
+  binds: |
+    PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+    SELECT ?module_name ?step_key ?role ?bname ?ord ?kind ?ref ?path ?value ?transform WHERE {
+      ?r a aap:Reactor ; aap:moduleName ?module_name ; aap:reactorStep ?s .
+      VALUES (?p ?role) {
+        (aap:stepArg "arg") (aap:stepInputs "inputs") (aap:stepInitial "initial")
+        (aap:stepActor "actor") (aap:stepTenant "tenant") (aap:stepOn "on")
+        (aap:stepSource "source")
+      }
+      ?s ?p ?b .
+      ?b aap:argKind ?kind .
+      OPTIONAL { ?b aap:argName ?bname }
+      OPTIONAL { ?b aap:argOrder ?ord }
+      OPTIONAL { ?b aap:argStep ?as . ?as aap:name ?ref_s }
+      OPTIONAL { ?b aap:argInput ?ai . ?ai aap:name ?ref_i }
+      OPTIONAL { ?b aap:argPath ?path }
+      OPTIONAL { ?b aap:argValue ?value }
+      OPTIONAL { ?b aap:argTransform ?transform }
+      BIND(STR(?s) AS ?step_key)
+      BIND(COALESCE(?ref_s, ?ref_i, "") AS ?ref)
+    } ORDER BY ?module_name ?step_key ?role ?ord ?bname
+  waits: |
+    PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+    SELECT ?module_name ?step_key ?wait_name WHERE {
+      ?r a aap:Reactor ; aap:moduleName ?module_name ; aap:reactorStep ?s .
+      ?s aap:stepWaitFor ?w . ?w aap:name ?wait_name .
+      BIND(STR(?s) AS ?step_key)
+    } ORDER BY ?module_name ?step_key ?wait_name
+  kvs: |
+    PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+    SELECT ?module_name ?step_key ?k ?val WHERE {
+      ?r a aap:Reactor ; aap:moduleName ?module_name ; aap:reactorStep ?s .
+      VALUES (?p ?k ?fmt) {
+        (aap:stepDescription "description" "str")
+        (aap:stepAsync "async?" "raw") (aap:stepMaxRetries "max_retries" "raw")
+        (aap:stepAllowAsync "allow_async?" "raw") (aap:stepSupportUndo "support_undo?" "raw")
+        (aap:stepBatchSize "batch_size" "raw") (aap:stepStrictOrdering "strict_ordering?" "raw")
+        (aap:stepTimeout "timeout" "raw") (aap:stepUndo "undo" "atom")
+        (aap:stepUndoAction "undo_action" "atom") (aap:stepUpsert "upsert?" "raw")
+        (aap:stepUpsertIdentity "upsert_identity" "atom") (aap:stepAuthorize "authorize?" "raw")
+        (aap:stepFailOnNotFound "fail_on_not_found?" "raw") (aap:stepReadAction "read_action" "atom")
+        (aap:stepOpt "raw" "raw")
+      }
+      ?s ?p ?v .
+      BIND(STR(?s) AS ?step_key)
+      BIND(IF(?fmt = "str", CONCAT("\"", STR(?v), "\""), IF(?fmt = "atom", CONCAT(":", STR(?v)), STR(?v))) AS ?val)
+    } ORDER BY ?module_name ?step_key ?k ?val
+  rets: |
+    PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+    SELECT ?module_name ?owner_key ?ret_name WHERE {
+      ?r a aap:Reactor ; aap:moduleName ?module_name ; aap:reactorStep ?t .
+      ?o aap:stepReturn ?t . ?t aap:name ?ret_name .
+      BIND(STR(?o) AS ?owner_key)
+    } ORDER BY ?module_name ?owner_key
+  branches: |
+    PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+    SELECT ?module_name ?step_key ?branch_key ?predicate ?ord WHERE {
+      ?r a aap:Reactor ; aap:moduleName ?module_name ; aap:reactorStep ?s .
+      ?s aap:switchMatch ?b .
+      OPTIONAL { ?b aap:branchPredicate ?predicate }
+      OPTIONAL { ?b aap:stepOrder ?ord }
+      BIND(STR(?s) AS ?step_key)
+      BIND(STR(?b) AS ?branch_key)
+    } ORDER BY ?module_name ?step_key ?ord
+---
+{#- Reactor module projection (L15). Reuse note: step-module generation lives in
+    L15_step_module.ex.tmpl (same run/compensate shape as ash-extension-pack
+    reactor_step.ex.tmpl) and the ordered-step/wait_for/return shape mirrors
+    ash-extension-pack queries/reactor_steps.rq. Nested steps recurse through self::step. -#}
+{% macro tpl(b) -%}
+{%- set path = b.path | default(value="") -%}
+{%- if b.kind == "value" -%}
+value({{ b.value }})
+{%- else -%}
+{{ b.kind }}(:{{ b.ref }}{% if path != "" %}, [{% for p in path | split(pat=",") %}:{{ p }}{% if not loop.last %}, {% endif %}{% endfor %}]{% endif %})
+{%- endif -%}
+{%- endmacro tpl %}
+{% macro step(s, steps, binds, waits, kvs, rets, branches, ind) %}
+{%- set mb = binds | filter(attribute="step_key", value=s.step_key) -%}
+{%- set mw = waits | filter(attribute="step_key", value=s.step_key) -%}
+{%- set mk = kvs | filter(attribute="step_key", value=s.step_key) -%}
+{%- set mr = rets | filter(attribute="owner_key", value=s.step_key) -%}
+{{ ind }}{% if s.step_kind == "step" -%}
+step :{{ s.step_name }}{% if s.impl %}, {{ s.impl }}{% endif %}
+{%- elif s.step_kind == "collect" -%}
+collect :{{ s.step_name }}
+{%- elif s.step_kind == "flunk" -%}
+flunk :{{ s.step_name }}, "{{ s.message | default(value="flunked") }}"
+{%- elif s.step_kind == "compose" -%}
+compose :{{ s.step_name }}, {{ s.compose_module | default(value="") }}
+{%- elif s.step_kind == "map" -%}
+map :{{ s.step_name }}
+{%- elif s.step_kind == "switch" -%}
+switch :{{ s.step_name }}
+{%- elif s.step_kind == "around" -%}
+around :{{ s.step_name }}
+{%- elif s.step_kind == "transaction" -%}
+transaction :{{ s.step_name }}, [{{ s.resources | default(value="") }}]
+{%- else -%}
+{{ s.step_kind }} :{{ s.step_name }}, {{ s.resource | default(value="") }}{% if s.action %}, :{{ s.action }}{% endif %}
+{%- endif %} do
+{%- for b in mb %}
+{%- if b.role == "arg" %}
+{{ ind }}  argument :{{ b.bname }}, {{ self::tpl(b=b) }}{% if b.transform %} do
+{{ ind }}    transform {{ b.transform }}
+{{ ind }}  end{% endif %}
+{%- elif b.role == "inputs" %}
+{{ ind }}  inputs(%{ {{ b.bname }}: {{ self::tpl(b=b) }} })
+{%- else %}
+{{ ind }}  {{ b.role }} {{ self::tpl(b=b) }}
+{%- endif %}
+{%- endfor %}
+{%- for w in mw %}
+{{ ind }}  wait_for :{{ w.wait_name }}
+{%- endfor %}
+{%- for k in mk %}
+{{ ind }}  {% if k.k == "raw" %}{{ k.val }}{% else %}{{ k.k }} {{ k.val }}{% endif %}
+{%- endfor %}
+{%- if s.step_kind != "switch" %}
+{%- for r in mr %}
+{{ ind }}  return :{{ r.ret_name }}
+{%- endfor %}
+{%- for c in steps %}{% if c.parent_key == s.step_key %}
+{{ self::step(s=c, steps=steps, binds=binds, waits=waits, kvs=kvs, rets=rets, branches=branches, ind=ind ~ "  ") }}
+{%- endif %}{% endfor %}
+{%- else %}
+{%- for br in branches %}{% if br.step_key == s.step_key %}
+{{ ind }}  {% if br.predicate %}matches?({{ br.predicate }}) do{% else %}default do{% endif %}
+{%- set bret = rets | filter(attribute="owner_key", value=br.branch_key) %}
+{%- for r in bret %}
+{{ ind }}    return :{{ r.ret_name }}
+{%- endfor %}
+{%- for c in steps %}{% if c.parent_key == br.branch_key %}
+{{ self::step(s=c, steps=steps, binds=binds, waits=waits, kvs=kvs, rets=rets, branches=branches, ind=ind ~ "    ") }}
+{%- endif %}{% endfor %}
+{{ ind }}  end
+{%- endif %}{% endfor %}
+{%- endif %}
+{{ ind }}end
+{% endmacro step %}
+{%- set my_inputs = rinputs | filter(attribute="module_name", value=module_name) -%}
+{%- set my_mws = middlewares | filter(attribute="module_name", value=module_name) -%}
+{%- set my_steps = steps | filter(attribute="module_name", value=module_name) -%}
+{%- set my_binds = binds | filter(attribute="module_name", value=module_name) -%}
+{%- set my_waits = waits | filter(attribute="module_name", value=module_name) -%}
+{%- set my_kvs = kvs | filter(attribute="module_name", value=module_name) -%}
+{%- set my_rets = rets | filter(attribute="module_name", value=module_name) -%}
+{%- set my_branches = branches | filter(attribute="module_name", value=module_name) -%}
+{%- set my_top = returns_top | filter(attribute="module_name", value=module_name) -%}
+# GENERATED by ash-a2a-app-pack lane L15 from the application ontology. Do not hand-edit.
+defmodule {{ module_name }} do
+  @moduledoc """
+  Reactor `{{ module_name }}`.{% if description %} {{ description }}{% endif %}
+  """
+  use {% if ash and ash == "true" %}Ash.Reactor{% else %}Reactor{% endif %}
+{% if my_mws | length > 0 %}
+  middlewares do
+{%- for m in my_mws %}
+    middleware {{ m.mw }}
+{%- endfor %}
+  end
+{% endif %}
+{%- for i in my_inputs %}
+{% if i.input_transform %}  input :{{ i.input_name }} do
+    transform {{ i.input_transform }}
+  end{% else %}  input :{{ i.input_name }}{% endif %}
+{%- endfor %}
+
+{%- for s in my_steps %}{% if s.parent_key == "" %}
+{{ self::step(s=s, steps=my_steps, binds=my_binds, waits=my_waits, kvs=my_kvs, rets=my_rets, branches=my_branches, ind="  ") }}
+{%- endif %}{% endfor %}
+{% for t in my_top %}
+  return :{{ t.ret_name }}
+{%- endfor %}
+end

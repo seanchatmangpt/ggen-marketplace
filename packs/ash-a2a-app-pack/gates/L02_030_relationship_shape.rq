@@ -1,0 +1,47 @@
+# Gate L02-030: relationship shape. Closed kind vocabulary; has_one/has_many need
+# destination_attribute unless through/no_attributes; join resource must belong_to both ends;
+# generated FK attribute must not collide with a declared attribute; names unique per resource.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?rel ?problem WHERE {
+  ?resource a aap:Resource ; aap:relationship ?rel .
+  ?rel aap:name ?n ; aap:relKind ?kind .
+  {
+    FILTER(?kind NOT IN ("belongs_to", "has_one", "has_many", "many_to_many"))
+    BIND("unknown relKind" AS ?problem)
+  } UNION {
+    FILTER(?kind IN ("has_one", "has_many"))
+    FILTER NOT EXISTS { ?rel aap:destinationAttribute ?da }
+    FILTER NOT EXISTS { ?rel aap:through ?th }
+    FILTER NOT EXISTS { ?rel aap:throughPath ?tp }
+    FILTER NOT EXISTS { ?rel aap:noAttributes "true" }
+    BIND("has_one/has_many without destinationAttribute" AS ?problem)
+  } UNION {
+    FILTER(?kind = "many_to_many")
+    ?rel aap:through ?join ; aap:destination ?dest .
+    FILTER NOT EXISTS {
+      ?join aap:relationship ?j1 . ?j1 aap:relKind "belongs_to" ; aap:destination ?resource
+    }
+    BIND("join resource has no belongs_to to the source" AS ?problem)
+  } UNION {
+    FILTER(?kind = "many_to_many")
+    ?rel aap:through ?join2 ; aap:destination ?dest2 .
+    FILTER NOT EXISTS {
+      ?join2 aap:relationship ?j2 . ?j2 aap:relKind "belongs_to" ; aap:destination ?dest2
+    }
+    BIND("join resource has no belongs_to to the destination" AS ?problem)
+  } UNION {
+    FILTER(?kind = "belongs_to")
+    FILTER NOT EXISTS { ?rel aap:defineAttribute "false" }
+    ?resource aap:attribute ?at . ?at aap:name ?an .
+    OPTIONAL { ?rel aap:sourceAttribute ?sa }
+    FILTER(?an = COALESCE(?sa, CONCAT(?n, "_id")))
+    BIND("belongs_to generated attribute collides with declared attribute" AS ?problem)
+  } UNION {
+    ?resource aap:relationship ?other . ?other aap:name ?n .
+    FILTER(?other != ?rel)
+    BIND("duplicate relationship name" AS ?problem)
+  } UNION {
+    ?resource aap:attribute ?at2 . ?at2 aap:name ?n .
+    BIND("relationship name equals attribute name" AS ?problem)
+  }
+}

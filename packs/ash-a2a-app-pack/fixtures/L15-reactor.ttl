@@ -1,0 +1,83 @@
+@prefix aap: <https://ggen.dev/ash-a2a-app#> .
+@prefix ex:  <https://example.com/demo#> .
+
+# L15 fixture: an Ash.Reactor over the existing Demo.Desk domain/Ticket resource.
+# Gate-clean by construction: ex:R_open is effectful but sits inside transaction ex:R_txn;
+# ex:R_audit declares compensate; no cycles; every dependency is in-reactor.
+
+ex:Desk aap:reactor ex:R_Triage .
+ex:R_Triage a aap:Reactor ; aap:moduleName "Demo.Reactors.TriageTicket" ; aap:reactorFile "triage_ticket" ;
+  aap:reactorAsh "true" ; aap:reactorDescription "Normalize, open and audit a ticket" ;
+  aap:reactorMiddleware "Reactor.Middleware.Telemetry" ;
+  aap:reactorInput ex:R_in_title, ex:R_in_actor ;
+  aap:reactorReturn ex:R_audit ;
+  aap:reactorStep ex:R_normalize, ex:R_txn, ex:R_open, ex:R_labels, ex:R_label, ex:R_route,
+                  ex:R_hi, ex:R_lo, ex:R_audit, ex:R_find .
+
+ex:R_in_title a aap:ReactorInput ; aap:name "title" .
+ex:R_in_actor a aap:ReactorInput ; aap:name "actor" .
+
+# step with generated impl (run/3 default), no effect
+ex:R_normalize a aap:ReactorStep ; aap:name "normalize" ; aap:stepKind "step" ; aap:stepOrder 1 ;
+  aap:stepGenerate "true" ; aap:stepImplName "Normalize" ; aap:stepMaxRetries "0" ;
+  aap:stepRunBody "{:ok, arguments.title |> String.trim()}" ;
+  aap:stepArg ex:R_normalize_a1 .
+ex:R_normalize_a1 a aap:ReactorBinding ; aap:argName "title" ; aap:argKind "input" ; aap:argInput ex:R_in_title .
+
+# Ash transaction wrapping the effectful create (rollback covers compensation)
+ex:R_txn a aap:ReactorStep ; aap:name "txn" ; aap:stepKind "transaction" ; aap:stepOrder 2 ;
+  aap:stepResources "Demo.Desk.Ticket" ; aap:stepReturn ex:R_open ; aap:stepWaitFor ex:R_normalize .
+ex:R_open a aap:ReactorStep ; aap:name "open" ; aap:stepKind "create" ; aap:stepOrder 1 ;
+  aap:stepParent ex:R_txn ; aap:stepResource "Demo.Desk.Ticket" ; aap:stepAction "open" ;
+  aap:stepInputs ex:R_open_i1 ; aap:stepActor ex:R_open_actor .
+ex:R_open_i1 a aap:ReactorBinding ; aap:argName "title" ; aap:argKind "result" ; aap:argStep ex:R_normalize .
+ex:R_open_actor a aap:ReactorBinding ; aap:argKind "input" ; aap:argInput ex:R_in_actor .
+
+# read_one with options
+ex:R_find a aap:ReactorStep ; aap:name "find" ; aap:stepKind "read_one" ; aap:stepOrder 3 ;
+  aap:stepResource "Demo.Desk.Ticket" ; aap:stepAction "read" ; aap:stepFailOnNotFound "false" ;
+  aap:stepWaitFor ex:R_txn .
+
+# map over a literal list, nested step uses element()
+ex:R_labels a aap:ReactorStep ; aap:name "labels" ; aap:stepKind "map" ; aap:stepOrder 4 ;
+  aap:stepSource ex:R_labels_src ; aap:stepReturn ex:R_label ; aap:stepBatchSize "10" ;
+  aap:stepStrictOrdering "true" .
+ex:R_labels_src a aap:ReactorBinding ; aap:argKind "value" ; aap:argValue "[\"bug\", \"ui\"]" .
+ex:R_label a aap:ReactorStep ; aap:name "label" ; aap:stepKind "step" ; aap:stepOrder 1 ;
+  aap:stepParent ex:R_labels ; aap:stepGenerate "true" ; aap:stepImplName "Label" ;
+  aap:stepArg ex:R_label_a1 .
+ex:R_label_a1 a aap:ReactorBinding ; aap:argName "label" ; aap:argKind "element" ; aap:argStep ex:R_labels .
+
+# switch with a predicate branch and a default branch
+ex:R_route a aap:ReactorStep ; aap:name "route" ; aap:stepKind "switch" ; aap:stepOrder 5 ;
+  aap:stepOn ex:R_route_on ; aap:switchMatch ex:R_route_hi, ex:R_route_lo .
+ex:R_route_on a aap:ReactorBinding ; aap:argKind "result" ; aap:argStep ex:R_normalize .
+ex:R_route_hi a aap:ReactorBranch ; aap:stepOrder 1 ; aap:branchPredicate "&(&1 == \"urgent\")" ; aap:stepReturn ex:R_hi .
+ex:R_route_lo a aap:ReactorBranch ; aap:stepOrder 2 ; aap:branchDefault "true" ; aap:stepReturn ex:R_lo .
+ex:R_hi a aap:ReactorStep ; aap:name "hi" ; aap:stepKind "collect" ; aap:stepOrder 1 ;
+  aap:stepParent ex:R_route_hi ; aap:stepArg ex:R_hi_a1 .
+ex:R_hi_a1 a aap:ReactorBinding ; aap:argName "t" ; aap:argKind "result" ; aap:argStep ex:R_normalize .
+ex:R_lo a aap:ReactorStep ; aap:name "lo" ; aap:stepKind "collect" ; aap:stepOrder 1 ;
+  aap:stepParent ex:R_route_lo ; aap:stepArg ex:R_lo_a1 .
+ex:R_lo_a1 a aap:ReactorBinding ; aap:argName "t" ; aap:argKind "result" ; aap:argStep ex:R_normalize .
+
+# effectful custom step: compensation declared (generated compensate/4 + undo/4)
+ex:R_audit a aap:ReactorStep ; aap:name "audit" ; aap:stepKind "step" ; aap:stepOrder 6 ;
+  aap:stepGenerate "true" ; aap:stepImplName "Audit" ; aap:stepEffectful "true" ;
+  aap:stepHasCompensate "true" ; aap:stepHasUndo "true" ; aap:stepDescription "Write audit trail" ;
+  aap:stepWaitFor ex:R_txn, ex:R_labels, ex:R_route, ex:R_find ;
+  aap:stepArg ex:R_audit_a1 .
+ex:R_audit_a1 a aap:ReactorBinding ; aap:argName "ticket" ; aap:argKind "result" ; aap:argStep ex:R_txn ;
+  aap:argPath "id" .
+
+# generic action on Ticket that runs the reactor, with an A2A skill
+ex:Ticket aap:reactorFragment "Demo.Desk.TicketReactorActions" ; aap:reactorFragmentFile "ticket_reactor_actions" ;
+  aap:reactorAction ex:Ticket_triage .
+ex:Ticket_triage a aap:ReactorAction ; aap:name "triage" ; aap:actionReturns "map" ;
+  aap:description "Normalize, open and audit a ticket" ;
+  aap:runsReactor ex:R_Triage ; aap:actionImplModule "Demo.Desk.Ticket.TriageRun" ;
+  aap:actionImplFile "ticket_triage_run" ; aap:passActor "true" ; aap:runTimeout "5000" ;
+  aap:actionArg ex:Ticket_triage_title ; aap:reactorSkill ex:Ticket_triageSkill .
+ex:Ticket_triage_title a aap:ReactorActionArg ; aap:name "title" ; aap:actionArgType "string" ; aap:actionArgAllowNil "false" .
+ex:Ticket_triageSkill a aap:Skill ; aap:name "triage_ticket" ; aap:description "Triage a ticket via reactor" ;
+  aap:consequence "change" ; aap:leaseRequired "true" .

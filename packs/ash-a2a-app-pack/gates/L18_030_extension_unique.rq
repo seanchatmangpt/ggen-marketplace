@@ -1,0 +1,11 @@
+# Gate L18: struct modules and entity names must be unique across extensions; positional args contiguous
+# from 1 (a gap or duplicate position breaks Spark entity args:).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?a ?b WHERE {
+  { ?a aap:structModule ?m . ?b aap:structModule ?m . FILTER (STR(?a) < STR(?b)) }
+  UNION
+  { ?a aap:argPosition ?p . ?b aap:argPosition ?p . ?n aap:sparkField ?a, ?b . FILTER (STR(?a) < STR(?b)) }
+  UNION
+  { ?a aap:argPosition ?p . ?n aap:sparkField ?a . FILTER (?p > 1)
+    FILTER NOT EXISTS { ?n aap:sparkField ?b . ?b aap:argPosition ?q . FILTER (?q = ?p - 1) } }
+}

@@ -1,0 +1,36 @@
+# L17 gate: properties spliced into the output as raw Elixir text must at least have the expected term shape.
+# This is a shape fence, not a parser; the coordinator's compile is the court for the content.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?subject ?property ?value ?reason WHERE {
+  {
+    ?subject aap:onCancel ?value . BIND (aap:onCancel AS ?property)
+    FILTER ( !REGEX(STR(?value), "^([A-Z][A-Za-z0-9_.]*|\\{[A-Z][A-Za-z0-9_.]*, :[a-z_][a-zA-Z0-9_]*[?!]?, \\[.*\\]\\})$") )
+    BIND ("on_cancel_not_module_or_mfa" AS ?reason)
+  }
+  UNION
+  {
+    ?subject ?property ?value .
+    FILTER ( ?property IN (aap:extParams, aap:oauthFlows) )
+    FILTER ( !REGEX(STR(?value), "^%\\{.*\\}$") )
+    BIND ("not_an_elixir_map_literal" AS ?reason)
+  }
+  UNION
+  {
+    ?subject aap:endpointExtendedCard ?value . BIND (aap:endpointExtendedCard AS ?property)
+    FILTER ( !REGEX(STR(?value), "^&[A-Z][A-Za-z0-9_.]*\\.[a-z_][a-zA-Z0-9_]*[?!]?/[0-9]+$") )
+    BIND ("not_a_remote_function_capture" AS ?reason)
+  }
+  UNION
+  {
+    ?subject ?property ?value .
+    FILTER ( ?property IN (aap:execEventsTransport, aap:hookModule, aap:endpointModule) )
+    FILTER ( !REGEX(STR(?value), "^([A-Z][A-Za-z0-9_.]*|:[a-z_][a-zA-Z0-9_]*)$") )
+    BIND ("not_a_module_or_atom" AS ?reason)
+  }
+  UNION
+  {
+    ?subject aap:authorizer ?value . BIND (aap:authorizer AS ?property)
+    FILTER ( !REGEX(REPLACE(STR(?value), " ", ""), "^[A-Z][A-Za-z0-9_.]*(,[A-Z][A-Za-z0-9_.]*)*$") )
+    BIND ("authorizer_not_module_list" AS ?reason)
+  }
+}

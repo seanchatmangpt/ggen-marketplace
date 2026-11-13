@@ -1,0 +1,38 @@
+# L17 gate: Plug/Bandit endpoint. Port range, bind scope, the served domain must be a2aConfigured with at
+# least one agent mount, and every mounted agent must be supervised by the endpoint (AshA2A.Domain.Router
+# resolves agents by module -> an unstarted agent crashes at request time).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?subject ?reason WHERE {
+  {
+    ?subject a aap:Endpoint ; aap:endpointPort ?p .
+    FILTER ( !REGEX(STR(?p), "^[0-9]{1,5}$") || xsd:integer(STR(?p)) < 1 || xsd:integer(STR(?p)) > 65535 )
+    BIND ("endpoint_port_out_of_range" AS ?reason)
+  }
+  UNION
+  {
+    ?subject a aap:Endpoint ; aap:endpointIp ?ip . FILTER ( !(STR(?ip) IN ("loopback", "any")) )
+    BIND ("endpoint_ip_not_loopback_or_any" AS ?reason)
+  }
+  UNION
+  {
+    ?subject a aap:Endpoint ; aap:endpointDomain ?d . FILTER NOT EXISTS { ?d aap:a2aConfigured "true" }
+    BIND ("endpoint_domain_not_a2aConfigured" AS ?reason)
+  }
+  UNION
+  {
+    ?subject a aap:Endpoint ; aap:endpointDomain ?d . FILTER NOT EXISTS { ?d aap:mount ?m }
+    BIND ("endpoint_domain_has_no_mounts" AS ?reason)
+  }
+  UNION
+  {
+    ?subject a aap:Endpoint ; aap:endpointDomain ?d . ?d aap:mount ?m . ?m aap:mountAgent ?a .
+    FILTER NOT EXISTS { ?subject aap:endpointAgent ?a }
+    BIND ("mounted_agent_not_supervised_by_endpoint" AS ?reason)
+  }
+  UNION
+  {
+    ?subject a aap:Endpoint ; aap:endpointForwardPath ?fp . FILTER ( !STRSTARTS(STR(?fp), "/") )
+    BIND ("forward_path_must_start_with_slash" AS ?reason)
+  }
+}

@@ -1,0 +1,19 @@
+# Gate L07-010: every a2a skill with consequence change|external_do must be covered by a
+# non-bypass policy on its resource (ties to ash_a2a verify_skills lease_required? refusal,
+# lib/ash_a2a/verifiers/verify_skills.ex:488). Covered = a policy with condKind
+#   "action" == skill action, or "action_type" == the action's type, or "always".
+# Rows returned = violations.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?skill ?c WHERE {
+  ?resource a aap:Resource ; aap:skill ?skill ; aap:action ?act .
+  ?skill aap:ofAction ?an ; aap:consequence ?c .
+  ?act aap:name ?an ; aap:actionType ?at .
+  FILTER (?c IN ("change", "external_do"))
+  FILTER NOT EXISTS {
+    ?resource aap:policy ?p . ?p aap:condKind ?k .
+    OPTIONAL { ?p aap:condArg ?pa }
+    OPTIONAL { ?p aap:bypass ?b }
+    FILTER (!BOUND(?b) || ?b != "true")
+    FILTER (?k = "always" || (?k = "action" && ?pa = ?an) || (?k = "action_type" && ?pa = ?at))
+  }
+}

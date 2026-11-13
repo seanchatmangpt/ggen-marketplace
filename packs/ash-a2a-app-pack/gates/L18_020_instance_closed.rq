@@ -1,0 +1,16 @@
+# Gate L18: an instance must name an entity, its resource must enable the owning extension, every
+# required field must have a value, and every value must target a field of that entity.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?inst WHERE {
+  ?r aap:sparkInstance ?inst .
+  { FILTER NOT EXISTS { ?inst aap:ofEntity ?n } }
+  UNION
+  { ?inst aap:ofEntity ?n . ?s aap:sparkEntity ?n . ?e aap:sparkSection ?s .
+    FILTER NOT EXISTS { ?r aap:sparkExtension ?e } }
+  UNION
+  { ?inst aap:ofEntity ?n . ?n aap:sparkField ?f . ?f aap:required "true" .
+    FILTER NOT EXISTS { ?inst aap:sparkValue ?v . ?v aap:forField ?f } }
+  UNION
+  { ?inst aap:ofEntity ?n . ?inst aap:sparkValue ?v . ?v aap:forField ?f .
+    FILTER NOT EXISTS { ?n aap:sparkField ?f } }
+}

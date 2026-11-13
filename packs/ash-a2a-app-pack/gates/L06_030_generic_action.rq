@@ -1,0 +1,28 @@
+# Gate L06: generic actions (actionType "action") need returns xor run-less intent is not
+# allowed to be silent: must declare l06Returns or l06RunModule; run module must resolve;
+# l06Order must be unique per action; update/destroy-only options on other types are violations.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?action ?why WHERE {
+  {
+    ?action a aap:L06Action ; aap:actionType "action" .
+    FILTER NOT EXISTS { ?action aap:l06Returns ?r }
+    FILTER NOT EXISTS { ?action aap:l06RunModule ?m }
+    BIND("generic action has neither returns nor run" AS ?why)
+  } UNION {
+    ?action a aap:L06Action ; aap:l06RunModule ?m .
+    FILTER NOT EXISTS { ?run a aap:L06Run ; aap:moduleName ?m }
+    BIND("run module has no aap:L06Run" AS ?why)
+  } UNION {
+    ?action a aap:L06Action ; aap:actionType ?t ;  aap:l06RequireAtomic ?q .
+    FILTER (?t NOT IN ("update", "destroy"))
+    BIND("require_atomic? only valid on update/destroy" AS ?why)
+  } UNION {
+    ?action a aap:L06Action ; aap:actionType ?t ; aap:l06AtomicUpgrade ?q .
+    FILTER (?t != "update")
+    BIND("atomic_upgrade? only valid on update" AS ?why)
+  } UNION {
+    ?action aap:l06Step ?s1, ?s2 . ?s1 aap:l06Order ?o . ?s2 aap:l06Order ?o .
+    FILTER (?s1 != ?s2)
+    BIND("duplicate step order" AS ?why)
+  }
+}

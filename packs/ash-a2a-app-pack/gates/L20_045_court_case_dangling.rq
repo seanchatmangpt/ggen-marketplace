@@ -1,0 +1,18 @@
+# Gate L20_045: a policy/transition/identity court case names an action absent on its courtResource,
+# or has no courtResource (rows = violation).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?case ?action WHERE {
+  {
+    ?case a ?k ; aap:caseAction ?action .
+    FILTER(?k IN (aap:PolicyCase, aap:TransitionCase))
+    ?case aap:courtResource ?r .
+    FILTER NOT EXISTS { ?r aap:action ?a . ?a aap:name ?action }
+  } UNION {
+    ?case a aap:CourtIdentity ; aap:seedAction ?action ; aap:courtResource ?r .
+    FILTER NOT EXISTS { ?r aap:action ?a . ?a aap:name ?action }
+  } UNION {
+    ?case a ?k . ?case aap:caseAction ?action .
+    FILTER(?k IN (aap:PolicyCase, aap:TransitionCase))
+    FILTER NOT EXISTS { ?case aap:courtResource ?any }
+  }
+}

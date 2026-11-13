@@ -1,0 +1,39 @@
+# L17 gate (mirrors verify_config.ex:47-141): scheme kind set, unique names, kind-required fields.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?subject ?reason WHERE {
+  {
+    ?d a aap:Domain ; aap:securityScheme ?subject . ?subject aap:schemeKind ?k .
+    FILTER ( !(STR(?k) IN ("bearer", "api_key", "none", "http", "oauth2", "openid_connect", "mtls")) )
+    BIND ("invalid_security_scheme_kind" AS ?reason)
+  }
+  UNION
+  {
+    ?d a aap:Domain ; aap:securityScheme ?subject , ?other . ?subject aap:schemeName ?n . ?other aap:schemeName ?n .
+    FILTER (?subject != ?other)
+    BIND ("security_scheme_declared_more_than_once" AS ?reason)
+  }
+  UNION
+  {
+    ?d a aap:Domain ; aap:securityScheme ?subject . ?subject aap:schemeKind "http" .
+    FILTER NOT EXISTS { ?subject aap:httpScheme ?v }
+    BIND ("kind_http_requires_http_scheme" AS ?reason)
+  }
+  UNION
+  {
+    ?d a aap:Domain ; aap:securityScheme ?subject . ?subject aap:schemeKind "oauth2" .
+    FILTER NOT EXISTS { ?subject aap:oauthFlows ?v }
+    BIND ("kind_oauth2_requires_oauth_flows" AS ?reason)
+  }
+  UNION
+  {
+    ?d a aap:Domain ; aap:securityScheme ?subject . ?subject aap:schemeKind "openid_connect" .
+    FILTER NOT EXISTS { ?subject aap:openidUrl ?v }
+    BIND ("kind_openid_connect_requires_openid_url" AS ?reason)
+  }
+  UNION
+  {
+    ?d a aap:Domain ; aap:securityScheme ?subject . ?subject aap:schemeLocation ?loc .
+    FILTER ( !(STR(?loc) IN ("header", "query", "cookie")) )
+    BIND ("invalid_api_key_location" AS ?reason)
+  }
+}

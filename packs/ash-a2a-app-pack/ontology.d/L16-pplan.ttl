@@ -1,0 +1,92 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix aap:  <https://ggen.dev/ash-a2a-app#> .
+
+# L16 ash_pplan vocabulary. Grammar sources (all under /Users/sac/ash_pplan/lib/ash_pplan):
+#   workflow section/entities  workflow/dsl/extension.ex:25-70 (task :25-45, method :47-59, section :61-70)
+#   generated pplan section    dsl/pplan.ex:26-66 (task lacks compensation), dsl.ex:20 (use AshPPlan.Dsl)
+#   capability id grammar      capability.ex:9-13 (families, Family.Name regex), :33 parse
+#   authority ceilings         workflow/dsl/verifiers/capabilities_parse.ex:9, providers/qualify.ex:13
+#   provider behaviour         provider.ex:22-35 (id/capabilities/properties/evidence/cost/qualify/realize)
+#   qualification              providers/qualify.ex:22-47 (check/6), :72 (realize/4 binding table)
+#   realization binding        realization.ex:7-9,29-33 (%{adapter, op}; op = downcase, "." -> "_")
+#   capability pack            capability_pack.ex:13-19 (id version capabilities properties evidence authority)
+#   registry resolution        providers/registry.ex:52-58 (resolve/3)
+#   manufacture targets        manufacture_targets.ex:24-72 (targets/0), :82-96 (generated_dirs/0)
+#   control plane              control_plane.ex:19-39 (describe/1 -> state_machine, oban, closure, authority)
+# Multi-valued lists are repeated triples (never comma strings) except aap:ppSubtasks ordering,
+# which uses aap:ppStep blank nodes so order survives RDF.
+
+aap:PPlanWorkflow       a owl:Class ; rdfs:comment "A module using AshPPlan.Workflow (workflow do ... end)." .
+aap:PPlanTask           a owl:Class ; rdfs:comment "workflow task entity (extension.ex:25)." .
+aap:PPlanMethod         a owl:Class ; rdfs:comment "workflow method entity, an HDDL decomposition (extension.ex:47)." .
+aap:PPlanStep           a owl:Class ; rdfs:comment "Ordered subtask reference inside a method." .
+aap:PPlanProvider       a owl:Class ; rdfs:comment "Module implementing @behaviour AshPPlan.Provider (provider.ex)." .
+aap:PPlanBinding        a owl:Class ; rdfs:comment "Provider binding row: capability -> {adapter, op, options} (qualify.ex:72)." .
+aap:PPlanCapabilityPack a owl:Class ; rdfs:comment "AshPPlan.CapabilityPack declaration (capability_pack.ex:13)." .
+aap:PPlanObligation     a owl:Class ; rdfs:comment "A requirement a workflow must discharge: a capability (with properties/evidence) some task AND some provider must supply." .
+aap:PPlanManufactureTarget a owl:Class ; rdfs:comment "One manufacture manifest row (manufacture_targets.ex:24)." .
+aap:PPlanControlPlane   a owl:Class ; rdfs:comment "Control-plane expectation for an Ash resource (control_plane.ex:19)." .
+
+# ---- workflow ----
+aap:ppWorkflow     a owl:ObjectProperty ; rdfs:comment "Domain -> aap:PPlanWorkflow (placement only)." .
+aap:ppFile         a owl:DatatypeProperty ; rdfs:comment "File stem under lib/<appPath>/pplan/." .
+aap:ppName         a owl:DatatypeProperty ; rdfs:comment "workflow name (section schema :name, extension.ex:65)." .
+aap:ppGoal         a owl:DatatypeProperty ; rdfs:comment "workflow goal string (extension.ex:66)." .
+aap:ppVersion      a owl:DatatypeProperty ; rdfs:comment "pos_integer workflow version (extension.ex:67)." .
+aap:ppTask         a owl:ObjectProperty ; rdfs:comment "Workflow -> aap:PPlanTask." .
+aap:ppMethod       a owl:ObjectProperty ; rdfs:comment "Workflow -> aap:PPlanMethod." .
+aap:ppObligation   a owl:ObjectProperty ; rdfs:comment "Workflow -> aap:PPlanObligation." .
+aap:ppProvider     a owl:ObjectProperty ; rdfs:comment "Domain -> aap:PPlanProvider (placement only)." .
+aap:ppUsesProvider a owl:ObjectProperty ; rdfs:comment "Workflow -> aap:PPlanProvider candidate set for its generated court." .
+
+# ---- task (aap:name = id atom) ----
+aap:ppCapability   a owl:DatatypeProperty ; rdfs:comment "Family.Name capability id (extension.ex:33)." .
+aap:ppAfter        a owl:ObjectProperty ; rdfs:comment "Task -> Task it depends on (after:, extension.ex:34). Object-valued so the acyclicity gate is a property path." .
+aap:ppOutcome      a owl:DatatypeProperty ; rdfs:comment "Declared nondeterministic outcome atom (outcomes:, :35). Repeatable." .
+aap:ppProperty     a owl:DatatypeProperty ; rdfs:comment "Required execution property atom (properties:, :36). Repeatable." .
+aap:ppEvidenceKind a owl:DatatypeProperty ; rdfs:comment "Required evidence kind atom (evidence:, :37). Repeatable." .
+aap:ppAuthority    a owl:DatatypeProperty ; rdfs:comment "none|observe|select|plan|construct (:38; ceiling construct, :do never)." .
+aap:ppCompensation a owl:DatatypeProperty ; rdfs:comment "Elixir term text for compensation: (e.g. {Mod, :fun, []}), :39-43 (workflow section only)." .
+
+# ---- method ----
+aap:ppRefines      a owl:ObjectProperty ; rdfs:comment "Method -> Task refined (task:, extension.ex:51)." .
+aap:ppStepOf       a owl:ObjectProperty ; rdfs:comment "Method -> aap:PPlanStep (ordered subtasks:, :52)." .
+aap:ppStep         a owl:DatatypeProperty ; rdfs:comment "integer order key of a step." .
+aap:ppStepTask     a owl:ObjectProperty ; rdfs:comment "Step -> Task." .
+aap:ppPrecondition a owl:DatatypeProperty ; rdfs:comment "Elixir term text for method precondition: (:any, :53)." .
+
+# ---- provider ----
+aap:ppProviderId   a owl:DatatypeProperty ; rdfs:comment "provider id/0 atom (provider.ex:23)." .
+aap:ppCost         a owl:DatatypeProperty ; rdfs:comment "cost/0 number (provider.ex:31)." .
+aap:ppProvidesProperty a owl:DatatypeProperty ; rdfs:comment "properties/0 element (provider.ex:27). Repeatable." .
+aap:ppProvidesEvidence a owl:DatatypeProperty ; rdfs:comment "evidence/0 element (provider.ex:29). Repeatable." .
+aap:ppAuthorityCeiling a owl:DatatypeProperty ; rdfs:comment "authorities list handed to Qualify.check (qualify.ex:22). Repeatable; default = full list." .
+aap:ppBinding      a owl:ObjectProperty ; rdfs:comment "Provider -> aap:PPlanBinding." .
+aap:ppAdapter      a owl:DatatypeProperty ; rdfs:comment "Binding adapter atom, key of AshPPlan.Reactor.adapters/0 (realization.ex:25)." .
+aap:ppOp           a owl:DatatypeProperty ; rdfs:comment "Binding op atom; must equal Realization.op_for(capability) (realization.ex:29)." .
+aap:ppOptions      a owl:DatatypeProperty ; rdfs:comment "Elixir keyword text for binding options, default []." .
+
+# ---- capability pack ----
+aap:ppPack         a owl:ObjectProperty ; rdfs:comment "Domain -> aap:PPlanCapabilityPack." .
+aap:ppPackId       a owl:DatatypeProperty ; rdfs:comment "pack id string (capability_pack.ex:14)." .
+aap:ppPackVersion  a owl:DatatypeProperty ; rdfs:comment "pack version string, default 0.0.0." .
+aap:ppPackCapability a owl:DatatypeProperty ; rdfs:comment "Capability id in the pack. Repeatable." .
+aap:ppPackProperty a owl:DatatypeProperty ; rdfs:comment "Pack property atom. Repeatable." .
+aap:ppPackEvidence a owl:DatatypeProperty ; rdfs:comment "Pack evidence atom. Repeatable." .
+
+# ---- obligations (aap:name = obligation name) ----
+aap:ppRequiresProperty a owl:DatatypeProperty ; rdfs:comment "Property the discharging provider must offer. Repeatable." .
+aap:ppRequiresEvidence a owl:DatatypeProperty ; rdfs:comment "Evidence the discharging provider must offer. Repeatable." .
+
+# ---- manufacture targets / control plane ----
+aap:ppTarget       a owl:ObjectProperty ; rdfs:comment "Domain -> aap:PPlanManufactureTarget." .
+aap:ppTemplate     a owl:DatatypeProperty ; rdfs:comment "manufacture template name (manufacture_targets.ex:27)." .
+aap:ppOut          a owl:DatatypeProperty ; rdfs:comment "root-relative output path." .
+aap:ppTargetModule a owl:DatatypeProperty ; rdfs:comment "module the projection defines." .
+aap:ppGeneratedDir a owl:DatatypeProperty ; rdfs:comment "Domain-level generated_dirs/0 entry (:86). Repeatable." .
+aap:ppReusesPack   a owl:DatatypeProperty ; rdfs:comment "Marketplace pack id reused by reference (ash-pplan-igniter-pack, ash-pplan-protocol-court-pack, ash-pplan-store-conformance-pack, ash-pplan-chaos-pack). Repeatable, on a Domain." .
+aap:ppControlPlane a owl:ObjectProperty ; rdfs:comment "Resource -> aap:PPlanControlPlane." .
+aap:ppExpectStateMachine a owl:DatatypeProperty ; rdfs:comment "\"true\" => generated verify/0 requires state_machine.available? (control_plane.ex:27)." .
+aap:ppExpectOban   a owl:DatatypeProperty ; rdfs:comment "\"true\" => generated verify/0 requires oban.available? (control_plane.ex:28)." .

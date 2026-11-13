@@ -1,0 +1,16 @@
+# L08 gate: strategy must be attribute|context; attribute strategy requires an
+# attribute; context strategy must not carry one; global? must be a boolean literal.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?why WHERE {
+  ?resource a aap:Resource ; aap:multitenancy ?m .
+  OPTIONAL { ?m aap:tenantStrategy ?s }
+  OPTIONAL { ?m aap:tenantAttribute ?a }
+  OPTIONAL { ?m aap:tenantGlobal ?g }
+  BIND(
+    IF(!BOUND(?s) || !(?s IN ("attribute", "context")), "strategy missing or not attribute|context",
+    IF(?s = "attribute" && !BOUND(?a), "attribute strategy without tenantAttribute",
+    IF(?s = "context" && BOUND(?a), "context strategy must not set tenantAttribute",
+    IF(BOUND(?g) && !(?g IN ("true", "false")), "tenantGlobal not true|false", ?unbound_none))))
+    AS ?why)
+  FILTER(BOUND(?why))
+}

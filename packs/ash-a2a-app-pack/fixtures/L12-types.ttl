@@ -1,0 +1,37 @@
+@prefix aap: <https://ggen.dev/ash-a2a-app#> .
+@prefix ex:  <https://example.org/l12#> .
+
+ex:dom a aap:Domain ; aap:moduleName "Demo.Support" ; aap:appPath "demo" ; aap:domainFile "support" .
+
+ex:Priority a aap:CustomType ; aap:moduleName "Demo.Types.Priority" ; aap:typeKind "enum" ;
+  aap:inDomain ex:dom ; aap:typeFile "priority" ;
+  aap:enumValue "low", "normal", "urgent" .
+
+ex:Email a aap:CustomType ; aap:moduleName "Demo.Types.Email" ; aap:typeKind "newtype" ;
+  aap:inDomain ex:dom ; aap:typeFile "email" ; aap:subtypeOf "string" ;
+  aap:typeConstraints "[match: ~r/@/, max_length: 254]" .
+
+ex:Contact a aap:CustomType ; aap:moduleName "Demo.Types.Contact" ; aap:typeKind "typed_struct" ;
+  aap:inDomain ex:dom ; aap:typeFile "contact" ;
+  aap:typeField [ aap:name "name" ; aap:ashType "string" ; aap:allowNil "false" ] ,
+                [ aap:name "email" ; aap:typeRef ex:Email ] .
+
+ex:Note a aap:CustomType ; aap:moduleName "Demo.Types.Note" ; aap:typeKind "embedded" ;
+  aap:inDomain ex:dom ; aap:typeFile "note" ;
+  aap:typeField [ aap:name "body" ; aap:ashType "string" ; aap:allowNil "false" ] ,
+                [ aap:name "priority" ; aap:typeRef ex:Priority ; aap:defaultValue ":normal" ] .
+
+ex:Payload a aap:CustomType ; aap:moduleName "Demo.Types.Payload" ; aap:typeKind "union" ;
+  aap:inDomain ex:dom ; aap:typeFile "payload" ; aap:unionStorage "type_and_value" ;
+  aap:unionMember [ aap:name "text" ; aap:ashType "string" ] ,
+                  [ aap:name "count" ; aap:ashType "integer" ] ,
+                  [ aap:name "note" ; aap:typeRef ex:Note ] .
+
+ex:Ticket a aap:Resource ; aap:moduleName "Demo.Ticket" ; aap:inDomain ex:dom ;
+  aap:resourceFile "ticket" ;
+  aap:attribute [ aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" ] ;
+  aap:typedAttribute
+    [ aap:name "priority" ; aap:typeRef ex:Priority ; aap:allowNil "false" ; aap:defaultValue ":normal" ] ,
+    [ aap:name "contact" ; aap:typeRef ex:Contact ] ,
+    [ aap:name "notes" ; aap:typeRef ex:Note ; aap:isArray "true" ] ,
+    [ aap:name "payload" ; aap:typeRef ex:Payload ] .

@@ -1,0 +1,46 @@
+# L05 vocabulary: Ash identities + resource-level validations (incl. action-scoped).
+# DSL grammar sources (deps/ash/lib/ash/resource):
+#   identity.ex:32-94   name, keys, where, nils_distinct?, eager_check?, eager_check_with,
+#                       pre_check?, pre_check_with, description, field_names, message, all_tenants?
+#   validation.ex:145-186  validation, where, on, only_when_valid?, description, before_action?,
+#                       always_atomic?  (message is per-validation opt)
+#   validation/builtins.ex  one_of:22 changing:52 confirm:66 attribute_does_not_equal:81
+#                       negate:93 action_is:143 attribute_equals:158 attribute_in:175
+#                       string_length:193 compare/numericality:239 match:253 present:282
+#                       attributes_present:301 absent:337 attributes_absent:375
+#                       argument_does_not_equal:415 argument_equals:430 argument_in:445
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix aap:  <https://ggen.dev/ash-a2a-app#> .
+
+aap:Identity   a owl:Class ; rdfs:comment "An Ash identity (unique constraint) on a resource." .
+aap:Validation a owl:Class ; rdfs:comment "A resource-level Ash validation; action-scoped via aap:forAction." .
+
+aap:identity   a owl:ObjectProperty ; rdfs:comment "Resource -> Identity." .
+aap:validation a owl:ObjectProperty ; rdfs:comment "Resource -> Validation." .
+
+# --- Identity ---
+aap:identityKey    a owl:DatatypeProperty ; rdfs:comment "Repeatable: one attribute name per triple. Must name an aap:attribute of the resource." .
+aap:eagerCheck     a owl:DatatypeProperty ; rdfs:comment "true|false -> eager_check?" .
+aap:eagerCheckWith a owl:DatatypeProperty ; rdfs:comment "Domain module -> eager_check_with" .
+aap:preCheck       a owl:DatatypeProperty ; rdfs:comment "true|false -> pre_check?" .
+aap:preCheckWith   a owl:DatatypeProperty ; rdfs:comment "Domain module -> pre_check_with" .
+aap:nilsDistinct   a owl:DatatypeProperty ; rdfs:comment "true|false -> nils_distinct?" .
+aap:allTenants     a owl:DatatypeProperty ; rdfs:comment "true|false -> all_tenants?" .
+aap:fieldNames     a owl:DatatypeProperty ; rdfs:comment "comma-separated atoms -> field_names" .
+aap:identityWhere  a owl:DatatypeProperty ; rdfs:comment "Raw Elixir expression, e.g. expr(is_nil(archived_at)) -> where" .
+
+# --- Validation ---
+aap:validationKind a owl:DatatypeProperty ;
+  rdfs:comment "present|absent|attributes_present|attributes_absent|match|compare|numericality|one_of|string_length|attribute_equals|attribute_does_not_equal|attribute_in|argument_equals|argument_does_not_equal|argument_in|confirm|changing|raw" .
+aap:vAttribute  a owl:DatatypeProperty ; rdfs:comment "Repeatable attribute/argument name. Single-target kinds take exactly one." .
+aap:vValue      a owl:DatatypeProperty ; rdfs:comment "Raw Elixir second argument (regex sigil, list, atom, literal); for kind raw, the whole validation expression." .
+aap:vOpts       a owl:DatatypeProperty ; rdfs:comment "Raw Elixir keyword opts for the builtin, e.g. min: 3, max: 120" .
+aap:on          a owl:DatatypeProperty ; rdfs:comment "comma-separated create|update|destroy -> on:" .
+aap:where       a owl:DatatypeProperty ; rdfs:comment "';'-separated raw where-validations, e.g. attribute_equals(:a, 1); present(:b)" .
+aap:forAction   a owl:DatatypeProperty ; rdfs:comment "Action name; adds action_is(:name) to where (action-level validation)." .
+aap:message     a owl:DatatypeProperty ; rdfs:comment "Error message (no double quotes; see gate L05_message_quotes)." .
+aap:onlyWhenValid a owl:DatatypeProperty .
+aap:beforeAction  a owl:DatatypeProperty .
+aap:alwaysAtomic  a owl:DatatypeProperty .

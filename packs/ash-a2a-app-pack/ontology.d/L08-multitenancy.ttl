@@ -1,0 +1,51 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix aap:  <https://ggen.dev/ash-a2a-app#> .
+
+# L08 multitenancy vocabulary. Grammar: deps/ash/lib/ash/resource/dsl.ex:1787-1841
+# (multitenancy section: strategy, attribute, global?, parse_attribute, tenant_from_attribute).
+
+aap:Multitenancy a owl:Class ;
+  rdfs:comment "Ash multitenancy section of a resource (dsl.ex:1787)." .
+aap:Relationship a owl:Class ;
+  rdfs:comment "A belongs_to relationship of a resource (L08 scope: tenant owner)." .
+aap:Mount a owl:Class ;
+  rdfs:comment "An AshA2A.Domain transport mount (ash_a2a lib/ash_a2a/domain.ex:243-290)." .
+aap:TenantTaskStore a owl:Class ;
+  rdfs:comment "Per-tenant namespaced AshA2A.TaskStore.Ash wrapper (closes tenancy gap)." .
+
+# Resource -> Multitenancy
+aap:multitenancy a owl:ObjectProperty ; rdfs:domain aap:Resource ; rdfs:range aap:Multitenancy .
+aap:tenantStrategy a owl:DatatypeProperty ; rdfs:comment "attribute|context (dsl.ex:1808)" .
+aap:tenantAttribute a owl:DatatypeProperty ; rdfs:comment "attribute name for strategy attribute (dsl.ex:1815)" .
+aap:tenantGlobal a owl:DatatypeProperty ; rdfs:comment "true|false (dsl.ex:1821)" .
+aap:parseAttribute a owl:DatatypeProperty ;
+  rdfs:comment "Elixir mfa literal, e.g. {MyApp.Tenant, :to_attr, []} (dsl.ex:1828)" .
+aap:tenantFromAttribute a owl:DatatypeProperty ;
+  rdfs:comment "Elixir mfa literal, inverse of parseAttribute (dsl.ex:1834)" .
+
+# Resource -> Relationship (belongs_to)
+aap:relationship a owl:ObjectProperty ; rdfs:domain aap:Resource ; rdfs:range aap:Relationship .
+aap:relName a owl:DatatypeProperty .
+aap:relDestination a owl:DatatypeProperty ; rdfs:comment "destination module name" .
+aap:relSourceAttribute a owl:DatatypeProperty ; rdfs:comment "foreign-key attribute name" .
+aap:relAttributeType a owl:DatatypeProperty ; rdfs:comment "ash type of the FK, default uuid" .
+aap:relAllowNil a owl:DatatypeProperty ; rdfs:comment "true|false; tenant FKs must be false" .
+aap:relPublic a owl:DatatypeProperty ; rdfs:comment "attribute_public? true|false" .
+
+# Domain -> Mount (tenant mapping into A2A supportedInterfaces)
+aap:mount a owl:ObjectProperty ; rdfs:domain aap:Domain ; rdfs:range aap:Mount .
+aap:mountAgent a owl:DatatypeProperty ; rdfs:comment "agent module name" .
+aap:mountPath a owl:DatatypeProperty .
+aap:mountBinding a owl:DatatypeProperty ; rdfs:comment "jsonrpc|rest|grpc" .
+aap:mountTenant a owl:DatatypeProperty ; rdfs:comment "tenant id on the mount (domain.ex:278)" .
+aap:mountsTenantFor a owl:ObjectProperty ;
+  rdfs:comment "Mount -> Resource whose tenant this mount id supplies (gate cross-check)." .
+
+# Task-store tenancy
+aap:taskStore a owl:ObjectProperty ; rdfs:domain aap:Project ; rdfs:range aap:TenantTaskStore .
+aap:taskStoreModule a owl:DatatypeProperty .
+aap:taskStoreFile a owl:DatatypeProperty .
+aap:taskStoreAppPath a owl:DatatypeProperty .
+aap:taskStoreNamespace a owl:DatatypeProperty ; rdfs:comment "base namespace; tenant is suffixed" .

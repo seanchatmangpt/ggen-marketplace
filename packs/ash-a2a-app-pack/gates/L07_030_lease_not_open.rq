@@ -1,0 +1,19 @@
+# Gate L07-030: a skill with leaseRequired "true" must not be covered only by open policies
+# (a policy whose every check is `authorize_if always`). Needs >=1 covering non-bypass policy
+# holding a real check (kind != always) of type authorize_if|forbid_unless|forbid_if.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?skill WHERE {
+  ?resource a aap:Resource ; aap:skill ?skill ; aap:action ?act .
+  ?skill aap:ofAction ?an ; aap:leaseRequired ?l .
+  ?act aap:name ?an ; aap:actionType ?at .
+  FILTER (?l = "true")
+  FILTER NOT EXISTS {
+    ?resource aap:policy ?p . ?p aap:condKind ?k ; aap:check ?c .
+    ?c aap:checkKind ?ck ; aap:checkType ?ct .
+    OPTIONAL { ?p aap:condArg ?pa }
+    OPTIONAL { ?p aap:bypass ?b }
+    FILTER (!BOUND(?b) || ?b != "true")
+    FILTER (?ck != "always")
+    FILTER (?k = "always" || (?k = "action" && ?pa = ?an) || (?k = "action_type" && ?pa = ?at))
+  }
+}

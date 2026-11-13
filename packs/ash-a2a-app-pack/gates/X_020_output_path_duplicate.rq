@@ -1,0 +1,145 @@
+# X_020 (cross-lane): no two lanes may emit the same output path (force: true => last writer wins
+# silently). Paths are rebuilt from each template's `to:` expression and appPath resolution:
+#   lib/<appPath>/<file>.ex, plus the per-lane suffixed siblings (_l01.._l18, _a2a_l17 ...) and the
+# sub-directory families (types/, calculations/, reactors/, reactor_actions/, pplan/).
+# Rows = one per colliding path.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?path ?claimants ?reason WHERE {
+  {
+    SELECT ?path
+           (COUNT(DISTINCT ?claim) AS ?n)
+           (GROUP_CONCAT(DISTINCT ?claim; separator=" ; ") AS ?claimants)
+    WHERE {
+      # resource base file
+      { ?s a aap:Resource ; aap:inDomain ?d ; aap:resourceFile ?f . ?d aap:appPath ?ap .
+        BIND (CONCAT("lib/", STR(?ap), "/", STR(?f), ".ex") AS ?path)
+        BIND (CONCAT(STR(?s), " resource file") AS ?claim) }
+      UNION
+      # resource lane fragments (suffix present only when the lane has data for the resource)
+      { ?s a aap:Resource ; aap:inDomain ?d ; aap:resourceFile ?f . ?d aap:appPath ?ap .
+        VALUES (?q ?sfx) {
+          (aap:attrSpec "_l01") (aap:relationship "_l02") (aap:manage "_l02")
+          (aap:calculation "_l03") (aap:aggregate "_l04")
+          (aap:identity "_l05") (aap:validation "_l05")
+          (aap:l06Action "_l06")
+          (aap:policy "_l07") (aap:policyGroup "_l07") (aap:fieldPolicy "_l07")
+          (aap:multitenancy "_l08") (aap:dataLayer "_l09") (aap:pubSub "_l11")
+          (aap:typedAttribute "_l12") (aap:stateMachine "_l13")
+          (aap:obTrigger "_l14_oban") (aap:obSchedule "_l14_oban")
+          (aap:sparkExtension "_l18")
+          (aap:skillSpec "_a2a_l17") (aap:authorizer "_a2a_l17") (aap:hookRef "_a2a_l17")
+          (aap:ppControlPlane "_control_plane_l16")
+        }
+        ?s ?q ?x .
+        BIND (CONCAT("lib/", STR(?ap), "/", STR(?f), ?sfx, ".ex") AS ?path)
+        BIND (CONCAT(STR(?s), " fragment ", ?sfx) AS ?claim) }
+      UNION
+      # domain base + lane siblings
+      { ?s a aap:Domain ; aap:appPath ?ap ; aap:domainFile ?f .
+        BIND (CONCAT("lib/", STR(?ap), "/", STR(?f), ".ex") AS ?path)
+        BIND (CONCAT(STR(?s), " domain file") AS ?claim) }
+      UNION
+      { ?s a aap:Domain ; aap:appPath ?ap ; aap:domainFile ?f .
+        VALUES (?q ?sfx) { (aap:mount "_l08") (aap:a2aConfigured "_a2a_l17") }
+        ?s ?q ?x .
+        BIND (CONCAT("lib/", STR(?ap), "/", STR(?f), ?sfx, ".ex") AS ?path)
+        BIND (CONCAT(STR(?s), " domain fragment ", ?sfx) AS ?claim) }
+      UNION
+      # agent
+      { ?s a aap:Agent ; aap:forDomain ?d ; aap:agentFile ?f . ?d aap:appPath ?ap .
+        BIND (CONCAT("lib/", STR(?ap), "/", STR(?f), ".ex") AS ?path)
+        BIND (CONCAT(STR(?s), " agent file") AS ?claim) }
+      UNION
+      { ?s a aap:Agent ; aap:forDomain ?d ; aap:agentFile ?f ; aap:agentConfigured ?c . ?d aap:appPath ?ap .
+        BIND (CONCAT("lib/", STR(?ap), "/", STR(?f), "_configured_l17.ex") AS ?path)
+        BIND (CONCAT(STR(?s), " agent configured file") AS ?claim) }
+      UNION
+      # L01 enum modules
+      { ?s a aap:EnumType ; aap:inDomain ?d ; aap:enumFile ?f . ?d aap:appPath ?ap .
+        BIND (CONCAT("lib/", STR(?ap), "/", STR(?f), ".ex") AS ?path)
+        BIND (CONCAT(STR(?s), " L01 enum file") AS ?claim) }
+      UNION
+      # L12 custom types (types/ family, shared with embedded resources)
+      { ?s a aap:CustomType ; aap:inDomain ?d ; aap:typeFile ?f . ?d aap:appPath ?ap .
+        BIND (CONCAT("lib/", STR(?ap), "/types/", STR(?f), ".ex") AS ?path)
+        BIND (CONCAT(STR(?s), " L12 type file") AS ?claim) }
+      UNION
+      # L06 hook + run modules
+      { ?s a aap:L06Hook ; aap:l06HookFile ?f ; aap:l06HookResource ?r . ?r aap:inDomain ?d . ?d aap:appPath ?ap .
+        BIND (CONCAT("lib/", STR(?ap), "/", STR(?f), ".ex") AS ?path)
+        BIND (CONCAT(STR(?s), " L06 hook file") AS ?claim) }
+      UNION
+      { ?s a aap:L06Run ; aap:l06RunFile ?f ; aap:l06RunResource ?r . ?r aap:inDomain ?d . ?d aap:appPath ?ap .
+        BIND (CONCAT("lib/", STR(?ap), "/", STR(?f), ".ex") AS ?path)
+        BIND (CONCAT(STR(?s), " L06 run file") AS ?claim) }
+      UNION
+      # L03 calculation modules
+      { ?r a aap:Resource ; aap:inDomain ?d ; aap:calculation ?s . ?d aap:appPath ?ap .
+        ?s aap:calcKind "module" ; aap:calcFile ?f .
+        BIND (CONCAT("lib/", STR(?ap), "/calculations/", STR(?f), ".ex") AS ?path)
+        BIND (CONCAT(STR(?s), " L03 calc module file") AS ?claim) }
+      UNION
+      # L11 notifier + pubsub server
+      { ?r a aap:Resource ; aap:inDomain ?d ; aap:notifier ?s . ?d aap:appPath ?ap .
+        ?s aap:notifierFile ?f .
+        BIND (CONCAT("lib/", STR(?ap), "/", STR(?f), ".ex") AS ?path)
+        BIND (CONCAT(STR(?s), " L11 notifier file") AS ?claim) }
+      UNION
+      { ?s a aap:PubSubServer ; aap:inDomain ?d ; aap:serverFile ?f . ?d aap:appPath ?ap .
+        BIND (CONCAT("lib/", STR(?ap), "/", STR(?f), ".ex") AS ?path)
+        BIND (CONCAT(STR(?s), " L11 pubsub server file") AS ?claim) }
+      UNION
+      # L14 delivery worker
+      { ?s a aap:ObanDeliveryWorker ; aap:inDomain ?d ; aap:obWorkerFile ?f . ?d aap:appPath ?ap .
+        BIND (CONCAT("lib/", STR(?ap), "/", STR(?f), "_l14.ex") AS ?path)
+        BIND (CONCAT(STR(?s), " L14 worker file") AS ?claim) }
+      UNION
+      # L15 reactors, reactor action impls, reactor fragments
+      { ?d aap:reactor ?s . ?d aap:appPath ?ap . ?s aap:reactorFile ?f .
+        BIND (CONCAT("lib/", STR(?ap), "/reactors/", STR(?f), ".ex") AS ?path)
+        BIND (CONCAT(STR(?s), " L15 reactor file") AS ?claim) }
+      UNION
+      { ?res a aap:Resource ; aap:inDomain ?d ; aap:reactorAction ?s . ?d aap:appPath ?ap .
+        ?s aap:actionImplFile ?f .
+        BIND (CONCAT("lib/", STR(?ap), "/reactor_actions/", STR(?f), ".ex") AS ?path)
+        BIND (CONCAT(STR(?s), " L15 action impl file") AS ?claim) }
+      UNION
+      { ?s a aap:Resource ; aap:inDomain ?d ; aap:reactorFragmentFile ?f ; aap:reactorAction ?any . ?d aap:appPath ?ap .
+        BIND (CONCAT("lib/", STR(?ap), "/", STR(?f), ".ex") AS ?path)
+        BIND (CONCAT(STR(?s), " L15 reactor fragment file") AS ?claim) }
+      UNION
+      # L16 pplan family (workflow / provider / capability pack)
+      { ?d aap:appPath ?ap ; (aap:ppWorkflow|aap:ppProvider|aap:ppPack) ?s . ?s aap:ppFile ?f .
+        BIND (CONCAT("lib/", STR(?ap), "/pplan/", STR(?f), ".ex") AS ?path)
+        BIND (CONCAT(STR(?s), " L16 pplan file") AS ?claim) }
+      UNION
+      # L17 endpoint
+      { ?s a aap:Endpoint ; aap:endpointDomain ?d ; aap:endpointFile ?f . ?d aap:appPath ?ap .
+        BIND (CONCAT("lib/", STR(?ap), "/", STR(?f), ".ex") AS ?path)
+        BIND (CONCAT(STR(?s), " L17 endpoint file") AS ?claim) }
+      UNION
+      # L18 spark extension family
+      { ?s a aap:SparkExtension ; aap:appPath ?ap ; aap:extFile ?f .
+        VALUES ?sfx { "" "_persist" "_info" "_verify" }
+        BIND (CONCAT("lib/", STR(?ap), "/", STR(?f), ?sfx, ".ex") AS ?path)
+        BIND (CONCAT(STR(?s), " L18 extension file", ?sfx) AS ?claim) }
+      UNION
+      # L09 repo + setup module, L08 task store
+      { ?p a aap:Project ; aap:setupAppPath ?ap . ?s a aap:Repo ; aap:repoFile ?f .
+        BIND (CONCAT("lib/", STR(?ap), "/", STR(?f), ".ex") AS ?path)
+        BIND (CONCAT(STR(?s), " L09 repo file") AS ?claim) }
+      UNION
+      { ?s a aap:Project ; aap:setupAppPath ?ap .
+        BIND (CONCAT("lib/", STR(?ap), "/data_layer_setup_l09.ex") AS ?path)
+        BIND (CONCAT(STR(?s), " L09 setup file") AS ?claim) }
+      UNION
+      { ?p a aap:Project ; aap:taskStore ?s . ?s aap:taskStoreAppPath ?ap ; aap:taskStoreFile ?f .
+        BIND (CONCAT("lib/", STR(?ap), "/", STR(?f), ".ex") AS ?path)
+        BIND (CONCAT(STR(?s), " L08 task store file") AS ?claim) }
+    }
+    GROUP BY ?path
+    HAVING (COUNT(DISTINCT ?claim) > 1)
+  }
+  BIND (CONCAT("output path ", ?path, " is written by ", STR(?n), " claims: ", ?claimants) AS ?reason)
+}
+ORDER BY ?path

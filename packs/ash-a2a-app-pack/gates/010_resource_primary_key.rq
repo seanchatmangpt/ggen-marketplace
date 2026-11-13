@@ -1,6 +1,23 @@
-# Gate: every aap:Resource must declare exactly one primary-key attribute.
+# Gate: every aap:Resource must declare a primary key. Rows = violation.
+# Accepted forms (any one suffices):
+#   1. legacy   aap:attribute [ aap:primaryKey "true" ]
+#   2. L01      aap:attrSpec  [ aap:isPrimaryKey "true" ]
+#   3. L01      aap:attrSpec  [ aap:attrKind uuid_primary_key|uuid_v7_primary_key|integer_primary_key ]
+#   4. L02      aap:relationship [ aap:relKind "belongs_to" ; aap:relPrimaryKey "true" ]
 PREFIX aap: <https://ggen.dev/ash-a2a-app#>
 SELECT ?resource WHERE {
   ?resource a aap:Resource .
-  FILTER NOT EXISTS { ?resource aap:attribute ?a . ?a aap:primaryKey "true" }
+  FILTER NOT EXISTS {
+    { ?resource aap:attribute ?a . ?a aap:primaryKey ?pk . FILTER (LCASE(STR(?pk)) = "true") }
+    UNION
+    { ?resource aap:attrSpec ?s . ?s aap:isPrimaryKey ?spk . FILTER (LCASE(STR(?spk)) = "true") }
+    UNION
+    { ?resource aap:attrSpec ?s2 . ?s2 aap:attrKind ?k .
+      FILTER (STR(?k) IN ("uuid_primary_key", "uuid_v7_primary_key", "integer_primary_key")) }
+    UNION
+    { ?resource aap:relationship ?rel . ?rel aap:relPrimaryKey ?rpk .
+      FILTER (LCASE(STR(?rpk)) = "true")
+      OPTIONAL { ?rel aap:relKind ?rk }
+      FILTER (!BOUND(?rk) || STR(?rk) = "belongs_to") }
+  }
 }

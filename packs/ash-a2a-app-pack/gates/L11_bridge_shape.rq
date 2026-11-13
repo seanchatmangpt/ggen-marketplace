@@ -1,0 +1,22 @@
+# Gate L11: A2A bridge must name a real action on its resource, a legal TaskEvents kind,
+# and a task-id attribute declared on the resource. Rows = violations.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?node ?why WHERE {
+  {
+    ?r aap:notifier ?n . ?n aap:bridge ?node . ?node aap:bridgeKind ?k .
+    FILTER(?k NOT IN ("task","status-update","artifact-update","message-update"))
+    BIND("illegal bridgeKind" AS ?why)
+  } UNION {
+    ?r aap:notifier ?n . ?n aap:bridge ?node . ?node aap:bridgeAction ?an .
+    FILTER NOT EXISTS { ?r aap:action ?a . ?a aap:name ?an }
+    BIND("bridgeAction is not an action of the resource" AS ?why)
+  } UNION {
+    ?r aap:notifier ?n . ?n aap:bridge ?node . ?node aap:bridgeTaskIdField ?f .
+    FILTER NOT EXISTS { ?r aap:attribute ?a . ?a aap:name ?f }
+    BIND("bridgeTaskIdField is not an attribute of the resource" AS ?why)
+  } UNION {
+    ?node a aap:A2ABridge ; aap:bridgeFinal ?fin .
+    FILTER(?fin NOT IN ("true","false"))
+    BIND("bridgeFinal not true|false" AS ?why)
+  }
+}

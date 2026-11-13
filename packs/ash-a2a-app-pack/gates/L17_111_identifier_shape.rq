@@ -1,0 +1,22 @@
+# L17 gate: every value emitted as an Elixir atom must be identifier-shaped, otherwise the generated
+# `:name` is a syntax error (or an injection). Comma lists are checked element-wise by anchored regex.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?subject ?property ?value ?reason WHERE {
+  {
+    ?subject ?property ?value .
+    FILTER ( ?property IN (aap:specName, aap:specAction, aap:targetArg, aap:hookId, aap:hookFun, aap:predicate,
+                           aap:schemeName, aap:publicSkill, aap:observeGenericAction, aap:authGate,
+                           aap:schemeKind, aap:schemeLocation, aap:execMode, aap:execCancelInFlight,
+                           aap:execAdapter, aap:consequence, aap:mountBinding) )
+    FILTER ( !REGEX(STR(?value), "^[a-z_][a-zA-Z0-9_]*[?!]?$") )
+    BIND ("not_an_atom_identifier" AS ?reason)
+  }
+  UNION
+  {
+    ?subject ?property ?value .
+    FILTER ( ?property IN (aap:hddlParams, aap:factArgs) )
+    FILTER ( STR(?value) != "" )
+    FILTER ( !REGEX(REPLACE(STR(?value), " ", ""), "^[a-z_][a-zA-Z0-9_]*(,[a-z_][a-zA-Z0-9_]*)*$") )
+    BIND ("not_an_atom_identifier_list" AS ?reason)
+  }
+}

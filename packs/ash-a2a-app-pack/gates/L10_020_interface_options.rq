@@ -1,0 +1,31 @@
+# Gate L10-020: option coherence for code interfaces (rows = violations).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?interface ?name ?reason WHERE {
+  ?interface a aap:CodeInterface ; aap:name ?name .
+  {
+    ?interface aap:getBy ?x ; aap:getByIdentity ?y .
+    BIND("get_by and get_by_identity are mutually redundant" AS ?reason)
+  } UNION {
+    ?interface aap:get ?g . FILTER(STR(?g) NOT IN ("true","false"))
+    BIND("get? must be true|false" AS ?reason)
+  } UNION {
+    ?interface aap:notFoundError ?g . FILTER(STR(?g) NOT IN ("true","false"))
+    BIND("not_found_error? must be true|false" AS ?reason)
+  } UNION {
+    ?interface aap:requireReference ?g . FILTER(STR(?g) NOT IN ("true","false"))
+    BIND("require_reference? must be true|false" AS ?reason)
+  } UNION {
+    ?interface aap:notFoundError ?nf .
+    FILTER NOT EXISTS { ?interface aap:get ?g1 } FILTER NOT EXISTS { ?interface aap:getBy ?g2 }
+    FILTER NOT EXISTS { ?interface aap:getByIdentity ?g3 }
+    BIND("not_found_error? only meaningful with get?/get_by/get_by_identity" AS ?reason)
+  } UNION {
+    # get?/get_by on a create action is invalid
+    { ?interface aap:interfaceOf ?r } UNION { ?interface aap:forResource ?r }
+    { ?interface aap:get "true" } UNION { ?interface aap:getBy ?gb } UNION { ?interface aap:getByIdentity ?gi }
+    OPTIONAL { ?interface aap:ofAction ?act }
+    BIND(COALESCE(?act, ?name) AS ?target)
+    ?r aap:action ?a . ?a aap:name ?an ; aap:actionType "create" . FILTER(STR(?an) = STR(?target))
+    BIND("get?/get_by cannot target a create action" AS ?reason)
+  }
+}

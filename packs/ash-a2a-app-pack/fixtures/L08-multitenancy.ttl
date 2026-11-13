@@ -1,0 +1,31 @@
+@prefix aap: <https://ggen.dev/ash-a2a-app#> .
+@prefix ex:  <https://example.com/demo#> .
+
+# Valid facts layered on /tmp/a2a_demo3 app.ttl (ex:Desk, ex:Ticket, ex:DeskAgent).
+ex:Org a aap:Resource ; aap:moduleName "Demo.Desk.Org" ; aap:inDomain ex:Desk ;
+  aap:resourceFile "org" ; aap:attribute ex:Org_id ; aap:action ex:Org_read .
+ex:Org_id a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:Org_read a aap:Action ; aap:name "read" ; aap:actionType "read" .
+
+# Attribute strategy, tenant FK as belongs_to
+ex:Ticket aap:multitenancy ex:Ticket_mt ; aap:relationship ex:Ticket_org .
+ex:Ticket_mt a aap:Multitenancy ; aap:tenantStrategy "attribute" ;
+  aap:tenantAttribute "org_id" ; aap:tenantGlobal "true" .
+ex:Ticket_org a aap:Relationship ; aap:relName "org" ; aap:relDestination "Demo.Desk.Org" ;
+  aap:relSourceAttribute "org_id" ; aap:relAttributeType "uuid" ;
+  aap:relAllowNil "false" ; aap:relPublic "true" .
+
+# Context strategy
+ex:Note aap:multitenancy ex:Note_mt .
+ex:Note_mt a aap:Multitenancy ; aap:tenantStrategy "context" .
+
+# Tenant -> A2A mount
+ex:Desk aap:mount ex:Desk_mount_acme .
+ex:Desk_mount_acme a aap:Mount ; aap:mountAgent "Demo.DeskAgent" ; aap:mountPath "/acme" ;
+  aap:mountBinding "jsonrpc" ; aap:mountTenant "acme" ; aap:mountsTenantFor ex:Ticket .
+
+# Per-tenant task store
+<urn:demo:project> aap:taskStore ex:TenantStore .
+ex:TenantStore a aap:TenantTaskStore ; aap:taskStoreModule "Demo.TenantTaskStore" ;
+  aap:taskStoreFile "tenant_task_store" ; aap:taskStoreAppPath "demo" ;
+  aap:taskStoreNamespace "demo_tasks" .

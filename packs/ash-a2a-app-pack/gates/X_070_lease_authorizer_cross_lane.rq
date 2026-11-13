@@ -1,0 +1,37 @@
+# X_070 (cross-lane): L07 policies vs L17 `authorizers:` vs lease_required? skills.
+# verify_skills.ex:487-508 (refused_lease_required_no_authorizer) cannot see authorizers contributed
+# by a Spark fragment (L07-NOTES), so the L17 resource fragment's aap:authorizer is the only visible
+# source. L17_105 covers aap:skill / aap:skillSpec leases but not L15 reactorSkill leases and knows
+# nothing about L07. Rows:
+#   A  lease skill + L07 policies present + no aap:authorizer  (fragment authorizer invisible to verify)
+#   B  L15 reactorSkill lease + no aap:authorizer + no L07     (L17_105 blind spot)
+#   C  L07 policies + aap:authorizer lacking Ash.Policy.Authorizer (two conflicting `authorizers:` lists)
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?skill ?reason WHERE {
+  ?resource a aap:Resource .
+  {
+    ?resource aap:skill|aap:skillSpec ?skill . ?skill aap:leaseRequired ?l . FILTER (STR(?l) = "true")
+    FILTER EXISTS { ?resource aap:policy|aap:policyGroup|aap:fieldPolicy ?pp }
+    FILTER NOT EXISTS { ?resource aap:authorizer ?z }
+    BIND ("lease_required skill with L07 policies but no aap:authorizer: the L07 fragment authorizer is invisible to AshA2A verify_skills; declare aap:authorizer \"Ash.Policy.Authorizer\" on the resource" AS ?reason)
+  } UNION {
+    ?resource aap:reactorAction ?ra . ?ra aap:reactorSkill ?skill . ?skill aap:leaseRequired ?l .
+    FILTER (STR(?l) = "true")
+    FILTER NOT EXISTS { ?resource aap:authorizer ?z }
+    FILTER NOT EXISTS { ?resource aap:policy|aap:policyGroup|aap:fieldPolicy ?pp }
+    BIND ("L15 reactorSkill lease_required without any authorizer (aap:authorizer) and without L07 policies" AS ?reason)
+  } UNION {
+    ?resource aap:reactorAction ?ra . ?ra aap:reactorSkill ?skill . ?skill aap:leaseRequired ?l .
+    FILTER (STR(?l) = "true")
+    FILTER NOT EXISTS { ?resource aap:authorizer ?z }
+    FILTER EXISTS { ?resource aap:policy|aap:policyGroup|aap:fieldPolicy ?pp }
+    BIND ("L15 reactorSkill lease_required with L07 policies but no aap:authorizer: fragment authorizer invisible to verify_skills" AS ?reason)
+  } UNION {
+    ?resource aap:authorizer ?az .
+    FILTER EXISTS { ?resource aap:policy|aap:policyGroup|aap:fieldPolicy ?pp }
+    FILTER (!CONTAINS(STR(?az), "Ash.Policy.Authorizer"))
+    BIND (CONCAT("L07 policies require Ash.Policy.Authorizer but L17 aap:authorizer is '", STR(?az),
+                 "'; the two fragments emit conflicting authorizers: lists") AS ?reason)
+  }
+}
+ORDER BY ?resource ?skill

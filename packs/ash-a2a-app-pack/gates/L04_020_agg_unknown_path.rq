@@ -1,0 +1,49 @@
+# Gate L04_020: aggregate relationship path segments must resolve hop by hop through
+# aap:relationship facts (resource -> [aap:name, aap:destination]). Covers 3 hops; longer paths
+# are reported as unverifiable. Rows = violations. Each arm is self-contained (FILTER scoping).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?agg ?violation ?segment WHERE {
+  {
+    ?resource a aap:Resource ; aap:aggregate ?agg . ?agg aap:aggPath ?p .
+    BIND(STR(IF(CONTAINS(STR(?p), ","), STRBEFORE(STR(?p), ","), STR(?p))) AS ?h1)
+    FILTER NOT EXISTS { ?resource aap:relationship ?r . ?r aap:name ?n . FILTER(STR(?n) = ?h1) }
+    BIND("unknown relationship on source resource" AS ?violation)
+    BIND(?h1 AS ?segment)
+  } UNION {
+    ?resource a aap:Resource ; aap:aggregate ?agg . ?agg aap:aggPath ?p .
+    BIND(STR(IF(CONTAINS(STR(?p), ","), STRBEFORE(STR(?p), ","), STR(?p))) AS ?h1)
+    ?resource aap:relationship ?r1 . ?r1 aap:name ?n1 . FILTER(STR(?n1) = ?h1)
+    FILTER NOT EXISTS { ?r1 aap:destination ?d0 }
+    BIND("relationship has no aap:destination" AS ?violation)
+    BIND(?h1 AS ?segment)
+  } UNION {
+    ?resource a aap:Resource ; aap:aggregate ?agg . ?agg aap:aggPath ?p .
+    FILTER(CONTAINS(STR(?p), ","))
+    BIND(STR(STRBEFORE(STR(?p), ",")) AS ?h1)
+    BIND(STR(STRAFTER(STR(?p), ",")) AS ?rest1)
+    BIND(STR(IF(CONTAINS(?rest1, ","), STRBEFORE(?rest1, ","), ?rest1)) AS ?h2)
+    ?resource aap:relationship ?r2 . ?r2 aap:name ?n2 ; aap:destination ?d2 . FILTER(STR(?n2) = ?h1)
+    FILTER NOT EXISTS { ?d2 aap:relationship ?q2 . ?q2 aap:name ?m2 . FILTER(STR(?m2) = ?h2) }
+    BIND("unknown relationship on hop-1 destination" AS ?violation)
+    BIND(?h2 AS ?segment)
+  } UNION {
+    ?resource a aap:Resource ; aap:aggregate ?agg . ?agg aap:aggPath ?p .
+    FILTER(CONTAINS(STR(?p), ","))
+    BIND(STR(STRBEFORE(STR(?p), ",")) AS ?h1)
+    BIND(STR(STRAFTER(STR(?p), ",")) AS ?rest1)
+    FILTER(CONTAINS(?rest1, ","))
+    BIND(STR(STRBEFORE(?rest1, ",")) AS ?h2)
+    BIND(STR(STRAFTER(?rest1, ",")) AS ?rest2)
+    BIND(STR(IF(CONTAINS(?rest2, ","), STRBEFORE(?rest2, ","), ?rest2)) AS ?h3)
+    ?resource aap:relationship ?r3 . ?r3 aap:name ?n3 ; aap:destination ?d3 . FILTER(STR(?n3) = ?h1)
+    ?d3 aap:relationship ?q3 . ?q3 aap:name ?m3 ; aap:destination ?e3 . FILTER(STR(?m3) = ?h2)
+    FILTER NOT EXISTS { ?e3 aap:relationship ?z3 . ?z3 aap:name ?w3 . FILTER(STR(?w3) = ?h3) }
+    BIND("unknown relationship on hop-2 destination" AS ?violation)
+    BIND(?h3 AS ?segment)
+  } UNION {
+    ?resource a aap:Resource ; aap:aggregate ?agg . ?agg aap:aggPath ?p .
+    FILTER(REGEX(STR(?p), "^[^,]*,[^,]*,[^,]*,"))
+    BIND("path longer than 3 hops cannot be verified by this gate" AS ?violation)
+    BIND(STR(?p) AS ?segment)
+  }
+}

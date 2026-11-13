@@ -1,0 +1,33 @@
+# L05 fixture: extends the demo ex:Ticket resource (see /tmp/a2a_demo3/ontology/app.ttl).
+@prefix aap: <https://ggen.dev/ash-a2a-app#> .
+@prefix ex:  <https://example.com/demo#> .
+
+ex:Ticket aap:attribute ex:Ticket_priority ;
+  aap:identity ex:Ticket_unique_title ;
+  aap:validation ex:Ticket_v_title_present, ex:Ticket_v_title_len, ex:Ticket_v_title_match,
+                 ex:Ticket_v_priority_range, ex:Ticket_v_priority_in, ex:Ticket_v_exclusive .
+
+ex:Ticket_priority a aap:Attribute ; aap:name "priority" ; aap:ashType "integer" ; aap:primaryKey "false" .
+
+ex:Ticket_unique_title a aap:Identity ; aap:name "unique_title" ; aap:identityKey "title" ;
+  aap:eagerCheck "true" ; aap:preCheckWith "Demo.Desk" ; aap:nilsDistinct "false" ;
+  aap:message "title is already taken" ; aap:description "Titles are unique per desk" .
+
+ex:Ticket_v_title_present a aap:Validation ; aap:name "010_title_present" ;
+  aap:validationKind "present" ; aap:vAttribute "title" ; aap:on "create" .
+ex:Ticket_v_title_len a aap:Validation ; aap:name "020_title_len" ;
+  aap:validationKind "string_length" ; aap:vAttribute "title" ; aap:vOpts "min: 3, max: 120" ;
+  aap:forAction "open" ; aap:message "title must be 3 to 120 characters" .
+ex:Ticket_v_title_match a aap:Validation ; aap:name "030_title_match" ;
+  aap:validationKind "match" ; aap:vAttribute "title" ; aap:vValue """~r/^\\S/""" ;
+  aap:message "title must not start with whitespace" .
+ex:Ticket_v_priority_range a aap:Validation ; aap:name "040_priority_range" ;
+  aap:validationKind "compare" ; aap:vAttribute "priority" ;
+  aap:vOpts "greater_than_or_equal_to: 1, less_than_or_equal_to: 5" ;
+  aap:where "present(:priority)" ; aap:onlyWhenValid "true" .
+ex:Ticket_v_priority_in a aap:Validation ; aap:name "050_priority_in" ;
+  aap:validationKind "attribute_in" ; aap:vAttribute "priority" ; aap:vValue "[1, 2, 3, 4, 5]" ;
+  aap:where "attribute_equals(:title, \"urgent\"); present(:priority)" .
+ex:Ticket_v_exclusive a aap:Validation ; aap:name "060_priority_title_exclusive" ;
+  aap:validationKind "attributes_absent" ; aap:vAttribute "priority", "title" ;
+  aap:on "destroy" ; aap:alwaysAtomic "false" .

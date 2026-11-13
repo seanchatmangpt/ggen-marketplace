@@ -1,0 +1,57 @@
+# Gate L05: validation shape. Rows = violations.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?validation ?problem WHERE {
+  ?resource a aap:Resource ; aap:validation ?validation .
+  {
+    ?validation aap:validationKind ?kind .
+    FILTER (STR(?kind) NOT IN ("present","absent","attributes_present","attributes_absent","match",
+      "compare","numericality","one_of","string_length","attribute_equals","attribute_does_not_equal",
+      "attribute_in","argument_equals","argument_does_not_equal","argument_in","confirm","changing","raw"))
+    BIND("unknown-kind" AS ?problem)
+  } UNION {
+    FILTER NOT EXISTS { ?validation aap:validationKind ?k0 }
+    BIND("no-kind" AS ?problem)
+  } UNION {
+    FILTER NOT EXISTS { ?validation aap:name ?n0 }
+    BIND("no-name" AS ?problem)
+  } UNION {
+    ?validation aap:validationKind ?kind .
+    FILTER (STR(?kind) != "raw")
+    FILTER NOT EXISTS { ?validation aap:vAttribute ?a }
+    BIND("no-target" AS ?problem)
+  } UNION {
+    ?validation aap:validationKind "raw" .
+    FILTER NOT EXISTS { ?validation aap:vValue ?v }
+    BIND("raw-without-expression" AS ?problem)
+  } UNION {
+    ?validation aap:validationKind ?kind ; aap:vAttribute ?a1, ?a2 .
+    FILTER (?a1 != ?a2)
+    FILTER (STR(?kind) NOT IN ("present","absent","attributes_present","attributes_absent"))
+    BIND("multiple-targets-for-single-target-kind" AS ?problem)
+  } UNION {
+    ?validation aap:validationKind ?kind .
+    FILTER (STR(?kind) IN ("compare","numericality","string_length","changing"))
+    FILTER NOT EXISTS { ?validation aap:vOpts ?o1 }
+    FILTER (STR(?kind) != "changing")
+    BIND("opts-required" AS ?problem)
+  } UNION {
+    ?validation aap:validationKind ?kind .
+    FILTER (STR(?kind) IN ("match","one_of","attribute_equals","attribute_does_not_equal",
+      "attribute_in","argument_equals","argument_does_not_equal","argument_in","confirm"))
+    FILTER NOT EXISTS { ?validation aap:vValue ?v1 }
+    BIND("value-required" AS ?problem)
+  } UNION {
+    ?validation aap:on ?on .
+    FILTER (!REGEX(STR(?on), "^(create|update|destroy)(, *(create|update|destroy))*$"))
+    BIND("bad-on" AS ?problem)
+  } UNION {
+    ?validation aap:forAction ?fa .
+    FILTER NOT EXISTS { ?resource aap:action ?act . ?act aap:name ?an . FILTER (STR(?an) = STR(?fa)) }
+    BIND("forAction-not-an-action" AS ?problem)
+  } UNION {
+    ?validation ?p ?v2 .
+    FILTER (?p IN (aap:onlyWhenValid, aap:beforeAction, aap:alwaysAtomic))
+    FILTER (STR(?v2) NOT IN ("true", "false"))
+    BIND("non-boolean-flag" AS ?problem)
+  }
+}

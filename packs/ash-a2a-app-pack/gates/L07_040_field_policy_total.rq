@@ -1,0 +1,13 @@
+# Gate L07-040: if any field_policy exists, every non-primary-key attribute must be covered
+# (authorizer.ex:392 "If any field policies exist then all fields must be authorized").
+# aap:fields is comma-separated without spaces; "*" covers all. Rows = uncovered attribute.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?attr WHERE {
+  ?resource a aap:Resource ; aap:fieldPolicy ?anyfp ; aap:attribute ?a .
+  ?a aap:name ?attr ; aap:primaryKey ?pk .
+  FILTER (?pk != "true")
+  FILTER NOT EXISTS {
+    ?resource aap:fieldPolicy ?fp . ?fp aap:fields ?f .
+    FILTER (?f = "*" || CONTAINS(CONCAT(",", ?f, ","), CONCAT(",", ?attr, ",")))
+  }
+}

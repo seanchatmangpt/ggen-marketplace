@@ -1,0 +1,63 @@
+# Gate L15_020: undeclared / ill-formed step dependencies. Any row = violation.
+# input(:x) must name a declared aap:ReactorInput of the same reactor; result/element(:x) must name
+# a step of the same reactor (element must name a map step); value needs aap:argValue.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT DISTINCT ?reactor ?subject ?problem WHERE {
+  ?reactor aap:reactorStep ?subject .
+  {
+    ?subject (aap:stepArg|aap:stepInputs|aap:stepInitial|aap:stepActor|aap:stepTenant|aap:stepOn|aap:stepSource) ?b .
+    {
+      FILTER NOT EXISTS { ?b aap:argKind ?k0 }
+      BIND("binding has no aap:argKind" AS ?problem)
+    }
+    UNION
+    {
+      ?b aap:argKind ?k1 . FILTER(?k1 IN ("result","element"))
+      FILTER NOT EXISTS { ?b aap:argStep ?t0 }
+      BIND("result/element binding has no aap:argStep" AS ?problem)
+    }
+    UNION
+    {
+      ?b aap:argStep ?t . FILTER NOT EXISTS { ?reactor aap:reactorStep ?t }
+      BIND("binding references a step outside this reactor (undeclared dependency)" AS ?problem)
+    }
+    UNION
+    {
+      ?b aap:argKind "element" ; aap:argStep ?m .
+      FILTER NOT EXISTS { ?m aap:stepKind "map" }
+      BIND("element() must reference a map step" AS ?problem)
+    }
+    UNION
+    {
+      ?b aap:argKind "input" .
+      FILTER NOT EXISTS { ?b aap:argInput ?i0 }
+      BIND("input binding has no aap:argInput" AS ?problem)
+    }
+    UNION
+    {
+      ?b aap:argInput ?i . FILTER NOT EXISTS { ?reactor aap:reactorInput ?i }
+      BIND("binding references an input not declared on this reactor" AS ?problem)
+    }
+    UNION
+    {
+      ?b aap:argKind "value" . FILTER NOT EXISTS { ?b aap:argValue ?v0 }
+      BIND("value binding has no aap:argValue" AS ?problem)
+    }
+  }
+  UNION
+  {
+    ?subject aap:stepArg ?b2 . FILTER NOT EXISTS { ?b2 aap:argName ?n0 }
+    BIND("argument binding has no aap:argName" AS ?problem)
+  }
+  UNION
+  {
+    ?subject aap:stepInputs ?b3 . FILTER NOT EXISTS { ?b3 aap:argName ?n1 }
+    BIND("inputs binding has no aap:argName" AS ?problem)
+  }
+  UNION
+  {
+    ?subject aap:stepWaitFor ?w . FILTER NOT EXISTS { ?reactor aap:reactorStep ?w }
+    BIND("wait_for references a step outside this reactor" AS ?problem)
+  }
+}
+ORDER BY ?reactor ?subject

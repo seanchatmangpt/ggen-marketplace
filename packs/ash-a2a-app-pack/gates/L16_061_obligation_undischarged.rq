@@ -1,0 +1,24 @@
+# L16 gate: obligation that no task of its workflow discharges (same capability), or whose
+# required property/evidence is offered by no provider binding that capability.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?obligation ?capability ?reason WHERE {
+  {
+    ?w a aap:PPlanWorkflow ; aap:ppObligation ?obligation . ?obligation aap:ppCapability ?capability .
+    FILTER NOT EXISTS { ?w aap:ppTask ?t . ?t aap:ppCapability ?capability }
+    BIND("no_task" AS ?reason)
+  } UNION {
+    ?w a aap:PPlanWorkflow ; aap:ppObligation ?obligation .
+    ?obligation aap:ppCapability ?capability ; aap:ppRequiresProperty ?x .
+    FILTER NOT EXISTS {
+      ?p a aap:PPlanProvider ; aap:ppBinding ?b ; aap:ppProvidesProperty ?x . ?b aap:ppCapability ?capability
+    }
+    BIND("property_unsatisfiable" AS ?reason)
+  } UNION {
+    ?w a aap:PPlanWorkflow ; aap:ppObligation ?obligation .
+    ?obligation aap:ppCapability ?capability ; aap:ppRequiresEvidence ?x .
+    FILTER NOT EXISTS {
+      ?p a aap:PPlanProvider ; aap:ppBinding ?b ; aap:ppProvidesEvidence ?x . ?b aap:ppCapability ?capability
+    }
+    BIND("evidence_unsatisfiable" AS ?reason)
+  }
+}

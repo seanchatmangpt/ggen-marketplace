@@ -1,0 +1,74 @@
+# X_060 (cross-lane): L13 state_attribute (default "state") must resolve to an atom-valued
+# attribute. AshStateMachine auto-adds it only when NO attribute of that name exists; if any other
+# lane declares a field with that name, the declaration must be an atom/enum scalar, and no
+# calculation / aggregate / relationship may shadow the name. Sources checked: legacy aap:attribute
+# (aap:ashType), L01 attrSpec, L12 typedAttribute. Rows = one per violation.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?state_attribute ?reason WHERE {
+  ?resource a aap:Resource ; aap:stateMachine ?m .
+  OPTIONAL { ?m aap:stateAttribute ?sa0 }
+  BIND (COALESCE(STR(?sa0), "state") AS ?state_attribute)
+  {
+    # legacy attribute with a non-atom ashType
+    ?resource aap:attribute ?a . ?a aap:name ?an ; aap:ashType ?t .
+    FILTER (STR(?an) = ?state_attribute)
+    FILTER (!(STR(?t) IN ("atom", "Ash.Type.Atom", "AshStateMachine.Type")))
+    BIND (CONCAT("legacy aap:attribute '", ?state_attribute, "' has ashType '", STR(?t),
+                 "' but the L13 state machine needs atom") AS ?reason)
+  } UNION {
+    # L01 attrSpec: non-atom ashType
+    ?resource aap:attrSpec ?s . ?s aap:name ?an ; aap:ashType ?t .
+    FILTER (STR(?an) = ?state_attribute)
+    FILTER (!(STR(?t) IN ("atom", "Ash.Type.Atom", "AshStateMachine.Type")))
+    BIND (CONCAT("L01 attrSpec '", ?state_attribute, "' has ashType '", STR(?t),
+                 "' but the L13 state machine needs atom") AS ?reason)
+  } UNION {
+    # L01 attrSpec: module type that is not atom-valued and not a declared enum/type module
+    ?resource aap:attrSpec ?s . ?s aap:name ?an ; aap:ashTypeModule ?mod .
+    FILTER (STR(?an) = ?state_attribute)
+    FILTER (!(STR(?mod) IN ("Ash.Type.Atom", "AshStateMachine.Type")))
+    FILTER NOT EXISTS { ?e aap:moduleName ?em . ?e a ?ec . FILTER (STR(?em) = STR(?mod) && ?ec IN (aap:EnumType, aap:CustomType)) }
+    BIND (CONCAT("L01 attrSpec '", ?state_attribute, "' has type module '", STR(?mod),
+                 "' which is neither atom nor a declared enum for the L13 state machine") AS ?reason)
+  } UNION {
+    # L01 attrSpec: array or non-attribute kind (pk/timestamp)
+    ?resource aap:attrSpec ?s . ?s aap:name ?an .
+    FILTER (STR(?an) = ?state_attribute)
+    { ?s aap:arrayOf|aap:arrayOfModule|aap:arrayOfEnum ?arr
+      BIND ("is an array type" AS ?why) }
+    UNION
+    { ?s aap:attrKind ?k . FILTER (STR(?k) != "attribute")
+      BIND (CONCAT("has attrKind '", STR(?k), "'") AS ?why) }
+    BIND (CONCAT("L01 attrSpec '", ?state_attribute, "' ", ?why,
+                 "; the L13 state attribute must be a scalar atom attribute") AS ?reason)
+  } UNION {
+    # L12 typedAttribute: builtin non-atom
+    ?resource aap:typedAttribute ?ta . ?ta aap:name ?an ; aap:ashType ?t .
+    FILTER (STR(?an) = ?state_attribute)
+    FILTER (STR(?t) != "atom")
+    BIND (CONCAT("L12 typedAttribute '", ?state_attribute, "' has ashType '", STR(?t),
+                 "' but the L13 state machine needs atom") AS ?reason)
+  } UNION {
+    # L12 typedAttribute: array
+    ?resource aap:typedAttribute ?ta . ?ta aap:name ?an ; aap:isArray ?ia .
+    FILTER (STR(?an) = ?state_attribute && STR(?ia) = "true")
+    BIND (CONCAT("L12 typedAttribute '", ?state_attribute,
+                 "' is an array; the L13 state attribute must be scalar") AS ?reason)
+  } UNION {
+    # L12 typedAttribute: typeRef to a non-enum, non-atom-newtype
+    ?resource aap:typedAttribute ?ta . ?ta aap:name ?an ; aap:typeRef ?tr .
+    FILTER (STR(?an) = ?state_attribute)
+    ?tr aap:typeKind ?tk .
+    FILTER NOT EXISTS { ?tr aap:typeKind "enum" }
+    FILTER NOT EXISTS { ?tr aap:typeKind "newtype" ; aap:subtypeOf "atom" }
+    BIND (CONCAT("L12 typedAttribute '", ?state_attribute, "' references a '", STR(?tk),
+                 "' type; the L13 state machine needs an enum or atom newtype") AS ?reason)
+  } UNION {
+    # shadowed by a non-attribute field
+    ?resource (aap:calculation|aap:aggregate|aap:relationship) ?x . ?x aap:name ?an .
+    FILTER (STR(?an) = ?state_attribute)
+    BIND (CONCAT("name '", ?state_attribute, "' is taken by calculation/aggregate/relationship ",
+                 STR(?x), "; AshStateMachine would add a duplicate :", ?state_attribute, " attribute") AS ?reason)
+  }
+}
+ORDER BY ?resource ?state_attribute

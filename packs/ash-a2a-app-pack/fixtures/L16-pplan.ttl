@@ -1,0 +1,55 @@
+@prefix aap: <https://ggen.dev/ash-a2a-app#> .
+@prefix ex:  <https://example.com/demo#> .
+
+# Extends the demo domain ex:Desk / resource ex:Ticket (see /tmp/a2a_demo3/ontology/app.ttl).
+ex:Desk aap:ppWorkflow ex:TriageFlow ; aap:ppProvider ex:ObserveProvider, ex:DurableProvider ;
+  aap:ppPack ex:DeskPack ; aap:ppTarget ex:TgtCatalog ;
+  aap:ppGeneratedDir "lib/demo/pplan", "test/demo/pplan" ;
+  aap:ppReusesPack "ash-pplan-igniter-pack", "ash-pplan-protocol-court-pack",
+                   "ash-pplan-store-conformance-pack", "ash-pplan-chaos-pack" .
+
+ex:TriageFlow a aap:PPlanWorkflow ; aap:moduleName "Demo.Desk.Plan.Triage" ; aap:ppFile "triage" ;
+  aap:ppName "triage" ; aap:ppGoal "ticket triaged" ; aap:ppVersion 1 ;
+  aap:ppTask ex:T_observe, ex:T_checkpoint, ex:T_review ;
+  aap:ppMethod ex:M_triage ;
+  aap:ppObligation ex:O_durable ;
+  aap:ppUsesProvider ex:ObserveProvider, ex:DurableProvider .
+
+ex:T_observe a aap:PPlanTask ; aap:name "observe" ; aap:ppCapability "Observation.Read" ;
+  aap:ppOutcome "ok", "empty" ; aap:ppAuthority "observe" .
+ex:T_checkpoint a aap:PPlanTask ; aap:name "checkpoint" ; aap:ppCapability "Durability.Checkpoint" ;
+  aap:ppAfter ex:T_observe ; aap:ppProperty "durable", "resumable" ; aap:ppEvidenceKind "continuation" .
+ex:T_review a aap:PPlanTask ; aap:name "review" ; aap:ppCapability "Observation.Read" ;
+  aap:ppAfter ex:T_checkpoint ; aap:ppAuthority "select" .
+
+ex:M_triage a aap:PPlanMethod ; aap:name "triage_m" ; aap:ppRefines ex:T_review ;
+  aap:ppStepOf ex:S1, ex:S2 .
+ex:S1 a aap:PPlanStep ; aap:ppStep 1 ; aap:ppStepTask ex:T_observe .
+ex:S2 a aap:PPlanStep ; aap:ppStep 2 ; aap:ppStepTask ex:T_checkpoint .
+
+ex:O_durable a aap:PPlanObligation ; aap:name "survives_restart" ; aap:ppCapability "Durability.Checkpoint" ;
+  aap:ppRequiresProperty "durable" ; aap:ppRequiresEvidence "continuation" .
+
+ex:ObserveProvider a aap:PPlanProvider ; aap:moduleName "Demo.Desk.Plan.ObserveProvider" ;
+  aap:ppFile "observe_provider" ; aap:ppProviderId "observe" ; aap:ppCost 1 ;
+  aap:ppProvidesEvidence "observation" ; aap:ppBinding ex:B_observe .
+ex:B_observe a aap:PPlanBinding ; aap:ppCapability "Observation.Read" ; aap:ppAdapter "local" ;
+  aap:ppOp "observation_read" .
+
+ex:DurableProvider a aap:PPlanProvider ; aap:moduleName "Demo.Desk.Plan.DurableProvider" ;
+  aap:ppFile "durable_provider" ; aap:ppProviderId "durable" ; aap:ppCost 2 ;
+  aap:ppProvidesProperty "checkpointed", "durable", "resumable" ; aap:ppProvidesEvidence "continuation" ;
+  aap:ppBinding ex:B_checkpoint .
+ex:B_checkpoint a aap:PPlanBinding ; aap:ppCapability "Durability.Checkpoint" ; aap:ppAdapter "local" ;
+  aap:ppOp "durability_checkpoint" .
+
+ex:DeskPack a aap:PPlanCapabilityPack ; aap:moduleName "Demo.Desk.Plan.DeskPack" ; aap:ppFile "desk_pack" ;
+  aap:ppPackId "desk" ; aap:ppPackVersion "0.1.0" ;
+  aap:ppPackCapability "Observation.Read", "Durability.Checkpoint" ;
+  aap:ppPackProperty "durable", "resumable" ; aap:ppPackEvidence "continuation", "observation" .
+
+ex:TgtCatalog a aap:PPlanManufactureTarget ; aap:ppTemplate "plan_catalog" ;
+  aap:ppOut "lib/demo/pplan/plan_catalog.ex" ; aap:ppTargetModule "Demo.Desk.Plan.Catalog" .
+
+ex:Ticket aap:ppControlPlane ex:Ticket_cp .
+ex:Ticket_cp a aap:PPlanControlPlane .

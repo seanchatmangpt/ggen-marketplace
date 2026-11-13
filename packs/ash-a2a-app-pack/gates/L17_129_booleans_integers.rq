@@ -1,0 +1,38 @@
+# L17 gate: boolean-typed options hold "true"|"false"; integer options are positive integers
+# (dsl.ex :pos_integer at 242; domain.ex push_retry :pos_integer at 346-347; runtime.ex execution ints).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?subject ?property ?value ?reason WHERE {
+  {
+    ?subject ?property ?value .
+    FILTER ( ?property IN (aap:expose, aap:getRead, aap:streaming, aap:semanticRequests, aap:leaseRequired,
+                           aap:requireAuthenticatedCaller, aap:strictObserveGenericActions,
+                           aap:execValidateInputModes, aap:execUserArtifacts, aap:extendedAgentCard,
+                           aap:userArtifacts, aap:streamingEnabled, aap:pushNotifications, aap:extRequired,
+                           aap:endpointPushNotifications, aap:a2aConfigured, aap:agentConfigured) )
+    FILTER ( !(STR(?value) IN ("true", "false")) )
+    BIND ("not_boolean" AS ?reason)
+  }
+  UNION
+  {
+    ?subject ?property ?value .
+    FILTER ( ?property IN (aap:leaseDurationMs, aap:pushRetryMaxAttempts, aap:pushRetryBackoffMs,
+                           aap:execMaxInFlight, aap:execRateCount, aap:execRatePerMs,
+                           aap:execOrphanSweepIntervalMs, aap:execOrphanLeaseMs) )
+    FILTER ( !REGEX(STR(?value), "^[1-9][0-9]*$") )
+    BIND ("not_positive_integer" AS ?reason)
+  }
+  UNION
+  {
+    ?subject aap:hookOrder ?value . BIND (aap:hookOrder AS ?property)
+    FILTER ( !REGEX(STR(?value), "^[0-9]+$") )
+    BIND ("not_non_negative_integer" AS ?reason)
+  }
+  UNION
+  {
+    ?subject aap:getRead "true" .
+    ?r aap:skillSpec ?subject ; aap:action ?a . ?subject aap:specAction ?an . ?a aap:name ?an ; aap:actionType ?t .
+    FILTER ( STR(?t) != "read" )
+    BIND (aap:getRead AS ?property) BIND ("true" AS ?value)
+    BIND ("get_requires_read_action" AS ?reason)
+  }
+}

@@ -1,0 +1,95 @@
+@prefix aap: <https://ggen.dev/ash-a2a-app#> .
+@prefix ex:  <https://example.com/l17#> .
+
+# L17 fixture: exercises every L17 projection. Valid against ontology.ttl + ontology.d/L17-a2a-dsl.ttl and
+# expected to return zero rows from every gates/L17_*.rq.
+#
+# Topology (compile order matters, see fragments/L17-NOTES.md):
+#   Demo.Ops            domain wrapping Order      -> agent Demo.OpsAgent (+ Demo.OpsAgent.Configured)
+#   Demo.Gateway        domain with NO resources   -> mounts Demo.OpsAgent, served by Demo.Edge (Bandit)
+# Negative controls (each flips exactly one gate; commented out):
+#   ex:Order_place_note a aap:ActionArgument ; aap:argName "blob" ; aap:argType "term" .   -> L17_104
+#   aap:targetArg "nonexistent" on ex:Order_placeMap                                      -> L17_103
+#   ex:Gateway_mountOps aap:mountAgent ex:GatewayAgent (agent forDomain ex:Gateway)       -> L17_124 deadlock
+
+ex:Ops a aap:Domain ; aap:moduleName "Demo.Ops" ; aap:appPath "demo" ; aap:domainFile "ops" ;
+  aap:a2aConfigured "true" ; aap:cardName "ops-agent" ; aap:cardDescription "Order operations" ;
+  aap:cardVersion "1.0.0" ; aap:cardProvider "Example Org" ; aap:baseUrl "https://ops.example.com" ;
+  aap:cardInputMode "text/plain" , "application/json" ; aap:cardOutputMode "application/json" ;
+  aap:securityScheme ex:Ops_token , ex:Ops_oauth ;
+  aap:requirement "token" ;
+  aap:requirementScope ex:Ops_tokenScopes ;
+  aap:semanticRequests "false" ;
+  aap:streamingEnabled "true" ; aap:pushNotifications "false" ;
+  aap:agentExtension ex:Ops_ext .
+ex:Ops_token a aap:SecurityScheme ; aap:schemeName "token" ; aap:schemeKind "bearer" ; aap:bearerFormat "JWT" .
+ex:Ops_oauth a aap:SecurityScheme ; aap:schemeName "oauth" ; aap:schemeKind "oauth2" ;
+  aap:oauthFlows "%{\"clientCredentials\" => %{\"tokenUrl\" => \"https://ops.example.com/token\", \"scopes\" => %{\"orders.read\" => \"read orders\"}}}" ;
+  aap:schemeScopes "orders.read" .
+ex:Ops_tokenScopes a aap:RequirementScope ; aap:reqName "token" ; aap:reqScopes "orders.read" .
+ex:Ops_ext a aap:AgentExtension ; aap:extUri "https://example.com/ext/audit/v1" ; aap:extDescription "Audit trail" ;
+  aap:extRequired "false" ; aap:extParams "%{\"level\" => \"full\"}" .
+
+ex:Order a aap:Resource ; aap:moduleName "Demo.Ops.Order" ; aap:inDomain ex:Ops ; aap:resourceFile "order" ;
+  aap:attribute ex:Order_id , ex:Order_total , ex:Order_note ;
+  aap:action ex:Order_read , ex:Order_place , ex:Order_amend ;
+  aap:authorizer "Ash.Policy.Authorizer" ;
+  aap:authGate "two_port" ; aap:leaseDurationMs "120000" ;
+  aap:hookRef ex:Order_hookA , ex:Order_hookB , ex:Order_hookPost ;
+  aap:skillSpec ex:Order_getSpec , ex:Order_placeSpec .
+ex:Order_id a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:Order_total a aap:Attribute ; aap:name "total" ; aap:ashType "integer" ; aap:primaryKey "false" .
+ex:Order_note a aap:Attribute ; aap:name "note" ; aap:ashType "string" ; aap:primaryKey "false" .
+ex:Order_read a aap:Action ; aap:name "read" ; aap:actionType "read" .
+ex:Order_place a aap:Action ; aap:name "place" ; aap:actionType "create" ; aap:accept "total,note" ;
+  aap:actionArgument ex:Order_place_ref .
+ex:Order_place_ref a aap:ActionArgument ; aap:argName "client_ref" ; aap:argType "string" .
+ex:Order_amend a aap:Action ; aap:name "amend" ; aap:actionType "update" ; aap:accept "note" .
+
+ex:Order_getSpec a aap:SkillSpec ; aap:specName "get_order" ; aap:specAction "read" ;
+  aap:description "Fetch orders" ; aap:consequence "observe" ; aap:getRead "true" ; aap:streaming "false" ;
+  aap:tag "orders" , "read" ; aap:example "show order 42" ;
+  aap:inputMode "text/plain" ; aap:outputMode "application/json" ;
+  aap:secRequirement ex:Order_getSec .
+ex:Order_getSec a aap:SecurityRequirement ; aap:secGroup "1" ; aap:secScheme "token" ; aap:secScopes "orders.read" .
+
+ex:Order_placeSpec a aap:SkillSpec ; aap:specName "place_order" ; aap:specAction "place" ;
+  aap:description "Place an order" ; aap:consequence "change" ; aap:leaseRequired "true" ;
+  aap:tag "orders" ; aap:expose "true" ;
+  aap:argMapping ex:Order_placeMap ;
+  aap:hddlOperator ex:Order_placeOp .
+ex:Order_placeMap a aap:ArgMapping ; aap:wireName "reference" ; aap:targetArg "client_ref" .
+ex:Order_placeOp a aap:HddlOperator ; aap:hddlParams "order,customer" ;
+  aap:hddlPre ex:Order_pre1 ; aap:hddlAdd ex:Order_add1 ; aap:hddlDel ex:Order_del1 .
+ex:Order_pre1 a aap:HddlFact ; aap:predicate "customer_verified" ; aap:factArgs "customer" .
+ex:Order_add1 a aap:HddlFact ; aap:predicate "order_placed" ; aap:factArgs "order,customer" .
+ex:Order_del1 a aap:HddlFact ; aap:predicate "cart_open" ; aap:factArgs "customer" .
+
+ex:Order_hookA a aap:HookRef ; aap:hookId "audit_pre" ; aap:hookPhase "pre" ; aap:hookOrder "0" .
+ex:Order_hookB a aap:HookRef ; aap:hookId "quota_pre" ; aap:hookPhase "pre" ; aap:hookOrder "1" .
+ex:Order_hookPost a aap:HookRef ; aap:hookId "audit_post" ; aap:hookPhase "post" ; aap:hookOrder "0" .
+
+ex:OpsAgent a aap:Agent ; aap:moduleName "Demo.OpsAgent" ; aap:agentName "ops_agent" ;
+  aap:forDomain ex:Ops ; aap:agentFile "ops_agent" ;
+  aap:agentConfigured "true" ; aap:agentDescription "Order ops" ; aap:agentVersion "1.0.0" ;
+  aap:requireAuthenticatedCaller "true" ; aap:publicSkill "get_order" ;
+  aap:execMode "async" ; aap:execMaxInFlight "64" ; aap:execRateCount "30" ; aap:execRatePerMs "60000" ;
+  aap:execCancelInFlight "interrupt" ; aap:execValidateInputModes "true" ; aap:execAdapter "local" .
+
+ex:Gateway a aap:Domain ; aap:moduleName "Demo.Gateway" ; aap:appPath "demo" ; aap:domainFile "gateway" ;
+  aap:a2aConfigured "true" ; aap:cardName "gateway" ; aap:baseUrl "https://gw.example.com" ;
+  aap:defaultMount "/a2a" ; aap:extendedAgentCard "false" ; aap:userArtifacts "false" ;
+  aap:pushAllowedHost "hooks.example.com" ; aap:pushRetryMaxAttempts "3" ; aap:pushRetryBackoffMs "500" ;
+  aap:mount ex:Gateway_mountOps .
+ex:Gateway_mountOps a aap:Mount ; aap:mountAgent ex:OpsAgent ; aap:mountPath "/ops" ; aap:mountBinding "jsonrpc" .
+
+ex:Edge a aap:Endpoint ; aap:endpointModule "Demo.Edge" ; aap:endpointFile "edge" ;
+  aap:endpointDomain ex:Gateway ; aap:endpointPort "4040" ; aap:endpointIp "loopback" ;
+  aap:endpointForwardPath "/" ; aap:endpointPushNotifications "false" ;
+  aap:endpointAgent ex:OpsAgent .
+
+<urn:l17:project> a aap:Project ;
+  aap:dispatchHook ex:Hook_audit_pre , ex:Hook_quota_pre , ex:Hook_audit_post .
+ex:Hook_audit_pre a aap:DispatchHook ; aap:hookId "audit_pre" ; aap:hookModule "Demo.Hooks" ; aap:hookFun "audit_pre" .
+ex:Hook_quota_pre a aap:DispatchHook ; aap:hookId "quota_pre" ; aap:hookModule "Demo.Hooks" ; aap:hookFun "quota_pre" .
+ex:Hook_audit_post a aap:DispatchHook ; aap:hookId "audit_post" ; aap:hookModule "Demo.Hooks" ; aap:hookFun "audit_post" .

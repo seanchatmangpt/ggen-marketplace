@@ -1,0 +1,61 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix aap:  <https://ggen.dev/ash-a2a-app#> .
+
+# L06: changes, preparations, action arguments, action-level options, generic actions.
+# L06 actions are SEPARATE entities from aap:action (they live in a Spark fragment
+# module, so names must not collide with actions emitted by resource.ex.tmpl).
+
+aap:L06Action   a owl:Class ; rdfs:comment "Action emitted in the L06 fragment (create|update|destroy|read|action)." .
+aap:L06Argument a owl:Class ; rdfs:comment "argument :name, :type inside an L06 action." .
+aap:L06Step     a owl:Class ; rdfs:comment "One change or prepare entry in an L06 action." .
+aap:L06Hook     a owl:Class ; rdfs:comment "Generated Ash.Resource.Change / Preparation module wrapping a hook body." .
+aap:L06Run      a owl:Class ; rdfs:comment "Generated Ash.Resource.Actions.Implementation for a generic action." .
+
+aap:l06Action   a owl:ObjectProperty ; rdfs:comment "Resource -> L06Action." .
+aap:l06Argument a owl:ObjectProperty ; rdfs:comment "L06Action -> L06Argument." .
+aap:l06Step     a owl:ObjectProperty ; rdfs:comment "L06Action -> L06Step." .
+
+# action-level options (shared_options.ex:14,23; update.ex:78,85,92; action/action.ex:70-98)
+aap:l06Primary       a owl:DatatypeProperty ; rdfs:comment "primary? true|false" .
+aap:l06Transaction   a owl:DatatypeProperty ; rdfs:comment "transaction? true|false" .
+aap:l06RequireAtomic a owl:DatatypeProperty ; rdfs:comment "require_atomic? true|false (update/destroy)" .
+aap:l06AtomicUpgrade a owl:DatatypeProperty ; rdfs:comment "atomic_upgrade? true|false (update)" .
+aap:l06Public        a owl:DatatypeProperty ; rdfs:comment "public? true|false" .
+aap:l06Description   a owl:DatatypeProperty .
+aap:l06Returns       a owl:DatatypeProperty ; rdfs:comment "generic action returns type, e.g. string" .
+aap:l06Constraints   a owl:DatatypeProperty ; rdfs:comment "Elixir keyword literal for returns constraints" .
+aap:l06AllowNil      a owl:DatatypeProperty ; rdfs:comment "generic action allow_nil? (default false in Ash)" .
+aap:l06RunModule     a owl:DatatypeProperty ; rdfs:comment "moduleName of an aap:L06Run implementation" .
+
+# arguments (actions/argument.ex:23-65)
+aap:l06ArgAllowNil a owl:DatatypeProperty .
+aap:l06ArgDefault  a owl:DatatypeProperty ; rdfs:comment "Elixir literal" .
+aap:l06ArgPublic   a owl:DatatypeProperty .
+aap:l06ArgConstraints a owl:DatatypeProperty ; rdfs:comment "Elixir keyword literal" .
+
+# steps
+aap:l06Kind    a owl:DatatypeProperty ; rdfs:comment "change | prepare" .
+aap:l06Op      a owl:DatatypeProperty ; rdfs:comment "change: set_attribute|set_new_attribute|atomic_update|atomic_set|increment|manage_relationship|module ; prepare: build|filter|sort|limit|module" .
+aap:l06Order   a owl:DatatypeProperty ; rdfs:comment "xsd:integer, step order inside the action" .
+aap:l06Attr    a owl:DatatypeProperty ; rdfs:comment "attribute (or argument for manage_relationship)" .
+aap:l06Rel     a owl:DatatypeProperty ; rdfs:comment "relationship name for manage_relationship" .
+aap:l06Value   a owl:DatatypeProperty ; rdfs:comment "Elixir term / expr text / build keyword literal" .
+aap:l06Opts    a owl:DatatypeProperty ; rdfs:comment "trailing Elixir keyword literal, e.g. type: :append" .
+aap:l06Module  a owl:DatatypeProperty ; rdfs:comment "module name used when op = module" .
+aap:l06Where   a owl:DatatypeProperty ; rdfs:comment "Elixir text for where: option on the change/prepare" .
+aap:l06On      a owl:DatatypeProperty ; rdfs:comment "Elixir list text for on: option, e.g. [:create]" .
+aap:l06OnlyWhenValid a owl:DatatypeProperty .
+
+# hook modules (Ash.Resource.Change callbacks change.ex:316; Changeset hooks changeset.ex:7378,7441,7530,7666;
+# preparation.ex:139)
+aap:l06HookResource a owl:ObjectProperty ; rdfs:comment "L06Hook -> Resource (for appPath resolution)" .
+aap:l06HookKind     a owl:DatatypeProperty ; rdfs:comment "before_action|after_action|before_transaction|after_transaction|prepare" .
+aap:l06HookBody     a owl:DatatypeProperty ; rdfs:comment "Elixir body. before_action/before_transaction: vars changeset; after_action: changeset, record -> {:ok, record}; after_transaction: changeset, result; prepare: query, opts, context" .
+aap:l06HookFile     a owl:DatatypeProperty ; rdfs:comment "file stem under lib/<appPath>/" .
+
+# generic action run implementation (actions/action/implementation.ex:60)
+aap:l06RunResource a owl:ObjectProperty .
+aap:l06RunBody     a owl:DatatypeProperty ; rdfs:comment "Elixir body; vars input, opts, context; returns {:ok, v} | :ok | {:error, e}" .
+aap:l06RunFile     a owl:DatatypeProperty .

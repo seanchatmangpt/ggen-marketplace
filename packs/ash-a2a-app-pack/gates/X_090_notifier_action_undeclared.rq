@@ -1,0 +1,31 @@
+# X_090 (cross-lane): L11 publication / A2A bridge / delegate actions and L13 transition actions must
+# name an action declared on the same resource by ANY lane (aap:action, aap:manage, aap:l06Action,
+# aap:reactorAction). A publish on an undeclared action never fires (Ash does not validate it) and an
+# undeclared transition action fails AshStateMachine verify_transition_actions.
+# Rows = one per undeclared reference. (pubExcept is a comma list and is not split here.)
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?entity ?property ?missing ?reason WHERE {
+  ?resource a aap:Resource .
+  {
+    ?resource aap:pubSub ?ps . ?ps aap:publication ?entity . ?entity aap:pubAction ?missing .
+    BIND (aap:pubAction AS ?property)
+  } UNION {
+    ?resource aap:notifier ?n . ?n aap:bridge ?entity . ?entity aap:bridgeAction ?missing .
+    BIND (aap:bridgeAction AS ?property)
+  } UNION {
+    ?resource aap:notifier ?n . ?n aap:delegate ?entity . ?entity aap:delegateAction ?missing .
+    BIND (aap:delegateAction AS ?property)
+  } UNION {
+    ?resource aap:stateMachine ?m . ?m aap:smTransition ?entity . ?entity aap:viaAction ?missing .
+    FILTER (STR(?missing) != "*")
+    BIND (aap:viaAction AS ?property)
+  }
+  FILTER NOT EXISTS {
+    ?resource (aap:action|aap:manage|aap:l06Action|aap:reactorAction) ?a .
+    ?a aap:name ?nm .
+    FILTER (STR(?nm) = STR(?missing))
+  }
+  BIND (CONCAT(STRAFTER(STR(?property), "#"), " '", STR(?missing), "' on ", STR(?entity),
+               " is not an action of ", STR(?resource), " in any lane") AS ?reason)
+}
+ORDER BY ?resource ?property ?entity

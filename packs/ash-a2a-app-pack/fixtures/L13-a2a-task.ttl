@@ -1,0 +1,60 @@
+@prefix aap: <https://ggen.dev/ash-a2a-app#> .
+@prefix ex:  <https://example.org/l13#> .
+
+ex:Domain a aap:Domain ; aap:moduleName "L13Demo.Tasks" ; aap:appPath "l13_demo" .
+
+ex:TaskRes a aap:Resource ;
+  aap:moduleName "L13Demo.Tasks.Task" ; aap:inDomain ex:Domain ; aap:resourceFile "task" ;
+  aap:attribute ex:aId ;
+  aap:action ex:aSubmit, ex:aStart, ex:aInput, ex:aAuth, ex:aResume, ex:aComplete,
+             ex:aFail, ex:aCancel, ex:aReject ;
+  aap:stateMachine ex:Sm .
+
+ex:aId a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:aSubmit   a aap:Action ; aap:name "submit"        ; aap:actionType "create" .
+ex:aStart    a aap:Action ; aap:name "start"         ; aap:actionType "update" .
+ex:aInput    a aap:Action ; aap:name "request_input" ; aap:actionType "update" .
+ex:aAuth     a aap:Action ; aap:name "require_auth"  ; aap:actionType "update" .
+ex:aResume   a aap:Action ; aap:name "resume"        ; aap:actionType "update" .
+ex:aComplete a aap:Action ; aap:name "complete"      ; aap:actionType "update" .
+ex:aFail     a aap:Action ; aap:name "fail"          ; aap:actionType "update" .
+ex:aCancel   a aap:Action ; aap:name "cancel"        ; aap:actionType "update" .
+ex:aReject   a aap:Action ; aap:name "reject"        ; aap:actionType "update" .
+
+ex:Sm a aap:StateMachine ;
+  aap:a2aLifecycle true ;
+  aap:stateAttribute "state" ;
+  aap:smState ex:sSubmitted, ex:sWorking, ex:sInput, ex:sAuth,
+              ex:sCompleted, ex:sFailed, ex:sCanceled, ex:sRejected ;
+  aap:initialState ex:sSubmitted ;
+  aap:defaultInitialState ex:sSubmitted ;
+  aap:terminalState ex:sCompleted, ex:sFailed, ex:sCanceled, ex:sRejected ;
+  aap:smTransition ex:t1, ex:t2, ex:t3, ex:t4, ex:t5, ex:t6, ex:t7, ex:t8 .
+
+ex:sSubmitted a aap:State ; aap:name "submitted" .
+ex:sWorking   a aap:State ; aap:name "working" .
+ex:sInput     a aap:State ; aap:name "input_required" .
+ex:sAuth      a aap:State ; aap:name "auth_required" .
+ex:sCompleted a aap:State ; aap:name "completed" .
+ex:sFailed    a aap:State ; aap:name "failed" .
+ex:sCanceled  a aap:State ; aap:name "canceled" .
+ex:sRejected  a aap:State ; aap:name "rejected" .
+
+ex:t1 a aap:Transition ; aap:viaAction "start" ; aap:fromState ex:sSubmitted ;
+  aap:toState ex:sWorking ; aap:transitionTarget ex:sWorking .
+ex:t2 a aap:Transition ; aap:viaAction "request_input" ; aap:fromState ex:sWorking ;
+  aap:toState ex:sInput ; aap:transitionTarget ex:sInput .
+ex:t3 a aap:Transition ; aap:viaAction "require_auth" ;
+  aap:fromState ex:sSubmitted, ex:sWorking ;
+  aap:toState ex:sAuth ; aap:transitionTarget ex:sAuth .
+ex:t4 a aap:Transition ; aap:viaAction "resume" ; aap:fromState ex:sInput, ex:sAuth ;
+  aap:toState ex:sWorking ; aap:transitionTarget ex:sWorking .
+ex:t5 a aap:Transition ; aap:viaAction "complete" ; aap:fromState ex:sWorking ;
+  aap:toState ex:sCompleted ; aap:transitionTarget ex:sCompleted .
+ex:t6 a aap:Transition ; aap:viaAction "fail" ; aap:fromState ex:sWorking ;
+  aap:toState ex:sFailed ; aap:transitionTarget ex:sFailed .
+ex:t7 a aap:Transition ; aap:viaAction "cancel" ;
+  aap:fromState ex:sSubmitted, ex:sWorking, ex:sInput, ex:sAuth ;
+  aap:toState ex:sCanceled ; aap:transitionTarget ex:sCanceled .
+ex:t8 a aap:Transition ; aap:viaAction "reject" ; aap:fromState ex:sSubmitted ;
+  aap:toState ex:sRejected ; aap:transitionTarget ex:sRejected .

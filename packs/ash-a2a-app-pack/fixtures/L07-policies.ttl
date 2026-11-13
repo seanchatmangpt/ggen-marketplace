@@ -1,0 +1,59 @@
+@prefix aap: <https://ggen.dev/ash-a2a-app#> .
+@prefix ex:  <https://example.org/l07#> .
+
+# Exercises L07 vocab against an existing-style resource. Merge with a consumer app graph that
+# declares ex:Dom (aap:Domain) with aap:appPath "demo".
+ex:Dom a aap:Domain ; aap:moduleName "Demo.Desk" ; aap:appPath "demo" .
+
+ex:Ticket a aap:Resource ; aap:moduleName "Demo.Desk.Ticket" ; aap:inDomain ex:Dom ;
+  aap:resourceFile "ticket" ;
+  aap:defaultAccessType "filter" ;
+  aap:fieldPrivateFields "show" ;
+  aap:attribute ex:tId, ex:tTitle, ex:tSecret ;
+  aap:action ex:tRead, ex:tCreate, ex:tClose ;
+  aap:skill ex:sCreate, ex:sClose ;
+  aap:policyGroup ex:gActor ;
+  aap:policy ex:pAdmin, ex:pRead, ex:pCreate, ex:pClose ;
+  aap:fieldPolicy ex:fpSecret, ex:fpRest .
+
+ex:tId a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:tTitle a aap:Attribute ; aap:name "title" ; aap:ashType "string" ; aap:primaryKey "false" .
+ex:tSecret a aap:Attribute ; aap:name "secret" ; aap:ashType "string" ; aap:primaryKey "false" .
+
+ex:tRead a aap:Action ; aap:name "list" ; aap:actionType "read" .
+ex:tCreate a aap:Action ; aap:name "open" ; aap:actionType "create" ; aap:accept "title,secret" .
+ex:tClose a aap:Action ; aap:name "close" ; aap:actionType "update" ; aap:accept "title" .
+
+ex:sCreate a aap:Skill ; aap:name "open_ticket" ; aap:ofAction "open" ; aap:description "Open a ticket" ;
+  aap:consequence "change" ; aap:leaseRequired "true" .
+ex:sClose a aap:Skill ; aap:name "close_ticket" ; aap:ofAction "close" ; aap:description "Close a ticket" ;
+  aap:consequence "external_do" .
+
+ex:gActor a aap:PolicyGroup ; aap:name "has_actor" ; aap:condKind "actor_present" .
+
+ex:pAdmin a aap:Policy ; aap:name "admin_bypass" ; aap:policyOrder 1 ; aap:bypass "true" ;
+  aap:condKind "actor_attribute_equals" ; aap:condArg "role" ; aap:condArg2 ":admin" ;
+  aap:check [ aap:checkType "authorize_if" ; aap:checkKind "always" ; aap:checkOrder 1 ] .
+
+ex:pRead a aap:Policy ; aap:name "read_own" ; aap:policyOrder 2 ; aap:inGroup "has_actor" ;
+  aap:condKind "action_type" ; aap:condArg "read" ; aap:accessType "filter" ;
+  aap:check [ aap:checkType "authorize_if" ; aap:checkKind "relates_to_actor_via" ;
+              aap:checkArg "owner" ; aap:checkOrder 1 ] .
+
+ex:pCreate a aap:Policy ; aap:name "create_gated" ; aap:policyOrder 3 ; aap:inGroup "has_actor" ;
+  aap:condKind "action" ; aap:condArg "open" ; aap:errorMessage "lease required to open tickets" ;
+  aap:check [ aap:checkType "forbid_unless" ; aap:checkKind "actor_present" ; aap:checkOrder 1 ],
+            [ aap:checkType "authorize_if" ; aap:checkKind "expr" ;
+              aap:checkArg "^actor(:lease_active) == true" ; aap:checkOrder 2 ] .
+
+ex:pClose a aap:Policy ; aap:name "close_by_type" ; aap:policyOrder 4 ;
+  aap:condKind "action_type" ; aap:condArg "update" ;
+  aap:check [ aap:checkType "forbid_unless" ; aap:checkKind "actor_present" ; aap:checkOrder 1 ],
+            [ aap:checkType "authorize_if" ; aap:checkKind "relates_to_actor_via" ;
+              aap:checkArg "owner" ; aap:checkOrder 2 ] .
+
+ex:fpSecret a aap:FieldPolicy ; aap:name "secret_admin" ; aap:policyOrder 1 ; aap:fields "secret" ;
+  aap:check [ aap:checkType "authorize_if" ; aap:checkKind "actor_attribute_equals" ;
+              aap:checkArg "role" ; aap:checkArg2 ":admin" ; aap:checkOrder 1 ] .
+ex:fpRest a aap:FieldPolicy ; aap:name "rest_open" ; aap:policyOrder 2 ; aap:fields "*" ;
+  aap:check [ aap:checkType "authorize_if" ; aap:checkKind "always" ; aap:checkOrder 1 ] .

@@ -1,0 +1,53 @@
+@prefix aap: <https://ggen.dev/ash-a2a-app#> .
+@prefix ex:  <https://example.com/demo#> .
+
+# Fixture: Ticket 1-N Note, Ticket N-N Tag through TicketTag. Merge with the demo app.ttl
+# (Ticket, Note, Desk already declared there).
+
+ex:Tag a aap:Resource ; aap:moduleName "Demo.Desk.Tag" ; aap:inDomain ex:Desk ; aap:resourceFile "tag" ;
+  aap:attribute ex:Tag_id, ex:Tag_label ; aap:action ex:Tag_read ;
+  aap:relationship ex:Tag_tickets .
+ex:Tag_id a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:Tag_label a aap:Attribute ; aap:name "label" ; aap:ashType "string" ; aap:primaryKey "false" .
+ex:Tag_read a aap:Action ; aap:name "read" ; aap:actionType "read" .
+
+ex:TicketTag a aap:Resource ; aap:moduleName "Demo.Desk.TicketTag" ; aap:inDomain ex:Desk ;
+  aap:resourceFile "ticket_tag" ;
+  aap:attribute ex:TicketTag_id ; aap:action ex:TicketTag_read, ex:TicketTag_link ;
+  aap:relationship ex:TicketTag_ticket, ex:TicketTag_tag .
+ex:TicketTag_id a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:TicketTag_read a aap:Action ; aap:name "read" ; aap:actionType "read" .
+ex:TicketTag_link a aap:Action ; aap:name "link" ; aap:actionType "create" ; aap:accept "ticket_id,tag_id" .
+ex:TicketTag_ticket a aap:Relationship ; aap:name "ticket" ; aap:relKind "belongs_to" ;
+  aap:destination ex:Ticket ; aap:allowNil "false" ; aap:noInverse "true" .
+ex:TicketTag_tag a aap:Relationship ; aap:name "tag" ; aap:relKind "belongs_to" ;
+  aap:destination ex:Tag ; aap:allowNil "false" ; aap:noInverse "true" .
+
+# Ticket side
+ex:Ticket aap:relationship ex:Ticket_notes, ex:Ticket_tags, ex:Ticket_ticket_tags ;
+  aap:manage ex:Ticket_tag_it .
+ex:Ticket_ticket_tags a aap:Relationship ; aap:name "ticket_tags" ; aap:relKind "has_many" ;
+  aap:destination ex:TicketTag ; aap:destinationAttribute "ticket_id" ; aap:noInverse "true" .
+ex:Ticket_notes a aap:Relationship ; aap:name "notes" ; aap:relKind "has_many" ;
+  aap:destination ex:Note ; aap:destinationAttribute "ticket_id" ;
+  aap:relSort "[id: :asc]" ; aap:relFilter "not is_nil(body)" ;
+  aap:description "Notes attached to the ticket" ; aap:inverse ex:Note_ticket .
+ex:Ticket_tags a aap:Relationship ; aap:name "tags" ; aap:relKind "many_to_many" ;
+  aap:destination ex:Tag ; aap:through ex:TicketTag ;
+  aap:sourceAttributeOnJoin "ticket_id" ; aap:destinationAttributeOnJoin "tag_id" ;
+  aap:joinRelationship "ticket_tags" .
+ex:Ticket_tag_it a aap:RelManage ; aap:name "tag_ticket" ; aap:actionType "update" ;
+  aap:ofRelationship ex:Ticket_tags ; aap:argumentName "tag_ids" ;
+  aap:argumentType "{:array, :uuid}" ; aap:manageType "append_and_remove" ;
+  aap:useIdentities "[:_primary_key]" .
+
+# Note side
+ex:Note aap:relationship ex:Note_ticket .
+ex:Note_ticket a aap:Relationship ; aap:name "ticket" ; aap:relKind "belongs_to" ;
+  aap:destination ex:Ticket ; aap:inverse ex:Ticket_notes .
+
+# Tag side (reciprocal many_to_many)
+ex:Tag_tickets a aap:Relationship ; aap:name "tickets" ; aap:relKind "many_to_many" ;
+  aap:destination ex:Ticket ; aap:through ex:TicketTag ;
+  aap:sourceAttributeOnJoin "tag_id" ; aap:destinationAttributeOnJoin "ticket_id" ;
+  aap:joinRelationship "tag_ticket_tags" ; aap:noInverse "true" .

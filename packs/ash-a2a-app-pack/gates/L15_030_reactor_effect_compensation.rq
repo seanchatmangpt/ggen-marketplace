@@ -1,0 +1,38 @@
+# Gate L15_030: effectful steps must carry compensation. Any row = violation.
+# Effectful by default: create/update/destroy/bulk_create/bulk_update/bulk_destroy/action
+# (override with aap:stepEffectful "true"|"false"). Covered when ANY of:
+#   undo always|outside_transaction WITH undo_action (ash/lib/ash/reactor/dsl/action.ex:129-141),
+#   aap:stepHasCompensate "true", aap:stepHasUndo "true" (Reactor.Step compensate/undo),
+#   an enclosing transaction step (data-layer rollback, transaction.ex:46),
+#   an explicit aap:compensationWaiver reason.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT DISTINCT ?reactor ?subject ?problem WHERE {
+  ?reactor aap:reactorStep ?subject .
+  {
+    ?subject aap:stepKind ?kind .
+    FILTER(?kind IN ("create","update","destroy","bulk_create","bulk_update","bulk_destroy","action")
+           || EXISTS { ?subject aap:stepEffectful "true" })
+    FILTER NOT EXISTS { ?subject aap:stepEffectful "false" }
+    FILTER NOT EXISTS { ?subject aap:stepUndo ?u ; aap:stepUndoAction ?ua .
+                        FILTER(?u IN ("always","outside_transaction")) }
+    FILTER NOT EXISTS { ?subject aap:stepHasCompensate "true" }
+    FILTER NOT EXISTS { ?subject aap:stepHasUndo "true" }
+    FILTER NOT EXISTS { ?subject aap:compensationWaiver ?why }
+    FILTER NOT EXISTS { ?subject (aap:stepParent|^aap:switchMatch)+ ?tx . ?tx aap:stepKind "transaction" }
+    BIND("effectful step has no undo/compensate, enclosing transaction, or waiver" AS ?problem)
+  }
+  UNION
+  {
+    ?subject aap:stepUndo ?u2 .
+    FILTER(?u2 IN ("always","outside_transaction"))
+    FILTER NOT EXISTS { ?subject aap:stepUndoAction ?ua2 }
+    BIND("undo always/outside_transaction without aap:stepUndoAction" AS ?problem)
+  }
+  UNION
+  {
+    ?subject aap:stepUndo ?u3 .
+    FILTER(?u3 NOT IN ("always","never","outside_transaction"))
+    BIND("undo must be always|never|outside_transaction" AS ?problem)
+  }
+}
+ORDER BY ?reactor ?subject

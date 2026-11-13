@@ -1,0 +1,67 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix aap:  <https://ggen.dev/ash-a2a-app#> .
+
+# L20 courts vocabulary: facts that drive generated ExUnit courts and shim courts.
+# Grammar cited:
+#   AshA2A.Dispatcher.dispatch/6  /Users/sac/ash_a2a/lib/ash_a2a/dispatcher.ex:164-171 (skill, %Message{},
+#     resource_or_domain, history, auth_identity, opts); reply() union :113-125;
+#     AshA2A.Protocol.Message alias dispatcher.ex:113; Message.new_user/1 test/protocol_codec_fidelity_test.exs:255
+#   AshPPlan.FOND.new/2 /Users/sac/ash_pplan/lib/ash_pplan/fond.ex:47-57
+#   AshPPlan.FOND.Synthesis.synthesize/3 /Users/sac/ash_pplan/lib/ash_pplan/fond/synthesis.ex:70-81
+#     ({:ok, policy} | {:error, {:unsolvable, mode, states}} ...)
+#   Ash.Generator.action_input/3, Ash.can?/3, Ash.Resource.Info.{action,attribute,relationship,identity}/2
+
+aap:CourtCase a owl:Class ; rdfs:comment "Abstract: a declared court input." .
+aap:PolicyCase     a owl:Class ; rdfs:subClassOf aap:CourtCase ; rdfs:comment "Allow/deny matrix cell." .
+aap:CourtIdentity  a owl:Class ; rdfs:subClassOf aap:CourtCase ; rdfs:comment "Identity uniqueness witness." .
+aap:TransitionCase a owl:Class ; rdfs:subClassOf aap:CourtCase ; rdfs:comment "State-machine edge." .
+aap:ReactorCase    a owl:Class ; rdfs:subClassOf aap:CourtCase ; rdfs:comment "Reactor happy + compensation path." .
+aap:PlanCase       a owl:Class ; rdfs:subClassOf aap:CourtCase ; rdfs:comment "ash_pplan FOND satisfiability." .
+aap:ShimCourt      a owl:Class ; rdfs:comment "A mutation that must flip a generated test (gap G6)." .
+
+aap:courtResource a owl:ObjectProperty ; rdfs:range aap:Resource .
+aap:caseName      a owl:DatatypeProperty ; rdfs:comment "unique test-name fragment" .
+aap:caseAction    a owl:DatatypeProperty ; rdfs:comment "action name (must exist on courtResource; gate L20_045)" .
+aap:caseActor     a owl:DatatypeProperty ; rdfs:comment "raw Elixir term for the actor; default nil" .
+aap:caseExpect    a owl:DatatypeProperty ; rdfs:comment "allow|deny (policy) ; ok|error (transition) ; satisfiable|unsatisfiable (plan)" .
+aap:caseInput     a owl:DatatypeProperty ; rdfs:comment "raw Elixir map for action input; default %{}" .
+
+# Identity court
+aap:identityName  a owl:DatatypeProperty .
+aap:identityKeys  a owl:DatatypeProperty ; rdfs:comment "comma-separated attribute names" .
+aap:seedAction    a owl:DatatypeProperty ; rdfs:comment "create action used to seed (identity + transition)" .
+aap:seedInput     a owl:DatatypeProperty ; rdfs:comment "raw Elixir map, valid input for seedAction" .
+
+# Transition court
+aap:stateAttr     a owl:DatatypeProperty .
+aap:fromState     a owl:DatatypeProperty ; rdfs:comment "raw Elixir term; seedInput must put the resource in this state" .
+aap:toState       a owl:DatatypeProperty ; rdfs:comment "raw Elixir term" .
+
+# Dispatch court (on aap:Skill; read skills only)
+aap:dispatchText     a owl:DatatypeProperty ; rdfs:comment "message text; default ping" .
+aap:dispatchIdentity a owl:DatatypeProperty ; rdfs:comment "auth_identity term (dispatcher.ex:145-154); default nil" .
+aap:dispatchExpect   a owl:DatatypeProperty ; rdfs:comment "reply|input_required|auth_required|error|typed; default typed" .
+
+# Reactor court
+aap:caseFile        a owl:DatatypeProperty ; rdfs:comment "file stem under test/courts/" .
+aap:reactorModule   a owl:DatatypeProperty .
+aap:reactorInputs   a owl:DatatypeProperty ; rdfs:comment "raw Elixir map for the happy path" .
+aap:reactorExpect   a owl:DatatypeProperty ; rdfs:comment "raw Elixir pattern for the {:ok, pattern} result; default _" .
+aap:failInputs      a owl:DatatypeProperty ; rdfs:comment "raw Elixir map that must fail the reactor" .
+aap:undoProbe       a owl:DatatypeProperty ; rdfs:comment "raw Elixir boolean expression true after compensation" .
+
+# Plan court
+aap:planTransitions a owl:DatatypeProperty ; rdfs:comment "raw Elixir map %{state => %{action => [outcomes]}} (fond.ex:10-15)" .
+aap:planGoals       a owl:DatatypeProperty ; rdfs:comment "raw Elixir list" .
+aap:planInitial     a owl:DatatypeProperty ; rdfs:comment "raw Elixir term" .
+aap:planMode        a owl:DatatypeProperty ; rdfs:comment "strong|strong_cyclic (synthesis.ex:56)" .
+
+# Shim court
+aap:shimName     a owl:DatatypeProperty .
+aap:shimTarget   a owl:DatatypeProperty ; rdfs:comment "generated file mutated (relative to project root)" .
+aap:shimTemplate a owl:DatatypeProperty ; rdfs:comment "optional pack template; mutated + regenerated when GGEN_SYNC_CMD is set" .
+aap:shimBefore   a owl:DatatypeProperty ; rdfs:comment "literal text present in the file" .
+aap:shimAfter    a owl:DatatypeProperty ; rdfs:comment "literal replacement (a SHIM-COURT marker is appended by the script)" .
+aap:shimTest     a owl:DatatypeProperty ; rdfs:comment "generated test file that must flip" .

@@ -1,0 +1,22 @@
+# Gate L02-010: every relationship must name a destination that is a declared aap:Resource
+# (and, for many_to_many, a declared join resource via aap:through).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?rel ?problem WHERE {
+  ?resource a aap:Resource ; aap:relationship ?rel .
+  {
+    FILTER NOT EXISTS { ?rel aap:destination ?d0 }
+    BIND("no destination" AS ?problem)
+  } UNION {
+    ?rel aap:destination ?d1 .
+    FILTER NOT EXISTS { ?d1 a aap:Resource ; aap:moduleName ?m1 }
+    BIND("destination is not an aap:Resource" AS ?problem)
+  } UNION {
+    ?rel aap:relKind "many_to_many" .
+    FILTER NOT EXISTS { ?rel aap:through ?t0 }
+    BIND("many_to_many without through" AS ?problem)
+  } UNION {
+    ?rel aap:through ?t1 .
+    FILTER NOT EXISTS { ?t1 a aap:Resource ; aap:moduleName ?m2 }
+    BIND("through is not an aap:Resource" AS ?problem)
+  }
+}

@@ -1,0 +1,16 @@
+# Gate L06: steps must carry the fields their op needs; unknown ops/kinds are violations.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?step ?op WHERE {
+  ?step a aap:L06Step ; aap:l06Kind ?k ; aap:l06Op ?op .
+  FILTER (
+    ?k NOT IN ("change", "prepare")
+    || (?k = "change" && ?op NOT IN ("set_attribute", "set_new_attribute", "atomic_update",
+          "atomic_set", "increment", "manage_relationship", "module"))
+    || (?k = "prepare" && ?op NOT IN ("build", "filter", "sort", "limit", "module"))
+    || (?op IN ("set_attribute", "set_new_attribute", "atomic_update", "atomic_set")
+        && (!EXISTS { ?step aap:l06Attr ?a } || !EXISTS { ?step aap:l06Value ?v }))
+    || (?op IN ("increment", "manage_relationship") && !EXISTS { ?step aap:l06Attr ?a2 })
+    || (?op IN ("build", "filter", "sort", "limit") && !EXISTS { ?step aap:l06Value ?v2 })
+    || (?op = "module" && !EXISTS { ?step aap:l06Module ?m })
+  )
+}

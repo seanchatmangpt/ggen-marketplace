@@ -1,0 +1,25 @@
+# Gate L05: identity must have a name and at least one key; boolean flags must be true|false;
+# names unique per resource.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?identity ?problem WHERE {
+  {
+    ?resource a aap:Resource ; aap:identity ?identity .
+    FILTER NOT EXISTS { ?identity aap:identityKey ?k }
+    BIND("no-keys" AS ?problem)
+  } UNION {
+    ?resource a aap:Resource ; aap:identity ?identity .
+    FILTER NOT EXISTS { ?identity aap:name ?n }
+    BIND("no-name" AS ?problem)
+  } UNION {
+    ?resource a aap:Resource ; aap:identity ?identity .
+    ?identity ?p ?v .
+    FILTER (?p IN (aap:eagerCheck, aap:preCheck, aap:nilsDistinct, aap:allTenants))
+    FILTER (STR(?v) NOT IN ("true", "false"))
+    BIND(CONCAT("non-boolean:", STR(?p)) AS ?problem)
+  } UNION {
+    ?resource a aap:Resource ; aap:identity ?identity, ?other .
+    ?identity aap:name ?n . ?other aap:name ?n .
+    FILTER (?identity != ?other)
+    BIND("duplicate-identity-name" AS ?problem)
+  }
+}

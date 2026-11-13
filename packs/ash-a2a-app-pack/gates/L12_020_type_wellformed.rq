@@ -1,0 +1,40 @@
+# Gate: CustomType well-formedness (kind vocabulary, enum values, newtype subtype,
+# union members, tag/tag_value pairing).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?subject ?reason WHERE {
+  {
+    ?subject a aap:CustomType ; aap:typeKind ?k .
+    FILTER(?k NOT IN ("enum","newtype","typed_struct","embedded","union"))
+    BIND("unknown typeKind" AS ?reason)
+  } UNION {
+    ?subject a aap:CustomType ; aap:typeKind "enum" .
+    FILTER NOT EXISTS { ?subject aap:enumValue ?v }
+    BIND("enum without values" AS ?reason)
+  } UNION {
+    ?subject a aap:CustomType ; aap:typeKind "enum" ; aap:enumValue ?v .
+    FILTER(!REGEX(?v, "^[a-z][a-z0-9_]*$"))
+    BIND("enum value is not a snake_case atom" AS ?reason)
+  } UNION {
+    ?subject a aap:CustomType ; aap:typeKind "newtype" .
+    FILTER NOT EXISTS { ?subject aap:subtypeOf ?s }
+    BIND("newtype without subtypeOf" AS ?reason)
+  } UNION {
+    ?subject a aap:CustomType ; aap:typeKind "union" .
+    FILTER NOT EXISTS { ?subject aap:unionMember ?m }
+    BIND("union without members" AS ?reason)
+  } UNION {
+    ?subject a aap:CustomType ; aap:typeKind "union" ; aap:unionMember ?m .
+    ?m aap:unionTag ?t .
+    FILTER NOT EXISTS { ?m aap:unionTagValue ?tv }
+    BIND("union member tag without tagValue" AS ?reason)
+  } UNION {
+    ?subject a aap:CustomType ; aap:typeKind ?k .
+    FILTER(?k IN ("typed_struct","embedded"))
+    FILTER NOT EXISTS { ?subject aap:typeField ?f }
+    BIND("struct/embedded without fields" AS ?reason)
+  } UNION {
+    ?subject a aap:CustomType .
+    FILTER NOT EXISTS { ?subject aap:typeFile ?tf }
+    BIND("missing typeFile" AS ?reason)
+  }
+}

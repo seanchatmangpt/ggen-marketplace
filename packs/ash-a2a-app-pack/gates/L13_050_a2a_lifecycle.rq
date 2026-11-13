@@ -1,0 +1,14 @@
+# L13 gate: an a2aLifecycle machine with a state name outside AshA2A.TaskLifecycle.states/0
+# (task_lifecycle.ex:29-38), or an A2A terminal state (task_lifecycle.ex:50) not asserted terminal.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?machine ?state ?problem WHERE {
+  ?machine a aap:StateMachine ; aap:a2aLifecycle true ; aap:smState ?state .
+  ?state aap:name ?n .
+  { FILTER(?n NOT IN ("submitted","working","input_required","auth_required",
+                      "completed","failed","canceled","rejected"))
+    BIND("unknown_a2a_state" AS ?problem) }
+  UNION
+  { FILTER(?n IN ("completed","failed","canceled","rejected"))
+    FILTER NOT EXISTS { ?machine aap:terminalState ?state }
+    BIND("a2a_terminal_not_asserted" AS ?problem) }
+}

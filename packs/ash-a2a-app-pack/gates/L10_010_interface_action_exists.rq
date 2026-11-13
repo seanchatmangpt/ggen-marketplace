@@ -1,0 +1,26 @@
+# Gate L10-010: a code interface must target an action declared on its resource
+# (action defaults to the interface name); domain-level interfaces must target a
+# resource that belongs to that domain. Returned rows are violations.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?interface ?name ?reason WHERE {
+  {
+    ?interface a aap:CodeInterface ; aap:interfaceOf ?r ; aap:name ?name .
+    OPTIONAL { ?interface aap:ofAction ?act }
+    BIND(COALESCE(?act, ?name) AS ?target)
+    FILTER NOT EXISTS { ?r aap:action ?a . ?a aap:name ?an . FILTER(STR(?an) = STR(?target)) }
+    BIND("interface action not declared on resource" AS ?reason)
+  } UNION {
+    ?interface a aap:CodeInterface ; aap:interfaceOfDomain ?d ; aap:forResource ?r ; aap:name ?name .
+    OPTIONAL { ?interface aap:ofAction ?act }
+    BIND(COALESCE(?act, ?name) AS ?target)
+    FILTER NOT EXISTS { ?r aap:action ?a . ?a aap:name ?an . FILTER(STR(?an) = STR(?target)) }
+    BIND("domain interface action not declared on resource" AS ?reason)
+  } UNION {
+    ?interface a aap:CodeInterface ; aap:interfaceOfDomain ?d ; aap:forResource ?r ; aap:name ?name .
+    FILTER NOT EXISTS { ?r aap:inDomain ?d }
+    BIND("domain interface resource not in that domain" AS ?reason)
+  } UNION {
+    ?interface a aap:CodeInterface ; aap:interfaceOf ?r1 ; aap:interfaceOfDomain ?d1 ; aap:name ?name .
+    BIND("interface has both resource and domain owner" AS ?reason)
+  }
+}

@@ -1,0 +1,25 @@
+# X_080 (cross-lane): every L14 trigger/schedule action reference must name an action declared on the
+# same resource by ANY lane: aap:action, L02 aap:manage, L06 aap:l06Action, L15 aap:reactorAction.
+# L14_010/L14_020 only look at aap:action and therefore false-fire on (or miss) actions that other
+# lanes mint. Rows = one per undeclared reference.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?entity ?property ?missing ?reason WHERE {
+  ?resource a aap:Resource .
+  {
+    ?resource aap:obTrigger ?entity .
+    VALUES ?property { aap:obAction aap:obReadAction aap:obWorkerReadAction aap:obOnError }
+    ?entity ?property ?missing .
+  } UNION {
+    ?resource aap:obSchedule ?entity .
+    VALUES ?property { aap:obAction aap:obReadAction }
+    ?entity ?property ?missing .
+  }
+  FILTER NOT EXISTS {
+    ?resource (aap:action|aap:manage|aap:l06Action|aap:reactorAction) ?a .
+    ?a aap:name ?n .
+    FILTER (STR(?n) = STR(?missing))
+  }
+  BIND (CONCAT("oban entity ", STR(?entity), " ", STRAFTER(STR(?property), "#"), " '", STR(?missing),
+               "' is not an action of ", STR(?resource), " in any lane (aap:action, aap:manage, aap:l06Action, aap:reactorAction)") AS ?reason)
+}
+ORDER BY ?resource ?entity ?property

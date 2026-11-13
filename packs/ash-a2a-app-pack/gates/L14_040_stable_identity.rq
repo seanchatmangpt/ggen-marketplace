@@ -1,0 +1,16 @@
+# Gate L14: every trigger/schedule declares an explicit queue and worker_module_name
+# (stable identity; AshPPlan.Oban reports stable_worker_identity? only when set;
+# ash_pplan/lib/ash_pplan/oban.ex:430-432), and every trigger with a cron declares
+# scheduler_module_name (oban.ex:434-437).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?node ?missing WHERE {
+  { ?r aap:obTrigger ?node } UNION { ?r aap:obSchedule ?node }
+  { FILTER NOT EXISTS { ?node aap:obQueue ?q } BIND("obQueue" AS ?missing) }
+  UNION
+  { FILTER NOT EXISTS { ?node aap:obWorkerModuleName ?w } BIND("obWorkerModuleName" AS ?missing) }
+  UNION
+  { ?r aap:obTrigger ?node .
+    FILTER NOT EXISTS { ?node aap:obSchedulerCron "false" }
+    FILTER NOT EXISTS { ?node aap:obSchedulerModuleName ?s }
+    BIND("obSchedulerModuleName" AS ?missing) }
+}

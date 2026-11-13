@@ -1,0 +1,14 @@
+# L08 gate: the tenant attribute is not the source attribute of a belongs_to
+# relationship (tenant FK must be a relationship, with allow_nil? false).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?tenant_attr ?why WHERE {
+  ?resource a aap:Resource ; aap:multitenancy ?m .
+  ?m aap:tenantStrategy "attribute" ; aap:tenantAttribute ?tenant_attr .
+  {
+    FILTER NOT EXISTS { ?resource aap:relationship ?x . ?x aap:relSourceAttribute ?tenant_attr }
+    BIND("no belongs_to has this source attribute" AS ?why)
+  } UNION {
+    ?resource aap:relationship ?x . ?x aap:relSourceAttribute ?tenant_attr ; aap:relAllowNil "true" .
+    BIND("tenant belongs_to allows nil" AS ?why)
+  }
+}

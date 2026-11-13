@@ -1,0 +1,15 @@
+# L16 gate: binding op must equal Realization.op_for(capability) = downcase with "." -> "_"
+# (realization.ex:29-33, :41 {:op_mismatch,_,_}); provider with no bindings; pack with no
+# capabilities is unrepresentable by construction (template joins on ppPackCapability).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?provider ?capability ?op WHERE {
+  {
+    ?provider a aap:PPlanProvider ; aap:ppBinding ?b .
+    ?b aap:ppCapability ?capability ; aap:ppOp ?op .
+    FILTER (STR(?op) != LCASE(REPLACE(STR(?capability), "\\.", "_")))
+  } UNION {
+    ?provider a aap:PPlanProvider .
+    FILTER NOT EXISTS { ?provider aap:ppBinding ?any }
+    BIND("" AS ?capability) BIND("" AS ?op)
+  }
+}

@@ -1,0 +1,51 @@
+@prefix aap: <https://ggen.dev/ash-a2a-app#> .
+@prefix l20: <https://example.com/l20#> .
+
+# Self-contained fixture: minimal app plus one case per court class.
+# Policy/identity/transition cases only pass when the corresponding Ash declarations exist
+# (policies, identity :unique_title, state attr + action :close) -- that is the point of a court.
+
+l20:Desk a aap:Domain ; aap:moduleName "L20.Desk" ; aap:appPath "l20" ; aap:domainFile "desk" .
+
+l20:Ticket a aap:Resource ; aap:moduleName "L20.Desk.Ticket" ; aap:inDomain l20:Desk ;
+  aap:resourceFile "ticket" ;
+  aap:attribute l20:Ticket_id, l20:Ticket_title, l20:Ticket_status ;
+  aap:action l20:Ticket_read, l20:Ticket_open, l20:Ticket_close ;
+  aap:skill l20:Ticket_list .
+l20:Ticket_id a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+l20:Ticket_title a aap:Attribute ; aap:name "title" ; aap:ashType "string" ; aap:primaryKey "false" .
+l20:Ticket_status a aap:Attribute ; aap:name "status" ; aap:ashType "atom" ; aap:primaryKey "false" .
+l20:Ticket_read a aap:Action ; aap:name "read" ; aap:actionType "read" .
+l20:Ticket_open a aap:Action ; aap:name "open" ; aap:actionType "create" ; aap:accept "title,status" .
+l20:Ticket_close a aap:Action ; aap:name "close" ; aap:actionType "update" .
+l20:Ticket_list a aap:Skill ; aap:name "list_tickets" ; aap:ofAction "read" ;
+  aap:description "List tickets" ; aap:dispatchText "list" ; aap:dispatchExpect "typed" .
+
+l20:DeskAgent a aap:Agent ; aap:moduleName "L20.DeskAgent" ; aap:agentName "desk_agent" ;
+  aap:forDomain l20:Desk ; aap:agentFile "desk_agent" .
+
+l20:Ticket_idCourt a aap:CourtIdentity ; aap:courtResource l20:Ticket ;
+  aap:identityName "unique_title" ; aap:identityKeys "title" ;
+  aap:seedAction "open" ; aap:seedInput "%{title: \"dup\", status: :open}" .
+
+l20:Ticket_denyAnon a aap:PolicyCase ; aap:courtResource l20:Ticket ; aap:caseName "anon_cannot_close" ;
+  aap:caseAction "close" ; aap:caseExpect "deny" .
+
+l20:Ticket_closeEdge a aap:TransitionCase ; aap:courtResource l20:Ticket ; aap:caseName "open_to_closed" ;
+  aap:caseAction "close" ; aap:stateAttr "status" ; aap:fromState ":open" ; aap:toState ":closed" ;
+  aap:caseExpect "ok" ; aap:seedAction "open" ; aap:seedInput "%{title: \"edge\", status: :open}" .
+
+l20:Reactor1 a aap:ReactorCase ; aap:caseName "open then notify" ; aap:caseFile "open_notify" ;
+  aap:reactorModule "L20.Desk.OpenNotify" ; aap:reactorInputs "%{title: \"r1\"}" ;
+  aap:reactorExpect "%{}" ; aap:failInputs "%{title: nil}" ;
+  aap:undoProbe "Ash.count!(L20.Desk.Ticket, authorize?: false) == 0" .
+
+l20:Plan1 a aap:PlanCase ; aap:caseName "retry reaches done" ; aap:caseFile "retry_done" ;
+  aap:planTransitions "%{pending: %{attempt: [:pending, :done]}, done: %{}}" ;
+  aap:planGoals "[:done]" ; aap:planInitial ":pending" ; aap:planMode "strong_cyclic" ;
+  aap:caseExpect "satisfiable" .
+
+l20:Shim1 a aap:ShimCourt ; aap:shimName "ticket_court_action_type" ;
+  aap:shimTarget "lib/l20/ticket.ex" ; aap:shimBefore "destroy(:close)" ; aap:shimAfter "read(:close)" ;
+  aap:shimTest "test/courts/ticket_court_test.exs" ;
+  aap:shimTemplate "templates/resource.ex.tmpl" .

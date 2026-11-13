@@ -1,0 +1,32 @@
+# Gate L02-040: manage_relationship actions must target a relationship declared on the same
+# resource, use a valid type, have a create/update action type, avoid action-name collisions.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?manage ?problem WHERE {
+  ?resource a aap:Resource ; aap:manage ?manage .
+  ?manage aap:name ?an .
+  {
+    FILTER NOT EXISTS { ?manage aap:ofRelationship ?x }
+    BIND("manage without ofRelationship" AS ?problem)
+  } UNION {
+    ?manage aap:ofRelationship ?rel .
+    FILTER NOT EXISTS { ?resource aap:relationship ?rel }
+    BIND("manage targets a relationship not on this resource" AS ?problem)
+  } UNION {
+    ?manage aap:manageType ?t .
+    FILTER(?t NOT IN ("append", "append_and_remove", "remove", "direct_control", "create"))
+    BIND("invalid manageType" AS ?problem)
+  } UNION {
+    FILTER NOT EXISTS { ?manage aap:manageType ?t0 }
+    BIND("manage without manageType" AS ?problem)
+  } UNION {
+    ?manage aap:actionType ?at .
+    FILTER(?at NOT IN ("create", "update"))
+    BIND("manage actionType must be create or update" AS ?problem)
+  } UNION {
+    ?resource aap:action ?a . ?a aap:name ?an .
+    BIND("manage action name collides with declared action" AS ?problem)
+  } UNION {
+    ?manage aap:ofRelationship ?rel2 . ?rel2 aap:relWritable "false" .
+    BIND("manage targets non-writable relationship" AS ?problem)
+  }
+}

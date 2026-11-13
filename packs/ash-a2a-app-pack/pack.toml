@@ -1,16 +1,73 @@
 [pack]
 name = "ash-a2a-app-pack"
-version = "0.1.0"
+version = "0.2.0"
 description = """
-Projects a complete Ash + AshA2A application from Turtle alone: Ash.Domain,
-Ash.Resource modules (ETS data layer, attributes, actions, optional a2a skill
-overrides) and an AshA2A.Agent per aap:Agent. Consumer edits only the .ttl and
-runs ggen; generated modules compile and serve an A2A agent card.
+Projects a complete Ash + AshA2A application from Turtle alone. The consumer edits
+only the .ttl (aap: vocabulary) and runs ggen; generated modules compile and serve
+an A2A agent card.
+
+Core surface (shared templates): Ash.Domain, Ash.Resource (ETS data layer,
+attributes, actions, a2a skills), AshA2A.Agent, mix.exs, config/config.exs, a
+generated agent-card test and test_helper.
+
+Twenty lanes extend the core. Most emit Spark fragments
+(use Spark.Dsl.Fragment, of: Ash.Resource) as separate modules that a resource
+lists under fragments: once the shared resource template wires them.
+  L01 attributes and enum types       L11 notifiers, PubSub, A2A bridge
+  L02 relationships, manage_rel       L12 custom, embedded, union types
+  L03 calculations                    L13 AshStateMachine
+  L04 aggregates                      L14 AshOban triggers, delivery worker
+  L05 identities, validations         L15 Reactor and reactor actions
+  L06 changes, preparations, hooks    L16 AshPPlan workflows and providers
+  L07 policies, field policies        L17 full AshA2A DSL, endpoint, hooks
+  L08 multitenancy, tenant task store L18 Spark extension generator
+  L09 data layers (ETS, Postgres,     L19 ea.graph.json and relock notes
+      SQLite), repo, runtime config   L20 courts (tests, plan, reactor, shim)
+  L10 code interfaces, domain config
+Each lane ships ontology.d/Lnn-*.ttl vocabulary, templates/Lnn_*.tmpl, SELECT
+gates under gates/ (a gate row means refuse), a fixtures/Lnn-*.ttl example and
+fragments/Lnn-NOTES.md seams. Every lane standing is UNVERIFIED until a
+`ggen sync run` plus `mix compile` on a consumer proves it. See README.md for the
+vocabulary map and limitations.
 """
 
 [capabilities]
-provides = ["urn:ggen:pack:ash-a2a-app-pack"]
+provides = [
+  "urn:ggen:pack:ash-a2a-app-pack",
+  "urn:ggen:capability:ash-domain-projection",
+  "urn:ggen:capability:ash-resource-projection",
+  "urn:ggen:capability:ash-a2a-agent-projection",
+  "urn:ggen:capability:ash-a2a-skill-projection",
+  "urn:ggen:capability:ash-resource-fragments",
+  "urn:ggen:capability:ash-app-courts",
+]
+# No pack-to-pack requirement is consumed by any template today. Sibling packs with
+# adjacent semantics (ash-extension-pack for Spark/Ash extension authoring,
+# ash-pplan-* for P-PLAN store/protocol courts) are independent peers; L16/L18 emit
+# their own modules rather than importing those packs' outputs.
 requires = []
 
 [consumer_contract]
-runtime = ["ash", "ash_a2a"]
+# Core output needs ash + ash_a2a (+ bandit in generated mix.exs). Remaining entries
+# are lane-gated: add each only when the ontology uses that lane.
+runtime = [
+  "ash",
+  "ash_a2a",
+  "ash_postgres",
+  "ash_sqlite",
+  "oban",
+  "ash_oban",
+  "ash_state_machine",
+  "reactor",
+  "ash_pplan",
+  "phoenix_pubsub",
+  "stream_data",
+]
+peer_context = """
+Always required: ash, ash_a2a. Lane-gated (optional): ash_postgres, ash_sqlite (L09),
+oban + ash_oban (L14), ash_state_machine (L13), reactor (L15, L20 reactor courts),
+ash_pplan (L16, L20 plan courts), phoenix_pubsub (L11), stream_data (L20 courts,
+test/dev only). Consumer binds the pack via ggen.toml [packs] { path = ... } and
+supplies its own [ontology] source. ggen.lock records a content hash over every
+file in the pack: any pack edit requires deleting ggen.lock before the next sync.
+"""

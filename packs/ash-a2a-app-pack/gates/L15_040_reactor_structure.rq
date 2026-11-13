@@ -1,0 +1,164 @@
+# Gate L15_040: structural completeness of reactors, reactor-backed actions and skills.
+# Any row = violation.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT DISTINCT ?reactor ?subject ?problem WHERE {
+  {
+    ?reactor a aap:Reactor ; aap:reactorReturn ?t .
+    FILTER NOT EXISTS { ?reactor aap:reactorStep ?t }
+    BIND(?reactor AS ?subject)
+    BIND("reactorReturn names a step outside this reactor" AS ?problem)
+  }
+  UNION
+  {
+    ?reactor aap:reactorStep ?subject .
+    ?reactor aap:reactorStep ?other .
+    ?subject aap:name ?n . ?other aap:name ?n .
+    FILTER(STR(?subject) < STR(?other))
+    BIND("duplicate step name within reactor" AS ?problem)
+  }
+  UNION
+  {
+    ?reactor aap:reactorStep ?subject . ?subject aap:stepKind ?k .
+    FILTER(?k NOT IN ("step","collect","flunk","compose","map","switch","around","transaction",
+                      "create","update","destroy","read_one","read","action",
+                      "bulk_create","bulk_update","bulk_destroy"))
+    BIND("unknown aap:stepKind" AS ?problem)
+  }
+  UNION
+  {
+    ?reactor aap:reactorStep ?subject . ?subject aap:stepKind "step" .
+    FILTER NOT EXISTS { ?subject aap:stepImpl ?i }
+    FILTER NOT EXISTS { ?subject aap:stepGenerate "true" }
+    BIND("step has no implementation (aap:stepImpl or aap:stepGenerate)" AS ?problem)
+  }
+  UNION
+  {
+    ?reactor aap:reactorStep ?subject . ?subject aap:stepGenerate "true" .
+    FILTER NOT EXISTS { ?subject aap:stepImplName ?in }
+    BIND("generated step has no aap:stepImplName" AS ?problem)
+  }
+  UNION
+  {
+    ?reactor aap:reactorStep ?subject . ?subject aap:stepKind "flunk" .
+    FILTER NOT EXISTS { ?subject aap:stepMessage ?m }
+    BIND("flunk without aap:stepMessage" AS ?problem)
+  }
+  UNION
+  {
+    ?reactor aap:reactorStep ?subject . ?subject aap:stepKind "around" .
+    FILTER NOT EXISTS { ?subject aap:stepOpt ?o . FILTER(STRSTARTS(STR(?o), "fun ")) }
+    BIND("around without a `fun <capture/4>` aap:stepOpt (around.ex:67)" AS ?problem)
+  }
+  UNION
+  {
+    ?reactor aap:reactorStep ?subject . ?subject aap:stepKind "map" .
+    FILTER NOT EXISTS { ?subject aap:stepSource ?s }
+    BIND("map without aap:stepSource (map.ex:145)" AS ?problem)
+  }
+  UNION
+  {
+    ?reactor aap:reactorStep ?subject . ?subject aap:stepKind "switch" .
+    FILTER NOT EXISTS { ?subject aap:stepOn ?o }
+    BIND("switch without aap:stepOn (switch.ex:131)" AS ?problem)
+  }
+  UNION
+  {
+    ?reactor aap:reactorStep ?subject . ?subject aap:stepKind "switch" .
+    FILTER NOT EXISTS { ?subject aap:switchMatch ?b }
+    BIND("switch without any branch" AS ?problem)
+  }
+  UNION
+  {
+    ?reactor aap:reactorStep ?subject . ?subject aap:switchMatch ?b .
+    FILTER NOT EXISTS { ?b aap:branchPredicate ?p }
+    FILTER NOT EXISTS { ?b aap:branchDefault "true" }
+    BIND("branch is neither matches? (branchPredicate) nor default" AS ?problem)
+  }
+  UNION
+  {
+    ?reactor aap:reactorStep ?subject . ?subject aap:stepKind "transaction" .
+    FILTER NOT EXISTS { ?subject aap:stepResources ?r }
+    BIND("transaction without aap:stepResources (transaction.ex:64)" AS ?problem)
+  }
+  UNION
+  {
+    ?reactor aap:reactorStep ?subject . ?subject aap:stepKind "compose" .
+    FILTER NOT EXISTS { ?subject aap:stepReactorRef ?r }
+    BIND("compose without aap:stepReactorRef (compose.ex:80)" AS ?problem)
+  }
+  UNION
+  {
+    ?reactor aap:reactorStep ?subject . ?subject aap:stepKind ?k2 .
+    FILTER(?k2 IN ("create","update","destroy","read_one","read","action","bulk_create","bulk_update","bulk_destroy"))
+    FILTER NOT EXISTS { ?subject aap:stepResource ?r }
+    BIND("Ash step without aap:stepResource (action.ex:119)" AS ?problem)
+  }
+  UNION
+  {
+    ?reactor aap:reactorStep ?subject . ?subject aap:stepKind ?k3 .
+    FILTER(?k3 IN ("update","bulk_create","bulk_update","bulk_destroy"))
+    FILTER NOT EXISTS { ?subject aap:stepInitial ?i }
+    BIND("update/bulk_* step without aap:stepInitial (update.ex:96, bulk_create.ex:176)" AS ?problem)
+  }
+  UNION
+  {
+    ?reactor aap:reactorStep ?subject . ?subject aap:stepParent ?p .
+    FILTER NOT EXISTS { ?reactor aap:reactorStep ?p }
+    FILTER NOT EXISTS { ?sw aap:switchMatch ?p . ?reactor aap:reactorStep ?sw }
+    BIND("stepParent is neither a step nor a switch branch of this reactor" AS ?problem)
+  }
+  UNION
+  {
+    ?reactor aap:reactorStep ?subject . ?subject aap:stepParent ?p2 . ?p2 aap:stepKind ?pk .
+    FILTER(?pk NOT IN ("map","around","transaction"))
+    BIND("nested under a step kind that cannot contain steps" AS ?problem)
+  }
+  UNION
+  {
+    ?reactor aap:reactorStep ?subject .
+    { ?subject aap:stepDescription ?txt } UNION { ?subject aap:stepMessage ?txt }
+    FILTER(REGEX(STR(?txt), "[\"\\\\]"))
+    BIND("string option contains a double quote or backslash (not escaped by the template)" AS ?problem)
+  }
+  UNION
+  {
+    ?reactor a aap:Reactor ; aap:reactorDescription ?txt2 .
+    FILTER(REGEX(STR(?txt2), "\"\"\""))
+    BIND(?reactor AS ?subject)
+    BIND("reactorDescription contains a heredoc terminator" AS ?problem)
+  }
+  UNION
+  {
+    ?res aap:reactorAction ?subject . ?subject aap:runsReactor ?rx .
+    FILTER NOT EXISTS { ?rx a aap:Reactor }
+    BIND(?rx AS ?reactor)
+    BIND("reactorAction runsReactor target is not an aap:Reactor" AS ?problem)
+  }
+  UNION
+  {
+    ?res aap:reactorAction ?subject . ?subject aap:runsReactor ?reactor .
+    FILTER(EXISTS { ?subject aap:passActor "true" })
+    FILTER NOT EXISTS { ?reactor aap:reactorInput ?i . ?i aap:name "actor" }
+    BIND("passActor true but reactor declares no input :actor" AS ?problem)
+  }
+  UNION
+  {
+    ?res aap:reactorAction ?subject . ?subject aap:runsReactor ?reactor .
+    FILTER(EXISTS { ?subject aap:passTenant "true" })
+    FILTER NOT EXISTS { ?reactor aap:reactorInput ?i . ?i aap:name "tenant" }
+    BIND("passTenant true but reactor declares no input :tenant" AS ?problem)
+  }
+  UNION
+  {
+    ?res aap:reactorAction ?subject . ?subject aap:runsReactor ?reactor .
+    FILTER NOT EXISTS { ?res aap:reactorFragment ?f }
+    BIND("resource has aap:reactorAction but no aap:reactorFragment (fragment never emitted)" AS ?problem)
+  }
+  UNION
+  {
+    ?res aap:reactorAction ?subject . ?subject aap:runsReactor ?reactor .
+    FILTER NOT EXISTS { ?subject aap:actionImplModule ?m }
+    BIND("reactorAction has no aap:actionImplModule" AS ?problem)
+  }
+}
+ORDER BY ?reactor ?subject

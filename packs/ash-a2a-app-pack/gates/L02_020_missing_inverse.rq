@@ -1,0 +1,32 @@
+# Gate L02-020: missing inverse. A belongs_to A->B needs a has_one/has_many B->A, and a
+# has_one/has_many A->B needs a belongs_to B->A, unless aap:noInverse "true" waives it.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?rel ?problem WHERE {
+  ?resource a aap:Resource ; aap:relationship ?rel .
+  ?rel aap:relKind ?kind ; aap:destination ?dest .
+  FILTER NOT EXISTS { ?rel aap:noInverse "true" }
+  FILTER NOT EXISTS { ?rel aap:through ?anyThrough }
+  FILTER NOT EXISTS { ?rel aap:throughPath ?anyPath }
+  {
+    FILTER(?kind = "belongs_to")
+    FILTER NOT EXISTS {
+      ?dest aap:relationship ?back . ?back aap:destination ?resource ;
+            aap:relKind ?bk . FILTER(?bk IN ("has_one", "has_many"))
+    }
+    BIND("belongs_to has no has_one/has_many on destination" AS ?problem)
+  } UNION {
+    FILTER(?kind IN ("has_one", "has_many"))
+    FILTER NOT EXISTS {
+      ?dest aap:relationship ?back2 . ?back2 aap:destination ?resource ;
+            aap:relKind "belongs_to"
+    }
+    BIND("has_one/has_many has no belongs_to on destination" AS ?problem)
+  } UNION {
+    FILTER(?kind = "many_to_many")
+    FILTER NOT EXISTS {
+      ?dest aap:relationship ?back3 . ?back3 aap:destination ?resource ;
+            aap:relKind "many_to_many"
+    }
+    BIND("many_to_many has no reciprocal many_to_many" AS ?problem)
+  }
+}

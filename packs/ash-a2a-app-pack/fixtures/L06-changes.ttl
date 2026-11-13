@@ -1,0 +1,62 @@
+@prefix aap: <https://ggen.dev/ash-a2a-app#> .
+@prefix ex:  <https://example.com/demo#> .
+
+# Extends ex:Ticket (a2a_demo3 app.ttl). Attributes used must exist on the resource; the
+# coordinator fixture adds ex:Ticket_views / ex:Ticket_status below.
+ex:Ticket aap:attribute ex:Ticket_views, ex:Ticket_status ;
+  aap:l06Action ex:L06_close, ex:L06_touch, ex:L06_recent, ex:L06_count, ex:L06_stamp, ex:L06_assign .
+ex:Ticket_views  a aap:Attribute ; aap:name "views" ; aap:ashType "integer" ; aap:primaryKey "false" .
+ex:Ticket_status a aap:Attribute ; aap:name "status" ; aap:ashType "string" ; aap:primaryKey "false" .
+
+# update with arguments + set_attribute from arg + hook module (needs require_atomic false)
+ex:L06_close a aap:L06Action ; aap:name "close" ; aap:actionType "update" ;
+  aap:accept "" ; aap:l06Transaction "true" ; aap:l06RequireAtomic "false" ;
+  aap:l06Description "Close a ticket" ;
+  aap:l06Argument ex:L06_close_reason ; aap:l06Step ex:L06_close_s1, ex:L06_close_s2 .
+ex:L06_close_reason a aap:L06Argument ; aap:name "reason" ; aap:ashType "string" ; aap:l06ArgAllowNil "false" .
+ex:L06_close_s1 a aap:L06Step ; aap:l06Order 1 ; aap:l06Kind "change" ; aap:l06Op "set_attribute" ;
+  aap:l06Attr "status" ; aap:l06Value "\"closed\"" .
+ex:L06_close_s2 a aap:L06Step ; aap:l06Order 2 ; aap:l06Kind "change" ; aap:l06Op "module" ;
+  aap:l06Module "Demo.Desk.Changes.AuditClose" .
+
+# atomic increment/atomic_update
+ex:L06_touch a aap:L06Action ; aap:name "touch" ; aap:actionType "update" ;
+  aap:accept "" ; aap:l06RequireAtomic "true" ; aap:l06Step ex:L06_touch_s1 .
+ex:L06_touch_s1 a aap:L06Step ; aap:l06Order 1 ; aap:l06Kind "change" ; aap:l06Op "atomic_update" ;
+  aap:l06Attr "views" ; aap:l06Value "views + 1" .
+
+# read with preparations
+ex:L06_recent a aap:L06Action ; aap:name "recent" ; aap:actionType "read" ; aap:l06Primary "false" ;
+  aap:l06Argument ex:L06_recent_n ; aap:l06Step ex:L06_recent_s1, ex:L06_recent_s2, ex:L06_recent_s3 .
+ex:L06_recent_n a aap:L06Argument ; aap:name "n" ; aap:ashType "integer" ; aap:l06ArgDefault "10" .
+ex:L06_recent_s1 a aap:L06Step ; aap:l06Order 1 ; aap:l06Kind "prepare" ; aap:l06Op "filter" ;
+  aap:l06Value "status == \"open\"" .
+ex:L06_recent_s2 a aap:L06Step ; aap:l06Order 2 ; aap:l06Kind "prepare" ; aap:l06Op "sort" ;
+  aap:l06Value "[views: :desc]" .
+ex:L06_recent_s3 a aap:L06Step ; aap:l06Order 3 ; aap:l06Kind "prepare" ; aap:l06Op "limit" ;
+  aap:l06Value "10" .
+
+# generic action with returns + run implementation
+ex:L06_count a aap:L06Action ; aap:name "count_open" ; aap:actionType "action" ;
+  aap:l06Returns "integer" ; aap:l06RunModule "Demo.Desk.Runs.CountOpen" .
+ex:L06_countRun a aap:L06Run ; aap:moduleName "Demo.Desk.Runs.CountOpen" ; aap:l06RunResource ex:Ticket ;
+  aap:l06RunFile "runs/count_open" ;
+  aap:l06RunBody "{:ok, Ash.count!(Demo.Desk.Ticket)}" .
+
+# create with set_attribute default, on:, where:
+ex:L06_stamp a aap:L06Action ; aap:name "stamp" ; aap:actionType "create" ; aap:accept "title" ;
+  aap:l06Step ex:L06_stamp_s1 .
+ex:L06_stamp_s1 a aap:L06Step ; aap:l06Order 1 ; aap:l06Kind "change" ; aap:l06Op "set_new_attribute" ;
+  aap:l06Attr "status" ; aap:l06Value "\"open\"" .
+
+# hook module generated for the close action
+ex:L06_auditClose a aap:L06Hook ; aap:moduleName "Demo.Desk.Changes.AuditClose" ;
+  aap:l06HookResource ex:Ticket ; aap:l06HookKind "after_action" ; aap:l06HookFile "changes/audit_close" ;
+  aap:l06HookBody "{:ok, record}" .
+
+# manage_relationship (relationship `watchers` must exist from a relationships lane)
+ex:L06_assign a aap:L06Action ; aap:name "assign" ; aap:actionType "update" ; aap:accept "" ;
+  aap:l06RequireAtomic "false" ; aap:l06Argument ex:L06_assign_w ; aap:l06Step ex:L06_assign_s1 .
+ex:L06_assign_w a aap:L06Argument ; aap:name "watchers" ; aap:ashType "{:array, :uuid}" .
+ex:L06_assign_s1 a aap:L06Step ; aap:l06Order 1 ; aap:l06Kind "change" ; aap:l06Op "manage_relationship" ;
+  aap:l06Attr "watchers" ; aap:l06Opts "type: :append_and_remove" .

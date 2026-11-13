@@ -1,0 +1,60 @@
+---
+to: "ea.graph.json"
+force: true
+sparql:
+  app: |
+    PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+    SELECT ?app_name ?app_module ?ea_declare WHERE {
+      ?p a aap:Project ; aap:appName ?app_name ; aap:appModule ?app_module .
+      OPTIONAL { ?p aap:eaDeclare ?ea_declare }
+    }
+  agents: |
+    PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+    SELECT ?agent_name WHERE { ?a a aap:Agent ; aap:agentName ?agent_name . } ORDER BY ?agent_name
+---
+{%- set declare = app[0].ea_declare | default(value="false") -%}
+{
+  "schema": "ggen.ea.graph.v1",
+  "strategy": {
+    "id": "strategy:{{ app[0].app_name }}",
+    "title": {{ app[0].app_module | json_encode | safe }}
+  },
+  "capabilities": [
+{%- if declare == "true" %}
+{%- for a in agents %}
+    {
+      "id": "cap:{{ a.agent_name }}",
+      "strategy": "strategy:{{ app[0].app_name }}"
+    }{% if not loop.last %},{% endif %}
+{%- endfor %}
+{%- endif %}
+  ],
+  "abbs": [
+{%- if declare == "true" %}
+{%- for a in agents %}
+    {
+      "id": "abb:{{ a.agent_name }}",
+      "capability": "cap:{{ a.agent_name }}",
+      "contract": "contract:{{ a.agent_name }}"
+    }{% if not loop.last %},{% endif %}
+{%- endfor %}
+{%- endif %}
+  ],
+  "contracts": [
+{%- if declare == "true" %}
+{%- for a in agents %}
+    {
+      "id": "contract:{{ a.agent_name }}",
+      "abb": "abb:{{ a.agent_name }}",
+      "version": "1.0.0",
+      "max_artifacts": 8,
+      "authority_ceiling": "CONSTRUCT",
+      "required_ports": []
+    }{% if not loop.last %},{% endif %}
+{%- endfor %}
+{%- endif %}
+  ],
+  "candidate_sbbs": [],
+  "qualifications": [],
+  "packs": []
+}

@@ -1,0 +1,23 @@
+# Gate L04_030: (a) duplicate aggregate names on one resource, (b) aggregate name colliding with
+# an attribute of the same resource, (c) single-hop aggregate whose aggField is not an attribute
+# of the relationship destination (ash aggregate.ex:67). Rows = violations.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?agg ?violation WHERE {
+  {
+    ?resource a aap:Resource ; aap:aggregate ?agg, ?other .
+    ?agg aap:name ?n . ?other aap:name ?n .
+    FILTER (?agg != ?other)
+    BIND("duplicate aggregate name on resource" AS ?violation)
+  } UNION {
+    ?resource a aap:Resource ; aap:aggregate ?agg ; aap:attribute ?a .
+    ?agg aap:name ?n . ?a aap:name ?n .
+    BIND("aggregate name collides with attribute" AS ?violation)
+  } UNION {
+    ?resource a aap:Resource ; aap:aggregate ?agg ; aap:relationship ?r .
+    ?agg aap:aggPath ?p ; aap:aggField ?f .
+    FILTER (!CONTAINS(?p, ","))
+    ?r aap:name ?rn ; aap:destination ?dest . FILTER(STR(?rn) = ?p)
+    FILTER NOT EXISTS { ?dest aap:attribute ?da . ?da aap:name ?fn . FILTER(STR(?fn) = STR(?f)) }
+    BIND("aggField is not an attribute of the destination resource" AS ?violation)
+  }
+}

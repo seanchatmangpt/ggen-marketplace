@@ -1,0 +1,68 @@
+# Gate L04_010: aggregate structural violations (kind, target, option applicability).
+# Rows = violations (?resource ?agg ?violation). Every UNION arm is self-contained because
+# FILTERs inside an arm cannot see variables bound outside it.
+# Applicability: ash dsl.ex:1377-1655 (no sort for count/max/min/sum/avg/exists; no field for
+# exists; uniq? count/list; include_nil? first/list; custom needs type + implementation).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?agg ?violation WHERE {
+  {
+    ?resource a aap:Resource ; aap:aggregate ?agg . ?agg aap:aggKind ?kind .
+    FILTER (STR(?kind) NOT IN ("count","exists","first","sum","min","max","avg","list","custom"))
+    BIND("unknown aggregate kind" AS ?violation)
+  } UNION {
+    ?resource a aap:Resource ; aap:aggregate ?agg .
+    FILTER NOT EXISTS { ?agg aap:aggPath ?p }
+    FILTER NOT EXISTS { ?agg aap:aggResource ?m }
+    BIND("aggregate has neither aggPath nor aggResource" AS ?violation)
+  } UNION {
+    ?resource a aap:Resource ; aap:aggregate ?agg . ?agg aap:aggPath ?p ; aap:aggResource ?m .
+    BIND("aggregate has both aggPath and aggResource" AS ?violation)
+  } UNION {
+    ?resource a aap:Resource ; aap:aggregate ?agg . ?agg aap:aggPath ?p .
+    FILTER (!REGEX(STR(?p), "^[a-z_][a-z0-9_]*(,[a-z_][a-z0-9_]*)*$"))
+    BIND("aggPath must be comma-separated snake_case atoms without whitespace" AS ?violation)
+  } UNION {
+    ?resource a aap:Resource ; aap:aggregate ?agg . ?agg aap:aggKind ?kind .
+    FILTER (STR(?kind) IN ("first","sum","min","max","avg","list"))
+    FILTER NOT EXISTS { ?agg aap:aggField ?f }
+    BIND("kind requires aggField" AS ?violation)
+  } UNION {
+    ?resource a aap:Resource ; aap:aggregate ?agg . ?agg aap:aggKind "exists" ; aap:aggField ?f .
+    BIND("exists does not accept aggField" AS ?violation)
+  } UNION {
+    ?resource a aap:Resource ; aap:aggregate ?agg . ?agg aap:aggKind "custom" .
+    FILTER (NOT EXISTS { ?agg aap:aggType ?t } || NOT EXISTS { ?agg aap:aggImplementation ?i })
+    BIND("custom requires aggType and aggImplementation" AS ?violation)
+  } UNION {
+    ?resource a aap:Resource ; aap:aggregate ?agg . ?agg aap:aggKind ?kind ; ?cp ?cv .
+    FILTER (STR(?kind) != "custom")
+    FILTER (?cp IN (aap:aggType, aap:aggImplementation))
+    BIND("aggType/aggImplementation only valid on custom" AS ?violation)
+  } UNION {
+    ?resource a aap:Resource ; aap:aggregate ?agg . ?agg aap:aggKind ?kind ; aap:aggSort ?s .
+    FILTER (STR(?kind) IN ("count","sum","min","max","avg","exists"))
+    BIND("kind does not support aggSort" AS ?violation)
+  } UNION {
+    ?resource a aap:Resource ; aap:aggregate ?agg . ?agg aap:aggKind ?kind ; aap:aggUniq ?u .
+    FILTER (STR(?kind) NOT IN ("count","list"))
+    BIND("aggUniq only valid on count/list" AS ?violation)
+  } UNION {
+    ?resource a aap:Resource ; aap:aggregate ?agg . ?agg aap:aggKind ?kind ; aap:aggIncludeNil ?n .
+    FILTER (STR(?kind) NOT IN ("first","list"))
+    BIND("aggIncludeNil only valid on first/list" AS ?violation)
+  } UNION {
+    ?resource a aap:Resource ; aap:aggregate ?agg . ?agg ?bp ?bv .
+    FILTER (?bp IN (aap:aggPublic, aap:aggUniq, aap:aggIncludeNil, aap:aggSortable,
+                    aap:aggSensitive, aap:aggAuthorize))
+    FILTER (STR(?bv) NOT IN ("true","false"))
+    BIND("boolean aggregate option must be true|false" AS ?violation)
+  } UNION {
+    ?resource a aap:Resource ; aap:aggregate ?agg . ?agg aap:aggFilterable ?fl .
+    FILTER (STR(?fl) NOT IN ("true","false","simple_equality"))
+    BIND("aggFilterable must be true|false|simple_equality" AS ?violation)
+  } UNION {
+    ?resource a aap:Resource ; aap:aggregate ?agg . ?agg aap:aggMultitenancy ?mt .
+    FILTER (STR(?mt) != "bypass")
+    BIND("aggMultitenancy only supports bypass" AS ?violation)
+  }
+}

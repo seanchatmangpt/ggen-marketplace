@@ -1,0 +1,33 @@
+@prefix aap: <https://ggen.dev/ash-a2a-app#> .
+@prefix ex:  <https://example.org/l11#> .
+
+ex:Domain a aap:Domain ; aap:moduleName "Demo.Desk" ; aap:appPath "demo" .
+
+ex:Ticket a aap:Resource ; aap:moduleName "Demo.Ticket" ; aap:inDomain ex:Domain ;
+  aap:resourceFile "ticket" ;
+  aap:attribute ex:tId, ex:tTask ;
+  aap:action ex:aOpen, ex:aClose ;
+  aap:pubSub ex:ps ;
+  aap:notifier ex:notif ;
+  aap:simpleNotifier "Demo.AuditNotifier" .
+
+ex:tId a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:tTask a aap:Attribute ; aap:name "task_id" ; aap:ashType "string" ; aap:primaryKey "false" .
+ex:aOpen a aap:Action ; aap:name "open" ; aap:actionType "create" ; aap:accept "task_id" .
+ex:aClose a aap:Action ; aap:name "close" ; aap:actionType "update" .
+
+ex:ps a aap:PubSub ; aap:pubSubModule "Phoenix.PubSub" ; aap:pubSubName "Demo.PubSub" ;
+  aap:pubSubPrefix "ticket" ; aap:broadcastType "notification" ;
+  aap:publication ex:p1, ex:p2 .
+ex:p1 a aap:Publication ; aap:pubType "create" ; aap:pubTopic "created" .
+ex:p2 a aap:Publication ; aap:pubAction "close" ; aap:pubTopic "closed,:_pkey" ;
+  aap:pubEvent "ticket_closed" ; aap:previousValues "true" .
+
+ex:srv a aap:PubSubServer ; aap:serverModule "Demo.PubSubServer" ; aap:serverName "Demo.PubSub" ;
+  aap:serverFile "pubsub_server" ; aap:inDomain ex:Domain .
+
+ex:notif a aap:Notifier ; aap:moduleName "Demo.TicketNotifier" ; aap:notifierFile "ticket_notifier" ;
+  aap:bridge ex:br ; aap:delegate ex:dg .
+ex:br a aap:A2ABridge ; aap:bridgeAction "close" ; aap:bridgeKind "status-update" ;
+  aap:bridgeTaskIdField "task_id" ; aap:bridgeFinal "true" .
+ex:dg a aap:Delegate ; aap:delegateModule "Demo.AuditNotifier" .

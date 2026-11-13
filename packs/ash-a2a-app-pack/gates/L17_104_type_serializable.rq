@@ -1,0 +1,20 @@
+# L17 gate (mirrors verify_skills.ex:44-59,413-443 refused_type_not_json_serializable).
+# An exposed skill spec may not surface an argument (declared action argument, or accepted attribute)
+# whose Ash type has no JSON representation. Array types are written "array:<inner>" in aap:ashType/aap:argType.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?subject ?type ?reason WHERE {
+  ?r a aap:Resource ; aap:skillSpec ?subject ; aap:action ?a .
+  ?subject aap:specAction ?an .
+  ?a aap:name ?an .
+  {
+    ?a aap:actionArgument ?x . ?x aap:argType ?type .
+  }
+  UNION
+  {
+    ?a aap:accept ?acc . ?r aap:attribute ?at . ?at aap:name ?atn ; aap:ashType ?type .
+    FILTER ( CONTAINS(CONCAT(",", REPLACE(?acc, " ", ""), ","), CONCAT(",", ?atn, ",")) )
+  }
+  FILTER NOT EXISTS { ?subject aap:expose "false" }
+  FILTER ( REGEX(STR(?type), "^((array|wrap_list):)*(term|struct|function|mfa|module|mapset|tuple|range|regex|pid|reference)$") )
+  BIND ("refused_type_not_json_serializable" AS ?reason)
+}

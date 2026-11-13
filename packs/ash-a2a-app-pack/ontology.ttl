@@ -5,12 +5,23 @@
 
 # Vocabulary for an Ash + AshA2A application. Consumers describe their app in
 # Turtle with these terms; templates/ project domain, resources, skills, agent.
+#
+# MERGED (ERRC E1): this file is the single declaration site for every aap: term used by
+# templates/, gates/ and fixtures/. ontology.d/L*.ttl are retained read-only as lane sources;
+# every term below is declared exactly once here. Terms that two lanes used with different
+# kinds (object vs datatype) are declared rdf:Property (kind-neutral) and the dual use is
+# documented on the term. See fragments/ERRC-E1-ontology.md for the conflict register.
+
+# =====================================================================================
+# 0. Core / legacy (resource.ex.tmpl, domain.ex.tmpl, agent.ex.tmpl, mix/config templates)
+# =====================================================================================
 aap:Domain   a owl:Class ; rdfs:comment "An Ash.Domain using the AshA2A extension." .
 aap:Resource a owl:Class ; rdfs:comment "An Ash.Resource using the AshA2A extension." .
-aap:Attribute a owl:Class .
-aap:Action   a owl:Class .
-aap:Skill    a owl:Class ; rdfs:comment "An explicit a2a skill override on a resource action." .
+aap:Attribute a owl:Class ; rdfs:comment "Legacy simple attribute (aap:attribute edge, aap:name/aap:ashType/aap:primaryKey). Full-fidelity attributes are aap:AttributeSpec (L01)." .
+aap:Action   a owl:Class ; rdfs:comment "Legacy simple action (aap:action edge). L06 fragment actions are aap:L06Action; L02 manage actions are aap:RelManage." .
+aap:Skill    a owl:Class ; rdfs:comment "An explicit a2a skill override on a resource action. Full-option skills are aap:SkillSpec (L17); a name may not appear on both." .
 aap:Agent    a owl:Class ; rdfs:comment "An AshA2A.Agent wrapping a domain." .
+aap:Project  a owl:Class ; rdfs:comment "Application-level node: mix project, config, supervision-level facts." .
 
 aap:moduleName a owl:DatatypeProperty .
 aap:inDomain   a owl:ObjectProperty .
@@ -18,7 +29,7 @@ aap:ofResource a owl:ObjectProperty .
 aap:name       a owl:DatatypeProperty .
 aap:ashType    a owl:DatatypeProperty .
 aap:primaryKey a owl:DatatypeProperty .
-aap:actionType a owl:DatatypeProperty ; rdfs:comment "read|create|update|destroy" .
+aap:actionType a owl:DatatypeProperty ; rdfs:comment "read|create|update|destroy (generic actions: L06 uses action)" .
 aap:consequence a owl:DatatypeProperty ; rdfs:comment "observe|propose|commit..." .
 aap:description a owl:DatatypeProperty .
 aap:forDomain  a owl:ObjectProperty .
@@ -27,13 +38,982 @@ aap:appPath    a owl:DatatypeProperty ; rdfs:comment "lib/<appPath>/ directory f
 aap:domainFile a owl:DatatypeProperty .
 aap:resourceFile a owl:DatatypeProperty .
 aap:agentFile  a owl:DatatypeProperty .
-aap:attribute  a owl:ObjectProperty .
-aap:action     a owl:ObjectProperty .
-aap:skill      a owl:ObjectProperty .
-aap:ofAction   a owl:DatatypeProperty .
-aap:Project    a owl:Class .
+aap:attribute  a owl:ObjectProperty ; rdfs:comment "Resource -> legacy aap:Attribute (disjoint from L01 aap:attrSpec)." .
+aap:action     a owl:ObjectProperty ; rdfs:comment "Resource -> legacy aap:Action (disjoint from L06 aap:l06Action, L02 aap:manage, L15 aap:reactorAction)." .
+aap:skill      a owl:ObjectProperty ; rdfs:comment "Resource -> aap:Skill." .
+aap:ofAction   a owl:DatatypeProperty ; rdfs:comment "Action name a skill / code interface targets (literal)." .
 aap:appName    a owl:DatatypeProperty .
 aap:appModule  a owl:DatatypeProperty .
 aap:ashA2aDep  a owl:DatatypeProperty ; rdfs:comment "Elixir term for the ash_a2a dep requirement/opts" .
+aap:ashPPlanDep a owl:DatatypeProperty ; rdfs:domain aap:Project ;
+  rdfs:comment "Raw Elixir ash_pplan dep requirement/opts, e.g. path: \"/Users/sac/ash_pplan\" or \"~> 26.10\"; mix.exs.tmpl OPTIONAL, default \"~> 26.10\" (declared by E1; was undeclared)." .
+aap:securityProfile a owl:DatatypeProperty ; rdfs:domain aap:Project ;
+  rdfs:comment "Security profile applied by config.exs.tmpl in every environment, OPTIONAL (declared by E1; was undeclared)." .
 aap:accept        a owl:DatatypeProperty ; rdfs:comment "comma-separated accepted attribute names (create/update)" .
 aap:leaseRequired a owl:DatatypeProperty .
+
+# =====================================================================================
+# L01 attributes (aap:attrSpec; Spark fragment per resource)
+# DSL grammar: deps/ash/lib/ash/resource/attribute.ex:70-175, dsl.ex:36-186, type/enum.ex:73-80
+# =====================================================================================
+aap:AttributeSpec a owl:Class ;
+  rdfs:comment "A full-fidelity Ash attribute (any kind, type, constraint, default)." .
+aap:EnumType a owl:Class ; rdfs:comment "An Ash.Type.Enum module." .
+aap:EnumValue a owl:Class .
+
+aap:attrSpec a owl:ObjectProperty ; rdfs:domain aap:Resource ; rdfs:range aap:AttributeSpec .
+aap:attrKind a owl:DatatypeProperty ;
+  rdfs:comment "attribute|create_timestamp|update_timestamp|uuid_primary_key|uuid_v7_primary_key|integer_primary_key (dsl.ex:36-186). Non-attribute kinds accept only aap:name (attribute.ex hide_all_except [:name])." .
+aap:attrOrder a owl:DatatypeProperty ; rdfs:comment "integer; declaration order (composite PK order matters)." .
+aap:ashTypeModule a owl:DatatypeProperty ; rdfs:comment "Elixir module type, e.g. Ash.Type.CiString, MyApp.Status." .
+aap:ashTypeEnum a owl:ObjectProperty ; rdfs:range aap:EnumType ; rdfs:comment "type is this enum module." .
+aap:arrayOf a owl:DatatypeProperty ; rdfs:comment "element type atom => {:array, :atom}. Put items: [...] in aap:constraints." .
+aap:arrayOfModule a owl:DatatypeProperty ; rdfs:comment "element type module => {:array, Module}." .
+aap:arrayOfEnum a owl:ObjectProperty ; rdfs:range aap:EnumType .
+aap:constraints a owl:DatatypeProperty ; rdfs:comment "Elixir keyword-list text, e.g. max_length: 80, allow_empty?: false (L01 attribute.ex:75; L03 calc :43 / arg :51; L17 gate L17_113 scans it)." .
+aap:allowNil a owl:DatatypeProperty ; rdfs:comment "true|false -> allow_nil? (L01 attribute.ex:119; L02 belongs_to/has_one; L03 calc :93 / arg :41; L12 field/attribute)." .
+aap:public a owl:DatatypeProperty ; rdfs:comment "true|false -> public? (L01 attribute default true; L03 calculation)." .
+aap:sensitive a owl:DatatypeProperty ; rdfs:comment "true|false -> sensitive? (L01 attribute.ex:85; L03 calculation.ex:66)" .
+aap:generated a owl:DatatypeProperty ; rdfs:comment "true|false (attribute.ex:126)" .
+aap:writable a owl:DatatypeProperty ; rdfs:comment "true|false (attribute.ex:133)" .
+aap:isPrimaryKey a owl:DatatypeProperty ; rdfs:comment "true|false primary_key? (attribute.ex:112)" .
+aap:defaultExpr a owl:DatatypeProperty ; rdfs:comment "raw Elixir term or capture, e.g. :open, \"x\", &DateTime.utc_now/0 (attribute.ex:147)" .
+aap:updateDefaultExpr a owl:DatatypeProperty ; rdfs:comment "raw Elixir term/capture (attribute.ex:153)" .
+aap:sourceColumn a owl:DatatypeProperty ; rdfs:comment "source: atom name (attribute.ex:92)" .
+aap:selectByDefault a owl:DatatypeProperty ; rdfs:comment "true|false (attribute.ex:98)" .
+aap:alwaysSelect a owl:DatatypeProperty ; rdfs:comment "true|false (attribute.ex:105)" .
+aap:filterable a owl:DatatypeProperty ; rdfs:comment "true|false|simple_equality (L01 attribute.ex:157; L03 calculation.ex:102)" .
+aap:sortable a owl:DatatypeProperty ; rdfs:comment "true|false (L01 attribute.ex:164; L03 calculation.ex:107)" .
+aap:matchOtherDefaults a owl:DatatypeProperty ; rdfs:comment "true|false (attribute.ex:171)" .
+aap:enumFile a owl:DatatypeProperty ; rdfs:comment "file stem under lib/<appPath>/ for the enum module" .
+aap:label a owl:DatatypeProperty ; rdfs:comment "enum value label (enum.ex:78)" .
+aap:order a owl:DatatypeProperty ; rdfs:comment "integer ordering for enum values" .
+
+# DUAL USE (E1): L01 links an EnumType to aap:EnumValue nodes (object); L12 gives an
+# aap:CustomType (typeKind enum) literal atom names. Kind-neutral rdf:Property.
+aap:enumValue a rdf:Property ;
+  rdfs:comment "L01: aap:EnumType -> aap:EnumValue node (carries aap:name/aap:label/aap:order/aap:description). L12: aap:CustomType (typeKind enum) -> atom-name literal, repeatable." .
+
+# =====================================================================================
+# L02 relationships. DSL: dsl.ex:237 has_one, :269 has_many, :301 many_to_many, :336 belongs_to
+# =====================================================================================
+aap:Relationship a owl:Class ;
+  rdfs:comment "A relationship declared on an aap:Resource. L02 nodes use aap:name/aap:relKind/aap:destination (any kind); L08 nodes (belongs_to tenant owner) use aap:relName/aap:relDestination/aap:relSourceAttribute." .
+aap:RelManage    a owl:Class ; rdfs:comment "A generated action that manages one relationship via an argument." .
+
+aap:relationship a owl:ObjectProperty ; rdfs:domain aap:Resource ; rdfs:range aap:Relationship ;
+  rdfs:comment "Resource -> relationship node with aap:name and aap:destination (L02/L04) or aap:relName (L08)." .
+aap:manage       a owl:ObjectProperty ; rdfs:domain aap:Resource ; rdfs:range aap:RelManage .
+
+aap:relKind     a owl:DatatypeProperty ; rdfs:comment "belongs_to | has_one | has_many | many_to_many" .
+aap:destination a owl:ObjectProperty ; rdfs:comment "Destination aap:Resource (args: [:name, :destination]); also relationship node -> destination aap:Resource for L04 path gates." .
+aap:through     a owl:ObjectProperty ; rdfs:comment "Join aap:Resource for many_to_many (many_to_many.ex:85)." .
+aap:throughPath a owl:DatatypeProperty ; rdfs:comment "Elixir list for has_many/has_one through (has_many.ex:84)." .
+aap:sourceAttribute a owl:DatatypeProperty ; rdfs:comment "shared_options.ex:32" .
+aap:destinationAttribute a owl:DatatypeProperty ; rdfs:comment "shared_options.ex:21" .
+aap:sourceAttributeOnJoin a owl:DatatypeProperty ; rdfs:comment "many_to_many.ex:75" .
+aap:destinationAttributeOnJoin a owl:DatatypeProperty ; rdfs:comment "many_to_many.ex:80" .
+aap:joinRelationship a owl:DatatypeProperty ; rdfs:comment "many_to_many.ex:89" .
+aap:relPrimaryKey a owl:DatatypeProperty ; rdfs:comment "belongs_to primary_key? (belongs_to.ex:84)" .
+aap:defineAttribute a owl:DatatypeProperty ; rdfs:comment "belongs_to define_attribute? (belongs_to.ex:115)" .
+aap:attributeType a owl:DatatypeProperty ; rdfs:comment "belongs_to attribute_type, Elixir term (belongs_to.ex:121)" .
+aap:relPublic   a owl:DatatypeProperty ; rdfs:comment "public? (L02 shared_options.ex:44); L08: attribute_public? true|false" .
+aap:relWritable a owl:DatatypeProperty ; rdfs:comment "shared_options.ex:57" .
+aap:noAttributes a owl:DatatypeProperty ; rdfs:comment "shared_options.ex:155" .
+aap:relSort     a owl:DatatypeProperty ; rdfs:comment "Elixir sort term (shared_options.ex:95)" .
+aap:relFilter   a owl:DatatypeProperty ; rdfs:comment "Elixir expression body, multi-valued; each emits `filter expr(..)` (dsl.ex:11)" .
+aap:relReadAction a owl:DatatypeProperty ; rdfs:comment "shared_options.ex:64" .
+aap:inverse     a owl:ObjectProperty ; rdfs:comment "The aap:Relationship on the destination resource that points back." .
+aap:noInverse   a owl:DatatypeProperty ; rdfs:comment "true waives the missing-inverse gate." .
+
+# manage_relationship action
+aap:argumentName a owl:DatatypeProperty .
+aap:argumentType a owl:DatatypeProperty ; rdfs:comment "Elixir type term; default :map / {:array, :map}" .
+aap:manageType  a owl:DatatypeProperty ; rdfs:comment "append|append_and_remove|remove|direct_control|create" .
+aap:onLookup    a owl:DatatypeProperty .
+aap:onNoMatch   a owl:DatatypeProperty .
+aap:onMatch     a owl:DatatypeProperty .
+aap:onMissing   a owl:DatatypeProperty .
+aap:useIdentities a owl:DatatypeProperty ; rdfs:comment "Elixir list e.g. [:_primary_key]" .
+
+# DUAL USE (E1): L02 RelManage -> aap:Relationship node (object); L09 aap:Reference carries the
+# relationship name as a literal. Kind-neutral rdf:Property.
+aap:ofRelationship a rdf:Property ;
+  rdfs:comment "L02: aap:RelManage -> aap:Relationship node. L09: aap:Reference -> relationship name literal." .
+
+# =====================================================================================
+# L03 calculations. calculation.ex:28-130, argument.ex:25-57, dsl.ex:1715-1785
+# =====================================================================================
+aap:Calculation         a owl:Class ; rdfs:comment "An Ash calculation (calculations do calculate ... end)." .
+aap:CalculationArgument a owl:Class ; rdfs:comment "An argument of a calculation (argument.ex:25)." .
+
+aap:calcArgument  a owl:ObjectProperty ; rdfs:comment "Calculation -> aap:CalculationArgument." .
+aap:calcKind      a owl:DatatypeProperty ; rdfs:comment "expr | concat | module. expr: aap:expression; concat: builtin Ash.Resource.Calculation.Concat with aap:calcKeys/aap:separator; module: generated coalesce module aap:calcModule over aap:calcKeys." .
+aap:expression    a owl:DatatypeProperty ; rdfs:comment "Elixir expression text placed inside expr(...) (kind expr)." .
+aap:calcKeys      a owl:DatatypeProperty ; rdfs:comment "comma-separated attribute names (concat/module kinds)." .
+aap:separator     a owl:DatatypeProperty ; rdfs:comment "concat separator string." .
+aap:calcModule    a owl:DatatypeProperty ; rdfs:comment "Module name of generated calculation (kind module)." .
+aap:calcFile      a owl:DatatypeProperty ; rdfs:comment "File stem under lib/<appPath>/calculations/ (kind module)." .
+aap:load          a owl:DatatypeProperty ; rdfs:comment "comma-separated attribute/calculation names for load: (calculation.ex:87)." .
+aap:allowExpr     a owl:DatatypeProperty ; rdfs:comment "argument allow_expr? (argument.ex:46)." .
+aap:default       a owl:DatatypeProperty ; rdfs:comment "Elixir literal text for argument default (argument.ex:36)." .
+aap:argOrder      a owl:DatatypeProperty ; rdfs:comment "integer sort key for arguments (L03 calculation arguments; L15 reactor bindings)." .
+
+# DUAL USE (E1): L03 Resource -> aap:Calculation node (object); L10 aap:CalculationInterface
+# names the calculation as a literal. Kind-neutral rdf:Property.
+aap:calculation a rdf:Property ;
+  rdfs:comment "L03: aap:Resource -> aap:Calculation node. L10: aap:CalculationInterface -> calculation name literal (define_calculation)." .
+
+# =====================================================================================
+# L04 aggregates. dsl.ex @count:1377 ... @custom:1578 @list:1618 @join_filter:1353; aggregate.ex:39-125
+# (L04's minimal aap:relationship / aap:destination declarations are subsumed by L02 above.)
+# =====================================================================================
+aap:Aggregate a owl:Class ; rdfs:comment "A named Ash aggregate (aggregates do ... end)." .
+aap:AggregateJoinFilter a owl:Class ; rdfs:comment "join_filter relationship_path, filter inside an aggregate (dsl.ex:1353)." .
+
+aap:aggregate a owl:ObjectProperty ; rdfs:comment "Resource -> Aggregate." .
+aap:aggJoinFilter a owl:ObjectProperty ; rdfs:comment "Aggregate -> AggregateJoinFilter." .
+aap:aggKind a owl:DatatypeProperty ; rdfs:comment "count|exists|first|sum|min|max|avg|list|custom (aggregate.ex:61)" .
+aap:aggPath a owl:DatatypeProperty ; rdfs:comment "comma-separated relationship path, no whitespace, e.g. comments,author (aggregate.ex:51)" .
+aap:aggResource a owl:DatatypeProperty ; rdfs:comment "resource-based aggregate: module name (aggregate.ex:158)" .
+aap:aggField a owl:DatatypeProperty ; rdfs:comment "aggregate.ex:67" .
+aap:aggType a owl:DatatypeProperty ; rdfs:comment "custom only: type module (dsl.ex:1604)" .
+aap:aggImplementation a owl:DatatypeProperty ; rdfs:comment "custom only: raw Elixir term (dsl.ex:1609)" .
+aap:aggFilter a owl:DatatypeProperty ; rdfs:comment "raw Elixir: [active: true] or expr(...) (aggregate.ex:73)" .
+aap:aggSort a owl:DatatypeProperty ; rdfs:comment "raw Elixir sort (aggregate.ex:78); first/list/custom only" .
+aap:aggDefault a owl:DatatypeProperty ; rdfs:comment "raw Elixir default (aggregate.ex:86)" .
+aap:aggDescription a owl:DatatypeProperty ; rdfs:comment "aggregate.ex:82" .
+aap:aggPublic a owl:DatatypeProperty ; rdfs:comment "true|false (aggregate.ex:90)" .
+aap:aggUniq a owl:DatatypeProperty ; rdfs:comment "true|false; count/list only (dsl.ex:1406,1642)" .
+aap:aggIncludeNil a owl:DatatypeProperty ; rdfs:comment "true|false; first/list only (dsl.ex:1439,1647)" .
+aap:aggReadAction a owl:DatatypeProperty ; rdfs:comment "aggregate.ex:45" .
+aap:aggFilterable a owl:DatatypeProperty ; rdfs:comment "true|false|simple_equality (aggregate.ex:95)" .
+aap:aggSortable a owl:DatatypeProperty ; rdfs:comment "true|false (aggregate.ex:100)" .
+aap:aggSensitive a owl:DatatypeProperty ; rdfs:comment "true|false (aggregate.ex:105)" .
+aap:aggAuthorize a owl:DatatypeProperty ; rdfs:comment "true|false (aggregate.ex:110)" .
+aap:aggMultitenancy a owl:DatatypeProperty ; rdfs:comment "bypass (aggregate.ex:117)" .
+
+# =====================================================================================
+# L05 identities + validations. identity.ex:32-94, validation.ex:145-186, validation/builtins.ex
+# =====================================================================================
+aap:Identity   a owl:Class ; rdfs:comment "An Ash identity (unique constraint) on a resource." .
+aap:Validation a owl:Class ; rdfs:comment "A resource-level Ash validation; action-scoped via aap:forAction." .
+
+aap:identity   a owl:ObjectProperty ; rdfs:comment "Resource -> Identity." .
+aap:validation a owl:ObjectProperty ; rdfs:comment "Resource -> Validation." .
+
+aap:identityKey    a owl:DatatypeProperty ; rdfs:comment "Repeatable: one attribute name per triple. Must name an aap:attribute of the resource." .
+aap:eagerCheck     a owl:DatatypeProperty ; rdfs:comment "true|false -> eager_check?" .
+aap:eagerCheckWith a owl:DatatypeProperty ; rdfs:comment "Domain module -> eager_check_with" .
+aap:preCheck       a owl:DatatypeProperty ; rdfs:comment "true|false -> pre_check?" .
+aap:preCheckWith   a owl:DatatypeProperty ; rdfs:comment "Domain module -> pre_check_with" .
+aap:nilsDistinct   a owl:DatatypeProperty ; rdfs:comment "true|false -> nils_distinct?" .
+aap:allTenants     a owl:DatatypeProperty ; rdfs:comment "true|false -> all_tenants?" .
+aap:fieldNames     a owl:DatatypeProperty ; rdfs:comment "comma-separated atoms -> field_names" .
+aap:identityWhere  a owl:DatatypeProperty ; rdfs:comment "Raw Elixir expression, e.g. expr(is_nil(archived_at)) -> where" .
+
+aap:validationKind a owl:DatatypeProperty ;
+  rdfs:comment "present|absent|attributes_present|attributes_absent|match|compare|numericality|one_of|string_length|attribute_equals|attribute_does_not_equal|attribute_in|argument_equals|argument_does_not_equal|argument_in|confirm|changing|raw" .
+aap:vAttribute  a owl:DatatypeProperty ; rdfs:comment "Repeatable attribute/argument name. Single-target kinds take exactly one." .
+aap:vValue      a owl:DatatypeProperty ; rdfs:comment "Raw Elixir second argument (regex sigil, list, atom, literal); for kind raw, the whole validation expression." .
+aap:vOpts       a owl:DatatypeProperty ; rdfs:comment "Raw Elixir keyword opts for the builtin, e.g. min: 3, max: 120" .
+aap:on          a owl:DatatypeProperty ; rdfs:comment "comma-separated create|update|destroy -> on:" .
+aap:where       a owl:DatatypeProperty ; rdfs:comment "';'-separated raw where-validations, e.g. attribute_equals(:a, 1); present(:b)" .
+aap:forAction   a owl:DatatypeProperty ; rdfs:comment "Action name; adds action_is(:name) to where (action-level validation)." .
+aap:message     a owl:DatatypeProperty ; rdfs:comment "Error message (no double quotes; see gate L05_message_quotes)." .
+aap:onlyWhenValid a owl:DatatypeProperty .
+aap:beforeAction  a owl:DatatypeProperty .
+aap:alwaysAtomic  a owl:DatatypeProperty .
+
+# =====================================================================================
+# L06 changes, preparations, action arguments, generic actions.
+# L06 actions are SEPARATE entities from aap:action (they live in a Spark fragment module).
+# =====================================================================================
+aap:L06Action   a owl:Class ; rdfs:comment "Action emitted in the L06 fragment (create|update|destroy|read|action)." .
+aap:L06Argument a owl:Class ; rdfs:comment "argument :name, :type inside an L06 action." .
+aap:L06Step     a owl:Class ; rdfs:comment "One change or prepare entry in an L06 action." .
+aap:L06Hook     a owl:Class ; rdfs:comment "Generated Ash.Resource.Change / Preparation module wrapping a hook body." .
+aap:L06Run      a owl:Class ; rdfs:comment "Generated Ash.Resource.Actions.Implementation for a generic action." .
+
+aap:l06Action   a owl:ObjectProperty ; rdfs:comment "Resource -> L06Action." .
+aap:l06Argument a owl:ObjectProperty ; rdfs:comment "L06Action -> L06Argument." .
+aap:l06Step     a owl:ObjectProperty ; rdfs:comment "L06Action -> L06Step." .
+
+aap:l06Primary       a owl:DatatypeProperty ; rdfs:comment "primary? true|false" .
+aap:l06Transaction   a owl:DatatypeProperty ; rdfs:comment "transaction? true|false" .
+aap:l06RequireAtomic a owl:DatatypeProperty ; rdfs:comment "require_atomic? true|false (update/destroy)" .
+aap:l06AtomicUpgrade a owl:DatatypeProperty ; rdfs:comment "atomic_upgrade? true|false (update)" .
+aap:l06Public        a owl:DatatypeProperty ; rdfs:comment "public? true|false" .
+aap:l06Description   a owl:DatatypeProperty .
+aap:l06Returns       a owl:DatatypeProperty ; rdfs:comment "generic action returns type, e.g. string" .
+aap:l06Constraints   a owl:DatatypeProperty ; rdfs:comment "Elixir keyword literal for returns constraints" .
+aap:l06AllowNil      a owl:DatatypeProperty ; rdfs:comment "generic action allow_nil? (default false in Ash)" .
+aap:l06RunModule     a owl:DatatypeProperty ; rdfs:comment "moduleName of an aap:L06Run implementation" .
+
+aap:l06ArgAllowNil a owl:DatatypeProperty .
+aap:l06ArgDefault  a owl:DatatypeProperty ; rdfs:comment "Elixir literal" .
+aap:l06ArgPublic   a owl:DatatypeProperty .
+aap:l06ArgConstraints a owl:DatatypeProperty ; rdfs:comment "Elixir keyword literal" .
+
+aap:l06Kind    a owl:DatatypeProperty ; rdfs:comment "change | prepare" .
+aap:l06Op      a owl:DatatypeProperty ; rdfs:comment "change: set_attribute|set_new_attribute|atomic_update|atomic_set|increment|manage_relationship|module ; prepare: build|filter|sort|limit|module" .
+aap:l06Order   a owl:DatatypeProperty ; rdfs:comment "xsd:integer, step order inside the action" .
+aap:l06Attr    a owl:DatatypeProperty ; rdfs:comment "attribute (or argument for manage_relationship)" .
+aap:l06Rel     a owl:DatatypeProperty ; rdfs:comment "relationship name for manage_relationship" .
+aap:l06Value   a owl:DatatypeProperty ; rdfs:comment "Elixir term / expr text / build keyword literal" .
+aap:l06Opts    a owl:DatatypeProperty ; rdfs:comment "trailing Elixir keyword literal, e.g. type: :append" .
+aap:l06Module  a owl:DatatypeProperty ; rdfs:comment "module name used when op = module" .
+aap:l06Where   a owl:DatatypeProperty ; rdfs:comment "Elixir text for where: option on the change/prepare" .
+aap:l06On      a owl:DatatypeProperty ; rdfs:comment "Elixir list text for on: option, e.g. [:create]" .
+aap:l06OnlyWhenValid a owl:DatatypeProperty .
+
+aap:l06HookResource a owl:ObjectProperty ; rdfs:comment "L06Hook -> Resource (for appPath resolution)" .
+aap:l06HookKind     a owl:DatatypeProperty ; rdfs:comment "before_action|after_action|before_transaction|after_transaction|prepare" .
+aap:l06HookBody     a owl:DatatypeProperty ; rdfs:comment "Elixir body. before_action/before_transaction: vars changeset; after_action: changeset, record -> {:ok, record}; after_transaction: changeset, result; prepare: query, opts, context" .
+aap:l06HookFile     a owl:DatatypeProperty ; rdfs:comment "file stem under lib/<appPath>/" .
+
+aap:l06RunResource a owl:ObjectProperty .
+aap:l06RunBody     a owl:DatatypeProperty ; rdfs:comment "Elixir body; vars input, opts, context; returns {:ok, v} | :ok | {:error, e}" .
+aap:l06RunFile     a owl:DatatypeProperty .
+
+# =====================================================================================
+# L07 Ash.Policy.Authorizer. authorizer.ex policy/bypass :140-219, policy_group :221-276,
+# field_policy :339-381; checks built_in_checks.ex
+# =====================================================================================
+aap:Policy       a owl:Class ; rdfs:comment "policy / bypass entity in policies do ... end" .
+aap:PolicyGroup  a owl:Class ; rdfs:comment "policy_group <condition> do ... end" .
+aap:PolicyCheck  a owl:Class ; rdfs:comment "authorize_if|forbid_if|authorize_unless|forbid_unless <check>" .
+aap:FieldPolicy  a owl:Class ; rdfs:comment "field_policy / field_policy_bypass" .
+
+aap:policy       a owl:ObjectProperty ; rdfs:comment "Resource -> Policy" .
+aap:policyGroup  a owl:ObjectProperty ; rdfs:comment "Resource -> PolicyGroup" .
+aap:fieldPolicy  a owl:ObjectProperty ; rdfs:comment "Resource -> FieldPolicy" .
+aap:inGroup      a owl:DatatypeProperty ; rdfs:comment "Policy -> group name (aap:name of a PolicyGroup on same resource)" .
+aap:check        a owl:ObjectProperty ; rdfs:comment "Policy|FieldPolicy -> PolicyCheck" .
+
+aap:defaultAccessType a owl:DatatypeProperty ; rdfs:comment "Resource: strict|filter|runtime (default :filter)" .
+aap:accessType        a owl:DatatypeProperty ; rdfs:comment "Policy: strict|filter|runtime" .
+aap:bypass            a owl:DatatypeProperty ; rdfs:comment "Policy/FieldPolicy: true => bypass / field_policy_bypass" .
+aap:policyOrder       a owl:DatatypeProperty ; rdfs:comment "integer, source order within resource (policies order matters)" .
+aap:errorMessage      a owl:DatatypeProperty ; rdfs:comment "Policy error_message string" .
+
+aap:condKind a owl:DatatypeProperty ; rdfs:comment "always | actor_present | action_type | action | actor_attribute_equals | accessing_from | relates_to_actor_via | expr" .
+aap:condArg  a owl:DatatypeProperty ; rdfs:comment "atom name (action_type/action/relates_to_actor_via, comma = path), attribute, module, or raw expr text" .
+aap:condArg2 a owl:DatatypeProperty ; rdfs:comment "second arg: actor_attribute_equals value (raw Elixir term) / accessing_from relationship atom" .
+
+aap:checkType a owl:DatatypeProperty ; rdfs:comment "authorize_if|forbid_if|authorize_unless|forbid_unless" .
+aap:checkKind a owl:DatatypeProperty ; rdfs:comment "same kinds as condKind" .
+aap:checkArg  a owl:DatatypeProperty .
+aap:checkArg2 a owl:DatatypeProperty .
+aap:checkOrder a owl:DatatypeProperty ; rdfs:comment "integer, order within its policy" .
+
+aap:fields a owl:DatatypeProperty ; rdfs:comment "comma-separated field names, or * (no spaces)" .
+aap:fieldPrivateFields a owl:DatatypeProperty ; rdfs:comment "Resource: show|hide|include (field_policies private_fields)" .
+
+# =====================================================================================
+# L08 multitenancy + domain mounts + tenant task store. dsl.ex:1787-1841
+# =====================================================================================
+aap:Multitenancy a owl:Class ; rdfs:comment "Ash multitenancy section of a resource (dsl.ex:1787)." .
+aap:TenantTaskStore a owl:Class ;
+  rdfs:comment "Per-tenant namespaced AshA2A.TaskStore.Ash wrapper (closes tenancy gap)." .
+
+aap:multitenancy a owl:ObjectProperty ; rdfs:domain aap:Resource ; rdfs:range aap:Multitenancy .
+aap:tenantStrategy a owl:DatatypeProperty ; rdfs:comment "attribute|context (dsl.ex:1808)" .
+aap:tenantAttribute a owl:DatatypeProperty ; rdfs:comment "attribute name for strategy attribute (dsl.ex:1815)" .
+aap:tenantGlobal a owl:DatatypeProperty ; rdfs:comment "true|false (dsl.ex:1821)" .
+aap:parseAttribute a owl:DatatypeProperty ; rdfs:comment "Elixir mfa literal, e.g. {MyApp.Tenant, :to_attr, []} (dsl.ex:1828)" .
+aap:tenantFromAttribute a owl:DatatypeProperty ; rdfs:comment "Elixir mfa literal, inverse of parseAttribute (dsl.ex:1834)" .
+
+# belongs_to tenant-owner relationship nodes (parallel to L02 name/destination vocabulary)
+aap:relName a owl:DatatypeProperty .
+aap:relDestination a owl:DatatypeProperty ; rdfs:comment "destination module name" .
+aap:relSourceAttribute a owl:DatatypeProperty ; rdfs:comment "foreign-key attribute name" .
+aap:relAttributeType a owl:DatatypeProperty ; rdfs:comment "ash type of the FK, default uuid" .
+aap:relAllowNil a owl:DatatypeProperty ; rdfs:comment "true|false; tenant FKs must be false" .
+
+aap:mountsTenantFor a owl:ObjectProperty ;
+  rdfs:comment "Mount -> Resource whose tenant this mount id supplies (gate cross-check)." .
+
+aap:taskStore a owl:ObjectProperty ; rdfs:domain aap:Project ; rdfs:range aap:TenantTaskStore .
+aap:taskStoreModule a owl:DatatypeProperty .
+aap:taskStoreFile a owl:DatatypeProperty .
+aap:taskStoreAppPath a owl:DatatypeProperty .
+aap:taskStoreNamespace a owl:DatatypeProperty ; rdfs:comment "base namespace; tenant is suffixed" .
+
+# =====================================================================================
+# L09 data layers. Resources without aap:dataLayer keep the template default (Ash.DataLayer.Ets).
+# =====================================================================================
+aap:Repo            a owl:Class ; rdfs:comment "An Ecto repo module (AshPostgres.Repo or AshSqlite.Repo)." .
+aap:CustomIndex     a owl:Class ; rdfs:comment "postgres/sqlite custom_indexes entry." .
+aap:Reference       a owl:Class ; rdfs:comment "postgres/sqlite references entry (FK behaviour)." .
+aap:CheckConstraint a owl:Class ; rdfs:comment "postgres check_constraints entry." .
+aap:Statement       a owl:Class ; rdfs:comment "postgres custom_statements entry (up/down SQL)." .
+
+aap:dataLayer  a owl:DatatypeProperty ; rdfs:comment "ets|mnesia|simple|postgres|sqlite" .
+aap:tableName  a owl:DatatypeProperty ; rdfs:comment "table (ets: atom name; postgres/sqlite: string; mnesia: atom)" .
+aap:etsPrivate a owl:DatatypeProperty ; rdfs:comment "ets private? \"true\"|\"false\"" .
+aap:repo       a owl:ObjectProperty   ; rdfs:comment "resource -> aap:Repo (postgres/sqlite)" .
+
+aap:pgSchema        a owl:DatatypeProperty ; rdfs:comment "postgres schema \"...\"" .
+aap:migrate         a owl:DatatypeProperty ; rdfs:comment "migrate? \"true\"|\"false\"" .
+aap:baseFilterSql   a owl:DatatypeProperty ; rdfs:comment "base_filter_sql (must not contain the pipe char)" .
+aap:skipUniqueIndexes a owl:DatatypeProperty ; rdfs:comment "postgres skip_unique_indexes: \"true\" or comma list of identity names" .
+aap:sqliteStrict    a owl:DatatypeProperty ; rdfs:comment "sqlite strict? \"true\"|\"false\"" .
+aap:customIndex     a owl:ObjectProperty .
+aap:reference       a owl:ObjectProperty .
+aap:checkConstraint a owl:ObjectProperty .
+aap:statement       a owl:ObjectProperty .
+
+aap:indexFields   a owl:DatatypeProperty ; rdfs:comment "comma-separated attribute names or raw expressions" .
+aap:indexName     a owl:DatatypeProperty .
+aap:indexUnique   a owl:DatatypeProperty .
+aap:indexUsing    a owl:DatatypeProperty ; rdfs:comment "btree|gin|gist|brin|hash" .
+aap:indexWhere    a owl:DatatypeProperty .
+aap:indexInclude  a owl:DatatypeProperty ; rdfs:comment "comma-separated attributes" .
+aap:indexNullsDistinct a owl:DatatypeProperty .
+
+aap:onDelete       a owl:DatatypeProperty ; rdfs:comment "nothing|restrict|delete|nilify" .
+aap:onUpdate       a owl:DatatypeProperty ; rdfs:comment "nothing|restrict|update|nilify" .
+aap:fkName         a owl:DatatypeProperty .
+aap:deferrable     a owl:DatatypeProperty ; rdfs:comment "\"true\"|\"false\"|\"initially\"" .
+
+aap:checkAttribute a owl:DatatypeProperty .
+aap:checkName      a owl:DatatypeProperty .
+aap:checkExpr      a owl:DatatypeProperty .
+aap:checkMessage   a owl:DatatypeProperty .
+
+aap:stmtUp   a owl:DatatypeProperty .
+aap:stmtDown a owl:DatatypeProperty .
+
+aap:repoKind     a owl:DatatypeProperty ; rdfs:comment "postgres|sqlite" .
+aap:repoFile     a owl:DatatypeProperty .
+aap:pgExtensions a owl:DatatypeProperty ; rdfs:comment "installed_extensions, comma list e.g. ash-functions,citext" .
+aap:pgMinVersion a owl:DatatypeProperty ; rdfs:comment "min_pg_version, e.g. 16.0.0" .
+aap:poolSize     a owl:DatatypeProperty .
+aap:dbName       a owl:DatatypeProperty ; rdfs:comment "dev/test database name or sqlite file path" .
+aap:dbUrlEnv     a owl:DatatypeProperty ; rdfs:comment "runtime env var holding the URL (default DATABASE_URL)" .
+
+aap:setupAppPath a owl:DatatypeProperty ; rdfs:domain aap:Project ; rdfs:comment "lib/<setupAppPath>/ for data_layer_setup_l09.ex (Project-level; used by L09 repo/setup templates and gate L09_070)" .
+
+# =====================================================================================
+# L10 code interfaces, domain config. define: interface.ex:307-384; domain/dsl.ex
+# =====================================================================================
+aap:CodeInterface        a owl:Class ; rdfs:comment "A `define` entry (resource or domain level)." .
+aap:CalculationInterface a owl:Class ; rdfs:comment "A `define_calculation` entry." .
+
+aap:interfaceOf        a owl:ObjectProperty ; rdfs:comment "Resource-level code_interface owner (aap:Resource)." .
+aap:interfaceOfDomain  a owl:ObjectProperty ; rdfs:comment "Domain-level interface owner (aap:Domain)." .
+aap:forResource        a owl:ObjectProperty ; rdfs:comment "Resource a domain-level interface targets." .
+aap:interfaceArgs      a owl:DatatypeProperty ; rdfs:comment "comma list; leading ? = optional arg: id,?note" .
+aap:get                a owl:DatatypeProperty ; rdfs:comment "true|false -> get?:" .
+aap:getBy              a owl:DatatypeProperty ; rdfs:comment "comma list of fields" .
+aap:getByIdentity      a owl:DatatypeProperty .
+aap:notFoundError      a owl:DatatypeProperty ; rdfs:comment "true|false -> not_found_error?:" .
+aap:requireReference   a owl:DatatypeProperty ; rdfs:comment "true|false -> require_reference?:" .
+aap:excludeInputs      a owl:DatatypeProperty ; rdfs:comment "comma list" .
+aap:functions          a owl:DatatypeProperty ; rdfs:comment "comma subset of subject,can,can?,action,action!" .
+aap:interfaceNamespace a owl:DatatypeProperty ; rdfs:comment "Elixir alias segment (e.g. Tickets)" .
+aap:defaultOptions     a owl:DatatypeProperty ; rdfs:comment "raw Elixir keyword list, e.g. [load: [:x]]" .
+aap:calcArgs           a owl:DatatypeProperty ; rdfs:comment "comma list of id | arg:id | ref:id" .
+aap:defineInterface    a owl:DatatypeProperty ; rdfs:comment "Resource code_interface define?: true|false" .
+aap:interfaceDomain    a owl:ObjectProperty ; rdfs:comment "Resource code_interface domain: override." .
+aap:resourceInterfaceNamespace a owl:DatatypeProperty ; rdfs:comment "Resource code_interface namespace:" .
+aap:domainResourceNamespace    a owl:DatatypeProperty ; rdfs:comment "Domain resource-ref namespace:" .
+
+aap:domainDescription  a owl:DatatypeProperty .
+aap:domainTimeout      a owl:DatatypeProperty ; rdfs:comment "integer ms or the literal infinity" .
+aap:traceName          a owl:DatatypeProperty .
+aap:requireActor       a owl:DatatypeProperty ; rdfs:comment "true|false" .
+aap:authorize          a owl:DatatypeProperty ; rdfs:comment "always|by_default|when_requested" .
+aap:allowUnregistered  a owl:DatatypeProperty ; rdfs:comment "true|false" .
+aap:validateConfigInclusion a owl:DatatypeProperty ; rdfs:comment "false -> excluded from ash_domains (host-line seam)" .
+
+aap:mountOf            a owl:ObjectProperty ; rdfs:comment "Mount -> Domain that owns the mount (L10 mount shape)." .
+
+# =====================================================================================
+# L11 notifiers: Ash.Notifier.PubSub, custom notifiers, A2A TaskEvents bridge.
+# pub_sub.ex:63-99, publication.ex:26-95
+# =====================================================================================
+aap:PubSub      a owl:Class ; rdfs:comment "pub_sub do ... end section of a resource (Ash.Notifier.PubSub)." .
+aap:Publication a owl:Class ; rdfs:comment "publish / publish_all entity inside pub_sub." .
+aap:PubSubServer a owl:Class ; rdfs:comment "A Phoenix.PubSub instance started in the app supervision tree." .
+aap:Notifier    a owl:Class ; rdfs:comment "A custom Ash.Notifier module (generated)." .
+aap:A2ABridge   a owl:Class ; rdfs:comment "Maps an action's notification to AshA2A TaskEvents.publish/6." .
+aap:Delegate    a owl:Class ; rdfs:comment "Forwards a notification to a hand-owned module's notify/1." .
+
+aap:pubSub   a owl:ObjectProperty ; rdfs:comment "Resource -> aap:PubSub (at most one)." .
+aap:publication a owl:ObjectProperty ; rdfs:comment "aap:PubSub -> aap:Publication." .
+aap:notifier a owl:ObjectProperty ; rdfs:comment "Resource -> aap:Notifier (generated simple notifier)." .
+aap:simpleNotifier a owl:DatatypeProperty ; rdfs:comment "Resource -> existing notifier module name (no DSL); coordinator adds to simple_notifiers:." .
+aap:bridge   a owl:ObjectProperty ; rdfs:comment "aap:Notifier -> aap:A2ABridge." .
+aap:delegate a owl:ObjectProperty ; rdfs:comment "aap:Notifier -> aap:Delegate." .
+
+aap:pubSubModule        a owl:DatatypeProperty ; rdfs:comment "module (required), e.g. Phoenix.PubSub or an Endpoint." .
+aap:pubSubName          a owl:DatatypeProperty ; rdfs:comment "name: named pub sub passed as first broadcast arg." .
+aap:pubSubPrefix        a owl:DatatypeProperty ; rdfs:comment "prefix string." .
+aap:pubSubDelimiter     a owl:DatatypeProperty ; rdfs:comment "delimiter string." .
+aap:broadcastType       a owl:DatatypeProperty ; rdfs:comment "notification|phoenix_broadcast|broadcast." .
+aap:pubSubFilterFn      a owl:DatatypeProperty ; rdfs:comment "Remote capture Mod.fun (arity 1), emitted as &Mod.fun/1." .
+aap:pubSubTransformFn   a owl:DatatypeProperty ; rdfs:comment "Remote capture Mod.fun (arity 1)." .
+
+aap:pubAction   a owl:DatatypeProperty ; rdfs:comment "publish: action name. Mutually exclusive with pubType." .
+aap:pubType     a owl:DatatypeProperty ; rdfs:comment "publish_all: create|update|destroy." .
+aap:pubEvent    a owl:DatatypeProperty ; rdfs:comment "event name (string)." .
+aap:pubTopic    a owl:DatatypeProperty ; rdfs:comment "Comma-separated topic parts; ':x' is an attribute atom, else a string. e.g. 'updated,:_pkey'." .
+aap:pubTopicTerm a owl:DatatypeProperty ; rdfs:comment "Raw Elixir topic term (nested alternatives); overrides pubTopic." .
+aap:pubExcept   a owl:DatatypeProperty ; rdfs:comment "publish_all except: comma-separated action names." .
+aap:previousValues a owl:DatatypeProperty ; rdfs:comment "previous_values? true|false." .
+aap:pubLoad     a owl:DatatypeProperty ; rdfs:comment "Raw Elixir load statement." .
+aap:pubFilterFn a owl:DatatypeProperty ; rdfs:comment "Remote capture Mod.fun (arity 1)." .
+aap:pubTransformFn a owl:DatatypeProperty ; rdfs:comment "Remote capture Mod.fun/1, OR a calculation name when pubTransformCalc true." .
+aap:pubTransformCalc a owl:DatatypeProperty ; rdfs:comment "true: pubTransformFn is a calculation atom." .
+aap:pubPublic   a owl:DatatypeProperty ; rdfs:comment "public? true|false." .
+aap:pubDispatcher a owl:DatatypeProperty ; rdfs:comment "dispatcher module." .
+aap:pubReturns  a owl:DatatypeProperty ; rdfs:comment "returns Ash.Type atom (requires transform)." .
+
+aap:serverName a owl:DatatypeProperty ; rdfs:comment "Phoenix.PubSub name module." .
+aap:serverFile a owl:DatatypeProperty .
+aap:serverModule a owl:DatatypeProperty ; rdfs:comment "Generated module exposing children/0." .
+
+aap:notifierFile a owl:DatatypeProperty .
+aap:bridgeAction a owl:DatatypeProperty ; rdfs:comment "Action name whose notification is bridged." .
+aap:bridgeKind a owl:DatatypeProperty ; rdfs:comment "TaskEvents kind: task|status-update|artifact-update|message-update." .
+aap:bridgeTaskIdField a owl:DatatypeProperty ; rdfs:comment "Attribute of notification.data holding the A2A task id." .
+aap:bridgeFinal a owl:DatatypeProperty ; rdfs:comment "final? flag true|false." .
+aap:bridgeTransport a owl:DatatypeProperty ; rdfs:comment "Transport atom module; default AshA2A.A2ATransport." .
+aap:delegateAction a owl:DatatypeProperty ; rdfs:comment "Action name forwarded; absent = all actions." .
+aap:delegateModule a owl:DatatypeProperty ; rdfs:comment "Module implementing notify/1." .
+
+# =====================================================================================
+# L12 custom Ash types (enum, NewType, TypedStruct, embedded resource, union)
+# =====================================================================================
+aap:CustomType a owl:Class ;
+  rdfs:comment "A generated Ash type module. aap:typeKind: enum|newtype|typed_struct|embedded|union." .
+aap:TypeField a owl:Class ;
+  rdfs:comment "A field of a typed_struct or embedded type (Ash.TypedStruct field / attribute)." .
+aap:UnionMember a owl:Class ;
+  rdfs:comment "A member of a union type (Ash.Type.Union constraints[:types] entry)." .
+aap:TypedAttribute a owl:Class ;
+  rdfs:comment "A resource attribute whose type is a CustomType or a builtin; emitted via fragment." .
+
+aap:typeKind        a owl:DatatypeProperty .
+aap:typeFile        a owl:DatatypeProperty ; rdfs:comment "file stem under lib/<appPath>/types/" .
+aap:subtypeOf       a owl:DatatypeProperty ; rdfs:comment "newtype: Ash type atom, e.g. string, map (no colon)" .
+aap:typeConstraints a owl:DatatypeProperty ; rdfs:comment "Elixir keyword-list literal, e.g. [max_length: 80]" .
+aap:typeField       a owl:ObjectProperty .
+aap:unionMember     a owl:ObjectProperty .
+aap:typedAttribute  a owl:ObjectProperty .
+aap:typeRef         a owl:ObjectProperty ; rdfs:comment "points at an aap:CustomType" .
+aap:isArray         a owl:DatatypeProperty ; rdfs:comment "true|false: wrap type in {:array, t}" .
+aap:defaultValue    a owl:DatatypeProperty ; rdfs:comment "Elixir term literal" .
+aap:unionStorage    a owl:DatatypeProperty ; rdfs:comment "type_and_value|map_with_tag" .
+aap:unionTag        a owl:DatatypeProperty .
+aap:unionTagValue   a owl:DatatypeProperty ; rdfs:comment "Elixir term literal" .
+aap:a2aExposed      a owl:DatatypeProperty ; rdfs:comment "false opts a field out of the serializability gate" .
+
+# =====================================================================================
+# L13 AshStateMachine mapped onto the A2A task lifecycle (ash_a2a task_lifecycle.ex:29-50)
+# States are IRIs minted per machine (aap:State, aap:name "submitted").
+# =====================================================================================
+aap:StateMachine a owl:Class ; rdfs:comment "state_machine section of an Ash.Resource (ash_state_machine.ex:73)." .
+aap:State a owl:Class ; rdfs:comment "A state of exactly one aap:StateMachine; aap:name is the atom." .
+aap:Transition a owl:Class ; rdfs:comment "transition entity (ash_state_machine.ex:23-48)." .
+
+aap:stateMachine a owl:ObjectProperty ; rdfs:comment "Resource -> StateMachine." .
+aap:smState a owl:ObjectProperty ; rdfs:comment "StateMachine -> State: the declared state universe." .
+aap:stateAttribute a owl:DatatypeProperty ; rdfs:comment "state_attribute (ash_state_machine.ex:90), default state." .
+aap:initialState a owl:ObjectProperty ; rdfs:comment "initial_states member (ash_state_machine.ex:95, required)." .
+aap:defaultInitialState a owl:ObjectProperty ; rdfs:comment "default_initial_state (ash_state_machine.ex:100); must be an initialState." .
+aap:extraState a owl:ObjectProperty ; rdfs:comment "extra_states member (ash_state_machine.ex:83)." .
+aap:deprecatedState a owl:ObjectProperty ; rdfs:comment "deprecated_states member (ash_state_machine.ex:76)." .
+aap:terminalState a owl:ObjectProperty ; rdfs:comment "Pack-level assertion: no outgoing transitions. Not an Ash option." .
+aap:a2aLifecycle a owl:DatatypeProperty ; rdfs:comment "true: machine is the A2A task lifecycle; names must be in AshA2A.TaskLifecycle.states/0." .
+
+aap:smTransition a owl:ObjectProperty ; rdfs:comment "StateMachine -> Transition." .
+aap:viaAction a owl:DatatypeProperty ; rdfs:comment "transition :action (ash_state_machine.ex:29); '*' = any update action." .
+aap:fromAny a owl:DatatypeProperty ; rdfs:comment "true: from: :*" .
+aap:toAny a owl:DatatypeProperty ; rdfs:comment "true: to: :*" .
+aap:transitionTarget a owl:ObjectProperty ;
+  rdfs:comment "Emit change transition_state(target) scoped to viaAction (builtin_changes.ex:13). Requires single concrete target." .
+
+# DUAL USE (E1): L13 aap:Transition -> aap:State node (from:/to: member, ash_state_machine.ex:35,41);
+# L20 aap:TransitionCase carries a raw Elixir term literal (e.g. ":open"). Kind-neutral rdf:Property.
+aap:fromState a rdf:Property ;
+  rdfs:comment "L13: aap:Transition -> aap:State node (transition from: member). L20: aap:TransitionCase -> raw Elixir term literal; seedInput must put the resource in this state." .
+aap:toState a rdf:Property ;
+  rdfs:comment "L13: aap:Transition -> aap:State node (transition to: member). L20: aap:TransitionCase -> raw Elixir term literal." .
+
+# =====================================================================================
+# L14 AshOban triggers / scheduled_actions / queues / Oban config / AshA2A.Delivery.Oban
+# (ash_oban.ex trigger 205-500, schedule 560-672, oban section 722-784, chunks 124-182)
+# =====================================================================================
+aap:ObanTrigger  a owl:Class ; rdfs:comment "AshOban `trigger` entity (ash_oban.ex:184-501)." .
+aap:ObanSchedule a owl:Class ; rdfs:comment "AshOban `schedule` entity (ash_oban.ex:554-673)." .
+aap:ObanChunks   a owl:Class ; rdfs:comment "AshOban `chunks` entity, Oban Pro only (ash_oban.ex:124-182)." .
+aap:ObanQueue    a owl:Class ; rdfs:comment "One entry of the Oban `queues:` config keyword." .
+aap:ObanConfig   a owl:Class ; rdfs:comment "`config :app, Oban, ...` for a Project." .
+aap:ObanDeliveryWorker a owl:Class ;
+  rdfs:comment "Oban worker bound to AshA2A.Delivery.Oban (lib/ash_a2a/delivery/oban.ex:86-170)." .
+
+aap:obTrigger  a owl:ObjectProperty ; rdfs:comment "Resource -> aap:ObanTrigger" .
+aap:obSchedule a owl:ObjectProperty ; rdfs:comment "Resource -> aap:ObanSchedule" .
+aap:obChunks   a owl:ObjectProperty ; rdfs:comment "ObanTrigger -> aap:ObanChunks (singleton)" .
+aap:obDomain               a owl:DatatypeProperty ; rdfs:comment "oban.domain module" .
+aap:obListTenants          a owl:DatatypeProperty ; rdfs:comment "raw Elixir (list or fn behaviour); oban section or per trigger/schedule" .
+aap:obSharedContext        a owl:DatatypeProperty ; rdfs:comment "all | comma list of ash_oban?,job" .
+aap:obUseTenantFromRecord  a owl:DatatypeProperty ; rdfs:comment "true|false" .
+
+aap:obAction          a owl:DatatypeProperty ; rdfs:comment "action atom (trigger: update/destroy; schedule: generic/create)" .
+aap:obActionInput     a owl:DatatypeProperty ; rdfs:comment "raw Elixir map" .
+aap:obQueue           a owl:DatatypeProperty .
+aap:obWorkerModuleName a owl:DatatypeProperty .
+aap:obMaxAttempts     a owl:DatatypeProperty .
+aap:obState           a owl:DatatypeProperty ; rdfs:comment "active|paused|deleted" .
+aap:obTags            a owl:DatatypeProperty ; rdfs:comment "comma separated strings" .
+aap:obWorkerOpts      a owl:DatatypeProperty ; rdfs:comment "raw Elixir keyword list" .
+aap:obActorPersister  a owl:DatatypeProperty ; rdfs:comment "module | none" .
+aap:obDefaultActor    a owl:DatatypeProperty ; rdfs:comment "raw Elixir term" .
+aap:obDebug           a owl:DatatypeProperty ; rdfs:comment "true|false" .
+
+aap:obWhere              a owl:DatatypeProperty ; rdfs:comment "Ash expr body, wrapped as expr(...)" .
+aap:obSort               a owl:DatatypeProperty ; rdfs:comment "raw Elixir term" .
+aap:obReadAction         a owl:DatatypeProperty .
+aap:obWorkerReadAction   a owl:DatatypeProperty .
+aap:obSchedulerCron      a owl:DatatypeProperty ; rdfs:comment "cron string, or the literal false" .
+aap:obSchedulerQueue     a owl:DatatypeProperty .
+aap:obSchedulerModuleName a owl:DatatypeProperty .
+aap:obSchedulerPriority  a owl:DatatypeProperty .
+aap:obWorkerPriority     a owl:DatatypeProperty .
+aap:obMaxSchedulerAttempts a owl:DatatypeProperty .
+aap:obRecordLimit        a owl:DatatypeProperty .
+aap:obStreamBatchSize    a owl:DatatypeProperty .
+aap:obStreamWith         a owl:DatatypeProperty ; rdfs:comment "keyset|offset|full_read" .
+aap:obLockForUpdate      a owl:DatatypeProperty ; rdfs:comment "true|false" .
+aap:obTriggerOnce        a owl:DatatypeProperty ; rdfs:comment "true|false" .
+aap:obOnError            a owl:DatatypeProperty .
+aap:obOnErrorFailsJob    a owl:DatatypeProperty ; rdfs:comment "true|false" .
+aap:obLogErrors          a owl:DatatypeProperty ; rdfs:comment "true|false" .
+aap:obLogFinalError      a owl:DatatypeProperty ; rdfs:comment "true|false" .
+aap:obReadMetadata       a owl:DatatypeProperty ; rdfs:comment "raw Elixir fn/1" .
+aap:obExtraArgs          a owl:DatatypeProperty ; rdfs:comment "raw Elixir map or fn/1" .
+aap:obBackoff            a owl:DatatypeProperty ; rdfs:comment "integer | exponential | raw fn/1" .
+aap:obTimeout            a owl:DatatypeProperty ; rdfs:comment "integer ms | infinity | raw fn/1" .
+aap:obChunkSize    a owl:DatatypeProperty .
+aap:obChunkTimeout a owl:DatatypeProperty .
+aap:obChunkBy      a owl:DatatypeProperty ; rdfs:comment "comma separated atoms" .
+
+aap:obCron     a owl:DatatypeProperty ; rdfs:comment "cron string (positional arg 2)" .
+aap:obPriority a owl:DatatypeProperty .
+
+aap:obQueueName  a owl:DatatypeProperty .
+aap:obQueueLimit a owl:DatatypeProperty ; rdfs:comment "concurrency limit integer" .
+aap:obQueueOf    a owl:ObjectProperty ; rdfs:comment "ObanQueue -> aap:Project" .
+aap:obConfigOf   a owl:ObjectProperty ; rdfs:comment "ObanConfig -> aap:Project" .
+aap:obRepo       a owl:DatatypeProperty ; rdfs:comment "Repo module" .
+aap:obEngine     a owl:DatatypeProperty ; rdfs:comment "Oban engine module (default Oban.Engines.Basic)" .
+aap:obNotifier   a owl:DatatypeProperty ; rdfs:comment "Oban notifier module" .
+aap:obPrefix     a owl:DatatypeProperty .
+aap:obTestingMode a owl:DatatypeProperty ; rdfs:comment "manual|inline, applied under config_env() == :test" .
+aap:obPro        a owl:DatatypeProperty ; rdfs:comment "true|false -> config :ash_oban, pro?: ..." .
+aap:obExtraPlugins a owl:DatatypeProperty ; rdfs:comment "raw Elixir plugin tuples, comma-free list body" .
+
+aap:obHandlerModule a owl:DatatypeProperty ; rdfs:comment "host module exposing run(args) -> CommandBus result" .
+aap:obSnoozeSeconds a owl:DatatypeProperty .
+aap:obWorkerFile    a owl:DatatypeProperty .
+
+# =====================================================================================
+# L15 Reactor (reactor dsl.ex:19-55; ash/reactor dsl; generic action implementation.ex:5-60)
+# =====================================================================================
+aap:Reactor         a owl:Class ; rdfs:comment "A Reactor module (use Reactor, or use Ash.Reactor when aap:reactorAsh \"true\")." .
+aap:ReactorInput    a owl:Class ; rdfs:comment "input :name (input.ex:52)." .
+aap:ReactorStep     a owl:Class ; rdfs:comment "Any step-like entity; kind chosen by aap:stepKind." .
+aap:ReactorBinding  a owl:Class ; rdfs:comment "A Reactor template: input(..)|result(..)|element(..)|value(..) (argument.ex:59-158). Used for argument, inputs, initial, actor, tenant, on, source." .
+aap:ReactorBranch   a owl:Class ; rdfs:comment "A switch matches?/default branch (switch.ex:42-93)." .
+aap:ReactorAction   a owl:Class ; rdfs:comment "A generic Ash action whose run is a Reactor (Ash.Resource.Actions.Implementation)." .
+aap:ReactorActionArg a owl:Class ; rdfs:comment "argument of a ReactorAction." .
+
+aap:reactor         a owl:ObjectProperty ; rdfs:comment "Domain -> aap:Reactor (supplies appPath via the domain)." .
+aap:reactorFile     a owl:DatatypeProperty ; rdfs:comment "File stem under lib/<appPath>/reactors/." .
+aap:reactorAsh      a owl:DatatypeProperty ; rdfs:comment "\"true\" => use Ash.Reactor, else use Reactor." .
+aap:reactorReturn   a owl:ObjectProperty ; rdfs:comment "Reactor -> step; return :name (dsl.ex:23)." .
+aap:reactorDescription a owl:DatatypeProperty ; rdfs:comment "reactor description (dsl.ex:30). No double quotes or backslashes." .
+aap:reactorMiddleware a owl:DatatypeProperty ; rdfs:comment "Middleware module name; multi-valued (middleware.ex:30-40)." .
+aap:reactorInput    a owl:ObjectProperty ; rdfs:comment "Reactor -> aap:ReactorInput." .
+aap:reactorStep     a owl:ObjectProperty ; rdfs:comment "Reactor -> every step at any depth (nested steps additionally carry aap:stepParent)." .
+aap:inputTransform  a owl:DatatypeProperty ; rdfs:comment "raw Elixir capture for input transform (input.ex:42-50)." .
+
+aap:stepKind a owl:DatatypeProperty ; rdfs:comment "step|collect|flunk|compose|map|switch|around|transaction|create|update|destroy|read_one|read|action|bulk_create|bulk_update|bulk_destroy." .
+aap:stepOrder a owl:DatatypeProperty ; rdfs:comment "integer; emission order among siblings." .
+aap:stepParent a owl:ObjectProperty ; rdfs:comment "Nested step -> container step (map/around/transaction) or aap:ReactorBranch." .
+aap:stepImpl a owl:DatatypeProperty ; rdfs:comment "kind step: Reactor.Step module (step.ex:105). Empty + aap:stepGenerate \"true\" => generated module <Reactor>.Steps.<stepImplName>." .
+aap:stepGenerate a owl:DatatypeProperty ; rdfs:comment "\"true\" => L15_step_module.ex.tmpl emits the impl (run/3, compensate/4, undo/4)." .
+aap:stepImplName a owl:DatatypeProperty ; rdfs:comment "Module suffix of generated impl." .
+aap:stepHasCompensate a owl:DatatypeProperty ; rdfs:comment "\"true\" => generated impl defines compensate/4 and gate L15_030 accepts it." .
+aap:stepHasUndo a owl:DatatypeProperty ; rdfs:comment "\"true\" => generated impl defines undo/4; gate accepts it." .
+aap:stepEffectful a owl:DatatypeProperty ; rdfs:comment "\"true\"|\"false\"; overrides the kind default for gate L15_030." .
+aap:stepRunBody a owl:DatatypeProperty ; rdfs:comment "raw Elixir expr returning {:ok, _}|{:error, _} for generated run/3 (arguments in scope)." .
+aap:stepCompensateBody a owl:DatatypeProperty ; rdfs:comment "raw Elixir expr for generated compensate/4 (:ok|:retry|{:continue, v}); needs aap:stepHasCompensate true." .
+aap:stepUndoBody a owl:DatatypeProperty ; rdfs:comment "raw Elixir expr for generated undo/4 (:ok|:retry|{:error, _}); needs aap:stepHasUndo true." .
+aap:compensationWaiver a owl:DatatypeProperty ; rdfs:comment "Reason text; explicit, auditable waiver for gate L15_030." .
+aap:stepResource a owl:DatatypeProperty ; rdfs:comment "Ash resource module (Ash steps; action.ex:119)." .
+aap:stepResources a owl:DatatypeProperty ; rdfs:comment "comma-separated resource modules (transaction.ex:64)." .
+aap:stepAction a owl:DatatypeProperty ; rdfs:comment "action name atom (action.ex:83)." .
+aap:stepReactorRef a owl:ObjectProperty ; rdfs:comment "compose step -> aap:Reactor (compose.ex:80)." .
+aap:stepMessage a owl:DatatypeProperty ; rdfs:comment "flunk message string (flunk.ex:57)." .
+aap:stepWaitFor a owl:ObjectProperty ; rdfs:comment "step -> step (wait_for.ex:34)." .
+aap:stepArg a owl:ObjectProperty ; rdfs:comment "step -> aap:ReactorBinding emitted as argument :name, template (argument.ex:194)." .
+aap:stepInputs a owl:ObjectProperty ; rdfs:comment "Ash step -> aap:ReactorBinding emitted into inputs %{name: template} (inputs.ex:45-56)." .
+aap:stepInitial a owl:ObjectProperty ; rdfs:comment "update/bulk_* initial / create initial." .
+aap:stepActor a owl:ObjectProperty ; rdfs:comment "actor template (actor.ex:28)." .
+aap:stepTenant a owl:ObjectProperty ; rdfs:comment "tenant template (tenant.ex)." .
+aap:stepOn a owl:ObjectProperty ; rdfs:comment "switch on (switch.ex:131)." .
+aap:stepSource a owl:ObjectProperty ; rdfs:comment "map source (map.ex:145)." .
+aap:stepReturn a owl:ObjectProperty ; rdfs:comment "container step or branch -> nested step; return (map.ex:152, transaction.ex:71, switch.ex:66)." .
+aap:stepOpt a owl:DatatypeProperty ; rdfs:comment "Escape hatch: one raw DSL option line per value, e.g. \"return_records? true\" or \"transform &Mod.f/1\". Emitted verbatim inside the step block." .
+
+aap:stepDescription a owl:DatatypeProperty ; rdfs:comment "description (step.ex:98). No double quotes or backslashes." .
+aap:stepAsync a owl:DatatypeProperty ; rdfs:comment "async? (step.ex:148, action.ex:96)." .
+aap:stepMaxRetries a owl:DatatypeProperty ; rdfs:comment "max_retries (step.ex:140)." .
+aap:stepAllowAsync a owl:DatatypeProperty ; rdfs:comment "allow_async? (compose.ex:87, map.ex:122, around.ex:74, switch.ex:123)." .
+aap:stepSupportUndo a owl:DatatypeProperty ; rdfs:comment "support_undo? (compose.ex:103)." .
+aap:stepBatchSize a owl:DatatypeProperty ; rdfs:comment "batch_size (map.ex:130, bulk_create.ex:170)." .
+aap:stepStrictOrdering a owl:DatatypeProperty ; rdfs:comment "strict_ordering? (map.ex:159)." .
+aap:stepTimeout a owl:DatatypeProperty ; rdfs:comment "timeout (transaction.ex:78)." .
+aap:stepUndo a owl:DatatypeProperty ; rdfs:comment "always|never|outside_transaction (action.ex:136)." .
+aap:stepUndoAction a owl:DatatypeProperty ; rdfs:comment "undo action name (action.ex:129)." .
+aap:stepUpsert a owl:DatatypeProperty ; rdfs:comment "upsert? (create.ex:110)." .
+aap:stepUpsertIdentity a owl:DatatypeProperty ; rdfs:comment "upsert_identity atom (create.ex:105)." .
+aap:stepAuthorize a owl:DatatypeProperty ; rdfs:comment "authorize? (action.ex:103)." .
+aap:stepFailOnNotFound a owl:DatatypeProperty ; rdfs:comment "fail_on_not_found? (read_one.ex:84)." .
+aap:stepReadAction a owl:DatatypeProperty ; rdfs:comment "read_action atom (bulk_create.ex:203)." .
+
+aap:argKind a owl:DatatypeProperty ; rdfs:comment "input|result|element|value." .
+aap:argName a owl:DatatypeProperty ; rdfs:comment "L15: argument name / inputs key (role arg and inputs only). L17: declared aap:ActionArgument name." .
+aap:argInput a owl:ObjectProperty ; rdfs:comment "kind input -> aap:ReactorInput." .
+aap:argStep a owl:ObjectProperty ; rdfs:comment "kind result|element -> aap:ReactorStep (same reactor; gate L15_020)." .
+aap:argPath a owl:DatatypeProperty ; rdfs:comment "comma-separated sub_path atoms (argument.ex:62,100,158)." .
+aap:argValue a owl:DatatypeProperty ; rdfs:comment "kind value: raw Elixir term (argument.ex:127)." .
+aap:argTransform a owl:DatatypeProperty ; rdfs:comment "raw Elixir capture (argument.ex:220)." .
+
+aap:switchMatch a owl:ObjectProperty ; rdfs:comment "switch step -> aap:ReactorBranch." .
+aap:branchPredicate a owl:DatatypeProperty ; rdfs:comment "raw 1-arity capture/fn for matches? (switch.ex:52). Absent + aap:branchDefault \"true\" => default." .
+aap:branchDefault a owl:DatatypeProperty ; rdfs:comment "\"true\" => default branch (switch.ex:76)." .
+
+aap:reactorAction a owl:ObjectProperty ; rdfs:domain aap:Resource ; rdfs:range aap:ReactorAction .
+aap:runsReactor a owl:ObjectProperty ; rdfs:comment "ReactorAction -> aap:Reactor." .
+aap:actionReturns a owl:DatatypeProperty ; rdfs:comment "Ash type atom for `action :name, :type` (e.g. map, string)." .
+aap:actionImplModule a owl:DatatypeProperty ; rdfs:comment "Module of generated Implementation." .
+aap:actionImplFile a owl:DatatypeProperty ; rdfs:comment "File stem under lib/<appPath>/reactor_actions/." .
+aap:actionFragmentModule a owl:DatatypeProperty ; rdfs:comment "Per-resource fragment module name (set on the Resource: aap:reactorFragment)." .
+aap:reactorFragment a owl:DatatypeProperty ; rdfs:comment "Resource -> fragment module name that holds its reactor actions + skills." .
+aap:reactorFragmentFile a owl:DatatypeProperty ; rdfs:comment "Resource -> file stem of the fragment." .
+aap:actionArg a owl:ObjectProperty ; rdfs:comment "ReactorAction -> aap:ReactorActionArg." .
+aap:actionArgType a owl:DatatypeProperty ; rdfs:comment "Ash type atom." .
+aap:actionArgAllowNil a owl:DatatypeProperty ; rdfs:comment "true|false." .
+aap:passActor a owl:DatatypeProperty ; rdfs:comment "\"true\" => run/3 passes ctx.actor as reactor input :actor." .
+aap:passTenant a owl:DatatypeProperty ; rdfs:comment "\"true\" => passes ctx.tenant as reactor input :tenant." .
+aap:runTimeout a owl:DatatypeProperty ; rdfs:comment "Reactor.run timeout option (reactor.ex:158)." .
+aap:runMaxConcurrency a owl:DatatypeProperty ; rdfs:comment "Reactor.run max_concurrency (reactor.ex:153)." .
+aap:runMaxIterations a owl:DatatypeProperty ; rdfs:comment "Reactor.run max_iterations (reactor.ex:164)." .
+aap:reactorSkill a owl:ObjectProperty ; rdfs:comment "ReactorAction -> aap:Skill-shaped node (aap:name, aap:description, optional aap:consequence, aap:leaseRequired, aap:skillOnCancel)." .
+aap:skillOnCancel a owl:DatatypeProperty ; rdfs:comment "module for on_cancel (ash_a2a dsl.ex:61)." .
+
+# =====================================================================================
+# L16 ash_pplan (workflow/dsl/extension.ex, capability.ex, provider.ex, capability_pack.ex, ...)
+# Multi-valued lists are repeated triples except step order (aap:ppStep blank nodes).
+# =====================================================================================
+aap:PPlanWorkflow       a owl:Class ; rdfs:comment "A module using AshPPlan.Workflow (workflow do ... end)." .
+aap:PPlanTask           a owl:Class ; rdfs:comment "workflow task entity (extension.ex:25)." .
+aap:PPlanMethod         a owl:Class ; rdfs:comment "workflow method entity, an HDDL decomposition (extension.ex:47)." .
+aap:PPlanStep           a owl:Class ; rdfs:comment "Ordered subtask reference inside a method." .
+aap:PPlanProvider       a owl:Class ; rdfs:comment "Module implementing @behaviour AshPPlan.Provider (provider.ex)." .
+aap:PPlanBinding        a owl:Class ; rdfs:comment "Provider binding row: capability -> {adapter, op, options} (qualify.ex:72)." .
+aap:PPlanCapabilityPack a owl:Class ; rdfs:comment "AshPPlan.CapabilityPack declaration (capability_pack.ex:13)." .
+aap:PPlanObligation     a owl:Class ; rdfs:comment "A requirement a workflow must discharge: a capability (with properties/evidence) some task AND some provider must supply." .
+aap:PPlanManufactureTarget a owl:Class ; rdfs:comment "One manufacture manifest row (manufacture_targets.ex:24)." .
+aap:PPlanControlPlane   a owl:Class ; rdfs:comment "Control-plane expectation for an Ash resource (control_plane.ex:19)." .
+
+aap:ppWorkflow     a owl:ObjectProperty ; rdfs:comment "Domain -> aap:PPlanWorkflow (placement only)." .
+aap:ppFile         a owl:DatatypeProperty ; rdfs:comment "File stem under lib/<appPath>/pplan/." .
+aap:ppName         a owl:DatatypeProperty ; rdfs:comment "workflow name (section schema :name, extension.ex:65)." .
+aap:ppGoal         a owl:DatatypeProperty ; rdfs:comment "workflow goal string (extension.ex:66)." .
+aap:ppVersion      a owl:DatatypeProperty ; rdfs:comment "pos_integer workflow version (extension.ex:67)." .
+aap:ppTask         a owl:ObjectProperty ; rdfs:comment "Workflow -> aap:PPlanTask." .
+aap:ppMethod       a owl:ObjectProperty ; rdfs:comment "Workflow -> aap:PPlanMethod." .
+aap:ppObligation   a owl:ObjectProperty ; rdfs:comment "Workflow -> aap:PPlanObligation." .
+aap:ppProvider     a owl:ObjectProperty ; rdfs:comment "Domain -> aap:PPlanProvider (placement only)." .
+aap:ppUsesProvider a owl:ObjectProperty ; rdfs:comment "Workflow -> aap:PPlanProvider candidate set for its generated court." .
+
+aap:ppCapability   a owl:DatatypeProperty ; rdfs:comment "Family.Name capability id (extension.ex:33)." .
+aap:ppAfter        a owl:ObjectProperty ; rdfs:comment "Task -> Task it depends on (after:, extension.ex:34). Object-valued so the acyclicity gate is a property path." .
+aap:ppOutcome      a owl:DatatypeProperty ; rdfs:comment "Declared nondeterministic outcome atom (outcomes:, :35). Repeatable." .
+aap:ppProperty     a owl:DatatypeProperty ; rdfs:comment "Required execution property atom (properties:, :36). Repeatable." .
+aap:ppEvidenceKind a owl:DatatypeProperty ; rdfs:comment "Required evidence kind atom (evidence:, :37). Repeatable." .
+aap:ppAuthority    a owl:DatatypeProperty ; rdfs:comment "none|observe|select|plan|construct (:38; ceiling construct, :do never)." .
+aap:ppCompensation a owl:DatatypeProperty ; rdfs:comment "Elixir term text for compensation: (e.g. {Mod, :fun, []}), :39-43 (workflow section only)." .
+
+aap:ppRefines      a owl:ObjectProperty ; rdfs:comment "Method -> Task refined (task:, extension.ex:51)." .
+aap:ppStepOf       a owl:ObjectProperty ; rdfs:comment "Method -> aap:PPlanStep (ordered subtasks:, :52)." .
+aap:ppStep         a owl:DatatypeProperty ; rdfs:comment "integer order key of a step." .
+aap:ppStepTask     a owl:ObjectProperty ; rdfs:comment "Step -> Task." .
+aap:ppPrecondition a owl:DatatypeProperty ; rdfs:comment "Elixir term text for method precondition: (:any, :53)." .
+
+aap:ppProviderId   a owl:DatatypeProperty ; rdfs:comment "provider id/0 atom (provider.ex:23)." .
+aap:ppCost         a owl:DatatypeProperty ; rdfs:comment "cost/0 number (provider.ex:31)." .
+aap:ppProvidesProperty a owl:DatatypeProperty ; rdfs:comment "properties/0 element (provider.ex:27). Repeatable." .
+aap:ppProvidesEvidence a owl:DatatypeProperty ; rdfs:comment "evidence/0 element (provider.ex:29). Repeatable." .
+aap:ppAuthorityCeiling a owl:DatatypeProperty ; rdfs:comment "authorities list handed to Qualify.check (qualify.ex:22). Repeatable; default = full list." .
+aap:ppBinding      a owl:ObjectProperty ; rdfs:comment "Provider -> aap:PPlanBinding." .
+aap:ppAdapter      a owl:DatatypeProperty ; rdfs:comment "Binding adapter atom, key of AshPPlan.Reactor.adapters/0 (realization.ex:25)." .
+aap:ppOp           a owl:DatatypeProperty ; rdfs:comment "Binding op atom; must equal Realization.op_for(capability) (realization.ex:29)." .
+aap:ppOptions      a owl:DatatypeProperty ; rdfs:comment "Elixir keyword text for binding options, default []." .
+
+aap:ppPack         a owl:ObjectProperty ; rdfs:comment "Domain -> aap:PPlanCapabilityPack." .
+aap:ppPackId       a owl:DatatypeProperty ; rdfs:comment "pack id string (capability_pack.ex:14)." .
+aap:ppPackVersion  a owl:DatatypeProperty ; rdfs:comment "pack version string, default 0.0.0." .
+aap:ppPackCapability a owl:DatatypeProperty ; rdfs:comment "Capability id in the pack. Repeatable." .
+aap:ppPackProperty a owl:DatatypeProperty ; rdfs:comment "Pack property atom. Repeatable." .
+aap:ppPackEvidence a owl:DatatypeProperty ; rdfs:comment "Pack evidence atom. Repeatable." .
+
+aap:ppRequiresProperty a owl:DatatypeProperty ; rdfs:comment "Property the discharging provider must offer. Repeatable." .
+aap:ppRequiresEvidence a owl:DatatypeProperty ; rdfs:comment "Evidence the discharging provider must offer. Repeatable." .
+
+aap:ppTarget       a owl:ObjectProperty ; rdfs:comment "Domain -> aap:PPlanManufactureTarget." .
+aap:ppTemplate     a owl:DatatypeProperty ; rdfs:comment "manufacture template name (manufacture_targets.ex:27)." .
+aap:ppOut          a owl:DatatypeProperty ; rdfs:comment "root-relative output path." .
+aap:ppTargetModule a owl:DatatypeProperty ; rdfs:comment "module the projection defines." .
+aap:ppGeneratedDir a owl:DatatypeProperty ; rdfs:comment "Domain-level generated_dirs/0 entry (:86). Repeatable." .
+aap:ppReusesPack   a owl:DatatypeProperty ; rdfs:comment "Marketplace pack id reused by reference (ash-pplan-igniter-pack, ash-pplan-protocol-court-pack, ash-pplan-store-conformance-pack, ash-pplan-chaos-pack). Repeatable, on a Domain." .
+aap:ppControlPlane a owl:ObjectProperty ; rdfs:comment "Resource -> aap:PPlanControlPlane." .
+aap:ppExpectStateMachine a owl:DatatypeProperty ; rdfs:comment "\"true\" => generated verify/0 requires state_machine.available? (control_plane.ex:27)." .
+aap:ppExpectOban   a owl:DatatypeProperty ; rdfs:comment "\"true\" => generated verify/0 requires oban.available? (control_plane.ex:28)." .
+
+# =====================================================================================
+# L17 complete AshA2A DSL (dsl.ex, domain.ex, agent.ex, verifiers/*)
+# =====================================================================================
+aap:SkillSpec        a owl:Class ; rdfs:comment "Full-option a2a skill override (dsl.ex:188 @skill). Distinct from aap:Skill: a name may not appear on both (duplicate Spark identifier :name, dsl.ex:195)." .
+aap:ArgMapping       a owl:Class ; rdfs:comment "One argument_mapping entry wire-name => action argument (dsl.ex:73)." .
+aap:ActionArgument   a owl:Class ; rdfs:comment "Declared Ash action argument; needed so argument_mapping targets and JSON-serializability are checkable (verify_skills.ex:373,413)." .
+aap:HddlOperator     a owl:Class ; rdfs:comment "Skill HDDL operator (dsl.ex:178)." .
+aap:HddlFact         a owl:Class ; rdfs:comment "{predicate, args} tuple (dsl.ex:153)." .
+aap:SecurityRequirement a owl:Class ; rdfs:comment "One AgentSkill securityRequirements map entry scheme => scopes (dsl.ex:119)." .
+aap:HookRef          a owl:Class ; rdfs:comment "Binding of a dispatch hook id to a lifecycle phase (dsl.ex:253 hooks section)." .
+aap:DispatchHook     a owl:Class ; rdfs:comment "config :ash_a2a, :dispatch_hooks entry id => {Module, :fun} (dsl.ex:261-264)." .
+aap:SecurityScheme   a owl:Class ; rdfs:comment "Domain security_scheme entity (domain.ex:153)." .
+aap:RequirementScope a owl:Class ; rdfs:comment "Domain security requirement_scopes entry (domain.ex:232)." .
+aap:Mount            a owl:Class ; rdfs:comment "A domain-level a2a transport mount (ash_a2a lib/ash_a2a/domain.ex:243-291). Shapes: L08/L17 Domain -aap:mount-> Mount; L10 Mount -aap:mountOf-> Domain." .
+aap:AgentExtension   a owl:Class ; rdfs:comment "Domain transport extension entity (domain.ex:293)." .
+aap:Endpoint         a owl:Class ; rdfs:comment "Bandit + Plug.Router + AgentSupervisor supervision subtree serving a domain's mounts (AshA2A.Domain.Router, domain/router.ex:5)." .
+
+aap:skillSpec        a owl:ObjectProperty ; rdfs:comment "Resource -> aap:SkillSpec." .
+aap:semanticRequests a owl:DatatypeProperty ; rdfs:comment "true|false; a2a.semantic_requests (dsl.ex:205). Resource or Domain subject." .
+aap:specName         a owl:DatatypeProperty ; rdfs:comment "skill name atom (dsl.ex:20)." .
+aap:specAction       a owl:DatatypeProperty ; rdfs:comment "public action name atom (dsl.ex:30)." .
+aap:tag              a owl:DatatypeProperty ; rdfs:comment "multi-valued; skill tags (dsl.ex:40). Sorted on emit." .
+aap:expose           a owl:DatatypeProperty ; rdfs:comment "true|false -> expose? (dsl.ex:45). Default true." .
+aap:onCancel         a owl:DatatypeProperty ; rdfs:comment "Elixir text: Module or {Module, :fun, [extra]} (dsl.ex:61; verify_skills.ex:267)." .
+aap:argMapping       a owl:ObjectProperty ; rdfs:comment "SkillSpec -> aap:ArgMapping." .
+aap:wireName         a owl:DatatypeProperty ; rdfs:comment "inbound wire (string) argument name (dsl.ex:73)." .
+aap:targetArg        a owl:DatatypeProperty ; rdfs:comment "action argument / accepted attribute atom name." .
+aap:getRead          a owl:DatatypeProperty ; rdfs:comment "true|false -> get? (dsl.ex:82); read skills only." .
+aap:streaming        a owl:DatatypeProperty ; rdfs:comment "true|false -> streaming? (dsl.ex:128); read skills only." .
+aap:example          a owl:DatatypeProperty ; rdfs:comment "multi-valued; AgentSkill examples (dsl.ex:99). Sorted on emit." .
+aap:inputMode        a owl:DatatypeProperty ; rdfs:comment "multi-valued MIME; per-skill input_modes (dsl.ex:104; MIME-shaped, verify_skills.ex:200). Also Domain default_input_modes via aap:cardInputMode." .
+aap:outputMode       a owl:DatatypeProperty ; rdfs:comment "multi-valued MIME; per-skill output_modes (dsl.ex:112)." .
+aap:secRequirement   a owl:ObjectProperty ; rdfs:comment "SkillSpec -> aap:SecurityRequirement (dsl.ex:119)." .
+aap:secGroup         a owl:DatatypeProperty ; rdfs:comment "string key grouping entries into one map (AND within a group, OR across groups)." .
+aap:secScheme        a owl:DatatypeProperty ; rdfs:comment "declared security_scheme name (verify_skills.ex:233)." .
+aap:secScopes        a owl:DatatypeProperty ; rdfs:comment "comma-separated scopes; empty = []." .
+aap:actionArgument   a owl:ObjectProperty ; rdfs:comment "Action -> aap:ActionArgument." .
+aap:argType          a owl:DatatypeProperty ; rdfs:comment "Ash type atom name, e.g. string, term." .
+aap:actionPrivate    a owl:DatatypeProperty ; rdfs:comment "true -> action is `public? false`; skills may not target it (verify_skills.ex:351)." .
+
+aap:hddlOperator a owl:ObjectProperty ; rdfs:comment "SkillSpec -> aap:HddlOperator (at most one, verify_hddl_operators.ex:27)." .
+aap:hddlParams   a owl:DatatypeProperty ; rdfs:comment "ordered comma-separated parameter atoms (dsl.ex:157)." .
+aap:hddlPre      a owl:ObjectProperty ; rdfs:comment "HddlOperator -> aap:HddlFact precondition (dsl.ex:161)." .
+aap:hddlAdd      a owl:ObjectProperty ; rdfs:comment "HddlOperator -> aap:HddlFact add effect (dsl.ex:166)." .
+aap:hddlDel      a owl:ObjectProperty ; rdfs:comment "HddlOperator -> aap:HddlFact delete effect (dsl.ex:171)." .
+aap:predicate    a owl:DatatypeProperty ; rdfs:comment "fact predicate atom." .
+aap:factArgs     a owl:DatatypeProperty ; rdfs:comment "ordered comma-separated args; each must be a declared parameter (verify_hddl_operators.ex:51)." .
+
+aap:authGate         a owl:DatatypeProperty ; rdfs:comment "two_port|open|disabled (dsl.ex:232)." .
+aap:leaseDurationMs  a owl:DatatypeProperty ; rdfs:comment "positive integer ms (dsl.ex:242). Declared-only: flagged inert by AshA2A.Verify." .
+aap:authorizer       a owl:DatatypeProperty ; rdfs:comment "comma-separated authorizer modules for the resource fragment `authorizers:` (required by lease_required?, verify_skills.ex:487)." .
+aap:hookRef          a owl:ObjectProperty ; rdfs:comment "Resource -> aap:HookRef." .
+aap:hookId           a owl:DatatypeProperty ; rdfs:comment "hook id atom." .
+aap:hookPhase        a owl:DatatypeProperty ; rdfs:comment "pre|post." .
+aap:hookOrder        a owl:DatatypeProperty ; rdfs:comment "integer evaluation order within phase." .
+aap:dispatchHook     a owl:ObjectProperty ; rdfs:comment "Project -> aap:DispatchHook." .
+aap:hookModule       a owl:DatatypeProperty .
+aap:hookFun          a owl:DatatypeProperty .
+
+aap:a2aConfigured    a owl:DatatypeProperty ; rdfs:comment "true on a Domain that gets the AshA2A.Domain fragment." .
+aap:cardName         a owl:DatatypeProperty ; rdfs:comment "agent.name; REQUIRED (verify_config.ex:33)." .
+aap:cardDescription  a owl:DatatypeProperty .
+aap:cardVersion      a owl:DatatypeProperty .
+aap:cardUrl          a owl:DatatypeProperty .
+aap:cardProvider     a owl:DatatypeProperty .
+aap:cardDocumentationUrl a owl:DatatypeProperty .
+aap:cardIconUrl      a owl:DatatypeProperty .
+aap:cardInputMode    a owl:DatatypeProperty ; rdfs:comment "multi-valued MIME -> agent.default_input_modes (domain.ex:121)." .
+aap:cardOutputMode   a owl:DatatypeProperty ; rdfs:comment "multi-valued MIME -> agent.default_output_modes (domain.ex:128)." .
+aap:signCard         a owl:DatatypeProperty ; rdfs:comment "agent.sign_card key reference (domain.ex:135). Atom text when it starts with ':'; else string." .
+
+aap:securityScheme   a owl:ObjectProperty ; rdfs:comment "Domain -> aap:SecurityScheme." .
+aap:schemeName       a owl:DatatypeProperty .
+aap:schemeKind       a owl:DatatypeProperty ; rdfs:comment "bearer|api_key|none|http|oauth2|openid_connect|mtls (domain.ex:151)." .
+aap:schemeLocation   a owl:DatatypeProperty ; rdfs:comment "header|query|cookie (api_key only, domain.ex:177)." .
+aap:paramName        a owl:DatatypeProperty .
+aap:httpScheme       a owl:DatatypeProperty ; rdfs:comment "required for kind http (verify_config.ex:119)." .
+aap:bearerFormat     a owl:DatatypeProperty .
+aap:oauthFlows       a owl:DatatypeProperty ; rdfs:comment "Elixir map literal text, string-keyed; required for kind oauth2 (domain.ex:197)." .
+aap:schemeScopes     a owl:DatatypeProperty ; rdfs:comment "comma-separated documentation scopes (domain.ex:207)." .
+aap:openidUrl        a owl:DatatypeProperty ; rdfs:comment "required for kind openid_connect." .
+aap:requirement      a owl:DatatypeProperty ; rdfs:comment "multi-valued declared scheme name -> security.requirements (domain.ex:225)." .
+aap:requirementScope a owl:ObjectProperty ; rdfs:comment "Domain -> aap:RequirementScope." .
+aap:reqName          a owl:DatatypeProperty .
+aap:reqScopes        a owl:DatatypeProperty ; rdfs:comment "comma-separated scopes." .
+
+aap:extendedAgentCard a owl:DatatypeProperty ; rdfs:comment "true|false (domain.ex:321)." .
+aap:userArtifacts    a owl:DatatypeProperty ; rdfs:comment "true|false (domain.ex:328)." .
+aap:pushAllowedHost  a owl:DatatypeProperty ; rdfs:comment "multi-valued host (domain.ex:335)." .
+aap:pushRetryMaxAttempts a owl:DatatypeProperty ; rdfs:comment "positive integer (domain.ex:346)." .
+aap:pushRetryBackoffMs a owl:DatatypeProperty ; rdfs:comment "positive integer (domain.ex:347)." .
+aap:baseUrl          a owl:DatatypeProperty ; rdfs:comment "absolute http(s) URL (domain.ex:351; verify_config.ex:164)." .
+aap:defaultMount     a owl:DatatypeProperty ; rdfs:comment "path starting with / (domain.ex:359)." .
+aap:streamingEnabled a owl:DatatypeProperty ; rdfs:comment "true|false (domain.ex:369)." .
+aap:pushNotifications a owl:DatatypeProperty ; rdfs:comment "true|false (domain.ex:374)." .
+aap:mount            a owl:ObjectProperty ; rdfs:domain aap:Domain ; rdfs:range aap:Mount ; rdfs:comment "Domain -> aap:Mount (tenant mapping into A2A supportedInterfaces; L08 and L17)." .
+aap:mountPath        a owl:DatatypeProperty .
+aap:mountBinding     a owl:DatatypeProperty ; rdfs:comment "jsonrpc|rest|grpc (mount.ex:44). Default jsonrpc." .
+aap:mountTenant      a owl:DatatypeProperty ; rdfs:comment "tenant id on the mount (domain.ex:278)." .
+aap:mountProtocolVersion a owl:DatatypeProperty .
+aap:agentExtension   a owl:ObjectProperty ; rdfs:comment "Domain -> aap:AgentExtension." .
+aap:extUri           a owl:DatatypeProperty ; rdfs:comment "unique per domain (verify_extensions.ex:18)." .
+aap:extDescription   a owl:DatatypeProperty .
+aap:extRequired      a owl:DatatypeProperty ; rdfs:comment "true|false." .
+aap:extParams        a owl:DatatypeProperty ; rdfs:comment "Elixir map literal text %{...} (domain.ex:308)." .
+
+# DUAL USE (E1): L08 fixture gives the agent module name as a literal; L10 and L17 link Mount ->
+# aap:Agent node (object). Kind-neutral rdf:Property.
+aap:mountAgent a rdf:Property ;
+  rdfs:comment "L10/L17: aap:Mount -> aap:Agent node (must not be an agent of the mounting domain: compile-order deadlock, see L17-NOTES). L08: agent module name literal." .
+
+aap:agentConfigured  a owl:DatatypeProperty ; rdfs:comment "true -> emit <Agent>.Configured with full option set." .
+aap:agentDescription a owl:DatatypeProperty .
+aap:agentVersion     a owl:DatatypeProperty .
+aap:requireAuthenticatedCaller a owl:DatatypeProperty ; rdfs:comment "true|false (agent.ex:97). Default true is fail-closed." .
+aap:publicSkill      a owl:DatatypeProperty ; rdfs:comment "multi-valued skill name (agent.ex:99)." .
+aap:observeGenericAction a owl:DatatypeProperty ; rdfs:comment "multi-valued skill name (agent.ex:92-96)." .
+aap:strictObserveGenericActions a owl:DatatypeProperty ; rdfs:comment "true|false (agent.ex:101)." .
+aap:execMode         a owl:DatatypeProperty ; rdfs:comment "async|inline (runtime.ex:81)." .
+aap:execMaxInFlight  a owl:DatatypeProperty ; rdfs:comment "positive integer (runtime.ex:523)." .
+aap:execRateCount    a owl:DatatypeProperty ; rdfs:comment "positive integer; with execRatePerMs -> rate_limit {count, per_ms} (runtime.ex:531)." .
+aap:execRatePerMs    a owl:DatatypeProperty .
+aap:execCancelInFlight a owl:DatatypeProperty ; rdfs:comment "refuse|interrupt|default (verify_execution.ex:26)." .
+aap:execEventsTransport a owl:DatatypeProperty ; rdfs:comment "registered-name atom/module text; booleans refused (verify_execution.ex:73)." .
+aap:execValidateInputModes a owl:DatatypeProperty ; rdfs:comment "true|false (verify_execution.ex:100)." .
+aap:execUserArtifacts a owl:DatatypeProperty ; rdfs:comment "true|false." .
+aap:execAdapter      a owl:DatatypeProperty ; rdfs:comment "local|pplan (runtime.ex:217)." .
+aap:execOrphanSweepIntervalMs a owl:DatatypeProperty ; rdfs:comment "positive integer (runtime.ex:721)." .
+aap:execOrphanLeaseMs a owl:DatatypeProperty ; rdfs:comment "positive integer (runtime.ex:730)." .
+
+aap:endpoint         a owl:ObjectProperty ; rdfs:comment "Project -> aap:Endpoint." .
+aap:endpointModule   a owl:DatatypeProperty ; rdfs:comment "Supervisor module; Router is <module>.Router." .
+aap:endpointFile     a owl:DatatypeProperty ; rdfs:comment "lib/<appPath of served domain>/<file>.ex." .
+aap:endpointDomain   a owl:ObjectProperty ; rdfs:comment "Endpoint -> served aap:Domain." .
+aap:endpointPort     a owl:DatatypeProperty ; rdfs:comment "1..65535 (Bandit :port)." .
+aap:endpointIp       a owl:DatatypeProperty ; rdfs:comment "loopback|any (Bandit :ip). Default loopback (fail-closed)." .
+aap:endpointForwardPath a owl:DatatypeProperty ; rdfs:comment "Plug.Router forward prefix; default /." .
+aap:endpointPushNotifications a owl:DatatypeProperty ; rdfs:comment "true|false forwarded to every delegate (router.ex:46)." .
+aap:endpointExtendedCard a owl:DatatypeProperty ; rdfs:comment "Elixir capture text e.g. &MyApp.Cards.extended/2 (router.ex:46)." .
+aap:endpointAgent    a owl:ObjectProperty ; rdfs:comment "Endpoint -> aap:Agent started under AshA2A.Protocol.AgentSupervisor (agent_supervisor.ex:22)." .
+
+# =====================================================================================
+# L18 Spark: app-level custom Spark.Dsl.Extension authored from Turtle
+# =====================================================================================
+aap:SparkExtension a owl:Class ; rdfs:comment "App-level Spark.Dsl.Extension module (aap:moduleName, aap:appPath, aap:extFile, aap:extTarget)." .
+aap:SparkSection   a owl:Class ; rdfs:comment "Spark.Dsl.Section of an extension (aap:name)." .
+aap:SparkEntity    a owl:Class ; rdfs:comment "Spark.Dsl.Entity in a section (aap:name, aap:structModule)." .
+aap:SparkField     a owl:Class ; rdfs:comment "Schema key of an entity or section (aap:name, aap:sparkType)." .
+aap:SparkInstance  a owl:Class ; rdfs:comment "A use of an entity inside one resource's fragment." .
+aap:SparkValue     a owl:Class ; rdfs:comment "Value of one field in an instance (aap:forField, aap:valueText)." .
+
+aap:sparkExtension a owl:ObjectProperty ; rdfs:comment "Resource -> SparkExtension it enables (fragment extensions: [...])." .
+aap:extFile        a owl:DatatypeProperty ; rdfs:comment "File stem of the extension module under lib/<appPath>/." .
+aap:extTarget      a owl:DatatypeProperty ; rdfs:comment "Target DSL; only Ash.Resource fragments are emitted (default Ash.Resource)." .
+aap:extPersistKey  a owl:DatatypeProperty ; rdfs:comment "Atom name of the persisted map key written by the generated transformer." .
+aap:sparkSection   a owl:ObjectProperty ; rdfs:comment "SparkExtension -> SparkSection." .
+aap:sparkEntity    a owl:ObjectProperty ; rdfs:comment "SparkSection -> SparkEntity." .
+aap:sparkField     a owl:ObjectProperty ; rdfs:comment "SparkEntity or SparkSection -> SparkField." .
+aap:structModule   a owl:DatatypeProperty ; rdfs:comment "Entity target struct module name." .
+aap:identifier     a owl:DatatypeProperty ; rdfs:comment "Entity identifier field name (entity.ex identifier:)." .
+aap:minEntities    a owl:DatatypeProperty ; rdfs:comment "Section: verifier requires >= N entities when the section is present." .
+aap:uniqueField    a owl:DatatypeProperty ; rdfs:comment "Entity: verifier requires this field unique across the section." .
+aap:sparkType      a owl:DatatypeProperty ; rdfs:comment "Elixir Spark type text, e.g. :atom, {:one_of, [:a, :b]}, {:list, :string}." .
+aap:required       a owl:DatatypeProperty ; rdfs:comment "\"true\"|\"false\"." .
+aap:fieldDefault   a owl:DatatypeProperty ; rdfs:comment "Elixir literal text for default:." .
+aap:doc            a owl:DatatypeProperty ; rdfs:comment "Field doc string." .
+aap:fieldOrder     a owl:DatatypeProperty ; rdfs:comment "Integer sort key." .
+aap:argPosition    a owl:DatatypeProperty ; rdfs:comment "1-based positional arg index (entity args:)." .
+aap:sparkOrder     a owl:DatatypeProperty ; rdfs:comment "Integer sort key for sections/entities." .
+aap:sparkInstance  a owl:ObjectProperty ; rdfs:comment "Resource -> SparkInstance." .
+aap:ofEntity       a owl:ObjectProperty ; rdfs:comment "SparkInstance -> SparkEntity." .
+aap:sparkValue     a owl:ObjectProperty ; rdfs:comment "SparkInstance -> SparkValue." .
+aap:forField       a owl:ObjectProperty ; rdfs:comment "SparkValue -> SparkField." .
+aap:valueText      a owl:DatatypeProperty ; rdfs:comment "Elixir literal text of the value." .
+
+# =====================================================================================
+# L19 EA admission graph projection (templates/L19_ea_graph.json.tmpl emits ea.graph.json)
+# =====================================================================================
+aap:eaDeclare a owl:DatatypeProperty ;
+  rdfs:domain aap:Project ;
+  rdfs:comment "\"true\"|\"false\" (default \"false\"). false: emit the minimal valid graph ggen init writes. true: additionally declare one capability, ABB and contract per aap:Agent. Candidate SBBs and qualifications are never emitted (digests computed by ggen-abb-sbb; see fragments/L19-NOTES.md)." .
+
+# =====================================================================================
+# L20 courts: facts that drive generated ExUnit courts and shim courts
+# =====================================================================================
+aap:CourtCase a owl:Class ; rdfs:comment "Abstract: a declared court input." .
+aap:PolicyCase     a owl:Class ; rdfs:subClassOf aap:CourtCase ; rdfs:comment "Allow/deny matrix cell." .
+aap:CourtIdentity  a owl:Class ; rdfs:subClassOf aap:CourtCase ; rdfs:comment "Identity uniqueness witness." .
+aap:TransitionCase a owl:Class ; rdfs:subClassOf aap:CourtCase ; rdfs:comment "State-machine edge." .
+aap:ReactorCase    a owl:Class ; rdfs:subClassOf aap:CourtCase ; rdfs:comment "Reactor happy + compensation path." .
+aap:PlanCase       a owl:Class ; rdfs:subClassOf aap:CourtCase ; rdfs:comment "ash_pplan FOND satisfiability." .
+aap:ShimCourt      a owl:Class ; rdfs:comment "A mutation that must flip a generated test (gap G6)." .
+
+aap:courtResource a owl:ObjectProperty ; rdfs:range aap:Resource .
+aap:caseName      a owl:DatatypeProperty ; rdfs:comment "unique test-name fragment" .
+aap:caseAction    a owl:DatatypeProperty ; rdfs:comment "action name (must exist on courtResource; gate L20_045)" .
+aap:caseActor     a owl:DatatypeProperty ; rdfs:comment "raw Elixir term for the actor; default nil" .
+aap:caseExpect    a owl:DatatypeProperty ; rdfs:comment "allow|deny (policy) ; ok|error (transition) ; satisfiable|unsatisfiable (plan)" .
+aap:caseInput     a owl:DatatypeProperty ; rdfs:comment "raw Elixir map for action input; default %{}" .
+
+aap:identityName  a owl:DatatypeProperty .
+aap:identityKeys  a owl:DatatypeProperty ; rdfs:comment "comma-separated attribute names" .
+aap:seedAction    a owl:DatatypeProperty ; rdfs:comment "create action used to seed (identity + transition)" .
+aap:seedInput     a owl:DatatypeProperty ; rdfs:comment "raw Elixir map, valid input for seedAction" .
+
+aap:stateAttr     a owl:DatatypeProperty .
+
+aap:dispatchText     a owl:DatatypeProperty ; rdfs:comment "message text; default ping" .
+aap:dispatchIdentity a owl:DatatypeProperty ; rdfs:comment "auth_identity term (dispatcher.ex:145-154); default nil" .
+aap:dispatchExpect   a owl:DatatypeProperty ; rdfs:comment "reply|input_required|auth_required|error|typed; default typed" .
+
+aap:caseFile        a owl:DatatypeProperty ; rdfs:comment "file stem under test/courts/" .
+aap:reactorModule   a owl:DatatypeProperty .
+aap:reactorInputs   a owl:DatatypeProperty ; rdfs:comment "raw Elixir map for the happy path" .
+aap:reactorExpect   a owl:DatatypeProperty ; rdfs:comment "raw Elixir pattern for the {:ok, pattern} result; default _" .
+aap:failInputs      a owl:DatatypeProperty ; rdfs:comment "raw Elixir map that must fail the reactor" .
+aap:undoProbe       a owl:DatatypeProperty ; rdfs:comment "raw Elixir boolean expression true after compensation" .
+
+aap:planTransitions a owl:DatatypeProperty ; rdfs:comment "raw Elixir map %{state => %{action => [outcomes]}} (fond.ex:10-15)" .
+aap:planGoals       a owl:DatatypeProperty ; rdfs:comment "raw Elixir list" .
+aap:planInitial     a owl:DatatypeProperty ; rdfs:comment "raw Elixir term" .
+aap:planMode        a owl:DatatypeProperty ; rdfs:comment "strong|strong_cyclic (synthesis.ex:56)" .
+
+aap:shimName     a owl:DatatypeProperty .
+aap:shimTarget   a owl:DatatypeProperty ; rdfs:comment "generated file mutated (relative to project root)" .
+aap:shimTemplate a owl:DatatypeProperty ; rdfs:comment "optional pack template; mutated + regenerated when GGEN_SYNC_CMD is set" .
+aap:shimBefore   a owl:DatatypeProperty ; rdfs:comment "literal text present in the file" .
+aap:shimAfter    a owl:DatatypeProperty ; rdfs:comment "literal replacement (a SHIM-COURT marker is appended by the script)" .
+aap:shimTest     a owl:DatatypeProperty ; rdfs:comment "generated test file that must flip" .

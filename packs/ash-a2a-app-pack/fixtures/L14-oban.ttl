@@ -1,0 +1,45 @@
+@prefix aap: <https://ggen.dev/ash-a2a-app#> .
+@prefix ex:  <https://example.org/l14#> .
+
+# Assumes the base fixture shape (demo3 app.ttl): a Domain, Project and Resource with actions.
+ex:Project a aap:Project ; aap:appName "a2a_demo" .
+ex:Domain a aap:Domain ; aap:moduleName "A2aDemo.Ops" ; aap:appPath "a2a_demo" .
+
+ex:Job a aap:Resource ; aap:moduleName "A2aDemo.Ops.Job" ; aap:inDomain ex:Domain ;
+  aap:resourceFile "job" ;
+  aap:attribute ex:JobId, ex:JobDone ;
+  aap:action ex:JobRead, ex:JobProcess, ex:JobFail, ex:JobReap ;
+  aap:obTrigger ex:TrigProcess ;
+  aap:obSchedule ex:SchedReap ;
+  aap:obSharedContext "job" .
+ex:JobId   a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:JobDone a aap:Attribute ; aap:name "done" ; aap:ashType "boolean" ; aap:primaryKey "false" .
+ex:JobRead    a aap:Action ; aap:name "read" ; aap:actionType "read" .
+ex:JobProcess a aap:Action ; aap:name "process" ; aap:actionType "update" ; aap:accept "done" .
+ex:JobFail    a aap:Action ; aap:name "mark_failed" ; aap:actionType "update" ; aap:accept "done" .
+ex:JobReap    a aap:Action ; aap:name "reap" ; aap:actionType "create" ; aap:accept "done" .
+
+ex:TrigProcess a aap:ObanTrigger ; aap:name "process" ; aap:obAction "process" ;
+  aap:obWhere "done != true" ; aap:obReadAction "read" ;
+  aap:obQueue "job_process" ; aap:obWorkerModuleName "A2aDemo.Ops.Job.Oban.Process.Worker" ;
+  aap:obSchedulerModuleName "A2aDemo.Ops.Job.Oban.Process.Scheduler" ;
+  aap:obSchedulerCron "*/5 * * * *" ; aap:obMaxAttempts "3" ; aap:obOnError "mark_failed" ;
+  aap:obStreamWith "keyset" ; aap:obWorkerPriority "1" ; aap:obTags "a2a,job" ;
+  aap:obBackoff "exponential" ; aap:obTimeout "30_000" ; aap:obState "active" .
+
+ex:SchedReap a aap:ObanSchedule ; aap:name "reap" ; aap:obCron "0 */6 * * *" ;
+  aap:obAction "reap" ; aap:obQueue "job_reap" ;
+  aap:obWorkerModuleName "A2aDemo.Ops.Job.Oban.Reap.Worker" ; aap:obMaxAttempts "2" ;
+  aap:obPriority "3" ; aap:obActionInput "%{kind: :sweep}" .
+
+ex:QProcess a aap:ObanQueue ; aap:obQueueName "job_process" ; aap:obQueueLimit "10" ; aap:obQueueOf ex:Project .
+ex:QReap    a aap:ObanQueue ; aap:obQueueName "job_reap" ; aap:obQueueLimit "2" ; aap:obQueueOf ex:Project .
+ex:QDeliver a aap:ObanQueue ; aap:obQueueName "a2a_delivery" ; aap:obQueueLimit "5" ; aap:obQueueOf ex:Project .
+
+ex:ObanCfg a aap:ObanConfig ; aap:obConfigOf ex:Project ; aap:obRepo "A2aDemo.Repo" ;
+  aap:obTestingMode "manual" .
+
+ex:DeliveryWorker a aap:ObanDeliveryWorker ; aap:moduleName "A2aDemo.Ops.DeliveryWorker" ;
+  aap:inDomain ex:Domain ; aap:obWorkerFile "delivery_worker" ;
+  aap:obHandlerModule "A2aDemo.Ops.CommandHandler" ; aap:obQueue "a2a_delivery" ;
+  aap:obMaxAttempts "5" ; aap:obSnoozeSeconds "30" .

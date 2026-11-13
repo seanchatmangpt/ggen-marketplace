@@ -1,0 +1,19 @@
+# L08 gate: a mount tenant id must be non-empty, and a mount that declares
+# mountsTenantFor must target a multitenant resource.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?mount ?why WHERE {
+  ?mount a aap:Mount .
+  {
+    ?mount aap:mountTenant ?t .
+    FILTER(STR(?t) = "")
+    BIND("empty mount tenant" AS ?why)
+  } UNION {
+    ?mount aap:mountsTenantFor ?r .
+    FILTER NOT EXISTS { ?r aap:multitenancy ?m }
+    BIND("mountsTenantFor resource has no multitenancy" AS ?why)
+  } UNION {
+    ?mount aap:mountsTenantFor ?r .
+    FILTER NOT EXISTS { ?mount aap:mountTenant ?any }
+    BIND("mountsTenantFor without mountTenant" AS ?why)
+  }
+}

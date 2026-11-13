@@ -1,0 +1,48 @@
+@prefix aap: <https://ggen.dev/ash-a2a-app#> .
+@prefix ex:  <https://example.org/l09#> .
+
+ex:proj a aap:Project ; aap:appName "demo" ; aap:appModule "Demo" ;
+  aap:ashA2aDep "path: \"../ash_a2a\"" ; aap:setupAppPath "demo" .
+
+ex:dom a aap:Domain ; aap:moduleName "Demo.Desk" ; aap:appPath "demo" .
+
+ex:pgRepo a aap:Repo ; aap:moduleName "Demo.Repo" ; aap:repoKind "postgres" ;
+  aap:repoFile "repo" ; aap:pgExtensions "ash-functions,citext" ; aap:pgMinVersion "16.0.0" ;
+  aap:dbName "demo" ; aap:poolSize "10" .
+ex:sqRepo a aap:Repo ; aap:moduleName "Demo.LiteRepo" ; aap:repoKind "sqlite" ;
+  aap:repoFile "lite_repo" ; aap:dbName "demo_lite" .
+
+ex:ticket a aap:Resource ; aap:moduleName "Demo.Ticket" ; aap:inDomain ex:dom ;
+  aap:resourceFile "ticket" ; aap:dataLayer "postgres" ; aap:tableName "tickets" ;
+  aap:repo ex:pgRepo ; aap:pgSchema "desk" ; aap:baseFilterSql "(deleted_at IS NULL)" ;
+  aap:attribute ex:ticketId ;
+  aap:customIndex ex:tIdx ; aap:reference ex:tRef ; aap:checkConstraint ex:tChk ; aap:statement ex:tStmt .
+ex:ticketId a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:tIdx a aap:CustomIndex ; aap:indexFields "title,lower(title)" ; aap:indexName "tickets_title_idx" ;
+  aap:indexUnique "false" ; aap:indexUsing "btree" ; aap:indexWhere "deleted_at IS NULL" .
+ex:tRef a aap:Reference ; aap:ofRelationship "assignee" ; aap:onDelete "nilify" ; aap:onUpdate "update" ;
+  aap:fkName "tickets_assignee_fk" .
+ex:tChk a aap:CheckConstraint ; aap:checkAttribute "priority" ; aap:checkName "priority_range" ;
+  aap:checkExpr "priority BETWEEN 0 AND 5" ; aap:checkMessage "priority must be 0..5" .
+ex:tStmt a aap:Statement ; aap:name "tickets_fts" ; aap:stmtUp "CREATE INDEX tickets_fts ON desk.tickets USING gin (to_tsvector('english', title))" ;
+  aap:stmtDown "DROP INDEX tickets_fts" .
+
+ex:note a aap:Resource ; aap:moduleName "Demo.Note" ; aap:inDomain ex:dom ;
+  aap:resourceFile "note" ; aap:dataLayer "sqlite" ; aap:tableName "notes" ; aap:repo ex:sqRepo ;
+  aap:sqliteStrict "true" ; aap:attribute ex:noteId ; aap:customIndex ex:nIdx .
+ex:noteId a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:nIdx a aap:CustomIndex ; aap:indexFields "body" ; aap:indexUnique "true" .
+
+ex:scratch a aap:Resource ; aap:moduleName "Demo.Scratch" ; aap:inDomain ex:dom ;
+  aap:resourceFile "scratch" ; aap:dataLayer "ets" ; aap:etsPrivate "true" ; aap:tableName "scratch_tbl" ;
+  aap:attribute ex:scratchId .
+ex:scratchId a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+
+ex:ledger a aap:Resource ; aap:moduleName "Demo.Ledger" ; aap:inDomain ex:dom ;
+  aap:resourceFile "ledger" ; aap:dataLayer "mnesia" ; aap:tableName "ledger_tbl" ;
+  aap:attribute ex:ledgerId .
+ex:ledgerId a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+
+ex:calc a aap:Resource ; aap:moduleName "Demo.Calc" ; aap:inDomain ex:dom ;
+  aap:resourceFile "calc" ; aap:dataLayer "simple" ; aap:attribute ex:calcId .
+ex:calcId a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .

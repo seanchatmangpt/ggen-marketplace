@@ -1,0 +1,18 @@
+# Gate: every typed attribute / field / member names exactly one type source
+# (builtin aap:ashType XOR aap:typeRef to a declared CustomType).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?subject ?reason WHERE {
+  ?owner (aap:typeField|aap:unionMember|aap:typedAttribute) ?subject .
+  {
+    FILTER NOT EXISTS { ?subject aap:ashType ?a }
+    FILTER NOT EXISTS { ?subject aap:typeRef ?r }
+    BIND("no type source" AS ?reason)
+  } UNION {
+    ?subject aap:ashType ?a ; aap:typeRef ?r .
+    BIND("both ashType and typeRef" AS ?reason)
+  } UNION {
+    ?subject aap:typeRef ?r .
+    FILTER NOT EXISTS { ?r a aap:CustomType }
+    BIND("typeRef is not a CustomType" AS ?reason)
+  }
+}

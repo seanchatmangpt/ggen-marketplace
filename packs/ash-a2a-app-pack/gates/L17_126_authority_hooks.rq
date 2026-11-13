@@ -1,0 +1,43 @@
+# L17 gate: authority gate enum (dsl.ex:232-241), hook phase enum, hook ids resolvable through
+# config :ash_a2a, :dispatch_hooks (dsl.ex:261-264: an unresolvable id fails the dispatch closed),
+# and deterministic hook ordering within a phase.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?subject ?reason WHERE {
+  {
+    ?subject aap:authGate ?g .
+    FILTER ( !(STR(?g) IN ("two_port", "open", "disabled")) )
+    BIND ("authority_gate_not_in_two_port_open_disabled" AS ?reason)
+  }
+  UNION
+  {
+    ?r aap:hookRef ?subject . ?subject aap:hookPhase ?ph .
+    FILTER ( !(STR(?ph) IN ("pre", "post")) )
+    BIND ("hook_phase_not_pre_or_post" AS ?reason)
+  }
+  UNION
+  {
+    ?r aap:hookRef ?subject . ?subject aap:hookId ?id .
+    FILTER NOT EXISTS { ?p a aap:Project ; aap:dispatchHook ?dh . ?dh aap:hookId ?id }
+    BIND ("hook_id_not_registered_in_dispatch_hooks" AS ?reason)
+  }
+  UNION
+  {
+    ?p a aap:Project ; aap:dispatchHook ?subject .
+    FILTER ( !EXISTS { ?subject aap:hookId ?i } || !EXISTS { ?subject aap:hookModule ?m } || !EXISTS { ?subject aap:hookFun ?f } )
+    BIND ("dispatch_hook_requires_id_module_fun" AS ?reason)
+  }
+  UNION
+  {
+    ?r aap:hookRef ?subject , ?other . ?subject aap:hookPhase ?ph . ?other aap:hookPhase ?ph .
+    FILTER (?subject != ?other)
+    FILTER ( !EXISTS { ?subject aap:hookOrder ?o1 } || !EXISTS { ?other aap:hookOrder ?o2 }
+             || EXISTS { ?subject aap:hookOrder ?o3 . ?other aap:hookOrder ?o3 } )
+    BIND ("hook_order_missing_or_tied_within_phase" AS ?reason)
+  }
+  UNION
+  {
+    ?r aap:hookRef ?subject , ?other . ?subject aap:hookPhase ?ph ; aap:hookId ?id . ?other aap:hookPhase ?ph ; aap:hookId ?id .
+    FILTER (?subject != ?other)
+    BIND ("hook_id_repeated_within_phase" AS ?reason)
+  }
+}

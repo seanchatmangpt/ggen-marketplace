@@ -1,0 +1,118 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix aap:  <https://ggen.dev/ash-a2a-app#> .
+
+# L15 Reactor vocabulary.
+# Grammar sources (all under /Users/sac/ash_a2a/deps):
+#   reactor/lib/reactor/dsl.ex:19-55 (top-level section: return, description, entities, middlewares)
+#   reactor/lib/reactor/dsl/input.ex:30-60, step.ex:52-165, argument.ex:31-229, wait_for.ex:25-52
+#   reactor/lib/reactor/dsl/compose.ex:38-110, map.ex:45-167, switch.ex:42-138, around.ex:36-80
+#   reactor/lib/reactor/dsl/collect.ex:34-70, flunk.ex:43-60, middleware.ex:24-49
+#   ash/lib/ash/reactor/dsl/action.ex:53-145 (shared options + undo), create.ex:61-121,
+#   update.ex:58-106, read_one.ex:54-95, bulk_create.ex:104-240, transaction.ex:42-87,
+#   inputs.ex:24-78, actor.ex:21-48
+#   ash/lib/ash/resource/actions/action/implementation.ex:5-60 (generic action run/3)
+#   reactor/lib/reactor.ex:152-176 (Reactor.run options)
+#   /Users/sac/ash_a2a/lib/ash_a2a/dsl.ex:188-197 (a2a skill entity), :61 (on_cancel), :90 (lease)
+
+aap:Reactor         a owl:Class ; rdfs:comment "A Reactor module (use Reactor, or use Ash.Reactor when aap:reactorAsh \"true\")." .
+aap:ReactorInput    a owl:Class ; rdfs:comment "input :name (input.ex:52)." .
+aap:ReactorStep     a owl:Class ; rdfs:comment "Any step-like entity; kind chosen by aap:stepKind." .
+aap:ReactorBinding  a owl:Class ; rdfs:comment "A Reactor template: input(..)|result(..)|element(..)|value(..) (argument.ex:59-158). Used for argument, inputs, initial, actor, tenant, on, source." .
+aap:ReactorBranch   a owl:Class ; rdfs:comment "A switch matches?/default branch (switch.ex:42-93)." .
+aap:ReactorAction   a owl:Class ; rdfs:comment "A generic Ash action whose run is a Reactor (Ash.Resource.Actions.Implementation)." .
+aap:ReactorActionArg a owl:Class ; rdfs:comment "argument of a ReactorAction." .
+
+# ---- Reactor ----
+aap:reactor         a owl:ObjectProperty ; rdfs:comment "Domain -> aap:Reactor (supplies appPath via the domain)." .
+aap:reactorFile     a owl:DatatypeProperty ; rdfs:comment "File stem under lib/<appPath>/reactors/." .
+aap:reactorAsh      a owl:DatatypeProperty ; rdfs:comment "\"true\" => use Ash.Reactor (ash/lib/ash/reactor/reactor.ex), else use Reactor." .
+aap:reactorReturn   a owl:ObjectProperty ; rdfs:comment "Reactor -> step; return :name (dsl.ex:23)." .
+aap:reactorDescription a owl:DatatypeProperty ; rdfs:comment "reactor description (dsl.ex:30). No double quotes or backslashes." .
+aap:reactorMiddleware a owl:DatatypeProperty ; rdfs:comment "Middleware module name; multi-valued (middleware.ex:30-40)." .
+aap:reactorInput    a owl:ObjectProperty ; rdfs:comment "Reactor -> aap:ReactorInput." .
+aap:reactorStep     a owl:ObjectProperty ; rdfs:comment "Reactor -> every step at any depth (nested steps additionally carry aap:stepParent)." .
+aap:inputTransform  a owl:DatatypeProperty ; rdfs:comment "raw Elixir capture for input transform (input.ex:42-50)." .
+
+# ---- Step ----
+aap:stepKind a owl:DatatypeProperty ; rdfs:comment "step|collect|flunk|compose|map|switch|around|transaction|create|update|destroy|read_one|read|action|bulk_create|bulk_update|bulk_destroy." .
+aap:stepOrder a owl:DatatypeProperty ; rdfs:comment "integer; emission order among siblings." .
+aap:stepParent a owl:ObjectProperty ; rdfs:comment "Nested step -> container step (map/around/transaction) or aap:ReactorBranch." .
+aap:stepImpl a owl:DatatypeProperty ; rdfs:comment "kind step: Reactor.Step module (step.ex:105). Empty + aap:stepGenerate \"true\" => generated module <Reactor>.Steps.<stepImplName>." .
+aap:stepGenerate a owl:DatatypeProperty ; rdfs:comment "\"true\" => L15_step_module.ex.tmpl emits the impl (run/3, compensate/4, undo/4)." .
+aap:stepImplName a owl:DatatypeProperty ; rdfs:comment "Module suffix of generated impl." .
+aap:stepHasCompensate a owl:DatatypeProperty ; rdfs:comment "\"true\" => generated impl defines compensate/4 and gate L15_030 accepts it." .
+aap:stepHasUndo a owl:DatatypeProperty ; rdfs:comment "\"true\" => generated impl defines undo/4; gate accepts it." .
+aap:stepEffectful a owl:DatatypeProperty ; rdfs:comment "\"true\"|\"false\"; overrides the kind default for gate L15_030 (create/update/destroy/bulk_*/action default true; step default false)." .
+aap:stepRunBody a owl:DatatypeProperty ; rdfs:comment "raw Elixir expr returning {:ok, _}|{:error, _} for generated run/3 (arguments in scope)." .
+aap:stepCompensateBody a owl:DatatypeProperty ; rdfs:comment "raw Elixir expr for generated compensate/4 (:ok|:retry|{:continue, v}); needs aap:stepHasCompensate true." .
+aap:stepUndoBody a owl:DatatypeProperty ; rdfs:comment "raw Elixir expr for generated undo/4 (:ok|:retry|{:error, _}); needs aap:stepHasUndo true." .
+aap:compensationWaiver a owl:DatatypeProperty ; rdfs:comment "Reason text; explicit, auditable waiver for gate L15_030." .
+aap:stepResource a owl:DatatypeProperty ; rdfs:comment "Ash resource module (Ash steps; action.ex:119)." .
+aap:stepResources a owl:DatatypeProperty ; rdfs:comment "comma-separated resource modules (transaction.ex:64)." .
+aap:stepAction a owl:DatatypeProperty ; rdfs:comment "action name atom (action.ex:83)." .
+aap:stepReactorRef a owl:ObjectProperty ; rdfs:comment "compose step -> aap:Reactor (compose.ex:80)." .
+aap:stepMessage a owl:DatatypeProperty ; rdfs:comment "flunk message string (flunk.ex:57)." .
+aap:stepWaitFor a owl:ObjectProperty ; rdfs:comment "step -> step (wait_for.ex:34)." .
+aap:stepArg a owl:ObjectProperty ; rdfs:comment "step -> aap:ReactorBinding emitted as argument :name, template (argument.ex:194)." .
+aap:stepInputs a owl:ObjectProperty ; rdfs:comment "Ash step -> aap:ReactorBinding emitted into inputs %{name: template} (inputs.ex:45-56)." .
+aap:stepInitial a owl:ObjectProperty ; rdfs:comment "update/bulk_* initial (update.ex:96, bulk_create.ex:176) / create initial (create.ex:100)." .
+aap:stepActor a owl:ObjectProperty ; rdfs:comment "actor template (actor.ex:28)." .
+aap:stepTenant a owl:ObjectProperty ; rdfs:comment "tenant template (tenant.ex)." .
+aap:stepOn a owl:ObjectProperty ; rdfs:comment "switch on (switch.ex:131)." .
+aap:stepSource a owl:ObjectProperty ; rdfs:comment "map source (map.ex:145)." .
+aap:stepReturn a owl:ObjectProperty ; rdfs:comment "container step or branch -> nested step; return (map.ex:152, transaction.ex:71, switch.ex:66)." .
+aap:stepOpt a owl:DatatypeProperty ; rdfs:comment "Escape hatch: one raw DSL option line per value, e.g. \"return_records? true\" or \"transform &Mod.f/1\". Emitted verbatim inside the step block." .
+
+# typed scalar options -> `key value` lines
+aap:stepDescription a owl:DatatypeProperty ; rdfs:comment "description (step.ex:98). No double quotes or backslashes." .
+aap:stepAsync a owl:DatatypeProperty ; rdfs:comment "async? (step.ex:148, action.ex:96)." .
+aap:stepMaxRetries a owl:DatatypeProperty ; rdfs:comment "max_retries (step.ex:140)." .
+aap:stepAllowAsync a owl:DatatypeProperty ; rdfs:comment "allow_async? (compose.ex:87, map.ex:122, around.ex:74, switch.ex:123)." .
+aap:stepSupportUndo a owl:DatatypeProperty ; rdfs:comment "support_undo? (compose.ex:103)." .
+aap:stepBatchSize a owl:DatatypeProperty ; rdfs:comment "batch_size (map.ex:130, bulk_create.ex:170)." .
+aap:stepStrictOrdering a owl:DatatypeProperty ; rdfs:comment "strict_ordering? (map.ex:159)." .
+aap:stepTimeout a owl:DatatypeProperty ; rdfs:comment "timeout (transaction.ex:78)." .
+aap:stepUndo a owl:DatatypeProperty ; rdfs:comment "always|never|outside_transaction (action.ex:136)." .
+aap:stepUndoAction a owl:DatatypeProperty ; rdfs:comment "undo action name (action.ex:129)." .
+aap:stepUpsert a owl:DatatypeProperty ; rdfs:comment "upsert? (create.ex:110)." .
+aap:stepUpsertIdentity a owl:DatatypeProperty ; rdfs:comment "upsert_identity atom (create.ex:105)." .
+aap:stepAuthorize a owl:DatatypeProperty ; rdfs:comment "authorize? (action.ex:103)." .
+aap:stepFailOnNotFound a owl:DatatypeProperty ; rdfs:comment "fail_on_not_found? (read_one.ex:84)." .
+aap:stepReadAction a owl:DatatypeProperty ; rdfs:comment "read_action atom (bulk_create.ex:203)." .
+
+# ---- Binding ----
+aap:argKind a owl:DatatypeProperty ; rdfs:comment "input|result|element|value." .
+aap:argName a owl:DatatypeProperty ; rdfs:comment "argument name / inputs key (role arg and inputs only)." .
+aap:argInput a owl:ObjectProperty ; rdfs:comment "kind input -> aap:ReactorInput." .
+aap:argStep a owl:ObjectProperty ; rdfs:comment "kind result|element -> aap:ReactorStep (same reactor; gate L15_020)." .
+aap:argPath a owl:DatatypeProperty ; rdfs:comment "comma-separated sub_path atoms (argument.ex:62,100,158)." .
+aap:argValue a owl:DatatypeProperty ; rdfs:comment "kind value: raw Elixir term (argument.ex:127)." .
+aap:argTransform a owl:DatatypeProperty ; rdfs:comment "raw Elixir capture (argument.ex:220)." .
+aap:argOrder a owl:DatatypeProperty ; rdfs:comment "integer sort key." .
+
+# ---- Switch branch ----
+aap:switchMatch a owl:ObjectProperty ; rdfs:comment "switch step -> aap:ReactorBranch." .
+aap:branchPredicate a owl:DatatypeProperty ; rdfs:comment "raw 1-arity capture/fn for matches? (switch.ex:52). Absent + aap:branchDefault \"true\" => default." .
+aap:branchDefault a owl:DatatypeProperty ; rdfs:comment "\"true\" => default branch (switch.ex:76)." .
+
+# ---- Generic action that runs a Reactor + A2A skill ----
+aap:reactorAction a owl:ObjectProperty ; rdfs:domain aap:Resource ; rdfs:range aap:ReactorAction .
+aap:runsReactor a owl:ObjectProperty ; rdfs:comment "ReactorAction -> aap:Reactor." .
+aap:actionReturns a owl:DatatypeProperty ; rdfs:comment "Ash type atom for `action :name, :type` (e.g. map, string)." .
+aap:actionImplModule a owl:DatatypeProperty ; rdfs:comment "Module of generated Implementation." .
+aap:actionImplFile a owl:DatatypeProperty ; rdfs:comment "File stem under lib/<appPath>/reactor_actions/." .
+aap:actionFragmentModule a owl:DatatypeProperty ; rdfs:comment "Per-resource fragment module name (set on the Resource: aap:reactorFragment)." .
+aap:reactorFragment a owl:DatatypeProperty ; rdfs:comment "Resource -> fragment module name that holds its reactor actions + skills." .
+aap:reactorFragmentFile a owl:DatatypeProperty ; rdfs:comment "Resource -> file stem of the fragment." .
+aap:actionArg a owl:ObjectProperty ; rdfs:comment "ReactorAction -> aap:ReactorActionArg." .
+aap:actionArgType a owl:DatatypeProperty ; rdfs:comment "Ash type atom." .
+aap:actionArgAllowNil a owl:DatatypeProperty ; rdfs:comment "true|false." .
+aap:passActor a owl:DatatypeProperty ; rdfs:comment "\"true\" => run/3 passes ctx.actor as reactor input :actor." .
+aap:passTenant a owl:DatatypeProperty ; rdfs:comment "\"true\" => passes ctx.tenant as reactor input :tenant." .
+aap:runTimeout a owl:DatatypeProperty ; rdfs:comment "Reactor.run timeout option (reactor.ex:158)." .
+aap:runMaxConcurrency a owl:DatatypeProperty ; rdfs:comment "Reactor.run max_concurrency (reactor.ex:153)." .
+aap:runMaxIterations a owl:DatatypeProperty ; rdfs:comment "Reactor.run max_iterations (reactor.ex:164)." .
+aap:reactorSkill a owl:ObjectProperty ; rdfs:comment "ReactorAction -> aap:Skill-shaped node (aap:name, aap:description, optional aap:consequence, aap:leaseRequired, aap:skillOnCancel)." .
+aap:skillOnCancel a owl:DatatypeProperty ; rdfs:comment "module for on_cancel (ash_a2a dsl.ex:61)." .

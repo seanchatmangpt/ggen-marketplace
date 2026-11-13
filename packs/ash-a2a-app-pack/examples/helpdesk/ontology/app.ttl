@@ -1,0 +1,70 @@
+@prefix aap: <https://ggen.dev/ash-a2a-app#> .
+@prefix ex:  <https://example.com/helpdesk#> .
+
+# Helpdesk: one domain, Ticket + Note, one agent.
+# Live today: legacy core terms. L01 enum, L02 relationships and L05 identity/validation
+# are emitted as modules; resources include the L02/L05 fragments only once the shared
+# resource template wires fragments:.
+
+ex:App a aap:Project ; aap:appName "helpdesk" ; aap:appModule "Helpdesk" ;
+  aap:ashA2aDep """path: "/Users/sac/ash_a2a" """ .
+
+ex:Desk a aap:Domain ; aap:moduleName "Helpdesk.Desk" ; aap:appPath "helpdesk" ;
+  aap:domainFile "desk" .
+
+ex:Agent a aap:Agent ; aap:moduleName "Helpdesk.DeskAgent" ; aap:agentName "helpdesk" ;
+  aap:forDomain ex:Desk ; aap:agentFile "desk_agent" .
+
+# ---- Ticket (legacy core) ----
+ex:Ticket a aap:Resource ; aap:moduleName "Helpdesk.Desk.Ticket" ; aap:inDomain ex:Desk ;
+  aap:resourceFile "ticket" ;
+  aap:attribute ex:Ticket_id, ex:Ticket_title, ex:Ticket_status ;
+  aap:action ex:Ticket_read, ex:Ticket_open ;
+  aap:skill ex:Ticket_skill_list, ex:Ticket_skill_open ;
+  aap:relationship ex:Ticket_notes ;
+  aap:identity ex:Ticket_unique_title ;
+  aap:validation ex:Ticket_v_title_len .
+
+ex:Ticket_id a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:Ticket_title a aap:Attribute ; aap:name "title" ; aap:ashType "string" ; aap:primaryKey "false" .
+ex:Ticket_status a aap:Attribute ; aap:name "status" ; aap:ashType "string" ; aap:primaryKey "false" .
+
+ex:Ticket_read a aap:Action ; aap:name "read" ; aap:actionType "read" .
+ex:Ticket_open a aap:Action ; aap:name "open" ; aap:actionType "create" ; aap:accept "title,status" .
+
+ex:Ticket_skill_list a aap:Skill ; aap:name "list_tickets" ; aap:ofAction "read" ;
+  aap:description "List helpdesk tickets" ; aap:consequence "observe" .
+ex:Ticket_skill_open a aap:Skill ; aap:name "open_ticket" ; aap:ofAction "open" ;
+  aap:description "Open a new helpdesk ticket" ; aap:consequence "change" .
+
+# ---- L02 relationships (Ticket 1-N Note) ----
+ex:Ticket_notes a aap:Relationship ; aap:name "notes" ; aap:relKind "has_many" ;
+  aap:destination ex:Note ; aap:destinationAttribute "ticket_id" ;
+  aap:description "Notes attached to the ticket" ; aap:inverse ex:Note_ticket .
+ex:Note_ticket a aap:Relationship ; aap:name "ticket" ; aap:relKind "belongs_to" ;
+  aap:destination ex:Ticket ; aap:inverse ex:Ticket_notes .
+
+# ---- L05 identity and validation ----
+ex:Ticket_unique_title a aap:Identity ; aap:name "unique_title" ; aap:identityKey "title" ;
+  aap:message "title is already taken" ; aap:description "Titles are unique" .
+ex:Ticket_v_title_len a aap:Validation ; aap:name "010_title_len" ;
+  aap:validationKind "string_length" ; aap:vAttribute "title" ; aap:vOpts "min: 3, max: 120" ;
+  aap:message "title must be 3 to 120 characters" .
+
+# ---- L01 enum type (standalone module Helpdesk.Desk.TicketStatus) ----
+ex:TicketStatus a aap:EnumType ; aap:moduleName "Helpdesk.Desk.TicketStatus" ;
+  aap:inDomain ex:Desk ; aap:enumFile "ticket_status" ;
+  aap:enumValue ex:TS_open, ex:TS_closed .
+ex:TS_open a aap:EnumValue ; aap:name "open" ; aap:description "An open ticket" ; aap:order 1 .
+ex:TS_closed a aap:EnumValue ; aap:name "closed" ; aap:label "Closed" ; aap:order 2 .
+
+# ---- Note (legacy core) ----
+ex:Note a aap:Resource ; aap:moduleName "Helpdesk.Desk.Note" ; aap:inDomain ex:Desk ;
+  aap:resourceFile "note" ;
+  aap:attribute ex:Note_id, ex:Note_body ;
+  aap:action ex:Note_read, ex:Note_add ;
+  aap:relationship ex:Note_ticket .
+ex:Note_id a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:Note_body a aap:Attribute ; aap:name "body" ; aap:ashType "string" ; aap:primaryKey "false" .
+ex:Note_read a aap:Action ; aap:name "read" ; aap:actionType "read" .
+ex:Note_add a aap:Action ; aap:name "add" ; aap:actionType "create" ; aap:accept "body" .

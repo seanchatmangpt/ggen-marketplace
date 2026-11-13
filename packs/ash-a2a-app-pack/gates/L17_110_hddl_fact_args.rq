@@ -1,0 +1,14 @@
+# L17 gate (mirrors verify_hddl_operators.ex:42-68 refused_hddl_fact_args).
+# Every comma-separated fact arg must be a declared operator parameter. The pattern is computed from
+# the operator's aap:hddlParams (identifier-shaped names only, enforced by L17_111).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?subject ?fact ?args ?reason WHERE {
+  ?subject aap:hddlOperator ?o .
+  ?o aap:hddlPre|aap:hddlAdd|aap:hddlDel ?fact .
+  ?fact aap:factArgs ?args .
+  OPTIONAL { ?o aap:hddlParams ?p0 }
+  BIND ( REPLACE(REPLACE(COALESCE(?p0, ""), " ", ""), ",", "|") AS ?alt )
+  FILTER ( ?args != "" )
+  FILTER ( !REGEX(REPLACE(STR(?args), " ", ""), CONCAT("^(", ?alt, ")(,(", ?alt, "))*$")) )
+  BIND ("refused_hddl_fact_args" AS ?reason)
+}

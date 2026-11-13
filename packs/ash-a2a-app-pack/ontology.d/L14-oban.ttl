@@ -1,0 +1,92 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix aap:  <https://ggen.dev/ash-a2a-app#> .
+
+# L14 vocabulary: AshOban triggers / scheduled_actions / queues / Oban config /
+# AshA2A.Delivery.Oban worker wiring. All literals are plain strings; booleans are
+# "true"/"false"; atoms/modules/integers are emitted verbatim; Elixir expressions
+# (where, sort, action_input, backoff fn) are raw Elixir source strings.
+# DSL grammar: /Users/sac/ash_a2a/deps/ash_oban/lib/ash_oban.ex (trigger schema 205-500,
+# schedule schema 560-672, oban section 722-784, chunks 124-182).
+
+aap:ObanTrigger  a owl:Class ; rdfs:comment "AshOban `trigger` entity (ash_oban.ex:184-501)." .
+aap:ObanSchedule a owl:Class ; rdfs:comment "AshOban `schedule` entity (ash_oban.ex:554-673)." .
+aap:ObanChunks   a owl:Class ; rdfs:comment "AshOban `chunks` entity, Oban Pro only (ash_oban.ex:124-182)." .
+aap:ObanQueue    a owl:Class ; rdfs:comment "One entry of the Oban `queues:` config keyword." .
+aap:ObanConfig   a owl:Class ; rdfs:comment "`config :app, Oban, ...` for a Project." .
+aap:ObanDeliveryWorker a owl:Class ;
+  rdfs:comment "Oban worker bound to AshA2A.Delivery.Oban (lib/ash_a2a/delivery/oban.ex:86-170)." .
+
+# Resource-level oban section (ash_oban.ex:722-784)
+aap:obTrigger  a owl:ObjectProperty ; rdfs:comment "Resource -> aap:ObanTrigger" .
+aap:obSchedule a owl:ObjectProperty ; rdfs:comment "Resource -> aap:ObanSchedule" .
+aap:obChunks   a owl:ObjectProperty ; rdfs:comment "ObanTrigger -> aap:ObanChunks (singleton)" .
+aap:obDomain               a owl:DatatypeProperty ; rdfs:comment "oban.domain module" .
+aap:obListTenants          a owl:DatatypeProperty ; rdfs:comment "raw Elixir (list or fn behaviour); oban section or per trigger/schedule" .
+aap:obSharedContext        a owl:DatatypeProperty ; rdfs:comment "all | comma list of ash_oban?,job" .
+aap:obUseTenantFromRecord  a owl:DatatypeProperty ; rdfs:comment "true|false" .
+
+# Trigger/schedule shared
+aap:obAction          a owl:DatatypeProperty ; rdfs:comment "action atom (trigger: update/destroy; schedule: generic/create)" .
+aap:obActionInput     a owl:DatatypeProperty ; rdfs:comment "raw Elixir map" .
+aap:obQueue           a owl:DatatypeProperty .
+aap:obWorkerModuleName a owl:DatatypeProperty .
+aap:obMaxAttempts     a owl:DatatypeProperty .
+aap:obState           a owl:DatatypeProperty ; rdfs:comment "active|paused|deleted" .
+aap:obTags            a owl:DatatypeProperty ; rdfs:comment "comma separated strings" .
+aap:obWorkerOpts      a owl:DatatypeProperty ; rdfs:comment "raw Elixir keyword list" .
+aap:obActorPersister  a owl:DatatypeProperty ; rdfs:comment "module | none" .
+aap:obDefaultActor    a owl:DatatypeProperty ; rdfs:comment "raw Elixir term" .
+aap:obDebug           a owl:DatatypeProperty ; rdfs:comment "true|false" .
+
+# Trigger only
+aap:obWhere              a owl:DatatypeProperty ; rdfs:comment "Ash expr body, wrapped as expr(...)" .
+aap:obSort               a owl:DatatypeProperty ; rdfs:comment "raw Elixir term" .
+aap:obReadAction         a owl:DatatypeProperty .
+aap:obWorkerReadAction   a owl:DatatypeProperty .
+aap:obSchedulerCron      a owl:DatatypeProperty ; rdfs:comment "cron string, or the literal false" .
+aap:obSchedulerQueue     a owl:DatatypeProperty .
+aap:obSchedulerModuleName a owl:DatatypeProperty .
+aap:obSchedulerPriority  a owl:DatatypeProperty .
+aap:obWorkerPriority     a owl:DatatypeProperty .
+aap:obMaxSchedulerAttempts a owl:DatatypeProperty .
+aap:obRecordLimit        a owl:DatatypeProperty .
+aap:obStreamBatchSize    a owl:DatatypeProperty .
+aap:obStreamWith         a owl:DatatypeProperty ; rdfs:comment "keyset|offset|full_read" .
+aap:obLockForUpdate      a owl:DatatypeProperty ; rdfs:comment "true|false" .
+aap:obTriggerOnce        a owl:DatatypeProperty ; rdfs:comment "true|false" .
+aap:obOnError            a owl:DatatypeProperty .
+aap:obOnErrorFailsJob    a owl:DatatypeProperty ; rdfs:comment "true|false" .
+aap:obLogErrors          a owl:DatatypeProperty ; rdfs:comment "true|false" .
+aap:obLogFinalError      a owl:DatatypeProperty ; rdfs:comment "true|false" .
+aap:obReadMetadata       a owl:DatatypeProperty ; rdfs:comment "raw Elixir fn/1" .
+aap:obExtraArgs          a owl:DatatypeProperty ; rdfs:comment "raw Elixir map or fn/1" .
+aap:obBackoff            a owl:DatatypeProperty ; rdfs:comment "integer | exponential | raw fn/1" .
+aap:obTimeout            a owl:DatatypeProperty ; rdfs:comment "integer ms | infinity | raw fn/1" .
+# Chunks
+aap:obChunkSize    a owl:DatatypeProperty .
+aap:obChunkTimeout a owl:DatatypeProperty .
+aap:obChunkBy      a owl:DatatypeProperty ; rdfs:comment "comma separated atoms" .
+
+# Schedule only
+aap:obCron     a owl:DatatypeProperty ; rdfs:comment "cron string (positional arg 2)" .
+aap:obPriority a owl:DatatypeProperty .
+
+# Queues / Oban config (Project level)
+aap:obQueueName  a owl:DatatypeProperty .
+aap:obQueueLimit a owl:DatatypeProperty ; rdfs:comment "concurrency limit integer" .
+aap:obQueueOf    a owl:ObjectProperty ; rdfs:comment "ObanQueue -> aap:Project" .
+aap:obConfigOf   a owl:ObjectProperty ; rdfs:comment "ObanConfig -> aap:Project" .
+aap:obRepo       a owl:DatatypeProperty ; rdfs:comment "Repo module" .
+aap:obEngine     a owl:DatatypeProperty ; rdfs:comment "Oban engine module (default Oban.Engines.Basic)" .
+aap:obNotifier   a owl:DatatypeProperty ; rdfs:comment "Oban notifier module" .
+aap:obPrefix     a owl:DatatypeProperty .
+aap:obTestingMode a owl:DatatypeProperty ; rdfs:comment "manual|inline, applied under config_env() == :test" .
+aap:obPro        a owl:DatatypeProperty ; rdfs:comment "true|false -> config :ash_oban, pro?: ..." .
+aap:obExtraPlugins a owl:DatatypeProperty ; rdfs:comment "raw Elixir plugin tuples, comma-free list body" .
+
+# Delivery worker (AshA2A.Delivery.Oban)
+aap:obHandlerModule a owl:DatatypeProperty ; rdfs:comment "host module exposing run(args) -> CommandBus result" .
+aap:obSnoozeSeconds a owl:DatatypeProperty .
+aap:obWorkerFile    a owl:DatatypeProperty .

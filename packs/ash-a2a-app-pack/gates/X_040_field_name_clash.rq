@@ -1,0 +1,40 @@
+# X_040 (cross-lane): attribute / field names share one namespace per resource in Ash
+# (attributes, relationships, calculations, aggregates). Claims come from: legacy aap:attribute,
+# L01 attrSpec, L12 typedAttribute, L02 relationship name, L02 belongs_to generated foreign key
+# (aap:sourceAttribute, default "<name>_id", unless aap:defineAttribute "false"), L08 relationship
+# name + foreign key, L03 calculation, L04 aggregate. L01_020 only compares attrSpec against the
+# legacy edge; this gate covers every other lane pair. Rows = one per (resource, field name).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?field ?claimants ?reason WHERE {
+  {
+    SELECT ?resource ?field
+           (COUNT(DISTINCT ?claim) AS ?n)
+           (GROUP_CONCAT(DISTINCT ?claim; separator=" ; ") AS ?claimants)
+    WHERE {
+      ?resource a aap:Resource .
+      { ?resource aap:attribute ?node . ?node aap:name ?nm0 . BIND ("attribute" AS ?role) }
+      UNION { ?resource aap:attrSpec ?node . ?node aap:name ?nm0 . BIND ("L01 attrSpec" AS ?role) }
+      UNION { ?resource aap:typedAttribute ?node . ?node aap:name ?nm0 . BIND ("L12 typedAttribute" AS ?role) }
+      UNION { ?resource aap:relationship ?node . ?node aap:name ?nm0 . BIND ("L02 relationship" AS ?role) }
+      UNION { ?resource aap:relationship ?node . ?node aap:relName ?nm0 . BIND ("L08 relationship" AS ?role) }
+      UNION {
+        ?resource aap:relationship ?node . ?node aap:relKind "belongs_to" ; aap:name ?rn .
+        OPTIONAL { ?node aap:sourceAttribute ?sa }
+        OPTIONAL { ?node aap:defineAttribute ?da }
+        FILTER (!BOUND(?da) || STR(?da) != "false")
+        BIND (COALESCE(STR(?sa), CONCAT(STR(?rn), "_id")) AS ?nm0)
+        BIND ("L02 belongs_to foreign key" AS ?role)
+      }
+      UNION { ?resource aap:relationship ?node . ?node aap:relSourceAttribute ?nm0 . BIND ("L08 foreign key" AS ?role) }
+      UNION { ?resource aap:calculation ?node . ?node aap:name ?nm0 . BIND ("L03 calculation" AS ?role) }
+      UNION { ?resource aap:aggregate ?node . ?node aap:name ?nm0 . BIND ("L04 aggregate" AS ?role) }
+      BIND (STR(?nm0) AS ?field)
+      BIND (CONCAT(?role, " ", STR(?node)) AS ?claim)
+    }
+    GROUP BY ?resource ?field
+    HAVING (COUNT(DISTINCT ?claim) > 1)
+  }
+  BIND (CONCAT("field :", ?field, " on ", STR(?resource), " is defined ", STR(?n),
+               " times: ", ?claimants) AS ?reason)
+}
+ORDER BY ?resource ?field

@@ -1,0 +1,40 @@
+# L17 gate (mirrors verify_execution.ex:26-106 and runtime.ex @defaults): execution option domains.
+# Booleans/positive integers are checked in L17_129; atoms in L17_111.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?subject ?reason WHERE {
+  {
+    ?subject aap:execMode ?v . FILTER ( !(STR(?v) IN ("async", "inline")) )
+    BIND ("execution_mode_not_async_or_inline" AS ?reason)
+  }
+  UNION
+  {
+    ?subject aap:execCancelInFlight ?v . FILTER ( !(STR(?v) IN ("refuse", "interrupt", "default")) )
+    BIND ("invalid_cancel_in_flight" AS ?reason)
+  }
+  UNION
+  {
+    ?subject aap:execAdapter ?v . FILTER ( !(STR(?v) IN ("local", "pplan")) )
+    BIND ("execution_adapter_not_local_or_pplan" AS ?reason)
+  }
+  UNION
+  {
+    ?subject aap:execEventsTransport ?v . FILTER ( LCASE(STR(?v)) IN ("true", "false", ":true", ":false") )
+    BIND ("events_transport_boolean_refused" AS ?reason)
+  }
+  UNION
+  {
+    ?subject aap:execRateCount ?v . FILTER NOT EXISTS { ?subject aap:execRatePerMs ?w }
+    BIND ("rate_limit_count_without_per_ms" AS ?reason)
+  }
+  UNION
+  {
+    ?subject aap:execRatePerMs ?v . FILTER NOT EXISTS { ?subject aap:execRateCount ?w }
+    BIND ("rate_limit_per_ms_without_count" AS ?reason)
+  }
+  UNION
+  {
+    ?subject aap:agentConfigured "true" .
+    FILTER NOT EXISTS { ?subject a aap:Agent }
+    BIND ("agentConfigured_on_non_agent" AS ?reason)
+  }
+}

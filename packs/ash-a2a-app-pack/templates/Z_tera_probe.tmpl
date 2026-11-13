@@ -1,0 +1,73 @@
+---
+to: ".r5/tera_probe.txt"
+force: true
+when: "ASK { <urn:r5:probe> <urn:r5:enabled> true }"
+rdf_inline: |
+  @prefix r5: <urn:r5:> .
+  r5:a a r5:Item ; r5:name "alpha" ; r5:ord 1 ; r5:flag true ; r5:tag "x", "y" ; r5:note "q\"uote & <b>" .
+  r5:b a r5:Item ; r5:name "beta"  ; r5:ord 2 ; r5:flag false ; r5:tag "z" .
+  r5:c a r5:Item ; r5:name "gamma" ; r5:ord 3 ; r5:parent r5:b .
+  r5:b r5:parent r5:a .
+sparql:
+  items: |
+    PREFIX r5: <urn:r5:>
+    SELECT ?name ?ord ?flag ?note ?parent WHERE {
+      ?i a r5:Item ; r5:name ?name ; r5:ord ?ord .
+      OPTIONAL { ?i r5:flag ?flag }
+      OPTIONAL { ?i r5:note ?note }
+      OPTIONAL { ?i r5:parent ?p . ?p r5:name ?parent }
+    } ORDER BY ?ord
+  agg: |
+    PREFIX r5: <urn:r5:>
+    SELECT ?name (GROUP_CONCAT(DISTINCT ?t; separator=",") AS ?tags) (SAMPLE(?o) AS ?o1) (COUNT(?t) AS ?n) WHERE {
+      ?i a r5:Item ; r5:name ?name ; r5:ord ?o .
+      OPTIONAL { ?i r5:tag ?t }
+    } GROUP BY ?name ORDER BY ?name
+  paths: |
+    PREFIX r5: <urn:r5:>
+    SELECT ?name ?anc WHERE {
+      ?i r5:name ?name .
+      ?i r5:parent+ ?a . ?a r5:name ?anc .
+      FILTER NOT EXISTS { ?a r5:flag false }
+    } ORDER BY ?name ?anc
+  vals: |
+    PREFIX r5: <urn:r5:>
+    SELECT ?k ?role WHERE { VALUES (?k ?role) { ("a" "arg") ("b" "inputs") } } ORDER BY ?k
+  sub: |
+    PREFIX r5: <urn:r5:>
+    SELECT ?name ?maxord WHERE {
+      { SELECT (MAX(?o) AS ?maxord) WHERE { ?i r5:ord ?o } }
+      ?i r5:name ?name ; r5:ord ?maxord .
+    }
+  inv: |
+    PREFIX r5: <urn:r5:>
+    SELECT ?child WHERE { r5:a ^r5:parent ?x . ?x r5:name ?child }
+---
+{#- R5 probe. INERT unless the main graph holds <urn:r5:probe> <urn:r5:enabled> true. -#}
+{% macro ref(kind, a, b) -%}{{ kind }}({{ a }}{% if b != "" %}, {{ b }}{% endif %}){%- endmacro ref %}
+{% macro rec(n, ind) -%}
+{{ ind }}n={{ n }}
+{%- if n > 0 %}
+{{ self::rec(n=n - 1, ind=ind ~ "  ") }}
+{%- endif %}
+{%- endmacro rec %}
+P01 self-macro: {{ self::ref(kind="k", a="x", b="") }}
+P02 macro-recursion-with-concat-arg:
+{{ self::rec(n=2, ind="") }}
+P03 tests: {{ "a:b" is starting_with("a") }} {{ "a,b" is containing(",") }} {{ "ab_1" is matching("^[a-z_][a-z0-9_]*$") }}
+P04 split/trim/trim_start_matches: {% for t in "?a, b" | split(pat=",") %}[{{ t | trim | trim_start_matches(pat="?") }}]{% endfor %}
+P05 filter(attribute,value): {% for r in items | filter(attribute="name", value="beta") %}{{ r.ord }}{% endfor %}
+P06 filter(attribute) only: {{ items | filter(attribute="parent") | length }}
+P07 set_global in loop: {% set_global first = true %}{% for r in items %}{% if not first %},{% endif %}{{ r.name }}{% set_global first = false %}{% endfor %}
+P08 safe + autoescape: {{ `q"uote & <b> 'x'` }} | {{ `q"uote & <b> 'x'` | safe }}
+P09 json_encode: {{ `a"b#{c}` | json_encode | safe }}
+P10 optional unbound:{% for r in items %} {{ r.name }}:{% if r.flag is defined %}{{ r.flag }}{% else %}-{% endif %}/{{ r.note | default(value="~") }}/{{ r.parent | default(value="~") }}{% endfor %}
+P11 types: {% for r in items %}{{ r.ord + 10 }}{% endfor %} flagBool={% for r in items %}{% if r.flag is defined %}{{ r.flag == true }}/{{ r.flag == "true" }}{% endif %};{% endfor %}
+P12 group_concat/sample/count: {% for r in agg %}{{ r.name }}=[{{ r.tags | default(value="UNBOUND") }}]{{ r.o1 }}/{{ r.n }};{% endfor %}
+P13 path+/NOT EXISTS: {% for r in paths %}{{ r.name }}>{{ r.anc }};{% endfor %}
+P14 VALUES: {% for r in vals %}{{ r.k }}={{ r.role }};{% endfor %}
+P15 subselect: {% for r in sub %}{{ r.name }}={{ r.maxord }};{% endfor %}
+P16 inverse path: {% for r in inv %}{{ r.child }};{% endfor %}
+P17 group_by: {% for g, xs in items | group_by(attribute="ord") %}{{ g }}:{{ xs | length }};{% endfor %}
+P18 results-driver-is-first-alpha-key: {{ results | length }} (agg < inv < items < paths < sub < vals)
+P19 undefined-in-macro-arg: {{ self::ref(kind="k", a=items[0].name, b=items[0].parent | default(value="")) }}

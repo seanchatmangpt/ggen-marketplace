@@ -1,0 +1,49 @@
+@prefix aap: <https://ggen.dev/ash-a2a-app#> .
+@prefix ex:  <https://example.org/l10#> .
+
+# Two domains, one resource each; exercises resource + domain interfaces, calc interface,
+# domain config, and a domain-level mount.
+ex:app a aap:Project ; aap:appName "l10_app" ; aap:appModule "L10App" .
+
+ex:support a aap:Domain ; aap:moduleName "L10App.Support" ; aap:appPath "l10_app/support" ;
+  aap:domainFile "support" ;
+  aap:domainDescription "Support tickets" ;
+  aap:domainTimeout "30000" ; aap:traceName "support" ;
+  aap:requireActor "false" ; aap:authorize "by_default" .
+
+ex:billing a aap:Domain ; aap:moduleName "L10App.Billing" ; aap:appPath "l10_app/billing" ;
+  aap:domainFile "billing" ; aap:domainTimeout "infinity" ;
+  aap:validateConfigInclusion "true" .
+
+ex:ticket a aap:Resource ; aap:moduleName "L10App.Support.Ticket" ; aap:inDomain ex:support ;
+  aap:resourceFile "ticket" ;
+  aap:attribute ex:ticketId ; aap:action ex:ticketOpen, ex:ticketGet, ex:ticketClose .
+ex:ticketId a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:ticketOpen  a aap:Action ; aap:name "open" ; aap:actionType "create" .
+ex:ticketGet   a aap:Action ; aap:name "by_id" ; aap:actionType "read" .
+ex:ticketClose a aap:Action ; aap:name "close" ; aap:actionType "update" .
+
+ex:invoice a aap:Resource ; aap:moduleName "L10App.Billing.Invoice" ; aap:inDomain ex:billing ;
+  aap:resourceFile "invoice" ; aap:attribute ex:invId ; aap:action ex:invList .
+ex:invId a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:invList a aap:Action ; aap:name "list" ; aap:actionType "read" .
+
+# resource-level interfaces
+ex:ciOpen a aap:CodeInterface ; aap:interfaceOf ex:ticket ; aap:name "open_ticket" ;
+  aap:ofAction "open" ; aap:interfaceArgs "?title" .
+ex:ciGet a aap:CodeInterface ; aap:interfaceOf ex:ticket ; aap:name "get_ticket" ;
+  aap:ofAction "by_id" ; aap:getBy "id" ; aap:notFoundError "false" .
+ex:ciClose a aap:CodeInterface ; aap:interfaceOf ex:ticket ; aap:name "close" ;
+  aap:functions "action,action!" .
+ex:calcAge a aap:CalculationInterface ; aap:interfaceOf ex:ticket ; aap:name "age_days" ;
+  aap:calculation "age" ; aap:calcArgs "arg:unit,ref:id" .
+
+# domain-level interface
+ex:diList a aap:CodeInterface ; aap:interfaceOfDomain ex:billing ; aap:forResource ex:invoice ;
+  aap:name "list_invoices" ; aap:ofAction "list" .
+
+# domain-level mount
+ex:agent a aap:Agent ; aap:moduleName "L10App.SupportAgent" ; aap:forDomain ex:support ;
+  aap:agentName "support" ; aap:agentFile "support_agent" .
+ex:mnt a aap:Mount ; aap:mountOf ex:support ; aap:mountAgent ex:agent ;
+  aap:mountPath "/support" ; aap:mountBinding "jsonrpc" .

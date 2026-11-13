@@ -1,0 +1,22 @@
+# Gate L14: closed vocabularies and ranges (ash_oban.ex:288-294 stream_with, 316-325 priority 0..3,
+# 360-366 / 613-619 state, 331-337 max_attempts pos_integer).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?node ?prop ?val WHERE {
+  { ?node aap:obState ?val BIND("obState" AS ?prop)
+    FILTER(STR(?val) NOT IN ("active", "paused", "deleted")) }
+  UNION
+  { ?node aap:obStreamWith ?val BIND("obStreamWith" AS ?prop)
+    FILTER(STR(?val) NOT IN ("keyset", "offset", "full_read")) }
+  UNION
+  { { ?node aap:obWorkerPriority ?val } UNION { ?node aap:obSchedulerPriority ?val }
+    UNION { ?node aap:obPriority ?val }
+    BIND("priority" AS ?prop)
+    FILTER(!REGEX(STR(?val), "^[0-3]$")) }
+  UNION
+  { { ?node aap:obMaxAttempts ?val } UNION { ?node aap:obMaxSchedulerAttempts ?val }
+    BIND("attempts" AS ?prop)
+    FILTER(!REGEX(STR(?val), "^[1-9][0-9]*$")) }
+  UNION
+  { ?node aap:obSharedContext ?val BIND("obSharedContext" AS ?prop)
+    FILTER(STR(?val) != "all" && !REGEX(STR(?val), "^(ash_oban\\?|job)(, ?(ash_oban\\?|job))*$")) }
+}
