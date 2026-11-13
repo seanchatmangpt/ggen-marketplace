@@ -617,8 +617,9 @@ ex:R_normalize_a1 a aap:ReactorBinding ; aap:argName "title" ; aap:argKind "inpu
 ex:R_open a aap:ReactorStep ; aap:name "open" ; aap:stepKind "create" ;
   aap:stepOrder 2 ; aap:stepWaitFor ex:R_normalize ; aap:compensationWaiver "ETS data layer has no transactions" ;
   aap:stepResource "Helpdesk.Support.Ticket" ; aap:stepAction "open" ;
-  aap:stepInputs ex:R_open_i1 ; aap:stepActor ex:R_open_actor ; aap:stepTenant ex:R_open_tenant .
+  aap:stepInputs ex:R_open_i1, ex:R_open_i2 ; aap:stepActor ex:R_open_actor ; aap:stepTenant ex:R_open_tenant .
 ex:R_open_i1 a aap:ReactorBinding ; aap:argName "title" ; aap:argKind "result" ; aap:argStep ex:R_normalize .
+ex:R_open_i2 a aap:ReactorBinding ; aap:argName "org_id" ; aap:argKind "input" ; aap:argInput ex:R_in_tenant .
 ex:R_open_actor a aap:ReactorBinding ; aap:argKind "input" ; aap:argInput ex:R_in_actor .
 ex:R_open_tenant a aap:ReactorBinding ; aap:argKind "input" ; aap:argInput ex:R_in_tenant .
 
@@ -638,11 +639,11 @@ ex:TriageFlow a aap:PPlanWorkflow ; aap:moduleName "Helpdesk.Support.Plan.Triage
   aap:ppTask ex:PT_observe, ex:PT_checkpoint, ex:PT_review ;
   aap:ppMethod ex:PM_triage ; aap:ppObligation ex:PO_durable ;
   aap:ppUsesProvider ex:ObserveProvider, ex:DurableProvider .
-ex:PT_observe a aap:PPlanTask ; aap:name "observe" ; aap:ppCapability "Observation.Read" ;
+ex:PT_observe a aap:PPlanTask ; aap:name "observe" ; aap:ppCapability "Observation.Telemetry" ;
   aap:ppOutcome "ok", "empty" ; aap:ppAuthority "observe" .
 ex:PT_checkpoint a aap:PPlanTask ; aap:name "checkpoint" ; aap:ppCapability "Durability.Checkpoint" ;
   aap:ppAfter ex:PT_observe ; aap:ppProperty "durable", "resumable" ; aap:ppEvidenceKind "continuation" .
-ex:PT_review a aap:PPlanTask ; aap:name "review" ; aap:ppCapability "Observation.Read" ;
+ex:PT_review a aap:PPlanTask ; aap:name "review" ; aap:ppCapability "Observation.Telemetry" ;
   aap:ppAfter ex:PT_checkpoint ; aap:ppAuthority "select" .
 ex:PM_triage a aap:PPlanMethod ; aap:name "triage_m" ; aap:ppRefines ex:PT_review ;
   aap:ppStepOf ex:PS1, ex:PS2 .
@@ -654,8 +655,8 @@ ex:PO_durable a aap:PPlanObligation ; aap:name "survives_restart" ;
 ex:ObserveProvider a aap:PPlanProvider ; aap:moduleName "Helpdesk.Support.Plan.ObserveProvider" ;
   aap:ppFile "observe_provider" ; aap:ppProviderId "observe" ; aap:ppCost 1 ;
   aap:ppProvidesEvidence "observation" ; aap:ppBinding ex:PB_observe .
-ex:PB_observe a aap:PPlanBinding ; aap:ppCapability "Observation.Read" ; aap:ppAdapter "local" ;
-  aap:ppOp "observation_read" .
+ex:PB_observe a aap:PPlanBinding ; aap:ppCapability "Observation.Telemetry" ; aap:ppAdapter "local" ;
+  aap:ppOp "observation_telemetry" .
 ex:DurableProvider a aap:PPlanProvider ; aap:moduleName "Helpdesk.Support.Plan.DurableProvider" ;
   aap:ppFile "durable_provider" ; aap:ppProviderId "durable" ; aap:ppCost 2 ;
   aap:ppProvidesProperty "checkpointed", "durable", "resumable" ; aap:ppProvidesEvidence "continuation" ;
@@ -664,7 +665,7 @@ ex:PB_checkpoint a aap:PPlanBinding ; aap:ppCapability "Durability.Checkpoint" ;
   aap:ppOp "durability_checkpoint" .
 ex:SupportPack a aap:PPlanCapabilityPack ; aap:moduleName "Helpdesk.Support.Plan.SupportPack" ;
   aap:ppFile "support_pack" ; aap:ppPackId "support" ; aap:ppPackVersion "0.1.0" ;
-  aap:ppPackCapability "Observation.Read", "Durability.Checkpoint" ;
+  aap:ppPackCapability "Observation.Telemetry", "Durability.Checkpoint" ;
   aap:ppPackProperty "durable", "resumable" ; aap:ppPackEvidence "continuation", "observation" .
 ex:TgtCatalog a aap:PPlanManufactureTarget ; aap:ppTemplate "plan_catalog" ;
   aap:ppOut "lib/helpdesk/pplan/plan_catalog.ex" ; aap:ppTargetModule "Helpdesk.Support.Plan.Catalog" .
@@ -694,7 +695,7 @@ ex:Court_task_start a aap:TransitionCase ; aap:courtResource ex:TicketTask ;
 
 ex:Court_reactor a aap:ReactorCase ; aap:caseName "triage opens a ticket" ; aap:caseFile "triage_reactor" ;
   aap:reactorModule "Helpdesk.Reactors.TriageTicket" ;
-  aap:reactorInputs "%{title: \"r1\", actor: %{role: :admin}, tenant: \"11111111-1111-1111-1111-111111111111\"}" ;
+  aap:reactorInputs "%{title: \"ticket one\", actor: %{role: :admin}, tenant: \"11111111-1111-1111-1111-111111111111\"}" ;
   aap:reactorExpect "%{}" ;
   aap:failInputs "%{title: nil, actor: %{role: :admin}, tenant: \"11111111-1111-1111-1111-111111111111\"}" .
 

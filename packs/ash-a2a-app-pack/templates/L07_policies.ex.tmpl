@@ -115,6 +115,24 @@ defmodule {{ module_name }}.L07Policies do
 {%- if default_access != "" %}
     default_access_type(:{{ default_access }})
 {%- endif %}
+{%- for p in my_policies | filter(attribute="group", value="") %}
+{%- if p.bypass == "true" %}
+{%- set pchecks = my_checks | filter(attribute="policy_name", value=p.policy_name) %}
+
+    {% if p.bypass == "true" %}bypass{% else %}policy{% endif %} {{ self::ref(kind=p.kind, a=p.arg, b=p.arg2) }} do
+      description("{{ p.policy_name }}")
+{%- if p.access_type != "" %}
+      access_type(:{{ p.access_type }})
+{%- endif %}
+{%- if p.errmsg != "" %}
+      error_message("{{ p.errmsg }}")
+{%- endif %}
+{%- for c in pchecks %}
+      {{ c.check_type }} {{ self::ref(kind=c.check_kind, a=c.carg, b=c.carg2) }}
+{%- endfor %}
+    end
+{%- endif %}
+{%- endfor %}
 {%- for g in my_groups %}
 
     policy_group {{ self::ref(kind=g.kind, a=g.arg, b=g.arg2) }} do
@@ -136,6 +154,7 @@ defmodule {{ module_name }}.L07Policies do
     end
 {%- endfor %}
 {%- for p in my_policies | filter(attribute="group", value="") %}
+{%- if p.bypass != "true" %}
 {%- set pchecks = my_checks | filter(attribute="policy_name", value=p.policy_name) %}
 
     {% if p.bypass == "true" %}bypass{% else %}policy{% endif %} {{ self::ref(kind=p.kind, a=p.arg, b=p.arg2) }} do
@@ -150,6 +169,7 @@ defmodule {{ module_name }}.L07Policies do
       {{ c.check_type }} {{ self::ref(kind=c.check_kind, a=c.carg, b=c.carg2) }}
 {%- endfor %}
     end
+{%- endif %}
 {%- endfor %}
   end
 {%- if my_fps | length > 0 %}
