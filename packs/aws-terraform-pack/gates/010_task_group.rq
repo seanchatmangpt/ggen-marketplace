@@ -1,0 +1,43 @@
+PREFIX awtf: <https://ggen.io/ontology/aws-terraform#>
+PREFIX rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+# Fail-closed: any row = typed violation.
+SELECT ?subject ?violation WHERE {
+  ?subject a awtf:TaskGroup .
+  {
+    ?subject awtf:networkMode ?v .
+    FILTER(STR(?v) != "awsvpc")
+    BIND(CONCAT("AWTF_ENUM_NETWORKMODE: '", STR(?v), "' must be awsvpc for Fargate") AS ?violation)
+  } UNION {
+    ?subject awtf:operatingSystemFamily ?v .
+    FILTER(!(STR(?v) IN ("LINUX","WINDOWS_SERVER_2019_CORE","WINDOWS_SERVER_2019_FULL","WINDOWS_SERVER_2022_CORE","WINDOWS_SERVER_2022_FULL")))
+    BIND(CONCAT("AWTF_ENUM_OSFAMILY: '", STR(?v), "' invalid") AS ?violation)
+  } UNION {
+    ?subject awtf:taskCpu ?v .
+    FILTER(!(?v IN (256,512,1024,2048,4096,8192,16384)))
+    BIND(CONCAT("AWTF_ENUM_CPU: ", STR(?v), " not a Fargate cpu size") AS ?violation)
+  } UNION {
+    ?subject awtf:deploymentSlug ?v .
+    FILTER(!REGEX(STR(?v), "^[a-z0-9]+(-[a-z0-9]+)*$"))
+    BIND(CONCAT("AWTF_PATTERN_SLUG: '", STR(?v), "' is not kebab-case") AS ?violation)
+  } UNION {
+    FILTER NOT EXISTS { ?subject awtf:hasContainer ?c }
+    BIND("AWTF_MIN_CONTAINER: no awtf:hasContainer" AS ?violation)
+  } UNION {
+    VALUES ?p { awtf:deploymentSlug awtf:workloadLabel awtf:networkMode awtf:operatingSystemFamily awtf:taskCpu awtf:taskMemory awtf:logRetentionDays }
+    OPTIONAL { ?subject ?p ?x }
+    FILTER(!BOUND(?x))
+    BIND(CONCAT("AWTF_MIN_PROPERTY: missing ", STR(?p)) AS ?violation)
+  } UNION {
+    VALUES ?p { awtf:deploymentSlug awtf:workloadLabel awtf:networkMode awtf:operatingSystemFamily awtf:taskCpu awtf:taskMemory awtf:logRetentionDays }
+    ?subject ?p ?a , ?b .
+    FILTER(?a != ?b)
+    BIND(CONCAT("AWTF_MAX_PROPERTY: more than one ", STR(?p)) AS ?violation)
+  } UNION {
+    ?subject ?p ?o .
+    FILTER(?p NOT IN (rdf:type, rdfs:comment, awtf:deploymentSlug, awtf:workloadLabel, awtf:networkMode,
+      awtf:operatingSystemFamily, awtf:taskCpu, awtf:taskMemory, awtf:logRetentionDays, awtf:hasContainer))
+    BIND(CONCAT("AWTF_CLOSED_SHAPE: undeclared property ", STR(?p)) AS ?violation)
+  }
+}
+ORDER BY ?subject ?violation

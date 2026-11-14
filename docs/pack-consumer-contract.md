@@ -145,6 +145,21 @@ state, not lane output):
     a consumer projecting both packs gets a content-hash conflict
     (FM-PACK-008 class). The helper must be single-source.
 
+## Budget gate (fnox hosting)
+
+Ceiling: a pack consumer hosted on fnox GCP must stay within the monthly budget in
+`/Users/sac/fnox/infra/gcp/budget/variables.tf` (`monthly_amount` = 100 USD, alert
+thresholds 0.5/0.9/1.0). A consumer whose declared or observed monthly cost exceeds
+`monthly_amount` is refused.
+
+Enforcement standing: UNSUPPORTED (no mechanical gate). No recipe named `gcp-doctor` exists in
+`/Users/sac/fnox/Justfile` or `justfile.d/`, and no script compares a consumer's cost to
+`monthly_amount`; a consumer over the ceiling is NOT refused by any command today. The ceiling is
+read with `grep -n "monthly_amount" /Users/sac/fnox/infra/gcp/budget/variables.tf`; the gate stays
+prose until a recipe computing declared cost against that value and exiting 1 on excess lands.
+Ops precondition: pre-existing failures are recorded in
+`receipts/arcus-preexisting-failures-2026-11-14.md`; a consumer is not blamed for them.
+
 ## See Also
 
 - `packs/shadcn-ui-primitives-pack/pack.toml` — reference schema

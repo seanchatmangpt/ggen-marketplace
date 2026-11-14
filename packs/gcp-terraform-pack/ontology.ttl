@@ -1,0 +1,85 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix gtf:  <https://seanchatmangpt.dev/ontology/gcp-terraform#> .
+
+<https://seanchatmangpt.dev/ontology/gcp-terraform> a owl:Ontology ;
+    rdfs:label "GCP Terraform dialect ontology" ;
+    rdfs:comment "Modules and resources of the fnox infra/gcp tree. Reuses PROV-O for derivation (prov:wasDerivedFrom the hand-written module path)." .
+
+gtf:Module a rdfs:Class .
+gtf:Resource a rdfs:Class .
+gtf:UnsupportedConstruct a rdfs:Class ;
+    rdfs:comment "An HCL construct the arcus gcp_emulator may reject with HCL_UNSUPPORTED." .
+gtf:inModule a rdf:Property .
+gtf:resourceType a rdf:Property .
+gtf:resourceName a rdf:Property .
+gtf:order a rdf:Property .
+gtf:hcl a rdf:Property ; rdfs:comment "Body lines of the block, verbatim HCL. BLOCKED: multiple literals on one predicate are unordered in RDF; deterministic rendering requires an ordered line-node (rdf:List or gtf:order) not yet modeled." .
+gtf:constructName a rdf:Property .
+gtf:arcusStatus a rdf:Property ; rdfs:comment "UNVERIFIED | REJECTED | ACCEPTED, observed against arcus only." .
+
+gtf:mod_iam a gtf:Module ; rdfs:label "iam" ; prov:wasDerivedFrom <file:///Users/sac/fnox/infra/gcp/iam/main.tf> .
+gtf:mod_iap a gtf:Module ; rdfs:label "iap" ; prov:wasDerivedFrom <file:///Users/sac/fnox/infra/gcp/iap/main.tf> .
+gtf:mod_edge a gtf:Module ; rdfs:label "edge" ; prov:wasDerivedFrom <file:///Users/sac/fnox/infra/gcp/edge/main.tf> .
+gtf:mod_budget a gtf:Module ; rdfs:label "budget" ; prov:wasDerivedFrom <file:///Users/sac/fnox/infra/gcp/budget/main.tf> .
+gtf:mod_cloudrun a gtf:Module ; rdfs:label "cloudrun" ; prov:wasDerivedFrom <file:///Users/sac/fnox/infra/gcp/cloudrun/main.tf> .
+gtf:mod_gpu a gtf:Module ; rdfs:label "gpu" ; prov:wasDerivedFrom <file:///Users/sac/fnox/infra/gcp/gpu/main.tf> .
+
+# --- Resource inventory per module (types observed in fnox infra/gcp/*/main.tf) ---
+gtf:r_iap_1 a gtf:Resource ; gtf:inModule gtf:mod_iap ; gtf:resourceType "google_iap_web_backend_service_iam_binding" ; gtf:resourceName "accessors" .
+gtf:r_edge_1 a gtf:Resource ; gtf:inModule gtf:mod_edge ; gtf:resourceType "google_compute_backend_service" ; gtf:resourceName "backend" .
+gtf:r_edge_2 a gtf:Resource ; gtf:inModule gtf:mod_edge ; gtf:resourceType "google_compute_security_policy" ; gtf:resourceName "armor" .
+gtf:r_edge_3 a gtf:Resource ; gtf:inModule gtf:mod_edge ; gtf:resourceType "google_compute_managed_ssl_certificate" ; gtf:resourceName "cert" .
+gtf:r_edge_4 a gtf:Resource ; gtf:inModule gtf:mod_edge ; gtf:resourceType "google_compute_url_map" ; gtf:resourceName "https" .
+gtf:r_edge_5 a gtf:Resource ; gtf:inModule gtf:mod_edge ; gtf:resourceType "google_compute_global_forwarding_rule" ; gtf:resourceName "https" .
+gtf:r_budget_1 a gtf:Resource ; gtf:inModule gtf:mod_budget ; gtf:resourceType "google_billing_budget" ; gtf:resourceName "monthly" .
+gtf:r_budget_2 a gtf:Resource ; gtf:inModule gtf:mod_budget ; gtf:resourceType "google_monitoring_notification_channel" ; gtf:resourceName "email" .
+gtf:r_run_1 a gtf:Resource ; gtf:inModule gtf:mod_cloudrun ; gtf:resourceType "google_cloud_run_v2_service" ; gtf:resourceName "cockpit" .
+gtf:r_run_2 a gtf:Resource ; gtf:inModule gtf:mod_cloudrun ; gtf:resourceType "google_cloud_run_v2_service_iam_member" ; gtf:resourceName "invoker" .
+gtf:r_gpu_1 a gtf:Resource ; gtf:inModule gtf:mod_gpu ; gtf:resourceType "google_compute_instance" ; gtf:resourceName "ollama" .
+gtf:r_gpu_2 a gtf:Resource ; gtf:inModule gtf:mod_gpu ; gtf:resourceType "google_compute_firewall" ; gtf:resourceName "ollama_in" .
+gtf:r_gpu_3 a gtf:Resource ; gtf:inModule gtf:mod_gpu ; gtf:resourceType "google_compute_router_nat" ; gtf:resourceName "nat" .
+
+# --- iam module: fully modelled (name, type, attribute lines) ---
+gtf:i01 a gtf:Resource ; gtf:inModule gtf:mod_iam ; gtf:order 1 ; gtf:resourceType "google_project_service" ; gtf:resourceName "api" ;
+  gtf:hcl "for_each           = toset(local.apis)", "project            = var.project_id", "service            = each.value", "disable_on_destroy = false" .
+gtf:i02 a gtf:Resource ; gtf:inModule gtf:mod_iam ; gtf:order 2 ; gtf:resourceType "google_service_account" ; gtf:resourceName "cockpit" ;
+  gtf:hcl "project      = var.project_id", "account_id   = \"fnox-cockpit\"", "display_name = \"fnox cockpit runtime\"", "depends_on   = [google_project_service.api]" .
+gtf:i03 a gtf:Resource ; gtf:inModule gtf:mod_iam ; gtf:order 3 ; gtf:resourceType "google_service_account" ; gtf:resourceName "gpu_vm" ;
+  gtf:hcl "count        = var.enable_gpu_sa ? 1 : 0", "project      = var.project_id", "account_id   = \"fnox-gpu-vm\"", "display_name = \"fnox GPU VM\"", "depends_on   = [google_project_service.api]" .
+gtf:i04 a gtf:Resource ; gtf:inModule gtf:mod_iam ; gtf:order 4 ; gtf:resourceType "google_service_account" ; gtf:resourceName "deployer" ;
+  gtf:hcl "project      = var.project_id", "account_id   = \"fnox-deployer\"", "display_name = \"fnox deployer (build/push/deploy)\"", "depends_on   = [google_project_service.api]" .
+gtf:i05 a gtf:Resource ; gtf:inModule gtf:mod_iam ; gtf:order 5 ; gtf:resourceType "google_project_iam_member" ; gtf:resourceName "log_writer" ;
+  gtf:hcl "for_each = local.runtime_sas", "project  = var.project_id", "role     = \"roles/logging.logWriter\"", "member   = \"serviceAccount:${each.value}\"" .
+gtf:i06 a gtf:Resource ; gtf:inModule gtf:mod_iam ; gtf:order 6 ; gtf:resourceType "google_project_iam_member" ; gtf:resourceName "metric_writer" ;
+  gtf:hcl "for_each = local.runtime_sas", "project  = var.project_id", "role     = \"roles/monitoring.metricWriter\"", "member   = \"serviceAccount:${each.value}\"" .
+gtf:i07 a gtf:Resource ; gtf:inModule gtf:mod_iam ; gtf:order 7 ; gtf:resourceType "google_project_iam_member" ; gtf:resourceName "deployer_run_admin" ;
+  gtf:hcl "project = var.project_id", "role    = \"roles/run.developer\"", "member  = \"serviceAccount:${google_service_account.deployer.email}\"" .
+gtf:i08 a gtf:Resource ; gtf:inModule gtf:mod_iam ; gtf:order 8 ; gtf:resourceType "google_artifact_registry_repository_iam_member" ; gtf:resourceName "runtime_reader" ;
+  gtf:hcl "for_each   = local.runtime_sas", "project    = var.project_id", "location   = var.region", "repository = var.ar_repo", "role       = \"roles/artifactregistry.reader\"", "member     = \"serviceAccount:${each.value}\"", "depends_on = [google_project_service.api]" .
+gtf:i09 a gtf:Resource ; gtf:inModule gtf:mod_iam ; gtf:order 9 ; gtf:resourceType "google_artifact_registry_repository_iam_member" ; gtf:resourceName "deployer_writer" ;
+  gtf:hcl "project    = var.project_id", "location   = var.region", "repository = var.ar_repo", "role       = \"roles/artifactregistry.writer\"", "member     = \"serviceAccount:${google_service_account.deployer.email}\"", "depends_on = [google_project_service.api]" .
+gtf:i10 a gtf:Resource ; gtf:inModule gtf:mod_iam ; gtf:order 10 ; gtf:resourceType "google_secret_manager_secret" ; gtf:resourceName "shell" ;
+  gtf:hcl "for_each  = var.secret_ids", "project   = var.project_id", "secret_id = each.value", "replication {", "  auto {}", "}", "depends_on = [google_project_service.api]" .
+gtf:i11 a gtf:Resource ; gtf:inModule gtf:mod_iam ; gtf:order 11 ; gtf:resourceType "google_secret_manager_secret_iam_member" ; gtf:resourceName "cockpit_accessor" ;
+  gtf:hcl "for_each  = var.secret_ids", "project   = var.project_id", "secret_id = google_secret_manager_secret.shell[each.value].secret_id", "role      = \"roles/secretmanager.secretAccessor\"", "member    = \"serviceAccount:${google_service_account.cockpit.email}\"" .
+gtf:i12 a gtf:Resource ; gtf:inModule gtf:mod_iam ; gtf:order 12 ; gtf:resourceType "google_service_account_iam_member" ; gtf:resourceName "deployer_acts_as_cockpit" ;
+  gtf:hcl "service_account_id = google_service_account.cockpit.name", "role               = \"roles/iam.serviceAccountUser\"", "member             = \"serviceAccount:${google_service_account.deployer.email}\"" .
+gtf:i13 a gtf:Resource ; gtf:inModule gtf:mod_iam ; gtf:order 13 ; gtf:resourceType "google_service_account_iam_member" ; gtf:resourceName "deployer_impersonators" ;
+  gtf:hcl "for_each           = toset(var.deployer_members)", "service_account_id = google_service_account.deployer.name", "role               = \"roles/iam.serviceAccountTokenCreator\"", "member             = each.value" .
+gtf:i14 a gtf:Resource ; gtf:inModule gtf:mod_iam ; gtf:order 14 ; gtf:resourceType "google_kms_key_ring" ; gtf:resourceName "fnox" ;
+  gtf:hcl "count      = var.enable_kms ? 1 : 0", "project    = var.project_id", "name       = var.kms_keyring_name", "location   = var.region", "depends_on = [google_project_service.api]" .
+gtf:i15 a gtf:Resource ; gtf:inModule gtf:mod_iam ; gtf:order 15 ; gtf:resourceType "google_kms_crypto_key" ; gtf:resourceName "sign" ;
+  gtf:hcl "count    = var.enable_kms ? 1 : 0", "name     = var.kms_key_name", "key_ring = google_kms_key_ring.fnox[0].id", "purpose  = \"ASYMMETRIC_SIGN\"", "", "version_template {", "  algorithm        = \"EC_SIGN_P384_SHA384\"", "  protection_level = \"SOFTWARE\"", "}", "", "lifecycle {", "  prevent_destroy = true", "}" .
+gtf:i16 a gtf:Resource ; gtf:inModule gtf:mod_iam ; gtf:order 16 ; gtf:resourceType "google_kms_crypto_key_iam_member" ; gtf:resourceName "cockpit_signer" ;
+  gtf:hcl "count         = var.enable_kms ? 1 : 0", "crypto_key_id = google_kms_crypto_key.sign[0].id", "role          = \"roles/cloudkms.signerVerifier\"", "member        = \"serviceAccount:${google_service_account.cockpit.email}\"" .
+
+# --- Unsupported-construct register (candidates; arcus status UNVERIFIED until a run) ---
+gtf:u_backend a gtf:UnsupportedConstruct ; gtf:constructName "backend \"gcs\" {}" ; gtf:arcusStatus "UNVERIFIED" .
+gtf:u_foreach a gtf:UnsupportedConstruct ; gtf:constructName "for_each = toset(...)" ; gtf:arcusStatus "UNVERIFIED" .
+gtf:u_count a gtf:UnsupportedConstruct ; gtf:constructName "count = cond ? 1 : 0" ; gtf:arcusStatus "UNVERIFIED" .
+gtf:u_lifecycle a gtf:UnsupportedConstruct ; gtf:constructName "lifecycle { prevent_destroy }" ; gtf:arcusStatus "UNVERIFIED" .
+gtf:u_data a gtf:UnsupportedConstruct ; gtf:constructName "data source (google_project, google_compute_*)" ; gtf:arcusStatus "UNVERIFIED" .
+gtf:u_dynamic a gtf:UnsupportedConstruct ; gtf:constructName "dynamic block" ; gtf:arcusStatus "UNVERIFIED" .

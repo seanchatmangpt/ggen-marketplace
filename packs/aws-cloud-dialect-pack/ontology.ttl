@@ -1,0 +1,65 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix awsd: <http://seanchatmangpt.github.io/packs/aws-cloud-dialect#> .
+
+<http://seanchatmangpt.github.io/packs/aws-cloud-dialect> a owl:Ontology ;
+    dcterms:title "AWS cloud dialect pack" ;
+    dcterms:description "Parity-service to AWS-service mapping with emulator cells; vocabulary reuses PROV-O and Dublin Core." .
+
+awsd:ParityService a owl:Class ; rdfs:subClassOf prov:Entity ;
+    rdfs:label "Parity service (one row of the hyperscaler parity matrix)" .
+awsd:EmulatorCell a owl:Class ; rdfs:subClassOf prov:Entity ;
+    rdfs:label "Emulator implementation cell (emulator x service)" .
+awsd:RegisteredDivergence a owl:Class ; rdfs:subClassOf prov:Entity ;
+    rdfs:label "Known-divergence row" .
+
+awsd:awsService a owl:DatatypeProperty ; rdfs:domain awsd:ParityService ; rdfs:range xsd:string .
+awsd:emulator a owl:DatatypeProperty ; rdfs:domain awsd:EmulatorCell ; rdfs:range xsd:string .
+awsd:forService a owl:ObjectProperty ; rdfs:domain awsd:EmulatorCell ; rdfs:range awsd:ParityService .
+awsd:cellStanding a owl:DatatypeProperty ; rdfs:domain awsd:EmulatorCell ; rdfs:range xsd:string ;
+    rdfs:comment "PASS | REGISTERED-DIVERGENCE | MISSING | PASS-UNRECEIPTED" .
+awsd:divergence a owl:ObjectProperty ; rdfs:domain awsd:EmulatorCell ; rdfs:range awsd:RegisteredDivergence .
+awsd:kdId a owl:DatatypeProperty ; rdfs:domain awsd:RegisteredDivergence ; rdfs:range xsd:string .
+
+awsd:svc-storage a awsd:ParityService ; awsd:awsService "Amazon S3" .
+awsd:svc-queue-pubsub a awsd:ParityService ; awsd:awsService "Amazon SQS / SNS" .
+awsd:svc-document-db a awsd:ParityService ; awsd:awsService "Amazon DynamoDB" .
+awsd:svc-secrets-kms a awsd:ParityService ; awsd:awsService "AWS Secrets Manager / KMS" .
+awsd:svc-identity-iam a awsd:ParityService ; awsd:awsService "AWS IAM / STS" .
+awsd:svc-serverless-run a awsd:ParityService ; awsd:awsService "AWS Lambda" .
+awsd:svc-logging-monitoring a awsd:ParityService ; awsd:awsService "Amazon CloudWatch" .
+
+awsd:kd-aw7  a awsd:RegisteredDivergence ; awsd:kdId "KD-AW7" .
+awsd:kd-aw8  a awsd:RegisteredDivergence ; awsd:kdId "KD-AW8" .
+awsd:kd-aw9  a awsd:RegisteredDivergence ; awsd:kdId "KD-AW9" .
+awsd:kd-aw12 a awsd:RegisteredDivergence ; awsd:kdId "KD-AW12" .
+awsd:kd-fnox-kd-03 a awsd:RegisteredDivergence ; awsd:kdId "FNOX-KD-03" .
+
+# arcus (Go emulator) aws cells, per fnox docs/HYPERSCALER_PARITY.md
+awsd:arcus-storage a awsd:EmulatorCell ; awsd:emulator "arcus" ; awsd:forService awsd:svc-storage ;
+    awsd:cellStanding "REGISTERED-DIVERGENCE" ; awsd:divergence awsd:kd-aw7 .
+awsd:arcus-queue-pubsub a awsd:EmulatorCell ; awsd:emulator "arcus" ; awsd:forService awsd:svc-queue-pubsub ;
+    awsd:cellStanding "PASS" .
+awsd:arcus-document-db a awsd:EmulatorCell ; awsd:emulator "arcus" ; awsd:forService awsd:svc-document-db ;
+    awsd:cellStanding "REGISTERED-DIVERGENCE" ; awsd:divergence awsd:kd-aw8 .
+awsd:arcus-secrets-kms a awsd:EmulatorCell ; awsd:emulator "arcus" ; awsd:forService awsd:svc-secrets-kms ;
+    awsd:cellStanding "REGISTERED-DIVERGENCE" ; awsd:divergence awsd:kd-aw9 .
+awsd:arcus-identity-iam a awsd:EmulatorCell ; awsd:emulator "arcus" ; awsd:forService awsd:svc-identity-iam ;
+    awsd:cellStanding "PASS" .
+awsd:arcus-serverless-run a awsd:EmulatorCell ; awsd:emulator "arcus" ; awsd:forService awsd:svc-serverless-run ;
+    awsd:cellStanding "REGISTERED-DIVERGENCE" ; awsd:divergence awsd:kd-fnox-kd-03 .
+awsd:arcus-logging-monitoring a awsd:EmulatorCell ; awsd:emulator "arcus" ; awsd:forService awsd:svc-logging-monitoring ;
+    awsd:cellStanding "REGISTERED-DIVERGENCE" ; awsd:divergence awsd:kd-aw12 .
+
+# smalt (Elixir emulator) aws cells
+awsd:smalt-storage a awsd:EmulatorCell ; awsd:emulator "smalt" ; awsd:forService awsd:svc-storage ; awsd:cellStanding "PASS" .
+awsd:smalt-queue-pubsub a awsd:EmulatorCell ; awsd:emulator "smalt" ; awsd:forService awsd:svc-queue-pubsub ; awsd:cellStanding "PASS" .
+awsd:smalt-document-db a awsd:EmulatorCell ; awsd:emulator "smalt" ; awsd:forService awsd:svc-document-db ; awsd:cellStanding "PASS" .
+awsd:smalt-secrets-kms a awsd:EmulatorCell ; awsd:emulator "smalt" ; awsd:forService awsd:svc-secrets-kms ; awsd:cellStanding "PASS" .
+awsd:smalt-identity-iam a awsd:EmulatorCell ; awsd:emulator "smalt" ; awsd:forService awsd:svc-identity-iam ; awsd:cellStanding "PASS" .
+awsd:smalt-serverless-run a awsd:EmulatorCell ; awsd:emulator "smalt" ; awsd:forService awsd:svc-serverless-run ; awsd:cellStanding "PASS" .
+awsd:smalt-logging-monitoring a awsd:EmulatorCell ; awsd:emulator "smalt" ; awsd:forService awsd:svc-logging-monitoring ; awsd:cellStanding "PASS" .

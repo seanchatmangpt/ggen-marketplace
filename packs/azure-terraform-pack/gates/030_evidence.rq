@@ -1,0 +1,37 @@
+PREFIX aztf: <https://ggen.io/ontology/azure-terraform#>
+PREFIX rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+
+# Sync-time gate for aztf:EvidenceShape (migrated from
+# reference/legacy-shacl-shapes.ttl). Fail-closed: any row = a typed violation.
+
+SELECT ?subject ?violation WHERE {
+  ?subject a aztf:Evidence .
+  {
+    VALUES ?p { aztf:evidenceOrder aztf:evidenceFile aztf:evidenceLines }
+    ?subject a aztf:Evidence .
+    OPTIONAL { ?subject ?p ?x }
+    FILTER(!BOUND(?x))
+    BIND(CONCAT("AZTF_MIN_PROPERTY: missing ", STR(?p)) AS ?violation)
+  } UNION {
+    VALUES ?p { aztf:evidenceOrder aztf:evidenceFile aztf:evidenceLines }
+    ?subject ?p ?a , ?b .
+    FILTER(?a != ?b)
+    BIND(CONCAT("AZTF_MAX_PROPERTY: more than one ", STR(?p)) AS ?violation)
+  } UNION {
+    ?subject aztf:evidenceOrder ?v .
+    FILTER(DATATYPE(?v) != xsd:integer)
+    BIND("AZTF_DATATYPE: aztf:evidenceOrder must be xsd:integer" AS ?violation)
+  } UNION {
+    VALUES ?p { aztf:evidenceFile aztf:evidenceLines }
+    ?subject ?p ?v .
+    FILTER(!ISLITERAL(?v) || DATATYPE(?v) != xsd:string)
+    BIND(CONCAT("AZTF_DATATYPE: ", STR(?p), " must be xsd:string") AS ?violation)
+  } UNION {
+    ?subject ?p ?o .
+    FILTER(?p NOT IN (rdf:type, rdfs:comment, aztf:evidenceOrder, aztf:evidenceFile, aztf:evidenceLines))
+    BIND(CONCAT("AZTF_CLOSED_SHAPE: undeclared property ", STR(?p)) AS ?violation)
+  }
+}
+ORDER BY ?subject ?violation

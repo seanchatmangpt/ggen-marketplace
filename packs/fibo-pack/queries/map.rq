@@ -1,0 +1,19 @@
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?kind ?n ?actor ?activity ?cls WHERE {
+  {
+    ?activity a prov:Activity ; prov:wasAssociatedWith ?actor .
+    ?actor a ?cls .
+    BIND("step" AS ?kind)
+    BIND(xsd:integer(STRAFTER(STR(?activity), "step-")) AS ?n)
+  } UNION {
+    ?activity a prov:Activity, ?cls ; prov:wasAssociatedWith ?actor .
+    FILTER(?cls != prov:Activity)
+    BIND("step" AS ?kind)
+    BIND(xsd:integer(STRAFTER(STR(?activity), "step-")) AS ?n)
+  } UNION {
+    ?x a ?cls . FILTER(?cls != prov:Activity)
+    BIND("class" AS ?kind) BIND(0 AS ?n) BIND(?x AS ?actor) BIND(?x AS ?activity)
+  }
+} ORDER BY ?kind ?n ?cls ?actor

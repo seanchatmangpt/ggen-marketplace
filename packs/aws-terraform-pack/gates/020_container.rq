@@ -1,0 +1,22 @@
+PREFIX awtf: <https://ggen.io/ontology/aws-terraform#>
+PREFIX rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?subject ?violation WHERE {
+  ?subject a awtf:Container .
+  {
+    VALUES ?p { awtf:containerOrder awtf:containerName awtf:command }
+    OPTIONAL { ?subject ?p ?x }
+    FILTER(!BOUND(?x))
+    BIND(CONCAT("AWTF_MIN_PROPERTY: container missing ", STR(?p)) AS ?violation)
+  } UNION {
+    VALUES ?p { awtf:containerOrder awtf:containerName awtf:command }
+    ?subject ?p ?a , ?b .
+    FILTER(?a != ?b)
+    BIND(CONCAT("AWTF_MAX_PROPERTY: container has more than one ", STR(?p)) AS ?violation)
+  } UNION {
+    ?subject ?p ?o .
+    FILTER(?p NOT IN (rdf:type, rdfs:comment, awtf:containerOrder, awtf:containerName, awtf:command))
+    BIND(CONCAT("AWTF_CLOSED_SHAPE: undeclared property ", STR(?p)) AS ?violation)
+  }
+}
+ORDER BY ?subject ?violation

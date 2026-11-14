@@ -20,6 +20,8 @@ def main():
     onto = os.path.join(here, "..", "ontology.ttl")
     if not os.path.exists(onto):
         onto = os.path.join(here, "ontology.ttl")
+    if len(sys.argv) > 1:  # optional ontology override (non-vacuity court)
+        onto = sys.argv[1]
     g = Graph()
     g.parse(onto, format="turtle")
     failures = []

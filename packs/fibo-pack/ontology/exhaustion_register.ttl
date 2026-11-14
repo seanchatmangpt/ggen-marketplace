@@ -1,0 +1,100 @@
+@prefix fnox: <https://fortnox.sovereign/ontology/fnox#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix time: <http://www.w3.org/2006/time#> .
+@prefix odrl: <http://www.w3.org/ns/odrl/2/> .
+
+fnox:proof_CacheLineAlignment128 a fnox:ExhaustionProof ;
+    fnox:term fnox:CacheLineAlignment128 ;
+    dcterms:references prov:Entity, time:Instant ;
+    fnox:verdict "admitted" ;
+    rdfs:comment "128-byte cache-line alignment is a physical memory-layout invariant; PROV-O/TIME describe provenance/temporal entities and have no vocabulary for byte alignment, so any public encoding is a free-text literal that loses deterministic checkability." .
+
+fnox:proof_SwarLatticeMask64 a fnox:ExhaustionProof ;
+    fnox:term fnox:SwarLatticeMask64 ;
+    dcterms:references prov:Entity, odrl:Policy ;
+    fnox:verdict "admitted" ;
+    rdfs:comment "64-bit SWAR lattice mask is a bit-level word encoding evaluated by integer ops; ODRL/PROV-O constraints are symbolic and cannot express the exact bit layout without loss of determinism." .
+
+fnox:proof_EnclaveLeaseCounter a fnox:ExhaustionProof ;
+    fnox:term fnox:EnclaveLeaseCounter ;
+    dcterms:references prov:Activity, time:Instant ;
+    fnox:verdict "admitted" ;
+    rdfs:comment "Monotonic execution lease counter bound to an enclave attestation quote; time:Instant is wall-clock ordering and prov:Activity has no strictly monotonic counter semantics tied to a hardware quote." .
+
+fnox:proof_PqcReceiptSeal a fnox:ExhaustionProof ;
+    fnox:term fnox:PqcReceiptSeal ;
+    dcterms:references prov:Entity, prov:wasAttributedTo ;
+    fnox:verdict "refused" ;
+    rdfs:comment "Receipt seal is expressible as a prov:Entity with attribution plus a signature literal; public PROV-O suffices, so private term refused." .
+
+fnox:proof_DualClock a fnox:ExhaustionProof ;
+    fnox:term fnox:DualClock ;
+    dcterms:references time:Instant, time:hasBeginning ;
+    fnox:verdict "refused" ;
+    rdfs:comment "Two clocks are two time:Instant values (time:hasBeginning/time:hasEnd) on prov:Activity; OWL-Time suffices, private term refused." .
+
+fnox:proof_Ledger a fnox:ExhaustionProof ;
+    fnox:term fnox:Ledger ;
+    dcterms:references prov:Bundle, prov:Collection ;
+    fnox:verdict "refused" ;
+    rdfs:comment "Ledger is an ordered prov:Collection/prov:Bundle of activities; PROV-O suffices, private term refused." .
+
+fnox:proof_Offer a fnox:ExhaustionProof ;
+    fnox:term fnox:Offer ;
+    dcterms:references odrl:Offer, odrl:Policy ;
+    fnox:verdict "refused" ;
+    rdfs:comment "Offer maps directly to odrl:Offer (a policy); ODRL suffices, private term refused." .
+
+
+# FX8: entries merged from lane FX5 (receipts/FX5.md)
+@prefix psch: <https://spec.edmcouncil.org/fibo/ontology/FND/ProductsAndServices/PaymentsAndSchedules/> .
+@prefix pbs: <https://spec.edmcouncil.org/fibo/ontology/SEC/Debt/PoolBackedSecurities/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+fnox:proof_FinFabInvoice a fnox:ExhaustionProof ; fnox:term fnox:Invoice ;
+    dcterms:references psch:PaymentObligation, psch:Payment ; fnox:verdict "refused" ;
+    rdfs:comment "No FIBO Invoice class; an invoice is a PaymentObligation document with amount and date, expressible publicly." .
+fnox:proof_FinFabReceivable a fnox:ExhaustionProof ; fnox:term fnox:Receivable ;
+    dcterms:references psch:PaymentObligation, psch:Payer ; fnox:verdict "refused" ;
+    rdfs:comment "Receivable = PaymentObligation whose payee is us; no loss of determinism." .
+fnox:proof_FinFabFactoringAssignment a fnox:ExhaustionProof ; fnox:term fnox:FactoringAssignment ;
+    dcterms:references pbs:PoolBackedSecurity, psch:PaymentObligation ; fnox:verdict "refused" ;
+    rdfs:comment "Assignment of receivables to a pool is expressed via PoolBackedSecurity backing; no private class needed." .
+
+# FX8: entries merged from lane F7 receipt exhaustion block (receipts/F7.md)
+fnox:proof_ReceiptEventType a fnox:ExhaustionProof ; fnox:term fnox:ReceiptEventType ;
+    dcterms:references prov:Activity, rdf:type ; fnox:verdict "refused" ;
+    rdfs:comment "Event type is a typing of a prov:Activity by an rdf:type class; public RDF/PROV-O suffices." .
+fnox:proof_HashChainLinkage a fnox:ExhaustionProof ; fnox:term fnox:HashChainLinkage ;
+    dcterms:references prov:wasInformedBy, prov:Entity ; fnox:verdict "refused" ;
+    rdfs:comment "Linking a step to its predecessor is prov:wasInformedBy between activities; the digest value rides as a literal on a prov:Entity." .
+fnox:proof_Blake3AlgorithmId a fnox:ExhaustionProof ; fnox:term fnox:Blake3AlgorithmId ;
+    dcterms:references prov:Entity, dcterms:conformsTo ; fnox:verdict "admitted" ;
+    rdfs:comment "No public vocabulary names the BLAKE3 digest algorithm identifier; dcterms:conformsTo with a free-text literal loses deterministic checkability of the algorithm." .
+fnox:proof_ObjectIdType a fnox:ExhaustionProof ; fnox:term fnox:ObjectIdType ;
+    dcterms:references rdf:type, prov:Entity ; fnox:verdict "refused" ;
+    rdfs:comment "Object reference id:type pair is an rdf:type plus identifier on a prov:Entity; public RDF suffices." .
+fnox:proof_MonotonicSequence a fnox:ExhaustionProof ; fnox:term fnox:MonotonicSequence ;
+    dcterms:references time:Instant, prov:Activity ; fnox:verdict "admitted" ;
+    rdfs:comment "Strictly monotonic integer sequence is a discrete ordering law; time:Instant is wall-clock and prov:Activity has no sequence-number semantics." .
+
+# PRD-10: UCC Article 9 factoring terms. Searched FIBO 20241101 (SEC, LOAN, FBC, FND, BE, BP) and
+# Commons: no SecurityInterest/FinancingStatement/AccountDebtor/Lien class exists. Public
+# ODRL/PROV-O express only generic rights/activities, not the statutory UCC-9 semantics.
+fnox:proof_UccSecurityInterest a fnox:ExhaustionProof ; fnox:term fnox:UccSecurityInterest ;
+    dcterms:references odrl:Permission, prov:Entity ; fnox:verdict "admitted" ;
+    rdfs:comment "UCC 9-102 security interest in accounts has no FIBO or Commons class (FIBO has Collateral but no security-interest or lien); odrl:Permission is a generic right, not a statutory lien with attachment/priority semantics." .
+fnox:proof_UccFinancingStatement a fnox:ExhaustionProof ; fnox:term fnox:UccFinancingStatement ;
+    dcterms:references prov:Entity, dcterms:Standard ; fnox:verdict "admitted" ;
+    rdfs:comment "UCC-1 financing statement (filed notice) has no public ontology term in FIBO/Commons; prov:Entity cannot carry filing-office and lapse semantics." .
+fnox:proof_UccAccountDebtor a fnox:ExhaustionProof ; fnox:term fnox:UccAccountDebtor ;
+    dcterms:references prov:Agent, odrl:Party ; fnox:verdict "admitted" ;
+    rdfs:comment "Account debtor (UCC 9-102(a)(3)) has no FIBO class; FIBO Payer is a payment role and does not capture obligor-on-account defence and notification rules." .
+fnox:proof_UccSaleOfAccounts a fnox:ExhaustionProof ; fnox:term fnox:UccSaleOfAccounts ;
+    dcterms:references prov:Activity, odrl:Policy ; fnox:verdict "admitted" ;
+    rdfs:comment "UCC 9-109 sale of accounts (true-sale vs secured loan) has no public term; PoolBackedSecurity backing does not encode sale characterization." .
+fnox:proof_UccPerfection a fnox:ExhaustionProof ; fnox:term fnox:UccPerfection ;
+    dcterms:references prov:Activity, time:Instant ; fnox:verdict "admitted" ;
+    rdfs:comment "Perfection (filing/control priority date) has no FIBO or Commons term; time:Instant gives the date only, not the priority-ordering law." .

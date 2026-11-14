@@ -1,0 +1,50 @@
+# aws-terraform-pack ontology: bridge vocabulary over hashicorp/aws ECS Fargate resources.
+# Public-ontology-first: no public RDF vocabulary for Terraform provider schemas exists;
+# local names follow the aws provider argument names (aws_ecs_task_definition).
+@prefix awtf: <https://ggen.io/ontology/aws-terraform#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+awtf: a owl:Ontology ; rdfs:label "aws-terraform-pack vocabulary" .
+
+awtf:TaskGroup a rdfs:Class ; rdfs:label "Fargate task group" ;
+  rdfs:comment "One aws_ecs_cluster + aws_ecs_task_definition + aws_cloudwatch_log_group." .
+awtf:Container a rdfs:Class ; rdfs:label "Container" ;
+  rdfs:comment "One entry in the task definition container_definitions." .
+
+awtf:deploymentSlug a rdf:Property ; rdfs:domain awtf:TaskGroup ; rdfs:range xsd:string ;
+  rdfs:comment "Kebab-case id; routes output to deploy/aws/<slug>/." .
+awtf:workloadLabel a rdf:Property ; rdfs:domain awtf:TaskGroup ; rdfs:range xsd:string .
+awtf:networkMode a rdf:Property ; rdfs:domain awtf:TaskGroup ; rdfs:range xsd:string ;
+  rdfs:comment "aws_ecs_task_definition.network_mode; Fargate requires 'awsvpc'." .
+awtf:operatingSystemFamily a rdf:Property ; rdfs:domain awtf:TaskGroup ; rdfs:range xsd:string ;
+  rdfs:comment "runtime_platform.operating_system_family (LINUX, WINDOWS_SERVER_2019_CORE ...)." .
+awtf:taskCpu a rdf:Property ; rdfs:domain awtf:TaskGroup ; rdfs:range xsd:integer ;
+  rdfs:comment "Task-level cpu units (256,512,1024,2048,4096)." .
+awtf:taskMemory a rdf:Property ; rdfs:domain awtf:TaskGroup ; rdfs:range xsd:integer ;
+  rdfs:comment "Task-level memory MiB." .
+awtf:logRetentionDays a rdf:Property ; rdfs:domain awtf:TaskGroup ; rdfs:range xsd:integer .
+awtf:hasContainer a rdf:Property ; rdfs:domain awtf:TaskGroup ; rdfs:range awtf:Container .
+
+awtf:containerOrder a rdf:Property ; rdfs:domain awtf:Container ; rdfs:range xsd:integer .
+awtf:containerName a rdf:Property ; rdfs:domain awtf:Container ; rdfs:range xsd:string .
+awtf:command a rdf:Property ; rdfs:domain awtf:Container ; rdfs:range xsd:string ;
+  rdfs:comment "One shell command line, rendered as command = [\"/bin/sh\",\"-c\",\"<value>\"]." .
+
+awtf:fnoxRunnerGroup a awtf:TaskGroup ;
+  awtf:deploymentSlug "fnox-runner" ;
+  awtf:workloadLabel "fnox batch runner (run-to-completion Fargate task)" ;
+  awtf:networkMode "awsvpc" ;
+  awtf:operatingSystemFamily "LINUX" ;
+  awtf:taskCpu 512 ;
+  awtf:taskMemory 1024 ;
+  awtf:logRetentionDays 14 ;
+  awtf:hasContainer awtf:fnoxRunnerContainer ;
+  rdfs:comment "Illustrative instance; sizing is not benchmarked." .
+
+awtf:fnoxRunnerContainer a awtf:Container ;
+  awtf:containerOrder 0 ;
+  awtf:containerName "fnox-runner" ;
+  awtf:command "/app/run" .

@@ -1,0 +1,23 @@
+# MESSAGE: every emulator cell names a service and a standing; REGISTERED-DIVERGENCE cells
+# cite a KD row; PASS cells must not cite one. Any row returned = violation.
+PREFIX awsd: <http://seanchatmangpt.github.io/packs/aws-cloud-dialect#>
+
+SELECT ?s ?violation WHERE {
+  ?s a awsd:EmulatorCell .
+  {
+    ?s a awsd:EmulatorCell .
+    FILTER NOT EXISTS { ?s awsd:forService ?x }
+    BIND("missing forService" AS ?violation)
+  } UNION {
+    ?s a awsd:EmulatorCell .
+    FILTER NOT EXISTS { ?s awsd:cellStanding ?x }
+    BIND("missing cellStanding" AS ?violation)
+  } UNION {
+    ?s awsd:cellStanding "REGISTERED-DIVERGENCE" .
+    FILTER NOT EXISTS { ?s awsd:divergence ?d }
+    BIND("REGISTERED-DIVERGENCE without KD row" AS ?violation)
+  } UNION {
+    ?s awsd:cellStanding "PASS" ; awsd:divergence ?d .
+    BIND("PASS cell cites a divergence" AS ?violation)
+  }
+}

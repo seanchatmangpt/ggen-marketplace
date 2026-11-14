@@ -1,5 +1,7 @@
 # Azure/Terraform Pack — Standing Reconciliation (Iteration 1 of 4)
 
+Standing: UNVERIFIED
+
 Mirrors `packs/ma-case-study-pack/STANDING.md`'s claim-table shape, scoped to this pack. Task
 #143 caps this Azure/Terraform + M&A workstream at 4 hourly, session-only iterations; this is
 iteration 1. Per `docs/releases/v26.7.14/THESIS.md` Section 33.12, the M&A case study overall
@@ -25,7 +27,8 @@ built and verified, and states what it explicitly did not do.
   chain's actual code shape): `packs/azure-terraform-pack/SOURCE_ATTRIBUTION.md`.
 - **The pack's ontology/shapes/templates render deterministically and validate.**
   `ggen graph validate --files packs/azure-terraform-pack/ontology.ttl --shapes
-  packs/azure-terraform-pack/shapes.ttl` reports `shapes_conform: true` (re-run this iteration:
+  packs/azure-terraform-pack/reference/legacy-shacl-shapes.ttl` (formerly `shapes.ttl`; now
+  also enforced at sync time by `gates/*.rq`) reported `shapes_conform: true` (re-run this iteration:
   96 quads, hash `96af818a02...`). Two independent `ggen sync run` invocations from fresh
   scratch consumer directories (fresh symlink, fresh `ggen.toml`, fresh `ggen.lock` each time)
   produced byte-identical SHA-256 hashes across all generated `.tf`/`.tftest.hcl` files and an
@@ -140,3 +143,8 @@ force-overwritten by this iteration.
   register entry this iteration's progress updates
 - `crates/multifractal-workflow/tests/azure_terraform_pddl.rs` — the PDDL8
   provisioning-order-sequence test evidence cited above
+
+## Parity cell receipt (2026-11-14)
+
+Standing: UNVERIFIED. Azure parity cells of fnox `docs/HYPERSCALER_PARITY.md` cite
+`receipts/azure-aws-parity-cells-2026-11-14.md`; no gate run observed, no cell promoted to PASS.

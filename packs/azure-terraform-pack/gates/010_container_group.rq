@@ -1,0 +1,54 @@
+PREFIX aztf: <https://ggen.io/ontology/azure-terraform#>
+PREFIX rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+
+# Sync-time gate for aztf:ContainerGroupShape (migrated from
+# reference/legacy-shacl-shapes.ttl). Fail-closed: any row = a typed violation.
+# Covers sh:in enums, cardinality, sh:class, sh:pattern and sh:closed.
+
+SELECT ?subject ?violation WHERE {
+  ?subject a aztf:ContainerGroup .
+  {
+    ?subject aztf:osType ?v .
+    FILTER(!ISLITERAL(?v) || DATATYPE(?v) != xsd:string || !(STR(?v) IN ("Linux","Windows")))
+    BIND(CONCAT("AZTF_ENUM_OSTYPE: aztf:osType '", STR(?v), "' not in {Linux, Windows}") AS ?violation)
+  } UNION {
+    ?subject aztf:restartPolicy ?v .
+    FILTER(!ISLITERAL(?v) || DATATYPE(?v) != xsd:string || !(STR(?v) IN ("Always","Never","OnFailure")))
+    BIND(CONCAT("AZTF_ENUM_RESTARTPOLICY: aztf:restartPolicy '", STR(?v), "' not in {Always, Never, OnFailure}") AS ?violation)
+  } UNION {
+    ?subject aztf:ipAddressType ?v .
+    FILTER(!ISLITERAL(?v) || DATATYPE(?v) != xsd:string || !(STR(?v) IN ("Public","Private","None")))
+    BIND(CONCAT("AZTF_ENUM_IPADDRESSTYPE: aztf:ipAddressType '", STR(?v), "' not in {Public, Private, None}") AS ?violation)
+  } UNION {
+    ?subject aztf:deploymentSlug ?v .
+    FILTER(!REGEX(STR(?v), "^[a-z0-9]+(-[a-z0-9]+)*$"))
+    BIND(CONCAT("AZTF_PATTERN_SLUG: aztf:deploymentSlug '", STR(?v), "' is not kebab-case") AS ?violation)
+  } UNION {
+    ?subject aztf:hasContainer ?c .
+    FILTER NOT EXISTS { ?c a aztf:Container }
+    BIND("AZTF_CLASS_CONTAINER: aztf:hasContainer target is not an aztf:Container" AS ?violation)
+  } UNION {
+    ?subject a aztf:ContainerGroup .
+    FILTER NOT EXISTS { ?subject aztf:hasContainer ?c }
+    BIND("AZTF_MIN_CONTAINER: ContainerGroup has no aztf:hasContainer" AS ?violation)
+  } UNION {
+    VALUES ?p { aztf:osType aztf:restartPolicy aztf:ipAddressType aztf:deploymentSlug aztf:workloadLabel }
+    ?subject a aztf:ContainerGroup .
+    OPTIONAL { ?subject ?p ?x }
+    FILTER(!BOUND(?x))
+    BIND(CONCAT("AZTF_MIN_PROPERTY: missing ", STR(?p)) AS ?violation)
+  } UNION {
+    VALUES ?p { aztf:osType aztf:restartPolicy aztf:ipAddressType aztf:deploymentSlug aztf:workloadLabel }
+    ?subject ?p ?a , ?b .
+    FILTER(?a != ?b)
+    BIND(CONCAT("AZTF_MAX_PROPERTY: more than one ", STR(?p)) AS ?violation)
+  } UNION {
+    ?subject ?p ?o .
+    FILTER(?p NOT IN (rdf:type, rdfs:comment, aztf:osType, aztf:restartPolicy, aztf:ipAddressType,
+                      aztf:hasContainer, aztf:deploymentSlug, aztf:workloadLabel))
+    BIND(CONCAT("AZTF_CLOSED_SHAPE: undeclared property ", STR(?p)) AS ?violation)
+  }
+}
+ORDER BY ?subject ?violation

@@ -1,0 +1,46 @@
+PREFIX aztf: <https://ggen.io/ontology/azure-terraform#>
+PREFIX rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+
+# Sync-time gate for aztf:ContainerShape (migrated from
+# reference/legacy-shacl-shapes.ttl). Fail-closed: any row = a typed violation.
+
+SELECT ?subject ?violation WHERE {
+  ?subject a aztf:Container .
+  {
+    VALUES ?p { aztf:containerOrder aztf:containerName aztf:cpuCores aztf:memoryGb aztf:command }
+    ?subject a aztf:Container .
+    OPTIONAL { ?subject ?p ?x }
+    FILTER(!BOUND(?x))
+    BIND(CONCAT("AZTF_MIN_PROPERTY: missing ", STR(?p)) AS ?violation)
+  } UNION {
+    VALUES ?p { aztf:containerOrder aztf:containerName aztf:cpuCores aztf:memoryGb aztf:command }
+    ?subject ?p ?a , ?b .
+    FILTER(?a != ?b)
+    BIND(CONCAT("AZTF_MAX_PROPERTY: more than one ", STR(?p)) AS ?violation)
+  } UNION {
+    VALUES ?p { aztf:cpuCores aztf:memoryGb }
+    ?subject ?p ?v .
+    FILTER(!ISLITERAL(?v) || !(DATATYPE(?v) = xsd:decimal) || ?v <= 0)
+    BIND(CONCAT("AZTF_MIN_EXCLUSIVE: ", STR(?p), " must be xsd:decimal > 0") AS ?violation)
+  } UNION {
+    ?subject aztf:containerOrder ?v .
+    FILTER(DATATYPE(?v) != xsd:integer)
+    BIND("AZTF_DATATYPE: aztf:containerOrder must be xsd:integer" AS ?violation)
+  } UNION {
+    ?subject a aztf:Container .
+    FILTER NOT EXISTS { ?subject aztf:hasEvidence ?e }
+    BIND("AZTF_MIN_EVIDENCE: Container cites no aztf:hasEvidence" AS ?violation)
+  } UNION {
+    ?subject aztf:hasEvidence ?e .
+    FILTER NOT EXISTS { ?e a aztf:Evidence }
+    BIND("AZTF_CLASS_EVIDENCE: aztf:hasEvidence target is not an aztf:Evidence" AS ?violation)
+  } UNION {
+    ?subject ?p ?o .
+    FILTER(?p NOT IN (rdf:type, rdfs:comment, aztf:containerOrder, aztf:containerName, aztf:cpuCores,
+                      aztf:memoryGb, aztf:command, aztf:hasEvidence))
+    BIND(CONCAT("AZTF_CLOSED_SHAPE: undeclared property ", STR(?p)) AS ?violation)
+  }
+}
+ORDER BY ?subject ?violation
