@@ -1,0 +1,15 @@
+# Gate L23-010 (mirrors verify_skills.ex:373-397 refused_argument_mapping_target; real names
+# verify_skills.ex:399-411 = declared action arguments U accepted attributes).
+# Rows returned = violations: an aap:Skill mapping names a target that is neither a declared
+# action argument (aap:actionArgument/aap:argName) nor in the action's aap:accept list.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?subject ?target ?reason WHERE {
+  ?r a aap:Resource ; aap:skill ?subject ; aap:action ?a .
+  ?subject aap:ofAction ?an ; aap:skillArgMap ?m .
+  ?a aap:name ?an .
+  ?m aap:targetArg ?target .
+  OPTIONAL { ?a aap:accept ?acc }
+  FILTER NOT EXISTS { ?a aap:actionArgument ?x . ?x aap:argName ?target }
+  FILTER ( !BOUND(?acc) || !CONTAINS(CONCAT(",", REPLACE(?acc, " ", ""), ","), CONCAT(",", ?target, ",")) )
+  BIND ("refused_argument_mapping_target" AS ?reason)
+}

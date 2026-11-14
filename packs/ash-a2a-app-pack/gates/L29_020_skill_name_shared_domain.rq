@@ -1,0 +1,15 @@
+# Gate L29_020: two distinct skill nodes (aap:skill or L17 aap:skillSpec) with the same name in a
+# domain that is wrapped by an aap:Agent. Agents sharing the domain publish both skills under one
+# a2a wire identity. Rows = violation. L20_042 covers only skill/skill pairs; this adds
+# skill-vs-skillSpec and skillSpec-vs-skillSpec, and requires an agent to exist for the domain.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?domain ?name ?s1 ?s2 WHERE {
+  ?agent a aap:Agent ; aap:forDomain ?domain .
+  ?r1 a aap:Resource ; aap:inDomain ?domain .
+  ?r2 a aap:Resource ; aap:inDomain ?domain .
+  { ?r1 aap:skill ?s1 } UNION { ?r1 aap:skillSpec ?s1 } .
+  { ?r2 aap:skill ?s2 } UNION { ?r2 aap:skillSpec ?s2 } .
+  ?s1 aap:name ?name . ?s2 aap:name ?name .
+  FILTER(STR(?s1) < STR(?s2))
+  FILTER NOT EXISTS { ?r1 aap:skill ?s1 . ?r2 aap:skill ?s2 }
+}

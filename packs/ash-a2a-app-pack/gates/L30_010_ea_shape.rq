@@ -1,0 +1,17 @@
+# L30 gate: the EA graph needs >=1 Domain with a moduleName (every capability/ABB/contract id is
+# derived from it; EaGraph::validate refuses empty ids, lib.rs:543), and no Resource may lack a
+# Domain (it would be outside every capability). Rows = violations.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?subject ?reason WHERE {
+  { ?d a aap:Domain . FILTER NOT EXISTS { ?d aap:moduleName ?m }
+    BIND(STR(?d) AS ?subject) BIND("domain-missing-moduleName" AS ?reason) }
+  UNION
+  { ?r a aap:Resource . FILTER NOT EXISTS { ?r aap:inDomain ?d . ?d a aap:Domain }
+    BIND(STR(?r) AS ?subject) BIND("resource-without-domain" AS ?reason) }
+  UNION
+  { FILTER NOT EXISTS { ?x a aap:Domain }
+    BIND("<app>" AS ?subject) BIND("no-domain-declared" AS ?reason) }
+  UNION
+  { ?d a aap:Domain ; aap:moduleName ?m . FILTER(STRLEN(STR(?m)) = 0)
+    BIND(STR(?d) AS ?subject) BIND("empty-moduleName" AS ?reason) }
+}

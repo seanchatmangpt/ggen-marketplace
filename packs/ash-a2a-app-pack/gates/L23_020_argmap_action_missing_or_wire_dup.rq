@@ -1,0 +1,20 @@
+# Gate L23-020: (a) a skill with a mapping whose aap:ofAction names no action on its resource
+# (the mapping cannot be checked: verify_skills.ex resolves the action first), (b) one wire name
+# mapped to two different targets (Elixir map literal keeps one; dsl.ex:73 map keys are unique).
+# Rows returned = violations.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?subject ?detail ?reason WHERE {
+  {
+    ?r a aap:Resource ; aap:skill ?subject .
+    ?subject aap:ofAction ?an ; aap:skillArgMap ?m .
+    FILTER NOT EXISTS { ?r aap:action ?a . ?a aap:name ?an }
+    BIND (?an AS ?detail)
+    BIND ("refused_argument_mapping_unknown_action" AS ?reason)
+  } UNION {
+    ?subject aap:skillArgMap ?m1, ?m2 .
+    ?m1 aap:wireName ?detail ; aap:targetArg ?t1 .
+    ?m2 aap:wireName ?detail ; aap:targetArg ?t2 .
+    FILTER (?t1 != ?t2)
+    BIND ("refused_argument_mapping_duplicate_wire" AS ?reason)
+  }
+}

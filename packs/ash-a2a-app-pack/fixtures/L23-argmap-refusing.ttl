@@ -1,0 +1,31 @@
+@prefix aap: <https://ggen.dev/ash-a2a-app#> .
+@prefix ex:  <https://example.org/l23r#> .
+
+# REFUSING fixture. Expected gate rows:
+#   L23_010: (ex:sBad, "nonexistent", refused_argument_mapping_target)
+#            (ex:sBad2, "secret", refused_argument_mapping_target)  -- real attr but not accepted
+#   L23_020: (ex:sGhost, "no_such_action", refused_argument_mapping_unknown_action)
+#            (ex:sDup,  "q", refused_argument_mapping_duplicate_wire) x2 orderings
+ex:Dom a aap:Domain ; aap:moduleName "Demo.Bad" ; aap:appPath "bad" .
+
+ex:Doc a aap:Resource ; aap:moduleName "Demo.Bad.Doc" ; aap:inDomain ex:Dom ;
+  aap:resourceFile "doc" ;
+  aap:action ex:dSearch, ex:dCreate ;
+  aap:skill ex:sBad, ex:sBad2, ex:sGhost, ex:sDup .
+
+ex:dSearch a aap:Action ; aap:name "search" ; aap:actionType "read" ; aap:actionArgument ex:dSearchQ .
+ex:dSearchQ a aap:ActionArgument ; aap:argName "query" .
+ex:dCreate a aap:Action ; aap:name "create_doc" ; aap:actionType "create" ; aap:accept "title" .
+
+ex:sBad a aap:Skill ; aap:name "bad_target" ; aap:ofAction "search" ; aap:skillArgMap ex:mBad .
+ex:mBad a aap:ArgMapping ; aap:wireName "q" ; aap:targetArg "nonexistent" .
+
+ex:sBad2 a aap:Skill ; aap:name "unaccepted_attr" ; aap:ofAction "create_doc" ; aap:skillArgMap ex:mBad2 .
+ex:mBad2 a aap:ArgMapping ; aap:wireName "s" ; aap:targetArg "secret" .
+
+ex:sGhost a aap:Skill ; aap:name "ghost" ; aap:ofAction "no_such_action" ; aap:skillArgMap ex:mGhost .
+ex:mGhost a aap:ArgMapping ; aap:wireName "q" ; aap:targetArg "query" .
+
+ex:sDup a aap:Skill ; aap:name "dup_wire" ; aap:ofAction "search" ; aap:skillArgMap ex:mDup1, ex:mDup2 .
+ex:mDup1 a aap:ArgMapping ; aap:wireName "q" ; aap:targetArg "query" .
+ex:mDup2 a aap:ArgMapping ; aap:wireName "q" ; aap:targetArg "title" .

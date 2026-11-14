@@ -1,0 +1,28 @@
+@prefix aap: <https://ggen.dev/ash-a2a-app#> .
+@prefix ex:  <https://example.com/demo#> .
+
+# Extends demo Ticket/Note resources. Gate L25_010 must return ZERO rows for ex:Note
+# and ex:Ticket (legal), and rows for ex:Bad (refusing).
+
+# --- legal ---
+ex:Note aap:l25Destroy ex:Note_archive, ex:Note_purge .
+ex:Note_archive a aap:L25Destroy ; aap:name "archive" ; aap:l25Soft "true" ;
+  aap:l25TimestampAttribute "archived_at" ; aap:l25Accept "body" ;
+  aap:l25RequireAtomic "false" ; aap:l25Primary "true" .
+ex:Note aap:attribute ex:Note_archived_at .
+ex:Note_archived_at aap:name "archived_at" ; aap:ashType "utc_datetime" ; aap:primaryKey "false" .
+ex:Note_purge a aap:L25Destroy ; aap:name "purge" ; aap:l25RequireAtomic "true" .
+
+ex:Ticket aap:l25Destroy ex:Ticket_manual .
+ex:Ticket_manual a aap:L25Destroy ; aap:name "manual_close" ;
+  aap:l25Manual "Demo.Desk.ManualClose" ; aap:l25Accept "title" ; aap:l25Primary "true" .
+
+# --- refusing (each yields one row) ---
+ex:Bad a aap:Resource ; aap:moduleName "Demo.Desk.Bad" ;
+  aap:l25Destroy ex:Bad_accept, ex:Bad_soft_nots, ex:Bad_soft_ghost, ex:Bad_both .
+ex:Bad_accept a aap:L25Destroy ; aap:name "hard_accept" ; aap:l25Accept "body" .
+ex:Bad_soft_nots a aap:L25Destroy ; aap:name "soft_no_ts" ; aap:l25Soft "true" .
+ex:Bad_soft_ghost a aap:L25Destroy ; aap:name "soft_ghost_ts" ; aap:l25Soft "true" ;
+  aap:l25TimestampAttribute "nonexistent_at" .
+ex:Bad_both a aap:L25Destroy ; aap:name "soft_and_manual" ; aap:l25Soft "true" ;
+  aap:l25TimestampAttribute "nonexistent_at" ; aap:l25Manual "Demo.Desk.M" .

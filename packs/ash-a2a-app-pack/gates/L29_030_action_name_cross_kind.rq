@@ -1,0 +1,14 @@
+# Gate L29_030: action names must be unique per resource across ALL action-bearing edges:
+# aap:action (legacy), aap:l06Action, aap:manage (RelManage), aap:reactorAction. Rows = violation.
+# L20_042 covers only legacy action vs legacy action; this covers every other pairing.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?resource ?name ?a ?b WHERE {
+  ?resource a aap:Resource .
+  { ?resource aap:action ?a } UNION { ?resource aap:l06Action ?a }
+    UNION { ?resource aap:manage ?a } UNION { ?resource aap:reactorAction ?a } .
+  { ?resource aap:action ?b } UNION { ?resource aap:l06Action ?b }
+    UNION { ?resource aap:manage ?b } UNION { ?resource aap:reactorAction ?b } .
+  ?a aap:name ?name . ?b aap:name ?name .
+  FILTER(STR(?a) < STR(?b))
+  FILTER NOT EXISTS { ?resource aap:action ?a . ?resource aap:action ?b }
+}

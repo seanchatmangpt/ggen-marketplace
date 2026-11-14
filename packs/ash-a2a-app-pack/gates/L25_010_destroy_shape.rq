@@ -1,0 +1,30 @@
+# Gate L25: any returned row refuses sync.
+# - accept on a destroy that is neither soft nor manual (destroy.ex:112-115: accept is a soft-destroy option)
+# - soft destroy without a timestamp attribute, or one the resource does not declare
+# - more than one primary? true destroy per resource (shared_options.ex:14)
+# - soft and manual together (manual overrides update behaviour, destroy.ex:77)
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?action ?why WHERE {
+  {
+    ?action a aap:L25Destroy ; aap:l25Accept ?acc .
+    FILTER NOT EXISTS { ?action aap:l25Soft "true" }
+    FILTER NOT EXISTS { ?action aap:l25Manual ?m }
+    BIND("accept on a destroy that is not soft or manual" AS ?why)
+  } UNION {
+    ?action a aap:L25Destroy ; aap:l25Soft "true" .
+    FILTER NOT EXISTS { ?action aap:l25TimestampAttribute ?t }
+    BIND("soft destroy without timestamp attribute" AS ?why)
+  } UNION {
+    ?r aap:l25Destroy ?action . ?action aap:l25Soft "true" ; aap:l25TimestampAttribute ?t .
+    FILTER NOT EXISTS { ?r (aap:attribute|aap:attrSpec) ?at . ?at aap:name ?t }
+    BIND("soft destroy timestamp attribute not declared on resource" AS ?why)
+  } UNION {
+    ?action a aap:L25Destroy ; aap:l25Soft "true" ; aap:l25Manual ?m .
+    BIND("soft and manual are mutually exclusive" AS ?why)
+  } UNION {
+    ?r aap:l25Destroy ?action, ?other .
+    ?action aap:l25Primary "true" . ?other aap:l25Primary "true" .
+    FILTER (?action != ?other)
+    BIND("more than one primary destroy" AS ?why)
+  }
+}

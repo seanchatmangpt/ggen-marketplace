@@ -1,0 +1,21 @@
+# L31 gate: a project declaring aap:profile "strict" must name a durable receipt store
+# (not the in-memory one), the key env var, and the outbox dir env var. Rows are refusals.
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?project ?why WHERE {
+  ?project a aap:Project ; aap:profile ?pr .
+  FILTER(STR(?pr) = "strict")
+  {
+    FILTER NOT EXISTS { ?project aap:durableStore ?s }
+    BIND("strict profile without aap:durableStore" AS ?why)
+  } UNION {
+    ?project aap:durableStore ?s .
+    FILTER(CONTAINS(STR(?s), "ReceiptStore.Memory") || STR(?s) = "")
+    BIND("strict profile with in-memory durableStore" AS ?why)
+  } UNION {
+    FILTER NOT EXISTS { ?project aap:keyEnv ?k }
+    BIND("strict profile without aap:keyEnv" AS ?why)
+  } UNION {
+    FILTER NOT EXISTS { ?project aap:outboxDirEnv ?d }
+    BIND("strict profile without aap:outboxDirEnv" AS ?why)
+  }
+}

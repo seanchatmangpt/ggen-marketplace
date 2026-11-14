@@ -1,0 +1,30 @@
+@prefix aap: <https://ggen.dev/ash-a2a-app#> .
+@prefix ex:  <https://example.org/l27#> .
+
+# Standalone fixture: one agent over one domain; one resource with read + create.
+# Expected: list_notes dispatched with real content assertions; leased_notes and
+# audited_notes (consequence=propose) render as visibly skipped tests.
+ex:Dom a aap:Domain ; aap:moduleName "L27Demo.Notes" ; aap:appPath "l27_demo" ; aap:domainFile "notes" .
+
+ex:Agent a aap:Agent ; aap:moduleName "L27Demo.NotesAgent" ; aap:agentName "l27-notes" ;
+  aap:forDomain ex:Dom ; aap:agentFile "notes_agent" .
+
+ex:Note a aap:Resource ; aap:moduleName "L27Demo.Notes.Note" ; aap:inDomain ex:Dom ;
+  aap:resourceFile "note" ;
+  aap:attribute ex:nId, ex:nBody, ex:nRank ;
+  aap:action ex:nRead, ex:nCreate ;
+  aap:skill ex:sList, ex:sLeased, ex:sPropose .
+
+ex:nId   a aap:Attribute ; aap:name "id" ; aap:ashType "uuid" ; aap:primaryKey "true" .
+ex:nBody a aap:Attribute ; aap:name "body" ; aap:ashType "string" ; aap:primaryKey "false" .
+ex:nRank a aap:Attribute ; aap:name "rank" ; aap:ashType "integer" ; aap:primaryKey "false" .
+
+ex:nRead   a aap:Action ; aap:name "list" ; aap:actionType "read" .
+ex:nCreate a aap:Action ; aap:name "add" ; aap:actionType "create" ; aap:accept "body,rank" .
+
+ex:sList a aap:Skill ; aap:name "list_notes" ; aap:ofAction "list" ;
+  aap:description "List notes" ; aap:consequence "observe" .
+ex:sLeased a aap:Skill ; aap:name "leased_notes" ; aap:ofAction "list" ;
+  aap:description "List notes under lease" ; aap:consequence "observe" ; aap:leaseRequired "true" .
+ex:sPropose a aap:Skill ; aap:name "audited_notes" ; aap:ofAction "list" ;
+  aap:description "List notes, consequence-bearing" ; aap:consequence "propose" .

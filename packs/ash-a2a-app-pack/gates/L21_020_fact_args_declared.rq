@@ -1,0 +1,42 @@
+# Gate L21-020: operator well-formedness. Any row = refusal.
+# Fact args subset of parameters: verify_hddl_operators.ex:13-14,61 (refused_hddl_fact_args).
+# Vocabulary/atoms: dsl.ex:153-176 (facts are {atom, [atom]}).
+PREFIX aap: <https://ggen.dev/ash-a2a-app#>
+SELECT ?operator ?detail ?why WHERE {
+  {
+    ?operator aap:hddlFact ?f . ?f aap:factArg ?a . ?a aap:argName ?detail .
+    FILTER NOT EXISTS { ?operator aap:hddlParam ?p . ?p aap:paramName ?detail }
+    BIND("refused_hddl_fact_args" AS ?why)
+  } UNION {
+    ?operator aap:hddlFact ?f . ?f aap:factRole ?detail .
+    FILTER (?detail NOT IN ("precondition", "add_effect", "delete_effect"))
+    BIND("bad factRole" AS ?why)
+  } UNION {
+    ?operator aap:hddlFact ?f .
+    FILTER NOT EXISTS { ?f aap:predicate ?pr }
+    BIND("fact without predicate" AS ?why)
+    BIND("" AS ?detail)
+  } UNION {
+    ?operator aap:hddlFact ?f . ?f aap:predicate ?detail .
+    FILTER (!REGEX(STR(?detail), "^[a-z][a-z0-9_]*$"))
+    BIND("predicate is not a snake_case atom" AS ?why)
+  } UNION {
+    ?operator aap:hddlParam ?p . ?p aap:paramName ?detail .
+    FILTER (!REGEX(STR(?detail), "^[a-z][a-z0-9_]*$"))
+    BIND("parameter is not a snake_case atom" AS ?why)
+  } UNION {
+    ?operator aap:hddlParam ?p1, ?p2 . ?p1 aap:paramName ?detail . ?p2 aap:paramName ?detail .
+    FILTER (?p1 != ?p2)
+    BIND("duplicate parameter" AS ?why)
+  } UNION {
+    ?operator aap:hddlFact ?f . FILTER NOT EXISTS { ?f aap:factRole ?r }
+    BIND("fact without factRole" AS ?why)
+    BIND("" AS ?detail)
+  } UNION {
+    ?skill aap:hddlOperator ?operator .
+    FILTER NOT EXISTS { ?operator aap:hddlFact ?f . ?f aap:factRole "add_effect" }
+    FILTER NOT EXISTS { ?operator aap:hddlFact ?g . ?g aap:factRole "delete_effect" }
+    BIND("operator has no effects" AS ?why)
+    BIND("" AS ?detail)
+  }
+}
