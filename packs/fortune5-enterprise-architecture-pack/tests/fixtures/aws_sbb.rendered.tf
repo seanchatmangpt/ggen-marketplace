@@ -50,7 +50,7 @@ resource "aws_iam_role_policy_inline" "sbb_identity_center" {
       Sid      = "IdentityCenterEnumeratedOnly"
       Effect   = "Allow"
       Resource = "*"
-      Action   = [
+      Action = [
         "sso:ListInstances",
         "sso:DescribeInstance",
         "sso:CreateApplication",
@@ -76,7 +76,7 @@ resource "aws_iam_role_policy_inline" "sbb_control_tower" {
       Sid      = "ControlTowerEnumeratedOnly"
       Effect   = "Allow"
       Resource = "*"
-      Action   = [
+      Action = [
         "controltower:GetLandingZone",
         "controltower:ListManagedAccounts",
         "controltower:GetGuardrail",
@@ -126,11 +126,17 @@ resource "aws_iam_role_policy_inline" "sbb_cloudtrail_lake" {
       Sid      = "CloudTrailLakeEnumeratedOnly"
       Effect   = "Allow"
       Resource = "*"
-      Action   = [
+      Action = [
         "cloudtrail:GetEventDataStore",
         "cloudtrail:ListEventDataStores",
         "cloudtrail:StartQuery",
       ]
     }]
   })
+}
+
+variable "tags" {
+  description = "Additional tags merged onto SBB resources."
+  type        = map(string)
+  default     = {}
 }

@@ -20,6 +20,9 @@ construct-only boundary.
 
 ## Standing (as of this pack's authoring commit)
 
+Standing note (2026-11-16): 1 consumer found (xaas, vendored templates and generated surfaces);
+see [consumer census](../../docs/sa2a-pack-consumers.md).
+
 - `ontology.ttl` — real, loads via `rdflib.Graph().parse(..., format="turtle")`.
 - `gates/*.rq` — 6 real SPARQL ASK-shaped gates, run for real against
   `ontology.ttl` via `rdflib`; all 6 pass (0 rows each) as of this commit.

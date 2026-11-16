@@ -1,7 +1,23 @@
-# MESSAGE: any row = an iam Resource missing type, name, order or hcl body lines.
+# MESSAGE: any row = a Resource missing required metadata (module/type/name across all modules, plus order/hclLine for mod_iam).
 PREFIX gtf: <https://seanchatmangpt.dev/ontology/gcp-terraform#>
 SELECT DISTINCT ?r ?problem WHERE {
-  ?r a gtf:Resource ; gtf:inModule gtf:mod_iam .
-  { FILTER NOT EXISTS { ?r gtf:hcl ?h } BIND("missing-hcl" AS ?problem) }
-  UNION { FILTER NOT EXISTS { ?r gtf:order ?o } BIND("missing-order" AS ?problem) }
+  ?r a gtf:Resource .
+  {
+    FILTER NOT EXISTS { ?r gtf:inModule ?m }
+    BIND("missing-module" AS ?problem)
+  } UNION {
+    FILTER NOT EXISTS { ?r gtf:resourceType ?t }
+    BIND("missing-resource-type" AS ?problem)
+  } UNION {
+    FILTER NOT EXISTS { ?r gtf:resourceName ?n }
+    BIND("missing-resource-name" AS ?problem)
+  } UNION {
+    ?r gtf:inModule gtf:mod_iam .
+    FILTER NOT EXISTS { ?r gtf:order ?o }
+    BIND("missing-order" AS ?problem)
+  } UNION {
+    ?r gtf:inModule gtf:mod_iam .
+    FILTER NOT EXISTS { ?r gtf:hclLine ?l }
+    BIND("missing-hcl-line" AS ?problem)
+  }
 }

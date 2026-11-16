@@ -17,6 +17,9 @@ names.
 m18 qualify_packs run, ggen 26.9.28). Zero consumers. Standing is scoped to
 that qualification boundary — not a claim about any consumer.
 
+Standing note (2026-11-16): 0 consumers re-confirmed by Grep of ash_a2a, xaas, ggen; see
+[consumer census](../../docs/sa2a-pack-consumers.md).
+
 ## See Also
 
 - [Pack contract](../../docs/reference/pack-contract.md)

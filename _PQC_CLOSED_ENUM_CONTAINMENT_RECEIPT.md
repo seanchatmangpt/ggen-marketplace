@@ -18,6 +18,13 @@ Standing: PASS (file's own verdict: 28/28 PASSED, EXIT=0)
 | **Court 3:** `test_cdbr_isolation_court.py` | `CDBR-v1` Ephemeral Root of Trust (`tmpfs`), In-Container Signing, Tamper-evident transit digest, Burn-after-reading single-use token extraction, Root UID exclusion | 7/7 Gates | **PASSED** |
 | **Court 4:** `test_pqc_closed_enum_court.py` | LangSec Closed-Enum Regular Grammar ($O(n)$ DFA), Strict PQC Cipher Suites (ML-DSA-65/87, ML-KEM-768), Monotonic Lyapunov Fuel Bound, Category-Theoretic Invariant $\text{Select} \neq \text{Construct} \neq \text{Do}$ | 7/7 Gates | **PASSED** |
 
+**Disk correction (2026-11-16):** per-court test-function counts on disk are Court 1 = 12
+(not 9), Court 2 = 5, Court 3 = 4 (not 7), Court 4 = 7; the sum 28 matches. The 9/9 and 7/7
+cells above are as-run figures. Reproduce: `python3 scripts/receipt_counts.py` (UNVERIFIED
+until run).
+
+Counts: test_aaif_enterprise_court.py=12 test_rust_wasi_wasmex_court.py=5 test_cdbr_isolation_court.py=4 test_pqc_closed_enum_court.py=7
+
 **Total In-Container Pytest Suite:** **28 passed, 0 failed, 29 warnings (numpy matrix subclass deprecation in pm4py) in 7.61s**.
 
 ---

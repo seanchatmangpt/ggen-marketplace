@@ -2,6 +2,14 @@
 Standing: UNVERIFIED
 > Scope note (M15, 2026-11-07): materially stale — inventory was taken at commit `42b031cfa75d027bd2bef5ab6c963f73c0f9d023`; current HEAD is `ca16a013f` (main). Counts and pack lists below are as-of the pinned commit, not current HEAD.
 
+> Disk recount (2026-11-16, Glob/Grep, working tree): 363 `pack.toml` packs, 1,848 `*.tmpl`
+> under `packs/`, 137 `tests/test_*.py` files, 1,569 `def test_` lines. The 307 / 1,676 / 115 /
+> 1,631 figures below are as-of the pinned commit; per-court counts in section 3 are unchanged
+> (disk-matched). Reproduce: `python3 scripts/receipt_counts.py --json` (exit 1 on mismatch).
+> Disk counts are UNVERIFIED until the coordinator runs it (Glob/Grep honour .gitignore).
+
+Counts: packs=363 templates=1848 test_files=137 test_functions=1569 test_aaif_enterprise_court.py=12 test_rust_wasi_wasmex_court.py=5 test_cdbr_isolation_court.py=4 test_pqc_closed_enum_court.py=7 test_ocel2_pm4py_court.py=5 test_ggmkt_pm4pytest_court.py=5 test_pytest_ocpq_plugin.py=3
+
 - **Root Path:** ~/ggen-marketplace
 - **Commit HEAD:** `42b031cfa75d027bd2bef5ab6c963f73c0f9d023`
 - **Branch:** `main`

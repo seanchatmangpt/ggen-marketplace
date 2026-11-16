@@ -1,0 +1,182 @@
+@prefix crc:  <https://seanchatmangpt.dev/ontology/cross-repo-contract#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# =============================================================================
+# Cross-Repo Contract Substrate (fnox <-> arcus <-> smalt <-> ggen <-> marketplace)
+# =============================================================================
+
+crc:Substrate a crc:ContractGraph ;
+    rdfs:label "Cross-Repo Contract Substrate v1" ;
+    crc:repos "fnox,arcus,smalt,ggen,ggen-marketplace" .
+
+# -----------------------------------------------------------------------------
+# 1. GCP Custom Endpoints & Dialect Rules (fnox <-> arcus)
+# -----------------------------------------------------------------------------
+
+crc:gcp_storage a crc:GCPService ;
+    crc:serviceName "storage" ;
+    crc:tfAttribute "storage_custom_endpoint" ;
+    crc:arcusEndpoint "http://127.0.0.1:8085/" ;
+    crc:supported true .
+
+crc:gcp_kms a crc:GCPService ;
+    crc:serviceName "kms" ;
+    crc:tfAttribute "kms_custom_endpoint" ;
+    crc:arcusEndpoint "http://127.0.0.1:8085/" ;
+    crc:supported true .
+
+crc:gcp_secret_manager a crc:GCPService ;
+    crc:serviceName "secret_manager" ;
+    crc:tfAttribute "secret_manager_custom_endpoint" ;
+    crc:arcusEndpoint "http://127.0.0.1:8085/" ;
+    crc:supported true .
+
+crc:gcp_pubsub a crc:GCPService ;
+    crc:serviceName "pubsub" ;
+    crc:tfAttribute "pubsub_custom_endpoint" ;
+    crc:arcusEndpoint "http://127.0.0.1:8085/" ;
+    crc:supported true .
+
+crc:gcp_vertex_ai a crc:GCPService ;
+    crc:serviceName "vertex_ai" ;
+    crc:tfAttribute "vertex_ai_custom_endpoint" ;
+    crc:arcusEndpoint "http://127.0.0.1:8085/" ;
+    crc:supported true .
+
+# KMS Algorithms & Purposes
+crc:kms_ec_p384 a crc:KMSAlgorithm ;
+    crc:algorithmName "EC_SIGN_P384_SHA384" ;
+    crc:purpose "ASYMMETRIC_SIGN" ;
+    crc:allowsRotationPeriod false ;
+    crc:arcusSupported true .
+
+crc:kms_sym_enc a crc:KMSAlgorithm ;
+    crc:algorithmName "GOOGLE_SYMMETRIC_ENCRYPTION" ;
+    crc:purpose "ENCRYPT_DECRYPT" ;
+    crc:allowsRotationPeriod true ;
+    crc:arcusSupported true .
+
+# Vertex-Ollama Model Catalog (no unbacked aliases)
+crc:model_qwen25_7b a crc:ModelEntry ;
+    crc:modelName "qwen2.5:7b" ;
+    crc:backendTarget "qwen2.5:7b" ;
+    crc:backed true .
+
+crc:model_gemini25_flash a crc:ModelEntry ;
+    crc:modelName "gemini-2.5-flash" ;
+    crc:backendTarget "google/gemini-2.5-flash" ;
+    crc:backed true .
+
+# -----------------------------------------------------------------------------
+# 2. Azure ARM Parity Contract (arcus <-> smalt <-> terraform-provider-smalt)
+# -----------------------------------------------------------------------------
+
+crc:arm_put_update_status a crc:ARMInvariant ;
+    crc:invariantId "arm-put-update-200" ;
+    crc:description "Synchronous PUT on existing ARM resource returns 200 OK; create returns 201 Created" ;
+    crc:expectedStatusExisting 200 ;
+    crc:expectedStatusCreate 201 .
+
+crc:arm_etag_cas a crc:ARMInvariant ;
+    crc:invariantId "arm-etag-if-match-412" ;
+    crc:description "ARM resource GET/PUT/DELETE emits ETag and enforces If-Match/If-None-Match with 412 PreconditionFailed" ;
+    crc:expectedStatusExisting 412 ;
+    crc:expectedStatusCreate 201 .
+
+crc:arm_apiversion_strict a crc:ARMInvariant ;
+    crc:invariantId "arm-apiversion-strict-400" ;
+    crc:description "Unsupported api-version (e.g. 9999-99-99) returns 400 InvalidApiVersionParameter" ;
+    crc:expectedStatusExisting 400 ;
+    crc:expectedStatusCreate 400 .
+
+crc:arm_rg_crud a crc:ARMInvariant ;
+    crc:invariantId "arm-resourcegroup-crud" ;
+    crc:description "ResourceGroup PUT/GET/DELETE and generic child-resource DELETE implemented on both arcus and smalt" ;
+    crc:expectedStatusExisting 200 ;
+    crc:expectedStatusCreate 201 .
+
+crc:arm_eventgrid_lro a crc:ARMResourceRule ;
+    crc:resourceType "Microsoft.EventGrid/topics" ;
+    crc:apiVersion "2023-12-15-preview" ;
+    crc:isLRO true .
+
+crc:arm_container_groups a crc:ARMResourceRule ;
+    crc:resourceType "Microsoft.ContainerInstance/containerGroups" ;
+    crc:apiVersion "2023-05-01" ;
+    crc:isLRO true .
+
+crc:arm_role_definitions a crc:ARMResourceRule ;
+    crc:resourceType "Microsoft.Authorization/roleDefinitions" ;
+    crc:apiVersion "2022-04-01" ;
+    crc:isLRO false .
+
+crc:arm_container_apps a crc:ARMResourceRule ;
+    crc:resourceType "Microsoft.App/containerApps" ;
+    crc:apiVersion "2023-05-01" ;
+    crc:isLRO true .
+
+crc:arm_storage_accounts a crc:ARMResourceRule ;
+    crc:resourceType "Microsoft.Storage/storageAccounts" ;
+    crc:apiVersion "2023-05-01" ;
+    crc:isLRO true .
+
+# -----------------------------------------------------------------------------
+# 3. A2A §9.5 Disjoint Error Code Registry (ash_a2a <-> arcus <-> marketplace)
+# -----------------------------------------------------------------------------
+
+crc:err_task_not_found a crc:ErrorCode ;
+    crc:jsonRpcCode -32001 ;
+    crc:errorName "TaskNotFoundError" ;
+    crc:domain "A2A" .
+
+crc:err_push_not_supported a crc:ErrorCode ;
+    crc:jsonRpcCode -32003 ;
+    crc:errorName "PushNotificationNotSupportedError" ;
+    crc:domain "A2A" .
+
+crc:err_policy_forbidden a crc:ErrorCode ;
+    crc:jsonRpcCode -32005 ;
+    crc:errorName "PolicyForbiddenError" ;
+    crc:domain "A2A" .
+
+# -----------------------------------------------------------------------------
+# 4. Terraform Security Control Attachment Law (fnox & arcus)
+# -----------------------------------------------------------------------------
+
+crc:sec_arcus_armor a crc:SecurityControl ;
+    crc:controlName "google_compute_security_policy.armor" ;
+    crc:repo "arcus" ;
+    crc:attachedTo "google_compute_backend_service.edge" ;
+    crc:enforcedByBinary "cmd/arcus,cmd/arcus-apis,cmd/clearinghouse (armor.SovIngress)" .
+
+crc:sec_arcus_dlp a crc:SecurityControl ;
+    crc:controlName "google_data_loss_prevention_deidentify_template.arcus" ;
+    crc:repo "arcus" ;
+    crc:attachedTo "google_data_loss_prevention_job_trigger.arcus.inspect_job.actions.deidentify" ;
+    crc:enforcedByBinary "cmd/clearinghouse (wireproxy.NewSovScrubHook)" .
+
+crc:sec_arcus_worm a crc:SecurityControl ;
+    crc:controlName "google_storage_bucket.worm_audit" ;
+    crc:repo "arcus" ;
+    crc:attachedTo "google_logging_project_sink.audit" ;
+    crc:enforcedByBinary "cmd/arcus-apis (wormverify.DefaultVerifier)" .
+
+crc:sec_arcus_model_armor a crc:SecurityControl ;
+    crc:controlName "google_model_armor_template.agent" ;
+    crc:repo "arcus" ;
+    crc:attachedTo "google_vertex_ai_endpoint.agent" ;
+    crc:enforcedByBinary "internal/vertex_ollama" .
+
+crc:sec_fnox_edge_armor a crc:SecurityControl ;
+    crc:controlName "google_compute_security_policy.edge_armor" ;
+    crc:repo "fnox" ;
+    crc:attachedTo "google_compute_backend_service.backend,google_compute_backend_service.realtime" ;
+    crc:enforcedByBinary "infra/gcp/edge" .
+
+crc:sec_fnox_cas_cmek a crc:SecurityControl ;
+    crc:controlName "google_kms_crypto_key.storage_cmek" ;
+    crc:repo "fnox" ;
+    crc:attachedTo "google_storage_bucket.cas_and_receipts" ;
+    crc:enforcedByBinary "infra/gcp/main.tf" .

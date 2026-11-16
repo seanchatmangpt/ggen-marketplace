@@ -10,7 +10,9 @@ terraform {
   }
 }
 
-provider "azurerm" { features {} }
+provider "azurerm" {
+  features {}
+}
 
 resource "azurerm_management_group" "root" {
   display_name = "finance-enclave-root"

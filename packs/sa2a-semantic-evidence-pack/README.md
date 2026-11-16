@@ -5,3 +5,6 @@ Canonical marketplace source for the authority-free semantic evidence boundary c
 The pack manufactures contract/schema/court projections. It does **not** manufacture authorization, an actuator, or DO authority. Generated surfaces preserve `authority=NONE` and `consequence=EVIDENCE_ONLY`.
 
 Canonical GraphLaw contract merge: `4e4873ca377d50af5268e8736be4afe6badeb862`.
+
+Standing note (2026-11-16): 0 external consumers (only the in-pack `qualification/consumer.ttl`
+fixture); see [consumer census](../../docs/sa2a-pack-consumers.md).

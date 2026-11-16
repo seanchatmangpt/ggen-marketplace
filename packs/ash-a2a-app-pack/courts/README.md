@@ -1,8 +1,15 @@
 # ash-a2a-app-pack courts
 
-Shim courts for the pack's Elixir-producing templates (lane L32). Authored, not run.
-
 Standing: UNVERIFIED
+
+Shim courts for the pack's Elixir-producing templates (lane L32). On disk: `courts/shim_court.sh`
+and `courts/lib.sh`, both authored and never run (no receipt exists). The fixture is
+`examples/helpdesk`, which contains only `ggen.toml` and `README.md`; templates the fixture does
+not materialize report `[SKIP]`, so a first run may SKIP most templates.
+
+Byte-identical replay of the consumer projection is a separate court, not part of this directory:
+`/Users/sac/ash_a2a/test/ash_a2a_pack_replay_court_test.exs` (authored, not run; skips loudly
+without `ggen`).
 
 ## Invocation
 

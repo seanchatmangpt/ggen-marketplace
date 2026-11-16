@@ -239,6 +239,69 @@ variable "ggen_signing_key_value" {
   sensitive   = true
   default     = ""
 }
+
+variable "billing_email" {
+  description = "Billing email address for GitHub organization settings."
+  type        = string
+  default     = "platform@example.com"
+}
+
+variable "retail_app_id" {
+  description = "GitHub App ID for the org_retail tenant."
+  type        = string
+  default     = ""
+}
+
+variable "retail_app_installation_id" {
+  description = "GitHub App installation ID for the org_retail tenant."
+  type        = string
+  default     = ""
+}
+
+variable "retail_app_pem_file" {
+  description = "GitHub App PEM private key for the org_retail tenant."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "industrial_app_id" {
+  description = "GitHub App ID for the org_industrial tenant."
+  type        = string
+  default     = ""
+}
+
+variable "industrial_app_installation_id" {
+  description = "GitHub App installation ID for the org_industrial tenant."
+  type        = string
+  default     = ""
+}
+
+variable "industrial_app_pem_file" {
+  description = "GitHub App PEM private key for the org_industrial tenant."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "finserv_app_id" {
+  description = "GitHub App ID for the org_financial_services tenant."
+  type        = string
+  default     = ""
+}
+
+variable "finserv_app_installation_id" {
+  description = "GitHub App installation ID for the org_financial_services tenant."
+  type        = string
+  default     = ""
+}
+
+variable "finserv_app_pem_file" {
+  description = "GitHub App PEM private key for the org_financial_services tenant."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
 """ .
 
 ghtf:RequiredProviders a ghtf:RepoManagementInstance ;
@@ -1416,20 +1479,23 @@ if ! echo "$checks_json" | jq -e 'type == "array"' >/dev/null 2>&1; then
   done | jq -cs '.')"
 fi
 
-results="$(echo "$checks_json" | jq -c '.[]' | while IFS= read -r c; do
-  state="$(echo "$c" | jq -r '(.state // "") | ascii_upcase')"
-  case "$state" in SUCCESS|PASS|NEUTRAL|SKIPPED|SKIPPING) continue ;; esac
-  name="$(echo "$c" | jq -r '.name // ""')"
-  required=0
-  case "$name" in Check|Test|Build|Doctest|"CI Status") required=1 ;; esac
-  bucket="製品異常" ; recommend="fix-product"
-  if [ "$required" -eq 1 ] && { [ -z "$state" ] || [ "$state" = "MISSING" ] || [ "$state" = "NOT_REPORTED" ] || [ "$state" = "EXPECTED" ] || [ "$state" = "PENDING" ]; }; then
-    bucket="標準異常" ; recommend="drift-report.sh"
-  elif echo "$c" | grep -qiE 'runner|network|timeout|cancelled|infrastructure|rate.limit'; then
-    bucket="設備異常" ; recommend="run-rerun.sh"
-  fi
-  jq -cn --arg check "$name" --arg bucket "$bucket" --arg recommend "$recommend" '{check: $check, bucket: $bucket, recommend: $recommend}'
-done)"
+classify_checks() {
+  echo "$checks_json" | jq -c '.[]' | while IFS= read -r c; do
+    state="$(echo "$c" | jq -r '(.state // "") | ascii_upcase')"
+    case "$state" in (SUCCESS|PASS|NEUTRAL|SKIPPED|SKIPPING) continue ;; esac
+    name="$(echo "$c" | jq -r '.name // ""')"
+    required=0
+    case "$name" in (Check|Test|Build|Doctest|"CI Status") required=1 ;; esac
+    bucket="製品異常" ; recommend="fix-product"
+    if [ "$required" -eq 1 ] && { [ -z "$state" ] || [ "$state" = "MISSING" ] || [ "$state" = "NOT_REPORTED" ] || [ "$state" = "EXPECTED" ] || [ "$state" = "PENDING" ]; }; then
+      bucket="標準異常" ; recommend="drift-report.sh"
+    elif echo "$c" | grep -qiE 'runner|network|timeout|cancelled|infrastructure|rate.limit'; then
+      bucket="設備異常" ; recommend="run-rerun.sh"
+    fi
+    jq -cn --arg check "$name" --arg bucket "$bucket" --arg recommend "$recommend" '{check: $check, bucket: $bucket, recommend: $recommend}'
+  done
+}
+results="$(classify_checks)"
 
 if [ -n "$results" ]; then
   echo "$results"
@@ -2513,28 +2579,16 @@ ghtf:TwoFactorRequired a ghtf:OrgSecurityPolicy ;
 """ .
 
 ghtf:IpAllowListHq a ghtf:OrgSecurityPolicy ;
-    rdfs:label "IP allow list entry: corporate HQ range" ;
+    rdfs:label "IP allow list entry: corporate HQ range -- FLAGGED, github_ip_allow_list_entry does not exist in integrations/github v5.41.0" ;
     ghtf:controlName "ip_allow_list" ;
-    ghtf:verifiedProviderResource true ;
-    ghtf:requiredArg "name", "value", "is_active" ;
-    ghtf:hclBody """resource "github_ip_allow_list_entry" "office_hq" {
-  name      = "Acme HQ Office"
-  value     = "203.0.113.0/24"
-  is_active = true
-}
-""" .
+    ghtf:verifiedProviderResource false ;
+    ghtf:flagReason "Resource type github_ip_allow_list_entry is not supported by integrations/github v5.41.0; org-level IP allow lists are configured at enterprise scope (github_enterprise_ip_allow_list_entry) or via GitHub GraphQL API." .
 
 ghtf:IpAllowListVpn a ghtf:OrgSecurityPolicy ;
-    rdfs:label "IP allow list entry: corporate VPN gateway" ;
+    rdfs:label "IP allow list entry: corporate VPN gateway -- FLAGGED, github_ip_allow_list_entry does not exist in integrations/github v5.41.0" ;
     ghtf:controlName "ip_allow_list" ;
-    ghtf:verifiedProviderResource true ;
-    ghtf:requiredArg "name", "value", "is_active" ;
-    ghtf:hclBody """resource "github_ip_allow_list_entry" "vpn_gateway" {
-  name      = "Corporate VPN Gateway"
-  value     = "198.51.100.42/32"
-  is_active = true
-}
-""" .
+    ghtf:verifiedProviderResource false ;
+    ghtf:flagReason "Resource type github_ip_allow_list_entry is not supported by integrations/github v5.41.0; org-level IP allow lists are configured at enterprise scope (github_enterprise_ip_allow_list_entry) or via GitHub GraphQL API." .
 
 ghtf:RequiredSignedCommits a ghtf:OrgSecurityPolicy ;
     rdfs:label "Require signed commits on main via branch protection" ;
@@ -2542,7 +2596,7 @@ ghtf:RequiredSignedCommits a ghtf:OrgSecurityPolicy ;
     ghtf:verifiedProviderResource true ;
     ghtf:requiredArg "repository_id", "pattern", "require_signed_commits" ;
     ghtf:hclBody """resource "github_branch_protection" "org_main" {
-  repository_id          = github_repository.this.node_id
+  repository_id          = github_repository.managed.node_id
   pattern                = "main"
   require_signed_commits = true
   enforce_admins         = true
@@ -2561,7 +2615,7 @@ ghtf:CodeownersReview a ghtf:OrgSecurityPolicy ;
     ghtf:requiredArg "repository", "target", "enforcement" ;
     ghtf:hclBody """resource "github_repository_ruleset" "main" {
   name        = "main-branch-protection"
-  repository  = github_repository.this.name
+  repository  = github_repository.managed.name
   target      = "branch"
   enforcement = "active"
 

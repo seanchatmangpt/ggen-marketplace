@@ -3,6 +3,6 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 rc=0; bash scripts/shim_court_azure_terraform.sh || rc=$?
-[ "$rc" -eq 3 ] && { echo "[SKIP] terraform unavailable"; exit 0; }
+[ "$rc" -eq 3 ] && { echo "[SKIP] terraform binary unavailable"; exit 0; }
 [ "$rc" -eq 0 ] || exit "$rc"
 bash scripts/shim_court_azure_terraform.sh --self-check

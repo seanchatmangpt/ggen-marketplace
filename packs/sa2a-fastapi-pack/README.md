@@ -1,5 +1,8 @@
 # sa2a-fastapi-pack
 
+Standing note (2026-11-16): 0 consumers found by Grep of ash_a2a, xaas, ggen; see
+[consumer census](../../docs/sa2a-pack-consumers.md).
+
 Projects protocol-integration Capability semantics into a Python/FastAPI SA2A
 HTTP gateway surface. Results are candidates, never authority: every route
 body raises `NotImplementedError` and the consumer supplies the actual

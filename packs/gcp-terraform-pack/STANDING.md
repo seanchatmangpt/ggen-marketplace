@@ -1,13 +1,9 @@
 # gcp-terraform-pack Standing
 
-Standing: UNVERIFIED
+Standing: PARTIAL_ALIVE (`mod_iam` verified; `mod_iap`/`mod_edge`/`mod_budget`/`mod_cloudrun`/`mod_gpu` inventory-only)
 
-Authored, not executed. See docs/DIVERGENCES.md.
-
-## Repair (W9-08)
-
-Standing: BLOCKED. No ggen manifest or template binding exists, so gates/*.rq never run and
-`ggen sync run` + diff against infra/gcp/iam/main.tf is unsatisfiable. Body-line ordering is
-unmodeled (see ontology.ttl gtf:hcl). Inventory is incomplete for edge/cloudrun/budget/gpu.
-gates/020 is vacuous while all arcusStatus values are UNVERIFIED. iam emission omits
-locals.runtime_sas and would fail terraform validate.
+- `ggen.toml` + frontmatter SPARQL bindings in `templates/*.tera` emit `infra/gcp/iam/{preamble,main,variables}.tf`.
+- `gtf:hclLine` (`gtf:lineOrder` + `gtf:text`) orders all `mod_iam` resource body lines deterministically.
+- `gates/010_iam_resources.rq` validates module/type/name across all modules plus `order`/`hclLine` for `mod_iam`.
+- `gates/020_unsupported_hcl.rq` refuses `UNVERIFIED` or missing `gtf:arcusStatus`; constructs are reconciled against `arcus` `sdlc.ParseLenient`.
+- `terraform init -backend=false && terraform validate -no-color && terraform fmt -check -recursive` pass on `infra/gcp/iam`.

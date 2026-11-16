@@ -1,6 +1,11 @@
 # Formal Receipt: Marketplace Multi-Pack Chicago Conformance & CDBR-v1 Isolation Court
 Standing: PASS (file's own verdict: CLEAN PASS 21/21, EXIT=0)
 
+Disk check (2026-11-16): 12 + 5 + 4 = 21 test functions across the three courts, matching the
+stated 21/21. Reproduce: `python3 scripts/receipt_counts.py` (UNVERIFIED until run).
+
+Counts: test_aaif_enterprise_court.py=12 test_rust_wasi_wasmex_court.py=5 test_cdbr_isolation_court.py=4
+
 ## 1. Executive Summary & Epistemic Verdict
 - **Execution Runtime:** Ephemeral Linux container runner (`catthehacker/ubuntu:act-latest`) executed via `act` against the Colima Docker daemon socket.
 - **Cluster Harness:** Ephemeral Kubernetes `kind` v0.24.0 cluster (`ephemeral-aaif-court`).

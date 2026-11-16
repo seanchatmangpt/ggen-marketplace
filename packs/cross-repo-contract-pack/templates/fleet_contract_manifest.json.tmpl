@@ -1,0 +1,72 @@
+---
+to: "dist/fleet-contract-manifest.json"
+force: true
+determinism: true
+sparql:
+  gcp_services: |
+    PREFIX crc: <https://seanchatmangpt.dev/ontology/cross-repo-contract#>
+    SELECT ?serviceName ?tfAttribute ?arcusEndpoint WHERE {
+      ?s a crc:GCPService ;
+         crc:serviceName ?serviceName ;
+         crc:tfAttribute ?tfAttribute ;
+         crc:arcusEndpoint ?arcusEndpoint ;
+         crc:supported true .
+    } ORDER BY ?serviceName
+  arm_rules: |
+    PREFIX crc: <https://seanchatmangpt.dev/ontology/cross-repo-contract#>
+    SELECT ?resourceType ?apiVersion ?isLRO WHERE {
+      ?r a crc:ARMResourceRule ;
+         crc:resourceType ?resourceType ;
+         crc:apiVersion ?apiVersion ;
+         crc:isLRO ?isLRO .
+    } ORDER BY ?resourceType
+  security_controls: |
+    PREFIX crc: <https://seanchatmangpt.dev/ontology/cross-repo-contract#>
+    SELECT ?repo ?controlName ?attachedTo ?enforcedByBinary WHERE {
+      ?c a crc:SecurityControl ;
+         crc:repo ?repo ;
+         crc:controlName ?controlName ;
+         crc:attachedTo ?attachedTo ;
+         crc:enforcedByBinary ?enforcedByBinary .
+    } ORDER BY ?repo ?controlName
+  error_codes: |
+    PREFIX crc: <https://seanchatmangpt.dev/ontology/cross-repo-contract#>
+    SELECT ?jsonRpcCode ?errorName ?domain WHERE {
+      ?e a crc:ErrorCode ;
+         crc:jsonRpcCode ?jsonRpcCode ;
+         crc:errorName ?errorName ;
+         crc:domain ?domain .
+    } ORDER BY ?jsonRpcCode
+---
+{
+  "schema": "cross-repo-contract/v1",
+  "gcp_custom_endpoints": [
+{% for g in gcp_services %}    {
+      "service": "{{ g.serviceName }}",
+      "tf_attribute": "{{ g.tfAttribute }}",
+      "arcus_endpoint": "{{ g.arcusEndpoint }}"
+    }{% if not loop.last %},{% endif %}
+{% endfor %}  ],
+  "arm_resource_rules": [
+{% for a in arm_rules %}    {
+      "resource_type": "{{ a.resourceType }}",
+      "api_version": "{{ a.apiVersion }}",
+      "is_lro": {{ a.isLRO }}
+    }{% if not loop.last %},{% endif %}
+{% endfor %}  ],
+  "security_controls": [
+{% for s in security_controls %}    {
+      "repo": "{{ s.repo }}",
+      "control": "{{ s.controlName }}",
+      "attached_to": "{{ s.attachedTo }}",
+      "enforced_by": "{{ s.enforcedByBinary }}"
+    }{% if not loop.last %},{% endif %}
+{% endfor %}  ],
+  "a2a_error_codes": [
+{% for e in error_codes %}    {
+      "code": {{ e.jsonRpcCode }},
+      "name": "{{ e.errorName }}",
+      "domain": "{{ e.domain }}"
+    }{% if not loop.last %},{% endif %}
+{% endfor %}  ]
+}

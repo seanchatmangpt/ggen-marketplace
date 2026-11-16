@@ -4,10 +4,10 @@
 # Fixture for tests/test_resource_graph.py.
 
 resource "google_gke_hub_fleet" "sbb_fleet" {
-  provider   = google-beta
-  project    = "proj-host"
-  location   = "global"
-  name       = "sbb-fin1-fleet"
+  provider = google-beta
+  project  = "proj-host"
+  location = "global"
+  name     = "sbb-fin1-fleet"
   default_cluster_config {
     security_posture_config {
       mode               = "ENTERPRISE"
@@ -17,9 +17,9 @@ resource "google_gke_hub_fleet" "sbb_fleet" {
 }
 
 resource "google_gke_hub_membership" "sbb_cluster" {
-  provider   = google-beta
-  project    = "proj-host"
-  name       = "sbb-fin1-membership"
+  provider = google-beta
+  project  = "proj-host"
+  name     = "sbb-fin1-membership"
   endpoint {
     gke_cluster {
       resource_link = "//container.googleapis.com/projects/proj-svc/locations/us-east1/clusters/sbb-fin1"

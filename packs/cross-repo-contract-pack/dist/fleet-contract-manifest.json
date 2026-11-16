@@ -1,0 +1,112 @@
+{
+  "schema": "cross-repo-contract/v1",
+  "gcp_custom_endpoints": [
+    {
+      "service": "kms",
+      "tf_attribute": "kms_custom_endpoint",
+      "arcus_endpoint": "http://127.0.0.1:8085/"
+    },
+    {
+      "service": "pubsub",
+      "tf_attribute": "pubsub_custom_endpoint",
+      "arcus_endpoint": "http://127.0.0.1:8085/"
+    },
+    {
+      "service": "secret_manager",
+      "tf_attribute": "secret_manager_custom_endpoint",
+      "arcus_endpoint": "http://127.0.0.1:8085/"
+    },
+    {
+      "service": "storage",
+      "tf_attribute": "storage_custom_endpoint",
+      "arcus_endpoint": "http://127.0.0.1:8085/"
+    },
+    {
+      "service": "vertex_ai",
+      "tf_attribute": "vertex_ai_custom_endpoint",
+      "arcus_endpoint": "http://127.0.0.1:8085/"
+    }
+  ],
+  "arm_resource_rules": [
+    {
+      "resource_type": "Microsoft.App/containerApps",
+      "api_version": "2023-05-01",
+      "is_lro": true
+    },
+    {
+      "resource_type": "Microsoft.Authorization/roleDefinitions",
+      "api_version": "2022-04-01",
+      "is_lro": false
+    },
+    {
+      "resource_type": "Microsoft.ContainerInstance/containerGroups",
+      "api_version": "2023-05-01",
+      "is_lro": true
+    },
+    {
+      "resource_type": "Microsoft.EventGrid/topics",
+      "api_version": "2023-12-15-preview",
+      "is_lro": true
+    },
+    {
+      "resource_type": "Microsoft.Storage/storageAccounts",
+      "api_version": "2023-05-01",
+      "is_lro": true
+    }
+  ],
+  "security_controls": [
+    {
+      "repo": "arcus",
+      "control": "google_compute_security_policy.armor",
+      "attached_to": "google_compute_backend_service.edge",
+      "enforced_by": "cmd/arcus,cmd/arcus-apis,cmd/clearinghouse (armor.SovIngress)"
+    },
+    {
+      "repo": "arcus",
+      "control": "google_data_loss_prevention_deidentify_template.arcus",
+      "attached_to": "google_data_loss_prevention_job_trigger.arcus.inspect_job.actions.deidentify",
+      "enforced_by": "cmd/clearinghouse (wireproxy.NewSovScrubHook)"
+    },
+    {
+      "repo": "arcus",
+      "control": "google_model_armor_template.agent",
+      "attached_to": "google_vertex_ai_endpoint.agent",
+      "enforced_by": "internal/vertex_ollama"
+    },
+    {
+      "repo": "arcus",
+      "control": "google_storage_bucket.worm_audit",
+      "attached_to": "google_logging_project_sink.audit",
+      "enforced_by": "cmd/arcus-apis (wormverify.DefaultVerifier)"
+    },
+    {
+      "repo": "fnox",
+      "control": "google_compute_security_policy.edge_armor",
+      "attached_to": "google_compute_backend_service.backend,google_compute_backend_service.realtime",
+      "enforced_by": "infra/gcp/edge"
+    },
+    {
+      "repo": "fnox",
+      "control": "google_kms_crypto_key.storage_cmek",
+      "attached_to": "google_storage_bucket.cas_and_receipts",
+      "enforced_by": "infra/gcp/main.tf"
+    }
+  ],
+  "a2a_error_codes": [
+    {
+      "code": -32005,
+      "name": "PolicyForbiddenError",
+      "domain": "A2A"
+    },
+    {
+      "code": -32003,
+      "name": "PushNotificationNotSupportedError",
+      "domain": "A2A"
+    },
+    {
+      "code": -32001,
+      "name": "TaskNotFoundError",
+      "domain": "A2A"
+    }
+  ]
+}

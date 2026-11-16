@@ -1,9 +1,15 @@
-# MESSAGE: any row = an UnsupportedConstruct with no registered divergence row status.
-# Every construct the pack may emit that arcus could reject (HCL_UNSUPPORTED) must carry
-# gtf:arcusStatus (UNVERIFIED | REJECTED | ACCEPTED) and a row in docs/DIVERGENCES.md.
+# MESSAGE: any row = an UnsupportedConstruct missing arcusStatus or still UNVERIFIED.
+# Every construct the pack may emit must carry gtf:arcusStatus ("ACCEPTED" | "REJECTED")
+# verified against arcus sdlc.ParseLenient and a row in docs/DIVERGENCES.md.
 PREFIX gtf: <https://seanchatmangpt.dev/ontology/gcp-terraform#>
 SELECT DISTINCT ?c ?problem WHERE {
   ?c a gtf:UnsupportedConstruct .
-  FILTER NOT EXISTS { ?c gtf:arcusStatus ?s }
-  BIND("missing-arcus-status" AS ?problem)
+  {
+    FILTER NOT EXISTS { ?c gtf:arcusStatus ?s }
+    BIND("missing-arcus-status" AS ?problem)
+  } UNION {
+    ?c gtf:arcusStatus ?s .
+    FILTER(?s = "UNVERIFIED" || (?s != "ACCEPTED" && ?s != "REJECTED"))
+    BIND(CONCAT("invalid-arcus-status:", STR(?s)) AS ?problem)
+  }
 }

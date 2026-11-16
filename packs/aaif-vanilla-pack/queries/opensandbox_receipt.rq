@@ -1,0 +1,31 @@
+# opensandbox_receipt.rq — consumed by templates/opensandbox/receipt.json.tmpl
+#
+# Single-row projection idiom. Projected columns (MUST equal template vars):
+#   receiptId           - aaif:receiptId
+#   sandboxImage        - aaif:sandboxImage (pinned digest)
+#   sandboxCommand      - aaif:sandboxCommand
+#   networkJailed       - aaif:sandboxNetworkJailed (boolean; COALESCE default false)
+#   stdoutDigest        - aaif:stdoutDigest
+#   stderrDigest        - aaif:stderrDigest
+#   receiptSeal         - aaif:receiptSeal
+#
+# id/image/command/digests/seal mandatory; missing -> zero rows -> engine
+# refuses. network_jailed is OPTIONAL (template default false).
+
+PREFIX aaif: <https://aaif.io/ontology#>
+
+SELECT ?receiptId ?sandboxImage ?sandboxCommand ?networkJailed
+       ?stdoutDigest ?stderrDigest ?receiptSeal
+WHERE {
+  ?s a aaif:OpenSandboxReceipt ;
+     aaif:receiptId ?receiptId ;
+     aaif:sandboxImage ?sandboxImage ;
+     aaif:sandboxCommand ?sandboxCommand ;
+     aaif:stdoutDigest ?stdoutDigest ;
+     aaif:stderrDigest ?stderrDigest ;
+     aaif:receiptSeal ?receiptSeal .
+  OPTIONAL { ?s aaif:sandboxNetworkJailed ?jailRaw . }
+  BIND(COALESCE(?jailRaw, false) AS ?networkJailed)
+}
+ORDER BY ?s
+LIMIT 1

@@ -71,6 +71,7 @@ DEFAULT_WORKERS = 8
 # a generated crate that hangs still fails closed, it just gets real headroom
 # first.
 CARGO_BUILD_TIMEOUT_SECONDS = 120.0
+TERRAFORM_CHECK_TIMEOUT_SECONDS = 120.0
 
 # Rollout gate for the CI-05 cargo-build/test check (2026-09-03): the
 # check's first-ever run against the full live corpus (213 packs) found 18
@@ -181,6 +182,7 @@ def run_bounded(command: list[str], cwd: Path, timeout_seconds: float) -> Comman
             # Isolate ordinary state without hiding the admitted runner toolchain.
             "RUSTUP_HOME": env.get("RUSTUP_HOME", str(original_home / ".rustup")),
             "CARGO_HOME": env.get("CARGO_HOME", str(original_home / ".cargo")),
+            "ASDF_DATA_DIR": env.get("ASDF_DATA_DIR", str(original_home / ".asdf")),
         }
     )
     process = subprocess.Popen(
@@ -671,6 +673,73 @@ def verify_generated_cargo_manifest(manifest: Path, timeout_seconds: float) -> t
     return None
 
 
+def discover_generated_terraform_roots(consumer: Path, decisions: dict[str, str] | None = None) -> tuple[Path, ...]:
+    """Every directory under `consumer` containing generated `*.tf` files that
+    ggen's own generation rules targeted this sync pass (excluding
+    `IGNORED_RUNTIME_ROOTS` and `.terraform`), sorted for determinism.
+
+    Presence-gated, never pack-name-gated: any pack whose generated output
+    includes `*.tf` files gets real `terraform fmt -check`, `init`, `validate`,
+    and `terraform test` (when `tests/*.tftest.hcl` exists) in `qualify_pack`.
+    """
+    roots: set[Path] = set()
+    for path in consumer.rglob("*.tf"):
+        rel = path.relative_to(consumer)
+        if rel.parts and (rel.parts[0] in IGNORED_RUNTIME_ROOTS or ".terraform" in rel.parts):
+            continue
+        if decisions is not None and rel.as_posix() not in decisions:
+            continue
+        roots.add(path.parent)
+    return tuple(sorted(roots, key=lambda item: item.relative_to(consumer).as_posix()))
+
+
+def verify_generated_terraform_root(tf_root: Path, timeout_seconds: float) -> tuple[str, str] | None:
+    """Run `terraform fmt -check -recursive`, `terraform init -backend=false`,
+    `terraform validate -no-color`, and (when `tests/*.tftest.hcl` exists)
+    `terraform test -no-color` on a generated Terraform root directory.
+    """
+    if shutil.which("terraform") is None:
+        return (
+            "SKIPPED:GGEN_PACK_TERRAFORM_UNAVAILABLE",
+            f"terraform binary not found on PATH for tf_root={tf_root}",
+        )
+    fmt = run_bounded(["terraform", "fmt", "-check", "-recursive", "-no-color"], tf_root, 30.0)
+    if fmt.timed_out:
+        return ("REFUSED:GGEN_PACK_TERRAFORM_FMT_FAILED", f"terraform fmt timed out tf_root={tf_root}")
+    if fmt.returncode != 0:
+        return (
+            "REFUSED:GGEN_PACK_TERRAFORM_FMT_FAILED",
+            f"terraform fmt -check exit={fmt.returncode} tf_root={tf_root} output={compact_output(fmt)}",
+        )
+    init = run_bounded(["terraform", "init", "-backend=false", "-input=false", "-no-color"], tf_root, timeout_seconds)
+    if init.timed_out:
+        return ("REFUSED:GGEN_PACK_TERRAFORM_INIT_FAILED", f"terraform init timed out tf_root={tf_root}")
+    if init.returncode != 0:
+        return (
+            "REFUSED:GGEN_PACK_TERRAFORM_INIT_FAILED",
+            f"terraform init exit={init.returncode} tf_root={tf_root} output={compact_output(init)}",
+        )
+    validate = run_bounded(["terraform", "validate", "-no-color"], tf_root, timeout_seconds)
+    if validate.timed_out:
+        return ("REFUSED:GGEN_PACK_TERRAFORM_VALIDATE_FAILED", f"terraform validate timed out tf_root={tf_root}")
+    if validate.returncode != 0:
+        return (
+            "REFUSED:GGEN_PACK_TERRAFORM_VALIDATE_FAILED",
+            f"terraform validate exit={validate.returncode} tf_root={tf_root} output={compact_output(validate)}",
+        )
+    tests_dir = tf_root / "tests"
+    if tests_dir.is_dir() and any(tests_dir.glob("*.tftest.hcl")):
+        tf_test = run_bounded(["terraform", "test", "-no-color"], tf_root, timeout_seconds)
+        if tf_test.timed_out:
+            return ("REFUSED:GGEN_PACK_TERRAFORM_TEST_FAILED", f"terraform test timed out tf_root={tf_root}")
+        if tf_test.returncode != 0:
+            return (
+                "REFUSED:GGEN_PACK_TERRAFORM_TEST_FAILED",
+                f"terraform test exit={tf_test.returncode} tf_root={tf_root} output={compact_output(tf_test)}",
+            )
+    return None
+
+
 def refusal(pack: Pack, code: str, detail: str) -> dict[str, Any]:
     return {
         "code": code,
@@ -790,21 +859,45 @@ def qualify_pack(pack: Pack, ggen_bin: str, timeout_seconds: float) -> dict[str,
                                 else:
                                     record = refusal(pack, code, detail)
                             else:
-                                record = {
-                                    "consequence_files": len(snapshot_two),
-                                    "consequence_sha256": snapshot_digest(snapshot_two),
-                                    "generated_build": {
-                                        "manifests_verified": [
-                                            manifest.relative_to(consumer).as_posix()
-                                            for manifest in manifests
-                                        ],
-                                    },
-                                    "name": pack.name,
-                                    "profile": pack.profile,
-                                    "source_sha256": source_before,
-                                    "status": "ALIVE",
-                                    "version": pack.version,
-                                }
+                                tf_roots = discover_generated_terraform_roots(consumer, second_decisions)
+                                tf_failure: tuple[str, str] | None = None
+                                for tf_root in tf_roots:
+                                    tf_failure = verify_generated_terraform_root(tf_root, TERRAFORM_CHECK_TIMEOUT_SECONDS)
+                                    if tf_failure is not None:
+                                        break
+                                if tf_failure is not None:
+                                    tf_code, tf_detail = tf_failure
+                                    if tf_code.startswith("SKIPPED:"):
+                                        record = {
+                                            "code": tf_code,
+                                            "detail": tf_detail,
+                                            "name": pack.name,
+                                            "profile": pack.profile,
+                                            "status": "SKIPPED",
+                                            "version": pack.version,
+                                        }
+                                    else:
+                                        record = refusal(pack, tf_code, tf_detail)
+                                else:
+                                    record = {
+                                        "consequence_files": len(snapshot_two),
+                                        "consequence_sha256": snapshot_digest(snapshot_two),
+                                        "generated_build": {
+                                            "manifests_verified": [
+                                                manifest.relative_to(consumer).as_posix()
+                                                for manifest in manifests
+                                            ],
+                                            "terraform_roots_verified": [
+                                                tf_root.relative_to(consumer).as_posix()
+                                                for tf_root in tf_roots
+                                            ],
+                                        },
+                                        "name": pack.name,
+                                        "profile": pack.profile,
+                                        "source_sha256": source_before,
+                                        "status": "ALIVE",
+                                        "version": pack.version,
+                                    }
     except QualificationContractError as error:
         record = refusal(pack, "REFUSED:QUALIFICATION_CONTRACT_INVALID", str(error))
 

@@ -1,6 +1,12 @@
 # Formal Receipt: Chicago-Style Process Conformance Court (AAIF-ENTERPRISE-2026)
 Standing: PASS (file's own verdict: CLEAN PASS 9/9, EXIT=0)
 
+Disk correction (2026-11-16): `tests/test_aaif_enterprise_court.py` now holds 12 test
+functions; the 9/9 below is the as-run figure from the original court run. Reproduce:
+`python3 scripts/receipt_counts.py` (UNVERIFIED until run).
+
+Counts: test_aaif_enterprise_court.py=12
+
 ## 1. Executive Summary & Epistemic Verdict
 - **Execution Mode:** Hermetic container runtime via `act` (`catthehacker/ubuntu:act-latest`) on Apple Silicon host running Colima VM (`aarch64` / `vz` virtualization).
 - **Cluster Harness:** Ephemeral Kubernetes `kind` v0.24.0 cluster (`ephemeral-aaif-court`).
