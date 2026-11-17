@@ -1,0 +1,31 @@
+# MESSAGE: any row = a push subscription that is not OIDC-authenticated over https to a declared topic,
+# or an egress worker / intake service without a runtime service account.
+PREFIX fgb: <https://seanchatmangpt.dev/ontology/fnox-gcp-broker#>
+SELECT DISTINCT ?node ?problem WHERE {
+  {
+    ?node a fgb:PushSubscription .
+    FILTER NOT EXISTS { ?node fgb:oidcServiceAccount ?sa . ?sa a fgb:ServiceAccount }
+    BIND("push-without-oidc-service-account" AS ?problem)
+  } UNION {
+    ?node a fgb:PushSubscription .
+    FILTER NOT EXISTS { ?node fgb:oidcAudience ?aud }
+    BIND("push-without-oidc-audience" AS ?problem)
+  } UNION {
+    ?node a fgb:PushSubscription .
+    OPTIONAL { ?node fgb:pushEndpoint ?ep }
+    FILTER(!BOUND(?ep) || !STRSTARTS(STR(?ep), "https://"))
+    BIND("push-endpoint-not-https" AS ?problem)
+  } UNION {
+    ?node a fgb:PushSubscription .
+    FILTER NOT EXISTS { ?node fgb:subscribesTo ?t . ?t a fgb:Topic }
+    BIND("push-without-topic" AS ?problem)
+  } UNION {
+    ?node a fgb:Service .
+    FILTER NOT EXISTS { ?node fgb:runsAs ?sa . ?sa a fgb:ServiceAccount }
+    BIND("service-without-runtime-service-account" AS ?problem)
+  } UNION {
+    ?node a fgb:Bucket .
+    FILTER NOT EXISTS { ?node fgb:finalizeTrigger ?tr . ?tr fgb:destination ?svc . ?svc a fgb:IntakeService }
+    BIND("bucket-without-finalize-trigger-to-intake" AS ?problem)
+  }
+}

@@ -1,0 +1,94 @@
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix gtf:  <https://seanchatmangpt.dev/ontology/gcp-terraform#> .
+@prefix fgb:  <https://seanchatmangpt.dev/ontology/fnox-gcp-broker#> .
+
+# SHACL twin of gates/*.rq. Run with pyshacl against ontology/fnox-gcp-broker.ttl
+# (conforms) and against the union with any tests/mutations/*.ttl (must NOT conform).
+
+fgb:TopicShape a sh:NodeShape ;
+    sh:targetClass fgb:Topic ;
+    sh:property [
+        sh:path fgb:dedupAttribute ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:hasValue "durable_intent_token" ;
+        sh:message "topic without dedup attribute durable_intent_token" ;
+    ] ;
+    sh:property [
+        sh:path fgb:messageOrdering ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:hasValue true ;
+        sh:message "topic without message ordering" ;
+    ] ;
+    sh:property [
+        sh:path fgb:gcpName ;
+        sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+    ] .
+
+fgb:EgressWorkerShape a sh:NodeShape ;
+    sh:targetClass fgb:EgressWorker ;
+    sh:property [
+        sh:path fgb:accessesSecret ;
+        sh:class fgb:Secret ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "egress worker must access exactly one secret" ;
+    ] ;
+    sh:property [
+        sh:path fgb:accessorRole ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:hasValue "roles/secretmanager.secretAccessor" ;
+        sh:message "egress worker accessor role must be roles/secretmanager.secretAccessor" ;
+    ] ;
+    sh:property [
+        sh:path fgb:vendor ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:in ( "twilio" "sendgrid" "stripe" ) ;
+    ] ;
+    sh:property [
+        sh:path fgb:runsAs ;
+        sh:class fgb:ServiceAccount ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+    ] .
+
+fgb:PushSubscriptionShape a sh:NodeShape ;
+    sh:targetClass fgb:PushSubscription ;
+    sh:property [ sh:path fgb:pushEndpoint ; sh:minCount 1 ; sh:maxCount 1 ;
+                  sh:pattern "^https://" ; sh:message "push endpoint must be https" ] ;
+    sh:property [ sh:path fgb:oidcAudience ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path fgb:oidcServiceAccount ; sh:class fgb:ServiceAccount ;
+                  sh:minCount 1 ; sh:maxCount 1 ; sh:message "push subscription without OIDC signer" ] ;
+    sh:property [ sh:path fgb:subscribesTo ; sh:class fgb:Topic ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+fgb:BucketShape a sh:NodeShape ;
+    sh:targetClass fgb:Bucket ;
+    sh:property [ sh:path fgb:finalizeTrigger ; sh:class fgb:FinalizeTrigger ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+fgb:FinalizeTriggerShape a sh:NodeShape ;
+    sh:targetClass fgb:FinalizeTrigger ;
+    sh:property [ sh:path fgb:destination ; sh:class fgb:IntakeService ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path fgb:onBucket ; sh:class fgb:Bucket ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+fgb:IntakeServiceShape a sh:NodeShape ;
+    sh:targetClass fgb:IntakeService ;
+    sh:property [ sh:path fgb:provenance ; sh:hasValue "pdf_ingest" ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path fgb:model ; sh:hasValue "gemini-2.5-flash" ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+fgb:WorkloadIdentityBindingShape a sh:NodeShape ;
+    sh:targetClass fgb:WorkloadIdentityBinding ;
+    sh:property [ sh:path fgb:bindsAccount ; sh:class fgb:ServiceAccount ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path fgb:kubernetesNamespace ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path fgb:kubernetesServiceAccount ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+# Zero static key: no gtf:Resource may carry the forbidden type, and fgb:StaticKey is a closed (empty) class.
+fgb:ZeroStaticKeyShape a sh:NodeShape ;
+    sh:targetClass gtf:Resource ;
+    sh:property [
+        sh:path gtf:resourceType ;
+        sh:not [ sh:hasValue "google_service_account_key" ] ;
+        sh:message "google_service_account_key is forbidden (zero-static-key constraint)" ;
+    ] .
+
+fgb:StaticKeyForbiddenShape a sh:NodeShape ;
+    sh:targetClass fgb:StaticKey ;
+    sh:not [ sh:class fgb:StaticKey ] ;
+    sh:message "fgb:StaticKey instances are refused" .

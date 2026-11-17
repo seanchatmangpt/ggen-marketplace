@@ -1,0 +1,24 @@
+# MESSAGE: any row = a static service-account key in the topology (zero-static-key constraint).
+# Refuses any gtf:Resource typed google_service_account_key, any fgb:StaticKey instance, and a
+# topology that lost its fgb:Constraint forbidding the type.
+# Falsifier: tests/mutations/static_key.ttl (adds google_service_account_key "deployer_key") must yield >= 1 row.
+PREFIX gtf: <https://seanchatmangpt.dev/ontology/gcp-terraform#>
+PREFIX fgb: <https://seanchatmangpt.dev/ontology/fnox-gcp-broker#>
+SELECT DISTINCT ?node ?problem WHERE {
+  {
+    ?node gtf:resourceType ?t .
+    FILTER(STR(?t) = "google_service_account_key")
+    BIND("google_service_account_key-forbidden" AS ?problem)
+  } UNION {
+    ?node a fgb:StaticKey .
+    BIND("fgb:StaticKey-forbidden" AS ?problem)
+  } UNION {
+    ?node a fgb:Constraint .
+    FILTER NOT EXISTS { ?node fgb:forbidsResourceType "google_service_account_key" }
+    BIND("constraint-missing-forbidsResourceType" AS ?problem)
+  } UNION {
+    BIND(fgb:constraint_zero_static_key AS ?node)
+    FILTER NOT EXISTS { ?c a fgb:Constraint ; fgb:forbidsResourceType "google_service_account_key" }
+    BIND("zero-static-key-constraint-absent" AS ?problem)
+  }
+}

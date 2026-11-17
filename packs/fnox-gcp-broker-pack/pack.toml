@@ -1,0 +1,33 @@
+[pack]
+name = "fnox-gcp-broker-pack"
+version = "0.1.0"
+description = """fnox ARD Tier-3 GCP broker topology as capital: ontology (extends gcp-terraform-pack
+`gtf:` vocabulary with `fgb:` broker semantics) declaring the `pplan-actuation` Pub/Sub topic
+(ordering + consumer dedup on `durable_intent_token`), the `fnox-intake-pdfs` GCS bucket with an
+Eventarc finalize trigger into a Cloud Run intake service (Document AI / Vertex gemini-2.5-flash,
+provenance pdf_ingest), one Cloud Run egress worker per vendor (twilio, sendgrid, stripe) each
+holding `roles/secretmanager.secretAccessor` on exactly one secret, API Gateway webhook ingress, an
+OIDC push subscription to platform.fnox.io/gcp/signal, a Workload Identity binding for the platform
+service account, and an explicit zero-static-key constraint. Templates render Terraform
+(`infra/gcp/broker/*.tf`) plus `infra/gcp/broker/topology.md`. Gates (gates/*.rq, any row =
+refusal) and SHACL (shapes/fgb.shacl.ttl) refuse: a worker with more than one secret, a topic
+without the dedup attribute, any `google_service_account_key` resource. tests/mutations/*.ttl are
+the falsifier fixtures. Generated Terraform carries no DO authority."""
+
+[metadata]
+category = "infrastructure"
+tags = ["fnox", "gcp", "terraform", "pubsub", "eventarc", "cloud-run", "secret-manager", "workload-identity"]
+
+[capabilities]
+provides = ["urn:ggen:pack:fnox-gcp-broker-pack"]
+requires = []
+
+# Frontmatter-schema pack: gates live here, not in ggen.toml (ggen 26.11.5 FM-CONFIG-101 refuses a
+# [validation] table beside frontmatter templates). Any row returned by a gate = refusal.
+[validation]
+gates = [
+  "gates/010_topic_dedup.rq",
+  "gates/020_worker_single_secret.rq",
+  "gates/030_zero_static_key.rq",
+  "gates/040_push_oidc.rq",
+]

@@ -1,0 +1,22 @@
+# MESSAGE: any row = a fgb:Topic without ordering, or without exactly one dedup attribute equal to "durable_intent_token".
+# Falsifier: tests/mutations/topic_no_dedup.ttl (adds a sibling fgb:Topic "pplan-actuation-mutant" with ordering but
+# no fgb:dedupAttribute; a union court cannot delete the attribute from pplan-actuation) must yield >= 1 row
+# (missing-dedup-attribute).
+PREFIX fgb: <https://seanchatmangpt.dev/ontology/fnox-gcp-broker#>
+SELECT DISTINCT ?topic ?problem WHERE {
+  ?topic a fgb:Topic .
+  {
+    FILTER NOT EXISTS { ?topic fgb:dedupAttribute ?d }
+    BIND("missing-dedup-attribute" AS ?problem)
+  } UNION {
+    ?topic fgb:dedupAttribute ?d .
+    FILTER(STR(?d) != "durable_intent_token")
+    BIND(CONCAT("dedup-attribute-not-durable_intent_token:", STR(?d)) AS ?problem)
+  } UNION {
+    FILTER NOT EXISTS { ?topic fgb:messageOrdering true }
+    BIND("missing-message-ordering" AS ?problem)
+  } UNION {
+    FILTER NOT EXISTS { ?topic fgb:gcpName ?n }
+    BIND("missing-gcp-name" AS ?problem)
+  }
+}

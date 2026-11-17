@@ -1,0 +1,238 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix gtf:  <https://seanchatmangpt.dev/ontology/gcp-terraform#> .
+@prefix fgb:  <https://seanchatmangpt.dev/ontology/fnox-gcp-broker#> .
+
+<https://seanchatmangpt.dev/ontology/fnox-gcp-broker> a owl:Ontology ;
+    rdfs:label "fnox GCP broker topology (ARD Tier 3)" ;
+    rdfs:comment "Reuses gcp-terraform-pack gtf: (Module / Resource / resourceType / resourceName / ApiService / order) for the Terraform inventory and adds fgb: broker semantics (topic, bucket, services, secrets, subscription, gateway, identity, constraints). Source of truth for infra/gcp/broker/*.tf." ;
+    owl:imports <https://seanchatmangpt.dev/ontology/gcp-terraform> ;
+    prov:wasDerivedFrom <file:///Users/sac/fnox/docs/jira/v26.11.16/ARD.md> .
+
+# ---------------------------------------------------------------------------
+# fgb: vocabulary
+# ---------------------------------------------------------------------------
+fgb:Topic a rdfs:Class ; rdfs:subClassOf gtf:Resource ; rdfs:comment "google_pubsub_topic" .
+fgb:PushSubscription a rdfs:Class ; rdfs:subClassOf gtf:Resource ; rdfs:comment "google_pubsub_subscription with push_config + oidc_token" .
+fgb:Bucket a rdfs:Class ; rdfs:subClassOf gtf:Resource ; rdfs:comment "google_storage_bucket" .
+fgb:FinalizeTrigger a rdfs:Class ; rdfs:subClassOf gtf:Resource ; rdfs:comment "google_eventarc_trigger on google.cloud.storage.object.v1.finalized" .
+fgb:Service a rdfs:Class ; rdfs:subClassOf gtf:Resource ; rdfs:comment "google_cloud_run_v2_service" .
+fgb:IntakeService a rdfs:Class ; rdfs:subClassOf fgb:Service .
+fgb:EgressWorker a rdfs:Class ; rdfs:subClassOf fgb:Service ; rdfs:comment "One per vendor; least privilege = exactly one fgb:accessesSecret." .
+fgb:Secret a rdfs:Class ; rdfs:subClassOf gtf:Resource ; rdfs:comment "google_secret_manager_secret (shell only; versions are never in Terraform)" .
+fgb:Gateway a rdfs:Class ; rdfs:subClassOf gtf:Resource ; rdfs:comment "google_api_gateway_gateway ingress for inbound vendor webhooks" .
+fgb:ServiceAccount a rdfs:Class ; rdfs:subClassOf gtf:Resource .
+fgb:WorkloadIdentityBinding a rdfs:Class ; rdfs:subClassOf gtf:Resource ; rdfs:comment "google_service_account_iam_member roles/iam.workloadIdentityUser" .
+fgb:Constraint a rdfs:Class ; rdfs:comment "Topology-wide law the gates enforce and the org policy materialises." .
+fgb:StaticKey a rdfs:Class ; rdfs:comment "Forbidden class: any node typed here (or any gtf:Resource with resourceType google_service_account_key) is refused by gates/030." .
+
+fgb:gcpName a rdf:Property ; rdfs:comment "Name as it appears in GCP (topic/bucket/service/secret id)." .
+fgb:messageOrdering a rdf:Property ; rdfs:comment "xsd:boolean — subscription enable_message_ordering; publishers set ordering_key." .
+fgb:dedupAttribute a rdf:Property ; rdfs:comment "Message attribute the consumer dedups on. Pub/Sub has no server-side dedup; platform.fnox.io/gcp/signal is the idempotent receiver." .
+fgb:retentionDuration a rdf:Property .
+fgb:ackDeadlineSeconds a rdf:Property .
+fgb:subscribesTo a rdf:Property .
+fgb:pushEndpoint a rdf:Property .
+fgb:oidcAudience a rdf:Property .
+fgb:oidcServiceAccount a rdf:Property ; rdfs:comment "fgb:ServiceAccount whose identity signs the push OIDC token." .
+fgb:finalizeTrigger a rdf:Property ; rdfs:comment "Bucket -> FinalizeTrigger." .
+fgb:destination a rdf:Property ; rdfs:comment "FinalizeTrigger -> Service." .
+fgb:onBucket a rdf:Property .
+fgb:runsAs a rdf:Property ; rdfs:comment "Service -> ServiceAccount." .
+fgb:accountId a rdf:Property .
+fgb:image a rdf:Property .
+fgb:envVar a rdf:Property ; rdfs:comment "Blank node with fgb:envName + fgb:envValue (literal env; secrets are mounted via fgb:accessesSecret, never env literals)." .
+fgb:envName a rdf:Property .
+fgb:envValue a rdf:Property .
+fgb:projectRole a rdf:Property ; rdfs:comment "roles/... granted at project scope to the service account." .
+fgb:vendor a rdf:Property .
+fgb:accessesSecret a rdf:Property ; rdfs:comment "EgressWorker -> Secret. Cardinality exactly 1 (gates/020, shapes)." .
+fgb:accessorRole a rdf:Property .
+fgb:extractor a rdf:Property ; rdfs:comment "documentai | vertex" .
+fgb:model a rdf:Property .
+fgb:provenance a rdf:Property ; rdfs:comment "Provenance atom stamped on every record the service emits." .
+fgb:ingressRoute a rdf:Property ; rdfs:comment "Blank node with fgb:routePath + fgb:routeBackend." .
+fgb:routePath a rdf:Property .
+fgb:routeBackend a rdf:Property .
+fgb:bindsAccount a rdf:Property .
+fgb:kubernetesNamespace a rdf:Property .
+fgb:kubernetesServiceAccount a rdf:Property .
+fgb:publishesTo a rdf:Property ; rdfs:comment "ServiceAccount -> Topic (roles/pubsub.publisher on the topic)." .
+fgb:forbidsResourceType a rdf:Property .
+fgb:orgPolicyConstraint a rdf:Property .
+fgb:rationale a rdf:Property .
+
+# ---------------------------------------------------------------------------
+# Module + enabled APIs
+# ---------------------------------------------------------------------------
+gtf:mod_broker a gtf:Module ; rdfs:label "broker" ;
+    rdfs:comment "infra/gcp/broker — rendered entirely by fnox-gcp-broker-pack." .
+
+fgb:api_01 a gtf:ApiService ; gtf:inModule gtf:mod_broker ; gtf:order 1 ; gtf:apiName "pubsub.googleapis.com" .
+fgb:api_02 a gtf:ApiService ; gtf:inModule gtf:mod_broker ; gtf:order 2 ; gtf:apiName "storage.googleapis.com" .
+fgb:api_03 a gtf:ApiService ; gtf:inModule gtf:mod_broker ; gtf:order 3 ; gtf:apiName "eventarc.googleapis.com" .
+fgb:api_04 a gtf:ApiService ; gtf:inModule gtf:mod_broker ; gtf:order 4 ; gtf:apiName "run.googleapis.com" .
+fgb:api_05 a gtf:ApiService ; gtf:inModule gtf:mod_broker ; gtf:order 5 ; gtf:apiName "secretmanager.googleapis.com" .
+fgb:api_06 a gtf:ApiService ; gtf:inModule gtf:mod_broker ; gtf:order 6 ; gtf:apiName "documentai.googleapis.com" .
+fgb:api_07 a gtf:ApiService ; gtf:inModule gtf:mod_broker ; gtf:order 7 ; gtf:apiName "aiplatform.googleapis.com" .
+fgb:api_08 a gtf:ApiService ; gtf:inModule gtf:mod_broker ; gtf:order 8 ; gtf:apiName "apigateway.googleapis.com" .
+fgb:api_09 a gtf:ApiService ; gtf:inModule gtf:mod_broker ; gtf:order 9 ; gtf:apiName "servicecontrol.googleapis.com" .
+fgb:api_10 a gtf:ApiService ; gtf:inModule gtf:mod_broker ; gtf:order 10 ; gtf:apiName "iam.googleapis.com" .
+fgb:api_11 a gtf:ApiService ; gtf:inModule gtf:mod_broker ; gtf:order 11 ; gtf:apiName "iamcredentials.googleapis.com" .
+fgb:api_12 a gtf:ApiService ; gtf:inModule gtf:mod_broker ; gtf:order 12 ; gtf:apiName "orgpolicy.googleapis.com" .
+
+# ---------------------------------------------------------------------------
+# Service accounts
+# ---------------------------------------------------------------------------
+fgb:sa_platform a fgb:ServiceAccount ; gtf:inModule gtf:mod_broker ; gtf:order 1 ;
+    gtf:resourceType "google_service_account" ; gtf:resourceName "platform" ;
+    fgb:accountId "fnox-platform" ; rdfs:label "fnox platform (ash_pplan actuator)" ;
+    fgb:publishesTo fgb:topic_pplan_actuation .
+
+fgb:sa_push a fgb:ServiceAccount ; gtf:inModule gtf:mod_broker ; gtf:order 2 ;
+    gtf:resourceType "google_service_account" ; gtf:resourceName "push" ;
+    fgb:accountId "fnox-pubsub-push" ; rdfs:label "Pub/Sub push OIDC signer" .
+
+fgb:sa_intake a fgb:ServiceAccount ; gtf:inModule gtf:mod_broker ; gtf:order 3 ;
+    gtf:resourceType "google_service_account" ; gtf:resourceName "intake" ;
+    fgb:accountId "fnox-intake" ; rdfs:label "PDF intake service" ;
+    fgb:projectRole "roles/documentai.apiUser" , "roles/aiplatform.user" , "roles/eventarc.eventReceiver" ;
+    fgb:publishesTo fgb:topic_pplan_actuation .
+
+fgb:sa_egress_twilio a fgb:ServiceAccount ; gtf:inModule gtf:mod_broker ; gtf:order 4 ;
+    gtf:resourceType "google_service_account" ; gtf:resourceName "egress_twilio" ;
+    fgb:accountId "fnox-egress-twilio" ; rdfs:label "twilio egress worker" .
+
+fgb:sa_egress_sendgrid a fgb:ServiceAccount ; gtf:inModule gtf:mod_broker ; gtf:order 5 ;
+    gtf:resourceType "google_service_account" ; gtf:resourceName "egress_sendgrid" ;
+    fgb:accountId "fnox-egress-sendgrid" ; rdfs:label "sendgrid egress worker" .
+
+fgb:sa_egress_stripe a fgb:ServiceAccount ; gtf:inModule gtf:mod_broker ; gtf:order 6 ;
+    gtf:resourceType "google_service_account" ; gtf:resourceName "egress_stripe" ;
+    fgb:accountId "fnox-egress-stripe" ; rdfs:label "stripe egress worker" .
+
+fgb:sa_gateway a fgb:ServiceAccount ; gtf:inModule gtf:mod_broker ; gtf:order 7 ;
+    gtf:resourceType "google_service_account" ; gtf:resourceName "gateway" ;
+    fgb:accountId "fnox-gateway" ; rdfs:label "API Gateway webhook ingress" .
+
+# ---------------------------------------------------------------------------
+# Pub/Sub: actuation topic + OIDC push subscription
+# ---------------------------------------------------------------------------
+fgb:topic_pplan_actuation a fgb:Topic ; gtf:inModule gtf:mod_broker ; gtf:order 10 ;
+    gtf:resourceType "google_pubsub_topic" ; gtf:resourceName "pplan_actuation" ;
+    fgb:gcpName "pplan-actuation" ;
+    fgb:messageOrdering true ;
+    fgb:dedupAttribute "durable_intent_token" ;
+    fgb:retentionDuration "604800s" ;
+    fgb:rationale "ash_pplan actuator publishes one message per durable intent; ordering_key = work-order id; receiver dedups on durable_intent_token before any effect." .
+
+fgb:sub_platform_signal a fgb:PushSubscription ; gtf:inModule gtf:mod_broker ; gtf:order 11 ;
+    gtf:resourceType "google_pubsub_subscription" ; gtf:resourceName "platform_signal" ;
+    fgb:gcpName "pplan-actuation-platform-signal" ;
+    fgb:subscribesTo fgb:topic_pplan_actuation ;
+    fgb:messageOrdering true ;
+    fgb:ackDeadlineSeconds 60 ;
+    fgb:pushEndpoint "https://platform.fnox.io/gcp/signal" ;
+    fgb:oidcAudience "https://platform.fnox.io/gcp/signal" ;
+    fgb:oidcServiceAccount fgb:sa_push .
+
+# ---------------------------------------------------------------------------
+# Intake: bucket -> Eventarc finalize -> Cloud Run intake service
+# ---------------------------------------------------------------------------
+fgb:bucket_intake_pdfs a fgb:Bucket ; gtf:inModule gtf:mod_broker ; gtf:order 20 ;
+    gtf:resourceType "google_storage_bucket" ; gtf:resourceName "intake_pdfs" ;
+    fgb:gcpName "fnox-intake-pdfs" ;
+    fgb:finalizeTrigger fgb:trigger_intake_finalize .
+
+fgb:trigger_intake_finalize a fgb:FinalizeTrigger ; gtf:inModule gtf:mod_broker ; gtf:order 22 ;
+    gtf:resourceType "google_eventarc_trigger" ; gtf:resourceName "intake_finalize" ;
+    fgb:gcpName "fnox-intake-pdf-finalized" ;
+    fgb:onBucket fgb:bucket_intake_pdfs ;
+    fgb:destination fgb:svc_intake ;
+    fgb:runsAs fgb:sa_intake .
+
+fgb:svc_intake a fgb:IntakeService ; gtf:inModule gtf:mod_broker ; gtf:order 21 ;
+    gtf:resourceType "google_cloud_run_v2_service" ; gtf:resourceName "intake" ;
+    fgb:gcpName "fnox-intake" ;
+    fgb:runsAs fgb:sa_intake ;
+    fgb:image "${var.region}-docker.pkg.dev/${var.project_id}/${var.ar_repo}/fnox-intake:${var.image_tag}" ;
+    fgb:extractor "documentai" , "vertex" ;
+    fgb:model "gemini-2.5-flash" ;
+    fgb:provenance "pdf_ingest" ;
+    fgb:envVar
+        [ fgb:envName "FNOX_PROVENANCE" ; fgb:envValue "pdf_ingest" ] ,
+        [ fgb:envName "FNOX_EXTRACTOR_MODEL" ; fgb:envValue "gemini-2.5-flash" ] ,
+        [ fgb:envName "FNOX_ACTUATION_TOPIC" ; fgb:envValue "pplan-actuation" ] ,
+        [ fgb:envName "FNOX_DEDUP_ATTRIBUTE" ; fgb:envValue "durable_intent_token" ] .
+
+# ---------------------------------------------------------------------------
+# Egress workers: one per vendor, exactly one secret each
+# ---------------------------------------------------------------------------
+fgb:secret_twilio a fgb:Secret ; gtf:inModule gtf:mod_broker ; gtf:order 30 ;
+    gtf:resourceType "google_secret_manager_secret" ; gtf:resourceName "twilio_auth_token" ;
+    fgb:gcpName "TWILIO_AUTH_TOKEN" .
+fgb:secret_sendgrid a fgb:Secret ; gtf:inModule gtf:mod_broker ; gtf:order 31 ;
+    gtf:resourceType "google_secret_manager_secret" ; gtf:resourceName "sendgrid_api_key" ;
+    fgb:gcpName "SENDGRID_API_KEY" .
+fgb:secret_stripe a fgb:Secret ; gtf:inModule gtf:mod_broker ; gtf:order 32 ;
+    gtf:resourceType "google_secret_manager_secret" ; gtf:resourceName "stripe_secret_key" ;
+    fgb:gcpName "STRIPE_SECRET_KEY" .
+
+fgb:worker_twilio a fgb:EgressWorker ; gtf:inModule gtf:mod_broker ; gtf:order 33 ;
+    gtf:resourceType "google_cloud_run_v2_service" ; gtf:resourceName "egress_twilio" ;
+    fgb:gcpName "fnox-egress-twilio" ; fgb:vendor "twilio" ;
+    fgb:runsAs fgb:sa_egress_twilio ;
+    fgb:image "${var.region}-docker.pkg.dev/${var.project_id}/${var.ar_repo}/fnox-egress-twilio:${var.image_tag}" ;
+    fgb:accessesSecret fgb:secret_twilio ;
+    fgb:accessorRole "roles/secretmanager.secretAccessor" .
+
+fgb:worker_sendgrid a fgb:EgressWorker ; gtf:inModule gtf:mod_broker ; gtf:order 34 ;
+    gtf:resourceType "google_cloud_run_v2_service" ; gtf:resourceName "egress_sendgrid" ;
+    fgb:gcpName "fnox-egress-sendgrid" ; fgb:vendor "sendgrid" ;
+    fgb:runsAs fgb:sa_egress_sendgrid ;
+    fgb:image "${var.region}-docker.pkg.dev/${var.project_id}/${var.ar_repo}/fnox-egress-sendgrid:${var.image_tag}" ;
+    fgb:accessesSecret fgb:secret_sendgrid ;
+    fgb:accessorRole "roles/secretmanager.secretAccessor" .
+
+fgb:worker_stripe a fgb:EgressWorker ; gtf:inModule gtf:mod_broker ; gtf:order 35 ;
+    gtf:resourceType "google_cloud_run_v2_service" ; gtf:resourceName "egress_stripe" ;
+    fgb:gcpName "fnox-egress-stripe" ; fgb:vendor "stripe" ;
+    fgb:runsAs fgb:sa_egress_stripe ;
+    fgb:image "${var.region}-docker.pkg.dev/${var.project_id}/${var.ar_repo}/fnox-egress-stripe:${var.image_tag}" ;
+    fgb:accessesSecret fgb:secret_stripe ;
+    fgb:accessorRole "roles/secretmanager.secretAccessor" .
+
+# ---------------------------------------------------------------------------
+# Ingress: API Gateway for inbound vendor webhooks
+# ---------------------------------------------------------------------------
+fgb:gateway_webhooks a fgb:Gateway ; gtf:inModule gtf:mod_broker ; gtf:order 40 ;
+    gtf:resourceType "google_api_gateway_gateway" ; gtf:resourceName "webhooks" ;
+    fgb:gcpName "fnox-webhooks" ;
+    fgb:runsAs fgb:sa_gateway ;
+    fgb:ingressRoute
+        [ fgb:routePath "/webhooks/twilio" ; fgb:routeBackend "https://platform.fnox.io/gcp/webhooks/twilio" ] ,
+        [ fgb:routePath "/webhooks/sendgrid" ; fgb:routeBackend "https://platform.fnox.io/gcp/webhooks/sendgrid" ] ,
+        [ fgb:routePath "/webhooks/stripe" ; fgb:routeBackend "https://platform.fnox.io/gcp/webhooks/stripe" ] .
+
+# ---------------------------------------------------------------------------
+# Workload Identity binding for the platform service account
+# ---------------------------------------------------------------------------
+fgb:wi_platform a fgb:WorkloadIdentityBinding ; gtf:inModule gtf:mod_broker ; gtf:order 50 ;
+    gtf:resourceType "google_service_account_iam_member" ; gtf:resourceName "platform_workload_identity" ;
+    fgb:bindsAccount fgb:sa_platform ;
+    fgb:kubernetesNamespace "fnox" ;
+    fgb:kubernetesServiceAccount "fnox-platform" ;
+    fgb:rationale "platform pods mint short-lived tokens via the metadata server; no JSON key ever exists." .
+
+# ---------------------------------------------------------------------------
+# Constraint: zero static keys
+# ---------------------------------------------------------------------------
+fgb:constraint_zero_static_key a fgb:Constraint ; gtf:inModule gtf:mod_broker ; gtf:order 60 ;
+    gtf:resourceType "google_org_policy_policy" ; gtf:resourceName "disable_sa_key_creation" ;
+    rdfs:label "zero-static-key" ;
+    fgb:forbidsResourceType "google_service_account_key" ;
+    fgb:orgPolicyConstraint "constraints/iam.disableServiceAccountKeyCreation" ;
+    fgb:rationale "Every identity in this topology is Workload Identity or a Cloud Run runtime SA. gates/030 refuses any google_service_account_key resource; the org policy makes the refusal hold at the project boundary too." .
