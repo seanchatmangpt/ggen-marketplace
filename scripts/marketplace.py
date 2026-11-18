@@ -81,6 +81,14 @@ PACK_CLASSES: dict[str, str] = {
     "strata-stratus-pack": "CapabilityPack",
     "strata-temprun-pack": "CapabilityPack",
     "strata-valve-pack": "CapabilityPack",
+    # v26.11.17 source-repo intake (fnox/arcus/smalt/ash_pplan/ash_a2a)
+    "fnox-gcp-broker-pack": "ProfilePack",
+    "fnox-boundary-payload-pack": "CapabilityPack",
+    "arcus-pack": "CapabilityPack",
+    "gcp-dialect-pack": "CapabilityPack",
+    "smalt-k8s-pack": "ProfilePack",
+    "ash-pplan-core-pack": "KernelPack",
+    "sa2a-umbrella-pack": "UmbrellaPack",
 }
 # The real ggen loader deserializes [pack] with deny-unknown-fields; anything else is
 # refused at pack-load time, so refuse it here first (see CLAUDE.md, "Pack profiles").

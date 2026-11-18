@@ -1,0 +1,22 @@
+PREFIX ap: <https://w3id.org/ash-pplan#>
+PREFIX p-plan: <http://purl.org/net/p-plan#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+# Steps are enumerated by their p-plan projection edge (p-plan:isStepOfPlan), not by
+# explicit rdf:type: the sparql engine performs NO subclass inference, so typed
+# ap:Task / ap:Workflow individuals (rdfs:subClassOf p-plan:Step / p-plan:Plan) would
+# otherwise be over-filtered.
+#
+# ANCHOR NOTE: gate and its cardinality contract share the p-plan:isStepOfPlan anchor;
+# total loss of that predicate is blind to BOTH. The residual blind spot is covered by
+# verify/030_plan_variables.unbound.rq for explicitly typed p-plan:Step subjects.
+#
+# KERNEL NOTE: this pack ships no plan individuals. A graph composed from this pack alone
+# yields zero rows; rows come from consumer-supplied plans.
+SELECT DISTINCT ?plan ?planLabel ?step ?stepLabel ?predecessor WHERE {
+  ?step p-plan:isStepOfPlan ?plan .
+  OPTIONAL { ?plan rdfs:label ?planLabel }
+  OPTIONAL { ?step rdfs:label ?stepLabel }
+  OPTIONAL { ?step p-plan:isPrecededBy ?predecessor }
+}
+ORDER BY ?plan ?step ?predecessor

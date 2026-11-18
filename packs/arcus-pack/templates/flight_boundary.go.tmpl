@@ -1,0 +1,121 @@
+---
+to: internal/arcus/flight/flight_boundary.go
+unless_exists: true
+skip_empty: true
+sparql:
+  feeds: >
+    PREFIX arcus: <urn:arcus:>
+    SELECT ?id WHERE {
+      ?f a arcus:Feed ; arcus:feedOf ?op .
+      ?op arcus:id ?id .
+    } ORDER BY ?id
+---
+// GENERATED ONCE by ggen (unless_exists: true — this file is the generated-once
+// seam, never overwritten by a later `ggen sync run`, so kernel edits are safe).
+// PG-A9 PART A step 3: the flight boundary seam. The seal/unseal Boundary is a
+// pluggable interface (sidecar on host, JS imports on wasm — PG-A9 A1 ruling);
+// this file scaffolds the registry the handwritten kernel reads and the typed,
+// fail-closed refusal for an unconfigured boundary. Codecs live in cgap-owned
+// code; arcus ships no codec logic (never emulate admit in Go).
+// Extension transcoder registrations added here are governed by gate
+// 090_feed_closure (feed<->transcoder bijection) and the flight_ops drift court.
+
+package flight
+
+import (
+	"fmt"
+	"sync"
+)
+
+// FrameFlag closed set — the cgap frame.rs law (FLAG_ARROW / FLAG_PARQUET /
+// FLAG_BN3 / FLAG_GITPACK), pinned by gate 090_feed_closure.
+const (
+	FlagArrow   uint8 = 0x01
+	FlagParquet uint8 = 0x02
+	FlagBN3     uint8 = 0x04
+	FlagGitpack uint8 = 0x08
+)
+
+// FlightRefusal is the concrete typed refusal for feeds outside the
+// ontology-projected allowlist or crossing an unconfigured boundary.
+type FlightRefusal struct {
+	OpID string
+	Msg  string
+}
+
+func (e *FlightRefusal) Error() string {
+	return fmt.Sprintf("arcus/flight: refused op %q: %s", e.OpID, e.Msg)
+}
+
+// ErrBoundaryUnavailable is the fail-closed sentinel: no boundary configured.
+// Never emulate the codec in Go.
+var ErrBoundaryUnavailable = &FlightRefusal{OpID: "", Msg: "flight boundary not configured (fail-closed; configure the sidecar or wasm boundary)"}
+
+// Boundary is the pluggable seal/unseal seam (PG-A9 A1): one interface, two
+// implementations (host sidecar process, browser JS imports into the cgap wasm
+// module). The handwritten kernel provides the implementation; generated code
+// never seals or unseals.
+type Boundary interface {
+	Seal(opID string, frameFlag uint8, body []byte) ([]byte, error)
+	Unseal(opID string, frameFlag uint8, sealed []byte) ([]byte, error)
+}
+
+// transcodeTable is the registry mapping operation id -> transcoder reference
+// rendered from the ontology. flight_ops.go's init() registers the projected
+// allowlist rows here; duplicate registration is a programming error.
+var (
+	transcodeMu    sync.RWMutex
+	transcodeTable = map[string]string{}
+)
+
+// registerTranscoder is called only from generated init() and hand-written
+// extension registrations. Duplicate registration panics: the table is the
+// single admission point.
+func registerTranscoder(opID, transcoderRef string) {
+	transcodeMu.Lock()
+	defer transcodeMu.Unlock()
+	if _, exists := transcodeTable[opID]; exists {
+		panic("arcus/flight: duplicate transcoder registration for " + opID)
+	}
+	transcodeTable[opID] = transcoderRef
+}
+
+// LookupTranscoder returns the registered transcoder reference for an
+// operation, or a typed refusal for an absent one.
+func LookupTranscoder(opID string) (string, error) {
+	transcodeMu.RLock()
+	defer transcodeMu.RUnlock()
+	ref, ok := transcodeTable[opID]
+	if !ok {
+		return "", &FlightRefusal{OpID: opID, Msg: "no transcoder registered (not in ontology-projected allowlist)"}
+	}
+	return ref, nil
+}
+
+// configuredBoundary holds the kernel-installed Boundary implementation.
+var (
+	boundaryMu         sync.RWMutex
+	configuredBoundary Boundary
+)
+
+// SetBoundary installs the process-boundary implementation (sidecar or wasm).
+// Called by the handwritten kernel at boot; nil is a boot refusal, not silence.
+func SetBoundary(b Boundary) {
+	boundaryMu.Lock()
+	defer boundaryMu.Unlock()
+	if b == nil {
+		panic("arcus/flight: SetBoundary(nil) — boot refusal, not silent passthrough")
+	}
+	configuredBoundary = b
+}
+
+// RequireBoundary is the fail-closed accessor: an unconfigured boundary is the
+// typed ErrBoundaryUnavailable refusal, never a nil,nil pass-through.
+func RequireBoundary() (Boundary, error) {
+	boundaryMu.RLock()
+	defer boundaryMu.RUnlock()
+	if configuredBoundary == nil {
+		return nil, ErrBoundaryUnavailable
+	}
+	return configuredBoundary, nil
+}

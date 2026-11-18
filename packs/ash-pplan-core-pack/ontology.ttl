@@ -1,0 +1,397 @@
+# ash-pplan-core-pack: KernelPack vocabulary for https://w3id.org/ash-pplan#
+# Reconciled from ash_pplan ontology.ttl (v26.11.16) and priv/ggen/ash-pplan-pack.
+# Vocabulary + ap:Projection catalog rows only. No specimen plans, workflows, tasks,
+# providers, capabilities or input variables: consumer packs supply individuals.
+# Declaring a capability, provider or realization grants no authority (never DO).
+
+@prefix ap: <https://w3id.org/ash-pplan#> .
+@prefix p-plan: <http://purl.org/net/p-plan#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://w3id.org/ash-pplan> a owl:Ontology ;
+    dcterms:title "ash_pplan P-PLAN/PROV-O projection profile (core vocabulary)" ;
+    dcterms:description "Technology-neutral process semantics projected onto existing Ash ecosystem capabilities." ;
+    dcterms:license <https://opensource.org/licenses/MIT> ;
+    owl:versionInfo "0.1.0" ;
+    owl:imports <http://purl.org/net/p-plan#>, <http://www.w3.org/ns/prov-o#> ;
+    vann:preferredNamespacePrefix "ap" ;
+    vann:preferredNamespaceUri <https://w3id.org/ash-pplan#> .
+
+# --- Classes ---------------------------------------------------------------
+
+ap:Projection a rdfs:Class ; rdfs:label "Runtime projection" .
+
+ap:BackgroundActivation a rdfs:Class ; rdfs:subClassOf prov:Activity ; rdfs:label "Background activation" .
+
+ap:TemporalActivation a rdfs:Class ; rdfs:subClassOf prov:Activity ; rdfs:label "Temporal activation" .
+
+ap:PersistentContinuation a rdfs:Class ;
+    rdfs:subClassOf prov:Entity ;
+    rdfs:label "Persistent continuation" ;
+    rdfs:comment "A durable representation of halted process continuation state. ash_pplan defines a versioned continuation envelope and replay-admission contract; the concrete storage resource and data layer remain application-owned." .
+
+ap:ContinuationEnvelope a rdfs:Class ;
+    rdfs:subClassOf ap:PersistentContinuation ;
+    rdfs:label "Continuation envelope" ;
+    rdfs:comment "A content-addressed halted-Reactor envelope binding schema, plan/run identity, ash_pplan and Reactor versions, codec identity and payload digest without granting resume authority." .
+
+ap:SemanticExecution a rdfs:Class ;
+    rdfs:subClassOf prov:Activity, p-plan:Activity ;
+    rdfs:label "Semantic execution" ;
+    rdfs:comment "An observed execution of an admitted P-PLAN plan projected into Reactor.Builder." .
+
+ap:ExecutionReceipt a rdfs:Class ;
+    rdfs:subClassOf prov:Entity ;
+    rdfs:label "Execution receipt" ;
+    rdfs:comment "A content-addressed observation of one semantic plan execution outcome." .
+
+ap:ReleaseObservation a rdfs:Class ;
+    rdfs:subClassOf prov:Activity ;
+    rdfs:label "Release observation" ;
+    rdfs:comment "An observed qualification of one exact release head against the admitted release gate: conformance, manufacture, generated-diff and test." .
+
+ap:ReleaseReceipt a rdfs:Class ;
+    rdfs:subClassOf prov:Entity ;
+    rdfs:label "Release receipt" ;
+    rdfs:comment "A content-addressed observation of one release head. Evidence about a release, never authority to publish one." .
+
+# Planning/control-plane concepts: semantic, not a second executor. Reactor owns graph
+# execution; Ash resources own persistent domain state; AshStateMachine owns lifecycle
+# transitions.
+ap:FONDPolicy a rdfs:Class ;
+    rdfs:subClassOf prov:Plan, p-plan:Plan ;
+    rdfs:label "FOND policy" ;
+    rdfs:comment "A policy selecting an admitted action for each reachable fully observable state under nondeterministic outcomes." .
+
+ap:PolicyState a rdfs:Class ; rdfs:subClassOf prov:Entity ; rdfs:label "Policy state" .
+
+ap:PolicyDecision a rdfs:Class ;
+    rdfs:subClassOf prov:Plan, p-plan:Plan ;
+    rdfs:label "Policy decision" ;
+    rdfs:comment "A state-to-action selection belonging to a FOND policy." .
+
+ap:ResourceLifecycle a rdfs:Class ;
+    rdfs:subClassOf prov:Entity ;
+    rdfs:label "Resource lifecycle" ;
+    rdfs:comment "Persistent application state whose legal transitions are owned by Ash actions and AshStateMachine." .
+
+ap:PlannerObservation a rdfs:Class ;
+    rdfs:subClassOf prov:Entity ;
+    rdfs:label "Planner observation" ;
+    rdfs:comment "A bounded observation, such as a Reactor success, halt or failure, used to select the next policy action." .
+
+# Workflow semantic layer. Capabilities are requirements, realizations are provider
+# bindings, and neither grants authority.
+ap:Capability a rdfs:Class ;
+    rdfs:label "Capability" ;
+    rdfs:comment "A typed semantic requirement (Family.Name) that a plan step targets; never an implementation." .
+
+ap:Realization a rdfs:Class ;
+    rdfs:subClassOf prov:Entity ;
+    rdfs:label "Realization" ;
+    rdfs:comment "A provider-qualified binding of a capability to a Reactor step; selection never alters workflow identity." .
+
+ap:ExecutionProperty a rdfs:Class ;
+    rdfs:label "Execution property" ;
+    rdfs:comment "A property such as durable or resumable that a realization must support." .
+
+ap:Correspondence a rdfs:Class ;
+    rdfs:label "Correspondence" ;
+    rdfs:comment "The computed mapping of one workflow subject identity across P-PLAN, HDDL, FOND and Reactor projections." .
+
+ap:CapabilityPack a rdfs:Class ;
+    rdfs:label "Capability pack" ;
+    rdfs:comment "A named bundle of capability declarations; declaring a capability grants no authority." .
+
+ap:WorkflowSubject a rdfs:Class ;
+    rdfs:subClassOf prov:Entity ;
+    rdfs:label "Workflow subject" ;
+    rdfs:comment "The content-addressed identity of a workflow to which evidence is bound." .
+
+ap:Provider a rdfs:Class ;
+    rdfs:label "Capability provider" ;
+    rdfs:comment "A module binding capabilities to concrete Reactor step realizations; binding grants no execution authority." .
+
+ap:Workflow a rdfs:Class ;
+    rdfs:subClassOf p-plan:Plan ;
+    rdfs:label "Workflow" ;
+    rdfs:comment "A named ordered set of tasks, methods and capability requirements forming a durable workflow definition." .
+
+# ap:Task is deliberately NOT declared as an rdfs:Class here: the ash_pplan source
+# ontology (ontology.ttl and priv/ggen/ash-pplan-pack/ontology.ttl) uses ap:Task only as
+# rdfs:domain/rdfs:range and as an individual type, never as a class declaration.
+
+ap:Method a rdfs:Class ;
+    rdfs:subClassOf p-plan:Plan ;
+    rdfs:label "Method" ;
+    rdfs:comment "A decomposition of one task into ordered subtasks (HDDL method)." .
+
+ap:InputVariable a rdfs:Class ;
+    rdfs:subClassOf p-plan:Variable ;
+    rdfs:label "Typed input variable" ;
+    rdfs:comment "A p-plan:Variable carrying schema metadata (name, datatype, requiredness, domain scope). Individuals must be typed explicitly as both p-plan:Variable and ap:InputVariable because the SPARQL engine performs no subclass inference." .
+
+ap:WorkOrderInputPayload a rdfs:Class ;
+    rdfs:label "Work order input payload" ;
+    rdfs:comment "SHACL validation target for concrete work-order input variable payloads." .
+
+ap:DslExtension a rdfs:Class ;
+    rdfs:label "Spark DSL extension" ;
+    rdfs:comment "A project-local Spark.Dsl.Extension whose module is generated from a graph." .
+
+ap:DslEntity a rdfs:Class ;
+    rdfs:label "Spark DSL entity" ;
+    rdfs:comment "A declarative entity of a generated DSL section; binds one entity name to its entity struct module." .
+
+# --- Projection catalog properties --------------------------------------------
+
+ap:sourceTerm a rdf:Property .
+ap:targetRuntime a rdf:Property .
+ap:targetPrimitive a rdf:Property .
+ap:owner a rdf:Property .
+ap:role a rdf:Property .
+ap:status a rdf:Property .
+ap:order a rdf:Property .
+
+# --- Execution receipt properties (AshPPlan.ExecutionReceipt.to_rdf/1) ----------
+
+ap:runIdentifier a rdf:Property ; rdfs:label "run identifier" ; rdfs:domain ap:ExecutionReceipt ; rdfs:range xsd:string .
+ap:executionStatus a rdf:Property ; rdfs:label "execution status" ; rdfs:domain ap:ExecutionReceipt ; rdfs:range xsd:string .
+ap:resultDigest a rdf:Property ; rdfs:label "result digest" ; rdfs:domain ap:ExecutionReceipt ; rdfs:range xsd:string .
+ap:repo a rdf:Property ; rdfs:label "repository identity" ; rdfs:domain ap:ExecutionReceipt ; rdfs:range xsd:string .
+ap:subjectSha a rdf:Property ; rdfs:label "subject SHA" ; rdfs:domain ap:ExecutionReceipt ; rdfs:range xsd:string .
+ap:baseSha a rdf:Property ; rdfs:label "base SHA" ; rdfs:domain ap:ExecutionReceipt ; rdfs:range xsd:string .
+ap:durationUs a rdf:Property ; rdfs:label "execution duration in microseconds" ; rdfs:domain ap:ExecutionReceipt ; rdfs:range xsd:long .
+ap:releaseReceiptDigest a rdf:Property ; rdfs:label "release receipt digest (bound {plan, inputs, tape, outcome})" ; rdfs:domain ap:ExecutionReceipt ; rdfs:range xsd:string .
+ap:workflowSubject a rdf:Property ; rdfs:label "workflow subject" ; rdfs:domain ap:ExecutionReceipt ; rdfs:range xsd:string .
+
+# --- Capability / provider / realization properties ----------------------------
+
+ap:capabilityId a rdf:Property ; rdfs:label "capability id" ; rdfs:domain ap:Capability ; rdfs:range xsd:string .
+ap:family a rdf:Property ; rdfs:label "capability family" ; rdfs:domain ap:Capability ; rdfs:range xsd:string .
+ap:providerId a rdf:Property ; rdfs:label "provider id" ; rdfs:domain ap:Provider ; rdfs:range xsd:string .
+ap:providerModule a rdf:Property ; rdfs:label "provider module" ; rdfs:domain ap:Provider ; rdfs:range xsd:string .
+ap:cost a rdf:Property ; rdfs:label "provider cost" ; rdfs:domain ap:Provider ; rdfs:range xsd:integer .
+ap:supportsCapability a rdf:Property ; rdfs:label "supports capability" ; rdfs:domain ap:Provider ; rdfs:range ap:Capability .
+ap:supportsProperty a rdf:Property ; rdfs:label "supports property" ; rdfs:domain ap:Provider ; rdfs:range xsd:string .
+ap:emitsEvidence a rdf:Property ; rdfs:label "emits evidence" ; rdfs:domain ap:Provider ; rdfs:range xsd:string .
+ap:realization a rdf:Property ; rdfs:label "realization" ; rdfs:domain ap:Provider ; rdfs:range ap:Realization .
+ap:adapter a rdf:Property ; rdfs:label "adapter" ; rdfs:domain ap:Realization ; rdfs:range xsd:string .
+ap:operation a rdf:Property ; rdfs:label "operation" ; rdfs:domain ap:Realization ; rdfs:range xsd:string .
+ap:stepOptions a rdf:Property ; rdfs:label "step options" ; rdfs:domain ap:Realization ; rdfs:range xsd:string .
+ap:realizes a rdf:Property ; rdfs:label "realizes" ; rdfs:domain ap:Realization ; rdfs:range ap:Capability .
+ap:name a rdf:Property ; rdfs:label "name" ; rdfs:range xsd:string .
+ap:requiresProperty a rdf:Property ; rdfs:label "requires property" ; rdfs:domain p-plan:Step ; rdfs:range ap:ExecutionProperty .
+ap:correspondsTo a rdf:Property ; rdfs:label "corresponds to" ; rdfs:domain ap:Correspondence .
+ap:packId a rdf:Property ; rdfs:label "pack id" ; rdfs:domain ap:CapabilityPack ; rdfs:range xsd:string .
+ap:declaresCapability a rdf:Property ; rdfs:label "declares capability" ; rdfs:domain ap:CapabilityPack ; rdfs:range ap:Capability .
+
+# requiresCapability / authorityCeiling carry a union domain: p-plan:Step (plan steps)
+# and ap:Task (workflow tasks).
+ap:requiresCapability a rdf:Property ;
+    rdfs:label "requires capability" ;
+    rdfs:domain p-plan:Step, ap:Task ;
+    rdfs:range ap:Capability .
+
+ap:authorityCeiling a rdf:Property ;
+    rdfs:label "authority ceiling" ;
+    rdfs:comment "Maximum authority a declaration may carry: observe, select or construct. Never do." ;
+    rdfs:domain ap:Task ;
+    rdfs:range xsd:string .
+
+ap:actuatedBy a rdf:Property ;
+    rdfs:label "actuated by" ;
+    rdfs:comment "Names the ap:Provider whose realization carries this step's actuation; the step still requires the capability that provider supports. A binding is a realization, never do." ;
+    rdfs:domain p-plan:Step ;
+    rdfs:range ap:Provider .
+
+# --- Workflow / task / method properties ---------------------------------------
+# hasStep/isStepOf are NOT declared in canonical P-PLAN 1.3, so these carry no p-plan
+# subproperty axiom; the upstream equivalents are isStepOfPlan and isPrecededBy.
+
+ap:workflowName a rdf:Property ; rdfs:label "workflow name" ; rdfs:domain ap:Workflow ; rdfs:range xsd:string .
+ap:goal a rdf:Property ; rdfs:label "goal" ; rdfs:domain ap:Workflow ; rdfs:range xsd:string .
+ap:hasTask a rdf:Property ; rdfs:label "has task" ; rdfs:domain ap:Workflow ; rdfs:range ap:Task .
+ap:taskId a rdf:Property ; rdfs:label "task id" ; rdfs:domain ap:Task ; rdfs:range xsd:string .
+ap:dependsOn a rdf:Property ; rdfs:label "depends on" ; rdfs:domain ap:Task ; rdfs:range ap:Task .
+ap:outcome a rdf:Property ; rdfs:label "outcome" ; rdfs:domain ap:Task ; rdfs:range xsd:string .
+ap:hasMethod a rdf:Property ; rdfs:label "has method" ; rdfs:domain ap:Workflow ; rdfs:range ap:Method .
+ap:methodId a rdf:Property ; rdfs:label "method id" ; rdfs:domain ap:Method ; rdfs:range xsd:string .
+ap:decomposes a rdf:Property ; rdfs:label "decomposes" ; rdfs:domain ap:Method ; rdfs:range ap:Task .
+ap:subtask a rdf:Property ; rdfs:label "subtask" ; rdfs:domain ap:Method ; rdfs:range ap:Task .
+
+# Reactor rendering vocabulary. Collaborators are injected as real processes via reactor
+# inputs, never mocked.
+ap:reactorModule a rdf:Property ; rdfs:label "reactor module" ; rdfs:domain ap:Workflow ; rdfs:range xsd:string .
+ap:reactorDoc a rdf:Property ; rdfs:label "reactor moduledoc" ; rdfs:domain ap:Workflow ; rdfs:range xsd:string .
+ap:reactorReturn a rdf:Property ; rdfs:label "reactor return step" ; rdfs:domain ap:Workflow ; rdfs:range xsd:string .
+ap:reactorInput a rdf:Property ; rdfs:label "reactor input" ; rdfs:domain ap:Workflow ; rdfs:range xsd:string .
+ap:collaborator a rdf:Property ;
+    rdfs:label "injected collaborator alias" ;
+    rdfs:comment "An alias line naming a real collaborator module the generated reactor calls through injected inputs." ;
+    rdfs:domain ap:Workflow ;
+    rdfs:range xsd:string .
+ap:reactorArgs a rdf:Property ;
+    rdfs:label "reactor step argument block" ;
+    rdfs:comment "Verbatim Reactor argument lines, input and result wiring." ;
+    rdfs:domain ap:Task ;
+    rdfs:range xsd:string .
+ap:reactorBody a rdf:Property ;
+    rdfs:label "reactor step run body" ;
+    rdfs:comment "Verbatim run-fn body of one step." ;
+    rdfs:domain ap:Task ;
+    rdfs:range xsd:string .
+
+# --- Typed input variable properties -------------------------------------------
+
+ap:variableName a rdf:Property ; rdfs:label "variable name" ; rdfs:domain ap:InputVariable ; rdfs:range xsd:string .
+ap:valueDatatype a rdf:Property ; rdfs:label "value datatype" ; rdfs:domain ap:InputVariable ; rdfs:range xsd:string .
+ap:requiredInput a rdf:Property ; rdfs:label "required input" ; rdfs:domain ap:InputVariable ; rdfs:range xsd:boolean .
+ap:domainScope a rdf:Property ; rdfs:label "domain scope" ; rdfs:domain ap:InputVariable ; rdfs:range xsd:string .
+ap:allowedValue a rdf:Property ; rdfs:label "allowed value" ; rdfs:domain ap:InputVariable ; rdfs:range xsd:string .
+
+# Payload-level properties for work-order input payload shapes (distinct IRIs from any
+# p-plan:Variable individual, avoiding punning).
+ap:nte_cents a rdf:Property ; rdfs:domain ap:WorkOrderInputPayload ; rdfs:range xsd:integer .
+ap:quote_minutes a rdf:Property ; rdfs:domain ap:WorkOrderInputPayload ; rdfs:range xsd:integer .
+ap:trade a rdf:Property ; rdfs:domain ap:WorkOrderInputPayload ; rdfs:range xsd:string .
+ap:client_id a rdf:Property ; rdfs:domain ap:WorkOrderInputPayload ; rdfs:range xsd:string .
+ap:provider_id a rdf:Property ; rdfs:domain ap:WorkOrderInputPayload ; rdfs:range xsd:string .
+ap:site_id a rdf:Property ; rdfs:domain ap:WorkOrderInputPayload ; rdfs:range xsd:string .
+ap:tenant_id a rdf:Property ; rdfs:domain ap:WorkOrderInputPayload ; rdfs:range xsd:string .
+ap:provenance a rdf:Property ; rdfs:domain ap:WorkOrderInputPayload ; rdfs:range xsd:string .
+
+# --- Spark DSL extension vocabulary --------------------------------------------
+
+ap:dslModule a rdf:Property ; rdfs:label "DSL module" ; rdfs:comment "Generated extension module name." ; rdfs:range xsd:string .
+ap:dslWrapperModule a rdf:Property ; rdfs:label "DSL wrapper module" ; rdfs:comment "Generated `use`-able Spark.Dsl wrapper exposing the section." ; rdfs:range xsd:string .
+ap:dslSectionName a rdf:Property ; rdfs:label "DSL section name" ; rdfs:range xsd:string .
+ap:dslEntityName a rdf:Property ; rdfs:label "DSL entity name" ; rdfs:range xsd:string .
+ap:dslEntityTarget a rdf:Property ; rdfs:label "DSL entity target" ; rdfs:comment "Entity struct module the generated entity builds." ; rdfs:range xsd:string .
+ap:dslTransformer a rdf:Property ; rdfs:label "DSL transformer" ; rdfs:comment "Transformer module name attached to the generated extension." ; rdfs:range xsd:string .
+ap:dslVerifier a rdf:Property ; rdfs:label "DSL verifier" ; rdfs:comment "Verifier attached to the generated extension (ordered blank node: ap:name + ap:order)." .
+
+# --- Projection catalog (consumed by gates/010_projections.rq) -----------------
+
+ap:projection-plan a ap:Projection ;
+    ap:order 1 ;
+    ap:sourceTerm p-plan:Plan ;
+    ap:targetRuntime "Reactor" ;
+    ap:targetPrimitive "Reactor definition or Reactor.Builder graph" ;
+    ap:owner "reactor" ;
+    ap:role "plan" ;
+    ap:status "reuse" .
+
+ap:projection-step a ap:Projection ;
+    ap:order 2 ;
+    ap:sourceTerm p-plan:Step ;
+    ap:targetRuntime "Ash.Reactor" ;
+    ap:targetPrimitive "Ash.Reactor step/action binding" ;
+    ap:owner "ash" ;
+    ap:role "step" ;
+    ap:status "reuse" .
+
+ap:projection-variable a ap:Projection ;
+    ap:order 3 ;
+    ap:sourceTerm p-plan:Variable ;
+    ap:targetRuntime "Reactor" ;
+    ap:targetPrimitive "input/argument/result dependency" ;
+    ap:owner "reactor" ;
+    ap:role "variable" ;
+    ap:status "reuse" .
+
+ap:projection-activity a ap:Projection ;
+    ap:order 4 ;
+    ap:sourceTerm prov:Activity ;
+    ap:targetRuntime "Reactor + Ash telemetry" ;
+    ap:targetPrimitive "observed execution activity" ;
+    ap:owner "telemetry" ;
+    ap:role "activity" ;
+    ap:status "reuse" .
+
+ap:projection-entity a ap:Projection ;
+    ap:order 5 ;
+    ap:sourceTerm prov:Entity ;
+    ap:targetRuntime "Ash" ;
+    ap:targetPrimitive "resource/value state" ;
+    ap:owner "ash" ;
+    ap:role "entity" ;
+    ap:status "reuse" .
+
+ap:projection-agent a ap:Projection ;
+    ap:order 6 ;
+    ap:sourceTerm prov:Agent ;
+    ap:targetRuntime "Ash" ;
+    ap:targetPrimitive "actor/authority context" ;
+    ap:owner "ash" ;
+    ap:role "agent" ;
+    ap:status "reuse" .
+
+ap:projection-background a ap:Projection ;
+    ap:order 7 ;
+    ap:sourceTerm ap:BackgroundActivation ;
+    ap:targetRuntime "AshPPlan.Reactor.Durable" ;
+    ap:targetPrimitive "durable dispatch step" ;
+    ap:owner "durable" ;
+    ap:role "background" ;
+    ap:status "reuse" .
+
+ap:projection-temporal a ap:Projection ;
+    ap:order 8 ;
+    ap:sourceTerm ap:TemporalActivation ;
+    ap:targetRuntime "AshPPlan.Reactor.Durable" ;
+    ap:targetPrimitive "durable poll/await step" ;
+    ap:owner "durable" ;
+    ap:role "temporal" ;
+    ap:status "reuse" .
+
+ap:projection-persistent-continuation a ap:Projection ;
+    ap:order 9 ;
+    ap:sourceTerm ap:PersistentContinuation ;
+    ap:targetRuntime "AshPPlan.Reactor.Durable" ;
+    ap:targetPrimitive "durable ledger checkpoint store" ;
+    ap:owner "durable" ;
+    ap:role "persistence" ;
+    ap:status "reuse" .
+
+ap:projection-semantic-execution a ap:Projection ;
+    ap:order 10 ;
+    ap:sourceTerm ap:SemanticExecution ;
+    ap:targetRuntime "AshPPlan.Compiler + Reactor.Builder" ;
+    ap:targetPrimitive "validated P-PLAN precedence graph compilation" ;
+    ap:owner "ash_pplan" ;
+    ap:role "execution" ;
+    ap:status "extension" .
+
+ap:projection-execution-receipt a ap:Projection ;
+    ap:order 11 ;
+    ap:sourceTerm ap:ExecutionReceipt ;
+    ap:targetRuntime "AshPPlan.ExecutionReceipt" ;
+    ap:targetPrimitive "content-addressed PROV-style execution observation" ;
+    ap:owner "ash_pplan" ;
+    ap:role "evidence" ;
+    ap:status "extension" .
+
+ap:projection-release-observation a ap:Projection ;
+    ap:order 12 ;
+    ap:sourceTerm ap:ReleaseObservation ;
+    ap:targetRuntime "CI release gate" ;
+    ap:targetPrimitive "exact-head qualification run" ;
+    ap:owner "ash_pplan" ;
+    ap:role "observation" ;
+    ap:status "extension" .
+
+ap:projection-release-receipt a ap:Projection ;
+    ap:order 13 ;
+    ap:sourceTerm ap:ReleaseReceipt ;
+    ap:targetRuntime "AshPPlan.ReleaseReceipt" ;
+    ap:targetPrimitive "content-addressed release evidence" ;
+    ap:owner "ash_pplan" ;
+    ap:role "release-evidence" ;
+    ap:status "extension" .

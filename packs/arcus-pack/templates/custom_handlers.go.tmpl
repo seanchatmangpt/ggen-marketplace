@@ -1,0 +1,42 @@
+---
+to: internal/arcus/adapter/custom_handlers.go
+unless_exists: true
+skip_empty: true
+sparql:
+  operations: >
+    PREFIX arcus: <urn:arcus:>
+    SELECT ?id ?method ?path WHERE {
+      ?op a arcus:Operation ; arcus:id ?id ; arcus:method ?method ; arcus:path ?path .
+    } ORDER BY ?id
+---
+// GENERATED ONCE by ggen (unless_exists: true — this file is scaffolding,
+// never overwritten by a later `ggen sync run`, so your edits are safe).
+// Custom handlers register into the same allowlist table the generated
+// adapter owns; the refusal law applies identically: an operation absent
+// from both the ontology and this registry is a *RefusalError, never nil, nil.
+// Extension ops added here are governed by the arcusvet `optable` analyzer:
+// every Go-registered op must have an arcus:id individual.
+
+package adapter
+
+import "net/http"
+
+func init() {
+	registerCustom("example.custom-op", opEntry{ID: "example.custom-op", Method: "POST", Path: "/custom"})
+}
+
+// registerCustom is called only from init() in this file. The table stays the
+// single admission point.
+func registerCustom(id string, entry opEntry) {
+	if _, exists := opTable[id]; exists {
+		panic("arcus: duplicate op registration for " + id)
+	}
+	opTable[id] = entry
+}
+
+// doRequest is the hand-written byte-append path expander backing Dispatch.
+// It substitutes {placeholders} in the projected path template without
+// reflection and without fmt on the hot path.
+func doRequest(entry opEntry, req *http.Request) (*http.Response, error) {
+	return http.DefaultClient.Do(req)
+}

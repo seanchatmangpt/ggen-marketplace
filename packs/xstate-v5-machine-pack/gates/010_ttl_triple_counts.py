@@ -5,7 +5,7 @@ Generalization of srve's scripts/ttl_court.py (J14, wave R155): baselines,
 required terms, and graph paths move from hardcoded constants to a TOML
 config file, so any repo can pin its own baselines without editing the gate.
 
-Config format (TOML, default: baselines.toml next to this script):
+Config format (TOML, default: ../config/baselines.toml):
 
     namespace = "http://onengine.dev/ontology#"
 
@@ -28,7 +28,7 @@ import tomllib
 
 from rdflib import Graph
 
-DEFAULT_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "baselines.toml")
+DEFAULT_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config", "baselines.toml")
 
 
 def load_config(path):

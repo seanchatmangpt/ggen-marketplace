@@ -1,0 +1,24 @@
+# MESSAGE: every arcus KernelPrimitive must carry primName, primKind, law, seam,
+# status, and mandatory prov:wasDerivedFrom. Seam is closed: generated |
+# arcus:hand-law | proposed. A row returned here is an under-specified bitmap/IPC
+# primitive in the graph.
+PREFIX arcus: <urn:arcus:>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+SELECT ?name WHERE {
+  ?p a arcus:KernelPrimitive .
+  OPTIONAL { ?p arcus:primName ?pn }
+  BIND(COALESCE(?pn, STR(?p)) AS ?name)
+  FILTER (
+    NOT EXISTS { ?p arcus:primName ?anyName } ||
+    NOT EXISTS { ?p arcus:primKind ?kind } ||
+    NOT EXISTS { ?p arcus:law ?law } ||
+    NOT EXISTS { ?p arcus:seam ?seam } ||
+    NOT EXISTS { ?p arcus:status ?status } ||
+    NOT EXISTS { ?p prov:wasDerivedFrom ?src } ||
+    EXISTS { ?p arcus:seam ?s . FILTER(?s NOT IN ("generated", "arcus:hand-law", "proposed")) } ||
+    EXISTS { ?p arcus:status ?st . FILTER(?st NOT IN ("implemented", "proposed")) } ||
+    EXISTS {
+      ?p arcus:status "proposed" ; arcus:seam "generated" .
+    }
+  )
+} ORDER BY ?name
