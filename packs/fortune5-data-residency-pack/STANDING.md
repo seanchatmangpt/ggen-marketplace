@@ -36,8 +36,7 @@ Per-pack Standing: **VERIFIED** (all EXIT=0 below). Composition remains **BLOCKE
 
 ### Residuals
 
-- Gate **010** anti-vacuity: **UNVERIFIED** — current fixtures never flip incomplete-contract
-  (no incomplete mutant; fixtures target value refusals). Not a court FAIL.
+- Gate **010** anti-vacuity: **PASS** (Lane 07 dogfood close) — see below.
 - Composition: **UNVERIFIED** — sibling `fortune5-transaction-data-law-pack`
   now exists on disk; cross-pack composition court not yet run this lane.
 
@@ -47,7 +46,19 @@ Per-pack Standing: **VERIFIED** (all EXIT=0 below). Composition remains **BLOCKE
 |---|---|
 | `ggen graph validate` + scratch sync + rdflib clean + 3/3 mutation FLIP | **0** |
 
-Gate **010** residual remains **UNVERIFIED**. Standing: **VERIFIED**.
+## Gate 010 close (2026-11-19 dogfood residual)
+
+Authored `tests/mutations/incomplete_contract.ttl` (ResidencyPolicy missing
+`homeJurisdiction`). Court: `uv run --no-project --with rdflib --with pyshacl`,
+inference=none.
+
+| Graph | Gate 010 rows | SHACL |
+|---|---:|---|
+| clean ontology | **0** | Conforms: True |
+| + incomplete_contract | **1** (FLIP) | Conforms: False |
+
+Prior 020 mutations still FLIP. Gate **010** anti-vacuity: **PASS**.
+Standing: **VERIFIED**.
 
 ## BLOCKED (missing SoT — exact reasons)
 
