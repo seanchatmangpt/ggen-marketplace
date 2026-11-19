@@ -1,0 +1,60 @@
+---
+to: "infrastructure/data/transactional/txn_durability_inventory.md"
+force: true
+sparql:
+  programs: |
+    PREFIX f5td: <http://seanchatmangpt.github.io/packs/fortune5-transaction-data-law#>
+    SELECT ?programId ?catalogGroup ?catalogVersion ?catalogPackId ?directActuation
+    WHERE {
+      ?p a f5td:TransactionDataProgram ;
+         f5td:programId ?programId ;
+         f5td:catalogGroup ?catalogGroup ;
+         f5td:catalogVersion ?catalogVersion ;
+         f5td:catalogPackId ?catalogPackId ;
+         f5td:directActuation ?directActuation .
+    }
+    ORDER BY ?programId
+  policies: |
+    PREFIX f5td: <http://seanchatmangpt.github.io/packs/fortune5-transaction-data-law#>
+    SELECT ?policyId ?title ?dataClassId ?multiZone ?encryption ?backup
+           ?backupDays ?pitr ?replicationId ?replicationMode
+           ?evidence ?directActuation
+    WHERE {
+      ?pol a f5td:DurabilityPolicy ;
+           f5td:policyId ?policyId ;
+           f5td:title ?title ;
+           f5td:appliesToDataClass ?dc ;
+           f5td:multiZoneRequired ?multiZone ;
+           f5td:encryptionAtRest ?encryption ;
+           f5td:backupEnabled ?backup ;
+           f5td:backupRetentionDays ?backupDays ;
+           f5td:pitrEnabled ?pitr ;
+           f5td:hasReplicationPolicy ?repl ;
+           f5td:evidenceRequired ?evidence ;
+           f5td:directActuation ?directActuation .
+      ?dc f5td:dataClassId ?dataClassId .
+      ?repl f5td:replicationId ?replicationId ;
+           f5td:replicationMode ?replicationMode .
+    }
+    ORDER BY ?policyId
+---
+# Fortune 5 transaction-data durability inventory
+
+Projection from `fortune5-transaction-data-law-pack`. Catalog group
+`transaction-data` (commonPack). Broker-only — no cloud actuation, no secrets.
+
+## Programs
+
+| programId | catalogGroup | catalogVersion | catalogPackId | directActuation |
+|---|---|---|---|---|
+{% for row in programs -%}
+| {{ row.programId }} | {{ row.catalogGroup }} | {{ row.catalogVersion }} | {{ row.catalogPackId }} | {{ row.directActuation }} |
+{% endfor %}
+
+## Durability policies
+
+| policyId | title | dataClass | multiZone | encryption | backup | backupDays | pitr | replicationId | mode | evidence | directActuation |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+{% for row in policies -%}
+| {{ row.policyId }} | {{ row.title }} | {{ row.dataClassId }} | {{ row.multiZone }} | {{ row.encryption }} | {{ row.backup }} | {{ row.backupDays }} | {{ row.pitr }} | {{ row.replicationId }} | {{ row.replicationMode }} | {{ row.evidence }} | {{ row.directActuation }} |
+{% endfor %}

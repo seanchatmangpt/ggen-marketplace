@@ -1,0 +1,39 @@
+# MESSAGE: Fortune 5 transaction-data durability contract incomplete -- every program and policy requires identity, multi-zone, encryption, backup, PITR, and evidence
+PREFIX f5td: <http://seanchatmangpt.github.io/packs/fortune5-transaction-data-law#>
+SELECT ?subject ?kind ?missing WHERE {
+  {
+    ?subject a f5td:TransactionDataProgram .
+    BIND("program" AS ?kind)
+    VALUES ?property {
+      f5td:programId f5td:catalogGroup f5td:catalogVersion
+      f5td:catalogPackId f5td:hasDurabilityPolicy f5td:directActuation
+    }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(STR(?property) AS ?missing)
+  }
+  UNION
+  {
+    ?subject a f5td:DurabilityPolicy .
+    BIND("policy" AS ?kind)
+    VALUES ?property {
+      f5td:policyId f5td:title f5td:appliesToDataClass
+      f5td:multiZoneRequired f5td:encryptionAtRest f5td:backupEnabled
+      f5td:backupRetentionDays f5td:pitrEnabled f5td:hasReplicationPolicy
+      f5td:evidenceRequired f5td:directActuation
+    }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(STR(?property) AS ?missing)
+  }
+  UNION
+  {
+    ?subject a f5td:ReplicationPolicy .
+    BIND("replication" AS ?kind)
+    VALUES ?property {
+      f5td:replicationId f5td:title f5td:replicationMode
+      f5td:directActuation
+    }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(STR(?property) AS ?missing)
+  }
+}
+ORDER BY ?kind ?subject ?missing

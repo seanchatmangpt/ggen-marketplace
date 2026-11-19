@@ -1,0 +1,65 @@
+# MESSAGE: Fortune 5 object-storage law declares direct actuation, disabled storage controls, non-positive lifecycle days, or catalog-id drift
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX f5os: <http://seanchatmangpt.github.io/packs/fortune5-object-storage-law#>
+SELECT ?subject ?field ?value WHERE {
+  {
+    ?subject f5os:directActuation ?value .
+    FILTER(?value != false)
+    BIND("f5os:directActuation" AS ?field)
+  }
+  UNION
+  {
+    ?subject a f5os:BucketLaw ; f5os:versioningEnabled ?value .
+    FILTER(?value != true)
+    BIND("f5os:versioningEnabled" AS ?field)
+  }
+  UNION
+  {
+    ?subject a f5os:BucketLaw ; f5os:encryptionAtRest ?value .
+    FILTER(?value != true)
+    BIND("f5os:encryptionAtRest" AS ?field)
+  }
+  UNION
+  {
+    ?subject a f5os:BucketLaw ; f5os:immutableCapable ?value .
+    FILTER(?value != true)
+    BIND("f5os:immutableCapable" AS ?field)
+  }
+  UNION
+  {
+    ?subject a f5os:BucketLaw ; f5os:evidenceRequired ?value .
+    FILTER(?value != true)
+    BIND("f5os:evidenceRequired" AS ?field)
+  }
+  UNION
+  {
+    ?subject a f5os:LifecycleRule ; f5os:transitionDays ?raw .
+    FILTER(!(DATATYPE(?raw) = xsd:integer) || ?raw <= 0)
+    BIND("f5os:transitionDays" AS ?field)
+    BIND(STR(?raw) AS ?value)
+  }
+  UNION
+  {
+    ?subject a f5os:LifecycleRule ; f5os:expireDays ?raw .
+    FILTER(!(DATATYPE(?raw) = xsd:integer) || ?raw <= 0)
+    BIND("f5os:expireDays" AS ?field)
+    BIND(STR(?raw) AS ?value)
+  }
+  UNION
+  {
+    ?subject a f5os:LifecycleRule ;
+             f5os:transitionDays ?t ;
+             f5os:expireDays ?e .
+    FILTER(DATATYPE(?t) = xsd:integer && DATATYPE(?e) = xsd:integer && ?e < ?t)
+    BIND("f5os:expireDays" AS ?field)
+    BIND(CONCAT("expireDays=", STR(?e), " < transitionDays=", STR(?t)) AS ?value)
+  }
+  UNION
+  {
+    ?subject a f5os:ObjectStorageProgram ; f5os:catalogPackId ?raw .
+    FILTER(STR(?raw) != "fortune5-object-storage-law-pack")
+    BIND("f5os:catalogPackId" AS ?field)
+    BIND(STR(?raw) AS ?value)
+  }
+}
+ORDER BY ?subject ?field

@@ -1,0 +1,62 @@
+# MESSAGE: Fortune 5 transaction-data law declares direct actuation, disabled durability controls, unsafe replication mode, or catalog-id drift
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX f5td: <http://seanchatmangpt.github.io/packs/fortune5-transaction-data-law#>
+SELECT ?subject ?field ?value WHERE {
+  {
+    ?subject f5td:directActuation ?value .
+    FILTER(?value != false)
+    BIND("f5td:directActuation" AS ?field)
+  }
+  UNION
+  {
+    ?subject a f5td:DurabilityPolicy ; f5td:multiZoneRequired ?value .
+    FILTER(?value != true)
+    BIND("f5td:multiZoneRequired" AS ?field)
+  }
+  UNION
+  {
+    ?subject a f5td:DurabilityPolicy ; f5td:encryptionAtRest ?value .
+    FILTER(?value != true)
+    BIND("f5td:encryptionAtRest" AS ?field)
+  }
+  UNION
+  {
+    ?subject a f5td:DurabilityPolicy ; f5td:backupEnabled ?value .
+    FILTER(?value != true)
+    BIND("f5td:backupEnabled" AS ?field)
+  }
+  UNION
+  {
+    ?subject a f5td:DurabilityPolicy ; f5td:pitrEnabled ?value .
+    FILTER(?value != true)
+    BIND("f5td:pitrEnabled" AS ?field)
+  }
+  UNION
+  {
+    ?subject a f5td:DurabilityPolicy ; f5td:backupRetentionDays ?raw .
+    FILTER(!(DATATYPE(?raw) = xsd:integer) || ?raw <= 0)
+    BIND("f5td:backupRetentionDays" AS ?field)
+    BIND(STR(?raw) AS ?value)
+  }
+  UNION
+  {
+    ?subject a f5td:DurabilityPolicy ; f5td:evidenceRequired ?value .
+    FILTER(?value != true)
+    BIND("f5td:evidenceRequired" AS ?field)
+  }
+  UNION
+  {
+    ?subject a f5td:ReplicationPolicy ; f5td:replicationMode ?raw .
+    FILTER(STR(?raw) NOT IN ("sync", "async"))
+    BIND("f5td:replicationMode" AS ?field)
+    BIND(STR(?raw) AS ?value)
+  }
+  UNION
+  {
+    ?subject a f5td:TransactionDataProgram ; f5td:catalogPackId ?raw .
+    FILTER(STR(?raw) != "fortune5-transaction-data-law-pack")
+    BIND("f5td:catalogPackId" AS ?field)
+    BIND(STR(?raw) AS ?value)
+  }
+}
+ORDER BY ?subject ?field

@@ -1,0 +1,149 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix f5os: <http://seanchatmangpt.github.io/packs/fortune5-object-storage-law#> .
+
+# fortune5-object-storage-law-pack — constitutional object/evidence storage
+# law for Fortune 5. Catalog binding: fortune5-deployment-blocks-pack
+# group object-storage bb:commonPack "fortune5-object-storage-law-pack"
+# (catalog/fortune5-bblocks.json, version 26.7.31). Sibling catalog id:
+# fortune5-retention-pack (pack dir fortune5-retention-legal-hold-pack).
+#
+# Broker-only: f5os:directActuation must be false. No secrets, access
+# keys, or sealed object payloads are minted here.
+
+#################################################################
+# Classes
+#################################################################
+
+f5os:ObjectStorageProgram a rdfs:Class ;
+    rdfs:label "Object storage program" ;
+    rdfs:comment "Top-level object-storage program bound to catalog object-storage / fortune5-object-storage-law-pack." .
+
+f5os:BucketLaw a rdfs:Class ;
+    rdfs:label "Bucket law" ;
+    rdfs:comment "Per-storage-class versioning, encryption, immutability, and lifecycle contract." .
+
+f5os:LifecycleRule a rdfs:Class ;
+    rdfs:label "Lifecycle rule" ;
+    rdfs:comment "Positive transition/expiry days for object lifecycle under a bucket law." .
+
+f5os:StorageClass a rdfs:Class ;
+    rdfs:label "Storage class" ;
+    rdfs:comment "Named object/evidence storage class the bucket law applies to." .
+
+#################################################################
+# Properties
+#################################################################
+
+f5os:programId a rdf:Property ;
+    rdfs:domain f5os:ObjectStorageProgram ;
+    rdfs:range xsd:string .
+
+f5os:catalogGroup a rdf:Property ;
+    rdfs:domain f5os:ObjectStorageProgram ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Must equal deployment-blocks group id object-storage." .
+
+f5os:catalogVersion a rdf:Property ;
+    rdfs:domain f5os:ObjectStorageProgram ;
+    rdfs:range xsd:string .
+
+f5os:catalogPackId a rdf:Property ;
+    rdfs:domain f5os:ObjectStorageProgram ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Must equal fortune5-object-storage-law-pack for catalog equivalence (gate 020)." .
+
+f5os:hasBucketLaw a rdf:Property ;
+    rdfs:domain f5os:ObjectStorageProgram ;
+    rdfs:range f5os:BucketLaw .
+
+f5os:lawId a rdf:Property ;
+    rdfs:domain f5os:BucketLaw ;
+    rdfs:range xsd:string .
+
+f5os:title a rdf:Property ;
+    rdfs:range xsd:string .
+
+f5os:appliesToStorageClass a rdf:Property ;
+    rdfs:range f5os:StorageClass .
+
+f5os:versioningEnabled a rdf:Property ;
+    rdfs:domain f5os:BucketLaw ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Must be true — object versioning is mandatory." .
+
+f5os:encryptionAtRest a rdf:Property ;
+    rdfs:domain f5os:BucketLaw ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Must be true — encryption at rest is mandatory." .
+
+f5os:immutableCapable a rdf:Property ;
+    rdfs:domain f5os:BucketLaw ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Must be true — immutable-capable posture is mandatory for evidence classes." .
+
+f5os:hasLifecycleRule a rdf:Property ;
+    rdfs:domain f5os:BucketLaw ;
+    rdfs:range f5os:LifecycleRule .
+
+f5os:evidenceRequired a rdf:Property ;
+    rdfs:range xsd:boolean .
+
+f5os:ruleId a rdf:Property ;
+    rdfs:domain f5os:LifecycleRule ;
+    rdfs:range xsd:string .
+
+f5os:transitionDays a rdf:Property ;
+    rdfs:domain f5os:LifecycleRule ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Must be a positive xsd:integer (gate 020)." .
+
+f5os:expireDays a rdf:Property ;
+    rdfs:domain f5os:LifecycleRule ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Must be a positive xsd:integer and >= transitionDays (gate 020)." .
+
+f5os:storageClassId a rdf:Property ;
+    rdfs:domain f5os:StorageClass ;
+    rdfs:range xsd:string .
+
+f5os:directActuation a rdf:Property ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Must be false. Direct cloud actuation is refused; BRCE brokers." .
+
+#################################################################
+# Catalog scaffold individuals (illustrative; not customer SoT)
+#################################################################
+
+f5os:program a f5os:ObjectStorageProgram ;
+    f5os:programId "fortune5-object-storage-law" ;
+    f5os:catalogGroup "object-storage" ;
+    f5os:catalogVersion "26.7.31" ;
+    f5os:catalogPackId "fortune5-object-storage-law-pack" ;
+    f5os:hasBucketLaw f5os:EvidenceBucketLaw ;
+    f5os:directActuation false ;
+    dcterms:description "Constitutional object-storage program for evidence buckets." .
+
+f5os:ObjectEvidence a f5os:StorageClass ;
+    f5os:storageClassId "object-evidence" ;
+    rdfs:label "Versioned object and evidence storage" .
+
+f5os:EvidenceLifecycle a f5os:LifecycleRule ;
+    f5os:ruleId "LC-OBJ-EVIDENCE-001" ;
+    f5os:title "Evidence object cold-transition then expire" ;
+    f5os:transitionDays "90"^^xsd:integer ;
+    f5os:expireDays "2555"^^xsd:integer ;
+    f5os:directActuation false .
+
+f5os:EvidenceBucketLaw a f5os:BucketLaw ;
+    f5os:lawId "BUCKET-EVIDENCE-001" ;
+    f5os:title "Versioned encrypted immutable-capable evidence bucket" ;
+    f5os:appliesToStorageClass f5os:ObjectEvidence ;
+    f5os:versioningEnabled true ;
+    f5os:encryptionAtRest true ;
+    f5os:immutableCapable true ;
+    f5os:hasLifecycleRule f5os:EvidenceLifecycle ;
+    f5os:evidenceRequired true ;
+    f5os:directActuation false .

@@ -1,0 +1,58 @@
+---
+to: "infrastructure/data/object-storage/object_storage_inventory.md"
+force: true
+sparql:
+  programs: |
+    PREFIX f5os: <http://seanchatmangpt.github.io/packs/fortune5-object-storage-law#>
+    SELECT ?programId ?catalogGroup ?catalogVersion ?catalogPackId ?directActuation
+    WHERE {
+      ?p a f5os:ObjectStorageProgram ;
+         f5os:programId ?programId ;
+         f5os:catalogGroup ?catalogGroup ;
+         f5os:catalogVersion ?catalogVersion ;
+         f5os:catalogPackId ?catalogPackId ;
+         f5os:directActuation ?directActuation .
+    }
+    ORDER BY ?programId
+  laws: |
+    PREFIX f5os: <http://seanchatmangpt.github.io/packs/fortune5-object-storage-law#>
+    SELECT ?lawId ?title ?storageClassId ?versioning ?encryption ?immutable
+           ?ruleId ?transitionDays ?expireDays ?evidence ?directActuation
+    WHERE {
+      ?law a f5os:BucketLaw ;
+           f5os:lawId ?lawId ;
+           f5os:title ?title ;
+           f5os:appliesToStorageClass ?sc ;
+           f5os:versioningEnabled ?versioning ;
+           f5os:encryptionAtRest ?encryption ;
+           f5os:immutableCapable ?immutable ;
+           f5os:hasLifecycleRule ?lc ;
+           f5os:evidenceRequired ?evidence ;
+           f5os:directActuation ?directActuation .
+      ?sc f5os:storageClassId ?storageClassId .
+      ?lc f5os:ruleId ?ruleId ;
+          f5os:transitionDays ?transitionDays ;
+          f5os:expireDays ?expireDays .
+    }
+    ORDER BY ?lawId
+---
+# Fortune 5 object-storage inventory
+
+Projection from `fortune5-object-storage-law-pack`. Catalog group
+`object-storage` (commonPack). Broker-only — no cloud actuation, no secrets.
+
+## Programs
+
+| programId | catalogGroup | catalogVersion | catalogPackId | directActuation |
+|---|---|---|---|---|
+{% for row in programs -%}
+| {{ row.programId }} | {{ row.catalogGroup }} | {{ row.catalogVersion }} | {{ row.catalogPackId }} | {{ row.directActuation }} |
+{% endfor %}
+
+## Bucket laws
+
+| lawId | title | storageClass | versioning | encryption | immutable | lifecycleRule | transitionDays | expireDays | evidence | directActuation |
+|---|---|---|---|---|---|---|---|---|---|---|
+{% for row in laws -%}
+| {{ row.lawId }} | {{ row.title }} | {{ row.storageClassId }} | {{ row.versioning }} | {{ row.encryption }} | {{ row.immutable }} | {{ row.ruleId }} | {{ row.transitionDays }} | {{ row.expireDays }} | {{ row.evidence }} | {{ row.directActuation }} |
+{% endfor %}

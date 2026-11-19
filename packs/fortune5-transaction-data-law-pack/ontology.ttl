@@ -1,0 +1,156 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix f5td: <http://seanchatmangpt.github.io/packs/fortune5-transaction-data-law#> .
+
+# fortune5-transaction-data-law-pack — constitutional durability law for
+# Fortune 5 transactional databases. Catalog binding:
+# fortune5-deployment-blocks-pack group transaction-data bb:commonPack
+# "fortune5-transaction-data-law-pack" (catalog/fortune5-bblocks.json,
+# version 26.7.31). Sibling: fortune5-data-residency-pack.
+#
+# Broker-only: f5td:directActuation must be false. No secrets,
+# connection strings, or customer tenant ids are minted here.
+
+#################################################################
+# Classes
+#################################################################
+
+f5td:TransactionDataProgram a rdfs:Class ;
+    rdfs:label "Transaction data program" ;
+    rdfs:comment "Top-level durability program bound to catalog transaction-data / fortune5-transaction-data-law-pack." .
+
+f5td:DurabilityPolicy a rdfs:Class ;
+    rdfs:label "Durability policy" ;
+    rdfs:comment "Per-data-class multi-zone, encryption, backup, PITR, and replication contract." .
+
+f5td:ReplicationPolicy a rdfs:Class ;
+    rdfs:label "Replication policy" ;
+    rdfs:comment "Named replication posture (sync/async) admitted under a durability policy." .
+
+f5td:DataClass a rdfs:Class ;
+    rdfs:label "Data class" ;
+    rdfs:comment "Named class of transactional payloads the durability policy applies to." .
+
+#################################################################
+# Properties
+#################################################################
+
+f5td:programId a rdf:Property ;
+    rdfs:domain f5td:TransactionDataProgram ;
+    rdfs:range xsd:string .
+
+f5td:catalogGroup a rdf:Property ;
+    rdfs:domain f5td:TransactionDataProgram ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Must equal deployment-blocks group id transaction-data." .
+
+f5td:catalogVersion a rdf:Property ;
+    rdfs:domain f5td:TransactionDataProgram ;
+    rdfs:range xsd:string .
+
+f5td:catalogPackId a rdf:Property ;
+    rdfs:domain f5td:TransactionDataProgram ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Must equal fortune5-transaction-data-law-pack for catalog equivalence (gate 020)." .
+
+f5td:hasDurabilityPolicy a rdf:Property ;
+    rdfs:domain f5td:TransactionDataProgram ;
+    rdfs:range f5td:DurabilityPolicy .
+
+f5td:policyId a rdf:Property ;
+    rdfs:domain f5td:DurabilityPolicy ;
+    rdfs:range xsd:string .
+
+f5td:title a rdf:Property ;
+    rdfs:range xsd:string .
+
+f5td:appliesToDataClass a rdf:Property ;
+    rdfs:domain f5td:DurabilityPolicy ;
+    rdfs:range f5td:DataClass .
+
+f5td:multiZoneRequired a rdf:Property ;
+    rdfs:domain f5td:DurabilityPolicy ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Must be true — multi-zone transactional placement is mandatory." .
+
+f5td:encryptionAtRest a rdf:Property ;
+    rdfs:domain f5td:DurabilityPolicy ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Must be true — encryption at rest is mandatory." .
+
+f5td:backupEnabled a rdf:Property ;
+    rdfs:domain f5td:DurabilityPolicy ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Must be true — automated backups are mandatory." .
+
+f5td:backupRetentionDays a rdf:Property ;
+    rdfs:domain f5td:DurabilityPolicy ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Must be a positive xsd:integer (gate 020)." .
+
+f5td:pitrEnabled a rdf:Property ;
+    rdfs:domain f5td:DurabilityPolicy ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Must be true — point-in-time recovery is mandatory." .
+
+f5td:hasReplicationPolicy a rdf:Property ;
+    rdfs:domain f5td:DurabilityPolicy ;
+    rdfs:range f5td:ReplicationPolicy .
+
+f5td:evidenceRequired a rdf:Property ;
+    rdfs:range xsd:boolean .
+
+f5td:replicationId a rdf:Property ;
+    rdfs:domain f5td:ReplicationPolicy ;
+    rdfs:range xsd:string .
+
+f5td:replicationMode a rdf:Property ;
+    rdfs:domain f5td:ReplicationPolicy ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Closed set: sync | async (gate 020)." .
+
+f5td:dataClassId a rdf:Property ;
+    rdfs:domain f5td:DataClass ;
+    rdfs:range xsd:string .
+
+f5td:directActuation a rdf:Property ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Must be false. Direct cloud actuation is refused; BRCE brokers." .
+
+#################################################################
+# Catalog scaffold individuals (illustrative; not customer SoT)
+#################################################################
+
+f5td:program a f5td:TransactionDataProgram ;
+    f5td:programId "fortune5-transaction-data-law" ;
+    f5td:catalogGroup "transaction-data" ;
+    f5td:catalogVersion "26.7.31" ;
+    f5td:catalogPackId "fortune5-transaction-data-law-pack" ;
+    f5td:hasDurabilityPolicy f5td:TransactionalDurability ;
+    f5td:directActuation false ;
+    dcterms:description "Constitutional durability program for transactional data." .
+
+f5td:Transactional a f5td:DataClass ;
+    f5td:dataClassId "transactional" ;
+    rdfs:label "Transactional datastore payloads" .
+
+f5td:SyncReplica a f5td:ReplicationPolicy ;
+    f5td:replicationId "REPL-TXN-SYNC-001" ;
+    f5td:title "Synchronous multi-zone replica" ;
+    f5td:replicationMode "sync" ;
+    f5td:directActuation false .
+
+f5td:TransactionalDurability a f5td:DurabilityPolicy ;
+    f5td:policyId "DUR-TXN-MZ-001" ;
+    f5td:title "Multi-zone encrypted transactional durability with PITR" ;
+    f5td:appliesToDataClass f5td:Transactional ;
+    f5td:multiZoneRequired true ;
+    f5td:encryptionAtRest true ;
+    f5td:backupEnabled true ;
+    f5td:backupRetentionDays "35"^^xsd:integer ;
+    f5td:pitrEnabled true ;
+    f5td:hasReplicationPolicy f5td:SyncReplica ;
+    f5td:evidenceRequired true ;
+    f5td:directActuation false .
