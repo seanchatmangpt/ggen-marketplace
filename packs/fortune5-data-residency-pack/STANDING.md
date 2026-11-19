@@ -38,21 +38,24 @@ Per-pack Standing: **VERIFIED** (all EXIT=0 below). Composition remains **BLOCKE
 
 - Gate **010** anti-vacuity: **UNVERIFIED** — current fixtures never flip incomplete-contract
   (no incomplete mutant; fixtures target value refusals). Not a court FAIL.
-- Composition: **BLOCKED** — sibling `fortune5-transaction-data-law-pack` absent
-  (`test -d` rc=1). Do not invent.
+- Composition: **UNVERIFIED** — sibling `fortune5-transaction-data-law-pack`
+  now exists on disk; cross-pack composition court not yet run this lane.
+
+## Lane 07 re-court (2026-11-19, v26.11.19)
+
+| Command | EXIT |
+|---|---|
+| `ggen graph validate` + scratch sync + rdflib clean + 3/3 mutation FLIP | **0** |
+
+Gate **010** residual remains **UNVERIFIED**. Standing: **VERIFIED**.
 
 ## BLOCKED (missing SoT — exact reasons)
 
-1. **Sibling commonPack absent:** catalog lists
-   `fortune5-transaction-data-law-pack` beside this pack under group
-   `transaction-data`, but
-   `/Users/sac/ggen-marketplace/packs/fortune5-transaction-data-law-pack/`
-   does not exist. Cross-pack composition court cannot run.
-2. **Provider / Ash data-plane projections:** catalog
+1. **Provider / Ash data-plane projections:** catalog
    `provider_packs` (`aws-aurora-pack`, `azure-sql-pack`, `gcp-cloud-sql-pack`,
    …) and BRCE actuation are downstream. Emitting live HCL, connection
    strings, or tenant region pins would invent secrets / customer SoT —
    refused. Law + inventory projections only.
-3. **Customer residency SoT absent:** scaffold individuals
+2. **Customer residency SoT absent:** scaffold individuals
    (`RES-TXN-HOME-001`, `us-east-1`) are illustrative catalog bindings, not
    a named enterprise residency register.

@@ -29,3 +29,17 @@ outer group:
 GitHub org-level `github_ip_allow_list_entry` remains BLOCKED / disclosed
 via gate 050. Sync projection paths and other gates (010/030/040/050)
 were already clean in the PARTIAL court.
+
+## Lane 07 re-court (2026-11-19, v26.11.19)
+
+FM-CONFIG-002: dropped illegal `ontology.base_iri` from `ggen.toml` (keep
+`[ontology.prefixes]`). Binary `ggen 26.11.5`.
+
+| Command | EXIT |
+|---|---|
+| `ggen graph validate --files ontology.ttl --shapes shapes/ianp.shacl.ttl` | **0** |
+| rdflib gates 010–050 clean (0 rows) | **0** |
+| rdflib CIDR flip gate 020 → 1 row | **0** |
+| scratch `ggen sync run --skip-ea-admission` (pack copy) | **0** |
+
+Standing: **VERIFIED**

@@ -50,3 +50,8 @@ Per-pack Standing: **VERIFIED** (all EXIT=0 below). Composition SoT remains **BL
 2. **Customer durability SoT absent:** scaffold individuals
    (`DUR-TXN-MZ-001`, 35-day backup) are illustrative catalog bindings, not
    a named enterprise durability register.
+
+## Lane 07 re-court (2026-11-19, v26.11.19)
+
+Binary `ggen 26.11.5`. validate + scratch sync + rdflib clean + mutation FLIP all EXIT=0. Gate **010** anti-vacuity residual remains **UNVERIFIED** (fixtures do not flip incomplete-contract).
+Standing: **VERIFIED**.

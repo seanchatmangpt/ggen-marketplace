@@ -51,3 +51,8 @@ Per-pack Standing: **VERIFIED** (all EXIT=0 below). Composition SoT remains **BL
 2. **Customer bucket SoT absent:** scaffold individuals
    (`BUCKET-EVIDENCE-001`, LC 90/2555) are illustrative catalog bindings,
    not a named enterprise object-storage register.
+
+## Lane 07 re-court (2026-11-19, v26.11.19)
+
+Binary `ggen 26.11.5`. validate + scratch sync + rdflib clean + mutation FLIP all EXIT=0. Gate **010** anti-vacuity residual remains **UNVERIFIED** (fixtures do not flip incomplete-contract).
+Standing: **VERIFIED**.

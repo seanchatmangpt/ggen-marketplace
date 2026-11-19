@@ -41,3 +41,8 @@ CLI: `ggen` 26.11.5. Prior gate lane: [Validate SCIM pack gates](0403c9c8-2003-4
 
 - SPARQL `gates/*.rq` not executed via a formal `gate-court.toml` runner.
 - Consumer Ash/HTTP runtime court (pack non-goal).
+
+## Lane 07 re-court (2026-11-19, v26.11.19)
+
+Binary `ggen 26.11.5`. validate EXIT=0; rdflib gates 010–080 clean (0 rows); SHACL fail witnesses EXIT=1 each; pass witness EXIT=0; pack sync `--skip-ea-admission` EXIT=0.
+Standing: **VERIFIED**.

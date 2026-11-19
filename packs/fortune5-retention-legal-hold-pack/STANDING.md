@@ -59,3 +59,8 @@ Per-pack Standing: **VERIFIED** (all EXIT=0 below). Composition remains **BLOCKE
 3. **Customer matter/hold SoT absent:** scaffold
    (`HOLD-MATTER-001`, `obj-receipt-ledger-001`, 2555-day schedule) is
    illustrative catalog binding, not a named enterprise legal-hold register.
+
+## Lane 07 re-court (2026-11-19, v26.11.19)
+
+Binary `ggen 26.11.5`. validate + scratch sync + rdflib clean + mutation FLIP all EXIT=0. Gate **010** anti-vacuity residual remains **UNVERIFIED** (fixtures do not flip incomplete-contract).
+Standing: **VERIFIED**.

@@ -40,3 +40,8 @@ Prior: 7 violations (string vs `xsd:anyURI` on ACS/metadata/discovery/
 redirect; per-file `sh:class` on `usesProtocol` without local protocol
 individuals). Fixed cheaply in `qualification/scaffold.ttl` (typed URIs +
 local `protocolSaml2`/`protocolOidc` with `protocolToken`). Now EXIT=0.
+
+## Lane 07 re-court (2026-11-19, v26.11.19)
+
+Binary `ggen 26.11.5`. validate EXIT=0; scaffold validate EXIT=0; rdflib 6 gates clean + fail-witness FLIP; pack sync EXIT=0.
+Standing: **VERIFIED**.

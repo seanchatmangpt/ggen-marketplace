@@ -41,3 +41,19 @@ cwd: `packs/issue-platform-controls-pack`. Binary: `ggen 26.11.5`.
 | scratch sync + unscoped real igniter tree (contrast, not evidence) | **1** | `[FM-PACK-013]` `010_work_order_subjects.rq` → 37 rows |
 
 VERIFIED: validate + rdflib + scoped real-SJ sync (+ replay) all EXIT=0.
+
+## Lane 07 re-court (2026-11-19, v26.11.19)
+
+Durable admitted sync: `qualification/run_admitted_sync_court.sh`
+(relative pack symlinks + local scratch marker; pack templates from mount;
+SJ = scoped verify LAW only). Binary `ggen 26.11.5`.
+
+| Command | EXIT |
+|---|---|
+| `ggen graph validate --files ontology.ttl --shapes shapes/ip.shacl.ttl` | **0** |
+| rdflib gates 010–050 clean; each mutation ≥1 FLIP | **0** |
+| `qualification/materialize_sj_dep_court.sh` | **0** |
+| `qualification/run_admitted_sync_court.sh` (sync + replay) | **0** |
+
+Unscoped igniter mount remains intentionally red (not evidence).
+Standing: **VERIFIED**

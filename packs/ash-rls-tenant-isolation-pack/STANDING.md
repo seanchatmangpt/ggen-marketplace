@@ -46,3 +46,8 @@ cwd: `packs/ash-rls-tenant-isolation-pack`. Binary: `ggen 26.11.5`.
 | rdflib gate court: ontology∪qualification → 0 rows; ontology∪each mutation → ≥1 row | 0 | 7/7 positive clean; 7/7 mutations FLIP |
 
 VERIFIED: sync EXIT=0 and union SHACL EXIT=0.
+
+## Lane 07 re-court (2026-11-19, v26.11.19)
+
+Binary `ggen 26.11.5`. ontology+union validate EXIT=0; rdflib gates 010–070 clean; 7/7 mutation FLIP; pack sync EXIT=0.
+Standing: **VERIFIED**.
