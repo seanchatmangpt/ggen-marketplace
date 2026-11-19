@@ -1,0 +1,310 @@
+@prefix essp: <https://seanchatmangpt.github.io/packs/enterprise-sso-sp#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# SHACL shapes for enterprise-sso-sp-pack.
+# Mirrors gates/010..060. Product SP / RP only — never Smalt IdP.
+
+#################################################################
+# Closed role + protocol individuals (value constraints)
+#################################################################
+
+essp:SpRoleShape a sh:NodeShape ;
+    sh:targetClass essp:SpRole ;
+    sh:property [
+        sh:path essp:roleToken ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:in ( "sp" ) ;
+        sh:message "SpRole.roleToken must be exactly \"sp\" (IdP roles are out of scope)" ;
+    ] .
+
+essp:FederationProtocolShape a sh:NodeShape ;
+    sh:targetClass essp:FederationProtocol ;
+    sh:property [
+        sh:path essp:protocolToken ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:in ( "saml2" "oidc" ) ;
+        sh:message "FederationProtocol.protocolToken must be saml2 or oidc" ;
+    ] .
+
+#################################################################
+# Product Service Provider (SJ product as SP/RP)
+#################################################################
+
+essp:ProductServiceProviderShape a sh:NodeShape ;
+    sh:targetClass essp:ProductServiceProvider ;
+    sh:property [
+        sh:path essp:spId ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "ProductServiceProvider requires non-empty essp:spId" ;
+    ] ;
+    sh:property [
+        sh:path essp:spRole ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:hasValue essp:roleSp ;
+        sh:message "ProductServiceProvider must declare essp:spRole essp:roleSp" ;
+    ] ;
+    sh:property [
+        sh:path essp:entityId ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "ProductServiceProvider requires non-empty essp:entityId" ;
+    ] ;
+    sh:property [
+        sh:path essp:acsUrl ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:anyURI ;
+        sh:message "ProductServiceProvider requires essp:acsUrl" ;
+    ] ;
+    sh:property [
+        sh:path essp:metadataUrl ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:anyURI ;
+    ] .
+
+#################################################################
+# External customer IdP (not Smalt)
+#################################################################
+
+essp:ExternalIdentityProviderShape a sh:NodeShape ;
+    sh:targetClass essp:ExternalIdentityProvider ;
+    sh:property [
+        sh:path essp:idpId ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "ExternalIdentityProvider requires non-empty essp:idpId" ;
+    ] ;
+    sh:property [
+        sh:path essp:idpEntityId ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "ExternalIdentityProvider requires non-empty essp:idpEntityId" ;
+    ] ;
+    sh:property [
+        sh:path essp:idpMetadataUrl ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:anyURI ;
+    ] ;
+    sh:property [
+        sh:path essp:idpDiscoveryUrl ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:anyURI ;
+    ] ;
+    sh:sparql essp:NoSmaltIdpFaceOnProviderSparql .
+
+essp:NoSmaltIdpFaceOnProviderSparql a sh:SPARQLConstraint ;
+    sh:message "ExternalIdentityProvider must not be a Smalt IdP face IRI or urn:smalt:identity:*" ;
+    sh:select """
+    PREFIX essp: <https://seanchatmangpt.github.io/packs/enterprise-sso-sp#>
+    SELECT $this WHERE {
+      OPTIONAL { $this essp:idpEntityId ?eid }
+      FILTER(
+        STRSTARTS(STR($this), "urn:smalt:identity:")
+        || STRSTARTS(STR($this), "https://seanchatmangpt.github.io/packs/smalt")
+        || CONTAINS(LCASE(STR($this)), "face-saml-idp")
+        || CONTAINS(LCASE(STR($this)), "face-oidc-idp")
+        || (BOUND(?eid) && (
+             STRSTARTS(?eid, "urn:smalt:identity:")
+             || CONTAINS(LCASE(?eid), "smalt.identity.samlidp")
+           ))
+      )
+    }
+    """ .
+
+#################################################################
+# Federation binding (protocol-conditional via sh:or)
+#################################################################
+
+essp:SamlBindingConstraints a sh:NodeShape ;
+    sh:property [
+        sh:path essp:usesProtocol ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:hasValue essp:protocolSaml2 ;
+    ] ;
+    sh:property [
+        sh:path essp:nameIdFormat ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "saml2 binding requires non-empty essp:nameIdFormat" ;
+    ] ;
+    sh:property [
+        sh:path essp:trustsIdp ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:class essp:ExternalIdentityProvider ;
+    ] ;
+    sh:sparql essp:SamlIdpMetadataSparql .
+
+essp:SamlIdpMetadataSparql a sh:SPARQLConstraint ;
+    sh:message "saml2 binding IdP must carry idpEntityId and idpMetadataUrl" ;
+    sh:select """
+    PREFIX essp: <https://seanchatmangpt.github.io/packs/enterprise-sso-sp#>
+    SELECT $this WHERE {
+      $this essp:trustsIdp ?idp .
+      FILTER NOT EXISTS {
+        ?idp essp:idpEntityId ?ie ; essp:idpMetadataUrl ?im .
+        FILTER(STRLEN(?ie) > 0)
+      }
+    }
+    """ .
+
+essp:OidcBindingConstraints a sh:NodeShape ;
+    sh:property [
+        sh:path essp:usesProtocol ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:hasValue essp:protocolOidc ;
+    ] ;
+    sh:property [
+        sh:path essp:clientId ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "oidc binding requires non-empty essp:clientId" ;
+    ] ;
+    sh:property [
+        sh:path essp:clientSecretRef ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "oidc binding requires essp:clientSecretRef (reference only)" ;
+    ] ;
+    sh:property [
+        sh:path essp:redirectUri ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:anyURI ;
+        sh:message "oidc binding requires essp:redirectUri" ;
+    ] ;
+    sh:property [
+        sh:path essp:pkceRequired ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:boolean ;
+        sh:hasValue true ;
+        sh:message "oidc binding requires essp:pkceRequired true" ;
+    ] ;
+    sh:sparql essp:OidcIdpDiscoverySparql .
+
+essp:OidcIdpDiscoverySparql a sh:SPARQLConstraint ;
+    sh:message "oidc binding IdP must carry idpDiscoveryUrl" ;
+    sh:select """
+    PREFIX essp: <https://seanchatmangpt.github.io/packs/enterprise-sso-sp#>
+    SELECT $this WHERE {
+      $this essp:trustsIdp ?idp .
+      FILTER NOT EXISTS {
+        ?idp essp:idpDiscoveryUrl ?disc .
+        FILTER(STRLEN(STR(?disc)) > 0)
+      }
+    }
+    """ .
+
+essp:FederationBindingShape a sh:NodeShape ;
+    sh:targetClass essp:FederationBinding ;
+    sh:property [
+        sh:path essp:bindingId ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+    ] ;
+    sh:property [
+        sh:path essp:forServiceProvider ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:class essp:ProductServiceProvider ;
+    ] ;
+    sh:property [
+        sh:path essp:trustsIdp ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:class essp:ExternalIdentityProvider ;
+    ] ;
+    sh:property [
+        sh:path essp:usesProtocol ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:class essp:FederationProtocol ;
+    ] ;
+    sh:property [
+        sh:path essp:tenantKey ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+    ] ;
+    sh:property [
+        sh:path essp:claimMapping ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:class essp:ClaimMapping ;
+        sh:message "FederationBinding requires essp:claimMapping (group claims → roles)" ;
+    ] ;
+    sh:property [
+        sh:path essp:signingCertRef ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:or ( essp:SamlBindingConstraints essp:OidcBindingConstraints ) ;
+    sh:sparql essp:NoSmaltIdpFaceOnBindingSparql .
+
+essp:NoSmaltIdpFaceOnBindingSparql a sh:SPARQLConstraint ;
+    sh:message "FederationBinding must not trust a Smalt IdP face" ;
+    sh:select """
+    PREFIX essp: <https://seanchatmangpt.github.io/packs/enterprise-sso-sp#>
+    SELECT $this ?idp WHERE {
+      $this essp:trustsIdp ?idp .
+      OPTIONAL { ?idp essp:idpEntityId ?eid }
+      FILTER(
+        STRSTARTS(STR(?idp), "urn:smalt:identity:")
+        || STRSTARTS(STR(?idp), "https://seanchatmangpt.github.io/packs/smalt")
+        || CONTAINS(LCASE(STR(?idp)), "face-saml-idp")
+        || CONTAINS(LCASE(STR(?idp)), "face-oidc-idp")
+        || (BOUND(?eid) && (
+             STRSTARTS(?eid, "urn:smalt:identity:")
+             || CONTAINS(LCASE(?eid), "smalt.identity.samlidp")
+           ))
+      )
+    }
+    """ .
+
+#################################################################
+# Claim mapping (IdP group / attribute → product role)
+#################################################################
+
+essp:ClaimMappingShape a sh:NodeShape ;
+    sh:targetClass essp:ClaimMapping ;
+    sh:property [
+        sh:path essp:mappingId ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+    ] ;
+    sh:property [
+        sh:path essp:hasClaimRule ;
+        sh:minCount 1 ;
+        sh:class essp:ClaimRule ;
+        sh:message "ClaimMapping requires at least one essp:ClaimRule" ;
+    ] .
+
+essp:ClaimRuleShape a sh:NodeShape ;
+    sh:targetClass essp:ClaimRule ;
+    sh:property [
+        sh:path essp:idpClaimName ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "ClaimRule requires essp:idpClaimName (e.g. groups)" ;
+    ] ;
+    sh:property [
+        sh:path essp:idpClaimValue ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "ClaimRule requires essp:idpClaimValue" ;
+    ] ;
+    sh:property [
+        sh:path essp:productRole ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "ClaimRule requires essp:productRole" ;
+    ] .

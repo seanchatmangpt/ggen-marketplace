@@ -1,0 +1,34 @@
+# MESSAGE: zone enum closure (V07, v26.11.12) — arcus:classification was a free
+# string (a typo or a fifth zone passed every gate). Every arcus:Abb must carry
+# exactly one classification drawn from the closed four-zone enum, and the
+# zone must agree with the register section: generated zones (SELECT,
+# MANUFACTURE) stay in the EA graph, hand-written zones (OUT-OF-GENGEN,
+# EXTENSION) must carry arcus:excludedFromGraph. A row returned here is a
+# missing, out-of-enum, duplicated, or section-inconsistent classification.
+PREFIX arcus: <urn:arcus:>
+SELECT ?abb ?problem WHERE {
+  {
+    BIND("missing classification" AS ?problem)
+    ?abb a arcus:Abb .
+    FILTER NOT EXISTS { ?abb arcus:classification ?c }
+  } UNION {
+    BIND("out-of-enum classification" AS ?problem)
+    ?abb a arcus:Abb ; arcus:classification ?c .
+    FILTER (!ISLITERAL(?c) || !(STR(?c) IN ("SELECT", "MANUFACTURE", "OUT-OF-GENGEN", "EXTENSION")))
+  } UNION {
+    BIND("multiple classifications" AS ?problem)
+    ?abb a arcus:Abb ; arcus:classification ?c1, ?c2 . FILTER (STR(?c1) < STR(?c2))
+  } UNION {
+    BIND("hand-written zone not excludedFromGraph" AS ?problem)
+    ?abb a arcus:Abb ; arcus:classification ?c . FILTER (STR(?c) IN ("OUT-OF-GENGEN", "EXTENSION"))
+    FILTER NOT EXISTS { ?abb a arcus:excludedFromGraph }
+  } UNION {
+    BIND("generated zone marked excludedFromGraph" AS ?problem)
+    ?abb a arcus:Abb, arcus:excludedFromGraph ; arcus:classification ?c .
+    FILTER (STR(?c) IN ("SELECT", "MANUFACTURE"))
+  } UNION {
+    BIND("zone literal absent from arcus:Zone register" AS ?problem)
+    ?abb a arcus:Abb ; arcus:classification ?c .
+    FILTER NOT EXISTS { ?z a arcus:Zone ; arcus:zoneName ?zn . FILTER (STR(?zn) = STR(?c)) }
+  }
+} ORDER BY ?abb ?problem

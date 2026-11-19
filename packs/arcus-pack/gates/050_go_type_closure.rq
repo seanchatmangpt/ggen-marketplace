@@ -1,0 +1,14 @@
+# MESSAGE: WO-08 referential-closure law — every non-builtin arcus:goType must resolve to
+# a defined arcus:Shape or arcus:ErrorShape goName. Closes the PutEventsEntry hole class
+# (K3 FM-CONFIG-101 sibling defect: ontology projected []PutEventsEntry with no Shape
+# individual, go build exit 1). A row returned here is a referential hole in the graph.
+PREFIX arcus: <urn:arcus:>
+SELECT ?field ?goType ?base WHERE {
+  ?field a arcus:Field ; arcus:goType ?goType .
+  BIND(IF(STRSTARTS(STR(?goType), "[]"), STRAFTER(STR(?goType), "[]"), STR(?goType)) AS ?base)
+  FILTER(?base NOT IN ("string", "byte", "int", "int64", "float64", "bool", "time.Duration"))
+  FILTER NOT EXISTS {
+    { ?shape a arcus:Shape } UNION { ?shape a arcus:ErrorShape }
+    ?shape arcus:goName ?base .
+  }
+} ORDER BY ?field

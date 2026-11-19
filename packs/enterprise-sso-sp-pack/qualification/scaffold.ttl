@@ -1,0 +1,69 @@
+@prefix essp: <https://seanchatmangpt.github.io/packs/enterprise-sso-sp#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# Pack-local qualification / sync scaffold. Consumers replace with real tenants.
+# Not imported by default gates; import explicitly for local projection rehearsal.
+# Protocol type triples duplicated so per-file SHACL (scaffold alone) can see
+# sh:class essp:FederationProtocol on usesProtocol without unioning ontology.ttl.
+
+essp:protocolSaml2 a essp:FederationProtocol ;
+    essp:protocolToken "saml2" .
+essp:protocolOidc a essp:FederationProtocol ;
+    essp:protocolToken "oidc" .
+
+essp:sj-product-sp a essp:ProductServiceProvider ;
+    essp:spId "urn:sjira:sp:scaffold" ;
+    essp:spRole essp:roleSp ;
+    essp:entityId "urn:sjira:sp:scaffold" ;
+    essp:acsUrl "https://sjira.example/sso/saml/acs"^^xsd:anyURI ;
+    essp:metadataUrl "https://sjira.example/sso/saml/metadata"^^xsd:anyURI ;
+    rdfs:label "SJ product SP (scaffold)" ;
+    dct:description "Scaffold ProductServiceProvider. Replace entityId/ACS with the real SJ deployment before ALIVE." .
+
+essp:customer-idp-scaffold a essp:ExternalIdentityProvider ;
+    essp:idpId "urn:customer:idp:scaffold" ;
+    essp:idpEntityId "https://idp.customer.example/metadata" ;
+    essp:idpMetadataUrl "https://idp.customer.example/metadata"^^xsd:anyURI ;
+    essp:idpDiscoveryUrl "https://idp.customer.example/.well-known/openid-configuration"^^xsd:anyURI ;
+    rdfs:label "Customer IdP (scaffold)" .
+
+essp:claim-map-scaffold a essp:ClaimMapping ;
+    essp:mappingId "scaffold-claims" ;
+    essp:hasClaimRule essp:rule-scaffold-admins ,
+                      essp:rule-scaffold-readers .
+
+essp:rule-scaffold-admins a essp:ClaimRule ;
+    essp:idpClaimName "groups" ;
+    essp:idpClaimValue "sjira-admins" ;
+    essp:productRole "admin" .
+
+essp:rule-scaffold-readers a essp:ClaimRule ;
+    essp:idpClaimName "groups" ;
+    essp:idpClaimValue "sjira-readers" ;
+    essp:productRole "reader" .
+
+essp:binding-saml-scaffold a essp:FederationBinding ;
+    essp:bindingId "scaffold-saml" ;
+    essp:forServiceProvider essp:sj-product-sp ;
+    essp:trustsIdp essp:customer-idp-scaffold ;
+    essp:usesProtocol essp:protocolSaml2 ;
+    essp:tenantKey "scaffold-tenant" ;
+    essp:nameIdFormat "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress" ;
+    essp:signingCertRef "vault:sjira/sso/scaffold/signing" ;
+    essp:claimMapping essp:claim-map-scaffold ;
+    essp:claimMappingRef "urn:sjira:sso:claim-map:scaffold" .
+
+essp:binding-oidc-scaffold a essp:FederationBinding ;
+    essp:bindingId "scaffold-oidc" ;
+    essp:forServiceProvider essp:sj-product-sp ;
+    essp:trustsIdp essp:customer-idp-scaffold ;
+    essp:usesProtocol essp:protocolOidc ;
+    essp:tenantKey "scaffold-tenant" ;
+    essp:clientId "sjira-scaffold-rp" ;
+    essp:clientSecretRef "vault:sjira/sso/scaffold/oidc-client" ;
+    essp:redirectUri "https://sjira.example/sso/oidc/callback"^^xsd:anyURI ;
+    essp:pkceRequired true ;
+    essp:claimMapping essp:claim-map-scaffold ;
+    essp:claimMappingRef "urn:sjira:sso:claim-map:scaffold" .

@@ -1,16 +1,34 @@
 # MESSAGE: header field missing a TX-5 name property (cName / rustName / goName).
-# Every aoq:HeaderField must carry all three language name properties (TX-5
-# closure): each is one code-gen target's identifier. A row is a field that
-# would render into one language but not the others.
+# Every aoq:HeaderField of every aoq:Header (AOQ1 64 B, intent 16 B, page 28 B)
+# must carry all three language name properties (TX-5 closure): each is one
+# code-gen target's identifier. A row is a field that would render into one
+# language but not the others. ?header is the owning aoq:Header (unbound when
+# the field has no aoq:fieldOf).
 # Anti-vacuity: witnesses/fail/010_header_field_closure.ttl drops goName from
-# the first header field; this gate must return >=1 row on it (shim-court flip).
+# the first AOQ1 header field; witnesses/fail/010_header_field_closure.intent.ttl
+# and .page.ttl drop goName from one intent / page field; this gate must return
+# >=1 row on each (shim-court flip).
 PREFIX aoq: <urn:aoq:>
-SELECT ?field ?missing WHERE {
-  ?field a aoq:HeaderField .
-  { ?field aoq:cName ?c . FILTER NOT EXISTS { ?field aoq:rustName ?r . } BIND("rustName" AS ?missing) }
+SELECT ?field ?header ?missing WHERE {
+  {
+    ?field a aoq:HeaderField . ?field aoq:cName ?c .
+    FILTER NOT EXISTS { ?field aoq:rustName ?r . }
+    OPTIONAL { ?field aoq:fieldOf ?header . }
+    BIND("rustName" AS ?missing)
+  }
   UNION
-  { ?field aoq:cName ?c . FILTER NOT EXISTS { ?field aoq:goName ?g . } BIND("goName" AS ?missing) }
+  {
+    ?field a aoq:HeaderField . ?field aoq:cName ?c .
+    FILTER NOT EXISTS { ?field aoq:goName ?g . }
+    OPTIONAL { ?field aoq:fieldOf ?header . }
+    BIND("goName" AS ?missing)
+  }
   UNION
-  { FILTER NOT EXISTS { ?field aoq:cName ?c2 . } BIND("cName" AS ?missing) }
+  {
+    ?field a aoq:HeaderField .
+    FILTER NOT EXISTS { ?field aoq:cName ?c2 . }
+    OPTIONAL { ?field aoq:fieldOf ?header . }
+    BIND("cName" AS ?missing)
+  }
 }
 ORDER BY ?field ?missing

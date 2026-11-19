@@ -1,0 +1,183 @@
+@prefix mf:  <https://ggen.dev/ontology/sjira-marketplace-feedback#> .
+@prefix ic:  <https://ggen.dev/ontology/industry-closure#> .
+@prefix req: <https://ggen.io/onto/requirements/> .
+@prefix sh:  <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# SHACL twin of gates/010..030. Path is shapes/mf.shacl.ttl
+# (NOT root shapes.ttl — pack contract refuses that name).
+# Manual: ggen graph validate --files ontology.ttl qualification/consumer.ttl \
+#   --shapes shapes/mf.shacl.ttl
+
+mf:MarketplaceCapabilityDeltaShape a sh:NodeShape ;
+    sh:targetClass mf:MarketplaceCapabilityDelta ;
+    sh:closed false ;
+    sh:property [
+        sh:path mf:deltaDigest ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ; sh:minLength 1 ;
+        sh:message "marketplace-delta-missing-delta-digest" ;
+    ] ;
+    sh:property [
+        sh:path mf:forResidual ;
+        sh:minCount 1 ; sh:class ic:ClosureResidual ;
+        sh:message "marketplace-delta-missing-forResidual" ;
+    ] ;
+    sh:property [
+        sh:path mf:targetCapabilityClass ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ; sh:minLength 1 ;
+        sh:message "marketplace-delta-missing-targetCapabilityClass" ;
+    ] ;
+    sh:property [
+        sh:path mf:recurrenceCount ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        # xsd:integer (not nonNegativeInteger): ggen 26.11.5 DatatypeConstraint
+        # does not accept xsd:nonNegativeInteger even when the literal is typed.
+        sh:datatype xsd:integer ;
+        sh:message "marketplace-delta-missing-recurrence-count" ;
+    ] ;
+    sh:property [
+        sh:path mf:impactScore ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:decimal ;
+        sh:message "marketplace-delta-missing-impact-score" ;
+    ] ;
+    sh:property [
+        sh:path mf:deltaState ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:class mf:DeltaState ;
+        sh:message "marketplace-delta-missing-deltaState" ;
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "requalified-delta-without-implemented-pack" ;
+        sh:select """
+          PREFIX mf: <https://ggen.dev/ontology/sjira-marketplace-feedback#>
+          SELECT $this WHERE {
+            $this mf:deltaState mf:REQUALIFIED .
+            FILTER NOT EXISTS { $this mf:implementedByPack ?pack }
+          }
+        """ ;
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "requalified-delta-without-requalification-evidence" ;
+        sh:select """
+          PREFIX mf: <https://ggen.dev/ontology/sjira-marketplace-feedback#>
+          SELECT $this WHERE {
+            $this mf:deltaState mf:REQUALIFIED .
+            FILTER NOT EXISTS {
+              $this mf:requalificationEvidence ?receipt .
+              ?receipt a mf:FeedbackReceipt .
+            }
+          }
+        """ ;
+    ] ;
+    sh:severity sh:Violation .
+
+mf:FeedbackReceiptShape a sh:NodeShape ;
+    sh:targetClass mf:FeedbackReceipt ;
+    sh:closed false ;
+    sh:property [
+        sh:path mf:closesResidual ;
+        sh:minCount 1 ; sh:class ic:ClosureResidual ;
+        sh:message "feedback-receipt-missing-closesResidual" ;
+    ] ;
+    sh:property [
+        sh:path mf:receiptDigest ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ; sh:minLength 1 ;
+        sh:message "feedback-receipt-missing-receiptDigest" ;
+    ] ;
+    sh:severity sh:Violation .
+
+mf:FeedbackWorkOrderShape a sh:NodeShape ;
+    sh:targetSubjectsOf mf:feedsDelta ;
+    sh:property [
+        sh:path mf:semanticJiraKey ;
+        sh:minCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ;
+        sh:message "feedback-work-order-missing-semanticJiraKey" ;
+    ] ;
+    sh:property [
+        sh:path mf:workOrderDigest ;
+        sh:minCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ;
+        sh:message "feedback-work-order-missing-workOrderDigest" ;
+    ] ;
+    sh:property [
+        sh:path mf:authority ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:hasValue "SELECT_CONSTRUCT_ONLY" ;
+        sh:message "semantic-jira-work-order-must-not-grant-DO-authority" ;
+    ] ;
+    sh:property [
+        sh:path req:hasCounterfactual ;
+        sh:minCount 1 ; sh:class req:Counterfactual ;
+        sh:message "feedback-work-order-missing-counterfactual" ;
+    ] ;
+    sh:severity sh:Violation .
+
+mf:UnresolvedResidualShape a sh:NodeShape ;
+    sh:targetClass ic:ClosureResidual ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "unresolved-residual-without-bounded-sjira-work-order" ;
+        sh:select """
+          PREFIX mf: <https://ggen.dev/ontology/sjira-marketplace-feedback#>
+          PREFIX ic: <https://ggen.dev/ontology/industry-closure#>
+          PREFIX req: <https://ggen.io/onto/requirements/>
+          SELECT $this WHERE {
+            $this ic:unresolved true .
+            FILTER NOT EXISTS {
+              $this mf:residualWorkOrder ?wo .
+              ?wo a req:WorkOrder ;
+                  mf:semanticJiraKey ?key ;
+                  mf:workOrderDigest ?digest ;
+                  mf:authority "SELECT_CONSTRUCT_ONLY" .
+            }
+          }
+        """ ;
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "sjira-work-order-without-open-marketplace-delta" ;
+        sh:select """
+          PREFIX mf: <https://ggen.dev/ontology/sjira-marketplace-feedback#>
+          PREFIX ic: <https://ggen.dev/ontology/industry-closure#>
+          SELECT $this WHERE {
+            $this ic:unresolved true ;
+                  mf:residualWorkOrder ?wo .
+            FILTER NOT EXISTS {
+              ?wo mf:feedsDelta ?delta .
+              ?delta a mf:MarketplaceCapabilityDelta ;
+                     mf:forResidual $this ;
+                     mf:deltaDigest ?digest ;
+                     mf:targetCapabilityClass ?class ;
+                     mf:deltaState mf:OPEN .
+            }
+          }
+        """ ;
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "resolved-residual-without-pack-requalification-receipt" ;
+        sh:select """
+          PREFIX mf: <https://ggen.dev/ontology/sjira-marketplace-feedback#>
+          PREFIX ic: <https://ggen.dev/ontology/industry-closure#>
+          SELECT $this WHERE {
+            $this ic:unresolved false .
+            FILTER NOT EXISTS {
+              ?delta a mf:MarketplaceCapabilityDelta ;
+                     mf:forResidual $this ;
+                     mf:deltaState mf:REQUALIFIED ;
+                     mf:implementedByPack ?pack ;
+                     mf:requalificationEvidence ?receipt .
+              ?receipt a mf:FeedbackReceipt ;
+                       mf:closesResidual $this ;
+                       mf:receiptDigest ?digest .
+            }
+          }
+        """ ;
+    ] ;
+    sh:severity sh:Violation .

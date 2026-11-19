@@ -11,30 +11,38 @@ sparql:
     } ORDER BY ?order ?type ?name
   topics: |
     PREFIX fgb: <https://seanchatmangpt.dev/ontology/fnox-gcp-broker#>
-    SELECT ?gcp_name ?dedup WHERE {
+    SELECT ?gcp_name ?dedup ?dedup_scope ?twin_surface WHERE {
       ?t a fgb:Topic ; fgb:gcpName ?gcp_name ; fgb:dedupAttribute ?dedup ; fgb:messageOrdering true .
+      OPTIONAL { ?t fgb:dedupScope ?dedup_scope }
+      OPTIONAL { ?t fgb:twinSurface ?twin_surface }
     } ORDER BY ?gcp_name
   pushes: |
     PREFIX fgb: <https://seanchatmangpt.dev/ontology/fnox-gcp-broker#>
-    SELECT ?gcp_name ?endpoint ?audience ?signer WHERE {
+    SELECT ?gcp_name ?endpoint ?audience ?signer ?issuer ?jwks_path ?alg ?twin_surface WHERE {
       ?s a fgb:PushSubscription ; fgb:gcpName ?gcp_name ; fgb:pushEndpoint ?endpoint ;
          fgb:oidcAudience ?audience ; fgb:oidcServiceAccount ?sa .
       ?sa fgb:accountId ?signer .
+      OPTIONAL { ?s fgb:oidcIssuer ?issuer }
+      OPTIONAL { ?s fgb:oidcJwksPath ?jwks_path }
+      OPTIONAL { ?s fgb:oidcAlg ?alg }
+      OPTIONAL { ?s fgb:twinSurface ?twin_surface }
     } ORDER BY ?gcp_name
   intake: |
     PREFIX fgb: <https://seanchatmangpt.dev/ontology/fnox-gcp-broker#>
-    SELECT ?bucket ?trigger ?service ?model ?provenance WHERE {
+    SELECT ?bucket ?trigger ?service ?model ?provenance ?ingress WHERE {
       ?b a fgb:Bucket ; fgb:gcpName ?bucket ; fgb:finalizeTrigger ?tr .
       ?tr fgb:gcpName ?trigger ; fgb:destination ?svc .
       ?svc fgb:gcpName ?service ; fgb:model ?model ; fgb:provenance ?provenance .
+      OPTIONAL { ?svc fgb:ingress ?ingress }
     } ORDER BY ?bucket
   workers: |
     PREFIX fgb: <https://seanchatmangpt.dev/ontology/fnox-gcp-broker#>
-    SELECT ?vendor ?gcp_name ?sa ?secret ?role WHERE {
+    SELECT ?vendor ?gcp_name ?sa ?secret ?role ?ingress WHERE {
       ?w a fgb:EgressWorker ; fgb:vendor ?vendor ; fgb:gcpName ?gcp_name ; fgb:runsAs ?s ;
          fgb:accessesSecret ?sec ; fgb:accessorRole ?role .
       ?s fgb:accountId ?sa .
       ?sec fgb:gcpName ?secret .
+      OPTIONAL { ?w fgb:ingress ?ingress }
     } ORDER BY ?vendor
   routes: |
     PREFIX fgb: <https://seanchatmangpt.dev/ontology/fnox-gcp-broker#>
@@ -44,9 +52,13 @@ sparql:
     } ORDER BY ?gateway ?path
   wi: |
     PREFIX fgb: <https://seanchatmangpt.dev/ontology/fnox-gcp-broker#>
-    SELECT ?sa ?namespace ?ksa WHERE {
+    SELECT ?sa ?namespace ?ksa ?flavor_hdr ?flavor_val ?token_path ?twin_surface WHERE {
       ?b a fgb:WorkloadIdentityBinding ; fgb:bindsAccount ?acct ; fgb:kubernetesNamespace ?namespace ; fgb:kubernetesServiceAccount ?ksa .
       ?acct fgb:accountId ?sa .
+      OPTIONAL { ?b fgb:metadataFlavorHeader ?flavor_hdr }
+      OPTIONAL { ?b fgb:metadataFlavorValue ?flavor_val }
+      OPTIONAL { ?b fgb:metadataTokenPath ?token_path }
+      OPTIONAL { ?b fgb:twinSurface ?twin_surface }
     } ORDER BY ?sa
   constraints: |
     PREFIX fgb: <https://seanchatmangpt.dev/ontology/fnox-gcp-broker#>
@@ -66,22 +78,21 @@ Generated Terraform carries no DO authority; `terraform apply` is a separately a
 
 ## Actuation topic
 {% for t in topics %}
-- `{{ t.gcp_name }}`: message ordering enabled; consumers dedup on attribute `{{ t.dedup }}`.
+- `{{ t.gcp_name }}`: message ordering enabled; dedup on `(topic, {{ t.dedup_scope | default(value="orderingKey") }}, {{ t.dedup }})` (arcus-fnox `{{ t.twin_surface | default(value="/pubsub/") }}`).
 {% endfor %}
 ## Push subscription (OIDC)
 {% for p in pushes %}
-- `{{ p.gcp_name }}` -> `{{ p.endpoint }}` (audience `{{ p.audience }}`, signer `{{ p.signer }}`).
+- `{{ p.gcp_name }}` -> `{{ p.endpoint }}` (audience `{{ p.audience }}`, signer `{{ p.signer }}`, issuer `{{ p.issuer | default(value="https://accounts.google.com") }}`, alg `{{ p.alg | default(value="RS256") }}`, JWKS `{{ p.twin_surface | default(value="/oidc/") }}{{ p.jwks_path | default(value="/.well-known/jwks.json") | trim_start_matches(pat="/") }}`).
 {% endfor %}
 ## Intake chain
 {% for i in intake %}
-- bucket `{{ i.bucket }}` -> Eventarc `{{ i.trigger }}` (object.v1.finalized) -> Cloud Run `{{ i.service }}`
-  (Document AI + Vertex `{{ i.model }}`, provenance `{{ i.provenance }}`).
+- bucket `{{ i.bucket }}` -> Eventarc `{{ i.trigger }}` (object.v1.finalized) -> Cloud Run `{{ i.service }}` (ingress `{{ i.ingress | default(value="INGRESS_TRAFFIC_INTERNAL_ONLY") }}`, Document AI + Vertex `{{ i.model }}`, provenance `{{ i.provenance }}`).
 {% endfor %}
 ## Egress workers (one secret each)
 
-| vendor | service | runtime SA | secret | role |
-|---|---|---|---|---|
-{% for w in workers %}| {{ w.vendor }} | `{{ w.gcp_name }}` | `{{ w.sa }}` | `{{ w.secret }}` | `{{ w.role }}` |
+| vendor | service | ingress | runtime SA | secret | role |
+|---|---|---|---|---|---|
+{% for w in workers %}| {{ w.vendor }} | `{{ w.gcp_name }}` | `{{ w.ingress | default(value="INGRESS_TRAFFIC_INTERNAL_ONLY") }}` | `{{ w.sa }}` | `{{ w.secret }}` | `{{ w.role }}` |
 {% endfor %}
 ## Webhook ingress (API Gateway)
 {% for r in routes %}
@@ -89,7 +100,7 @@ Generated Terraform carries no DO authority; `terraform apply` is a separately a
 {% endfor %}
 ## Workload Identity
 {% for b in wi %}
-- `{{ b.sa }}` <- `{{ b.namespace }}/{{ b.ksa }}` (roles/iam.workloadIdentityUser; no JSON key exists).
+- `{{ b.sa }}` <- `{{ b.namespace }}/{{ b.ksa }}` (`roles/iam.workloadIdentityUser`; metadata `{{ b.twin_surface | default(value="/metadata/") }}` with `{{ b.flavor_hdr | default(value="Metadata-Flavor") }}: {{ b.flavor_val | default(value="Google") }}` -> `{{ b.token_path | default(value="/computeMetadata/v1/instance/service-accounts/default/token") }}`; no JSON key exists).
 {% endfor %}
 ## Constraints
 {% for c in constraints %}

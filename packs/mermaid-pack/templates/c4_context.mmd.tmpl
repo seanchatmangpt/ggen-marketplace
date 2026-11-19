@@ -1,0 +1,30 @@
+---
+to: "docs/c4/c1-context.mmd"
+force: true
+sparql:
+  c4_nodes: |
+    PREFIX c4: <https://seanchatmangpt.github.io/ontology/c4#>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT ?id ?label ?kind WHERE {
+      { ?s a c4:Person . BIND("Person" AS ?kind) }
+      UNION
+      { ?s a c4:SoftwareSystem . BIND("System" AS ?kind) }
+      ?s rdfs:label ?label .
+      BIND(STRAFTER(STR(?s), "#") AS ?id)
+    } ORDER BY ?id
+  c4_edges: |
+    PREFIX c4: <https://seanchatmangpt.github.io/ontology/c4#>
+    SELECT ?from ?to ?rel WHERE {
+      ?a c4:uses ?b .
+      { ?a a c4:Person } UNION { ?a a c4:SoftwareSystem }
+      { ?b a c4:Person } UNION { ?b a c4:SoftwareSystem }
+      OPTIONAL { ?a c4:relLabel ?r }
+      BIND(STRAFTER(STR(?a), "#") AS ?from)
+      BIND(STRAFTER(STR(?b), "#") AS ?to)
+      BIND(COALESCE(?r, "uses") AS ?rel)
+    } ORDER BY ?from ?to
+---
+graph TB
+{% for n in c4_nodes %}  {{ n.id }}["{{ n.kind }}: {{ n.label }}"]
+{% endfor %}{% for e in c4_edges %}  {{ e.from }} -->|"{{ e.rel }}"| {{ e.to }}
+{% endfor %}

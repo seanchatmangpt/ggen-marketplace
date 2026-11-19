@@ -1,0 +1,35 @@
+---
+to: "generated/sso/federation_inventory.md"
+force: true
+sparql:
+  bindings: |
+    PREFIX essp: <https://seanchatmangpt.github.io/packs/enterprise-sso-sp#>
+    SELECT ?bindingId ?tenant ?protocol ?spId ?entityId ?acs ?idpId ?idpEntity ?clientId ?redirect ?pkce ?mappingId WHERE {
+      ?b a essp:FederationBinding ;
+          essp:bindingId ?bindingId ;
+          essp:usesProtocol ?proto ;
+          essp:forServiceProvider ?sp ;
+          essp:trustsIdp ?idp .
+      ?proto essp:protocolToken ?protocol .
+      ?sp essp:spId ?spId .
+      OPTIONAL { ?b essp:tenantKey ?tenant }
+      OPTIONAL { ?sp essp:entityId ?entityId }
+      OPTIONAL { ?sp essp:acsUrl ?acs }
+      OPTIONAL { ?idp essp:idpId ?idpId }
+      OPTIONAL { ?idp essp:idpEntityId ?idpEntity }
+      OPTIONAL { ?b essp:clientId ?clientId }
+      OPTIONAL { ?b essp:redirectUri ?redirect }
+      OPTIONAL { ?b essp:pkceRequired ?pkce }
+      OPTIONAL { ?b essp:claimMapping ?map . ?map essp:mappingId ?mappingId }
+    } ORDER BY ?tenant ?protocol ?bindingId
+---
+# SJ product SSO federation inventory
+
+Projection from `enterprise-sso-sp-pack`. Product SP / RP only — not Smalt IdP.
+Facts only; no token mint, no plaintext secrets.
+
+| binding | tenant | protocol | spId | entityId | acs / redirect | idp | clientId | pkce | claim_map |
+|---|---|---|---|---|---|---|---|---|---|
+{% for row in bindings -%}
+| {{ row.bindingId }} | {{ row.tenant | default(value="") }} | {{ row.protocol }} | {{ row.spId }} | {{ row.entityId | default(value="") }} | {{ row.acs | default(value="") }}{% if row.redirect %} / {{ row.redirect }}{% endif %} | {{ row.idpEntity | default(value="") }} | {{ row.clientId | default(value="") }} | {{ row.pkce | default(value="") }} | {{ row.mappingId | default(value="") }} |
+{% endfor %}

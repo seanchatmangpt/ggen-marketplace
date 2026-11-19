@@ -1,0 +1,47 @@
+---
+to: "generated/sso/saml_sp_metadata.xml"
+force: true
+sparql:
+  sps: |
+    PREFIX essp: <https://seanchatmangpt.github.io/packs/enterprise-sso-sp#>
+    SELECT ?spId ?entityId ?acs ?metadata ?nameIdFormat ?signingCertRef WHERE {
+      ?sp a essp:ProductServiceProvider ;
+          essp:spRole essp:roleSp ;
+          essp:spId ?spId ;
+          essp:entityId ?entityId ;
+          essp:acsUrl ?acs .
+      OPTIONAL { ?sp essp:metadataUrl ?metadata }
+      OPTIONAL {
+        ?b a essp:FederationBinding ;
+           essp:forServiceProvider ?sp ;
+           essp:usesProtocol essp:protocolSaml2 ;
+           essp:nameIdFormat ?nameIdFormat .
+        OPTIONAL { ?b essp:signingCertRef ?signingCertRef }
+      }
+      FILTER EXISTS {
+        ?bx a essp:FederationBinding ;
+            essp:forServiceProvider ?sp ;
+            essp:usesProtocol essp:protocolSaml2 .
+      }
+    } ORDER BY ?spId ?nameIdFormat
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SAML 2.0 SP metadata for SJ product. Not Smalt IdP metadata. -->
+<!-- signingCertRef is a vault pointer only; embed KeyDescriptor from that ref at deploy. -->
+{% for row in sps -%}
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata"
+                  entityID="{{ row.entityId }}">
+  <SPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol"
+                   AuthnRequestsSigned="true"
+                   WantAssertionsSigned="true">
+{% if row.nameIdFormat %}
+    <NameIDFormat>{{ row.nameIdFormat }}</NameIDFormat>
+{% endif %}
+    <AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                             Location="{{ row.acs }}"
+                             index="0"
+                             isDefault="true"/>
+  </SPSSODescriptor>
+  <!-- spId={{ row.spId }} metadataUrl={{ row.metadata | default(value="") }} signingCertRef={{ row.signingCertRef | default(value="") }} -->
+</EntityDescriptor>
+{% endfor %}

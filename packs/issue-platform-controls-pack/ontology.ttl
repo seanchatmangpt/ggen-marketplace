@@ -1,0 +1,163 @@
+@prefix ip:   <https://ggen.dev/ontology/issue-platform-controls#> .
+@prefix sj:   <https://ggen-igniter.dev/ontology/semantic-jira#> .
+@prefix dfcm: <https://ggen.dev/ontology/dfcm#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+
+# issue-platform-controls-pack — thin F500 overlay over Semantic Jira.
+#
+# Composition law: attach platform controls TO sj:WorkOrder via properties.
+# Never subclass, redefine, or fork sj:WorkOrder (gate 010 refuses any
+# ip: class that is rdfs:subClassOf+ sj:WorkOrder).
+#
+# F5 bindings: each control class carries skos:exactMatch to the matching
+# dfcm:F5* EnterpriseControl individual (dfcm-pack F5 lattice).
+
+#################################################################
+# Classes (control vocabulary)
+#################################################################
+
+ip:Tenant a rdfs:Class ;
+    rdfs:label "Tenant" ;
+    rdfs:comment "Isolation boundary for platform tenancy. Work orders bind via ip:boundTenant; they are not tenants." ;
+    skos:exactMatch dfcm:F5TenantIsolation .
+
+ip:Principal a rdfs:Class ;
+    rdfs:label "Principal" ;
+    rdfs:comment "Identity that may hold roles. SoD is evaluated over role grants on principals." .
+
+ip:Role a rdfs:Class ;
+    rdfs:label "Role" ;
+    rdfs:comment "Named authority role. Conflicting pairs are declared with ip:conflictsWith." .
+
+ip:SoDConflict a rdfs:Class ;
+    rdfs:label "Segregation-of-duties conflict" ;
+    rdfs:comment "Declared incompatible authority pair (or set). Witnesses a SoD control fact, not a grant." ;
+    skos:exactMatch dfcm:F5SegregationOfDuties .
+
+ip:AuditEvent a rdfs:Class ;
+    rdfs:label "Audit event" ;
+    rdfs:comment "Security-relevant actuation/observation record. May bind an sj:WorkOrder as subject without altering the order." ;
+    skos:exactMatch dfcm:F5AuditLedgerExport .
+
+ip:RetentionPolicy a rdfs:Class ;
+    rdfs:label "Retention policy" ;
+    rdfs:comment "Retention duration and residency constraint for a named data class. Applies beside, not inside, sj:WorkOrder." ;
+    skos:exactMatch dfcm:F5RetentionResidency .
+
+# Secondary F5 alignment for authority-separation (SoD companion).
+ip:AuthoritySeparation a rdfs:Class ;
+    rdfs:label "Authority separation" ;
+    rdfs:comment "Companion concept: SELECT/CONSTRUCT/DO/approval authorities must remain distinct. Declared for crosswalk only." ;
+    skos:exactMatch dfcm:F5AuthoritySeparation .
+
+#################################################################
+# Properties — compose WITH sj:WorkOrder (domain/range edges only)
+#################################################################
+
+ip:tenantId a rdf:Property ;
+    rdfs:domain ip:Tenant ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Stable tenant identifier. Required on every ip:Tenant (gate 020)." .
+
+ip:boundTenant a rdf:Property ;
+    rdfs:domain sj:WorkOrder ;
+    rdfs:range ip:Tenant ;
+    rdfs:comment "Opt-in tenancy edge: when present on an sj:WorkOrder, the object MUST be an ip:Tenant." .
+
+ip:roleId a rdf:Property ;
+    rdfs:domain ip:Role ;
+    rdfs:range xsd:string .
+
+ip:hasRole a rdf:Property ;
+    rdfs:domain ip:Principal ;
+    rdfs:range ip:Role ;
+    rdfs:comment "Role grant. SoD fires when a principal holds two roles linked by ip:conflictsWith without an exception receipt." .
+
+ip:conflictsWith a rdf:Property ;
+    rdfs:domain ip:Role ;
+    rdfs:range ip:Role ;
+    rdfs:comment "Symmetric SoD incompatibility between roles. Declared once; gate treats both directions." .
+
+ip:leftRole a rdf:Property ;
+    rdfs:domain ip:SoDConflict ;
+    rdfs:range ip:Role .
+
+ip:rightRole a rdf:Property ;
+    rdfs:domain ip:SoDConflict ;
+    rdfs:range ip:Role .
+
+ip:sodExceptionReceipt a rdf:Property ;
+    rdfs:domain ip:Principal ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Explicit receipt digest allowing a named SoD exception for this principal. Absence + conflict = refusal." .
+
+ip:actor a rdf:Property ;
+    rdfs:domain ip:AuditEvent ;
+    rdfs:range xsd:string .
+
+ip:action a rdf:Property ;
+    rdfs:domain ip:AuditEvent ;
+    rdfs:range xsd:string .
+
+ip:target a rdf:Property ;
+    rdfs:domain ip:AuditEvent ;
+    rdfs:range xsd:string .
+
+ip:outcome a rdf:Property ;
+    rdfs:domain ip:AuditEvent ;
+    rdfs:range xsd:string .
+
+ip:occurredAt a rdf:Property ;
+    rdfs:domain ip:AuditEvent ;
+    rdfs:range xsd:string .
+
+ip:integrityDigest a rdf:Property ;
+    rdfs:domain ip:AuditEvent ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Immutable export witness (hash/digest) for audit-ledger integrity." .
+
+ip:subjectWorkOrder a rdf:Property ;
+    rdfs:domain ip:AuditEvent ;
+    rdfs:range sj:WorkOrder ;
+    rdfs:comment "Optional bind: audit event concerns this sj:WorkOrder. Does not subclass or mutate the order." .
+
+ip:eventTenant a rdf:Property ;
+    rdfs:domain ip:AuditEvent ;
+    rdfs:range ip:Tenant ;
+    rdfs:comment "Tenant scope of the audit event; must match the subject's boundTenant when both are present." .
+
+ip:retentionDays a rdf:Property ;
+    rdfs:domain ip:RetentionPolicy ;
+    rdfs:range xsd:integer .
+
+ip:residencyRegion a rdf:Property ;
+    rdfs:domain ip:RetentionPolicy ;
+    rdfs:range xsd:string .
+
+ip:dataClass a rdf:Property ;
+    rdfs:domain ip:RetentionPolicy ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Named data class this retention policy governs." .
+
+ip:workOrderDataClass a rdf:Property ;
+    rdfs:domain sj:WorkOrder ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Opt-in: when an sj:WorkOrder declares a data class, a matching ip:RetentionPolicy must exist." .
+
+ip:appliesToTenant a rdf:Property ;
+    rdfs:domain ip:RetentionPolicy ;
+    rdfs:range ip:Tenant ;
+    rdfs:comment "Optional tenant scope for the retention policy." .
+
+#################################################################
+# Pack identity (non-actuation)
+#################################################################
+
+ip:pack a rdfs:Resource ;
+    dcterms:title "issue-platform-controls-pack" ;
+    dcterms:description "Thin F500 overlay: Tenant, SoD, AuditEvent, RetentionPolicy composed with sj:WorkOrder." ;
+    dcterms:identifier "urn:ggen:pack:issue-platform-controls-pack" .

@@ -1,0 +1,275 @@
+# SHACL twin of gates/*.rq for ash-rls-tenant-isolation-pack.
+# Path is shapes/rls.shacl.ttl (NOT root shapes.ttl — pack contract refuses
+# root-level shapes.ttl at ggen sync run).
+# Run: ggen graph validate --files ontology.ttl fixtures/example-consumer.ttl \
+#        --shapes shapes/rls.shacl.ttl
+# Union with any tests/mutations/*.ttl MUST NOT conform.
+
+@prefix rls:  <https://ggen.dev/packs/ash-rls-tenant-isolation#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# ---------------------------------------------------------------------------
+# TenantScopedTable — ENABLE+FORCE law, tableName required, policy optional
+# (pack default applies when hasPolicy absent; forceRls=false is refused by
+# gates/020 — SHACL cannot express "omit or true", so force/enable are
+# sh:in (true) when present).
+# ---------------------------------------------------------------------------
+
+rls:TenantScopedTableShape a sh:NodeShape ;
+    sh:targetClass rls:TenantScopedTable ;
+    sh:property [
+        sh:path rls:tableName ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "rls:TenantScopedTable requires rls:tableName" ;
+    ] ;
+    sh:property [
+        sh:path rls:schema ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path rls:tenantColumn ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+    ] ;
+    sh:property [
+        sh:path rls:enableRls ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:boolean ;
+        sh:in ( true ) ;
+        sh:message "rls:enableRls when present must be true (ENABLE is mandatory)" ;
+    ] ;
+    sh:property [
+        sh:path rls:forceRls ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:boolean ;
+        sh:in ( true ) ;
+        sh:message "rls:forceRls when present must be true (FORCE is the load-bearing law)" ;
+    ] ;
+    sh:property [
+        sh:path rls:nullableTenant ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:boolean ;
+    ] ;
+    sh:property [
+        sh:path rls:platformBypass ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:boolean ;
+    ] ;
+    sh:property [
+        sh:path rls:hasPolicy ;
+        sh:maxCount 1 ;
+        sh:class rls:TenantIsolationPolicy ;
+    ] .
+
+# ---------------------------------------------------------------------------
+# TenantIsolationPolicy
+# ---------------------------------------------------------------------------
+
+rls:TenantIsolationPolicyShape a sh:NodeShape ;
+    sh:targetClass rls:TenantIsolationPolicy ;
+    sh:property [
+        sh:path rls:policyName ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+    ] ;
+    sh:property [
+        sh:path rls:usesShape ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:class rls:PolicyShape ;
+        sh:message "rls:TenantIsolationPolicy requires rls:usesShape" ;
+    ] ;
+    sh:property [
+        sh:path rls:alsoEmitAliasPolicy ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:boolean ;
+    ] .
+
+# ---------------------------------------------------------------------------
+# PolicyShape — closed expression contract
+# ---------------------------------------------------------------------------
+
+rls:PolicyShapeShape a sh:NodeShape ;
+    sh:targetClass rls:PolicyShape ;
+    sh:property [
+        sh:path rls:shapeKind ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:in ( "strict" "nullable" ) ;
+        sh:message "rls:shapeKind must be strict|nullable" ;
+    ] ;
+    sh:property [
+        sh:path rls:usingExpression ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "rls:PolicyShape requires rls:usingExpression" ;
+    ] ;
+    sh:property [
+        sh:path rls:withCheckExpression ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "rls:PolicyShape requires rls:withCheckExpression" ;
+    ] .
+
+# ---------------------------------------------------------------------------
+# TenantGuc — closed names (also enforced by gates/030)
+# ---------------------------------------------------------------------------
+
+rls:TenantGucShape a sh:NodeShape ;
+    sh:targetClass rls:TenantGuc ;
+    sh:property [
+        sh:path rls:gucName ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:in ( "app.current_tenant_id" "app.rls_platform" ) ;
+        sh:message "only app.current_tenant_id and app.rls_platform are admitted GUC names" ;
+    ] ;
+    sh:property [
+        sh:path rls:gucPurpose ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:in ( "tenant-binding" "platform-bypass" ) ;
+        sh:message "rls:gucPurpose must be tenant-binding|platform-bypass" ;
+    ] ;
+    sh:property [
+        sh:path rls:isLocal ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:boolean ;
+        sh:in ( true ) ;
+        sh:message "tenant GUCs must be transaction-local (isLocal true)" ;
+    ] ;
+    sh:property [
+        sh:path rls:gucOnValue ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+    ] .
+
+# ---------------------------------------------------------------------------
+# RepoTenantHook — fail closed on nil tenant
+# ---------------------------------------------------------------------------
+
+rls:RepoTenantHookShape a sh:NodeShape ;
+    sh:targetClass rls:RepoTenantHook ;
+    sh:property [
+        sh:path rls:repoModule ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "rls:RepoTenantHook requires rls:repoModule" ;
+    ] ;
+    sh:property [
+        sh:path rls:failClosedNilTenant ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:boolean ;
+        sh:in ( true ) ;
+        sh:message "rls:failClosedNilTenant must be true (never mint a fallback UUID)" ;
+    ] ;
+    sh:property [
+        sh:path rls:bindsTenantGuc ;
+        sh:maxCount 1 ;
+        sh:class rls:TenantGuc ;
+    ] ;
+    sh:property [
+        sh:path rls:bindsPlatformGuc ;
+        sh:maxCount 1 ;
+        sh:class rls:TenantGuc ;
+    ] ;
+    sh:property [
+        sh:path rls:outputPath ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+    ] .
+
+# ---------------------------------------------------------------------------
+# CatalogExclusion
+# ---------------------------------------------------------------------------
+
+rls:CatalogExclusionShape a sh:NodeShape ;
+    sh:targetClass rls:CatalogExclusion ;
+    sh:property [
+        sh:path rls:excludedTableName ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "rls:CatalogExclusion requires rls:excludedTableName" ;
+    ] ;
+    sh:property [
+        sh:path rls:exclusionReason ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+    ] .
+
+# ---------------------------------------------------------------------------
+# RlsCourt — probe must be catalogued (SPARQL twin: gates/040)
+# ---------------------------------------------------------------------------
+
+rls:RlsCourtShape a sh:NodeShape ;
+    sh:targetClass rls:RlsCourt ;
+    sh:property [
+        sh:path rls:courtModule ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "rls:RlsCourt requires rls:courtModule" ;
+    ] ;
+    sh:property [
+        sh:path rls:probeTable ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "rls:RlsCourt requires rls:probeTable" ;
+    ] ;
+    sh:property [
+        sh:path rls:courtRole ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "rls:RlsCourt requires rls:courtRole" ;
+    ] ;
+    sh:property [
+        sh:path rls:usesRepo ;
+        sh:maxCount 1 ;
+        sh:class rls:RepoTenantHook ;
+    ] ;
+    sh:property [
+        sh:path rls:outputPath ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+    ] .
+
+# ---------------------------------------------------------------------------
+# IsolationMigration
+# ---------------------------------------------------------------------------
+
+rls:IsolationMigrationShape a sh:NodeShape ;
+    sh:targetClass rls:IsolationMigration ;
+    sh:property [
+        sh:path rls:migrationModule ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "rls:IsolationMigration requires rls:migrationModule" ;
+    ] ;
+    sh:property [
+        sh:path rls:migrationVersion ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[0-9]{14}$" ;
+        sh:message "rls:migrationVersion must be a 14-digit Ecto timestamp" ;
+    ] ;
+    sh:property [
+        sh:path rls:coversTable ;
+        sh:class rls:TenantScopedTable ;
+    ] ;
+    sh:property [
+        sh:path rls:outputPath ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+    ] .

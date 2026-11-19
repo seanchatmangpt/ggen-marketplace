@@ -1,0 +1,44 @@
+# MESSAGE: OIDC RP federation binding incomplete — clientId, redirectUri, or IdP discovery missing.
+# An oidc binding must pin forServiceProvider, trustsIdp with idpDiscoveryUrl,
+# clientId, redirectUri, and clientSecretRef (reference only).
+PREFIX essp: <https://seanchatmangpt.github.io/packs/enterprise-sso-sp#>
+SELECT ?binding ?violation WHERE {
+  ?binding a essp:FederationBinding ;
+           essp:usesProtocol essp:protocolOidc .
+  {
+    FILTER NOT EXISTS {
+      ?binding essp:forServiceProvider ?sp .
+      ?sp a essp:ProductServiceProvider .
+    }
+    BIND("oidc binding missing forServiceProvider" AS ?violation)
+  }
+  UNION {
+    FILTER NOT EXISTS {
+      ?binding essp:trustsIdp ?idp .
+      ?idp essp:idpDiscoveryUrl ?disc .
+      FILTER(STRLEN(STR(?disc)) > 0)
+    }
+    BIND("oidc binding missing ExternalIdentityProvider with idpDiscoveryUrl" AS ?violation)
+  }
+  UNION {
+    FILTER NOT EXISTS {
+      ?binding essp:clientId ?cid .
+      FILTER(STRLEN(?cid) > 0)
+    }
+    BIND("oidc binding missing non-empty clientId" AS ?violation)
+  }
+  UNION {
+    FILTER NOT EXISTS {
+      ?binding essp:redirectUri ?ru .
+    }
+    BIND("oidc binding missing redirectUri" AS ?violation)
+  }
+  UNION {
+    FILTER NOT EXISTS {
+      ?binding essp:clientSecretRef ?ref .
+      FILTER(STRLEN(?ref) > 0)
+    }
+    BIND("oidc binding missing clientSecretRef (secret reference, never plaintext)" AS ?violation)
+  }
+}
+ORDER BY ?binding ?violation

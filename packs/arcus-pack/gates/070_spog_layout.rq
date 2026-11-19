@@ -1,0 +1,35 @@
+# MESSAGE: every arcus:SpogArray individual must carry complete buffer-layout
+# facts (id, goName, bufferCount, byteWidth, alignment, offsetType, purpose,
+# handLawSeam). A row returned here is an incomplete layout fact in the graph:
+# the projection would emit a reader whose buffer geometry is underspecified.
+# Every arcus:SpogUnionChild must carry typeId, goName and childGoType and
+# resolve to a defined DenseUnion parent.
+PREFIX arcus: <urn:arcus:>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+SELECT ?name WHERE {
+  {
+    ?a a arcus:SpogArray .
+    BIND(STR(?a) AS ?name)
+    FILTER (
+      NOT EXISTS { ?a arcus:id ?id } ||
+      NOT EXISTS { ?a arcus:goName ?goName } ||
+      NOT EXISTS { ?a arcus:bufferCount ?bufferCount } ||
+      NOT EXISTS { ?a arcus:byteWidth ?byteWidth } ||
+      NOT EXISTS { ?a arcus:alignment ?alignment } ||
+      NOT EXISTS { ?a arcus:offsetType ?offsetType } ||
+      NOT EXISTS { ?a arcus:purpose ?purpose } ||
+      NOT EXISTS { ?a arcus:handLawSeam ?seam } ||
+      NOT EXISTS { ?a prov:wasDerivedFrom ?src }
+    )
+  } UNION {
+    ?c a arcus:SpogUnionChild .
+    BIND(STR(?c) AS ?name)
+    FILTER (
+      NOT EXISTS { ?c arcus:typeId ?typeId } ||
+      NOT EXISTS { ?c arcus:goName ?cgoName } ||
+      NOT EXISTS { ?c arcus:childGoType ?childGoType } ||
+      NOT EXISTS { ?c arcus:childOf ?parent . ?parent a arcus:SpogArray } ||
+      NOT EXISTS { ?c prov:wasDerivedFrom ?csrc }
+    )
+  }
+} ORDER BY ?name

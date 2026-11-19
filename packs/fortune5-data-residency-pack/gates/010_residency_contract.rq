@@ -1,0 +1,28 @@
+# MESSAGE: Fortune 5 data-residency contract incomplete -- every program and policy requires identity, jurisdiction pin, replication forbid, and evidence
+PREFIX f5dr: <http://seanchatmangpt.github.io/packs/fortune5-data-residency#>
+SELECT ?subject ?kind ?missing WHERE {
+  {
+    ?subject a f5dr:ResidencyProgram .
+    BIND("program" AS ?kind)
+    VALUES ?property {
+      f5dr:programId f5dr:catalogGroup f5dr:catalogVersion
+      f5dr:hasPolicy f5dr:directActuation
+    }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(STR(?property) AS ?missing)
+  }
+  UNION
+  {
+    ?subject a f5dr:ResidencyPolicy .
+    BIND("policy" AS ?kind)
+    VALUES ?property {
+      f5dr:policyId f5dr:title f5dr:appliesToDataClass
+      f5dr:homeJurisdiction f5dr:allowedJurisdiction f5dr:pinnedRegion
+      f5dr:forbidCrossBorderReplication f5dr:evidenceRequired
+      f5dr:directActuation
+    }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(STR(?property) AS ?missing)
+  }
+}
+ORDER BY ?kind ?subject ?missing

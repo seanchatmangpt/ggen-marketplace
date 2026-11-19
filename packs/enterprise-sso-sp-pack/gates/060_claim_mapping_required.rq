@@ -1,0 +1,20 @@
+# MESSAGE: Federation binding missing ClaimMapping with at least one ClaimRule.
+# Group / attribute claims from the customer IdP must map to product roles.
+PREFIX essp: <https://seanchatmangpt.github.io/packs/enterprise-sso-sp#>
+SELECT ?binding ?violation WHERE {
+  ?binding a essp:FederationBinding .
+  {
+    FILTER NOT EXISTS {
+      ?binding essp:claimMapping ?map .
+      ?map a essp:ClaimMapping ;
+           essp:hasClaimRule ?rule .
+      ?rule a essp:ClaimRule ;
+            essp:idpClaimName ?n ;
+            essp:idpClaimValue ?v ;
+            essp:productRole ?r .
+      FILTER(STRLEN(?n) > 0 && STRLEN(?v) > 0 && STRLEN(?r) > 0)
+    }
+    BIND("FederationBinding missing essp:claimMapping with a complete ClaimRule (idpClaimName, idpClaimValue, productRole)" AS ?violation)
+  }
+}
+ORDER BY ?binding

@@ -1,0 +1,33 @@
+---
+to: "generated/sso/claim_role_map.toml"
+force: true
+sparql:
+  rules: |
+    PREFIX essp: <https://seanchatmangpt.github.io/packs/enterprise-sso-sp#>
+    SELECT ?mappingId ?bindingId ?tenant ?claimName ?claimValue ?productRole WHERE {
+      ?b a essp:FederationBinding ;
+          essp:bindingId ?bindingId ;
+          essp:claimMapping ?map .
+      ?map a essp:ClaimMapping ;
+           essp:mappingId ?mappingId ;
+           essp:hasClaimRule ?rule .
+      ?rule a essp:ClaimRule ;
+           essp:idpClaimName ?claimName ;
+           essp:idpClaimValue ?claimValue ;
+           essp:productRole ?productRole .
+      OPTIONAL { ?b essp:tenantKey ?tenant }
+    } ORDER BY ?mappingId ?claimName ?claimValue
+---
+# IdP group/attribute claims → SJ product roles.
+# Projection of admitted ClaimMapping facts only — does not grant roles at runtime.
+
+{% for row in rules -%}
+[[claim_rule]]
+mapping_id = "{{ row.mappingId }}"
+binding_id = "{{ row.bindingId }}"
+tenant = "{{ row.tenant | default(value="") }}"
+idp_claim_name = "{{ row.claimName }}"
+idp_claim_value = "{{ row.claimValue }}"
+product_role = "{{ row.productRole }}"
+
+{% endfor %}

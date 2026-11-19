@@ -16,7 +16,7 @@ cross-repo pilot confirmation is pending (see Open Items).
 | ontology | `ontology.ttl` | yes |
 | templates | `machine.tera.tmpl`, `smoke.tera.tmpl`, `conformance-matrix.tera.tmpl` | yes (3) |
 | gates | `gates/010_ttl_triple_counts.py`, `gates/020_compile_shape_scan.py` | yes (2) |
-| gate configs | `gates/baselines.toml` (srve J14 baselines), `gates/shapes.toml` | yes |
+| gate configs | `config/baselines.toml` (srve J14 baselines), `config/shapes.toml` | yes |
 | tool | `tools/construct_gate.py` (esbuild bundle + createActor().start()) | yes |
 | fixtures | `positive-machine.json`, `divergent-machine.json`, `divergent-notes.md` | yes (3) |
 | qualification | `qualification/consumer.ttl` (st: identity facts, M15 non-dangling) | yes |
@@ -42,7 +42,7 @@ tools/fixtures/qualification/docs) are present. No missing cells.
 
 ### Gate 020 — compile-shape scan vs srve registered subject
 
-    python3 gates/020_compile_shape_scan.py --config gates/shapes.toml \
+    python3 gates/020_compile_shape_scan.py --config config/shapes.toml \
       --root /Users/sac/srve
 
     SHAPE-COURT: PASS — 1 subject(s), 0 violations

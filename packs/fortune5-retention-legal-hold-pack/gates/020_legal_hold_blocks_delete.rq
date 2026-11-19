@@ -1,0 +1,32 @@
+# MESSAGE: Fortune 5 legal hold incomplete -- every hold must name a matter, held object, and block both delete and export
+PREFIX f5rh: <http://seanchatmangpt.github.io/packs/fortune5-retention-legal-hold#>
+SELECT ?subject ?kind ?missing WHERE {
+  {
+    ?subject a f5rh:LegalHold .
+    BIND("hold" AS ?kind)
+    VALUES ?property {
+      f5rh:holdId f5rh:title f5rh:matterId f5rh:holdsObject
+      f5rh:blocksDelete f5rh:blocksExport f5rh:evidenceRequired
+      f5rh:directActuation
+    }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(STR(?property) AS ?missing)
+  }
+  UNION
+  {
+    ?subject a f5rh:LegalHold ;
+             f5rh:blocksDelete ?value .
+    FILTER(?value != true)
+    BIND("hold-blocksDelete" AS ?kind)
+    BIND("must be true" AS ?missing)
+  }
+  UNION
+  {
+    ?subject a f5rh:LegalHold ;
+             f5rh:blocksExport ?value .
+    FILTER(?value != true)
+    BIND("hold-blocksExport" AS ?kind)
+    BIND("must be true" AS ?missing)
+  }
+}
+ORDER BY ?kind ?subject ?missing

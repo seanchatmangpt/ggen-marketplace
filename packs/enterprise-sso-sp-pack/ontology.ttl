@@ -1,0 +1,209 @@
+@prefix essp: <https://seanchatmangpt.github.io/packs/enterprise-sso-sp#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+
+# enterprise-sso-sp-pack — SJ product SAML/OIDC Service Provider / Relying Party.
+# Boundary: product SP (consumer of customer IdPs). NOT Smalt IdP
+# (smalt:face-saml-idp / smalt:face-oidc-idp). Role vocabulary is closed:
+# essp:roleSp only; claiming IdP role is a gate refusal.
+# Scope: metadata, ACS, PKCE, group claims → product roles.
+# Individuals for local sync live in qualification/scaffold.ttl (not here).
+
+<https://seanchatmangpt.github.io/packs/enterprise-sso-sp> a owl:Ontology ;
+    dct:title "Enterprise SSO Service Provider / Relying Party" ;
+    dct:description "SAML 2.0 / OIDC RP ontology for Semantic Jira product SSO. Grants no token-mint or IdP authority." ;
+    dct:source <https://docs.oasis-open.org/security/saml/v2.0/> ,
+               <https://openid.net/specs/openid-connect-core-1_0.html> ,
+               <https://datatracker.ietf.org/doc/html/rfc7636> ;
+    owl:versionInfo "0.2.0" ;
+    vann:preferredNamespacePrefix "essp" ;
+    vann:preferredNamespaceUri <https://seanchatmangpt.github.io/packs/enterprise-sso-sp#> .
+
+#################################################################
+# Role + protocol closed sets
+#################################################################
+
+essp:SpRole a rdfs:Class ;
+    rdfs:label "Closed SP/RP role vocabulary" ;
+    rdfs:comment "Only essp:roleSp is admitted. IdP roles belong to Smalt identity plane, never this pack." .
+
+essp:roleSp a essp:SpRole ;
+    essp:roleToken "sp" ;
+    rdfs:label "Service Provider / Relying Party" .
+
+essp:FederationProtocol a rdfs:Class ;
+    rdfs:label "Closed federation protocol" .
+
+essp:protocolSaml2 a essp:FederationProtocol ;
+    essp:protocolToken "saml2" ;
+    rdfs:label "SAML 2.0" .
+
+essp:protocolOidc a essp:FederationProtocol ;
+    essp:protocolToken "oidc" ;
+    rdfs:label "OpenID Connect" .
+
+#################################################################
+# Product SP (the SJ application surface)
+#################################################################
+
+essp:ProductServiceProvider a rdfs:Class ;
+    rdfs:label "SJ product Service Provider instance" ;
+    rdfs:comment "One product SP registration. Must carry essp:spRole essp:roleSp and at least one essp:FederationBinding. Never an IdP." .
+
+essp:spId a rdf:Property ;
+    rdfs:domain essp:ProductServiceProvider ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Stable product SP identity (e.g. urn:sjira:sp:production)." .
+
+essp:spRole a rdf:Property ;
+    rdfs:domain essp:ProductServiceProvider ;
+    rdfs:range essp:SpRole ;
+    rdfs:comment "REQUIRED. Must be essp:roleSp. Any other value is refused." .
+
+essp:entityId a rdf:Property ;
+    rdfs:domain essp:ProductServiceProvider ;
+    rdfs:range xsd:string ;
+    rdfs:comment "SAML entityID / OIDC client audience base for this product SP." .
+
+essp:acsUrl a rdf:Property ;
+    rdfs:domain essp:ProductServiceProvider ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Assertion Consumer Service URL (SAML) or code callback host path." .
+
+essp:metadataUrl a rdf:Property ;
+    rdfs:domain essp:ProductServiceProvider ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Published SP metadata URL (SAML) when applicable." .
+
+#################################################################
+# External customer IdP (federation target — not Smalt)
+#################################################################
+
+essp:ExternalIdentityProvider a rdfs:Class ;
+    rdfs:label "Customer / enterprise IdP" ;
+    rdfs:comment "External IdP the product federates TO. Must not reuse Smalt IdP entity IRIs or face modules." .
+
+essp:idpId a rdf:Property ;
+    rdfs:domain essp:ExternalIdentityProvider ;
+    rdfs:range xsd:string .
+
+essp:idpEntityId a rdf:Property ;
+    rdfs:domain essp:ExternalIdentityProvider ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Customer IdP entityID / OIDC issuer." .
+
+essp:idpMetadataUrl a rdf:Property ;
+    rdfs:domain essp:ExternalIdentityProvider ;
+    rdfs:range xsd:anyURI .
+
+essp:idpDiscoveryUrl a rdf:Property ;
+    rdfs:domain essp:ExternalIdentityProvider ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "OIDC discovery document URL when protocol is oidc." .
+
+#################################################################
+# Per-tenant federation binding
+#################################################################
+
+essp:FederationBinding a rdfs:Class ;
+    rdfs:label "Tenant federation binding" ;
+    rdfs:comment "One admitted SP↔external-IdP federation for a tenant. Carries protocol and protocol-specific required fields." .
+
+essp:bindingId a rdf:Property ;
+    rdfs:domain essp:FederationBinding ;
+    rdfs:range xsd:string .
+
+essp:forServiceProvider a rdf:Property ;
+    rdfs:domain essp:FederationBinding ;
+    rdfs:range essp:ProductServiceProvider .
+
+essp:trustsIdp a rdf:Property ;
+    rdfs:domain essp:FederationBinding ;
+    rdfs:range essp:ExternalIdentityProvider .
+
+essp:usesProtocol a rdf:Property ;
+    rdfs:domain essp:FederationBinding ;
+    rdfs:range essp:FederationProtocol .
+
+essp:tenantKey a rdf:Property ;
+    rdfs:domain essp:FederationBinding ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Tenant discriminator for multi-tenant SJ product SP." .
+
+essp:redirectUri a rdf:Property ;
+    rdfs:domain essp:FederationBinding ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "OIDC redirect_uri registered at the customer IdP for this binding." .
+
+essp:clientId a rdf:Property ;
+    rdfs:domain essp:FederationBinding ;
+    rdfs:range xsd:string ;
+    rdfs:comment "OIDC client_id at the customer IdP." .
+
+essp:clientSecretRef a rdf:Property ;
+    rdfs:domain essp:FederationBinding ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Secret reference only — never a plaintext secret literal." .
+
+essp:nameIdFormat a rdf:Property ;
+    rdfs:domain essp:FederationBinding ;
+    rdfs:range xsd:string ;
+    rdfs:comment "SAML NameIDFormat URI when protocol is saml2." .
+
+essp:signingCertRef a rdf:Property ;
+    rdfs:domain essp:FederationBinding ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Reference to SP signing certificate material (never embed PEM here)." .
+
+essp:pkceRequired a rdf:Property ;
+    rdfs:domain essp:FederationBinding ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "OIDC: RFC 7636 PKCE required. Must be true for oidc bindings." .
+
+essp:claimMapping a rdf:Property ;
+    rdfs:domain essp:FederationBinding ;
+    rdfs:range essp:ClaimMapping ;
+    rdfs:comment "REQUIRED. Group/attribute claim map from customer IdP into product roles." .
+
+essp:claimMappingRef a rdf:Property ;
+    rdfs:domain essp:FederationBinding ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Optional string alias for an external mapping document IRI; prefer essp:claimMapping." .
+
+#################################################################
+# Claim mapping (IdP group / attribute → product role)
+#################################################################
+
+essp:ClaimMapping a rdfs:Class ;
+    rdfs:label "Claim / group → role mapping" ;
+    rdfs:comment "Admitted map of IdP claims (typically groups) onto SJ product roles. Projection only — does not grant roles at runtime." .
+
+essp:mappingId a rdf:Property ;
+    rdfs:domain essp:ClaimMapping ;
+    rdfs:range xsd:string .
+
+essp:hasClaimRule a rdf:Property ;
+    rdfs:domain essp:ClaimMapping ;
+    rdfs:range essp:ClaimRule .
+
+essp:ClaimRule a rdfs:Class ;
+    rdfs:label "Single claim → role rule" .
+
+essp:idpClaimName a rdf:Property ;
+    rdfs:domain essp:ClaimRule ;
+    rdfs:range xsd:string ;
+    rdfs:comment "IdP claim / attribute name (e.g. groups, roles)." .
+
+essp:idpClaimValue a rdf:Property ;
+    rdfs:domain essp:ClaimRule ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Exact claim value from the IdP (e.g. a group DN or slug)." .
+
+essp:productRole a rdf:Property ;
+    rdfs:domain essp:ClaimRule ;
+    rdfs:range xsd:string ;
+    rdfs:comment "SJ product role token granted when the claim matches." .

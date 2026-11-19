@@ -25,4 +25,8 @@ Standing: UNVERIFIED
   topic, not a dropped attribute). "040 clean" above is still never-flipped until the coordinator
   runs the rdflib loop with the new fixture (commands in
   `/Users/sac/fnox/docs/jira/v26.11.16/receipts/R05-pack-kd-repair.md`).
+- Gates `050_service_internal_only.rq` and `060_no_literal_secrets.rq` added 2026-11-17 (no shell,
+  never run); falsifiers `tests/mutations/service_public_ingress.ttl` (050: 1 row) and
+  `env_credential_literal.ttl` (060: 1 row). Source `/Users/sac/fnox/infra/gcp/broker/` does not
+  exist (the pack generates it); no additional source facts were available to compare.
 - Flip this line only from a receipt that cites the exact commands and their exit codes.

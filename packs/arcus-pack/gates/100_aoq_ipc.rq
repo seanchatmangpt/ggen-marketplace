@@ -1,0 +1,22 @@
+# MESSAGE: every arcus KernelPrimitive with an aoq* primKind must carry a
+# complete law string, a closed-set seam, implemented-or-proposed status,
+# and mandatory prov:wasDerivedFrom pinning the cgap ground truth
+# (include/cgap_aoq.h for the header law, aoq_sidecar.rs for the wire law).
+# A row returned here is an under-specified or unpinned AOQ primitive.
+PREFIX arcus: <urn:arcus:>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+SELECT ?name WHERE {
+  ?p a arcus:KernelPrimitive ; arcus:primName ?name ; arcus:primKind ?kind .
+  FILTER (STRSTARTS(?kind, "aoq"))
+  FILTER (
+    NOT EXISTS { ?p arcus:law ?law } ||
+    NOT EXISTS { ?p arcus:seam ?seam } ||
+    NOT EXISTS { ?p arcus:status ?status } ||
+    NOT EXISTS { ?p prov:wasDerivedFrom ?src } ||
+    EXISTS { ?p arcus:seam ?s . FILTER(?s NOT IN ("generated", "arcus:hand-law", "proposed")) } ||
+    EXISTS { ?p arcus:status ?st . FILTER(?st NOT IN ("implemented", "proposed")) } ||
+    EXISTS {
+      ?p arcus:status "proposed" ; arcus:seam "generated" .
+    }
+  )
+} ORDER BY ?name

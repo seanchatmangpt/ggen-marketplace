@@ -1,0 +1,32 @@
+---
+to: "docs/c4/c2-containers.mmd"
+force: true
+sparql:
+  c4_containers: |
+    PREFIX c4: <https://seanchatmangpt.github.io/ontology/c4#>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT ?id ?label ?tech ?sys WHERE {
+      ?s a c4:Container ;
+         rdfs:label ?label ;
+         c4:inSystem ?sysIri .
+      OPTIONAL { ?s c4:technology ?t }
+      BIND(STRAFTER(STR(?s), "#") AS ?id)
+      BIND(STRAFTER(STR(?sysIri), "#") AS ?sys)
+      BIND(COALESCE(?t, "") AS ?tech)
+    } ORDER BY ?sys ?id
+  c4_edges: |
+    PREFIX c4: <https://seanchatmangpt.github.io/ontology/c4#>
+    SELECT ?from ?to ?rel WHERE {
+      ?a c4:uses ?b .
+      ?a a c4:Container .
+      ?b a c4:Container .
+      OPTIONAL { ?a c4:relLabel ?r }
+      BIND(STRAFTER(STR(?a), "#") AS ?from)
+      BIND(STRAFTER(STR(?b), "#") AS ?to)
+      BIND(COALESCE(?r, "uses") AS ?rel)
+    } ORDER BY ?from ?to
+---
+graph TB
+{% for c in c4_containers %}  {{ c.id }}["Container: {{ c.label }}{% if c.tech %} [{{ c.tech }}]{% endif %}"]
+{% endfor %}{% for e in c4_edges %}  {{ e.from }} -->|"{{ e.rel }}"| {{ e.to }}
+{% endfor %}

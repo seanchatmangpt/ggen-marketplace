@@ -1,0 +1,25 @@
+# MESSAGE: Fortune 5 retention/legal-hold law declares direct actuation or non-positive retention days
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX f5rh: <http://seanchatmangpt.github.io/packs/fortune5-retention-legal-hold#>
+SELECT ?subject ?field ?value WHERE {
+  {
+    ?subject f5rh:directActuation ?value .
+    FILTER(?value != false)
+    BIND("f5rh:directActuation" AS ?field)
+  }
+  UNION
+  {
+    ?subject a f5rh:RetentionSchedule ; f5rh:retentionDays ?raw .
+    FILTER(!(DATATYPE(?raw) = xsd:integer) || ?raw <= 0)
+    BIND("f5rh:retentionDays" AS ?field)
+    BIND(STR(?raw) AS ?value)
+  }
+  UNION
+  {
+    ?subject a f5rh:RetentionProgram ; f5rh:catalogPackId ?raw .
+    FILTER(STR(?raw) != "fortune5-retention-pack")
+    BIND("f5rh:catalogPackId" AS ?field)
+    BIND(STR(?raw) AS ?value)
+  }
+}
+ORDER BY ?subject ?field

@@ -1,0 +1,32 @@
+# MESSAGE: SAML federation binding incomplete — SP entityId/ACS or IdP metadata missing.
+# A saml2 binding must pin forServiceProvider (with entityId + acsUrl), trustsIdp
+# (with idpEntityId + idpMetadataUrl), and nameIdFormat.
+PREFIX essp: <https://seanchatmangpt.github.io/packs/enterprise-sso-sp#>
+SELECT ?binding ?violation WHERE {
+  ?binding a essp:FederationBinding ;
+           essp:usesProtocol essp:protocolSaml2 .
+  {
+    FILTER NOT EXISTS {
+      ?binding essp:forServiceProvider ?sp .
+      ?sp essp:entityId ?eid ; essp:acsUrl ?acs .
+      FILTER(STRLEN(?eid) > 0)
+    }
+    BIND("saml2 binding missing ProductServiceProvider with non-empty entityId and acsUrl" AS ?violation)
+  }
+  UNION {
+    FILTER NOT EXISTS {
+      ?binding essp:trustsIdp ?idp .
+      ?idp essp:idpEntityId ?ie ; essp:idpMetadataUrl ?im .
+      FILTER(STRLEN(?ie) > 0)
+    }
+    BIND("saml2 binding missing ExternalIdentityProvider with idpEntityId and idpMetadataUrl" AS ?violation)
+  }
+  UNION {
+    FILTER NOT EXISTS {
+      ?binding essp:nameIdFormat ?nid .
+      FILTER(STRLEN(?nid) > 0)
+    }
+    BIND("saml2 binding missing non-empty nameIdFormat" AS ?violation)
+  }
+}
+ORDER BY ?binding ?violation

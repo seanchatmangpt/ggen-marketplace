@@ -1,0 +1,38 @@
+---
+to: "generated/sso/oidc_rp_config.toml"
+force: true
+sparql:
+  rps: |
+    PREFIX essp: <https://seanchatmangpt.github.io/packs/enterprise-sso-sp#>
+    SELECT ?bindingId ?tenant ?clientId ?secretRef ?redirect ?discovery ?issuer ?pkce ?mappingId WHERE {
+      ?b a essp:FederationBinding ;
+          essp:bindingId ?bindingId ;
+          essp:usesProtocol essp:protocolOidc ;
+          essp:clientId ?clientId ;
+          essp:clientSecretRef ?secretRef ;
+          essp:redirectUri ?redirect ;
+          essp:trustsIdp ?idp .
+      OPTIONAL { ?b essp:tenantKey ?tenant }
+      OPTIONAL { ?b essp:pkceRequired ?pkce }
+      OPTIONAL { ?idp essp:idpDiscoveryUrl ?discovery }
+      OPTIONAL { ?idp essp:idpEntityId ?issuer }
+      OPTIONAL { ?b essp:claimMapping ?map . ?map essp:mappingId ?mappingId }
+    } ORDER BY ?tenant ?bindingId
+---
+# OIDC relying-party config for SJ product SP.
+# Not Smalt IdP discovery. Secrets are references only (never plaintext).
+
+{% for row in rps -%}
+[[oidc_rp]]
+binding_id = "{{ row.bindingId }}"
+tenant = "{{ row.tenant | default(value="") }}"
+client_id = "{{ row.clientId }}"
+client_secret_ref = "{{ row.secretRef }}"
+redirect_uri = "{{ row.redirect }}"
+discovery_url = "{{ row.discovery | default(value="") }}"
+issuer = "{{ row.issuer | default(value="") }}"
+pkce_required = {{ row.pkce | default(value="true") }}
+claim_mapping_id = "{{ row.mappingId | default(value="") }}"
+role = "sp"
+
+{% endfor %}

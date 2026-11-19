@@ -1,0 +1,51 @@
+# MESSAGE: uniqueness/conflict closure — duplicate or conflicting identity
+# keys corrupt deterministic projections (nondeterministic rendering or
+# colliding Go identifiers). Bnode-stable: azure ResourceTop/ProviderConstant
+# rows are blank nodes AND the ggen union double-loads pack ontologies, so
+# subject-count uniqueness is unsound there — those branches count DISTINCT
+# versions per key (a genuine pin conflict fires; a re-load cannot). IRI-keyed
+# populations (SpogUnionChild.typeId, WireField offset-per-register,
+# KernelPrimitive.primName) merge by IRI across loads and use subject-count.
+# A row returned here is a duplicate or conflicting key.
+PREFIX arcus: <urn:arcus:>
+SELECT ?kind ?key WHERE {
+  {
+    BIND("conflicting resourceType pins" AS ?kind)
+    { SELECT ?key (COUNT(DISTINCT ?version) AS ?n) WHERE { ?x a arcus:ResourceTop ; arcus:resourceType ?key ; arcus:version ?version . } GROUP BY ?key }
+    FILTER (?n > 1)
+  } UNION
+  {
+    BIND("conflicting symbol pins" AS ?kind)
+    { SELECT ?key (COUNT(DISTINCT ?version) AS ?n) WHERE { ?x a arcus:ProviderConstant ; arcus:symbol ?key ; arcus:version ?version . } GROUP BY ?key }
+    FILTER (?n > 1)
+  } UNION
+  {
+    BIND("duplicate typeId" AS ?kind)
+    { SELECT ?key (COUNT(?x) AS ?n) WHERE { ?x a arcus:SpogUnionChild ; arcus:typeId ?key . } GROUP BY ?key }
+    FILTER (?n > 1)
+  } UNION
+  {
+    BIND(CONCAT("duplicate offset in register ", STR(?reg)) AS ?kind)
+    { SELECT ?reg ?key (COUNT(?x) AS ?n) WHERE { ?x a arcus:WireField ; arcus:fieldOf ?reg ; arcus:offset ?key . } GROUP BY ?reg ?key }
+    FILTER (?n > 1)
+  } UNION
+  {
+    # Same-field offset conflict (S7 escape, 060/110-silent class): ONE
+    # WireField carrying two different arcus:offset values is silent in the
+    # (?reg,?key)-grouped branch above (each value lands in its own group,
+    # n=1). Self-join on the shared subject fires; a ggen union double-load
+    # duplicates bnode identities but cannot mint a second offset on one
+    # subject, and DISTINCT over (?reg IRI, value) pairs is bnode-stable
+    # (KD-G14).
+    BIND(CONCAT("conflicting offsets on one WireField in register ", STR(?reg)) AS ?kind)
+    { SELECT DISTINCT ?reg ?key WHERE {
+        ?f a arcus:WireField ; arcus:fieldOf ?reg ; arcus:offset ?key, ?other .
+        FILTER (?key != ?other)
+      } }
+  } UNION
+  {
+    BIND("duplicate primName" AS ?kind)
+    { SELECT ?key (COUNT(?x) AS ?n) WHERE { ?x a arcus:KernelPrimitive ; arcus:primName ?key . } GROUP BY ?key }
+    FILTER (?n > 1)
+  }
+}

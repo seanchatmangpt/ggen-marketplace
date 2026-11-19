@@ -1,0 +1,57 @@
+# Qualification positive consumer for issue-platform-controls-pack.
+# Coordinator unions this with ontology.ttl (+ shapes/ip.shacl.ttl) and, when
+# available, ~/ggen_igniter/priv/ggen/semantic-jira-pack/ontology.ttl for
+# sj:WorkOrder class membership courts. Gate court: ontology ∪ this → 0 rows.
+#
+# Sync court: materialize the scoped SJ dep via
+# qualification/materialize_sj_dep_court.sh (real ontology + verify/ LAW
+# gates; witness-driver gates/ omitted — ADR-0010 ≠ FM-PACK-013), then mount
+# that dir as semantic-jira-pack. ex:WO-1001 is a conforming overlay subject
+# (typed sj:WorkOrder, non-ALIVE standing) that passes SJ verify/ offenders.
+
+@prefix ip:  <https://ggen.dev/ontology/issue-platform-controls#> .
+@prefix sj:  <https://ggen-igniter.dev/ontology/semantic-jira#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix ex:  <https://example.org/ip-controls-consumer#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ex:TenantAcme a ip:Tenant ;
+    ip:tenantId "acme" .
+
+ex:RoleSelect a ip:Role ;
+    ip:roleId "select-construct" .
+
+ex:RoleDo a ip:Role ;
+    ip:roleId "do-actuate" ;
+    ip:conflictsWith ex:RoleSelect .
+
+ex:SodSelectDo a ip:SoDConflict ;
+    ip:leftRole ex:RoleSelect ;
+    ip:rightRole ex:RoleDo .
+
+# Lawful principal: holds only one side of the conflict pair.
+ex:PrincipalAlice a ip:Principal ;
+    ip:hasRole ex:RoleSelect .
+
+ex:WO-1001 a sj:WorkOrder ;
+    dcterms:identifier "WO-1001" ;
+    dcterms:title "Qualification overlay work order" ;
+    sj:standing "UNKNOWN" ;
+    ip:boundTenant ex:TenantAcme ;
+    ip:workOrderDataClass "audit-log" .
+
+ex:RetentionAuditLog a ip:RetentionPolicy ;
+    ip:retentionDays 365 ;
+    ip:residencyRegion "us-west1" ;
+    ip:dataClass "audit-log" ;
+    ip:appliesToTenant ex:TenantAcme .
+
+ex:AuditAdmitWO1001 a ip:AuditEvent ;
+    ip:actor "alice@acme.example" ;
+    ip:action "admit-work-order" ;
+    ip:target "WO-1001" ;
+    ip:outcome "ok" ;
+    ip:occurredAt "2026-11-19T18:00:00Z" ;
+    ip:integrityDigest "sha256:qualification-consumer-audit-admit-wo-1001" ;
+    ip:subjectWorkOrder ex:WO-1001 ;
+    ip:eventTenant ex:TenantAcme .

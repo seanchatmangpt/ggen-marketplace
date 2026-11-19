@@ -1,0 +1,1141 @@
+@prefix arcus: <urn:arcus:> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+
+# Canonical arcus graph. Construction only: no generated adapter has ambient
+# actuation authority; every operation is admitted by an ontology-projected
+# allowlist table and an absent operation is a typed refusal, never nil,nil.
+
+arcus:Dialect a rdfs:Class ;
+    rdfs:label "Cloud-ingest dialect" ;
+    rdfs:comment "A provider-specific ingest surface (one per external cloud)." .
+
+arcus:Service a rdfs:Class ;
+    rdfs:label "Provider service" ;
+    rdfs:comment "A provider service endpoint bearing a basePath and authMode (sigv4 | oauth2 | shared-key | none)." .
+
+arcus:Operation a rdfs:Class ;
+    rdfs:label "Dialect operation" ;
+    rdfs:comment "One wire-level operation: dot-namespaced id, closed HTTP method, templated path, authScope, errorShape, request and response shapes, closed status set, and mandatory prov:wasDerivedFrom." .
+
+arcus:ErrorShape a rdfs:Class ;
+    rdfs:label "Error shape" ;
+    rdfs:comment "Typed error envelope projected into Go error types." .
+
+arcus:Shape a rdfs:Class ;
+    rdfs:label "Request or response shape" ;
+    rdfs:comment "Concrete Go struct projected from a Shape individual." .
+
+arcus:Field a rdfs:Class ;
+    rdfs:label "Shape field" ;
+    rdfs:comment "One field of a Shape: fieldName, goName (mandatory when fieldName carries an initialism), goType, jsonTag." .
+
+arcus:dialect-aws-eventbridge a arcus:Dialect ; dcterms:identifier "aws-eventbridge" ;
+    rdfs:label "AWS EventBridge" ; arcus:slug "aws-eventbridge" ; arcus:goName "AWSEventBridge" ;
+    arcus:basePath "/" ; arcus:authMode "sigv4" ;
+    prov:wasDerivedFrom arcus:src-c4-external-clouds .
+
+arcus:dialect-aws-s3 a arcus:Dialect ; dcterms:identifier "aws-s3" ;
+    rdfs:label "AWS S3" ; arcus:slug "aws-s3" ; arcus:goName "AWSS3" ;
+    arcus:basePath "/" ; arcus:authMode "sigv4" ;
+    prov:wasDerivedFrom arcus:src-c4-external-clouds .
+
+arcus:dialect-aws-kinesis a arcus:Dialect ; dcterms:identifier "aws-kinesis" ;
+    rdfs:label "AWS Kinesis Data Streams" ; arcus:slug "aws-kinesis" ; arcus:goName "AWSKinesis" ;
+    arcus:basePath "/" ; arcus:authMode "sigv4" ;
+    prov:wasDerivedFrom arcus:src-c4-external-clouds .
+
+arcus:dialect-aws-sqs a arcus:Dialect ; dcterms:identifier "aws-sqs" ;
+    rdfs:label "AWS Simple Queue Service" ; arcus:slug "aws-sqs" ; arcus:goName "AWSSQS" ;
+    arcus:basePath "/" ; arcus:authMode "sigv4" ;
+    prov:wasDerivedFrom arcus:src-c4-external-clouds .
+
+arcus:dialect-gcp-pubsub a arcus:Dialect ; dcterms:identifier "gcp-pubsub" ;
+    rdfs:label "GCP Pub/Sub" ; arcus:slug "gcp-pubsub" ; arcus:goName "GCPPubSub" ;
+    arcus:basePath "/v1" ; arcus:authMode "oauth2" ;
+    prov:wasDerivedFrom arcus:src-c4-external-clouds .
+
+arcus:dialect-azure-eventhubs a arcus:Dialect ; dcterms:identifier "azure-eventhubs" ;
+    rdfs:label "Azure Event Hubs" ; arcus:slug "azure-eventhubs" ; arcus:goName "AzureEventHubs" ;
+    arcus:basePath "/{namespace}" ; arcus:authMode "shared-key" ;
+    prov:wasDerivedFrom arcus:src-c4-external-clouds .
+
+arcus:dialect-kafka a arcus:Dialect ; dcterms:identifier "kafka" ;
+    rdfs:label "Apache Kafka" ; arcus:slug "kafka" ; arcus:goName "Kafka" ;
+    arcus:basePath "" ; arcus:authMode "none" ;
+    prov:wasDerivedFrom arcus:src-c4-external-clouds .
+
+arcus:dialect-stripe-webhook a arcus:Dialect ; dcterms:identifier "stripe-webhook" ;
+    rdfs:label "Stripe webhook" ; arcus:slug "stripe-webhook" ; arcus:goName "StripeWebhook" ;
+    arcus:basePath "/webhooks" ; arcus:authMode "shared-key" ;
+    prov:wasDerivedFrom arcus:src-c4-external-clouds .
+
+arcus:src-c4-external-clouds a prov:Entity ;
+    dcterms:title "arcus C4 external cloud systems" ;
+    dcterms:source <https://internal/arcus/c4> .
+
+arcus:shape-put-events-request a arcus:Shape ; arcus:goName "PutEventsRequest" ;
+    rdfs:label "PutEvents request" ;
+    prov:wasDerivedFrom arcus:src-eventbridge-put-events-doc .
+
+arcus:shape-put-events-response a arcus:Shape ; arcus:goName "PutEventsResponse" ;
+    rdfs:label "PutEvents response" ;
+    prov:wasDerivedFrom arcus:src-eventbridge-put-events-doc .
+
+arcus:shape-put-events-entry a arcus:Shape ; arcus:goName "PutEventsEntry" ;
+    rdfs:label "PutEvents entry" ;
+    prov:wasDerivedFrom arcus:src-eventbridge-put-events-doc .
+
+arcus:shape-put-events-error a arcus:ErrorShape ; arcus:goName "PutEventsError" ;
+    rdfs:label "PutEvents error envelope" ;
+    prov:wasDerivedFrom arcus:src-eventbridge-put-events-doc .
+
+arcus:field-entries a arcus:Field ; arcus:fieldName "Entries" ; arcus:goName "Entries" ;
+    arcus:goType "[]PutEventsEntry" ; arcus:jsonTag "entries" ;
+    arcus:fieldOf arcus:shape-put-events-request .
+
+arcus:field-entry-source a arcus:Field ; arcus:fieldName "Source" ; arcus:goName "Source" ;
+    arcus:goType "string" ; arcus:jsonTag "source" ;
+    arcus:fieldOf arcus:shape-put-events-entry .
+
+arcus:field-entry-detail-type a arcus:Field ; arcus:fieldName "DetailType" ; arcus:goName "DetailType" ;
+    arcus:goType "string" ; arcus:jsonTag "detail_type" ;
+    arcus:fieldOf arcus:shape-put-events-entry .
+
+arcus:field-entry-detail a arcus:Field ; arcus:fieldName "Detail" ; arcus:goName "Detail" ;
+    arcus:goType "string" ; arcus:jsonTag "detail" ;
+    arcus:fieldOf arcus:shape-put-events-entry .
+
+arcus:field-entry-event-bus-name a arcus:Field ; arcus:fieldName "EventBusName" ; arcus:goName "EventBusName" ;
+    arcus:goType "string" ; arcus:jsonTag "event_bus_name" ;
+    arcus:fieldOf arcus:shape-put-events-entry .
+
+arcus:field-entry-id a arcus:Field ; arcus:fieldName "EntryID" ; arcus:goName "EntryID" ;
+    arcus:goType "string" ; arcus:jsonTag "entry_id" ;
+    arcus:fieldOf arcus:shape-put-events-entry .
+
+arcus:field-endpoint-url a arcus:Field ; arcus:fieldName "EndpointURL" ; arcus:goName "EndpointURL" ;
+    arcus:goType "string" ; arcus:jsonTag "endpoint_url" ;
+    arcus:fieldOf arcus:shape-put-events-request .
+
+arcus:field-api-key a arcus:Field ; arcus:fieldName "APIKey" ; arcus:goName "APIKey" ;
+    arcus:goType "string" ; arcus:jsonTag "api_key" ;
+    arcus:fieldOf arcus:shape-put-events-request .
+
+arcus:src-eventbridge-put-events-doc a prov:Entity ;
+    dcterms:title "AWS EventBridge PutEvents API" ;
+    dcterms:source <https://docs.aws.amazon.com/eventbridge/latest/APIReference/API_PutEvents.html> .
+
+arcus:op-aws-eventbridge-put-events a arcus:Operation ;
+    arcus:id "aws-eventbridge.put-events" ;
+    arcus:method "POST" ;
+    arcus:path "/{source}/{eventBusName}" ;
+    arcus:status "active" ;
+    arcus:authScope "events:PutEvents" ;
+    arcus:dialect arcus:dialect-aws-eventbridge ;
+    arcus:requestShape arcus:shape-put-events-request ;
+    arcus:responseShape arcus:shape-put-events-response ;
+    arcus:errorShape arcus:shape-put-events-error ;
+    prov:wasDerivedFrom arcus:src-eventbridge-put-events-doc .
+
+arcus:src-s3-put-object-doc a prov:Entity ;
+    dcterms:title "AWS S3 PutObject API" ;
+    dcterms:source <https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html> .
+
+arcus:shape-put-object-request a arcus:Shape ; arcus:goName "PutObjectRequest" ;
+    rdfs:label "PutObject request" ;
+    prov:wasDerivedFrom arcus:src-s3-put-object-doc .
+
+arcus:shape-put-object-response a arcus:Shape ; arcus:goName "PutObjectResponse" ;
+    rdfs:label "PutObject response" ;
+    prov:wasDerivedFrom arcus:src-s3-put-object-doc .
+
+arcus:shape-put-object-error a arcus:ErrorShape ; arcus:goName "PutObjectError" ;
+    rdfs:label "PutObject error envelope" ;
+    prov:wasDerivedFrom arcus:src-s3-put-object-doc .
+
+arcus:field-bucket-name a arcus:Field ; arcus:fieldName "BucketName" ; arcus:goName "BucketName" ;
+    arcus:goType "string" ; arcus:jsonTag "bucket_name" ;
+    arcus:fieldOf arcus:shape-put-object-request .
+
+arcus:field-object-key-id a arcus:Field ; arcus:fieldName "ObjectKeyID" ; arcus:goName "ObjectKeyID" ;
+    arcus:goType "string" ; arcus:jsonTag "object_key_id" ;
+    arcus:fieldOf arcus:shape-put-object-request .
+
+arcus:op-aws-s3-put-object a arcus:Operation ;
+    arcus:id "aws-s3.put-object" ;
+    arcus:method "PUT" ;
+    arcus:path "/{bucket}/{key}" ;
+    arcus:status "active" ;
+    arcus:authScope "s3:PutObject" ;
+    arcus:dialect arcus:dialect-aws-s3 ;
+    arcus:requestShape arcus:shape-put-object-request ;
+    arcus:responseShape arcus:shape-put-object-response ;
+    arcus:errorShape arcus:shape-put-object-error ;
+    prov:wasDerivedFrom arcus:src-s3-put-object-doc .
+
+arcus:src-pubsub-publish-doc a prov:Entity ;
+    dcterms:title "GCP Pub/Sub projects.topics.publish" ;
+    dcterms:source <https://cloud.google.com/pubsub/docs/reference/rest/v1/projects.topics/publish> .
+
+arcus:shape-publish-request a arcus:Shape ; arcus:goName "PublishRequest" ;
+    rdfs:label "Publish request" ;
+    prov:wasDerivedFrom arcus:src-pubsub-publish-doc .
+
+arcus:shape-publish-response a arcus:Shape ; arcus:goName "PublishResponse" ;
+    rdfs:label "Publish response" ;
+    prov:wasDerivedFrom arcus:src-pubsub-publish-doc .
+
+arcus:shape-publish-error a arcus:ErrorShape ; arcus:goName "PublishError" ;
+    rdfs:label "Publish error envelope" ;
+    prov:wasDerivedFrom arcus:src-pubsub-publish-doc .
+
+arcus:field-topic-id a arcus:Field ; arcus:fieldName "TopicID" ; arcus:goName "TopicID" ;
+    arcus:goType "string" ; arcus:jsonTag "topic_id" ;
+    arcus:fieldOf arcus:shape-publish-request .
+
+arcus:field-data-bytes a arcus:Field ; arcus:fieldName "DataBytes" ; arcus:goName "DataBytes" ;
+    arcus:goType "[]byte" ; arcus:jsonTag "data" ;
+    arcus:fieldOf arcus:shape-publish-request .
+
+arcus:op-gcp-pubsub-publish a arcus:Operation ;
+    arcus:id "gcp-pubsub.publish" ;
+    arcus:method "POST" ;
+    arcus:path "/v1/{topic}:publish" ;
+    arcus:status "active" ;
+    arcus:authScope "pubsub.topics.publish" ;
+    arcus:dialect arcus:dialect-gcp-pubsub ;
+    arcus:requestShape arcus:shape-publish-request ;
+    arcus:responseShape arcus:shape-publish-response ;
+    arcus:errorShape arcus:shape-publish-error ;
+    prov:wasDerivedFrom arcus:src-pubsub-publish-doc .
+
+arcus:src-eventhubs-send-doc a prov:Entity ;
+    dcterms:title "Azure Event Hubs send (REST publish)" ;
+    dcterms:source <https://learn.microsoft.com/en-us/rest/api/eventhub/> .
+
+arcus:shape-send-request a arcus:Shape ; arcus:goName "SendRequest" ;
+    rdfs:label "Send request" ;
+    prov:wasDerivedFrom arcus:src-eventhubs-send-doc .
+
+arcus:shape-send-response a arcus:Shape ; arcus:goName "SendResponse" ;
+    rdfs:label "Send response" ;
+    prov:wasDerivedFrom arcus:src-eventhubs-send-doc .
+
+arcus:shape-send-error a arcus:ErrorShape ; arcus:goName "SendError" ;
+    rdfs:label "Send error envelope" ;
+    prov:wasDerivedFrom arcus:src-eventhubs-send-doc .
+
+arcus:field-partition-key-id a arcus:Field ; arcus:fieldName "PartitionKeyID" ; arcus:goName "PartitionKeyID" ;
+    arcus:goType "string" ; arcus:jsonTag "partition_key_id" ;
+    arcus:fieldOf arcus:shape-send-request .
+
+arcus:op-azure-eventhubs-send a arcus:Operation ;
+    arcus:id "azure-eventhubs.send" ;
+    arcus:method "POST" ;
+    arcus:path "/{namespace}/messages" ;
+    arcus:status "active" ;
+    arcus:authScope "EventHubs:send" ;
+    arcus:dialect arcus:dialect-azure-eventhubs ;
+    arcus:requestShape arcus:shape-send-request ;
+    arcus:responseShape arcus:shape-send-response ;
+    arcus:errorShape arcus:shape-send-error ;
+    prov:wasDerivedFrom arcus:src-eventhubs-send-doc .
+
+arcus:src-kafka-produce-doc a prov:Entity ;
+    dcterms:title "Apache Kafka produce protocol (KIP-511 / librdkafka REST conventions)" ;
+    dcterms:source <https://kafka.apache.org/protocol.html> .
+
+arcus:shape-produce-request a arcus:Shape ; arcus:goName "ProduceRequest" ;
+    rdfs:label "Produce request" ;
+    prov:wasDerivedFrom arcus:src-kafka-produce-doc .
+
+arcus:shape-produce-response a arcus:Shape ; arcus:goName "ProduceResponse" ;
+    rdfs:label "Produce response" ;
+    prov:wasDerivedFrom arcus:src-kafka-produce-doc .
+
+arcus:shape-produce-error a arcus:ErrorShape ; arcus:goName "ProduceError" ;
+    rdfs:label "Produce error envelope" ;
+    prov:wasDerivedFrom arcus:src-kafka-produce-doc .
+
+arcus:field-topic-name a arcus:Field ; arcus:fieldName "TopicName" ; arcus:goName "TopicName" ;
+    arcus:goType "string" ; arcus:jsonTag "topic" ;
+    arcus:fieldOf arcus:shape-produce-request .
+
+arcus:field-message-id a arcus:Field ; arcus:fieldName "MessageID" ; arcus:goName "MessageID" ;
+    arcus:goType "string" ; arcus:jsonTag "message_id" ;
+    arcus:fieldOf arcus:shape-produce-request .
+
+arcus:op-kafka-produce a arcus:Operation ;
+    arcus:id "kafka.produce" ;
+    arcus:method "POST" ;
+    arcus:path "/{topic}/produce" ;
+    arcus:status "active" ;
+    arcus:authScope "kafka:write" ;
+    arcus:dialect arcus:dialect-kafka ;
+    arcus:requestShape arcus:shape-produce-request ;
+    arcus:responseShape arcus:shape-produce-response ;
+    arcus:errorShape arcus:shape-produce-error ;
+    prov:wasDerivedFrom arcus:src-kafka-produce-doc .
+
+# Lane 14 (v26.11.6): the fetch face — GET the log slice for a topic
+# partition; gitpack feed (see feed-kafka-fetch).
+arcus:op-kafka-fetch a arcus:Operation ;
+    arcus:id "kafka.fetch" ;
+    arcus:method "GET" ;
+    arcus:path "/{topic}/fetch" ;
+    arcus:status "active" ;
+    arcus:authScope "kafka:read" ;
+    arcus:dialect arcus:dialect-kafka ;
+    arcus:requestShape arcus:shape-produce-response ;
+    arcus:responseShape arcus:shape-produce-request ;
+    arcus:errorShape arcus:shape-produce-error ;
+    prov:wasDerivedFrom arcus:src-kafka-produce-doc .
+
+arcus:src-stripe-doc a prov:Entity ;
+    dcterms:title "Stripe webhook signature verification" ;
+    dcterms:source <https://stripe.com/docs/webhooks/signature> .
+
+arcus:shape-construct-event-request a arcus:Shape ; arcus:goName "ConstructEventRequest" ;
+    rdfs:label "ConstructEvent request" ;
+    prov:wasDerivedFrom arcus:src-stripe-doc .
+
+arcus:shape-construct-event-response a arcus:Shape ; arcus:goName "ConstructEventResponse" ;
+    rdfs:label "ConstructEvent response" ;
+    prov:wasDerivedFrom arcus:src-stripe-doc .
+
+arcus:shape-construct-event-error a arcus:ErrorShape ; arcus:goName "ConstructEventError" ;
+    rdfs:label "ConstructEvent error envelope" ;
+    prov:wasDerivedFrom arcus:src-stripe-doc .
+
+arcus:field-signature-header a arcus:Field ; arcus:fieldName "SignatureHeader" ; arcus:goName "SignatureHeader" ;
+    arcus:goType "string" ; arcus:jsonTag "signature_header" ;
+    arcus:fieldOf arcus:shape-construct-event-request .
+
+arcus:field-webhook-url a arcus:Field ; arcus:fieldName "WebhookURL" ; arcus:goName "WebhookURL" ;
+    arcus:goType "string" ; arcus:jsonTag "webhook_url" ;
+    arcus:fieldOf arcus:shape-construct-event-request .
+
+arcus:op-stripe-webhook-construct-event a arcus:Operation ;
+    arcus:id "stripe-webhook.construct-event" ;
+    arcus:method "POST" ;
+    arcus:path "/webhooks/construct" ;
+    arcus:status "active" ;
+    arcus:authScope "webhook:verify" ;
+    arcus:dialect arcus:dialect-stripe-webhook ;
+    arcus:requestShape arcus:shape-construct-event-request ;
+    arcus:responseShape arcus:shape-construct-event-response ;
+    arcus:errorShape arcus:shape-construct-event-error ;
+    prov:wasDerivedFrom arcus:src-stripe-doc .
+
+# ----------------- AWS KINESIS 2013-12-02 -----------------
+arcus:src-kinesis-doc a prov:Entity ;
+    dcterms:title "AWS Kinesis Data Streams 2013-12-02 API" ;
+    dcterms:source <https://docs.aws.amazon.com/kinesis/latest/APIReference/> .
+
+arcus:shape-kinesis-request a arcus:Shape ; arcus:goName "KinesisRequest" ;
+    rdfs:label "Kinesis request envelope" ; prov:wasDerivedFrom arcus:src-kinesis-doc .
+arcus:shape-kinesis-response a arcus:Shape ; arcus:goName "KinesisResponse" ;
+    rdfs:label "Kinesis response envelope" ; prov:wasDerivedFrom arcus:src-kinesis-doc .
+arcus:shape-kinesis-error a arcus:ErrorShape ; arcus:goName "KinesisError" ;
+    rdfs:label "Kinesis error envelope" ; prov:wasDerivedFrom arcus:src-kinesis-doc .
+
+arcus:op-aws-kinesis-put-record a arcus:Operation ;
+    arcus:id "aws-kinesis.put-record" ;
+    arcus:method "POST" ;
+    arcus:path "/?Action=PutRecord" ;
+    arcus:status "active" ;
+    arcus:authScope "kinesis:PutRecord" ;
+    arcus:dialect arcus:dialect-aws-kinesis ;
+    arcus:requestShape arcus:shape-kinesis-request ;
+    arcus:responseShape arcus:shape-kinesis-response ;
+    arcus:errorShape arcus:shape-kinesis-error ;
+    prov:wasDerivedFrom arcus:src-kinesis-doc .
+
+arcus:op-aws-kinesis-put-records a arcus:Operation ;
+    arcus:id "aws-kinesis.put-records" ;
+    arcus:method "POST" ;
+    arcus:path "/?Action=PutRecords" ;
+    arcus:status "active" ;
+    arcus:authScope "kinesis:PutRecords" ;
+    arcus:dialect arcus:dialect-aws-kinesis ;
+    arcus:requestShape arcus:shape-kinesis-request ;
+    arcus:responseShape arcus:shape-kinesis-response ;
+    arcus:errorShape arcus:shape-kinesis-error ;
+    prov:wasDerivedFrom arcus:src-kinesis-doc .
+
+arcus:op-aws-kinesis-get-shard-iterator a arcus:Operation ;
+    arcus:id "aws-kinesis.get-shard-iterator" ;
+    arcus:method "POST" ;
+    arcus:path "/?Action=GetShardIterator" ;
+    arcus:status "active" ;
+    arcus:authScope "kinesis:GetShardIterator" ;
+    arcus:dialect arcus:dialect-aws-kinesis ;
+    arcus:requestShape arcus:shape-kinesis-request ;
+    arcus:responseShape arcus:shape-kinesis-response ;
+    arcus:errorShape arcus:shape-kinesis-error ;
+    prov:wasDerivedFrom arcus:src-kinesis-doc .
+
+arcus:op-aws-kinesis-get-records a arcus:Operation ;
+    arcus:id "aws-kinesis.get-records" ;
+    arcus:method "POST" ;
+    arcus:path "/?Action=GetRecords" ;
+    arcus:status "active" ;
+    arcus:authScope "kinesis:GetRecords" ;
+    arcus:dialect arcus:dialect-aws-kinesis ;
+    arcus:requestShape arcus:shape-kinesis-request ;
+    arcus:responseShape arcus:shape-kinesis-response ;
+    arcus:errorShape arcus:shape-kinesis-error ;
+    prov:wasDerivedFrom arcus:src-kinesis-doc .
+
+arcus:op-aws-kinesis-describe-stream a arcus:Operation ;
+    arcus:id "aws-kinesis.describe-stream" ;
+    arcus:method "POST" ;
+    arcus:path "/?Action=DescribeStream" ;
+    arcus:status "active" ;
+    arcus:authScope "kinesis:DescribeStream" ;
+    arcus:dialect arcus:dialect-aws-kinesis ;
+    arcus:requestShape arcus:shape-kinesis-request ;
+    arcus:responseShape arcus:shape-kinesis-response ;
+    arcus:errorShape arcus:shape-kinesis-error ;
+    prov:wasDerivedFrom arcus:src-kinesis-doc .
+
+# ----------------- AWS SQS -----------------
+arcus:src-sqs-doc a prov:Entity ;
+    dcterms:title "AWS Simple Queue Service API" ;
+    dcterms:source <https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/> .
+
+arcus:shape-sqs-request a arcus:Shape ; arcus:goName "SQSRequest" ;
+    rdfs:label "SQS request envelope" ; prov:wasDerivedFrom arcus:src-sqs-doc .
+arcus:shape-sqs-response a arcus:Shape ; arcus:goName "SQSResponse" ;
+    rdfs:label "SQS response envelope" ; prov:wasDerivedFrom arcus:src-sqs-doc .
+arcus:shape-sqs-error a arcus:ErrorShape ; arcus:goName "SQSError" ;
+    rdfs:label "SQS error envelope" ; prov:wasDerivedFrom arcus:src-sqs-doc .
+
+arcus:op-aws-sqs-send-message a arcus:Operation ;
+    arcus:id "aws-sqs.send-message" ;
+    arcus:method "POST" ;
+    arcus:path "/?Action=SendMessage" ;
+    arcus:status "active" ;
+    arcus:authScope "sqs:SendMessage" ;
+    arcus:dialect arcus:dialect-aws-sqs ;
+    arcus:requestShape arcus:shape-sqs-request ;
+    arcus:responseShape arcus:shape-sqs-response ;
+    arcus:errorShape arcus:shape-sqs-error ;
+    prov:wasDerivedFrom arcus:src-sqs-doc .
+
+arcus:op-aws-sqs-send-message-batch a arcus:Operation ;
+    arcus:id "aws-sqs.send-message-batch" ;
+    arcus:method "POST" ;
+    arcus:path "/?Action=SendMessageBatch" ;
+    arcus:status "active" ;
+    arcus:authScope "sqs:SendMessageBatch" ;
+    arcus:dialect arcus:dialect-aws-sqs ;
+    arcus:requestShape arcus:shape-sqs-request ;
+    arcus:responseShape arcus:shape-sqs-response ;
+    arcus:errorShape arcus:shape-sqs-error ;
+    prov:wasDerivedFrom arcus:src-sqs-doc .
+
+arcus:op-aws-sqs-receive-message a arcus:Operation ;
+    arcus:id "aws-sqs.receive-message" ;
+    arcus:method "POST" ;
+    arcus:path "/?Action=ReceiveMessage" ;
+    arcus:status "active" ;
+    arcus:authScope "sqs:ReceiveMessage" ;
+    arcus:dialect arcus:dialect-aws-sqs ;
+    arcus:requestShape arcus:shape-sqs-request ;
+    arcus:responseShape arcus:shape-sqs-response ;
+    arcus:errorShape arcus:shape-sqs-error ;
+    prov:wasDerivedFrom arcus:src-sqs-doc .
+
+arcus:op-aws-sqs-delete-message a arcus:Operation ;
+    arcus:id "aws-sqs.delete-message" ;
+    arcus:method "POST" ;
+    arcus:path "/?Action=DeleteMessage" ;
+    arcus:status "active" ;
+    arcus:authScope "sqs:DeleteMessage" ;
+    arcus:dialect arcus:dialect-aws-sqs ;
+    arcus:requestShape arcus:shape-sqs-request ;
+    arcus:responseShape arcus:shape-sqs-response ;
+    arcus:errorShape arcus:shape-sqs-error ;
+    prov:wasDerivedFrom arcus:src-sqs-doc .
+
+arcus:op-aws-sqs-delete-message-batch a arcus:Operation ;
+    arcus:id "aws-sqs.delete-message-batch" ;
+    arcus:method "POST" ;
+    arcus:path "/?Action=DeleteMessageBatch" ;
+    arcus:status "active" ;
+    arcus:authScope "sqs:DeleteMessageBatch" ;
+    arcus:dialect arcus:dialect-aws-sqs ;
+    arcus:requestShape arcus:shape-sqs-request ;
+    arcus:responseShape arcus:shape-sqs-response ;
+    arcus:errorShape arcus:shape-sqs-error ;
+    prov:wasDerivedFrom arcus:src-sqs-doc .
+
+# ----------------- GCP PUBSUB SUBSCRIBER -----------------
+arcus:src-pubsub-sub-doc a prov:Entity ;
+    dcterms:title "GCP Cloud Pub/Sub Subscriber API" ;
+    dcterms:source <https://cloud.google.com/pubsub/docs/reference/rest/v1/projects.subscriptions> .
+
+arcus:shape-pubsub-sub-request a arcus:Shape ; arcus:goName "PubsubSubRequest" ;
+    rdfs:label "PubSub subscriber request" ; prov:wasDerivedFrom arcus:src-pubsub-sub-doc .
+arcus:shape-pubsub-sub-response a arcus:Shape ; arcus:goName "PubsubSubResponse" ;
+    rdfs:label "PubSub subscriber response" ; prov:wasDerivedFrom arcus:src-pubsub-sub-doc .
+arcus:shape-pubsub-sub-error a arcus:ErrorShape ; arcus:goName "PubsubSubError" ;
+    rdfs:label "PubSub subscriber error" ; prov:wasDerivedFrom arcus:src-pubsub-sub-doc .
+
+arcus:op-gcp-pubsub-pull a arcus:Operation ;
+    arcus:id "gcp-pubsub.pull" ;
+    arcus:method "POST" ;
+    arcus:path "/v1/{subscription}:pull" ;
+    arcus:status "active" ;
+    arcus:authScope "pubsub.subscriptions.consume" ;
+    arcus:dialect arcus:dialect-gcp-pubsub ;
+    arcus:requestShape arcus:shape-pubsub-sub-request ;
+    arcus:responseShape arcus:shape-pubsub-sub-response ;
+    arcus:errorShape arcus:shape-pubsub-sub-error ;
+    prov:wasDerivedFrom arcus:src-pubsub-sub-doc .
+
+arcus:op-gcp-pubsub-acknowledge a arcus:Operation ;
+    arcus:id "gcp-pubsub.acknowledge" ;
+    arcus:method "POST" ;
+    arcus:path "/v1/{subscription}:acknowledge" ;
+    arcus:status "active" ;
+    arcus:authScope "pubsub.subscriptions.consume" ;
+    arcus:dialect arcus:dialect-gcp-pubsub ;
+    arcus:requestShape arcus:shape-pubsub-sub-request ;
+    arcus:responseShape arcus:shape-pubsub-sub-response ;
+    arcus:errorShape arcus:shape-pubsub-sub-error ;
+    prov:wasDerivedFrom arcus:src-pubsub-sub-doc .
+
+arcus:op-gcp-pubsub-modify-ack-deadline a arcus:Operation ;
+    arcus:id "gcp-pubsub.modify-ack-deadline" ;
+    arcus:method "POST" ;
+    arcus:path "/v1/{subscription}:modifyAckDeadline" ;
+    arcus:status "active" ;
+    arcus:authScope "pubsub.subscriptions.consume" ;
+    arcus:dialect arcus:dialect-gcp-pubsub ;
+    arcus:requestShape arcus:shape-pubsub-sub-request ;
+    arcus:responseShape arcus:shape-pubsub-sub-response ;
+    arcus:errorShape arcus:shape-pubsub-sub-error ;
+    prov:wasDerivedFrom arcus:src-pubsub-sub-doc .
+
+# === BEGIN GA1 Arrow C Data Interface vocabulary (WO ga1, p08-cdata) ===
+# Byte-layout ontology (catalog §9): wire registers, fields, offset/size,
+# format-string and flag constants. Ground truth: cgap_c_data.h + p08-cdata.
+
+arcus:WireRegister a rdfs:Class ;
+    rdfs:label "Wire register" ;
+    rdfs:comment "A C-ABI struct twin: byte-array twin with typed accessors and build-breaking layout assertions." .
+
+arcus:WireField a rdfs:Class ;
+    rdfs:label "Wire field" ;
+    rdfs:comment "One field of a WireRegister: wireName (const stem), offset, sizeBytes, wireKind (int|ptr|release), fieldOf." .
+
+arcus:FormatConst a rdfs:Class ;
+    rdfs:label "Format constant" ;
+    rdfs:comment "Arrow format-string constant: goConst + value." .
+
+arcus:FlagConst a rdfs:Class ;
+    rdfs:label "Flag constant" ;
+    rdfs:comment "ArrowSchema.flags bitmask constant: goConst + value." .
+
+arcus:wire-arrow-schema a arcus:WireRegister ; arcus:goName "ArrowSchemaTwin" ;
+    arcus:sizeConst "ArrowSchemaSize" ; arcus:sizeBytes 72 ;
+    rdfs:label "struct ArrowSchema twin (72 bytes)" ;
+    prov:wasDerivedFrom arcus:src-cgap-c-data-h .
+
+arcus:wire-arrow-array a arcus:WireRegister ; arcus:goName "ArrowArrayTwin" ;
+    arcus:sizeConst "ArrowArraySize" ; arcus:sizeBytes 80 ;
+    rdfs:label "struct ArrowArray twin [80]byte" ;
+    prov:wasDerivedFrom arcus:src-cgap-c-data-h .
+
+arcus:src-cgap-c-data-h a prov:Entity ;
+    dcterms:title "cgap C data interface header" ;
+    dcterms:source <file:///Users/sac/cgap/include/cgap_c_data.h> .
+
+arcus:wf-schema-format a arcus:WireField ; arcus:wireName "SchemaFormat" ;
+    arcus:offset 0 ; arcus:sizeBytes 8 ; arcus:wireKind "ptr" ;
+    arcus:fieldOf arcus:wire-arrow-schema .
+
+arcus:wf-schema-name a arcus:WireField ; arcus:wireName "SchemaName" ;
+    arcus:offset 8 ; arcus:sizeBytes 8 ; arcus:wireKind "ptr" ;
+    arcus:fieldOf arcus:wire-arrow-schema .
+
+arcus:wf-schema-metadata a arcus:WireField ; arcus:wireName "SchemaMetadata" ;
+    arcus:offset 16 ; arcus:sizeBytes 8 ; arcus:wireKind "ptr" ;
+    arcus:fieldOf arcus:wire-arrow-schema .
+
+arcus:wf-schema-flags a arcus:WireField ; arcus:wireName "SchemaFlags" ;
+    arcus:offset 24 ; arcus:sizeBytes 8 ; arcus:wireKind "int" ;
+    arcus:fieldOf arcus:wire-arrow-schema .
+
+arcus:wf-schema-n-children a arcus:WireField ; arcus:wireName "SchemaNChildren" ;
+    arcus:offset 32 ; arcus:sizeBytes 8 ; arcus:wireKind "int" ;
+    arcus:fieldOf arcus:wire-arrow-schema .
+
+arcus:wf-schema-children a arcus:WireField ; arcus:wireName "SchemaChildren" ;
+    arcus:offset 40 ; arcus:sizeBytes 8 ; arcus:wireKind "ptr" ;
+    arcus:fieldOf arcus:wire-arrow-schema .
+
+arcus:wf-schema-dictionary a arcus:WireField ; arcus:wireName "SchemaDictionary" ;
+    arcus:offset 48 ; arcus:sizeBytes 8 ; arcus:wireKind "ptr" ;
+    arcus:fieldOf arcus:wire-arrow-schema .
+
+arcus:wf-schema-release a arcus:WireField ; arcus:wireName "SchemaRelease" ;
+    arcus:offset 56 ; arcus:sizeBytes 8 ; arcus:wireKind "release" ;
+    arcus:fieldOf arcus:wire-arrow-schema .
+
+arcus:wf-schema-private-data a arcus:WireField ; arcus:wireName "SchemaPrivateData" ;
+    arcus:offset 64 ; arcus:sizeBytes 8 ; arcus:wireKind "ptr" ;
+    arcus:fieldOf arcus:wire-arrow-schema .
+
+arcus:wf-array-length a arcus:WireField ; arcus:wireName "ArrayLength" ;
+    arcus:offset 0 ; arcus:sizeBytes 8 ; arcus:wireKind "int" ;
+    arcus:fieldOf arcus:wire-arrow-array .
+
+arcus:wf-array-null-count a arcus:WireField ; arcus:wireName "ArrayNullCount" ;
+    arcus:offset 8 ; arcus:sizeBytes 8 ; arcus:wireKind "int" ;
+    arcus:fieldOf arcus:wire-arrow-array .
+
+arcus:wf-array-offset a arcus:WireField ; arcus:wireName "ArrayOffset" ;
+    arcus:offset 16 ; arcus:sizeBytes 8 ; arcus:wireKind "int" ;
+    arcus:fieldOf arcus:wire-arrow-array .
+
+arcus:wf-array-n-buffers a arcus:WireField ; arcus:wireName "ArrayNBuffers" ;
+    arcus:offset 24 ; arcus:sizeBytes 8 ; arcus:wireKind "int" ;
+    arcus:fieldOf arcus:wire-arrow-array .
+
+arcus:wf-array-n-children a arcus:WireField ; arcus:wireName "ArrayNChildren" ;
+    arcus:offset 32 ; arcus:sizeBytes 8 ; arcus:wireKind "int" ;
+    arcus:fieldOf arcus:wire-arrow-array .
+
+arcus:wf-array-buffers a arcus:WireField ; arcus:wireName "ArrayBuffers" ;
+    arcus:offset 40 ; arcus:sizeBytes 8 ; arcus:wireKind "ptr" ;
+    arcus:fieldOf arcus:wire-arrow-array .
+
+arcus:wf-array-children a arcus:WireField ; arcus:wireName "ArrayChildren" ;
+    arcus:offset 48 ; arcus:sizeBytes 8 ; arcus:wireKind "ptr" ;
+    arcus:fieldOf arcus:wire-arrow-array .
+
+arcus:wf-array-dictionary a arcus:WireField ; arcus:wireName "ArrayDictionary" ;
+    arcus:offset 56 ; arcus:sizeBytes 8 ; arcus:wireKind "ptr" ;
+    arcus:fieldOf arcus:wire-arrow-array .
+
+arcus:wf-array-release a arcus:WireField ; arcus:wireName "ArrayRelease" ;
+    arcus:offset 64 ; arcus:sizeBytes 8 ; arcus:wireKind "release" ;
+    arcus:fieldOf arcus:wire-arrow-array .
+
+arcus:wf-array-private-data a arcus:WireField ; arcus:wireName "ArrayPrivateData" ;
+    arcus:offset 72 ; arcus:sizeBytes 8 ; arcus:wireKind "ptr" ;
+    arcus:fieldOf arcus:wire-arrow-array .
+
+arcus:fmt-struct a arcus:FormatConst ; arcus:goConst "FormatStruct" ;
+    arcus:value "+s" ; rdfs:label "struct format" .
+
+arcus:fmt-utf8 a arcus:FormatConst ; arcus:goConst "FormatUTF8" ;
+    arcus:value "u" ; rdfs:label "utf8 format" .
+
+arcus:fmt-large-utf8 a arcus:FormatConst ; arcus:goConst "FormatLargeUTF8" ;
+    arcus:value "U" ; rdfs:label "large utf8 format" .
+
+arcus:fmt-int64 a arcus:FormatConst ; arcus:goConst "FormatInt64" ;
+    arcus:value "l" ; rdfs:label "int64 format" .
+
+arcus:fmt-fixed-binary-32 a arcus:FormatConst ; arcus:goConst "FormatFixedBinary32" ;
+    arcus:value "w:32" ; rdfs:label "fixed-size binary 32 format" .
+
+arcus:flag-dictionary-ordered a arcus:FlagConst ; arcus:goConst "FlagDictionaryOrdered" ;
+    arcus:value 1 ; rdfs:label "ARROW_FLAG_DICTIONARY_ORDERED" .
+
+arcus:flag-nullable a arcus:FlagConst ; arcus:goConst "FlagNullable" ;
+    arcus:value 2 ; rdfs:label "ARROW_FLAG_NULLABLE" .
+
+arcus:flag-map-keys-sorted a arcus:FlagConst ; arcus:goConst "FlagMapKeysSorted" ;
+    arcus:value 4 ; rdfs:label "ARROW_FLAG_MAP_KEYS_SORTED" .
+
+# ---------------- columnar SPOG arrays (p08/p02 ground truth) ----------------
+# Five Arrow-C-Data-layout columnar primitives backing the SPOG quad store.
+# Layout facts are ontology individuals: templates project buffer-count consts,
+# offset tables and zero-copy readers from them; gates refuse incomplete facts.
+
+arcus:SpogArray a rdfs:Class ;
+    rdfs:label "Columnar SPOG array" ;
+    rdfs:comment "One Arrow-layout columnar array primitive with complete buffer-layout facts (bufferCount, byteWidth, alignment, offsetType, purpose)." .
+
+arcus:SpogUnionChild a rdfs:Class ;
+    rdfs:label "DenseUnion child" ;
+    rdfs:comment "One typed child of the DenseUnion Object array: int8 type_id slot, Go name, Go value type." .
+
+arcus:id a owl:DatatypeProperty ; rdfs:label "array identifier (snake_case)" .
+arcus:bufferCount a owl:DatatypeProperty ; rdfs:label "number of Arrow buffers" .
+arcus:byteWidth a owl:DatatypeProperty ; rdfs:label "per-element byte width in the value buffer" .
+arcus:alignment a owl:DatatypeProperty ; rdfs:label "required byte alignment of the value buffer" .
+arcus:offsetType a owl:DatatypeProperty ; rdfs:label "offset encoding: fixed | int64 | int32+int8 | int64-slab" .
+arcus:purpose a owl:DatatypeProperty ; rdfs:label "SPOG role of the array" .
+arcus:handLawSeam a owl:DatatypeProperty ; rdfs:label "OUT-OF-GENGEN seam left as hand-law" .
+arcus:typeId a owl:DatatypeProperty ; rdfs:label "DenseUnion int8 type_id slot" .
+arcus:childGoType a owl:DatatypeProperty ; rdfs:label "Go value type of the union child" .
+arcus:childOf a owl:ObjectProperty ; rdfs:label "parent DenseUnion array" .
+
+arcus:src-spog-columnar-plan a prov:Entity ;
+    dcterms:title "arcus v26.11.3 columnar SPOG plan (p08 cdata / p02 arena ground truth)" ;
+    dcterms:source <https://internal/arcus/jira/v26.11.3> .
+
+arcus:spog-fixed-size-binary-32 a arcus:SpogArray ;
+    arcus:id "fixed_size_binary_32" ; arcus:goName "FixedSizeBinary32" ;
+    arcus:bufferCount 2 ; arcus:byteWidth 32 ; arcus:alignment 32 ;
+    arcus:offsetType "fixed" ;
+    arcus:purpose "S subject column: BLAKE3 IRI receipts — 1 validity bitmap + 1 contiguous 32B data buffer" ;
+    arcus:handLawSeam "SIMD load path" ;
+    prov:wasDerivedFrom arcus:src-spog-columnar-plan .
+
+arcus:spog-dictionary-uint32-utf8 a arcus:SpogArray ;
+    arcus:id "dictionary_uint32_utf8" ; arcus:goName "DictionaryUInt32Utf8" ;
+    arcus:bufferCount 3 ; arcus:byteWidth 4 ; arcus:alignment 8 ;
+    arcus:offsetType "int64-slab" ;
+    arcus:purpose "P and G columns: uint32 keys into a bosym-style symbol slab (validity + uint32 keys + slab offsets/data)" ;
+    arcus:handLawSeam "SIMD load path" ;
+    prov:wasDerivedFrom arcus:src-spog-columnar-plan .
+
+arcus:spog-large-string a arcus:SpogArray ;
+    arcus:id "large_string" ; arcus:goName "LargeString" ;
+    arcus:bufferCount 3 ; arcus:byteWidth 8 ; arcus:alignment 8 ;
+    arcus:offsetType "int64" ;
+    arcus:purpose "O literal payloads: int64 offsets, >2GiB streams" ;
+    arcus:handLawSeam "SIMD load path" ;
+    prov:wasDerivedFrom arcus:src-spog-columnar-plan .
+
+arcus:spog-dense-union a arcus:SpogArray ;
+    arcus:id "dense_union" ; arcus:goName "DenseUnion" ;
+    arcus:bufferCount 2 ; arcus:byteWidth 1 ; arcus:alignment 8 ;
+    arcus:offsetType "int32+int8" ;
+    arcus:purpose "O polymorphic RDF Object: int8 type_id + int32 value_offset selecting one typed child" ;
+    arcus:handLawSeam "SIMD load path" ;
+    prov:wasDerivedFrom arcus:src-spog-columnar-plan .
+
+arcus:spog-fixed-size-list-4 a arcus:SpogArray ;
+    arcus:id "fixed_size_list_4" ; arcus:goName "FixedSizeList4" ;
+    arcus:bufferCount 2 ; arcus:byteWidth 16 ; arcus:alignment 8 ;
+    arcus:offsetType "fixed" ;
+    arcus:purpose "Quad spine: S/P/O/G as 4x uint32 = 16B blocks; 4 quads per 64B cache line" ;
+    arcus:handLawSeam "SIMD load path" ;
+    prov:wasDerivedFrom arcus:src-spog-columnar-plan .
+
+arcus:uchild-iri a arcus:SpogUnionChild ;
+    arcus:typeId 0 ; arcus:goName "ObjIRI" ; arcus:childGoType "uint32" ;
+    arcus:childOf arcus:spog-dense-union ;
+    rdfs:comment "IRI as uint32 symbol-slab index into the DictionaryUInt32Utf8 symbol space" ;
+    prov:wasDerivedFrom arcus:src-spog-columnar-plan .
+
+arcus:uchild-blank-node a arcus:SpogUnionChild ;
+    arcus:typeId 1 ; arcus:goName "ObjBlankNode" ; arcus:childGoType "uint32" ;
+    arcus:childOf arcus:spog-dense-union ;
+    rdfs:comment "BlankNode as uint32 symbol-slab index" ;
+    prov:wasDerivedFrom arcus:src-spog-columnar-plan .
+
+arcus:uchild-int64 a arcus:SpogUnionChild ;
+    arcus:typeId 2 ; arcus:goName "ObjInt64" ; arcus:childGoType "int64" ;
+    arcus:childOf arcus:spog-dense-union ;
+    rdfs:comment "xsd:integer-class literal payload as raw int64" ;
+    prov:wasDerivedFrom arcus:src-spog-columnar-plan .
+
+arcus:uchild-double a arcus:SpogUnionChild ;
+    arcus:typeId 3 ; arcus:goName "ObjDouble" ; arcus:childGoType "float64" ;
+    arcus:childOf arcus:spog-dense-union ;
+    rdfs:comment "xsd:double payload as raw float64" ;
+    prov:wasDerivedFrom arcus:src-spog-columnar-plan .
+
+arcus:uchild-boolean a arcus:SpogUnionChild ;
+    arcus:typeId 4 ; arcus:goName "ObjBoolean" ; arcus:childGoType "bool" ;
+    arcus:childOf arcus:spog-dense-union ;
+    rdfs:comment "xsd:boolean payload as bool" ;
+    prov:wasDerivedFrom arcus:src-spog-columnar-plan .
+
+arcus:uchild-literal a arcus:SpogUnionChild ;
+    arcus:typeId 5 ; arcus:goName "ObjLiteral" ; arcus:childGoType "uint32" ;
+    arcus:childOf arcus:spog-dense-union ;
+    rdfs:comment "lexical-form literal as uint32 LargeString row index" ;
+    prov:wasDerivedFrom arcus:src-spog-columnar-plan .
+
+# ---------------------------------------------------------------------------
+# Bitmap + IPC streaming primitives (GA3, v26.11.3).
+# Ground truth: cgap-arrow ipc.rs MetaHeader (64B, "IPC1") is the REAL layout
+# encoded below; the 128-byte BLAKE3-hashed header is a PROPOSED evolution
+# individual, never conflated with the implemented 64B one.
+# ---------------------------------------------------------------------------
+
+arcus:KernelPrimitive a rdfs:Class ;
+    rdfs:label "Kernel primitive" ;
+    rdfs:comment "One bitmap/IPC streaming law projected into Go: primName (Go identifier root), primKind (dispatch section), law (the exact bitmap/byte law), seam (generated | arcus:hand-law | proposed), status (implemented | proposed)." .
+
+arcus:src-cgap-arrow-ipc a prov:Entity ;
+    dcterms:title "cgap-arrow ipc.rs MetaHeader (64B IPC1 ground truth)" ;
+    dcterms:source <file:///Users/sac/cgap/crates/cgap-arrow/src/ipc.rs> .
+
+arcus:src-oabi-breakdown a prov:Entity ;
+    dcterms:title "O-ABI 128-byte BLAKE3-hashed header proposal (replaces FlatBuffers)" ;
+    dcterms:source <https://internal/arcus/oabi-proposal> .
+
+arcus:prim-validity-bitmap a arcus:KernelPrimitive ; arcus:primName "ValidityBitmap" ;
+    arcus:primKind "bitmap" ;
+    arcus:law "LSB-first, 1 bit per row: byte = i>>3, bit = i&7" ;
+    arcus:seam "generated" ; arcus:status "implemented" ;
+    prov:wasDerivedFrom arcus:src-cgap-arrow-ipc .
+
+arcus:prim-boolean-array-packed a arcus:KernelPrimitive ; arcus:primName "BooleanArrayPacked" ;
+    arcus:primKind "bitmap" ;
+    arcus:law "8 boolean flags packed per byte, LSB-first" ;
+    arcus:seam "generated" ; arcus:status "implemented" ;
+    prov:wasDerivedFrom arcus:src-cgap-arrow-ipc .
+
+arcus:prim-popcount-law a arcus:KernelPrimitive ; arcus:primName "PopcountLaw" ;
+    arcus:primKind "popcount" ;
+    arcus:law "math/bits.OnesCount8 per byte, word-at-a-time OnesCount64: O(1) per word null counts" ;
+    arcus:seam "generated" ; arcus:status "implemented" ;
+    prov:wasDerivedFrom arcus:src-cgap-arrow-ipc .
+
+arcus:prim-mask-filter a arcus:KernelPrimitive ; arcus:primName "MaskFilter" ;
+    arcus:primKind "filter" ;
+    arcus:law "compaction kernel: select src lanes where mask bit is set; branchless compress (vpcompress analog) is hand law" ;
+    arcus:seam "arcus:hand-law" ; arcus:status "implemented" ;
+    prov:wasDerivedFrom arcus:src-cgap-arrow-ipc .
+
+arcus:prim-ipc-continuation a arcus:KernelPrimitive ; arcus:primName "IpcContinuation" ;
+    arcus:primKind "ipc-frame" ;
+    arcus:law "0xFFFFFFFF 8-byte continuation token (continuation + metadata_size prefix; EOS = 0xFFFFFFFF 0x00000000)" ;
+    arcus:seam "generated" ; arcus:status "implemented" ;
+    prov:wasDerivedFrom arcus:src-cgap-arrow-ipc .
+
+arcus:prim-oabi-header a arcus:KernelPrimitive ; arcus:primName "OabiHeader" ;
+    arcus:primKind "ipc-header" ;
+    arcus:law "64-byte MetaHeader, IPC1 magic 0x49504331 @0x00, version u16 @0x04, flags u16 @0x06, schema_digest[32] @0x08, body_len u32 @0x28, alignment u32 @0x2C (8|64), seq u32 @0x30, reserved0 @0x34, header_digest FNV-1a32 over bytes [0x00,0x38) @0x38, zero tail [0x3C,0x40)" ;
+    arcus:seam "generated" ; arcus:status "implemented" ;
+    prov:wasDerivedFrom arcus:src-cgap-arrow-ipc .
+
+arcus:prim-oabi-header-blake3-128 a arcus:KernelPrimitive ; arcus:primName "OabiHeaderBlake3_128" ;
+    arcus:primKind "ipc-header-proposed" ;
+    arcus:law "PROPOSED evolution: 128-byte BLAKE3-hashed header replacing the FNV-1a 64B MetaHeader and the deferred FlatBuffers metadata; NOT wire law yet" ;
+    arcus:seam "proposed" ; arcus:status "proposed" ;
+    prov:wasDerivedFrom arcus:src-oabi-breakdown .
+
+arcus:prim-record-batch-slicer a arcus:KernelPrimitive ; arcus:primName "RecordBatchSlicer" ;
+    arcus:primKind "slicer" ;
+    arcus:law "slice(offset,length) as offset-integer update over one backing buffer: zero copy, no data movement" ;
+    arcus:seam "generated" ; arcus:status "implemented" ;
+    prov:wasDerivedFrom arcus:src-cgap-arrow-ipc .
+
+arcus:prim-stream-writer a arcus:KernelPrimitive ; arcus:primName "StreamWriter" ;
+    arcus:primKind "stream" ;
+    arcus:law "writev/sendmsg vectored emission to a Unix domain socket in fixed emit order: continuation, metaSize, meta, metaPad, body, bodyPad, EOS" ;
+    arcus:seam "generated" ; arcus:status "implemented" ;
+    prov:wasDerivedFrom arcus:src-cgap-arrow-ipc .
+
+
+# ---------------------------------------------------------------------------
+# Flight projection (PG-A9 PART A step 3): arcus:Feed — one wire-format feed
+# per dialect operation, projected into the flight transcode table. Frame
+# flags are the cgap frame.rs law: FLAG_ARROW 0x01, FLAG_PARQUET 0x02,
+# FLAG_BN3 0x04, FLAG_GITPACK 0x08. prov:wasDerivedFrom is mandatory (gate
+# 090_feed_closure).
+# ---------------------------------------------------------------------------
+
+arcus:Feed a rdfs:Class ;
+    rdfs:label "Flight feed" ;
+    rdfs:comment "One dialect operation's wire feed: wireFormat, cgap frameFlag (closed set 0x01|0x02|0x04|0x08), its bijection-partner transcoder, and mandatory prov:wasDerivedFrom. Projected into the flightOpTable allowlist (PG-A9 PART A step 3)." .
+
+arcus:Transcoder a rdfs:Class ;
+    rdfs:label "Flight transcoder" ;
+    rdfs:comment "The codec seam one feed's payload crosses at the boundary. Bijection partner of exactly one arcus:Feed (gate 090_feed_closure)." .
+
+arcus:src-flight-frame-law a prov:Entity ;
+    dcterms:title "cgap frame format law (PG-A9 PART A)" ;
+    dcterms:source <file:///Users/sac/cgap/cgap-core/src/frame.rs> .
+
+arcus:src-flight-ontology-plan a prov:Entity ;
+    dcterms:title "PG-A9 arcus flight implementation plan (PART A step 3)" ;
+    dcterms:source <file:///Users/sac/arcus/docs/jira/v26.11.3/receipts/ga-6-arcus-flight.md> .
+
+arcus:feed-aws-eventbridge-put-events a arcus:Feed ;
+    arcus:feedOf arcus:op-aws-eventbridge-put-events ;
+    arcus:wireFormat "json-envelope" ;
+    arcus:frameFlag "0x01" ;
+    arcus:transcoder arcus:transcoder-eventbridge-json-arrow ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:feed-aws-s3-put-object a arcus:Feed ;
+    arcus:feedOf arcus:op-aws-s3-put-object ;
+    arcus:wireFormat "parquet" ;
+    arcus:frameFlag "0x02" ;
+    arcus:transcoder arcus:transcoder-s3-parquet-arrow ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:feed-gcp-pubsub-publish a arcus:Feed ;
+    arcus:feedOf arcus:op-gcp-pubsub-publish ;
+    arcus:wireFormat "json-envelope" ;
+    arcus:frameFlag "0x01" ;
+    arcus:transcoder arcus:transcoder-pubsub-json-arrow ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:feed-azure-eventhubs-send a arcus:Feed ;
+    arcus:feedOf arcus:op-azure-eventhubs-send ;
+    arcus:wireFormat "json-envelope" ;
+    arcus:frameFlag "0x01" ;
+    arcus:transcoder arcus:transcoder-eventhubs-json-arrow ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:feed-kafka-produce a arcus:Feed ;
+    arcus:feedOf arcus:op-kafka-produce ;
+    arcus:wireFormat "gitpack" ;
+    arcus:frameFlag "0x08" ;
+    arcus:transcoder arcus:transcoder-kafka-gitpack-arrow ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+# Lane 14 (v26.11.6): the Fetch face mirrors the Produce feed law — the
+# broker re-serves batch bytes verbatim (gitpack frameFlag 0x08), the same
+# transcoder partner as produce.
+arcus:feed-kafka-fetch a arcus:Feed ;
+    arcus:feedOf arcus:op-kafka-fetch ;
+    arcus:wireFormat "gitpack" ;
+    arcus:frameFlag "0x08" ;
+    arcus:transcoder arcus:transcoder-kafka-gitpack-arrow-fetch ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:feed-stripe-webhook-construct-event a arcus:Feed ;
+    arcus:feedOf arcus:op-stripe-webhook-construct-event ;
+    arcus:wireFormat "json-envelope" ;
+    arcus:frameFlag "0x01" ;
+    arcus:transcoder arcus:transcoder-stripe-json-arrow ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:transcoder-eventbridge-json-arrow a arcus:Transcoder ;
+    rdfs:label "EventBridge JSON envelope to Arrow" ;
+    arcus:transcodes "json-envelope" ; arcus:emits "arrow" ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:transcoder-s3-parquet-arrow a arcus:Transcoder ;
+    rdfs:label "S3 Parquet to Arrow" ;
+    arcus:transcodes "parquet" ; arcus:emits "arrow" ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:transcoder-pubsub-json-arrow a arcus:Transcoder ;
+    rdfs:label "PubSub JSON envelope to Arrow" ;
+    arcus:transcodes "json-envelope" ; arcus:emits "arrow" ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:transcoder-eventhubs-json-arrow a arcus:Transcoder ;
+    rdfs:label "EventHubs JSON envelope to Arrow" ;
+    arcus:transcodes "json-envelope" ; arcus:emits "arrow" ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:transcoder-kafka-gitpack-arrow a arcus:Transcoder ;
+    rdfs:label "Kafka Gitpack to Arrow" ;
+    arcus:transcodes "gitpack" ; arcus:emits "arrow" ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+# Lane 14 (v26.11.6): fetch-side bijection partner (each Transcoder is the
+# partner of exactly one Feed — 090_feed_closure bijection law).
+arcus:transcoder-kafka-gitpack-arrow-fetch a arcus:Transcoder ;
+    rdfs:label "Kafka Gitpack to Arrow (fetch)" ;
+    arcus:transcodes "gitpack" ; arcus:emits "arrow" ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:transcoder-stripe-json-arrow a arcus:Transcoder ;
+    rdfs:label "Stripe JSON envelope to Arrow" ;
+    arcus:transcodes "json-envelope" ; arcus:emits "arrow" ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+# ----------------- KINESIS FEEDS & TRANSCODERS -----------------
+arcus:feed-aws-kinesis-put-record a arcus:Feed ;
+    arcus:feedOf arcus:op-aws-kinesis-put-record ;
+    arcus:wireFormat "json-envelope" ;
+    arcus:frameFlag "0x01" ;
+    arcus:transcoder arcus:transcoder-kinesis-put-record-arrow ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:transcoder-kinesis-put-record-arrow a arcus:Transcoder ;
+    rdfs:label "Kinesis PutRecord JSON to Arrow" ;
+    arcus:transcodes "json-envelope" ; arcus:emits "arrow" ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:feed-aws-kinesis-put-records a arcus:Feed ;
+    arcus:feedOf arcus:op-aws-kinesis-put-records ;
+    arcus:wireFormat "json-envelope" ;
+    arcus:frameFlag "0x01" ;
+    arcus:transcoder arcus:transcoder-kinesis-put-records-arrow ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:transcoder-kinesis-put-records-arrow a arcus:Transcoder ;
+    rdfs:label "Kinesis PutRecords JSON to Arrow" ;
+    arcus:transcodes "json-envelope" ; arcus:emits "arrow" ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:feed-aws-kinesis-get-shard-iterator a arcus:Feed ;
+    arcus:feedOf arcus:op-aws-kinesis-get-shard-iterator ;
+    arcus:wireFormat "json-envelope" ;
+    arcus:frameFlag "0x01" ;
+    arcus:transcoder arcus:transcoder-kinesis-get-shard-iterator-arrow ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:transcoder-kinesis-get-shard-iterator-arrow a arcus:Transcoder ;
+    rdfs:label "Kinesis GetShardIterator JSON to Arrow" ;
+    arcus:transcodes "json-envelope" ; arcus:emits "arrow" ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:feed-aws-kinesis-get-records a arcus:Feed ;
+    arcus:feedOf arcus:op-aws-kinesis-get-records ;
+    arcus:wireFormat "json-envelope" ;
+    arcus:frameFlag "0x01" ;
+    arcus:transcoder arcus:transcoder-kinesis-get-records-arrow ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:transcoder-kinesis-get-records-arrow a arcus:Transcoder ;
+    rdfs:label "Kinesis GetRecords JSON to Arrow" ;
+    arcus:transcodes "json-envelope" ; arcus:emits "arrow" ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:feed-aws-kinesis-describe-stream a arcus:Feed ;
+    arcus:feedOf arcus:op-aws-kinesis-describe-stream ;
+    arcus:wireFormat "json-envelope" ;
+    arcus:frameFlag "0x01" ;
+    arcus:transcoder arcus:transcoder-kinesis-describe-stream-arrow ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:transcoder-kinesis-describe-stream-arrow a arcus:Transcoder ;
+    rdfs:label "Kinesis DescribeStream JSON to Arrow" ;
+    arcus:transcodes "json-envelope" ; arcus:emits "arrow" ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+# ----------------- SQS FEEDS & TRANSCODERS -----------------
+arcus:feed-aws-sqs-send-message a arcus:Feed ;
+    arcus:feedOf arcus:op-aws-sqs-send-message ;
+    arcus:wireFormat "json-envelope" ;
+    arcus:frameFlag "0x01" ;
+    arcus:transcoder arcus:transcoder-sqs-send-message-arrow ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:transcoder-sqs-send-message-arrow a arcus:Transcoder ;
+    rdfs:label "SQS SendMessage JSON to Arrow" ;
+    arcus:transcodes "json-envelope" ; arcus:emits "arrow" ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:feed-aws-sqs-send-message-batch a arcus:Feed ;
+    arcus:feedOf arcus:op-aws-sqs-send-message-batch ;
+    arcus:wireFormat "json-envelope" ;
+    arcus:frameFlag "0x01" ;
+    arcus:transcoder arcus:transcoder-sqs-send-message-batch-arrow ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:transcoder-sqs-send-message-batch-arrow a arcus:Transcoder ;
+    rdfs:label "SQS SendMessageBatch JSON to Arrow" ;
+    arcus:transcodes "json-envelope" ; arcus:emits "arrow" ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:feed-aws-sqs-receive-message a arcus:Feed ;
+    arcus:feedOf arcus:op-aws-sqs-receive-message ;
+    arcus:wireFormat "json-envelope" ;
+    arcus:frameFlag "0x01" ;
+    arcus:transcoder arcus:transcoder-sqs-receive-message-arrow ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:transcoder-sqs-receive-message-arrow a arcus:Transcoder ;
+    rdfs:label "SQS ReceiveMessage JSON to Arrow" ;
+    arcus:transcodes "json-envelope" ; arcus:emits "arrow" ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:feed-aws-sqs-delete-message a arcus:Feed ;
+    arcus:feedOf arcus:op-aws-sqs-delete-message ;
+    arcus:wireFormat "json-envelope" ;
+    arcus:frameFlag "0x01" ;
+    arcus:transcoder arcus:transcoder-sqs-delete-message-arrow ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:transcoder-sqs-delete-message-arrow a arcus:Transcoder ;
+    rdfs:label "SQS DeleteMessage JSON to Arrow" ;
+    arcus:transcodes "json-envelope" ; arcus:emits "arrow" ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:feed-aws-sqs-delete-message-batch a arcus:Feed ;
+    arcus:feedOf arcus:op-aws-sqs-delete-message-batch ;
+    arcus:wireFormat "json-envelope" ;
+    arcus:frameFlag "0x01" ;
+    arcus:transcoder arcus:transcoder-sqs-delete-message-batch-arrow ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:transcoder-sqs-delete-message-batch-arrow a arcus:Transcoder ;
+    rdfs:label "SQS DeleteMessageBatch JSON to Arrow" ;
+    arcus:transcodes "json-envelope" ; arcus:emits "arrow" ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+# ----------------- PUBSUB SUBSCRIBER FEEDS & TRANSCODERS -----------------
+arcus:feed-gcp-pubsub-pull a arcus:Feed ;
+    arcus:feedOf arcus:op-gcp-pubsub-pull ;
+    arcus:wireFormat "json-envelope" ;
+    arcus:frameFlag "0x01" ;
+    arcus:transcoder arcus:transcoder-pubsub-pull-arrow ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:transcoder-pubsub-pull-arrow a arcus:Transcoder ;
+    rdfs:label "PubSub Pull JSON to Arrow" ;
+    arcus:transcodes "json-envelope" ; arcus:emits "arrow" ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:feed-gcp-pubsub-acknowledge a arcus:Feed ;
+    arcus:feedOf arcus:op-gcp-pubsub-acknowledge ;
+    arcus:wireFormat "json-envelope" ;
+    arcus:frameFlag "0x01" ;
+    arcus:transcoder arcus:transcoder-pubsub-acknowledge-arrow ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:transcoder-pubsub-acknowledge-arrow a arcus:Transcoder ;
+    rdfs:label "PubSub Acknowledge JSON to Arrow" ;
+    arcus:transcodes "json-envelope" ; arcus:emits "arrow" ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:feed-gcp-pubsub-modify-ack-deadline a arcus:Feed ;
+    arcus:feedOf arcus:op-gcp-pubsub-modify-ack-deadline ;
+    arcus:wireFormat "json-envelope" ;
+    arcus:frameFlag "0x01" ;
+    arcus:transcoder arcus:transcoder-pubsub-modify-ack-deadline-arrow ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+
+arcus:transcoder-pubsub-modify-ack-deadline-arrow a arcus:Transcoder ;
+    rdfs:label "PubSub ModifyAckDeadline JSON to Arrow" ;
+    arcus:transcodes "json-envelope" ; arcus:emits "arrow" ;
+    prov:wasDerivedFrom arcus:src-flight-frame-law .
+# ---------------------------------------------------------------------------
+# AOQ1 Go twin (W2-B, wave-2-membrane-plan §1; ZD-13 wire-law correction).
+# The lawful AOQ1 wire law is the sidecar's (aoq_sidecar.rs), NOT
+# cgap-arrow's IPC MetaHeader: codec-sealed AoqHeader (FNV-1a32 over
+# [0x00,0x3C) stored at 0x3C) leads the 120-byte metadata block, body_len
+# u32 LE at window offset 72..76, blake3 tag 16B at 76..92, then
+# pad_to(body_len,64) and EOS. Response leg: 4-byte LE frozen-band status
+# word; refusals are never echoes.
+# Ground truth: include/cgap_aoq.h + aoq_sidecar.rs (the wire authority).
+# ---------------------------------------------------------------------------
+
+arcus:src-cgap-aoq-h a prov:Entity ;
+    dcterms:title "cgap AOQ1 header field law (generated C header)" ;
+    dcterms:source <file:///Users/sac/cgap/include/cgap_aoq.h> .
+
+arcus:src-aoq-sidecar a prov:Entity ;
+    dcterms:title "cgap AoQ kernel sidecar — the AOQ1 wire authority" ;
+    dcterms:source <file:///Users/sac/cgap/crates/cgap-ffi/src/bin/aoq_sidecar.rs> .
+
+arcus:src-aoq-status-maps a prov:Entity ;
+    dcterms:title "cgap AOQ frozen-band status words (0x4347A001..A009)" ;
+    dcterms:source <file:///Users/sac/cgap/crates/cgap-ffi/src/aoq/status_maps.rs> .
+
+arcus:prim-aoq-header a arcus:KernelPrimitive ; arcus:primName "AoqHeader" ;
+    arcus:primKind "aoq-header" ;
+    arcus:law "64-byte AoqHeader, little-endian per cgap_aoq.h/codec.rs: magic 0x414F5131 u32 LE @0x00, version u16 @0x04 (=3, v3 wire law 2026-11-04), epoch u16 @0x06 (closed enum 0|1|2|65535), key_id u64 @0x08, frame_ordinal u32 @0x10, seq u32 @0x14, reserved-zero [0x18,0x3C), header_digest FNV-1a32 over [0x00,0x3C) stored @0x3C" ;
+    arcus:seam "generated" ; arcus:status "implemented" ;
+    prov:wasDerivedFrom arcus:src-cgap-aoq-h .
+
+arcus:prim-aoq-session-uds a arcus:KernelPrimitive ; arcus:primName "AoqSessionUds" ;
+    arcus:primKind "aoq-session" ;
+    arcus:law "AOQ1 window over UDS: prefix (0xFFFFFFFF continuation + metaSize 120 LE) + 64B codec-sealed AoqHeader + body_len u32 LE @72..76 + blake3(body)[..16] tag @76..92 + zero pad to metaSize 120 + body + pad_to(body_len,64) + EOS (0xFFFFFFFF,0x00000000); response = 4-byte LE frozen-band status word (0x4347A001..A009); refusals are never echoes; request framing that is incomplete, oversize, or tag-gate-failing is refused with a status word before any accept" ;
+    arcus:seam "arcus:hand-law" ; arcus:status "implemented" ;
+    prov:wasDerivedFrom arcus:src-aoq-sidecar .

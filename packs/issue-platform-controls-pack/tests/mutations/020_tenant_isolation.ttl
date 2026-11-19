@@ -1,0 +1,34 @@
+@prefix ip:   <https://ggen.dev/ontology/issue-platform-controls#> .
+@prefix sj:   <https://ggen-igniter.dev/ontology/semantic-jira#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix ex:   <https://example.org/ip-controls-mutation#> .
+
+# Falsifier for gates/020_tenant_isolation.rq + TenantShape / BoundTenantShape.
+# - Tenant missing tenantId
+# - boundTenant points at a non-Tenant
+# - audit eventTenant mismatches subject's boundTenant
+
+ex:BadTenant a ip:Tenant .
+
+ex:NotATenant a rdfs:Resource .
+
+ex:WO-bad-bound a sj:WorkOrder ;
+    ip:boundTenant ex:NotATenant .
+
+ex:GoodTenant a ip:Tenant ;
+    ip:tenantId "good" .
+
+ex:OtherTenant a ip:Tenant ;
+    ip:tenantId "other" .
+
+ex:WO-mismatch a sj:WorkOrder ;
+    ip:boundTenant ex:GoodTenant .
+
+ex:AuditMismatch a ip:AuditEvent ;
+    ip:actor "mutator" ;
+    ip:action "probe" ;
+    ip:outcome "ok" ;
+    ip:occurredAt "2026-11-19T00:00:00Z" ;
+    ip:integrityDigest "sha256:mutation-tenant-mismatch" ;
+    ip:subjectWorkOrder ex:WO-mismatch ;
+    ip:eventTenant ex:OtherTenant .

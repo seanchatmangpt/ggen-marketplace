@@ -1,0 +1,59 @@
+---
+to: "infrastructure/data/transactional/residency_inventory.md"
+force: true
+sparql:
+  programs: |
+    PREFIX f5dr: <http://seanchatmangpt.github.io/packs/fortune5-data-residency#>
+    SELECT ?programId ?catalogGroup ?catalogVersion ?directActuation
+    WHERE {
+      ?p a f5dr:ResidencyProgram ;
+         f5dr:programId ?programId ;
+         f5dr:catalogGroup ?catalogGroup ;
+         f5dr:catalogVersion ?catalogVersion ;
+         f5dr:directActuation ?directActuation .
+    }
+    ORDER BY ?programId
+  policies: |
+    PREFIX f5dr: <http://seanchatmangpt.github.io/packs/fortune5-data-residency#>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT ?policyId ?title ?dataClassId ?homeId ?allowedId ?regionId ?provider
+           ?forbidXBorder ?evidence ?directActuation
+    WHERE {
+      ?pol a f5dr:ResidencyPolicy ;
+           f5dr:policyId ?policyId ;
+           f5dr:title ?title ;
+           f5dr:appliesToDataClass ?dc ;
+           f5dr:homeJurisdiction ?home ;
+           f5dr:allowedJurisdiction ?allowed ;
+           f5dr:pinnedRegion ?pin ;
+           f5dr:forbidCrossBorderReplication ?forbidXBorder ;
+           f5dr:evidenceRequired ?evidence ;
+           f5dr:directActuation ?directActuation .
+      ?dc f5dr:dataClassId ?dataClassId .
+      ?home f5dr:jurisdictionId ?homeId .
+      ?allowed f5dr:jurisdictionId ?allowedId .
+      ?pin f5dr:regionId ?regionId ;
+          f5dr:provider ?provider .
+    }
+    ORDER BY ?policyId
+---
+# Fortune 5 data-residency inventory
+
+Projection from `fortune5-data-residency-pack`. Catalog group `transaction-data`
+(commonPack). Broker-only — no cloud actuation, no secrets.
+
+## Programs
+
+| programId | catalogGroup | catalogVersion | directActuation |
+|---|---|---|---|
+{% for row in programs -%}
+| {{ row.programId }} | {{ row.catalogGroup }} | {{ row.catalogVersion }} | {{ row.directActuation }} |
+{% endfor %}
+
+## Policies
+
+| policyId | title | dataClass | home | allowed | region | provider | forbidXBorder | evidence | directActuation |
+|---|---|---|---|---|---|---|---|---|---|
+{% for row in policies -%}
+| {{ row.policyId }} | {{ row.title }} | {{ row.dataClassId }} | {{ row.homeId }} | {{ row.allowedId }} | {{ row.regionId }} | {{ row.provider }} | {{ row.forbidXBorder }} | {{ row.evidence }} | {{ row.directActuation }} |
+{% endfor %}

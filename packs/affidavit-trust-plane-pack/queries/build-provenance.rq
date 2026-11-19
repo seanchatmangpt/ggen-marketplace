@@ -1,0 +1,23 @@
+# build-provenance.rq — consumed by templates/build_provenance_affidavit.json.tmpl
+#
+# Single-row projection (strict mode: ORDER BY present). Columns:
+#   image_name, image_sha256, statement_sha256, predicate_type
+# No OPTIONAL: a missing digest triple yields zero rows and the engine refuses;
+# the affidavit never renders with a defaulted digest.
+
+PREFIX ctp: <https://ggen.dev/ontology/affidavit-trust-plane#>
+
+SELECT ?image_name ?image_sha256 ?statement_sha256 ?predicate_type
+WHERE {
+  ?bp a ctp:BuildProvenance ;
+      ctp:imageName ?imageNameRaw ;
+      ctp:imageSha256 ?imageRaw ;
+      ctp:statementSha256 ?stmtRaw ;
+      ctp:provenancePredicateType ?ptRaw .
+  BIND(STR(?imageNameRaw) AS ?image_name)
+  BIND(STR(?imageRaw) AS ?image_sha256)
+  BIND(STR(?stmtRaw) AS ?statement_sha256)
+  BIND(STR(?ptRaw) AS ?predicate_type)
+}
+ORDER BY ?image_sha256 ?statement_sha256
+LIMIT 1

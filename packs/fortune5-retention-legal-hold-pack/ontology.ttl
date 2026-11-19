@@ -1,0 +1,163 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix f5rh: <http://seanchatmangpt.github.io/packs/fortune5-retention-legal-hold#> .
+
+# fortune5-retention-legal-hold-pack — constitutional retention + legal-hold
+# law for Fortune 5 object/evidence storage. Catalog binding:
+# fortune5-deployment-blocks-pack group object-storage bb:commonPack
+# "fortune5-retention-pack" (this pack also provides that catalog URN).
+#
+# Broker-only: f5rh:directActuation must be false. No secrets or customer
+# matter payloads are minted; matterId/objectId are opaque identifiers.
+
+#################################################################
+# Classes
+#################################################################
+
+f5rh:RetentionProgram a rdfs:Class ;
+    rdfs:label "Retention program" ;
+    rdfs:comment "Top-level retention program bound to catalog object-storage / fortune5-retention-pack." .
+
+f5rh:RetentionSchedule a rdfs:Class ;
+    rdfs:label "Retention schedule" ;
+    rdfs:comment "Positive retentionDays + immutableCapable schedule for a storage class." .
+
+f5rh:LegalHold a rdfs:Class ;
+    rdfs:label "Legal hold" ;
+    rdfs:comment "Matter-scoped hold that blocks delete and export on held objects." .
+
+f5rh:HeldObject a rdfs:Class ;
+    rdfs:label "Held object" ;
+    rdfs:comment "Opaque object identity under hold; never a payload or secret." .
+
+f5rh:StorageClass a rdfs:Class ;
+    rdfs:label "Storage class" ;
+    rdfs:comment "Named object/evidence storage class the schedule applies to." .
+
+#################################################################
+# Properties
+#################################################################
+
+f5rh:programId a rdf:Property ;
+    rdfs:domain f5rh:RetentionProgram ;
+    rdfs:range xsd:string .
+
+f5rh:catalogGroup a rdf:Property ;
+    rdfs:domain f5rh:RetentionProgram ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Must equal deployment-blocks group id object-storage." .
+
+f5rh:catalogVersion a rdf:Property ;
+    rdfs:domain f5rh:RetentionProgram ;
+    rdfs:range xsd:string .
+
+f5rh:catalogPackId a rdf:Property ;
+    rdfs:domain f5rh:RetentionProgram ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Must equal fortune5-retention-pack for catalog equivalence (gate 030)." .
+
+f5rh:hasSchedule a rdf:Property ;
+    rdfs:domain f5rh:RetentionProgram ;
+    rdfs:range f5rh:RetentionSchedule .
+
+f5rh:hasLegalHold a rdf:Property ;
+    rdfs:domain f5rh:RetentionProgram ;
+    rdfs:range f5rh:LegalHold .
+
+f5rh:scheduleId a rdf:Property ;
+    rdfs:domain f5rh:RetentionSchedule ;
+    rdfs:range xsd:string .
+
+f5rh:title a rdf:Property ;
+    rdfs:range xsd:string .
+
+f5rh:appliesToStorageClass a rdf:Property ;
+    rdfs:range f5rh:StorageClass .
+
+f5rh:retentionDays a rdf:Property ;
+    rdfs:domain f5rh:RetentionSchedule ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Must be a positive xsd:integer (gate 030)." .
+
+f5rh:immutableCapable a rdf:Property ;
+    rdfs:domain f5rh:RetentionSchedule ;
+    rdfs:range xsd:boolean .
+
+f5rh:evidenceRequired a rdf:Property ;
+    rdfs:range xsd:boolean .
+
+f5rh:holdId a rdf:Property ;
+    rdfs:domain f5rh:LegalHold ;
+    rdfs:range xsd:string .
+
+f5rh:matterId a rdf:Property ;
+    rdfs:domain f5rh:LegalHold ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Opaque matter reference — not a sealed document or secret." .
+
+f5rh:holdsObject a rdf:Property ;
+    rdfs:domain f5rh:LegalHold ;
+    rdfs:range f5rh:HeldObject .
+
+f5rh:blocksDelete a rdf:Property ;
+    rdfs:domain f5rh:LegalHold ;
+    rdfs:range xsd:boolean .
+
+f5rh:blocksExport a rdf:Property ;
+    rdfs:domain f5rh:LegalHold ;
+    rdfs:range xsd:boolean .
+
+f5rh:objectId a rdf:Property ;
+    rdfs:domain f5rh:HeldObject ;
+    rdfs:range xsd:string .
+
+f5rh:storageClassId a rdf:Property ;
+    rdfs:domain f5rh:StorageClass ;
+    rdfs:range xsd:string .
+
+f5rh:directActuation a rdf:Property ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Must be false. Direct cloud actuation is refused; BRCE brokers." .
+
+#################################################################
+# Catalog scaffold individuals (illustrative; not customer SoT)
+#################################################################
+
+f5rh:program a f5rh:RetentionProgram ;
+    f5rh:programId "fortune5-retention-legal-hold" ;
+    f5rh:catalogGroup "object-storage" ;
+    f5rh:catalogVersion "26.7.31" ;
+    f5rh:catalogPackId "fortune5-retention-pack" ;
+    f5rh:hasSchedule f5rh:EvidenceObjectRetention ;
+    f5rh:hasLegalHold f5rh:MatterHold-001 ;
+    f5rh:directActuation false ;
+    dcterms:description "Constitutional retention + legal-hold program for object evidence." .
+
+f5rh:ObjectEvidence a f5rh:StorageClass ;
+    f5rh:storageClassId "object-evidence" ;
+    rdfs:label "Versioned object and evidence storage" .
+
+f5rh:EvidenceObjectRetention a f5rh:RetentionSchedule ;
+    f5rh:scheduleId "RET-OBJ-EVIDENCE-001" ;
+    f5rh:title "Immutable-capable evidence object retention" ;
+    f5rh:appliesToStorageClass f5rh:ObjectEvidence ;
+    f5rh:retentionDays "2555"^^xsd:integer ;
+    f5rh:immutableCapable true ;
+    f5rh:evidenceRequired true ;
+    f5rh:directActuation false .
+
+f5rh:obj-receipt-ledger-001 a f5rh:HeldObject ;
+    f5rh:objectId "obj-receipt-ledger-001" ;
+    f5rh:appliesToStorageClass f5rh:ObjectEvidence .
+
+f5rh:MatterHold-001 a f5rh:LegalHold ;
+    f5rh:holdId "HOLD-MATTER-001" ;
+    f5rh:title "Active legal hold on receipt ledger objects" ;
+    f5rh:matterId "MATTER-001" ;
+    f5rh:holdsObject f5rh:obj-receipt-ledger-001 ;
+    f5rh:blocksDelete true ;
+    f5rh:blocksExport true ;
+    f5rh:evidenceRequired true ;
+    f5rh:directActuation false .

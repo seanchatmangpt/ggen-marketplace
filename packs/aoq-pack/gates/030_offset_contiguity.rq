@@ -1,56 +1,79 @@
-# MESSAGE: AOQ1 header contiguity chain broken — exactly one field starts at
-# offset 0, exactly one terminal field ends at byte 64, every aoq:nextOffset
-# successor begins exactly where its predecessor ends (offset+sizeBytes), and
-# every field carries offset+sizeBytes.
-# Anti-vacuity: witnesses/fail/030_offset_contiguity.ttl moves one field's
-# offset off the chain (4 -> 5); this gate must return >=1 row on it.
+# MESSAGE: header contiguity chain broken, evaluated PER aoq:Header (AOQ1 64 B,
+# intent 16 B, page 28 B): exactly one field of the header starts at offset 0,
+# exactly one terminal field (no aoq:nextOffset), every aoq:nextOffset
+# successor belongs to the SAME header and begins exactly where its predecessor
+# ends (offset+sizeBytes), every field carries offset+sizeBytes and an
+# aoq:fieldOf header, and the terminal field ends exactly at the header's own
+# declared aoq:sizeBytes (never a global 64).
+# Anti-vacuity: witnesses/fail/030_offset_contiguity.ttl moves one AOQ1 field
+# off the chain (4 -> 5); .intent.ttl and .page.ttl do the same on the 16 B and
+# 28 B chains; this gate must return >=1 row on each.
 PREFIX aoq: <urn:aoq:>
 SELECT ?problem ?detail WHERE {
+{
   {
-    SELECT ?problem ?detail WHERE {
-      { SELECT (COUNT(?f0) AS ?starts) (COUNT(?ft) AS ?terms) WHERE {
-          ?f0 a aoq:HeaderField ; aoq:offset 0 .
-      } }
-      FILTER(?starts != 1)
-      BIND("chain must have exactly one offset-0 field" AS ?problem)
-      BIND(STR(?starts) AS ?detail)
-      BIND(?terms AS ?unused)
-    }
+    SELECT ?hdr (COUNT(?f0) AS ?starts) WHERE {
+      ?hdr a aoq:Header .
+      OPTIONAL { ?f0 aoq:fieldOf ?hdr ; aoq:offset 0 . }
+    } GROUP BY ?hdr
+    HAVING (COUNT(?f0) != 1)
   }
-  UNION
+  BIND("chain must have exactly one offset-0 field per header" AS ?problem)
+  BIND(CONCAT(STR(?hdr), " starts=", STR(?starts)) AS ?detail)
+}
+UNION
+{
   {
-    SELECT ?problem ?detail WHERE {
-      { SELECT (COUNT(?ft) AS ?terms) WHERE {
-          ?ft a aoq:HeaderField .
-          FILTER NOT EXISTS { ?ft aoq:nextOffset ?n . }
-      } }
-      FILTER(?terms != 1)
-      BIND("chain must have exactly one terminal field" AS ?problem)
-      BIND(STR(?terms) AS ?detail)
-    }
+    SELECT ?hdr (COUNT(?ft) AS ?terms) WHERE {
+      ?hdr a aoq:Header .
+      OPTIONAL {
+        ?ft aoq:fieldOf ?hdr .
+        FILTER NOT EXISTS { ?ft aoq:nextOffset ?n . }
+      }
+    } GROUP BY ?hdr
+    HAVING (COUNT(?ft) != 1)
   }
-  UNION
-  {
-    ?f a aoq:HeaderField .
-    FILTER(NOT EXISTS { ?f aoq:offset ?o . } || NOT EXISTS { ?f aoq:sizeBytes ?s . })
-    BIND("header field missing offset/sizeBytes" AS ?problem)
-    BIND(STR(?f) AS ?detail)
-  }
-  UNION
-  {
-    ?f a aoq:HeaderField ; aoq:nextOffset ?n ; aoq:offset ?o ; aoq:sizeBytes ?s .
-    OPTIONAL { ?n aoq:offset ?no . }
-    FILTER(!BOUND(?no) || ?no != ?o + ?s)
-    BIND("chain link gap/overlap or successor missing offset" AS ?problem)
-    BIND(CONCAT(STR(?f), " end=", STR(?o + ?s), " next=", IF(BOUND(?no), STR(?no), "none"), " at ", STR(?n)) AS ?detail)
-  }
-  UNION
-  {
-    ?f a aoq:HeaderField ; aoq:offset ?o ; aoq:sizeBytes ?s .
-    FILTER NOT EXISTS { ?f aoq:nextOffset ?n . }
-    FILTER(?o + ?s != 64)
-    BIND("terminal field must end exactly at byte 64" AS ?problem)
-    BIND(CONCAT(STR(?f), " end=", STR(?o + ?s)) AS ?detail)
-  }
+  BIND("chain must have exactly one terminal field per header" AS ?problem)
+  BIND(CONCAT(STR(?hdr), " terminals=", STR(?terms)) AS ?detail)
+}
+UNION
+{
+  ?f a aoq:HeaderField .
+  FILTER NOT EXISTS { ?f aoq:fieldOf ?h0 . }
+  BIND("header field has no aoq:fieldOf header" AS ?problem)
+  BIND(STR(?f) AS ?detail)
+}
+UNION
+{
+  ?f a aoq:HeaderField .
+  FILTER(NOT EXISTS { ?f aoq:offset ?o . } || NOT EXISTS { ?f aoq:sizeBytes ?s . })
+  BIND("header field missing offset/sizeBytes" AS ?problem)
+  BIND(STR(?f) AS ?detail)
+}
+UNION
+{
+  ?f a aoq:HeaderField ; aoq:nextOffset ?n ; aoq:offset ?o ; aoq:sizeBytes ?s .
+  OPTIONAL { ?n aoq:offset ?no . }
+  FILTER(!BOUND(?no) || ?no != ?o + ?s)
+  BIND("chain link gap/overlap or successor missing offset" AS ?problem)
+  BIND(CONCAT(STR(?f), " end=", STR(?o + ?s), " next=", IF(BOUND(?no), STR(?no), "none"), " at ", STR(?n)) AS ?detail)
+}
+UNION
+{
+  ?f a aoq:HeaderField ; aoq:nextOffset ?n ; aoq:fieldOf ?hf .
+  ?n aoq:fieldOf ?hn .
+  FILTER(?hf != ?hn)
+  BIND("chain link crosses into a different header" AS ?problem)
+  BIND(CONCAT(STR(?f), " in ", STR(?hf), " -> ", STR(?n), " in ", STR(?hn)) AS ?detail)
+}
+UNION
+{
+  ?f a aoq:HeaderField ; aoq:offset ?o ; aoq:sizeBytes ?s ; aoq:fieldOf ?hdr .
+  ?hdr aoq:sizeBytes ?hs .
+  FILTER NOT EXISTS { ?f aoq:nextOffset ?n . }
+  FILTER(?o + ?s != ?hs)
+  BIND("terminal field must end exactly at its header sizeBytes" AS ?problem)
+  BIND(CONCAT(STR(?f), " end=", STR(?o + ?s), " header=", STR(?hs)) AS ?detail)
+}
 }
 ORDER BY ?problem ?detail

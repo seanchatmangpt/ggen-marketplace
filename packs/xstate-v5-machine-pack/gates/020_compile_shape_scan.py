@@ -18,7 +18,7 @@ default (each cites its SHAPES.md row / receipt):
                        from the machine body (redirect-class law, R44/R33-D2:
                        comments claiming exclusion while edges exist).
 
-Config (TOML, default shapes.toml next to this script):
+Config (TOML, default ../config/shapes.toml):
 
     [[subjects]]
     path = "docs/.../machine.ts"    # relative to --root (default config dir)
@@ -66,7 +66,7 @@ import re
 import sys
 import tomllib
 
-DEFAULT_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "shapes.toml")
+DEFAULT_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config", "shapes.toml")
 
 DEFAULT_BANNED = [
     ("no-parallel", r"type:\s*['\"]parallel['\"]"),

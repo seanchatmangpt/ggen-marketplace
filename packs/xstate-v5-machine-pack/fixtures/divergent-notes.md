@@ -20,7 +20,7 @@ divergent fixture the gate must REJECT).
 Gate coverage: all five gates (010, 020, 030, 040, construct_gate) have at
 least one planted violation naming them, except 010 — gate 010 is
 ontology-scoped (counts the pack's own `ontology.ttl` triples against
-`gates/baselines.toml`; fixtures are not its subjects). 030/040 are named
+`config/baselines.toml`; fixtures are not its subjects). 030/040 are named
 but not yet landed; construct_gate is landed and rejects via the real
 xstate construct throw (`No initial state specified for compound state
 node`). See Also: `positive-machine.json` (`expected_gates`).

@@ -1,0 +1,149 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix f5dr: <http://seanchatmangpt.github.io/packs/fortune5-data-residency#> .
+
+# fortune5-data-residency-pack — constitutional residency law for Fortune 5
+# transactional data. Catalog binding: fortune5-deployment-blocks-pack
+# group transaction-data bb:commonPack "fortune5-data-residency-pack"
+# (catalog/fortune5-bblocks.json, version 26.7.31).
+#
+# Broker-only: f5dr:directActuation must be false. BRCE is the actuation
+# boundary. No secrets, credentials, or customer tenant ids are minted here.
+
+#################################################################
+# Classes
+#################################################################
+
+f5dr:ResidencyProgram a rdfs:Class ;
+    rdfs:label "Residency program" ;
+    rdfs:comment "Top-level residency program bound to a deployment-blocks catalog group." .
+
+f5dr:ResidencyPolicy a rdfs:Class ;
+    rdfs:label "Residency policy" ;
+    rdfs:comment "Per-data-class jurisdiction, region pin, and replication forbid contract." .
+
+f5dr:Jurisdiction a rdfs:Class ;
+    rdfs:label "Jurisdiction" ;
+    rdfs:comment "Legal jurisdiction (home or allowed) for data residency." .
+
+f5dr:RegionPin a rdfs:Class ;
+    rdfs:label "Region pin" ;
+    rdfs:comment "Cloud-provider region pin admitted under a jurisdiction." .
+
+f5dr:DataClass a rdfs:Class ;
+    rdfs:label "Data class" ;
+    rdfs:comment "Named class of payloads the residency policy applies to." .
+
+#################################################################
+# Properties
+#################################################################
+
+f5dr:programId a rdf:Property ;
+    rdfs:domain f5dr:ResidencyProgram ;
+    rdfs:range xsd:string .
+
+f5dr:catalogGroup a rdf:Property ;
+    rdfs:domain f5dr:ResidencyProgram ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Must equal deployment-blocks group id transaction-data." .
+
+f5dr:catalogVersion a rdf:Property ;
+    rdfs:domain f5dr:ResidencyProgram ;
+    rdfs:range xsd:string .
+
+f5dr:hasPolicy a rdf:Property ;
+    rdfs:domain f5dr:ResidencyProgram ;
+    rdfs:range f5dr:ResidencyPolicy .
+
+f5dr:policyId a rdf:Property ;
+    rdfs:domain f5dr:ResidencyPolicy ;
+    rdfs:range xsd:string .
+
+f5dr:title a rdf:Property ;
+    rdfs:range xsd:string .
+
+f5dr:appliesToDataClass a rdf:Property ;
+    rdfs:domain f5dr:ResidencyPolicy ;
+    rdfs:range f5dr:DataClass .
+
+f5dr:homeJurisdiction a rdf:Property ;
+    rdfs:domain f5dr:ResidencyPolicy ;
+    rdfs:range f5dr:Jurisdiction .
+
+f5dr:allowedJurisdiction a rdf:Property ;
+    rdfs:domain f5dr:ResidencyPolicy ;
+    rdfs:range f5dr:Jurisdiction .
+
+f5dr:pinnedRegion a rdf:Property ;
+    rdfs:domain f5dr:ResidencyPolicy ;
+    rdfs:range f5dr:RegionPin .
+
+f5dr:forbidCrossBorderReplication a rdf:Property ;
+    rdfs:domain f5dr:ResidencyPolicy ;
+    rdfs:range xsd:boolean .
+
+f5dr:evidenceRequired a rdf:Property ;
+    rdfs:range xsd:boolean .
+
+f5dr:jurisdictionId a rdf:Property ;
+    rdfs:domain f5dr:Jurisdiction ;
+    rdfs:range xsd:string .
+
+f5dr:regionId a rdf:Property ;
+    rdfs:domain f5dr:RegionPin ;
+    rdfs:range xsd:string .
+
+f5dr:provider a rdf:Property ;
+    rdfs:domain f5dr:RegionPin ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Closed set: aws | azure | gcp (gate 020)." .
+
+f5dr:dataClassId a rdf:Property ;
+    rdfs:domain f5dr:DataClass ;
+    rdfs:range xsd:string .
+
+f5dr:directActuation a rdf:Property ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Must be false. Direct cloud actuation is refused; BRCE brokers." .
+
+#################################################################
+# Catalog scaffold individuals (illustrative; not customer SoT)
+#################################################################
+
+f5dr:program a f5dr:ResidencyProgram ;
+    f5dr:programId "fortune5-data-residency" ;
+    f5dr:catalogGroup "transaction-data" ;
+    f5dr:catalogVersion "26.7.31" ;
+    f5dr:hasPolicy f5dr:TransactionalHomeJurisdiction ;
+    f5dr:directActuation false ;
+    dcterms:description "Constitutional residency program for transactional data." .
+
+f5dr:Transactional a f5dr:DataClass ;
+    f5dr:dataClassId "transactional" ;
+    rdfs:label "Transactional datastore payloads" .
+
+f5dr:US a f5dr:Jurisdiction ;
+    f5dr:jurisdictionId "US" ;
+    rdfs:label "United States" .
+
+f5dr:EU a f5dr:Jurisdiction ;
+    f5dr:jurisdictionId "EU" ;
+    rdfs:label "European Union" .
+
+f5dr:pin-us-east a f5dr:RegionPin ;
+    f5dr:regionId "us-east-1" ;
+    f5dr:provider "aws" ;
+    f5dr:homeJurisdiction f5dr:US .
+
+f5dr:TransactionalHomeJurisdiction a f5dr:ResidencyPolicy ;
+    f5dr:policyId "RES-TXN-HOME-001" ;
+    f5dr:title "Transactional data remains in home jurisdiction" ;
+    f5dr:appliesToDataClass f5dr:Transactional ;
+    f5dr:homeJurisdiction f5dr:US ;
+    f5dr:allowedJurisdiction f5dr:US ;
+    f5dr:pinnedRegion f5dr:pin-us-east ;
+    f5dr:forbidCrossBorderReplication true ;
+    f5dr:evidenceRequired true ;
+    f5dr:directActuation false .

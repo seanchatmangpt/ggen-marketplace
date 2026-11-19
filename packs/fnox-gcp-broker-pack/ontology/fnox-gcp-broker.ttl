@@ -31,17 +31,25 @@ fgb:StaticKey a rdfs:Class ; rdfs:comment "Forbidden class: any node typed here 
 
 fgb:gcpName a rdf:Property ; rdfs:comment "Name as it appears in GCP (topic/bucket/service/secret id)." .
 fgb:messageOrdering a rdf:Property ; rdfs:comment "xsd:boolean — subscription enable_message_ordering; publishers set ordering_key." .
-fgb:dedupAttribute a rdf:Property ; rdfs:comment "Message attribute the consumer dedups on. Pub/Sub has no server-side dedup; platform.fnox.io/gcp/signal is the idempotent receiver." .
+fgb:dedupAttribute a rdf:Property ; rdfs:comment "Message attribute the consumer dedups on (and arcus-fnox fnoxtwin PD01-PD03 publisher-side idempotency key). Real Pub/Sub has no server-side dedup; platform.fnox.io/gcp/signal is the idempotent receiver." .
+fgb:dedupScope a rdf:Property ; rdfs:comment "Ordering scope partitioning fgb:dedupAttribute (arcus-fnox fnoxtwin PD03: (topic, orderingKey, durable_intent_token))." .
+fgb:twinSurface a rdf:Property ; rdfs:comment "arcus-fnox loopback twin mount prefix (/pubsub/, /metadata/, /oidc/)." .
 fgb:retentionDuration a rdf:Property .
 fgb:ackDeadlineSeconds a rdf:Property .
 fgb:subscribesTo a rdf:Property .
 fgb:pushEndpoint a rdf:Property .
 fgb:oidcAudience a rdf:Property .
+fgb:oidcIssuer a rdf:Property ; rdfs:comment "OIDC ID token iss claim and discovery issuer (https://accounts.google.com)." .
+fgb:oidcJwksPath a rdf:Property ; rdfs:comment "JWKS verification endpoint path (arcus-fnox /.well-known/jwks.json under /oidc/)." .
+fgb:oidcConfigPath a rdf:Property ; rdfs:comment "OpenID discovery path (/.well-known/openid-configuration)." .
+fgb:oidcAlg a rdf:Property ; rdfs:comment "OIDC signing algorithm (RS256)." .
 fgb:oidcServiceAccount a rdf:Property ; rdfs:comment "fgb:ServiceAccount whose identity signs the push OIDC token." .
 fgb:finalizeTrigger a rdf:Property ; rdfs:comment "Bucket -> FinalizeTrigger." .
 fgb:destination a rdf:Property ; rdfs:comment "FinalizeTrigger -> Service." .
 fgb:onBucket a rdf:Property .
 fgb:runsAs a rdf:Property ; rdfs:comment "Service -> ServiceAccount." .
+fgb:ingress a rdf:Property ; rdfs:comment "Cloud Run v2 ingress enum: INGRESS_TRAFFIC_ALL | INGRESS_TRAFFIC_INTERNAL_ONLY | INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER (matches smalt Smalt.GCP.CloudRun)." .
+fgb:invokerRole a rdf:Property ; rdfs:comment "IAM role checked by smalt CloudRun.invoker?/4 (roles/run.invoker)." .
 fgb:accountId a rdf:Property .
 fgb:image a rdf:Property .
 fgb:envVar a rdf:Property ; rdfs:comment "Blank node with fgb:envName + fgb:envValue (literal env; secrets are mounted via fgb:accessesSecret, never env literals)." .
@@ -60,6 +68,10 @@ fgb:routeBackend a rdf:Property .
 fgb:bindsAccount a rdf:Property .
 fgb:kubernetesNamespace a rdf:Property .
 fgb:kubernetesServiceAccount a rdf:Property .
+fgb:metadataFlavorHeader a rdf:Property ; rdfs:comment "Required metadata request header (Metadata-Flavor)." .
+fgb:metadataFlavorValue a rdf:Property ; rdfs:comment "Required metadata header value (Google)." .
+fgb:metadataTokenPath a rdf:Property ; rdfs:comment "GCE / arcus-fnox metadata server access-token path." .
+fgb:metadataEmailPath a rdf:Property ; rdfs:comment "GCE / arcus-fnox metadata server service-account email path." .
 fgb:publishesTo a rdf:Property ; rdfs:comment "ServiceAccount -> Topic (roles/pubsub.publisher on the topic)." .
 fgb:forbidsResourceType a rdf:Property .
 fgb:orgPolicyConstraint a rdf:Property .
@@ -126,8 +138,10 @@ fgb:topic_pplan_actuation a fgb:Topic ; gtf:inModule gtf:mod_broker ; gtf:order 
     fgb:gcpName "pplan-actuation" ;
     fgb:messageOrdering true ;
     fgb:dedupAttribute "durable_intent_token" ;
+    fgb:dedupScope "orderingKey" ;
+    fgb:twinSurface "/pubsub/" ;
     fgb:retentionDuration "604800s" ;
-    fgb:rationale "ash_pplan actuator publishes one message per durable intent; ordering_key = work-order id; receiver dedups on durable_intent_token before any effect." .
+    fgb:rationale "ash_pplan actuator publishes one message per durable intent; ordering_key = work-order id; receiver (and arcus-fnox fnoxtwin PD01-PD03) dedups on (topic, orderingKey, durable_intent_token) before any effect." .
 
 fgb:sub_platform_signal a fgb:PushSubscription ; gtf:inModule gtf:mod_broker ; gtf:order 11 ;
     gtf:resourceType "google_pubsub_subscription" ; gtf:resourceName "platform_signal" ;
@@ -137,6 +151,11 @@ fgb:sub_platform_signal a fgb:PushSubscription ; gtf:inModule gtf:mod_broker ; g
     fgb:ackDeadlineSeconds 60 ;
     fgb:pushEndpoint "https://platform.fnox.io/gcp/signal" ;
     fgb:oidcAudience "https://platform.fnox.io/gcp/signal" ;
+    fgb:oidcIssuer "https://accounts.google.com" ;
+    fgb:oidcJwksPath "/.well-known/jwks.json" ;
+    fgb:oidcConfigPath "/.well-known/openid-configuration" ;
+    fgb:oidcAlg "RS256" ;
+    fgb:twinSurface "/oidc/" ;
     fgb:oidcServiceAccount fgb:sa_push .
 
 # ---------------------------------------------------------------------------
@@ -158,6 +177,8 @@ fgb:svc_intake a fgb:IntakeService ; gtf:inModule gtf:mod_broker ; gtf:order 21 
     gtf:resourceType "google_cloud_run_v2_service" ; gtf:resourceName "intake" ;
     fgb:gcpName "fnox-intake" ;
     fgb:runsAs fgb:sa_intake ;
+    fgb:ingress "INGRESS_TRAFFIC_INTERNAL_ONLY" ;
+    fgb:invokerRole "roles/run.invoker" ;
     fgb:image "${var.region}-docker.pkg.dev/${var.project_id}/${var.ar_repo}/fnox-intake:${var.image_tag}" ;
     fgb:extractor "documentai" , "vertex" ;
     fgb:model "gemini-2.5-flash" ;
@@ -185,6 +206,7 @@ fgb:worker_twilio a fgb:EgressWorker ; gtf:inModule gtf:mod_broker ; gtf:order 3
     gtf:resourceType "google_cloud_run_v2_service" ; gtf:resourceName "egress_twilio" ;
     fgb:gcpName "fnox-egress-twilio" ; fgb:vendor "twilio" ;
     fgb:runsAs fgb:sa_egress_twilio ;
+    fgb:ingress "INGRESS_TRAFFIC_INTERNAL_ONLY" ;
     fgb:image "${var.region}-docker.pkg.dev/${var.project_id}/${var.ar_repo}/fnox-egress-twilio:${var.image_tag}" ;
     fgb:accessesSecret fgb:secret_twilio ;
     fgb:accessorRole "roles/secretmanager.secretAccessor" .
@@ -193,6 +215,7 @@ fgb:worker_sendgrid a fgb:EgressWorker ; gtf:inModule gtf:mod_broker ; gtf:order
     gtf:resourceType "google_cloud_run_v2_service" ; gtf:resourceName "egress_sendgrid" ;
     fgb:gcpName "fnox-egress-sendgrid" ; fgb:vendor "sendgrid" ;
     fgb:runsAs fgb:sa_egress_sendgrid ;
+    fgb:ingress "INGRESS_TRAFFIC_INTERNAL_ONLY" ;
     fgb:image "${var.region}-docker.pkg.dev/${var.project_id}/${var.ar_repo}/fnox-egress-sendgrid:${var.image_tag}" ;
     fgb:accessesSecret fgb:secret_sendgrid ;
     fgb:accessorRole "roles/secretmanager.secretAccessor" .
@@ -201,6 +224,7 @@ fgb:worker_stripe a fgb:EgressWorker ; gtf:inModule gtf:mod_broker ; gtf:order 3
     gtf:resourceType "google_cloud_run_v2_service" ; gtf:resourceName "egress_stripe" ;
     fgb:gcpName "fnox-egress-stripe" ; fgb:vendor "stripe" ;
     fgb:runsAs fgb:sa_egress_stripe ;
+    fgb:ingress "INGRESS_TRAFFIC_INTERNAL_ONLY" ;
     fgb:image "${var.region}-docker.pkg.dev/${var.project_id}/${var.ar_repo}/fnox-egress-stripe:${var.image_tag}" ;
     fgb:accessesSecret fgb:secret_stripe ;
     fgb:accessorRole "roles/secretmanager.secretAccessor" .
@@ -225,7 +249,12 @@ fgb:wi_platform a fgb:WorkloadIdentityBinding ; gtf:inModule gtf:mod_broker ; gt
     fgb:bindsAccount fgb:sa_platform ;
     fgb:kubernetesNamespace "fnox" ;
     fgb:kubernetesServiceAccount "fnox-platform" ;
-    fgb:rationale "platform pods mint short-lived tokens via the metadata server; no JSON key ever exists." .
+    fgb:twinSurface "/metadata/" ;
+    fgb:metadataFlavorHeader "Metadata-Flavor" ;
+    fgb:metadataFlavorValue "Google" ;
+    fgb:metadataTokenPath "/computeMetadata/v1/instance/service-accounts/default/token" ;
+    fgb:metadataEmailPath "/computeMetadata/v1/instance/service-accounts/default/email" ;
+    fgb:rationale "platform pods mint short-lived tokens via the metadata server (Metadata-Flavor: Google, /computeMetadata/v1/instance/service-accounts/default/token); no JSON key ever exists." .
 
 # ---------------------------------------------------------------------------
 # Constraint: zero static keys

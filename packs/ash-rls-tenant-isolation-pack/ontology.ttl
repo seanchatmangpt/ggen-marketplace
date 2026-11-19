@@ -1,0 +1,293 @@
+# ash-rls-tenant-isolation-pack
+# Vocabulary + canonical pattern individuals for AshPostgres FORCE RLS
+# tenant isolation bound to app.current_tenant_id.
+#
+# Pattern evidence (reference only — not imported, not vendored):
+#   srve/xaas priv/repo/migrations/*tenant_rls* / *rls_policy_platform*
+#   srve/xaas lib/xaas/repo.ex (on_transaction_begin GUC binding)
+#   srve/xaas test/xaas/rls_court_test.exs (catalog + behavior court)
+# Consumers supply table/court/repo individuals; this graph ships the closed
+# policy shapes and GUC names so templates never invent them.
+
+@prefix rls:     <https://ggen.dev/packs/ash-rls-tenant-isolation#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix vann:    <http://purl.org/vocab/vann/> .
+
+<https://ggen.dev/packs/ash-rls-tenant-isolation> a owl:Ontology ;
+    dcterms:title "Ash RLS tenant isolation (FORCE + app.current_tenant_id)" ;
+    dcterms:description "Closed RDF vocabulary for projecting Postgres ENABLE/FORCE RLS and tenant_isolation policies bound to transaction-local app.current_tenant_id GUCs for Ash/AshPostgres multi-tenant apps." ;
+    owl:versionInfo "0.1.1" ;
+    vann:preferredNamespacePrefix "rls" ;
+    vann:preferredNamespaceUri <https://ggen.dev/packs/ash-rls-tenant-isolation#> .
+
+# ---------------------------------------------------------------------------
+# Classes
+# ---------------------------------------------------------------------------
+
+rls:TenantScopedTable a rdfs:Class ;
+    rdfs:label "Tenant-scoped table" ;
+    rdfs:comment "A Postgres relation that carries a tenant column and MUST have ENABLE + FORCE ROW LEVEL SECURITY plus a tenant_isolation policy. Consumers mint one individual per table; the pack never hardcodes a product table list." .
+
+rls:TenantIsolationPolicy a rdfs:Class ;
+    rdfs:label "Tenant isolation policy" ;
+    rdfs:comment "One CREATE POLICY binding on a TenantScopedTable. Default name tenant_isolation; expression composed from an admitted PolicyShape." .
+
+rls:PolicyShape a rdfs:Class ;
+    rdfs:label "Policy shape" ;
+    rdfs:comment "Canonical USING / WITH CHECK expression template. Closed set: StrictTenantMatch and NullableTenantMatch (both with optional platform bypass)." .
+
+rls:TenantGuc a rdfs:Class ;
+    rdfs:label "Tenant GUC" ;
+    rdfs:comment "A Postgres custom setting (SET LOCAL / set_config local) that RLS policies read. Closed names: app.current_tenant_id and app.rls_platform." .
+
+rls:RepoTenantHook a rdfs:Class ;
+    rdfs:label "Repo tenant hook" ;
+    rdfs:comment "AshPostgres.Repo that resolves tenant from Ash transaction reason / process actor and binds TenantGuc values on_transaction_begin. Fail-closed: nil tenant on multitenant resources raises TenantRequired; never invents a fallback UUID." .
+
+rls:CatalogExclusion a rdfs:Class ;
+    rdfs:label "Catalog exclusion" ;
+    rdfs:comment "A public table with a tenant_id column that is deliberately NOT under RLS (auth before tenant context, schema bookkeeping). Court catalog court subtracts these." .
+
+rls:RlsCourt a rdfs:Class ;
+    rdfs:label "RLS court" ;
+    rdfs:comment "ExUnit court: (1) catalog — every non-excluded tenant_id table has relrowsecurity AND relforcerowsecurity and a tenant_isolation policy; (2) behavior — NOSUPERUSER NOBYPASSRLS role sees only current tenant, nothing without GUC, all under platform bypass, WITH CHECK refuses cross-tenant insert." .
+
+rls:IsolationMigration a rdfs:Class ;
+    rdfs:label "Isolation migration" ;
+    rdfs:comment "Idempotent Ecto migration that ENABLE + FORCE RLS and CREATE POLICY tenant_isolation (and tenant_isolation_policy alias) for every admitted TenantScopedTable." .
+
+# ---------------------------------------------------------------------------
+# Properties — table
+# ---------------------------------------------------------------------------
+
+rls:tableName a rdf:Property ;
+    rdfs:domain rls:TenantScopedTable ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Postgres relation name (no schema qualifier)." .
+
+rls:schema a rdf:Property ;
+    rdfs:domain rls:TenantScopedTable ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Postgres schema; defaults to public when absent." .
+
+rls:tenantColumn a rdf:Property ;
+    rdfs:domain rls:TenantScopedTable ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Column compared to the tenant GUC; defaults to tenant_id." .
+
+rls:enableRls a rdf:Property ;
+    rdfs:domain rls:TenantScopedTable ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Must be true for admitted tables (ALTER TABLE … ENABLE ROW LEVEL SECURITY)." .
+
+rls:forceRls a rdf:Property ;
+    rdfs:domain rls:TenantScopedTable ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Must be true for admitted tables (ALTER TABLE … FORCE ROW LEVEL SECURITY). FORCE is the load-bearing law: table owner cannot bypass." .
+
+rls:nullableTenant a rdf:Property ;
+    rdfs:domain rls:TenantScopedTable ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "When true, policy USING/WITH CHECK also admits tenant_id IS NULL (rows owned via a non-tenant chain; still fenced by Ash policies)." .
+
+rls:platformBypass a rdf:Property ;
+    rdfs:domain rls:TenantScopedTable ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "When true (default), policy ORs current_setting('app.rls_platform', true) = 'on'." .
+
+rls:hasPolicy a rdf:Property ;
+    rdfs:domain rls:TenantScopedTable ;
+    rdfs:range rls:TenantIsolationPolicy .
+
+rls:usesShape a rdf:Property ;
+    rdfs:domain rls:TenantIsolationPolicy ;
+    rdfs:range rls:PolicyShape .
+
+rls:policyName a rdf:Property ;
+    rdfs:domain rls:TenantIsolationPolicy ;
+    rdfs:range xsd:string ;
+    rdfs:comment "CREATE POLICY name; default tenant_isolation." .
+
+rls:alsoEmitAliasPolicy a rdf:Property ;
+    rdfs:domain rls:TenantIsolationPolicy ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "When true, also emit tenant_isolation_policy (alias name used by bulk migrations) without replacing a richer existing tenant_isolation." .
+
+# ---------------------------------------------------------------------------
+# Properties — policy shape literals (templates bind these verbatim)
+# ---------------------------------------------------------------------------
+
+rls:usingExpression a rdf:Property ;
+    rdfs:domain rls:PolicyShape ;
+    rdfs:range xsd:string ;
+    rdfs:comment "USING (...) body. Placeholders {{tenant_column}}, {{tenant_guc}}, {{platform_guc}} are substituted by templates." .
+
+rls:withCheckExpression a rdf:Property ;
+    rdfs:domain rls:PolicyShape ;
+    rdfs:range xsd:string ;
+    rdfs:comment "WITH CHECK (...) body; same placeholder contract as usingExpression." .
+
+rls:shapeKind a rdf:Property ;
+    rdfs:domain rls:PolicyShape ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Closed: strict | nullable." .
+
+# ---------------------------------------------------------------------------
+# Properties — GUC / repo / court / migration
+# ---------------------------------------------------------------------------
+
+rls:gucName a rdf:Property ;
+    rdfs:domain rls:TenantGuc ;
+    rdfs:range xsd:string .
+
+rls:gucPurpose a rdf:Property ;
+    rdfs:domain rls:TenantGuc ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Closed: tenant-binding | platform-bypass." .
+
+rls:gucOnValue a rdf:Property ;
+    rdfs:domain rls:TenantGuc ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Value that means 'enabled' for flag GUCs (platform: on)." .
+
+rls:isLocal a rdf:Property ;
+    rdfs:domain rls:TenantGuc ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "true ⇒ set_config(name, value, true) / SET LOCAL; never session-scoped." .
+
+rls:repoModule a rdf:Property ;
+    rdfs:domain rls:RepoTenantHook ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Elixir module, e.g. MyApp.Repo." .
+
+rls:bindsTenantGuc a rdf:Property ;
+    rdfs:domain rls:RepoTenantHook ;
+    rdfs:range rls:TenantGuc .
+
+rls:bindsPlatformGuc a rdf:Property ;
+    rdfs:domain rls:RepoTenantHook ;
+    rdfs:range rls:TenantGuc .
+
+rls:failClosedNilTenant a rdf:Property ;
+    rdfs:domain rls:RepoTenantHook ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "true ⇒ raise Ash.Error.Invalid.TenantRequired (or equivalent) when multitenant resource has nil tenant; never mint a nil-UUID fallback." .
+
+rls:outputPath a rdf:Property ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Consumer-relative path for a generated artifact." .
+
+rls:excludedTableName a rdf:Property ;
+    rdfs:domain rls:CatalogExclusion ;
+    rdfs:range xsd:string .
+
+rls:exclusionReason a rdf:Property ;
+    rdfs:domain rls:CatalogExclusion ;
+    rdfs:range xsd:string .
+
+rls:courtModule a rdf:Property ;
+    rdfs:domain rls:RlsCourt ;
+    rdfs:range xsd:string ;
+    rdfs:comment "ExUnit module, e.g. MyApp.RlsCourtTest." .
+
+rls:probeTable a rdf:Property ;
+    rdfs:domain rls:RlsCourt ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Table the behavior court inserts/selects against; MUST also be a TenantScopedTable." .
+
+rls:courtRole a rdf:Property ;
+    rdfs:domain rls:RlsCourt ;
+    rdfs:range xsd:string ;
+    rdfs:comment "NOSUPERUSER NOBYPASSRLS role name minted inside the sandbox, e.g. rls_court_app." .
+
+rls:usesRepo a rdf:Property ;
+    rdfs:domain rls:RlsCourt ;
+    rdfs:range rls:RepoTenantHook .
+
+rls:migrationModule a rdf:Property ;
+    rdfs:domain rls:IsolationMigration ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Ecto migration module, e.g. MyApp.Repo.Migrations.EnableTenantRlsIsolationPolicy." .
+
+rls:migrationVersion a rdf:Property ;
+    rdfs:domain rls:IsolationMigration ;
+    rdfs:range xsd:string ;
+    rdfs:comment "14-digit Ecto migration timestamp prefix." .
+
+rls:coversTable a rdf:Property ;
+    rdfs:domain rls:IsolationMigration ;
+    rdfs:range rls:TenantScopedTable .
+
+# ---------------------------------------------------------------------------
+# Canonical GUC individuals (closed)
+# ---------------------------------------------------------------------------
+
+rls:GucCurrentTenantId a rls:TenantGuc ;
+    rls:gucName "app.current_tenant_id" ;
+    rls:gucPurpose "tenant-binding" ;
+    rls:isLocal true ;
+    rdfs:comment "Transaction-local tenant UUID string. Policies cast via nullif(current_setting(name, true), '')::uuid so empty string fails closed." .
+
+rls:GucRlsPlatform a rls:TenantGuc ;
+    rls:gucName "app.rls_platform" ;
+    rls:gucPurpose "platform-bypass" ;
+    rls:gucOnValue "on" ;
+    rls:isLocal true ;
+    rdfs:comment "Platform-scope bypass flag. Repo.platform/1 / with_platform_scope sets 'on' for tenant-agnostic lookups and seeds." .
+
+# ---------------------------------------------------------------------------
+# Canonical policy shapes (closed) — templates substitute placeholders
+# ---------------------------------------------------------------------------
+
+rls:ShapeStrictWithPlatform a rls:PolicyShape ;
+    rls:shapeKind "strict" ;
+    rls:usingExpression "{{tenant_column}} = nullif(current_setting('{{tenant_guc}}', true), '')::uuid OR current_setting('{{platform_guc}}', true) = 'on'" ;
+    rls:withCheckExpression "{{tenant_column}} = nullif(current_setting('{{tenant_guc}}', true), '')::uuid OR current_setting('{{platform_guc}}', true) = 'on'" ;
+    rdfs:comment "Default shape: match current tenant OR platform bypass. Empty tenant GUC → nullif → NULL → no match (fail closed)." .
+
+rls:ShapeNullableWithPlatform a rls:PolicyShape ;
+    rls:shapeKind "nullable" ;
+    rls:usingExpression "{{tenant_column}} IS NULL OR {{tenant_column}} = nullif(current_setting('{{tenant_guc}}', true), '')::uuid OR current_setting('{{platform_guc}}', true) = 'on'" ;
+    rls:withCheckExpression "{{tenant_column}} IS NULL OR {{tenant_column}} = nullif(current_setting('{{tenant_guc}}', true), '')::uuid OR current_setting('{{platform_guc}}', true) = 'on'" ;
+    rdfs:comment "Nullable variant: also admits NULL tenant_column rows (ownership via non-tenant chain; Ash policies still fence)." .
+
+rls:ShapeStrictNoPlatform a rls:PolicyShape ;
+    rls:shapeKind "strict" ;
+    rls:usingExpression "{{tenant_column}} = current_setting('{{tenant_guc}}', true)::uuid" ;
+    rls:withCheckExpression "{{tenant_column}} = current_setting('{{tenant_guc}}', true)::uuid" ;
+    rdfs:comment "Minimal PRD shape without nullif/platform. Prefer ShapeStrictWithPlatform for production." .
+
+# ---------------------------------------------------------------------------
+# Default policy individual (shape binding; tables attach via hasPolicy)
+# ---------------------------------------------------------------------------
+
+rls:DefaultTenantIsolationPolicy a rls:TenantIsolationPolicy ;
+    rls:policyName "tenant_isolation" ;
+    rls:usesShape rls:ShapeStrictWithPlatform ;
+    rls:alsoEmitAliasPolicy true ;
+    rdfs:comment "Canonical policy name expected by the catalog court (pg_policies.policyname = 'tenant_isolation')." .
+
+rls:DefaultNullableTenantIsolationPolicy a rls:TenantIsolationPolicy ;
+    rls:policyName "tenant_isolation" ;
+    rls:usesShape rls:ShapeNullableWithPlatform ;
+    rls:alsoEmitAliasPolicy true .
+
+# ---------------------------------------------------------------------------
+# Pattern axioms as named individuals (documentation facts for gates/docs)
+# ---------------------------------------------------------------------------
+
+rls:LawEnableAndForce a owl:NamedIndividual ;
+    rdfs:label "ENABLE and FORCE are both mandatory" ;
+    rdfs:comment "ENABLE alone is insufficient: table owners bypass RLS unless FORCE is set. Court asserts relrowsecurity AND relforcerowsecurity." .
+
+rls:LawFailClosedUnsetGuc a owl:NamedIndividual ;
+    rdfs:label "Unset tenant GUC matches nothing" ;
+    rdfs:comment "Policies must treat missing/empty app.current_tenant_id as no-match. Repo must not invent a fallback UUID." .
+
+rls:LawCourtNeedsNonBypassRole a owl:NamedIndividual ;
+    rdfs:label "Court exercises NOSUPERUSER NOBYPASSRLS" ;
+    rdfs:comment "Superuser connections bypass RLS; the behavior court SET LOCAL ROLE to a NOSUPERUSER NOBYPASSRLS role so policies bind." .

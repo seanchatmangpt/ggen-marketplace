@@ -1,0 +1,29 @@
+# MESSAGE: every User / Group / ServiceProviderConfig schemaUrn must be the
+# matching closed IETF core URN. Wrong or foreign URN = refusal.
+# (No OWL reasoner: subtypes are queried explicitly, not via scim:Resource.)
+PREFIX scim: <https://ggen.dev/ontology/scim-lifecycle#>
+
+SELECT ?subject ?schemaUrn ?problem
+WHERE {
+  {
+    ?subject a scim:User ;
+             scim:schemaUrn ?schemaUrn .
+    FILTER (STR(?schemaUrn) != "urn:ietf:params:scim:schemas:core:2.0:User")
+    BIND("user-schema-urn-mismatch" AS ?problem)
+  }
+  UNION
+  {
+    ?subject a scim:Group ;
+             scim:schemaUrn ?schemaUrn .
+    FILTER (STR(?schemaUrn) != "urn:ietf:params:scim:schemas:core:2.0:Group")
+    BIND("group-schema-urn-mismatch" AS ?problem)
+  }
+  UNION
+  {
+    ?subject a scim:ServiceProviderConfig ;
+             scim:schemaUrn ?schemaUrn .
+    FILTER (STR(?schemaUrn) != "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig")
+    BIND("spc-schema-urn-mismatch" AS ?problem)
+  }
+}
+ORDER BY ?subject ?schemaUrn

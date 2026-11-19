@@ -1,0 +1,29 @@
+# MESSAGE: every scim:User must carry schemaUrn, resourceId, and userName
+# (RFC 7643 §4.1 required identity). Any row = refusal.
+# DIALECT: OPTIONAL + FILTER (!BOUND) + UNION (no EXISTS / VALUES).
+PREFIX scim: <https://ggen.dev/ontology/scim-lifecycle#>
+
+SELECT ?subject ?missing_property
+WHERE {
+  {
+    ?subject a scim:User .
+    OPTIONAL { ?subject scim:schemaUrn ?p_schema }
+    FILTER (!BOUND(?p_schema))
+    BIND("scim:schemaUrn" AS ?missing_property)
+  }
+  UNION
+  {
+    ?subject a scim:User .
+    OPTIONAL { ?subject scim:resourceId ?p_id }
+    FILTER (!BOUND(?p_id))
+    BIND("scim:resourceId" AS ?missing_property)
+  }
+  UNION
+  {
+    ?subject a scim:User .
+    OPTIONAL { ?subject scim:userName ?p_un }
+    FILTER (!BOUND(?p_un))
+    BIND("scim:userName" AS ?missing_property)
+  }
+}
+ORDER BY ?subject ?missing_property

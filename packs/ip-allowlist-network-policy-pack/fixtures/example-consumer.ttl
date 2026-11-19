@@ -1,0 +1,44 @@
+# Example consumer overlay for ip-allowlist-network-policy-pack.
+# Copy into the consumer ontology (or import) and replace CIDRs/namespaces.
+# Documentation ranges only in the pack ontology; consumers substitute real nets
+# under their own change-control. Then: ggen sync run with this pack wired.
+
+@prefix ianp: <https://ggen.dev/packs/ip-allowlist-network-policy#> .
+@prefix ex:   <https://example.org/ianp-consumer#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+ex:CorpVpnAllowlist a ianp:IpAllowlist ;
+    ianp:allowlistId "corp-vpn" ;
+    ianp:allowlistTitle "Corporate VPN ingress (consumer-owned CIDRs)" ;
+    ianp:hasEntry ex:VpnCidr ;
+    ianp:directActuation false ;
+    ianp:evidenceRequired true .
+
+ex:VpnCidr a ianp:CidrEntry ;
+    ianp:entryId "vpn-primary" ;
+    ianp:cidr "10.8.0.0/16" ;
+    ianp:entryLabel "Primary VPN pool (example private)" ;
+    ianp:hasPurpose ianp:purposeVpn .
+
+ex:TenantBZeroEgress a ianp:NetworkPolicySpec ;
+    ianp:policyName "sovereign-zero-egress-jail" ;
+    ianp:namespace "tenant-b" ;
+    ianp:posture ianp:ZeroEgress ;
+    ianp:policyTypesIngress false ;
+    ianp:policyTypesEgress true ;
+    ianp:egressEmpty true ;
+    ianp:directActuation false ;
+    ianp:evidenceRequired true .
+
+ex:VpnIngressPolicy a ianp:NetworkPolicySpec ;
+    ianp:policyName "vpn-ingress-allowlist" ;
+    ianp:namespace "tenant-b" ;
+    ianp:posture ianp:IngressAllowlistOnly ;
+    ianp:policyTypesIngress true ;
+    ianp:policyTypesEgress false ;
+    ianp:egressEmpty false ;
+    ianp:bindsAllowlist ex:CorpVpnAllowlist ;
+    ianp:allowPort 443 ;
+    ianp:allowProtocol "TCP" ;
+    ianp:directActuation false ;
+    ianp:evidenceRequired true .

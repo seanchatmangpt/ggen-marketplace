@@ -1,0 +1,60 @@
+# MESSAGE: flight feed closure (PG-A9 PART A step 3). Every arcus:Feed must
+# carry feedOf (to an arcus:Operation), a closed-set wireFormat
+# (json-envelope | parquet | gitpack), a closed-set cgap frameFlag
+# (0x01 | 0x02 | 0x04 | 0x08), exactly one transcoder, and mandatory
+# prov:wasDerivedFrom. Every arcus:Transcoder is the bijection partner of
+# exactly one Feed. A row returned here is an under-specified or
+# non-bijective feed in the graph.
+# Engine note (GA-6, witnessed live on ggen 26.10.11): a `;` predicate-list
+# self-join with bare-IRI `!=` inside FILTER EXISTS misfires (matches
+# same-subject solutions); the separate-triple-pattern + STR() comparison
+# form is the verified-correct shape on this engine.
+PREFIX arcus: <urn:arcus:>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+SELECT ?subject WHERE {
+  {
+    ?f a arcus:Feed .
+    BIND(?f AS ?subject)
+    FILTER (
+      NOT EXISTS { ?f arcus:feedOf ?op } ||
+      NOT EXISTS { ?f arcus:wireFormat ?wf } ||
+      NOT EXISTS { ?f arcus:frameFlag ?fl } ||
+      NOT EXISTS { ?f arcus:transcoder ?t } ||
+      NOT EXISTS { ?f prov:wasDerivedFrom ?src } ||
+      EXISTS {
+        ?f arcus:frameFlag ?fv .
+        FILTER(?fv NOT IN ("0x01", "0x02", "0x04", "0x08"))
+      } ||
+      EXISTS {
+        ?f arcus:wireFormat ?wv .
+        FILTER(?wv NOT IN ("json-envelope", "parquet", "gitpack"))
+      } ||
+      EXISTS {
+        ?f arcus:transcoder ?t1 .
+        ?f arcus:transcoder ?t2 .
+        FILTER(STR(?t1) != STR(?t2))
+      } ||
+      EXISTS {
+        ?f arcus:feedOf ?opx .
+        ?f2 arcus:feedOf ?opx .
+        FILTER(STR(?f) != STR(?f2))
+      } ||
+      EXISTS {
+        ?f arcus:feedOf ?opy .
+        FILTER NOT EXISTS { ?opy a arcus:Operation }
+      }
+    )
+  } UNION {
+    ?t a arcus:Transcoder .
+    BIND(?t AS ?subject)
+    FILTER (
+      NOT EXISTS { ?f arcus:transcoder ?t } ||
+      EXISTS {
+        ?fa arcus:transcoder ?t .
+        ?fb arcus:transcoder ?t .
+        FILTER(STR(?fa) != STR(?fb))
+      } ||
+      NOT EXISTS { ?t prov:wasDerivedFrom ?src }
+    )
+  }
+} ORDER BY ?subject
