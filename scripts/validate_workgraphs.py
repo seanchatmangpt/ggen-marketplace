@@ -35,6 +35,9 @@ GC_SHAPES = PACK_SHAPES / "goal-checkpoint.shacl.ttl"
 DOC_SHAPES = PACK_SHAPES / "doc-work-order.shacl.ttl"  # campaign WORKGRAPH.ttl
 
 TARGETS = [
+    ("srve", "srve/docs/jira/v26.11.19/WORKGRAPH.ttl"),
+    ("fnox", "fnox/docs/sjira/v26.11.19/WORKGRAPH.ttl"),
+
     # (repo, graph path)
     ("ash_a2a", "ash_a2a/docs/sjira/v26.10.8/WORKGRAPH.ttl"),
     ("ash_affidavit", "ash_affidavit/docs/sjira/v26.10.8/WORKGRAPH.ttl"),
