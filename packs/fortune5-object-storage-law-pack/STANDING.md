@@ -1,6 +1,6 @@
 # fortune5-object-storage-law-pack Standing
 
-Standing: UNVERIFIED
+Standing: VERIFIED
 
 ## Authored (this lane)
 
@@ -12,29 +12,42 @@ Standing: UNVERIFIED
 - `tests/mutations/{direct_actuation,versioning_disabled,catalog_id_drift}.ttl`
 - Capability URN `urn:ggen:pack:fortune5-object-storage-law-pack`
 
-## Coordinator courts (pending)
+## Coordinator evidence (2026-11-19)
 
-Binary: `ggen 26.11.5`. Expected cwd:
-`packs/fortune5-object-storage-law-pack` (scratch sync in `mktemp -d`).
+Source: [Validate F500 sibling packs](8b09808e-d967-4b32-a28c-27547b14961d).
+Binary: `ggen 26.11.5`. Courts: `uv run --no-project --with rdflib --with pyshacl`.
+cwd: `packs/fortune5-object-storage-law-pack` (scratch sync in `mktemp -d`).
 
-| Command | Expected |
-|---|---|
-| `ggen graph validate --files ontology.ttl --shapes shapes/f5os.shacl.ttl` | EXIT 0, shapes_conform |
-| scratch dry-run / sync `--skip-ea-admission` | plan/write `object_storage_inventory.md`, `object_storage_contract.ttl` |
-| rdflib clean: gates 010+020 | 0 rows each |
-| pyshacl clean | Conforms: True |
-| mutation court (3 fixtures) | 3/3 FLIP |
+Per-pack Standing: **VERIFIED** (all EXIT=0 below). Composition SoT remains **BLOCKED**.
+
+| Command | EXIT | Notes |
+|---|---|---|
+| `ggen graph validate --files ontology.ttl --shapes shapes/f5os.shacl.ttl` | **0** | 97 quads, `shapes_conform: true` |
+| scratch dry-run `--skip-ea-admission` | **0** | planned: `object_storage_inventory.md`, `object_storage_contract.ttl` |
+| scratch sync `--skip-ea-admission` | **0** | wrote both under `infrastructure/data/object-storage/` |
+| rdflib clean: gates 010+020 | **0** | 0 rows each |
+| pyshacl clean | **0** | `Conforms: True` |
+| mutation court (3 fixtures) | **0** | 3/3 FLIP |
+
+| Mutation | Gate flip | SHACL |
+|---|---|---|
+| `direct_actuation` | 020 → 1 row | Conforms: False (rc=1) |
+| `versioning_disabled` | 020 → 1 row | Conforms: False (rc=1) |
+| `catalog_id_drift` | 020 → 1 row | Conforms: False (rc=1) |
+
+### Residuals
+
+- Gate **010** anti-vacuity: **UNVERIFIED** — current fixtures never flip incomplete-contract
+  (all flips are 020 only). Not a court FAIL; do not claim Gate 010 VERIFIED.
 
 ## BLOCKED (missing SoT — exact reasons)
 
-1. **Coordinator sync/court not yet run** — Standing remains UNVERIFIED until
-   graph validate + gate/mutation courts land evidence.
-2. **Provider / Ash / WORM data-plane projections:** catalog `provider_packs`
+1. **Provider / Ash / WORM data-plane projections:** catalog `provider_packs`
    (`aws-s3-pack`, `aws-s3-object-lock-pack`, `azure-immutable-blob-pack`,
    `gcp-bucket-lock-pack`, …) and Smalt Blob WORM faces are downstream
    actuation SoT. Emitting live bucket policies, immutability tokens, or
    access keys would invent secrets / customer SoT — refused. Law +
    inventory projections only.
-3. **Customer bucket SoT absent:** scaffold individuals
+2. **Customer bucket SoT absent:** scaffold individuals
    (`BUCKET-EVIDENCE-001`, LC 90/2555) are illustrative catalog bindings,
    not a named enterprise object-storage register.
