@@ -1,0 +1,668 @@
+# scim-lifecycle-pack: SCIM 2.0 Users / Groups / ServiceProviderConfig vocabulary
+# + Ash/HTTP projection stub individuals. Construction only — declaring a User
+# or Group grants no provisioning authority (never DO).
+#
+# Public anchors (RFC 7643 / 7644):
+#   urn:ietf:params:scim:schemas:core:2.0:User
+#   urn:ietf:params:scim:schemas:core:2.0:Group
+#   urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig
+# Minted namespace (capability-justified): https://ggen.dev/ontology/scim-lifecycle#
+
+@prefix scim:    <https://ggen.dev/ontology/scim-lifecycle#> .
+@prefix apg:     <https://ggen.dev/ash-projection#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix foaf:    <http://xmlns.com/foaf/0.1/> .
+@prefix org:     <http://www.w3.org/ns/org#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann:    <http://purl.org/vocab/vann/> .
+
+<https://ggen.dev/ontology/scim-lifecycle> a owl:Ontology ;
+    dcterms:title "SCIM 2.0 identity lifecycle (Users / Groups / ServiceProviderConfig)" ;
+    dcterms:description "RDF adapter for RFC 7643 core schemas and RFC 7644 HTTP surface, with Ash semantic-map and HTTP endpoint catalog projections. Grants no DO authority." ;
+    dcterms:source <https://datatracker.ietf.org/doc/html/rfc7643> ,
+                   <https://datatracker.ietf.org/doc/html/rfc7644> ;
+    owl:versionInfo "0.2.0" ;
+    vann:preferredNamespacePrefix "scim" ;
+    vann:preferredNamespaceUri <https://ggen.dev/ontology/scim-lifecycle#> .
+
+# Minimal ash-projection vocabulary (self-contained; full pack is
+# canonical-ash-projection-generator). Declared here so validate does not
+# depend on an external load for apg: class/property IRIs used below.
+apg:Resource a rdfs:Class ;
+    rdfs:label "Ash projection resource" .
+apg:Attribute a rdfs:Class ;
+    rdfs:label "Ash projection attribute" .
+apg:SemanticBinding a rdfs:Class ;
+    rdfs:label "Ash semantic binding" .
+apg:resourceName a rdf:Property ; rdfs:range xsd:string .
+apg:moduleName a rdf:Property ; rdfs:range xsd:string .
+apg:domainIri a rdf:Property .
+apg:sourceDigest a rdf:Property ; rdfs:range xsd:string .
+apg:attribute a rdf:Property ; rdfs:range apg:Attribute .
+apg:attributeName a rdf:Property ; rdfs:range xsd:string .
+apg:ashType a rdf:Property ; rdfs:range xsd:string .
+apg:primaryKey a rdf:Property ; rdfs:range xsd:boolean .
+apg:semanticPredicate a rdf:Property .
+apg:exactSubject a rdf:Property ; rdfs:range xsd:string .
+
+# ---------------------------------------------------------------------------
+# Classes
+# ---------------------------------------------------------------------------
+
+scim:Resource a rdfs:Class ;
+    rdfs:label "SCIM Resource" ;
+    rdfs:comment "Abstract SCIM resource (RFC 7643 §3). Subclasses carry schema URNs." .
+
+scim:User a rdfs:Class ;
+    rdfs:subClassOf scim:Resource, foaf:Agent ;
+    rdfs:label "SCIM User" ;
+    rdfs:comment "RFC 7643 §4.1 User. schemaUrn = urn:ietf:params:scim:schemas:core:2.0:User." .
+
+scim:Group a rdfs:Class ;
+    rdfs:subClassOf scim:Resource, org:Organization ;
+    rdfs:label "SCIM Group" ;
+    rdfs:comment "RFC 7643 §4.2 Group. schemaUrn = urn:ietf:params:scim:schemas:core:2.0:Group. org:Organization is a strained fit (groups are membership collections, not always orgs); disclosed." .
+
+scim:ServiceProviderConfig a rdfs:Class ;
+    rdfs:subClassOf scim:Resource ;
+    rdfs:label "ServiceProviderConfig" ;
+    rdfs:comment "RFC 7643 §5 ServiceProviderConfig. Discovery document for protocol capabilities." .
+
+scim:Email a rdfs:Class ;
+    rdfs:label "Email" ;
+    rdfs:comment "RFC 7643 §4.1.2 multi-valued email attribute." .
+
+scim:Member a rdfs:Class ;
+    rdfs:label "Group Member" ;
+    rdfs:comment "RFC 7643 §4.2 members[] value." .
+
+scim:Meta a rdfs:Class ;
+    rdfs:label "Resource Meta" ;
+    rdfs:comment "RFC 7643 §3.1 common meta complex attribute." .
+
+scim:LifecycleOperation a rdfs:Class ;
+    rdfs:subClassOf prov:Activity ;
+    rdfs:label "Lifecycle Operation" ;
+    rdfs:comment "Minted: SCIM protocol verb (create/replace/patch/delete/search) as an observed activity class. No public ontology enumerates SCIM verbs." .
+
+scim:HttpEndpoint a rdfs:Class ;
+    rdfs:label "HTTP Endpoint" ;
+    rdfs:comment "Minted: one RFC 7644 route card (method + path + resource class) for HTTP catalog projection." .
+
+scim:AshProjectionTarget a rdfs:Class ;
+    rdfs:subClassOf apg:Resource ;
+    rdfs:label "Ash Projection Target" ;
+    rdfs:comment "Minted stub: maps a SCIM resource class onto an intended Ash module/name/primary-key surface. Emits Turtle semantic-map stubs only — no Elixir runtime in this pack." .
+
+scim:CapabilityFlag a rdfs:Class ;
+    rdfs:label "SPC Capability Flag" ;
+    rdfs:comment "One ServiceProviderConfig capability (patch/bulk/filter/changePassword/sort/etag)." .
+
+scim:ResourceType a rdfs:Class ;
+    rdfs:subClassOf scim:Resource ;
+    rdfs:label "SCIM ResourceType" ;
+    rdfs:comment "RFC 7643 §6 ResourceType discovery document (name, endpoint, schema)." .
+
+scim:Schema a rdfs:Class ;
+    rdfs:subClassOf scim:Resource ;
+    rdfs:label "SCIM Schema" ;
+    rdfs:comment "RFC 7643 §7 Schema discovery document keyed by schema URN." .
+
+# ---------------------------------------------------------------------------
+# Closed schema-URN vocabulary (skos)
+# ---------------------------------------------------------------------------
+
+scim:SchemaUrnScheme a skos:ConceptScheme ;
+    skos:prefLabel "SCIM 2.0 core schema URNs" .
+
+scim:SchemaUrnUser a skos:Concept ;
+    skos:inScheme scim:SchemaUrnScheme ;
+    skos:notation "urn:ietf:params:scim:schemas:core:2.0:User" ;
+    skos:prefLabel "User schema URN" .
+
+scim:SchemaUrnGroup a skos:Concept ;
+    skos:inScheme scim:SchemaUrnScheme ;
+    skos:notation "urn:ietf:params:scim:schemas:core:2.0:Group" ;
+    skos:prefLabel "Group schema URN" .
+
+scim:SchemaUrnServiceProviderConfig a skos:Concept ;
+    skos:inScheme scim:SchemaUrnScheme ;
+    skos:notation "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig" ;
+    skos:prefLabel "ServiceProviderConfig schema URN" .
+
+scim:OpScheme a skos:ConceptScheme ;
+    skos:prefLabel "SCIM lifecycle operations" .
+
+scim:OpCreate a skos:Concept ; skos:inScheme scim:OpScheme ; skos:notation "create" .
+scim:OpReplace a skos:Concept ; skos:inScheme scim:OpScheme ; skos:notation "replace" .
+scim:OpPatch   a skos:Concept ; skos:inScheme scim:OpScheme ; skos:notation "patch" .
+scim:OpDelete  a skos:Concept ; skos:inScheme scim:OpScheme ; skos:notation "delete" .
+scim:OpSearch  a skos:Concept ; skos:inScheme scim:OpScheme ; skos:notation "search" .
+
+# ---------------------------------------------------------------------------
+# Datatype / object properties
+# ---------------------------------------------------------------------------
+
+scim:schemaUrn a rdf:Property ;
+    rdfs:domain scim:Resource ;
+    rdfs:range xsd:anyURI ;
+    rdfs:comment "Exact IETF SCIM schema URN for this resource." .
+
+scim:resourceId a rdf:Property ;
+    rdfs:domain scim:Resource ;
+    rdfs:range xsd:string ;
+    rdfs:comment "SCIM id (server-assigned)." .
+
+scim:externalId a rdf:Property ;
+    rdfs:domain scim:Resource ;
+    rdfs:range xsd:string .
+
+scim:userName a rdf:Property ;
+    rdfs:domain scim:User ;
+    rdfs:range xsd:string ;
+    rdfs:comment "RFC 7643 required unique identifier for the User (usually a login)." .
+
+scim:displayName a rdf:Property ;
+    rdfs:domain scim:Resource ;
+    rdfs:range xsd:string .
+
+scim:active a rdf:Property ;
+    rdfs:domain scim:User ;
+    rdfs:range xsd:boolean .
+
+scim:nickName a rdf:Property ;
+    rdfs:domain scim:User ;
+    rdfs:range xsd:string .
+
+scim:title a rdf:Property ;
+    rdfs:domain scim:User ;
+    rdfs:range xsd:string .
+
+scim:preferredLanguage a rdf:Property ;
+    rdfs:domain scim:User ;
+    rdfs:range xsd:string .
+
+scim:locale a rdf:Property ;
+    rdfs:domain scim:User ;
+    rdfs:range xsd:string .
+
+scim:timezone a rdf:Property ;
+    rdfs:domain scim:User ;
+    rdfs:range xsd:string .
+
+scim:familyName a rdf:Property ;
+    rdfs:domain scim:User ;
+    rdfs:range xsd:string .
+
+scim:givenName a rdf:Property ;
+    rdfs:domain scim:User ;
+    rdfs:range xsd:string .
+
+scim:email a rdf:Property ;
+    rdfs:domain scim:User ;
+    rdfs:range scim:Email .
+
+scim:emailValue a rdf:Property ;
+    rdfs:domain scim:Email ;
+    rdfs:range xsd:string .
+
+scim:emailType a rdf:Property ;
+    rdfs:domain scim:Email ;
+    rdfs:range xsd:string .
+
+scim:emailPrimary a rdf:Property ;
+    rdfs:domain scim:Email ;
+    rdfs:range xsd:boolean .
+
+scim:member a rdf:Property ;
+    rdfs:domain scim:Group ;
+    rdfs:range scim:Member .
+
+scim:memberValue a rdf:Property ;
+    rdfs:domain scim:Member ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Member id (User or Group id)." .
+
+scim:memberType a rdf:Property ;
+    rdfs:domain scim:Member ;
+    rdfs:range xsd:string ;
+    rdfs:comment "User or Group." .
+
+scim:memberDisplay a rdf:Property ;
+    rdfs:domain scim:Member ;
+    rdfs:range xsd:string .
+
+scim:hasMeta a rdf:Property ;
+    rdfs:domain scim:Resource ;
+    rdfs:range scim:Meta .
+
+scim:resourceType a rdf:Property ;
+    rdfs:domain scim:Meta ;
+    rdfs:range xsd:string .
+
+scim:created a rdf:Property ;
+    rdfs:domain scim:Meta ;
+    rdfs:range xsd:dateTime .
+
+scim:lastModified a rdf:Property ;
+    rdfs:domain scim:Meta ;
+    rdfs:range xsd:dateTime .
+
+scim:location a rdf:Property ;
+    rdfs:domain scim:Meta ;
+    rdfs:range xsd:anyURI .
+
+scim:version a rdf:Property ;
+    rdfs:domain scim:Meta ;
+    rdfs:range xsd:string .
+
+# ServiceProviderConfig capability properties (RFC 7643 §5)
+scim:documentationUri a rdf:Property ;
+    rdfs:domain scim:ServiceProviderConfig ;
+    rdfs:range xsd:anyURI .
+
+scim:patchSupported a rdf:Property ;
+    rdfs:domain scim:ServiceProviderConfig ;
+    rdfs:range xsd:boolean .
+
+scim:bulkSupported a rdf:Property ;
+    rdfs:domain scim:ServiceProviderConfig ;
+    rdfs:range xsd:boolean .
+
+scim:filterSupported a rdf:Property ;
+    rdfs:domain scim:ServiceProviderConfig ;
+    rdfs:range xsd:boolean .
+
+scim:changePasswordSupported a rdf:Property ;
+    rdfs:domain scim:ServiceProviderConfig ;
+    rdfs:range xsd:boolean .
+
+scim:sortSupported a rdf:Property ;
+    rdfs:domain scim:ServiceProviderConfig ;
+    rdfs:range xsd:boolean .
+
+scim:etagSupported a rdf:Property ;
+    rdfs:domain scim:ServiceProviderConfig ;
+    rdfs:range xsd:boolean .
+
+scim:maxOperations a rdf:Property ;
+    rdfs:domain scim:ServiceProviderConfig ;
+    rdfs:range xsd:integer .
+
+scim:maxPayloadSize a rdf:Property ;
+    rdfs:domain scim:ServiceProviderConfig ;
+    rdfs:range xsd:integer .
+
+scim:maxResults a rdf:Property ;
+    rdfs:domain scim:ServiceProviderConfig ;
+    rdfs:range xsd:integer .
+
+# Password fence: property exists so the gate can refuse literals. Never populate.
+scim:password a rdf:Property ;
+    rdfs:domain scim:User ;
+    rdfs:range xsd:string ;
+    rdfs:comment "RFC 7643 password attribute. FORBIDDEN in this pack's graph (gate 050). Write-only at protocol runtime; never persisted as RDF." .
+
+# Lifecycle / HTTP / Ash projection
+scim:operationKind a rdf:Property ;
+    rdfs:domain scim:LifecycleOperation ;
+    rdfs:range skos:Concept .
+
+scim:targetsResourceClass a rdf:Property ;
+    rdfs:domain scim:LifecycleOperation ;
+    rdfs:range rdfs:Class .
+
+scim:httpMethod a rdf:Property ;
+    rdfs:domain scim:HttpEndpoint ;
+    rdfs:range xsd:string .
+
+scim:httpPath a rdf:Property ;
+    rdfs:domain scim:HttpEndpoint ;
+    rdfs:range xsd:string .
+
+scim:endpointResourceClass a rdf:Property ;
+    rdfs:domain scim:HttpEndpoint ;
+    rdfs:range rdfs:Class .
+
+scim:ashModuleName a rdf:Property ;
+    rdfs:domain scim:AshProjectionTarget ;
+    rdfs:range xsd:string .
+
+scim:ashResourceName a rdf:Property ;
+    rdfs:domain scim:AshProjectionTarget ;
+    rdfs:range xsd:string .
+
+scim:ashDomainModule a rdf:Property ;
+    rdfs:domain scim:AshProjectionTarget ;
+    rdfs:range xsd:string .
+
+scim:sourceSchemaUrn a rdf:Property ;
+    rdfs:domain scim:AshProjectionTarget ;
+    rdfs:range xsd:anyURI .
+
+scim:primaryKeyAttribute a rdf:Property ;
+    rdfs:domain scim:AshProjectionTarget ;
+    rdfs:range xsd:string .
+
+scim:projectsClass a rdf:Property ;
+    rdfs:domain scim:AshProjectionTarget ;
+    rdfs:range rdfs:Class .
+
+scim:resourceTypeName a rdf:Property ;
+    rdfs:domain scim:ResourceType ;
+    rdfs:range xsd:string ;
+    rdfs:comment "ResourceType.name (User, Group, …)." .
+
+scim:endpoint a rdf:Property ;
+    rdfs:domain scim:ResourceType ;
+    rdfs:range xsd:string ;
+    rdfs:comment "ResourceType.endpoint (e.g. /Users)." .
+
+scim:schemaDescription a rdf:Property ;
+    rdfs:domain scim:Schema ;
+    rdfs:range xsd:string .
+
+# ---------------------------------------------------------------------------
+# Lifecycle operation individuals (closed set)
+# ---------------------------------------------------------------------------
+
+scim:lifecycle-user-create a scim:LifecycleOperation ;
+    scim:operationKind scim:OpCreate ;
+    scim:targetsResourceClass scim:User ;
+    dcterms:description "POST /Users" .
+
+scim:lifecycle-user-replace a scim:LifecycleOperation ;
+    scim:operationKind scim:OpReplace ;
+    scim:targetsResourceClass scim:User ;
+    dcterms:description "PUT /Users/{id}" .
+
+scim:lifecycle-user-patch a scim:LifecycleOperation ;
+    scim:operationKind scim:OpPatch ;
+    scim:targetsResourceClass scim:User ;
+    dcterms:description "PATCH /Users/{id}" .
+
+scim:lifecycle-user-delete a scim:LifecycleOperation ;
+    scim:operationKind scim:OpDelete ;
+    scim:targetsResourceClass scim:User ;
+    dcterms:description "DELETE /Users/{id}" .
+
+scim:lifecycle-group-create a scim:LifecycleOperation ;
+    scim:operationKind scim:OpCreate ;
+    scim:targetsResourceClass scim:Group ;
+    dcterms:description "POST /Groups" .
+
+scim:lifecycle-group-replace a scim:LifecycleOperation ;
+    scim:operationKind scim:OpReplace ;
+    scim:targetsResourceClass scim:Group ;
+    dcterms:description "PUT /Groups/{id}" .
+
+scim:lifecycle-group-patch a scim:LifecycleOperation ;
+    scim:operationKind scim:OpPatch ;
+    scim:targetsResourceClass scim:Group ;
+    dcterms:description "PATCH /Groups/{id}" .
+
+scim:lifecycle-group-delete a scim:LifecycleOperation ;
+    scim:operationKind scim:OpDelete ;
+    scim:targetsResourceClass scim:Group ;
+    dcterms:description "DELETE /Groups/{id}" .
+
+scim:lifecycle-user-search a scim:LifecycleOperation ;
+    scim:operationKind scim:OpSearch ;
+    scim:targetsResourceClass scim:User ;
+    dcterms:description "GET /Users?filter=… / POST /.search" .
+
+scim:lifecycle-group-search a scim:LifecycleOperation ;
+    scim:operationKind scim:OpSearch ;
+    scim:targetsResourceClass scim:Group ;
+    dcterms:description "GET /Groups?filter=… / POST /.search" .
+
+# ---------------------------------------------------------------------------
+# HTTP endpoint catalog (RFC 7644) — projection source
+# ---------------------------------------------------------------------------
+
+scim:ep-users-collection-get a scim:HttpEndpoint ;
+    scim:httpMethod "GET" ; scim:httpPath "/Users" ;
+    scim:endpointResourceClass scim:User .
+
+scim:ep-users-collection-post a scim:HttpEndpoint ;
+    scim:httpMethod "POST" ; scim:httpPath "/Users" ;
+    scim:endpointResourceClass scim:User .
+
+scim:ep-users-item-get a scim:HttpEndpoint ;
+    scim:httpMethod "GET" ; scim:httpPath "/Users/{id}" ;
+    scim:endpointResourceClass scim:User .
+
+scim:ep-users-item-put a scim:HttpEndpoint ;
+    scim:httpMethod "PUT" ; scim:httpPath "/Users/{id}" ;
+    scim:endpointResourceClass scim:User .
+
+scim:ep-users-item-patch a scim:HttpEndpoint ;
+    scim:httpMethod "PATCH" ; scim:httpPath "/Users/{id}" ;
+    scim:endpointResourceClass scim:User .
+
+scim:ep-users-item-delete a scim:HttpEndpoint ;
+    scim:httpMethod "DELETE" ; scim:httpPath "/Users/{id}" ;
+    scim:endpointResourceClass scim:User .
+
+scim:ep-groups-collection-get a scim:HttpEndpoint ;
+    scim:httpMethod "GET" ; scim:httpPath "/Groups" ;
+    scim:endpointResourceClass scim:Group .
+
+scim:ep-groups-collection-post a scim:HttpEndpoint ;
+    scim:httpMethod "POST" ; scim:httpPath "/Groups" ;
+    scim:endpointResourceClass scim:Group .
+
+scim:ep-groups-item-get a scim:HttpEndpoint ;
+    scim:httpMethod "GET" ; scim:httpPath "/Groups/{id}" ;
+    scim:endpointResourceClass scim:Group .
+
+scim:ep-groups-item-put a scim:HttpEndpoint ;
+    scim:httpMethod "PUT" ; scim:httpPath "/Groups/{id}" ;
+    scim:endpointResourceClass scim:Group .
+
+scim:ep-groups-item-patch a scim:HttpEndpoint ;
+    scim:httpMethod "PATCH" ; scim:httpPath "/Groups/{id}" ;
+    scim:endpointResourceClass scim:Group .
+
+scim:ep-groups-item-delete a scim:HttpEndpoint ;
+    scim:httpMethod "DELETE" ; scim:httpPath "/Groups/{id}" ;
+    scim:endpointResourceClass scim:Group .
+
+scim:ep-spc-get a scim:HttpEndpoint ;
+    scim:httpMethod "GET" ; scim:httpPath "/ServiceProviderConfig" ;
+    scim:endpointResourceClass scim:ServiceProviderConfig .
+
+scim:ep-resource-types-get a scim:HttpEndpoint ;
+    scim:httpMethod "GET" ; scim:httpPath "/ResourceTypes" ;
+    scim:endpointResourceClass scim:ResourceType .
+
+scim:ep-resource-types-item-get a scim:HttpEndpoint ;
+    scim:httpMethod "GET" ; scim:httpPath "/ResourceTypes/{id}" ;
+    scim:endpointResourceClass scim:ResourceType .
+
+scim:ep-schemas-get a scim:HttpEndpoint ;
+    scim:httpMethod "GET" ; scim:httpPath "/Schemas" ;
+    scim:endpointResourceClass scim:Schema .
+
+scim:ep-schemas-item-get a scim:HttpEndpoint ;
+    scim:httpMethod "GET" ; scim:httpPath "/Schemas/{id}" ;
+    scim:endpointResourceClass scim:Schema .
+
+# ---------------------------------------------------------------------------
+# ResourceType + Schema discovery individuals (RFC 7643 §6 / §7)
+# ---------------------------------------------------------------------------
+
+scim:rt-user a scim:ResourceType ;
+    scim:resourceTypeName "User" ;
+    scim:endpoint "/Users" ;
+    scim:schemaUrn "urn:ietf:params:scim:schemas:core:2.0:User" ;
+    scim:resourceId "User" ;
+    dcterms:description "Core User ResourceType." .
+
+scim:rt-group a scim:ResourceType ;
+    scim:resourceTypeName "Group" ;
+    scim:endpoint "/Groups" ;
+    scim:schemaUrn "urn:ietf:params:scim:schemas:core:2.0:Group" ;
+    scim:resourceId "Group" ;
+    dcterms:description "Core Group ResourceType." .
+
+scim:schema-user a scim:Schema ;
+    scim:schemaUrn "urn:ietf:params:scim:schemas:core:2.0:User" ;
+    scim:resourceId "urn:ietf:params:scim:schemas:core:2.0:User" ;
+    scim:schemaDescription "User core schema (RFC 7643 §4.1)." .
+
+scim:schema-group a scim:Schema ;
+    scim:schemaUrn "urn:ietf:params:scim:schemas:core:2.0:Group" ;
+    scim:resourceId "urn:ietf:params:scim:schemas:core:2.0:Group" ;
+    scim:schemaDescription "Group core schema (RFC 7643 §4.2)." .
+
+scim:schema-spc a scim:Schema ;
+    scim:schemaUrn "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig" ;
+    scim:resourceId "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig" ;
+    scim:schemaDescription "ServiceProviderConfig schema (RFC 7643 §5)." .
+
+# ---------------------------------------------------------------------------
+# Ash projection targets (Turtle/Markdown only — no Elixir runtime)
+# ---------------------------------------------------------------------------
+
+scim:ash-user a scim:AshProjectionTarget ;
+    scim:projectsClass scim:User ;
+    scim:sourceSchemaUrn "urn:ietf:params:scim:schemas:core:2.0:User" ;
+    scim:ashDomainModule "ScimLifecycle" ;
+    scim:ashModuleName "User" ;
+    scim:ashResourceName "User" ;
+    scim:primaryKeyAttribute "id" ;
+    apg:resourceName "User" ;
+    apg:moduleName "User" ;
+    apg:domainIri <https://ggen.dev/ontology/scim-lifecycle#User> ;
+    apg:sourceDigest "scim-lifecycle:user:v0.1.0" ;
+    apg:attribute scim:attr-user-id , scim:attr-user-userName , scim:attr-user-active .
+
+scim:attr-user-id a apg:Attribute ;
+    apg:attributeName "id" ;
+    apg:ashType "string" ;
+    apg:primaryKey true ;
+    apg:semanticPredicate <https://ggen.dev/ontology/scim-lifecycle#resourceId> .
+
+scim:attr-user-userName a apg:Attribute ;
+    apg:attributeName "user_name" ;
+    apg:ashType "string" ;
+    apg:primaryKey false ;
+    apg:semanticPredicate <https://ggen.dev/ontology/scim-lifecycle#userName> .
+
+scim:attr-user-active a apg:Attribute ;
+    apg:attributeName "active" ;
+    apg:ashType "boolean" ;
+    apg:primaryKey false ;
+    apg:semanticPredicate <https://ggen.dev/ontology/scim-lifecycle#active> .
+
+scim:ash-group a scim:AshProjectionTarget ;
+    scim:projectsClass scim:Group ;
+    scim:sourceSchemaUrn "urn:ietf:params:scim:schemas:core:2.0:Group" ;
+    scim:ashDomainModule "ScimLifecycle" ;
+    scim:ashModuleName "Group" ;
+    scim:ashResourceName "Group" ;
+    scim:primaryKeyAttribute "id" ;
+    apg:resourceName "Group" ;
+    apg:moduleName "Group" ;
+    apg:domainIri <https://ggen.dev/ontology/scim-lifecycle#Group> ;
+    apg:sourceDigest "scim-lifecycle:group:v0.1.0" ;
+    apg:attribute scim:attr-group-id , scim:attr-group-displayName .
+
+scim:attr-group-id a apg:Attribute ;
+    apg:attributeName "id" ;
+    apg:ashType "string" ;
+    apg:primaryKey true ;
+    apg:semanticPredicate <https://ggen.dev/ontology/scim-lifecycle#resourceId> .
+
+scim:attr-group-displayName a apg:Attribute ;
+    apg:attributeName "display_name" ;
+    apg:ashType "string" ;
+    apg:primaryKey false ;
+    apg:semanticPredicate <https://ggen.dev/ontology/scim-lifecycle#displayName> .
+
+scim:ash-spc a scim:AshProjectionTarget ;
+    scim:projectsClass scim:ServiceProviderConfig ;
+    scim:sourceSchemaUrn "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig" ;
+    scim:ashDomainModule "ScimLifecycle" ;
+    scim:ashModuleName "ServiceProviderConfig" ;
+    scim:ashResourceName "ServiceProviderConfig" ;
+    scim:primaryKeyAttribute "id" ;
+    apg:resourceName "ServiceProviderConfig" ;
+    apg:moduleName "ServiceProviderConfig" ;
+    apg:domainIri <https://ggen.dev/ontology/scim-lifecycle#ServiceProviderConfig> ;
+    apg:sourceDigest "scim-lifecycle:spc:v0.1.0" ;
+    apg:attribute scim:attr-spc-id .
+
+scim:attr-spc-id a apg:Attribute ;
+    apg:attributeName "id" ;
+    apg:ashType "string" ;
+    apg:primaryKey true ;
+    apg:semanticPredicate <https://ggen.dev/ontology/scim-lifecycle#resourceId> .
+
+# ---------------------------------------------------------------------------
+# Specimen individuals (qualification / template seed — not production data)
+# ---------------------------------------------------------------------------
+
+scim:spc-default a scim:ServiceProviderConfig ;
+    scim:schemaUrn "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig" ;
+    scim:resourceId "ServiceProviderConfig" ;
+    scim:documentationUri "https://ggen.dev/docs/scim-lifecycle" ;
+    scim:patchSupported true ;
+    scim:bulkSupported false ;
+    scim:filterSupported true ;
+    scim:changePasswordSupported false ;
+    scim:sortSupported false ;
+    scim:etagSupported true ;
+    scim:maxResults 100 ;
+    dcterms:description "Default SPC discovery stub for this pack. Capability flags are facts, not authority." .
+
+scim:user-specimen a scim:User ;
+    scim:schemaUrn "urn:ietf:params:scim:schemas:core:2.0:User" ;
+    scim:resourceId "user-specimen-001" ;
+    scim:externalId "ext-user-001" ;
+    scim:userName "specimen.user" ;
+    scim:displayName "Specimen User" ;
+    scim:givenName "Specimen" ;
+    scim:familyName "User" ;
+    scim:active true ;
+    scim:email scim:email-specimen-primary ;
+    scim:hasMeta scim:meta-user-specimen ;
+    dcterms:description "Fixture User for gate/template courts. Not a real identity." .
+
+scim:email-specimen-primary a scim:Email ;
+    scim:emailValue "specimen.user@example.invalid" ;
+    scim:emailType "work" ;
+    scim:emailPrimary true .
+
+scim:meta-user-specimen a scim:Meta ;
+    scim:resourceType "User" ;
+    scim:created "2026-11-19T00:00:00Z"^^xsd:dateTime ;
+    scim:lastModified "2026-11-19T00:00:00Z"^^xsd:dateTime ;
+    scim:location "https://example.invalid/scim/v2/Users/user-specimen-001" ;
+    scim:version "W/\"1\"" .
+
+scim:group-specimen a scim:Group ;
+    scim:schemaUrn "urn:ietf:params:scim:schemas:core:2.0:Group" ;
+    scim:resourceId "group-specimen-001" ;
+    scim:displayName "Specimen Group" ;
+    scim:member scim:member-specimen-user ;
+    scim:hasMeta scim:meta-group-specimen ;
+    dcterms:description "Fixture Group for gate/template courts." .
+
+scim:member-specimen-user a scim:Member ;
+    scim:memberValue "user-specimen-001" ;
+    scim:memberType "User" ;
+    scim:memberDisplay "Specimen User" .
+
+scim:meta-group-specimen a scim:Meta ;
+    scim:resourceType "Group" ;
+    scim:created "2026-11-19T00:00:00Z"^^xsd:dateTime ;
+    scim:lastModified "2026-11-19T00:00:00Z"^^xsd:dateTime ;
+    scim:location "https://example.invalid/scim/v2/Groups/group-specimen-001" ;
+    scim:version "W/\"1\"" .

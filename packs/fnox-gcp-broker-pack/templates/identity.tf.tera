@@ -26,10 +26,15 @@ sparql:
   wi_bindings: |
     PREFIX gtf: <https://seanchatmangpt.dev/ontology/gcp-terraform#>
     PREFIX fgb: <https://seanchatmangpt.dev/ontology/fnox-gcp-broker#>
-    SELECT ?name ?sa_name ?namespace ?ksa WHERE {
+    SELECT ?name ?sa_name ?namespace ?ksa ?flavor_hdr ?flavor_val ?token_path ?email_path ?twin_surface WHERE {
       ?b a fgb:WorkloadIdentityBinding ; gtf:resourceName ?name ; fgb:bindsAccount ?sa ;
          fgb:kubernetesNamespace ?namespace ; fgb:kubernetesServiceAccount ?ksa .
       ?sa gtf:resourceName ?sa_name .
+      OPTIONAL { ?b fgb:metadataFlavorHeader ?flavor_hdr }
+      OPTIONAL { ?b fgb:metadataFlavorValue ?flavor_val }
+      OPTIONAL { ?b fgb:metadataTokenPath ?token_path }
+      OPTIONAL { ?b fgb:metadataEmailPath ?email_path }
+      OPTIONAL { ?b fgb:twinSurface ?twin_surface }
     } ORDER BY ?name
   constraints: |
     PREFIX gtf: <https://seanchatmangpt.dev/ontology/gcp-terraform#>
@@ -66,6 +71,7 @@ resource "google_pubsub_topic_iam_member" "{{ p.name }}_publishes_{{ p.topic_nam
 }
 {% endfor %}
 {% for w in wi_bindings %}
+# Metadata token contract (arcus-fnox {{ w.twin_surface | default(value="/metadata/") }}): {{ w.flavor_hdr | default(value="Metadata-Flavor") }}={{ w.flavor_val | default(value="Google") }}, token={{ w.token_path | default(value="/computeMetadata/v1/instance/service-accounts/default/token") }}, email={{ w.email_path | default(value="/computeMetadata/v1/instance/service-accounts/default/email") }}
 resource "google_service_account_iam_member" "{{ w.name }}" {
   service_account_id = google_service_account.{{ w.sa_name }}.name
   role               = "roles/iam.workloadIdentityUser"

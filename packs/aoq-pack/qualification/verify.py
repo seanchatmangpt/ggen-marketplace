@@ -43,7 +43,8 @@ def violation_count(gate_path: Path, ttl_path: Path) -> int:
     """Violations of one gate against one witness graph."""
     g = Graph().parse(ttl_path, format="turtle")
     q = gate_path.read_text()
-    head = q.split("{", 1)[0].upper()
+    body = "\n".join(ln for ln in q.splitlines() if not ln.lstrip().startswith("#"))
+    head = body.split("{", 1)[0].upper()
     if "ASK" in head:
         return 1 if g.query(q).askAnswer else 0
     return len(list(g.query(q)))
@@ -63,35 +64,43 @@ def main() -> int:
 
     for gate in gates:
         stem = gate.stem
-        pw = PASS_DIR / f"{stem}.ttl"
-        fw = FAIL_DIR / f"{stem}.ttl"
-        if not pw.exists() or not fw.exists():
-            broken.append({"gate": stem, "reason": "missing witness",
-                           "missing": [p.name for p in (pw, fw) if not p.exists()]})
-            continue
-        try:
-            pv = violation_count(gate, pw)
-            fv = violation_count(gate, fw)
-        except Exception as e:  # noqa: BLE001 -- typed court failure, not a silent pass
-            broken.append({"gate": stem, "reason": f"query error: {e}"})
-            continue
-        if pv == 0 and fv >= 1:
-            flips.append({"gate": stem, "verdict": "FLIP-OK",
-                          "pass_rows": pv, "fail_rows": fv})
-        elif pv == 0 and fv == 0:
-            vacuous.append({"gate": stem, "verdict": "VACUOUS-GATE",
-                            "pass_rows": pv, "fail_rows": fv})
-        else:
-            violated.append({"verdict": "PASS-WITNESS-VIOLATION", "gate": stem,
-                             "pass_rows": pv, "fail_rows": fv})
+        # Cases: the base witness pair (<stem>.ttl, reported as <stem>) plus one
+        # case per per-header variant (<stem>.<variant>.ttl, reported as
+        # <stem>.<variant>). A variant present on only one side is COURT-BROKEN.
+        variants = sorted({p.name[len(stem) + 1:-len(".ttl")]
+                           for d in (PASS_DIR, FAIL_DIR)
+                           for p in d.glob(f"{stem}.*.ttl")})
+        cases = [(stem, PASS_DIR / f"{stem}.ttl", FAIL_DIR / f"{stem}.ttl")]
+        cases += [(f"{stem}.{v}", PASS_DIR / f"{stem}.{v}.ttl",
+                   FAIL_DIR / f"{stem}.{v}.ttl") for v in variants]
+        for case, pw, fw in cases:
+            if not pw.exists() or not fw.exists():
+                broken.append({"gate": case, "reason": "missing witness",
+                               "missing": [p.name for p in (pw, fw) if not p.exists()]})
+                continue
+            try:
+                pv = violation_count(gate, pw)
+                fv = violation_count(gate, fw)
+            except Exception as e:  # noqa: BLE001 -- typed court failure, not a silent pass
+                broken.append({"gate": case, "reason": f"query error: {e}"})
+                continue
+            if pv == 0 and fv >= 1:
+                flips.append({"gate": case, "verdict": "FLIP-OK",
+                              "pass_rows": pv, "fail_rows": fv})
+            elif pv == 0 and fv == 0:
+                vacuous.append({"gate": case, "verdict": "VACUOUS-GATE",
+                                "pass_rows": pv, "fail_rows": fv})
+            else:
+                violated.append({"verdict": "PASS-WITNESS-VIOLATION", "gate": case,
+                                 "pass_rows": pv, "fail_rows": fv})
 
     if broken:
         print(json.dumps({"verdict": "COURT-BROKEN", "schema": SCHEMA,
                           "broken": broken}, indent=2))
         return EXIT_COURT_BROKEN
-    if violated:
+    if violated or vacuous:
         print(json.dumps({"verdict": "VIOLATION", "schema": SCHEMA,
-                          "violations": violated}, indent=2))
+                          "violations": violated + vacuous}, indent=2))
         return EXIT_VIOLATION
     print(json.dumps({"verdict": "CONFORMANT", "schema": SCHEMA,
                       "gates": len(flips) + len(vacuous),

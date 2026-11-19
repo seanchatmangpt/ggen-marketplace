@@ -1,0 +1,31 @@
+# MESSAGE: any row = a zoom:WebhookEvent missing HMAC signature or request timestamp, or an endpoint.url_validation event missing plainToken/encryptedToken.
+PREFIX zoom: <https://seanchatmangpt.dev/ontology/zoom#>
+
+SELECT DISTINCT ?event ?problem WHERE {
+  ?event a zoom:WebhookEvent .
+  {
+    FILTER NOT EXISTS { ?event zoom:signature ?sig }
+    BIND("missing-webhook-signature" AS ?problem)
+  } UNION {
+    ?event zoom:signature ?sig .
+    FILTER(STRLEN(STR(?sig)) = 0)
+    BIND("empty-webhook-signature" AS ?problem)
+  } UNION {
+    FILTER NOT EXISTS { ?event zoom:signatureTimestamp ?ts }
+    BIND("missing-signature-timestamp" AS ?problem)
+  } UNION {
+    ?event zoom:signatureTimestamp ?ts .
+    FILTER(STRLEN(STR(?ts)) = 0)
+    BIND("empty-signature-timestamp" AS ?problem)
+  } UNION {
+    ?event zoom:eventType ?et .
+    FILTER(STR(?et) = "endpoint.url_validation")
+    FILTER NOT EXISTS { ?event zoom:plainToken ?pt }
+    BIND("url_validation-missing-plainToken" AS ?problem)
+  } UNION {
+    ?event zoom:eventType ?et .
+    FILTER(STR(?et) = "endpoint.url_validation")
+    FILTER NOT EXISTS { ?event zoom:encryptedToken ?etok }
+    BIND("url_validation-missing-encryptedToken" AS ?problem)
+  }
+}

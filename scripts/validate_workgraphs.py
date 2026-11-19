@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """Validate campaign WORKGRAPH.ttl / goal.ttl graphs against the
-ggen_igniter semantic-jira-pack work-order SHACL shapes (pyshacl).
+ggen_igniter semantic-jira-pack SHACL shapes (pyshacl).
+
+Shape selection (execution work-order.shacl.ttl is never loosened here):
+  goal.ttl / GoalCheckpoint-only  → goal-checkpoint.shacl.ttl
+  campaign WORKGRAPH.ttl          → doc-work-order.shacl.ttl
+  otherwise                       → work-order.shacl.ttl
 
 For each target graph, reports conforms true/false, per-shape violation
-counts, and a classification: doc-graph style mismatch (e.g. GoalCheckpoint
-goal graphs or doc-graph WorkOrders that intentionally omit the execution
-order court fields) versus lexical/enum defects (bad SHA format, bad
-standing/receiptClass enum, duplicate identifiers).
+counts, and a classification: doc-graph style mismatch versus lexical/enum
+defects (bad SHA format, bad standing/receiptClass enum, duplicate ids).
 
 Usage:
-    python3 scripts/validate_workgraphs.py            # table + classification
-    python3 scripts/validate_workgraphs.py --markdown # also emit report body
+    python3 scripts/validate_workgraphs.py                 # table + exit 1 on fail
+    python3 scripts/validate_workgraphs.py --only REPO     # single target
+    python3 scripts/validate_workgraphs.py --markdown      # also emit report body
 """
 
 from __future__ import annotations
@@ -26,8 +30,9 @@ from rdflib import Graph, URIRef
 
 HOME = Path.home()
 PACK_SHAPES = HOME / "ggen_igniter/priv/ggen/semantic-jira-pack/shapes"
-SHAPES = PACK_SHAPES / "work-order.shacl.ttl"
+SHAPES = PACK_SHAPES / "work-order.shacl.ttl"  # execution admission; do not loosen
 GC_SHAPES = PACK_SHAPES / "goal-checkpoint.shacl.ttl"
+DOC_SHAPES = PACK_SHAPES / "doc-work-order.shacl.ttl"  # campaign WORKGRAPH.ttl
 
 TARGETS = [
     # (repo, graph path)
@@ -97,13 +102,19 @@ def run_one(repo: str, rel: str) -> dict:
     if not path.exists():
         return {"repo": repo, "path": str(path), "missing": True}
     data = load_graph(path)
-    # Goal-graph style detection: a graph whose subjects are (exclusively)
-    # sj:GoalCheckpoint nodes is a goal.ttl-style doc graph — validate it
-    # against the closed GoalCheckpoint shape, not the work-order shape.
+    # Shape selection (doc-graph courts stay separate from execution admission):
+    #   goal.ttl / GoalCheckpoint-only → goal-checkpoint.shacl.ttl
+    #   campaign WORKGRAPH.ttl / WorkOrder doc-graphs → doc-work-order.shacl.ttl
+    #   otherwise → work-order.shacl.ttl (execution; unchanged / not loosened)
     rdf_type = URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
     wo = set(data.subjects(rdf_type, URIRef(f"{SJ}WorkOrder")))
     gc = set(data.subjects(rdf_type, URIRef(f"{SJ}GoalCheckpoint")))
-    shape_path = GC_SHAPES if (gc and not wo) else SHAPES
+    if gc and not wo:
+        shape_path = GC_SHAPES
+    elif path.name == "WORKGRAPH.ttl" or (wo and not gc):
+        shape_path = DOC_SHAPES
+    else:
+        shape_path = SHAPES
     shapes = load_graph(shape_path)
     conforms, results_graph, results_text = validate(
         data_graph=data,
@@ -145,12 +156,28 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--markdown", action="store_true")
     ap.add_argument("--json-out", type=Path, default=None)
+    ap.add_argument(
+        "--only",
+        action="append",
+        default=[],
+        help="Restrict to one or more TARGETS repo names (repeatable).",
+    )
     args = ap.parse_args()
 
-    results = [run_one(repo, rel) for repo, rel in TARGETS]
+    targets = TARGETS
+    if args.only:
+        wanted = set(args.only)
+        targets = [(repo, rel) for repo, rel in TARGETS if repo in wanted]
+        missing = wanted - {repo for repo, _ in targets}
+        if missing:
+            print(f"unknown --only repo(s): {sorted(missing)}", file=sys.stderr)
+            return 2
 
-    print(f"shapes: {SHAPES}")
+    results = [run_one(repo, rel) for repo, rel in targets]
+
+    print(f"execution shapes: {SHAPES}")
     print(f"goal-graph shapes: {GC_SHAPES}")
+    print(f"doc-graph shapes: {DOC_SHAPES}")
     print()
     hdr = f"{'repo':<18} {'conforms':<9} {'WO':>4} {'GC':>4}  {'shape':<22} classes"
     print(hdr)
@@ -199,6 +226,10 @@ def main() -> int:
                 short = focus.rsplit("#", 1)[-1].rsplit("/", 1)[-1] if focus else "?"
                 print(f"- [{classify(msg)}] {short} path={vpath} value={value}")
                 print(f"  msg: {msg}")
+
+    # Fail closed: missing target or non-conforming graph → non-zero.
+    if any(r.get("missing") or not r.get("conforms") for r in results):
+        return 1
     return 0
 
 

@@ -1,0 +1,28 @@
+---
+to: "pipeline/enterprise_pipeline/boundary/boundary_models.py"
+force: true
+determinism: true
+sparql:
+  fields: |
+    PREFIX sh: <http://www.w3.org/ns/shacl#>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT DISTINCT ?cls ?field ?dt ?min WHERE {
+      ?shape a sh:NodeShape ; rdfs:label ?cls ; sh:property ?prop .
+      ?prop sh:path ?path ; sh:datatype ?dt .
+      OPTIONAL { ?prop sh:minCount ?m }
+      BIND(COALESCE(?m, 0) AS ?min)
+      BIND(REPLACE(STR(?path), "^.*[/#:]", "") AS ?field)
+      FILTER(STRSTARTS(STR(?shape), "https://fortnox.example/shapes/boundary#"))
+    } ORDER BY ?cls ?field
+---
+"""Pydantic boundary models generated from ontology/boundary/payload-shapes.ttl. DO NOT EDIT."""
+
+from __future__ import annotations
+
+import pydantic
+{% set_global seen = "" %}{% for row in fields %}{% if seen != row.cls %}{% set_global seen = row.cls %}
+
+class {{ row.cls }}(pydantic.BaseModel):
+    model_config = pydantic.ConfigDict(extra="forbid")
+{% endif %}    {{ row.field }}: {% if row.dt == "http://www.w3.org/2001/XMLSchema#integer" %}int{% elif row.dt == "http://www.w3.org/2001/XMLSchema#boolean" %}bool{% elif row.dt == "http://www.w3.org/2001/XMLSchema#string" %}str{% elif row.dt == "http://www.w3.org/2001/XMLSchema#decimal" or row.dt == "http://www.w3.org/2001/XMLSchema#double" %}float{% else %}{{ UNSUPPORTED_XSD_TYPE_fail_loudly }}{% endif %}{% if row.min | default(value="0") == "0" %} | None = None{% endif %}
+{% endfor %}

@@ -1,0 +1,30 @@
+# MESSAGE: AuditEvent completeness — actor/action/outcome/occurredAt/integrityDigest
+# required; subjectWorkOrder (when present) must be an sj:WorkOrder
+# (dfcm:F5AuditLedgerExport).
+PREFIX ip: <https://ggen.dev/ontology/issue-platform-controls#>
+PREFIX sj: <https://ggen-igniter.dev/ontology/semantic-jira#>
+
+SELECT DISTINCT ?subject ?problem WHERE {
+  ?subject a ip:AuditEvent .
+  {
+    FILTER NOT EXISTS { ?subject ip:actor ?a . FILTER(STRLEN(STR(?a)) > 0) }
+    BIND("audit-missing-actor" AS ?problem)
+  } UNION {
+    FILTER NOT EXISTS { ?subject ip:action ?act . FILTER(STRLEN(STR(?act)) > 0) }
+    BIND("audit-missing-action" AS ?problem)
+  } UNION {
+    FILTER NOT EXISTS { ?subject ip:outcome ?o . FILTER(STRLEN(STR(?o)) > 0) }
+    BIND("audit-missing-outcome" AS ?problem)
+  } UNION {
+    FILTER NOT EXISTS { ?subject ip:occurredAt ?t . FILTER(STRLEN(STR(?t)) > 0) }
+    BIND("audit-missing-occurredAt" AS ?problem)
+  } UNION {
+    FILTER NOT EXISTS { ?subject ip:integrityDigest ?d . FILTER(STRLEN(STR(?d)) > 0) }
+    BIND("audit-missing-integrityDigest" AS ?problem)
+  } UNION {
+    ?subject ip:subjectWorkOrder ?wo .
+    FILTER NOT EXISTS { ?wo a sj:WorkOrder }
+    BIND("audit-subjectWorkOrder-not-sj-WorkOrder" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem

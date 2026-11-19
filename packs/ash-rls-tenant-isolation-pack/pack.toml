@@ -1,0 +1,70 @@
+[pack]
+name = "ash-rls-tenant-isolation-pack"
+version = "0.1.1"
+description = """
+Projects Postgres FORCE ROW LEVEL SECURITY tenant isolation for Ash/AshPostgres
+apps from admitted RDF facts. Captures the closed pattern observed in production
+Ash multi-tenant stacks: every tenant_id table gets ENABLE + FORCE RLS; a
+tenant_isolation policy binds rows to
+current_setting('app.current_tenant_id', true) (nullif-empty, ::uuid) with an
+optional app.rls_platform = 'on' bypass for platform-scope work; the AshPostgres
+Repo sets those GUCs transaction-locally (SET LOCAL / set_config(..., true)) and
+fails closed when tenant is nil on multitenant resources.
+
+Consumers declare rls:TenantScopedTable / rls:CatalogExclusion / rls:RlsCourt /
+rls:RepoTenantHook individuals. Templates manufacture (1) an idempotent Ecto
+migration that ENABLE+FORCE+CREATE POLICY per table, (2) an ExUnit RLS court
+(catalog: relrowsecurity+relforcerowsecurity; behavior: NOSUPERUSER NOBYPASSRLS
+role isolation + WITH CHECK), and optionally (3) a Repo GUC hook module and
+(4) AshPostgres custom_statements fragments.
+
+Admission: ontology.ttl + shapes/rls.shacl.ttl (SHACL under shapes/, never root
+shapes.ttl) + gates/010..070 (SPARQL twins) + tests/mutations falsifiers.
+Closed GUC names only — product GUCs like fnox_cos.office_id need a sibling pack.
+
+Evidence source (reference only, never vendored): srve/xaas migrations
+20261119114500_enable_tenant_rls_isolation_policy +
+20261119130000_rls_policy_platform_bypass, Xaas.Repo on_transaction_begin,
+Xaas.RlsCourtTest, and AshPostgres custom_statements on tenant resources.
+This pack generates from RDF; it does not hand-copy those files.
+"""
+
+
+[metadata]
+category = "ash"
+tags = [
+  "ash",
+  "ash-postgres",
+  "rls",
+  "row-level-security",
+  "multi-tenant",
+  "tenant-isolation",
+  "court",
+  "migration",
+]
+
+[capabilities]
+provides = [
+  "urn:ggen:pack:ash-rls-tenant-isolation-pack",
+  "urn:ggen:capability:postgres-force-rls",
+  "urn:ggen:capability:tenant-guc-binding",
+  "urn:ggen:capability:rls-isolation-court",
+]
+requires = []
+
+[consumer_contract]
+runtime = [
+  "ash",
+  "ash_postgres",
+  "ecto_sql",
+  "postgrex",
+]
+peer_context = """
+Consumer supplies rls:TenantScopedTable individuals (tableName required;
+forceRls defaults true; nullableTenant when NULL tenant_id rows are lawful).
+Optional rls:CatalogExclusion rows carve auth/bookkeeping tables out of the
+court catalog. rls:RlsCourt names the probe table + ExUnit module path;
+rls:RepoTenantHook names the Repo module that owns on_transaction_begin GUCs.
+Projected migration assumes public schema unless rls:schema is set. Court
+requires a superuser test connection to mint the NOSUPERUSER NOBYPASSRLS role.
+"""

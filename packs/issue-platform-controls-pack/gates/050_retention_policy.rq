@@ -1,0 +1,31 @@
+# MESSAGE: RetentionPolicy — retentionDays, residencyRegion, and dataClass are
+# required; an sj:WorkOrder declaring ip:workOrderDataClass must have a matching
+# policy (dfcm:F5RetentionResidency).
+PREFIX ip: <https://ggen.dev/ontology/issue-platform-controls#>
+PREFIX sj: <https://ggen-igniter.dev/ontology/semantic-jira#>
+
+SELECT DISTINCT ?subject ?problem WHERE {
+  {
+    ?subject a ip:RetentionPolicy .
+    FILTER NOT EXISTS { ?subject ip:retentionDays ?days }
+    BIND("retention-missing-retentionDays" AS ?problem)
+  } UNION {
+    ?subject a ip:RetentionPolicy .
+    FILTER NOT EXISTS { ?subject ip:residencyRegion ?r . FILTER(STRLEN(STR(?r)) > 0) }
+    BIND("retention-missing-residencyRegion" AS ?problem)
+  } UNION {
+    ?subject a ip:RetentionPolicy .
+    FILTER NOT EXISTS { ?subject ip:dataClass ?dc . FILTER(STRLEN(STR(?dc)) > 0) }
+    BIND("retention-missing-dataClass" AS ?problem)
+  } UNION {
+    ?subject a sj:WorkOrder ;
+             ip:workOrderDataClass ?dc .
+    FILTER(STRLEN(STR(?dc)) > 0)
+    FILTER NOT EXISTS {
+      ?pol a ip:RetentionPolicy ;
+           ip:dataClass ?dc .
+    }
+    BIND("workorder-dataclass-without-retention-policy" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem

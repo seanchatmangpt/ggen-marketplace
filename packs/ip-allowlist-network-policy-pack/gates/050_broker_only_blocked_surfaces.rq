@@ -1,0 +1,18 @@
+# MESSAGE: Direct actuation declared, or graph claims a BLOCKED IP-allowlist terraform resource type
+PREFIX ianp: <https://ggen.dev/packs/ip-allowlist-network-policy#>
+SELECT ?subject ?field ?value WHERE {
+  {
+    ?subject ianp:directActuation ?value .
+    FILTER(?value != false)
+    BIND("ianp:directActuation" AS ?field)
+  }
+  UNION
+  {
+    # Refuse any literal claim of the non-existent GitHub org IP allow-list TF type
+    # as a generatable resource (honest BLOCKED; see ianp:BlockedGithubOrgIpAllowList).
+    ?subject ?p ?value .
+    FILTER(REGEX(STR(?value), "github_ip_allow_list_entry") && !REGEX(STR(?p), "blockedResourceType|blockedReason"))
+    BIND(STR(?p) AS ?field)
+  }
+}
+ORDER BY ?subject ?field

@@ -1,0 +1,39 @@
+# MESSAGE: Segregation of duties — a principal holding both sides of an
+# ip:conflictsWith / ip:SoDConflict pair without ip:sodExceptionReceipt is a
+# refusal (dfcm:F5SegregationOfDuties). SoDConflict individuals must name both roles.
+PREFIX ip: <https://ggen.dev/ontology/issue-platform-controls#>
+
+SELECT DISTINCT ?subject ?problem WHERE {
+  {
+    ?subject a ip:SoDConflict .
+    FILTER(
+      NOT EXISTS { ?subject ip:leftRole ?l . ?l a ip:Role } ||
+      NOT EXISTS { ?subject ip:rightRole ?r . ?r a ip:Role }
+    )
+    BIND("sod-conflict-missing-left-or-right-role" AS ?problem)
+  } UNION {
+    ?subject a ip:Principal ;
+             ip:hasRole ?roleA ;
+             ip:hasRole ?roleB .
+    FILTER(?roleA != ?roleB)
+    {
+      ?roleA ip:conflictsWith ?roleB .
+    } UNION {
+      ?roleB ip:conflictsWith ?roleA .
+    } UNION {
+      ?c a ip:SoDConflict ;
+         ip:leftRole ?roleA ;
+         ip:rightRole ?roleB .
+    } UNION {
+      ?c a ip:SoDConflict ;
+         ip:leftRole ?roleB ;
+         ip:rightRole ?roleA .
+    }
+    FILTER NOT EXISTS {
+      ?subject ip:sodExceptionReceipt ?rx .
+      FILTER(STRLEN(STR(?rx)) > 0)
+    }
+    BIND("principal-holds-conflicting-roles-without-exception-receipt" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem

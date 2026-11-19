@@ -1,0 +1,300 @@
+# ip-allowlist-network-policy-pack
+# IP allowlist + NetworkPolicy law. Catalog identity:
+#   fortune5-deployment-blocks-pack global-network
+#   bb:commonPack "fortune5-network-law-pack"
+#
+# Evidence (reference only — not imported, not vendored):
+#   fnox docs/diataxis/explanation/identity-and-jails.md
+#     sovereign-zero-egress-jail (policyTypes: [Egress], egress: [])
+#   smalt-k8s-pack gates/060_network_policy.rq + network_policies.yaml.tmpl
+#   gh-terraform-pack ghtf:IpAllowList* flagReason (org TF resource absent)
+# Consumers mint allowlist / policy individuals; this graph ships closed
+# posture vocabulary and canonical jail facts so templates never invent them.
+
+@prefix ianp:    <https://ggen.dev/packs/ip-allowlist-network-policy#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix vann:    <http://purl.org/vocab/vann/> .
+
+<https://ggen.dev/packs/ip-allowlist-network-policy> a owl:Ontology ;
+    dcterms:title "IP allowlist and NetworkPolicy law" ;
+    dcterms:description "Closed RDF vocabulary for named CIDR allowlists and Kubernetes NetworkPolicy specs, including the zero-egress jail posture. Broker-only; no cloud IP-allowlist terraform." ;
+    owl:versionInfo "0.1.0" ;
+    vann:preferredNamespacePrefix "ianp" ;
+    vann:preferredNamespaceUri <https://ggen.dev/packs/ip-allowlist-network-policy#> .
+
+#################################################################
+# Classes
+#################################################################
+
+ianp:NetworkProgram a rdfs:Class ;
+    rdfs:label "Network law program" ;
+    rdfs:comment "Top-level program binding this pack to the Fortune 5 global-network catalog group." .
+
+ianp:IpAllowlist a rdfs:Class ;
+    rdfs:label "IP allowlist" ;
+    rdfs:comment "Named collection of CIDR entries admitted for perimeter ingress (admin/VPN/corp). Not a cloud firewall resource." .
+
+ianp:CidrEntry a rdfs:Class ;
+    rdfs:label "CIDR entry" ;
+    rdfs:comment "One IPv4 or IPv6 CIDR with a closed purpose token." .
+
+ianp:NetworkPolicySpec a rdfs:Class ;
+    rdfs:label "NetworkPolicy specification" ;
+    rdfs:comment "Admitted facts for one Kubernetes networking.k8s.io/v1 NetworkPolicy. Projection is YAML only." .
+
+ianp:EgressPosture a rdfs:Class ;
+    rdfs:label "Closed egress posture" ;
+    rdfs:comment "Closed set: ZeroEgress, DefaultDenyWithAllow, IngressAllowlistOnly." .
+
+ianp:CidrPurpose a rdfs:Class ;
+    rdfs:label "Closed CIDR purpose" ;
+    rdfs:comment "Closed set: admin, vpn, corp, peer." .
+
+ianp:BlockedSurface a rdfs:Class ;
+    rdfs:label "Honestly blocked actuation surface" ;
+    rdfs:comment "Documented non-generatable surface. Present so gates can refuse graphs that claim to emit it." .
+
+#################################################################
+# Closed posture individuals
+#################################################################
+
+ianp:ZeroEgress a ianp:EgressPosture ;
+    ianp:postureToken "zero-egress" ;
+    rdfs:label "Zero egress jail" ;
+    rdfs:comment "policyTypes includes Egress; egress rules empty ([]). Tenant pods cannot leave the namespace network plane except via an in-cluster referee." .
+
+ianp:DefaultDenyWithAllow a ianp:EgressPosture ;
+    ianp:postureToken "default-deny-with-allow" ;
+    rdfs:label "Default deny plus explicit allow" ;
+    rdfs:comment "Default-deny base with at least one typed allow peer (from:/to: + port). Matches smalt-k8s-pack gate 060 law." .
+
+ianp:IngressAllowlistOnly a ianp:EgressPosture ;
+    ianp:postureToken "ingress-allowlist-only" ;
+    rdfs:label "Ingress CIDR allowlist only" ;
+    rdfs:comment "policyTypes Ingress; peers are CIDR entries from an admitted IpAllowlist. No egress rules declared by this posture." .
+
+ianp:purposeAdmin a ianp:CidrPurpose ; ianp:purposeToken "admin" ; rdfs:label "Admin break-glass ingress" .
+ianp:purposeVpn    a ianp:CidrPurpose ; ianp:purposeToken "vpn"   ; rdfs:label "Corporate VPN gateway" .
+ianp:purposeCorp   a ianp:CidrPurpose ; ianp:purposeToken "corp"  ; rdfs:label "Corporate HQ range" .
+ianp:purposePeer   a ianp:CidrPurpose ; ianp:purposeToken "peer"  ; rdfs:label "Trusted peer / mesh CIDR" .
+
+#################################################################
+# Properties — program
+#################################################################
+
+ianp:programId a rdf:Property ;
+    rdfs:domain ianp:NetworkProgram ;
+    rdfs:range xsd:string .
+
+ianp:catalogGroup a rdf:Property ;
+    rdfs:domain ianp:NetworkProgram ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Must be global-network for Fortune 5 catalog binding." .
+
+ianp:catalogVersion a rdf:Property ;
+    rdfs:domain ianp:NetworkProgram ;
+    rdfs:range xsd:string .
+
+ianp:catalogPackId a rdf:Property ;
+    rdfs:domain ianp:NetworkProgram ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Catalog identity: fortune5-network-law-pack." .
+
+ianp:hasAllowlist a rdf:Property ;
+    rdfs:domain ianp:NetworkProgram ;
+    rdfs:range ianp:IpAllowlist .
+
+ianp:hasNetworkPolicy a rdf:Property ;
+    rdfs:domain ianp:NetworkProgram ;
+    rdfs:range ianp:NetworkPolicySpec .
+
+ianp:directActuation a rdf:Property ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Must be false. This pack is broker-only; BRCE / coordinator owns actuation." .
+
+ianp:evidenceRequired a rdf:Property ;
+    rdfs:range xsd:boolean .
+
+#################################################################
+# Properties — allowlist / CIDR
+#################################################################
+
+ianp:allowlistId a rdf:Property ;
+    rdfs:domain ianp:IpAllowlist ;
+    rdfs:range xsd:string .
+
+ianp:allowlistTitle a rdf:Property ;
+    rdfs:domain ianp:IpAllowlist ;
+    rdfs:range xsd:string .
+
+ianp:hasEntry a rdf:Property ;
+    rdfs:domain ianp:IpAllowlist ;
+    rdfs:range ianp:CidrEntry .
+
+ianp:cidr a rdf:Property ;
+    rdfs:domain ianp:CidrEntry ;
+    rdfs:range xsd:string ;
+    rdfs:comment "IPv4 or IPv6 CIDR literal, e.g. 10.0.0.0/8 or 2001:db8::/32." .
+
+ianp:entryId a rdf:Property ;
+    rdfs:domain ianp:CidrEntry ;
+    rdfs:range xsd:string .
+
+ianp:entryLabel a rdf:Property ;
+    rdfs:domain ianp:CidrEntry ;
+    rdfs:range xsd:string .
+
+ianp:hasPurpose a rdf:Property ;
+    rdfs:domain ianp:CidrEntry ;
+    rdfs:range ianp:CidrPurpose .
+
+ianp:purposeToken a rdf:Property ;
+    rdfs:domain ianp:CidrPurpose ;
+    rdfs:range xsd:string .
+
+#################################################################
+# Properties — NetworkPolicy
+#################################################################
+
+ianp:policyName a rdf:Property ;
+    rdfs:domain ianp:NetworkPolicySpec ;
+    rdfs:range xsd:string .
+
+ianp:namespace a rdf:Property ;
+    rdfs:domain ianp:NetworkPolicySpec ;
+    rdfs:range xsd:string .
+
+ianp:posture a rdf:Property ;
+    rdfs:domain ianp:NetworkPolicySpec ;
+    rdfs:range ianp:EgressPosture .
+
+ianp:postureToken a rdf:Property ;
+    rdfs:domain ianp:EgressPosture ;
+    rdfs:range xsd:string .
+
+ianp:policyTypesIngress a rdf:Property ;
+    rdfs:domain ianp:NetworkPolicySpec ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "When true, emit policyTypes Ingress." .
+
+ianp:policyTypesEgress a rdf:Property ;
+    rdfs:domain ianp:NetworkPolicySpec ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "When true, emit policyTypes Egress." .
+
+ianp:egressEmpty a rdf:Property ;
+    rdfs:domain ianp:NetworkPolicySpec ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "When true, emit egress: [] (zero-egress jail). Required for ZeroEgress posture." .
+
+ianp:podSelectorMatchLabelKey a rdf:Property ;
+    rdfs:domain ianp:NetworkPolicySpec ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Optional; empty matchLabels {} when absent (namespace-wide)." .
+
+ianp:podSelectorMatchLabelValue a rdf:Property ;
+    rdfs:domain ianp:NetworkPolicySpec ;
+    rdfs:range xsd:string .
+
+ianp:bindsAllowlist a rdf:Property ;
+    rdfs:domain ianp:NetworkPolicySpec ;
+    rdfs:range ianp:IpAllowlist ;
+    rdfs:comment "For IngressAllowlistOnly: peers projected from this allowlist's CIDR entries." .
+
+ianp:allowPort a rdf:Property ;
+    rdfs:domain ianp:NetworkPolicySpec ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Optional TCP port for ingress allow peers (DefaultDenyWithAllow / IngressAllowlistOnly)." .
+
+ianp:allowProtocol a rdf:Property ;
+    rdfs:domain ianp:NetworkPolicySpec ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Optional; defaults to TCP when port is set." .
+
+#################################################################
+# Properties — blocked surface disclosure
+#################################################################
+
+ianp:blockedId a rdf:Property ;
+    rdfs:domain ianp:BlockedSurface ;
+    rdfs:range xsd:string .
+
+ianp:blockedReason a rdf:Property ;
+    rdfs:domain ianp:BlockedSurface ;
+    rdfs:range xsd:string .
+
+ianp:blockedResourceType a rdf:Property ;
+    rdfs:domain ianp:BlockedSurface ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Terraform or API resource type that must not be claimed as generatable." .
+
+#################################################################
+# Canonical program + allowlist + zero-egress jail individuals
+#################################################################
+
+ianp:program a ianp:NetworkProgram ;
+    ianp:programId "fortune5-network-law" ;
+    ianp:catalogGroup "global-network" ;
+    ianp:catalogVersion "26.7.31" ;
+    ianp:catalogPackId "fortune5-network-law-pack" ;
+    ianp:hasAllowlist ianp:AdminPerimeterAllowlist ;
+    ianp:hasNetworkPolicy ianp:SovereignZeroEgressJail ,
+                          ianp:AdminIngressAllowlistPolicy ;
+    ianp:directActuation false ;
+    ianp:evidenceRequired true .
+
+# Example CIDRs are RFC 5737 / RFC 3849 documentation ranges — never real corp nets.
+ianp:AdminPerimeterAllowlist a ianp:IpAllowlist ;
+    ianp:allowlistId "admin-perimeter" ;
+    ianp:allowlistTitle "Admin and VPN perimeter CIDRs (documentation ranges)" ;
+    ianp:hasEntry ianp:CidrAdminDocs, ianp:CidrVpnDocs ;
+    ianp:directActuation false ;
+    ianp:evidenceRequired true .
+
+ianp:CidrAdminDocs a ianp:CidrEntry ;
+    ianp:entryId "cidr-admin-docs" ;
+    ianp:cidr "203.0.113.0/24" ;
+    ianp:entryLabel "RFC 5737 TEST-NET-3 admin docs range" ;
+    ianp:hasPurpose ianp:purposeAdmin .
+
+ianp:CidrVpnDocs a ianp:CidrEntry ;
+    ianp:entryId "cidr-vpn-docs" ;
+    ianp:cidr "198.51.100.0/24" ;
+    ianp:entryLabel "RFC 5737 TEST-NET-2 VPN docs range" ;
+    ianp:hasPurpose ianp:purposeVpn .
+
+# fnox sovereign-zero-egress-jail pattern (namespace-scoped; empty egress).
+ianp:SovereignZeroEgressJail a ianp:NetworkPolicySpec ;
+    ianp:policyName "sovereign-zero-egress-jail" ;
+    ianp:namespace "tenant-a" ;
+    ianp:posture ianp:ZeroEgress ;
+    ianp:policyTypesIngress false ;
+    ianp:policyTypesEgress true ;
+    ianp:egressEmpty true ;
+    ianp:directActuation false ;
+    ianp:evidenceRequired true .
+
+ianp:AdminIngressAllowlistPolicy a ianp:NetworkPolicySpec ;
+    ianp:policyName "admin-ingress-allowlist" ;
+    ianp:namespace "tenant-a" ;
+    ianp:posture ianp:IngressAllowlistOnly ;
+    ianp:policyTypesIngress true ;
+    ianp:policyTypesEgress false ;
+    ianp:egressEmpty false ;
+    ianp:bindsAllowlist ianp:AdminPerimeterAllowlist ;
+    ianp:allowPort 443 ;
+    ianp:allowProtocol "TCP" ;
+    ianp:podSelectorMatchLabelKey "role" ;
+    ianp:podSelectorMatchLabelValue "admin-api" ;
+    ianp:directActuation false ;
+    ianp:evidenceRequired true .
+
+# Honest BLOCKED: GitHub org-level IP allow-list terraform resource does not exist.
+ianp:BlockedGithubOrgIpAllowList a ianp:BlockedSurface ;
+    ianp:blockedId "github-org-ip-allow-list-tf" ;
+    ianp:blockedResourceType "github_ip_allow_list_entry" ;
+    ianp:blockedReason "integrations/github provider has no github_ip_allow_list_entry; org IP allow lists are enterprise-scope (github_enterprise_ip_allow_list_entry) or GraphQL — see gh-terraform-pack ghtf:IpAllowListHq flagReason. This pack refuses graphs that claim to emit that resource type." .

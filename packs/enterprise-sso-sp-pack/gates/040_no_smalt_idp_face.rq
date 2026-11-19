@@ -1,0 +1,22 @@
+# MESSAGE: Federation trusts a Smalt IdP face IRI — refused.
+# This pack is SJ product SP only. Smalt IdP faces (urn:smalt:identity:*,
+# smalt:face-saml-idp, smalt:face-oidc-idp) must not appear as essp:trustsIdp
+# targets or essp:idpEntityId values.
+PREFIX essp: <https://seanchatmangpt.github.io/packs/enterprise-sso-sp#>
+SELECT ?binding ?idp ?violation WHERE {
+  ?binding a essp:FederationBinding ;
+           essp:trustsIdp ?idp .
+  OPTIONAL { ?idp essp:idpEntityId ?eid }
+  FILTER(
+    STRSTARTS(STR(?idp), "urn:smalt:identity:")
+    || STRSTARTS(STR(?idp), "https://seanchatmangpt.github.io/packs/smalt")
+    || CONTAINS(LCASE(STR(?idp)), "face-saml-idp")
+    || CONTAINS(LCASE(STR(?idp)), "face-oidc-idp")
+    || (BOUND(?eid) && (
+         STRSTARTS(?eid, "urn:smalt:identity:")
+         || CONTAINS(LCASE(?eid), "smalt.identity.samlidp")
+       ))
+  )
+  BIND("FederationBinding must not trust Smalt IdP faces; use ExternalIdentityProvider for customer IdPs" AS ?violation)
+}
+ORDER BY ?binding ?idp

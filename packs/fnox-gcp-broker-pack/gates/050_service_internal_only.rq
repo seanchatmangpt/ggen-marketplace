@@ -1,0 +1,14 @@
+# MESSAGE: any row = a Cloud Run service (intake or egress worker) that is not INGRESS_TRAFFIC_INTERNAL_ONLY.
+# Tier-3 law: only the API Gateway and the OIDC push endpoint on platform.fnox.io are public edges.
+PREFIX fgb: <https://seanchatmangpt.dev/ontology/fnox-gcp-broker#>
+SELECT DISTINCT ?node ?problem WHERE {
+  {
+    ?node a fgb:Service .
+    FILTER NOT EXISTS { ?node fgb:ingress ?ing }
+    BIND("service-without-ingress-setting" AS ?problem)
+  } UNION {
+    ?node a fgb:Service ; fgb:ingress ?ing .
+    FILTER(STR(?ing) != "INGRESS_TRAFFIC_INTERNAL_ONLY")
+    BIND("service-ingress-not-internal-only" AS ?problem)
+  }
+}

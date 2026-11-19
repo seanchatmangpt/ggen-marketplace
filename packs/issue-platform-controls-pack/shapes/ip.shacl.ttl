@@ -1,0 +1,214 @@
+@prefix ip:   <https://ggen.dev/ontology/issue-platform-controls#> .
+@prefix sj:   <https://ggen-igniter.dev/ontology/semantic-jira#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# SHACL twin of gates/010..050. Path is shapes/ip.shacl.ttl
+# (NOT root shapes.ttl — pack contract refuses that name).
+# Manual: ggen graph validate --files ontology.ttl qualification/consumer.ttl \
+#   --shapes shapes/ip.shacl.ttl
+# Cross-resource composition laws also live as SPARQL gates; SHACL encodes
+# field completeness + the same refuse predicates via sh:sparql where needed.
+
+#################################################################
+# Tenant isolation (gate 020)
+#################################################################
+
+ip:TenantShape a sh:NodeShape ;
+    sh:targetClass ip:Tenant ;
+    sh:closed false ;
+    sh:property [
+        sh:path ip:tenantId ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ; sh:minLength 1 ;
+        sh:message "ip:Tenant missing non-empty tenantId" ;
+    ] ;
+    sh:severity sh:Violation .
+
+#################################################################
+# SoD (gate 030)
+#################################################################
+
+ip:SoDConflictShape a sh:NodeShape ;
+    sh:targetClass ip:SoDConflict ;
+    sh:closed false ;
+    sh:property [
+        sh:path ip:leftRole ;
+        sh:minCount 1 ; sh:class ip:Role ;
+        sh:message "ip:SoDConflict missing leftRole typed as ip:Role" ;
+    ] ;
+    sh:property [
+        sh:path ip:rightRole ;
+        sh:minCount 1 ; sh:class ip:Role ;
+        sh:message "ip:SoDConflict missing rightRole typed as ip:Role" ;
+    ] ;
+    sh:severity sh:Violation .
+
+ip:PrincipalSoDShape a sh:NodeShape ;
+    sh:targetClass ip:Principal ;
+    sh:closed false ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "principal-holds-conflicting-roles-without-exception-receipt" ;
+        sh:select """
+          PREFIX ip: <https://ggen.dev/ontology/issue-platform-controls#>
+          SELECT $this WHERE {
+            $this ip:hasRole ?roleA ;
+                  ip:hasRole ?roleB .
+            FILTER(?roleA != ?roleB)
+            {
+              ?roleA ip:conflictsWith ?roleB .
+            } UNION {
+              ?roleB ip:conflictsWith ?roleA .
+            } UNION {
+              ?c a ip:SoDConflict ;
+                 ip:leftRole ?roleA ;
+                 ip:rightRole ?roleB .
+            } UNION {
+              ?c a ip:SoDConflict ;
+                 ip:leftRole ?roleB ;
+                 ip:rightRole ?roleA .
+            }
+            FILTER NOT EXISTS {
+              $this ip:sodExceptionReceipt ?rx .
+              FILTER(STRLEN(STR(?rx)) > 0)
+            }
+          }
+        """ ;
+    ] ;
+    sh:severity sh:Violation .
+
+#################################################################
+# Audit event (gate 040)
+#################################################################
+
+ip:AuditEventShape a sh:NodeShape ;
+    sh:targetClass ip:AuditEvent ;
+    sh:closed false ;
+    sh:property [
+        sh:path ip:actor ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ; sh:minLength 1 ;
+        sh:message "audit-missing-actor" ;
+    ] ;
+    sh:property [
+        sh:path ip:action ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ; sh:minLength 1 ;
+        sh:message "audit-missing-action" ;
+    ] ;
+    sh:property [
+        sh:path ip:outcome ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ; sh:minLength 1 ;
+        sh:message "audit-missing-outcome" ;
+    ] ;
+    sh:property [
+        sh:path ip:occurredAt ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ; sh:minLength 1 ;
+        sh:message "audit-missing-occurredAt" ;
+    ] ;
+    sh:property [
+        sh:path ip:integrityDigest ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ; sh:minLength 1 ;
+        sh:message "audit-missing-integrityDigest" ;
+    ] ;
+    sh:property [
+        sh:path ip:subjectWorkOrder ;
+        sh:class sj:WorkOrder ;
+        sh:message "audit-subjectWorkOrder-not-sj-WorkOrder" ;
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "audit-eventTenant-mismatches-workorder-boundTenant" ;
+        sh:select """
+          PREFIX ip: <https://ggen.dev/ontology/issue-platform-controls#>
+          SELECT $this WHERE {
+            $this ip:eventTenant ?et ;
+                  ip:subjectWorkOrder ?wo .
+            ?wo ip:boundTenant ?wt .
+            FILTER(?et != ?wt)
+          }
+        """ ;
+    ] ;
+    sh:severity sh:Violation .
+
+#################################################################
+# Retention (gate 050)
+#################################################################
+
+ip:RetentionPolicyShape a sh:NodeShape ;
+    sh:targetClass ip:RetentionPolicy ;
+    sh:closed false ;
+    sh:property [
+        sh:path ip:retentionDays ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:integer ;
+        sh:message "retention-missing-retentionDays" ;
+    ] ;
+    sh:property [
+        sh:path ip:residencyRegion ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ; sh:minLength 1 ;
+        sh:message "retention-missing-residencyRegion" ;
+    ] ;
+    sh:property [
+        sh:path ip:dataClass ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ; sh:minLength 1 ;
+        sh:message "retention-missing-dataClass" ;
+    ] ;
+    sh:severity sh:Violation .
+
+#################################################################
+# WorkOrder attachment composition (gates 010 / 020 / 050)
+# Target subjects that use ip: edges; never subclass sj:WorkOrder.
+#################################################################
+
+ip:WorkOrderBoundTenantShape a sh:NodeShape ;
+    sh:targetSubjectsOf ip:boundTenant ;
+    sh:property [
+        sh:path ip:boundTenant ;
+        sh:class ip:Tenant ;
+        sh:message "boundTenant-not-an-ip-Tenant" ;
+    ] ;
+    sh:severity sh:Violation .
+
+ip:WorkOrderDataClassCoverageShape a sh:NodeShape ;
+    sh:targetSubjectsOf ip:workOrderDataClass ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "workorder-dataclass-without-retention-policy" ;
+        sh:select """
+          PREFIX ip: <https://ggen.dev/ontology/issue-platform-controls#>
+          SELECT $this WHERE {
+            $this ip:workOrderDataClass ?dc .
+            FILTER(STRLEN(STR(?dc)) > 0)
+            FILTER NOT EXISTS {
+              ?pol a ip:RetentionPolicy ;
+                   ip:dataClass ?dc .
+            }
+          }
+        """ ;
+    ] ;
+    sh:severity sh:Violation .
+
+ip:NoWorkOrderForkShape a sh:NodeShape ;
+    sh:targetSubjectsOf rdfs:subClassOf ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "ip-class-must-not-subclass-sj-WorkOrder" ;
+        sh:select """
+          PREFIX ip: <https://ggen.dev/ontology/issue-platform-controls#>
+          PREFIX sj: <https://ggen-igniter.dev/ontology/semantic-jira#>
+          PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+          SELECT $this WHERE {
+            $this rdfs:subClassOf+ sj:WorkOrder .
+            FILTER(STRSTARTS(STR($this), STR(ip:)))
+          }
+        """ ;
+    ] ;
+    sh:severity sh:Violation .

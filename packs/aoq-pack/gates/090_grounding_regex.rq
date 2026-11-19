@@ -1,38 +1,54 @@
-# MESSAGE: AOQ1 grounding law violated — the header is exactly 64 bytes
-# (R-1 ruling; AOQ-01's superseded 24-byte form is NOT wire law), the magic
-# field carries 0x414F5131, and the version field carries 2.
-# Anti-vacuity: witnesses/fail/090_grounding_regex.ttl mutates the header
-# sizeBytes 64 -> 24 (the R-1 flip); >=1 row must result.
+# MESSAGE: header grounding law violated, evaluated PER aoq:Header. Expected
+# size is keyed by the header's aoq:cName: aoq_intent_header_t = 16,
+# aoq_page_header_t = 28, anything else (aoq1_header_t or unnamed) = 64 (R-1
+# ruling; AOQ-01's superseded 24-byte form is NOT wire law). The magic/version
+# value rules bind only the AOQ1-class (expected 64) header: its magic field
+# carries 0x414F5131 and its version field carries 1 (wire_version = 1, operator
+# ruling 1 of 2026-11-19: aoq:value 1 in ontology.ttl; supersedes G3's 3).
+# Anti-vacuity: witnesses/fail/090_grounding_regex.ttl mutates the AOQ1 header
+# sizeBytes 64 -> 24 (the R-1 flip); .intent.ttl and .page.ttl mutate the
+# intent (16 -> 20) and page (28 -> 32) declared sizes; >=1 row on each.
 PREFIX aoq: <urn:aoq:>
 SELECT ?subject ?problem WHERE {
-  ?subject a aoq:Header .
   {
-    ?subject aoq:sizeBytes ?sz .
-    FILTER(STR(?sz) != "64")
-    BIND(CONCAT("header sizeBytes must be 64 (R-1), got ", STR(?sz)) AS ?problem)
+    ?hdr a aoq:Header ; aoq:sizeBytes ?sz .
+    OPTIONAL { ?hdr aoq:cName ?hc . }
+    BIND(IF(BOUND(?hc) && STR(?hc) = "aoq_intent_header_t", 16,
+         IF(BOUND(?hc) && STR(?hc) = "aoq_page_header_t", 28, 64)) AS ?exp)
+    FILTER(STR(?sz) != STR(?exp))
+    BIND(?hdr AS ?subject)
+    BIND(CONCAT("header sizeBytes must be ", STR(?exp), ", got ", STR(?sz)) AS ?problem)
   }
   UNION
   {
-    FILTER NOT EXISTS { ?subject aoq:sizeBytes ?s . }
+    ?hdr a aoq:Header .
+    FILTER NOT EXISTS { ?hdr aoq:sizeBytes ?s . }
+    BIND(?hdr AS ?subject)
     BIND("header missing sizeBytes" AS ?problem)
   }
   UNION
   {
-    ?magic a aoq:HeaderField ; aoq:cName "magic" .
+    ?hdr a aoq:Header .
+    OPTIONAL { ?hdr aoq:cName ?hc2 . }
+    FILTER(!BOUND(?hc2) || (STR(?hc2) != "aoq_intent_header_t" && STR(?hc2) != "aoq_page_header_t"))
+    ?magic a aoq:HeaderField ; aoq:cName "magic" ; aoq:fieldOf ?hdr .
     FILTER NOT EXISTS {
       ?magic aoq:value ?mv . FILTER REGEX(STR(?mv), "^0x414F5131$")
     }
-    BIND("magic field value must match ^0x414F5131$" AS ?problem)
     BIND(?magic AS ?subject)
+    BIND("magic field value must match ^0x414F5131$" AS ?problem)
   }
   UNION
   {
-    ?version a aoq:HeaderField ; aoq:cName "version" .
+    ?hdr a aoq:Header .
+    OPTIONAL { ?hdr aoq:cName ?hc3 . }
+    FILTER(!BOUND(?hc3) || (STR(?hc3) != "aoq_intent_header_t" && STR(?hc3) != "aoq_page_header_t"))
+    ?version a aoq:HeaderField ; aoq:cName "version" ; aoq:fieldOf ?hdr .
     FILTER NOT EXISTS {
-      ?version aoq:value ?vv . FILTER(STR(?vv) = "2")
+      ?version aoq:value ?vv . FILTER(STR(?vv) = "1")
     }
-    BIND("version field value must be 2" AS ?problem)
     BIND(?version AS ?subject)
+    BIND("version field value must be 1" AS ?problem)
   }
 }
 ORDER BY ?subject ?problem

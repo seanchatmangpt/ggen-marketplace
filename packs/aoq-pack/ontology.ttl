@@ -126,7 +126,7 @@ aoq:hf-version a aoq:HeaderField ;
     rdfs:label "version" ;
     aoq:offset 4 ; aoq:sizeBytes 2 ; aoq:wireKind "u16" ;
     aoq:cName "version" ; aoq:rustName "VERSION" ; aoq:goName "Version" ;
-    aoq:value 3 ;
+    aoq:value 1 ;
     aoq:nextOffset aoq:hf-epoch ;
     aoq:fieldOf aoq:header-aq1 ;
     prov:wasDerivedFrom aoq:src-aoq-02 .
@@ -178,6 +178,133 @@ aoq:hf-header-digest a aoq:HeaderField ;
     aoq:offset 60 ; aoq:sizeBytes 4 ; aoq:wireKind "fnv1a32" ;
     aoq:cName "header_digest" ; aoq:rustName "HEADER_DIGEST" ; aoq:goName "HeaderDigest" ;
     aoq:fieldOf aoq:header-aq1 ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+# ------------------------------------------- intent (16 B) and page (28 B) headers
+# FNOX-SJ-AOQF-1: additive ("keep" posture for G1; the 64-byte AOQ1 chain above is
+# untouched). Wire version of these headers follows G3 (operator-pending).
+# Intent chain: 0x00 -> 0x04 -> 0x06 -> 0x08 -> 0x0C -> end 0x10.
+# Page chain: 0x00 -> 0x04 -> 0x06 -> 0x08 -> 0x0C -> 0x10 -> 0x14 -> 0x18 -> end 0x1C.
+
+aoq:header-intent a aoq:Header ;
+    rdfs:label "AOQ upstream-intent header (16 bytes)" ;
+    aoq:sizeBytes 16 ;
+    aoq:goName "AoqIntentHeader" ;
+    aoq:rustName "AoqIntentHeader" ;
+    aoq:cName "aoq_intent_header_t" ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:hfi-magic a aoq:HeaderField ;
+    rdfs:label "intent magic" ;
+    aoq:offset 0 ; aoq:sizeBytes 4 ; aoq:wireKind "u32" ;
+    aoq:cName "magic" ; aoq:rustName "INTENT_MAGIC" ; aoq:goName "Magic" ;
+    aoq:nextOffset aoq:hfi-version ;
+    aoq:fieldOf aoq:header-intent ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:hfi-version a aoq:HeaderField ;
+    rdfs:label "intent version" ;
+    aoq:offset 4 ; aoq:sizeBytes 2 ; aoq:wireKind "u16" ;
+    aoq:cName "version" ; aoq:rustName "INTENT_VERSION" ; aoq:goName "Version" ;
+    aoq:nextOffset aoq:hfi-flags ;
+    aoq:fieldOf aoq:header-intent ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:hfi-flags a aoq:HeaderField ;
+    rdfs:label "intent flags" ;
+    aoq:offset 6 ; aoq:sizeBytes 2 ; aoq:wireKind "u16" ;
+    aoq:cName "flags" ; aoq:rustName "INTENT_FLAGS" ; aoq:goName "Flags" ;
+    aoq:nextOffset aoq:hfi-intent-id ;
+    aoq:fieldOf aoq:header-intent ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:hfi-intent-id a aoq:HeaderField ;
+    rdfs:label "intent_id" ;
+    aoq:offset 8 ; aoq:sizeBytes 4 ; aoq:wireKind "u32" ;
+    aoq:cName "intent_id" ; aoq:rustName "INTENT_ID" ; aoq:goName "IntentID" ;
+    aoq:nextOffset aoq:hfi-digest ;
+    aoq:fieldOf aoq:header-intent ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:hfi-digest a aoq:HeaderField ;
+    rdfs:label "intent_digest" ;
+    rdfs:comment "FNV-1a32 over intent header bytes [0x00,0x0C), stored at 0x0C; last field ends at byte 16." ;
+    aoq:offset 12 ; aoq:sizeBytes 4 ; aoq:wireKind "fnv1a32" ;
+    aoq:cName "intent_digest" ; aoq:rustName "INTENT_DIGEST" ; aoq:goName "IntentDigest" ;
+    aoq:fieldOf aoq:header-intent ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:header-page a aoq:Header ;
+    rdfs:label "AOQ downstream-page header (28 bytes)" ;
+    aoq:sizeBytes 28 ;
+    aoq:goName "AoqPageHeader" ;
+    aoq:rustName "AoqPageHeader" ;
+    aoq:cName "aoq_page_header_t" ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:hfp-magic a aoq:HeaderField ;
+    rdfs:label "page magic" ;
+    aoq:offset 0 ; aoq:sizeBytes 4 ; aoq:wireKind "u32" ;
+    aoq:cName "magic" ; aoq:rustName "PAGE_MAGIC" ; aoq:goName "Magic" ;
+    aoq:nextOffset aoq:hfp-version ;
+    aoq:fieldOf aoq:header-page ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:hfp-version a aoq:HeaderField ;
+    rdfs:label "page version" ;
+    aoq:offset 4 ; aoq:sizeBytes 2 ; aoq:wireKind "u16" ;
+    aoq:cName "version" ; aoq:rustName "PAGE_VERSION" ; aoq:goName "Version" ;
+    aoq:nextOffset aoq:hfp-flags ;
+    aoq:fieldOf aoq:header-page ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:hfp-flags a aoq:HeaderField ;
+    rdfs:label "page flags" ;
+    aoq:offset 6 ; aoq:sizeBytes 2 ; aoq:wireKind "u16" ;
+    aoq:cName "flags" ; aoq:rustName "PAGE_FLAGS" ; aoq:goName "Flags" ;
+    aoq:nextOffset aoq:hfp-page-ordinal ;
+    aoq:fieldOf aoq:header-page ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:hfp-page-ordinal a aoq:HeaderField ;
+    rdfs:label "page_ordinal" ;
+    aoq:offset 8 ; aoq:sizeBytes 4 ; aoq:wireKind "u32" ;
+    aoq:cName "page_ordinal" ; aoq:rustName "PAGE_ORDINAL" ; aoq:goName "PageOrdinal" ;
+    aoq:nextOffset aoq:hfp-page-count ;
+    aoq:fieldOf aoq:header-page ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:hfp-page-count a aoq:HeaderField ;
+    rdfs:label "page_count" ;
+    aoq:offset 12 ; aoq:sizeBytes 4 ; aoq:wireKind "u32" ;
+    aoq:cName "page_count" ; aoq:rustName "PAGE_COUNT" ; aoq:goName "PageCount" ;
+    aoq:nextOffset aoq:hfp-payload-len ;
+    aoq:fieldOf aoq:header-page ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:hfp-payload-len a aoq:HeaderField ;
+    rdfs:label "payload_len" ;
+    aoq:offset 16 ; aoq:sizeBytes 4 ; aoq:wireKind "u32" ;
+    aoq:cName "payload_len" ; aoq:rustName "PAYLOAD_LEN" ; aoq:goName "PayloadLen" ;
+    aoq:nextOffset aoq:hfp-reserved ;
+    aoq:fieldOf aoq:header-page ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:hfp-reserved a aoq:HeaderField ;
+    rdfs:label "page reserved" ;
+    rdfs:comment "Zero-filled region [0x14,0x18): must be zero on write." ;
+    aoq:offset 20 ; aoq:sizeBytes 4 ; aoq:wireKind "reserved-zero" ;
+    aoq:cName "reserved" ; aoq:rustName "PAGE_RESERVED" ; aoq:goName "Reserved" ;
+    aoq:nextOffset aoq:hfp-digest ;
+    aoq:fieldOf aoq:header-page ;
+    prov:wasDerivedFrom aoq:src-aoq-02 .
+
+aoq:hfp-digest a aoq:HeaderField ;
+    rdfs:label "page_digest" ;
+    rdfs:comment "FNV-1a32 over page header bytes [0x00,0x18), stored at 0x18; last field ends at byte 28." ;
+    aoq:offset 24 ; aoq:sizeBytes 4 ; aoq:wireKind "fnv1a32" ;
+    aoq:cName "page_digest" ; aoq:rustName "PAGE_DIGEST" ; aoq:goName "PageDigest" ;
+    aoq:fieldOf aoq:header-page ;
     prov:wasDerivedFrom aoq:src-aoq-02 .
 
 # ------------------------------------------------------- status constants

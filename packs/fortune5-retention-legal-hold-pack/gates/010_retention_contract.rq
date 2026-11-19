@@ -1,0 +1,28 @@
+# MESSAGE: Fortune 5 retention contract incomplete -- every program and schedule requires identity, retention days, immutability, and evidence
+PREFIX f5rh: <http://seanchatmangpt.github.io/packs/fortune5-retention-legal-hold#>
+SELECT ?subject ?kind ?missing WHERE {
+  {
+    ?subject a f5rh:RetentionProgram .
+    BIND("program" AS ?kind)
+    VALUES ?property {
+      f5rh:programId f5rh:catalogGroup f5rh:catalogVersion
+      f5rh:catalogPackId f5rh:hasSchedule f5rh:hasLegalHold
+      f5rh:directActuation
+    }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(STR(?property) AS ?missing)
+  }
+  UNION
+  {
+    ?subject a f5rh:RetentionSchedule .
+    BIND("schedule" AS ?kind)
+    VALUES ?property {
+      f5rh:scheduleId f5rh:title f5rh:appliesToStorageClass
+      f5rh:retentionDays f5rh:immutableCapable f5rh:evidenceRequired
+      f5rh:directActuation
+    }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(STR(?property) AS ?missing)
+  }
+}
+ORDER BY ?kind ?subject ?missing

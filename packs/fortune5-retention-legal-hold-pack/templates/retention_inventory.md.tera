@@ -1,0 +1,79 @@
+---
+to: "infrastructure/data/object-storage/retention_inventory.md"
+force: true
+sparql:
+  programs: |
+    PREFIX f5rh: <http://seanchatmangpt.github.io/packs/fortune5-retention-legal-hold#>
+    SELECT ?programId ?catalogGroup ?catalogVersion ?catalogPackId ?directActuation
+    WHERE {
+      ?p a f5rh:RetentionProgram ;
+         f5rh:programId ?programId ;
+         f5rh:catalogGroup ?catalogGroup ;
+         f5rh:catalogVersion ?catalogVersion ;
+         f5rh:catalogPackId ?catalogPackId ;
+         f5rh:directActuation ?directActuation .
+    }
+    ORDER BY ?programId
+  schedules: |
+    PREFIX f5rh: <http://seanchatmangpt.github.io/packs/fortune5-retention-legal-hold#>
+    SELECT ?scheduleId ?title ?storageClassId ?retentionDays ?immutable
+           ?evidence ?directActuation
+    WHERE {
+      ?s a f5rh:RetentionSchedule ;
+         f5rh:scheduleId ?scheduleId ;
+         f5rh:title ?title ;
+         f5rh:appliesToStorageClass ?sc ;
+         f5rh:retentionDays ?retentionDays ;
+         f5rh:immutableCapable ?immutable ;
+         f5rh:evidenceRequired ?evidence ;
+         f5rh:directActuation ?directActuation .
+      ?sc f5rh:storageClassId ?storageClassId .
+    }
+    ORDER BY ?scheduleId
+  holds: |
+    PREFIX f5rh: <http://seanchatmangpt.github.io/packs/fortune5-retention-legal-hold#>
+    SELECT ?holdId ?title ?matterId ?objectId ?blocksDelete ?blocksExport
+           ?evidence ?directActuation
+    WHERE {
+      ?h a f5rh:LegalHold ;
+         f5rh:holdId ?holdId ;
+         f5rh:title ?title ;
+         f5rh:matterId ?matterId ;
+         f5rh:holdsObject ?obj ;
+         f5rh:blocksDelete ?blocksDelete ;
+         f5rh:blocksExport ?blocksExport ;
+         f5rh:evidenceRequired ?evidence ;
+         f5rh:directActuation ?directActuation .
+      ?obj f5rh:objectId ?objectId .
+    }
+    ORDER BY ?holdId
+---
+# Fortune 5 retention / legal-hold inventory
+
+Projection from `fortune5-retention-legal-hold-pack`. Catalog group
+`object-storage` / pack id `fortune5-retention-pack`. Broker-only — no cloud
+actuation, no sealed matter payloads, no secrets.
+
+## Programs
+
+| programId | catalogGroup | catalogVersion | catalogPackId | directActuation |
+|---|---|---|---|---|
+{% for row in programs -%}
+| {{ row.programId }} | {{ row.catalogGroup }} | {{ row.catalogVersion }} | {{ row.catalogPackId }} | {{ row.directActuation }} |
+{% endfor %}
+
+## Schedules
+
+| scheduleId | title | storageClass | retentionDays | immutable | evidence | directActuation |
+|---|---|---|---|---|---|---|
+{% for row in schedules -%}
+| {{ row.scheduleId }} | {{ row.title }} | {{ row.storageClassId }} | {{ row.retentionDays }} | {{ row.immutable }} | {{ row.evidence }} | {{ row.directActuation }} |
+{% endfor %}
+
+## Legal holds
+
+| holdId | title | matterId | objectId | blocksDelete | blocksExport | evidence | directActuation |
+|---|---|---|---|---|---|---|---|
+{% for row in holds -%}
+| {{ row.holdId }} | {{ row.title }} | {{ row.matterId }} | {{ row.objectId }} | {{ row.blocksDelete }} | {{ row.blocksExport }} | {{ row.evidence }} | {{ row.directActuation }} |
+{% endfor %}

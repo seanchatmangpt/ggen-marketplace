@@ -1,0 +1,47 @@
+# MESSAGE: NetworkPolicySpec posture incoherent with policyTypes / egressEmpty / allowlist binding
+PREFIX ianp: <https://ggen.dev/packs/ip-allowlist-network-policy#>
+SELECT ?np ?violation WHERE {
+  ?np a ianp:NetworkPolicySpec ; ianp:posture ?posture .
+  {
+    # ZeroEgress requires egress type + empty egress list; no ingress type.
+    FILTER(?posture = ianp:ZeroEgress)
+    OPTIONAL { ?np ianp:policyTypesEgress ?eg }
+    OPTIONAL { ?np ianp:egressEmpty ?empty }
+    OPTIONAL { ?np ianp:policyTypesIngress ?ing }
+    FILTER(!BOUND(?eg) || ?eg != true || !BOUND(?empty) || ?empty != true || (BOUND(?ing) && ?ing = true))
+    BIND("ZERO_EGRESS_REQUIRES_EGRESS_TRUE_EMPTY_TRUE_INGRESS_FALSE" AS ?violation)
+  }
+  UNION
+  {
+    # IngressAllowlistOnly requires ingress type + bound allowlist; egressEmpty must not claim jail.
+    FILTER(?posture = ianp:IngressAllowlistOnly)
+    OPTIONAL { ?np ianp:policyTypesIngress ?ing }
+    OPTIONAL { ?np ianp:bindsAllowlist ?al }
+    OPTIONAL { ?np ianp:egressEmpty ?empty }
+    FILTER(!BOUND(?ing) || ?ing != true || !BOUND(?al) || (BOUND(?empty) && ?empty = true))
+    BIND("INGRESS_ALLOWLIST_REQUIRES_INGRESS_TRUE_BOUND_ALLOWLIST_NOT_EMPTY_EGRESS" AS ?violation)
+  }
+  UNION
+  {
+    # DefaultDenyWithAllow requires at least one policy type true and NOT empty-egress-only.
+    FILTER(?posture = ianp:DefaultDenyWithAllow)
+    OPTIONAL { ?np ianp:policyTypesIngress ?ing }
+    OPTIONAL { ?np ianp:policyTypesEgress ?eg }
+    OPTIONAL { ?np ianp:egressEmpty ?empty }
+    FILTER(
+      ((!BOUND(?ing) || ?ing != true) && (!BOUND(?eg) || ?eg != true))
+      || (BOUND(?empty) && ?empty = true && BOUND(?eg) && ?eg = true && (!BOUND(?ing) || ?ing != true))
+    )
+    BIND("DEFAULT_DENY_WITH_ALLOW_REQUIRES_TYPED_ALLOW_NOT_ZERO_EGRESS_JAIL" AS ?violation)
+  }
+  UNION
+  {
+    ?np ianp:posture ?posture .
+    FILTER NOT EXISTS {
+      VALUES ?ok { ianp:ZeroEgress ianp:DefaultDenyWithAllow ianp:IngressAllowlistOnly }
+      FILTER(?posture = ?ok)
+    }
+    BIND("POSTURE_NOT_CLOSED" AS ?violation)
+  }
+}
+ORDER BY ?np ?violation

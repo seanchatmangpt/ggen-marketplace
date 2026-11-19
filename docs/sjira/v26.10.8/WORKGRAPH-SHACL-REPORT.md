@@ -172,3 +172,53 @@ Nothing new: delta = 0 violations in every repo, and no new violation class
 beyond the four documented doc-graph style buckets. Round-3 admission
 verdict: **ADMITTED** — all 12 graphs at doc-graph-style-only non-conformance,
 all 12 defect fixes retained, no regression introduced by the fix wave.
+
+## Round-4 addendum (doc-work-order shape, 2026-11-19)
+
+Mass rewrite of campaign WORKGRAPH.ttl files into execution-order
+`work-order.shacl.ttl` shape is unsafe (doc-graph header law; receipts live
+outside the graph). Highest-leverage fix: shared campaign shape + one golden
+pack, mirroring the GoalCheckpoint precedent.
+
+| artifact | path | role |
+|---|---|---|
+| shared shape | `~/ggen_igniter/priv/ggen/semantic-jira-pack/shapes/doc-work-order.shacl.ttl` | campaign WorkOrder doc-graph court |
+| canonical template | `~/ggen_igniter/priv/ggen/semantic-jira-pack/templates/doc_work_order.ttl.tera` | emits doc-work-order-conforming TTL |
+| golden pack | `ggen-marketplace/docs/sjira/v26.10.8/WORKGRAPH.ttl` | 6 orders; conforms under doc-work-order |
+
+### Remaining style-mismatch vs `work-order.shacl.ttl`
+
+Until `scripts/validate_workgraphs.py` selects `doc-work-order.shacl.ttl` for
+campaign WORKGRAPH.ttl files (same switch as goal.ttl →
+`goal-checkpoint.shacl.ttl`), the fleet script still reports style-mismatch
+against the execution shape. Remaining counts from this report (unchanged
+defect-free style buckets):
+
+| repo | style-mismatch | notes |
+|---|---|---|
+| ash_a2a | 72 | awaiting doc-shape selection / regen |
+| ash_affidavit | 112 | awaiting doc-shape selection / regen |
+| ash_pplan | 15 | near execution-order; still style |
+| ash_r2rml | 90 | awaiting doc-shape selection / regen |
+| ash_surface | 94 | awaiting doc-shape selection / regen |
+| beam4pm | 79 | awaiting doc-shape selection / regen |
+| castle | 0 under goal-checkpoint | already green on GC shape |
+| ex4pm | 81 | awaiting doc-shape selection / regen |
+| ggen-ecosystem | 91 | awaiting doc-shape selection / regen |
+| ggen-marketplace | **0 under doc-work-order** | golden; was 152 vs execution shape |
+| xaas | 131 | awaiting doc-shape selection / regen |
+| zcode-cli | 25 | awaiting doc-shape selection / regen |
+
+**Remaining fleet total vs execution `work-order.shacl.ttl` (10 repos, excluding
+castle + marketplace golden):** ~790 style-mismatch. Coordinator wiring of
+shape selection greens marketplace immediately and admits the other 10 under
+the same doc shape without mass rewrite.
+
+### Coordinator follow-up (not authored here)
+
+```python
+# scripts/validate_workgraphs.py — select doc-work-order for campaign WO graphs
+DOC_WO_SHAPES = PACK_SHAPES / "doc-work-order.shacl.ttl"
+# when wo and not (execution-complete): use DOC_WO_SHAPES
+# heuristic: missing sj:requiresCourt IRI class OR graph header cites doc-work-order
+```

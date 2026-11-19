@@ -1,0 +1,60 @@
+# Qualification positive consumer for ash-rls-tenant-isolation-pack.
+# Coordinator unions this with ontology.ttl (+ shapes/rls.shacl.ttl) for gate courts.
+# Mirror of fixtures/example-consumer.ttl (kept for copy-into-consumer docs).
+
+@prefix rls: <https://ggen.dev/packs/ash-rls-tenant-isolation#> .
+@prefix ex:  <https://example.org/ash-rls-consumer#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ex:AppRepoHook a rls:RepoTenantHook ;
+    rls:repoModule "MyApp.Repo" ;
+    rls:bindsTenantGuc rls:GucCurrentTenantId ;
+    rls:bindsPlatformGuc rls:GucRlsPlatform ;
+    rls:failClosedNilTenant true .
+
+ex:EnableRlsMigration a rls:IsolationMigration ;
+    rls:migrationModule "MyApp.Repo.Migrations.EnableTenantRlsIsolationPolicy" ;
+    rls:migrationVersion "20260101000000" ;
+    rls:coversTable ex:WorkOrders, ex:Clients, ex:Documents .
+
+ex:WorkOrders a rls:TenantScopedTable ;
+    rls:tableName "work_orders" ;
+    rls:tenantColumn "tenant_id" ;
+    rls:enableRls true ;
+    rls:forceRls true ;
+    rls:nullableTenant false ;
+    rls:platformBypass true ;
+    rls:hasPolicy rls:DefaultTenantIsolationPolicy .
+
+ex:Clients a rls:TenantScopedTable ;
+    rls:tableName "clients" ;
+    rls:enableRls true ;
+    rls:forceRls true ;
+    rls:platformBypass true ;
+    rls:hasPolicy rls:DefaultTenantIsolationPolicy .
+
+ex:Documents a rls:TenantScopedTable ;
+    rls:tableName "documents" ;
+    rls:enableRls true ;
+    rls:forceRls true ;
+    rls:nullableTenant true ;
+    rls:platformBypass true ;
+    rls:hasPolicy rls:DefaultNullableTenantIsolationPolicy .
+
+ex:ExcludeUsers a rls:CatalogExclusion ;
+    rls:excludedTableName "users" ;
+    rls:exclusionReason "Authentication resolves identity before any tenant context exists." .
+
+ex:ExcludeTokens a rls:CatalogExclusion ;
+    rls:excludedTableName "tokens" ;
+    rls:exclusionReason "Auth token store; no tenant GUC at resolve time." .
+
+ex:ExcludeSchemaMigrations a rls:CatalogExclusion ;
+    rls:excludedTableName "schema_migrations" ;
+    rls:exclusionReason "Ecto bookkeeping; no tenant semantics." .
+
+ex:AppRlsCourt a rls:RlsCourt ;
+    rls:courtModule "MyApp.RlsCourtTest" ;
+    rls:probeTable "work_orders" ;
+    rls:courtRole "rls_court_app" ;
+    rls:usesRepo ex:AppRepoHook .

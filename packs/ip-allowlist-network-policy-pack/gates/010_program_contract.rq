@@ -1,0 +1,35 @@
+# MESSAGE: NetworkProgram contract incomplete -- identity, catalog binding, allowlist, policy, and broker-only flag required
+PREFIX ianp: <https://ggen.dev/packs/ip-allowlist-network-policy#>
+SELECT ?subject ?kind ?missing WHERE {
+  {
+    ?subject a ianp:NetworkProgram .
+    BIND("program" AS ?kind)
+    VALUES ?property {
+      ianp:programId ianp:catalogGroup ianp:catalogVersion
+      ianp:catalogPackId ianp:hasAllowlist ianp:hasNetworkPolicy
+      ianp:directActuation
+    }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(STR(?property) AS ?missing)
+  }
+  UNION
+  {
+    ?subject a ianp:IpAllowlist .
+    BIND("allowlist" AS ?kind)
+    VALUES ?property { ianp:allowlistId ianp:hasEntry }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(STR(?property) AS ?missing)
+  }
+  UNION
+  {
+    ?subject a ianp:NetworkPolicySpec .
+    BIND("network-policy" AS ?kind)
+    VALUES ?property {
+      ianp:policyName ianp:namespace ianp:posture
+      ianp:policyTypesIngress ianp:policyTypesEgress ianp:egressEmpty
+    }
+    FILTER NOT EXISTS { ?subject ?property ?value }
+    BIND(STR(?property) AS ?missing)
+  }
+}
+ORDER BY ?kind ?subject ?missing

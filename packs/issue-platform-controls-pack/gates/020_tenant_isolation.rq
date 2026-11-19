@@ -1,0 +1,26 @@
+# MESSAGE: Tenant isolation — every ip:Tenant needs tenantId; boundTenant on
+# sj:WorkOrder must point at an ip:Tenant; audit eventTenant must match the
+# subject's boundTenant when both are present (dfcm:F5TenantIsolation).
+PREFIX ip: <https://ggen.dev/ontology/issue-platform-controls#>
+PREFIX sj: <https://ggen-igniter.dev/ontology/semantic-jira#>
+
+SELECT DISTINCT ?subject ?problem WHERE {
+  {
+    ?subject a ip:Tenant .
+    FILTER NOT EXISTS { ?subject ip:tenantId ?id . FILTER(STRLEN(STR(?id)) > 0) }
+    BIND("tenant-missing-tenantId" AS ?problem)
+  } UNION {
+    ?subject a sj:WorkOrder ;
+             ip:boundTenant ?t .
+    FILTER NOT EXISTS { ?t a ip:Tenant }
+    BIND("boundTenant-not-an-ip-Tenant" AS ?problem)
+  } UNION {
+    ?subject a ip:AuditEvent ;
+             ip:eventTenant ?et ;
+             ip:subjectWorkOrder ?wo .
+    ?wo ip:boundTenant ?wt .
+    FILTER(?et != ?wt)
+    BIND("audit-eventTenant-mismatches-workorder-boundTenant" AS ?problem)
+  }
+}
+ORDER BY ?subject ?problem

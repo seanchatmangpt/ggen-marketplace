@@ -1081,6 +1081,9 @@ def render(repo: str, version: str, seed_commits: dict | None = None) -> str:
         w(f'  sj:standing "{o.standing}" ;')
         w(f'  sj:repository "{esc(label)}" ;')
         w(f'  sj:baseSha "{o.base_sha}" ;')
+        # Pinned origin authority (parity with JSONL ORIGIN_AUTHORITY / candidate
+        # origin_authority). Full IRI so consumers need no prefix expansion.
+        w(f"  sj:originAuthority <{ORIGIN_AUTHORITY}> ;")
         # v3 item 7: seed-commits binding (landedCommit/subjectSha).
         landed = None
         if seed_commits:

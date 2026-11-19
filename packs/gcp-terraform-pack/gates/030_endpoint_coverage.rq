@@ -1,0 +1,19 @@
+# MESSAGE: any row = a Resource whose API host lacks an arcus, smalt, referee, or validate_only classification.
+PREFIX gtf: <https://seanchatmangpt.dev/ontology/gcp-terraform#>
+SELECT DISTINCT ?r ?problem WHERE {
+  ?r a gtf:Resource .
+  {
+    FILTER NOT EXISTS { ?r gtf:apiHost ?host }
+    BIND("missing-api-host" AS ?problem)
+  } UNION {
+    ?r gtf:apiHost ?host .
+    FILTER NOT EXISTS { ?r gtf:endpointClassification ?c }
+    FILTER NOT EXISTS { ?host gtf:endpointClassification ?c }
+    BIND("missing-endpoint-classification" AS ?problem)
+  } UNION {
+    ?r gtf:apiHost ?host .
+    { ?r gtf:endpointClassification ?c } UNION { ?host gtf:endpointClassification ?c }
+    FILTER(STR(?c) NOT IN ("arcus", "smalt", "referee", "validate_only"))
+    BIND(CONCAT("invalid-endpoint-classification:", STR(?c)) AS ?problem)
+  }
+}
