@@ -45,3 +45,11 @@ VERIFIED: union SHACL EXIT=0 and sync EXIT=0.
 
 Binary `ggen 26.11.5`. validate + union EXIT=0; rdflib 3/3 clean + 3/3 mutation FLIP; scratch sync with consumer import EXIT=0.
 Standing: **VERIFIED**.
+
+## Tip re-court (2026-11-20) — SJ finish residual close
+
+Subject `7ad4b6db`. Binary `ggen 26.11.5`. Ontology / union / comma SHACL
+EXIT=0; rdflib gates 010–030 clean; 3/3 mutation FLIP; `qualify_packs`
+ALIVE. Marketplace is not the SJ finish blocker — see
+`docs/jira/v26.11.20/receipts/sj-pack-sourced-completion-marketplace-not-blocker.md`.
+Standing: **VERIFIED**.
