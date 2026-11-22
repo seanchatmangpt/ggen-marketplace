@@ -382,9 +382,34 @@ test.describe("Spatial Court — PropertyGroup viewport matrix @spatial-court", 
 });
 
 /**
+ * LOUD_SKIP / Playwright skip must never be swallowed into a false refuse PASS.
+ * `test.skip(...)` throws; catch blocks that treat any throw as refuse would
+ * convert missing hooks into silent green.
+ */
+function rethrowIfLoudSkip(err: unknown): void {
+  const msg =
+    err instanceof Error
+      ? err.message
+      : typeof err === "string"
+        ? err
+        : String(err ?? "");
+  if (
+    msg.includes("LOUD_SKIP") ||
+    msg.includes("skipped") ||
+    (typeof err === "object" &&
+      err !== null &&
+      "name" in err &&
+      String((err as { name: unknown }).name).toLowerCase().includes("skip"))
+  ) {
+    throw err;
+  }
+}
+
+/**
  * Anti-vacuity mutants — always-on, self-contained `setContent` fixtures.
  * Prove the court helpers can FAIL; a PASS under these fixtures is vacuous refuse-ALIVE.
  * CI_MUTATION=0 → LOUD_SKIP (explicit disable only); unset / any other value → live.
+ * Do not delete this block when regenerating.
  */
 test.describe("Spatial Court — anti-vacuity mutants @spatial-court", () => {
   test.beforeEach(() => {
@@ -402,7 +427,8 @@ test.describe("Spatial Court — anti-vacuity mutants @spatial-court", () => {
     let refused = false;
     try {
       await assertNoHorizontalOverflow(page);
-    } catch {
+    } catch (err) {
+      rethrowIfLoudSkip(err);
       refused = true;
     }
     expect(
@@ -433,7 +459,8 @@ test.describe("Spatial Court — anti-vacuity mutants @spatial-court", () => {
     let refused = false;
     try {
       await assertTouchTargets(page, mutantSurface);
-    } catch {
+    } catch (err) {
+      rethrowIfLoudSkip(err);
       refused = true;
     }
     expect(
@@ -444,10 +471,13 @@ test.describe("Spatial Court — anti-vacuity mutants @spatial-court", () => {
 
   test("ANTI-VACUITY: adjacent gap < 8px must FAIL Gestalt floor", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
+    // Absolute positions → edge gap 4px (mirrors zcode fixtureAdjacentGapBelowFloor).
     await page.setContent(`
-      <div data-testid="spatial-group-vacuity" style="display:flex;gap:4px;padding:8px">
-        <button data-testid="spatial-gap-vacuity" style="width:48px;height:48px;padding:0">a</button>
-        <button data-testid="spatial-gap-vacuity" style="width:48px;height:48px;padding:0">b</button>
+      <div data-testid="spatial-group-vacuity" style="position:relative;height:72px;padding:8px">
+        <button data-testid="spatial-gap-vacuity"
+                style="position:absolute;left:8px;top:8px;width:48px;height:48px;padding:0">a</button>
+        <button data-testid="spatial-gap-vacuity"
+                style="position:absolute;left:60px;top:8px;width:48px;height:48px;padding:0">b</button>
       </div>
     `);
     const mutantSurface: CourtSurface = {
@@ -465,7 +495,8 @@ test.describe("Spatial Court — anti-vacuity mutants @spatial-court", () => {
     let refused = false;
     try {
       await assertGestaltGaps(page, mutantSurface);
-    } catch {
+    } catch (err) {
+      rethrowIfLoudSkip(err);
       refused = true;
     }
     expect(
@@ -505,7 +536,8 @@ test.describe("Spatial Court — anti-vacuity mutants @spatial-court", () => {
     let refused = false;
     try {
       await assertGestaltGaps(page, mutantSurface);
-    } catch {
+    } catch (err) {
+      rethrowIfLoudSkip(err);
       refused = true;
     }
     expect(
