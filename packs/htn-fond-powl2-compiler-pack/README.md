@@ -1,8 +1,9 @@
 # htn-fond-powl2-compiler-pack
 
-Scaffold only. Hard locks live in [`CONSTRAINTS.md`](CONSTRAINTS.md).
+Standing: **UNVERIFIED / scaffold** — see [`STATUS.md`](STATUS.md).
+Hard locks: [`CONSTRAINTS.md`](CONSTRAINTS.md).
 
-- Branch work in ggen-marketplace; **do not** pin `fibo/packs.toml` until qualify.
+- `templates/`, `queries/`, `ontology/`, `qualification/witnesses/` are **empty**
+  (no fake codegen).
 - Gates under `gates/*.rq` are `SELECT ?violation ?subject` stubs (0 rows = PASS).
-- Full templates / sync manufacture deferred until cindy docs + L39 bridge reuse
-  are ready. Cindy has no `.git` — pack commits land here.
+- **Do not** pin `fibo/packs.toml` until qualify twice.

@@ -1,0 +1,30 @@
+@prefix pi: <https://ggen.dev/ontology/process-intelligence#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+# Pack-owned OCEL worked example (order feed via hook).
+# Quarantined from ontology.ttl so consumer gen (e.g. zcode-cli) does not
+# inherit phantom place_order / ship_order / order_hook into EVENT_TYPES.
+# Load this file explicitly for pack demos / docs — not via [ontology] sync.
+
+pi:Source-OrderHook a pi:EventSource ; pi:sourceId "order_hook" ; pi:sourceKind "hook" ;
+    pi:nameField "event" ; pi:idField "id" ; pi:timeField "ts" ; pi:chainPolicy pi:ChainPolicy-Default .
+
+pi:ObjectType-Order a pi:ObjectType ; pi:typeId "order" .
+pi:ObjectType-Item a pi:ObjectType ; pi:typeId "item" .
+pi:EventType-Place a pi:EventType ; pi:typeId "place_order" .
+pi:EventType-Ship a pi:EventType ; pi:typeId "ship_order" .
+pi:Qualifier-Contains a pi:Qualifier ; pi:qualifierId "contains" .
+
+pi:Rel-Place-Order a pi:E2ORelation ; pi:relatesObjectType pi:ObjectType-Order ; pi:hasQualifier pi:Qualifier-Subject ; pi:objectIdPath "order.id" .
+pi:Rel-Place-Item a pi:E2ORelation ; pi:relatesObjectType pi:ObjectType-Item ; pi:hasQualifier pi:Qualifier-Contains ; pi:objectIdPath "items" .
+pi:Rel-Ship-Order a pi:E2ORelation ; pi:relatesObjectType pi:ObjectType-Order ; pi:hasQualifier pi:Qualifier-Subject ; pi:objectIdPath "order.id" .
+
+pi:Rule-Place a pi:MappingRule ; pi:ruleId "rule-place" ; pi:fromSource pi:Source-OrderHook ; pi:sourceEvent "order.placed" ;
+    pi:emitsEventType pi:EventType-Place ; pi:hasRelation pi:Rel-Place-Order , pi:Rel-Place-Item .
+pi:Rule-Ship a pi:MappingRule ; pi:ruleId "rule-ship" ; pi:fromSource pi:Source-OrderHook ; pi:sourceEvent "order.shipped" ;
+    pi:emitsEventType pi:EventType-Ship ; pi:hasRelation pi:Rel-Ship-Order .
+
+pi:RuntimeEvent-OrderPlaced a pi:RuntimeEvent ; pi:runtimeEventName "order.placed" ; pi:emittedBy pi:Source-OrderHook .
+pi:RuntimeEvent-OrderShipped a pi:RuntimeEvent ; pi:runtimeEventName "order.shipped" ; pi:emittedBy pi:Source-OrderHook .
+pi:RuntimeEvent-OrderAudit a pi:RuntimeEvent , pi:Unmapped ; pi:runtimeEventName "order.audit" ; pi:emittedBy pi:Source-OrderHook ;
+    pi:unmappedReason "audit noise carries no process step; deliberately outside the event log" .

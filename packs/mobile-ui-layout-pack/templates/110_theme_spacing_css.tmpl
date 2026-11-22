@@ -1,0 +1,151 @@
+---
+to: "app/theme-spacing.css"
+force: true
+---
+/*
+ * Fourth Watch spacing theme — Tailwind CSS v4 @theme
+ * Source: brand/fourth-watch.brand.toml (DTCG 2025.10, px/rem only)
+ * Invariants:
+ *   - never register cqi tokens with @property
+ *   - never co-locate container-type: inline-size with subgrid
+ *   - fluid preferred slopes use cqi (falls back to viewport % when no CQ)
+ */
+
+@import "tailwindcss";
+
+@theme {
+  /* ---- primitive 4/8 grid ------------------------------------------------ */
+  --spacing-0: 0px;
+  --spacing-0_5: 4px;
+  --spacing-1: 8px;
+  --spacing-1_5: 12px;
+  --spacing-2: 16px;
+  --spacing-3: 24px;
+  --spacing-4: 32px;
+  --spacing-5: 40px;
+  --spacing-6: 48px;
+  --spacing-8: 64px;
+  --spacing-10: 80px;
+  --spacing-12: 96px;
+
+  /* ---- semantic Gestalt ladder ------------------------------------------- */
+  --spacing-tight: var(--spacing-0_5);
+  --spacing-related: var(--spacing-1);
+  --spacing-grouped: var(--spacing-2);
+  --spacing-section: var(--spacing-4);
+  --spacing-topic: var(--spacing-6);
+  --spacing-margin-compact: var(--spacing-2);
+  --spacing-margin-medium: var(--spacing-3);
+  --spacing-pane-gap: var(--spacing-3);
+
+  /* ---- fluid clamp()+cqi (no @property) ---------------------------------- */
+  --spacing-fluid-inset: clamp(1rem, 0.5rem + 2.5cqi, 1.5rem);
+  --spacing-fluid-stack: clamp(0.5rem, 0.25rem + 1.25cqi, 1rem);
+  --spacing-fluid-section: clamp(1.5rem, 0.75rem + 3.75cqi, 3rem);
+  --spacing-card: clamp(1rem, 0.333rem + 3.333cqi, 2rem);
+
+  /* ---- touch floors ------------------------------------------------------ */
+  --spacing-touch-min: 44px;
+  --spacing-touch-comfortable: 48px;
+  --spacing-touch-gap: 8px;
+
+  /* ---- shell / measure --------------------------------------------------- */
+  --spacing-shell-height: 100dvh;
+  --spacing-prose-max: 40rem;
+  --spacing-container-max: 65rem;
+}
+
+/* Container query root for cqi-aware layout regions (not on subgrid). */
+.fw-cq {
+  container-type: inline-size;
+  width: 100%;
+}
+
+/* Mobile shell: dvh + safe-area (viewport-fit=cover expected on <meta>). */
+html,
+body {
+  min-height: 100dvh;
+}
+
+body {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+}
+
+.fw-shell {
+  min-height: 100dvh;
+  min-height: var(--spacing-shell-height);
+  box-sizing: border-box;
+  padding:
+    env(safe-area-inset-top, 0px)
+    env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px)
+    env(safe-area-inset-left, 0px);
+}
+
+.fw-shell__main {
+  width: min(100%, var(--spacing-container-max));
+  margin-inline: auto;
+  padding-inline: var(--spacing-fluid-inset);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: var(--spacing-fluid-stack);
+}
+
+/* Inputs: block iOS auto-zoom; strip double-tap delay on controls. */
+input,
+select,
+textarea,
+button,
+[role="button"],
+a {
+  touch-action: manipulation;
+}
+
+input,
+select,
+textarea {
+  font-size: max(16px, 1rem);
+}
+
+/* Touch target floors (hit padding may expand around smaller glyphs). */
+.fw-touch,
+button:not([data-fw-touch="ignore"]),
+[role="button"]:not([data-fw-touch="ignore"]),
+a.fw-touch {
+  min-width: var(--spacing-touch-min);
+  min-height: var(--spacing-touch-min);
+}
+
+.fw-touch--comfortable,
+[data-fw-cta="primary"] {
+  min-width: var(--spacing-touch-comfortable);
+  min-height: var(--spacing-touch-comfortable);
+}
+
+.fw-touch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-touch-gap);
+}
+
+/* Hover-only disclosures: fine pointer + real hover capability only. */
+@media (hover: hover) and (pointer: fine) {
+  .fw-hover-disclosure {
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+
+  .fw-hover-disclosure:is(:hover, :focus-within),
+  :is(:hover, :focus-within) > .fw-hover-disclosure {
+    opacity: 1;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .fw-hover-disclosure {
+    opacity: 1;
+  }
+}

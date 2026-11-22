@@ -1,0 +1,86 @@
+# MESSAGE: REFUSED_PRIVATE_NAMESPACE — OI-11 / pack namespace law. Any predicate,
+# class-position IRI, vocabulary-declared subject, or literal datatype outside
+# the public whitelist is a refusal. marketplace.py evaluates SELECT only
+# (ASK is ignored). Any row = refusal.
+#
+# Whitelist (explicit admit; slash-form shui: matches ontology.ttl / ggen.toml):
+#   rdf:  http://www.w3.org/1999/02/22-rdf-syntax-ns#
+#   rdfs: http://www.w3.org/2000/01/rdf-schema#
+#   xsd:  http://www.w3.org/2001/XMLSchema#
+#   sh:   http://www.w3.org/ns/shacl#
+#   shui: http://www.w3.org/ns/shacl-ui/
+#
+# Hash-form http://www.w3.org/ns/shacl-ui# is NOT admitted (STRSTARTS slash).
+# Twin: plan/cos whitelist.prefixes + gates/010_namespace_whitelist.rq (shui:/).
+#
+# Example violating triple (fires PRIVATE_NAMESPACE on predicate):
+#   @prefix mul: <urn:ggen:pack:mobile-ui-layout-pack#> .
+#   _:x mul:viewer _:y .
+#
+# Compliant (does NOT fire): shui:viewer / sh:group / rdf:type / rdfs:label /
+# xsd:string only — as in ontology.ttl blank-node CCS individuals.
+
+PREFIX rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX sh:   <http://www.w3.org/ns/shacl#>
+PREFIX shui: <http://www.w3.org/ns/shacl-ui/>
+PREFIX owl:  <http://www.w3.org/2002/07/owl#>
+
+SELECT DISTINCT ?violation ?iri ?role WHERE {
+  {
+    # Every predicate must be public.
+    ?s ?iri ?o .
+    BIND("predicate" AS ?role)
+  } UNION {
+    # Class / term positions (SHACL + pack shui: annotation objects).
+    ?s ?cp ?iri .
+    VALUES ?cp {
+      rdf:type
+      sh:targetClass sh:class sh:path sh:inversePath
+      sh:zeroOrMorePath sh:oneOrMorePath sh:zeroOrOnePath
+      sh:node sh:datatype sh:nodeKind
+      sh:property sh:not sh:qualifiedValueShape
+      sh:targetSubjectsOf sh:targetObjectsOf
+      sh:equals sh:disjoint sh:lessThan sh:lessThanOrEquals
+      sh:ignoredProperties
+      rdfs:subClassOf rdfs:subPropertyOf rdfs:domain rdfs:range
+      shui:viewer shui:editor shui:propertyRole shui:parentGroup
+    }
+    BIND("class-position" AS ?role)
+  } UNION {
+    # Subject minted as vocabulary (class / shape / property) must be public.
+    # Plain ABox blank nodes stay exempt (no IRI subject).
+    ?iri ?dpred ?dobj .
+    FILTER(
+      (?dpred = rdf:type && (
+        ?dobj = rdfs:Class || ?dobj = owl:Class ||
+        ?dobj = sh:NodeShape || ?dobj = sh:PropertyShape ||
+        ?dobj = sh:PropertyGroup ||
+        ?dobj = owl:ObjectProperty || ?dobj = owl:DatatypeProperty ||
+        ?dobj = rdf:Property || ?dobj = owl:AnnotationProperty ||
+        ?dobj = shui:PropertyRole
+      )) ||
+      ?dpred = rdfs:subClassOf || ?dpred = rdfs:subPropertyOf ||
+      ?dpred = rdfs:domain || ?dpred = rdfs:range ||
+      ?dpred = sh:targetClass || ?dpred = sh:path
+    )
+    BIND("vocab-subject" AS ?role)
+  } UNION {
+    # Literal datatypes must be public (rdf:langString, xsd:*).
+    ?s ?p ?o .
+    FILTER(isLiteral(?o))
+    BIND(DATATYPE(?o) AS ?iri)
+    BIND("datatype" AS ?role)
+  }
+  FILTER(isIRI(?iri))
+  FILTER(
+    !STRSTARTS(STR(?iri), "http://www.w3.org/1999/02/22-rdf-syntax-ns#") &&
+    !STRSTARTS(STR(?iri), "http://www.w3.org/2000/01/rdf-schema#") &&
+    !STRSTARTS(STR(?iri), "http://www.w3.org/2001/XMLSchema#") &&
+    !STRSTARTS(STR(?iri), "http://www.w3.org/ns/shacl#") &&
+    !STRSTARTS(STR(?iri), "http://www.w3.org/ns/shacl-ui/")
+  )
+  BIND("PRIVATE_NAMESPACE" AS ?violation)
+}
+ORDER BY ?role ?iri

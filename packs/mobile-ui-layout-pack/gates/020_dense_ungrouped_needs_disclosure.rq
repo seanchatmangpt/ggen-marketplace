@@ -1,0 +1,106 @@
+# MESSAGE: Cognitive budget — dense ungrouped collections must use progressive
+# disclosure (summary vs expanded). marketplace.py evaluates SELECT only
+# (ASK is ignored). Any row = refusal.
+#
+# Ontology contract (lane 3 CCS / PropertyGroup / disclosure modes; public
+# sh: / shui: terms only — no private pack vocabulary):
+#
+#   Collection surface   =  ?shape a sh:NodeShape
+#   Ungrouped member     =  ?p a sh:PropertyShape linked via sh:property,
+#                           with FILTER NOT EXISTS { ?p sh:group ?g }
+#   Dense                =  COUNT(DISTINCT ungrouped ?p) > 5
+#
+#   Progressive disclosure modes (CCS mapping from pack.toml):
+#     SUMMARY  (Sight Glass) —
+#       ?p shui:propertyRole shui:LabelRole
+#         | shui:DescriptionRole | shui:IconRole
+#       OR ?p shui:viewer ?v   (any shui:Viewer)
+#     EXPANDED (drill-in) —
+#       ?p shui:editor shui:DetailsEditor
+#       OR ?p shui:viewer shui:DetailsViewer
+#       OR nested tray: ?child a sh:PropertyGroup ; shui:parentGroup ?parent
+#          where ?parent is sh:group of a property of ?shape.
+#
+#   Violation when dense+ungrouped AND the disclosure pair is incomplete
+#   (missing SUMMARY, or missing EXPANDED, or both).
+#
+# Example violating shape (fires DENSE_UNGROUPED_NO_PROGRESSIVE_DISCLOSURE):
+#
+#   @prefix sh:   <http://www.w3.org/ns/shacl#> .
+#   @prefix shui: <http://www.w3.org/ns/shacl-ui/> .
+#
+#   <urn:ex:DenseForm> a sh:NodeShape ;
+#       sh:property <urn:ex:f1>, <urn:ex:f2>, <urn:ex:f3>,
+#                   <urn:ex:f4>, <urn:ex:f5>, <urn:ex:f6> .
+#   # six ungrouped PropertyShapes, no LabelRole/DescriptionRole/IconRole,
+#   # no shui:viewer, no DetailsEditor/DetailsViewer, no shui:parentGroup —
+#   # dense flat list with no summary↔expanded disclosure.
+#   <urn:ex:f1> a sh:PropertyShape ; sh:path <urn:ex:a> ; sh:order 0 .
+#   <urn:ex:f2> a sh:PropertyShape ; sh:path <urn:ex:b> ; sh:order 1 .
+#   <urn:ex:f3> a sh:PropertyShape ; sh:path <urn:ex:c> ; sh:order 2 .
+#   <urn:ex:f4> a sh:PropertyShape ; sh:path <urn:ex:d> ; sh:order 3 .
+#   <urn:ex:f5> a sh:PropertyShape ; sh:path <urn:ex:e> ; sh:order 4 .
+#   <urn:ex:f6> a sh:PropertyShape ; sh:path <urn:ex:f> ; sh:order 5 .
+#
+# Compliant counter-example (does NOT fire): same six fields, but
+#   <urn:ex:f1> shui:propertyRole shui:LabelRole ;     # SUMMARY
+#   <urn:ex:f6> shui:editor shui:DetailsEditor .       # EXPANDED
+#   — or group fields under sh:PropertyGroup trays with shui:parentGroup.
+#
+PREFIX sh:   <http://www.w3.org/ns/shacl#>
+PREFIX shui: <http://www.w3.org/ns/shacl-ui/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?violation ?subject WHERE {
+  {
+    SELECT ?shape (COUNT(DISTINCT ?p) AS ?n) WHERE {
+      ?shape a sh:NodeShape ; sh:property ?p .
+      ?p a sh:PropertyShape .
+      FILTER NOT EXISTS { ?p sh:group ?g }
+    }
+    GROUP BY ?shape
+    HAVING (COUNT(DISTINCT ?p) > 5)
+  }
+
+  # Incomplete progressive disclosure: missing SUMMARY and/or EXPANDED.
+  FILTER (
+    NOT EXISTS {
+      ?shape sh:property ?sumP .
+      ?sumP a sh:PropertyShape .
+      {
+        ?sumP shui:propertyRole ?role .
+        FILTER(
+          ?role IN (shui:LabelRole, shui:DescriptionRole, shui:IconRole)
+          || EXISTS {
+               ?role shui:propertyRole ?inner .
+               FILTER(?inner IN (shui:LabelRole, shui:DescriptionRole, shui:IconRole))
+             }
+        )
+      } UNION {
+        ?sumP shui:viewer ?viewer .
+      }
+    }
+    ||
+    NOT EXISTS {
+      {
+        ?shape sh:property ?expP .
+        ?expP a sh:PropertyShape .
+        {
+          ?expP shui:editor shui:DetailsEditor .
+        } UNION {
+          ?expP shui:viewer shui:DetailsViewer .
+        }
+      } UNION {
+        ?shape sh:property ?gp .
+        ?gp sh:group ?parent .
+        ?parent a sh:PropertyGroup .
+        ?child a sh:PropertyGroup ; shui:parentGroup ?parent .
+      }
+    }
+  )
+
+  BIND("DENSE_UNGROUPED_NO_PROGRESSIVE_DISCLOSURE" AS ?violation)
+  BIND(?shape AS ?subject)
+}
+ORDER BY ?subject

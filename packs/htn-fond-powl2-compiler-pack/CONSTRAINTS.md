@@ -1,6 +1,20 @@
 # CONSTRAINTS — htn-fond-powl2-compiler-pack
 
-Standing: UNVERIFIED (scaffold; no full codegen; not fibo-pinned)
+Standing: **UNVERIFIED / scaffold** (not a live compiler pack; no codegen)
+
+Treat any C4 / inventory claim that this pack “compiles ferroplan →
+`%Smalt.Powl2{}`” as **FAKE-ALIVE** until templates exist and qualify twice.
+This tree is constraints + SELECT gate stubs + a vocabulary scaffold only.
+
+Empty manufacture dirs (intentionally vacant — do **not** fake `.tera` /
+sync output):
+
+| Dir | On-disk state |
+|---|---|
+| `templates/` | empty |
+| `queries/` | empty |
+| `ontology/` | empty (root `ontology.ttl` is the only TTL) |
+| `qualification/witnesses/` | empty |
 
 These six go-locks plus the L39 bridge survey are **hard** for any authoring
 or qualify pass. Full pack codegen waits until cindy sjira docs + these locks
@@ -134,7 +148,12 @@ commits for this pack land in ggen-marketplace.
 
 ## Scaffold policy
 
-- This drop: `CONSTRAINTS.md`, minimal `ontology.ttl`, SELECT gate stubs,
-  pack receipt. **No** full template/codegen until docs ready.
+- This drop: `CONSTRAINTS.md`, `STATUS.md`, minimal root `ontology.ttl`,
+  SELECT gate stubs, pack receipt. **No** full template/codegen until docs
+  ready. Do not invent `.tera` under `templates/`, SPARQL under `queries/`,
+  or witnesses under `qualification/witnesses/` to look ALIVE.
 - Pinning: **forbidden** until qualify. Leave `fibo/packs.toml` and
   `verify_pins.py` untouched.
+- Flip Standing past UNVERIFIED only from a receipt that cites real
+  `templates/*.tera` renders + twice-green
+  `python3.11 scripts/marketplace.py check htn-fond-powl2-compiler-pack`.

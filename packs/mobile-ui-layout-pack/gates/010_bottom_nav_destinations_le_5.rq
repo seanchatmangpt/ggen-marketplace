@@ -1,0 +1,58 @@
+# MESSAGE: Cognitive budget — bottom navigation destinations must not exceed 5.
+# marketplace.py evaluates SELECT only (ASK is ignored). Any row = refusal.
+#
+# Ontology contract (lane 3 CCS individuals may land later; gate binds public
+# classes/properties only — no private pack vocabulary):
+#
+#   Bottom-nav CCS tray  =  ?nav a sh:PropertyGroup
+#     identified when ANY of:
+#       (a) STR(?nav) contains "BottomNav" / "bottom-nav" / "bottom_nav"
+#           (case-insensitive), OR
+#       (b) rdfs:label contains "bottom navigation" (case-insensitive).
+#
+#   Destination          =  ?dest a sh:PropertyShape ; sh:group ?nav
+#     (optionally ordered via sh:order; order is not required to fire).
+#
+#   Sight Glass / Human Circuit Breaker annotations on destinations
+#   (shui:viewer / shui:editor / shui:propertyRole) are orthogonal — this
+#   gate counts destinations only.
+#
+# Example violating shape (fires one row: BOTTOM_NAV_DESTINATIONS_OVER_5):
+#
+#   @prefix sh:   <http://www.w3.org/ns/shacl#> .
+#   @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+#
+#   <urn:ggen:pack:mobile-ui-layout-pack#BottomNav> a sh:PropertyGroup ;
+#       rdfs:label "Bottom Navigation"@en .
+#
+#   <urn:ex:d1> a sh:PropertyShape ; sh:group <urn:ggen:pack:mobile-ui-layout-pack#BottomNav> ; sh:order 0 .
+#   <urn:ex:d2> a sh:PropertyShape ; sh:group <urn:ggen:pack:mobile-ui-layout-pack#BottomNav> ; sh:order 1 .
+#   <urn:ex:d3> a sh:PropertyShape ; sh:group <urn:ggen:pack:mobile-ui-layout-pack#BottomNav> ; sh:order 2 .
+#   <urn:ex:d4> a sh:PropertyShape ; sh:group <urn:ggen:pack:mobile-ui-layout-pack#BottomNav> ; sh:order 3 .
+#   <urn:ex:d5> a sh:PropertyShape ; sh:group <urn:ggen:pack:mobile-ui-layout-pack#BottomNav> ; sh:order 4 .
+#   <urn:ex:d6> a sh:PropertyShape ; sh:group <urn:ggen:pack:mobile-ui-layout-pack#BottomNav> ; sh:order 5 .
+#
+PREFIX sh:   <http://www.w3.org/ns/shacl#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?violation ?subject WHERE {
+  {
+    SELECT ?nav (COUNT(DISTINCT ?dest) AS ?n) WHERE {
+      ?nav a sh:PropertyGroup .
+      OPTIONAL { ?nav rdfs:label ?lab }
+      FILTER(
+        CONTAINS(LCASE(STR(?nav)), "bottomnav")
+        || CONTAINS(LCASE(STR(?nav)), "bottom-nav")
+        || CONTAINS(LCASE(STR(?nav)), "bottom_nav")
+        || (BOUND(?lab) && CONTAINS(LCASE(STR(?lab)), "bottom navigation"))
+      )
+      ?dest a sh:PropertyShape ; sh:group ?nav .
+    }
+    GROUP BY ?nav
+    HAVING (COUNT(DISTINCT ?dest) > 5)
+  }
+  BIND("BOTTOM_NAV_DESTINATIONS_OVER_5" AS ?violation)
+  BIND(?nav AS ?subject)
+}
+ORDER BY ?subject

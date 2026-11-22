@@ -1,0 +1,280 @@
+# mobile-ui-layout-pack — Crystallized Control Surfaces via public SHACL UI.
+#
+# Namespace law: ONLY public prefixes (shui:, sh:, rdf:, rdfs:, xsd:).
+# No private pack IRI minting. Example CCS individuals are blank nodes.
+#
+# CCS mapping (Zero-HITL Mobile-First UI Loop):
+#   Sight Glass            ≈ data viewer  (shui:viewer + PropertyRole)
+#   Human Circuit Breaker  ≈ trigger/editor (shui:editor)
+#
+# Vocabulary (W3C SHACL 1.2 UI, http://www.w3.org/ns/shacl-ui/):
+#   sh:PropertyGroup, sh:group, sh:order
+#   shui:editor, shui:viewer, shui:propertyRole, shui:PropertyRole
+#   shui:parentGroup (progressive disclosure nesting)
+#   shui:selector (SpatialCourt; blank-node members require explicit literals)
+
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix shui: <http://www.w3.org/ns/shacl-ui/> .
+
+#################################################################
+# Spatial-court annotation properties (whitelist shui: NS)
+# Declared here so igniter can drop private sc: NS.
+#################################################################
+
+shui:selector a rdf:Property ;
+    rdfs:label "selector"@en ;
+    rdfs:comment "CSS selector string locating the annotated UI surface."@en ;
+    rdfs:range xsd:string .
+
+shui:role a rdf:Property ;
+    rdfs:label "role"@en ;
+    rdfs:comment "Spatial role for touch/interactive surfaces (e.g. touch, interactive)."@en ;
+    rdfs:range xsd:string .
+
+shui:interactive a rdf:Property ;
+    rdfs:label "interactive"@en ;
+    rdfs:comment "Whether the annotated surface accepts user interaction."@en ;
+    rdfs:range xsd:boolean .
+
+shui:touchTarget a rdf:Property ;
+    rdfs:label "touch target"@en ;
+    rdfs:comment "Whether the annotated surface is a designated touch target."@en ;
+    rdfs:range xsd:boolean .
+
+shui:minGap a rdf:Property ;
+    rdfs:label "minimum gap"@en ;
+    rdfs:comment "Documentation: minimum gap (px) between adjacent touch targets."@en ;
+    rdfs:range xsd:integer .
+
+shui:minTouch a rdf:Property ;
+    rdfs:label "minimum touch"@en ;
+    rdfs:comment "Documentation: minimum touch-target size (px)."@en ;
+    rdfs:range xsd:integer .
+
+#################################################################
+# PropertyGroups — Crystallized Control Surfaces
+#################################################################
+
+_:sightGlass a sh:PropertyGroup ;
+    rdfs:label "Sight Glass"@en ;
+    rdfs:comment "CCS data viewer: read-only observation surface. Bound to shui:viewer widgets and viewer-oriented PropertyRoles (LabelRole, DescriptionRole)."@en ;
+    sh:order 0 ;
+    shui:selector "[data-spatial-group=\"sight-glass\"]" .
+
+_:humanCircuitBreaker a sh:PropertyGroup ;
+    rdfs:label "Human Circuit Breaker"@en ;
+    rdfs:comment "CCS human trigger/editor: the sole lawful HITL actuation surface. Bound to shui:editor widgets so a human can arm or trip without LLM visual tweaking."@en ;
+    sh:order 1 ;
+    shui:selector "[data-spatial-group=\"human-circuit-breaker\"]" .
+
+# Progressive disclosure scaffold (summary → expanded) for cognitive-budget gates.
+_:disclosureRoot a sh:PropertyGroup ;
+    rdfs:label "Progressive Disclosure"@en ;
+    rdfs:comment "Root group for summary-vs-expanded disclosure. Dense collections must nest under this via shui:parentGroup."@en ;
+    sh:order 2 ;
+    shui:selector "[data-spatial-group=\"progressive-disclosure\"]" .
+
+_:disclosureSummary a sh:PropertyGroup ;
+    rdfs:label "Summary"@en ;
+    rdfs:comment "Collapsed disclosure mode: key info only."@en ;
+    shui:parentGroup _:disclosureRoot ;
+    sh:order 0 ;
+    shui:selector "[data-spatial-group=\"disclosure-summary\"]" .
+
+_:disclosureExpanded a sh:PropertyGroup ;
+    rdfs:label "Expanded"@en ;
+    rdfs:comment "Expanded disclosure mode: full property set."@en ;
+    shui:parentGroup _:disclosureRoot ;
+    sh:order 1 ;
+    shui:selector "[data-spatial-group=\"disclosure-expanded\"]" .
+
+# Bottom navigation group — destinations are ordered property shapes (≤5).
+_:bottomNavigation a sh:PropertyGroup ;
+    rdfs:label "Bottom Navigation"@en ;
+    rdfs:comment "Mobile bottom-nav destinations. Cognitive-budget gate refuses >5 destinations in this group."@en ;
+    sh:order 3 ;
+    shui:selector "[data-spatial-group=\"bottom-navigation\"]" .
+
+#################################################################
+# NodeShape — example CCS surface composing Sight Glass + HCB
+#################################################################
+
+_:crystallizedControlSurface a sh:NodeShape ;
+    rdfs:label "Crystallized Control Surface"@en ;
+    rdfs:comment "Example node shape wiring Sight Glass (viewer) and Human Circuit Breaker (editor) property shapes with sh:group / sh:order."@en ;
+    sh:property _:sgLabel ;
+    sh:property _:sgDetail ;
+    sh:property _:sgKeyInfo ;
+    sh:property _:hcbArmed ;
+    sh:property _:hcbTripNote ;
+    sh:property _:hcbClass ;
+    sh:property _:navHome ;
+    sh:property _:navObserve ;
+    sh:property _:navActuate ;
+    sh:property _:navAudit ;
+    sh:property _:disclosureToggle ;
+    sh:property _:summaryHeadline ;
+    sh:property _:expandedBody .
+
+#################################################################
+# Sight Glass — data viewer roles (shui:viewer + PropertyRole)
+#################################################################
+
+_:sgLabel a sh:PropertyShape ;
+    sh:path rdfs:label ;
+    sh:name "sight-glass label"@en ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:order 0 ;
+    sh:group _:sightGlass ;
+    shui:selector "[data-testid=\"sight-glass-label\"]" ;
+    shui:viewer shui:LiteralViewer ;
+    shui:propertyRole shui:LabelRole .
+
+_:sgDetail a sh:PropertyShape ;
+    sh:path rdfs:comment ;
+    sh:name "sight-glass detail"@en ;
+    sh:datatype xsd:string ;
+    sh:order 1 ;
+    sh:group _:sightGlass ;
+    shui:selector "[data-testid=\"sight-glass-detail\"]" ;
+    shui:viewer shui:LiteralViewer ;
+    shui:propertyRole shui:DescriptionRole .
+
+_:sgKeyInfo a sh:PropertyShape ;
+    sh:path rdf:value ;
+    sh:name "sight-glass key info"@en ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:order 2 ;
+    sh:group _:sightGlass ;
+    shui:selector "[data-testid=\"sight-glass-key-info\"]" ;
+    shui:viewer shui:LiteralViewer ;
+    shui:propertyRole shui:LabelRole .
+
+#################################################################
+# Human Circuit Breaker — trigger/editor (shui:editor)
+#################################################################
+
+_:hcbArmed a sh:PropertyShape ;
+    sh:path rdf:value ;
+    sh:name "circuit breaker armed"@en ;
+    sh:description "Boolean arm flag rendered as an editor so a human can trip/arm the breaker."@en ;
+    sh:datatype xsd:boolean ;
+    sh:maxCount 1 ;
+    sh:order 0 ;
+    sh:group _:humanCircuitBreaker ;
+    shui:selector "[data-testid=\"hcb-armed\"]" ;
+    shui:role "touch" ;
+    shui:touchTarget true ;
+    shui:editor shui:BooleanEditor .
+
+_:hcbClass a sh:PropertyShape ;
+    sh:path rdf:type ;
+    sh:name "circuit breaker class"@en ;
+    sh:description "Classification of the breaker focus node (viewer-adjacent role on the HCB surface)."@en ;
+    sh:order 2 ;
+    sh:group _:humanCircuitBreaker ;
+    shui:selector "[data-testid=\"hcb-class\"]" ;
+    shui:viewer shui:LabelViewer ;
+    shui:propertyRole shui:ClassificationRole .
+
+_:hcbTripNote a sh:PropertyShape ;
+    sh:path rdfs:comment ;
+    sh:name "circuit breaker trip note"@en ;
+    sh:description "Human-authored trip rationale; editor widget, not a viewer."@en ;
+    sh:datatype xsd:string ;
+    sh:order 1 ;
+    sh:group _:humanCircuitBreaker ;
+    shui:selector "[data-testid=\"hcb-trip-note\"]" ;
+    shui:interactive true ;
+    shui:editor shui:TextAreaEditor .
+
+#################################################################
+# Bottom navigation destinations (ordered; budget ≤5)
+#################################################################
+
+_:navHome a sh:PropertyShape ;
+    sh:path rdfs:seeAlso ;
+    sh:name "Home"@en ;
+    sh:order 0 ;
+    sh:group _:bottomNavigation ;
+    shui:selector "[data-testid=\"nav-home\"]" ;
+    shui:role "touch" ;
+    shui:touchTarget true ;
+    shui:viewer shui:HyperlinkViewer ;
+    shui:propertyRole shui:LabelRole .
+
+_:navObserve a sh:PropertyShape ;
+    sh:path rdfs:seeAlso ;
+    sh:name "Observe"@en ;
+    sh:order 1 ;
+    sh:group _:bottomNavigation ;
+    shui:selector "[data-testid=\"nav-observe\"]" ;
+    shui:role "touch" ;
+    shui:touchTarget true ;
+    shui:viewer shui:HyperlinkViewer ;
+    shui:propertyRole shui:LabelRole .
+
+_:navActuate a sh:PropertyShape ;
+    sh:path rdfs:seeAlso ;
+    sh:name "Actuate"@en ;
+    sh:order 2 ;
+    sh:group _:bottomNavigation ;
+    shui:selector "[data-testid=\"nav-actuate\"]" ;
+    shui:role "touch" ;
+    shui:touchTarget true ;
+    shui:viewer shui:HyperlinkViewer ;
+    shui:propertyRole shui:LabelRole .
+
+_:navAudit a sh:PropertyShape ;
+    sh:path rdfs:seeAlso ;
+    sh:name "Audit"@en ;
+    sh:order 3 ;
+    sh:group _:bottomNavigation ;
+    shui:selector "[data-testid=\"nav-audit\"]" ;
+    shui:role "touch" ;
+    shui:touchTarget true ;
+    shui:viewer shui:HyperlinkViewer ;
+    shui:propertyRole shui:LabelRole .
+
+#################################################################
+# Progressive disclosure property shapes
+#################################################################
+
+# Lawful member on the disclosure root tray (SpatialCourt requires ≥1
+# sh:group member per court subject; nested Summary/Expanded remain children
+# via shui:parentGroup).
+_:disclosureToggle a sh:PropertyShape ;
+    sh:path rdf:value ;
+    sh:name "disclosure toggle"@en ;
+    sh:description "Human control that expands or collapses the progressive-disclosure tray."@en ;
+    sh:datatype xsd:boolean ;
+    sh:maxCount 1 ;
+    sh:order 0 ;
+    sh:group _:disclosureRoot ;
+    shui:selector "[data-testid=\"disclosure-toggle\"]" ;
+    shui:role "touch" ;
+    shui:touchTarget true ;
+    shui:editor shui:BooleanEditor .
+
+_:summaryHeadline a sh:PropertyShape ;
+    sh:path rdfs:label ;
+    sh:name "summary headline"@en ;
+    sh:order 0 ;
+    sh:group _:disclosureSummary ;
+    shui:selector "[data-testid=\"summary-headline\"]" ;
+    shui:viewer shui:LiteralViewer ;
+    shui:propertyRole shui:LabelRole .
+
+_:expandedBody a sh:PropertyShape ;
+    sh:path rdfs:comment ;
+    sh:name "expanded body"@en ;
+    sh:order 0 ;
+    sh:group _:disclosureExpanded ;
+    shui:selector "[data-testid=\"expanded-body\"]" ;
+    shui:viewer shui:LiteralViewer ;
+    shui:propertyRole shui:DescriptionRole .

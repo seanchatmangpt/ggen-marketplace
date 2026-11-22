@@ -1,0 +1,458 @@
+---
+to: "tests/e2e/spatial/spatial_court.spec.ts"
+force: true
+sparql:
+  property_groups: |
+    PREFIX sh:   <http://www.w3.org/ns/shacl#>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    PREFIX shui: <http://www.w3.org/ns/shacl-ui/>
+    SELECT ?group ?label ?order ?role ?editor ?route
+    WHERE {
+      ?group a sh:PropertyGroup .
+      OPTIONAL { ?group rdfs:label ?label }
+      OPTIONAL { ?group sh:order ?order }
+      OPTIONAL { ?group shui:PropertyRole ?role }
+      OPTIONAL { ?group shui:editor ?editor }
+      OPTIONAL { ?group rdfs:seeAlso ?route }
+    }
+    ORDER BY ASC(?order) ASC(?label)
+---
+/**
+ * Playwright Spatial Court — Mobile UI Layout Pack
+ *
+ * Generated from ontology `sh:PropertyGroup` individuals (CCS / Sight Glass /
+ * Human Circuit Breaker surfaces). One court subject per PropertyGroup row.
+ *
+ * Court matrix:
+ *   viewports      UI_LAYOUT_PLAYWRIGHT_VIEWPORTS || UI_LAYOUT_VIEWPORTS
+ *                  (CSV) else TOML SoT 9-wide [320…1280]
+ *                  (AOT Taffy stays 6-wide ⊂ 9-wide — do not collapse)
+ *   overflow       documentElement.scrollWidth <= window.innerWidth
+ *   text-spacing   WCAG 2.2 SC 1.4.12 inject (line/letter/word/paragraph)
+ *   touch          interactive targets ≥ 44×44 CSS px
+ *   Gestalt gaps   live geometry + data-intra-gap/data-inter-gap ratio
+ *                  (adjacent floor ≥ 8px; inter ≥ 2·intra when both set)
+ *
+ * ---------------------------------------------------------------------------
+ * ANTI-VACUITY MUTATION FIXTURES (always-on; self-contained setContent)
+ * ---------------------------------------------------------------------------
+ * Wired below under `Spatial Court — anti-vacuity mutants @spatial-court`.
+ * Each routes through court helpers and must refuse — never silent skip.
+ * CI_MUTATION=0 → LOUD_SKIP (explicit disable). Missing CCS hooks on the
+ * live matrix → LOUD_SKIP (test.skip), never a vacuous PASS.
+ *
+ * 1) 360-in-320 — width:360 in viewport 320 → overflow refuse
+ * 2) 18px button — touch < 44 floor refuse
+ * 3) adjacent gap < 8 — live Gestalt/touch gap floor refuse
+ * 4) Gestalt ratio — inter < 2·intra (data-intra-gap / data-inter-gap) refuse
+ * ---------------------------------------------------------------------------
+ *
+ * Expected ontology bindings (lane 3 pack ontology.ttl / public SHACL-UI):
+ *   ?group  — sh:PropertyGroup IRI
+ *   ?label  — rdfs:label (human name → slug for data-testid)
+ *   ?order  — sh:order
+ *   ?role   — shui:PropertyRole (OPTIONAL)
+ *   ?editor — shui:editor (OPTIONAL)
+ *   ?route  — rdfs:seeAlso court path (OPTIONAL; default "/")
+ *
+ * data-testid hooks (DOM must expose when CCS is crystallized):
+ *   spatial-group-<slug>   — PropertyGroup root
+ *   spatial-touch-<slug>   — primary touch target
+ *   spatial-gap-<slug>     — Gestalt gap sampling nodes
+ */
+
+import { test, expect, type Page } from "@playwright/test";
+
+/** TOML/Playwright SoT 9-wide; adapter spawn may override via UI_LAYOUT_* env CSV. */
+const DEFAULT_VIEWPORTS: readonly number[] = [
+  320, 375, 393, 414, 600, 768, 840, 1024, 1280,
+];
+
+function parseViewportCsv(raw: string | undefined): number[] | null {
+  if (!raw || !String(raw).trim()) return null;
+  const nums = String(raw)
+    .split(",")
+    .map((s) => Number.parseInt(s.trim(), 10))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  return nums.length > 0 ? nums : null;
+}
+
+/** Viewport widths swept by the Spatial Court (device-independent CSS px). */
+const VIEWPORTS: readonly number[] =
+  parseViewportCsv(process.env.UI_LAYOUT_PLAYWRIGHT_VIEWPORTS) ??
+  parseViewportCsv(process.env.UI_LAYOUT_VIEWPORTS) ??
+  DEFAULT_VIEWPORTS;
+
+const TOUCH_FLOOR_PX = 44;
+const GESTALT_GAP_FLOOR_PX = 8;
+
+/** WCAG 2.2 SC 1.4.12 Text Spacing — inject overrides that must not clip/overflow. */
+const TEXT_SPACING_1_4_12 = `
+  * {
+    line-height: 1.5 !important;
+    letter-spacing: 0.12em !important;
+    word-spacing: 0.16em !important;
+  }
+  p {
+    margin-bottom: 2em !important;
+  }
+`;
+
+type CourtSurface = {
+  group: string;
+  label: string;
+  order: string;
+  role: string;
+  editor: string;
+  route: string;
+  slug: string;
+  testId: string;
+  touchTestId: string;
+  gapTestId: string;
+};
+
+function slugify(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    || "unnamed";
+}
+
+/** PropertyGroups projected from SPARQL → court surfaces. */
+const SURFACES: CourtSurface[] = [
+{%- for row in property_groups %}
+  (() => {
+    const label = {{ row.label | default(value="unnamed") | json_encode() }};
+    const slug = slugify(label);
+    return {
+      group: {{ row.group | default(value="") | json_encode() }},
+      label,
+      order: {{ row.order | default(value="") | json_encode() }},
+      role: {{ row.role | default(value="") | json_encode() }},
+      editor: {{ row.editor | default(value="") | json_encode() }},
+      route: {{ row.route | default(value="/") | json_encode() }},
+      slug,
+      testId: `spatial-group-${slug}`,
+      touchTestId: `spatial-touch-${slug}`,
+      gapTestId: `spatial-gap-${slug}`,
+    };
+  })(),
+{%- endfor %}
+];
+
+async function injectTextSpacing(page: Page): Promise<void> {
+  await page.addStyleTag({ content: TEXT_SPACING_1_4_12 });
+}
+
+async function assertNoHorizontalOverflow(page: Page): Promise<void> {
+  const { scrollWidth, innerWidth } = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    innerWidth: window.innerWidth,
+  }));
+  expect(
+    scrollWidth,
+    `horizontal overflow: scrollWidth=${scrollWidth} > innerWidth=${innerWidth}`,
+  ).toBeLessThanOrEqual(innerWidth);
+}
+
+async function assertTouchTargets(page: Page, surface: CourtSurface): Promise<void> {
+  const groupHook = page.getByTestId(surface.testId);
+  if ((await groupHook.count()) === 0) {
+    test.skip(
+      true,
+      `LOUD_SKIP: spatial group subject missing ([data-testid="${surface.testId}"]) — never vacuous PASS`,
+    );
+    return;
+  }
+
+  const locator = page.locator(
+    `[data-testid="${surface.touchTestId}"], [data-testid="${surface.testId}"] button, [data-testid="${surface.testId}"] a, [data-testid="${surface.testId}"] [role="button"]`,
+  );
+  const count = await locator.count();
+  if (count === 0) {
+    test.skip(
+      true,
+      `LOUD_SKIP: no interactive touch subjects under ${surface.testId} — never vacuous PASS`,
+    );
+    return;
+  }
+
+  for (let i = 0; i < count; i += 1) {
+    const box = await locator.nth(i).boundingBox();
+    if (!box) continue;
+    expect(
+      box.width,
+      `touch width < ${TOUCH_FLOOR_PX}px for ${surface.touchTestId}[${i}]`,
+    ).toBeGreaterThanOrEqual(TOUCH_FLOOR_PX);
+    expect(
+      box.height,
+      `touch height < ${TOUCH_FLOOR_PX}px for ${surface.touchTestId}[${i}]`,
+    ).toBeGreaterThanOrEqual(TOUCH_FLOOR_PX);
+  }
+}
+
+type GapBox = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  right: number;
+  bottom: number;
+};
+
+/** Edge-to-edge gap (0 if overlapping) — mirrors zcode-cli ui-layout-court. */
+function edgeGapPx(a: GapBox, b: GapBox): number {
+  const dx = Math.max(0, Math.max(a.x - b.right, b.x - a.right));
+  const dy = Math.max(0, Math.max(a.y - b.bottom, b.y - a.bottom));
+  if (dx === 0 && dy === 0) return 0;
+  if (dx === 0) return dy;
+  if (dy === 0) return dx;
+  return Math.hypot(dx, dy);
+}
+
+/**
+ * Live Gestalt court: adjacent gap floor ≥ 8px + inter ≥ 2·intra when
+ * `data-intra-gap` / `data-inter-gap` are present on the PropertyGroup root.
+ * Missing CCS DOM → LOUD_SKIP (never silent return / vacuous PASS).
+ * Stamps data-spatial-gestalt-* = "live" (never "stub").
+ */
+async function assertGestaltGaps(page: Page, surface: CourtSurface): Promise<void> {
+  const gapHook = page.getByTestId(surface.gapTestId);
+  const groupHook = page.getByTestId(surface.testId);
+
+  if ((await groupHook.count()) === 0) {
+    test.skip(
+      true,
+      `LOUD_SKIP: spatial group subject missing ([data-testid="${surface.testId}"]) — never vacuous PASS`,
+    );
+    return;
+  }
+
+  const boxes = await gapHook.evaluateAll((nodes) =>
+    nodes.map((n) => {
+      const r = (n as HTMLElement).getBoundingClientRect();
+      return { x: r.x, y: r.y, width: r.width, height: r.height, right: r.right, bottom: r.bottom };
+    }),
+  );
+
+  const ratioMeta = await groupHook.evaluate((el) => {
+    const intra = el.getAttribute("data-intra-gap");
+    const inter = el.getAttribute("data-inter-gap");
+    return { intra, inter };
+  });
+  const hasRatioMeta = ratioMeta.intra != null && ratioMeta.inter != null;
+
+  if (boxes.length < 2 && !hasRatioMeta) {
+    test.skip(
+      true,
+      `LOUD_SKIP: Gestalt gap subjects < 2 ([data-testid="${surface.gapTestId}"], count=${boxes.length}) and no data-intra/inter-gap — never vacuous PASS`,
+    );
+    return;
+  }
+
+  let minObservedGap = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < boxes.length; i += 1) {
+    for (let j = i + 1; j < boxes.length; j += 1) {
+      const gap = edgeGapPx(boxes[i]!, boxes[j]!);
+      minObservedGap = Math.min(minObservedGap, gap);
+      expect(
+        gap,
+        `Gestalt proximity gap ${gap.toFixed(1)}px < ${GESTALT_GAP_FLOOR_PX}px between ${surface.gapTestId}[${i}] and [${j}]`,
+      ).toBeGreaterThanOrEqual(GESTALT_GAP_FLOOR_PX);
+    }
+  }
+
+  if (hasRatioMeta) {
+    const intraPx = Number(ratioMeta.intra);
+    const interPx = Number(ratioMeta.inter);
+    expect(Number.isFinite(intraPx) && intraPx > 0).toBe(true);
+    expect(Number.isFinite(interPx)).toBe(true);
+    expect(
+      interPx,
+      `Gestalt proximity violated (inter=${interPx} < 2·intra=${2 * intraPx})`,
+    ).toBeGreaterThanOrEqual(2 * intraPx);
+  }
+
+  await page.evaluate(
+    (payload) => {
+      const root = document.querySelector(`[data-testid="${payload.testId}"]`);
+      if (!root) return;
+      root.setAttribute("data-spatial-gestalt-proximity", "live");
+      root.setAttribute("data-spatial-gestalt-similarity", "live");
+      root.setAttribute("data-spatial-gestalt-continuity", "live");
+      if (Number.isFinite(payload.minGap)) {
+        root.setAttribute("data-spatial-gestalt-min-gap", String(payload.minGap));
+      }
+      if (payload.intra != null && payload.inter != null) {
+        root.setAttribute("data-spatial-gestalt-intra", payload.intra);
+        root.setAttribute("data-spatial-gestalt-inter", payload.inter);
+      }
+    },
+    {
+      testId: surface.testId,
+      minGap: Number.isFinite(minObservedGap) ? minObservedGap : null,
+      intra: ratioMeta.intra,
+      inter: ratioMeta.inter,
+    },
+  );
+}
+
+test.describe("Spatial Court — PropertyGroup viewport matrix @spatial-court", () => {
+  test.beforeEach(() => {
+    test.skip(
+      SURFACES.length === 0,
+      "LOUD_SKIP: No sh:PropertyGroup individuals in graph — SUBJECT_MISSING until pack ontology lands",
+    );
+  });
+
+  for (const surface of SURFACES) {
+    for (const width of VIEWPORTS) {
+      test(`${surface.label || surface.group} @ ${width}px — overflow + 1.4.12 + touch + live Gestalt`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: Math.round(width * 1.8) });
+        await page.goto(surface.route || "/", { waitUntil: "domcontentloaded" });
+        await injectTextSpacing(page);
+        await assertNoHorizontalOverflow(page);
+        await assertTouchTargets(page, surface);
+        await assertGestaltGaps(page, surface);
+      });
+    }
+  }
+});
+
+/**
+ * Anti-vacuity mutants — always-on, self-contained `setContent` fixtures.
+ * Prove the court helpers can FAIL; a PASS under these fixtures is vacuous refuse-ALIVE.
+ * CI_MUTATION=0 → LOUD_SKIP (explicit disable only); unset / any other value → live.
+ * Do not delete this block when regenerating.
+ */
+test.describe("Spatial Court — anti-vacuity mutants @spatial-court", () => {
+  test.beforeEach(() => {
+    test.skip(
+      process.env.CI_MUTATION === "0",
+      "LOUD_SKIP: CI_MUTATION=0 — anti-vacuity refuse witnesses explicitly disabled",
+    );
+  });
+
+  test("ANTI-VACUITY: 360-in-320 must FAIL overflow", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+    await page.setContent(
+      '<div style="width:360px;height:40px" data-testid="vacuity-360">x</div>',
+    );
+    let refused = false;
+    try {
+      await assertNoHorizontalOverflow(page);
+    } catch {
+      refused = true;
+    }
+    expect(
+      refused,
+      "360-in-320 must refuse overflow via assertNoHorizontalOverflow — vacuous if PASSes",
+    ).toBe(true);
+  });
+
+  test("ANTI-VACUITY: 18px button must FAIL touch floor", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.setContent(`
+      <div data-testid="spatial-group-vacuity">
+        <button data-testid="spatial-touch-mutation" style="width:18px;height:18px;padding:0">x</button>
+      </div>
+    `);
+    const mutantSurface: CourtSurface = {
+      group: "vacuity",
+      label: "Vacuity",
+      order: "0",
+      role: "",
+      editor: "",
+      route: "/",
+      slug: "vacuity",
+      testId: "spatial-group-vacuity",
+      touchTestId: "spatial-touch-mutation",
+      gapTestId: "spatial-gap-vacuity",
+    };
+    let refused = false;
+    try {
+      await assertTouchTargets(page, mutantSurface);
+    } catch {
+      refused = true;
+    }
+    expect(
+      refused,
+      "18px button must refuse touch floor via assertTouchTargets — vacuous if PASSes",
+    ).toBe(true);
+  });
+
+  test("ANTI-VACUITY: adjacent gap < 8px must FAIL Gestalt floor", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.setContent(`
+      <div data-testid="spatial-group-vacuity" style="display:flex;gap:4px;padding:8px">
+        <button data-testid="spatial-gap-vacuity" style="width:48px;height:48px;padding:0">a</button>
+        <button data-testid="spatial-gap-vacuity" style="width:48px;height:48px;padding:0">b</button>
+      </div>
+    `);
+    const mutantSurface: CourtSurface = {
+      group: "vacuity",
+      label: "Vacuity",
+      order: "0",
+      role: "",
+      editor: "",
+      route: "/",
+      slug: "vacuity",
+      testId: "spatial-group-vacuity",
+      touchTestId: "spatial-touch-vacuity",
+      gapTestId: "spatial-gap-vacuity",
+    };
+    let refused = false;
+    try {
+      await assertGestaltGaps(page, mutantSurface);
+    } catch {
+      refused = true;
+    }
+    expect(
+      refused,
+      "adjacent gap < 8px must refuse via assertGestaltGaps — vacuous if PASSes",
+    ).toBe(true);
+  });
+
+  test("ANTI-VACUITY: Gestalt inter < 2·intra must FAIL proximity ratio", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    // intra=8, inter=12 → 12 < 2·8=16 (same ratio breach as zcode fixtureGestaltRatioBreach)
+    // Gap nodes stay ≥8px apart so only the ratio path refuses.
+    await page.setContent(`
+      <div data-testid="spatial-group-vacuity"
+           data-intra-gap="8"
+           data-inter-gap="12"
+           style="padding:8px">
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <button data-testid="spatial-gap-vacuity" style="width:48px;height:48px;padding:0">nav-a</button>
+          <button data-testid="spatial-gap-vacuity" style="width:48px;height:48px;padding:0">nav-b</button>
+        </div>
+        <div data-testid="spatial-gap-vacuity" style="width:200px;height:80px">panel</div>
+      </div>
+    `);
+    const mutantSurface: CourtSurface = {
+      group: "vacuity",
+      label: "Vacuity",
+      order: "0",
+      role: "",
+      editor: "",
+      route: "/",
+      slug: "vacuity",
+      testId: "spatial-group-vacuity",
+      touchTestId: "spatial-touch-vacuity",
+      gapTestId: "spatial-gap-vacuity",
+    };
+    let refused = false;
+    try {
+      await assertGestaltGaps(page, mutantSurface);
+    } catch {
+      refused = true;
+    }
+    expect(
+      refused,
+      "Gestalt inter < 2·intra must refuse via assertGestaltGaps — vacuous if PASSes",
+    ).toBe(true);
+  });
+});
