@@ -68,8 +68,9 @@ default templates.
 - `030_rls_requires_policy.rq` — `hasRLS = true` requires at least one `sb:Policy`.
 - `040_project_ref_shape.rq` — `sb:Project.projectRef` must match a real Supabase ref shape.
 
-Verification practice: run `ggen sync run --dry-run` twice; the second run must report zero
-pending writes.
+Verification practice (Jobs/C4): `mix ggen_igniter.sync --check` — exit 0 clean, exit 4
+drift. Do not treat `git diff --exit-code` or empty dry-run `planned_writes` as the sole
+drift gate.
 
 ## Consumer Contract
 

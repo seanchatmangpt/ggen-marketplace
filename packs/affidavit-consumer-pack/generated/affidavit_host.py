@@ -13,7 +13,7 @@ from wasmtime import Engine, Linker, Module, Store, WasiConfig
 
 ABI_VERSION = 1
 MAX_REQUEST_BYTES = 16777216
-OPS = ("capabilities", "commit", "assemble", "verify", "mine", "conform", "verify_signature_input", "certify_authzen_evidence", "certify_spiffe_evidence",)
+OPS = ("capabilities", "commit", "assemble", "verify", "mine", "conform", "verify_signature_input", "certify_authzen_evidence", "certify_spiffe_evidence", "jcs_canonicalize", "smt_absence_verify", "range_proof_verify", "derive_subject_digest", "verify_signature",)
 
 
 class AffidavitRefusal(Exception):
@@ -24,7 +24,8 @@ class AffidavitRefusal(Exception):
 
 class AffidavitHost:
     def __init__(self, wasm_path: str, sha256: str | None = None):
-        data = open(wasm_path, "rb").read()
+        with open(wasm_path, "rb") as fh:
+            data = fh.read()
         if sha256 is not None:
             actual = hashlib.sha256(data).hexdigest()
             if actual != sha256:

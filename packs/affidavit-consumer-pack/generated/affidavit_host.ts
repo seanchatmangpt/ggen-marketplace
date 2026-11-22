@@ -7,7 +7,7 @@ import { WASI } from "node:wasi";
 
 export const ABI_VERSION = 1;
 export const MAX_REQUEST_BYTES = 16777216;
-export const OPS = ["capabilities", "commit", "assemble", "verify", "mine", "conform", "verify_signature_input", "certify_authzen_evidence", "certify_spiffe_evidence"] as const;
+export const OPS = ["capabilities", "commit", "assemble", "verify", "mine", "conform", "verify_signature_input", "certify_authzen_evidence", "certify_spiffe_evidence", "jcs_canonicalize", "smt_absence_verify", "range_proof_verify", "derive_subject_digest", "verify_signature"] as const;
 export type OpName = (typeof OPS)[number];
 
 export class AffidavitRefusal extends Error {
